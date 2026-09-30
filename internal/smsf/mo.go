@@ -116,7 +116,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		return reject(sms.RPCauseNetworkOutOfOrder, nil, "SMS settings unavailable", err)
 	}
 
-	if !settings.Enabled() {
+	if !settings.Enabled {
 		return reject(sms.RPCauseRequestedFacilityNotImplemented, nil, "SMS is disabled", nil)
 	}
 
@@ -129,12 +129,12 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		return reject(sms.RPCauseRequestedFacilityNotSubscribed, nil, "subscriber has no MSISDN", nil)
 	}
 
-	smsc, err := s.smsc()
+	envelope, err := s.smsc.Envelope()
 	if err != nil {
 		return reject(sms.RPCauseNetworkOutOfOrder, nil, "SMSC not connected", err)
 	}
 
-	req, err := sgd.NewMOForwardShortMessageRequest(smsc.envelope(), sgd.MOForwardShortMessage{
+	req, err := sgd.NewMOForwardShortMessageRequest(envelope, sgd.MOForwardShortMessage{
 		ServiceCentreAddress: m.Destination.Digits,
 		User:                 tgpp.UserIdentifier{IMSI: imsi, MSISDN: sub.Msisdn},
 		SMRPUI:               m.UserData,
@@ -146,7 +146,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	ctx, cancel := context.WithTimeout(ctx, s.timers.TR2N)
 	defer cancel()
 
-	ans, err := smsc.node.Do(ctx, PeerRoleSMSC, req)
+	ans, err := s.smsc.Do(ctx, req)
 	if err != nil {
 		return reject(sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
 	}

@@ -11,7 +11,6 @@ import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import {
   msisdnSchema,
-  normalizeMSISDN,
   type EditSubscriberFields,
 } from "@/components/subscriberIdentity";
 
@@ -49,7 +48,7 @@ const EditSubscriberMSISDNModal: React.FC<EditSubscriberMSISDNModalProps> = ({
       initialData.imsi,
       initialData.profileName,
       initialData.description,
-      normalizeMSISDN(values.msisdn),
+      values.msisdn.trim(),
     );
   };
 

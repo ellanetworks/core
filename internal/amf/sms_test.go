@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -31,9 +32,9 @@ type fakeSMSHandler struct {
 	held      chan struct{}
 }
 
-func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) {
+func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[string]bool, error) {
 	h.mu.Lock()
-	allowed, err, hold, held := h.allowed, h.err, h.hold, h.held
+	ok, err, hold, held := h.allowed, h.err, h.hold, h.held
 	h.mu.Unlock()
 
 	if hold != nil {
@@ -41,20 +42,13 @@ func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) {
 		<-hold
 	}
 
-	return allowed, err
-}
-
-func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[string]bool, error) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if h.err != nil {
-		return nil, h.err
+	if err != nil {
+		return nil, err
 	}
 
 	allowed := make(map[string]bool, len(imsis))
 	for _, imsi := range imsis {
-		allowed[imsi] = h.allowed
+		allowed[imsi] = ok
 	}
 
 	return allowed, nil
@@ -89,8 +83,6 @@ func (h *fakeSMSHandler) UEReachable(_ context.Context, imsi string) {
 
 	h.reachable = append(h.reachable, imsi)
 }
-
-func (h *fakeSMSHandler) DeliveryFailed(string) {}
 
 func (h *fakeSMSHandler) TransactionPending(string) bool {
 	h.mu.Lock()
@@ -215,21 +207,21 @@ func TestRegistrationAcceptIndicatesWhetherSMSOverNASIsAllowed(t *testing.T) {
 func TestReachabilityForSMSIsRefusedForAUEThatCannotReceiveIt(t *testing.T) {
 	a, _, _ := newSMSTestAMF(t)
 
-	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139999"); !errors.Is(err, amf.ErrSMSUENotRegistered) {
-		t.Fatalf("unknown UE: err = %v, want %v", err, amf.ErrSMSUENotRegistered)
+	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139999"); !errors.Is(err, smsf.ErrNotRegisteredForSMS) {
+		t.Fatalf("unknown UE: err = %v, want %v", err, smsf.ErrNotRegisteredForSMS)
 	}
 
 	ue := newIdleSMSUE(t, a)
 	a.GrantSMSOverNAS(t.Context(), ue, false)
 
-	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139901"); !errors.Is(err, amf.ErrSMSNotAllowed) {
-		t.Fatalf("UE without SMS over NAS: err = %v, want %v", err, amf.ErrSMSNotAllowed)
+	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139901"); !errors.Is(err, smsf.ErrNotRegisteredForSMS) {
+		t.Fatalf("UE without SMS over NAS: err = %v, want %v", err, smsf.ErrNotRegisteredForSMS)
 	}
 
 	ue.ForceStateForTest(amf.Deregistered)
 
-	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139901"); !errors.Is(err, amf.ErrSMSUENotRegistered) {
-		t.Fatalf("deregistered UE: err = %v, want %v", err, amf.ErrSMSUENotRegistered)
+	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139901"); !errors.Is(err, smsf.ErrNotRegisteredForSMS) {
+		t.Fatalf("deregistered UE: err = %v, want %v", err, smsf.ErrNotRegisteredForSMS)
 	}
 }
 
@@ -290,8 +282,8 @@ func TestAnUnansweredPageMakesTheUEUnreachableForSMS(t *testing.T) {
 	a.T3513Cfg = guard.TimerValue{Enable: true, ExpireTime: 20 * time.Millisecond, MaxRetryTimes: 1}
 	newIdleSMSUE(t, a)
 
-	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139901"); !errors.Is(err, amf.ErrSMSUEUnreachable) {
-		t.Fatalf("err = %v, want %v", err, amf.ErrSMSUEUnreachable)
+	if err := a.EnableUEReachabilityForSMS(t.Context(), "001019756139901"); !errors.Is(err, smsf.ErrUnreachable) {
+		t.Fatalf("err = %v, want %v", err, smsf.ErrUnreachable)
 	}
 }
 
@@ -314,8 +306,8 @@ func TestSMSIsSentOnlyOverAnExistingConnection(t *testing.T) {
 	a, _, sender := newSMSTestAMF(t)
 	ue := newIdleSMSUE(t, a)
 
-	if err := a.SendSMS(t.Context(), "001019756139901", []byte{0x09, 0x04}); !errors.Is(err, amf.ErrSMSUEUnreachable) {
-		t.Fatalf("idle UE: err = %v, want %v", err, amf.ErrSMSUEUnreachable)
+	if err := a.SendSMS(t.Context(), "001019756139901", []byte{0x09, 0x04}); !errors.Is(err, smsf.ErrUnreachable) {
+		t.Fatalf("idle UE: err = %v, want %v", err, smsf.ErrUnreachable)
 	}
 
 	if sender.pagingCalls != 0 {
@@ -448,8 +440,8 @@ func TestReachabilityForSMSEndsWhenTheRegistrationIsAbandoned(t *testing.T) {
 
 	select {
 	case err := <-done:
-		if !errors.Is(err, amf.ErrSMSUENotRegistered) {
-			t.Fatalf("err = %v, want %v", err, amf.ErrSMSUENotRegistered)
+		if !errors.Is(err, smsf.ErrNotRegisteredForSMS) {
+			t.Fatalf("err = %v, want %v", err, smsf.ErrNotRegisteredForSMS)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("reachability still waiting after the UE deregistered")
@@ -519,10 +511,18 @@ func TestARevocationDuringARegistrationWins(t *testing.T) {
 	handler.allowed, handler.hold = false, nil
 	handler.mu.Unlock()
 
-	a.ReevaluateSMS(t.Context())
-	close(release)
+	reevaluated := make(chan struct{})
 
-	if <-granted || ue.SMSOverNAS() {
+	go func() {
+		a.ReevaluateSMS(t.Context())
+		close(reevaluated)
+	}()
+
+	close(release)
+	<-granted
+	<-reevaluated
+
+	if ue.SMSOverNAS() {
 		t.Fatal("a registration that read the old configuration restored the revoked grant")
 	}
 }
@@ -674,10 +674,18 @@ func TestARevocationDuringARegistrationInProgressWins(t *testing.T) {
 	handler.allowed, handler.hold = false, nil
 	handler.mu.Unlock()
 
-	a.ReevaluateSMS(t.Context())
-	close(release)
+	reevaluated := make(chan struct{})
 
-	if <-granted || ue.SMSOverNAS() {
+	go func() {
+		a.ReevaluateSMS(t.Context())
+		close(reevaluated)
+	}()
+
+	close(release)
+	<-granted
+	<-reevaluated
+
+	if ue.SMSOverNAS() {
 		t.Fatal("a registration in progress that read the old configuration was granted SMS over NAS")
 	}
 }
@@ -698,10 +706,20 @@ func TestAnUnrelatedReevaluationDuringARegistrationKeepsTheGrant(t *testing.T) {
 	handler.hold = nil
 	handler.mu.Unlock()
 
-	a.ReevaluateSMS(t.Context())
+	reevaluated := make(chan struct{})
+
+	go func() {
+		a.ReevaluateSMS(t.Context())
+		close(reevaluated)
+	}()
+
 	close(release)
 
-	if !<-granted || !ue.SMSOverNAS() {
+	ok := <-granted
+
+	<-reevaluated
+
+	if !ok || !ue.SMSOverNAS() {
 		t.Fatal("a re-evaluation that changed nothing withdrew SMS over NAS from a registration in progress")
 	}
 }

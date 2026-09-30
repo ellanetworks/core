@@ -28,7 +28,7 @@ func TestSMSSettingsDefaultsToDisabled(t *testing.T) {
 		t.Fatalf("settings = %+v, want %+v", *settings, db.DefaultSMSSettings())
 	}
 
-	if settings.Enabled() {
+	if settings.Enabled {
 		t.Fatal("SMS enabled on a fresh database")
 	}
 }
@@ -43,7 +43,7 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 
 	defer func() { _ = database.Close() }()
 
-	want := db.SMSSettings{SMSCAddress: "10.0.0.5", SMSCPort: 3869, SMSNumber: "15550001111"}
+	want := db.SMSSettings{Enabled: true, SMSCAddress: "10.0.0.5", SMSCPort: 3869, SMSNumber: "15550001111"}
 
 	if err := database.UpdateSMSSettings(ctx, &want); err != nil {
 		t.Fatalf("UpdateSMSSettings: %s", err)
@@ -54,11 +54,12 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 		t.Fatalf("GetSMSSettings: %s", err)
 	}
 
-	if *got != want || !got.Enabled() {
+	if *got != want {
 		t.Fatalf("settings = %+v, want %+v enabled", *got, want)
 	}
 
-	disabled := db.SMSSettings{SMSCPort: db.DefaultSMSCPort, SMSNumber: "15550001111"}
+	disabled := want
+	disabled.Enabled = false
 
 	if err := database.UpdateSMSSettings(ctx, &disabled); err != nil {
 		t.Fatalf("UpdateSMSSettings disabling: %s", err)
@@ -69,8 +70,8 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 		t.Fatalf("GetSMSSettings: %s", err)
 	}
 
-	if *got != disabled || got.Enabled() {
-		t.Fatalf("settings = %+v, want %+v disabled", *got, disabled)
+	if *got != disabled {
+		t.Fatalf("settings = %+v, want %+v disabled with its settings kept", *got, disabled)
 	}
 }
 
@@ -81,15 +82,18 @@ func TestSMSSettingsValidate(t *testing.T) {
 		valid    bool
 	}{
 		{"disabled", db.DefaultSMSSettings(), true},
-		{"ipv4", db.SMSSettings{SMSCAddress: "192.0.2.1", SMSCPort: 3868, SMSNumber: "15550001111"}, true},
-		{"ipv6", db.SMSSettings{SMSCAddress: "2001:db8::1", SMSCPort: 3868, SMSNumber: "15550001111"}, true},
-		{"hostname", db.SMSSettings{SMSCAddress: "smsc.example.org", SMSCPort: 3868, SMSNumber: "15550001111"}, false},
-		{"unspecified", db.SMSSettings{SMSCAddress: "0.0.0.0", SMSCPort: 3868, SMSNumber: "15550001111"}, false},
-		{"zone", db.SMSSettings{SMSCAddress: "fe80::1%eth0", SMSCPort: 3868, SMSNumber: "15550001111"}, false},
-		{"port zero", db.SMSSettings{SMSCAddress: "192.0.2.1", SMSCPort: 0, SMSNumber: "15550001111"}, false},
-		{"port too high", db.SMSSettings{SMSCAddress: "192.0.2.1", SMSCPort: 65536, SMSNumber: "15550001111"}, false},
-		{"missing number", db.SMSSettings{SMSCAddress: "192.0.2.1", SMSCPort: 3868}, false},
-		{"plus sign", db.SMSSettings{SMSCAddress: "192.0.2.1", SMSCPort: 3868, SMSNumber: "+15550001111"}, false},
+		{"ipv4", db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.1", SMSCPort: 3868, SMSNumber: "15550001111"}, true},
+		{"ipv6", db.SMSSettings{Enabled: true, SMSCAddress: "2001:db8::1", SMSCPort: 3868, SMSNumber: "15550001111"}, true},
+		{"hostname", db.SMSSettings{Enabled: true, SMSCAddress: "smsc.example.org", SMSCPort: 3868, SMSNumber: "15550001111"}, false},
+		{"unspecified", db.SMSSettings{Enabled: true, SMSCAddress: "0.0.0.0", SMSCPort: 3868, SMSNumber: "15550001111"}, false},
+		{"zone", db.SMSSettings{Enabled: true, SMSCAddress: "fe80::1%eth0", SMSCPort: 3868, SMSNumber: "15550001111"}, false},
+		{"port zero", db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.1", SMSCPort: 0, SMSNumber: "15550001111"}, false},
+		{"port too high", db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.1", SMSCPort: 65536, SMSNumber: "15550001111"}, false},
+		{"enabled without a number", db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.1", SMSCPort: 3868}, false},
+		{"enabled without an address", db.SMSSettings{Enabled: true, SMSCPort: 3868, SMSNumber: "15550001111"}, false},
+		{"plus sign", db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.1", SMSCPort: 3868, SMSNumber: "+15550001111"}, false},
+		{"disabled without a number", db.SMSSettings{SMSCAddress: "192.0.2.1", SMSCPort: 3868}, true},
+		{"disabled with an invalid address", db.SMSSettings{SMSCAddress: "smsc.example.org", SMSCPort: 3868}, false},
 	}
 
 	for _, tc := range cases {

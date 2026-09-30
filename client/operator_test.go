@@ -378,6 +378,7 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 	clientObj := &client.Client{Requester: fake}
 
 	err := clientObj.UpdateOperatorSMS(context.Background(), &client.UpdateOperatorSMSOptions{
+		Enabled:     true,
 		SMSCAddress: "192.0.2.10",
 		SMSCPort:    3869,
 		SMSNumber:   "+15550001111",
@@ -395,7 +396,7 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 		t.Fatalf("decode body: %v", err)
 	}
 
-	if payload["smscAddress"] != "192.0.2.10" || payload["smscPort"] != float64(3869) || payload["smsNumber"] != "+15550001111" {
+	if payload["enabled"] != true || payload["smscAddress"] != "192.0.2.10" || payload["smscPort"] != float64(3869) || payload["smsNumber"] != "+15550001111" {
 		t.Fatalf("unexpected payload %v", payload)
 	}
 }

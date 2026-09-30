@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -132,18 +133,14 @@ type UeContext struct {
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 
-	smsOnly         atomic.Bool
-	smsDetach       atomic.Uint32
-	smsDetachAborts atomic.Uint32
-	smsMu           sync.Mutex
-	smsGeneration   uint64
+	smsOnly atomic.Bool
 
 	lastSeen atomic.Int64
 
 	registrationVersion atomic.Int64
 
 	session  epsSessionManager
-	sms      SMSHandler
+	sms      smsf.Handler
 	Pdns     map[uint8]*PdnConnection
 	Ambr     *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	tmsi     etsi.TMSI
@@ -546,7 +543,7 @@ func (m *MME) NewUeConn(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeConn {
 		return nil
 	}
 
-	c := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(id), released: make(chan struct{})}
+	c := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(id)}
 	c.setENBUES1APID(enbUEID)
 	c.setConn(conn)
 	c.bindLogFields(m.nodeLogFieldsLocked(conn))
@@ -719,14 +716,6 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 		return nil
 	}
 
-	if old.released != nil {
-		select {
-		case <-old.released:
-		default:
-			close(old.released)
-		}
-	}
-
 	// Abort any in-flight handover so its supervision does not outlive ue.active and
 	// fire on a detached connection.
 	m.clearHandoverLocked(ue)
@@ -759,8 +748,6 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 }
 
 func (m *MME) freeUeConnLocked(ue *UeContext) {
-	ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachPending)
-
 	if old := m.detachConnLocked(ue); old != nil {
 		m.releaseConnIDLocked(uint32(old.MMEUES1APID))
 	}

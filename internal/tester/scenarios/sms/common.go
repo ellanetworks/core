@@ -43,7 +43,6 @@ type phone interface {
 
 type withdrawalPhone interface {
 	phone
-	AwaitWithdrawal(timeout time.Duration) error
 	UpdateRegistration() (smsGranted bool, err error)
 	AwaitAvailable(timeout time.Duration) error
 	RegainSMS() error

@@ -81,6 +81,7 @@ func TestIntegrationHASMS(t *testing.T) {
 	fx.Policy(fixture.DefaultPolicySpec())
 
 	if err := haClient.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{
+		Enabled:     true,
 		SMSCAddress: haSMSSMSCAddress,
 		SMSCPort:    smscDiameterPort,
 		SMSNumber:   smsNumber,

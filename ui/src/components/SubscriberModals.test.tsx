@@ -199,6 +199,31 @@ describe("CreateSubscriberModal", () => {
     });
   });
 
+  it("reports an MSISDN already assigned to another subscriber", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.post(SUBSCRIBERS, () =>
+      httpError(409, "MSISDN is already assigned to another subscriber"),
+    );
+    const { onClose } = renderCreate();
+    await screen.findByText("00101");
+
+    await user.type(field(/IMSI/), "0123456789");
+    const generates = within(dialog()).getAllByRole("button", {
+      name: "Generate",
+    });
+    await user.click(generates[1]);
+    await user.type(textbox(/MSISDN/), "+15551230001");
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await screen.findByText(
+      /Failed to create subscriber: .*MSISDN is already assigned to another subscriber/,
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("rejects a description longer than the API accepts", async () => {
     const user = userEvent.setup();
     seed();
@@ -441,6 +466,22 @@ describe("EditSubscriberMSISDNModal", () => {
       description: "Warehouse gate reader",
       msisdn: "",
     });
+  });
+
+  it("reports an MSISDN already assigned to another subscriber", async () => {
+    const user = userEvent.setup();
+    api.put(`${SUBSCRIBERS}/:imsi`, () =>
+      httpError(409, "MSISDN is already assigned to another subscriber"),
+    );
+    const { onClose } = renderMSISDN();
+
+    await user.type(textbox(/MSISDN/), "+15551230002");
+    await user.click(button(/^Update$/));
+
+    await screen.findByText(
+      /Failed to update subscriber: .*MSISDN is already assigned to another subscriber/,
+    );
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("rejects a number that is not E.164", async () => {

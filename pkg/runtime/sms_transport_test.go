@@ -5,13 +5,7 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"testing"
-
-	"github.com/ellanetworks/core/diameter/tgpp"
-	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/smsf"
 )
 
 type fakeSMSCore struct {
@@ -80,47 +74,5 @@ func TestSMSTransportSettlesSignallingOnBothCores(t *testing.T) {
 
 	if fiveGS.settled != 1 || eps.settled != 1 {
 		t.Fatalf("settled 5GS %d, EPS %d times, want once each", fiveGS.settled, eps.settled)
-	}
-}
-
-func TestSMSTransportMapsCoreErrorsToSMSFOutcomes(t *testing.T) {
-	cases := []struct {
-		name  string
-		err   error
-		check func(error) bool
-	}{
-		{
-			name:  "no UE context",
-			err:   amf.ErrSMSUENotRegistered,
-			check: func(err error) bool { return errors.Is(err, smsf.ErrUserUnknown) },
-		},
-		{
-			name:  "not registered for SMS",
-			err:   mme.ErrSMSNotAllowed,
-			check: func(err error) bool { return errors.Is(err, smsf.ErrNotRegisteredForSMS) },
-		},
-		{
-			name: "no paging response",
-			err:  mme.ErrSMSUEUnreachable,
-			check: func(err error) bool {
-				var absent *smsf.AbsentError
-				return errors.As(err, &absent) && absent.Diagnostic == tgpp.AbsentUserNoPagingResponseMSC
-			},
-		},
-		{
-			name:  "deadline",
-			err:   context.DeadlineExceeded,
-			check: func(err error) bool { return errors.Is(err, context.DeadlineExceeded) },
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			transport := &smsTransport{cores: []smsCore{&fakeSMSCore{granted: true, err: tc.err}}}
-
-			if err := transport.EnableUEReachability(context.Background(), "001010000000001"); !tc.check(err) {
-				t.Fatalf("err = %v", err)
-			}
-		})
 	}
 }

@@ -24,8 +24,6 @@ type fakeSMSHandler struct {
 	pending bool
 }
 
-func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) { return true, nil }
-
 func (h *fakeSMSHandler) Uplink(_ context.Context, _ string, payload []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -43,8 +41,6 @@ func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[str
 
 	return allowed, nil
 }
-
-func (h *fakeSMSHandler) DeliveryFailed(string) {}
 
 func (h *fakeSMSHandler) TransactionPending(string) bool {
 	h.mu.Lock()

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -27,20 +27,6 @@ type fakeSMSHandler struct {
 	held    chan struct{}
 }
 
-func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) {
-	h.mu.Lock()
-	allowed, hold, held := !h.denied, h.hold, h.held
-	h.hold, h.held = nil, nil
-	h.mu.Unlock()
-
-	if hold != nil {
-		close(held)
-		<-hold
-	}
-
-	return allowed, nil
-}
-
 func (h *fakeSMSHandler) Uplink(context.Context, string, []byte) {}
 
 func (h *fakeSMSHandler) UEReachable(_ context.Context, imsi string) {
@@ -49,17 +35,22 @@ func (h *fakeSMSHandler) UEReachable(_ context.Context, imsi string) {
 
 func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[string]bool, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	ok, hold, held := !h.denied, h.hold, h.held
+	h.hold, h.held = nil, nil
+	h.mu.Unlock()
+
+	if hold != nil {
+		close(held)
+		<-hold
+	}
 
 	allowed := make(map[string]bool, len(imsis))
 	for _, imsi := range imsis {
-		allowed[imsi] = !h.denied
+		allowed[imsi] = ok
 	}
 
 	return allowed, nil
 }
-
-func (h *fakeSMSHandler) DeliveryFailed(string) {}
 
 func (h *fakeSMSHandler) TransactionPending(string) bool {
 	h.mu.Lock()
@@ -148,14 +139,14 @@ func TestSMSIsSentOverTheUEsConnection(t *testing.T) {
 func TestSMSIsRefusedForAUEThatCannotReceiveIt(t *testing.T) {
 	m, _, _ := smsTestMME(t)
 
-	if err := m.EnableUEReachabilityForSMS(t.Context(), "001010000000999"); !errors.Is(err, ErrSMSUENotRegistered) {
-		t.Fatalf("unknown UE: err = %v, want %v", err, ErrSMSUENotRegistered)
+	if err := m.EnableUEReachabilityForSMS(t.Context(), "001010000000999"); !errors.Is(err, smsf.ErrNotRegisteredForSMS) {
+		t.Fatalf("unknown UE: err = %v, want %v", err, smsf.ErrNotRegisteredForSMS)
 	}
 
 	ue, _ := securedUE(t, m)
 
-	if err := m.SendSMS(t.Context(), ue.imsiOrEmpty(), []byte{0x09}); !errors.Is(err, ErrSMSNotAllowed) {
-		t.Fatalf("UE without SMS: err = %v, want %v", err, ErrSMSNotAllowed)
+	if err := m.SendSMS(t.Context(), ue.imsiOrEmpty(), []byte{0x09}); !errors.Is(err, smsf.ErrNotRegisteredForSMS) {
+		t.Fatalf("UE without SMS: err = %v, want %v", err, smsf.ErrNotRegisteredForSMS)
 	}
 }
 
@@ -164,8 +155,8 @@ func TestSMSIsNotSentToAnIdleUEWithoutPagingIt(t *testing.T) {
 	ue := idleRegisteredUE(t, m)
 	grantSMS(t, m, ue)
 
-	if err := m.SendSMS(t.Context(), ue.imsiOrEmpty(), []byte{0x09}); !errors.Is(err, ErrSMSUEUnreachable) {
-		t.Fatalf("err = %v, want %v", err, ErrSMSUEUnreachable)
+	if err := m.SendSMS(t.Context(), ue.imsiOrEmpty(), []byte{0x09}); !errors.Is(err, smsf.ErrUnreachable) {
+		t.Fatalf("err = %v, want %v", err, smsf.ErrUnreachable)
 	}
 
 	if radio.count() != 0 {
@@ -288,22 +279,26 @@ func TestARevocationDuringARegistrationWins(t *testing.T) {
 	handler.denied = true
 	handler.mu.Unlock()
 
-	m.ReevaluateSMS(t.Context())
-	close(release)
+	reevaluated := make(chan struct{})
 
-	if d := <-decision; d == SMSGranted || ue.SMSOnly() {
+	go func() {
+		m.ReevaluateSMS(t.Context())
+		close(reevaluated)
+	}()
+
+	close(release)
+	<-decision
+	<-reevaluated
+
+	if ue.SMSOnly() {
 		t.Fatal("a registration that read the old configuration restored the revoked grant")
 	}
 }
 
-func TestTheIMSIDetachDoesNotTakeOverAnotherProceduresGuard(t *testing.T) {
+func TestARevocationClearsTheGrantWithoutSignallingTheUE(t *testing.T) {
 	m, handler, _ := smsTestMME(t)
-	m.nasGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour, MaxRetryTimes: 1}
 	ue, cc := securedUE(t, m)
 	grantSMS(t, m, ue)
-
-	ue.Conn().ArmNASGuard(t.Context(), "GUTI Reallocation Command", []byte{0x07, 0x50}, 0)
-	defer ue.Conn().StopNASGuard(t.Context())
 
 	handler.mu.Lock()
 	handler.denied = true
@@ -311,16 +306,12 @@ func TestTheIMSIDetachDoesNotTakeOverAnotherProceduresGuard(t *testing.T) {
 
 	m.ReevaluateSMS(t.Context())
 
-	if cc.count() != 0 || ue.smsDetach.Load() != smsDetachPending {
-		t.Fatalf("sent %d messages, detach state %d: the IMSI detach must wait for the other procedure", cc.count(), ue.smsDetach.Load())
+	if ue.SMSOnly() {
+		t.Fatal("the grant survived the revocation")
 	}
 
-	if ue.Conn().TakeSMSIMSIDetach(t.Context()) {
-		t.Fatal("a Detach Accept was taken for an IMSI detach that was never sent")
-	}
-
-	if name := nasGuardName(m, ue); name != "GUTI Reallocation Command" {
-		t.Fatalf("NAS guard = %q, want the GUTI reallocation's", name)
+	if n := cc.count(); n != 0 {
+		t.Fatalf("sent %d NAS messages, want none: the UE learns of the revocation at its next TAU (TS 23.272 §C.8.2.1)", n)
 	}
 }
 
@@ -339,127 +330,6 @@ func TestAnOpenSMSTransactionHoldsTheS1Connection(t *testing.T) {
 	if !ue.Conn().MTSignallingPending() {
 		t.Fatal("an open SMS transaction does not hold the S1 connection")
 	}
-}
-
-func TestTheIMSIDetachIsRetransmittedThenAbandonedWithoutReleasingTheUE(t *testing.T) {
-	m, handler, _ := smsTestMME(t)
-	m.nasGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond, MaxRetryTimes: 2}
-	ue, cc := securedUE(t, m)
-	grantSMS(t, m, ue)
-
-	handler.mu.Lock()
-	handler.denied = true
-	handler.mu.Unlock()
-
-	m.ReevaluateSMS(t.Context())
-
-	deadline := time.Now().Add(time.Second)
-	for ue.smsDetach.Load() == smsDetachSent {
-		if time.Now().After(deadline) {
-			t.Fatal("the IMSI detach was never abandoned")
-		}
-
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	if n := cc.count(); n != 3 {
-		t.Fatalf("sent %d DETACH REQUESTs, want the original and two retransmissions", n)
-	}
-
-	if ue.EMMState() != EMMRegistered || ue.Conn() == nil {
-		t.Fatal("an unanswered IMSI detach released or deregistered the UE")
-	}
-
-	if ue.smsDetach.Load() != smsDetachPending {
-		t.Fatal("an unanswered IMSI detach was dropped instead of re-queued")
-	}
-
-	m.SMSReachable(t.Context(), ue)
-
-	deadline = time.Now().Add(time.Second)
-	for ue.smsDetach.Load() == smsDetachSent {
-		if time.Now().After(deadline) {
-			t.Fatal("the re-queued IMSI detach was never abandoned")
-		}
-
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	if ue.smsDetach.Load() != smsDetachIdle || cc.count() != 6 {
-		t.Fatalf("detach state %d after %d DETACH REQUESTs, want it dropped after a second unanswered procedure", ue.smsDetach.Load(), cc.count())
-	}
-}
-
-func TestATAUDuringTheIMSIDetachRequeuesIt(t *testing.T) {
-	m, handler, _ := smsTestMME(t)
-	m.nasGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour, MaxRetryTimes: 1}
-	ue, _ := securedUE(t, m)
-	grantSMS(t, m, ue)
-
-	handler.mu.Lock()
-	handler.denied = true
-	handler.mu.Unlock()
-
-	m.ReevaluateSMS(t.Context())
-
-	if ue.smsDetach.Load() != smsDetachSent {
-		t.Fatal("precondition: the IMSI detach must be in progress")
-	}
-
-	ue.Conn().AbortSMSIMSIDetach(t.Context())
-
-	if ue.smsDetach.Load() != smsDetachPending {
-		t.Fatal("a TAU during the IMSI detach did not re-queue it")
-	}
-
-	if name := nasGuardName(m, ue); name != "" {
-		t.Fatalf("NAS guard %q still running after the TAU aborted the IMSI detach", name)
-	}
-}
-
-func TestAnotherProcedureTakingTheGuardRequeuesTheIMSIDetach(t *testing.T) {
-	m, handler, _ := smsTestMME(t)
-	m.nasGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour, MaxRetryTimes: 1}
-	ue, _ := securedUE(t, m)
-	grantSMS(t, m, ue)
-
-	handler.mu.Lock()
-	handler.denied = true
-	handler.mu.Unlock()
-
-	m.ReevaluateSMS(t.Context())
-
-	ue.Conn().ArmNASGuard(t.Context(), "GUTI Reallocation Command", []byte{0x07, 0x50}, 0)
-	defer ue.Conn().StopNASGuard(t.Context())
-
-	if ue.smsDetach.Load() != smsDetachPending {
-		t.Fatal("an IMSI detach that lost its guard was not re-queued")
-	}
-}
-
-func TestReleasingTheConnectionRequeuesTheIMSIDetach(t *testing.T) {
-	m, handler, _ := smsTestMME(t)
-	m.nasGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour, MaxRetryTimes: 1}
-	ue, _ := securedUE(t, m)
-	grantSMS(t, m, ue)
-
-	handler.mu.Lock()
-	handler.denied = true
-	handler.mu.Unlock()
-
-	m.ReevaluateSMS(t.Context())
-	m.FreeUeConn(t.Context(), ue)
-
-	if ue.smsDetach.Load() != smsDetachPending {
-		t.Fatal("an IMSI detach interrupted by an S1 release was not re-queued")
-	}
-}
-
-func nasGuardName(m *MME, ue *UeContext) string {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return ue.Conn().nasGuardName
 }
 
 func TestSMSToAUECompletingItsAttachWaitsForTheAttachComplete(t *testing.T) {
@@ -494,30 +364,6 @@ func TestSMSToAUECompletingItsAttachWaitsForTheAttachComplete(t *testing.T) {
 	}
 }
 
-func TestAnEPSDetachSupersedesThePendingIMSIDetach(t *testing.T) {
-	m, handler, _ := smsTestMME(t)
-	m.nasGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour, MaxRetryTimes: 1}
-	ue, _ := securedUE(t, m)
-	grantSMS(t, m, ue)
-
-	handler.mu.Lock()
-	handler.denied = true
-	handler.mu.Unlock()
-
-	m.ReevaluateSMS(t.Context())
-
-	if ue.smsDetach.Load() != smsDetachSent {
-		t.Fatal("precondition: the IMSI detach must be in progress")
-	}
-
-	m.sendNetworkDetach(t.Context(), ue, ue.Conn(), eps.DetachTypeReattachNotRequired)
-	defer ue.Conn().StopNASGuard(t.Context())
-
-	if ue.smsDetach.Load() != smsDetachIdle {
-		t.Fatalf("detach state %d, want the IMSI detach dropped once the EPS detach supersedes it", ue.smsDetach.Load())
-	}
-}
-
 func TestAnUnrelatedReevaluationDuringAnAttachKeepsTheGrant(t *testing.T) {
 	m, handler, _ := smsTestMME(t)
 	ue := idleRegisteredUE(t, m)
@@ -533,39 +379,21 @@ func TestAnUnrelatedReevaluationDuringAnAttachKeepsTheGrant(t *testing.T) {
 	go func() { decision <- m.DecideSMS(t.Context(), ue, true) }()
 
 	<-held
-	m.ReevaluateSMS(t.Context())
+
+	reevaluated := make(chan struct{})
+
+	go func() {
+		m.ReevaluateSMS(t.Context())
+		close(reevaluated)
+	}()
+
 	close(release)
 
-	if d := <-decision; d != SMSGranted || !ue.SMSOnly() {
+	d := <-decision
+
+	<-reevaluated
+
+	if d != SMSGranted || !ue.SMSOnly() {
 		t.Fatalf("decision = %d, want the grant kept after a re-evaluation that changed nothing", d)
 	}
-}
-
-func TestSMSToAUEWhoseConnectionIsBeingReleasedPagesItAfterTheRelease(t *testing.T) {
-	m, _, radio := smsTestMME(t)
-	m.pagingCfg.ExpireTime = time.Hour
-	ue := idleRegisteredUE(t, m)
-	grantSMS(t, m, ue)
-	establishResumeForTest(m, ue, &captureConn{}, 9)
-
-	m.mu.Lock()
-	ue.Conn().releasing = true
-	m.mu.Unlock()
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	done := make(chan error, 1)
-
-	go func() { done <- m.EnableUEReachabilityForSMS(ctx, ue.imsiOrEmpty()) }()
-
-	select {
-	case err := <-done:
-		t.Fatalf("reachability reported (%v) on a connection being released", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-
-	m.FreeUeConn(t.Context(), ue)
-
-	eventually(t, time.Second, func() bool { return radio.count() == 1 })
 }

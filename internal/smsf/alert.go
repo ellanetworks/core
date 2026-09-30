@@ -163,19 +163,19 @@ func (s *SMSF) alert(ctx context.Context, imsi string) {
 		return
 	}
 
-	smsc, err := s.smsc()
-	if err != nil {
-		log.Info("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
-		return
-	}
-
 	for _, sc := range w.ServiceCentres {
-		s.alertServiceCentre(ctx, log.With(zap.String("service_centre", sc)), smsc, imsi, sub.Msisdn, sc)
+		envelope, err := s.smsc.Envelope()
+		if err != nil {
+			log.Info("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
+			return
+		}
+
+		s.alertServiceCentre(ctx, log.With(zap.String("service_centre", sc)), envelope, imsi, sub.Msisdn, sc)
 	}
 }
 
-func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, smsc smscEndpoint, imsi, msisdn, serviceCentre string) {
-	req, err := s6c.NewHSSAlertServiceCentreRequest(smsc.envelope(), s6c.Alert{
+func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, envelope tgpp.Envelope, imsi, msisdn, serviceCentre string) {
+	req, err := s6c.NewHSSAlertServiceCentreRequest(envelope, s6c.Alert{
 		ServiceCentreAddress: serviceCentre,
 		User:                 tgpp.UserIdentifier{MSISDN: msisdn},
 	})
@@ -194,7 +194,7 @@ func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, smsc sms
 	ctx, cancel := context.WithTimeout(ctx, s.timers.AlertTimeout)
 	defer cancel()
 
-	ans, err := smsc.node.Do(ctx, PeerRoleSMSC, req)
+	ans, err := s.smsc.Do(ctx, req)
 	if err == nil {
 		err = s6c.ParseAlertServiceCentreAnswer(ans)
 	}

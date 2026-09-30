@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -316,6 +317,6 @@ func (ue *UeContext) SetPlmnIDForTest(plmnID models.PlmnID) {
 	ue.plmnID = plmnID
 }
 
-func (ue *UeContext) SetSMSForTest(h SMSHandler) {
+func (ue *UeContext) SetSMSForTest(h smsf.Handler) {
 	ue.sms = h
 }

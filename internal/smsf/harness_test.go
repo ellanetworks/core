@@ -6,12 +6,10 @@ package smsf_test
 import (
 	"context"
 	"errors"
-	"net"
+	"fmt"
 	"net/netip"
-	"os"
 	"slices"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -24,7 +22,6 @@ import (
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
-	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap"
 )
 
@@ -49,7 +46,6 @@ var (
 func fastTimers() smsf.Timers {
 	return smsf.Timers{
 		TC1:                200 * time.Millisecond,
-		TC1Lost:            20 * time.Millisecond,
 		Paging:             2 * time.Second,
 		MoreMessages:       300 * time.Millisecond,
 		MaxRetransmissions: 2,
@@ -70,9 +66,9 @@ type fakeStore struct {
 	clearErr      error
 }
 
-func newFakeStore(smsc netip.AddrPort) *fakeStore {
+func newFakeStore() *fakeStore {
 	return &fakeStore{
-		settings: db.SMSSettings{SMSCAddress: smsc.Addr().String(), SMSCPort: int(smsc.Port()), SMSNumber: smsNumber},
+		settings: db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: smsNumber},
 		subscribers: map[string]db.Subscriber{
 			imsi: {Imsi: imsi, Msisdn: msisdn},
 		},
@@ -420,115 +416,107 @@ func encode(t *testing.T, m interface{ MarshalBinary() ([]byte, error) }) []byte
 	return b
 }
 
-type fakeSMSC struct {
-	node *diameter.Node
-	addr netip.AddrPort
+var (
+	localIdentity = diameter.Identity{OriginHost: localIdent.Host, OriginRealm: localIdent.Realm}
+	smscIdentity  = diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm}
+	errSMSCDown   = errors.New("fake SMSC: no route")
+)
 
+type fakeSMSC struct {
 	mu         sync.Mutex
+	smsf       *smsf.SMSF
+	down       bool
+	sessions   int
 	ofrs       []sgd.MOForwardShortMessage
 	alerts     []s6c.Alert
 	answer     func(req *diameter.Message, id diameter.Identity) *diameter.Message
 	failAlerts bool
 }
 
-func requireSCTP(t *testing.T) {
-	t.Helper()
+func (f *fakeSMSC) Envelope() (tgpp.Envelope, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_SCTP)
-	if err != nil {
-		if os.Getenv("CI") != "" {
-			t.Fatalf("SCTP not available in CI: %v", err)
-		}
-
-		t.Skipf("SCTP not available: %v", err)
+	if f.down {
+		return tgpp.Envelope{}, smsf.ErrSMSCUnavailable
 	}
 
-	_ = syscall.Close(fd)
+	f.sessions++
+
+	return tgpp.Envelope{
+		SessionID:        fmt.Sprintf("%s;1;%d", localIdent.Host, f.sessions),
+		Origin:           localIdentity,
+		DestinationHost:  smscHost,
+		DestinationRealm: smscRealm,
+	}, nil
 }
 
-func startFakeSMSC(t *testing.T) *fakeSMSC {
-	t.Helper()
-	requireSCTP(t)
+func (f *fakeSMSC) LocalHost() (string, bool) {
+	return localIdent.Host, true
+}
 
-	f := &fakeSMSC{}
-	mux := diameter.NewMux()
+func (f *fakeSMSC) Do(_ context.Context, req *diameter.Message) (*diameter.Message, error) {
+	f.mu.Lock()
+	down := f.down
+	f.mu.Unlock()
 
-	mux.Handle(sgd.ApplicationID, sgd.CommandMOForwardShortMessage, diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		m, err := sgd.ParseMOForwardShortMessageRequest(req)
-		if err != nil {
-			return tgpp.NewErrorAnswer(req, c.LocalIdentity(), err)
-		}
-
-		f.mu.Lock()
-		f.ofrs = append(f.ofrs, m)
-		answer := f.answer
-		f.mu.Unlock()
-
-		if answer != nil {
-			return answer(req, c.LocalIdentity())
-		}
-
-		ans, _ := sgd.NewMOForwardShortMessageAnswer(req, c.LocalIdentity(), []byte{0x01, 0x00})
-
-		return ans
-	}))
-
-	mux.Handle(s6c.ApplicationID, s6c.CommandAlertServiceCentre, diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		a, err := s6c.ParseAlertServiceCentreRequest(req)
-		if err != nil {
-			return tgpp.NewErrorAnswer(req, c.LocalIdentity(), err)
-		}
-
-		f.mu.Lock()
-		f.alerts = append(f.alerts, a)
-		fail := f.failAlerts
-		f.mu.Unlock()
-
-		if fail {
-			return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultUnableToComply)
-		}
-
-		return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultSuccess)
-	}))
-
-	node, err := diameter.New(diameter.Config{
-		Identity: diameter.Identity{
-			OriginHost: smscHost, OriginRealm: smscRealm,
-			HostIPAddresses: []netip.Addr{loopback}, ProductName: "fake-smsc",
-		},
-		Handler:            mux,
-		AcceptUnknownPeers: true,
-		UnknownPeerApplications: []diameter.Application{
-			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
-			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
-		},
-	})
-	if err != nil {
-		t.Fatalf("new fake SMSC: %v", err)
+	if down {
+		return nil, errSMSCDown
 	}
 
-	var lc sctp.ListenConfig
+	switch req.CommandCode {
+	case sgd.CommandMOForwardShortMessage:
+		return f.moForwardShortMessage(req), nil
+	case s6c.CommandAlertServiceCentre:
+		return f.alertServiceCentre(req), nil
+	default:
+		return nil, fmt.Errorf("fake SMSC: unexpected command %d", req.CommandCode)
+	}
+}
 
-	ln, err := lc.Listen(context.Background(), &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: loopback.AsSlice()}}})
+func (f *fakeSMSC) moForwardShortMessage(req *diameter.Message) *diameter.Message {
+	m, err := sgd.ParseMOForwardShortMessageRequest(req)
 	if err != nil {
-		t.Fatalf("listen: %v", err)
+		return tgpp.NewErrorAnswer(req, smscIdentity, err)
 	}
 
-	go func() { _ = node.Serve(diameter.NewSCTPListener(ln, nil)) }()
+	f.mu.Lock()
+	f.ofrs = append(f.ofrs, m)
+	answer := f.answer
+	f.mu.Unlock()
 
-	a, _ := ln.Addr().(*sctp.SCTPAddr)
-	f.node = node
-	f.addr = netip.AddrPortFrom(loopback, uint16(a.Port))
+	if answer != nil {
+		return answer(req, smscIdentity)
+	}
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	ans, _ := sgd.NewMOForwardShortMessageAnswer(req, smscIdentity, []byte{0x01, 0x00})
 
-		_ = node.Shutdown(ctx)
-		_ = ln.Close()
-	})
+	return ans
+}
 
-	return f
+func (f *fakeSMSC) alertServiceCentre(req *diameter.Message) *diameter.Message {
+	a, err := s6c.ParseAlertServiceCentreRequest(req)
+	if err != nil {
+		return tgpp.NewErrorAnswer(req, smscIdentity, err)
+	}
+
+	f.mu.Lock()
+	f.alerts = append(f.alerts, a)
+	fail := f.failAlerts
+	f.mu.Unlock()
+
+	if fail {
+		return tgpp.NewAnswer(req, smscIdentity, diameter.ResultUnableToComply)
+	}
+
+	return tgpp.NewAnswer(req, smscIdentity, diameter.ResultSuccess)
+}
+
+func (f *fakeSMSC) setDown(down bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.down = down
 }
 
 func (f *fakeSMSC) setAnswer(answer func(req *diameter.Message, id diameter.Identity) *diameter.Message) {
@@ -569,8 +557,8 @@ func (f *fakeSMSC) forwardMessage(t *testing.T, m sgd.MTForwardShortMessage) (*d
 	t.Helper()
 
 	req, err := sgd.NewMTForwardShortMessageRequest(tgpp.Envelope{
-		SessionID:        f.node.NewSessionID(),
-		Origin:           f.node.Identity(),
+		SessionID:        smscHost + ";1;1",
+		Origin:           smscIdentity,
 		DestinationHost:  localIdent.Host,
 		DestinationRealm: localIdent.Realm,
 	}, m)
@@ -581,7 +569,7 @@ func (f *fakeSMSC) forwardMessage(t *testing.T, m sgd.MTForwardShortMessage) (*d
 	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 	defer cancel()
 
-	return f.node.DoHost(ctx, localIdent.Host, req)
+	return f.smsf.MTForwardShortMessage(ctx, localIdentity, req), nil
 }
 
 type env struct {
@@ -600,50 +588,12 @@ func newEnv(t *testing.T) *env {
 func newEnvWithTimers(t *testing.T, timers smsf.Timers) *env {
 	t.Helper()
 
-	smsc := startFakeSMSC(t)
-	store := newFakeStore(smsc.addr)
-
-	nodeSettings := func(context.Context) (diameternode.NodeSettings, error) {
-		return diameternode.NodeSettings{MCC: "001", MNC: "01", MMEGroupID: 0x8100, MMECode: 0x41}, nil
-	}
-	peers := func(context.Context) ([]diameternode.PeerConfig, error) {
-		return []diameternode.PeerConfig{smsf.SMSCPeer(smsc.addr)}, nil
-	}
-
-	manager := diameternode.New(nodeSettings, peers, zap.NewNop())
+	smsc := &fakeSMSC{}
+	store := newFakeStore()
 	ue := newFakeUE()
-	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, manager, ue, zap.NewNop(), timers)
-	s.Register(manager)
+	smsc.smsf = smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, smsc, ue, zap.NewNop(), timers)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-
-	go func() {
-		manager.Run(ctx, make(chan struct{}))
-		close(done)
-	}()
-
-	t.Cleanup(func() {
-		cancel()
-		<-done
-	})
-
-	deadline := time.Now().Add(waitTimeout)
-
-	for {
-		peers := manager.Peers()
-		if len(peers) == 1 && peers[0].State == diameter.PeerOpen {
-			break
-		}
-
-		if time.Now().After(deadline) {
-			t.Fatal("SMSC link did not come up")
-		}
-
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	return &env{smsc: smsc, store: store, ue: ue, smsf: s}
+	return &env{smsc: smsc, store: store, ue: ue, smsf: smsc.smsf}
 }
 
 func eventually(t *testing.T, what string, cond func() bool) {

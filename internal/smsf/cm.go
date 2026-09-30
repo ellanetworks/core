@@ -19,13 +19,12 @@ const maxTransactionValue = 6
 type cpTxn struct {
 	ack     chan struct{}
 	aborted chan struct{}
-	retry   chan struct{}
 	sent    bool
 	sentAt  time.Time
 }
 
 func newCPTxn() cpTxn {
-	return cpTxn{ack: make(chan struct{}, 1), aborted: make(chan struct{}, 1), retry: make(chan struct{}, 1)}
+	return cpTxn{ack: make(chan struct{}, 1), aborted: make(chan struct{}, 1)}
 }
 
 type moTransaction struct {
@@ -62,26 +61,6 @@ func (s *SMSF) ue(imsi string) *ueState {
 	}
 
 	return u
-}
-
-func (s *SMSF) DeliveryFailed(imsi string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	u, ok := s.ues[imsi]
-	if !ok {
-		return
-	}
-
-	if u.mt != nil && u.mt.sent {
-		signal(u.mt.retry)
-	}
-
-	for _, t := range u.mo {
-		if t.sent {
-			signal(t.retry)
-		}
-	}
 }
 
 func (s *SMSF) TransactionPending(imsi string) bool {
@@ -408,27 +387,18 @@ func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, 
 }
 
 func (s *SMSF) awaitCPAck(ctx context.Context, t *cpTxn) error {
-	deadline := time.Now().Add(s.timers.TC1)
-
 	timer := time.NewTimer(s.timers.TC1)
 	defer timer.Stop()
 
-	for {
-		select {
-		case <-t.ack:
-			return nil
-		case <-t.aborted:
-			return errAborted
-		case <-ctx.Done():
-			return fmt.Errorf("%w: %w", errNoCPAck, ctx.Err())
-		case <-t.retry:
-			if lost := time.Now().Add(s.timers.TC1Lost); lost.Before(deadline) {
-				deadline = lost
-				timer.Reset(time.Until(deadline))
-			}
-		case <-timer.C:
-			return errTC1Expired
-		}
+	select {
+	case <-t.ack:
+		return nil
+	case <-t.aborted:
+		return errAborted
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", errNoCPAck, ctx.Err())
+	case <-timer.C:
+		return errTC1Expired
 	}
 }
 

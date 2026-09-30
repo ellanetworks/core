@@ -88,6 +88,7 @@ type UpdateOperatorSPNOptions struct {
 }
 
 type UpdateOperatorSMSOptions struct {
+	Enabled     bool
 	SMSCAddress string
 	SMSCPort    int
 	SMSNumber   string
@@ -324,10 +325,12 @@ func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNO
 
 func (c *Client) UpdateOperatorSMS(ctx context.Context, opts *UpdateOperatorSMSOptions) error {
 	payload := struct {
+		Enabled     bool   `json:"enabled"`
 		SMSCAddress string `json:"smscAddress"`
 		SMSCPort    int    `json:"smscPort,omitempty"`
 		SMSNumber   string `json:"smsNumber"`
 	}{
+		Enabled:     opts.Enabled,
 		SMSCAddress: opts.SMSCAddress,
 		SMSCPort:    opts.SMSCPort,
 		SMSNumber:   opts.SMSNumber,

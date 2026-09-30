@@ -22,10 +22,6 @@ func (ue *UE) UseConnection(mmeUEID, enbUEID int64) {
 	ue.enbUEID.Store(enbUEID)
 }
 
-func (ue *UE) SMSDetached() bool {
-	return ue.smsDetached.Load()
-}
-
 func (ue *UE) sendSMS(cp []byte) error {
 	plain, err := (&eps.UplinkNASTransport{NASMessageContainer: cp}).MarshalBinary()
 	if err != nil {
@@ -57,20 +53,6 @@ func (ue *UE) dispatchUnsolicited(mmeUEID, enbUEID int64, plain []byte) (bool, e
 	case *eps.DownlinkNASTransport:
 		ue.UseConnection(mmeUEID, enbUEID)
 		return true, ue.SMS.Deliver(m.NASMessageContainer)
-	case *eps.DetachRequestNetwork:
-		if m.TypeOfDetach != eps.DetachTypeNetworkIMSI {
-			return false, nil
-		}
-
-		ue.UseConnection(mmeUEID, enbUEID)
-		ue.smsDetached.Store(true)
-
-		accept, err := (&eps.DetachAccept{}).MarshalBinary()
-		if err != nil {
-			return true, err
-		}
-
-		return true, ue.sendProtected(accept)
 	}
 
 	return false, nil

@@ -25,18 +25,18 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	}{
 		{
 			name: "enable",
-			opts: &client.UpdateOperatorSMSOptions{SMSCAddress: "192.0.2.10", SMSNumber: "+15550001111"},
+			opts: &client.UpdateOperatorSMSOptions{Enabled: true, SMSCAddress: "192.0.2.10", SMSNumber: "+15550001111"},
 			want: client.GetOperatorSMSResponse{Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: "+15550001111"},
 		},
 		{
 			name: "update_SMSC",
-			opts: &client.UpdateOperatorSMSOptions{SMSCAddress: "2001:db8::10", SMSCPort: 3869, SMSNumber: "+15550001111"},
+			opts: &client.UpdateOperatorSMSOptions{Enabled: true, SMSCAddress: "2001:db8::10", SMSCPort: 3869, SMSNumber: "+15550001111"},
 			want: client.GetOperatorSMSResponse{Enabled: true, SMSCAddress: "2001:db8::10", SMSCPort: 3869, SMSNumber: "+15550001111"},
 		},
 		{
 			name: "disable",
-			opts: &client.UpdateOperatorSMSOptions{},
-			want: client.GetOperatorSMSResponse{SMSCPort: 3868},
+			opts: &client.UpdateOperatorSMSOptions{SMSCAddress: "2001:db8::10", SMSCPort: 3869, SMSNumber: "+15550001111"},
+			want: client.GetOperatorSMSResponse{SMSCAddress: "2001:db8::10", SMSCPort: 3869, SMSNumber: "+15550001111"},
 		},
 	}
 

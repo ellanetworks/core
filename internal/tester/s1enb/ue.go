@@ -70,7 +70,6 @@ type UE struct {
 	nasMu                     sync.Mutex
 	mmeUEID                   atomic.Int64
 	enbUEID                   atomic.Int64
-	smsDetached               atomic.Bool
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {

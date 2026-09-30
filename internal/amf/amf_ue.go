@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -65,7 +66,7 @@ type UeContext struct {
 	handover *handoverContext
 
 	smf SmfSbi
-	sms SMSHandler
+	sms smsf.Handler
 
 	active atomic.Pointer[UeConn]
 
@@ -111,7 +112,6 @@ type UeContext struct {
 	smsIndicationPending atomic.Pointer[bool]
 	smsIndicationSent    atomic.Pointer[bool]
 	smsMu                sync.Mutex
-	smsGeneration        uint64
 	smsIndicated         bool
 
 	mobileReachableTimer        guard.Guard

@@ -5,13 +5,9 @@ package runtime
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/smsf"
 )
 
 type smsCore interface {
@@ -30,11 +26,11 @@ func newSMSTransport(a *amf.AMF, m *mme.MME) *smsTransport {
 }
 
 func (t *smsTransport) EnableUEReachability(ctx context.Context, imsi string) error {
-	return smsTransportError(t.route(imsi).EnableUEReachabilityForSMS(ctx, imsi))
+	return t.route(imsi).EnableUEReachabilityForSMS(ctx, imsi)
 }
 
 func (t *smsTransport) SendSMS(ctx context.Context, imsi string, payload []byte) error {
-	return smsTransportError(t.route(imsi).SendSMS(ctx, imsi, payload))
+	return t.route(imsi).SendSMS(ctx, imsi, payload)
 }
 
 func (t *smsTransport) SignallingSettled(ctx context.Context, imsi string) {
@@ -62,19 +58,4 @@ func (t *smsTransport) route(imsi string) smsCore {
 	}
 
 	return t.cores[0]
-}
-
-func smsTransportError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, mme.ErrSMSUENotRegistered), errors.Is(err, amf.ErrSMSUENotRegistered):
-		return fmt.Errorf("%w: %w", smsf.ErrUserUnknown, err)
-	case errors.Is(err, mme.ErrSMSNotAllowed), errors.Is(err, amf.ErrSMSNotAllowed):
-		return fmt.Errorf("%w: %w", smsf.ErrNotRegisteredForSMS, err)
-	case errors.Is(err, mme.ErrSMSUEUnreachable), errors.Is(err, amf.ErrSMSUEUnreachable):
-		return fmt.Errorf("%w: %w", &smsf.AbsentError{Diagnostic: tgpp.AbsentUserNoPagingResponseMSC}, err)
-	default:
-		return err
-	}
 }

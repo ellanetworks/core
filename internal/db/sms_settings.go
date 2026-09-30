@@ -25,10 +25,11 @@ const maxMSISDNDigits = 15
 
 const (
 	getSMSSettingsStmt    = "SELECT &SMSSettings.* FROM %s WHERE singleton=TRUE"
-	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, smscAddress, smscPort, smsNumber) VALUES (TRUE, $SMSSettings.smscAddress, $SMSSettings.smscPort, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET smscAddress=excluded.smscAddress, smscPort=excluded.smscPort, smsNumber=excluded.smsNumber"
+	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, enabled, smscAddress, smscPort, smsNumber) VALUES (TRUE, $SMSSettings.enabled, $SMSSettings.smscAddress, $SMSSettings.smscPort, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled, smscAddress=excluded.smscAddress, smscPort=excluded.smscPort, smsNumber=excluded.smsNumber"
 )
 
 type SMSSettings struct {
+	Enabled     bool   `db:"enabled"`
 	SMSCAddress string `db:"smscAddress"`
 	SMSCPort    int    `db:"smscPort"`
 	SMSNumber   string `db:"smsNumber"`
@@ -36,10 +37,6 @@ type SMSSettings struct {
 
 func DefaultSMSSettings() SMSSettings {
 	return SMSSettings{SMSCPort: DefaultSMSCPort}
-}
-
-func (s SMSSettings) Enabled() bool {
-	return s.SMSCAddress != ""
 }
 
 func (s SMSSettings) Validate() error {
@@ -51,17 +48,23 @@ func (s SMSSettings) Validate() error {
 		return fmt.Errorf("SMS number must be 1 to %d digits in E.164 international format, got %q", maxMSISDNDigits, s.SMSNumber)
 	}
 
-	if s.SMSCAddress == "" {
+	if s.SMSCAddress != "" {
+		addr, err := netip.ParseAddr(s.SMSCAddress)
+		if err != nil || addr.Zone() != "" || addr.IsUnspecified() {
+			return fmt.Errorf("SMSC address must be an IPv4 or IPv6 address, got %q", s.SMSCAddress)
+		}
+	}
+
+	if !s.Enabled {
 		return nil
 	}
 
-	addr, err := netip.ParseAddr(s.SMSCAddress)
-	if err != nil || addr.Zone() != "" || addr.IsUnspecified() {
-		return fmt.Errorf("SMSC address must be an IPv4 or IPv6 address, got %q", s.SMSCAddress)
+	if s.SMSCAddress == "" {
+		return errors.New("SMSC address is required to enable SMS")
 	}
 
 	if s.SMSNumber == "" {
-		return errors.New("SMS number is required when an SMSC is set")
+		return errors.New("SMS number is required to enable SMS")
 	}
 
 	return nil

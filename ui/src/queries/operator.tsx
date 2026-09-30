@@ -128,13 +128,16 @@ export const updateOperatorSPN = async (
 
 export const updateOperatorSMS = async (
   authToken: string,
-  smscAddress: string,
-  smscPort: number,
-  smsNumber: string,
+  sms: OperatorSMS,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/operator/sms`, {
     method: "PUT",
     authToken,
-    body: { smscAddress, smscPort, smsNumber },
+    body: {
+      enabled: sms.enabled,
+      smscAddress: sms.smscAddress,
+      smscPort: sms.smscPort,
+      smsNumber: sms.smsNumber,
+    },
   });
 };

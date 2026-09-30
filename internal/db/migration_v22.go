@@ -15,6 +15,7 @@ func migrateV22(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("CREATE UNIQUE INDEX idx_subscribers_msisdn ON %s(msisdn) WHERE msisdn != ''", SubscribersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			singleton   BOOLEAN PRIMARY KEY DEFAULT TRUE,
+			enabled     BOOLEAN NOT NULL DEFAULT FALSE,
 			smscAddress TEXT    NOT NULL DEFAULT '',
 			smscPort    INTEGER NOT NULL DEFAULT %d,
 			smsNumber   TEXT    NOT NULL DEFAULT '',

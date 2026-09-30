@@ -54,7 +54,6 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 }
 
 func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork) {
-	ue.smsDetach.Store(smsDetachIdle)
 	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
 
 	ueConn.Log(ctx).Info("UE deregistered", logger.RAT(metrics.RAT4G), zap.String("trigger", "network"))

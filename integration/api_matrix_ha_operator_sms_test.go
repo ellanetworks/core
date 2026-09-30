@@ -28,14 +28,14 @@ func runOperatorSMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		{
 			name:   "enable",
 			writer: 0,
-			opts:   &client.UpdateOperatorSMSOptions{SMSCAddress: "192.0.2.10", SMSNumber: "+15550001111"},
+			opts:   &client.UpdateOperatorSMSOptions{Enabled: true, SMSCAddress: "192.0.2.10", SMSNumber: "+15550001111"},
 			want:   client.GetOperatorSMSResponse{Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: "+15550001111"},
 		},
 		{
 			name:   "disable",
 			writer: 1,
-			opts:   &client.UpdateOperatorSMSOptions{},
-			want:   client.GetOperatorSMSResponse{SMSCPort: 3868},
+			opts:   &client.UpdateOperatorSMSOptions{SMSCAddress: "192.0.2.10", SMSNumber: "+15550001111"},
+			want:   client.GetOperatorSMSResponse{SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: "+15550001111"},
 		},
 	}
 

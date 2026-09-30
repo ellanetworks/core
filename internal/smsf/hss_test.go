@@ -6,30 +6,31 @@ package smsf_test
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/smsf"
 	"go.uber.org/zap"
 )
 
-var hssIdentity = diameter.Identity{OriginHost: localIdent.Host, OriginRealm: localIdent.Realm}
+type idleSMSC struct{}
 
-type idleNode struct{}
+func (idleSMSC) Envelope() (tgpp.Envelope, error) { return tgpp.Envelope{}, smsf.ErrSMSCUnavailable }
 
-func (idleNode) Node() *diameter.Node             { return nil }
-func (idleNode) Peers() []diameternode.PeerStatus { return nil }
+func (idleSMSC) Do(context.Context, *diameter.Message) (*diameter.Message, error) {
+	return nil, smsf.ErrSMSCUnavailable
+}
+
+func (idleSMSC) LocalHost() (string, bool) { return "", false }
 
 func newHSS(t *testing.T) (*smsf.SMSF, *fakeStore) {
 	t.Helper()
 
-	store := newFakeStore(netip.MustParseAddrPort("192.0.2.10:3868"))
-	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, idleNode{}, newFakeUE(), zap.NewNop(), fastTimers())
+	store := newFakeStore()
+	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, idleSMSC{}, newFakeUE(), zap.NewNop(), fastTimers())
 
 	return s, store
 }
@@ -53,7 +54,7 @@ func routingRequest(t *testing.T, r s6c.RoutingRequest) *diameter.Message {
 func route(t *testing.T, s *smsf.SMSF, r s6c.RoutingRequest) (s6c.Routing, error) {
 	t.Helper()
 
-	return s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), hssIdentity, routingRequest(t, r)))
+	return s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, routingRequest(t, r)))
 }
 
 func routeError(t *testing.T, s *smsf.SMSF, r s6c.RoutingRequest) *s6c.ResultError {
@@ -206,7 +207,7 @@ func report(t *testing.T, s *smsf.SMSF, rep s6c.DeliveryReport) (s6c.ReportResul
 		t.Fatalf("build RDR: %v", err)
 	}
 
-	return s6c.ParseReportSMDeliveryStatusAnswer(s.ReportSMDeliveryStatus(context.Background(), hssIdentity, req))
+	return s6c.ParseReportSMDeliveryStatusAnswer(s.ReportSMDeliveryStatus(context.Background(), localIdentity, req))
 }
 
 func TestATransientLookupErrorIsNotAnsweredAsAbsent(t *testing.T) {
@@ -226,7 +227,7 @@ func TestATransientLookupErrorIsNotAnsweredAsAbsent(t *testing.T) {
 			s, store := newHSS(t)
 			fail(store)
 
-			ans := s.SendRoutingInfoForSM(context.Background(), hssIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn}))
+			ans := s.SendRoutingInfoForSM(context.Background(), localIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn}))
 
 			result, err := tgpp.ParseResult(ans)
 			if err != nil || result.Code != diameter.ResultUnableToComply {
@@ -343,8 +344,8 @@ func TestSMSAllowed(t *testing.T) {
 	check := func(name, subscriber string, wantAllowed, wantErr bool) {
 		t.Helper()
 
-		allowed, err := s.Allowed(context.Background(), subscriber)
-		if allowed != wantAllowed || (err != nil) != wantErr {
+		each, err := s.AllowedEach(context.Background(), []string{subscriber})
+		if allowed := each[subscriber]; allowed != wantAllowed || (err != nil) != wantErr {
 			t.Fatalf("%s: allowed = %t, err = %v", name, allowed, err)
 		}
 	}
@@ -357,9 +358,9 @@ func TestSMSAllowed(t *testing.T) {
 
 	store.setMSISDN(msisdn)
 	store.mu.Lock()
-	store.settings.SMSCAddress = ""
+	store.settings.Enabled = false
 	store.mu.Unlock()
-	check("no SMSC", imsi, false, false)
+	check("SMS disabled", imsi, false, false)
 
 	store.mu.Lock()
 	store.settingsErr = errors.New("leader changed")
@@ -372,7 +373,7 @@ func TestRoutingWithDeliveryNotIntendedReturnsTheIMSI(t *testing.T) {
 
 	notIntended := s6c.SMDeliveryNotIntendedIMSI
 
-	ans := s.SendRoutingInfoForSM(context.Background(), hssIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn, DeliveryNotIntended: &notIntended}))
+	ans := s.SendRoutingInfoForSM(context.Background(), localIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn, DeliveryNotIntended: &notIntended}))
 
 	result, err := tgpp.ParseResult(ans)
 	if err != nil || !result.Success() {

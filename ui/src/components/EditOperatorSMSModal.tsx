@@ -1,54 +1,60 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { DEFAULT_SMSC_PORT, updateOperatorSMS } from "@/queries/operator";
+import {
+  DEFAULT_SMSC_PORT,
+  updateOperatorSMS,
+  type OperatorSMS,
+} from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
-import { addressFamily } from "@/utils/ip";
-import { msisdnSchema, normalizeMSISDN } from "@/components/subscriberIdentity";
+import { isHostAddress } from "@/utils/ip";
+import { msisdnSchema } from "@/components/subscriberIdentity";
 import { PRODUCT } from "@/utils/product";
 
 interface EditOperatorSMSModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: {
-    smscAddress: string;
-    smscPort: number;
-    smsNumber: string;
-  };
+  initialData: OperatorSMS;
 }
 
-const schema = yup.object({
-  smscAddress: yup
-    .string()
-    .default("")
-    .test(
-      "smsc-address",
-      "SMSC address must be an IPv4 or IPv6 address",
-      (value) => !value?.trim() || addressFamily(value.trim()) !== null,
+const makeSchema = (enabled: boolean) =>
+  yup.object({
+    smscAddress: yup
+      .string()
+      .default("")
+      .test(
+        "required",
+        "SMSC address is required while SMS is on",
+        (value) => !enabled || !!value?.trim(),
+      )
+      .test(
+        "smsc-address",
+        "SMSC address must be an IPv4 or IPv6 address",
+        (value) => !value?.trim() || isHostAddress(value.trim()),
+      ),
+    smscPort: yup
+      .number()
+      .typeError("SMSC port must be a number")
+      .integer("SMSC port must be a whole number")
+      .min(1, "SMSC port must be between 1 and 65535")
+      .max(65535, "SMSC port must be between 1 and 65535")
+      .required("SMSC port is required"),
+    smsNumber: msisdnSchema.test(
+      "required",
+      "SMS number is required while SMS is on",
+      (v) => !enabled || !!v?.trim(),
     ),
-  smscPort: yup
-    .number()
-    .typeError("SMSC port must be a number")
-    .integer("SMSC port must be a whole number")
-    .min(1, "SMSC port must be between 1 and 65535")
-    .max(65535, "SMSC port must be between 1 and 65535")
-    .required("SMSC port is required"),
-  smsNumber: msisdnSchema.when("smscAddress", {
-    is: (address: string) => !!address?.trim(),
-    then: (s) =>
-      s.test("required", "SMS number is required", (v) => !!v?.trim()),
-  }),
-});
+  });
 
-type FormValues = yup.InferType<typeof schema>;
+type FormValues = yup.InferType<ReturnType<typeof makeSchema>>;
 
 const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
   open,
@@ -57,6 +63,10 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
   initialData,
 }) => {
   const { accessToken } = useAuth();
+  const schema = useMemo(
+    () => makeSchema(initialData.enabled),
+    [initialData.enabled],
+  );
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -70,12 +80,12 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await updateOperatorSMS(
-      accessToken,
-      values.smscAddress.trim(),
-      values.smscPort,
-      normalizeMSISDN(values.smsNumber),
-    );
+    await updateOperatorSMS(accessToken, {
+      enabled: initialData.enabled,
+      smscAddress: values.smscAddress.trim(),
+      smscPort: values.smscPort,
+      smsNumber: values.smsNumber.trim(),
+    });
   };
 
   return (
@@ -84,7 +94,7 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
       onClose={onClose}
       onSuccess={onSuccess}
       title="Edit SMS"
-      description={`Every ${PRODUCT.name} node connects to this SMSC over Diameter (SGd and S6c). SMS is enabled whenever an SMSC address is set; clear the address to disable it.`}
+      description={`While SMS is on, every ${PRODUCT.name} node connects to this SMSC over Diameter (SGd and S6c).`}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update SMS settings"
@@ -96,7 +106,7 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
         name="smscAddress"
         label="SMSC Address"
         placeholder="192.0.2.10"
-        helperText="IP address of the SMSC's Diameter endpoint. Leave blank to disable SMS."
+        helperText="IP address of the SMSC's Diameter endpoint."
         autoFocus
       />
       <NumberControl<FormValues>

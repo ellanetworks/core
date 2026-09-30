@@ -17,10 +17,6 @@ func RegisterMetrics(m *Manager) {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		if m == nil {
-			return
-		}
-
 		for _, peer := range m.Peers() {
 			value := 0.0
 			if peer.State == diameter.PeerOpen {

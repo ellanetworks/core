@@ -12,70 +12,37 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
-)
-
-var (
-	ErrSMSUENotRegistered = errors.New("amf: UE is not registered")
-	ErrSMSUEUnreachable   = errors.New("amf: UE did not become reachable")
-	ErrSMSNotAllowed      = errors.New("amf: UE is not registered for SMS over NAS")
 )
 
 func (ue *UeContext) SMSOverNAS() bool {
 	return ue.smsOverNAS.Load()
 }
 
-const maxSMSDecisionAttempts = 3
-
 func (amf *AMF) GrantSMSOverNAS(ctx context.Context, ue *UeContext, requested bool) bool {
+	amf.smsDecisionMu.RLock()
+	defer amf.smsDecisionMu.RUnlock()
+
 	ue.smsRequested.Store(requested)
 
-	for range maxSMSDecisionAttempts {
-		generation := ue.beginSMSDecision()
+	granted, err := amf.evaluateSMS(ctx, ue)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not decide whether the UE may use SMS over NAS", logger.SUPI(ue.Supi().String()), zap.Error(err))
 
-		granted, err := amf.evaluateSMS(ctx, ue)
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("could not decide whether the UE may use SMS over NAS", logger.SUPI(ue.Supi().String()), zap.Error(err))
-
-			granted = false
-		}
-
-		if amf.commitSMSGrant(ctx, ue, generation, granted) {
-			return granted
-		}
+		granted = false
 	}
 
-	logger.From(ctx, logger.AmfLog).Warn("SMS over NAS decision kept racing configuration changes; not allowing SMS", logger.SUPI(ue.Supi().String()))
-
-	amf.commitSMSGrant(ctx, ue, ue.beginSMSDecision(), false)
-
-	return false
-}
-
-func (amf *AMF) commitSMSGrant(ctx context.Context, ue *UeContext, generation uint64, granted bool) bool {
 	ue.smsMu.Lock()
 	defer ue.smsMu.Unlock()
-
-	if ue.smsGeneration != generation {
-		return false
-	}
 
 	ue.smsIndicationPending.Store(nil)
 	ue.smsIndicated = granted
 	amf.storeSMSGrant(ctx, ue, granted)
 
-	return true
-}
-
-func (ue *UeContext) beginSMSDecision() uint64 {
-	ue.smsMu.Lock()
-	defer ue.smsMu.Unlock()
-
-	ue.smsGeneration++
-
-	return ue.smsGeneration
+	return granted
 }
 
 func (amf *AMF) evaluateSMS(ctx context.Context, ue *UeContext) (bool, error) {
@@ -84,7 +51,9 @@ func (amf *AMF) evaluateSMS(ctx context.Context, ue *UeContext) (bool, error) {
 		return false, nil
 	}
 
-	return amf.SMS.Allowed(ctx, supi.IMSI())
+	allowed, err := amf.SMS.AllowedEach(ctx, []string{supi.IMSI()})
+
+	return allowed[supi.IMSI()], err
 }
 
 func (amf *AMF) storeSMSGrant(ctx context.Context, ue *UeContext, granted bool) {
@@ -98,42 +67,44 @@ func (amf *AMF) ReevaluateSMS(ctx context.Context) {
 		return
 	}
 
-	type decision struct {
-		ue         *UeContext
-		imsi       string
-		generation uint64
+	for _, ue := range amf.reevaluateSMS(ctx) {
+		amf.deliverSMSIndication(ctx, ue)
 	}
+}
 
-	var pending []decision
+func (amf *AMF) reevaluateSMS(ctx context.Context) []*UeContext {
+	amf.smsDecisionMu.Lock()
+	defer amf.smsDecisionMu.Unlock()
+
+	var (
+		ues   []*UeContext
+		imsis []string
+	)
 
 	for _, ue := range amf.smsRequestingUEs() {
-		generation := ue.beginSMSDecision()
-
-		if ue.State() == Registered {
-			pending = append(pending, decision{ue: ue, imsi: ue.Supi().IMSI(), generation: generation})
-		}
+		ues = append(ues, ue)
+		imsis = append(imsis, ue.Supi().IMSI())
 	}
 
-	if len(pending) == 0 {
-		return
-	}
-
-	imsis := make([]string, len(pending))
-	for i, d := range pending {
-		imsis[i] = d.imsi
+	if len(ues) == 0 {
+		return nil
 	}
 
 	allowed, err := amf.SMS.AllowedEach(ctx, imsis)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("could not re-evaluate SMS over NAS", zap.Error(err))
-		return
+		return nil
 	}
 
-	for _, d := range pending {
-		if amf.applySMSDecision(ctx, d.ue, d.generation, allowed[d.imsi]) {
-			amf.deliverSMSIndication(ctx, d.ue)
+	var changed []*UeContext
+
+	for i, ue := range ues {
+		if amf.applySMSDecision(ctx, ue, allowed[imsis[i]]) {
+			changed = append(changed, ue)
 		}
 	}
+
+	return changed
 }
 
 func (amf *AMF) smsRequestingUEs() []*UeContext {
@@ -151,13 +122,9 @@ func (amf *AMF) smsRequestingUEs() []*UeContext {
 	return ues
 }
 
-func (amf *AMF) applySMSDecision(ctx context.Context, ue *UeContext, generation uint64, allowed bool) bool {
+func (amf *AMF) applySMSDecision(ctx context.Context, ue *UeContext, allowed bool) bool {
 	ue.smsMu.Lock()
 	defer ue.smsMu.Unlock()
-
-	if ue.smsGeneration != generation {
-		return false
-	}
 
 	if !allowed {
 		amf.storeSMSGrant(ctx, ue, false)
@@ -268,7 +235,6 @@ func (ue *UeContext) deactivateSMS() {
 	ue.smsMu.Lock()
 	defer ue.smsMu.Unlock()
 
-	ue.smsGeneration++
 	ue.smsIndicated = false
 	ue.smsOverNAS.Store(false)
 	ue.smsRequested.Store(false)
@@ -283,12 +249,6 @@ func (ue *UeContext) smsTransactionPending() bool {
 	supi := ue.Supi()
 
 	return ue.sms != nil && supi.IsIMSI() && ue.sms.TransactionPending(supi.IMSI())
-}
-
-func (ue *UeContext) SMSDeliveryFailed() {
-	if supi := ue.Supi(); ue.sms != nil && supi.IsIMSI() {
-		ue.sms.DeliveryFailed(supi.IMSI())
-	}
 }
 
 func (amf *AMF) SMSSignallingSettled(ctx context.Context, imsi string) {
@@ -334,7 +294,7 @@ func (amf *AMF) SendSMS(ctx context.Context, imsi string, payload []byte) error 
 
 	conn := ue.Conn()
 	if conn == nil {
-		return ErrSMSUEUnreachable
+		return smsf.ErrUnreachable
 	}
 
 	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeSMS, payload, nil, nil, nil)
@@ -361,11 +321,11 @@ func (amf *AMF) smsUE(imsi string) (*UeContext, error) {
 
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok || ue.State() == Deregistered {
-		return nil, ErrSMSUENotRegistered
+		return nil, smsf.ErrNotRegisteredForSMS
 	}
 
 	if !ue.SMSOverNAS() {
-		return nil, ErrSMSNotAllowed
+		return nil, smsf.ErrNotRegisteredForSMS
 	}
 
 	return ue, nil
@@ -396,7 +356,7 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 
 		switch {
 		case state == Deregistered:
-			return ErrSMSUENotRegistered
+			return smsf.ErrNotRegisteredForSMS
 		case state != Registered:
 			select {
 			case <-changed:
@@ -405,11 +365,11 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 				return ctx.Err()
 			}
 		case ue.Conn() != nil && !ue.SMSOverNAS():
-			return ErrSMSNotAllowed
+			return smsf.ErrNotRegisteredForSMS
 		case ue.Conn() != nil:
 			return nil
 		case paged:
-			return ErrSMSUEUnreachable
+			return smsf.ErrUnreachable
 		}
 
 		if err := guardIdlePaging(ue); err != nil {
@@ -426,7 +386,7 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 					return ctx.Err()
 				}
 			default:
-				return ErrSMSUEUnreachable
+				return smsf.ErrUnreachable
 			}
 		}
 
@@ -441,7 +401,7 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 			paged = true
 		case errors.Is(err, errUEConnected):
 		default:
-			return fmt.Errorf("%w: %w", ErrSMSUEUnreachable, err)
+			return fmt.Errorf("%w: %w", smsf.ErrUnreachable, err)
 		}
 	}
 }

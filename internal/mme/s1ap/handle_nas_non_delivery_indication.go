@@ -29,7 +29,7 @@ func handleNASNonDeliveryIndication(ctx context.Context, m *mme.MME, radio *mme.
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	_, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
@@ -45,6 +45,4 @@ func handleNASNonDeliveryIndication(ctx context.Context, m *mme.MME, radio *mme.
 	}
 
 	logger.From(ctx, logger.MmeLog).Debug("NAS Non Delivery Indication", fields...)
-
-	ue.SMSDeliveryFailed()
 }

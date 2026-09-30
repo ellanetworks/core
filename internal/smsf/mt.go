@@ -180,24 +180,19 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 }
 
 func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, err error) (mtOutcome, bool) {
-	var absentErr *AbsentError
-
 	switch {
 	case err == nil:
 		return mtOutcome{}, false
 	case errors.Is(err, errAborted):
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
-	case (errors.Is(err, ErrUserUnknown) || errors.Is(err, ErrNotRegisteredForSMS)) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
+	case errors.Is(err, ErrNotRegisteredForSMS) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
 		return experimental(tgpp.ResultErrorUserUnknown), true
-	case errors.Is(err, ErrUserUnknown), errors.Is(err, ErrNotRegisteredForSMS):
+	case errors.Is(err, ErrNotRegisteredForSMS):
 		s.markWaiting(ctx, imsi, serviceCentre)
 		return absent(tgpp.AbsentUserIMSIDetached), true
-	case errors.As(err, &absentErr):
-		s.markWaiting(ctx, imsi, serviceCentre)
-		return absent(absentErr.Diagnostic), true
 	case errors.Is(err, errNoCPAck):
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, ErrUnreachable), errors.Is(err, context.DeadlineExceeded):
 		s.markWaiting(ctx, imsi, serviceCentre)
 		return absent(tgpp.AbsentUserNoPagingResponseMSC), true
 	default:

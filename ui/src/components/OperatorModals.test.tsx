@@ -257,7 +257,12 @@ describe("EditOperatorSMSModal", () => {
   const SMS_PATH = "/api/v1/operator/sms";
 
   const render = (
-    initialData = { smscAddress: "", smscPort: 3868, smsNumber: "" },
+    initialData = {
+      enabled: false,
+      smscAddress: "",
+      smscPort: 3868,
+      smsNumber: "",
+    },
   ) => {
     const onClose = vi.fn();
     renderWithProviders(
@@ -284,21 +289,61 @@ describe("EditOperatorSMSModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(SMS_PATH)?.body).toEqual({
+      enabled: false,
       smscAddress: "192.0.2.10",
       smscPort: 3868,
       smsNumber: "+15550001111",
     });
   });
 
-  it("requires an SMS number when an SMSC is set", async () => {
+  it("keeps SMS on when its settings change", async () => {
+    const user = userEvent.setup();
+    api.put(SMS_PATH, () => ({}));
+    const { onClose } = render({
+      enabled: true,
+      smscAddress: "192.0.2.10",
+      smscPort: 3868,
+      smsNumber: "+15550001111",
+    });
+
+    await retype(user, /SMSC Address/, "192.0.2.11");
+    await waitFor(() => expect(updateButton()).toBeEnabled());
+    await user.click(updateButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(SMS_PATH)?.body).toEqual({
+      enabled: true,
+      smscAddress: "192.0.2.11",
+      smscPort: 3868,
+      smsNumber: "+15550001111",
+    });
+  });
+
+  it("requires the SMSC and the SMS number while SMS is on", async () => {
+    const user = userEvent.setup();
+    render({
+      enabled: true,
+      smscAddress: "192.0.2.10",
+      smscPort: 3868,
+      smsNumber: "+15550001111",
+    });
+
+    await retype(user, /SMS Number/, "");
+    await screen.findByText("SMS number is required while SMS is on");
+    expect(updateButton()).toBeDisabled();
+
+    await retype(user, /SMSC Address/, "");
+    await screen.findByText("SMSC address is required while SMS is on");
+  });
+
+  it("allows incomplete settings while SMS is off", async () => {
     const user = userEvent.setup();
     render();
 
     await retype(user, /SMSC Address/, "192.0.2.10");
     await retype(user, /SMS Number/, "");
 
-    await screen.findByText("SMS number is required");
-    expect(updateButton()).toBeDisabled();
+    await waitFor(() => expect(updateButton()).toBeEnabled());
   });
 
   it("rejects an SMSC address that is not an IP address", async () => {
@@ -311,10 +356,11 @@ describe("EditOperatorSMSModal", () => {
     expect(updateButton()).toBeDisabled();
   });
 
-  it("disables SMS when the SMSC address is cleared", async () => {
+  it("clears the SMSC address while SMS is off", async () => {
     const user = userEvent.setup();
     api.put(SMS_PATH, () => ({}));
     const { onClose } = render({
+      enabled: false,
       smscAddress: "192.0.2.10",
       smscPort: 3868,
       smsNumber: "+15550001111",
@@ -327,10 +373,33 @@ describe("EditOperatorSMSModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(SMS_PATH)?.body).toEqual({
+      enabled: false,
       smscAddress: "",
       smscPort: 3868,
       smsNumber: "+15550001111",
     });
+  });
+
+  it("shows a cleared SMSC port as empty and asks for a value", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.clear(field(/SMSC Port/));
+    await user.tab();
+
+    expect(field(/SMSC Port/)).toHaveValue(null);
+    await screen.findByText("SMSC port is required");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("rejects the unspecified address", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await retype(user, /SMSC Address/, "0.0.0.0");
+
+    await screen.findByText("SMSC address must be an IPv4 or IPv6 address");
+    expect(updateButton()).toBeDisabled();
   });
 
   it("rejects an SMS number without the + prefix", async () => {

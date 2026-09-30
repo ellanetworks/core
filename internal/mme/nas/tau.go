@@ -23,8 +23,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("update_type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
 		zap.Bool("active_flag", req.ActiveFlag))
 
-	ueConn.AbortSMSIMSIDetach(ctx)
-
 	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept")
 		ueConn.ResendTauAccept(ctx)

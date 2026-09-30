@@ -97,57 +97,19 @@ func (c *UeConn) armNASGuardMode(ctx context.Context, name string, plain []byte,
 		return
 	}
 
-	c.m.mu.Lock()
-	defer c.m.mu.Unlock()
+	m := c.m
 
-	c.armNASGuardLocked(ctx, ue, name, plain, sht, onAbort)
-}
-
-func (c *UeConn) armNASGuardLocked(ctx context.Context, ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
-	if c.nasGuardName == smsIMSIDetachProcedure && name != smsIMSIDetachProcedure {
-		ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachPending)
-	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	c.nasGuardName = name
 	link := trace.SpanContextFromContext(ctx)
 
 	c.nasGuard.ArmWith(
-		c.m.nasGuardCfg,
+		m.nasGuardCfg,
 		func(attempt int32) { c.retransmitNASGuard(link, ue, name, plain, sht, attempt) },
 		func() { c.expireNASGuard(link, ue, name, onAbort) },
 	)
-}
-
-func (c *UeConn) claimNASGuard(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) bool {
-	ue := c.UeContext()
-	if ue == nil {
-		return false
-	}
-
-	c.m.mu.Lock()
-	defer c.m.mu.Unlock()
-
-	if ue.Conn() != c || c.nasGuard.Active() {
-		return false
-	}
-
-	c.armNASGuardLocked(ctx, ue, name, plain, sht, onAbort)
-
-	return true
-}
-
-func (c *UeConn) stopSMSIMSIDetachGuard(ctx context.Context) {
-	defer c.ResumeDeferredReleaseIfSettled(ctx)
-
-	c.m.mu.Lock()
-	defer c.m.mu.Unlock()
-
-	if c.nasGuardName != smsIMSIDetachProcedure {
-		return
-	}
-
-	c.nasGuardName = ""
-	c.nasGuard.Stop()
 }
 
 func (m *MME) ArmESMGuard(ctx context.Context, ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType) {

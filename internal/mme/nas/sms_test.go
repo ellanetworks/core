@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -26,8 +27,6 @@ type fakeSMSHandler struct {
 	uplinks   [][]byte
 	reachable int
 }
-
-func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) { return h.allowed, h.err }
 
 func (h *fakeSMSHandler) Uplink(_ context.Context, _ string, payload []byte) {
 	h.mu.Lock()
@@ -51,8 +50,6 @@ func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[str
 
 	return allowed, h.err
 }
-
-func (h *fakeSMSHandler) DeliveryFailed(string) {}
 
 func (h *fakeSMSHandler) TransactionPending(string) bool {
 	h.mu.Lock()
@@ -145,7 +142,7 @@ func TestCombinedAttachIsAcceptedForSMSOnlyWhenSMSIsAllowed(t *testing.T) {
 
 // TS 24.301 §5.5.1.3.4.3
 func TestCombinedAttachWithoutSMSIsAcceptedForEPSServicesOnly(t *testing.T) {
-	for name, handler := range map[string]mme.SMSHandler{
+	for name, handler := range map[string]smsf.Handler{
 		"SMS not allowed": &fakeSMSHandler{allowed: false},
 		"no SMSF":         nil,
 	} {
@@ -325,19 +322,6 @@ func TestIMSIDetachAtSwitchOffIsNotAnswered(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[0])
 }
 
-func downlinkPlain(t *testing.T, ue *mme.UeContext, sent []byte) []byte {
-	t.Helper()
-
-	dl := decodeDownlinkNAS(t, sent)
-
-	plain, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return plain
-}
-
 // TS 24.301 §5.5.1.3.4.3
 func TestCombinedAttachWhoseSMSGrantCannotBeDecidedIsRetriable(t *testing.T) {
 	m := newTestMME(t)
@@ -393,7 +377,7 @@ func TestTAUAnsweringAnSMSPageKeepsTheConnectionForTheSMS(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[sent])
 }
 
-func TestWithdrawingSMSDetachesTheUEFromSMSOnly(t *testing.T) {
+func TestWithdrawingSMSClearsTheGrantWithoutSignallingTheUE(t *testing.T) {
 	m := newTestMME(t)
 	handler := &fakeSMSHandler{allowed: true}
 	m.SMS = handler
@@ -418,50 +402,12 @@ func TestWithdrawingSMSDetachesTheUEFromSMSOnly(t *testing.T) {
 
 	m.ReevaluateSMS(context.Background())
 
-	if ue.SMSOnly() || cc.count() != 1 {
-		t.Fatalf("SMS only = %t, downlinks = %d, want the grant withdrawn and one DETACH REQUEST", ue.SMSOnly(), cc.count())
+	if ue.SMSOnly() || cc.count() != 0 {
+		t.Fatalf("SMS only = %t, downlinks = %d, want the grant withdrawn and nothing sent to the UE", ue.SMSOnly(), cc.count())
 	}
 
-	req, err := eps.ParseDetachRequestNetwork(downlinkPlain(t, ue, cc.sent[0]))
-	if err != nil || req.TypeOfDetach != eps.DetachTypeNetworkIMSI {
-		t.Fatalf("downlink = %+v (%v), want an IMSI detach", req, err)
-	}
-
-	handleDetachAccept(context.Background(), m, ue, ue.Conn())
-
-	if ue.EMMState() != mme.EMMRegistered || ue.Conn() == nil || len(m.SnapshotPDNs(ue)) != 1 || cc.count() != 1 {
-		t.Fatalf("EMM state = %s, connected = %t, PDNs = %d, downlinks = %d: the IMSI detach must keep the EPS registration", ue.EMMState(), ue.Conn() != nil, len(m.SnapshotPDNs(ue)), cc.count())
-	}
-}
-
-func TestAnIdleUEIsDetachedFromSMSWhenItReconnects(t *testing.T) {
-	m := newTestMME(t)
-	handler := &fakeSMSHandler{allowed: true}
-	m.SMS = handler
-	ue, cc := securedUE(t, m)
-	m.DecideSMS(context.Background(), ue, true)
-	m.FreeUeConn(context.Background(), ue)
-
-	handler.mu.Lock()
-	handler.allowed = false
-	handler.mu.Unlock()
-
-	m.ReevaluateSMS(context.Background())
-
-	if ue.SMSOnly() {
-		t.Fatal("the grant was not withdrawn")
-	}
-
-	c := m.NewUeConn(cc, 9)
-	m.AttachUeConn(context.Background(), ue, c)
-	c.MarkSecureExchangeEstablished()
-
-	before := cc.count()
-
-	m.SMSReachable(context.Background(), ue)
-
-	if cc.count() != before+1 {
-		t.Fatalf("sent %d messages on reconnection, want the IMSI detach", cc.count()-before)
+	if ue.EMMState() != mme.EMMRegistered || ue.Conn() == nil || len(m.SnapshotPDNs(ue)) != 1 {
+		t.Fatalf("EMM state = %s, connected = %t, PDNs = %d: withdrawing SMS must keep the EPS registration", ue.EMMState(), ue.Conn() != nil, len(m.SnapshotPDNs(ue)))
 	}
 }
 

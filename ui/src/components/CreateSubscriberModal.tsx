@@ -29,7 +29,6 @@ import ProfileSelectField, {
 import {
   descriptionSchema,
   msisdnSchema,
-  normalizeMSISDN,
   getMSINBounds,
   parseIMSIorMSIN,
   randomKey,
@@ -169,7 +168,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       values.profileName,
       values.opc,
       values.description,
-      normalizeMSISDN(values.msisdn),
+      values.msisdn.trim(),
     );
   };
 

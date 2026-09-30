@@ -62,6 +62,7 @@ func TestIntegrationSMS(t *testing.T) {
 	baseline.Policy(fixture.DefaultPolicySpec())
 
 	if err := env.Client.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{
+		Enabled:     true,
 		SMSCAddress: smscAddress(),
 		SMSCPort:    smscDiameterPort,
 		SMSNumber:   smsNumber,

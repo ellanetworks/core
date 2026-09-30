@@ -78,7 +78,7 @@ export const descriptionSchema = yup
 
 export const MSISDN_MAX_DIGITS = 15;
 
-export const normalizeMSISDN = (value: string) => value.trim();
+const msisdnRegex = new RegExp(`^\\+[1-9][0-9]{0,${MSISDN_MAX_DIGITS - 1}}$`);
 
 export const msisdnSchema = yup
   .string()
@@ -87,7 +87,7 @@ export const msisdnSchema = yup
     "msisdn-format",
     `Must be an E.164 number: + followed by 1 to ${MSISDN_MAX_DIGITS} digits, for example +15551230001.`,
     (value) => {
-      const number = normalizeMSISDN(value ?? "");
-      return number === "" || /^\+[1-9][0-9]{0,14}$/.test(number);
+      const number = (value ?? "").trim();
+      return number === "" || msisdnRegex.test(number);
     },
   );

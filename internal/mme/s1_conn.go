@@ -77,7 +77,6 @@ type UeConn struct {
 	releaseGuard              guard.Guard
 	icsGuard                  guard.Guard
 	releasing                 bool
-	released                  chan struct{}
 	ranUEAMBR                 atomic.Pointer[models.Ambr]
 }
 

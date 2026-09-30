@@ -378,12 +378,16 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 
 	original := op.SMS
 
-	if err := cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{}); err != nil {
+	settings := func(enabled bool) *client.UpdateOperatorSMSOptions {
+		return &client.UpdateOperatorSMSOptions{Enabled: enabled, SMSCAddress: original.SMSCAddress, SMSCPort: original.SMSCPort, SMSNumber: original.SMSNumber}
+	}
+
+	if err := cl.UpdateOperatorSMS(ctx, settings(false)); err != nil {
 		return fmt.Errorf("disable SMS: %w", err)
 	}
 
 	restore := func() error {
-		return cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSCAddress: original.SMSCAddress, SMSCPort: original.SMSCPort, SMSNumber: original.SMSNumber})
+		return cl.UpdateOperatorSMS(ctx, settings(original.Enabled))
 	}
 
 	if err := during(); err != nil {
@@ -431,8 +435,10 @@ func runWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, net netw
 	}
 
 	if err := withSMSDisabled(ctx, env, func() error {
-		if err := p.AwaitWithdrawal(deliveryTimeout); err != nil {
-			return err
+		if n, ok := p.(interface{ AwaitWithdrawal(time.Duration) error }); ok {
+			if err := n.AwaitWithdrawal(deliveryTimeout); err != nil {
+				return err
+			}
 		}
 
 		if err := expectNoReport(ctx, cfg, p); err != nil {

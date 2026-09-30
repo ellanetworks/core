@@ -28,18 +28,17 @@ var smscApplications = []diameter.Application{
 }
 
 var (
-	ErrUserUnknown         = errors.New("smsf: UE not known on this node")
 	ErrNotRegisteredForSMS = errors.New("smsf: UE is not registered for SMS")
+	ErrUnreachable         = errors.New("smsf: UE did not become reachable")
 	ErrNotClusterMember    = errors.New("smsf: node is not a cluster member")
 	ErrSMSCUnavailable     = errors.New("smsf: SMSC not connected")
 )
 
-type AbsentError struct {
-	Diagnostic uint32
-}
-
-func (e *AbsentError) Error() string {
-	return fmt.Sprintf("smsf: UE absent (diagnostic %d)", e.Diagnostic)
+type Handler interface {
+	AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error)
+	Uplink(ctx context.Context, imsi string, payload []byte)
+	UEReachable(ctx context.Context, imsi string)
+	TransactionPending(imsi string) bool
 }
 
 type Transport interface {
@@ -65,6 +64,12 @@ type Directory interface {
 	Identity(ctx context.Context, nodeID string) (diameternode.Identity, error)
 }
 
+type SMSC interface {
+	Envelope() (tgpp.Envelope, error)
+	Do(ctx context.Context, req *diameter.Message) (*diameter.Message, error)
+	LocalHost() (string, bool)
+}
+
 type DiameterNode interface {
 	Node() *diameter.Node
 	Peers() []diameternode.PeerStatus
@@ -76,7 +81,6 @@ type Registrar interface {
 
 type Timers struct {
 	TC1                time.Duration
-	TC1Lost            time.Duration
 	Paging             time.Duration
 	MoreMessages       time.Duration
 	MaxRetransmissions int
@@ -88,7 +92,6 @@ type Timers struct {
 func DefaultTimers() Timers {
 	return Timers{
 		TC1:                6 * time.Second,
-		TC1Lost:            time.Second,
 		Paging:             10 * time.Second,
 		MoreMessages:       5 * time.Second,
 		MaxRetransmissions: 2,
@@ -101,7 +104,7 @@ func DefaultTimers() Timers {
 type SMSF struct {
 	store     Store
 	directory Directory
-	diameter  DiameterNode
+	smsc      SMSC
 	logger    *zap.Logger
 	timers    Timers
 
@@ -112,11 +115,11 @@ type SMSF struct {
 	alerting map[string]bool
 }
 
-func New(store Store, directory Directory, node DiameterNode, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
+func New(store Store, directory Directory, smsc SMSC, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
 	return &SMSF{
 		store:     store,
 		directory: directory,
-		diameter:  node,
+		smsc:      smsc,
 		transport: transport,
 		logger:    logger,
 		timers:    timers,
@@ -141,19 +144,13 @@ func (s *SMSF) Register(r Registrar) {
 	}))
 }
 
-func (s *SMSF) Allowed(ctx context.Context, imsi string) (bool, error) {
-	allowed, err := s.AllowedEach(ctx, []string{imsi})
-
-	return allowed[imsi], err
-}
-
 func (s *SMSF) AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error) {
 	settings, err := s.store.GetSMSSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get SMS settings: %w", err)
 	}
 
-	if !settings.Enabled() {
+	if !settings.Enabled {
 		return map[string]bool{}, nil
 	}
 
@@ -165,32 +162,48 @@ func (s *SMSF) AllowedEach(ctx context.Context, imsis []string) (map[string]bool
 	return allowed, nil
 }
 
-type smscEndpoint struct {
-	node  *diameter.Node
-	host  string
-	realm string
+func SMSCOver(node DiameterNode) SMSC {
+	return nodeSMSC{node: node}
 }
 
-func (s *SMSF) smsc() (smscEndpoint, error) {
-	node := s.diameter.Node()
+type nodeSMSC struct {
+	node DiameterNode
+}
+
+func (c nodeSMSC) Envelope() (tgpp.Envelope, error) {
+	node := c.node.Node()
 	if node == nil {
-		return smscEndpoint{}, ErrSMSCUnavailable
+		return tgpp.Envelope{}, ErrSMSCUnavailable
 	}
 
-	for _, p := range s.diameter.Peers() {
+	for _, p := range c.node.Peers() {
 		if p.Role == PeerRoleSMSC && p.State == diameter.PeerOpen {
-			return smscEndpoint{node: node, host: p.Host, realm: p.Realm}, nil
+			return tgpp.Envelope{
+				SessionID:        node.NewSessionID(),
+				Origin:           node.Identity(),
+				DestinationHost:  p.Host,
+				DestinationRealm: p.Realm,
+			}, nil
 		}
 	}
 
-	return smscEndpoint{}, ErrSMSCUnavailable
+	return tgpp.Envelope{}, ErrSMSCUnavailable
 }
 
-func (e smscEndpoint) envelope() tgpp.Envelope {
-	return tgpp.Envelope{
-		SessionID:        e.node.NewSessionID(),
-		Origin:           e.node.Identity(),
-		DestinationHost:  e.host,
-		DestinationRealm: e.realm,
+func (c nodeSMSC) Do(ctx context.Context, req *diameter.Message) (*diameter.Message, error) {
+	node := c.node.Node()
+	if node == nil {
+		return nil, ErrSMSCUnavailable
 	}
+
+	return node.Do(ctx, PeerRoleSMSC, req)
+}
+
+func (c nodeSMSC) LocalHost() (string, bool) {
+	node := c.node.Node()
+	if node == nil {
+		return "", false
+	}
+
+	return node.Identity().OriginHost, true
 }

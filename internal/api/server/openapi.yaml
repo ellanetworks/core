@@ -1550,7 +1550,7 @@ paths:
       operationId: updateOperatorSMS
       tags: [Operator]
       summary: Update SMS settings
-      description: Sets the external SMSC and Ella Core's SMS number. SMS is enabled whenever smscAddress is set. Every node connects to the SMSC over Diameter (SGd and S6c) on SCTP.
+      description: Enables or disables SMS and sets the external SMSC and Ella Core's SMS number. The settings are kept while SMS is disabled. While SMS is enabled, every node connects to the SMSC over Diameter (SGd and S6c) on SCTP. Disabling SMS withdraws it from every UE.
       requestBody:
         required: true
         content:
@@ -4621,10 +4621,10 @@ components:
       properties:
         enabled:
           type: boolean
-          description: "True when smscAddress is set."
+          description: "Whether SMS is enabled."
         smscAddress:
           type: string
-          description: "IP address of the SMSC's Diameter endpoint. Empty when SMS is disabled."
+          description: "IP address of the SMSC's Diameter endpoint. Empty when unset."
         smscPort:
           type: integer
           description: "SCTP port of the SMSC's Diameter endpoint."
@@ -4634,11 +4634,14 @@ components:
 
     UpdateOperatorSMSParams:
       type: object
-      required: [smscAddress, smsNumber]
+      required: [enabled, smscAddress, smsNumber]
       properties:
+        enabled:
+          type: boolean
+          description: "Whether SMS is enabled. Requires smscAddress and smsNumber when true."
         smscAddress:
           type: string
-          description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint. An empty value disables SMS."
+          description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint. Required when enabled is true."
         smscPort:
           type: integer
           minimum: 1
@@ -4648,7 +4651,7 @@ components:
         smsNumber:
           type: string
           pattern: "^(\\+[1-9][0-9]{0,14})?$"
-          description: "Ella Core's E.164 number, for example +15550001111. Required when smscAddress is set."
+          description: "Ella Core's E.164 number, for example +15550001111. Required when enabled is true."
 
     UpdateOperatorSPNParams:
       type: object

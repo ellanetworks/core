@@ -49,7 +49,7 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	if sub.Msisdn == "" || !settings.Enabled() {
+	if sub.Msisdn == "" || !settings.Enabled {
 		return fail(tgpp.ResultErrorServiceNotSubscribed, s6c.AbsentUserDiagnostics{})
 	}
 
@@ -235,14 +235,14 @@ func (s *SMSF) servedElsewhere(ctx context.Context, imsi string) bool {
 		return false
 	}
 
-	node := s.diameter.Node()
-	if node == nil {
+	local, ok := s.smsc.LocalHost()
+	if !ok {
 		return true
 	}
 
 	identity, err := s.directory.Identity(ctx, reg.NodeID)
 
-	return err == nil && !strings.EqualFold(identity.Host, node.Identity().OriginHost)
+	return err == nil && !strings.EqualFold(identity.Host, local)
 }
 
 func nodeNames(n s6c.ServingNodes) []string {

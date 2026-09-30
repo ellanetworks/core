@@ -152,7 +152,7 @@ func TestMemoryFullUEIsReportedThenAlertedOnMemoryAvailable(t *testing.T) {
 
 func TestAbsentUEIsReportedThenAlertedWhenReachable(t *testing.T) {
 	e := newEnv(t)
-	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserIMSIDetached})
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 
 	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
 	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserIMSIDetached {
@@ -190,7 +190,7 @@ func TestUnreachedUEIsAbsentWithNoPagingResponse(t *testing.T) {
 func TestMobileTerminatedSMSToAUEServedByAnotherNode(t *testing.T) {
 	e := newEnv(t)
 	e.store.register(db.UERegistrationTypeMME, remoteNode, false)
-	e.ue.fail(smsf.ErrUserUnknown)
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 
 	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
 	if !re.IsExperimental(tgpp.ResultErrorUserUnknown) {
@@ -205,7 +205,7 @@ func TestMobileTerminatedSMSToAUEServedByAnotherNode(t *testing.T) {
 func TestSwitchedOffUEIsAlertedWhenItComesBack(t *testing.T) {
 	e := newEnv(t)
 	e.store.register(db.UERegistrationTypeMME, localNode, true)
-	e.ue.fail(smsf.ErrUserUnknown)
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 
 	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
 	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserIMSIDetached {
@@ -329,7 +329,7 @@ func TestReportForUnknownTransactionIsRejected(t *testing.T) {
 
 func TestSuccessfulDeliveryClearsWaiting(t *testing.T) {
 	e := newEnv(t)
-	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserIMSIDetached})
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 	_ = failure(t, awaitTFA(t, forwardAsync(t, e)))
 
 	e.ue.fail(nil)
@@ -356,20 +356,12 @@ func TestTFRWithoutMandatoryAVPsIsRejected(t *testing.T) {
 		CommandCode:   sgd.CommandMTForwardShortMessage,
 		ApplicationID: sgd.ApplicationID,
 		AVPs: tgpp.Envelope{
-			SessionID: e.smsc.node.NewSessionID(), Origin: e.smsc.node.Identity(),
+			SessionID: smscHost + ";1;1", Origin: smscIdentity,
 			DestinationHost: localIdent.Host, DestinationRealm: localIdent.Realm,
 		}.AVPs(),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
-	defer cancel()
-
-	ans, err := e.smsc.node.DoHost(ctx, localIdent.Host, req)
-	if err != nil {
-		t.Fatalf("TFR: %v", err)
-	}
-
-	result, err := tgpp.ParseResult(ans)
+	result, err := tgpp.ParseResult(e.smsf.MTForwardShortMessage(context.Background(), localIdentity, req))
 	if err != nil || result.Code != diameter.ResultMissingAVP {
 		t.Fatalf("result = %v %v, want missing AVP", result, err)
 	}
@@ -435,39 +427,9 @@ func TestReportWithAnotherReferenceIsIgnored(t *testing.T) {
 	}
 }
 
-func TestNonDeliveryBringsTheRetransmissionForward(t *testing.T) {
-	timers := fastTimers()
-	timers.TC1 = time.Hour
-	timers.TC1Lost = 150 * time.Millisecond
-	e := newEnvWithTimers(t, timers)
-	tfa := forwardAsync(t, e)
-
-	first, _ := receiveRPData(t, e)
-
-	lost := time.Now()
-
-	e.smsf.DeliveryFailed(imsi)
-	e.ue.expectNothing(t, 100*time.Millisecond)
-
-	again, rp := receiveRPData(t, e)
-	if elapsed := time.Since(lost); elapsed < timers.TC1Lost {
-		t.Fatalf("retransmitted %s after the non-delivery, want TC1* brought forward to %s rather than an immediate resend", elapsed, timers.TC1Lost)
-	}
-
-	if again.TransactionIdentifier != first.TransactionIdentifier {
-		t.Fatalf("retransmission on %s, want %s", again.TransactionIdentifier, first.TransactionIdentifier)
-	}
-
-	answerMT(t, e, again, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference, UserData: deliverRpt})
-
-	if f := awaitTFA(t, tfa); f.err != nil {
-		t.Fatalf("TFA: %v", f.err)
-	}
-}
-
 func TestAnAlertDoesNotRaceADeliveryInProgress(t *testing.T) {
 	e := newEnv(t)
-	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserIMSIDetached})
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 	awaitTFA(t, forwardAsync(t, e))
 	e.ue.fail(nil)
 
@@ -494,34 +456,6 @@ func TestAnAlertDoesNotRaceADeliveryInProgress(t *testing.T) {
 
 	if n := len(e.smsc.alerted()); n != 0 {
 		t.Fatalf("SMSC alerted %d times during a delivery that succeeded", n)
-	}
-}
-
-func TestNonDeliveryBeforeTheCPDataIsSentDoesNotRetransmit(t *testing.T) {
-	timers := fastTimers()
-	timers.TC1 = time.Hour
-	e := newEnvWithTimers(t, timers)
-
-	gate := e.ue.holdReachability()
-	tfa := forwardAsync(t, e)
-
-	eventually(t, "the UE to be reached", func() bool { return e.ue.reachability() == 1 })
-
-	e.smsf.DeliveryFailed(imsi)
-	close(gate)
-
-	data, rp := receiveRPData(t, e)
-
-	select {
-	case m := <-e.ue.downlink:
-		t.Fatalf("spurious retransmission %s", m.MessageType())
-	case <-time.After(200 * time.Millisecond):
-	}
-
-	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference, UserData: deliverRpt})
-
-	if f := awaitTFA(t, tfa); f.err != nil {
-		t.Fatalf("TFA: %v", f.err)
 	}
 }
 
@@ -555,7 +489,7 @@ func TestAnAbsentAttemptKeepsTheMemoryFullFlag(t *testing.T) {
 	answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseMemoryCapacityExceeded})
 	awaitTFA(t, tfa)
 
-	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserNoPagingResponseMSC})
+	e.ue.fail(smsf.ErrUnreachable)
 	awaitTFA(t, forwardAsync(t, e))
 	e.ue.fail(nil)
 
@@ -569,7 +503,7 @@ func TestAnAbsentAttemptKeepsTheMemoryFullFlag(t *testing.T) {
 
 func TestTheUEBecomingReachableDuringAFailingDeliveryAlerts(t *testing.T) {
 	e := newEnv(t)
-	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserIMSIDetached})
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 
 	gate := e.ue.holdReachability()
 	tfa := forwardAsync(t, e)
@@ -647,7 +581,7 @@ func TestAnMTDeliverySurvivesTheLossOfItsDiameterConnection(t *testing.T) {
 	connection, drop := context.WithCancel(context.Background())
 	answered := make(chan *diameter.Message, 1)
 
-	go func() { answered <- e.smsf.MTForwardShortMessage(connection, hssIdentity, req) }()
+	go func() { answered <- e.smsf.MTForwardShortMessage(connection, localIdentity, req) }()
 
 	data, rp := receiveRPData(t, e)
 

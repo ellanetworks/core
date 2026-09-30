@@ -269,7 +269,7 @@ This path updates the network name (Service Provider Name) displayed on connecte
 
 ## Update the SMS Settings
 
-This path sets the external SMSC and Ella Core's SMS number.
+This path enables or disables SMS and sets the external SMSC and Ella Core's SMS number.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -277,14 +277,16 @@ This path sets the external SMSC and Ella Core's SMS number.
 
 ### Parameters
 
-- `smscAddress` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint. An empty value disables SMS.
+- `enabled` (boolean): Whether SMS is enabled. Requires `smscAddress` and `smsNumber` when `true`.
+- `smscAddress` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint. Required when `enabled` is `true`.
 - `smscPort` (optional integer): The SCTP port of the SMSC's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
-- `smsNumber` (string): Ella Core's E.164 number for SMS, for example `+15550001111`. Required when `smscAddress` is set.
+- `smsNumber` (string): Ella Core's E.164 number for SMS, for example `+15550001111`. Required when `enabled` is `true`.
 
 ### Sample Request
 
 ```json
 {
+    "enabled": true,
     "smscAddress": "192.0.2.10",
     "smscPort": 3868,
     "smsNumber": "+15550001111"

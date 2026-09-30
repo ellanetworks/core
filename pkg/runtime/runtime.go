@@ -545,7 +545,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), logger.DiameterLog)
 	diameternode.RegisterMetrics(diameterNode)
 
-	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, diameterNode, newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
+	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.SMSCOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
@@ -1106,7 +1106,7 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 			return nil, err
 		}
 
-		if !settings.Enabled() {
+		if !settings.Enabled {
 			return nil, nil
 		}
 

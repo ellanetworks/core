@@ -24,12 +24,6 @@ func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 }
 
 func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
-	if ueConn.TakeSMSIMSIDetach(ctx) {
-		logger.From(ctx, logger.MmeLog).Info("Detach Accept (IMSI detach)")
-
-		return nasreply.Handled()
-	}
-
 	if ue.EMMState() != mme.EMMDeregistrationInitiated {
 		logger.From(ctx, logger.MmeLog).Info("ignoring a Detach Accept with no network detach in progress", zap.Stringer("emm_state", ue.EMMState()))
 
@@ -60,8 +54,6 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		zap.Bool("switch_off", req.SwitchOff),
 		zap.Stringer("type", req.TypeOfDetach),
 	)
-
-	ueConn.CancelSMSIMSIDetach(ctx)
 
 	if req.TypeOfDetach == eps.DetachTypeIMSI {
 		m.RevokeSMS(ctx, ue)

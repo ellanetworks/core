@@ -169,10 +169,6 @@ func (p *ltePhone) halt() {
 	}
 }
 
-func (p *ltePhone) AwaitWithdrawal(timeout time.Duration) error {
-	return eventually(timeout, "the network to detach the UE from SMS", p.ue.SMSDetached)
-}
-
 func (p *ltePhone) UpdateRegistration() (bool, error) {
 	if err := p.Idle(); err != nil {
 		return false, err

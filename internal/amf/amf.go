@@ -27,6 +27,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -126,15 +127,6 @@ type LPPHandler interface {
 	ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error
 }
 
-type SMSHandler interface {
-	Allowed(ctx context.Context, imsi string) (bool, error)
-	AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error)
-	Uplink(ctx context.Context, imsi string, payload []byte)
-	UEReachable(ctx context.Context, imsi string)
-	TransactionPending(imsi string) bool
-	DeliveryFailed(imsi string)
-}
-
 // Concurrency model:
 //
 //   - AMF.mu guards the registry and connection lifecycle: the UE, radio and conn
@@ -185,10 +177,11 @@ type AMF struct {
 	Session                  SmfSbi
 	NAS                      NASHandler
 	LPPHandler               LPPHandler
-	SMS                      SMSHandler
+	SMS                      smsf.Handler
 	EPS                      interworking.EPSPeer
 
 	handoversToEPS interworking.HandoverGroup
+	smsDecisionMu  sync.RWMutex
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

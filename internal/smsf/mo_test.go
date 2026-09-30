@@ -175,12 +175,7 @@ func TestMobileOriginatedSMSWithoutMSISDNIsRejected(t *testing.T) {
 func TestMobileOriginatedSMSWhileSMSCUnreachableIsTemporaryFailure(t *testing.T) {
 	e := newEnv(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
-	defer cancel()
-
-	if err := e.smsc.node.Shutdown(ctx); err != nil {
-		t.Fatalf("stop SMSC: %v", err)
-	}
+	e.smsc.setDown(true)
 
 	sendRPData(t, e, moTI(3), 4)
 	expectCPAck(t, e, moTI(3).Peer())
@@ -453,11 +448,16 @@ func TestAFinalCPAckWithTrailingOctetsCompletesTheSubmission(t *testing.T) {
 }
 
 func TestANewSubmissionOnAReusedTransactionIdentifierIsRelayed(t *testing.T) {
-	e := newEnv(t)
+	timers := fastTimers()
+	timers.TC1 = time.Hour
+	e := newEnvWithTimers(t, timers)
 
 	sendRPData(t, e, moTI(1), 7)
 	expectCPAck(t, e, moTI(1).Peer())
-	expectReport(t, e, moTI(1).Peer())
+
+	if data, _ := e.ue.nextData(t); data.TransactionIdentifier != moTI(1).Peer() {
+		t.Fatalf("report on %s, want %s", data.TransactionIdentifier, moTI(1).Peer())
+	}
 
 	sendRPData(t, e, moTI(1), 7)
 	expectCPAck(t, e, moTI(1).Peer())

@@ -18,10 +18,15 @@ const DESCRIPTIONS: Record<string, string> = {
   "001010100007487": "Warehouse gate reader",
 };
 
+const MSISDNS: Record<string, string> = {
+  "001010100007487": "+15551230001",
+};
+
 const subscriber = (imsi: string) => ({
   imsi,
   profile_name: "default",
   description: DESCRIPTIONS[imsi],
+  msisdn: MSISDNS[imsi],
   status: { registered: false, num_sessions: 0 },
 });
 
@@ -397,5 +402,22 @@ describe("Subscribers connection state", () => {
 
     expect(cellOf(IMSIS[0], "last_seen_radio")).toHaveTextContent("gnb-01");
     expect(cellOf(IMSIS[1], "last_seen_radio")).toHaveTextContent("—");
+  });
+});
+
+describe("Subscribers MSISDN column", () => {
+  const msisdnCell = async (imsi: string) => {
+    const row = (await screen.findByText(imsi)).closest(
+      '[role="row"]',
+    ) as HTMLElement;
+    return row.querySelector('[data-field="msisdn"]') as HTMLElement;
+  };
+
+  it("shows the MSISDN, or a dash without one", async () => {
+    seedApi();
+    await renderSubscribers();
+
+    expect(await msisdnCell(IMSIS[0])).toHaveTextContent("+15551230001");
+    expect(await msisdnCell(IMSIS[1])).toHaveTextContent("—");
   });
 });

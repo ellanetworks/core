@@ -9,6 +9,7 @@ import (
 )
 
 type UpdateOperatorSMSParams struct {
+	Enabled     bool   `json:"enabled"`
 	SMSCAddress string `json:"smscAddress"`
 	SMSCPort    int    `json:"smscPort,omitempty"`
 	SMSNumber   string `json:"smsNumber"`
@@ -52,8 +53,26 @@ func TestUpdateOperatorSMS(t *testing.T) {
 		}
 	})
 
-	t.Run("setting an SMSC enables SMS", func(t *testing.T) {
+	t.Run("settings are stored while SMS is disabled", func(t *testing.T) {
 		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{
+			SMSCAddress: "192.0.2.10",
+			SMSNumber:   "+15550001111",
+		})
+		if err != nil || code != http.StatusCreated {
+			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
+		}
+
+		got := getSMS(t)
+		want := GetOperatorSMSResponseResult{SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: "+15550001111"}
+
+		if got != want {
+			t.Fatalf("sms = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("SMS is enabled explicitly", func(t *testing.T) {
+		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{
+			Enabled:     true,
 			SMSCAddress: "192.0.2.10",
 			SMSNumber:   "+15550001111",
 		})
@@ -75,6 +94,7 @@ func TestUpdateOperatorSMS(t *testing.T) {
 
 	t.Run("a custom port is stored", func(t *testing.T) {
 		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{
+			Enabled:     true,
 			SMSCAddress: "2001:db8::10",
 			SMSCPort:    3869,
 			SMSNumber:   "+15550001111",
@@ -88,13 +108,31 @@ func TestUpdateOperatorSMS(t *testing.T) {
 		}
 	})
 
+	t.Run("the SMSC address is stored in canonical form", func(t *testing.T) {
+		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{
+			Enabled:     true,
+			SMSCAddress: "2001:DB8:0::10",
+			SMSCPort:    3869,
+			SMSNumber:   "+15550001111",
+		})
+		if err != nil || code != http.StatusCreated {
+			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
+		}
+
+		if got := getSMS(t); got.SMSCAddress != "2001:db8::10" {
+			t.Fatalf("smscAddress = %q, want the canonical 2001:db8::10", got.SMSCAddress)
+		}
+	})
+
 	t.Run("invalid settings are rejected", func(t *testing.T) {
 		cases := map[string]UpdateOperatorSMSParams{
-			"hostname":       {SMSCAddress: "smsc.example.org", SMSNumber: "+15550001111"},
-			"missing number": {SMSCAddress: "192.0.2.10"},
-			"bad number":     {SMSCAddress: "192.0.2.10", SMSNumber: "+0555"},
-			"no plus sign":   {SMSCAddress: "192.0.2.10", SMSNumber: "15550001111"},
-			"bad port":       {SMSCAddress: "192.0.2.10", SMSCPort: 70000, SMSNumber: "+15550001111"},
+			"hostname":                   {Enabled: true, SMSCAddress: "smsc.example.org", SMSNumber: "+15550001111"},
+			"enabled without a number":   {Enabled: true, SMSCAddress: "192.0.2.10"},
+			"enabled without an address": {Enabled: true, SMSNumber: "+15550001111"},
+			"bad number":                 {Enabled: true, SMSCAddress: "192.0.2.10", SMSNumber: "+0555"},
+			"no plus sign":               {Enabled: true, SMSCAddress: "192.0.2.10", SMSNumber: "15550001111"},
+			"bad port":                   {Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 70000, SMSNumber: "+15550001111"},
+			"disabled with a hostname":   {SMSCAddress: "smsc.example.org", SMSNumber: "+15550001111"},
 		}
 
 		for name, params := range cases {
@@ -113,14 +151,18 @@ func TestUpdateOperatorSMS(t *testing.T) {
 		}
 	})
 
-	t.Run("clearing the SMSC disables SMS", func(t *testing.T) {
-		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{SMSNumber: "+15550001111"})
+	t.Run("disabling SMS keeps its settings", func(t *testing.T) {
+		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{
+			SMSCAddress: "2001:db8::10",
+			SMSCPort:    3869,
+			SMSNumber:   "+15550001111",
+		})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
 		got := getSMS(t)
-		want := GetOperatorSMSResponseResult{SMSCPort: 3868, SMSNumber: "+15550001111"}
+		want := GetOperatorSMSResponseResult{SMSCAddress: "2001:db8::10", SMSCPort: 3869, SMSNumber: "+15550001111"}
 
 		if got != want {
 			t.Fatalf("sms = %+v, want %+v", got, want)

@@ -31,8 +31,4 @@ func HandleNASNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	ueConn.Log(ctx).Debug("NAS Non Delivery Indication", fields...)
-
-	if ue := ueConn.Parent(); ue != nil {
-		ue.SMSDeliveryFailed()
-	}
 }

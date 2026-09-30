@@ -14,13 +14,15 @@ Example: `epc.mnc001.mcc001.3gppnetwork.org`
 
 ## 2. Configure Ella Core's SMS settings
 
-In the Ella Core UI, go to the Operator page. In the SMS section, configure the following settings:
+In the Ella Core UI, go to the Operator page. In the SMS section, click the edit icon and configure the following settings:
 
 - **SMSC Address**: your SMSC's Diameter IP address.
 - **SMSC Port**: your SMSC's Diameter port (default 3868).
 - **SMS Number**: your network's E.164 number for SMS, e.g. `+15550001111`.
 
 Click **Update**.
+
+Set the switch to **ON**.
 
 Validate that **SMSC Link** shows **Connected**.
 

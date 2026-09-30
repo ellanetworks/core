@@ -142,6 +142,13 @@ func (ue *UeContext) AdvanceRegStep(step RegStep) {
 // EMMState returns the UE's EMM registration state, read under ue.mu. Reading it
 // while EMM-REGISTERED carries the happens-before that lets the caller then read
 // the UE's other registered data (the mutex acts as the publication barrier).
+func (ue *UeContext) EMMState() EMMState {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.emmState
+}
+
 func (ue *UeContext) watchEMMState() (EMMState, <-chan struct{}) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -151,13 +158,6 @@ func (ue *UeContext) watchEMMState() (EMMState, <-chan struct{}) {
 	}
 
 	return ue.emmState, ue.stateChanged
-}
-
-func (ue *UeContext) EMMState() EMMState {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.emmState
 }
 
 // TransitionTo moves the UE's EMM registration state through the validated

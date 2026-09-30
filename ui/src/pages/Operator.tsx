@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState, useRef, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -16,8 +16,10 @@ import {
   TableContainer,
   TableRow,
   Button,
+  FormControlLabel,
   Skeleton,
   Stack,
+  Switch,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -32,8 +34,10 @@ import {
   getOperator,
   deleteHomeNetworkKey,
   getHomeNetworkKeyPrivateKey,
+  updateOperatorSMS,
   DEFAULT_SMSC_PORT,
   type OperatorData,
+  type OperatorSMS,
 } from "@/queries/operator";
 import {
   getDiameterStatus,
@@ -49,12 +53,14 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import EditOperatorSMSModal from "@/components/EditOperatorSMSModal";
+import ConfirmDialog from "@/components/form/ConfirmDialog";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
+import { formatDateTime } from "@/utils/formatters";
 
 const profileDescriptions: Record<string, string> = {
   A: "ECIES with X25519 (Curve25519)",
@@ -81,33 +87,51 @@ const smscPeerLabels: Record<
 };
 
 const SMSCLinkValue: React.FC<{
-  enabled: boolean;
+  sms: OperatorSMS;
   diameter?: DiameterStatus;
-}> = ({ enabled, diameter }) => {
-  if (!enabled) {
-    return <Chip label="Disabled" size="small" variant="outlined" />;
+  loading: boolean;
+  failed: boolean;
+}> = ({ sms, diameter, loading, failed }) => {
+  if (!diameter) {
+    if (loading) return <Skeleton variant="text" width={120} />;
+    if (failed) {
+      return (
+        <Typography variant="body2" color="error">
+          Could not load the link state
+        </Typography>
+      );
+    }
   }
 
   const peer: DiameterPeer | undefined = diameter?.peers.find(
-    (p) => p.role === "smsc",
+    (p) =>
+      p.role === "smsc" &&
+      p.address === sms.smscAddress &&
+      p.port === sms.smscPort,
   );
-  if (!peer) return <>N/A</>;
 
-  const { label, color } = smscPeerLabels[peer.state] ?? {
-    label: peer.state,
-    color: "default",
-  };
+  const { label, color } = peer
+    ? (smscPeerLabels[peer.state] ?? { label: peer.state, color: "default" })
+    : smscPeerLabels.connecting;
 
-  const tooltip = diameter?.host
-    ? `This node connects as ${diameter.host} in realm ${diameter.realm}`
-    : "";
+  const tooltip = [
+    diameter?.host
+      ? `This node connects as ${diameter.host} in realm ${diameter.realm}.`
+      : "",
+    peer?.state === "open" && peer.since
+      ? `Connected since ${formatDateTime(peer.since)}.`
+      : "",
+    "Other cluster nodes are not shown.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
       <Tooltip title={tooltip} arrow>
         <Chip label={label} color={color} size="small" variant="outlined" />
       </Tooltip>
-      {peer.host && (
+      {peer?.host && (
         <Typography
           variant="body2"
           color="textSecondary"
@@ -142,6 +166,7 @@ const Operator = () => {
     useState(false);
   const [isEditOperatorSMSModalOpen, setEditOperatorSMSModalOpen] =
     useState(false);
+  const [isDisableSMSConfirmOpen, setDisableSMSConfirmOpen] = useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
   >({});
@@ -167,7 +192,8 @@ const Operator = () => {
     isDeleteKeyConfirmOpen ||
     isEditOperatorNASSecurityModalOpen ||
     isEditOperatorSPNModalOpen ||
-    isEditOperatorSMSModalOpen;
+    isEditOperatorSMSModalOpen ||
+    isDisableSMSConfirmOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -255,10 +281,29 @@ const Operator = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("Network name (SPN) updated successfully.", "success");
   };
-  const handleEditOperatorSMSSuccess = () => {
+  const refreshSMS = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
+    queryClient.removeQueries({ queryKey: ["diameter"] });
+  };
+  const handleEditOperatorSMSSuccess = () => {
+    refreshSMS();
     showSnackbar("SMS settings updated successfully.", "success");
   };
+  const setSMSEnabled = async (enabled: boolean) => {
+    if (!accessToken || !operator) return;
+    await updateOperatorSMS(accessToken, { ...operator.sms, enabled });
+    refreshSMS();
+    showSnackbar(enabled ? "SMS turned on." : "SMS turned off.", "success");
+  };
+  const { mutate: turnSMSOn, isPending: smsTurningOn } = useMutation({
+    mutationFn: () => setSMSEnabled(true),
+    onError: (error: unknown) => {
+      showSnackbar(`Failed to turn SMS on: ${String(error)}`, "error");
+    },
+  });
+  const smsEnabled = !!operator?.sms?.enabled;
+  const smsConfigured =
+    !!operator?.sms?.smscAddress && !!operator?.sms?.smsNumber;
 
   const clearPrivateKey = (keyId: number) => {
     clearTimeout(privateKeyTimers.current[keyId]);
@@ -871,6 +916,56 @@ const Operator = () => {
         <Typography variant="h6" sx={{ mb: 2 }}>
           SMS
         </Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          External SMSC that relays SMS for 4G and 5G subscribers. Subscribers
+          need an MSISDN to send or receive SMS.
+        </Typography>
+        <Stack
+          direction="row"
+          sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
+        >
+          <Tooltip
+            title={
+              !smsEnabled && !smsConfigured
+                ? "Set the SMSC address and SMS number first"
+                : ""
+            }
+            arrow
+          >
+            <span>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={smsEnabled}
+                    onChange={(_, checked) =>
+                      checked ? turnSMSOn() : setDisableSMSConfirmOpen(true)
+                    }
+                    disabled={
+                      !canEdit ||
+                      isLoading ||
+                      smsTurningOn ||
+                      (!smsEnabled && !smsConfigured)
+                    }
+                  />
+                }
+                label={smsEnabled ? "SMS is ON" : "SMS is OFF"}
+              />
+            </span>
+          </Tooltip>
+          {canEdit && (
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<EditIcon />}
+              onClick={() => setEditOperatorSMSModalOpen(true)}
+              aria-label="Edit SMS settings"
+              sx={{ ml: 2, flexShrink: 0 }}
+            >
+              Edit
+            </Button>
+          )}
+        </Stack>
         <TableContainer sx={TABLE_CONTAINER_SX}>
           <Table>
             <TableBody>
@@ -886,27 +981,14 @@ const Operator = () => {
                 <TableCell sx={valueCellSx}>
                   {isLoading ? (
                     <Skeleton variant="text" width={160} />
-                  ) : operator?.sms?.enabled ? (
+                  ) : operator?.sms?.smscAddress ? (
                     operator.sms.smscAddress.includes(":") ? (
                       `[${operator.sms.smscAddress}]:${operator.sms.smscPort}`
                     ) : (
                       `${operator.sms.smscAddress}:${operator.sms.smscPort}`
                     )
                   ) : (
-                    <Chip label="Disabled" size="small" variant="outlined" />
-                  )}
-                </TableCell>
-                <TableCell sx={actionCellSx} rowSpan={3}>
-                  {canEdit && (
-                    <Tooltip title="Edit SMS settings" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={() => setEditOperatorSMSModalOpen(true)}
-                        aria-label="Edit SMS settings"
-                      >
-                        <EditIcon fontSize="small" color="primary" />
-                      </IconButton>
-                    </Tooltip>
+                    "N/A"
                   )}
                 </TableCell>
               </TableRow>
@@ -929,7 +1011,7 @@ const Operator = () => {
               <TableRow>
                 <TableCell sx={settingCellSx}>
                   <Tooltip
-                    title="State of the Diameter connection from this node to the SMSC"
+                    title="State of the Diameter connection from this node to the SMSC. Other cluster nodes are not shown."
                     arrow
                   >
                     <span>SMSC Link</span>
@@ -938,11 +1020,15 @@ const Operator = () => {
                 <TableCell sx={valueCellSx}>
                   {isLoading ? (
                     <Skeleton variant="text" width={120} />
-                  ) : (
+                  ) : operator && smsEnabled ? (
                     <SMSCLinkValue
-                      enabled={!!operator?.sms?.enabled}
+                      sms={operator.sms}
                       diameter={diameterQuery.data}
+                      loading={diameterQuery.isLoading}
+                      failed={diameterQuery.isError}
                     />
+                  ) : (
+                    <Chip label="Disabled" size="small" variant="outlined" />
                   )}
                 </TableCell>
               </TableRow>
@@ -1038,10 +1124,25 @@ const Operator = () => {
           onClose={() => setEditOperatorSMSModalOpen(false)}
           onSuccess={handleEditOperatorSMSSuccess}
           initialData={{
+            enabled: smsEnabled,
             smscAddress: operator?.sms?.smscAddress ?? "",
             smscPort: operator?.sms?.smscPort ?? DEFAULT_SMSC_PORT,
             smsNumber: operator?.sms?.smsNumber ?? "",
           }}
+        />
+      )}
+      {isDisableSMSConfirmOpen && (
+        <ConfirmDialog
+          open
+          onClose={() => setDisableSMSConfirmOpen(false)}
+          onConfirm={async () => {
+            await setSMSEnabled(false);
+            setDisableSMSConfirmOpen(false);
+          }}
+          title="Turn SMS off?"
+          description="Every subscriber loses SMS and each node disconnects from the SMSC. The SMS settings are kept."
+          confirmLabel="Turn Off"
+          confirmingLabel="Turning off…"
         />
       )}
     </Box>
