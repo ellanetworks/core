@@ -92,11 +92,10 @@ func TestSendRoutingInfoForSMRequestValidation(t *testing.T) {
 	bad := uint32(7)
 
 	for name, r := range map[string]RoutingRequest{
-		"no identity":   {ServiceCentreAddress: testServiceCentreAddress},
-		"no SC address": {MSISDN: "15551230002"},
-		"bad MSISDN":    {MSISDN: "+1555", ServiceCentreAddress: testServiceCentreAddress},
-		"bad IMSI":      {IMSI: "12", ServiceCentreAddress: testServiceCentreAddress},
-		"bad MTI":       {MSISDN: "1", ServiceCentreAddress: testServiceCentreAddress, MTI: 5},
+		"no identity": {ServiceCentreAddress: testServiceCentreAddress},
+		"bad MSISDN":  {MSISDN: "+1555", ServiceCentreAddress: testServiceCentreAddress},
+		"bad IMSI":    {IMSI: "12", ServiceCentreAddress: testServiceCentreAddress},
+		"bad MTI":     {MSISDN: "1", ServiceCentreAddress: testServiceCentreAddress, MTI: 5},
 		"bad not intended": {
 			MSISDN: "1", ServiceCentreAddress: testServiceCentreAddress, DeliveryNotIntended: &bad,
 		},
@@ -115,7 +114,6 @@ func TestParseSendRoutingInfoForSMRequestErrors(t *testing.T) {
 		req  *diameter.Message
 		want uint32
 	}{
-		"no SC address":    {request(CommandSendRoutingInfoForSM, msisdn), diameter.ResultMissingAVP},
 		"no identity":      {request(CommandSendRoutingInfoForSM, sc), diameter.ResultMissingAVP},
 		"two SC addresses": {request(CommandSendRoutingInfoForSM, msisdn, sc, sc), diameter.ResultAVPOccursTooManyTimes},
 		"unknown M AVP": {
@@ -252,6 +250,24 @@ func TestSendRoutingInfoForSMAnswerValidation(t *testing.T) {
 	}
 }
 
+func TestSendRoutingInfoForSMAnswerWithoutServingNodeWhenDeliveryNotIntended(t *testing.T) {
+	req := request(CommandSendRoutingInfoForSM,
+		diameter.Unsigned32(AVPSMDeliveryNotIntended, diameter.AVPFlagMandatory, tgpp.VendorID, SMDeliveryNotIntendedIMSI))
+
+	ans, err := NewSendRoutingInfoForSMAnswer(req, hssIdentity, Routing{IMSI: "001010000000001"}, true)
+	if err != nil {
+		t.Fatalf("NewSendRoutingInfoForSMAnswer: %v", err)
+	}
+
+	if name, ok := ans.Find(diameter.AVPUserName, 0); !ok || name.UTF8String() != "001010000000001" {
+		t.Fatalf("answer without the IMSI: %+v", ans)
+	}
+
+	if _, ok := ans.Find(AVPServingNode, tgpp.VendorID); ok {
+		t.Fatal("answer names a serving node")
+	}
+}
+
 func TestSendRoutingInfoForSMAllowedServingNodes(t *testing.T) {
 	req := request(CommandSendRoutingInfoForSM)
 
@@ -337,5 +353,14 @@ func TestParseSendRoutingInfoForSMAnswerMalformed(t *testing.T) {
 		if _, err := ParseSendRoutingInfoForSMAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestParseSendRoutingInfoForSMRequestWithoutSCAddress(t *testing.T) {
+	msisdn := diameter.OctetString(tgpp.AVPMSISDN, diameter.AVPFlagMandatory, tgpp.VendorID, mustHex(t, "5155210300f2"))
+
+	r, err := ParseSendRoutingInfoForSMRequest(request(CommandSendRoutingInfoForSM, msisdn))
+	if err != nil || r.ServiceCentreAddress != "" {
+		t.Fatalf("request = %+v (%v), want an SRR without SC-Address accepted (29.338 §5.3.2.3)", r, err)
 	}
 }
