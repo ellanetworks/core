@@ -59,6 +59,7 @@ type sctpTransport struct {
 	sc        *sctp.SCTPConn
 	remote    netip.Addr
 	unordered atomic.Bool
+	closed    atomic.Bool
 }
 
 func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
@@ -106,6 +107,10 @@ func (t *sctpTransport) setUnordered() { t.unordered.Store(true) }
 func (t *sctpTransport) readMessage(buf []byte) (int, error) {
 	for {
 		n, info, err := t.sc.ReadMsg(buf)
+		if err != nil && t.closed.Load() {
+			return 0, net.ErrClosed
+		}
+
 		if err != nil {
 			return 0, err
 		}
@@ -131,6 +136,12 @@ func (t *sctpTransport) writeMessage(b []byte) error {
 	return err
 }
 
-func (t *sctpTransport) close() error { return t.sc.Close() }
+func (t *sctpTransport) close() error {
+	t.closed.Store(true)
+	return t.sc.Close()
+}
 
-func (t *sctpTransport) abort() error { return t.sc.Abort() }
+func (t *sctpTransport) abort() error {
+	t.closed.Store(true)
+	return t.sc.Abort()
+}

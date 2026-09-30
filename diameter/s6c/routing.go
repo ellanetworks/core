@@ -39,7 +39,7 @@ var srrRules = diameter.BaseRequestRules().With(diameter.Rules{
 	{Code: tgpp.AVPMSISDN, VendorID: tgpp.VendorID}:             {},
 	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}: {},
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}:  {Multiple: true},
-	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:          {Required: true},
+	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:          {},
 	{Code: AVPSMRPMTI, VendorID: tgpp.VendorID}:                 {},
 	{Code: AVPSMRPSMEA, VendorID: tgpp.VendorID}:                {},
 	{Code: AVPSRRFlags, VendorID: tgpp.VendorID}:                {},
@@ -78,11 +78,6 @@ func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diame
 		return nil, invalid("SM-Delivery-Not-Intended %d", *r.DeliveryNotIntended)
 	}
 
-	scAddress, err := tgpp.EncodeE164(r.ServiceCentreAddress)
-	if err != nil {
-		return nil, invalid("service centre address: %w", err)
-	}
-
 	avps := env.AVPs()
 
 	if r.MSISDN != "" {
@@ -106,10 +101,16 @@ func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diame
 		avps = append(avps, smsfSupportFeature.AVP())
 	}
 
-	avps = append(avps,
-		diameter.OctetString(tgpp.AVPSCAddress, diameter.AVPFlagMandatory, tgpp.VendorID, scAddress),
-		diameter.Unsigned32(AVPSMRPMTI, diameter.AVPFlagMandatory, tgpp.VendorID, r.MTI),
-	)
+	if r.ServiceCentreAddress != "" {
+		scAddress, err := tgpp.EncodeE164(r.ServiceCentreAddress)
+		if err != nil {
+			return nil, invalid("service centre address: %w", err)
+		}
+
+		avps = append(avps, diameter.OctetString(tgpp.AVPSCAddress, diameter.AVPFlagMandatory, tgpp.VendorID, scAddress))
+	}
+
+	avps = append(avps, diameter.Unsigned32(AVPSMRPMTI, diameter.AVPFlagMandatory, tgpp.VendorID, r.MTI))
 
 	if len(r.SMEA) > 0 {
 		avps = append(avps, diameter.OctetString(AVPSMRPSMEA, diameter.AVPFlagMandatory, tgpp.VendorID, r.SMEA))
@@ -168,9 +169,10 @@ func ParseSendRoutingInfoForSMRequest(req *diameter.Message) (RoutingRequest, er
 		}
 	}
 
-	sc, _ := req.Find(tgpp.AVPSCAddress, tgpp.VendorID)
-	if r.ServiceCentreAddress, err = tgpp.DecodeE164(sc.Data); err != nil {
-		return RoutingRequest{}, tgpp.InvalidAVP(sc)
+	if sc, ok := req.Find(tgpp.AVPSCAddress, tgpp.VendorID); ok {
+		if r.ServiceCentreAddress, err = tgpp.DecodeE164(sc.Data); err != nil {
+			return RoutingRequest{}, tgpp.InvalidAVP(sc)
+		}
 	}
 
 	if a, ok := req.Find(AVPSMRPMTI, tgpp.VendorID); ok {
@@ -213,7 +215,7 @@ func NewSendRoutingInfoForSMAnswer(req *diameter.Message, id diameter.Identity, 
 		return nil, invalid("routing answer IMSI %q", routing.IMSI)
 	}
 
-	if routing.Serving == nil && !routing.hasSMSF() {
+	if _, notIntended := req.Find(AVPSMDeliveryNotIntended, tgpp.VendorID); routing.Serving == nil && !routing.hasSMSF() && !notIntended {
 		return nil, invalid("routing answer without a serving node")
 	}
 

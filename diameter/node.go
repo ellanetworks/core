@@ -686,6 +686,10 @@ func (n *Node) admit(req *Message) uint32 {
 }
 
 func (n *Node) Shutdown(ctx context.Context) error {
+	return n.ShutdownWithCause(ctx, DisconnectCauseRebooting)
+}
+
+func (n *Node) ShutdownWithCause(ctx context.Context, cause uint32) error {
 	n.mu.Lock()
 	if n.closed {
 		n.mu.Unlock()
@@ -721,13 +725,9 @@ func (n *Node) Shutdown(ctx context.Context) error {
 	var wg sync.WaitGroup
 
 	for _, c := range n.allConns() {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			c.disconnect(DisconnectCauseRebooting)
-		}()
+		wg.Go(func() {
+			c.disconnect(cause)
+		})
 	}
 
 	disconnected := make(chan struct{})

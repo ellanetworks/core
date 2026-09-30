@@ -567,3 +567,30 @@ func TestNewValidatesConfiguration(t *testing.T) {
 		t.Fatalf("Session-Id = %s", id)
 	}
 }
+
+func TestShutdownWithCauseSendsTheCauseInTheDPR(t *testing.T) {
+	n := newTestNode(t, testConfig("ella.example.org"))
+
+	if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: TransportSCTP, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+		t.Fatal(err)
+	}
+
+	p := dialRaw(t, TransportSCTP, loopback2, serveOn(t, n, TransportSCTP, loopback1))
+	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+	go func() { _ = n.ShutdownWithCause(context.Background(), DisconnectCauseDoNotWantToTalkToYou) }()
+
+	dpr := p.recv()
+	if dpr.CommandCode != CommandDisconnectPeer {
+		t.Fatalf("received command %d, want a DPR", dpr.CommandCode)
+	}
+
+	avp, ok := dpr.Find(AVPDisconnectCause, 0)
+	if !ok {
+		t.Fatal("DPR without a Disconnect-Cause")
+	}
+
+	if cause, err := avp.Unsigned32(); err != nil || cause != DisconnectCauseDoNotWantToTalkToYou {
+		t.Fatalf("Disconnect-Cause = %d (%v), want DO_NOT_WANT_TO_TALK_TO_YOU", cause, err)
+	}
+}
