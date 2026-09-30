@@ -23,6 +23,7 @@ import {
   listSubscribers,
   type APISubscriberSummary,
   type ListSubscribersResponse,
+  type SubscriberListStatus,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
@@ -36,6 +37,20 @@ import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const MAX_SEARCH_LENGTH = 254;
+
+const subscriberStatus = (
+  status?: SubscriberListStatus,
+): { label: string; color: "success" | "default"; rank: number } => {
+  if (status?.registered) {
+    return status.connection_state === "connected"
+      ? { label: "Connected", color: "success", rank: 3 }
+      : { label: "Idle", color: "default", rank: 2 };
+  }
+  if (status?.systems?.length) {
+    return { label: "Registering", color: "default", rank: 1 };
+  }
+  return { label: "Deregistered", color: "default", rank: 0 };
+};
 
 type SubscribersPage = ListSubscribersResponse & { search: string };
 
@@ -214,61 +229,16 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
-        field: "registration",
-        headerName: "Registration",
-        flex: 0.6,
-        minWidth: 110,
-        valueGetter: (_v, row) => Boolean(row?.status?.registered),
+        field: "status",
+        headerName: "Status",
+        flex: 0.9,
+        minWidth: 170,
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          subscriberStatus(row?.status).rank,
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const registered = Boolean(params.row?.status?.registered);
-          return (
-            <Chip
-              size="small"
-              label={registered ? "Registered" : "Deregistered"}
-              color={registered ? "success" : "default"}
-              variant="filled"
-            />
-          );
-        },
-      },
-      {
-        field: "connection",
-        headerName: "Connection",
-        flex: 0.6,
-        minWidth: 110,
-        valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.connection_state ?? "",
-        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const state = params.row?.status?.connection_state;
-          if (!state) {
-            return (
-              <Typography variant="body2" color="textSecondary">
-                —
-              </Typography>
-            );
-          }
-          const connected = state === "connected";
-          return (
-            <Chip
-              size="small"
-              label={connected ? "Connected" : "Idle"}
-              color={connected ? "success" : "default"}
-              variant="filled"
-            />
-          );
-        },
-      },
-      {
-        field: "systems",
-        headerName: "System",
-        flex: 0.4,
-        minWidth: 90,
-        valueGetter: (_v, row: APISubscriberSummary) =>
-          (row?.status?.systems ?? []).join(" "),
-        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
+          const { label, color } = subscriberStatus(params.row?.status);
           const systems = params.row?.status?.systems ?? [];
-          if (systems.length === 0) return "—";
           return (
             <Box
               sx={{
@@ -278,6 +248,7 @@ const SubscriberPage: React.FC = () => {
                 gap: 0.5,
               }}
             >
+              <Chip size="small" label={label} color={color} variant="filled" />
               {systems.map((system) => (
                 <AccessChip key={system} label={system} />
               ))}
@@ -289,18 +260,6 @@ const SubscriberPage: React.FC = () => {
 
     return base;
   }, [theme.palette.link]);
-
-  const columnGroupingModel = [
-    {
-      groupId: "statusGroup",
-      headerName: "Status",
-      children: [
-        { field: "registration" },
-        { field: "connection" },
-        { field: "systems" },
-      ],
-    },
-  ];
 
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
@@ -408,7 +367,6 @@ const SubscriberPage: React.FC = () => {
             rows={data.items ?? []}
             columns={columns}
             getRowId={(row) => row.imsi}
-            columnGroupingModel={columnGroupingModel}
             paginationMode="server"
             rowCount={data.total_count ?? 0}
             paginationModel={paginationModel}

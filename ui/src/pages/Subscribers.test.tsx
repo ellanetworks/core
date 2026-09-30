@@ -361,16 +361,18 @@ describe("Subscribers connection state", () => {
       .closest(".MuiDataGrid-row")
       ?.querySelector(`[data-field="${field}"]`);
 
-  it("shows registration and connection as separate cells", async () => {
+  it("merges registration, connection and system into one status", async () => {
     seedStatuses({
       [IMSIS[0]]: {
         registered: true,
         connection_state: "connected",
+        systems: ["5G"],
         last_seen_radio: "gnb-01",
       },
       [IMSIS[1]]: {
         registered: true,
         connection_state: "idle",
+        systems: ["4G"],
         last_seen_radio: "gnb-01",
       },
       [IMSIS[2]]: { registered: false },
@@ -378,14 +380,29 @@ describe("Subscribers connection state", () => {
     await renderSubscribers();
     await screen.findByText(IMSIS[0]);
 
-    expect(cellOf(IMSIS[0], "registration")).toHaveTextContent("Registered");
-    expect(cellOf(IMSIS[0], "connection")).toHaveTextContent("Connected");
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("Connected");
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("5G");
 
-    expect(cellOf(IMSIS[1], "registration")).toHaveTextContent("Registered");
-    expect(cellOf(IMSIS[1], "connection")).toHaveTextContent("Idle");
+    expect(cellOf(IMSIS[1], "status")).toHaveTextContent("Idle");
+    expect(cellOf(IMSIS[1], "status")).toHaveTextContent("4G");
 
-    expect(cellOf(IMSIS[2], "registration")).toHaveTextContent("Deregistered");
-    expect(cellOf(IMSIS[2], "connection")).toHaveTextContent("—");
+    expect(cellOf(IMSIS[2], "status")).toHaveTextContent("Deregistered");
+    expect(cellOf(IMSIS[2], "status")).not.toHaveTextContent(/4G|5G/);
+  });
+
+  it("shows a registration in progress", async () => {
+    seedStatuses({
+      [IMSIS[0]]: {
+        registered: false,
+        connection_state: "connected",
+        systems: ["5G"],
+      },
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("Registering");
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("5G");
   });
 
   it("keeps the last radio on an idle subscriber", async () => {
