@@ -96,7 +96,7 @@ func FuzzParseAnswers(f *testing.F) {
 
 	seed(f, success)
 	seed(f, failure)
-	seed(f, NewAbsentUserAnswer(req, mmeIdentity, u32(1)))
+	seed(f, NewAbsentUserAnswer(req, mmeIdentity, absent(1)))
 	f.Add([]byte{})
 
 	f.Fuzz(func(t *testing.T, b []byte) {

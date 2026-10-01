@@ -4,6 +4,7 @@
 package sgd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -37,17 +38,37 @@ const (
 
 const MaxSMRPUILength = 200
 
-const TFRFlagMoreMessagesToSend uint32 = 1 << 0
+const tfrFlagMoreMessagesToSend uint32 = 1 << 0
+
+type DeliveryFailureCause uint32
 
 const (
-	CauseMemoryCapacityExceeded uint32 = 0
-	CauseEquipmentProtocolError uint32 = 1
-	CauseEquipmentNotSMEquipped uint32 = 2
-	CauseUnknownServiceCentre   uint32 = 3
-	CauseSCCongestion           uint32 = 4
-	CauseInvalidSMEAddress      uint32 = 5
-	CauseUserNotSCUser          uint32 = 6
+	CauseMemoryCapacityExceeded DeliveryFailureCause = 0
+	CauseEquipmentProtocolError DeliveryFailureCause = 1
+	CauseEquipmentNotSMEquipped DeliveryFailureCause = 2
+	CauseUnknownServiceCentre   DeliveryFailureCause = 3
+	CauseSCCongestion           DeliveryFailureCause = 4
+	CauseInvalidSMEAddress      DeliveryFailureCause = 5
+	CauseUserNotSCUser          DeliveryFailureCause = 6
 )
+
+var deliveryFailureCauseNames = map[DeliveryFailureCause]string{
+	CauseMemoryCapacityExceeded: "MEMORY_CAPACITY_EXCEEDED",
+	CauseEquipmentProtocolError: "EQUIPMENT_PROTOCOL_ERROR",
+	CauseEquipmentNotSMEquipped: "EQUIPMENT_NOT_SM_EQUIPPED",
+	CauseUnknownServiceCentre:   "UNKNOWN_SERVICE_CENTRE",
+	CauseSCCongestion:           "SC_CONGESTION",
+	CauseInvalidSMEAddress:      "INVALID_SME_ADDRESS",
+	CauseUserNotSCUser:          "USER_NOT_SC_USER",
+}
+
+func (c DeliveryFailureCause) String() string {
+	if name, ok := deliveryFailureCauseNames[c]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("DeliveryFailureCause(%d)", uint32(c))
+}
 
 var (
 	ErrMalformedAnswer = errors.New("sgd: malformed answer")
@@ -61,23 +82,23 @@ type Answer struct {
 type ResultError struct {
 	tgpp.Result
 
-	DeliveryFailureCause *uint32
+	DeliveryFailureCause *DeliveryFailureCause
 	DiagnosticInfo       []byte
 	SMRPUI               []byte
-	AbsentUserDiagnostic *uint32
+	AbsentUserDiagnostic *tgpp.AbsentUserDiagnostic
 }
 
 func (e *ResultError) Error() string {
 	return "sgd: request failed with " + e.String()
 }
 
-func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidMessage}, args...)...)
+func invalidf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrInvalidMessage, fmt.Errorf(format, args...))
 }
 
 func checkSMRPUI(b []byte) error {
 	if len(b) == 0 || len(b) > MaxSMRPUILength {
-		return invalid("SM-RP-UI of %d octets", len(b))
+		return invalidf("SM-RP-UI of %d octets", len(b))
 	}
 
 	return nil
@@ -87,15 +108,15 @@ func smRPUIAVP(b []byte) diameter.AVP {
 	return diameter.OctetString(AVPSMRPUI, diameter.AVPFlagMandatory, tgpp.VendorID, b)
 }
 
-func NewDeliveryFailureAnswer(req *diameter.Message, id diameter.Identity, cause uint32, diagnostic []byte) (*diameter.Message, error) {
+func NewDeliveryFailureAnswer(req *diameter.Message, id diameter.Identity, cause DeliveryFailureCause, diagnostic []byte) (*diameter.Message, error) {
 	if cause > CauseUserNotSCUser {
-		return nil, invalid("SM-Enumerated-Delivery-Failure-Cause %d", cause)
+		return nil, invalidf("SM-Enumerated-Delivery-Failure-Cause %d", cause)
 	}
 
 	ans := tgpp.NewExperimentalAnswer(req, id, tgpp.ResultErrorSMDeliveryFailure)
 
 	inner := []diameter.AVP{
-		diameter.Unsigned32(AVPSMEnumeratedDeliveryFailureCause, diameter.AVPFlagMandatory, tgpp.VendorID, cause),
+		diameter.Unsigned32(AVPSMEnumeratedDeliveryFailureCause, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(cause)),
 	}
 
 	if diagnostic != nil {
@@ -116,7 +137,7 @@ func ParseMTForwardShortMessageAnswer(ans *diameter.Message) (Answer, error) {
 }
 
 func parseAnswer(ans *diameter.Message) (Answer, error) {
-	result, err := tgpp.ParseResult(ans)
+	result, err := tgpp.ParseFinalResult(ans)
 	if err != nil {
 		return Answer{}, fmt.Errorf("%w: %w", ErrMalformedAnswer, err)
 	}
@@ -124,7 +145,7 @@ func parseAnswer(ans *diameter.Message) (Answer, error) {
 	var smRPUI []byte
 
 	if a, ok := ans.Find(AVPSMRPUI, tgpp.VendorID); ok {
-		smRPUI = a.Data
+		smRPUI = bytes.Clone(a.Data)
 	}
 
 	if result.Success() {
@@ -145,7 +166,8 @@ func parseAnswer(ans *diameter.Message) (Answer, error) {
 			return Answer{}, fmt.Errorf("%w: Absent-User-Diagnostic-SM", ErrMalformedAnswer)
 		}
 
-		e.AbsentUserDiagnostic = &v
+		diagnostic := tgpp.AbsentUserDiagnostic(v)
+		e.AbsentUserDiagnostic = &diagnostic
 	}
 
 	return Answer{}, e
@@ -167,7 +189,8 @@ func (e *ResultError) parseDeliveryFailureCause(cause diameter.AVP) error {
 		return fmt.Errorf("%w: SM-Enumerated-Delivery-Failure-Cause", ErrMalformedAnswer)
 	}
 
-	e.DeliveryFailureCause = &v
+	c := DeliveryFailureCause(v)
+	e.DeliveryFailureCause = &c
 
 	if diag, ok := diameter.Find(inner, AVPSMDiagnosticInfo, tgpp.VendorID); ok {
 		e.DiagnosticInfo = diag.Data

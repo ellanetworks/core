@@ -8,18 +8,22 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 )
 
 type Transport int
 
 const (
 	TransportSCTP Transport = iota
+	TransportTCP
 )
 
 func (t Transport) String() string {
 	switch t {
 	case TransportSCTP:
 		return "sctp"
+	case TransportTCP:
+		return "tcp"
 	default:
 		return fmt.Sprintf("transport(%d)", int(t))
 	}
@@ -42,6 +46,7 @@ type transport interface {
 	readMessage(buf []byte) (int, error)
 	writeMessage(b []byte) error
 	setUnordered()
+	setWriteTimeout(d time.Duration)
 	remoteAddr() netip.Addr
 	close() error
 	abort() error

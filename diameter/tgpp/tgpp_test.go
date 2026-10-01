@@ -104,7 +104,7 @@ func TestNewErrorAnswer(t *testing.T) {
 		t.Fatalf("Failed-AVP = %+v, %v", inner, err)
 	}
 
-	missing := NewErrorAnswer(req, testIdentity, MissingAVP(AVPSCAddress, VendorID))
+	missing := NewErrorAnswer(req, testIdentity, MissingAVP(AVPSCAddress, VendorID, 0))
 	if r, _ := ParseResult(missing); r.Code != diameter.ResultMissingAVP {
 		t.Fatalf("missing AVP result = %+v", r)
 	}
@@ -175,5 +175,81 @@ func TestIsExperimental(t *testing.T) {
 
 	if (Result{Code: 2002}).Success() != true || Experimental(ResultErrorAbsentUser).Success() {
 		t.Fatal("Success classification")
+	}
+}
+
+func TestNewErrorAnswerKeepsResultErrors(t *testing.T) {
+	req := &diameter.Message{Flags: diameter.FlagRequest}
+	err := fmt.Errorf("wrapped: %w", &testResultError{Result: Experimental(ResultErrorUserUnknown)})
+
+	if r, parseErr := ParseResult(NewErrorAnswer(req, testIdentity, err)); parseErr != nil || !r.IsExperimental(ResultErrorUserUnknown) {
+		t.Fatalf("result = %+v, %v", r, parseErr)
+	}
+}
+
+func TestAbsentUserDiagnosticString(t *testing.T) {
+	for d, want := range map[AbsentUserDiagnostic]string{
+		AbsentUserNoPagingResponseMSC:        "NO_PAGING_RESPONSE_VIA_THE_MSC",
+		AbsentUserIMSIDetached:               "IMSI_DETACHED",
+		AbsentUserRoamingRestriction:         "ROAMING_RESTRICTION",
+		AbsentUserDeregisteredNonGPRS:        "DEREGISTERED_IN_THE_HLR_FOR_NON_GPRS",
+		AbsentUserPurgedNonGPRS:              "MS_PURGED_FOR_NON_GPRS",
+		AbsentUserNoPagingResponseSGSN:       "NO_PAGING_RESPONSE_VIA_THE_SGSN",
+		AbsentUserGPRSDetached:               "GPRS_DETACHED",
+		AbsentUserDeregisteredGPRS:           "DEREGISTERED_IN_THE_HLR_FOR_GPRS",
+		AbsentUserPurgedGPRS:                 "MS_PURGED_FOR_GPRS",
+		AbsentUserUnidentifiedSubscriberMSC:  "UNIDENTIFIED_SUBSCRIBER_VIA_THE_MSC",
+		AbsentUserUnidentifiedSubscriberSGSN: "UNIDENTIFIED_SUBSCRIBER_VIA_THE_SGSN",
+		AbsentUserDeregisteredIMS:            "DEREGISTERED_IN_THE_HSS_HLR_FOR_IMS",
+		AbsentUserNoResponseIPSMGW:           "NO_RESPONSE_VIA_THE_IP_SM_GW",
+		AbsentUserTemporarilyUnavailable:     "THE_MS_IS_TEMPORARILY_UNAVAILABLE",
+		14:                                   "AbsentUserDiagnostic(14)",
+	} {
+		if got := d.String(); got != want {
+			t.Errorf("AbsentUserDiagnostic(%d).String() = %q, want %q", uint32(d), got, want)
+		}
+	}
+}
+
+func TestEnvelopeValidate(t *testing.T) {
+	valid := Envelope{SessionID: "s;1", Origin: testIdentity, DestinationRealm: "example.org"}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid envelope: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*Envelope){
+		"no Session-Id":        func(e *Envelope) { e.SessionID = "" },
+		"no origin host":       func(e *Envelope) { e.Origin.OriginHost = "" },
+		"no origin realm":      func(e *Envelope) { e.Origin.OriginRealm = "" },
+		"no destination realm": func(e *Envelope) { e.DestinationRealm = "" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := valid
+			mutate(&e)
+
+			if err := e.Validate(); !errors.Is(err, ErrIncompleteEnvelope) {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+}
+
+func TestMissingAVPExample(t *testing.T) {
+	var avpErr *diameter.AVPError
+	if !errors.As(MissingAVP(AVPSCAddress, VendorID, 4), &avpErr) || len(avpErr.AVP.Data) != 4 || avpErr.ResultCode != diameter.ResultMissingAVP {
+		t.Fatalf("MissingAVP = %+v", avpErr)
+	}
+}
+
+func TestUnsigned32(t *testing.T) {
+	if v, err := Unsigned32(diameter.Unsigned32(AVPSCAddress, 0, VendorID, 7)); err != nil || v != 7 {
+		t.Fatalf("Unsigned32 = %d, %v", v, err)
+	}
+
+	_, err := Unsigned32(diameter.OctetString(AVPSCAddress, 0, VendorID, []byte{1, 2, 3}))
+
+	var avpErr *diameter.AVPError
+	if !errors.As(err, &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPLength {
+		t.Fatalf("Unsigned32 of 3 octets = %v", err)
 	}
 }

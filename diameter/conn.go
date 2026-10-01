@@ -108,6 +108,7 @@ func newConn(n *Node, t transport, p *peer) *Conn {
 		c.state.Store(int32(stateWaitCEA))
 	}
 
+	t.setWriteTimeout(2 * n.cfg.WatchdogInterval)
 	c.dprCause.Store(-1)
 	c.hopByHop.Store(randomUint32())
 

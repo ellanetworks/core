@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"sync/atomic"
+	"time"
 
 	"github.com/ellanetworks/core/sctp"
 )
@@ -103,6 +104,8 @@ func (t *sctpTransport) kind() Transport { return TransportSCTP }
 func (t *sctpTransport) remoteAddr() netip.Addr { return t.remote }
 
 func (t *sctpTransport) setUnordered() { t.unordered.Store(true) }
+
+func (t *sctpTransport) setWriteTimeout(time.Duration) {}
 
 func (t *sctpTransport) readMessage(buf []byte) (int, error) {
 	for {

@@ -26,6 +26,10 @@ func (r Result) Success() bool {
 	return r.Code >= 2000 && r.Code < 3000
 }
 
+func (r Result) Failure() bool {
+	return r.Code >= 3000 && r.Code < 6000
+}
+
 func (r Result) IsExperimental(code uint32) bool {
 	return r.Experimental && r.VendorID == VendorID && r.Code == code
 }
@@ -76,6 +80,27 @@ func IsExperimental(err error, code uint32) bool {
 	r, ok := ResultOf(err)
 
 	return ok && r.IsExperimental(code)
+}
+
+func (r Result) OrSuccess() Result {
+	if r == (Result{}) {
+		return Result{Code: diameter.ResultSuccess}
+	}
+
+	return r
+}
+
+func ParseFinalResult(ans *diameter.Message) (Result, error) {
+	r, err := ParseResult(ans)
+	if err != nil {
+		return Result{}, err
+	}
+
+	if !r.Success() && !r.Failure() {
+		return Result{}, fmt.Errorf("%w: %s is neither a success nor a failure", ErrMalformedResult, r)
+	}
+
+	return r, nil
 }
 
 func ParseResult(ans *diameter.Message) (Result, error) {

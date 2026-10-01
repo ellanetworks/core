@@ -4,12 +4,29 @@
 package tgpp
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/ellanetworks/core/diameter"
 )
 
 const VendorID uint32 = 10415
 
 const (
+	AVP3GPPSGSNMCCMNC         uint32 = 18
+	AVP3GPPUserLocationInfo   uint32 = 22
+	AVP3GPPMSTimeZone         uint32 = 23
+	AVPTWANIdentifier         uint32 = 29
+	AVPIPCANType              uint32 = 1027
+	AVPRATType                uint32 = 1032
+	AVPANGWAddress            uint32 = 1050
+	AVPANTrusted              uint32 = 1503
+	AVPUELocalIPAddress       uint32 = 2805
+	AVPUDPSourcePort          uint32 = 2806
+	AVPUserLocationInfoTime   uint32 = 2812
+	AVPRANNASReleaseCause     uint32 = 2819
+	AVPNetLocAccessSupport    uint32 = 2824
+	AVPTCPSourcePort          uint32 = 2843
 	AVPSupportedFeatures      uint32 = 628
 	AVPFeatureListID          uint32 = 629
 	AVPFeatureList            uint32 = 630
@@ -21,6 +38,23 @@ const (
 	AVPSMDeliveryOutcome      uint32 = 3316
 	AVPAbsentUserDiagnosticSM uint32 = 3322
 	AVPSMSMICorrelationID     uint32 = 3324
+)
+
+const (
+	ResultFirstRegistration                  uint32 = 2001
+	ResultSubsequentRegistration             uint32 = 2002
+	ResultUnregisteredService                uint32 = 2003
+	ResultSuccessServerNameNotStored         uint32 = 2004
+	ResultErrorIdentitiesDontMatch           uint32 = 5002
+	ResultErrorIdentityNotRegistered         uint32 = 5003
+	ResultErrorRoamingNotAllowed             uint32 = 5004
+	ResultErrorIdentityAlreadyRegistered     uint32 = 5005
+	ResultErrorAuthSchemeNotSupported        uint32 = 5006
+	ResultErrorInAssignmentType              uint32 = 5007
+	ResultErrorTooMuchData                   uint32 = 5008
+	ResultErrorNotSupportedUserData          uint32 = 5009
+	ResultErrorFeatureUnsupported            uint32 = 5011
+	ResultErrorServingNodeFeatureUnsupported uint32 = 5012
 )
 
 const (
@@ -36,41 +70,122 @@ const (
 	ResultErrorMWDListFull          uint32 = 5558
 )
 
+const (
+	ResultRequestedServiceTemporarilyNotAuthorized uint32 = 4261
+	ResultPCEFFailure                              uint32 = 4262
+	ResultInvalidServiceInformation                uint32 = 5061
+	ResultFilterRestrictions                       uint32 = 5062
+	ResultRequestedServiceNotAuthorized            uint32 = 5063
+	ResultDuplicatedAFSession                      uint32 = 5064
+	ResultIPCANSessionNotAvailable                 uint32 = 5065
+	ResultUnauthorizedNonEmergencySession          uint32 = 5066
+	ResultUnauthorizedSponsoredDataConnectivity    uint32 = 5067
+	ResultTemporaryNetworkFailure                  uint32 = 5068
+	ResultUnauthorizedNonRLOSSession               uint32 = 5069
+)
+
 var experimentalResultNames = map[uint32]string{
-	ResultErrorUserUnknown:          "DIAMETER_ERROR_USER_UNKNOWN",
-	ResultErrorAbsentUser:           "DIAMETER_ERROR_ABSENT_USER",
-	ResultErrorUserBusyForMTSMS:     "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
-	ResultErrorFacilityNotSupported: "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
-	ResultErrorIllegalUser:          "DIAMETER_ERROR_ILLEGAL_USER",
-	ResultErrorIllegalEquipment:     "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
-	ResultErrorSMDeliveryFailure:    "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
-	ResultErrorServiceNotSubscribed: "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
-	ResultErrorServiceBarred:        "DIAMETER_ERROR_SERVICE_BARRED",
-	ResultErrorMWDListFull:          "DIAMETER_ERROR_MWD_LIST_FULL",
+	ResultFirstRegistration:                        "DIAMETER_FIRST_REGISTRATION",
+	ResultSubsequentRegistration:                   "DIAMETER_SUBSEQUENT_REGISTRATION",
+	ResultUnregisteredService:                      "DIAMETER_UNREGISTERED_SERVICE",
+	ResultSuccessServerNameNotStored:               "DIAMETER_SUCCESS_SERVER_NAME_NOT_STORED",
+	ResultErrorIdentitiesDontMatch:                 "DIAMETER_ERROR_IDENTITIES_DONT_MATCH",
+	ResultErrorIdentityNotRegistered:               "DIAMETER_ERROR_IDENTITY_NOT_REGISTERED",
+	ResultErrorRoamingNotAllowed:                   "DIAMETER_ERROR_ROAMING_NOT_ALLOWED",
+	ResultErrorIdentityAlreadyRegistered:           "DIAMETER_ERROR_IDENTITY_ALREADY_REGISTERED",
+	ResultErrorAuthSchemeNotSupported:              "DIAMETER_ERROR_AUTH_SCHEME_NOT_SUPPORTED",
+	ResultErrorInAssignmentType:                    "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE",
+	ResultErrorTooMuchData:                         "DIAMETER_ERROR_TOO_MUCH_DATA",
+	ResultErrorNotSupportedUserData:                "DIAMETER_ERROR_NOT_SUPPORTED_USER_DATA",
+	ResultErrorFeatureUnsupported:                  "DIAMETER_ERROR_FEATURE_UNSUPPORTED",
+	ResultErrorServingNodeFeatureUnsupported:       "DIAMETER_ERROR_SERVING_NODE_FEATURE_UNSUPPORTED",
+	ResultErrorUserUnknown:                         "DIAMETER_ERROR_USER_UNKNOWN",
+	ResultErrorAbsentUser:                          "DIAMETER_ERROR_ABSENT_USER",
+	ResultErrorUserBusyForMTSMS:                    "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
+	ResultErrorFacilityNotSupported:                "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
+	ResultErrorIllegalUser:                         "DIAMETER_ERROR_ILLEGAL_USER",
+	ResultErrorIllegalEquipment:                    "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
+	ResultErrorSMDeliveryFailure:                   "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
+	ResultErrorServiceNotSubscribed:                "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
+	ResultErrorServiceBarred:                       "DIAMETER_ERROR_SERVICE_BARRED",
+	ResultErrorMWDListFull:                         "DIAMETER_ERROR_MWD_LIST_FULL",
+	ResultRequestedServiceTemporarilyNotAuthorized: "REQUESTED_SERVICE_TEMPORARILY_NOT_AUTHORIZED",
+	ResultPCEFFailure:                              "PCEF_FAILURE",
+	ResultInvalidServiceInformation:                "INVALID_SERVICE_INFORMATION",
+	ResultFilterRestrictions:                       "FILTER_RESTRICTIONS",
+	ResultRequestedServiceNotAuthorized:            "REQUESTED_SERVICE_NOT_AUTHORIZED",
+	ResultDuplicatedAFSession:                      "DUPLICATED_AF_SESSION",
+	ResultIPCANSessionNotAvailable:                 "IP-CAN_SESSION_NOT_AVAILABLE",
+	ResultUnauthorizedNonEmergencySession:          "UNAUTHORIZED_NON_EMERGENCY_SESSION",
+	ResultUnauthorizedSponsoredDataConnectivity:    "UNAUTHORIZED_SPONSORED_DATA_CONNECTIVITY",
+	ResultTemporaryNetworkFailure:                  "TEMPORARY_NETWORK_FAILURE",
+	ResultUnauthorizedNonRLOSSession:               "UNAUTHORIZED_NON_RLOS_SESSION",
 }
 
+type AbsentUserDiagnostic uint32
+
 const (
-	AbsentUserNoPagingResponseMSC        uint32 = 0
-	AbsentUserIMSIDetached               uint32 = 1
-	AbsentUserRoamingRestriction         uint32 = 2
-	AbsentUserDeregisteredNonGPRS        uint32 = 3
-	AbsentUserPurgedNonGPRS              uint32 = 4
-	AbsentUserNoPagingResponseSGSN       uint32 = 5
-	AbsentUserGPRSDetached               uint32 = 6
-	AbsentUserDeregisteredGPRS           uint32 = 7
-	AbsentUserPurgedGPRS                 uint32 = 8
-	AbsentUserUnidentifiedSubscriberMSC  uint32 = 9
-	AbsentUserUnidentifiedSubscriberSGSN uint32 = 10
-	AbsentUserDeregisteredIMS            uint32 = 11
-	AbsentUserNoResponseIPSMGW           uint32 = 12
-	AbsentUserTemporarilyUnavailable     uint32 = 13
+	AbsentUserNoPagingResponseMSC        AbsentUserDiagnostic = 0
+	AbsentUserIMSIDetached               AbsentUserDiagnostic = 1
+	AbsentUserRoamingRestriction         AbsentUserDiagnostic = 2
+	AbsentUserDeregisteredNonGPRS        AbsentUserDiagnostic = 3
+	AbsentUserPurgedNonGPRS              AbsentUserDiagnostic = 4
+	AbsentUserNoPagingResponseSGSN       AbsentUserDiagnostic = 5
+	AbsentUserGPRSDetached               AbsentUserDiagnostic = 6
+	AbsentUserDeregisteredGPRS           AbsentUserDiagnostic = 7
+	AbsentUserPurgedGPRS                 AbsentUserDiagnostic = 8
+	AbsentUserUnidentifiedSubscriberMSC  AbsentUserDiagnostic = 9
+	AbsentUserUnidentifiedSubscriberSGSN AbsentUserDiagnostic = 10
+	AbsentUserDeregisteredIMS            AbsentUserDiagnostic = 11
+	AbsentUserNoResponseIPSMGW           AbsentUserDiagnostic = 12
+	AbsentUserTemporarilyUnavailable     AbsentUserDiagnostic = 13
 )
+
+var absentUserDiagnosticNames = map[AbsentUserDiagnostic]string{
+	AbsentUserNoPagingResponseMSC:        "NO_PAGING_RESPONSE_VIA_THE_MSC",
+	AbsentUserIMSIDetached:               "IMSI_DETACHED",
+	AbsentUserRoamingRestriction:         "ROAMING_RESTRICTION",
+	AbsentUserDeregisteredNonGPRS:        "DEREGISTERED_IN_THE_HLR_FOR_NON_GPRS",
+	AbsentUserPurgedNonGPRS:              "MS_PURGED_FOR_NON_GPRS",
+	AbsentUserNoPagingResponseSGSN:       "NO_PAGING_RESPONSE_VIA_THE_SGSN",
+	AbsentUserGPRSDetached:               "GPRS_DETACHED",
+	AbsentUserDeregisteredGPRS:           "DEREGISTERED_IN_THE_HLR_FOR_GPRS",
+	AbsentUserPurgedGPRS:                 "MS_PURGED_FOR_GPRS",
+	AbsentUserUnidentifiedSubscriberMSC:  "UNIDENTIFIED_SUBSCRIBER_VIA_THE_MSC",
+	AbsentUserUnidentifiedSubscriberSGSN: "UNIDENTIFIED_SUBSCRIBER_VIA_THE_SGSN",
+	AbsentUserDeregisteredIMS:            "DEREGISTERED_IN_THE_HSS_HLR_FOR_IMS",
+	AbsentUserNoResponseIPSMGW:           "NO_RESPONSE_VIA_THE_IP_SM_GW",
+	AbsentUserTemporarilyUnavailable:     "THE_MS_IS_TEMPORARILY_UNAVAILABLE",
+}
+
+func (d AbsentUserDiagnostic) String() string {
+	if name, ok := absentUserDiagnosticNames[d]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("AbsentUserDiagnostic(%d)", uint32(d))
+}
 
 type Envelope struct {
 	SessionID        string
 	Origin           diameter.Identity
 	DestinationHost  string
 	DestinationRealm string
+}
+
+var ErrIncompleteEnvelope = errors.New("tgpp: incomplete envelope")
+
+func (e Envelope) Validate() error {
+	switch {
+	case e.SessionID == "":
+		return fmt.Errorf("%w: no Session-Id", ErrIncompleteEnvelope)
+	case e.Origin.OriginHost == "" || e.Origin.OriginRealm == "":
+		return fmt.Errorf("%w: no origin host and realm", ErrIncompleteEnvelope)
+	case e.DestinationRealm == "":
+		return fmt.Errorf("%w: no destination realm", ErrIncompleteEnvelope)
+	}
+
+	return nil
 }
 
 func (e Envelope) AVPs() []diameter.AVP {
@@ -126,6 +241,10 @@ func NewResultAnswer(req *diameter.Message, id diameter.Identity, r Result) *dia
 }
 
 func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error) *diameter.Message {
+	if r, ok := ResultOf(err); ok {
+		return NewResultAnswer(req, id, r)
+	}
+
 	return withAuthSessionState(diameter.NewErrorAnswer(req, id, err))
 }
 
@@ -133,8 +252,21 @@ func InvalidAVP(a diameter.AVP) error {
 	return diameter.NewAVPError(diameter.ResultInvalidAVPValue, a)
 }
 
-func MissingAVP(code, vendorID uint32) error {
-	return diameter.NewAVPError(diameter.ResultMissingAVP, diameter.OctetString(code, diameter.AVPFlagMandatory, vendorID, nil))
+func MissingAVP(code, vendorID uint32, minLength int) error {
+	return diameter.NewAVPError(diameter.ResultMissingAVP, diameter.OctetString(code, diameter.AVPFlagMandatory, vendorID, make([]byte, minLength)))
+}
+
+func InvalidLength(a diameter.AVP) error {
+	return diameter.NewAVPError(diameter.ResultInvalidAVPLength, a)
+}
+
+func Unsigned32(a diameter.AVP) (uint32, error) {
+	v, err := a.Unsigned32()
+	if err != nil {
+		return 0, InvalidLength(a)
+	}
+
+	return v, nil
 }
 
 func withAuthSessionState(ans *diameter.Message) *diameter.Message {

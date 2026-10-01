@@ -15,12 +15,12 @@ type RoutingRequest struct {
 	MSISDN               string
 	IMSI                 string
 	ServiceCentreAddress string
-	MTI                  uint32
+	MTI                  MTI
 	GPRSIndicator        bool
 	Priority             bool
 	SingleAttempt        bool
 	SMEA                 []byte
-	DeliveryNotIntended  *uint32
+	DeliveryNotIntended  *DeliveryNotIntended
 	SMSFSupport          bool
 }
 
@@ -29,7 +29,7 @@ type Routing struct {
 
 	IMSI        string
 	LMSI        []byte
-	MWDStatus   uint32
+	MWDStatus   MWDStatus
 	Absent      AbsentUserDiagnostics
 	AlertMSISDN string
 }
@@ -53,9 +53,9 @@ func (r RoutingRequest) flags() uint32 {
 		set bool
 		bit uint32
 	}{
-		{r.GPRSIndicator, SRRFlagGPRSIndicator},
-		{r.Priority, SRRFlagSMRPPRI},
-		{r.SingleAttempt, SRRFlagSingleAttempt},
+		{r.GPRSIndicator, srrFlagGPRSIndicator},
+		{r.Priority, srrFlagSMRPPRI},
+		{r.SingleAttempt, srrFlagSingleAttempt},
 	} {
 		if f.set {
 			flags |= f.bit
@@ -66,16 +66,20 @@ func (r RoutingRequest) flags() uint32 {
 }
 
 func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diameter.Message, error) {
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
+	}
+
 	if r.MSISDN == "" && r.IMSI == "" {
-		return nil, invalid("routing request without an MSISDN or IMSI")
+		return nil, invalidf("routing request without an MSISDN or IMSI")
 	}
 
 	if r.MTI != SMRPMTIDeliver && r.MTI != SMRPMTIStatusReport {
-		return nil, invalid("SM-RP-MTI %d", r.MTI)
+		return nil, invalidf("SM-RP-MTI %d", r.MTI)
 	}
 
 	if r.DeliveryNotIntended != nil && *r.DeliveryNotIntended > SMDeliveryNotIntendedMCCMNC {
-		return nil, invalid("SM-Delivery-Not-Intended %d", *r.DeliveryNotIntended)
+		return nil, invalidf("SM-Delivery-Not-Intended %d", *r.DeliveryNotIntended)
 	}
 
 	avps := env.AVPs()
@@ -83,7 +87,7 @@ func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diame
 	if r.MSISDN != "" {
 		msisdn, err := tgpp.EncodeE164(r.MSISDN)
 		if err != nil {
-			return nil, invalid("MSISDN: %w", err)
+			return nil, invalidf("MSISDN: %w", err)
 		}
 
 		avps = append(avps, diameter.OctetString(tgpp.AVPMSISDN, diameter.AVPFlagMandatory, tgpp.VendorID, msisdn))
@@ -91,7 +95,7 @@ func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diame
 
 	if r.IMSI != "" {
 		if !tgpp.ValidIMSI(r.IMSI) {
-			return nil, invalid("IMSI %q", r.IMSI)
+			return nil, invalidf("IMSI %q", r.IMSI)
 		}
 
 		avps = append(avps, diameter.UTF8String(diameter.AVPUserName, diameter.AVPFlagMandatory, 0, r.IMSI))
@@ -104,13 +108,13 @@ func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diame
 	if r.ServiceCentreAddress != "" {
 		scAddress, err := tgpp.EncodeE164(r.ServiceCentreAddress)
 		if err != nil {
-			return nil, invalid("service centre address: %w", err)
+			return nil, invalidf("service centre address: %w", err)
 		}
 
 		avps = append(avps, diameter.OctetString(tgpp.AVPSCAddress, diameter.AVPFlagMandatory, tgpp.VendorID, scAddress))
 	}
 
-	avps = append(avps, diameter.Unsigned32(AVPSMRPMTI, diameter.AVPFlagMandatory, tgpp.VendorID, r.MTI))
+	avps = append(avps, diameter.Unsigned32(AVPSMRPMTI, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(r.MTI)))
 
 	if len(r.SMEA) > 0 {
 		avps = append(avps, diameter.OctetString(AVPSMRPSMEA, diameter.AVPFlagMandatory, tgpp.VendorID, r.SMEA))
@@ -121,7 +125,7 @@ func NewSendRoutingInfoForSMRequest(env tgpp.Envelope, r RoutingRequest) (*diame
 	}
 
 	if r.DeliveryNotIntended != nil {
-		avps = append(avps, diameter.Unsigned32(AVPSMDeliveryNotIntended, diameter.AVPFlagMandatory, tgpp.VendorID, *r.DeliveryNotIntended))
+		avps = append(avps, diameter.Unsigned32(AVPSMDeliveryNotIntended, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(*r.DeliveryNotIntended)))
 	}
 
 	return &diameter.Message{
@@ -141,7 +145,7 @@ func CheckSendRoutingInfoForSM(req *diameter.Message) error {
 	_, hasUserName := req.Find(diameter.AVPUserName, 0)
 
 	if !hasMSISDN && !hasUserName {
-		return tgpp.MissingAVP(tgpp.AVPMSISDN, tgpp.VendorID)
+		return tgpp.MissingAVP(tgpp.AVPMSISDN, tgpp.VendorID, 0)
 	}
 
 	return nil
@@ -176,9 +180,16 @@ func ParseSendRoutingInfoForSMRequest(req *diameter.Message) (RoutingRequest, er
 	}
 
 	if a, ok := req.Find(AVPSMRPMTI, tgpp.VendorID); ok {
-		if r.MTI, err = a.Unsigned32(); err != nil || r.MTI > SMRPMTIStatusReport {
+		mti, err := tgpp.Unsigned32(a)
+		if err != nil {
+			return RoutingRequest{}, err
+		}
+
+		if MTI(mti) > SMRPMTIStatusReport {
 			return RoutingRequest{}, tgpp.InvalidAVP(a)
 		}
+
+		r.MTI = MTI(mti)
 	}
 
 	if a, ok := req.Find(AVPSMRPSMEA, tgpp.VendorID); ok {
@@ -186,23 +197,28 @@ func ParseSendRoutingInfoForSMRequest(req *diameter.Message) (RoutingRequest, er
 	}
 
 	if a, ok := req.Find(AVPSRRFlags, tgpp.VendorID); ok {
-		flags, err := a.Unsigned32()
+		flags, err := tgpp.Unsigned32(a)
 		if err != nil {
-			return RoutingRequest{}, tgpp.InvalidAVP(a)
+			return RoutingRequest{}, err
 		}
 
-		r.GPRSIndicator = flags&SRRFlagGPRSIndicator != 0
-		r.Priority = flags&SRRFlagSMRPPRI != 0
-		r.SingleAttempt = flags&SRRFlagSingleAttempt != 0
+		r.GPRSIndicator = flags&srrFlagGPRSIndicator != 0
+		r.Priority = flags&srrFlagSMRPPRI != 0
+		r.SingleAttempt = flags&srrFlagSingleAttempt != 0
 	}
 
 	if a, ok := req.Find(AVPSMDeliveryNotIntended, tgpp.VendorID); ok {
-		v, err := a.Unsigned32()
-		if err != nil || v > SMDeliveryNotIntendedMCCMNC {
+		v, err := tgpp.Unsigned32(a)
+		if err != nil {
+			return RoutingRequest{}, err
+		}
+
+		if DeliveryNotIntended(v) > SMDeliveryNotIntendedMCCMNC {
 			return RoutingRequest{}, tgpp.InvalidAVP(a)
 		}
 
-		r.DeliveryNotIntended = &v
+		notIntended := DeliveryNotIntended(v)
+		r.DeliveryNotIntended = &notIntended
 	}
 
 	r.SMSFSupport = smsfSupported(req)
@@ -212,15 +228,15 @@ func ParseSendRoutingInfoForSMRequest(req *diameter.Message) (RoutingRequest, er
 
 func NewSendRoutingInfoForSMAnswer(req *diameter.Message, id diameter.Identity, routing Routing, smsfSupport bool) (*diameter.Message, error) {
 	if !tgpp.ValidIMSI(routing.IMSI) {
-		return nil, invalid("routing answer IMSI %q", routing.IMSI)
+		return nil, invalidf("routing answer IMSI %q", routing.IMSI)
 	}
 
 	if _, notIntended := req.Find(AVPSMDeliveryNotIntended, tgpp.VendorID); routing.Serving == nil && !routing.hasSMSF() && !notIntended {
-		return nil, invalid("routing answer without a serving node")
+		return nil, invalidf("routing answer without a serving node")
 	}
 
 	if routing.Additional != nil && routing.Serving == nil {
-		return nil, invalid("additional serving node without a serving node")
+		return nil, invalidf("additional serving node without a serving node")
 	}
 
 	nodes, err := routing.avps(smsfSupport)
@@ -244,7 +260,7 @@ func NewSendRoutingInfoForSMAnswer(req *diameter.Message, id diameter.Identity, 
 	ans.AVPs = append(ans.AVPs, alert...)
 
 	if routing.MWDStatus != 0 {
-		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPMWDStatus, diameter.AVPFlagMandatory, tgpp.VendorID, routing.MWDStatus))
+		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPMWDStatus, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(routing.MWDStatus)))
 	}
 
 	ans.AVPs = append(ans.AVPs, routing.Absent.avps(smsfSupport)...)
@@ -253,8 +269,8 @@ func NewSendRoutingInfoForSMAnswer(req *diameter.Message, id diameter.Identity, 
 }
 
 func NewSendRoutingInfoForSMErrorAnswer(req *diameter.Message, id diameter.Identity, e ResultError, smsfSupport bool) (*diameter.Message, error) {
-	if e.Success() {
-		return nil, invalid("error answer with a success result")
+	if !e.Failure() {
+		return nil, invalidf("error answer with the non-error %s", e.Result)
 	}
 
 	ans := NewAnswer(req, id, e.Result)
@@ -271,7 +287,7 @@ func NewSendRoutingInfoForSMErrorAnswer(req *diameter.Message, id diameter.Ident
 	ans.AVPs = append(ans.AVPs, alert...)
 
 	if e.MWDStatus != 0 {
-		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPMWDStatus, diameter.AVPFlagMandatory, tgpp.VendorID, e.MWDStatus))
+		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPMWDStatus, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(e.MWDStatus)))
 	}
 
 	ans.AVPs = append(ans.AVPs, e.Absent.avps(smsfSupport)...)
@@ -301,7 +317,7 @@ func ParseSendRoutingInfoForSMAnswer(ans *diameter.Message) (Routing, error) {
 			return Routing{}, fmt.Errorf("%w: MWD-Status", ErrMalformedAnswer)
 		}
 
-		routing.MWDStatus = v
+		routing.MWDStatus = MWDStatus(v)
 	}
 
 	routing.Absent = absentUserDiagnostics(ans)

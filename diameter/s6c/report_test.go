@@ -18,7 +18,7 @@ func TestReportSMDeliveryStatusRequestEncoding(t *testing.T) {
 		MSISDN:               "15551230002",
 		ServiceCentreAddress: testServiceCentreAddress,
 		SingleAttempt:        true,
-		MME:                  &DeliveryOutcome{Cause: DeliveryCauseAbsentUser, AbsentDiagnostic: u32(2)},
+		MME:                  &DeliveryOutcome{Cause: DeliveryCauseAbsentUser, AbsentDiagnostic: absent(2)},
 		SMSF3GPP:             &DeliveryOutcome{Cause: DeliveryCauseMemoryCapacityExceeded},
 	})
 	if err != nil {
@@ -34,7 +34,7 @@ func TestReportSMDeliveryStatusRequestEncoding(t *testing.T) {
 		t.Fatalf("MSISDN = %+v", msisdn)
 	}
 
-	if flags, ok := req.Find(AVPRDRFlags, tgpp.VendorID); !ok || unsigned(t, flags) != RDRFlagSingleAttempt || flags.Flags&diameter.AVPFlagMandatory != 0 {
+	if flags, ok := req.Find(AVPRDRFlags, tgpp.VendorID); !ok || unsigned(t, flags) != rdrFlagSingleAttempt || flags.Flags&diameter.AVPFlagMandatory != 0 {
 		t.Fatalf("RDR-Flags = %+v", flags)
 	}
 
@@ -60,7 +60,7 @@ func TestReportSMDeliveryStatusRequestRoundTrip(t *testing.T) {
 	for name, rep := range map[string]DeliveryReport{
 		"MME absent with failed nodes": {
 			MSISDN: "15551230002", ServiceCentreAddress: testServiceCentreAddress, SingleAttempt: true,
-			MME:    &DeliveryOutcome{Cause: DeliveryCauseAbsentUser, AbsentDiagnostic: u32(tgpp.AbsentUserIMSIDetached)},
+			MME:    &DeliveryOutcome{Cause: DeliveryCauseAbsentUser, AbsentDiagnostic: absent(tgpp.AbsentUserIMSIDetached)},
 			SGSN:   &DeliveryOutcome{Cause: DeliveryCauseAbsentUser},
 			Failed: ServingNodes{Serving: mmeNode(), Additional: &ServingNode{SGSN: &NodeAddress{Number: "15550000020"}}},
 		},
