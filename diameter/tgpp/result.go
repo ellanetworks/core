@@ -34,12 +34,28 @@ func (r Result) DiameterResult() Result {
 	return r
 }
 
+func (r Result) Name() string {
+	switch {
+	case !r.Experimental:
+		return diameter.ResultName(r.Code)
+	case r.VendorID == VendorID:
+		return experimentalResultNames[r.Code]
+	default:
+		return ""
+	}
+}
+
 func (r Result) String() string {
+	s := fmt.Sprintf("result %d", r.Code)
 	if r.Experimental {
-		return fmt.Sprintf("experimental result %d (vendor %d)", r.Code, r.VendorID)
+		s = fmt.Sprintf("experimental result %d (vendor %d)", r.Code, r.VendorID)
 	}
 
-	return fmt.Sprintf("result %d", r.Code)
+	if name := r.Name(); name != "" {
+		s += " " + name
+	}
+
+	return s
 }
 
 type ResultError interface {
