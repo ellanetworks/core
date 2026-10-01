@@ -68,23 +68,14 @@ const (
 	SMRPMTIStatusReport MTI = 1
 )
 
-var mtiNames = map[MTI]string{
-	SMRPMTIDeliver:      "SM_DELIVER",
-	SMRPMTIStatusReport: "SM_STATUS_REPORT",
-}
+var mtiNames = tgpp.EnumNames{"SM_DELIVER", "SM_STATUS_REPORT"}
 
-func (m MTI) String() string {
-	if name, ok := mtiNames[m]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("MTI(%d)", uint32(m))
-}
+func (m MTI) String() string { return mtiNames.Name("MTI", uint32(m)) }
 
 const (
-	srrFlagGPRSIndicator uint32 = 1 << 0
-	srrFlagSMRPPRI       uint32 = 1 << 1
-	srrFlagSingleAttempt uint32 = 1 << 2
+	SRRFlagGPRSIndicator uint32 = 1 << 0
+	SRRFlagSMRPPRI       uint32 = 1 << 1
+	SRRFlagSingleAttempt uint32 = 1 << 2
 )
 
 type DeliveryNotIntended uint32
@@ -94,20 +85,13 @@ const (
 	SMDeliveryNotIntendedMCCMNC DeliveryNotIntended = 1
 )
 
-var deliveryNotIntendedNames = map[DeliveryNotIntended]string{
-	SMDeliveryNotIntendedIMSI:   "ONLY_IMSI_REQUESTED",
-	SMDeliveryNotIntendedMCCMNC: "ONLY_MCC_MNC_REQUESTED",
-}
+var deliveryNotIntendedNames = tgpp.EnumNames{"ONLY_IMSI_REQUESTED", "ONLY_MCC_MNC_REQUESTED"}
 
 func (d DeliveryNotIntended) String() string {
-	if name, ok := deliveryNotIntendedNames[d]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("DeliveryNotIntended(%d)", uint32(d))
+	return deliveryNotIntendedNames.Name("DeliveryNotIntended", uint32(d))
 }
 
-const rdrFlagSingleAttempt uint32 = 1 << 0
+const RDRFlagSingleAttempt uint32 = 1 << 0
 
 type AlertEvent uint32
 
@@ -126,8 +110,8 @@ func (e AlertEvent) String() string {
 }
 
 const (
-	featureListID      uint32 = 1
-	featureSMSFSupport uint32 = 1 << 0
+	FeatureListID      uint32 = 1
+	FeatureSMSFSupport uint32 = 1 << 0
 )
 
 type MWDStatus uint32
@@ -162,26 +146,16 @@ const (
 	DeliveryCauseSuccessfulTransfer     DeliveryCause = 2
 )
 
-var deliveryCauseNames = map[DeliveryCause]string{
-	DeliveryCauseMemoryCapacityExceeded: "UE_MEMORY_CAPACITY_EXCEEDED",
-	DeliveryCauseAbsentUser:             "ABSENT_USER",
-	DeliveryCauseSuccessfulTransfer:     "SUCCESSFUL_TRANSFER",
-}
+var deliveryCauseNames = tgpp.EnumNames{"UE_MEMORY_CAPACITY_EXCEEDED", "ABSENT_USER", "SUCCESSFUL_TRANSFER"}
 
-func (c DeliveryCause) String() string {
-	if name, ok := deliveryCauseNames[c]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("DeliveryCause(%d)", uint32(c))
-}
+func (c DeliveryCause) String() string { return deliveryCauseNames.Name("DeliveryCause", uint32(c)) }
 
 var (
 	ErrMalformedAnswer = errors.New("s6c: malformed answer")
 	ErrInvalidMessage  = errors.New("s6c: invalid message")
 )
 
-var smsfSupportFeature = tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: featureSMSFSupport}
+var smsfSupportFeature = tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID, FeatureList: FeatureSMSFSupport}
 
 type AbsentUserDiagnostics struct {
 	MME         *tgpp.AbsentUserDiagnostic
@@ -218,7 +192,7 @@ func withFeatures(ans *diameter.Message) *diameter.Message {
 }
 
 func smsfSupported(m *diameter.Message) bool {
-	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID)&featureSMSFSupport != 0
+	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID)&FeatureSMSFSupport != 0
 }
 
 func invalidf(format string, args ...any) error {

@@ -141,29 +141,15 @@ const (
 	AbsentUserTemporarilyUnavailable     AbsentUserDiagnostic = 13
 )
 
-var absentUserDiagnosticNames = map[AbsentUserDiagnostic]string{
-	AbsentUserNoPagingResponseMSC:        "NO_PAGING_RESPONSE_VIA_THE_MSC",
-	AbsentUserIMSIDetached:               "IMSI_DETACHED",
-	AbsentUserRoamingRestriction:         "ROAMING_RESTRICTION",
-	AbsentUserDeregisteredNonGPRS:        "DEREGISTERED_IN_THE_HLR_FOR_NON_GPRS",
-	AbsentUserPurgedNonGPRS:              "MS_PURGED_FOR_NON_GPRS",
-	AbsentUserNoPagingResponseSGSN:       "NO_PAGING_RESPONSE_VIA_THE_SGSN",
-	AbsentUserGPRSDetached:               "GPRS_DETACHED",
-	AbsentUserDeregisteredGPRS:           "DEREGISTERED_IN_THE_HLR_FOR_GPRS",
-	AbsentUserPurgedGPRS:                 "MS_PURGED_FOR_GPRS",
-	AbsentUserUnidentifiedSubscriberMSC:  "UNIDENTIFIED_SUBSCRIBER_VIA_THE_MSC",
-	AbsentUserUnidentifiedSubscriberSGSN: "UNIDENTIFIED_SUBSCRIBER_VIA_THE_SGSN",
-	AbsentUserDeregisteredIMS:            "DEREGISTERED_IN_THE_HSS_HLR_FOR_IMS",
-	AbsentUserNoResponseIPSMGW:           "NO_RESPONSE_VIA_THE_IP_SM_GW",
-	AbsentUserTemporarilyUnavailable:     "THE_MS_IS_TEMPORARILY_UNAVAILABLE",
+var absentUserDiagnosticNames = EnumNames{
+	"NO_PAGING_RESPONSE_VIA_THE_MSC", "IMSI_DETACHED", "ROAMING_RESTRICTION", "DEREGISTERED_IN_THE_HLR_FOR_NON_GPRS",
+	"MS_PURGED_FOR_NON_GPRS", "NO_PAGING_RESPONSE_VIA_THE_SGSN", "GPRS_DETACHED", "DEREGISTERED_IN_THE_HLR_FOR_GPRS",
+	"MS_PURGED_FOR_GPRS", "UNIDENTIFIED_SUBSCRIBER_VIA_THE_MSC", "UNIDENTIFIED_SUBSCRIBER_VIA_THE_SGSN",
+	"DEREGISTERED_IN_THE_HSS_HLR_FOR_IMS", "NO_RESPONSE_VIA_THE_IP_SM_GW", "THE_MS_IS_TEMPORARILY_UNAVAILABLE",
 }
 
 func (d AbsentUserDiagnostic) String() string {
-	if name, ok := absentUserDiagnosticNames[d]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("AbsentUserDiagnostic(%d)", uint32(d))
+	return absentUserDiagnosticNames.Name("AbsentUserDiagnostic", uint32(d))
 }
 
 type Envelope struct {

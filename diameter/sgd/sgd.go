@@ -52,22 +52,13 @@ const (
 	CauseUserNotSCUser          DeliveryFailureCause = 6
 )
 
-var deliveryFailureCauseNames = map[DeliveryFailureCause]string{
-	CauseMemoryCapacityExceeded: "MEMORY_CAPACITY_EXCEEDED",
-	CauseEquipmentProtocolError: "EQUIPMENT_PROTOCOL_ERROR",
-	CauseEquipmentNotSMEquipped: "EQUIPMENT_NOT_SM_EQUIPPED",
-	CauseUnknownServiceCentre:   "UNKNOWN_SERVICE_CENTRE",
-	CauseSCCongestion:           "SC_CONGESTION",
-	CauseInvalidSMEAddress:      "INVALID_SME_ADDRESS",
-	CauseUserNotSCUser:          "USER_NOT_SC_USER",
+var deliveryFailureCauseNames = tgpp.EnumNames{
+	"MEMORY_CAPACITY_EXCEEDED", "EQUIPMENT_PROTOCOL_ERROR", "EQUIPMENT_NOT_SM_EQUIPPED", "UNKNOWN_SERVICE_CENTRE",
+	"SC_CONGESTION", "INVALID_SME_ADDRESS", "USER_NOT_SC_USER",
 }
 
 func (c DeliveryFailureCause) String() string {
-	if name, ok := deliveryFailureCauseNames[c]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("DeliveryFailureCause(%d)", uint32(c))
+	return deliveryFailureCauseNames.Name("DeliveryFailureCause", uint32(c))
 }
 
 var (
