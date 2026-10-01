@@ -39,12 +39,16 @@ var tfrRules = diameter.BaseRequestRules().With(diameter.Rules{
 })
 
 func NewMTForwardShortMessageRequest(env tgpp.Envelope, m MTForwardShortMessage) (*diameter.Message, error) {
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
+	}
+
 	if env.DestinationHost == "" {
-		return nil, invalid("MT-Forward-Short-Message-Request without a Destination-Host")
+		return nil, invalidf("MT-Forward-Short-Message-Request without a Destination-Host")
 	}
 
 	if !tgpp.ValidIMSI(m.IMSI) {
-		return nil, invalid("IMSI %q", m.IMSI)
+		return nil, invalidf("IMSI %q", m.IMSI)
 	}
 
 	if err := checkSMRPUI(m.SMRPUI); err != nil {
@@ -52,12 +56,12 @@ func NewMTForwardShortMessageRequest(env tgpp.Envelope, m MTForwardShortMessage)
 	}
 
 	if m.DeliveryTimer < 0 || m.DeliveryTimer/time.Second > 1<<32-1 {
-		return nil, invalid("SM-Delivery-Timer %s", m.DeliveryTimer)
+		return nil, invalidf("SM-Delivery-Timer %s", m.DeliveryTimer)
 	}
 
 	scAddress, err := tgpp.EncodeE164(m.ServiceCentreAddress)
 	if err != nil {
-		return nil, invalid("service centre address: %w", err)
+		return nil, invalidf("service centre address: %w", err)
 	}
 
 	avps := append(env.AVPs(),
@@ -79,7 +83,7 @@ func NewMTForwardShortMessageRequest(env tgpp.Envelope, m MTForwardShortMessage)
 
 		number, err := tgpp.EncodeE164(n.value)
 		if err != nil {
-			return nil, invalid("serving node number: %w", err)
+			return nil, invalidf("serving node number: %w", err)
 		}
 
 		avps = append(avps, diameter.OctetString(n.code, 0, tgpp.VendorID, number))
@@ -151,18 +155,18 @@ func ParseMTForwardShortMessageRequest(req *diameter.Message) (MTForwardShortMes
 	}
 
 	if a, ok := req.Find(AVPTFRFlags, tgpp.VendorID); ok {
-		flags, err := a.Unsigned32()
+		flags, err := tgpp.Unsigned32(a)
 		if err != nil {
-			return MTForwardShortMessage{}, tgpp.InvalidAVP(a)
+			return MTForwardShortMessage{}, err
 		}
 
 		m.MoreMessagesToSend = flags&tfrFlagMoreMessagesToSend != 0
 	}
 
 	if a, ok := req.Find(AVPSMDeliveryTimer, tgpp.VendorID); ok {
-		seconds, err := a.Unsigned32()
+		seconds, err := tgpp.Unsigned32(a)
 		if err != nil {
-			return MTForwardShortMessage{}, tgpp.InvalidAVP(a)
+			return MTForwardShortMessage{}, err
 		}
 
 		m.DeliveryTimer = time.Duration(seconds) * time.Second

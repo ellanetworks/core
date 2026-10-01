@@ -46,61 +46,66 @@ const (
 	AVPServiceURN                           uint32 = 525
 	AVPAcceptableServiceInfo                uint32 = 526
 	AVPServiceInfoStatus                    uint32 = 527
-	AVPMPSIdentifier                        uint32 = 528
 	AVPAFSignallingProtocol                 uint32 = 529
-	AVPSponsoredConnectivityData            uint32 = 530
 	AVPRxRequestType                        uint32 = 533
+	AVPMinRequestedBandwidthDL              uint32 = 534
+	AVPMinRequestedBandwidthUL              uint32 = 535
 	AVPRequiredAccessInfo                   uint32 = 536
 	AVPIPDomainID                           uint32 = 537
-	AVPGCSIdentifier                        uint32 = 538
 	AVPRetryInterval                        uint32 = 541
-	AVPMCPTTIdentifier                      uint32 = 547
-	AVPAFRequestedData                      uint32 = 551
-	AVPPreemptionControlInfo                uint32 = 553
-	AVPMCVideoIdentifier                    uint32 = 562
-	AVPIMSContentIdentifier                 uint32 = 563
-	AVPIMSContentType                       uint32 = 564
-	AVPCalleeInformation                    uint32 = 565
+	AVPMaxSupportedBandwidthDL              uint32 = 543
+	AVPMaxSupportedBandwidthUL              uint32 = 544
+	AVPMinDesiredBandwidthDL                uint32 = 545
+	AVPMinDesiredBandwidthUL                uint32 = 546
+	AVPMediaComponentStatus                 uint32 = 549
+	AVPContentVersion                       uint32 = 552
+	AVPExtendedMaxRequestedBWDL             uint32 = 554
+	AVPExtendedMaxRequestedBWUL             uint32 = 555
+	AVPExtendedMaxSupportedBWDL             uint32 = 556
+	AVPExtendedMaxSupportedBWUL             uint32 = 557
+	AVPExtendedMinDesiredBWDL               uint32 = 558
+	AVPExtendedMinDesiredBWUL               uint32 = 559
+	AVPExtendedMinRequestedBWDL             uint32 = 560
+	AVPExtendedMinRequestedBWUL             uint32 = 561
 	AVPNID                                  uint32 = 569
-	AVPMAInformation                        uint32 = 570
-	AVP5GSRANNASReleaseCause                uint32 = 572
-	AVPWirelineUserLocationInfo             uint32 = 578
-	AVPMPSAction                            uint32 = 582
 	AVPServingSatelliteIdentity             uint32 = 583
 	AVPPCSessionRecoveryStatus              uint32 = 584
 )
 
 const (
-	AVPFramedIPAddress      uint32 = 8
-	AVPCalledStationID      uint32 = 30
-	AVPFramedIPv6Prefix     uint32 = 97
-	AVPSubscriptionID       uint32 = 443
-	AVPSubscriptionIDData   uint32 = 444
-	AVPSubscriptionIDType   uint32 = 450
-	avp3GPPSGSNMCCMNC       uint32 = 18
-	avp3GPPUserLocationInfo uint32 = 22
-	avp3GPPMSTimeZone       uint32 = 23
-	avpTWANIdentifier       uint32 = 29
-	avpOCSupportedFeatures  uint32 = 621
-	avpCallingPartyAddress  uint32 = 831
-	avpIPCANType            uint32 = 1027
-	avpRATType              uint32 = 1032
-	avpANGWAddress          uint32 = 1050
-	avpANTrusted            uint32 = 1503
-	avpUELocalIPAddress     uint32 = 2805
-	avpUDPSourcePort        uint32 = 2806
-	avpUserLocationInfoTime uint32 = 2812
-	avpRANNASReleaseCause   uint32 = 2819
-	avpNetLocAccessSupport  uint32 = 2824
-	avpTCPSourcePort        uint32 = 2843
-	avpReferenceID          uint32 = 4202
-	avpReservationPriority  uint32 = 458
-	etsiVendorID            uint32 = 13019
+	avpMPSIdentifier            uint32 = 528
+	avpSponsoredConnectivity    uint32 = 530
+	avpGCSIdentifier            uint32 = 538
+	avpSharingKeyDL             uint32 = 539
+	avpSharingKeyUL             uint32 = 540
+	avpMCPTTIdentifier          uint32 = 547
+	avpPrioritySharingIndicator uint32 = 550
+	avpAFRequestedData          uint32 = 551
+	avpPreemptionControlInfo    uint32 = 553
+	avpMCVideoIdentifier        uint32 = 562
+	avpIMSContentIdentifier     uint32 = 563
+	avpIMSContentType           uint32 = 564
+	avpCalleeInformation        uint32 = 565
+	avpFLUSIdentifier           uint32 = 566
+	avpDesiredMaxLatency        uint32 = 567
+	avpDesiredMaxLoss           uint32 = 568
+	avpMAInformation            uint32 = 570
+	avp5GSRANNASReleaseCause    uint32 = 572
+	avpWirelineUserLocationInfo uint32 = 578
+	avpMPSAction                uint32 = 582
 )
 
 const (
-	featureList1 uint32 = 1
-	featureList2 uint32 = 2
+	avpReservationPriority     uint32 = 458
+	avpOCSupportedFeatures     uint32 = 621
+	avpCallingPartyAddress     uint32 = 831
+	avpToSTrafficClass         uint32 = 1014
+	avpPreemptionCapability    uint32 = 1047
+	avpPreemptionVulnerability uint32 = 1048
+	avpMaxPLRDL                uint32 = 2852
+	avpMaxPLRUL                uint32 = 2853
+	avpReferenceID             uint32 = 4202
+	etsiVendorID               uint32 = 13019
 )
 
 var (
@@ -122,7 +127,11 @@ var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
 	{Code: avpOCSupportedFeatures}:        {},
 })
 
-func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result) *diameter.Message {
+func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features) *diameter.Message {
+	if r.Experimental && !experimentalAllowed(req.CommandCode) {
+		r = baseResult(r)
+	}
+
 	var ans *diameter.Message
 	if r.Experimental {
 		ans = diameter.NewExperimentalAnswer(req, id, r.VendorID, r.Code)
@@ -130,18 +139,41 @@ func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result) *diam
 		ans = diameter.NewAnswer(req, id, r.Code)
 	}
 
-	return finishAnswer(req, ans)
+	return finishAnswer(req, ans, features)
 }
 
-func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error) *diameter.Message {
-	if r, ok := tgpp.ResultOf(err); ok {
-		return NewAnswer(req, id, r)
+func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error, features Features) *diameter.Message {
+	var aaErr *AAError
+	if req.CommandCode == CommandAA && errors.As(err, &aaErr) {
+		if ans, buildErr := NewAAErrorAnswer(req, id, *aaErr); buildErr == nil {
+			return ans
+		}
 	}
 
-	return finishAnswer(req, diameter.NewErrorAnswer(req, id, err))
+	if r, ok := tgpp.ResultOf(err); ok {
+		if !r.Failure() {
+			r = tgpp.Result{Code: diameter.ResultUnableToComply}
+		}
+
+		return NewAnswer(req, id, r, features)
+	}
+
+	return finishAnswer(req, diameter.NewErrorAnswer(req, id, err), features)
 }
 
-func finishAnswer(req, ans *diameter.Message) *diameter.Message {
+func experimentalAllowed(command uint32) bool {
+	return command == CommandAA || command == CommandReAuth
+}
+
+func baseResult(r tgpp.Result) tgpp.Result {
+	if r.Success() {
+		return tgpp.Result{Code: diameter.ResultSuccess}
+	}
+
+	return tgpp.Result{Code: diameter.ResultUnableToComply}
+}
+
+func finishAnswer(req, ans *diameter.Message, features Features) *diameter.Message {
 	if req.CommandCode != CommandAA {
 		return ans
 	}
@@ -154,6 +186,8 @@ func finishAnswer(req, ans *diameter.Message) *diameter.Message {
 		}
 	}
 
+	ans.AVPs = append(ans.AVPs, featureAVPs(features&featureList(req), false)...)
+
 	return ans
 }
 
@@ -161,7 +195,11 @@ func authApplicationID() diameter.AVP {
 	return diameter.Unsigned32(diameter.AVPAuthApplicationID, diameter.AVPFlagMandatory, 0, ApplicationID)
 }
 
-func newRequest(env tgpp.Envelope, command uint32, avps ...diameter.AVP) *diameter.Message {
+func newRequest(env tgpp.Envelope, command uint32, avps ...diameter.AVP) (*diameter.Message, error) {
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
+	}
+
 	head := []diameter.AVP{
 		diameter.UTF8String(diameter.AVPSessionID, diameter.AVPFlagMandatory, 0, env.SessionID),
 		authApplicationID(),
@@ -179,7 +217,7 @@ func newRequest(env tgpp.Envelope, command uint32, avps ...diameter.AVP) *diamet
 		CommandCode:   command,
 		ApplicationID: ApplicationID,
 		AVPs:          append(head, avps...),
-	}
+	}, nil
 }
 
 func checkRequest(rules diameter.Rules, req *diameter.Message) error {
@@ -188,25 +226,31 @@ func checkRequest(rules diameter.Rules, req *diameter.Message) error {
 	}
 
 	app, _ := req.Find(diameter.AVPAuthApplicationID, 0)
-	if v, err := app.Unsigned32(); err != nil || v != ApplicationID {
+
+	v, err := tgpp.Unsigned32(app)
+	if err != nil {
+		return err
+	}
+
+	if v != ApplicationID {
 		return tgpp.InvalidAVP(app)
 	}
 
 	return nil
 }
 
-func featureAVPs(features, required Features) ([]diameter.AVP, error) {
-	if required&^features != 0 {
-		return nil, invalid("required features %s not among the advertised %s", required, features)
-	}
-
+func featureAVPs(features Features, mandatory bool) []diameter.AVP {
 	var avps []diameter.AVP
 
 	for _, id := range []uint32{featureList1, featureList2} {
-		avps = append(avps, tgpp.FeatureAVPs(tgpp.VendorID, id, features.list(id), required.list(id))...)
+		if list := features.list(id); list != 0 {
+			avps = append(avps, tgpp.SupportedFeatures{
+				VendorID: tgpp.VendorID, FeatureListID: id, FeatureList: list, Mandatory: mandatory,
+			}.AVP())
+		}
 	}
 
-	return avps, nil
+	return avps
 }
 
 func featureList(m *diameter.Message) Features {
@@ -214,57 +258,57 @@ func featureList(m *diameter.Message) Features {
 		listFeatures(featureList2, tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureList2))
 }
 
-func requiredFeatures(m *diameter.Message) Features {
-	return listFeatures(featureList1, tgpp.RequiredFeatureList(m.AVPs, tgpp.VendorID, featureList1)) |
-		listFeatures(featureList2, tgpp.RequiredFeatureList(m.AVPs, tgpp.VendorID, featureList2))
+func featuresRequired(m *diameter.Message) bool {
+	return tgpp.FeaturesMandatory(m.AVPs, tgpp.VendorID)
 }
 
-func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidMessage}, args...)...)
+func invalidf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrInvalidMessage, fmt.Errorf(format, args...))
 }
 
-func malformed(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrMalformedAnswer}, args...)...)
+func malformedf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrMalformedAnswer, fmt.Errorf(format, args...))
 }
 
 func parseResult(ans *diameter.Message) (tgpp.Result, error) {
-	result, err := tgpp.ParseResult(ans)
+	result, err := tgpp.ParseFinalResult(ans)
 	if err != nil {
 		return tgpp.Result{}, fmt.Errorf("%w: %w", ErrMalformedAnswer, err)
 	}
 
-	if !result.Success() {
+	if result.Failure() {
 		return result, &ResultError{Result: result}
 	}
 
 	return result, nil
 }
 
-func successResult(r tgpp.Result) (tgpp.Result, error) {
-	if r == (tgpp.Result{}) {
-		return tgpp.Result{Code: diameter.ResultSuccess}, nil
-	}
+func successResult(r tgpp.Result, command uint32) (tgpp.Result, error) {
+	r = r.OrSuccess()
 
-	if !r.Success() {
-		return tgpp.Result{}, invalid("answer with the non-success %s", r)
+	switch {
+	case !r.Success():
+		return tgpp.Result{}, invalidf("answer with the non-success %s", r)
+	case r.Experimental && !experimentalAllowed(command):
+		return tgpp.Result{}, invalidf("command %d answered with the experimental %s", command, r)
 	}
 
 	return r, nil
 }
 
 func errorResult(r tgpp.Result) error {
-	if r.Success() {
-		return invalid("error answer with the success %s", r)
+	if !r.Failure() {
+		return invalidf("error answer with the non-error %s", r)
 	}
 
 	return nil
 }
 
 func successAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result) (*diameter.Message, error) {
-	result, err := successResult(r)
+	result, err := successResult(r, req.CommandCode)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewAnswer(req, id, result), nil
+	return NewAnswer(req, id, result, 0), nil
 }

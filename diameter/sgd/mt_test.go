@@ -140,7 +140,7 @@ func TestParseMTForwardShortMessageRequestErrors(t *testing.T) {
 		"bad MME number": {request(CommandMTForwardShortMessage, tfrEnvelope, userName, sc, smRPUI,
 			diameter.OctetString(tgpp.AVPMMENumberForMTSMS, 0, tgpp.VendorID, []byte{0xba})), diameter.ResultInvalidAVPValue},
 		"short timer": {request(CommandMTForwardShortMessage, tfrEnvelope, userName, sc, smRPUI,
-			diameter.OctetString(AVPSMDeliveryTimer, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue},
+			diameter.OctetString(AVPSMDeliveryTimer, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPLength},
 	}
 
 	for name, tt := range tests {

@@ -9,11 +9,15 @@ import (
 )
 
 type SessionTerminationRequest struct {
-	Cause TerminationCause
+	Cause              TerminationCause
+	RequiredAccessInfo []RequiredAccessInfo
 }
 
 type SessionTerminationAnswer struct {
-	Result tgpp.Result
+	Result              tgpp.Result
+	ServingNetwork      ServingNetwork
+	Location            UserLocation
+	NetLocAccessSupport *NetLocAccessSupport
 }
 
 var strRules = commonRequestRules.With(diameter.Rules{
@@ -24,13 +28,17 @@ var strRules = commonRequestRules.With(diameter.Rules{
 })
 
 func NewSessionTerminationRequest(env tgpp.Envelope, r SessionTerminationRequest) (*diameter.Message, error) {
-	if !validTerminationCause(r.Cause) {
-		return nil, invalid("Termination-Cause %d", uint32(r.Cause))
+	if !r.Cause.valid() {
+		return nil, invalidf("Termination-Cause %s", r.Cause)
+	}
+
+	required, err := enumListAVPs(AVPRequiredAccessInfo, 0, r.RequiredAccessInfo)
+	if err != nil {
+		return nil, err
 	}
 
 	return newRequest(env, CommandSessionTermination,
-		diameter.Unsigned32(diameter.AVPTerminationCause, diameter.AVPFlagMandatory, 0, uint32(r.Cause)),
-	), nil
+		append([]diameter.AVP{diameter.Unsigned32(diameter.AVPTerminationCause, diameter.AVPFlagMandatory, 0, uint32(r.Cause))}, required...)...)
 }
 
 func CheckSessionTermination(req *diameter.Message) error {
@@ -42,16 +50,44 @@ func ParseSessionTerminationRequest(req *diameter.Message) (SessionTerminationRe
 		return SessionTerminationRequest{}, err
 	}
 
-	cause, _, err := enum(req.AVPs, diameter.AVPTerminationCause, 0, validTerminationCause)
+	cause, err := defaultEnum[TerminationCause](req.AVPs, diameter.AVPTerminationCause, 0)
 	if err != nil {
 		return SessionTerminationRequest{}, err
 	}
 
-	return SessionTerminationRequest{Cause: cause}, nil
+	required, err := enumList[RequiredAccessInfo](req.AVPs, AVPRequiredAccessInfo, tgpp.VendorID)
+	if err != nil {
+		return SessionTerminationRequest{}, err
+	}
+
+	return SessionTerminationRequest{Cause: cause, RequiredAccessInfo: required}, nil
 }
 
 func NewSessionTerminationAnswer(req *diameter.Message, id diameter.Identity, a SessionTerminationAnswer) (*diameter.Message, error) {
-	return successAnswer(req, id, a.Result)
+	if !validEnum(a.NetLocAccessSupport) {
+		return nil, invalidf("NetLoc-Access-Support %s", *a.NetLocAccessSupport)
+	}
+
+	location, err := a.Location.avps()
+	if err != nil {
+		return nil, err
+	}
+
+	serving, err := a.ServingNetwork.avps()
+	if err != nil {
+		return nil, err
+	}
+
+	ans, err := successAnswer(req, id, a.Result)
+	if err != nil {
+		return nil, err
+	}
+
+	ans.AVPs = append(ans.AVPs, location...)
+	ans.AVPs = append(ans.AVPs, serving...)
+	ans.AVPs = appendOptional(ans.AVPs, tgpp.AVPNetLocAccessSupport, 0, (*uint32)(a.NetLocAccessSupport))
+
+	return ans, nil
 }
 
 func ParseSessionTerminationAnswer(ans *diameter.Message) (SessionTerminationAnswer, error) {
@@ -60,9 +96,19 @@ func ParseSessionTerminationAnswer(ans *diameter.Message) (SessionTerminationAns
 		return SessionTerminationAnswer{}, err
 	}
 
-	return SessionTerminationAnswer{Result: result}, nil
-}
+	a := SessionTerminationAnswer{Result: result}
 
-func validTerminationCause(c TerminationCause) bool {
-	return c >= TerminationLogout && c <= maxTerminationCause
+	if a.Location, err = parseUserLocation(ans.AVPs); err != nil {
+		return SessionTerminationAnswer{}, malformedf("user location: %w", err)
+	}
+
+	if a.ServingNetwork, err = parseServingNetwork(ans.AVPs); err != nil {
+		return SessionTerminationAnswer{}, malformedf("serving network: %w", err)
+	}
+
+	if a.NetLocAccessSupport, err = optionalEnum[NetLocAccessSupport](ans.AVPs, tgpp.AVPNetLocAccessSupport, tgpp.VendorID); err != nil {
+		return SessionTerminationAnswer{}, malformedf("NetLoc-Access-Support: %w", err)
+	}
+
+	return a, nil
 }

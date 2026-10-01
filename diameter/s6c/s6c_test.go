@@ -111,7 +111,7 @@ func request(command uint32, avps ...diameter.AVP) *diameter.Message {
 
 func TestNewErrorAnswerCarriesFeatures(t *testing.T) {
 	req := request(CommandSendRoutingInfoForSM)
-	ans := NewErrorAnswer(req, hssIdentity, tgpp.MissingAVP(tgpp.AVPSCAddress, tgpp.VendorID))
+	ans := NewErrorAnswer(req, hssIdentity, tgpp.MissingAVP(tgpp.AVPSCAddress, tgpp.VendorID, 0))
 
 	if !hasFeatures(t, ans) {
 		t.Fatal("error answer without Supported-Features")

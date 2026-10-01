@@ -4,6 +4,7 @@
 package sgd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -91,13 +92,13 @@ func (e *ResultError) Error() string {
 	return "sgd: request failed with " + e.String()
 }
 
-func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidMessage}, args...)...)
+func invalidf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrInvalidMessage, fmt.Errorf(format, args...))
 }
 
 func checkSMRPUI(b []byte) error {
 	if len(b) == 0 || len(b) > MaxSMRPUILength {
-		return invalid("SM-RP-UI of %d octets", len(b))
+		return invalidf("SM-RP-UI of %d octets", len(b))
 	}
 
 	return nil
@@ -109,7 +110,7 @@ func smRPUIAVP(b []byte) diameter.AVP {
 
 func NewDeliveryFailureAnswer(req *diameter.Message, id diameter.Identity, cause DeliveryFailureCause, diagnostic []byte) (*diameter.Message, error) {
 	if cause > CauseUserNotSCUser {
-		return nil, invalid("SM-Enumerated-Delivery-Failure-Cause %d", cause)
+		return nil, invalidf("SM-Enumerated-Delivery-Failure-Cause %d", cause)
 	}
 
 	ans := tgpp.NewExperimentalAnswer(req, id, tgpp.ResultErrorSMDeliveryFailure)
@@ -136,7 +137,7 @@ func ParseMTForwardShortMessageAnswer(ans *diameter.Message) (Answer, error) {
 }
 
 func parseAnswer(ans *diameter.Message) (Answer, error) {
-	result, err := tgpp.ParseResult(ans)
+	result, err := tgpp.ParseFinalResult(ans)
 	if err != nil {
 		return Answer{}, fmt.Errorf("%w: %w", ErrMalformedAnswer, err)
 	}
@@ -144,7 +145,7 @@ func parseAnswer(ans *diameter.Message) (Answer, error) {
 	var smRPUI []byte
 
 	if a, ok := ans.Find(AVPSMRPUI, tgpp.VendorID); ok {
-		smRPUI = a.Data
+		smRPUI = bytes.Clone(a.Data)
 	}
 
 	if result.Success() {

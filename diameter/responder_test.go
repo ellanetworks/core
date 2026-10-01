@@ -235,13 +235,19 @@ func TestRequestValidation(t *testing.T) {
 				req  *Message
 				want uint32
 			}{
-				"other application":     {withApp(otherAppID, appRequest(10, 10, "smsc.example.org")), ResultApplicationUnsupported},
-				"base application":      {withApp(0, appRequest(11, 11, "smsc.example.org")), ResultCommandUnsupported},
-				"E bit in request":      {withFlags(FlagError, appRequest(12, 12, "smsc.example.org")), ResultInvalidHdrBits},
-				"other host":            {appRequest(13, 13, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "other.example.org")), ResultUnableToDeliver},
-				"other realm":           {appRequest(14, 14, "smsc.example.org", UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, "other.org")), ResultRealmNotServed},
-				"served realm":          {appRequest(15, 15, "smsc.example.org", UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, "EPC.example.org")), ResultSuccess},
-				"this host":             {appRequest(16, 16, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "ELLA.example.org")), ResultSuccess},
+				"other application": {withApp(otherAppID, appRequest(10, 10, "smsc.example.org")), ResultApplicationUnsupported},
+				"base application":  {withApp(0, appRequest(11, 11, "smsc.example.org")), ResultCommandUnsupported},
+				"E bit in request":  {withFlags(FlagError, appRequest(12, 12, "smsc.example.org")), ResultInvalidHdrBits},
+				"other host":        {appRequest(13, 13, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "other.example.org")), ResultUnableToDeliver},
+				"other realm":       {appRequest(14, 14, "smsc.example.org", UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, "other.org")), ResultRealmNotServed},
+				"served realm":      {appRequest(15, 15, "smsc.example.org", UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, "EPC.example.org")), ResultSuccess},
+				"this host":         {appRequest(16, 16, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "ELLA.example.org")), ResultSuccess},
+				"this host in another realm": {
+					appRequest(18, 18, "smsc.example.org",
+						UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "ella.example.org"),
+						UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, "other.org")),
+					ResultSuccess,
+				},
 				"reserved bits ignored": {withFlags(0x0f, appRequest(17, 17, "smsc.example.org")), ResultSuccess},
 			}
 

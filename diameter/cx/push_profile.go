@@ -21,7 +21,7 @@ type PushProfileRequest struct {
 	Charging         *ChargingInformation
 	AllowedWebRTC    *AllowedWebRTCFunctions
 	Features         Features
-	RequiredFeatures Features
+	FeaturesRequired bool
 }
 
 type PushProfile struct {
@@ -41,11 +41,11 @@ var pprRules = commonRequestRules.With(diameter.Rules{
 func NewPushProfileRequest(env tgpp.Envelope, r PushProfileRequest) (*diameter.Message, error) {
 	switch {
 	case env.DestinationHost == "":
-		return nil, invalid("profile push without a destination host")
+		return nil, invalidf("profile push without a destination host")
 	case r.PrivateIdentity == "":
-		return nil, invalid("profile push without a private identity")
+		return nil, invalidf("profile push without a private identity")
 	case len(r.UserData) == 0 && r.Charging == nil && r.AllowedWebRTC == nil:
-		return nil, invalid("profile push without user data, charging information or allowed WAF/WWSF identities")
+		return nil, invalidf("profile push without user data, charging information or allowed WAF/WWSF identities")
 	}
 
 	avps := []diameter.AVP{userName(r.PrivateIdentity)}
@@ -72,7 +72,7 @@ func NewPushProfileRequest(env tgpp.Envelope, r PushProfileRequest) (*diameter.M
 		avps = append(avps, allowed)
 	}
 
-	return newRequest(env, CommandPushProfile, r.Features, r.RequiredFeatures, avps...)
+	return newRequest(env, CommandPushProfile, r.Features, r.FeaturesRequired, avps...)
 }
 
 func CheckPushProfile(req *diameter.Message) error {
@@ -86,7 +86,7 @@ func CheckPushProfile(req *diameter.Message) error {
 		}
 	}
 
-	return tgpp.MissingAVP(AVPUserData, tgpp.VendorID)
+	return tgpp.MissingAVP(AVPUserData, tgpp.VendorID, 0)
 }
 
 func ParsePushProfileRequest(req *diameter.Message) (PushProfileRequest, error) {
@@ -96,7 +96,7 @@ func ParsePushProfileRequest(req *diameter.Message) (PushProfileRequest, error) 
 
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
-	r := PushProfileRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req), RequiredFeatures: requiredFeatures(req)}
+	r := PushProfileRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req), FeaturesRequired: featuresRequired(req)}
 
 	if data, ok := req.Find(AVPUserData, tgpp.VendorID); ok {
 		r.UserData = bytes.Clone(data.Data)
@@ -153,7 +153,7 @@ func allowedWebRTCAVP(a AllowedWebRTCFunctions) (diameter.AVP, error) {
 	} {
 		for _, name := range f.names {
 			if name == "" {
-				return diameter.AVP{}, invalid("empty WAF or WWSF name")
+				return diameter.AVP{}, invalidf("empty WAF or WWSF name")
 			}
 
 			inner = append(inner, diameter.UTF8String(f.code, 0, tgpp.VendorID, name))
@@ -166,7 +166,7 @@ func allowedWebRTCAVP(a AllowedWebRTCFunctions) (diameter.AVP, error) {
 func parseAllowedWebRTC(a diameter.AVP) (*AllowedWebRTCFunctions, error) {
 	inner, err := a.Grouped()
 	if err != nil {
-		return nil, malformed("Allowed-WAF-WWSF-Identities: %w", err)
+		return nil, malformedf("Allowed-WAF-WWSF-Identities: %w", err)
 	}
 
 	var allowed AllowedWebRTCFunctions
@@ -180,7 +180,7 @@ func parseAllowedWebRTC(a diameter.AVP) (*AllowedWebRTCFunctions, error) {
 	} {
 		for _, name := range diameter.FindAll(inner, f.code, tgpp.VendorID) {
 			if name.UTF8String() == "" {
-				return nil, malformed("Allowed-WAF-WWSF-Identities with an empty name")
+				return nil, malformedf("Allowed-WAF-WWSF-Identities with an empty name")
 			}
 
 			*f.dst = append(*f.dst, name.UTF8String())

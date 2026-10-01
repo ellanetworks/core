@@ -4,6 +4,7 @@
 package tgpp
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/diameter"
@@ -12,6 +13,20 @@ import (
 const VendorID uint32 = 10415
 
 const (
+	AVP3GPPSGSNMCCMNC         uint32 = 18
+	AVP3GPPUserLocationInfo   uint32 = 22
+	AVP3GPPMSTimeZone         uint32 = 23
+	AVPTWANIdentifier         uint32 = 29
+	AVPIPCANType              uint32 = 1027
+	AVPRATType                uint32 = 1032
+	AVPANGWAddress            uint32 = 1050
+	AVPANTrusted              uint32 = 1503
+	AVPUELocalIPAddress       uint32 = 2805
+	AVPUDPSourcePort          uint32 = 2806
+	AVPUserLocationInfoTime   uint32 = 2812
+	AVPRANNASReleaseCause     uint32 = 2819
+	AVPNetLocAccessSupport    uint32 = 2824
+	AVPTCPSourcePort          uint32 = 2843
 	AVPSupportedFeatures      uint32 = 628
 	AVPFeatureListID          uint32 = 629
 	AVPFeatureList            uint32 = 630
@@ -158,6 +173,21 @@ type Envelope struct {
 	DestinationRealm string
 }
 
+var ErrIncompleteEnvelope = errors.New("tgpp: incomplete envelope")
+
+func (e Envelope) Validate() error {
+	switch {
+	case e.SessionID == "":
+		return fmt.Errorf("%w: no Session-Id", ErrIncompleteEnvelope)
+	case e.Origin.OriginHost == "" || e.Origin.OriginRealm == "":
+		return fmt.Errorf("%w: no origin host and realm", ErrIncompleteEnvelope)
+	case e.DestinationRealm == "":
+		return fmt.Errorf("%w: no destination realm", ErrIncompleteEnvelope)
+	}
+
+	return nil
+}
+
 func (e Envelope) AVPs() []diameter.AVP {
 	avps := []diameter.AVP{
 		diameter.UTF8String(diameter.AVPSessionID, diameter.AVPFlagMandatory, 0, e.SessionID),
@@ -222,8 +252,21 @@ func InvalidAVP(a diameter.AVP) error {
 	return diameter.NewAVPError(diameter.ResultInvalidAVPValue, a)
 }
 
-func MissingAVP(code, vendorID uint32) error {
-	return diameter.NewAVPError(diameter.ResultMissingAVP, diameter.OctetString(code, diameter.AVPFlagMandatory, vendorID, nil))
+func MissingAVP(code, vendorID uint32, minLength int) error {
+	return diameter.NewAVPError(diameter.ResultMissingAVP, diameter.OctetString(code, diameter.AVPFlagMandatory, vendorID, make([]byte, minLength)))
+}
+
+func InvalidLength(a diameter.AVP) error {
+	return diameter.NewAVPError(diameter.ResultInvalidAVPLength, a)
+}
+
+func Unsigned32(a diameter.AVP) (uint32, error) {
+	v, err := a.Unsigned32()
+	if err != nil {
+		return 0, InvalidLength(a)
+	}
+
+	return v, nil
 }
 
 func withAuthSessionState(ans *diameter.Message) *diameter.Message {

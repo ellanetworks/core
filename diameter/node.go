@@ -642,8 +642,12 @@ func (n *Node) notifyPeersLocked() {
 }
 
 func (n *Node) routingError(req *Message) uint32 {
-	if host, ok := req.Find(AVPDestinationHost, 0); ok && !strings.EqualFold(host.UTF8String(), n.cfg.Identity.OriginHost) {
-		return ResultUnableToDeliver
+	if host, ok := req.Find(AVPDestinationHost, 0); ok {
+		if !strings.EqualFold(host.UTF8String(), n.cfg.Identity.OriginHost) {
+			return ResultUnableToDeliver
+		}
+
+		return 0
 	}
 
 	if realm, ok := req.Find(AVPDestinationRealm, 0); ok && !n.servesRealm(realm.UTF8String()) {

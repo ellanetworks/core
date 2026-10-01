@@ -15,7 +15,7 @@ type UserAuthorizationRequest struct {
 	AuthorizationType     AuthorizationType
 	EmergencyRegistration bool
 	Features              Features
-	RequiredFeatures      Features
+	FeaturesRequired      bool
 }
 
 type UserAuthorization struct {
@@ -41,11 +41,11 @@ var uarRules = commonRequestRules.With(diameter.Rules{
 func NewUserAuthorizationRequest(env tgpp.Envelope, r UserAuthorizationRequest) (*diameter.Message, error) {
 	switch {
 	case r.PrivateIdentity == "":
-		return nil, invalid("user authorization without a private identity")
+		return nil, invalidf("user authorization without a private identity")
 	case r.VisitedNetwork == "":
-		return nil, invalid("user authorization without a visited network")
+		return nil, invalidf("user authorization without a visited network")
 	case r.AuthorizationType > AuthorizationRegistrationAndCapabilities:
-		return nil, invalid("User-Authorization-Type %d", r.AuthorizationType)
+		return nil, invalidf("User-Authorization-Type %d", r.AuthorizationType)
 	}
 
 	public, err := publicIdentityAVP(r.PublicIdentity)
@@ -67,7 +67,7 @@ func NewUserAuthorizationRequest(env tgpp.Envelope, r UserAuthorizationRequest) 
 		avps = append(avps, diameter.Unsigned32(AVPUARFlags, 0, tgpp.VendorID, uarFlagEmergencyRegistration))
 	}
 
-	return newRequest(env, CommandUserAuthorization, r.Features, r.RequiredFeatures, avps...)
+	return newRequest(env, CommandUserAuthorization, r.Features, r.FeaturesRequired, avps...)
 }
 
 func CheckUserAuthorization(req *diameter.Message) error {
@@ -104,7 +104,7 @@ func ParseUserAuthorizationRequest(req *diameter.Message) (UserAuthorizationRequ
 		AuthorizationType:     AuthorizationType(authType),
 		EmergencyRegistration: uarFlags&uarFlagEmergencyRegistration != 0,
 		Features:              featureList(req),
-		RequiredFeatures:      requiredFeatures(req),
+		FeaturesRequired:      featuresRequired(req),
 	}, nil
 }
 
@@ -141,7 +141,7 @@ func ParseUserAuthorizationAnswer(ans *diameter.Message) (UserAuthorization, err
 
 func selection(serverName string, capabilities *ServerCapabilities) ([]diameter.AVP, error) {
 	if serverName != "" && capabilities != nil {
-		return nil, invalid("answer with both a server name and capabilities")
+		return nil, invalidf("answer with both a server name and capabilities")
 	}
 
 	var avps []diameter.AVP
@@ -179,12 +179,12 @@ func parseSelection(ans *diameter.Message) (string, *ServerCapabilities, error) 
 	}
 
 	if name != "" {
-		return "", nil, malformed("both Server-Name and Server-Capabilities")
+		return "", nil, malformedf("both Server-Name and Server-Capabilities")
 	}
 
 	capabilities, err := parseCapabilities(a)
 	if err != nil {
-		return "", nil, malformed("Server-Capabilities: %w", err)
+		return "", nil, malformedf("Server-Capabilities: %w", err)
 	}
 
 	return name, capabilities, nil

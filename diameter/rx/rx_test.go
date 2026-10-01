@@ -5,7 +5,9 @@ package rx
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
+	"reflect"
 	"testing"
 	"time"
 
@@ -79,7 +81,12 @@ func avpError(t *testing.T, err error) *diameter.AVPError {
 }
 
 func request(command uint32, env tgpp.Envelope, avps ...diameter.AVP) *diameter.Message {
-	return newRequest(env, command, avps...)
+	m, err := newRequest(env, command, avps...)
+	if err != nil {
+		panic(err)
+	}
+
+	return m
 }
 
 func without(m *diameter.Message, code, vendorID uint32) *diameter.Message {
@@ -132,14 +139,49 @@ var mandatoryBit = map[diameter.AVPKey]bool{
 	vendorKey(AVPRxRequestType):                        false,
 	vendorKey(AVPIPDomainID):                           false,
 	vendorKey(AVPRetryInterval):                        false,
+	vendorKey(AVPMinRequestedBandwidthUL):              false,
+	vendorKey(AVPMinRequestedBandwidthDL):              false,
+	vendorKey(AVPMaxSupportedBandwidthUL):              false,
+	vendorKey(AVPMaxSupportedBandwidthDL):              false,
+	vendorKey(AVPMinDesiredBandwidthUL):                false,
+	vendorKey(AVPMinDesiredBandwidthDL):                false,
+	vendorKey(AVPExtendedMaxRequestedBWUL):             false,
+	vendorKey(AVPExtendedMaxRequestedBWDL):             false,
+	vendorKey(AVPExtendedMaxSupportedBWUL):             false,
+	vendorKey(AVPExtendedMaxSupportedBWDL):             false,
+	vendorKey(AVPExtendedMinDesiredBWUL):               false,
+	vendorKey(AVPExtendedMinDesiredBWDL):               false,
+	vendorKey(AVPExtendedMinRequestedBWUL):             false,
+	vendorKey(AVPExtendedMinRequestedBWDL):             false,
+	vendorKey(AVPContentVersion):                       false,
+	vendorKey(AVPMediaComponentStatus):                 false,
+	vendorKey(AVPRequiredAccessInfo):                   false,
+	vendorKey(AVPNID):                                  false,
+	vendorKey(AVPServingSatelliteIdentity):             false,
+	vendorKey(AVPPCSessionRecoveryStatus):              false,
+	vendorKey(tgpp.AVPIPCANType):                       true,
+	vendorKey(tgpp.AVPRATType):                         false,
+	vendorKey(tgpp.AVPANGWAddress):                     false,
+	vendorKey(tgpp.AVPANTrusted):                       false,
+	vendorKey(tgpp.AVP3GPPSGSNMCCMNC):                  false,
+	vendorKey(tgpp.AVP3GPPUserLocationInfo):            false,
+	vendorKey(tgpp.AVP3GPPMSTimeZone):                  false,
+	vendorKey(tgpp.AVPTWANIdentifier):                  false,
+	vendorKey(tgpp.AVPUELocalIPAddress):                false,
+	vendorKey(tgpp.AVPUDPSourcePort):                   false,
+	vendorKey(tgpp.AVPTCPSourcePort):                   false,
+	vendorKey(tgpp.AVPUserLocationInfoTime):            false,
+	vendorKey(tgpp.AVPRANNASReleaseCause):              false,
+	vendorKey(tgpp.AVPNetLocAccessSupport):             false,
+	{Code: diameter.AVPFinalUnitAction}:                true,
 	vendorKey(tgpp.AVPFeatureListID):                   false,
 	vendorKey(tgpp.AVPFeatureList):                     false,
-	{Code: AVPFramedIPAddress}:                         true,
-	{Code: AVPFramedIPv6Prefix}:                        true,
-	{Code: AVPCalledStationID}:                         true,
-	{Code: AVPSubscriptionID}:                          true,
-	{Code: AVPSubscriptionIDType}:                      true,
-	{Code: AVPSubscriptionIDData}:                      true,
+	{Code: diameter.AVPFramedIPAddress}:                true,
+	{Code: diameter.AVPFramedIPv6Prefix}:               true,
+	{Code: diameter.AVPCalledStationID}:                true,
+	{Code: diameter.AVPSubscriptionID}:                 true,
+	{Code: diameter.AVPSubscriptionIDType}:             true,
+	{Code: diameter.AVPSubscriptionIDData}:             true,
 	{Code: diameter.AVPTerminationCause}:               true,
 	{Code: diameter.AVPAuthApplicationID}:              true,
 	{Code: diameter.AVPAuthSessionState}:               true,
@@ -153,7 +195,7 @@ var groupedAVPs = map[diameter.AVPKey]bool{
 	vendorKey(AVPMediaComponentDescription):       true,
 	vendorKey(AVPMediaSubComponent):               true,
 	vendorKey(tgpp.AVPSupportedFeatures):          true,
-	{Code: AVPSubscriptionID}:                     true,
+	{Code: diameter.AVPSubscriptionID}:            true,
 }
 
 var baseAVPs = map[uint32]bool{
@@ -162,7 +204,7 @@ var baseAVPs = map[uint32]bool{
 	diameter.AVPExperimentalResult: true,
 }
 
-func checkFlags(t *testing.T, avps []diameter.AVP, requiredFeatures bool) {
+func checkFlags(t *testing.T, avps []diameter.AVP, featuresMandatory bool) {
 	t.Helper()
 
 	for _, a := range avps {
@@ -173,7 +215,7 @@ func checkFlags(t *testing.T, avps []diameter.AVP, requiredFeatures bool) {
 
 		mandatory, known := mandatoryBit[key]
 		if key == vendorKey(tgpp.AVPSupportedFeatures) {
-			mandatory, known = requiredFeatures && a.Flags&diameter.AVPFlagMandatory != 0, true
+			mandatory, known = featuresMandatory, true
 		}
 
 		if !known {
@@ -199,6 +241,29 @@ func checkFlags(t *testing.T, avps []diameter.AVP, requiredFeatures bool) {
 	}
 }
 
+func fullAccessNetwork() AccessNetwork {
+	return AccessNetwork{
+		IPCANType:     ptr(IPCANNon3GPPEPS),
+		RATType:       ptr(RATWLAN),
+		ANTrusted:     ptr(ANTrustedUntrusted),
+		ANGWAddresses: []netip.Addr{netip.MustParseAddr("10.0.0.9"), netip.MustParseAddr("2001:db8::9")},
+	}
+}
+
+func fullUserLocation() UserLocation {
+	return UserLocation{
+		UserLocationInfo:         []byte{0x82, 0x00, 0xf1, 0x10, 0x00, 0x01, 0x00, 0xf1, 0x10, 0x00, 0x00, 0x00, 0x01},
+		UserLocationInfoTime:     time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
+		MSTimeZone:               []byte{0x40, 0x00},
+		TWANIdentifier:           []byte("twan"),
+		UELocalIPAddress:         netip.MustParseAddr("192.0.2.7"),
+		UDPSourcePort:            4500,
+		TCPSourcePort:            443,
+		ServingSatelliteIdentity: []byte("sat-1"),
+		RANNASReleaseCauses:      [][]byte{{0x10, 0x01}, {0x20, 0x02}},
+	}
+}
+
 func fullMediaComponent() MediaComponent {
 	return MediaComponent{
 		Number: 1,
@@ -209,9 +274,9 @@ func fullMediaComponent() MediaComponent {
 					"permit out 17 from 10.4.128.21 30000 to 192.168.101.4 1234",
 					"permit in 17 from 192.168.101.4 1234 to 10.4.128.21 30000",
 				},
-				FlowStatus:              ptr(FlowEnabled),
-				MaxRequestedBandwidthUL: ptr(uint32(41000)),
-				MaxRequestedBandwidthDL: ptr(uint32(41000)),
+				FlowStatus:              ptr(FlowStatusEnabled),
+				MaxRequestedBandwidthUL: ptr(Bandwidth(41000)),
+				MaxRequestedBandwidthDL: ptr(Bandwidth(41000)),
 			},
 			{
 				FlowNumber: 2,
@@ -219,14 +284,21 @@ func fullMediaComponent() MediaComponent {
 					"permit out 17 from 10.4.128.21 30001 to 192.168.101.4 1235",
 					"permit in 17 from 192.168.101.4 1235 to 10.4.128.21 30001",
 				},
-				FlowUsage: FlowUsageRTCP,
+				FlowUsage: ptr(FlowUsageRTCP),
 			},
 		},
 		AFApplicationIdentifier: "IMS Services",
 		Type:                    ptr(MediaAudio),
-		MaxRequestedBandwidthUL: ptr(uint32(41000)),
-		MaxRequestedBandwidthDL: ptr(uint32(0)),
-		FlowStatus:              ptr(FlowEnabled),
+		MaxRequestedBandwidthUL: ptr(Bandwidth(41000)),
+		MaxRequestedBandwidthDL: ptr(Bandwidth(0)),
+		MinRequestedBandwidthUL: ptr(Bandwidth(24000)),
+		MinRequestedBandwidthDL: ptr(Bandwidth(5_000_000_000)),
+		MaxSupportedBandwidthUL: ptr(Bandwidth(64000)),
+		MaxSupportedBandwidthDL: ptr(Bandwidth(64000)),
+		MinDesiredBandwidthUL:   ptr(Bandwidth(12000)),
+		MinDesiredBandwidthDL:   ptr(Bandwidth(12000)),
+		ContentVersion:          ptr(uint64(7)),
+		FlowStatus:              ptr(FlowStatusEnabled),
 		RSBandwidth:             ptr(uint32(512)),
 		RRBandwidth:             ptr(uint32(1537)),
 		CodecData: []CodecData{
@@ -245,9 +317,9 @@ func signallingComponent() MediaComponent {
 				"permit out 17 from 10.4.128.21 5060 to 192.168.101.4 5060",
 				"permit in 17 from 192.168.101.4 5060 to 10.4.128.21 5060",
 			},
-			FlowStatus:         ptr(FlowEnabled),
-			FlowUsage:          FlowUsageAFSignalling,
-			SignallingProtocol: SignallingSIP,
+			FlowStatus:         ptr(FlowStatusEnabled),
+			FlowUsage:          ptr(FlowUsageAFSignalling),
+			SignallingProtocol: SignallingProtocolSIP,
 		}},
 	}
 }
@@ -260,15 +332,16 @@ func fullAARequest() AARequest {
 		AFChargingIdentifier:    "icid-1",
 		SIPForkingIndication:    ForkingSeveralDialogues,
 		SpecificActions:         []SpecificAction{ActionIndicationOfReleaseOfBearer, ActionIPCANChange},
-		SubscriptionIDs:         []SubscriptionID{{Type: SubscriptionSIPURI, Data: testPublic}, {Type: SubscriptionE164, Data: "15551230002"}},
+		SubscriptionIDs:         []SubscriptionID{{Type: SubscriptionIDSIPURI, Data: testPublic}, {Type: SubscriptionIDE164, Data: "15551230002"}},
 		FramedIPAddress:         netip.MustParseAddr("192.168.101.4"),
 		FramedIPv6Address:       netip.MustParseAddr("2001:db8::4"),
 		CalledStationID:         "ims",
 		IPDomainID:              []byte("domain-a"),
 		ServiceURN:              "sos",
 		RequestType:             ptr(RequestInitial),
+		RequiredAccessInfo:      []RequiredAccessInfo{RequiredUserLocation, RequiredMSTimeZone},
 		Features:                FeatureRel8 | FeatureRel9 | FeatureProvAFSignalFlow | FeaturePCSCFRestorationEnhancement,
-		RequiredFeatures:        FeatureRel8 | FeatureRel9,
+		FeaturesRequired:        true,
 	}
 }
 
@@ -285,8 +358,16 @@ func TestRequestsCarryTheRxHeader(t *testing.T) {
 			}},
 			AccessNetworkChargingAddress: netip.MustParseAddr("10.0.0.1"),
 			Flows:                        []Flows{{MediaComponentNumber: 1}},
-			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIMSI, Data: "001010000000001"}},
+			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
 			AbortCause:                   ptr(AbortBearerReleased),
+			AccessNetwork:                fullAccessNetwork(),
+			NetLocAccessSupport:          ptr(NetLocAccessNotSupported),
+			ServingNetwork:               ServingNetwork{PLMN: "00101", NID: []byte{1}},
+			Location:                     fullUserLocation(),
+			PCSessionRecoveryStatus:      ptr(SessionRestorationTriggered),
+		})),
+		"STR with access info": must(NewSessionTerminationRequest(afEnvelope, SessionTerminationRequest{
+			Cause: TerminationLogout, RequiredAccessInfo: []RequiredAccessInfo{RequiredUserLocation},
 		})),
 		"ASR": must(NewAbortSessionRequest(pcrfEnvelope, AbortSessionRequest{Cause: AbortInsufficientBearerResources})),
 	} {
@@ -313,26 +394,35 @@ func TestRequestsCarryTheRxHeader(t *testing.T) {
 
 func TestAnswersFollowTheFlagTable(t *testing.T) {
 	must := mustMessage(t)
-	aar := request(CommandAA, afEnvelope)
+	aar := aaRequest(allFeatures)
 
 	for name, m := range map[string]*diameter.Message{
 		"AAA": must(NewAAAnswer(aar, pcrfIdentity, AAAnswer{
 			AccessNetworkChargingIdentifiers: []AccessNetworkChargingIdentifier{{Value: []byte{1}, Flows: []Flows{{MediaComponentNumber: 1, FlowNumbers: []uint32{1}}}}},
 			AccessNetworkChargingAddress:     netip.MustParseAddr("2001:db8::1"),
-			SubscriptionIDs:                  []SubscriptionID{{Type: SubscriptionIMSI, Data: "001010000000001"}},
+			SubscriptionIDs:                  []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
 			Features:                         FeatureRel8 | FeatureCHEM,
+			AccessNetwork:                    fullAccessNetwork(),
+			ServingNetwork:                   ServingNetwork{PLMN: "00101", NID: []byte{1}},
+			NetLocAccessSupport:              ptr(NetLocAccessNotSupported),
+			Flows: []Flows{{
+				MediaComponentNumber: 1, ContentVersions: []uint64{1}, FinalUnitAction: ptr(FinalUnitRedirect),
+				MediaComponentStatus: ptr(MediaComponentActive),
+			}},
 		})),
 		"AAA error": must(NewAAErrorAnswer(aar, pcrfIdentity, AAError{
 			ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceTemporarilyNotAuthorized)},
 			AcceptableServiceInfo: &AcceptableServiceInfo{
-				MediaComponents:         []MediaBandwidth{{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(uint32(1)), MaxRequestedBandwidthDL: ptr(uint32(2))}},
-				MaxRequestedBandwidthUL: ptr(uint32(3)), MaxRequestedBandwidthDL: ptr(uint32(4)),
+				MediaComponents:         []MediaBandwidth{{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(Bandwidth(1)), MaxRequestedBandwidthDL: ptr(Bandwidth(2))}},
+				MaxRequestedBandwidthUL: ptr(Bandwidth(3)), MaxRequestedBandwidthDL: ptr(Bandwidth(4)),
 			},
 			RetryInterval: 30 * time.Second,
 			Features:      FeatureRel8,
 		})),
 		"RAA": must(NewReAuthAnswer(request(CommandReAuth, pcrfEnvelope), afIdentity, ReAuthAnswer{})),
-		"STA": must(NewSessionTerminationAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, SessionTerminationAnswer{})),
+		"STA": must(NewSessionTerminationAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, SessionTerminationAnswer{
+			ServingNetwork: ServingNetwork{PLMN: "00101"}, Location: fullUserLocation(), NetLocAccessSupport: ptr(NetLocAccessNotSupported),
+		})),
 		"ASA": must(NewAbortSessionAnswer(request(CommandAbortSession, pcrfEnvelope), afIdentity, AbortSessionAnswer{})),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -345,7 +435,7 @@ func TestAnswersCarryTheRxHeader(t *testing.T) {
 	ok := tgpp.Result{Code: diameter.ResultSuccess}
 
 	for _, command := range []uint32{CommandAA, CommandReAuth, CommandSessionTermination, CommandAbortSession} {
-		ans := NewAnswer(request(command, afEnvelope), pcrfIdentity, ok)
+		ans := NewAnswer(request(command, afEnvelope), pcrfIdentity, ok, 0)
 
 		_, hasApp := ans.Find(diameter.AVPAuthApplicationID, 0)
 		if hasApp != (command == CommandAA) {
@@ -370,16 +460,22 @@ func TestAAAnswerEchoesAuthSessionState(t *testing.T) {
 	} {
 		req := request(CommandAA, afEnvelope, diameter.Unsigned32(diameter.AVPAuthSessionState, diameter.AVPFlagMandatory, 0, state))
 
-		a, ok := NewAnswer(req, pcrfIdentity, tgpp.Result{Code: diameter.ResultSuccess}).Find(diameter.AVPAuthSessionState, 0)
+		a, ok := NewAnswer(req, pcrfIdentity, tgpp.Result{Code: diameter.ResultSuccess}, 0).Find(diameter.AVPAuthSessionState, 0)
 		if v, _ := a.Unsigned32(); ok != echoed || (echoed && v != state) {
 			t.Errorf("state %d: echoed %+v", state, a)
 		}
 	}
 }
 
+const allFeatures = Features(1<<64 - 1)
+
+func aaRequest(features Features) *diameter.Message {
+	return request(CommandAA, afEnvelope, featureAVPs(features, false)...)
+}
+
 func TestErrorAnswer(t *testing.T) {
-	req := request(CommandAA, afEnvelope)
-	ans := NewErrorAnswer(req, pcrfIdentity, tgpp.MissingAVP(AVPMediaComponentNumber, tgpp.VendorID))
+	req := aaRequest(FeatureRel8 | FeatureRel9)
+	ans := NewErrorAnswer(req, pcrfIdentity, tgpp.MissingAVP(AVPMediaComponentNumber, tgpp.VendorID, 4), FeatureRel8|FeatureCHEM)
 
 	if _, ok := ans.Find(diameter.AVPFailedAVP, 0); !ok {
 		t.Fatal("no Failed-AVP")
@@ -391,19 +487,19 @@ func TestErrorAnswer(t *testing.T) {
 
 	_, err := ParseAAAnswer(ans)
 
-	var re *ResultError
-	if !errors.As(err, &re) || re.Code != diameter.ResultMissingAVP || re.Error() != "rx: request failed with result 5005 DIAMETER_MISSING_AVP" {
+	var aaErr *AAError
+	if !errors.As(err, &aaErr) || aaErr.Code != diameter.ResultMissingAVP || aaErr.Features != FeatureRel8 ||
+		aaErr.Error() != "rx: request failed with result 5005 DIAMETER_MISSING_AVP" {
 		t.Fatalf("err = %v", err)
 	}
 
-	generic := NewErrorAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, errors.New("boom"))
+	generic := NewErrorAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, errors.New("boom"), FeatureRel8)
 	if r, _ := tgpp.ParseResult(generic); r.Code != diameter.ResultUnableToComply {
 		t.Fatalf("generic error = %+v", r)
 	}
 
-	wrapped := NewErrorAnswer(req, pcrfIdentity, &AAError{ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)}})
-	if r, _ := tgpp.ParseResult(wrapped); !r.IsExperimental(tgpp.ResultIPCANSessionNotAvailable) {
-		t.Fatalf("AA error = %+v", r)
+	if _, ok := generic.Find(tgpp.AVPSupportedFeatures, tgpp.VendorID); ok {
+		t.Fatal("STA with Supported-Features")
 	}
 
 	for name, parse := range map[string]func(*diameter.Message) error{
@@ -412,9 +508,66 @@ func TestErrorAnswer(t *testing.T) {
 		"STA": func(m *diameter.Message) error { _, err := ParseSessionTerminationAnswer(m); return err },
 		"ASA": func(m *diameter.Message) error { _, err := ParseAbortSessionAnswer(m); return err },
 	} {
-		if err := parse(&diameter.Message{}); !errors.Is(err, ErrMalformedAnswer) {
-			t.Errorf("%s: empty answer = %v", name, err)
+		t.Run(name, func(t *testing.T) {
+			if err := parse(&diameter.Message{}); !errors.Is(err, ErrMalformedAnswer) {
+				t.Errorf("empty answer = %v", err)
+			}
+
+			informational := &diameter.Message{AVPs: []diameter.AVP{diameter.Unsigned32(diameter.AVPResultCode, diameter.AVPFlagMandatory, 0, 1001)}}
+			if err := parse(informational); !errors.Is(err, ErrMalformedAnswer) {
+				t.Errorf("informational answer = %v", err)
+			}
+		})
+	}
+}
+
+func TestErrorAnswerKeepsAAErrorData(t *testing.T) {
+	req := aaRequest(FeatureRel8)
+	e := AAError{
+		ResultError:           ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceTemporarilyNotAuthorized)},
+		AcceptableServiceInfo: &AcceptableServiceInfo{MaxRequestedBandwidthUL: ptr(Bandwidth(64000))},
+		RetryInterval:         30 * time.Second,
+		Features:              FeatureRel8,
+	}
+
+	_, err := ParseAAAnswer(NewErrorAnswer(req, pcrfIdentity, fmt.Errorf("wrapped: %w", &e), 0))
+
+	var got *AAError
+	if !errors.As(err, &got) || !reflect.DeepEqual(*got, e) {
+		t.Fatalf("parsed %+v (%v)", got, err)
+	}
+
+	invalid := NewErrorAnswer(req, pcrfIdentity, &AAError{RetryInterval: time.Millisecond}, 0)
+	if r, _ := tgpp.ParseResult(invalid); r.Code != diameter.ResultUnableToComply {
+		t.Fatalf("invalid AA error = %+v", r)
+	}
+}
+
+func TestExperimentalResultsOnlyWhereAllowed(t *testing.T) {
+	failure := tgpp.Experimental(tgpp.ResultInvalidServiceInformation)
+	success := tgpp.Experimental(2001)
+
+	for command, allowed := range map[uint32]bool{
+		CommandAA: true, CommandReAuth: true, CommandSessionTermination: false, CommandAbortSession: false,
+	} {
+		req := request(command, pcrfEnvelope)
+
+		for r, base := range map[tgpp.Result]uint32{failure: diameter.ResultUnableToComply, success: diameter.ResultSuccess} {
+			got, err := tgpp.ParseResult(NewAnswer(req, afIdentity, r, 0))
+			if err != nil || (allowed && got != r) || (!allowed && got != tgpp.Result{Code: base}) {
+				t.Errorf("command %d, %s: answered %s, %v", command, r, got, err)
+			}
 		}
+	}
+
+	if _, err := NewSessionTerminationAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity,
+		SessionTerminationAnswer{Result: success}); !errors.Is(err, ErrInvalidMessage) {
+		t.Errorf("experimental STA = %v", err)
+	}
+
+	if _, err := NewAbortSessionAnswer(request(CommandAbortSession, pcrfEnvelope), afIdentity,
+		AbortSessionAnswer{Result: success}); !errors.Is(err, ErrInvalidMessage) {
+		t.Errorf("experimental ASA = %v", err)
 	}
 }
 
@@ -434,13 +587,40 @@ func TestSuccessBuildersRejectErrors(t *testing.T) {
 		"ASA": func() (*diameter.Message, error) {
 			return NewAbortSessionAnswer(request(CommandAbortSession, pcrfEnvelope), afIdentity, AbortSessionAnswer{Result: failure})
 		},
-		"AAA error": func() (*diameter.Message, error) {
+		"AAA error with success": func() (*diameter.Message, error) {
 			return NewAAErrorAnswer(request(CommandAA, afEnvelope), pcrfIdentity, AAError{ResultError: ResultError{Result: tgpp.Result{Code: diameter.ResultSuccess}}})
 		},
+		"zero AAA error": func() (*diameter.Message, error) {
+			return NewAAErrorAnswer(request(CommandAA, afEnvelope), pcrfIdentity, AAError{})
+		},
+		"informational AAA error": func() (*diameter.Message, error) {
+			return NewAAErrorAnswer(request(CommandAA, afEnvelope), pcrfIdentity, AAError{ResultError: ResultError{Result: tgpp.Result{Code: 1001}}})
+		},
 	} {
-		if _, err := build(); !errors.Is(err, ErrInvalidMessage) {
-			t.Errorf("%s: err = %v", name, err)
-		}
+		t.Run(name, func(t *testing.T) {
+			if _, err := build(); !errors.Is(err, ErrInvalidMessage) {
+				t.Errorf("err = %v", err)
+			}
+		})
+	}
+}
+
+func TestRequestsNeedAnEnvelope(t *testing.T) {
+	for name, env := range map[string]tgpp.Envelope{
+		"no Session-Id":        {Origin: afIdentity, DestinationRealm: testEPCRealm},
+		"no origin host":       {SessionID: "s;1", Origin: diameter.Identity{OriginRealm: testIMSRealm}, DestinationRealm: testEPCRealm},
+		"no origin realm":      {SessionID: "s;1", Origin: diameter.Identity{OriginHost: "pcscf"}, DestinationRealm: testEPCRealm},
+		"no destination realm": {SessionID: "s;1", Origin: afIdentity},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := NewAARequest(env, AARequest{}); !errors.Is(err, ErrInvalidMessage) {
+				t.Errorf("AAR: err = %v", err)
+			}
+
+			if _, err := NewSessionTerminationRequest(env, SessionTerminationRequest{Cause: TerminationLogout}); !errors.Is(err, ErrInvalidMessage) {
+				t.Errorf("STR: err = %v", err)
+			}
+		})
 	}
 }
 
@@ -453,12 +633,14 @@ func TestResultErrorsCarryTheResult(t *testing.T) {
 		"STA": {CommandSessionTermination, func(m *diameter.Message) error { _, err := ParseSessionTerminationAnswer(m); return err }},
 		"ASA": {CommandAbortSession, func(m *diameter.Message) error { _, err := ParseAbortSessionAnswer(m); return err }},
 	} {
-		ans := NewAnswer(request(tc.command, pcrfEnvelope), afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID})
+		t.Run(name, func(t *testing.T) {
+			ans := NewAnswer(request(tc.command, pcrfEnvelope), afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID}, 0)
 
-		var re *ResultError
-		if err := tc.parse(roundTrip(t, ans)); !errors.As(err, &re) || re.Code != diameter.ResultUnknownSessionID {
-			t.Errorf("%s: err = %v", name, err)
-		}
+			var re *ResultError
+			if err := tc.parse(roundTrip(t, ans)); !errors.As(err, &re) || re.Code != diameter.ResultUnknownSessionID {
+				t.Errorf("err = %v", err)
+			}
+		})
 	}
 }
 
@@ -475,21 +657,12 @@ func TestRxResultNames(t *testing.T) {
 	}
 }
 
-func TestRequiredFeatures(t *testing.T) {
+func TestFeaturesRequired(t *testing.T) {
 	for name, r := range map[string]AARequest{
-		"both lists required": {
-			Features:         FeatureRel8 | FeatureNetLoc | FeaturePCSCFRestorationEnhancement,
-			RequiredFeatures: FeatureRel8 | FeatureNetLoc | FeaturePCSCFRestorationEnhancement,
-		},
-		"list 2 optional": {
-			Features:         FeatureRel8 | FeaturePCSCFRestorationEnhancement,
-			RequiredFeatures: FeatureRel8,
-		},
-		"partly required": {
-			Features:         FeatureRel8 | FeatureRel9 | FeatureExtendedMaxRequestedBWNR,
-			RequiredFeatures: FeatureRel8,
-		},
-		"none required": {Features: FeatureRel8},
+		"required":            {Features: FeatureRel8 | FeatureNetLoc | FeaturePCSCFRestorationEnhancement, FeaturesRequired: true},
+		"advertised":          {Features: FeatureRel8 | FeaturePCSCFRestorationEnhancement},
+		"one list required":   {Features: FeatureRel8 | FeatureRel9, FeaturesRequired: true},
+		"one list advertised": {Features: FeatureCHEM},
 	} {
 		t.Run(name, func(t *testing.T) {
 			req, err := NewAARequest(afEnvelope, r)
@@ -497,52 +670,57 @@ func TestRequiredFeatures(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			lists := map[uint32]bool{}
+
 			for _, a := range diameter.FindAll(req.AVPs, tgpp.AVPSupportedFeatures, tgpp.VendorID) {
 				f, err := tgpp.ParseSupportedFeatures(a)
-				if err != nil {
-					t.Fatal(err)
+				if err != nil || f.Mandatory != r.FeaturesRequired || lists[f.FeatureListID] {
+					t.Fatalf("Supported-Features %+v, %v", f, err)
 				}
 
-				required := listFeatures(f.FeatureListID, f.FeatureList)&^r.RequiredFeatures == 0
-				if f.Mandatory != required {
-					t.Errorf("Supported-Features %+v, M bit = %v", f, f.Mandatory)
-				}
+				lists[f.FeatureListID] = true
 			}
 
 			got, err := ParseAARequest(roundTrip(t, req))
-			if err != nil || got.Features != r.Features || got.RequiredFeatures != r.RequiredFeatures {
-				t.Fatalf("features = %s, required %s, %v", got.Features, got.RequiredFeatures, err)
+			if err != nil || got.Features != r.Features || got.FeaturesRequired != r.FeaturesRequired {
+				t.Fatalf("features = %s, required %v, %v", got.Features, got.FeaturesRequired, err)
 			}
 		})
 	}
 
-	_, err := NewAARequest(afEnvelope, AARequest{Features: FeatureRel8, RequiredFeatures: FeatureRel9})
-	if !errors.Is(err, ErrInvalidMessage) {
-		t.Fatalf("required but not advertised = %v", err)
+	if _, err := NewAARequest(afEnvelope, AARequest{FeaturesRequired: true}); !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("required without features = %v", err)
 	}
 }
 
-func TestAnswerFeaturesAreNeverMandatory(t *testing.T) {
-	req := mustMessage(t)(NewAARequest(afEnvelope, AARequest{Features: FeatureRel8, RequiredFeatures: FeatureRel8}))
+func TestAAAnswerAdvertisesCommonFeatures(t *testing.T) {
+	pcrf := FeatureRel8 | FeatureRel9 | FeaturePCSCFRestorationEnhancement
 
-	ans, err := NewAAAnswer(req, pcrfIdentity, AAAnswer{Features: FeatureRel8 | FeaturePCSCFRestorationEnhancement})
-	if err != nil {
-		t.Fatal(err)
-	}
+	for name, tc := range map[string]struct {
+		af, want Features
+	}{
+		"AF without features": {0, 0},
+		"common subset":       {FeatureRel8 | FeatureNetLoc | FeaturePCSCFRestorationEnhancement, FeatureRel8 | FeaturePCSCFRestorationEnhancement},
+		"nothing in common":   {FeatureNetLoc, 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := mustMessage(t)(NewAARequest(afEnvelope, AARequest{Features: tc.af, FeaturesRequired: tc.af != 0}))
 
-	features := diameter.FindAll(ans.AVPs, tgpp.AVPSupportedFeatures, tgpp.VendorID)
-	if len(features) != 2 {
-		t.Fatalf("answer has %d Supported-Features", len(features))
-	}
+			ans, err := NewAAAnswer(req, pcrfIdentity, AAAnswer{Features: pcrf})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	for _, a := range features {
-		if a.Flags&diameter.AVPFlagMandatory != 0 {
-			t.Fatalf("answer Supported-Features = %+v", a)
-		}
-	}
+			for _, a := range diameter.FindAll(ans.AVPs, tgpp.AVPSupportedFeatures, tgpp.VendorID) {
+				if a.Flags&diameter.AVPFlagMandatory != 0 {
+					t.Fatalf("answer Supported-Features = %+v", a)
+				}
+			}
 
-	got, err := ParseAAAnswer(ans)
-	if err != nil || got.Features != FeatureRel8|FeaturePCSCFRestorationEnhancement {
-		t.Fatalf("answer features = %s, %v", got.Features, err)
+			got, err := ParseAAAnswer(ans)
+			if err != nil || got.Features != tc.want {
+				t.Fatalf("answer features = %s, %v", got.Features, err)
+			}
+		})
 	}
 }

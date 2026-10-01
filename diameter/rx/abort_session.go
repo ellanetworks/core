@@ -24,12 +24,12 @@ var asrRules = commonRequestRules.With(diameter.Rules{
 func NewAbortSessionRequest(env tgpp.Envelope, r AbortSessionRequest) (*diameter.Message, error) {
 	switch {
 	case env.DestinationHost == "":
-		return nil, invalid("abort session without a destination host")
-	case r.Cause > maxAbortCause:
-		return nil, invalid("Abort-Cause %d", uint32(r.Cause))
+		return nil, invalidf("abort session without a destination host")
+	case !r.Cause.valid():
+		return nil, invalidf("Abort-Cause %s", r.Cause)
 	}
 
-	return newRequest(env, CommandAbortSession, vendorUnsigned(AVPAbortCause, uint32(r.Cause))), nil
+	return newRequest(env, CommandAbortSession, vendorUnsigned(AVPAbortCause, uint32(r.Cause)))
 }
 
 func CheckAbortSession(req *diameter.Message) error {
@@ -41,7 +41,7 @@ func ParseAbortSessionRequest(req *diameter.Message) (AbortSessionRequest, error
 		return AbortSessionRequest{}, err
 	}
 
-	cause, _, err := enum(req.AVPs, AVPAbortCause, tgpp.VendorID, upTo(maxAbortCause))
+	cause, err := defaultEnum[AbortCause](req.AVPs, AVPAbortCause, tgpp.VendorID)
 	if err != nil {
 		return AbortSessionRequest{}, err
 	}

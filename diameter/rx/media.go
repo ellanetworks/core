@@ -12,36 +12,8 @@ import (
 )
 
 const (
-	avpMinRequestedBandwidthDL  uint32 = 534
-	avpMinRequestedBandwidthUL  uint32 = 535
-	avpSharingKeyDL             uint32 = 539
-	avpSharingKeyUL             uint32 = 540
-	avpMaxSupportedBandwidthDL  uint32 = 543
-	avpMaxSupportedBandwidthUL  uint32 = 544
-	avpMinDesiredBandwidthDL    uint32 = 545
-	avpMinDesiredBandwidthUL    uint32 = 546
-	avpMediaComponentStatus     uint32 = 549
-	avpPrioritySharingIndicator uint32 = 550
-	avpContentVersion           uint32 = 552
-	avpExtendedMaxRequestedBWDL uint32 = 554
-	avpExtendedMaxRequestedBWUL uint32 = 555
-	avpExtendedMaxSupportedBWDL uint32 = 556
-	avpExtendedMaxSupportedBWUL uint32 = 557
-	avpExtendedMinDesiredBWDL   uint32 = 558
-	avpExtendedMinDesiredBWUL   uint32 = 559
-	avpExtendedMinRequestedBWDL uint32 = 560
-	avpExtendedMinRequestedBWUL uint32 = 561
-	avpFLUSIdentifier           uint32 = 566
-	avpDesiredMaxLatency        uint32 = 567
-	avpDesiredMaxLoss           uint32 = 568
-	avpFinalUnitAction          uint32 = 449
-	avpToSTrafficClass          uint32 = 1014
-	avpPreemptionCapability     uint32 = 1047
-	avpPreemptionVulnerability  uint32 = 1048
-	avpMaxPLRDL                 uint32 = 2852
-	avpMaxPLRUL                 uint32 = 2853
-	maxCodecData                       = 2
-	codecDataSeparator                 = "\n"
+	maxCodecData       = 2
+	codecDataSeparator = "\n"
 )
 
 type MediaComponent struct {
@@ -49,21 +21,28 @@ type MediaComponent struct {
 	SubComponents           []MediaSubComponent
 	AFApplicationIdentifier string
 	Type                    *MediaType
-	MaxRequestedBandwidthUL *uint32
-	MaxRequestedBandwidthDL *uint32
+	MaxRequestedBandwidthUL *Bandwidth
+	MaxRequestedBandwidthDL *Bandwidth
+	MaxSupportedBandwidthUL *Bandwidth
+	MaxSupportedBandwidthDL *Bandwidth
+	MinDesiredBandwidthUL   *Bandwidth
+	MinDesiredBandwidthDL   *Bandwidth
+	MinRequestedBandwidthUL *Bandwidth
+	MinRequestedBandwidthDL *Bandwidth
 	FlowStatus              *FlowStatus
 	RSBandwidth             *uint32
 	RRBandwidth             *uint32
 	CodecData               []CodecData
+	ContentVersion          *uint64
 }
 
 type MediaSubComponent struct {
 	FlowNumber              uint32
 	FlowDescriptions        []string
 	FlowStatus              *FlowStatus
-	FlowUsage               FlowUsage
-	MaxRequestedBandwidthUL *uint32
-	MaxRequestedBandwidthDL *uint32
+	FlowUsage               *FlowUsage
+	MaxRequestedBandwidthUL *Bandwidth
+	MaxRequestedBandwidthDL *Bandwidth
 	SignallingProtocol      AFSignallingProtocol
 }
 
@@ -76,6 +55,9 @@ type CodecData struct {
 type Flows struct {
 	MediaComponentNumber uint32
 	FlowNumbers          []uint32
+	ContentVersions      []uint64
+	FinalUnitAction      *FinalUnitAction
+	MediaComponentStatus *MediaComponentStatus
 }
 
 type AccessNetworkChargingIdentifier struct {
@@ -90,14 +72,14 @@ type SubscriptionID struct {
 
 type MediaBandwidth struct {
 	MediaComponentNumber    uint32
-	MaxRequestedBandwidthUL *uint32
-	MaxRequestedBandwidthDL *uint32
+	MaxRequestedBandwidthUL *Bandwidth
+	MaxRequestedBandwidthDL *Bandwidth
 }
 
 type AcceptableServiceInfo struct {
 	MediaComponents         []MediaBandwidth
-	MaxRequestedBandwidthUL *uint32
-	MaxRequestedBandwidthDL *uint32
+	MaxRequestedBandwidthUL *Bandwidth
+	MaxRequestedBandwidthDL *Bandwidth
 }
 
 var mediaComponentRules = diameter.Rules{
@@ -108,20 +90,20 @@ var mediaComponentRules = diameter.Rules{
 	vendorKey(AVPMediaType):                                {},
 	vendorKey(AVPMaxRequestedBandwidthUL):                  {},
 	vendorKey(AVPMaxRequestedBandwidthDL):                  {},
-	vendorKey(avpMaxSupportedBandwidthUL):                  {},
-	vendorKey(avpMaxSupportedBandwidthDL):                  {},
-	vendorKey(avpMinDesiredBandwidthUL):                    {},
-	vendorKey(avpMinDesiredBandwidthDL):                    {},
-	vendorKey(avpMinRequestedBandwidthUL):                  {},
-	vendorKey(avpMinRequestedBandwidthDL):                  {},
-	vendorKey(avpExtendedMaxRequestedBWUL):                 {},
-	vendorKey(avpExtendedMaxRequestedBWDL):                 {},
-	vendorKey(avpExtendedMaxSupportedBWUL):                 {},
-	vendorKey(avpExtendedMaxSupportedBWDL):                 {},
-	vendorKey(avpExtendedMinDesiredBWUL):                   {},
-	vendorKey(avpExtendedMinDesiredBWDL):                   {},
-	vendorKey(avpExtendedMinRequestedBWUL):                 {},
-	vendorKey(avpExtendedMinRequestedBWDL):                 {},
+	vendorKey(AVPMaxSupportedBandwidthUL):                  {},
+	vendorKey(AVPMaxSupportedBandwidthDL):                  {},
+	vendorKey(AVPMinDesiredBandwidthUL):                    {},
+	vendorKey(AVPMinDesiredBandwidthDL):                    {},
+	vendorKey(AVPMinRequestedBandwidthUL):                  {},
+	vendorKey(AVPMinRequestedBandwidthDL):                  {},
+	vendorKey(AVPExtendedMaxRequestedBWUL):                 {},
+	vendorKey(AVPExtendedMaxRequestedBWDL):                 {},
+	vendorKey(AVPExtendedMaxSupportedBWUL):                 {},
+	vendorKey(AVPExtendedMaxSupportedBWDL):                 {},
+	vendorKey(AVPExtendedMinDesiredBWUL):                   {},
+	vendorKey(AVPExtendedMinDesiredBWDL):                   {},
+	vendorKey(AVPExtendedMinRequestedBWUL):                 {},
+	vendorKey(AVPExtendedMinRequestedBWDL):                 {},
 	vendorKey(AVPFlowStatus):                               {},
 	vendorKey(avpPrioritySharingIndicator):                 {},
 	vendorKey(avpPreemptionCapability):                     {},
@@ -132,7 +114,7 @@ var mediaComponentRules = diameter.Rules{
 	vendorKey(AVPCodecData):                                {Multiple: true},
 	vendorKey(avpSharingKeyDL):                             {},
 	vendorKey(avpSharingKeyUL):                             {},
-	vendorKey(avpContentVersion):                           {},
+	vendorKey(AVPContentVersion):                           {},
 	vendorKey(avpMaxPLRDL):                                 {},
 	vendorKey(avpMaxPLRUL):                                 {},
 	vendorKey(avpDesiredMaxLatency):                        {},
@@ -146,18 +128,18 @@ var mediaSubComponentRules = diameter.Rules{
 	vendorKey(AVPFlowUsage):                {},
 	vendorKey(AVPMaxRequestedBandwidthUL):  {},
 	vendorKey(AVPMaxRequestedBandwidthDL):  {},
-	vendorKey(avpExtendedMaxRequestedBWUL): {},
-	vendorKey(avpExtendedMaxRequestedBWDL): {},
+	vendorKey(AVPExtendedMaxRequestedBWUL): {},
+	vendorKey(AVPExtendedMaxRequestedBWDL): {},
 	vendorKey(AVPAFSignallingProtocol):     {},
 	vendorKey(avpToSTrafficClass):          {},
 }
 
 var flowsRules = diameter.Rules{
-	vendorKey(AVPMediaComponentNumber): {Required: true, MinLength: 4},
-	vendorKey(AVPFlowNumber):           {Multiple: true},
-	vendorKey(avpContentVersion):       {Multiple: true},
-	{Code: avpFinalUnitAction}:         {},
-	vendorKey(avpMediaComponentStatus): {},
+	vendorKey(AVPMediaComponentNumber):  {Required: true, MinLength: 4},
+	vendorKey(AVPFlowNumber):            {Multiple: true},
+	vendorKey(AVPContentVersion):        {Multiple: true},
+	{Code: diameter.AVPFinalUnitAction}: {},
+	vendorKey(AVPMediaComponentStatus):  {},
 }
 
 var chargingIdentifierRules = diameter.Rules{
@@ -166,118 +148,26 @@ var chargingIdentifierRules = diameter.Rules{
 }
 
 var subscriptionIDRules = diameter.Rules{
-	{Code: AVPSubscriptionIDType}: {Required: true, MinLength: 4},
-	{Code: AVPSubscriptionIDData}: {Required: true},
+	{Code: diameter.AVPSubscriptionIDType}: {Required: true, MinLength: 4},
+	{Code: diameter.AVPSubscriptionIDData}: {Required: true},
 }
 
 var acceptableServiceInfoRules = diameter.Rules{
 	vendorKey(AVPMediaComponentDescription): {Multiple: true},
 	vendorKey(AVPMaxRequestedBandwidthDL):   {},
 	vendorKey(AVPMaxRequestedBandwidthUL):   {},
-	vendorKey(avpExtendedMaxRequestedBWDL):  {},
-	vendorKey(avpExtendedMaxRequestedBWUL):  {},
-}
-
-func vendorKey(code uint32) diameter.AVPKey {
-	return diameter.AVPKey{Code: code, VendorID: tgpp.VendorID}
-}
-
-func vendorUnsigned(code, v uint32) diameter.AVP {
-	return diameter.Unsigned32(code, diameter.AVPFlagMandatory, tgpp.VendorID, v)
-}
-
-func vendorOctets(code uint32, v []byte) diameter.AVP {
-	return diameter.OctetString(code, diameter.AVPFlagMandatory, tgpp.VendorID, v)
-}
-
-func vendorGrouped(code uint32, avps ...diameter.AVP) diameter.AVP {
-	return diameter.Grouped(code, diameter.AVPFlagMandatory, tgpp.VendorID, avps...)
-}
-
-func appendOptional(avps []diameter.AVP, code uint32, v *uint32) []diameter.AVP {
-	if v != nil {
-		avps = append(avps, vendorUnsigned(code, *v))
-	}
-
-	return avps
-}
-
-func checkGrouped(rules diameter.Rules, a diameter.AVP) ([]diameter.AVP, error) {
-	inner, err := a.Grouped()
-	if err != nil {
-		return nil, tgpp.InvalidAVP(a)
-	}
-
-	if err := rules.Check(&diameter.Message{AVPs: inner}); err != nil {
-		return nil, err
-	}
-
-	return inner, nil
-}
-
-func unsigned(avps []diameter.AVP, code uint32) (uint32, error) {
-	a, _ := diameter.Find(avps, code, tgpp.VendorID)
-
-	v, err := a.Unsigned32()
-	if err != nil {
-		return 0, tgpp.InvalidAVP(a)
-	}
-
-	return v, nil
-}
-
-func optionalUnsigned(avps []diameter.AVP, code uint32) (*uint32, error) {
-	if _, ok := diameter.Find(avps, code, tgpp.VendorID); !ok {
-		return nil, nil
-	}
-
-	v, err := unsigned(avps, code)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v, nil
-}
-
-func enum[T ~uint32](avps []diameter.AVP, code, vendorID uint32, valid func(T) bool) (T, bool, error) {
-	a, ok := diameter.Find(avps, code, vendorID)
-	if !ok {
-		return 0, false, nil
-	}
-
-	v, err := a.Unsigned32()
-	if err != nil || !valid(T(v)) {
-		return 0, false, tgpp.InvalidAVP(a)
-	}
-
-	return T(v), true, nil
-}
-
-func optionalEnum[T ~uint32](avps []diameter.AVP, code uint32, valid func(T) bool) (*T, error) {
-	v, ok, err := enum(avps, code, tgpp.VendorID, valid)
-	if err != nil || !ok {
-		return nil, err
-	}
-
-	return &v, nil
-}
-
-func upTo[T ~uint32](limit T) func(T) bool {
-	return func(v T) bool { return v <= limit }
-}
-
-func validFlowStatus(s *FlowStatus) bool {
-	return s == nil || *s <= maxFlowStatus
+	vendorKey(AVPExtendedMaxRequestedBWDL):  {},
+	vendorKey(AVPExtendedMaxRequestedBWUL):  {},
 }
 
 func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 	switch {
-	case c.Type != nil && !c.Type.valid():
-		return diameter.AVP{}, invalid("Media-Type %d", uint32(*c.Type))
-	case !validFlowStatus(c.FlowStatus):
-		return diameter.AVP{}, invalid("Flow-Status %d", uint32(*c.FlowStatus))
+	case !validEnum(c.Type):
+		return diameter.AVP{}, invalidf("Media-Type %s", *c.Type)
+	case !validEnum(c.FlowStatus):
+		return diameter.AVP{}, invalidf("Flow-Status %s", *c.FlowStatus)
 	case len(c.CodecData) > maxCodecData:
-		return diameter.AVP{}, invalid("media component %d with %d Codec-Data", c.Number, len(c.CodecData))
+		return diameter.AVP{}, invalidf("media component %d with %d Codec-Data", c.Number, len(c.CodecData))
 	}
 
 	avps := []diameter.AVP{vendorUnsigned(AVPMediaComponentNumber, c.Number)}
@@ -295,15 +185,31 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 		avps = append(avps, vendorOctets(AVPAFApplicationIdentifier, []byte(c.AFApplicationIdentifier)))
 	}
 
-	if c.Type != nil {
-		avps = append(avps, vendorUnsigned(AVPMediaType, uint32(*c.Type)))
+	avps = appendOptional(avps, AVPMediaType, diameter.AVPFlagMandatory, (*uint32)(c.Type))
+
+	var err error
+
+	for _, b := range []struct {
+		codes bandwidthCodes
+		value *Bandwidth
+	}{
+		{maxRequestedUL, c.MaxRequestedBandwidthUL},
+		{maxRequestedDL, c.MaxRequestedBandwidthDL},
+		{maxSupportedUL, c.MaxSupportedBandwidthUL},
+		{maxSupportedDL, c.MaxSupportedBandwidthDL},
+		{minDesiredUL, c.MinDesiredBandwidthUL},
+		{minDesiredDL, c.MinDesiredBandwidthDL},
+		{minRequestedUL, c.MinRequestedBandwidthUL},
+		{minRequestedDL, c.MinRequestedBandwidthDL},
+	} {
+		if avps, err = appendBandwidth(avps, b.codes, b.value); err != nil {
+			return diameter.AVP{}, err
+		}
 	}
 
-	avps = appendOptional(avps, AVPMaxRequestedBandwidthUL, c.MaxRequestedBandwidthUL)
-	avps = appendOptional(avps, AVPMaxRequestedBandwidthDL, c.MaxRequestedBandwidthDL)
-	avps = appendOptional(avps, AVPFlowStatus, (*uint32)(c.FlowStatus))
-	avps = appendOptional(avps, AVPRSBandwidth, c.RSBandwidth)
-	avps = appendOptional(avps, AVPRRBandwidth, c.RRBandwidth)
+	avps = appendOptional(avps, AVPFlowStatus, diameter.AVPFlagMandatory, (*uint32)(c.FlowStatus))
+	avps = appendOptional(avps, AVPRSBandwidth, diameter.AVPFlagMandatory, c.RSBandwidth)
+	avps = appendOptional(avps, AVPRRBandwidth, diameter.AVPFlagMandatory, c.RRBandwidth)
 
 	for _, d := range c.CodecData {
 		a, err := codecDataAVP(d)
@@ -314,10 +220,19 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 		avps = append(avps, a)
 	}
 
+	if c.ContentVersion != nil {
+		avps = append(avps, diameter.Unsigned64(AVPContentVersion, 0, tgpp.VendorID, *c.ContentVersion))
+	}
+
 	return vendorGrouped(AVPMediaComponentDescription, avps...), nil
 }
 
 func parseMediaComponent(a diameter.AVP) (MediaComponent, error) {
+	c, err := parseMediaComponentData(a)
+	return c, withinGrouped(a, err)
+}
+
+func parseMediaComponentData(a diameter.AVP) (MediaComponent, error) {
 	inner, err := checkGrouped(mediaComponentRules, a)
 	if err != nil {
 		return MediaComponent{}, err
@@ -325,7 +240,7 @@ func parseMediaComponent(a diameter.AVP) (MediaComponent, error) {
 
 	var c MediaComponent
 
-	if c.Number, err = unsigned(inner, AVPMediaComponentNumber); err != nil {
+	if c.Number, err = requiredUint32(inner, AVPMediaComponentNumber, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
@@ -338,32 +253,42 @@ func parseMediaComponent(a diameter.AVP) (MediaComponent, error) {
 		c.SubComponents = append(c.SubComponents, s)
 	}
 
-	if id, ok := diameter.Find(inner, AVPAFApplicationIdentifier, tgpp.VendorID); ok {
-		if c.AFApplicationIdentifier = string(id.Data); c.AFApplicationIdentifier == "" {
-			return MediaComponent{}, tgpp.InvalidAVP(id)
-		}
-	}
-
-	if c.Type, err = optionalEnum(inner, AVPMediaType, MediaType.valid); err != nil {
+	if c.AFApplicationIdentifier, err = optionalString(inner, AVPAFApplicationIdentifier, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
-	if c.FlowStatus, err = optionalEnum(inner, AVPFlowStatus, upTo(maxFlowStatus)); err != nil {
+	if c.Type, err = optionalEnum[MediaType](inner, AVPMediaType, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
-	for _, f := range []struct {
-		code uint32
-		dst  **uint32
+	for _, b := range []struct {
+		codes bandwidthCodes
+		dst   **Bandwidth
 	}{
-		{AVPMaxRequestedBandwidthUL, &c.MaxRequestedBandwidthUL},
-		{AVPMaxRequestedBandwidthDL, &c.MaxRequestedBandwidthDL},
-		{AVPRSBandwidth, &c.RSBandwidth},
-		{AVPRRBandwidth, &c.RRBandwidth},
+		{maxRequestedUL, &c.MaxRequestedBandwidthUL},
+		{maxRequestedDL, &c.MaxRequestedBandwidthDL},
+		{maxSupportedUL, &c.MaxSupportedBandwidthUL},
+		{maxSupportedDL, &c.MaxSupportedBandwidthDL},
+		{minDesiredUL, &c.MinDesiredBandwidthUL},
+		{minDesiredDL, &c.MinDesiredBandwidthDL},
+		{minRequestedUL, &c.MinRequestedBandwidthUL},
+		{minRequestedDL, &c.MinRequestedBandwidthDL},
 	} {
-		if *f.dst, err = optionalUnsigned(inner, f.code); err != nil {
+		if *b.dst, err = parseBandwidth(inner, b.codes); err != nil {
 			return MediaComponent{}, err
 		}
+	}
+
+	if c.FlowStatus, err = optionalEnum[FlowStatus](inner, AVPFlowStatus, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
+	}
+
+	if c.RSBandwidth, err = optionalUint32(inner, AVPRSBandwidth, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
+	}
+
+	if c.RRBandwidth, err = optionalUint32(inner, AVPRRBandwidth, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
 	}
 
 	codecs := diameter.FindAll(inner, AVPCodecData, tgpp.VendorID)
@@ -380,41 +305,58 @@ func parseMediaComponent(a diameter.AVP) (MediaComponent, error) {
 		c.CodecData = append(c.CodecData, d)
 	}
 
+	if v, ok := diameter.Find(inner, AVPContentVersion, tgpp.VendorID); ok {
+		version, err := uint64Value(v)
+		if err != nil {
+			return MediaComponent{}, err
+		}
+
+		c.ContentVersion = &version
+	}
+
 	return c, nil
+}
+
+func signallingProtocolAllowed(s MediaSubComponent) bool {
+	return s.SignallingProtocol == SignallingProtocolNoInformation ||
+		(s.FlowUsage != nil && *s.FlowUsage == FlowUsageAFSignalling)
 }
 
 func mediaSubComponentAVP(s MediaSubComponent) (diameter.AVP, error) {
 	switch {
-	case !validFlowStatus(s.FlowStatus):
-		return diameter.AVP{}, invalid("Flow-Status %d", uint32(*s.FlowStatus))
-	case s.FlowUsage > maxFlowUsage:
-		return diameter.AVP{}, invalid("Flow-Usage %d", uint32(s.FlowUsage))
-	case s.SignallingProtocol > maxAFSignallingProtocol:
-		return diameter.AVP{}, invalid("AF-Signalling-Protocol %d", uint32(s.SignallingProtocol))
-	case s.SignallingProtocol != SignallingNoInformation && s.FlowUsage != FlowUsageAFSignalling:
-		return diameter.AVP{}, invalid("AF-Signalling-Protocol on flow %d without AF_SIGNALLING usage", s.FlowNumber)
+	case !validEnum(s.FlowStatus):
+		return diameter.AVP{}, invalidf("Flow-Status %s", *s.FlowStatus)
+	case !validEnum(s.FlowUsage):
+		return diameter.AVP{}, invalidf("Flow-Usage %s", *s.FlowUsage)
+	case !s.SignallingProtocol.valid():
+		return diameter.AVP{}, invalidf("AF-Signalling-Protocol %s", s.SignallingProtocol)
+	case !signallingProtocolAllowed(s):
+		return diameter.AVP{}, invalidf("AF-Signalling-Protocol on flow %d without AF_SIGNALLING usage", s.FlowNumber)
 	}
 
 	avps := []diameter.AVP{vendorUnsigned(AVPFlowNumber, s.FlowNumber)}
 
 	for _, d := range s.FlowDescriptions {
 		if d == "" {
-			return diameter.AVP{}, invalid("empty Flow-Description on flow %d", s.FlowNumber)
+			return diameter.AVP{}, invalidf("empty Flow-Description on flow %d", s.FlowNumber)
 		}
 
 		avps = append(avps, vendorOctets(AVPFlowDescription, []byte(d)))
 	}
 
-	avps = appendOptional(avps, AVPFlowStatus, (*uint32)(s.FlowStatus))
+	avps = appendOptional(avps, AVPFlowStatus, diameter.AVPFlagMandatory, (*uint32)(s.FlowStatus))
+	avps = appendOptional(avps, AVPFlowUsage, diameter.AVPFlagMandatory, (*uint32)(s.FlowUsage))
 
-	if s.FlowUsage != FlowUsageNoInformation {
-		avps = append(avps, vendorUnsigned(AVPFlowUsage, uint32(s.FlowUsage)))
+	avps, err := appendBandwidth(avps, maxRequestedUL, s.MaxRequestedBandwidthUL)
+	if err != nil {
+		return diameter.AVP{}, err
 	}
 
-	avps = appendOptional(avps, AVPMaxRequestedBandwidthUL, s.MaxRequestedBandwidthUL)
-	avps = appendOptional(avps, AVPMaxRequestedBandwidthDL, s.MaxRequestedBandwidthDL)
+	if avps, err = appendBandwidth(avps, maxRequestedDL, s.MaxRequestedBandwidthDL); err != nil {
+		return diameter.AVP{}, err
+	}
 
-	if s.SignallingProtocol != SignallingNoInformation {
+	if s.SignallingProtocol != SignallingProtocolNoInformation {
 		avps = append(avps, diameter.Unsigned32(AVPAFSignallingProtocol, 0, tgpp.VendorID, uint32(s.SignallingProtocol)))
 	}
 
@@ -422,6 +364,11 @@ func mediaSubComponentAVP(s MediaSubComponent) (diameter.AVP, error) {
 }
 
 func parseMediaSubComponent(a diameter.AVP) (MediaSubComponent, error) {
+	s, err := parseMediaSubComponentData(a)
+	return s, withinGrouped(a, err)
+}
+
+func parseMediaSubComponentData(a diameter.AVP) (MediaSubComponent, error) {
 	inner, err := checkGrouped(mediaSubComponentRules, a)
 	if err != nil {
 		return MediaSubComponent{}, err
@@ -429,7 +376,7 @@ func parseMediaSubComponent(a diameter.AVP) (MediaSubComponent, error) {
 
 	var s MediaSubComponent
 
-	if s.FlowNumber, err = unsigned(inner, AVPFlowNumber); err != nil {
+	if s.FlowNumber, err = requiredUint32(inner, AVPFlowNumber, tgpp.VendorID); err != nil {
 		return MediaSubComponent{}, err
 	}
 
@@ -441,27 +388,27 @@ func parseMediaSubComponent(a diameter.AVP) (MediaSubComponent, error) {
 		s.FlowDescriptions = append(s.FlowDescriptions, string(d.Data))
 	}
 
-	if s.FlowStatus, err = optionalEnum(inner, AVPFlowStatus, upTo(maxFlowStatus)); err != nil {
+	if s.FlowStatus, err = optionalEnum[FlowStatus](inner, AVPFlowStatus, tgpp.VendorID); err != nil {
 		return MediaSubComponent{}, err
 	}
 
-	if s.FlowUsage, _, err = enum(inner, AVPFlowUsage, tgpp.VendorID, upTo(maxFlowUsage)); err != nil {
+	if s.FlowUsage, err = optionalEnum[FlowUsage](inner, AVPFlowUsage, tgpp.VendorID); err != nil {
 		return MediaSubComponent{}, err
 	}
 
-	if s.MaxRequestedBandwidthUL, err = optionalUnsigned(inner, AVPMaxRequestedBandwidthUL); err != nil {
+	if s.MaxRequestedBandwidthUL, err = parseBandwidth(inner, maxRequestedUL); err != nil {
 		return MediaSubComponent{}, err
 	}
 
-	if s.MaxRequestedBandwidthDL, err = optionalUnsigned(inner, AVPMaxRequestedBandwidthDL); err != nil {
+	if s.MaxRequestedBandwidthDL, err = parseBandwidth(inner, maxRequestedDL); err != nil {
 		return MediaSubComponent{}, err
 	}
 
-	if s.SignallingProtocol, _, err = enum(inner, AVPAFSignallingProtocol, tgpp.VendorID, upTo(maxAFSignallingProtocol)); err != nil {
+	if s.SignallingProtocol, err = defaultEnum[AFSignallingProtocol](inner, AVPAFSignallingProtocol, tgpp.VendorID); err != nil {
 		return MediaSubComponent{}, err
 	}
 
-	if s.SignallingProtocol != SignallingNoInformation && s.FlowUsage != FlowUsageAFSignalling {
+	if !signallingProtocolAllowed(s) {
 		protocol, _ := diameter.Find(inner, AVPAFSignallingProtocol, tgpp.VendorID)
 		return MediaSubComponent{}, tgpp.InvalidAVP(protocol)
 	}
@@ -470,8 +417,8 @@ func parseMediaSubComponent(a diameter.AVP) (MediaSubComponent, error) {
 }
 
 func codecDataAVP(d CodecData) (diameter.AVP, error) {
-	if d.Direction > CodecDownlink || d.Kind > CodecDescription {
-		return diameter.AVP{}, invalid("Codec-Data %s %s", d.Direction, d.Kind)
+	if !d.Direction.valid() || !d.Kind.valid() {
+		return diameter.AVP{}, invalidf("Codec-Data %s %s", d.Direction, d.Kind)
 	}
 
 	return vendorOctets(AVPCodecData, []byte(d.Direction.String()+codecDataSeparator+d.Kind.String()+codecDataSeparator+d.SDP)), nil
@@ -508,16 +455,38 @@ func parseCodecData(a diameter.AVP) (CodecData, error) {
 	return d, nil
 }
 
-func flowsAVP(f Flows) diameter.AVP {
+func flowsAVP(f Flows) (diameter.AVP, error) {
+	switch {
+	case !validEnum(f.FinalUnitAction):
+		return diameter.AVP{}, invalidf("Final-Unit-Action %s", *f.FinalUnitAction)
+	case !validEnum(f.MediaComponentStatus):
+		return diameter.AVP{}, invalidf("Media-Component-Status %s", *f.MediaComponentStatus)
+	}
+
 	avps := []diameter.AVP{vendorUnsigned(AVPMediaComponentNumber, f.MediaComponentNumber)}
 	for _, n := range f.FlowNumbers {
 		avps = append(avps, vendorUnsigned(AVPFlowNumber, n))
 	}
 
-	return vendorGrouped(AVPFlows, avps...)
+	for _, v := range f.ContentVersions {
+		avps = append(avps, diameter.Unsigned64(AVPContentVersion, 0, tgpp.VendorID, v))
+	}
+
+	if f.FinalUnitAction != nil {
+		avps = append(avps, diameter.Unsigned32(diameter.AVPFinalUnitAction, diameter.AVPFlagMandatory, 0, uint32(*f.FinalUnitAction)))
+	}
+
+	avps = appendOptional(avps, AVPMediaComponentStatus, 0, (*uint32)(f.MediaComponentStatus))
+
+	return vendorGrouped(AVPFlows, avps...), nil
 }
 
 func parseFlows(a diameter.AVP) (Flows, error) {
+	f, err := parseFlowsData(a)
+	return f, withinGrouped(a, err)
+}
+
+func parseFlowsData(a diameter.AVP) (Flows, error) {
 	inner, err := checkGrouped(flowsRules, a)
 	if err != nil {
 		return Flows{}, err
@@ -525,51 +494,60 @@ func parseFlows(a diameter.AVP) (Flows, error) {
 
 	var f Flows
 
-	if f.MediaComponentNumber, err = unsigned(inner, AVPMediaComponentNumber); err != nil {
+	if f.MediaComponentNumber, err = requiredUint32(inner, AVPMediaComponentNumber, tgpp.VendorID); err != nil {
 		return Flows{}, err
 	}
 
 	for _, n := range diameter.FindAll(inner, AVPFlowNumber, tgpp.VendorID) {
-		v, err := n.Unsigned32()
+		v, err := tgpp.Unsigned32(n)
 		if err != nil {
-			return Flows{}, tgpp.InvalidAVP(n)
+			return Flows{}, err
 		}
 
 		f.FlowNumbers = append(f.FlowNumbers, v)
 	}
 
-	return f, nil
-}
-
-func flowsList(avps []diameter.AVP) ([]Flows, error) {
-	var flows []Flows
-
-	for _, a := range diameter.FindAll(avps, AVPFlows, tgpp.VendorID) {
-		f, err := parseFlows(a)
+	for _, n := range diameter.FindAll(inner, AVPContentVersion, tgpp.VendorID) {
+		v, err := uint64Value(n)
 		if err != nil {
-			return nil, err
+			return Flows{}, err
 		}
 
-		flows = append(flows, f)
+		f.ContentVersions = append(f.ContentVersions, v)
 	}
 
-	return flows, nil
+	if f.FinalUnitAction, err = optionalEnum[FinalUnitAction](inner, diameter.AVPFinalUnitAction, 0); err != nil {
+		return Flows{}, err
+	}
+
+	if f.MediaComponentStatus, err = optionalEnum[MediaComponentStatus](inner, AVPMediaComponentStatus, tgpp.VendorID); err != nil {
+		return Flows{}, err
+	}
+
+	return f, nil
 }
 
 func chargingIdentifierAVP(c AccessNetworkChargingIdentifier) (diameter.AVP, error) {
 	if len(c.Value) == 0 {
-		return diameter.AVP{}, invalid("empty Access-Network-Charging-Identifier-Value")
+		return diameter.AVP{}, invalidf("empty Access-Network-Charging-Identifier-Value")
 	}
 
-	avps := []diameter.AVP{vendorOctets(AVPAccessNetworkChargingIdentifierValue, c.Value)}
-	for _, f := range c.Flows {
-		avps = append(avps, flowsAVP(f))
+	flows, err := flowsAVPs(c.Flows)
+	if err != nil {
+		return diameter.AVP{}, err
 	}
+
+	avps := append([]diameter.AVP{vendorOctets(AVPAccessNetworkChargingIdentifierValue, c.Value)}, flows...)
 
 	return vendorGrouped(AVPAccessNetworkChargingIdentifier, avps...), nil
 }
 
 func parseChargingIdentifier(a diameter.AVP) (AccessNetworkChargingIdentifier, error) {
+	c, err := parseChargingIdentifierData(a)
+	return c, withinGrouped(a, err)
+}
+
+func parseChargingIdentifierData(a diameter.AVP) (AccessNetworkChargingIdentifier, error) {
 	inner, err := checkGrouped(chargingIdentifierRules, a)
 	if err != nil {
 		return AccessNetworkChargingIdentifier{}, err
@@ -587,48 +565,67 @@ func parseChargingIdentifier(a diameter.AVP) (AccessNetworkChargingIdentifier, e
 
 func subscriptionIDAVP(s SubscriptionID) (diameter.AVP, error) {
 	switch {
-	case s.Type > maxSubscriptionIDType:
-		return diameter.AVP{}, invalid("Subscription-Id-Type %d", uint32(s.Type))
+	case !s.Type.valid():
+		return diameter.AVP{}, invalidf("Subscription-Id-Type %s", s.Type)
 	case s.Data == "":
-		return diameter.AVP{}, invalid("empty Subscription-Id-Data")
+		return diameter.AVP{}, invalidf("empty Subscription-Id-Data")
 	}
 
-	return diameter.Grouped(AVPSubscriptionID, diameter.AVPFlagMandatory, 0,
-		diameter.Unsigned32(AVPSubscriptionIDType, diameter.AVPFlagMandatory, 0, uint32(s.Type)),
-		diameter.UTF8String(AVPSubscriptionIDData, diameter.AVPFlagMandatory, 0, s.Data),
+	return diameter.Grouped(diameter.AVPSubscriptionID, diameter.AVPFlagMandatory, 0,
+		diameter.Unsigned32(diameter.AVPSubscriptionIDType, diameter.AVPFlagMandatory, 0, uint32(s.Type)),
+		diameter.UTF8String(diameter.AVPSubscriptionIDData, diameter.AVPFlagMandatory, 0, s.Data),
 	), nil
 }
 
 func parseSubscriptionID(a diameter.AVP) (SubscriptionID, error) {
+	s, err := parseSubscriptionIDData(a)
+	return s, withinGrouped(a, err)
+}
+
+func parseSubscriptionIDData(a diameter.AVP) (SubscriptionID, error) {
 	inner, err := checkGrouped(subscriptionIDRules, a)
 	if err != nil {
 		return SubscriptionID{}, err
 	}
 
-	t, _, err := enum(inner, AVPSubscriptionIDType, 0, upTo(maxSubscriptionIDType))
+	t, err := defaultEnum[SubscriptionIDType](inner, diameter.AVPSubscriptionIDType, 0)
 	if err != nil {
 		return SubscriptionID{}, err
 	}
 
-	data, _ := diameter.Find(inner, AVPSubscriptionIDData, 0)
+	data, _ := diameter.Find(inner, diameter.AVPSubscriptionIDData, 0)
 
 	return SubscriptionID{Type: t, Data: data.UTF8String()}, nil
 }
 
-func acceptableServiceInfoAVP(s AcceptableServiceInfo) diameter.AVP {
+func acceptableServiceInfoAVP(s AcceptableServiceInfo) (diameter.AVP, error) {
 	var avps []diameter.AVP
 
 	for _, m := range s.MediaComponents {
-		inner := []diameter.AVP{vendorUnsigned(AVPMediaComponentNumber, m.MediaComponentNumber)}
-		inner = appendOptional(inner, AVPMaxRequestedBandwidthUL, m.MaxRequestedBandwidthUL)
-		inner = appendOptional(inner, AVPMaxRequestedBandwidthDL, m.MaxRequestedBandwidthDL)
+		inner, err := bandwidthPair([]diameter.AVP{vendorUnsigned(AVPMediaComponentNumber, m.MediaComponentNumber)},
+			m.MaxRequestedBandwidthUL, m.MaxRequestedBandwidthDL)
+		if err != nil {
+			return diameter.AVP{}, err
+		}
+
 		avps = append(avps, vendorGrouped(AVPMediaComponentDescription, inner...))
 	}
 
-	avps = appendOptional(avps, AVPMaxRequestedBandwidthDL, s.MaxRequestedBandwidthDL)
-	avps = appendOptional(avps, AVPMaxRequestedBandwidthUL, s.MaxRequestedBandwidthUL)
+	avps, err := bandwidthPair(avps, s.MaxRequestedBandwidthUL, s.MaxRequestedBandwidthDL)
+	if err != nil {
+		return diameter.AVP{}, err
+	}
 
-	return vendorGrouped(AVPAcceptableServiceInfo, avps...)
+	return vendorGrouped(AVPAcceptableServiceInfo, avps...), nil
+}
+
+func bandwidthPair(avps []diameter.AVP, ul, dl *Bandwidth) ([]diameter.AVP, error) {
+	avps, err := appendBandwidth(avps, maxRequestedUL, ul)
+	if err != nil {
+		return nil, err
+	}
+
+	return appendBandwidth(avps, maxRequestedDL, dl)
 }
 
 func parseAcceptableServiceInfo(a diameter.AVP) (*AcceptableServiceInfo, error) {
@@ -652,11 +649,11 @@ func parseAcceptableServiceInfo(a diameter.AVP) (*AcceptableServiceInfo, error) 
 		})
 	}
 
-	if s.MaxRequestedBandwidthUL, err = optionalUnsigned(inner, AVPMaxRequestedBandwidthUL); err != nil {
+	if s.MaxRequestedBandwidthUL, err = parseBandwidth(inner, maxRequestedUL); err != nil {
 		return nil, err
 	}
 
-	if s.MaxRequestedBandwidthDL, err = optionalUnsigned(inner, AVPMaxRequestedBandwidthDL); err != nil {
+	if s.MaxRequestedBandwidthDL, err = parseBandwidth(inner, maxRequestedDL); err != nil {
 		return nil, err
 	}
 

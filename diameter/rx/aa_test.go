@@ -18,18 +18,18 @@ func TestAARequestRoundTrip(t *testing.T) {
 	for name, r := range map[string]AARequest{
 		"full": fullAARequest(),
 		"signalling path": {
-			MediaComponents: []MediaComponent{{Number: 0, SubComponents: []MediaSubComponent{{FlowNumber: 0, FlowUsage: FlowUsageAFSignalling}}}},
+			MediaComponents: []MediaComponent{{Number: 0, SubComponents: []MediaSubComponent{{FlowNumber: 0, FlowUsage: ptr(FlowUsageAFSignalling)}}}},
 			SpecificActions: []SpecificAction{ActionIndicationOfLossOfBearer, ActionIndicationOfReleaseOfBearer},
 			FramedIPAddress: netip.MustParseAddr("192.168.101.4"),
 		},
 		"P-CSCF restoration": {
-			SubscriptionIDs:   []SubscriptionID{{Type: SubscriptionIMSI, Data: "001010000000001"}},
+			SubscriptionIDs:   []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
 			CalledStationID:   "ims",
 			RequestType:       ptr(RequestPCSCFRestoration),
 			NoStateMaintained: true,
 			Features:          FeaturePCSCFRestorationEnhancement,
 		},
-		"update":  {RequestType: ptr(RequestUpdate), MediaComponents: []MediaComponent{{Number: 1, FlowStatus: ptr(FlowRemoved)}}},
+		"update":  {RequestType: ptr(RequestUpdate), MediaComponents: []MediaComponent{{Number: 1, FlowStatus: ptr(FlowStatusRemoved)}}},
 		"minimal": {},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -57,12 +57,12 @@ func TestAARequestEncoding(t *testing.T) {
 		}},
 	}))
 
-	v4, _ := req.Find(AVPFramedIPAddress, 0)
+	v4, _ := req.Find(diameter.AVPFramedIPAddress, 0)
 	if string(v4.Data) != "\xc0\xa8\x65\x04" {
 		t.Errorf("Framed-IP-Address = %x", v4.Data)
 	}
 
-	v6, _ := req.Find(AVPFramedIPv6Prefix, 0)
+	v6, _ := req.Find(diameter.AVPFramedIPv6Prefix, 0)
 	if want := append([]byte{0, 128}, netip.MustParseAddr("2001:db8::4").AsSlice()...); string(v6.Data) != string(want) {
 		t.Errorf("Framed-IPv6-Prefix = %x", v6.Data)
 	}
@@ -94,7 +94,7 @@ func TestAARequestValidation(t *testing.T) {
 		"Rx-Request-Type":              func(r *AARequest) { r.RequestType = ptr(RequestType(3)) },
 		"Specific-Action":              func(r *AARequest) { r.SpecificActions = []SpecificAction{22} },
 		"Subscription-Id-Type":         func(r *AARequest) { r.SubscriptionIDs = []SubscriptionID{{Type: 5, Data: "x"}} },
-		"empty Subscription-Id-Data":   func(r *AARequest) { r.SubscriptionIDs = []SubscriptionID{{Type: SubscriptionIMSI}} },
+		"empty Subscription-Id-Data":   func(r *AARequest) { r.SubscriptionIDs = []SubscriptionID{{Type: SubscriptionIDIMSI}} },
 		"IPv6 as Framed-IP-Address":    func(r *AARequest) { r.FramedIPAddress = netip.MustParseAddr("2001:db8::1") },
 		"negotiated Framed-IP-Address": func(r *AARequest) { r.FramedIPAddress = netip.MustParseAddr("255.255.255.255") },
 		"assigned Framed-IP-Address":   func(r *AARequest) { r.FramedIPAddress = netip.MustParseAddr("255.255.255.254") },
@@ -108,20 +108,28 @@ func TestAARequestValidation(t *testing.T) {
 		"Codec-Data direction":      func(r *AARequest) { r.MediaComponents[0].CodecData[0].Direction = 2 },
 		"Codec-Data kind":           func(r *AARequest) { r.MediaComponents[0].CodecData[0].Kind = 3 },
 		"sub-component Flow-Status": func(r *AARequest) { r.MediaComponents[0].SubComponents[0].FlowStatus = ptr(FlowStatus(5)) },
-		"Flow-Usage":                func(r *AARequest) { r.MediaComponents[0].SubComponents[0].FlowUsage = 3 },
+		"Flow-Usage":                func(r *AARequest) { r.MediaComponents[0].SubComponents[0].FlowUsage = ptr(FlowUsage(3)) },
 		"empty Flow-Description":    func(r *AARequest) { r.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{""} },
 		"AF-Signalling-Protocol":    func(r *AARequest) { r.MediaComponents[1].SubComponents[0].SignallingProtocol = 2 },
 		"signalling protocol on media": func(r *AARequest) {
-			r.MediaComponents[0].SubComponents[0].SignallingProtocol = SignallingSIP
+			r.MediaComponents[0].SubComponents[0].SignallingProtocol = SignallingProtocolSIP
 		},
-		"required feature not advertised": func(r *AARequest) { r.RequiredFeatures |= FeatureMCVideo },
+		"required without features": func(r *AARequest) { r.Features = 0 },
+		"void Specific-Action":      func(r *AARequest) { r.SpecificActions = []SpecificAction{5} },
+		"zero Specific-Action":      func(r *AARequest) { r.SpecificActions = []SpecificAction{0} },
+		"restoration with state":    func(r *AARequest) { r.RequestType = ptr(RequestPCSCFRestoration) },
+		"signalling without usage": func(r *AARequest) {
+			r.MediaComponents[1].SubComponents[0].FlowUsage = nil
+		},
 	} {
 		r := fullAARequest()
 		mutate(&r)
 
-		if _, err := NewAARequest(afEnvelope, r); !errors.Is(err, ErrInvalidMessage) {
-			t.Errorf("%s: err = %v", name, err)
-		}
+		t.Run(name, func(t *testing.T) {
+			if _, err := NewAARequest(afEnvelope, r); !errors.Is(err, ErrInvalidMessage) {
+				t.Errorf("err = %v", err)
+			}
+		})
 	}
 }
 
@@ -152,23 +160,23 @@ func TestParseAARequestErrors(t *testing.T) {
 		"no Destination-Realm":  {without(base, diameter.AVPDestinationRealm, 0), diameter.ResultMissingAVP},
 		"unknown mandatory AVP": {with(base, vendorUnsigned(999, 1)), diameter.ResultAVPUnsupported},
 		"two Framed-IP-Address": {
-			with(base, diameter.OctetString(AVPFramedIPAddress, diameter.AVPFlagMandatory, 0, []byte{10, 0, 0, 1})),
+			with(base, diameter.OctetString(diameter.AVPFramedIPAddress, diameter.AVPFlagMandatory, 0, []byte{10, 0, 0, 1})),
 			diameter.ResultAVPOccursTooManyTimes,
 		},
 		"short Framed-IP-Address": {
-			with(without(base, AVPFramedIPAddress, 0), diameter.OctetString(AVPFramedIPAddress, diameter.AVPFlagMandatory, 0, []byte{10, 0, 0})),
-			diameter.ResultInvalidAVPValue,
+			with(without(base, diameter.AVPFramedIPAddress, 0), diameter.OctetString(diameter.AVPFramedIPAddress, diameter.AVPFlagMandatory, 0, []byte{10, 0, 0})),
+			diameter.ResultInvalidAVPLength,
 		},
 		"negotiated Framed-IP-Address": {
-			with(without(base, AVPFramedIPAddress, 0), diameter.OctetString(AVPFramedIPAddress, diameter.AVPFlagMandatory, 0, []byte{255, 255, 255, 255})),
+			with(without(base, diameter.AVPFramedIPAddress, 0), diameter.OctetString(diameter.AVPFramedIPAddress, diameter.AVPFlagMandatory, 0, []byte{255, 255, 255, 255})),
 			diameter.ResultInvalidAVPValue,
 		},
 		"/64 Framed-IPv6-Prefix": {
-			with(base, diameter.OctetString(AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0, []byte{0, 64, 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 1})),
+			with(base, diameter.OctetString(diameter.AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0, []byte{0, 64, 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 1})),
 			diameter.ResultInvalidAVPValue,
 		},
 		"padded /64 Framed-IPv6-Prefix": {
-			with(base, diameter.OctetString(AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0, append([]byte{0, 64}, make([]byte, 16)...))),
+			with(base, diameter.OctetString(diameter.AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0, append([]byte{0, 64}, make([]byte, 16)...))),
 			diameter.ResultInvalidAVPValue,
 		},
 		"Auth-Session-State": {
@@ -183,14 +191,14 @@ func TestParseAARequestErrors(t *testing.T) {
 			with(base, vendorOctets(AVPAFApplicationIdentifier, nil)), diameter.ResultInvalidAVPValue,
 		},
 		"Subscription-Id without data": {
-			with(base, diameter.Grouped(AVPSubscriptionID, diameter.AVPFlagMandatory, 0,
-				diameter.Unsigned32(AVPSubscriptionIDType, diameter.AVPFlagMandatory, 0, 1))),
+			with(base, diameter.Grouped(diameter.AVPSubscriptionID, diameter.AVPFlagMandatory, 0,
+				diameter.Unsigned32(diameter.AVPSubscriptionIDType, diameter.AVPFlagMandatory, 0, 1))),
 			diameter.ResultMissingAVP,
 		},
 		"Subscription-Id-Type": {
-			with(base, diameter.Grouped(AVPSubscriptionID, diameter.AVPFlagMandatory, 0,
-				diameter.Unsigned32(AVPSubscriptionIDType, diameter.AVPFlagMandatory, 0, 5),
-				diameter.UTF8String(AVPSubscriptionIDData, diameter.AVPFlagMandatory, 0, "x"))),
+			with(base, diameter.Grouped(diameter.AVPSubscriptionID, diameter.AVPFlagMandatory, 0,
+				diameter.Unsigned32(diameter.AVPSubscriptionIDType, diameter.AVPFlagMandatory, 0, 5),
+				diameter.UTF8String(diameter.AVPSubscriptionIDData, diameter.AVPFlagMandatory, 0, "x"))),
 			diameter.ResultInvalidAVPValue,
 		},
 		"Media-Component-Description not grouped": {with(base, vendorOctets(AVPMediaComponentDescription, []byte{1})), diameter.ResultInvalidAVPValue},
@@ -198,7 +206,7 @@ func TestParseAARequestErrors(t *testing.T) {
 		"two Media-Component-Number":              {with(base, component(vendorUnsigned(AVPMediaComponentNumber, 2))), diameter.ResultAVPOccursTooManyTimes},
 		"unknown mandatory component AVP":         {with(base, component(vendorUnsigned(999, 1))), diameter.ResultAVPUnsupported},
 		"Media-Type":                              {with(base, component(vendorUnsigned(AVPMediaType, 7))), diameter.ResultInvalidAVPValue},
-		"short bandwidth":                         {with(base, component(vendorOctets(AVPRRBandwidth, []byte{1}))), diameter.ResultInvalidAVPValue},
+		"short bandwidth":                         {with(base, component(vendorOctets(AVPRRBandwidth, []byte{1}))), diameter.ResultInvalidAVPLength},
 		"three Codec-Data": {
 			with(base, component(codec("uplink\noffer\n"), codec("downlink\nanswer\n"), codec("uplink\nanswer\n"))),
 			diameter.ResultAVPOccursTooManyTimes,
@@ -213,6 +221,45 @@ func TestParseAARequestErrors(t *testing.T) {
 		"signalling protocol on media": {
 			with(base, sub(diameter.Unsigned32(AVPAFSignallingProtocol, 0, tgpp.VendorID, 1))),
 			diameter.ResultInvalidAVPValue,
+		},
+		"signalling protocol without usage": {
+			with(base, sub(vendorUnsigned(AVPFlowUsage, uint32(FlowUsageRTCP)), diameter.Unsigned32(AVPAFSignallingProtocol, 0, tgpp.VendorID, 1))),
+			diameter.ResultInvalidAVPValue,
+		},
+		"AF-Signalling-Protocol": {
+			with(base, sub(vendorUnsigned(AVPFlowUsage, uint32(FlowUsageAFSignalling)), diameter.Unsigned32(AVPAFSignallingProtocol, 0, tgpp.VendorID, 2))),
+			diameter.ResultInvalidAVPValue,
+		},
+		"short sub-component bandwidth": {with(base, sub(vendorOctets(AVPMaxRequestedBandwidthDL, []byte{1}))), diameter.ResultInvalidAVPLength},
+		"two Flow-Number":               {with(base, sub(vendorOctets(AVPFlowNumber, []byte{0, 0, 0, 0, 1}))), diameter.ResultAVPOccursTooManyTimes},
+		"long Flow-Number": {
+			with(base, component(vendorGrouped(AVPMediaSubComponent, vendorOctets(AVPFlowNumber, make([]byte, 8))))),
+			diameter.ResultInvalidAVPLength,
+		},
+		"component Flow-Status":                     {with(base, component(vendorUnsigned(AVPFlowStatus, 5))), diameter.ResultInvalidAVPValue},
+		"empty component AF-Application-Identifier": {with(base, component(vendorOctets(AVPAFApplicationIdentifier, nil))), diameter.ResultInvalidAVPValue},
+		"empty IP-Domain-Id":                        {with(base, diameter.OctetString(AVPIPDomainID, 0, tgpp.VendorID, nil)), diameter.ResultInvalidAVPValue},
+		"short Framed-IPv6-Prefix": {
+			with(base, diameter.OctetString(diameter.AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0, []byte{0})),
+			diameter.ResultInvalidAVPLength,
+		},
+		"truncated /128 Framed-IPv6-Prefix": {
+			with(base, diameter.OctetString(diameter.AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0, append([]byte{0, 128}, make([]byte, 8)...))),
+			diameter.ResultInvalidAVPLength,
+		},
+		"mapped Framed-IPv6-Prefix": {
+			with(base, diameter.OctetString(diameter.AVPFramedIPv6Prefix, diameter.AVPFlagMandatory, 0,
+				append([]byte{0, 128}, netip.MustParseAddr("::ffff:10.0.0.1").AsSlice()...))),
+			diameter.ResultInvalidAVPValue,
+		},
+		"short Specific-Action": {with(base, vendorOctets(AVPSpecificAction, []byte{1})), diameter.ResultInvalidAVPLength},
+		"restoration with state": {
+			with(base, diameter.Unsigned32(AVPRxRequestType, 0, tgpp.VendorID, uint32(RequestPCSCFRestoration))),
+			diameter.ResultMissingAVP,
+		},
+		"short Auth-Application-Id": {
+			with(without(base, diameter.AVPAuthApplicationID, 0), diameter.OctetString(diameter.AVPAuthApplicationID, diameter.AVPFlagMandatory, 0, []byte{1})),
+			diameter.ResultInvalidAVPLength,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -247,7 +294,7 @@ func TestParseAARequestToleratesPeerAVPs(t *testing.T) {
 				vendorOctets(AVPFlowDescription, []byte("permit in 17 from 10.0.0.2 2001 to 10.0.0.1 1001")),
 				vendorUnsigned(AVPFlowUsage, uint32(FlowUsageNoInformation)),
 			),
-			diameter.Unsigned32(avpMinRequestedBandwidthUL, 0, tgpp.VendorID, 41000),
+			diameter.Unsigned32(AVPMinRequestedBandwidthUL, 0, tgpp.VendorID, 41000),
 			vendorOctets(AVPCodecData, []byte("uplink\noffer\n\x00")),
 		),
 	)
@@ -257,7 +304,7 @@ func TestParseAARequestToleratesPeerAVPs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(r.SpecificActions) != 1 || r.SpecificActions[0] != 5 || r.NoStateMaintained {
+	if r.SpecificActions != nil || r.NoStateMaintained {
 		t.Errorf("parsed %+v", r)
 	}
 
@@ -295,7 +342,7 @@ func TestParseAARequestCopiesOctets(t *testing.T) {
 }
 
 func TestAAAnswerRoundTrip(t *testing.T) {
-	req := request(CommandAA, afEnvelope)
+	req := aaRequest(allFeatures)
 
 	for name, a := range map[string]AAAnswer{
 		"bare": {Result: tgpp.Result{Code: diameter.ResultSuccess}},
@@ -306,7 +353,7 @@ func TestAAAnswerRoundTrip(t *testing.T) {
 				{Value: []byte{0, 0, 0, 2}, Flows: []Flows{{MediaComponentNumber: 1, FlowNumbers: []uint32{1, 2}}, {MediaComponentNumber: 2}}},
 			},
 			AccessNetworkChargingAddress: netip.MustParseAddr("10.0.0.1"),
-			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIMSI, Data: "001010000000001"}},
+			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
 			Features:                     FeatureRel8 | FeatureRel9 | FeatureCHEM,
 		},
 		"IPv6 charging address": {
@@ -336,6 +383,7 @@ func TestAAAnswerValidation(t *testing.T) {
 	req := request(CommandAA, afEnvelope)
 
 	for name, a := range map[string]AAAnswer{
+		"zoned charging address":    {AccessNetworkChargingAddress: netip.MustParseAddr("fe80::1%eth0")},
 		"empty charging identifier": {AccessNetworkChargingIdentifiers: []AccessNetworkChargingIdentifier{{}}},
 		"Subscription-Id-Type":      {SubscriptionIDs: []SubscriptionID{{Type: 9, Data: "x"}}},
 	} {
@@ -346,13 +394,13 @@ func TestAAAnswerValidation(t *testing.T) {
 }
 
 func TestParseAAAnswerMalformed(t *testing.T) {
-	ok := NewAnswer(request(CommandAA, afEnvelope), pcrfIdentity, tgpp.Result{Code: diameter.ResultSuccess})
+	ok := NewAnswer(request(CommandAA, afEnvelope), pcrfIdentity, tgpp.Result{Code: diameter.ResultSuccess}, 0)
 
 	for name, ans := range map[string]*diameter.Message{
 		"charging identifier without value": with(ok, vendorGrouped(AVPAccessNetworkChargingIdentifier)),
 		"charging flows without number":     with(ok, vendorGrouped(AVPAccessNetworkChargingIdentifier, vendorOctets(AVPAccessNetworkChargingIdentifierValue, []byte{1}), vendorGrouped(AVPFlows))),
 		"charging address":                  with(ok, vendorOctets(AVPAccessNetworkChargingAddress, []byte{0, 1, 10})),
-		"Subscription-Id":                   with(ok, diameter.Grouped(AVPSubscriptionID, diameter.AVPFlagMandatory, 0)),
+		"Subscription-Id":                   with(ok, diameter.Grouped(diameter.AVPSubscriptionID, diameter.AVPFlagMandatory, 0)),
 	} {
 		if _, err := ParseAAAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {
 			t.Errorf("%s: err = %v", name, err)
@@ -361,14 +409,14 @@ func TestParseAAAnswerMalformed(t *testing.T) {
 }
 
 func TestAAErrorRoundTrip(t *testing.T) {
-	req := request(CommandAA, afEnvelope)
+	req := aaRequest(allFeatures)
 
 	for name, e := range map[string]AAError{
 		"service not authorized": {
 			ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceNotAuthorized)},
 			AcceptableServiceInfo: &AcceptableServiceInfo{
 				MediaComponents: []MediaBandwidth{
-					{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(uint32(24000)), MaxRequestedBandwidthDL: ptr(uint32(24000))},
+					{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(Bandwidth(24000)), MaxRequestedBandwidthDL: ptr(Bandwidth(24000))},
 					{MediaComponentNumber: 2},
 				},
 			},
@@ -376,7 +424,7 @@ func TestAAErrorRoundTrip(t *testing.T) {
 		},
 		"temporarily not authorized": {
 			ResultError:           ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceTemporarilyNotAuthorized)},
-			AcceptableServiceInfo: &AcceptableServiceInfo{MaxRequestedBandwidthUL: ptr(uint32(64000)), MaxRequestedBandwidthDL: ptr(uint32(128000))},
+			AcceptableServiceInfo: &AcceptableServiceInfo{MaxRequestedBandwidthUL: ptr(Bandwidth(64000)), MaxRequestedBandwidthDL: ptr(Bandwidth(128000))},
 			RetryInterval:         90 * time.Second,
 		},
 		"session binding": {ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)}},
@@ -424,7 +472,7 @@ func TestAAErrorValidation(t *testing.T) {
 }
 
 func TestAAErrorDropsInvalidExtras(t *testing.T) {
-	ans := with(NewAnswer(request(CommandAA, afEnvelope), pcrfIdentity, tgpp.Experimental(tgpp.ResultRequestedServiceNotAuthorized)),
+	ans := with(NewAnswer(request(CommandAA, afEnvelope), pcrfIdentity, tgpp.Experimental(tgpp.ResultRequestedServiceNotAuthorized), 0),
 		vendorGrouped(AVPAcceptableServiceInfo, vendorGrouped(AVPMediaComponentDescription)),
 		diameter.OctetString(AVPRetryInterval, 0, tgpp.VendorID, []byte{1}),
 	)
@@ -434,5 +482,52 @@ func TestAAErrorDropsInvalidExtras(t *testing.T) {
 	var e *AAError
 	if !errors.As(err, &e) || e.AcceptableServiceInfo != nil || e.RetryInterval != 0 {
 		t.Fatalf("err = %#v", err)
+	}
+}
+
+func TestParseAARequestIgnoresVoidActions(t *testing.T) {
+	req := request(CommandAA, afEnvelope,
+		vendorUnsigned(AVPSpecificAction, 0),
+		vendorUnsigned(AVPSpecificAction, uint32(ActionIndicationOfLossOfBearer)),
+		vendorUnsigned(AVPSpecificAction, 5),
+	)
+
+	r, err := ParseAARequest(req)
+	if err != nil || !reflect.DeepEqual(r.SpecificActions, []SpecificAction{ActionIndicationOfLossOfBearer}) {
+		t.Fatalf("Specific-Action = %v, %v", r.SpecificActions, err)
+	}
+}
+
+func TestCodecDataKinds(t *testing.T) {
+	for _, d := range []CodecData{
+		{Direction: CodecUplink, Kind: CodecOffer, SDP: "m=audio 1 RTP/AVP 0"},
+		{Direction: CodecDownlink, Kind: CodecAnswer},
+		{Direction: CodecUplink, Kind: CodecDescription, SDP: "m=video 0 RTP/AVP 96\nb=AS:64"},
+	} {
+		t.Run(d.Direction.String()+" "+d.Kind.String(), func(t *testing.T) {
+			a, err := codecDataAVP(d)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got, err := parseCodecData(a); err != nil || got != d {
+				t.Fatalf("parseCodecData = %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestParseAcceptableServiceInfoErrors(t *testing.T) {
+	for name, a := range map[string]diameter.AVP{
+		"not grouped":         vendorOctets(AVPAcceptableServiceInfo, []byte{1}),
+		"bad media component": vendorGrouped(AVPAcceptableServiceInfo, vendorGrouped(AVPMediaComponentDescription)),
+		"short UL":            vendorGrouped(AVPAcceptableServiceInfo, vendorOctets(AVPMaxRequestedBandwidthUL, []byte{1})),
+		"short DL":            vendorGrouped(AVPAcceptableServiceInfo, vendorOctets(AVPMaxRequestedBandwidthDL, []byte{1})),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := parseAcceptableServiceInfo(a); err == nil {
+				t.Fatal("accepted")
+			}
+		})
 	}
 }

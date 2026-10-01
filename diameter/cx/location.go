@@ -13,7 +13,7 @@ type LocationInfoRequest struct {
 	Originating       bool
 	AuthorizationType AuthorizationType
 	Features          Features
-	RequiredFeatures  Features
+	FeaturesRequired  bool
 }
 
 type LocationInfo struct {
@@ -34,7 +34,7 @@ var lirRules = commonRequestRules.With(diameter.Rules{
 
 func NewLocationInfoRequest(env tgpp.Envelope, r LocationInfoRequest) (*diameter.Message, error) {
 	if r.AuthorizationType != AuthorizationRegistration && r.AuthorizationType != AuthorizationRegistrationAndCapabilities {
-		return nil, invalid("User-Authorization-Type %d in a location query", r.AuthorizationType)
+		return nil, invalidf("User-Authorization-Type %d in a location query", r.AuthorizationType)
 	}
 
 	public, err := publicIdentityAVP(r.PublicIdentity)
@@ -54,7 +54,7 @@ func NewLocationInfoRequest(env tgpp.Envelope, r LocationInfoRequest) (*diameter
 		avps = append(avps, vendorUnsigned(AVPUserAuthorizationType, uint32(r.AuthorizationType)))
 	}
 
-	return newRequest(env, CommandLocationInfo, r.Features, r.RequiredFeatures, avps...)
+	return newRequest(env, CommandLocationInfo, r.Features, r.FeaturesRequired, avps...)
 }
 
 func CheckLocationInfo(req *diameter.Message) error {
@@ -91,7 +91,7 @@ func ParseLocationInfoRequest(req *diameter.Message) (LocationInfoRequest, error
 		Originating:       isOriginating,
 		AuthorizationType: AuthorizationType(authType),
 		Features:          featureList(req),
-		RequiredFeatures:  requiredFeatures(req),
+		FeaturesRequired:  featuresRequired(req),
 	}, nil
 }
 

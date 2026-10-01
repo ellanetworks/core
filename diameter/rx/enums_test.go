@@ -18,7 +18,12 @@ func TestEnumStrings(t *testing.T) {
 		{AbortCause(6), "AbortCause(6)"},
 		{TerminationLogout, "DIAMETER_LOGOUT"},
 		{TerminationSessionTimeout, "DIAMETER_SESSION_TIMEOUT"},
+		{TerminationUserRequest, "USER_REQUEST"},
+		{TerminationNASSessionTimeout, "SESSION_TIMEOUT"},
+		{TerminationPortDisabled, "PORT_DISABLED"},
 		{TerminationCause(0), "TerminationCause(0)"},
+		{TerminationCause(9), "TerminationCause(9)"},
+		{TerminationCause(33), "TerminationCause(33)"},
 		{ActionChargingCorrelationExchange, "CHARGING_CORRELATION_EXCHANGE"},
 		{ActionIPCANChange, "IP-CAN_CHANGE"},
 		{ActionCNHealthMonitor, "CN_HEALTH_MONITOR"},
@@ -31,21 +36,57 @@ func TestEnumStrings(t *testing.T) {
 		{MediaMessage, "MESSAGE"},
 		{MediaOther, "OTHER"},
 		{MediaType(7), "MediaType(7)"},
-		{FlowEnabledUplink, "ENABLED-UPLINK"},
-		{FlowRemoved, "REMOVED"},
+		{FlowStatusEnabledUplink, "ENABLED-UPLINK"},
+		{FlowStatusRemoved, "REMOVED"},
 		{FlowUsageAFSignalling, "AF_SIGNALLING"},
-		{SignallingSIP, "SIP"},
-		{SubscriptionSIPURI, "END_USER_SIP_URI"},
-		{SubscriptionPrivate, "END_USER_PRIVATE"},
+		{SignallingProtocolSIP, "SIP"},
+		{SubscriptionIDSIPURI, "END_USER_SIP_URI"},
+		{SubscriptionIDPrivate, "END_USER_PRIVATE"},
 		{CodecDownlink, "downlink"},
 		{CodecDescription, "description"},
-		{DirectionOut, "out"},
+		{FlowDirectionOut, "out"},
+		{FlowDirection(2), "FlowDirection(2)"},
 		{ProtocolIP, "ip"},
 		{ProtocolUDP, "17"},
 	} {
-		if got := tc.value.String(); got != tc.want {
-			t.Errorf("%T(%v).String() = %q, want %q", tc.value, tc.value, got, tc.want)
-		}
+		t.Run(tc.want, func(t *testing.T) {
+			if got := tc.value.String(); got != tc.want {
+				t.Fatalf("%T String() = %q", tc.value, got)
+			}
+		})
+	}
+}
+
+func TestEnumValidity(t *testing.T) {
+	for name, tc := range map[string]struct {
+		valid, invalid []bool
+	}{
+		"SpecificAction": {
+			valid:   []bool{SpecificAction(1).valid(), SpecificAction(4).valid(), SpecificAction(6).valid(), ActionCNHealthMonitor.valid()},
+			invalid: []bool{SpecificAction(0).valid(), SpecificAction(5).valid(), SpecificAction(22).valid()},
+		},
+		"TerminationCause": {
+			valid:   []bool{TerminationLogout.valid(), TerminationSessionTimeout.valid(), TerminationUserRequest.valid(), TerminationPortDisabled.valid()},
+			invalid: []bool{TerminationCause(0).valid(), TerminationCause(9).valid(), TerminationCause(10).valid(), TerminationCause(33).valid()},
+		},
+		"MediaType": {
+			valid:   []bool{MediaAudio.valid(), MediaMessage.valid(), MediaOther.valid()},
+			invalid: []bool{MediaType(7).valid(), MediaType(0xfffffffe).valid()},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for i, v := range tc.valid {
+				if !v {
+					t.Errorf("valid case %d rejected", i)
+				}
+			}
+
+			for i, v := range tc.invalid {
+				if v {
+					t.Errorf("invalid case %d accepted", i)
+				}
+			}
+		})
 	}
 }
 
@@ -59,8 +100,22 @@ func TestFeaturesString(t *testing.T) {
 		1 << 23:                               "list1:0x800000",
 		1<<53 | FeatureVBC:                    "VBC|list2:0x200000",
 	} {
-		if got := f.String(); got != want {
-			t.Errorf("Features(%#x).String() = %q, want %q", uint64(f), got, want)
-		}
+		t.Run(want, func(t *testing.T) {
+			if got := f.String(); got != want {
+				t.Fatalf("Features(%#x).String() = %q", uint64(f), got)
+			}
+		})
+	}
+}
+
+func TestFeatureLists(t *testing.T) {
+	f := FeatureRel8 | FeatureVBC
+
+	if f.list(featureList1) != 1 || f.list(featureList2) != 1<<4 || f.list(0) != 0 || f.list(3) != 0 {
+		t.Fatalf("lists of %s", f)
+	}
+
+	if listFeatures(featureList2, 1) != FeaturePCSCFRestorationEnhancement || listFeatures(0, 1) != 0 || listFeatures(3, 1) != 0 {
+		t.Fatal("listFeatures")
 	}
 }

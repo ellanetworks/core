@@ -194,3 +194,15 @@ func TestUnmarshalledAVPDataDoesNotAlias(t *testing.T) {
 		t.Fatalf("append to a grouped member overwrote the next: %+v", inner)
 	}
 }
+
+func TestUnsigned64(t *testing.T) {
+	a := Unsigned64(552, 0, 10415, 1<<40+7)
+
+	if v, err := a.Unsigned64(); err != nil || v != 1<<40+7 || len(a.Data) != 8 {
+		t.Fatalf("Unsigned64 = %d, %v", v, err)
+	}
+
+	if _, err := Unsigned32(552, 0, 10415, 1).Unsigned64(); err == nil {
+		t.Fatal("4-octet AVP accepted as Unsigned64")
+	}
+}

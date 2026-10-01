@@ -60,34 +60,64 @@ func ParseSupportedFeatures(a diameter.AVP) (SupportedFeatures, error) {
 }
 
 func FeatureList(avps []diameter.AVP, vendorID, featureListID uint32) uint32 {
-	return featureList(avps, vendorID, featureListID, false)
-}
-
-func RequiredFeatureList(avps []diameter.AVP, vendorID, featureListID uint32) uint32 {
-	return featureList(avps, vendorID, featureListID, true)
-}
-
-func FeatureAVPs(vendorID, featureListID, features, required uint32) []diameter.AVP {
-	var avps []diameter.AVP
-
-	if required != 0 {
-		avps = append(avps, SupportedFeatures{VendorID: vendorID, FeatureListID: featureListID, FeatureList: required, Mandatory: true}.AVP())
-	}
-
-	if optional := features &^ required; optional != 0 {
-		avps = append(avps, SupportedFeatures{VendorID: vendorID, FeatureListID: featureListID, FeatureList: optional}.AVP())
-	}
-
-	return avps
-}
-
-func featureList(avps []diameter.AVP, vendorID, featureListID uint32, requiredOnly bool) uint32 {
 	var list uint32
 
+	for _, f := range supportedFeatures(avps, vendorID) {
+		if f.FeatureListID == featureListID {
+			list |= f.FeatureList
+		}
+	}
+
+	return list
+}
+
+func FeaturesMandatory(avps []diameter.AVP, vendorID uint32) bool {
+	for _, f := range supportedFeatures(avps, vendorID) {
+		if f.Mandatory {
+			return true
+		}
+	}
+
+	return false
+}
+
+func supportedFeatures(avps []diameter.AVP, vendorID uint32) []SupportedFeatures {
+	var out []SupportedFeatures
+
+	for _, a := range diameter.FindAll(avps, AVPSupportedFeatures, VendorID) {
+		if f, err := ParseSupportedFeatures(a); err == nil && f.VendorID == vendorID {
+			out = append(out, f)
+		}
+	}
+
+	return out
+}
+
+func UnsupportedRequiredFeatures(avps []diameter.AVP, supported ...SupportedFeatures) bool {
 	for _, a := range diameter.FindAll(avps, AVPSupportedFeatures, VendorID) {
 		f, err := ParseSupportedFeatures(a)
-		if err == nil && f.VendorID == vendorID && f.FeatureListID == featureListID && (f.Mandatory || !requiredOnly) {
-			list |= f.FeatureList
+		if err != nil {
+			if a.Flags&diameter.AVPFlagMandatory != 0 {
+				return true
+			}
+
+			continue
+		}
+
+		if f.Mandatory && f.FeatureList&^supportedList(supported, f.VendorID, f.FeatureListID) != 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func supportedList(supported []SupportedFeatures, vendorID, featureListID uint32) uint32 {
+	var list uint32
+
+	for _, s := range supported {
+		if s.VendorID == vendorID && s.FeatureListID == featureListID {
+			list |= s.FeatureList
 		}
 	}
 

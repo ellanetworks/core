@@ -63,9 +63,20 @@ func FuzzParseRequests(f *testing.F) {
 		must(NewAARequest(afEnvelope, fullAARequest())),
 		must(NewAARequest(afEnvelope, AARequest{
 			NoStateMaintained: true, RequestType: ptr(RequestPCSCFRestoration),
-			SubscriptionIDs: []SubscriptionID{{Type: SubscriptionIMSI, Data: "001010000000001"}},
+			SubscriptionIDs: []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
+		})),
+		must(NewAARequest(afEnvelope, AARequest{
+			MediaComponents: []MediaComponent{signallingComponent(), {
+				Number: 2, Type: ptr(MediaVideo), FlowStatus: ptr(FlowStatusDisabled),
+				MinRequestedBandwidthUL: ptr(Bandwidth(1)), MinRequestedBandwidthDL: ptr(Bandwidth(2)),
+				SubComponents: []MediaSubComponent{{FlowNumber: 1, FlowUsage: ptr(FlowUsageRTCP), FlowStatus: ptr(FlowStatusRemoved)}},
+				CodecData:     []CodecData{{Direction: CodecDownlink, Kind: CodecOffer, SDP: "m=video 0 RTP/AVP 96"}, {Kind: CodecAnswer}},
+			}},
+			SpecificActions: []SpecificAction{ActionIndicationOfReleaseOfBearer},
+			Features:        FeatureRel8 | FeatureExtendedMaxRequestedBWNR,
 		})),
 		must(NewSessionTerminationRequest(afEnvelope, SessionTerminationRequest{Cause: TerminationLogout})),
+		must(NewSessionTerminationRequest(afEnvelope, SessionTerminationRequest{Cause: TerminationUserRequest})),
 		must(NewReAuthRequest(pcrfEnvelope, ReAuthRequest{
 			SpecificActions: []SpecificAction{ActionChargingCorrelationExchange, ActionIndicationOfReleaseOfBearer},
 			AccessNetworkChargingIdentifiers: []AccessNetworkChargingIdentifier{
@@ -73,8 +84,20 @@ func FuzzParseRequests(f *testing.F) {
 			},
 			AccessNetworkChargingAddress: netip.MustParseAddr("10.0.0.1"),
 			Flows:                        []Flows{{MediaComponentNumber: 1, FlowNumbers: []uint32{1, 2}}},
-			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionE164, Data: "15551230002"}},
+			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIDE164, Data: "15551230002"}},
 			AbortCause:                   ptr(AbortInsufficientBearerResources),
+		})),
+		must(NewReAuthRequest(pcrfEnvelope, ReAuthRequest{
+			SpecificActions:         []SpecificAction{ActionIPCANChange, ActionPLMNChange, ActionCNHealthMonitor},
+			AccessNetwork:           fullAccessNetwork(),
+			ServingNetwork:          ServingNetwork{PLMN: "00101", NID: []byte{1}},
+			Location:                fullUserLocation(),
+			NetLocAccessSupport:     ptr(NetLocAccessNotSupported),
+			PCSessionRecoveryStatus: ptr(SessionNotFound),
+			Flows: []Flows{{
+				MediaComponentNumber: 1, ContentVersions: []uint64{1}, FinalUnitAction: ptr(FinalUnitTerminate),
+				MediaComponentStatus: ptr(MediaComponentInactive),
+			}},
 		})),
 		must(NewAbortSessionRequest(pcrfEnvelope, AbortSessionRequest{Cause: AbortPCEFFailure})),
 	)
@@ -109,26 +132,32 @@ func FuzzParseRequests(f *testing.F) {
 
 func FuzzParseAnswers(f *testing.F) {
 	must := mustMessage(f)
-	aar := request(CommandAA, afEnvelope)
+	aar := aaRequest(allFeatures)
 
 	fuzzSeeds(f,
 		must(NewAAAnswer(aar, pcrfIdentity, AAAnswer{
 			AccessNetworkChargingIdentifiers: []AccessNetworkChargingIdentifier{{Value: []byte{1}, Flows: []Flows{{MediaComponentNumber: 1}}}},
 			AccessNetworkChargingAddress:     netip.MustParseAddr("2001:db8::1"),
-			SubscriptionIDs:                  []SubscriptionID{{Type: SubscriptionIMSI, Data: "001010000000001"}},
+			SubscriptionIDs:                  []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
 			Features:                         FeatureRel8 | FeaturePCSCFRestorationEnhancement,
 		})),
 		must(NewAAErrorAnswer(aar, pcrfIdentity, AAError{
 			ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceTemporarilyNotAuthorized)},
 			AcceptableServiceInfo: &AcceptableServiceInfo{
-				MediaComponents:         []MediaBandwidth{{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(uint32(1))}},
-				MaxRequestedBandwidthDL: ptr(uint32(2)),
+				MediaComponents:         []MediaBandwidth{{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(Bandwidth(1))}},
+				MaxRequestedBandwidthDL: ptr(Bandwidth(2)),
 			},
 			RetryInterval: time.Minute,
 			Features:      FeatureRel8,
 		})),
-		NewAnswer(request(CommandReAuth, pcrfEnvelope), afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID}),
-		must(NewSessionTerminationAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, SessionTerminationAnswer{})),
+		NewAnswer(request(CommandReAuth, pcrfEnvelope), afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID}, 0),
+		must(NewSessionTerminationAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, SessionTerminationAnswer{
+			ServingNetwork: ServingNetwork{PLMN: "00101"}, Location: fullUserLocation(), NetLocAccessSupport: ptr(NetLocAccessNotSupported),
+		})),
+		must(NewAAAnswer(aar, pcrfIdentity, AAAnswer{
+			AccessNetwork: fullAccessNetwork(), ServingNetwork: ServingNetwork{PLMN: "00101"},
+			Flows: []Flows{{MediaComponentNumber: 1, MediaComponentStatus: ptr(MediaComponentActive)}},
+		})),
 		must(NewAbortSessionAnswer(request(CommandAbortSession, pcrfEnvelope), afIdentity, AbortSessionAnswer{})),
 	)
 

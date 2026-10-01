@@ -18,8 +18,11 @@ const (
 
 const (
 	AVPUserName                    uint32 = 1
+	AVPFramedIPAddress             uint32 = 8
 	AVPClass                       uint32 = 25
 	AVPSessionTimeout              uint32 = 27
+	AVPCalledStationID             uint32 = 30
+	AVPFramedIPv6Prefix            uint32 = 97
 	AVPHostIPAddress               uint32 = 257
 	AVPAuthApplicationID           uint32 = 258
 	AVPAcctApplicationID           uint32 = 259
@@ -47,6 +50,10 @@ const (
 	AVPOriginRealm                 uint32 = 296
 	AVPExperimentalResult          uint32 = 297
 	AVPExperimentalResultCode      uint32 = 298
+	AVPSubscriptionID              uint32 = 443
+	AVPFinalUnitAction             uint32 = 449
+	AVPSubscriptionIDData          uint32 = 444
+	AVPSubscriptionIDType          uint32 = 450
 )
 
 const (

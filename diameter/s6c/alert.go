@@ -33,11 +33,11 @@ var alrRules = diameter.BaseRequestRules().With(diameter.Rules{
 func NewHSSAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Message, error) {
 	switch {
 	case a.User.MSISDN == "":
-		return nil, invalid("HSS alert without an MSISDN")
+		return nil, invalidf("HSS alert without an MSISDN")
 	case a.User.IMSI != "":
-		return nil, invalid("HSS alert with an IMSI")
+		return nil, invalidf("HSS alert with an IMSI")
 	case a.Event != 0 || a.ServingNode != nil:
-		return nil, invalid("HSS alert with an SMS-GMSC alert event or serving node")
+		return nil, invalidf("HSS alert with an SMS-GMSC alert event or serving node")
 	}
 
 	return newAlertServiceCentreRequest(env, a)
@@ -46,13 +46,13 @@ func NewHSSAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Mess
 func NewMMEAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Message, error) {
 	switch {
 	case a.User.IMSI == "" || a.User.MSISDN != "":
-		return nil, invalid("MME alert must identify the user by IMSI only")
+		return nil, invalidf("MME alert must identify the user by IMSI only")
 	case a.Event == 0 || a.Event&^alertEvents != 0:
-		return nil, invalid("SMS-GMSC-Alert-Event %#x", uint32(a.Event))
+		return nil, invalidf("SMS-GMSC-Alert-Event %#x", uint32(a.Event))
 	case a.ServingNode != nil && a.Event&AlertEventUEUnderNewNode == 0:
-		return nil, invalid("new serving node without the UE-under-new-node event")
+		return nil, invalidf("new serving node without the UE-under-new-node event")
 	case a.ServingNode != nil && (a.ServingNode.MSCNumber != "" || a.ServingNode.IPSMGW != nil):
-		return nil, invalid("new serving node must be an MME or an SGSN")
+		return nil, invalidf("new serving node must be an MME or an SGSN")
 	}
 
 	if a.ServingNode != nil {
@@ -65,14 +65,18 @@ func NewMMEAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Mess
 }
 
 func newAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Message, error) {
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
+	}
+
 	scAddress, err := tgpp.EncodeE164(a.ServiceCentreAddress)
 	if err != nil {
-		return nil, invalid("service centre address: %w", err)
+		return nil, invalidf("service centre address: %w", err)
 	}
 
 	ui, err := tgpp.NewUserIdentifier(a.User)
 	if err != nil {
-		return nil, invalid("%w", err)
+		return nil, invalidf("%w", err)
 	}
 
 	avps := append(env.AVPs(),
@@ -138,9 +142,9 @@ func ParseAlertServiceCentreRequest(req *diameter.Message) (Alert, error) {
 	}
 
 	if e, ok := req.Find(AVPSMSGMSCAlertEvent, tgpp.VendorID); ok {
-		event, err := e.Unsigned32()
+		event, err := tgpp.Unsigned32(e)
 		if err != nil {
-			return Alert{}, tgpp.InvalidAVP(e)
+			return Alert{}, err
 		}
 
 		a.Event = AlertEvent(event) & alertEvents

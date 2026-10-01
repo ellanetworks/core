@@ -20,7 +20,7 @@ type ServerAssignmentRequest struct {
 	Type                     AssignmentType
 	UserDataAlreadyAvailable bool
 	Features                 Features
-	RequiredFeatures         Features
+	FeaturesRequired         bool
 }
 
 type ChargingInformation struct {
@@ -110,14 +110,14 @@ func checkIdentities(t AssignmentType, private string, publics int) identityProb
 
 func NewServerAssignmentRequest(env tgpp.Envelope, r ServerAssignmentRequest) (*diameter.Message, error) {
 	if r.Type > AssignmentDeregistrationTooMuchData {
-		return nil, invalid("Server-Assignment-Type %d", r.Type)
+		return nil, invalidf("Server-Assignment-Type %d", r.Type)
 	}
 
 	switch checkIdentities(r.Type, r.PrivateIdentity, len(r.PublicIdentities)) {
 	case missingPrivateIdentity:
-		return nil, invalid("Server-Assignment-Type %d without a private identity", r.Type)
+		return nil, invalidf("Server-Assignment-Type %d without a private identity", r.Type)
 	case missingPublicIdentity, extraPublicIdentity:
-		return nil, invalid("Server-Assignment-Type %d with %d public identities, want one", r.Type, len(r.PublicIdentities))
+		return nil, invalidf("Server-Assignment-Type %d with %d public identities, want one", r.Type, len(r.PublicIdentities))
 	}
 
 	server, err := serverNameAVP(r.ServerName)
@@ -160,7 +160,7 @@ func NewServerAssignmentRequest(env tgpp.Envelope, r ServerAssignmentRequest) (*
 		vendorUnsigned(AVPUserDataAlreadyAvailable, available),
 	)
 
-	return newRequest(env, CommandServerAssignment, r.Features, r.RequiredFeatures, avps...)
+	return newRequest(env, CommandServerAssignment, r.Features, r.FeaturesRequired, avps...)
 }
 
 func CheckServerAssignment(req *diameter.Message) error {
@@ -192,7 +192,7 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 		Type:                     AssignmentType(t),
 		UserDataAlreadyAvailable: available == userDataAlreadyAvailable,
 		Features:                 featureList(req),
-		RequiredFeatures:         requiredFeatures(req),
+		FeaturesRequired:         featuresRequired(req),
 	}
 
 	if user, ok := req.Find(diameter.AVPUserName, 0); ok {
@@ -219,9 +219,9 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 
 	switch checkIdentities(r.Type, r.PrivateIdentity, len(publics)) {
 	case missingPrivateIdentity:
-		return ServerAssignmentRequest{}, tgpp.MissingAVP(diameter.AVPUserName, 0)
+		return ServerAssignmentRequest{}, tgpp.MissingAVP(diameter.AVPUserName, 0, 0)
 	case missingPublicIdentity:
-		return ServerAssignmentRequest{}, tgpp.MissingAVP(AVPPublicIdentity, tgpp.VendorID)
+		return ServerAssignmentRequest{}, tgpp.MissingAVP(AVPPublicIdentity, tgpp.VendorID, 0)
 	case extraPublicIdentity:
 		return ServerAssignmentRequest{}, diameter.NewAVPError(diameter.ResultAVPOccursTooManyTimes, publics[1])
 	}
@@ -240,7 +240,7 @@ func NewServerAssignmentAnswer(req *diameter.Message, id diameter.Identity, a Se
 	}
 
 	if len(a.UserData) == 0 && requestNeedsUserData(req) {
-		return nil, invalid("server assignment answered without the user data the S-CSCF lacks")
+		return nil, invalidf("server assignment answered without the user data the S-CSCF lacks")
 	}
 
 	ans := NewAnswer(req, id, result, a.Features)
@@ -386,7 +386,7 @@ func ParseServerAssignmentAnswer(ans *diameter.Message) (ServerAssignment, error
 
 	if ids, ok := ans.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
 		if a.AssociatedIdentities, err = parseIdentityList(ids); err != nil {
-			return ServerAssignment{}, malformed("Associated-Identities: %w", err)
+			return ServerAssignment{}, malformedf("Associated-Identities: %w", err)
 		}
 	}
 
@@ -414,7 +414,7 @@ func ParseServerAssignmentAnswer(ans *diameter.Message) (ServerAssignment, error
 
 func chargingAVP(c ChargingInformation) (diameter.AVP, error) {
 	if c.PrimaryEventChargingFunction == "" && c.PrimaryChargingCollectionFunction == "" {
-		return diameter.AVP{}, invalid("charging information without a primary charging function")
+		return diameter.AVP{}, invalidf("charging information without a primary charging function")
 	}
 
 	var inner []diameter.AVP
@@ -439,7 +439,7 @@ func chargingAVP(c ChargingInformation) (diameter.AVP, error) {
 func parseCharging(a diameter.AVP) (*ChargingInformation, error) {
 	inner, err := a.Grouped()
 	if err != nil {
-		return nil, malformed("Charging-Information: %w", err)
+		return nil, malformedf("Charging-Information: %w", err)
 	}
 
 	name := func(code uint32) string {
@@ -455,7 +455,7 @@ func parseCharging(a diameter.AVP) (*ChargingInformation, error) {
 	}
 
 	if c.PrimaryEventChargingFunction == "" && c.PrimaryChargingCollectionFunction == "" {
-		return nil, malformed("Charging-Information without a primary charging function")
+		return nil, malformedf("Charging-Information without a primary charging function")
 	}
 
 	return &c, nil

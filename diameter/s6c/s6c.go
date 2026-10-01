@@ -6,7 +6,6 @@ package s6c
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/tgpp"
@@ -123,7 +122,7 @@ var alertEventNames = []string{
 }
 
 func (e AlertEvent) String() string {
-	return bitNames(uint32(e), alertEventNames)
+	return tgpp.BitNames(uint32(e), alertEventNames...)
 }
 
 const (
@@ -152,7 +151,7 @@ var mwdStatusNames = []string{
 }
 
 func (s MWDStatus) String() string {
-	return bitNames(uint32(s), mwdStatusNames)
+	return tgpp.BitNames(uint32(s), mwdStatusNames...)
 }
 
 type DeliveryCause uint32
@@ -175,27 +174,6 @@ func (c DeliveryCause) String() string {
 	}
 
 	return fmt.Sprintf("DeliveryCause(%d)", uint32(c))
-}
-
-func bitNames(v uint32, names []string) string {
-	if v == 0 {
-		return "0"
-	}
-
-	var parts []string
-
-	for i, name := range names {
-		if bit := uint32(1) << i; v&bit != 0 {
-			parts = append(parts, name)
-			v &^= bit
-		}
-	}
-
-	if v != 0 {
-		parts = append(parts, fmt.Sprintf("%#x", v))
-	}
-
-	return strings.Join(parts, "|")
 }
 
 var (
@@ -243,12 +221,12 @@ func smsfSupported(m *diameter.Message) bool {
 	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID)&featureSMSFSupport != 0
 }
 
-func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidMessage}, args...)...)
+func invalidf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrInvalidMessage, fmt.Errorf(format, args...))
 }
 
 func parseResult(ans *diameter.Message) error {
-	result, err := tgpp.ParseResult(ans)
+	result, err := tgpp.ParseFinalResult(ans)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrMalformedAnswer, err)
 	}
@@ -302,7 +280,7 @@ func alertMSISDNAVP(msisdn string) ([]diameter.AVP, error) {
 
 	ui, err := tgpp.NewUserIdentifier(tgpp.UserIdentifier{MSISDN: msisdn})
 	if err != nil {
-		return nil, invalid("alert MSISDN: %w", err)
+		return nil, invalidf("alert MSISDN: %w", err)
 	}
 
 	return []diameter.AVP{ui}, nil

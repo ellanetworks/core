@@ -97,7 +97,7 @@ func TestParseUserAuthorizationRequestErrors(t *testing.T) {
 			with(without(base, AVPPublicIdentity, tgpp.VendorID), vendorString(AVPPublicIdentity, "alice")), diameter.ResultInvalidAVPValue,
 		},
 		"unknown type":    {with(base, vendorUnsigned(AVPUserAuthorizationType, 7)), diameter.ResultInvalidAVPValue},
-		"short UAR-Flags": {with(base, diameter.OctetString(AVPUARFlags, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue},
+		"short UAR-Flags": {with(base, diameter.OctetString(AVPUARFlags, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPLength},
 		"unknown M AVP":   {with(base, vendorUnsigned(AVPServerAssignmentType, 1)), diameter.ResultAVPUnsupported},
 		"two User-Names":  {with(base, userName(testPrivate)), diameter.ResultAVPOccursTooManyTimes},
 	} {

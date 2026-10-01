@@ -4,8 +4,9 @@
 package cx
 
 import (
-	"fmt"
 	"strings"
+
+	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
 type AuthorizationType uint32
@@ -17,7 +18,7 @@ const (
 )
 
 func (t AuthorizationType) String() string {
-	return enumName("AuthorizationType", uint32(t), "REGISTRATION", "DE_REGISTRATION", "REGISTRATION_AND_CAPABILITIES")
+	return tgpp.EnumNames{"REGISTRATION", "DE_REGISTRATION", "REGISTRATION_AND_CAPABILITIES"}.Name("AuthorizationType", uint32(t))
 }
 
 type AssignmentType uint32
@@ -38,10 +39,7 @@ const (
 )
 
 func (t AssignmentType) String() string {
-	return enumName("AssignmentType", uint32(t),
-		"NO_ASSIGNMENT", "REGISTRATION", "RE_REGISTRATION", "UNREGISTERED_USER", "TIMEOUT_DEREGISTRATION",
-		"USER_DEREGISTRATION", "TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME", "USER_DEREGISTRATION_STORE_SERVER_NAME",
-		"ADMINISTRATIVE_DEREGISTRATION", "AUTHENTICATION_FAILURE", "AUTHENTICATION_TIMEOUT", "DEREGISTRATION_TOO_MUCH_DATA")
+	return tgpp.EnumNames{"NO_ASSIGNMENT", "REGISTRATION", "RE_REGISTRATION", "UNREGISTERED_USER", "TIMEOUT_DEREGISTRATION", "USER_DEREGISTRATION", "TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME", "USER_DEREGISTRATION_STORE_SERVER_NAME", "ADMINISTRATIVE_DEREGISTRATION", "AUTHENTICATION_FAILURE", "AUTHENTICATION_TIMEOUT", "DEREGISTRATION_TOO_MUCH_DATA"}.Name("AssignmentType", uint32(t))
 }
 
 type ReasonCode uint32
@@ -54,7 +52,7 @@ const (
 )
 
 func (c ReasonCode) String() string {
-	return enumName("ReasonCode", uint32(c), "PERMANENT_TERMINATION", "NEW_SERVER_ASSIGNED", "SERVER_CHANGE", "REMOVE_S-CSCF")
+	return tgpp.EnumNames{"PERMANENT_TERMINATION", "NEW_SERVER_ASSIGNED", "SERVER_CHANGE", "REMOVE_S-CSCF"}.Name("ReasonCode", uint32(c))
 }
 
 type Features uint32
@@ -67,7 +65,7 @@ const (
 )
 
 func (f Features) String() string {
-	return bitNames(uint32(f), "SiFC", "AliasInd", "IMSRestorationInd", "P-CSCF-Restoration-mechanism")
+	return tgpp.BitNames(uint32(f), "SiFC", "AliasInd", "IMSRestorationInd", "P-CSCF-Restoration-mechanism")
 }
 
 type AuthenticationScheme string
@@ -98,8 +96,7 @@ const (
 )
 
 func (t IdentityType) String() string {
-	return enumName("IdentityType", uint32(t),
-		"DISTINCT_PUBLIC_USER_IDENTITY", "DISTINCT_PSI", "WILDCARDED_PSI", "NON_DISTINCT_IMPU", "WILDCARDED_IMPU")
+	return tgpp.EnumNames{"DISTINCT_PUBLIC_USER_IDENTITY", "DISTINCT_PSI", "WILDCARDED_PSI", "NON_DISTINCT_IMPU", "WILDCARDED_IMPU"}.Name("IdentityType", uint32(t))
 }
 
 type ProfilePart uint8
@@ -110,7 +107,7 @@ const (
 )
 
 func (p ProfilePart) String() string {
-	return enumName("ProfilePart", uint32(p), "REGISTERED", "UNREGISTERED")
+	return tgpp.EnumNames{"REGISTERED", "UNREGISTERED"}.Name("ProfilePart", uint32(p))
 }
 
 type SessionCase uint8
@@ -124,8 +121,7 @@ const (
 )
 
 func (c SessionCase) String() string {
-	return enumName("SessionCase", uint32(c),
-		"ORIGINATING_REGISTERED", "TERMINATING_REGISTERED", "TERMINATING_UNREGISTERED", "ORIGINATING_UNREGISTERED", "ORIGINATING_CDIV")
+	return tgpp.EnumNames{"ORIGINATING_REGISTERED", "TERMINATING_REGISTERED", "TERMINATING_UNREGISTERED", "ORIGINATING_UNREGISTERED", "ORIGINATING_CDIV"}.Name("SessionCase", uint32(c))
 }
 
 type RegistrationType uint8
@@ -137,7 +133,7 @@ const (
 )
 
 func (t RegistrationType) String() string {
-	return enumName("RegistrationType", uint32(t), "INITIAL_REGISTRATION", "RE-REGISTRATION", "DE-REGISTRATION")
+	return tgpp.EnumNames{"INITIAL_REGISTRATION", "RE-REGISTRATION", "DE-REGISTRATION"}.Name("RegistrationType", uint32(t))
 }
 
 type DefaultHandling uint8
@@ -148,34 +144,5 @@ const (
 )
 
 func (h DefaultHandling) String() string {
-	return enumName("DefaultHandling", uint32(h), "SESSION_CONTINUED", "SESSION_TERMINATED")
-}
-
-func enumName(typeName string, v uint32, names ...string) string {
-	if int(v) < len(names) {
-		return names[v]
-	}
-
-	return fmt.Sprintf("%s(%d)", typeName, v)
-}
-
-func bitNames(v uint32, names ...string) string {
-	if v == 0 {
-		return "0"
-	}
-
-	var parts []string
-
-	for i, name := range names {
-		if v&(1<<i) != 0 {
-			parts = append(parts, name)
-			v &^= 1 << i
-		}
-	}
-
-	if v != 0 {
-		parts = append(parts, fmt.Sprintf("%#x", v))
-	}
-
-	return strings.Join(parts, "|")
+	return tgpp.EnumNames{"SESSION_CONTINUED", "SESSION_TERMINATED"}.Name("DefaultHandling", uint32(h))
 }

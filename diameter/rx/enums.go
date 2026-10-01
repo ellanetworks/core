@@ -6,6 +6,8 @@ package rx
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
 type AbortCause uint32
@@ -17,34 +19,66 @@ const (
 	AbortPSToCSHandover                      AbortCause = 3
 	AbortSponsoredDataConnectivityDisallowed AbortCause = 4
 	AbortPCEFFailure                         AbortCause = 5
-	maxAbortCause                                       = AbortPCEFFailure
 )
 
-func (c AbortCause) String() string {
-	return enumName("AbortCause", uint32(c),
-		"BEARER_RELEASED", "INSUFFICIENT_SERVER_RESOURCES", "INSUFFICIENT_BEARER_RESOURCES", "PS_TO_CS_HANDOVER",
-		"SPONSORED_DATA_CONNECTIVITY_DISALLOWED", "PCEF_FAILURE")
+var abortCauseNames = tgpp.EnumNames{
+	"BEARER_RELEASED", "INSUFFICIENT_SERVER_RESOURCES", "INSUFFICIENT_BEARER_RESOURCES", "PS_TO_CS_HANDOVER",
+	"SPONSORED_DATA_CONNECTIVITY_DISALLOWED", "PCEF_FAILURE",
 }
+
+func (c AbortCause) String() string { return abortCauseNames.Name("AbortCause", uint32(c)) }
+
+func (c AbortCause) valid() bool { return abortCauseNames.Has(uint32(c)) }
 
 type TerminationCause uint32
 
 const (
-	TerminationLogout             TerminationCause = 1
-	TerminationServiceNotProvided TerminationCause = 2
-	TerminationBadAnswer          TerminationCause = 3
-	TerminationAdministrative     TerminationCause = 4
-	TerminationLinkBroken         TerminationCause = 5
-	TerminationAuthExpired        TerminationCause = 6
-	TerminationUserMoved          TerminationCause = 7
-	TerminationSessionTimeout     TerminationCause = 8
-	maxTerminationCause                            = TerminationSessionTimeout
+	TerminationLogout                  TerminationCause = 1
+	TerminationServiceNotProvided      TerminationCause = 2
+	TerminationBadAnswer               TerminationCause = 3
+	TerminationAdministrative          TerminationCause = 4
+	TerminationLinkBroken              TerminationCause = 5
+	TerminationAuthExpired             TerminationCause = 6
+	TerminationUserMoved               TerminationCause = 7
+	TerminationSessionTimeout          TerminationCause = 8
+	TerminationUserRequest             TerminationCause = 11
+	TerminationLostCarrier             TerminationCause = 12
+	TerminationLostService             TerminationCause = 13
+	TerminationIdleTimeout             TerminationCause = 14
+	TerminationNASSessionTimeout       TerminationCause = 15
+	TerminationAdminReset              TerminationCause = 16
+	TerminationAdminReboot             TerminationCause = 17
+	TerminationPortError               TerminationCause = 18
+	TerminationNASError                TerminationCause = 19
+	TerminationNASRequest              TerminationCause = 20
+	TerminationNASReboot               TerminationCause = 21
+	TerminationPortUnneeded            TerminationCause = 22
+	TerminationPortPreempted           TerminationCause = 23
+	TerminationPortSuspended           TerminationCause = 24
+	TerminationServiceUnavailable      TerminationCause = 25
+	TerminationCallback                TerminationCause = 26
+	TerminationUserError               TerminationCause = 27
+	TerminationHostRequest             TerminationCause = 28
+	TerminationSupplicantRestart       TerminationCause = 29
+	TerminationReauthenticationFailure TerminationCause = 30
+	TerminationPortReinit              TerminationCause = 31
+	TerminationPortDisabled            TerminationCause = 32
 )
 
-func (c TerminationCause) String() string {
-	return enumName("TerminationCause", uint32(c),
-		"", "DIAMETER_LOGOUT", "DIAMETER_SERVICE_NOT_PROVIDED", "DIAMETER_BAD_ANSWER", "DIAMETER_ADMINISTRATIVE",
-		"DIAMETER_LINK_BROKEN", "DIAMETER_AUTH_EXPIRED", "DIAMETER_USER_MOVED", "DIAMETER_SESSION_TIMEOUT")
+var terminationCauseNames = tgpp.EnumNames{
+	"", "DIAMETER_LOGOUT", "DIAMETER_SERVICE_NOT_PROVIDED", "DIAMETER_BAD_ANSWER", "DIAMETER_ADMINISTRATIVE",
+	"DIAMETER_LINK_BROKEN", "DIAMETER_AUTH_EXPIRED", "DIAMETER_USER_MOVED", "DIAMETER_SESSION_TIMEOUT", "", "",
+	"USER_REQUEST", "LOST_CARRIER", "LOST_SERVICE", "IDLE_TIMEOUT", "SESSION_TIMEOUT", "ADMIN_RESET", "ADMIN_REBOOT",
+	"PORT_ERROR", "NAS_ERROR", "NAS_REQUEST", "NAS_REBOOT", "PORT_UNNEEDED", "PORT_PREEMPTED", "PORT_SUSPENDED",
+	"SERVICE_UNAVAILABLE", "CALLBACK", "USER_ERROR", "HOST_REQUEST", "SUPPLICANT_RESTART", "REAUTHENTICATION_FAILURE",
+	"PORT_REINIT", "PORT_DISABLED",
 }
+
+func (c TerminationCause) String() string {
+	return terminationCauseNames.Name("TerminationCause", uint32(c))
+}
+
+func (c TerminationCause) valid() bool { return terminationCauseNames.Has(uint32(c)) }
 
 type SpecificAction uint32
 
@@ -69,19 +103,23 @@ const (
 	ActionSuccessfulQoSUpdate                        SpecificAction = 19
 	ActionFailedQoSUpdate                            SpecificAction = 20
 	ActionCNHealthMonitor                            SpecificAction = 21
-	maxSpecificAction                                               = ActionCNHealthMonitor
 )
 
-func (a SpecificAction) String() string {
-	return enumName("SpecificAction", uint32(a),
-		"", "CHARGING_CORRELATION_EXCHANGE", "INDICATION_OF_LOSS_OF_BEARER", "INDICATION_OF_RECOVERY_OF_BEARER",
-		"INDICATION_OF_RELEASE_OF_BEARER", "", "IP-CAN_CHANGE", "INDICATION_OF_OUT_OF_CREDIT",
-		"INDICATION_OF_SUCCESSFUL_RESOURCES_ALLOCATION", "INDICATION_OF_FAILED_RESOURCES_ALLOCATION",
-		"INDICATION_OF_LIMITED_PCC_DEPLOYMENT", "USAGE_REPORT", "ACCESS_NETWORK_INFO_REPORT",
-		"INDICATION_OF_RECOVERY_FROM_LIMITED_PCC_DEPLOYMENT", "INDICATION_OF_ACCESS_NETWORK_INFO_REPORTING_FAILURE",
-		"INDICATION_OF_TRANSFER_POLICY_EXPIRED", "PLMN_CHANGE", "EPS_FALLBACK", "INDICATION_OF_REALLOCATION_OF_CREDIT",
-		"SUCCESSFUL_QOS_UPDATE", "FAILED_QOS_UPDATE", "CN_HEALTH_MONITOR")
+var specificActionNames = tgpp.EnumNames{
+	"", "CHARGING_CORRELATION_EXCHANGE", "INDICATION_OF_LOSS_OF_BEARER", "INDICATION_OF_RECOVERY_OF_BEARER",
+	"INDICATION_OF_RELEASE_OF_BEARER", "", "IP-CAN_CHANGE", "INDICATION_OF_OUT_OF_CREDIT",
+	"INDICATION_OF_SUCCESSFUL_RESOURCES_ALLOCATION", "INDICATION_OF_FAILED_RESOURCES_ALLOCATION",
+	"INDICATION_OF_LIMITED_PCC_DEPLOYMENT", "USAGE_REPORT", "ACCESS_NETWORK_INFO_REPORT",
+	"INDICATION_OF_RECOVERY_FROM_LIMITED_PCC_DEPLOYMENT", "INDICATION_OF_ACCESS_NETWORK_INFO_REPORTING_FAILURE",
+	"INDICATION_OF_TRANSFER_POLICY_EXPIRED", "PLMN_CHANGE", "EPS_FALLBACK", "INDICATION_OF_REALLOCATION_OF_CREDIT",
+	"SUCCESSFUL_QOS_UPDATE", "FAILED_QOS_UPDATE", "CN_HEALTH_MONITOR",
 }
+
+func (a SpecificAction) String() string { return specificActionNames.Name("SpecificAction", uint32(a)) }
+
+func (a SpecificAction) valid() bool { return specificActionNames.Has(uint32(a)) }
+
+func (a SpecificAction) void() bool { return a == 0 || a == 5 }
 
 type RequestType uint32
 
@@ -89,36 +127,43 @@ const (
 	RequestInitial          RequestType = 0
 	RequestUpdate           RequestType = 1
 	RequestPCSCFRestoration RequestType = 2
-	maxRequestType                      = RequestPCSCFRestoration
 )
 
-func (t RequestType) String() string {
-	return enumName("RequestType", uint32(t), "INITIAL_REQUEST", "UPDATE_REQUEST", "PCSCF_RESTORATION")
-}
+var requestTypeNames = tgpp.EnumNames{"INITIAL_REQUEST", "UPDATE_REQUEST", "PCSCF_RESTORATION"}
+
+func (t RequestType) String() string { return requestTypeNames.Name("RequestType", uint32(t)) }
+
+func (t RequestType) valid() bool { return requestTypeNames.Has(uint32(t)) }
 
 type ServiceInfoStatus uint32
 
 const (
 	ServiceInfoFinal       ServiceInfoStatus = 0
 	ServiceInfoPreliminary ServiceInfoStatus = 1
-	maxServiceInfoStatus                     = ServiceInfoPreliminary
 )
 
+var serviceInfoStatusNames = tgpp.EnumNames{"FINAL_SERVICE_INFORMATION", "PRELIMINARY_SERVICE_INFORMATION"}
+
 func (s ServiceInfoStatus) String() string {
-	return enumName("ServiceInfoStatus", uint32(s), "FINAL_SERVICE_INFORMATION", "PRELIMINARY_SERVICE_INFORMATION")
+	return serviceInfoStatusNames.Name("ServiceInfoStatus", uint32(s))
 }
+
+func (s ServiceInfoStatus) valid() bool { return serviceInfoStatusNames.Has(uint32(s)) }
 
 type SIPForkingIndication uint32
 
 const (
 	ForkingSingleDialogue   SIPForkingIndication = 0
 	ForkingSeveralDialogues SIPForkingIndication = 1
-	maxSIPForkingIndication                      = ForkingSeveralDialogues
 )
 
+var sipForkingIndicationNames = tgpp.EnumNames{"SINGLE_DIALOGUE", "SEVERAL_DIALOGUES"}
+
 func (f SIPForkingIndication) String() string {
-	return enumName("SIPForkingIndication", uint32(f), "SINGLE_DIALOGUE", "SEVERAL_DIALOGUES")
+	return sipForkingIndicationNames.Name("SIPForkingIndication", uint32(f))
 }
+
+func (f SIPForkingIndication) valid() bool { return sipForkingIndicationNames.Has(uint32(f)) }
 
 type MediaType uint32
 
@@ -133,32 +178,33 @@ const (
 	MediaOther       MediaType = 0xffffffff
 )
 
+var mediaTypeNames = tgpp.EnumNames{"AUDIO", "VIDEO", "DATA", "APPLICATION", "CONTROL", "TEXT", "MESSAGE"}
+
 func (t MediaType) String() string {
 	if t == MediaOther {
 		return "OTHER"
 	}
 
-	return enumName("MediaType", uint32(t), "AUDIO", "VIDEO", "DATA", "APPLICATION", "CONTROL", "TEXT", "MESSAGE")
+	return mediaTypeNames.Name("MediaType", uint32(t))
 }
 
-func (t MediaType) valid() bool {
-	return t <= MediaMessage || t == MediaOther
-}
+func (t MediaType) valid() bool { return t == MediaOther || mediaTypeNames.Has(uint32(t)) }
 
 type FlowStatus uint32
 
 const (
-	FlowEnabledUplink   FlowStatus = 0
-	FlowEnabledDownlink FlowStatus = 1
-	FlowEnabled         FlowStatus = 2
-	FlowDisabled        FlowStatus = 3
-	FlowRemoved         FlowStatus = 4
-	maxFlowStatus                  = FlowRemoved
+	FlowStatusEnabledUplink   FlowStatus = 0
+	FlowStatusEnabledDownlink FlowStatus = 1
+	FlowStatusEnabled         FlowStatus = 2
+	FlowStatusDisabled        FlowStatus = 3
+	FlowStatusRemoved         FlowStatus = 4
 )
 
-func (s FlowStatus) String() string {
-	return enumName("FlowStatus", uint32(s), "ENABLED-UPLINK", "ENABLED-DOWNLINK", "ENABLED", "DISABLED", "REMOVED")
-}
+var flowStatusNames = tgpp.EnumNames{"ENABLED-UPLINK", "ENABLED-DOWNLINK", "ENABLED", "DISABLED", "REMOVED"}
+
+func (s FlowStatus) String() string { return flowStatusNames.Name("FlowStatus", uint32(s)) }
+
+func (s FlowStatus) valid() bool { return flowStatusNames.Has(uint32(s)) }
 
 type FlowUsage uint32
 
@@ -166,40 +212,46 @@ const (
 	FlowUsageNoInformation FlowUsage = 0
 	FlowUsageRTCP          FlowUsage = 1
 	FlowUsageAFSignalling  FlowUsage = 2
-	maxFlowUsage                     = FlowUsageAFSignalling
 )
 
-func (u FlowUsage) String() string {
-	return enumName("FlowUsage", uint32(u), "NO_INFORMATION", "RTCP", "AF_SIGNALLING")
-}
+var flowUsageNames = tgpp.EnumNames{"NO_INFORMATION", "RTCP", "AF_SIGNALLING"}
+
+func (u FlowUsage) String() string { return flowUsageNames.Name("FlowUsage", uint32(u)) }
+
+func (u FlowUsage) valid() bool { return flowUsageNames.Has(uint32(u)) }
 
 type AFSignallingProtocol uint32
 
 const (
-	SignallingNoInformation AFSignallingProtocol = 0
-	SignallingSIP           AFSignallingProtocol = 1
-	maxAFSignallingProtocol                      = SignallingSIP
+	SignallingProtocolNoInformation AFSignallingProtocol = 0
+	SignallingProtocolSIP           AFSignallingProtocol = 1
 )
 
+var signallingProtocolNames = tgpp.EnumNames{"NO_INFORMATION", "SIP"}
+
 func (p AFSignallingProtocol) String() string {
-	return enumName("AFSignallingProtocol", uint32(p), "NO_INFORMATION", "SIP")
+	return signallingProtocolNames.Name("AFSignallingProtocol", uint32(p))
 }
+
+func (p AFSignallingProtocol) valid() bool { return signallingProtocolNames.Has(uint32(p)) }
 
 type SubscriptionIDType uint32
 
 const (
-	SubscriptionE164      SubscriptionIDType = 0
-	SubscriptionIMSI      SubscriptionIDType = 1
-	SubscriptionSIPURI    SubscriptionIDType = 2
-	SubscriptionNAI       SubscriptionIDType = 3
-	SubscriptionPrivate   SubscriptionIDType = 4
-	maxSubscriptionIDType                    = SubscriptionPrivate
+	SubscriptionIDE164    SubscriptionIDType = 0
+	SubscriptionIDIMSI    SubscriptionIDType = 1
+	SubscriptionIDSIPURI  SubscriptionIDType = 2
+	SubscriptionIDNAI     SubscriptionIDType = 3
+	SubscriptionIDPrivate SubscriptionIDType = 4
 )
 
+var subscriptionIDTypeNames = tgpp.EnumNames{"END_USER_E164", "END_USER_IMSI", "END_USER_SIP_URI", "END_USER_NAI", "END_USER_PRIVATE"}
+
 func (t SubscriptionIDType) String() string {
-	return enumName("SubscriptionIDType", uint32(t),
-		"END_USER_E164", "END_USER_IMSI", "END_USER_SIP_URI", "END_USER_NAI", "END_USER_PRIVATE")
+	return subscriptionIDTypeNames.Name("SubscriptionIDType", uint32(t))
 }
+
+func (t SubscriptionIDType) valid() bool { return subscriptionIDTypeNames.Has(uint32(t)) }
 
 type CodecDirection uint8
 
@@ -208,9 +260,11 @@ const (
 	CodecDownlink CodecDirection = 1
 )
 
-func (d CodecDirection) String() string {
-	return enumName("CodecDirection", uint32(d), "uplink", "downlink")
-}
+var codecDirectionNames = tgpp.EnumNames{"uplink", "downlink"}
+
+func (d CodecDirection) String() string { return codecDirectionNames.Name("CodecDirection", uint32(d)) }
+
+func (d CodecDirection) valid() bool { return codecDirectionNames.Has(uint32(d)) }
 
 type CodecKind uint8
 
@@ -220,20 +274,24 @@ const (
 	CodecDescription CodecKind = 2
 )
 
-func (k CodecKind) String() string {
-	return enumName("CodecKind", uint32(k), "offer", "answer", "description")
-}
+var codecKindNames = tgpp.EnumNames{"offer", "answer", "description"}
 
-type Direction uint8
+func (k CodecKind) String() string { return codecKindNames.Name("CodecKind", uint32(k)) }
+
+func (k CodecKind) valid() bool { return codecKindNames.Has(uint32(k)) }
+
+type FlowDirection uint8
 
 const (
-	DirectionIn  Direction = 0
-	DirectionOut Direction = 1
+	FlowDirectionIn  FlowDirection = 0
+	FlowDirectionOut FlowDirection = 1
 )
 
-func (d Direction) String() string {
-	return enumName("Direction", uint32(d), "in", "out")
-}
+var flowDirectionNames = tgpp.EnumNames{"in", "out"}
+
+func (d FlowDirection) String() string { return flowDirectionNames.Name("FlowDirection", uint32(d)) }
+
+func (d FlowDirection) valid() bool { return flowDirectionNames.Has(uint32(d)) }
 
 type Features uint64
 
@@ -253,7 +311,7 @@ const (
 	FeatureDeferredService          Features = 1 << 12
 	FeatureDSCP                     Features = 1 << 13
 	FeatureSponsorChange            Features = 1 << 14
-	FeatureE2EQOSMTSI               Features = 1 << 15
+	FeatureE2EQoSMTSI               Features = 1 << 15
 	FeatureNetLocUntrustedWLAN      Features = 1 << 16
 	FeatureMCPTT                    Features = 1 << 17
 	FeaturePrioritySharing          Features = 1 << 18
@@ -265,7 +323,7 @@ const (
 	FeaturePCSCFRestorationEnhancement   Features = 1 << 32
 	FeatureExtendedMaxRequestedBWNR      Features = 1 << 33
 	FeatureExtendedMinRequestedBWNR      Features = 1 << 34
-	FeatureExtendedBWE2EQOSMTSINR        Features = 1 << 35
+	FeatureExtendedBWE2EQoSMTSINR        Features = 1 << 35
 	FeatureVBC                           Features = 1 << 36
 	FeatureCHEM                          Features = 1 << 37
 	FeatureVBCLTE                        Features = 1 << 38
@@ -280,19 +338,24 @@ const (
 	FeatureUserEquipmentInfoExtension    Features = 1 << 47
 	FeatureAuthorizationForMPSSignalling Features = 1 << 48
 	FeatureMPSForMessaging               Features = 1 << 49
-	FeatureUeSatUeComm                   Features = 1 << 50
+	FeatureUESatUEComm                   Features = 1 << 50
 	FeaturePCEFFailureDetection          Features = 1 << 51
 	FeatureCNHealthMonitor               Features = 1 << 52
 )
 
-var featureNames = [2][]string{
-	{
+const (
+	featureList1 uint32 = 1
+	featureList2 uint32 = 2
+)
+
+var featureNames = map[uint32][]string{
+	featureList1: {
 		"Rel8", "Rel9", "ProvAFsignalFlow", "SponsoredConnectivity", "Rel10", "NetLoc", "ExtendedFilter", "SCTimeBasedUM",
 		"Netloc-Trusted-WLAN", "RAN-NAS-Cause", "GroupComService", "ResShare", "DeferredService", "DSCP", "SponsorChange",
 		"E2EQOSMTSI", "NetLoc-Untrusted-WLAN", "MCPTT", "PrioritySharing", "PLMNInfo", "MediaComponentVersioning",
 		"MCPTT-Preemption", "MCVideo",
 	},
-	{
+	featureList2: {
 		"PCSCF-Restoration-Enhancement", "Extended-Max-Requested-BW-NR", "Extended-Min-Requested-BW-NR",
 		"Extended-BW-E2EQOSMTSI-NR", "VBC", "CHEM", "VBCLTE", "FLUS", "EPSFallbackReport", "ATSSS", "QoSHint",
 		"ReallocationOfCredit", "Netloc-Trusted-N3GA", "NetLoc-Wireline", "MPSforDTS", "User-Equipment-Info-Extension",
@@ -301,11 +364,25 @@ var featureNames = [2][]string{
 }
 
 func (f Features) list(id uint32) uint32 {
-	return uint32(f >> (32 * (id - 1)))
+	switch id {
+	case featureList1:
+		return uint32(f)
+	case featureList2:
+		return uint32(f >> 32)
+	default:
+		return 0
+	}
 }
 
 func listFeatures(id, list uint32) Features {
-	return Features(list) << (32 * (id - 1))
+	switch id {
+	case featureList1:
+		return Features(list)
+	case featureList2:
+		return Features(list) << 32
+	default:
+		return 0
+	}
 }
 
 func (f Features) String() string {
@@ -315,10 +392,10 @@ func (f Features) String() string {
 
 	var parts []string
 
-	for i, names := range featureNames {
-		list := f.list(uint32(i + 1))
+	for _, id := range []uint32{featureList1, featureList2} {
+		list := f.list(id)
 
-		for bit, name := range names {
+		for bit, name := range featureNames[id] {
 			if list&(1<<bit) != 0 {
 				parts = append(parts, name)
 				list &^= 1 << bit
@@ -326,17 +403,185 @@ func (f Features) String() string {
 		}
 
 		if list != 0 {
-			parts = append(parts, fmt.Sprintf("list%d:%#x", i+1, list))
+			parts = append(parts, fmt.Sprintf("list%d:%#x", id, list))
 		}
 	}
 
 	return strings.Join(parts, "|")
 }
 
-func enumName(typeName string, v uint32, names ...string) string {
-	if int(v) < len(names) && names[v] != "" {
-		return names[v]
+type IPCANType uint32
+
+const (
+	IPCAN3GPPGPRS   IPCANType = 0
+	IPCANDOCSIS     IPCANType = 1
+	IPCANxDSL       IPCANType = 2
+	IPCANWiMAX      IPCANType = 3
+	IPCAN3GPP2      IPCANType = 4
+	IPCAN3GPPEPS    IPCANType = 5
+	IPCANNon3GPPEPS IPCANType = 6
+	IPCANFBA        IPCANType = 7
+	IPCAN3GPP5GS    IPCANType = 8
+	IPCANNon3GPP5GS IPCANType = 9
+)
+
+var ipcanTypeNames = tgpp.EnumNames{
+	"3GPP-GPRS", "DOCSIS", "xDSL", "WiMAX", "3GPP2", "3GPP-EPS", "Non-3GPP-EPS", "FBA", "3GPP-5GS", "Non-3GPP-5GS",
+}
+
+func (t IPCANType) String() string { return ipcanTypeNames.Name("IPCANType", uint32(t)) }
+
+func (t IPCANType) valid() bool { return ipcanTypeNames.Has(uint32(t)) }
+
+type RATType uint32
+
+const (
+	RATWLAN                RATType = 0
+	RATVirtual             RATType = 1
+	RATTrustedN3GA         RATType = 2
+	RATWireline            RATType = 3
+	RATWirelineCable       RATType = 4
+	RATWirelineBBF         RATType = 5
+	RATUTRAN               RATType = 1000
+	RATGERAN               RATType = 1001
+	RATGAN                 RATType = 1002
+	RATHSPAEvolution       RATType = 1003
+	RATEUTRAN              RATType = 1004
+	RATEUTRANNBIoT         RATType = 1005
+	RATNR                  RATType = 1006
+	RATLTEM                RATType = 1007
+	RATNRU                 RATType = 1008
+	RATEUTRANLEO           RATType = 1011
+	RATEUTRANMEO           RATType = 1012
+	RATEUTRANGEO           RATType = 1013
+	RATEUTRANOtherSat      RATType = 1014
+	RATEUTRANNBIoTLEO      RATType = 1021
+	RATEUTRANNBIoTMEO      RATType = 1022
+	RATEUTRANNBIoTGEO      RATType = 1023
+	RATEUTRANNBIoTOtherSat RATType = 1024
+	RATLTEMLEO             RATType = 1031
+	RATLTEMMEO             RATType = 1032
+	RATLTEMGEO             RATType = 1033
+	RATLTEMOtherSat        RATType = 1034
+	RATNRLEO               RATType = 1035
+	RATNRMEO               RATType = 1036
+	RATNRGEO               RATType = 1037
+	RATNROtherSat          RATType = 1038
+	RATNRRedCap            RATType = 1039
+	RATNREnhancedRedCap    RATType = 1040
+	RATCDMA20001X          RATType = 2000
+	RATHRPD                RATType = 2001
+	RATUMB                 RATType = 2002
+	RATEHRPD               RATType = 2003
+)
+
+var ratTypeNames = map[RATType]string{
+	RATWLAN: "WLAN", RATVirtual: "VIRTUAL", RATTrustedN3GA: "TRUSTED-N3GA", RATWireline: "WIRELINE",
+	RATWirelineCable: "WIRELINE-CABLE", RATWirelineBBF: "WIRELINE-BBF", RATUTRAN: "UTRAN", RATGERAN: "GERAN", RATGAN: "GAN",
+	RATHSPAEvolution: "HSPA_EVOLUTION", RATEUTRAN: "EUTRAN", RATEUTRANNBIoT: "EUTRAN-NB-IoT", RATNR: "NR", RATLTEM: "LTE-M",
+	RATNRU: "NR-U", RATEUTRANLEO: "EUTRAN(LEO)", RATEUTRANMEO: "EUTRAN(MEO)", RATEUTRANGEO: "EUTRAN(GEO)",
+	RATEUTRANOtherSat: "EUTRAN(OTHERSAT)", RATEUTRANNBIoTLEO: "EUTRAN-NB-IoT(LEO)", RATEUTRANNBIoTMEO: "EUTRAN-NB-IoT(MEO)",
+	RATEUTRANNBIoTGEO: "EUTRAN-NB-IoT(GEO)", RATEUTRANNBIoTOtherSat: "EUTRAN-NB-IoT(OTHERSAT)", RATLTEMLEO: "LTE-M(LEO)",
+	RATLTEMMEO: "LTE-M(MEO)", RATLTEMGEO: "LTE-M(GEO)", RATLTEMOtherSat: "LTE-M(OTHERSAT)", RATNRLEO: "NR(LEO)",
+	RATNRMEO: "NR(MEO)", RATNRGEO: "NR(GEO)", RATNROtherSat: "NR(OTHERSAT)", RATNRRedCap: "NR-REDCAP",
+	RATNREnhancedRedCap: "NR-EREDCAP", RATCDMA20001X: "CDMA2000_1X", RATHRPD: "HRPD", RATUMB: "UMB", RATEHRPD: "EHRPD",
+}
+
+func (t RATType) String() string {
+	if name, ok := ratTypeNames[t]; ok {
+		return name
 	}
 
-	return fmt.Sprintf("%s(%d)", typeName, v)
+	return fmt.Sprintf("RATType(%d)", uint32(t))
 }
+
+type ANTrusted uint32
+
+const (
+	ANTrustedTrusted   ANTrusted = 0
+	ANTrustedUntrusted ANTrusted = 1
+)
+
+var anTrustedNames = tgpp.EnumNames{"TRUSTED", "UNTRUSTED"}
+
+func (t ANTrusted) String() string { return anTrustedNames.Name("ANTrusted", uint32(t)) }
+
+func (t ANTrusted) valid() bool { return anTrustedNames.Has(uint32(t)) }
+
+type NetLocAccessSupport uint32
+
+const NetLocAccessNotSupported NetLocAccessSupport = 0
+
+var netLocAccessSupportNames = tgpp.EnumNames{"NETLOC_ACCESS_NOT_SUPPORTED"}
+
+func (s NetLocAccessSupport) String() string {
+	return netLocAccessSupportNames.Name("NetLocAccessSupport", uint32(s))
+}
+
+func (s NetLocAccessSupport) valid() bool { return netLocAccessSupportNames.Has(uint32(s)) }
+
+type RequiredAccessInfo uint32
+
+const (
+	RequiredUserLocation RequiredAccessInfo = 0
+	RequiredMSTimeZone   RequiredAccessInfo = 1
+	RequiredUESatInfo    RequiredAccessInfo = 2
+)
+
+var requiredAccessInfoNames = tgpp.EnumNames{"USER_LOCATION", "MS_TIME_ZONE", "UE_SAT_INFO"}
+
+func (r RequiredAccessInfo) String() string {
+	return requiredAccessInfoNames.Name("RequiredAccessInfo", uint32(r))
+}
+
+func (r RequiredAccessInfo) valid() bool { return requiredAccessInfoNames.Has(uint32(r)) }
+
+type PCSessionRecoveryStatus uint32
+
+const (
+	SessionRestorationRequest      PCSessionRecoveryStatus = 0
+	SessionRestorationTriggered    PCSessionRecoveryStatus = 1
+	SessionRestorationNotTriggered PCSessionRecoveryStatus = 2
+	SessionNotFound                PCSessionRecoveryStatus = 3
+)
+
+var pcSessionRecoveryStatusNames = tgpp.EnumNames{
+	"SESSION_RESTORATION_REQUEST", "SESSION_RESTORATION_TRIGGERED", "SESSION_RESTORATION_NOT_TRIGGERED", "SESSION_NOT_FOUND",
+}
+
+func (s PCSessionRecoveryStatus) String() string {
+	return pcSessionRecoveryStatusNames.Name("PCSessionRecoveryStatus", uint32(s))
+}
+
+func (s PCSessionRecoveryStatus) valid() bool { return pcSessionRecoveryStatusNames.Has(uint32(s)) }
+
+type FinalUnitAction uint32
+
+const (
+	FinalUnitTerminate      FinalUnitAction = 0
+	FinalUnitRedirect       FinalUnitAction = 1
+	FinalUnitRestrictAccess FinalUnitAction = 2
+)
+
+var finalUnitActionNames = tgpp.EnumNames{"TERMINATE", "REDIRECT", "RESTRICT_ACCESS"}
+
+func (a FinalUnitAction) String() string {
+	return finalUnitActionNames.Name("FinalUnitAction", uint32(a))
+}
+
+func (a FinalUnitAction) valid() bool { return finalUnitActionNames.Has(uint32(a)) }
+
+type MediaComponentStatus uint32
+
+const (
+	MediaComponentActive   MediaComponentStatus = 0
+	MediaComponentInactive MediaComponentStatus = 1
+)
+
+var mediaComponentStatusNames = tgpp.EnumNames{"ACTIVE", "INACTIVE"}
+
+func (s MediaComponentStatus) String() string {
+	return mediaComponentStatusNames.Name("MediaComponentStatus", uint32(s))
+}
+
+func (s MediaComponentStatus) valid() bool { return mediaComponentStatusNames.Has(uint32(s)) }

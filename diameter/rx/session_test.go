@@ -13,7 +13,11 @@ import (
 
 func TestSessionTerminationRoundTrip(t *testing.T) {
 	for _, env := range []tgpp.Envelope{afEnvelope, {SessionID: "s;1", Origin: afIdentity, DestinationHost: pcrfIdentity.OriginHost, DestinationRealm: testEPCRealm}} {
-		for c := TerminationLogout; c <= maxTerminationCause; c++ {
+		for c := TerminationCause(0); c <= TerminationPortDisabled+1; c++ {
+			if !c.valid() {
+				continue
+			}
+
 			req, err := NewSessionTerminationRequest(env, SessionTerminationRequest{Cause: c})
 			if err != nil {
 				t.Fatal(err)
@@ -26,7 +30,7 @@ func TestSessionTerminationRoundTrip(t *testing.T) {
 		}
 	}
 
-	for _, c := range []TerminationCause{0, 9} {
+	for _, c := range []TerminationCause{0, 9, 10, 33} {
 		if _, err := NewSessionTerminationRequest(afEnvelope, SessionTerminationRequest{Cause: c}); !errors.Is(err, ErrInvalidMessage) {
 			t.Errorf("cause %d: err = %v", c, err)
 		}
@@ -84,7 +88,7 @@ func TestSessionTerminationAnswer(t *testing.T) {
 }
 
 func TestAbortSessionRoundTrip(t *testing.T) {
-	for c := AbortBearerReleased; c <= maxAbortCause; c++ {
+	for c := AbortBearerReleased; c <= AbortPCEFFailure; c++ {
 		req, err := NewAbortSessionRequest(pcrfEnvelope, AbortSessionRequest{Cause: c})
 		if err != nil {
 			t.Fatal(err)
@@ -115,7 +119,7 @@ func TestParseAbortSessionRequestErrors(t *testing.T) {
 		"no Abort-Cause":      {without(base, AVPAbortCause, tgpp.VendorID), diameter.ResultMissingAVP},
 		"no Destination-Host": {without(base, diameter.AVPDestinationHost, 0), diameter.ResultMissingAVP},
 		"Abort-Cause":         {with(without(base, AVPAbortCause, tgpp.VendorID), vendorUnsigned(AVPAbortCause, 6)), diameter.ResultInvalidAVPValue},
-		"short Abort-Cause":   {with(without(base, AVPAbortCause, tgpp.VendorID), vendorOctets(AVPAbortCause, []byte{0})), diameter.ResultInvalidAVPValue},
+		"short Abort-Cause":   {with(without(base, AVPAbortCause, tgpp.VendorID), vendorOctets(AVPAbortCause, []byte{0})), diameter.ResultInvalidAVPLength},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := ParseAbortSessionRequest(tc.msg)
@@ -138,7 +142,7 @@ func TestAbortSessionAnswer(t *testing.T) {
 		t.Fatalf("round trip = %+v, %v", got, err)
 	}
 
-	unknown := NewAnswer(req, afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID})
+	unknown := NewAnswer(req, afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID}, 0)
 
 	var re *ResultError
 	if _, err := ParseAbortSessionAnswer(unknown); !errors.As(err, &re) || re.Code != diameter.ResultUnknownSessionID {

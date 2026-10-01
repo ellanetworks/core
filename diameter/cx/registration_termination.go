@@ -23,7 +23,7 @@ type RegistrationTerminationRequest struct {
 	Reason                   DeregistrationReason
 	ReferenceLocationChanged bool
 	Features                 Features
-	RequiredFeatures         Features
+	FeaturesRequired         bool
 }
 
 type EmergencyIdentity struct {
@@ -50,13 +50,13 @@ var rtrRules = commonRequestRules.With(diameter.Rules{
 func NewRegistrationTerminationRequest(env tgpp.Envelope, r RegistrationTerminationRequest) (*diameter.Message, error) {
 	switch {
 	case env.DestinationHost == "":
-		return nil, invalid("registration termination without a destination host")
+		return nil, invalidf("registration termination without a destination host")
 	case r.PrivateIdentity == "":
-		return nil, invalid("registration termination without a private identity")
+		return nil, invalidf("registration termination without a private identity")
 	case r.Reason.Code > ReasonRemoveSCSCF:
-		return nil, invalid("Reason-Code %d", r.Reason.Code)
+		return nil, invalidf("Reason-Code %d", r.Reason.Code)
 	case r.Reason.Code == ReasonNewServerAssigned && len(r.PublicIdentities) == 0:
-		return nil, invalid("new server assigned without public identities")
+		return nil, invalidf("new server assigned without public identities")
 	}
 
 	if err := validIdentityList(r.AssociatedIdentities); err != nil {
@@ -89,7 +89,7 @@ func NewRegistrationTerminationRequest(env tgpp.Envelope, r RegistrationTerminat
 		avps = append(avps, diameter.Unsigned32(AVPRTRFlags, 0, tgpp.VendorID, rtrFlagReferenceLocationChanged))
 	}
 
-	return newRequest(env, CommandRegistrationTermination, r.Features, r.RequiredFeatures, avps...)
+	return newRequest(env, CommandRegistrationTermination, r.Features, r.FeaturesRequired, avps...)
 }
 
 func CheckRegistrationTermination(req *diameter.Message) error {
@@ -103,7 +103,7 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
-	r := RegistrationTerminationRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req), RequiredFeatures: requiredFeatures(req)}
+	r := RegistrationTerminationRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req), FeaturesRequired: featuresRequired(req)}
 
 	if a, ok := req.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
 		ids, err := parseIdentityList(a)
@@ -131,11 +131,15 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 
 	code, ok := diameter.Find(reason, AVPReasonCode, tgpp.VendorID)
 	if !ok {
-		return RegistrationTerminationRequest{}, tgpp.MissingAVP(AVPReasonCode, tgpp.VendorID)
+		return RegistrationTerminationRequest{}, tgpp.MissingAVP(AVPReasonCode, tgpp.VendorID, 4)
 	}
 
-	reasonCode, err := code.Unsigned32()
-	if err != nil || ReasonCode(reasonCode) > ReasonRemoveSCSCF {
+	reasonCode, err := tgpp.Unsigned32(code)
+	if err != nil {
+		return RegistrationTerminationRequest{}, err
+	}
+
+	if ReasonCode(reasonCode) > ReasonRemoveSCSCF {
 		return RegistrationTerminationRequest{}, tgpp.InvalidAVP(code)
 	}
 
@@ -146,7 +150,7 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 	}
 
 	if r.Reason.Code == ReasonNewServerAssigned && len(r.PublicIdentities) == 0 {
-		return RegistrationTerminationRequest{}, tgpp.MissingAVP(AVPPublicIdentity, tgpp.VendorID)
+		return RegistrationTerminationRequest{}, tgpp.MissingAVP(AVPPublicIdentity, tgpp.VendorID, 0)
 	}
 
 	rtrFlags, err := optionalFlags(req, AVPRTRFlags)
@@ -233,7 +237,7 @@ func answerAssociatedIdentities(ans *diameter.Message) ([]string, error) {
 
 	names, err := parseIdentityList(ids)
 	if err != nil {
-		return nil, malformed("Associated-Identities: %w", err)
+		return nil, malformedf("Associated-Identities: %w", err)
 	}
 
 	return names, nil
@@ -248,7 +252,7 @@ func answerEmergencyIdentities(ans *diameter.Message) ([]EmergencyIdentity, erro
 	for _, e := range diameter.FindAll(ans.AVPs, AVPIdentityWithEmergencyRegistration, tgpp.VendorID) {
 		inner, err := e.Grouped()
 		if err != nil {
-			firstErr = cmp.Or(firstErr, malformed("Identity-with-Emergency-Registration: %w", err))
+			firstErr = cmp.Or(firstErr, malformedf("Identity-with-Emergency-Registration: %w", err))
 			continue
 		}
 
@@ -256,7 +260,7 @@ func answerEmergencyIdentities(ans *diameter.Message) ([]EmergencyIdentity, erro
 		public, _ := diameter.Find(inner, AVPPublicIdentity, tgpp.VendorID)
 
 		if user.UTF8String() == "" || !ValidPublicIdentity(public.UTF8String()) {
-			firstErr = cmp.Or(firstErr, malformed("Identity-with-Emergency-Registration without a valid identity pair"))
+			firstErr = cmp.Or(firstErr, malformedf("Identity-with-Emergency-Registration without a valid identity pair"))
 			continue
 		}
 

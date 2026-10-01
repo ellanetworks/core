@@ -148,7 +148,7 @@ func finishAnswer(ans *diameter.Message, features Features) *diameter.Message {
 }
 
 func withFeatures(msg *diameter.Message, features Features) *diameter.Message {
-	msg.AVPs = append(msg.AVPs, tgpp.FeatureAVPs(tgpp.VendorID, featureListID, uint32(features), 0)...)
+	msg.AVPs = append(msg.AVPs, featureAVPs(features, false)...)
 
 	return msg
 }
@@ -160,9 +160,13 @@ func vendorSpecificApplicationID() diameter.AVP {
 	)
 }
 
-func newRequest(env tgpp.Envelope, command uint32, features, required Features, avps ...diameter.AVP) (*diameter.Message, error) {
-	if required&^features != 0 {
-		return nil, invalid("required features %s not among the advertised %s", required, features)
+func newRequest(env tgpp.Envelope, command uint32, features Features, required bool, avps ...diameter.AVP) (*diameter.Message, error) {
+	if required && features == 0 {
+		return nil, invalidf("features required without any feature")
+	}
+
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
 	}
 
 	msg := &diameter.Message{
@@ -172,35 +176,50 @@ func newRequest(env tgpp.Envelope, command uint32, features, required Features, 
 		AVPs:          append(env.AVPs(), vendorSpecificApplicationID()),
 	}
 
-	msg.AVPs = append(msg.AVPs, tgpp.FeatureAVPs(tgpp.VendorID, featureListID, uint32(features), uint32(required))...)
+	msg.AVPs = append(msg.AVPs, featureAVPs(features, required)...)
 	msg.AVPs = append(msg.AVPs, avps...)
 
 	return msg, nil
+}
+
+func featureAVPs(features Features, required bool) []diameter.AVP {
+	if features == 0 {
+		return nil
+	}
+
+	return []diameter.AVP{tgpp.SupportedFeatures{
+		VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(features), Mandatory: required,
+	}.AVP()}
 }
 
 func featureList(m *diameter.Message) Features {
 	return Features(tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID))
 }
 
-func requiredFeatures(m *diameter.Message) Features {
-	return Features(tgpp.RequiredFeatureList(m.AVPs, tgpp.VendorID, featureListID))
+func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
+	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
+		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(supported)})
 }
 
-func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidMessage}, args...)...)
+func featuresRequired(m *diameter.Message) bool {
+	return tgpp.FeaturesMandatory(m.AVPs, tgpp.VendorID)
 }
 
-func malformed(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{ErrMalformedAnswer}, args...)...)
+func invalidf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrInvalidMessage, fmt.Errorf(format, args...))
+}
+
+func malformedf(format string, args ...any) error {
+	return fmt.Errorf("%w: %w", ErrMalformedAnswer, fmt.Errorf(format, args...))
 }
 
 func parseResult(ans *diameter.Message) (tgpp.Result, error) {
-	result, err := tgpp.ParseResult(ans)
+	result, err := tgpp.ParseFinalResult(ans)
 	if err != nil {
 		return tgpp.Result{}, fmt.Errorf("%w: %w", ErrMalformedAnswer, err)
 	}
 
-	if !result.Success() {
+	if result.Failure() {
 		return result, &ResultError{Result: result, Features: featureList(ans)}
 	}
 
@@ -208,20 +227,17 @@ func parseResult(ans *diameter.Message) (tgpp.Result, error) {
 }
 
 func errorResult(r tgpp.Result) error {
-	if r.Success() {
-		return invalid("error answer with the success %s", r)
+	if !r.Failure() {
+		return invalidf("error answer with the non-error %s", r)
 	}
 
 	return nil
 }
 
 func successResult(r tgpp.Result) (tgpp.Result, error) {
-	if r == (tgpp.Result{}) {
-		return tgpp.Result{Code: diameter.ResultSuccess}, nil
-	}
-
+	r = r.OrSuccess()
 	if !r.Success() {
-		return tgpp.Result{}, invalid("answer with the non-success %s", r)
+		return tgpp.Result{}, invalidf("answer with the non-success %s", r)
 	}
 
 	return r, nil
@@ -259,7 +275,7 @@ func userName(v string) diameter.AVP {
 
 func wildcardedIdentityAVP(v string) (diameter.AVP, error) {
 	if !ValidPublicIdentity(v) {
-		return diameter.AVP{}, invalid("wildcarded public identity %q", v)
+		return diameter.AVP{}, invalidf("wildcarded public identity %q", v)
 	}
 
 	return diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, v), nil
@@ -272,7 +288,7 @@ func answerWildcardedIdentity(ans *diameter.Message) (string, error) {
 	}
 
 	if !ValidPublicIdentity(a.UTF8String()) {
-		return "", malformed("Wildcarded-Public-Identity %q", a.UTF8String())
+		return "", malformedf("Wildcarded-Public-Identity %q", a.UTF8String())
 	}
 
 	return a.UTF8String(), nil
@@ -285,7 +301,7 @@ func answerServerName(ans *diameter.Message) (string, error) {
 	}
 
 	if !validServerName(a.UTF8String()) {
-		return "", malformed("Server-Name %q", a.UTF8String())
+		return "", malformedf("Server-Name %q", a.UTF8String())
 	}
 
 	return a.UTF8String(), nil
@@ -293,7 +309,7 @@ func answerServerName(ans *diameter.Message) (string, error) {
 
 func publicIdentityAVP(v string) (diameter.AVP, error) {
 	if !ValidPublicIdentity(v) {
-		return diameter.AVP{}, invalid("public identity %q", v)
+		return diameter.AVP{}, invalidf("public identity %q", v)
 	}
 
 	return vendorString(AVPPublicIdentity, v), nil
@@ -301,7 +317,7 @@ func publicIdentityAVP(v string) (diameter.AVP, error) {
 
 func serverNameAVP(v string) (diameter.AVP, error) {
 	if !validServerName(v) {
-		return diameter.AVP{}, invalid("server name %q", v)
+		return diameter.AVP{}, invalidf("server name %q", v)
 	}
 
 	return vendorString(AVPServerName, v), nil
@@ -331,8 +347,12 @@ func optionalUnsigned(req *diameter.Message, code uint32, maxValue uint32) (uint
 		return 0, false, nil
 	}
 
-	v, err := a.Unsigned32()
-	if err != nil || v > maxValue {
+	v, err := tgpp.Unsigned32(a)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if v > maxValue {
 		return 0, false, tgpp.InvalidAVP(a)
 	}
 
@@ -375,7 +395,7 @@ func parseIdentityList(a diameter.AVP) ([]string, error) {
 func validIdentityList(names []string) error {
 	for _, n := range names {
 		if n == "" {
-			return invalid("empty private identity")
+			return invalidf("empty private identity")
 		}
 	}
 
@@ -445,7 +465,7 @@ func answerUnsigned(ans *diameter.Message, code uint32, name string) (uint32, er
 
 	v, err := a.Unsigned32()
 	if err != nil {
-		return 0, malformed("%s", name)
+		return 0, malformedf("%s", name)
 	}
 
 	return v, nil
@@ -453,7 +473,7 @@ func answerUnsigned(ans *diameter.Message, code uint32, name string) (uint32, er
 
 func identityPairAVP(code uint32, private, public string) (diameter.AVP, error) {
 	if private == "" {
-		return diameter.AVP{}, invalid("identity pair without a private identity")
+		return diameter.AVP{}, invalidf("identity pair without a private identity")
 	}
 
 	p, err := publicIdentityAVP(public)

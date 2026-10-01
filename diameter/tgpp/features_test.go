@@ -72,48 +72,51 @@ func TestSupportedFeaturesMandatory(t *testing.T) {
 	}
 }
 
-func TestRequiredFeatureList(t *testing.T) {
-	avps := []diameter.AVP{
-		SupportedFeatures{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x1, Mandatory: true}.AVP(),
-		SupportedFeatures{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x4}.AVP(),
-		SupportedFeatures{VendorID: VendorID, FeatureListID: 2, FeatureList: 0x2, Mandatory: true}.AVP(),
-		SupportedFeatures{VendorID: 9999, FeatureListID: 1, FeatureList: 0x8, Mandatory: true}.AVP(),
-	}
+func TestFeaturesMandatory(t *testing.T) {
+	optional := SupportedFeatures{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x1}.AVP()
+	mandatory := SupportedFeatures{VendorID: VendorID, FeatureListID: 2, FeatureList: 0x2, Mandatory: true}.AVP()
+	otherVendor := SupportedFeatures{VendorID: 9999, FeatureListID: 1, FeatureList: 0x8, Mandatory: true}.AVP()
 
-	if got := FeatureList(avps, VendorID, 1); got != 0x5 {
-		t.Fatalf("FeatureList = %#x, want 0x5", got)
-	}
-
-	if got := RequiredFeatureList(avps, VendorID, 1); got != 0x1 {
-		t.Fatalf("RequiredFeatureList = %#x, want 0x1", got)
-	}
-
-	if got := RequiredFeatureList(avps, VendorID, 2); got != 0x2 {
-		t.Fatalf("RequiredFeatureList of list 2 = %#x, want 0x2", got)
+	for name, tc := range map[string]struct {
+		avps []diameter.AVP
+		want bool
+	}{
+		"none":                   {nil, false},
+		"optional only":          {[]diameter.AVP{optional}, false},
+		"one mandatory list":     {[]diameter.AVP{optional, mandatory}, true},
+		"other vendor mandatory": {[]diameter.AVP{optional, otherVendor}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := FeaturesMandatory(tc.avps, VendorID); got != tc.want {
+				t.Fatalf("FeaturesMandatory = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestFeatureAVPs(t *testing.T) {
-	for _, tc := range []struct {
-		features, required uint32
-		avps               int
+func TestUnsupportedRequiredFeatures(t *testing.T) {
+	supported := []SupportedFeatures{{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x3}}
+	required := func(vendorID, listID, list uint32) diameter.AVP {
+		return SupportedFeatures{VendorID: vendorID, FeatureListID: listID, FeatureList: list, Mandatory: true}.AVP()
+	}
+
+	for name, tc := range map[string]struct {
+		avps []diameter.AVP
+		want bool
 	}{
-		{0, 0, 0},
-		{0x5, 0, 1},
-		{0x5, 0x5, 1},
-		{0x5, 0x1, 2},
+		"none":                      {nil, false},
+		"supported required":        {[]diameter.AVP{required(VendorID, 1, 0x1)}, false},
+		"unsupported bit":           {[]diameter.AVP{required(VendorID, 1, 0x4)}, true},
+		"unknown list":              {[]diameter.AVP{required(VendorID, 2, 0x1)}, true},
+		"other vendor":              {[]diameter.AVP{required(9999, 1, 0x1)}, true},
+		"advertised only":           {[]diameter.AVP{SupportedFeatures{VendorID: VendorID, FeatureListID: 2, FeatureList: 0x1}.AVP()}, false},
+		"malformed mandatory":       {[]diameter.AVP{diameter.Grouped(AVPSupportedFeatures, diameter.AVPFlagMandatory, VendorID)}, true},
+		"malformed advertised only": {[]diameter.AVP{diameter.Grouped(AVPSupportedFeatures, 0, VendorID)}, false},
 	} {
-		avps := FeatureAVPs(VendorID, 1, tc.features, tc.required)
-		if len(avps) != tc.avps {
-			t.Errorf("FeatureAVPs(%#x, %#x) = %d AVPs, want %d", tc.features, tc.required, len(avps), tc.avps)
-		}
-
-		if got := FeatureList(avps, VendorID, 1); got != tc.features {
-			t.Errorf("FeatureAVPs(%#x, %#x) advertise %#x", tc.features, tc.required, got)
-		}
-
-		if got := RequiredFeatureList(avps, VendorID, 1); got != tc.required {
-			t.Errorf("FeatureAVPs(%#x, %#x) require %#x", tc.features, tc.required, got)
-		}
+		t.Run(name, func(t *testing.T) {
+			if got := UnsupportedRequiredFeatures(tc.avps, supported...); got != tc.want {
+				t.Fatalf("UnsupportedRequiredFeatures = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

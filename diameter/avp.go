@@ -110,6 +110,10 @@ func Unsigned32(code uint32, flags uint8, vendorID uint32, v uint32) AVP {
 	return newAVP(code, flags, vendorID, binary.BigEndian.AppendUint32(nil, v))
 }
 
+func Unsigned64(code uint32, flags uint8, vendorID uint32, v uint64) AVP {
+	return newAVP(code, flags, vendorID, binary.BigEndian.AppendUint64(nil, v))
+}
+
 func OctetString(code uint32, flags uint8, vendorID uint32, v []byte) AVP {
 	return newAVP(code, flags, vendorID, append([]byte(nil), v...))
 }
@@ -166,6 +170,14 @@ func (a AVP) Unsigned32() (uint32, error) {
 	}
 
 	return binary.BigEndian.Uint32(a.Data), nil
+}
+
+func (a AVP) Unsigned64() (uint64, error) {
+	if len(a.Data) != 8 {
+		return 0, fmt.Errorf("diameter: AVP %d: Unsigned64 of %d octets", a.Code, len(a.Data))
+	}
+
+	return binary.BigEndian.Uint64(a.Data), nil
 }
 
 func (a AVP) UTF8String() string {

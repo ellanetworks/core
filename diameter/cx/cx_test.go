@@ -311,11 +311,10 @@ func TestFeaturesAdvertised(t *testing.T) {
 	}
 }
 
-func TestRequiredFeatures(t *testing.T) {
+func TestFeaturesRequired(t *testing.T) {
 	for name, r := range map[string]UserAuthorizationRequest{
-		"all required":  {Features: FeatureIMSRestoration | FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration | FeatureAliasIndication},
-		"some required": {Features: FeatureIMSRestoration | FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration},
-		"none required": {Features: FeatureAliasIndication},
+		"required":     {Features: FeatureIMSRestoration | FeatureAliasIndication, FeaturesRequired: true},
+		"not required": {Features: FeatureAliasIndication},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r.PrivateIdentity, r.PublicIdentity, r.VisitedNetwork = testPrivate, testPublic, testRealm
@@ -325,37 +324,30 @@ func TestRequiredFeatures(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			for _, sf := range req.AVPs {
-				if sf.Code != tgpp.AVPSupportedFeatures {
-					continue
-				}
-
-				f, err := tgpp.ParseSupportedFeatures(sf)
-				if err != nil || f.Mandatory != (Features(f.FeatureList)&^r.RequiredFeatures == 0) {
-					t.Fatalf("Supported-Features %+v, %v", f, err)
-				}
+			sf := diameter.FindAll(req.AVPs, tgpp.AVPSupportedFeatures, tgpp.VendorID)
+			if len(sf) != 1 || (sf[0].Flags&diameter.AVPFlagMandatory != 0) != r.FeaturesRequired {
+				t.Fatalf("Supported-Features = %+v", sf)
 			}
 
 			got, err := ParseUserAuthorizationRequest(roundTrip(t, req))
-			if err != nil || got.Features != r.Features || got.RequiredFeatures != r.RequiredFeatures {
-				t.Fatalf("features = %s, required %s, %v", got.Features, got.RequiredFeatures, err)
+			if err != nil || got.Features != r.Features || got.FeaturesRequired != r.FeaturesRequired {
+				t.Fatalf("features = %s, required %v, %v", got.Features, got.FeaturesRequired, err)
 			}
 		})
 	}
 
 	_, err := NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
-		PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
-		Features: FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration,
+		PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm, FeaturesRequired: true,
 	})
 	if !errors.Is(err, ErrInvalidMessage) {
-		t.Fatalf("required but not advertised = %v", err)
+		t.Fatalf("required without features = %v", err)
 	}
 }
 
 func TestAnswerFeaturesAreNeverMandatory(t *testing.T) {
 	req := mustMessage(t)(NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
 		PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
-		Features: FeatureIMSRestoration, RequiredFeatures: FeatureIMSRestoration,
+		Features: FeatureIMSRestoration, FeaturesRequired: true,
 	}))
 
 	ans := NewAnswer(req, hssIdentity, tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported), FeatureAliasIndication)
@@ -368,7 +360,7 @@ func TestAnswerFeaturesAreNeverMandatory(t *testing.T) {
 
 func TestErrorAnswer(t *testing.T) {
 	req := request(CommandServerAssignment)
-	ans := NewErrorAnswer(req, hssIdentity, tgpp.MissingAVP(AVPServerName, tgpp.VendorID), 0)
+	ans := NewErrorAnswer(req, hssIdentity, tgpp.MissingAVP(AVPServerName, tgpp.VendorID, 0), 0)
 
 	requireVendorSpecificApplicationID(t, ans)
 
@@ -381,6 +373,15 @@ func TestErrorAnswer(t *testing.T) {
 	_, err := ParseServerAssignmentAnswer(ans)
 	if !errors.As(err, &re) || re.Code != diameter.ResultMissingAVP || re.Error() != "cx: request failed with result 5005 DIAMETER_MISSING_AVP" {
 		t.Fatalf("err = %v", err)
+	}
+
+	informational := NewAnswer(req, hssIdentity, tgpp.Result{Code: 1001}, 0)
+	if _, err := ParseServerAssignmentAnswer(informational); !errors.Is(err, ErrMalformedAnswer) {
+		t.Fatalf("informational answer = %v", err)
+	}
+
+	if _, err := NewServerAssignmentErrorAnswer(req, hssIdentity, ServerAssignmentError{}); !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("zero error answer = %v", err)
 	}
 
 	if _, err := ParseServerAssignmentAnswer(&diameter.Message{}); !errors.Is(err, ErrMalformedAnswer) {
@@ -417,5 +418,36 @@ func TestCxResultNames(t *testing.T) {
 		if got := r.String(); got != want {
 			t.Errorf("String() = %q, want %q", got, want)
 		}
+	}
+}
+
+func TestRequiresUnsupportedFeatures(t *testing.T) {
+	uar := func(features Features, required bool, extra ...diameter.AVP) *diameter.Message {
+		req := mustMessage(t)(NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
+			PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
+			Features: features, FeaturesRequired: required,
+		}))
+
+		return with(req, extra...)
+	}
+
+	for name, tc := range map[string]struct {
+		req  *diameter.Message
+		want bool
+	}{
+		"no features":            {uar(0, false), false},
+		"supported required":     {uar(FeatureAliasIndication, true), false},
+		"unsupported advertised": {uar(FeatureSharedIFCSets, false), false},
+		"unsupported required":   {uar(FeatureSharedIFCSets, true), true},
+		"unknown list required": {
+			uar(0, false, tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: 2, FeatureList: 1, Mandatory: true}.AVP()),
+			true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := RequiresUnsupportedFeatures(tc.req, FeatureAliasIndication|FeatureIMSRestoration); got != tc.want {
+				t.Fatalf("RequiresUnsupportedFeatures = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

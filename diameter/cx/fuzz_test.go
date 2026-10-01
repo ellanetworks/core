@@ -79,7 +79,7 @@ func FuzzParseRequests(f *testing.F) {
 		must(NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
 			PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
 			AuthorizationType: AuthorizationRegistrationAndCapabilities, EmergencyRegistration: true,
-			Features: FeatureIMSRestoration | FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration,
+			Features: FeatureIMSRestoration | FeatureAliasIndication, FeaturesRequired: true,
 		})),
 		must(NewLocationInfoRequest(cscfEnvelope, LocationInfoRequest{PublicIdentity: testTel, Originating: true})),
 		must(NewMultimediaAuthRequest(cscfEnvelope, MultimediaAuthRequest{
