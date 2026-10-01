@@ -11,8 +11,8 @@ import (
 type LocationInfoRequest struct {
 	PublicIdentity    string
 	Originating       bool
-	AuthorizationType uint32
-	Features          uint32
+	AuthorizationType AuthorizationType
+	Features          Features
 }
 
 type LocationInfo struct {
@@ -21,7 +21,7 @@ type LocationInfo struct {
 	Capabilities             *ServerCapabilities
 	WildcardedPublicIdentity string
 	PSIDirectRouting         bool
-	Features                 uint32
+	Features                 Features
 }
 
 var lirRules = commonRequestRules.With(diameter.Rules{
@@ -50,7 +50,7 @@ func NewLocationInfoRequest(env tgpp.Envelope, r LocationInfoRequest) (*diameter
 	avps = append(avps, public)
 
 	if r.AuthorizationType != AuthorizationRegistration {
-		avps = append(avps, vendorUnsigned(AVPUserAuthorizationType, r.AuthorizationType))
+		avps = append(avps, vendorUnsigned(AVPUserAuthorizationType, uint32(r.AuthorizationType)))
 	}
 
 	return newRequest(env, CommandLocationInfo, r.Features, avps...), nil
@@ -75,12 +75,12 @@ func ParseLocationInfoRequest(req *diameter.Message) (LocationInfoRequest, error
 		return LocationInfoRequest{}, err
 	}
 
-	authType, _, err := optionalUnsigned(req, AVPUserAuthorizationType, AuthorizationRegistrationAndCapabilities)
+	authType, _, err := optionalUnsigned(req, AVPUserAuthorizationType, uint32(AuthorizationRegistrationAndCapabilities))
 	if err != nil {
 		return LocationInfoRequest{}, err
 	}
 
-	if authType == AuthorizationDeregistration {
+	if AuthorizationType(authType) == AuthorizationDeregistration {
 		a, _ := req.Find(AVPUserAuthorizationType, tgpp.VendorID)
 		return LocationInfoRequest{}, tgpp.InvalidAVP(a)
 	}
@@ -88,13 +88,14 @@ func ParseLocationInfoRequest(req *diameter.Message) (LocationInfoRequest, error
 	return LocationInfoRequest{
 		PublicIdentity:    public,
 		Originating:       isOriginating,
-		AuthorizationType: authType,
-		Features:          features(req),
+		AuthorizationType: AuthorizationType(authType),
+		Features:          featureList(req),
 	}, nil
 }
 
 func NewLocationInfoAnswer(req *diameter.Message, id diameter.Identity, l LocationInfo) (*diameter.Message, error) {
-	if err := successResult(l.Result); err != nil {
+	result, err := successResult(l.Result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -104,14 +105,19 @@ func NewLocationInfoAnswer(req *diameter.Message, id diameter.Identity, l Locati
 	}
 
 	if l.WildcardedPublicIdentity != "" {
-		avps = append(avps, diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, l.WildcardedPublicIdentity))
+		w, err := wildcardedIdentityAVP(l.WildcardedPublicIdentity)
+		if err != nil {
+			return nil, err
+		}
+
+		avps = append(avps, w)
 	}
 
 	if l.PSIDirectRouting {
-		avps = append(avps, diameter.Unsigned32(AVPLIAFlags, 0, tgpp.VendorID, LIAFlagPSIDirectRouting))
+		avps = append(avps, diameter.Unsigned32(AVPLIAFlags, 0, tgpp.VendorID, liaFlagPSIDirectRouting))
 	}
 
-	ans := NewAnswer(req, id, l.Result, l.Features)
+	ans := NewAnswer(req, id, result, l.Features)
 	ans.AVPs = append(ans.AVPs, avps...)
 
 	return ans, nil
@@ -133,12 +139,17 @@ func ParseLocationInfoAnswer(ans *diameter.Message) (LocationInfo, error) {
 		return LocationInfo{}, err
 	}
 
+	wildcarded, err := answerWildcardedIdentity(ans)
+	if err != nil {
+		return LocationInfo{}, err
+	}
+
 	return LocationInfo{
 		Result:                   result,
 		ServerName:               name,
 		Capabilities:             capabilities,
-		WildcardedPublicIdentity: answerString(ans, AVPWildcardedPublicIdentity, tgpp.VendorID),
-		PSIDirectRouting:         liaFlags&LIAFlagPSIDirectRouting != 0,
-		Features:                 features(ans),
+		WildcardedPublicIdentity: wildcarded,
+		PSIDirectRouting:         liaFlags&liaFlagPSIDirectRouting != 0,
+		Features:                 featureList(ans),
 	}, nil
 }

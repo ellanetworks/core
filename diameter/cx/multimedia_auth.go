@@ -4,6 +4,8 @@
 package cx
 
 import (
+	"bytes"
+
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
@@ -27,9 +29,9 @@ type MultimediaAuthRequest struct {
 	PublicIdentity  string
 	ServerName      string
 	NumberOfItems   uint32
-	Scheme          string
+	Scheme          AuthenticationScheme
 	Resync          *Resync
-	Features        uint32
+	Features        Features
 }
 
 type AKAVector struct {
@@ -42,7 +44,7 @@ type AKAVector struct {
 
 type AuthItem struct {
 	ItemNumber uint32
-	Scheme     string
+	Scheme     AuthenticationScheme
 	AKA        *AKAVector
 }
 
@@ -51,7 +53,7 @@ type MultimediaAuth struct {
 	PrivateIdentity string
 	PublicIdentity  string
 	Items           []AuthItem
-	Features        uint32
+	Features        Features
 }
 
 var marRules = commonRequestRules.With(diameter.Rules{
@@ -66,8 +68,6 @@ func NewMultimediaAuthRequest(env tgpp.Envelope, r MultimediaAuthRequest) (*diam
 	switch {
 	case r.PrivateIdentity == "":
 		return nil, invalid("authentication request without a private identity")
-	case r.NumberOfItems == 0:
-		return nil, invalid("authentication request for no vectors")
 	case r.Scheme == "":
 		return nil, invalid("authentication request without a scheme")
 	}
@@ -82,9 +82,17 @@ func NewMultimediaAuthRequest(env tgpp.Envelope, r MultimediaAuthRequest) (*diam
 		return nil, err
 	}
 
-	item := []diameter.AVP{vendorString(AVPSIPAuthenticationScheme, r.Scheme)}
+	if r.NumberOfItems == 0 {
+		r.NumberOfItems = 1
+	}
+
+	item := []diameter.AVP{vendorString(AVPSIPAuthenticationScheme, string(r.Scheme))}
 
 	if r.Resync != nil {
+		if !r.Scheme.IsAKA() {
+			return nil, invalid("resynchronisation with the non-AKA scheme %q", r.Scheme)
+		}
+
 		if len(r.Resync.RAND) != randLen || len(r.Resync.AUTS) != autsLen {
 			return nil, invalid("resynchronisation with a %d-octet RAND and a %d-octet AUTS", len(r.Resync.RAND), len(r.Resync.AUTS))
 		}
@@ -136,8 +144,12 @@ func ParseMultimediaAuthRequest(req *diameter.Message) (MultimediaAuthRequest, e
 	}
 
 	scheme, ok := diameter.Find(item, AVPSIPAuthenticationScheme, tgpp.VendorID)
-	if !ok || scheme.UTF8String() == "" {
-		return MultimediaAuthRequest{}, tgpp.InvalidAVP(itemAVP)
+	if !ok {
+		return MultimediaAuthRequest{}, tgpp.MissingAVP(AVPSIPAuthenticationScheme, tgpp.VendorID)
+	}
+
+	if scheme.UTF8String() == "" {
+		return MultimediaAuthRequest{}, tgpp.InvalidAVP(scheme)
 	}
 
 	user, _ := req.Find(diameter.AVPUserName, 0)
@@ -147,24 +159,41 @@ func ParseMultimediaAuthRequest(req *diameter.Message) (MultimediaAuthRequest, e
 		PublicIdentity:  public,
 		ServerName:      server,
 		NumberOfItems:   n,
-		Scheme:          scheme.UTF8String(),
-		Features:        features(req),
+		Scheme:          AuthenticationScheme(scheme.UTF8String()),
+		Features:        featureList(req),
 	}
 
 	if a, ok := diameter.Find(item, AVPSIPAuthorization, tgpp.VendorID); ok {
-		if len(a.Data) != randLen+autsLen {
-			return MultimediaAuthRequest{}, tgpp.InvalidAVP(itemAVP)
+		if !r.Scheme.IsAKA() || len(a.Data) != randLen+autsLen {
+			return MultimediaAuthRequest{}, tgpp.InvalidAVP(a)
 		}
 
-		r.Resync = &Resync{RAND: a.Data[:randLen], AUTS: a.Data[randLen:]}
+		r.Resync = &Resync{RAND: bytes.Clone(a.Data[:randLen]), AUTS: bytes.Clone(a.Data[randLen:])}
 	}
 
 	return r, nil
 }
 
 func NewMultimediaAuthAnswer(req *diameter.Message, id diameter.Identity, a MultimediaAuth) (*diameter.Message, error) {
-	if err := successResult(a.Result); err != nil {
+	result, err := successResult(a.Result)
+	if err != nil {
 		return nil, err
+	}
+
+	if result.Experimental {
+		return nil, invalid("authentication answer with the experimental %s", result)
+	}
+
+	if requested, err := answerUnsigned(req, AVPSIPNumberAuthItems, "SIP-Number-Auth-Items"); err == nil && requested != 0 && len(a.Items) > int(requested) {
+		return nil, invalid("%d vectors for %d requested", len(a.Items), requested)
+	}
+
+	if a.PrivateIdentity == "" {
+		a.PrivateIdentity = answerString(req, diameter.AVPUserName, 0)
+	}
+
+	if a.PublicIdentity == "" {
+		a.PublicIdentity = answerString(req, AVPPublicIdentity, tgpp.VendorID)
 	}
 
 	switch {
@@ -179,7 +208,7 @@ func NewMultimediaAuthAnswer(req *diameter.Message, id diameter.Identity, a Mult
 		return nil, err
 	}
 
-	ans := NewAnswer(req, id, a.Result, a.Features)
+	ans := NewAnswer(req, id, result, a.Features)
 	ans.AVPs = append(ans.AVPs,
 		userName(a.PrivateIdentity),
 		public,
@@ -199,8 +228,11 @@ func NewMultimediaAuthAnswer(req *diameter.Message, id diameter.Identity, a Mult
 }
 
 func authItemAVP(item AuthItem) (diameter.AVP, error) {
-	if item.Scheme == "" {
-		return diameter.AVP{}, invalid("authentication vector without a scheme")
+	switch {
+	case !item.Scheme.IsAKA():
+		return diameter.AVP{}, invalid("authentication vector for the unsupported scheme %q", item.Scheme)
+	case item.AKA == nil:
+		return diameter.AVP{}, invalid("%s vector without AKA material", item.Scheme)
 	}
 
 	var inner []diameter.AVP
@@ -209,25 +241,25 @@ func authItemAVP(item AuthItem) (diameter.AVP, error) {
 		inner = append(inner, vendorUnsigned(AVPSIPItemNumber, item.ItemNumber))
 	}
 
-	inner = append(inner, vendorString(AVPSIPAuthenticationScheme, item.Scheme))
+	inner = append(inner, vendorString(AVPSIPAuthenticationScheme, string(item.Scheme)))
 
-	if v := item.AKA; v != nil {
-		switch {
-		case len(v.RAND) != randLen || len(v.AUTN) != autnLen:
-			return diameter.AVP{}, invalid("AKA vector with a %d-octet RAND and a %d-octet AUTN", len(v.RAND), len(v.AUTN))
-		case len(v.XRES) < minXRESLen || len(v.XRES) > maxXRESLen:
-			return diameter.AVP{}, invalid("AKA vector with a %d-octet XRES", len(v.XRES))
-		case len(v.CK) != keyLen || len(v.IK) != keyLen:
-			return diameter.AVP{}, invalid("AKA vector with a %d-octet CK and a %d-octet IK", len(v.CK), len(v.IK))
-		}
+	v := item.AKA
 
-		inner = append(inner,
-			diameter.OctetString(AVPSIPAuthenticate, diameter.AVPFlagMandatory, tgpp.VendorID, append(append([]byte(nil), v.RAND...), v.AUTN...)),
-			diameter.OctetString(AVPSIPAuthorization, diameter.AVPFlagMandatory, tgpp.VendorID, v.XRES),
-			diameter.OctetString(AVPConfidentialityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.CK),
-			diameter.OctetString(AVPIntegrityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.IK),
-		)
+	switch {
+	case len(v.RAND) != randLen || len(v.AUTN) != autnLen:
+		return diameter.AVP{}, invalid("AKA vector with a %d-octet RAND and a %d-octet AUTN", len(v.RAND), len(v.AUTN))
+	case len(v.XRES) < minXRESLen || len(v.XRES) > maxXRESLen:
+		return diameter.AVP{}, invalid("AKA vector with a %d-octet XRES", len(v.XRES))
+	case len(v.CK) != keyLen || len(v.IK) != keyLen:
+		return diameter.AVP{}, invalid("AKA vector with a %d-octet CK and a %d-octet IK", len(v.CK), len(v.IK))
 	}
+
+	inner = append(inner,
+		diameter.OctetString(AVPSIPAuthenticate, diameter.AVPFlagMandatory, tgpp.VendorID, append(append([]byte(nil), v.RAND...), v.AUTN...)),
+		diameter.OctetString(AVPSIPAuthorization, diameter.AVPFlagMandatory, tgpp.VendorID, v.XRES),
+		diameter.OctetString(AVPConfidentialityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.CK),
+		diameter.OctetString(AVPIntegrityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.IK),
+	)
 
 	return diameter.Grouped(AVPSIPAuthDataItem, diameter.AVPFlagMandatory, tgpp.VendorID, inner...), nil
 }
@@ -238,11 +270,22 @@ func ParseMultimediaAuthAnswer(ans *diameter.Message) (MultimediaAuth, error) {
 		return MultimediaAuth{}, err
 	}
 
+	if result.Experimental {
+		return MultimediaAuth{}, malformed("authentication answer with the experimental %s", result)
+	}
+
 	a := MultimediaAuth{
 		Result:          result,
 		PrivateIdentity: answerString(ans, diameter.AVPUserName, 0),
 		PublicIdentity:  answerString(ans, AVPPublicIdentity, tgpp.VendorID),
-		Features:        features(ans),
+		Features:        featureList(ans),
+	}
+
+	switch {
+	case a.PrivateIdentity == "":
+		return MultimediaAuth{}, malformed("no User-Name")
+	case !ValidPublicIdentity(a.PublicIdentity):
+		return MultimediaAuth{}, malformed("Public-Identity %q", a.PublicIdentity)
 	}
 
 	for _, avp := range ans.AVPs {
@@ -268,7 +311,7 @@ func ParseMultimediaAuthAnswer(ans *diameter.Message) (MultimediaAuth, error) {
 func parseAuthItem(avp diameter.AVP) (AuthItem, error) {
 	inner, err := avp.Grouped()
 	if err != nil {
-		return AuthItem{}, malformed("SIP-Auth-Data-Item: %v", err)
+		return AuthItem{}, malformed("SIP-Auth-Data-Item: %w", err)
 	}
 
 	var item AuthItem
@@ -280,15 +323,15 @@ func parseAuthItem(avp diameter.AVP) (AuthItem, error) {
 	}
 
 	scheme, _ := diameter.Find(inner, AVPSIPAuthenticationScheme, tgpp.VendorID)
-	if item.Scheme = scheme.UTF8String(); item.Scheme == "" {
+	if item.Scheme = AuthenticationScheme(scheme.UTF8String()); item.Scheme == "" {
 		return AuthItem{}, malformed("SIP-Auth-Data-Item without a scheme")
 	}
 
-	authenticate, ok := diameter.Find(inner, AVPSIPAuthenticate, tgpp.VendorID)
-	if !ok {
+	if !item.Scheme.IsAKA() {
 		return item, nil
 	}
 
+	authenticate, _ := diameter.Find(inner, AVPSIPAuthenticate, tgpp.VendorID)
 	xres, _ := diameter.Find(inner, AVPSIPAuthorization, tgpp.VendorID)
 	ck, _ := diameter.Find(inner, AVPConfidentialityKey, tgpp.VendorID)
 	ik, _ := diameter.Find(inner, AVPIntegrityKey, tgpp.VendorID)
@@ -303,11 +346,11 @@ func parseAuthItem(avp diameter.AVP) (AuthItem, error) {
 	}
 
 	item.AKA = &AKAVector{
-		RAND: authenticate.Data[:randLen],
-		AUTN: authenticate.Data[randLen:],
-		XRES: xres.Data,
-		CK:   ck.Data,
-		IK:   ik.Data,
+		RAND: bytes.Clone(authenticate.Data[:randLen]),
+		AUTN: bytes.Clone(authenticate.Data[randLen:]),
+		XRES: bytes.Clone(xres.Data),
+		CK:   bytes.Clone(ck.Data),
+		IK:   bytes.Clone(ik.Data),
 	}
 
 	return item, nil

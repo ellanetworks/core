@@ -63,6 +63,18 @@ func mustMessage(t testing.TB) func(*diameter.Message, error) *diameter.Message 
 	}
 }
 
+func mustAVP(t testing.TB) func(diameter.AVP, error) diameter.AVP {
+	return func(a diameter.AVP, err error) diameter.AVP {
+		t.Helper()
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return a
+	}
+}
+
 func avpResult(t *testing.T, err error) uint32 {
 	t.Helper()
 
@@ -128,19 +140,122 @@ func requireVendorSpecificApplicationID(t *testing.T, m *diameter.Message) {
 	}
 }
 
+var mandatoryBit = map[uint32]bool{
+	AVPVisitedNetworkIdentifier: true, AVPPublicIdentity: true, AVPServerName: true, AVPServerCapabilities: true,
+	AVPMandatoryCapability: true, AVPOptionalCapability: true, AVPUserData: true, AVPSIPNumberAuthItems: true,
+	AVPSIPAuthenticationScheme: true, AVPSIPAuthenticate: true, AVPSIPAuthorization: true, AVPSIPAuthDataItem: true,
+	AVPSIPItemNumber: true, AVPServerAssignmentType: true, AVPDeregistrationReason: true, AVPReasonCode: true,
+	AVPReasonInfo: true, AVPChargingInformation: true, AVPPrimaryEventChargingFunctionName: true,
+	AVPSecondaryEventChargingFunctionName: true, AVPPrimaryChargingCollectionFunctionName: true,
+	AVPSecondaryChargingCollectionFunctionName: true, AVPUserAuthorizationType: true, AVPUserDataAlreadyAvailable: true,
+	AVPConfidentialityKey: true, AVPIntegrityKey: true, AVPOriginatingRequest: true,
+	tgpp.AVPSupportedFeatures: false, tgpp.AVPFeatureListID: false, tgpp.AVPFeatureList: false,
+	AVPAssociatedIdentities: false, AVPWildcardedPublicIdentity: false, AVPUARFlags: false, AVPLooseRouteIndication: false,
+	AVPIdentityWithEmergencyRegistration: false, AVPPriviledgedSenderIndication: false, AVPLIAFlags: false, AVPRTRFlags: false,
+	AVPAllowedWAFWWSFIdentities: false, AVPWebRTCAuthenticationFunctionName: false, AVPWebRTCWebServerFunctionName: false,
+}
+
+var groupedCodes = map[uint32]bool{
+	AVPServerCapabilities: true, AVPSIPAuthDataItem: true, AVPDeregistrationReason: true, AVPChargingInformation: true,
+	AVPAssociatedIdentities: true, AVPIdentityWithEmergencyRegistration: true, tgpp.AVPSupportedFeatures: true,
+	AVPAllowedWAFWWSFIdentities: true,
+}
+
+func checkFlags(t *testing.T, avps []diameter.AVP) {
+	t.Helper()
+
+	for _, a := range avps {
+		if a.VendorID != tgpp.VendorID {
+			continue
+		}
+
+		mandatory, known := mandatoryBit[a.Code]
+		if !known {
+			t.Errorf("AVP %d not in the flag table", a.Code)
+		}
+
+		if (a.Flags&diameter.AVPFlagMandatory != 0) != mandatory {
+			t.Errorf("AVP %d M bit = %v, want %v", a.Code, a.Flags&diameter.AVPFlagMandatory != 0, mandatory)
+		}
+
+		if groupedCodes[a.Code] {
+			inner, err := a.Grouped()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			checkFlags(t, inner)
+		}
+	}
+}
+
+func TestAnswersFollowTheFlagTable(t *testing.T) {
+	must := mustMessage(t)
+	req := request(CommandServerAssignment)
+	success := tgpp.Result{Code: diameter.ResultSuccess}
+
+	for name, m := range map[string]*diameter.Message{
+		"UAA": must(NewUserAuthorizationAnswer(req, hssIdentity, UserAuthorization{
+			Result:       tgpp.Experimental(tgpp.ResultFirstRegistration),
+			Capabilities: &ServerCapabilities{Mandatory: []uint32{1}, Optional: []uint32{2}, ServerNames: []string{testServer}},
+			Features:     FeatureAliasIndication,
+		})),
+		"LIA": must(NewLocationInfoAnswer(req, hssIdentity, LocationInfo{
+			Result: success, ServerName: testServer, WildcardedPublicIdentity: testPublic, PSIDirectRouting: true,
+		})),
+		"MAA": must(NewMultimediaAuthAnswer(req, hssIdentity, MultimediaAuth{
+			Result: success, PrivateIdentity: testPrivate, PublicIdentity: testPublic,
+			Items: []AuthItem{{ItemNumber: 1, Scheme: SchemeDigestAKAv1MD5, AKA: akaVector(1)}},
+		})),
+		"SAA": must(NewServerAssignmentAnswer(req, hssIdentity, ServerAssignment{
+			Result: success, PrivateIdentity: testPrivate, UserData: []byte("<IMSSubscription/>"), AssociatedIdentities: []string{testPrivate},
+			Charging: &ChargingInformation{
+				PrimaryEventChargingFunction: "aaa://a", SecondaryEventChargingFunction: "aaa://b",
+				PrimaryChargingCollectionFunction: "aaa://c", SecondaryChargingCollectionFunction: "aaa://d",
+			},
+			LooseRouteRequired: true, ServerName: testServer, WildcardedPublicIdentity: testPublic, PrivilegedSender: true,
+			AllowedWebRTC: &AllowedWebRTCFunctions{AuthenticationFunctions: []string{"waf.example.org"}, WebServerFunctions: []string{"wwsf.example.org"}},
+		})),
+		"PPA": must(NewPushProfileAnswer(req, cscfIdentity, PushProfile{Features: FeatureAliasIndication})),
+		"RTA": must(NewRegistrationTerminationErrorAnswer(req, cscfIdentity, RegistrationTerminationError{
+			ResultError: ResultError{Result: tgpp.Result{Code: diameter.ResultUnableToComply}}, AssociatedIdentities: []string{testPrivate},
+			EmergencyIdentities: []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: testPublic}},
+		})),
+	} {
+		t.Run(name, func(t *testing.T) {
+			checkFlags(t, m.AVPs)
+		})
+	}
+}
+
 func TestRequestsCarryTheCxHeader(t *testing.T) {
 	must := mustMessage(t)
 
 	for name, m := range map[string]*diameter.Message{
-		"UAR": must(NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm})),
-		"LIR": must(NewLocationInfoRequest(cscfEnvelope, LocationInfoRequest{PublicIdentity: testTel})),
+		"UAR": must(NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
+			PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
+			AuthorizationType: AuthorizationDeregistration, EmergencyRegistration: true,
+		})),
+		"LIR": must(NewLocationInfoRequest(cscfEnvelope, LocationInfoRequest{
+			PublicIdentity: testTel, Originating: true, AuthorizationType: AuthorizationRegistrationAndCapabilities,
+		})),
 		"MAR": must(NewMultimediaAuthRequest(cscfEnvelope, MultimediaAuthRequest{
 			PrivateIdentity: testPrivate, PublicIdentity: testPublic, ServerName: testServer, NumberOfItems: 1, Scheme: SchemeDigestAKAv1MD5,
+			Resync: &Resync{RAND: octets(16, 1), AUTS: octets(14, 2)},
 		})),
 		"SAR": must(NewServerAssignmentRequest(cscfEnvelope, ServerAssignmentRequest{
-			PrivateIdentity: testPrivate, PublicIdentities: []string{testPublic}, ServerName: testServer, Type: AssignmentRegistration,
+			PrivateIdentity: testPrivate, PublicIdentities: []string{testPublic}, WildcardedPublicIdentity: testPublic,
+			ServerName: testServer, Type: AssignmentRegistration,
 		})),
-		"RTR": must(NewRegistrationTerminationRequest(hssEnvelope, RegistrationTerminationRequest{PrivateIdentity: testPrivate})),
+		"RTR": must(NewRegistrationTerminationRequest(hssEnvelope, RegistrationTerminationRequest{
+			PrivateIdentity: testPrivate, AssociatedIdentities: []string{testPrivate}, PublicIdentities: []string{testPublic},
+			Reason: DeregistrationReason{Code: ReasonNewServerAssigned, Info: "moved"}, ReferenceLocationChanged: true,
+		})),
+		"PPR": must(NewPushProfileRequest(hssEnvelope, PushProfileRequest{
+			PrivateIdentity: testPrivate, UserData: []byte("<IMSSubscription/>"),
+			Charging:      &ChargingInformation{PrimaryChargingCollectionFunction: "aaa://cdf.example.org"},
+			AllowedWebRTC: &AllowedWebRTCFunctions{AuthenticationFunctions: []string{"waf"}, WebServerFunctions: []string{"wwsf"}},
+		})),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if m.ApplicationID != ApplicationID || m.Flags != diameter.FlagRequest|diameter.FlagProxiable || m.AVPs[0].Code != diameter.AVPSessionID {
@@ -158,11 +273,7 @@ func TestRequestsCarryTheCxHeader(t *testing.T) {
 				t.Fatal("Supported-Features without features")
 			}
 
-			for _, a := range m.AVPs {
-				if a.VendorID == tgpp.VendorID && a.Code < 627 && a.Flags&diameter.AVPFlagMandatory == 0 {
-					t.Errorf("AVP %d without the M bit", a.Code)
-				}
-			}
+			checkFlags(t, m.AVPs)
 		})
 	}
 }
@@ -188,12 +299,15 @@ func TestFeaturesAdvertised(t *testing.T) {
 	ans := NewAnswer(req, hssIdentity, tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported), FeatureAliasIndication)
 	requireVendorSpecificApplicationID(t, ans)
 
-	if features(ans) != FeatureAliasIndication {
+	if featureList(ans) != FeatureAliasIndication {
 		t.Fatal("error answer without the HSS features")
 	}
 
-	if !tgpp.IsExperimental(func() error { _, err := ParseUserAuthorizationAnswer(ans); return err }(), tgpp.ResultErrorFeatureUnsupported) {
-		t.Fatal("feature error not surfaced")
+	_, err = ParseUserAuthorizationAnswer(ans)
+
+	var re *ResultError
+	if !errors.As(err, &re) || !re.IsExperimental(tgpp.ResultErrorFeatureUnsupported) || re.Features != FeatureAliasIndication {
+		t.Fatalf("feature error = %#v", err)
 	}
 }
 

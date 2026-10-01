@@ -4,12 +4,15 @@
 package cx
 
 import (
+	"cmp"
+	"errors"
+
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
 type DeregistrationReason struct {
-	Code uint32
+	Code ReasonCode
 	Info string
 }
 
@@ -19,19 +22,19 @@ type RegistrationTerminationRequest struct {
 	PublicIdentities         []string
 	Reason                   DeregistrationReason
 	ReferenceLocationChanged bool
-	Features                 uint32
+	Features                 Features
 }
 
-type EmergencyRegistration struct {
+type EmergencyIdentity struct {
 	PrivateIdentity string
 	PublicIdentity  string
 }
 
 type RegistrationTermination struct {
-	Result                 tgpp.Result
-	AssociatedIdentities   []string
-	EmergencyRegistrations []EmergencyRegistration
-	Features               uint32
+	Result               tgpp.Result
+	AssociatedIdentities []string
+	EmergencyIdentities  []EmergencyIdentity
+	Features             Features
 }
 
 var rtrRules = commonRequestRules.With(diameter.Rules{
@@ -74,7 +77,7 @@ func NewRegistrationTerminationRequest(env tgpp.Envelope, r RegistrationTerminat
 		avps = append(avps, a)
 	}
 
-	reason := []diameter.AVP{vendorUnsigned(AVPReasonCode, r.Reason.Code)}
+	reason := []diameter.AVP{vendorUnsigned(AVPReasonCode, uint32(r.Reason.Code))}
 	if r.Reason.Info != "" {
 		reason = append(reason, vendorString(AVPReasonInfo, r.Reason.Info))
 	}
@@ -82,7 +85,7 @@ func NewRegistrationTerminationRequest(env tgpp.Envelope, r RegistrationTerminat
 	avps = append(avps, diameter.Grouped(AVPDeregistrationReason, diameter.AVPFlagMandatory, tgpp.VendorID, reason...))
 
 	if r.ReferenceLocationChanged {
-		avps = append(avps, diameter.Unsigned32(AVPRTRFlags, 0, tgpp.VendorID, RTRFlagReferenceLocationChanged))
+		avps = append(avps, diameter.Unsigned32(AVPRTRFlags, 0, tgpp.VendorID, rtrFlagReferenceLocationChanged))
 	}
 
 	return newRequest(env, CommandRegistrationTermination, r.Features, avps...), nil
@@ -99,7 +102,7 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
-	r := RegistrationTerminationRequest{PrivateIdentity: user.UTF8String(), Features: features(req)}
+	r := RegistrationTerminationRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req)}
 
 	if a, ok := req.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
 		ids, err := parseIdentityList(a)
@@ -130,9 +133,12 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 		return RegistrationTerminationRequest{}, tgpp.MissingAVP(AVPReasonCode, tgpp.VendorID)
 	}
 
-	if r.Reason.Code, err = code.Unsigned32(); err != nil || r.Reason.Code > ReasonRemoveSCSCF {
-		return RegistrationTerminationRequest{}, tgpp.InvalidAVP(reasonAVP)
+	reasonCode, err := code.Unsigned32()
+	if err != nil || ReasonCode(reasonCode) > ReasonRemoveSCSCF {
+		return RegistrationTerminationRequest{}, tgpp.InvalidAVP(code)
 	}
+
+	r.Reason.Code = ReasonCode(reasonCode)
 
 	if info, ok := diameter.Find(reason, AVPReasonInfo, tgpp.VendorID); ok {
 		r.Reason.Info = info.UTF8String()
@@ -142,42 +148,53 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 		return RegistrationTerminationRequest{}, tgpp.MissingAVP(AVPPublicIdentity, tgpp.VendorID)
 	}
 
-	rtrFlags, err := flags(req, AVPRTRFlags)
+	rtrFlags, err := optionalFlags(req, AVPRTRFlags)
 	if err != nil {
 		return RegistrationTerminationRequest{}, err
 	}
 
-	r.ReferenceLocationChanged = rtrFlags&RTRFlagReferenceLocationChanged != 0
+	r.ReferenceLocationChanged = rtrFlags&rtrFlagReferenceLocationChanged != 0
 
 	return r, nil
 }
 
 func NewRegistrationTerminationAnswer(req *diameter.Message, id diameter.Identity, a RegistrationTermination) (*diameter.Message, error) {
-	if err := successResult(a.Result); err != nil {
+	result, err := successResult(a.Result)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := validIdentityList(a.AssociatedIdentities); err != nil {
+	return registrationTerminationAnswer(req, id, result, a.Features, a.AssociatedIdentities, a.EmergencyIdentities)
+}
+
+func NewRegistrationTerminationErrorAnswer(req *diameter.Message, id diameter.Identity, e RegistrationTerminationError) (*diameter.Message, error) {
+	if err := errorResult(e.Result); err != nil {
 		return nil, err
 	}
 
-	ans := NewAnswer(req, id, a.Result, a.Features)
+	return registrationTerminationAnswer(req, id, e.Result, e.Features, e.AssociatedIdentities, e.EmergencyIdentities)
+}
 
-	if len(a.AssociatedIdentities) > 0 {
-		ans.AVPs = append(ans.AVPs, identityList(AVPAssociatedIdentities, a.AssociatedIdentities))
+func registrationTerminationAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features, associated []string,
+	emergency []EmergencyIdentity,
+) (*diameter.Message, error) {
+	if err := validIdentityList(associated); err != nil {
+		return nil, err
 	}
 
-	for _, e := range a.EmergencyRegistrations {
-		if e.PrivateIdentity == "" {
-			return nil, invalid("emergency registration without a private identity")
-		}
+	ans := NewAnswer(req, id, r, features)
 
-		public, err := publicIdentityAVP(e.PublicIdentity)
+	if len(associated) > 0 {
+		ans.AVPs = append(ans.AVPs, identityList(AVPAssociatedIdentities, associated))
+	}
+
+	for _, e := range emergency {
+		pair, err := identityPairAVP(AVPIdentityWithEmergencyRegistration, e.PrivateIdentity, e.PublicIdentity)
 		if err != nil {
 			return nil, err
 		}
 
-		ans.AVPs = append(ans.AVPs, diameter.Grouped(AVPIdentityWithEmergencyRegistration, 0, tgpp.VendorID, userName(e.PrivateIdentity), public))
+		ans.AVPs = append(ans.AVPs, pair)
 	}
 
 	return ans, nil
@@ -185,36 +202,65 @@ func NewRegistrationTerminationAnswer(req *diameter.Message, id diameter.Identit
 
 func ParseRegistrationTerminationAnswer(ans *diameter.Message) (RegistrationTermination, error) {
 	result, err := parseResult(ans)
-	if err != nil {
-		return RegistrationTermination{}, err
+	associated, associatedErr := answerAssociatedIdentities(ans)
+	emergency, emergencyErr := answerEmergencyIdentities(ans)
+
+	var re *ResultError
+	if errors.As(err, &re) {
+		return RegistrationTermination{}, &RegistrationTerminationError{ResultError: *re, AssociatedIdentities: associated, EmergencyIdentities: emergency}
 	}
 
-	a := RegistrationTermination{Result: result, Features: features(ans)}
-
-	if ids, ok := ans.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
-		if a.AssociatedIdentities, err = parseIdentityList(ids); err != nil {
-			return RegistrationTermination{}, malformed("Associated-Identities: %v", err)
+	for _, e := range []error{err, associatedErr, emergencyErr} {
+		if e != nil {
+			return RegistrationTermination{}, e
 		}
 	}
+
+	return RegistrationTermination{
+		Result:               result,
+		AssociatedIdentities: associated,
+		EmergencyIdentities:  emergency,
+		Features:             featureList(ans),
+	}, nil
+}
+
+func answerAssociatedIdentities(ans *diameter.Message) ([]string, error) {
+	ids, ok := ans.Find(AVPAssociatedIdentities, tgpp.VendorID)
+	if !ok {
+		return nil, nil
+	}
+
+	names, err := parseIdentityList(ids)
+	if err != nil {
+		return nil, malformed("Associated-Identities: %w", err)
+	}
+
+	return names, nil
+}
+
+func answerEmergencyIdentities(ans *diameter.Message) ([]EmergencyIdentity, error) {
+	var (
+		pairs    []EmergencyIdentity
+		firstErr error
+	)
 
 	for _, e := range diameter.FindAll(ans.AVPs, AVPIdentityWithEmergencyRegistration, tgpp.VendorID) {
 		inner, err := e.Grouped()
 		if err != nil {
-			return RegistrationTermination{}, malformed("Identity-with-Emergency-Registration: %v", err)
+			firstErr = cmp.Or(firstErr, malformed("Identity-with-Emergency-Registration: %w", err))
+			continue
 		}
 
-		user, hasUser := diameter.Find(inner, diameter.AVPUserName, 0)
-		public, hasPublic := diameter.Find(inner, AVPPublicIdentity, tgpp.VendorID)
+		user, _ := diameter.Find(inner, diameter.AVPUserName, 0)
+		public, _ := diameter.Find(inner, AVPPublicIdentity, tgpp.VendorID)
 
-		if !hasUser || !hasPublic {
-			return RegistrationTermination{}, malformed("Identity-with-Emergency-Registration without both identities")
+		if user.UTF8String() == "" || !ValidPublicIdentity(public.UTF8String()) {
+			firstErr = cmp.Or(firstErr, malformed("Identity-with-Emergency-Registration without a valid identity pair"))
+			continue
 		}
 
-		a.EmergencyRegistrations = append(a.EmergencyRegistrations, EmergencyRegistration{
-			PrivateIdentity: user.UTF8String(),
-			PublicIdentity:  public.UTF8String(),
-		})
+		pairs = append(pairs, EmergencyIdentity{PrivateIdentity: user.UTF8String(), PublicIdentity: public.UTF8String()})
 	}
 
-	return a, nil
+	return pairs, firstErr
 }

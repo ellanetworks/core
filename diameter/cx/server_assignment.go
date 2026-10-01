@@ -4,6 +4,8 @@
 package cx
 
 import (
+	"bytes"
+	"errors"
 	"slices"
 
 	"github.com/ellanetworks/core/diameter"
@@ -13,10 +15,11 @@ import (
 type ServerAssignmentRequest struct {
 	PrivateIdentity          string
 	PublicIdentities         []string
+	WildcardedPublicIdentity string
 	ServerName               string
-	Type                     uint32
+	Type                     AssignmentType
 	UserDataAlreadyAvailable bool
-	Features                 uint32
+	Features                 Features
 }
 
 type ChargingInformation struct {
@@ -27,15 +30,17 @@ type ChargingInformation struct {
 }
 
 type ServerAssignment struct {
-	Result               tgpp.Result
-	PrivateIdentity      string
-	UserData             []byte
-	Charging             *ChargingInformation
-	AssociatedIdentities []string
-	LooseRouteRequired   bool
-	ServerName           string
-	PriviledgedSender    bool
-	Features             uint32
+	Result                   tgpp.Result
+	PrivateIdentity          string
+	UserData                 []byte
+	Charging                 *ChargingInformation
+	AssociatedIdentities     []string
+	LooseRouteRequired       bool
+	ServerName               string
+	WildcardedPublicIdentity string
+	PrivilegedSender         bool
+	AllowedWebRTC            *AllowedWebRTCFunctions
+	Features                 Features
 }
 
 var sarRules = commonRequestRules.With(diameter.Rules{
@@ -52,7 +57,7 @@ var sarRules = commonRequestRules.With(diameter.Rules{
 	{Code: AVPFailedPCSCF, VendorID: tgpp.VendorID}:                    {},
 })
 
-var bulkDeregistrations = []uint32{
+var bulkDeregistrations = []AssignmentType{
 	AssignmentTimeoutDeregistration,
 	AssignmentUserDeregistration,
 	AssignmentDeregistrationTooMuchData,
@@ -61,8 +66,19 @@ var bulkDeregistrations = []uint32{
 	AssignmentAdministrativeDeregistration,
 }
 
-func assignmentDownloadsProfile(t uint32) bool {
-	return t <= AssignmentUnregisteredUser
+func requestNeedsUserData(req *diameter.Message) bool {
+	t, hasType, err := optionalUnsigned(req, AVPServerAssignmentType, ^uint32(0))
+	if err != nil || !hasType || AssignmentType(t) > AssignmentUnregisteredUser {
+		return false
+	}
+
+	if available, _, err := optionalUnsigned(req, AVPUserDataAlreadyAvailable, ^uint32(0)); err != nil || available == userDataAlreadyAvailable {
+		return false
+	}
+
+	sarFlags, err := optionalFlags(req, AVPSARFlags)
+
+	return err == nil && (AssignmentType(t) != AssignmentUnregisteredUser || sarFlags&sarFlagPCSCFRestoration == 0)
 }
 
 type identityProblem int
@@ -74,7 +90,7 @@ const (
 	extraPublicIdentity
 )
 
-func checkIdentities(t uint32, private string, publics int) identityProblem {
+func checkIdentities(t AssignmentType, private string, publics int) identityProblem {
 	switch {
 	case slices.Contains(bulkDeregistrations, t):
 		if private == "" && publics == 0 {
@@ -123,6 +139,15 @@ func NewServerAssignmentRequest(env tgpp.Envelope, r ServerAssignmentRequest) (*
 		avps = append(avps, a)
 	}
 
+	if r.WildcardedPublicIdentity != "" {
+		w, err := wildcardedIdentityAVP(r.WildcardedPublicIdentity)
+		if err != nil {
+			return nil, err
+		}
+
+		avps = append(avps, w)
+	}
+
 	available := userDataNotAvailable
 	if r.UserDataAlreadyAvailable {
 		available = userDataAlreadyAvailable
@@ -130,7 +155,7 @@ func NewServerAssignmentRequest(env tgpp.Envelope, r ServerAssignmentRequest) (*
 
 	avps = append(avps,
 		server,
-		vendorUnsigned(AVPServerAssignmentType, r.Type),
+		vendorUnsigned(AVPServerAssignmentType, uint32(r.Type)),
 		vendorUnsigned(AVPUserDataAlreadyAvailable, available),
 	)
 
@@ -151,7 +176,7 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 		return ServerAssignmentRequest{}, err
 	}
 
-	t, _, err := optionalUnsigned(req, AVPServerAssignmentType, AssignmentDeregistrationTooMuchData)
+	t, _, err := optionalUnsigned(req, AVPServerAssignmentType, uint32(AssignmentDeregistrationTooMuchData))
 	if err != nil {
 		return ServerAssignmentRequest{}, err
 	}
@@ -163,9 +188,9 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 
 	r := ServerAssignmentRequest{
 		ServerName:               server,
-		Type:                     t,
+		Type:                     AssignmentType(t),
 		UserDataAlreadyAvailable: available == userDataAlreadyAvailable,
-		Features:                 features(req),
+		Features:                 featureList(req),
 	}
 
 	if user, ok := req.Find(diameter.AVPUserName, 0); ok {
@@ -184,6 +209,12 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 		r.PublicIdentities = append(r.PublicIdentities, p.UTF8String())
 	}
 
+	if w, ok := req.Find(AVPWildcardedPublicIdentity, tgpp.VendorID); ok {
+		if r.WildcardedPublicIdentity = w.UTF8String(); !ValidPublicIdentity(r.WildcardedPublicIdentity) {
+			return ServerAssignmentRequest{}, tgpp.InvalidAVP(w)
+		}
+	}
+
 	switch checkIdentities(r.Type, r.PrivateIdentity, len(publics)) {
 	case missingPrivateIdentity:
 		return ServerAssignmentRequest{}, tgpp.MissingAVP(diameter.AVPUserName, 0)
@@ -197,7 +228,8 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 }
 
 func NewServerAssignmentAnswer(req *diameter.Message, id diameter.Identity, a ServerAssignment) (*diameter.Message, error) {
-	if err := successResult(a.Result); err != nil {
+	result, err := successResult(a.Result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -205,16 +237,11 @@ func NewServerAssignmentAnswer(req *diameter.Message, id diameter.Identity, a Se
 		return nil, err
 	}
 
-	t, _, err := optionalUnsigned(req, AVPServerAssignmentType, ^uint32(0))
-	if err != nil {
-		return nil, invalid("request Server-Assignment-Type")
+	if len(a.UserData) == 0 && requestNeedsUserData(req) {
+		return nil, invalid("server assignment answered without the user data the S-CSCF lacks")
 	}
 
-	if _, ok := req.Find(AVPServerAssignmentType, tgpp.VendorID); ok && assignmentDownloadsProfile(t) && len(a.UserData) == 0 {
-		return nil, invalid("Server-Assignment-Type %d answered without user data", t)
-	}
-
-	ans := NewAnswer(req, id, a.Result, a.Features)
+	ans := NewAnswer(req, id, result, a.Features)
 
 	if a.PrivateIdentity != "" {
 		ans.AVPs = append(ans.AVPs, userName(a.PrivateIdentity))
@@ -241,37 +268,112 @@ func NewServerAssignmentAnswer(req *diameter.Message, id diameter.Identity, a Se
 		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPLooseRouteIndication, 0, tgpp.VendorID, looseRouteRequired))
 	}
 
-	if a.ServerName != "" {
-		server, err := serverNameAVP(a.ServerName)
+	routing, err := assignmentRoutingAVPs(a.ServerName, a.WildcardedPublicIdentity)
+	if err != nil {
+		return nil, err
+	}
+
+	ans.AVPs = append(ans.AVPs, routing...)
+
+	if a.PrivilegedSender {
+		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPPriviledgedSenderIndication, 0, tgpp.VendorID, privilegedSender))
+	}
+
+	if a.AllowedWebRTC != nil {
+		allowed, err := allowedWebRTCAVP(*a.AllowedWebRTC)
 		if err != nil {
 			return nil, err
 		}
 
-		ans.AVPs = append(ans.AVPs, server)
-	}
-
-	if a.PriviledgedSender {
-		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(AVPPriviledgedSenderIndication, 0, tgpp.VendorID, priviledgedSender))
+		ans.AVPs = append(ans.AVPs, allowed)
 	}
 
 	return ans, nil
 }
 
+func NewServerAssignmentErrorAnswer(req *diameter.Message, id diameter.Identity, e ServerAssignmentError) (*diameter.Message, error) {
+	if err := errorResult(e.Result); err != nil {
+		return nil, err
+	}
+
+	routing, err := assignmentRoutingAVPs(e.ServerName, e.WildcardedPublicIdentity)
+	if err != nil {
+		return nil, err
+	}
+
+	ans := NewAnswer(req, id, e.Result, e.Features)
+
+	if e.PrivateIdentity != "" {
+		ans.AVPs = append(ans.AVPs, userName(e.PrivateIdentity))
+	}
+
+	ans.AVPs = append(ans.AVPs, routing...)
+
+	return ans, nil
+}
+
+func assignmentRoutingAVPs(serverName, wildcarded string) ([]diameter.AVP, error) {
+	var avps []diameter.AVP
+
+	if serverName != "" {
+		server, err := serverNameAVP(serverName)
+		if err != nil {
+			return nil, err
+		}
+
+		avps = append(avps, server)
+	}
+
+	if wildcarded != "" {
+		w, err := wildcardedIdentityAVP(wildcarded)
+		if err != nil {
+			return nil, err
+		}
+
+		avps = append(avps, w)
+	}
+
+	return avps, nil
+}
+
 func ParseServerAssignmentAnswer(ans *diameter.Message) (ServerAssignment, error) {
 	result, err := parseResult(ans)
+
+	var re *ResultError
+	if errors.As(err, &re) {
+		e := &ServerAssignmentError{ResultError: *re, PrivateIdentity: answerString(ans, diameter.AVPUserName, 0)}
+		e.ServerName, _ = answerServerName(ans)
+		e.WildcardedPublicIdentity, _ = answerWildcardedIdentity(ans)
+
+		return ServerAssignment{}, e
+	}
+
 	if err != nil {
 		return ServerAssignment{}, err
 	}
 
+	server, err := answerServerName(ans)
+	if err != nil {
+		return ServerAssignment{}, err
+	}
+
+	wildcarded, err := answerWildcardedIdentity(ans)
+	if err != nil {
+		return ServerAssignment{}, err
+	}
+
+	private := answerString(ans, diameter.AVPUserName, 0)
+
 	a := ServerAssignment{
-		Result:          result,
-		PrivateIdentity: answerString(ans, diameter.AVPUserName, 0),
-		ServerName:      answerString(ans, AVPServerName, tgpp.VendorID),
-		Features:        features(ans),
+		Result:                   result,
+		PrivateIdentity:          private,
+		ServerName:               server,
+		WildcardedPublicIdentity: wildcarded,
+		Features:                 featureList(ans),
 	}
 
 	if data, ok := ans.Find(AVPUserData, tgpp.VendorID); ok {
-		a.UserData = data.Data
+		a.UserData = bytes.Clone(data.Data)
 	}
 
 	if c, ok := ans.Find(AVPChargingInformation, tgpp.VendorID); ok {
@@ -282,7 +384,7 @@ func ParseServerAssignmentAnswer(ans *diameter.Message) (ServerAssignment, error
 
 	if ids, ok := ans.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
 		if a.AssociatedIdentities, err = parseIdentityList(ids); err != nil {
-			return ServerAssignment{}, malformed("Associated-Identities: %v", err)
+			return ServerAssignment{}, malformed("Associated-Identities: %w", err)
 		}
 	}
 
@@ -291,30 +393,21 @@ func ParseServerAssignmentAnswer(ans *diameter.Message) (ServerAssignment, error
 		return ServerAssignment{}, err
 	}
 
-	priviledged, err := answerUnsigned(ans, AVPPriviledgedSenderIndication, "Priviledged-Sender-Indication")
+	privileged, err := answerUnsigned(ans, AVPPriviledgedSenderIndication, "Priviledged-Sender-Indication")
 	if err != nil {
 		return ServerAssignment{}, err
 	}
 
+	if w, ok := ans.Find(AVPAllowedWAFWWSFIdentities, tgpp.VendorID); ok {
+		if a.AllowedWebRTC, err = parseAllowedWebRTC(w); err != nil {
+			return ServerAssignment{}, err
+		}
+	}
+
 	a.LooseRouteRequired = looseRoute == looseRouteRequired
-	a.PriviledgedSender = priviledged == priviledgedSender
+	a.PrivilegedSender = privileged == privilegedSender
 
 	return a, nil
-}
-
-func (c *ChargingInformation) fields() []struct {
-	code uint32
-	dst  *string
-} {
-	return []struct {
-		code uint32
-		dst  *string
-	}{
-		{AVPPrimaryEventChargingFunctionName, &c.PrimaryEventChargingFunction},
-		{AVPSecondaryEventChargingFunctionName, &c.SecondaryEventChargingFunction},
-		{AVPPrimaryChargingCollectionFunctionName, &c.PrimaryChargingCollectionFunction},
-		{AVPSecondaryChargingCollectionFunctionName, &c.SecondaryChargingCollectionFunction},
-	}
 }
 
 func chargingAVP(c ChargingInformation) (diameter.AVP, error) {
@@ -324,9 +417,17 @@ func chargingAVP(c ChargingInformation) (diameter.AVP, error) {
 
 	var inner []diameter.AVP
 
-	for _, f := range c.fields() {
-		if *f.dst != "" {
-			inner = append(inner, vendorString(f.code, *f.dst))
+	for _, f := range []struct {
+		code  uint32
+		value string
+	}{
+		{AVPPrimaryEventChargingFunctionName, c.PrimaryEventChargingFunction},
+		{AVPSecondaryEventChargingFunctionName, c.SecondaryEventChargingFunction},
+		{AVPPrimaryChargingCollectionFunctionName, c.PrimaryChargingCollectionFunction},
+		{AVPSecondaryChargingCollectionFunctionName, c.SecondaryChargingCollectionFunction},
+	} {
+		if f.value != "" {
+			inner = append(inner, vendorString(f.code, f.value))
 		}
 	}
 
@@ -336,15 +437,23 @@ func chargingAVP(c ChargingInformation) (diameter.AVP, error) {
 func parseCharging(a diameter.AVP) (*ChargingInformation, error) {
 	inner, err := a.Grouped()
 	if err != nil {
-		return nil, malformed("Charging-Information: %v", err)
+		return nil, malformed("Charging-Information: %w", err)
 	}
 
-	var c ChargingInformation
+	name := func(code uint32) string {
+		v, _ := diameter.Find(inner, code, tgpp.VendorID)
+		return v.UTF8String()
+	}
 
-	for _, f := range c.fields() {
-		if v, ok := diameter.Find(inner, f.code, tgpp.VendorID); ok {
-			*f.dst = v.UTF8String()
-		}
+	c := ChargingInformation{
+		PrimaryEventChargingFunction:        name(AVPPrimaryEventChargingFunctionName),
+		SecondaryEventChargingFunction:      name(AVPSecondaryEventChargingFunctionName),
+		PrimaryChargingCollectionFunction:   name(AVPPrimaryChargingCollectionFunctionName),
+		SecondaryChargingCollectionFunction: name(AVPSecondaryChargingCollectionFunctionName),
+	}
+
+	if c.PrimaryEventChargingFunction == "" && c.PrimaryChargingCollectionFunction == "" {
+		return nil, malformed("Charging-Information without a primary charging function")
 	}
 
 	return &c, nil

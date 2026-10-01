@@ -51,8 +51,10 @@ func TestParseLocationInfoRequestErrors(t *testing.T) {
 		want uint32
 	}{
 		"no identity":           {without(base, AVPPublicIdentity, tgpp.VendorID), diameter.ResultMissingAVP},
+		"bad identity":          {with(without(base, AVPPublicIdentity, tgpp.VendorID), vendorString(AVPPublicIdentity, "+15551230002")), diameter.ResultInvalidAVPValue},
+		"bad type":              {with(base, vendorUnsigned(AVPUserAuthorizationType, 3)), diameter.ResultInvalidAVPValue},
 		"bad originating":       {with(base, vendorUnsigned(AVPOriginatingRequest, 1)), diameter.ResultInvalidAVPValue},
-		"deregistration":        {with(base, vendorUnsigned(AVPUserAuthorizationType, AuthorizationDeregistration)), diameter.ResultInvalidAVPValue},
+		"deregistration":        {with(base, vendorUnsigned(AVPUserAuthorizationType, uint32(AuthorizationDeregistration))), diameter.ResultInvalidAVPValue},
 		"no Origin-Host":        {without(base, diameter.AVPOriginHost, 0), diameter.ResultMissingAVP},
 		"no Session-Id":         {without(base, diameter.AVPSessionID, 0), diameter.ResultMissingAVP},
 		"no Auth-Session-State": {without(base, diameter.AVPAuthSessionState, 0), diameter.ResultMissingAVP},
@@ -106,5 +108,33 @@ func TestLocationInfoAnswerErrors(t *testing.T) {
 	bad := with(NewAnswer(req, hssIdentity, tgpp.Result{Code: diameter.ResultSuccess}, 0), diameter.OctetString(AVPLIAFlags, 0, tgpp.VendorID, []byte{1}))
 	if _, err := ParseLocationInfoAnswer(bad); !errors.Is(err, ErrMalformedAnswer) {
 		t.Fatalf("short LIA-Flags = %v", err)
+	}
+}
+
+func TestLocationInfoAnswerStrictness(t *testing.T) {
+	req := request(CommandLocationInfo)
+	success := tgpp.Result{Code: diameter.ResultSuccess}
+
+	for name, l := range map[string]LocationInfo{
+		"name and capabilities": {Result: success, ServerName: testServer, Capabilities: &ServerCapabilities{}},
+		"bad wildcard":          {Result: success, ServerName: testServer, WildcardedPublicIdentity: "x"},
+	} {
+		if _, err := NewLocationInfoAnswer(req, hssIdentity, l); !errors.Is(err, ErrInvalidMessage) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+
+	ans := NewAnswer(req, hssIdentity, success, 0)
+	capabilities := diameter.Grouped(AVPServerCapabilities, diameter.AVPFlagMandatory, tgpp.VendorID)
+
+	for name, m := range map[string]*diameter.Message{
+		"name and capabilities": with(ans, vendorString(AVPServerName, testServer), capabilities),
+		"bad server name":       with(ans, vendorString(AVPServerName, "scscf")),
+		"bad capability name":   with(ans, diameter.Grouped(AVPServerCapabilities, diameter.AVPFlagMandatory, tgpp.VendorID, vendorString(AVPServerName, "x"))),
+		"bad wildcard":          with(ans, diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, "x")),
+	} {
+		if _, err := ParseLocationInfoAnswer(m); !errors.Is(err, ErrMalformedAnswer) {
+			t.Errorf("%s: err = %v", name, err)
+		}
 	}
 }

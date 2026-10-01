@@ -75,7 +75,7 @@ func request(command uint32, env tgpp.Envelope, avps ...diameter.AVP) *diameter.
 	}
 }
 
-func u32(v uint32) *uint32 {
+func absent(v tgpp.AbsentUserDiagnostic) *tgpp.AbsentUserDiagnostic {
 	return &v
 }
 
@@ -109,7 +109,7 @@ func TestParseAnswers(t *testing.T) {
 		t.Fatalf("result error = %+v", re)
 	}
 
-	_, err = ParseMTForwardShortMessageAnswer(roundTrip(t, NewAbsentUserAnswer(req, mmeIdentity, u32(tgpp.AbsentUserIMSIDetached))))
+	_, err = ParseMTForwardShortMessageAnswer(roundTrip(t, NewAbsentUserAnswer(req, mmeIdentity, absent(tgpp.AbsentUserIMSIDetached))))
 	if !errors.As(err, &re) || !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != 1 {
 		t.Fatalf("absent user = %v", err)
 	}
@@ -167,5 +167,22 @@ func TestAnswerBuildersValidate(t *testing.T) {
 
 	if _, ok := ans.Find(AVPSMRPUI, tgpp.VendorID); ok {
 		t.Fatal("SM-RP-UI sent without one")
+	}
+}
+
+func TestDeliveryFailureCauseString(t *testing.T) {
+	for cause, want := range map[DeliveryFailureCause]string{
+		CauseMemoryCapacityExceeded: "MEMORY_CAPACITY_EXCEEDED",
+		CauseEquipmentProtocolError: "EQUIPMENT_PROTOCOL_ERROR",
+		CauseEquipmentNotSMEquipped: "EQUIPMENT_NOT_SM_EQUIPPED",
+		CauseUnknownServiceCentre:   "UNKNOWN_SERVICE_CENTRE",
+		CauseSCCongestion:           "SC_CONGESTION",
+		CauseInvalidSMEAddress:      "INVALID_SME_ADDRESS",
+		CauseUserNotSCUser:          "USER_NOT_SC_USER",
+		7:                           "DeliveryFailureCause(7)",
+	} {
+		if got := cause.String(); got != want {
+			t.Errorf("DeliveryFailureCause(%d).String() = %q, want %q", uint32(cause), got, want)
+		}
 	}
 }

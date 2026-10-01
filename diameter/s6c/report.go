@@ -11,8 +11,8 @@ import (
 )
 
 type DeliveryOutcome struct {
-	Cause            uint32
-	AbsentDiagnostic *uint32
+	Cause            DeliveryCause
+	AbsentDiagnostic *tgpp.AbsentUserDiagnostic
 }
 
 type DeliveryReport struct {
@@ -136,7 +136,7 @@ func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*d
 	)
 
 	if rep.SingleAttempt {
-		avps = append(avps, diameter.Unsigned32(AVPRDRFlags, 0, tgpp.VendorID, RDRFlagSingleAttempt))
+		avps = append(avps, diameter.Unsigned32(AVPRDRFlags, 0, tgpp.VendorID, rdrFlagSingleAttempt))
 	}
 
 	avps = append(avps, failed...)
@@ -151,11 +151,11 @@ func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*d
 
 func deliveryOutcome(code uint32, flags uint8, o DeliveryOutcome) diameter.AVP {
 	inner := []diameter.AVP{
-		diameter.Unsigned32(AVPSMDeliveryCause, diameter.AVPFlagMandatory, tgpp.VendorID, o.Cause),
+		diameter.Unsigned32(AVPSMDeliveryCause, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(o.Cause)),
 	}
 
 	if o.AbsentDiagnostic != nil {
-		inner = append(inner, diameter.Unsigned32(tgpp.AVPAbsentUserDiagnosticSM, diameter.AVPFlagMandatory, tgpp.VendorID, *o.AbsentDiagnostic))
+		inner = append(inner, diameter.Unsigned32(tgpp.AVPAbsentUserDiagnosticSM, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(*o.AbsentDiagnostic)))
 	}
 
 	return diameter.Grouped(code, flags, tgpp.VendorID, inner...)
@@ -197,7 +197,7 @@ func ParseReportSMDeliveryStatusRequest(req *diameter.Message) (DeliveryReport, 
 			return DeliveryReport{}, tgpp.InvalidAVP(a)
 		}
 
-		rep.SingleAttempt = flags&RDRFlagSingleAttempt != 0
+		rep.SingleAttempt = flags&rdrFlagSingleAttempt != 0
 	}
 
 	if rep.Failed, err = requestServingNodes(req); err != nil {
@@ -245,9 +245,12 @@ func parseDeliveryOutcome(a diameter.AVP) (*DeliveryOutcome, bool) {
 
 	o := &DeliveryOutcome{}
 
-	if o.Cause, err = cause.Unsigned32(); err != nil {
+	c, err := cause.Unsigned32()
+	if err != nil {
 		return nil, false
 	}
+
+	o.Cause = DeliveryCause(c)
 
 	if d, ok := diameter.Find(inner, tgpp.AVPAbsentUserDiagnosticSM, tgpp.VendorID); ok {
 		v, err := d.Unsigned32()
@@ -255,7 +258,8 @@ func parseDeliveryOutcome(a diameter.AVP) (*DeliveryOutcome, bool) {
 			return nil, false
 		}
 
-		o.AbsentDiagnostic = &v
+		diagnostic := tgpp.AbsentUserDiagnostic(v)
+		o.AbsentDiagnostic = &diagnostic
 	}
 
 	return o, true

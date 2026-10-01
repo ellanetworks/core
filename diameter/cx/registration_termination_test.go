@@ -67,7 +67,7 @@ func TestParseRegistrationTerminationRequestErrors(t *testing.T) {
 		return diameter.Grouped(AVPDeregistrationReason, diameter.AVPFlagMandatory, tgpp.VendorID, avps...)
 	}
 
-	base := request(CommandRegistrationTermination, userName(testPrivate), reason(vendorUnsigned(AVPReasonCode, ReasonServerChange)))
+	base := request(CommandRegistrationTermination, userName(testPrivate), reason(vendorUnsigned(AVPReasonCode, uint32(ReasonServerChange))))
 
 	if _, err := ParseRegistrationTerminationRequest(base); err != nil {
 		t.Fatalf("base request: %v", err)
@@ -83,12 +83,16 @@ func TestParseRegistrationTerminationRequestErrors(t *testing.T) {
 		"no reason":             {noReason, diameter.ResultMissingAVP},
 		"reason without code":   {with(noReason, reason(vendorString(AVPReasonInfo, "x"))), diameter.ResultMissingAVP},
 		"unknown reason":        {with(noReason, reason(vendorUnsigned(AVPReasonCode, 9))), diameter.ResultInvalidAVPValue},
-		"new server, no public": {with(noReason, reason(vendorUnsigned(AVPReasonCode, ReasonNewServerAssigned))), diameter.ResultMissingAVP},
+		"new server, no public": {with(noReason, reason(vendorUnsigned(AVPReasonCode, uint32(ReasonNewServerAssigned)))), diameter.ResultMissingAVP},
 		"bad associated": {
 			with(base, diameter.Grouped(AVPAssociatedIdentities, 0, tgpp.VendorID, diameter.UTF8String(diameter.AVPUserName, diameter.AVPFlagMandatory, 0, ""))),
 			diameter.ResultInvalidAVPValue,
 		},
-		"short RTR-Flags": {with(base, diameter.OctetString(AVPRTRFlags, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue},
+		"short RTR-Flags":     {with(base, diameter.OctetString(AVPRTRFlags, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue},
+		"bad Public-Identity": {with(base, vendorString(AVPPublicIdentity, "alice")), diameter.ResultInvalidAVPValue},
+		"reason not grouped": {
+			with(noReason, diameter.OctetString(AVPDeregistrationReason, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := ParseRegistrationTerminationRequest(tt.req)
@@ -105,10 +109,10 @@ func TestRegistrationTerminationAnswerRoundTrip(t *testing.T) {
 	for name, a := range map[string]RegistrationTermination{
 		"plain": {Result: tgpp.Result{Code: diameter.ResultSuccess}},
 		"with emergency": {
-			Result:                 tgpp.Result{Code: diameter.ResultSuccess},
-			AssociatedIdentities:   []string{testPrivate, "second@example.org"},
-			EmergencyRegistrations: []EmergencyRegistration{{PrivateIdentity: testPrivate, PublicIdentity: "sip:sos@example.org"}},
-			Features:               FeatureIMSRestoration,
+			Result:               tgpp.Result{Code: diameter.ResultSuccess},
+			AssociatedIdentities: []string{testPrivate, "second@example.org"},
+			EmergencyIdentities:  []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: "sip:sos@example.org"}},
+			Features:             FeatureIMSRestoration,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -130,8 +134,8 @@ func TestRegistrationTerminationAnswerErrors(t *testing.T) {
 
 	for name, a := range map[string]RegistrationTermination{
 		"error result":          {Result: tgpp.Result{Code: diameter.ResultUnableToComply}},
-		"emergency, no private": {Result: tgpp.Result{Code: diameter.ResultSuccess}, EmergencyRegistrations: []EmergencyRegistration{{PublicIdentity: testPublic}}},
-		"emergency, bad public": {Result: tgpp.Result{Code: diameter.ResultSuccess}, EmergencyRegistrations: []EmergencyRegistration{{PrivateIdentity: testPrivate, PublicIdentity: "x"}}},
+		"emergency, no private": {Result: tgpp.Result{Code: diameter.ResultSuccess}, EmergencyIdentities: []EmergencyIdentity{{PublicIdentity: testPublic}}},
+		"emergency, bad public": {Result: tgpp.Result{Code: diameter.ResultSuccess}, EmergencyIdentities: []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: "x"}}},
 	} {
 		if _, err := NewRegistrationTerminationAnswer(req, cscfIdentity, a); !errors.Is(err, ErrInvalidMessage) {
 			t.Errorf("%s: err = %v", name, err)
@@ -148,5 +152,77 @@ func TestRegistrationTerminationAnswerErrors(t *testing.T) {
 		if _, err := ParseRegistrationTerminationAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestRegistrationTerminationErrorAnswer(t *testing.T) {
+	req := request(CommandRegistrationTermination)
+	e := RegistrationTerminationError{
+		ResultError:          ResultError{Result: tgpp.Result{Code: diameter.ResultUnableToComply}, Features: FeatureIMSRestoration},
+		AssociatedIdentities: []string{testPrivate},
+		EmergencyIdentities:  []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: "sip:sos@example.org"}},
+	}
+
+	ans, err := NewRegistrationTerminationErrorAnswer(req, cscfIdentity, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ParseRegistrationTerminationAnswer(roundTrip(t, ans))
+
+	var rte *RegistrationTerminationError
+	if !errors.As(err, &rte) || !reflect.DeepEqual(*rte, e) {
+		t.Fatalf("parsed error = %#v, want %#v", err, e)
+	}
+
+	var re *ResultError
+	if !errors.As(err, &re) || re.Code != diameter.ResultUnableToComply || re.Features != FeatureIMSRestoration {
+		t.Fatalf("base result error = %#v", re)
+	}
+
+	unable := ResultError{Result: tgpp.Result{Code: diameter.ResultUnableToComply}}
+
+	for name, bad := range map[string]RegistrationTerminationError{
+		"success":          {ResultError: ResultError{Result: tgpp.Result{Code: diameter.ResultSuccess}}},
+		"empty associated": {ResultError: unable, AssociatedIdentities: []string{""}},
+		"bad pair":         {ResultError: unable, EmergencyIdentities: []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: "sos"}}},
+	} {
+		if _, err := NewRegistrationTerminationErrorAnswer(req, cscfIdentity, bad); !errors.Is(err, ErrInvalidMessage) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+
+	invalidPair := with(NewAnswer(req, cscfIdentity, tgpp.Result{Code: diameter.ResultSuccess}, 0),
+		diameter.Grouped(AVPIdentityWithEmergencyRegistration, 0, tgpp.VendorID, userName(testPrivate), vendorString(AVPPublicIdentity, "sos")))
+	if _, err := ParseRegistrationTerminationAnswer(invalidPair); !errors.Is(err, ErrMalformedAnswer) {
+		t.Fatalf("invalid emergency pair = %v", err)
+	}
+}
+
+func TestParseRegistrationTerminationRequestPointsAtReasonCode(t *testing.T) {
+	code := vendorUnsigned(AVPReasonCode, 9)
+	req := request(CommandRegistrationTermination, userName(testPrivate),
+		diameter.Grouped(AVPDeregistrationReason, diameter.AVPFlagMandatory, tgpp.VendorID, code))
+
+	_, err := ParseRegistrationTerminationRequest(req)
+
+	var avpErr *diameter.AVPError
+	if !errors.As(err, &avpErr) || avpErr.AVP.Code != AVPReasonCode {
+		t.Fatalf("err = %v, want Reason-Code reported", err)
+	}
+}
+
+func TestRegistrationTerminationErrorSurvivesBadFields(t *testing.T) {
+	ans := with(NewAnswer(request(CommandRegistrationTermination), cscfIdentity, tgpp.Result{Code: diameter.ResultUnableToComply}, 0),
+		diameter.Grouped(AVPIdentityWithEmergencyRegistration, 0, tgpp.VendorID, userName(testPrivate), vendorString(AVPPublicIdentity, "sos")),
+		diameter.Grouped(AVPIdentityWithEmergencyRegistration, 0, tgpp.VendorID, userName(testPrivate), vendorString(AVPPublicIdentity, testPublic)),
+	)
+
+	_, err := ParseRegistrationTerminationAnswer(ans)
+
+	var re *RegistrationTerminationError
+	if !errors.As(err, &re) || re.Code != diameter.ResultUnableToComply ||
+		!reflect.DeepEqual(re.EmergencyIdentities, []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: testPublic}}) {
+		t.Fatalf("err = %#v", err)
 	}
 }

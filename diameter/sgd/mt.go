@@ -86,7 +86,7 @@ func NewMTForwardShortMessageRequest(env tgpp.Envelope, m MTForwardShortMessage)
 	}
 
 	if m.MoreMessagesToSend {
-		avps = append(avps, diameter.Unsigned32(AVPTFRFlags, diameter.AVPFlagMandatory, tgpp.VendorID, TFRFlagMoreMessagesToSend))
+		avps = append(avps, diameter.Unsigned32(AVPTFRFlags, diameter.AVPFlagMandatory, tgpp.VendorID, tfrFlagMoreMessagesToSend))
 	}
 
 	if m.DeliveryTimer > 0 {
@@ -156,7 +156,7 @@ func ParseMTForwardShortMessageRequest(req *diameter.Message) (MTForwardShortMes
 			return MTForwardShortMessage{}, tgpp.InvalidAVP(a)
 		}
 
-		m.MoreMessagesToSend = flags&TFRFlagMoreMessagesToSend != 0
+		m.MoreMessagesToSend = flags&tfrFlagMoreMessagesToSend != 0
 	}
 
 	if a, ok := req.Find(AVPSMDeliveryTimer, tgpp.VendorID); ok {
@@ -181,11 +181,11 @@ func NewMTForwardShortMessageAnswer(req *diameter.Message, id diameter.Identity,
 	return newSuccessAnswer(req, id, smRPUI)
 }
 
-func NewAbsentUserAnswer(req *diameter.Message, id diameter.Identity, diagnostic *uint32) *diameter.Message {
+func NewAbsentUserAnswer(req *diameter.Message, id diameter.Identity, diagnostic *tgpp.AbsentUserDiagnostic) *diameter.Message {
 	ans := tgpp.NewExperimentalAnswer(req, id, tgpp.ResultErrorAbsentUser)
 
 	if diagnostic != nil {
-		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(tgpp.AVPAbsentUserDiagnosticSM, diameter.AVPFlagMandatory, tgpp.VendorID, *diagnostic))
+		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(tgpp.AVPAbsentUserDiagnosticSM, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(*diagnostic)))
 	}
 
 	return ans

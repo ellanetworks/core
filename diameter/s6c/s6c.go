@@ -6,6 +6,7 @@ package s6c
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/tgpp"
@@ -61,68 +62,161 @@ const (
 	AVPSMSFNon3GPPAddress                uint32 = 3345
 )
 
-const (
-	SMRPMTIDeliver      uint32 = 0
-	SMRPMTIStatusReport uint32 = 1
-)
+type MTI uint32
 
 const (
-	SRRFlagGPRSIndicator uint32 = 1 << 0
-	SRRFlagSMRPPRI       uint32 = 1 << 1
-	SRRFlagSingleAttempt uint32 = 1 << 2
+	SMRPMTIDeliver      MTI = 0
+	SMRPMTIStatusReport MTI = 1
 )
+
+var mtiNames = map[MTI]string{
+	SMRPMTIDeliver:      "SM_DELIVER",
+	SMRPMTIStatusReport: "SM_STATUS_REPORT",
+}
+
+func (m MTI) String() string {
+	if name, ok := mtiNames[m]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("MTI(%d)", uint32(m))
+}
 
 const (
-	SMDeliveryNotIntendedIMSI   uint32 = 0
-	SMDeliveryNotIntendedMCCMNC uint32 = 1
+	srrFlagGPRSIndicator uint32 = 1 << 0
+	srrFlagSMRPPRI       uint32 = 1 << 1
+	srrFlagSingleAttempt uint32 = 1 << 2
 )
 
-const RDRFlagSingleAttempt uint32 = 1 << 0
-
-const (
-	AlertEventUEAvailableForMTSMS uint32 = 1 << 0
-	AlertEventUEUnderNewNode      uint32 = 1 << 1
-)
+type DeliveryNotIntended uint32
 
 const (
-	FeatureListID      uint32 = 1
-	FeatureSMSFSupport uint32 = 1 << 0
+	SMDeliveryNotIntendedIMSI   DeliveryNotIntended = 0
+	SMDeliveryNotIntendedMCCMNC DeliveryNotIntended = 1
 )
 
-const (
-	MWDStatusSCAddressNotIncluded uint32 = 1 << 0
-	MWDStatusMNRF                 uint32 = 1 << 1
-	MWDStatusMCEF                 uint32 = 1 << 2
-	MWDStatusMNRG                 uint32 = 1 << 3
-	MWDStatusMNR5G                uint32 = 1 << 4
-	MWDStatusMNR5GN3G             uint32 = 1 << 5
-)
+var deliveryNotIntendedNames = map[DeliveryNotIntended]string{
+	SMDeliveryNotIntendedIMSI:   "ONLY_IMSI_REQUESTED",
+	SMDeliveryNotIntendedMCCMNC: "ONLY_MCC_MNC_REQUESTED",
+}
+
+func (d DeliveryNotIntended) String() string {
+	if name, ok := deliveryNotIntendedNames[d]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("DeliveryNotIntended(%d)", uint32(d))
+}
+
+const rdrFlagSingleAttempt uint32 = 1 << 0
+
+type AlertEvent uint32
 
 const (
-	DeliveryCauseMemoryCapacityExceeded uint32 = 0
-	DeliveryCauseAbsentUser             uint32 = 1
-	DeliveryCauseSuccessfulTransfer     uint32 = 2
+	AlertEventUEAvailableForMTSMS AlertEvent = 1 << 0
+	AlertEventUEUnderNewNode      AlertEvent = 1 << 1
 )
+
+var alertEventNames = []string{
+	"UE_AVAILABLE_FOR_MT_SMS",
+	"UE_UNDER_NEW_SERVING_NODE",
+}
+
+func (e AlertEvent) String() string {
+	return bitNames(uint32(e), alertEventNames)
+}
+
+const (
+	featureListID      uint32 = 1
+	featureSMSFSupport uint32 = 1 << 0
+)
+
+type MWDStatus uint32
+
+const (
+	MWDStatusSCAddressNotIncluded MWDStatus = 1 << 0
+	MWDStatusMNRF                 MWDStatus = 1 << 1
+	MWDStatusMCEF                 MWDStatus = 1 << 2
+	MWDStatusMNRG                 MWDStatus = 1 << 3
+	MWDStatusMNR5G                MWDStatus = 1 << 4
+	MWDStatusMNR5GN3G             MWDStatus = 1 << 5
+)
+
+var mwdStatusNames = []string{
+	"SC_ADDRESS_NOT_INCLUDED",
+	"MNRF_SET",
+	"MCEF_SET",
+	"MNRG_SET",
+	"MNR5G_SET",
+	"MNR5GN3G_SET",
+}
+
+func (s MWDStatus) String() string {
+	return bitNames(uint32(s), mwdStatusNames)
+}
+
+type DeliveryCause uint32
+
+const (
+	DeliveryCauseMemoryCapacityExceeded DeliveryCause = 0
+	DeliveryCauseAbsentUser             DeliveryCause = 1
+	DeliveryCauseSuccessfulTransfer     DeliveryCause = 2
+)
+
+var deliveryCauseNames = map[DeliveryCause]string{
+	DeliveryCauseMemoryCapacityExceeded: "UE_MEMORY_CAPACITY_EXCEEDED",
+	DeliveryCauseAbsentUser:             "ABSENT_USER",
+	DeliveryCauseSuccessfulTransfer:     "SUCCESSFUL_TRANSFER",
+}
+
+func (c DeliveryCause) String() string {
+	if name, ok := deliveryCauseNames[c]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("DeliveryCause(%d)", uint32(c))
+}
+
+func bitNames(v uint32, names []string) string {
+	if v == 0 {
+		return "0"
+	}
+
+	var parts []string
+
+	for i, name := range names {
+		if bit := uint32(1) << i; v&bit != 0 {
+			parts = append(parts, name)
+			v &^= bit
+		}
+	}
+
+	if v != 0 {
+		parts = append(parts, fmt.Sprintf("%#x", v))
+	}
+
+	return strings.Join(parts, "|")
+}
 
 var (
 	ErrMalformedAnswer = errors.New("s6c: malformed answer")
 	ErrInvalidMessage  = errors.New("s6c: invalid message")
 )
 
-var smsfSupportFeature = tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID, FeatureList: FeatureSMSFSupport}
+var smsfSupportFeature = tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: featureSMSFSupport}
 
 type AbsentUserDiagnostics struct {
-	MME         *uint32
-	MSC         *uint32
-	SGSN        *uint32
-	SMSF3GPP    *uint32
-	SMSFNon3GPP *uint32
+	MME         *tgpp.AbsentUserDiagnostic
+	MSC         *tgpp.AbsentUserDiagnostic
+	SGSN        *tgpp.AbsentUserDiagnostic
+	SMSF3GPP    *tgpp.AbsentUserDiagnostic
+	SMSFNon3GPP *tgpp.AbsentUserDiagnostic
 }
 
 type ResultError struct {
 	tgpp.Result
 
-	MWDStatus   uint32
+	MWDStatus   MWDStatus
 	Absent      AbsentUserDiagnostics
 	AlertMSISDN string
 }
@@ -146,7 +240,7 @@ func withFeatures(ans *diameter.Message) *diameter.Message {
 }
 
 func smsfSupported(m *diameter.Message) bool {
-	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID)&FeatureSMSFSupport != 0
+	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID)&featureSMSFSupport != 0
 }
 
 func invalid(format string, args ...any) error {
@@ -174,9 +268,12 @@ func parseResult(ans *diameter.Message) error {
 	}
 
 	if mwd, ok := ans.Find(AVPMWDStatus, tgpp.VendorID); ok {
-		if e.MWDStatus, err = mwd.Unsigned32(); err != nil {
+		v, err := mwd.Unsigned32()
+		if err != nil {
 			return fmt.Errorf("%w: MWD-Status", ErrMalformedAnswer)
 		}
+
+		e.MWDStatus = MWDStatus(v)
 	}
 
 	e.Absent = absentUserDiagnostics(ans)
@@ -214,7 +311,7 @@ func alertMSISDNAVP(msisdn string) ([]diameter.AVP, error) {
 type absentField struct {
 	code  uint32
 	flags uint8
-	value **uint32
+	value **tgpp.AbsentUserDiagnostic
 	smsf  bool
 }
 
@@ -238,7 +335,8 @@ func absentUserDiagnostics(ans *diameter.Message) AbsentUserDiagnostics {
 		}
 
 		if v, err := a.Unsigned32(); err == nil {
-			*f.value = &v
+			diagnostic := tgpp.AbsentUserDiagnostic(v)
+			*f.value = &diagnostic
 		}
 	}
 
@@ -250,7 +348,7 @@ func (a AbsentUserDiagnostics) avps(smsfSupport bool) []diameter.AVP {
 
 	for _, f := range a.fields() {
 		if *f.value != nil && (smsfSupport || !f.smsf) {
-			avps = append(avps, diameter.Unsigned32(f.code, f.flags, tgpp.VendorID, **f.value))
+			avps = append(avps, diameter.Unsigned32(f.code, f.flags, tgpp.VendorID, uint32(**f.value)))
 		}
 	}
 

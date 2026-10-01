@@ -14,7 +14,7 @@ type Alert struct {
 	ServiceCentreAddress      string
 	User                      tgpp.UserIdentifier
 	MaximumUEAvailabilityTime time.Time
-	Event                     uint32
+	Event                     AlertEvent
 	ServingNode               *ServingNode
 }
 
@@ -48,7 +48,7 @@ func NewMMEAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Mess
 	case a.User.IMSI == "" || a.User.MSISDN != "":
 		return nil, invalid("MME alert must identify the user by IMSI only")
 	case a.Event == 0 || a.Event&^alertEvents != 0:
-		return nil, invalid("SMS-GMSC-Alert-Event %#x", a.Event)
+		return nil, invalid("SMS-GMSC-Alert-Event %#x", uint32(a.Event))
 	case a.ServingNode != nil && a.Event&AlertEventUEUnderNewNode == 0:
 		return nil, invalid("new serving node without the UE-under-new-node event")
 	case a.ServingNode != nil && (a.ServingNode.MSCNumber != "" || a.ServingNode.IPSMGW != nil):
@@ -85,7 +85,7 @@ func newAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Message
 	}
 
 	if a.Event != 0 {
-		avps = append(avps, diameter.Unsigned32(AVPSMSGMSCAlertEvent, 0, tgpp.VendorID, a.Event))
+		avps = append(avps, diameter.Unsigned32(AVPSMSGMSCAlertEvent, 0, tgpp.VendorID, uint32(a.Event)))
 	}
 
 	if a.ServingNode != nil {
@@ -138,11 +138,12 @@ func ParseAlertServiceCentreRequest(req *diameter.Message) (Alert, error) {
 	}
 
 	if e, ok := req.Find(AVPSMSGMSCAlertEvent, tgpp.VendorID); ok {
-		if a.Event, err = e.Unsigned32(); err != nil {
+		event, err := e.Unsigned32()
+		if err != nil {
 			return Alert{}, tgpp.InvalidAVP(e)
 		}
 
-		a.Event &= alertEvents
+		a.Event = AlertEvent(event) & alertEvents
 	}
 
 	if n, ok := req.Find(AVPServingNode, tgpp.VendorID); ok {

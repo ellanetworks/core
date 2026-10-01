@@ -177,3 +177,36 @@ func TestIsExperimental(t *testing.T) {
 		t.Fatal("Success classification")
 	}
 }
+
+func TestNewErrorAnswerKeepsResultErrors(t *testing.T) {
+	req := &diameter.Message{Flags: diameter.FlagRequest}
+	err := fmt.Errorf("wrapped: %w", &testResultError{Result: Experimental(ResultErrorUserUnknown)})
+
+	if r, parseErr := ParseResult(NewErrorAnswer(req, testIdentity, err)); parseErr != nil || !r.IsExperimental(ResultErrorUserUnknown) {
+		t.Fatalf("result = %+v, %v", r, parseErr)
+	}
+}
+
+func TestAbsentUserDiagnosticString(t *testing.T) {
+	for d, want := range map[AbsentUserDiagnostic]string{
+		AbsentUserNoPagingResponseMSC:        "NO_PAGING_RESPONSE_VIA_THE_MSC",
+		AbsentUserIMSIDetached:               "IMSI_DETACHED",
+		AbsentUserRoamingRestriction:         "ROAMING_RESTRICTION",
+		AbsentUserDeregisteredNonGPRS:        "DEREGISTERED_IN_THE_HLR_FOR_NON_GPRS",
+		AbsentUserPurgedNonGPRS:              "MS_PURGED_FOR_NON_GPRS",
+		AbsentUserNoPagingResponseSGSN:       "NO_PAGING_RESPONSE_VIA_THE_SGSN",
+		AbsentUserGPRSDetached:               "GPRS_DETACHED",
+		AbsentUserDeregisteredGPRS:           "DEREGISTERED_IN_THE_HLR_FOR_GPRS",
+		AbsentUserPurgedGPRS:                 "MS_PURGED_FOR_GPRS",
+		AbsentUserUnidentifiedSubscriberMSC:  "UNIDENTIFIED_SUBSCRIBER_VIA_THE_MSC",
+		AbsentUserUnidentifiedSubscriberSGSN: "UNIDENTIFIED_SUBSCRIBER_VIA_THE_SGSN",
+		AbsentUserDeregisteredIMS:            "DEREGISTERED_IN_THE_HSS_HLR_FOR_IMS",
+		AbsentUserNoResponseIPSMGW:           "NO_RESPONSE_VIA_THE_IP_SM_GW",
+		AbsentUserTemporarilyUnavailable:     "THE_MS_IS_TEMPORARILY_UNAVAILABLE",
+		14:                                   "AbsentUserDiagnostic(14)",
+	} {
+		if got := d.String(); got != want {
+			t.Errorf("AbsentUserDiagnostic(%d).String() = %q, want %q", uint32(d), got, want)
+		}
+	}
+}

@@ -84,7 +84,7 @@ func decodeAVPs(b []byte) ([]AVP, error) {
 			a.VendorID = binary.BigEndian.Uint32(b[8:12])
 		}
 
-		a.Data = b[a.headerLen():length]
+		a.Data = b[a.headerLen():length:length]
 
 		padded := (length + 3) &^ 3
 		if padded > len(b) {

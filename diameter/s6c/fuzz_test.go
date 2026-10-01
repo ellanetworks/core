@@ -55,7 +55,7 @@ func FuzzParseRequests(f *testing.F) {
 	}))
 	rdr := mustMessage(NewReportSMDeliveryStatusRequest(testEnvelope, DeliveryReport{
 		MSISDN: "15551230002", ServiceCentreAddress: testServiceCentreAddress, SMSFSupport: true,
-		MME:    &DeliveryOutcome{Cause: DeliveryCauseAbsentUser, AbsentDiagnostic: u32(1)},
+		MME:    &DeliveryOutcome{Cause: DeliveryCauseAbsentUser, AbsentDiagnostic: absent(1)},
 		Failed: ServingNodes{Serving: mmeNode(), SMSF3GPP: smsfNode()},
 	}))
 	alr := mustMessage(NewMMEAlertServiceCentreRequest(hssEnvelope, Alert{
@@ -97,7 +97,7 @@ func FuzzParseAnswers(f *testing.F) {
 		IMSI:         "001010000000001", MWDStatus: MWDStatusMNRF, AlertMSISDN: "15559999000",
 	}, true))
 	sraError := mustMessage(NewSendRoutingInfoForSMErrorAnswer(req, hssIdentity, ResultError{
-		Result: tgpp.Experimental(tgpp.ResultErrorAbsentUser), MWDStatus: MWDStatusMNRF, Absent: AbsentUserDiagnostics{MME: u32(1)},
+		Result: tgpp.Experimental(tgpp.ResultErrorAbsentUser), MWDStatus: MWDStatusMNRF, Absent: AbsentUserDiagnostics{MME: absent(1)},
 	}, true))
 	rda := mustMessage(NewReportSMDeliveryStatusAnswer(req, hssIdentity, ReportResult{
 		ServingNodes: ServingNodes{Serving: mmeNode()}, AlertMSISDN: "15559999000",

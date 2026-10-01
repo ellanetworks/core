@@ -12,16 +12,16 @@ type UserAuthorizationRequest struct {
 	PrivateIdentity       string
 	PublicIdentity        string
 	VisitedNetwork        string
-	AuthorizationType     uint32
+	AuthorizationType     AuthorizationType
 	EmergencyRegistration bool
-	Features              uint32
+	Features              Features
 }
 
 type UserAuthorization struct {
 	Result       tgpp.Result
 	ServerName   string
 	Capabilities *ServerCapabilities
-	Features     uint32
+	Features     Features
 }
 
 var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
@@ -59,11 +59,11 @@ func NewUserAuthorizationRequest(env tgpp.Envelope, r UserAuthorizationRequest) 
 	}
 
 	if r.AuthorizationType != AuthorizationRegistration {
-		avps = append(avps, vendorUnsigned(AVPUserAuthorizationType, r.AuthorizationType))
+		avps = append(avps, vendorUnsigned(AVPUserAuthorizationType, uint32(r.AuthorizationType)))
 	}
 
 	if r.EmergencyRegistration {
-		avps = append(avps, diameter.Unsigned32(AVPUARFlags, 0, tgpp.VendorID, UARFlagEmergencyRegistration))
+		avps = append(avps, diameter.Unsigned32(AVPUARFlags, 0, tgpp.VendorID, uarFlagEmergencyRegistration))
 	}
 
 	return newRequest(env, CommandUserAuthorization, r.Features, avps...), nil
@@ -83,12 +83,12 @@ func ParseUserAuthorizationRequest(req *diameter.Message) (UserAuthorizationRequ
 		return UserAuthorizationRequest{}, err
 	}
 
-	authType, _, err := optionalUnsigned(req, AVPUserAuthorizationType, AuthorizationRegistrationAndCapabilities)
+	authType, _, err := optionalUnsigned(req, AVPUserAuthorizationType, uint32(AuthorizationRegistrationAndCapabilities))
 	if err != nil {
 		return UserAuthorizationRequest{}, err
 	}
 
-	uarFlags, err := flags(req, AVPUARFlags)
+	uarFlags, err := optionalFlags(req, AVPUARFlags)
 	if err != nil {
 		return UserAuthorizationRequest{}, err
 	}
@@ -100,19 +100,16 @@ func ParseUserAuthorizationRequest(req *diameter.Message) (UserAuthorizationRequ
 		PrivateIdentity:       user.UTF8String(),
 		PublicIdentity:        public,
 		VisitedNetwork:        string(visited.Data),
-		AuthorizationType:     authType,
-		EmergencyRegistration: uarFlags&UARFlagEmergencyRegistration != 0,
-		Features:              features(req),
+		AuthorizationType:     AuthorizationType(authType),
+		EmergencyRegistration: uarFlags&uarFlagEmergencyRegistration != 0,
+		Features:              featureList(req),
 	}, nil
 }
 
 func NewUserAuthorizationAnswer(req *diameter.Message, id diameter.Identity, a UserAuthorization) (*diameter.Message, error) {
-	if err := successResult(a.Result); err != nil {
+	result, err := successResult(a.Result)
+	if err != nil {
 		return nil, err
-	}
-
-	if a.ServerName != "" && a.Capabilities != nil {
-		return nil, invalid("user authorization answer with both a server name and capabilities")
 	}
 
 	avps, err := selection(a.ServerName, a.Capabilities)
@@ -120,7 +117,7 @@ func NewUserAuthorizationAnswer(req *diameter.Message, id diameter.Identity, a U
 		return nil, err
 	}
 
-	ans := NewAnswer(req, id, a.Result, a.Features)
+	ans := NewAnswer(req, id, result, a.Features)
 	ans.AVPs = append(ans.AVPs, avps...)
 
 	return ans, nil
@@ -137,10 +134,14 @@ func ParseUserAuthorizationAnswer(ans *diameter.Message) (UserAuthorization, err
 		return UserAuthorization{}, err
 	}
 
-	return UserAuthorization{Result: result, ServerName: name, Capabilities: capabilities, Features: features(ans)}, nil
+	return UserAuthorization{Result: result, ServerName: name, Capabilities: capabilities, Features: featureList(ans)}, nil
 }
 
 func selection(serverName string, capabilities *ServerCapabilities) ([]diameter.AVP, error) {
+	if serverName != "" && capabilities != nil {
+		return nil, invalid("answer with both a server name and capabilities")
+	}
+
 	var avps []diameter.AVP
 
 	if serverName != "" {
@@ -165,16 +166,23 @@ func selection(serverName string, capabilities *ServerCapabilities) ([]diameter.
 }
 
 func parseSelection(ans *diameter.Message) (string, *ServerCapabilities, error) {
-	name := answerString(ans, AVPServerName, tgpp.VendorID)
+	name, err := answerServerName(ans)
+	if err != nil {
+		return "", nil, err
+	}
 
 	a, ok := ans.Find(AVPServerCapabilities, tgpp.VendorID)
 	if !ok {
 		return name, nil, nil
 	}
 
+	if name != "" {
+		return "", nil, malformed("both Server-Name and Server-Capabilities")
+	}
+
 	capabilities, err := parseCapabilities(a)
 	if err != nil {
-		return "", nil, malformed("Server-Capabilities: %v", err)
+		return "", nil, malformed("Server-Capabilities: %w", err)
 	}
 
 	return name, capabilities, nil

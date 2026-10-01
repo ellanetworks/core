@@ -14,14 +14,13 @@ import (
 
 const ApplicationID uint32 = 16777216
 
-var Application = diameter.Application{ID: ApplicationID, VendorID: tgpp.VendorID}
-
 const (
 	CommandUserAuthorization       uint32 = 300
 	CommandServerAssignment        uint32 = 301
 	CommandLocationInfo            uint32 = 302
 	CommandMultimediaAuth          uint32 = 303
 	CommandRegistrationTermination uint32 = 304
+	CommandPushProfile             uint32 = 305
 )
 
 const (
@@ -66,72 +65,28 @@ const (
 	AVPLIAFlags                                uint32 = 653
 	AVPSARFlags                                uint32 = 655
 	AVPAllowedWAFWWSFIdentities                uint32 = 656
+	AVPWebRTCAuthenticationFunctionName        uint32 = 657
+	AVPWebRTCWebServerFunctionName             uint32 = 658
 	AVPRTRFlags                                uint32 = 659
 	AVPFailedPCSCF                             uint32 = 664
 )
 
-const (
-	avpOCSupportedFeatures uint32 = 621
-	avpOCOLR               uint32 = 623
-	avpLoad                uint32 = 650
-)
+const avpOCSupportedFeatures uint32 = 621
 
 const (
-	AuthorizationRegistration                uint32 = 0
-	AuthorizationDeregistration              uint32 = 1
-	AuthorizationRegistrationAndCapabilities uint32 = 2
-)
-
-const (
-	AssignmentNoAssignment                     uint32 = 0
-	AssignmentRegistration                     uint32 = 1
-	AssignmentReRegistration                   uint32 = 2
-	AssignmentUnregisteredUser                 uint32 = 3
-	AssignmentTimeoutDeregistration            uint32 = 4
-	AssignmentUserDeregistration               uint32 = 5
-	AssignmentTimeoutDeregistrationStoreServer uint32 = 6
-	AssignmentUserDeregistrationStoreServer    uint32 = 7
-	AssignmentAdministrativeDeregistration     uint32 = 8
-	AssignmentAuthenticationFailure            uint32 = 9
-	AssignmentAuthenticationTimeout            uint32 = 10
-	AssignmentDeregistrationTooMuchData        uint32 = 11
-)
-
-const (
-	ReasonPermanentTermination uint32 = 0
-	ReasonNewServerAssigned    uint32 = 1
-	ReasonServerChange         uint32 = 2
-	ReasonRemoveSCSCF          uint32 = 3
-)
-
-const (
-	SchemeDigestAKAv1MD5   = "Digest-AKAv1-MD5"
-	SchemeSIPDigest        = "SIP Digest"
-	SchemeNASSBundled      = "NASS-Bundled"
-	SchemeEarlyIMSSecurity = "Early-IMS-Security"
-	SchemeUnknown          = "Unknown"
-)
-
-const (
-	UARFlagEmergencyRegistration    uint32 = 1 << 0
-	LIAFlagPSIDirectRouting         uint32 = 1 << 0
-	RTRFlagReferenceLocationChanged uint32 = 1 << 0
+	uarFlagEmergencyRegistration    uint32 = 1 << 0
+	liaFlagPSIDirectRouting         uint32 = 1 << 0
+	rtrFlagReferenceLocationChanged uint32 = 1 << 0
+	sarFlagPCSCFRestoration         uint32 = 1 << 0
+	featureListID                   uint32 = 1
 )
 
 const (
 	userDataNotAvailable     uint32 = 0
 	userDataAlreadyAvailable uint32 = 1
 	looseRouteRequired       uint32 = 1
-	priviledgedSender        uint32 = 1
+	privilegedSender         uint32 = 1
 	originating              uint32 = 0
-)
-
-const (
-	FeatureListID           uint32 = 1
-	FeatureSharedIFCSets    uint32 = 1 << 0
-	FeatureAliasIndication  uint32 = 1 << 1
-	FeatureIMSRestoration   uint32 = 1 << 2
-	FeaturePCSCFRestoration uint32 = 1 << 3
 )
 
 var (
@@ -141,10 +96,35 @@ var (
 
 type ResultError struct {
 	tgpp.Result
+
+	Features Features
 }
 
 func (e *ResultError) Error() string {
 	return "cx: request failed with " + e.String()
+}
+
+type ServerAssignmentError struct {
+	ResultError
+
+	PrivateIdentity          string
+	ServerName               string
+	WildcardedPublicIdentity string
+}
+
+func (e *ServerAssignmentError) Unwrap() error {
+	return &e.ResultError
+}
+
+type RegistrationTerminationError struct {
+	ResultError
+
+	AssociatedIdentities []string
+	EmergencyIdentities  []EmergencyIdentity
+}
+
+func (e *RegistrationTerminationError) Unwrap() error {
+	return &e.ResultError
 }
 
 type ServerCapabilities struct {
@@ -153,23 +133,23 @@ type ServerCapabilities struct {
 	ServerNames []string
 }
 
-func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features uint32) *diameter.Message {
+func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features) *diameter.Message {
 	return finishAnswer(tgpp.NewResultAnswer(req, id, r), features)
 }
 
-func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error, features uint32) *diameter.Message {
+func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error, features Features) *diameter.Message {
 	return finishAnswer(tgpp.NewErrorAnswer(req, id, err), features)
 }
 
-func finishAnswer(ans *diameter.Message, features uint32) *diameter.Message {
+func finishAnswer(ans *diameter.Message, features Features) *diameter.Message {
 	ans.AVPs = append(ans.AVPs, vendorSpecificApplicationID())
 
 	return withFeatures(ans, features)
 }
 
-func withFeatures(msg *diameter.Message, features uint32) *diameter.Message {
+func withFeatures(msg *diameter.Message, features Features) *diameter.Message {
 	if features != 0 {
-		msg.AVPs = append(msg.AVPs, tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID, FeatureList: features}.AVP())
+		msg.AVPs = append(msg.AVPs, tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(features)}.AVP())
 	}
 
 	return msg
@@ -182,7 +162,7 @@ func vendorSpecificApplicationID() diameter.AVP {
 	)
 }
 
-func newRequest(env tgpp.Envelope, command uint32, features uint32, avps ...diameter.AVP) *diameter.Message {
+func newRequest(env tgpp.Envelope, command uint32, features Features, avps ...diameter.AVP) *diameter.Message {
 	msg := withFeatures(&diameter.Message{
 		Flags:         diameter.FlagRequest | diameter.FlagProxiable,
 		CommandCode:   command,
@@ -195,8 +175,8 @@ func newRequest(env tgpp.Envelope, command uint32, features uint32, avps ...diam
 	return msg
 }
 
-func features(m *diameter.Message) uint32 {
-	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID)
+func featureList(m *diameter.Message) Features {
+	return Features(tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID))
 }
 
 func invalid(format string, args ...any) error {
@@ -214,18 +194,30 @@ func parseResult(ans *diameter.Message) (tgpp.Result, error) {
 	}
 
 	if !result.Success() {
-		return result, &ResultError{Result: result}
+		return result, &ResultError{Result: result, Features: featureList(ans)}
 	}
 
 	return result, nil
 }
 
-func successResult(r tgpp.Result) error {
-	if !r.Success() {
-		return invalid("answer with the non-success %s", r)
+func errorResult(r tgpp.Result) error {
+	if r.Success() {
+		return invalid("error answer with the success %s", r)
 	}
 
 	return nil
+}
+
+func successResult(r tgpp.Result) (tgpp.Result, error) {
+	if r == (tgpp.Result{}) {
+		return tgpp.Result{Code: diameter.ResultSuccess}, nil
+	}
+
+	if !r.Success() {
+		return tgpp.Result{}, invalid("answer with the non-success %s", r)
+	}
+
+	return r, nil
 }
 
 func ValidPublicIdentity(s string) bool {
@@ -256,6 +248,40 @@ func vendorUnsigned(code uint32, v uint32) diameter.AVP {
 
 func userName(v string) diameter.AVP {
 	return diameter.UTF8String(diameter.AVPUserName, diameter.AVPFlagMandatory, 0, v)
+}
+
+func wildcardedIdentityAVP(v string) (diameter.AVP, error) {
+	if !ValidPublicIdentity(v) {
+		return diameter.AVP{}, invalid("wildcarded public identity %q", v)
+	}
+
+	return diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, v), nil
+}
+
+func answerWildcardedIdentity(ans *diameter.Message) (string, error) {
+	a, ok := ans.Find(AVPWildcardedPublicIdentity, tgpp.VendorID)
+	if !ok {
+		return "", nil
+	}
+
+	if !ValidPublicIdentity(a.UTF8String()) {
+		return "", malformed("Wildcarded-Public-Identity %q", a.UTF8String())
+	}
+
+	return a.UTF8String(), nil
+}
+
+func answerServerName(ans *diameter.Message) (string, error) {
+	a, ok := ans.Find(AVPServerName, tgpp.VendorID)
+	if !ok {
+		return "", nil
+	}
+
+	if !validServerName(a.UTF8String()) {
+		return "", malformed("Server-Name %q", a.UTF8String())
+	}
+
+	return a.UTF8String(), nil
 }
 
 func publicIdentityAVP(v string) (diameter.AVP, error) {
@@ -306,7 +332,7 @@ func optionalUnsigned(req *diameter.Message, code uint32, maxValue uint32) (uint
 	return v, true, nil
 }
 
-func flags(req *diameter.Message, code uint32) (uint32, error) {
+func optionalFlags(req *diameter.Message, code uint32) (uint32, error) {
 	v, _, err := optionalUnsigned(req, code, ^uint32(0))
 	return v, err
 }
@@ -380,24 +406,19 @@ func parseCapabilities(a diameter.AVP) (*ServerCapabilities, error) {
 
 	var c ServerCapabilities
 
-	for _, f := range []struct {
-		code uint32
-		dst  *[]uint32
-	}{
-		{AVPMandatoryCapability, &c.Mandatory},
-		{AVPOptionalCapability, &c.Optional},
-	} {
-		for _, v := range diameter.FindAll(inner, f.code, tgpp.VendorID) {
-			n, err := v.Unsigned32()
-			if err != nil {
-				return nil, err
-			}
+	if c.Mandatory, err = unsignedList(inner, AVPMandatoryCapability); err != nil {
+		return nil, err
+	}
 
-			*f.dst = append(*f.dst, n)
-		}
+	if c.Optional, err = unsignedList(inner, AVPOptionalCapability); err != nil {
+		return nil, err
 	}
 
 	for _, name := range diameter.FindAll(inner, AVPServerName, tgpp.VendorID) {
+		if !validServerName(name.UTF8String()) {
+			return nil, fmt.Errorf("Server-Name %q", name.UTF8String())
+		}
+
 		c.ServerNames = append(c.ServerNames, name.UTF8String())
 	}
 
@@ -421,4 +442,32 @@ func answerUnsigned(ans *diameter.Message, code uint32, name string) (uint32, er
 	}
 
 	return v, nil
+}
+
+func identityPairAVP(code uint32, private, public string) (diameter.AVP, error) {
+	if private == "" {
+		return diameter.AVP{}, invalid("identity pair without a private identity")
+	}
+
+	p, err := publicIdentityAVP(public)
+	if err != nil {
+		return diameter.AVP{}, err
+	}
+
+	return diameter.Grouped(code, 0, tgpp.VendorID, userName(private), p), nil
+}
+
+func unsignedList(avps []diameter.AVP, code uint32) ([]uint32, error) {
+	var out []uint32
+
+	for _, a := range diameter.FindAll(avps, code, tgpp.VendorID) {
+		v, err := a.Unsigned32()
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, v)
+	}
+
+	return out, nil
 }

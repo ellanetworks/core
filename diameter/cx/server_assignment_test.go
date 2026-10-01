@@ -68,7 +68,7 @@ func TestParseServerAssignmentRequestErrors(t *testing.T) {
 		userName(testPrivate),
 		vendorString(AVPPublicIdentity, testPublic),
 		vendorString(AVPServerName, testServer),
-		vendorUnsigned(AVPServerAssignmentType, AssignmentRegistration),
+		vendorUnsigned(AVPServerAssignmentType, uint32(AssignmentRegistration)),
 		vendorUnsigned(AVPUserDataAlreadyAvailable, 0),
 	)
 
@@ -76,8 +76,8 @@ func TestParseServerAssignmentRequestErrors(t *testing.T) {
 		t.Fatalf("base request: %v", err)
 	}
 
-	withType := func(m *diameter.Message, v uint32) *diameter.Message {
-		return with(without(m, AVPServerAssignmentType, tgpp.VendorID), vendorUnsigned(AVPServerAssignmentType, v))
+	withType := func(m *diameter.Message, v AssignmentType) *diameter.Message {
+		return with(without(m, AVPServerAssignmentType, tgpp.VendorID), vendorUnsigned(AVPServerAssignmentType, uint32(v)))
 	}
 
 	for name, tt := range map[string]struct {
@@ -124,7 +124,8 @@ func TestServerAssignmentAnswerRoundTrip(t *testing.T) {
 		AssociatedIdentities: []string{testPrivate, "second@example.org"},
 		LooseRouteRequired:   true,
 		ServerName:           testServer,
-		PriviledgedSender:    true,
+		PrivilegedSender:     true,
+		AllowedWebRTC:        &AllowedWebRTCFunctions{AuthenticationFunctions: []string{"waf.example.org"}, WebServerFunctions: []string{"wwsf.example.org"}},
 		Features:             FeatureAliasIndication,
 	}
 
@@ -209,12 +210,175 @@ func TestServerAssignmentRequestIgnoresForeignOptionalAVPs(t *testing.T) {
 		vendorString(AVPPublicIdentity, testPublic),
 		vendorString(AVPServerName, testServer),
 		userName(testPrivate),
-		vendorUnsigned(AVPServerAssignmentType, AssignmentRegistration),
+		vendorUnsigned(AVPServerAssignmentType, uint32(AssignmentRegistration)),
 		vendorUnsigned(AVPUserDataAlreadyAvailable, 0),
 	)
 
 	got, err := ParseServerAssignmentRequest(req)
 	if err != nil || got.PrivateIdentity != testPrivate || got.Type != AssignmentRegistration {
 		t.Fatalf("ParseServerAssignmentRequest = %+v, %v", got, err)
+	}
+}
+
+func TestServerAssignmentAnswerUserDataRequirement(t *testing.T) {
+	sar := func(r ServerAssignmentRequest, extra ...diameter.AVP) *diameter.Message {
+		r.ServerName = testServer
+		if r.PrivateIdentity == "" && r.Type != AssignmentUnregisteredUser {
+			r.PrivateIdentity = testPrivate
+		}
+
+		return with(mustMessage(t)(NewServerAssignmentRequest(cscfEnvelope, r)), extra...)
+	}
+
+	one := []string{testPublic}
+	success := ServerAssignment{Result: tgpp.Result{Code: diameter.ResultSuccess}}
+
+	for name, tt := range map[string]struct {
+		req      *diameter.Message
+		required bool
+	}{
+		"registration":            {sar(ServerAssignmentRequest{PublicIdentities: one, Type: AssignmentRegistration}), true},
+		"no assignment":           {sar(ServerAssignmentRequest{PublicIdentities: one, Type: AssignmentNoAssignment}), true},
+		"unregistered user":       {sar(ServerAssignmentRequest{PublicIdentities: one, Type: AssignmentUnregisteredUser}), true},
+		"re-registration, cached": {sar(ServerAssignmentRequest{PublicIdentities: one, Type: AssignmentReRegistration, UserDataAlreadyAvailable: true}), false},
+		"P-CSCF restoration": {
+			sar(ServerAssignmentRequest{PublicIdentities: one, Type: AssignmentUnregisteredUser},
+				diameter.Unsigned32(AVPSARFlags, 0, tgpp.VendorID, sarFlagPCSCFRestoration)),
+			false,
+		},
+		"deregistration":  {sar(ServerAssignmentRequest{Type: AssignmentUserDeregistration}), false},
+		"no request type": {request(CommandServerAssignment), false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := NewServerAssignmentAnswer(tt.req, hssIdentity, success)
+			if tt.required != errors.Is(err, ErrInvalidMessage) {
+				t.Fatalf("answer without user data: %v", err)
+			}
+
+			withData := success
+			withData.UserData = []byte("<IMSSubscription/>")
+
+			if _, err := NewServerAssignmentAnswer(tt.req, hssIdentity, withData); err != nil {
+				t.Fatalf("answer with user data: %v", err)
+			}
+		})
+	}
+}
+
+func TestServerAssignmentWildcardedIdentity(t *testing.T) {
+	wildcard := "sip:conf-!.*!@example.org"
+	r := ServerAssignmentRequest{
+		PublicIdentities: []string{"sip:conf-1@example.org"}, WildcardedPublicIdentity: wildcard, ServerName: testServer, Type: AssignmentUnregisteredUser,
+	}
+
+	req, err := NewServerAssignmentRequest(cscfEnvelope, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if w, _ := req.Find(AVPWildcardedPublicIdentity, tgpp.VendorID); w.Flags&diameter.AVPFlagMandatory != 0 {
+		t.Fatalf("Wildcarded-Public-Identity = %+v", w)
+	}
+
+	got, err := ParseServerAssignmentRequest(roundTrip(t, req))
+	if err != nil || !reflect.DeepEqual(got, r) {
+		t.Fatalf("request round trip = %+v, %v", got, err)
+	}
+
+	a := ServerAssignment{Result: tgpp.Result{Code: diameter.ResultSuccess}, UserData: []byte("<IMSSubscription/>"), WildcardedPublicIdentity: wildcard}
+
+	ans, err := NewServerAssignmentAnswer(req, hssIdentity, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotAnswer, err := ParseServerAssignmentAnswer(roundTrip(t, ans))
+	if err != nil || !reflect.DeepEqual(gotAnswer, a) {
+		t.Fatalf("answer round trip = %+v, %v", gotAnswer, err)
+	}
+
+	r.WildcardedPublicIdentity = "conf-!.*!"
+	if _, err := NewServerAssignmentRequest(cscfEnvelope, r); !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("bad wildcard = %v", err)
+	}
+
+	if _, err := ParseServerAssignmentRequest(with(without(req, AVPWildcardedPublicIdentity, tgpp.VendorID),
+		diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, "x"))); avpResult(t, err) != diameter.ResultInvalidAVPValue {
+		t.Fatalf("bad wildcard parse = %v", err)
+	}
+}
+
+func TestServerAssignmentErrorAnswer(t *testing.T) {
+	req := request(CommandServerAssignment)
+
+	result := func(code uint32) ResultError { return ResultError{Result: tgpp.Experimental(code)} }
+
+	for name, e := range map[string]ServerAssignmentError{
+		"already registered": {
+			ResultError:     ResultError{Result: tgpp.Experimental(tgpp.ResultErrorIdentityAlreadyRegistered), Features: FeatureIMSRestoration},
+			PrivateIdentity: testPrivate, ServerName: "sip:other-scscf.example.org",
+		},
+		"in assignment type": {ResultError: result(tgpp.ResultErrorInAssignmentType), WildcardedPublicIdentity: "sip:conf-!.*!@example.org"},
+		"plain":              {ResultError: result(tgpp.ResultErrorUserUnknown)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ans, err := NewServerAssignmentErrorAnswer(req, hssIdentity, e)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			requireVendorSpecificApplicationID(t, ans)
+
+			_, err = ParseServerAssignmentAnswer(roundTrip(t, ans))
+
+			var sae *ServerAssignmentError
+			if !errors.As(err, &sae) || !reflect.DeepEqual(*sae, e) {
+				t.Fatalf("parsed error = %#v, want %#v", err, e)
+			}
+
+			if !tgpp.IsExperimental(err, e.Code) {
+				t.Fatalf("tgpp.IsExperimental(%v) = false", err)
+			}
+		})
+	}
+
+	for name, e := range map[string]ServerAssignmentError{
+		"success":         {ResultError: ResultError{Result: tgpp.Result{Code: diameter.ResultSuccess}}},
+		"bad server name": {ResultError: result(tgpp.ResultErrorIdentityAlreadyRegistered), ServerName: "scscf"},
+		"bad wildcard":    {ResultError: result(tgpp.ResultErrorInAssignmentType), WildcardedPublicIdentity: "x"},
+	} {
+		if _, err := NewServerAssignmentErrorAnswer(req, hssIdentity, e); !errors.Is(err, ErrInvalidMessage) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}
+
+func TestParseServerAssignmentAnswerStrictness(t *testing.T) {
+	req := request(CommandServerAssignment)
+	success := NewAnswer(req, hssIdentity, tgpp.Result{Code: diameter.ResultSuccess}, 0)
+	failure := NewAnswer(req, hssIdentity, tgpp.Experimental(tgpp.ResultErrorIdentityAlreadyRegistered), 0)
+	charging := func(avps ...diameter.AVP) diameter.AVP {
+		return diameter.Grouped(AVPChargingInformation, diameter.AVPFlagMandatory, tgpp.VendorID, avps...)
+	}
+
+	for name, ans := range map[string]*diameter.Message{
+		"empty charging":  with(success, charging()),
+		"secondary only":  with(success, charging(vendorString(AVPSecondaryEventChargingFunctionName, "aaa://ocs2.example.org"))),
+		"bad server name": with(success, vendorString(AVPServerName, "scscf")),
+		"bad wildcard":    with(success, diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, "x")),
+		"empty WWSF name": with(success, diameter.Grouped(AVPAllowedWAFWWSFIdentities, 0, tgpp.VendorID,
+			diameter.UTF8String(AVPWebRTCWebServerFunctionName, 0, tgpp.VendorID, ""))),
+		"WAF not grouped": with(success, diameter.OctetString(AVPAllowedWAFWWSFIdentities, 0, tgpp.VendorID, []byte{1})),
+	} {
+		if _, err := ParseServerAssignmentAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+
+	_, err := ParseServerAssignmentAnswer(with(failure, vendorString(AVPServerName, "scscf"), userName(testPrivate)))
+
+	var re *ServerAssignmentError
+	if !errors.As(err, &re) || !re.IsExperimental(tgpp.ResultErrorIdentityAlreadyRegistered) || re.ServerName != "" || re.PrivateIdentity != testPrivate {
+		t.Fatalf("error answer with a bad Server-Name = %#v", err)
 	}
 }

@@ -6,6 +6,7 @@ package cx
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -54,6 +55,23 @@ func rebuilds[T any](t *testing.T, parsed T, err error, build func(T) (*diameter
 	}
 }
 
+func rebuildsError[E any, P interface {
+	*E
+	error
+}](t *testing.T, parsed P, build func(E) (*diameter.Message, error), parse func(*diameter.Message) error) {
+	t.Helper()
+
+	m, err := build(*parsed)
+	if err != nil {
+		t.Fatalf("parsed %+v does not rebuild: %v", parsed, err)
+	}
+
+	var again P
+	if err := parse(m); !errors.As(err, &again) || !reflect.DeepEqual(*again, *parsed) {
+		t.Fatalf("rebuilt %+v parses as %v", parsed, err)
+	}
+}
+
 func FuzzParseRequests(f *testing.F) {
 	must := mustMessage(f)
 
@@ -73,6 +91,11 @@ func FuzzParseRequests(f *testing.F) {
 		must(NewRegistrationTerminationRequest(hssEnvelope, RegistrationTerminationRequest{
 			PrivateIdentity: testPrivate, AssociatedIdentities: []string{"b@example.org"}, PublicIdentities: []string{testPublic},
 			Reason: DeregistrationReason{Code: ReasonNewServerAssigned, Info: "moved"},
+		})),
+		must(NewPushProfileRequest(hssEnvelope, PushProfileRequest{
+			PrivateIdentity: testPrivate, UserData: []byte("<IMSSubscription/>"),
+			Charging:      &ChargingInformation{PrimaryChargingCollectionFunction: "aaa://cdf.example.org"},
+			AllowedWebRTC: &AllowedWebRTCFunctions{AuthenticationFunctions: []string{"waf"}, WebServerFunctions: []string{"wwsf"}},
 		})),
 	)
 
@@ -111,12 +134,22 @@ func FuzzParseRequests(f *testing.F) {
 		rebuilds(t, rtr, err, func(r RegistrationTerminationRequest) (*diameter.Message, error) {
 			return NewRegistrationTerminationRequest(hssEnvelope, r)
 		}, ParseRegistrationTerminationRequest)
+
+		ppr, err := ParsePushProfileRequest(m)
+		requireAVPError(t, err)
+
+		if len(ppr.UserData) > 0 || ppr.Charging != nil || ppr.AllowedWebRTC != nil {
+			rebuilds(t, ppr, err, func(r PushProfileRequest) (*diameter.Message, error) {
+				return NewPushProfileRequest(hssEnvelope, r)
+			}, ParsePushProfileRequest)
+		}
 	})
 }
 
 func FuzzParseAnswers(f *testing.F) {
 	must := mustMessage(f)
-	req := request(CommandServerAssignment, vendorUnsigned(AVPServerAssignmentType, AssignmentRegistration))
+	req := request(CommandServerAssignment, vendorUnsigned(AVPServerAssignmentType, uint32(AssignmentRegistration)))
+	bare := request(CommandServerAssignment)
 	success := tgpp.Result{Code: diameter.ResultSuccess}
 
 	fuzzSeeds(f,
@@ -133,9 +166,17 @@ func FuzzParseAnswers(f *testing.F) {
 			Charging: &ChargingInformation{PrimaryChargingCollectionFunction: "aaa://cdf.example.org"}, AssociatedIdentities: []string{testPrivate},
 		})),
 		must(NewRegistrationTerminationAnswer(req, cscfIdentity, RegistrationTermination{
-			Result: success, EmergencyRegistrations: []EmergencyRegistration{{PrivateIdentity: testPrivate, PublicIdentity: testPublic}},
+			Result: success, EmergencyIdentities: []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: testPublic}},
 		})),
 		NewAnswer(req, hssIdentity, tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch), FeatureIMSRestoration),
+		must(NewPushProfileAnswer(req, cscfIdentity, PushProfile{Features: FeatureAliasIndication})),
+		must(NewServerAssignmentErrorAnswer(req, hssIdentity, ServerAssignmentError{
+			ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultErrorIdentityAlreadyRegistered)}, PrivateIdentity: testPrivate, ServerName: testServer,
+		})),
+		must(NewRegistrationTerminationErrorAnswer(req, cscfIdentity, RegistrationTerminationError{
+			ResultError:         ResultError{Result: tgpp.Result{Code: diameter.ResultUnableToComply}},
+			EmergencyIdentities: []EmergencyIdentity{{PrivateIdentity: testPrivate, PublicIdentity: testPublic}},
+		})),
 	)
 
 	f.Fuzz(func(t *testing.T, b []byte) {
@@ -151,20 +192,58 @@ func FuzzParseAnswers(f *testing.F) {
 			}
 		}
 
-		_, err = ParseUserAuthorizationAnswer(m)
+		uaa, err := ParseUserAuthorizationAnswer(m)
+		check(err)
+		rebuilds(t, uaa, err, func(a UserAuthorization) (*diameter.Message, error) {
+			return NewUserAuthorizationAnswer(req, hssIdentity, a)
+		}, ParseUserAuthorizationAnswer)
+
+		lia, err := ParseLocationInfoAnswer(m)
+		check(err)
+		rebuilds(t, lia, err, func(a LocationInfo) (*diameter.Message, error) {
+			return NewLocationInfoAnswer(req, hssIdentity, a)
+		}, ParseLocationInfoAnswer)
+
+		maa, err := ParseMultimediaAuthAnswer(m)
 		check(err)
 
-		_, err = ParseLocationInfoAnswer(m)
-		check(err)
+		if err == nil && !slices.ContainsFunc(maa.Items, func(i AuthItem) bool { return i.AKA == nil }) {
+			rebuilds(t, maa, err, func(a MultimediaAuth) (*diameter.Message, error) {
+				return NewMultimediaAuthAnswer(req, hssIdentity, a)
+			}, ParseMultimediaAuthAnswer)
+		}
 
-		_, err = ParseMultimediaAuthAnswer(m)
+		saa, err := ParseServerAssignmentAnswer(m)
 		check(err)
+		rebuilds(t, saa, err, func(a ServerAssignment) (*diameter.Message, error) {
+			return NewServerAssignmentAnswer(bare, hssIdentity, a)
+		}, ParseServerAssignmentAnswer)
 
-		_, err = ParseServerAssignmentAnswer(m)
-		check(err)
+		var sae *ServerAssignmentError
+		if errors.As(err, &sae) {
+			rebuildsError(t, sae, func(e ServerAssignmentError) (*diameter.Message, error) {
+				return NewServerAssignmentErrorAnswer(bare, hssIdentity, e)
+			}, func(m *diameter.Message) error { _, err := ParseServerAssignmentAnswer(m); return err })
+		}
 
-		_, err = ParseRegistrationTerminationAnswer(m)
+		ppa, err := ParsePushProfileAnswer(m)
 		check(err)
+		rebuilds(t, ppa, err, func(a PushProfile) (*diameter.Message, error) {
+			return NewPushProfileAnswer(bare, cscfIdentity, a)
+		}, ParsePushProfileAnswer)
+
+		rta, err := ParseRegistrationTerminationAnswer(m)
+		check(err)
+		rebuilds(t, rta, err, func(a RegistrationTermination) (*diameter.Message, error) {
+			return NewRegistrationTerminationAnswer(bare, cscfIdentity, a)
+		}, ParseRegistrationTerminationAnswer)
+
+		var rte *RegistrationTerminationError
+		if errors.As(err, &rte) {
+			rebuildsError(t, rte, func(e RegistrationTerminationError) (*diameter.Message, error) {
+				return NewRegistrationTerminationErrorAnswer(bare, cscfIdentity, e)
+			}, func(m *diameter.Message) error { _, err := ParseRegistrationTerminationAnswer(m); return err })
+		}
 	})
 }
 

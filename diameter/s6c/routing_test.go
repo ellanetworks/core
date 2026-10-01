@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
-func u32(v uint32) *uint32 {
+func absent(v tgpp.AbsentUserDiagnostic) *tgpp.AbsentUserDiagnostic {
 	return &v
 }
 
@@ -89,7 +89,7 @@ func TestSendRoutingInfoForSMRequestRoundTrip(t *testing.T) {
 }
 
 func TestSendRoutingInfoForSMRequestValidation(t *testing.T) {
-	bad := uint32(7)
+	bad := DeliveryNotIntended(7)
 
 	for name, r := range map[string]RoutingRequest{
 		"no identity": {ServiceCentreAddress: testServiceCentreAddress},
@@ -162,7 +162,7 @@ func TestSendRoutingInfoForSMAnswerRoundTrip(t *testing.T) {
 		IMSI:        "001010000000001",
 		LMSI:        []byte{1, 2, 3, 4},
 		MWDStatus:   MWDStatusMNRF,
-		Absent:      AbsentUserDiagnostics{MSC: u32(tgpp.AbsentUserIMSIDetached), SMSF3GPP: u32(tgpp.AbsentUserTemporarilyUnavailable)},
+		Absent:      AbsentUserDiagnostics{MSC: absent(tgpp.AbsentUserIMSIDetached), SMSF3GPP: absent(tgpp.AbsentUserTemporarilyUnavailable)},
 		AlertMSISDN: "15559999000",
 	}
 
@@ -198,7 +198,7 @@ func TestSendRoutingInfoForSMAnswerWithoutSMSFSupport(t *testing.T) {
 	routing := Routing{
 		ServingNodes: ServingNodes{Serving: mmeNode()},
 		IMSI:         "001010000000001",
-		Absent:       AbsentUserDiagnostics{SMSF3GPP: u32(1), MME: u32(2)},
+		Absent:       AbsentUserDiagnostics{SMSF3GPP: absent(1), MME: absent(2)},
 	}
 
 	ans, err := NewSendRoutingInfoForSMAnswer(req, hssIdentity, routing, false)
@@ -252,7 +252,7 @@ func TestSendRoutingInfoForSMAnswerValidation(t *testing.T) {
 
 func TestSendRoutingInfoForSMAnswerWithoutServingNodeWhenDeliveryNotIntended(t *testing.T) {
 	req := request(CommandSendRoutingInfoForSM,
-		diameter.Unsigned32(AVPSMDeliveryNotIntended, diameter.AVPFlagMandatory, tgpp.VendorID, SMDeliveryNotIntendedIMSI))
+		diameter.Unsigned32(AVPSMDeliveryNotIntended, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(SMDeliveryNotIntendedIMSI)))
 
 	ans, err := NewSendRoutingInfoForSMAnswer(req, hssIdentity, Routing{IMSI: "001010000000001"}, true)
 	if err != nil {
@@ -293,7 +293,7 @@ func TestSendRoutingInfoForSMErrorAnswerRoundTrip(t *testing.T) {
 	e := ResultError{
 		Result:      tgpp.Experimental(tgpp.ResultErrorAbsentUser),
 		MWDStatus:   MWDStatusMNRF | MWDStatusMNR5G,
-		Absent:      AbsentUserDiagnostics{MME: u32(tgpp.AbsentUserIMSIDetached)},
+		Absent:      AbsentUserDiagnostics{MME: absent(tgpp.AbsentUserIMSIDetached)},
 		AlertMSISDN: "15559999000",
 	}
 

@@ -8,60 +8,30 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
+	"unicode/utf8"
 )
 
 var ErrInvalidUserData = errors.New("cx: invalid user data")
 
-const (
-	IdentityDistinctPublicUserIdentity uint8 = 0
-	IdentityDistinctPSI                uint8 = 1
-	IdentityWildcardedPSI              uint8 = 2
-	IdentityNonDistinctIMPU            uint8 = 3
-	IdentityWildcardedIMPU             uint8 = 4
-)
-
-const (
-	ProfilePartRegistered   uint8 = 0
-	ProfilePartUnregistered uint8 = 1
-)
-
-const (
-	SessionCaseOriginatingRegistered   uint8 = 0
-	SessionCaseTerminatingRegistered   uint8 = 1
-	SessionCaseTerminatingUnregistered uint8 = 2
-	SessionCaseOriginatingUnregistered uint8 = 3
-	SessionCaseOriginatingCDIV         uint8 = 4
-)
-
-const (
-	RegistrationTypeInitial        uint8 = 0
-	RegistrationTypeReRegistration uint8 = 1
-	RegistrationTypeDeregistration uint8 = 2
-)
-
-const (
-	DefaultHandlingSessionContinued  uint8 = 0
-	DefaultHandlingSessionTerminated uint8 = 1
-)
-
 type IMSSubscription struct {
-	PrivateID       string
+	PrivateIdentity string
 	ServiceProfiles []ServiceProfile
 	IMSI            string
 }
 
 type ServiceProfile struct {
-	PublicIdentities         []PublicIdentity
-	SubscribedMediaProfileID *int
+	PublicIdentities         []ProfileIdentity
+	SubscribedMediaProfileID *int32
 	InitialFilterCriteria    []InitialFilterCriteria
-	SharedIFCSetIDs          []int
+	SharedIFCSetIDs          []int32
 }
 
-type PublicIdentity struct {
+type ProfileIdentity struct {
 	Identity             string
 	Barred               bool
-	Type                 uint8
+	Type                 IdentityType
 	WildcardedPSI        string
 	DisplayName          string
 	AliasIdentityGroupID string
@@ -69,10 +39,10 @@ type PublicIdentity struct {
 }
 
 type InitialFilterCriteria struct {
-	Priority          int
+	Priority          int32
 	Trigger           *TriggerPoint
 	ApplicationServer ApplicationServer
-	ProfilePart       *uint8
+	ProfilePart       *ProfilePart
 }
 
 type TriggerPoint struct {
@@ -82,13 +52,13 @@ type TriggerPoint struct {
 
 type ServicePointTrigger struct {
 	Negated            bool
-	Groups             []int
+	Groups             []int32
 	RequestURI         *string
 	Method             *string
 	SIPHeader          *HeaderMatch
-	SessionCase        *uint8
+	SessionCase        *SessionCase
 	SessionDescription *SessionDescriptionMatch
-	RegistrationTypes  []uint8
+	RegistrationTypes  []RegistrationType
 }
 
 type HeaderMatch struct {
@@ -103,7 +73,7 @@ type SessionDescriptionMatch struct {
 
 type ApplicationServer struct {
 	ServerName              string
-	DefaultHandling         *uint8
+	DefaultHandling         *DefaultHandling
 	ServiceInfo             *string
 	IncludeRegisterRequest  bool
 	IncludeRegisterResponse bool
@@ -151,11 +121,11 @@ type xmlServiceProfile struct {
 }
 
 type xmlCNServicesAuthorization struct {
-	SubscribedMediaProfileID *int `xml:"SubscribedMediaProfileId"`
+	SubscribedMediaProfileID *int32 `xml:"SubscribedMediaProfileId"`
 }
 
 type xmlServiceProfileExtension struct {
-	SharedIFCSetID []int `xml:"SharedIFCSetID"`
+	SharedIFCSetID []int32 `xml:"SharedIFCSetID"`
 }
 
 type xmlPublicIdentity struct {
@@ -165,7 +135,7 @@ type xmlPublicIdentity struct {
 }
 
 type xmlPublicIdentityExtension struct {
-	IdentityType  *uint8                       `xml:"IdentityType"`
+	IdentityType  *IdentityType                `xml:"IdentityType"`
 	WildcardedPSI string                       `xml:"WildcardedPSI,omitempty"`
 	Extension     *xmlPublicIdentityExtension2 `xml:"Extension"`
 }
@@ -181,24 +151,24 @@ type xmlPublicIdentityExtension3 struct {
 }
 
 type xmlInitialFilterCriteria struct {
-	Priority             int                  `xml:"Priority"`
+	Priority             *int32               `xml:"Priority"`
 	TriggerPoint         *xmlTriggerPoint     `xml:"TriggerPoint"`
 	ApplicationServer    xmlApplicationServer `xml:"ApplicationServer"`
-	ProfilePartIndicator *uint8               `xml:"ProfilePartIndicator"`
+	ProfilePartIndicator *ProfilePart         `xml:"ProfilePartIndicator"`
 }
 
 type xmlTriggerPoint struct {
-	ConditionTypeCNF xmlBool  `xml:"ConditionTypeCNF"`
+	ConditionTypeCNF *xmlBool `xml:"ConditionTypeCNF"`
 	SPT              []xmlSPT `xml:"SPT"`
 }
 
 type xmlSPT struct {
 	ConditionNegated   *xmlBool               `xml:"ConditionNegated"`
-	Group              []int                  `xml:"Group"`
+	Group              []int32                `xml:"Group"`
 	RequestURI         *string                `xml:"RequestURI"`
 	Method             *string                `xml:"Method"`
 	SIPHeader          *xmlHeader             `xml:"SIPHeader"`
-	SessionCase        *uint8                 `xml:"SessionCase"`
+	SessionCase        *SessionCase           `xml:"SessionCase"`
 	SessionDescription *xmlSessionDescription `xml:"SessionDescription"`
 	Extension          *xmlSPTExtension       `xml:"Extension"`
 }
@@ -219,7 +189,7 @@ type xmlSPTExtension struct {
 
 type xmlApplicationServer struct {
 	ServerName      string                         `xml:"ServerName"`
-	DefaultHandling *uint8                         `xml:"DefaultHandling"`
+	DefaultHandling *DefaultHandling               `xml:"DefaultHandling"`
 	ServiceInfo     *string                        `xml:"ServiceInfo"`
 	Extension       *xmlApplicationServerExtension `xml:"Extension"`
 }
@@ -249,10 +219,13 @@ func ParseUserData(b []byte) (IMSSubscription, error) {
 	var w xmlSubscription
 
 	d := xml.NewDecoder(bytes.NewReader(b))
-	d.Strict = true
 
 	if err := d.Decode(&w); err != nil {
 		return IMSSubscription{}, fmt.Errorf("%w: %w", ErrInvalidUserData, err)
+	}
+
+	if err := requireEnd(d); err != nil {
+		return IMSSubscription{}, err
 	}
 
 	s, err := w.model()
@@ -267,13 +240,83 @@ func ParseUserData(b []byte) (IMSSubscription, error) {
 	return s, nil
 }
 
+func requireEnd(d *xml.Decoder) error {
+	for {
+		tok, err := d.Token()
+
+		switch {
+		case errors.Is(err, io.EOF):
+			return nil
+		case err != nil:
+			return fmt.Errorf("%w: %w", ErrInvalidUserData, err)
+		}
+
+		switch t := tok.(type) {
+		case xml.Comment, xml.ProcInst:
+		case xml.CharData:
+			if len(bytes.TrimSpace(t)) != 0 {
+				return userDataError("content after IMSSubscription")
+			}
+		default:
+			return userDataError("content after IMSSubscription")
+		}
+	}
+}
+
+func validText(name string, values ...string) error {
+	for _, v := range values {
+		if !utf8.ValidString(v) {
+			return userDataError("%s is not UTF-8", name)
+		}
+
+		for _, r := range v {
+			if r < 0x20 && r != '\t' && r != '\n' && r != '\r' || r == 0xfffe || r == 0xffff {
+				return userDataError("%s contains the character %U, which XML does not allow", name, r)
+			}
+		}
+	}
+
+	return nil
+}
+
+func validURI(name, v string) error {
+	switch {
+	case v == "":
+		return userDataError("empty %s", name)
+	case strings.TrimSpace(v) != v:
+		return userDataError("%s %q has surrounding whitespace", name, v)
+	}
+
+	return validText(name, v)
+}
+
+func optionalURI(name, v string) error {
+	if v == "" {
+		return nil
+	}
+
+	return validURI(name, v)
+}
+
+func optionalText(name string, v *string) error {
+	if v == nil {
+		return nil
+	}
+
+	return validText(name, *v)
+}
+
 func userDataError(format string, args ...any) error {
 	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidUserData}, args...)...)
 }
 
 func (s IMSSubscription) validate() error {
-	if strings.TrimSpace(s.PrivateID) == "" {
-		return userDataError("no PrivateID")
+	if err := validURI("PrivateID", s.PrivateIdentity); err != nil {
+		return err
+	}
+
+	if err := validText("IMSI", s.IMSI); err != nil {
+		return err
 	}
 
 	if len(s.ServiceProfiles) == 0 {
@@ -295,11 +338,8 @@ func (p ServiceProfile) validate() error {
 	}
 
 	for _, id := range p.PublicIdentities {
-		switch {
-		case strings.TrimSpace(id.Identity) == "":
-			return userDataError("empty Identity")
-		case id.Type > IdentityWildcardedIMPU:
-			return userDataError("IdentityType %d", id.Type)
+		if err := id.validate(); err != nil {
+			return err
 		}
 	}
 
@@ -322,12 +362,38 @@ func (p ServiceProfile) validate() error {
 	return nil
 }
 
+func (id ProfileIdentity) validate() error {
+	if id.Type > IdentityWildcardedIMPU {
+		return userDataError("IdentityType %d", id.Type)
+	}
+
+	for _, err := range []error{
+		validURI("Identity", id.Identity),
+		optionalURI("WildcardedPSI", id.WildcardedPSI),
+		optionalURI("WildcardedIMPU", id.WildcardedIMPU),
+		validText("DisplayName", id.DisplayName),
+		validText("AliasIdentityGroupID", id.AliasIdentityGroupID),
+	} {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (c InitialFilterCriteria) validate() error {
+	if err := validURI("ServerName", c.ApplicationServer.ServerName); err != nil {
+		return err
+	}
+
+	if err := optionalText("ServiceInfo", c.ApplicationServer.ServiceInfo); err != nil {
+		return err
+	}
+
 	switch {
 	case c.Priority < 0:
 		return userDataError("iFC Priority %d", c.Priority)
-	case strings.TrimSpace(c.ApplicationServer.ServerName) == "":
-		return userDataError("iFC without an application server")
 	case c.ApplicationServer.DefaultHandling != nil && *c.ApplicationServer.DefaultHandling > DefaultHandlingSessionTerminated:
 		return userDataError("DefaultHandling %d", *c.ApplicationServer.DefaultHandling)
 	case c.ProfilePart != nil && *c.ProfilePart > ProfilePartUnregistered:
@@ -381,11 +447,31 @@ func (t ServicePointTrigger) validate() error {
 		}
 	}
 
+	return t.validateText()
+}
+
+func (t ServicePointTrigger) validateText() error {
+	checks := []error{optionalText("RequestURI", t.RequestURI), optionalText("Method", t.Method)}
+
+	if h := t.SIPHeader; h != nil {
+		checks = append(checks, validText("Header", h.Header), optionalText("Content", h.Content))
+	}
+
+	if d := t.SessionDescription; d != nil {
+		checks = append(checks, validText("Line", d.Line), optionalText("Content", d.Content))
+	}
+
+	for _, err := range checks {
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (s IMSSubscription) wire() xmlSubscription {
-	w := xmlSubscription{PrivateID: s.PrivateID}
+	w := xmlSubscription{PrivateID: s.PrivateIdentity}
 
 	if s.IMSI != "" {
 		w.Extension = &xmlSubscriptionExtension{IMSI: s.IMSI}
@@ -416,26 +502,27 @@ func (s IMSSubscription) wire() xmlSubscription {
 	return w
 }
 
-func (id PublicIdentity) wire() xmlPublicIdentity {
-	t := id.Type
-	w := xmlPublicIdentity{
-		Identity:  id.Identity,
-		Extension: &xmlPublicIdentityExtension{IdentityType: &t, WildcardedPSI: id.WildcardedPSI},
-	}
+func (id ProfileIdentity) wire() xmlPublicIdentity {
+	w := xmlPublicIdentity{Identity: id.Identity}
 
 	if id.Barred {
 		barred := xmlBool(true)
 		w.BarringIndication = &barred
 	}
 
+	var ext2 *xmlPublicIdentityExtension2
+
 	if id.DisplayName != "" || id.AliasIdentityGroupID != "" || id.WildcardedIMPU != "" {
-		ext2 := &xmlPublicIdentityExtension2{DisplayName: id.DisplayName, AliasIdentityGroupID: id.AliasIdentityGroupID}
+		ext2 = &xmlPublicIdentityExtension2{DisplayName: id.DisplayName, AliasIdentityGroupID: id.AliasIdentityGroupID}
 
 		if id.WildcardedIMPU != "" {
 			ext2.Extension = &xmlPublicIdentityExtension3{WildcardedIMPU: id.WildcardedIMPU}
 		}
+	}
 
-		w.Extension.Extension = ext2
+	if id.Type != IdentityDistinctPublicUserIdentity || id.WildcardedPSI != "" || ext2 != nil {
+		t := id.Type
+		w.Extension = &xmlPublicIdentityExtension{IdentityType: &t, WildcardedPSI: id.WildcardedPSI, Extension: ext2}
 	}
 
 	return w
@@ -443,7 +530,7 @@ func (id PublicIdentity) wire() xmlPublicIdentity {
 
 func (c InitialFilterCriteria) wire() xmlInitialFilterCriteria {
 	w := xmlInitialFilterCriteria{
-		Priority: c.Priority,
+		Priority: &c.Priority,
 		ApplicationServer: xmlApplicationServer{
 			ServerName:      c.ApplicationServer.ServerName,
 			DefaultHandling: c.ApplicationServer.DefaultHandling,
@@ -467,7 +554,8 @@ func (c InitialFilterCriteria) wire() xmlInitialFilterCriteria {
 	}
 
 	if c.Trigger != nil {
-		tp := &xmlTriggerPoint{ConditionTypeCNF: xmlBool(c.Trigger.ConjunctiveNormalForm)}
+		cnf := xmlBool(c.Trigger.ConjunctiveNormalForm)
+		tp := &xmlTriggerPoint{ConditionTypeCNF: &cnf}
 
 		for _, spt := range c.Trigger.ServicePointTriggers {
 			tp.SPT = append(tp.SPT, spt.wire())
@@ -510,10 +598,10 @@ func (t ServicePointTrigger) wire() xmlSPT {
 }
 
 func (w xmlSubscription) model() (IMSSubscription, error) {
-	s := IMSSubscription{PrivateID: strings.TrimSpace(w.PrivateID)}
+	s := IMSSubscription{PrivateIdentity: strings.TrimSpace(w.PrivateID)}
 
 	if w.Extension != nil {
-		s.IMSI = strings.TrimSpace(w.Extension.IMSI)
+		s.IMSI = w.Extension.IMSI
 	}
 
 	for _, wp := range w.ServiceProfile {
@@ -546,8 +634,8 @@ func (w xmlSubscription) model() (IMSSubscription, error) {
 	return s, nil
 }
 
-func (w xmlPublicIdentity) model() PublicIdentity {
-	id := PublicIdentity{Identity: strings.TrimSpace(w.Identity)}
+func (w xmlPublicIdentity) model() ProfileIdentity {
+	id := ProfileIdentity{Identity: strings.TrimSpace(w.Identity)}
 
 	if w.BarringIndication != nil {
 		id.Barred = bool(*w.BarringIndication)
@@ -577,8 +665,12 @@ func (w xmlPublicIdentity) model() PublicIdentity {
 }
 
 func (w xmlInitialFilterCriteria) model() (InitialFilterCriteria, error) {
+	if w.Priority == nil {
+		return InitialFilterCriteria{}, userDataError("iFC without a Priority")
+	}
+
 	c := InitialFilterCriteria{
-		Priority:    w.Priority,
+		Priority:    *w.Priority,
 		ProfilePart: w.ProfilePartIndicator,
 		ApplicationServer: ApplicationServer{
 			ServerName:      strings.TrimSpace(w.ApplicationServer.ServerName),
@@ -593,7 +685,11 @@ func (w xmlInitialFilterCriteria) model() (InitialFilterCriteria, error) {
 	}
 
 	if w.TriggerPoint != nil {
-		tp := &TriggerPoint{ConjunctiveNormalForm: bool(w.TriggerPoint.ConditionTypeCNF)}
+		if w.TriggerPoint.ConditionTypeCNF == nil {
+			return InitialFilterCriteria{}, userDataError("TriggerPoint without a ConditionTypeCNF")
+		}
+
+		tp := &TriggerPoint{ConjunctiveNormalForm: bool(*w.TriggerPoint.ConditionTypeCNF)}
 
 		for _, ws := range w.TriggerPoint.SPT {
 			spt, err := ws.model()
@@ -636,7 +732,7 @@ func (w xmlSPT) model() (ServicePointTrigger, error) {
 				return ServicePointTrigger{}, userDataError("RegistrationType %d", r)
 			}
 
-			t.RegistrationTypes = append(t.RegistrationTypes, uint8(r))
+			t.RegistrationTypes = append(t.RegistrationTypes, RegistrationType(r))
 		}
 	}
 

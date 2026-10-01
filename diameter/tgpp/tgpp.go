@@ -4,6 +4,8 @@
 package tgpp
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/diameter"
 )
 
@@ -80,22 +82,49 @@ var experimentalResultNames = map[uint32]string{
 	ResultErrorMWDListFull:                   "DIAMETER_ERROR_MWD_LIST_FULL",
 }
 
+type AbsentUserDiagnostic uint32
+
 const (
-	AbsentUserNoPagingResponseMSC        uint32 = 0
-	AbsentUserIMSIDetached               uint32 = 1
-	AbsentUserRoamingRestriction         uint32 = 2
-	AbsentUserDeregisteredNonGPRS        uint32 = 3
-	AbsentUserPurgedNonGPRS              uint32 = 4
-	AbsentUserNoPagingResponseSGSN       uint32 = 5
-	AbsentUserGPRSDetached               uint32 = 6
-	AbsentUserDeregisteredGPRS           uint32 = 7
-	AbsentUserPurgedGPRS                 uint32 = 8
-	AbsentUserUnidentifiedSubscriberMSC  uint32 = 9
-	AbsentUserUnidentifiedSubscriberSGSN uint32 = 10
-	AbsentUserDeregisteredIMS            uint32 = 11
-	AbsentUserNoResponseIPSMGW           uint32 = 12
-	AbsentUserTemporarilyUnavailable     uint32 = 13
+	AbsentUserNoPagingResponseMSC        AbsentUserDiagnostic = 0
+	AbsentUserIMSIDetached               AbsentUserDiagnostic = 1
+	AbsentUserRoamingRestriction         AbsentUserDiagnostic = 2
+	AbsentUserDeregisteredNonGPRS        AbsentUserDiagnostic = 3
+	AbsentUserPurgedNonGPRS              AbsentUserDiagnostic = 4
+	AbsentUserNoPagingResponseSGSN       AbsentUserDiagnostic = 5
+	AbsentUserGPRSDetached               AbsentUserDiagnostic = 6
+	AbsentUserDeregisteredGPRS           AbsentUserDiagnostic = 7
+	AbsentUserPurgedGPRS                 AbsentUserDiagnostic = 8
+	AbsentUserUnidentifiedSubscriberMSC  AbsentUserDiagnostic = 9
+	AbsentUserUnidentifiedSubscriberSGSN AbsentUserDiagnostic = 10
+	AbsentUserDeregisteredIMS            AbsentUserDiagnostic = 11
+	AbsentUserNoResponseIPSMGW           AbsentUserDiagnostic = 12
+	AbsentUserTemporarilyUnavailable     AbsentUserDiagnostic = 13
 )
+
+var absentUserDiagnosticNames = map[AbsentUserDiagnostic]string{
+	AbsentUserNoPagingResponseMSC:        "NO_PAGING_RESPONSE_VIA_THE_MSC",
+	AbsentUserIMSIDetached:               "IMSI_DETACHED",
+	AbsentUserRoamingRestriction:         "ROAMING_RESTRICTION",
+	AbsentUserDeregisteredNonGPRS:        "DEREGISTERED_IN_THE_HLR_FOR_NON_GPRS",
+	AbsentUserPurgedNonGPRS:              "MS_PURGED_FOR_NON_GPRS",
+	AbsentUserNoPagingResponseSGSN:       "NO_PAGING_RESPONSE_VIA_THE_SGSN",
+	AbsentUserGPRSDetached:               "GPRS_DETACHED",
+	AbsentUserDeregisteredGPRS:           "DEREGISTERED_IN_THE_HLR_FOR_GPRS",
+	AbsentUserPurgedGPRS:                 "MS_PURGED_FOR_GPRS",
+	AbsentUserUnidentifiedSubscriberMSC:  "UNIDENTIFIED_SUBSCRIBER_VIA_THE_MSC",
+	AbsentUserUnidentifiedSubscriberSGSN: "UNIDENTIFIED_SUBSCRIBER_VIA_THE_SGSN",
+	AbsentUserDeregisteredIMS:            "DEREGISTERED_IN_THE_HSS_HLR_FOR_IMS",
+	AbsentUserNoResponseIPSMGW:           "NO_RESPONSE_VIA_THE_IP_SM_GW",
+	AbsentUserTemporarilyUnavailable:     "THE_MS_IS_TEMPORARILY_UNAVAILABLE",
+}
+
+func (d AbsentUserDiagnostic) String() string {
+	if name, ok := absentUserDiagnosticNames[d]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("AbsentUserDiagnostic(%d)", uint32(d))
+}
 
 type Envelope struct {
 	SessionID        string
@@ -157,6 +186,10 @@ func NewResultAnswer(req *diameter.Message, id diameter.Identity, r Result) *dia
 }
 
 func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error) *diameter.Message {
+	if r, ok := ResultOf(err); ok {
+		return NewResultAnswer(req, id, r)
+	}
+
 	return withAuthSessionState(diameter.NewErrorAnswer(req, id, err))
 }
 
