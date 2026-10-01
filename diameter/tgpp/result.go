@@ -30,6 +30,14 @@ func (r Result) Failure() bool {
 	return r.Code >= 3000 && r.Code < 6000
 }
 
+func (r Result) Transient() bool {
+	return r.Code >= 4000 && r.Code < 5000
+}
+
+func (r Result) Permanent() bool {
+	return r.Code >= 5000 && r.Code < 6000
+}
+
 func (r Result) IsExperimental(code uint32) bool {
 	return r.Experimental && r.VendorID == VendorID && r.Code == code
 }

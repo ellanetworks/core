@@ -396,6 +396,28 @@ func TestDoWaitsBoundedByContext(t *testing.T) {
 	}
 }
 
+func TestDoFailFast(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			n := newTestNode(t, testConfig("smsc.example.org"))
+
+			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{loopback1}, Port: 1, Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			start := time.Now()
+
+			_, err := n.Do(ctx, "hss", request(), FailFast())
+			if !errors.Is(err, ErrNotConnected) || isTimeout(err) || time.Since(start) > 100*time.Millisecond {
+				t.Fatalf("Do = %v after %s", err, time.Since(start))
+			}
+		})
+	}
+}
+
 func TestReconnectBackoff(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
