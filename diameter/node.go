@@ -460,7 +460,7 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 			return nil, fmt.Errorf("diameter: peer %q needs at least one application", p.ID)
 		}
 
-		if p.Transport != TransportSCTP {
+		if p.Transport != TransportSCTP && p.Transport != TransportTCP {
 			return nil, fmt.Errorf("diameter: peer %q has an unknown transport", p.ID)
 		}
 

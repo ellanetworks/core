@@ -14,12 +14,15 @@ type Transport int
 
 const (
 	TransportSCTP Transport = iota
+	TransportTCP
 )
 
 func (t Transport) String() string {
 	switch t {
 	case TransportSCTP:
 		return "sctp"
+	case TransportTCP:
+		return "tcp"
 	default:
 		return fmt.Sprintf("transport(%d)", int(t))
 	}

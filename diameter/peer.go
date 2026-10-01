@@ -583,6 +583,8 @@ func (n *Node) dial(p *peer) *Conn {
 	switch p.cfg.Transport {
 	case TransportSCTP:
 		t, err = dialSCTP(ctx, local, p.cfg.Addresses, p.cfg.Port, n.logger)
+	case TransportTCP:
+		t, err = dialTCP(ctx, local, p.cfg.Addresses, p.cfg.Port)
 	default:
 		err = fmt.Errorf("diameter: unsupported transport %s", p.cfg.Transport)
 	}
