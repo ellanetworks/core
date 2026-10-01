@@ -15,6 +15,7 @@ type UserAuthorizationRequest struct {
 	AuthorizationType     AuthorizationType
 	EmergencyRegistration bool
 	Features              Features
+	RequiredFeatures      Features
 }
 
 type UserAuthorization struct {
@@ -66,7 +67,7 @@ func NewUserAuthorizationRequest(env tgpp.Envelope, r UserAuthorizationRequest) 
 		avps = append(avps, diameter.Unsigned32(AVPUARFlags, 0, tgpp.VendorID, uarFlagEmergencyRegistration))
 	}
 
-	return newRequest(env, CommandUserAuthorization, r.Features, avps...), nil
+	return newRequest(env, CommandUserAuthorization, r.Features, r.RequiredFeatures, avps...)
 }
 
 func CheckUserAuthorization(req *diameter.Message) error {
@@ -103,6 +104,7 @@ func ParseUserAuthorizationRequest(req *diameter.Message) (UserAuthorizationRequ
 		AuthorizationType:     AuthorizationType(authType),
 		EmergencyRegistration: uarFlags&uarFlagEmergencyRegistration != 0,
 		Features:              featureList(req),
+		RequiredFeatures:      requiredFeatures(req),
 	}, nil
 }
 

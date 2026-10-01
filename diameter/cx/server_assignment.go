@@ -20,6 +20,7 @@ type ServerAssignmentRequest struct {
 	Type                     AssignmentType
 	UserDataAlreadyAvailable bool
 	Features                 Features
+	RequiredFeatures         Features
 }
 
 type ChargingInformation struct {
@@ -159,7 +160,7 @@ func NewServerAssignmentRequest(env tgpp.Envelope, r ServerAssignmentRequest) (*
 		vendorUnsigned(AVPUserDataAlreadyAvailable, available),
 	)
 
-	return newRequest(env, CommandServerAssignment, r.Features, avps...), nil
+	return newRequest(env, CommandServerAssignment, r.Features, r.RequiredFeatures, avps...)
 }
 
 func CheckServerAssignment(req *diameter.Message) error {
@@ -191,6 +192,7 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 		Type:                     AssignmentType(t),
 		UserDataAlreadyAvailable: available == userDataAlreadyAvailable,
 		Features:                 featureList(req),
+		RequiredFeatures:         requiredFeatures(req),
 	}
 
 	if user, ok := req.Find(diameter.AVPUserName, 0); ok {

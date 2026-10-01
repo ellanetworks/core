@@ -16,11 +16,12 @@ type AllowedWebRTCFunctions struct {
 }
 
 type PushProfileRequest struct {
-	PrivateIdentity string
-	UserData        []byte
-	Charging        *ChargingInformation
-	AllowedWebRTC   *AllowedWebRTCFunctions
-	Features        Features
+	PrivateIdentity  string
+	UserData         []byte
+	Charging         *ChargingInformation
+	AllowedWebRTC    *AllowedWebRTCFunctions
+	Features         Features
+	RequiredFeatures Features
 }
 
 type PushProfile struct {
@@ -71,7 +72,7 @@ func NewPushProfileRequest(env tgpp.Envelope, r PushProfileRequest) (*diameter.M
 		avps = append(avps, allowed)
 	}
 
-	return newRequest(env, CommandPushProfile, r.Features, avps...), nil
+	return newRequest(env, CommandPushProfile, r.Features, r.RequiredFeatures, avps...)
 }
 
 func CheckPushProfile(req *diameter.Message) error {
@@ -95,7 +96,7 @@ func ParsePushProfileRequest(req *diameter.Message) (PushProfileRequest, error) 
 
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
-	r := PushProfileRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req)}
+	r := PushProfileRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req), RequiredFeatures: requiredFeatures(req)}
 
 	if data, ok := req.Find(AVPUserData, tgpp.VendorID); ok {
 		r.UserData = bytes.Clone(data.Data)

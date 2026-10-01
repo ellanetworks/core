@@ -23,6 +23,7 @@ type RegistrationTerminationRequest struct {
 	Reason                   DeregistrationReason
 	ReferenceLocationChanged bool
 	Features                 Features
+	RequiredFeatures         Features
 }
 
 type EmergencyIdentity struct {
@@ -88,7 +89,7 @@ func NewRegistrationTerminationRequest(env tgpp.Envelope, r RegistrationTerminat
 		avps = append(avps, diameter.Unsigned32(AVPRTRFlags, 0, tgpp.VendorID, rtrFlagReferenceLocationChanged))
 	}
 
-	return newRequest(env, CommandRegistrationTermination, r.Features, avps...), nil
+	return newRequest(env, CommandRegistrationTermination, r.Features, r.RequiredFeatures, avps...)
 }
 
 func CheckRegistrationTermination(req *diameter.Message) error {
@@ -102,7 +103,7 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
-	r := RegistrationTerminationRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req)}
+	r := RegistrationTerminationRequest{PrivateIdentity: user.UTF8String(), Features: featureList(req), RequiredFeatures: requiredFeatures(req)}
 
 	if a, ok := req.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
 		ids, err := parseIdentityList(a)

@@ -55,31 +55,56 @@ const (
 	ResultErrorMWDListFull          uint32 = 5558
 )
 
+const (
+	ResultRequestedServiceTemporarilyNotAuthorized uint32 = 4261
+	ResultPCEFFailure                              uint32 = 4262
+	ResultInvalidServiceInformation                uint32 = 5061
+	ResultFilterRestrictions                       uint32 = 5062
+	ResultRequestedServiceNotAuthorized            uint32 = 5063
+	ResultDuplicatedAFSession                      uint32 = 5064
+	ResultIPCANSessionNotAvailable                 uint32 = 5065
+	ResultUnauthorizedNonEmergencySession          uint32 = 5066
+	ResultUnauthorizedSponsoredDataConnectivity    uint32 = 5067
+	ResultTemporaryNetworkFailure                  uint32 = 5068
+	ResultUnauthorizedNonRLOSSession               uint32 = 5069
+)
+
 var experimentalResultNames = map[uint32]string{
-	ResultFirstRegistration:                  "DIAMETER_FIRST_REGISTRATION",
-	ResultSubsequentRegistration:             "DIAMETER_SUBSEQUENT_REGISTRATION",
-	ResultUnregisteredService:                "DIAMETER_UNREGISTERED_SERVICE",
-	ResultSuccessServerNameNotStored:         "DIAMETER_SUCCESS_SERVER_NAME_NOT_STORED",
-	ResultErrorIdentitiesDontMatch:           "DIAMETER_ERROR_IDENTITIES_DONT_MATCH",
-	ResultErrorIdentityNotRegistered:         "DIAMETER_ERROR_IDENTITY_NOT_REGISTERED",
-	ResultErrorRoamingNotAllowed:             "DIAMETER_ERROR_ROAMING_NOT_ALLOWED",
-	ResultErrorIdentityAlreadyRegistered:     "DIAMETER_ERROR_IDENTITY_ALREADY_REGISTERED",
-	ResultErrorAuthSchemeNotSupported:        "DIAMETER_ERROR_AUTH_SCHEME_NOT_SUPPORTED",
-	ResultErrorInAssignmentType:              "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE",
-	ResultErrorTooMuchData:                   "DIAMETER_ERROR_TOO_MUCH_DATA",
-	ResultErrorNotSupportedUserData:          "DIAMETER_ERROR_NOT_SUPPORTED_USER_DATA",
-	ResultErrorFeatureUnsupported:            "DIAMETER_ERROR_FEATURE_UNSUPPORTED",
-	ResultErrorServingNodeFeatureUnsupported: "DIAMETER_ERROR_SERVING_NODE_FEATURE_UNSUPPORTED",
-	ResultErrorUserUnknown:                   "DIAMETER_ERROR_USER_UNKNOWN",
-	ResultErrorAbsentUser:                    "DIAMETER_ERROR_ABSENT_USER",
-	ResultErrorUserBusyForMTSMS:              "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
-	ResultErrorFacilityNotSupported:          "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
-	ResultErrorIllegalUser:                   "DIAMETER_ERROR_ILLEGAL_USER",
-	ResultErrorIllegalEquipment:              "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
-	ResultErrorSMDeliveryFailure:             "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
-	ResultErrorServiceNotSubscribed:          "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
-	ResultErrorServiceBarred:                 "DIAMETER_ERROR_SERVICE_BARRED",
-	ResultErrorMWDListFull:                   "DIAMETER_ERROR_MWD_LIST_FULL",
+	ResultFirstRegistration:                        "DIAMETER_FIRST_REGISTRATION",
+	ResultSubsequentRegistration:                   "DIAMETER_SUBSEQUENT_REGISTRATION",
+	ResultUnregisteredService:                      "DIAMETER_UNREGISTERED_SERVICE",
+	ResultSuccessServerNameNotStored:               "DIAMETER_SUCCESS_SERVER_NAME_NOT_STORED",
+	ResultErrorIdentitiesDontMatch:                 "DIAMETER_ERROR_IDENTITIES_DONT_MATCH",
+	ResultErrorIdentityNotRegistered:               "DIAMETER_ERROR_IDENTITY_NOT_REGISTERED",
+	ResultErrorRoamingNotAllowed:                   "DIAMETER_ERROR_ROAMING_NOT_ALLOWED",
+	ResultErrorIdentityAlreadyRegistered:           "DIAMETER_ERROR_IDENTITY_ALREADY_REGISTERED",
+	ResultErrorAuthSchemeNotSupported:              "DIAMETER_ERROR_AUTH_SCHEME_NOT_SUPPORTED",
+	ResultErrorInAssignmentType:                    "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE",
+	ResultErrorTooMuchData:                         "DIAMETER_ERROR_TOO_MUCH_DATA",
+	ResultErrorNotSupportedUserData:                "DIAMETER_ERROR_NOT_SUPPORTED_USER_DATA",
+	ResultErrorFeatureUnsupported:                  "DIAMETER_ERROR_FEATURE_UNSUPPORTED",
+	ResultErrorServingNodeFeatureUnsupported:       "DIAMETER_ERROR_SERVING_NODE_FEATURE_UNSUPPORTED",
+	ResultErrorUserUnknown:                         "DIAMETER_ERROR_USER_UNKNOWN",
+	ResultErrorAbsentUser:                          "DIAMETER_ERROR_ABSENT_USER",
+	ResultErrorUserBusyForMTSMS:                    "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
+	ResultErrorFacilityNotSupported:                "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
+	ResultErrorIllegalUser:                         "DIAMETER_ERROR_ILLEGAL_USER",
+	ResultErrorIllegalEquipment:                    "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
+	ResultErrorSMDeliveryFailure:                   "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
+	ResultErrorServiceNotSubscribed:                "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
+	ResultErrorServiceBarred:                       "DIAMETER_ERROR_SERVICE_BARRED",
+	ResultErrorMWDListFull:                         "DIAMETER_ERROR_MWD_LIST_FULL",
+	ResultRequestedServiceTemporarilyNotAuthorized: "REQUESTED_SERVICE_TEMPORARILY_NOT_AUTHORIZED",
+	ResultPCEFFailure:                              "PCEF_FAILURE",
+	ResultInvalidServiceInformation:                "INVALID_SERVICE_INFORMATION",
+	ResultFilterRestrictions:                       "FILTER_RESTRICTIONS",
+	ResultRequestedServiceNotAuthorized:            "REQUESTED_SERVICE_NOT_AUTHORIZED",
+	ResultDuplicatedAFSession:                      "DUPLICATED_AF_SESSION",
+	ResultIPCANSessionNotAvailable:                 "IP-CAN_SESSION_NOT_AVAILABLE",
+	ResultUnauthorizedNonEmergencySession:          "UNAUTHORIZED_NON_EMERGENCY_SESSION",
+	ResultUnauthorizedSponsoredDataConnectivity:    "UNAUTHORIZED_SPONSORED_DATA_CONNECTIVITY",
+	ResultTemporaryNetworkFailure:                  "TEMPORARY_NETWORK_FAILURE",
+	ResultUnauthorizedNonRLOSSession:               "UNAUTHORIZED_NON_RLOS_SESSION",
 }
 
 type AbsentUserDiagnostic uint32

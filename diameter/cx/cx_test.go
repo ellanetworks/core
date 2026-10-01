@@ -311,6 +311,61 @@ func TestFeaturesAdvertised(t *testing.T) {
 	}
 }
 
+func TestRequiredFeatures(t *testing.T) {
+	for name, r := range map[string]UserAuthorizationRequest{
+		"all required":  {Features: FeatureIMSRestoration | FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration | FeatureAliasIndication},
+		"some required": {Features: FeatureIMSRestoration | FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration},
+		"none required": {Features: FeatureAliasIndication},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r.PrivateIdentity, r.PublicIdentity, r.VisitedNetwork = testPrivate, testPublic, testRealm
+
+			req, err := NewUserAuthorizationRequest(cscfEnvelope, r)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, sf := range req.AVPs {
+				if sf.Code != tgpp.AVPSupportedFeatures {
+					continue
+				}
+
+				f, err := tgpp.ParseSupportedFeatures(sf)
+				if err != nil || f.Mandatory != (Features(f.FeatureList)&^r.RequiredFeatures == 0) {
+					t.Fatalf("Supported-Features %+v, %v", f, err)
+				}
+			}
+
+			got, err := ParseUserAuthorizationRequest(roundTrip(t, req))
+			if err != nil || got.Features != r.Features || got.RequiredFeatures != r.RequiredFeatures {
+				t.Fatalf("features = %s, required %s, %v", got.Features, got.RequiredFeatures, err)
+			}
+		})
+	}
+
+	_, err := NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
+		PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
+		Features: FeatureAliasIndication, RequiredFeatures: FeatureIMSRestoration,
+	})
+	if !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("required but not advertised = %v", err)
+	}
+}
+
+func TestAnswerFeaturesAreNeverMandatory(t *testing.T) {
+	req := mustMessage(t)(NewUserAuthorizationRequest(cscfEnvelope, UserAuthorizationRequest{
+		PrivateIdentity: testPrivate, PublicIdentity: testPublic, VisitedNetwork: testRealm,
+		Features: FeatureIMSRestoration, RequiredFeatures: FeatureIMSRestoration,
+	}))
+
+	ans := NewAnswer(req, hssIdentity, tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported), FeatureAliasIndication)
+
+	sf, ok := ans.Find(tgpp.AVPSupportedFeatures, tgpp.VendorID)
+	if !ok || sf.Flags&diameter.AVPFlagMandatory != 0 {
+		t.Fatalf("answer Supported-Features = %+v", sf)
+	}
+}
+
 func TestErrorAnswer(t *testing.T) {
 	req := request(CommandServerAssignment)
 	ans := NewErrorAnswer(req, hssIdentity, tgpp.MissingAVP(AVPServerName, tgpp.VendorID), 0)

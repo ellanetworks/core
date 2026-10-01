@@ -13,10 +13,16 @@ type SupportedFeatures struct {
 	VendorID      uint32
 	FeatureListID uint32
 	FeatureList   uint32
+	Mandatory     bool
 }
 
 func (f SupportedFeatures) AVP() diameter.AVP {
-	return diameter.Grouped(AVPSupportedFeatures, 0, VendorID,
+	var flags uint8
+	if f.Mandatory {
+		flags = diameter.AVPFlagMandatory
+	}
+
+	return diameter.Grouped(AVPSupportedFeatures, flags, VendorID,
 		diameter.Unsigned32(diameter.AVPVendorID, diameter.AVPFlagMandatory, 0, f.VendorID),
 		diameter.Unsigned32(AVPFeatureListID, 0, VendorID, f.FeatureListID),
 		diameter.Unsigned32(AVPFeatureList, 0, VendorID, f.FeatureList),
@@ -29,7 +35,7 @@ func ParseSupportedFeatures(a diameter.AVP) (SupportedFeatures, error) {
 		return SupportedFeatures{}, fmt.Errorf("Supported-Features: %w", err)
 	}
 
-	var f SupportedFeatures
+	f := SupportedFeatures{Mandatory: a.Flags&diameter.AVPFlagMandatory != 0}
 
 	for _, field := range []struct {
 		code, vendorID uint32
@@ -54,11 +60,33 @@ func ParseSupportedFeatures(a diameter.AVP) (SupportedFeatures, error) {
 }
 
 func FeatureList(avps []diameter.AVP, vendorID, featureListID uint32) uint32 {
+	return featureList(avps, vendorID, featureListID, false)
+}
+
+func RequiredFeatureList(avps []diameter.AVP, vendorID, featureListID uint32) uint32 {
+	return featureList(avps, vendorID, featureListID, true)
+}
+
+func FeatureAVPs(vendorID, featureListID, features, required uint32) []diameter.AVP {
+	var avps []diameter.AVP
+
+	if required != 0 {
+		avps = append(avps, SupportedFeatures{VendorID: vendorID, FeatureListID: featureListID, FeatureList: required, Mandatory: true}.AVP())
+	}
+
+	if optional := features &^ required; optional != 0 {
+		avps = append(avps, SupportedFeatures{VendorID: vendorID, FeatureListID: featureListID, FeatureList: optional}.AVP())
+	}
+
+	return avps
+}
+
+func featureList(avps []diameter.AVP, vendorID, featureListID uint32, requiredOnly bool) uint32 {
 	var list uint32
 
 	for _, a := range diameter.FindAll(avps, AVPSupportedFeatures, VendorID) {
 		f, err := ParseSupportedFeatures(a)
-		if err == nil && f.VendorID == vendorID && f.FeatureListID == featureListID {
+		if err == nil && f.VendorID == vendorID && f.FeatureListID == featureListID && (f.Mandatory || !requiredOnly) {
 			list |= f.FeatureList
 		}
 	}

@@ -25,13 +25,14 @@ type Resync struct {
 }
 
 type MultimediaAuthRequest struct {
-	PrivateIdentity string
-	PublicIdentity  string
-	ServerName      string
-	NumberOfItems   uint32
-	Scheme          AuthenticationScheme
-	Resync          *Resync
-	Features        Features
+	PrivateIdentity  string
+	PublicIdentity   string
+	ServerName       string
+	NumberOfItems    uint32
+	Scheme           AuthenticationScheme
+	Resync           *Resync
+	Features         Features
+	RequiredFeatures Features
 }
 
 type AKAVector struct {
@@ -101,13 +102,13 @@ func NewMultimediaAuthRequest(env tgpp.Envelope, r MultimediaAuthRequest) (*diam
 			append(append([]byte(nil), r.Resync.RAND...), r.Resync.AUTS...)))
 	}
 
-	return newRequest(env, CommandMultimediaAuth, r.Features,
+	return newRequest(env, CommandMultimediaAuth, r.Features, r.RequiredFeatures,
 		userName(r.PrivateIdentity),
 		public,
 		vendorUnsigned(AVPSIPNumberAuthItems, r.NumberOfItems),
 		diameter.Grouped(AVPSIPAuthDataItem, diameter.AVPFlagMandatory, tgpp.VendorID, item...),
 		server,
-	), nil
+	)
 }
 
 func CheckMultimediaAuth(req *diameter.Message) error {
@@ -155,12 +156,13 @@ func ParseMultimediaAuthRequest(req *diameter.Message) (MultimediaAuthRequest, e
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
 	r := MultimediaAuthRequest{
-		PrivateIdentity: user.UTF8String(),
-		PublicIdentity:  public,
-		ServerName:      server,
-		NumberOfItems:   n,
-		Scheme:          AuthenticationScheme(scheme.UTF8String()),
-		Features:        featureList(req),
+		PrivateIdentity:  user.UTF8String(),
+		PublicIdentity:   public,
+		ServerName:       server,
+		NumberOfItems:    n,
+		Scheme:           AuthenticationScheme(scheme.UTF8String()),
+		Features:         featureList(req),
+		RequiredFeatures: requiredFeatures(req),
 	}
 
 	if a, ok := diameter.Find(item, AVPSIPAuthorization, tgpp.VendorID); ok {

@@ -148,9 +148,7 @@ func finishAnswer(ans *diameter.Message, features Features) *diameter.Message {
 }
 
 func withFeatures(msg *diameter.Message, features Features) *diameter.Message {
-	if features != 0 {
-		msg.AVPs = append(msg.AVPs, tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(features)}.AVP())
-	}
+	msg.AVPs = append(msg.AVPs, tgpp.FeatureAVPs(tgpp.VendorID, featureListID, uint32(features), 0)...)
 
 	return msg
 }
@@ -162,21 +160,30 @@ func vendorSpecificApplicationID() diameter.AVP {
 	)
 }
 
-func newRequest(env tgpp.Envelope, command uint32, features Features, avps ...diameter.AVP) *diameter.Message {
-	msg := withFeatures(&diameter.Message{
+func newRequest(env tgpp.Envelope, command uint32, features, required Features, avps ...diameter.AVP) (*diameter.Message, error) {
+	if required&^features != 0 {
+		return nil, invalid("required features %s not among the advertised %s", required, features)
+	}
+
+	msg := &diameter.Message{
 		Flags:         diameter.FlagRequest | diameter.FlagProxiable,
 		CommandCode:   command,
 		ApplicationID: ApplicationID,
 		AVPs:          append(env.AVPs(), vendorSpecificApplicationID()),
-	}, features)
+	}
 
+	msg.AVPs = append(msg.AVPs, tgpp.FeatureAVPs(tgpp.VendorID, featureListID, uint32(features), uint32(required))...)
 	msg.AVPs = append(msg.AVPs, avps...)
 
-	return msg
+	return msg, nil
 }
 
 func featureList(m *diameter.Message) Features {
 	return Features(tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID))
+}
+
+func requiredFeatures(m *diameter.Message) Features {
+	return Features(tgpp.RequiredFeatureList(m.AVPs, tgpp.VendorID, featureListID))
 }
 
 func invalid(format string, args ...any) error {

@@ -13,6 +13,7 @@ type LocationInfoRequest struct {
 	Originating       bool
 	AuthorizationType AuthorizationType
 	Features          Features
+	RequiredFeatures  Features
 }
 
 type LocationInfo struct {
@@ -53,7 +54,7 @@ func NewLocationInfoRequest(env tgpp.Envelope, r LocationInfoRequest) (*diameter
 		avps = append(avps, vendorUnsigned(AVPUserAuthorizationType, uint32(r.AuthorizationType)))
 	}
 
-	return newRequest(env, CommandLocationInfo, r.Features, avps...), nil
+	return newRequest(env, CommandLocationInfo, r.Features, r.RequiredFeatures, avps...)
 }
 
 func CheckLocationInfo(req *diameter.Message) error {
@@ -90,6 +91,7 @@ func ParseLocationInfoRequest(req *diameter.Message) (LocationInfoRequest, error
 		Originating:       isOriginating,
 		AuthorizationType: AuthorizationType(authType),
 		Features:          featureList(req),
+		RequiredFeatures:  requiredFeatures(req),
 	}, nil
 }
 
