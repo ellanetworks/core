@@ -69,3 +69,36 @@ func TestResultString(t *testing.T) {
 		}
 	}
 }
+
+func TestResultFailure(t *testing.T) {
+	for code, want := range map[uint32]bool{0: false, 1001: false, 2001: false, 3002: true, 4261: true, 5065: true, 6000: false} {
+		if got := (Result{Code: code}).Failure(); got != want {
+			t.Errorf("Result{%d}.Failure() = %v", code, got)
+		}
+	}
+}
+
+func TestParseFinalResult(t *testing.T) {
+	req := &diameter.Message{Flags: diameter.FlagRequest}
+
+	for code, ok := range map[uint32]bool{1001: false, 2001: true, 3002: true, 5012: true, 6000: false} {
+		_, err := ParseFinalResult(NewAnswer(req, testIdentity, code))
+		if (err == nil) != ok || (err != nil && !errors.Is(err, ErrMalformedResult)) {
+			t.Errorf("code %d: err = %v", code, err)
+		}
+	}
+
+	if _, err := ParseFinalResult(&diameter.Message{}); !errors.Is(err, ErrMalformedResult) {
+		t.Errorf("empty answer: err = %v", err)
+	}
+}
+
+func TestOrSuccess(t *testing.T) {
+	if (Result{}).OrSuccess() != (Result{Code: diameter.ResultSuccess}) {
+		t.Error("zero result is not DIAMETER_SUCCESS")
+	}
+
+	if r := Experimental(ResultFirstRegistration); r.OrSuccess() != r {
+		t.Error("non-zero result changed")
+	}
+}

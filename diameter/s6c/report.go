@@ -11,8 +11,8 @@ import (
 )
 
 type DeliveryOutcome struct {
-	Cause            uint32
-	AbsentDiagnostic *uint32
+	Cause            DeliveryCause
+	AbsentDiagnostic *tgpp.AbsentUserDiagnostic
 }
 
 type DeliveryReport struct {
@@ -75,7 +75,7 @@ func (rep *DeliveryReport) validateOutcomes() error {
 		}
 
 		if (*f.outcome).Cause > DeliveryCauseSuccessfulTransfer {
-			return invalid("SM-Delivery-Cause %d", (*f.outcome).Cause)
+			return invalidf("SM-Delivery-Cause %d", (*f.outcome).Cause)
 		}
 
 		found = true
@@ -83,23 +83,27 @@ func (rep *DeliveryReport) validateOutcomes() error {
 
 	switch {
 	case !found:
-		return invalid("delivery report without an outcome")
+		return invalidf("delivery report without an outcome")
 	case rep.MME != nil && rep.MSC != nil:
-		return invalid("delivery report with both an MME and an MSC outcome")
+		return invalidf("delivery report with both an MME and an MSC outcome")
 	}
 
 	return nil
 }
 
 func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*diameter.Message, error) {
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
+	}
+
 	ui, err := tgpp.NewUserIdentifier(tgpp.UserIdentifier{MSISDN: rep.MSISDN, IMSI: rep.IMSI})
 	if err != nil {
-		return nil, invalid("%w", err)
+		return nil, invalidf("%w", err)
 	}
 
 	scAddress, err := tgpp.EncodeE164(rep.ServiceCentreAddress)
 	if err != nil {
-		return nil, invalid("service centre address: %w", err)
+		return nil, invalidf("service centre address: %w", err)
 	}
 
 	if err := rep.validateOutcomes(); err != nil {
@@ -107,7 +111,7 @@ func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*d
 	}
 
 	if rep.Failed.Additional != nil && rep.Failed.Serving == nil {
-		return nil, invalid("additional failed serving node without a serving node")
+		return nil, invalidf("additional failed serving node without a serving node")
 	}
 
 	failed, err := rep.Failed.avps(rep.SMSFSupport)
@@ -136,7 +140,7 @@ func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*d
 	)
 
 	if rep.SingleAttempt {
-		avps = append(avps, diameter.Unsigned32(AVPRDRFlags, 0, tgpp.VendorID, RDRFlagSingleAttempt))
+		avps = append(avps, diameter.Unsigned32(AVPRDRFlags, 0, tgpp.VendorID, rdrFlagSingleAttempt))
 	}
 
 	avps = append(avps, failed...)
@@ -151,11 +155,11 @@ func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*d
 
 func deliveryOutcome(code uint32, flags uint8, o DeliveryOutcome) diameter.AVP {
 	inner := []diameter.AVP{
-		diameter.Unsigned32(AVPSMDeliveryCause, diameter.AVPFlagMandatory, tgpp.VendorID, o.Cause),
+		diameter.Unsigned32(AVPSMDeliveryCause, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(o.Cause)),
 	}
 
 	if o.AbsentDiagnostic != nil {
-		inner = append(inner, diameter.Unsigned32(tgpp.AVPAbsentUserDiagnosticSM, diameter.AVPFlagMandatory, tgpp.VendorID, *o.AbsentDiagnostic))
+		inner = append(inner, diameter.Unsigned32(tgpp.AVPAbsentUserDiagnosticSM, diameter.AVPFlagMandatory, tgpp.VendorID, uint32(*o.AbsentDiagnostic)))
 	}
 
 	return diameter.Grouped(code, flags, tgpp.VendorID, inner...)
@@ -192,12 +196,12 @@ func ParseReportSMDeliveryStatusRequest(req *diameter.Message) (DeliveryReport, 
 	}
 
 	if a, ok := req.Find(AVPRDRFlags, tgpp.VendorID); ok {
-		flags, err := a.Unsigned32()
+		flags, err := tgpp.Unsigned32(a)
 		if err != nil {
-			return DeliveryReport{}, tgpp.InvalidAVP(a)
+			return DeliveryReport{}, err
 		}
 
-		rep.SingleAttempt = flags&RDRFlagSingleAttempt != 0
+		rep.SingleAttempt = flags&rdrFlagSingleAttempt != 0
 	}
 
 	if rep.Failed, err = requestServingNodes(req); err != nil {
@@ -245,9 +249,12 @@ func parseDeliveryOutcome(a diameter.AVP) (*DeliveryOutcome, bool) {
 
 	o := &DeliveryOutcome{}
 
-	if o.Cause, err = cause.Unsigned32(); err != nil {
+	c, err := cause.Unsigned32()
+	if err != nil {
 		return nil, false
 	}
+
+	o.Cause = DeliveryCause(c)
 
 	if d, ok := diameter.Find(inner, tgpp.AVPAbsentUserDiagnosticSM, tgpp.VendorID); ok {
 		v, err := d.Unsigned32()
@@ -255,7 +262,8 @@ func parseDeliveryOutcome(a diameter.AVP) (*DeliveryOutcome, bool) {
 			return nil, false
 		}
 
-		o.AbsentDiagnostic = &v
+		diagnostic := tgpp.AbsentUserDiagnostic(v)
+		o.AbsentDiagnostic = &diagnostic
 	}
 
 	return o, true
@@ -263,7 +271,7 @@ func parseDeliveryOutcome(a diameter.AVP) (*DeliveryOutcome, bool) {
 
 func NewReportSMDeliveryStatusAnswer(req *diameter.Message, id diameter.Identity, res ReportResult, smsfSupport bool) (*diameter.Message, error) {
 	if res.Additional != nil && res.Serving == nil {
-		return nil, invalid("additional serving node without a serving node")
+		return nil, invalidf("additional serving node without a serving node")
 	}
 
 	nodes, err := res.avps(smsfSupport)

@@ -28,14 +28,18 @@ var ofrRules = diameter.BaseRequestRules().With(diameter.Rules{
 })
 
 func NewMOForwardShortMessageRequest(env tgpp.Envelope, m MOForwardShortMessage) (*diameter.Message, error) {
+	if err := env.Validate(); err != nil {
+		return nil, invalidf("%w", err)
+	}
+
 	scAddress, err := tgpp.EncodeE164(m.ServiceCentreAddress)
 	if err != nil {
-		return nil, invalid("service centre address: %w", err)
+		return nil, invalidf("service centre address: %w", err)
 	}
 
 	ui, err := tgpp.NewUserIdentifier(m.User)
 	if err != nil {
-		return nil, invalid("%w", err)
+		return nil, invalidf("%w", err)
 	}
 
 	if err := checkSMRPUI(m.SMRPUI); err != nil {

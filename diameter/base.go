@@ -9,12 +9,20 @@ const RelayApplicationID uint32 = 0xffffffff
 
 const (
 	CommandCapabilitiesExchange uint32 = 257
+	CommandReAuth               uint32 = 258
+	CommandAbortSession         uint32 = 274
+	CommandSessionTermination   uint32 = 275
 	CommandDeviceWatchdog       uint32 = 280
 	CommandDisconnectPeer       uint32 = 282
 )
 
 const (
 	AVPUserName                    uint32 = 1
+	AVPFramedIPAddress             uint32 = 8
+	AVPClass                       uint32 = 25
+	AVPSessionTimeout              uint32 = 27
+	AVPCalledStationID             uint32 = 30
+	AVPFramedIPv6Prefix            uint32 = 97
 	AVPHostIPAddress               uint32 = 257
 	AVPAuthApplicationID           uint32 = 258
 	AVPAcctApplicationID           uint32 = 259
@@ -26,18 +34,26 @@ const (
 	AVPResultCode                  uint32 = 268
 	AVPProductName                 uint32 = 269
 	AVPDisconnectCause             uint32 = 273
+	AVPAuthGracePeriod             uint32 = 276
 	AVPAuthSessionState            uint32 = 277
 	AVPOriginStateID               uint32 = 278
 	AVPRouteRecord                 uint32 = 282
 	AVPFailedAVP                   uint32 = 279
 	AVPDestinationRealm            uint32 = 283
 	AVPProxyInfo                   uint32 = 284
+	AVPReAuthRequestType           uint32 = 285
+	AVPAuthorizationLifetime       uint32 = 291
 	AVPInbandSecurityID            uint32 = 299
 	AVPDRMP                        uint32 = 301
 	AVPDestinationHost             uint32 = 293
+	AVPTerminationCause            uint32 = 295
 	AVPOriginRealm                 uint32 = 296
 	AVPExperimentalResult          uint32 = 297
 	AVPExperimentalResultCode      uint32 = 298
+	AVPSubscriptionID              uint32 = 443
+	AVPFinalUnitAction             uint32 = 449
+	AVPSubscriptionIDData          uint32 = 444
+	AVPSubscriptionIDType          uint32 = 450
 )
 
 const (
@@ -51,6 +67,8 @@ const (
 	ResultInvalidAVPBits         uint32 = 3009
 	ResultUnknownPeer            uint32 = 3010
 	ResultAVPUnsupported         uint32 = 5001
+	ResultUnknownSessionID       uint32 = 5002
+	ResultAuthorizationRejected  uint32 = 5003
 	ResultInvalidAVPValue        uint32 = 5004
 	ResultMissingAVP             uint32 = 5005
 	ResultAVPOccursTooManyTimes  uint32 = 5009
@@ -73,6 +91,8 @@ var resultNames = map[uint32]string{
 	ResultInvalidAVPBits:         "DIAMETER_INVALID_AVP_BITS",
 	ResultUnknownPeer:            "DIAMETER_UNKNOWN_PEER",
 	ResultAVPUnsupported:         "DIAMETER_AVP_UNSUPPORTED",
+	ResultUnknownSessionID:       "DIAMETER_UNKNOWN_SESSION_ID",
+	ResultAuthorizationRejected:  "DIAMETER_AUTHORIZATION_REJECTED",
 	ResultInvalidAVPValue:        "DIAMETER_INVALID_AVP_VALUE",
 	ResultMissingAVP:             "DIAMETER_MISSING_AVP",
 	ResultAVPOccursTooManyTimes:  "DIAMETER_AVP_OCCURS_TOO_MANY_TIMES",
@@ -88,7 +108,10 @@ func ResultName(code uint32) string { return resultNames[code] }
 
 const InbandSecurityNone uint32 = 0
 
-const AuthSessionStateNoStateMaintained uint32 = 1
+const (
+	AuthSessionStateMaintained        uint32 = 0
+	AuthSessionStateNoStateMaintained uint32 = 1
+)
 
 const (
 	DisconnectCauseRebooting            uint32 = 0

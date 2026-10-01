@@ -84,10 +84,8 @@ func newTestNode(t *testing.T, cfg Config) *Node {
 	return n
 }
 
-func serveOn(t *testing.T, n *Node, kind Transport, ip netip.Addr) netip.AddrPort {
+func listen(t *testing.T, kind Transport, ip netip.Addr) Listener {
 	t.Helper()
-
-	var ln Listener
 
 	switch kind {
 	case TransportSCTP:
@@ -100,10 +98,25 @@ func serveOn(t *testing.T, n *Node, kind Transport, ip netip.Addr) netip.AddrPor
 			t.Fatalf("Listen: %v", err)
 		}
 
-		ln = NewSCTPListener(sl, nil)
+		return NewSCTPListener(sl, nil)
+	case TransportTCP:
+		tl, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(netip.AddrPortFrom(ip, 0)))
+		if err != nil {
+			t.Fatalf("Listen: %v", err)
+		}
+
+		return NewTCPListener(tl)
 	default:
 		t.Fatalf("unsupported transport %s", kind)
 	}
+
+	return nil
+}
+
+func serveOn(t *testing.T, n *Node, kind Transport, ip netip.Addr) netip.AddrPort {
+	t.Helper()
+
+	ln := listen(t, kind, ip)
 
 	served := make(chan error, 1)
 
@@ -123,6 +136,8 @@ func listenerAddr(ln Listener) netip.AddrPort {
 	case *sctp.SCTPAddr:
 		ip, _ := netip.AddrFromSlice(a.IPAddrs[0].IP)
 		return netip.AddrPortFrom(ip.Unmap(), uint16(a.Port))
+	case *net.TCPAddr:
+		return a.AddrPort()
 	default:
 		panic("unknown listener address")
 	}
@@ -166,6 +181,8 @@ func tryDialRaw(t *testing.T, kind Transport, local netip.Addr, to netip.AddrPor
 		requireSCTP(t)
 
 		tr, err = dialSCTP(ctx, []netip.Addr{local}, []netip.Addr{to.Addr()}, to.Port(), nil)
+	case TransportTCP:
+		tr, err = dialTCP(ctx, []netip.Addr{local}, []netip.Addr{to.Addr()}, to.Port())
 	default:
 		t.Fatalf("unsupported transport %s", kind)
 	}
@@ -352,7 +369,7 @@ func isTimeout(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
-var transports = []Transport{TransportSCTP}
+var transports = []Transport{TransportSCTP, TransportTCP}
 
 func testLogger() *slog.Logger {
 	if os.Getenv("DIAMETER_TEST_LOG") != "" {

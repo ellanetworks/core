@@ -161,3 +161,48 @@ func TestTimeAVP(t *testing.T) {
 		t.Fatal("expected an error for a short Time")
 	}
 }
+
+func TestUnmarshalledAVPDataDoesNotAlias(t *testing.T) {
+	b, err := (&Message{AVPs: []AVP{
+		OctetString(AVPUserName, AVPFlagMandatory, 0, []byte{1, 2, 3, 4}),
+		UTF8String(AVPOriginHost, AVPFlagMandatory, 0, "host"),
+		Grouped(AVPFailedAVP, AVPFlagMandatory, 0, OctetString(AVPUserName, 0, 0, []byte{5, 6, 7, 8}), UTF8String(AVPOriginRealm, 0, 0, "realm")),
+	}}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = append(m.AVPs[0].Data, bytes.Repeat([]byte{0xff}, 32)...)
+
+	if host, _ := m.Find(AVPOriginHost, 0); host.UTF8String() != "host" {
+		t.Fatalf("append to one AVP overwrote the next: %+v", m.AVPs)
+	}
+
+	inner, err := m.AVPs[2].Grouped()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = append(inner[0].Data, bytes.Repeat([]byte{0xff}, 32)...)
+
+	if realm, _ := Find(inner, AVPOriginRealm, 0); realm.UTF8String() != "realm" {
+		t.Fatalf("append to a grouped member overwrote the next: %+v", inner)
+	}
+}
+
+func TestUnsigned64(t *testing.T) {
+	a := Unsigned64(552, 0, 10415, 1<<40+7)
+
+	if v, err := a.Unsigned64(); err != nil || v != 1<<40+7 || len(a.Data) != 8 {
+		t.Fatalf("Unsigned64 = %d, %v", v, err)
+	}
+
+	if _, err := Unsigned32(552, 0, 10415, 1).Unsigned64(); err == nil {
+		t.Fatal("4-octet AVP accepted as Unsigned64")
+	}
+}

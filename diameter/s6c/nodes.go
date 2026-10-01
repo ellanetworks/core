@@ -48,23 +48,23 @@ func (s ServingNode) validate(additional bool) error {
 	switch {
 	case sgsn && !mme && !msc && !ipsmgw:
 		if s.SGSN.Number == "" || (s.SGSN.Name == "") != (s.SGSN.Realm == "") {
-			return invalid("SGSN needs a number, and a name and realm together")
+			return invalidf("SGSN needs a number, and a name and realm together")
 		}
 	case mme && !sgsn && !msc && !ipsmgw:
 		if s.MME.Name == "" || s.MME.Realm == "" || s.MME.Number == "" {
-			return invalid("MME needs a name, a realm and an MME number for MT SMS")
+			return invalidf("MME needs a name, a realm and an MME number for MT SMS")
 		}
 	case msc && !sgsn && !mme && !ipsmgw:
 	case msc && mme && !sgsn && !ipsmgw:
 		if s.MME.Name == "" || s.MME.Realm == "" || s.MME.Number != "" {
-			return invalid("MSC with an MME needs the MME name and realm and no MME number")
+			return invalidf("MSC with an MME needs the MME name and realm and no MME number")
 		}
 	case ipsmgw && !sgsn && !mme && !msc && !additional:
 		if s.IPSMGW.Number == "" || (s.IPSMGW.Realm != "" && s.IPSMGW.Name == "") {
-			return invalid("IP-SM-GW needs a number, and a name with any realm")
+			return invalidf("IP-SM-GW needs a number, and a name with any realm")
 		}
 	default:
-		return invalid("serving node combination not allowed by TS 29.338 §5.3.3.6/§5.3.3.7")
+		return invalidf("serving node combination not allowed by TS 29.338 §5.3.3.6/§5.3.3.7")
 	}
 
 	return nil
@@ -72,7 +72,7 @@ func (s ServingNode) validate(additional bool) error {
 
 func validateSMSF(n *NodeAddress) error {
 	if n != nil && (n.Name == "" || n.Realm == "" || n.Number == "") {
-		return invalid("SMSF address needs a name, a realm and a number")
+		return invalidf("SMSF address needs a name, a realm and a number")
 	}
 
 	return nil
@@ -80,7 +80,7 @@ func validateSMSF(n *NodeAddress) error {
 
 func (n ServingNodes) avps(smsfSupport bool) ([]diameter.AVP, error) {
 	if !smsfSupport && n.hasSMSF() {
-		return nil, invalid("SMSF address for a peer without SMSF-Support")
+		return nil, invalidf("SMSF address for a peer without SMSF-Support")
 	}
 
 	var avps []diameter.AVP
@@ -160,7 +160,7 @@ func servingNodeAVP(code uint32, n ServingNode) (diameter.AVP, error) {
 	if n.MSCNumber != "" {
 		number, err := tgpp.EncodeE164(n.MSCNumber)
 		if err != nil {
-			return diameter.AVP{}, invalid("MSC number: %w", err)
+			return diameter.AVP{}, invalidf("MSC number: %w", err)
 		}
 
 		inner = append(inner, diameter.OctetString(AVPMSCNumber, diameter.AVPFlagMandatory, tgpp.VendorID, number))
@@ -169,7 +169,7 @@ func servingNodeAVP(code uint32, n ServingNode) (diameter.AVP, error) {
 	if n.IPSMGW != nil {
 		number, err := tgpp.EncodeE164(n.IPSMGW.Number)
 		if err != nil {
-			return diameter.AVP{}, invalid("IP-SM-GW number: %w", err)
+			return diameter.AVP{}, invalidf("IP-SM-GW number: %w", err)
 		}
 
 		inner = append(inner, diameter.OctetString(AVPIPSMGWNumber, diameter.AVPFlagMandatory, tgpp.VendorID, number))
@@ -200,7 +200,7 @@ func nodeAVPs(n NodeAddress, nameCode uint32, nameFlags uint8, realmCode uint32,
 	if n.Number != "" {
 		number, err := tgpp.EncodeE164(n.Number)
 		if err != nil {
-			return nil, invalid("node number: %w", err)
+			return nil, invalidf("node number: %w", err)
 		}
 
 		avps = append(avps, diameter.OctetString(numberCode, numberFlags, tgpp.VendorID, number))
