@@ -24,6 +24,23 @@ const (
 )
 
 const (
+	ResultFirstRegistration                  uint32 = 2001
+	ResultSubsequentRegistration             uint32 = 2002
+	ResultUnregisteredService                uint32 = 2003
+	ResultSuccessServerNameNotStored         uint32 = 2004
+	ResultErrorIdentitiesDontMatch           uint32 = 5002
+	ResultErrorIdentityNotRegistered         uint32 = 5003
+	ResultErrorRoamingNotAllowed             uint32 = 5004
+	ResultErrorIdentityAlreadyRegistered     uint32 = 5005
+	ResultErrorAuthSchemeNotSupported        uint32 = 5006
+	ResultErrorInAssignmentType              uint32 = 5007
+	ResultErrorTooMuchData                   uint32 = 5008
+	ResultErrorNotSupportedUserData          uint32 = 5009
+	ResultErrorFeatureUnsupported            uint32 = 5011
+	ResultErrorServingNodeFeatureUnsupported uint32 = 5012
+)
+
+const (
 	ResultErrorUserUnknown          uint32 = 5001
 	ResultErrorAbsentUser           uint32 = 5550
 	ResultErrorUserBusyForMTSMS     uint32 = 5551
@@ -37,16 +54,30 @@ const (
 )
 
 var experimentalResultNames = map[uint32]string{
-	ResultErrorUserUnknown:          "DIAMETER_ERROR_USER_UNKNOWN",
-	ResultErrorAbsentUser:           "DIAMETER_ERROR_ABSENT_USER",
-	ResultErrorUserBusyForMTSMS:     "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
-	ResultErrorFacilityNotSupported: "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
-	ResultErrorIllegalUser:          "DIAMETER_ERROR_ILLEGAL_USER",
-	ResultErrorIllegalEquipment:     "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
-	ResultErrorSMDeliveryFailure:    "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
-	ResultErrorServiceNotSubscribed: "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
-	ResultErrorServiceBarred:        "DIAMETER_ERROR_SERVICE_BARRED",
-	ResultErrorMWDListFull:          "DIAMETER_ERROR_MWD_LIST_FULL",
+	ResultFirstRegistration:                  "DIAMETER_FIRST_REGISTRATION",
+	ResultSubsequentRegistration:             "DIAMETER_SUBSEQUENT_REGISTRATION",
+	ResultUnregisteredService:                "DIAMETER_UNREGISTERED_SERVICE",
+	ResultSuccessServerNameNotStored:         "DIAMETER_SUCCESS_SERVER_NAME_NOT_STORED",
+	ResultErrorIdentitiesDontMatch:           "DIAMETER_ERROR_IDENTITIES_DONT_MATCH",
+	ResultErrorIdentityNotRegistered:         "DIAMETER_ERROR_IDENTITY_NOT_REGISTERED",
+	ResultErrorRoamingNotAllowed:             "DIAMETER_ERROR_ROAMING_NOT_ALLOWED",
+	ResultErrorIdentityAlreadyRegistered:     "DIAMETER_ERROR_IDENTITY_ALREADY_REGISTERED",
+	ResultErrorAuthSchemeNotSupported:        "DIAMETER_ERROR_AUTH_SCHEME_NOT_SUPPORTED",
+	ResultErrorInAssignmentType:              "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE",
+	ResultErrorTooMuchData:                   "DIAMETER_ERROR_TOO_MUCH_DATA",
+	ResultErrorNotSupportedUserData:          "DIAMETER_ERROR_NOT_SUPPORTED_USER_DATA",
+	ResultErrorFeatureUnsupported:            "DIAMETER_ERROR_FEATURE_UNSUPPORTED",
+	ResultErrorServingNodeFeatureUnsupported: "DIAMETER_ERROR_SERVING_NODE_FEATURE_UNSUPPORTED",
+	ResultErrorUserUnknown:                   "DIAMETER_ERROR_USER_UNKNOWN",
+	ResultErrorAbsentUser:                    "DIAMETER_ERROR_ABSENT_USER",
+	ResultErrorUserBusyForMTSMS:              "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
+	ResultErrorFacilityNotSupported:          "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
+	ResultErrorIllegalUser:                   "DIAMETER_ERROR_ILLEGAL_USER",
+	ResultErrorIllegalEquipment:              "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
+	ResultErrorSMDeliveryFailure:             "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
+	ResultErrorServiceNotSubscribed:          "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
+	ResultErrorServiceBarred:                 "DIAMETER_ERROR_SERVICE_BARRED",
+	ResultErrorMWDListFull:                   "DIAMETER_ERROR_MWD_LIST_FULL",
 }
 
 const (

@@ -52,6 +52,7 @@ const (
 	ResultUnknownPeer            uint32 = 3010
 	ResultAVPUnsupported         uint32 = 5001
 	ResultInvalidAVPValue        uint32 = 5004
+	ResultAuthorizationRejected  uint32 = 5003
 	ResultMissingAVP             uint32 = 5005
 	ResultAVPOccursTooManyTimes  uint32 = 5009
 	ResultNoCommonApplication    uint32 = 5010
@@ -74,6 +75,7 @@ var resultNames = map[uint32]string{
 	ResultUnknownPeer:            "DIAMETER_UNKNOWN_PEER",
 	ResultAVPUnsupported:         "DIAMETER_AVP_UNSUPPORTED",
 	ResultInvalidAVPValue:        "DIAMETER_INVALID_AVP_VALUE",
+	ResultAuthorizationRejected:  "DIAMETER_AUTHORIZATION_REJECTED",
 	ResultMissingAVP:             "DIAMETER_MISSING_AVP",
 	ResultAVPOccursTooManyTimes:  "DIAMETER_AVP_OCCURS_TOO_MANY_TIMES",
 	ResultNoCommonApplication:    "DIAMETER_NO_COMMON_APPLICATION",
