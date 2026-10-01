@@ -547,7 +547,17 @@ func (n *Node) Peer(id string) (PeerStatus, bool) {
 	return p.statusLocked(), true
 }
 
-func (n *Node) Do(ctx context.Context, peerID string, req *Message) (*Message, error) {
+type DoOption func(*doOptions)
+
+type doOptions struct {
+	failFast bool
+}
+
+func FailFast() DoOption {
+	return func(o *doOptions) { o.failFast = true }
+}
+
+func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...DoOption) (*Message, error) {
 	n.mu.Lock()
 	p, ok := n.byID[peerID]
 	n.mu.Unlock()
@@ -556,10 +566,10 @@ func (n *Node) Do(ctx context.Context, peerID string, req *Message) (*Message, e
 		return nil, ErrUnknownPeer
 	}
 
-	return n.do(ctx, p, req)
+	return n.do(ctx, p, req, opts)
 }
 
-func (n *Node) DoHost(ctx context.Context, host string, req *Message) (*Message, error) {
+func (n *Node) DoHost(ctx context.Context, host string, req *Message, opts ...DoOption) (*Message, error) {
 	n.mu.Lock()
 	p, ok := n.byHost[strings.ToLower(host)]
 	n.mu.Unlock()
@@ -568,10 +578,15 @@ func (n *Node) DoHost(ctx context.Context, host string, req *Message) (*Message,
 		return nil, ErrUnknownPeer
 	}
 
-	return n.do(ctx, p, req)
+	return n.do(ctx, p, req, opts)
 }
 
-func (n *Node) do(ctx context.Context, p *peer, req *Message) (*Message, error) {
+func (n *Node) do(ctx context.Context, p *peer, req *Message, opts []DoOption) (*Message, error) {
+	var o doOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 
@@ -584,7 +599,7 @@ func (n *Node) do(ctx context.Context, p *peer, req *Message) (*Message, error) 
 	m.EndToEndID = n.nextEndToEnd()
 
 	for {
-		c, err := n.waitAvailable(ctx, p)
+		c, err := n.waitAvailable(ctx, p, o.failFast)
 		if err != nil {
 			return nil, err
 		}
@@ -602,7 +617,7 @@ func (n *Node) do(ctx context.Context, p *peer, req *Message) (*Message, error) 
 	}
 }
 
-func (n *Node) waitAvailable(ctx context.Context, p *peer) (*Conn, error) {
+func (n *Node) waitAvailable(ctx context.Context, p *peer, failFast bool) (*Conn, error) {
 	for {
 		n.mu.Lock()
 
@@ -617,7 +632,7 @@ func (n *Node) waitAvailable(ctx context.Context, p *peer) (*Conn, error) {
 			signal(p.kick)
 		}
 
-		canWait := p.cfg != nil
+		canWait := p.cfg != nil && !failFast
 		changed := n.peersChanged
 		n.mu.Unlock()
 

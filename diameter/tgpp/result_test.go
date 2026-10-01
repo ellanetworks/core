@@ -102,3 +102,21 @@ func TestOrSuccess(t *testing.T) {
 		t.Error("non-zero result changed")
 	}
 }
+
+func TestResultClass(t *testing.T) {
+	for _, tc := range []struct {
+		result               Result
+		transient, permanent bool
+	}{
+		{Result{Code: diameter.ResultSuccess}, false, false},
+		{Result{Code: diameter.ResultTooBusy}, false, false},
+		{Experimental(ResultRequestedServiceTemporarilyNotAuthorized), true, false},
+		{Result{Code: diameter.ResultUnableToComply}, false, true},
+		{Experimental(ResultErrorUserUnknown), false, true},
+		{Result{Code: 6000}, false, false},
+	} {
+		if tc.result.Transient() != tc.transient || tc.result.Permanent() != tc.permanent {
+			t.Errorf("%s: Transient() = %v, Permanent() = %v", tc.result, tc.result.Transient(), tc.result.Permanent())
+		}
+	}
+}
