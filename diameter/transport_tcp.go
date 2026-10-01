@@ -76,17 +76,12 @@ func dialTCP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port 
 	var firstErr error
 
 	for i, addr := range remote {
-		attemptCtx, cancel := attemptContext(ctx, len(remote)-i)
-
-		d := net.Dialer{}
+		d := net.Dialer{Deadline: attemptDeadline(ctx, len(remote)-i)}
 		if l, ok := sameFamily(local, addr); ok {
 			d.LocalAddr = net.TCPAddrFromAddrPort(netip.AddrPortFrom(l, 0))
 		}
 
-		c, err := d.DialContext(attemptCtx, "tcp", netip.AddrPortFrom(addr, port).String())
-
-		cancel()
-
+		c, err := d.DialContext(ctx, "tcp", netip.AddrPortFrom(addr, port).String())
 		if err == nil {
 			return newTCPTransport(c.(*net.TCPConn)), nil
 		}
@@ -107,15 +102,13 @@ func dialTCP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port 
 	return nil, firstErr
 }
 
-func attemptContext(ctx context.Context, remaining int) (context.Context, context.CancelFunc) {
+func attemptDeadline(ctx context.Context, remaining int) time.Time {
 	deadline, ok := ctx.Deadline()
 	if !ok || remaining <= 1 {
-		return context.WithCancel(ctx)
+		return time.Time{}
 	}
 
-	share := max(time.Until(deadline)/time.Duration(remaining), minDialAttempt)
-
-	return context.WithTimeout(ctx, share)
+	return time.Now().Add(max(time.Until(deadline)/time.Duration(remaining), minDialAttempt))
 }
 
 func sameFamily(addrs []netip.Addr, to netip.Addr) (netip.Addr, bool) {
