@@ -97,7 +97,7 @@ func smsfNode() *NodeAddress {
 func hasFeatures(t *testing.T, m *diameter.Message) bool {
 	t.Helper()
 
-	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID)&featureSMSFSupport != 0
+	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID)&FeatureSMSFSupport != 0
 }
 
 func request(command uint32, avps ...diameter.AVP) *diameter.Message {

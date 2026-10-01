@@ -53,9 +53,9 @@ func (r RoutingRequest) flags() uint32 {
 		set bool
 		bit uint32
 	}{
-		{r.GPRSIndicator, srrFlagGPRSIndicator},
-		{r.Priority, srrFlagSMRPPRI},
-		{r.SingleAttempt, srrFlagSingleAttempt},
+		{r.GPRSIndicator, SRRFlagGPRSIndicator},
+		{r.Priority, SRRFlagSMRPPRI},
+		{r.SingleAttempt, SRRFlagSingleAttempt},
 	} {
 		if f.set {
 			flags |= f.bit
@@ -202,9 +202,9 @@ func ParseSendRoutingInfoForSMRequest(req *diameter.Message) (RoutingRequest, er
 			return RoutingRequest{}, err
 		}
 
-		r.GPRSIndicator = flags&srrFlagGPRSIndicator != 0
-		r.Priority = flags&srrFlagSMRPPRI != 0
-		r.SingleAttempt = flags&srrFlagSingleAttempt != 0
+		r.GPRSIndicator = flags&SRRFlagGPRSIndicator != 0
+		r.Priority = flags&SRRFlagSMRPPRI != 0
+		r.SingleAttempt = flags&SRRFlagSingleAttempt != 0
 	}
 
 	if a, ok := req.Find(AVPSMDeliveryNotIntended, tgpp.VendorID); ok {
