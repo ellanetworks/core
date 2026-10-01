@@ -34,7 +34,7 @@ func TestReportSMDeliveryStatusRequestEncoding(t *testing.T) {
 		t.Fatalf("MSISDN = %+v", msisdn)
 	}
 
-	if flags, ok := req.Find(AVPRDRFlags, tgpp.VendorID); !ok || unsigned(t, flags) != rdrFlagSingleAttempt || flags.Flags&diameter.AVPFlagMandatory != 0 {
+	if flags, ok := req.Find(AVPRDRFlags, tgpp.VendorID); !ok || unsigned(t, flags) != RDRFlagSingleAttempt || flags.Flags&diameter.AVPFlagMandatory != 0 {
 		t.Fatalf("RDR-Flags = %+v", flags)
 	}
 

@@ -140,7 +140,7 @@ func NewReportSMDeliveryStatusRequest(env tgpp.Envelope, rep DeliveryReport) (*d
 	)
 
 	if rep.SingleAttempt {
-		avps = append(avps, diameter.Unsigned32(AVPRDRFlags, 0, tgpp.VendorID, rdrFlagSingleAttempt))
+		avps = append(avps, diameter.Unsigned32(AVPRDRFlags, 0, tgpp.VendorID, RDRFlagSingleAttempt))
 	}
 
 	avps = append(avps, failed...)
@@ -201,7 +201,7 @@ func ParseReportSMDeliveryStatusRequest(req *diameter.Message) (DeliveryReport, 
 			return DeliveryReport{}, err
 		}
 
-		rep.SingleAttempt = flags&rdrFlagSingleAttempt != 0
+		rep.SingleAttempt = flags&RDRFlagSingleAttempt != 0
 	}
 
 	if rep.Failed, err = requestServingNodes(req); err != nil {

@@ -17,8 +17,10 @@ const (
 	AuthorizationRegistrationAndCapabilities AuthorizationType = 2
 )
 
+var authorizationTypeNames = tgpp.EnumNames{"REGISTRATION", "DE_REGISTRATION", "REGISTRATION_AND_CAPABILITIES"}
+
 func (t AuthorizationType) String() string {
-	return tgpp.EnumNames{"REGISTRATION", "DE_REGISTRATION", "REGISTRATION_AND_CAPABILITIES"}.Name("AuthorizationType", uint32(t))
+	return authorizationTypeNames.Name("AuthorizationType", uint32(t))
 }
 
 type AssignmentType uint32
@@ -38,9 +40,13 @@ const (
 	AssignmentDeregistrationTooMuchData        AssignmentType = 11
 )
 
-func (t AssignmentType) String() string {
-	return tgpp.EnumNames{"NO_ASSIGNMENT", "REGISTRATION", "RE_REGISTRATION", "UNREGISTERED_USER", "TIMEOUT_DEREGISTRATION", "USER_DEREGISTRATION", "TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME", "USER_DEREGISTRATION_STORE_SERVER_NAME", "ADMINISTRATIVE_DEREGISTRATION", "AUTHENTICATION_FAILURE", "AUTHENTICATION_TIMEOUT", "DEREGISTRATION_TOO_MUCH_DATA"}.Name("AssignmentType", uint32(t))
+var assignmentTypeNames = tgpp.EnumNames{
+	"NO_ASSIGNMENT", "REGISTRATION", "RE_REGISTRATION", "UNREGISTERED_USER", "TIMEOUT_DEREGISTRATION",
+	"USER_DEREGISTRATION", "TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME", "USER_DEREGISTRATION_STORE_SERVER_NAME",
+	"ADMINISTRATIVE_DEREGISTRATION", "AUTHENTICATION_FAILURE", "AUTHENTICATION_TIMEOUT", "DEREGISTRATION_TOO_MUCH_DATA",
 }
+
+func (t AssignmentType) String() string { return assignmentTypeNames.Name("AssignmentType", uint32(t)) }
 
 type ReasonCode uint32
 
@@ -51,9 +57,9 @@ const (
 	ReasonRemoveSCSCF          ReasonCode = 3
 )
 
-func (c ReasonCode) String() string {
-	return tgpp.EnumNames{"PERMANENT_TERMINATION", "NEW_SERVER_ASSIGNED", "SERVER_CHANGE", "REMOVE_S-CSCF"}.Name("ReasonCode", uint32(c))
-}
+var reasonCodeNames = tgpp.EnumNames{"PERMANENT_TERMINATION", "NEW_SERVER_ASSIGNED", "SERVER_CHANGE", "REMOVE_S-CSCF"}
+
+func (c ReasonCode) String() string { return reasonCodeNames.Name("ReasonCode", uint32(c)) }
 
 type Features uint32
 
@@ -95,9 +101,11 @@ const (
 	IdentityWildcardedIMPU             IdentityType = 4
 )
 
-func (t IdentityType) String() string {
-	return tgpp.EnumNames{"DISTINCT_PUBLIC_USER_IDENTITY", "DISTINCT_PSI", "WILDCARDED_PSI", "NON_DISTINCT_IMPU", "WILDCARDED_IMPU"}.Name("IdentityType", uint32(t))
+var identityTypeNames = tgpp.EnumNames{
+	"DISTINCT_PUBLIC_USER_IDENTITY", "DISTINCT_PSI", "WILDCARDED_PSI", "NON_DISTINCT_IMPU", "WILDCARDED_IMPU",
 }
+
+func (t IdentityType) String() string { return identityTypeNames.Name("IdentityType", uint32(t)) }
 
 type ProfilePart uint8
 
@@ -106,9 +114,9 @@ const (
 	ProfilePartUnregistered ProfilePart = 1
 )
 
-func (p ProfilePart) String() string {
-	return tgpp.EnumNames{"REGISTERED", "UNREGISTERED"}.Name("ProfilePart", uint32(p))
-}
+var profilePartNames = tgpp.EnumNames{"REGISTERED", "UNREGISTERED"}
+
+func (p ProfilePart) String() string { return profilePartNames.Name("ProfilePart", uint32(p)) }
 
 type SessionCase uint8
 
@@ -120,9 +128,12 @@ const (
 	SessionCaseOriginatingCDIV         SessionCase = 4
 )
 
-func (c SessionCase) String() string {
-	return tgpp.EnumNames{"ORIGINATING_REGISTERED", "TERMINATING_REGISTERED", "TERMINATING_UNREGISTERED", "ORIGINATING_UNREGISTERED", "ORIGINATING_CDIV"}.Name("SessionCase", uint32(c))
+var sessionCaseNames = tgpp.EnumNames{
+	"ORIGINATING_REGISTERED", "TERMINATING_REGISTERED", "TERMINATING_UNREGISTERED", "ORIGINATING_UNREGISTERED",
+	"ORIGINATING_CDIV",
 }
+
+func (c SessionCase) String() string { return sessionCaseNames.Name("SessionCase", uint32(c)) }
 
 type RegistrationType uint8
 
@@ -132,8 +143,10 @@ const (
 	RegistrationTypeDeregistration RegistrationType = 2
 )
 
+var registrationTypeNames = tgpp.EnumNames{"INITIAL_REGISTRATION", "RE-REGISTRATION", "DE-REGISTRATION"}
+
 func (t RegistrationType) String() string {
-	return tgpp.EnumNames{"INITIAL_REGISTRATION", "RE-REGISTRATION", "DE-REGISTRATION"}.Name("RegistrationType", uint32(t))
+	return registrationTypeNames.Name("RegistrationType", uint32(t))
 }
 
 type DefaultHandling uint8
@@ -143,6 +156,8 @@ const (
 	DefaultHandlingSessionTerminated DefaultHandling = 1
 )
 
+var defaultHandlingNames = tgpp.EnumNames{"SESSION_CONTINUED", "SESSION_TERMINATED"}
+
 func (h DefaultHandling) String() string {
-	return tgpp.EnumNames{"SESSION_CONTINUED", "SESSION_TERMINATED"}.Name("DefaultHandling", uint32(h))
+	return defaultHandlingNames.Name("DefaultHandling", uint32(h))
 }
