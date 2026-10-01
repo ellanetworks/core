@@ -62,6 +62,30 @@ const (
 	ResultNoCommonSecurity       uint32 = 5017
 )
 
+var resultNames = map[uint32]string{
+	ResultSuccess:                "DIAMETER_SUCCESS",
+	ResultCommandUnsupported:     "DIAMETER_COMMAND_UNSUPPORTED",
+	ResultUnableToDeliver:        "DIAMETER_UNABLE_TO_DELIVER",
+	ResultRealmNotServed:         "DIAMETER_REALM_NOT_SERVED",
+	ResultTooBusy:                "DIAMETER_TOO_BUSY",
+	ResultApplicationUnsupported: "DIAMETER_APPLICATION_UNSUPPORTED",
+	ResultInvalidHdrBits:         "DIAMETER_INVALID_HDR_BITS",
+	ResultInvalidAVPBits:         "DIAMETER_INVALID_AVP_BITS",
+	ResultUnknownPeer:            "DIAMETER_UNKNOWN_PEER",
+	ResultAVPUnsupported:         "DIAMETER_AVP_UNSUPPORTED",
+	ResultInvalidAVPValue:        "DIAMETER_INVALID_AVP_VALUE",
+	ResultMissingAVP:             "DIAMETER_MISSING_AVP",
+	ResultAVPOccursTooManyTimes:  "DIAMETER_AVP_OCCURS_TOO_MANY_TIMES",
+	ResultNoCommonApplication:    "DIAMETER_NO_COMMON_APPLICATION",
+	ResultUnsupportedVersion:     "DIAMETER_UNSUPPORTED_VERSION",
+	ResultUnableToComply:         "DIAMETER_UNABLE_TO_COMPLY",
+	ResultInvalidAVPLength:       "DIAMETER_INVALID_AVP_LENGTH",
+	ResultInvalidMessageLength:   "DIAMETER_INVALID_MESSAGE_LENGTH",
+	ResultNoCommonSecurity:       "DIAMETER_NO_COMMON_SECURITY",
+}
+
+func ResultName(code uint32) string { return resultNames[code] }
+
 const InbandSecurityNone uint32 = 0
 
 const AuthSessionStateNoStateMaintained uint32 = 1

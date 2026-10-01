@@ -36,6 +36,19 @@ const (
 	ResultErrorMWDListFull          uint32 = 5558
 )
 
+var experimentalResultNames = map[uint32]string{
+	ResultErrorUserUnknown:          "DIAMETER_ERROR_USER_UNKNOWN",
+	ResultErrorAbsentUser:           "DIAMETER_ERROR_ABSENT_USER",
+	ResultErrorUserBusyForMTSMS:     "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
+	ResultErrorFacilityNotSupported: "DIAMETER_ERROR_FACILITY_NOT_SUPPORTED",
+	ResultErrorIllegalUser:          "DIAMETER_ERROR_ILLEGAL_USER",
+	ResultErrorIllegalEquipment:     "DIAMETER_ERROR_ILLEGAL_EQUIPMENT",
+	ResultErrorSMDeliveryFailure:    "DIAMETER_ERROR_SM_DELIVERY_FAILURE",
+	ResultErrorServiceNotSubscribed: "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
+	ResultErrorServiceBarred:        "DIAMETER_ERROR_SERVICE_BARRED",
+	ResultErrorMWDListFull:          "DIAMETER_ERROR_MWD_LIST_FULL",
+}
+
 const (
 	AbsentUserNoPagingResponseMSC        uint32 = 0
 	AbsentUserIMSIDetached               uint32 = 1
