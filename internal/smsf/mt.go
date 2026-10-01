@@ -24,9 +24,9 @@ const deliveryTimerMargin = 2 * time.Second
 
 type mtOutcome struct {
 	result     uint32
-	cause      uint32
+	cause      sgd.DeliveryFailureCause
 	report     []byte
-	diagnostic *uint32
+	diagnostic *tgpp.AbsentUserDiagnostic
 	class      string
 	reason     string
 	err        error
@@ -57,10 +57,10 @@ func (o mtOutcome) logFields() []zap.Field {
 
 	switch o.result {
 	case tgpp.ResultErrorSMDeliveryFailure:
-		fields = append(fields, zap.Uint32("delivery_failure_cause", o.cause))
+		fields = append(fields, zap.Uint32("delivery_failure_cause", uint32(o.cause)))
 	case tgpp.ResultErrorAbsentUser:
 		if o.diagnostic != nil {
-			fields = append(fields, zap.Uint32("absent_user_diagnostic", *o.diagnostic))
+			fields = append(fields, zap.Uint32("absent_user_diagnostic", uint32(*o.diagnostic)))
 		}
 	}
 
@@ -75,11 +75,11 @@ func delivered(report []byte) mtOutcome {
 	return mtOutcome{result: diameter.ResultSuccess, report: report, class: mtDelivered}
 }
 
-func deliveryFailure(cause uint32, diagnostic []byte) mtOutcome {
+func deliveryFailure(cause sgd.DeliveryFailureCause, diagnostic []byte) mtOutcome {
 	return mtOutcome{result: tgpp.ResultErrorSMDeliveryFailure, cause: cause, report: diagnostic}
 }
 
-func absent(diagnostic uint32) mtOutcome {
+func absent(diagnostic tgpp.AbsentUserDiagnostic) mtOutcome {
 	return mtOutcome{result: tgpp.ResultErrorAbsentUser, diagnostic: &diagnostic}
 }
 
