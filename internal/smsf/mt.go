@@ -57,10 +57,16 @@ func (o mtOutcome) logFields() []zap.Field {
 
 	switch o.result {
 	case tgpp.ResultErrorSMDeliveryFailure:
-		fields = append(fields, zap.Uint32("delivery_failure_cause", uint32(o.cause)))
+		fields = append(fields,
+			zap.Uint32("delivery_failure_cause", uint32(o.cause)),
+			zap.Stringer("delivery_failure_cause_name", o.cause),
+		)
 	case tgpp.ResultErrorAbsentUser:
 		if o.diagnostic != nil {
-			fields = append(fields, zap.Uint32("absent_user_diagnostic", uint32(*o.diagnostic)))
+			fields = append(fields,
+				zap.Uint32("absent_user_diagnostic", uint32(*o.diagnostic)),
+				zap.Stringer("absent_user_diagnostic_name", *o.diagnostic),
+			)
 		}
 	}
 
