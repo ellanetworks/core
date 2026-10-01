@@ -340,12 +340,9 @@ func TestTCPAbortResetsTheConnection(t *testing.T) {
 }
 
 func TestTCPStalledPeerAbortsAfterWriteTimeout(t *testing.T) {
-	original := tcpWriteTimeout
-	tcpWriteTimeout = 200 * time.Millisecond
-
-	defer func() { tcpWriteTimeout = original }()
-
 	tr, _ := tcpPair(t)
+	tr.setWriteTimeout(200 * time.Millisecond)
+
 	b := marshalled(t, appRequest(1, 1, "ella.example.org", OctetString(AVPUserName, 0, 0, make([]byte, 64*1024))))
 
 	deadline := time.Now().Add(testTimeout)
@@ -394,5 +391,41 @@ func TestTCPRejectedCERDeliveredDespitePipelinedData(t *testing.T) {
 
 	if _, err := readFrame(c, buf); !errors.Is(err, io.EOF) {
 		t.Fatalf("after the CEA = %v, want EOF", err)
+	}
+}
+
+func TestTCPEnablesNagle(t *testing.T) {
+	tr, _ := tcpPair(t)
+
+	rc, err := tr.conn.SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var (
+		noDelay int
+		serr    error
+	)
+
+	if err := rc.Control(func(fd uintptr) {
+		noDelay, serr = syscall.GetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_NODELAY)
+	}); err != nil || serr != nil {
+		t.Fatal(err, serr)
+	}
+
+	if noDelay != 0 {
+		t.Fatal("TCP_NODELAY set; RFC 3539 §3.2 requires the Nagle algorithm")
+	}
+}
+
+func TestTCPWriteTimeoutFollowsWatchdog(t *testing.T) {
+	cfg := testConfig("ella.example.org")
+	cfg.WatchdogInterval = 7 * time.Second
+
+	tr, _ := tcpPair(t)
+	newConn(newTestNode(t, cfg), tr, nil)
+
+	if tr.writeTimeout != 14*time.Second {
+		t.Fatalf("write timeout = %s, want twice the watchdog interval", tr.writeTimeout)
 	}
 }

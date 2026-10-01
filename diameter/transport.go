@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 )
 
 type Transport int
@@ -45,6 +46,7 @@ type transport interface {
 	readMessage(buf []byte) (int, error)
 	writeMessage(b []byte) error
 	setUnordered()
+	setWriteTimeout(d time.Duration)
 	remoteAddr() netip.Addr
 	close() error
 	abort() error

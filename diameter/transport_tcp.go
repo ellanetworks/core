@@ -21,10 +21,7 @@ const (
 	minDialAttempt    = 2 * time.Second
 )
 
-var (
-	tcpWriteTimeout  = 5 * time.Second
-	tcpLingerTimeout = 2 * time.Second
-)
+var tcpLingerTimeout = 2 * time.Second
 
 var errFrame = errors.New("diameter: unframeable TCP stream")
 
@@ -55,7 +52,8 @@ type tcpTransport struct {
 	remote netip.Addr
 	closed atomic.Bool
 
-	writeMu sync.Mutex
+	writeMu      sync.Mutex
+	writeTimeout time.Duration
 }
 
 func newTCPTransport(tc *net.TCPConn) *tcpTransport {
@@ -64,7 +62,14 @@ func newTCPTransport(tc *net.TCPConn) *tcpTransport {
 		remote = a.AddrPort().Addr().Unmap()
 	}
 
-	return &tcpTransport{conn: tc, r: bufio.NewReaderSize(tc, tcpReadBufferSize), remote: remote}
+	_ = tc.SetNoDelay(false)
+
+	return &tcpTransport{
+		conn:         tc,
+		r:            bufio.NewReaderSize(tc, tcpReadBufferSize),
+		remote:       remote,
+		writeTimeout: 2 * DefaultWatchdogInterval,
+	}
 }
 
 func dialTCP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port uint16) (transport, error) {
@@ -129,6 +134,12 @@ func (t *tcpTransport) remoteAddr() netip.Addr { return t.remote }
 
 func (t *tcpTransport) setUnordered() {}
 
+func (t *tcpTransport) setWriteTimeout(d time.Duration) {
+	t.writeMu.Lock()
+	t.writeTimeout = d
+	t.writeMu.Unlock()
+}
+
 func (t *tcpTransport) readMessage(buf []byte) (int, error) {
 	if t.closed.Load() {
 		return 0, net.ErrClosed
@@ -179,7 +190,7 @@ func (t *tcpTransport) writeMessage(b []byte) error {
 		return net.ErrClosed
 	}
 
-	if err := t.conn.SetWriteDeadline(time.Now().Add(tcpWriteTimeout)); err != nil {
+	if err := t.conn.SetWriteDeadline(time.Now().Add(t.writeTimeout)); err != nil {
 		return err
 	}
 
