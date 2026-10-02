@@ -439,3 +439,23 @@ func flowsList(avps []diameter.AVP) ([]Flows, error) {
 
 	return flows, nil
 }
+
+func classAVPs(values [][]byte) []diameter.AVP {
+	avps := make([]diameter.AVP, 0, len(values))
+
+	for _, v := range values {
+		avps = append(avps, diameter.OctetString(diameter.AVPClass, diameter.AVPFlagMandatory, 0, v))
+	}
+
+	return avps
+}
+
+func classes(avps []diameter.AVP) [][]byte {
+	var out [][]byte
+
+	for _, a := range diameter.FindAll(avps, diameter.AVPClass, 0) {
+		out = append(out, bytes.Clone(a.Data))
+	}
+
+	return out
+}

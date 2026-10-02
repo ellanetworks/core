@@ -47,6 +47,7 @@ type AAAnswer struct {
 	NetLocAccessSupport              *NetLocAccessSupport
 	Flows                            []Flows
 	SubscriptionIDs                  []SubscriptionID
+	Class                            [][]byte
 	Features                         Features
 }
 
@@ -334,6 +335,7 @@ func NewAAAnswer(req *diameter.Message, id diameter.Identity, a AAAnswer) (*diam
 	}
 
 	avps = append(avps, serving...)
+	avps = append(avps, classAVPs(a.Class)...)
 
 	ans := NewAnswer(req, id, result, a.Features)
 	ans.AVPs = append(ans.AVPs, charging...)
@@ -427,6 +429,8 @@ func ParseAAAnswer(ans *diameter.Message) (AAAnswer, error) {
 	if a.Flows, err = flowsList(ans.AVPs); err != nil {
 		return AAAnswer{}, malformedf("Flows: %w", err)
 	}
+
+	a.Class = classes(ans.AVPs)
 
 	return a, nil
 }

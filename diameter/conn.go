@@ -656,7 +656,7 @@ func (c *Conn) serve(req *Message) {
 		select {
 		case <-entry.done:
 			if b := entry.answerFor(req.HopByHopID); b != nil {
-				c.writeRaw(b)
+				_ = c.writeRaw(b)
 			}
 		case <-c.done:
 		}
@@ -664,7 +664,9 @@ func (c *Conn) serve(req *Message) {
 		return
 	}
 
-	b, err := c.handle(req).Marshal()
+	after := &afterAnswer{}
+
+	b, err := c.handle(req, after).Marshal()
 	if err != nil {
 		c.logger().Error("failed to encode Diameter answer", slog.Any("error", err))
 
@@ -672,10 +674,10 @@ func (c *Conn) serve(req *Message) {
 	}
 
 	c.n.duplicates.finish(key, entry, b)
-	c.writeRaw(b)
+	after.run(c, c.writeRaw(b))
 }
 
-func (c *Conn) handle(req *Message) (ans *Message) {
+func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger().Error("panic handling Diameter request",
@@ -685,7 +687,7 @@ func (c *Conn) handle(req *Message) (ans *Message) {
 		}
 	}()
 
-	ctx := c.ctx
+	ctx := context.WithValue(c.ctx, afterAnswerKey{}, after)
 
 	if c.n.cfg.HandlerTimeout > 0 {
 		var cancel context.CancelFunc
@@ -748,10 +750,13 @@ func (c *Conn) write(m *Message) error {
 	return c.t.writeMessage(b)
 }
 
-func (c *Conn) writeRaw(b []byte) {
-	if err := c.t.writeMessage(b); err != nil {
+func (c *Conn) writeRaw(b []byte) error {
+	err := c.t.writeMessage(b)
+	if err != nil {
 		c.logger().Debug("failed to send Diameter message", slog.Any("error", err))
 	}
+
+	return err
 }
 
 func (c *Conn) send(m *Message) {
