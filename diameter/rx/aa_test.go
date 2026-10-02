@@ -354,6 +354,7 @@ func TestAAAnswerRoundTrip(t *testing.T) {
 			},
 			AccessNetworkChargingAddress: netip.MustParseAddr("10.0.0.1"),
 			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
+			Class:                        [][]byte{[]byte("pcrf-state-1"), {0xff, 0x00}},
 			Features:                     FeatureRel8 | FeatureRel9 | FeatureCHEM,
 		},
 		"IPv6 charging address": {

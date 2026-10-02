@@ -5,6 +5,8 @@ package rx
 
 import (
 	"errors"
+	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -28,6 +30,33 @@ func TestSessionTerminationRoundTrip(t *testing.T) {
 				t.Fatalf("round trip of %s = %+v, %v", c, got, err)
 			}
 		}
+	}
+
+	r := SessionTerminationRequest{
+		Cause:              TerminationLogout,
+		RequiredAccessInfo: []RequiredAccessInfo{0},
+		Class:              [][]byte{[]byte("a"), []byte("b")},
+	}
+
+	req, err := NewSessionTerminationRequest(afEnvelope, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var order []uint32
+
+	for _, a := range req.AVPs {
+		if a.Code == diameter.AVPTerminationCause || a.Code == AVPRequiredAccessInfo || a.Code == diameter.AVPClass {
+			order = append(order, a.Code)
+		}
+	}
+
+	if want := []uint32{diameter.AVPTerminationCause, AVPRequiredAccessInfo, diameter.AVPClass, diameter.AVPClass}; !slices.Equal(order, want) {
+		t.Fatalf("AVP order = %v, want %v", order, want)
+	}
+
+	if got, err := ParseSessionTerminationRequest(roundTrip(t, req)); err != nil || !reflect.DeepEqual(got, r) {
+		t.Fatalf("round trip with Class = %+v, %v", got, err)
 	}
 
 	for _, c := range []TerminationCause{0, 9, 10, 33} {
@@ -69,8 +98,8 @@ func TestParseSessionTerminationRequestErrors(t *testing.T) {
 		vendorUnsigned(AVPRequiredAccessInfo, 0),
 		diameter.OctetString(diameter.AVPClass, diameter.AVPFlagMandatory, 0, []byte("c")),
 	)
-	if _, err := ParseSessionTerminationRequest(kamailio); err != nil {
-		t.Fatalf("AF extras: %v", err)
+	if got, err := ParseSessionTerminationRequest(kamailio); err != nil || len(got.Class) != 1 || string(got.Class[0]) != "c" {
+		t.Fatalf("AF extras = %+v, %v", got, err)
 	}
 }
 

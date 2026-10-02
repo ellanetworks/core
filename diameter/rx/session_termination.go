@@ -11,6 +11,7 @@ import (
 type SessionTerminationRequest struct {
 	Cause              TerminationCause
 	RequiredAccessInfo []RequiredAccessInfo
+	Class              [][]byte
 }
 
 type SessionTerminationAnswer struct {
@@ -37,8 +38,9 @@ func NewSessionTerminationRequest(env tgpp.Envelope, r SessionTerminationRequest
 		return nil, err
 	}
 
-	return newRequest(env, CommandSessionTermination,
-		append([]diameter.AVP{diameter.Unsigned32(diameter.AVPTerminationCause, diameter.AVPFlagMandatory, 0, uint32(r.Cause))}, required...)...)
+	avps := append([]diameter.AVP{diameter.Unsigned32(diameter.AVPTerminationCause, diameter.AVPFlagMandatory, 0, uint32(r.Cause))}, required...)
+
+	return newRequest(env, CommandSessionTermination, append(avps, classAVPs(r.Class)...)...)
 }
 
 func CheckSessionTermination(req *diameter.Message) error {
@@ -60,7 +62,7 @@ func ParseSessionTerminationRequest(req *diameter.Message) (SessionTerminationRe
 		return SessionTerminationRequest{}, err
 	}
 
-	return SessionTerminationRequest{Cause: cause, RequiredAccessInfo: required}, nil
+	return SessionTerminationRequest{Cause: cause, RequiredAccessInfo: required, Class: classes(req.AVPs)}, nil
 }
 
 func NewSessionTerminationAnswer(req *diameter.Message, id diameter.Identity, a SessionTerminationAnswer) (*diameter.Message, error) {
