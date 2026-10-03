@@ -38,3 +38,12 @@
   height: 2rem;
   width: 2rem;
 }
+
+.md-typeset .grouped-rows table:not([class]) tbody tr:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.md-typeset .grouped-rows table:not([class]) tbody:hover {
+  background-color: var(--md-typeset-table-color--light);
+}
