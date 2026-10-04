@@ -91,7 +91,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	accept, err := buildTrackingAreaUpdateAccept(ctx, m, ue, operator, tauAcceptOptions{
-		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
+		updateType: req.EPSUpdateType,
 		bearerStatus: (req.EPSBearerContextStatus != nil || ue.LocalBearerDeactivationPending()) &&
 			len(m.SnapshotPDNs(ue)) > 0,
 	})
@@ -198,8 +198,19 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete")
 
+	m.SMSReachable(ctx, ue)
+
 	if ueConn.TauReleaseOnComplete {
 		ueConn.TauReleaseOnComplete = false
+
+		if p := ue.PagingPending(); p != nil && p.Signalling {
+			ue.PagingDelivered(ctx)
+		}
+
+		if ueConn.MTSignallingPending() {
+			ueConn.DeferRelease(ctx, mme.CauseNASNormalRelease)
+			return nasreply.Handled()
+		}
 
 		m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
 	}
@@ -231,14 +242,15 @@ func isCombinedUpdate(updateType uint8) bool {
 }
 
 type tauAcceptOptions struct {
-	combined     bool
+	updateType   eps.EPSUpdateType
 	bearerStatus bool
 }
 
 // trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT with the operator's
-// current TAI list and a reallocated GUTI (TS 24.301). A combined update includes
+// current TAI list and a reallocated GUTI (TS 24.301). A combined update is accepted
+// for EPS services and "SMS only" when the UE may use SMS; otherwise it includes
 // EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
-// registration.
+// registration, or #17 when the grant could not be decided.
 func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, operator mme.OperatorConfig, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
 	if !m.ServesUeContext(ue) {
 		return nil, fmt.Errorf("refusing to build tracking area update accept: UE context is not indexed by IMSI")
@@ -272,9 +284,13 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap()),
 	}
 
-	if opts.combined {
-		cause := eps.EMMCauseCSDomainNotAvailable
-		accept.Cause = &cause
+	switch {
+	case isCombinedUpdate(uint8(opts.updateType)):
+		accept.EPSUpdateResult, accept.NonEPSServices, accept.Cause = combinedResult(ctx, m, ue, plmn, eps.EPSUpdateResultCombined, eps.EPSUpdateResultTA)
+	case opts.updateType == eps.EPSUpdateTypePeriodic && ue.SMSOnly():
+		accept.EPSUpdateResult, accept.NonEPSServices = eps.EPSUpdateResultCombined, smsOnlyServices(plmn)
+	case opts.updateType != eps.EPSUpdateTypePeriodic:
+		m.DecideSMS(ctx, ue, false)
 	}
 
 	if opts.bearerStatus {
@@ -319,4 +335,20 @@ func bearerContextStatus(m *mme.MME, ue *mme.UeContext) nas.EPSBearerContextStat
 	}
 
 	return status
+}
+
+func smsOnlyServices(plmn models.PlmnID) eps.NonEPSServices {
+	result := eps.AdditionalUpdateResultSMSOnly
+	return eps.NonEPSServices{LAI: mme.SMSOnlyLAI(plmn), AdditionalUpdateResult: &result}
+}
+
+func combinedResult[R ~uint8](ctx context.Context, m *mme.MME, ue *mme.UeContext, plmn models.PlmnID, combined, epsOnly R) (R, eps.NonEPSServices, *eps.EMMCause) {
+	switch m.DecideSMS(ctx, ue, true) {
+	case mme.SMSGranted:
+		return combined, smsOnlyServices(plmn), nil
+	case mme.SMSUnavailable:
+		return epsOnly, eps.NonEPSServices{}, new(eps.EMMCauseNetworkFailure)
+	default:
+		return epsOnly, eps.NonEPSServices{}, new(eps.EMMCauseCSDomainNotAvailable)
+	}
 }

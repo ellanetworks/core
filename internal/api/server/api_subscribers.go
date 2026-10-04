@@ -30,11 +30,13 @@ type CreateSubscriberParams struct {
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profile_name"`
 	Description    string `json:"description,omitempty"`
+	Msisdn         string `json:"msisdn,omitempty"`
 }
 
 type UpdateSubscriberParams struct {
 	ProfileName string `json:"profile_name"`
 	Description string `json:"description,omitempty"`
+	Msisdn      string `json:"msisdn,omitempty"`
 }
 
 type SubscriberStatus struct {
@@ -50,6 +52,7 @@ type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
 	Description string           `json:"description,omitempty"`
+	Msisdn      string           `json:"msisdn,omitempty"`
 	Status      SubscriberStatus `json:"status"`
 }
 
@@ -83,6 +86,7 @@ type SubscriberDetail struct {
 	Imsi          string         `json:"imsi"`
 	ProfileName   string         `json:"profile_name"`
 	Description   string         `json:"description,omitempty"`
+	Msisdn        string         `json:"msisdn,omitempty"`
 	Registrations []Registration `json:"registrations"`
 	Sessions      []Session      `json:"sessions"`
 }
@@ -138,6 +142,30 @@ func normalizeDescription(description string) (string, error) {
 	}
 
 	return description, nil
+}
+
+const invalidMSISDNMessage = "Invalid msisdn. Must be an E.164 number: + followed by 1 to 15 digits, for example +15551230001."
+
+func parseE164(number string) (string, bool) {
+	number = strings.TrimSpace(number)
+	if number == "" {
+		return "", true
+	}
+
+	digits, ok := strings.CutPrefix(number, "+")
+	if !ok {
+		return "", false
+	}
+
+	return digits, db.IsValidMSISDN(digits)
+}
+
+func formatE164(digits string) string {
+	if digits == "" {
+		return ""
+	}
+
+	return "+" + digits
 }
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
@@ -420,6 +448,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				Imsi:        dbSubscriber.Imsi,
 				ProfileName: profile.Name,
 				Description: dbSubscriber.Description,
+				Msisdn:      formatE164(dbSubscriber.Msisdn),
 				Status:      subscriberStatus,
 			})
 		}
@@ -536,6 +565,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			Imsi:          dbSubscriber.Imsi,
 			ProfileName:   profile.Name,
 			Description:   dbSubscriber.Description,
+			Msisdn:        formatE164(dbSubscriber.Msisdn),
 			Registrations: registrations,
 			Sessions:      sessions,
 		}
@@ -614,6 +644,12 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		msisdn, ok := parseE164(params.Msisdn)
+		if !ok {
+			writeError(r.Context(), w, http.StatusBadRequest, invalidMSISDNMessage, errors.New("validation error"), logger.APILog)
+			return
+		}
+
 		if !isImsiValid(r.Context(), params.Imsi, dbInstance) {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.", errors.New("validation error"), logger.APILog)
 			return
@@ -684,11 +720,17 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			Opc:            opcHex,
 			ProfileID:      profile.ID,
 			Description:    description,
+			Msisdn:         msisdn,
 		}
 
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
 				writeError(r.Context(), w, http.StatusConflict, "Subscriber already exists", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrMSISDNInUse) {
+				writeError(r.Context(), w, http.StatusConflict, "MSISDN is already assigned to another subscriber", nil, logger.APILog)
 				return
 			}
 
@@ -702,6 +744,10 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 		detail := "User created subscriber: " + params.Imsi
 		if description != "" {
 			detail += " (description: " + description + ")"
+		}
+
+		if msisdn != "" {
+			detail += " (msisdn: " + formatE164(msisdn) + ")"
 		}
 
 		logger.LogAuditEvent(r.Context(), CreateSubscriberAction, email, getClientIP(r), detail)
@@ -733,6 +779,12 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		description, err := normalizeDescription(params.Description)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), errors.New("validation error"), logger.APILog)
+			return
+		}
+
+		msisdn, ok := parseE164(params.Msisdn)
+		if !ok {
+			writeError(r.Context(), w, http.StatusBadRequest, invalidMSISDNMessage, errors.New("validation error"), logger.APILog)
 			return
 		}
 
@@ -769,10 +821,16 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			Imsi:        imsi,
 			ProfileID:   profile.ID,
 			Description: description,
+			Msisdn:      msisdn,
 		}
 		if err := dbInstance.UpdateSubscriberProfile(r.Context(), updated); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrMSISDNInUse) {
+				writeError(r.Context(), w, http.StatusConflict, "MSISDN is already assigned to another subscriber", nil, logger.APILog)
 				return
 			}
 
@@ -793,6 +851,14 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			detail += " (description cleared)"
 		default:
 			detail += " (description: " + description + ")"
+		}
+
+		switch msisdn {
+		case existing.Msisdn:
+		case "":
+			detail += " (msisdn cleared)"
+		default:
+			detail += " (msisdn: " + formatE164(msisdn) + ")"
 		}
 
 		logger.LogAuditEvent(r.Context(), UpdateSubscriberAction, email, getClientIP(r), detail)

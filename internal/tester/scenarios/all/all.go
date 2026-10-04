@@ -12,4 +12,5 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/interworking"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/multi"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/s1enb"
+	_ "github.com/ellanetworks/core/internal/tester/scenarios/sms"
 )

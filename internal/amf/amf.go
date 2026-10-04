@@ -27,6 +27,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -176,9 +177,11 @@ type AMF struct {
 	Session                  SmfSbi
 	NAS                      NASHandler
 	LPPHandler               LPPHandler
+	SMS                      smsf.Handler
 	EPS                      interworking.EPSPeer
 
 	handoversToEPS interworking.HandoverGroup
+	smsDecisionMu  sync.RWMutex
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {
@@ -221,6 +224,7 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	superseded = superseded && old != ue
 	amf.UEs[ue.supi] = ue
 	ue.smf = amf.Session
+	ue.sms = amf.SMS
 
 	if ue.supi.IsIMSI() {
 		var radioID, radioName string

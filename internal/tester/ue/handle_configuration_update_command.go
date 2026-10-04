@@ -21,6 +21,14 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 		ue.Set5gGuti(cmd.GUTI)
 	}
 
+	if cmd.SMSAvailable != nil {
+		ue.smsAvailable.Store(*cmd.SMSAvailable)
+
+		if !*cmd.SMSAvailable {
+			ue.smsAllowed.Store(false)
+		}
+	}
+
 	logNITZ(ue, cmd)
 
 	if cmd.ConfigurationUpdateIndication == nil || !cmd.ConfigurationUpdateIndication.ACK {

@@ -296,6 +296,8 @@ type bringUpHA3GPPClusterOpts struct {
 	// converged (testers, routers). Cluster formation does not depend on
 	// them.
 	ExtraServices []string
+
+	Overlays []string
 }
 
 func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, opts bringUpHA3GPPClusterOpts) (string, []*client.Client, error) {
@@ -319,10 +321,12 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		}
 	}
 
+	composeFiles := append([]string{composeFile}, opts.Overlays...)
+
 	dc.ComposeCleanup(ctx)
 
 	t.Cleanup(func() {
-		dc.ComposeDownWithFile(context.Background(), composeDir, composeFile)
+		dc.ComposeDownWithFiles(context.Background(), composeDir, composeFiles...)
 	})
 
 	fail := func(err error) (string, []*client.Client, error) {
@@ -334,7 +338,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		return fail(err)
 	}
 
-	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, nodeServices[0]); err != nil {
+	if err := dc.ComposeUpServicesWithFiles(ctx, composeDir, composeFiles, nodeServices[0]); err != nil {
 		return fail(fmt.Errorf("start node 1: %w", err))
 	}
 
@@ -366,7 +370,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 			return fail(err)
 		}
 
-		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, nodeServices[i]); err != nil {
+		if err := dc.ComposeUpServicesWithFiles(ctx, composeDir, composeFiles, nodeServices[i]); err != nil {
 			return fail(fmt.Errorf("start node %d: %w", nodeID, err))
 		}
 	}
@@ -399,7 +403,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 	// Start any caller-supplied sidecars (testers, router) last; they
 	// don't affect cluster formation.
 	if len(opts.ExtraServices) > 0 {
-		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, opts.ExtraServices...); err != nil {
+		if err := dc.ComposeUpServicesWithFiles(ctx, composeDir, composeFiles, opts.ExtraServices...); err != nil {
 			return fail(fmt.Errorf("start extra services %v: %w", opts.ExtraServices, err))
 		}
 	}

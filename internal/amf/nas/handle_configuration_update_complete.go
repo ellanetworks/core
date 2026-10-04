@@ -19,6 +19,9 @@ func handleConfigurationUpdateComplete(ctx context.Context, amfInstance *amf.AMF
 	}
 
 	conn := ue.Conn()
+
+	amfInstance.SMSIndicationAcknowledged(ctx, ue, conn)
+
 	if conn != nil {
 		conn.StopNASGuard(ctx)
 	}

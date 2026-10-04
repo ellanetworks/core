@@ -18,11 +18,13 @@ type CreateSubscriberOptions struct {
 	ProfileName    string `json:"profile_name"`
 	OPc            string `json:"opc,omitempty"`
 	Description    string `json:"description,omitempty"`
+	Msisdn         string `json:"msisdn,omitempty"`
 }
 
 type UpdateSubscriberOptions struct {
 	ProfileName string `json:"profile_name"`
 	Description string `json:"description,omitempty"`
+	Msisdn      string `json:"msisdn,omitempty"`
 }
 
 type GetSubscriberOptions struct {
@@ -48,6 +50,7 @@ type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
 	Description string           `json:"description,omitempty"`
+	Msisdn      string           `json:"msisdn,omitempty"`
 	Status      SubscriberStatus `json:"status"`
 }
 
@@ -89,6 +92,7 @@ type SubscriberDetail struct {
 	Imsi          string         `json:"imsi"`
 	ProfileName   string         `json:"profile_name"`
 	Description   string         `json:"description,omitempty"`
+	Msisdn        string         `json:"msisdn,omitempty"`
 	Registrations []Registration `json:"registrations"`
 	Sessions      []Session      `json:"sessions"`
 }
@@ -132,6 +136,7 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 		ProfileName    string `json:"profile_name"`
 		OPc            string `json:"opc,omitempty"`
 		Description    string `json:"description,omitempty"`
+		Msisdn         string `json:"msisdn,omitempty"`
 	}{
 		Imsi:           opts.Imsi,
 		Key:            opts.Key,
@@ -139,6 +144,7 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 		ProfileName:    opts.ProfileName,
 		OPc:            opts.OPc,
 		Description:    opts.Description,
+		Msisdn:         opts.Msisdn,
 	}
 
 	var body bytes.Buffer
@@ -181,14 +187,16 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	return &subscriberResponse, nil
 }
 
-// UpdateSubscriber replaces a subscriber's profile and description.
+// UpdateSubscriber replaces a subscriber's profile, description and MSISDN.
 func (c *Client) UpdateSubscriber(ctx context.Context, imsi string, opts *UpdateSubscriberOptions) error {
 	payload := struct {
 		ProfileName string `json:"profile_name"`
 		Description string `json:"description,omitempty"`
+		Msisdn      string `json:"msisdn,omitempty"`
 	}{
 		ProfileName: opts.ProfileName,
 		Description: opts.Description,
+		Msisdn:      opts.Msisdn,
 	}
 
 	var body bytes.Buffer

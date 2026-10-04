@@ -5,7 +5,10 @@ package s1enb
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
 
+	"github.com/ellanetworks/core/internal/tester/smsue"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
@@ -61,16 +64,27 @@ type UE struct {
 	msNetCap                  *eps.MSNetworkCapability
 	sentNetCap                eps.UENetworkCapability
 	sentMSNetCap              *eps.MSNetworkCapability
+	smsOnly                   bool
+	SMS                       *smsue.Stack
+	enb                       *ENB
+	nasMu                     sync.Mutex
+	mmeUEID                   atomic.Int64
+	enbUEID                   atomic.Int64
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
-	return &UE{
+	ue := &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
 		netCapUEA: 0xc0, netCapUIA: 0x40,
 		msNetCap:   &eps.MSNetworkCapability{GEAExtended: 0x18, Rest: []byte{0x65, 0xb1, 0x3e}},
 		attachType: eps.AttachTypeEPS, requestType: eps.RequestTypeInitialRequest,
+		enb: e,
 	}
+
+	ue.SMS = smsue.New(ue.sendSMS)
+
+	return ue
 }
 
 // nextPTI allocates the next ESM procedure transaction identity for a UE-initiated
@@ -182,6 +196,10 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSMobileIdentity:   identity,
 		UENetworkCapability: *ue.advertise(ue.ueNetworkCapability(), nil),
 		ESMMessageContainer: esm,
+	}
+
+	if ue.smsOnly {
+		attach.AdditionalUpdateType = &eps.AdditionalUpdateType{AUTV: true}
 	}
 
 	return attach.MarshalBinary()
@@ -443,8 +461,12 @@ func (ue *UE) buildAttachComplete(acceptESM []byte) ([]byte, error) {
 // buildDetachRequest builds a protected UE-originating DETACH REQUEST (EPS
 // detach, not switch-off, TS 24.301 §8.2.11) so the network acknowledges it.
 func (ue *UE) buildDetachRequest() ([]byte, error) {
+	return ue.buildDetachRequestWith(false)
+}
+
+func (ue *UE) buildDetachRequestWith(switchOff bool) ([]byte, error) {
 	req := &eps.DetachRequestUE{
-		SwitchOff:           false,
+		SwitchOff:           switchOff,
 		TypeOfDetach:        eps.DetachTypeEPS,
 		NASKeySetIdentifier: nas.KeySetIdentifier{},
 		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(ue.IMSI)),
@@ -491,12 +513,18 @@ func (ue *UE) buildTrackingAreaUpdateRequest(updateType eps.EPSUpdateType, activ
 func (ue *UE) buildTrackingAreaUpdateRequestWithBearerStatus(updateType eps.EPSUpdateType, activeFlag bool,
 	guti *eps.EPSMobileIdentity, status *nas.EPSBearerContextStatus,
 ) ([]byte, error) {
-	plain, err := (&eps.TrackingAreaUpdateRequest{
+	req := &eps.TrackingAreaUpdateRequest{
 		EPSUpdateType:          updateType,
 		ActiveFlag:             activeFlag,
 		OldGUTI:                *guti,
 		EPSBearerContextStatus: status,
-	}).MarshalBinary()
+	}
+
+	if ue.smsOnly && (updateType == eps.EPSUpdateTypeCombinedTALA || updateType == eps.EPSUpdateTypeCombinedTALAIMSI) {
+		req.AdditionalUpdateType = &eps.AdditionalUpdateType{AUTV: true}
+	}
+
+	plain, err := req.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build Tracking Area Update Request: %w", err)
 	}

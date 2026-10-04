@@ -45,12 +45,20 @@ type GetOperatorSPNResponse struct {
 	ShortName string `json:"shortName"`
 }
 
+type GetOperatorSMSResponse struct {
+	Enabled     bool   `json:"enabled"`
+	SMSCAddress string `json:"smscAddress"`
+	SMSCPort    int    `json:"smscPort"`
+	SMSNumber   string `json:"smsNumber"`
+}
+
 type Operator struct {
 	ID              GetOperatorIDResponse          `json:"id,omitempty"`
 	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys,omitempty"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity,omitempty"`
 	SPN             GetOperatorSPNResponse         `json:"spn,omitempty"`
+	SMS             GetOperatorSMSResponse         `json:"sms,omitempty"`
 }
 
 type UpdateOperatorIDOptions struct {
@@ -77,6 +85,13 @@ type UpdateOperatorNASSecurityOptions struct {
 type UpdateOperatorSPNOptions struct {
 	FullName  string
 	ShortName string
+}
+
+type UpdateOperatorSMSOptions struct {
+	Enabled     bool
+	SMSCAddress string
+	SMSCPort    int
+	SMSNumber   string
 }
 
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
@@ -299,6 +314,39 @@ func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNO
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/spn",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) UpdateOperatorSMS(ctx context.Context, opts *UpdateOperatorSMSOptions) error {
+	payload := struct {
+		Enabled     bool   `json:"enabled"`
+		SMSCAddress string `json:"smscAddress"`
+		SMSCPort    int    `json:"smscPort,omitempty"`
+		SMSNumber   string `json:"smsNumber"`
+	}{
+		Enabled:     opts.Enabled,
+		SMSCAddress: opts.SMSCAddress,
+		SMSCPort:    opts.SMSCPort,
+		SMSNumber:   opts.SMSNumber,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/operator/sms",
 		Body:   &body,
 	})
 	if err != nil {

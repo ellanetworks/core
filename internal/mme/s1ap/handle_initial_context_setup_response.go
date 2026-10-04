@@ -79,6 +79,8 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 
 	m.DeliverBufferedLPP(ctx, ue, ueConn)
 
+	m.SMSReachable(ctx, ue)
+
 	if ueConn != nil {
 		ueConn.SetICS(mme.ICSCompleted)
 	}

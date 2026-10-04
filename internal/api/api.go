@@ -100,6 +100,7 @@ type UpgradeConfig struct {
 	MME                 *mme.MME
 	BGP                 *bgp.BGPService
 	LMF                 *lmf.LMF
+	Diameter            server.DiameterNode
 	EmbedFS             fs.FS
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
@@ -225,6 +226,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		MME:                opts.MME,
 		BGP:                opts.BGP,
 		LMF:                opts.LMF,
+		Diameter:           opts.Diameter,
 		BcryptCost:         bcrypt.DefaultCost,
 		DatapathAttachMode: opts.DatapathAttachMode,
 		Ready:              &s.ready,

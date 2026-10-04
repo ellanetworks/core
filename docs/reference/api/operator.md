@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, and Network Name (SPN).
+description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), and SMS.
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms and Service Provider Name.
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name and SMS settings.
 
 ## Get Operator Information
 
@@ -49,6 +49,12 @@ None
         "spn": {
             "fullName": "Ella Networks",
             "shortName": "Ella"
+        },
+        "sms": {
+            "enabled": true,
+            "smscAddress": "192.0.2.10",
+            "smscPort": 3868,
+            "smsNumber": "+15550001111"
         }
     }
 }
@@ -257,6 +263,42 @@ This path updates the network name (Service Provider Name) displayed on connecte
 {
     "result": {
         "message": "Operator SPN updated successfully"
+    }
+}
+```
+
+## Update the SMS Settings
+
+This path enables or disables SMS and sets the external SMSC and Ella Core's SMS number.
+
+| Method | Path                    |
+| ------ | ----------------------- |
+| PUT    | `/api/v1/operator/sms`  |
+
+### Parameters
+
+- `enabled` (boolean): Whether SMS is enabled. Requires `smscAddress` and `smsNumber` when `true`.
+- `smscAddress` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint. Required when `enabled` is `true`.
+- `smscPort` (optional integer): The SCTP port of the SMSC's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
+- `smsNumber` (string): Ella Core's E.164 number for SMS, for example `+15550001111`. Required when `enabled` is `true`.
+
+### Sample Request
+
+```json
+{
+    "enabled": true,
+    "smscAddress": "192.0.2.10",
+    "smscPort": 3868,
+    "smsNumber": "+15550001111"
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Operator SMS settings updated successfully"
     }
 }
 ```

@@ -50,6 +50,7 @@ const EditSubscriberDescriptionModal: React.FC<
       initialData.imsi,
       initialData.profileName,
       values.description,
+      initialData.msisdn,
     );
   };
 

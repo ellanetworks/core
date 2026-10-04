@@ -419,3 +419,76 @@ func TestSubscriberDescriptionIsMarshalled(t *testing.T) {
 		}
 	})
 }
+
+func TestSubscriberMSISDNIsMarshalled(t *testing.T) {
+	newFake := func() *fakeRequester {
+		return &fakeRequester{
+			response: &client.RequestResponse{
+				StatusCode: 200,
+				Headers:    http.Header{},
+				Result:     []byte(`{"message": "ok"}`),
+			},
+		}
+	}
+
+	decodeBody := func(t *testing.T, fake *fakeRequester) map[string]string {
+		t.Helper()
+
+		var payload map[string]string
+		if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+
+		return payload
+	}
+
+	t.Run("create sends the msisdn", func(t *testing.T) {
+		fake := newFake()
+
+		err := (&client.Client{Requester: fake}).CreateSubscriber(context.Background(), &client.CreateSubscriberOptions{
+			Imsi:           "001010100000022",
+			Key:            "5122250214c33e723a5dd523fc145fc0",
+			SequenceNumber: "000000000022",
+			ProfileName:    "default",
+			Msisdn:         "+15551230001",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if got := decodeBody(t, fake)["msisdn"]; got != "+15551230001" {
+			t.Fatalf("msisdn = %q, want %q", got, "+15551230001")
+		}
+	})
+
+	t.Run("update sends the msisdn", func(t *testing.T) {
+		fake := newFake()
+
+		err := (&client.Client{Requester: fake}).UpdateSubscriber(context.Background(), "001010100000022", &client.UpdateSubscriberOptions{
+			ProfileName: "default",
+			Msisdn:      "+15551230002",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if got := decodeBody(t, fake)["msisdn"]; got != "+15551230002" {
+			t.Fatalf("msisdn = %q, want %q", got, "+15551230002")
+		}
+	})
+
+	t.Run("an unset msisdn is omitted", func(t *testing.T) {
+		fake := newFake()
+
+		err := (&client.Client{Requester: fake}).UpdateSubscriber(context.Background(), "001010100000022", &client.UpdateSubscriberOptions{
+			ProfileName: "default",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if _, ok := decodeBody(t, fake)["msisdn"]; ok {
+			t.Fatal("msisdn was sent although unset")
+		}
+	})
+}

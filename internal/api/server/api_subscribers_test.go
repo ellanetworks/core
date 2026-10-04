@@ -57,6 +57,7 @@ type ListSubscriber struct {
 	Imsi        string               `json:"imsi"`
 	ProfileName string               `json:"profile_name"`
 	Description string               `json:"description,omitempty"`
+	Msisdn      string               `json:"msisdn,omitempty"`
 	Status      ListSubscriberStatus `json:"status"`
 }
 
@@ -102,6 +103,7 @@ type SubscriberDetail struct {
 	Imsi          string         `json:"imsi"`
 	ProfileName   string         `json:"profile_name"`
 	Description   string         `json:"description,omitempty"`
+	Msisdn        string         `json:"msisdn,omitempty"`
 	Registrations []Registration `json:"registrations"`
 	Sessions      []Session      `json:"sessions"`
 }
@@ -128,6 +130,7 @@ type CreateSubscriberParams struct {
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profile_name"`
 	Description    string `json:"description,omitempty"`
+	Msisdn         string `json:"msisdn,omitempty"`
 }
 
 type CreateSubscriberResponseResult struct {
@@ -168,6 +171,7 @@ type UpdateSubscriberParams struct {
 	Imsi        string `json:"imsi"`
 	ProfileName string `json:"profile_name"`
 	Description string `json:"description,omitempty"`
+	Msisdn      string `json:"msisdn,omitempty"`
 }
 
 type UpdateSubscriberResponse struct {

@@ -44,6 +44,7 @@ const EditSubscriberProfileModal: React.FC<EditSubscriberProfileModalProps> = ({
       initialData.imsi,
       values.profileName,
       initialData.description,
+      initialData.msisdn,
     );
   };
 

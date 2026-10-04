@@ -5,6 +5,7 @@ package client_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -363,5 +364,60 @@ func TestGetOperator_IncludesSPN(t *testing.T) {
 
 	if operator.SPN.ShortName != "MyNet" {
 		t.Fatalf("expected shortName 'MyNet', got '%s'", operator.SPN.ShortName)
+	}
+}
+
+func TestUpdateOperatorSMS_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator SMS settings updated successfully"}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.UpdateOperatorSMS(context.Background(), &client.UpdateOperatorSMSOptions{
+		Enabled:     true,
+		SMSCAddress: "192.0.2.10",
+		SMSCPort:    3869,
+		SMSNumber:   "+15550001111",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/sms" {
+		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+
+	if payload["enabled"] != true || payload["smscAddress"] != "192.0.2.10" || payload["smscPort"] != float64(3869) || payload["smsNumber"] != "+15550001111" {
+		t.Fatalf("unexpected payload %v", payload)
+	}
+}
+
+func TestGetOperator_IncludesSMS(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"sms": {"enabled": true, "smscAddress": "192.0.2.10", "smscPort": 3868, "smsNumber": "+15550001111"}}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	operator, err := clientObj.GetOperator(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	want := client.GetOperatorSMSResponse{Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: "+15550001111"}
+	if operator.SMS != want {
+		t.Fatalf("sms = %+v, want %+v", operator.SMS, want)
 	}
 }

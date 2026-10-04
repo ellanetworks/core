@@ -34,6 +34,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo,
 		PermReadBGP,
+		PermReadDiameter,
 		PermGetFlowAccountingInfo,
 		PermGetLocalSwitchInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
@@ -49,7 +50,7 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN,
+		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListDataNetworkStaticIPs, PermCreateDataNetworkStaticIP, PermUpdateDataNetworkStaticIP, PermDeleteDataNetworkStaticIP,
 		PermListDataNetworkFramedRoutes, PermCreateDataNetworkFramedRoute, PermUpdateDataNetworkFramedRoute, PermDeleteDataNetworkFramedRoute,
@@ -61,6 +62,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo, PermUpdateNATInfo,
 		PermReadBGP, PermUpdateBGP,
+		PermReadDiameter,
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermGetLocalSwitchInfo, PermUpdateLocalSwitchInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
@@ -122,6 +124,7 @@ const (
 	PermReadHomeNetworkPrivateKey = "operator:read_home_network_private_key"
 	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
 	PermUpdateOperatorSPN         = "operator:update_spn"
+	PermUpdateOperatorSMS         = "operator:update_sms"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"
@@ -171,6 +174,8 @@ const (
 	// BGP permissions
 	PermReadBGP   = "bgp:read"
 	PermUpdateBGP = "bgp:update"
+
+	PermReadDiameter = "diameter:read"
 
 	// Flow Accounting permissions
 	PermGetFlowAccountingInfo    = "flow_accounting:get"

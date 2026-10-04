@@ -28,6 +28,7 @@ import ProfileSelectField, {
 } from "@/components/ProfileSelectField";
 import {
   descriptionSchema,
+  msisdnSchema,
   getMSINBounds,
   parseIMSIorMSIN,
   randomKey,
@@ -75,6 +76,7 @@ const schema = yup.object({
     .required("Sequence Number is required."),
   profileName: yup.string().required("Profile is required."),
   description: descriptionSchema,
+  msisdn: msisdnSchema,
   opc: yup
     .string()
     .default("")
@@ -128,6 +130,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       sequenceNumber: "000000000022",
       profileName: "",
       description: "",
+      msisdn: "",
     },
   });
 
@@ -165,6 +168,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       values.profileName,
       values.opc,
       values.description,
+      values.msisdn.trim(),
     );
   };
 
@@ -273,6 +277,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         control={form.control}
         name="profileName"
         profiles={profiles}
+      />
+
+      <TextControl<FormValues>
+        name="msisdn"
+        label="MSISDN (optional)"
+        placeholder="+15551230001"
+        helperText="Phone number in E.164 format, for example +15551230001. Required for SMS."
       />
 
       <TextControl<FormValues>

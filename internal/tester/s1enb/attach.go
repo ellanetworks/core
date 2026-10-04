@@ -26,6 +26,8 @@ type AttachResult struct {
 	UERadioCapability   []byte
 	UESecurityCaps      s1ap.UESecurityCapabilities
 	EMMCause            *eps.EMMCause
+	LAI                 *nas.LAI
+	SMSOnly             bool
 	IdentityRequested   bool
 	PDNType             eps.PDNType
 	QCI                 byte
@@ -188,12 +190,16 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	guti := accept.GUTI
 
+	ue.UseConnection(mmeUEID, enbUEID)
+
 	res := &AttachResult{
 		AttachResultValue: accept.EPSAttachResult,
 		SecurityKey:       ics.SecurityKey,
 		UERadioCapability: []byte(ics.UERadioCapability),
 		UESecurityCaps:    ics.UESecurityCapabilities,
 		EMMCause:          accept.Cause,
+		LAI:               accept.LAI,
+		SMSOnly:           accept.AdditionalUpdateResult != nil && *accept.AdditionalUpdateResult == eps.AdditionalUpdateResultSMSOnly,
 		MMEUES1APID:       mmeUEID,
 		ENBUES1APID:       enbUEID,
 		ERABID:            erab.ERABID,

@@ -1,0 +1,308 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package smsf
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/diameter/s6c"
+	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
+)
+
+func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+	r, err := s6c.ParseSendRoutingInfoForSMRequest(req)
+	if err != nil {
+		return s6c.NewErrorAnswer(req, id, err)
+	}
+
+	var alertMSISDN string
+
+	fail := func(code uint32, absent s6c.AbsentUserDiagnostics) *diameter.Message {
+		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN}, r.SMSFSupport)
+		if err != nil {
+			return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+		}
+
+		return ans
+	}
+
+	sub, err := s.lookup(ctx, r.MSISDN, r.IMSI)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fail(tgpp.ResultErrorUserUnknown, s6c.AbsentUserDiagnostics{})
+		}
+
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	alertMSISDN = storedMSISDN(sub.Msisdn, r.MSISDN)
+
+	settings, err := s.store.GetSMSSettings(ctx)
+	if err != nil {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	if sub.Msisdn == "" || !settings.Enabled {
+		return fail(tgpp.ResultErrorServiceNotSubscribed, s6c.AbsentUserDiagnostics{})
+	}
+
+	nodes, absentDiagnostics, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, r.SMSFSupport)
+	if err != nil {
+		logger.From(ctx, s.logger).Warn("Could not look up the serving node of a subscriber", zap.String("imsi", sub.Imsi), zap.Error(err))
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	if nodes.Serving == nil && nodes.SMSF3GPP == nil && r.DeliveryNotIntended == nil {
+		logger.From(ctx, s.logger).Info("Answered a routing request for an unreachable subscriber", zap.String("imsi", sub.Imsi))
+
+		if !r.SingleAttempt {
+			s.markWaiting(ctx, sub.Imsi, r.ServiceCentreAddress)
+		}
+
+		return fail(tgpp.ResultErrorAbsentUser, absentDiagnostics)
+	}
+
+	ans, err := s6c.NewSendRoutingInfoForSMAnswer(req, id, s6c.Routing{ServingNodes: nodes, IMSI: sub.Imsi, AlertMSISDN: alertMSISDN}, r.SMSFSupport)
+	if err != nil {
+		logger.From(ctx, s.logger).Warn("Could not build a routing answer", zap.String("imsi", sub.Imsi), zap.Error(err))
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	return ans
+}
+
+func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+	rep, err := s6c.ParseReportSMDeliveryStatusRequest(req)
+	if err != nil {
+		return s6c.NewErrorAnswer(req, id, err)
+	}
+
+	sub, err := s.lookup(ctx, rep.MSISDN, rep.IMSI)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return s6c.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultErrorUserUnknown))
+		}
+
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	if !rep.SingleAttempt {
+		s.recordDeliveryReport(ctx, sub.Imsi, rep)
+	}
+
+	result := s6c.ReportResult{AlertMSISDN: storedMSISDN(sub.Msisdn, rep.MSISDN)}
+
+	if failed := nodeNames(rep.Failed); len(failed) > 0 {
+		settings, err := s.store.GetSMSSettings(ctx)
+		if err == nil {
+			current, _, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, rep.SMSFSupport)
+			if names := nodeNames(current); err == nil && len(names) > 0 && !sameNames(names, failed) {
+				result.ServingNodes = current
+			}
+		}
+	}
+
+	ans, err := s6c.NewReportSMDeliveryStatusAnswer(req, id, result, rep.SMSFSupport)
+	if err != nil {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	return ans
+}
+
+func (s *SMSF) recordDeliveryReport(ctx context.Context, imsi string, rep s6c.DeliveryReport) {
+	for _, n := range []struct {
+		outcome *s6c.DeliveryOutcome
+		local   bool
+	}{
+		{rep.MME, true},
+		{rep.SMSF3GPP, true},
+		{rep.SMSFNon3GPP, false},
+		{rep.MSC, false},
+		{rep.SGSN, false},
+		{rep.IPSMGW, false},
+	} {
+		if n.outcome == nil {
+			continue
+		}
+
+		switch n.outcome.Cause {
+		case s6c.DeliveryCauseSuccessfulTransfer:
+			s.delivered(ctx, imsi, rep.ServiceCentreAddress)
+			return
+		case s6c.DeliveryCauseAbsentUser:
+			s.markWaiting(ctx, imsi, rep.ServiceCentreAddress)
+		case s6c.DeliveryCauseMemoryCapacityExceeded:
+			if n.local {
+				s.markWaiting(ctx, imsi, rep.ServiceCentreAddress)
+			} else {
+				s.markMemoryFull(ctx, imsi, rep.ServiceCentreAddress)
+			}
+		}
+	}
+}
+
+func storedMSISDN(stored, received string) string {
+	if stored == received {
+		return ""
+	}
+
+	return stored
+}
+
+func (s *SMSF) lookup(ctx context.Context, msisdn, imsi string) (*db.Subscriber, error) {
+	if msisdn != "" {
+		return s.store.GetSubscriberByMSISDN(ctx, msisdn)
+	}
+
+	if imsi != "" {
+		return s.store.GetSubscriber(ctx, imsi)
+	}
+
+	return nil, db.ErrNotFound
+}
+
+func (s *SMSF) registration(ctx context.Context, imsi string) (*db.UERegistration, error) {
+	var active, purged *db.UERegistration
+
+	for _, regType := range []string{db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess} {
+		reg, err := s.store.GetUERegistration(ctx, imsi, regType)
+		if errors.Is(err, db.ErrNotFound) {
+			continue
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("get %s registration: %w", regType, err)
+		}
+
+		switch {
+		case !reg.Purged && (active == nil || reg.Version > active.Version):
+			active = reg
+		case reg.Purged && (purged == nil || reg.Version > purged.Version):
+			purged = reg
+		}
+	}
+
+	if active != nil {
+		return active, nil
+	}
+
+	return purged, nil
+}
+
+func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSupport bool) (s6c.ServingNodes, s6c.AbsentUserDiagnostics, error) {
+	var (
+		nodes  s6c.ServingNodes
+		absent s6c.AbsentUserDiagnostics
+	)
+
+	reg, err := s.registration(ctx, imsi)
+	if err != nil || reg == nil {
+		return nodes, absent, err
+	}
+
+	smsf := reg.Type == db.UERegistrationTypeAMF3GPPAccess && smsfSupport
+
+	if reg.Purged {
+		purged := tgpp.AbsentUserPurgedNonGPRS
+
+		if smsf {
+			absent.SMSF3GPP = &purged
+		} else {
+			absent.MME = &purged
+		}
+
+		return nodes, absent, nil
+	}
+
+	identity, err := s.directory.Identity(ctx, reg.NodeID)
+	if errors.Is(err, ErrNotClusterMember) {
+		logger.From(ctx, s.logger).Info("Serving node of a subscriber is not a cluster member", zap.String("imsi", imsi), zap.String("node_id", reg.NodeID), zap.Error(err))
+		return nodes, absent, nil
+	}
+
+	if err != nil {
+		return nodes, absent, err
+	}
+
+	address := &s6c.NodeAddress{Name: identity.Host, Realm: identity.Realm, Number: smsNumber}
+
+	if smsf {
+		nodes.SMSF3GPP = address
+	} else {
+		nodes.Serving = &s6c.ServingNode{MME: address}
+	}
+
+	return nodes, absent, nil
+}
+
+func (s *SMSF) servedElsewhere(ctx context.Context, imsi string) bool {
+	reg, err := s.registration(ctx, imsi)
+	if err != nil || reg == nil || reg.Purged {
+		return false
+	}
+
+	local, ok := s.smsc.LocalHost()
+	if !ok {
+		return true
+	}
+
+	identity, err := s.directory.Identity(ctx, reg.NodeID)
+
+	return err == nil && !strings.EqualFold(identity.Host, local)
+}
+
+func nodeNames(n s6c.ServingNodes) []string {
+	var names []string
+
+	for _, sn := range []*s6c.ServingNode{n.Serving, n.Additional} {
+		if sn == nil {
+			continue
+		}
+
+		for _, a := range []*s6c.NodeAddress{sn.MME, sn.SGSN, sn.IPSMGW} {
+			if a != nil && a.Name != "" {
+				names = append(names, strings.ToLower(a.Name))
+			}
+		}
+	}
+
+	for _, a := range []*s6c.NodeAddress{n.SMSF3GPP, n.SMSFNon3GPP} {
+		if a != nil && a.Name != "" {
+			names = append(names, strings.ToLower(a.Name))
+		}
+	}
+
+	return names
+}
+
+func sameNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for _, name := range a {
+		found := false
+
+		for _, other := range b {
+			if name == other {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}

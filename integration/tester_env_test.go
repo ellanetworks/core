@@ -54,7 +54,7 @@ type testerGNB struct {
 // setupTesterEnv brings the core-tester compose up, waits for Ella Core
 // to be ready, bootstraps it, and returns the env. Teardown and log
 // collection are registered via t.Cleanup.
-func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
+func setupTesterEnv(ctx context.Context, t *testing.T, overlays ...string) *testerEnv {
 	t.Helper()
 
 	dc, err := NewDockerClient()
@@ -67,7 +67,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	const composeDir = "compose/core-tester/"
 
 	composeFile := ComposeFile()
-	composeFiles := withVRFOverlay(ctx, t, composeFile)
+	composeFiles := append(withVRFOverlay(ctx, t, composeFile), overlays...)
 
 	dc.ComposeCleanup(ctx)
 
@@ -78,15 +78,24 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	t.Cleanup(func() {
 		captureMetrics(t, APIAddress(), "metrics.txt")
 
-		logs, err := dc.ComposeLogs(ctx, composeDir, "ella-core")
-		if err == nil {
+		services := []string{"ella-core"}
+		if len(overlays) > 0 {
+			services = append(services, "smsc")
+		}
+
+		for _, service := range services {
+			logs, err := dc.ComposeLogs(ctx, composeDir, service)
+			if err != nil {
+				continue
+			}
+
 			logDir := os.Getenv("INTEGRATION_LOG_DIR")
 			if logDir != "" && t.Failed() {
 				safeName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 
 				dir := filepath.Join(logDir, safeName)
 				if err := os.MkdirAll(dir, 0o755); err == nil {
-					_ = os.WriteFile(filepath.Join(dir, "ella-core.log"), []byte(logs), 0o644)
+					_ = os.WriteFile(filepath.Join(dir, service+".log"), []byte(logs), 0o644)
 				}
 			}
 		}

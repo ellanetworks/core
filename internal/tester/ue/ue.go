@@ -12,11 +12,13 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/smsue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -109,6 +111,13 @@ type UE struct {
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
 	requestedReactivation  bool
 	lastPTI                uint8
+	requestSMS             bool
+	SMS                    *smsue.Stack
+	smsAllowed             atomic.Bool
+	smsAvailable           atomic.Bool
+	smsMu                  sync.Mutex
+	lastAMFUENGAPID        atomic.Int64
+	lastRANUENGAPID        atomic.Int64
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
@@ -211,6 +220,7 @@ type UEOpts struct {
 	GnodeB                air.UplinkSender
 	NoAutoPDUSession      bool
 	S1UENetworkCapability *eps.UENetworkCapability
+	RequestSMS            bool
 }
 
 var DefaultS1UENetworkCapability = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
@@ -223,6 +233,8 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.PDUSessionID = opts.PDUSessionID
 	ue.PDUSessionType = opts.PDUSessionType
 	ue.NoAutoPDUSession = opts.NoAutoPDUSession
+	ue.requestSMS = opts.RequestSMS
+	ue.SMS = smsue.New(ue.sendSMS)
 
 	ue.UeSecurity.UeSecurityCapability = opts.UeSecurityCapability
 
@@ -558,6 +570,9 @@ func (ue *UE) GetSuci() fgs.MobileIdentity {
 }
 
 func (ue *UE) SendDownlinkNAS(msg []byte, amfUENGAPID int64, ranUENGAPID int64) error {
+	ue.lastAMFUENGAPID.Store(amfUENGAPID)
+	ue.lastRANUENGAPID.Store(ranUENGAPID)
+
 	plain, err := ue.DecodeNAS(msg)
 	if err != nil {
 		return fmt.Errorf("could not decode NAS message: %v", err)
@@ -832,6 +847,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		S1UENetworkCapability: s1Capability,
 		UESecurity:            ue.UeSecurity,
 		InitialNASMessage:     true,
+		RequestSMS:            ue.requestSMS,
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
@@ -873,6 +889,9 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 }
 
 func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, serviceType uint8) error {
+	ue.smsMu.Lock()
+	defer ue.smsMu.Unlock()
+
 	serviceRequest, err := BuildServiceRequest(&ServiceRequestOpts{
 		ServiceType:      serviceType,
 		AMFSetID:         ue.GetAmfSetId(),

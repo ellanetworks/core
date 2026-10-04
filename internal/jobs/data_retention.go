@@ -64,6 +64,10 @@ func runRetentionPass(ctx context.Context, database *db.Database, isLeader bool)
 	if err := enforceSubscriberUsageDataRetention(ctx, database); err != nil {
 		logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
 	}
+
+	if err := database.DeleteStaleSMSWaiting(ctx, db.SMSWaitingRetention); err != nil {
+		logger.EllaLog.Error("error enforcing SMS message waiting data retention", zap.Error(err))
+	}
 }
 
 func retentionDays(ctx context.Context, database *db.Database, category db.RetentionCategory) (int, bool, error) {

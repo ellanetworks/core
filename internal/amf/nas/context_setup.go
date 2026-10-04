@@ -35,6 +35,8 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 			ue.SetRadioCapability(nil)
 			ue.RadioCapabilityForPaging = nil
 		}
+
+		amfInstance.GrantSMSOverNAS(ctx, ue, msg.UpdateType5GS != nil && msg.UpdateType5GS.SMSRequested && msg.RegistrationType != fgs.RegistrationTypeEmergency)
 	}
 
 	switch conn.RegistrationType5GS {

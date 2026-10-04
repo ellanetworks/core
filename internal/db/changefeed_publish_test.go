@@ -92,3 +92,30 @@ func TestApplyCommand_PublishesFlowAccountingEvent(t *testing.T) {
 		t.Fatal("did not receive flow-accounting change event")
 	}
 }
+
+func TestOperatorIdentityChangesWakeTheDiameterNode(t *testing.T) {
+	dbInstance, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("create db: %v", err)
+	}
+
+	defer func() { _ = dbInstance.Close() }()
+
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicOperatorIdentity)
+	defer stop()
+
+	for name, update := range map[string]func() error{
+		"MCC/MNC":      func() error { return dbInstance.UpdateOperatorID(context.Background(), "002", "02") },
+		"AMF identity": func() error { return dbInstance.UpdateOperatorAMFIdentity(context.Background(), 3, 4) },
+	} {
+		if err := update(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+
+		select {
+		case <-wakeup:
+		case <-time.After(time.Second):
+			t.Fatalf("a %s change did not publish an operator identity event", name)
+		}
+	}
+}

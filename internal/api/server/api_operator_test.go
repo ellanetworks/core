@@ -25,6 +25,13 @@ type GetOperatorSPNResponseResult struct {
 	ShortName string `json:"shortName"`
 }
 
+type GetOperatorSMSResponseResult struct {
+	Enabled     bool   `json:"enabled"`
+	SMSCAddress string `json:"smscAddress"`
+	SMSCPort    int    `json:"smscPort"`
+	SMSNumber   string `json:"smsNumber"`
+}
+
 type GetOperatorTrackingResponseResult struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
@@ -40,6 +47,7 @@ type GetOperatorResponseResult struct {
 	NASSecurity     GetOperatorNASSecurityResponseResult `json:"nasSecurity,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponseItem         `json:"homeNetworkKeys"`
 	SPN             GetOperatorSPNResponseResult         `json:"spn"`
+	SMS             GetOperatorSMSResponseResult         `json:"sms"`
 }
 
 type GetOperatorResponse struct {

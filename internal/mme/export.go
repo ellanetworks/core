@@ -97,6 +97,7 @@ type TunnelExport struct {
 
 type UERegistrationExport struct {
 	CombinedAttach bool `json:"combined_attach"`
+	SMSOnly        bool `json:"sms_only"`
 	ResyncTried    bool `json:"resync_tried"`
 }
 
@@ -211,6 +212,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 		},
 		Registration: UERegistrationExport{
 			CombinedAttach: ue.CombinedAttach,
+			SMSOnly:        ue.SMSOnly(),
 			ResyncTried:    resyncTried,
 		},
 		Timers: UETimersExport{

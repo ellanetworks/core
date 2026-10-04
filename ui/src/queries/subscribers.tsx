@@ -21,6 +21,7 @@ export type APISubscriberSummary = {
   imsi: string;
   profile_name: string;
   description?: string;
+  msisdn?: string;
   status: SubscriberListStatus;
 };
 
@@ -110,6 +111,7 @@ export type APISubscriber = {
   imsi: string;
   profile_name: string;
   description?: string;
+  msisdn?: string;
   registrations: Registration[];
   sessions: SessionInfo[];
 };
@@ -210,6 +212,7 @@ export const createSubscriber = async (
   profileName: string,
   opc: string,
   description: string,
+  msisdn: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers`, {
     method: "POST",
@@ -221,6 +224,7 @@ export const createSubscriber = async (
       profile_name: profileName,
       opc,
       description,
+      msisdn,
     },
   });
 };
@@ -230,11 +234,12 @@ export const updateSubscriber = async (
   imsi: string,
   profileName: string,
   description: string,
+  msisdn: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
     authToken,
-    body: { profile_name: profileName, description },
+    body: { profile_name: profileName, description, msisdn },
   });
 };
 

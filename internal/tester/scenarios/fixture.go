@@ -88,6 +88,7 @@ type SubscriberSpec struct {
 	OPc            string
 	SequenceNumber string
 	ProfileName    string
+	MSISDN         string
 }
 
 // StaticIPSpec pins an address to a subscriber for a data network. The IP

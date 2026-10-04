@@ -104,12 +104,15 @@ const (
 	HA3GPP5G       Name = "ha-3gpp-5g"
 	APIMatrix      Name = "api-matrix"
 	APIMatrixHA    Name = "api-matrix-ha"
+	SMS            Name = "sms"
+	HASMS          Name = "ha-sms"
 )
 
 type Definition struct {
 	Profile     Profile
 	Timeout     string
 	NeedsTester bool
+	NeedsSMSC   bool
 	Setup       string
 	Topology    string
 }
@@ -141,6 +144,8 @@ var Definitions = map[Name]Definition{
 	HA3GPP5G:       {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true},
 	APIMatrix:      {Profile: ProfileMinimal, Timeout: "10m", NeedsTester: true},
 	APIMatrixHA:    {Profile: ProfileMinimal, Timeout: "15m"},
+	SMS:            {Profile: ProfileFamilies, Timeout: "20m", NeedsTester: true, NeedsSMSC: true},
+	HASMS:          {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true, NeedsSMSC: true},
 }
 
 var Exempt = map[string]string{}

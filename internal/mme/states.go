@@ -102,6 +102,11 @@ func (ue *UeContext) transitionEMMLocked(ctx context.Context, target EMMState) {
 func (ue *UeContext) setEMMStateLocked(target EMMState) {
 	ue.emmState = target
 
+	if ue.stateChanged != nil {
+		close(ue.stateChanged)
+		ue.stateChanged = nil
+	}
+
 	if target == EMMRegistrationInitiated {
 		ue.regStep = RegStepAuthenticating
 	} else {
@@ -142,6 +147,17 @@ func (ue *UeContext) EMMState() EMMState {
 	defer ue.mu.Unlock()
 
 	return ue.emmState
+}
+
+func (ue *UeContext) watchEMMState() (EMMState, <-chan struct{}) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.stateChanged == nil {
+		ue.stateChanged = make(chan struct{})
+	}
+
+	return ue.emmState, ue.stateChanged
 }
 
 // TransitionTo moves the UE's EMM registration state through the validated

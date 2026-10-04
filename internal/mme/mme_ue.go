@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -132,11 +133,14 @@ type UeContext struct {
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 
+	smsOnly atomic.Bool
+
 	lastSeen atomic.Int64
 
 	registrationVersion atomic.Int64
 
 	session  epsSessionManager
+	sms      smsf.Handler
 	Pdns     map[uint8]*PdnConnection
 	Ambr     *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	tmsi     etsi.TMSI
@@ -167,7 +171,8 @@ type UeContext struct {
 
 	handover *handoverContext
 
-	emmState EMMState
+	emmState     EMMState
+	stateChanged chan struct{}
 
 	idleMobilityFrom5GS    bool
 	idleMobilityTo5GSUntil time.Time
@@ -255,6 +260,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 
 	m.UEs[supi] = ue
 	ue.session = m.Session
+	ue.sms = m.SMS
 	m.recordLastSeenLocked(ue, ue.Conn())
 	m.mu.Unlock()
 

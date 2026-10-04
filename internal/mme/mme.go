@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/eps"
@@ -90,6 +91,9 @@ type MME struct {
 	Registrations Registrar
 
 	LPPHandler LPPHandler
+
+	SMS           smsf.Handler
+	smsDecisionMu sync.RWMutex
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.

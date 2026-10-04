@@ -32,6 +32,8 @@ func handleDLNASTransport(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAPID i
 		return handleLPPPayload(ue, msg.PayloadContainer, amfUENGAPID, ranUENGAPID)
 	case fgs.PayloadContainerTypeN1SMInfo:
 		return handle5GSMPayload(ue, msg.PayloadContainer, amfUENGAPID, ranUENGAPID)
+	case fgs.PayloadContainerTypeSMS:
+		return ue.SMS.Deliver(msg.PayloadContainer)
 	default:
 		logger.UeLogger.Warn("Unknown payload container type in DL NAS Transport",
 			zap.Uint8("type", uint8(msg.PayloadContainerType)))
