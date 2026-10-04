@@ -53,6 +53,7 @@ markdown_extensions:
       alternate_style: true
   - admonition
   - pymdownx.details
+  - pymdownx.blocks.caption
   - tables
   - toc:
       permalink: true

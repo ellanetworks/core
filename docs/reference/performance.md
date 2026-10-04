@@ -16,46 +16,51 @@ The following table outlines the performance test results of Ella Core's data pl
 | ------------- | --------------- |
 | 10+           | 10+             |
 
+/// table-caption | <
+Data plane throughput (iPerf3)
+///
+
 The tests could saturate the 10Gbps connection consistently, with or without NAT enabled, with CPU usage peaking at 8%.
 
 ### Throughput (TRex)
 
-The following table outlines the performance test results of Ella Core's data plane throughput in `xdp-native` mode:
+The following table outlines Ella Core's data plane throughput in millions of packets per second (Mpps), in `xdp-native` and `tcx` modes, for subscriber IP packets of 46, 494 and 1456 bytes:
 
-| Packet size (bytes) | Uplink    | Downlink  |
-| ------------------- | --------- | --------- |
-| 46                  | 2.05 Mpps | 3.15 Mpps |
-| 494                 | 2.05 Mpps | 2.17 Mpps |
-| 1456                | 812  Kpps | 812  Kpps |
+<div class="grouped-rows" markdown>
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Mode</th>
+      <th rowspan="2">Direction</th>
+      <th colspan="3">Throughput (Mpps)</th>
+    </tr>
+    <tr>
+      <th>46 B</th>
+      <th>494 B</th>
+      <th>1456 B</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td rowspan="3"><code>xdp-native</code></td><td>Uplink</td><td>2.05</td><td>2.05</td><td>0.81</td></tr>
+    <tr><td>Uplink (NAT)</td><td>1.72</td><td>1.70</td><td>0.81</td></tr>
+    <tr><td>Downlink</td><td>3.15</td><td>2.17</td><td>0.81</td></tr>
+  </tbody>
+  <tbody>
+    <tr><td rowspan="3"><code>tcx</code></td><td>Uplink</td><td>0.88</td><td>0.88</td><td>0.81</td></tr>
+    <tr><td>Uplink (NAT)</td><td>0.82</td><td>0.82</td><td>0.81</td></tr>
+    <tr><td>Downlink</td><td>1.66</td><td>1.58</td><td>0.81</td></tr>
+  </tbody>
+</table>
+</div>
 
-The test results for the `tcx` mode are:
-
-| Packet size (bytes) | Uplink   | Downlink  |
-| ------------------- | -------- | --------- |
-| 46                  | 877 Kpps | 1.66 Mpps |
-| 494                 | 877 Kpps | 1.58 Mpps |
-| 1456                | 812 Kpps | 812  Kpps |
+/// table-caption | <
+Data plane throughput by attach mode and packet size (TRex)
+///
 
 The packet size represents only the IP packet for the subscribers and ignores Ethernet and GTP encapsulation.
 
-Downlink performance is better as the number of packets increases as the flows are able to handled by different cores using [Receive Side Scaling (RSS)](https://www.kernel.org/doc/html/latest/networking/scaling.html).
+Downlink performance is higher because the flows can be handled by different cores using [Receive Side Scaling (RSS)](https://www.kernel.org/doc/html/latest/networking/scaling.html).
 The uplink flows are all seen by the NIC drivers as the same flow, because of the GTP encapsulation.
-
-When enabling NAT, we got the following results in `xdp-native` mode:
-
-| Packet size (bytes) | Uplink    |
-| ------------------- | --------- |
-| 46                  | 1.72 Mpps |
-| 494                 | 1.70 Mpps |
-| 1456                | 812  Kpps |
-
-and the following results in `tcx` mode:
-
-| Packet size (bytes) | Uplink   |
-| ------------------- | -------- |
-| 46                  | 820 Kpps |
-| 494                 | 820 Kpps |
-| 1456                | 812 Kpps |
 
 Downlink with NAT was not supported by our testing script.
 
@@ -66,6 +71,10 @@ The following table outlines the performance test results of Ella Core's data pl
 | Average (ms) | Best (ms) | Worst (ms) | Mean Deviation (ms)     |
 | ------------ | --------- | ---------- | ----------------------- |
 | 1.160        | 0.803     | 1.457      | 0.194                   |
+
+/// table-caption | <
+Data plane round-trip latency
+///
 
 The value represents the round-trip-response times from the subscriber's device to the server and back.
 
