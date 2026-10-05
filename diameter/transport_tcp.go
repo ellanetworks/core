@@ -125,6 +125,15 @@ func (t *tcpTransport) kind() Transport { return TransportTCP }
 
 func (t *tcpTransport) remoteAddr() netip.Addr { return t.remote }
 
+func (t *tcpTransport) localAddrs() []netip.Addr {
+	a, ok := t.conn.LocalAddr().(*net.TCPAddr)
+	if !ok {
+		return nil
+	}
+
+	return []netip.Addr{a.AddrPort().Addr().Unmap()}
+}
+
 func (t *tcpTransport) setUnordered() {}
 
 func (t *tcpTransport) setWriteTimeout(d time.Duration) {

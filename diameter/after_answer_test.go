@@ -50,7 +50,7 @@ func TestAfterAnswerRunsAfterTheAnswerIsWritten(t *testing.T) {
 
 			n = newTestNode(t, cfg)
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -103,7 +103,7 @@ func TestAfterAnswerReportsWriteFailure(t *testing.T) {
 
 			n := newTestNode(t, cfg)
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 

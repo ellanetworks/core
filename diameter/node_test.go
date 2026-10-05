@@ -34,7 +34,7 @@ func pair(t *testing.T, kind Transport, opts ...func(*Config)) (*Node, *Node, ne
 
 	smsc := newTestNode(t, smscCfg)
 
-	if err := hss.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+	if err := hss.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -46,7 +46,7 @@ func TestNodesExchangeRequestsBothWays(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			hss, smsc, addr := pair(t, kind)
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -88,7 +88,7 @@ func TestOutboundConnectionBindsHostIPAddresses(t *testing.T) {
 			})
 			_ = hss
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -105,7 +105,7 @@ func TestSetPeersReconciles(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
 			hss, smsc, addr := pair(t, kind)
-			hssPeer := Peer{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}
+			hssPeer := Peer{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}
 
 			if err := smsc.SetPeers([]Peer{hssPeer}); err != nil {
 				t.Fatal(err)
@@ -145,7 +145,7 @@ func TestSetPeersReconciles(t *testing.T) {
 
 func TestSetPeersValidation(t *testing.T) {
 	n := newTestNode(t, testConfig("ella.example.org"))
-	base := Peer{ID: "a", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}
+	base := Peer{ID: "a", Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportSCTP}, Applications: []Application{sgdApp}}
 
 	with := func(f func(*Peer)) Peer {
 		p := base
@@ -159,11 +159,17 @@ func TestSetPeersValidation(t *testing.T) {
 		"no address":           {with(func(p *Peer) { p.Addresses = nil })},
 		"unspecified address":  {with(func(p *Peer) { p.Addresses = []netip.Addr{netip.IPv4Unspecified()} })},
 		"no application":       {with(func(p *Peer) { p.Applications = nil })},
-		"unknown transport":    {with(func(p *Peer) { p.Transport = 7 })},
-		"unknown transport 2":  {with(func(p *Peer) { p.Transport = 2 })},
+		"no transport":         {with(func(p *Peer) { p.Transports = nil })},
+		"unknown transport":    {with(func(p *Peer) { p.Transports = []Transport{7} })},
+		"zero transport":       {with(func(p *Peer) { p.Transports = []Transport{0} })},
+		"duplicate transport":  {with(func(p *Peer) { p.Transports = []Transport{TransportTCP, TransportTCP} })},
 		"duplicate ID":         {base, base},
 		"shared host":          {with(func(p *Peer) { p.Host = "x" }), with(func(p *Peer) { p.ID = "b"; p.Host = "X" })},
 		"shared hostless addr": {base, with(func(p *Peer) { p.ID = "b" })},
+		"shared hostless addr, overlapping transports": {
+			base,
+			with(func(p *Peer) { p.ID = "b"; p.Transports = []Transport{TransportTCP, TransportSCTP} }),
+		},
 	}
 
 	for name, peers := range tests {
@@ -174,6 +180,10 @@ func TestSetPeersValidation(t *testing.T) {
 
 	if err := n.SetPeers([]Peer{base, with(func(p *Peer) { p.ID = "b"; p.Host = "b.example.org" })}); err != nil {
 		t.Errorf("same address with distinct hosts: %v", err)
+	}
+
+	if err := n.SetPeers([]Peer{base, with(func(p *Peer) { p.ID = "b"; p.Transports = []Transport{TransportTCP} })}); err != nil {
+		t.Errorf("same hostless address on disjoint transports: %v", err)
 	}
 }
 
@@ -199,11 +209,11 @@ func TestElectionLeavesOneConnection(t *testing.T) {
 						return h
 					}
 
-					if err := a.SetPeers([]Peer{{ID: "b", Host: host("b.example.org"), Addresses: []netip.Addr{loopback2}, Port: bAddr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+					if err := a.SetPeers([]Peer{{ID: "b", Host: host("b.example.org"), Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Dial: &Dial{Port: bAddr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 						t.Fatal(err)
 					}
 
-					if err := b.SetPeers([]Peer{{ID: "a", Host: host("a.example.org"), Addresses: []netip.Addr{loopback1}, Port: aAddr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+					if err := b.SetPeers([]Peer{{ID: "a", Host: host("a.example.org"), Addresses: []netip.Addr{loopback1}, Transports: []Transport{kind}, Dial: &Dial{Port: aAddr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 						t.Fatal(err)
 					}
 
@@ -226,6 +236,26 @@ func TestElectionLeavesOneConnection(t *testing.T) {
 	}
 }
 
+func TestElectionIgnoresCase(t *testing.T) {
+	cases := []struct {
+		local, remote string
+		wins          bool
+	}{
+		{"b.example.org", "a.example.org", true},
+		{"a.example.org", "b.example.org", false},
+		{"a.example.org", "B.example.org", false},
+		{"B.example.org", "a.example.org", true},
+		{"mmec01.mme.example.org", "SMSC.example.org", false},
+		{"a.example.org", "A.EXAMPLE.ORG", false},
+	}
+
+	for _, c := range cases {
+		if got := winsElection(c.local, c.remote); got != c.wins {
+			t.Errorf("winsElection(%q, %q) = %v, want %v", c.local, c.remote, got, c.wins)
+		}
+	}
+}
+
 func TestReconnectAfterPeerRestartUsesReopen(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
@@ -235,7 +265,7 @@ func TestReconnectAfterPeerRestartUsesReopen(t *testing.T) {
 
 			hss := newTestNode(t, hssCfg)
 
-			if err := hss.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := hss.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -259,7 +289,7 @@ func TestReconnectAfterPeerRestartUsesReopen(t *testing.T) {
 
 			smsc := newTestNode(t, smscCfg)
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -296,7 +326,7 @@ func TestDoNotWantToTalkToYouSuppressesRedial(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			hss, smsc, addr := pair(t, kind)
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -343,7 +373,7 @@ func TestFailoverRetransmitsWithTFlag(t *testing.T) {
 			})
 			_ = hss
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -371,7 +401,7 @@ func TestDoWaitsBoundedByContext(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			n := newTestNode(t, testConfig("smsc.example.org"))
 
-			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{loopback1}, Port: 1, Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{loopback1}, Transports: []Transport{kind}, Dial: &Dial{Port: 1}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -401,7 +431,7 @@ func TestDoFailFast(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			n := newTestNode(t, testConfig("smsc.example.org"))
 
-			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{loopback1}, Port: 1, Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{loopback1}, Transports: []Transport{kind}, Dial: &Dial{Port: 1}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -451,7 +481,7 @@ func TestReconnectBackoff(t *testing.T) {
 			n := newTestNode(t, cfg)
 			addr := listenerAddr(ln)
 
-			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -488,7 +518,7 @@ func TestShutdown(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			hss, smsc, addr := pair(t, kind)
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -548,7 +578,7 @@ func TestShutdownWaitsForInFlightRequests(t *testing.T) {
 				})
 			})
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -644,7 +674,7 @@ func TestShutdownWithCauseSendsTheCauseInTheDPR(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			n := newTestNode(t, testConfig("ella.example.org"))
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -667,5 +697,36 @@ func TestShutdownWithCauseSendsTheCauseInTheDPR(t *testing.T) {
 				t.Fatalf("Disconnect-Cause = %d (%v), want DO_NOT_WANT_TO_TALK_TO_YOU", cause, err)
 			}
 		})
+	}
+}
+
+func TestDialFallsBackToTheNextTransport(t *testing.T) {
+	requireSCTP(t)
+
+	_, smsc, addr := pair(t, TransportTCP)
+
+	if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{TransportSCTP, TransportTCP}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	eventually(t, "the SMSC to reach the HSS over TCP", func() bool { return doOK(smsc, "hss") })
+
+	if s, _ := smsc.Peer("hss"); s.Transport != TransportTCP {
+		t.Fatalf("status = %+v", s)
+	}
+}
+
+func TestAcceptOnlyPeerIsNeverDialed(t *testing.T) {
+	n := newTestNode(t, testConfig("ella.example.org"))
+
+	if err := n.SetPeers([]Peer{{ID: "ims", Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportTCP}, Applications: []Application{sgdApp}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	s, ok := n.Peer("ims")
+	if !ok || s.State != PeerDown || s.Transport != 0 || s.LastError != "" {
+		t.Fatalf("status = %+v", s)
 	}
 }

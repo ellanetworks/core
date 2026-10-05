@@ -14,7 +14,7 @@ import (
 type Transport int
 
 const (
-	TransportSCTP Transport = iota
+	TransportSCTP Transport = iota + 1
 	TransportTCP
 )
 
@@ -48,6 +48,7 @@ type transport interface {
 	setUnordered()
 	setWriteTimeout(d time.Duration)
 	remoteAddr() netip.Addr
+	localAddrs() []netip.Addr
 	close() error
 	abort() error
 }

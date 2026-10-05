@@ -780,7 +780,12 @@ func (c *Conn) capabilityAVPs() []AVP {
 		UTF8String(AVPOriginRealm, AVPFlagMandatory, 0, id.OriginRealm),
 	}
 
-	for _, addr := range id.HostIPAddresses {
+	addrs := c.t.localAddrs()
+	if len(addrs) == 0 {
+		addrs = id.HostIPAddresses
+	}
+
+	for _, addr := range addrs {
 		avps = append(avps, Address(AVPHostIPAddress, AVPFlagMandatory, 0, addr))
 	}
 

@@ -5,6 +5,7 @@ package diameter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -121,7 +122,7 @@ func (p *peer) available() *Conn {
 }
 
 func (p *peer) matches(addr netip.Addr, kind Transport, host string) bool {
-	if p.cfg == nil || kind != p.cfg.Transport || !slices.Contains(p.cfg.Addresses, addr.Unmap()) {
+	if p.cfg == nil || !slices.Contains(p.cfg.Transports, kind) || !slices.Contains(p.cfg.Addresses, addr.Unmap()) {
 		return false
 	}
 
@@ -151,12 +152,8 @@ func (p *peer) statusLocked() PeerStatus {
 		Configured: p.cfg != nil,
 	}
 
-	if p.cfg != nil {
-		s.Transport = p.cfg.Transport
-
-		if s.Host == "" {
-			s.Host = p.cfg.Host
-		}
+	if p.cfg != nil && s.Host == "" {
+		s.Host = p.cfg.Host
 	}
 
 	if c := p.open; c != nil {
@@ -297,7 +294,7 @@ func (n *Node) acceptCER(c *Conn, host string, cer *Message) cerDecision {
 	c.common = common
 
 	if p.initiator != nil {
-		if strings.Compare(n.cfg.Identity.OriginHost, host) <= 0 {
+		if !winsElection(n.cfg.Identity.OriginHost, host) {
 			p.parked = c
 			d.outcome = cerParked
 
@@ -315,6 +312,10 @@ func (n *Node) acceptCER(c *Conn, host string, cer *Message) cerDecision {
 	d.outcome = cerOpen
 
 	return d
+}
+
+func winsElection(local, remote string) bool {
+	return strings.ToLower(local) > strings.ToLower(remote)
 }
 
 func (n *Node) identifyLocked(key string, remote netip.Addr, kind Transport) (*peer, bool) {
@@ -570,25 +571,7 @@ func (n *Node) nextBackoff(current time.Duration) time.Duration {
 }
 
 func (n *Node) dial(p *peer) *Conn {
-	ctx, cancel := context.WithTimeout(n.baseCtx, n.cfg.HandshakeTimeout)
-	defer cancel()
-
-	local := n.localAddresses(p.cfg.Addresses)
-
-	var (
-		t   transport
-		err error
-	)
-
-	switch p.cfg.Transport {
-	case TransportSCTP:
-		t, err = dialSCTP(ctx, local, p.cfg.Addresses, p.cfg.Port, n.logger)
-	case TransportTCP:
-		t, err = dialTCP(ctx, local, p.cfg.Addresses, p.cfg.Port)
-	default:
-		err = fmt.Errorf("diameter: unsupported transport %s", p.cfg.Transport)
-	}
-
+	t, err := n.connect(p.cfg)
 	if err != nil {
 		n.mu.Lock()
 		p.lastError = err.Error()
@@ -623,6 +606,37 @@ func (n *Node) dial(p *peer) *Conn {
 		return c
 	case <-c.done:
 		return nil
+	}
+}
+
+func (n *Node) connect(cfg *Peer) (transport, error) {
+	local := n.localAddresses(cfg.Addresses)
+
+	var errs []error
+
+	for _, kind := range cfg.Transports {
+		t, err := n.connectOver(kind, local, cfg.Addresses, cfg.Dial.Port)
+		if err == nil {
+			return t, nil
+		}
+
+		errs = append(errs, fmt.Errorf("%s: %w", kind, err))
+	}
+
+	return nil, errors.Join(errs...)
+}
+
+func (n *Node) connectOver(kind Transport, local, remote []netip.Addr, port uint16) (transport, error) {
+	ctx, cancel := context.WithTimeout(n.baseCtx, n.cfg.HandshakeTimeout)
+	defer cancel()
+
+	switch kind {
+	case TransportSCTP:
+		return dialSCTP(ctx, local, remote, port, n.logger)
+	case TransportTCP:
+		return dialTCP(ctx, local, remote, port)
+	default:
+		return nil, fmt.Errorf("diameter: unsupported transport %s", kind)
 	}
 }
 

@@ -35,7 +35,7 @@ func TestOutboundTransportReleasedWhenPeerCloses(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			hss, smsc, addr := pair(t, kind)
 
-			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Port: addr.Port(), Transport: kind, Applications: []Application{sgdApp}}}); err != nil {
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
