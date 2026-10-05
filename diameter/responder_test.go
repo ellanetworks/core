@@ -74,6 +74,43 @@ func TestConfiguredPeerIdentifiedByAddress(t *testing.T) {
 	}
 }
 
+func TestCEAAdvertisesTheConnectionLocalAddresses(t *testing.T) {
+	loopback3 := netip.MustParseAddr("127.0.0.3")
+
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			n := newTestNode(t, testConfig("ella.example.org"))
+
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			p := dialRaw(t, kind, loopback2, serveOn(t, n, kind, loopback3))
+
+			cea := openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+			var got []netip.Addr
+
+			for _, a := range cea.AVPs {
+				if a.Code != AVPHostIPAddress {
+					continue
+				}
+
+				addr, err := a.Address()
+				if err != nil {
+					t.Fatalf("Host-IP-Address: %v", err)
+				}
+
+				got = append(got, addr)
+			}
+
+			if len(got) != 1 || got[0] != loopback3 {
+				t.Fatalf("CEA Host-IP-Address = %v, want [%s]", got, loopback3)
+			}
+		})
+	}
+}
+
 func TestUnconfiguredPeerRejected(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {

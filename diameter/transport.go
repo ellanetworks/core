@@ -48,6 +48,7 @@ type transport interface {
 	setUnordered()
 	setWriteTimeout(d time.Duration)
 	remoteAddr() netip.Addr
+	localAddrs() []netip.Addr
 	close() error
 	abort() error
 }

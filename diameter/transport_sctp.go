@@ -103,6 +103,23 @@ func (t *sctpTransport) kind() Transport { return TransportSCTP }
 
 func (t *sctpTransport) remoteAddr() netip.Addr { return t.remote }
 
+func (t *sctpTransport) localAddrs() []netip.Addr {
+	a, ok := t.sc.LocalAddr().(*sctp.SCTPAddr)
+	if !ok {
+		return nil
+	}
+
+	out := make([]netip.Addr, 0, len(a.IPAddrs))
+
+	for _, ip := range a.IPAddrs {
+		if addr, ok := netip.AddrFromSlice(ip.IP); ok {
+			out = append(out, addr.Unmap())
+		}
+	}
+
+	return out
+}
+
 func (t *sctpTransport) setUnordered() { t.unordered.Store(true) }
 
 func (t *sctpTransport) setWriteTimeout(time.Duration) {}

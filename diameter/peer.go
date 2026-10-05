@@ -294,7 +294,7 @@ func (n *Node) acceptCER(c *Conn, host string, cer *Message) cerDecision {
 	c.common = common
 
 	if p.initiator != nil {
-		if strings.Compare(n.cfg.Identity.OriginHost, host) <= 0 {
+		if !winsElection(n.cfg.Identity.OriginHost, host) {
 			p.parked = c
 			d.outcome = cerParked
 
@@ -312,6 +312,10 @@ func (n *Node) acceptCER(c *Conn, host string, cer *Message) cerDecision {
 	d.outcome = cerOpen
 
 	return d
+}
+
+func winsElection(local, remote string) bool {
+	return strings.ToLower(local) > strings.ToLower(remote)
 }
 
 func (n *Node) identifyLocked(key string, remote netip.Addr, kind Transport) (*peer, bool) {
