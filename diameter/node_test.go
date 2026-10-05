@@ -510,8 +510,18 @@ func TestShutdown(t *testing.T) {
 				t.Fatalf("SetPeers after Shutdown = %v", err)
 			}
 
-			if err := hss.Serve(NewSCTPListener(nil, nil)); !errors.Is(err, ErrClosed) {
+			ln := listen(t, kind, loopback1)
+
+			if err := hss.Serve(ln); !errors.Is(err, ErrClosed) {
 				t.Fatalf("Serve after Shutdown = %v", err)
+			}
+
+			if err := ln.Close(); !errors.Is(err, net.ErrClosed) {
+				t.Fatalf("listener left open after Serve on closed node: %v", err)
+			}
+
+			if _, err := hss.Do(ctx, "smsc", request()); !errors.Is(err, ErrClosed) {
+				t.Fatalf("Do after Shutdown = %v", err)
 			}
 
 			if err := hss.Shutdown(ctx); !errors.Is(err, ErrClosed) {
