@@ -261,6 +261,9 @@ func (n *Node) Serve(ln Listener) error {
 	n.mu.Lock()
 	if n.closed {
 		n.mu.Unlock()
+
+		_ = ln.Close()
+
 		return ErrClosed
 	}
 
@@ -621,7 +624,12 @@ func (n *Node) waitAvailable(ctx context.Context, p *peer, failFast bool) (*Conn
 	for {
 		n.mu.Lock()
 
-		if p.removed || n.closed {
+		if n.closed {
+			n.mu.Unlock()
+			return nil, ErrClosed
+		}
+
+		if p.removed {
 			n.mu.Unlock()
 			return nil, ErrUnknownPeer
 		}
