@@ -21,8 +21,8 @@ func ellaWithSMSC(t *testing.T, kind Transport, peer Peer, opts ...func(*Config)
 
 	n := newTestNode(t, cfg)
 
-	peer.Passive = true
-	peer.Transport = kind
+	peer.Dial = nil
+	peer.Transports = []Transport{kind}
 
 	if err := n.SetPeers([]Peer{peer}); err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestConfiguredHostFromWrongAddressRejected(t *testing.T) {
 		t.Run(kind.String(), func(t *testing.T) {
 			n := newTestNode(t, testConfig("ella.example.org"))
 
-			if err := n.SetPeers([]Peer{{ID: "mme", Host: "mme.example.org", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "mme", Host: "mme.example.org", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -121,7 +121,7 @@ func TestLearnedHostCannotBeImpersonated(t *testing.T) {
 
 			n := newTestNode(t, cfg)
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -415,7 +415,7 @@ func TestConcurrentRequestLimit(t *testing.T) {
 
 			n := newTestNode(t, cfg)
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -453,7 +453,7 @@ func TestHandlerContextEndsWithConnection(t *testing.T) {
 
 			n := newTestNode(t, cfg)
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -482,7 +482,7 @@ func TestHandlerPanicAnswersUnableToComply(t *testing.T) {
 
 			n := newTestNode(t, cfg)
 
-			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transport: kind, Applications: []Application{sgdApp}, Passive: true}}); err != nil {
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
 				t.Fatal(err)
 			}
 
@@ -552,6 +552,52 @@ func TestOversizedMessageAborts(t *testing.T) {
 			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
 
 			p.send(appRequest(1, 1, "smsc.example.org", OctetString(AVPUserName, 0, 0, make([]byte, maxMessageSize))))
+			p.expectClosed()
+		})
+	}
+}
+
+func TestPeerOnSeveralTransportsIdentifiedOnEach(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			n := newTestNode(t, testConfig("ella.example.org"))
+
+			if err := n.SetPeers([]Peer{{ID: "ims", Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportSCTP, TransportTCP}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			p := dialRaw(t, kind, loopback2, serveOn(t, n, kind, loopback1))
+			openRaw(t, p, "ims.example.org", appAVP(sgdApp))
+
+			s, ok := n.Peer("ims")
+			if !ok || s.State != PeerOpen || s.Transport != kind {
+				t.Fatalf("status = %+v", s)
+			}
+		})
+	}
+}
+
+func TestPeerRejectedOnATransportItDoesNotList(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			other := TransportTCP
+			if kind == TransportTCP {
+				other = TransportSCTP
+			}
+
+			n := newTestNode(t, testConfig("ella.example.org"))
+
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{other}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			p := dialRaw(t, kind, loopback2, serveOn(t, n, kind, loopback1))
+			p.send(cer("smsc.example.org", appAVP(sgdApp)))
+
+			if code := resultCode(t, p.recv()); code != ResultUnknownPeer {
+				t.Fatalf("Result-Code = %d", code)
+			}
+
 			p.expectClosed()
 		})
 	}
