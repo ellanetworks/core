@@ -13,16 +13,16 @@ require (
 	github.com/hashicorp/raft-autopilot v0.3.0
 	github.com/hashicorp/raft-boltdb/v2 v2.4.2
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/moby/moby/client v0.6.0
+	github.com/moby/moby/client v0.6.1
 	github.com/osrg/gobgp/v4 v4.9.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/spf13/cobra v1.10.2
 	github.com/vishvananda/netlink v1.3.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
-	go.opentelemetry.io/otel v1.46.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
-	go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel v1.47.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.47.0
+	go.opentelemetry.io/otel/sdk v1.47.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
@@ -30,6 +30,8 @@ require (
 	golang.org/x/tools v0.50.0
 	gopkg.in/yaml.v2 v2.4.0
 )
+
+require go.opentelemetry.io/otel/log v1.47.0 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -42,7 +44,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/go-connections v0.7.0 // indirect
+	github.com/docker/go-connections v0.8.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
@@ -77,7 +79,7 @@ require (
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/api v1.56.1
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
@@ -99,9 +101,9 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.etcd.io/bbolt v1.5.0
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0 // indirect
-	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/trace v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0
@@ -109,8 +111,8 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/sync v0.23.0
 	golang.org/x/text v0.42.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1

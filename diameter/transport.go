@@ -14,7 +14,7 @@ import (
 type Transport int
 
 const (
-	TransportSCTP Transport = iota
+	TransportSCTP Transport = iota + 1
 	TransportTCP
 )
 

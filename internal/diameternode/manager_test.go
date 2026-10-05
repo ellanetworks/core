@@ -483,8 +483,8 @@ func dialElla(t *testing.T, node *diameter.Node, port int, transport diameter.Tr
 	err := node.SetPeers([]diameter.Peer{{
 		ID:           "ella",
 		Addresses:    []netip.Addr{loopback},
-		Port:         uint16(port),
-		Transport:    transport,
+		Transports:   []diameter.Transport{transport},
+		Dial:         &diameter.Dial{Port: uint16(port)},
 		Applications: smsApplications,
 	}})
 	if err != nil {

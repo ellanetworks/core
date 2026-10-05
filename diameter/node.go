@@ -89,10 +89,13 @@ type Peer struct {
 	ID           string
 	Host         string
 	Addresses    []netip.Addr
-	Port         uint16
-	Transport    Transport
+	Transports   []Transport
 	Applications []Application
-	Passive      bool
+	Dial         *Dial
+}
+
+type Dial struct {
+	Port uint16
 }
 
 type Node struct {
@@ -261,6 +264,9 @@ func (n *Node) Serve(ln Listener) error {
 	n.mu.Lock()
 	if n.closed {
 		n.mu.Unlock()
+
+		_ = ln.Close()
+
 		return ErrClosed
 	}
 
@@ -403,7 +409,7 @@ func (n *Node) SetPeers(peers []Peer) error {
 			}
 		}
 
-		if !p.cfg.Passive {
+		if p.cfg.Dial != nil {
 			started = append(started, p)
 		}
 	}
@@ -460,14 +466,30 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 			return nil, fmt.Errorf("diameter: peer %q needs at least one application", p.ID)
 		}
 
-		if p.Transport != TransportSCTP && p.Transport != TransportTCP {
-			return nil, fmt.Errorf("diameter: peer %q has an unknown transport", p.ID)
+		if len(p.Transports) == 0 {
+			return nil, fmt.Errorf("diameter: peer %q needs at least one transport", p.ID)
 		}
 
-		if p.Port == 0 {
-			p.Port = DefaultPort
+		for i, kind := range p.Transports {
+			if kind != TransportSCTP && kind != TransportTCP {
+				return nil, fmt.Errorf("diameter: peer %q has an unknown transport %s", p.ID, kind)
+			}
+
+			if slices.Contains(p.Transports[:i], kind) {
+				return nil, fmt.Errorf("diameter: peer %q lists the transport %s twice", p.ID, kind)
+			}
 		}
 
+		if p.Dial != nil {
+			d := *p.Dial
+			if d.Port == 0 {
+				d.Port = DefaultPort
+			}
+
+			p.Dial = &d
+		}
+
+		p.Transports = slices.Clone(p.Transports)
 		p.Addresses = slices.Clone(p.Addresses)
 		p.Applications = slices.Clone(p.Applications)
 
@@ -488,12 +510,14 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 			hosts[key] = p.ID
 		} else {
 			for _, a := range p.Addresses {
-				ep := endpoint{a, p.Transport}
-				if other, dup := hostless[ep]; dup {
-					return nil, fmt.Errorf("diameter: peers %q and %q without a host share the address %v", other, p.ID, a)
-				}
+				for _, kind := range p.Transports {
+					ep := endpoint{a, kind}
+					if other, dup := hostless[ep]; dup {
+						return nil, fmt.Errorf("diameter: peers %q and %q without a host share the address %v over %s", other, p.ID, a, kind)
+					}
 
-				hostless[ep] = p.ID
+					hostless[ep] = p.ID
+				}
 			}
 		}
 
@@ -504,8 +528,16 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 }
 
 func samePeer(a, b Peer) bool {
-	return strings.EqualFold(a.Host, b.Host) && a.Port == b.Port && a.Transport == b.Transport && a.Passive == b.Passive &&
+	return strings.EqualFold(a.Host, b.Host) && slices.Equal(a.Transports, b.Transports) && sameDial(a.Dial, b.Dial) &&
 		slices.Equal(a.Addresses, b.Addresses) && slices.Equal(a.Applications, b.Applications)
+}
+
+func sameDial(a, b *Dial) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return *a == *b
 }
 
 func (n *Node) Peers() []PeerStatus {
@@ -621,7 +653,12 @@ func (n *Node) waitAvailable(ctx context.Context, p *peer, failFast bool) (*Conn
 	for {
 		n.mu.Lock()
 
-		if p.removed || n.closed {
+		if n.closed {
+			n.mu.Unlock()
+			return nil, ErrClosed
+		}
+
+		if p.removed {
 			n.mu.Unlock()
 			return nil, ErrUnknownPeer
 		}

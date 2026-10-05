@@ -81,8 +81,8 @@ func TestTheSMSCEnvelopeTargetsTheNamedPeer(t *testing.T) {
 	}
 
 	if err := node.SetPeers([]diameter.Peer{
-		{ID: open, Addresses: []netip.Addr{loopback}, Port: uint16(port.Port), Transport: diameter.TransportTCP, Applications: apps},
-		{ID: down, Addresses: []netip.Addr{netip.MustParseAddr("127.0.0.2")}, Port: 1, Transport: diameter.TransportTCP, Applications: apps},
+		{ID: open, Addresses: []netip.Addr{loopback}, Transports: []diameter.Transport{diameter.TransportTCP}, Dial: &diameter.Dial{Port: uint16(port.Port)}, Applications: apps},
+		{ID: down, Addresses: []netip.Addr{netip.MustParseAddr("127.0.0.2")}, Transports: []diameter.Transport{diameter.TransportTCP}, Dial: &diameter.Dial{Port: 1}, Applications: apps},
 	}); err != nil {
 		t.Fatal(err)
 	}

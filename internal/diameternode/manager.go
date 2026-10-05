@@ -265,8 +265,8 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 			ID:           p.ID,
 			Host:         p.Host,
 			Addresses:    []netip.Addr{p.Address.Addr().Unmap()},
-			Port:         p.Address.Port(),
-			Transport:    diameter.TransportSCTP,
+			Transports:   []diameter.Transport{diameter.TransportSCTP},
+			Dial:         &diameter.Dial{Port: p.Address.Port()},
 			Applications: p.Applications,
 		})
 	}
