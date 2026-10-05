@@ -152,6 +152,7 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 	}
 
 	return []diameternode.PeerConfig{{
+		ID:      "smsc-1",
 		Role:    "smsc",
 		Address: s.smsc,
 		Applications: []diameter.Application{

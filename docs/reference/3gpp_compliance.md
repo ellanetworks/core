@@ -54,7 +54,7 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 ### SMS (beta)
 
 - **SMS over NAS.** 4G (SMS in MME) and 5G.
-- **Mobile-originated and mobile-terminated SMS.** Relayed to and from an external SMSC over SGd.
+- **Mobile-originated and mobile-terminated SMS.** Relayed to and from external SMSCs over SGd.
 - **HSS for the SMSC.** Send Routing Info for SM, Report SM Delivery Status, and Alert Service Centre over S6c.
 
 ### Location (beta)

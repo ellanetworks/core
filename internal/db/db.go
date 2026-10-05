@@ -267,6 +267,14 @@ type Database struct {
 	getSMSSettingsStmt    *sqlair.Statement
 	upsertSMSSettingsStmt *sqlair.Statement
 
+	listSMSCPeersStmt            *sqlair.Statement
+	listSMSCServiceCentresStmt   *sqlair.Statement
+	insertSMSCPeerStmt           *sqlair.Statement
+	updateSMSCPeerStmt           *sqlair.Statement
+	deleteSMSCPeerStmt           *sqlair.Statement
+	insertSMSCServiceCentreStmt  *sqlair.Statement
+	deleteSMSCServiceCentresStmt *sqlair.Statement
+
 	getSMSWaitingStmt             *sqlair.Statement
 	listSMSWaitingCentresStmt     *sqlair.Statement
 	upsertSMSWaitingStmt          *sqlair.Statement
@@ -1823,6 +1831,13 @@ func (db *Database) PrepareStatements() error {
 
 		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
 		{&db.upsertSMSSettingsStmt, fmt.Sprintf(upsertSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
+		{&db.listSMSCPeersStmt, fmt.Sprintf(listSMSCPeersStmt, SMSCPeersTableName), []any{smscPeerRow{}}},
+		{&db.listSMSCServiceCentresStmt, fmt.Sprintf(listSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
+		{&db.insertSMSCPeerStmt, fmt.Sprintf(insertSMSCPeerStmt, SMSCPeersTableName), []any{smscPeerRow{}}},
+		{&db.updateSMSCPeerStmt, fmt.Sprintf(updateSMSCPeerStmt, SMSCPeersTableName), []any{smscPeerRow{}}},
+		{&db.deleteSMSCPeerStmt, fmt.Sprintf(deleteSMSCPeerStmt, SMSCPeersTableName), []any{smscPeerRow{}}},
+		{&db.insertSMSCServiceCentreStmt, fmt.Sprintf(insertSMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
+		{&db.deleteSMSCServiceCentresStmt, fmt.Sprintf(deleteSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
 		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 		{&db.listSMSWaitingCentresStmt, fmt.Sprintf(listSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
 		{&db.upsertSMSWaitingStmt, fmt.Sprintf(upsertSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},

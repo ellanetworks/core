@@ -26,6 +26,8 @@ const (
 	smscDiameterPort  = 3868
 	smscAPIPort       = 5010
 	smsNumber         = "+15550000000"
+	smscServiceCentre = "+15550000000"
+	smscHost          = "smsc.example.org"
 )
 
 func smscAddress() string {
@@ -61,14 +63,7 @@ func TestIntegrationSMS(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	if err := env.Client.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{
-		Enabled:     true,
-		SMSCAddress: smscAddress(),
-		SMSCPort:    smscDiameterPort,
-		SMSNumber:   smsNumber,
-	}); err != nil {
-		t.Fatalf("enable SMS: %v", err)
-	}
+	enableSMS(ctx, t, env.Client, smscAddress())
 
 	for _, name := range scenarios.List() {
 		if !strings.HasPrefix(name, smsScenarioPrefix) {
@@ -95,6 +90,23 @@ func TestIntegrationSMS(t *testing.T) {
 	}
 
 	printTesterSummary(t)
+}
+
+func enableSMS(ctx context.Context, t *testing.T, cl *client.Client, address string) {
+	t.Helper()
+
+	if _, err := cl.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{
+		Address:          address,
+		Port:             smscDiameterPort,
+		DiameterIdentity: smscHost,
+		ServiceCentres:   []string{smscServiceCentre},
+	}); err != nil {
+		t.Fatalf("add the SMSC peer: %v", err)
+	}
+
+	if err := cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{Enabled: true, SMSNumber: smsNumber}); err != nil {
+		t.Fatalf("enable SMS: %v", err)
+	}
 }
 
 func waitForSMSCLink(ctx context.Context, cl *client.Client) error {

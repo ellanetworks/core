@@ -4,7 +4,7 @@ description: Step-by-step instructions to enable SMS in Ella Core.
 
 # Enable SMS (beta)
 
-Ella Core can be integrated with an external Short Message Service Center (SMSC) to allow subscribers in your private mobile network to communicate via SMS.
+Ella Core can be integrated with one or more external Short Message Service Centers (SMSCs) to allow subscribers in your private mobile network to communicate via SMS.
 
 ## 1. Configure the SMSC
 
@@ -12,19 +12,20 @@ Set your SMSC's HSS realm to `epc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, using your
 
 Example: `epc.mnc001.mcc001.3gppnetwork.org`
 
-## 2. Configure Ella Core's SMS settings
+## 2. Turn on SMS in Ella Core
 
-In the Ella Core UI, go to the Operator page. In the SMS section, click the edit icon and configure the following settings:
+In the Ella Core UI, go to the Operator page and set the SMS switch to **ON**.
 
-- **SMSC Address**: your SMSC's Diameter IP address.
-- **SMSC Port**: your SMSC's Diameter port (default 3868).
-- **SMS Number**: your network's E.164 number for SMS, e.g. `+15550001111`.
+Click the edit icon next to **SMS Number**, enter your network's E.164 number for SMS, e.g. `+15550001111`, and click **Update**.
 
-Click **Update**.
+Click **Add Service Center** and configure the following settings:
 
-Set the switch to **ON**.
+- **Address**: your SMSC's Diameter IP address.
+- **Numbers**: the E.164 service centre addresses your SMSC serves, e.g. `+15550000000`.
 
-Validate that **SMSC Link** shows **Connected**.
+Click **Add**.
+
+Validate that each service center's **Status** shows **Connected**.
 
 ## 3. Give subscribers an MSISDN
 
@@ -36,7 +37,7 @@ For each subscriber that should send or receive SMS:
 
 ## 4. Set the SMSC number on the phones
 
-On each phone's SIM, set the SMSC number to your SMSC's service centre address, e.g. `+15550000000`.
+On each phone's SIM, set the SMSC number to one of your SMSCs' service centre numbers, e.g. `+15550000000`. Ella Core rejects messages sent to a service centre number that no SMSC serves.
 
 ## 5. Send a test SMS
 

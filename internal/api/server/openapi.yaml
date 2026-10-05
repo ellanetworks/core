@@ -1550,7 +1550,7 @@ paths:
       operationId: updateOperatorSMS
       tags: [Operator]
       summary: Update SMS settings
-      description: Enables or disables SMS and sets the external SMSC and Ella Core's SMS number. The settings are kept while SMS is disabled. While SMS is enabled, every node connects to the SMSC over Diameter (SGd and S6c) on SCTP. Disabling SMS withdraws it from every UE.
+      description: Turns SMS on or off and sets Ella Core's SMS number. Subscribers get SMS once SMS is on, the SMS number is set, and at least one SMSC peer exists.
       requestBody:
         required: true
         content:
@@ -1564,6 +1564,108 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/sms/smsc-peers:
+    get:
+      operationId: listSMSCPeers
+      tags: [Operator]
+      summary: List SMSC peers
+      description: Lists SMSC peers with the state of this node's connection to each.
+      responses:
+        "200":
+          description: SMSC peers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/ListSMSCPeersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createSMSCPeer
+      tags: [Operator]
+      summary: Create an SMSC peer
+      description: Creates an SMSC peer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SMSCPeerParams"
+      responses:
+        "201":
+          description: The created SMSC peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SMSCPeerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/sms/smsc-peers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getSMSCPeer
+      tags: [Operator]
+      summary: Get an SMSC peer
+      description: Returns an SMSC peer with the state of this node's connection to it.
+      responses:
+        "200":
+          description: SMSC peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SMSCPeerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateSMSCPeer
+      tags: [Operator]
+      summary: Update an SMSC peer
+      description: Updates an SMSC peer. All fields are replaced; port is required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SMSCPeerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteSMSCPeer
+      tags: [Operator]
+      summary: Delete an SMSC peer
+      description: Deletes an SMSC peer.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
@@ -4617,41 +4719,106 @@ components:
 
     OperatorSMS:
       type: object
-      required: [enabled, smscAddress, smscPort, smsNumber]
+      required: [enabled, smsNumber]
       properties:
         enabled:
           type: boolean
-          description: "Whether SMS is enabled."
-        smscAddress:
-          type: string
-          description: "IP address of the SMSC's Diameter endpoint. Empty when unset."
-        smscPort:
-          type: integer
-          description: "SCTP port of the SMSC's Diameter endpoint."
+          description: "Whether SMS is on."
         smsNumber:
           type: string
           description: "Ella Core's E.164 number, for example +15550001111. Empty when unset."
 
-    UpdateOperatorSMSParams:
+    ListSMSCPeersResponse:
       type: object
-      required: [enabled, smscAddress, smsNumber]
+      required: [items]
       properties:
-        enabled:
-          type: boolean
-          description: "Whether SMS is enabled. Requires smscAddress and smsNumber when true."
-        smscAddress:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SMSCPeer"
+
+    SMSCPeerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/SMSCPeer"
+
+    SMSCPeer:
+      type: object
+      required: [id, address, port, diameterIdentity, serviceCentres]
+      properties:
+        id:
           type: string
-          description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint. Required when enabled is true."
-        smscPort:
+          format: uuid
+        address:
+          type: string
+          description: "IP address of the SMSC's Diameter endpoint."
+        port:
+          type: integer
+          description: "SCTP port of the SMSC's Diameter endpoint."
+        diameterIdentity:
+          type: string
+          description: "The Origin-Host the SMSC must present in its capabilities exchange. Empty when any identity is accepted."
+        serviceCentres:
+          type: array
+          items:
+            type: string
+          description: "E.164 service centre numbers the SMSC serves, for example +15550000000."
+        status:
+          type: object
+          required: [state, since]
+          description: "This node's connection to the SMSC. Absent while SMS is off."
+          properties:
+            state:
+              type: string
+              enum: [down, connecting, open, suspect, reopen, closing]
+            host:
+              type: string
+              description: "The SMSC's Diameter identity, configured or learned from the capabilities exchange."
+            realm:
+              type: string
+              description: "The SMSC's Diameter realm, learned from the capabilities exchange."
+            since:
+              type: string
+              format: date-time
+              description: "When the connection entered its current state."
+
+    SMSCPeerParams:
+      type: object
+      required: [address, serviceCentres]
+      properties:
+        address:
+          type: string
+          description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint."
+        port:
           type: integer
           minimum: 1
           maximum: 65535
           default: 3868
-          description: "SCTP port of the SMSC's Diameter endpoint."
+          description: "SCTP port of the SMSC's Diameter endpoint. Required on update."
+        diameterIdentity:
+          type: string
+          description: "The Origin-Host the SMSC must present in its capabilities exchange. Required when another peer has the same address."
+        serviceCentres:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: string
+            pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "E.164 service centre numbers the SMSC serves. Each number can be served by one peer only."
+
+    UpdateOperatorSMSParams:
+      type: object
+      required: [enabled, smsNumber]
+      properties:
+        enabled:
+          type: boolean
+          description: "Whether SMS is on."
         smsNumber:
           type: string
           pattern: "^(\\+[1-9][0-9]{0,14})?$"
-          description: "Ella Core's E.164 number, for example +15550001111. Required when enabled is true."
+          description: "Ella Core's E.164 number, for example +15550001111."
 
     UpdateOperatorSPNParams:
       type: object
@@ -5057,7 +5224,7 @@ components:
           description: "What the peer is to Ella Core."
         host:
           type: string
-          description: "The peer's Diameter identity, learned from the capabilities exchange."
+          description: "The peer's Diameter identity, configured or learned from the capabilities exchange."
         realm:
           type: string
           description: "The peer's Diameter realm, learned from the capabilities exchange."

@@ -39,12 +39,15 @@ type NodeSettings struct {
 }
 
 type PeerConfig struct {
+	ID           string
 	Role         string
+	Host         string
 	Address      netip.AddrPort
 	Applications []diameter.Application
 }
 
 type PeerStatus struct {
+	ID      string
 	Role    string
 	Host    string
 	Realm   string
@@ -142,11 +145,14 @@ func (m *Manager) Peers() []PeerStatus {
 	statuses := make([]PeerStatus, 0, len(peers))
 
 	for _, p := range peers {
-		status := PeerStatus{Role: p.Role, Address: p.Address, State: diameter.PeerDown, Since: since}
+		status := PeerStatus{ID: p.ID, Role: p.Role, Host: p.Host, Address: p.Address, State: diameter.PeerDown, Since: since}
 
 		if node != nil {
-			if peer, ok := node.Peer(p.Role); ok {
-				status.Host = peer.Host
+			if peer, ok := node.Peer(p.ID); ok {
+				if peer.Host != "" {
+					status.Host = peer.Host
+				}
+
 				status.Realm = peer.Realm
 				status.State = peer.State
 				status.Since = peer.Since
@@ -256,7 +262,8 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 
 	for _, p := range peers {
 		out = append(out, diameter.Peer{
-			ID:           p.Role,
+			ID:           p.ID,
+			Host:         p.Host,
 			Addresses:    []netip.Addr{p.Address.Addr().Unmap()},
 			Port:         p.Address.Port(),
 			Transport:    diameter.TransportSCTP,
@@ -273,7 +280,7 @@ func sameIdentity(a, b diameter.Identity) bool {
 
 func samePeers(a, b []PeerConfig) bool {
 	return slices.EqualFunc(a, b, func(x, y PeerConfig) bool {
-		return x.Role == y.Role && x.Address == y.Address && slices.Equal(x.Applications, y.Applications)
+		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && slices.Equal(x.Applications, y.Applications)
 	})
 }
 

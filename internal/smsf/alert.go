@@ -17,22 +17,32 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMSF) markWaiting(ctx context.Context, imsi, serviceCentre string) {
-	s.recordWaiting(ctx, db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: serviceCentre})
+func (s *SMSF) markWaiting(ctx context.Context, imsi, serviceCentre string) bool {
+	return s.recordWaiting(ctx, db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: serviceCentre})
 }
 
 func (s *SMSF) markMemoryFull(ctx context.Context, imsi, serviceCentre string) {
 	s.recordWaiting(ctx, db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: serviceCentre, MemoryFull: true})
 }
 
-func (s *SMSF) recordWaiting(ctx context.Context, u db.SMSWaitingUpdate) {
+func (s *SMSF) recordWaiting(ctx context.Context, u db.SMSWaitingUpdate) bool {
 	if u.ServiceCentre == "" {
-		return
+		return false
+	}
+
+	log := logger.From(ctx, s.logger, zap.String("imsi", u.IMSI), zap.String("service_centre", u.ServiceCentre))
+
+	if _, err := s.smscFor(ctx, u.ServiceCentre); errors.Is(err, ErrUnknownSCAddress) {
+		log.Info("Did not record message waiting data for a service centre no SMSC peer serves")
+		return false
 	}
 
 	if err := s.store.RecordSMSWaiting(context.WithoutCancel(ctx), u); err != nil {
-		logger.From(ctx, s.logger).Warn("Could not record message waiting data", zap.String("imsi", u.IMSI), zap.String("service_centre", u.ServiceCentre), zap.Error(err))
+		log.Warn("Could not record message waiting data", zap.Error(err))
+		return false
 	}
+
+	return true
 }
 
 func (s *SMSF) delivered(ctx context.Context, imsi, serviceCentre string) {
@@ -165,17 +175,32 @@ func (s *SMSF) alert(ctx context.Context, imsi string) {
 	}
 
 	for _, sc := range w.ServiceCentres {
-		envelope, err := s.smsc.Envelope()
+		log := log.With(zap.String("service_centre", sc))
+
+		peer, err := s.smscFor(ctx, sc)
+		if errors.Is(err, ErrUnknownSCAddress) {
+			log.Info("Dropped message waiting data for a service centre no SMSC peer serves")
+			s.removeWaitingCentre(ctx, log, imsi, sc)
+
+			continue
+		}
+
 		if err != nil {
-			log.Info("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
+			log.Warn("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
 			return
 		}
 
-		s.alertServiceCentre(ctx, log.With(zap.String("service_centre", sc)), envelope, imsi, sub.Msisdn, sc)
+		envelope, err := s.smsc.Envelope(peer)
+		if err != nil {
+			log.Info("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
+			continue
+		}
+
+		s.alertServiceCentre(ctx, log, peer, envelope, imsi, sub.Msisdn, sc)
 	}
 }
 
-func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, envelope tgpp.Envelope, imsi, msisdn, serviceCentre string) {
+func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, peer string, envelope tgpp.Envelope, imsi, msisdn, serviceCentre string) {
 	req, err := s6c.NewHSSAlertServiceCentreRequest(envelope, s6c.Alert{
 		ServiceCentreAddress: serviceCentre,
 		User:                 tgpp.UserIdentifier{MSISDN: msisdn},
@@ -195,7 +220,7 @@ func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, envelope
 	ctx, cancel := context.WithTimeout(ctx, s.timers.AlertTimeout)
 	defer cancel()
 
-	ans, err := s.smsc.Do(ctx, req)
+	ans, err := s.smsc.Do(ctx, peer, req)
 	if err == nil {
 		err = s6c.ParseAlertServiceCentreAnswer(ans)
 	}

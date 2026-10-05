@@ -7,9 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
-	"net/netip"
 	"strconv"
 	"strings"
 
@@ -46,17 +44,13 @@ type UpdateOperatorSPNParams struct {
 }
 
 type UpdateOperatorSMSParams struct {
-	Enabled     bool   `json:"enabled"`
-	SMSCAddress string `json:"smscAddress"`
-	SMSCPort    int    `json:"smscPort,omitempty"`
-	SMSNumber   string `json:"smsNumber"`
+	Enabled   bool   `json:"enabled"`
+	SMSNumber string `json:"smsNumber"`
 }
 
 type GetOperatorSMSResponse struct {
-	Enabled     bool   `json:"enabled"`
-	SMSCAddress string `json:"smscAddress"`
-	SMSCPort    int    `json:"smscPort"`
-	SMSNumber   string `json:"smsNumber"`
+	Enabled   bool   `json:"enabled"`
+	SMSNumber string `json:"smsNumber"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -263,10 +257,8 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				ShortName: dbOperator.SpnShortName,
 			},
 			SMS: GetOperatorSMSResponse{
-				Enabled:     smsSettings.Enabled,
-				SMSCAddress: smsSettings.SMSCAddress,
-				SMSCPort:    smsSettings.SMSCPort,
-				SMSNumber:   formatE164(smsSettings.SMSNumber),
+				Enabled:   smsSettings.Enabled,
+				SMSNumber: formatE164(smsSettings.SMSNumber),
 			},
 		}
 
@@ -639,55 +631,17 @@ func UpdateOperatorSMS(dbInstance *db.Database) http.Handler {
 		resp := SuccessResponse{Message: "Operator SMS settings updated successfully"}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
-		smsc := "none"
-		if settings.SMSCAddress != "" {
-			smsc = net.JoinHostPort(settings.SMSCAddress, strconv.Itoa(settings.SMSCPort))
-		}
-
-		detail := fmt.Sprintf("User updated operator SMS settings (enabled %t, SMSC %s, SMS number %s)", settings.Enabled, smsc, formatE164(settings.SMSNumber))
+		detail := fmt.Sprintf("User updated operator SMS settings (enabled %t, SMS number %s)", settings.Enabled, formatE164(settings.SMSNumber))
 
 		logger.LogAuditEvent(r.Context(), UpdateOperatorSMSAction, email, getClientIP(r), detail)
 	})
 }
 
 func smsSettingsFromParams(params UpdateOperatorSMSParams) (db.SMSSettings, string) {
-	settings := db.SMSSettings{
-		Enabled:     params.Enabled,
-		SMSCAddress: strings.TrimSpace(params.SMSCAddress),
-		SMSCPort:    params.SMSCPort,
-	}
-
-	if settings.SMSCPort == 0 {
-		settings.SMSCPort = db.DefaultSMSCPort
-	}
-
-	if settings.SMSCPort < 1 || settings.SMSCPort > 65535 {
-		return db.SMSSettings{}, "smscPort must be between 1 and 65535"
-	}
-
-	if settings.SMSCAddress != "" {
-		addr, err := netip.ParseAddr(settings.SMSCAddress)
-		if err != nil || addr.Zone() != "" || addr.IsUnspecified() {
-			return db.SMSSettings{}, "smscAddress must be an IPv4 or IPv6 address"
-		}
-
-		settings.SMSCAddress = addr.String()
-	}
-
 	number, ok := parseE164(params.SMSNumber)
 	if !ok {
 		return db.SMSSettings{}, "smsNumber must be an E.164 number: + followed by 1 to 15 digits, for example +15550001111"
 	}
 
-	if settings.Enabled && settings.SMSCAddress == "" {
-		return db.SMSSettings{}, "smscAddress is required when enabled is true"
-	}
-
-	if settings.Enabled && number == "" {
-		return db.SMSSettings{}, "smsNumber is required when enabled is true"
-	}
-
-	settings.SMSNumber = number
-
-	return settings, ""
+	return db.SMSSettings{Enabled: params.Enabled, SMSNumber: number}, ""
 }

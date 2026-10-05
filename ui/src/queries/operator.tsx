@@ -24,10 +24,28 @@ export interface OperatorData {
 
 export const DEFAULT_SMSC_PORT = 3868;
 
+export interface SMSCPeerInput {
+  address: string;
+  port: number;
+  diameterIdentity: string;
+  serviceCentres: string[];
+}
+
+export type SMSCPeerState =
+  "down" | "connecting" | "open" | "suspect" | "reopen" | "closing";
+
+export interface SMSCPeer extends SMSCPeerInput {
+  id: string;
+  status?: {
+    state: SMSCPeerState;
+    host?: string;
+    realm?: string;
+    since: string;
+  };
+}
+
 export interface OperatorSMS {
   enabled: boolean;
-  smscAddress: string;
-  smscPort: number;
   smsNumber: string;
 }
 
@@ -128,16 +146,51 @@ export const updateOperatorSPN = async (
 
 export const updateOperatorSMS = async (
   authToken: string,
-  sms: OperatorSMS,
+  sms: { enabled: boolean; smsNumber: string },
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/operator/sms`, {
     method: "PUT",
     authToken,
-    body: {
-      enabled: sms.enabled,
-      smscAddress: sms.smscAddress,
-      smscPort: sms.smscPort,
-      smsNumber: sms.smsNumber,
-    },
+    body: { enabled: sms.enabled, smsNumber: sms.smsNumber },
   });
+};
+
+export const listSMSCPeers = async (authToken: string): Promise<SMSCPeer[]> => {
+  const res = await apiFetch<{ items: SMSCPeer[] }>(
+    `/api/v1/operator/sms/smsc-peers`,
+    { authToken },
+  );
+  return res.items;
+};
+
+export const createSMSCPeer = async (
+  authToken: string,
+  peer: SMSCPeerInput,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/sms/smsc-peers`, {
+    method: "POST",
+    authToken,
+    body: peer,
+  });
+};
+
+export const updateSMSCPeer = async (
+  authToken: string,
+  id: string,
+  peer: SMSCPeerInput,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
+    { method: "PUT", authToken, body: peer },
+  );
+};
+
+export const deleteSMSCPeer = async (
+  authToken: string,
+  id: string,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
+    { method: "DELETE", authToken },
+  );
 };

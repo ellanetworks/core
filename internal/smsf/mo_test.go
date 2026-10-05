@@ -6,6 +6,7 @@ package smsf_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
 )
@@ -169,6 +172,90 @@ func TestMobileOriginatedSMSWithoutMSISDNIsRejected(t *testing.T) {
 
 	if n := len(e.smsc.submitted()); n != 0 {
 		t.Fatalf("SMSC received %d OFRs", n)
+	}
+}
+
+func TestMobileOriginatedSMSGoesToThePeerServingTheServiceCentre(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(
+		db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+		db.SMSCPeer{ID: "c", Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"15550000008", serviceCentre}},
+	)
+
+	sendRPData(t, e, moTI(0), 1)
+	expectCPAck(t, e, moTI(0).Peer())
+
+	if _, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPAck); !ok {
+		t.Fatal("expected RP-ACK")
+	}
+
+	if got, want := e.smsc.sentTo(), []string{smsf.SMSCPeerID("c")}; !slices.Equal(got, want) {
+		t.Fatalf("OFR sent to %v, want %v", got, want)
+	}
+}
+
+func TestMobileOriginatedSMSToAServiceCentreNoPeerServesIsRejected(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}})
+
+	sendRPData(t, e, moTI(0), 1)
+	expectCPAck(t, e, moTI(0).Peer())
+
+	rpErr, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPError)
+	if !ok || rpErr.Cause != sms.RPCauseUnassignedNumber {
+		t.Fatalf("RP-ERROR = %+v, want cause 1", rpErr)
+	}
+
+	if n := len(e.smsc.sentTo()); n != 0 {
+		t.Fatalf("SMSC received %d requests", n)
+	}
+}
+
+func TestMobileOriginatedSMSToANationalServiceCentreAddressIsRejected(t *testing.T) {
+	e := newEnv(t)
+
+	rp := &sms.RPData{
+		Direction:   nas.DirectionUplink,
+		Reference:   1,
+		Destination: &sms.Address{TypeOfNumber: sms.TypeOfNumberNational, NumberingPlan: sms.NumberingPlanISDN, Digits: serviceCentre},
+		UserData:    submitTPDU,
+	}
+	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPData{TransactionIdentifier: moTI(0), UserData: encode(t, rp)}))
+	expectCPAck(t, e, moTI(0).Peer())
+
+	rpErr, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPError)
+	if !ok || rpErr.Cause != sms.RPCauseUnassignedNumber {
+		t.Fatalf("RP-ERROR = %+v, want cause 1", rpErr)
+	}
+
+	if n := len(e.smsc.sentTo()); n != 0 {
+		t.Fatalf("SMSC received %d requests", n)
+	}
+}
+
+func TestMobileOriginatedSMSIsRejectedUntilSMSIsSetUp(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers()
+
+	sendRPData(t, e, moTI(0), 1)
+	expectCPAck(t, e, moTI(0).Peer())
+
+	rpErr, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPError)
+	if !ok || rpErr.Cause != sms.RPCauseRequestedFacilityNotImplemented {
+		t.Fatalf("RP-ERROR = %+v, want cause 69", rpErr)
+	}
+}
+
+func TestMobileOriginatedSMSWhenThePeersCannotBeReadIsTemporaryFailure(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeersErr(errors.New("database unavailable"))
+
+	sendRPData(t, e, moTI(0), 1)
+	expectCPAck(t, e, moTI(0).Peer())
+
+	rpErr, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPError)
+	if !ok || rpErr.Cause != sms.RPCauseNetworkOutOfOrder {
+		t.Fatalf("RP-ERROR = %+v, want cause 38", rpErr)
 	}
 }
 

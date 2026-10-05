@@ -78,7 +78,9 @@ export const descriptionSchema = yup
 
 export const MSISDN_MAX_DIGITS = 15;
 
-const msisdnRegex = new RegExp(`^\\+[1-9][0-9]{0,${MSISDN_MAX_DIGITS - 1}}$`);
+export const msisdnRegex = new RegExp(
+  `^\\+[1-9][0-9]{0,${MSISDN_MAX_DIGITS - 1}}$`,
+);
 
 export const msisdnSchema = yup
   .string()

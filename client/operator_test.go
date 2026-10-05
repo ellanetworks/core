@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -378,10 +379,8 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 	clientObj := &client.Client{Requester: fake}
 
 	err := clientObj.UpdateOperatorSMS(context.Background(), &client.UpdateOperatorSMSOptions{
-		Enabled:     true,
-		SMSCAddress: "192.0.2.10",
-		SMSCPort:    3869,
-		SMSNumber:   "+15550001111",
+		Enabled:   true,
+		SMSNumber: "+15550001111",
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -396,8 +395,60 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 		t.Fatalf("decode body: %v", err)
 	}
 
-	if payload["enabled"] != true || payload["smscAddress"] != "192.0.2.10" || payload["smscPort"] != float64(3869) || payload["smsNumber"] != "+15550001111" {
+	if len(payload) != 2 || payload["enabled"] != true || payload["smsNumber"] != "+15550001111" {
 		t.Fatalf("unexpected payload %v", payload)
+	}
+}
+
+func TestSMSCPeerRequests(t *testing.T) {
+	opts := &client.SMSCPeerOptions{Address: "192.0.2.10", Port: 3869, DiameterIdentity: "smsc.example.org", ServiceCentres: []string{"+15550000000"}}
+
+	cases := []struct {
+		name   string
+		call   func(c *client.Client) error
+		method string
+		path   string
+		body   bool
+	}{
+		{"create", func(c *client.Client) error {
+			_, err := c.CreateSMSCPeer(context.Background(), opts)
+			return err
+		}, "POST", "api/v1/operator/sms/smsc-peers", true},
+		{"update", func(c *client.Client) error { return c.UpdateSMSCPeer(context.Background(), "abc", opts) }, "PUT", "api/v1/operator/sms/smsc-peers/abc", true},
+		{"delete", func(c *client.Client) error { return c.DeleteSMSCPeer(context.Background(), "abc") }, "DELETE", "api/v1/operator/sms/smsc-peers/abc", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"message": "ok"}`)}}
+
+			if err := tc.call(&client.Client{Requester: fake}); err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			if fake.lastOpts.Method != tc.method || fake.lastOpts.Path != tc.path {
+				t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+			}
+
+			if !tc.body {
+				return
+			}
+
+			var payload struct {
+				Address          string   `json:"address"`
+				Port             int      `json:"port"`
+				DiameterIdentity string   `json:"diameterIdentity"`
+				ServiceCentres   []string `json:"serviceCentres"`
+			}
+
+			if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+
+			if payload.Address != "192.0.2.10" || payload.Port != 3869 || payload.DiameterIdentity != "smsc.example.org" || !reflect.DeepEqual(payload.ServiceCentres, []string{"+15550000000"}) {
+				t.Fatalf("unexpected payload %+v", payload)
+			}
+		})
 	}
 }
 
@@ -406,7 +457,7 @@ func TestGetOperator_IncludesSMS(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"sms": {"enabled": true, "smscAddress": "192.0.2.10", "smscPort": 3868, "smsNumber": "+15550001111"}}`),
+			Result:     []byte(`{"sms": {"enabled": true, "smsNumber": "+15550001111"}}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
@@ -416,8 +467,42 @@ func TestGetOperator_IncludesSMS(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	want := client.GetOperatorSMSResponse{Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: "+15550001111"}
+	want := client.GetOperatorSMSResponse{Enabled: true, SMSNumber: "+15550001111"}
 	if operator.SMS != want {
 		t.Fatalf("sms = %+v, want %+v", operator.SMS, want)
+	}
+}
+
+func TestSMSCPeerReads(t *testing.T) {
+	peer := `{"id": "abc", "address": "192.0.2.10", "port": 3868, "diameterIdentity": "", "serviceCentres": ["+15550000000"],
+		"status": {"state": "open", "host": "smsc.example.org", "realm": "example.org", "since": "2026-09-29T16:00:00Z"}}`
+	want := client.SMSCPeer{
+		ID: "abc", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"},
+		Status: &client.SMSCPeerStatus{State: "open", Host: "smsc.example.org", Realm: "example.org", Since: "2026-09-29T16:00:00Z"},
+	}
+
+	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"items": [` + peer + `]}`)}}
+
+	list, err := (&client.Client{Requester: fake}).ListSMSCPeers(context.Background())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/sms/smsc-peers" || len(list.Items) != 1 || !reflect.DeepEqual(list.Items[0], want) {
+		t.Fatalf("list = %+v via %s %s", list, fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+
+	for name, call := range map[string]func(c *client.Client) (*client.SMSCPeer, error){
+		"get": func(c *client.Client) (*client.SMSCPeer, error) { return c.GetSMSCPeer(context.Background(), "abc") },
+		"create": func(c *client.Client) (*client.SMSCPeer, error) {
+			return c.CreateSMSCPeer(context.Background(), &client.SMSCPeerOptions{Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
+		},
+	} {
+		fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(peer)}}
+
+		got, err := call(&client.Client{Requester: fake})
+		if err != nil || !reflect.DeepEqual(*got, want) {
+			t.Fatalf("%s = %+v, %v", name, got, err)
+		}
 	}
 }

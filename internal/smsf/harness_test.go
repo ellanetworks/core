@@ -30,6 +30,7 @@ const (
 	msisdn        = "15551230001"
 	smsNumber     = "15550000010"
 	serviceCentre = "15550000000"
+	smscPeerID    = "a"
 	smscHost      = "smsc.example.org"
 	smscRealm     = "example.org"
 	localNode     = "node-a"
@@ -64,11 +65,14 @@ type fakeStore struct {
 	regErr        error
 	waiting       map[string]*db.SMSWaiting
 	clearErr      error
+	peers         []db.SMSCPeer
+	peersErr      error
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		settings: db.SMSSettings{Enabled: true, SMSCAddress: "192.0.2.10", SMSCPort: 3868, SMSNumber: smsNumber},
+		settings: db.SMSSettings{Enabled: true, SMSNumber: smsNumber},
+		peers:    []db.SMSCPeer{{ID: smscPeerID, Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}}},
 		subscribers: map[string]db.Subscriber{
 			imsi: {Imsi: imsi, Msisdn: msisdn},
 		},
@@ -157,6 +161,27 @@ func (f *fakeStore) DeleteSMSWaiting(_ context.Context, imsi string) error {
 	delete(f.waiting, imsi)
 
 	return nil
+}
+
+func (f *fakeStore) ListSMSCPeers(context.Context) ([]db.SMSCPeer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.peers), f.peersErr
+}
+
+func (f *fakeStore) setPeers(peers ...db.SMSCPeer) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.peers = peers
+}
+
+func (f *fakeStore) setPeersErr(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.peersErr = err
 }
 
 func (f *fakeStore) GetSMSSettings(context.Context) (*db.SMSSettings, error) {
@@ -426,6 +451,8 @@ type fakeSMSC struct {
 	mu         sync.Mutex
 	smsf       *smsf.SMSF
 	down       bool
+	downPeers  map[string]bool
+	targets    []string
 	sessions   int
 	ofrs       []sgd.MOForwardShortMessage
 	alerts     []s6c.Alert
@@ -433,11 +460,11 @@ type fakeSMSC struct {
 	failAlerts bool
 }
 
-func (f *fakeSMSC) Envelope() (tgpp.Envelope, error) {
+func (f *fakeSMSC) Envelope(peer string) (tgpp.Envelope, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.down {
+	if f.down || f.downPeers[peer] {
 		return tgpp.Envelope{}, smsf.ErrSMSCUnavailable
 	}
 
@@ -455,9 +482,10 @@ func (f *fakeSMSC) LocalHost() (string, bool) {
 	return localIdent.Host, true
 }
 
-func (f *fakeSMSC) Do(_ context.Context, req *diameter.Message) (*diameter.Message, error) {
+func (f *fakeSMSC) Do(_ context.Context, peer string, req *diameter.Message) (*diameter.Message, error) {
 	f.mu.Lock()
-	down := f.down
+	down := f.down || f.downPeers[peer]
+	f.targets = append(f.targets, peer)
 	f.mu.Unlock()
 
 	if down {
@@ -517,6 +545,24 @@ func (f *fakeSMSC) setDown(down bool) {
 	defer f.mu.Unlock()
 
 	f.down = down
+}
+
+func (f *fakeSMSC) setPeerDown(peer string, down bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.downPeers == nil {
+		f.downPeers = make(map[string]bool)
+	}
+
+	f.downPeers[peer] = down
+}
+
+func (f *fakeSMSC) sentTo() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.targets)
 }
 
 func (f *fakeSMSC) setAnswer(answer func(req *diameter.Message, id diameter.Identity) *diameter.Message) {

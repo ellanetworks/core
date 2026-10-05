@@ -14,7 +14,10 @@ import (
 	"github.com/ellanetworks/core/nas/sms"
 )
 
-const injectedFrom = "+15559990000"
+const (
+	injectedFrom          = "+15559990000"
+	unservedServiceCentre = "+15559999999"
+)
 
 func init() {
 	registerPerRAT(ratScenario{suffix: "mo_mt", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 100) }, run: runMOMT})
@@ -25,6 +28,7 @@ func init() {
 	registerPerRAT(ratScenario{suffix: "switched_off", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 900)[:1] }, run: runSwitchedOff})
 	registerPerRAT(ratScenario{suffix: "withdrawal", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 700)[:1] }, run: runWithdrawal})
 	registerPerRAT(ratScenario{suffix: "back_to_back", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 1000)[:1] }, run: runBackToBack})
+	registerPerRAT(ratScenario{suffix: "unserved_service_centre", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 1100)[:1] }, run: runUnservedServiceCentre})
 
 	lteNoMSISDN := subscriber("001017900000600", "")
 	register("sms/4g_not_granted", []scenarios.SubscriberSpec{lteNoMSISDN}, func(ctx context.Context, env scenarios.Env, p *params) error {
@@ -379,7 +383,7 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 	original := op.SMS
 
 	settings := func(enabled bool) *client.UpdateOperatorSMSOptions {
-		return &client.UpdateOperatorSMSOptions{Enabled: enabled, SMSCAddress: original.SMSCAddress, SMSCPort: original.SMSCPort, SMSNumber: original.SMSNumber}
+		return &client.UpdateOperatorSMSOptions{Enabled: enabled, SMSNumber: original.SMSNumber}
 	}
 
 	if err := cl.UpdateOperatorSMS(ctx, settings(false)); err != nil {
@@ -493,6 +497,32 @@ func runWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, net netw
 	}
 
 	return expectText(ctx, p, p.Number(), "Back again")
+}
+
+func runUnservedServiceCentre(ctx context.Context, _ scenarios.Env, _ *params, net network, subs []scenarios.SubscriberSpec) error {
+	phones, err := attachAll(net, subs)
+	if err != nil {
+		return err
+	}
+
+	defer closeAll(phones)
+
+	a := phones[0]
+
+	ctx, cancel := context.WithTimeout(ctx, reportTimeout)
+	defer cancel()
+
+	report, err := a.Stack().Submit(ctx, unservedServiceCentre, a.Number(), "Nobody serves this centre")
+	if err != nil {
+		return fmt.Errorf("submit to %s: %w", unservedServiceCentre, err)
+	}
+
+	rpErr, ok := report.(*sms.RPError)
+	if !ok || rpErr.Cause != sms.RPCauseUnassignedNumber {
+		return fmt.Errorf("a submission to the unserved service centre %s was answered with %+v, want RP-ERROR %s", unservedServiceCentre, report, sms.RPCauseUnassignedNumber)
+	}
+
+	return nil
 }
 
 func expectNoReport(ctx context.Context, cfg *params, from phone) error {

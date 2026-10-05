@@ -19,9 +19,11 @@ import (
 
 type idleSMSC struct{}
 
-func (idleSMSC) Envelope() (tgpp.Envelope, error) { return tgpp.Envelope{}, smsf.ErrSMSCUnavailable }
+func (idleSMSC) Envelope(string) (tgpp.Envelope, error) {
+	return tgpp.Envelope{}, smsf.ErrSMSCUnavailable
+}
 
-func (idleSMSC) Do(context.Context, *diameter.Message) (*diameter.Message, error) {
+func (idleSMSC) Do(context.Context, string, *diameter.Message) (*diameter.Message, error) {
 	return nil, smsf.ErrSMSCUnavailable
 }
 
@@ -262,6 +264,29 @@ func TestAnAbsentRoutingAnswerRecordsWaitingData(t *testing.T) {
 	}
 }
 
+func TestAnAbsentRoutingAnswerForAnUnservedServiceCentreRecordsNoWaitingData(t *testing.T) {
+	s, store := newHSS(t)
+
+	if re := routeError(t, s, s6c.RoutingRequest{MSISDN: msisdn}); re.MWDStatus&s6c.MWDStatusSCAddressNotIncluded != 0 {
+		t.Fatalf("SRA MWD status = %s, want the service centre added", re.MWDStatus)
+	}
+
+	store.setPeers(db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{"15550000009"}})
+
+	if err := store.DeleteSMSWaiting(context.Background(), imsi); err != nil {
+		t.Fatal(err)
+	}
+
+	re := routeError(t, s, s6c.RoutingRequest{MSISDN: msisdn})
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.MWDStatus&s6c.MWDStatusSCAddressNotIncluded == 0 {
+		t.Fatalf("SRA = %s with MWD status %s, want absent user without the service centre added", re, re.MWDStatus)
+	}
+
+	if s.Waiting(imsi) {
+		t.Fatal("an unserved service centre was recorded as waiting")
+	}
+}
+
 func TestDeliveryReportIsAcknowledged(t *testing.T) {
 	s, store := newHSS(t)
 	store.register(db.UERegistrationTypeMME, localNode, false)
@@ -391,6 +416,21 @@ func TestSMSAllowed(t *testing.T) {
 	store.mu.Unlock()
 	check("SMS disabled", imsi, false, false)
 
+	store.mu.Lock()
+	store.settings = db.SMSSettings{Enabled: true}
+	store.mu.Unlock()
+	check("SMS on without an SMS number", imsi, false, false)
+
+	store.mu.Lock()
+	store.settings.SMSNumber = smsNumber
+	store.mu.Unlock()
+	store.setPeers()
+	check("SMS on without an SMSC peer", imsi, false, false)
+
+	store.setPeersErr(errors.New("leader changed"))
+	check("SMSC peers unavailable", imsi, false, true)
+
+	store.setPeersErr(nil)
 	store.mu.Lock()
 	store.settingsErr = errors.New("leader changed")
 	store.mu.Unlock()

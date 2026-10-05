@@ -121,7 +121,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		recordAttempt(directionMO, result)
 
 		level := zapcore.WarnLevel
-		if result == moNotAllowed || result == moInvalid {
+		if result == moNotAllowed || result == moInvalid || result == moUnknownSC {
 			level = zapcore.InfoLevel
 		}
 
@@ -130,13 +130,13 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		return &sms.RPError{Direction: nas.DirectionDownlink, Reference: m.Reference, Cause: cause, UserData: userData(diagnostic)}
 	}
 
-	settings, err := s.store.GetSMSSettings(ctx)
+	_, ready, err := s.readySettings(ctx)
 	if err != nil {
 		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "SMS settings unavailable", err)
 	}
 
-	if !settings.Enabled {
-		return reject(moNotAllowed, sms.RPCauseRequestedFacilityNotImplemented, nil, "SMS is disabled", nil)
+	if !ready {
+		return reject(moNotAllowed, sms.RPCauseRequestedFacilityNotImplemented, nil, "SMS is off or not set up", nil)
 	}
 
 	sub, err := s.store.GetSubscriber(ctx, imsi)
@@ -148,7 +148,20 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		return reject(moNotAllowed, sms.RPCauseRequestedFacilityNotSubscribed, nil, "subscriber has no MSISDN", nil)
 	}
 
-	envelope, err := s.smsc.Envelope()
+	if !isInternationalE164(m.Destination) {
+		return reject(moUnknownSC, sms.RPCauseUnassignedNumber, nil, "the service centre address is not an international E.164 number", nil)
+	}
+
+	peer, err := s.smscFor(ctx, m.Destination.Digits)
+	if errors.Is(err, ErrUnknownSCAddress) {
+		return reject(moUnknownSC, sms.RPCauseUnassignedNumber, nil, "no SMSC peer serves the service centre address", nil)
+	}
+
+	if err != nil {
+		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "SMSC peers unavailable", err)
+	}
+
+	envelope, err := s.smsc.Envelope(peer)
 	if err != nil {
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC not connected", err)
 	}
@@ -165,7 +178,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	ctx, cancel := context.WithTimeout(ctx, s.timers.TR2N)
 	defer cancel()
 
-	ans, err := s.smsc.Do(ctx, req)
+	ans, err := s.smsc.Do(ctx, peer, req)
 	if err != nil {
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
 	}
@@ -186,6 +199,10 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	default:
 		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "invalid answer from the SMSC", err)
 	}
+}
+
+func isInternationalE164(a *sms.Address) bool {
+	return a != nil && a.Raw == nil && a.TypeOfNumber == sms.TypeOfNumberInternational && a.NumberingPlan == sms.NumberingPlanISDN && a.Digits != ""
 }
 
 func moFailureCause(e *sgd.ResultError) sms.RPCause {

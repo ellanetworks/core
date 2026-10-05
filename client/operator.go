@@ -46,10 +46,28 @@ type GetOperatorSPNResponse struct {
 }
 
 type GetOperatorSMSResponse struct {
-	Enabled     bool   `json:"enabled"`
-	SMSCAddress string `json:"smscAddress"`
-	SMSCPort    int    `json:"smscPort"`
-	SMSNumber   string `json:"smsNumber"`
+	Enabled   bool   `json:"enabled"`
+	SMSNumber string `json:"smsNumber"`
+}
+
+type SMSCPeer struct {
+	ID               string          `json:"id"`
+	Address          string          `json:"address"`
+	Port             int             `json:"port"`
+	DiameterIdentity string          `json:"diameterIdentity"`
+	ServiceCentres   []string        `json:"serviceCentres"`
+	Status           *SMSCPeerStatus `json:"status,omitempty"`
+}
+
+type SMSCPeerStatus struct {
+	State string `json:"state"`
+	Host  string `json:"host,omitempty"`
+	Realm string `json:"realm,omitempty"`
+	Since string `json:"since"`
+}
+
+type ListSMSCPeersResponse struct {
+	Items []SMSCPeer `json:"items"`
 }
 
 type Operator struct {
@@ -88,10 +106,15 @@ type UpdateOperatorSPNOptions struct {
 }
 
 type UpdateOperatorSMSOptions struct {
-	Enabled     bool
-	SMSCAddress string
-	SMSCPort    int
-	SMSNumber   string
+	Enabled   bool
+	SMSNumber string
+}
+
+type SMSCPeerOptions struct {
+	Address          string
+	Port             int
+	DiameterIdentity string
+	ServiceCentres   []string
 }
 
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
@@ -325,15 +348,11 @@ func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNO
 
 func (c *Client) UpdateOperatorSMS(ctx context.Context, opts *UpdateOperatorSMSOptions) error {
 	payload := struct {
-		Enabled     bool   `json:"enabled"`
-		SMSCAddress string `json:"smscAddress"`
-		SMSCPort    int    `json:"smscPort,omitempty"`
-		SMSNumber   string `json:"smsNumber"`
+		Enabled   bool   `json:"enabled"`
+		SMSNumber string `json:"smsNumber"`
 	}{
-		Enabled:     opts.Enabled,
-		SMSCAddress: opts.SMSCAddress,
-		SMSCPort:    opts.SMSCPort,
-		SMSNumber:   opts.SMSNumber,
+		Enabled:   opts.Enabled,
+		SMSNumber: opts.SMSNumber,
 	}
 
 	var body bytes.Buffer
@@ -354,4 +373,100 @@ func (c *Client) UpdateOperatorSMS(ctx context.Context, opts *UpdateOperatorSMSO
 	}
 
 	return nil
+}
+
+func (c *Client) ListSMSCPeers(ctx context.Context) (*ListSMSCPeersResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/operator/sms/smsc-peers",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var peers ListSMSCPeersResponse
+
+	if err := resp.DecodeResult(&peers); err != nil {
+		return nil, err
+	}
+
+	return &peers, nil
+}
+
+func (c *Client) GetSMSCPeer(ctx context.Context, id string) (*SMSCPeer, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/operator/sms/smsc-peers/" + id,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var peer SMSCPeer
+
+	if err := resp.DecodeResult(&peer); err != nil {
+		return nil, err
+	}
+
+	return &peer, nil
+}
+
+func (c *Client) CreateSMSCPeer(ctx context.Context, opts *SMSCPeerOptions) (*SMSCPeer, error) {
+	resp, err := c.writeSMSCPeer(ctx, "POST", "api/v1/operator/sms/smsc-peers", opts)
+	if err != nil {
+		return nil, err
+	}
+
+	var peer SMSCPeer
+
+	if err := resp.DecodeResult(&peer); err != nil {
+		return nil, err
+	}
+
+	return &peer, nil
+}
+
+func (c *Client) UpdateSMSCPeer(ctx context.Context, id string, opts *SMSCPeerOptions) error {
+	_, err := c.writeSMSCPeer(ctx, "PUT", "api/v1/operator/sms/smsc-peers/"+id, opts)
+
+	return err
+}
+
+func (c *Client) writeSMSCPeer(ctx context.Context, method, path string, opts *SMSCPeerOptions) (*RequestResponse, error) {
+	payload := struct {
+		Address          string   `json:"address"`
+		Port             int      `json:"port,omitempty"`
+		DiameterIdentity string   `json:"diameterIdentity"`
+		ServiceCentres   []string `json:"serviceCentres"`
+	}{
+		Address:          opts.Address,
+		Port:             opts.Port,
+		DiameterIdentity: opts.DiameterIdentity,
+		ServiceCentres:   opts.ServiceCentres,
+	}
+
+	var body bytes.Buffer
+
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+		return nil, err
+	}
+
+	return c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: method,
+		Path:   path,
+		Body:   &body,
+	})
+}
+
+func (c *Client) DeleteSMSCPeer(ctx context.Context, id string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/operator/sms/smsc-peers/" + id,
+	})
+
+	return err
 }

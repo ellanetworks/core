@@ -26,10 +26,16 @@ type GetOperatorSPNResponseResult struct {
 }
 
 type GetOperatorSMSResponseResult struct {
-	Enabled     bool   `json:"enabled"`
-	SMSCAddress string `json:"smscAddress"`
-	SMSCPort    int    `json:"smscPort"`
-	SMSNumber   string `json:"smsNumber"`
+	Enabled   bool   `json:"enabled"`
+	SMSNumber string `json:"smsNumber"`
+}
+
+type SMSCPeerResultItem struct {
+	ID               string   `json:"id"`
+	Address          string   `json:"address"`
+	Port             int      `json:"port"`
+	DiameterIdentity string   `json:"diameterIdentity"`
+	ServiceCentres   []string `json:"serviceCentres"`
 }
 
 type GetOperatorTrackingResponseResult struct {

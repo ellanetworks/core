@@ -80,14 +80,7 @@ func TestIntegrationHASMS(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
-	if err := haClient.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{
-		Enabled:     true,
-		SMSCAddress: haSMSSMSCAddress,
-		SMSCPort:    smscDiameterPort,
-		SMSNumber:   smsNumber,
-	}); err != nil {
-		t.Fatalf("enable SMS: %v", err)
-	}
+	enableSMS(ctx, t, haClient, haSMSSMSCAddress)
 
 	hosts, err := waitForClusterSMSCLinks(ctx, nodeClients)
 	if err != nil {

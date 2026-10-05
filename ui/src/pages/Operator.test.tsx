@@ -5,10 +5,12 @@ import { describe, it, expect } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { setupApiServer, httpError } from "@/test/apiServer";
+import { setupApiServer } from "@/test/apiServer";
 import Operator from "./Operator";
 
 const api = setupApiServer();
+
+const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
 
 const operator = (sms: Record<string, unknown>) => ({
   id: { mcc: "001", mnc: "01" },
@@ -19,29 +21,33 @@ const operator = (sms: Record<string, unknown>) => ({
   sms,
 });
 
-const enabledSMS = {
-  enabled: true,
-  smscAddress: "2001:db8::10",
-  smscPort: 3868,
-  smsNumber: "+15550001111",
+const peerA = {
+  id: "0190a000-0000-7000-8000-00000000000a",
+  address: "2001:db8::10",
+  port: 3868,
+  diameterIdentity: "",
+  serviceCentres: ["+15550000000"],
+  status: {
+    state: "open",
+    host: "smsc.example.org",
+    realm: "example.org",
+    since: "2026-09-29T16:00:00Z",
+  },
 };
 
-const diameter = (peer: Record<string, unknown>) => ({
-  host: "mmec01.mmegi8204.mme.epc.mnc001.mcc001.3gppnetwork.org",
-  realm: "epc.mnc001.mcc001.3gppnetwork.org",
-  peers: [
-    {
-      role: "smsc",
-      address: "2001:db8::10",
-      port: 3868,
-      since: "2026-09-29T16:00:00Z",
-      ...peer,
-    },
-  ],
-});
+const peerB = {
+  id: "0190a000-0000-7000-8000-00000000000b",
+  address: "192.0.2.20",
+  port: 3869,
+  diameterIdentity: "smsc-b.example.org",
+  serviceCentres: ["+15550000001", "+15550000002"],
+  status: { state: "down", since: "2026-09-29T16:00:00Z" },
+};
 
-const smsRow = async (label: string) => {
-  const cell = await screen.findByText(label);
+const ready = { enabled: true, smsNumber: "+15550001111" };
+
+const row = async (text: string) => {
+  const cell = await screen.findByText(text);
   return within(cell.closest("tr")!);
 };
 
@@ -52,54 +58,91 @@ const renderOperator = (role = "Admin") =>
   });
 
 describe("Operator SMS section", () => {
-  it("cannot turn SMS on without an SMSC and an SMS number", async () => {
+  it("shows the settings while SMS is off", async () => {
     api.get("/api/v1/operator", () =>
-      operator({
-        enabled: false,
-        smscAddress: "",
-        smscPort: 3868,
-        smsNumber: "",
-      }),
+      operator({ enabled: false, smsNumber: "+15550001111" }),
     );
+    api.get(PEERS_PATH, () => ({ items: [peerA] }));
     renderOperator();
 
-    expect(await (await smsRow("SMSC")).findByText("N/A")).toBeInTheDocument();
-    expect(await screen.findByText("SMS is OFF")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "SMS is OFF" })).toBeDisabled();
+    const toggle = await screen.findByRole("switch", { name: "SMS is OFF" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(await screen.findByText("+15550001111")).toBeInTheDocument();
     expect(
-      await (await smsRow("SMSC Link")).findByText("Disabled"),
+      await (await row("[2001:db8::10]:3868")).findByText("Off"),
     ).toBeInTheDocument();
-    expect(api.requests("/api/v1/networking/diameter")).toHaveLength(0);
   });
 
-  it("keeps the settings while SMS is off and turns it on", async () => {
+  it("turns SMS on without any setup", async () => {
     const user = userEvent.setup();
     api.get("/api/v1/operator", () =>
-      operator({ ...enabledSMS, enabled: false }),
+      operator({ enabled: false, smsNumber: "" }),
     );
+    api.get(PEERS_PATH, () => ({ items: [] }));
     api.put("/api/v1/operator/sms", () => ({}));
     renderOperator();
-
-    expect(
-      await (await smsRow("SMSC")).findByText("[2001:db8::10]:3868"),
-    ).toBeInTheDocument();
-    expect(
-      await (await smsRow("SMSC Link")).findByText("Disabled"),
-    ).toBeInTheDocument();
 
     const toggle = await screen.findByRole("switch", { name: "SMS is OFF" });
     await waitFor(() => expect(toggle).toBeEnabled());
     await user.click(toggle);
 
     await waitFor(() =>
-      expect(api.lastRequest("/api/v1/operator/sms")?.body).toEqual(enabledSMS),
+      expect(api.lastRequest("/api/v1/operator/sms")?.body).toEqual({
+        enabled: true,
+        smsNumber: "",
+      }),
     );
+  });
+
+  it("shows the SMS number and service centers as soon as SMS is on", async () => {
+    api.get("/api/v1/operator", () =>
+      operator({ enabled: true, smsNumber: "" }),
+    );
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator();
+
+    expect(
+      await (await row("SMS Number")).findByText("N/A"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Service Centers")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No service centers yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Edit SMS number" }),
+    ).toBeInTheDocument();
+  });
+
+  it("lists each service center with its status", async () => {
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [peerA, peerB] }));
+    renderOperator();
+
+    expect(await screen.findByText("+15550001111")).toBeInTheDocument();
+
+    const a = await row("[2001:db8::10]:3868");
+    expect(a.getByText("Connected")).toBeInTheDocument();
+    expect(a.getByText("+15550000000")).toBeInTheDocument();
+
+    const b = await row("192.0.2.20:3869");
+    expect(b.getByText("Disconnected")).toBeInTheDocument();
+    expect(b.getByText("+15550000001, +15550000002")).toBeInTheDocument();
+  });
+
+  it("shows a peer this node has not reported as connecting", async () => {
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [{ ...peerA, status: undefined }] }));
+    renderOperator();
+
+    expect(
+      await (await row("[2001:db8::10]:3868")).findByText("Connecting"),
+    ).toBeInTheDocument();
   });
 
   it("asks for confirmation before turning SMS off", async () => {
     const user = userEvent.setup();
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () => diameter({ state: "open" }));
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [peerA] }));
     api.put("/api/v1/operator/sms", () => ({}));
     renderOperator();
 
@@ -114,132 +157,82 @@ describe("Operator SMS section", () => {
 
     await waitFor(() =>
       expect(api.lastRequest("/api/v1/operator/sms")?.body).toEqual({
-        ...enabledSMS,
         enabled: false,
+        smsNumber: "+15550001111",
       }),
     );
   });
 
-  it("shows the SMSC, the SMS number and a connected link", async () => {
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () =>
-      diameter({
-        state: "open",
-        host: "smsc.example.org",
-        realm: "example.org",
-      }),
-    );
-    renderOperator();
-
-    expect(
-      await (await smsRow("SMSC")).findByText("[2001:db8::10]:3868"),
-    ).toBeInTheDocument();
-    expect(
-      await (await smsRow("SMS Number")).findByText("+15550001111"),
-    ).toBeInTheDocument();
-
-    const link = await smsRow("SMSC Link");
-    expect(await link.findByText("Connected")).toBeInTheDocument();
-    expect(
-      await link.findByText("smsc.example.org · example.org"),
-    ).toBeInTheDocument();
-  });
-
-  it("shows a disconnected link", async () => {
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () => diameter({ state: "down" }));
-    renderOperator();
-
-    const link = await smsRow("SMSC Link");
-    expect(await link.findByText("Disconnected")).toBeInTheDocument();
-  });
-
-  it("shows the link as connecting until the peer matches the SMSC", async () => {
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () =>
-      diameter({ state: "open", address: "192.0.2.99" }),
-    );
-    renderOperator();
-
-    const link = await smsRow("SMSC Link");
-    expect(await link.findByText("Connecting")).toBeInTheDocument();
-    expect(link.queryByText("Connected")).not.toBeInTheDocument();
-  });
-
-  it("shows the link as connecting before the node has a peer", async () => {
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () => ({
-      host: "mmec01.mmegi8204.mme.epc.mnc001.mcc001.3gppnetwork.org",
-      realm: "epc.mnc001.mcc001.3gppnetwork.org",
-      peers: [],
-    }));
-    renderOperator();
-
-    const link = await smsRow("SMSC Link");
-    expect(await link.findByText("Connecting")).toBeInTheDocument();
-  });
-
-  it("says so when the link state cannot be loaded", async () => {
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () =>
-      httpError(500, "diameter unavailable"),
-    );
-    renderOperator();
-
-    const link = await smsRow("SMSC Link");
-    expect(
-      await link.findByText("Could not load the link state"),
-    ).toBeInTheDocument();
-  });
-
-  it("refreshes the link state after an edit", async () => {
+  it("adds a service center", async () => {
     const user = userEvent.setup();
-    let address = "2001:db8::10";
-    api.get("/api/v1/operator", () =>
-      operator({ ...enabledSMS, smscAddress: address }),
+    let peers: unknown[] = [];
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: peers }));
+    api.post(PEERS_PATH, () => {
+      peers = [peerB];
+      return peerB;
+    });
+    renderOperator();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add service center" }),
     );
-    api.get("/api/v1/networking/diameter", () =>
-      diameter({ state: "open", address }),
-    );
-    api.put("/api/v1/operator/sms", () => {
-      address = "2001:db8::11";
+    await user.type(await screen.findByLabelText(/^Address/), "192.0.2.20");
+    await user.type(screen.getByLabelText(/^Numbers/), "+15550000001");
+    await user.click(screen.getByRole("button", { name: /^Add$/ }));
+
+    expect(await screen.findByText("192.0.2.20:3869")).toBeInTheDocument();
+    expect(
+      api.requests(PEERS_PATH).find((r) => r.method === "POST")?.body,
+    ).toEqual({
+      address: "192.0.2.20",
+      port: 3868,
+      diameterIdentity: "",
+      serviceCentres: ["+15550000001"],
+    });
+  });
+
+  it("warns before deleting the only service center", async () => {
+    const user = userEvent.setup();
+    let peers: unknown[] = [peerA];
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: peers }));
+    api.delete(`${PEERS_PATH}/${peerA.id}`, () => {
+      peers = [];
       return {};
     });
     renderOperator();
 
-    expect(
-      await (await smsRow("SMSC Link")).findByText("Connected"),
-    ).toBeInTheDocument();
-    const before = api.requests("/api/v1/networking/diameter").length;
-
     await user.click(
-      await screen.findByRole("button", { name: "Edit SMS settings" }),
+      await screen.findByRole("button", {
+        name: "Delete service center [2001:db8::10]:3868",
+      }),
     );
-    const input = await screen.findByLabelText(/SMSC Address/);
-    await user.clear(input);
-    await user.type(input, "2001:db8::11");
-    await user.click(screen.getByRole("button", { name: "Update" }));
+    expect(
+      await screen.findByText(/subscribers lose SMS until you add another/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(
-      await (await smsRow("SMSC")).findByText("[2001:db8::11]:3868"),
+      await screen.findByText("No service centers yet."),
     ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        api.requests("/api/v1/networking/diameter").length,
-      ).toBeGreaterThan(before),
-    );
+    expect(api.requests(`${PEERS_PATH}/${peerA.id}`)).toHaveLength(1);
   });
 
   it("lets a read-only user see but not change SMS", async () => {
-    api.get("/api/v1/operator", () => operator(enabledSMS));
-    api.get("/api/v1/networking/diameter", () => diameter({ state: "open" }));
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [peerA] }));
     renderOperator("Read Only");
 
+    expect(await screen.findByText("[2001:db8::10]:3868")).toBeInTheDocument();
     expect(
-      await (await smsRow("SMSC")).findByText("[2001:db8::10]:3868"),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Edit SMS number" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Edit SMS settings" }),
+      screen.queryByRole("button", { name: "Add service center" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Delete service center/ }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "SMS is ON" })).toBeDisabled();
   });

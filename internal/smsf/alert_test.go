@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas/sms"
 )
 
@@ -29,8 +30,12 @@ func TestWaitingDataRecordedByAnotherNodeAlerts(t *testing.T) {
 	eventually(t, "the waiting data to clear", func() bool { return !e.smsf.Waiting(imsi) })
 }
 
-func TestEveryWaitingServiceCentreIsAlerted(t *testing.T) {
+func TestEveryWaitingServiceCentreIsAlertedThroughItsPeer(t *testing.T) {
 	e := newEnv(t)
+	e.store.setPeers(
+		db.SMSCPeer{ID: "a", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
+		db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+	)
 
 	for _, sc := range []string{serviceCentre, otherServiceCentre} {
 		if err := e.store.RecordSMSWaiting(context.Background(), db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: sc}); err != nil {
@@ -53,7 +58,59 @@ func TestEveryWaitingServiceCentreIsAlerted(t *testing.T) {
 		t.Fatalf("alerted %v, want %v", got, want)
 	}
 
+	targets := e.smsc.sentTo()
+	slices.Sort(targets)
+
+	if want := []string{smsf.SMSCPeerID("a"), smsf.SMSCPeerID("b")}; !slices.Equal(targets, want) {
+		t.Fatalf("alerts sent to %v, want %v", targets, want)
+	}
+
 	eventually(t, "the waiting data to clear", func() bool { return !e.smsf.Waiting(imsi) })
+}
+
+func TestAWaitingServiceCentreNoPeerServesIsDropped(t *testing.T) {
+	e := newEnv(t)
+
+	for _, sc := range []string{serviceCentre, otherServiceCentre} {
+		if err := e.store.RecordSMSWaiting(context.Background(), db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: sc}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	e.smsf.UEReachable(context.Background(), imsi)
+
+	eventually(t, "the waiting data to clear", func() bool { return !e.smsf.Waiting(imsi) })
+
+	alerts := e.smsc.alerted()
+	if len(alerts) != 1 || alerts[0].ServiceCentreAddress != serviceCentre {
+		t.Fatalf("alerts = %+v, want one for %s", alerts, serviceCentre)
+	}
+}
+
+func TestAnUnreachablePeerDoesNotHoldBackAlertsThroughOthers(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(
+		db.SMSCPeer{ID: "a", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
+		db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+	)
+	e.smsc.setPeerDown(smsf.SMSCPeerID("a"), true)
+
+	for _, sc := range []string{serviceCentre, otherServiceCentre} {
+		if err := e.store.RecordSMSWaiting(context.Background(), db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: sc}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	e.smsf.UEReachable(context.Background(), imsi)
+
+	eventually(t, "only the unreachable peer's service centre to be left waiting", func() bool {
+		w, err := e.store.GetSMSWaiting(context.Background(), imsi)
+		return err == nil && slices.Equal(w.ServiceCentres, []string{serviceCentre})
+	})
+
+	if alerts := e.smsc.alerted(); len(alerts) != 1 || alerts[0].ServiceCentreAddress != otherServiceCentre {
+		t.Fatalf("alerts = %+v, want one for %s", alerts, otherServiceCentre)
+	}
 }
 
 func TestAFailedMemoryAvailableAlertIsRetriedOnReachability(t *testing.T) {

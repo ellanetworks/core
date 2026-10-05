@@ -11,8 +11,8 @@ import (
 func RegisterMetrics(m *Manager) {
 	up := prometheus.NewDesc(
 		"app_diameter_peer_up",
-		"Whether this node's Diameter connection to a configured peer is open (1) or not (0), by peer role.",
-		[]string{"role"},
+		"Whether this node's Diameter connection to a configured peer is open (1) or not (0), by peer and role.",
+		[]string{"peer", "role"},
 		nil,
 	)
 
@@ -23,7 +23,7 @@ func RegisterMetrics(m *Manager) {
 				value = 1
 			}
 
-			ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, value, peer.Role)
+			ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, value, peer.ID, peer.Role)
 		}
 	}))
 }

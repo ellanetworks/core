@@ -14,6 +14,7 @@ const (
 	moForwarded       = "forwarded"
 	moSMSCRejected    = "smsc_rejected"
 	moSMSCUnavailable = "smsc_unavailable"
+	moUnknownSC       = "unknown_service_centre"
 	moNotAllowed      = "not_allowed"
 	moInvalid         = "invalid"
 	moError           = "error"

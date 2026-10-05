@@ -535,6 +535,7 @@ var forwardCodes = []struct {
 	{ellaraft.ForwardCodeMigrationPend, ErrMigrationPending},
 	{ellaraft.ForwardCodeAlreadyExists, ErrAlreadyExists},
 	{ellaraft.ForwardCodeNotFound, ErrNotFound},
+	{ellaraft.ForwardCodeSMSCConflict, ErrSMSCPeerConflict},
 }
 
 func sentinelForForwardCode(code string) error {

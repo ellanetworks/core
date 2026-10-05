@@ -10,6 +10,7 @@ import EditOperatorIdModal from "./EditOperatorIdModal";
 import EditOperatorCodeModal from "./EditOperatorCodeModal";
 import EditOperatorSPNModal from "./EditOperatorSPNModal";
 import EditOperatorSMSModal from "./EditOperatorSMSModal";
+import SMSCPeerModal from "./SMSCPeerModal";
 import EditOperatorTrackingModal from "./EditOperatorTrackingModal";
 
 const api = setupApiServer();
@@ -256,14 +257,7 @@ describe("EditOperatorTrackingModal", () => {
 describe("EditOperatorSMSModal", () => {
   const SMS_PATH = "/api/v1/operator/sms";
 
-  const render = (
-    initialData = {
-      enabled: false,
-      smscAddress: "",
-      smscPort: 3868,
-      smsNumber: "",
-    },
-  ) => {
+  const render = (initialData = { enabled: true, smsNumber: "" }) => {
     const onClose = vi.fn();
     renderWithProviders(
       <EditOperatorSMSModal
@@ -277,128 +271,28 @@ describe("EditOperatorSMSModal", () => {
     return { onClose };
   };
 
-  it("submits the SMSC and the SMS number", async () => {
+  it("submits the SMS number and keeps SMS on", async () => {
     const user = userEvent.setup();
     api.put(SMS_PATH, () => ({}));
     const { onClose } = render();
 
-    await retype(user, /SMSC Address/, "192.0.2.10");
-    await retype(user, /SMS Number/, "+15550001111");
-    await waitFor(() => expect(updateButton()).toBeEnabled());
-    await user.click(updateButton());
-
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(SMS_PATH)?.body).toEqual({
-      enabled: false,
-      smscAddress: "192.0.2.10",
-      smscPort: 3868,
-      smsNumber: "+15550001111",
-    });
-  });
-
-  it("keeps SMS on when its settings change", async () => {
-    const user = userEvent.setup();
-    api.put(SMS_PATH, () => ({}));
-    const { onClose } = render({
-      enabled: true,
-      smscAddress: "192.0.2.10",
-      smscPort: 3868,
-      smsNumber: "+15550001111",
-    });
-
-    await retype(user, /SMSC Address/, "192.0.2.11");
+    await retype(user, /E.164 Number/, "+15550001111");
     await waitFor(() => expect(updateButton()).toBeEnabled());
     await user.click(updateButton());
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(SMS_PATH)?.body).toEqual({
       enabled: true,
-      smscAddress: "192.0.2.11",
-      smscPort: 3868,
       smsNumber: "+15550001111",
     });
   });
 
-  it("requires the SMSC and the SMS number while SMS is on", async () => {
+  it("requires the SMS number", async () => {
     const user = userEvent.setup();
-    render({
-      enabled: true,
-      smscAddress: "192.0.2.10",
-      smscPort: 3868,
-      smsNumber: "+15550001111",
-    });
+    render({ enabled: true, smsNumber: "+15550001111" });
 
-    await retype(user, /SMS Number/, "");
-    await screen.findByText("SMS number is required while SMS is on");
-    expect(updateButton()).toBeDisabled();
-
-    await retype(user, /SMSC Address/, "");
-    await screen.findByText("SMSC address is required while SMS is on");
-  });
-
-  it("allows incomplete settings while SMS is off", async () => {
-    const user = userEvent.setup();
-    render();
-
-    await retype(user, /SMSC Address/, "192.0.2.10");
-    await retype(user, /SMS Number/, "");
-
-    await waitFor(() => expect(updateButton()).toBeEnabled());
-  });
-
-  it("rejects an SMSC address that is not an IP address", async () => {
-    const user = userEvent.setup();
-    render();
-
-    await retype(user, /SMSC Address/, "smsc.example.org");
-
-    await screen.findByText("SMSC address must be an IPv4 or IPv6 address");
-    expect(updateButton()).toBeDisabled();
-  });
-
-  it("clears the SMSC address while SMS is off", async () => {
-    const user = userEvent.setup();
-    api.put(SMS_PATH, () => ({}));
-    const { onClose } = render({
-      enabled: false,
-      smscAddress: "192.0.2.10",
-      smscPort: 3868,
-      smsNumber: "+15550001111",
-    });
-
-    expect(field(/SMS Number/)).toHaveValue("+15550001111");
-    await retype(user, /SMSC Address/, "");
-    await waitFor(() => expect(updateButton()).toBeEnabled());
-    await user.click(updateButton());
-
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(SMS_PATH)?.body).toEqual({
-      enabled: false,
-      smscAddress: "",
-      smscPort: 3868,
-      smsNumber: "+15550001111",
-    });
-  });
-
-  it("shows a cleared SMSC port as empty and asks for a value", async () => {
-    const user = userEvent.setup();
-    render();
-
-    await user.clear(field(/SMSC Port/));
-    await user.tab();
-
-    expect(field(/SMSC Port/)).toHaveValue(null);
-    await screen.findByText("SMSC port is required");
-    expect(updateButton()).toBeDisabled();
-  });
-
-  it("rejects the unspecified address", async () => {
-    const user = userEvent.setup();
-    render();
-
-    await retype(user, /SMSC Address/, "0.0.0.0");
-
-    await screen.findByText("SMSC address must be an IPv4 or IPv6 address");
+    await retype(user, /E.164 Number/, "");
+    await screen.findByText("SMS number is required");
     expect(updateButton()).toBeDisabled();
   });
 
@@ -406,9 +300,132 @@ describe("EditOperatorSMSModal", () => {
     const user = userEvent.setup();
     render();
 
-    await retype(user, /SMS Number/, "15550001111");
+    await retype(user, /E.164 Number/, "15550001111");
 
     await screen.findByText(/Must be an E.164 number/);
     expect(updateButton()).toBeDisabled();
+  });
+});
+
+describe("SMSCPeerModal", () => {
+  const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
+
+  const peer = {
+    id: "0190a000-0000-7000-8000-000000000001",
+    address: "192.0.2.10",
+    port: 3868,
+    diameterIdentity: "",
+    serviceCentres: ["+15550000000"],
+  };
+
+  const render = (existing?: typeof peer) => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <SMSCPeerModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        peer={existing}
+      />,
+      { auth: {} },
+    );
+    return { onClose };
+  };
+
+  const addButton = () =>
+    within(dialog()).getByRole("button", { name: /^Add$/ });
+
+  it("adds a peer", async () => {
+    const user = userEvent.setup();
+    api.post(PEERS_PATH, () => ({}));
+    const { onClose } = render();
+
+    await retype(user, /^Address/, "2001:db8::10");
+    await retype(user, /Diameter Identity/, "smsc.example.org");
+    await retype(user, /^Numbers/, "+15550000000, +15550000001");
+    await waitFor(() => expect(addButton()).toBeEnabled());
+    await user.click(addButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PEERS_PATH)?.body).toEqual({
+      address: "2001:db8::10",
+      port: 3868,
+      diameterIdentity: "smsc.example.org",
+      serviceCentres: ["+15550000000", "+15550000001"],
+    });
+  });
+
+  it("updates a peer", async () => {
+    const user = userEvent.setup();
+    api.put(`${PEERS_PATH}/${peer.id}`, () => ({}));
+    const { onClose } = render(peer);
+
+    expect(field(/^Numbers/)).toHaveValue("+15550000000");
+    await retype(user, /^Port/, "3869");
+    await waitFor(() => expect(updateButton()).toBeEnabled());
+    await user.click(updateButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(`${PEERS_PATH}/${peer.id}`)?.body).toEqual({
+      address: "192.0.2.10",
+      port: 3869,
+      diameterIdentity: "",
+      serviceCentres: ["+15550000000"],
+    });
+  });
+
+  it("rejects an address that is not an IP address", async () => {
+    const user = userEvent.setup();
+    render(peer);
+
+    await retype(user, /^Address/, "smsc.example.org");
+
+    await screen.findByText("Address must be an IPv4 or IPv6 address");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("rejects a Diameter identity that is not a domain name", async () => {
+    const user = userEvent.setup();
+    render(peer);
+
+    await retype(user, /Diameter Identity/, "smsc");
+
+    await screen.findByText(/Diameter identity must be a fully qualified/);
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("requires valid, distinct service centre numbers", async () => {
+    const user = userEvent.setup();
+    render(peer);
+
+    await retype(user, /^Numbers/, "");
+    await screen.findByText("At least one number is required");
+
+    await retype(user, /^Numbers/, "15550000000");
+    await screen.findByText(/Numbers must be E.164 numbers/);
+
+    await retype(user, /^Numbers/, "+15550000000 +15550000000");
+    await screen.findByText("A number is listed twice");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("shows the server's error", async () => {
+    const user = userEvent.setup();
+    api.post(PEERS_PATH, () =>
+      httpError(
+        409,
+        "another SMSC peer serves the service centre number +15550000000",
+      ),
+    );
+    render();
+
+    await retype(user, /^Address/, "192.0.2.11");
+    await retype(user, /^Numbers/, "+15550000000");
+    await waitFor(() => expect(addButton()).toBeEnabled());
+    await user.click(addButton());
+
+    expect(
+      await screen.findByText(/another SMSC peer serves the service centre/),
+    ).toBeInTheDocument();
   });
 });

@@ -23,10 +23,13 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		return s6c.NewErrorAnswer(req, id, err)
 	}
 
-	var alertMSISDN string
+	var (
+		alertMSISDN string
+		mwd         s6c.MWDStatus
+	)
 
 	fail := func(code uint32, absent s6c.AbsentUserDiagnostics) *diameter.Message {
-		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN}, r.SMSFSupport)
+		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN, MWDStatus: mwd}, r.SMSFSupport)
 		if err != nil {
 			return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 		}
@@ -45,12 +48,12 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 
 	alertMSISDN = storedMSISDN(sub.Msisdn, r.MSISDN)
 
-	settings, err := s.store.GetSMSSettings(ctx)
+	settings, ready, err := s.readySettings(ctx)
 	if err != nil {
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	if sub.Msisdn == "" || !settings.Enabled {
+	if sub.Msisdn == "" || !ready {
 		return fail(tgpp.ResultErrorServiceNotSubscribed, s6c.AbsentUserDiagnostics{})
 	}
 
@@ -63,8 +66,8 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 	if nodes.Serving == nil && nodes.SMSF3GPP == nil && r.DeliveryNotIntended == nil {
 		logger.From(ctx, s.logger).Info("Answered a routing request for an unreachable subscriber", zap.String("imsi", sub.Imsi))
 
-		if !r.SingleAttempt {
-			s.markWaiting(ctx, sub.Imsi, r.ServiceCentreAddress)
+		if r.SingleAttempt || !s.markWaiting(ctx, sub.Imsi, r.ServiceCentreAddress) {
+			mwd |= s6c.MWDStatusSCAddressNotIncluded
 		}
 
 		return fail(tgpp.ResultErrorAbsentUser, absentDiagnostics)

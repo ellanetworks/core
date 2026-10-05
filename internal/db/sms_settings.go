@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/netip"
 
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -25,46 +24,21 @@ const maxMSISDNDigits = 15
 
 const (
 	getSMSSettingsStmt    = "SELECT &SMSSettings.* FROM %s WHERE singleton=TRUE"
-	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, enabled, smscAddress, smscPort, smsNumber) VALUES (TRUE, $SMSSettings.enabled, $SMSSettings.smscAddress, $SMSSettings.smscPort, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled, smscAddress=excluded.smscAddress, smscPort=excluded.smscPort, smsNumber=excluded.smsNumber"
+	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, enabled, smsNumber) VALUES (TRUE, $SMSSettings.enabled, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled, smsNumber=excluded.smsNumber"
 )
 
 type SMSSettings struct {
-	Enabled     bool   `db:"enabled"`
-	SMSCAddress string `db:"smscAddress"`
-	SMSCPort    int    `db:"smscPort"`
-	SMSNumber   string `db:"smsNumber"`
+	Enabled   bool   `db:"enabled"`
+	SMSNumber string `db:"smsNumber"`
 }
 
 func DefaultSMSSettings() SMSSettings {
-	return SMSSettings{SMSCPort: DefaultSMSCPort}
+	return SMSSettings{}
 }
 
 func (s SMSSettings) Validate() error {
-	if s.SMSCPort < 1 || s.SMSCPort > 65535 {
-		return fmt.Errorf("SMSC port must be between 1 and 65535, got %d", s.SMSCPort)
-	}
-
 	if s.SMSNumber != "" && !IsValidMSISDN(s.SMSNumber) {
 		return fmt.Errorf("SMS number must be 1 to %d digits in E.164 international format, got %q", maxMSISDNDigits, s.SMSNumber)
-	}
-
-	if s.SMSCAddress != "" {
-		addr, err := netip.ParseAddr(s.SMSCAddress)
-		if err != nil || addr.Zone() != "" || addr.IsUnspecified() {
-			return fmt.Errorf("SMSC address must be an IPv4 or IPv6 address, got %q", s.SMSCAddress)
-		}
-	}
-
-	if !s.Enabled {
-		return nil
-	}
-
-	if s.SMSCAddress == "" {
-		return errors.New("SMSC address is required to enable SMS")
-	}
-
-	if s.SMSNumber == "" {
-		return errors.New("SMS number is required to enable SMS")
 	}
 
 	return nil

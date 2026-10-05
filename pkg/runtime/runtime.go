@@ -1115,14 +1115,23 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 			return nil, nil
 		}
 
-		addr, err := netip.ParseAddr(settings.SMSCAddress)
+		smscPeers, err := dbInstance.ListSMSCPeers(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("invalid SMSC address %q: %w", settings.SMSCAddress, err)
+			return nil, err
 		}
 
-		return []diameternode.PeerConfig{
-			smsf.SMSCPeer(netip.AddrPortFrom(addr, uint16(settings.SMSCPort))), // #nosec G115 -- validated to 1-65535
-		}, nil
+		peers := make([]diameternode.PeerConfig, 0, len(smscPeers))
+
+		for _, p := range smscPeers {
+			peer, err := smsf.SMSCPeer(p)
+			if err != nil {
+				return nil, err
+			}
+
+			peers = append(peers, peer)
+		}
+
+		return peers, nil
 	}
 }
 

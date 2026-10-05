@@ -172,6 +172,9 @@ var (
 
 var (
 	opUpdateSMSSettings      = registerChangesetOp("UpdateSMSSettings", (*Database).applyUpdateSMSSettings, RequireSchema(22), AffectsTopic(TopicSMSSettings))
+	opCreateSMSCPeer         = registerChangesetOp("CreateSMSCPeer", (*Database).applyCreateSMSCPeer, RequireSchema(22), AffectsTopic(TopicSMSSettings))
+	opUpdateSMSCPeer         = registerChangesetOp("UpdateSMSCPeer", (*Database).applyUpdateSMSCPeer, RequireSchema(22), AffectsTopic(TopicSMSSettings))
+	opDeleteSMSCPeer         = registerChangesetOp("DeleteSMSCPeer", (*Database).applyDeleteSMSCPeer, RequireSchema(22), AffectsTopic(TopicSMSSettings))
 	opRecordSMSWaiting       = registerChangesetOp("RecordSMSWaiting", (*Database).applyRecordSMSWaiting, RequireSchema(22))
 	opClearSMSMemoryFull     = registerChangesetOp("ClearSMSMemoryFull", (*Database).applyClearSMSMemoryFull, RequireSchema(22))
 	opRemoveSMSWaitingCentre = registerChangesetOp("RemoveSMSWaitingCentre", (*Database).applyRemoveSMSWaitingCentre, RequireSchema(22))
