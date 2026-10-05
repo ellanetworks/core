@@ -268,6 +268,7 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
   const errorId = useId();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [draft, setDraft] = useState<TimeRangeValue | null>(null);
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
   const edited = draft ?? value;
   const errors = timeRangeFieldErrors(edited, !allowAnyTime);
   const sharedError = Boolean(errors.from) && errors.from === errors.to;
@@ -277,10 +278,10 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
       ranges,
     });
     if (resolved.from && !resolved.to) {
-      return { ...resolved, to: new Date().toISOString() };
+      return { ...resolved, to: new Date(openedAt).toISOString() };
     }
     return resolved;
-  }, [edited, ranges]);
+  }, [edited, ranges, openedAt]);
   const isCustom = edited.preset === CUSTOM_RANGE;
   const dayGranularity =
     ranges.length > 0 && ranges.every((range) => range.anchor === "day");
@@ -319,7 +320,10 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
         <Button
           variant="outlined"
           color="inherit"
-          onClick={(event) => setAnchor(event.currentTarget)}
+          onClick={(event) => {
+            setOpenedAt(Date.now());
+            setAnchor(event.currentTarget);
+          }}
           startIcon={<AccessTimeIcon fontSize="small" />}
           endIcon={<ArrowDropDownIcon />}
           aria-haspopup="true"
