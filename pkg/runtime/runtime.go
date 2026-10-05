@@ -542,7 +542,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
-	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), logger.DiameterLog)
+	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), diameternode.ListenConfig{
+		Name:    cfg.Interfaces.Diameter.Name,
+		Address: cfg.Interfaces.Diameter.Address,
+		Port:    cfg.Interfaces.Diameter.Port,
+	}, logger.DiameterLog)
 	diameternode.RegisterMetrics(diameterNode)
 	smsf.RegisterMetrics()
 

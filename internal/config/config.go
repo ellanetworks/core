@@ -41,6 +41,8 @@ const (
 	DefaultNGAPPort = 38412
 	// DefaultS1APPort is the standard 4G S1-MME / S1AP SCTP port (3GPP TS 36.412).
 	DefaultS1APPort = 36412
+
+	DefaultDiameterPort = 3868
 )
 
 // ErrNoInterfaceIP is returned when an interface exists but currently has no
@@ -116,11 +118,18 @@ type APIInterfaceYaml struct {
 	TLS     TLSYaml `yaml:"tls"`
 }
 
+type DiameterInterfaceYaml struct {
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+	Port    int    `yaml:"port"`
+}
+
 type InterfacesYaml struct {
-	N2  N2InterfaceYaml  `yaml:"n2"`
-	N3  N3InterfaceYaml  `yaml:"n3"`
-	N6  N6InterfaceYaml  `yaml:"n6"`
-	API APIInterfaceYaml `yaml:"api"`
+	N2       N2InterfaceYaml       `yaml:"n2"`
+	N3       N3InterfaceYaml       `yaml:"n3"`
+	N6       N6InterfaceYaml       `yaml:"n6"`
+	API      APIInterfaceYaml      `yaml:"api"`
+	Diameter DiameterInterfaceYaml `yaml:"diameter"`
 }
 
 // XDPYaml is the deprecated attach-mode block, still parsed so existing
@@ -205,11 +214,19 @@ type APIInterface struct {
 	TLS     TLS
 }
 
+type DiameterInterface struct {
+	Enabled bool
+	Name    string
+	Address string
+	Port    int
+}
+
 type Interfaces struct {
-	N2  N2Interface
-	N3  N3Interface
-	N6  N6Interface
-	API APIInterface
+	N2       N2Interface
+	N3       N3Interface
+	N6       N6Interface
+	API      APIInterface
+	Diameter DiameterInterface
 }
 
 type Datapath struct {
@@ -484,6 +501,13 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	config.Interfaces.API.Port = c.Interfaces.API.Port
+
+	diameter, err := validateDiameterInterface(c.Interfaces.Diameter)
+	if err != nil {
+		return Config{}, err
+	}
+
+	config.Interfaces.Diameter = diameter
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
 	config.Telemetry.Enabled = c.Telemetry.Enabled
 
@@ -495,6 +519,36 @@ func Validate(filePath string) (Config, error) {
 	config.Cluster = cluster
 
 	return config, nil
+}
+
+func validateDiameterInterface(d DiameterInterfaceYaml) (DiameterInterface, error) {
+	if d == (DiameterInterfaceYaml{}) {
+		return DiameterInterface{}, nil
+	}
+
+	name, address, err := getInterfaceNameAndAddress(d.Name, d.Address, AnyFamily)
+	if err != nil {
+		return DiameterInterface{}, fmt.Errorf("interfaces.diameter: %w", err)
+	}
+
+	port := d.Port
+	if port == 0 {
+		port = DefaultDiameterPort
+	}
+
+	if port < 1 || port > 65535 {
+		return DiameterInterface{}, errors.New("interfaces.diameter.port must be between 1 and 65535")
+	}
+
+	out := DiameterInterface{Enabled: true, Port: port}
+
+	if d.Name != "" {
+		out.Name = name
+	} else {
+		out.Address = address
+	}
+
+	return out, nil
 }
 
 func getInterfaceNameAndAddress(interfaceName string, address string, family AddressFamily) (string, string, error) {

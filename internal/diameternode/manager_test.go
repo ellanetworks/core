@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -169,7 +171,13 @@ func (s *settingsSource) getNode(context.Context) (diameternode.NodeSettings, er
 func startManager(t *testing.T, source *settingsSource) (*diameternode.Manager, chan struct{}) {
 	t.Helper()
 
-	link := diameternode.New(source.getNode, source.getPeers, zap.NewNop())
+	return startListeningManager(t, source, diameternode.ListenConfig{})
+}
+
+func startListeningManager(t *testing.T, source *settingsSource, listen diameternode.ListenConfig) (*diameternode.Manager, chan struct{}) {
+	t.Helper()
+
+	link := diameternode.New(source.getNode, source.getPeers, listen, zap.NewNop())
 	link.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
 		return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultUnableToComply)
 	}))
@@ -397,7 +405,7 @@ func TestNodeReportsTheSMSCDownWhenItCannotStart(t *testing.T) {
 
 func TestNodeIdentityWithoutSMSC(t *testing.T) {
 	source := newSettingsSource()
-	link := diameternode.New(source.getNode, source.getPeers, zap.NewNop())
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{}, zap.NewNop())
 
 	identity, err := link.Identity(context.Background())
 	if err != nil {
@@ -413,4 +421,215 @@ func TestNodeIdentityWithoutSMSC(t *testing.T) {
 	if _, err := link.Identity(context.Background()); err == nil {
 		t.Fatal("Identity hid a settings error")
 	}
+}
+
+var (
+	smsApplications = []diameter.Application{
+		{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
+		{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
+	}
+	loopback2 = netip.MustParseAddr("127.0.0.2")
+)
+
+func freePort(t *testing.T) int {
+	t.Helper()
+
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{IP: loopback.AsSlice()})
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+
+	return port
+}
+
+func newDialingNode(t *testing.T, host string, ip netip.Addr) *diameter.Node {
+	t.Helper()
+
+	node, err := diameter.New(diameter.Config{
+		Identity: diameter.Identity{
+			OriginHost:      host,
+			OriginRealm:     smscRealm,
+			HostIPAddresses: []netip.Addr{ip},
+			ProductName:     "fake-peer",
+		},
+		Handler: diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
+			return c.Answer(req, diameter.ResultSuccess)
+		}),
+		HandshakeTimeout:     2 * time.Second,
+		ReconnectInterval:    50 * time.Millisecond,
+		MaxReconnectInterval: 200 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("new node: %v", err)
+	}
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_ = node.Shutdown(ctx)
+	})
+
+	return node
+}
+
+func dialElla(t *testing.T, node *diameter.Node, port int, transport diameter.Transport) {
+	t.Helper()
+
+	err := node.SetPeers([]diameter.Peer{{
+		ID:           "ella",
+		Addresses:    []netip.Addr{loopback},
+		Port:         uint16(port),
+		Transport:    transport,
+		Applications: smsApplications,
+	}})
+	if err != nil {
+		t.Fatalf("set peers: %v", err)
+	}
+}
+
+func ellaStatus(node *diameter.Node) diameter.PeerStatus {
+	for _, p := range node.Peers() {
+		if p.ID == "ella" {
+			return p
+		}
+	}
+
+	return diameter.PeerStatus{}
+}
+
+func openPeers(node *diameter.Node) int {
+	n := 0
+
+	for _, p := range node.Peers() {
+		if p.State == diameter.PeerOpen {
+			n++
+		}
+	}
+
+	return n
+}
+
+func TestListenerAcceptsAnSMSCThatDialsIn(t *testing.T) {
+	requireSCTP(t)
+
+	port := freePort(t)
+	smsc := newDialingNode(t, smscHost, loopback)
+
+	source := newSettingsSource()
+	source.setSMSC(netip.AddrPortFrom(loopback, uint16(freePort(t))))
+
+	link, _ := startListeningManager(t, source, diameternode.ListenConfig{Address: loopback.String(), Port: port})
+
+	dialElla(t, smsc, port, diameter.TransportSCTP)
+
+	waitFor(t, "SMSC to open towards Ella", func() bool { return ellaStatus(smsc).State == diameter.PeerOpen })
+	waitFor(t, "Ella to see the SMSC open", func() bool { return smscState(link) == diameter.PeerOpen })
+
+	if peer, _ := smscPeer(link); peer.Host != smscHost {
+		t.Fatalf("SMSC peer host = %q, want %q", peer.Host, smscHost)
+	}
+
+	req, err := s6c.NewSendRoutingInfoForSMRequest(tgpp.Envelope{
+		SessionID:        smsc.NewSessionID(),
+		Origin:           smsc.Identity(),
+		DestinationRealm: ellaRealm,
+	}, s6c.RoutingRequest{MSISDN: "15551230001", ServiceCentreAddress: "15550000000"})
+	if err != nil {
+		t.Fatalf("build SRR: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ans, err := smsc.DoHost(ctx, ellaHost, req)
+	if err != nil {
+		t.Fatalf("SRR: %v", err)
+	}
+
+	result, err := tgpp.ParseResult(ans)
+	if err != nil {
+		t.Fatalf("parse SRA: %v", err)
+	}
+
+	if result.Code != diameter.ResultUnableToComply {
+		t.Fatalf("SRA result = %s, want %d", result, diameter.ResultUnableToComply)
+	}
+}
+
+func TestListenerAndDialerResolveToOneConnection(t *testing.T) {
+	requireSCTP(t)
+
+	port := freePort(t)
+	smsc := startFakeSMSC(t, 0)
+
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+
+	link, _ := startListeningManager(t, source, diameternode.ListenConfig{Address: loopback.String(), Port: port})
+
+	dialElla(t, smsc.node, port, diameter.TransportSCTP)
+
+	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen && smsc.connectedHost() == ellaHost })
+
+	time.Sleep(500 * time.Millisecond)
+
+	if smscState(link) != diameter.PeerOpen || smsc.connectedHost() != ellaHost {
+		t.Fatal("connection lost after the election")
+	}
+
+	if n := openPeers(smsc.node); n != 1 {
+		t.Fatalf("SMSC holds %d open peers, want 1", n)
+	}
+}
+
+func TestListenerRefusesPeersOtherThanTheSMSC(t *testing.T) {
+	requireSCTP(t)
+
+	port := freePort(t)
+
+	source := newSettingsSource()
+	source.setSMSC(netip.AddrPortFrom(loopback, uint16(freePort(t))))
+
+	startListeningManager(t, source, diameternode.ListenConfig{Address: loopback.String(), Port: port})
+
+	cases := []struct {
+		name      string
+		ip        netip.Addr
+		transport diameter.Transport
+	}{
+		{"other address over SCTP", loopback2, diameter.TransportSCTP},
+		{"SMSC address over TCP", loopback, diameter.TransportTCP},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			other := newDialingNode(t, "other.example.org", tc.ip)
+			dialElla(t, other, port, tc.transport)
+
+			waitFor(t, "unknown peer refusal", func() bool {
+				return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultUnknownPeer)))
+			})
+		})
+	}
+}
+
+func TestListenerRunsWithoutSMSC(t *testing.T) {
+	requireSCTP(t)
+
+	port := freePort(t)
+
+	link, _ := startListeningManager(t, newSettingsSource(), diameternode.ListenConfig{Address: loopback.String(), Port: port})
+
+	waitFor(t, "node started", func() bool { return link.Node() != nil })
+
+	other := newDialingNode(t, "other.example.org", loopback)
+	dialElla(t, other, port, diameter.TransportSCTP)
+
+	waitFor(t, "unknown peer refusal", func() bool {
+		return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultUnknownPeer)))
+	})
 }

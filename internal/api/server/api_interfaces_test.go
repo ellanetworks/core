@@ -32,11 +32,18 @@ type APIInterface struct {
 	Port      int      `json:"port"`
 }
 
+type DiameterInterface struct {
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface"`
+}
+
 type NetworkInterfaces struct {
-	N2  N2Interface  `json:"n2"`
-	N3  N3Interface  `json:"n3"`
-	N6  N6Interface  `json:"n6"`
-	API APIInterface `json:"api"`
+	N2       N2Interface        `json:"n2"`
+	N3       N3Interface        `json:"n3"`
+	N6       N6Interface        `json:"n6"`
+	API      APIInterface       `json:"api"`
+	Diameter *DiameterInterface `json:"diameter"`
 }
 
 type GetNetworkInterfaceInfoResponse struct {
@@ -134,6 +141,10 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 
 		if resp.Result.API.Port != 8443 {
 			t.Fatalf("unexpected API interface port: %d", resp.Result.API.Port)
+		}
+
+		if d := resp.Result.Diameter; d == nil || len(d.Addresses) != 1 || d.Addresses[0] != "15.15.15.15" || d.Port != 3868 || d.Interface != "" {
+			t.Fatalf("unexpected Diameter interface: %+v", d)
 		}
 	})
 

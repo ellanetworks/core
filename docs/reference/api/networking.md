@@ -462,6 +462,10 @@ None
         "api": {
             "addresses": ["192.168.1.10"],
             "port": 5002
+        },
+        "diameter": {
+            "addresses": ["10.0.0.10"],
+            "port": 3868
         }
     }
 }

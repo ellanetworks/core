@@ -60,6 +60,7 @@ type PeersSource func(ctx context.Context) ([]PeerConfig, error)
 type Manager struct {
 	nodeSource  NodeSource
 	peersSource PeersSource
+	listen      ListenConfig
 	mux         *diameter.Mux
 	logger      *zap.Logger
 	slog        *slog.Logger
@@ -74,10 +75,11 @@ type Manager struct {
 	stopping  atomic.Bool
 }
 
-func New(nodeSource NodeSource, peersSource PeersSource, logger *zap.Logger) *Manager {
+func New(nodeSource NodeSource, peersSource PeersSource, listen ListenConfig, logger *zap.Logger) *Manager {
 	return &Manager{
 		nodeSource:  nodeSource,
 		peersSource: peersSource,
+		listen:      listen,
 		mux:         diameter.NewMux(),
 		logger:      logger,
 		slog:        slog.New(zapslog.NewHandler(logger.Core(), zapslog.WithName("Diameter"), zapslog.WithCaller(true))),
@@ -166,7 +168,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	m.setPeers(peers)
 
-	if len(peers) == 0 {
+	if len(peers) == 0 && !m.listen.enabled() {
 		m.stopWithCause(diameter.DisconnectCauseDoNotWantToTalkToYou)
 		return
 	}
@@ -200,7 +202,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	m.stop()
 
-	if err := m.start(identity, diameterPeers); err != nil {
+	if err := m.start(ctx, identity, diameterPeers); err != nil {
 		m.fail(err)
 	}
 }
@@ -224,6 +226,19 @@ func (m *Manager) desiredIdentity(settings NodeSettings, peers []PeerConfig) (di
 		if !slices.Contains(addrs, local) {
 			addrs = append(addrs, local)
 		}
+	}
+
+	if len(addrs) == 0 && m.listen.enabled() {
+		listenAddrs, err := m.listenAddrs()
+		if err != nil {
+			return diameter.Identity{}, err
+		}
+
+		if len(listenAddrs) == 0 {
+			return diameter.Identity{}, errors.New("the Diameter listen address is unspecified; set a specific address or an interface name to listen without an SMSC")
+		}
+
+		addrs = slices.Clone(listenAddrs)
 	}
 
 	slices.SortFunc(addrs, func(a, b netip.Addr) int { return a.Compare(b) })
@@ -262,7 +277,7 @@ func samePeers(a, b []PeerConfig) bool {
 	})
 }
 
-func (m *Manager) start(identity diameter.Identity, peers []diameter.Peer) error {
+func (m *Manager) start(ctx context.Context, identity diameter.Identity, peers []diameter.Peer) error {
 	node, err := diameter.New(diameter.Config{
 		Identity:          identity,
 		Handler:           m.mux,
@@ -278,6 +293,18 @@ func (m *Manager) start(identity diameter.Identity, peers []diameter.Peer) error
 		return fmt.Errorf("configure Diameter peers: %w", err)
 	}
 
+	if m.listen.enabled() {
+		listeners, err := m.openListeners(ctx)
+		if err != nil {
+			_ = node.Shutdown(context.Background())
+			return err
+		}
+
+		for _, ln := range listeners {
+			go m.serve(node, ln)
+		}
+	}
+
 	m.mu.Lock()
 	m.node = node
 	m.identity = identity
@@ -291,6 +318,16 @@ func (m *Manager) start(identity diameter.Identity, peers []diameter.Peer) error
 	)
 
 	return nil
+}
+
+func (m *Manager) serve(node *diameter.Node, ln diameter.Listener) {
+	err := node.Serve(ln)
+
+	_ = ln.Close()
+
+	if err != nil && !errors.Is(err, diameter.ErrClosed) {
+		m.logger.Warn("Diameter listener stopped", zap.Stringer("address", ln.Addr()), zap.Error(err))
+	}
 }
 
 func (m *Manager) peerStateChanged(s diameter.PeerStatus) {

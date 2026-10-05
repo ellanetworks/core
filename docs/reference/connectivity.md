@@ -13,6 +13,7 @@ Ella Core uses 4 different interfaces by default:
 | N3 / S1-U | User plane between Ella Core and the radio | UDP `2152` | Yes | Yes | IPv4, IPv6. |
 | N6 / SGi | User plane between Ella Core and the internet | — | Yes | No | Not configurable |
 | SGd / S6c | SMS between Ella Core and the SMSC, when SMS is enabled | SCTP, outbound to the SMSC port (`3868` by default) | No | No | IPv4, IPv6 |
+| Diameter | Diameter from the SMSC | SCTP and TCP, `interfaces.diameter.port` (`3868` by default) | Yes | Yes | IPv4, IPv6 |
 
 <figure markdown="span">
   ![Connectivity](../images/connectivity.svg){ width="800" }

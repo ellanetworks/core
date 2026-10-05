@@ -2277,7 +2277,7 @@ paths:
       operationId: listNetworkInterfaces
       tags: [Interfaces]
       summary: List network interfaces
-      description: Returns the N2, N3, N6, and API interface settings.
+      description: Returns the N2, N3, N6, API, and Diameter interface settings.
       responses:
         "200":
           description: Interface configuration.
@@ -5441,6 +5441,19 @@ components:
           type: integer
       required: [addresses, port]
 
+    DiameterInterface:
+      type: object
+      properties:
+        addresses:
+          type: array
+          items:
+            type: string
+        port:
+          type: integer
+        interface:
+          type: string
+      required: [addresses, port]
+
     NetworkInterfaces:
       type: object
       properties:
@@ -5452,6 +5465,8 @@ components:
           $ref: "#/components/schemas/N6Interface"
         api:
           $ref: "#/components/schemas/APIInterface"
+        diameter:
+          $ref: "#/components/schemas/DiameterInterface"
 
     NetworkInterfacesResponseEnvelope:
       type: object

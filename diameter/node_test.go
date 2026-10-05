@@ -226,6 +226,26 @@ func TestElectionLeavesOneConnection(t *testing.T) {
 	}
 }
 
+func TestElectionIgnoresCase(t *testing.T) {
+	cases := []struct {
+		local, remote string
+		wins          bool
+	}{
+		{"b.example.org", "a.example.org", true},
+		{"a.example.org", "b.example.org", false},
+		{"a.example.org", "B.example.org", false},
+		{"B.example.org", "a.example.org", true},
+		{"mmec01.mme.example.org", "SMSC.example.org", false},
+		{"a.example.org", "A.EXAMPLE.ORG", false},
+	}
+
+	for _, c := range cases {
+		if got := winsElection(c.local, c.remote); got != c.wins {
+			t.Errorf("winsElection(%q, %q) = %v, want %v", c.local, c.remote, got, c.wins)
+		}
+	}
+}
+
 func TestReconnectAfterPeerRestartUsesReopen(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
