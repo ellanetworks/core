@@ -80,6 +80,7 @@ func TestIntegrationHASMS(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
+	configureSMSC(ctx, t)
 	enableSMS(ctx, t, haClient, haSMSSMSCAddress)
 
 	hosts, err := waitForClusterSMSCLinks(ctx, nodeClients)

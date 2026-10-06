@@ -31,8 +31,8 @@ const (
 	smsNumber     = "15550000010"
 	serviceCentre = "15550000000"
 	smscPeerID    = "a"
-	smscHost      = "smsc.example.org"
-	smscRealm     = "example.org"
+	smscHost      = "smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
+	smscRealm     = "epc.mnc001.mcc001.3gppnetwork.org"
 	localNode     = "node-a"
 	remoteNode    = "node-b"
 	waitTimeout   = 10 * time.Second

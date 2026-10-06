@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	smscHost    = "smsc.example.org"
-	smscRealm   = "example.org"
+	smscHost    = "smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
+	smscRealm   = "epc.mnc001.mcc001.3gppnetwork.org"
 	ellaHost    = "mmec01.mmegi8204.mme.epc.mnc001.mcc001.3gppnetwork.org"
 	ellaRealm   = "epc.mnc001.mcc001.3gppnetwork.org"
 	waitTimeout = 15 * time.Second

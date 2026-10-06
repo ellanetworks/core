@@ -44,7 +44,7 @@ func routingRequest(t *testing.T, r s6c.RoutingRequest) *diameter.Message {
 	r.ServiceCentreAddress = serviceCentre
 
 	req, err := s6c.NewSendRoutingInfoForSMRequest(tgpp.Envelope{
-		SessionID: "smsc.example.org;1;1", Origin: diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm},
+		SessionID: smscHost + ";1;1", Origin: diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm},
 		DestinationRealm: localIdent.Realm,
 	}, r)
 	if err != nil {
@@ -203,7 +203,7 @@ func report(t *testing.T, s *smsf.SMSF, rep s6c.DeliveryReport) (s6c.ReportResul
 	rep.SMSFSupport = true
 
 	req, err := s6c.NewReportSMDeliveryStatusRequest(tgpp.Envelope{
-		SessionID: "smsc.example.org;1;2", Origin: diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm},
+		SessionID: smscHost + ";1;2", Origin: diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm},
 		DestinationRealm: localIdent.Realm,
 	}, rep)
 	if err != nil {

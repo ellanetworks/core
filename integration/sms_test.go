@@ -4,9 +4,11 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -27,7 +29,7 @@ const (
 	smscAPIPort       = 5010
 	smsNumber         = "+15550000000"
 	smscServiceCentre = "+15550000000"
-	smscHost          = "smsc.example.org"
+	smscHost          = "smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
 )
 
 func smscAddress() string {
@@ -63,6 +65,7 @@ func TestIntegrationSMS(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
+	configureSMSC(ctx, t)
 	enableSMS(ctx, t, env.Client, smscAddress())
 
 	for _, name := range scenarios.List() {
@@ -135,6 +138,69 @@ func waitForSMSCLink(ctx context.Context, cl *client.Client) error {
 	}
 }
 
+func configureSMSC(ctx context.Context, t *testing.T) {
+	t.Helper()
+
+	operator := map[string]any{
+		"mcc":                    "001",
+		"mnc":                    "01",
+		"service_centre_address": smscServiceCentre,
+		"numbering":              map[string]string{"country_code": "1", "national_prefix": "1", "international_prefix": "011"},
+	}
+
+	delivery := map[string]any{
+		"default_validity_seconds": 3600,
+		"retry_intervals_seconds":  []int{600},
+	}
+
+	deadline := time.Now().Add(time.Minute)
+
+	for {
+		err := putSMSC(ctx, "/api/v1/operator", operator)
+		if err == nil {
+			err = putSMSC(ctx, "/api/v1/delivery", delivery)
+		}
+
+		if err == nil {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("configure the SMSC: %v", err)
+		}
+
+		time.Sleep(time.Second)
+	}
+}
+
+func putSMSC(ctx context.Context, path string, body any) error {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, smscAPIAddress()+path, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("PUT %s: %s: %s", path, resp.Status, msg)
+	}
+
+	return nil
+}
+
 func smscSeesHSS(ctx context.Context) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, smscAPIAddress()+"/api/v1/diameter", nil)
 	if err != nil {
@@ -150,9 +216,22 @@ func smscSeesHSS(ctx context.Context) bool {
 
 	var body struct {
 		Result struct {
-			HSSAvailable bool `json:"hss_available"`
+			Routes []struct {
+				Application string   `json:"application"`
+				Peers       []string `json:"peers"`
+			} `json:"routes"`
 		} `json:"result"`
 	}
 
-	return json.NewDecoder(resp.Body).Decode(&body) == nil && body.Result.HSSAvailable
+	if json.NewDecoder(resp.Body).Decode(&body) != nil {
+		return false
+	}
+
+	for _, r := range body.Result.Routes {
+		if r.Application == "s6c" && len(r.Peers) > 0 {
+			return true
+		}
+	}
+
+	return false
 }

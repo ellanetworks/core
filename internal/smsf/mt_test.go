@@ -569,7 +569,7 @@ func TestAnMTDeliverySurvivesTheLossOfItsDiameterConnection(t *testing.T) {
 	e := newEnv(t)
 
 	req, err := sgd.NewMTForwardShortMessageRequest(tgpp.Envelope{
-		SessionID:        "smsc.example.org;1;9",
+		SessionID:        smscHost + ";1;9",
 		Origin:           diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm},
 		DestinationHost:  localIdent.Host,
 		DestinationRealm: localIdent.Realm,
