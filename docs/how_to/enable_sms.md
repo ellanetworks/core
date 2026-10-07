@@ -12,11 +12,9 @@ Set your SMSC's HSS realm to `epc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, using your
 
 Example: `epc.mnc001.mcc001.3gppnetwork.org`
 
-## 2. Turn on SMS in Ella Core
+## 2. Connect Ella Core to the SMSC
 
-In the Ella Core UI, go to the Operator page and set the SMS switch to **ON**.
-
-Click the edit icon next to **SMS Number**, enter your network's E.164 number for SMS, e.g. `+15550001111`, and click **Update**.
+In the Ella Core UI, go to the Operator page and scroll to the **SMS** section.
 
 Click **Add Service Center** and configure the following settings:
 

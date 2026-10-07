@@ -46,17 +46,15 @@ type GetOperatorSPNResponse struct {
 }
 
 type GetOperatorSMSResponse struct {
-	Enabled   bool   `json:"enabled"`
 	SMSNumber string `json:"smsNumber"`
 }
 
 type SMSCPeer struct {
-	ID               string          `json:"id"`
-	Address          string          `json:"address"`
-	Port             int             `json:"port"`
-	DiameterIdentity string          `json:"diameterIdentity"`
-	ServiceCentres   []string        `json:"serviceCentres"`
-	Status           *SMSCPeerStatus `json:"status,omitempty"`
+	ID             string          `json:"id"`
+	Address        string          `json:"address"`
+	Port           int             `json:"port"`
+	ServiceCentres []string        `json:"serviceCentres"`
+	Status         *SMSCPeerStatus `json:"status,omitempty"`
 }
 
 type SMSCPeerStatus struct {
@@ -106,15 +104,13 @@ type UpdateOperatorSPNOptions struct {
 }
 
 type UpdateOperatorSMSOptions struct {
-	Enabled   bool
 	SMSNumber string
 }
 
 type SMSCPeerOptions struct {
-	Address          string
-	Port             int
-	DiameterIdentity string
-	ServiceCentres   []string
+	Address        string
+	Port           int
+	ServiceCentres []string
 }
 
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
@@ -348,10 +344,8 @@ func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNO
 
 func (c *Client) UpdateOperatorSMS(ctx context.Context, opts *UpdateOperatorSMSOptions) error {
 	payload := struct {
-		Enabled   bool   `json:"enabled"`
 		SMSNumber string `json:"smsNumber"`
 	}{
-		Enabled:   opts.Enabled,
 		SMSNumber: opts.SMSNumber,
 	}
 
@@ -436,15 +430,13 @@ func (c *Client) UpdateSMSCPeer(ctx context.Context, id string, opts *SMSCPeerOp
 
 func (c *Client) writeSMSCPeer(ctx context.Context, method, path string, opts *SMSCPeerOptions) (*RequestResponse, error) {
 	payload := struct {
-		Address          string   `json:"address"`
-		Port             int      `json:"port,omitempty"`
-		DiameterIdentity string   `json:"diameterIdentity"`
-		ServiceCentres   []string `json:"serviceCentres"`
+		Address        string   `json:"address"`
+		Port           int      `json:"port,omitempty"`
+		ServiceCentres []string `json:"serviceCentres"`
 	}{
-		Address:          opts.Address,
-		Port:             opts.Port,
-		DiameterIdentity: opts.DiameterIdentity,
-		ServiceCentres:   opts.ServiceCentres,
+		Address:        opts.Address,
+		Port:           opts.Port,
+		ServiceCentres: opts.ServiceCentres,
 	}
 
 	var body bytes.Buffer

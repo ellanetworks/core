@@ -27,7 +27,6 @@ export const DEFAULT_SMSC_PORT = 3868;
 export interface SMSCPeerInput {
   address: string;
   port: number;
-  diameterIdentity: string;
   serviceCentres: string[];
 }
 
@@ -45,7 +44,6 @@ export interface SMSCPeer extends SMSCPeerInput {
 }
 
 export interface OperatorSMS {
-  enabled: boolean;
   smsNumber: string;
 }
 
@@ -146,12 +144,12 @@ export const updateOperatorSPN = async (
 
 export const updateOperatorSMS = async (
   authToken: string,
-  sms: { enabled: boolean; smsNumber: string },
+  sms: { smsNumber: string },
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/operator/sms`, {
     method: "PUT",
     authToken,
-    body: { enabled: sms.enabled, smsNumber: sms.smsNumber },
+    body: { smsNumber: sms.smsNumber },
   });
 };
 

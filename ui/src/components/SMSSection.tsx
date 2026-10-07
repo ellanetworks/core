@@ -2,16 +2,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Button,
   Chip,
-  FormControlLabel,
   IconButton,
   Skeleton,
   Stack,
-  Switch,
   Table,
   TableBody,
   TableCell,
@@ -29,7 +27,6 @@ import {
 import {
   deleteSMSCPeer,
   listSMSCPeers,
-  updateOperatorSMS,
   type OperatorSMS,
   type SMSCPeer,
   type SMSCPeerState,
@@ -37,7 +34,6 @@ import {
 import EditOperatorSMSModal from "@/components/EditOperatorSMSModal";
 import SMSCPeerModal from "@/components/SMSCPeerModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
-import ConfirmDialog from "@/components/form/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { TABLE_CONTAINER_SX } from "@/utils/layout";
@@ -85,14 +81,12 @@ const SMSCStatus: React.FC<{ peer: SMSCPeer }> = ({ peer }) => {
 
 interface SMSSectionProps {
   sms?: OperatorSMS;
-  loading: boolean;
   canEdit: boolean;
   onModalOpenChange: (open: boolean) => void;
 }
 
 const SMSSection: React.FC<SMSSectionProps> = ({
   sms,
-  loading,
   canEdit,
   onModalOpenChange,
 }) => {
@@ -104,24 +98,18 @@ const SMSSection: React.FC<SMSSectionProps> = ({
   const [numberModalOpen, setNumberModalOpen] = useState(false);
   const [peerModal, setPeerModal] = useState<{ peer?: SMSCPeer } | null>(null);
   const [peerToDelete, setPeerToDelete] = useState<SMSCPeer | null>(null);
-  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
 
   const anyModalOpen =
-    numberModalOpen ||
-    peerModal !== null ||
-    peerToDelete !== null ||
-    disableConfirmOpen;
+    numberModalOpen || peerModal !== null || peerToDelete !== null;
 
   useEffect(() => {
     onModalOpenChange(anyModalOpen);
   }, [anyModalOpen, onModalOpenChange]);
 
-  const enabled = !!sms?.enabled;
-
   const peersQuery = useQuery<SMSCPeer[]>({
     queryKey: ["smsc-peers"],
     enabled: authReady && !!accessToken && !anyModalOpen,
-    refetchInterval: enabled ? 5000 : false,
+    refetchInterval: 5000,
     queryFn: () => listSMSCPeers(accessToken!),
     placeholderData: (prev) => prev,
   });
@@ -135,23 +123,6 @@ const SMSSection: React.FC<SMSSectionProps> = ({
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     queryClient.invalidateQueries({ queryKey: ["smsc-peers"] });
   };
-
-  const setEnabled = async (on: boolean) => {
-    if (!accessToken) return;
-    await updateOperatorSMS(accessToken, {
-      enabled: on,
-      smsNumber: sms?.smsNumber ?? "",
-    });
-    refresh();
-    showSnackbar(on ? "SMS turned on." : "SMS turned off.", "success");
-  };
-
-  const { mutate: turnOn, isPending: turningOn } = useMutation({
-    mutationFn: () => setEnabled(true),
-    onError: (error: unknown) => {
-      showSnackbar(`Failed to turn SMS on: ${String(error)}`, "error");
-    },
-  });
 
   const handleDelete = async () => {
     if (!peerToDelete || !accessToken) return;
@@ -170,28 +141,9 @@ const SMSSection: React.FC<SMSSectionProps> = ({
 
   return (
     <Box sx={{ mt: 4 }}>
-      <Stack
-        direction="row"
-        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
-      >
-        <Typography variant="h6">SMS</Typography>
-        <FormControlLabel
-          labelPlacement="start"
-          control={
-            <Switch
-              size="small"
-              checked={enabled}
-              onChange={(_, checked) =>
-                checked ? turnOn() : setDisableConfirmOpen(true)
-              }
-              disabled={!canEdit || loading || turningOn}
-            />
-          }
-          label={enabled ? "SMS is ON" : "SMS is OFF"}
-          slotProps={{ typography: { variant: "body2" } }}
-          sx={{ ml: 2, mr: 0, flexShrink: 0 }}
-        />
-      </Stack>
+      <Typography variant="h6" sx={{ mb: 2 }}>
+        SMS
+      </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
         Let 4G and 5G subscribers send and receive SMS. Each subscriber needs a
         phone number to send or receive SMS messages.
@@ -301,11 +253,7 @@ const SMSSection: React.FC<SMSSectionProps> = ({
                   {peer.serviceCentres.join(", ")}
                 </TableCell>
                 <TableCell>
-                  {enabled ? (
-                    <SMSCStatus peer={peer} />
-                  ) : (
-                    <Chip label="Off" size="small" variant="outlined" />
-                  )}
+                  <SMSCStatus peer={peer} />
                 </TableCell>
                 <TableCell align="right">
                   {canEdit && (
@@ -345,7 +293,7 @@ const SMSSection: React.FC<SMSSectionProps> = ({
             refresh();
             showSnackbar("SMS number updated successfully.", "success");
           }}
-          initialData={{ enabled, smsNumber: sms?.smsNumber ?? "" }}
+          initialData={{ smsNumber: sms?.smsNumber ?? "" }}
         />
       )}
       {peerModal && (
@@ -375,20 +323,6 @@ const SMSSection: React.FC<SMSSectionProps> = ({
               ? `Delete the service center ${formatEndpoint(peerToDelete.address, peerToDelete.port)}? It is your only one: subscribers lose SMS until you add another.`
               : `Delete the service center ${formatEndpoint(peerToDelete.address, peerToDelete.port)}? Messages sent to ${peerToDelete.serviceCentres.join(", ")} will be rejected.`
           }
-        />
-      )}
-      {disableConfirmOpen && (
-        <ConfirmDialog
-          open
-          onClose={() => setDisableConfirmOpen(false)}
-          onConfirm={async () => {
-            await setEnabled(false);
-            setDisableConfirmOpen(false);
-          }}
-          title="Turn SMS off?"
-          description="Subscribers can no longer send or receive SMS."
-          confirmLabel="Turn Off"
-          confirmingLabel="Turning off…"
         />
       )}
     </Box>

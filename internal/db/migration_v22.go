@@ -15,17 +15,14 @@ func migrateV22(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("CREATE UNIQUE INDEX idx_subscribers_msisdn ON %s(msisdn) WHERE msisdn != ''", SubscribersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			singleton   BOOLEAN PRIMARY KEY DEFAULT TRUE,
-			enabled     BOOLEAN NOT NULL DEFAULT FALSE,
 			smsNumber   TEXT    NOT NULL DEFAULT '',
 			CHECK (singleton)
 		)`, SMSSettingsTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			id               TEXT    PRIMARY KEY,
 			address          TEXT    NOT NULL,
-			port             INTEGER NOT NULL,
-			diameterIdentity TEXT    NOT NULL DEFAULT ''
+			port             INTEGER NOT NULL
 		)`, SMSCPeersTableName),
-		fmt.Sprintf("CREATE UNIQUE INDEX idx_sms_smsc_peers_identity ON %s(diameterIdentity COLLATE NOCASE) WHERE diameterIdentity != ''", SMSCPeersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			serviceCentre TEXT PRIMARY KEY,
 			peerId        TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE

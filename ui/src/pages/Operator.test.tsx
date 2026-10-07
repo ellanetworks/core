@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -25,7 +25,6 @@ const peerA = {
   id: "0190a000-0000-7000-8000-00000000000a",
   address: "2001:db8::10",
   port: 3868,
-  diameterIdentity: "",
   serviceCentres: ["+15550000000"],
   status: {
     state: "open",
@@ -39,12 +38,11 @@ const peerB = {
   id: "0190a000-0000-7000-8000-00000000000b",
   address: "192.0.2.20",
   port: 3869,
-  diameterIdentity: "smsc-b.example.org",
   serviceCentres: ["+15550000001", "+15550000002"],
   status: { state: "down", since: "2026-09-29T16:00:00Z" },
 };
 
-const ready = { enabled: true, smsNumber: "+15550001111" };
+const ready = { smsNumber: "+15550001111" };
 
 const row = async (text: string) => {
   const cell = await screen.findByText(text);
@@ -58,46 +56,8 @@ const renderOperator = (role = "Admin") =>
   });
 
 describe("Operator SMS section", () => {
-  it("shows the settings while SMS is off", async () => {
-    api.get("/api/v1/operator", () =>
-      operator({ enabled: false, smsNumber: "+15550001111" }),
-    );
-    api.get(PEERS_PATH, () => ({ items: [peerA] }));
-    renderOperator();
-
-    const toggle = await screen.findByRole("switch", { name: "SMS is OFF" });
-    await waitFor(() => expect(toggle).toBeEnabled());
-    expect(await screen.findByText("+15550001111")).toBeInTheDocument();
-    expect(
-      await (await row("[2001:db8::10]:3868")).findByText("Off"),
-    ).toBeInTheDocument();
-  });
-
-  it("turns SMS on without any setup", async () => {
-    const user = userEvent.setup();
-    api.get("/api/v1/operator", () =>
-      operator({ enabled: false, smsNumber: "" }),
-    );
-    api.get(PEERS_PATH, () => ({ items: [] }));
-    api.put("/api/v1/operator/sms", () => ({}));
-    renderOperator();
-
-    const toggle = await screen.findByRole("switch", { name: "SMS is OFF" });
-    await waitFor(() => expect(toggle).toBeEnabled());
-    await user.click(toggle);
-
-    await waitFor(() =>
-      expect(api.lastRequest("/api/v1/operator/sms")?.body).toEqual({
-        enabled: true,
-        smsNumber: "",
-      }),
-    );
-  });
-
-  it("shows the SMS number and service centers as soon as SMS is on", async () => {
-    api.get("/api/v1/operator", () =>
-      operator({ enabled: true, smsNumber: "" }),
-    );
+  it("shows an unset SMS number and no service centers", async () => {
+    api.get("/api/v1/operator", () => operator({ smsNumber: "" }));
     api.get(PEERS_PATH, () => ({ items: [] }));
     renderOperator();
 
@@ -139,30 +99,6 @@ describe("Operator SMS section", () => {
     ).toBeInTheDocument();
   });
 
-  it("asks for confirmation before turning SMS off", async () => {
-    const user = userEvent.setup();
-    api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [peerA] }));
-    api.put("/api/v1/operator/sms", () => ({}));
-    renderOperator();
-
-    const toggle = await screen.findByRole("switch", { name: "SMS is ON" });
-    await waitFor(() => expect(toggle).toBeEnabled());
-    await user.click(toggle);
-
-    expect(await screen.findByText("Turn SMS off?")).toBeInTheDocument();
-    expect(api.requests("/api/v1/operator/sms")).toHaveLength(0);
-
-    await user.click(screen.getByRole("button", { name: "Turn Off" }));
-
-    await waitFor(() =>
-      expect(api.lastRequest("/api/v1/operator/sms")?.body).toEqual({
-        enabled: false,
-        smsNumber: "+15550001111",
-      }),
-    );
-  });
-
   it("adds a service center", async () => {
     const user = userEvent.setup();
     let peers: unknown[] = [];
@@ -187,7 +123,6 @@ describe("Operator SMS section", () => {
     ).toEqual({
       address: "192.0.2.20",
       port: 3868,
-      diameterIdentity: "",
       serviceCentres: ["+15550000001"],
     });
   });
@@ -234,6 +169,5 @@ describe("Operator SMS section", () => {
     expect(
       screen.queryByRole("button", { name: /Delete service center/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "SMS is ON" })).toBeDisabled();
   });
 });

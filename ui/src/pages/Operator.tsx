@@ -798,7 +798,6 @@ const Operator = () => {
 
       <SMSSection
         sms={operator?.sms}
-        loading={isLoading}
         canEdit={canEdit}
         onModalOpenChange={setSMSModalOpen}
       />

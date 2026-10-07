@@ -382,16 +382,12 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 
 	original := op.SMS
 
-	settings := func(enabled bool) *client.UpdateOperatorSMSOptions {
-		return &client.UpdateOperatorSMSOptions{Enabled: enabled, SMSNumber: original.SMSNumber}
-	}
-
-	if err := cl.UpdateOperatorSMS(ctx, settings(false)); err != nil {
-		return fmt.Errorf("disable SMS: %w", err)
+	if err := cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{}); err != nil {
+		return fmt.Errorf("clear the SMS number: %w", err)
 	}
 
 	restore := func() error {
-		return cl.UpdateOperatorSMS(ctx, settings(original.Enabled))
+		return cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: original.SMSNumber})
 	}
 
 	if err := during(); err != nil {
@@ -400,7 +396,7 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 	}
 
 	if err := restore(); err != nil {
-		return fmt.Errorf("re-enable SMS: %w", err)
+		return fmt.Errorf("restore the SMS number: %w", err)
 	}
 
 	return nil

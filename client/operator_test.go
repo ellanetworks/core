@@ -379,7 +379,6 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 	clientObj := &client.Client{Requester: fake}
 
 	err := clientObj.UpdateOperatorSMS(context.Background(), &client.UpdateOperatorSMSOptions{
-		Enabled:   true,
 		SMSNumber: "+15550001111",
 	})
 	if err != nil {
@@ -395,13 +394,13 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 		t.Fatalf("decode body: %v", err)
 	}
 
-	if len(payload) != 2 || payload["enabled"] != true || payload["smsNumber"] != "+15550001111" {
+	if len(payload) != 1 || payload["smsNumber"] != "+15550001111" {
 		t.Fatalf("unexpected payload %v", payload)
 	}
 }
 
 func TestSMSCPeerRequests(t *testing.T) {
-	opts := &client.SMSCPeerOptions{Address: "192.0.2.10", Port: 3869, DiameterIdentity: "smsc.example.org", ServiceCentres: []string{"+15550000000"}}
+	opts := &client.SMSCPeerOptions{Address: "192.0.2.10", Port: 3869, ServiceCentres: []string{"+15550000000"}}
 
 	cases := []struct {
 		name   string
@@ -435,17 +434,16 @@ func TestSMSCPeerRequests(t *testing.T) {
 			}
 
 			var payload struct {
-				Address          string   `json:"address"`
-				Port             int      `json:"port"`
-				DiameterIdentity string   `json:"diameterIdentity"`
-				ServiceCentres   []string `json:"serviceCentres"`
+				Address        string   `json:"address"`
+				Port           int      `json:"port"`
+				ServiceCentres []string `json:"serviceCentres"`
 			}
 
 			if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
 				t.Fatalf("decode body: %v", err)
 			}
 
-			if payload.Address != "192.0.2.10" || payload.Port != 3869 || payload.DiameterIdentity != "smsc.example.org" || !reflect.DeepEqual(payload.ServiceCentres, []string{"+15550000000"}) {
+			if payload.Address != "192.0.2.10" || payload.Port != 3869 || !reflect.DeepEqual(payload.ServiceCentres, []string{"+15550000000"}) {
 				t.Fatalf("unexpected payload %+v", payload)
 			}
 		})
@@ -457,7 +455,7 @@ func TestGetOperator_IncludesSMS(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"sms": {"enabled": true, "smsNumber": "+15550001111"}}`),
+			Result:     []byte(`{"sms": {"smsNumber": "+15550001111"}}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
@@ -467,14 +465,14 @@ func TestGetOperator_IncludesSMS(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	want := client.GetOperatorSMSResponse{Enabled: true, SMSNumber: "+15550001111"}
+	want := client.GetOperatorSMSResponse{SMSNumber: "+15550001111"}
 	if operator.SMS != want {
 		t.Fatalf("sms = %+v, want %+v", operator.SMS, want)
 	}
 }
 
 func TestSMSCPeerReads(t *testing.T) {
-	peer := `{"id": "abc", "address": "192.0.2.10", "port": 3868, "diameterIdentity": "", "serviceCentres": ["+15550000000"],
+	peer := `{"id": "abc", "address": "192.0.2.10", "port": 3868, "serviceCentres": ["+15550000000"],
 		"status": {"state": "open", "host": "smsc.example.org", "realm": "example.org", "since": "2026-09-29T16:00:00Z"}}`
 	want := client.SMSCPeer{
 		ID: "abc", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"},

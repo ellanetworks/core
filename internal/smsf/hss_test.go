@@ -412,20 +412,15 @@ func TestSMSAllowed(t *testing.T) {
 
 	store.setMSISDN(msisdn)
 	store.mu.Lock()
-	store.settings.Enabled = false
+	store.settings = db.SMSSettings{}
 	store.mu.Unlock()
-	check("SMS disabled", imsi, false, false)
-
-	store.mu.Lock()
-	store.settings = db.SMSSettings{Enabled: true}
-	store.mu.Unlock()
-	check("SMS on without an SMS number", imsi, false, false)
+	check("no SMS number", imsi, false, false)
 
 	store.mu.Lock()
 	store.settings.SMSNumber = smsNumber
 	store.mu.Unlock()
 	store.setPeers()
-	check("SMS on without an SMSC peer", imsi, false, false)
+	check("no SMSC peer", imsi, false, false)
 
 	store.setPeersErr(errors.New("leader changed"))
 	check("SMSC peers unavailable", imsi, false, true)

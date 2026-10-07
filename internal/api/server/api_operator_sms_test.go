@@ -10,15 +10,13 @@ import (
 )
 
 type UpdateOperatorSMSParams struct {
-	Enabled   bool   `json:"enabled"`
 	SMSNumber string `json:"smsNumber"`
 }
 
 type SMSCPeerParams struct {
-	Address          string   `json:"address"`
-	Port             int      `json:"port,omitempty"`
-	DiameterIdentity string   `json:"diameterIdentity,omitempty"`
-	ServiceCentres   []string `json:"serviceCentres"`
+	Address        string   `json:"address"`
+	Port           int      `json:"port,omitempty"`
+	ServiceCentres []string `json:"serviceCentres"`
 }
 
 type UpdateOperatorSMSResponse struct {
@@ -82,37 +80,37 @@ func TestUpdateOperatorSMS(t *testing.T) {
 		return resp.Result.SMS
 	}
 
-	t.Run("SMS is disabled by default", func(t *testing.T) {
-		if got := getSMS(t); got != (GetOperatorSMSResponseResult{}) {
-			t.Fatalf("sms = %+v, want disabled", got)
+	t.Run("the SMS number has a default", func(t *testing.T) {
+		if got := getSMS(t); got != (GetOperatorSMSResponseResult{SMSNumber: "+15550001111"}) {
+			t.Fatalf("sms = %+v, want the default number", got)
 		}
 	})
 
-	t.Run("SMS is turned on before it is set up", func(t *testing.T) {
-		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{Enabled: true})
+	t.Run("the SMS number is cleared", func(t *testing.T) {
+		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
-		if got := getSMS(t); got != (GetOperatorSMSResponseResult{Enabled: true}) {
+		if got := getSMS(t); got != (GetOperatorSMSResponseResult{}) {
 			t.Fatalf("sms = %+v", got)
 		}
 	})
 
 	t.Run("the SMS number is set", func(t *testing.T) {
-		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{Enabled: true, SMSNumber: "+15550001111"})
+		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{SMSNumber: "+15550001111"})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
-		if got := getSMS(t); got != (GetOperatorSMSResponseResult{Enabled: true, SMSNumber: "+15550001111"}) {
+		if got := getSMS(t); got != (GetOperatorSMSResponseResult{SMSNumber: "+15550001111"}) {
 			t.Fatalf("sms = %+v", got)
 		}
 	})
 
 	t.Run("invalid numbers are rejected", func(t *testing.T) {
 		for _, number := range []string{"+0555", "15550001111"} {
-			code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{Enabled: true, SMSNumber: number})
+			code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{SMSNumber: number})
 			if err != nil {
 				t.Fatalf("%s: %s", number, err)
 			}
@@ -149,13 +147,13 @@ func TestSMSCPeers(t *testing.T) {
 	})
 
 	t.Run("a created peer is returned in canonical form", func(t *testing.T) {
-		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "2001:DB8:0::10", Port: 3869, DiameterIdentity: "smsc-a.example.org", ServiceCentres: []string{"+15550000001", "+15550000000"}})
+		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "2001:DB8:0::10", Port: 3869, ServiceCentres: []string{"+15550000001", "+15550000000"}})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("create: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
 		created := resp.Result
-		if created.ID == "" || created.Address != "2001:db8::10" || created.Port != 3869 || created.DiameterIdentity != "smsc-a.example.org" {
+		if created.ID == "" || created.Address != "2001:db8::10" || created.Port != 3869 {
 			t.Fatalf("created = %+v", created)
 		}
 
@@ -180,7 +178,6 @@ func TestSMSCPeers(t *testing.T) {
 			"hostname":                 {Address: "smsc.example.org", ServiceCentres: []string{"+15550000002"}},
 			"unspecified":              {Address: "0.0.0.0", ServiceCentres: []string{"+15550000002"}},
 			"bad port":                 {Address: "192.0.2.10", Port: 70000, ServiceCentres: []string{"+15550000002"}},
-			"bad identity":             {Address: "192.0.2.10", DiameterIdentity: "smsc", ServiceCentres: []string{"+15550000002"}},
 			"no service centre":        {Address: "192.0.2.10"},
 			"service centre no plus":   {Address: "192.0.2.10", ServiceCentres: []string{"15550000002"}},
 			"duplicate service centre": {Address: "192.0.2.10", ServiceCentres: []string{"+15550000002", "+15550000002"}},
@@ -203,9 +200,8 @@ func TestSMSCPeers(t *testing.T) {
 			params SMSCPeerParams
 			reason string
 		}{
-			"served service centre":           {SMSCPeerParams{Address: "192.0.2.11", ServiceCentres: []string{"+15550000000"}}, "another SMSC peer serves the service centre number +15550000000"},
-			"shared address without identity": {SMSCPeerParams{Address: "2001:db8::10", Port: 3870, ServiceCentres: []string{"+15550000002"}}, "SMSC peers sharing the address 2001:db8::10 each need a Diameter identity"},
-			"shared identity":                 {SMSCPeerParams{Address: "192.0.2.11", DiameterIdentity: "SMSC-A.example.org", ServiceCentres: []string{"+15550000002"}}, "another SMSC peer has the Diameter identity SMSC-A.example.org"},
+			"served service centre": {SMSCPeerParams{Address: "192.0.2.11", ServiceCentres: []string{"+15550000000"}}, "another SMSC peer serves the service centre number +15550000000"},
+			"shared address":        {SMSCPeerParams{Address: "2001:db8::10", Port: 3870, ServiceCentres: []string{"+15550000002"}}, "another SMSC peer has the address 2001:db8::10"},
 		}
 
 		for name, tc := range cases {
@@ -225,7 +221,7 @@ func TestSMSCPeers(t *testing.T) {
 	})
 
 	t.Run("a peer is updated", func(t *testing.T) {
-		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "2001:db8::10", Port: 3870, DiameterIdentity: "smsc-b.example.org", ServiceCentres: []string{"+15550000002"}})
+		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "2001:db8::20", Port: 3870, ServiceCentres: []string{"+15550000002"}})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("create: code=%d err=%v (%q)", code, err, resp.Error)
 		}
@@ -238,7 +234,7 @@ func TestSMSCPeers(t *testing.T) {
 		}
 
 		got := peers(t)[1]
-		if got.ID != id || got.Address != "192.0.2.12" || got.Port != 3868 || got.DiameterIdentity != "" || !slices.Equal(got.ServiceCentres, []string{"+15550000003"}) {
+		if got.ID != id || got.Address != "192.0.2.12" || got.Port != 3868 || !slices.Equal(got.ServiceCentres, []string{"+15550000003"}) {
 			t.Fatalf("peer = %+v", got)
 		}
 
@@ -258,12 +254,7 @@ func TestSMSCPeers(t *testing.T) {
 		}
 	})
 
-	t.Run("the last peer can be deleted while SMS is on", func(t *testing.T) {
-		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{Enabled: true, SMSNumber: "+15550001111"})
-		if err != nil || code != http.StatusCreated {
-			t.Fatalf("enable: code=%d err=%v (%q)", code, err, resp.Error)
-		}
-
+	t.Run("the last peer can be deleted", func(t *testing.T) {
 		for _, p := range peers(t) {
 			code, resp, err := deleteSMSCPeer(env.Server.URL, client, token, p.ID)
 			if err != nil || code != http.StatusOK {
@@ -275,7 +266,7 @@ func TestSMSCPeers(t *testing.T) {
 			t.Fatalf("peers = %+v, want none", got)
 		}
 
-		code, resp, err = deleteSMSCPeer(env.Server.URL, client, token, "missing")
+		code, resp, err := deleteSMSCPeer(env.Server.URL, client, token, "missing")
 		if err != nil || code != http.StatusNotFound {
 			t.Fatalf("delete of a missing peer: code=%d err=%v (%q)", code, err, resp.Error)
 		}

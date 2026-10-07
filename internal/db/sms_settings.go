@@ -22,18 +22,19 @@ const DefaultSMSCPort = 3868
 
 const maxMSISDNDigits = 15
 
+const InitialSMSNumber = "15550001111"
+
 const (
 	getSMSSettingsStmt    = "SELECT &SMSSettings.* FROM %s WHERE singleton=TRUE"
-	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, enabled, smsNumber) VALUES (TRUE, $SMSSettings.enabled, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled, smsNumber=excluded.smsNumber"
+	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, smsNumber) VALUES (TRUE, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET smsNumber=excluded.smsNumber"
 )
 
 type SMSSettings struct {
-	Enabled   bool   `db:"enabled"`
 	SMSNumber string `db:"smsNumber"`
 }
 
 func DefaultSMSSettings() SMSSettings {
-	return SMSSettings{}
+	return SMSSettings{SMSNumber: InitialSMSNumber}
 }
 
 func (s SMSSettings) Validate() error {

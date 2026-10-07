@@ -23,12 +23,11 @@ import (
 )
 
 type SMSCPeer struct {
-	ID               string          `json:"id"`
-	Address          string          `json:"address"`
-	Port             int             `json:"port"`
-	DiameterIdentity string          `json:"diameterIdentity"`
-	ServiceCentres   []string        `json:"serviceCentres"`
-	Status           *SMSCPeerStatus `json:"status,omitempty"`
+	ID             string          `json:"id"`
+	Address        string          `json:"address"`
+	Port           int             `json:"port"`
+	ServiceCentres []string        `json:"serviceCentres"`
+	Status         *SMSCPeerStatus `json:"status,omitempty"`
 }
 
 type SMSCPeerStatus struct {
@@ -43,10 +42,9 @@ type ListSMSCPeersResponse struct {
 }
 
 type SMSCPeerParams struct {
-	Address          string   `json:"address"`
-	Port             int      `json:"port,omitempty"`
-	DiameterIdentity string   `json:"diameterIdentity"`
-	ServiceCentres   []string `json:"serviceCentres"`
+	Address        string   `json:"address"`
+	Port           int      `json:"port,omitempty"`
+	ServiceCentres []string `json:"serviceCentres"`
 }
 
 const (
@@ -62,11 +60,10 @@ func smscPeerResponse(p db.SMSCPeer, statuses map[string]diameternode.PeerStatus
 	}
 
 	out := SMSCPeer{
-		ID:               p.ID,
-		Address:          p.Address,
-		Port:             p.Port,
-		DiameterIdentity: p.DiameterIdentity,
-		ServiceCentres:   centres,
+		ID:             p.ID,
+		Address:        p.Address,
+		Port:           p.Port,
+		ServiceCentres: centres,
 	}
 
 	if st, ok := statuses[smsf.SMSCPeerID(p.ID)]; ok {
@@ -97,9 +94,8 @@ func smscPeerStatuses(node DiameterNode) map[string]diameternode.PeerStatus {
 
 func smscPeerFromParams(id string, params SMSCPeerParams) (db.SMSCPeer, string) {
 	peer := db.SMSCPeer{
-		ID:               id,
-		Port:             params.Port,
-		DiameterIdentity: strings.TrimSpace(params.DiameterIdentity),
+		ID:   id,
+		Port: params.Port,
 	}
 
 	if peer.Port == 0 {
@@ -116,10 +112,6 @@ func smscPeerFromParams(id string, params SMSCPeerParams) (db.SMSCPeer, string) 
 	}
 
 	peer.Address = addr.Unmap().String()
-
-	if peer.DiameterIdentity != "" && !db.IsValidDiameterIdentity(peer.DiameterIdentity) {
-		return db.SMSCPeer{}, "diameterIdentity must be a fully qualified domain name, for example smsc.example.org"
-	}
 
 	if len(params.ServiceCentres) == 0 {
 		return db.SMSCPeer{}, "serviceCentres needs at least one E.164 number"
@@ -151,7 +143,7 @@ func smscPeerSummary(p db.SMSCPeer) string {
 		centres = append(centres, formatE164(sc))
 	}
 
-	return fmt.Sprintf("address %s, Diameter identity %q, service centres %s", net.JoinHostPort(p.Address, strconv.Itoa(p.Port)), p.DiameterIdentity, strings.Join(centres, " "))
+	return fmt.Sprintf("address %s, service centres %s", net.JoinHostPort(p.Address, strconv.Itoa(p.Port)), strings.Join(centres, " "))
 }
 
 func writeSMSCPeerError(w http.ResponseWriter, r *http.Request, action string, err error) {

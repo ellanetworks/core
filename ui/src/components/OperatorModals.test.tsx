@@ -257,7 +257,7 @@ describe("EditOperatorTrackingModal", () => {
 describe("EditOperatorSMSModal", () => {
   const SMS_PATH = "/api/v1/operator/sms";
 
-  const render = (initialData = { enabled: true, smsNumber: "" }) => {
+  const render = (initialData = { smsNumber: "" }) => {
     const onClose = vi.fn();
     renderWithProviders(
       <EditOperatorSMSModal
@@ -271,7 +271,7 @@ describe("EditOperatorSMSModal", () => {
     return { onClose };
   };
 
-  it("submits the SMS number and keeps SMS on", async () => {
+  it("submits the SMS number", async () => {
     const user = userEvent.setup();
     api.put(SMS_PATH, () => ({}));
     const { onClose } = render();
@@ -282,14 +282,13 @@ describe("EditOperatorSMSModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(SMS_PATH)?.body).toEqual({
-      enabled: true,
       smsNumber: "+15550001111",
     });
   });
 
   it("requires the SMS number", async () => {
     const user = userEvent.setup();
-    render({ enabled: true, smsNumber: "+15550001111" });
+    render({ smsNumber: "+15550001111" });
 
     await retype(user, /E.164 Number/, "");
     await screen.findByText("SMS number is required");
@@ -314,7 +313,6 @@ describe("SMSCPeerModal", () => {
     id: "0190a000-0000-7000-8000-000000000001",
     address: "192.0.2.10",
     port: 3868,
-    diameterIdentity: "",
     serviceCentres: ["+15550000000"],
   };
 
@@ -341,7 +339,6 @@ describe("SMSCPeerModal", () => {
     const { onClose } = render();
 
     await retype(user, /^Address/, "2001:db8::10");
-    await retype(user, /Diameter Identity/, "smsc.example.org");
     await retype(user, /^Numbers/, "+15550000000, +15550000001");
     await waitFor(() => expect(addButton()).toBeEnabled());
     await user.click(addButton());
@@ -350,7 +347,6 @@ describe("SMSCPeerModal", () => {
     expect(api.lastRequest(PEERS_PATH)?.body).toEqual({
       address: "2001:db8::10",
       port: 3868,
-      diameterIdentity: "smsc.example.org",
       serviceCentres: ["+15550000000", "+15550000001"],
     });
   });
@@ -369,7 +365,6 @@ describe("SMSCPeerModal", () => {
     expect(api.lastRequest(`${PEERS_PATH}/${peer.id}`)?.body).toEqual({
       address: "192.0.2.10",
       port: 3869,
-      diameterIdentity: "",
       serviceCentres: ["+15550000000"],
     });
   });
@@ -381,16 +376,6 @@ describe("SMSCPeerModal", () => {
     await retype(user, /^Address/, "smsc.example.org");
 
     await screen.findByText("Address must be an IPv4 or IPv6 address");
-    expect(updateButton()).toBeDisabled();
-  });
-
-  it("rejects a Diameter identity that is not a domain name", async () => {
-    const user = userEvent.setup();
-    render(peer);
-
-    await retype(user, /Diameter Identity/, "smsc");
-
-    await screen.findByText(/Diameter identity must be a fully qualified/);
     expect(updateButton()).toBeDisabled();
   });
 

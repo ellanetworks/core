@@ -44,12 +44,10 @@ type UpdateOperatorSPNParams struct {
 }
 
 type UpdateOperatorSMSParams struct {
-	Enabled   bool   `json:"enabled"`
 	SMSNumber string `json:"smsNumber"`
 }
 
 type GetOperatorSMSResponse struct {
-	Enabled   bool   `json:"enabled"`
 	SMSNumber string `json:"smsNumber"`
 }
 
@@ -257,7 +255,6 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				ShortName: dbOperator.SpnShortName,
 			},
 			SMS: GetOperatorSMSResponse{
-				Enabled:   smsSettings.Enabled,
 				SMSNumber: formatE164(smsSettings.SMSNumber),
 			},
 		}
@@ -631,7 +628,7 @@ func UpdateOperatorSMS(dbInstance *db.Database) http.Handler {
 		resp := SuccessResponse{Message: "Operator SMS settings updated successfully"}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
-		detail := fmt.Sprintf("User updated operator SMS settings (enabled %t, SMS number %s)", settings.Enabled, formatE164(settings.SMSNumber))
+		detail := fmt.Sprintf("User updated operator SMS settings (SMS number %s)", formatE164(settings.SMSNumber))
 
 		logger.LogAuditEvent(r.Context(), UpdateOperatorSMSAction, email, getClientIP(r), detail)
 	})
@@ -643,5 +640,5 @@ func smsSettingsFromParams(params UpdateOperatorSMSParams) (db.SMSSettings, stri
 		return db.SMSSettings{}, "smsNumber must be an E.164 number: + followed by 1 to 15 digits, for example +15550001111"
 	}
 
-	return db.SMSSettings{Enabled: params.Enabled, SMSNumber: number}, ""
+	return db.SMSSettings{SMSNumber: number}, ""
 }

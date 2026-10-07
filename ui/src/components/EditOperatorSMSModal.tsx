@@ -16,7 +16,7 @@ interface EditOperatorSMSModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: { enabled: boolean; smsNumber: string };
+  initialData: { smsNumber: string };
 }
 
 const schema = yup.object({
@@ -45,7 +45,6 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
     await updateOperatorSMS(accessToken, {
-      enabled: initialData.enabled,
       smsNumber: values.smsNumber.trim(),
     });
   };

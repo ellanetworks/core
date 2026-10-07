@@ -31,23 +31,23 @@ func runOperatorSMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 				_, err := c.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
 				return err
 			},
-			want: smsState{Peers: peers},
+			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550001111"}, Peers: peers},
 		},
 		{
-			name:   "enable",
+			name:   "set_number",
 			writer: 0,
 			apply: func(c *client.Client) error {
-				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{Enabled: true, SMSNumber: "+15550001111"})
+				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: "+15550009999"})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{Enabled: true, SMSNumber: "+15550001111"}, Peers: peers},
+			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, Peers: peers},
 		},
 		{
-			name:   "disable",
+			name:   "clear_number",
 			writer: 1,
 			apply: func(c *client.Client) error {
-				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: "+15550001111"})
+				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550001111"}, Peers: peers},
+			want: smsState{Peers: peers},
 		},
 	}
 

@@ -31,7 +31,7 @@ func newSMSDatabase(t *testing.T) *db.Database {
 	return database
 }
 
-func TestSMSSettingsDefaultsToDisabled(t *testing.T) {
+func TestSMSSettingsDefaults(t *testing.T) {
 	database := newSMSDatabase(t)
 
 	settings, err := database.GetSMSSettings(context.Background())
@@ -43,8 +43,8 @@ func TestSMSSettingsDefaultsToDisabled(t *testing.T) {
 		t.Fatalf("settings = %+v, want %+v", *settings, db.DefaultSMSSettings())
 	}
 
-	if settings.Enabled {
-		t.Fatal("SMS enabled on a fresh database")
+	if settings.SMSNumber != "15550001111" {
+		t.Fatalf("SMS number on a fresh database = %q, want 15550001111", settings.SMSNumber)
 	}
 }
 
@@ -56,7 +56,7 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 		t.Fatalf("CreateSMSCPeer: %s", err)
 	}
 
-	want := db.SMSSettings{Enabled: true, SMSNumber: "15550001111"}
+	want := db.SMSSettings{SMSNumber: "15550009999"}
 
 	if err := database.UpdateSMSSettings(ctx, &want); err != nil {
 		t.Fatalf("UpdateSMSSettings: %s", err)
@@ -68,14 +68,13 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 	}
 
 	if *got != want {
-		t.Fatalf("settings = %+v, want %+v enabled", *got, want)
+		t.Fatalf("settings = %+v, want %+v", *got, want)
 	}
 
-	disabled := want
-	disabled.Enabled = false
+	cleared := db.SMSSettings{}
 
-	if err := database.UpdateSMSSettings(ctx, &disabled); err != nil {
-		t.Fatalf("UpdateSMSSettings disabling: %s", err)
+	if err := database.UpdateSMSSettings(ctx, &cleared); err != nil {
+		t.Fatalf("UpdateSMSSettings clearing the number: %s", err)
 	}
 
 	got, err = database.GetSMSSettings(ctx)
@@ -83,25 +82,21 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 		t.Fatalf("GetSMSSettings: %s", err)
 	}
 
-	if *got != disabled {
-		t.Fatalf("settings = %+v, want %+v disabled with its settings kept", *got, disabled)
+	if *got != cleared {
+		t.Fatalf("settings = %+v, want %+v", *got, cleared)
 	}
 }
 
-func TestSMSCanBeEnabledBeforeItIsSetUp(t *testing.T) {
+func TestLastSMSCPeerCanBeDeleted(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
-
-	if err := database.UpdateSMSSettings(ctx, &db.SMSSettings{Enabled: true}); err != nil {
-		t.Fatalf("UpdateSMSSettings without a peer or a number: %s", err)
-	}
 
 	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
 		t.Fatalf("CreateSMSCPeer: %s", err)
 	}
 
 	if err := database.DeleteSMSCPeer(ctx, peerA); err != nil {
-		t.Fatalf("DeleteSMSCPeer of the last peer while SMS is on: %s", err)
+		t.Fatalf("DeleteSMSCPeer of the last peer: %s", err)
 	}
 
 	if err := database.DeleteSMSCPeer(ctx, peerA); !errors.Is(err, db.ErrNotFound) {
@@ -113,8 +108,8 @@ func TestSMSCPeersRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	a := db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, DiameterIdentity: "smsc-a.example.org", ServiceCentres: []string{"15550000001", "15550000000"}}
-	b := db.SMSCPeer{ID: peerB, Address: "192.0.2.1", Port: 3869, DiameterIdentity: "smsc-b.example.org", ServiceCentres: []string{"15550000002"}}
+	a := db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001", "15550000000"}}
+	b := db.SMSCPeer{ID: peerB, Address: "192.0.2.2", Port: 3869, ServiceCentres: []string{"15550000002"}}
 
 	for _, p := range []db.SMSCPeer{a, b} {
 		if err := database.CreateSMSCPeer(ctx, &p); err != nil {
@@ -136,7 +131,7 @@ func TestSMSCPeersRoundTrip(t *testing.T) {
 
 	want := []db.SMSCPeer{a, b}
 	if !slices.EqualFunc(peers, want, func(x, y db.SMSCPeer) bool {
-		return x.ID == y.ID && x.Address == y.Address && x.Port == y.Port && x.DiameterIdentity == y.DiameterIdentity && slices.Equal(x.ServiceCentres, y.ServiceCentres)
+		return x.ID == y.ID && x.Address == y.Address && x.Port == y.Port && slices.Equal(x.ServiceCentres, y.ServiceCentres)
 	}) {
 		t.Fatalf("peers = %+v, want %+v", peers, want)
 	}
@@ -172,14 +167,9 @@ func TestSMSCPeerConflictsAreRejected(t *testing.T) {
 			db.SMSCPeer{ID: peerB, Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000000"}},
 		},
 		{
-			"shared address without identities",
-			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, DiameterIdentity: "smsc-a.example.org", ServiceCentres: []string{"15550000000"}},
+			"shared address",
+			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
 			db.SMSCPeer{ID: peerB, Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000001"}},
-		},
-		{
-			"shared identity",
-			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, DiameterIdentity: "smsc.example.org", ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, Address: "192.0.2.2", Port: 3868, DiameterIdentity: "SMSC.example.org", ServiceCentres: []string{"15550000001"}},
 		},
 	}
 
@@ -209,11 +199,11 @@ func TestSMSSettingsValidate(t *testing.T) {
 		settings db.SMSSettings
 		valid    bool
 	}{
-		{"disabled", db.DefaultSMSSettings(), true},
-		{"enabled", db.SMSSettings{Enabled: true, SMSNumber: "15550001111"}, true},
-		{"enabled without a number", db.SMSSettings{Enabled: true}, true},
-		{"plus sign", db.SMSSettings{Enabled: true, SMSNumber: "+15550001111"}, false},
-		{"disabled with an invalid number", db.SMSSettings{SMSNumber: "0123"}, false},
+		{"default", db.DefaultSMSSettings(), true},
+		{"number", db.SMSSettings{SMSNumber: "15550009999"}, true},
+		{"no number", db.SMSSettings{}, true},
+		{"plus sign", db.SMSSettings{SMSNumber: "+15550001111"}, false},
+		{"leading zero", db.SMSSettings{SMSNumber: "0123"}, false},
 	}
 
 	for _, tc := range cases {
@@ -236,16 +226,12 @@ func TestSMSCPeerValidate(t *testing.T) {
 	}{
 		{"ipv4", func(*db.SMSCPeer) {}, true},
 		{"ipv6", func(p *db.SMSCPeer) { p.Address = "2001:db8::1" }, true},
-		{"identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc.example.org" }, true},
-		{"identity with an underscore", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc_1.example.org" }, true},
 		{"non-canonical address", func(p *db.SMSCPeer) { p.Address = "2001:DB8::1" }, false},
 		{"hostname", func(p *db.SMSCPeer) { p.Address = "smsc.example.org" }, false},
 		{"unspecified", func(p *db.SMSCPeer) { p.Address = "0.0.0.0" }, false},
 		{"zone", func(p *db.SMSCPeer) { p.Address = "fe80::1%eth0" }, false},
 		{"port zero", func(p *db.SMSCPeer) { p.Port = 0 }, false},
 		{"port too high", func(p *db.SMSCPeer) { p.Port = 65536 }, false},
-		{"single label identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc" }, false},
-		{"identity with a space", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc .example.org" }, false},
 		{"no service centre", func(p *db.SMSCPeer) { p.ServiceCentres = nil }, false},
 		{"invalid service centre", func(p *db.SMSCPeer) { p.ServiceCentres = []string{"+15550000000"} }, false},
 		{"duplicate service centre", func(p *db.SMSCPeer) { p.ServiceCentres = []string{"15550000000", "15550000000"} }, false},

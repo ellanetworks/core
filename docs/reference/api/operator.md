@@ -51,7 +51,6 @@ None
             "shortName": "Ella"
         },
         "sms": {
-            "enabled": true,
             "smsNumber": "+15550001111"
         }
     }
@@ -267,7 +266,7 @@ This path updates the network name (Service Provider Name) displayed on connecte
 
 ## Update the SMS Settings
 
-This path enables or disables SMS and sets Ella Core's SMS number.
+This path sets Ella Core's SMS number. SMS is available once the SMS number is set and at least one SMSC peer is configured.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -275,14 +274,12 @@ This path enables or disables SMS and sets Ella Core's SMS number.
 
 ### Parameters
 
-- `enabled` (boolean): Whether SMS is on.
-- `smsNumber` (string): Ella Core's E.164 number for SMS, for example `+15550001111`.
+- `smsNumber` (string): Ella Core's E.164 number for SMS.
 
 ### Sample Request
 
 ```json
 {
-    "enabled": true,
     "smsNumber": "+15550001111"
 }
 ```
@@ -319,7 +316,6 @@ None
                 "id": "0199a1b2-3c4d-7e5f-8a6b-7c8d9e0f1a2b",
                 "address": "192.0.2.10",
                 "port": 3868,
-                "diameterIdentity": "smsc.example.org",
                 "serviceCentres": ["+15550000000"],
                 "status": {
                     "state": "open",
@@ -357,7 +353,6 @@ This path creates an SMSC peer.
 
 - `address` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint.
 - `port` (optional integer): The SCTP port of the SMSC's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
-- `diameterIdentity` (optional string): The Origin-Host the SMSC must present in its capabilities exchange, for example `smsc.example.org`.
 - `serviceCentres` (array of strings): The E.164 service centre numbers the SMSC serves, for example `+15550000000`.
 
 ### Sample Request
@@ -366,7 +361,6 @@ This path creates an SMSC peer.
 {
     "address": "192.0.2.10",
     "port": 3868,
-    "diameterIdentity": "smsc.example.org",
     "serviceCentres": ["+15550000000"]
 }
 ```
@@ -379,7 +373,6 @@ This path creates an SMSC peer.
         "id": "0199a1b2-3c4d-7e5f-8a6b-7c8d9e0f1a2b",
         "address": "192.0.2.10",
         "port": 3868,
-        "diameterIdentity": "smsc.example.org",
         "serviceCentres": ["+15550000000"]
     }
 }

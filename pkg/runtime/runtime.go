@@ -1106,15 +1106,6 @@ func sctpLogger(log *zap.Logger, name string) *slog.Logger {
 
 func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 	return func(ctx context.Context) ([]diameternode.PeerConfig, error) {
-		settings, err := dbInstance.GetSMSSettings(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		if !settings.Enabled {
-			return nil, nil
-		}
-
 		smscPeers, err := dbInstance.ListSMSCPeers(ctx)
 		if err != nil {
 			return nil, err

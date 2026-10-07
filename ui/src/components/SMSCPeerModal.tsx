@@ -28,9 +28,6 @@ interface SMSCPeerModalProps {
 
 const MAX_SERVICE_CENTRES = 16;
 
-const diameterIdentityRegex =
-  /^(?=.{1,255}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
-
 export const parseServiceCentres = (value: string): string[] =>
   value
     .split(/[\s,]+/)
@@ -54,14 +51,6 @@ const schema = yup.object({
     .min(1, "Port must be between 1 and 65535")
     .max(65535, "Port must be between 1 and 65535")
     .required("Port is required"),
-  diameterIdentity: yup
-    .string()
-    .default("")
-    .test(
-      "diameter-identity",
-      "Diameter identity must be a fully qualified domain name, for example smsc.example.org",
-      (v) => !v?.trim() || diameterIdentityRegex.test(v.trim()),
-    ),
   serviceCentres: yup
     .string()
     .default("")
@@ -101,7 +90,6 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
     values: {
       address: peer?.address ?? "",
       port: peer?.port ?? DEFAULT_SMSC_PORT,
-      diameterIdentity: peer?.diameterIdentity ?? "",
       serviceCentres: (peer?.serviceCentres ?? []).join(", "),
     },
   });
@@ -111,7 +99,6 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
     const input = {
       address: values.address.trim(),
       port: values.port,
-      diameterIdentity: values.diameterIdentity.trim(),
       serviceCentres: parseServiceCentres(values.serviceCentres),
     };
     if (peer) {
@@ -127,7 +114,7 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
       onClose={onClose}
       onSuccess={onSuccess}
       title={peer ? "Edit Service Center" : "Add Service Center"}
-      description={`${PRODUCT.name} connects to this service center (SMSC) over Diameter while SMS is on. Messages phones send to one of its numbers go to this service center.`}
+      description={`${PRODUCT.name} connects to this service center (SMSC) over Diameter. Messages phones send to one of its numbers go to this service center.`}
       form={form}
       onSubmit={submit}
       errorPrefix={
@@ -143,7 +130,7 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
         name="address"
         label="Address"
         placeholder="192.0.2.10"
-        helperText="IP address of the service center's Diameter endpoint."
+        helperText="IP address of the service center's Diameter endpoint. Each service center needs its own address."
         autoFocus
       />
       <TextControl<FormValues>
@@ -158,12 +145,6 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
         min={1}
         max={65535}
         helperText={`SCTP port of the service center's Diameter endpoint (default ${DEFAULT_SMSC_PORT}).`}
-      />
-      <TextControl<FormValues>
-        name="diameterIdentity"
-        label="Diameter Identity"
-        placeholder="smsc.example.org"
-        helperText="Optional. The Origin-Host this service center must present. Required when two service centers share an address."
       />
     </FormDialog>
   );

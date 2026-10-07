@@ -24,17 +24,15 @@ const (
 )
 
 const (
-	MaxSMSCPeers                 = 16
-	MaxSMSCPeerServiceCentres    = 16
-	maxDiameterIdentityLength    = 255
-	maxDiameterIdentityLabelSize = 63
+	MaxSMSCPeers              = 16
+	MaxSMSCPeerServiceCentres = 16
 )
 
 const (
 	listSMSCPeersStmt            = "SELECT &smscPeerRow.* FROM %s ORDER BY id"
 	listSMSCServiceCentresStmt   = "SELECT &smscServiceCentreRow.* FROM %s ORDER BY serviceCentre"
-	insertSMSCPeerStmt           = "INSERT INTO %s (id, address, port, diameterIdentity) VALUES ($smscPeerRow.id, $smscPeerRow.address, $smscPeerRow.port, $smscPeerRow.diameterIdentity)"
-	updateSMSCPeerStmt           = "UPDATE %s SET address=$smscPeerRow.address, port=$smscPeerRow.port, diameterIdentity=$smscPeerRow.diameterIdentity WHERE id==$smscPeerRow.id"
+	insertSMSCPeerStmt           = "INSERT INTO %s (id, address, port) VALUES ($smscPeerRow.id, $smscPeerRow.address, $smscPeerRow.port)"
+	updateSMSCPeerStmt           = "UPDATE %s SET address=$smscPeerRow.address, port=$smscPeerRow.port WHERE id==$smscPeerRow.id"
 	deleteSMSCPeerStmt           = "DELETE FROM %s WHERE id==$smscPeerRow.id"
 	insertSMSCServiceCentreStmt  = "INSERT INTO %s (serviceCentre, peerId) VALUES ($smscServiceCentreRow.serviceCentre, $smscServiceCentreRow.peerId)"
 	deleteSMSCServiceCentresStmt = "DELETE FROM %s WHERE peerId==$smscServiceCentreRow.peerId"
@@ -43,18 +41,16 @@ const (
 var ErrSMSCPeerConflict = errors.New("SMSC peer conflict")
 
 type SMSCPeer struct {
-	ID               string   `json:"id"`
-	Address          string   `json:"address"`
-	Port             int      `json:"port"`
-	DiameterIdentity string   `json:"diameter_identity,omitempty"`
-	ServiceCentres   []string `json:"service_centres"`
+	ID             string   `json:"id"`
+	Address        string   `json:"address"`
+	Port           int      `json:"port"`
+	ServiceCentres []string `json:"service_centres"`
 }
 
 type smscPeerRow struct {
-	ID               string `db:"id"`
-	Address          string `db:"address"`
-	Port             int    `db:"port"`
-	DiameterIdentity string `db:"diameterIdentity"`
+	ID      string `db:"id"`
+	Address string `db:"address"`
+	Port    int    `db:"port"`
 }
 
 type smscServiceCentreRow struct {
@@ -74,10 +70,6 @@ func (p SMSCPeer) Validate() error {
 
 	if p.Port < 1 || p.Port > 65535 {
 		return fmt.Errorf("SMSC port must be between 1 and 65535, got %d", p.Port)
-	}
-
-	if p.DiameterIdentity != "" && !IsValidDiameterIdentity(p.DiameterIdentity) {
-		return fmt.Errorf("SMSC Diameter identity must be a fully qualified domain name, got %q", p.DiameterIdentity)
 	}
 
 	if len(p.ServiceCentres) == 0 {
@@ -105,32 +97,6 @@ func (p SMSCPeer) Serves(serviceCentre string) bool {
 	return slices.Contains(p.ServiceCentres, serviceCentre)
 }
 
-func IsValidDiameterIdentity(identity string) bool {
-	if len(identity) > maxDiameterIdentityLength {
-		return false
-	}
-
-	labels := strings.Split(identity, ".")
-	if len(labels) < 2 {
-		return false
-	}
-
-	for _, label := range labels {
-		if label == "" || len(label) > maxDiameterIdentityLabelSize || label[0] == '-' || label[len(label)-1] == '-' {
-			return false
-		}
-
-		for i := range len(label) {
-			c := label[i]
-			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' && c != '_' {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 func ValidateSMSCPeers(peers []SMSCPeer) error {
 	if len(peers) > MaxSMSCPeers {
 		return fmt.Errorf("at most %d SMSC peers can be configured", MaxSMSCPeers)
@@ -138,12 +104,8 @@ func ValidateSMSCPeers(peers []SMSCPeer) error {
 
 	for i, p := range peers {
 		for _, other := range peers[:i] {
-			if p.Address == other.Address && (p.DiameterIdentity == "" || other.DiameterIdentity == "") {
-				return fmt.Errorf("SMSC peers sharing the address %s each need a Diameter identity", p.Address)
-			}
-
-			if p.DiameterIdentity != "" && strings.EqualFold(p.DiameterIdentity, other.DiameterIdentity) {
-				return fmt.Errorf("another SMSC peer has the Diameter identity %s", p.DiameterIdentity)
+			if p.Address == other.Address {
+				return fmt.Errorf("another SMSC peer has the address %s", p.Address)
 			}
 
 			for _, sc := range p.ServiceCentres {
@@ -256,7 +218,7 @@ func (db *Database) listSMSCPeers(ctx context.Context, runner *sqlair.DB) ([]SMS
 	peers := make([]SMSCPeer, 0, len(rows))
 
 	for _, r := range rows {
-		p := SMSCPeer{ID: r.ID, Address: r.Address, Port: r.Port, DiameterIdentity: r.DiameterIdentity, ServiceCentres: []string{}}
+		p := SMSCPeer{ID: r.ID, Address: r.Address, Port: r.Port, ServiceCentres: []string{}}
 
 		for _, c := range centres {
 			if c.PeerID == r.ID {
@@ -280,7 +242,7 @@ func (db *Database) applyCreateSMSCPeer(ctx context.Context, p *SMSCPeer) (any, 
 		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
 	}
 
-	row := smscPeerRow{ID: p.ID, Address: p.Address, Port: p.Port, DiameterIdentity: p.DiameterIdentity}
+	row := smscPeerRow{ID: p.ID, Address: p.Address, Port: p.Port}
 
 	if err := db.runner(ctx).Query(ctx, db.insertSMSCPeerStmt, row).Run(); err != nil {
 		if isUniqueNameError(err) {
@@ -310,7 +272,7 @@ func (db *Database) applyUpdateSMSCPeer(ctx context.Context, p *SMSCPeer) (any, 
 		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
 	}
 
-	row := smscPeerRow{ID: p.ID, Address: p.Address, Port: p.Port, DiameterIdentity: p.DiameterIdentity}
+	row := smscPeerRow{ID: p.ID, Address: p.Address, Port: p.Port}
 
 	if err := db.runner(ctx).Query(ctx, db.updateSMSCPeerStmt, row).Run(); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

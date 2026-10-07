@@ -101,7 +101,7 @@ func TestSMSReadsWorkBeforeV22(t *testing.T) {
 		t.Fatalf("GetSMSSettings at schema 21: %v", err)
 	}
 
-	if settings.Enabled || *settings != DefaultSMSSettings() {
+	if *settings != DefaultSMSSettings() {
 		t.Fatalf("SMS settings at schema 21 = %+v", settings)
 	}
 }
@@ -127,7 +127,7 @@ func TestSMSWritesAreGatedBeforeV22(t *testing.T) {
 		t.Fatalf("UpdateSubscriberProfile at schema 21: want ErrMigrationPending, got %v", err)
 	}
 
-	settings := SMSSettings{Enabled: true, SMSNumber: "15550001111"}
+	settings := SMSSettings{SMSNumber: "15550001111"}
 	if err := d.UpdateSMSSettings(ctx, &settings); !errors.Is(err, ErrMigrationPending) {
 		t.Fatalf("UpdateSMSSettings at schema 21: want ErrMigrationPending, got %v", err)
 	}
