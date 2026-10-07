@@ -28,6 +28,9 @@ interface SMSCPeerModalProps {
 
 const MAX_SERVICE_CENTRES = 16;
 
+const diameterIdentityRegex =
+  /^(?=.{1,255}$)[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?(?:\.[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?)+$/;
+
 export const parseServiceCentres = (value: string): string[] =>
   value
     .split(/[\s,]+/)
@@ -35,6 +38,15 @@ export const parseServiceCentres = (value: string): string[] =>
     .filter(Boolean);
 
 const schema = yup.object({
+  diameterIdentity: yup
+    .string()
+    .default("")
+    .test("required", "Diameter identity is required", (v) => !!v?.trim())
+    .test(
+      "diameter-identity",
+      "Diameter identity must be a fully qualified domain name, for example smsc.example.org",
+      (v) => !v?.trim() || diameterIdentityRegex.test(v.trim()),
+    ),
   address: yup
     .string()
     .default("")
@@ -88,6 +100,7 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
     mode: "onTouched",
     resolver: yupResolver(schema),
     values: {
+      diameterIdentity: peer?.diameterIdentity ?? "",
       address: peer?.address ?? "",
       port: peer?.port ?? DEFAULT_SMSC_PORT,
       serviceCentres: (peer?.serviceCentres ?? []).join(", "),
@@ -97,6 +110,7 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
     const input = {
+      diameterIdentity: values.diameterIdentity.trim(),
       address: values.address.trim(),
       port: values.port,
       serviceCentres: parseServiceCentres(values.serviceCentres),
@@ -127,11 +141,17 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
       fullWidth={false}
     >
       <TextControl<FormValues>
+        name="diameterIdentity"
+        label="Diameter Identity"
+        placeholder="smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
+        helperText="The service center's Diameter host name (Origin-Host)."
+        autoFocus
+      />
+      <TextControl<FormValues>
         name="address"
         label="Address"
         placeholder="192.0.2.10"
-        helperText="IP address of the service center's Diameter endpoint. Each service center needs its own address."
-        autoFocus
+        helperText="IP address of the service center's Diameter endpoint."
       />
       <TextControl<FormValues>
         name="serviceCentres"

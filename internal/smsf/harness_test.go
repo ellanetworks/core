@@ -72,7 +72,7 @@ type fakeStore struct {
 func newFakeStore() *fakeStore {
 	return &fakeStore{
 		settings: db.SMSSettings{SMSNumber: smsNumber},
-		peers:    []db.SMSCPeer{{ID: smscPeerID, Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}}},
+		peers:    []db.SMSCPeer{{ID: smscPeerID, DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}}},
 		subscribers: map[string]db.Subscriber{
 			imsi: {Imsi: imsi, Msisdn: msisdn},
 		},

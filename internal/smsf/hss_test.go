@@ -271,7 +271,7 @@ func TestAnAbsentRoutingAnswerForAnUnservedServiceCentreRecordsNoWaitingData(t *
 		t.Fatalf("SRA MWD status = %s, want the service centre added", re.MWDStatus)
 	}
 
-	store.setPeers(db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{"15550000009"}})
+	store.setPeers(db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{"15550000009"}})
 
 	if err := store.DeleteSMSWaiting(context.Background(), imsi); err != nil {
 		t.Fatal(err)

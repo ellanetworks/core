@@ -400,7 +400,7 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 }
 
 func TestSMSCPeerRequests(t *testing.T) {
-	opts := &client.SMSCPeerOptions{Address: "192.0.2.10", Port: 3869, ServiceCentres: []string{"+15550000000"}}
+	opts := &client.SMSCPeerOptions{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3869, ServiceCentres: []string{"+15550000000"}}
 
 	cases := []struct {
 		name   string
@@ -434,16 +434,17 @@ func TestSMSCPeerRequests(t *testing.T) {
 			}
 
 			var payload struct {
-				Address        string   `json:"address"`
-				Port           int      `json:"port"`
-				ServiceCentres []string `json:"serviceCentres"`
+				DiameterIdentity string   `json:"diameterIdentity"`
+				Address          string   `json:"address"`
+				Port             int      `json:"port"`
+				ServiceCentres   []string `json:"serviceCentres"`
 			}
 
 			if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
 				t.Fatalf("decode body: %v", err)
 			}
 
-			if payload.Address != "192.0.2.10" || payload.Port != 3869 || !reflect.DeepEqual(payload.ServiceCentres, []string{"+15550000000"}) {
+			if payload.DiameterIdentity != "smsc-192-0-2-10.example.org" || payload.Address != "192.0.2.10" || payload.Port != 3869 || !reflect.DeepEqual(payload.ServiceCentres, []string{"+15550000000"}) {
 				t.Fatalf("unexpected payload %+v", payload)
 			}
 		})
@@ -472,10 +473,10 @@ func TestGetOperator_IncludesSMS(t *testing.T) {
 }
 
 func TestSMSCPeerReads(t *testing.T) {
-	peer := `{"id": "abc", "address": "192.0.2.10", "port": 3868, "serviceCentres": ["+15550000000"],
+	peer := `{"id": "abc", "diameterIdentity": "smsc.example.org", "address": "192.0.2.10", "port": 3868, "serviceCentres": ["+15550000000"],
 		"status": {"state": "open", "host": "smsc.example.org", "realm": "example.org", "since": "2026-09-29T16:00:00Z"}}`
 	want := client.SMSCPeer{
-		ID: "abc", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"},
+		ID: "abc", DiameterIdentity: "smsc.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"},
 		Status: &client.SMSCPeerStatus{State: "open", Host: "smsc.example.org", Realm: "example.org", Since: "2026-09-29T16:00:00Z"},
 	}
 
@@ -493,7 +494,7 @@ func TestSMSCPeerReads(t *testing.T) {
 	for name, call := range map[string]func(c *client.Client) (*client.SMSCPeer, error){
 		"get": func(c *client.Client) (*client.SMSCPeer, error) { return c.GetSMSCPeer(context.Background(), "abc") },
 		"create": func(c *client.Client) (*client.SMSCPeer, error) {
-			return c.CreateSMSCPeer(context.Background(), &client.SMSCPeerOptions{Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
+			return c.CreateSMSCPeer(context.Background(), &client.SMSCPeerOptions{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
 		},
 	} {
 		fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(peer)}}

@@ -20,13 +20,16 @@ func migrateV22(ctx context.Context, tx *sql.Tx) error {
 		)`, SMSSettingsTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			id               TEXT    PRIMARY KEY,
+			role             TEXT    NOT NULL CHECK (role IN ('smsc')),
+			diameterIdentity TEXT    NOT NULL,
 			address          TEXT    NOT NULL,
 			port             INTEGER NOT NULL
-		)`, SMSCPeersTableName),
+		)`, DiameterPeersTableName),
+		fmt.Sprintf("CREATE UNIQUE INDEX idx_diameter_peers_identity ON %s(diameterIdentity COLLATE NOCASE)", DiameterPeersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			serviceCentre TEXT PRIMARY KEY,
 			peerId        TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE
-		)`, SMSCServiceCentresTableName, SMSCPeersTableName),
+		)`, SMSCServiceCentresTableName, DiameterPeersTableName),
 		fmt.Sprintf("CREATE INDEX idx_sms_smsc_service_centres_peer ON %s(peerId)", SMSCServiceCentresTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			imsi      TEXT    PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,

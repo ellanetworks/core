@@ -33,8 +33,8 @@ func TestWaitingDataRecordedByAnotherNodeAlerts(t *testing.T) {
 func TestEveryWaitingServiceCentreIsAlertedThroughItsPeer(t *testing.T) {
 	e := newEnv(t)
 	e.store.setPeers(
-		db.SMSCPeer{ID: "a", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
-		db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+		db.SMSCPeer{ID: "a", DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
+		db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
 	)
 
 	for _, sc := range []string{serviceCentre, otherServiceCentre} {
@@ -90,8 +90,8 @@ func TestAWaitingServiceCentreNoPeerServesIsDropped(t *testing.T) {
 func TestAnUnreachablePeerDoesNotHoldBackAlertsThroughOthers(t *testing.T) {
 	e := newEnv(t)
 	e.store.setPeers(
-		db.SMSCPeer{ID: "a", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
-		db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+		db.SMSCPeer{ID: "a", DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
+		db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
 	)
 	e.smsc.setPeerDown(smsf.SMSCPeerID("a"), true)
 

@@ -311,6 +311,7 @@ describe("SMSCPeerModal", () => {
 
   const peer = {
     id: "0190a000-0000-7000-8000-000000000001",
+    diameterIdentity: "smsc.example.org",
     address: "192.0.2.10",
     port: 3868,
     serviceCentres: ["+15550000000"],
@@ -338,6 +339,7 @@ describe("SMSCPeerModal", () => {
     api.post(PEERS_PATH, () => ({}));
     const { onClose } = render();
 
+    await retype(user, /Diameter Identity/, "smsc-b.example.org");
     await retype(user, /^Address/, "2001:db8::10");
     await retype(user, /^Numbers/, "+15550000000, +15550000001");
     await waitFor(() => expect(addButton()).toBeEnabled());
@@ -345,6 +347,7 @@ describe("SMSCPeerModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(PEERS_PATH)?.body).toEqual({
+      diameterIdentity: "smsc-b.example.org",
       address: "2001:db8::10",
       port: 3868,
       serviceCentres: ["+15550000000", "+15550000001"],
@@ -363,6 +366,7 @@ describe("SMSCPeerModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(`${PEERS_PATH}/${peer.id}`)?.body).toEqual({
+      diameterIdentity: "smsc.example.org",
       address: "192.0.2.10",
       port: 3869,
       serviceCentres: ["+15550000000"],
@@ -376,6 +380,16 @@ describe("SMSCPeerModal", () => {
     await retype(user, /^Address/, "smsc.example.org");
 
     await screen.findByText("Address must be an IPv4 or IPv6 address");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("rejects a Diameter identity that is not a domain name", async () => {
+    const user = userEvent.setup();
+    render(peer);
+
+    await retype(user, /Diameter Identity/, "smsc");
+
+    await screen.findByText(/Diameter identity must be a fully qualified/);
     expect(updateButton()).toBeDisabled();
   });
 
@@ -404,6 +418,7 @@ describe("SMSCPeerModal", () => {
     );
     render();
 
+    await retype(user, /Diameter Identity/, "smsc-c.example.org");
     await retype(user, /^Address/, "192.0.2.11");
     await retype(user, /^Numbers/, "+15550000000");
     await waitFor(() => expect(addButton()).toBeEnabled());

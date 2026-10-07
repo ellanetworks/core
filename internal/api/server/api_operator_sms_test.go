@@ -14,9 +14,10 @@ type UpdateOperatorSMSParams struct {
 }
 
 type SMSCPeerParams struct {
-	Address        string   `json:"address"`
-	Port           int      `json:"port,omitempty"`
-	ServiceCentres []string `json:"serviceCentres"`
+	DiameterIdentity string   `json:"diameterIdentity,omitempty"`
+	Address          string   `json:"address"`
+	Port             int      `json:"port,omitempty"`
+	ServiceCentres   []string `json:"serviceCentres"`
 }
 
 type UpdateOperatorSMSResponse struct {
@@ -147,13 +148,13 @@ func TestSMSCPeers(t *testing.T) {
 	})
 
 	t.Run("a created peer is returned in canonical form", func(t *testing.T) {
-		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "2001:DB8:0::10", Port: 3869, ServiceCentres: []string{"+15550000001", "+15550000000"}})
+		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{DiameterIdentity: " smsc-a.example.org ", Address: "2001:DB8:0::10", Port: 3869, ServiceCentres: []string{"+15550000001", "+15550000000"}})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("create: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
 		created := resp.Result
-		if created.ID == "" || created.Address != "2001:db8::10" || created.Port != 3869 {
+		if created.ID == "" || created.DiameterIdentity != "smsc-a.example.org" || created.Address != "2001:db8::10" || created.Port != 3869 {
 			t.Fatalf("created = %+v", created)
 		}
 
@@ -175,12 +176,14 @@ func TestSMSCPeers(t *testing.T) {
 
 	t.Run("invalid peers are rejected", func(t *testing.T) {
 		cases := map[string]SMSCPeerParams{
-			"hostname":                 {Address: "smsc.example.org", ServiceCentres: []string{"+15550000002"}},
-			"unspecified":              {Address: "0.0.0.0", ServiceCentres: []string{"+15550000002"}},
-			"bad port":                 {Address: "192.0.2.10", Port: 70000, ServiceCentres: []string{"+15550000002"}},
-			"no service centre":        {Address: "192.0.2.10"},
-			"service centre no plus":   {Address: "192.0.2.10", ServiceCentres: []string{"15550000002"}},
-			"duplicate service centre": {Address: "192.0.2.10", ServiceCentres: []string{"+15550000002", "+15550000002"}},
+			"hostname":                 {DiameterIdentity: "smsc-smsc-example-org.example.org", Address: "smsc.example.org", ServiceCentres: []string{"+15550000002"}},
+			"unspecified":              {DiameterIdentity: "smsc-0-0-0-0.example.org", Address: "0.0.0.0", ServiceCentres: []string{"+15550000002"}},
+			"bad port":                 {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 70000, ServiceCentres: []string{"+15550000002"}},
+			"no service centre":        {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10"},
+			"service centre no plus":   {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"15550000002"}},
+			"no identity":              {Address: "192.0.2.10", ServiceCentres: []string{"+15550000002"}},
+			"bad identity":             {DiameterIdentity: "smsc", Address: "192.0.2.10", ServiceCentres: []string{"+15550000002"}},
+			"duplicate service centre": {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"+15550000002", "+15550000002"}},
 		}
 
 		for name, params := range cases {
@@ -200,8 +203,9 @@ func TestSMSCPeers(t *testing.T) {
 			params SMSCPeerParams
 			reason string
 		}{
-			"served service centre": {SMSCPeerParams{Address: "192.0.2.11", ServiceCentres: []string{"+15550000000"}}, "another SMSC peer serves the service centre number +15550000000"},
-			"shared address":        {SMSCPeerParams{Address: "2001:db8::10", Port: 3870, ServiceCentres: []string{"+15550000002"}}, "another SMSC peer has the address 2001:db8::10"},
+			"served service centre": {SMSCPeerParams{DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", ServiceCentres: []string{"+15550000000"}}, "another SMSC peer serves the service centre number +15550000000"},
+			"shared identity":       {SMSCPeerParams{DiameterIdentity: "SMSC-A.example.org", Address: "192.0.2.11", ServiceCentres: []string{"+15550000002"}}, "another SMSC peer has the Diameter identity SMSC-A.example.org"},
+			"shared endpoint":       {SMSCPeerParams{DiameterIdentity: "smsc-b.example.org", Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000002"}}, "another SMSC peer has the address [2001:db8::10]:3869"},
 		}
 
 		for name, tc := range cases {
@@ -221,34 +225,34 @@ func TestSMSCPeers(t *testing.T) {
 	})
 
 	t.Run("a peer is updated", func(t *testing.T) {
-		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "2001:db8::20", Port: 3870, ServiceCentres: []string{"+15550000002"}})
+		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{DiameterIdentity: "smsc-b.example.org", Address: "2001:db8::10", Port: 3870, ServiceCentres: []string{"+15550000002"}})
 		if err != nil || code != http.StatusCreated {
 			t.Fatalf("create: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
 		id := resp.Result.ID
 
-		code, upd, err := updateSMSCPeer(env.Server.URL, client, token, id, &SMSCPeerParams{Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"+15550000003"}})
+		code, upd, err := updateSMSCPeer(env.Server.URL, client, token, id, &SMSCPeerParams{DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"+15550000003"}})
 		if err != nil || code != http.StatusOK {
 			t.Fatalf("update: code=%d err=%v (%q)", code, err, upd.Error)
 		}
 
 		got := peers(t)[1]
-		if got.ID != id || got.Address != "192.0.2.12" || got.Port != 3868 || !slices.Equal(got.ServiceCentres, []string{"+15550000003"}) {
+		if got.ID != id || got.DiameterIdentity != "smsc-192-0-2-12.example.org" || got.Address != "192.0.2.12" || got.Port != 3868 || !slices.Equal(got.ServiceCentres, []string{"+15550000003"}) {
 			t.Fatalf("peer = %+v", got)
 		}
 
-		code, upd, err = updateSMSCPeer(env.Server.URL, client, token, id, &SMSCPeerParams{Address: "192.0.2.12", ServiceCentres: []string{"+15550000003"}})
+		code, upd, err = updateSMSCPeer(env.Server.URL, client, token, id, &SMSCPeerParams{DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", ServiceCentres: []string{"+15550000003"}})
 		if err != nil || code != http.StatusBadRequest {
 			t.Fatalf("update without a port: code=%d err=%v (%q)", code, err, upd.Error)
 		}
 
-		code, upd, err = updateSMSCPeer(env.Server.URL, client, token, id, &SMSCPeerParams{Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"+15550000000"}})
+		code, upd, err = updateSMSCPeer(env.Server.URL, client, token, id, &SMSCPeerParams{DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"+15550000000"}})
 		if err != nil || code != http.StatusConflict {
 			t.Fatalf("update to a served service centre: code=%d err=%v (%q)", code, err, upd.Error)
 		}
 
-		code, upd, err = updateSMSCPeer(env.Server.URL, client, token, "missing", &SMSCPeerParams{Address: "192.0.2.13", Port: 3868, ServiceCentres: []string{"+15550000004"}})
+		code, upd, err = updateSMSCPeer(env.Server.URL, client, token, "missing", &SMSCPeerParams{DiameterIdentity: "smsc-192-0-2-13.example.org", Address: "192.0.2.13", Port: 3868, ServiceCentres: []string{"+15550000004"}})
 		if err != nil || code != http.StatusNotFound {
 			t.Fatalf("update of a missing peer: code=%d err=%v (%q)", code, err, upd.Error)
 		}

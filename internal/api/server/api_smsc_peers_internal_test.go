@@ -27,9 +27,9 @@ func TestSMSCPeerResponseCarriesItsLinkStatus(t *testing.T) {
 		Since:   since,
 	}}})
 
-	got := smscPeerResponse(db.SMSCPeer{ID: "a", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"15550000000"}}, statuses)
+	got := smscPeerResponse(db.SMSCPeer{ID: "a", DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"15550000000"}}, statuses)
 	want := SMSCPeer{
-		ID: "a", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"},
+		ID: "a", DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"},
 		Status: &SMSCPeerStatus{State: "open", Host: "smsc.example.org", Realm: "example.org", Since: "2026-09-29T16:00:00Z"},
 	}
 
@@ -37,7 +37,7 @@ func TestSMSCPeerResponseCarriesItsLinkStatus(t *testing.T) {
 		t.Fatalf("peer = %+v, want %+v", got, want)
 	}
 
-	if other := smscPeerResponse(db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868}, statuses); other.Status != nil {
+	if other := smscPeerResponse(db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868}, statuses); other.Status != nil {
 		t.Fatalf("a peer this node does not track has status %+v", other.Status)
 	}
 

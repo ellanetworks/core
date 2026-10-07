@@ -153,6 +153,7 @@ func SMSCPeer(peer db.SMSCPeer) (diameternode.PeerConfig, error) {
 	return diameternode.PeerConfig{
 		ID:           SMSCPeerID(peer.ID),
 		Role:         PeerRoleSMSC,
+		Host:         peer.DiameterIdentity,
 		Address:      netip.AddrPortFrom(addr, uint16(peer.Port)),
 		Applications: smscApplications,
 	}, nil

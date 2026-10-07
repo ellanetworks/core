@@ -18,6 +18,7 @@ In the Ella Core UI, go to the Operator page and scroll to the **SMS** section.
 
 Click **Add Service Center** and configure the following settings:
 
+- **Diameter Identity**: your SMSC's Diameter identity (Origin-Host).
 - **Address**: your SMSC's Diameter IP address.
 - **Numbers**: the E.164 service centre addresses your SMSC serves, e.g. `+15550000000`.
 

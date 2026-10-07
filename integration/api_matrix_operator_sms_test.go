@@ -64,8 +64,8 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	var peerID string
 
-	first := []client.SMSCPeer{{Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"}}}
-	updated := []client.SMSCPeer{{Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000001"}}}
+	first := []client.SMSCPeer{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"}}}
+	updated := []client.SMSCPeer{{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000001"}}}
 
 	cases := []struct {
 		name  string
@@ -82,7 +82,7 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		{
 			name: "add_SMSC",
 			apply: func() error {
-				peer, err := c.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
+				peer, err := c.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
 				if err == nil {
 					peerID = peer.ID
 				}
@@ -94,7 +94,7 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		{
 			name: "update_SMSC",
 			apply: func() error {
-				return c.UpdateSMSCPeer(ctx, peerID, &client.SMSCPeerOptions{Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000001"}})
+				return c.UpdateSMSCPeer(ctx, peerID, &client.SMSCPeerOptions{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000001"}})
 			},
 			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, Peers: updated},
 		},

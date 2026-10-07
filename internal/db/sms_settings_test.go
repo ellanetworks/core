@@ -52,7 +52,7 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, Address: "10.0.0.5", Port: 3869, ServiceCentres: []string{"15550000000"}}); err != nil {
+	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-10-0-0-5.example.org", Address: "10.0.0.5", Port: 3869, ServiceCentres: []string{"15550000000"}}); err != nil {
 		t.Fatalf("CreateSMSCPeer: %s", err)
 	}
 
@@ -91,7 +91,7 @@ func TestLastSMSCPeerCanBeDeleted(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
+	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
 		t.Fatalf("CreateSMSCPeer: %s", err)
 	}
 
@@ -108,8 +108,8 @@ func TestSMSCPeersRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	a := db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001", "15550000000"}}
-	b := db.SMSCPeer{ID: peerB, Address: "192.0.2.2", Port: 3869, ServiceCentres: []string{"15550000002"}}
+	a := db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001", "15550000000"}}
+	b := db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-b.example.org", Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000002"}}
 
 	for _, p := range []db.SMSCPeer{a, b} {
 		if err := database.CreateSMSCPeer(ctx, &p); err != nil {
@@ -131,7 +131,7 @@ func TestSMSCPeersRoundTrip(t *testing.T) {
 
 	want := []db.SMSCPeer{a, b}
 	if !slices.EqualFunc(peers, want, func(x, y db.SMSCPeer) bool {
-		return x.ID == y.ID && x.Address == y.Address && x.Port == y.Port && slices.Equal(x.ServiceCentres, y.ServiceCentres)
+		return x.ID == y.ID && x.DiameterIdentity == y.DiameterIdentity && x.Address == y.Address && x.Port == y.Port && slices.Equal(x.ServiceCentres, y.ServiceCentres)
 	}) {
 		t.Fatalf("peers = %+v, want %+v", peers, want)
 	}
@@ -163,13 +163,18 @@ func TestSMSCPeerConflictsAreRejected(t *testing.T) {
 	}{
 		{
 			"shared service centre",
-			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000000"}},
+			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
+			db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-192-0-2-2.example.org", Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000000"}},
 		},
 		{
-			"shared address",
-			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000001"}},
+			"shared identity",
+			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
+			db.SMSCPeer{ID: peerB, DiameterIdentity: "SMSC.example.org", Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000001"}},
+		},
+		{
+			"shared endpoint",
+			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-a.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
+			db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-b.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001"}},
 		},
 	}
 
@@ -217,7 +222,7 @@ func TestSMSSettingsValidate(t *testing.T) {
 }
 
 func TestSMSCPeerValidate(t *testing.T) {
-	valid := db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}
+	valid := db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}
 
 	cases := []struct {
 		name  string
@@ -226,6 +231,10 @@ func TestSMSCPeerValidate(t *testing.T) {
 	}{
 		{"ipv4", func(*db.SMSCPeer) {}, true},
 		{"ipv6", func(p *db.SMSCPeer) { p.Address = "2001:db8::1" }, true},
+		{"identity with an underscore", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc_1.example.org" }, true},
+		{"no identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "" }, false},
+		{"single label identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc" }, false},
+		{"identity with a space", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc .example.org" }, false},
 		{"non-canonical address", func(p *db.SMSCPeer) { p.Address = "2001:DB8::1" }, false},
 		{"hostname", func(p *db.SMSCPeer) { p.Address = "smsc.example.org" }, false},
 		{"unspecified", func(p *db.SMSCPeer) { p.Address = "0.0.0.0" }, false},

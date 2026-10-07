@@ -64,7 +64,7 @@ var replicatedChangesetTables = []string{
 	CellPositionsTableName,
 	UERegistrationsTableName,
 	SMSSettingsTableName,
-	SMSCPeersTableName,
+	DiameterPeersTableName,
 	SMSCServiceCentresTableName,
 	SMSWaitingTableName,
 	SMSWaitingCentresTableName,

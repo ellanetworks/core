@@ -16,7 +16,7 @@ func runOperatorSMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 	t.Cleanup(func() { cleanupSMS(ctx, t, h.Leader) })
 
-	peers := []client.SMSCPeer{{Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"}}}
+	peers := []client.SMSCPeer{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"}}}
 
 	cases := []struct {
 		name   string
@@ -28,7 +28,7 @@ func runOperatorSMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			name:   "add_SMSC",
 			writer: 2,
 			apply: func(c *client.Client) error {
-				_, err := c.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
+				_, err := c.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
 				return err
 			},
 			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550001111"}, Peers: peers},

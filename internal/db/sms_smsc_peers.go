@@ -8,8 +8,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/canonical/sqlair"
@@ -19,21 +21,23 @@ import (
 )
 
 const (
-	SMSCPeersTableName          = "sms_smsc_peers"
+	DiameterPeersTableName      = "diameter_peers"
 	SMSCServiceCentresTableName = "sms_smsc_service_centres"
 )
 
 const (
-	MaxSMSCPeers              = 16
-	MaxSMSCPeerServiceCentres = 16
+	MaxSMSCPeers                 = 16
+	MaxSMSCPeerServiceCentres    = 16
+	maxDiameterIdentityLength    = 255
+	maxDiameterIdentityLabelSize = 63
 )
 
 const (
-	listSMSCPeersStmt            = "SELECT &smscPeerRow.* FROM %s ORDER BY id"
+	listSMSCPeersStmt            = "SELECT &smscPeerRow.* FROM %s WHERE role='smsc' ORDER BY id"
 	listSMSCServiceCentresStmt   = "SELECT &smscServiceCentreRow.* FROM %s ORDER BY serviceCentre"
-	insertSMSCPeerStmt           = "INSERT INTO %s (id, address, port) VALUES ($smscPeerRow.id, $smscPeerRow.address, $smscPeerRow.port)"
-	updateSMSCPeerStmt           = "UPDATE %s SET address=$smscPeerRow.address, port=$smscPeerRow.port WHERE id==$smscPeerRow.id"
-	deleteSMSCPeerStmt           = "DELETE FROM %s WHERE id==$smscPeerRow.id"
+	insertSMSCPeerStmt           = "INSERT INTO %s (id, role, diameterIdentity, address, port) VALUES ($smscPeerRow.id, 'smsc', $smscPeerRow.diameterIdentity, $smscPeerRow.address, $smscPeerRow.port)"
+	updateSMSCPeerStmt           = "UPDATE %s SET diameterIdentity=$smscPeerRow.diameterIdentity, address=$smscPeerRow.address, port=$smscPeerRow.port WHERE id==$smscPeerRow.id AND role='smsc'"
+	deleteSMSCPeerStmt           = "DELETE FROM %s WHERE id==$smscPeerRow.id AND role='smsc'"
 	insertSMSCServiceCentreStmt  = "INSERT INTO %s (serviceCentre, peerId) VALUES ($smscServiceCentreRow.serviceCentre, $smscServiceCentreRow.peerId)"
 	deleteSMSCServiceCentresStmt = "DELETE FROM %s WHERE peerId==$smscServiceCentreRow.peerId"
 )
@@ -41,16 +45,18 @@ const (
 var ErrSMSCPeerConflict = errors.New("SMSC peer conflict")
 
 type SMSCPeer struct {
-	ID             string   `json:"id"`
-	Address        string   `json:"address"`
-	Port           int      `json:"port"`
-	ServiceCentres []string `json:"service_centres"`
+	ID               string   `json:"id"`
+	DiameterIdentity string   `json:"diameter_identity"`
+	Address          string   `json:"address"`
+	Port             int      `json:"port"`
+	ServiceCentres   []string `json:"service_centres"`
 }
 
 type smscPeerRow struct {
-	ID      string `db:"id"`
-	Address string `db:"address"`
-	Port    int    `db:"port"`
+	ID               string `db:"id"`
+	DiameterIdentity string `db:"diameterIdentity"`
+	Address          string `db:"address"`
+	Port             int    `db:"port"`
 }
 
 type smscServiceCentreRow struct {
@@ -61,6 +67,10 @@ type smscServiceCentreRow struct {
 func (p SMSCPeer) Validate() error {
 	if p.ID == "" {
 		return errors.New("SMSC peer ID is required")
+	}
+
+	if !IsValidDiameterIdentity(p.DiameterIdentity) {
+		return fmt.Errorf("SMSC Diameter identity must be a fully qualified domain name, got %q", p.DiameterIdentity)
 	}
 
 	addr, err := netip.ParseAddr(p.Address)
@@ -97,6 +107,32 @@ func (p SMSCPeer) Serves(serviceCentre string) bool {
 	return slices.Contains(p.ServiceCentres, serviceCentre)
 }
 
+func IsValidDiameterIdentity(identity string) bool {
+	if len(identity) > maxDiameterIdentityLength {
+		return false
+	}
+
+	labels := strings.Split(identity, ".")
+	if len(labels) < 2 {
+		return false
+	}
+
+	for _, label := range labels {
+		if label == "" || len(label) > maxDiameterIdentityLabelSize || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+
+		for i := range len(label) {
+			c := label[i]
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' && c != '_' {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
 func ValidateSMSCPeers(peers []SMSCPeer) error {
 	if len(peers) > MaxSMSCPeers {
 		return fmt.Errorf("at most %d SMSC peers can be configured", MaxSMSCPeers)
@@ -104,8 +140,12 @@ func ValidateSMSCPeers(peers []SMSCPeer) error {
 
 	for i, p := range peers {
 		for _, other := range peers[:i] {
-			if p.Address == other.Address {
-				return fmt.Errorf("another SMSC peer has the address %s", p.Address)
+			if strings.EqualFold(p.DiameterIdentity, other.DiameterIdentity) {
+				return fmt.Errorf("another SMSC peer has the Diameter identity %s", p.DiameterIdentity)
+			}
+
+			if p.Address == other.Address && p.Port == other.Port {
+				return fmt.Errorf("another SMSC peer has the address %s", net.JoinHostPort(p.Address, strconv.Itoa(p.Port)))
 			}
 
 			for _, sc := range p.ServiceCentres {
@@ -123,10 +163,10 @@ func (db *Database) ListSMSCPeers(ctx context.Context) ([]SMSCPeer, error) {
 	ctx, span := startSMSCPeersSpan(ctx, "SELECT")
 	defer span.End()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSCPeersTableName, "select"))
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SMSCPeersTableName, "select").Inc()
+	DBQueriesTotal.WithLabelValues(DiameterPeersTableName, "select").Inc()
 
 	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
 		return nil, nil
@@ -172,10 +212,10 @@ func (db *Database) writeSMSCPeer(ctx context.Context, operation string, op *Cha
 	ctx, span := startSMSCPeersSpan(ctx, operation)
 	defer span.End()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSCPeersTableName, strings.ToLower(operation)))
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, strings.ToLower(operation)))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SMSCPeersTableName, strings.ToLower(operation)).Inc()
+	DBQueriesTotal.WithLabelValues(DiameterPeersTableName, strings.ToLower(operation)).Inc()
 
 	if _, err := op.Invoke(ctx, db, peer); err != nil {
 		recordSpanError(span, err)
@@ -189,10 +229,10 @@ func (db *Database) DeleteSMSCPeer(ctx context.Context, id string) error {
 	ctx, span := startSMSCPeersSpan(ctx, "DELETE")
 	defer span.End()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSCPeersTableName, "delete"))
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, "delete"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SMSCPeersTableName, "delete").Inc()
+	DBQueriesTotal.WithLabelValues(DiameterPeersTableName, "delete").Inc()
 
 	if _, err := opDeleteSMSCPeer.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
 		recordSpanError(span, err)
@@ -218,7 +258,7 @@ func (db *Database) listSMSCPeers(ctx context.Context, runner *sqlair.DB) ([]SMS
 	peers := make([]SMSCPeer, 0, len(rows))
 
 	for _, r := range rows {
-		p := SMSCPeer{ID: r.ID, Address: r.Address, Port: r.Port, ServiceCentres: []string{}}
+		p := SMSCPeer{ID: r.ID, DiameterIdentity: r.DiameterIdentity, Address: r.Address, Port: r.Port, ServiceCentres: []string{}}
 
 		for _, c := range centres {
 			if c.PeerID == r.ID {
@@ -242,7 +282,7 @@ func (db *Database) applyCreateSMSCPeer(ctx context.Context, p *SMSCPeer) (any, 
 		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
 	}
 
-	row := smscPeerRow{ID: p.ID, Address: p.Address, Port: p.Port}
+	row := smscPeerRow{ID: p.ID, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
 
 	if err := db.runner(ctx).Query(ctx, db.insertSMSCPeerStmt, row).Run(); err != nil {
 		if isUniqueNameError(err) {
@@ -272,7 +312,7 @@ func (db *Database) applyUpdateSMSCPeer(ctx context.Context, p *SMSCPeer) (any, 
 		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
 	}
 
-	row := smscPeerRow{ID: p.ID, Address: p.Address, Port: p.Port}
+	row := smscPeerRow{ID: p.ID, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
 
 	if err := db.runner(ctx).Query(ctx, db.updateSMSCPeerStmt, row).Run(); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -321,7 +361,7 @@ func (db *Database) applyDeleteSMSCPeer(ctx context.Context, p *stringPayload) (
 }
 
 func startSMSCPeersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, SMSCPeersTableName)
+	querySummary := fmt.Sprintf("%s %s", operation, DiameterPeersTableName)
 
 	return tracer.Start(
 		ctx,
@@ -331,7 +371,7 @@ func startSMSCPeersSpan(ctx context.Context, operation string) (context.Context,
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(SMSCPeersTableName),
+			semconv.DBCollectionName(DiameterPeersTableName),
 		),
 	)
 }

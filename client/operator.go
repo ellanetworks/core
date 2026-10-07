@@ -50,11 +50,12 @@ type GetOperatorSMSResponse struct {
 }
 
 type SMSCPeer struct {
-	ID             string          `json:"id"`
-	Address        string          `json:"address"`
-	Port           int             `json:"port"`
-	ServiceCentres []string        `json:"serviceCentres"`
-	Status         *SMSCPeerStatus `json:"status,omitempty"`
+	ID               string          `json:"id"`
+	DiameterIdentity string          `json:"diameterIdentity"`
+	Address          string          `json:"address"`
+	Port             int             `json:"port"`
+	ServiceCentres   []string        `json:"serviceCentres"`
+	Status           *SMSCPeerStatus `json:"status,omitempty"`
 }
 
 type SMSCPeerStatus struct {
@@ -108,9 +109,10 @@ type UpdateOperatorSMSOptions struct {
 }
 
 type SMSCPeerOptions struct {
-	Address        string
-	Port           int
-	ServiceCentres []string
+	DiameterIdentity string
+	Address          string
+	Port             int
+	ServiceCentres   []string
 }
 
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
@@ -430,13 +432,15 @@ func (c *Client) UpdateSMSCPeer(ctx context.Context, id string, opts *SMSCPeerOp
 
 func (c *Client) writeSMSCPeer(ctx context.Context, method, path string, opts *SMSCPeerOptions) (*RequestResponse, error) {
 	payload := struct {
-		Address        string   `json:"address"`
-		Port           int      `json:"port,omitempty"`
-		ServiceCentres []string `json:"serviceCentres"`
+		DiameterIdentity string   `json:"diameterIdentity"`
+		Address          string   `json:"address"`
+		Port             int      `json:"port,omitempty"`
+		ServiceCentres   []string `json:"serviceCentres"`
 	}{
-		Address:        opts.Address,
-		Port:           opts.Port,
-		ServiceCentres: opts.ServiceCentres,
+		DiameterIdentity: opts.DiameterIdentity,
+		Address:          opts.Address,
+		Port:             opts.Port,
+		ServiceCentres:   opts.ServiceCentres,
 	}
 
 	var body bytes.Buffer

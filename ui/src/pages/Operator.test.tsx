@@ -23,6 +23,7 @@ const operator = (sms: Record<string, unknown>) => ({
 
 const peerA = {
   id: "0190a000-0000-7000-8000-00000000000a",
+  diameterIdentity: "smsc-a.example.org",
   address: "2001:db8::10",
   port: 3868,
   serviceCentres: ["+15550000000"],
@@ -36,6 +37,7 @@ const peerA = {
 
 const peerB = {
   id: "0190a000-0000-7000-8000-00000000000b",
+  diameterIdentity: "smsc-b.example.org",
   address: "192.0.2.20",
   port: 3869,
   serviceCentres: ["+15550000001", "+15550000002"],
@@ -113,7 +115,11 @@ describe("Operator SMS section", () => {
     await user.click(
       await screen.findByRole("button", { name: "Add service center" }),
     );
-    await user.type(await screen.findByLabelText(/^Address/), "192.0.2.20");
+    await user.type(
+      await screen.findByLabelText(/Diameter Identity/),
+      "smsc-b.example.org",
+    );
+    await user.type(screen.getByLabelText(/^Address/), "192.0.2.20");
     await user.type(screen.getByLabelText(/^Numbers/), "+15550000001");
     await user.click(screen.getByRole("button", { name: /^Add$/ }));
 
@@ -121,6 +127,7 @@ describe("Operator SMS section", () => {
     expect(
       api.requests(PEERS_PATH).find((r) => r.method === "POST")?.body,
     ).toEqual({
+      diameterIdentity: "smsc-b.example.org",
       address: "192.0.2.20",
       port: 3868,
       serviceCentres: ["+15550000001"],

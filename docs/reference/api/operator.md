@@ -314,6 +314,7 @@ None
         "items": [
             {
                 "id": "0199a1b2-3c4d-7e5f-8a6b-7c8d9e0f1a2b",
+                "diameterIdentity": "smsc.example.org",
                 "address": "192.0.2.10",
                 "port": 3868,
                 "serviceCentres": ["+15550000000"],
@@ -351,6 +352,7 @@ This path creates an SMSC peer.
 
 ### Parameters
 
+- `diameterIdentity` (string): The SMSC's Diameter identity (Origin-Host).
 - `address` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint.
 - `port` (optional integer): The SCTP port of the SMSC's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
 - `serviceCentres` (array of strings): The E.164 service centre numbers the SMSC serves, for example `+15550000000`.
@@ -359,6 +361,7 @@ This path creates an SMSC peer.
 
 ```json
 {
+    "diameterIdentity": "smsc.example.org",
     "address": "192.0.2.10",
     "port": 3868,
     "serviceCentres": ["+15550000000"]
@@ -371,6 +374,7 @@ This path creates an SMSC peer.
 {
     "result": {
         "id": "0199a1b2-3c4d-7e5f-8a6b-7c8d9e0f1a2b",
+        "diameterIdentity": "smsc.example.org",
         "address": "192.0.2.10",
         "port": 3868,
         "serviceCentres": ["+15550000000"]

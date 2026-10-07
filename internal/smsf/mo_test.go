@@ -178,8 +178,8 @@ func TestMobileOriginatedSMSWithoutMSISDNIsRejected(t *testing.T) {
 func TestMobileOriginatedSMSGoesToThePeerServingTheServiceCentre(t *testing.T) {
 	e := newEnv(t)
 	e.store.setPeers(
-		db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
-		db.SMSCPeer{ID: "c", Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"15550000008", serviceCentre}},
+		db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+		db.SMSCPeer{ID: "c", DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"15550000008", serviceCentre}},
 	)
 
 	sendRPData(t, e, moTI(0), 1)
@@ -196,7 +196,7 @@ func TestMobileOriginatedSMSGoesToThePeerServingTheServiceCentre(t *testing.T) {
 
 func TestMobileOriginatedSMSToAServiceCentreNoPeerServesIsRejected(t *testing.T) {
 	e := newEnv(t)
-	e.store.setPeers(db.SMSCPeer{ID: "b", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}})
+	e.store.setPeers(db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}})
 
 	sendRPData(t, e, moTI(0), 1)
 	expectCPAck(t, e, moTI(0).Peer())

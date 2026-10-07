@@ -30,10 +30,11 @@ type GetOperatorSMSResponseResult struct {
 }
 
 type SMSCPeerResultItem struct {
-	ID             string   `json:"id"`
-	Address        string   `json:"address"`
-	Port           int      `json:"port"`
-	ServiceCentres []string `json:"serviceCentres"`
+	ID               string   `json:"id"`
+	DiameterIdentity string   `json:"diameterIdentity"`
+	Address          string   `json:"address"`
+	Port             int      `json:"port"`
+	ServiceCentres   []string `json:"serviceCentres"`
 }
 
 type GetOperatorTrackingResponseResult struct {

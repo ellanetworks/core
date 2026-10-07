@@ -25,6 +25,7 @@ export interface OperatorData {
 export const DEFAULT_SMSC_PORT = 3868;
 
 export interface SMSCPeerInput {
+  diameterIdentity: string;
   address: string;
   port: number;
   serviceCentres: string[];

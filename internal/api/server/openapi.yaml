@@ -4742,11 +4742,14 @@ components:
 
     SMSCPeer:
       type: object
-      required: [id, address, port, serviceCentres]
+      required: [id, diameterIdentity, address, port, serviceCentres]
       properties:
         id:
           type: string
           format: uuid
+        diameterIdentity:
+          type: string
+          description: "The SMSC's Diameter identity (Origin-Host)."
         address:
           type: string
           description: "IP address of the SMSC's Diameter endpoint."
@@ -4779,8 +4782,11 @@ components:
 
     SMSCPeerParams:
       type: object
-      required: [address, serviceCentres]
+      required: [diameterIdentity, address, serviceCentres]
       properties:
+        diameterIdentity:
+          type: string
+          description: "The SMSC's Diameter identity (Origin-Host)."
         address:
           type: string
           description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint."

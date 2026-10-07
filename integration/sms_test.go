@@ -29,6 +29,7 @@ const (
 	smscAPIPort       = 5010
 	smsNumber         = "+15550000000"
 	smscServiceCentre = "+15550000000"
+	smscHost          = "smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
 )
 
 func smscAddress() string {
@@ -98,9 +99,10 @@ func enableSMS(ctx context.Context, t *testing.T, cl *client.Client, address str
 	t.Helper()
 
 	if _, err := cl.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{
-		Address:        address,
-		Port:           smscDiameterPort,
-		ServiceCentres: []string{smscServiceCentre},
+		DiameterIdentity: smscHost,
+		Address:          address,
+		Port:             smscDiameterPort,
+		ServiceCentres:   []string{smscServiceCentre},
 	}); err != nil {
 		t.Fatalf("add the SMSC peer: %v", err)
 	}
