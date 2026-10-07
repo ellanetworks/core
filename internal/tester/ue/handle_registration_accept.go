@@ -24,6 +24,9 @@ func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAP
 		ue.Set5gGuti(regAccept.GUTI)
 	}
 
+	ue.smsAllowed.Store(regAccept.SMSAllowed)
+	ue.smsAvailable.Store(false)
+
 	regComplete, err := BuildRegistrationComplete(&RegistrationCompleteOpts{
 		SORTransparentContainer: nil,
 	})

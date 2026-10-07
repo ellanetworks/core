@@ -59,9 +59,18 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
+		cause := ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease}
+
+		if ueConn.MTSignallingPending() {
+			ueConn.DeferRelease(ctx, cause)
+			ue.ClearRegistrationRequestData()
+
+			return nasreply.Handled()
+		}
+
 		ueConn.SetReleaseAction(amf.UeContextN2NormalRelease)
 
-		ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+		ueConn.SendUEContextReleaseCommand(ctx, cause)
 	}
 
 	ue.ClearRegistrationRequestData()

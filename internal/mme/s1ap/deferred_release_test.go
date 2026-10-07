@@ -68,3 +68,14 @@ func TestOtherCausesReleaseDespiteAnMTDeliveryInProgress(t *testing.T) {
 		t.Fatalf("UE Context Release Commands sent = %d, want 1: only user inactivity is conditional on pending MT traffic", len(cc.sent))
 	}
 }
+
+func TestADeferralThatRacesTheSettlementResumesAtOnce(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	ue.Conn().DeferRelease(t.Context(), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("UE Context Release Commands sent = %d, want 1: a deferral whose pending signalling already settled must not wait for the guard", len(cc.sent))
+	}
+}

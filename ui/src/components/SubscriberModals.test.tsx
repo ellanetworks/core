@@ -9,6 +9,7 @@ import { setupApiServer, httpError } from "@/test/apiServer";
 import CreateSubscriberModal from "./CreateSubscriberModal";
 import EditSubscriberProfileModal from "./EditSubscriberProfileModal";
 import EditSubscriberDescriptionModal from "./EditSubscriberDescriptionModal";
+import EditSubscriberMSISDNModal from "./EditSubscriberMSISDNModal";
 import { MAX_DESCRIPTION_LENGTH } from "@/queries/subscribers";
 
 const api = setupApiServer();
@@ -172,6 +173,57 @@ describe("CreateSubscriberModal", () => {
     });
   });
 
+  it("posts the msisdn in E.164 form", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.post(SUBSCRIBERS, () => ({}));
+    renderCreate();
+    await screen.findByText("00101");
+
+    await user.type(field(/IMSI/), "0123456789");
+    const generates = within(dialog()).getAllByRole("button", {
+      name: "Generate",
+    });
+    await user.click(generates[1]);
+    await user.type(textbox(/MSISDN/), "+15551230001");
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await waitFor(() => {
+      const body = api.lastRequest(SUBSCRIBERS)?.body as Record<
+        string,
+        unknown
+      >;
+      expect(body.msisdn).toBe("+15551230001");
+    });
+  });
+
+  it("reports an MSISDN already assigned to another subscriber", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.post(SUBSCRIBERS, () =>
+      httpError(409, "MSISDN is already assigned to another subscriber"),
+    );
+    const { onClose } = renderCreate();
+    await screen.findByText("00101");
+
+    await user.type(field(/IMSI/), "0123456789");
+    const generates = within(dialog()).getAllByRole("button", {
+      name: "Generate",
+    });
+    await user.click(generates[1]);
+    await user.type(textbox(/MSISDN/), "+15551230001");
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await screen.findByText(
+      /Failed to create subscriber: .*MSISDN is already assigned to another subscriber/,
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("rejects a description longer than the API accepts", async () => {
     const user = userEvent.setup();
     seed();
@@ -191,10 +243,11 @@ describe("CreateSubscriberModal", () => {
 const IMSI = "001010123456789";
 const PUT_PATH = `${SUBSCRIBERS}/${IMSI}`;
 
-const initialData = (description = "") => ({
+const initialData = (description = "", msisdn = "+15551230001") => ({
   imsi: IMSI,
   profileName: "default",
   description,
+  msisdn,
 });
 
 describe("EditSubscriberProfileModal", () => {
@@ -238,6 +291,7 @@ describe("EditSubscriberProfileModal", () => {
     expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "premium",
       description: "",
+      msisdn: "+15551230001",
     });
   });
 
@@ -255,6 +309,7 @@ describe("EditSubscriberProfileModal", () => {
     expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "premium",
       description: "Warehouse gate reader",
+      msisdn: "+15551230001",
     });
   });
 });
@@ -298,6 +353,7 @@ describe("EditSubscriberDescriptionModal", () => {
     expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "default",
       description: "Loading dock reader",
+      msisdn: "+15551230001",
     });
   });
 
@@ -314,6 +370,7 @@ describe("EditSubscriberDescriptionModal", () => {
     expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "default",
       description: "",
+      msisdn: "+15551230001",
     });
   });
 
@@ -360,5 +417,81 @@ describe("EditSubscriberDescriptionModal", () => {
     await user.tab();
 
     await waitFor(() => expect(button(/^Update$/)).toBeEnabled());
+  });
+});
+
+describe("EditSubscriberMSISDNModal", () => {
+  const renderMSISDN = (msisdn = "") => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <EditSubscriberMSISDNModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        initialData={initialData("Warehouse gate reader", msisdn)}
+      />,
+      { auth: {} },
+    );
+    return { onClose };
+  };
+
+  it("submits the new msisdn and carries the other fields through unchanged", async () => {
+    const user = userEvent.setup();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderMSISDN();
+
+    await user.type(textbox(/MSISDN/), "+15551230002");
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
+      profile_name: "default",
+      description: "Warehouse gate reader",
+      msisdn: "+15551230002",
+    });
+  });
+
+  it("removes the msisdn when the operator empties the field", async () => {
+    const user = userEvent.setup();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderMSISDN("+15551230001");
+
+    expect(textbox(/MSISDN/)).toHaveValue("+15551230001");
+    await user.clear(textbox(/MSISDN/));
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
+      profile_name: "default",
+      description: "Warehouse gate reader",
+      msisdn: "",
+    });
+  });
+
+  it("reports an MSISDN already assigned to another subscriber", async () => {
+    const user = userEvent.setup();
+    api.put(`${SUBSCRIBERS}/:imsi`, () =>
+      httpError(409, "MSISDN is already assigned to another subscriber"),
+    );
+    const { onClose } = renderMSISDN();
+
+    await user.type(textbox(/MSISDN/), "+15551230002");
+    await user.click(button(/^Update$/));
+
+    await screen.findByText(
+      /Failed to update subscriber: .*MSISDN is already assigned to another subscriber/,
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("rejects a number that is not E.164", async () => {
+    const user = userEvent.setup();
+    renderMSISDN();
+
+    await user.type(textbox(/MSISDN/), "0555-1234");
+    await user.tab();
+
+    await screen.findByText(/Must be an E.164 number/);
+    expect(button(/^Update$/)).toBeDisabled();
   });
 });

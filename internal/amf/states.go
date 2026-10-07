@@ -63,6 +63,17 @@ func (ue *UeContext) State() StateType {
 	return ue.state
 }
 
+func (ue *UeContext) watchState() (StateType, <-chan struct{}) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.stateChanged == nil {
+		ue.stateChanged = make(chan struct{})
+	}
+
+	return ue.state, ue.stateChanged
+}
+
 func (ue *UeContext) TransitionTo(ctx context.Context, target StateType) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -97,6 +108,11 @@ func (ue *UeContext) transitionToLocked(ctx context.Context, target StateType) {
 
 func (ue *UeContext) setStateLocked(target StateType) {
 	ue.state = target
+
+	if ue.stateChanged != nil {
+		close(ue.stateChanged)
+		ue.stateChanged = nil
+	}
 
 	if target == RegistrationInitiated {
 		ue.regStep = RegStepAuthenticating

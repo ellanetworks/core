@@ -1,0 +1,24 @@
+configs:
+  smsc_config:
+    content: |
+      logging:
+        level: debug
+      db:
+        path: "/smsc.db"
+      api:
+        address: 10.3.0.5
+        port: 5010
+      diameter:
+        address: 10.3.0.5
+        port: 3868
+
+services:
+  smsc:
+    image: ghcr.io/ellanetworks/ella-smsc:latest
+    configs:
+      - source: smsc_config
+        target: /smsc.yaml
+    restart: unless-stopped
+    networks:
+      n3:
+        ipv4_address: 10.3.0.5

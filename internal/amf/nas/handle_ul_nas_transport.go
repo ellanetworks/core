@@ -349,7 +349,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	case fgs.PayloadContainerTypeN1SMInfo:
 		transport5GSMMessage(ctx, amfInstance, ue, msg)
 	case fgs.PayloadContainerTypeSMS:
-		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
+		amfInstance.ForwardSMS(ctx, ue, msg.PayloadContainer)
 	case fgs.PayloadContainerTypeLPP:
 		lppData := msg.PayloadContainer
 

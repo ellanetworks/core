@@ -35,6 +35,10 @@ func (e *ENB) answerGUTIReallocation(ue *UE, mmeUEID, enbUEID int64, timeout tim
 		}
 
 		if mt != eps.MsgGUTIReallocationCommand {
+			if _, err := ue.dispatchUnsolicited(mmeUEID, enbUEID, plain); err != nil {
+				return nil, err
+			}
+
 			continue
 		}
 

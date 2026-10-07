@@ -262,7 +262,34 @@ func isTransientRaftErr(err error) bool {
 // These are called both in standalone mode (directly) and in HA mode (via FSM).
 // They contain no tracing or metrics — the propose layer handles those.
 
+func (db *Database) checkMSISDNAvailable(ctx context.Context, s *Subscriber) error {
+	if s.Msisdn == "" {
+		return nil
+	}
+
+	holder := Subscriber{Msisdn: s.Msisdn}
+
+	err := db.runner(ctx).Query(ctx, db.getSubscriberByMSISDNStmt, holder).Get(&holder)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	if holder.Imsi != s.Imsi {
+		return ErrMSISDNInUse
+	}
+
+	return nil
+}
+
 func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (any, error) {
+	if err := db.checkMSISDNAvailable(ctx, s); err != nil {
+		return nil, err
+	}
+
 	err := db.runner(ctx).Query(ctx, db.createSubscriberStmt, s).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -276,6 +303,10 @@ func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (a
 }
 
 func (db *Database) applyUpdateSubscriberProfile(ctx context.Context, s *Subscriber) (any, error) {
+	if err := db.checkMSISDNAvailable(ctx, s); err != nil {
+		return nil, err
+	}
+
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.updateSubscriberProfileStmt, s).Get(&outcome)

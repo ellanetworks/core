@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -131,7 +132,7 @@ func (ue *UeContext) forcePagingStateForTest(req *MTRequest) {
 
 	if req == nil {
 		ue.paging.pending = nil
-		ue.paging.state = PagingIdle
+		ue.settlePagingLocked()
 
 		return
 	}
@@ -314,4 +315,12 @@ func (ue *UeContext) SetPlmnIDForTest(plmnID models.PlmnID) {
 	defer ue.mu.Unlock()
 
 	ue.plmnID = plmnID
+}
+
+func (ue *UeContext) SetSMSForTest(h smsf.Handler) {
+	ue.sms = h
+}
+
+func (ue *UeContext) SMSIndicationPendingForTest() bool {
+	return ue.smsIndicationPending.Load() != nil
 }

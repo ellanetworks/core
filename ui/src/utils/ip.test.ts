@@ -10,6 +10,7 @@ import {
   ipv4Regex,
   ipv6Regex,
   addressFamily,
+  isHostAddress,
   unmapIpv4Mapped,
   isValidCidr,
   isValidIpv4Cidr,
@@ -185,5 +186,26 @@ describe("addressFamily", () => {
 
   it.each(["", "banana", "256.0.0.1", "10.0.0.1/24"])("rejects %s", (v) => {
     expect(addressFamily(v)).toBeNull();
+  });
+});
+
+describe("isHostAddress", () => {
+  it.each(["10.0.0.1", "2001:db8::1", "::1", "::ffff:10.0.0.1"])(
+    "accepts %s",
+    (v) => {
+      expect(isHostAddress(v)).toBe(true);
+    },
+  );
+
+  it.each([
+    "",
+    "banana",
+    "0.0.0.0",
+    "::",
+    "::0",
+    "0:0:0:0:0:0:0:0",
+    "fe80::1%1",
+  ])("rejects %s", (v) => {
+    expect(isHostAddress(v)).toBe(false);
   });
 });

@@ -32,6 +32,12 @@ export function addressFamily(value: string): 4 | 6 | null {
   return null;
 }
 
+export function isHostAddress(value: string): boolean {
+  if (addressFamily(value) === null || value.includes("%")) return false;
+
+  return value !== "0.0.0.0" && !/^[0:]+$/.test(value);
+}
+
 export const ipRegex = new RegExp(
   `(${ipv4Regex.source})|(${ipv6Regex.source})`,
 );

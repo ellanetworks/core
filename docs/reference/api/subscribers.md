@@ -22,7 +22,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 | `radio`    | query | str  |         |         | Filter by radio name. |
 | `data_network` | query | str |     |         | Filter by data network name.|
-| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. |
+| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI, MSISDN or description substring. |
 
 ### Sample Response
 
@@ -34,6 +34,7 @@ This path returns the list of network subscribers, ordered by IMSI.
                 "imsi": "001010100007487",
                 "profile_name": "default",
                 "description": "Warehouse gate reader",
+                "msisdn": "+15551230001",
                 "status": {
                     "registered": true,
                     "connection_state": "connected",
@@ -51,7 +52,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 }
 ```
 
-`description` is omitted from an item when that subscriber has no note.
+`description` and `msisdn` are omitted from an item when unset.
 
 ## Create a Subscriber
 
@@ -69,6 +70,7 @@ This path creates a new network subscriber.
 - `profile_name` (string): The profile name of the subscriber. Must be the name of an existing profile.
 - `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
 - `description` (optional string): A free-text note about the subscriber. At most 64 characters.
+- `msisdn` (optional string): The subscriber's phone number in E.164 format, for example `+15551230001`. Unique across subscribers. Required for SMS.
 
 ### Sample Response
 
@@ -92,6 +94,7 @@ This path updates an existing network subscriber.
 
 - `profile_name` (string): The profile name of the subscriber.
 - `description` (optional string): A free-text note about the subscriber. At most 64 characters. This path replaces the subscriber in full, so omitting the field clears the stored note.
+- `msisdn` (optional string): The subscriber's phone number in E.164 format, for example `+15551230001`. Unique across subscribers. This path replaces the subscriber in full, so omitting the field clears the stored MSISDN.
 
 ### Sample Response
 
@@ -123,6 +126,7 @@ None
     "imsi": "001010100007487",
     "profile_name": "default",
     "description": "Warehouse gate reader",
+    "msisdn": "+15551230001",
     "registrations": [
       {
         "system": "5G",
@@ -168,7 +172,7 @@ None
 }
 ```
 
-`description` is omitted when the subscriber has no note.
+`description` and `msisdn` are omitted when unset.
 
 ### Registrations
 

@@ -30,7 +30,7 @@ export default function InterfacesTab() {
 
   const [isEditN3Open, setEditN3Open] = useState(false);
 
-  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
+  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), the API endpoint, and the Diameter listener. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
@@ -251,6 +251,56 @@ export default function InterfacesTab() {
               <Typography variant="body2" color="textSecondary">
                 Port: <strong>{interfacesInfo.api?.port ?? "—"}</strong>
               </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 2,
+                p: 2,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
+              >
+                <Typography variant="subtitle1">Diameter</Typography>
+                <Chip label="Control Plane" size="small" />
+              </Stack>
+              {interfacesInfo.diameter ? (
+                <>
+                  {interfacesInfo.diameter.addresses &&
+                  interfacesInfo.diameter.addresses.length > 0 ? (
+                    interfacesInfo.diameter.addresses.map((addr) => (
+                      <Typography
+                        key={addr}
+                        variant="body2"
+                        color="textSecondary"
+                      >
+                        Address: <strong>{addr}</strong>
+                      </Typography>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="textSecondary">
+                      Address: <strong>—</strong>
+                    </Typography>
+                  )}
+                  <Typography variant="body2" color="textSecondary">
+                    Port: <strong>{interfacesInfo.diameter.port ?? "—"}</strong>
+                  </Typography>
+                </>
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Not listening. Set <code>interfaces.diameter</code> in the
+                  configuration file to accept Diameter connections.
+                </Typography>
+              )}
             </Box>
           </Box>
         )}

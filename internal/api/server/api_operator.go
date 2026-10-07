@@ -43,6 +43,14 @@ type UpdateOperatorSPNParams struct {
 	ShortName string `json:"shortName"`
 }
 
+type UpdateOperatorSMSParams struct {
+	SMSNumber string `json:"smsNumber"`
+}
+
+type GetOperatorSMSResponse struct {
+	SMSNumber string `json:"smsNumber"`
+}
+
 type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs"`
 }
@@ -58,6 +66,7 @@ type GetOperatorResponse struct {
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 	SPN             GetOperatorSPNResponse         `json:"spn"`
+	SMS             GetOperatorSMSResponse         `json:"sms"`
 }
 
 type GetOperatorIDResponse struct {
@@ -76,6 +85,7 @@ const (
 	UpdateOperatorCodeAction        = "update_operator_code"
 	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
 	UpdateOperatorSPNAction         = "update_operator_spn"
+	UpdateOperatorSMSAction         = "update_operator_sms"
 )
 
 func isValidMcc(mcc string) bool {
@@ -219,6 +229,14 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		smsSettings, err := dbInstance.GetSMSSettings(r.Context())
+		if err != nil {
+			logger.APILog.Warn("Failed to get SMS settings", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get SMS settings", err, logger.APILog)
+
+			return
+		}
+
 		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
@@ -235,6 +253,9 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			SPN: GetOperatorSPNResponse{
 				FullName:  dbOperator.SpnFullName,
 				ShortName: dbOperator.SpnShortName,
+			},
+			SMS: GetOperatorSMSResponse{
+				SMSNumber: formatE164(smsSettings.SMSNumber),
 			},
 		}
 
@@ -568,4 +589,56 @@ func UpdateOperatorSPN(dbInstance *db.Database) http.Handler {
 			"User updated operator SPN",
 		)
 	})
+}
+
+func UpdateOperatorSMS(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+
+		email, ok := emailAny.(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		var params UpdateOperatorSMSParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		settings, message := smsSettingsFromParams(params)
+		if message != "" {
+			writeError(r.Context(), w, http.StatusBadRequest, message, nil, logger.APILog)
+			return
+		}
+
+		if err := settings.Validate(); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SMS settings", err, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.UpdateSMSSettings(r.Context(), &settings); err != nil {
+			logger.APILog.Warn("Failed to update operator SMS settings", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator SMS settings", err, logger.APILog)
+
+			return
+		}
+
+		resp := SuccessResponse{Message: "Operator SMS settings updated successfully"}
+		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
+
+		detail := fmt.Sprintf("User updated operator SMS settings (SMS number %s)", formatE164(settings.SMSNumber))
+
+		logger.LogAuditEvent(r.Context(), UpdateOperatorSMSAction, email, getClientIP(r), detail)
+	})
+}
+
+func smsSettingsFromParams(params UpdateOperatorSMSParams) (db.SMSSettings, string) {
+	number, ok := parseE164(params.SMSNumber)
+	if !ok {
+		return db.SMSSettings{}, "smsNumber must be an E.164 number: + followed by 1 to 15 digits, for example +15550001111"
+	}
+
+	return db.SMSSettings{SMSNumber: number}, ""
 }

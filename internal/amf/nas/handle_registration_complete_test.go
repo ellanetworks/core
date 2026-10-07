@@ -313,3 +313,15 @@ func mustBitmap(b []byte) *fgs.PSIBitmap {
 
 	return &m
 }
+
+func TestRegistrationCompleteKeepsTheConnectionForAnSMSInProgress(t *testing.T) {
+	ue, ngapSender := setupRegistrationCompleteUE(t)
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+	ue.SetSMSForTest(&fakeSMSHandler{pending: true})
+
+	handleRegistrationComplete(t.Context(), newTestAMF(), ue)
+
+	if n := len(ngapSender.SentUEContextReleaseCommand); n != 0 {
+		t.Fatalf("sent %d UE Context Release Commands while an SMS transaction was open, want the release deferred", n)
+	}
+}

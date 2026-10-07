@@ -48,13 +48,14 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/ellanetworks/core/diameter v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nrppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
-	github.com/ellanetworks/core/sctp v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/sctp v0.0.0-20260927223644-74fdc7a91d32
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -121,6 +122,8 @@ require (
 // (sqlite3session_*, sqlite3changeset_apply and its xFilter table filter).
 // Used by internal/db to replicate write-set changesets.
 replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260828175046-2d4b4f2d4d65
+
+replace github.com/ellanetworks/core/diameter => ./diameter
 
 replace github.com/ellanetworks/core/lppa => ./lppa
 

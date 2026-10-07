@@ -139,6 +139,11 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 			API: config.APIInterface{
 				Port: 8443,
 			},
+			Diameter: config.DiameterInterface{
+				Enabled: true,
+				Address: "15.15.15.15",
+				Port:    3868,
+			},
 		},
 	}
 

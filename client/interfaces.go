@@ -38,11 +38,18 @@ type APIInterface struct {
 	Port      int      `json:"port"`
 }
 
+type DiameterInterface struct {
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface,omitempty"`
+}
+
 type NetworkInterfaces struct {
-	N2  N2Interface  `json:"n2"`
-	N3  N3Interface  `json:"n3"`
-	N6  N6Interface  `json:"n6"`
-	API APIInterface `json:"api"`
+	N2       N2Interface        `json:"n2"`
+	N3       N3Interface        `json:"n3"`
+	N6       N6Interface        `json:"n6"`
+	API      APIInterface       `json:"api"`
+	Diameter *DiameterInterface `json:"diameter,omitempty"`
 }
 
 type UpdateN3InterfaceOptions struct {
@@ -50,7 +57,7 @@ type UpdateN3InterfaceOptions struct {
 }
 
 // ListNetworkInterfaces retrieves the current networking interface configuration
-// (N2, N3, N6, and API), including resolved addresses and VLAN settings.
+// (N2, N3, N6, API, and Diameter), including resolved addresses and VLAN settings.
 func (c *Client) ListNetworkInterfaces(ctx context.Context) (*NetworkInterfaces, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

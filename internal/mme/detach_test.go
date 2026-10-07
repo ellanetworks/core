@@ -98,6 +98,7 @@ func registerTestUE(m *MME, ue *UeContext, imsi string) {
 
 	ue.supi, _ = etsi.NewSUPIFromIMSI(imsi)
 	m.UEs[ue.supi] = ue
+	ue.sms = m.SMS
 	m.mu.Unlock()
 }
 

@@ -19,7 +19,7 @@ func (ueConn *UeConn) MTSignallingPending() bool {
 		return false
 	}
 
-	if ueConn.Parent().MTDeliveryInProgress() {
+	if ue := ueConn.Parent(); ue.MTDeliveryInProgress() || ue.smsTransactionPending() {
 		return true
 	}
 
@@ -51,6 +51,8 @@ func (ueConn *UeConn) DeferRelease(ctx context.Context, cause ngap.Cause) {
 
 		ueConn.resumeDeferredRelease(guardCtx)
 	})
+
+	ueConn.ResumeDeferredReleaseIfSettled(ctx)
 }
 
 func (ueConn *UeConn) ResumeDeferredReleaseIfSettled(ctx context.Context) {

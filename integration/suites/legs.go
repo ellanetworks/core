@@ -18,6 +18,7 @@ type Leg struct {
 	Timeout        string `json:"timeout"`
 	TimeoutMinutes int    `json:"timeout_minutes"`
 	NeedsTester    bool   `json:"needs_tester"`
+	NeedsSMSC      bool   `json:"needs_smsc"`
 	Setup          string `json:"setup"`
 	Run            string `json:"run"`
 	Skip           string `json:"skip"`
@@ -78,6 +79,7 @@ func BuildLegs(decls []Declaration, subtreePrefixes []string) ([]Leg, error) {
 				Timeout:        def.Timeout,
 				TimeoutMinutes: minutes + setupHeadroomMinutes,
 				NeedsTester:    def.NeedsTester,
+				NeedsSMSC:      def.NeedsSMSC,
 				Setup:          def.Setup,
 				Run:            run,
 				Skip:           skip,

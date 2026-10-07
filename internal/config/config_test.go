@@ -338,6 +338,77 @@ datapath:
 	}
 }
 
+func TestDiameterInterface(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
+	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+	config.GetInterfaceIPFunc = func(name string, family config.AddressFamily) (string, error) { return "10.0.0.10", nil }
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) { return nil, nil }
+	config.VRFDeviceForInterfaceFunc = func(name string) (string, error) { return "", nil }
+
+	const tmpl = `logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "test"
+interfaces:
+  n2:
+    address: "0.0.0.0"
+  n3:
+    address: "33.33.33.3"
+  n6:
+    name: "enp6s0"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+%s
+datapath:
+  attach-mode: "xdp-native"
+`
+
+	cases := []struct {
+		name         string
+		diameter     string
+		want         config.DiameterInterface
+		wantErrParts string
+	}{
+		{"omitted", "", config.DiameterInterface{}, ""},
+		{"address with default port", "  diameter:\n    address: \"10.0.0.10\"", config.DiameterInterface{Enabled: true, Address: "10.0.0.10", Port: 3868}, ""},
+		{"name with explicit port", "  diameter:\n    name: \"ens5\"\n    port: 3869", config.DiameterInterface{Enabled: true, Name: "ens5", Port: 3869}, ""},
+		{"name and address", "  diameter:\n    name: \"ens5\"\n    address: \"10.0.0.10\"", config.DiameterInterface{}, "interfaces.diameter"},
+		{"port only", "  diameter:\n    port: 3868", config.DiameterInterface{}, "interfaces.diameter"},
+		{"out of range", "  diameter:\n    address: \"10.0.0.10\"\n    port: 70000", config.DiameterInterface{}, "between 1 and 65535"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := t.TempDir() + "/config.yaml"
+			if err := os.WriteFile(path, []byte(strings.Replace(tmpl, "%s", tc.diameter, 1)), 0o600); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+
+			conf, err := config.Validate(path)
+			if tc.wantErrParts != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrParts) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErrParts, err)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if conf.Interfaces.Diameter != tc.want {
+				t.Fatalf("diameter = %+v, want %+v", conf.Interfaces.Diameter, tc.want)
+			}
+		})
+	}
+}
+
 func TestBadConfigFail(t *testing.T) {
 	cases := []struct {
 		Name               string

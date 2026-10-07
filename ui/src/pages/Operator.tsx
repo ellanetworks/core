@@ -41,6 +41,7 @@ import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
+import SMSSection from "@/components/SMSSection";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -80,6 +81,7 @@ const Operator = () => {
   ] = useState(false);
   const [isEditOperatorSPNModalOpen, setEditOperatorSPNModalOpen] =
     useState(false);
+  const [isSMSModalOpen, setSMSModalOpen] = useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
   >({});
@@ -104,7 +106,8 @@ const Operator = () => {
     isCreateHomeNetworkKeyModalOpen ||
     isDeleteKeyConfirmOpen ||
     isEditOperatorNASSecurityModalOpen ||
-    isEditOperatorSPNModalOpen;
+    isEditOperatorSPNModalOpen ||
+    isSMSModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -186,7 +189,6 @@ const Operator = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("Network name (SPN) updated successfully.", "success");
   };
-
   const clearPrivateKey = (keyId: number) => {
     clearTimeout(privateKeyTimers.current[keyId]);
     delete privateKeyTimers.current[keyId];
@@ -793,6 +795,12 @@ const Operator = () => {
           </TableContainer>
         )}
       </Box>
+
+      <SMSSection
+        sms={operator?.sms}
+        canEdit={canEdit}
+        onModalOpenChange={setSMSModalOpen}
+      />
 
       {isEditOperatorIdModalOpen && (
         <EditOperatorIdModal

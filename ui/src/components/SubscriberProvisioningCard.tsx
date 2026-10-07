@@ -24,6 +24,7 @@ interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
   onEditProfile?: () => void;
   onEditDescription?: () => void;
+  onEditMSISDN?: () => void;
 }
 
 const DOTS = "••••••••••••••••••••••••••••••••";
@@ -122,6 +123,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   subscriber,
   onEditProfile,
   onEditDescription,
+  onEditMSISDN,
 }) => {
   const copy = useCopyToClipboard();
   const { role, accessToken, authReady } = useAuth();
@@ -188,6 +190,13 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             onEditDescription
               ? editIcon("Edit description", onEditDescription)
               : undefined
+          }
+        />
+        <FieldRow
+          label="MSISDN"
+          value={subscriber.msisdn ?? ""}
+          actionIcon={
+            onEditMSISDN ? editIcon("Edit MSISDN", onEditMSISDN) : undefined
           }
         />
         <FieldRow

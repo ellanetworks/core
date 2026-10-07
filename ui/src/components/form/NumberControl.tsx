@@ -48,7 +48,7 @@ const NumberControl = <
       value={field.value ?? ""}
       onChange={(event) =>
         field.onChange(
-          event.target.value === "" ? undefined : Number(event.target.value),
+          event.target.value === "" ? null : Number(event.target.value),
         )
       }
       type="number"

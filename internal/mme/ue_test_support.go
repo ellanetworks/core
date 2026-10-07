@@ -152,6 +152,7 @@ func (m *MME) RegisterUEForTest(ue *UeContext, imsi string) {
 
 	ue.supi, _ = etsi.NewSUPIFromIMSI(imsi)
 	m.UEs[ue.supi] = ue
+	ue.sms = m.SMS
 }
 
 func (ue *UeContext) SetIMSIForTest(imsi string) { ue.supi, _ = etsi.NewSUPIFromIMSI(imsi) }
@@ -305,6 +306,14 @@ func (ue *UeContext) SetPagedBearerForTest(ebi uint8) {
 
 	ue.paging.pending = &MTRequest{Ebi: ebi}
 	ue.paging.state = PagingAttempting
+}
+
+func (ue *UeContext) AnswerSignallingPageForTest() {
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	ue.paging.pending = &MTRequest{Signalling: true}
+	ue.paging.state = PagingDelivering
 }
 
 func BindRadioLogForTest(r *Radio, address string) {

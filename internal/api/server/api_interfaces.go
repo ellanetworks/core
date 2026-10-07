@@ -44,11 +44,18 @@ type APIInterface struct {
 	Port      int      `json:"port"`
 }
 
+type DiameterInterface struct {
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface,omitempty"`
+}
+
 type NetworkInterfaces struct {
-	N2  N2Interface  `json:"n2"`
-	N3  N3Interface  `json:"n3"`
-	N6  N6Interface  `json:"n6"`
-	API APIInterface `json:"api"`
+	N2       N2Interface        `json:"n2"`
+	N3       N3Interface        `json:"n3"`
+	N6       N6Interface        `json:"n6"`
+	API      APIInterface       `json:"api"`
+	Diameter *DiameterInterface `json:"diameter,omitempty"`
 }
 
 type UpdateN3SettingsParams struct {
@@ -139,6 +146,26 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 				Addresses: apiAddresses,
 				Port:      cfg.Interfaces.API.Port,
 			},
+		}
+
+		if cfg.Interfaces.Diameter.Enabled {
+			diameterAddresses := []string{cfg.Interfaces.Diameter.Address}
+
+			if cfg.Interfaces.Diameter.Name != "" {
+				ips, err := config.GetInterfaceIPs(cfg.Interfaces.Diameter.Name)
+				if err != nil {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get Diameter interface IPs", err, logger.APILog)
+					return
+				}
+
+				diameterAddresses = ips
+			}
+
+			resp.Diameter = &DiameterInterface{
+				Addresses: diameterAddresses,
+				Port:      cfg.Interfaces.Diameter.Port,
+				Interface: cfg.Interfaces.Diameter.Name,
+			}
 		}
 
 		if cfg.Interfaces.N3.VlanConfig != nil {

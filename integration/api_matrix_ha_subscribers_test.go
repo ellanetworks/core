@@ -125,6 +125,7 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		SequenceNumber: "000000000022",
 		ProfileName:    profileA,
 		OPc:            "cb698a2341629c3241ae01de9d89de4f",
+		Msisdn:         "+15559990001",
 	}
 
 	if err := nodes[0].CreateSubscriber(ctx, createOpts); err != nil {
@@ -151,9 +152,9 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("get subscriber on node %d after create: %v", i+1, err)
 		}
 
-		if got.Imsi != imsi || got.ProfileName != profileA {
-			t.Fatalf("node %d: got imsi=%q profile=%q, want imsi=%q profile=%q",
-				i+1, got.Imsi, got.ProfileName, imsi, profileA)
+		if got.Imsi != imsi || got.ProfileName != profileA || got.Msisdn != createOpts.Msisdn {
+			t.Fatalf("node %d: got imsi=%q profile=%q msisdn=%q, want imsi=%q profile=%q msisdn=%q",
+				i+1, got.Imsi, got.ProfileName, got.Msisdn, imsi, profileA, createOpts.Msisdn)
 		}
 
 		// Never-attached defaults. Locks the contract against handler
@@ -209,7 +210,7 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		}
 	}
 
-	if err := nodes[1].UpdateSubscriber(ctx, imsi, &client.UpdateSubscriberOptions{ProfileName: profileB}); err != nil {
+	if err := nodes[1].UpdateSubscriber(ctx, imsi, &client.UpdateSubscriberOptions{ProfileName: profileB, Msisdn: "+15559990002"}); err != nil {
 		t.Fatalf("update subscriber on node 2: %v", err)
 	}
 
@@ -223,6 +224,10 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 		if got.ProfileName != profileB {
 			t.Fatalf("node %d ProfileName after update: got %q, want %q", i+1, got.ProfileName, profileB)
+		}
+
+		if got.Msisdn != "+15559990002" {
+			t.Fatalf("node %d Msisdn after update: got %q, want %q", i+1, got.Msisdn, "+15559990002")
 		}
 	}
 

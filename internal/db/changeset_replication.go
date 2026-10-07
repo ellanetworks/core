@@ -63,6 +63,11 @@ var replicatedChangesetTables = []string{
 	DailyUsageTableName,
 	CellPositionsTableName,
 	UERegistrationsTableName,
+	SMSSettingsTableName,
+	DiameterPeersTableName,
+	SMSCServiceCentresTableName,
+	SMSWaitingTableName,
+	SMSWaitingCentresTableName,
 	"schema_version",
 }
 

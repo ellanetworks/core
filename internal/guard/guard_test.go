@@ -159,3 +159,27 @@ func TestConcurrentArmStop(t *testing.T) {
 	wg.Wait()
 	g.Stop()
 }
+
+func TestTryArmDoesNotDisplaceAnArmedGuard(t *testing.T) {
+	var g Guard
+
+	fired := make(chan string, 2)
+
+	g.Arm(20*time.Millisecond, 0, func(int32) {}, func() { fired <- "first" })
+
+	if g.TryArm(time.Millisecond, 0, func(int32) {}, func() { fired <- "second" }) {
+		t.Fatal("TryArm armed over an active guard")
+	}
+
+	if got := <-fired; got != "first" {
+		t.Fatalf("fired %q, want the original arming", got)
+	}
+
+	if !g.TryArm(time.Millisecond, 0, func(int32) {}, func() { fired <- "third" }) {
+		t.Fatal("TryArm refused an idle guard")
+	}
+
+	if got := <-fired; got != "third" {
+		t.Fatalf("fired %q, want the new arming", got)
+	}
+}

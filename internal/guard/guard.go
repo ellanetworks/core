@@ -57,6 +57,23 @@ func (g *Guard) Arm(d time.Duration, maxRetransmit int32, onRetransmit func(atte
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	g.armLocked(d, maxRetransmit, onRetransmit, onAbort)
+}
+
+func (g *Guard) TryArm(d time.Duration, maxRetransmit int32, onRetransmit func(attempt int32), onAbort func()) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.t != nil {
+		return false
+	}
+
+	g.armLocked(d, maxRetransmit, onRetransmit, onAbort)
+
+	return true
+}
+
+func (g *Guard) armLocked(d time.Duration, maxRetransmit int32, onRetransmit func(attempt int32), onAbort func()) {
 	g.stopLocked()
 	g.gen++
 	gen := g.gen

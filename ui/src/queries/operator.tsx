@@ -19,6 +19,33 @@ export interface OperatorData {
     integrity: string[];
   };
   spn: { fullName: string; shortName: string };
+  sms: OperatorSMS;
+}
+
+export const DEFAULT_SMSC_PORT = 3868;
+
+export interface SMSCPeerInput {
+  diameterIdentity: string;
+  address: string;
+  port: number;
+  serviceCentres: string[];
+}
+
+export type SMSCPeerState =
+  "down" | "connecting" | "open" | "suspect" | "reopen" | "closing";
+
+export interface SMSCPeer extends SMSCPeerInput {
+  id: string;
+  status?: {
+    state: SMSCPeerState;
+    host?: string;
+    realm?: string;
+    since: string;
+  };
+}
+
+export interface OperatorSMS {
+  smsNumber: string;
 }
 
 export const getOperator = async (authToken: string): Promise<OperatorData> => {
@@ -114,4 +141,55 @@ export const updateOperatorSPN = async (
     authToken,
     body: { fullName, shortName },
   });
+};
+
+export const updateOperatorSMS = async (
+  authToken: string,
+  sms: { smsNumber: string },
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/sms`, {
+    method: "PUT",
+    authToken,
+    body: { smsNumber: sms.smsNumber },
+  });
+};
+
+export const listSMSCPeers = async (authToken: string): Promise<SMSCPeer[]> => {
+  const res = await apiFetch<{ items: SMSCPeer[] }>(
+    `/api/v1/operator/sms/smsc-peers`,
+    { authToken },
+  );
+  return res.items;
+};
+
+export const createSMSCPeer = async (
+  authToken: string,
+  peer: SMSCPeerInput,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/sms/smsc-peers`, {
+    method: "POST",
+    authToken,
+    body: peer,
+  });
+};
+
+export const updateSMSCPeer = async (
+  authToken: string,
+  id: string,
+  peer: SMSCPeerInput,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
+    { method: "PUT", authToken, body: peer },
+  );
+};
+
+export const deleteSMSCPeer = async (
+  authToken: string,
+  id: string,
+): Promise<void> => {
+  await apiFetchVoid(
+    `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
+    { method: "DELETE", authToken },
+  );
 };

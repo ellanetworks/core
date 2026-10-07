@@ -40,6 +40,7 @@ type HandlerConfig struct {
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
 	LMF                 *lmf.LMF
+	Diameter            DiameterNode
 	DatapathAttachMode  func() string
 }
 
@@ -152,6 +153,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorCode, UpdateOperatorCode(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/nas-security", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorNASSecurity, UpdateOperatorNASSecurity(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/spn", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSPN, UpdateOperatorSPN(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/sms", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, UpdateOperatorSMS(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/sms/smsc-peers", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, ListSMSCPeers(dbInstance, cfg.Diameter))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetSMSCPeer(dbInstance, cfg.Diameter))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/operator/sms/smsc-peers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, CreateSMSCPeer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, UpdateSMSCPeer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, DeleteSMSCPeer(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)
@@ -178,6 +185,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteRoute, DeleteRoute(dbInstance, reconcileRoutes))).ServeHTTP)
 
 	// NAT (Authenticated)
+	mux.HandleFunc("GET /api/v1/networking/diameter", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDiameter, GetDiameterStatus(cfg.Diameter))).ServeHTTP)
+
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance))).ServeHTTP)
 

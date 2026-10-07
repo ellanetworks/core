@@ -28,6 +28,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, and `result`. | Counter |
 | app_sessions | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
 | app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` and `result`. | Counter |
+| app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
 | app_ip_addresses_allocated | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses | The total number of IP addresses available for subscribers. | Gauge |
 | app_upf_datapath_forward_total | Packets the data plane forwarded, labeled by `direction` and `action`. | Counter |

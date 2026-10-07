@@ -298,6 +298,7 @@ func TestDetachAcceptReleasesWithTheDetachCause(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 	testPDN(ue)
+	ue.TransitionTo(context.Background(), mme.EMMDeregistrationInitiated)
 
 	handleDetachAccept(context.Background(), m, ue, ue.Conn())
 

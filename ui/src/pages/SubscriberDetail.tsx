@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditSubscriberProfileModal from "@/components/EditSubscriberProfileModal";
 import EditSubscriberDescriptionModal from "@/components/EditSubscriberDescriptionModal";
+import EditSubscriberMSISDNModal from "@/components/EditSubscriberMSISDNModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
@@ -42,6 +43,7 @@ const SubscriberDetail: React.FC = () => {
   const [isEditProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [isEditDescriptionModalOpen, setEditDescriptionModalOpen] =
     useState(false);
+  const [isEditMSISDNModalOpen, setEditMSISDNModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -154,6 +156,9 @@ const SubscriberDetail: React.FC = () => {
                       ? () => setEditDescriptionModalOpen(true)
                       : undefined
                   }
+                  onEditMSISDN={
+                    canEdit ? () => setEditMSISDNModalOpen(true) : undefined
+                  }
                 />
               </Box>
 
@@ -225,6 +230,7 @@ const SubscriberDetail: React.FC = () => {
                   imsi: subscriber.imsi,
                   profileName: subscriber.profile_name,
                   description: subscriber.description ?? "",
+                  msisdn: subscriber.msisdn ?? "",
                 }}
               />
             )}
@@ -241,6 +247,24 @@ const SubscriberDetail: React.FC = () => {
                   imsi: subscriber.imsi,
                   profileName: subscriber.profile_name,
                   description: subscriber.description ?? "",
+                  msisdn: subscriber.msisdn ?? "",
+                }}
+              />
+            )}
+
+            {isEditMSISDNModalOpen && (
+              <EditSubscriberMSISDNModal
+                open
+                onClose={() => setEditMSISDNModalOpen(false)}
+                onSuccess={() => {
+                  subscriberQuery.refetch();
+                  showSnackbar("Subscriber updated successfully.", "success");
+                }}
+                initialData={{
+                  imsi: subscriber.imsi,
+                  profileName: subscriber.profile_name,
+                  description: subscriber.description ?? "",
+                  msisdn: subscriber.msisdn ?? "",
                 }}
               />
             )}

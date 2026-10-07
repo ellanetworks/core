@@ -462,6 +462,10 @@ None
         "api": {
             "addresses": ["192.168.1.10"],
             "port": 5002
+        },
+        "diameter": {
+            "addresses": ["10.0.0.10"],
+            "port": 3868
         }
     }
 }
@@ -1061,6 +1065,42 @@ None
                 "prefix": "10.0.0.0/24",
                 "nextHop": "192.168.5.1",
                 "peer": "192.168.5.1"
+            }
+        ]
+    }
+}
+```
+
+# Diameter
+
+## Get Diameter Status
+
+This path returns the Diameter identity of the node that serves the request and the state of its Diameter peers. Each node reports only its own connections.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/networking/diameter` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "host": "mmec41.mmegi8100.mme.epc.mnc001.mcc001.3gppnetwork.org",
+        "realm": "epc.mnc001.mcc001.3gppnetwork.org",
+        "peers": [
+            {
+                "role": "smsc",
+                "host": "smsc.example.org",
+                "realm": "example.org",
+                "address": "192.0.2.10",
+                "port": 3868,
+                "state": "open",
+                "since": "2026-09-29T13:44:09Z"
             }
         ]
     }

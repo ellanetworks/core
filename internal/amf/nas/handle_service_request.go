@@ -550,7 +550,9 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Handled()
 	}
 
-	if buffered.present {
+	amfInstance.SMSReachable(ctx, ue)
+
+	if buffered.present || ue.PagingPending().SignallingOnly() {
 		ue.PagingDelivered(ctx)
 	}
 
