@@ -37,14 +37,10 @@ To complete this tutorial, you will need the following:
 
 Connect to the Linux machine where you will install Ella Core.
 
-Install the Ella Core snap and connect the required interfaces:
+Install the Ella Core snap:
 
 ```shell
 sudo snap install ella-core
-sudo snap connect ella-core:network-control
-sudo snap connect ella-core:process-control
-sudo snap connect ella-core:firewall-control
-sudo snap connect ella-core:mount-observe
 ```
 
 Edit the configuration file:
