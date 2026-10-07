@@ -146,7 +146,7 @@ const SMSSection: React.FC<SMSSectionProps> = ({
       </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
         Let 4G and 5G subscribers send and receive SMS. Each subscriber needs a
-        phone number to send or receive SMS messages.
+        phone number.
       </Typography>
 
       <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 3 }}>
