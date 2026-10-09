@@ -31,13 +31,19 @@ type server struct {
 func newServer(t *testing.T, kind Transport, host string, ip netip.Addr, handle func(s *server, c *Conn, req *Message) *Message) *server {
 	t.Helper()
 
+	return newServerIn(t, kind, host, routeRealm, ip, []Application{sgdApp}, handle)
+}
+
+func newServerIn(t *testing.T, kind Transport, host, realm string, ip netip.Addr, apps []Application, handle func(s *server, c *Conn, req *Message) *Message) *server {
+	t.Helper()
+
 	s := &server{host: host, seen: make(chan *Message, 64)}
 
 	cfg := testConfig(host)
-	cfg.Identity.OriginRealm = routeRealm
+	cfg.Identity.OriginRealm = realm
 	cfg.Identity.HostIPAddresses = []netip.Addr{ip}
 	cfg.AcceptUnknownPeers = true
-	cfg.UnknownPeerApplications = []Application{sgdApp}
+	cfg.UnknownPeerApplications = apps
 	cfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
 		s.calls.Add(1)
 

@@ -163,7 +163,7 @@ func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 			return candidate{}, nil, err
 		}
 
-		waitable, unsupported := false, 0
+		waitable, unsupported := n.cfg.AcceptUnknownPeers, 0
 
 		for _, cand := range cands {
 			p := cand.peer
@@ -194,7 +194,7 @@ func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 		n.mu.Unlock()
 
 		switch {
-		case unsupported == len(cands):
+		case len(cands) > 0 && unsupported == len(cands):
 			return candidate{}, nil, ErrApplicationUnsupported
 		case !waitable || (s.o.failFast && !s.redirect):
 			return candidate{}, nil, ErrNotConnected
@@ -231,14 +231,24 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 		return []candidate{*s.fixed}, nil
 	}
 
-	rt, ok := n.routes[routeKey{realm: s.realm, app: s.m.ApplicationID}]
-	if !ok || s.realm == "" {
+	key := routeKey{realm: s.realm, app: s.m.ApplicationID}
+
+	entries := n.routeEntriesLocked(key)
+	if len(entries) == 0 {
+		if s.last != nil {
+			return nil, errExhausted
+		}
+
+		if s.realm != "" && n.cfg.AcceptUnknownPeers {
+			return nil, nil
+		}
+
 		return nil, fmt.Errorf("%w: no route to realm %q for application %d", ErrUnableToDeliver, s.realm, s.m.ApplicationID)
 	}
 
 	var cands []candidate
 
-	for _, p := range rt.ordered() {
+	for _, p := range n.orderedLocked(key, entries) {
 		cand := candidate{peer: p}
 
 		if s.host == "" && p.host != "" {
