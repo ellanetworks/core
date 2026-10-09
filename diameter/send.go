@@ -63,8 +63,12 @@ type sending struct {
 }
 
 func (n *Node) Send(ctx context.Context, req *Message, opts ...RequestOption) (*Message, error) {
-	ctx, cancel := n.withRequestTimeout(ctx)
-	defer cancel()
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, n.cfg.RequestTimeout)
+		defer cancel()
+	}
 
 	s := &sending{
 		n:     n,

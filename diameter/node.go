@@ -630,14 +630,6 @@ func applyOptions(opts []RequestOption) requestOptions {
 	return o
 }
 
-func (n *Node) withRequestTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := ctx.Deadline(); ok {
-		return ctx, func() {}
-	}
-
-	return context.WithTimeout(ctx, n.cfg.RequestTimeout)
-}
-
 func (n *Node) newRequest(req *Message) Message {
 	m := *req
 	m.Flags = (m.Flags | FlagRequest) &^ (FlagRetransmit | FlagError)
@@ -658,8 +650,12 @@ func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...Requ
 
 	o := applyOptions(opts)
 
-	ctx, cancel := n.withRequestTimeout(ctx)
-	defer cancel()
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, n.cfg.RequestTimeout)
+		defer cancel()
+	}
 
 	m := n.newRequest(req)
 
