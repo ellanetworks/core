@@ -59,16 +59,17 @@ func TestQoSFlowParameterKbps(t *testing.T) {
 // must carry them, "delete existing QoS rule" must not, and the four modify
 // operations round-trip either way.
 func TestQoSRuleParametersAreConditional(t *testing.T) {
-	modifyOps := []QoSRuleOperation{
-		QoSRuleOpModifyAddFilters,
-		QoSRuleOpModifyReplaceFilters,
-		QoSRuleOpModifyDeleteFilters,
-		QoSRuleOpModifyWithoutFilters,
+	added := []PacketFilter{{Identifier: 1, Direction: PacketFilterBidirectional, Components: []PacketFilterComponent{ProtocolComponent(17)}}}
+	modifyOps := map[QoSRuleOperation][]PacketFilter{
+		QoSRuleOpModifyAddFilters:     added,
+		QoSRuleOpModifyReplaceFilters: nil,
+		QoSRuleOpModifyDeleteFilters:  {{Identifier: 1}},
+		QoSRuleOpModifyWithoutFilters: nil,
 	}
 
-	for _, op := range modifyOps {
+	for op, filters := range modifyOps {
 		for _, params := range []*QoSRuleParameters{nil, {Precedence: 7, QFI: 5}} {
-			rules := QoSRules{{Identifier: 2, OperationCode: op, Parameters: params}}
+			rules := QoSRules{{Identifier: 2, OperationCode: op, Parameters: params, Filters: filters}}
 
 			b, err := rules.MarshalBinary()
 			if err != nil {

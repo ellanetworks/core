@@ -10,19 +10,27 @@ import (
 )
 
 // RemoteAddressComponent is the IPv4 or IPv6 remote address component (TS 24.501 table 9.11.4.13.1).
-func RemoteAddressComponent(p netip.Prefix) PacketFilterComponent {
+func RemoteAddressComponent(p netip.Prefix) (PacketFilterComponent, error) {
+	if !p.IsValid() {
+		return PacketFilterComponent{}, fmt.Errorf("nas/fgs: remote address %v is not a valid prefix", p)
+	}
+
+	if p.Addr().Is4In6() {
+		p = netip.PrefixFrom(p.Addr().Unmap(), max(p.Bits()-96, 0))
+	}
+
 	p = p.Masked()
 
 	if p.Addr().Is4() {
 		mask := netip.PrefixFrom(netip.AddrFrom4([4]byte{0xFF, 0xFF, 0xFF, 0xFF}), p.Bits()).Masked().Addr().As4()
 		addr := p.Addr().As4()
 
-		return PacketFilterComponent{Type: pfComponentTypeIPv4RemoteAddress, Value: append(addr[:], mask[:]...)}
+		return PacketFilterComponent{Type: pfComponentTypeIPv4RemoteAddress, Value: append(addr[:], mask[:]...)}, nil
 	}
 
 	addr := p.Addr().As16()
 
-	return PacketFilterComponent{Type: pfComponentTypeIPv6RemoteAddress, Value: append(addr[:], uint8(p.Bits()))}
+	return PacketFilterComponent{Type: pfComponentTypeIPv6RemoteAddress, Value: append(addr[:], uint8(p.Bits()))}, nil
 }
 
 // ProtocolComponent is the protocol identifier/next header component.

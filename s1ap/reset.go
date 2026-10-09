@@ -83,7 +83,7 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 		return nil
 	default:
-		items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](r, enc, maxnoofIndividualS1ConnectionsToReset)
+		items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](r, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem)
 		if err != nil {
 			return err
 		}
@@ -170,7 +170,7 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 	{
 		id: IDUEAssociatedLogicalS1ConnectionListResAck, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
-			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(raw), enc, maxnoofIndividualS1ConnectionsToReset)
+			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(raw), enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem)
 			if err != nil {
 				return err
 			}

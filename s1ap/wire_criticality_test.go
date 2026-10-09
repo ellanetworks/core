@@ -136,6 +136,21 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"ERABReleaseIndication §9.1.3.7",
+			(&ERABReleaseIndication{
+				MMEUES1APID:             1,
+				ENBUES1APID:             2,
+				ERABReleased:            []ERABItem{goldERABItem()},
+				UserLocationInformation: &UserLocationInformation{},
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDERABReleasedList, CriticalityIgnore},
+				{IDUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
 			"ERABModifyRequest §9.1.3.3",
 			(&ERABModifyRequest{
 				MMEUES1APID:               1,

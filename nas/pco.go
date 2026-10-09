@@ -421,12 +421,16 @@ func NewPCSCFContainers(addrs []netip.Addr, req PCSCFRequest) []PCOContainer {
 func (p ProtocolConfigurationOptions) PCSCFAddresses() []netip.Addr {
 	var out []netip.Addr
 
+	if p.Direction != PCONetworkToMS {
+		return nil
+	}
+
 	for _, c := range p.Containers {
-		switch c.ID {
-		case PCOContainerPCSCFIPv4Address, PCOContainerPCSCFIPv6Address:
-			if addr, ok := netip.AddrFromSlice(c.Content); ok {
-				out = append(out, addr)
-			}
+		switch {
+		case c.ID == PCOContainerPCSCFIPv4Address && len(c.Content) == 4:
+			out = append(out, netip.AddrFrom4([4]byte(c.Content)))
+		case c.ID == PCOContainerPCSCFIPv6Address && len(c.Content) == 16:
+			out = append(out, netip.AddrFrom16([16]byte(c.Content)))
 		}
 	}
 

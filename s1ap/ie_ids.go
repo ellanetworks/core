@@ -95,6 +95,7 @@ const (
 	IDERABNotToBeModifiedItemBearerModInd       ProtocolIEID = 202
 	IDERABModifyListBearerModConf               ProtocolIEID = 203
 	IDERABModifyItemBearerModConf               ProtocolIEID = 204
+	IDERABFailedToModifyListBearerModConf       ProtocolIEID = 205
 	IDERABToBeReleasedListBearerModConf         ProtocolIEID = 210
 	IDUERetentionInformation                    ProtocolIEID = 228
 )

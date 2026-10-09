@@ -71,7 +71,7 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},
@@ -184,7 +184,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABReleased, err = decodeItemList[ERABReleaseItemBearerRelComp](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABReleased, err = decodeItemList[ERABReleaseItemBearerRelComp](per.NewReader(raw), enc, maxnoofERABs, IDERABReleaseItemBearerRelComp)
 
 			return err
 		},
@@ -203,7 +203,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABFailedToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},
@@ -314,7 +314,7 @@ var eRABReleaseIndicationIEs = []ieSpec[ERABReleaseIndication]{
 		decode: func(m *ERABReleaseIndication, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},

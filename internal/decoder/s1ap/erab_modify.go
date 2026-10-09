@@ -171,6 +171,24 @@ func buildERABModificationConfirm(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDERABModifyListBearerModConf, s1ap.CriticalityIgnore, modified))
 	}
 
+	if len(m.FailedToModify) > 0 {
+		failed := make([]ERABToBeReleasedItem, 0, len(m.FailedToModify))
+		for _, it := range m.FailedToModify {
+			failed = append(failed, ERABToBeReleasedItem{ERABID: uint8(it.ERABID), Cause: cause(it.Cause)})
+		}
+
+		ies = append(ies, ie(s1ap.IDERABFailedToModifyListBearerModConf, s1ap.CriticalityIgnore, failed))
+	}
+
+	if len(m.ToBeReleased) > 0 {
+		released := make([]ERABToBeReleasedItem, 0, len(m.ToBeReleased))
+		for _, it := range m.ToBeReleased {
+			released = append(released, ERABToBeReleasedItem{ERABID: uint8(it.ERABID), Cause: cause(it.Cause)})
+		}
+
+		ies = append(ies, ie(s1ap.IDERABToBeReleasedListBearerModConf, s1ap.CriticalityIgnore, released))
+	}
+
 	if m.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}

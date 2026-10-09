@@ -60,6 +60,13 @@ const (
 	TFTSecurityParameterIndex  TFTComponentType = 0x60
 	TFTTypeOfService           TFTComponentType = 0x70
 	TFTFlowLabel               TFTComponentType = 0x80
+	TFTDestinationMACAddress   TFTComponentType = 0x81
+	TFTSourceMACAddress        TFTComponentType = 0x82
+	TFTCTagVID                 TFTComponentType = 0x83
+	TFTSTagVID                 TFTComponentType = 0x84
+	TFTCTagPCPDEI              TFTComponentType = 0x85
+	TFTSTagPCPDEI              TFTComponentType = 0x86
+	TFTEthertype               TFTComponentType = 0x87
 )
 
 var tftComponentLen = map[TFTComponentType]int{
@@ -76,6 +83,25 @@ var tftComponentLen = map[TFTComponentType]int{
 	TFTSecurityParameterIndex:  4,
 	TFTTypeOfService:           2,
 	TFTFlowLabel:               3,
+	TFTDestinationMACAddress:   6,
+	TFTSourceMACAddress:        6,
+	TFTCTagVID:                 2,
+	TFTSTagVID:                 2,
+	TFTCTagPCPDEI:              1,
+	TFTSTagPCPDEI:              1,
+	TFTEthertype:               2,
+}
+
+var tftExclusiveComponents = map[TFTComponentType]int{
+	TFTIPv4RemoteAddress:       1,
+	TFTIPv6RemoteAddress:       1,
+	TFTIPv6RemoteAddressPrefix: 1,
+	TFTIPv4LocalAddress:        2,
+	TFTIPv6LocalAddressPrefix:  2,
+	TFTSingleLocalPort:         3,
+	TFTLocalPortRange:          3,
+	TFTSingleRemotePort:        4,
+	TFTRemotePortRange:         4,
 }
 
 // TFTComponent is a packet filter component and its fixed-length value.
@@ -106,20 +132,34 @@ type TrafficFlowTemplate struct {
 	Parameters        []TFTParameter
 }
 
-// RemoteAddress is the IPv4 remote address or IPv6 remote address/prefix length component for p.
-func RemoteAddress(p netip.Prefix) TFTComponent {
+// RemoteAddress is the IPv4 remote address or IPv6 remote address component for p.
+func RemoteAddress(p netip.Prefix) (TFTComponent, error) {
+	if !p.IsValid() {
+		return TFTComponent{}, fmt.Errorf("nas/eps: remote address %v is not a valid prefix", p)
+	}
+
+	if p.Addr().Is4In6() {
+		p = netip.PrefixFrom(p.Addr().Unmap(), max(p.Bits()-96, 0))
+	}
+
 	p = p.Masked()
 
 	if p.Addr().Is4() {
 		mask := netip.PrefixFrom(netip.AddrFrom4([4]byte{0xFF, 0xFF, 0xFF, 0xFF}), p.Bits()).Masked().Addr().As4()
 		addr := p.Addr().As4()
 
-		return TFTComponent{Type: TFTIPv4RemoteAddress, Value: append(addr[:], mask[:]...)}
+		return TFTComponent{Type: TFTIPv4RemoteAddress, Value: append(addr[:], mask[:]...)}, nil
 	}
 
+	var ones [16]byte
+	for i := range ones {
+		ones[i] = 0xFF
+	}
+
+	mask := netip.PrefixFrom(netip.AddrFrom16(ones), p.Bits()).Masked().Addr().As16()
 	addr := p.Addr().As16()
 
-	return TFTComponent{Type: TFTIPv6RemoteAddressPrefix, Value: append(addr[:], uint8(p.Bits()))}
+	return TFTComponent{Type: TFTIPv6RemoteAddress, Value: append(addr[:], mask[:]...)}, nil
 }
 
 // ProtocolIdentifier is the protocol identifier/next header component.
@@ -220,12 +260,20 @@ func (t TrafficFlowTemplate) check() error {
 		}
 	}
 
+	ids := map[uint8]bool{}
+
 	for _, f := range t.Filters {
 		if f.Identifier > maxTFTPacketFilter || f.Direction > TFTBidirectional || len(f.Components) == 0 {
 			return fmt.Errorf("nas/eps: TFT packet filter %d is malformed", f.Identifier)
 		}
 
+		if ids[f.Identifier] {
+			return fmt.Errorf("nas/eps: TFT repeats packet filter identifier %d", f.Identifier)
+		}
+
+		ids[f.Identifier] = true
 		seen := map[TFTComponentType]bool{}
+		groups := map[int]bool{}
 
 		for _, c := range f.Components {
 			if want, ok := tftComponentLen[c.Type]; !ok || want != len(c.Value) {
@@ -237,6 +285,14 @@ func (t TrafficFlowTemplate) check() error {
 			}
 
 			seen[c.Type] = true
+
+			if g, ok := tftExclusiveComponents[c.Type]; ok {
+				if groups[g] {
+					return fmt.Errorf("nas/eps: TFT packet filter %d combines mutually exclusive component %#x", f.Identifier, uint8(c.Type))
+				}
+
+				groups[g] = true
+			}
 		}
 	}
 
@@ -256,6 +312,14 @@ func ParseTrafficFlowTemplate(b []byte) (TrafficFlowTemplate, error) {
 	count := int(head & 0x0F)
 	hasParameters := head&0x10 != 0
 
+	if t.Operation == TFTIgnore {
+		return t, nil
+	}
+
+	if (t.Operation == TFTDeleteExisting || t.Operation == TFTNoOperation) && count != 0 {
+		return TrafficFlowTemplate{}, fmt.Errorf("nas/eps: TFT operation %d carries %d packet filters, want 0", t.Operation, count)
+	}
+
 	if t.Operation == TFTDeleteFilters {
 		for range count {
 			id, err := r.U8()
@@ -265,7 +329,7 @@ func ParseTrafficFlowTemplate(b []byte) (TrafficFlowTemplate, error) {
 
 			t.DeleteIdentifiers = append(t.DeleteIdentifiers, id&0x0F)
 		}
-	} else if t.Operation != TFTDeleteExisting && t.Operation != TFTNoOperation && t.Operation != TFTIgnore {
+	} else if t.Operation != TFTDeleteExisting && t.Operation != TFTNoOperation {
 		for range count {
 			f, err := parseTFTPacketFilter(r)
 			if err != nil {
@@ -274,6 +338,10 @@ func ParseTrafficFlowTemplate(b []byte) (TrafficFlowTemplate, error) {
 
 			t.Filters = append(t.Filters, f)
 		}
+	}
+
+	if hasParameters && r.Remaining() == 0 {
+		return TrafficFlowTemplate{}, fmt.Errorf("nas/eps: TFT sets the E bit but carries no parameters list")
 	}
 
 	for hasParameters && r.Remaining() > 0 {

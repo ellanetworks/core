@@ -59,7 +59,12 @@ func (m *PDUSessionEstablishmentRequest) AppendBinary(b []byte) ([]byte, error) 
 	}
 
 	if m.MaxPacketFilters != nil {
-		o.TV3(ieiMaxPacketFilters, maxPacketFiltersValue(*m.MaxPacketFilters))
+		v, err := maxPacketFiltersValue(*m.MaxPacketFilters)
+		if err != nil {
+			return b, err
+		}
+
+		o.TV3(ieiMaxPacketFilters, v)
 	}
 
 	if m.AlwaysOnRequested != nil {

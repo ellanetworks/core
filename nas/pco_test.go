@@ -290,6 +290,20 @@ func TestNewPCSCFContainers(t *testing.T) {
 		}
 	}
 
+	swapped := ProtocolConfigurationOptions{ConfigProtocol: PCOConfigProtocolPPP, Direction: PCONetworkToMS, Containers: []PCOContainer{
+		{ID: PCOContainerPCSCFIPv4Address, Content: netip.MustParseAddr("2001:db8::1").AsSlice()},
+		{ID: PCOContainerPCSCFIPv6Address, Content: []byte{10, 0, 0, 5}},
+		{ID: PCOContainerPCSCFIPv4Address, Content: []byte{10, 0, 0, 7}},
+	}}
+	if got := swapped.PCSCFAddresses(); len(got) != 1 || got[0] != netip.MustParseAddr("10.0.0.7") {
+		t.Fatalf("PCSCFAddresses() with mismatched lengths = %v, want only 10.0.0.7", got)
+	}
+
+	request := ProtocolConfigurationOptions{ConfigProtocol: PCOConfigProtocolPPP, Direction: PCOMSToNetwork, Containers: swapped.Containers}
+	if got := request.PCSCFAddresses(); len(got) != 0 {
+		t.Fatalf("PCSCFAddresses() on an MS-to-network element = %v, want none", got)
+	}
+
 	ipv4Only := NewPCSCFContainers(addrs, PCSCFRequest{IPv4: true})
 	if len(ipv4Only) != 2 || ipv4Only[0].ID != PCOContainerPCSCFIPv4Address || !bytes.Equal(ipv4Only[0].Content, []byte{10, 0, 0, 6}) {
 		t.Fatalf("IPv4-only containers = %+v", ipv4Only)

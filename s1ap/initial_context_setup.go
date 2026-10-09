@@ -47,7 +47,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemCtxtSUReq](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemCtxtSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemCtxtSUReq)
 
 			return err
 		},
@@ -169,7 +169,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABSetup, err = decodeItemList[ERABSetupItemCtxtSURes](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABSetup, err = decodeItemList[ERABSetupItemCtxtSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemCtxtSURes)
 
 			return err
 		},
@@ -188,7 +188,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},

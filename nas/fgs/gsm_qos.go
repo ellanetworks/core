@@ -155,6 +155,17 @@ func ruleParametersForbidden(op QoSRuleOperation) bool { return op == QoSRuleOpD
 // and delete packet filters" operation only.
 func filtersAreIdentifiersOnly(op QoSRuleOperation) bool { return op == QoSRuleOpModifyDeleteFilters }
 
+func ruleFilterCountAllowed(op QoSRuleOperation, n int) bool {
+	switch op {
+	case QoSRuleOpDelete, QoSRuleOpModifyWithoutFilters:
+		return n == 0
+	case QoSRuleOpModifyAddFilters, QoSRuleOpModifyDeleteFilters:
+		return n > 0
+	default:
+		return true
+	}
+}
+
 // PacketFilterComponent is one component of a packet filter: a component type
 // and its fixed-length value (TS 24.501 §9.11.4.13, table 9.11.4.13.1). The
 // match-all component (type 0x01) carries no value.
@@ -222,8 +233,8 @@ func (r QoSRule) marshal(w *nas.Writer) error {
 			r.Identifier, len(r.Filters), maxPacketFiltersPerRule)
 	}
 
-	if ruleParametersForbidden(r.OperationCode) && len(r.Filters) > 0 {
-		return fmt.Errorf("nas/fgs: QoS rule %d deletes the rule, so its packet filter list must be empty", r.Identifier)
+	if !ruleFilterCountAllowed(r.OperationCode, len(r.Filters)) {
+		return fmt.Errorf("nas/fgs: QoS rule %d operation %s cannot carry %d packet filters", r.Identifier, r.OperationCode, len(r.Filters))
 	}
 
 	if ruleParametersForbidden(r.OperationCode) && r.Parameters != nil {
@@ -405,10 +416,8 @@ func parseQoSRule(r *nas.Reader) (QoSRule, error) {
 
 	rule := QoSRule{Identifier: id, OperationCode: QoSRuleOperation(hdr >> 5 & 0x07), DQR: hdr >> 4 & 0x01}
 
-	// TS 24.501 §9.11.4.13: the "delete existing QoS rule" operation sets the rule
-	// length to one, so it can carry no packet filters.
-	if ruleParametersForbidden(rule.OperationCode) && hdr&0x0F != 0 {
-		return QoSRule{}, fmt.Errorf("nas/fgs: QoS rule %d deletes the rule but lists %d packet filters", id, hdr&0x0F)
+	if !ruleFilterCountAllowed(rule.OperationCode, int(hdr&0x0F)) {
+		return QoSRule{}, fmt.Errorf("nas/fgs: QoS rule %d operation %s cannot carry %d packet filters", id, rule.OperationCode, hdr&0x0F)
 	}
 
 	for i := 0; i < int(hdr&0x0F); i++ {

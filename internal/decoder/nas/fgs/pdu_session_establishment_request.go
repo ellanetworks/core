@@ -59,12 +59,12 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 
 	out.AlwaysonPDUSessionRequested = msg.AlwaysOnRequested
 
+	out.MaximumNumberOfSupportedPacketFilters = msg.MaxPacketFilters
+
 	out.ExtendedProtocolConfigurationOptions = nasie.ExtendedPCO(msg.ExtendedPCO)
 
 	for _, ie := range msg.Unrecognized {
 		switch ie.IEI {
-		case ieiMaxPacketFilters:
-			out.MaximumNumberOfSupportedPacketFilters = maxSupportedPacketFilters(ie.Value)
 		case ieiExtendedPCO:
 			// The element reached Unrecognized because its content did not decode.
 			out.ExtendedProtocolConfigurationOptions = &nasie.ProtocolConfigurationOptions{
@@ -73,24 +73,11 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 		}
 	}
 
-	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiMaxPacketFilters, ieiExtendedPCO)
+	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiExtendedPCO)
 
 	return out
 }
 
 func buildPDUSessionType(sessType uint8) utils.EnumField {
 	return utils.NamedEnum(sessType, fgs.PDUSessionType(sessType).Name())
-}
-
-// maxSupportedPacketFilters reads the 11-bit count TS 24.501 §9.11.4.9 spreads
-// over two octets: bit 8 of the first is the most significant bit and bit 6 of
-// the second the least, leaving the low five bits of the second spare.
-func maxSupportedPacketFilters(v []byte) *uint16 {
-	if len(v) != 2 {
-		return nil
-	}
-
-	n := uint16(v[0])<<3 | uint16(v[1])>>5
-
-	return &n
 }

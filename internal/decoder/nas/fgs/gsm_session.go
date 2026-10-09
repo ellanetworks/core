@@ -101,6 +101,7 @@ func buildPDUSessionModificationRequest(msg *fgs.PDUSessionModificationRequest) 
 type PDUSessionModificationCommand struct {
 	SessionAMBR                          *SessionAMBR                        `json:"session_ambr,omitempty"`
 	AlwaysonPDUSessionIndication         *bool                               `json:"alwayson_pdu_session_indication,omitempty"`
+	AuthorizedQosRules                   []QosRule                           `json:"authorized_qos_rules,omitempty"`
 	MappedEPSBearerContexts              []MappedEPSBearerContext            `json:"mapped_eps_bearer_contexts,omitempty"`
 	AuthorizedQosFlowDescriptions        []QoSFlowDescription                `json:"authorized_qos_flow_descriptions,omitempty"`
 	ExtendedProtocolConfigurationOptions *nasie.ProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
@@ -111,6 +112,7 @@ type PDUSessionModificationCommand struct {
 func buildPDUSessionModificationCommand(msg *fgs.PDUSessionModificationCommand) *PDUSessionModificationCommand {
 	out := &PDUSessionModificationCommand{
 		AlwaysonPDUSessionIndication:         msg.AlwaysOn,
+		AuthorizedQosRules:                   QosRulesFromNAS(msg.QoSRules),
 		AuthorizedQosFlowDescriptions:        QosFlowDescriptionsFromNAS(msg.QoSFlowDescriptions),
 		ExtendedProtocolConfigurationOptions: nasie.ExtendedPCO(msg.ExtendedPCO),
 	}

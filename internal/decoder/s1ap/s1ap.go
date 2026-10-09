@@ -92,6 +92,8 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildERABSetupRequest(m.Value)
 	case s1ap.ProcERABRelease:
 		msg.Value, msg.Summary = buildERABReleaseCommand(m.Value)
+	case s1ap.ProcERABReleaseIndication:
+		msg.Value, msg.Summary = buildERABReleaseIndication(m.Value)
 	case s1ap.ProcReset:
 		msg.Value, msg.Summary = buildReset(m.Value)
 	case s1ap.ProcPathSwitchRequest:

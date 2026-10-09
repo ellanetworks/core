@@ -17,7 +17,7 @@ func TestMaxPacketFiltersBitLayout(t *testing.T) {
 		want uint16
 	}{
 		{"observed on air", []byte{0x10, 0x00}, 128},
-		{"least significant bit", []byte{0x00, 0x20}, 1},
+		{"spec minimum", []byte{0x02, 0x20}, 17},
 		{"spec maximum", []byte{0x80, 0x00}, 1024},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -26,10 +26,16 @@ func TestMaxPacketFiltersBitLayout(t *testing.T) {
 				t.Fatalf("got %d (%v), want %d", got, err, tc.want)
 			}
 
-			if enc := maxPacketFiltersValue(got); !bytes.Equal(enc, tc.in) {
-				t.Fatalf("re-encoded as %x, want %x", enc, tc.in)
+			if enc, err := maxPacketFiltersValue(got); err != nil || !bytes.Equal(enc, tc.in) {
+				t.Fatalf("re-encoded as %x (%v), want %x", enc, err, tc.in)
 			}
 		})
+	}
+
+	for _, n := range []uint16{0, 16, 1025, 4096} {
+		if enc, err := maxPacketFiltersValue(n); err == nil {
+			t.Errorf("%d encoded as %x, want an error", n, enc)
+		}
 	}
 
 	if _, err := parseMaxPacketFilters([]byte{0x10}); err == nil {

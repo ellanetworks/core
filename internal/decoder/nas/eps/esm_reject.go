@@ -27,6 +27,7 @@ func esmCauseOnly(c eps.ESMCause, unrecognized []nas.RawIE) *ESMCauseOnly {
 
 type ModifyEPSBearerContextRequest struct {
 	NewEPSQoS                            *EPSQoS                             `json:"new_eps_qos,omitempty"`
+	TFT                                  *TFT                                `json:"tft,omitempty"`
 	APNAMBR                              *APNAMBR                            `json:"apn_ambr,omitempty"`
 	ProtocolConfigurationOptions         *nasie.ProtocolConfigurationOptions `json:"protocol_configuration_options,omitempty"`
 	ExtendedProtocolConfigurationOptions *nasie.ProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
@@ -43,6 +44,10 @@ func buildModifyEPSBearerContextRequest(msg *eps.ModifyEPSBearerContextRequest) 
 
 	if msg.NewEPSQoS != nil {
 		out.NewEPSQoS = epsQoS(*msg.NewEPSQoS)
+	}
+
+	if msg.TFT != nil {
+		out.TFT = tft(*msg.TFT)
 	}
 
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)

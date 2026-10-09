@@ -43,7 +43,7 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSwitchedDL, err = decodeItemList[ERABToBeSwitchedDLItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeSwitchedDL, err = decodeItemList[ERABToBeSwitchedDLItem](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSwitchedDLItem)
 
 			return err
 		},
@@ -236,7 +236,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},

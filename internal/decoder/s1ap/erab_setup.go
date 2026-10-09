@@ -14,12 +14,33 @@ import (
 // variant its NAS-PDU is mandatory: it carries the ACTIVATE DEFAULT EPS BEARER
 // CONTEXT REQUEST.
 type ERABToBeSetupBearer struct {
-	ERABID                uint8  `json:"erab_id"`
-	QCI                   uint8  `json:"qci"`
-	ARP                   ARP    `json:"arp"`
-	TransportLayerAddress string `json:"transport_layer_address"`
-	GTPTEID               uint32 `json:"gtp_teid"`
-	NASPDU                NASPDU `json:"nas_pdu"`
+	ERABID                uint8   `json:"erab_id"`
+	QCI                   uint8   `json:"qci"`
+	ARP                   ARP     `json:"arp"`
+	GBR                   *GBRQoS `json:"gbr_qos_information,omitempty"`
+	TransportLayerAddress string  `json:"transport_layer_address"`
+	GTPTEID               uint32  `json:"gtp_teid"`
+	NASPDU                NASPDU  `json:"nas_pdu"`
+}
+
+type GBRQoS struct {
+	MaximumBitrateDL    uint64 `json:"maximum_bitrate_dl"`
+	MaximumBitrateUL    uint64 `json:"maximum_bitrate_ul"`
+	GuaranteedBitrateDL uint64 `json:"guaranteed_bitrate_dl"`
+	GuaranteedBitrateUL uint64 `json:"guaranteed_bitrate_ul"`
+}
+
+func gbrQoS(g *s1ap.GBRQosInformation) *GBRQoS {
+	if g == nil {
+		return nil
+	}
+
+	return &GBRQoS{
+		MaximumBitrateDL:    uint64(g.MaximumBitrateDL),
+		MaximumBitrateUL:    uint64(g.MaximumBitrateUL),
+		GuaranteedBitrateDL: uint64(g.GuaranteedBitrateDL),
+		GuaranteedBitrateUL: uint64(g.GuaranteedBitrateUL),
+	}
 }
 
 func buildERABSetupRequest(value []byte) (S1APMessageValue, string) {
@@ -38,6 +59,7 @@ func buildERABSetupRequest(value []byte) (S1APMessageValue, string) {
 				PreemptionCapability:    uint8(it.QoS.ARP.PreemptionCapability),
 				PreemptionVulnerability: uint8(it.QoS.ARP.PreemptionVulnerability),
 			},
+			GBR:                   gbrQoS(it.QoS.GBR),
 			TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
 			GTPTEID:               uint32(it.GTPTEID),
 			NASPDU:                nasPDU(it.NASPDU),

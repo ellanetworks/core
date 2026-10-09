@@ -164,3 +164,31 @@ func TestERABReleaseIndicationRoundTrips(t *testing.T) {
 		t.Fatalf("ULI not round-tripped: %+v", uli)
 	}
 }
+
+func TestDecodeItemListRejectsWrongItemID(t *testing.T) {
+	m := &ERABReleaseIndication{MMEUES1APID: 1, ENBUES1APID: 2, ERABReleased: []ERABItem{{ERABID: 5}}}
+
+	wire, err := m.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	item := []byte{0x00, byte(IDERABItem), 0x40}
+
+	i := bytes.Index(wire, item)
+	if i < 0 {
+		t.Fatalf("no E-RAB item header in % x", wire)
+	}
+
+	wire[i+1] = byte(IDERABReleaseItemBearerRelComp)
+
+	pdu, err := Unmarshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ParseERABReleaseIndication(pdu.(*InitiatingMessage).Value)
+	if err == nil && len(got.ERABReleased) != 0 {
+		t.Fatalf("decoded %+v from a list whose item carries IE id %d", got.ERABReleased, IDERABReleaseItemBearerRelComp)
+	}
+}

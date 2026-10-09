@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -333,5 +334,27 @@ func TestNotifyTransferRoundTrip(t *testing.T) {
 	if err != nil || len(out.QosFlowNotify) != 1 || out.QosFlowNotify[0].NotificationCause != NotificationCauseNotFulfilled ||
 		len(out.QosFlowReleased) != 1 || out.QosFlowReleased[0].QosFlowIdentifier != 3 {
 		t.Fatalf("decoded %+v (%v), want the notify and released lists back", out, err)
+	}
+}
+
+func TestModifyUnsuccessfulTransferEncoding(t *testing.T) {
+	b, err := (&PDUSessionResourceModifyUnsuccessfulTransfer{Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkIMSVoiceEPSFallbackTriggered}}).Marshal()
+	if err != nil || !bytes.Equal(b, []byte{0x01, 0x20}) {
+		t.Fatalf("encoded % x (%v), want 01 20", b, err)
+	}
+}
+
+func TestNotifyTransferEncoding(t *testing.T) {
+	wire := []byte{0x40, 0x00, 0x48}
+
+	b, err := (&PDUSessionResourceNotifyTransfer{QosFlowNotify: QosFlowNotifyList{{QosFlowIdentifier: 2, NotificationCause: NotificationCauseNotFulfilled}}}).Marshal()
+	if err != nil || !bytes.Equal(b, wire) {
+		t.Fatalf("encoded % x (%v), want % x", b, err, wire)
+	}
+
+	out, err := ParsePDUSessionResourceNotifyTransfer(wire)
+	if err != nil || len(out.QosFlowNotify) != 1 || out.QosFlowNotify[0].QosFlowIdentifier != 2 ||
+		out.QosFlowNotify[0].NotificationCause != NotificationCauseNotFulfilled || out.QosFlowReleased != nil {
+		t.Fatalf("decoded %+v (%v), want QFI 2 not fulfilled", out, err)
 	}
 }

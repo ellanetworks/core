@@ -102,6 +102,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDERABNotToBeModifiedItemBearerModInd: "E-RABNotToBeModifiedItemBearerModInd",
 	IDERABModifyListBearerModConf:         "E-RABModifyListBearerModConf",
 	IDERABModifyItemBearerModConf:         "E-RABModifyItemBearerModConf",
+	IDERABFailedToModifyListBearerModConf: "E-RABFailedToModifyListBearerModConf",
 	IDERABToBeReleasedListBearerModConf:   "E-RABToBeReleasedListBearerModConf",
 	IDUERetentionInformation:              "UE-RetentionInformation",
 }
