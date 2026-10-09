@@ -27,6 +27,7 @@ var messageParsers = []messageParser{
 	{"ParseERABModifyResponse", func(v []byte) error { _, err := ParseERABModifyResponse(v); return err }},
 	{"ParseERABReleaseCommand", func(v []byte) error { _, err := ParseERABReleaseCommand(v); return err }},
 	{"ParseERABReleaseResponse", func(v []byte) error { _, err := ParseERABReleaseResponse(v); return err }},
+	{"ParseERABReleaseIndication", func(v []byte) error { _, err := ParseERABReleaseIndication(v); return err }},
 	{"ParseERABSetupRequest", func(v []byte) error { _, err := ParseERABSetupRequest(v); return err }},
 	{"ParseERABSetupResponse", func(v []byte) error { _, err := ParseERABSetupResponse(v); return err }},
 	{"ParseErrorIndication", func(v []byte) error { _, err := ParseErrorIndication(v); return err }},

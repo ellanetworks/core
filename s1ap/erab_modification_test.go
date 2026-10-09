@@ -116,3 +116,31 @@ func TestERABModificationConfirm_Marshal(t *testing.T) {
 		t.Fatal("E-RABModifyListBearerModConf IE missing from confirm")
 	}
 }
+
+func TestERABModificationConfirmToBeReleasedRoundTrip(t *testing.T) {
+	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}
+
+	wire, err := (&ERABModificationConfirm{
+		MMEUES1APID:   Ptr(MMEUES1APID(1)),
+		ENBUES1APID:   Ptr(ENBUES1APID(2)),
+		ModifiedERABs: []ERABID{5},
+		ToBeReleased:  []ERABItem{{ERABID: 6, Cause: cause}},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	pdu, err := Unmarshal(wire)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	got, err := ParseERABModificationConfirm(pdu.(*SuccessfulOutcome).Value)
+	if err != nil {
+		t.Fatalf("ParseERABModificationConfirm: %v", err)
+	}
+
+	if len(got.ModifiedERABs) != 1 || len(got.ToBeReleased) != 1 || got.ToBeReleased[0].ERABID != 6 || got.ToBeReleased[0].Cause != cause {
+		t.Fatalf("confirm %+v, want E-RAB 5 modified and 6 to be released (TS 36.413 §8.2.4.2)", got)
+	}
+}

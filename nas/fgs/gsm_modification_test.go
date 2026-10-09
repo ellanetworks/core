@@ -21,7 +21,7 @@ func TestPDUSessionModificationRequestRoundTrip(t *testing.T) {
 		PTI:                      3,
 		GSMCapability:            &GSMCapability{RqoS: true},
 		Cause:                    &cause,
-		MaxPacketFilters:         ptr(uint16(0x1000)),
+		MaxPacketFilters:         ptr(uint16(64)),
 		IntegrityProtMaxDataRate: &[2]byte{0xff, 0xff},
 		AlwaysOnRequested:        ptr(true),
 		RequestedQoSFlows:        QoSFlowDescriptions{FiveQIQoSFlow(1, 9, QoSFlowOpCreate)},
@@ -66,8 +66,8 @@ func TestPDUSessionModificationRequestRoundTrip(t *testing.T) {
 		t.Errorf("requested QoS flow descriptions = %+v", out.RequestedQoSFlows)
 	}
 
-	if out.MaxPacketFilters == nil || *out.MaxPacketFilters != 0x1000 {
-		t.Errorf("maximum number of supported packet filters = %v, want 4096", out.MaxPacketFilters)
+	if out.MaxPacketFilters == nil || *out.MaxPacketFilters != 64 {
+		t.Errorf("maximum number of supported packet filters = %v, want 64", out.MaxPacketFilters)
 	}
 
 	if out.IntegrityProtMaxDataRate == nil || *out.IntegrityProtMaxDataRate != [2]byte{0xff, 0xff} {

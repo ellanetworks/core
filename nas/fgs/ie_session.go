@@ -393,3 +393,18 @@ func ParsePDUAddress(v []byte) (PDUAddress, error) {
 
 	return a, nil
 }
+
+// maxPacketFiltersValue codes the Maximum number of supported packet filters: an
+// 11-bit count from bit 8 of the first octet to bit 6 of the second, the rest
+// spare (TS 24.501 §9.11.4.9).
+func maxPacketFiltersValue(n uint16) []byte {
+	return []byte{uint8(n >> 3), uint8(n&0x07) << 5}
+}
+
+func parseMaxPacketFilters(v []byte) (uint16, error) {
+	if len(v) != 2 {
+		return 0, fmt.Errorf("nas/fgs: maximum number of supported packet filters is %d octets, want 2", len(v))
+	}
+
+	return uint16(v[0])<<3 | uint16(v[1])>>5, nil
+}

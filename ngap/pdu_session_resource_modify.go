@@ -436,6 +436,42 @@ func (t *PDUSessionResourceModifyResponseTransfer) Marshal() (TransferContainer,
 	return TransferContainer(w.Bytes()), nil
 }
 
+// PDUSessionResourceModifyUnsuccessfulTransfer ::= SEQUENCE { cause,
+// criticalityDiagnostics OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
+// TS 38.413 §9.3.4.17. Carried in the Failed to Modify list of the modify
+// response.
+type PDUSessionResourceModifyUnsuccessfulTransfer struct {
+	_                      [0]struct{} `per:"extseq"`
+	Cause                  Cause
+	CriticalityDiagnostics *CriticalityDiagnostics `per:",optional"`
+	_                      ieExtensions            `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceModifyUnsuccessfulTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceModifyUnsuccessfulTransfer decodes the transfer an
+// NG-RAN node returns for a session it could not modify.
+func ParsePDUSessionResourceModifyUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceModifyUnsuccessfulTransfer, error) {
+	var t PDUSessionResourceModifyUnsuccessfulTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
 // ParsePDUSessionResourceModifyResponseTransfer decodes the transfer the NG-RAN
 // node returns for a modified session.
 func ParsePDUSessionResourceModifyResponseTransfer(b TransferContainer) (*PDUSessionResourceModifyResponseTransfer, error) {

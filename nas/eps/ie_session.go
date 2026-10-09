@@ -184,6 +184,59 @@ func (q EPSQoS) AppendBinary(b []byte) ([]byte, error) {
 	return w.Result(b)
 }
 
+// EPSQoSBitRates are the maximum and guaranteed bit rates of a GBR bearer, in
+// kbit/s (TS 24.301 §9.9.4.3, octets 4 to 11).
+type EPSQoSBitRates struct {
+	MaxUplinkKbps          uint64
+	MaxDownlinkKbps        uint64
+	GuaranteedUplinkKbps   uint64
+	GuaranteedDownlinkKbps uint64
+}
+
+// GBREPSQoS builds the EPS QoS of a GBR bearer, flooring each rate to one the
+// element can express. Rates above 256 Mbit/s need octets 12 to 15 and are
+// refused.
+func GBREPSQoS(qci uint8, r EPSQoSBitRates) (EPSQoS, error) {
+	rates := []uint64{r.MaxUplinkKbps, r.MaxDownlinkKbps, r.GuaranteedUplinkKbps, r.GuaranteedDownlinkKbps}
+	base := make([]byte, 0, len(rates))
+	ext := make([]byte, 0, len(rates))
+	extended := false
+
+	for _, kbps := range rates {
+		if kbps > epsQoSExtendedMaxKbps {
+			return EPSQoS{}, fmt.Errorf("nas/eps: EPS QoS bit rate %d kbit/s exceeds %d kbit/s", kbps, uint64(epsQoSExtendedMaxKbps))
+		}
+
+		b, e := encodeAPNAMBRBase(kbps * 1000)
+		base = append(base, b)
+		ext = append(ext, e)
+		extended = extended || e != 0
+	}
+
+	if extended {
+		base = append(base, ext...)
+	}
+
+	return EPSQoS{QCI: qci, BitRates: base}, nil
+}
+
+// GBRBitRates decodes octets 4 to 11, reporting false when the element carries
+// no bit rate.
+func (q EPSQoS) GBRBitRates() (EPSQoSBitRates, bool) {
+	if len(q.BitRates) < epsQoSGroupLen {
+		return EPSQoSBitRates{}, false
+	}
+
+	var ext [epsQoSGroupLen]uint8
+	if len(q.BitRates) >= 2*epsQoSGroupLen {
+		copy(ext[:], q.BitRates[epsQoSGroupLen:2*epsQoSGroupLen])
+	}
+
+	kbps := func(i int) uint64 { return decodeAPNAMBRBase(q.BitRates[i], ext[i]) / 1000 }
+
+	return EPSQoSBitRates{MaxUplinkKbps: kbps(0), MaxDownlinkKbps: kbps(1), GuaranteedUplinkKbps: kbps(2), GuaranteedDownlinkKbps: kbps(3)}, true
+}
+
 // checkEPSQoSLen reports whether n is a value length TS 24.301 §9.9.4.3 allows:
 // the QCI octet alone, or the QCI octet and one to three groups of four bit-rate
 // octets.
@@ -202,8 +255,9 @@ func (q EPSQoS) MarshalBinary() ([]byte, error) { return q.AppendBinary(nil) }
 // of which are its IEI and length, and its optional octets come in groups of
 // four.
 const (
-	maxEPSQoSLen   = 13
-	epsQoSGroupLen = 4
+	maxEPSQoSLen          = 13
+	epsQoSGroupLen        = 4
+	epsQoSExtendedMaxKbps = 256_000
 )
 
 // ParseEPSQoS decodes an EPS QoS value part.

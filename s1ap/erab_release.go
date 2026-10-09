@@ -284,3 +284,93 @@ func (m *ERABReleaseResponse) Marshal() ([]byte, error) {
 func ParseERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
 	return parseMessageBody[ERABReleaseResponse](ProcERABRelease, TriggeringSuccessfulOutcome, eRABReleaseResponseIEs, value)
 }
+
+type ERABReleaseIndication struct {
+	MMEUES1APID             MMEUES1APID
+	ENBUES1APID             ENBUES1APID
+	ERABReleased            []ERABItem
+	UserLocationInformation *UserLocationInformation
+
+	messageMeta
+}
+
+var eRABReleaseIndicationIEs = []ieSpec[ERABReleaseIndication]{
+	{
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABReleaseIndication, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *ERABReleaseIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *ERABReleaseIndication, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *ERABReleaseIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: IDERABReleasedList, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseIndication, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *ERABReleaseIndication) (per.Marshaler, bool) {
+			if len(m.ERABReleased) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABReleased)
+			}), true
+		},
+	},
+	{
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABReleaseIndication, raw []byte, enc per.Encoding) error {
+			var uli UserLocationInformation
+
+			if err := perIEDecode(raw, &uli); err != nil {
+				return err
+			}
+
+			m.UserLocationInformation = &uli
+
+			return nil
+		},
+		encode: func(m *ERABReleaseIndication) (per.Marshaler, bool) {
+			if m.UserLocationInformation == nil {
+				return nil, false
+			}
+
+			return m.UserLocationInformation, true
+		},
+	},
+}
+
+func (m *ERABReleaseIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcERABReleaseIndication, eRABReleaseIndicationIEs, m)
+}
+
+func (m *ERABReleaseIndication) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcERABReleaseIndication,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseERABReleaseIndication(value []byte) (*ERABReleaseIndication, error) {
+	return parseMessageBody[ERABReleaseIndication](ProcERABReleaseIndication, TriggeringInitiatingMessage, eRABReleaseIndicationIEs, value)
+}

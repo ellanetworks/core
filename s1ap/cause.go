@@ -53,7 +53,10 @@ const (
 	CauseRadioNetworkUserInactivity                    = 20 // user-inactivity
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkLoadBalancingTAURequired          = 22 // load-balancing-tau-required
+	CauseRadioNetworkCSFallbackTriggered               = 23 // cs-fallback-triggered
+	CauseRadioNetworkUENotAvailableForPSService        = 24 // ue-not-available-for-ps-service
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
+	CauseRadioNetworkInterRATRedirection               = 28 // interrat-redirection
 	CauseRadioNetworkS1InterSystemHandoverTriggered    = 34 // s1-inter-system-handover-triggered
 	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure
 	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances

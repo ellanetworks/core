@@ -147,6 +147,14 @@ var messageParsers = []messageParser{
 // TransferContainer rather than a message body, so they are registered apart
 // from messageParsers; the fuzzer drives both.
 var transferParsers = []messageParser{
+	{"ParsePDUSessionResourceNotifyTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceNotifyTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceModifyUnsuccessfulTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceModifyUnsuccessfulTransfer(v)
+		return err
+	}},
 	{"ParsePDUSessionResourceSetupUnsuccessfulTransfer", func(v []byte) error {
 		_, err := ParsePDUSessionResourceSetupUnsuccessfulTransfer(v)
 		return err

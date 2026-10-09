@@ -11,35 +11,40 @@ package eps
 import "github.com/ellanetworks/core/nas"
 
 // Every EMM message reports its type.
-func (m *AttachRequest) MessageType() MessageType              { return MsgAttachRequest }
-func (m *AttachAccept) MessageType() MessageType               { return MsgAttachAccept }
-func (m *AttachComplete) MessageType() MessageType             { return MsgAttachComplete }
-func (m *AttachReject) MessageType() MessageType               { return MsgAttachReject }
-func (m *AuthenticationRequest) MessageType() MessageType      { return MsgAuthenticationRequest }
-func (m *AuthenticationResponse) MessageType() MessageType     { return MsgAuthenticationResponse }
-func (m *AuthenticationReject) MessageType() MessageType       { return MsgAuthenticationReject }
-func (m *AuthenticationFailure) MessageType() MessageType      { return MsgAuthenticationFailure }
-func (m *DetachRequestUE) MessageType() MessageType            { return MsgDetachRequest }
-func (m *DetachRequestNetwork) MessageType() MessageType       { return MsgDetachRequest }
-func (m *DetachAccept) MessageType() MessageType               { return MsgDetachAccept }
-func (m *GUTIReallocationCommand) MessageType() MessageType    { return MsgGUTIReallocationCommand }
-func (m *GUTIReallocationComplete) MessageType() MessageType   { return MsgGUTIReallocationComplete }
-func (m *IdentityRequest) MessageType() MessageType            { return MsgIdentityRequest }
-func (m *IdentityResponse) MessageType() MessageType           { return MsgIdentityResponse }
-func (m *EMMInformation) MessageType() MessageType             { return MsgEMMInformation }
-func (m *SecurityModeCommand) MessageType() MessageType        { return MsgSecurityModeCommand }
-func (m *SecurityModeComplete) MessageType() MessageType       { return MsgSecurityModeComplete }
-func (m *SecurityModeReject) MessageType() MessageType         { return MsgSecurityModeReject }
-func (m *ServiceReject) MessageType() MessageType              { return MsgServiceReject }
-func (m *ServiceAccept) MessageType() MessageType              { return MsgServiceAccept }
-func (m *EMMStatus) MessageType() MessageType                  { return MsgEMMStatus }
-func (m *TrackingAreaUpdateRequest) MessageType() MessageType  { return MsgTrackingAreaUpdateRequest }
-func (m *TrackingAreaUpdateAccept) MessageType() MessageType   { return MsgTrackingAreaUpdateAccept }
+func (m *AttachRequest) MessageType() MessageType             { return MsgAttachRequest }
+func (m *AttachAccept) MessageType() MessageType              { return MsgAttachAccept }
+func (m *AttachComplete) MessageType() MessageType            { return MsgAttachComplete }
+func (m *AttachReject) MessageType() MessageType              { return MsgAttachReject }
+func (m *AuthenticationRequest) MessageType() MessageType     { return MsgAuthenticationRequest }
+func (m *AuthenticationResponse) MessageType() MessageType    { return MsgAuthenticationResponse }
+func (m *AuthenticationReject) MessageType() MessageType      { return MsgAuthenticationReject }
+func (m *AuthenticationFailure) MessageType() MessageType     { return MsgAuthenticationFailure }
+func (m *DetachRequestUE) MessageType() MessageType           { return MsgDetachRequest }
+func (m *DetachRequestNetwork) MessageType() MessageType      { return MsgDetachRequest }
+func (m *DetachAccept) MessageType() MessageType              { return MsgDetachAccept }
+func (m *GUTIReallocationCommand) MessageType() MessageType   { return MsgGUTIReallocationCommand }
+func (m *GUTIReallocationComplete) MessageType() MessageType  { return MsgGUTIReallocationComplete }
+func (m *IdentityRequest) MessageType() MessageType           { return MsgIdentityRequest }
+func (m *IdentityResponse) MessageType() MessageType          { return MsgIdentityResponse }
+func (m *EMMInformation) MessageType() MessageType            { return MsgEMMInformation }
+func (m *SecurityModeCommand) MessageType() MessageType       { return MsgSecurityModeCommand }
+func (m *SecurityModeComplete) MessageType() MessageType      { return MsgSecurityModeComplete }
+func (m *SecurityModeReject) MessageType() MessageType        { return MsgSecurityModeReject }
+func (m *ServiceReject) MessageType() MessageType             { return MsgServiceReject }
+func (m *ServiceAccept) MessageType() MessageType             { return MsgServiceAccept }
+func (m *EMMStatus) MessageType() MessageType                 { return MsgEMMStatus }
+func (m *TrackingAreaUpdateRequest) MessageType() MessageType { return MsgTrackingAreaUpdateRequest }
+
+func (m *TrackingAreaUpdateAccept) MessageType() MessageType { return MsgTrackingAreaUpdateAccept }
+
 func (m *TrackingAreaUpdateComplete) MessageType() MessageType { return MsgTrackingAreaUpdateComplete }
-func (m *TrackingAreaUpdateReject) MessageType() MessageType   { return MsgTrackingAreaUpdateReject }
+
+func (m *TrackingAreaUpdateReject) MessageType() MessageType { return MsgTrackingAreaUpdateReject }
+
 func (m *DownlinkGenericNASTransport) MessageType() MessageType {
 	return MsgDownlinkGenericNASTransport
 }
+
 func (m *UplinkGenericNASTransport) MessageType() MessageType { return MsgUplinkGenericNASTransport }
 func (m *DownlinkNASTransport) MessageType() MessageType      { return MsgDownlinkNASTransport }
 func (m *UplinkNASTransport) MessageType() MessageType        { return MsgUplinkNASTransport }
@@ -51,6 +56,18 @@ func (m *ActivateDefaultEPSBearerContextRequest) MessageType() ESMMessageType {
 
 func (m *ActivateDefaultEPSBearerContextAccept) MessageType() ESMMessageType {
 	return MsgActivateDefaultEPSBearerContextAccept
+}
+
+func (m *ActivateDedicatedEPSBearerContextRequest) MessageType() ESMMessageType {
+	return MsgActivateDedicatedEPSBearerContextRequest
+}
+
+func (m *ActivateDedicatedEPSBearerContextAccept) MessageType() ESMMessageType {
+	return MsgActivateDedicatedEPSBearerContextAccept
+}
+
+func (m *ActivateDedicatedEPSBearerContextReject) MessageType() ESMMessageType {
+	return MsgActivateDedicatedEPSBearerContextReject
 }
 
 func (m *ActivateDefaultEPSBearerContextReject) MessageType() ESMMessageType {
@@ -100,56 +117,59 @@ func (m *PDNDisconnectReject) MessageType() ESMMessageType    { return MsgPDNDis
 func (m *ESMStatus) MessageType() ESMMessageType              { return MsgESMStatus }
 
 // The messages of this package, and only they, are Messages.
-func (m *AttachRequest) isMessage()                          {}
-func (m *AttachAccept) isMessage()                           {}
-func (m *AttachComplete) isMessage()                         {}
-func (m *AttachReject) isMessage()                           {}
-func (m *AuthenticationRequest) isMessage()                  {}
-func (m *AuthenticationResponse) isMessage()                 {}
-func (m *AuthenticationReject) isMessage()                   {}
-func (m *AuthenticationFailure) isMessage()                  {}
-func (m *DetachRequestUE) isMessage()                        {}
-func (m *DetachRequestNetwork) isMessage()                   {}
-func (m *DetachAccept) isMessage()                           {}
-func (m *GUTIReallocationCommand) isMessage()                {}
-func (m *GUTIReallocationComplete) isMessage()               {}
-func (m *IdentityRequest) isMessage()                        {}
-func (m *IdentityResponse) isMessage()                       {}
-func (m *EMMInformation) isMessage()                         {}
-func (m *SecurityModeCommand) isMessage()                    {}
-func (m *SecurityModeComplete) isMessage()                   {}
-func (m *SecurityModeReject) isMessage()                     {}
-func (m *ServiceReject) isMessage()                          {}
-func (m *ServiceAccept) isMessage()                          {}
-func (m *EMMStatus) isMessage()                              {}
-func (m *TrackingAreaUpdateRequest) isMessage()              {}
-func (m *TrackingAreaUpdateAccept) isMessage()               {}
-func (m *TrackingAreaUpdateComplete) isMessage()             {}
-func (m *TrackingAreaUpdateReject) isMessage()               {}
-func (m *DownlinkGenericNASTransport) isMessage()            {}
-func (m *UplinkGenericNASTransport) isMessage()              {}
-func (m *DownlinkNASTransport) isMessage()                   {}
-func (m *UplinkNASTransport) isMessage()                     {}
-func (m *ActivateDefaultEPSBearerContextRequest) isMessage() {}
-func (m *ActivateDefaultEPSBearerContextAccept) isMessage()  {}
-func (m *ActivateDefaultEPSBearerContextReject) isMessage()  {}
-func (m *BearerResourceAllocationRequest) isMessage()        {}
-func (m *BearerResourceAllocationReject) isMessage()         {}
-func (m *BearerResourceModificationRequest) isMessage()      {}
-func (m *BearerResourceModificationReject) isMessage()       {}
-func (m *DeactivateEPSBearerContextRequest) isMessage()      {}
-func (m *DeactivateEPSBearerContextAccept) isMessage()       {}
-func (m *ESMInformationRequest) isMessage()                  {}
-func (m *ESMInformationResponse) isMessage()                 {}
-func (m *ModifyEPSBearerContextRequest) isMessage()          {}
-func (m *ModifyEPSBearerContextAccept) isMessage()           {}
-func (m *ModifyEPSBearerContextReject) isMessage()           {}
-func (m *PDNConnectivityRequest) isMessage()                 {}
-func (m *PDNConnectivityReject) isMessage()                  {}
-func (m *PDNDisconnectRequest) isMessage()                   {}
-func (m *PDNDisconnectReject) isMessage()                    {}
-func (m *ESMStatus) isMessage()                              {}
-func (m *ServiceRequest) isMessage()                         {}
+func (m *AttachRequest) isMessage()                            {}
+func (m *AttachAccept) isMessage()                             {}
+func (m *AttachComplete) isMessage()                           {}
+func (m *AttachReject) isMessage()                             {}
+func (m *AuthenticationRequest) isMessage()                    {}
+func (m *AuthenticationResponse) isMessage()                   {}
+func (m *AuthenticationReject) isMessage()                     {}
+func (m *AuthenticationFailure) isMessage()                    {}
+func (m *DetachRequestUE) isMessage()                          {}
+func (m *DetachRequestNetwork) isMessage()                     {}
+func (m *DetachAccept) isMessage()                             {}
+func (m *GUTIReallocationCommand) isMessage()                  {}
+func (m *GUTIReallocationComplete) isMessage()                 {}
+func (m *IdentityRequest) isMessage()                          {}
+func (m *IdentityResponse) isMessage()                         {}
+func (m *EMMInformation) isMessage()                           {}
+func (m *SecurityModeCommand) isMessage()                      {}
+func (m *SecurityModeComplete) isMessage()                     {}
+func (m *SecurityModeReject) isMessage()                       {}
+func (m *ServiceReject) isMessage()                            {}
+func (m *ServiceAccept) isMessage()                            {}
+func (m *EMMStatus) isMessage()                                {}
+func (m *TrackingAreaUpdateRequest) isMessage()                {}
+func (m *TrackingAreaUpdateAccept) isMessage()                 {}
+func (m *TrackingAreaUpdateComplete) isMessage()               {}
+func (m *TrackingAreaUpdateReject) isMessage()                 {}
+func (m *DownlinkGenericNASTransport) isMessage()              {}
+func (m *UplinkGenericNASTransport) isMessage()                {}
+func (m *DownlinkNASTransport) isMessage()                     {}
+func (m *UplinkNASTransport) isMessage()                       {}
+func (m *ActivateDefaultEPSBearerContextRequest) isMessage()   {}
+func (m *ActivateDefaultEPSBearerContextAccept) isMessage()    {}
+func (m *ActivateDedicatedEPSBearerContextRequest) isMessage() {}
+func (m *ActivateDedicatedEPSBearerContextAccept) isMessage()  {}
+func (m *ActivateDedicatedEPSBearerContextReject) isMessage()  {}
+func (m *ActivateDefaultEPSBearerContextReject) isMessage()    {}
+func (m *BearerResourceAllocationRequest) isMessage()          {}
+func (m *BearerResourceAllocationReject) isMessage()           {}
+func (m *BearerResourceModificationRequest) isMessage()        {}
+func (m *BearerResourceModificationReject) isMessage()         {}
+func (m *DeactivateEPSBearerContextRequest) isMessage()        {}
+func (m *DeactivateEPSBearerContextAccept) isMessage()         {}
+func (m *ESMInformationRequest) isMessage()                    {}
+func (m *ESMInformationResponse) isMessage()                   {}
+func (m *ModifyEPSBearerContextRequest) isMessage()            {}
+func (m *ModifyEPSBearerContextAccept) isMessage()             {}
+func (m *ModifyEPSBearerContextReject) isMessage()             {}
+func (m *PDNConnectivityRequest) isMessage()                   {}
+func (m *PDNConnectivityReject) isMessage()                    {}
+func (m *PDNDisconnectRequest) isMessage()                     {}
+func (m *PDNDisconnectReject) isMessage()                      {}
+func (m *ESMStatus) isMessage()                                {}
+func (m *ServiceRequest) isMessage()                           {}
 
 // Every message of this package implements its generation's interface, whether
 // or not the dispatch table reaches it.
@@ -186,6 +206,9 @@ var (
 	_ EMMMessage = (*UplinkNASTransport)(nil)
 	_ ESMMessage = (*ActivateDefaultEPSBearerContextRequest)(nil)
 	_ ESMMessage = (*ActivateDefaultEPSBearerContextAccept)(nil)
+	_ ESMMessage = (*ActivateDedicatedEPSBearerContextRequest)(nil)
+	_ ESMMessage = (*ActivateDedicatedEPSBearerContextAccept)(nil)
+	_ ESMMessage = (*ActivateDedicatedEPSBearerContextReject)(nil)
 	_ ESMMessage = (*ActivateDefaultEPSBearerContextReject)(nil)
 	_ ESMMessage = (*BearerResourceAllocationRequest)(nil)
 	_ ESMMessage = (*BearerResourceAllocationReject)(nil)
@@ -214,6 +237,18 @@ func (m *ActivateDefaultEPSBearerContextRequest) BearerIdentity() EPSBearerIdent
 }
 
 func (m *ActivateDefaultEPSBearerContextAccept) BearerIdentity() EPSBearerIdentity {
+	return m.EPSBearerIdentity
+}
+
+func (m *ActivateDedicatedEPSBearerContextRequest) BearerIdentity() EPSBearerIdentity {
+	return m.EPSBearerIdentity
+}
+
+func (m *ActivateDedicatedEPSBearerContextAccept) BearerIdentity() EPSBearerIdentity {
+	return m.EPSBearerIdentity
+}
+
+func (m *ActivateDedicatedEPSBearerContextReject) BearerIdentity() EPSBearerIdentity {
 	return m.EPSBearerIdentity
 }
 
@@ -249,13 +284,20 @@ func (m *ESMInformationResponse) BearerIdentity() EPSBearerIdentity { return m.E
 func (m *ModifyEPSBearerContextRequest) BearerIdentity() EPSBearerIdentity {
 	return m.EPSBearerIdentity
 }
+
 func (m *ModifyEPSBearerContextAccept) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
+
 func (m *ModifyEPSBearerContextReject) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
-func (m *PDNConnectivityRequest) BearerIdentity() EPSBearerIdentity       { return m.EPSBearerIdentity }
-func (m *PDNConnectivityReject) BearerIdentity() EPSBearerIdentity        { return m.EPSBearerIdentity }
-func (m *PDNDisconnectRequest) BearerIdentity() EPSBearerIdentity         { return m.EPSBearerIdentity }
-func (m *PDNDisconnectReject) BearerIdentity() EPSBearerIdentity          { return m.EPSBearerIdentity }
-func (m *ESMStatus) BearerIdentity() EPSBearerIdentity                    { return m.EPSBearerIdentity }
+
+func (m *PDNConnectivityRequest) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
+
+func (m *PDNConnectivityReject) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
+
+func (m *PDNDisconnectRequest) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
+
+func (m *PDNDisconnectReject) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
+
+func (m *ESMStatus) BearerIdentity() EPSBearerIdentity { return m.EPSBearerIdentity }
 
 // Every ESM message names the transaction it belongs to.
 func (m *ActivateDefaultEPSBearerContextRequest) TransactionIdentity() nas.ProcedureTransactionIdentity {
@@ -263,6 +305,18 @@ func (m *ActivateDefaultEPSBearerContextRequest) TransactionIdentity() nas.Proce
 }
 
 func (m *ActivateDefaultEPSBearerContextAccept) TransactionIdentity() nas.ProcedureTransactionIdentity {
+	return m.PTI
+}
+
+func (m *ActivateDedicatedEPSBearerContextRequest) TransactionIdentity() nas.ProcedureTransactionIdentity {
+	return m.PTI
+}
+
+func (m *ActivateDedicatedEPSBearerContextAccept) TransactionIdentity() nas.ProcedureTransactionIdentity {
+	return m.PTI
+}
+
+func (m *ActivateDedicatedEPSBearerContextReject) TransactionIdentity() nas.ProcedureTransactionIdentity {
 	return m.PTI
 }
 
@@ -293,8 +347,11 @@ func (m *DeactivateEPSBearerContextRequest) TransactionIdentity() nas.ProcedureT
 func (m *DeactivateEPSBearerContextAccept) TransactionIdentity() nas.ProcedureTransactionIdentity {
 	return m.PTI
 }
-func (m *ESMInformationRequest) TransactionIdentity() nas.ProcedureTransactionIdentity  { return m.PTI }
+
+func (m *ESMInformationRequest) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
 func (m *ESMInformationResponse) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
 func (m *ModifyEPSBearerContextRequest) TransactionIdentity() nas.ProcedureTransactionIdentity {
 	return m.PTI
 }
@@ -306,8 +363,13 @@ func (m *ModifyEPSBearerContextAccept) TransactionIdentity() nas.ProcedureTransa
 func (m *ModifyEPSBearerContextReject) TransactionIdentity() nas.ProcedureTransactionIdentity {
 	return m.PTI
 }
+
 func (m *PDNConnectivityRequest) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
-func (m *PDNConnectivityReject) TransactionIdentity() nas.ProcedureTransactionIdentity  { return m.PTI }
-func (m *PDNDisconnectRequest) TransactionIdentity() nas.ProcedureTransactionIdentity   { return m.PTI }
-func (m *PDNDisconnectReject) TransactionIdentity() nas.ProcedureTransactionIdentity    { return m.PTI }
-func (m *ESMStatus) TransactionIdentity() nas.ProcedureTransactionIdentity              { return m.PTI }
+
+func (m *PDNConnectivityReject) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
+func (m *PDNDisconnectRequest) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
+func (m *PDNDisconnectReject) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }
+
+func (m *ESMStatus) TransactionIdentity() nas.ProcedureTransactionIdentity { return m.PTI }

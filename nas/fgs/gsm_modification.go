@@ -78,7 +78,7 @@ func (m *PDUSessionModificationRequest) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	if m.MaxPacketFilters != nil {
-		o.TV3(ieiMaxPacketFilters, []byte{uint8(*m.MaxPacketFilters >> 8), uint8(*m.MaxPacketFilters)})
+		o.TV3(ieiMaxPacketFilters, maxPacketFiltersValue(*m.MaxPacketFilters))
 	}
 
 	if m.AlwaysOnRequested != nil {
@@ -162,11 +162,11 @@ func ParsePDUSessionModificationRequest(b []byte) (*PDUSessionModificationReques
 			cause := GSMCause(value[0])
 			out.Cause = &cause
 		case ieiMaxPacketFilters:
-			if len(value) != 2 {
-				return false, fmt.Errorf("nas/fgs: maximum number of supported packet filters is %d octets, want 2", len(value))
+			count, err := parseMaxPacketFilters(value)
+			if err != nil {
+				return false, err
 			}
 
-			count := uint16(value[0])<<8 | uint16(value[1])
 			out.MaxPacketFilters = &count
 		case ieiIntegrityProtMaxRate:
 			if len(value) != 2 {
@@ -342,6 +342,8 @@ type PDUSessionModificationCommand struct {
 
 	AlwaysOn *bool // optional (IEI 0x8), value bit 1
 
+	QoSRules QoSRules // optional (IEI 0x7A)
+
 	// MappedEPSBearerContexts carries the EPS bearer contexts the session's QoS
 	// flows map to (IEI 0x75). TS 24.501 §6.1.4.2 has the SMF provide them only
 	// when the network supports N26; it is also how an EBI revocation strips the
@@ -376,6 +378,15 @@ func (m *PDUSessionModificationCommand) AppendBinary(b []byte) ([]byte, error) {
 
 	if m.AlwaysOn != nil {
 		o.TV1(ieiAlwaysOnIndication, boolBit(*m.AlwaysOn, 0))
+	}
+
+	if m.QoSRules != nil {
+		raw, err := m.QoSRules.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiAuthorizedQoSRules, raw)
 	}
 
 	if m.MappedEPSBearerContexts != nil {
@@ -436,6 +447,13 @@ func ParsePDUSessionModificationCommand(b []byte) (*PDUSessionModificationComman
 			out.SessionAMBR = &parsed
 		case ieiAlwaysOnIndication:
 			out.AlwaysOn = tv1Flag(value)
+		case ieiAuthorizedQoSRules:
+			parsed, err := ParseQoSRules(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.QoSRules = parsed
 		case ieiMappedEPSBearerContext:
 			parsed, err := ParseMappedEPSBearerContexts(value)
 			if err != nil {

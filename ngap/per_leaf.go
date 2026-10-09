@@ -1639,3 +1639,18 @@ func (l *PDUSessionResourceToReleaseListHOCmd) UnmarshalPER(r *per.Reader, enc p
 
 	return nil
 }
+
+func (l QosFlowNotifyList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowNotifyItem(l))
+}
+
+func (l *QosFlowNotifyList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowNotifyItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}

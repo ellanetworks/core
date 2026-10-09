@@ -121,3 +121,46 @@ func TestERABReleaseResponseRoundTripsUserLocation(t *testing.T) {
 		t.Fatalf("ULI not round-tripped: %+v", uli)
 	}
 }
+
+func TestERABReleaseIndicationRoundTrips(t *testing.T) {
+	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
+	lost := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkRadioConnectionWithUELost}
+
+	in := &ERABReleaseIndication{
+		MMEUES1APID:  42,
+		ENBUES1APID:  1,
+		ERABReleased: []ERABItem{{ERABID: 6, Cause: lost}, {ERABID: 7, Cause: lost}},
+		UserLocationInformation: &UserLocationInformation{
+			EUTRANCGI: EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
+			TAI:       TAI{PLMNIdentity: plmn, TAC: 9},
+		},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := pdu.(*InitiatingMessage)
+	if !ok || im.ProcedureCode != ProcERABReleaseIndication || im.Criticality != CriticalityIgnore {
+		t.Fatalf("got %T procedureCode %d", pdu, pdu.procedureCode())
+	}
+
+	out, err := ParseERABReleaseIndication(im.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.MMEUES1APID != 42 || out.ENBUES1APID != 1 || len(out.ERABReleased) != 2 || out.ERABReleased[1].ERABID != 7 || out.ERABReleased[0].Cause != lost {
+		t.Fatalf("E-RAB Release Indication mismatch: %+v", out)
+	}
+
+	if uli := out.UserLocationInformation; uli == nil || uli.TAI.TAC != 9 {
+		t.Fatalf("ULI not round-tripped: %+v", uli)
+	}
+}

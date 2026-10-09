@@ -26,6 +26,7 @@ const (
 	ieiUERadioCapabilityIDAvail       uint8 = 0x34
 	ieiRequestedWUSAssistance         uint8 = 0x35
 	ieiDRXParameterNBS1Mode           uint8 = 0x36
+	ieiTrafficFlowTemplate            uint8 = 0x36 // ESM bearer context messages (same octet as the DRX parameter in NB-S1 mode in EMM)
 	ieiRequestedIMSIOffset            uint8 = 0x38
 	ieiSupportedCodecs                uint8 = 0x40
 	ieiFullNameForNetwork             uint8 = 0x43 // EMM INFORMATION

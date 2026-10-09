@@ -24,7 +24,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"MMEConfigurationUpdate", tableIDs(mMEConfigurationUpdateIEs), []ProtocolIEID{IDMMEname, IDServedGUMMEIs, IDRelativeMMECapacity}},
 		{"MMEConfigurationUpdateAcknowledge", tableIDs(mMEConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{IDCriticalityDiagnostics}},
 		{"MMEConfigurationUpdateFailure", tableIDs(mMEConfigurationUpdateFailureIEs), []ProtocolIEID{IDCause, IDTimeToWait, IDCriticalityDiagnostics}},
-		{"ERABModificationConfirm", tableIDs(erabModificationConfirmIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABModifyListBearerModConf, IDCriticalityDiagnostics}},
+		{"ERABModificationConfirm", tableIDs(erabModificationConfirmIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABModifyListBearerModConf, IDERABToBeReleasedListBearerModConf, IDCriticalityDiagnostics}},
 		{"ERABModificationIndication", tableIDs(eRABModificationIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABToBeModifiedListBearerModInd, IDERABNotToBeModifiedListBearerModInd, IDUserLocationInformation}},
 		{"ERABModifyRequest", tableIDs(eRABModifyRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeModifiedListBearerModReq}},
 		{"ERABModifyResponse", tableIDs(eRABModifyResponseIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABModifyListBearerModRes, IDERABFailedToModifyList, IDCriticalityDiagnostics, IDUserLocationInformation}},
