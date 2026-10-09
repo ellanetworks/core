@@ -77,12 +77,17 @@ func (n *Node) implicitEntriesLocked(key routeKey) []routeEntry {
 	return entries
 }
 
-func (n *Node) routeEntriesLocked(key routeKey) []routeEntry {
+func (n *Node) routeEntriesLocked(key routeKey, implicit bool) []routeEntry {
 	if key.realm == "" {
 		return nil
 	}
 
-	return append(slices.Clone(n.routes[key]), n.implicitEntriesLocked(key)...)
+	entries := slices.Clone(n.routes[key])
+	if implicit {
+		entries = append(entries, n.implicitEntriesLocked(key)...)
+	}
+
+	return entries
 }
 
 func (n *Node) implicitKeysLocked() map[routeKey]bool {
@@ -152,7 +157,7 @@ func (n *Node) Routes() []RouteStatus {
 	for key := range keys {
 		s := RouteStatus{Realm: key.realm, Application: key.app}
 
-		for _, e := range n.routeEntriesLocked(key) {
+		for _, e := range n.routeEntriesLocked(key, true) {
 			s.Peers = append(s.Peers, RoutePeerStatus{
 				ID:       e.peer.id,
 				Host:     e.peer.lastHost,

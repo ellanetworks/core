@@ -233,13 +233,13 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 
 	key := routeKey{realm: s.realm, app: s.m.ApplicationID}
 
-	entries := n.routeEntriesLocked(key)
+	entries := n.routeEntriesLocked(key, s.host == "")
 	if len(entries) == 0 {
 		if s.last != nil {
 			return nil, errExhausted
 		}
 
-		if s.realm != "" && n.cfg.AcceptUnknownPeers {
+		if s.realm != "" && s.host == "" && n.cfg.AcceptUnknownPeers {
 			return nil, nil
 		}
 

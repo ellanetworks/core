@@ -264,6 +264,30 @@ func TestSendIgnoresConfiguredPeersWithoutARouteInTheRealm(t *testing.T) {
 	}
 }
 
+func TestSendKeepsAnUnknownDestinationHostOffAcceptedPeers(t *testing.T) {
+	kind := TransportTCP
+	hub, addr := newHub(t, kind)
+
+	hss := newServer(t, kind, "hss1.example.org", loopback2, nil)
+	hss.dialIn(t, kind, addr)
+	waitImplicit(t, hub, hss.host)
+
+	start := time.Now()
+
+	_, err := hub.Send(context.Background(), routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme2.example.org")))
+	if !errors.Is(err, ErrUnableToDeliver) || time.Since(start) > 100*time.Millisecond {
+		t.Fatalf("Send = %v after %s", err, time.Since(start))
+	}
+
+	if hss.calls.Load() != 0 {
+		t.Fatalf("accepted peer got %d requests", hss.calls.Load())
+	}
+
+	if got := answeredBy(t, send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, hss.host)))); got != hss.host {
+		t.Fatalf("answered by %s", got)
+	}
+}
+
 func TestSendWaitsForAnAcceptedPeerUnlessFailFast(t *testing.T) {
 	kind := TransportTCP
 	hub, addr := newHub(t, kind)
