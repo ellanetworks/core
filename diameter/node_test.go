@@ -61,8 +61,11 @@ func TestNodesExchangeRequestsBothWays(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
-			if ans, err := smsc.DoHost(ctx, "HSS.example.org", request()); err != nil || resultCode(t, ans) != ResultSuccess {
-				t.Fatalf("DoHost = %v", err)
+			toHSS := request()
+			toHSS.AVPs = append(toHSS.AVPs, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "HSS.example.org"))
+
+			if ans, err := smsc.Send(ctx, toHSS); err != nil || resultCode(t, ans) != ResultSuccess {
+				t.Fatalf("Send to the Destination-Host = %v", err)
 			}
 
 			other := request()

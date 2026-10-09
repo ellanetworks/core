@@ -27,12 +27,16 @@ const (
 	AVPAuthApplicationID           uint32 = 258
 	AVPAcctApplicationID           uint32 = 259
 	AVPVendorSpecificApplicationID uint32 = 260
+	AVPRedirectHostUsage           uint32 = 261
+	AVPRedirectMaxCacheTime        uint32 = 262
 	AVPSessionID                   uint32 = 263
 	AVPOriginHost                  uint32 = 264
 	AVPSupportedVendorID           uint32 = 265
 	AVPVendorID                    uint32 = 266
 	AVPResultCode                  uint32 = 268
 	AVPProductName                 uint32 = 269
+	AVPSessionBinding              uint32 = 270
+	AVPSessionServerFailover       uint32 = 271
 	AVPDisconnectCause             uint32 = 273
 	AVPAuthGracePeriod             uint32 = 276
 	AVPAuthSessionState            uint32 = 277
@@ -42,6 +46,7 @@ const (
 	AVPDestinationRealm            uint32 = 283
 	AVPProxyInfo                   uint32 = 284
 	AVPReAuthRequestType           uint32 = 285
+	AVPRedirectHost                uint32 = 292
 	AVPAuthorizationLifetime       uint32 = 291
 	AVPInbandSecurityID            uint32 = 299
 	AVPDRMP                        uint32 = 301
@@ -62,6 +67,8 @@ const (
 	ResultUnableToDeliver        uint32 = 3002
 	ResultRealmNotServed         uint32 = 3003
 	ResultTooBusy                uint32 = 3004
+	ResultLoopDetected           uint32 = 3005
+	ResultRedirectIndication     uint32 = 3006
 	ResultApplicationUnsupported uint32 = 3007
 	ResultInvalidHdrBits         uint32 = 3008
 	ResultInvalidAVPBits         uint32 = 3009
@@ -86,6 +93,8 @@ var resultNames = map[uint32]string{
 	ResultUnableToDeliver:        "DIAMETER_UNABLE_TO_DELIVER",
 	ResultRealmNotServed:         "DIAMETER_REALM_NOT_SERVED",
 	ResultTooBusy:                "DIAMETER_TOO_BUSY",
+	ResultLoopDetected:           "DIAMETER_LOOP_DETECTED",
+	ResultRedirectIndication:     "DIAMETER_REDIRECT_INDICATION",
 	ResultApplicationUnsupported: "DIAMETER_APPLICATION_UNSUPPORTED",
 	ResultInvalidHdrBits:         "DIAMETER_INVALID_HDR_BITS",
 	ResultInvalidAVPBits:         "DIAMETER_INVALID_AVP_BITS",

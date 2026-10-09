@@ -298,6 +298,7 @@ func TestNodeDispatchesRequestsToRegisteredHandlers(t *testing.T) {
 	req, err := s6c.NewSendRoutingInfoForSMRequest(tgpp.Envelope{
 		SessionID:        smsc.node.NewSessionID(),
 		Origin:           smsc.node.Identity(),
+		DestinationHost:  ellaHost,
 		DestinationRealm: ellaRealm,
 	}, s6c.RoutingRequest{MSISDN: "15551230001", ServiceCentreAddress: "15550000000"})
 	if err != nil {
@@ -307,7 +308,7 @@ func TestNodeDispatchesRequestsToRegisteredHandlers(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ans, err := smsc.node.DoHost(ctx, ellaHost, req)
+	ans, err := smsc.node.Send(ctx, req)
 	if err != nil {
 		t.Fatalf("SRR: %v", err)
 	}
@@ -537,6 +538,7 @@ func TestListenerAcceptsAnSMSCThatDialsIn(t *testing.T) {
 	req, err := s6c.NewSendRoutingInfoForSMRequest(tgpp.Envelope{
 		SessionID:        smsc.NewSessionID(),
 		Origin:           smsc.Identity(),
+		DestinationHost:  ellaHost,
 		DestinationRealm: ellaRealm,
 	}, s6c.RoutingRequest{MSISDN: "15551230001", ServiceCentreAddress: "15550000000"})
 	if err != nil {
@@ -546,7 +548,7 @@ func TestListenerAcceptsAnSMSCThatDialsIn(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ans, err := smsc.DoHost(ctx, ellaHost, req)
+	ans, err := smsc.Send(ctx, req)
 	if err != nil {
 		t.Fatalf("SRR: %v", err)
 	}

@@ -21,7 +21,10 @@ import (
 	"time"
 )
 
-var errConnClosed = errors.New("diameter: connection closed")
+var (
+	errConnClosed  = errors.New("diameter: connection closed")
+	errConnSuspect = errors.New("diameter: connection suspect")
+)
 
 type connState int32
 
@@ -59,19 +62,22 @@ type Conn struct {
 	hopByHop  atomic.Uint32
 	cerHbH    uint32
 
-	peerHost  string
-	peerRealm string
-	localApps []Application
-	common    map[uint32]bool
-	parkedCER *Message
-	lastError atomic.Pointer[string]
+	peerHost     string
+	peerRealm    string
+	localApps    []Application
+	localVendors []uint32
+	common       map[uint32]bool
+	parkedCER    *Message
+	lastError    atomic.Pointer[string]
 
 	pendingSlot bool
 	unordered   atomic.Bool
 	requests    chan struct{}
 
-	mu      sync.Mutex
-	pending map[uint32]chan *Message
+	mu        sync.Mutex
+	pending   map[uint32]chan *Message
+	suspected chan struct{}
+	suspect   bool
 
 	activity    chan struct{}
 	watchdogDWA chan struct{}
@@ -85,26 +91,29 @@ type Conn struct {
 }
 
 func newConn(n *Node, t transport, p *peer) *Conn {
-	ctx, cancel := context.WithCancel(n.baseCtx)
+	ctx, cancel := context.WithCancel(n.baseCtx) // #nosec G118 -- cancelled when the connection closes
 
 	c := &Conn{
-		n:           n,
-		t:           t,
-		peer:        p,
-		initiator:   p != nil,
-		ctx:         ctx,
-		cancel:      cancel,
-		localApps:   n.cfg.UnknownPeerApplications,
-		requests:    make(chan struct{}, n.cfg.MaxConcurrentRequests),
-		pending:     make(map[uint32]chan *Message),
-		activity:    make(chan struct{}, 1),
-		watchdogDWA: make(chan struct{}, 1),
-		opened:      make(chan struct{}),
-		done:        make(chan struct{}),
+		n:            n,
+		t:            t,
+		peer:         p,
+		initiator:    p != nil,
+		ctx:          ctx,
+		cancel:       cancel,
+		localApps:    n.cfg.UnknownPeerApplications,
+		localVendors: n.cfg.UnknownPeerSupportedVendors,
+		requests:     make(chan struct{}, n.cfg.MaxConcurrentRequests),
+		pending:      make(map[uint32]chan *Message),
+		suspected:    make(chan struct{}),
+		activity:     make(chan struct{}, 1),
+		watchdogDWA:  make(chan struct{}, 1),
+		opened:       make(chan struct{}),
+		done:         make(chan struct{}),
 	}
 
 	if p != nil {
 		c.localApps = p.cfg.Applications
+		c.localVendors = p.cfg.SupportedVendors
 		c.state.Store(int32(stateWaitCEA))
 	}
 
@@ -195,7 +204,7 @@ func (c *Conn) logger() *slog.Logger {
 func (c *Conn) name() string {
 	switch {
 	case c.peer != nil && c.peer.cfg != nil:
-		return c.peer.id
+		return c.peer.name()
 	case c.peerHost != "":
 		return c.peerHost
 	default:
@@ -704,7 +713,7 @@ func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
 	return ans
 }
 
-func (c *Conn) exchange(ctx context.Context, req *Message) (*Message, error) {
+func (c *Conn) exchange(ctx context.Context, req *Message, failover bool) (*Message, error) {
 	m := *req
 	m.HopByHopID = c.hopByHop.Add(1)
 
@@ -717,6 +726,11 @@ func (c *Conn) exchange(ctx context.Context, req *Message) (*Message, error) {
 	}
 
 	c.pending[m.HopByHopID] = ch
+
+	var suspected <-chan struct{}
+	if failover {
+		suspected = c.suspected
+	}
 	c.mu.Unlock()
 
 	defer func() {
@@ -738,7 +752,23 @@ func (c *Conn) exchange(ctx context.Context, req *Message) (*Message, error) {
 		return nil, ctx.Err()
 	case <-c.done:
 		return nil, errConnClosed
+	case <-suspected:
+		return nil, errConnSuspect
 	}
+}
+
+func (c *Conn) setSuspect(on bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	switch {
+	case on && !c.suspect:
+		close(c.suspected)
+	case !on && c.suspect:
+		c.suspected = make(chan struct{})
+	}
+
+	c.suspect = on
 }
 
 func (c *Conn) write(m *Message) error {
@@ -797,10 +827,15 @@ func (c *Conn) capabilityAVPs() []AVP {
 
 	seenVendors := make(map[uint32]bool)
 
+	vendors := make([]uint32, 0, len(c.localApps)+len(c.localVendors))
 	for _, app := range c.localApps {
-		if app.VendorID != 0 && !seenVendors[app.VendorID] {
-			seenVendors[app.VendorID] = true
-			avps = append(avps, Unsigned32(AVPSupportedVendorID, AVPFlagMandatory, 0, app.VendorID))
+		vendors = append(vendors, app.VendorID)
+	}
+
+	for _, vendor := range append(vendors, c.localVendors...) {
+		if vendor != 0 && !seenVendors[vendor] {
+			seenVendors[vendor] = true
+			avps = append(avps, Unsigned32(AVPSupportedVendorID, AVPFlagMandatory, 0, vendor))
 		}
 	}
 
@@ -899,6 +934,7 @@ func (c *Conn) runWatchdog() {
 
 	setStatus := func(s watchdogStatus) {
 		c.watchdog.Store(int32(s))
+		c.setSuspect(s == watchdogSuspect)
 		c.available.Store(s == watchdogOkay && connState(c.state.Load()) == stateOpen)
 		c.n.connStateChanged(c)
 	}
