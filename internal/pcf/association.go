@@ -347,6 +347,13 @@ func (p *PCF) refreshRulesLocked(a *association) *smf.PolicyDecision {
 	d.Revision = p.nextRevisionLocked()
 	a.decision = &d
 
+	ids := make([]string, 0, len(rules))
+	for _, r := range rules {
+		ids = append(ids, fmt.Sprintf("%s@%d", r.ID, r.Version))
+	}
+
+	p.log.Debug("policy decision updated", zap.String("association", a.ref), zap.Uint64("revision", d.Revision), zap.Strings("rules", ids))
+
 	return &d
 }
 

@@ -19,6 +19,7 @@ func videoRule() smf.PCCRule {
 	r := voiceRule()
 	r.ID = "af;1#2.1"
 	r.QCI = 2
+	r.ARP = models.Arp{PriorityLevel: 4, PreemptCap: models.PreemptionCapabilityNotPreempt, PreemptVuln: models.PreemptionVulnerabilityPreemptable}
 	r.MBR = models.Ambr{Uplink: models.BitRateFromBps(512000), Downlink: models.BitRateFromBps(512000)}
 	r.GBR = r.MBR
 	r.Filters = []models.SDFFilter{
@@ -27,6 +28,27 @@ func videoRule() smf.PCCRule {
 	}
 
 	return r
+}
+
+func TestActivatingBothBearersKeepsThem(t *testing.T) {
+	for _, order := range [][]uint8{{1, 2}, {2, 1}} {
+		s, _, _, mmeCb, ref := epsReconcileFixture(t, 0)
+
+		pushRules(t, s, ref, voiceRule(), videoRule())
+
+		acts := mmeCb.dedicatedActivations()
+
+		for i, qci := range order {
+			j := slices.IndexFunc(acts, func(a models.DedicatedBearerRequest) bool { return a.QCI == qci })
+			if err := s.DedicatedBearerActivated(context.Background(), ref, acts[j].SGW.TEID, uint8(6+i), models.FTEID{TEID: uint32(0x66 + i), Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
+				t.Fatalf("DedicatedBearerActivated: %v", err)
+			}
+		}
+
+		if d := mmeCb.dedicatedDeactivations(); len(d) != 0 {
+			t.Fatalf("activated QCIs %v: deactivations %v, want the voice and video bearers kept", order, d)
+		}
+	}
 }
 
 func TestVideoGetsADedicatedBearerOfItsOwn(t *testing.T) {
@@ -105,12 +127,17 @@ func TestVoiceAndVideoFlowsSetUpTogetherOn5G(t *testing.T) {
 		fiveQIs[uint8(item.QosFlowIdentifier)] = int64(item.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
 	}
 
-	if fiveQIs[voiceQFI] != 1 || fiveQIs[videoQFI] != 2 {
-		t.Fatalf("N2 flows %v, want 5QI 1 on QFI %d and 5QI 2 on QFI %d (NG.114 §4.5.3)", fiveQIs, voiceQFI, videoQFI)
+	qfiOf := map[int64]uint8{}
+	for qfi, fiveQI := range fiveQIs {
+		qfiOf[fiveQI] = qfi
+	}
+
+	if len(fiveQIs) != 2 || qfiOf[1] == 0 || qfiOf[2] == 0 {
+		t.Fatalf("N2 flows %v, want a 5QI 1 and a 5QI 2 flow (NG.114 §4.5.3)", fiveQIs)
 	}
 
 	ueAnswers(t, s, ref, true)
-	ranAnswers(t, s, ref, []uint8{voiceQFI}, []uint8{videoQFI})
+	ranAnswers(t, s, ref, []uint8{qfiOf[1]}, []uint8{qfiOf[2]})
 
 	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#2.1"}) {
 		t.Fatalf("reported rules %v, want only the refused video rule", r)

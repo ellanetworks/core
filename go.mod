@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
-	github.com/ellanetworks/ims v0.0.0-20261007194547-2e73235d79fd
+	github.com/ellanetworks/ims v0.0.0-20261009205728-3546dcfe512f
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
@@ -49,7 +49,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/ellanetworks/core/diameter v0.0.0-20261005145428-88e911e1b160
+	github.com/ellanetworks/core/diameter v0.0.0-20261009192142-6cec7a535040
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000

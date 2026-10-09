@@ -365,6 +365,10 @@ type imsUE struct {
 }
 
 func newIMSUE(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64) (*imsUE, error) {
+	return newIMSUEWith(sub, pcscf, local, transport, sqnMS, false)
+}
+
+func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64, video bool) (*imsUE, error) {
 	k, err := hex.DecodeString(sub.Key)
 	if err != nil {
 		return nil, fmt.Errorf("decode K: %w", err)
@@ -390,6 +394,7 @@ func newIMSUE(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transpo
 		Local:       local,
 		Transport:   transport,
 		AcceptCalls: true,
+		Video:       video,
 		Kernel:      xfrm,
 		Logger:      slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
@@ -648,7 +653,11 @@ func call(ctx context.Context, a, b *imsUE, target string, media func(context.Co
 }
 
 func establishCall(ctx context.Context, a, b *imsUE, target string) (*testue.Call, *testue.Call, error) {
-	ac, err := a.Invite(target, testue.CallOptions{})
+	return establishCallWith(ctx, a, b, target, testue.CallOptions{})
+}
+
+func establishCallWith(ctx context.Context, a, b *imsUE, target string, opts testue.CallOptions) (*testue.Call, *testue.Call, error) {
+	ac, err := a.Invite(target, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invite: %w", err)
 	}
@@ -1013,4 +1022,78 @@ func checkIMSRegistration(u *testue.UE, sub SubscriberSpec) error {
 	}
 
 	return nil
+}
+
+type IMSCall struct {
+	Caller *testue.Call
+	Callee *testue.Call
+}
+
+func (c IMSCall) Media(kind string) (IMSMedia, error) {
+	s, ok := c.Caller.Stream(kind)
+
+	switch {
+	case !ok:
+		return IMSMedia{}, fmt.Errorf("the call has no active %s stream", kind)
+	case !s.Remote.Addr.IsValid():
+		return IMSMedia{}, fmt.Errorf("the callee sent no endpoint for the %s stream", kind)
+	}
+
+	return IMSMedia{Caller: s.Local, Callee: s.Remote}, nil
+}
+
+func RequireIMSVideoCall(ctx context.Context, caller, callee IMSEndpoint, transport sip.Transport, video bool, script func(context.Context, IMSCall) error) error {
+	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
+	defer cancel()
+
+	a, err := newIMSUEWith(caller.Subscriber, caller.PCSCF, caller.Local, transport, 0, true)
+	if err != nil {
+		return err
+	}
+
+	defer a.close()
+
+	b, err := newIMSUEWith(callee.Subscriber, callee.PCSCF, callee.Local, transport, 0, true)
+	if err != nil {
+		return err
+	}
+
+	defer b.close()
+
+	if err := a.register(ctx, caller.Subscriber, transport); err != nil {
+		return err
+	}
+
+	if err := b.register(ctx, callee.Subscriber, transport); err != nil {
+		return err
+	}
+
+	target := "tel:" + callee.Subscriber.MSISDN
+
+	ac, bc, err := establishCallWith(ctx, a, b, target, testue.CallOptions{Video: video})
+	if err != nil {
+		return fmt.Errorf("video call from %s to %s: %w", caller.Subscriber.IMSI, target, err)
+	}
+
+	if err := script(ctx, IMSCall{Caller: ac, Callee: bc}); err != nil {
+		return fmt.Errorf("video call from %s to %s: %w", caller.Subscriber.IMSI, target, err)
+	}
+
+	select {
+	case <-ac.Done():
+		return fmt.Errorf("the call ended by %s within %s of the last check, want it kept", ac.End(), imsMediaLossGuard)
+	case <-bc.Done():
+		return fmt.Errorf("the call ended by %s within %s of the last check, want it kept", bc.End(), imsMediaLossGuard)
+	case <-time.After(imsMediaLossGuard):
+	}
+
+	if err := hangUp(ctx, ac, bc); err != nil {
+		return err
+	}
+
+	if err := a.deregister(ctx, transport); err != nil {
+		return err
+	}
+
+	return b.deregister(ctx, transport)
 }

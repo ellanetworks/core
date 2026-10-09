@@ -6,6 +6,7 @@ package pcf
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/netip"
 	"slices"
@@ -166,6 +167,8 @@ func (p *PCF) updateRx(id string, r rx.AARequest) error {
 	}
 
 	if r.ServiceInfoStatus == rx.ServiceInfoFinal && len(r.MediaComponents) > 0 {
+		p.log.Debug("Rx media components", zap.String("session", id), zap.Strings("components", describeComponents(r.MediaComponents)))
+
 		merged := make([]rx.MediaComponent, 0, len(r.MediaComponents))
 		for _, c := range r.MediaComponents {
 			merged = append(merged, overlayComponent(s.components[c.Number], c))
@@ -387,4 +390,36 @@ func observed(name string, h func(context.Context, diameter.Identity, *diameter.
 
 		return ans
 	})
+}
+
+func describeComponents(components []rx.MediaComponent) []string {
+	out := make([]string, 0, len(components))
+
+	for _, c := range components {
+		d := fmt.Sprintf("%d", c.Number)
+		if c.Type != nil {
+			d += fmt.Sprintf(" type=%d", *c.Type)
+		}
+
+		if c.FlowStatus != nil {
+			d += fmt.Sprintf(" status=%d", *c.FlowStatus)
+		}
+
+		for _, sub := range c.SubComponents {
+			d += fmt.Sprintf(" [%d flows=%d", sub.FlowNumber, len(sub.FlowDescriptions))
+			if sub.FlowStatus != nil {
+				d += fmt.Sprintf(" status=%d", *sub.FlowStatus)
+			}
+
+			if sub.FlowUsage != nil {
+				d += fmt.Sprintf(" usage=%d", *sub.FlowUsage)
+			}
+
+			d += "]"
+		}
+
+		out = append(out, d)
+	}
+
+	return out
 }

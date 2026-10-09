@@ -328,12 +328,12 @@ type mediaLeg interface {
 	String() string
 }
 
-type nrVoice struct {
+type nrFlow struct {
 	a   *nrAttachment
 	qfi uint8
 }
 
-func (l nrVoice) send(packet []byte) error {
+func (l nrFlow) send(packet []byte) error {
 	upf, err := netip.ParseAddr(l.a.session.UpfAddress)
 	if err != nil {
 		return fmt.Errorf("N3 peer %q: %w", l.a.session.UpfAddress, err)
@@ -342,21 +342,21 @@ func (l nrVoice) send(packet []byte) error {
 	return l.a.g.SendGPDUWithQFI(l.a.session.ULTEID, upf, l.qfi, packet)
 }
 
-func (l nrVoice) delivered() int {
+func (l nrFlow) delivered() int {
 	l.a.g.WatchTEID(l.a.session.DLTEID)
 	return l.a.g.DownlinkQFICount(l.a.session.DLTEID, l.qfi)
 }
 
-func (l nrVoice) String() string { return fmt.Sprintf("QFI %d", l.qfi) }
+func (l nrFlow) String() string { return fmt.Sprintf("QFI %d", l.qfi) }
 
-type lteVoice struct {
+type lteBearer struct {
 	a      *lteAttachment
 	erab   s1ap.ERABID
 	ulTEID uint32
 	dlTEID uint32
 }
 
-func (l lteVoice) send(packet []byte) error {
+func (l lteBearer) send(packet []byte) error {
 	upf, err := netip.ParseAddr(l.a.upf)
 	if err != nil {
 		return fmt.Errorf("S1-U peer %q: %w", l.a.upf, err)
@@ -365,12 +365,12 @@ func (l lteVoice) send(packet []byte) error {
 	return l.a.e.SendGPDU(l.ulTEID, upf, packet)
 }
 
-func (l lteVoice) delivered() int {
+func (l lteBearer) delivered() int {
 	l.a.e.WatchTEID(l.dlTEID)
 	return l.a.e.WatchedTEIDCount(l.dlTEID)
 }
 
-func (l lteVoice) String() string { return fmt.Sprintf("E-RAB %d", l.erab) }
+func (l lteBearer) String() string { return fmt.Sprintf("E-RAB %d", l.erab) }
 
 func sendVoice(ctx context.Context, from, to mediaLeg, src, dst sdp.Endpoint) error {
 	before := to.delivered()
@@ -454,8 +454,8 @@ func awaitBearer(ctx context.Context, ch <-chan acceptedBearer) (*s1enb.Dedicate
 	}
 }
 
-func (a *lteAttachment) voice(b *s1enb.DedicatedBearer) lteVoice {
-	return lteVoice{a: a, erab: b.ERABID, ulTEID: b.ULTEID, dlTEID: b.DLTEID}
+func (a *lteAttachment) voice(b *s1enb.DedicatedBearer) lteBearer {
+	return lteBearer{a: a, erab: b.ERABID, ulTEID: b.ULTEID, dlTEID: b.DLTEID}
 }
 
 func (a *lteAttachment) awaitVoiceRelease(erab s1ap.ERABID) error {
@@ -472,11 +472,36 @@ func (a *lteAttachment) awaitVoiceRelease(erab s1ap.ERABID) error {
 }
 
 type epsHandover struct {
-	lte   *lteAttachment
-	voice *lteVoice
+	lte     *lteAttachment
+	voice   *lteBearer
+	bearers map[uint8]*lteBearer
+}
+
+type epsHandoverOpts struct {
+	carried   map[uint8]s1ap.ERABID
+	refuseQCI uint8
 }
 
 func (p *imsParty) handOverToEPS(e *s1enb.ENB, wantVoice, refuseVoice bool) (epsHandover, error) {
+	opts := epsHandoverOpts{}
+
+	if wantVoice {
+		opts.carried = map[uint8]s1ap.ERABID{imsVoiceQCI: imsVoiceEBI}
+	}
+
+	if refuseVoice {
+		opts.refuseQCI = imsVoiceQCI
+	}
+
+	h, err := p.handOverToEPSWith(e, opts)
+	if err == nil {
+		h.voice = h.bearers[imsVoiceQCI]
+	}
+
+	return h, err
+}
+
+func (p *imsParty) handOverToEPSWith(e *s1enb.ENB, opts epsHandoverOpts) (epsHandover, error) {
 	nr := p.nr
 
 	enbID, err := interworkingENBID()
@@ -502,34 +527,43 @@ func (p *imsParty) handOverToEPS(e *s1enb.ENB, wantVoice, refuseVoice bool) (eps
 	}
 
 	def := slices.IndexFunc(req.ERABToBeSetup, func(it s1ap.ERABToBeSetupItemHOReq) bool { return it.ERABID == imsDefaultEBI })
-	voice := slices.IndexFunc(req.ERABToBeSetup, func(it s1ap.ERABToBeSetupItemHOReq) bool { return it.QoS.QCI == imsVoiceQCI })
-
-	switch {
-	case def < 0:
+	if def < 0 {
 		return epsHandover{}, fmt.Errorf("the Handover Request E-RABs %+v lack the default bearer %d", req.ERABToBeSetup, imsDefaultEBI)
-	case !wantVoice && len(req.ERABToBeSetup) != 1:
-		return epsHandover{}, fmt.Errorf("the Handover Request E-RABs are %+v, want only the default bearer", req.ERABToBeSetup)
-	case wantVoice && (voice < 0 || len(req.ERABToBeSetup) != 2):
-		return epsHandover{}, fmt.Errorf("the Handover Request E-RABs are %+v, want the default and the QCI 1 voice bearer (TS 23.502 §4.11.1.2.1 step 2)", req.ERABToBeSetup)
-	case wantVoice && req.ERABToBeSetup[voice].ERABID != imsVoiceEBI:
-		return epsHandover{}, fmt.Errorf("the voice bearer is E-RAB %d, want the flow's EBI %d kept (TS 23.502 §4.11.1.1)", req.ERABToBeSetup[voice].ERABID, imsVoiceEBI)
-	case wantVoice && req.ERABToBeSetup[voice].QoS.GBR == nil:
-		return epsHandover{}, fmt.Errorf("the voice E-RAB %+v has no GBR QoS Information", req.ERABToBeSetup[voice].QoS)
 	}
 
-	mmeUEID := int64(req.MMEUES1APID)
-	enbUEID := e.AllocateENBUEID()
+	if len(req.ERABToBeSetup) != 1+len(opts.carried) {
+		return epsHandover{}, fmt.Errorf("the Handover Request E-RABs are %+v, want the default bearer and dedicated bearers %v (TS 23.502 §4.11.1.2.1 step 2)", req.ERABToBeSetup, opts.carried)
+	}
+
 	admit := []s1ap.ERABID{imsDefaultEBI}
 
 	var refuse []s1ap.ERABID
 
-	if voice >= 0 {
-		if refuseVoice {
-			refuse = append(refuse, req.ERABToBeSetup[voice].ERABID)
-		} else {
-			admit = append(admit, req.ERABToBeSetup[voice].ERABID)
+	for i, it := range req.ERABToBeSetup {
+		if i == def {
+			continue
+		}
+
+		qci := uint8(it.QoS.QCI)
+
+		ebi, ok := opts.carried[qci]
+
+		switch {
+		case !ok:
+			return epsHandover{}, fmt.Errorf("the Handover Request carries E-RAB %d at QCI %d, want dedicated bearers %v", it.ERABID, qci, opts.carried)
+		case ebi != 0 && it.ERABID != ebi:
+			return epsHandover{}, fmt.Errorf("the QCI %d bearer is E-RAB %d, want the flow's EBI %d kept (TS 23.502 §4.11.1.1)", qci, it.ERABID, ebi)
+		case it.QoS.GBR == nil:
+			return epsHandover{}, fmt.Errorf("the QCI %d E-RAB %+v has no GBR QoS Information", qci, it.QoS)
+		case qci == opts.refuseQCI:
+			refuse = append(refuse, it.ERABID)
+		default:
+			admit = append(admit, it.ERABID)
 		}
 	}
+
+	mmeUEID := int64(req.MMEUES1APID)
+	enbUEID := e.AllocateENBUEID()
 
 	teids, err := e.SendHandoverRequestAcknowledgePartial(enbUEID, mmeUEID, admit, refuse, imsRefusal)
 	if err != nil {
@@ -569,11 +603,14 @@ func (p *imsParty) handOverToEPS(e *s1enb.ENB, wantVoice, refuseVoice bool) (eps
 		ulTEID: uint32(req.ERABToBeSetup[def].GTPTEID), dlTEID: teids[imsDefaultEBI],
 	}
 
-	out := epsHandover{lte: lte}
+	out := epsHandover{lte: lte, bearers: make(map[uint8]*lteBearer)}
 
-	if voice >= 0 && !refuseVoice {
-		it := req.ERABToBeSetup[voice]
-		out.voice = &lteVoice{a: lte, erab: it.ERABID, ulTEID: uint32(it.GTPTEID), dlTEID: teids[it.ERABID]}
+	for i, it := range req.ERABToBeSetup {
+		if i == def || slices.Contains(refuse, it.ERABID) {
+			continue
+		}
+
+		out.bearers[uint8(it.QoS.QCI)] = &lteBearer{a: lte, erab: it.ERABID, ulTEID: uint32(it.GTPTEID), dlTEID: teids[it.ERABID]}
 	}
 
 	p.guti = guti
@@ -583,10 +620,36 @@ func (p *imsParty) handOverToEPS(e *s1enb.ENB, wantVoice, refuseVoice bool) (eps
 
 type fiveGSHandover struct {
 	nr    *nrAttachment
-	voice *nrVoice
+	voice *nrFlow
+	flows map[int64]*nrFlow
+}
+
+type carriedFlow struct {
+	ebi s1ap.ERABID
+	qfi uint8
+}
+
+type fiveGSHandoverOpts struct {
+	carried      map[int64]carriedFlow
+	refuseFiveQI int64
 }
 
 func (p *imsParty) handOverTo5GS(g *gnb.GnodeB, ranUEID int64, wantQFI uint8, refuseVoice bool) (fiveGSHandover, error) {
+	opts := fiveGSHandoverOpts{carried: map[int64]carriedFlow{imsVoiceQCI: {ebi: imsVoiceEBI, qfi: wantQFI}}}
+
+	if refuseVoice {
+		opts.refuseFiveQI = imsVoiceQCI
+	}
+
+	h, err := p.handOverTo5GSWith(g, ranUEID, opts)
+	if err == nil {
+		h.voice = h.flows[imsVoiceQCI]
+	}
+
+	return h, err
+}
+
+func (p *imsParty) handOverTo5GSWith(g *gnb.GnodeB, ranUEID int64, opts fiveGSHandoverOpts) (fiveGSHandover, error) {
 	lte := p.lte
 
 	if err := handoverRequiredToFiveGS(lte.e, &s1enb.AttachResult{ENBUES1APID: lte.enbUEID, MMEUES1APID: lte.mmeUEID}); err != nil {
@@ -608,32 +671,42 @@ func (p *imsParty) handOverTo5GS(g *gnb.GnodeB, ranUEID int64, wantQFI uint8, re
 		return fiveGSHandover{}, fmt.Errorf("parse the Handover Request's session transfer: %w", err)
 	}
 
-	i := slices.IndexFunc(transfer.QosFlowSetupRequest, func(it ngap.QosFlowSetupRequestItem) bool {
-		return it.QosFlowLevelQosParameters.GBRQosInformation != nil
-	})
+	qfis := make(map[int64]uint8)
 
-	if i < 0 {
-		return fiveGSHandover{}, fmt.Errorf("the Handover Request flows %+v lack the voice flow (TS 23.502 §4.11.1.2.2.2 step 6)", transfer.QosFlowSetupRequest)
+	var refused []uint8
+
+	for _, flow := range transfer.QosFlowSetupRequest {
+		if flow.QosFlowLevelQosParameters.GBRQosInformation == nil {
+			continue
+		}
+
+		fiveQI := int64(flow.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
+		qfi := uint8(flow.QosFlowIdentifier)
+		want, ok := opts.carried[fiveQI]
+
+		switch {
+		case !ok:
+			return fiveGSHandover{}, fmt.Errorf("the Handover Request carries QFI %d at 5QI %d, want flows %v", qfi, fiveQI, opts.carried)
+		case flow.ERABID == nil || want.ebi != 0 && s1ap.ERABID(*flow.ERABID) != want.ebi:
+			return fiveGSHandover{}, fmt.Errorf("the 5QI %d flow carries E-RAB ID %v, want the bearer's EBI %d (TS 38.413 §9.3.4.1)", fiveQI, flow.ERABID, want.ebi)
+		case want.qfi != 0 && qfi != want.qfi:
+			return fiveGSHandover{}, fmt.Errorf("the 5QI %d flow is QFI %d, want the QFI %d it held on 5GS (TS 23.502 §4.11.1.1)", fiveQI, qfi, want.qfi)
+		}
+
+		qfis[fiveQI] = qfi
+
+		if fiveQI == opts.refuseFiveQI {
+			refused = append(refused, qfi)
+		}
 	}
 
-	flow := transfer.QosFlowSetupRequest[i]
-	qfi := uint8(flow.QosFlowIdentifier)
-
-	switch {
-	case flow.ERABID == nil || s1ap.ERABID(*flow.ERABID) != imsVoiceEBI:
-		return fiveGSHandover{}, fmt.Errorf("the voice flow carries E-RAB ID %v, want the bearer's EBI %d (TS 38.413 §9.3.4.1)", flow.ERABID, imsVoiceEBI)
-	case wantQFI != 0 && qfi != wantQFI:
-		return fiveGSHandover{}, fmt.Errorf("the voice flow is QFI %d, want the QFI %d it held on 5GS (TS 23.502 §4.11.1.1)", qfi, wantQFI)
+	if len(qfis) != len(opts.carried) {
+		return fiveGSHandover{}, fmt.Errorf("the Handover Request flows %+v, want flows %v (TS 23.502 §4.11.1.2.2.2 step 6)", transfer.QosFlowSetupRequest, opts.carried)
 	}
 
 	nasc, err := container.MarshalBinary()
 	if err != nil {
 		return fiveGSHandover{}, fmt.Errorf("re-encode the NAS container: %w", err)
-	}
-
-	var refused []uint8
-	if refuseVoice {
-		refused = []uint8{qfi}
 	}
 
 	admitted, err := g.AdmitHandover(&gnb.HandoverAdmissionOpts{Request: req, RANUENGAPID: ranUEID, TargetToSource: nasc, RefusedQFIs: refused})
@@ -646,9 +719,8 @@ func (p *imsParty) handOverTo5GS(g *gnb.GnodeB, ranUEID int64, wantQFI uint8, re
 		return fiveGSHandover{}, fmt.Errorf("the source eNB got no Handover Command: %w", err)
 	}
 
-	released := slices.ContainsFunc(cmd.ERABToRelease, func(it s1ap.ERABItem) bool { return it.ERABID == imsVoiceEBI })
-	if released != refuseVoice || len(cmd.ERABToRelease) > 1 {
-		return fiveGSHandover{}, fmt.Errorf("the Handover Command releases E-RABs %+v, want the voice bearer %d listed only when the target refused its flow (TS 36.413 §8.4.1.2)", cmd.ERABToRelease, imsVoiceEBI)
+	if len(cmd.ERABToRelease) != len(refused) {
+		return fiveGSHandover{}, fmt.Errorf("the Handover Command releases E-RABs %+v, want only the bearers of refused flows %v (TS 36.413 §8.4.1.2)", cmd.ERABToRelease, refused)
 	}
 
 	if p.guti == nil || p.guti.GUTI == nil {
@@ -694,10 +766,12 @@ func (p *imsParty) handOverTo5GS(g *gnb.GnodeB, ranUEID int64, wantQFI uint8, re
 	}
 
 	nr := &nrAttachment{g: g, u: u, ranUEID: ranUEID, session: admitted[0]}
-	out := fiveGSHandover{nr: nr}
+	out := fiveGSHandover{nr: nr, flows: make(map[int64]*nrFlow)}
 
-	if !refuseVoice {
-		out.voice = &nrVoice{a: nr, qfi: qfi}
+	for fiveQI, qfi := range qfis {
+		if !slices.Contains(refused, qfi) {
+			out.flows[fiveQI] = &nrFlow{a: nr, qfi: qfi}
+		}
 	}
 
 	return out, p.rehome(nr, nil)

@@ -106,7 +106,6 @@ func addIMSCorePeer(ctx context.Context, t *testing.T, cl *client.Client) {
 
 	peer := map[string]any{
 		"host":         status.Host,
-		"realm":        status.Realm,
 		"address":      N2Address(0),
 		"port":         coreDiameterPort,
 		"transport":    "sctp",

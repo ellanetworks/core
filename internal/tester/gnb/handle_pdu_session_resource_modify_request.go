@@ -53,7 +53,13 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 
 			var dedicated []uint8
 
+			fiveQIs := make(map[uint8]int64)
+
 			for _, f := range modInfo.Flows {
+				if f.FiveQi != 0 {
+					fiveQIs[uint8(f.QFI)] = f.FiveQi
+				}
+
 				if refuse && defaultQFI != 0 && f.QFI != defaultQFI {
 					failed[pduSessionID] = append(failed[pduSessionID], uint8(f.QFI))
 					continue
@@ -74,6 +80,7 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 				gnb.updatePDUSessionQoS(ranUeNgapID, pduSessionID, &PDUSessionModifyInfo{AmbrUplink: modInfo.AmbrUplink, AmbrDownlink: modInfo.AmbrDownlink})
 			}
 
+			gnb.recordFlowFiveQIs(ranUeNgapID, pduSessionID, fiveQIs)
 			gnb.admitQoSFlows(ranUeNgapID, pduSessionID, dedicated, modInfo.Released)
 
 			logger.GnbLogger.Debug(

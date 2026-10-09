@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/netip"
 	"slices"
@@ -122,6 +123,7 @@ type GnodeB struct {
 	qosFlows          map[int64]map[int64][]uint8
 	modifyRequests    map[int64]int
 	refuseGBRFlows    map[int64]ngap.Cause
+	flowFiveQIs       map[int64]map[int64]map[uint8]int64
 	lastGeneratedTEID uint32
 	nextFwdTEID       uint32
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
@@ -185,6 +187,7 @@ func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 	}
 
 	g.qosFlows[ranUeID][info.PDUSessionID] = slices.Clone(info.Flows)
+	g.recordFlowFiveQIsLocked(ranUeID, info.PDUSessionID, info.FlowFiveQIs)
 
 	if g.pduSessions == nil {
 		g.pduSessions = make(map[int64]map[int64]*PDUSessionInformation)
@@ -1250,6 +1253,38 @@ func (g *GnodeB) sessionQFI(ranUeID, pduSessionID int64) int64 {
 	}
 
 	return 0
+}
+
+func (g *GnodeB) QoSFlowFiveQI(ranUeID, pduSessionID int64, qfi uint8) (int64, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	fiveQI, ok := g.flowFiveQIs[ranUeID][pduSessionID][qfi]
+
+	return fiveQI, ok
+}
+
+func (g *GnodeB) recordFlowFiveQIs(ranUeID, pduSessionID int64, fiveQIs map[uint8]int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.recordFlowFiveQIsLocked(ranUeID, pduSessionID, fiveQIs)
+}
+
+func (g *GnodeB) recordFlowFiveQIsLocked(ranUeID, pduSessionID int64, fiveQIs map[uint8]int64) {
+	if g.flowFiveQIs == nil {
+		g.flowFiveQIs = make(map[int64]map[int64]map[uint8]int64)
+	}
+
+	if g.flowFiveQIs[ranUeID] == nil {
+		g.flowFiveQIs[ranUeID] = make(map[int64]map[uint8]int64)
+	}
+
+	if g.flowFiveQIs[ranUeID][pduSessionID] == nil {
+		g.flowFiveQIs[ranUeID][pduSessionID] = make(map[uint8]int64)
+	}
+
+	maps.Copy(g.flowFiveQIs[ranUeID][pduSessionID], fiveQIs)
 }
 
 func (g *GnodeB) RefuseNextGBRQoSFlows(ranUeID int64, cause ngap.Cause) {

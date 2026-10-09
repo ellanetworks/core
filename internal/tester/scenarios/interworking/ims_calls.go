@@ -171,9 +171,9 @@ func runIMSCallHandoverTo4GAndBack(ctx context.Context, env scenarios.Env) error
 			return err
 		}
 
-		callerVoice := nrVoice{a: caller.nr, qfi: callerQFI}
+		callerVoice := nrFlow{a: caller.nr, qfi: callerQFI}
 
-		if err := sendVoiceBothWays(ctx, callerVoice, nrVoice{a: callee.nr, qfi: calleeQFI}, m); err != nil {
+		if err := sendVoiceBothWays(ctx, callerVoice, nrFlow{a: callee.nr, qfi: calleeQFI}, m); err != nil {
 			return fmt.Errorf("on 5GS: %w", err)
 		}
 
@@ -224,7 +224,7 @@ func runIMSCallHandoverTo5GAndBack(ctx context.Context, env scenarios.Env) error
 	callerBearer, calleeBearer := caller.lte.acceptVoiceBearer(), callee.lte.acceptVoiceBearer()
 	calleeReleased := make(chan error, 1)
 
-	var callerVoice lteVoice
+	var callerVoice lteBearer
 
 	media := func(ctx context.Context, m scenarios.IMSMedia) error {
 		cb, err := voiceBearerOn4G(ctx, callerBearer)
@@ -308,9 +308,9 @@ func runIMSCallIdleTo4GAndBack(ctx context.Context, env scenarios.Env) error {
 			return err
 		}
 
-		callerVoice := nrVoice{a: caller.nr, qfi: callerQFI}
+		callerVoice := nrFlow{a: caller.nr, qfi: callerQFI}
 
-		if err := sendVoiceBothWays(ctx, callerVoice, nrVoice{a: callee.nr, qfi: calleeQFI}, m); err != nil {
+		if err := sendVoiceBothWays(ctx, callerVoice, nrFlow{a: callee.nr, qfi: calleeQFI}, m); err != nil {
 			return fmt.Errorf("on 5GS: %w", err)
 		}
 
@@ -445,7 +445,7 @@ func (p *imsParty) idleTo5GS(ctx context.Context, g *gnb.GnodeB, epsUE *s1enb.UE
 		return fiveGSHandover{}, fmt.Errorf("after the return to 5GS: %w", err)
 	}
 
-	return fiveGSHandover{nr: nr, voice: &nrVoice{a: nr, qfi: qfi}}, p.rehome(nr, nil)
+	return fiveGSHandover{nr: nr, voice: &nrFlow{a: nr, qfi: qfi}}, p.rehome(nr, nil)
 }
 
 func awaitSession(ctx context.Context, g *gnb.GnodeB, ranUEID int64) (gnb.PDUSessionResult, error) {
@@ -593,16 +593,24 @@ func fallBackByRedirection(_ context.Context, p *imsParty, e *s1enb.ENB) (*lteAt
 	return lte, p.rehome(nil, lte)
 }
 
-func awaitFlowRefused(ctx context.Context, a *nrAttachment, before int) error {
+func awaitModifyRequest(ctx context.Context, a *nrAttachment, before int) error {
 	ctx, cancel := context.WithTimeout(ctx, imsFallbackRequestDeadline)
 	defer cancel()
 
 	for a.g.ModifyRequestCount(a.ranUEID) == before {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("the gNB was never asked to set up the voice flow: %w", ctx.Err())
+			return fmt.Errorf("the gNB was never asked to set up the flow: %w", ctx.Err())
 		case <-time.After(imsPacketInterval):
 		}
+	}
+
+	return nil
+}
+
+func awaitFlowRefused(ctx context.Context, a *nrAttachment, before int) error {
+	if err := awaitModifyRequest(ctx, a, before); err != nil {
+		return err
 	}
 
 	if flows := a.g.QoSFlows(a.ranUEID, int64(imsPDUSessionID)); len(flows) != 0 {
@@ -655,7 +663,7 @@ func runIMSCallEPSFallback(ctx context.Context, env scenarios.Env, callerSub, ca
 
 		go func() { released <- lte.awaitVoiceRelease(b.ERABID) }()
 
-		if err := sendVoiceBothWays(ctx, nrVoice{a: caller.nr, qfi: callerQFI}, lte.voice(b), m); err != nil {
+		if err := sendVoiceBothWays(ctx, nrFlow{a: caller.nr, qfi: callerQFI}, lte.voice(b), m); err != nil {
 			return fmt.Errorf("after the EPS fallback: %w", err)
 		}
 

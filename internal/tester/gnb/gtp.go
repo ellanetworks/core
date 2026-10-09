@@ -662,20 +662,23 @@ func gtpPayload(pdu []byte) []byte {
 		return pdu[8:]
 	}
 
-	off := 11
-	for off < len(pdu) && pdu[off] != 0 {
-		if off+1 >= len(pdu) || pdu[off+1] == 0 {
+	rest := pdu[min(11, len(pdu)):]
+
+	for {
+		if len(rest) == 0 {
 			return nil
 		}
 
-		off += int(pdu[off+1]) * 4
-	}
+		if rest[0] == 0 {
+			return rest[1:]
+		}
 
-	if off+1 > len(pdu) {
-		return nil
-	}
+		if len(rest) < 2 || rest[1] == 0 || int(rest[1])*4 > len(rest) {
+			return nil
+		}
 
-	return pdu[off+1:]
+		rest = rest[int(rest[1])*4:]
+	}
 }
 
 func udpDestinationPort(packet []byte) (uint16, bool) {

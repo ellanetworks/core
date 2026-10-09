@@ -161,6 +161,7 @@ type PDUSessionInformation struct {
 	AmbrUplink   int64
 	AmbrDownlink int64
 	Flows        []uint8
+	FlowFiveQIs  map[uint8]int64
 
 	// generation orders stores of the same session so a procedure can tell the
 	// resources its own signalling established from ones already there.
@@ -186,9 +187,14 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 	var (
 		qosID, fiveQi, priArp int64
 		flows                 []uint8
+		fiveQIs               = make(map[uint8]int64)
 	)
 
 	for _, qos := range t.QosFlowSetupRequest {
+		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
+			fiveQIs[uint8(qos.QosFlowIdentifier)] = int64(qos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
+		}
+
 		if qos.QosFlowLevelQosParameters.GBRQosInformation != nil {
 			flows = append(flows, uint8(qos.QosFlowIdentifier))
 			continue
@@ -209,15 +215,16 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 	}
 
 	return &PDUSessionInformation{
-		ULTEID:     uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
-		UpfAddress: upfIP,
-		N3GnbIp:    gnb.N3Address,
-		QosId:      qosID,
-		QFI:        qosID,
-		FiveQi:     fiveQi,
-		PriArp:     priArp,
-		PduSType:   uint64(t.PDUSessionType),
-		Flows:      flows,
+		ULTEID:      uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
+		UpfAddress:  upfIP,
+		N3GnbIp:     gnb.N3Address,
+		QosId:       qosID,
+		QFI:         qosID,
+		FiveQi:      fiveQi,
+		PriArp:      priArp,
+		PduSType:    uint64(t.PDUSessionType),
+		Flows:       flows,
+		FlowFiveQIs: fiveQIs,
 	}, nil
 }
 
