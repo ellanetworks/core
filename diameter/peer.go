@@ -55,6 +55,7 @@ type PeerStatus struct {
 	LastError    string
 	Applications []Application
 	Configured   bool
+	Dynamic      bool
 }
 
 type peer struct {
@@ -74,6 +75,8 @@ type peer struct {
 	everOpen bool
 	suppress bool
 	removed  bool
+	dynamic  bool
+	refs     int
 
 	reported PeerState
 	since    time.Time
@@ -94,11 +97,19 @@ func newConfiguredPeer(cfg Peer) *peer {
 }
 
 func (p *peer) key() string {
-	if p.cfg != nil {
+	if p.cfg != nil && !p.dynamic {
 		return "id:" + p.id
 	}
 
 	return "host:" + p.host
+}
+
+func (p *peer) name() string {
+	if p.id != "" {
+		return p.id
+	}
+
+	return p.host
 }
 
 func (p *peer) conns() []*Conn {
@@ -149,7 +160,8 @@ func (p *peer) statusLocked() PeerStatus {
 		State:      p.state(),
 		Since:      p.since,
 		LastError:  p.lastError,
-		Configured: p.cfg != nil,
+		Configured: p.cfg != nil && !p.dynamic,
+		Dynamic:    p.dynamic,
 	}
 
 	if p.cfg != nil && s.Host == "" {
@@ -222,6 +234,8 @@ func (n *Node) unregisterLocked(p *peer) {
 	if p.stop != nil {
 		close(p.stop)
 	}
+
+	n.cacheForgetPeerLocked(p)
 }
 
 func (n *Node) dropUnknownLocked(p *peer) {
@@ -229,7 +243,61 @@ func (n *Node) dropUnknownLocked(p *peer) {
 		delete(n.byHost, p.host)
 	}
 
+	if p.dynamic && !p.removed {
+		close(p.stop)
+	}
+
 	p.removed = true
+
+	n.cacheForgetPeerLocked(p)
+}
+
+func (n *Node) acquireLocked(p *peer) {
+	p.refs++
+}
+
+func (n *Node) releaseLocked(p *peer) {
+	p.refs--
+
+	if !p.dynamic || p.refs > 0 || p.removed {
+		return
+	}
+
+	conns := p.conns()
+	n.dropUnknownLocked(p)
+
+	for _, c := range conns {
+		go c.disconnect(DisconnectCauseDoNotWantToTalkToYou)
+	}
+}
+
+func (n *Node) dynamicPeerLocked(u URI, app Application, addrs []netip.Addr) *peer {
+	key := strings.ToLower(u.Host)
+
+	if p, ok := n.byHost[key]; ok && !p.removed {
+		return p
+	}
+
+	cfg := Peer{
+		Host:         u.Host,
+		Addresses:    addrs,
+		Transports:   []Transport{u.Transport},
+		Applications: []Application{app},
+		Dial:         &Dial{Port: u.Port},
+	}
+
+	p := newConfiguredPeer(cfg)
+	p.id = ""
+	p.dynamic = true
+	n.byHost[key] = p
+
+	n.goroutines.Add(1)
+
+	go n.maintain(p)
+
+	n.logger.Info("Diameter peer added from a redirect", slog.String("host", u.Host), slog.String("uri", u.String()))
+
+	return p
 }
 
 type cerOutcome int
@@ -271,6 +339,7 @@ func (n *Node) acceptCER(c *Conn, host string, cer *Message) cerDecision {
 
 	apps := p.cfg.Applications
 	c.localApps = apps
+	c.localVendors = p.cfg.SupportedVendors
 
 	common := commonApplications(cer.AVPs, apps)
 	if len(common) == 0 {
@@ -345,6 +414,7 @@ func (n *Node) acceptUnknownLocked(c *Conn, key string, cer *Message) cerDecisio
 
 	apps := n.cfg.UnknownPeerApplications
 	c.localApps = apps
+	c.localVendors = n.cfg.UnknownPeerSupportedVendors
 
 	common := commonApplications(cer.AVPs, apps)
 	if len(common) == 0 {
@@ -458,6 +528,8 @@ func (n *Node) connDown(c *Conn) {
 				p.suppress = true
 			}
 
+			n.cacheForgetPeerLocked(p)
+
 			if p.cfg == nil {
 				n.dropUnknownLocked(p)
 			}
@@ -521,7 +593,12 @@ func (n *Node) maintain(p *peer) {
 
 			continue
 		default:
-			if c := n.dial(p); c != nil {
+			c := n.dial(p)
+			if c == nil && p.dynamic {
+				n.forgetUnreachable(p)
+			}
+
+			if c != nil {
 				opened := time.Now()
 
 				if !n.waitPeer(p, c.done, nil) {
@@ -577,7 +654,7 @@ func (n *Node) dial(p *peer) *Conn {
 		p.lastError = err.Error()
 		n.mu.Unlock()
 
-		n.logger.Warn("failed to connect to Diameter peer", slog.String("peer", p.id), slog.Any("error", err))
+		n.logger.Warn("failed to connect to Diameter peer", slog.String("peer", p.name()), slog.Any("error", err))
 
 		return nil
 	}
@@ -710,4 +787,11 @@ func commonApplications(avps []AVP, apps []Application) map[uint32]bool {
 	}
 
 	return common
+}
+
+func (n *Node) forgetUnreachable(p *peer) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.cacheForgetPeerLocked(p)
 }
