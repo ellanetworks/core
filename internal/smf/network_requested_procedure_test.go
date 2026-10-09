@@ -348,11 +348,11 @@ func TestReleaseRequestIgnoredDuringRelease(t *testing.T) {
 		t.Errorf("ReleaseSession calls = %d, want 1 (TS 24.501 §6.3.3.5 c): the colliding request sends no second command)", got)
 	}
 
-	if smCtx.IsPTIInUse(secondPTI) {
+	if ptiInUse(t, smCtx, secondPTI) {
 		t.Error("an ignored request starts no procedure, so its PTI stays free")
 	}
 
-	if !smCtx.IsPTIInUse(firstPTI) {
+	if !ptiInUse(t, smCtx, firstPTI) {
 		t.Error("the outstanding release keeps its PTI in use")
 	}
 
