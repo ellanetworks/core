@@ -982,3 +982,42 @@ func TestForwardRelocationTimeoutUnwindsWithALiveContext(t *testing.T) {
 		}
 	}
 }
+
+func TestForwardRelocationCarriesTheVoiceBearer(t *testing.T) {
+	voice := voiceBearerRequest()
+	sessions := &fakeSessionManager{dedicated: []models.DedicatedBearerContext{{
+		EBI: 8, QCI: voice.QCI, ARP: voice.ARP, MBR: voice.MBR, GBR: voice.GBR, Filters: voice.Filters, SGW: voice.SGW,
+	}}}
+	m := New(nil, fakeBearerStore{}, sessions)
+	target := newRelocationTarget(t, m)
+	req := relocationRequest(interworking.PDNConnection{PDUSessionID: 3, EPSBearerIdentity: 7, APN: "internet"})
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("ForwardRelocation: %v", err)
+	}
+
+	i := slices.IndexFunc(hoReq.ERABToBeSetup, func(e s1ap.ERABToBeSetupItemHOReq) bool { return e.ERABID == 8 })
+	if i < 0 {
+		t.Fatalf("E-RAB list %+v, want the voice bearer (TS 23.502 §4.11.1.2.1 step 5)", hoReq.ERABToBeSetup)
+	}
+
+	e := hoReq.ERABToBeSetup[i]
+	if e.QoS.QCI != 1 || e.QoS.GBR == nil || uint32(e.GTPTEID) != voiceSGWTEID {
+		t.Fatalf("voice E-RAB %+v, want QCI 1 with its GBR on the S-GW TEID the SMF allocated", e)
+	}
+
+	ue, _ := m.LookupUe(hoReq.MMEUES1APID)
+	if _, b := m.LookupDedicated(ue, 8); b == nil || b.Activating {
+		t.Fatalf("dedicated bearer %+v, want it held as an established bearer", b)
+	}
+}

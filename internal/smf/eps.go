@@ -209,14 +209,14 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 }
 
 func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
-	if s.dropHalf(ref, Access4G) {
+	if s.dropHalf(ctx, ref, Access4G) {
 		return nil
 	}
 
 	return s.releaseSession(ctx, ref)
 }
 
-func (s *SMF) dropHalf(ref string, by AccessType) bool {
+func (s *SMF) dropHalf(ctx context.Context, ref string, by AccessType) bool {
 	sc := s.GetSession(ref)
 	if sc == nil {
 		return false
@@ -233,6 +233,8 @@ func (s *SMF) dropHalf(ref string, by AccessType) bool {
 	if sc.pending != nil && sc.pending.to == by {
 		sc.abandonPendingLocked()
 	}
+
+	s.clearTargetUplinkLocked(ctx, sc)
 
 	return true
 }

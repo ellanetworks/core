@@ -78,15 +78,9 @@ func (d *dedicatedModification) awaitsRadio() bool {
 func modificationTFT(mod models.DedicatedBearerModification) (eps.TrafficFlowTemplate, bool) {
 	switch mod.Operation {
 	case models.TFTAddFilters:
-		t := dedicatedTFT(mod.Filters)
-		t.Operation = eps.TFTAddFilters
-
-		return t, true
+		return models.EPSTFT(eps.TFTAddFilters, mod.Filters), true
 	case models.TFTReplaceFilters:
-		t := dedicatedTFT(mod.Filters)
-		t.Operation = eps.TFTReplaceFilters
-
-		return t, true
+		return models.EPSTFT(eps.TFTReplaceFilters, mod.Filters), true
 	case models.TFTDeleteFilters:
 		return eps.TrafficFlowTemplate{Operation: eps.TFTDeleteFilters, DeleteIdentifiers: slices.Clone(mod.DeleteIDs)}, true
 	default:
@@ -144,8 +138,10 @@ func arpOnlyModification(mod models.DedicatedBearerModification) bool {
 	return mod.ARP != nil && !mod.QoSChanged && mod.Operation == models.TFTNoChange
 }
 
-func dedicatedModifyRequest(ebi uint8, target DedicatedBearerInfo, mod models.DedicatedBearerModification) ([]byte, error) {
+func dedicatedModifyRequest(ebi uint8, target DedicatedBearerInfo, mod models.DedicatedBearerModification, useEPCO bool) ([]byte, error) {
 	req := &eps.ModifyEPSBearerContextRequest{EPSBearerIdentity: eps.EPSBearerIdentity(ebi)}
+
+	req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions = mappedFiveGSQoSOptions(mod.MappedFiveGSQoS, useEPCO)
 
 	if radioChange(mod) {
 		qos, err := dedicatedEPSQoS(&target)
@@ -213,7 +209,7 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 		return err
 	}
 
-	plain, err := dedicatedModifyRequest(ebi, target, mod)
+	plain, err := dedicatedModifyRequest(ebi, target, mod, ue.ueNetCap.SupportsEPCO())
 	if err != nil {
 		ue.mu.Unlock()
 		return fmt.Errorf("build Modify EPS Bearer Context Request: %w", err)

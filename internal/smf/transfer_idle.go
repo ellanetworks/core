@@ -104,10 +104,23 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	next.AN = AnchorBinding{}
 	next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 
+	var flows flowsOnEPS
+
+	if access == Access4G {
+		s.interruptFlowProcedureLocked(ctx, sc)
+
+		flows = sc.flowsOnEPSLocked(false)
+		next.Bearers = flows.legs
+	}
+
 	if err := s.applyDataPlane(ctx, sc, next, sc.PolicyData.PolicyID); err != nil {
 		commit.restore()
 
 		return nil, err
+	}
+
+	if access == Access4G {
+		s.adoptFlowsOnEPSLocked(ctx, sc, flows)
 	}
 
 	return sc.finishTransferCommit(commit), nil

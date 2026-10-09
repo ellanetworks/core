@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
 	"go.uber.org/zap"
 )
 
@@ -354,10 +355,22 @@ func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 
 	b.modification = &pendingModification{binding: binding, rules: after, tft: step, mbr: mbr, gbr: gbr}
 
+	var mapped []nas.PCOContainer
+
+	if b.fiveGSQoS {
+		mapped, err = sc.mappedFiveGSQoSLocked(b, b.rules, b.tft, after, step, qos)
+		if err != nil {
+			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer modified without its 5GS QoS; it stays in EPS", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
+
+			b.fiveGSQoS = false
+		}
+	}
+
 	modify := &models.DedicatedBearerModification{
 		SessionRef: sc.Ref, SGWTEID: teid,
 		QoSChanged: qos, MBR: mbr, GBR: gbr,
 		Operation: op, Filters: filters, DeleteIDs: deleted,
+		MappedFiveGSQoS: mapped,
 	}
 
 	if arpChanged {
@@ -381,6 +394,7 @@ func (s *SMF) failModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 	step := b.modification.tft
 	failed := addedOrChangedRules(b.modification.rules, b.rules)
 	b.modification = nil
+	b.pruneRuleIdentities(b.rules)
 	s.restoreLegLocked(ctx, sc, b)
 
 	if len(failed) == 0 {
@@ -406,6 +420,7 @@ func (s *SMF) modificationNotSent(ctx context.Context, sc *SMContext, teid uint3
 
 	if errors.Is(err, ErrUENotReachable) {
 		b.modification = nil
+		b.pruneRuleIdentities(b.rules)
 		s.restoreLegLocked(ctx, sc, b)
 
 		if b.modifyWaitingSince.IsZero() {
@@ -447,6 +462,7 @@ func (s *SMF) DedicatedBearerModified(ctx context.Context, ref string, sgwTEID u
 		m := b.modification
 		b.modification = nil
 		b.binding, b.tft, b.mbr, b.gbr, b.rules = m.binding, m.tft, m.mbr, m.gbr, m.rules
+		b.pruneRuleIdentities(b.rules)
 		b.rejected = rejectedStep{}
 		s.restoreLegLocked(ctx, sc, b)
 	} else {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -592,5 +593,43 @@ func TestHandoverOffersTheVoiceBearerWithItsGBR(t *testing.T) {
 	voice := bearers[1]
 	if voice.ERABID != 6 || voice.QoS.QCI != 1 || voice.QoS.GBR == nil || voice.QoS.GBR.GuaranteedBitrateDL == 0 || uint32(voice.GTPTEID) != voiceSGWTEID {
 		t.Fatalf("voice E-RAB %+v, want EBI 6 at QCI 1 with GBR QoS Information (TS 36.413 §8.4.2.4)", voice)
+	}
+}
+
+func TestDedicatedBearerCarriesTheMappedQoSFlow(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+
+	mapped := []nas.PCOContainer{
+		{ID: nas.PCOContainerQoSRules, Content: []byte{2, 0, 3, 0x21, 1, 0x02}},
+		{ID: nas.PCOContainerQoSFlowDescriptions, Content: []byte{2, 0x20, 0x41, 1, 1, 1}},
+	}
+
+	req := voiceBearerRequest()
+	req.MappedFiveGSQoS = mapped
+
+	if err := m.ActivateDedicatedBearer(context.Background(), ue.imsiOrEmpty(), req); err != nil {
+		t.Fatalf("ActivateDedicatedBearer: %v", err)
+	}
+
+	sent := cc.snapshot()
+
+	setup, err := s1ap.ParseERABSetupRequest(initiating(t, sent[len(sent)-1], s1ap.ProcERABSetup))
+	if err != nil {
+		t.Fatalf("parse E-RAB Setup Request: %v", err)
+	}
+
+	act, err := eps.ParseActivateDedicatedEPSBearerContextRequest(downlinkPlain(t, ue, []byte(setup.ERABToBeSetup[0].NASPDU)))
+	if err != nil {
+		t.Fatalf("parse Activate Dedicated EPS Bearer Context Request: %v", err)
+	}
+
+	pco := act.ProtocolConfigurationOptions
+	if pco == nil {
+		pco = act.ExtendedProtocolConfigurationOptions
+	}
+
+	if pco == nil || !slices.Equal(pco.ContainerIDs(), []uint16{nas.PCOContainerQoSRules, nas.PCOContainerQoSFlowDescriptions}) {
+		t.Fatalf("activation PCO %+v, want the QoS rules and QoS flow descriptions (TS 24.501 §6.1.4.1)", pco)
 	}
 }

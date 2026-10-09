@@ -118,6 +118,7 @@ type GnodeB struct {
 	endMarkers        map[uint32]int     // End Markers seen per local TEID
 	watchedTEIDs      map[uint32]int     // G-PDUs seen per watched TEID that has no tunnel
 	downlinkQFIs      map[uint32]map[uint8]int
+	downlinkUDP       map[uint32]map[uint16]int
 	qosFlows          map[int64]map[int64][]uint8
 	modifyRequests    map[int64]int
 	lastGeneratedTEID uint32
@@ -1209,16 +1210,11 @@ func (g *GnodeB) DownlinkQFICount(teid uint32, qfi uint8) int {
 	return g.downlinkQFIs[teid][qfi]
 }
 
-func (g *GnodeB) DownlinkCount(teid uint32) int {
+func (g *GnodeB) DownlinkUDPCount(teid uint32, port uint16) int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	n := 0
-	for _, c := range g.downlinkQFIs[teid] {
-		n += c
-	}
-
-	return n
+	return g.downlinkUDP[teid][port]
 }
 
 func (g *GnodeB) admitQoSFlows(ranUeID, pduSessionID int64, add, release []uint8) {

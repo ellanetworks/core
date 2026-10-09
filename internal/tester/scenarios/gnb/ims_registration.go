@@ -439,7 +439,7 @@ func requireVoiceGated(ctx context.Context, from voiceLeg, fromQFI uint8, to voi
 	dropped := 0
 
 	for dropped < gatedProbes {
-		before := to.gnb.DownlinkCount(to.session.DLTEID)
+		before := to.gnb.DownlinkUDPCount(to.session.DLTEID, dst.Port)
 
 		if err := from.gnb.SendGPDUWithQFI(from.session.ULTEID, upf, fromQFI, packet); err != nil {
 			return err
@@ -452,7 +452,7 @@ func requireVoiceGated(ctx context.Context, from voiceLeg, fromQFI uint8, to voi
 		}
 
 		dropped++
-		if to.gnb.DownlinkCount(to.session.DLTEID) != before {
+		if to.gnb.DownlinkUDPCount(to.session.DLTEID, dst.Port) != before {
 			dropped = 0
 		}
 	}

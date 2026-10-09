@@ -403,6 +403,7 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 				}
 
 				g.downlinkQFIs[teid][pscQFI(buf[:n])]++
+				g.countDownlinkUDPLocked(teid, gtpPayload(buf[:n]))
 				g.mu.Unlock()
 
 				continue
@@ -471,6 +472,7 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 		}
 
 		g.downlinkQFIs[teid][qfi]++
+		g.countDownlinkUDPLocked(teid, buf[payloadStart:n])
 		g.mu.Unlock()
 
 		_, err = t.tunIF.Write(buf[payloadStart:n])
@@ -649,6 +651,64 @@ func (g *GnodeB) EndMarkerCount(teid uint32) int {
 	defer g.mu.Unlock()
 
 	return g.endMarkers[teid]
+}
+
+func gtpPayload(pdu []byte) []byte {
+	if len(pdu) < 8 {
+		return nil
+	}
+
+	if pdu[0]&0x07 == 0 {
+		return pdu[8:]
+	}
+
+	off := 11
+	for off < len(pdu) && pdu[off] != 0 {
+		if off+1 >= len(pdu) || pdu[off+1] == 0 {
+			return nil
+		}
+
+		off += int(pdu[off+1]) * 4
+	}
+
+	if off+1 > len(pdu) {
+		return nil
+	}
+
+	return pdu[off+1:]
+}
+
+func udpDestinationPort(packet []byte) (uint16, bool) {
+	switch {
+	case len(packet) >= 20 && packet[0]>>4 == 4 && packet[9] == 17:
+		ihl := int(packet[0]&0x0f) * 4
+		if len(packet) < ihl+4 {
+			return 0, false
+		}
+
+		return binary.BigEndian.Uint16(packet[ihl+2 : ihl+4]), true
+	case len(packet) >= 44 && packet[0]>>4 == 6 && packet[6] == 17:
+		return binary.BigEndian.Uint16(packet[42:44]), true
+	default:
+		return 0, false
+	}
+}
+
+func (g *GnodeB) countDownlinkUDPLocked(teid uint32, packet []byte) {
+	port, ok := udpDestinationPort(packet)
+	if !ok {
+		return
+	}
+
+	if g.downlinkUDP == nil {
+		g.downlinkUDP = make(map[uint32]map[uint16]int)
+	}
+
+	if g.downlinkUDP[teid] == nil {
+		g.downlinkUDP[teid] = make(map[uint16]int)
+	}
+
+	g.downlinkUDP[teid][port]++
 }
 
 func pscQFI(pdu []byte) uint8 {

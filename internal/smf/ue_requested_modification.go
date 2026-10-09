@@ -69,6 +69,10 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 		return s.acceptFlowDeletionLocked(ctx, smContext, deletions, pti)
 	}
 
+	if flows, ok := smContext.requestedMappedDeletions(req); ok {
+		return s.acceptMappedDeletionLocked(ctx, smContext, flows, pti)
+	}
+
 	if requestsQoSChange(req) {
 		cause := qoSChangeRejectCause(req)
 

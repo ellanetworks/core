@@ -42,9 +42,15 @@ const movedPDUSessionID uint8 = 3
 func establish5GS(t *testing.T, s *smf.SMF) *smf.SMContext {
 	t.Helper()
 
+	return establish5GSWithEBI(t, s, 0)
+}
+
+func establish5GSWithEBI(t *testing.T, s *smf.SMF, ebi uint8) *smf.SMContext {
+	t.Helper()
+
 	ctx := context.Background()
 
-	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildDualStackPDUSessionEstRequest(), 0)
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildDualStackPDUSessionEstRequest(), ebi)
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}

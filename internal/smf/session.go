@@ -363,8 +363,15 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 
 	policyID := sc.policyID()
 
+	var flows flowsOnEPS
+
 	if commit != nil {
 		next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
+
+		if access == Access4G {
+			flows = sc.flowsOnEPSLocked(true)
+			next.Bearers = flows.legs
+		}
 	}
 
 	if err := s.applyDataPlane(ctx, sc, next, policyID); err != nil {
@@ -381,6 +388,10 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 
 	if commit == nil {
 		return nil, nil
+	}
+
+	if access == Access4G {
+		s.adoptFlowsOnEPSLocked(ctx, sc, flows)
 	}
 
 	return sc.finishTransferCommit(commit), nil

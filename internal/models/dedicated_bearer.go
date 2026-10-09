@@ -3,7 +3,12 @@
 
 package models
 
-import "net/netip"
+import (
+	"net/netip"
+
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
+)
 
 type FilterDirection uint8
 
@@ -33,6 +38,19 @@ type DedicatedBearerRequest struct {
 	Filters    []SDFFilter
 	SGW        FTEID
 	SGWN3IPv6  netip.Addr
+
+	MappedFiveGSQoS []nas.PCOContainer
+}
+
+type DedicatedBearerContext struct {
+	EBI       uint8
+	QCI       uint8
+	ARP       Arp
+	MBR       Ambr
+	GBR       Ambr
+	Filters   []SDFFilter
+	SGW       FTEID
+	SGWN3IPv6 netip.Addr
 }
 
 type TFTOperation uint8
@@ -54,8 +72,43 @@ type DedicatedBearerModification struct {
 	Operation  TFTOperation
 	Filters    []SDFFilter
 	DeleteIDs  []uint8
+
+	MappedFiveGSQoS []nas.PCOContainer
 }
 
 func GBRQCI(qci uint8) bool {
 	return (qci >= 1 && qci <= 4) || (qci >= 65 && qci <= 67) || (qci >= 75 && qci <= 76) || (qci >= 82 && qci <= 85)
+}
+
+func EPSTFT(op eps.TFTOperation, filters []SDFFilter) eps.TrafficFlowTemplate {
+	t := eps.TrafficFlowTemplate{Operation: op}
+
+	for _, f := range filters {
+		var comps []eps.TFTComponent
+
+		if c, err := eps.RemoteAddress(f.Remote); err == nil {
+			comps = append(comps, c)
+		}
+
+		if f.Protocol != 0 {
+			comps = append(comps, eps.ProtocolIdentifier(f.Protocol))
+		}
+
+		if f.LocalPort != 0 {
+			comps = append(comps, eps.SingleLocalPort(f.LocalPort))
+		}
+
+		if f.RemotePort != 0 {
+			comps = append(comps, eps.SingleRemotePort(f.RemotePort))
+		}
+
+		t.Filters = append(t.Filters, eps.TFTPacketFilter{
+			Identifier: f.ID,
+			Direction:  eps.TFTDirection(f.Direction),
+			Precedence: f.Precedence,
+			Components: comps,
+		})
+	}
+
+	return t
 }

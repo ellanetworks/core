@@ -65,6 +65,7 @@ type fakeSessionManager struct {
 	idleTransferErr   error
 	lastRequest       models.EPSBearerRequest
 	createErr         error
+	dedicated         []models.DedicatedBearerContext
 	modifiedENB       models.FTEID
 	released          bool
 	deactivated       bool
@@ -132,7 +133,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 		pdnType = 1
 	}
 
-	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID}
+	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID, Dedicated: f.dedicated}
 
 	if pdnType == 1 || pdnType == 3 {
 		bearer.IPv4 = testUEIP

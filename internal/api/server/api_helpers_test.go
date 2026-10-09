@@ -365,6 +365,13 @@ func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, 
 func (f *fakeAMFCallback) SessionDropped(_ context.Context, _ etsi.SUPI, _ uint8, _ string, _ []byte) {
 }
 
+func (f *fakeAMFCallback) AssignEPSBearerIdentity(_ etsi.SUPI, _ uint8, _ string) (uint8, error) {
+	return 0, nil
+}
+
+func (f *fakeAMFCallback) ReleaseEPSBearerIdentities(_ etsi.SUPI, _ uint8, _ string, _ []uint8) {
+}
+
 // ── Profile test helpers ────────────────────────────────────────────────
 
 type CreateProfileParams struct {

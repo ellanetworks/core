@@ -454,6 +454,10 @@ type fakeAMF struct {
 	accessReleaseErr error
 	droppedCalls     []droppedCall
 	err              error
+
+	flowEBIs    []uint8
+	releasedEBI []uint8
+	noFreeEBI   bool
 }
 
 type droppedCall struct {
@@ -468,6 +472,34 @@ func (f *fakeAMF) SessionDropped(_ context.Context, supi etsi.SUPI, pduSessionID
 	defer f.mu.Unlock()
 
 	f.droppedCalls = append(f.droppedCalls, droppedCall{supi, pduSessionID, ref, n2Transfer})
+}
+
+func (f *fakeAMF) AssignEPSBearerIdentity(_ etsi.SUPI, _ uint8, _ string) (uint8, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.noFreeEBI {
+		return 0, errors.New("no free EPS bearer identity")
+	}
+
+	ebi := uint8(6 + len(f.flowEBIs))
+	f.flowEBIs = append(f.flowEBIs, ebi)
+
+	return ebi, nil
+}
+
+func (f *fakeAMF) ReleaseEPSBearerIdentities(_ etsi.SUPI, _ uint8, _ string, ebis []uint8) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.releasedEBI = append(f.releasedEBI, ebis...)
+}
+
+func (f *fakeAMF) released() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.releasedEBI)
 }
 
 func (f *fakeAMF) dropped() []droppedCall {

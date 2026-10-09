@@ -133,6 +133,7 @@ type EPSBearer struct {
 	QoS             EPSBearerQoS
 	MTU             uint16
 	MappedFiveGSQoS []nas.PCOContainer
+	Dedicated       []DedicatedBearerContext
 }
 
 type EPSBearerModification struct {

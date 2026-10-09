@@ -34,10 +34,11 @@ import (
 )
 
 type SmContext struct {
-	Ref    string
-	Snssai *models.Snssai
-	Dnn    string
-	EBI    uint8
+	Ref      string
+	Snssai   *models.Snssai
+	Dnn      string
+	EBI      uint8
+	FlowEBIs []uint8
 }
 
 type UeContext struct {
@@ -105,7 +106,8 @@ type UeContext struct {
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A)
 	SmContextList            map[uint8]*SmContext
 
-	allow4G bool
+	allow4G      bool
+	reservedEBIs map[uint8]uint8
 
 	smsOverNAS           atomic.Bool
 	smsRequested         atomic.Bool

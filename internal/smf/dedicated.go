@@ -54,6 +54,7 @@ type dedicatedBearer struct {
 	precedence         map[string]uint8
 	admitted           bool
 	ueHolds            bool
+	fiveGSQoS          bool
 	realignRAN         bool
 	realignUE          *pendingModification
 	withdraw           bool
@@ -367,6 +368,20 @@ func (s *SMF) addDedicatedLocked(ctx context.Context, sc *SMContext, binding bea
 func (s *SMF) removeDedicatedLocked(ctx context.Context, sc *SMContext, bearers ...*dedicatedBearer) error {
 	sc.dedicated = slices.DeleteFunc(sc.dedicated, func(b *dedicatedBearer) bool { return slices.Contains(bearers, b) })
 
+	if sc.Access == Access5G {
+		var ebis []uint8
+
+		for _, b := range bearers {
+			if b.ebi != 0 {
+				ebis = append(ebis, b.ebi)
+			}
+		}
+
+		if len(ebis) > 0 {
+			s.amf.ReleaseEPSBearerIdentities(sc.Supi, sc.PDUSessionID, sc.Ref, ebis)
+		}
+	}
+
 	if sc.Tunnel == nil || sc.PFCPContext == nil || !sc.PFCPContext.Established {
 		return nil
 	}
@@ -433,16 +448,25 @@ func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedB
 		return nil, fmt.Errorf("the UPF assigned no uplink endpoint to the bearer")
 	}
 
+	mapped, err := sc.mappedFiveGSQoSLocked(b, nil, nil, b.rules, tft, true)
+	if err != nil {
+		logger.From(ctx, logger.SmfLog).Warn("dedicated bearer activated without its 5GS QoS; it stays in EPS",
+			logger.SUPI(sc.Supi.String()), zap.Uint8("qci", b.binding.QCI), zap.Error(err))
+	}
+
+	b.fiveGSQoS = mapped != nil
+
 	return &models.DedicatedBearerRequest{
-		SessionRef: sc.Ref,
-		LinkedEBI:  sc.EBI,
-		QCI:        b.binding.QCI,
-		ARP:        b.binding.ARP,
-		MBR:        mbr,
-		GBR:        gbr,
-		Filters:    filters,
-		SGW:        models.FTEID{TEID: teid, Addr: sc.Tunnel.N3IPv4},
-		SGWN3IPv6:  sc.Tunnel.N3IPv6,
+		SessionRef:      sc.Ref,
+		LinkedEBI:       sc.EBI,
+		QCI:             b.binding.QCI,
+		ARP:             b.binding.ARP,
+		MBR:             mbr,
+		GBR:             gbr,
+		Filters:         filters,
+		SGW:             models.FTEID{TEID: teid, Addr: sc.Tunnel.N3IPv4},
+		SGWN3IPv6:       sc.Tunnel.N3IPv6,
+		MappedFiveGSQoS: mapped,
 	}, nil
 }
 

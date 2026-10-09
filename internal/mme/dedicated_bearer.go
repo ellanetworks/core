@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/trace"
@@ -48,6 +49,7 @@ type DedicatedBearer struct {
 	radioUp           bool
 	deactivatePending bool
 	modifying         *dedicatedModification
+	mappedFiveGSQoS   []nas.PCOContainer
 
 	guard guard.Guard
 }
@@ -152,51 +154,40 @@ func dedicatedEPSQoS(b *DedicatedBearerInfo) (eps.EPSQoS, error) {
 	})
 }
 
-func dedicatedTFT(filters []models.SDFFilter) eps.TrafficFlowTemplate {
-	t := eps.TrafficFlowTemplate{Operation: eps.TFTCreate}
-
-	for _, f := range filters {
-		var comps []eps.TFTComponent
-
-		if c, err := eps.RemoteAddress(f.Remote); err == nil {
-			comps = append(comps, c)
-		}
-
-		if f.Protocol != 0 {
-			comps = append(comps, eps.ProtocolIdentifier(f.Protocol))
-		}
-
-		if f.LocalPort != 0 {
-			comps = append(comps, eps.SingleLocalPort(f.LocalPort))
-		}
-
-		if f.RemotePort != 0 {
-			comps = append(comps, eps.SingleRemotePort(f.RemotePort))
-		}
-
-		t.Filters = append(t.Filters, eps.TFTPacketFilter{
-			Identifier: f.ID,
-			Direction:  eps.TFTDirection(f.Direction),
-			Precedence: f.Precedence,
-			Components: comps,
-		})
-	}
-
-	return t
-}
-
-func dedicatedActivationRequest(linked uint8, b *DedicatedBearer) ([]byte, error) {
+func dedicatedActivationRequest(linked uint8, b *DedicatedBearer, useEPCO bool) ([]byte, error) {
 	qos, err := dedicatedEPSQoS(&b.DedicatedBearerInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	return (&eps.ActivateDedicatedEPSBearerContextRequest{
+	req := &eps.ActivateDedicatedEPSBearerContextRequest{
 		EPSBearerIdentity:       eps.EPSBearerIdentity(b.Ebi),
 		LinkedEPSBearerIdentity: eps.EPSBearerIdentity(linked),
 		EPSQoS:                  qos,
-		TFT:                     dedicatedTFT(b.Filters),
-	}).MarshalBinary()
+		TFT:                     models.EPSTFT(eps.TFTCreate, b.Filters),
+	}
+
+	req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions = mappedFiveGSQoSOptions(b.mappedFiveGSQoS, useEPCO)
+
+	return req.MarshalBinary()
+}
+
+func mappedFiveGSQoSOptions(containers []nas.PCOContainer, useEPCO bool) (*nas.ProtocolConfigurationOptions, *nas.ProtocolConfigurationOptions) {
+	if len(containers) == 0 {
+		return nil, nil
+	}
+
+	pco := nas.ProtocolConfigurationOptions{ConfigProtocol: nas.PCOConfigProtocolPPP, Direction: nas.PCONetworkToMS, Containers: slices.Clone(containers)}
+
+	switch {
+	case useEPCO:
+		return nil, &pco
+	case pco.FitsUnextended():
+		return &pco, nil
+	default:
+		logger.MmeLog.Warn("the 5GS QoS of a dedicated bearer does not fit the protocol configuration options of a UE without ePCO; the bearer stays in EPS")
+		return nil, nil
+	}
 }
 
 func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error {
@@ -245,9 +236,9 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 		Ebi: ebi, SgwFTEID: req.SGW, SgwN3IPv6: req.SGWN3IPv6,
 		QCI: req.QCI, ARP: req.ARP, MBR: req.MBR, GBR: req.GBR, Filters: req.Filters,
 		Activating: true,
-	}}
+	}, mappedFiveGSQoS: req.MappedFiveGSQoS}
 
-	plain, setup, err := dedicatedActivation(p.Ebi, b)
+	plain, setup, err := dedicatedActivation(p.Ebi, b, ue.ueNetCap.SupportsEPCO())
 	if err != nil {
 		ue.mu.Unlock()
 		return err
@@ -277,8 +268,8 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 	return nil
 }
 
-func dedicatedActivation(linked uint8, b *DedicatedBearer) ([]byte, *s1ap.ERABSetupRequest, error) {
-	plain, err := dedicatedActivationRequest(linked, b)
+func dedicatedActivation(linked uint8, b *DedicatedBearer, useEPCO bool) ([]byte, *s1ap.ERABSetupRequest, error) {
+	plain, err := dedicatedActivationRequest(linked, b, useEPCO)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build Activate Dedicated EPS Bearer Context Request: %w", err)
 	}

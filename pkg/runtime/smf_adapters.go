@@ -361,6 +361,14 @@ func (a *smfAMFAdapter) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessi
 	return err
 }
 
+func (a *smfAMFAdapter) AssignEPSBearerIdentity(supi etsi.SUPI, pduSessionID uint8, ref string) (uint8, error) {
+	return a.amf.AssignEPSBearerIdentity(supi, pduSessionID, ref)
+}
+
+func (a *smfAMFAdapter) ReleaseEPSBearerIdentities(supi etsi.SUPI, pduSessionID uint8, ref string, ebis []uint8) {
+	a.amf.ReleaseEPSBearerIdentities(supi, pduSessionID, ref, ebis)
+}
+
 func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error {
 	err := a.amf.ReleaseSessionMessage(ctx, supi, pduSessionID, n1Msg, n2Transfer)
 	if errors.Is(err, amfContext.ErrUENotReachable) {

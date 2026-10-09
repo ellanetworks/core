@@ -35,12 +35,13 @@ type dataPlane struct {
 }
 
 type bearerLeg struct {
-	Slot       uint8
-	QFI        uint8
-	Admitted   bool
-	Rules      []ruleLeg
-	AN         AnchorBinding
-	Forwarding *AnchorBinding
+	Slot         uint8
+	QFI          uint8
+	Admitted     bool
+	TargetUplink bool
+	Rules        []ruleLeg
+	AN           AnchorBinding
+	Forwarding   *AnchorBinding
 }
 
 type ruleLeg struct {
@@ -76,6 +77,7 @@ const (
 	chooseIDBearerBase           uint8  = 16
 	chooseIDBearerForwardingBase uint8  = 32
 	rulePDRsPerRule              uint16 = 4
+	rulePDRTargetUplink          uint16 = 3
 	rulePDRsPerBearer                   = rulePDRsPerRule * maxDedicatedFilters
 	pdrPrecedenceDefault         uint32 = 256
 
@@ -161,6 +163,11 @@ func (d dataPlane) checkSDFCapacity() error {
 			rules += len(uplink)
 
 			if len(uplink) > 0 {
+				pdrs++
+			}
+
+			if b.TargetUplink && len(uplink) > 0 {
+				rules += len(uplink)
 				pdrs++
 			}
 
@@ -260,6 +267,22 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 					SDFFilters:      uplink,
 				},
 			})
+
+			if d.Access == Access5G && b.TargetUplink {
+				pdrs = append(pdrs, models.PDR{
+					PDRID:              pdrIDRule(b.Slot, r.Index, rulePDRTargetUplink),
+					Precedence:         filtersPrecedence(uplink),
+					OuterHeaderRemoval: &ohr,
+					FARID:              farIDUplink,
+					QERID:              qerID,
+					URRID:              urrIDUplink,
+					PDI: models.PDI{
+						SourceInterface: models.InterfaceAccess,
+						LocalFTEID:      &models.FTEID{ChooseID: chooseIDBearer(b.Slot)},
+						SDFFilters:      uplink,
+					},
+				})
+			}
 		}
 
 		if !downlinkProgrammed {
@@ -329,7 +352,7 @@ func (d dataPlane) bearerDownlinkAction() models.ApplyAction {
 
 func (d dataPlane) bearerOfDownlinkPDR(id uint16) (uint8, bool) {
 	slot, _, leg, ok := ruleOfPDR(id)
-	if !ok || leg == 0 {
+	if !ok || leg == 0 || leg == rulePDRTargetUplink {
 		return 0, false
 	}
 

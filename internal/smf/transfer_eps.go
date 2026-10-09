@@ -48,11 +48,12 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 
 	sc.Mutex.Lock()
 	retained := sc.PolicyData
+	s.prepareFlowsForEPSLocked(ctx, sc)
 	sc.Mutex.Unlock()
 
 	bearer, err := epsBearerForSession(sc, retained, req.EPSBearerIdentity)
 	if err != nil {
-		sc.abandonTransferTo(Access4G)
+		s.abandonTransferToEPS(ctx, sc)
 
 		return models.EPSBearer{}, err
 	}
@@ -87,6 +88,7 @@ func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBe
 		IPv6IID:      sc.IPv6IID,
 		QoS:          epsBearerQoS(policy),
 		MTU:          policy.MTU,
+		Dedicated:    sc.epsDedicatedLocked(),
 	}
 
 	if sc.PDUIPV4Address != nil {

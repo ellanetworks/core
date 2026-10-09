@@ -138,10 +138,12 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 		sc.handoverTargetAN = nil
 
-		sc.Mutex.Unlock()
-
 		ctx, span := guardSpan(link, "smf/transfer_supervision_expire", "transfer supervision", 0)
 		defer span.End()
+
+		s.clearTargetUplinkLocked(ctx, sc)
+
+		sc.Mutex.Unlock()
 
 		logger.From(ctx, logger.SmfLog).Warn("abandoning a move the target access never bound",
 			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),

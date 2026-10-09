@@ -279,6 +279,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	}
 
 	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID)
+	defer ue.ReleaseEPSBearerReservation(pduSessionID)
 
 	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
 

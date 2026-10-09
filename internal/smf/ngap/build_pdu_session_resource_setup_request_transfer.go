@@ -13,8 +13,8 @@ import (
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, flows []GBRQoSFlow) ([]byte, error) {
-	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, flows)
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []GBRQoSFlow) ([]byte, error) {
+	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, erabID, flows)
 	if err != nil {
 		return nil, err
 	}
@@ -30,8 +30,8 @@ const (
 	DataForwardingIndirect
 )
 
-func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8, forwarding DataForwarding, flows []GBRQoSFlow) ([]byte, error) {
-	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, flows)
+func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, forwarding DataForwarding, flows []GBRQoSFlow) ([]byte, error) {
+	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, erabID, flows)
 	if err != nil {
 		return nil, err
 	}
@@ -42,16 +42,6 @@ func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, te
 	case DataForwardingIndirect:
 	case DataForwardingNone:
 		transfer.DataForwardingNotPossible = libngap.Ptr(libngap.DataForwardingNotPossibleTrue)
-	}
-
-	if erabID != nil {
-		if *erabID > 15 {
-			return nil, fmt.Errorf("EPS bearer identity %d does not fit the E-RAB ID", *erabID)
-		}
-
-		if len(transfer.QosFlowSetupRequest) > 0 {
-			transfer.QosFlowSetupRequest[0].ERABID = libngap.Ptr(libngap.ERABID(*erabID))
-		}
 	}
 
 	return marshalPDUSessionResourceSetupRequestTransfer(transfer)
@@ -66,7 +56,7 @@ func marshalPDUSessionResourceSetupRequestTransfer(transfer *libngap.PDUSessionR
 	return buf, nil
 }
 
-func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, flows []GBRQoSFlow) (*libngap.PDUSessionResourceSetupRequestTransfer, error) {
+func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []GBRQoSFlow) (*libngap.PDUSessionResourceSetupRequestTransfer, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
 	}
@@ -91,9 +81,15 @@ func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.Q
 			return nil, err
 		}
 
+		id, err := optionalERABID(erabID)
+		if err != nil {
+			return nil, err
+		}
+
 		transfer.QosFlowSetupRequest = libngap.QosFlowSetupRequestList{{
 			QosFlowIdentifier:         libngap.QosFlowIdentifier(qosData.QFI),
 			QosFlowLevelQosParameters: params,
+			ERABID:                    id,
 		}}
 	}
 
@@ -103,11 +99,28 @@ func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.Q
 			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
 		}
 
+		id, err := optionalERABID(f.ERABID)
+		if err != nil {
+			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
+		}
+
 		transfer.QosFlowSetupRequest = append(transfer.QosFlowSetupRequest, libngap.QosFlowSetupRequestItem{
 			QosFlowIdentifier:         libngap.QosFlowIdentifier(f.QFI),
 			QosFlowLevelQosParameters: params,
+			ERABID:                    id,
 		})
 	}
 
 	return transfer, nil
+}
+
+func optionalERABID(ebi uint8) (*libngap.ERABID, error) {
+	switch {
+	case ebi == 0:
+		return nil, nil
+	case ebi > 15:
+		return nil, fmt.Errorf("EPS bearer identity %d does not fit the E-RAB ID", ebi)
+	default:
+		return libngap.Ptr(libngap.ERABID(ebi)), nil
+	}
 }

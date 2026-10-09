@@ -57,6 +57,7 @@ type flowProcedure struct {
 type flowChange struct {
 	rules     fgs.QoSRules
 	flows     fgs.QoSFlowDescriptions
+	mapped    fgs.MappedEPSBearerContexts
 	n2Add     []smfNgap.GBRQoSFlow
 	n2Release []uint8
 	parts     map[*dedicatedBearer]flowParts
@@ -242,8 +243,24 @@ func flowDescription(qfi uint8, fiveQI uint8, op fgs.QoSFlowOperation, mbr, gbr 
 	return d, nil
 }
 
+func (b *dedicatedBearer) qosFlowDescription(fiveQI uint8, op fgs.QoSFlowOperation, mbr, gbr models.Ambr) (fgs.QoSFlowDescription, error) {
+	d, err := flowDescription(b.qfi, fiveQI, op, mbr, gbr)
+	if err != nil || b.ebi == 0 {
+		return d, err
+	}
+
+	param, err := fgs.EPSBearerIDQoSFlowParameter(b.ebi)
+	if err != nil {
+		return fgs.QoSFlowDescription{}, err
+	}
+
+	d.Parameters = append(d.Parameters, param)
+
+	return d, nil
+}
+
 func gbrFlow(b *dedicatedBearer, binding bearerBinding, mbr, gbr models.Ambr) smfNgap.GBRQoSFlow {
-	return smfNgap.GBRQoSFlow{QFI: b.qfi, FiveQI: int32(binding.QCI), ARP: binding.ARP, MFBR: mbr, GFBR: gbr}
+	return smfNgap.GBRQoSFlow{QFI: b.qfi, FiveQI: int32(binding.QCI), ARP: binding.ARP, MFBR: mbr, GFBR: gbr, ERABID: b.ebi}
 }
 
 func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
@@ -352,6 +369,16 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 		return nil, fmt.Errorf("add the QoS flow's user plane: %w", err)
 	}
 
+	if sc.EBI != 0 {
+		ebi, err := s.amf.AssignEPSBearerIdentity(sc.Supi, sc.PDUSessionID, sc.Ref)
+		if err != nil {
+			logger.From(ctx, logger.SmfLog).Info("QoS flow set up without an EPS bearer identity; it stays in 5GS",
+				logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", qfi), zap.Error(err))
+		}
+
+		b.ebi = ebi
+	}
+
 	sc.dedicated = append(sc.dedicated, b)
 
 	return b, nil
@@ -377,7 +404,12 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 
 	var desc fgs.QoSFlowDescription
 	if err == nil {
-		desc, err = flowDescription(b.qfi, binding.QCI, fgs.QoSFlowOpCreate, mbr, gbr)
+		desc, err = b.qosFlowDescription(binding.QCI, fgs.QoSFlowOpCreate, mbr, gbr)
+	}
+
+	var mapped fgs.MappedEPSBearerContexts
+	if err == nil {
+		mapped, err = b.mappedCreate(binding.QCI, mbr, gbr, tft)
 	}
 
 	if err == nil {
@@ -407,6 +439,7 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 	}
 
 	change.flows = append(change.flows, desc)
+	change.mapped = append(change.mapped, mapped...)
 	change.n2Add = append(change.n2Add, gbrFlow(b, binding, mbr, gbr))
 	change.touch(b, true, true)
 
@@ -440,29 +473,7 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		return addedOrChangedRules(rules, b.rules)
 	}
 
-	var ops fgs.QoSRules
-
-	for _, r := range rules {
-		filters := ruleFilters(tft, r.ID)
-
-		switch i := slices.IndexFunc(b.rules, func(o PCCRule) bool { return o.ID == r.ID }); {
-		case i < 0:
-			ops = append(ops, fgs.QoSRule{
-				Identifier:    b.qri[r.ID],
-				OperationCode: fgs.QoSRuleOpCreate,
-				Parameters:    &fgs.QoSRuleParameters{Precedence: b.precedence[r.ID], QFI: b.qfi},
-				Filters:       filters,
-			})
-		case !slices.EqualFunc(filters, ruleFilters(b.tft, r.ID), samePacketFilter):
-			ops = append(ops, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpModifyReplaceFilters, Filters: filters})
-		}
-	}
-
-	for _, r := range b.rules {
-		if !slices.ContainsFunc(rules, func(o PCCRule) bool { return o.ID == r.ID }) {
-			ops = append(ops, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpDelete})
-		}
-	}
+	ops := b.qosRuleOps(b.rules, b.tft, rules, tft)
 
 	mbr, gbr := bearerRates(rules)
 	ratesChanged := !ambrEqual(mbr, b.mbr) || !ambrEqual(gbr, b.gbr)
@@ -497,12 +508,19 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		return addedOrChangedRules(rules, b.rules)
 	}
 
-	change.rules = append(change.rules, ops...)
+	mapped, err := b.mappedModify(binding.QCI, mbr, gbr, ratesChanged, b.tft, tft)
+	if err != nil {
+		s.restoreLegLocked(ctx, sc, b)
+		return addedOrChangedRules(rules, b.rules)
+	}
 
-	n1 := len(ops) > 0
+	change.rules = append(change.rules, ops...)
+	change.mapped = append(change.mapped, mapped...)
+
+	n1 := len(ops) > 0 || len(mapped) > 0
 
 	if ratesChanged {
-		desc, err := flowDescription(b.qfi, binding.QCI, fgs.QoSFlowOpModify, mbr, gbr)
+		desc, err := b.qosFlowDescription(binding.QCI, fgs.QoSFlowOpModify, mbr, gbr)
 		if err != nil {
 			s.restoreLegLocked(ctx, sc, b)
 			return addedOrChangedRules(rules, b.rules)
@@ -523,6 +541,34 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 	return nil
 }
 
+func (b *dedicatedBearer) qosRuleOps(prevRules []PCCRule, prevTFT bearerTFT, rules []PCCRule, tft bearerTFT) fgs.QoSRules {
+	var ops fgs.QoSRules
+
+	for _, r := range rules {
+		filters := ruleFilters(tft, r.ID)
+
+		switch i := slices.IndexFunc(prevRules, func(o PCCRule) bool { return o.ID == r.ID }); {
+		case i < 0:
+			ops = append(ops, fgs.QoSRule{
+				Identifier:    b.qri[r.ID],
+				OperationCode: fgs.QoSRuleOpCreate,
+				Parameters:    &fgs.QoSRuleParameters{Precedence: b.precedence[r.ID], QFI: b.qfi},
+				Filters:       filters,
+			})
+		case !slices.EqualFunc(filters, ruleFilters(prevTFT, r.ID), samePacketFilter):
+			ops = append(ops, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpModifyReplaceFilters, Filters: filters})
+		}
+	}
+
+	for _, r := range prevRules {
+		if !slices.ContainsFunc(rules, func(o PCCRule) bool { return o.ID == r.ID }) {
+			ops = append(ops, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpDelete})
+		}
+	}
+
+	return ops
+}
+
 func samePacketFilter(a, b fgs.PacketFilter) bool {
 	return a.Identifier == b.Identifier && a.Direction == b.Direction &&
 		slices.EqualFunc(a.Components, b.Components, func(x, y fgs.PacketFilterComponent) bool {
@@ -538,6 +584,7 @@ func (s *SMF) removeFlowLocked(change *flowChange, b *dedicatedBearer) {
 		}
 
 		change.flows = append(change.flows, fgs.QoSFlowDescription{QFI: b.qfi, OperationCode: fgs.QoSFlowOpDelete})
+		change.mapped = append(change.mapped, b.mappedDelete()...)
 	}
 
 	if b.admitted {
@@ -554,8 +601,8 @@ func (s *SMF) sendFlowChangeLocked(ctx context.Context, sc *SMContext, change *f
 		err    error
 	)
 
-	if len(change.rules) > 0 || len(change.flows) > 0 {
-		n1, err = smfNas.BuildQoSFlowsModificationCommand(sc.PDUSessionID, networkRequestedPTI, change.rules, change.flows)
+	if len(change.rules) > 0 || len(change.flows) > 0 || len(change.mapped) > 0 {
+		n1, err = smfNas.BuildQoSFlowsModificationCommand(sc.PDUSessionID, networkRequestedPTI, change.rules, change.flows, change.mapped)
 	}
 
 	if err == nil && (len(change.n2Add) > 0 || len(change.n2Release) > 0) {
@@ -975,39 +1022,25 @@ func (s *SMF) realignUELocked(change *flowChange, b *dedicatedBearer) {
 	ue := b.realignUE
 
 	var (
-		rules fgs.QoSRules
-		flows fgs.QoSFlowDescriptions
+		rules  fgs.QoSRules
+		flows  fgs.QoSFlowDescriptions
+		mapped fgs.MappedEPSBearerContexts
 	)
 
-	for _, r := range ue.rules {
-		if !slices.ContainsFunc(b.rules, func(o PCCRule) bool { return o.ID == r.ID }) {
-			rules = append(rules, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpDelete})
-		}
-	}
+	rules = b.qosRuleOps(ue.rules, ue.tft, b.rules, b.tft)
 
-	for _, r := range b.rules {
-		filters := ruleFilters(b.tft, r.ID)
-
-		switch {
-		case !slices.ContainsFunc(ue.rules, func(o PCCRule) bool { return o.ID == r.ID }):
-			rules = append(rules, fgs.QoSRule{
-				Identifier:    b.qri[r.ID],
-				OperationCode: fgs.QoSRuleOpCreate,
-				Parameters:    &fgs.QoSRuleParameters{Precedence: b.precedence[r.ID], QFI: b.qfi},
-				Filters:       filters,
-			})
-		case !slices.EqualFunc(filters, ruleFilters(ue.tft, r.ID), samePacketFilter):
-			rules = append(rules, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpModifyReplaceFilters, Filters: filters})
-		}
-	}
-
-	if !ambrEqual(ue.mbr, b.mbr) || !ambrEqual(ue.gbr, b.gbr) {
-		if desc, err := flowDescription(b.qfi, b.binding.QCI, fgs.QoSFlowOpModify, b.mbr, b.gbr); err == nil {
+	ratesChanged := !ambrEqual(ue.mbr, b.mbr) || !ambrEqual(ue.gbr, b.gbr)
+	if ratesChanged {
+		if desc, err := b.qosFlowDescription(b.binding.QCI, fgs.QoSFlowOpModify, b.mbr, b.gbr); err == nil {
 			flows = append(flows, desc)
 		}
 	}
 
-	if len(rules) == 0 && len(flows) == 0 {
+	if m, err := b.mappedModify(b.binding.QCI, b.mbr, b.gbr, ratesChanged, ue.tft, b.tft); err == nil {
+		mapped = m
+	}
+
+	if len(rules) == 0 && len(flows) == 0 && len(mapped) == 0 {
 		b.realignUE = nil
 		b.pruneRuleIdentities(b.rules)
 
@@ -1016,6 +1049,7 @@ func (s *SMF) realignUELocked(change *flowChange, b *dedicatedBearer) {
 
 	change.rules = append(change.rules, rules...)
 	change.flows = append(change.flows, flows...)
+	change.mapped = append(change.mapped, mapped...)
 	change.touch(b, true, false)
 }
 
@@ -1266,13 +1300,15 @@ func (sc *SMContext) requestedFlowDeletions(req *fgs.PDUSessionModificationReque
 
 func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, deletions []*flowDeletion, pti uint8) (*UpdateResult, error) {
 	var (
-		rules fgs.QoSRules
-		flows fgs.QoSFlowDescriptions
-		lost  []PCCRule
+		rules  fgs.QoSRules
+		flows  fgs.QoSFlowDescriptions
+		mapped fgs.MappedEPSBearerContexts
+		lost   []PCCRule
 	)
 
 	for _, d := range deletions {
 		b := d.flow
+		before := maps.Clone(b.tft)
 
 		gone := d.rules
 		if d.whole {
@@ -1292,10 +1328,15 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 
 		if d.whole || len(b.rules) == 0 {
 			flows = append(flows, fgs.QoSFlowDescription{QFI: b.qfi, OperationCode: fgs.QoSFlowOpDelete})
+			mapped = append(mapped, b.mappedDelete()...)
 			b.ueHolds = false
 			s.loseFlowLocked(ctx, sc, b)
 
 			continue
+		}
+
+		if m, err := b.mappedModify(b.binding.QCI, b.mbr, b.gbr, false, before, b.tft); err == nil {
+			mapped = append(mapped, m...)
 		}
 
 		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, b.rules})); err != nil {
@@ -1303,7 +1344,7 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 		}
 	}
 
-	n1, err := smfNas.BuildQoSFlowsModificationCommand(sc.PDUSessionID, pti, rules, flows)
+	n1, err := smfNas.BuildQoSFlowsModificationCommand(sc.PDUSessionID, pti, rules, flows, mapped)
 	if err != nil {
 		return nil, fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}

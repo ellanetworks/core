@@ -16,7 +16,7 @@ import (
 
 // ReleaseSmContext tears down a PDU session entirely
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
-	if s.dropHalf(smContextRef, Access5G) {
+	if s.dropHalf(ctx, smContextRef, Access5G) {
 		return nil
 	}
 

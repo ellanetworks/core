@@ -42,7 +42,8 @@ func (s *SMF) notifyDownlinkWaitingOn(ctx context.Context, smContext *SMContext,
 	onEPS := smContext.Access == Access4G
 	policy, tunnel := smContext.PolicyData, smContext.Tunnel
 	pduSessionType, supi, pduSessionID, snssai := smContext.PDUSessionType, smContext.Supi, smContext.PDUSessionID, smContext.Snssai
-	ebi := smContext.EBI
+	defaultEBI := smContext.EBI
+	ebi := defaultEBI
 	flows := smContext.heldFlowsLocked()
 
 	var arp *models.Arp
@@ -89,7 +90,7 @@ func (s *SMF) notifyDownlinkWaitingOn(ctx context.Context, smContext *SMContext,
 		return fmt.Errorf("session for seid %d has no user plane to page for", seid)
 	}
 
-	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6, nasToNgapPDUSessionType(pduSessionType), flows)
+	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6, nasToNgapPDUSessionType(pduSessionType), defaultEBI, flows)
 	if err != nil {
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}

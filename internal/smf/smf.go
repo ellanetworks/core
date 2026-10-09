@@ -119,6 +119,8 @@ type AMFCallback interface {
 	ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp) (models.N1N2MessageTransferCause, error)
 	SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
+	AssignEPSBearerIdentity(supi etsi.SUPI, pduSessionID uint8, ref string) (uint8, error)
+	ReleaseEPSBearerIdentities(supi etsi.SUPI, pduSessionID uint8, ref string, ebis []uint8)
 }
 
 type MMECallback interface {

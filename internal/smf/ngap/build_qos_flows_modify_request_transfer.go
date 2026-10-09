@@ -16,6 +16,7 @@ type GBRQoSFlow struct {
 	ARP    models.Arp
 	MFBR   models.Ambr
 	GFBR   models.Ambr
+	ERABID uint8
 }
 
 func gbrQosFlowLevelQosParameters(f GBRQoSFlow) (libngap.QosFlowLevelQosParameters, error) {
@@ -43,9 +44,15 @@ func BuildQoSFlowsModifyRequestTransfer(addOrModify []GBRQoSFlow, release []uint
 			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
 		}
 
+		id, err := optionalERABID(f.ERABID)
+		if err != nil {
+			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
+		}
+
 		transfer.QosFlowAddOrModifyRequest = append(transfer.QosFlowAddOrModifyRequest, libngap.QosFlowAddOrModifyRequestItem{
 			QosFlowIdentifier:         libngap.QosFlowIdentifier(f.QFI),
 			QosFlowLevelQosParameters: &params,
+			ERABID:                    id,
 		})
 	}
 
