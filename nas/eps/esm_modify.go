@@ -18,8 +18,9 @@ import (
 type ModifyEPSBearerContextRequest struct {
 	EPSBearerIdentity                    EPSBearerIdentity
 	PTI                                  nas.ProcedureTransactionIdentity
-	NewEPSQoS                            *EPSQoS  // optional (IEI 0x5B)
-	APNAMBR                              *APNAMBR // optional (IEI 0x5E)
+	NewEPSQoS                            *EPSQoS              // optional (IEI 0x5B)
+	TFT                                  *TrafficFlowTemplate // optional (IEI 0x36)
+	APNAMBR                              *APNAMBR             // optional (IEI 0x5E)
 	ProtocolConfigurationOptions         *nas.ProtocolConfigurationOptions
 	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
 	Unrecognized                         []nas.RawIE
@@ -29,6 +30,7 @@ type ModifyEPSBearerContextRequest struct {
 // MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301), in message order.
 var modifyEPSBearerContextRequestIEs = []nas.OptionalIE{
 	{IEI: ieiNewEPSQoS, Format: nas.IETLV, Name: "New EPS QoS"},
+	{IEI: ieiTrafficFlowTemplate, Format: nas.IETLV, Name: "TFT"},
 	{IEI: ieiNegotiatedLLCSAPI, Format: nas.IETV3, Len: 1, Name: "Negotiated LLC SAPI"},
 	{IEI: ieiAPNAMBR, Format: nas.IETLV, Name: "APN-AMBR"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
@@ -51,6 +53,15 @@ func (m *ModifyEPSBearerContextRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiNewEPSQoS, raw)
+	}
+
+	if m.TFT != nil {
+		raw, err := m.TFT.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiTrafficFlowTemplate, raw)
 	}
 
 	if m.APNAMBR != nil {
@@ -110,6 +121,13 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 			}
 
 			m.NewEPSQoS = &parsed
+		case ieiTrafficFlowTemplate:
+			parsed, err := ParseTrafficFlowTemplate(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.TFT = &parsed
 		case ieiAPNAMBR:
 			parsed, err := ParseAPNAMBR(value)
 			if err != nil {

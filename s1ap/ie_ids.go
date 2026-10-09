@@ -75,6 +75,7 @@ const (
 	IDServedGUMMEIs                             ProtocolIEID = 105
 	IDUESecurityCapabilities                    ProtocolIEID = 107
 	IDCNDomain                                  ProtocolIEID = 109
+	IDERABReleasedList                          ProtocolIEID = 110
 	IDTargetToSourceTransparentContainer        ProtocolIEID = 123
 	IDSONConfigurationTransferECT               ProtocolIEID = 129
 	IDSONConfigurationTransferMCT               ProtocolIEID = 130
@@ -94,5 +95,7 @@ const (
 	IDERABNotToBeModifiedItemBearerModInd       ProtocolIEID = 202
 	IDERABModifyListBearerModConf               ProtocolIEID = 203
 	IDERABModifyItemBearerModConf               ProtocolIEID = 204
+	IDERABFailedToModifyListBearerModConf       ProtocolIEID = 205
+	IDERABToBeReleasedListBearerModConf         ProtocolIEID = 210
 	IDUERetentionInformation                    ProtocolIEID = 228
 )

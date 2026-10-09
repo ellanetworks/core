@@ -84,7 +84,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemHOReq](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemHOReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemHOReq)
 
 			return err
 		},
@@ -242,7 +242,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABAdmitted, err = decodeItemList[ERABAdmittedItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABAdmitted, err = decodeItemList[ERABAdmittedItem](per.NewReader(raw), enc, maxnoofERABs, IDERABAdmittedItem)
 
 			return err
 		},
@@ -261,7 +261,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABFailedtoSetupItemHOReqAck)
 
 			return err
 		},

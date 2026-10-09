@@ -187,7 +187,7 @@ var pagingIEs = []ieSpec[Paging]{
 	{
 		id: IDTAIList, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			items, err := decodeItemList[taiItem](per.NewReader(raw), enc, maxnoofTAIs)
+			items, err := decodeItemList[taiItem](per.NewReader(raw), enc, maxnoofTAIs, IDTAIItem)
 			if err != nil {
 				return err
 			}

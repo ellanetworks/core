@@ -12,8 +12,10 @@ import (
 // Options (TS 24.008 §10.5.6.3), shared by EPS (TS 24.301) and 5GS (TS 24.501).
 // A request (uplink) and its answer (downlink) share the container identifier.
 const (
+	PCOContainerPCSCFIPv6Address          uint16 = 0x0001
 	PCOContainerDNSServerIPv6Address      uint16 = 0x0003
 	PCOContainerIPAddressAllocationViaNAS uint16 = 0x000A
+	PCOContainerPCSCFIPv4Address          uint16 = 0x000C
 	PCOContainerDNSServerIPv4Address      uint16 = 0x000D
 	PCOContainerIPv4LinkMTU               uint16 = 0x0010
 )
@@ -363,6 +365,72 @@ func (p ProtocolConfigurationOptions) DNSServers() []netip.Addr {
 			if addr, ok := netip.AddrFromSlice(c.Content); ok {
 				out = append(out, addr)
 			}
+		}
+	}
+
+	return out
+}
+
+// PCSCFRequest records which P-CSCF address families the MS requested (TS 24.008 §10.5.6.3).
+type PCSCFRequest struct {
+	IPv4 bool
+	IPv6 bool
+}
+
+// PCSCFRequest returns the P-CSCF address families an MS-to-network element requests.
+func (p ProtocolConfigurationOptions) PCSCFRequest() PCSCFRequest {
+	var req PCSCFRequest
+
+	if p.Direction != PCOMSToNetwork {
+		return req
+	}
+
+	for _, c := range p.Containers {
+		switch c.ID {
+		case PCOContainerPCSCFIPv4Address:
+			req.IPv4 = true
+		case PCOContainerPCSCFIPv6Address:
+			req.IPv6 = true
+		}
+	}
+
+	return req
+}
+
+// NewPCSCFContainers builds one network-to-MS P-CSCF container per requested address, in order.
+func NewPCSCFContainers(addrs []netip.Addr, req PCSCFRequest) []PCOContainer {
+	var out []PCOContainer
+
+	for _, addr := range addrs {
+		addr = addr.Unmap()
+
+		switch {
+		case addr.Is4() && req.IPv4:
+			b := addr.As4()
+			out = append(out, PCOContainer{ID: PCOContainerPCSCFIPv4Address, Content: b[:]})
+		case addr.Is6() && req.IPv6:
+			b := addr.As16()
+			out = append(out, PCOContainer{ID: PCOContainerPCSCFIPv6Address, Content: b[:]})
+		}
+	}
+
+	return out
+}
+
+// PCSCFAddresses returns the P-CSCF addresses carried, in wire order.
+func (p ProtocolConfigurationOptions) PCSCFAddresses() []netip.Addr {
+	var out []netip.Addr
+
+	if p.Direction != PCONetworkToMS {
+		return nil
+	}
+
+	for _, c := range p.Containers {
+		switch {
+		case c.ID == PCOContainerPCSCFIPv4Address && len(c.Content) == 4:
+			out = append(out, netip.AddrFrom4([4]byte(c.Content)))
+		case c.ID == PCOContainerPCSCFIPv6Address && len(c.Content) == 16:
+			out = append(out, netip.AddrFrom16([16]byte(c.Content)))
 		}
 	}
 

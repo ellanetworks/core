@@ -165,3 +165,29 @@ func TestModifyEPSBearerContextAcceptRoundTrip(t *testing.T) {
 		t.Fatalf("round-trip mismatch: got EBI=%d PTI=%d", got.EPSBearerIdentity, got.PTI)
 	}
 }
+
+func TestModifyEPSBearerContextRequestTFTRoundTrip(t *testing.T) {
+	qos := EPSQoS{QCI: 1}
+	tft := TrafficFlowTemplate{Operation: TFTDeleteFilters, DeleteIdentifiers: []uint8{2, 3}}
+
+	req := &ModifyEPSBearerContextRequest{EPSBearerIdentity: 6, NewEPSQoS: &qos, TFT: &tft}
+
+	wire, err := req.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	qosLen := int(wire[4])
+	if wire[3] != ieiNewEPSQoS || wire[5+qosLen] != ieiTrafficFlowTemplate {
+		t.Fatalf("IEIs = %#x then %#x, want New EPS QoS then TFT (TS 24.301 Table 8.3.18.1)", wire[3], wire[5+qosLen])
+	}
+
+	got, err := ParseModifyEPSBearerContextRequest(wire)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if got.TFT == nil || !reflect.DeepEqual(*got.TFT, tft) {
+		t.Fatalf("TFT = %+v, want %+v", got.TFT, tft)
+	}
+}

@@ -199,7 +199,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABSubjecttoDataForwarding, err = decodeItemList[ERABDataForwardingItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABSubjecttoDataForwarding, err = decodeItemList[ERABDataForwardingItem](per.NewReader(raw), enc, maxnoofERABs, IDERABDataForwardingItem)
 
 			return err
 		},
@@ -218,7 +218,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},

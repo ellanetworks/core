@@ -80,7 +80,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq)
 
 			return err
 		},
@@ -176,7 +176,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemBearerSURes)
 
 			return err
 		},
@@ -195,7 +195,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},

@@ -33,6 +33,10 @@ type ESMMessage struct {
 	PDNDisconnectRequest        *PDNDisconnectRequest        `json:"pdn_disconnect_request,omitempty"`
 	DeactivateBearerAccept      *DeactivateBearerAccept      `json:"deactivate_bearer_accept,omitempty"`
 
+	ActivateDedicatedBearer       *ActivateDedicatedBearer       `json:"activate_dedicated_bearer,omitempty"`
+	ActivateDedicatedBearerAccept *ActivateDedicatedBearerAccept `json:"activate_dedicated_bearer_accept,omitempty"`
+	ActivateDedicatedBearerReject *ActivateDedicatedBearerReject `json:"activate_dedicated_bearer_reject,omitempty"`
+
 	ActivateDefaultBearerReject       *ESMCauseOnly                      `json:"activate_default_bearer_reject,omitempty"`
 	DeactivateBearerRequest           *ESMCauseOnly                      `json:"deactivate_bearer_request,omitempty"`
 	ESMStatus                         *ESMCauseOnly                      `json:"esm_status,omitempty"`
@@ -78,6 +82,12 @@ func buildESMMessage(b []byte) *ESMMessage {
 	switch msg := msg.(type) {
 	case *eps.ActivateDefaultEPSBearerContextRequest:
 		m.ActivateDefaultBearer = buildActivateDefaultBearer(msg)
+	case *eps.ActivateDedicatedEPSBearerContextRequest:
+		m.ActivateDedicatedBearer = buildActivateDedicatedBearer(msg)
+	case *eps.ActivateDedicatedEPSBearerContextAccept:
+		m.ActivateDedicatedBearerAccept = buildActivateDedicatedBearerAccept(msg)
+	case *eps.ActivateDedicatedEPSBearerContextReject:
+		m.ActivateDedicatedBearerReject = buildActivateDedicatedBearerReject(msg)
 	case *eps.PDNConnectivityRequest:
 		m.PDNConnectivityRequest = buildPDNConnectivityRequest(msg)
 	case *eps.ActivateDefaultEPSBearerContextAccept:

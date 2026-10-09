@@ -155,13 +155,18 @@ func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64,
 // Each item is its own open type, so each gets a fresh reader.
 //
 //nolint:unparam
-func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64) ([]T, error) {
+func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64, itemID ProtocolIEID) ([]T, error) {
 	var items []T
 
 	err := per.DecodeLength(r, enc, 1, ub, true, func(count int64) error {
 		for i := int64(0); i < count; i++ {
-			if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs); err != nil {
+			id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
+			if err != nil {
 				return err
+			}
+
+			if ProtocolIEID(id) != itemID {
+				return fmt.Errorf("s1ap: list item %d has IE id %d, want %d", i, id, itemID)
 			}
 
 			if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {

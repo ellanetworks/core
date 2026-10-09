@@ -39,7 +39,7 @@ var canonicalValues = map[uint8][]byte{
 	ieiLocalTimeZone:                 {0x00},
 	ieiMICOIndication:                {0x01},
 	ieiSMSIndication:                 {0x01},
-	ieiMaxPacketFilters:              {0x00, 0x10},
+	ieiMaxPacketFilters:              {0x08, 0x00},
 	ieiNASMessageContainer:           {uint8(EPD5GMM), 0x00, uint8(MsgRegistrationRequest), 0x01, 0x00, 0x01, 0x00},
 	ieiNetworkDaylightSavingTime:     {0x00},
 	ieiNon3GppDeregTimer:             {0x21},
@@ -219,7 +219,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		{
 			name:   "PDUSessionModificationCommand (TS 24.501 §8.3.9)",
 			bare:   &PDUSessionModificationCommand{},
-			order:  []canonicalIE{{ieiSessionAMBR, nas.IETLV}, {ieiAlwaysOnIndication, nas.IETV1}, {ieiMappedEPSBearerContext, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}},
+			order:  []canonicalIE{{ieiSessionAMBR, nas.IETLV}, {ieiAlwaysOnIndication, nas.IETV1}, {ieiAuthorizedQoSRules, nas.IETLVE}, {ieiMappedEPSBearerContext, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}},
 			values: qos,
 		},
 		{

@@ -3098,6 +3098,77 @@ func (pDUSessionResourceModifyResponseTransfer *PDUSessionResourceModifyResponse
 	return nil
 }
 
+func (pDUSessionResourceModifyUnsuccessfulTransfer *PDUSessionResourceModifyUnsuccessfulTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(pDUSessionResourceModifyUnsuccessfulTransfer.CriticalityDiagnostics != nil)
+	w.WriteBit(false)
+	if err := pDUSessionResourceModifyUnsuccessfulTransfer.Cause.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if pDUSessionResourceModifyUnsuccessfulTransfer.CriticalityDiagnostics != nil {
+		if err := (*pDUSessionResourceModifyUnsuccessfulTransfer.CriticalityDiagnostics).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceModifyUnsuccessfulTransfer *PDUSessionResourceModifyUnsuccessfulTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_CriticalityDiagnostics, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceModifyUnsuccessfulTransfer.Cause).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_CriticalityDiagnostics {
+		var v CriticalityDiagnostics
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		pDUSessionResourceModifyUnsuccessfulTransfer.CriticalityDiagnostics = &v
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (pDUSessionResourceNotifyItem *PDUSessionResourceNotifyItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -3124,6 +3195,84 @@ func (pDUSessionResourceNotifyItem *PDUSessionResourceNotifyItem) UnmarshalPER(r
 	}
 	if err := (&pDUSessionResourceNotifyItem.Transfer).UnmarshalPER(r, enc); err != nil {
 		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceNotifyTransfer *PDUSessionResourceNotifyTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(pDUSessionResourceNotifyTransfer.QosFlowNotify != nil)
+	w.WriteBit(pDUSessionResourceNotifyTransfer.QosFlowReleased != nil)
+	w.WriteBit(false)
+	if pDUSessionResourceNotifyTransfer.QosFlowNotify != nil {
+		if err := pDUSessionResourceNotifyTransfer.QosFlowNotify.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if pDUSessionResourceNotifyTransfer.QosFlowReleased != nil {
+		if err := pDUSessionResourceNotifyTransfer.QosFlowReleased.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceNotifyTransfer *PDUSessionResourceNotifyTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QosFlowNotify, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QosFlowReleased, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_QosFlowNotify {
+		if err := (&pDUSessionResourceNotifyTransfer.QosFlowNotify).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_QosFlowReleased {
+		if err := (&pDUSessionResourceNotifyTransfer.QosFlowReleased).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
 	}
 	if p_f2 {
 		var v ieExtensions
@@ -5072,6 +5221,68 @@ func (qosFlowModifyConfirmItem *QosFlowModifyConfirmItem) UnmarshalPER(r *per.Re
 		return err
 	}
 	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (qosFlowNotifyItem *QosFlowNotifyItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := qosFlowNotifyItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := encodeRootEnumerated(w, enc, 2, int64(qosFlowNotifyItem.NotificationCause), "NotificationCause"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (qosFlowNotifyItem *QosFlowNotifyItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowNotifyItem.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	e1, err := decodeRootEnumerated(r, enc, 2, "NotificationCause")
+	if err != nil {
+		return err
+	}
+	qosFlowNotifyItem.NotificationCause = NotificationCause(e1)
+	if p_f2 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err

@@ -81,7 +81,7 @@ var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
 		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeModifiedItemBearerModReq)
 
 			return err
 		},
@@ -177,7 +177,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(raw), enc, maxnoofERABs, IDERABModifyItemBearerModRes)
 
 			return err
 		},
@@ -196,7 +196,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
+			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
 
 			return err
 		},

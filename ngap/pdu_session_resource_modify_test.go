@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -301,5 +302,59 @@ func TestULNGUUPTNLModifyListAcceptsFourLegs(t *testing.T) {
 
 	if _, err := over.Marshal(); err == nil {
 		t.Errorf("encoded %d legs, bound is %d", len(over.ULNGUUPTNLModify), maxnoofMultiConnectivity)
+	}
+}
+
+func TestModifyUnsuccessfulTransferRoundTrip(t *testing.T) {
+	in := PDUSessionResourceModifyUnsuccessfulTransfer{Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkIMSVoiceEPSFallbackTriggered}}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParsePDUSessionResourceModifyUnsuccessfulTransfer(b)
+	if err != nil || out.Cause != in.Cause {
+		t.Fatalf("decoded %+v (%v), want cause %+v", out, err, in.Cause)
+	}
+}
+
+func TestNotifyTransferRoundTrip(t *testing.T) {
+	in := PDUSessionResourceNotifyTransfer{
+		QosFlowNotify:   QosFlowNotifyList{{QosFlowIdentifier: 2, NotificationCause: NotificationCauseNotFulfilled}},
+		QosFlowReleased: QosFlowListWithCause{{QosFlowIdentifier: 3, Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkRadioConnectionWithUELost}}},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParsePDUSessionResourceNotifyTransfer(b)
+	if err != nil || len(out.QosFlowNotify) != 1 || out.QosFlowNotify[0].NotificationCause != NotificationCauseNotFulfilled ||
+		len(out.QosFlowReleased) != 1 || out.QosFlowReleased[0].QosFlowIdentifier != 3 {
+		t.Fatalf("decoded %+v (%v), want the notify and released lists back", out, err)
+	}
+}
+
+func TestModifyUnsuccessfulTransferEncoding(t *testing.T) {
+	b, err := (&PDUSessionResourceModifyUnsuccessfulTransfer{Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkIMSVoiceEPSFallbackTriggered}}).Marshal()
+	if err != nil || !bytes.Equal(b, []byte{0x01, 0x20}) {
+		t.Fatalf("encoded % x (%v), want 01 20", b, err)
+	}
+}
+
+func TestNotifyTransferEncoding(t *testing.T) {
+	wire := []byte{0x40, 0x00, 0x48}
+
+	b, err := (&PDUSessionResourceNotifyTransfer{QosFlowNotify: QosFlowNotifyList{{QosFlowIdentifier: 2, NotificationCause: NotificationCauseNotFulfilled}}}).Marshal()
+	if err != nil || !bytes.Equal(b, wire) {
+		t.Fatalf("encoded % x (%v), want % x", b, err, wire)
+	}
+
+	out, err := ParsePDUSessionResourceNotifyTransfer(wire)
+	if err != nil || len(out.QosFlowNotify) != 1 || out.QosFlowNotify[0].QosFlowIdentifier != 2 ||
+		out.QosFlowNotify[0].NotificationCause != NotificationCauseNotFulfilled || out.QosFlowReleased != nil {
+		t.Fatalf("decoded %+v (%v), want QFI 2 not fulfilled", out, err)
 	}
 }

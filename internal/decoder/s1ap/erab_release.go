@@ -94,3 +94,29 @@ func buildERABReleaseResponse(value []byte) (S1APMessageValue, string) {
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("E-RAB Release Response (MME-UE %s, eNB-UE %s, %d E-RAB)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID), len(m.ERABReleased))
 }
+
+func buildERABReleaseIndication(value []byte) (S1APMessageValue, string) {
+	m, err := s1ap.ParseERABReleaseIndication(value)
+	if err != nil {
+		return S1APMessageValue{Error: fmt.Sprintf("parse E-RAB Release Indication: %v", err)}, ""
+	}
+
+	released := make([]ERABToBeReleasedItem, 0, len(m.ERABReleased))
+	for _, it := range m.ERABReleased {
+		released = append(released, ERABToBeReleasedItem{ERABID: uint8(it.ERABID), Cause: cause(it.Cause)})
+	}
+
+	ies := []IE{
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDERABReleasedList, s1ap.CriticalityIgnore, released),
+	}
+
+	if m.UserLocationInformation != nil {
+		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
+	}
+
+	ies = appendUnknownIEs(ies, m.UnknownIEs())
+
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("E-RAB Release Indication (MME-UE %d, eNB-UE %d, %d E-RAB)", m.MMEUES1APID, m.ENBUES1APID, len(m.ERABReleased))
+}

@@ -38,6 +38,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDERABModifyListBearerModRes:                "E-RABModifyListBearerModRes",
 	IDERABFailedToModifyList:                    "E-RABFailedToModifyList",
 	IDERABToBeReleasedList:                      "E-RABToBeReleasedList",
+	IDERABReleasedList:                          "E-RABReleasedList",
 	IDERABFailedToReleaseList:                   "E-RABFailedToReleaseList",
 	IDERABItem:                                  "E-RABItem",
 	IDERABToBeModifiedItemBearerModReq:          "E-RABToBeModifiedItemBearerModReq",
@@ -101,6 +102,8 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDERABNotToBeModifiedItemBearerModInd: "E-RABNotToBeModifiedItemBearerModInd",
 	IDERABModifyListBearerModConf:         "E-RABModifyListBearerModConf",
 	IDERABModifyItemBearerModConf:         "E-RABModifyItemBearerModConf",
+	IDERABFailedToModifyListBearerModConf: "E-RABFailedToModifyListBearerModConf",
+	IDERABToBeReleasedListBearerModConf:   "E-RABToBeReleasedListBearerModConf",
 	IDUERetentionInformation:              "UE-RetentionInformation",
 }
 

@@ -135,3 +135,59 @@ func (m *PDUSessionResourceNotify) Marshal() ([]byte, error) {
 func ParsePDUSessionResourceNotify(value []byte) (*PDUSessionResourceNotify, error) {
 	return parseMessageBody[PDUSessionResourceNotify](ProcPDUSessionResourceNotify, TriggeringInitiatingMessage, pDUSessionResourceNotifyIEs, value)
 }
+
+// NotificationCause ::= ENUMERATED { fulfilled, not-fulfilled, ... } —
+// TS 38.413 §9.3.4.5.
+type NotificationCause uint8
+
+const (
+	NotificationCauseFulfilled    NotificationCause = 0
+	NotificationCauseNotFulfilled NotificationCause = 1
+)
+
+// QosFlowNotifyItem ::= SEQUENCE { qosFlowIdentifier, notificationCause,
+// iE-Extensions OPTIONAL } (extensible).
+type QosFlowNotifyItem struct {
+	_                 [0]struct{} `per:"extseq"`
+	QosFlowIdentifier QosFlowIdentifier
+	NotificationCause NotificationCause `per:"ENUMERATED,range:0..1,..."`
+	_                 ieExtensions      `per:",skip"`
+}
+
+// QosFlowNotifyList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF QosFlowNotifyItem.
+type QosFlowNotifyList []QosFlowNotifyItem
+
+// PDUSessionResourceNotifyTransfer ::= SEQUENCE { qosFlowNotifyList OPTIONAL,
+// qosFlowReleasedList OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
+// TS 38.413 §9.3.4.5.
+type PDUSessionResourceNotifyTransfer struct {
+	_               [0]struct{}          `per:"extseq"`
+	QosFlowNotify   QosFlowNotifyList    `per:",optional"`
+	QosFlowReleased QosFlowListWithCause `per:",optional"`
+	_               ieExtensions         `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceNotifyTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceNotifyTransfer decodes the QoS flow notifications an
+// NG-RAN node reports for a PDU session.
+func ParsePDUSessionResourceNotifyTransfer(b TransferContainer) (*PDUSessionResourceNotifyTransfer, error) {
+	var t PDUSessionResourceNotifyTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

@@ -26,6 +26,9 @@ func TestAppendBinaryEnforcesPDULimit(t *testing.T) {
 	msgs := []Message{
 		&ActivateDefaultEPSBearerContextAccept{},
 		&ActivateDefaultEPSBearerContextReject{},
+		&ActivateDedicatedEPSBearerContextAccept{},
+		&ActivateDedicatedEPSBearerContextReject{},
+		&ActivateDedicatedEPSBearerContextRequest{},
 		&ActivateDefaultEPSBearerContextRequest{AccessPointName: APN("internet")},
 		&AttachAccept{TAIList: TAIList{{Type: PartialTAIListConsecutive, TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 1}}}}},
 		&AttachComplete{},

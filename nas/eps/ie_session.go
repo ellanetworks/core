@@ -184,6 +184,109 @@ func (q EPSQoS) AppendBinary(b []byte) ([]byte, error) {
 	return w.Result(b)
 }
 
+// EPSQoSBitRates are the maximum and guaranteed bit rates of a GBR bearer, in
+// kbit/s (TS 24.301 §9.9.4.3, octets 4 to 15).
+type EPSQoSBitRates struct {
+	MaxUplinkKbps          uint64
+	MaxDownlinkKbps        uint64
+	GuaranteedUplinkKbps   uint64
+	GuaranteedDownlinkKbps uint64
+}
+
+// GBREPSQoS builds the EPS QoS of a GBR bearer, flooring each rate to one the
+// element can express. Rates above 10 Gbit/s need the extended EPS QoS IE and
+// are refused, as is a maximum bit rate of 0 kbit/s in both directions.
+func GBREPSQoS(qci uint8, r EPSQoSBitRates) (EPSQoS, error) {
+	if r.MaxUplinkKbps == 0 && r.MaxDownlinkKbps == 0 {
+		return EPSQoS{}, fmt.Errorf("nas/eps: EPS QoS maximum bit rate is 0 kbit/s in both directions")
+	}
+
+	rates := []uint64{r.MaxUplinkKbps, r.MaxDownlinkKbps, r.GuaranteedUplinkKbps, r.GuaranteedDownlinkKbps}
+	base := make([]byte, 0, 3*len(rates))
+	ext := make([]byte, 0, len(rates))
+	ext2 := make([]byte, 0, len(rates))
+	extended, extended2 := false, false
+
+	for _, kbps := range rates {
+		if kbps > epsQoSExtended2MaxKbps {
+			return EPSQoS{}, fmt.Errorf("nas/eps: EPS QoS bit rate %d kbit/s exceeds %d kbit/s", kbps, uint64(epsQoSExtended2MaxKbps))
+		}
+
+		var b, e, e2 uint8
+		if kbps > epsQoSExtendedMaxKbps {
+			b, e = encodeAPNAMBRBase(epsQoSExtendedMaxKbps * 1000)
+			e2 = encodeEPSQoSExtended2(kbps)
+		} else {
+			b, e = encodeAPNAMBRBase(kbps * 1000)
+		}
+
+		base = append(base, b)
+		ext = append(ext, e)
+		ext2 = append(ext2, e2)
+		extended = extended || e != 0
+		extended2 = extended2 || e2 != 0
+	}
+
+	if extended || extended2 {
+		base = append(base, ext...)
+	}
+
+	if extended2 {
+		base = append(base, ext2...)
+	}
+
+	return EPSQoS{QCI: qci, BitRates: base}, nil
+}
+
+// GBRBitRates decodes octets 4 to 15, reporting false when the element carries
+// no bit rate.
+func (q EPSQoS) GBRBitRates() (EPSQoSBitRates, bool) {
+	if len(q.BitRates) < epsQoSGroupLen {
+		return EPSQoSBitRates{}, false
+	}
+
+	var ext, ext2 [epsQoSGroupLen]uint8
+	if len(q.BitRates) >= 2*epsQoSGroupLen {
+		copy(ext[:], q.BitRates[epsQoSGroupLen:2*epsQoSGroupLen])
+	}
+
+	if len(q.BitRates) >= 3*epsQoSGroupLen {
+		copy(ext2[:], q.BitRates[2*epsQoSGroupLen:3*epsQoSGroupLen])
+	}
+
+	kbps := func(i int) uint64 {
+		if ext2[i] != 0 {
+			return decodeEPSQoSExtended2(ext2[i])
+		}
+
+		return decodeAPNAMBRBase(q.BitRates[i], ext[i]) / 1000
+	}
+
+	return EPSQoSBitRates{MaxUplinkKbps: kbps(0), MaxDownlinkKbps: kbps(1), GuaranteedUplinkKbps: kbps(2), GuaranteedDownlinkKbps: kbps(3)}, true
+}
+
+func encodeEPSQoSExtended2(kbps uint64) uint8 {
+	switch {
+	case kbps < 510_000:
+		return uint8(min((kbps-256_000)/4000, 0x3D))
+	case kbps < 1_600_000:
+		return uint8(min(0x3D+(kbps-500_000)/10_000, 0xA1))
+	default:
+		return uint8(min(0xA1+(kbps-1_500_000)/100_000, 0xF6))
+	}
+}
+
+func decodeEPSQoSExtended2(v uint8) uint64 {
+	switch {
+	case v <= 0x3D:
+		return 256_000 + uint64(v)*4000
+	case v <= 0xA1:
+		return 500_000 + uint64(v-0x3D)*10_000
+	default:
+		return 1_500_000 + uint64(min(v, 0xF6)-0xA1)*100_000
+	}
+}
+
 // checkEPSQoSLen reports whether n is a value length TS 24.301 §9.9.4.3 allows:
 // the QCI octet alone, or the QCI octet and one to three groups of four bit-rate
 // octets.
@@ -202,8 +305,10 @@ func (q EPSQoS) MarshalBinary() ([]byte, error) { return q.AppendBinary(nil) }
 // of which are its IEI and length, and its optional octets come in groups of
 // four.
 const (
-	maxEPSQoSLen   = 13
-	epsQoSGroupLen = 4
+	maxEPSQoSLen           = 13
+	epsQoSGroupLen         = 4
+	epsQoSExtendedMaxKbps  = 256_000
+	epsQoSExtended2MaxKbps = 10_000_000
 )
 
 // ParseEPSQoS decodes an EPS QoS value part.

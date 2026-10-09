@@ -22,6 +22,7 @@ type PDUSessionEstablishmentRequest struct {
 	SSCMode                  *SSCMode                          // optional (IEI 0xA), value bits 1-3
 	GSMCapability            *GSMCapability                    // optional (IEI 0x28)
 	AlwaysOnRequested        *bool                             // optional (IEI 0xB), value bit 1
+	MaxPacketFilters         *uint16                           // optional (IEI 0x55)
 	ExtendedPCO              *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
 
 	// Unrecognized carries the optional information elements this message does
@@ -55,6 +56,15 @@ func (m *PDUSessionEstablishmentRequest) AppendBinary(b []byte) ([]byte, error) 
 		}
 
 		o.TLV(iei5GSMCapability, raw)
+	}
+
+	if m.MaxPacketFilters != nil {
+		v, err := maxPacketFiltersValue(*m.MaxPacketFilters)
+		if err != nil {
+			return b, err
+		}
+
+		o.TV3(ieiMaxPacketFilters, v)
 	}
 
 	if m.AlwaysOnRequested != nil {
@@ -119,6 +129,13 @@ func ParsePDUSessionEstablishmentRequest(b []byte) (*PDUSessionEstablishmentRequ
 			}
 
 			out.GSMCapability = &parsed
+		case ieiMaxPacketFilters:
+			count, err := parseMaxPacketFilters(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.MaxPacketFilters = &count
 		case ieiAlwaysOnRequested:
 			// TS 24.501 table 9.11.4.4.1 assigns both values — 0 "not requested",
 			// 1 "requested" — so the element carries its own meaning and the field

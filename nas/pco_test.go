@@ -230,3 +230,86 @@ func TestNewSNSSAIContainer(t *testing.T) {
 		t.Error("a malformed PLMN was accepted")
 	}
 }
+
+func TestPCSCFRequest(t *testing.T) {
+	cases := []struct {
+		name string
+		pco  ProtocolConfigurationOptions
+		want PCSCFRequest
+	}{
+		{"none", NewRequestedProtocolConfigurationOptions(PCOContainerDNSServerIPv4Address), PCSCFRequest{}},
+		{"ipv4", NewRequestedProtocolConfigurationOptions(PCOContainerPCSCFIPv4Address), PCSCFRequest{IPv4: true}},
+		{"ipv6", NewRequestedProtocolConfigurationOptions(PCOContainerPCSCFIPv6Address), PCSCFRequest{IPv6: true}},
+		{"both", NewRequestedProtocolConfigurationOptions(PCOContainerPCSCFIPv6Address, PCOContainerPCSCFIPv4Address), PCSCFRequest{IPv4: true, IPv6: true}},
+		{"downlink", ProtocolConfigurationOptions{Direction: PCONetworkToMS, Containers: []PCOContainer{{ID: PCOContainerPCSCFIPv4Address}}}, PCSCFRequest{}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.pco.PCSCFRequest(); got != tc.want {
+				t.Fatalf("PCSCFRequest() = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNewPCSCFContainers(t *testing.T) {
+	addrs := []netip.Addr{
+		netip.MustParseAddr("2001:db8::2"),
+		netip.MustParseAddr("10.0.0.6"),
+		netip.MustParseAddr("2001:db8::1"),
+		netip.MustParseAddr("10.0.0.5"),
+	}
+
+	pco := ProtocolConfigurationOptions{ConfigProtocol: PCOConfigProtocolPPP, Direction: PCONetworkToMS}
+	pco.Containers = NewPCSCFContainers(addrs, PCSCFRequest{IPv4: true, IPv6: true})
+
+	want := []byte{0x80, 0x00, 0x01, 0x10}
+	want = append(want, netip.MustParseAddr("2001:db8::2").AsSlice()...)
+	want = append(want, 0x00, 0x0C, 0x04, 10, 0, 0, 6, 0x00, 0x01, 0x10)
+	want = append(want, netip.MustParseAddr("2001:db8::1").AsSlice()...)
+	want = append(want, 0x00, 0x0C, 0x04, 10, 0, 0, 5)
+
+	if got := mustPCO(t, pco); !bytes.Equal(got, want) {
+		t.Fatalf("PCO = %x, want %x", got, want)
+	}
+
+	parsed, err := ParseProtocolConfigurationOptions(want, PCONetworkToMS)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	got := parsed.PCSCFAddresses()
+	if len(got) != len(addrs) {
+		t.Fatalf("PCSCFAddresses() = %v, want %v", got, addrs)
+	}
+
+	for i := range addrs {
+		if got[i] != addrs[i] {
+			t.Fatalf("PCSCFAddresses() = %v, want %v", got, addrs)
+		}
+	}
+
+	swapped := ProtocolConfigurationOptions{ConfigProtocol: PCOConfigProtocolPPP, Direction: PCONetworkToMS, Containers: []PCOContainer{
+		{ID: PCOContainerPCSCFIPv4Address, Content: netip.MustParseAddr("2001:db8::1").AsSlice()},
+		{ID: PCOContainerPCSCFIPv6Address, Content: []byte{10, 0, 0, 5}},
+		{ID: PCOContainerPCSCFIPv4Address, Content: []byte{10, 0, 0, 7}},
+	}}
+	if got := swapped.PCSCFAddresses(); len(got) != 1 || got[0] != netip.MustParseAddr("10.0.0.7") {
+		t.Fatalf("PCSCFAddresses() with mismatched lengths = %v, want only 10.0.0.7", got)
+	}
+
+	request := ProtocolConfigurationOptions{ConfigProtocol: PCOConfigProtocolPPP, Direction: PCOMSToNetwork, Containers: swapped.Containers}
+	if got := request.PCSCFAddresses(); len(got) != 0 {
+		t.Fatalf("PCSCFAddresses() on an MS-to-network element = %v, want none", got)
+	}
+
+	ipv4Only := NewPCSCFContainers(addrs, PCSCFRequest{IPv4: true})
+	if len(ipv4Only) != 2 || ipv4Only[0].ID != PCOContainerPCSCFIPv4Address || !bytes.Equal(ipv4Only[0].Content, []byte{10, 0, 0, 6}) {
+		t.Fatalf("IPv4-only containers = %+v", ipv4Only)
+	}
+
+	if got := NewPCSCFContainers(addrs, PCSCFRequest{}); len(got) != 0 {
+		t.Fatalf("containers without a request = %+v, want none", got)
+	}
+}

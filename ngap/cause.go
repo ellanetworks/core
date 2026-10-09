@@ -64,6 +64,14 @@ const (
 	CauseRadioNetworkMultiplePDUSessionIDs            = 28 // multiple-PDU-session-ID-instances
 	CauseRadioNetworkSliceNotSupported                = 39 // slice-not-supported
 	CauseRadioNetworkReleaseDueToCNDetectedMobility   = 44 // release-due-to-cn-detected-mobility
+	CauseRadioNetworkRedirection                      = 41 // redirection
+
+	CauseRadioNetworkNGIntraSystemHandoverTriggered = 31 // ng-intra-system-handover-triggered
+	CauseRadioNetworkNGInterSystemHandoverTriggered = 32 // ng-inter-system-handover-triggered
+	CauseRadioNetworkXnHandoverTriggered            = 33 // xn-handover-triggered
+
+	// ims-voice-eps-fallback-or-rat-fallback-triggered
+	CauseRadioNetworkIMSVoiceEPSFallbackTriggered = 36
 
 	// encryption-and-or-integrity-protection-algorithms-not-supported
 	CauseRadioNetworkEncryptionAlgorithmsNotSupported = 30

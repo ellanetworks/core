@@ -106,12 +106,23 @@ func taiList(list eps.TAIList) []TAI {
 }
 
 type EPSQoS struct {
-	QCI         uint8  `json:"qci"`
-	BitRatesHex string `json:"bit_rates_hex,omitempty"`
+	QCI                    uint8   `json:"qci"`
+	BitRatesHex            string  `json:"bit_rates_hex,omitempty"`
+	MaxUplinkKbps          *uint64 `json:"max_uplink_kbps,omitempty"`
+	MaxDownlinkKbps        *uint64 `json:"max_downlink_kbps,omitempty"`
+	GuaranteedUplinkKbps   *uint64 `json:"guaranteed_uplink_kbps,omitempty"`
+	GuaranteedDownlinkKbps *uint64 `json:"guaranteed_downlink_kbps,omitempty"`
 }
 
 func epsQoS(q eps.EPSQoS) *EPSQoS {
-	return &EPSQoS{QCI: q.QCI, BitRatesHex: hex.EncodeToString(q.BitRates)}
+	out := &EPSQoS{QCI: q.QCI, BitRatesHex: hex.EncodeToString(q.BitRates)}
+
+	if r, ok := q.GBRBitRates(); ok {
+		out.MaxUplinkKbps, out.MaxDownlinkKbps = &r.MaxUplinkKbps, &r.MaxDownlinkKbps
+		out.GuaranteedUplinkKbps, out.GuaranteedDownlinkKbps = &r.GuaranteedUplinkKbps, &r.GuaranteedDownlinkKbps
+	}
+
+	return out
 }
 
 // APNAMBR is the aggregate maximum bit rate for the APN (TS 24.301 §9.9.4.2).
