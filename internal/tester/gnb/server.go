@@ -174,6 +174,10 @@ func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	if g.qosFlows == nil {
+		g.qosFlows = make(map[int64]map[int64][]uint8)
+	}
+
 	if g.qosFlows[ranUeID] == nil {
 		g.qosFlows[ranUeID] = make(map[int64][]uint8)
 	}
@@ -1208,6 +1212,10 @@ func (g *GnodeB) DownlinkQFICount(teid uint32, qfi uint8) int {
 func (g *GnodeB) admitQoSFlows(ranUeID, pduSessionID int64, add, release []uint8) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	if g.qosFlows == nil {
+		g.qosFlows = make(map[int64]map[int64][]uint8)
+	}
 
 	if g.qosFlows[ranUeID] == nil {
 		g.qosFlows[ranUeID] = make(map[int64][]uint8)
