@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -430,5 +432,137 @@ func TestSendDoesNotLoopOnABusyAllHostTarget(t *testing.T) {
 	ans := send(t, client, routed())
 	if resultCode(t, ans) != ResultTooBusy || home.calls.Load() != 2 {
 		t.Fatalf("answer %d after %d requests to the redirect target", resultCode(t, ans), home.calls.Load())
+	}
+}
+
+var (
+	loopback4 = netip.MustParseAddr("127.0.0.4")
+	loopback5 = netip.MustParseAddr("127.0.0.5")
+)
+
+func redirectingToAll(usage RedirectHostUsage, ttl time.Duration, hosts ...URI) func(*server, *Conn, *Message) *Message {
+	return func(s *server, c *Conn, req *Message) *Message {
+		ans, err := NewRedirectAnswer(req, s.node.Identity(), Redirect{Hosts: hosts, Usage: usage, MaxCacheTime: ttl})
+		if err != nil {
+			panic(err)
+		}
+
+		return ans
+	}
+}
+
+func (s *server) uri(kind Transport) URI {
+	return URI{Host: s.host, Port: s.addr.Port(), Transport: kind}
+}
+
+func unreachable(host string) URI {
+	return URI{Host: host, Port: 1, Transport: TransportTCP}
+}
+
+func TestSendTriesTheNextRedirectHost(t *testing.T) {
+	kind := TransportTCP
+
+	for _, tc := range []struct {
+		name   string
+		reason RerouteReason
+		first  func(s *server, c *Conn, req *Message) *Message
+	}{
+		{name: "down", reason: RerouteRedirect},
+		{name: "too busy", reason: RerouteTooBusy, first: busy},
+		{name: "unable to deliver", reason: RerouteUnableToDeliver, first: func(_ *server, c *Conn, req *Message) *Message {
+			return c.Answer(req, ResultUnableToDeliver)
+		}},
+		{name: "connection lost", reason: RerouteFailover, first: func(_ *server, c *Conn, _ *Message) *Message {
+			c.abort("test failover")
+			return nil
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			second := newServer(t, kind, "hss2.example.org", loopback4, nil)
+			resolver := staticResolver{second.host: second.addr.Addr()}
+
+			first := unreachable("hss1.example.org")
+			resolver[first.Host] = loopback5
+
+			var firstServer *server
+
+			if tc.first != nil {
+				firstServer = newServer(t, kind, first.Host, loopback3, tc.first)
+				first = firstServer.uri(kind)
+				resolver[first.Host] = firstServer.addr.Addr()
+			}
+
+			agent := newServer(t, kind, "slf.example.org", loopback2, redirectingToAll(AllRealm, time.Hour, first, second.uri(kind)))
+
+			var (
+				mu      sync.Mutex
+				reasons []RerouteReason
+			)
+
+			client := newClient(t, func(cfg *Config) {
+				cfg.Resolver = resolver
+				cfg.OnReroute = func(r Reroute) {
+					mu.Lock()
+					defer mu.Unlock()
+
+					reasons = append(reasons, r.Reason)
+				}
+			})
+			setPeers(t, client, agent.peer(kind, 1))
+			waitOpen(t, client, agent.host)
+
+			ans := send(t, client, routed())
+			if answeredBy(t, ans) != second.host || resultCode(t, ans) != ResultSuccess {
+				t.Fatalf("answer %d from %s", resultCode(t, ans), answeredBy(t, ans))
+			}
+
+			original, redirected := <-agent.seen, <-second.seen
+			if host, _ := redirected.Find(AVPDestinationHost, 0); host.UTF8String() != second.host {
+				t.Fatalf("the request to the second host has Destination-Host %q", host.UTF8String())
+			}
+
+			if redirected.EndToEndID != original.EndToEndID || redirected.Flags&FlagRetransmit == 0 {
+				t.Fatal("the request to the second host is not the original with the T flag")
+			}
+
+			mu.Lock()
+			got := slices.Clone(reasons)
+			mu.Unlock()
+
+			want := []RerouteReason{RerouteRedirect}
+			if tc.reason != RerouteRedirect {
+				want = append(want, tc.reason)
+			}
+
+			if !slices.Equal(got, want) {
+				t.Fatalf("reroutes = %v, want %v", got, want)
+			}
+
+			if got := answeredBy(t, send(t, client, otherSession(routed()))); got != second.host || agent.calls.Load() != 1 {
+				t.Fatalf("cached request answered by %s after %d agent requests", got, agent.calls.Load())
+			}
+
+			if firstServer != nil && firstServer.calls.Load() != 1 {
+				t.Fatalf("the first host got %d requests", firstServer.calls.Load())
+			}
+		})
+	}
+}
+
+func TestSendReturnsTheLastRefusalWhenEveryRedirectHostRefuses(t *testing.T) {
+	kind := TransportTCP
+	a := newServer(t, kind, "hss1.example.org", loopback3, busy)
+	b := newServer(t, kind, "hss2.example.org", loopback4, busy)
+	agent := newServer(t, kind, "slf.example.org", loopback2, redirectingToAll(AllRealm, time.Hour, a.uri(kind), b.uri(kind)))
+
+	client := newClient(t, func(cfg *Config) {
+		cfg.Resolver = staticResolver{a.host: a.addr.Addr(), b.host: b.addr.Addr()}
+	})
+	setPeers(t, client, agent.peer(kind, 1))
+	waitOpen(t, client, agent.host)
+
+	ans := send(t, client, routed())
+	if resultCode(t, ans) != ResultTooBusy || answeredBy(t, ans) != b.host || a.calls.Load() != 1 || b.calls.Load() != 1 {
+		t.Fatalf("answer %d from %s after %d/%d requests", resultCode(t, ans), answeredBy(t, ans), a.calls.Load(), b.calls.Load())
 	}
 }

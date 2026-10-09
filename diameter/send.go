@@ -59,7 +59,14 @@ type sending struct {
 	tried    map[*peer]bool
 	held     []*peer
 	last     *Message
-	redirect bool
+	redirect *following
+}
+
+type following struct {
+	from *peer
+	app  Application
+	r    Redirect
+	next int
 }
 
 func (n *Node) Send(ctx context.Context, req *Message, opts ...RequestOption) (*Message, error) {
@@ -100,10 +107,14 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 			m.AVPs = withDestinationHost(s.m.AVPs, cand.host)
 		}
 
-		ans, err := c.exchange(ctx, &m, s.fixed == nil)
+		ans, err := c.exchange(ctx, &m, s.fixed == nil || s.redirect.remaining())
 
 		switch {
 		case errors.Is(err, errConnClosed), errors.Is(err, errConnSuspect):
+			if s.redirect.remaining() {
+				s.tried[cand.peer] = true
+			}
+
 			s.m.Flags |= FlagRetransmit
 			s.reroute(RerouteFailover, cand.peer)
 
@@ -116,7 +127,7 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 
 		switch code {
 		case ResultRedirectIndication:
-			if s.redirect {
+			if s.redirect != nil {
 				return ans, nil
 			}
 
@@ -125,7 +136,7 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 				return ans, nil
 			}
 		case ResultTooBusy, ResultUnableToDeliver:
-			if s.fixed != nil {
+			if s.fixed != nil && !s.redirect.remaining() {
 				return ans, nil
 			}
 
@@ -155,6 +166,16 @@ func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 		if n.closed {
 			n.mu.Unlock()
 			return candidate{}, nil, ErrClosed
+		}
+
+		if s.redirect.remaining() && s.unusableLocked(s.fixed.peer) {
+			n.mu.Unlock()
+
+			if err := s.advance(ctx); err != nil && s.last != nil {
+				return candidate{}, nil, errExhausted
+			}
+
+			continue
 		}
 
 		cands, err := s.candidatesLocked()
@@ -196,7 +217,7 @@ func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 		switch {
 		case len(cands) > 0 && unsupported == len(cands):
 			return candidate{}, nil, ErrApplicationUnsupported
-		case !waitable || (s.o.failFast && !s.redirect):
+		case !waitable || (s.o.failFast && s.redirect == nil):
 			return candidate{}, nil, ErrNotConnected
 		}
 
@@ -291,40 +312,85 @@ func (s *sending) follow(ctx context.Context, from *peer, ans *Message) error {
 		return fmt.Errorf("%w: application %d", ErrApplicationUnsupported, s.m.ApplicationID)
 	}
 
+	s.redirect = &following{from: from, app: app, r: r}
+
+	if err := s.advance(ctx); err != nil {
+		s.redirect = nil
+		return err
+	}
+
+	s.m.Flags |= FlagRetransmit
+	s.reroute(RerouteRedirect, from)
+
+	return nil
+}
+
+func (s *sending) advance(ctx context.Context) error {
+	f := s.redirect
+
 	var errs []error
 
-	for _, u := range r.Hosts {
+	for f.next < len(f.r.Hosts) {
+		u := f.r.Hosts[f.next]
+		f.next++
+
 		if u.Secure {
 			errs = append(errs, fmt.Errorf("%s needs transport security", u))
 			continue
 		}
 
-		target, err := s.redirectPeer(ctx, u, app)
+		target, err := s.redirectPeer(ctx, u, f.app)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		n.mu.Lock()
-
-		if r.Usage != DontCache && r.MaxCacheTime > 0 {
-			key, ok := s.redirectCacheKey(r.Usage, from)
-			if ok {
-				n.cacheStoreLocked(key, target, u.Host, r.MaxCacheTime)
-			}
+		if s.tried[target] {
+			continue
 		}
 
-		n.mu.Unlock()
-
-		s.redirect = true
 		s.fixed = &candidate{peer: target, host: u.Host}
-		s.m.Flags |= FlagRetransmit
-		s.reroute(RerouteRedirect, from)
+		s.remember(*s.fixed)
 
 		return nil
 	}
 
 	return errors.Join(errs...)
+}
+
+func (f *following) remaining() bool {
+	return f != nil && f.next < len(f.r.Hosts)
+}
+
+func (s *sending) unusableLocked(p *peer) bool {
+	if s.tried[p] || p.removed {
+		return true
+	}
+
+	if c := p.available(); c != nil {
+		return !c.supports(s.m.ApplicationID)
+	}
+
+	return !p.dialing && p.initiator == nil && p.parked == nil
+}
+
+func (s *sending) remember(cand candidate) {
+	f := s.redirect
+	if f.r.Usage == DontCache || f.r.MaxCacheTime <= 0 {
+		return
+	}
+
+	key, ok := s.redirectCacheKey(f.r.Usage, f.from)
+	if !ok {
+		return
+	}
+
+	s.n.mu.Lock()
+	defer s.n.mu.Unlock()
+
+	if !cand.peer.removed {
+		s.n.cacheStoreLocked(key, cand.peer, cand.host, f.r.MaxCacheTime)
+	}
 }
 
 func (s *sending) redirectPeer(ctx context.Context, u URI, app Application) (*peer, error) {
