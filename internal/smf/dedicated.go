@@ -600,8 +600,12 @@ func (s *SMF) moveDedicatedLocked(ctx context.Context, sc *SMContext, sgwTEID ui
 		return nil, ErrDedicatedBearerUnknown
 	}
 
-	if err := s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) { l.AN = anchorFromFTEID(enb) }); err != nil {
-		return nil, fmt.Errorf("forward the bearer's downlink: %w", err)
+	an := anchorFromFTEID(enb)
+
+	if i := slices.IndexFunc(sc.Tunnel.Bearers, func(l bearerLeg) bool { return l.Slot == b.slot }); i < 0 || !sc.Tunnel.Bearers[i].AN.equal(an) {
+		if err := s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) { l.AN = an }); err != nil {
+			return nil, fmt.Errorf("forward the bearer's downlink: %w", err)
+		}
 	}
 
 	b.enb = enb
@@ -652,5 +656,22 @@ func (s *SMF) DedicatedBearerReleased(ctx context.Context, ref string, sgwTEID u
 
 	if len(failed) == 0 {
 		s.reconcileAfter(ref, 0)
+	}
+}
+
+func (s *SMF) DedicatedBearerWithoutFiveGSQoS(ctx context.Context, ref string, sgwTEID uint32) {
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if b := sc.dedicatedBySGWTEID(sgwTEID); b != nil {
+		b.fiveGSQoS = false
+
+		logger.From(ctx, logger.SmfLog).Info("dedicated bearer signalled without its 5GS QoS; it stays in EPS",
+			logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi))
 	}
 }

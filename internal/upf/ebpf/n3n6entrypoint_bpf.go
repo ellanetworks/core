@@ -291,7 +291,7 @@ type N3N6EntrypointSdfClassifier struct {
 		Qfi            uint8
 		Pad            [2]uint8
 	}
-	Targets [16]struct {
+	Targets [32]struct {
 		_     structs.HostLayout
 		PdrId uint32
 		QerId uint32

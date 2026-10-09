@@ -33,7 +33,7 @@ func establishSecondEPSSession(t *testing.T, s *smf.SMF) *smf.SMContext {
 		t.Fatalf("CreateEPSSession (second PDN connection): %v", err)
 	}
 
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI+1, sourceENB); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI+1, sourceENB, nil); err != nil {
 		t.Fatalf("ModifyEPSSession (second PDN connection): %v", err)
 	}
 

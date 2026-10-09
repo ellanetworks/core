@@ -161,7 +161,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 	return bearer, nil
 }
 
-func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi uint8, enb models.FTEID) error {
+func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi uint8, enb models.FTEID, _ []models.DedicatedBearerEndpoint) error {
 	if err, ok := f.modifyErr[ebi]; ok {
 		return err
 	}
@@ -208,6 +208,8 @@ func (f *fakeSessionManager) DedicatedBearerActivated(context.Context, string, u
 func (f *fakeSessionManager) DedicatedBearerReleased(context.Context, string, uint32) {}
 
 func (f *fakeSessionManager) DedicatedBearerModified(context.Context, string, uint32, bool) {}
+
+func (f *fakeSessionManager) DedicatedBearerWithoutFiveGSQoS(context.Context, string, uint32) {}
 
 func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref string, accepted bool) {
 	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})
@@ -376,13 +378,13 @@ type hookSessionManager struct {
 	fired    bool
 }
 
-func (h *hookSessionManager) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
+func (h *hookSessionManager) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error {
 	if !h.fired && h.onModify != nil {
 		h.fired = true
 		h.onModify()
 	}
 
-	return h.fakeSessionManager.ModifyEPSSession(ctx, imsi, ebi, enb)
+	return h.fakeSessionManager.ModifyEPSSession(ctx, imsi, ebi, enb, dedicated)
 }
 
 func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {

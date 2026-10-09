@@ -177,7 +177,7 @@ func mappedFiveGSQoSOptions(containers []nas.PCOContainer, useEPCO bool) (*nas.P
 		return nil, nil
 	}
 
-	pco := nas.ProtocolConfigurationOptions{ConfigProtocol: nas.PCOConfigProtocolPPP, Direction: nas.PCONetworkToMS, Containers: slices.Clone(containers)}
+	pco := fiveGSQoSOptions(containers)
 
 	switch {
 	case useEPCO:
@@ -185,9 +185,29 @@ func mappedFiveGSQoSOptions(containers []nas.PCOContainer, useEPCO bool) (*nas.P
 	case pco.FitsUnextended():
 		return &pco, nil
 	default:
-		logger.MmeLog.Warn("the 5GS QoS of a dedicated bearer does not fit the protocol configuration options of a UE without ePCO; the bearer stays in EPS")
 		return nil, nil
 	}
+}
+
+func fiveGSQoSOptions(containers []nas.PCOContainer) nas.ProtocolConfigurationOptions {
+	return nas.ProtocolConfigurationOptions{ConfigProtocol: nas.PCOConfigProtocolPPP, Direction: nas.PCONetworkToMS, Containers: slices.Clone(containers)}
+}
+
+func withholdsFiveGSQoS(containers []nas.PCOContainer, useEPCO bool) bool {
+	if len(containers) == 0 || useEPCO {
+		return false
+	}
+
+	pco := fiveGSQoSOptions(containers)
+
+	return !pco.FitsUnextended()
+}
+
+func (m *MME) reportWithheldFiveGSQoS(ctx context.Context, ueConn *UeConn, ref string, ebi uint8, teid uint32) {
+	ueConn.Log(ctx).Warn("the 5GS QoS of a dedicated bearer does not fit the protocol configuration options of a UE without ePCO; the bearer stays in EPS",
+		logger.ERABID(ebi))
+
+	m.Session.DedicatedBearerWithoutFiveGSQoS(ctx, ref, teid)
 }
 
 func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error {
@@ -238,6 +258,8 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 		Activating: true,
 	}, mappedFiveGSQoS: req.MappedFiveGSQoS}
 
+	withheld := withholdsFiveGSQoS(b.mappedFiveGSQoS, ue.ueNetCap.SupportsEPCO())
+
 	plain, setup, err := dedicatedActivation(p.Ebi, b, ue.ueNetCap.SupportsEPCO())
 	if err != nil {
 		ue.mu.Unlock()
@@ -264,6 +286,10 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 	}
 
 	ueConn.Log(ctx).Info("activating dedicated EPS bearer", zap.String("apn", p.Apn), logger.ERABID(ebi), zap.Uint8("qci", b.QCI))
+
+	if withheld {
+		m.reportWithheldFiveGSQoS(ctx, ueConn, req.SessionRef, ebi, req.SGW.TEID)
+	}
 
 	return nil
 }

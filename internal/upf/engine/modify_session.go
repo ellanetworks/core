@@ -146,6 +146,8 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 	qerMap := make(map[uint32]ebpf.QerInfo)
 	maps.Copy(qerMap, session.ListQERs())
 
+	var releasable []uint32
+
 	for _, pdr := range req.UpdatePDRs {
 		old, hadOld := session.LookupPDR(uint32(pdr.PDRID))
 
@@ -169,6 +171,10 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 			})
 		}
 
+		if hadOld && old.TeID != 0 && !old.UEIP.IsValid() && old.TeID != spdrInfo.TeID {
+			releasable = append(releasable, old.TeID)
+		}
+
 		if policyID := modifyPolicyID(req, session); policyID != "" {
 			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(policyID, pdrDirection(spdrInfo))
 		}
@@ -181,6 +187,8 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 	if err := conn.syncClassifier(session); err != nil {
 		return fail(err)
 	}
+
+	supersededTEIDs := make(map[uint32]struct{})
 
 	for _, pdrID := range slices.Sorted(maps.Keys(touched)) {
 		spdrInfo := session.GetPDR(pdrID)
@@ -203,8 +211,16 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		})
 
 		if hadOld && pdrKeyChanged(old, spdrInfo) {
-			if err := unapplyPDR(old, session, bpfObjects); err != nil {
-				return fail(fmt.Errorf("couldn't remove the superseded PDR entry: %w", err))
+			_, removed := supersededTEIDs[old.TeID]
+
+			if old.UEIP.IsValid() || !removed {
+				if err := unapplyPDR(old, session, bpfObjects); err != nil {
+					return fail(fmt.Errorf("couldn't remove the superseded PDR entry: %w", err))
+				}
+			}
+
+			if !old.UEIP.IsValid() {
+				supersededTEIDs[old.TeID] = struct{}{}
 			}
 		}
 
@@ -216,8 +232,6 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 			}
 		}
 	}
-
-	var releasable []uint32
 
 	for _, pdrID := range req.RemovePDRs {
 		removed, ok := session.RemovePDR(uint32(pdrID))

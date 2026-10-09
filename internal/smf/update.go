@@ -255,7 +255,7 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		return nil, fmt.Errorf("error handling N2 message: %w", err)
 	}
 
-	dropped, err := s.bindDownlink(ctx, smContext, Access5G, an)
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, an, nil)
 	if err != nil {
 		return nil, err
 	}

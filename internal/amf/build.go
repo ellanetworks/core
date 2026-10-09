@@ -328,6 +328,14 @@ func BuildRegistrationAccept(
 			}
 		}
 
+		for _, ebis := range ue.FlowEPSBearerIdentities() {
+			for _, ebi := range ebis {
+				if int(ebi) < len(status.Active) {
+					status.Active[ebi] = true
+				}
+			}
+		}
+
 		m.EPSBearerContextStatus = &status
 	}
 

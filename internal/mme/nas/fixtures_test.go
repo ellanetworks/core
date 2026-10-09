@@ -149,7 +149,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 	return bearer, nil
 }
 
-func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
+func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID, _ []models.DedicatedBearerEndpoint) error {
 	f.modifiedENB = enb
 
 	return nil
@@ -190,6 +190,8 @@ func (f *fakeSessionManager) DedicatedBearerActivated(context.Context, string, u
 func (f *fakeSessionManager) DedicatedBearerReleased(context.Context, string, uint32) {}
 
 func (f *fakeSessionManager) DedicatedBearerModified(context.Context, string, uint32, bool) {}
+
+func (f *fakeSessionManager) DedicatedBearerWithoutFiveGSQoS(context.Context, string, uint32) {}
 
 func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref string, accepted bool) {
 	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})

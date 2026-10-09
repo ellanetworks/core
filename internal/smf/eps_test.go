@@ -356,7 +356,7 @@ func TestModifyEPSSessionRegistersIPv6(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatal(err)
 	}
 

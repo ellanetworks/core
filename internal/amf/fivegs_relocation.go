@@ -254,7 +254,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 	for _, c := range conns {
 		snssai := c.Snssai
 
-		ref, n2, err := a.Session.PrepareSmContextFromEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
+		ref, n2, flowEBIs, err := a.Session.PrepareSmContextFromEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to take over a PDN connection as a PDU session; leaving it behind",
 				logger.SUPI(ue.Supi().String()), logger.PDUSessionID(c.PDUSessionID),
@@ -281,6 +281,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 		}
 
 		ue.SetEPSBearerIdentity(c.PDUSessionID, c.EPSBearerIdentity)
+		ue.SetFlowEPSBearerIdentities(c.PDUSessionID, flowEBIs)
 
 		sessions = append(sessions, item)
 		candidates = append(candidates, HandoverCandidate{PDUSessionID: ngap.PDUSessionID(c.PDUSessionID)})
@@ -314,8 +315,13 @@ func (a *AMF) dropUnadmittedSessions(ctx context.Context, ue *UeContext, bearers
 	}
 
 	out := make([]uint8, 0, len(bearers))
-	for _, ebi := range bearers {
+
+	for pduSessionID, ebi := range bearers {
 		out = append(out, ebi)
+
+		if sc, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+			out = append(out, a.Session.HandoverAdmittedFlowEBIs(sc.Ref)...)
+		}
 	}
 
 	slices.Sort(out)

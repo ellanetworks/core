@@ -333,7 +333,7 @@ func TestActiveBearerCarriesItsDownlink(t *testing.T) {
 		t.Fatalf("idle UE's bearer downlink FAR %+v, want buffering with a report naming the bearer (TS 23.401 §5.3.4.3)", far)
 	}
 
-	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, models.FTEID{TEID: 0x77, Addr: netip.MustParseAddr("10.3.0.4")}); err != nil {
+	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, models.FTEID{TEID: 0x77, Addr: netip.MustParseAddr("10.3.0.4")}, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -415,7 +415,7 @@ func TestDefaultBearerMoveKeepsTheVoiceDownlink(t *testing.T) {
 		t.Fatalf("DedicatedBearerActivated: %v", err)
 	}
 
-	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, models.FTEID{TEID: 0x99, Addr: netip.MustParseAddr("10.3.0.9")}); err != nil {
+	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, models.FTEID{TEID: 0x99, Addr: netip.MustParseAddr("10.3.0.9")}, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 

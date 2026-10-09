@@ -155,7 +155,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 var errTransferRolledBack = errors.New("transfer rolled back")
 
-func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error {
+func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error {
 	ctx, span := tracer.Start(ctx, "smf/modify_eps_session",
 		trace.WithAttributes(
 			attrs.SMContextRef(ref),
@@ -169,7 +169,7 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb m
 		return fmt.Errorf("no EPS session %q", ref)
 	}
 
-	dropped, err := s.bindEPSDownlink(ctx, smContext, enb)
+	dropped, err := s.bindEPSDownlink(ctx, smContext, enb, dedicated)
 	if err != nil {
 		span.RecordError(err)
 	}
@@ -190,7 +190,7 @@ func anchorFromFTEID(f models.FTEID) AnchorBinding {
 	return an
 }
 
-func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb models.FTEID) (*droppedSource, error) {
+func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
@@ -198,7 +198,7 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		return nil, fmt.Errorf("EPS session %q has no user plane", smContext.Ref)
 	}
 
-	dropped, err := s.bindDownlink(ctx, smContext, Access4G, anchorFromFTEID(enb))
+	dropped, err := s.bindDownlink(ctx, smContext, Access4G, anchorFromFTEID(enb), dedicated)
 	if err != nil {
 		return nil, err
 	}

@@ -83,6 +83,10 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, err
 	}
 
+	if req.UENetworkCapability != nil {
+		ue.SetUESecurityCapability(relocatedFeatures(*req.UENetworkCapability, req.SecurityContext.UESecurityCapability), nil, MintAuthProofForInterworking())
+	}
+
 	ue.mu.Lock()
 	ue.Ambr = &models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink}
 	ue.mu.Unlock()

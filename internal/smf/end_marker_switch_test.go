@@ -25,7 +25,7 @@ func TestModifyEPSSessionRequestsEndMarkersOnlyWhenSwitching(t *testing.T) {
 	target := models.FTEID{TEID: 0x66, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 4})}
 
 	for _, enb := range []models.FTEID{source, source, target} {
-		if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb); err != nil {
+		if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -54,7 +54,7 @@ func TestModifyEPSSessionSkipsEndMarkersAfterAccessBearerRelease(t *testing.T) {
 	source := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 	target := models.FTEID{TEID: 0x66, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 4})}
 
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, source); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, source, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +62,7 @@ func TestModifyEPSSessionSkipsEndMarkersAfterAccessBearerRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, target); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, target, nil); err != nil {
 		t.Fatal(err)
 	}
 

@@ -1021,3 +1021,39 @@ func TestForwardRelocationCarriesTheVoiceBearer(t *testing.T) {
 		t.Fatalf("dedicated bearer %+v, want it held as an established bearer", b)
 	}
 }
+
+func TestForwardRelocationKeepsTheUEsNetworkCapability(t *testing.T) {
+	m := newTestMME(t)
+	target := newRelocationTarget(t, m)
+	req := relocationRequest()
+	req.UENetworkCapability = &eps.UENetworkCapability{EEA: 0xff, EIA: 0xff, Rest: []byte{0x00, 0x80}}
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("ForwardRelocation: %v", err)
+	}
+
+	ue, ok := m.LookupUe(hoReq.MMEUES1APID)
+	if !ok {
+		t.Fatal("the relocated UE context is gone")
+	}
+
+	got := ue.UeNetCap()
+	if !got.SupportsEPCO() {
+		t.Error("the relocated UE lost its ePCO support, so dedicated bearers carry their 5GS QoS in PCO until the TAU (TS 24.301 §9.9.4.26)")
+	}
+
+	if got.EEA != req.SecurityContext.UESecurityCapability.EEA || got.EIA != req.SecurityContext.UESecurityCapability.EIA {
+		t.Errorf("algorithms EEA %#x EIA %#x, want the security context's %#x %#x", got.EEA, got.EIA,
+			req.SecurityContext.UESecurityCapability.EEA, req.SecurityContext.UESecurityCapability.EIA)
+	}
+}

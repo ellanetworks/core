@@ -102,7 +102,7 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 			continue
 		}
 
-		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, b.Ebi, b.EnbFTEID); err != nil {
+		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, b.Ebi, b.EnbFTEID, ue.dedicatedEndpoints(p, present)); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the RAN endpoint",
 				logger.SUPI(ue.Supi().String()), logger.ERABID(b.Ebi), zap.Error(err))
 
@@ -205,4 +205,19 @@ func (ue *UeContext) hasOtherPDN(p *PdnConnection) bool {
 	}
 
 	return false
+}
+
+func (ue *UeContext) dedicatedEndpoints(p *PdnConnection, present []RANBearer) []models.DedicatedBearerEndpoint {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	var out []models.DedicatedBearerEndpoint
+
+	for _, b := range present {
+		if d, ok := p.Dedicated[b.Ebi]; ok && !d.Activating && !d.Deactivating {
+			out = append(out, models.DedicatedBearerEndpoint{SGWTEID: d.SgwFTEID.TEID, ENB: b.EnbFTEID})
+		}
+	}
+
+	return out
 }

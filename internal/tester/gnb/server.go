@@ -121,6 +121,7 @@ type GnodeB struct {
 	downlinkUDP       map[uint32]map[uint16]int
 	qosFlows          map[int64]map[int64][]uint8
 	modifyRequests    map[int64]int
+	refuseGBRFlows    map[int64]ngap.Cause
 	lastGeneratedTEID uint32
 	nextFwdTEID       uint32
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
@@ -1249,6 +1250,27 @@ func (g *GnodeB) sessionQFI(ranUeID, pduSessionID int64) int64 {
 	}
 
 	return 0
+}
+
+func (g *GnodeB) RefuseNextGBRQoSFlows(ranUeID int64, cause ngap.Cause) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.refuseGBRFlows == nil {
+		g.refuseGBRFlows = make(map[int64]ngap.Cause)
+	}
+
+	g.refuseGBRFlows[ranUeID] = cause
+}
+
+func (g *GnodeB) takeGBRFlowRefusal(ranUeID int64) (ngap.Cause, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	cause, ok := g.refuseGBRFlows[ranUeID]
+	delete(g.refuseGBRFlows, ranUeID)
+
+	return cause, ok
 }
 
 func (g *GnodeB) countModifyRequest(ranUeID int64) {

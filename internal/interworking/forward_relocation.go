@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -55,15 +56,16 @@ type NGRANIdentity struct {
 type RelocationID uint64
 
 type ForwardRelocationRequest struct {
-	ID              RelocationID
-	SUPI            etsi.SUPI
-	SecurityContext EPSSecurityContext
-	PDNConnections  []PDNConnection
-	Target          ENBIdentity
-	SourceToTarget  []byte
-	Cause           s1ap.Cause
-	UEAMBRUplink    models.BitRate
-	UEAMBRDownlink  models.BitRate
+	ID                  RelocationID
+	SUPI                etsi.SUPI
+	SecurityContext     EPSSecurityContext
+	UENetworkCapability *eps.UENetworkCapability
+	PDNConnections      []PDNConnection
+	Target              ENBIdentity
+	SourceToTarget      []byte
+	Cause               s1ap.Cause
+	UEAMBRUplink        models.BitRate
+	UEAMBRDownlink      models.BitRate
 }
 
 type ForwardRelocationResponse struct {

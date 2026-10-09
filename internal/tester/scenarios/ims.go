@@ -86,6 +86,7 @@ const (
 
 	imsTerminationTimeout = 15 * time.Second
 	imsCallAttemptTimeout = 3 * time.Second
+	imsMediaLossGuard     = 6 * time.Second
 
 	imsTestUEAheadSQN = 0x00000100001e
 )
@@ -441,6 +442,14 @@ func RequireIMSCall(ctx context.Context, caller, callee IMSEndpoint, transport s
 }
 
 func RequireIMSCallWithMedia(ctx context.Context, caller, callee IMSEndpoint, transport sip.Transport, media func(context.Context, IMSMedia) error) error {
+	return requireIMSCall(ctx, caller, callee, transport, media, 0)
+}
+
+func RequireIMSCallKept(ctx context.Context, caller, callee IMSEndpoint, transport sip.Transport, media func(context.Context, IMSMedia) error) error {
+	return requireIMSCall(ctx, caller, callee, transport, media, imsMediaLossGuard)
+}
+
+func requireIMSCall(ctx context.Context, caller, callee IMSEndpoint, transport sip.Transport, media func(context.Context, IMSMedia) error, keep time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
 	defer cancel()
 
@@ -468,7 +477,7 @@ func RequireIMSCallWithMedia(ctx context.Context, caller, callee IMSEndpoint, tr
 
 	target := "tel:" + callee.Subscriber.MSISDN
 
-	if err := call(ctx, a, b, target, media); err != nil {
+	if err := call(ctx, a, b, target, media, keep); err != nil {
 		return fmt.Errorf("call from %s to %s over %s: %w", caller.Subscriber.IMSI, target, transport, err)
 	}
 
@@ -608,7 +617,7 @@ func callMedia(c *testue.Call) (IMSMedia, error) {
 	return IMSMedia{Caller: caller, Callee: callee}, nil
 }
 
-func call(ctx context.Context, a, b *imsUE, target string, media func(context.Context, IMSMedia) error) error {
+func call(ctx context.Context, a, b *imsUE, target string, media func(context.Context, IMSMedia) error, keep time.Duration) error {
 	ac, bc, err := establishCall(ctx, a, b, target)
 	if err != nil {
 		return err
@@ -622,6 +631,16 @@ func call(ctx context.Context, a, b *imsUE, target string, media func(context.Co
 
 		if err := media(ctx, m); err != nil {
 			return fmt.Errorf("media: %w", err)
+		}
+	}
+
+	if keep > 0 {
+		select {
+		case <-ac.Done():
+			return fmt.Errorf("the call ended by %s within %s of the last media check, want it kept with no bearer loss reported", ac.End(), keep)
+		case <-bc.Done():
+			return fmt.Errorf("the call ended by %s within %s of the last media check, want it kept with no bearer loss reported", bc.End(), keep)
+		case <-time.After(keep):
 		}
 	}
 

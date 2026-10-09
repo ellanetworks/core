@@ -35,6 +35,8 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 
 	ids := make([]int64, 0, len(req.PDUSessionResourceModify))
 	accepted := make(map[int64][]uint8)
+	failed := make(map[int64][]uint8)
+	refusal, refuse := gnb.takeGBRFlowRefusal(ranUeNgapID)
 
 	for _, item := range req.PDUSessionResourceModify {
 		pduSessionID := int64(item.PDUSessionID)
@@ -52,6 +54,11 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 			var dedicated []uint8
 
 			for _, f := range modInfo.Flows {
+				if refuse && defaultQFI != 0 && f.QFI != defaultQFI {
+					failed[pduSessionID] = append(failed[pduSessionID], uint8(f.QFI))
+					continue
+				}
+
 				accepted[pduSessionID] = append(accepted[pduSessionID], uint8(f.QFI))
 
 				if defaultQFI != 0 && f.QFI != defaultQFI {
@@ -91,6 +98,8 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 		RANUENGAPID:   ranUeNgapID,
 		PDUSessionIDs: ids,
 		AcceptedQFIs:  accepted,
+		FailedQFIs:    failed,
+		FailureCause:  refusal,
 	}); err != nil {
 		return fmt.Errorf("failed to send PDUSessionResourceModifyResponse: %w", err)
 	}

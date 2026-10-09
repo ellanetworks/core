@@ -160,13 +160,17 @@ func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, str
 	return nil, nil
 }
 
-func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
-	return "", nil
-}
-
-func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, error) {
+func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
 	return "", nil, nil
 }
+
+func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, []uint8, error) {
+	return "", nil, nil, nil
+}
+
+func (f *fakeSmf) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
+
+func (f *fakeSmf) ReleaseInactiveEPSBearers(context.Context, string, []uint8) {}
 
 func (f *fakeSmf) UpdateSmContextN2HandoverPreparing(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil

@@ -431,3 +431,110 @@ func TestDeletingASessionRemovesItsSharedUplinkEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestModifySessionMovesAnUplinkPDRToTheTargetEndpoint(t *testing.T) {
+	if os.Geteuid() != 0 {
+		const msg = "loading eBPF maps requires root/CAP_BPF"
+		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
+			t.Fatal(msg)
+		}
+
+		t.Skip(msg + "; skipping")
+	}
+
+	if err := rlimit.RemoveMemlock(); err != nil {
+		t.Fatalf("cannot remove memlock rlimit: %v", err)
+	}
+
+	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
+	if err := obj.Load(); err != nil {
+		t.Fatalf("load eBPF objects: %v", err)
+	}
+
+	t.Cleanup(func() { _ = obj.Close() })
+
+	rm, err := engine.NewFteIDResourceManager(8)
+	if err != nil {
+		t.Fatalf("new fteid resource manager: %v", err)
+	}
+
+	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
+	if err != nil {
+		t.Fatalf("new session engine: %v", err)
+	}
+
+	ctx := context.Background()
+
+	const seid = uint64(53)
+
+	sdf := []models.SDFFilter{{Direction: models.FilterUplink, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), RemotePort: 49000}}
+	rtcp := []models.SDFFilter{{Direction: models.FilterUplink, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), RemotePort: 49001}}
+
+	resp, err := conn.EstablishSession(ctx, &models.EstablishRequest{
+		SEID: seid,
+		IMSI: "001010000000001",
+		URRs: []models.URR{{URRID: 1}, {URRID: 2}},
+		QERs: []models.QER{{QERID: 1}},
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+		PDRs: []models.PDR{
+			{PDRID: 1, Precedence: 256, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, QFI: 1}},
+			{PDRID: 2, FARID: 1, QERID: 1, URRID: 2, PDI: models.PDI{UEIPAddress: netip.MustParseAddr("10.0.0.33")}},
+			{PDRID: 256, Precedence: 1, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, QFI: 2, SDFFilters: sdf}},
+			{PDRID: 272, Precedence: 2, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, QFI: 2, SDFFilters: rtcp}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("establish: %v", err)
+	}
+
+	prepared, err := conn.ModifySession(ctx, &models.ModifyRequest{
+		SEID: seid,
+		UpdatePDRs: []models.PDR{
+			{PDRID: 259, Precedence: 1, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 16}, SDFFilters: sdf}},
+			{PDRID: 275, Precedence: 2, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 16}, SDFFilters: rtcp}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("prepare the target endpoint: %v", err)
+	}
+
+	target := prepared.ChosenTEIDs[16]
+	if target == 0 || target == resp.N3TEID {
+		t.Fatalf("chosen TEIDs %v, want a bearer TEID next to %d", prepared.ChosenTEIDs, resp.N3TEID)
+	}
+
+	committed, err := conn.ModifySession(ctx, &models.ModifyRequest{
+		SEID: seid,
+		UpdatePDRs: []models.PDR{
+			{PDRID: 256, Precedence: 1, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 16}, SDFFilters: sdf}},
+			{PDRID: 272, Precedence: 2, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 16}, SDFFilters: rtcp}},
+		},
+		RemovePDRs: []uint16{259, 275},
+	})
+	if err != nil {
+		t.Fatalf("commit to the target endpoint: %v", err)
+	}
+
+	if got := conn.GetSession(seid).GetPDR(256).TeID; got != target || committed.ChosenTEIDs[16] != target {
+		t.Fatalf("uplink PDR on TEID %d, chosen %v, want the prepared %d", got, committed.ChosenTEIDs, target)
+	}
+
+	back, err := conn.ModifySession(ctx, &models.ModifyRequest{
+		SEID: seid,
+		UpdatePDRs: []models.PDR{
+			{PDRID: 256, Precedence: 1, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, QFI: 2, SDFFilters: sdf}},
+			{PDRID: 272, Precedence: 2, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, QFI: 2, SDFFilters: rtcp}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("move back to the session endpoint: %v", err)
+	}
+
+	if got := conn.GetSession(seid).GetPDR(256).TeID; got != resp.N3TEID {
+		t.Fatalf("uplink PDR on TEID %d, want the session's %d", got, resp.N3TEID)
+	}
+
+	if _, ok := back.ChosenTEIDs[16]; ok {
+		t.Fatalf("chosen TEIDs %v still hold the bearer TEID nothing uses", back.ChosenTEIDs)
+	}
+}

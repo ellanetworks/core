@@ -268,7 +268,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 				},
 			})
 
-			if d.Access == Access5G && b.TargetUplink {
+			if b.TargetUplink {
 				pdrs = append(pdrs, models.PDR{
 					PDRID:              pdrIDRule(b.Slot, r.Index, rulePDRTargetUplink),
 					Precedence:         filtersPrecedence(uplink),
@@ -276,11 +276,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 					FARID:              farIDUplink,
 					QERID:              qerID,
 					URRID:              urrIDUplink,
-					PDI: models.PDI{
-						SourceInterface: models.InterfaceAccess,
-						LocalFTEID:      &models.FTEID{ChooseID: chooseIDBearer(b.Slot)},
-						SDFFilters:      uplink,
-					},
+					PDI:                d.targetUplinkPDI(b, uplink),
 				})
 			}
 		}
@@ -340,6 +336,23 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 	}
 
 	return pdrs, fars, qers
+}
+
+func (d dataPlane) targetUplinkPDI(b bearerLeg, uplink []models.SDFFilter) models.PDI {
+	if d.Access == Access5G {
+		return models.PDI{
+			SourceInterface: models.InterfaceAccess,
+			LocalFTEID:      &models.FTEID{ChooseID: chooseIDBearer(b.Slot)},
+			SDFFilters:      uplink,
+		}
+	}
+
+	return models.PDI{
+		SourceInterface: models.InterfaceAccess,
+		LocalFTEID:      &models.FTEID{ChooseID: chooseIDSession},
+		QFI:             b.QFI,
+		SDFFilters:      uplink,
+	}
 }
 
 func (d dataPlane) bearerDownlinkAction() models.ApplyAction {

@@ -215,3 +215,54 @@ func TestSubComponentFlowStatusOverridesTheComponent(t *testing.T) {
 		t.Fatalf("rules %+v, want only the enabled RTP flow", rules)
 	}
 }
+
+func TestMediaRulesVideoHasALowerPreemptableARP(t *testing.T) {
+	video := audioComponent()
+	video.Number, video.Type = 2, ptr(rx.MediaVideo)
+
+	rules, err := mediaRules("af;1", []rx.MediaComponent{audioComponent(), video})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := models.Arp{PriorityLevel: 4, PreemptCap: models.PreemptionCapabilityNotPreempt, PreemptVuln: models.PreemptionVulnerabilityPreemptable}
+	if got := rules[flowKey{2, 1}].ARP; got != want || rules[flowKey{2, 2}].ARP != want {
+		t.Fatalf("video ARP %+v, want %+v so the RAN drops video before voice (TS 23.401 §4.7.3 NOTE 4)", got, want)
+	}
+
+	if voice := rules[flowKey{1, 1}].ARP; voice.PriorityLevel != 2 {
+		t.Fatalf("voice ARP %+v, want priority 2 unchanged", voice)
+	}
+}
+
+func TestMediaRulesGuaranteedRateFromMinRequestedBandwidth(t *testing.T) {
+	c := audioComponent()
+	c.MinRequestedBandwidthUL, c.MinRequestedBandwidthDL = ptr(rx.Bandwidth(24000)), ptr(rx.Bandwidth(90000))
+
+	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rtp, rtcp := rules[flowKey{1, 1}], rules[flowKey{1, 2}]
+
+	switch {
+	case rtp.GBR.Uplink.Bps() != 24000:
+		t.Fatalf("RTP GBR UL %d, want Min-Requested-Bandwidth-UL 24000 (TS 29.213 Table 6.3.1)", rtp.GBR.Uplink.Bps())
+	case rtp.GBR.Downlink.Bps() != 41000:
+		t.Fatalf("RTP GBR DL %d, want it capped at the MBR 41000", rtp.GBR.Downlink.Bps())
+	case rtcp.GBR != rtcp.MBR:
+		t.Fatalf("RTCP GBR %+v, want its MBR %+v", rtcp.GBR, rtcp.MBR)
+	}
+}
+
+func TestMediaRulesGuaranteedRateDefaultsToTheMBR(t *testing.T) {
+	rules, err := mediaRules("af;1", []rx.MediaComponent{audioComponent()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rtp := rules[flowKey{1, 1}]; rtp.GBR != rtp.MBR {
+		t.Fatalf("RTP GBR %+v, want the MBR %+v without Min-Requested-Bandwidth", rtp.GBR, rtp.MBR)
+	}
+}

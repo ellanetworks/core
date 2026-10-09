@@ -135,6 +135,30 @@ func (ue *UeContext) SetEPSBearerIdentity(pduSessionID, ebi uint8) {
 	}
 }
 
+func (ue *UeContext) SetFlowEPSBearerIdentities(pduSessionID uint8, ebis []uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if sc, ok := ue.SmContextList[pduSessionID]; ok {
+		sc.FlowEBIs = slices.Clone(ebis)
+	}
+}
+
+func (ue *UeContext) FlowEPSBearerIdentities() map[uint8][]uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	out := make(map[uint8][]uint8, len(ue.SmContextList))
+
+	for pduSessionID, sc := range ue.SmContextList {
+		if len(sc.FlowEBIs) > 0 {
+			out[pduSessionID] = slices.Clone(sc.FlowEBIs)
+		}
+	}
+
+	return out
+}
+
 func (ue *UeContext) EPSBearerIdentity(pduSessionID uint8) (uint8, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

@@ -162,7 +162,7 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -227,7 +227,7 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -318,7 +318,7 @@ func TestTransferEPSTo5GSAdoptsTheAssignedBearerIdentity(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -556,7 +556,7 @@ func TestTransferEPSTo5GSStampsTheDownlinkForN3(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -619,7 +619,7 @@ func TestTransferEPSTo5GSKeepsTheSessionWhenTheAcceptCannotBeDelivered(t *testin
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -672,7 +672,7 @@ func TestFailedCommitLeavesTheSessionMovable(t *testing.T) {
 		upf.mu.Unlock()
 
 		enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-		if err := s.ModifyEPSSession(ctx, sc.Ref, epsTestEBI, enb); err == nil {
+		if err := s.ModifyEPSSession(ctx, sc.Ref, epsTestEBI, enb, nil); err == nil {
 			t.Fatal("the bind reported success though the UPF refused it")
 		}
 
@@ -697,7 +697,7 @@ func TestFailedCommitLeavesTheSessionMovable(t *testing.T) {
 		}
 
 		enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-		if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+		if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 			t.Fatalf("ModifyEPSSession: %v", err)
 		}
 
@@ -822,7 +822,7 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -856,7 +856,7 @@ func TestTransferKeepsThePolicyAssociationsDecision(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -925,7 +925,7 @@ func TestTransferRegistersTheRAEntryWithTheTargetQFI(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -980,7 +980,7 @@ func TestReleaseEPSSessionByTransferState(t *testing.T) {
 
 		enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 
-		return s.ModifyEPSSession(context.Background(), ref, epsTestEBI, enb)
+		return s.ModifyEPSSession(context.Background(), ref, epsTestEBI, enb, nil)
 	}
 
 	t.Run("prepared: 5GS is still serving it", func(t *testing.T) {
@@ -1078,7 +1078,7 @@ func TestRefusedCommitRestoresTheSourceBinding(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -1141,7 +1141,7 @@ func TestBindingTo5GSIsRefusedWithoutACommit(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -1204,7 +1204,7 @@ func TestTransferEPSTo5GSKeepsTheIPv6IID(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 

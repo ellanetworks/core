@@ -16,6 +16,7 @@ const (
 	qciConversationalVoice  = 1
 	qciConversationalVideo  = 2
 	voiceARPPriority        = 2
+	videoARPPriority        = 4
 	rtcpBandwidthPercentage = 5
 	firstFilterPrecedence   = 32
 	defaultAudioBitRate     = 49000
@@ -35,7 +36,7 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 	precedence := uint8(firstFilterPrecedence)
 
 	for _, c := range components {
-		qci, ok := mediaQCI(c)
+		qci, arp, ok := mediaQoS(c)
 		if !ok {
 			continue
 		}
@@ -53,7 +54,7 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 			rule := smf.PCCRule{
 				ID:   fmt.Sprintf("%s#%d.%d", sessionID, c.Number, sub.FlowNumber),
 				QCI:  qci,
-				ARP:  models.Arp{PriorityLevel: voiceARPPriority, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable},
+				ARP:  arp,
 				Gate: gate(status, sub),
 			}
 
@@ -81,7 +82,7 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 
 			ul, dl := subComponentRates(c, sub, hasUL, hasDL)
 			rule.MBR = models.Ambr{Uplink: models.BitRateFromBps(ul), Downlink: models.BitRateFromBps(dl)}
-			rule.GBR = rule.MBR
+			rule.GBR = guaranteedRates(c, sub, rule.MBR)
 			rules[flowKey{component: c.Number, flow: sub.FlowNumber}] = rule
 		}
 	}
@@ -135,19 +136,38 @@ func maxRate(a, b models.Ambr) models.Ambr {
 	}
 }
 
-func mediaQCI(c rx.MediaComponent) (uint8, bool) {
+func mediaQoS(c rx.MediaComponent) (uint8, models.Arp, bool) {
 	if c.Type == nil {
-		return 0, false
+		return 0, models.Arp{}, false
 	}
 
 	switch *c.Type {
 	case rx.MediaAudio:
-		return qciConversationalVoice, true
+		return qciConversationalVoice, models.Arp{PriorityLevel: voiceARPPriority, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable}, true
 	case rx.MediaVideo:
-		return qciConversationalVideo, true
+		return qciConversationalVideo, models.Arp{PriorityLevel: videoARPPriority, PreemptCap: models.PreemptionCapabilityNotPreempt, PreemptVuln: models.PreemptionVulnerabilityPreemptable}, true
 	default:
-		return 0, false
+		return 0, models.Arp{}, false
 	}
+}
+
+func guaranteedRates(c rx.MediaComponent, sub rx.MediaSubComponent, mbr models.Ambr) models.Ambr {
+	if sub.FlowUsage != nil && *sub.FlowUsage == rx.FlowUsageRTCP {
+		return mbr
+	}
+
+	return models.Ambr{
+		Uplink:   guaranteed(c.MinRequestedBandwidthUL, mbr.Uplink),
+		Downlink: guaranteed(c.MinRequestedBandwidthDL, mbr.Downlink),
+	}
+}
+
+func guaranteed(minRequested *rx.Bandwidth, mbr models.BitRate) models.BitRate {
+	if minRequested == nil {
+		return mbr
+	}
+
+	return models.BitRateFromBps(min(uint64(*minRequested), mbr.Bps()))
 }
 
 func defaultBandwidth(c rx.MediaComponent) *rx.Bandwidth {

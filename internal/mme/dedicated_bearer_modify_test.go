@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -413,5 +414,19 @@ func TestIdleARPChangeIsCommittedWithoutPaging(t *testing.T) {
 
 	if _, b := m.LookupDedicated(ue, 6); b.ARP.PriorityLevel != 1 {
 		t.Fatalf("bearer ARP %+v, want priority 1", b.ARP)
+	}
+}
+
+func TestRANEndpointsBindTheVoiceBearerWithItsPDNConnection(t *testing.T) {
+	m, ue, _, fake := activeVoiceBearer(t)
+
+	defaultENB := models.FTEID{TEID: 0x81, Addr: netip.MustParseAddr("10.3.0.4")}
+	voiceENB := models.FTEID{TEID: 0x82, Addr: netip.MustParseAddr("10.3.0.4")}
+
+	m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6, EnbFTEID: voiceENB}, {Ebi: DefaultERABID, EnbFTEID: defaultENB}}})
+
+	want := []models.DedicatedBearerEndpoint{{SGWTEID: voiceSGWTEID, ENB: voiceENB}}
+	if fake.modifiedENB != defaultENB || !slices.Equal(fake.boundDedicated, want) {
+		t.Fatalf("default bound to %+v with %+v, want %+v with %+v so the voice downlink never takes the default bearer", fake.modifiedENB, fake.boundDedicated, defaultENB, want)
 	}
 }

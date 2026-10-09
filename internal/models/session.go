@@ -48,7 +48,7 @@ type EstablishResponse struct {
 
 const (
 	MaxSessionSDFRules = 32
-	MaxSessionSDFPDRs  = 16
+	MaxSessionSDFPDRs  = 32
 )
 
 // PDR describes a Packet Detection Rule for the UPF session API.

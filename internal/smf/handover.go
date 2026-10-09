@@ -233,7 +233,7 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("session %q has no prepared handover to complete", smContext.Ref)
 	}
 
-	dropped, err := s.bindDownlink(ctx, smContext, Access5G, *target)
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, *target, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +295,7 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.abandonTransferTo(Access5G)
+	s.abandonTransfer(ctx, smContext, Access5G)
 
 	smContext.Mutex.Lock()
 	smContext.handoverForwarding = ngap.DataForwardingNone
@@ -345,6 +345,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 
 	if smContext.pending != nil && smContext.pending.to == Access5G {
 		smContext.clearPendingLocked()
+		s.clearTargetUplinkLocked(ctx, smContext)
 	}
 
 	if smContext.handoverTargetAN == nil {

@@ -5,6 +5,7 @@ package gnb
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
@@ -31,6 +32,8 @@ type HandoverAdmissionOpts struct {
 	RANUENGAPID int64
 
 	TargetToSource []byte
+
+	RefusedQFIs []uint8
 }
 
 // AdmitHandover takes over the PDU sessions the AMF hands to this node and
@@ -60,6 +63,7 @@ func (g *GnodeB) AdmitHandover(opts *HandoverAdmissionOpts) ([]PDUSessionResult,
 
 		info.PDUSessionID = pduSessionID
 		info.DLTEID = g.allocTEID()
+		info.Flows = slices.DeleteFunc(info.Flows, func(q uint8) bool { return slices.Contains(opts.RefusedQFIs, q) })
 
 		g.storePDUSession(opts.RANUENGAPID, info)
 
@@ -67,6 +71,7 @@ func (g *GnodeB) AdmitHandover(opts *HandoverAdmissionOpts) ([]PDUSessionResult,
 			PDUSessionID: pduSessionID,
 			DLTEID:       info.DLTEID,
 			DLIP:         g.N3Address,
+			QFIs:         slices.Clone(info.Flows),
 		})
 
 		sessions = append(sessions, PDUSessionResult{

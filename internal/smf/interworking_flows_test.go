@@ -246,7 +246,7 @@ func interworkingEPSVoice(t *testing.T) (*smf.SMF, *fakeMME, string) {
 		t.Fatal(err)
 	}
 
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -347,11 +347,11 @@ func interworkingCall(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, string) {
 	return s, pcf, upf, ref
 }
 
-func uplinkPDRsOn(m *models.ModifyRequest, teidChoice uint8) int {
+func bearerTEIDUplinkPDRs(m *models.ModifyRequest) int {
 	n := 0
 
 	for _, p := range m.UpdatePDRs {
-		if p.PDI.SourceInterface == models.InterfaceAccess && p.PDI.LocalFTEID != nil && p.PDI.LocalFTEID.ChooseID == teidChoice && len(p.PDI.SDFFilters) > 0 {
+		if p.PDI.SourceInterface == models.InterfaceAccess && p.PDI.LocalFTEID != nil && p.PDI.LocalFTEID.ChooseID == 16 && len(p.PDI.SDFFilters) > 0 {
 			n++
 		}
 	}
@@ -377,11 +377,11 @@ func TestHandoverToEPSCarriesTheVoiceBearer(t *testing.T) {
 		t.Fatalf("dedicated bearer context %+v, want EBI %d at QCI 1 with its own S-GW TEID", d, flowEBI)
 	}
 
-	if uplinkPDRsOn(lastModify(t, upf), 16) == 0 {
+	if bearerTEIDUplinkPDRs(lastModify(t, upf)) == 0 {
 		t.Fatal("no uplink on the bearer's own TEID at preparation (TS 23.502 §4.11.1.2.1 step 2b)")
 	}
 
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -430,7 +430,7 @@ func TestFlowWithoutEBIIsReleasedAtTheMoveToEPS(t *testing.T) {
 		t.Fatalf("dedicated bearer contexts %+v, want none for a flow without EBI", bearer.Dedicated)
 	}
 
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -452,7 +452,7 @@ func TestAbandonedMoveRemovesTheTargetUplink(t *testing.T) {
 	}
 
 	m := lastModify(t, upf)
-	if uplinkPDRsOn(m, 16) != 0 || len(m.RemovePDRs) == 0 {
+	if bearerTEIDUplinkPDRs(m) != 0 || len(m.RemovePDRs) == 0 {
 		t.Fatalf("modification %+v, want the target uplink removed when the MME drops the move", m)
 	}
 }
@@ -474,7 +474,7 @@ func TestIdleMoveToEPSCarriesTheVoiceBearer(t *testing.T) {
 		t.Fatalf("dedicated bearer contexts %+v, want the held voice flow (TS 23.502 §4.11.1.3.2 step 5c)", bearer.Dedicated)
 	}
 
-	if uplinkPDRsOn(lastModify(t, upf), 16) == 0 {
+	if bearerTEIDUplinkPDRs(lastModify(t, upf)) == 0 {
 		t.Fatal("the voice bearer has no uplink on its own TEID after the idle move")
 	}
 }
@@ -519,5 +519,69 @@ func TestUEDeletingTheMappedBearerKeepsTheFlowIn5GS(t *testing.T) {
 
 	if !slices.Equal(amfCb.released(), []uint8{flowEBI}) {
 		t.Fatalf("released EBIs %v, want %d back to the AMF", amfCb.released(), flowEBI)
+	}
+}
+
+func TestMoveToEPSCarriesTheUEsViewOfARealignedFlow(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ref := establish5GSWithEBI(t, s, sessionEBI).Ref
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, nil, []uint8{voiceQFI})
+
+	bearer, err := s.CreateEPSSession(context.Background(), epsMove(movedPDUSessionID))
+	if err != nil {
+		t.Fatalf("move to EPS: %v", err)
+	}
+
+	if len(bearer.Dedicated) != 1 || len(bearer.Dedicated[0].Filters) != 4 || bearer.Dedicated[0].GBR.Uplink.Bps() != 82000 {
+		t.Fatalf("dedicated bearer contexts %+v, want the UE's mapped EPS bearer with both calls (TS 24.501 §6.1.4.1)", bearer.Dedicated)
+	}
+}
+
+func TestHandoverToEPSBindsTheVoiceBearerWithTheDefaultBearer(t *testing.T) {
+	s, _, upf, ref := interworkingCall(t)
+	ctx := context.Background()
+
+	bearer, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID))
+	if err != nil {
+		t.Fatalf("move to EPS: %v", err)
+	}
+
+	defaultENB := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	voiceENB := models.FTEID{TEID: 0x6002, Addr: netip.MustParseAddr("192.168.40.10")}
+
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, defaultENB,
+		[]models.DedicatedBearerEndpoint{{SGWTEID: bearer.Dedicated[0].SGW.TEID, ENB: voiceENB}}); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	m := lastModify(t, upf)
+	for _, teid := range []uint32{defaultENB.TEID, voiceENB.TEID} {
+		if !slices.ContainsFunc(m.UpdateFARs, func(f models.FAR) bool {
+			return f.ForwardingParameters != nil && f.ForwardingParameters.OuterHeaderCreation != nil && f.ForwardingParameters.OuterHeaderCreation.TEID == teid
+		}) {
+			t.Fatalf("FARs %+v, want the default and voice downlinks switched in one modification (no voice on the default bearer)", m.UpdateFARs)
+		}
+	}
+
+	before := modifyCount(upf)
+
+	if err := s.DedicatedBearerMoved(ctx, ref, bearer.Dedicated[0].SGW.TEID, voiceENB); err != nil {
+		t.Fatalf("DedicatedBearerMoved: %v", err)
+	}
+
+	if got := modifyCount(upf) - before; got != 0 {
+		t.Fatalf("%d PFCP modifications for an endpoint already bound, want 0", got)
 	}
 }

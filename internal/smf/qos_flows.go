@@ -1164,12 +1164,19 @@ func (s *SMF) reportLostRulesLocked(sc *SMContext, lost []PCCRule) {
 		return
 	}
 
+	s.reportLostLocked(sc, lost)
+	s.reconcileAfter(sc.Ref, 0)
+}
+
+func (s *SMF) reportLostLocked(sc *SMContext, lost []PCCRule) {
+	if len(lost) == 0 {
+		return
+	}
+
 	reports := sc.ruleReportsLocked(lost)
 	sc.recordFailedRulesLocked(lost)
 
 	go s.reportFailedRules(sc, reports, BearerReleased)
-
-	s.reconcileAfter(sc.Ref, 0)
 }
 
 func (s *SMF) admitFlowsLocked(ctx context.Context, sc *SMContext, accepted []uint8) {

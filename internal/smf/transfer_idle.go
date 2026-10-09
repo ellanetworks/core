@@ -16,8 +16,21 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, error) {
-	return s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, []uint8, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+	if err != nil {
+		return "", nil, err
+	}
+
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return "", nil, fmt.Errorf("%w: session %q left the pool as it moved", ErrSessionNotMovable, ref)
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	return ref, sc.flowEBIsLocked(), nil
 }
 
 func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
@@ -71,7 +84,7 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 
 	dropped, err := s.commitIdleTransfer(ctx, sc, access)
 	if err != nil {
-		sc.abandonTransferTo(access)
+		s.abandonTransfer(ctx, sc, access)
 
 		return "", err
 	}
@@ -104,14 +117,12 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	next.AN = AnchorBinding{}
 	next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 
-	var flows flowsOnEPS
-
 	if access == Access4G {
 		s.interruptFlowProcedureLocked(ctx, sc)
-
-		flows = sc.flowsOnEPSLocked(false)
-		next.Bearers = flows.legs
 	}
+
+	flows := sc.movingFlowsLocked(access, false)
+	next.Bearers = flows.legs
 
 	if err := s.applyDataPlane(ctx, sc, next, sc.PolicyData.PolicyID); err != nil {
 		commit.restore()
@@ -119,9 +130,7 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 		return nil, err
 	}
 
-	if access == Access4G {
-		s.adoptFlowsOnEPSLocked(ctx, sc, flows)
-	}
+	s.adoptMovedFlowsLocked(ctx, sc, flows, access == Access4G)
 
 	return sc.finishTransferCommit(commit), nil
 }

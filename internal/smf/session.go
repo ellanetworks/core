@@ -323,7 +323,7 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 		return fmt.Errorf("session %q: %w", sc.Ref, err)
 	}
 
-	if next.Downlink != DownlinkForwarding || next.Access != sc.Tunnel.Access {
+	if next.Downlink != DownlinkForwarding {
 		next.Bearers = slices.Clone(next.Bearers)
 
 		for i := range next.Bearers {
@@ -348,7 +348,7 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 	return nil
 }
 
-func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType, an AnchorBinding) (*droppedSource, error) {
+func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType, an AnchorBinding, dedicated []models.DedicatedBearerEndpoint) (*droppedSource, error) {
 	commit, err := s.beginTransferCommit(ctx, sc, access)
 	if err != nil {
 		return nil, fmt.Errorf("failed to move session %q to %s: %w", sc.Ref, access, err)
@@ -363,16 +363,15 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 
 	policyID := sc.policyID()
 
-	var flows flowsOnEPS
+	var flows movingFlows
 
 	if commit != nil {
 		next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
-
-		if access == Access4G {
-			flows = sc.flowsOnEPSLocked(true)
-			next.Bearers = flows.legs
-		}
+		flows = sc.movingFlowsLocked(access, true)
+		next.Bearers = flows.legs
 	}
+
+	bound := sc.bindBearerEndpointsLocked(&next, dedicated)
 
 	if err := s.applyDataPlane(ctx, sc, next, policyID); err != nil {
 		if commit == nil {
@@ -386,12 +385,16 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 		return nil, fmt.Errorf("%w: %v", errTransferRolledBack, err)
 	}
 
-	if commit == nil {
-		return nil, nil
+	if commit != nil {
+		s.adoptMovedFlowsLocked(ctx, sc, flows, true)
 	}
 
-	if access == Access4G {
-		s.adoptFlowsOnEPSLocked(ctx, sc, flows)
+	for b, enb := range bound {
+		b.enb = enb
+	}
+
+	if commit == nil {
+		return nil, nil
 	}
 
 	return sc.finishTransferCommit(commit), nil
@@ -422,4 +425,30 @@ func (sc *SMContext) policyID() string {
 	}
 
 	return sc.PolicyData.PolicyID
+}
+
+func (sc *SMContext) bindBearerEndpointsLocked(next *dataPlane, endpoints []models.DedicatedBearerEndpoint) map[*dedicatedBearer]models.FTEID {
+	bound := make(map[*dedicatedBearer]models.FTEID, len(endpoints))
+
+	if len(endpoints) == 0 {
+		return bound
+	}
+
+	next.Bearers = slices.Clone(next.Bearers)
+
+	for i, l := range next.Bearers {
+		teid := sc.Tunnel.bearerTEID(l.Slot)
+
+		e := slices.IndexFunc(endpoints, func(e models.DedicatedBearerEndpoint) bool { return teid != 0 && e.SGWTEID == teid })
+		b := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.slot == l.Slot && b.state != dedicatedReleasing })
+
+		if e < 0 || b < 0 {
+			continue
+		}
+
+		next.Bearers[i].AN = anchorFromFTEID(endpoints[e].ENB)
+		bound[sc.dedicated[b]] = endpoints[e].ENB
+	}
+
+	return bound
 }

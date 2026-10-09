@@ -14,7 +14,7 @@ import (
 
 const (
 	MaxClassifierRules   = 32
-	MaxClassifierTargets = 16
+	MaxClassifierTargets = 32
 
 	ClassifierUplink   = 1
 	ClassifierDownlink = 2

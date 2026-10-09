@@ -8,6 +8,7 @@ package nas
 
 import (
 	"context"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
@@ -421,8 +422,28 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 		return
 	}
 
-	for pduSessionID, ebi := range ue.EPSBearerIdentities() {
-		if int(ebi) < len(status.Active) && status.Active[ebi] {
+	inactive := func(ebi uint8) bool { return int(ebi) >= len(status.Active) || !status.Active[ebi] }
+
+	defaults := ue.EPSBearerIdentities()
+
+	for pduSessionID, ebis := range ue.FlowEPSBearerIdentities() {
+		if inactive(defaults[pduSessionID]) {
+			continue
+		}
+
+		gone := slices.DeleteFunc(ebis, func(ebi uint8) bool { return !inactive(ebi) })
+
+		smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID)
+		if len(gone) == 0 || !ok {
+			continue
+		}
+
+		ue.ReleaseFlowEPSBearerIdentities(pduSessionID, smContext.Ref, gone)
+		amfInstance.Session.ReleaseInactiveEPSBearers(ctx, smContext.Ref, gone)
+	}
+
+	for pduSessionID, ebi := range defaults {
+		if !inactive(ebi) {
 			continue
 		}
 

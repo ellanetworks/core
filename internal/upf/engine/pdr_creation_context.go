@@ -99,6 +99,10 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRI
 	spdrInfo.SDF = slices.Clone(pdr.PDI.SDFFilters)
 
 	if pdr.PDI.LocalFTEID != nil {
+		if spdrInfo.ChooseID != pdr.PDI.LocalFTEID.ChooseID {
+			spdrInfo.TeID = 0
+		}
+
 		spdrInfo.ChooseID = pdr.PDI.LocalFTEID.ChooseID
 
 		if spdrInfo.TeID != 0 {

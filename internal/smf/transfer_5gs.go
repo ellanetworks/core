@@ -62,7 +62,7 @@ func (s *SMF) transferTo5GS(
 
 	pco, err := parsePDUSessionRequest(req)
 	if err != nil {
-		sc.abandonTransferTo(Access5G)
+		s.abandonTransfer(ctx, sc, Access5G)
 
 		return "", rejectTransfer5GS(pduSessionID, pti, fgs.GSMCauseRequestRejectedUnspecified),
 			fmt.Errorf("parse PDU session request failed: %w", err)
@@ -81,7 +81,7 @@ func (s *SMF) transferTo5GS(
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), logger.DNN(dnn))
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, retained, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
-		sc.abandonTransferTo(Access5G)
+		s.abandonTransfer(ctx, sc, Access5G)
 
 		return "", nil, fmt.Errorf("failed to send the establishment accept for a moved session: %w", err)
 	}
@@ -89,7 +89,7 @@ func (s *SMF) transferTo5GS(
 	return sc.Ref, nil, nil
 }
 
-func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (ref string, n2 []byte, err error) {
+func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (ref string, n2 []byte, flowEBIs []uint8, err error) {
 	defer func() {
 		recordSessionEstablishment(ctx, metrics.RAT5G, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()
@@ -108,53 +108,56 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
-		return "", nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
+		return "", nil, nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
 	}
 
 	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
-		return "", nil, fmt.Errorf("no subscription for a PDN connection arriving on 5GS: %w", err)
+		return "", nil, nil, fmt.Errorf("no subscription for a PDN connection arriving on 5GS: %w", err)
 	}
 
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
-		return "", nil, fmt.Errorf("failed to prepare a PDN connection move onto 5GS: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to prepare a PDN connection move onto 5GS: %w", err)
 	}
 
-	n2, err = handoverRequestTransferForArrival(sc, epsBearerIdentity)
+	n2, flowEBIs, err = s.handoverRequestTransferForArrival(ctx, sc, epsBearerIdentity)
 	if err != nil {
-		sc.abandonTransferTo(Access5G)
+		s.abandonTransfer(ctx, sc, Access5G)
 
-		return "", nil, err
+		return "", nil, nil, err
 	}
 
 	logger.From(ctx, logger.SmfLog).Info("admitting a PDN connection handed over from EPS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
-		zap.Uint8("ebi", epsBearerIdentity), logger.DNN(dnn))
+		zap.Uint8("ebi", epsBearerIdentity), zap.Uint8s("flow_ebis", flowEBIs), logger.DNN(dnn))
 
-	return sc.Ref, n2, nil
+	return sc.Ref, n2, flowEBIs, nil
 }
 
-func handoverRequestTransferForArrival(sc *SMContext, epsBearerIdentity uint8) ([]byte, error) {
+func (s *SMF) handoverRequestTransferForArrival(ctx context.Context, sc *SMContext, epsBearerIdentity uint8) ([]byte, []uint8, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
 	if sc.Tunnel == nil {
-		return nil, fmt.Errorf("%w: PDU session %d has no tunnel to report", ErrSessionNotMovable, sc.PDUSessionID)
+		return nil, nil, fmt.Errorf("%w: PDU session %d has no tunnel to report", ErrSessionNotMovable, sc.PDUSessionID)
 	}
 
 	if sc.EBI != epsBearerIdentity {
-		return nil, fmt.Errorf("%w: PDU session %d is EPS bearer %d, not %d", ErrSessionNotMovable, sc.PDUSessionID, sc.EBI, epsBearerIdentity)
+		return nil, nil, fmt.Errorf("%w: PDU session %d is EPS bearer %d, not %d", ErrSessionNotMovable, sc.PDUSessionID, sc.EBI, epsBearerIdentity)
 	}
 
+	s.prepareFlowsLocked(ctx, sc, Access5G)
+
+	flows, flowEBIs := sc.handoverFlowsTo5GSLocked()
 	policy := sc.PolicyData
 
 	n2, err := smfNgap.BuildHandoverRequestTransfer(&policy.Ambr, &policy.QosData,
 		sc.Tunnel.N3TEID, sc.Tunnel.N3IPv4, sc.Tunnel.N3IPv6,
-		nasToNgapPDUSessionType(sc.PDUSessionType), epsBearerIdentity, smfNgap.DataForwardingNone, nil)
+		nasToNgapPDUSessionType(sc.PDUSessionType), epsBearerIdentity, smfNgap.DataForwardingNone, flows)
 	if err != nil {
-		return nil, fmt.Errorf("build the Handover Request transfer for an arriving PDN connection: %w", err)
+		return nil, nil, fmt.Errorf("build the Handover Request transfer for an arriving PDN connection: %w", err)
 	}
 
-	return n2, nil
+	return n2, flowEBIs, nil
 }
 
 func rejectTransfer5GS(pduSessionID, pti uint8, cause fgs.GSMCause) []byte {

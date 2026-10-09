@@ -263,12 +263,12 @@ func TestDualStackBearerGetsADownlinkPDRPerUEAddress(t *testing.T) {
 		t.Fatalf("one bearer within capacity: %v", err)
 	}
 
-	for slot := range uint8(5) {
+	for slot := range uint8(10) {
 		dp.Bearers = append(dp.Bearers, bearerLeg{Slot: slot + 2, Rules: []ruleLeg{{Filters: filters}}})
 	}
 
 	if err := dp.checkSDFCapacity(); err == nil {
-		t.Fatal("six dual-stack rules fit in 16 SDF PDRs")
+		t.Fatal("eleven dual-stack rules fit in 32 SDF PDRs")
 	}
 }
 
@@ -324,5 +324,38 @@ func TestQoSFlowSharesTheSessionTunnelAndMarksItsQFI(t *testing.T) {
 	j := slices.IndexFunc(qers, func(q models.QER) bool { return q.QERID == qerIDRule(0, 0) })
 	if j < 0 || qers[j].QFI != 2 {
 		t.Fatalf("QERs %+v, want the flow's QER marking QFI 2 (TS 38.415 §5.5.2)", qers)
+	}
+}
+
+func TestVoiceAndVideoWithASecondCallFitWhileMovingAccess(t *testing.T) {
+	media := func(port uint16) []models.SDFFilter {
+		return []models.SDFFilter{
+			{Direction: models.FilterDownlink, Protocol: 17, Remote: netip.MustParsePrefix("10.60.0.9/32"), LocalPort: port},
+			{Direction: models.FilterUplink, Protocol: 17, Remote: netip.MustParsePrefix("10.60.0.9/32"), RemotePort: port},
+		}
+	}
+
+	rules := func(ports ...uint16) []ruleLeg {
+		var out []ruleLeg
+		for i, p := range ports {
+			out = append(out, ruleLeg{Index: uint8(i), Filters: media(p)})
+		}
+
+		return out
+	}
+
+	dp := dataPlane{
+		UEIPv4:   netip.MustParseAddr("10.60.0.1"),
+		UEIPv6:   netip.MustParseAddr("fd60::1"),
+		Access:   Access4G,
+		Downlink: DownlinkForwarding,
+		Bearers: []bearerLeg{
+			{Slot: 1, TargetUplink: true, Rules: rules(40000, 40001, 40002, 40003)},
+			{Slot: 2, TargetUplink: true, Rules: rules(40010, 40011)},
+		},
+	}
+
+	if err := dp.checkSDFCapacity(); err != nil {
+		t.Fatalf("two voice calls and a video stream prepared for another access: %v", err)
 	}
 }

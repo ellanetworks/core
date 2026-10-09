@@ -112,3 +112,8 @@ func EPSTFT(op eps.TFTOperation, filters []SDFFilter) eps.TrafficFlowTemplate {
 
 	return t
 }
+
+type DedicatedBearerEndpoint struct {
+	SGWTEID uint32
+	ENB     FTEID
+}

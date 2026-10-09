@@ -67,6 +67,7 @@ type fakeSessionManager struct {
 	createErr         error
 	dedicated         []models.DedicatedBearerContext
 	modifiedENB       models.FTEID
+	boundDedicated    []models.DedicatedBearerEndpoint
 	released          bool
 	deactivated       bool
 	reconciled        []string
@@ -77,6 +78,7 @@ type fakeSessionManager struct {
 	dropped     []dedicatedOutcome
 	modified    []modificationOutcome
 	moved       []dedicatedOutcome
+	withheld    []uint32
 	activateErr error
 	moveErr     error
 	modifyErr   error
@@ -147,12 +149,13 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 	return bearer, nil
 }
 
-func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
+func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error {
 	if f.modifyErr != nil {
 		return f.modifyErr
 	}
 
 	f.modifiedENB = enb
+	f.boundDedicated = dedicated
 
 	return nil
 }
@@ -227,6 +230,20 @@ func (f *fakeSessionManager) DedicatedBearerModified(_ context.Context, _ string
 	defer f.outcomeMu.Unlock()
 
 	f.modified = append(f.modified, modificationOutcome{teid: teid, accepted: accepted})
+}
+
+func (f *fakeSessionManager) DedicatedBearerWithoutFiveGSQoS(_ context.Context, _ string, teid uint32) {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	f.withheld = append(f.withheld, teid)
+}
+
+func (f *fakeSessionManager) withheldFiveGSQoS() []uint32 {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	return slices.Clone(f.withheld)
 }
 
 func (f *fakeSessionManager) modifications() []modificationOutcome {

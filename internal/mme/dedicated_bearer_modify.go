@@ -209,6 +209,8 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 		return err
 	}
 
+	withheld := withholdsFiveGSQoS(mod.MappedFiveGSQoS, ue.ueNetCap.SupportsEPCO())
+
 	plain, err := dedicatedModifyRequest(ebi, target, mod, ue.ueNetCap.SupportsEPCO())
 	if err != nil {
 		ue.mu.Unlock()
@@ -261,6 +263,10 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 	}
 
 	ueConn.Log(ctx).Info("modifying dedicated EPS bearer", logger.ERABID(ebi), zap.Bool("qos", mod.QoSChanged), zap.Uint8("tft_operation", uint8(mod.Operation)))
+
+	if withheld {
+		m.reportWithheldFiveGSQoS(ctx, ueConn, mod.SessionRef, ebi, mod.SGWTEID)
+	}
 
 	return nil
 }

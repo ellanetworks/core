@@ -633,3 +633,23 @@ func TestDedicatedBearerCarriesTheMappedQoSFlow(t *testing.T) {
 		t.Fatalf("activation PCO %+v, want the QoS rules and QoS flow descriptions (TS 24.501 §6.1.4.1)", pco)
 	}
 }
+
+func TestDedicatedBearerReportsAWithheldMappedQoSFlow(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := connectedBearerUE(t, m)
+
+	if ue.UeNetCap().SupportsEPCO() {
+		t.Fatal("the fixture UE supports ePCO; this test needs one that does not")
+	}
+
+	req := voiceBearerRequest()
+	req.MappedFiveGSQoS = []nas.PCOContainer{{ID: nas.PCOContainerQoSRules, Content: make([]byte, 250)}}
+
+	if err := m.ActivateDedicatedBearer(context.Background(), ue.imsiOrEmpty(), req); err != nil {
+		t.Fatalf("ActivateDedicatedBearer: %v", err)
+	}
+
+	if got := m.Session.(*fakeSessionManager).withheldFiveGSQoS(); !slices.Equal(got, []uint32{req.SGW.TEID}) {
+		t.Fatalf("withheld 5GS QoS reports %v, want the bearer's S-GW TEID %d: the SMF must not move it to 5GS (TS 24.301 §6.4.2.3)", got, req.SGW.TEID)
+	}
+}

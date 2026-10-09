@@ -142,6 +142,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 		defer span.End()
 
 		s.clearTargetUplinkLocked(ctx, sc)
+		s.reconcileAfter(sc.Ref, 0)
 
 		sc.Mutex.Unlock()
 
@@ -167,15 +168,6 @@ func (sc *SMContext) clearPendingLocked() {
 func (sc *SMContext) abandonPendingLocked() {
 	sc.clearPendingLocked()
 	sc.handoverTargetAN = nil
-}
-
-func (sc *SMContext) abandonTransferTo(access AccessType) {
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	if sc.pending != nil && sc.pending.to == access {
-		sc.abandonPendingLocked()
-	}
 }
 
 type transferCommit struct {

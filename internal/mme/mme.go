@@ -34,7 +34,7 @@ type NASHandler interface {
 type epsSessionManager interface {
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
 	TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error)
-	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error
+	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error
 	OpenEPSForwardingTunnel(ctx context.Context, ref string, ebi uint8, target models.FTEID) (models.ForwardingTunnel, error)
 	CloseEPSForwardingTunnel(ctx context.Context, ref string) error
 	DeactivateEPSSession(ctx context.Context, ref string) error
@@ -47,6 +47,7 @@ type epsSessionManager interface {
 	DedicatedBearerMoved(ctx context.Context, ref string, sgwTEID uint32, enb models.FTEID) error
 	DedicatedBearerReleased(ctx context.Context, ref string, sgwTEID uint32)
 	DedicatedBearerModified(ctx context.Context, ref string, sgwTEID uint32, accepted bool)
+	DedicatedBearerWithoutFiveGSQoS(ctx context.Context, ref string, sgwTEID uint32)
 }
 
 type credentialProvider interface {
