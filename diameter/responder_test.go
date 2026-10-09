@@ -639,3 +639,67 @@ func TestPeerRejectedOnATransportItDoesNotList(t *testing.T) {
 		})
 	}
 }
+
+func TestCEAAdvertisesThePeerSupportedVendors(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			_, p := ellaWithSMSC(t, kind, Peer{ID: "hss", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}, SupportedVendors: []uint32{sgdApp.VendorID, 13019}})
+
+			cea := openRaw(t, p, "scscf.example.org", appAVP(sgdApp))
+
+			var got []uint32
+
+			for _, a := range cea.AVPs {
+				if a.Code != AVPSupportedVendorID {
+					continue
+				}
+
+				v, err := a.Unsigned32()
+				if err != nil {
+					t.Fatalf("Supported-Vendor-Id: %v", err)
+				}
+
+				got = append(got, v)
+			}
+
+			if len(got) != 2 || got[0] != sgdApp.VendorID || got[1] != 13019 {
+				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019]", got, sgdApp.VendorID)
+			}
+		})
+	}
+}
+
+func TestCEAAdvertisesTheUnknownPeerSupportedVendors(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			cfg := testConfig("ella.example.org")
+			cfg.AcceptUnknownPeers = true
+			cfg.UnknownPeerApplications = []Application{otherApp}
+			cfg.UnknownPeerSupportedVendors = []uint32{otherApp.VendorID, 13019}
+
+			n := newTestNode(t, cfg)
+			addr := serveOn(t, n, kind, loopback1)
+
+			cea := openRaw(t, dialRaw(t, kind, loopback1, addr), "cscf.example.org", appAVP(otherApp))
+
+			var got []uint32
+
+			for _, a := range cea.AVPs {
+				if a.Code != AVPSupportedVendorID {
+					continue
+				}
+
+				v, err := a.Unsigned32()
+				if err != nil {
+					t.Fatalf("Supported-Vendor-Id: %v", err)
+				}
+
+				got = append(got, v)
+			}
+
+			if len(got) != 2 || got[0] != otherApp.VendorID || got[1] != 13019 {
+				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019]", got, otherApp.VendorID)
+			}
+		})
+	}
+}

@@ -36,6 +36,7 @@ var (
 	ErrNotConnected           = errors.New("diameter: peer not connected")
 	ErrUnknownPeer            = errors.New("diameter: unknown peer")
 	ErrApplicationUnsupported = errors.New("diameter: application not negotiated with peer")
+	ErrUnableToDeliver        = errors.New("diameter: no peer can deliver the request")
 )
 
 type Identity struct {
@@ -62,23 +63,26 @@ func (f HandlerFunc) ServeDiameter(ctx context.Context, c *Conn, req *Message) *
 }
 
 type Config struct {
-	Identity                Identity
-	Handler                 Handler
-	AcceptUnknownPeers      bool
-	UnknownPeerApplications []Application
-	ServedRealms            []string
-	OriginStateID           uint32
-	WatchdogInterval        time.Duration
-	HandshakeTimeout        time.Duration
-	ReconnectInterval       time.Duration
-	MaxReconnectInterval    time.Duration
-	RequestTimeout          time.Duration
-	HandlerTimeout          time.Duration
-	MaxConcurrentRequests   int
-	MaxPendingConnections   int
-	MaxDuplicateEntries     int
-	OnPeerStateChange       func(PeerStatus)
-	Logger                  *slog.Logger
+	Identity                    Identity
+	Handler                     Handler
+	AcceptUnknownPeers          bool
+	UnknownPeerApplications     []Application
+	UnknownPeerSupportedVendors []uint32
+	ServedRealms                []string
+	OriginStateID               uint32
+	WatchdogInterval            time.Duration
+	HandshakeTimeout            time.Duration
+	ReconnectInterval           time.Duration
+	MaxReconnectInterval        time.Duration
+	RequestTimeout              time.Duration
+	HandlerTimeout              time.Duration
+	MaxConcurrentRequests       int
+	MaxPendingConnections       int
+	MaxDuplicateEntries         int
+	OnPeerStateChange           func(PeerStatus)
+	OnReroute                   func(Reroute)
+	Resolver                    Resolver
+	Logger                      *slog.Logger
 
 	watchdogJitter    time.Duration
 	allowFastWatchdog bool
@@ -86,12 +90,18 @@ type Config struct {
 }
 
 type Peer struct {
-	ID           string
-	Host         string
-	Addresses    []netip.Addr
-	Transports   []Transport
-	Applications []Application
-	Dial         *Dial
+	ID               string
+	Host             string
+	Addresses        []netip.Addr
+	Transports       []Transport
+	Applications     []Application
+	SupportedVendors []uint32
+	Routes           []Route
+	Dial             *Dial
+}
+
+type Resolver interface {
+	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
 
 type Dial struct {
@@ -108,6 +118,8 @@ type Node struct {
 	closed       bool
 	byID         map[string]*peer
 	byHost       map[string]*peer
+	routes       map[routeKey]*route
+	cache        map[cacheKey]*cacheEntry
 	pending      int
 	conns        map[*Conn]struct{}
 	listeners    map[Listener]struct{}
@@ -138,6 +150,8 @@ func New(cfg Config) (*Node, error) {
 		baseCancel:   cancel,
 		byID:         make(map[string]*peer),
 		byHost:       make(map[string]*peer),
+		routes:       make(map[routeKey]*route),
+		cache:        make(map[cacheKey]*cacheEntry),
 		conns:        make(map[*Conn]struct{}),
 		listeners:    make(map[Listener]struct{}),
 		peersChanged: make(chan struct{}),
@@ -176,6 +190,7 @@ func validateConfig(cfg *Config) error {
 
 	id.HostIPAddresses = slices.Clone(id.HostIPAddresses)
 	cfg.UnknownPeerApplications = slices.Clone(cfg.UnknownPeerApplications)
+	cfg.UnknownPeerSupportedVendors = slices.Clone(cfg.UnknownPeerSupportedVendors)
 	cfg.ServedRealms = slices.Clone(cfg.ServedRealms)
 
 	durations := []struct {
@@ -239,6 +254,10 @@ func validateConfig(cfg *Config) error {
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+
+	if cfg.Resolver == nil {
+		cfg.Resolver = net.DefaultResolver
 	}
 
 	return nil
@@ -379,10 +398,15 @@ func (n *Node) SetPeers(peers []Peer) error {
 	)
 
 	for id, p := range n.byID {
-		if want, ok := desired[id]; !ok || !samePeer(*p.cfg, want) {
+		want, ok := desired[id]
+		if !ok || !samePeer(*p.cfg, want) {
 			removed = append(removed, p)
 			n.unregisterLocked(p)
+
+			continue
 		}
+
+		p.cfg.Routes = want.Routes
 	}
 
 	for id, want := range desired {
@@ -394,7 +418,7 @@ func (n *Node) SetPeers(peers []Peer) error {
 		n.byID[id] = p
 
 		if p.host != "" {
-			if other, ok := n.byHost[p.host]; ok && other.cfg == nil {
+			if other, ok := n.byHost[p.host]; ok && (other.cfg == nil || other.dynamic) {
 				displaced = append(displaced, other.conns()...)
 				n.dropUnknownLocked(other)
 			}
@@ -420,6 +444,7 @@ func (n *Node) SetPeers(peers []Peer) error {
 		go n.maintain(p)
 	}
 
+	n.rebuildRoutesLocked()
 	n.notifyPeersLocked()
 	n.mu.Unlock()
 
@@ -492,6 +517,12 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 		p.Transports = slices.Clone(p.Transports)
 		p.Addresses = slices.Clone(p.Addresses)
 		p.Applications = slices.Clone(p.Applications)
+		p.SupportedVendors = slices.Clone(p.SupportedVendors)
+		p.Routes = slices.Clone(p.Routes)
+
+		if err := validateRoutes(p); err != nil {
+			return nil, err
+		}
 
 		for i, a := range p.Addresses {
 			if !a.IsValid() || a.IsUnspecified() {
@@ -529,7 +560,8 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 
 func samePeer(a, b Peer) bool {
 	return strings.EqualFold(a.Host, b.Host) && slices.Equal(a.Transports, b.Transports) && sameDial(a.Dial, b.Dial) &&
-		slices.Equal(a.Addresses, b.Addresses) && slices.Equal(a.Applications, b.Applications)
+		slices.Equal(a.Addresses, b.Addresses) && slices.Equal(a.Applications, b.Applications) &&
+		slices.Equal(a.SupportedVendors, b.SupportedVendors)
 }
 
 func sameDial(a, b *Dial) bool {
@@ -551,7 +583,7 @@ func (n *Node) Peers() []PeerStatus {
 	}
 
 	for _, p := range n.byHost {
-		if p.cfg == nil {
+		if p.cfg == nil || p.dynamic {
 			statuses = append(statuses, p.statusLocked())
 		}
 	}
@@ -579,17 +611,43 @@ func (n *Node) Peer(id string) (PeerStatus, bool) {
 	return p.statusLocked(), true
 }
 
-type DoOption func(*doOptions)
+type RequestOption func(*requestOptions)
 
-type doOptions struct {
+type requestOptions struct {
 	failFast bool
 }
 
-func FailFast() DoOption {
-	return func(o *doOptions) { o.failFast = true }
+func FailFast() RequestOption {
+	return func(o *requestOptions) { o.failFast = true }
 }
 
-func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...DoOption) (*Message, error) {
+func applyOptions(opts []RequestOption) requestOptions {
+	var o requestOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	return o
+}
+
+func (n *Node) withRequestTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+
+	return context.WithTimeout(ctx, n.cfg.RequestTimeout)
+}
+
+func (n *Node) newRequest(req *Message) Message {
+	m := *req
+	m.Flags = (m.Flags | FlagRequest) &^ (FlagRetransmit | FlagError)
+	m.EndToEndID = n.nextEndToEnd()
+	m.AVPs = slices.Clone(req.AVPs)
+
+	return m
+}
+
+func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...RequestOption) (*Message, error) {
 	n.mu.Lock()
 	p, ok := n.byID[peerID]
 	n.mu.Unlock()
@@ -598,37 +656,12 @@ func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...DoOp
 		return nil, ErrUnknownPeer
 	}
 
-	return n.do(ctx, p, req, opts)
-}
+	o := applyOptions(opts)
 
-func (n *Node) DoHost(ctx context.Context, host string, req *Message, opts ...DoOption) (*Message, error) {
-	n.mu.Lock()
-	p, ok := n.byHost[strings.ToLower(host)]
-	n.mu.Unlock()
+	ctx, cancel := n.withRequestTimeout(ctx)
+	defer cancel()
 
-	if !ok {
-		return nil, ErrUnknownPeer
-	}
-
-	return n.do(ctx, p, req, opts)
-}
-
-func (n *Node) do(ctx context.Context, p *peer, req *Message, opts []DoOption) (*Message, error) {
-	var o doOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
-
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, n.cfg.RequestTimeout)
-		defer cancel()
-	}
-
-	m := *req
-	m.Flags = (m.Flags | FlagRequest) &^ (FlagRetransmit | FlagError)
-	m.EndToEndID = n.nextEndToEnd()
+	m := n.newRequest(req)
 
 	for {
 		c, err := n.waitAvailable(ctx, p, o.failFast)
@@ -640,7 +673,7 @@ func (n *Node) do(ctx context.Context, p *peer, req *Message, opts []DoOption) (
 			return nil, ErrApplicationUnsupported
 		}
 
-		ans, err := c.exchange(ctx, &m)
+		ans, err := c.exchange(ctx, &m, false)
 		if !errors.Is(err, errConnClosed) {
 			return ans, err
 		}
@@ -753,6 +786,10 @@ func (n *Node) ShutdownWithCause(ctx context.Context, cause uint32) error {
 	}
 
 	n.closed = true
+
+	for _, e := range n.cache {
+		e.timer.Stop()
+	}
 
 	listeners := make([]Listener, 0, len(n.listeners))
 	for ln := range n.listeners {

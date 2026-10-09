@@ -356,6 +356,8 @@ func TestAAAnswerRoundTrip(t *testing.T) {
 			SubscriptionIDs:              []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
 			Class:                        [][]byte{[]byte("pcrf-state-1"), {0xff, 0x00}},
 			Features:                     FeatureRel8 | FeatureRel9 | FeatureCHEM,
+			SessionBinding:               diameter.SessionBindingReAuth | diameter.SessionBindingSTR,
+			SessionServerFailover:        diameter.TryAgainAllowService,
 		},
 		"IPv6 charging address": {
 			Result: tgpp.Result{Code: diameter.ResultSuccess}, AccessNetworkChargingAddress: netip.MustParseAddr("2001:db8::1"),
@@ -387,6 +389,7 @@ func TestAAAnswerValidation(t *testing.T) {
 		"zoned charging address":    {AccessNetworkChargingAddress: netip.MustParseAddr("fe80::1%eth0")},
 		"empty charging identifier": {AccessNetworkChargingIdentifiers: []AccessNetworkChargingIdentifier{{}}},
 		"Subscription-Id-Type":      {SubscriptionIDs: []SubscriptionID{{Type: 9, Data: "x"}}},
+		"Session-Server-Failover":   {SessionServerFailover: 4},
 	} {
 		if _, err := NewAAAnswer(req, pcrfIdentity, a); !errors.Is(err, ErrInvalidMessage) {
 			t.Errorf("%s: err = %v", name, err)
@@ -402,6 +405,8 @@ func TestParseAAAnswerMalformed(t *testing.T) {
 		"charging flows without number":     with(ok, vendorGrouped(AVPAccessNetworkChargingIdentifier, vendorOctets(AVPAccessNetworkChargingIdentifierValue, []byte{1}), vendorGrouped(AVPFlows))),
 		"charging address":                  with(ok, vendorOctets(AVPAccessNetworkChargingAddress, []byte{0, 1, 10})),
 		"Subscription-Id":                   with(ok, diameter.Grouped(diameter.AVPSubscriptionID, diameter.AVPFlagMandatory, 0)),
+		"Session-Binding":                   with(ok, diameter.OctetString(diameter.AVPSessionBinding, diameter.AVPFlagMandatory, 0, []byte{1})),
+		"Session-Server-Failover":           with(ok, diameter.Unsigned32(diameter.AVPSessionServerFailover, diameter.AVPFlagMandatory, 0, 4)),
 	} {
 		if _, err := ParseAAAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {
 			t.Errorf("%s: err = %v", name, err)

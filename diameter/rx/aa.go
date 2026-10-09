@@ -49,6 +49,8 @@ type AAAnswer struct {
 	SubscriptionIDs                  []SubscriptionID
 	Class                            [][]byte
 	Features                         Features
+	SessionBinding                   diameter.SessionBinding
+	SessionServerFailover            diameter.SessionServerFailover
 }
 
 type AAError struct {
@@ -291,6 +293,10 @@ func NewAAAnswer(req *diameter.Message, id diameter.Identity, a AAAnswer) (*diam
 		return nil, invalidf("NetLoc-Access-Support %s", *a.NetLocAccessSupport)
 	}
 
+	if !a.SessionServerFailover.Valid() {
+		return nil, invalidf("Session-Server-Failover %s", a.SessionServerFailover)
+	}
+
 	charging, err := chargingIdentifierAVPs(a.AccessNetworkChargingIdentifiers)
 	if err != nil {
 		return nil, err
@@ -336,6 +342,14 @@ func NewAAAnswer(req *diameter.Message, id diameter.Identity, a AAAnswer) (*diam
 
 	avps = append(avps, serving...)
 	avps = append(avps, classAVPs(a.Class)...)
+
+	if a.SessionBinding != 0 {
+		avps = append(avps, diameter.Unsigned32(diameter.AVPSessionBinding, diameter.AVPFlagMandatory, 0, uint32(a.SessionBinding)))
+	}
+
+	if a.SessionServerFailover != diameter.RefuseService {
+		avps = append(avps, diameter.Unsigned32(diameter.AVPSessionServerFailover, diameter.AVPFlagMandatory, 0, uint32(a.SessionServerFailover)))
+	}
 
 	ans := NewAnswer(req, id, result, a.Features)
 	ans.AVPs = append(ans.AVPs, charging...)
@@ -431,6 +445,26 @@ func ParseAAAnswer(ans *diameter.Message) (AAAnswer, error) {
 	}
 
 	a.Class = classes(ans.AVPs)
+
+	binding, err := optionalUint32(ans.AVPs, diameter.AVPSessionBinding, 0)
+	if err != nil {
+		return AAAnswer{}, malformedf("Session-Binding: %w", err)
+	}
+
+	if binding != nil {
+		a.SessionBinding = diameter.SessionBinding(*binding)
+	}
+
+	failover, err := optionalUint32(ans.AVPs, diameter.AVPSessionServerFailover, 0)
+	if err != nil {
+		return AAAnswer{}, malformedf("Session-Server-Failover: %w", err)
+	}
+
+	if failover != nil {
+		if a.SessionServerFailover = diameter.SessionServerFailover(*failover); !a.SessionServerFailover.Valid() {
+			return AAAnswer{}, malformedf("Session-Server-Failover %d", *failover)
+		}
+	}
 
 	return a, nil
 }
