@@ -118,7 +118,8 @@ type Node struct {
 	closed       bool
 	byID         map[string]*peer
 	byHost       map[string]*peer
-	routes       map[routeKey]*route
+	routes       map[routeKey][]routeEntry
+	rotation     map[routeKey]uint32
 	cache        map[cacheKey]*cacheEntry
 	pending      int
 	conns        map[*Conn]struct{}
@@ -150,7 +151,8 @@ func New(cfg Config) (*Node, error) {
 		baseCancel:   cancel,
 		byID:         make(map[string]*peer),
 		byHost:       make(map[string]*peer),
-		routes:       make(map[routeKey]*route),
+		routes:       make(map[routeKey][]routeEntry),
+		rotation:     make(map[routeKey]uint32),
 		cache:        make(map[cacheKey]*cacheEntry),
 		conns:        make(map[*Conn]struct{}),
 		listeners:    make(map[Listener]struct{}),

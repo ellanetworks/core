@@ -250,6 +250,7 @@ func (n *Node) dropUnknownLocked(p *peer) {
 	p.removed = true
 
 	n.cacheForgetPeerLocked(p)
+	n.pruneRotationLocked()
 }
 
 func (n *Node) acquireLocked(p *peer) {
