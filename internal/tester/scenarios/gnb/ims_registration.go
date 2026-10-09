@@ -423,7 +423,7 @@ func sendVoiceOnQFI(ctx context.Context, from voiceLeg, fromQFI uint8, to voiceL
 	}
 }
 
-func requireVoiceGated(ctx context.Context, from voiceLeg, fromQFI uint8, to voiceLeg, toQFI uint8, src, dst sdp.Endpoint) error {
+func requireVoiceGated(ctx context.Context, from voiceLeg, fromQFI uint8, to voiceLeg, src, dst sdp.Endpoint) error {
 	upf, err := netip.ParseAddr(from.session.UpfAddress)
 	if err != nil {
 		return fmt.Errorf("N3 peer %q: %w", from.session.UpfAddress, err)
@@ -439,7 +439,7 @@ func requireVoiceGated(ctx context.Context, from voiceLeg, fromQFI uint8, to voi
 	dropped := 0
 
 	for dropped < gatedProbes {
-		before := to.gnb.DownlinkQFICount(to.session.DLTEID, toQFI)
+		before := to.gnb.DownlinkCount(to.session.DLTEID)
 
 		if err := from.gnb.SendGPDUWithQFI(from.session.ULTEID, upf, fromQFI, packet); err != nil {
 			return err
@@ -448,11 +448,11 @@ func requireVoiceGated(ctx context.Context, from voiceLeg, fromQFI uint8, to voi
 		select {
 		case <-time.After(gateSettleInterval):
 		case <-ctx.Done():
-			return fmt.Errorf("UDP %s -> %s still reaches the peer's QFI %d: %w", src, dst, toQFI, ctx.Err())
+			return fmt.Errorf("UDP %s -> %s still reaches the peer: %w", src, dst, ctx.Err())
 		}
 
 		dropped++
-		if to.gnb.DownlinkQFICount(to.session.DLTEID, toQFI) != before {
+		if to.gnb.DownlinkCount(to.session.DLTEID) != before {
 			dropped = 0
 		}
 	}

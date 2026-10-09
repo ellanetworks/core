@@ -19,6 +19,8 @@ func handlePDUSessionModificationCommand(ue *UE, payload []byte, amfUENGAPID int
 
 	pduSessionID := uint8(cmd.PDUSessionID)
 
+	ue.modifyCommands.Add(1)
+
 	complete, err := BuildPDUSessionModificationComplete(&PDUSessionModificationCompleteOpts{
 		PDUSessionID: pduSessionID,
 		PTI:          uint8(cmd.PTI),
@@ -65,4 +67,8 @@ func handlePDUSessionModificationCommand(ue *UE, payload []byte, amfUENGAPID int
 
 func (ue *UE) RejectNextQoSRules() {
 	ue.rejectQoSRules.Store(true)
+}
+
+func (ue *UE) ModificationCommandCount() int64 {
+	return ue.modifyCommands.Load()
 }

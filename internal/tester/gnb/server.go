@@ -1209,6 +1209,18 @@ func (g *GnodeB) DownlinkQFICount(teid uint32, qfi uint8) int {
 	return g.downlinkQFIs[teid][qfi]
 }
 
+func (g *GnodeB) DownlinkCount(teid uint32) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	n := 0
+	for _, c := range g.downlinkQFIs[teid] {
+		n += c
+	}
+
+	return n
+}
+
 func (g *GnodeB) admitQoSFlows(ranUeID, pduSessionID int64, add, release []uint8) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

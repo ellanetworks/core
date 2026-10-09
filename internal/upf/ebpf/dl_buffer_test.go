@@ -231,3 +231,44 @@ func TestDlBufferCaptureWithoutResponder(t *testing.T) {
 		t.Error("paging notification missing")
 	}
 }
+
+func TestDlBufferSkipsClosedDownlinkGate(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgram(t, 1, 0)
+
+	ueAddr := [4]byte{10, 45, 0, 2}
+
+	pdr := buffNocpPDR(0x51D2, 8, 5)
+	pdr.Qer.GateStatusDL = 1
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueAddr), pdr); err != nil {
+		t.Fatalf("install BUFF|NOCP downlink PDR: %v", err)
+	}
+
+	nocpReader, err := ringbuf.NewReader(obj.NocpMap)
+	if err != nil {
+		t.Fatalf("open nocp_map reader: %v", err)
+	}
+
+	defer func() { _ = nocpReader.Close() }()
+
+	inner := ipv4Packet([4]byte{8, 8, 8, 8}, ueAddr, 17, udpDatagram(4000, 4001, []byte("held call")))
+
+	if action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, inner)); action != ActionDrop {
+		t.Fatalf("closed gate to an idle UE got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
+	}
+
+	if nocp := readRingRecord(t, nocpReader); nocp != nil {
+		t.Error("a packet discarded by a closed gate must not page the UE (TS 29.244 §5.4.3)")
+	}
+
+	counters, ok := obj.GetDlBufferCounters()
+	if !ok {
+		t.Fatal("GetDlBufferCounters failed")
+	}
+
+	if counters.Captured != 0 {
+		t.Errorf("captured counter = %d, want 0", counters.Captured)
+	}
+}

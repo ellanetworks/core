@@ -123,7 +123,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 				PDUSessionID: s.PDUSessionID,
 				DLTEID:       s.DLTEID,
 				N3GnbIp:      gnb.N3Address,
-				QFI:          1,
+				QFI:          s.QFI,
+				Flows:        s.Flows,
 			}
 		}
 	}

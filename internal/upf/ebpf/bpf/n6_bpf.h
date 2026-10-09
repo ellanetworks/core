@@ -251,6 +251,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	upf_printk("upf: downlink session for ip:%pI4 action:%d", &ip4->daddr,
 		   sel->target.far.action);
 
+	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
+	}
 	if (sel->target.far.action & (FAR_BUFF | FAR_NOCP)) {
 		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d",
 			   sel->target.pdr_id, sel->target.qer.qfi);
@@ -287,10 +290,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	upf_printk("upf: qer gate_status:%d mbr:%d",
 		   sel->target.qer.dl_gate_status,
 		   sel->target.qer.dl_maximum_bitrate);
-	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
-		PROFILE_END(PROF_N6_QER_RATELIMIT);
-		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
-	}
 
 	/* Shared with this session's other downlink PDR. */
 	if (sel->target.qer.dl_maximum_bitrate != 0) {
@@ -457,6 +456,9 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	upf_printk("upf: downlink session for ip:%pI6c action:%d", &ip6->daddr,
 		   sel->target.far.action);
 
+	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
+	}
 	if (sel->target.far.action & (FAR_BUFF | FAR_NOCP)) {
 		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d",
 			   sel->target.pdr_id, sel->target.qer.qfi);
@@ -485,9 +487,6 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	upf_printk("upf: qer gate_status:%d mbr:%d",
 		   sel->target.qer.dl_gate_status,
 		   sel->target.qer.dl_maximum_bitrate);
-	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
-		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
-	}
 
 	/* Shared with this session's IPv4 downlink PDR: see the IPv4 path. */
 	if (sel->target.qer.dl_maximum_bitrate != 0) {

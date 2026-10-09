@@ -89,18 +89,18 @@ func setUpIMSCall(env scenarios.Env, caller, callee scenarios.SubscriberSpec) (*
 	}, nil
 }
 
-func modifyRequestCounts(legs []voiceLeg) []int {
-	counts := make([]int, 0, len(legs))
-	for _, l := range legs {
-		counts = append(counts, l.gnb.ModifyRequestCount(l.ranUEID))
+func flowSignallingCounts(ues []imsCallUE) []int64 {
+	counts := make([]int64, 0, 2*len(ues))
+	for _, u := range ues {
+		counts = append(counts, int64(u.leg.gnb.ModifyRequestCount(u.leg.ranUEID)), u.ue.ModificationCommandCount())
 	}
 
 	return counts
 }
 
-func requireNoFlowSignalling(legs []voiceLeg, before []int) error {
-	if now := modifyRequestCounts(legs); !slices.Equal(now, before) {
-		return fmt.Errorf("the gNB got PDU Session Resource Modify Requests (%v, before %v), want the gates applied in the UPF only (TS 29.513 §5.2.2.2)", now, before)
+func requireNoFlowSignalling(ues []imsCallUE, before []int64) error {
+	if now := flowSignallingCounts(ues); !slices.Equal(now, before) {
+		return fmt.Errorf("N2 Modify Requests and N1 Modification Commands per UE went from %v to %v, want the gates applied in the UPF only (TS 29.513 §5.2.2.2)", before, now)
 	}
 
 	return nil
@@ -116,7 +116,7 @@ func runIMSCallHold(ctx context.Context, env scenarios.Env) error {
 
 	var (
 		qfis     []uint8
-		modifies []int
+		modifies []int64
 	)
 
 	steps := scenarios.IMSHoldSteps{
@@ -127,12 +127,12 @@ func runIMSCallHold(ctx context.Context, env scenarios.Env) error {
 				return err
 			}
 
-			modifies = modifyRequestCounts(c.legs)
+			modifies = flowSignallingCounts(c.ues)
 
 			return sendVoiceBothWays(ctx, c.legs, qfis, m)
 		},
 		Held: func(ctx context.Context, m scenarios.IMSMedia) error {
-			if err := requireVoiceGated(ctx, c.legs[1], qfis[1], c.legs[0], qfis[0], m.Callee, m.Caller); err != nil {
+			if err := requireVoiceGated(ctx, c.legs[1], qfis[1], c.legs[0], m.Callee, m.Caller); err != nil {
 				return fmt.Errorf("callee to held caller (TS 29.214 §5.3.11): %w", err)
 			}
 
@@ -146,14 +146,14 @@ func runIMSCallHold(ctx context.Context, env scenarios.Env) error {
 				return fmt.Errorf("RTCP on hold (TS 29.214 §4.4.3): %w", err)
 			}
 
-			return requireNoFlowSignalling(c.legs, modifies)
+			return requireNoFlowSignalling(c.ues, modifies)
 		},
 		Resumed: func(ctx context.Context, m scenarios.IMSMedia) error {
 			if err := sendVoiceBothWays(ctx, c.legs, qfis, m); err != nil {
 				return err
 			}
 
-			return requireNoFlowSignalling(c.legs, modifies)
+			return requireNoFlowSignalling(c.ues, modifies)
 		},
 	}
 

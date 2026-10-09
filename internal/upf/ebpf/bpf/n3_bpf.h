@@ -205,6 +205,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 
 	ctx->interface = INTERFACE_N6;
 
+	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
+	}
 	if (sel->target.far.action & (FAR_BUFF | FAR_NOCP)) {
 		struct nocp notif = { .local_seid = sel->seid,
 				      .pdr_id = sel->target.pdr_id,
@@ -231,9 +234,6 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
-	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
-		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
-	}
 	if (sel->target.qer.dl_maximum_bitrate != 0) {
 		const __u64 packet_size =
 			ctx_len_from(ctx->ctx_buff, ctx->data_end,
