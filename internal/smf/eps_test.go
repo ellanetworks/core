@@ -68,7 +68,7 @@ func epsPCF(mutate func(*smf.Policy)) *fakePCF {
 
 func TestCreateEPSSessionIPv4(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
 	if err != nil {
@@ -95,7 +95,7 @@ func TestCreateEPSSessionIPv4(t *testing.T) {
 // an address the pool believes free, which the next subscriber is then handed.
 func TestCreateEPSSessionSupersedesPriorBearer(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	first, err := s.CreateEPSSession(context.Background(), epsRequest(1))
 	if err != nil {
@@ -149,7 +149,7 @@ func TestCreateEPSSessionBindsPolicyID(t *testing.T) {
 
 func TestCreateEPSSessionIPv6(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(2))
 	if err != nil {
@@ -175,7 +175,7 @@ func TestCreateEPSSessionIPv6(t *testing.T) {
 
 func TestCreateEPSSessionIPv4v6(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(3))
 	if err != nil {
@@ -219,7 +219,7 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 				N3IPv4: tc.n3v4,
 				N3IPv6: tc.n3v6,
 			}}
-			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+			s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 			bearer, err := s.CreateEPSSession(context.Background(), epsRequest(3))
 			if err != nil {
@@ -246,7 +246,7 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
 	store, upf := epsTestSMF()
 	upf.err = errors.New("upf establish failed")
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err == nil {
 		t.Fatal("expected create to fail when UPF establish fails")
@@ -272,7 +272,7 @@ func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			store, upf := epsTestSMF()
-			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+			s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 			req := epsRequest(1)
 			tc.mutate(&req)
@@ -348,7 +348,7 @@ func TestCreateEPSSessionDNS(t *testing.T) {
 
 func TestModifyEPSSessionRegistersIPv6(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(3))
 	if err != nil {
@@ -394,7 +394,7 @@ func TestModifyEPSSessionRegistersIPv6(t *testing.T) {
 
 func TestReleaseEPSSession(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
 	if err != nil {

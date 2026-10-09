@@ -39,6 +39,8 @@ var (
 	BgpLog      *zap.Logger
 	DiameterLog *zap.Logger
 	SmsfLog     *zap.Logger
+	HssLog      *zap.Logger
+	PcfLog      *zap.Logger
 
 	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 
@@ -93,6 +95,8 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	BgpLog = Scope("BGP")
 	DiameterLog = Scope("Diameter")
 	SmsfLog = Scope("SMSF")
+	HssLog = Scope("HSS")
+	PcfLog = Scope("PCF")
 
 	zap.RedirectStdLog(EllaLog)
 

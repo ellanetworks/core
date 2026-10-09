@@ -1024,10 +1024,20 @@ static __always_inline void destination_nat_apply(struct packet_context *ctx,
 		return;
 	}
 
+	const bool ports = x->has_l4_id &&
+			   (x->proto == IPPROTO_UDP || x->proto == IPPROTO_TCP);
+
 	if (CTX_L4_CSUM_VIA_HELPERS) {
 		destination_nat_apply_csum_helpers(ctx, x);
+
+		if (ports)
+			ctx->l4_dport = bpf_ntohs(x->l4_id);
+
 		return;
 	}
+
+	if (ports)
+		ctx->l4_dport = bpf_ntohs(x->l4_id);
 
 	const __u32 old_daddr = ctx->ip4->daddr;
 

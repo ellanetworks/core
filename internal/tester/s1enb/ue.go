@@ -47,6 +47,7 @@ type UE struct {
 	attachType                eps.AttachType
 	requestType               eps.RequestType
 	pduSessionID              uint8 // sent in the PCO; 0 sends none
+	requestPCSCF              bool
 	kasme                     []byte
 	knasEnc                   [16]byte
 	knasInt                   [16]byte
@@ -122,6 +123,8 @@ func (ue *UE) RequestAPN(apn string) { ue.apn = apn }
 
 func (ue *UE) DeferESMInformation() { ue.deferESMInfo = true }
 
+func (ue *UE) RequestPCSCFAddresses() { ue.requestPCSCF = true }
+
 func (ue *UE) RequestCombinedAttach() { ue.attachType = eps.AttachTypeCombined }
 
 // UseUnknownGUTI makes the Attach Request present a GUTI the MME cannot resolve,
@@ -164,14 +167,23 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		pc.AccessPointName = new(eps.APN(ue.apn))
 	}
 
-	if ue.pduSessionID != 0 {
+	if ue.pduSessionID != 0 || ue.requestPCSCF {
 		pco := nas.ProtocolConfigurationOptions{
 			ConfigProtocol: nas.PCOConfigProtocolPPP,
 			Direction:      nas.PCOMSToNetwork,
-			Containers: []nas.PCOContainer{
-				{ID: nas.PCOContainerPDUSessionID, Content: []byte{ue.pduSessionID}},
-			},
 		}
+
+		if ue.pduSessionID != 0 {
+			pco.Containers = append(pco.Containers, nas.PCOContainer{ID: nas.PCOContainerPDUSessionID, Content: []byte{ue.pduSessionID}})
+		}
+
+		if ue.requestPCSCF {
+			pco.Containers = append(pco.Containers,
+				nas.PCOContainer{ID: nas.PCOContainerPCSCFIPv6Address},
+				nas.PCOContainer{ID: nas.PCOContainerPCSCFIPv4Address},
+			)
+		}
+
 		pc.ProtocolConfigurationOptions = &pco
 	}
 

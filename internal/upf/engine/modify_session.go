@@ -85,8 +85,14 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 	var txn sessionTxn
 
 	fail := func(err error) (bool, []endMarkerTarget, *models.ModifyResponse, error) {
-		txn.rollback(ctx)
 		session.restore(snapPDRs, snapFARs, snapQERs)
+		txn.rollback(ctx)
+
+		if syncErr := conn.syncClassifier(session); syncErr != nil {
+			logger.From(ctx, logger.UpfLog).Warn("could not restore the session's SDF filters after a failed modification",
+				logger.SEID(req.SEID), zap.Error(syncErr))
+		}
+
 		span.RecordError(err)
 
 		return false, nil, nil, err
@@ -172,6 +178,10 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		touched[uint32(pdr.PDRID)] = struct{}{}
 	}
 
+	if err := conn.syncClassifier(session); err != nil {
+		return fail(err)
+	}
+
 	for _, pdrID := range slices.Sorted(maps.Keys(touched)) {
 		spdrInfo := session.GetPDR(pdrID)
 		old, hadOld := snapPDRs[pdrID]
@@ -181,7 +191,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 
 		txn.onRollback(func() error {
-			if err := unapplyPDR(spdrInfo, bpfObjects); err != nil {
+			if err := unapplyPDR(spdrInfo, session, bpfObjects); err != nil {
 				return err
 			}
 
@@ -193,7 +203,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		})
 
 		if hadOld && pdrKeyChanged(old, spdrInfo) {
-			if err := unapplyPDR(old, bpfObjects); err != nil {
+			if err := unapplyPDR(old, session, bpfObjects); err != nil {
 				return fail(fmt.Errorf("couldn't remove the superseded PDR entry: %w", err))
 			}
 		}
@@ -207,13 +217,19 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 	}
 
+	var releasable []uint32
+
 	for _, pdrID := range req.RemovePDRs {
 		removed, ok := session.RemovePDR(uint32(pdrID))
 		if !ok {
 			continue
 		}
 
-		if err := pdrContext.deletePDR(removed, bpfObjects); err != nil {
+		if removed.TeID != 0 && !removed.UEIP.IsValid() {
+			releasable = append(releasable, removed.TeID)
+		}
+
+		if err := pdrContext.deletePDR(removed, bpfObjects, !urrReferenced(session, removed.PdrInfo.UrrID)); err != nil {
 			return fail(fmt.Errorf("couldn't remove PDR %d: %w", pdrID, err))
 		}
 
@@ -228,6 +244,14 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		session.RemoveFar(farID)
 	}
 
+	for _, qerID := range req.RemoveQERs {
+		session.RemoveQer(qerID)
+	}
+
+	if err := conn.syncClassifier(session); err != nil {
+		return fail(err)
+	}
+
 	if req.PolicyID != "" && req.PolicyID != session.PolicyID() {
 		oldPolicyID := session.PolicyID()
 		session.SetPolicyID(req.PolicyID)
@@ -238,23 +262,37 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		conn.mu.Unlock()
 	}
 
-	logger.From(ctx, logger.UpfLog).Debug("Session modification successful")
-
-	return drain, endMarkers, &models.ModifyResponse{ForwardingTEID: forwardingTEID(session)}, nil
-}
-
-func forwardingTEID(session *Session) uint32 {
-	for _, pdr := range session.ListPDRs() {
-		if pdr.TeID == 0 || pdr.UEIP.IsValid() {
-			continue
-		}
-
-		if pdr.PdrInfo.Far.OuterHeaderCreation != 0 {
-			return pdr.TeID
+	for _, teid := range releasable {
+		if !session.holdsTEID(teid) {
+			pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID, teid)
 		}
 	}
 
-	return 0
+	logger.From(ctx, logger.UpfLog).Debug("Session modification successful")
+
+	return drain, endMarkers, &models.ModifyResponse{ChosenTEIDs: chosenTEIDs(session)}, nil
+}
+
+func chosenTEIDs(session *Session) map[uint8]uint32 {
+	teids := make(map[uint8]uint32)
+
+	for _, pdr := range session.ListPDRs() {
+		if pdr.ChooseID != 0 && pdr.TeID != 0 {
+			teids[pdr.ChooseID] = pdr.TeID
+		}
+	}
+
+	return teids
+}
+
+func urrReferenced(session *Session, urrID uint32) bool {
+	for _, pdr := range session.ListPDRs() {
+		if pdr.PdrInfo.UrrID == urrID {
+			return true
+		}
+	}
+
+	return false
 }
 
 func modifyPolicyID(req *models.ModifyRequest, session *Session) string {
@@ -330,6 +368,10 @@ func qerInfoFromMerge(qer models.QER, existing ebpf.QerInfo) ebpf.QerInfo {
 	if qer.MBR != nil {
 		existing.MaxBitrateDL = qer.MBR.DLMBR * 1000
 		existing.MaxBitrateUL = qer.MBR.ULMBR * 1000
+	}
+
+	if qer.AveragingWindow != nil {
+		existing.AveragingWindowMs = uint32(qer.AveragingWindow.Milliseconds())
 	}
 
 	return existing

@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -31,14 +32,10 @@ func (ue *UeContext) ActiveEBIs() []uint8 {
 // DefaultERABID is the EPS bearer identity of the default bearer (TS 24.301).
 const DefaultERABID byte = 5
 
-// bearerStore is the subscription-data surface the MME needs to resolve a
-// subscriber's APNs and UE-AMBR. *db.Database satisfies it.
+// bearerStore is the subscription and operator data surface the MME needs.
+// *db.Database satisfies it.
 type bearerStore interface {
-	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
-	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
-	GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*db.Policy, error)
-	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
-	GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error)
+	udm.SubscriptionStore
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	// NodeID is the cluster node identity, used to make each HA node's MME Code
 	// (and hence its GUMMEI) distinct.
@@ -106,7 +103,14 @@ func (m *MME) RadioBearerModified(ctx context.Context, ue *UeContext, ebi uint8,
 	ue.mu.Lock()
 
 	p := ue.Pdns[ebi]
-	if p == nil || p.Modifying == nil || !p.modifyAwaitingRadio {
+	if p == nil {
+		ue.mu.Unlock()
+		m.DedicatedRadioModified(ctx, ue, ebi, modified)
+
+		return
+	}
+
+	if p.Modifying == nil || !p.modifyAwaitingRadio {
 		ue.mu.Unlock()
 
 		return

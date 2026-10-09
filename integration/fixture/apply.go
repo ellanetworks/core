@@ -72,6 +72,24 @@ func (f *F) Apply(spec scenarios.FixtureSpec) {
 	for _, fr := range spec.FramedRoutes {
 		f.scopedFramedRoute(fr)
 	}
+
+	if len(spec.PCSCFAddresses) > 0 {
+		f.scopedPCSCFAddresses(spec.PCSCFAddresses)
+	}
+}
+
+func (f *F) scopedPCSCFAddresses(addresses []string) {
+	f.t.Helper()
+
+	if err := f.c.UpdateOperatorVoice(f.ctx, &client.UpdateOperatorVoiceOptions{PCSCFAddresses: addresses}); err != nil {
+		f.fatalf("set P-CSCF addresses %v: %v", addresses, err)
+	}
+
+	f.t.Cleanup(func() {
+		if err := f.c.UpdateOperatorVoice(f.ctx, &client.UpdateOperatorVoiceOptions{}); err != nil {
+			f.t.Logf("cleanup: clear P-CSCF addresses: %v", err)
+		}
+	})
 }
 
 func (f *F) scopedFramedRoute(spec scenarios.FramedRouteSpec) {

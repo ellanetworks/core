@@ -33,6 +33,10 @@ func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, status 
 	// TS 24.301 §7.3.2 g): an EPS bearer identity matching no bearer context is ignored.
 	p := m.LookupPDN(ue, uint8(status.EPSBearerIdentity))
 	if p == nil {
+		if m.DedicatedESMStatus(ctx, ue, uint8(status.EPSBearerIdentity), status.Cause) {
+			return nasreply.Handled()
+		}
+
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 

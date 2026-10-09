@@ -14,6 +14,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/diameternode"
+	"github.com/ellanetworks/core/internal/hss"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/lmf"
@@ -43,6 +45,7 @@ import (
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
+	"github.com/ellanetworks/core/internal/pcf"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/reconciler"
 	"github.com/ellanetworks/core/internal/sctplisten"
@@ -455,11 +458,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	// Create SMF with dependency-injected adapters.
-	smfPCF := &pcfDBAdapter{db: dbInstance}
+	pcfInstance := pcf.New(dbInstance, logger.PcfLog)
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
+	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
 
-	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF)
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(subscriptions))
+	pcfInstance.SetEnforcer(smfInstance)
 
 	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
 	if err != nil {
@@ -555,6 +560,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
 
+	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, udm.NewIMSCredentials(ausfStore), diameterNode, logger.HssLog)
+	hssInstance.RegisterMetrics()
+	hssInstance.Register(diameterNode)
+	amfInstance.IMSVoice = hssInstance
+	mmeInstance.IMSVoice = hssInstance
+
+	pcfInstance.Attach(diameterNode)
+
 	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity)
 
 	wg.Go(func() {
@@ -596,7 +609,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
+	}(), smfInstance.Reconcile, pcfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
 
 	registrationsWakeup, stopRegistrationsWakeup := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
@@ -624,6 +637,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		Sessions:            smfInstance,
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
+		HSS:                 hssInstance,
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
@@ -967,6 +981,138 @@ func (a *ausfDBAdapter) AdvanceSequenceNumber(ctx context.Context, imsi, resyncA
 		Opc:            creds.Opc,
 		SequenceNumber: creds.SequenceNumber,
 	}, nil
+}
+
+func (a *ausfDBAdapter) AdvanceIMSSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
+	creds, err := a.db.AdvanceSubscriberIMSSQN(ctx, imsi, resyncAuts, resyncRand)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", udm.ErrSubscriberUnknown, err)
+		}
+
+		return nil, err
+	}
+
+	return &udm.AdvancedCredentials{
+		PermanentKey:   creds.PermanentKey,
+		Opc:            creds.Opc,
+		SequenceNumber: creds.SequenceNumber,
+	}, nil
+}
+
+type hssDBAdapter struct {
+	db            *db.Database
+	subscriptions *udm.Subscriptions
+}
+
+func (a *hssDBAdapter) IMSDomain(ctx context.Context) (string, error) {
+	op, err := a.db.GetOperator(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return diameternode.IMSRealm(op.Mcc, op.Mnc)
+}
+
+func (a *hssDBAdapter) CountRegistered(ctx context.Context) (int, error) {
+	return a.db.CountIMSRegistrations(ctx, db.IMSRegistered)
+}
+
+func (a *hssDBAdapter) PCSCFConfigured(ctx context.Context) (bool, error) {
+	addresses, err := a.db.ListPCSCFAddresses(ctx)
+
+	return len(addresses) > 0, err
+}
+
+func (a *hssDBAdapter) Subscriber(ctx context.Context, imsi string) (*hss.Subscriber, error) {
+	sub, err := a.db.GetSubscriber(ctx, imsi)
+
+	return a.hssSubscriber(ctx, sub, err)
+}
+
+func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*hss.Subscriber, error) {
+	sub, err := a.db.GetSubscriberByMSISDN(ctx, msisdn)
+
+	return a.hssSubscriber(ctx, sub, err)
+}
+
+func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+		}
+
+		return nil, err
+	}
+
+	ims, err := a.hasIMSDataNetwork(ctx, sub.Imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hss.Subscriber{IMSI: sub.Imsi, MSISDN: sub.Msisdn, IMSDataNetwork: ims}, nil
+}
+
+func (a *hssDBAdapter) hasIMSDataNetwork(ctx context.Context, imsi string) (bool, error) {
+	sm, err := a.subscriptions.SessionManagement(ctx, imsi)
+	if err != nil {
+		return false, err
+	}
+
+	return slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.DNN == models.IMSDataNetworkName }), nil
+}
+
+func (a *hssDBAdapter) Registration(ctx context.Context, imsi string) (*hss.Registration, error) {
+	reg, err := a.db.GetIMSRegistration(ctx, imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return hssRegistration(reg), nil
+}
+
+func (a *hssDBAdapter) CompareAndSwapRegistration(ctx context.Context, imsi string, expected, next *hss.Registration) (*hss.Registration, bool, error) {
+	current, swapped, err := a.db.CompareAndSwapIMSRegistration(ctx, imsi, dbIMSRegistration(imsi, expected), dbIMSRegistration(imsi, next))
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, false, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+		}
+
+		return nil, false, err
+	}
+
+	return hssRegistration(current), swapped, nil
+}
+
+func hssRegistration(reg *db.IMSRegistration) *hss.Registration {
+	if reg == nil {
+		return nil
+	}
+
+	return &hss.Registration{
+		State:       hss.State(reg.State),
+		ServerName:  reg.ServerName,
+		AuthPending: reg.AuthPending,
+		OriginHost:  reg.OriginHost,
+		OriginRealm: reg.OriginRealm,
+		UpdatedAt:   reg.UpdatedAt,
+	}
+}
+
+func dbIMSRegistration(imsi string, reg *hss.Registration) *db.IMSRegistration {
+	if reg == nil {
+		return nil
+	}
+
+	return &db.IMSRegistration{
+		IMSI:        imsi,
+		State:       db.IMSRegistrationState(reg.State),
+		ServerName:  reg.ServerName,
+		AuthPending: reg.AuthPending,
+		OriginHost:  reg.OriginHost,
+		OriginRealm: reg.OriginRealm,
+		UpdatedAt:   reg.UpdatedAt,
+	}
 }
 
 // bgpImportPrefixAdapter adapts *db.Database to the bgp.ImportPrefixStore interface.

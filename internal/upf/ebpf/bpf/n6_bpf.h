@@ -34,6 +34,7 @@
 #include "bpf/utils/pdr.h"
 #include "bpf/utils/qer.h"
 #include "bpf/utils/sdf.h"
+#include "bpf/utils/sdf_classifier.h"
 #include "bpf/utils/urr.h"
 #include "bpf/utils/routing.h"
 #include "bpf/utils/statistics.h"
@@ -202,16 +203,21 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		return drop_reported(ctx, UPF_DROP_NO_DOWNLINK_SESSION);
 	}
 
-	struct far_info *far = &pdr->far;
-	struct qer_info *qer = &pdr->qer;
+	const __u16 local_port =
+		(translated && xlate.has_l4_id) ? bpf_ntohs(xlate.l4_id) : 0;
+	const struct classifier_query *sel =
+		select_downlink(ctx, pdr, local_port);
+	if (!sel)
+		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
 	PROFILE_START(PROF_N6_MTU_CHECK);
 	__u32 mtu_len = 0;
 	long ret = 0;
-	int encap_size = (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
-				 GTP_ENCAP_SIZE_IPV6 :
-				 GTP_ENCAP_SIZE_IPV4;
-	if (far->outer_header_creation & OHC_NO_PSC) {
+	int encap_size =
+		(sel->target.far.outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
+			GTP_ENCAP_SIZE_IPV6 :
+			GTP_ENCAP_SIZE_IPV4;
+	if (sel->target.far.outer_header_creation & OHC_NO_PSC) {
 		encap_size -=
 			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
@@ -240,32 +246,30 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
 	}
 
-
 	ctx->interface = INTERFACE_N6;
 
-	__u32 urr_id = pdr->urr_id;
-
 	upf_printk("upf: downlink session for ip:%pI4 action:%d", &ip4->daddr,
-		   far->action);
+		   sel->target.far.action);
 
-	if (far->action & (FAR_BUFF | FAR_NOCP)) {
+	if (sel->target.far.action & (FAR_BUFF | FAR_NOCP)) {
 		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d",
-			   pdr->pdr_id, qer->qfi);
-		struct nocp notif = { .local_seid = pdr->local_seid,
-				      .pdr_id = pdr->pdr_id,
-				      .qfi = qer->qfi };
+			   sel->target.pdr_id, sel->target.qer.qfi);
+		struct nocp notif = { .local_seid = sel->seid,
+				      .pdr_id = sel->target.pdr_id,
+				      .qfi = sel->target.qer.qfi };
 		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
 			       RINGBUF_NOCP);
 
-		dl_buffer_capture(ctx, pdr, qer, ctx->ip4, 4);
+		dl_buffer_capture(ctx, sel->seid, sel->target.pdr_id,
+				  sel->target.qer.qfi, ctx->ip4, 4);
 
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
-	if (!(far->action & FAR_FORW)) {
+	if (!(sel->target.far.action & FAR_FORW)) {
 		upf_printk("upf: far not set to forward, dropping packet");
 		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
-	if (!(far->outer_header_creation &
+	if (!(sel->target.far.outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		upf_printk(
 			"upf: far not set to encapsulate in gtp, dropping packet");
@@ -280,24 +284,27 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	}
 
 	PROFILE_START(PROF_N6_QER_RATELIMIT);
-	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status,
-		   qer->dl_maximum_bitrate);
-	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
+	upf_printk("upf: qer gate_status:%d mbr:%d",
+		   sel->target.qer.dl_gate_status,
+		   sel->target.qer.dl_maximum_bitrate);
+	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
 		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
 	/* Shared with this session's other downlink PDR. */
-	if (qer->dl_maximum_bitrate != 0) {
+	if (sel->target.qer.dl_maximum_bitrate != 0) {
 		const __u64 packet_size =
 			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
 		struct qer_window *window =
-			qer_window_for(pdr->local_seid, pdr->qer_id);
+			qer_window_for(sel->seid, sel->target.qer_id);
 
 		if (window &&
-		    CTX_ACT_DROP == limit_rate_sliding_window(
-					    packet_size, &window->dl_start,
-					    qer->dl_maximum_bitrate)) {
+		    CTX_ACT_DROP ==
+			    limit_rate_sliding_window(
+				    packet_size, &window->dl_start,
+				    sel->target.qer.dl_maximum_bitrate,
+				    sel->target.qer.averaging_window_ms)) {
 			PROFILE_END(PROF_N6_QER_RATELIMIT);
 			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 		}
@@ -318,31 +325,35 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	{
 		PROFILE_START(PROF_N6_SDF_FILTER);
 		enum ctx_action sdf_verdict =
-			match_sdf_filters(ctx, pdr->filter_map_index);
+			match_sdf_filters(ctx, sel->filter_map_index);
 		PROFILE_END(PROF_N6_SDF_FILTER);
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4",
 				   &ip4->daddr);
-			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, DROP);
+			account_flow(ctx, n3_ifindex, sel->imsi, IPV4,
+				     FLOW_DOWNLINK, DROP);
 			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
-	__u8 tos = far->transport_level_marking >> 8;
-	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
+	__u8 tos = sel->target.far.transport_level_marking >> 8;
+	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr,
+		   sel->target.far.teid);
 
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
-	account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, ALLOW);
+	account_flow(ctx, n3_ifindex, sel->imsi, IPV4, FLOW_DOWNLINK, ALLOW);
 
 	/* Only if the frame leaves: encapsulation and routing can still fail. */
-	enum ctx_action tunnel_ret = send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
+	enum ctx_action tunnel_ret = send_to_gtp_tunnel(
+		ctx, &sel->target.far, tos, sel->target.qer.qfi);
 
 	if (ctx_action_forwards(tunnel_ret)) {
 		/* Exported throughput follows the verdict, as billing does. */
 		ctx->statistics->byte_counter.bytes += billed_bytes;
-		update_urr_bytes(ctx, pdr->local_seid, urr_id, billed_bytes);
+		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
+				 billed_bytes);
 	}
 
 	return tunnel_ret;
@@ -383,13 +394,15 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		}
 	}
 
-	struct far_info *far = &pdr->far;
-	struct qer_info *qer = &pdr->qer;
+	const struct classifier_query *sel = select_downlink(ctx, pdr, 0);
+	if (!sel)
+		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
-	int encap_size = (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
-				 GTP_ENCAP_SIZE_IPV6 :
-				 GTP_ENCAP_SIZE_IPV4;
-	if (far->outer_header_creation & OHC_NO_PSC) {
+	int encap_size =
+		(sel->target.far.outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
+			GTP_ENCAP_SIZE_IPV6 :
+			GTP_ENCAP_SIZE_IPV4;
+	if (sel->target.far.outer_header_creation & OHC_NO_PSC) {
 		encap_size -=
 			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
@@ -421,7 +434,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (ctx->exthdr_invalid) {
 		upf_printk("upf: downlink unparsable exthdr chain ip:%pI6c",
 			   &ip6->daddr);
-		account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, DROP);
+		account_flow(ctx, n3_ifindex, sel->imsi, IPV6, FLOW_DOWNLINK,
+			     DROP);
 		return drop_with(ctx, UPF_DROP_EXTHDR_INVALID);
 	}
 
@@ -429,36 +443,38 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	{
 		PROFILE_START(PROF_N6_SDF_FILTER);
 		enum ctx_action sdf_verdict =
-			match_sdf_filters(ctx, pdr->filter_map_index);
+			match_sdf_filters(ctx, sel->filter_map_index);
 		PROFILE_END(PROF_N6_SDF_FILTER);
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI6c",
 				   &ip6->daddr);
-			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, DROP);
+			account_flow(ctx, n3_ifindex, sel->imsi, IPV6,
+				     FLOW_DOWNLINK, DROP);
 			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
 	upf_printk("upf: downlink session for ip:%pI6c action:%d", &ip6->daddr,
-		   far->action);
+		   sel->target.far.action);
 
-	if (far->action & (FAR_BUFF | FAR_NOCP)) {
+	if (sel->target.far.action & (FAR_BUFF | FAR_NOCP)) {
 		upf_printk("upf: need to notify CP for pdr:%d and qfi:%d",
-			   pdr->pdr_id, qer->qfi);
-		struct nocp notif = { .local_seid = pdr->local_seid,
-				      .pdr_id = pdr->pdr_id,
-				      .qfi = qer->qfi };
+			   sel->target.pdr_id, sel->target.qer.qfi);
+		struct nocp notif = { .local_seid = sel->seid,
+				      .pdr_id = sel->target.pdr_id,
+				      .qfi = sel->target.qer.qfi };
 		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
 			       RINGBUF_NOCP);
 
-		dl_buffer_capture(ctx, pdr, qer, ctx->ip6, 6);
+		dl_buffer_capture(ctx, sel->seid, sel->target.pdr_id,
+				  sel->target.qer.qfi, ctx->ip6, 6);
 
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
-	if (!(far->action & FAR_FORW)) {
+	if (!(sel->target.far.action & FAR_FORW)) {
 		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
-	if (!(far->outer_header_creation &
+	if (!(sel->target.far.outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
 	}
@@ -466,43 +482,46 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
-	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status,
-		   qer->dl_maximum_bitrate);
-	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
+	upf_printk("upf: qer gate_status:%d mbr:%d",
+		   sel->target.qer.dl_gate_status,
+		   sel->target.qer.dl_maximum_bitrate);
+	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
 		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
 	/* Shared with this session's IPv4 downlink PDR: see the IPv4 path. */
-	if (qer->dl_maximum_bitrate != 0) {
+	if (sel->target.qer.dl_maximum_bitrate != 0) {
 		const __u64 packet_size =
 			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip6);
 		struct qer_window *window =
-			qer_window_for(pdr->local_seid, pdr->qer_id);
+			qer_window_for(sel->seid, sel->target.qer_id);
 
 		if (window &&
-		    CTX_ACT_DROP == limit_rate_sliding_window(
-					    packet_size, &window->dl_start,
-					    qer->dl_maximum_bitrate)) {
+		    CTX_ACT_DROP ==
+			    limit_rate_sliding_window(
+				    packet_size, &window->dl_start,
+				    sel->target.qer.dl_maximum_bitrate,
+				    sel->target.qer.averaging_window_ms)) {
 			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 		}
 	}
 
-	__u8 tos = far->transport_level_marking >> 8;
+	__u8 tos = sel->target.far.transport_level_marking >> 8;
 
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
-	__u32 urr_id = pdr->urr_id;
-
-	account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, ALLOW);
+	account_flow(ctx, n3_ifindex, sel->imsi, IPV6, FLOW_DOWNLINK, ALLOW);
 
 	/* As in the IPv4 path: billing follows the verdict. */
-	enum ctx_action tunnel_ret = send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
+	enum ctx_action tunnel_ret = send_to_gtp_tunnel(
+		ctx, &sel->target.far, tos, sel->target.qer.qfi);
 
 	if (ctx_action_forwards(tunnel_ret)) {
 		/* Exported throughput follows the verdict, as billing does. */
 		ctx->statistics->byte_counter.bytes += billed_bytes;
-		update_urr_bytes(ctx, pdr->local_seid, urr_id, billed_bytes);
+		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
+				 billed_bytes);
 	}
 
 	return tunnel_ret;

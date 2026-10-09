@@ -5,6 +5,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -22,19 +23,21 @@ func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManag
 	}
 }
 
-func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
-	if spdrInfo.UEIP.IsValid() {
+func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects, deleteURR bool) error {
+	switch {
+	case sdfDownlink(spdrInfo):
+	case spdrInfo.UEIP.IsValid():
 		if err := bpfObjects.DeletePdrDownlink(spdrInfo.UEIP); err != nil {
 			return fmt.Errorf("can't delete downlink PDR: %s", err.Error())
 		}
-	} else if spdrInfo.TeID != 0 {
-		if err := bpfObjects.DeletePdrUplink(spdrInfo.TeID); err != nil {
+	case spdrInfo.TeID != 0:
+		if err := unapplyPDR(spdrInfo, pdrContext.Session, bpfObjects); err != nil {
 			return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
 		}
 	}
 
-	if spdrInfo.TeID != 0 {
-		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.SEID, spdrInfo.TeID)
+	if !deleteURR {
+		return nil
 	}
 
 	if err := bpfObjects.DeleteUrr(pdrContext.Session.SEID, spdrInfo.PdrInfo.UrrID); err != nil {
@@ -91,9 +94,22 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRI
 
 	spdrInfo.PdrInfo.UrrID = pdr.URRID
 
+	spdrInfo.PdrInfo.QFI = pdr.PDI.QFI
+	spdrInfo.Precedence = pdr.Precedence
+	spdrInfo.SDF = slices.Clone(pdr.PDI.SDFFilters)
+
 	if pdr.PDI.LocalFTEID != nil {
+		spdrInfo.ChooseID = pdr.PDI.LocalFTEID.ChooseID
+
 		if spdrInfo.TeID != 0 {
 			return false, nil
+		}
+
+		if spdrInfo.ChooseID != 0 {
+			if teid := pdrContext.Session.chosenTEID(spdrInfo.ChooseID); teid != 0 {
+				spdrInfo.TeID = teid
+				return false, nil
+			}
 		}
 
 		teid, err := pdrContext.allocateTEID()

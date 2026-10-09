@@ -47,6 +47,7 @@ type RegistrationResult struct {
 	RANUENGAPID      int64
 	Session          PDUSessionResult
 	PDUSessionStatus *fgs.PSIBitmap
+	IMSVoPS          bool
 }
 
 func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
@@ -103,8 +104,14 @@ func (g *GnodeB) Register(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeo
 		return nil, fmt.Errorf("send Registration Request: %w", err)
 	}
 
-	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout); err != nil {
+	registrationAccept, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout)
+	if err != nil {
 		return nil, fmt.Errorf("await Registration Accept: %w", err)
+	}
+
+	ra, err := fgs.ParseRegistrationAccept(registrationAccept)
+	if err != nil {
+		return nil, fmt.Errorf("parse Registration Accept: %w", err)
 	}
 
 	accept, err := u.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), timeout)
@@ -131,6 +138,7 @@ func (g *GnodeB) Register(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeo
 		AMFUENGAPID: g.GetAMFUENGAPID(ranUENGAPID),
 		RANUENGAPID: ranUENGAPID,
 		Session:     session,
+		IMSVoPS:     ra.NetworkFeatureSupport != nil && ra.NetworkFeatureSupport.IMSVoPS3GPP,
 	}, nil
 }
 
@@ -287,7 +295,8 @@ func (g *GnodeB) openPDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 type ServiceRequestOpts struct {
 	// DLTEID pins the downlink TEID reported at the next re-establishment
 	// of the session. Zero allocates a fresh one.
-	DLTEID uint32
+	DLTEID      uint32
+	ServiceType fgs.ServiceType
 }
 
 // ServiceRequest performs a mobile-originated service request for a UE in
@@ -302,9 +311,14 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 		g.PinDLTEID(ranUENGAPID, int64(pduSessionID), opts.DLTEID)
 	}
 
+	serviceType := fgs.ServiceTypeData
+	if opts != nil && opts.ServiceType != 0 {
+		serviceType = opts.ServiceType
+	}
+
 	generation := g.sessionGeneration()
 
-	if err := u.SendServiceRequest(ranUENGAPID, status, uint8(fgs.ServiceTypeData)); err != nil {
+	if err := u.SendServiceRequest(ranUENGAPID, status, uint8(serviceType)); err != nil {
 		return nil, fmt.Errorf("send Service Request: %w", err)
 	}
 

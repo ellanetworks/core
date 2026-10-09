@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -217,6 +218,26 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		})
 	}
 
+	for _, d := range m.SnapshotDedicated(ue) {
+		if d.Activating || d.Deactivating {
+			continue
+		}
+
+		sgwTLA, err := models.EncodeTransportLayerAddress(d.SgwFTEID.Addr, d.SgwN3IPv6)
+		if err != nil {
+			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", logger.ERABID(d.Ebi), zap.Error(err))
+
+			continue
+		}
+
+		erabs = append(erabs, s1ap.ERABToBeSetupItemCtxtSUReq{
+			ERABID:                s1ap.ERABID(d.Ebi),
+			QoS:                   mme.DedicatedERABQoS(&d),
+			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+			GTPTEID:               s1ap.GTPTEID(d.SgwFTEID.TEID),
+		})
+	}
+
 	if len(erabs) == 0 {
 		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no encodable E-RAB")
 		return nil, 0, false
@@ -282,7 +303,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
+	esm, err := buildActivateDefaultESM(p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +332,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nil, fmt.Errorf("encode T3412: %w", err)
 	}
 
-	nfs := m.NetworkFeatureSupport(ue.UeNetCap())
+	nfs := m.NetworkFeatureSupport(ue.UeNetCap(), m.DecideIMSVoPS(ctx, ue))
 
 	accept := &eps.AttachAccept{
 		EPSAttachResult:       eps.AttachResultEPS,
@@ -401,7 +422,7 @@ func sendNITZ(ctx context.Context, m *mme.MME, _ *mme.UeContext, ueConn *mme.UeC
 	ueConn.SendDownlinkProtected(ctx, info)
 }
 
-func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer) ([]byte, error) {
+func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer, pcscf nas.PCSCFRequest) ([]byte, error) {
 	apn := eps.APN(p.Apn)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -454,6 +475,18 @@ func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti 
 
 		pco.Containers = append(pco.Containers, container)
 		pco.Containers = append(pco.Containers, bearer.MappedFiveGSQoS...)
+	}
+
+	if containers := nas.NewPCSCFContainers(bearer.PCSCF, nas.PCSCFRequest{
+		IPv4: pcscf.IPv4 && (p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6),
+		IPv6: pcscf.IPv6 && (p.PdnType == eps.PDNTypeIPv6 || p.PdnType == eps.PDNTypeIPv4v6),
+	}); len(containers) > 0 {
+		with := pco
+		with.Containers = append(slices.Clone(pco.Containers), containers...)
+
+		if useEPCO || with.FitsUnextended() {
+			pco = with
+		}
 	}
 
 	if answers := nas.AnswerProtocolOptions(protocolRequests, p.Dns, p.UeIP); len(answers) > 0 {

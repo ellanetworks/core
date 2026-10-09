@@ -82,7 +82,7 @@ func TestReconcileSendsAnIdleSessionN1Only(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
@@ -162,6 +162,14 @@ func TestModificationRejectKeepsPreviousPolicy(t *testing.T) {
 	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("a rejected modification must keep the previous AMBR (200 Mbps), got %q", dl)
 	}
+
+	pcf.mu.Lock()
+	failures := pcf.failures
+	pcf.mu.Unlock()
+
+	if len(failures) != 1 || failures[0] != ref {
+		t.Fatalf("enforcement failures reported = %v, want [%s]", failures, ref)
+	}
 }
 
 // TestT3592RetransmitsThenReleasesLocally verifies that an unacknowledged release
@@ -169,7 +177,7 @@ func TestModificationRejectKeepsPreviousPolicy(t *testing.T) {
 // session is released locally on the fifth (TS 24.501 §6.3.3 abnormal case a).
 func TestT3592RetransmitsThenReleasesLocally(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
@@ -208,7 +216,7 @@ func TestT3592RetransmitsThenReleasesLocally(t *testing.T) {
 // session is still torn down on abort, not leaked (TS 24.501 §6.3.3.5).
 func TestDeactivateDoesNotAbandonRelease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
@@ -217,7 +225,7 @@ func TestDeactivateDoesNotAbandonRelease(t *testing.T) {
 	}
 
 	// UE goes idle while the release command is outstanding.
-	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
@@ -230,7 +238,7 @@ func TestDeactivateDoesNotAbandonRelease(t *testing.T) {
 // stops T3592 and removes the session with no retransmission (TS 24.501 §6.3.3.3).
 func TestT3592StopsOnReleaseComplete(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
@@ -265,7 +273,7 @@ func TestT3592StopsOnReleaseComplete(t *testing.T) {
 // §6.3.2.5).
 func TestT3591RetransmitsThenAborts(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3591(procedureTimerInterval))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3591(procedureTimerInterval))
 
 	_, ref := setupSessionWithTunnel(t, s)
 
@@ -289,7 +297,7 @@ func TestT3591RetransmitsThenAborts(t *testing.T) {
 // Complete stops T3591 with no retransmission (TS 24.501 §6.3.2.3).
 func TestT3591StopsOnModificationComplete(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3591(procedureTimerInterval))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3591(procedureTimerInterval))
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
@@ -317,7 +325,7 @@ func TestT3591StopsOnModificationComplete(t *testing.T) {
 
 func TestReleaseRequestIgnoredDuringRelease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(time.Hour))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3592(time.Hour))
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
@@ -355,7 +363,7 @@ func TestReleaseRequestIgnoredDuringRelease(t *testing.T) {
 
 func TestCollidingReleaseRequestDoesNotResetT3592(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 

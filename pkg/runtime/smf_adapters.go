@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -31,21 +32,6 @@ import (
 var tracer = otel.Tracer("ella-core/runtime")
 
 // ---------------------------------------------------------------------------
-// pcfDBAdapter adapts *db.Database to the smf.PCF interface.
-// In 3GPP terms this is the Npcf_SMPolicyControl service backed by the
-// local subscriber / policy database.
-// ---------------------------------------------------------------------------
-
-type pcfDBAdapter struct {
-	db *db.Database
-}
-
-// NewPCFDBAdapter creates a new PCF database adapter.
-func NewPCFDBAdapter(database *db.Database) smf.PCF {
-	return &pcfDBAdapter{db: database}
-}
-
-// ---------------------------------------------------------------------------
 // smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
 // ---------------------------------------------------------------------------
 
@@ -64,6 +50,8 @@ type smfDNNStore struct {
 	pool4Err error
 	pool6    ipam.Pool
 	pool6Err error
+
+	dn *db.DataNetwork
 }
 
 func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore, error) {
@@ -80,7 +68,7 @@ func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore
 		return nil, fmt.Errorf("get data network: %w", err)
 	}
 
-	s := &smfDNNStore{a: a, dnn: dnn, dnID: dn.ID}
+	s := &smfDNNStore{a: a, dnn: dnn, dnID: dn.ID, dn: dn}
 	s.pool4, s.pool4Err = ipam.NewPool(dn.ID, dn.IPv4Pool)
 
 	if dn.IPv6Pool == "" {
@@ -224,105 +212,6 @@ func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID
 	return addr, nil
 }
 
-func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
-	pol, dbRules, dn, err := a.db.GetSessionPolicy(ctx, imsi, snssai.Sst, snssai.Sd, dnn)
-	if err != nil {
-		return nil, policyLookupError(err)
-	}
-
-	return smfPolicy(pol, dbRules, dn)
-}
-
-func (a *pcfDBAdapter) GetEPSSessionPolicy(ctx context.Context, imsi string, apn string) (*smf.Policy, *models.Snssai, error) {
-	pol, dbRules, dn, slice, err := a.db.GetEPSSessionPolicy(ctx, imsi, apn)
-	if err != nil {
-		return nil, nil, policyLookupError(err)
-	}
-
-	policy, err := smfPolicy(pol, dbRules, dn)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	snssai := &models.Snssai{Sst: slice.Sst}
-	if slice.Sd != nil {
-		snssai.Sd = *slice.Sd
-	}
-
-	return policy, snssai, nil
-}
-
-func policyLookupError(err error) error {
-	if errors.Is(err, db.ErrDataNetworkNotFound) {
-		return fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
-	}
-
-	if errors.Is(err, db.ErrDNNNotInSlice) {
-		return fmt.Errorf("%w: %v", smf.ErrDNNNotInSlice, err)
-	}
-
-	if errors.Is(err, db.ErrNoMatchingPolicy) {
-		return fmt.Errorf("%w: %v", smf.ErrNoPolicyMatch, err)
-	}
-
-	return fmt.Errorf("get session policy: %w", err)
-}
-
-func smfPolicy(pol *db.Policy, dbRules []*db.NetworkRule, dn *db.DataNetwork) (*smf.Policy, error) {
-	dns := net.ParseIP(dn.DNS)
-
-	// The stored policy text becomes a rate here, at the edge of the DB layer.
-	ambrUL, err := models.ParseBitRate(pol.SessionAmbrUplink)
-	if err != nil {
-		return nil, fmt.Errorf("policy %s Session-AMBR uplink: %w", pol.ID, err)
-	}
-
-	ambrDL, err := models.ParseBitRate(pol.SessionAmbrDownlink)
-	if err != nil {
-		return nil, fmt.Errorf("policy %s Session-AMBR downlink: %w", pol.ID, err)
-	}
-
-	policy := &smf.Policy{
-		PolicyID: pol.ID,
-		Ambr:     models.Ambr{Uplink: ambrUL, Downlink: ambrDL},
-		QosData: models.QosData{
-			QFI:    models.DefaultQFI,
-			Var5qi: pol.Var5qi,
-			Arp: &models.Arp{
-				PriorityLevel: pol.Arp,
-			},
-		},
-		DNS:      dns,
-		MTU:      uint16(dn.MTU),
-		IPv4Pool: dn.IPv4Pool,
-		IPv6Pool: dn.IPv6Pool,
-	}
-
-	resolvedRules := make([]*smf.ResolvedNetworkRule, len(dbRules))
-	for i, dbRule := range dbRules {
-		dir, err := models.ParseDirection(dbRule.Direction)
-		if err != nil {
-			return nil, fmt.Errorf("invalid direction for rule %s: %w", dbRule.ID, err)
-		}
-
-		resolvedRules[i] = &smf.ResolvedNetworkRule{
-			Description:  dbRule.Description,
-			PolicyID:     dbRule.PolicyID,
-			Direction:    dir,
-			RemotePrefix: dbRule.RemotePrefix,
-			Protocol:     dbRule.Protocol,
-			PortLow:      dbRule.PortLow,
-			PortHigh:     dbRule.PortHigh,
-			Action:       dbRule.Action,
-			Precedence:   dbRule.Precedence,
-		}
-	}
-
-	policy.NetworkRules = resolvedRules
-
-	return policy, nil
-}
-
 func (a *smfDBAdapter) IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error {
 	epochDay := time.Now().UTC().Unix() / 86400
 
@@ -368,49 +257,6 @@ func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.
 	}
 
 	return a.db.InsertFlowReports(ctx, batch)
-}
-
-// ListFramedRoutes returns the subscriber's framed-route prefixes on the data
-// network (TS 23.501 §5.6.14). Prefixes are stored normalized, so parsing is
-// total.
-func (s *smfDNNStore) ListFramedRoutes(ctx context.Context, imsi string) ([]netip.Prefix, error) {
-	rows, err := s.a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, imsi, s.dnID)
-	if err != nil {
-		return nil, fmt.Errorf("list framed routes: %w", err)
-	}
-
-	prefixes := make([]netip.Prefix, 0, len(rows))
-
-	for i := range rows {
-		p, err := netip.ParsePrefix(rows[i].Prefix)
-		if err != nil {
-			return nil, fmt.Errorf("parse framed route %q: %w", rows[i].Prefix, err)
-		}
-
-		prefixes = append(prefixes, p)
-	}
-
-	return prefixes, nil
-}
-
-// GetStaticIP returns the reserved static address for the family, and
-// whether one exists (a missing reservation is not an error).
-func (s *smfDNNStore) GetStaticIP(ctx context.Context, imsi string, ipv6 bool) (netip.Addr, bool, error) {
-	pool, err := s.pool(ipv6)
-	if err != nil {
-		return netip.Addr{}, false, fmt.Errorf("resolve pool: %w", err)
-	}
-
-	lease, err := s.a.db.GetStaticLease(ctx, pool.ID, pool.IPVersion, imsi)
-	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			return netip.Addr{}, false, nil
-		}
-
-		return netip.Addr{}, false, fmt.Errorf("get static lease: %w", err)
-	}
-
-	return lease.Address(), true, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -504,8 +350,12 @@ func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSes
 
 func (a *smfAMFAdapter) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
 	err := a.amf.ModifyN1N2Message(ctx, supi, pduSessionID, n1Msg, n2Msg)
-	if errors.Is(err, amfContext.ErrUENotReachable) {
+
+	switch {
+	case errors.Is(err, amfContext.ErrUENotReachable):
 		return smf.ErrUENotReachable
+	case errors.Is(err, amfContext.ErrHandoverInProgress):
+		return smf.ErrHandoverInProgress
 	}
 
 	return err
@@ -555,10 +405,116 @@ func (a *smfMMEAdapter) ReactivateEPSBearer(ctx context.Context, imsi string, eb
 	return mmeReachability(a.MME.ReactivateEPSBearer(ctx, imsi, ebi))
 }
 
+func (a *smfMMEAdapter) ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error {
+	return mmeReachability(a.MME.ActivateDedicatedBearer(ctx, imsi, req))
+}
+
+func (a *smfMMEAdapter) ModifyDedicatedBearer(ctx context.Context, imsi string, ebi uint8, mod models.DedicatedBearerModification) error {
+	return mmeReachability(a.MME.ModifyDedicatedBearer(ctx, imsi, ebi, mod))
+}
+
+func (a *smfMMEAdapter) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi uint8, sgwTEID uint32) error {
+	return mmeReachability(a.MME.DeactivateDedicatedBearer(ctx, imsi, ebi, sgwTEID))
+}
+
 func mmeReachability(err error) error {
 	if errors.Is(err, mme.ErrUENotReachable) || errors.Is(err, mme.ErrBearerBusy) {
 		return fmt.Errorf("%w: %v", smf.ErrUENotReachable, err)
 	}
 
 	return err
+}
+
+type sessionSubscriptionAdapter struct {
+	smf *smfDBAdapter
+}
+
+func (a *sessionSubscriptionAdapter) dnnStore(ctx context.Context, dnn string) (*smfDNNStore, error) {
+	dn, err := a.smf.ResolveDNN(ctx, dnn)
+	if err != nil {
+		return nil, err
+	}
+
+	return dn.(*smfDNNStore), nil
+}
+
+func (s *smfDNNStore) Config(ctx context.Context) (smf.DataNetworkConfig, error) {
+	pcscf, err := s.a.pcscfAddresses(ctx, s.dn)
+	if err != nil {
+		return smf.DataNetworkConfig{}, err
+	}
+
+	return smf.DataNetworkConfig{
+		DNS:      net.ParseIP(s.dn.DNS),
+		MTU:      uint16(s.dn.MTU),
+		IPv4Pool: s.dn.IPv4Pool,
+		IPv6Pool: s.dn.IPv6Pool,
+		PCSCF:    pcscf,
+	}, nil
+}
+
+func (a *smfDBAdapter) pcscfAddresses(ctx context.Context, dn *db.DataNetwork) ([]netip.Addr, error) {
+	if !strings.EqualFold(dn.Name, models.IMSDataNetworkName) {
+		return nil, nil
+	}
+
+	addrs, err := a.db.ListPCSCFAddresses(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list P-CSCF addresses: %w", err)
+	}
+
+	return addrs, nil
+}
+
+// FramedRoutes returns the subscriber's framed-route prefixes on the data
+// network (TS 23.501 §5.6.14). Prefixes are stored normalized, so parsing is
+// total.
+func (a *sessionSubscriptionAdapter) FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error) {
+	s, err := a.dnnStore(ctx, dnn)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, imsi, s.dnID)
+	if err != nil {
+		return nil, fmt.Errorf("list framed routes: %w", err)
+	}
+
+	prefixes := make([]netip.Prefix, 0, len(rows))
+
+	for i := range rows {
+		p, err := netip.ParsePrefix(rows[i].Prefix)
+		if err != nil {
+			return nil, fmt.Errorf("parse framed route %q: %w", rows[i].Prefix, err)
+		}
+
+		prefixes = append(prefixes, p)
+	}
+
+	return prefixes, nil
+}
+
+// StaticIP returns the reserved static address for the family, and
+// whether one exists (a missing reservation is not an error).
+func (a *sessionSubscriptionAdapter) StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error) {
+	s, err := a.dnnStore(ctx, dnn)
+	if err != nil {
+		return netip.Addr{}, false, err
+	}
+
+	pool, err := s.pool(ipv6)
+	if err != nil {
+		return netip.Addr{}, false, fmt.Errorf("resolve pool: %w", err)
+	}
+
+	lease, err := s.a.db.GetStaticLease(ctx, pool.ID, pool.IPVersion, imsi)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return netip.Addr{}, false, nil
+		}
+
+		return netip.Addr{}, false, fmt.Errorf("get static lease: %w", err)
+	}
+
+	return lease.Address(), true, nil
 }

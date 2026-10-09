@@ -27,13 +27,11 @@ type transferRequest struct {
 	EBI    uint8
 	Dnn    string
 	Snssai *models.Snssai
-	Policy *Policy
 }
 
 type pendingTransfer struct {
-	to     AccessType
-	ebi    uint8
-	policy *Policy
+	to  AccessType
+	ebi uint8
 }
 
 type droppedSource struct {
@@ -123,7 +121,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 
 	sc.discardOutstandingProcedures()
 
-	move := &pendingTransfer{to: req.Access, ebi: req.EBI, policy: req.Policy}
+	move := &pendingTransfer{to: req.Access, ebi: req.EBI}
 	sc.pending = move
 
 	link := trace.SpanContextFromContext(ctx)
@@ -182,7 +180,6 @@ type transferCommit struct {
 	source   AccessType
 	sourceID SessionIdentity
 	sourceUP bool
-	policy   *Policy
 	restore  func()
 }
 
@@ -214,7 +211,6 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 		source:   source,
 		sourceID: sourceID,
 		sourceUP: sourceUP,
-		policy:   transferPolicy(sc.PolicyData, move.policy),
 		restore: func() {
 			sc.Access = source
 			s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI)
@@ -223,29 +219,11 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 }
 
 func (sc *SMContext) finishTransferCommit(c *transferCommit) *droppedSource {
-	sc.PolicyData = c.policy
-
 	if sc.Access == Access4G {
 		sc.discardOutstandingProcedures()
 	}
 
 	return &droppedSource{supi: sc.Supi, access: c.source, id: c.sourceID, upActive: c.sourceUP}
-}
-
-func transferPolicy(current, target *Policy) *Policy {
-	if current == nil {
-		return target
-	}
-
-	retained := *current
-	retained.PolicyID = target.PolicyID
-	retained.NetworkRules = target.NetworkRules
-
-	if retained.QosData == (models.QosData{}) {
-		retained.QosData = target.QosData
-	}
-
-	return &retained
 }
 
 func (s *SMF) dropSourceRouting(ctx context.Context, ref string, dropped *droppedSource) {

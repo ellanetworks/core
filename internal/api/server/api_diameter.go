@@ -22,7 +22,7 @@ type DiameterPeer struct {
 	Host    string `json:"host,omitempty"`
 	Realm   string `json:"realm,omitempty"`
 	Address string `json:"address"`
-	Port    int    `json:"port"`
+	Port    int    `json:"port,omitempty"`
 	State   string `json:"state"`
 	Since   string `json:"since"`
 }

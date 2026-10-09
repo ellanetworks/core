@@ -806,7 +806,7 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 
 	sc := establish5GS(t, s)
 
-	if err := s.DeactivateSmContext(ctx, sc.Ref); err != nil {
+	if err := s.DeactivateSmContext(ctx, sc.Ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
@@ -830,10 +830,8 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 	}
 }
 
-func TestTransferKeepsTheUEsQoSAndBindsTheTargetPolicy(t *testing.T) {
+func TestTransferKeepsThePolicyAssociationsDecision(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
-	target := *pcf.policy
-	target.PolicyID = "5gs-policy"
 	pcf.policy.PolicyID = "eps-policy"
 
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -850,8 +848,6 @@ func TestTransferKeepsTheUEsQoSAndBindsTheTargetPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
-
-	pcf.policy = &target
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
@@ -894,8 +890,12 @@ func TestTransferKeepsTheUEsQoSAndBindsTheTargetPolicy(t *testing.T) {
 		t.Fatal("the session is not on 5GS after the gNB bound its downlink")
 	}
 
-	if policyID != "5gs-policy" {
-		t.Errorf("policy %q in force after the move, want the target's %q: the UPF must filter with the current rules", policyID, "5gs-policy")
+	if policyID != "eps-policy" {
+		t.Errorf("policy %q in force after the move, want the association's %q", policyID, "eps-policy")
+	}
+
+	if pcf.lastSnssai == nil || len(pcf.associations) != 1 {
+		t.Errorf("associations = %d, want the session's one association kept across the move", len(pcf.associations))
 	}
 }
 

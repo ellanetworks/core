@@ -1667,6 +1667,26 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/operator/voice:
+    put:
+      operationId: updateOperatorVoice
+      tags: [Operator]
+      summary: Update voice settings
+      description: Sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the ims data network. The list is ordered by preference. UEs receive the addresses of the IP version they request. An empty list clears it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorVoiceParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
     get:
@@ -4573,6 +4593,8 @@ components:
           $ref: "#/components/schemas/OperatorSPN"
         sms:
           $ref: "#/components/schemas/OperatorSMS"
+        voice:
+          $ref: "#/components/schemas/OperatorVoice"
 
     OperatorResponseEnvelope:
       type: object
@@ -4813,6 +4835,27 @@ components:
           type: string
           pattern: "^(\\+[1-9][0-9]{0,14})?$"
           description: "Ella Core's E.164 number."
+
+    OperatorVoice:
+      type: object
+      required: [pcscfAddresses]
+      properties:
+        pcscfAddresses:
+          type: array
+          items:
+            type: string
+          description: "P-CSCF addresses of the IMS given to UEs, in preference order. Empty when unset."
+
+    UpdateOperatorVoiceParams:
+      type: object
+      required: [pcscfAddresses]
+      properties:
+        pcscfAddresses:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+          description: "Unicast IPv4 and IPv6 addresses of the IMS, in preference order. At most 3 of each IP version, without duplicates."
 
     UpdateOperatorSPNParams:
       type: object
@@ -5210,11 +5253,11 @@ components:
 
     DiameterPeer:
       type: object
-      required: [role, address, port, state, since]
+      required: [role, address, state, since]
       properties:
         role:
           type: string
-          enum: [smsc]
+          enum: [smsc, ims]
           description: "What the peer is to Ella Core."
         host:
           type: string
@@ -5227,7 +5270,7 @@ components:
           description: "The peer's IP address."
         port:
           type: integer
-          description: "The peer's SCTP port."
+          description: "The peer's SCTP port. Absent for IMS peers."
         state:
           type: string
           enum: [down, connecting, open, suspect, reopen, closing]

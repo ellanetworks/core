@@ -63,30 +63,49 @@ func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.Activa
 	return activate
 }
 
-// TS 24.301 §9.9.3.12
+type fakeIMSVoice bool
+
+func (f fakeIMSVoice) VoiceSupported(context.Context, string) (bool, error) {
+	return bool(f), nil
+}
+
+// TS 24.301 §9.9.3.12A
 func TestAttachAcceptIMSVoPS(t *testing.T) {
-	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
-	testPDN(ue).PdnType = eps.PDNTypeIPv4
-	testPDN(ue).UeIP = testUEIP
+	for _, tc := range []struct {
+		name  string
+		voice mme.IMSVoice
+		want  bool
+	}{
+		{"no IMS", nil, false},
+		{"IMS voice not supported for the subscriber", fakeIMSVoice(false), false},
+		{"IMS voice supported for the subscriber", fakeIMSVoice(true), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			m.IMSVoice = tc.voice
+			ue, _ := securedUE(t, m)
+			testPDN(ue).PdnType = eps.PDNTypeIPv4
+			testPDN(ue).UeIP = testUEIP
 
-	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9}, MTU: 1400})
-	if err != nil {
-		t.Fatal(err)
-	}
+			wire, err := buildProtectedAttachAccept(context.Background(), m, ue, models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9}, MTU: 1400})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
-	if err != nil {
-		t.Fatal(err)
-	}
+			plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	accept, err := eps.ParseAttachAccept(plain)
-	if err != nil {
-		t.Fatal(err)
-	}
+			accept, err := eps.ParseAttachAccept(plain)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	if accept.NetworkFeatureSupport == nil || !accept.NetworkFeatureSupport.IMSVoPS {
-		t.Fatalf("Attach Accept must advertise IMS VoPS, got %+v", accept.NetworkFeatureSupport)
+			if accept.NetworkFeatureSupport == nil || accept.NetworkFeatureSupport.IMSVoPS != tc.want {
+				t.Fatalf("Attach Accept IMS VoPS = %+v, want %t", accept.NetworkFeatureSupport, tc.want)
+			}
+		})
 	}
 }
 

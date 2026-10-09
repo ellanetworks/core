@@ -13,8 +13,8 @@ import (
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType) ([]byte, error) {
-	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType)
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, flows []GBRQoSFlow) ([]byte, error) {
+	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, flows)
 	if err != nil {
 		return nil, err
 	}
@@ -30,8 +30,8 @@ const (
 	DataForwardingIndirect
 )
 
-func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8, forwarding DataForwarding) ([]byte, error) {
-	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType)
+func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8, forwarding DataForwarding, flows []GBRQoSFlow) ([]byte, error) {
+	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, flows)
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +49,8 @@ func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, te
 			return nil, fmt.Errorf("EPS bearer identity %d does not fit the E-RAB ID", *erabID)
 		}
 
-		for i := range transfer.QosFlowSetupRequest {
-			transfer.QosFlowSetupRequest[i].ERABID = libngap.Ptr(libngap.ERABID(*erabID))
+		if len(transfer.QosFlowSetupRequest) > 0 {
+			transfer.QosFlowSetupRequest[0].ERABID = libngap.Ptr(libngap.ERABID(*erabID))
 		}
 	}
 
@@ -66,7 +66,7 @@ func marshalPDUSessionResourceSetupRequestTransfer(transfer *libngap.PDUSessionR
 	return buf, nil
 }
 
-func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType) (*libngap.PDUSessionResourceSetupRequestTransfer, error) {
+func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, flows []GBRQoSFlow) (*libngap.PDUSessionResourceSetupRequestTransfer, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
 	}
@@ -95,6 +95,18 @@ func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.Q
 			QosFlowIdentifier:         libngap.QosFlowIdentifier(qosData.QFI),
 			QosFlowLevelQosParameters: params,
 		}}
+	}
+
+	for _, f := range flows {
+		params, err := gbrQosFlowLevelQosParameters(f)
+		if err != nil {
+			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
+		}
+
+		transfer.QosFlowSetupRequest = append(transfer.QosFlowSetupRequest, libngap.QosFlowSetupRequestItem{
+			QosFlowIdentifier:         libngap.QosFlowIdentifier(f.QFI),
+			QosFlowLevelQosParameters: params,
+		})
 	}
 
 	return transfer, nil

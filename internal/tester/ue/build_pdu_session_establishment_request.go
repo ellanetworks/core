@@ -37,11 +37,13 @@ func BuildPduSessionEstablishmentRequest(opts *PduSessionEstablishmentRequestOpt
 
 // uePDUEstablishmentPCO builds the PCO the UE requests at PDU session
 // establishment (TS 24.008 §10.5.6.3): IP address allocation via NAS signalling,
-// plus DNS server IPv4 and IPv6 address requests, each an empty-content container.
+// plus DNS server and P-CSCF IPv4 and IPv6 address requests, each an empty-content container.
 func uePDUEstablishmentPCO() nas.ProtocolConfigurationOptions {
 	return nas.NewRequestedProtocolConfigurationOptions(
 		nas.PCOContainerIPAddressAllocationViaNAS,
 		nas.PCOContainerDNSServerIPv4Address,
 		nas.PCOContainerDNSServerIPv6Address,
+		nas.PCOContainerPCSCFIPv6Address,
+		nas.PCOContainerPCSCFIPv4Address,
 	)
 }

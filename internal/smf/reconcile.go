@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/nas"
@@ -88,12 +89,21 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 		return nil
 	}
 
+	smContext.reconcileMu.Lock()
+
 	smContext.Mutex.Lock()
 	supi, snssai, dnn := smContext.Supi, smContext.Snssai, smContext.Dnn
+	reported, authorized := smContext.subscribedQoS, smContext.policyDecision
 	smContext.Mutex.Unlock()
 
-	policy, _, err := s.resolveEPSPolicy(ctx, supi, dnn, snssai)
+	if authorized == nil {
+		smContext.reconcileMu.Unlock()
+		return nil
+	}
+
+	policy, decision, subscribed, err := s.reconcileTarget(ctx, ref, supi, snssai, dnn, reported, authorized)
 	if err != nil && !permanentPolicyFailure(err) {
+		smContext.reconcileMu.Unlock()
 		logger.SmfLog.Warn("transient error fetching session policy, skipping reconciliation",
 			logger.SMContextRef(ref), zap.Error(err))
 
@@ -101,10 +111,25 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 	}
 
 	smContext.Mutex.Lock()
-	decision, err := s.reconcileLocked(ctx, smContext, policy)
+
+	if policy != nil {
+		smContext.subscribedQoS, smContext.policyDecision = subscribed, decision
+	}
+
+	outcome, err := s.reconcileLocked(ctx, smContext, policy)
 	onEPS := smContext.Access == Access4G
 	ebi := smContext.EBI
+
+	var (
+		dedicated []dedicatedAction
+		failed    []RuleReport
+	)
+
+	if err == nil && outcome.action != reconcileRelease {
+		dedicated, failed = s.planDedicatedLocked(ctx, smContext)
+	}
 	smContext.Mutex.Unlock()
+	smContext.reconcileMu.Unlock()
 
 	if err != nil {
 		span.RecordError(err)
@@ -112,19 +137,21 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 		return err
 	}
 
+	s.runDedicated(ctx, smContext, dedicated, failed)
+
 	if !onEPS {
 		return nil
 	}
 
-	switch decision.action {
+	switch outcome.action {
 	case reconcileRelease:
 		err = s.mme.ReactivateEPSBearer(ctx, supi.IMSI(), ebi)
 	case reconcileModify:
-		err = s.mme.ModifyEPSBearer(ctx, supi.IMSI(), ebi, decision.mod)
+		err = s.mme.ModifyEPSBearer(ctx, supi.IMSI(), ebi, outcome.mod)
 		if err != nil {
 			smContext.Mutex.Lock()
-			if smContext.pendingPolicy == decision.policy {
-				smContext.pendingPolicy = nil
+			if smContext.pendingPolicy == outcome.policy {
+				s.discardPendingPolicyLocked(smContext)
 			}
 			smContext.Mutex.Unlock()
 		}
@@ -148,6 +175,61 @@ func permanentPolicyFailure(err error) bool {
 	return errors.Is(err, ErrNoPolicyMatch) ||
 		errors.Is(err, ErrDNNNotFound) ||
 		errors.Is(err, ErrDNNNotInSlice)
+}
+
+func (s *SMF) reconcileTarget(ctx context.Context, ref string, supi etsi.SUPI, snssai *models.Snssai, dnn string, reported SubscribedQoS, authorized *PolicyDecision) (*Policy, *PolicyDecision, SubscribedQoS, error) {
+	in, err := s.prepareSession(ctx, supi, snssai, dnn)
+	if err != nil {
+		return nil, authorized, reported, err
+	}
+
+	decision := authorized
+
+	if !in.subscribed.equal(reported) {
+		if decision, err = s.pcf.UpdateAssociation(ctx, ref, in.subscribed); err != nil {
+			return nil, authorized, reported, fmt.Errorf("report the subscribed QoS to the PCF: %w", err)
+		}
+	}
+
+	applyDecision(in.policy, decision)
+
+	return in.policy, decision, in.subscribed, nil
+}
+
+func (s *SMF) UpdateNotify(ctx context.Context, ref string, d *PolicyDecision) error {
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return ErrSMContextNotFound
+	}
+
+	sc.reconcileMu.Lock()
+	sc.Mutex.Lock()
+
+	stale := sc.policyDecision != nil && d.Revision <= sc.policyDecision.Revision
+	if !stale {
+		sc.policyDecision = d
+	}
+
+	sc.Mutex.Unlock()
+	sc.reconcileMu.Unlock()
+
+	if stale {
+		return nil
+	}
+
+	return s.ReconcileSession(ctx, ref)
+}
+
+func (s *SMF) discardPendingPolicyLocked(sc *SMContext) {
+	if sc.pendingPolicy == nil {
+		return
+	}
+
+	sc.pendingPolicy = nil
+
+	if s.pcf != nil && sc.policyDecision != nil {
+		s.pcf.ReportEnforcementFailure(sc.Ref, nil, ResourcesNotAllocated)
+	}
 }
 
 func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy *Policy) (reconcileDecision, error) {
@@ -244,7 +326,6 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	if policy.PolicyID != current.PolicyID {
 		rebound := *current
 		rebound.PolicyID = policy.PolicyID
-		rebound.NetworkRules = policy.NetworkRules
 
 		if err := s.updatePFCPRules(ctx, smContext, &rebound); err != nil {
 			return reconcileDecision{}, fmt.Errorf("bind the session to policy %q: %w", policy.PolicyID, err)
@@ -287,11 +368,10 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			Var5qi: policy.QosData.Var5qi,
 			Arp:    policy.QosData.Arp,
 		},
-		NetworkRules: current.NetworkRules,
-		DNS:          dns,
-		MTU:          current.MTU,
-		IPv4Pool:     current.IPv4Pool,
-		IPv6Pool:     current.IPv6Pool,
+		DNS:      dns,
+		MTU:      current.MTU,
+		IPv4Pool: current.IPv4Pool,
+		IPv6Pool: current.IPv6Pool,
 	}
 
 	if smContext.Access == Access5G && hasQoSChange && !has5QIChange && !hasAmbrChange && !hasDNSChange && !smContext.upConnectionActive() {
@@ -394,7 +474,7 @@ func (s *SMF) CommitEPSBearerModification(ctx context.Context, ref string, accep
 	}
 
 	if !accepted {
-		smContext.pendingPolicy = nil
+		s.discardPendingPolicyLocked(smContext)
 		return
 	}
 
@@ -495,7 +575,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 			// Discard the uncommitted policy: the UE never confirmed, so the session
 			// keeps its previous configuration and the backstop re-attempts (TS 24.501
 			// §6.3.2.5).
-			sc.pendingPolicy = nil
+			s.discardPendingPolicyLocked(sc)
 
 			logger.SmfLog.Warn("T3591 expired; PDU session modification aborted, session remains active",
 				logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
@@ -536,12 +616,7 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 }
 
 func (s *SMF) subscriptionChanged(ctx context.Context, smContext *SMContext) (subscriptionDelta, error) {
-	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
-	if err != nil {
-		return subscriptionDelta{}, fmt.Errorf("resolve data network: %w", err)
-	}
-
-	framed, err := framedRoutesChanged(ctx, dn, smContext)
+	framed, err := framedRoutesChanged(ctx, s.subscriptions, smContext)
 	if err != nil {
 		return subscriptionDelta{}, fmt.Errorf("framed routes: %w", err)
 	}
@@ -550,7 +625,7 @@ func (s *SMF) subscriptionChanged(ctx context.Context, smContext *SMContext) (su
 		return subscriptionDelta{FramedRoutes: true}, nil
 	}
 
-	static, err := staticIPChanged(ctx, dn, smContext)
+	static, err := staticIPChanged(ctx, s.subscriptions, smContext)
 	if err != nil {
 		return subscriptionDelta{}, fmt.Errorf("static IP: %w", err)
 	}
@@ -561,8 +636,8 @@ func (s *SMF) subscriptionChanged(ctx context.Context, smContext *SMContext) (su
 // framedRoutesChanged reports whether the subscriber's currently provisioned
 // framed routes differ from those installed on the session at establishment.
 // Caller holds smContext.Mutex.
-func framedRoutesChanged(ctx context.Context, dn DNNStore, smContext *SMContext) (bool, error) {
-	current, err := dn.ListFramedRoutes(ctx, smContext.Supi.IMSI())
+func framedRoutesChanged(ctx context.Context, subs SubscriptionData, smContext *SMContext) (bool, error) {
+	current, err := subs.FramedRoutes(ctx, smContext.Supi.IMSI(), smContext.Dnn)
 	if err != nil {
 		return false, err
 	}
@@ -594,18 +669,18 @@ func framedRoutesEqual(a, b []netip.Prefix) bool {
 
 // staticIPChanged reports whether the subscriber's reserved static IP changed
 // since it was cached at establishment. Caller holds smContext.Mutex.
-func staticIPChanged(ctx context.Context, dn DNNStore, smContext *SMContext) (bool, error) {
+func staticIPChanged(ctx context.Context, subs SubscriptionData, smContext *SMContext) (bool, error) {
 	imsi := smContext.Supi.IMSI()
 
 	if smContext.PDUIPV4Address != nil {
-		changed, err := staticReservationChanged(ctx, dn, imsi, false, smContext.StaticIPv4)
+		changed, err := staticReservationChanged(ctx, subs, imsi, smContext.Dnn, false, smContext.StaticIPv4)
 		if err != nil || changed {
 			return changed, err
 		}
 	}
 
 	if smContext.PDUIPV6Prefix != nil {
-		changed, err := staticReservationChanged(ctx, dn, imsi, true, smContext.StaticIPv6)
+		changed, err := staticReservationChanged(ctx, subs, imsi, smContext.Dnn, true, smContext.StaticIPv6)
 		if err != nil || changed {
 			return changed, err
 		}
@@ -614,8 +689,8 @@ func staticIPChanged(ctx context.Context, dn DNNStore, smContext *SMContext) (bo
 	return false, nil
 }
 
-func staticReservationChanged(ctx context.Context, dn DNNStore, imsi string, ipv6 bool, cached netip.Addr) (bool, error) {
-	current, has, err := dn.GetStaticIP(ctx, imsi, ipv6)
+func staticReservationChanged(ctx context.Context, subs SubscriptionData, imsi, dnn string, ipv6 bool, cached netip.Addr) (bool, error) {
+	current, has, err := subs.StaticIP(ctx, imsi, dnn, ipv6)
 	if err != nil {
 		return false, err
 	}

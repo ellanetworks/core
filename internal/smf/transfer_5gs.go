@@ -42,18 +42,17 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("no emergency PDU session to move onto 5GS")
 	}
 
-	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
-	if err != nil {
-		return "", rejectTransfer5GS(pduSessionID, pti, establishmentRejectCause(err)),
-			fmt.Errorf("failed to find subscriber policy for a session move: %w", err)
-	}
-
-	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, Policy: policy}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, transferRejectCause(err)),
 			fmt.Errorf("no session to move onto 5GS: %w", err)
+	}
+
+	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+		return "", rejectTransfer5GS(pduSessionID, pti, establishmentRejectCause(err)),
+			fmt.Errorf("failed to find the subscription for a session move: %w", err)
 	}
 
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
@@ -75,7 +74,7 @@ func (s *SMF) transferTo5GS(
 		IPv4Address:    sc.PDUIPV4Address,
 		IPv6IID:        sc.IPv6IID,
 	}
-	retained := transferPolicy(sc.PolicyData, policy)
+	retained := sc.PolicyData
 	sc.Mutex.Unlock()
 
 	logger.From(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
@@ -105,23 +104,22 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 	)
 	defer span.End()
 
-	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
-	if err != nil {
-		return "", nil, fmt.Errorf("no policy for a PDN connection arriving on 5GS: %w", err)
-	}
-
-	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, Policy: policy}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
 		return "", nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
 	}
 
+	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+		return "", nil, fmt.Errorf("no subscription for a PDN connection arriving on 5GS: %w", err)
+	}
+
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return "", nil, fmt.Errorf("failed to prepare a PDN connection move onto 5GS: %w", err)
 	}
 
-	n2, err = handoverRequestTransferForArrival(sc, epsBearerIdentity, policy)
+	n2, err = handoverRequestTransferForArrival(sc, epsBearerIdentity)
 	if err != nil {
 		sc.abandonTransferTo(Access5G)
 
@@ -135,7 +133,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 	return sc.Ref, n2, nil
 }
 
-func handoverRequestTransferForArrival(sc *SMContext, epsBearerIdentity uint8, target *Policy) ([]byte, error) {
+func handoverRequestTransferForArrival(sc *SMContext, epsBearerIdentity uint8) ([]byte, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
@@ -147,11 +145,11 @@ func handoverRequestTransferForArrival(sc *SMContext, epsBearerIdentity uint8, t
 		return nil, fmt.Errorf("%w: PDU session %d is EPS bearer %d, not %d", ErrSessionNotMovable, sc.PDUSessionID, sc.EBI, epsBearerIdentity)
 	}
 
-	policy := transferPolicy(sc.PolicyData, target)
+	policy := sc.PolicyData
 
 	n2, err := smfNgap.BuildHandoverRequestTransfer(&policy.Ambr, &policy.QosData,
 		sc.Tunnel.N3TEID, sc.Tunnel.N3IPv4, sc.Tunnel.N3IPv6,
-		nasToNgapPDUSessionType(sc.PDUSessionType), &epsBearerIdentity, smfNgap.DataForwardingNone)
+		nasToNgapPDUSessionType(sc.PDUSessionType), &epsBearerIdentity, smfNgap.DataForwardingNone, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build the Handover Request transfer for an arriving PDN connection: %w", err)
 	}

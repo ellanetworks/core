@@ -86,7 +86,7 @@ func buildActivate(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer) *ep
 func buildActivateWithEPCO(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, nil)
+	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, nil, nas.PCSCFRequest{})
 	if err != nil {
 		t.Fatalf("buildActivateDefaultESM: %v", err)
 	}

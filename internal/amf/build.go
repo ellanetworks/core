@@ -293,7 +293,7 @@ func BuildRegistrationAccept(
 
 	if nfs := amfInstance.NetworkFeatureSupport(); nfs.Enable {
 		m.NetworkFeatureSupport = &fgs.NetworkFeatureSupport{
-			IMSVoPS3GPP: nfs.ImsVoPS != 0,
+			IMSVoPS3GPP: ue.IMSVoPS(),
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
 			MPSI:        nfs.Mpsi != 0,

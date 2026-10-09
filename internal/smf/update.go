@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -137,11 +138,18 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// The UE accepted the modification; stop T3591 and commit the new policy
 		// (TS 24.501 §6.3.2.2, "consider the PDU session as modified").
 		logger.From(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		if pti == networkRequestedPTI && s.qosFlowsModifiedByUE(ctx, smContext, true) {
+			return nil, nil
+		}
+
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
 		if pti == networkRequestedPTI {
 			s.commitPendingPolicy(ctx, smContext)
+		} else {
+			s.reconcileAfter(smContext.Ref, 0)
 		}
 
 		return nil, nil
@@ -150,11 +158,18 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// The UE rejected the modification; stop T3591 and discard the pending policy,
 		// keeping the previous configuration (TS 24.501 §6.3.2.4, §6.3.2.5).
 		logger.From(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		if pti == networkRequestedPTI && s.qosFlowsModifiedByUE(ctx, smContext, false) {
+			return nil, nil
+		}
+
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
 		if pti == networkRequestedPTI {
-			smContext.pendingPolicy = nil
+			s.discardPendingPolicyLocked(smContext)
+		} else {
+			s.reconcileAfter(smContext.Ref, 0)
 		}
 
 		return nil, nil
@@ -211,6 +226,10 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	smContext.endActivation()
 
 	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data)
+	if err == nil && smContext.carriesPCCRules() {
+		s.reconcileAfter(smContextRef, 0)
+	}
+
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to bind the downlink")
@@ -239,6 +258,12 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 	dropped, err := s.bindDownlink(ctx, smContext, Access5G, an)
 	if err != nil {
 		return nil, err
+	}
+
+	if flows, err := ngap.SetupResponseQoSFlows(n2Data); err == nil && slices.Contains(flows.Accepted, smContext.Tunnel.QFI) {
+		s.admitFlowsLocked(ctx, smContext, flows.Accepted)
+	} else {
+		s.admitFlowsLocked(ctx, smContext, nil)
 	}
 
 	smContext.establishmentOutstanding = false

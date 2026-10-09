@@ -18,6 +18,7 @@ const (
 	MapFramedDownlinkIP4 = "framed_downlink_ip4"
 	MapFramedDownlinkIP6 = "framed_downlink_ip6"
 	MapURR               = "urr_map"
+	MapSdfClassifiers    = "sdf_classifiers"
 )
 
 var TrackedMaps = []string{
@@ -29,6 +30,7 @@ var TrackedMaps = []string{
 	MapFramedDownlinkIP4,
 	MapFramedDownlinkIP6,
 	MapURR,
+	MapSdfClassifiers,
 }
 
 func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
@@ -49,6 +51,8 @@ func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
 		return bpfObjects.FramedDownlinkIp6
 	case MapURR:
 		return bpfObjects.UrrMap
+	case MapSdfClassifiers:
+		return bpfObjects.SdfClassifiers
 	}
 
 	return nil

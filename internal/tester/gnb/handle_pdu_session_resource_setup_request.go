@@ -159,6 +159,7 @@ type PDUSessionInformation struct {
 	PDUSessionID int64
 	AmbrUplink   int64
 	AmbrDownlink int64
+	Flows        []uint8
 
 	// generation orders stores of the same session so a procedure can tell the
 	// resources its own signalling established from ones already there.
@@ -181,9 +182,17 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 		return nil, fmt.Errorf("could not parse PDU Session Resource Setup Request Transfer: %w", err)
 	}
 
-	var qosID, fiveQi, priArp int64
+	var (
+		qosID, fiveQi, priArp int64
+		flows                 []uint8
+	)
 
 	for _, qos := range t.QosFlowSetupRequest {
+		if qos.QosFlowLevelQosParameters.GBRQosInformation != nil {
+			flows = append(flows, uint8(qos.QosFlowIdentifier))
+			continue
+		}
+
 		qosID = int64(qos.QosFlowIdentifier)
 
 		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
@@ -207,6 +216,7 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 		FiveQi:     fiveQi,
 		PriArp:     priArp,
 		PduSType:   uint64(t.PDUSessionType),
+		Flows:      flows,
 	}, nil
 }
 

@@ -59,12 +59,13 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 		return
 	}
 
-	modified := modifyBearerDownlinks(ctx, m, ue, msg.ToBeModified)
+	modified, released, result := modifyBearerDownlinks(ctx, m, ue, msg.ToBeModified)
 
 	confirm := &s1ap.ERABModificationConfirm{
 		MMEUES1APID:   s1ap.Ptr(msg.MMEUES1APID),
 		ENBUES1APID:   s1ap.Ptr(msg.ENBUES1APID),
 		ModifiedERABs: modified,
+		ToBeReleased:  released,
 	}
 
 	b, err := confirm.Marshal()
@@ -75,19 +76,27 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 
 	logger.From(ctx, logger.MmeLog).Info("E-RAB Modification Indication",
 		logger.MMEUeS1apID(uint32(msg.MMEUES1APID)),
-		zap.Int("e_rabs_modified", len(modified)))
+		zap.Int("e_rabs_modified", len(modified)),
+		zap.Int("e_rabs_released", len(released)))
 
 	_ = m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
+
+	result.Complete(ctx)
+	m.DeactivatePendingDedicated(ctx, ue)
 }
 
-func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) []s1ap.ERABID {
+func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) ([]s1ap.ERABID, []s1ap.ERABItem, mme.RANBearerResult) {
 	present := make([]mme.RANBearer, 0, len(items))
+
+	var undecodable []uint8
 
 	for _, erab := range items {
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication has an invalid eNB transport address; skipped",
 				logger.SUPI(ue.Supi().String()), logger.ERABID(uint8(erab.ERABID)))
+
+			undecodable = append(undecodable, uint8(erab.ERABID))
 
 			continue
 		}
@@ -98,14 +107,14 @@ func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, i
 		})
 	}
 
-	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{Present: present})
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{Present: present, ReleaseFailed: true, AfterCommit: true})
 
 	modified := make([]s1ap.ERABID, 0, len(result.Applied))
 	for _, ebi := range result.Applied {
 		modified = append(modified, s1ap.ERABID(ebi))
 	}
 
-	return modified
+	return modified, releasedERABItems(append(result.Failed, undecodable...)), result
 }
 
 // duplicateModifiedERABID reports the first E-RAB ID appearing more than once

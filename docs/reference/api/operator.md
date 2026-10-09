@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), and SMS.
+description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), SMS, and Voice.
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name and SMS settings.
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name, SMS settings and voice settings.
 
 ## Get Operator Information
 
@@ -52,6 +52,9 @@ None
         },
         "sms": {
             "smsNumber": "+15550001111"
+        },
+        "voice": {
+            "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
         }
     }
 }
@@ -422,6 +425,36 @@ None
 {
     "result": {
         "message": "SMSC peer deleted successfully"
+    }
+}
+```
+
+## Update the Voice Settings
+
+This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the `ims` data network.
+
+| Method | Path                     |
+| ------ | ------------------------ |
+| PUT    | `/api/v1/operator/voice` |
+
+### Parameters
+
+- `pcscfAddresses` (array of strings): Unicast IPv4 and IPv6 addresses of the IMS, in preference order. At most 3 of each IP version, without duplicates. UEs receive the addresses of the IP version they request. An empty list clears it.
+
+### Sample Request
+
+```json
+{
+    "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Operator voice settings updated successfully"
     }
 }
 ```

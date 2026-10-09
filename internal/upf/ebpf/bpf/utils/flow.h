@@ -10,6 +10,8 @@
 
 #include "bpf/utils/nat.h"
 #include <linux/icmp.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <linux/in.h>
 #include <sys/cdefs.h>
 
@@ -64,95 +66,141 @@ struct {
 	__uint(max_entries, FLOWACC_MAP_SIZE);
 } flow_stats SEC(".maps");
 
-static __always_inline void account_flow(struct packet_context *ctx,
-				 __u32 egress_ifindex, __u64 imsi,
-				 __u8 ip_ver, __u8 direction, __u8 action)
+#define FLOW_PORTS_PACKET 0
+#define FLOW_PORTS_RESOLVED 1
+#define FLOW_PORTS_UNAVAILABLE 2
+#define FLOW_ICMP_HDR_LEN 8
+
+struct flow_query {
+	__u32 l3_off;
+	__u16 l3_hdr_len;
+	__u8 ports;
+	__u8 pad;
+	__u8 hdr[FLOW_ICMP_HDR_LEN];
+	struct flow key;
+	struct flow_stats fresh;
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__type(key, __u32);
+	__type(value, struct flow_query);
+	__uint(max_entries, 1);
+} flow_scratch SEC(".maps");
+
+__noinline __weak int flow_record(struct __ctx_buff *ctx_buff,
+				  struct flow_query *fq)
 {
-	if (!flowact)
-		return;
+	if (!ctx_buff || !fq)
+		return 0;
 
-	struct flow f = {};
-	f.ingress_ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
-	f.egress_ifindex = egress_ifindex;
-	f.imsi = imsi;
-	f.action = action;
-	f.direction = direction;
+	struct flow *f = &fq->key;
 
-	if (ip_ver == 4) {
-		if (!ctx->ip4)
-			return;
-		ipv4_to_mapped(&f.saddr, ctx->ip4->saddr);
-		ipv4_to_mapped(&f.daddr, ctx->ip4->daddr);
-		f.proto = ctx->ip4->protocol;
-		f.dscp = ctx->ip4->tos >> 2;
-	} else {
-		if (!ctx->ip6)
-			return;
-		f.saddr = ctx->ip6->saddr;
-		f.daddr = ctx->ip6->daddr;
-		/* The upper-layer protocol, past any chain. */
-		f.proto = ctx->l4_proto;
-		f.dscp = (__u8)((ctx->ip6->priority << 2) |
-				(ctx->ip6->flow_lbl[0] >> 6));
-	}
-
-	switch (f.proto) {
+	switch (f->proto) {
 	case IPPROTO_TCP:
 	case IPPROTO_UDP:
-		/* Some drop paths record a flow before the L4 parse runs.
-		 * Unconditional: testing ctx->udp and ctx->tcp here makes clang
-		 * fuse them into a bitwise or of two pointers, which the
-		 * verifier rejects. */
-		if (parse_l4(f.proto, ctx) < 0)
-			return;
+		if (fq->ports == FLOW_PORTS_UNAVAILABLE)
+			return 0;
 
-		if (ctx->l4_unavailable)
-			return;
-
-		f.sport = bpf_htons(ctx->l4_sport);
-		f.dport = bpf_htons(ctx->l4_dport);
+		if (fq->ports == FLOW_PORTS_PACKET &&
+		    ctx_load_bytes(ctx_buff, fq->l3_off + fq->l3_hdr_len,
+				   &f->sport, 2 * sizeof(__u16)) < 0)
+			return 0;
 		break;
 	case IPPROTO_ICMP:
-		if (!ctx->icmp) {
-			if (-1 == parse_icmp(ctx)) {
-				return;
-			}
-		}
-		if (!ctx->icmp)
-			return;
-		if (ctx->icmp->type == ICMP_ECHO ||
-		    ctx->icmp->type == ICMP_ECHOREPLY ||
-		    ctx->icmp->type == ICMP_TIMESTAMP ||
-		    ctx->icmp->type == ICMP_TIMESTAMPREPLY) {
-			f.identifier = ctx->icmp->un.echo.id;
-			f.type = ctx->icmp->type;
-		} else {
-			f.identifier = 0;
-			f.type = ctx->icmp->type;
-			f.code = ctx->icmp->code;
-		}
+		if (fq->ports != FLOW_PORTS_PACKET)
+			return 0;
+
+		if (ctx_load_bytes(ctx_buff, fq->l3_off + fq->l3_hdr_len,
+				   fq->hdr, FLOW_ICMP_HDR_LEN) < 0)
+			return 0;
+
+		f->type = fq->hdr[offsetof(struct icmphdr, type)];
+
+		if (f->type == ICMP_ECHO || f->type == ICMP_ECHOREPLY ||
+		    f->type == ICMP_TIMESTAMP || f->type == ICMP_TIMESTAMPREPLY)
+			__builtin_memcpy(
+				&f->identifier,
+				&fq->hdr[offsetof(struct icmphdr, un.echo.id)],
+				sizeof(f->identifier));
+		else
+			f->code = fq->hdr[offsetof(struct icmphdr, code)];
 		break;
 	default:
-		f.sport = 0;
-		f.dport = 0;
+		break;
 	}
 
-	__u64 ts = bpf_ktime_get_ns();
-	__u64 packet_size = ctx_full_len(ctx->ctx_buff);
+	const __u64 ts = bpf_ktime_get_ns();
+	const __u64 packet_size = ctx_full_len(ctx_buff);
 
-	struct flow_stats *flow_entry = bpf_map_lookup_elem(&flow_stats, &f);
+	struct flow_stats *flow_entry = bpf_map_lookup_elem(&flow_stats, f);
 	if (flow_entry) {
 		flow_entry->last_ts = ts;
 		__sync_fetch_and_add(&flow_entry->bytes, packet_size);
 		__sync_fetch_and_add(&flow_entry->packets, 1);
-		return;
+		return 0;
 	}
 
-	struct flow_stats new_stats = {};
-	new_stats.first_ts = ts;
-	new_stats.last_ts = ts;
-	new_stats.bytes = packet_size;
-	new_stats.packets = 1;
+	fq->fresh.first_ts = ts;
+	fq->fresh.last_ts = ts;
+	fq->fresh.bytes = packet_size;
+	fq->fresh.packets = 1;
 
-	bpf_map_update_elem(&flow_stats, &f, &new_stats, BPF_ANY);
+	bpf_map_update_elem(&flow_stats, f, &fq->fresh, BPF_ANY);
+
+	return 0;
+}
+
+static __always_inline void account_flow(struct packet_context *ctx,
+					 __u32 egress_ifindex, __u64 imsi,
+					 __u8 ip_ver, __u8 direction,
+					 __u8 action)
+{
+	if (!flowact)
+		return;
+
+	const __u32 zero = 0;
+	struct flow_query *fq = bpf_map_lookup_elem(&flow_scratch, &zero);
+	if (!fq)
+		return;
+
+	struct flow *f = &fq->key;
+
+	__builtin_memset(f, 0, sizeof(*f));
+
+	if (ip_ver == 4) {
+		if (!ctx->ip4)
+			return;
+
+		ipv4_to_mapped(&f->saddr, ctx->ip4->saddr);
+		ipv4_to_mapped(&f->daddr, ctx->ip4->daddr);
+		f->proto = ctx->ip4->protocol;
+		f->dscp = ctx->ip4->tos >> 2;
+		fq->l3_off = ctx_frame_offset(ctx->ctx_buff, ctx->ip4);
+	} else {
+		if (!ctx->ip6)
+			return;
+
+		f->saddr = ctx->ip6->saddr;
+		f->daddr = ctx->ip6->daddr;
+		f->proto = ctx->l4_proto;
+		f->dscp = (__u8)((ctx->ip6->priority << 2) |
+				 (ctx->ip6->flow_lbl[0] >> 6));
+		fq->l3_off = ctx_frame_offset(ctx->ctx_buff, ctx->ip6);
+	}
+
+	f->imsi = imsi;
+	f->ingress_ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+	f->egress_ifindex = egress_ifindex;
+	f->action = action;
+	f->direction = direction;
+	f->sport = bpf_htons(ctx->l4_sport);
+	f->dport = bpf_htons(ctx->l4_dport);
+
+	fq->l3_hdr_len = ctx->l3_hdr_len;
+	fq->ports = ctx->l4_unavailable ? FLOW_PORTS_UNAVAILABLE :
+		    ctx->l4_resolved	? FLOW_PORTS_RESOLVED :
+					  FLOW_PORTS_PACKET;
+
+	flow_record(ctx->ctx_buff, fq);
 }

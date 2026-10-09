@@ -48,9 +48,7 @@ func TestInterworkingICSResponseReleasesABearerTheAnchorRefused(t *testing.T) {
 
 	icsResponseFor(t, m, cc, ue, mme.DefaultERABID, 6)
 
-	if m.LookupPDN(ue, 6) != nil {
-		t.Error("a PDN connection whose downlink the anchor refused was left on the UE with no user plane")
-	}
+	requirePDNDisconnected(t, m, ue, 6)
 
 	if m.LookupPDN(ue, mme.DefaultERABID) == nil {
 		t.Error("the PDN connection the anchor accepted was released too")

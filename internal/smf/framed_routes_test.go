@@ -129,7 +129,7 @@ func reconcileReactivates(s *smf.SMF, mmeCb *fakeMME, ref string) (bool, error) 
 	return len(mmeCb.reactivations()) > before, err
 }
 
-func TestEPSReconcileResolvesDNNOnce(t *testing.T) {
+func TestEPSReconcileKeepsAnUnchangedSubscription(t *testing.T) {
 	store, upf := epsTestSMF()
 	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
 	store.staticIPv4 = store.allocatedIP
@@ -138,8 +138,6 @@ func TestEPSReconcileResolvesDNNOnce(t *testing.T) {
 
 	ref, mmeCb := connectedEPSSession(t, s)
 
-	before := store.dnnResolves()
-
 	reactivated, err := reconcileReactivates(s, mmeCb, ref)
 	if err != nil {
 		t.Fatal(err)
@@ -147,9 +145,5 @@ func TestEPSReconcileResolvesDNNOnce(t *testing.T) {
 
 	if reactivated {
 		t.Fatal("an unchanged subscription reactivated the bearer")
-	}
-
-	if got := store.dnnResolves() - before; got != 1 {
-		t.Fatalf("the subscription check resolved the data network %d times, want 1", got)
 	}
 }

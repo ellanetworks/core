@@ -39,11 +39,14 @@ type NodeSettings struct {
 }
 
 type PeerConfig struct {
-	ID           string
-	Role         string
-	Host         string
-	Address      netip.AddrPort
-	Applications []diameter.Application
+	ID               string
+	Role             string
+	Host             string
+	Address          netip.AddrPort
+	Transports       []diameter.Transport
+	Dial             bool
+	Applications     []diameter.Application
+	SupportedVendors []uint32
 }
 
 type PeerStatus struct {
@@ -162,6 +165,26 @@ func (m *Manager) Peers() []PeerStatus {
 		statuses = append(statuses, status)
 	}
 
+	if node == nil {
+		return statuses
+	}
+
+	for _, peer := range node.Peers() {
+		if peer.Configured {
+			continue
+		}
+
+		statuses = append(statuses, PeerStatus{
+			ID:      peer.ID,
+			Role:    PeerRoleIMS,
+			Host:    peer.Host,
+			Realm:   peer.Realm,
+			Address: netip.AddrPortFrom(peer.RemoteAddr, 0),
+			State:   peer.State,
+			Since:   peer.Since,
+		})
+	}
+
 	return statuses
 }
 
@@ -191,6 +214,12 @@ func (m *Manager) reconcile(ctx context.Context) {
 		return
 	}
 
+	imsRealm, err := IMSRealm(settings.MCC, settings.MNC)
+	if err != nil {
+		m.fail(err)
+		return
+	}
+
 	diameterPeers := toDiameterPeers(peers)
 
 	m.mu.Lock()
@@ -208,7 +237,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	m.stop()
 
-	if err := m.start(ctx, identity, diameterPeers); err != nil {
+	if err := m.start(ctx, identity, []string{imsRealm}, diameterPeers); err != nil {
 		m.fail(err)
 	}
 }
@@ -261,14 +290,20 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 	out := make([]diameter.Peer, 0, len(peers))
 
 	for _, p := range peers {
-		out = append(out, diameter.Peer{
-			ID:           p.ID,
-			Host:         p.Host,
-			Addresses:    []netip.Addr{p.Address.Addr().Unmap()},
-			Transports:   []diameter.Transport{diameter.TransportSCTP},
-			Dial:         &diameter.Dial{Port: p.Address.Port()},
-			Applications: p.Applications,
-		})
+		peer := diameter.Peer{
+			ID:               p.ID,
+			Host:             p.Host,
+			Addresses:        []netip.Addr{p.Address.Addr().Unmap()},
+			Transports:       p.Transports,
+			Applications:     p.Applications,
+			SupportedVendors: p.SupportedVendors,
+		}
+
+		if p.Dial {
+			peer.Dial = &diameter.Dial{Port: p.Address.Port()}
+		}
+
+		out = append(out, peer)
 	}
 
 	return out
@@ -280,17 +315,28 @@ func sameIdentity(a, b diameter.Identity) bool {
 
 func samePeers(a, b []PeerConfig) bool {
 	return slices.EqualFunc(a, b, func(x, y PeerConfig) bool {
-		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && slices.Equal(x.Applications, y.Applications)
+		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && x.Dial == y.Dial &&
+			slices.Equal(x.Transports, y.Transports) && slices.Equal(x.Applications, y.Applications) &&
+			slices.Equal(x.SupportedVendors, y.SupportedVendors)
 	})
 }
 
-func (m *Manager) start(ctx context.Context, identity diameter.Identity, peers []diameter.Peer) error {
-	node, err := diameter.New(diameter.Config{
+func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedRealms []string, peers []diameter.Peer) error {
+	cfg := diameter.Config{
 		Identity:          identity,
+		ServedRealms:      servedRealms,
 		Handler:           m.mux,
 		OnPeerStateChange: m.peerStateChanged,
 		Logger:            m.slog,
-	})
+	}
+
+	if m.listen.enabled() {
+		cfg.AcceptUnknownPeers = true
+		cfg.UnknownPeerApplications = imsApplications
+		cfg.UnknownPeerSupportedVendors = imsSupportedVendors
+	}
+
+	node, err := diameter.New(cfg)
 	if err != nil {
 		return fmt.Errorf("create Diameter node: %w", err)
 	}

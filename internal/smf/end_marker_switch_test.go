@@ -14,7 +14,7 @@ import (
 
 func TestModifyEPSSessionRequestsEndMarkersOnlyWhenSwitching(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(3))
 	if err != nil {
@@ -44,7 +44,7 @@ func TestModifyEPSSessionRequestsEndMarkersOnlyWhenSwitching(t *testing.T) {
 
 func TestModifyEPSSessionSkipsEndMarkersAfterAccessBearerRelease(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(3))
 	if err != nil {
@@ -85,7 +85,7 @@ func TestNGRANBindSkipsEndMarkersAfterUserPlaneDeactivation(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := s.DeactivateSmContext(ctx, ref); err != nil {
+	if err := s.DeactivateSmContext(ctx, ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 

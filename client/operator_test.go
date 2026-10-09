@@ -505,3 +505,82 @@ func TestSMSCPeerReads(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateOperatorVoice_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator voice settings updated successfully"}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.UpdateOperatorVoice(context.Background(), &client.UpdateOperatorVoiceOptions{
+		PCSCFAddresses: []string{"192.0.2.20", "2001:db8::20"},
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/voice" {
+		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+
+	var payload struct {
+		PCSCFAddresses []string `json:"pcscfAddresses"`
+	}
+	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+
+	if len(payload.PCSCFAddresses) != 2 || payload.PCSCFAddresses[0] != "192.0.2.20" || payload.PCSCFAddresses[1] != "2001:db8::20" {
+		t.Fatalf("unexpected payload %v", payload)
+	}
+}
+
+func TestUpdateOperatorVoice_EmptyListIsSent(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator voice settings updated successfully"}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.UpdateOperatorVoice(context.Background(), &client.UpdateOperatorVoiceOptions{}); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+
+	addresses, ok := payload["pcscfAddresses"].([]any)
+	if !ok || len(addresses) != 0 {
+		t.Fatalf("pcscfAddresses = %v, want an empty list", payload["pcscfAddresses"])
+	}
+}
+
+func TestGetOperator_IncludesVoice(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"voice": {"pcscfAddresses": ["192.0.2.20", "2001:db8::20"]}}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	operator, err := clientObj.GetOperator(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	got := operator.Voice.PCSCFAddresses
+	if len(got) != 2 || got[0] != "192.0.2.20" || got[1] != "2001:db8::20" {
+		t.Fatalf("pcscfAddresses = %v", got)
+	}
+}

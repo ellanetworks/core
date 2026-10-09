@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
@@ -30,9 +31,17 @@ type UPTunnel struct {
 	N3IPv4 netip.Addr
 	N3IPv6 netip.Addr
 
-	ForwardingTEID uint32
+	ChosenTEIDs map[uint8]uint32
 
 	dataPlane
+}
+
+func (t *UPTunnel) forwardingTEID() uint32 {
+	return t.ChosenTEIDs[chooseIDForwarding]
+}
+
+func (t *UPTunnel) bearerTEID(slot uint8) uint32 {
+	return t.ChosenTEIDs[chooseIDBearer(slot)]
 }
 
 type SMContext struct {
@@ -41,11 +50,16 @@ type SMContext struct {
 	// Ref is the session's unique pool key, assigned once at creation and never
 	Ref string
 
-	Supi        etsi.SUPI
-	Dnn         string
-	Snssai      *models.Snssai
-	Tunnel      *UPTunnel
-	PolicyData  *Policy
+	Supi       etsi.SUPI
+	Dnn        string
+	Snssai     *models.Snssai
+	Tunnel     *UPTunnel
+	PolicyData *Policy
+
+	reconcileMu    sync.Mutex
+	subscribedQoS  SubscribedQoS
+	policyDecision *PolicyDecision
+
 	PFCPContext *PFCPSessionContext
 
 	SessionIdentity
@@ -92,10 +106,21 @@ type SMContext struct {
 	handoverTargetAN       *AnchorBinding
 	handoverForwarding     smfNgap.DataForwarding
 	handoverForwardingPlan *smfNgap.ForwardingPlan
+	handoverAdmitted       *[]uint8
 
 	forwardingRelease guard.Guard
 
 	pending *pendingTransfer
+
+	dedicated   []*dedicatedBearer
+	failedRules map[string]PCCRule
+
+	maxPacketFilters uint16
+	flowProcedure    *flowProcedure
+	fallbackUntil    time.Time
+	fallbacks        int
+
+	userPlaneRequested bool
 
 	transferGuard guard.Guard
 }
@@ -130,6 +155,7 @@ func (smContext *SMContext) endActivation() {
 	defer smContext.Mutex.Unlock()
 
 	smContext.activating = false
+	smContext.userPlaneRequested = false
 }
 
 func (smContext *SMContext) upConnectionActive() bool {

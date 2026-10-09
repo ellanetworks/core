@@ -103,8 +103,8 @@ func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.Netwo
 
 func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
-		{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"},
-		{ID: "policy-2", Name: "TestPolicy2", ProfileID: "profile-1", SliceID: "slice-2", DataNetworkID: "dn-1"},
+		{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
+		{ID: "policy-2", Name: "TestPolicy2", ProfileID: "profile-1", SliceID: "slice-2", DataNetworkID: "dn-1", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 	}, nil
 }
 
@@ -328,7 +328,7 @@ func (s *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context,
 	return s.DuplicatePDUResponse, s.DuplicatePDUError
 }
 
-func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
+func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string, _ bool) error {
 	return s.Error
 }
 
@@ -420,4 +420,16 @@ func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI5G
 	}
 
 	return guti
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
 }

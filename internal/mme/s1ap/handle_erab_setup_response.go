@@ -33,14 +33,17 @@ func HandleERABSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
-		Present:  setupBearers(ctx, ueConn.MMEUES1APID, bearerSetupBearers(msg.ERABSetup)),
-		Rejected: failedERABIDs(msg.ERABFailedToSetup),
+		Present:        setupBearers(ctx, ueConn.MMEUES1APID, bearerSetupBearers(msg.ERABSetup)),
+		Rejected:       failedERABIDs(msg.ERABFailedToSetup),
+		ReleaseUnknown: true,
 	})
 
 	logger.From(ctx, logger.MmeLog).Info("additional PDN connection radio legs reconciled",
 		logger.SUPI(ue.Supi().String()),
 		zap.Int("e_rabs_setup", len(result.Applied)),
 		zap.Int("e_rabs_released", len(result.Released)))
+
+	m.DeactivatePendingDedicated(ctx, ue)
 }
 
 // bearerSetupBearers projects an E-RAB SETUP RESPONSE setup list.

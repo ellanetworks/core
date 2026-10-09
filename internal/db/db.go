@@ -275,6 +275,15 @@ type Database struct {
 	insertSMSCServiceCentreStmt  *sqlair.Statement
 	deleteSMSCServiceCentresStmt *sqlair.Statement
 
+	listPCSCFAddressesStmt   *sqlair.Statement
+	insertPCSCFAddressStmt   *sqlair.Statement
+	deletePCSCFAddressesStmt *sqlair.Statement
+
+	getIMSRegistrationStmt    *sqlair.Statement
+	countIMSRegistrationsStmt *sqlair.Statement
+	upsertIMSRegistrationStmt *sqlair.Statement
+	deleteIMSRegistrationStmt *sqlair.Statement
+
 	getSMSWaitingStmt             *sqlair.Statement
 	listSMSWaitingCentresStmt     *sqlair.Statement
 	upsertSMSWaitingStmt          *sqlair.Statement
@@ -1838,6 +1847,13 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteSMSCPeerStmt, fmt.Sprintf(deleteSMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
 		{&db.insertSMSCServiceCentreStmt, fmt.Sprintf(insertSMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
 		{&db.deleteSMSCServiceCentresStmt, fmt.Sprintf(deleteSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
+		{&db.listPCSCFAddressesStmt, fmt.Sprintf(listPCSCFAddressesStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
+		{&db.insertPCSCFAddressStmt, fmt.Sprintf(insertPCSCFAddressStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
+		{&db.deletePCSCFAddressesStmt, fmt.Sprintf(deletePCSCFAddressesStmt, PCSCFAddressesTableName), nil},
+		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
+		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},
+		{&db.upsertIMSRegistrationStmt, fmt.Sprintf(upsertIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
+		{&db.deleteIMSRegistrationStmt, fmt.Sprintf(deleteIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 		{&db.listSMSWaitingCentresStmt, fmt.Sprintf(listSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
 		{&db.upsertSMSWaitingStmt, fmt.Sprintf(upsertSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},

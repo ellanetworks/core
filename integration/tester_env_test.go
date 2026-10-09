@@ -80,7 +80,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T, overlays ...string) *test
 
 		services := []string{"ella-core"}
 		if len(overlays) > 0 {
-			services = append(services, "smsc")
+			services = append(services, "smsc", "ims")
 		}
 
 		for _, service := range services {

@@ -69,6 +69,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	ueConn.ESMRequest.PDUSessionID = pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
 	ueConn.ESMRequest.ProtocolOpts, _ = protocolOptionsFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
+	ueConn.ESMRequest.PCSCF, _ = pcscfRequestFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
 	ueConn.ESMRequest.Type = req.RequestType
 
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
@@ -164,7 +165,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	esm, err := buildActivateDefaultESM(p, bearer, uint8(pti), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
+	esm, err := buildActivateDefaultESM(p, bearer, uint8(pti), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)

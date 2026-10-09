@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -28,16 +29,45 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataArrived)
+	return s.notifyDownlinkWaitingOn(ctx, smContext, report.PDRID, nil, models.DownlinkDataArrived)
 }
 
 func (s *SMF) notifyDownlinkWaiting(ctx context.Context, smContext *SMContext, cause models.DownlinkDataNotificationCause) error {
+	return s.notifyDownlinkWaitingOn(ctx, smContext, 0, nil, cause)
+}
+
+func (s *SMF) notifyDownlinkWaitingOn(ctx context.Context, smContext *SMContext, pdrID uint16, flowARP *models.Arp, cause models.DownlinkDataNotificationCause) error {
 	smContext.Mutex.Lock()
 
 	onEPS := smContext.Access == Access4G
 	policy, tunnel := smContext.PolicyData, smContext.Tunnel
 	pduSessionType, supi, pduSessionID, snssai := smContext.PDUSessionType, smContext.Supi, smContext.PDUSessionID, smContext.Snssai
 	ebi := smContext.EBI
+	flows := smContext.heldFlowsLocked()
+
+	var arp *models.Arp
+	if policy != nil {
+		arp = policy.QosData.Arp
+	}
+
+	if tunnel != nil {
+		if slot, ok := tunnel.bearerOfDownlinkPDR(pdrID); ok {
+			if i := slices.IndexFunc(smContext.dedicated, func(b *dedicatedBearer) bool { return b.slot == slot }); i >= 0 {
+				b := smContext.dedicated[i]
+				if b.ebi != 0 {
+					ebi = b.ebi
+				}
+
+				if !onEPS {
+					arp = new(b.binding.ARP)
+				}
+			}
+		}
+	}
+
+	if flowARP != nil && !onEPS {
+		arp = flowARP
+	}
 
 	var seid uint64
 	if smContext.PFCPContext != nil {
@@ -59,12 +89,12 @@ func (s *SMF) notifyDownlinkWaiting(ctx context.Context, smContext *SMContext, c
 		return fmt.Errorf("session for seid %d has no user plane to page for", seid)
 	}
 
-	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6, nasToNgapPDUSessionType(pduSessionType))
+	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6, nasToNgapPDUSessionType(pduSessionType), flows)
 	if err != nil {
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
 
-	transferCause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, policy.QosData.Arp)
+	transferCause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, arp)
 	if err != nil {
 		return fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 	}
@@ -127,10 +157,10 @@ func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.Er
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	switch report.FARID {
-	case farIDDownlink:
+	switch {
+	case report.FARID == farIDDownlink || bearerFAR(report.FARID):
 		return s.releaseBrokenAccessTunnel(ctx, smContext, report)
-	case farIDForwarding:
+	case report.FARID == farIDForwarding || bearerForwardingFAR(report.FARID):
 		return s.releaseBrokenForwardingTunnel(ctx, smContext, report)
 	default:
 		logger.From(ctx, logger.SmfLog).Info(
@@ -151,7 +181,7 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		return fmt.Errorf("session for seid %d has no user plane to release", report.SEID)
 	}
 
-	if !smContext.upConnectionActive() || !reportNamesAnchor(report, smContext.Tunnel.AN) {
+	if !smContext.upConnectionActive() || !reportNamesAccessAnchor(report, smContext.Tunnel.dataPlane) {
 		logger.From(ctx, logger.SmfLog).Debug(
 			"Ignoring a GTP-U Error Indication for a tunnel the session no longer forwards into",
 			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID),
@@ -205,18 +235,18 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		return nil
 	}
 
-	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataErrorIndication)
+	return s.notifyDownlinkWaitingOn(ctx, smContext, bearerDownlinkPDROfFAR(report.FARID), nil, models.DownlinkDataErrorIndication)
 }
 
 func (s *SMF) releaseBrokenForwardingTunnel(ctx context.Context, smContext *SMContext, report *models.ErrorIndicationReport) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || smContext.Tunnel.Forwarding == nil {
+	if smContext.Tunnel == nil || !smContext.Tunnel.forwards() {
 		return nil
 	}
 
-	if !reportNamesAnchor(report, *smContext.Tunnel.Forwarding) {
+	if !reportNamesForwardingAnchor(report, smContext.Tunnel.dataPlane) {
 		logger.From(ctx, logger.SmfLog).Debug(
 			"Ignoring a GTP-U Error Indication for a forwarding tunnel the session no longer relays into",
 			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID),
@@ -313,6 +343,30 @@ func (s *SMF) epsSessionsOf(supi etsi.SUPI) []*SMContext {
 	}
 
 	return out
+}
+
+func bearerFAR(id uint32) bool {
+	return id >= farIDBearerBase && id < farIDBearerBase+maxDedicatedBearers
+}
+
+func bearerForwardingFAR(id uint32) bool {
+	return id >= farIDBearerForwardingBase && id < farIDBearerForwardingBase+maxDedicatedBearers
+}
+
+func reportNamesForwardingAnchor(report *models.ErrorIndicationReport, d dataPlane) bool {
+	if d.Forwarding != nil && reportNamesAnchor(report, *d.Forwarding) {
+		return true
+	}
+
+	return slices.ContainsFunc(d.Bearers, func(l bearerLeg) bool { return l.Forwarding != nil && reportNamesAnchor(report, *l.Forwarding) })
+}
+
+func reportNamesAccessAnchor(report *models.ErrorIndicationReport, d dataPlane) bool {
+	if reportNamesAnchor(report, d.AN) {
+		return true
+	}
+
+	return slices.ContainsFunc(d.Bearers, func(l bearerLeg) bool { return reportNamesAnchor(report, l.AN) })
 }
 
 func reportNamesAnchor(report *models.ErrorIndicationReport, an AnchorBinding) bool {

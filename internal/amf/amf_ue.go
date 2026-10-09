@@ -109,6 +109,7 @@ type UeContext struct {
 
 	smsOverNAS           atomic.Bool
 	smsRequested         atomic.Bool
+	imsVoPS              atomic.Bool
 	smsIndicationPending atomic.Pointer[bool]
 	smsIndicationSent    atomic.Pointer[bool]
 	smsMu                sync.Mutex
@@ -266,7 +267,7 @@ func (a *AMF) deactivateDisplacedUserPlane(ctx context.Context, ue *UeContext, d
 
 		displaced.SetN2SessionInactive(pduSessionID)
 
-		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
+		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref, true); err != nil {
 			displaced.Log(ctx).Warn("could not deactivate the user plane of a displaced connection",
 				zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
@@ -762,13 +763,13 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	logger.From(ctx, logger.AmfLog).Info("UE deregistered", logger.RAT(metrics.RAT5G))
 }
 
-func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
+func (ue *UeContext) deactivateSmContexts(ctx context.Context, ueConn *UeConn) {
 	if ue == nil || ue.smf == nil {
 		return
 	}
 
 	for _, ref := range ue.SmContextRefs() {
-		if err := ue.smf.DeactivateSmContext(ctx, ref.Ref); err != nil {
+		if err := ue.smf.DeactivateSmContext(ctx, ref.Ref, ueConn.N2SessionInactive(ref.PduSessionID)); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to deactivate SM context for paging", zap.Error(err), logger.PDUSessionID(ref.PduSessionID))
 		}
 	}

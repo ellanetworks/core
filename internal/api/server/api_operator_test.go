@@ -37,6 +37,10 @@ type SMSCPeerResultItem struct {
 	ServiceCentres   []string `json:"serviceCentres"`
 }
 
+type GetOperatorVoiceResponseResult struct {
+	PCSCFAddresses []string `json:"pcscfAddresses"`
+}
+
 type GetOperatorTrackingResponseResult struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
@@ -53,6 +57,7 @@ type GetOperatorResponseResult struct {
 	HomeNetworkKeys []HomeNetworkKeyResponseItem         `json:"homeNetworkKeys"`
 	SPN             GetOperatorSPNResponseResult         `json:"spn"`
 	SMS             GetOperatorSMSResponseResult         `json:"sms"`
+	Voice           GetOperatorVoiceResponseResult       `json:"voice"`
 }
 
 type GetOperatorResponse struct {

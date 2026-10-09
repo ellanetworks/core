@@ -178,7 +178,7 @@ func (f *fakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Conte
 	return nil, nil
 }
 
-func (f *fakeSmfSbi) DeactivateSmContext(_ context.Context, smContextRef string) error {
+func (f *fakeSmfSbi) DeactivateSmContext(_ context.Context, smContextRef string, _ bool) error {
 	f.DeactivateSmContextCalls = append(f.DeactivateSmContextCalls, smContextRef)
 	return nil
 }
@@ -429,4 +429,16 @@ func newTestAMFWithNAS(nasHandler *fakeNASHandler) *amf.AMF {
 	a.NAS = nasHandler
 
 	return a
+}
+
+func (*fakeSmfSbi) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmfSbi) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmfSbi) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
 }

@@ -250,15 +250,23 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 
 type fakePCF struct{}
 
-func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
+func (f *fakePCF) CreateAssociation(context.Context, string, smf.PolicyContext) (*smf.PolicyDecision, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakePCF) GetEPSSessionPolicy(_ context.Context, _ string, _ string) (*smf.Policy, *models.Snssai, error) {
-	return nil, nil, fmt.Errorf("not implemented in test")
+func (f *fakePCF) UpdateAssociation(context.Context, string, smf.SubscribedQoS) (*smf.PolicyDecision, error) {
+	return nil, fmt.Errorf("not implemented in test")
 }
 
+func (f *fakePCF) ReportEnforcementFailure(string, []smf.RuleReport, smf.EnforcementFailure) {}
+
+func (f *fakePCF) TerminateAssociation(string) {}
+
 type fakeSessionStore struct{}
+
+func (f *fakeSessionStore) Config(context.Context) (smf.DataNetworkConfig, error) {
+	return smf.DataNetworkConfig{}, nil
+}
 
 func (f *fakeSessionStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
 	return f, nil

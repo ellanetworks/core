@@ -154,6 +154,8 @@ func getMapDecoder(mapName string) typedDecoder {
 		return decodePdrsDownlinkIp6
 	case "pdrs_uplink":
 		return decodePdrsUplink
+	case "sdf_classifiers":
+		return decodeSdfClassifiers
 	case "uplink_route_stats":
 		return decodeUplinkRouteStats
 	case "uplink_statistics":
@@ -334,6 +336,33 @@ func decodePdrsUplink(m *bpf.Map, mapName string, opts DumpOptions, enc *json.En
 	var (
 		key   uint32
 		val   ebpf.N3N6EntrypointPdrInfo
+		count int
+	)
+
+	for iter.Next(&key, &val) {
+		if err := enc.Encode(map[string]any{"key": key, "value": val}); err != nil {
+			return count, false, fmt.Errorf("encode failed: %w", err)
+		}
+
+		count++
+		if opts.MaxEntriesPerMap > 0 && count >= opts.MaxEntriesPerMap {
+			return count, true, nil
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return count, false, fmt.Errorf("iterate error: %w", err)
+	}
+
+	return count, false, nil
+}
+
+func decodeSdfClassifiers(m *bpf.Map, mapName string, opts DumpOptions, enc *json.Encoder) (int, bool, error) {
+	iter := m.Iterate()
+
+	var (
+		key   uint64
+		val   ebpf.N3N6EntrypointSdfClassifier
 		count int
 	)
 

@@ -48,7 +48,7 @@ func (s *deregisterTestSmf) ActivateSmContext(context.Context, string) ([]byte, 
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef string) error {
+func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef string, _ bool) error {
 	s.deactivateCalls = append(s.deactivateCalls, smContextRef)
 	return nil
 }
@@ -361,4 +361,16 @@ func TestAttachUeConn_DoesNotDeactivateASessionTheDisplacedConnectionNeverServed
 	if got := fake.deactivateCalls; len(got) != 0 {
 		t.Errorf("DeactivateSmContext calls = %v, want none: the displaced connection held no AN resources", got)
 	}
+}
+
+func (*deregisterTestSmf) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*deregisterTestSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*deregisterTestSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
 }

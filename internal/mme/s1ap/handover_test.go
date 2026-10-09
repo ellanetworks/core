@@ -635,9 +635,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 		t.Fatal("rejected PDN session not released")
 	}
 
-	if m.LookupPDN(ue, 6) != nil {
-		t.Fatal("rejected PDN connection not dropped")
-	}
+	requirePDNDisconnected(t, m, ue, 6)
 
 	if m.LookupPDN(ue, mme.DefaultERABID) == nil {
 		t.Fatal("admitted PDN connection dropped")
@@ -751,8 +749,10 @@ func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 	}
 	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
-	if m.LookupPDN(ue, mme.DefaultERABID) != nil {
-		t.Fatal("rejected attach-default PDN not dropped")
+	requirePDNDisconnected(t, m, ue, mme.DefaultERABID)
+
+	if p := m.LookupPDN(ue, mme.DefaultERABID); p != nil {
+		m.DeactivatePDN(context.Background(), ue, p)
 	}
 
 	survivor := m.LookupPDN(ue, 6)

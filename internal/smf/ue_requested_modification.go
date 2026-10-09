@@ -65,6 +65,10 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 	}
 
+	if deletions, ok := smContext.requestedFlowDeletions(req); ok {
+		return s.acceptFlowDeletionLocked(ctx, smContext, deletions, pti)
+	}
+
 	if requestsQoSChange(req) {
 		cause := qoSChangeRejectCause(req)
 

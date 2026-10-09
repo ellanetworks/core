@@ -181,7 +181,7 @@ func TestIntegrationTester(t *testing.T) {
 	for _, name := range scenarioNames {
 		name := name
 
-		if strings.HasPrefix(name, smsScenarioPrefix) {
+		if strings.HasPrefix(name, smsScenarioPrefix) || strings.HasPrefix(name, imsScenarioPrefix) {
 			continue
 		}
 

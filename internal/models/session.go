@@ -7,10 +7,13 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"time"
 
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
+
+const IMSDataNetworkName = "ims"
 
 // The only error that lets a caller conclude the UPF session is gone: on any
 // other failure the UPF still holds the session, and the SMF must keep the SEID
@@ -32,6 +35,7 @@ type EstablishRequest struct {
 	QERs         []QER
 	URRs         []URR
 	FramedRoutes []netip.Prefix
+	LocalSwitch  bool
 }
 
 // No SEID: the UPF keys the session on the one the request named. One endpoint
@@ -42,9 +46,15 @@ type EstablishResponse struct {
 	N3IPv6 netip.Addr // zero if the N3 has no IPv6
 }
 
+const (
+	MaxSessionSDFRules = 32
+	MaxSessionSDFPDRs  = 16
+)
+
 // PDR describes a Packet Detection Rule for the UPF session API.
 type PDR struct {
 	PDRID              uint16
+	Precedence         uint32
 	OuterHeaderRemoval *uint8
 	FARID              uint32
 	QERID              uint32
@@ -64,6 +74,8 @@ type PDI struct {
 	SourceInterface Interface
 	LocalFTEID      *FTEID
 	UEIPAddress     netip.Addr
+	QFI             uint8
+	SDFFilters      []SDFFilter
 }
 
 // FTEID is a fully qualified Tunnel Endpoint Identifier (TS 29.244 §8.2.3): a
@@ -71,8 +83,9 @@ type PDI struct {
 // value (TEID 0, invalid Addr) signals "to be assigned by the UPF" when used as
 // a PDI local F-TEID.
 type FTEID struct {
-	TEID uint32
-	Addr netip.Addr
+	TEID     uint32
+	Addr     netip.Addr
+	ChooseID uint8
 }
 
 // EPSBearerRequest is the input the MME hands the SMF+PGW-C anchor to establish a
@@ -107,6 +120,7 @@ type EPSBearer struct {
 	IPv6Prefix netip.Addr
 	IPv6IID    [8]byte
 	DNS        netip.Addr
+	PCSCF      []netip.Addr
 	// SGW.Addr is the IPv4 S1-U N3 endpoint (invalid on an IPv6-only N3); SGWN3IPv6
 	// is the IPv6 one. The MME advertises whichever the N3 has to the eNB.
 	SGW       FTEID
@@ -176,10 +190,11 @@ const (
 
 // QER describes a QoS Enforcement Rule for the UPF session API.
 type QER struct {
-	QERID      uint32
-	QFI        uint8
-	GateStatus *GateStatus
-	MBR        *MBR
+	QERID           uint32
+	QFI             uint8
+	GateStatus      *GateStatus
+	MBR             *MBR
+	AveragingWindow *time.Duration
 }
 
 // GateStatus controls uplink/downlink gate open/close.
@@ -213,12 +228,13 @@ type ModifyRequest struct {
 	UpdateQERs []QER
 	RemovePDRs []uint16
 	RemoveFARs []uint32
+	RemoveQERs []uint32
 
 	SendEndMarkers bool
 }
 
 type ModifyResponse struct {
-	ForwardingTEID uint32
+	ChosenTEIDs map[uint8]uint32
 }
 
 type ForwardingTunnel struct {

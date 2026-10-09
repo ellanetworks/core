@@ -277,6 +277,23 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	return e.SendMessage(b, true)
 }
 
+var CauseRadioConnectionWithUELost = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}
+
+func (e *ENB) SendERABReleaseIndication(mmeUEID, enbUEID int64, erab s1ap.ERABID, cause s1ap.Cause) error {
+	ind := &s1ap.ERABReleaseIndication{
+		MMEUES1APID:  s1ap.MMEUES1APID(mmeUEID),
+		ENBUES1APID:  s1ap.ENBUES1APID(enbUEID),
+		ERABReleased: []s1ap.ERABItem{{ERABID: erab, Cause: cause}},
+	}
+
+	b, err := ind.Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build E-RAB Release Indication: %w", err)
+	}
+
+	return e.SendMessage(b, true)
+}
+
 func (e *ENB) SendUECapabilityInfoIndication(mmeUEID, enbUEID int64, capability []byte) error {
 	if len(capability) == 0 {
 		return fmt.Errorf("s1enb: UE Radio Capability is required to build UE Capability Info Indication")

@@ -284,5 +284,5 @@ func resetUERegistrationsInRestoredDB(ctx context.Context, dbPath string) error 
 		return fmt.Errorf("reset %s: %w", UERegistrationsTableName, err)
 	}
 
-	return nil
+	return resetIMSRegistrationsInRestoredDB(ctx, conn)
 }

@@ -105,12 +105,14 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		Present:       present,
 		Rejected:      undecodable,
 		Authoritative: true,
+		ReleaseFailed: true,
+		AfterCommit:   true,
 	})
 
 	released := releasedERABItems(append(result.Failed, undecodable...))
 
-	if len(result.Applied) == 0 {
-		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request switched no E-RAB",
+	if !result.AppliedDefaultBearer(m, ue) {
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request switched no default bearer (TS 23.401 §5.5.1.1.2)",
 			logger.MMEUeS1apID(uint32(mmeID)))
 
 		m.DetachUEAfterPathSwitchFailure(ctx, ue)
@@ -169,6 +171,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
+	result.Complete(ctx)
 	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 }
 

@@ -54,16 +54,15 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 	)
 	defer span.End()
 
-	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
-	if err != nil {
-		return "", fmt.Errorf("no policy for a session moving to %s in idle mode: %w", access, err)
-	}
-
-	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai, Policy: policy}
+	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
 		return "", fmt.Errorf("no session to move to %s in idle mode: %w", access, err)
+	}
+
+	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+		return "", fmt.Errorf("no subscription for a session moving to %s in idle mode: %w", access, err)
 	}
 
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
@@ -103,9 +102,9 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	next.Access = access
 	next.Downlink = DownlinkBuffering
 	next.AN = AnchorBinding{}
-	next.QFI, next.AMBR = commit.policy.QosData.QFI, commit.policy.Ambr
+	next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 
-	if err := s.applyDataPlane(ctx, sc, next, commit.policy.PolicyID); err != nil {
+	if err := s.applyDataPlane(ctx, sc, next, sc.PolicyData.PolicyID); err != nil {
 		commit.restore()
 
 		return nil, err

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/diameter/cx"
+	"github.com/ellanetworks/core/diameter/rx"
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
@@ -152,9 +155,11 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 	}
 
 	return []diameternode.PeerConfig{{
-		ID:      "smsc-1",
-		Role:    "smsc",
-		Address: s.smsc,
+		ID:         "smsc-1",
+		Role:       "smsc",
+		Address:    s.smsc,
+		Transports: []diameter.Transport{diameter.TransportSCTP},
+		Dial:       true,
 		Applications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
 			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
@@ -382,9 +387,10 @@ func TestNodeReconnectsAfterSMSCRestart(t *testing.T) {
 
 	waitFor(t, "SMSC to see Ella again", func() bool { return restarted.connectedHost() == ellaHost })
 
-	if state := smscState(link); state != diameter.PeerReopen && state != diameter.PeerOpen {
-		t.Fatalf("state after reconnecting = %s, want reopen until the RFC 3539 watchdogs complete", state)
-	}
+	waitFor(t, "reopen until the RFC 3539 watchdogs complete", func() bool {
+		state := smscState(link)
+		return state == diameter.PeerReopen || state == diameter.PeerOpen
+	})
 }
 
 func TestNodeReportsTheSMSCDownWhenItCannotStart(t *testing.T) {
@@ -481,12 +487,18 @@ func newDialingNode(t *testing.T, host string, ip netip.Addr) *diameter.Node {
 func dialElla(t *testing.T, node *diameter.Node, port int, transport diameter.Transport) {
 	t.Helper()
 
+	dialEllaFor(t, node, port, transport, smsApplications)
+}
+
+func dialEllaFor(t *testing.T, node *diameter.Node, port int, transport diameter.Transport, apps []diameter.Application) {
+	t.Helper()
+
 	err := node.SetPeers([]diameter.Peer{{
 		ID:           "ella",
 		Addresses:    []netip.Addr{loopback},
 		Transports:   []diameter.Transport{transport},
 		Dial:         &diameter.Dial{Port: uint16(port)},
-		Applications: smsApplications,
+		Applications: apps,
 	}})
 	if err != nil {
 		t.Fatalf("set peers: %v", err)
@@ -589,7 +601,7 @@ func TestListenerAndDialerResolveToOneConnection(t *testing.T) {
 	}
 }
 
-func TestListenerRefusesPeersOtherThanTheSMSC(t *testing.T) {
+func TestListenerRefusesSMSFromPeersOtherThanTheSMSC(t *testing.T) {
 	requireSCTP(t)
 
 	port := freePort(t)
@@ -613,8 +625,8 @@ func TestListenerRefusesPeersOtherThanTheSMSC(t *testing.T) {
 			other := newDialingNode(t, "other.example.org", tc.ip)
 			dialElla(t, other, port, tc.transport)
 
-			waitFor(t, "unknown peer refusal", func() bool {
-				return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultUnknownPeer)))
+			waitFor(t, "no common application", func() bool {
+				return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultNoCommonApplication)))
 			})
 		})
 	}
@@ -632,7 +644,96 @@ func TestListenerRunsWithoutSMSC(t *testing.T) {
 	other := newDialingNode(t, "other.example.org", loopback)
 	dialElla(t, other, port, diameter.TransportSCTP)
 
-	waitFor(t, "unknown peer refusal", func() bool {
-		return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultUnknownPeer)))
+	waitFor(t, "no common application", func() bool {
+		return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultNoCommonApplication)))
 	})
+}
+
+var imsApplications = []diameter.Application{
+	{ID: cx.ApplicationID, VendorID: tgpp.VendorID},
+	{ID: rx.ApplicationID, VendorID: tgpp.VendorID},
+}
+
+func imsPeer(link *diameternode.Manager) diameternode.PeerStatus {
+	for _, p := range link.Peers() {
+		if p.Role == diameternode.PeerRoleIMS {
+			return p
+		}
+	}
+
+	return diameternode.PeerStatus{}
+}
+
+func TestListenerAcceptsUnknownIMSPeersForCxAndRx(t *testing.T) {
+	requireSCTP(t)
+
+	const imsHost = "scscf.ims.mnc001.mcc001.3gppnetwork.org"
+
+	for _, transport := range []diameter.Transport{diameter.TransportSCTP, diameter.TransportTCP} {
+		t.Run(transport.String(), func(t *testing.T) {
+			port := freePort(t)
+
+			link, _ := startListeningManager(t, newSettingsSource(), diameternode.ListenConfig{Address: loopback.String(), Port: port})
+
+			ims := newDialingNode(t, imsHost, loopback2)
+			dialEllaFor(t, ims, port, transport, imsApplications)
+
+			waitFor(t, "IMS peer open", func() bool {
+				return ellaStatus(ims).State == diameter.PeerOpen && imsPeer(link).State == diameter.PeerOpen
+			})
+
+			if apps := ellaStatus(ims).Applications; !slices.Equal(apps, imsApplications) {
+				t.Fatalf("negotiated applications = %v, want Cx and Rx", apps)
+			}
+
+			if st := imsPeer(link); st.Host != imsHost || st.Address.Addr() != loopback2 {
+				t.Fatalf("IMS peer status = %+v", st)
+			}
+
+			uar, err := cx.NewUserAuthorizationRequest(tgpp.Envelope{
+				SessionID:        ims.NewSessionID(),
+				Origin:           ims.Identity(),
+				DestinationHost:  ellaHost,
+				DestinationRealm: "ims.mnc001.mcc001.3gppnetwork.org",
+			}, cx.UserAuthorizationRequest{
+				PrivateIdentity: "001010000000001@ims.mnc001.mcc001.3gppnetwork.org",
+				PublicIdentity:  "sip:001010000000001@ims.mnc001.mcc001.3gppnetwork.org",
+				VisitedNetwork:  "ims.mnc001.mcc001.3gppnetwork.org",
+			})
+			if err != nil {
+				t.Fatalf("build UAR: %v", err)
+			}
+
+			str, err := rx.NewSessionTerminationRequest(tgpp.Envelope{
+				SessionID:        ims.NewSessionID(),
+				Origin:           ims.Identity(),
+				DestinationHost:  ellaHost,
+				DestinationRealm: ellaRealm,
+			}, rx.SessionTerminationRequest{Cause: rx.TerminationLogout})
+			if err != nil {
+				t.Fatalf("build STR: %v", err)
+			}
+
+			for _, req := range []*diameter.Message{uar, str} {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+				ans, err := ims.Send(ctx, req)
+
+				cancel()
+
+				if err != nil {
+					t.Fatalf("command %d: %v", req.CommandCode, err)
+				}
+
+				result, err := tgpp.ParseResult(ans)
+				if err != nil {
+					t.Fatalf("parse answer to command %d: %v", req.CommandCode, err)
+				}
+
+				if result.Code != diameter.ResultCommandUnsupported {
+					t.Fatalf("answer to command %d = %s, want %d", req.CommandCode, result, diameter.ResultCommandUnsupported)
+				}
+			}
+		})
+	}
 }

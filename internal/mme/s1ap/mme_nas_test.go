@@ -199,9 +199,7 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 
 	handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
-	if m.LookupPDN(ue, 6) != nil {
-		t.Fatal("failed E-RAB's PDN connection must be released")
-	}
+	requirePDNDisconnected(t, m, ue, 6)
 
 	fsm, ok := m.Session.(*fakeSessionManager)
 	if !ok {

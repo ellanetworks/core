@@ -96,6 +96,8 @@ type PdnConnection struct {
 
 	Modifying *models.EPSBearerModification
 
+	Dedicated map[uint8]*DedicatedBearer
+
 	modifyAwaitingRadio bool
 	modifyAcceptedByUE  bool
 
@@ -134,6 +136,7 @@ type UeContext struct {
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 
 	smsOnly atomic.Bool
+	imsVoPS atomic.Bool
 
 	lastSeen atomic.Int64
 
@@ -356,7 +359,7 @@ func (m *MME) DefaultPDN(ue *UeContext) *PdnConnection {
 // are reserved, 5-15 are assignable).
 func (ue *UeContext) allocateEBI() uint8 {
 	for ebi := DefaultERABID; ebi <= 15; ebi++ {
-		if _, ok := ue.Pdns[ebi]; !ok {
+		if !ue.ebiInUseLocked(ebi) {
 			return ebi
 		}
 	}
@@ -528,6 +531,10 @@ func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
+	if p, ok := ue.Pdns[ebi]; ok {
+		p.takeDedicatedLocked()
+	}
+
 	delete(ue.Pdns, ebi)
 }
 
@@ -630,7 +637,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
 	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
-	superseded = m.detachConnLocked(ue)
+	superseded = m.detachConnLocked(ue, false)
 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
 	// native-GUTI reuse — detach it there so that discarded context does not appear
@@ -710,7 +717,7 @@ func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 // detachConnLocked unbinds the UE's current S1-connection and stops its connection-scoped
 // supervision, returning the connection (nil if none). The connection stays in m.conns;
 // the caller frees or reserves its MME-UE-S1AP-ID. The caller holds m.mu.
-func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
+func (m *MME) detachConnLocked(ue *UeContext, releaseGBR bool) *UeConn {
 	old := ue.Conn()
 	if old == nil {
 		return nil
@@ -739,7 +746,11 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 			p.clearModificationLocked()
 		}
 	}
+
+	lost, interrupted := ue.takeDedicatedOnReleaseLocked(releaseGBR)
 	ue.mu.Unlock()
+
+	m.reportDedicatedLosses(lost, interrupted)
 
 	old.ue.Store(nil)
 	ue.active.Store(nil)
@@ -748,7 +759,12 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 }
 
 func (m *MME) freeUeConnLocked(ue *UeContext) {
-	if old := m.detachConnLocked(ue); old != nil {
+	releaseGBR := true
+	if c := ue.Conn(); c != nil {
+		releaseGBR = !preservesGBRBearers(c.releaseCause.Load())
+	}
+
+	if old := m.detachConnLocked(ue, releaseGBR); old != nil {
 		m.releaseConnIDLocked(uint32(old.MMEUES1APID))
 	}
 }
@@ -862,6 +878,13 @@ func (m *MME) ReconcileReady(ue *UeContext) (*UeConn, bool) {
 	}
 
 	return conn, true
+}
+
+func (m *MME) handoverInProgress(ue *UeContext) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return ue.handover != nil && ue.Conn() != nil
 }
 
 // claimRelease atomically marks the UE's S1 connection as releasing, returning

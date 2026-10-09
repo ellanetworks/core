@@ -402,8 +402,8 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 }
 
 // GetSessionPolicy resolves a subscriber's policy for a given slice (sst+sd) and DNN.
-// It follows the chain: subscriber → profileID → policy (by profile, slice, DNN) → network rules.
-func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*Policy, []*NetworkRule, *DataNetwork, error) {
+// It follows the chain: subscriber → profileID → policy (by profile, slice, DNN).
+func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*Policy, error) {
 	ctx, span := tracer.Start(ctx, "db/get_session_policy",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -419,14 +419,14 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	if err != nil {
 		recordSpanError(span, err)
 
-		return nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
+		return nil, fmt.Errorf("subscriber not found: %w", err)
 	}
 
 	policies, err := db.ListPoliciesByProfile(ctx, sub.ProfileID)
 	if err != nil {
 		recordSpanError(span, err)
 
-		return nil, nil, nil, fmt.Errorf("list policies for profile %s: %w", sub.ProfileID, err)
+		return nil, fmt.Errorf("list policies for profile %s: %w", sub.ProfileID, err)
 	}
 
 	// Batch-fetch all referenced network slices.
@@ -444,7 +444,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	if err != nil {
 		recordSpanError(span, err)
 
-		return nil, nil, nil, fmt.Errorf("list slices by IDs: %w", err)
+		return nil, fmt.Errorf("list slices by IDs: %w", err)
 	}
 
 	sliceMap := make(map[string]NetworkSlice, len(sliceList))
@@ -477,21 +477,14 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		if err != nil {
 			recordSpanError(span, err)
 
-			return nil, nil, nil, fmt.Errorf("couldn't get data network %s: %w", p.DataNetworkID, err)
+			return nil, fmt.Errorf("couldn't get data network %s: %w", p.DataNetworkID, err)
 		}
 
 		if dataNetwork.Name != dnn {
 			continue
 		}
 
-		rules, err := db.ListRulesForPolicy(ctx, p.ID)
-		if err != nil {
-			recordSpanError(span, err)
-
-			return nil, nil, nil, fmt.Errorf("list rules for policy %s: %w", p.ID, err)
-		}
-
-		return &p, rules, dataNetwork, nil
+		return &p, nil
 	}
 
 	// A matched slice with no policy for the DNN is a DNN problem; an unmatched
@@ -503,83 +496,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 	recordSpanError(span, err)
 
-	return nil, nil, nil, err
-}
-
-func (db *Database) GetEPSSessionPolicy(ctx context.Context, imsi string, apn string) (*Policy, []*NetworkRule, *DataNetwork, *NetworkSlice, error) {
-	ctx, span := tracer.Start(ctx, "db/get_eps_session_policy",
-		trace.WithSpanKind(trace.SpanKindInternal),
-		trace.WithAttributes(
-			attrs.SUPIFromIMSI(imsi),
-			attrs.DNN(apn),
-		),
-	)
-	defer span.End()
-
-	sub, err := db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return nil, nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
-	}
-
-	policies, err := db.ListPoliciesByProfile(ctx, sub.ProfileID)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return nil, nil, nil, nil, fmt.Errorf("list policies for profile %s: %w", sub.ProfileID, err)
-	}
-
-	var (
-		selected *Policy
-		dn       *DataNetwork
-	)
-
-	for i := range policies {
-		p := &policies[i]
-
-		dataNetwork, err := db.GetDataNetworkByID(ctx, p.DataNetworkID)
-		if err != nil {
-			recordSpanError(span, err)
-
-			return nil, nil, nil, nil, fmt.Errorf("couldn't get data network %s: %w", p.DataNetworkID, err)
-		}
-
-		if dataNetwork.Name != apn {
-			continue
-		}
-
-		if selected == nil || p.IsDefault {
-			selected, dn = p, dataNetwork
-		}
-
-		if p.IsDefault {
-			break
-		}
-	}
-
-	if selected == nil {
-		err := fmt.Errorf("no policy matching apn=%q for profile %s: %w", apn, sub.ProfileID, ErrNoMatchingPolicy)
-		recordSpanError(span, err)
-
-		return nil, nil, nil, nil, err
-	}
-
-	slice, err := db.GetNetworkSliceByID(ctx, selected.SliceID)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return nil, nil, nil, nil, fmt.Errorf("couldn't get network slice %s: %w", selected.SliceID, err)
-	}
-
-	rules, err := db.ListRulesForPolicy(ctx, selected.ID)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return nil, nil, nil, nil, fmt.Errorf("list rules for policy %s: %w", selected.ID, err)
-	}
-
-	return selected, rules, dn, slice, nil
+	return nil, err
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {

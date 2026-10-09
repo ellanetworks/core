@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/hss"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"go.uber.org/zap"
@@ -865,7 +866,12 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
+type IMSDeregistrar interface {
+	Termination(ctx context.Context, imsi string) (*hss.Termination, error)
+	Terminate(ctx context.Context, t *hss.Termination) error
+}
+
+func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, hssInstance IMSDeregistrar) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -892,6 +898,14 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			return
 		}
 
+		var termination *hss.Termination
+
+		if hssInstance != nil {
+			if termination, err = hssInstance.Termination(r.Context(), imsi); err != nil {
+				logger.APILog.Warn("could not read the subscriber's IMS registration", zap.String("imsi", imsi), zap.Error(err))
+			}
+		}
+
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
 		amfInstance.ForgetSubscriber(imsi)
 
@@ -909,6 +923,10 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 
 			return
+		}
+
+		if termination != nil {
+			go func(ctx context.Context) { _ = hssInstance.Terminate(ctx, termination) }(context.WithoutCancel(r.Context()))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)

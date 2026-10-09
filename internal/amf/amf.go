@@ -28,6 +28,7 @@ import (
 	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -73,12 +74,15 @@ type SmfSbi interface {
 	smf.SessionQuerier
 	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
-	DeactivateSmContext(ctx context.Context, smContextRef string) error
+	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
 	ReleaseSmContext(ctx context.Context, smContextRef string) error
 	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
 	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) (bool, error)
+	UpdateSmContextN2InfoPduResModifyRsp(ctx context.Context, smContextRef string, n2Data []byte) error
+	UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, smContextRef string, n2Data []byte) error
+	UpdateSmContextN2InfoNotify(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
 	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, error)
 	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, error)
@@ -96,24 +100,19 @@ type SmfSbi interface {
 }
 
 type NetworkFeatureSupport5GS struct {
-	Enable  bool
-	ImsVoPS uint8
-	Emc     uint8
-	Emf     uint8
-	Mpsi    uint8
-	EmcN3   uint8
-	Mcsi    uint8
+	Enable bool
+	Emc    uint8
+	Emf    uint8
+	Mpsi   uint8
+	EmcN3  uint8
+	Mcsi   uint8
 }
 
 type DBer interface {
+	udm.SubscriptionStore
 	GetOperator(ctx context.Context) (*db.Operator, error)
-	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
-	GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error)
 	GetNetworkSliceByID(ctx context.Context, id string) (*db.NetworkSlice, error)
-	ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]db.NetworkSlice, error)
-	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
 	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
-	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	AMFPointer() int
 }
 
@@ -178,6 +177,7 @@ type AMF struct {
 	NAS                      NASHandler
 	LPPHandler               LPPHandler
 	SMS                      smsf.Handler
+	IMSVoice                 IMSVoice
 	EPS                      interworking.EPSPeer
 
 	handoversToEPS interworking.HandoverGroup
@@ -773,7 +773,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		N2SetupGuardCfg:          defaultN2SetupGuardCfg,
 		ICSGuardCfg:              guard.TimerValue{Enable: true, ExpireTime: defaultICSGuardTimeout},
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
-		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
+		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true},
 	}
 
 	a.relativeCapacity.Store(uint32(DefaultRelativeCapacity))

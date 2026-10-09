@@ -134,7 +134,7 @@ func TestInterworkingDeactivationFromTheOtherAccessIsANoOp(t *testing.T) {
 
 	modifies = len(upf.modifyCalls)
 
-	if err := s.DeactivateSmContext(ctx, bearer.Ref); err != nil {
+	if err := s.DeactivateSmContext(ctx, bearer.Ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 

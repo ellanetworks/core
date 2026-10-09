@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -15,12 +16,15 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/udm"
 )
 
 // --- Fakes ---
 
 type fakeStore struct {
 	mu              sync.Mutex
+	apnLookups      int
+	pcf             *fakePCF
 	teardownSeq     *teardownRecorder
 	allocatedIP     netip.Addr
 	allocatedIPv6   netip.Addr
@@ -41,23 +45,13 @@ type fakeStore struct {
 	staticIPErr     error
 	opLog           []string
 	allocSessionLog []uint8
-	dnnResolveCalls int
 }
 
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.dnnResolveCalls++
-
 	return f, nil
-}
-
-func (f *fakeStore) dnnResolves() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.dnnResolveCalls
 }
 
 // ops returns the IPv4 allocate/release calls in the order they arrived.
@@ -76,12 +70,23 @@ func (f *fakeStore) allocSessionIDs() []uint8 {
 	return slices.Clone(f.allocSessionLog)
 }
 
+type reportedRule struct {
+	smf.RuleReport
+	cause smf.EnforcementFailure
+}
+
 type fakePCF struct {
-	mu         sync.Mutex
-	policy     *smf.Policy
-	err        error
-	lastSnssai *models.Snssai
-	apnLookups int
+	mu           sync.Mutex
+	policy       *smf.Policy
+	err          error
+	lastSnssai   *models.Snssai
+	associations map[string]smf.PolicyContext
+	terminated   []string
+	failures     []string
+	failedRules  []string
+	reports      []reportedRule
+	updates      int
+	revision     uint64
 }
 
 type usageEntry struct {
@@ -136,14 +141,14 @@ func (f *fakeStore) ReleaseIPv6(_ context.Context, imsi string, _ uint8) (netip.
 	return f.releasedIPv6, f.err
 }
 
-func (f *fakeStore) ListFramedRoutes(_ context.Context, _ string) ([]netip.Prefix, error) {
+func (f *fakeStore) FramedRoutes(_ context.Context, _, _ string) ([]netip.Prefix, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return f.framedRoutes, f.framedRoutesErr
 }
 
-func (f *fakeStore) GetStaticIP(_ context.Context, _ string, ipv6 bool) (netip.Addr, bool, error) {
+func (f *fakeStore) StaticIP(_ context.Context, _, _ string, ipv6 bool) (netip.Addr, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -159,11 +164,8 @@ func (f *fakeStore) GetStaticIP(_ context.Context, _ string, ipv6 bool) (netip.A
 	return addr, addr.IsValid(), nil
 }
 
-func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, snssai *models.Snssai, _ string) (*smf.Policy, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.lastSnssai = snssai
+func (f *fakePCF) decisionLocked(snssai models.Snssai) (*smf.PolicyDecision, error) {
+	f.lastSnssai = &snssai
 
 	if f.err != nil {
 		return nil, f.err
@@ -173,24 +175,142 @@ func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, snssai *models.S
 		return nil, fmt.Errorf("policy not found")
 	}
 
-	return f.policy, nil
+	f.revision++
+
+	d := &smf.PolicyDecision{Revision: f.revision, PolicyID: f.policy.PolicyID, Var5qi: f.policy.QosData.Var5qi, SessionAMBR: f.policy.Ambr}
+	if f.policy.QosData.Arp != nil {
+		d.Arp = f.policy.QosData.Arp.PriorityLevel
+	}
+
+	return d, nil
 }
 
-func (f *fakePCF) GetEPSSessionPolicy(_ context.Context, _ string, _ string) (*smf.Policy, *models.Snssai, error) {
+func (f *fakePCF) CreateAssociation(_ context.Context, ref string, c smf.PolicyContext) (*smf.PolicyDecision, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.apnLookups++
+	d, err := f.decisionLocked(c.Snssai)
+	if err != nil {
+		return nil, err
+	}
+
+	if f.associations == nil {
+		f.associations = make(map[string]smf.PolicyContext)
+	}
+
+	f.associations[ref] = c
+
+	return d, nil
+}
+
+func (f *fakePCF) UpdateAssociation(_ context.Context, ref string, subscribed smf.SubscribedQoS) (*smf.PolicyDecision, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	c, ok := f.associations[ref]
+	if !ok {
+		return nil, fmt.Errorf("no policy association %q", ref)
+	}
+
+	c.Subscribed = subscribed
+	f.associations[ref] = c
+	f.updates++
+
+	return f.decisionLocked(c.Snssai)
+}
+
+func (f *fakePCF) ReportEnforcementFailure(ref string, reports []smf.RuleReport, cause smf.EnforcementFailure) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.failures = append(f.failures, ref)
+
+	for _, r := range reports {
+		f.failedRules = append(f.failedRules, r.Rule.ID)
+		f.reports = append(f.reports, reportedRule{RuleReport: r, cause: cause})
+	}
+}
+
+func (f *fakePCF) subscribed() (smf.SubscribedQoS, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	if f.err != nil {
-		return nil, nil, f.err
+		return smf.SubscribedQoS{}, f.err
 	}
 
 	if f.policy == nil {
-		return epsPolicy(), testSnssai, nil
+		return smf.SubscribedQoS{}, smf.ErrNoPolicyMatch
 	}
 
-	return f.policy, testSnssai, nil
+	q := smf.SubscribedQoS{Var5qi: f.policy.QosData.Var5qi, SessionAMBR: f.policy.Ambr}
+	if f.policy.QosData.Arp != nil {
+		q.Arp = f.policy.QosData.Arp.PriorityLevel
+	}
+
+	return q, nil
+}
+
+func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.policy == nil {
+		return smf.DataNetworkConfig{}
+	}
+
+	return smf.DataNetworkConfig{DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, PCSCF: f.policy.PCSCF}
+}
+
+func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.SessionManagementSubscription, error) {
+	f.mu.Lock()
+	f.apnLookups++
+	pcf := f.pcf
+	f.mu.Unlock()
+
+	c := udm.DNNConfiguration{Snssai: *testSnssai, DNN: testDNN, Default: true}
+
+	if pcf != nil {
+		q, err := pcf.subscribed()
+
+		switch {
+		case errors.Is(err, smf.ErrNoPolicyMatch):
+			return &udm.SessionManagementSubscription{}, nil
+		case errors.Is(err, smf.ErrDNNNotInSlice):
+			c.DNN = "other-" + testDNN
+		case err != nil:
+			return nil, err
+		}
+
+		c.Var5qi, c.Arp, c.SessionAMBR = q.Var5qi, q.Arp, q.SessionAMBR
+	}
+
+	other := c
+	other.Snssai, other.Default = otherTestSnssai, false
+
+	return &udm.SessionManagementSubscription{DNNs: []udm.DNNConfiguration{c, other}}, nil
+}
+
+func (f *fakeStore) Config(context.Context) (smf.DataNetworkConfig, error) {
+	f.mu.Lock()
+	pcf := f.pcf
+	f.mu.Unlock()
+
+	if pcf == nil {
+		return smf.DataNetworkConfig{}, nil
+	}
+
+	return pcf.dataNetwork(), nil
+}
+
+func (f *fakePCF) TerminateAssociation(ref string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, ok := f.associations[ref]; ok {
+		delete(f.associations, ref)
+		f.terminated = append(f.terminated, ref)
+	}
 }
 
 func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.SubscriberUsage) error {
@@ -259,7 +379,22 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) (*
 		return nil, f.err
 	}
 
-	return &models.ModifyResponse{ForwardingTEID: f.forwardingTEID}, nil
+	teids := make(map[uint8]uint32)
+
+	for _, pdr := range req.UpdatePDRs {
+		if pdr.PDI.LocalFTEID == nil || pdr.PDI.LocalFTEID.ChooseID == 0 {
+			continue
+		}
+
+		id := pdr.PDI.LocalFTEID.ChooseID
+		teids[id] = 0x1000 + uint32(id)
+
+		if id == 4 && f.forwardingTEID != 0 {
+			teids[id] = f.forwardingTEID
+		}
+	}
+
+	return &models.ModifyResponse{ChosenTEIDs: teids}, nil
 }
 
 func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {
@@ -313,6 +448,7 @@ type fakeAMF struct {
 	modifyCalls  []n1n2Call
 	releaseCalls []releaseCall
 	pageCalls    []pageCall
+	pageARPs     []*models.Arp
 
 	accessReleases   []uint8
 	accessReleaseErr error
@@ -421,11 +557,12 @@ func (f *fakeAMF) releasedAccess() []uint8 {
 	return append([]uint8(nil), f.accessReleases...)
 }
 
-func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp) (models.N1N2MessageTransferCause, error) {
+func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp) (models.N1N2MessageTransferCause, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.pageCalls = append(f.pageCalls, pageCall{supi, pduSessionID, snssai, n2Msg})
+	f.pageARPs = append(f.pageARPs, arp)
 
 	return models.N1N2AttemptingToReachUE, f.err
 }
@@ -438,8 +575,77 @@ type fakeMME struct {
 	droppedCalls []mmeTransferredCall
 	modified     []models.EPSBearerModification
 	reactivated  []uint8
+	activations  []models.DedicatedBearerRequest
+	deactivated  []uint8
+	dedicatedMod []models.DedicatedBearerModification
+	pagedEBIs    []uint8
+	activateErr  error
 	modifyErr    error
+	dedicatedErr error
 	err          error
+}
+
+func (f *fakeMME) ModifyDedicatedBearer(_ context.Context, _ string, _ uint8, mod models.DedicatedBearerModification) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.dedicatedErr != nil {
+		return f.dedicatedErr
+	}
+
+	f.dedicatedMod = append(f.dedicatedMod, mod)
+
+	return nil
+}
+
+func (f *fakeMME) notifiedEBIs() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.pagedEBIs)
+}
+
+func (f *fakeMME) dedicatedModifications() []models.DedicatedBearerModification {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.dedicatedMod)
+}
+
+func (f *fakeMME) ActivateDedicatedBearer(_ context.Context, _ string, req models.DedicatedBearerRequest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.activateErr != nil {
+		return f.activateErr
+	}
+
+	f.activations = append(f.activations, req)
+
+	return nil
+}
+
+func (f *fakeMME) DeactivateDedicatedBearer(_ context.Context, _ string, ebi uint8, _ uint32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.deactivated = append(f.deactivated, ebi)
+
+	return nil
+}
+
+func (f *fakeMME) dedicatedActivations() []models.DedicatedBearerRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.activations)
+}
+
+func (f *fakeMME) dedicatedDeactivations() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.deactivated)
 }
 
 func (f *fakeMME) ModifyEPSBearer(_ context.Context, _ string, _ uint8, mod models.EPSBearerModification) error {
@@ -498,11 +704,12 @@ func (f *fakeMME) dropped() []mmeTransferredCall {
 	return append([]mmeTransferredCall(nil), f.droppedCalls...)
 }
 
-func (f *fakeMME) NotifyDownlinkData(_ context.Context, imsi string, _ uint8, cause models.DownlinkDataNotificationCause) error {
+func (f *fakeMME) NotifyDownlinkData(_ context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.pagedIMSI = append(f.pagedIMSI, imsi)
+	f.pagedEBIs = append(f.pagedEBIs, ebi)
 	f.notifyCauses = append(f.notifyCauses, cause)
 
 	return f.err
@@ -515,7 +722,10 @@ const (
 	testDNN  = "internet"
 )
 
-var testSnssai = &models.Snssai{Sst: 1, Sd: "010203"}
+var (
+	testSnssai      = &models.Snssai{Sst: 1, Sd: "010203"}
+	otherTestSnssai = models.Snssai{Sst: 1, Sd: "000001"}
+)
 
 func testSUPI() etsi.SUPI {
 	supi, err := etsi.NewSUPIFromPrefixed("imsi-" + testIMSI)
@@ -526,8 +736,20 @@ func testSUPI() etsi.SUPI {
 	return supi
 }
 
-func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback) *smf.SMF {
-	return smf.New(pcf, store, upf, amfCb)
+func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback, opts ...smf.Option) *smf.SMF {
+	if fs, ok := store.(*fakeStore); ok {
+		if fp, ok := pcf.(*fakePCF); ok {
+			fs.mu.Lock()
+			fs.pcf = fp
+			fs.mu.Unlock()
+		}
+	}
+
+	if subs, ok := store.(smf.SubscriptionData); ok {
+		opts = append(opts, smf.WithSubscriptions(subs))
+	}
+
+	return smf.New(pcf, store, upf, amfCb, opts...)
 }
 
 // Holds the session's Mutex the way production callers do.
@@ -734,24 +956,6 @@ func TestAllocateSEID_Increments(t *testing.T) {
 
 	if seid1 != 1 || seid2 != 2 || seid3 != 3 {
 		t.Fatalf("expected SEIDs 1,2,3 but got %d,%d,%d", seid1, seid2, seid3)
-	}
-}
-
-// --- Store Delegation Tests ---
-
-func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	bgCtx := context.Background()
-	supi := testSUPI()
-
-	policy, err := s.GetSessionPolicy(bgCtx, supi, testSnssai, testDNN)
-	if err != nil {
-		t.Fatalf("GetSessionPolicy failed: %v", err)
-	}
-
-	if !policy.Ambr.Uplink.Equal(models.MustParseBitRate("100 Mbps")) {
-		t.Fatalf("expected uplink 100 Mbps, got %s", policy.Ambr.Uplink)
 	}
 }
 

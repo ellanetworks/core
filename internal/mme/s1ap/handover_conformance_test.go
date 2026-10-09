@@ -501,9 +501,7 @@ func TestS1HandoverNotifyReleasesTheRejectedPDNConnection(t *testing.T) {
 	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target),
 		initiatingValue(t, mustMarshal(t, handoverNotify(req.MMEUES1APID, ackTargetENBUEID).Marshal)))
 
-	if m.LookupPDN(ue, 6) != nil {
-		t.Error("the PDN connection the target rejected was not released")
-	}
+	requirePDNDisconnected(t, m, ue, 6)
 
 	if m.LookupPDN(ue, mme.DefaultERABID) == nil {
 		t.Error("the admitted PDN connection was released too")
@@ -740,5 +738,33 @@ func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 
 	if cmd.ERABToRelease[0].Cause != targetCause {
 		t.Errorf("release cause = %+v, want the target's %+v", cmd.ERABToRelease[0].Cause, targetCause)
+	}
+}
+
+func TestS1AcknowledgeAdmittingOnlyADedicatedBearerRejectsTheHandover(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	p := m.LookupPDN(ue, mme.DefaultERABID)
+	p.Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{Ebi: 6, QCI: 1}}}
+
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
+		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	req := handoverRequestOn(t, target)
+
+	ack := ackWith(req.MMEUES1APID, []uint8{6}, []uint8{mme.DefaultERABID})
+
+	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
+		successfulValue(t, mustMarshal(t, ack.Marshal)))
+
+	parseUEContextReleaseCommand(t, lastSent(t, target))
+
+	if preparationFailureOn(t, source).Cause == nil {
+		t.Error("the source was not told why the handover was rejected")
+	}
+
+	if ue.HasHandoverForTest() {
+		t.Error("a handover admitting no default bearer was left in flight (TS 23.401 §5.5.1.2.2)")
 	}
 }

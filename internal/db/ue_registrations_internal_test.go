@@ -129,3 +129,40 @@ func TestRegisterUE_RewritesRestoredRegistration(t *testing.T) {
 		t.Fatalf("restored registration kept version %d (returned %d), want a new version", reg.Version, version)
 	}
 }
+
+func TestResetClearsIMSRegistrationsInRestoredDB(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "restored.db")
+
+	conn, err := sql.Open("sqlite3", path)
+	if err != nil {
+		t.Fatalf("open: %s", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	stmts := []string{
+		"CREATE TABLE ue_registrations (imsi TEXT NOT NULL, type TEXT NOT NULL, nodeID TEXT NOT NULL, purged INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL, PRIMARY KEY (imsi, type))",
+		"CREATE TABLE ims_registrations (imsi TEXT PRIMARY KEY, state INTEGER NOT NULL, serverName TEXT NOT NULL, authPending INTEGER NOT NULL, originHost TEXT NOT NULL, originRealm TEXT NOT NULL, updatedAt INTEGER NOT NULL)",
+		"INSERT INTO ims_registrations VALUES ('001010000000001', 1, 'sip:scscf.example.org', 0, 'scscf.example.org', 'example.org', 1)",
+	}
+
+	for _, stmt := range stmts {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("exec %q: %s", stmt, err)
+		}
+	}
+
+	if err := resetUERegistrationsInRestoredDB(ctx, path); err != nil {
+		t.Fatalf("resetUERegistrationsInRestoredDB: %s", err)
+	}
+
+	var count int
+	if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM ims_registrations").Scan(&count); err != nil {
+		t.Fatalf("count: %s", err)
+	}
+
+	if count != 0 {
+		t.Fatalf("expected IMS registrations cleared, got %d", count)
+	}
+}

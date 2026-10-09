@@ -25,6 +25,8 @@ var (
 		"network_rules",
 		"network_slices",
 		"operator",
+		"pcscf_addresses",
+		"ims_registrations",
 		"policies",
 		"profiles",
 		"retention_policies",

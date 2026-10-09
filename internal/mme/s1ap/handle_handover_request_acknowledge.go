@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"context"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -75,9 +76,9 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 
 	targetCauses := failedERABCauses(ack.ERABFailedToSetup)
 
-	if len(admitted) == 0 {
-		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge admitted no E-RAB; rejecting handover",
-			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)))
+	if !slices.ContainsFunc(admitted, func(a mme.AdmittedERAB) bool { return m.LookupPDN(ue, a.Ebi) != nil }) {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge admitted no default bearer; rejecting handover (TS 23.401 §5.5.1.2.2)",
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)), zap.Int("admitted", len(admitted)))
 		mme.SendUEContextRelease(ctx, m, radio.Conn, mmeUEID, enbUEID, true, causeHOFailureInTarget)
 		m.FailHandoverToSource(ctx, ue, causeHOFailureInTarget)
 

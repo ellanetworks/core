@@ -70,8 +70,15 @@ type fakeSessionManager struct {
 	deactivated       bool
 	reconciled        []string
 
-	outcomeMu sync.Mutex
-	concluded []bearerModificationOutcome
+	outcomeMu   sync.Mutex
+	concluded   []bearerModificationOutcome
+	activated   []dedicatedOutcome
+	dropped     []dedicatedOutcome
+	modified    []modificationOutcome
+	moved       []dedicatedOutcome
+	activateErr error
+	moveErr     error
+	modifyErr   error
 
 	suppressCalls         int
 	clearSuppressionCalls int
@@ -140,6 +147,10 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 }
 
 func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
+	if f.modifyErr != nil {
+		return f.modifyErr
+	}
+
 	f.modifiedENB = enb
 
 	return nil
@@ -180,6 +191,64 @@ func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref 
 	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})
 }
 
+type dedicatedOutcome struct {
+	ref  string
+	teid uint32
+	ebi  uint8
+	enb  models.FTEID
+}
+
+func (f *fakeSessionManager) DedicatedBearerActivated(_ context.Context, ref string, teid uint32, ebi uint8, enb models.FTEID) error {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	f.activated = append(f.activated, dedicatedOutcome{ref: ref, teid: teid, ebi: ebi, enb: enb})
+
+	return f.activateErr
+}
+
+func (f *fakeSessionManager) DedicatedBearerMoved(_ context.Context, ref string, teid uint32, enb models.FTEID) error {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	f.moved = append(f.moved, dedicatedOutcome{ref: ref, teid: teid, enb: enb})
+
+	return f.moveErr
+}
+
+type modificationOutcome struct {
+	teid     uint32
+	accepted bool
+}
+
+func (f *fakeSessionManager) DedicatedBearerModified(_ context.Context, _ string, teid uint32, accepted bool) {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	f.modified = append(f.modified, modificationOutcome{teid: teid, accepted: accepted})
+}
+
+func (f *fakeSessionManager) modifications() []modificationOutcome {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	return slices.Clone(f.modified)
+}
+
+func (f *fakeSessionManager) DedicatedBearerReleased(_ context.Context, ref string, teid uint32) {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	f.dropped = append(f.dropped, dedicatedOutcome{ref: ref, teid: teid})
+}
+
+func (f *fakeSessionManager) dedicatedOutcomes() (activated, dropped []dedicatedOutcome) {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	return slices.Clone(f.activated), slices.Clone(f.dropped)
+}
+
 func (f *fakeSessionManager) outcomes() []bearerModificationOutcome {
 	f.outcomeMu.Lock()
 	defer f.outcomeMu.Unlock()
@@ -197,15 +266,26 @@ func (fakeBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile
 	return &db.Profile{ID: id, UeAmbrDownlink: "1 Gbps", UeAmbrUplink: "1 Gbps", Allow4G: true, Allow5G: true}, nil
 }
 
-func (fakeBearerStore) GetDefaultPolicyByProfile(_ context.Context, _ string) (*db.Policy, error) {
-	return &db.Policy{Var5qi: 9, Arp: 15, SliceID: "test-slice", DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"}, nil
-}
-
 func (fakeBearerStore) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
 		{Var5qi: 9, Arp: 15, SliceID: "test-slice", DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 		{Var5qi: 9, Arp: 15, SliceID: "test-slice", DataNetworkID: "test-dn-ims", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 	}, nil
+}
+
+func (f fakeBearerStore) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]db.NetworkSlice, error) {
+	out := make([]db.NetworkSlice, 0, len(ids))
+
+	for _, id := range ids {
+		slice, err := f.GetNetworkSliceByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, *slice)
+	}
+
+	return out, nil
 }
 
 func (fakeBearerStore) GetDataNetworkByID(_ context.Context, id string) (*db.DataNetwork, error) {
@@ -327,7 +407,7 @@ func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAut
 	}, nil
 }
 
-func (f *fakeSessionManager) OpenEPSForwardingTunnel(_ context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error) {
+func (f *fakeSessionManager) OpenEPSForwardingTunnel(_ context.Context, ref string, _ uint8, target models.FTEID) (models.ForwardingTunnel, error) {
 	if f.forwardingErr != nil {
 		return models.ForwardingTunnel{}, f.forwardingErr
 	}

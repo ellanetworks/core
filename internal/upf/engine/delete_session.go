@@ -55,8 +55,16 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	// leaking forwarding state to a later session that reuses the UE IP).
 	var pdrErr error
 
-	for _, pdrInfo := range session.ListPDRs() {
-		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
+	for id, pdrInfo := range session.ListPDRs() {
+		session.RemovePDR(id)
+
+		if err := pdrContext.deletePDR(pdrInfo, bpfObjects, true); err != nil {
+			pdrErr = errors.Join(pdrErr, err)
+		}
+	}
+
+	if bpfObjects != nil {
+		if err := bpfObjects.DeleteClassifier(req.SEID); err != nil {
 			pdrErr = errors.Join(pdrErr, err)
 		}
 	}

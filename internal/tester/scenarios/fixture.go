@@ -28,6 +28,8 @@ type FixtureSpec struct {
 	// FramedRoutes are provisioned after subscribers and data networks exist.
 	FramedRoutes []FramedRouteSpec
 
+	PCSCFAddresses []string
+
 	// ExtraArgs are passed verbatim to `core-tester run <scenario>`, for the
 	// scenario-specific flags it declares via BindFlags.
 	ExtraArgs []string

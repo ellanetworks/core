@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -51,6 +52,14 @@ type GetOperatorSMSResponse struct {
 	SMSNumber string `json:"smsNumber"`
 }
 
+type UpdateOperatorVoiceParams struct {
+	PCSCFAddresses []string `json:"pcscfAddresses"`
+}
+
+type GetOperatorVoiceResponse struct {
+	PCSCFAddresses []string `json:"pcscfAddresses"`
+}
+
 type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs"`
 }
@@ -67,6 +76,7 @@ type GetOperatorResponse struct {
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 	SPN             GetOperatorSPNResponse         `json:"spn"`
 	SMS             GetOperatorSMSResponse         `json:"sms"`
+	Voice           GetOperatorVoiceResponse       `json:"voice"`
 }
 
 type GetOperatorIDResponse struct {
@@ -86,6 +96,7 @@ const (
 	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
 	UpdateOperatorSPNAction         = "update_operator_spn"
 	UpdateOperatorSMSAction         = "update_operator_sms"
+	UpdateOperatorVoiceAction       = "update_operator_voice"
 )
 
 func isValidMcc(mcc string) bool {
@@ -237,6 +248,14 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		pcscfAddresses, err := dbInstance.ListPCSCFAddresses(r.Context())
+		if err != nil {
+			logger.APILog.Warn("Failed to list P-CSCF addresses", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list P-CSCF addresses", err, logger.APILog)
+
+			return
+		}
+
 		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
@@ -256,6 +275,9 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			},
 			SMS: GetOperatorSMSResponse{
 				SMSNumber: formatE164(smsSettings.SMSNumber),
+			},
+			Voice: GetOperatorVoiceResponse{
+				PCSCFAddresses: addrStrings(pcscfAddresses),
 			},
 		}
 
@@ -641,4 +663,67 @@ func smsSettingsFromParams(params UpdateOperatorSMSParams) (db.SMSSettings, stri
 	}
 
 	return db.SMSSettings{SMSNumber: number}, ""
+}
+
+func UpdateOperatorVoice(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+
+		email, ok := emailAny.(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		var params UpdateOperatorVoiceParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		addresses := make([]netip.Addr, 0, len(params.PCSCFAddresses))
+
+		for _, s := range params.PCSCFAddresses {
+			addr, err := netip.ParseAddr(strings.TrimSpace(s))
+			if err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("pcscfAddresses: %q is not an IPv4 or IPv6 address", s), nil, logger.APILog)
+				return
+			}
+
+			addresses = append(addresses, addr)
+		}
+
+		if err := db.ValidatePCSCFAddresses(addresses); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid P-CSCF addresses", err, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.ReplacePCSCFAddresses(r.Context(), addresses); err != nil {
+			logger.APILog.Warn("Failed to update operator voice settings", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator voice settings", err, logger.APILog)
+
+			return
+		}
+
+		resp := SuccessResponse{Message: "Operator voice settings updated successfully"}
+		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
+
+		pcscf := "none"
+		if len(addresses) > 0 {
+			pcscf = strings.Join(addrStrings(addresses), ", ")
+		}
+
+		detail := fmt.Sprintf("User updated operator voice settings (P-CSCF addresses %s)", pcscf)
+
+		logger.LogAuditEvent(r.Context(), UpdateOperatorVoiceAction, email, getClientIP(r), detail)
+	})
+}
+
+func addrStrings(addresses []netip.Addr) []string {
+	out := make([]string, 0, len(addresses))
+	for _, a := range addresses {
+		out = append(out, a.String())
+	}
+
+	return out
 }

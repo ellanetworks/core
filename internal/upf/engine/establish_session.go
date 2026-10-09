@@ -52,6 +52,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	sess := NewSession(seid)
 	sess.SetIMSI(req.IMSI)
+	sess.SetLocalSwitch(req.LocalSwitch)
 	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
 
 	logger.From(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
@@ -134,6 +135,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	sess.SetUEAddresses(ueV4, ueV6)
 
+	extracted := make([]SPDRInfo, 0, len(req.PDRs))
+
 	for _, pdr := range req.PDRs {
 		spdrInfo := SPDRInfo{
 			PdrID: uint32(pdr.PDRID),
@@ -164,7 +167,19 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		}
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)
+		extracted = append(extracted, spdrInfo)
+	}
 
+	txn.onRollback(func() error { return bpfObjects.DeleteClassifier(seid) })
+
+	if err := conn.writeClassifier(sess, false); err != nil {
+		txn.rollback(ctx)
+		span.RecordError(err)
+
+		return nil, err
+	}
+
+	for _, spdrInfo := range extracted {
 		if err := applyPDR(spdrInfo, sess, bpfObjects); err != nil {
 			txn.rollback(ctx)
 			span.RecordError(err)
@@ -172,14 +187,17 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			return nil, fmt.Errorf("couldn't apply PDR: %w", err)
 		}
 
-		txn.onRollback(func() error { return unapplyPDR(spdrInfo, bpfObjects) })
+		txn.onRollback(func() error {
+			sess.clearPDRs()
+			return unapplyPDR(spdrInfo, sess, bpfObjects)
+		})
 
 		logger.From(ctx, logger.UpfLog).Debug("Applied packet detection rule",
 			logger.PDRID(spdrInfo.PdrID))
 
 		createdPDRs = append(createdPDRs, spdrInfo)
 
-		bpfObjects.ClearNotified(seid, pdr.PDRID)
+		bpfObjects.ClearNotified(seid, uint16(spdrInfo.PdrID))
 	}
 
 	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("upf.pdr.count", len(createdPDRs))))

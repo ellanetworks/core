@@ -17,7 +17,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/tracing/attrs"
+	"github.com/ellanetworks/core/internal/udm"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -64,6 +64,8 @@ var ErrSMContextNotFound = errors.New("sm context not found")
 // connection.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
+var ErrHandoverInProgress = errors.New("the UE is being handed over")
+
 // SessionQuerier provides read-only access to active sessions for external
 // packages (API, AMF export, metrics), avoiding a package-level SMF singleton.
 type SessionQuerier interface {
@@ -72,22 +74,18 @@ type SessionQuerier interface {
 	SessionCount() int
 }
 
-// PCF abstracts the Policy Control Function (3GPP TS 23.503), backed by the local
-// database.
-type PCF interface {
-	// GetSessionPolicy returns the PCC rules (QoS + traffic filters) and DNN
-	// configuration for a subscriber in one call (3GPP Npcf_SMPolicyControl_Create).
-	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
-	GetEPSSessionPolicy(ctx context.Context, imsi string, apn string) (*Policy, *models.Snssai, error)
-}
-
 type DNNStore interface {
 	AllocateIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 	ReleaseIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 	AllocateIPv6(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 	ReleaseIPv6(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
-	ListFramedRoutes(ctx context.Context, imsi string) ([]netip.Prefix, error)
-	GetStaticIP(ctx context.Context, imsi string, ipv6 bool) (netip.Addr, bool, error)
+	Config(ctx context.Context) (DataNetworkConfig, error)
+}
+
+type SubscriptionData interface {
+	FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error)
+	StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error)
+	SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error)
 }
 
 // SessionStore is the minimal DB surface the SMF needs for session-level
@@ -128,32 +126,22 @@ type MMECallback interface {
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 	ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) error
 	ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error
+	ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error
+	ModifyDedicatedBearer(ctx context.Context, imsi string, ebi uint8, mod models.DedicatedBearerModification) error
+	DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi uint8, sgwTEID uint32) error
 }
 
-// ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
-type ResolvedNetworkRule struct {
-	Description  string
-	PolicyID     string
-	Direction    models.Direction
-	RemotePrefix *string
-	Protocol     int32
-	PortLow      int32
-	PortHigh     int32
-	Action       string
-	Precedence   int32
-}
-
-// Policy contains the QoS parameters, network rules, and DNN configuration
-// the SMF needs for a session.
+// Policy contains the QoS parameters and DNN configuration the SMF enforces for
+// a session.
 type Policy struct {
-	PolicyID     string // DB primary key (UUID)
-	Ambr         models.Ambr
-	QosData      models.QosData
-	NetworkRules []*ResolvedNetworkRule
-	DNS          net.IP
-	MTU          uint16
-	IPv4Pool     string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
-	IPv6Pool     string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
+	PolicyID string // DB primary key (UUID)
+	Ambr     models.Ambr
+	QosData  models.QosData
+	DNS      net.IP
+	PCSCF    []netip.Addr
+	MTU      uint16
+	IPv4Pool string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
+	IPv6Pool string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
 }
 
 // SMF implements the Session Management Function.
@@ -164,11 +152,15 @@ type SMF struct {
 	bySEID map[uint64]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
-	pcf   PCF
-	store SessionStore
-	upf   UPFClient
-	amf   AMFCallback
-	mme   MMECallback // set after construction
+	pcf PCF
+
+	dedicatedAwaitLimit time.Duration
+	store               SessionStore
+	upf                 UPFClient
+	amf                 AMFCallback
+	mme                 MMECallback // set after construction
+
+	subscriptions SubscriptionData
 
 	seidCounter uint64 // atomic; local SEID allocation
 
@@ -190,6 +182,8 @@ type Option func(*SMF)
 // WithT3591 overrides the network-requested modification retransmission interval.
 func WithT3591(d time.Duration) Option { return func(s *SMF) { s.t3591 = d } }
 
+func WithSubscriptions(sd SubscriptionData) Option { return func(s *SMF) { s.subscriptions = sd } }
+
 // WithT3592 overrides the network-requested release retransmission interval.
 func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 
@@ -205,6 +199,8 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		amf:    amf,
 		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
+
+		dedicatedAwaitLimit: 30 * time.Second,
 	}
 	for _, o := range opts {
 		o(s)
@@ -313,8 +309,18 @@ func (s *SMF) supersedeIdentityHolders(ctx context.Context, supi etsi.SUPI, id S
 
 func (s *SMF) dropFromPool(sc *SMContext) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
+	pooled := s.pool[sc.Ref] == sc
+
+	s.removeLocked(sc)
+	s.mu.Unlock()
+
+	if pooled && s.pcf != nil {
+		s.pcf.TerminateAssociation(sc.Ref)
+	}
+}
+
+func (s *SMF) removeLocked(sc *SMContext) {
 	delete(s.pool, sc.Ref)
 
 	for seid, held := range s.bySEID {
@@ -410,14 +416,4 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 	}
 
 	return fourG, fiveG
-}
-
-// GetSessionPolicy retrieves the PCC rules from the PCF for a subscriber.
-func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*Policy, error) {
-	ctx, span := tracer.Start(ctx, "smf/get_session_policy",
-		trace.WithAttributes(attrs.SUPI(supi.String())),
-	)
-	defer span.End()
-
-	return s.pcf.GetSessionPolicy(ctx, supi.IMSI(), snssai, dnn)
 }

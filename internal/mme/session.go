@@ -18,6 +18,7 @@ func takeAllPDNs(ue *UeContext) []*PdnConnection {
 
 	out := make([]*PdnConnection, 0, len(ue.Pdns))
 	for _, p := range ue.Pdns {
+		p.takeDedicatedLocked()
 		out = append(out, p)
 	}
 
@@ -59,6 +60,7 @@ func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
 
 	ue.mu.Lock()
 	if held, ok := ue.Pdns[p.Ebi]; ok && held == p {
+		p.takeDedicatedLocked()
 		delete(ue.Pdns, p.Ebi)
 		ue.localBearerDeactivation = true
 	}
@@ -168,6 +170,7 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 		return nil, false
 	}
 
+	p.takeDedicatedLocked()
 	delete(ue.Pdns, ebi)
 
 	ue.localBearerDeactivation = true

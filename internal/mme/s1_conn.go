@@ -61,6 +61,7 @@ type UeConn struct {
 	HashMMERequired           bool
 	esmInfoWait               atomic.Pointer[ESMInfoWait]
 	resyncTried               atomic.Bool
+	releaseCause              atomic.Pointer[s1ap.Cause]
 	AttachRequestPlain        []byte
 	AttachAcceptPlain         []byte
 	TauRequestPlain           []byte
@@ -87,6 +88,7 @@ type ESMRequest struct {
 	PDUSessionID uint8
 	Type         eps.RequestType
 	ProtocolOpts []nas.PCOContainer
+	PCSCF        nas.PCSCFRequest
 }
 
 type FiveGSArrival struct {

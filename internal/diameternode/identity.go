@@ -8,6 +8,14 @@ import (
 )
 
 func DiameterRealm(mcc, mnc string) (string, error) {
+	return plmnRealm("epc", mcc, mnc)
+}
+
+func IMSRealm(mcc, mnc string) (string, error) {
+	return plmnRealm("ims", mcc, mnc)
+}
+
+func plmnRealm(domain, mcc, mnc string) (string, error) {
 	if !isDigits(mcc, 3, 3) {
 		return "", fmt.Errorf("invalid MCC %q", mcc)
 	}
@@ -20,7 +28,7 @@ func DiameterRealm(mcc, mnc string) (string, error) {
 		mnc = "0" + mnc
 	}
 
-	return fmt.Sprintf("epc.mnc%s.mcc%s.3gppnetwork.org", mnc, mcc), nil
+	return fmt.Sprintf("%s.mnc%s.mcc%s.3gppnetwork.org", domain, mnc, mcc), nil
 }
 
 func MMEHost(realm string, groupID uint16, code uint8) string {

@@ -9,15 +9,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
+	"go.uber.org/zap"
 )
 
-// HandlePDUSessionResourceModifyResponse records the NG-RAN node's modify
-// outcome (TS 38.413 §8.2.3).
-//
-// §8.2.3.2 also has the AMF transfer each Modify Response Transfer or Modify
-// Unsuccessful Transfer to the SMF that owns the session. Ella Core's SMF has no
-// entry point for either, so the outcome is logged and the session keeps the
-// parameters the SMF applied when it built the request.
+// HandlePDUSessionResourceModifyResponse transfers each PDU session's Modify
+// Response Transfer or Modify Unsuccessful Transfer to the SMF that owns the
+// session (TS 38.413 §8.2.3.2).
 func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceModifyResponse) {
 	// Both identities are mandatory but ignore criticality, so an absent one
 	// still reaches the handler and leaves nothing to resolve by (§10.3.5).
@@ -35,11 +32,35 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *am
 	ueConn.TouchLastSeen()
 	ueConn.Log(ctx).Debug("Handle PDUSessionResourceModifyResponse")
 
-	// The transfer carries the NG-RAN node's cause but is opaque here, so the
-	// rejection is surfaced by session id: without it a modification the RAN
-	// refused is indistinguishable from one it applied.
+	ue := ueConn.UeContext()
+	if ue == nil {
+		return
+	}
+
+	for _, item := range msg.PDUSessionResourceModify {
+		smContext, ok := ue.SmContextFindByPDUSessionID(uint8(item.PDUSessionID))
+		if !ok {
+			continue
+		}
+
+		if err := amfInstance.Session.UpdateSmContextN2InfoPduResModifyRsp(ctx, smContext.Ref, item.Transfer); err != nil {
+			ueConn.Log(ctx).Warn("SMF did not take the PDU Session Resource Modify Response Transfer",
+				logger.PDUSessionID(uint8(item.PDUSessionID)), zap.Error(err))
+		}
+	}
+
 	for _, item := range msg.PDUSessionResourceFailed {
 		ueConn.Log(ctx).Warn("NG-RAN node did not modify a PDU session",
 			logger.PDUSessionID(uint8(item.PDUSessionID)))
+
+		smContext, ok := ue.SmContextFindByPDUSessionID(uint8(item.PDUSessionID))
+		if !ok {
+			continue
+		}
+
+		if err := amfInstance.Session.UpdateSmContextN2InfoPduResModifyFail(ctx, smContext.Ref, item.Transfer); err != nil {
+			ueConn.Log(ctx).Warn("SMF did not take the PDU Session Resource Modify Unsuccessful Transfer",
+				logger.PDUSessionID(uint8(item.PDUSessionID)), zap.Error(err))
+		}
 	}
 }

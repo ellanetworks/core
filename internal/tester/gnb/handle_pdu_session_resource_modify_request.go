@@ -31,7 +31,10 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
+	gnb.countModifyRequest(ranUeNgapID)
+
 	ids := make([]int64, 0, len(req.PDUSessionResourceModify))
+	accepted := make(map[int64][]uint8)
 
 	for _, item := range req.PDUSessionResourceModify {
 		pduSessionID := int64(item.PDUSessionID)
@@ -44,13 +47,33 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 				zap.Int64("PDU Session ID", pduSessionID),
 			)
 		} else {
-			gnb.updatePDUSessionQoS(ranUeNgapID, pduSessionID, modInfo)
+			defaultQFI := gnb.sessionQFI(ranUeNgapID, pduSessionID)
+
+			var dedicated []uint8
+
+			for _, f := range modInfo.Flows {
+				accepted[pduSessionID] = append(accepted[pduSessionID], uint8(f.QFI))
+
+				if defaultQFI != 0 && f.QFI != defaultQFI {
+					dedicated = append(dedicated, uint8(f.QFI))
+					continue
+				}
+
+				f.AmbrUplink, f.AmbrDownlink = modInfo.AmbrUplink, modInfo.AmbrDownlink
+				gnb.updatePDUSessionQoS(ranUeNgapID, pduSessionID, &f)
+			}
+
+			if len(modInfo.Flows) == 0 {
+				gnb.updatePDUSessionQoS(ranUeNgapID, pduSessionID, &PDUSessionModifyInfo{AmbrUplink: modInfo.AmbrUplink, AmbrDownlink: modInfo.AmbrDownlink})
+			}
+
+			gnb.admitQoSFlows(ranUeNgapID, pduSessionID, dedicated, modInfo.Released)
 
 			logger.GnbLogger.Debug(
 				"Updated PDU session QoS from Modify Request Transfer",
 				zap.Int64("PDU Session ID", pduSessionID),
-				zap.Int64("5QI", modInfo.FiveQi),
-				zap.Int64("ARP", modInfo.PriArp),
+				zap.Int("QoS flows", len(modInfo.Flows)),
+				zap.Int("released QoS flows", len(modInfo.Released)),
 				zap.Int64("AMBR DL", modInfo.AmbrDownlink),
 				zap.Int64("AMBR UL", modInfo.AmbrUplink),
 			)
@@ -67,6 +90,7 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 		AMFUENGAPID:   amfUeNgapID,
 		RANUENGAPID:   ranUeNgapID,
 		PDUSessionIDs: ids,
+		AcceptedQFIs:  accepted,
 	}); err != nil {
 		return fmt.Errorf("failed to send PDUSessionResourceModifyResponse: %w", err)
 	}
@@ -89,9 +113,16 @@ type PDUSessionModifyInfo struct {
 	AmbrDownlink int64
 }
 
+type PDUSessionModifyRequest struct {
+	AmbrUplink   int64
+	AmbrDownlink int64
+	Flows        []PDUSessionModifyInfo
+	Released     []uint8
+}
+
 // getPDUSessionInfoFromModifyRequestTransfer reads the QoS the SMF asks the
 // NG-RAN node to apply (TS 38.413 §9.3.4.6).
-func getPDUSessionInfoFromModifyRequestTransfer(transfer ngap.TransferContainer) (*PDUSessionModifyInfo, error) {
+func getPDUSessionInfoFromModifyRequestTransfer(transfer ngap.TransferContainer) (*PDUSessionModifyRequest, error) {
 	if len(transfer) == 0 {
 		return nil, fmt.Errorf("modify request transfer is empty")
 	}
@@ -101,7 +132,7 @@ func getPDUSessionInfoFromModifyRequestTransfer(transfer ngap.TransferContainer)
 		return nil, fmt.Errorf("could not parse Modify Request Transfer: %w", err)
 	}
 
-	info := &PDUSessionModifyInfo{}
+	info := &PDUSessionModifyRequest{}
 
 	if ambr := t.PDUSessionAggregateMaximumBitRate; ambr != nil {
 		info.AmbrUplink = int64(ambr.UL)
@@ -109,15 +140,21 @@ func getPDUSessionInfoFromModifyRequestTransfer(transfer ngap.TransferContainer)
 	}
 
 	for _, qos := range t.QosFlowAddOrModifyRequest {
-		info.QFI = int64(qos.QosFlowIdentifier)
+		f := PDUSessionModifyInfo{QFI: int64(qos.QosFlowIdentifier)}
 
 		if p := qos.QosFlowLevelQosParameters; p != nil {
 			if p.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
-				info.FiveQi = int64(p.QosCharacteristics.NonDynamic5QI.FiveQI)
+				f.FiveQi = int64(p.QosCharacteristics.NonDynamic5QI.FiveQI)
 			}
 
-			info.PriArp = int64(p.AllocationAndRetentionPriority.PriorityLevelARP)
+			f.PriArp = int64(p.AllocationAndRetentionPriority.PriorityLevelARP)
 		}
+
+		info.Flows = append(info.Flows, f)
+	}
+
+	for _, r := range t.QosFlowToRelease {
+		info.Released = append(info.Released, uint8(r.QosFlowIdentifier))
 	}
 
 	return info, nil

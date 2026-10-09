@@ -77,6 +77,7 @@ struct packet_context {
 	 * optional word and any extension headers. Drives uplink decapsulation. */
 	__u32 gtp_hdr_len;
 	__u16 l3_hdr_len;
+	__u8 qfi;
 	__u8 l4_proto;
 	__u16 l4_sport;
 	__u16 l4_dport;

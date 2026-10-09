@@ -355,7 +355,7 @@ func epsSessionForwardingTo(t *testing.T, s *smf.SMF, target models.FTEID) *smf.
 	sc.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
 	sc.Tunnel.Downlink = smf.DownlinkForwarding
 
-	if _, err := s.OpenEPSForwardingTunnel(context.Background(), sc.Ref, target); err != nil {
+	if _, err := s.OpenEPSForwardingTunnel(context.Background(), sc.Ref, sc.EBI, target); err != nil {
 		t.Fatalf("OpenEPSForwardingTunnel: %v", err)
 	}
 

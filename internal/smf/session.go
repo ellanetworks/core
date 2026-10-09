@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
+	"strings"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -26,18 +28,23 @@ var (
 	errStaticIPResolve     = errors.New("static IP resolution failed")
 	errUPFSession          = errors.New("UPF session establishment failed")
 	errSessionIdentity     = errors.New("session identity is unusable")
+	errPolicyAssociation   = errors.New("SM policy association failed")
 )
 
 // SessionRequest is the RAT-agnostic input to establishSession, common to the
 // 5G and 4G paths.
 type SessionRequest struct {
-	Supi     etsi.SUPI
-	Identity SessionIdentity
-	Dnn      string
-	Snssai   *models.Snssai
-	Access   AccessType
-	PDUType  uint8 // the negotiated PDU/PDN type
-	Policy   *Policy
+	Supi       etsi.SUPI
+	Identity   SessionIdentity
+	Dnn        string
+	Snssai     *models.Snssai
+	Access     AccessType
+	PDUType    uint8 // the negotiated PDU/PDN type
+	Policy     *Policy
+	DN         DNNStore
+	Subscribed SubscribedQoS
+
+	MaxPacketFilters uint16
 }
 
 // ueAddresses is the address set allocated for a session; the IPv6 prefix is the
@@ -54,10 +61,7 @@ type ueAddresses struct {
 // partial session back and wraps a sentinel error for the adapter to map to its
 // NAS cause.
 func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, error) {
-	dn, err := s.store.ResolveDNN(ctx, req.Dnn)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
-	}
+	dn := req.DN
 
 	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
 	if err != nil {
@@ -87,7 +91,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	// Framed routes are per-subscriber subscription data (TS 23.501 §5.6.14): they
 	// attach to the session context, not the profile-shared Policy. A resolution
 	// failure rejects establishment, fail-closed.
-	framed, err := dn.ListFramedRoutes(ctx, req.Supi.IMSI())
+	framed, err := s.subscriptions.FramedRoutes(ctx, req.Supi.IMSI(), req.Dnn)
 	if err != nil {
 		sc.Mutex.Unlock()
 		return nil, fmt.Errorf("%w: %v", errFramedRouteResolve, err)
@@ -98,7 +102,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	// Cache the reserved static address per family so a reconcile can detect a
 	// reservation change; fail-closed on error.
 	if sc.PDUIPV4Address != nil {
-		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), false)
+		addr, ok, err := s.subscriptions.StaticIP(ctx, req.Supi.IMSI(), req.Dnn, false)
 		if err != nil {
 			sc.Mutex.Unlock()
 			return nil, fmt.Errorf("%w: %v", errStaticIPResolve, err)
@@ -110,7 +114,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	}
 
 	if sc.PDUIPV6Prefix != nil {
-		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), true)
+		addr, ok, err := s.subscriptions.StaticIP(ctx, req.Supi.IMSI(), req.Dnn, true)
 		if err != nil {
 			sc.Mutex.Unlock()
 			return nil, fmt.Errorf("%w: %v", errStaticIPResolve, err)
@@ -120,6 +124,25 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 			sc.StaticIPv6 = addr
 		}
 	}
+
+	decision, err := s.createAssociation(ctx, sc, PolicyContext{
+		Supi:         req.Supi,
+		PDUSessionID: req.Identity.PDUSessionID,
+		Dnn:          req.Dnn,
+		Snssai:       *req.Snssai,
+		Access:       req.Access,
+		IPv4:         addrs.IPv4,
+		IPv6Prefix:   ipv6Prefix(addrs.IPv6Prefix),
+		Subscribed:   req.Subscribed,
+	})
+	if err != nil {
+		sc.Mutex.Unlock()
+		return nil, fmt.Errorf("%w: %v", errPolicyAssociation, err)
+	}
+
+	applyDecision(req.Policy, decision)
+	sc.subscribedQoS, sc.policyDecision = req.Subscribed, decision
+	sc.maxPacketFilters = req.MaxPacketFilters
 
 	sc.Tunnel = &UPTunnel{dataPlane: dataPlane{
 		UEIPv4: addrs.IPv4,
@@ -143,6 +166,40 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	committed = true
 
 	return sc, nil
+}
+
+func (s *SMF) createAssociation(ctx context.Context, sc *SMContext, c PolicyContext) (*PolicyDecision, error) {
+	if !s.pooled(sc) {
+		return nil, fmt.Errorf("session %q was removed before its policy association", sc.Ref)
+	}
+
+	d, err := s.pcf.CreateAssociation(ctx, sc.Ref, c)
+	if err != nil {
+		return nil, err
+	}
+
+	if !s.pooled(sc) {
+		s.pcf.TerminateAssociation(sc.Ref)
+
+		return nil, fmt.Errorf("session %q was removed during its policy association", sc.Ref)
+	}
+
+	return d, nil
+}
+
+func (s *SMF) pooled(sc *SMContext) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.pool[sc.Ref] == sc
+}
+
+func ipv6Prefix(base netip.Addr) netip.Prefix {
+	if !base.IsValid() {
+		return netip.Prefix{}
+	}
+
+	return netip.PrefixFrom(base, 64)
 }
 
 // abortSession rolls back a partially-created session sc: it releases the UPF
@@ -235,7 +292,7 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return fmt.Errorf("PFCP session already established")
 	}
 
-	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes)
+	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes, strings.EqualFold(smContext.Dnn, models.IMSDataNetworkName))
 
 	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {
@@ -266,13 +323,16 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 		return fmt.Errorf("session %q: %w", sc.Ref, err)
 	}
 
-	req := next.modifyRequest(sc.PFCPContext.SEID, policyID)
-	req.SendEndMarkers = next.AN.switchedFrom(sc.Tunnel.AN)
+	if next.Downlink != DownlinkForwarding || next.Access != sc.Tunnel.Access {
+		next.Bearers = slices.Clone(next.Bearers)
 
-	if next.Forwarding == nil && sc.Tunnel.Forwarding != nil {
-		req.RemovePDRs = []uint16{pdrIDForwarding}
-		req.RemoveFARs = []uint32{farIDForwarding}
+		for i := range next.Bearers {
+			next.Bearers[i].AN = AnchorBinding{}
+		}
 	}
+
+	req := next.modifyRequest(sc.Tunnel.dataPlane, sc.PFCPContext.SEID, policyID)
+	req.SendEndMarkers = next.accessSwitchedFrom(sc.Tunnel.dataPlane)
 
 	resp, err := s.upf.ModifySession(ctx, req)
 	if err != nil {
@@ -282,7 +342,7 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 	sc.Tunnel.dataPlane = next
 
 	if resp != nil {
-		sc.Tunnel.ForwardingTEID = resp.ForwardingTEID
+		sc.Tunnel.ChosenTEIDs = resp.ChosenTEIDs
 	}
 
 	return nil
@@ -304,8 +364,7 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 	policyID := sc.policyID()
 
 	if commit != nil {
-		policyID = commit.policy.PolicyID
-		next.QFI, next.AMBR = commit.policy.QosData.QFI, commit.policy.Ambr
+		next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 	}
 
 	if err := s.applyDataPlane(ctx, sc, next, policyID); err != nil {

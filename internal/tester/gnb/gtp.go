@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	gtpEndMarker       = 0xfe
-	gtpErrorIndication = 26
-	gtpIETEIDDataI     = 16
-	gtpIEPeerAddress   = 133
+	pduSessionContainer = 0x85
+	gtpEndMarker        = 0xfe
+	gtpErrorIndication  = 26
+	gtpIETEIDDataI      = 16
+	gtpIEPeerAddress    = 133
 )
 
 const gtpUDPPort = 2152
@@ -247,6 +248,31 @@ func (g *GnodeB) SendGPDU(teid uint32, peer netip.Addr, payload []byte) error {
 	return nil
 }
 
+func (g *GnodeB) SendGPDUWithQFI(teid uint32, peer netip.Addr, qfi uint8, payload []byte) error {
+	if g.N3Conn == nil {
+		return fmt.Errorf("the gNB has no N3 socket")
+	}
+
+	pdu := make([]byte, gtpHeaderLen, gtpHeaderLen+len(payload))
+	pdu[0] = 0x34
+	pdu[1] = 0xFF
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(gtpHeaderLen-8+len(payload)))
+	binary.BigEndian.PutUint32(pdu[4:8], teid)
+	pdu[11] = pduSessionContainer
+	pdu[12] = 0x01
+	pdu[13] = 0x10
+	pdu[14] = qfi & 0x3f
+	pdu = append(pdu, payload...)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := g.N3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send G-PDU with QFI %d on TEID %#x to %s: %w", qfi, teid, peer, err)
+	}
+
+	return nil
+}
+
 func (g *GnodeB) SendEndMarker(teid uint32, peer netip.Addr) error {
 	if g.N3Conn == nil {
 		return fmt.Errorf("the gNB has no N3 socket")
@@ -371,6 +397,12 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 		if !ok {
 			if _, watched := g.watchedTEIDs[teid]; watched {
 				g.watchedTEIDs[teid]++
+
+				if g.downlinkQFIs[teid] == nil {
+					g.downlinkQFIs[teid] = make(map[uint8]int)
+				}
+
+				g.downlinkQFIs[teid][pscQFI(buf[:n])]++
 				g.mu.Unlock()
 
 				continue
@@ -395,8 +427,14 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 			payloadStart += 3
 		}
 
+		var qfi uint8
+
 		if buf[0]&0x04 > 0 {
 			for {
+				if payloadStart+3 < n && buf[payloadStart] == pduSessionContainer {
+					qfi = buf[payloadStart+3] & 0x3f
+				}
+
 				if payloadStart >= n {
 					logger.GnbLogger.Warn("GTP extension header exceeds packet bounds", zap.Int("payloadStart", payloadStart), zap.Int("length", n))
 					break
@@ -426,6 +464,14 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 			logger.GnbLogger.Warn("GTP payload start exceeds packet bounds", zap.Int("payloadStart", payloadStart), zap.Int("length", n))
 			continue
 		}
+
+		g.mu.Lock()
+		if g.downlinkQFIs[teid] == nil {
+			g.downlinkQFIs[teid] = make(map[uint8]int)
+		}
+
+		g.downlinkQFIs[teid][qfi]++
+		g.mu.Unlock()
 
 		_, err = t.tunIF.Write(buf[payloadStart:n])
 		if err != nil {
@@ -603,4 +649,25 @@ func (g *GnodeB) EndMarkerCount(teid uint32) int {
 	defer g.mu.Unlock()
 
 	return g.endMarkers[teid]
+}
+
+func pscQFI(pdu []byte) uint8 {
+	if len(pdu) < 12 || pdu[0]&0x04 == 0 {
+		return 0
+	}
+
+	for off := 11; off+3 < len(pdu) && pdu[off] != 0; {
+		if pdu[off] == pduSessionContainer {
+			return pdu[off+3] & 0x3f
+		}
+
+		extLen := int(pdu[off+1]) * 4
+		if extLen == 0 {
+			return 0
+		}
+
+		off += extLen
+	}
+
+	return 0
 }
