@@ -52,7 +52,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if response == nil {
-		logger.From(ctx, logger.AmfLog).Warn("SMF did not return any N1/N2 message", logger.PDUSessionID(pduSessionID))
+		logger.From(ctx, logger.AmfLog).Debug("SMF did not return any N1/N2 message", logger.PDUSessionID(pduSessionID))
 		return
 	}
 

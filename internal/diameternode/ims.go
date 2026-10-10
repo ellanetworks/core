@@ -10,7 +10,10 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
-const PeerRoleIMS = "ims"
+const (
+	PeerRoleIMS  = "ims"
+	PeerRoleSMSC = "smsc"
+)
 
 const etsiVendorID uint32 = 13019
 

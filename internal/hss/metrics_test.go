@@ -22,6 +22,13 @@ func TestIMSMetrics(t *testing.T) {
 	userAuthorization(t, store, cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testNoIMS), PublicIdentity: "tel:+" + testNoIMSTel})
 	userAuthorization(t, store, cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "tel:+" + testMSISDN, AuthorizationType: cx.AuthorizationDeregistration})
 
+	serverAssignment(t, store, register(testIMSI, cx.AssignmentReRegistration))
+	serverAssignment(t, store, register(testOtherIMSI, cx.AssignmentAuthenticationFailure))
+	serverAssignment(t, store, register(testIMSI, cx.AssignmentUserDeregistration))
+
+	store.unavailable = true
+	serverAssignment(t, store, register(testOtherIMSI, cx.AssignmentRegistration))
+
 	families, err := prometheus.DefaultGatherer.Gather()
 	if err != nil {
 		t.Fatalf("gather: %v", err)
@@ -46,9 +53,10 @@ func TestIMSMetrics(t *testing.T) {
 	}
 
 	want := map[string]float64{
-		"app_ims_registered_subscribers":             1,
-		"app_ims_registration_attempts_total/accept": 1,
-		"app_ims_registration_attempts_total/reject": 1,
+		"app_ims_registered_subscribers":                   0,
+		"app_ims_registration_attempts_total/accept":       1,
+		"app_ims_registration_attempts_total/auth_failure": 1,
+		"app_ims_registration_attempts_total/reject":       1,
 	}
 
 	for name, v := range want {

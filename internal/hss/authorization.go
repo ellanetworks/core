@@ -13,15 +13,7 @@ import (
 
 func (h *HSS) UserAuthorization(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
 	ans := h.authorizeUser(ctx, id, req)
-
-	if r, err := cx.ParseUserAuthorizationRequest(req); err == nil && r.AuthorizationType != cx.AuthorizationDeregistration {
-		result := registrationAccepted
-		if a, err := tgpp.ParseResult(ans); err != nil || a.Failure() {
-			result = registrationRejected
-		}
-
-		recordRegistrationAttempt(result)
-	}
+	recordAuthorization(req, ans)
 
 	return ans
 }

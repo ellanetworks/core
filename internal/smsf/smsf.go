@@ -27,7 +27,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/smsf")
 
-const PeerRoleSMSC = "smsc"
+const PeerRoleSMSC = diameternode.PeerRoleSMSC
 
 var smscApplications = []diameter.Application{
 	{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
