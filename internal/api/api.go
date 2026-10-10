@@ -98,7 +98,7 @@ type UpgradeConfig struct {
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
 	MME                 *mme.MME
-	HSS                 server.IMSDeregistrar
+	HSS                 server.IMSSubscribers
 	BGP                 *bgp.BGPService
 	LMF                 *lmf.LMF
 	Diameter            server.DiameterNode

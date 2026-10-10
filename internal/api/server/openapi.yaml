@@ -4022,6 +4022,9 @@ components:
         integrity_algorithm:
           type: string
           description: "NAS integrity algorithm (NIAx or EIAx). Absent when none."
+        ims_voice_over_ps:
+          type: boolean
+          description: "IMS voice over PS session indication last sent to the UE in the Registration, Attach or Tracking Area Update Accept (TS 23.501 §5.16.3.2, TS 23.401 §4.3.5.8). Absent without a UE context."
         connection:
           oneOf:
             - $ref: "#/components/schemas/UEConnection"
@@ -4054,7 +4057,40 @@ components:
           description: "Active PDU sessions (5G) and PDN connections (4G)."
           items:
             $ref: "#/components/schemas/Session"
+        ims:
+          $ref: "#/components/schemas/IMSSubscription"
       required: [imsi, profile_name, registrations, sessions]
+
+    IMSSubscription:
+      type: object
+      description: "IMS subscription held by the HSS (TS 23.228 §4.3.3.4). Absent when the subscriber's profile has no policy on the ims data network."
+      properties:
+        private_identity:
+          type: string
+          description: "Private User Identity."
+        scscf_name:
+          type: string
+          description: "SIP URI of the S-CSCF assigned to the IMS subscription (TS 29.328 §7.6.4). Absent when none is assigned."
+        public_identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSPublicIdentity"
+      required: [private_identity, public_identities]
+
+    IMSPublicIdentity:
+      type: object
+      properties:
+        identity:
+          type: string
+          description: "Public User Identity (tel or SIP URI)."
+        barred:
+          type: boolean
+          description: "Barred from IMS communications other than registration (TS 23.228 §5.2.1)."
+        user_state:
+          type: string
+          enum: ["registered", "registered_unreg_services", "authentication_pending", "not_registered"]
+          description: "IMS User State (TS 29.328 §7.6.3)."
+      required: [identity, barred, user_state]
 
     SubscriberCredentials:
       type: object

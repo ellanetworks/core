@@ -6,6 +6,7 @@ package nas
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -89,7 +90,7 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	ueConn.StopESMInfoGuard()
 
 	if req.AccessPointName != nil {
-		ueConn.ESMRequest.APN = string(*req.AccessPointName)
+		ueConn.ESMRequest.APN = strings.ToLower(string(*req.AccessPointName))
 	}
 
 	if id := pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); id != 0 {

@@ -38,8 +38,9 @@ var (
 )
 
 type haIMSCase struct {
-	name string
-	lost int
+	name      string
+	lost      int
+	preferred int
 }
 
 func TestIntegrationHAIMS(t *testing.T) {
@@ -104,8 +105,9 @@ func TestIntegrationHAIMS(t *testing.T) {
 	}
 
 	cases := []haIMSCase{
-		{name: "ha_ims/hss_node_loss", lost: 1},
-		{name: "ha_ims/serving_node_loss", lost: 0},
+		{name: "ha_ims/hss_node_loss", lost: 1, preferred: 1},
+		{name: "ha_ims/serving_node_loss", lost: 0, preferred: 0},
+		{name: "ha_ims/call_across_nodes", lost: 0, preferred: 2},
 	}
 
 	for _, tc := range cases {
@@ -126,9 +128,11 @@ func TestIntegrationHAIMS(t *testing.T) {
 			order := []int{rest[0], leader, rest[1]}
 			victim := order[tc.lost]
 
-			HALogf(t, "nodes %v (serving first), losing node %d, the S-CSCF prefers it as its HSS", order, victim+1)
+			preferred := order[tc.preferred]
 
-			if err := preferHAIMSPeer(ctx, peers, victim); err != nil {
+			HALogf(t, "nodes %v (serving first), losing node %d, Ella IMS prefers node %d", order, victim+1, preferred+1)
+
+			if err := preferHAIMSPeer(ctx, peers, preferred); err != nil {
 				t.Fatal(err)
 			}
 

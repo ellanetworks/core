@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -260,7 +261,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	}
 
 	if ulNasTransport.DNN != nil {
-		dnn = string(*ulNasTransport.DNN)
+		dnn = strings.ToLower(string(*ulNasTransport.DNN))
 	} else {
 		dnnResp, err := amfInstance.SubscriberDnn(ctx, ue.Supi(), snssai)
 		if err != nil {

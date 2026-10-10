@@ -342,6 +342,7 @@ type UESnapshot struct {
 	IntegrityAlgorithm string
 	Connected          bool
 	Registered         bool
+	IMSVoPS            bool
 	Connection         *UEConnection
 }
 
@@ -363,6 +364,7 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 		Connected:          conn != nil,
 		Registered:         ue.state == Registered || ue.state == DeregistrationInitiated,
+		IMSVoPS:            ue.imsVoPS.Load(),
 	}
 
 	if conn != nil {

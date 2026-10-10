@@ -280,6 +280,46 @@ func TestGetLeaseBySession(t *testing.T) {
 	}
 }
 
+func TestGetActiveLeaseByAddress(t *testing.T) {
+	database, poolID, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+
+	sessionID := 7
+	lease := &db.IPLease{
+		PoolID:    poolID,
+		PoolType:  "ipv4",
+		IMSI:      imsi,
+		SessionID: &sessionID,
+		Type:      "dynamic",
+		CreatedAt: time.Now().Unix(),
+		NodeID:    "node-2",
+	}
+
+	if err := database.CreateLease(ctx, lease, addr("192.168.1.31")); err != nil {
+		t.Fatalf("CreateLease: %s", err)
+	}
+
+	idle := &db.IPLease{PoolID: poolID, PoolType: "ipv4", IMSI: imsi, Type: "static", CreatedAt: time.Now().Unix()}
+	if err := database.CreateLease(ctx, idle, addr("192.168.1.32")); err != nil {
+		t.Fatalf("CreateLease: %s", err)
+	}
+
+	got, err := database.GetActiveLeaseByAddress(ctx, poolID, addr("192.168.1.31"))
+	if err != nil {
+		t.Fatalf("GetActiveLeaseByAddress: %s", err)
+	}
+
+	if got.NodeID != "node-2" || got.Address() != addr("192.168.1.31") {
+		t.Fatalf("lease = %+v", got)
+	}
+
+	for _, a := range []string{"192.168.1.32", "192.168.1.33"} {
+		if _, err := database.GetActiveLeaseByAddress(ctx, poolID, addr(a)); !errors.Is(err, db.ErrNotFound) {
+			t.Fatalf("lease of %s: got %v, want ErrNotFound", a, err)
+		}
+	}
+}
+
 func TestDeleteDynamicLease(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()

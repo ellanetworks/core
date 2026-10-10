@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/netip"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
@@ -566,7 +568,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.IMSVoice = hssInstance
 	mmeInstance.IMSVoice = hssInstance
 
-	pcfInstance.Attach(diameterNode)
+	pcfInstance.Attach(diameterNode, &rxOwners{db: dbInstance, directory: &diameterDirectory{db: dbInstance, node: diameterNode}, port: diameterPort(cfg)})
 
 	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity)
 
@@ -1318,6 +1320,55 @@ func diameterNodeSettings(op *db.Operator, pointer int) diameternode.NodeSetting
 	})
 
 	return diameternode.NodeSettings{MCC: op.Mcc, MNC: op.Mnc, MMEGroupID: mapped.MMEGroupID, MMECode: mapped.MMECode}
+}
+
+type rxOwners struct {
+	db        *db.Database
+	directory *diameterDirectory
+	port      uint16
+}
+
+func (o *rxOwners) Owner(ctx context.Context, ue netip.Addr) (pcf.Owner, error) {
+	dn, err := o.db.GetDataNetwork(ctx, models.IMSDataNetworkName)
+	if errors.Is(err, db.ErrNotFound) {
+		return pcf.Owner{}, pcf.ErrNoOwner
+	}
+
+	if err != nil {
+		return pcf.Owner{}, fmt.Errorf("get the %s data network: %w", models.IMSDataNetworkName, err)
+	}
+
+	lease, err := o.db.GetActiveLeaseByAddress(ctx, dn.ID, ue)
+	if errors.Is(err, db.ErrNotFound) {
+		return pcf.Owner{}, pcf.ErrNoOwner
+	}
+
+	if err != nil {
+		return pcf.Owner{}, fmt.Errorf("get the lease of %s: %w", ue, err)
+	}
+
+	if lease.NodeID == o.db.RaftID() {
+		return pcf.Owner{Local: true}, nil
+	}
+
+	identity, err := o.directory.Identity(ctx, lease.NodeID)
+	if errors.Is(err, smsf.ErrNotClusterMember) {
+		return pcf.Owner{}, pcf.ErrNoOwner
+	}
+
+	if err != nil {
+		return pcf.Owner{}, err
+	}
+
+	return pcf.Owner{URI: diameter.URI{Host: identity.Host, Port: o.port, Transport: diameter.TransportSCTP}}, nil
+}
+
+func diameterPort(cfg config.Config) uint16 {
+	if p := cfg.Interfaces.Diameter.Port; p > 0 && p <= math.MaxUint16 {
+		return uint16(p)
+	}
+
+	return config.DefaultDiameterPort
 }
 
 type diameterDirectory struct {

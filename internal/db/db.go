@@ -79,6 +79,7 @@ type Database struct {
 	createLeaseStmt              *sqlair.Statement
 	getDynamicLeaseBySessionStmt *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
+	getActiveLeaseByAddressStmt  *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
 	updateLeaseNodeStmt          *sqlair.Statement
 	deleteLeaseStmt              *sqlair.Statement
@@ -1654,6 +1655,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getDynamicLeaseBySessionStmt, fmt.Sprintf(getDynamicLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getActiveLeaseByAddressStmt, fmt.Sprintf(getActiveLeaseByAddressStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},

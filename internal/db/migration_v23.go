@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func migrateV23(ctx context.Context, tx *sql.Tx) error {
@@ -31,6 +33,13 @@ func migrateV23(ctx context.Context, tx *sql.Tx) error {
 
 	if _, err := tx.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("create %s: %w", IMSRegistrationsTableName, err)
+	}
+
+	stmt = fmt.Sprintf(`UPDATE %s SET var5qi = %d WHERE var5qi != %d AND dataNetworkID IN (SELECT id FROM %s WHERE name = '%s')`,
+		PoliciesTableName, models.IMSSignalling5QI, models.IMSSignalling5QI, DataNetworksTableName, models.IMSDataNetworkName)
+
+	if _, err := tx.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("set 5QI %d on the policies of the %s data network: %w", models.IMSSignalling5QI, models.IMSDataNetworkName, err)
 	}
 
 	return nil

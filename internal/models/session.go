@@ -13,7 +13,10 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-const IMSDataNetworkName = "ims"
+const (
+	IMSDataNetworkName = "ims"
+	IMSSignalling5QI   = 5
+)
 
 // The only error that lets a caller conclude the UPF session is gone: on any
 // other failure the UPF still holds the session, and the SMF must keep the SEID

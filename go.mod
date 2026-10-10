@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
-	github.com/ellanetworks/ims v0.0.0-20261009205728-3546dcfe512f
+	github.com/ellanetworks/ims v0.0.0-20261010135644-da64ecf831f8
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0

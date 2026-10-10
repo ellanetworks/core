@@ -29,6 +29,15 @@ type Diameter interface {
 	Handle(applicationID, commandCode uint32, h diameter.Handler)
 }
 
+type Owner struct {
+	Local bool
+	URI   diameter.URI
+}
+
+type Owners interface {
+	Owner(ctx context.Context, ue netip.Addr) (Owner, error)
+}
+
 type PCF struct {
 	store Store
 	log   *zap.Logger
@@ -39,6 +48,7 @@ type PCF struct {
 
 	mu           sync.Mutex
 	diameter     Diameter
+	owners       Owners
 	enforcer     Enforcer
 	revision     uint64
 	associations map[string]*association
@@ -59,9 +69,10 @@ func New(store Store, log *zap.Logger) *PCF {
 	}
 }
 
-func (p *PCF) Attach(d Diameter) {
+func (p *PCF) Attach(d Diameter, owners Owners) {
 	p.mu.Lock()
 	p.diameter = d
+	p.owners = owners
 	p.mu.Unlock()
 
 	p.registerRx(d)

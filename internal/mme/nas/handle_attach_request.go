@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -141,7 +142,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 		}
 
 		if pc.AccessPointName != nil {
-			ueConn.ESMRequest.APN = string(*pc.AccessPointName)
+			ueConn.ESMRequest.APN = strings.ToLower(string(*pc.AccessPointName))
 		}
 
 		ueConn.ESMRequest.PDUSessionID = pduSessionIDFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)

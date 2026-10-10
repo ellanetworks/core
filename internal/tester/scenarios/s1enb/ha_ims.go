@@ -5,6 +5,7 @@ package s1enb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -24,11 +25,14 @@ var (
 	haIMSRegistered = scenarios.IMSSubscriber("001017400000101", "+15557400101")
 	haIMSFresh      = scenarios.IMSSubscriber("001017400000102", "+15557400102")
 	haIMSMoving     = scenarios.IMSSubscriber("001017400000103", "+15557400103")
+	haIMSCaller     = scenarios.IMSSubscriber("001017400000104", "+15557400104")
+	haIMSCallee     = scenarios.IMSSubscriber("001017400000105", "+15557400105")
 )
 
 func init() {
 	registerIMS("ha_ims/hss_node_loss", haIMSRegistered, runHSSNodeLoss, haIMSFresh)
 	registerIMS("ha_ims/serving_node_loss", haIMSMoving, runServingNodeLoss)
+	registerIMS("ha_ims/call_across_nodes", haIMSCaller, runCallAcrossNodes, haIMSCallee)
 }
 
 func haIMSCores(env scenarios.Env) ([]string, error) {
@@ -155,6 +159,81 @@ func runServingNodeLoss(ctx context.Context, env scenarios.Env) error {
 	}
 
 	return scenarios.RequireIMSRegistrationAfterMove(ctx, before[0], scenarios.IMSTransports[0], move)
+}
+
+func runCallAcrossNodes(ctx context.Context, env scenarios.Env) error {
+	cores, err := haIMSCores(env)
+	if err != nil {
+		return err
+	}
+
+	first, err := startENBOn(env, cores[0], 0, true)
+	if err != nil {
+		return fmt.Errorf("start the eNB of the serving node: %w", err)
+	}
+
+	endpoints, ues, cleanup, err := attachIMSCallUEs(env, first, haIMSCaller, haIMSCallee)
+	if err != nil {
+		_ = first.Close()
+		return err
+	}
+
+	closeFirst := sync.OnceFunc(func() {
+		cleanup()
+
+		_ = first.Close()
+	})
+
+	defer closeFirst()
+
+	if err := haIMSCall(ctx, first, endpoints, ues); err != nil {
+		return fmt.Errorf("call on the serving node: %w", err)
+	}
+
+	lost := awaitNodeLoss(ctx, first)
+
+	closeFirst()
+
+	if lost != nil {
+		return lost
+	}
+
+	second, err := startENBOn(env, cores[1], 1, true)
+	if err != nil {
+		return fmt.Errorf("start the eNB of the surviving node: %w", err)
+	}
+
+	defer func() { _ = second.Close() }()
+
+	for range haIMSAttachAttempts {
+		var cleanupAfter func()
+
+		endpoints, ues, cleanupAfter, err = attachIMSCallUEs(env, second, haIMSCaller, haIMSCallee)
+		if err == nil {
+			defer cleanupAfter()
+			break
+		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("attach on the surviving node: %w", err)
+	}
+
+	if err := haIMSCall(ctx, second, endpoints, ues); err != nil {
+		return fmt.Errorf("call after the node loss: %w", err)
+	}
+
+	return nil
+}
+
+func haIMSCall(ctx context.Context, e *s1enb.ENB, endpoints []scenarios.IMSEndpoint, ues []imsCallUE) error {
+	bearers := expectVoiceBearers(e, ues)
+
+	if err := scenarios.RequireIMSCallWithMedia(ctx, endpoints[0], endpoints[1], scenarios.IMSTransports[0], voiceMedia(e, ues, bearers)); err != nil {
+		return errors.Join(err, bearers.wait())
+	}
+
+	return bearers.wait()
 }
 
 func awaitNodeLoss(ctx context.Context, e *s1enb.ENB) error {

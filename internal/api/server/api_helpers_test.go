@@ -116,6 +116,10 @@ func setupServerWithRaft(filepath string) (testEnv, error) {
 }
 
 func buildTestEnv(testdb *db.Database) (testEnv, error) {
+	return buildTestEnvWithHSS(testdb, nil)
+}
+
+func buildTestEnvWithHSS(testdb *db.Database, hssInstance server.IMSSubscribers) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
@@ -158,6 +162,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 		Sessions:     smfInstance,
 		AMF:          amfInstance,
 		LMF:          lmfInstance,
+		HSS:          hssInstance,
 		BcryptCost:   bcrypt.MinCost,
 	}))
 

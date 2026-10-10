@@ -22,10 +22,14 @@ import (
 	"go.uber.org/zap"
 )
 
-const supportedRxFeatures = rx.FeatureRel8
+const (
+	supportedRxFeatures = rx.FeatureRel8
+	rxRedirectCacheTime = 24 * time.Hour
+)
 
 var (
 	ErrDiameterUnavailable = errors.New("the Diameter node is not running")
+	ErrNoOwner             = errors.New("no node holds the address")
 	errRxSessionUnknown    = errors.New("no such Rx session")
 )
 
@@ -94,13 +98,47 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 	host, realm := origin(req)
 
 	if !p.bindRx(&rxSession{id: sessionID, host: host, realm: realm, actions: r.SpecificActions, components: components, rules: rules}, ue) {
-		p.log.Debug("Rx session binding failed", zap.String("session", sessionID), zap.Stringer("ue", ue))
-		return rx.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable), features)
+		return p.notHosted(ctx, req, id, ue, features)
 	}
 
 	p.log.Debug("Rx session opened", zap.String("session", sessionID), zap.Stringer("ue", ue), zap.String("af", host))
 
 	return p.aaAnswer(req, id, features)
+}
+
+func (p *PCF) notHosted(ctx context.Context, req *diameter.Message, id diameter.Identity, ue netip.Addr, features rx.Features) *diameter.Message {
+	sessionID := sessionIDOf(req)
+
+	p.mu.Lock()
+	owners := p.owners
+	p.mu.Unlock()
+
+	if _, addressed := req.Find(diameter.AVPDestinationHost, 0); !addressed && owners != nil && ue.IsValid() {
+		owner, err := owners.Owner(ctx, addressKey(ue))
+
+		switch {
+		case err == nil && !owner.Local:
+			ans, err := diameter.NewRedirectAnswer(req, id, diameter.Redirect{
+				Hosts:        []diameter.URI{owner.URI},
+				Usage:        diameter.AllSession,
+				MaxCacheTime: rxRedirectCacheTime,
+			})
+			if err == nil {
+				p.log.Debug("Rx session redirected to the node of the UE", zap.String("session", sessionID), zap.Stringer("ue", ue),
+					zap.String("node", owner.URI.Host))
+
+				return ans
+			}
+
+			p.log.Warn("Rx redirect not built", zap.String("session", sessionID), zap.Error(err))
+		case err != nil && !errors.Is(err, ErrNoOwner):
+			p.log.Warn("Rx session owner unknown", zap.String("session", sessionID), zap.Stringer("ue", ue), zap.Error(err))
+		}
+	}
+
+	p.log.Debug("Rx session binding failed", zap.String("session", sessionID), zap.Stringer("ue", ue))
+
+	return rx.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable), features)
 }
 
 func (p *PCF) SessionTermination(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {

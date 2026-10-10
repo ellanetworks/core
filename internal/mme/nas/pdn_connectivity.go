@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -57,7 +58,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	apn := ""
 
 	if req.AccessPointName != nil {
-		apn = string(*req.AccessPointName)
+		apn = strings.ToLower(string(*req.AccessPointName))
 	}
 
 	if cause, refused := requestTypeRefusal(req.RequestType); refused {
