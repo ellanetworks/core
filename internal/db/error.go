@@ -5,6 +5,7 @@ package db
 
 import (
 	"errors"
+	"fmt"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/mattn/go-sqlite3"
@@ -13,6 +14,7 @@ import (
 var (
 	ErrAlreadyExists            = errors.New("already exists")
 	ErrNotFound                 = errors.New("not found")
+	ErrSubscriberNotFound       = fmt.Errorf("subscriber %w", ErrNotFound)
 	ErrMSISDNInUse              = errors.New("msisdn is assigned to another subscriber")
 	ErrDataNetworkNotFound      = errors.New("data network not found")
 	ErrNoMatchingPolicy         = errors.New("no matching policy for slice and DNN")

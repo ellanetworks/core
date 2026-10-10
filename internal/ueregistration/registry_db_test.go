@@ -75,12 +75,18 @@ func register(t *testing.T, b *ueregistration.Binding) int64 {
 	return version
 }
 
+func reconcile(b *ueregistration.Binding, held int64) string {
+	outcome := "kept"
+
+	b.Reconcile(context.Background(), imsi, func() int64 { return held },
+		func(context.Context) { outcome = "released" },
+		func(context.Context) { outcome = "withdrawn" })
+
+	return outcome
+}
+
 func superseded(b *ueregistration.Binding, held int64) bool {
-	released := false
-
-	b.Reconcile(context.Background(), imsi, func() int64 { return held }, func(context.Context) { released = true })
-
-	return released
+	return reconcile(b, held) == "released"
 }
 
 func TestRegistry_UEMovesBetweenNodes(t *testing.T) {
@@ -156,5 +162,28 @@ func TestRegistry_PurgedRegistrationElsewhereDoesNotSupersede(t *testing.T) {
 
 	if superseded(amfA, atA) {
 		t.Fatal("a purged registration on another node must not supersede a live context")
+	}
+}
+
+func TestRegistry_SubscriberDeletionWithdrawsRegistrationOnEveryNode(t *testing.T) {
+	database := newRaftTestDatabase(t)
+	ctx := context.Background()
+
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+	mmeB := bind(t, database, "node-b", mmeType, amfType)
+
+	atA := register(t, amfA)
+	atB := register(t, mmeB)
+
+	if err := database.DeleteSubscriber(ctx, imsi); err != nil {
+		t.Fatalf("DeleteSubscriber: %s", err)
+	}
+
+	if got := reconcile(amfA, atA); got != "withdrawn" {
+		t.Fatalf("node-a's 5GS context: outcome = %s, want withdrawn", got)
+	}
+
+	if got := reconcile(mmeB, atB); got != "withdrawn" {
+		t.Fatalf("node-b's EPS context: outcome = %s, want withdrawn", got)
 	}
 }

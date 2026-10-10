@@ -53,6 +53,8 @@ var ErrDNNNotInSlice = errors.New("data network not found in slice")
 // and DNN.
 var ErrNoPolicyMatch = errors.New("no matching policy for slice and DNN")
 
+var ErrSubscriberNotFound = errors.New("subscriber not found")
+
 // For a caller holding a routing context of its own — the AMF's SmContextList
 // entry — this is the signal the session is gone for good, as opposed to a
 // transient failure worth retrying.

@@ -349,8 +349,8 @@ func TestGetSessionPolicy(t *testing.T) {
 
 	// Non-existent subscriber
 	_, _, _, err = database.GetSessionPolicy(context.Background(), "999999999999999", 1, "", "internet") //nolint:dogsled // error-path test
-	if err == nil {
-		t.Fatal("Expected error for non-existent subscriber")
+	if !errors.Is(err, db.ErrSubscriberNotFound) || !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("Expected ErrSubscriberNotFound for non-existent subscriber, got %v", err)
 	}
 
 	// Non-matching slice: the slice itself is not served, so it is reported as a

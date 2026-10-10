@@ -20,6 +20,7 @@ type Store interface {
 	RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error)
 	PurgeUERegistration(ctx context.Context, imsi, regType, nodeID string) error
 	GetUERegistration(ctx context.Context, imsi, regType string) (*db.UERegistration, error)
+	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
 }
 
 type Holder interface {
@@ -183,38 +184,63 @@ func (b *Binding) Purge(imsi string) {
 	b.r.enqueuePurge(b.regType, imsi)
 }
 
-func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context)) {
+func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context)) {
 	defer b.r.locks.lock(imsi)()
 
-	if b.superseded(ctx, imsi, held()) {
+	switch b.outcome(ctx, imsi, held()) {
+	case outcomeSuperseded:
 		release(ctx)
+	case outcomeWithdrawn:
+		withdraw(ctx)
 	}
 }
 
-func (b *Binding) superseded(ctx context.Context, imsi string, held int64) bool {
+type outcome int
+
+const (
+	outcomeKept outcome = iota
+	outcomeSuperseded
+	outcomeWithdrawn
+)
+
+func (b *Binding) outcome(ctx context.Context, imsi string, held int64) outcome {
 	if held == 0 {
-		return false
+		return outcomeKept
 	}
 
 	own, err := b.r.store.GetUERegistration(ctx, imsi, b.regType)
+	if errors.Is(err, db.ErrNotFound) && b.subscriberDeleted(ctx, imsi) {
+		return outcomeWithdrawn
+	}
+
 	if err != nil {
-		return false
+		return outcomeKept
 	}
 
 	if own.NodeID != b.r.nodeID {
-		return !own.Purged && own.Version > held
+		if !own.Purged && own.Version > held {
+			return outcomeSuperseded
+		}
+
+		return outcomeKept
 	}
 
 	if !own.Purged {
-		return false
+		return outcomeKept
 	}
 
 	other, err := b.r.store.GetUERegistration(ctx, imsi, b.otherType)
 	if err == nil && !other.Purged && other.NodeID == b.r.nodeID {
-		return false
+		return outcomeKept
 	}
 
-	return true
+	return outcomeSuperseded
+}
+
+func (b *Binding) subscriberDeleted(ctx context.Context, imsi string) bool {
+	_, err := b.r.store.GetSubscriber(ctx, imsi)
+
+	return errors.Is(err, db.ErrNotFound)
 }
 
 type keyedEntry struct {
