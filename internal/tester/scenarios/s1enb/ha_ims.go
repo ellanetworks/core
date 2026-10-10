@@ -71,6 +71,7 @@ func runHSSNodeLoss(ctx context.Context, env scenarios.Env) error {
 	defer cleanup()
 
 	release := func() {}
+
 	defer func() { release() }()
 
 	fresh := func(context.Context) (scenarios.IMSEndpoint, error) {
