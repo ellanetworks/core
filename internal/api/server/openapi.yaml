@@ -1667,18 +1667,18 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/v1/operator/voice:
+  /api/v1/operator/ims:
     put:
-      operationId: updateOperatorVoice
+      operationId: updateOperatorIMS
       tags: [Operator]
-      summary: Update voice settings
+      summary: Update IMS settings
       description: Sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the ims data network. The list is ordered by preference. UEs receive the addresses of the IP version they request. An empty list clears it.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateOperatorVoiceParams"
+              $ref: "#/components/schemas/UpdateOperatorIMSParams"
       responses:
         "201":
           $ref: "#/components/responses/Success"
@@ -4024,7 +4024,7 @@ components:
           description: "NAS integrity algorithm (NIAx or EIAx). Absent when none."
         ims_voice_over_ps:
           type: boolean
-          description: "IMS voice over PS session indication last sent to the UE in the Registration, Attach or Tracking Area Update Accept (TS 23.501 §5.16.3.2, TS 23.401 §4.3.5.8). Absent without a UE context."
+          description: "Whether IMS voice over PS sessions are supported for the UE on this registration's access (3GPP access for 5G), as decided at the last Registration, Attach or Tracking Area Update (TS 23.501 §5.16.3.2, TS 23.401 §4.3.5.8). Absent without a UE context."
         connection:
           oneOf:
             - $ref: "#/components/schemas/UEConnection"
@@ -4629,8 +4629,8 @@ components:
           $ref: "#/components/schemas/OperatorSPN"
         sms:
           $ref: "#/components/schemas/OperatorSMS"
-        voice:
-          $ref: "#/components/schemas/OperatorVoice"
+        ims:
+          $ref: "#/components/schemas/OperatorIMS"
 
     OperatorResponseEnvelope:
       type: object
@@ -4875,7 +4875,7 @@ components:
           pattern: "^(\\+[1-9][0-9]{0,14})?$"
           description: "Ella Core's E.164 number."
 
-    OperatorVoice:
+    OperatorIMS:
       type: object
       required: [pcscfAddresses]
       properties:
@@ -4885,7 +4885,7 @@ components:
             type: string
           description: "P-CSCF addresses of the IMS given to UEs, in preference order. Empty when unset."
 
-    UpdateOperatorVoiceParams:
+    UpdateOperatorIMSParams:
       type: object
       required: [pcscfAddresses]
       properties:

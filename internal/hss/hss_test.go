@@ -118,7 +118,7 @@ func (f *fakeIMSStore) IMSDomain(context.Context) (string, error) {
 	return testIMSDomain, nil
 }
 
-func (f *fakeIMSStore) PCSCFConfigured(context.Context) (bool, error) {
+func (f *fakeIMSStore) PCSCFReachable(context.Context) (bool, error) {
 	if f.fail {
 		return false, errStoreDown
 	}

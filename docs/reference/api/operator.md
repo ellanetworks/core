@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), SMS, and Voice.
+description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), SMS, and IMS.
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name, SMS settings and voice settings.
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name, SMS settings and IMS settings.
 
 ## Get Operator Information
 
@@ -53,7 +53,7 @@ None
         "sms": {
             "smsNumber": "+15550001111"
         },
-        "voice": {
+        "ims": {
             "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
         }
     }
@@ -429,13 +429,13 @@ None
 }
 ```
 
-## Update the Voice Settings
+## Update the IMS Settings
 
 This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the `ims` data network.
 
 | Method | Path                     |
 | ------ | ------------------------ |
-| PUT    | `/api/v1/operator/voice` |
+| PUT    | `/api/v1/operator/ims` |
 
 ### Parameters
 
@@ -454,7 +454,7 @@ This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on th
 ```json
 {
     "result": {
-        "message": "Operator voice settings updated successfully"
+        "message": "Operator IMS settings updated successfully"
     }
 }
 ```

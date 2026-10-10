@@ -50,7 +50,26 @@ export type Registration = {
   imei?: string;
   ciphering_algorithm?: string;
   integrity_algorithm?: string;
+  ims_voice_over_ps?: boolean;
   connection: UEConnection | null;
+};
+
+export type IMSUserState =
+  | "registered"
+  | "registered_unreg_services"
+  | "authentication_pending"
+  | "not_registered";
+
+export type IMSPublicIdentity = {
+  identity: string;
+  barred: boolean;
+  user_state: IMSUserState;
+};
+
+export type IMSSubscription = {
+  private_identity: string;
+  scscf_name?: string;
+  public_identities: IMSPublicIdentity[];
 };
 
 export type SubscriberDetailStatus = {
@@ -114,6 +133,7 @@ export type APISubscriber = {
   msisdn?: string;
   registrations: Registration[];
   sessions: SessionInfo[];
+  ims?: IMSSubscription;
 };
 
 export type SubscriberCredentials = {

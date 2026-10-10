@@ -63,6 +63,7 @@ import {
   splitGridColumns,
 } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
+import { isVoiceDataNetwork } from "@/utils/voice";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
@@ -560,6 +561,11 @@ const DataNetworkDetail: React.FC = () => {
           <PageTitle
             parent={{ label: "Data Networks", to: "/networking/data-networks" }}
             title={name ?? ""}
+            adornment={
+              isVoiceDataNetwork(name) && (
+                <Chip label="Voice" size="small" color="primary" />
+              )
+            }
           />
         </Box>
         {canEdit && (

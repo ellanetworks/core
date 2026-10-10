@@ -138,6 +138,9 @@ func TestValidatePCSCFAddresses(t *testing.T) {
 		{"multicast", addrs(t, "224.0.0.1"), false},
 		{"zone", addrs(t, "fe80::1%eth0"), false},
 		{"ipv4-mapped ipv6", addrs(t, "::ffff:10.0.0.1"), false},
+		{"ipv6 link-local", addrs(t, "fe80::1"), false},
+		{"ipv4 link-local", addrs(t, "169.254.0.1"), false},
+		{"limited broadcast", addrs(t, "255.255.255.255"), false},
 		{"invalid", []netip.Addr{{}}, false},
 	}
 

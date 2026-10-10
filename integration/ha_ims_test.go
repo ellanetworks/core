@@ -115,6 +115,8 @@ func TestIntegrationHAIMS(t *testing.T) {
 		Assert(t, ok, fmt.Sprintf("scenario %q not registered", tc.name))
 
 		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() { dumpHAIMSLogs(t, dc) })
+
 			if err := waitForHAIMSLinks(ctx, nodeClients); err != nil {
 				t.Fatal(err)
 			}
@@ -172,7 +174,6 @@ func TestIntegrationHAIMS(t *testing.T) {
 				}
 
 				t.Cleanup(func() { restartHAIMSNode(ctx, t, dc, nodeClients, victim) })
-				t.Cleanup(func() { dumpHAIMSLogs(t, dc) })
 
 				if err := composeKill(ctx, haSMSComposeDir, haSMSComposeFile, haIMSServices[victim]); err != nil {
 					t.Fatalf("kill %s: %v", haIMSServices[victim], err)

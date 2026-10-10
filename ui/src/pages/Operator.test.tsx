@@ -1,24 +1,28 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { setupApiServer } from "@/test/apiServer";
+import { httpError, setupApiServer } from "@/test/apiServer";
 import Operator from "./Operator";
 
 const api = setupApiServer();
 
 const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
 
-const operator = (sms: Record<string, unknown>) => ({
+const operator = (
+  sms: Record<string, unknown>,
+  pcscfAddresses: string[] = [],
+) => ({
   id: { mcc: "001", mnc: "01" },
   tracking: { supportedTacs: ["000001"] },
   homeNetworkKeys: [],
   nasSecurity: { ciphering: ["AES"], integrity: ["AES"] },
   spn: { fullName: "Ella Networks", shortName: "Ella" },
   sms,
+  ims: { pcscfAddresses },
 });
 
 const peerA = {
@@ -50,6 +54,18 @@ const row = async (text: string) => {
   const cell = await screen.findByText(text);
   return within(cell.closest("tr")!);
 };
+
+const DATA_NETWORK_PATH = "/api/v1/networking/data-networks/ims";
+const POLICIES_PATH = "/api/v1/policies";
+const DIAMETER_PATH = "/api/v1/networking/diameter";
+
+const voiceBackground = () => {
+  api.get(DATA_NETWORK_PATH, () => httpError(404, "Data network not found"));
+  api.get(POLICIES_PATH, () => ({ items: [], total_count: 0 }));
+  api.get(DIAMETER_PATH, () => ({ peers: [] }));
+};
+
+beforeEach(voiceBackground);
 
 const renderOperator = (role = "Admin") =>
   renderWithProviders(<Operator />, {
@@ -192,6 +208,142 @@ describe("Operator SMS section", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Delete service center/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("Operator Voice section", () => {
+  const setupRow = (label: string) =>
+    within(screen.getByRole("table", { name: "Voice setup" }))
+      .getByText(label)
+      .closest("tr")!;
+
+  it("lists what voice still needs", async () => {
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator();
+
+    expect(
+      await screen.findByText("Create a data network of type Voice (IMS)."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Set the addresses of Ella IMS's P-CSCF."),
+    ).toBeInTheDocument();
+    for (const label of [
+      "Voice data network",
+      "Voice policy",
+      "P-CSCF addresses",
+      "Ella IMS",
+    ]) {
+      expect(within(setupRow(label)).getByTitle("To do")).toBeInTheDocument();
+    }
+  });
+
+  it("shows a complete voice setup", async () => {
+    api.get("/api/v1/operator", () => operator(ready, ["10.6.0.5"]));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(DATA_NETWORK_PATH, () => ({
+      name: "ims",
+      ipv4_pool: "10.60.0.0/16",
+    }));
+    api.get(POLICIES_PATH, () => ({
+      items: [{ name: "voice", data_network_name: "ims" }],
+      total_count: 1,
+    }));
+    api.get(DIAMETER_PATH, () => ({
+      peers: [{ role: "ims", address: "10.3.0.6", state: "open", since: "" }],
+    }));
+    renderOperator();
+
+    expect(
+      await screen.findByText("Connected to this node over Diameter."),
+    ).toBeInTheDocument();
+    for (const label of [
+      "Voice data network",
+      "Voice policy",
+      "P-CSCF addresses",
+      "Ella IMS",
+    ]) {
+      expect(
+        await within(setupRow(label)).findByTitle("Done"),
+      ).toBeInTheDocument();
+    }
+    expect(
+      await (await row("P-CSCF Addresses")).findByText("10.6.0.5"),
+    ).toBeInTheDocument();
+  });
+
+  it("flags P-CSCF addresses the voice data network cannot reach", async () => {
+    api.get("/api/v1/operator", () => operator(ready, ["2001:db8::5"]));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(DATA_NETWORK_PATH, () => ({
+      name: "ims",
+      ipv4_pool: "10.60.0.0/16",
+    }));
+    renderOperator();
+
+    expect(
+      await screen.findByText(
+        "No address matches an IP family of the ims data network's pools.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("updates the P-CSCF addresses", async () => {
+    const user = userEvent.setup();
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.put("/api/v1/operator/ims", () => ({}));
+    renderOperator();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit P-CSCF addresses" }),
+    );
+    await user.type(
+      await screen.findByLabelText(/^Addresses/),
+      "10.6.0.5, 2001:db8::5",
+    );
+    await user.click(screen.getByRole("button", { name: /^Update$/ }));
+
+    await screen.findByText("Voice settings updated successfully.");
+    expect(api.lastRequest("/api/v1/operator/ims")?.body).toEqual({
+      pcscfAddresses: ["10.6.0.5", "2001:db8::5"],
+    });
+  });
+
+  it("rejects malformed and duplicate P-CSCF addresses", async () => {
+    const user = userEvent.setup();
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit P-CSCF addresses" }),
+    );
+    const input = await screen.findByLabelText(/^Addresses/);
+
+    await user.type(input, "10.6.0.300");
+    await user.tab();
+    expect(
+      await screen.findByText("10.6.0.300 is not an IPv4 or IPv6 address"),
+    ).toBeInTheDocument();
+
+    await user.clear(input);
+    await user.type(input, "10.6.0.5, 10.6.0.5");
+    await user.tab();
+    expect(
+      await screen.findByText("10.6.0.5 is listed more than once"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the P-CSCF edit from a read-only user", async () => {
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator("Read Only");
+
+    expect(await screen.findByText("P-CSCF Addresses")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit P-CSCF addresses" }),
     ).not.toBeInTheDocument();
   });
 });

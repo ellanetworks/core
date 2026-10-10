@@ -114,6 +114,69 @@ describe("CreatePolicyModal", () => {
     await waitFor(() => expect(button(/^Create$/)).toBeDisabled());
   });
 
+  it("locks 5QI to 5 on the voice data network", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.post(POLICIES, () => ({}));
+    const { onClose } = render(1);
+
+    await user.type(field(/Name/), "voice");
+    await waitFor(() =>
+      expect(screen.getByText("internet")).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("combobox", { name: /Data Network/ }));
+    await user.click(await screen.findByRole("option", { name: "ims" }));
+
+    const fiveQi = screen.getByRole("combobox", { name: /5QI/ });
+    await waitFor(() => expect(fiveQi).toHaveTextContent("5 — IMS signalling"));
+    expect(fiveQi).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByText("IMS signalling on the voice data network uses 5QI 5."),
+    ).toBeInTheDocument();
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(POLICIES)?.body).toMatchObject({
+      data_network_name: "ims",
+      var5qi: 5,
+    });
+  });
+
+  it("unlocks 5QI when leaving the voice data network", async () => {
+    const user = userEvent.setup();
+    seed();
+    render(1);
+
+    await waitFor(() =>
+      expect(screen.getByText("internet")).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("combobox", { name: /Data Network/ }));
+    await user.click(await screen.findByRole("option", { name: "ims" }));
+    await user.click(screen.getByRole("combobox", { name: /Data Network/ }));
+    await user.click(await screen.findByRole("option", { name: "internet" }));
+
+    expect(screen.getByRole("combobox", { name: /5QI/ })).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
+
+  it("lists every data network", async () => {
+    const user = userEvent.setup();
+    const names = Array.from({ length: 15 }, (_, i) => ({ name: `dn-${i}` }));
+    api.get(DATA_NETWORKS, () => page(names));
+    api.get(SLICES, () => page([{ name: "slice-a" }]));
+    render(1);
+
+    await waitFor(() => expect(screen.getByText("dn-0")).toBeInTheDocument());
+    await user.click(screen.getByRole("combobox", { name: /Data Network/ }));
+    expect(
+      await screen.findByRole("option", { name: "dn-14" }),
+    ).toBeInTheDocument();
+  });
+
   it("submits the assembled policy payload", async () => {
     const user = userEvent.setup();
     seed();
@@ -216,6 +279,20 @@ describe("EditPolicyModal", () => {
       rules: { some: "rules" },
       var5qi: 7,
     });
+  });
+
+  it("moves a voice policy with another 5QI to 5", async () => {
+    seed();
+    api.get(`${POLICIES}/:name`, () => ({
+      ...full,
+      data_network_name: "ims",
+      var5qi: 9,
+    }));
+    render();
+
+    const fiveQi = await screen.findByRole("combobox", { name: /5QI/ });
+    await waitFor(() => expect(fiveQi).toHaveTextContent("5 — IMS signalling"));
+    expect(fiveQi).toHaveAttribute("aria-disabled", "true");
   });
 
   it("keeps a 5QI value that is not in the standard list selectable", async () => {

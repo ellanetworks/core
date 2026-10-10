@@ -23,12 +23,13 @@ func migrateV23(ctx context.Context, tx *sql.Tx) error {
 
 	stmt = fmt.Sprintf(`CREATE TABLE %s (
 		imsi        TEXT    PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,
-		state       INTEGER NOT NULL,
+		state       INTEGER NOT NULL CHECK (state IN (0, 1, 2)),
 		serverName  TEXT    NOT NULL,
-		authPending INTEGER NOT NULL,
+		authPending INTEGER NOT NULL CHECK (authPending IN (0, 1)),
 		originHost  TEXT    NOT NULL,
 		originRealm TEXT    NOT NULL,
-		updatedAt   INTEGER NOT NULL
+		updatedAt   INTEGER NOT NULL,
+		CHECK (state != 0 OR authPending = 1)
 	)`, IMSRegistrationsTableName)
 
 	if _, err := tx.ExecContext(ctx, stmt); err != nil {

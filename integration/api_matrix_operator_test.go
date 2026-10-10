@@ -19,5 +19,5 @@ func runOperatorMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	t.Run("nas_security", func(t *testing.T) { runOperatorNASSecurityMatrix(ctx, t, c) })
 	t.Run("spn", func(t *testing.T) { runOperatorSPNMatrix(ctx, t, c) })
 	t.Run("sms", func(t *testing.T) { runOperatorSMSMatrix(ctx, t, c) })
-	t.Run("voice", func(t *testing.T) { runOperatorVoiceMatrix(ctx, t, c) })
+	t.Run("voice", func(t *testing.T) { runOperatorIMSMatrix(ctx, t, c) })
 }

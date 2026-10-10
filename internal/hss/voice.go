@@ -9,7 +9,7 @@ import (
 )
 
 func (h *HSS) VoiceSupported(ctx context.Context, imsi string) (bool, error) {
-	configured, err := h.store.PCSCFConfigured(ctx)
+	configured, err := h.store.PCSCFReachable(ctx)
 	if err != nil || !configured {
 		return false, err
 	}

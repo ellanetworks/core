@@ -85,3 +85,13 @@ func TestSubscriptionOfASubscriberWithoutIMS(t *testing.T) {
 		t.Fatalf("Subscription of an unknown subscriber: %v, want ErrSubscriberUnknown", err)
 	}
 }
+
+func TestSubscriptionStaysVisibleWhileRegistered(t *testing.T) {
+	store := newFakeIMSStore()
+	store.registrations[testNoIMS] = hss.Registration{State: hss.Registered, ServerName: testSCSCF}
+
+	got, err := newHSS(store).Subscription(context.Background(), testNoIMS)
+	if err != nil || got == nil || got.SCSCFName != testSCSCF || got.PublicIdentities[0].UserState != hss.UserRegistered {
+		t.Fatalf("Subscription = %+v, %v, want the registration the HSS still holds", got, err)
+	}
+}

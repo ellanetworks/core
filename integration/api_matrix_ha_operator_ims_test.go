@@ -11,11 +11,11 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func runOperatorVoiceHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
+func runOperatorIMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	nodes := h.Clients
 
 	t.Cleanup(func() {
-		if err := h.Leader.UpdateOperatorVoice(ctx, &client.UpdateOperatorVoiceOptions{}); err != nil {
+		if err := h.Leader.UpdateOperatorIMS(ctx, &client.UpdateOperatorIMSOptions{}); err != nil {
 			t.Logf("cleanup: clear P-CSCF addresses: %v", err)
 		}
 	})
@@ -31,8 +31,8 @@ func runOperatorVoiceHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv)
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := nodes[tc.writer].UpdateOperatorVoice(ctx, &client.UpdateOperatorVoiceOptions{PCSCFAddresses: tc.addresses}); err != nil {
-				t.Fatalf("update voice on node %d: %v", tc.writer+1, err)
+			if err := nodes[tc.writer].UpdateOperatorIMS(ctx, &client.UpdateOperatorIMSOptions{PCSCFAddresses: tc.addresses}); err != nil {
+				t.Fatalf("update IMS on node %d: %v", tc.writer+1, err)
 			}
 
 			awaitConvergence(ctx, t, h)
@@ -43,8 +43,8 @@ func runOperatorVoiceHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv)
 					t.Fatalf("node %d get operator after update: %v", i+1, err)
 				}
 
-				if !slices.Equal(op.Voice.PCSCFAddresses, tc.addresses) {
-					t.Fatalf("node %d pcscfAddresses: got %v, want %v", i+1, op.Voice.PCSCFAddresses, tc.addresses)
+				if !slices.Equal(op.IMS.PCSCFAddresses, tc.addresses) {
+					t.Fatalf("node %d pcscfAddresses: got %v, want %v", i+1, op.IMS.PCSCFAddresses, tc.addresses)
 				}
 			}
 		})

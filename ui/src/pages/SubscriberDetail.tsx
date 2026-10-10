@@ -27,6 +27,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberSessionsCard from "@/components/SubscriberSessionsCard";
+import SubscriberVoiceCard from "@/components/SubscriberVoiceCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
 import QueryState from "@/components/QueryState";
@@ -156,6 +157,12 @@ const SubscriberDetail: React.FC = () => {
                       ? () => setEditDescriptionModalOpen(true)
                       : undefined
                   }
+                  onEditMSISDN={
+                    canEdit ? () => setEditMSISDNModalOpen(true) : undefined
+                  }
+                />
+                <SubscriberVoiceCard
+                  subscriber={subscriber}
                   onEditMSISDN={
                     canEdit ? () => setEditMSISDNModalOpen(true) : undefined
                   }

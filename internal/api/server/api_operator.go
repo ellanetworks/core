@@ -52,11 +52,11 @@ type GetOperatorSMSResponse struct {
 	SMSNumber string `json:"smsNumber"`
 }
 
-type UpdateOperatorVoiceParams struct {
+type UpdateOperatorIMSParams struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 }
 
-type GetOperatorVoiceResponse struct {
+type GetOperatorIMSResponse struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 }
 
@@ -76,7 +76,7 @@ type GetOperatorResponse struct {
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 	SPN             GetOperatorSPNResponse         `json:"spn"`
 	SMS             GetOperatorSMSResponse         `json:"sms"`
-	Voice           GetOperatorVoiceResponse       `json:"voice"`
+	IMS             GetOperatorIMSResponse         `json:"ims"`
 }
 
 type GetOperatorIDResponse struct {
@@ -96,7 +96,7 @@ const (
 	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
 	UpdateOperatorSPNAction         = "update_operator_spn"
 	UpdateOperatorSMSAction         = "update_operator_sms"
-	UpdateOperatorVoiceAction       = "update_operator_voice"
+	UpdateOperatorIMSAction         = "update_operator_ims"
 )
 
 func isValidMcc(mcc string) bool {
@@ -276,7 +276,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			SMS: GetOperatorSMSResponse{
 				SMSNumber: formatE164(smsSettings.SMSNumber),
 			},
-			Voice: GetOperatorVoiceResponse{
+			IMS: GetOperatorIMSResponse{
 				PCSCFAddresses: addrStrings(pcscfAddresses),
 			},
 		}
@@ -665,7 +665,7 @@ func smsSettingsFromParams(params UpdateOperatorSMSParams) (db.SMSSettings, stri
 	return db.SMSSettings{SMSNumber: number}, ""
 }
 
-func UpdateOperatorVoice(dbInstance *db.Database) http.Handler {
+func UpdateOperatorIMS(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -675,7 +675,7 @@ func UpdateOperatorVoice(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var params UpdateOperatorVoiceParams
+		var params UpdateOperatorIMSParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
@@ -694,18 +694,18 @@ func UpdateOperatorVoice(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := db.ValidatePCSCFAddresses(addresses); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid P-CSCF addresses", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.ReplacePCSCFAddresses(r.Context(), addresses); err != nil {
-			logger.APILog.Warn("Failed to update operator voice settings", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator voice settings", err, logger.APILog)
+			logger.APILog.Warn("Failed to update operator IMS settings", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator IMS settings", err, logger.APILog)
 
 			return
 		}
 
-		resp := SuccessResponse{Message: "Operator voice settings updated successfully"}
+		resp := SuccessResponse{Message: "Operator IMS settings updated successfully"}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
 		pcscf := "none"
@@ -713,9 +713,9 @@ func UpdateOperatorVoice(dbInstance *db.Database) http.Handler {
 			pcscf = strings.Join(addrStrings(addresses), ", ")
 		}
 
-		detail := fmt.Sprintf("User updated operator voice settings (P-CSCF addresses %s)", pcscf)
+		detail := fmt.Sprintf("User updated operator IMS settings (P-CSCF addresses %s)", pcscf)
 
-		logger.LogAuditEvent(r.Context(), UpdateOperatorVoiceAction, email, getClientIP(r), detail)
+		logger.LogAuditEvent(r.Context(), UpdateOperatorIMSAction, email, getClientIP(r), detail)
 	})
 }
 

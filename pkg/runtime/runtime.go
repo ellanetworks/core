@@ -1020,10 +1020,28 @@ func (a *hssDBAdapter) CountRegistered(ctx context.Context) (int, error) {
 	return a.db.CountIMSRegistrations(ctx, db.IMSRegistered)
 }
 
-func (a *hssDBAdapter) PCSCFConfigured(ctx context.Context) (bool, error) {
+func (a *hssDBAdapter) PCSCFReachable(ctx context.Context) (bool, error) {
 	addresses, err := a.db.ListPCSCFAddresses(ctx)
+	if err != nil || len(addresses) == 0 {
+		return false, err
+	}
 
-	return len(addresses) > 0, err
+	dn, err := a.db.GetDataNetwork(ctx, models.IMSDataNetworkName)
+	if errors.Is(err, db.ErrNotFound) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
+		if addr.Is4() {
+			return dn.IPv4Pool != ""
+		}
+
+		return dn.IPv6Pool != ""
+	}), nil
 }
 
 func (a *hssDBAdapter) Subscriber(ctx context.Context, imsi string) (*hss.Subscriber, error) {

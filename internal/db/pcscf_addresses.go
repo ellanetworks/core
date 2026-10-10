@@ -21,6 +21,8 @@ const pcscfAddressesSchema = 23
 
 const MaxPCSCFAddressesPerFamily = 3
 
+var limitedBroadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
+
 const (
 	listPCSCFAddressesStmt   = "SELECT &pcscfAddressRow.* FROM %s ORDER BY priority ASC"
 	insertPCSCFAddressStmt   = "INSERT INTO %s (priority, address) VALUES ($pcscfAddressRow.priority, $pcscfAddressRow.address)"
@@ -42,7 +44,8 @@ func ValidatePCSCFAddresses(addresses []netip.Addr) error {
 	var ipv4, ipv6 int
 
 	for _, addr := range addresses {
-		if !addr.IsValid() || addr.Zone() != "" || addr.IsUnspecified() || addr.IsLoopback() || addr.IsMulticast() || addr.Is4In6() {
+		if !addr.IsValid() || addr.Zone() != "" || addr.IsUnspecified() || addr.IsLoopback() || addr.IsMulticast() || addr.Is4In6() ||
+			addr.IsLinkLocalUnicast() || addr == limitedBroadcast {
 			return fmt.Errorf("P-CSCF address must be a unicast IPv4 or IPv6 address, got %q", addr)
 		}
 

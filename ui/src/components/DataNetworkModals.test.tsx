@@ -16,11 +16,16 @@ const PATH = "/api/v1/networking/data-networks";
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
 
-const renderCreate = () => {
+const renderCreate = (voiceAvailable = false) => {
   const onClose = vi.fn();
   const onSuccess = vi.fn();
   renderWithProviders(
-    <CreateDataNetworkModal open onClose={onClose} onSuccess={onSuccess} />,
+    <CreateDataNetworkModal
+      open
+      onClose={onClose}
+      onSuccess={onSuccess}
+      voiceAvailable={voiceAvailable}
+    />,
     { auth: {} },
   );
   return { onClose, onSuccess };
@@ -121,6 +126,42 @@ describe("CreateDataNetworkModal", () => {
     await waitFor(() =>
       expect(api.lastRequest(PATH)?.body).toMatchObject({ mtu: 1400 }),
     );
+  });
+
+  it("offers no voice type once the voice data network exists", () => {
+    renderCreate();
+    expect(
+      within(dialog()).queryByRole("button", { name: "Voice (IMS)" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("creates the voice data network under the ims name", async () => {
+    const user = userEvent.setup();
+    api.post(PATH, () => ({}));
+    const { onSuccess } = renderCreate(true);
+
+    await user.type(field(/Name/), "internet");
+    await user.click(button(/Voice \(IMS\)/));
+
+    expect(field(/Name/)).toHaveValue("ims");
+    expect(field(/Name/)).toHaveAttribute("readonly");
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(api.lastRequest(PATH)?.body).toMatchObject({ name: "ims" });
+  });
+
+  it("clears the name when switching back to a data network", async () => {
+    const user = userEvent.setup();
+    renderCreate(true);
+
+    await user.click(button(/Voice \(IMS\)/));
+    await user.click(button(/^Data$/));
+
+    expect(field(/Name/)).toHaveValue("");
+    expect(field(/Name/)).not.toHaveAttribute("readonly");
   });
 
   it("keeps the dialog open when the API rejects the create", async () => {

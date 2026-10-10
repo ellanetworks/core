@@ -37,7 +37,7 @@ type SMSCPeerResultItem struct {
 	ServiceCentres   []string `json:"serviceCentres"`
 }
 
-type GetOperatorVoiceResponseResult struct {
+type GetOperatorIMSResponseResult struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 }
 
@@ -57,7 +57,7 @@ type GetOperatorResponseResult struct {
 	HomeNetworkKeys []HomeNetworkKeyResponseItem         `json:"homeNetworkKeys"`
 	SPN             GetOperatorSPNResponseResult         `json:"spn"`
 	SMS             GetOperatorSMSResponseResult         `json:"sms"`
-	Voice           GetOperatorVoiceResponseResult       `json:"voice"`
+	IMS             GetOperatorIMSResponseResult         `json:"ims"`
 }
 
 type GetOperatorResponse struct {

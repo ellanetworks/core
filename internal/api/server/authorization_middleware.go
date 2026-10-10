@@ -50,7 +50,7 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS, PermUpdateOperatorVoice,
+		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS, PermUpdateOperatorIMS,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListDataNetworkStaticIPs, PermCreateDataNetworkStaticIP, PermUpdateDataNetworkStaticIP, PermDeleteDataNetworkStaticIP,
 		PermListDataNetworkFramedRoutes, PermCreateDataNetworkFramedRoute, PermUpdateDataNetworkFramedRoute, PermDeleteDataNetworkFramedRoute,
@@ -125,7 +125,7 @@ const (
 	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
 	PermUpdateOperatorSPN         = "operator:update_spn"
 	PermUpdateOperatorSMS         = "operator:update_sms"
-	PermUpdateOperatorVoice       = "operator:update_voice"
+	PermUpdateOperatorIMS         = "operator:update_ims"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"

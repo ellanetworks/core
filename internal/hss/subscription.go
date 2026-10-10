@@ -35,16 +35,16 @@ func (h *HSS) Subscription(ctx context.Context, imsi string) (*IMSSubscription, 
 		return nil, err
 	}
 
-	if !sub.IMSDataNetwork {
-		return nil, nil
-	}
-
-	domain, err := h.store.IMSDomain(ctx)
+	reg, err := h.store.Registration(ctx, imsi)
 	if err != nil {
 		return nil, err
 	}
 
-	reg, err := h.store.Registration(ctx, imsi)
+	if !sub.IMSDataNetwork && reg == nil {
+		return nil, nil
+	}
+
+	domain, err := h.store.IMSDomain(ctx)
 	if err != nil {
 		return nil, err
 	}

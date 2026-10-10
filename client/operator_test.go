@@ -506,24 +506,24 @@ func TestSMSCPeerReads(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorVoice_Success(t *testing.T) {
+func TestUpdateOperatorIMS_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 201,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator voice settings updated successfully"}`),
+			Result:     []byte(`{"message": "Operator IMS settings updated successfully"}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
 
-	err := clientObj.UpdateOperatorVoice(context.Background(), &client.UpdateOperatorVoiceOptions{
+	err := clientObj.UpdateOperatorIMS(context.Background(), &client.UpdateOperatorIMSOptions{
 		PCSCFAddresses: []string{"192.0.2.20", "2001:db8::20"},
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/voice" {
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/ims" {
 		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
@@ -539,17 +539,17 @@ func TestUpdateOperatorVoice_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorVoice_EmptyListIsSent(t *testing.T) {
+func TestUpdateOperatorIMS_EmptyListIsSent(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 201,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator voice settings updated successfully"}`),
+			Result:     []byte(`{"message": "Operator IMS settings updated successfully"}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
 
-	if err := clientObj.UpdateOperatorVoice(context.Background(), &client.UpdateOperatorVoiceOptions{}); err != nil {
+	if err := clientObj.UpdateOperatorIMS(context.Background(), &client.UpdateOperatorIMSOptions{}); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
@@ -564,12 +564,12 @@ func TestUpdateOperatorVoice_EmptyListIsSent(t *testing.T) {
 	}
 }
 
-func TestGetOperator_IncludesVoice(t *testing.T) {
+func TestGetOperator_IncludesIMS(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"voice": {"pcscfAddresses": ["192.0.2.20", "2001:db8::20"]}}`),
+			Result:     []byte(`{"ims": {"pcscfAddresses": ["192.0.2.20", "2001:db8::20"]}}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
@@ -579,7 +579,7 @@ func TestGetOperator_IncludesVoice(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	got := operator.Voice.PCSCFAddresses
+	got := operator.IMS.PCSCFAddresses
 	if len(got) != 2 || got[0] != "192.0.2.20" || got[1] != "2001:db8::20" {
 		t.Fatalf("pcscfAddresses = %v", got)
 	}

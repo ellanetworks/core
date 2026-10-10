@@ -20,7 +20,14 @@ export interface OperatorData {
   };
   spn: { fullName: string; shortName: string };
   sms: OperatorSMS;
+  ims: OperatorIMS;
 }
+
+export interface OperatorIMS {
+  pcscfAddresses: string[];
+}
+
+export const MAX_PCSCF_ADDRESSES_PER_FAMILY = 3;
 
 export const DEFAULT_SMSC_PORT = 3868;
 
@@ -193,4 +200,15 @@ export const deleteSMSCPeer = async (
     `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
     { method: "DELETE", authToken },
   );
+};
+
+export const updateOperatorIMS = async (
+  authToken: string,
+  ims: OperatorIMS,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/ims`, {
+    method: "PUT",
+    authToken,
+    body: { pcscfAddresses: ims.pcscfAddresses },
+  });
 };

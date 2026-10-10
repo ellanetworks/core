@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React from "react";
+import React, { useState } from "react";
+import { ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -14,12 +15,16 @@ import {
   dataNetworkNameRegex,
   poolAndDnsSchema,
 } from "@/components/dataNetworkForm";
+import { IMS_DATA_NETWORK } from "@/utils/voice";
 
 interface CreateDataNetworkModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  voiceAvailable?: boolean;
 }
+
+type Kind = "data" | "voice";
 
 export const schema = yup.object({
   name: yup
@@ -38,8 +43,10 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   open,
   onClose,
   onSuccess,
+  voiceAvailable = false,
 }) => {
   const { accessToken } = useAuth();
+  const [kind, setKind] = useState<Kind>("data");
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -52,6 +59,15 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       mtu: 1456,
     },
   });
+
+  const chooseKind = (_: React.MouseEvent<HTMLElement>, next: Kind | null) => {
+    if (!next || next === kind) return;
+
+    setKind(next);
+    form.setValue("name", next === "voice" ? IMS_DATA_NETWORK : "", {
+      shouldValidate: next === "voice",
+    });
+  };
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
@@ -78,7 +94,33 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       submittingLabel="Creating..."
       fullWidth={false}
     >
-      <TextControl<FormValues> name="name" label="Name" autoFocus />
+      {voiceAvailable && (
+        <>
+          <ToggleButtonGroup
+            value={kind}
+            exclusive
+            onChange={chooseKind}
+            size="small"
+            sx={{ mt: 1, mb: 1 }}
+            aria-label="Data network type"
+          >
+            <ToggleButton value="data">Data</ToggleButton>
+            <ToggleButton value="voice">Voice (IMS)</ToggleButton>
+          </ToggleButtonGroup>
+          {kind === "voice" && (
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+              Handsets reach IMS on the data network named &quot;
+              {IMS_DATA_NETWORK}&quot; for voice and video calls.
+            </Typography>
+          )}
+        </>
+      )}
+      <TextControl<FormValues>
+        name="name"
+        label="Name"
+        autoFocus={kind === "data"}
+        slotProps={{ input: { readOnly: kind === "voice" } }}
+      />
       <DataNetworkFields />
     </FormDialog>
   );

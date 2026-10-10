@@ -42,6 +42,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import SMSSection from "@/components/SMSSection";
+import VoiceSection from "@/components/VoiceSection";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -82,6 +83,7 @@ const Operator = () => {
   const [isEditOperatorSPNModalOpen, setEditOperatorSPNModalOpen] =
     useState(false);
   const [isSMSModalOpen, setSMSModalOpen] = useState(false);
+  const [isVoiceModalOpen, setVoiceModalOpen] = useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
   >({});
@@ -107,7 +109,8 @@ const Operator = () => {
     isDeleteKeyConfirmOpen ||
     isEditOperatorNASSecurityModalOpen ||
     isEditOperatorSPNModalOpen ||
-    isSMSModalOpen;
+    isSMSModalOpen ||
+    isVoiceModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -800,6 +803,12 @@ const Operator = () => {
         sms={operator?.sms}
         canEdit={canEdit}
         onModalOpenChange={setSMSModalOpen}
+      />
+
+      <VoiceSection
+        ims={operator?.ims}
+        canEdit={canEdit}
+        onModalOpenChange={setVoiceModalOpen}
       />
 
       {isEditOperatorIdModalOpen && (

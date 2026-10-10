@@ -9,22 +9,22 @@ import (
 	"testing"
 )
 
-type UpdateOperatorVoiceParams struct {
+type UpdateOperatorIMSParams struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 }
 
-type UpdateOperatorVoiceResponse struct {
+type UpdateOperatorIMSResponse struct {
 	Result struct {
 		Message string `json:"message"`
 	} `json:"result"`
 	Error string `json:"error,omitempty"`
 }
 
-func updateOperatorVoice(url string, client *http.Client, token string, data *UpdateOperatorVoiceParams) (int, *UpdateOperatorVoiceResponse, error) {
-	return apiDo[UpdateOperatorVoiceResponse](client, "PUT", url+"/api/v1/operator/voice", token, data)
+func updateOperatorIMS(url string, client *http.Client, token string, data *UpdateOperatorIMSParams) (int, *UpdateOperatorIMSResponse, error) {
+	return apiDo[UpdateOperatorIMSResponse](client, "PUT", url+"/api/v1/operator/ims", token, data)
 }
 
-func TestUpdateOperatorVoice(t *testing.T) {
+func TestUpdateOperatorIMS(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 
 	getPCSCFAddresses := func(t *testing.T) []string {
@@ -39,17 +39,17 @@ func TestUpdateOperatorVoice(t *testing.T) {
 			t.Fatalf("get operator: expected 200, got %d (%q)", code, resp.Error)
 		}
 
-		if resp.Result.Voice.PCSCFAddresses == nil {
+		if resp.Result.IMS.PCSCFAddresses == nil {
 			t.Fatal("pcscfAddresses is null, want a list")
 		}
 
-		return resp.Result.Voice.PCSCFAddresses
+		return resp.Result.IMS.PCSCFAddresses
 	}
 
 	update := func(t *testing.T, addresses []string) {
 		t.Helper()
 
-		code, resp, err := updateOperatorVoice(env.Server.URL, client, token, &UpdateOperatorVoiceParams{PCSCFAddresses: addresses})
+		code, resp, err := updateOperatorIMS(env.Server.URL, client, token, &UpdateOperatorIMSParams{PCSCFAddresses: addresses})
 		if err != nil {
 			t.Fatalf("update: %s", err)
 		}
@@ -96,7 +96,7 @@ func TestUpdateOperatorVoice(t *testing.T) {
 		}
 
 		for name, addresses := range cases {
-			code, resp, err := updateOperatorVoice(env.Server.URL, client, token, &UpdateOperatorVoiceParams{PCSCFAddresses: addresses})
+			code, resp, err := updateOperatorIMS(env.Server.URL, client, token, &UpdateOperatorIMSParams{PCSCFAddresses: addresses})
 			if err != nil {
 				t.Fatalf("%s: %s", name, err)
 			}

@@ -70,7 +70,7 @@ type ListSMSCPeersResponse struct {
 	Items []SMSCPeer `json:"items"`
 }
 
-type GetOperatorVoiceResponse struct {
+type GetOperatorIMSResponse struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 }
 
@@ -81,7 +81,7 @@ type Operator struct {
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity,omitempty"`
 	SPN             GetOperatorSPNResponse         `json:"spn,omitempty"`
 	SMS             GetOperatorSMSResponse         `json:"sms,omitempty"`
-	Voice           GetOperatorVoiceResponse       `json:"voice,omitempty"`
+	IMS             GetOperatorIMSResponse         `json:"ims,omitempty"`
 }
 
 type UpdateOperatorIDOptions struct {
@@ -121,7 +121,7 @@ type SMSCPeerOptions struct {
 	ServiceCentres   []string
 }
 
-type UpdateOperatorVoiceOptions struct {
+type UpdateOperatorIMSOptions struct {
 	PCSCFAddresses []string
 }
 
@@ -477,7 +477,7 @@ func (c *Client) DeleteSMSCPeer(ctx context.Context, id string) error {
 	return err
 }
 
-func (c *Client) UpdateOperatorVoice(ctx context.Context, opts *UpdateOperatorVoiceOptions) error {
+func (c *Client) UpdateOperatorIMS(ctx context.Context, opts *UpdateOperatorIMSOptions) error {
 	payload := struct {
 		PCSCFAddresses []string `json:"pcscfAddresses"`
 	}{
@@ -498,7 +498,7 @@ func (c *Client) UpdateOperatorVoice(ctx context.Context, opts *UpdateOperatorVo
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/operator/voice",
+		Path:   "api/v1/operator/ims",
 		Body:   &body,
 	})
 	if err != nil {

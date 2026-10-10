@@ -161,7 +161,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/operator/sms/smsc-peers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, CreateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, UpdateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, DeleteSMSCPeer(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/operator/voice", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorVoice, UpdateOperatorVoice(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/ims", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateOperatorIMS(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)

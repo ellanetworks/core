@@ -11,9 +11,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func runOperatorVoiceMatrix(ctx context.Context, t *testing.T, c *client.Client) {
+func runOperatorIMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	t.Cleanup(func() {
-		if err := c.UpdateOperatorVoice(ctx, &client.UpdateOperatorVoiceOptions{}); err != nil {
+		if err := c.UpdateOperatorIMS(ctx, &client.UpdateOperatorIMSOptions{}); err != nil {
 			t.Logf("cleanup: clear P-CSCF addresses: %v", err)
 		}
 	})
@@ -29,8 +29,8 @@ func runOperatorVoiceMatrix(ctx context.Context, t *testing.T, c *client.Client)
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := c.UpdateOperatorVoice(ctx, &client.UpdateOperatorVoiceOptions{PCSCFAddresses: tc.addresses}); err != nil {
-				t.Fatalf("update voice: %v", err)
+			if err := c.UpdateOperatorIMS(ctx, &client.UpdateOperatorIMSOptions{PCSCFAddresses: tc.addresses}); err != nil {
+				t.Fatalf("update IMS: %v", err)
 			}
 
 			op, err := c.GetOperator(ctx)
@@ -38,8 +38,8 @@ func runOperatorVoiceMatrix(ctx context.Context, t *testing.T, c *client.Client)
 				t.Fatalf("get operator after update: %v", err)
 			}
 
-			if !slices.Equal(op.Voice.PCSCFAddresses, tc.addresses) {
-				t.Fatalf("pcscfAddresses: got %v, want %v", op.Voice.PCSCFAddresses, tc.addresses)
+			if !slices.Equal(op.IMS.PCSCFAddresses, tc.addresses) {
+				t.Fatalf("pcscfAddresses: got %v, want %v", op.IMS.PCSCFAddresses, tc.addresses)
 			}
 		})
 	}
