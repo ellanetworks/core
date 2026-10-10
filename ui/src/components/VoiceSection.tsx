@@ -48,7 +48,7 @@ const VoiceSection: React.FC<VoiceSectionProps> = ({
         Voice
       </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-        Let 4G and 5G subscribers make voice and video calls through Ella IMS.
+        Let 4G and 5G subscribers make voice and video calls through your IMS.
         Each subscriber needs a phone number and a policy on the{" "}
         {IMS_DATA_NETWORK} data network.
       </Typography>

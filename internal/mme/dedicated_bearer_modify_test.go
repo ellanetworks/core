@@ -430,3 +430,24 @@ func TestRANEndpointsBindTheVoiceBearerWithItsPDNConnection(t *testing.T) {
 		t.Fatalf("default bound to %+v with %+v, want %+v with %+v so the voice downlink never takes the default bearer", fake.modifiedENB, fake.boundDedicated, defaultENB, want)
 	}
 }
+
+func TestUnlistedERABModifyAnswersTheOnlyPendingModification(t *testing.T) {
+	m, ue, _, fake := activeVoiceBearer(t)
+
+	rate := models.BitRateFromBps(88000)
+	mod := models.DedicatedBearerModification{
+		SessionRef: "ref-internet", SGWTEID: voiceSGWTEID,
+		QoSChanged: true, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate},
+	}
+
+	if err := m.ModifyDedicatedBearer(context.Background(), ue.imsiOrEmpty(), 6, mod); err != nil {
+		t.Fatalf("ModifyDedicatedBearer: %v", err)
+	}
+
+	m.DedicatedBearerModifyAccepted(context.Background(), ue, 6)
+	m.RadioBearerModifiedUnlisted(context.Background(), ue)
+
+	if got := waitModification(t, fake); len(got) != 1 || !got[0].accepted {
+		t.Fatalf("SMF told %+v, want the modification accepted by a successful response that lists nothing (TS 36.413 §8.2.2.2)", got)
+	}
+}

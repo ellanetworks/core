@@ -62,7 +62,7 @@ None
 
 ## Update the Operator ID
 
-This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system. Changing it renames the Diameter identity and realm of every node, so the Ella Core peers configured in Ella IMS and in the SMSC must be updated afterwards.
+This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system. Changing it renames the Diameter identity and realm of every node, so the Ella Core peers configured in the IMS and in the SMSC must be updated afterwards.
 
 | Method | Path                  |
 | ------ | --------------------- |

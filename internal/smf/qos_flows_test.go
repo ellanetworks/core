@@ -458,3 +458,43 @@ func TestHandoverInterruptingAFlowRetriesWithoutReporting(t *testing.T) {
 		t.Fatalf("reported rules %v, want none for a handover collision", r)
 	}
 }
+
+func TestRANModifyingAFlowWithoutListingItAppliesTheModification(t *testing.T) {
+	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	waitFlowModifications(t, amfCb, 2)
+
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, nil, nil)
+
+	time.Sleep(100 * time.Millisecond)
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: a successful response that lists no failed flow applies them (TS 38.413 §8.2.3.2)", r)
+	}
+
+	if got := len(amfCb.modifications()); got != 2 {
+		t.Fatalf("%d QoS flow modifications sent, want no realignment of the UE", got)
+	}
+}
+
+func TestRANSettingUpAFlowWithoutListingItActivatesTheFlow(t *testing.T) {
+	s, pcf, upf, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, nil, nil)
+
+	if m := lastModify(t, upf); !slices.ContainsFunc(m.UpdatePDRs, func(p models.PDR) bool { return p.PDI.UEIPAddress.IsValid() && p.QERID >= 256 }) {
+		t.Fatalf("UPF PDRs %+v, want the voice downlink installed", m.UpdatePDRs)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none", r)
+	}
+
+	requireOneFlowModification(t, amfCb)
+}

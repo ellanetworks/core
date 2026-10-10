@@ -69,7 +69,7 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
     >
       <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
         Changing the Operator ID renames the Diameter identity and realm of
-        every node. Update the Ella Core peers configured in Ella IMS and in the
+        every node. Update the Ella Core peers configured in the IMS and in the
         SMSC afterwards.
       </Alert>
       <TextControl<FormValues> name="mcc" label="MCC" autoFocus />

@@ -99,6 +99,29 @@ func (m *MME) ConcludeBearerModification(ctx context.Context, ue *UeContext, p *
 	return true
 }
 
+func (m *MME) RadioBearerModifiedUnlisted(ctx context.Context, ue *UeContext) {
+	ue.mu.Lock()
+
+	var awaiting []uint8
+
+	for ebi, p := range ue.Pdns {
+		if p.Modifying != nil && p.modifyAwaitingRadio {
+			awaiting = append(awaiting, ebi)
+		}
+
+		for _, b := range p.Dedicated {
+			if b.modifying != nil && b.modifying.radio == radioPending {
+				awaiting = append(awaiting, b.Ebi)
+			}
+		}
+	}
+	ue.mu.Unlock()
+
+	if len(awaiting) == 1 {
+		m.RadioBearerModified(ctx, ue, awaiting[0], true)
+	}
+}
+
 func (m *MME) RadioBearerModified(ctx context.Context, ue *UeContext, ebi uint8, modified bool) {
 	ue.mu.Lock()
 

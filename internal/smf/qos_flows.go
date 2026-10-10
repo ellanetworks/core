@@ -47,7 +47,6 @@ type flowProcedure struct {
 	n2          bool
 	n2Answered  bool
 	ranRejected bool
-	ranAccepted []uint8
 	ranFailed   []uint8
 	epsFallback bool
 
@@ -763,7 +762,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResModifyRsp(ctx context.Context, ref stri
 			return false
 		}
 
-		p.n2Answered, p.ranAccepted, p.ranFailed, p.epsFallback = true, outcome.Accepted, outcome.Failed, outcome.EPSFallback
+		p.n2Answered, p.ranFailed, p.epsFallback = true, outcome.Failed, outcome.EPSFallback
 
 		return true
 	})
@@ -817,8 +816,7 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 
 	for b, parts := range p.parts {
 		ueApplied := !parts.n1 || p.ueAccepted
-		ranApplied := !parts.n2 || !p.ranRejected && !slices.Contains(p.ranFailed, b.qfi) &&
-			(b.state == dedicatedReleasing || slices.Contains(p.ranAccepted, b.qfi))
+		ranApplied := !parts.n2 || !p.ranRejected && !slices.Contains(p.ranFailed, b.qfi)
 
 		switch {
 		case b.state == dedicatedActivating:
