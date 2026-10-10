@@ -74,7 +74,14 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 		resync = &udm.IMSResync{RAND: r.Resync.RAND, AUTS: r.Resync.AUTS}
 	}
 
-	av, err := h.credentials.GenerateIMSVector(ctx, sub.IMSI, resync)
+	var av *udm.IMSAV
+
+	err = bounded(ctx, func(ctx context.Context) error {
+		v, err := h.credentials.GenerateIMSVector(ctx, sub.IMSI, resync)
+		av = v
+
+		return err
+	})
 	if err != nil {
 		return h.errorAnswer(req, id, "multimedia auth", err)
 	}

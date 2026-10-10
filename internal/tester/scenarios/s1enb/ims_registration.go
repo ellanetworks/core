@@ -215,6 +215,10 @@ type imsCallUE struct {
 }
 
 func attachIMSCallUEs(env scenarios.Env, e *s1enb.ENB, subs ...scenarios.SubscriberSpec) ([]scenarios.IMSEndpoint, []imsCallUE, func(), error) {
+	return attachIMSCallUEsFrom(env, e, 0, subs...)
+}
+
+func attachIMSCallUEsFrom(env scenarios.Env, e *s1enb.ENB, first int, subs ...scenarios.SubscriberSpec) ([]scenarios.IMSEndpoint, []imsCallUE, func(), error) {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
 		return nil, nil, nil, err
@@ -232,7 +236,8 @@ func attachIMSCallUEs(env scenarios.Env, e *s1enb.ENB, subs ...scenarios.Subscri
 		}
 	}
 
-	for i, sub := range subs {
+	for n, sub := range subs {
+		i := first + n
 		tunIface := fmt.Sprintf("%s%d", imsTunIface, i)
 
 		u, local, res, err := attachAndTunnelIMSUE(env, e, sub, k, opc, tunIface, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)

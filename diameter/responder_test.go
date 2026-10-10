@@ -378,6 +378,19 @@ func TestWatchdogAndDisconnectAnswered(t *testing.T) {
 			if code := resultCode(t, p.recv()); code != ResultUnableToDeliver {
 				t.Fatalf("request after DPR Result-Code = %d", code)
 			}
+
+			p.send(appRequest(8, 8, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "ella.example.org")))
+
+			if code := resultCode(t, p.recv()); code != ResultTooBusy {
+				t.Fatalf("request for this node after DPR Result-Code = %d", code)
+			}
+
+			_ = p.tr.abort()
+
+			eventually(t, "the disconnect cause in the peer status", func() bool {
+				s, _ := n.Peer("smsc")
+				return s.State == PeerDown && s.LastError == "the peer disconnected: REBOOTING"
+			})
 		})
 	}
 }
@@ -460,10 +473,15 @@ func TestConcurrentRequestLimit(t *testing.T) {
 			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
 
 			p.send(appRequest(1, 1, "smsc.example.org"))
-			p.send(appRequest(2, 2, "smsc.example.org"))
+			p.send(appRequest(2, 2, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "ella.example.org")))
+			p.send(appRequest(3, 3, "smsc.example.org"))
 
 			if ans := p.recv(); ans.HopByHopID != 2 || resultCode(t, ans) != ResultTooBusy {
 				t.Fatalf("second request answer = %+v", ans)
+			}
+
+			if ans := p.recv(); ans.HopByHopID != 3 || resultCode(t, ans) != ResultUnableToDeliver {
+				t.Fatalf("third request answer = %+v", ans)
 			}
 
 			close(release)

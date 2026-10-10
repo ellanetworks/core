@@ -560,7 +560,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
 
-	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, udm.NewIMSCredentials(ausfStore), diameterNode, logger.HssLog)
+	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, logger.HssLog)
 	hssInstance.RegisterMetrics()
 	hssInstance.Register(diameterNode)
 	amfInstance.IMSVoice = hssInstance
@@ -1078,10 +1078,28 @@ func (a *hssDBAdapter) CompareAndSwapRegistration(ctx context.Context, imsi stri
 			return nil, false, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
 		}
 
-		return nil, false, err
+		return nil, false, hssError(err)
 	}
 
 	return hssRegistration(current), swapped, nil
+}
+
+type hssCredentials struct {
+	ims *udm.IMSCredentials
+}
+
+func (c hssCredentials) GenerateIMSVector(ctx context.Context, imsi string, resync *udm.IMSResync) (*udm.IMSAV, error) {
+	av, err := c.ims.GenerateIMSVector(ctx, imsi, resync)
+
+	return av, hssError(err)
+}
+
+func hssError(err error) error {
+	if db.IsUnavailable(err) {
+		return fmt.Errorf("%w: %w", hss.ErrUnavailable, err)
+	}
+
+	return err
 }
 
 func hssRegistration(reg *db.IMSRegistration) *hss.Registration {
@@ -1274,6 +1292,10 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 
 func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
 	return func(ctx context.Context) (diameternode.NodeSettings, error) {
+		if dbInstance.ClusterEnabled() && !dbInstance.IsRaftConfigurationMember(dbInstance.RaftID()) {
+			return diameternode.NodeSettings{}, diameternode.ErrNotClusterMember
+		}
+
 		pointer := dbInstance.AMFPointer()
 		if pointer < 1 {
 			return diameternode.NodeSettings{}, errors.New("this node has no AMF Pointer yet; the leader allocates it into cluster_members on join")

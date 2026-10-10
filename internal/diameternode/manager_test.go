@@ -57,10 +57,15 @@ type fakeSMSC struct {
 	node *diameter.Node
 	ln   *sctp.Listener
 	addr netip.AddrPort
+
+	mu        sync.Mutex
+	lastError string
 }
 
 func startFakeSMSC(t *testing.T, port int) *fakeSMSC {
 	t.Helper()
+
+	s := &fakeSMSC{}
 
 	node, err := diameter.New(diameter.Config{
 		Identity: diameter.Identity{
@@ -76,6 +81,14 @@ func startFakeSMSC(t *testing.T, port int) *fakeSMSC {
 		UnknownPeerApplications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
 			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
+		},
+		OnPeerStateChange: func(p diameter.PeerStatus) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+
+			if p.LastError != "" {
+				s.lastError = p.LastError
+			}
 		},
 	})
 	if err != nil {
@@ -96,7 +109,7 @@ func startFakeSMSC(t *testing.T, port int) *fakeSMSC {
 
 	go func() { _ = node.Serve(diameter.NewSCTPListener(ln, nil)) }()
 
-	s := &fakeSMSC{node: node, ln: ln, addr: netip.AddrPortFrom(loopback, uint16(a.Port))}
+	s.node, s.ln, s.addr = node, ln, netip.AddrPortFrom(loopback, uint16(a.Port))
 
 	t.Cleanup(s.stop)
 
@@ -109,6 +122,13 @@ func (s *fakeSMSC) stop() {
 
 	_ = s.node.Shutdown(ctx)
 	_ = s.ln.Close()
+}
+
+func (s *fakeSMSC) peerError() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.lastError
 }
 
 func (s *fakeSMSC) connectedHost() string {
@@ -366,6 +386,26 @@ func TestNodeFollowsSettingsChanges(t *testing.T) {
 	if link.Node() != nil {
 		t.Fatal("the Diameter node survived disabling SMS")
 	}
+}
+
+func TestRemovedNodeTellsPeersNotToReconnect(t *testing.T) {
+	requireSCTP(t)
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+
+	link, wakeup := startManager(t, source)
+
+	waitFor(t, "link up", func() bool { return smsc.connectedHost() == ellaHost })
+
+	source.setNode(diameternode.NodeSettings{}, diameternode.ErrNotClusterMember)
+	poke(wakeup)
+
+	waitFor(t, "node stopped", func() bool { return link.Node() == nil })
+	waitFor(t, "DO_NOT_WANT_TO_TALK_TO_YOU at the SMSC", func() bool {
+		return smsc.peerError() == "the peer disconnected: DO_NOT_WANT_TO_TALK_TO_YOU"
+	})
 }
 
 func TestNodeReconnectsAfterSMSCRestart(t *testing.T) {

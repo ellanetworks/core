@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -50,6 +51,9 @@ type fakeIMSStore struct {
 	registrations map[string]hss.Registration
 	noPCSCF       bool
 	fail          bool
+	unavailable   bool
+	contended     bool
+	block         chan struct{}
 }
 
 func newFakeIMSStore() *fakeIMSStore {
@@ -78,7 +82,19 @@ func (f *fakeIMSStore) Registration(_ context.Context, imsi string) (*hss.Regist
 }
 
 func (f *fakeIMSStore) CompareAndSwapRegistration(_ context.Context, imsi string, expected, next *hss.Registration) (*hss.Registration, bool, error) {
+	if f.block != nil {
+		<-f.block
+	}
+
+	if f.unavailable {
+		return nil, false, fmt.Errorf("%w: raft commit timeout", hss.ErrUnavailable)
+	}
+
 	current, ok := f.registrations[imsi]
+
+	if f.contended {
+		return &current, false, nil
+	}
 
 	switch {
 	case !ok && expected != nil:
@@ -149,6 +165,10 @@ func (f *fakeIMSStore) SubscriberByMSISDN(_ context.Context, msisdn string) (*hs
 }
 
 func (f *fakeIMSStore) AdvanceIMSSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
+	if f.unavailable {
+		return nil, fmt.Errorf("%w: raft commit timeout", hss.ErrUnavailable)
+	}
+
 	s, ok := f.subscribers[imsi]
 	if !ok {
 		return nil, udm.ErrSubscriberUnknown

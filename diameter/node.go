@@ -763,11 +763,7 @@ func (n *Node) admit(req *Message) uint32 {
 		return 0
 	}
 
-	if _, ok := req.Find(AVPDestinationHost, 0); ok {
-		return ResultTooBusy
-	}
-
-	return ResultUnableToDeliver
+	return UnavailableResult(req)
 }
 
 func (n *Node) Shutdown(ctx context.Context) error {

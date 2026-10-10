@@ -20,7 +20,10 @@ import (
 
 var tracer = otel.Tracer("ella-core/hss")
 
-var ErrSubscriberUnknown = errors.New("subscriber unknown")
+var (
+	ErrSubscriberUnknown = errors.New("subscriber unknown")
+	ErrUnavailable       = errors.New("the HSS cannot commit its state")
+)
 
 type Subscriber struct {
 	IMSI           string
@@ -71,6 +74,12 @@ func (h *HSS) errorAnswer(req *diameter.Message, id diameter.Identity, procedure
 
 	if _, ok := tgpp.ResultOf(err); ok {
 		return cx.NewErrorAnswer(req, id, err, 0)
+	}
+
+	if errors.Is(err, ErrUnavailable) {
+		h.log.Info("Cx "+procedure+" answered as unavailable", zap.Error(err))
+
+		return cx.NewAnswer(req, id, tgpp.Result{Code: diameter.UnavailableResult(req)}, 0)
 	}
 
 	h.log.Warn("Cx "+procedure+" failed", zap.Error(err))

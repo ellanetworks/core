@@ -89,6 +89,8 @@ const (
 	imsMediaLossGuard     = 6 * time.Second
 
 	imsTestUEAheadSQN = 0x00000100001e
+
+	imsTimerF = 32 * time.Second
 )
 
 var IMSServerAddresses = []string{"fd00:6::5", "10.6.0.5"}
@@ -335,6 +337,94 @@ func RequireIMSRegistrationForbidden(ctx context.Context, sub SubscriberSpec, pc
 	}
 
 	return nil
+}
+
+func RequireIMSRegistrationsAcrossNodeLoss(ctx context.Context, registered IMSEndpoint, transport sip.Transport, lose func(context.Context) error,
+	attach func(context.Context) (IMSEndpoint, error),
+) error {
+	a, err := newIMSUE(registered.Subscriber, registered.PCSCF, registered.Local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	defer a.close()
+
+	if err := withinIMSTimeout(ctx, imsTestUETimeout, func(ctx context.Context) error { return a.register(ctx, registered.Subscriber, transport) }); err != nil {
+		return err
+	}
+
+	if err := lose(ctx); err != nil {
+		return err
+	}
+
+	if err := withinIMSTimeout(ctx, imsTimerF, a.Reregister); err != nil {
+		return fmt.Errorf("re-registration of %s after the node loss: %w", registered.Subscriber.IMSI, err)
+	}
+
+	fresh, err := attach(ctx)
+	if err != nil {
+		return err
+	}
+
+	b, err := newIMSUE(fresh.Subscriber, fresh.PCSCF, fresh.Local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	defer b.close()
+
+	if err := withinIMSTimeout(ctx, imsTimerF, func(ctx context.Context) error { return b.register(ctx, fresh.Subscriber, transport) }); err != nil {
+		return fmt.Errorf("registration after the node loss: %w", err)
+	}
+
+	for _, u := range []*imsUE{a, b} {
+		if err := withinIMSTimeout(ctx, imsTestUETimeout, func(ctx context.Context) error { return u.deregister(ctx, transport) }); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func RequireIMSRegistrationAfterMove(ctx context.Context, before IMSEndpoint, transport sip.Transport, move func(context.Context) (IMSEndpoint, error)) error {
+	a, err := newIMSUE(before.Subscriber, before.PCSCF, before.Local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	if err := withinIMSTimeout(ctx, imsTestUETimeout, func(ctx context.Context) error { return a.register(ctx, before.Subscriber, transport) }); err != nil {
+		a.close()
+		return err
+	}
+
+	after, err := move(ctx)
+	sqn := a.SQN()
+
+	a.close()
+
+	if err != nil {
+		return err
+	}
+
+	b, err := newIMSUE(after.Subscriber, after.PCSCF, after.Local, transport, sqn)
+	if err != nil {
+		return err
+	}
+
+	defer b.close()
+
+	if err := withinIMSTimeout(ctx, imsTimerF, func(ctx context.Context) error { return b.register(ctx, after.Subscriber, transport) }); err != nil {
+		return fmt.Errorf("registration after moving to another node: %w", err)
+	}
+
+	return withinIMSTimeout(ctx, imsTestUETimeout, func(ctx context.Context) error { return b.deregister(ctx, transport) })
+}
+
+func withinIMSTimeout(ctx context.Context, timeout time.Duration, f func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return f(ctx)
 }
 
 func registerIMS(ctx context.Context, sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64) (uint64, error) {

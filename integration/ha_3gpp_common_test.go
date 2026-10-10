@@ -298,6 +298,8 @@ type bringUpHA3GPPClusterOpts struct {
 	ExtraServices []string
 
 	Overlays []string
+
+	Diameter bool
 }
 
 func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, opts bringUpHA3GPPClusterOpts) (string, []*client.Client, error) {
@@ -334,7 +336,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		return "", nil, err
 	}
 
-	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, "", opts.UseFQDN); err != nil {
+	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, "", opts); err != nil {
 		return fail(err)
 	}
 
@@ -366,7 +368,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 			return fail(fmt.Errorf("mint join token for node %d: %w", nodeID, err))
 		}
 
-		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token, opts.UseFQDN); err != nil {
+		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token, opts); err != nil {
 			return fail(err)
 		}
 
@@ -455,12 +457,12 @@ func composeKill(ctx context.Context, composeDir, composeFile, service string) e
 // per-node n3 addresses instead of the single-bridge shape used by the
 // non-5G HA tests.
 //
-// When useFQDN is true, the cluster.bind-address uses the compose service
+// When opts.UseFQDN is true, the cluster.bind-address uses the compose service
 // name (ella-core-N) rather than the per-node IP, exercising the
 // hostname-resolved peer path. n2/n3/api addresses stay on IP literals
 // because they are data-plane endpoints reached by simulators that bind
 // directly to fixed IPs.
-func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinToken string, useFQDN bool) error {
+func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinToken string, opts bringUpHA3GPPClusterOpts) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -478,7 +480,7 @@ func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinTo
 	n3Addr := fmt.Sprintf("10.3.0.%d", 10+nodeID)
 
 	clusterBindHost := clusterAddr
-	if useFQDN {
+	if opts.UseFQDN {
 		clusterBindHost = fmt.Sprintf("ella-core-%d", nodeID)
 	}
 
@@ -491,6 +493,11 @@ func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinTo
 	joinTokenLine := ""
 	if joinToken != "" {
 		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
+	}
+
+	diameterLines := ""
+	if opts.Diameter {
+		diameterLines = fmt.Sprintf("  diameter:\n    address: %q\n", n3Addr)
 	}
 
 	body := fmt.Sprintf(`logging:
@@ -512,12 +519,12 @@ interfaces:
   api:
     address: %q
     port: 5002
-datapath:
+%sdatapath:
   attach-mode: "xdp-generic"
 cluster:
   bind-address: "%s:7000"
   peers:
-%s%s`, clusterAddr, n3Addr, clusterAddr, clusterBindHost, peersYAML.String(), joinTokenLine)
+%s%s`, clusterAddr, n3Addr, clusterAddr, diameterLines, clusterBindHost, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

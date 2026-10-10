@@ -24,7 +24,10 @@ const (
 	productName       = "Ella Core"
 	reconcileInterval = 30 * time.Second
 	shutdownTimeout   = 5 * time.Second
+	watchdogInterval  = 6 * time.Second
 )
+
+var ErrNotClusterMember = errors.New("this node is not a member of the cluster")
 
 type Identity struct {
 	Host  string
@@ -325,6 +328,7 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 	cfg := diameter.Config{
 		Identity:          identity,
 		ServedRealms:      servedRealms,
+		WatchdogInterval:  watchdogInterval,
 		Handler:           m.mux,
 		OnPeerStateChange: m.peerStateChanged,
 		Logger:            m.slog,
@@ -424,7 +428,11 @@ func (m *Manager) setPeers(peers []PeerConfig) {
 }
 
 func (m *Manager) fail(err error) {
-	m.stop()
+	if errors.Is(err, ErrNotClusterMember) {
+		m.stopWithCause(diameter.DisconnectCauseDoNotWantToTalkToYou)
+	} else {
+		m.stop()
+	}
 
 	m.mu.Lock()
 	changed := m.lastError != err.Error()

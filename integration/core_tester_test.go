@@ -37,6 +37,8 @@ var scenariosSkipped = map[string]string{
 	"ha_sms/ue_moves":                        "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
 	"ha_sms/node_failure":                    "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
 	"ha_sms/absent_then_attach_elsewhere":    "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
+	"ha_ims/hss_node_loss":                   "multi-core HA topology with Ella IMS, covered by TestIntegrationHAIMS",
+	"ha_ims/serving_node_loss":               "multi-core HA topology with Ella IMS, covered by TestIntegrationHAIMS",
 	"multi/cluster_traffic_5g":               "multi-core HA topology, covered by TestIntegration5GMultiGNB",
 	"gnb/connectivity_expect_blocked":        "test-only harness; requires a pre-installed deny rule",
 	"gnb/connectivity_expect_allowed":        "test-only harness; minimal allow-path",

@@ -6,6 +6,7 @@ package hss
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/diameter"
 )
@@ -32,7 +33,10 @@ type RegistrationStore interface {
 	CompareAndSwapRegistration(ctx context.Context, imsi string, expected, next *Registration) (*Registration, bool, error)
 }
 
-const maxRegistrationAttempts = 8
+const (
+	maxRegistrationAttempts = 8
+	commitTimeout           = 4 * time.Second
+)
 
 func sameRegistration(a, b *Registration) bool {
 	if a == nil || b == nil {
@@ -47,6 +51,28 @@ func sameRegistration(a, b *Registration) bool {
 }
 
 func (h *HSS) updateRegistration(ctx context.Context, imsi string, next func(current *Registration) (*Registration, error)) error {
+	return bounded(ctx, func(ctx context.Context) error { return h.swapRegistration(ctx, imsi, next) })
+}
+
+func bounded(ctx context.Context, f func(ctx context.Context) error) error {
+	done := make(chan error, 1)
+
+	go func() { done <- f(context.WithoutCancel(ctx)) }()
+
+	timer := time.NewTimer(commitTimeout)
+	defer timer.Stop()
+
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		return fmt.Errorf("%w: not committed within %s", ErrUnavailable, commitTimeout)
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", ErrUnavailable, ctx.Err())
+	}
+}
+
+func (h *HSS) swapRegistration(ctx context.Context, imsi string, next func(current *Registration) (*Registration, error)) error {
 	current, err := h.store.Registration(ctx, imsi)
 	if err != nil {
 		return err
@@ -80,7 +106,7 @@ func (h *HSS) updateRegistration(ctx context.Context, imsi string, next func(cur
 		current = stored
 	}
 
-	return fmt.Errorf("IMS registration of subscriber %s contended beyond %d attempts", imsi, maxRegistrationAttempts)
+	return fmt.Errorf("%w: IMS registration of subscriber %s contended beyond %d attempts", ErrUnavailable, imsi, maxRegistrationAttempts)
 }
 
 func origin(req *diameter.Message) (host, realm string) {

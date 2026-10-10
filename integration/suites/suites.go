@@ -107,6 +107,7 @@ const (
 	SMS            Name = "sms"
 	HASMS          Name = "ha-sms"
 	IMS            Name = "ims"
+	HAIMS          Name = "ha-ims"
 )
 
 type Definition struct {
@@ -149,6 +150,7 @@ var Definitions = map[Name]Definition{
 	SMS:            {Profile: ProfileFamilies, Timeout: "20m", NeedsTester: true, NeedsSMSC: true},
 	HASMS:          {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true, NeedsSMSC: true},
 	IMS:            {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
+	HAIMS:          {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
 }
 
 var Exempt = map[string]string{}
