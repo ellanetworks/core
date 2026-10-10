@@ -25,6 +25,7 @@ type DiameterPeer struct {
 	Port    int    `json:"port,omitempty"`
 	State   string `json:"state"`
 	Since   string `json:"since"`
+	Error   string `json:"error,omitempty"`
 }
 
 type DiameterStatus struct {
@@ -56,6 +57,7 @@ func GetDiameterStatus(node DiameterNode) http.Handler {
 				Port:    int(p.Address.Port()),
 				State:   p.State.String(),
 				Since:   p.Since.UTC().Format(time.RFC3339),
+				Error:   p.Error,
 			})
 		}
 

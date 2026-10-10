@@ -69,7 +69,7 @@ func (p SMSCPeer) Validate() error {
 		return errors.New("SMSC peer ID is required")
 	}
 
-	if !IsValidDiameterIdentity(p.DiameterIdentity) {
+	if p.DiameterIdentity != "" && !IsValidDiameterIdentity(p.DiameterIdentity) {
 		return fmt.Errorf("SMSC Diameter identity must be a fully qualified domain name, got %q", p.DiameterIdentity)
 	}
 
@@ -140,12 +140,16 @@ func ValidateSMSCPeers(peers []SMSCPeer) error {
 
 	for i, p := range peers {
 		for _, other := range peers[:i] {
-			if strings.EqualFold(p.DiameterIdentity, other.DiameterIdentity) {
+			if p.DiameterIdentity != "" && strings.EqualFold(p.DiameterIdentity, other.DiameterIdentity) {
 				return fmt.Errorf("another SMSC peer has the Diameter identity %s", p.DiameterIdentity)
 			}
 
 			if p.Address == other.Address && p.Port == other.Port {
 				return fmt.Errorf("another SMSC peer has the address %s", net.JoinHostPort(p.Address, strconv.Itoa(p.Port)))
+			}
+
+			if p.DiameterIdentity == "" && other.DiameterIdentity == "" && p.Address == other.Address {
+				return fmt.Errorf("another SMSC peer without a Diameter identity has the address %s", p.Address)
 			}
 
 			for _, sc := range p.ServiceCentres {

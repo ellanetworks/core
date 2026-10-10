@@ -4771,7 +4771,7 @@ components:
           format: uuid
         diameterIdentity:
           type: string
-          description: "The SMSC's Diameter identity (Origin-Host)."
+          description: "The SMSC's Diameter identity (Origin-Host) it must give in the capabilities exchange. Empty accepts the one it gives."
         address:
           type: string
           description: "IP address of the SMSC's Diameter endpoint."
@@ -4801,14 +4801,17 @@ components:
               type: string
               format: date-time
               description: "When the connection entered its current state."
+            error:
+              type: string
+              description: "Why the last connection to the SMSC failed."
 
     SMSCPeerParams:
       type: object
-      required: [diameterIdentity, address, serviceCentres]
+      required: [address, serviceCentres]
       properties:
         diameterIdentity:
           type: string
-          description: "The SMSC's Diameter identity (Origin-Host)."
+          description: "The SMSC's Diameter identity (Origin-Host), which must then match the one it gives in the capabilities exchange. Absent or empty accepts the one it gives."
         address:
           type: string
           description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint."
@@ -5279,6 +5282,9 @@ components:
           type: string
           format: date-time
           description: "When the peer entered its current state."
+        error:
+          type: string
+          description: "Why the last connection to the peer failed."
 
     DiameterStatusResponseEnvelope:
       type: object

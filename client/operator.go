@@ -63,6 +63,7 @@ type SMSCPeerStatus struct {
 	Host  string `json:"host,omitempty"`
 	Realm string `json:"realm,omitempty"`
 	Since string `json:"since"`
+	Error string `json:"error,omitempty"`
 }
 
 type ListSMSCPeersResponse struct {

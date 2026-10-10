@@ -380,6 +380,23 @@ describe("SMSCPeerModal", () => {
     });
   });
 
+  it("adds a peer without a Diameter identity", async () => {
+    const user = userEvent.setup();
+    api.post(PEERS_PATH, () => ({}));
+    const { onClose } = render();
+
+    await retype(user, /^Address/, "192.0.2.10");
+    await retype(user, /^Numbers/, "+15550000000");
+    await waitFor(() => expect(addButton()).toBeEnabled());
+    await user.click(addButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PEERS_PATH)?.body).toMatchObject({
+      diameterIdentity: "",
+      address: "192.0.2.10",
+    });
+  });
+
   it("rejects an address that is not an IP address", async () => {
     const user = userEvent.setup();
     render(peer);

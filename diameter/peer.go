@@ -74,6 +74,7 @@ type peer struct {
 
 	everOpen bool
 	suppress bool
+	dialing  bool
 	removed  bool
 	dynamic  bool
 	refs     int
@@ -250,6 +251,7 @@ func (n *Node) dropUnknownLocked(p *peer) {
 	p.removed = true
 
 	n.cacheForgetPeerLocked(p)
+	n.pruneRotationLocked()
 }
 
 func (n *Node) acquireLocked(p *peer) {
@@ -289,6 +291,7 @@ func (n *Node) dynamicPeerLocked(u URI, app Application, addrs []netip.Addr) *pe
 	p := newConfiguredPeer(cfg)
 	p.id = ""
 	p.dynamic = true
+	p.dialing = true
 	n.byHost[key] = p
 
 	n.goroutines.Add(1)
@@ -648,10 +651,17 @@ func (n *Node) nextBackoff(current time.Duration) time.Duration {
 }
 
 func (n *Node) dial(p *peer) *Conn {
+	n.mu.Lock()
+	p.dialing = true
+	n.mu.Unlock()
+
 	t, err := n.connect(p.cfg)
 	if err != nil {
 		n.mu.Lock()
 		p.lastError = err.Error()
+		p.dialing = false
+
+		n.notifyPeersLocked()
 		n.mu.Unlock()
 
 		n.logger.Warn("failed to connect to Diameter peer", slog.String("peer", p.name()), slog.Any("error", err))
@@ -661,7 +671,10 @@ func (n *Node) dial(p *peer) *Conn {
 
 	n.mu.Lock()
 
+	p.dialing = false
+
 	if p.open != nil || p.removed || n.closed {
+		n.notifyPeersLocked()
 		n.mu.Unlock()
 
 		_ = t.abort()

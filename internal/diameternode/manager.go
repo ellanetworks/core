@@ -60,6 +60,7 @@ type PeerStatus struct {
 	Address netip.AddrPort
 	State   diameter.PeerState
 	Since   time.Time
+	Error   string
 }
 
 type NodeSource func(ctx context.Context) (NodeSettings, error)
@@ -162,6 +163,7 @@ func (m *Manager) Peers() []PeerStatus {
 				status.Realm = peer.Realm
 				status.State = peer.State
 				status.Since = peer.Since
+				status.Error = peer.LastError
 			}
 		}
 

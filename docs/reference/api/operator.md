@@ -355,7 +355,7 @@ This path creates an SMSC peer.
 
 ### Parameters
 
-- `diameterIdentity` (string): The SMSC's Diameter identity (Origin-Host).
+- `diameterIdentity` (optional string): The SMSC's Diameter identity (Origin-Host).
 - `address` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint.
 - `port` (optional integer): The SCTP port of the SMSC's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
 - `serviceCentres` (array of strings): The E.164 service centre numbers the SMSC serves, for example `+15550000000`.
