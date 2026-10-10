@@ -1176,6 +1176,34 @@ func TestReconcileSession_SliceMismatchFullCleanup(t *testing.T) {
 	}
 }
 
+func TestReconcileSession_DeletedSubscriberKeepsSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	pcf.mu.Lock()
+	pcf.err = fmt.Errorf("%w: subscriber not found", smf.ErrSubscriberNotFound)
+	pcf.mu.Unlock()
+
+	if err := s.ReconcileSession(ctx, ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releaseCalls != 0 || releasedIPs != 0 || s.GetSession(ref) == nil {
+		t.Fatal("expected the session to be left to the subscription withdrawal")
+	}
+}
+
 func TestReconcileSession_UnreachableUEDefersTheChange(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	amfCb.err = smf.ErrUENotReachable

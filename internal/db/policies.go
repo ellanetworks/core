@@ -419,6 +419,10 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	if err != nil {
 		recordSpanError(span, err)
 
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil, nil, ErrSubscriberNotFound
+		}
+
 		return nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
 	}
 
@@ -519,6 +523,10 @@ func (db *Database) GetEPSSessionPolicy(ctx context.Context, imsi string, apn st
 	sub, err := db.GetSubscriber(ctx, imsi)
 	if err != nil {
 		recordSpanError(span, err)
+
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil, nil, nil, ErrSubscriberNotFound
+		}
 
 		return nil, nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
 	}

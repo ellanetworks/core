@@ -28,6 +28,7 @@ type fakeStore struct {
 	err      error
 	purgeErr error
 	purges   int
+	subErr   error
 }
 
 func newFakeStore() *fakeStore {
@@ -91,6 +92,17 @@ func (f *fakeStore) GetUERegistration(_ context.Context, imsi, regType string) (
 	}
 
 	return &row, nil
+}
+
+func (f *fakeStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.subErr != nil {
+		return nil, f.subErr
+	}
+
+	return &db.Subscriber{Imsi: imsi}, nil
 }
 
 func (f *fakeStore) set(regType, nodeID string, purged bool, version int64) {
@@ -232,27 +244,34 @@ func TestReconcile(t *testing.T) {
 	}
 
 	cases := []struct {
-		name string
-		amf  *row
-		mme  *row
-		held int64
-		want bool
+		name   string
+		amf    *row
+		mme    *row
+		subErr error
+		held   int64
+		want   string
 	}{
-		{"registered here", &row{"node-a", false, 10}, nil, 10, false},
-		{"never confirmed", &row{"node-b", false, 20}, nil, 0, false},
-		{"newer registration elsewhere", &row{"node-b", false, 20}, nil, 10, true},
-		{"older registration elsewhere", &row{"node-b", false, 5}, nil, 10, false},
-		{"purged registration elsewhere", &row{"node-b", true, 20}, nil, 10, false},
-		{"no registration", nil, nil, 10, false},
-		{"cancelled by EPS elsewhere", &row{"node-a", true, 20}, &row{"node-b", false, 20}, 10, true},
-		{"cancelled by EPS here", &row{"node-a", true, 20}, &row{"node-a", false, 20}, 10, false},
-		{"cancelled, EPS since purged", &row{"node-a", true, 20}, &row{"node-b", true, 30}, 10, true},
-		{"cancelled, no EPS registration", &row{"node-a", true, 20}, nil, 10, true},
+		{"registered here", &row{"node-a", false, 10}, nil, nil, 10, "kept"},
+		{"never confirmed", &row{"node-b", false, 20}, nil, nil, 0, "kept"},
+		{"newer registration elsewhere", &row{"node-b", false, 20}, nil, nil, 10, "released"},
+		{"older registration elsewhere", &row{"node-b", false, 5}, nil, nil, 10, "kept"},
+		{"purged registration elsewhere", &row{"node-b", true, 20}, nil, nil, 10, "kept"},
+		{"no registration", nil, nil, nil, 10, "kept"},
+		{"cancelled by EPS elsewhere", &row{"node-a", true, 20}, &row{"node-b", false, 20}, nil, 10, "released"},
+		{"cancelled by EPS here", &row{"node-a", true, 20}, &row{"node-a", false, 20}, nil, 10, "kept"},
+		{"cancelled, EPS since purged", &row{"node-a", true, 20}, &row{"node-b", true, 30}, nil, 10, "released"},
+		{"cancelled, no EPS registration", &row{"node-a", true, 20}, nil, nil, 10, "released"},
+		{"subscriber deleted", nil, nil, db.ErrNotFound, 10, "withdrawn"},
+		{"subscriber deleted, never confirmed", nil, nil, db.ErrNotFound, 0, "kept"},
+		{"subscriber lookup failed", nil, nil, errors.New("db unavailable"), 10, "kept"},
+		{"subscriber deleted, registration still here", &row{"node-a", false, 10}, nil, db.ErrNotFound, 10, "kept"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeStore()
+			store.subErr = tc.subErr
+
 			if tc.amf != nil {
 				store.set(amfType, tc.amf.nodeID, tc.amf.purged, tc.amf.version)
 			}
@@ -263,12 +282,14 @@ func TestReconcile(t *testing.T) {
 
 			_, b, _ := newAMFBinding(store)
 
-			released := false
+			got := "kept"
 
-			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held }, func(context.Context) { released = true })
+			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held },
+				func(context.Context) { got = "released" },
+				func(context.Context) { got = "withdrawn" })
 
-			if released != tc.want {
-				t.Fatalf("released = %v, want %v", released, tc.want)
+			if got != tc.want {
+				t.Fatalf("outcome = %s, want %s", got, tc.want)
 			}
 
 			if _, ok := store.get(amfType); tc.amf == nil && ok {
@@ -292,7 +313,7 @@ func TestReconcile_SerializesWithRegister(t *testing.T) {
 		b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) {
 			close(inRelease)
 			<-unblock
-		})
+		}, func(context.Context) {})
 		close(reconciled)
 	}()
 

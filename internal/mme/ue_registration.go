@@ -14,7 +14,7 @@ type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context))
+	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context))
 }
 
 func (m *MME) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -69,6 +69,8 @@ func (m *MME) ReconcileRegistration(ctx context.Context, imsi string) {
 
 	m.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
 		m.releaseSuperseded(ctx, ue)
+	}, func(ctx context.Context) {
+		m.withdrawSubscription(ctx, imsi)
 	})
 }
 
@@ -123,4 +125,11 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 
 	logger.From(ctx, logger.MmeLog).Info("UE registered on another node; dropping its local EPS registration and PDN connections",
 		logger.SUPI(supi.String()))
+}
+
+func (m *MME) withdrawSubscription(ctx context.Context, imsi string) {
+	logger.From(ctx, logger.MmeLog).Info("subscriber deleted; detaching UE", logger.SUPIFromIMSI(imsi))
+
+	m.DetachSubscriber(ctx, imsi)
+	m.ForgetSubscriber(imsi)
 }

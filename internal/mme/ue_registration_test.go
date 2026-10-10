@@ -17,6 +17,7 @@ type fakeRegistrar struct {
 	registered  []string
 	confirmed   map[string]bool
 	superseded  map[string]bool
+	withdrawn   map[string]bool
 	held        map[string]int64
 	purged      []string
 }
@@ -26,6 +27,7 @@ func newFakeRegistrar() *fakeRegistrar {
 		next:       100,
 		confirmed:  map[string]bool{},
 		superseded: map[string]bool{},
+		withdrawn:  map[string]bool{},
 		held:       map[string]int64{},
 	}
 }
@@ -58,13 +60,17 @@ func (f *fakeRegistrar) Purge(imsi string) {
 	f.purged = append(f.purged, imsi)
 }
 
-func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context)) {
+func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context)) {
 	f.mu.Lock()
 	f.held[imsi] = held()
 	supersede := f.superseded[imsi]
+	withdrawn := f.withdrawn[imsi]
 	f.mu.Unlock()
 
-	if supersede {
+	switch {
+	case withdrawn:
+		withdraw(ctx)
+	case supersede:
 		release(ctx)
 	}
 }
@@ -185,6 +191,30 @@ func TestReconcileRegistration_ReleasesSupersededUE(t *testing.T) {
 
 	if reg.held["001010000000001"] != 42 {
 		t.Fatalf("held version = %d, want 42", reg.held["001010000000001"])
+	}
+}
+
+func TestReconcileRegistration_DetachesWithdrawnIdleUE(t *testing.T) {
+	m, reg := newRegistrarTestMME(t)
+	withdrawn := newRegisteredTestUE(m, "001010000000001")
+	kept := newRegisteredTestUE(m, "001010000000002")
+
+	withdrawn.registrationVersion.Store(42)
+
+	reg.withdrawn["001010000000001"] = true
+
+	m.ReconcileRegistrations(context.Background())
+
+	if m.HoldsUE("001010000000001") || withdrawn.EMMState() != EMMDeregistered {
+		t.Fatal("expected the withdrawn UE to be detached and removed")
+	}
+
+	if _, ok := m.LastSeenAll()["001010000000001"]; ok {
+		t.Fatal("expected the withdrawn subscriber's last-seen entry to be forgotten")
+	}
+
+	if held, ok := m.LookupUeByIMSI("001010000000002"); !ok || held != kept || kept.EMMState() != EMMRegistered {
+		t.Fatal("expected the other UE to be kept")
 	}
 }
 
