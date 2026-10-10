@@ -141,7 +141,7 @@ func TestEPSBindModificationAimsTheDownlinkAtTheENB(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -201,7 +201,7 @@ func TestHandoverFromEPSModificationSwitchesTheDownlink(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	ref, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai)
+	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai)
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}

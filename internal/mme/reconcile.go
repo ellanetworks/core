@@ -58,6 +58,8 @@ func (m *MME) ResumeBearerReconfigurationAfterHandover(ctx context.Context, ue *
 		m.Session.CommitEPSBearerModification(ctx, ref, false)
 	}
 
+	m.interruptRadioModifications(ctx, ue)
+	m.DeactivatePendingDedicated(ctx, ue)
 	m.ReconcileUE(ctx, ue)
 }
 

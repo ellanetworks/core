@@ -12,13 +12,17 @@ const api = setupApiServer();
 
 const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
 
-const operator = (sms: Record<string, unknown>) => ({
+const operator = (
+  sms: Record<string, unknown>,
+  pcscfAddresses: string[] = [],
+) => ({
   id: { mcc: "001", mnc: "01" },
   tracking: { supportedTacs: ["000001"] },
   homeNetworkKeys: [],
   nasSecurity: { ciphering: ["AES"], integrity: ["AES"] },
   spn: { fullName: "Ella Networks", shortName: "Ella" },
   sms,
+  ims: { pcscfAddresses },
 });
 
 const peerA = {
@@ -192,6 +196,78 @@ describe("Operator SMS section", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Delete service center/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("Operator Voice section", () => {
+  it("shows the P-CSCF addresses", async () => {
+    api.get("/api/v1/operator", () =>
+      operator(ready, ["10.6.0.5", "2001:db8::5"]),
+    );
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator();
+
+    expect(
+      await (await row("P-CSCF Addresses")).findByText("10.6.0.5, 2001:db8::5"),
+    ).toBeInTheDocument();
+  });
+
+  it("updates the P-CSCF addresses", async () => {
+    const user = userEvent.setup();
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.put("/api/v1/operator/ims", () => ({}));
+    renderOperator();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit P-CSCF addresses" }),
+    );
+    await user.type(
+      await screen.findByLabelText(/^Addresses/),
+      "10.6.0.5, 2001:db8::5",
+    );
+    await user.click(screen.getByRole("button", { name: /^Update$/ }));
+
+    await screen.findByText("Voice settings updated successfully.");
+    expect(api.lastRequest("/api/v1/operator/ims")?.body).toEqual({
+      pcscfAddresses: ["10.6.0.5", "2001:db8::5"],
+    });
+  });
+
+  it("rejects malformed and duplicate P-CSCF addresses", async () => {
+    const user = userEvent.setup();
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit P-CSCF addresses" }),
+    );
+    const input = await screen.findByLabelText(/^Addresses/);
+
+    await user.type(input, "10.6.0.300");
+    await user.tab();
+    expect(
+      await screen.findByText("10.6.0.300 is not an IPv4 or IPv6 address"),
+    ).toBeInTheDocument();
+
+    await user.clear(input);
+    await user.type(input, "10.6.0.5, 10.6.0.5");
+    await user.tab();
+    expect(
+      await screen.findByText("10.6.0.5 is listed more than once"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the P-CSCF edit from a read-only user", async () => {
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({ items: [] }));
+    renderOperator("Read Only");
+
+    expect(await screen.findByText("P-CSCF Addresses")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit P-CSCF addresses" }),
     ).not.toBeInTheDocument();
   });
 });

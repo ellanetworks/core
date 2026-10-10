@@ -123,7 +123,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 				PDUSessionID: s.PDUSessionID,
 				DLTEID:       s.DLTEID,
 				N3GnbIp:      gnb.N3Address,
-				QFI:          1,
+				QFI:          s.QFI,
+				Flows:        s.Flows,
 			}
 		}
 	}
@@ -159,6 +160,8 @@ type PDUSessionInformation struct {
 	PDUSessionID int64
 	AmbrUplink   int64
 	AmbrDownlink int64
+	Flows        []uint8
+	FlowFiveQIs  map[uint8]int64
 
 	// generation orders stores of the same session so a procedure can tell the
 	// resources its own signalling established from ones already there.
@@ -181,9 +184,22 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 		return nil, fmt.Errorf("could not parse PDU Session Resource Setup Request Transfer: %w", err)
 	}
 
-	var qosID, fiveQi, priArp int64
+	var (
+		qosID, fiveQi, priArp int64
+		flows                 []uint8
+		fiveQIs               = make(map[uint8]int64)
+	)
 
 	for _, qos := range t.QosFlowSetupRequest {
+		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
+			fiveQIs[uint8(qos.QosFlowIdentifier)] = int64(qos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
+		}
+
+		if qos.QosFlowLevelQosParameters.GBRQosInformation != nil {
+			flows = append(flows, uint8(qos.QosFlowIdentifier))
+			continue
+		}
+
 		qosID = int64(qos.QosFlowIdentifier)
 
 		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
@@ -199,14 +215,16 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 	}
 
 	return &PDUSessionInformation{
-		ULTEID:     uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
-		UpfAddress: upfIP,
-		N3GnbIp:    gnb.N3Address,
-		QosId:      qosID,
-		QFI:        qosID,
-		FiveQi:     fiveQi,
-		PriArp:     priArp,
-		PduSType:   uint64(t.PDUSessionType),
+		ULTEID:      uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
+		UpfAddress:  upfIP,
+		N3GnbIp:     gnb.N3Address,
+		QosId:       qosID,
+		QFI:         qosID,
+		FiveQi:      fiveQi,
+		PriArp:      priArp,
+		PduSType:    uint64(t.PDUSessionType),
+		Flows:       flows,
+		FlowFiveQIs: fiveQIs,
 	}, nil
 }
 

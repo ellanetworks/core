@@ -36,6 +36,7 @@
 #include "bpf/utils/pdr_maps.h"
 #include "bpf/utils/qer.h"
 #include "bpf/utils/sdf.h"
+#include "bpf/utils/sdf_classifier.h"
 #include "bpf/utils/urr.h"
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/rs_event.h"
@@ -173,32 +174,59 @@ try_local_switch(struct packet_context *ctx)
 }
 
 static __always_inline enum ctx_action
+enforce_uplink_qer(struct packet_context *ctx, __u64 seid, __u32 qer_id,
+		   const struct qer_info *qer, __u64 size)
+{
+	if (qer->ul_gate_status != GATE_STATUS_OPEN)
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
+
+	/* An unlimited QER costs no lookup. */
+	if (qer->ul_maximum_bitrate == 0)
+		return CTX_ACT_OK;
+
+	struct qer_window *window = qer_window_for(seid, qer_id);
+	if (window &&
+	    CTX_ACT_DROP == limit_rate_sliding_window(
+				    size, &window->ul_start,
+				    qer->ul_maximum_bitrate,
+				    qer->averaging_window_ms))
+		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+
+	return CTX_ACT_OK;
+}
+
+static __always_inline enum ctx_action
 local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		   const struct pdr_info *ul_pdr)
 {
-	const struct far_info *dl_far = &dl_pdr->far;
-	const struct qer_info *dl_qer = &dl_pdr->qer;
+	const struct classifier_query *sel = select_downlink(ctx, dl_pdr, 0);
+	if (!sel)
+		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
 	ctx->interface = INTERFACE_N6;
 
-	if (dl_far->action & (FAR_BUFF | FAR_NOCP)) {
-		struct nocp notif = { .local_seid = dl_pdr->local_seid,
-				      .pdr_id = dl_pdr->pdr_id,
-				      .qfi = dl_qer->qfi };
+	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
+	}
+	if (sel->target.far.action & (FAR_BUFF | FAR_NOCP)) {
+		struct nocp notif = { .local_seid = sel->seid,
+				      .pdr_id = sel->target.pdr_id,
+				      .qfi = sel->target.qer.qfi };
 		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
 			       RINGBUF_NOCP);
 
-		dl_buffer_capture(ctx, dl_pdr, dl_qer,
+		dl_buffer_capture(ctx, sel->seid, sel->target.pdr_id,
+				  sel->target.qer.qfi,
 				  ctx->ip4 ? (const void *)ctx->ip4 :
 					     (const void *)ctx->ip6,
 				  ctx->ip4 ? 4 : 6);
 
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
-	if (!(dl_far->action & FAR_FORW)) {
+	if (!(sel->target.far.action & FAR_FORW)) {
 		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
-	if (!(dl_far->outer_header_creation &
+	if (!(sel->target.far.outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
 	}
@@ -206,40 +234,41 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
-	if (dl_qer->dl_gate_status != GATE_STATUS_OPEN) {
-		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
-	}
-	if (dl_qer->dl_maximum_bitrate != 0) {
+	if (sel->target.qer.dl_maximum_bitrate != 0) {
 		const __u64 packet_size =
 			ctx_len_from(ctx->ctx_buff, ctx->data_end,
 				     ctx->ip4 ? (const void *)ctx->ip4 :
 						(const void *)ctx->ip6);
 		struct qer_window *window =
-			qer_window_for(dl_pdr->local_seid, dl_pdr->qer_id);
+			qer_window_for(sel->seid, sel->target.qer_id);
 		if (window &&
-		    CTX_ACT_DROP == limit_rate_sliding_window(
-					    packet_size, &window->dl_start,
-					    dl_qer->dl_maximum_bitrate)) {
+		    CTX_ACT_DROP ==
+			    limit_rate_sliding_window(
+				    packet_size, &window->dl_start,
+				    sel->target.qer.dl_maximum_bitrate,
+				    sel->target.qer.averaging_window_ms)) {
 			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 		}
 	}
 
 	{
 		enum ctx_action sdf_verdict =
-			match_sdf_filters(ctx, dl_pdr->filter_map_index);
+			match_sdf_filters(ctx, sel->filter_map_index);
 		if (sdf_verdict == CTX_ACT_DROP) {
-			account_flow(ctx, n3_ifindex, dl_pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_DOWNLINK, DROP);
+			account_flow(ctx, n3_ifindex, sel->imsi,
+				     ctx->ip4 ? IPV4 : IPV6, FLOW_DOWNLINK,
+				     DROP);
 			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
 	{
 		__u32 mtu_len = 0;
-		int encap_size = (dl_far->outer_header_creation &
+		int encap_size = (sel->target.far.outer_header_creation &
 				  OHC_GTP_U_UDP_IPv6) ?
 					 GTP_ENCAP_SIZE_IPV6 :
 					 GTP_ENCAP_SIZE_IPV4;
-		if (dl_far->outer_header_creation & OHC_NO_PSC)
+		if (sel->target.far.outer_header_creation & OHC_NO_PSC)
 			encap_size -= GTP_PSC_EXT_SIZE;
 		long mtu_ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex,
 					     &mtu_len, encap_size, 0);
@@ -250,17 +279,18 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		}
 	}
 
-	__u8 tos = dl_far->transport_level_marking >> 8;
+	__u8 tos = sel->target.far.transport_level_marking >> 8;
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
-	account_flow(ctx, n3_ifindex, dl_pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_DOWNLINK, ALLOW);
+	account_flow(ctx, n3_ifindex, sel->imsi, ctx->ip4 ? IPV4 : IPV6,
+		     FLOW_DOWNLINK, ALLOW);
 
-	enum ctx_action tunnel_ret =
-		send_to_gtp_tunnel(ctx, dl_far, tos, dl_qer->qfi);
+	enum ctx_action tunnel_ret = send_to_gtp_tunnel(
+		ctx, &sel->target.far, tos, sel->target.qer.qfi);
 
 	if (ctx_action_forwards(tunnel_ret)) {
 		ctx->statistics->byte_counter.bytes += billed_bytes;
-		update_urr_bytes(ctx, dl_pdr->local_seid, dl_pdr->urr_id,
+		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
 				 billed_bytes);
 		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
 				 billed_bytes);
@@ -564,7 +594,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	__u8 outer_header_removal = pdr->outer_header_removal;
 
 	struct far_info *far = &pdr->far;
-	struct qer_info *qer = &pdr->qer;
+	__u32 qer_id = pdr->qer_id;
+	__u32 rule_pdr_id = 0;
 
 	if (pdr->forwarding)
 		return relay_forwarded_gtp(ctx, pdr);
@@ -616,30 +647,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_DECAP_GSO);
 	}
 
-	PROFILE_START(PROF_N3_QER_RATELIMIT);
-	upf_printk("upf: qer gate_status:%d mbr:%d", qer->ul_gate_status,
-		   qer->ul_maximum_bitrate);
-	if (qer->ul_gate_status != GATE_STATUS_OPEN) {
-		PROFILE_END(PROF_N3_QER_RATELIMIT);
-		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
-	}
-
-	/* An unlimited QER costs no lookup. */
-	if (qer->ul_maximum_bitrate != 0) {
-		const __u64 packet_size =
-			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
-		struct qer_window *window =
-			qer_window_for(pdr->local_seid, pdr->qer_id);
-
-		if (window &&
-		    CTX_ACT_DROP == limit_rate_sliding_window(
-					    packet_size, &window->ul_start,
-					    qer->ul_maximum_bitrate)) {
-			PROFILE_END(PROF_N3_QER_RATELIMIT);
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
-	PROFILE_END(PROF_N3_QER_RATELIMIT);
+	const __u64 qer_packet_size =
+		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
 
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
@@ -753,6 +762,31 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_START(PROF_N3_SDF_FILTER);
 		enum ctx_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
+		const bool classified =
+			pdr->flags & (PDR_F_SDF | PDR_F_FALLBACK);
+		if (sdf_verdict != CTX_ACT_DROP && !classified &&
+		    pdr->qfi && pdr->qfi != ctx->qfi) {
+			set_drop_reason(ctx, UPF_DROP_BEARER_BINDING);
+			sdf_verdict = CTX_ACT_DROP;
+		} else if (sdf_verdict != CTX_ACT_DROP && classified) {
+			const struct classifier_query *sel =
+				select_uplink(ctx, pdr, teid);
+			if (!sel) {
+				sdf_verdict = CTX_ACT_DROP;
+			} else if (sel->target.pdr_id) {
+				rule_pdr_id = sel->target.pdr_id;
+				qer_id = sel->target.qer_id;
+				urr_id = sel->target.urr_id;
+
+				enum ctx_action qer_verdict = enforce_uplink_qer(
+					ctx, pdr->local_seid, qer_id,
+					&sel->target.qer, qer_packet_size);
+				if (qer_verdict != CTX_ACT_OK) {
+					PROFILE_END(PROF_N3_SDF_FILTER);
+					return qer_verdict;
+				}
+			}
+		}
 		PROFILE_END(PROF_N3_SDF_FILTER);
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
@@ -761,16 +795,36 @@ handle_gtp_packet(struct packet_context *ctx)
 		}
 	}
 
-	if (local_switch && (ctx->ip4 || ctx->ip6) && !ctx->gtp) {
+	if (!rule_pdr_id) {
+		PROFILE_START(PROF_N3_QER_RATELIMIT);
+		enum ctx_action qer_verdict =
+			enforce_uplink_qer(ctx, pdr->local_seid, pdr->qer_id,
+					   &pdr->qer, qer_packet_size);
+		PROFILE_END(PROF_N3_QER_RATELIMIT);
+		if (qer_verdict != CTX_ACT_OK)
+			return qer_verdict;
+	}
+
+	if ((local_switch || (pdr->flags & PDR_F_LOCAL_SWITCH)) &&
+	    (ctx->ip4 || ctx->ip6) && !ctx->gtp) {
 		struct pdr_info *dl_pdr = try_local_switch(ctx);
+		if (dl_pdr && !local_switch &&
+		    !(dl_pdr->flags & PDR_F_LOCAL_SWITCH))
+			dl_pdr = NULL;
 		if (dl_pdr) {
 			upf_printk("upf: local switch teid:%d", teid);
 			account_flow(ctx, n3_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, ALLOW);
 			const __u32 lskey = 0;
 			struct pdr_info *ul_stash =
 				bpf_map_lookup_elem(&local_switch_ul_pdr, &lskey);
-			if (ul_stash)
+			if (ul_stash) {
 				*ul_stash = *pdr;
+				if (rule_pdr_id) {
+					ul_stash->pdr_id = rule_pdr_id;
+					ul_stash->qer_id = qer_id;
+					ul_stash->urr_id = urr_id;
+				}
+			}
 			return local_switch_tail_call(ctx);
 		}
 	}

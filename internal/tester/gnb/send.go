@@ -41,6 +41,7 @@ const (
 	NGAPProcedureUplinkNRPPaTransport              NGAPProcedure = "UplinkNRPPaTransport"
 	NGAPProcedureErrorIndication                   NGAPProcedure = "ErrorIndication"
 	NGAPProcedureUERadioCapabilityInfoIndication   NGAPProcedure = "UERadioCapabilityInfoIndication"
+	NGAPProcedurePDUSessionResourceNotify          NGAPProcedure = "PDUSessionResourceNotify"
 )
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
@@ -58,7 +59,7 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedureHandoverNotify, NGAPProcedureHandoverFailure,
 		NGAPProcedureHandoverCancel, NGAPProcedureUplinkRANStatusTransfer,
 		NGAPProcedureUplinkNRPPaTransport,
-		NGAPProcedureUERadioCapabilityInfoIndication:
+		NGAPProcedureUERadioCapabilityInfoIndication, NGAPProcedurePDUSessionResourceNotify:
 		return 1, nil
 	default:
 		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)
@@ -185,6 +186,12 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 		return fmt.Errorf("couldn't build PathSwitchRequest: %s", err.Error())
 	}
 
+	for _, session := range opts.PDUSessions {
+		if session != nil {
+			g.admitQoSFlows(opts.RANUENGAPID, session.PDUSessionID, session.Flows, nil)
+		}
+	}
+
 	err = g.SendMessage(pdu, NGAPProcedurePathSwitchRequest)
 	if err != nil {
 		return fmt.Errorf("couldn't send PathSwitchRequest: %s", err.Error())
@@ -309,6 +316,10 @@ func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledge
 		return fmt.Errorf("couldn't build HandoverRequestAcknowledge: %s", err.Error())
 	}
 
+	for _, session := range opts.PDUSessions {
+		g.admitQoSFlows(opts.RANUENGAPID, session.PDUSessionID, session.QFIs, nil)
+	}
+
 	if err := g.SendToRan(pkt, NGAPProcedureHandoverRequestAcknowledge); err != nil {
 		return fmt.Errorf("couldn't send HandoverRequestAcknowledge: %s", err.Error())
 	}
@@ -351,4 +362,33 @@ func firstNonEmpty(a, b string) string {
 	}
 
 	return b
+}
+
+func (g *GnodeB) SendQoSFlowsReleased(amfUENGAPID, ranUENGAPID, pduSessionID int64, qfis []uint8) error {
+	transfer := ngap.PDUSessionResourceNotifyTransfer{}
+
+	for _, qfi := range qfis {
+		transfer.QosFlowReleased = append(transfer.QosFlowReleased, ngap.QosFlowWithCauseItem{
+			QosFlowIdentifier: ngap.QosFlowIdentifier(qfi),
+			Cause:             ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		})
+	}
+
+	raw, err := transfer.Marshal()
+	if err != nil {
+		return fmt.Errorf("build PDU Session Resource Notify Transfer: %w", err)
+	}
+
+	pdu, err := (&ngap.PDUSessionResourceNotify{
+		AMFUENGAPID:              ngap.AMFUENGAPID(amfUENGAPID),
+		RANUENGAPID:              ngap.RANUENGAPID(ranUENGAPID),
+		PDUSessionResourceNotify: ngap.PDUSessionResourceNotifyList{{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: raw}},
+	}).Marshal()
+	if err != nil {
+		return fmt.Errorf("build PDU Session Resource Notify: %w", err)
+	}
+
+	g.admitQoSFlows(ranUENGAPID, pduSessionID, nil, qfis)
+
+	return g.SendMessage(pdu, NGAPProcedurePDUSessionResourceNotify)
 }

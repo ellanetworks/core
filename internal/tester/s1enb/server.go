@@ -445,6 +445,10 @@ func (e *ENB) AllocateENBUEID() int64 {
 // messages (S1 Setup, Reset). Filtering by enbUEID lets concurrent per-UE flows
 // share one association without consuming each other's frames.
 func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCode, timeout time.Duration) (Frame, error) {
+	return e.WaitForAnyMessage(enbUEID, cat, []s1ap.ProcedureCode{code}, timeout)
+}
+
+func (e *ENB) WaitForAnyMessage(enbUEID int64, cat Category, codes []s1ap.ProcedureCode, timeout time.Duration) (Frame, error) {
 	deadline := time.Now().Add(timeout)
 
 	timer := time.AfterFunc(timeout, func() { e.cond.Broadcast() })
@@ -454,23 +458,8 @@ func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCod
 	defer e.mu.Unlock()
 
 	for {
-		if byCode, ok := e.receivedFrames[cat]; ok {
-			frames := byCode[code]
-
-			for i, f := range frames {
-				if f.ENBUES1APID != enbUEID {
-					continue
-				}
-
-				rest := append(frames[:i:i], frames[i+1:]...)
-				if len(rest) == 0 {
-					delete(byCode, code)
-				} else {
-					byCode[code] = rest
-				}
-
-				return f, nil
-			}
+		if f, ok := e.takeFrameLocked(enbUEID, cat, codes); ok {
+			return f, nil
 		}
 
 		if e.closed {
@@ -478,11 +467,39 @@ func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCod
 		}
 
 		if time.Now().After(deadline) {
-			return Frame{}, fmt.Errorf("s1enb: timeout waiting for %s", messageName(cat, code))
+			return Frame{}, fmt.Errorf("s1enb: timeout waiting for %s", messageName(cat, codes[0]))
 		}
 
 		e.cond.Wait()
 	}
+}
+
+func (e *ENB) takeFrameLocked(enbUEID int64, cat Category, codes []s1ap.ProcedureCode) (Frame, bool) {
+	byCode, ok := e.receivedFrames[cat]
+	if !ok {
+		return Frame{}, false
+	}
+
+	for _, code := range codes {
+		frames := byCode[code]
+
+		for i, f := range frames {
+			if f.ENBUES1APID != enbUEID {
+				continue
+			}
+
+			rest := append(frames[:i:i], frames[i+1:]...)
+			if len(rest) == 0 {
+				delete(byCode, code)
+			} else {
+				byCode[code] = rest
+			}
+
+			return f, true
+		}
+	}
+
+	return Frame{}, false
 }
 
 // SendMessage writes a marshalled S1AP PDU to the active MME peer. ueAssociated

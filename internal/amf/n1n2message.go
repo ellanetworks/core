@@ -31,6 +31,8 @@ import (
 // delivery is deferred until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
+var ErrHandoverInProgress = errors.New("temporary reject: PDU session modification during handover")
+
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
 
 var errUEConnected = errors.New("the UE re-established its NAS signalling connection before it was paged")
@@ -250,7 +252,24 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	// handover's own resource signalling on the source gNB (TS 38.413 §8.4).
 	// Defer it; the reconcile backstop re-applies it once the handover completes.
 	if conn := ue.Conn(); conn != nil && ue.Procedures().Active(procedure.N2Handover) {
-		return fmt.Errorf("temporary reject: PDU session modification during handover")
+		return ErrHandoverInProgress
+	}
+
+	if n2Msg != nil && !ueConn.RANHoldsUEContext() {
+		return ErrUENotReachable
+	}
+
+	if n1Msg == nil {
+		list := ngap.PDUSessionResourceModifyListModReq{{
+			PDUSessionID: ngap.PDUSessionID(pduSessionID),
+			Transfer:     ngap.TransferContainer(n2Msg),
+		}}
+
+		if err := ueConn.SendPDUSessionResourceModifyRequest(ctx, list); err != nil {
+			return fmt.Errorf("send pdu session resource modify request error: %v", err)
+		}
+
+		return nil
 	}
 
 	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
@@ -259,7 +278,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	}
 
 	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-		if n2Msg == nil || !ueConn.RANHoldsUEContext() {
+		if n2Msg == nil {
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("send downlink NAS transport: %w", err)
 			}

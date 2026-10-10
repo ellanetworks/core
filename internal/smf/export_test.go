@@ -4,6 +4,7 @@
 package smf
 
 import (
+	"context"
 	"time"
 )
 
@@ -39,5 +40,33 @@ func (smContext *SMContext) ForwardingTEIDForTest() uint32 {
 		return 0
 	}
 
-	return smContext.Tunnel.ForwardingTEID
+	return smContext.Tunnel.forwardingTEID()
 }
+
+func (s *SMF) AssociateForTest(ctx context.Context, sc *SMContext) error {
+	d, err := s.createAssociation(ctx, sc, PolicyContext{Supi: sc.Supi, PDUSessionID: sc.PDUSessionID, Dnn: sc.Dnn, Snssai: *sc.Snssai, Access: sc.Access})
+	if err != nil {
+		return err
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	sc.policyDecision = d
+	sc.subscribedQoS = SubscribedQoS{Var5qi: d.Var5qi, Arp: d.Arp, SessionAMBR: d.SessionAMBR}
+
+	return nil
+}
+
+func PolicyRevisionForTest(sc *SMContext) uint64 {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.policyDecision == nil {
+		return 0
+	}
+
+	return sc.policyDecision.Revision
+}
+
+func (s *SMF) SetDedicatedAwaitLimitForTest(d time.Duration) { s.dedicatedAwaitLimit = d }

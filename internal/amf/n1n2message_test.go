@@ -102,6 +102,7 @@ func (f *fakeDBInstance) AMFPointer() int { return 1 }
 type fakeSmf struct {
 	mu              sync.Mutex
 	DeactivateCalls []string
+	PreservedGBR    map[string]bool
 }
 
 func (f *fakeSmf) deactivated() []string {
@@ -118,11 +119,17 @@ func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *mo
 	return "", nil, nil
 }
 func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error) { return nil, nil }
-func (f *fakeSmf) DeactivateSmContext(_ context.Context, ref string) error {
+func (f *fakeSmf) DeactivateSmContext(_ context.Context, ref string, preserveGBR bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.DeactivateCalls = append(f.DeactivateCalls, ref)
+
+	if f.PreservedGBR == nil {
+		f.PreservedGBR = make(map[string]bool)
+	}
+
+	f.PreservedGBR[ref] = preserveGBR
 
 	return nil
 }
@@ -153,13 +160,17 @@ func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, str
 	return nil, nil
 }
 
-func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
-	return "", nil
-}
-
-func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, error) {
+func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
 	return "", nil, nil
 }
+
+func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, []uint8, error) {
+	return "", nil, nil, nil
+}
+
+func (f *fakeSmf) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
+
+func (f *fakeSmf) ReleaseInactiveEPSBearers(context.Context, string, []uint8) {}
 
 func (f *fakeSmf) UpdateSmContextN2HandoverPreparing(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
@@ -1215,5 +1226,51 @@ func TestN2MessageTransferOrPage_ReplacedSessionReachesTheRAN(t *testing.T) {
 
 	if sender.pduSessionSetupCalls != 2 {
 		t.Errorf("PDUSessionResourceSetupRequest count = %d, want 2: the replacement session never reached the NG-RAN node", sender.pduSessionSetupCalls)
+	}
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
+}
+
+func TestReleasingAConnectionKeepsTheGBRFlowsOfSessionsIdleOnIt(t *testing.T) {
+	smf := &fakeSmf{}
+	amfInstance := amf.New(nil, nil, smf)
+	ue := addUE(t, amfInstance, "001010000000025", nil)
+	ue.ForceStateForTest(amf.Registered)
+
+	for id, ref := range map[uint8]string{1: "ref-active", 2: "ref-idle"} {
+		if err := ue.CreateSmContext(id, ref, &models.Snssai{Sst: 1}, "internet"); err != nil {
+			t.Fatalf("CreateSmContext: %v", err)
+		}
+	}
+
+	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
+	radio.BindAMFForTest(amfInstance)
+
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
+	ueConn.SetN2SessionActive(1)
+	ueConn.SetReleaseAction(amf.UeContextN2NormalRelease)
+
+	amfInstance.ReleaseUeConnServedBy(t.Context(), ueConn, nil)
+
+	smf.mu.Lock()
+	defer smf.mu.Unlock()
+
+	if smf.PreservedGBR["ref-active"] {
+		t.Error("the session active on the released connection kept its GBR flows")
+	}
+
+	if preserved, ok := smf.PreservedGBR["ref-idle"]; ok && !preserved {
+		t.Error("the release dropped the GBR flows of a session with no AN resources on the connection (TS 23.502 §4.2.6 step 5)")
 	}
 }

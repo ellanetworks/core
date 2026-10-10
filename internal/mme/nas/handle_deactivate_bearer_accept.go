@@ -18,6 +18,11 @@ func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 
 	if p == nil {
+		if m.ReleaseDedicated(ctx, ue, uint8(accept.EPSBearerIdentity)) {
+			logger.From(ctx, logger.MmeLog).Info("dedicated EPS bearer deactivated", logger.ERABID(uint8(accept.EPSBearerIdentity)))
+			return nasreply.Handled()
+		}
+
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 

@@ -279,11 +279,16 @@ func TestAdoptArrivingSessionsMovesThemAndAcksTheMME(t *testing.T) {
 
 	resp := arrivingMMContext(ue.Supi())
 	ue.Conn().EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
+	smf.IdleTransferFlowEBIs = map[uint8][]uint8{3: {7}}
 
 	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
 
 	if len(smf.IdleTransfers) != 1 {
 		t.Fatalf("idle transfers = %d, want 1", len(smf.IdleTransfers))
+	}
+
+	if got := ue.FlowEPSBearerIdentities()[3]; len(got) != 1 || got[0] != 7 {
+		t.Errorf("flow EPS bearer identities = %v, want the voice bearer's 7 (TS 23.502 §4.11.1.4.2)", got)
 	}
 
 	if got := smf.IdleTransfers[0]; got.PDUSessionID != 3 || got.EPSBearerIdentity != 6 || got.Dnn != "internet" {

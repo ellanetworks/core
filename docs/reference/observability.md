@@ -29,6 +29,10 @@ These metrics are used to monitor the health of the system and the performance o
 | app_sessions | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
 | app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` and `result`. | Counter |
 | app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
+| app_connected_service_centers | Number of SMS service centers (SMSCs) connected to this node. | Gauge |
+| app_connected_ims_nodes | Number of IMS nodes connected to this node, which use it as their HSS or PCRF. | Gauge |
+| app_ims_registered_subscribers | Number of subscribers currently registered in IMS, across the cluster. | Gauge |
+| app_ims_registration_attempts_total | IMS registrations and re-registrations as the HSS sees them, labeled by `result` (`accept`, `auth_failure`, `reject`). | Counter |
 | app_ip_addresses_allocated | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses | The total number of IP addresses available for subscribers. | Gauge |
 | app_upf_datapath_forward_total | Packets the data plane forwarded, labeled by `direction` and `action`. | Counter |

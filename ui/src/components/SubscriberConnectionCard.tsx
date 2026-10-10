@@ -8,12 +8,15 @@ import { Link as RouterLink } from "react-router-dom";
 import AccessChip from "@/components/AccessChip";
 import type {
   ConnectionState,
+  IMSSubscription,
+  IMSUserState,
   SubscriberDetailStatus,
 } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
+  ims?: IMSSubscription;
 }
 
 const InfoRow: React.FC<{
@@ -134,6 +137,29 @@ const ConnectionChip: React.FC<{ state?: ConnectionState }> = ({ state }) => {
   );
 };
 
+const imsUserStates: Record<
+  IMSUserState,
+  { label: string; color: "success" | "default" }
+> = {
+  registered: { label: "Registered", color: "success" },
+  registered_unreg_services: {
+    label: "Unregistered (S-CSCF assigned)",
+    color: "default",
+  },
+  authentication_pending: { label: "Authenticating", color: "default" },
+  not_registered: { label: "Not registered", color: "default" },
+};
+
+const IMSStateChip: React.FC<{ ims: IMSSubscription }> = ({ ims }) => {
+  const state = ims.public_identities[0]?.user_state ?? "not_registered";
+  const { label, color } = imsUserStates[state] ?? {
+    label: state,
+    color: "default",
+  };
+
+  return <Chip label={label} color={color} size="small" variant="filled" />;
+};
+
 const SystemChips: React.FC<{ systems: string[] }> = ({ systems }) => (
   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
     {systems.map((system) => (
@@ -160,6 +186,7 @@ const SecurityAlgorithmsValue: React.FC<{
 
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
+  ims,
 }) => {
   const systems = status.systems ?? [];
 
@@ -180,6 +207,12 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="Connection"
           value={<ConnectionChip state={status.connection_state} />}
         />
+        {ims && (
+          <InfoRow
+            label="IMS Registration"
+            value={<IMSStateChip ims={ims} />}
+          />
+        )}
         {systems.length > 0 && (
           <InfoRow
             label={systems.length > 1 ? "Systems" : "System"}

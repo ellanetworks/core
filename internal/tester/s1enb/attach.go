@@ -41,6 +41,8 @@ type AttachResult struct {
 	UEIPv6              string // UE IPv6 link-local derived from the Attach Accept PDN IID
 	UpfAddress          string // S-GW/UPF S1-U address (uplink target)
 	BearerStatus        *nas.EPSBearerContextStatus
+	PCSCF               []netip.Addr
+	IMSVoPS             bool
 	ULTEID              uint32 // S-GW/UPF uplink TEID
 	DLTEID              uint32 // eNB downlink TEID reported to the MME
 }
@@ -211,12 +213,19 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		UpfAddress:        upf.Unmap().String(),
 		ULTEID:            uint32(erab.GTPTEID),
 		DLTEID:            dlTEID,
+		IMSVoPS:           accept.NetworkFeatureSupport != nil && accept.NetworkFeatureSupport.IMSVoPS,
 	}
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
 		res.QCI = act.EPSQoS.QCI
 
 		res.APN = string(act.AccessPointName)
+
+		for _, pco := range []*nas.ProtocolConfigurationOptions{act.ProtocolConfigurationOptions, act.ExtendedProtocolConfigurationOptions} {
+			if pco != nil {
+				res.PCSCF = append(res.PCSCF, pco.PCSCFAddresses()...)
+			}
+		}
 
 		if act.APNAMBR != nil {
 			dlKbps, ulKbps, _ := act.APNAMBR.Kbps()

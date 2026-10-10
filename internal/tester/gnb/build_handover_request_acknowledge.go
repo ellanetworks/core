@@ -37,6 +37,8 @@ type HandoverAdmittedPDUSession struct {
 	// Non-zero when the target accepts downlink data forwarding and offers this
 	// tunnel for it (TS 38.413 §9.3.4.11).
 	ForwardingTEID uint32
+
+	QFIs []uint8
 }
 
 func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]byte, error) {
@@ -47,7 +49,7 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 	admitted := make(ngap.PDUSessionResourceAdmittedList, 0, len(opts.PDUSessions))
 
 	for _, ps := range opts.PDUSessions {
-		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTEID, ps.DLIP, ps.ForwardingTEID)
+		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTEID, ps.DLIP, ps.ForwardingTEID, ps.QFIs)
 		if err != nil {
 			return nil, fmt.Errorf("build transfer for session %d: %w", ps.PDUSessionID, err)
 		}
@@ -88,7 +90,7 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 	return msg.Marshal()
 }
 
-func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr, forwardingTEID uint32) (ngap.TransferContainer, error) {
+func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr, forwardingTEID uint32, qfis []uint8) (ngap.TransferContainer, error) {
 	addr, err := transportLayerAddress(ip)
 	if err != nil {
 		return nil, err
@@ -109,6 +111,10 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr, forward
 			GTPTEID:               ngap.GTPTEID(forwardingTEID),
 		}}
 		transfer.QosFlowSetupResponse[0].DataForwardingAccepted = ngap.Ptr(ngap.DataForwardingAcceptedTrue)
+	}
+
+	for _, qfi := range qfis {
+		transfer.QosFlowSetupResponse = append(transfer.QosFlowSetupResponse, ngap.QosFlowItemWithDataForwarding{QosFlowIdentifier: ngap.QosFlowIdentifier(qfi)})
 	}
 
 	return transfer.Marshal()

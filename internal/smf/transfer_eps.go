@@ -17,18 +17,25 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSBearerRequest, policy *Policy) (models.EPSBearer, error) {
+func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSBearerRequest) (models.EPSBearer, error) {
 	move := transferRequest{
 		Access: Access4G,
 		EBI:    req.EPSBearerIdentity,
 		Dnn:    req.APN,
 		Snssai: req.Snssai,
-		Policy: policy,
 	}
 
 	sc, err := s.findTransferable(supi, req.PDUSessionID, move)
 	if err != nil {
 		return models.EPSBearer{}, err
+	}
+
+	if err := s.checkSubscribed(ctx, supi, sc.Snssai, req.APN); err != nil {
+		if permanentPolicyFailure(err) {
+			return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w: %w", req.APN, models.ErrUnknownAPN, err)
+		}
+
+		return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w", req.APN, err)
 	}
 
 	if held := s.currentEPSSession(supi, req.EPSBearerIdentity); held != nil && held != sc {
@@ -40,12 +47,13 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 	}
 
 	sc.Mutex.Lock()
-	retained := transferPolicy(sc.PolicyData, policy)
+	retained := sc.PolicyData
+	s.prepareFlowsLocked(ctx, sc, Access4G)
 	sc.Mutex.Unlock()
 
 	bearer, err := epsBearerForSession(sc, retained, req.EPSBearerIdentity)
 	if err != nil {
-		sc.abandonTransferTo(Access4G)
+		s.abandonTransfer(ctx, sc, Access4G)
 
 		return models.EPSBearer{}, err
 	}
@@ -80,6 +88,7 @@ func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBe
 		IPv6IID:      sc.IPv6IID,
 		QoS:          epsBearerQoS(policy),
 		MTU:          policy.MTU,
+		Dedicated:    sc.epsDedicatedLocked(),
 	}
 
 	if sc.PDUIPV4Address != nil {
@@ -97,6 +106,8 @@ func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBe
 	if addr, ok := netip.AddrFromSlice(policy.DNS); ok {
 		bearer.DNS = addr.Unmap()
 	}
+
+	bearer.PCSCF = policy.PCSCF
 
 	if sc.PDUSessionID != 0 && sc.Snssai != nil {
 		mapped, err := smfNas.MappedFiveGSQoS(ebi, &policy.QosData, &policy.Ambr)

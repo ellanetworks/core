@@ -3,6 +3,8 @@
 
 package diameter
 
+import "fmt"
+
 const PPID uint32 = 46
 
 const RelayApplicationID uint32 = 0xffffffff
@@ -127,3 +129,17 @@ const (
 	DisconnectCauseBusy                 uint32 = 1
 	DisconnectCauseDoNotWantToTalkToYou uint32 = 2
 )
+
+var disconnectCauseNames = map[uint32]string{
+	DisconnectCauseRebooting:            "REBOOTING",
+	DisconnectCauseBusy:                 "BUSY",
+	DisconnectCauseDoNotWantToTalkToYou: "DO_NOT_WANT_TO_TALK_TO_YOU",
+}
+
+func DisconnectCauseName(cause uint32) string {
+	if name, ok := disconnectCauseNames[cause]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("disconnect cause %d", cause)
+}

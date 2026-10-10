@@ -6,6 +6,7 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -38,7 +39,7 @@ func TestReleaseWithoutAUserPlaneCarriesNoN2(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -61,7 +62,7 @@ func TestReconcileWaitsForUserPlaneActivation(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,7 +83,7 @@ func TestIdleARPChangeIsCommittedWithoutSignalling(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -108,20 +109,27 @@ func TestIdleARPChangeIsCommittedWithoutSignalling(t *testing.T) {
 	}
 }
 
-func TestReconcileRebindsTheSessionToANewPolicy(t *testing.T) {
+func TestPolicyUpdateRebindsTheSessionToANewPolicy(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
 	policy := currentPolicy(s, ref)
-	policy.PolicyID = "replacement"
 
 	pcf.mu.Lock()
 	pcf.policy = policy
 	pcf.mu.Unlock()
 
-	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+	decision := &smf.PolicyDecision{
+		Revision:    1 << 32,
+		PolicyID:    "replacement",
+		Var5qi:      policy.QosData.Var5qi,
+		Arp:         policy.QosData.Arp.PriorityLevel,
+		SessionAMBR: policy.Ambr,
+	}
+
+	if err := s.UpdateNotify(context.Background(), ref, decision); err != nil {
 		t.Fatal(err)
 	}
 
@@ -184,5 +192,110 @@ func TestFailedUPFCommitIsRetried(t *testing.T) {
 
 	if after != before+1 {
 		t.Fatalf("UPF modifies after the retry = %d, want %d", after, before+1)
+	}
+}
+
+func TestPolicyUpdateIgnoresAStaleDecision(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	policy := currentPolicy(s, ref)
+
+	pcf.mu.Lock()
+	pcf.policy = policy
+	pcf.mu.Unlock()
+
+	if err := s.UpdateNotify(context.Background(), ref, &smf.PolicyDecision{Revision: 0, PolicyID: "stale"}); err != nil {
+		t.Fatal(err)
+	}
+
+	upf.mu.Lock()
+	calls := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	if calls != 0 || currentPolicy(s, ref).PolicyID == "stale" {
+		t.Fatalf("a stale decision was applied: %d UPF modifies, policy %q", calls, currentPolicy(s, ref).PolicyID)
+	}
+}
+
+func TestReconcileReportsOnlyAChangedSubscription(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	policy := currentPolicy(s, ref)
+
+	pcf.mu.Lock()
+	pcf.policy = policy
+	pcf.mu.Unlock()
+
+	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+		t.Fatal(err)
+	}
+
+	pcf.mu.Lock()
+	updates := pcf.updates
+	pcf.mu.Unlock()
+
+	if updates != 0 {
+		t.Fatalf("an unchanged subscription was reported to the PCF %d times", updates)
+	}
+
+	if err := reconcileWithPolicy(context.Background(), s, pcf, ref, &policyChange{Var5qi: 8, Arp: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	pcf.mu.Lock()
+	updates = pcf.updates
+	pcf.mu.Unlock()
+
+	if updates != 1 {
+		t.Fatalf("a changed subscribed 5QI was reported %d times, want once", updates)
+	}
+}
+
+func TestConcurrentPolicyUpdatesKeepTheNewestDecision(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	policy := currentPolicy(s, ref)
+
+	pcf.mu.Lock()
+	pcf.policy = policy
+	pcf.mu.Unlock()
+
+	var wg sync.WaitGroup
+
+	for i := uint64(1); i <= 20; i++ {
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+
+			_ = s.ReconcileSession(context.Background(), ref)
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			_ = s.UpdateNotify(context.Background(), ref, &smf.PolicyDecision{
+				Revision:    1<<32 + i,
+				PolicyID:    policy.PolicyID,
+				Var5qi:      policy.QosData.Var5qi,
+				Arp:         policy.QosData.Arp.PriorityLevel,
+				SessionAMBR: policy.Ambr,
+			})
+		}()
+	}
+
+	wg.Wait()
+
+	if got := smf.PolicyRevisionForTest(smCtx); got != 1<<32+20 {
+		t.Fatalf("session holds decision revision %d, want the newest %d", got, uint64(1<<32+20))
 	}
 }

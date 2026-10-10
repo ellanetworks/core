@@ -161,7 +161,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 	return bearer, nil
 }
 
-func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi uint8, enb models.FTEID) error {
+func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi uint8, enb models.FTEID, _ []models.DedicatedBearerEndpoint) error {
 	if err, ok := f.modifyErr[ebi]; ok {
 		return err
 	}
@@ -197,6 +197,20 @@ func (f *fakeSessionManager) ReconcileSession(context.Context, string) error {
 	return nil
 }
 
+func (f *fakeSessionManager) DedicatedBearerMoved(context.Context, string, uint32, models.FTEID) error {
+	return nil
+}
+
+func (f *fakeSessionManager) DedicatedBearerActivated(context.Context, string, uint32, uint8, models.FTEID) error {
+	return nil
+}
+
+func (f *fakeSessionManager) DedicatedBearerReleased(context.Context, string, uint32) {}
+
+func (f *fakeSessionManager) DedicatedBearerModified(context.Context, string, uint32, bool) {}
+
+func (f *fakeSessionManager) DedicatedBearerWithoutFiveGSQoS(context.Context, string, uint32) {}
+
 func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref string, accepted bool) {
 	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})
 }
@@ -211,15 +225,26 @@ func (fakeBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile
 	return &db.Profile{ID: id, UeAmbrDownlink: "1 Gbps", UeAmbrUplink: "1 Gbps", Allow4G: true, Allow5G: true}, nil
 }
 
-func (fakeBearerStore) GetDefaultPolicyByProfile(_ context.Context, _ string) (*db.Policy, error) {
-	return &db.Policy{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"}, nil
-}
-
 func (fakeBearerStore) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
 		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn-ims"},
 	}, nil
+}
+
+func (f fakeBearerStore) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]db.NetworkSlice, error) {
+	out := make([]db.NetworkSlice, 0, len(ids))
+
+	for _, id := range ids {
+		slice, err := f.GetNetworkSliceByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, *slice)
+	}
+
+	return out, nil
 }
 
 func (fakeBearerStore) GetDataNetworkByID(_ context.Context, id string) (*db.DataNetwork, error) {
@@ -353,13 +378,13 @@ type hookSessionManager struct {
 	fired    bool
 }
 
-func (h *hookSessionManager) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
+func (h *hookSessionManager) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error {
 	if !h.fired && h.onModify != nil {
 		h.fired = true
 		h.onModify()
 	}
 
-	return h.fakeSessionManager.ModifyEPSSession(ctx, imsi, ebi, enb)
+	return h.fakeSessionManager.ModifyEPSSession(ctx, imsi, ebi, enb, dedicated)
 }
 
 func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
@@ -385,7 +410,7 @@ func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAut
 	}, nil
 }
 
-func (f *fakeSessionManager) OpenEPSForwardingTunnel(_ context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error) {
+func (f *fakeSessionManager) OpenEPSForwardingTunnel(_ context.Context, ref string, _ uint8, target models.FTEID) (models.ForwardingTunnel, error) {
 	if f.forwardingErr != nil {
 		return models.ForwardingTunnel{}, f.forwardingErr
 	}
@@ -399,4 +424,12 @@ func (f *fakeSessionManager) CloseEPSForwardingTunnel(_ context.Context, ref str
 	f.forwardingClosed = append(f.forwardingClosed, ref)
 
 	return nil
+}
+
+func requirePDNDisconnected(t *testing.T, m *mme.MME, ue *mme.UeContext, ebi uint8) {
+	t.Helper()
+
+	if p := m.LookupPDN(ue, ebi); p != nil && !ue.BearerDeactivating(p) {
+		t.Fatalf("PDN connection %d is neither released nor being disconnected (TS 23.401 §5.10.3)", ebi)
+	}
 }

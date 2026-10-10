@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	hraft "github.com/hashicorp/raft"
 	"github.com/mattn/go-sqlite3"
 )
 
@@ -32,6 +33,11 @@ var (
 	ErrUnknownOperation         = errors.New("unknown forwarded operation")
 	ErrRetiredOperation         = errors.New("forwarded operation is retired")
 )
+
+func IsUnavailable(err error) bool {
+	return errors.Is(err, ErrProposeTimeout) || errors.Is(err, ErrOutcomeUnknown) || errors.Is(err, ErrMigrationPending) ||
+		errors.Is(err, hraft.ErrNotLeader) || errors.Is(err, hraft.ErrLeadershipLost)
+}
 
 func isUniqueNameError(err error) bool {
 	var se sqlite3.Error

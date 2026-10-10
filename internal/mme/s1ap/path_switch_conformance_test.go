@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
@@ -142,11 +143,7 @@ func TestPathSwitchImplicitlyReleasesOmittedERABs(t *testing.T) {
 		t.Errorf("omitted E-RAB 6 was not released at the anchor; released refs = %v", fsm.releasedRefs)
 	}
 
-	for _, p := range m.SnapshotPDNs(ue) {
-		if p.Ebi == 6 {
-			t.Errorf("omitted E-RAB 6 is still in the UE context with eNB F-TEID %+v", p.EnbFTEID)
-		}
-	}
+	requirePDNDisconnected(t, m, ue, 6)
 }
 
 func TestPathSwitchOmittedDefaultBearerReleasesPDNConnection(t *testing.T) {
@@ -207,9 +204,7 @@ func TestPathSwitchPartialUPFailureReportsReleasedERAB(t *testing.T) {
 	target := &captureConn{}
 	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
-	if target.count() != 1 {
-		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
-	}
+	requireAckThenDisconnection(t, target, 6)
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
@@ -268,9 +263,7 @@ func TestPathSwitchAckCarriesUEAMBR(t *testing.T) {
 	target := &captureConn{}
 	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
-	if target.count() != 1 {
-		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
-	}
+	requireAckThenDisconnection(t, target, 6)
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 	if ack.UEAggregateMaximumBitRate == nil {
@@ -478,5 +471,28 @@ func TestPathSwitchTotalFailureDetachesUE(t *testing.T) {
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil {
 		t.Error("Path Switch Request Failure carries no Cause")
+	}
+}
+
+func requireAckThenDisconnection(t *testing.T, target *captureConn, ebi uint8) {
+	t.Helper()
+
+	if target.count() != 2 {
+		t.Fatalf("sent %d messages, want the Path Switch Request Acknowledge then the PDN disconnection", target.count())
+	}
+
+	pdu, err := s1ap.Unmarshal(target.sent[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := pdu.(*s1ap.InitiatingMessage)
+	if !ok || im.ProcedureCode != s1ap.ProcERABRelease {
+		t.Fatalf("second message %T, want an E-RAB Release Command carrying the deactivation (TS 23.401 §5.10.3)", pdu)
+	}
+
+	cmd, err := s1ap.ParseERABReleaseCommand(im.Value)
+	if err != nil || len(cmd.NASPDU) == 0 || !slices.ContainsFunc(cmd.ERABToBeReleased, func(i s1ap.ERABItem) bool { return uint8(i.ERABID) == ebi }) {
+		t.Fatalf("E-RAB Release Command %+v (%v), want E-RAB %d with the NAS deactivation", cmd, err, ebi)
 	}
 }

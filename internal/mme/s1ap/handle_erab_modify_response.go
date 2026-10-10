@@ -47,4 +47,8 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 	for _, item := range resp.ERABFailedToModify {
 		m.RadioBearerModified(ctx, ue, uint8(item.ERABID), false)
 	}
+
+	if len(resp.ERABModify) == 0 && len(resp.ERABFailedToModify) == 0 {
+		m.RadioBearerModifiedUnlisted(ctx, ue)
+	}
 }

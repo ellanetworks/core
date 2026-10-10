@@ -85,6 +85,8 @@ var pinnedChangesetOps = map[string]int{
 	"RemoveSMSWaitingCentre":           22,
 	"DeleteSMSWaiting":                 22,
 	"DeleteStaleSMSWaiting":            22,
+	"ReplacePCSCFAddresses":            23,
+	"CompareAndSwapIMSRegistration":    23,
 	"UpdateStaticLeaseAddress":         13,
 	"UpdateSubscriberProfile":          22,
 	"UpdateUser":                       1,

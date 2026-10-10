@@ -135,7 +135,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	s.supersedeIdentityHolders(ctx, supi, SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity}, Access5G)
 
-	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
+	inputs, err := s.prepareSession(ctx, supi, snssai, dnn)
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
@@ -146,6 +146,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 		return "", rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
 	}
+
+	policy := inputs.policy
 
 	requestedType := fgs.PDUSessionTypeIPv4
 	if req.PDUSessionType != nil {
@@ -177,13 +179,17 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	}
 
 	sc, err := s.establishSession(ctx, SessionRequest{
-		Supi:     supi,
-		Identity: SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity},
-		Dnn:      dnn,
-		Snssai:   snssai,
-		Access:   Access5G,
-		PDUType:  negotiatedType,
-		Policy:   policy,
+		Supi:       supi,
+		Identity:   SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity},
+		Dnn:        dnn,
+		Snssai:     snssai,
+		Access:     Access5G,
+		PDUType:    negotiatedType,
+		Policy:     policy,
+		DN:         inputs.dn,
+		Subscribed: inputs.subscribed,
+
+		MaxPacketFilters: requestedMaxPacketFilters(req),
 	})
 	if err != nil {
 		establishmentResult = metrics.ResultReject
@@ -291,6 +297,7 @@ func parsePDUSessionRequest(req *fgs.PDUSessionEstablishmentRequest) (*smfNas.Pr
 	if req.ExtendedPCO != nil {
 		pco.IPv4LinkMTURequest = true
 		pco.ProtocolRequests = req.ExtendedPCO.ProtocolOptions()
+		pco.PCSCFRequest = req.ExtendedPCO.PCSCFRequest()
 
 		for _, id := range req.ExtendedPCO.ContainerIDs() {
 			switch id {
@@ -343,7 +350,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	smContext.establishmentOutstanding = true
 	smContext.Mutex.Unlock()
 
-	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn, epsBearerIdentity)
+	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.PCSCF, policy.MTU, cause, addrs, alwaysOn, epsBearerIdentity)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")
@@ -353,7 +360,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 
 	ngapPDUType := nasToNgapPDUSessionType(smContext.PDUSessionType)
 
-	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, ngapPDUType)
+	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, ngapPDUType, smContext.EBI, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
@@ -372,4 +379,12 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	logger.From(ctx, logger.SmfLog).Debug("Sent n1 n2 transfer request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
+}
+
+func requestedMaxPacketFilters(req *fgs.PDUSessionEstablishmentRequest) uint16 {
+	if req.MaxPacketFilters == nil || *req.MaxPacketFilters < minSignalledMaxPacketFilters {
+		return defaultMaxPacketFilters
+	}
+
+	return *req.MaxPacketFilters
 }

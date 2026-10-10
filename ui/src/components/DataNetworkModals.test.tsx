@@ -123,6 +123,36 @@ describe("CreateDataNetworkModal", () => {
     );
   });
 
+  it("creates the voice data network under the ims name", async () => {
+    const user = userEvent.setup();
+    api.post(PATH, () => ({}));
+    const { onSuccess } = renderCreate();
+
+    await user.type(field(/Name/), "internet");
+    await user.click(screen.getByRole("switch", { name: "Voice (IMS)" }));
+
+    expect(field(/Name/)).toHaveValue("ims");
+    expect(field(/Name/)).toBeDisabled();
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(api.lastRequest(PATH)?.body).toMatchObject({ name: "ims" });
+  });
+
+  it("clears and enables the name when voice is switched off", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+
+    const voice = screen.getByRole("switch", { name: "Voice (IMS)" });
+    await user.click(voice);
+    await user.click(voice);
+
+    expect(field(/Name/)).toHaveValue("");
+    expect(field(/Name/)).toBeEnabled();
+  });
+
   it("keeps the dialog open when the API rejects the create", async () => {
     const user = userEvent.setup();
     api.post(PATH, () => httpError(409, "data network already exists"));

@@ -281,7 +281,7 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 		EPSUpdateResult:       eps.EPSUpdateResultTA,
 		GUTI:                  &guti,
 		TAIList:               &taiList,
-		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap()),
+		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap(), m.DecideIMSVoPS(ctx, ue)),
 	}
 
 	switch {
@@ -302,6 +302,14 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 }
 
 func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueStatus nas.EPSBearerContextStatus) {
+	for _, d := range m.SnapshotDedicated(ue) {
+		if d.Activating || (d.Ebi < uint8(len(ueStatus.Active)) && ueStatus.Active[d.Ebi]) {
+			continue
+		}
+
+		m.FailDedicatedBearer(ctx, ue, d.Ebi, "the UE reported it inactive")
+	}
+
 	pdns := m.SnapshotPDNs(ue)
 	remaining := len(pdns)
 
@@ -331,6 +339,12 @@ func bearerContextStatus(m *mme.MME, ue *mme.UeContext) nas.EPSBearerContextStat
 	for _, p := range m.SnapshotPDNs(ue) {
 		if p.Ebi < uint8(len(status.Active)) {
 			status.Active[p.Ebi] = true
+		}
+	}
+
+	for _, d := range m.SnapshotDedicated(ue) {
+		if !d.Activating && !d.Deactivating && d.Ebi < uint8(len(status.Active)) {
+			status.Active[d.Ebi] = true
 		}
 	}
 

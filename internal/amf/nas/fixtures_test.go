@@ -103,8 +103,8 @@ func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.Netwo
 
 func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
-		{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"},
-		{ID: "policy-2", Name: "TestPolicy2", ProfileID: "profile-1", SliceID: "slice-2", DataNetworkID: "dn-1"},
+		{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
+		{ID: "policy-2", Name: "TestPolicy2", ProfileID: "profile-1", SliceID: "slice-2", DataNetworkID: "dn-1", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 	}, nil
 }
 
@@ -202,6 +202,8 @@ type fakeSmf struct {
 	ReleasedSmContext         []string
 	IdleTransfers             []idleTransfer
 	IdleTransferErr           error
+	IdleTransferFlowEBIs      map[uint8][]uint8
+	InactiveEPSBearers        []inactiveEPSBearers
 	ActivateSmContextResponse []byte
 	ActivateSmContextError    error
 	ActivateSmContextCalls    []SmfActivateSmContextCall
@@ -328,7 +330,7 @@ func (s *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context,
 	return s.DuplicatePDUResponse, s.DuplicatePDUError
 }
 
-func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
+func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string, _ bool) error {
 	return s.Error
 }
 
@@ -354,8 +356,19 @@ func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string)
 	return false, s.Error
 }
 
-func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai) (string, []byte, error) {
-	return "", nil, nil
+func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai) (string, []byte, []uint8, error) {
+	return "", nil, nil, nil
+}
+
+func (s *fakeSmf) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
+
+func (s *fakeSmf) ReleaseInactiveEPSBearers(_ context.Context, ref string, ebis []uint8) {
+	s.InactiveEPSBearers = append(s.InactiveEPSBearers, inactiveEPSBearers{Ref: ref, EBIs: ebis})
+}
+
+type inactiveEPSBearers struct {
+	Ref  string
+	EBIs []uint8
 }
 
 type idleTransfer struct {
@@ -366,7 +379,7 @@ type idleTransfer struct {
 	Snssai            *models.Snssai
 }
 
-func (s *fakeSmf) TransferIdleTo5GS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, error) {
+func (s *fakeSmf) TransferIdleTo5GS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []uint8, error) {
 	s.IdleTransfers = append(s.IdleTransfers, idleTransfer{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,
@@ -376,10 +389,10 @@ func (s *fakeSmf) TransferIdleTo5GS(_ context.Context, supi etsi.SUPI, pduSessio
 	})
 
 	if s.IdleTransferErr != nil {
-		return "", s.IdleTransferErr
+		return "", nil, s.IdleTransferErr
 	}
 
-	return fmt.Sprintf("idle-ref-%d", pduSessionID), nil
+	return fmt.Sprintf("idle-ref-%d", pduSessionID), s.IdleTransferFlowEBIs[pduSessionID], nil
 }
 
 func (s *fakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
@@ -420,4 +433,16 @@ func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI5G
 	}
 
 	return guti
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
 }

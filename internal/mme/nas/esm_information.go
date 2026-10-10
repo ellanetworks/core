@@ -6,6 +6,7 @@ package nas
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -89,7 +90,7 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	ueConn.StopESMInfoGuard()
 
 	if req.AccessPointName != nil {
-		ueConn.ESMRequest.APN = string(*req.AccessPointName)
+		ueConn.ESMRequest.APN = strings.ToLower(string(*req.AccessPointName))
 	}
 
 	if id := pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); id != 0 {
@@ -98,6 +99,10 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	if opts, ok := protocolOptionsFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); ok {
 		ueConn.ESMRequest.ProtocolOpts = opts
+	}
+
+	if pcscf, ok := pcscfRequestFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); ok {
+		ueConn.ESMRequest.PCSCF = pcscf
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information", zap.String("apn", ueConn.ESMRequest.APN),

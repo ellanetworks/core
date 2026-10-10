@@ -29,6 +29,7 @@ type ProtocolConfigurationOptions struct {
 	DNSIPv4Request     bool
 	DNSIPv6Request     bool
 	IPv4LinkMTURequest bool
+	PCSCFRequest       nas.PCSCFRequest
 	ProtocolRequests   []nas.PCOContainer
 }
 
@@ -50,6 +51,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	dnn string,
 	pco *ProtocolConfigurationOptions,
 	dns net.IP,
+	pcscf []netip.Addr,
 	mtu uint16,
 	cause *fgs.GSMCause,
 	addrs *PDUSessionAddresses,
@@ -132,6 +134,10 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	opts := nas.NewProtocolConfigurationOptions(dnsServers, linkMTU)
+	opts.Containers = append(opts.Containers, nas.NewPCSCFContainers(pcscf, nas.PCSCFRequest{
+		IPv4: pco.PCSCFRequest.IPv4 && (pduSessionType == fgs.PDUSessionTypeIPv4 || pduSessionType == fgs.PDUSessionTypeIPv4v6),
+		IPv6: pco.PCSCFRequest.IPv6 && (pduSessionType == fgs.PDUSessionTypeIPv6 || pduSessionType == fgs.PDUSessionTypeIPv4v6),
+	})...)
 	opts.PrependProtocolOptions(nas.AnswerProtocolOptions(pco.ProtocolRequests, dnsAddr, ueIPv4))
 
 	if !opts.Empty() {

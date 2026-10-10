@@ -14,17 +14,12 @@ type Access struct {
 }
 
 func ResolveAccess(ctx context.Context, m *MME, imsi string) (Access, error) {
-	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
+	am, err := m.subscriptions().AccessAndMobility(ctx, imsi)
 	if err != nil {
-		return Access{}, fmt.Errorf("get subscriber: %w", err)
+		return Access{}, fmt.Errorf("get access and mobility subscription: %w", err)
 	}
 
-	profile, err := m.Bearer.GetProfileByID(ctx, sub.ProfileID)
-	if err != nil {
-		return Access{}, fmt.Errorf("get profile: %w", err)
-	}
-
-	return Access{Allow4G: profile.Allow4G, Allow5G: profile.Allow5G}, nil
+	return Access{Allow4G: am.Allow4G, Allow5G: am.Allow5G}, nil
 }
 
 func (ue *UeContext) SetAccess(a Access) {

@@ -47,7 +47,7 @@ func TestIntegrationHASMS(t *testing.T) {
 
 	overlays := []string{"../sms/smsc.yaml"}
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, haSMSComposeDir, haSMSComposeFile, bringUpHA3GPPClusterOpts{
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, haSMSComposeDir, bringUpHA3GPPClusterOpts{
 		ExtraServices: []string{"ella-core-tester", "smsc"},
 		Overlays:      overlays,
 	})

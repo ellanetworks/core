@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), and SMS.
+description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), SMS, and IMS.
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name and SMS settings.
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name, SMS settings and IMS settings.
 
 ## Get Operator Information
 
@@ -52,6 +52,9 @@ None
         },
         "sms": {
             "smsNumber": "+15550001111"
+        },
+        "ims": {
+            "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
         }
     }
 }
@@ -59,7 +62,7 @@ None
 
 ## Update the Operator ID
 
-This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system.
+This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system. Changing it renames the Diameter identity and realm of every node, so the Ella Core peers configured in the IMS and in the SMSC must be updated afterwards.
 
 | Method | Path                  |
 | ------ | --------------------- |
@@ -422,6 +425,36 @@ None
 {
     "result": {
         "message": "SMSC peer deleted successfully"
+    }
+}
+```
+
+## Update the IMS Settings
+
+This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the `ims` data network.
+
+| Method | Path                     |
+| ------ | ------------------------ |
+| PUT    | `/api/v1/operator/ims` |
+
+### Parameters
+
+- `pcscfAddresses` (array of strings): Unicast IPv4 and IPv6 addresses of the IMS, in preference order. At most 3 of each IP version, without duplicates. UEs receive the addresses of the IP version they request. An empty list clears it.
+
+### Sample Request
+
+```json
+{
+    "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Operator IMS settings updated successfully"
     }
 }
 ```

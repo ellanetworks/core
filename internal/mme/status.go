@@ -23,6 +23,7 @@ type ConnectedSubscriber struct {
 	Registered         bool
 	CipheringAlgorithm string // EPS NAS ciphering, e.g. "128-EEA2" (TS 33.401)
 	IntegrityAlgorithm string // EPS NAS integrity, e.g. "128-EIA2"
+	IMSVoPS            bool
 	Connection         *UEConnection
 	// Sessions are the UE's PDN connections, one per active APN, ordered by EPS
 	// bearer identity (TS 23.401).
@@ -59,6 +60,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		LastSeenAt:         snap.LastSeenAt,
 		CipheringAlgorithm: snap.CipheringAlgorithm,
 		IntegrityAlgorithm: snap.IntegrityAlgorithm,
+		IMSVoPS:            ue.IMSVoPS(),
 	}
 
 	if conn := ue.Conn(); conn != nil {

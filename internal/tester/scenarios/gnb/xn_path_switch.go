@@ -137,6 +137,7 @@ type xnPathSwitchOpts struct {
 	TargetRANUENGAPID int64
 	TargetN3IP        netip.Addr
 	TargetDLTEID      uint32
+	Flows             []uint8
 }
 
 func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathSwitchRequestAcknowledge, error) {
@@ -145,6 +146,7 @@ func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathS
 	sessions[scenarios.DefaultPDUSessionID] = &gnb.PDUSessionInformation{
 		PDUSessionID: int64(scenarios.DefaultPDUSessionID),
 		DLTEID:       opts.TargetDLTEID,
+		Flows:        opts.Flows,
 	}
 
 	if err := targetGNB.SendPathSwitchRequest(&gnb.PathSwitchRequestOpts{

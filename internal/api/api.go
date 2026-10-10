@@ -98,6 +98,7 @@ type UpgradeConfig struct {
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
 	MME                 *mme.MME
+	HSS                 server.IMSSubscribers
 	BGP                 *bgp.BGPService
 	LMF                 *lmf.LMF
 	Diameter            server.DiameterNode
@@ -224,6 +225,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		Sessions:           opts.Sessions,
 		AMF:                opts.AMF,
 		MME:                opts.MME,
+		HSS:                opts.HSS,
 		BGP:                opts.BGP,
 		LMF:                opts.LMF,
 		Diameter:           opts.Diameter,

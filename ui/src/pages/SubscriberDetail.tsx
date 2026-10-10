@@ -171,6 +171,7 @@ const SubscriberDetail: React.FC = () => {
               >
                 <SubscriberConnectionCard
                   status={mergeRegistrations(subscriber.registrations)}
+                  ims={subscriber.ims}
                 />
               </Box>
             </Box>

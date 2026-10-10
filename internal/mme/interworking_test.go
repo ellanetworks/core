@@ -68,11 +68,11 @@ func TestGUMMEIIsTheNodeGUAMIMapped(t *testing.T) {
 func TestNetworkFeatureSupportNeverAdvertisesInterworkingWithoutN26(t *testing.T) {
 	m := &MME{}
 
-	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{}); nfs.IWKN26 {
+	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{}, true); nfs.IWKN26 {
 		t.Error("IWK N26 advertised to a UE that did not indicate N1 mode")
 	}
 
-	nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x80, 0x20}})
+	nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x80, 0x20}}, true)
 	if nfs.IWKN26 {
 		t.Error("IWK N26 advertised by an MME that supports N26")
 	}
@@ -85,7 +85,7 @@ func TestNetworkFeatureSupportNeverAdvertisesInterworkingWithoutN26(t *testing.T
 		t.Error("the IMS VoPS indication was lost")
 	}
 
-	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x00, 0x20}}); nfs.EPCO {
+	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x00, 0x20}}, true); nfs.EPCO {
 		t.Error("ePCO advertised to a UE that did not indicate support for the IE")
 	}
 }

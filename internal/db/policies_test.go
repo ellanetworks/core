@@ -330,7 +330,7 @@ func TestGetSessionPolicy(t *testing.T) {
 	}
 
 	// Default slice: sst=1, sd=""; Default DNN: "internet"
-	policy, rules, dn, err := database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "internet")
+	policy, err := database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "internet")
 	if err != nil {
 		t.Fatalf("Couldn't complete GetSessionPolicy: %s", err)
 	}
@@ -339,29 +339,21 @@ func TestGetSessionPolicy(t *testing.T) {
 		t.Fatalf("Expected default policy, got %q", policy.Name)
 	}
 
-	if rules == nil {
-		t.Fatal("Expected non-nil rules slice")
-	}
-
-	if dn == nil {
-		t.Fatal("Expected non-nil data network")
-	}
-
 	// Non-existent subscriber
-	_, _, _, err = database.GetSessionPolicy(context.Background(), "999999999999999", 1, "", "internet") //nolint:dogsled // error-path test
+	_, err = database.GetSessionPolicy(context.Background(), "999999999999999", 1, "", "internet")
 	if !errors.Is(err, db.ErrSubscriberNotFound) || !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("Expected ErrSubscriberNotFound for non-existent subscriber, got %v", err)
 	}
 
 	// Non-matching slice: the slice itself is not served, so it is reported as a
 	// generic no-matching-policy error, not a DNN error.
-	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 99, "ffffff", "internet") //nolint:dogsled // error-path test
+	_, err = database.GetSessionPolicy(context.Background(), "001010100007487", 99, "ffffff", "internet")
 	if !errors.Is(err, db.ErrNoMatchingPolicy) {
 		t.Fatalf("non-matching slice: got %v, want ErrNoMatchingPolicy", err)
 	}
 
 	// Non-matching DNN within a served slice is reported as ErrDNNNotInSlice.
-	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "nonexistent-dnn") //nolint:dogsled // error-path test
+	_, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "nonexistent-dnn")
 	if !errors.Is(err, db.ErrDNNNotInSlice) {
 		t.Fatalf("non-matching DNN in slice: got %v, want ErrDNNNotInSlice", err)
 	}
@@ -440,78 +432,5 @@ func TestDefaultPolicyBinding(t *testing.T) {
 
 	if defaults != 1 {
 		t.Fatalf("expected exactly one default policy, got %d", defaults)
-	}
-}
-
-func TestGetEPSSessionPolicySelectsTheSlice(t *testing.T) {
-	ctx := context.Background()
-	database := setupTestDB(t)
-
-	profile, err := database.GetProfile(ctx, db.InitialProfileName)
-	if err != nil {
-		t.Fatalf("get default profile: %s", err)
-	}
-
-	if err := database.CreateSubscriber(ctx, &db.Subscriber{
-		Imsi:           "001010100007487",
-		SequenceNumber: "000000000001",
-		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
-		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      profile.ID,
-	}); err != nil {
-		t.Fatalf("create subscriber: %s", err)
-	}
-
-	defaultSlice, err := database.GetNetworkSlice(ctx, db.InitialSliceName)
-	if err != nil {
-		t.Fatalf("get default slice: %s", err)
-	}
-
-	if err := database.CreateNetworkSlice(ctx, &db.NetworkSlice{Name: "second-slice", Sst: 2}); err != nil {
-		t.Fatalf("create slice: %s", err)
-	}
-
-	secondSlice, err := database.GetNetworkSlice(ctx, "second-slice")
-	if err != nil {
-		t.Fatalf("get slice: %s", err)
-	}
-
-	internet, err := database.GetDataNetwork(ctx, "internet")
-	if err != nil {
-		t.Fatalf("get data network: %s", err)
-	}
-
-	if err := database.CreatePolicy(ctx, &db.Policy{
-		Name: "internet-on-second", ProfileID: profile.ID, SliceID: secondSlice.ID, DataNetworkID: internet.ID,
-		Var5qi: 8, Arp: 2, SessionAmbrUplink: "10 Mbps", SessionAmbrDownlink: "10 Mbps",
-	}); err != nil {
-		t.Fatalf("create policy: %s", err)
-	}
-
-	policy, _, dn, slice, err := database.GetEPSSessionPolicy(ctx, "001010100007487", "internet")
-	if err != nil {
-		t.Fatalf("GetEPSSessionPolicy: %s", err)
-	}
-
-	if policy.Name != db.InitialPolicyName || slice.ID != defaultSlice.ID || dn.Name != "internet" {
-		t.Fatalf("selected policy %q on slice %q, want the default policy on the default slice", policy.Name, slice.Name)
-	}
-
-	if err := database.SetDefaultPolicy(ctx, profile.ID, "internet-on-second"); err != nil {
-		t.Fatalf("set default: %s", err)
-	}
-
-	policy, _, _, slice, err = database.GetEPSSessionPolicy(ctx, "001010100007487", "internet")
-	if err != nil {
-		t.Fatalf("GetEPSSessionPolicy: %s", err)
-	}
-
-	if policy.Name != "internet-on-second" || slice.ID != secondSlice.ID {
-		t.Fatalf("selected policy %q on slice %q, want the new default on the second slice", policy.Name, slice.Name)
-	}
-
-	_, _, _, _, err = database.GetEPSSessionPolicy(ctx, "001010100007487", "nonexistent-apn") //nolint:dogsled // error-path test
-	if !errors.Is(err, db.ErrNoMatchingPolicy) {
-		t.Fatalf("unknown APN: got %v, want ErrNoMatchingPolicy", err)
 	}
 }

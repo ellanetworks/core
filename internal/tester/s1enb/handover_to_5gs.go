@@ -75,9 +75,11 @@ func (e *ENB) WaitForHandoverPreparationFailure(enbUEID int64, timeout time.Dura
 }
 
 type EPSKeyMaterial struct {
-	KASME [32]byte
-	NH    [32]byte
-	NCC   uint8
+	KASME     [32]byte
+	NH        [32]byte
+	NCC       uint8
+	Ciphering uint8
+	Integrity uint8
 }
 
 func (ue *UE) SecurityContextForHandoverToFiveGS(ncc uint8) (EPSKeyMaterial, error) {
@@ -93,6 +95,7 @@ func (ue *UE) SecurityContextForHandoverToFiveGS(ncc uint8) (EPSKeyMaterial, err
 
 	copy(out.KASME[:], ue.kasme)
 	out.NCC = ncc
+	out.Ciphering, out.Integrity = ue.eea, ue.eia
 
 	kenb, err := ue.deriveKeNB()
 	if err != nil {

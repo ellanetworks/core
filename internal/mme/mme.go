@@ -34,8 +34,8 @@ type NASHandler interface {
 type epsSessionManager interface {
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
 	TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error)
-	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error
-	OpenEPSForwardingTunnel(ctx context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error)
+	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error
+	OpenEPSForwardingTunnel(ctx context.Context, ref string, ebi uint8, target models.FTEID) (models.ForwardingTunnel, error)
 	CloseEPSForwardingTunnel(ctx context.Context, ref string) error
 	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8, cause models.EPSPagingFailureCause) error
@@ -43,6 +43,11 @@ type epsSessionManager interface {
 	ReleaseEPSSession(ctx context.Context, ref string) error
 	ReconcileSession(ctx context.Context, ref string) error
 	CommitEPSBearerModification(ctx context.Context, ref string, accepted bool)
+	DedicatedBearerActivated(ctx context.Context, ref string, sgwTEID uint32, ebi uint8, enb models.FTEID) error
+	DedicatedBearerMoved(ctx context.Context, ref string, sgwTEID uint32, enb models.FTEID) error
+	DedicatedBearerReleased(ctx context.Context, ref string, sgwTEID uint32)
+	DedicatedBearerModified(ctx context.Context, ref string, sgwTEID uint32, accepted bool)
+	DedicatedBearerWithoutFiveGSQoS(ctx context.Context, ref string, sgwTEID uint32)
 }
 
 type credentialProvider interface {
@@ -82,11 +87,13 @@ type credentialProvider interface {
 // UeContext.mu is also the publication barrier: a reader that observes
 // emmState == EMM-REGISTERED under it may read the UE's other registered data.
 type MME struct {
-	Cred    credentialProvider
-	Bearer  bearerStore
-	Session epsSessionManager
-	NAS     NASHandler
-	FiveGS  interworking.FiveGSPeer
+	Cred   credentialProvider
+	Bearer bearerStore
+
+	Subscriptions *udm.Subscriptions
+	Session       epsSessionManager
+	NAS           NASHandler
+	FiveGS        interworking.FiveGSPeer
 
 	Registrations Registrar
 
@@ -94,6 +101,8 @@ type MME struct {
 
 	SMS           smsf.Handler
 	smsDecisionMu sync.RWMutex
+
+	IMSVoice IMSVoice
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.
@@ -190,7 +199,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		Cred:                     cred,
 		Bearer:                   bearer,
 		Session:                  session,
-		EPSNetworkFeatureSupport: &eps.NetworkFeatureSupport{IMSVoPS: true},
+		EPSNetworkFeatureSupport: &eps.NetworkFeatureSupport{},
 		Name:                     "ella",
 		reg:                      radioreg.New[S1APWriter, string, *Radio](DefaultRadioOfflineTTL, DefaultMaxOfflineRadios, time.Now),
 		conns:                    make(map[uint32]*UeConn),
@@ -217,11 +226,13 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 	return m
 }
 
-func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
-	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
+func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability, imsVoPS bool) *eps.NetworkFeatureSupport {
+	nfs := eps.NetworkFeatureSupport{}
 	if m.EPSNetworkFeatureSupport != nil {
 		nfs = *m.EPSNetworkFeatureSupport
 	}
+
+	nfs.IMSVoPS = imsVoPS
 
 	nfs.EPCO = ueCap.SupportsEPCO()
 

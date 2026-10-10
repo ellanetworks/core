@@ -6,8 +6,10 @@ package engine
 import (
 	"maps"
 	"net/netip"
+	"slices"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
@@ -25,6 +27,10 @@ type Session struct {
 	framedRoutes []netip.Prefix
 	ueIPv4       netip.Addr
 	ueIPv6       netip.Addr
+	localSwitch  bool
+	classified   bool
+	filtered     bool
+	written      *ebpf.Classifier
 }
 
 func NewSession(seid uint64) *Session {
@@ -37,10 +43,13 @@ func NewSession(seid uint64) *Session {
 }
 
 type SPDRInfo struct {
-	PdrID   uint32
-	PdrInfo ebpf.PdrInfo
-	TeID    uint32
-	UEIP    netip.Addr
+	PdrID      uint32
+	PdrInfo    ebpf.PdrInfo
+	TeID       uint32
+	ChooseID   uint8
+	UEIP       netip.Addr
+	Precedence uint32
+	SDF        []models.SDFFilter
 }
 
 func (s *Session) PolicyID() string {
@@ -55,6 +64,68 @@ func (s *Session) SetPolicyID(id string) {
 	defer s.mu.Unlock()
 
 	s.policyID = id
+}
+
+func (s *Session) SetLocalSwitch(on bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.localSwitch = on
+}
+
+func (s *Session) SetClassified(classified bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	changed := s.classified != classified
+	s.classified = classified
+
+	return changed
+}
+
+func (s *Session) classifierWritten(c ebpf.Classifier) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.written != nil && slices.Equal(s.written.Rules, c.Rules) && slices.Equal(s.written.Targets, c.Targets)
+}
+
+func (s *Session) setWrittenClassifier(c *ebpf.Classifier) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.written = c
+}
+
+func (s *Session) SetFiltered(filtered bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	changed := s.filtered != filtered
+	s.filtered = filtered
+
+	return changed
+}
+
+func (s *Session) pdrFlags(spdrInfo SPDRInfo) uint8 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var flags uint8
+
+	if s.localSwitch {
+		flags |= ebpf.PdrFlagLocalSwitch
+	}
+
+	if spdrInfo.UEIP.IsValid() && s.classified || !spdrInfo.UEIP.IsValid() && len(spdrInfo.SDF) > 0 {
+		flags |= ebpf.PdrFlagSDF
+	}
+
+	if !spdrInfo.UEIP.IsValid() && len(spdrInfo.SDF) == 0 && spdrInfo.TeID != 0 && s.tunnelClassifiedLocked(spdrInfo.TeID) {
+		flags |= ebpf.PdrFlagFallback
+	}
+
+	return flags
 }
 
 func (s *Session) IMSI() string {
@@ -118,11 +189,25 @@ func (s *Session) RemovePDR(id uint32) (SPDRInfo, bool) {
 	return info, ok
 }
 
+func (s *Session) clearPDRs() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pdrs = map[uint32]SPDRInfo{}
+}
+
 func (s *Session) RemoveFar(id uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	delete(s.fars, id)
+}
+
+func (s *Session) RemoveQer(id uint32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.qers, id)
 }
 
 func (s *Session) ListPDRs() map[uint32]SPDRInfo {
@@ -133,6 +218,72 @@ func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	maps.Copy(c, s.pdrs)
 
 	return c
+}
+
+func (s *Session) chosenTEID(chooseID uint8) uint32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.pdrs {
+		if p.ChooseID == chooseID && p.TeID != 0 {
+			return p.TeID
+		}
+	}
+
+	return 0
+}
+
+func (s *Session) holdsTEID(teid uint32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.pdrs {
+		if p.TeID == teid && !p.UEIP.IsValid() {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *Session) tunnelEntry(teid uint32) (SPDRInfo, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var (
+		entry SPDRInfo
+		found bool
+	)
+
+	for _, p := range s.pdrs {
+		if p.TeID != teid || p.UEIP.IsValid() {
+			continue
+		}
+
+		if !found || tunnelEntryBefore(p, entry) {
+			entry, found = p, true
+		}
+	}
+
+	return entry, found
+}
+
+func (s *Session) tunnelClassifiedLocked(teid uint32) bool {
+	for _, p := range s.pdrs {
+		if p.TeID == teid && !p.UEIP.IsValid() && len(p.SDF) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func tunnelEntryBefore(a, b SPDRInfo) bool {
+	if (len(a.SDF) == 0) != (len(b.SDF) == 0) {
+		return len(a.SDF) == 0
+	}
+
+	return a.PdrID < b.PdrID
 }
 
 func (s *Session) findFAR(match func(ebpf.FarInfo) bool) (uint32, bool) {

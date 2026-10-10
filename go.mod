@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
+	github.com/ellanetworks/ims v0.0.0-20261010135644-da64ecf831f8
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
@@ -12,7 +13,7 @@ require (
 	github.com/hashicorp/raft v1.8.0
 	github.com/hashicorp/raft-autopilot v0.3.0
 	github.com/hashicorp/raft-boltdb/v2 v2.4.2
-	github.com/mattn/go-sqlite3 v1.14.42
+	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/moby/moby/client v0.6.1
 	github.com/osrg/gobgp/v4 v4.9.0
 	github.com/prometheus/client_golang v1.24.1
@@ -48,14 +49,14 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/ellanetworks/core/diameter v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/diameter v0.0.0-20261009192142-6cec7a535040
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nrppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
-	github.com/ellanetworks/core/sctp v0.0.0-20260927223644-74fdc7a91d32
+	github.com/ellanetworks/core/sctp v0.0.0-20260928204907-fc197c42dc3f
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

@@ -19,12 +19,25 @@ func handlePDUSessionModificationCommand(ue *UE, payload []byte, amfUENGAPID int
 
 	pduSessionID := uint8(cmd.PDUSessionID)
 
+	ue.modifyCommands.Add(1)
+
 	complete, err := BuildPDUSessionModificationComplete(&PDUSessionModificationCompleteOpts{
 		PDUSessionID: pduSessionID,
 		PTI:          uint8(cmd.PTI),
 	})
 	if err != nil {
 		return fmt.Errorf("could not build PDU Session Modification Complete: %v", err)
+	}
+
+	if len(cmd.QoSRules) > 0 && ue.rejectQoSRules.CompareAndSwap(true, false) {
+		complete, err = (&fgs.PDUSessionModificationCommandReject{
+			PDUSessionID: cmd.PDUSessionID,
+			PTI:          cmd.PTI,
+			Cause:        fgs.GSMCauseSemanticErrorsInPacketFilters,
+		}).MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("could not build PDU Session Modification Command Reject: %v", err)
+		}
 	}
 
 	uplink, err := BuildUplinkNasTransportSM(pduSessionID, complete)
@@ -50,4 +63,12 @@ func handlePDUSessionModificationCommand(ue *UE, payload []byte, amfUENGAPID int
 	)
 
 	return nil
+}
+
+func (ue *UE) RejectNextQoSRules() {
+	ue.rejectQoSRules.Store(true)
+}
+
+func (ue *UE) ModificationCommandCount() int64 {
+	return ue.modifyCommands.Load()
 }

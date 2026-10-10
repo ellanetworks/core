@@ -6,6 +6,7 @@ package s1ap
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -296,6 +297,40 @@ func TestHandoverRequiredToFiveGSReleasesUnacceptedPDNs(t *testing.T) {
 	cmd := lastHandoverCommand(t, source)
 	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != s1ap.ERABID(6) {
 		t.Fatalf("to-release list = %+v, want the bearer the target did not take", cmd.ERABToRelease)
+	}
+}
+
+// TS 36.413 §8.4.1.2; TS 23.502 §4.11.1.2.2.2
+func TestHandoverRequiredToFiveGSReleasesTheVoiceBearerTheTargetRefused(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		accepted []uint8
+		released []s1ap.ERABID
+	}{
+		{"accepted", []uint8{mme.DefaultERABID, 6}, nil},
+		{"refused", []uint8{mme.DefaultERABID}, []s1ap.ERABID{6}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			peer := &fiveGSPeerStub{accepted: tc.accepted}
+			ue, source := relocatingToFiveGSUE(t, m, peer)
+
+			m.LookupPDN(ue, mme.DefaultERABID).Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{Ebi: 6, QCI: 1}}}
+
+			before := source.count()
+
+			requireHandoverToFiveGS(t, m, ue, source)
+			settleHandoverToFiveGS(t, m, source, before+1)
+
+			var released []s1ap.ERABID
+			for _, item := range lastHandoverCommand(t, source).ERABToRelease {
+				released = append(released, item.ERABID)
+			}
+
+			if !slices.Equal(released, tc.released) {
+				t.Fatalf("to-release list = %v, want %v", released, tc.released)
+			}
+		})
 	}
 }
 

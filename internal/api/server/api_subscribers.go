@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/hss"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"go.uber.org/zap"
@@ -79,16 +80,30 @@ type Registration struct {
 	Imei               string        `json:"imei,omitempty"`
 	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
 	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
+	IMSVoiceOverPS     *bool         `json:"ims_voice_over_ps,omitempty"`
 	Connection         *UEConnection `json:"connection"`
 }
 
 type SubscriberDetail struct {
-	Imsi          string         `json:"imsi"`
-	ProfileName   string         `json:"profile_name"`
-	Description   string         `json:"description,omitempty"`
-	Msisdn        string         `json:"msisdn,omitempty"`
-	Registrations []Registration `json:"registrations"`
-	Sessions      []Session      `json:"sessions"`
+	Imsi          string           `json:"imsi"`
+	ProfileName   string           `json:"profile_name"`
+	Description   string           `json:"description,omitempty"`
+	Msisdn        string           `json:"msisdn,omitempty"`
+	Registrations []Registration   `json:"registrations"`
+	Sessions      []Session        `json:"sessions"`
+	IMS           *IMSSubscription `json:"ims,omitempty"`
+}
+
+type IMSSubscription struct {
+	PrivateIdentity  string           `json:"private_identity"`
+	SCSCFName        string           `json:"scscf_name,omitempty"`
+	PublicIdentities []PublicIdentity `json:"public_identities"`
+}
+
+type PublicIdentity struct {
+	Identity  string `json:"identity"`
+	Barred    bool   `json:"barred"`
+	UserState string `json:"user_state"`
 }
 
 type SubscriberCredentials struct {
@@ -480,7 +495,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 	})
 }
 
-func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
+func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, hssInstance IMSSubscribers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
@@ -568,6 +583,16 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			Msisdn:        formatE164(dbSubscriber.Msisdn),
 			Registrations: registrations,
 			Sessions:      sessions,
+		}
+
+		if hssInstance != nil {
+			ims, err := hssInstance.Subscription(r.Context(), imsi)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve the IMS subscription", err, logger.APILog)
+				return
+			}
+
+			subscriber.IMS = imsSubscriptionFrom(ims)
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
@@ -865,7 +890,13 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
+type IMSSubscribers interface {
+	Termination(ctx context.Context, imsi string) (*hss.Termination, error)
+	Terminate(ctx context.Context, t *hss.Termination) error
+	Subscription(ctx context.Context, imsi string) (*hss.IMSSubscription, error)
+}
+
+func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, hssInstance IMSSubscribers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -892,6 +923,14 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			return
 		}
 
+		var termination *hss.Termination
+
+		if hssInstance != nil {
+			if termination, err = hssInstance.Termination(r.Context(), imsi); err != nil {
+				logger.APILog.Warn("could not read the subscriber's IMS registration", zap.String("imsi", imsi), zap.Error(err))
+			}
+		}
+
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
 		amfInstance.ForgetSubscriber(imsi)
 
@@ -911,6 +950,10 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			return
 		}
 
+		if termination != nil {
+			go func(ctx context.Context) { _ = hssInstance.Terminate(ctx, termination) }(context.WithoutCancel(r.Context()))
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteSubscriberAction, email, getClientIP(r), "User deleted subscriber: "+imsi)
@@ -924,6 +967,20 @@ func connectionStatePtr(connected bool) *string {
 	}
 
 	return &state
+}
+
+func imsSubscriptionFrom(s *hss.IMSSubscription) *IMSSubscription {
+	if s == nil {
+		return nil
+	}
+
+	out := &IMSSubscription{PrivateIdentity: s.PrivateIdentity, SCSCFName: s.SCSCFName, PublicIdentities: make([]PublicIdentity, 0, len(s.PublicIdentities))}
+
+	for _, p := range s.PublicIdentities {
+		out.PublicIdentities = append(out.PublicIdentities, PublicIdentity{Identity: p.Identity, Barred: p.Barred, UserState: string(p.UserState)})
+	}
+
+	return out
 }
 
 func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen, known bool) (Registration, bool) {
@@ -944,6 +1001,7 @@ func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen
 		reg.Imei = snap.Imei
 		reg.CipheringAlgorithm = snap.CipheringAlgorithm
 		reg.IntegrityAlgorithm = snap.IntegrityAlgorithm
+		reg.IMSVoiceOverPS = &snap.IMSVoPS
 
 		if !snap.LastSeenAt.IsZero() {
 			at = snap.LastSeenAt
@@ -980,6 +1038,7 @@ func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.L
 		reg.Imei = cs.Imei
 		reg.CipheringAlgorithm = cs.CipheringAlgorithm
 		reg.IntegrityAlgorithm = cs.IntegrityAlgorithm
+		reg.IMSVoiceOverPS = &cs.IMSVoPS
 
 		if !cs.LastSeenAt.IsZero() {
 			at = cs.LastSeenAt

@@ -136,7 +136,7 @@ func (ueConn *UeConn) expireN2Setup(link trace.SpanContext, proc N2SetupProcedur
 		ueConn.Log(ctx).Warn("no answer to the PDU session resource setup; deactivating the session at the SMF",
 			logger.PDUSessionID(id), zap.Stringer("procedure", proc))
 
-		if err := ueConn.amf.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
+		if err := ueConn.amf.Session.DeactivateSmContext(ctx, smContext.Ref, false); err != nil {
 			ueConn.Log(ctx).Error("could not deactivate a PDU session whose setup went unanswered",
 				logger.PDUSessionID(id), zap.Error(err))
 		}

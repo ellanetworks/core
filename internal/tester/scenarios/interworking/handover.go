@@ -109,7 +109,7 @@ func trackingAreaUpdate(e *s1enb.ENB, u *ue.UE, bearer handoverBearer) error {
 		return errors.New("the UE holds no 5G-GUTI to map into a tracking area update")
 	}
 
-	if err := e.TrackingAreaUpdateAfterHandover(bearer.epsUE, bearer.mmeUEID, targetENBUEID,
+	if _, err := e.TrackingAreaUpdateAfterHandover(bearer.epsUE, bearer.mmeUEID, targetENBUEID,
 		etsi.MapGUTI5GToEPS(*u.UeSecurity.Guti.GUTI), handoverTimeout); err != nil {
 		return fmt.Errorf("tracking area update after the handover: %w", err)
 	}

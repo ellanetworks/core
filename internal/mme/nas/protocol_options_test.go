@@ -29,7 +29,7 @@ func ipcpConfigureRequest(t *testing.T) []nas.PCOContainer {
 func activateWithProtocolOptions(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, ipcpConfigureRequest(t))
+	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, ipcpConfigureRequest(t), nas.PCSCFRequest{})
 	if err != nil {
 		t.Fatalf("buildActivateDefaultESM: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestActivateDefaultDropsProtocolAnswersThatDoNotFitTheClassicIE(t *testing.
 		t.Fatalf("the fixture must produce an answer to be dropped, got %d", len(answers))
 	}
 
-	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, false, oversized)
+	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, false, oversized, nas.PCSCFRequest{})
 	if err != nil {
 		t.Fatalf("an oversized answer must be dropped, not fail the activation: %v", err)
 	}

@@ -271,7 +271,11 @@ func applyStatefulNasCleanup(ctx context.Context, amf *AMF, ueConn *UeConn) {
 
 	switch ue.State() {
 	case Registered:
-		ue.deactivateSmContexts(ctx)
+		if ue.Conn() != ueConn {
+			return
+		}
+
+		ue.deactivateSmContexts(ctx, ueConn)
 		amf.StartMobileReachable(ue)
 	case RegistrationInitiated, DeregistrationInitiated:
 		ue.Deregister(ctx)

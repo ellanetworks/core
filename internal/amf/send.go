@@ -784,6 +784,8 @@ func (ueConn *UeConn) ReleaseWithAction(ctx context.Context, action RelAction, c
 }
 
 func (ueConn *UeConn) sendClaimedRelease(ctx context.Context, amfInstance *AMF, conn NGAPWriter, cause ngap.Cause) {
+	ueConn.releaseCause.Store(&cause)
+
 	pkt, err := ueContextReleaseCommandBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release

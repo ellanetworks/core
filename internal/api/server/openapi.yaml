@@ -1667,6 +1667,26 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/operator/ims:
+    put:
+      operationId: updateOperatorIMS
+      tags: [Operator]
+      summary: Update IMS settings
+      description: Sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the ims data network. The list is ordered by preference. UEs receive the addresses of the IP version they request. An empty list clears it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorIMSParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
     get:
@@ -4002,6 +4022,9 @@ components:
         integrity_algorithm:
           type: string
           description: "NAS integrity algorithm (NIAx or EIAx). Absent when none."
+        ims_voice_over_ps:
+          type: boolean
+          description: "Whether IMS voice over PS sessions are supported for the UE on this registration's access (3GPP access for 5G), as decided at the last Registration, Attach or Tracking Area Update (TS 23.501 §5.16.3.2, TS 23.401 §4.3.5.8). Absent without a UE context."
         connection:
           oneOf:
             - $ref: "#/components/schemas/UEConnection"
@@ -4034,7 +4057,40 @@ components:
           description: "Active PDU sessions (5G) and PDN connections (4G)."
           items:
             $ref: "#/components/schemas/Session"
+        ims:
+          $ref: "#/components/schemas/IMSSubscription"
       required: [imsi, profile_name, registrations, sessions]
+
+    IMSSubscription:
+      type: object
+      description: "IMS subscription held by the HSS (TS 23.228 §4.3.3.4). Absent when the subscriber's profile has no policy on the ims data network."
+      properties:
+        private_identity:
+          type: string
+          description: "Private User Identity."
+        scscf_name:
+          type: string
+          description: "SIP URI of the S-CSCF assigned to the IMS subscription (TS 29.328 §7.6.4). Absent when none is assigned."
+        public_identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSPublicIdentity"
+      required: [private_identity, public_identities]
+
+    IMSPublicIdentity:
+      type: object
+      properties:
+        identity:
+          type: string
+          description: "Public User Identity (tel or SIP URI)."
+        barred:
+          type: boolean
+          description: "Barred from IMS communications other than registration (TS 23.228 §5.2.1)."
+        user_state:
+          type: string
+          enum: ["registered", "registered_unreg_services", "authentication_pending", "not_registered"]
+          description: "IMS User State (TS 29.328 §7.6.3)."
+      required: [identity, barred, user_state]
 
     SubscriberCredentials:
       type: object
@@ -4573,6 +4629,8 @@ components:
           $ref: "#/components/schemas/OperatorSPN"
         sms:
           $ref: "#/components/schemas/OperatorSMS"
+        ims:
+          $ref: "#/components/schemas/OperatorIMS"
 
     OperatorResponseEnvelope:
       type: object
@@ -4816,6 +4874,27 @@ components:
           type: string
           pattern: "^(\\+[1-9][0-9]{0,14})?$"
           description: "Ella Core's E.164 number."
+
+    OperatorIMS:
+      type: object
+      required: [pcscfAddresses]
+      properties:
+        pcscfAddresses:
+          type: array
+          items:
+            type: string
+          description: "P-CSCF addresses of the IMS given to UEs, in preference order. Empty when unset."
+
+    UpdateOperatorIMSParams:
+      type: object
+      required: [pcscfAddresses]
+      properties:
+        pcscfAddresses:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+          description: "Unicast IPv4 and IPv6 addresses of the IMS, in preference order. At most 3 of each IP version, without duplicates."
 
     UpdateOperatorSPNParams:
       type: object
@@ -5213,11 +5292,11 @@ components:
 
     DiameterPeer:
       type: object
-      required: [role, address, port, state, since]
+      required: [role, address, state, since]
       properties:
         role:
           type: string
-          enum: [smsc]
+          enum: [smsc, ims]
           description: "What the peer is to Ella Core."
         host:
           type: string
@@ -5230,7 +5309,7 @@ components:
           description: "The peer's IP address."
         port:
           type: integer
-          description: "The peer's SCTP port."
+          description: "The peer's SCTP port. Absent for IMS peers."
         state:
           type: string
           enum: [down, connecting, open, suspect, reopen, closing]

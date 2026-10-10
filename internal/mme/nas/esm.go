@@ -34,6 +34,10 @@ func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 		return handleActivateDefaultBearerAccept(ctx, m, ue, msg)
 	case *eps.ActivateDefaultEPSBearerContextReject:
 		return handleActivateDefaultBearerReject(ctx, m, ue, msg)
+	case *eps.ActivateDedicatedEPSBearerContextAccept:
+		return handleActivateDedicatedBearerAccept(ctx, m, ue, msg)
+	case *eps.ActivateDedicatedEPSBearerContextReject:
+		return handleActivateDedicatedBearerReject(ctx, m, ue, msg)
 	case *eps.DeactivateEPSBearerContextAccept:
 		return handleDeactivateBearerAccept(ctx, m, ue, msg)
 	case *eps.ModifyEPSBearerContextAccept:

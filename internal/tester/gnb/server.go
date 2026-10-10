@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -116,6 +118,12 @@ type GnodeB struct {
 	tunnels           map[uint32]*Tunnel // local TEID -> Tunnel
 	endMarkers        map[uint32]int     // End Markers seen per local TEID
 	watchedTEIDs      map[uint32]int     // G-PDUs seen per watched TEID that has no tunnel
+	downlinkQFIs      map[uint32]map[uint8]int
+	downlinkUDP       map[uint32]map[uint16]int
+	qosFlows          map[int64]map[int64][]uint8
+	modifyRequests    map[int64]int
+	refuseGBRFlows    map[int64]ngap.Cause
+	flowFiveQIs       map[int64]map[int64]map[uint8]int64
 	lastGeneratedTEID uint32
 	nextFwdTEID       uint32
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
@@ -169,6 +177,17 @@ const (
 func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	if g.qosFlows == nil {
+		g.qosFlows = make(map[int64]map[int64][]uint8)
+	}
+
+	if g.qosFlows[ranUeID] == nil {
+		g.qosFlows[ranUeID] = make(map[int64][]uint8)
+	}
+
+	g.qosFlows[ranUeID][info.PDUSessionID] = slices.Clone(info.Flows)
+	g.recordFlowFiveQIsLocked(ranUeID, info.PDUSessionID, info.FlowFiveQIs)
 
 	if g.pduSessions == nil {
 		g.pduSessions = make(map[int64]map[int64]*PDUSessionInformation)
@@ -529,6 +548,8 @@ func NewGnodeB(
 		tunnels:           make(map[uint32]*Tunnel),
 		endMarkers:        make(map[uint32]int),
 		watchedTEIDs:      make(map[uint32]int),
+		downlinkQFIs:      make(map[uint32]map[uint8]int),
+		qosFlows:          make(map[int64]map[int64][]uint8),
 		N3Address:         n3Address,
 		n2Peers: []*n2Peer{{
 			address: "pre-dialed",
@@ -623,6 +644,8 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		tunnels:           make(map[uint32]*Tunnel),
 		endMarkers:        make(map[uint32]int),
 		watchedTEIDs:      make(map[uint32]int),
+		downlinkQFIs:      make(map[uint32]map[uint8]int),
+		qosFlows:          make(map[int64]map[int64][]uint8),
 		N3Address:         gnbN3IPAddress,
 		n2Local:           local,
 		n2Peers:           peers,
@@ -1175,4 +1198,130 @@ func isClosedErr(err error) bool {
 
 	return strings.Contains(s, "use of closed network connection") ||
 		strings.Contains(s, "file already closed")
+}
+
+func (g *GnodeB) QoSFlows(ranUeID, pduSessionID int64) []uint8 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return slices.Clone(g.qosFlows[ranUeID][pduSessionID])
+}
+
+func (g *GnodeB) DownlinkQFICount(teid uint32, qfi uint8) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.downlinkQFIs[teid][qfi]
+}
+
+func (g *GnodeB) DownlinkUDPCount(teid uint32, port uint16) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.downlinkUDP[teid][port]
+}
+
+func (g *GnodeB) admitQoSFlows(ranUeID, pduSessionID int64, add, release []uint8) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.qosFlows == nil {
+		g.qosFlows = make(map[int64]map[int64][]uint8)
+	}
+
+	if g.qosFlows[ranUeID] == nil {
+		g.qosFlows[ranUeID] = make(map[int64][]uint8)
+	}
+
+	flows := slices.DeleteFunc(g.qosFlows[ranUeID][pduSessionID], func(q uint8) bool { return slices.Contains(release, q) })
+
+	for _, q := range add {
+		if !slices.Contains(flows, q) {
+			flows = append(flows, q)
+		}
+	}
+
+	g.qosFlows[ranUeID][pduSessionID] = flows
+}
+
+func (g *GnodeB) sessionQFI(ranUeID, pduSessionID int64) int64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if session := g.pduSessions[ranUeID][pduSessionID]; session != nil {
+		return session.QFI
+	}
+
+	return 0
+}
+
+func (g *GnodeB) QoSFlowFiveQI(ranUeID, pduSessionID int64, qfi uint8) (int64, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	fiveQI, ok := g.flowFiveQIs[ranUeID][pduSessionID][qfi]
+
+	return fiveQI, ok
+}
+
+func (g *GnodeB) recordFlowFiveQIs(ranUeID, pduSessionID int64, fiveQIs map[uint8]int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.recordFlowFiveQIsLocked(ranUeID, pduSessionID, fiveQIs)
+}
+
+func (g *GnodeB) recordFlowFiveQIsLocked(ranUeID, pduSessionID int64, fiveQIs map[uint8]int64) {
+	if g.flowFiveQIs == nil {
+		g.flowFiveQIs = make(map[int64]map[int64]map[uint8]int64)
+	}
+
+	if g.flowFiveQIs[ranUeID] == nil {
+		g.flowFiveQIs[ranUeID] = make(map[int64]map[uint8]int64)
+	}
+
+	if g.flowFiveQIs[ranUeID][pduSessionID] == nil {
+		g.flowFiveQIs[ranUeID][pduSessionID] = make(map[uint8]int64)
+	}
+
+	maps.Copy(g.flowFiveQIs[ranUeID][pduSessionID], fiveQIs)
+}
+
+func (g *GnodeB) RefuseNextGBRQoSFlows(ranUeID int64, cause ngap.Cause) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.refuseGBRFlows == nil {
+		g.refuseGBRFlows = make(map[int64]ngap.Cause)
+	}
+
+	g.refuseGBRFlows[ranUeID] = cause
+}
+
+func (g *GnodeB) takeGBRFlowRefusal(ranUeID int64) (ngap.Cause, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	cause, ok := g.refuseGBRFlows[ranUeID]
+	delete(g.refuseGBRFlows, ranUeID)
+
+	return cause, ok
+}
+
+func (g *GnodeB) countModifyRequest(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.modifyRequests == nil {
+		g.modifyRequests = make(map[int64]int)
+	}
+
+	g.modifyRequests[ranUeID]++
+}
+
+func (g *GnodeB) ModifyRequestCount(ranUeID int64) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.modifyRequests[ranUeID]
 }

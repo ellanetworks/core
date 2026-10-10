@@ -36,7 +36,7 @@ func movedOnEPS(t *testing.T, s *smf.SMF, pdnType uint8) models.EPSBearer {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestInterworkingDeactivationFromTheOtherAccessIsANoOp(t *testing.T) {
 
 	modifies = len(upf.modifyCalls)
 
-	if err := s.DeactivateSmContext(ctx, bearer.Ref); err != nil {
+	if err := s.DeactivateSmContext(ctx, bearer.Ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 

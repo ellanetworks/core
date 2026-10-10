@@ -78,6 +78,10 @@ enum outer_header_creation_values {
 	OHC_NO_PSC = 0x10,
 };
 
+#define PDR_F_SDF 0x01
+#define PDR_F_LOCAL_SWITCH 0x02
+#define PDR_F_FALLBACK 0x04
+
 struct sdf_rule {
 	struct in6_addr
 		remote_ip; /* ::ffff:x.x.x.x for IPv4, native for IPv6; all zeros = wildcard */
@@ -120,6 +124,8 @@ struct qer_info {
 	__u8 ul_gate_status;
 	__u8 dl_gate_status;
 	__u8 qfi;
+	__u8 pad;
+	__u32 averaging_window_ms;
 	__u64 ul_maximum_bitrate;
 	__u64 dl_maximum_bitrate;
 };
@@ -133,7 +139,8 @@ struct pdr_info {
 	__u32 qer_id;
 	__u8 outer_header_removal;
 	__u8 forwarding;
-	__u8 pad[2]; /* explicit padding */
+	__u8 flags;
+	__u8 qfi;
 	struct far_info far;
 	struct qer_info qer;
 	__u32 filter_map_index; /* 0 = no SDF filtering for this PDR */

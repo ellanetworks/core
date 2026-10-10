@@ -166,6 +166,8 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 		m.DeactivateAllSessions(ctx, ue)
 	}
 
+	conn.releaseCause.Store(&cause)
+
 	if err := conn.SendUEContextReleaseCommand(ctx, cause); err != nil {
 		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent")
 

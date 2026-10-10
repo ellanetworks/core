@@ -68,6 +68,8 @@ var replicatedChangesetTables = []string{
 	SMSCServiceCentresTableName,
 	SMSWaitingTableName,
 	SMSWaitingCentresTableName,
+	PCSCFAddressesTableName,
+	IMSRegistrationsTableName,
 	"schema_version",
 }
 

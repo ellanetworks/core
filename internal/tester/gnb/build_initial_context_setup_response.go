@@ -31,7 +31,7 @@ func BuildInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) ([]
 			continue
 		}
 
-		transfer, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTEID, pduSession.QFI)
+		transfer, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTEID, pduSession.QFI, pduSession.Flows...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %v", err)
 		}
@@ -48,7 +48,7 @@ func BuildInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) ([]
 // GetPDUSessionResourceSetupResponseTransfer encodes the per-session transfer
 // naming the downlink tunnel this simulator has set up and the QoS flow it
 // accepted (TS 38.413 §9.3.4.2).
-func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosID int64) (ngap.TransferContainer, error) {
+func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosID int64, flows ...uint8) (ngap.TransferContainer, error) {
 	addr, err := transportLayerAddress(ip)
 	if err != nil {
 		return nil, err
@@ -63,6 +63,10 @@ func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosI
 				{QosFlowIdentifier: ngap.QosFlowIdentifier(qosID)},
 			},
 		},
+	}
+
+	for _, qfi := range flows {
+		transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList = append(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList, ngap.AssociatedQosFlowItem{QosFlowIdentifier: ngap.QosFlowIdentifier(qfi)})
 	}
 
 	return transfer.Marshal()

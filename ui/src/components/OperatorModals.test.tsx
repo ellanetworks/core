@@ -57,6 +57,13 @@ describe("EditOperatorIdModal", () => {
     );
   });
 
+  it("warns that the Diameter identities change", () => {
+    render();
+    expect(within(dialog()).getByRole("alert")).toHaveTextContent(
+      /renames the Diameter identity and realm of every node/,
+    );
+  });
+
   it("rejects an MCC that is not three digits", async () => {
     const user = userEvent.setup();
     render();

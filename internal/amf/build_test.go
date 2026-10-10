@@ -4,6 +4,8 @@
 package amf_test
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -312,5 +314,52 @@ func TestBuildConfigurationUpdateCommand_NITZTime(t *testing.T) {
 
 	if cuc.ConfigurationUpdateIndication != nil {
 		t.Errorf("a NITZ-only command must request no acknowledgement, got %s", cuc.ConfigurationUpdateIndication)
+	}
+}
+
+type fakeIMSVoice struct {
+	supported bool
+	err       error
+}
+
+func (f fakeIMSVoice) VoiceSupported(context.Context, string) (bool, error) {
+	return f.supported, f.err
+}
+
+func TestBuildRegistrationAcceptIMSVoPS(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		voice amf.IMSVoice
+		want  bool
+	}{
+		{"no IMS", nil, false},
+		{"IMS voice not supported for the subscriber", fakeIMSVoice{}, false},
+		{"IMS voice supported for the subscriber", fakeIMSVoice{supported: true}, true},
+		{"IMS voice undecidable", fakeIMSVoice{supported: true, err: errors.New("store unavailable")}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			amfInstance := amf.New(nil, nil, nil)
+			amfInstance.IMSVoice = tc.voice
+
+			ue := buildServedTestUE(t, amfInstance, "001019756139903")
+
+			if got := amfInstance.DecideIMSVoPS(context.Background(), ue); got != tc.want {
+				t.Fatalf("DecideIMSVoPS = %t, want %t", got, tc.want)
+			}
+
+			raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
+			if err != nil {
+				t.Fatalf("BuildRegistrationAccept failed: %v", err)
+			}
+
+			ra, err := fgs.ParseRegistrationAccept(raw)
+			if err != nil {
+				t.Fatalf("parse RegistrationAccept: %v", err)
+			}
+
+			if ra.NetworkFeatureSupport == nil || ra.NetworkFeatureSupport.IMSVoPS3GPP != tc.want {
+				t.Fatalf("IMS VoPS over 3GPP access = %+v, want %t", ra.NetworkFeatureSupport, tc.want)
+			}
+		})
 	}
 }

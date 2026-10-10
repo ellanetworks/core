@@ -18,6 +18,14 @@ func NewAnswer(req *Message, id Identity, resultCode uint32) *Message {
 	return ans
 }
 
+func UnavailableResult(req *Message) uint32 {
+	if _, ok := req.Find(AVPDestinationHost, 0); ok {
+		return ResultTooBusy
+	}
+
+	return ResultUnableToDeliver
+}
+
 func NewExperimentalAnswer(req *Message, id Identity, vendorID, resultCode uint32) *Message {
 	ans := newAnswer(req, id)
 
