@@ -72,7 +72,7 @@ func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, composeFile, bringUpHA3GPPClusterOpts{
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, bringUpHA3GPPClusterOpts{
 		// Exercise the hostname-resolved peer path; TestIntegration5GMultiGNB
 		// covers the IP-literal path.
 		UseFQDN:       true,
@@ -257,6 +257,8 @@ func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.
 	HALog(t, "failover scenario passed both phases")
 }
 
+const ha3GPPComposeFile = "compose.yaml"
+
 // bringUpHA3GPPCluster stages a 3-node HA cluster specifically for this
 // test's ha-3gpp compose topology. Flow:
 //
@@ -275,7 +277,7 @@ func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.
 // token set on each) so callers can use findLeader / waitForAutopilotHealthy
 // etc.
 // bringUpHA3GPPCluster brings up a 3-node Ella Core cluster from
-// composeDir/composeFile and, after the cluster is converged, starts
+// composeDir/compose.yaml and, after the cluster is converged, starts
 // any extraServices listed (typically the tester sidecar and the N6
 // router). Compose topologies that need a different sidecar shape
 // (e.g., one tester per gNB) pass their own service names instead.
@@ -302,7 +304,7 @@ type bringUpHA3GPPClusterOpts struct {
 	Diameter bool
 }
 
-func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, opts bringUpHA3GPPClusterOpts) (string, []*client.Client, error) {
+func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, opts bringUpHA3GPPClusterOpts) (string, []*client.Client, error) {
 	t.Helper()
 
 	nodeServices := []string{"ella-core-1", "ella-core-2", "ella-core-3"}
@@ -323,7 +325,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		}
 	}
 
-	composeFiles := append([]string{composeFile}, opts.Overlays...)
+	composeFiles := append([]string{ha3GPPComposeFile}, opts.Overlays...)
 
 	dc.ComposeCleanup(ctx)
 

@@ -94,7 +94,7 @@ func TestIntegration5GMultiGNB(t *testing.T) {
 
 	testerServices = append(testerServices, "router")
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, composeFile, bringUpHA3GPPClusterOpts{
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, bringUpHA3GPPClusterOpts{
 		// Stay on IP-literal peers — TestIntegration5GHAFailover covers
 		// the FQDN path.
 		ExtraServices: testerServices,

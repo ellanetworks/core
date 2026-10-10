@@ -56,7 +56,7 @@ func TestIntegrationHAIMS(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, haSMSComposeDir, haSMSComposeFile, bringUpHA3GPPClusterOpts{
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, haSMSComposeDir, bringUpHA3GPPClusterOpts{
 		ExtraServices: []string{"ella-core-tester", "ims", "ims-routes"},
 		Overlays:      []string{"../ims/ha-ims.yaml"},
 		Diameter:      true,
