@@ -36,6 +36,7 @@ type SMSCPeerStatus struct {
 	Host  string `json:"host,omitempty"`
 	Realm string `json:"realm,omitempty"`
 	Since string `json:"since"`
+	Error string `json:"error,omitempty"`
 }
 
 type ListSMSCPeersResponse struct {
@@ -75,6 +76,7 @@ func smscPeerResponse(p db.SMSCPeer, statuses map[string]diameternode.PeerStatus
 			Host:  st.Host,
 			Realm: st.Realm,
 			Since: st.Since.UTC().Format(time.RFC3339),
+			Error: st.Error,
 		}
 	}
 
@@ -102,7 +104,7 @@ func smscPeerFromParams(id string, params SMSCPeerParams) (db.SMSCPeer, string) 
 		Port:             params.Port,
 	}
 
-	if !db.IsValidDiameterIdentity(peer.DiameterIdentity) {
+	if peer.DiameterIdentity != "" && !db.IsValidDiameterIdentity(peer.DiameterIdentity) {
 		return db.SMSCPeer{}, "diameterIdentity must be a fully qualified domain name, for example smsc.example.org"
 	}
 

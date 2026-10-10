@@ -119,10 +119,11 @@ func (s *fakeSMSC) connectedHost() string {
 }
 
 type settingsSource struct {
-	mu      sync.Mutex
-	smsc    netip.AddrPort
-	node    diameternode.NodeSettings
-	nodeErr error
+	mu       sync.Mutex
+	smsc     netip.AddrPort
+	smscHost string
+	node     diameternode.NodeSettings
+	nodeErr  error
 }
 
 func newSettingsSource() *settingsSource {
@@ -154,6 +155,7 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 	return []diameternode.PeerConfig{{
 		ID:      "smsc-1",
 		Role:    "smsc",
+		Host:    s.smscHost,
 		Address: s.smsc,
 		Applications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
@@ -282,6 +284,24 @@ func TestNodeConnectsToSMSC(t *testing.T) {
 	}
 
 	waitFor(t, "SMSC to see Ella", func() bool { return smsc.connectedHost() == ellaHost })
+}
+
+func TestNodeReportsAnSMSCThatAnswersAsAnotherHost(t *testing.T) {
+	requireSCTP(t)
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+	source.smscHost = "other-smsc.example.org"
+
+	link, _ := startManager(t, source)
+
+	want := "peer answered as " + smscHost + ", expected other-smsc.example.org"
+
+	waitFor(t, "the mismatch reported", func() bool {
+		p, ok := smscPeer(link)
+		return ok && p.State != diameter.PeerOpen && p.Error == want
+	})
 }
 
 func TestNodeDispatchesRequestsToRegisteredHandlers(t *testing.T) {

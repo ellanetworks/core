@@ -41,6 +41,13 @@ func TestSMSCPeerResponseCarriesItsLinkStatus(t *testing.T) {
 		t.Fatalf("a peer this node does not track has status %+v", other.Status)
 	}
 
+	down := smscPeerStatuses(fakeDiameterNode{peers: []diameternode.PeerStatus{{
+		ID: "smsc-c", State: diameter.PeerDown, Since: since, Error: "peer answered as smsc.example.org, expected smsc-c.example.org",
+	}}})
+	if got := smscPeerResponse(db.SMSCPeer{ID: "c", Address: "192.0.2.12", Port: 3868}, down); got.Status == nil || got.Status.Error != "peer answered as smsc.example.org, expected smsc-c.example.org" {
+		t.Fatalf("status = %+v, want the last error", got.Status)
+	}
+
 	if none := smscPeerStatuses(nil); len(none) != 0 {
 		t.Fatalf("statuses without a node = %+v", none)
 	}

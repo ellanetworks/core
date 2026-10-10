@@ -41,6 +41,7 @@ export interface SMSCPeer extends SMSCPeerInput {
     host?: string;
     realm?: string;
     since: string;
+    error?: string;
   };
 }
 
