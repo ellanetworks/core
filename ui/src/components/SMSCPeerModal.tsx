@@ -140,17 +140,11 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
       fullWidth={false}
     >
       <TextControl<FormValues>
-        name="diameterIdentity"
-        label="Diameter Identity"
-        placeholder="smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
-        helperText="Optional. The service center's Diameter host name (Origin-Host). Leave empty to accept the one it gives."
-        autoFocus
-      />
-      <TextControl<FormValues>
         name="address"
         label="Address"
         placeholder="192.0.2.10"
         helperText="IP address of the service center's Diameter endpoint."
+        autoFocus
       />
       <TextControl<FormValues>
         name="serviceCentres"
@@ -164,6 +158,12 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
         min={1}
         max={65535}
         helperText={`SCTP port of the service center's Diameter endpoint (default ${DEFAULT_SMSC_PORT}).`}
+      />
+      <TextControl<FormValues>
+        name="diameterIdentity"
+        label="Diameter Identity"
+        placeholder="smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
+        helperText="Optional. The service center's Diameter host name (Origin-Host). Leave empty to accept the one it gives."
       />
     </FormDialog>
   );
