@@ -5,6 +5,7 @@ package udm_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -156,5 +157,18 @@ func TestSessionManagementSkipsAnUnusableDNNConfiguration(t *testing.T) {
 
 	if _, ok := sm.ForDNN(models.Snssai{Sst: db.InitialSliceSst}, "internet"); !ok {
 		t.Fatal("an unusable DNN configuration hid the subscriber's other ones")
+	}
+}
+
+func TestSessionManagementOfADeletedSubscriber(t *testing.T) {
+	ctx := context.Background()
+	database, subs, _ := subscriptionFixture(t)
+
+	if err := database.DeleteSubscriber(ctx, subscriptionIMSI); err != nil {
+		t.Fatalf("delete subscriber: %s", err)
+	}
+
+	if _, err := subs.SessionManagement(ctx, subscriptionIMSI); !errors.Is(err, udm.ErrSubscriberUnknown) {
+		t.Fatalf("SessionManagement: %v, want ErrSubscriberUnknown", err)
 	}
 }

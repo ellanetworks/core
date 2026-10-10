@@ -111,9 +111,9 @@ func (s *Subscriptions) UEAMBR(ctx context.Context, imsi string) (models.Ambr, e
 }
 
 func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*SessionManagementSubscription, error) {
-	sub, err := s.store.GetSubscriber(ctx, imsi)
+	sub, err := s.subscriber(ctx, imsi)
 	if err != nil {
-		return nil, fmt.Errorf("get subscriber %s: %w", imsi, err)
+		return nil, err
 	}
 
 	policies, err := s.store.ListPoliciesByProfile(ctx, sub.ProfileID)
@@ -250,9 +250,9 @@ func (sm *SessionManagementSubscription) ForAPN(apn string) (DNNConfiguration, b
 }
 
 func (s *Subscriptions) profile(ctx context.Context, imsi string) (*db.Profile, error) {
-	sub, err := s.store.GetSubscriber(ctx, imsi)
+	sub, err := s.subscriber(ctx, imsi)
 	if err != nil {
-		return nil, fmt.Errorf("get subscriber %s: %w", imsi, err)
+		return nil, err
 	}
 
 	profile, err := s.store.GetProfileByID(ctx, sub.ProfileID)
@@ -261,6 +261,19 @@ func (s *Subscriptions) profile(ctx context.Context, imsi string) (*db.Profile, 
 	}
 
 	return profile, nil
+}
+
+func (s *Subscriptions) subscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	sub, err := s.store.GetSubscriber(ctx, imsi)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil, fmt.Errorf("%w: %s", ErrSubscriberUnknown, imsi)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("get subscriber %s: %w", imsi, err)
+	}
+
+	return sub, nil
 }
 
 func ueAMBR(profile *db.Profile) (models.Ambr, error) {

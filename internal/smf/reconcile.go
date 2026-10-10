@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -102,6 +103,14 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 	}
 
 	policy, decision, subscribed, err := s.reconcileTarget(ctx, ref, supi, snssai, dnn, reported, authorized)
+	if errors.Is(err, udm.ErrSubscriberUnknown) {
+		smContext.reconcileMu.Unlock()
+		logger.SmfLog.Debug("subscriber deleted, leaving the session to the subscription withdrawal",
+			logger.SMContextRef(ref))
+
+		return nil
+	}
+
 	if err != nil && !permanentPolicyFailure(err) {
 		smContext.reconcileMu.Unlock()
 		logger.SmfLog.Warn("transient error fetching session policy, skipping reconciliation",

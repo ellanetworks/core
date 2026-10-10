@@ -419,6 +419,10 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	if err != nil {
 		recordSpanError(span, err)
 
+		if errors.Is(err, ErrNotFound) {
+			return nil, ErrSubscriberNotFound
+		}
+
 		return nil, fmt.Errorf("subscriber not found: %w", err)
 	}
 

@@ -17,7 +17,7 @@ type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context))
+	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context))
 }
 
 func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -83,6 +83,8 @@ func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 
 	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
 		amf.releaseSuperseded(ctx, ue)
+	}, func(ctx context.Context) {
+		amf.withdrawSubscription(ctx, ue)
 	})
 }
 
@@ -119,4 +121,17 @@ func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) {
 	}
 
 	ue.Deregister(ctx)
+}
+
+func (amf *AMF) withdrawSubscription(ctx context.Context, ue *UeContext) {
+	if !amf.ServesUeContext(ue) {
+		return
+	}
+
+	supi := ue.Supi()
+
+	logger.From(ctx, logger.AmfLog).Info("subscriber deleted; deregistering UE", logger.SUPI(supi.String()))
+
+	amf.DeregisterSubscriber(ctx, supi)
+	amf.ForgetSubscriber(supi.IMSI())
 }

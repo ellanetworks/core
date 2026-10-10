@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap/zapcore"
@@ -1207,6 +1208,34 @@ func TestReconcileSession_SliceMismatchFullCleanup(t *testing.T) {
 
 	if s.GetSession(ref) != nil {
 		t.Fatal("expected session to be removed once both legs have answered")
+	}
+}
+
+func TestReconcileSession_DeletedSubscriberKeepsSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	pcf.mu.Lock()
+	pcf.err = fmt.Errorf("%w: 001010000000001", udm.ErrSubscriberUnknown)
+	pcf.mu.Unlock()
+
+	if err := s.ReconcileSession(ctx, ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releaseCalls != 0 || releasedIPs != 0 || s.GetSession(ref) == nil {
+		t.Fatal("expected the session to be left to the subscription withdrawal")
 	}
 }
 
