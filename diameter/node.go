@@ -395,6 +395,7 @@ func (n *Node) SetPeers(peers []Peer) error {
 
 	var (
 		removed   []*peer
+		dropped   []*Conn
 		displaced []*Conn
 		started   []*peer
 	)
@@ -403,6 +404,7 @@ func (n *Node) SetPeers(peers []Peer) error {
 		want, ok := desired[id]
 		if !ok || !samePeer(*p.cfg, want) {
 			removed = append(removed, p)
+			dropped = append(dropped, p.conns()...)
 			n.unregisterLocked(p)
 
 			continue
@@ -452,10 +454,10 @@ func (n *Node) SetPeers(peers []Peer) error {
 
 	for _, p := range removed {
 		n.logger.Info("Diameter peer removed", slog.String("peer", p.id))
+	}
 
-		for _, c := range p.conns() {
-			go c.disconnect(DisconnectCauseDoNotWantToTalkToYou)
-		}
+	for _, c := range dropped {
+		go c.disconnect(DisconnectCauseDoNotWantToTalkToYou)
 	}
 
 	for _, c := range displaced {
