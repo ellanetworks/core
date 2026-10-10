@@ -15,6 +15,7 @@ type DiameterPeer struct {
 	Port    int    `json:"port"`
 	State   string `json:"state"`
 	Since   string `json:"since"`
+	Error   string `json:"error,omitempty"`
 }
 
 type DiameterStatus struct {

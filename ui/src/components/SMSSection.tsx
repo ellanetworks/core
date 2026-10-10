@@ -70,7 +70,7 @@ const SMSCStatus: React.FC<{ peer: SMSCPeer }> = ({ peer }) => {
         ]
           .filter(Boolean)
           .join(" ")
-      : "";
+      : (status?.error ?? "");
 
   return (
     <Tooltip title={tooltip} arrow>

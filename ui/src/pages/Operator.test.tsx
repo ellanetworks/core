@@ -91,6 +91,23 @@ describe("Operator SMS section", () => {
     expect(b.getByText("+15550000001, +15550000002")).toBeInTheDocument();
   });
 
+  it("shows why a service center is disconnected", async () => {
+    const user = userEvent.setup();
+    const error =
+      "peer answered as smsc.example.org, expected smsc-b.example.org";
+    api.get("/api/v1/operator", () => operator(ready));
+    api.get(PEERS_PATH, () => ({
+      items: [{ ...peerB, status: { ...peerB.status, error } }],
+    }));
+    renderOperator();
+
+    await user.hover(
+      await (await row("192.0.2.20:3869")).findByText("Disconnected"),
+    );
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(error);
+  });
+
   it("shows a peer this node has not reported as connecting", async () => {
     api.get("/api/v1/operator", () => operator(ready));
     api.get(PEERS_PATH, () => ({ items: [{ ...peerA, status: undefined }] }));

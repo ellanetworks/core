@@ -25,7 +25,7 @@ func migrateV22(ctx context.Context, tx *sql.Tx) error {
 			address          TEXT    NOT NULL,
 			port             INTEGER NOT NULL
 		)`, DiameterPeersTableName),
-		fmt.Sprintf("CREATE UNIQUE INDEX idx_diameter_peers_identity ON %s(diameterIdentity COLLATE NOCASE)", DiameterPeersTableName),
+		fmt.Sprintf("CREATE UNIQUE INDEX idx_diameter_peers_identity ON %s(diameterIdentity COLLATE NOCASE) WHERE diameterIdentity != ''", DiameterPeersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			serviceCentre TEXT PRIMARY KEY,
 			peerId        TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE

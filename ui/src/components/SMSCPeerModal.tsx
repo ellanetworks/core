@@ -41,7 +41,6 @@ const schema = yup.object({
   diameterIdentity: yup
     .string()
     .default("")
-    .test("required", "Diameter identity is required", (v) => !!v?.trim())
     .test(
       "diameter-identity",
       "Diameter identity must be a fully qualified domain name, for example smsc.example.org",
@@ -144,7 +143,7 @@ const SMSCPeerModal: React.FC<SMSCPeerModalProps> = ({
         name="diameterIdentity"
         label="Diameter Identity"
         placeholder="smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
-        helperText="The service center's Diameter host name (Origin-Host)."
+        helperText="Optional. The service center's Diameter host name (Origin-Host). Leave empty to accept the one it gives."
         autoFocus
       />
       <TextControl<FormValues>

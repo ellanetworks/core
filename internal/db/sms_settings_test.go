@@ -153,6 +153,26 @@ func TestSMSCPeersRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSMSCPeersWithoutIdentity(t *testing.T) {
+	ctx := context.Background()
+	database := newSMSDatabase(t)
+
+	for _, p := range []db.SMSCPeer{
+		{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
+		{ID: peerB, Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000001"}},
+		{ID: "01890000-0000-7000-8000-00000000000c", DiameterIdentity: "smsc.example.org", Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000002"}},
+	} {
+		if err := database.CreateSMSCPeer(ctx, &p); err != nil {
+			t.Fatalf("CreateSMSCPeer(%s): %s", p.ID, err)
+		}
+	}
+
+	got, err := database.GetSMSCPeer(ctx, peerA)
+	if err != nil || got.DiameterIdentity != "" {
+		t.Fatalf("GetSMSCPeer = %+v, %v, want no identity", got, err)
+	}
+}
+
 func TestSMSCPeerConflictsAreRejected(t *testing.T) {
 	ctx := context.Background()
 
@@ -175,6 +195,11 @@ func TestSMSCPeerConflictsAreRejected(t *testing.T) {
 			"shared endpoint",
 			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-a.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
 			db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-b.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001"}},
+		},
+		{
+			"shared address without identities",
+			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
+			db.SMSCPeer{ID: peerB, Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000001"}},
 		},
 	}
 
@@ -232,7 +257,7 @@ func TestSMSCPeerValidate(t *testing.T) {
 		{"ipv4", func(*db.SMSCPeer) {}, true},
 		{"ipv6", func(p *db.SMSCPeer) { p.Address = "2001:db8::1" }, true},
 		{"identity with an underscore", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc_1.example.org" }, true},
-		{"no identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "" }, false},
+		{"no identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "" }, true},
 		{"single label identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc" }, false},
 		{"identity with a space", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc .example.org" }, false},
 		{"non-canonical address", func(p *db.SMSCPeer) { p.Address = "2001:DB8::1" }, false},

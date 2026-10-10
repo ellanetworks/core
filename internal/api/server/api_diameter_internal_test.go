@@ -63,6 +63,12 @@ func TestGetDiameterStatus(t *testing.T) {
 			Address: netip.MustParseAddrPort("[2001:db8::10]:3868"),
 			State:   diameter.PeerOpen,
 			Since:   since,
+		}, {
+			Role:    "smsc",
+			Address: netip.MustParseAddrPort("192.0.2.11:3868"),
+			State:   diameter.PeerDown,
+			Since:   since,
+			Error:   "dial sctp 192.0.2.11:3868: connection refused",
 		}},
 	})
 
@@ -77,6 +83,13 @@ func TestGetDiameterStatus(t *testing.T) {
 			Port:    3868,
 			State:   "open",
 			Since:   "2026-09-29T16:00:00Z",
+		}, {
+			Role:    "smsc",
+			Address: "192.0.2.11",
+			Port:    3868,
+			State:   "down",
+			Since:   "2026-09-29T16:00:00Z",
+			Error:   "dial sctp 192.0.2.11:3868: connection refused",
 		}},
 	}
 

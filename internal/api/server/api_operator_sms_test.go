@@ -181,7 +181,6 @@ func TestSMSCPeers(t *testing.T) {
 			"bad port":                 {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 70000, ServiceCentres: []string{"+15550000002"}},
 			"no service centre":        {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10"},
 			"service centre no plus":   {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"15550000002"}},
-			"no identity":              {Address: "192.0.2.10", ServiceCentres: []string{"+15550000002"}},
 			"bad identity":             {DiameterIdentity: "smsc", Address: "192.0.2.10", ServiceCentres: []string{"+15550000002"}},
 			"duplicate service centre": {DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"+15550000002", "+15550000002"}},
 		}
@@ -273,6 +272,18 @@ func TestSMSCPeers(t *testing.T) {
 		code, resp, err := deleteSMSCPeer(env.Server.URL, client, token, "missing")
 		if err != nil || code != http.StatusNotFound {
 			t.Fatalf("delete of a missing peer: code=%d err=%v (%q)", code, err, resp.Error)
+		}
+	})
+
+	t.Run("a peer without an identity takes the one it gives", func(t *testing.T) {
+		code, resp, err := createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "192.0.2.20", ServiceCentres: []string{"+15550000005"}})
+		if err != nil || code != http.StatusCreated || resp.Result.DiameterIdentity != "" {
+			t.Fatalf("create: code=%d err=%v (%+v)", code, err, resp)
+		}
+
+		code, resp, err = createSMSCPeer(env.Server.URL, client, token, &SMSCPeerParams{Address: "192.0.2.20", Port: 3869, ServiceCentres: []string{"+15550000006"}})
+		if err != nil || code != http.StatusConflict || resp.Error != "another SMSC peer without a Diameter identity has the address 192.0.2.20" {
+			t.Fatalf("second peer without an identity on the same address: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 	})
 }

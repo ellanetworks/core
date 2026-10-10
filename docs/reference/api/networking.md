@@ -1106,3 +1106,5 @@ None
     }
 }
 ```
+
+A peer that is not connected also has an `error`: the reason its last connection failed.
