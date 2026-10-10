@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -14,20 +13,9 @@ const api = setupApiServer();
 
 const IMSI = "001010100007487";
 
-const operator = (pcscfAddresses: string[]) => ({
-  id: { mcc: "001", mnc: "01" },
-  tracking: { supportedTacs: ["000001"] },
-  homeNetworkKeys: [],
-  nasSecurity: { ciphering: [], integrity: [] },
-  spn: { fullName: "", shortName: "" },
-  sms: { smsNumber: "" },
-  ims: { pcscfAddresses },
-});
-
 const seedSubscriber = (
   msisdn = "+15551230001",
   extra: Record<string, unknown> = {},
-  voice: { policies?: string[]; pcscf?: string[] } = {},
 ) => {
   api.get("/api/v1/subscribers/:imsi", () => ({
     imsi: IMSI,
@@ -39,14 +27,6 @@ const seedSubscriber = (
   }));
   api.get("/api/v1/subscriber-usage", () => usageBySubscriber({}));
   api.get("/api/v1/flow-reports/stats", () => flowStats());
-  api.get("/api/v1/policies", () => {
-    const items = (voice.policies ?? []).map((dn) => ({
-      name: dn,
-      data_network_name: dn,
-    }));
-    return { items, total_count: items.length };
-  });
-  api.get("/api/v1/operator", () => operator(voice.pcscf ?? []));
 };
 
 const renderDetail = (role = "Admin") =>
@@ -78,74 +58,33 @@ describe("Subscriber MSISDN", () => {
   });
 });
 
-describe("Subscriber voice", () => {
-  const card = async () =>
-    within(
-      (await screen.findByRole("heading", { name: "Voice" })).closest(
-        ".MuiCard-root",
-      ) as HTMLElement,
-    );
-
-  it("shows a ready subscriber's IMS subscription", async () => {
-    const impi = `${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`;
-    seedSubscriber(
-      "+15551230001",
-      {
-        registrations: [
+describe("Subscriber IMS registration", () => {
+  it("shows the IMS registration state", async () => {
+    seedSubscriber("+15551230001", {
+      ims: {
+        private_identity: `${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`,
+        public_identities: [
           {
-            system: "4G",
-            registered: true,
-            connection_state: "connected",
-            ims_voice_over_ps: true,
-            connection: null,
+            identity: "tel:+15551230001",
+            barred: false,
+            user_state: "registered_unreg_services",
           },
         ],
-        ims: {
-          private_identity: impi,
-          scscf_name: "sip:scscf.ims.mnc001.mcc001.3gppnetwork.org:5080",
-          public_identities: [
-            {
-              identity: "tel:+15551230001",
-              barred: false,
-              user_state: "registered",
-            },
-            { identity: `sip:${impi}`, barred: true, user_state: "registered" },
-          ],
-        },
       },
-      { policies: ["ims"], pcscf: ["10.6.0.5"] },
-    );
+    });
     renderDetail();
 
-    const voice = await card();
-    expect(await voice.findByText("Ready")).toBeInTheDocument();
-    expect(voice.getByText("IMS Voice over PS (4G)")).toBeInTheDocument();
-    expect(voice.getByText("Supported")).toBeInTheDocument();
-    expect(voice.getByText(impi)).toBeInTheDocument();
-    expect(voice.getByText("tel:+15551230001")).toBeInTheDocument();
-    expect(voice.getAllByText("Registered")).toHaveLength(2);
-    expect(voice.getByText("Barred")).toBeInTheDocument();
+    expect(await screen.findByText("IMS Registration")).toBeInTheDocument();
     expect(
-      voice.getByText("sip:scscf.ims.mnc001.mcc001.3gppnetwork.org:5080"),
+      screen.getByText("Unregistered (S-CSCF assigned)"),
     ).toBeInTheDocument();
   });
 
-  it("names what a subscriber still needs for voice", async () => {
-    const user = userEvent.setup();
-    seedSubscriber("", {}, { policies: ["internet"] });
+  it("omits IMS for a subscriber without an IMS subscription", async () => {
+    seedSubscriber();
     renderDetail();
 
-    const voice = await card();
-    expect(
-      await voice.findByText("a policy on ims in its profile"),
-    ).toHaveAttribute("href", "/profiles/default");
-    expect(voice.getByText("P-CSCF addresses")).toHaveAttribute(
-      "href",
-      "/operator",
-    );
-    expect(voice.queryByText("Private Identity")).not.toBeInTheDocument();
-
-    await user.click(voice.getByRole("button", { name: "a phone number" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText("+15551230001")).toBeInTheDocument();
+    expect(screen.queryByText("IMS Registration")).not.toBeInTheDocument();
   });
 });

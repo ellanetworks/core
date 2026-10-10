@@ -16,16 +16,11 @@ const PATH = "/api/v1/networking/data-networks";
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
 
-const renderCreate = (voiceAvailable = false) => {
+const renderCreate = () => {
   const onClose = vi.fn();
   const onSuccess = vi.fn();
   renderWithProviders(
-    <CreateDataNetworkModal
-      open
-      onClose={onClose}
-      onSuccess={onSuccess}
-      voiceAvailable={voiceAvailable}
-    />,
+    <CreateDataNetworkModal open onClose={onClose} onSuccess={onSuccess} />,
     { auth: {} },
   );
   return { onClose, onSuccess };
@@ -128,23 +123,16 @@ describe("CreateDataNetworkModal", () => {
     );
   });
 
-  it("offers no voice type once the voice data network exists", () => {
-    renderCreate();
-    expect(
-      within(dialog()).queryByRole("button", { name: "Voice (IMS)" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("creates the voice data network under the ims name", async () => {
     const user = userEvent.setup();
     api.post(PATH, () => ({}));
-    const { onSuccess } = renderCreate(true);
+    const { onSuccess } = renderCreate();
 
     await user.type(field(/Name/), "internet");
-    await user.click(button(/Voice \(IMS\)/));
+    await user.click(screen.getByRole("switch", { name: "Voice (IMS)" }));
 
     expect(field(/Name/)).toHaveValue("ims");
-    expect(field(/Name/)).toHaveAttribute("readonly");
+    expect(field(/Name/)).toBeDisabled();
 
     await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
     await user.click(button(/^Create$/));
@@ -153,15 +141,16 @@ describe("CreateDataNetworkModal", () => {
     expect(api.lastRequest(PATH)?.body).toMatchObject({ name: "ims" });
   });
 
-  it("clears the name when switching back to a data network", async () => {
+  it("clears and enables the name when voice is switched off", async () => {
     const user = userEvent.setup();
-    renderCreate(true);
+    renderCreate();
 
-    await user.click(button(/Voice \(IMS\)/));
-    await user.click(button(/^Data$/));
+    const voice = screen.getByRole("switch", { name: "Voice (IMS)" });
+    await user.click(voice);
+    await user.click(voice);
 
     expect(field(/Name/)).toHaveValue("");
-    expect(field(/Name/)).not.toHaveAttribute("readonly");
+    expect(field(/Name/)).toBeEnabled();
   });
 
   it("keeps the dialog open when the API rejects the create", async () => {

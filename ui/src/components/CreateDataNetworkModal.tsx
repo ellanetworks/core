@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState } from "react";
-import { ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { FormControlLabel, Switch } from "@mui/material";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -21,10 +21,7 @@ interface CreateDataNetworkModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  voiceAvailable?: boolean;
 }
-
-type Kind = "data" | "voice";
 
 export const schema = yup.object({
   name: yup
@@ -43,10 +40,9 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   open,
   onClose,
   onSuccess,
-  voiceAvailable = false,
 }) => {
   const { accessToken } = useAuth();
-  const [kind, setKind] = useState<Kind>("data");
+  const [voice, setVoice] = useState(false);
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -60,13 +56,9 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
     },
   });
 
-  const chooseKind = (_: React.MouseEvent<HTMLElement>, next: Kind | null) => {
-    if (!next || next === kind) return;
-
-    setKind(next);
-    form.setValue("name", next === "voice" ? IMS_DATA_NETWORK : "", {
-      shouldValidate: next === "voice",
-    });
+  const toggleVoice = (_: React.ChangeEvent<HTMLInputElement>, on: boolean) => {
+    setVoice(on);
+    form.setValue("name", on ? IMS_DATA_NETWORK : "", { shouldValidate: on });
   };
 
   const submit = async (values: FormValues) => {
@@ -94,32 +86,15 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       submittingLabel="Creating..."
       fullWidth={false}
     >
-      {voiceAvailable && (
-        <>
-          <ToggleButtonGroup
-            value={kind}
-            exclusive
-            onChange={chooseKind}
-            size="small"
-            sx={{ mt: 1, mb: 1 }}
-            aria-label="Data network type"
-          >
-            <ToggleButton value="data">Data</ToggleButton>
-            <ToggleButton value="voice">Voice (IMS)</ToggleButton>
-          </ToggleButtonGroup>
-          {kind === "voice" && (
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-              Handsets reach IMS on the data network named &quot;
-              {IMS_DATA_NETWORK}&quot; for voice and video calls.
-            </Typography>
-          )}
-        </>
-      )}
+      <FormControlLabel
+        control={<Switch checked={voice} onChange={toggleVoice} />}
+        label="Voice (IMS)"
+      />
       <TextControl<FormValues>
         name="name"
         label="Name"
-        autoFocus={kind === "data"}
-        slotProps={{ input: { readOnly: kind === "voice" } }}
+        autoFocus
+        disabled={voice}
       />
       <DataNetworkFields />
     </FormDialog>

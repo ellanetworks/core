@@ -13,12 +13,10 @@ import {
 } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import {
-  getDataNetwork,
   listDataNetworks,
   type ListDataNetworksResponse,
   type APIDataNetwork,
 } from "@/queries/data_networks";
-import { IMS_DATA_NETWORK, isVoiceDataNetwork } from "@/utils/voice";
 import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
@@ -47,13 +45,6 @@ export default function DataNetworksTab() {
     refetchOnWindowFocus: true,
     retry: false,
     placeholderData: (prev) => prev,
-  });
-
-  const voiceNetworkQuery = useQuery({
-    queryKey: ["data-networks", IMS_DATA_NETWORK],
-    queryFn: () => getDataNetwork(accessToken || "", IMS_DATA_NETWORK),
-    enabled: !!accessToken && canEdit,
-    retry: false,
   });
 
   const [isCreateOpen, setCreateOpen] = useState(false);
@@ -93,9 +84,6 @@ export default function DataNetworksTab() {
                 {params.row.name}
               </Typography>
             </Link>
-            {isVoiceDataNetwork(params.row.name) && (
-              <Chip label="Voice" size="small" color="primary" sx={{ ml: 1 }} />
-            )}
           </Box>
         ),
       },
@@ -201,11 +189,9 @@ export default function DataNetworksTab() {
       {isCreateOpen && (
         <CreateDataNetworkModal
           open
-          voiceAvailable={voiceNetworkQuery.isError}
           onClose={() => setCreateOpen(false)}
           onSuccess={() => {
             void dataNetworksQuery.refetch();
-            void voiceNetworkQuery.refetch();
             showSnackbar("Data network created successfully.", "success");
           }}
         />

@@ -303,7 +303,38 @@ func waitForHAIMSLinks(ctx context.Context, nodes []*client.Client) error {
 		}
 	}
 
-	return nil
+	deadline := time.Now().Add(2 * time.Minute)
+
+	for {
+		var peers struct {
+			Items []struct {
+				Host   string `json:"host"`
+				Status struct {
+					State string `json:"state"`
+				} `json:"status"`
+			} `json:"items"`
+		}
+
+		err := callIMS(ctx, http.MethodGet, "/api/v1/diameter/peers", nil, &peers)
+
+		open := 0
+
+		for _, p := range peers.Items {
+			if p.Status.State == "open" {
+				open++
+			}
+		}
+
+		if err == nil && open == len(nodes) {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("Ella IMS has %d of %d peers open (%+v, error %v)", open, len(nodes), peers.Items, err)
+		}
+
+		time.Sleep(time.Second)
+	}
 }
 
 func callIMS(ctx context.Context, method, path string, body, out any) error {

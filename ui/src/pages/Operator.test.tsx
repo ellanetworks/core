@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { beforeEach, describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { httpError, setupApiServer } from "@/test/apiServer";
+import { setupApiServer } from "@/test/apiServer";
 import Operator from "./Operator";
 
 const api = setupApiServer();
@@ -54,18 +54,6 @@ const row = async (text: string) => {
   const cell = await screen.findByText(text);
   return within(cell.closest("tr")!);
 };
-
-const DATA_NETWORK_PATH = "/api/v1/networking/data-networks/ims";
-const POLICIES_PATH = "/api/v1/policies";
-const DIAMETER_PATH = "/api/v1/networking/diameter";
-
-const voiceBackground = () => {
-  api.get(DATA_NETWORK_PATH, () => httpError(404, "Data network not found"));
-  api.get(POLICIES_PATH, () => ({ items: [], total_count: 0 }));
-  api.get(DIAMETER_PATH, () => ({ peers: [] }));
-};
-
-beforeEach(voiceBackground);
 
 const renderOperator = (role = "Admin") =>
   renderWithProviders(<Operator />, {
@@ -213,79 +201,15 @@ describe("Operator SMS section", () => {
 });
 
 describe("Operator Voice section", () => {
-  const setupRow = (label: string) =>
-    within(screen.getByRole("table", { name: "Voice setup" }))
-      .getByText(label)
-      .closest("tr")!;
-
-  it("lists what voice still needs", async () => {
-    api.get("/api/v1/operator", () => operator(ready));
+  it("shows the P-CSCF addresses", async () => {
+    api.get("/api/v1/operator", () =>
+      operator(ready, ["10.6.0.5", "2001:db8::5"]),
+    );
     api.get(PEERS_PATH, () => ({ items: [] }));
     renderOperator();
 
     expect(
-      await screen.findByText("Create a data network of type Voice (IMS)."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Set the addresses of Ella IMS's P-CSCF."),
-    ).toBeInTheDocument();
-    for (const label of [
-      "Voice data network",
-      "Voice policy",
-      "P-CSCF addresses",
-      "Ella IMS",
-    ]) {
-      expect(within(setupRow(label)).getByTitle("To do")).toBeInTheDocument();
-    }
-  });
-
-  it("shows a complete voice setup", async () => {
-    api.get("/api/v1/operator", () => operator(ready, ["10.6.0.5"]));
-    api.get(PEERS_PATH, () => ({ items: [] }));
-    api.get(DATA_NETWORK_PATH, () => ({
-      name: "ims",
-      ipv4_pool: "10.60.0.0/16",
-    }));
-    api.get(POLICIES_PATH, () => ({
-      items: [{ name: "voice", data_network_name: "ims" }],
-      total_count: 1,
-    }));
-    api.get(DIAMETER_PATH, () => ({
-      peers: [{ role: "ims", address: "10.3.0.6", state: "open", since: "" }],
-    }));
-    renderOperator();
-
-    expect(
-      await screen.findByText("Connected to this node over Diameter."),
-    ).toBeInTheDocument();
-    for (const label of [
-      "Voice data network",
-      "Voice policy",
-      "P-CSCF addresses",
-      "Ella IMS",
-    ]) {
-      expect(
-        await within(setupRow(label)).findByTitle("Done"),
-      ).toBeInTheDocument();
-    }
-    expect(
-      await (await row("P-CSCF Addresses")).findByText("10.6.0.5"),
-    ).toBeInTheDocument();
-  });
-
-  it("flags P-CSCF addresses the voice data network cannot reach", async () => {
-    api.get("/api/v1/operator", () => operator(ready, ["2001:db8::5"]));
-    api.get(PEERS_PATH, () => ({ items: [] }));
-    api.get(DATA_NETWORK_PATH, () => ({
-      name: "ims",
-      ipv4_pool: "10.60.0.0/16",
-    }));
-    renderOperator();
-
-    expect(
-      await screen.findByText(
-        "No address matches an IP family of the ims data network's pools.",
-      ),
+      await (await row("P-CSCF Addresses")).findByText("10.6.0.5, 2001:db8::5"),
     ).toBeInTheDocument();
   });
 
