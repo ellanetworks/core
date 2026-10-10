@@ -93,6 +93,13 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 	smContext.Mutex.Unlock()
 
 	policy, _, err := s.resolveEPSPolicy(ctx, supi, dnn, snssai)
+	if errors.Is(err, ErrSubscriberNotFound) {
+		logger.SmfLog.Debug("subscriber deleted, leaving the session to the subscription withdrawal",
+			logger.SMContextRef(ref))
+
+		return nil
+	}
+
 	if err != nil && !permanentPolicyFailure(err) {
 		logger.SmfLog.Warn("transient error fetching session policy, skipping reconciliation",
 			logger.SMContextRef(ref), zap.Error(err))

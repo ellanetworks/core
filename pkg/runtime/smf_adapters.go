@@ -253,6 +253,10 @@ func (a *pcfDBAdapter) GetEPSSessionPolicy(ctx context.Context, imsi string, apn
 }
 
 func policyLookupError(err error) error {
+	if errors.Is(err, db.ErrSubscriberNotFound) {
+		return fmt.Errorf("%w: %v", smf.ErrSubscriberNotFound, err)
+	}
+
 	if errors.Is(err, db.ErrDataNetworkNotFound) {
 		return fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
 	}
