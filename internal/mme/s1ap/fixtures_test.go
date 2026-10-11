@@ -207,7 +207,8 @@ func (f *fakeSessionManager) DedicatedBearerActivated(context.Context, string, u
 
 func (f *fakeSessionManager) DedicatedBearerReleased(context.Context, string, uint32) {}
 
-func (f *fakeSessionManager) DedicatedBearerModified(context.Context, string, uint32, bool) {}
+func (f *fakeSessionManager) DedicatedBearerModified(context.Context, string, uint32, models.BearerModificationOutcome) {
+}
 
 func (f *fakeSessionManager) DedicatedBearerWithoutFiveGSQoS(context.Context, string, uint32) {}
 

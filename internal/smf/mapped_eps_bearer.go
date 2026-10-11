@@ -292,16 +292,7 @@ func (s *SMF) acceptMappedDeletionLocked(ctx context.Context, sc *SMContext, del
 	logger.From(ctx, logger.SmfLog).Info("accepted the UE's deletion of mapped EPS bearer contexts; the QoS flows stay in 5GS (TS 24.501 §6.4.2.2)",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), zap.Uint8s("ebis", ebis))
 
-	sc.MarkPTIInUse(pti)
-
-	supi, pduSessionID := sc.Supi, sc.PDUSessionID
-
-	s.armRetransmit(ctx, sc, s.timerT3591(),
-		func(ctx context.Context) error { return s.amf.ModifyN1N2(ctx, supi, pduSessionID, n1, nil) },
-		func(ctx context.Context, sc *SMContext) {
-			sc.ClearPTIInUse(pti)
-			s.reconcileAfter(sc.Ref, 0)
-		})
+	s.sendRequestedModificationLocked(ctx, sc, pti, n1)
 
 	return &UpdateResult{N1Msg: n1}, nil
 }

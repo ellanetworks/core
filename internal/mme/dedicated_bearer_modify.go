@@ -25,6 +25,7 @@ const (
 	radioPending
 	radioModified
 	radioNotModified
+	radioInterrupted
 )
 
 type ueOutcome uint8
@@ -52,13 +53,14 @@ const (
 	verdictFailed
 	verdictRadioAhead
 	verdictUEAhead
+	verdictInterrupted
 )
 
 func (d *dedicatedModification) verdict() modificationVerdict {
 	switch {
 	case d.ue == ueAccepted && (d.radio == radioNotNeeded || d.radio == radioModified):
 		return verdictCommitted
-	case d.ue == ueAccepted && d.radio == radioNotModified:
+	case d.ue == ueAccepted && (d.radio == radioNotModified || d.radio == radioInterrupted):
 		return verdictUEAhead
 	case d.ue == ueRejected && d.radio == radioModified:
 		return verdictRadioAhead
@@ -66,6 +68,8 @@ func (d *dedicatedModification) verdict() modificationVerdict {
 		return verdictFailed
 	case d.ue == uePending && d.radio == radioNotModified:
 		return verdictFailed
+	case d.ue == uePending && d.radio == radioInterrupted:
+		return verdictInterrupted
 	default:
 		return verdictPending
 	}
@@ -222,7 +226,7 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 		pending.radio = radioPending
 	}
 
-	if !m.armDedicatedGuardLocked(ctx, ue, b, "Modify EPS Bearer Context Request", plain, func(ctx context.Context) {
+	if !m.armDedicatedGuardLocked(ctx, ue, ueConn, b, "Modify EPS Bearer Context Request", plain, func(ctx context.Context) {
 		m.dedicatedUEAnswered(ctx, ue, b, pending, false, "T3486 expired")
 	}) {
 		ue.mu.Unlock()
@@ -288,7 +292,7 @@ func (m *MME) commitIdleDedicatedARP(ctx context.Context, ue *UeContext, ebi uin
 	ref, teid := p.SessionRef, b.SgwFTEID.TEID
 	ue.mu.Unlock()
 
-	m.Session.DedicatedBearerModified(ctx, ref, teid, true)
+	m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationCommitted)
 
 	return true
 }
@@ -345,21 +349,27 @@ func (m *MME) DedicatedBearerModifyRejected(ctx context.Context, ue *UeContext, 
 }
 
 func (m *MME) DedicatedRadioModified(ctx context.Context, ue *UeContext, ebi uint8, modified bool) bool {
-	b, pending := m.pendingModification(ue, ebi)
-	if b == nil {
-		return false
-	}
-
-	if pending == nil {
-		return true
-	}
-
 	outcome, reason := radioModified, ""
 	if !modified {
 		outcome, reason = radioNotModified, "eNB failed to modify the E-RAB"
 	}
 
-	m.settleRadio(ctx, ue, b, pending, outcome, reason)
+	return m.settleDedicatedRadio(ctx, ue, ebi, outcome, reason)
+}
+
+func (m *MME) DedicatedRadioInterrupted(ctx context.Context, ue *UeContext, ebi uint8) bool {
+	return m.settleDedicatedRadio(ctx, ue, ebi, radioInterrupted, "a handover interrupted the E-RAB modification")
+}
+
+func (m *MME) settleDedicatedRadio(ctx context.Context, ue *UeContext, ebi uint8, outcome radioOutcome, reason string) bool {
+	b, pending := m.pendingModification(ue, ebi)
+	if b == nil {
+		return false
+	}
+
+	if pending != nil {
+		m.settleRadio(ctx, ue, b, pending, outcome, reason)
+	}
 
 	return true
 }
@@ -384,7 +394,7 @@ func (m *MME) interruptRadioModifications(ctx context.Context, ue *UeContext) {
 	ue.mu.Unlock()
 
 	for _, i := range out {
-		m.settleRadio(ctx, ue, i.b, i.pending, radioNotModified, "a handover interrupted the E-RAB modification")
+		m.settleRadio(ctx, ue, i.b, i.pending, radioInterrupted, "a handover interrupted the E-RAB modification")
 	}
 }
 
@@ -447,7 +457,7 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	b.guard.Stop()
 	b.modifying = nil
 
-	if verdict == verdictCommitted {
+	if verdict == verdictCommitted || verdict == verdictUEAhead {
 		b.DedicatedBearerInfo = pending.target
 	}
 
@@ -465,7 +475,7 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	log := logger.From(ctx, logger.MmeLog).With(logger.SUPI(ue.Supi().String()), logger.ERABID(ebi))
 
 	if pending.realign {
-		if verdict != verdictCommitted {
+		if verdict != verdictCommitted && verdict != verdictInterrupted {
 			log.Warn("the E-RAB could not be realigned with the UE; deactivating the bearer (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
 			m.DeactivateDedicated(ctx, ue, ebi)
 		}
@@ -476,20 +486,27 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	switch verdict {
 	case verdictCommitted:
 		log.Info("dedicated EPS bearer modified")
-		m.Session.DedicatedBearerModified(ctx, ref, teid, true)
+		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationCommitted)
 	case verdictUEAhead:
-		log.Warn("the UE accepted a modification the eNB did not apply; deactivating the bearer (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
-		m.DeactivateDedicated(ctx, ue, ebi)
+		log.Warn("the UE accepted a modification the eNB did not confirm; realigning the E-RAB with the UE (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
+		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationCommitted)
+		m.realignERAB(ctx, ue, ebi, realign)
 	case verdictRadioAhead:
 		log.Warn("the UE rejected a modification the eNB applied; realigning the E-RAB (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
-		m.Session.DedicatedBearerModified(ctx, ref, teid, false)
-
-		if err := m.startModification(ctx, ue, ue.Conn(), ebi, realign, true); err != nil {
-			log.Warn("E-RAB realignment not sent; deactivating the bearer", zap.Error(err))
-			m.DeactivateDedicated(ctx, ue, ebi)
-		}
+		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationFailed)
+		m.realignERAB(ctx, ue, ebi, realign)
 	case verdictFailed:
 		log.Warn("dedicated EPS bearer modification failed; keeping the previous configuration", zap.String("reason", pending.reason))
-		m.Session.DedicatedBearerModified(ctx, ref, teid, false)
+		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationFailed)
+	case verdictInterrupted:
+		log.Info("dedicated EPS bearer modification interrupted before the UE answered; the SMF retries it", zap.String("reason", pending.reason))
+		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationInterrupted)
+	}
+}
+
+func (m *MME) realignERAB(ctx context.Context, ue *UeContext, ebi uint8, realign models.DedicatedBearerModification) {
+	if err := m.startModification(ctx, ue, ue.Conn(), ebi, realign, true); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("E-RAB realignment not sent; deactivating the bearer", logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.Error(err))
+		m.DeactivateDedicated(ctx, ue, ebi)
 	}
 }

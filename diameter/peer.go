@@ -700,7 +700,10 @@ func (n *Node) dial(p *peer) *Conn {
 }
 
 func (n *Node) connect(cfg *Peer) (transport, error) {
-	local := n.localAddresses(cfg.Addresses)
+	local, err := n.localAddresses(cfg.Addresses)
+	if err != nil {
+		return nil, err
+	}
 
 	var errs []error
 
@@ -730,7 +733,36 @@ func (n *Node) connectOver(kind Transport, local, remote []netip.Addr, port uint
 	}
 }
 
-func (n *Node) localAddresses(remote []netip.Addr) []netip.Addr {
+func (n *Node) localAddresses(remote []netip.Addr) ([]netip.Addr, error) {
+	if n.cfg.SourceAddress == nil {
+		return n.identityAddresses(remote), nil
+	}
+
+	var (
+		out  []netip.Addr
+		errs []error
+	)
+
+	for _, r := range remote {
+		src, err := n.cfg.SourceAddress(r)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("no source address towards %s: %w", r, err))
+			continue
+		}
+
+		if !slices.Contains(out, src) {
+			out = append(out, src)
+		}
+	}
+
+	if len(out) == 0 && len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return out, nil
+}
+
+func (n *Node) identityAddresses(remote []netip.Addr) []netip.Addr {
 	var v4, v6 bool
 
 	for _, a := range remote {

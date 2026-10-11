@@ -17,6 +17,7 @@ import { formatRelativeTime } from "@/utils/formatters";
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
   ims?: IMSSubscription;
+  msisdn?: string;
 }
 
 const InfoRow: React.FC<{
@@ -160,6 +161,15 @@ const IMSStateChip: React.FC<{ ims: IMSSubscription }> = ({ ims }) => {
   return <Chip label={label} color={color} size="small" variant="filled" />;
 };
 
+const VoiceOverPSChip: React.FC<{ supported: boolean }> = ({ supported }) => (
+  <Chip
+    label={supported ? "Yes" : "No"}
+    color={supported ? "success" : "default"}
+    size="small"
+    variant="filled"
+  />
+);
+
 const SystemChips: React.FC<{ systems: string[] }> = ({ systems }) => (
   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
     {systems.map((system) => (
@@ -187,6 +197,7 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
   ims,
+  msisdn,
 }) => {
   const systems = status.systems ?? [];
 
@@ -210,7 +221,24 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
         {ims && (
           <InfoRow
             label="IMS Registration"
-            value={<IMSStateChip ims={ims} />}
+            value={
+              msisdn ? (
+                <IMSStateChip ims={ims} />
+              ) : (
+                <Chip
+                  label="No MSISDN"
+                  color="default"
+                  size="small"
+                  variant="filled"
+                />
+              )
+            }
+          />
+        )}
+        {ims && status.ims_voice_over_ps !== undefined && (
+          <InfoRow
+            label="Voice over PS"
+            value={<VoiceOverPSChip supported={status.ims_voice_over_ps} />}
           />
         )}
         {systems.length > 0 && (

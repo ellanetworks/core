@@ -320,16 +320,6 @@ func TestDedicatedBearerCarriesItsQoSFlowForN1Mode(t *testing.T) {
 	}
 }
 
-func TestDedicatedBearerWithoutN1ModeCarriesNoQoSFlow(t *testing.T) {
-	s, _, _, mmeCb, ref := epsReconcileFixture(t, 0)
-
-	pushRules(t, s, ref, voiceRule())
-
-	if a := mmeCb.dedicatedActivations(); len(a) != 1 || a[0].MappedFiveGSQoS != nil {
-		t.Fatalf("activations %+v, want no 5GS QoS for a PDN connection without a PDU session ID", a)
-	}
-}
-
 func interworkingCall(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, string) {
 	t.Helper()
 

@@ -6,6 +6,7 @@ package diameternode_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"os"
@@ -176,12 +177,10 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 	}
 
 	return []diameternode.PeerConfig{{
-		ID:         "smsc-1",
-		Role:       "smsc",
-		Host:       s.smscHost,
-		Address:    s.smsc,
-		Transports: []diameter.Transport{diameter.TransportSCTP},
-		Dial:       true,
+		ID:      "smsc-1",
+		Role:    "smsc",
+		Host:    s.smscHost,
+		Address: s.smsc,
 		Applications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
 			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
@@ -205,7 +204,12 @@ func startManager(t *testing.T, source *settingsSource) (*diameternode.Manager, 
 func startListeningManager(t *testing.T, source *settingsSource, listen diameternode.ListenConfig) (*diameternode.Manager, chan struct{}) {
 	t.Helper()
 
-	link := diameternode.New(source.getNode, source.getPeers, listen, zap.NewNop())
+	return runManager(t, diameternode.New(source.getNode, source.getPeers, listen, zap.NewNop()))
+}
+
+func runManager(t *testing.T, link *diameternode.Manager) (*diameternode.Manager, chan struct{}) {
+	t.Helper()
+
 	link.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
 		return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultUnableToComply)
 	}))
@@ -707,6 +711,82 @@ func TestListenerRunsWithoutSMSC(t *testing.T) {
 	waitFor(t, "no common application", func() bool {
 		return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultNoCommonApplication)))
 	})
+}
+
+func TestListenerServesIMSWhenTheSMSCHasNoRoute(t *testing.T) {
+	requireSCTP(t)
+
+	smsc := netip.MustParseAddrPort("[2001:db8::1]:3868")
+	port := freePort(t)
+
+	source := newSettingsSource()
+	source.setSMSC(smsc)
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: port}, zap.NewNop())
+	link.SetLocalAddrForTest(func(remote netip.Addr) (netip.Addr, error) {
+		return netip.Addr{}, fmt.Errorf("no route to %s", remote)
+	})
+
+	runManager(t, link)
+
+	ims := newDialingNode(t, "scscf.ims.mnc001.mcc001.3gppnetwork.org", loopback2)
+	dialEllaFor(t, ims, port, diameter.TransportSCTP, imsApplications)
+
+	waitFor(t, "IMS peer open despite the unroutable SMSC", func() bool {
+		return ellaStatus(ims).State == diameter.PeerOpen && imsPeer(link).State == diameter.PeerOpen
+	})
+
+	if st := smscState(link); st == diameter.PeerOpen {
+		t.Fatalf("SMSC state = %s, want it not connected", st)
+	}
+}
+
+func TestSMSCChangesKeepTheIMSPeersConnected(t *testing.T) {
+	requireSCTP(t)
+
+	port := freePort(t)
+	source := newSettingsSource()
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: port}, zap.NewNop())
+	link.SetLocalAddrForTest(func(remote netip.Addr) (netip.Addr, error) {
+		if remote.Is6() {
+			return netip.Addr{}, fmt.Errorf("no route to %s", remote)
+		}
+
+		return netip.MustParseAddr("127.0.0.3"), nil
+	})
+
+	_, wakeup := runManager(t, link)
+
+	ims := newDialingNode(t, "scscf.ims.mnc001.mcc001.3gppnetwork.org", loopback2)
+	dialEllaFor(t, ims, port, diameter.TransportSCTP, imsApplications)
+
+	waitFor(t, "IMS peer open", func() bool { return imsPeer(link).State == diameter.PeerOpen })
+
+	node, since := link.Node(), imsPeer(link).Since
+
+	for _, smsc := range []string{"127.0.0.1:3868", "[2001:db8::1]:3868", ""} {
+		var addr netip.AddrPort
+		if smsc != "" {
+			addr = netip.MustParseAddrPort(smsc)
+		}
+
+		source.setSMSC(addr)
+		poke(wakeup)
+
+		waitFor(t, "the SMSC change applied", func() bool {
+			_, ok := smscPeer(link)
+			return ok == addr.IsValid()
+		})
+
+		if link.Node() != node {
+			t.Fatalf("setting the SMSC to %q restarted the Diameter node", smsc)
+		}
+
+		if p := imsPeer(link); p.State != diameter.PeerOpen || !p.Since.Equal(since) {
+			t.Fatalf("setting the SMSC to %q disturbed the IMS peer: %+v", smsc, p)
+		}
+	}
 }
 
 var imsApplications = []diameter.Application{

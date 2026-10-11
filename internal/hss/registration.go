@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/ellanetworks/core/diameter"
 )
 
 type State int
@@ -25,7 +23,6 @@ type Registration struct {
 	AuthPending bool
 	OriginHost  string
 	OriginRealm string
-	UpdatedAt   int64
 }
 
 type RegistrationStore interface {
@@ -88,12 +85,6 @@ func (h *HSS) swapRegistration(ctx context.Context, imsi string, next func(curre
 			return nil
 		}
 
-		if want != nil {
-			stamped := *want
-			stamped.UpdatedAt = h.now().Unix()
-			want = &stamped
-		}
-
 		stored, swapped, err := h.store.CompareAndSwapRegistration(ctx, imsi, current, want)
 		if err != nil {
 			return err
@@ -107,18 +98,6 @@ func (h *HSS) swapRegistration(ctx context.Context, imsi string, next func(curre
 	}
 
 	return fmt.Errorf("%w: IMS registration of subscriber %s contended beyond %d attempts", ErrUnavailable, imsi, maxRegistrationAttempts)
-}
-
-func origin(req *diameter.Message) (host, realm string) {
-	if a, ok := req.Find(diameter.AVPOriginHost, 0); ok {
-		host = a.UTF8String()
-	}
-
-	if a, ok := req.Find(diameter.AVPOriginRealm, 0); ok {
-		realm = a.UTF8String()
-	}
-
-	return host, realm
 }
 
 func assignedElsewhere(current *Registration, serverName string) bool {

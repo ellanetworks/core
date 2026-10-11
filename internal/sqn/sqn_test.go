@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/milenage"
 	"github.com/ellanetworks/core/internal/sqn"
+	"github.com/ellanetworks/core/internal/util/milenage"
 )
 
 const (
@@ -77,22 +77,12 @@ func testAUTS(t *testing.T, rand []byte, sqnMSHex string) string {
 	opc, _ := hex.DecodeString(testOPc)
 	sqnMS, _ := hex.DecodeString(sqnMSHex)
 
-	akStar := make([]byte, 6)
-	if err := milenage.F2345(opc, k, rand, nil, nil, nil, nil, akStar); err != nil {
-		t.Fatalf("f5*: %v", err)
+	auts, err := milenage.GenerateAUTS(opc, k, rand, sqnMS)
+	if err != nil {
+		t.Fatalf("AUTS: %v", err)
 	}
 
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	if err := milenage.F1(opc, k, rand, sqnMS, []byte{0, 0}, macA, macS); err != nil {
-		t.Fatalf("f1*: %v", err)
-	}
-
-	auts := make([]byte, 0, 14)
-	for i := range sqnMS {
-		auts = append(auts, sqnMS[i]^akStar[i])
-	}
-
-	return hex.EncodeToString(append(auts, macS...))
+	return hex.EncodeToString(auts)
 }
 
 func TestNextResyncSkipsTheIMSIndex(t *testing.T) {

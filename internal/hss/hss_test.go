@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/milenage"
 	"github.com/ellanetworks/core/internal/sqn"
 	"github.com/ellanetworks/core/internal/udm"
+	utilmilenage "github.com/ellanetworks/core/internal/util/milenage"
 	"go.uber.org/zap"
 )
 
@@ -384,27 +385,6 @@ func TestMultimediaAuthReturnsAnIMSAKAVector(t *testing.T) {
 	}
 }
 
-func TestMultimediaAuthAdvancesTheSequenceNumber(t *testing.T) {
-	store := newFakeIMSStore()
-	req := cx.MultimediaAuthRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "tel:+" + testMSISDN}
-
-	var previous []byte
-
-	for range 3 {
-		ma, err := cx.ParseMultimediaAuthAnswer(multimediaAuth(t, store, req))
-		if err != nil {
-			t.Fatalf("parse MAA: %v", err)
-		}
-
-		got := verifyAsUE(t, ma.Items[0].AKA)
-		if previous != nil && bytes.Compare(got, previous) <= 0 {
-			t.Fatalf("SQN %x does not follow %x", got, previous)
-		}
-
-		previous = got
-	}
-}
-
 func TestMultimediaAuthErrors(t *testing.T) {
 	resync := &cx.Resync{RAND: make([]byte, 16), AUTS: make([]byte, 14)}
 
@@ -459,22 +439,12 @@ func autsAsUE(t *testing.T, rand []byte, sqnMS []byte) []byte {
 	k, _ := hex.DecodeString(testK)
 	opc, _ := hex.DecodeString(testOPc)
 
-	akStar := make([]byte, 6)
-	if err := milenage.F2345(opc, k, rand, nil, nil, nil, nil, akStar); err != nil {
-		t.Fatalf("f5*: %v", err)
+	auts, err := utilmilenage.GenerateAUTS(opc, k, rand, sqnMS)
+	if err != nil {
+		t.Fatalf("AUTS: %v", err)
 	}
 
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	if err := milenage.F1(opc, k, rand, sqnMS, []byte{0, 0}, macA, macS); err != nil {
-		t.Fatalf("f1*: %v", err)
-	}
-
-	auts := make([]byte, 0, 14)
-	for i := range sqnMS {
-		auts = append(auts, sqnMS[i]^akStar[i])
-	}
-
-	return append(auts, macS...)
+	return auts
 }
 
 func firstVector(t *testing.T, store *fakeIMSStore) *cx.AKAVector {

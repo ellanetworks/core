@@ -26,6 +26,7 @@ const (
 	PdrFlagSDF         = 0x01
 	PdrFlagLocalSwitch = 0x02
 	PdrFlagFallback    = 0x04
+	PdrFlagNATExempt   = 0x08
 )
 
 type ClassifierRule struct {

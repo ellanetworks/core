@@ -109,6 +109,12 @@ func (p *PCF) UpdateAssociation(ctx context.Context, ref string, subscribed smf.
 		return nil, fmt.Errorf("policy association %q ended during its update", ref)
 	}
 
+	if a.decision != nil && sameDecision(d, a.decision) {
+		a.context = c
+
+		return nil, nil
+	}
+
 	d.Revision = p.nextRevisionLocked()
 	d.Rules = a.rules()
 	a.context, a.decision = c, d
@@ -130,6 +136,7 @@ func (p *PCF) ReportEnforcementFailure(ref string, reports []smf.RuleReport, cau
 
 	type failure struct {
 		session *rxSession
+		abort   bool
 		action  rx.SpecificAction
 		flows   []rx.Flows
 	}
@@ -156,7 +163,7 @@ func (p *PCF) ReportEnforcementFailure(ref string, reports []smf.RuleReport, cau
 
 		if len(s.rules) == 0 {
 			s.aborted = true
-			failures = append(failures, failure{session: s})
+			failures = append(failures, failure{session: s, abort: true})
 
 			continue
 		}
@@ -175,7 +182,7 @@ func (p *PCF) ReportEnforcementFailure(ref string, reports []smf.RuleReport, cau
 	p.notify(ref, d)
 
 	for _, f := range failures {
-		if f.session.aborted {
+		if f.abort {
 			go p.abort(f.session, rx.AbortBearerReleased)
 		} else {
 			go p.reportFailedFlows(f.session, f.action, f.flows)
@@ -192,7 +199,7 @@ func (s *rxSession) applyReports(reports []smf.RuleReport) []rx.Flows {
 	byComponent := make(map[uint32]*affected)
 
 	for k, r := range s.rules {
-		i := slices.IndexFunc(reports, func(f smf.RuleReport) bool { return samePCCRule(f.Rule, r) })
+		i := slices.IndexFunc(reports, func(f smf.RuleReport) bool { return f.Rule.Equal(r) })
 		if i < 0 {
 			continue
 		}
@@ -246,52 +253,6 @@ func failureAction(actions []rx.SpecificAction, cause smf.EnforcementFailure) (r
 	return 0, false
 }
 
-func (p *PCF) Reconcile(ctx context.Context) {
-	p.mu.Lock()
-	enforcer := p.enforcer
-
-	pending := make([]*association, 0, len(p.associations))
-	for _, a := range p.associations {
-		pending = append(pending, a)
-	}
-	p.mu.Unlock()
-
-	if enforcer == nil {
-		return
-	}
-
-	for _, a := range pending {
-		p.mu.Lock()
-		c, current := a.context, a.decision
-		p.mu.Unlock()
-
-		d, err := p.decide(ctx, c)
-		if err != nil {
-			p.log.Debug("policy decision unavailable, keeping the association's decision", zap.String("association", a.ref), zap.Error(err))
-			continue
-		}
-
-		if sameDecision(d, current) {
-			continue
-		}
-
-		p.mu.Lock()
-		if p.associations[a.ref] != a || a.decision != current {
-			p.mu.Unlock()
-			continue
-		}
-
-		d.Revision = p.nextRevisionLocked()
-		d.Rules = a.rules()
-		a.decision = d
-		p.mu.Unlock()
-
-		if err := enforcer.UpdateNotify(ctx, a.ref, d); err != nil {
-			p.log.Warn("policy update not delivered to the SMF", zap.String("association", a.ref), zap.Error(err))
-		}
-	}
-}
-
 func (p *PCF) TerminateAssociation(ref string) {
 	p.mu.Lock()
 
@@ -338,7 +299,7 @@ func (a *association) rules() []smf.PCCRule {
 
 func (p *PCF) refreshRulesLocked(a *association) *smf.PolicyDecision {
 	rules := a.rules()
-	if slices.EqualFunc(rules, a.decision.Rules, samePCCRule) {
+	if slices.EqualFunc(rules, a.decision.Rules, smf.PCCRule.Equal) {
 		return nil
 	}
 
@@ -407,14 +368,7 @@ func (p *PCF) boundAssociationLocked(dnn string, addr netip.Addr) *association {
 	return a
 }
 
-func samePCCRule(a, b smf.PCCRule) bool {
-	return a.ID == b.ID && a.Version == b.Version && a.QCI == b.QCI && a.ARP == b.ARP &&
-		a.MBR.Uplink.Equal(b.MBR.Uplink) && a.MBR.Downlink.Equal(b.MBR.Downlink) &&
-		a.GBR.Uplink.Equal(b.GBR.Uplink) && a.GBR.Downlink.Equal(b.GBR.Downlink) &&
-		a.Gate == b.Gate && slices.Equal(a.Filters, b.Filters)
-}
-
 func sameDecision(a, b *smf.PolicyDecision) bool {
 	return a.PolicyID == b.PolicyID && a.Var5qi == b.Var5qi && a.Arp == b.Arp &&
-		a.SessionAMBR.Uplink.Equal(b.SessionAMBR.Uplink) && a.SessionAMBR.Downlink.Equal(b.SessionAMBR.Downlink)
+		a.SessionAMBR.Equal(b.SessionAMBR)
 }

@@ -39,6 +39,7 @@ type SMSCPeerResultItem struct {
 
 type GetOperatorIMSResponseResult struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
+	VoiceStatus    string   `json:"voiceStatus"`
 }
 
 type GetOperatorTrackingResponseResult struct {

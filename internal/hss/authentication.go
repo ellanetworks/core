@@ -35,7 +35,7 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 		return experimentalAnswer(req, id, tgpp.ResultErrorAuthSchemeNotSupported)
 	}
 
-	host, realm := origin(req)
+	af := tgpp.ParseEnvelope(req).Origin
 
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
 		if r.Resync != nil && (current == nil || current.ServerName != r.ServerName) {
@@ -46,7 +46,7 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 			return current, nil
 		}
 
-		next := Registration{State: NotRegistered, ServerName: r.ServerName, AuthPending: true, OriginHost: host, OriginRealm: realm}
+		next := Registration{State: NotRegistered, ServerName: r.ServerName, AuthPending: true, OriginHost: af.OriginHost, OriginRealm: af.OriginRealm}
 
 		if current != nil {
 			next.State = current.State

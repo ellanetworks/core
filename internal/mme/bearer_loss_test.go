@@ -99,7 +99,7 @@ func TestSignallingOnlyReleaseKeepsAPreservedVoiceBearer(t *testing.T) {
 	}
 }
 
-func TestDeactivationDuringAHandoverWaitsForIt(t *testing.T) {
+func TestDeactivationDuringAHandoverIsLeftToTheSMFToRetry(t *testing.T) {
 	m, ue, cc, _ := activeVoiceBearer(t)
 	ctx := context.Background()
 
@@ -109,26 +109,63 @@ func TestDeactivationDuringAHandoverWaitsForIt(t *testing.T) {
 
 	sent := cc.count()
 
-	if err := m.DeactivateDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, voiceSGWTEID); err != nil {
-		t.Fatalf("DeactivateDedicatedBearer: %v", err)
+	if err := m.DeactivateDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, voiceSGWTEID); !errors.Is(err, ErrUENotReachable) {
+		t.Fatalf("DeactivateDedicatedBearer = %v, want %v so the SMF retries once the handover ends", err, ErrUENotReachable)
 	}
 
 	if cc.count() != sent {
 		t.Fatal("a deactivation was signalled during the handover preparation (TS 36.413 §8.4.1.2)")
 	}
 
-	if _, b := m.LookupDedicated(ue, 6); b == nil {
+	_, b := m.LookupDedicated(ue, 6)
+	if b == nil {
 		t.Fatal("the bearer was deleted locally during the handover while the UE is connected (TS 24.301 §6.4.4.2)")
 	}
 
+	if b.deactivatePending {
+		t.Fatal("the MME kept a deactivation of its own that an aborted handover would never drain")
+	}
+}
+
+func TestAbandonedHandoverRunsTheDeactivationItDeferred(t *testing.T) {
+	m, ue, cc, _ := activeVoiceBearer(t)
+	ctx := context.Background()
+
 	m.mu.Lock()
-	ue.handover = nil
+	ue.handover = &handoverContext{state: hoPreparing, source: ue.Conn()}
 	m.mu.Unlock()
 
-	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+	m.DeactivateDedicated(ctx, ue, 6)
+
+	if m.unwindHandover(ctx, ue, causeHandoverTS1relocExpiry) != handoverAbandoned {
+		t.Fatal("the handover was not abandoned")
+	}
 
 	if got := releasedEBIs(lastERABRelease(t, cc)); !slices.Equal(got, []uint8{6}) {
-		t.Fatalf("released E-RABs %v after the handover, want the voice bearer", got)
+		t.Fatalf("released E-RABs %v after the abandoned handover, want the voice bearer", got)
+	}
+}
+
+func TestLosingTheHandoverTargetRunsTheDeactivationItDeferred(t *testing.T) {
+	m, ue, cc, _ := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	target := m.NewUeConn(&captureConn{}, 9)
+	target.ue.Store(ue)
+
+	m.mu.Lock()
+	ue.handover = &handoverContext{state: hoPrepared, source: ue.Conn(), target: target}
+	m.mu.Unlock()
+
+	m.DeactivateDedicated(ctx, ue, 6)
+	m.ReclaimConns(ctx, []*UeConn{target}, "eNB disconnect")
+
+	if m.handoverInProgress(ue) {
+		t.Fatal("the handover survived the loss of its target")
+	}
+
+	if got := releasedEBIs(lastERABRelease(t, cc)); !slices.Equal(got, []uint8{6}) {
+		t.Fatalf("released E-RABs %v once the target was lost, want the voice bearer", got)
 	}
 }
 
@@ -153,37 +190,6 @@ func TestDefaultBearerSwitchFailureFailsItsDedicatedBearers(t *testing.T) {
 
 	if result.AppliedDefaultBearer(m, ue) {
 		t.Fatal("a path switch with no default bearer switched would succeed (TS 23.401 §5.5.1.1.2)")
-	}
-}
-
-func TestRefusedActivationOnAPathSwitchIsReleased(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	fake := m.Session.(*fakeSessionManager)
-
-	activateVoiceBearer(t, m, ue, cc)
-	m.DedicatedBearerAccepted(context.Background(), ue, 6)
-
-	fake.outcomeMu.Lock()
-	fake.activateErr = errors.New("UPF refused the rules")
-	fake.outcomeMu.Unlock()
-
-	enb := models.FTEID{TEID: 0x77, Addr: netip.MustParseAddr("10.3.0.7")}
-
-	result := m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{
-		Present:       []RANBearer{{Ebi: 5, EnbFTEID: enb}, {Ebi: 6, EnbFTEID: enb}},
-		ReleaseFailed: true,
-		AfterCommit:   true,
-	})
-
-	if !slices.Equal(result.Failed, []uint8{6}) {
-		t.Fatalf("result %+v, want the refused voice bearer in the E-RAB To Be Released list", result)
-	}
-
-	m.DeactivatePendingDedicated(context.Background(), ue)
-
-	if deact, err := eps.ParseDeactivateEPSBearerContextRequest(downlinkPlain(t, ue, decodeDownlinkNAS(t, lastSent(cc)))); err != nil || deact.EPSBearerIdentity != 6 {
-		t.Fatalf("deactivation %+v (%v), want EBI 6 in Downlink NAS Transport", deact, err)
 	}
 }
 
@@ -223,5 +229,16 @@ func TestModificationRejectedWithInvalidEBIReleasesTheBearerLocally(t *testing.T
 
 	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 {
 		t.Fatalf("SMF told %+v released, want the voice bearer", dropped)
+	}
+}
+
+func TestReleaseReportsLostBearersBeforeItReturns(t *testing.T) {
+	m, ue, _, fake := activeVoiceBearer(t)
+
+	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost})
+	m.FreeUeConn(context.Background(), ue)
+
+	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 || dropped[0].teid != voiceSGWTEID {
+		t.Fatalf("SMF told %+v when the release returned, want the voice bearer already reported lost", dropped)
 	}
 }

@@ -81,6 +81,7 @@ enum outer_header_creation_values {
 #define PDR_F_SDF 0x01
 #define PDR_F_LOCAL_SWITCH 0x02
 #define PDR_F_FALLBACK 0x04
+#define PDR_F_NAT_EXEMPT 0x08
 
 struct sdf_rule {
 	struct in6_addr

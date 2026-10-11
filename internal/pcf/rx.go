@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/rx"
 	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.opentelemetry.io/otel/attribute"
@@ -45,8 +46,8 @@ type rxSession struct {
 }
 
 func (p *PCF) registerRx(d Diameter) {
-	d.Handle(rx.ApplicationID, rx.CommandAA, observed("rx/aa", p.AA))
-	d.Handle(rx.ApplicationID, rx.CommandSessionTermination, observed("rx/session-termination", p.SessionTermination))
+	d.Handle(rx.ApplicationID, rx.CommandAA, diameternode.Traced(tracer, "rx/aa", p.AA))
+	d.Handle(rx.ApplicationID, rx.CommandSessionTermination, diameternode.Traced(tracer, "rx/session-termination", p.SessionTermination))
 }
 
 func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
@@ -76,18 +77,16 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 		return rx.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnknownSessionID}, features)
 	}
 
-	components := make(map[uint32]rx.MediaComponent)
-	rules := make(map[flowKey]smf.PCCRule)
+	af := tgpp.ParseEnvelope(req).Origin
+	s := &rxSession{id: sessionID, host: af.OriginHost, realm: af.OriginRealm, actions: r.SpecificActions, components: make(map[uint32]rx.MediaComponent), rules: make(map[flowKey]smf.PCCRule)}
 
-	if r.ServiceInfoStatus == rx.ServiceInfoFinal {
-		for _, c := range r.MediaComponents {
-			components[c.Number] = c
-		}
+	p.mu.Lock()
+	err = p.applyServiceInfoLocked(s, r)
+	p.mu.Unlock()
 
-		if rules, err = mediaRules(sessionID, r.MediaComponents); err != nil {
-			p.log.Info("Rx media refused", zap.String("session", sessionID), zap.Error(err))
-			return rx.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultFilterRestrictions), features)
-		}
+	if err != nil {
+		p.log.Info("Rx media refused", zap.String("session", sessionID), zap.Error(err))
+		return rx.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultFilterRestrictions), features)
 	}
 
 	ue := r.FramedIPAddress
@@ -95,13 +94,11 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 		ue = r.FramedIPv6Address
 	}
 
-	host, realm := origin(req)
-
-	if !p.bindRx(&rxSession{id: sessionID, host: host, realm: realm, actions: r.SpecificActions, components: components, rules: rules}, ue) {
+	if !p.bindRx(s, ue) {
 		return p.notHosted(ctx, req, id, ue, features)
 	}
 
-	p.log.Debug("Rx session opened", zap.String("session", sessionID), zap.Stringer("ue", ue), zap.String("af", host))
+	p.log.Debug("Rx session opened", zap.String("session", sessionID), zap.Stringer("ue", ue), zap.String("af", af.OriginHost))
 
 	return p.aaAnswer(req, id, features)
 }
@@ -178,7 +175,6 @@ func (p *PCF) bindRx(s *rxSession, ue netip.Addr) bool {
 	}
 
 	s.ref = a.ref
-	s.rules = p.versionedLocked(nil, s.rules)
 	p.rxSessions[s.id] = s
 	a.rxSessions[s.id] = s
 	d := p.refreshRulesLocked(a)
@@ -204,44 +200,9 @@ func (p *PCF) updateRx(id string, r rx.AARequest) error {
 		}
 	}
 
-	if r.ServiceInfoStatus == rx.ServiceInfoFinal && len(r.MediaComponents) > 0 {
-		p.log.Debug("Rx media components", zap.String("session", id), zap.Strings("components", describeComponents(r.MediaComponents)))
-
-		merged := make([]rx.MediaComponent, 0, len(r.MediaComponents))
-		for _, c := range r.MediaComponents {
-			merged = append(merged, overlayComponent(s.components[c.Number], c))
-		}
-
-		rules, err := mediaRules(id, merged)
-		if err != nil {
-			p.mu.Unlock()
-			return err
-		}
-
-		forked := r.SIPForkingIndication == rx.ForkingSeveralDialogues
-
-		for k, prev := range s.rules {
-			if !slices.ContainsFunc(merged, func(c rx.MediaComponent) bool { return c.Number == k.component }) {
-				continue
-			}
-
-			if next, ok := rules[k]; ok && forked {
-				rules[k] = forkedRule(prev, next)
-			} else if !ok && forked {
-				rules[k] = prev
-			}
-		}
-
-		rules = p.versionedLocked(s.rules, rules)
-
-		for _, c := range merged {
-			s.components[c.Number] = c
-		}
-
-		maps.DeleteFunc(s.rules, func(k flowKey, _ smf.PCCRule) bool {
-			return slices.ContainsFunc(merged, func(c rx.MediaComponent) bool { return c.Number == k.component })
-		})
-		maps.Copy(s.rules, rules)
+	if err := p.applyServiceInfoLocked(s, r); err != nil {
+		p.mu.Unlock()
+		return err
 	}
 
 	var d *smf.PolicyDecision
@@ -255,11 +216,80 @@ func (p *PCF) updateRx(id string, r rx.AARequest) error {
 	return nil
 }
 
+func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
+	merged := make([]rx.MediaComponent, 0, len(r.MediaComponents))
+	for _, c := range r.MediaComponents {
+		merged = append(merged, overlayComponent(s.components[c.Number], c))
+	}
+
+	if _, err := mediaRules(s.id, merged); err != nil {
+		return err
+	}
+
+	for _, c := range merged {
+		s.components[c.Number] = c
+	}
+
+	if r.ServiceInfoStatus != rx.ServiceInfoFinal {
+		return nil
+	}
+
+	for n, c := range s.components {
+		if !slices.ContainsFunc(merged, func(m rx.MediaComponent) bool { return m.Number == n }) && !s.hasRulesFor(n) {
+			merged = append(merged, c)
+		}
+	}
+
+	if len(merged) == 0 {
+		return nil
+	}
+
+	p.log.Debug("Rx media components", zap.String("session", s.id), zap.Strings("components", describeComponents(merged)))
+
+	rules, err := mediaRules(s.id, merged)
+	if err != nil {
+		return err
+	}
+
+	forked := r.SIPForkingIndication == rx.ForkingSeveralDialogues
+
+	for k, prev := range s.rules {
+		if !slices.ContainsFunc(merged, func(c rx.MediaComponent) bool { return c.Number == k.component }) {
+			continue
+		}
+
+		if next, ok := rules[k]; ok && forked {
+			rules[k] = forkedRule(prev, next)
+		} else if !ok && forked {
+			rules[k] = prev
+		}
+	}
+
+	rules = p.versionedLocked(s.rules, rules)
+
+	maps.DeleteFunc(s.rules, func(k flowKey, _ smf.PCCRule) bool {
+		return slices.ContainsFunc(merged, func(c rx.MediaComponent) bool { return c.Number == k.component })
+	})
+	maps.Copy(s.rules, rules)
+
+	return nil
+}
+
+func (s *rxSession) hasRulesFor(component uint32) bool {
+	for k := range s.rules {
+		if k.component == component {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (p *PCF) versionedLocked(current, next map[flowKey]smf.PCCRule) map[flowKey]smf.PCCRule {
 	for n, r := range next {
 		if old, ok := current[n]; ok {
 			r.Version = old.Version
-			if samePCCRule(old, r) {
+			if old.Equal(r) {
 				next[n] = r
 				continue
 			}
@@ -391,43 +421,6 @@ func (p *PCF) aaAnswer(req *diameter.Message, id diameter.Identity, features rx.
 func sessionIDOf(req *diameter.Message) string {
 	a, _ := req.Find(diameter.AVPSessionID, 0)
 	return a.UTF8String()
-}
-
-func origin(req *diameter.Message) (host, realm string) {
-	if a, ok := req.Find(diameter.AVPOriginHost, 0); ok {
-		host = a.UTF8String()
-	}
-
-	if a, ok := req.Find(diameter.AVPOriginRealm, 0); ok {
-		realm = a.UTF8String()
-	}
-
-	return host, realm
-}
-
-func observed(name string, h func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message) diameter.Handler {
-	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		ctx, span := tracer.Start(ctx, name,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(
-				attribute.String("network.protocol.name", "diameter"),
-				attribute.Int64("diameter.application_id", int64(req.ApplicationID)),
-				attribute.Int64("diameter.command_code", int64(req.CommandCode)),
-			),
-		)
-		defer span.End()
-
-		ans := h(ctx, c.LocalIdentity(), req)
-		if ans == nil {
-			return nil
-		}
-
-		if r, err := tgpp.ParseResult(ans); err == nil {
-			span.SetAttributes(attribute.Int64("diameter.result_code", int64(r.Code)))
-		}
-
-		return ans
-	})
 }
 
 func describeComponents(components []rx.MediaComponent) []string {

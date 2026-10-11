@@ -5,6 +5,8 @@ package smf_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/netip"
 	"slices"
 	"testing"
@@ -67,7 +69,7 @@ func TestRejectedChangeKeepsTheEnforcedRule(t *testing.T) {
 	pushRules(t, s, ref, movedVoiceRule())
 	waitDedicatedModifications(t, mmeCb, 1)
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, false)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
 
 	reports := pcf.reportedFailures()
 	if len(reports) != 1 || reports[0].Rule.Version != 1 || reports[0].Active == nil || reports[0].Active.Version != 0 || reports[0].cause != smf.ResourcesNotAllocated {
@@ -86,19 +88,22 @@ func TestRejectedChangeKeepsTheEnforcedRule(t *testing.T) {
 	}
 }
 
-func TestRejectedRemovalIsRetriedAfterABackoff(t *testing.T) {
+func TestRejectedRemovalIsHeldUntilThePolicyChanges(t *testing.T) {
 	s, pcf, _, mmeCb, ref := activeVoiceSession(t)
 	ctx := context.Background()
 
 	pushRules(t, s, ref, voiceRule(), secondCallRule())
 	waitDedicatedModifications(t, mmeCb, 1)
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	pushRules(t, s, ref, secondCallRule())
 	waitDedicatedModifications(t, mmeCb, 2)
 
-	s.SetDedicatedAwaitLimitForTest(50 * time.Millisecond)
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, false)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
+
+	if err := s.ReconcileSession(ctx, ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
 
 	requireModificationCount(t, mmeCb, 2)
 
@@ -106,9 +111,11 @@ func TestRejectedRemovalIsRetriedAfterABackoff(t *testing.T) {
 		t.Fatalf("reported rules %v, want none: a removal does not fail (TS 29.212 §4.5.12)", r)
 	}
 
-	if retry := waitDedicatedModifications(t, mmeCb, 3)[2]; retry.Operation != models.TFTDeleteFilters {
-		t.Fatalf("retry %+v, want the deletion sent again", retry)
-	}
+	pushRules(t, s, ref)
+
+	waitFor(t, "the bearer deactivated once the last call ended", func() bool {
+		return slices.Equal(mmeCb.dedicatedDeactivations(), []uint8{6})
+	})
 }
 
 func TestRejectedLaterStepIsReportedOnce(t *testing.T) {
@@ -125,14 +132,14 @@ func TestRejectedLaterStepIsReportedOnce(t *testing.T) {
 		t.Fatalf("first step %+v, want the replacement alone, without the second call's QoS", replace)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	add := waitDedicatedModifications(t, mmeCb, 2)[1]
 	if add.Operation != models.TFTAddFilters || add.GBR.Downlink.Bps() != 82000 {
 		t.Fatalf("second step %+v, want the addition with an 82 kbps GBR", add)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, false)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
 
 	if r := pcf.reportedRules(); !slices.Equal(r, []string{"af;2#1"}) {
 		t.Fatalf("reported rules %v, want only the second call's", r)
@@ -162,7 +169,7 @@ func TestRulesChangedDuringActivationAreModifiedAfterIt(t *testing.T) {
 		t.Fatalf("modification %+v, want the second call added after the activation", add)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, false)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
 
 	reports := pcf.reportedFailures()
 	if len(reports) != 1 || reports[0].Rule.ID != "af;2#1" || reports[0].Active != nil {
@@ -211,7 +218,7 @@ func TestRadioEndpointChangeKeepsTheModification(t *testing.T) {
 
 	requireModificationCount(t, mmeCb, 1)
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	if n := bearerUplinkFilters(t, upf); n != 2 {
 		t.Fatalf("bearer uplink PDR has %d filters after the accept, want both calls' 2", n)
@@ -239,7 +246,7 @@ func TestARPChangeOfEveryRuleModifiesTheBearerInPlace(t *testing.T) {
 		t.Fatalf("%d activations and deactivations %v, want the bearer kept", n, d)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	second := secondCallRule()
 	second.ARP.PriorityLevel = 1
@@ -251,5 +258,65 @@ func TestARPChangeOfEveryRuleModifiesTheBearerInPlace(t *testing.T) {
 
 	if n := len(mmeCb.dedicatedActivations()); n != 1 {
 		t.Fatalf("%d activations, want none for the bearer's new ARP", n)
+	}
+}
+
+func TestInterruptedModificationIsRetriedWithoutReporting(t *testing.T) {
+	s, pcf, _, mmeCb, ref := activeVoiceSession(t)
+	ctx := context.Background()
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	first := waitDedicatedModifications(t, mmeCb, 1)[0]
+
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationInterrupted)
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: an interrupted modification has not failed", r)
+	}
+
+	if err := s.ReconcileSession(ctx, ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	if retry := waitDedicatedModifications(t, mmeCb, 2)[1]; retry.Operation != first.Operation || len(retry.Filters) != len(first.Filters) {
+		t.Fatalf("retry %+v, want the interrupted modification %+v sent again", retry, first)
+	}
+}
+
+func TestModificationTheMMECannotSendIsDeferredOrFailed(t *testing.T) {
+	for name, tc := range map[string]struct {
+		err      error
+		reported bool
+	}{
+		"UE not reachable": {fmt.Errorf("%w: idle", smf.ErrUENotReachable), false},
+		"MME refuses":      {errors.New("no such bearer"), true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, pcf, _, mmeCb, ref := activeVoiceSession(t)
+
+			mmeCb.mu.Lock()
+			mmeCb.dedicatedErr = tc.err
+			mmeCb.mu.Unlock()
+
+			pushRules(t, s, ref, voiceRule(), secondCallRule())
+
+			if got := len(pcf.reportedRules()) > 0; got != tc.reported {
+				t.Fatalf("rules reported failed: %v, want %v", got, tc.reported)
+			}
+
+			if tc.reported {
+				return
+			}
+
+			mmeCb.mu.Lock()
+			mmeCb.dedicatedErr = nil
+			mmeCb.mu.Unlock()
+
+			if err := s.ReconcileSession(context.Background(), ref); err != nil {
+				t.Fatalf("ReconcileSession: %v", err)
+			}
+
+			waitDedicatedModifications(t, mmeCb, 1)
+		})
 	}
 }

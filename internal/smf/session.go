@@ -366,12 +366,13 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 	var flows movingFlows
 
 	if commit != nil {
+		next.TargetUplink = false
 		next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 		flows = sc.movingFlowsLocked(access, true)
 		next.Bearers = flows.legs
 	}
 
-	bound := sc.bindBearerEndpointsLocked(&next, dedicated)
+	sc.bindBearerEndpointsLocked(&next, dedicated)
 
 	if err := s.applyDataPlane(ctx, sc, next, policyID); err != nil {
 		if commit == nil {
@@ -387,10 +388,6 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 
 	if commit != nil {
 		s.adoptMovedFlowsLocked(ctx, sc, flows, true)
-	}
-
-	for b, enb := range bound {
-		b.enb = enb
 	}
 
 	if commit == nil {
@@ -427,11 +424,9 @@ func (sc *SMContext) policyID() string {
 	return sc.PolicyData.PolicyID
 }
 
-func (sc *SMContext) bindBearerEndpointsLocked(next *dataPlane, endpoints []models.DedicatedBearerEndpoint) map[*dedicatedBearer]models.FTEID {
-	bound := make(map[*dedicatedBearer]models.FTEID, len(endpoints))
-
+func (sc *SMContext) bindBearerEndpointsLocked(next *dataPlane, endpoints []models.DedicatedBearerEndpoint) {
 	if len(endpoints) == 0 {
-		return bound
+		return
 	}
 
 	next.Bearers = slices.Clone(next.Bearers)
@@ -447,8 +442,5 @@ func (sc *SMContext) bindBearerEndpointsLocked(next *dataPlane, endpoints []mode
 		}
 
 		next.Bearers[i].AN = anchorFromFTEID(endpoints[e].ENB)
-		bound[sc.dedicated[b]] = endpoints[e].ENB
 	}
-
-	return bound
 }

@@ -104,6 +104,51 @@ func TestOutboundConnectionBindsHostIPAddresses(t *testing.T) {
 	}
 }
 
+func TestOutboundConnectionBindsTheSourceAddress(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			var remote atomic.Value
+
+			_, smsc, addr := pair(t, kind, func(cfg *Config) {
+				cfg.Identity.HostIPAddresses = nil
+				cfg.SourceAddress = func(netip.Addr) (netip.Addr, error) { return loopback2, nil }
+				cfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
+					remote.Store(c.RemoteAddr())
+					return c.Answer(req, ResultSuccess)
+				})
+			})
+
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			eventually(t, "the SMSC to reach the HSS", func() bool { return doOK(smsc, "hss") })
+
+			if got := remote.Load(); got != loopback2 {
+				t.Fatalf("HSS saw the SMSC at %v", got)
+			}
+		})
+	}
+}
+
+func TestPeerWithoutASourceAddressReportsWhy(t *testing.T) {
+	cfg := testConfig("smsc.example.org")
+	cfg.SourceAddress = func(r netip.Addr) (netip.Addr, error) {
+		return netip.Addr{}, errors.New("network is unreachable")
+	}
+
+	n := newTestNode(t, cfg)
+
+	if err := n.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{netip.MustParseAddr("2001:db8::1")}, Transports: []Transport{TransportTCP}, Dial: &Dial{Port: 3868}, Applications: []Application{sgdApp}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	eventually(t, "the peer to report its missing route", func() bool {
+		s, _ := n.Peer("hss")
+		return s.State != PeerOpen && strings.Contains(s.LastError, "network is unreachable")
+	})
+}
+
 func TestSetPeersReconciles(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
@@ -639,7 +684,6 @@ func TestNewValidatesConfiguration(t *testing.T) {
 	tests := map[string]func(*Config){
 		"no host":            func(c *Config) { c.Identity.OriginHost = "" },
 		"no realm":           func(c *Config) { c.Identity.OriginRealm = "" },
-		"no address":         func(c *Config) { c.Identity.HostIPAddresses = nil },
 		"unspecified":        func(c *Config) { c.Identity.HostIPAddresses = []netip.Addr{netip.IPv4Unspecified()} },
 		"no product":         func(c *Config) { c.Identity.ProductName = "" },
 		"no handler":         func(c *Config) { c.Handler = nil },

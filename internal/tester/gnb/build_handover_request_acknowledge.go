@@ -38,7 +38,8 @@ type HandoverAdmittedPDUSession struct {
 	// tunnel for it (TS 38.413 §9.3.4.11).
 	ForwardingTEID uint32
 
-	QFIs []uint8
+	QFIs    []uint8
+	FiveQIs map[uint8]int64
 }
 
 func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]byte, error) {

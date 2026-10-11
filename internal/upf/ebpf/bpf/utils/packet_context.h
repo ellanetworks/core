@@ -96,6 +96,8 @@ struct packet_context {
 	 * which the IPv6 chain walk sets for every packet. */
 	__u8 frag_recovered : 1;
 	__u8 is_fragment : 1;
+	__u8 nat_exempt : 1;
+	__u8 l4_ports : 1;
 };
 
 __noinline __weak __u32

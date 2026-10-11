@@ -80,6 +80,53 @@ describe("Subscriber IMS registration", () => {
     ).toBeInTheDocument();
   });
 
+  const imsSubscription = {
+    private_identity: `${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`,
+    public_identities: [
+      {
+        identity: `sip:${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`,
+        barred: true,
+        user_state: "not_registered",
+      },
+    ],
+  };
+
+  it("shows No MSISDN instead of the IMS state without an MSISDN", async () => {
+    seedSubscriber("", { ims: imsSubscription });
+    renderDetail();
+
+    expect(await screen.findByText("No MSISDN")).toBeInTheDocument();
+    expect(screen.queryByText("Not registered")).not.toBeInTheDocument();
+  });
+
+  it("shows whether the registered system advertised IMS voice over PS", async () => {
+    seedSubscriber("+15551230001", {
+      ims: imsSubscription,
+      registrations: [
+        {
+          system: "5G",
+          registered: true,
+          connection_state: "connected",
+          last_seen_at: "2026-03-16T12:34:56Z",
+          ims_voice_over_ps: false,
+          connection: null,
+        },
+      ],
+    });
+    renderDetail();
+
+    expect(await screen.findByText("Voice over PS")).toBeInTheDocument();
+    expect(screen.getByText("No")).toBeInTheDocument();
+  });
+
+  it("omits Voice over PS without a registration", async () => {
+    seedSubscriber("+15551230001", { ims: imsSubscription });
+    renderDetail();
+
+    expect(await screen.findByText("IMS Registration")).toBeInTheDocument();
+    expect(screen.queryByText("Voice over PS")).not.toBeInTheDocument();
+  });
+
   it("omits IMS for a subscriber without an IMS subscription", async () => {
     seedSubscriber();
     renderDetail();

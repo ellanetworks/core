@@ -18,6 +18,8 @@ interfaces:
     address: "10.3.0.2"
 ```
 
+In a [high availability cluster](deploy_ha_cluster.md), use the same `port` on every node.
+
 Restart Ella Core.
 
 ## 2. Configure the IMS
@@ -42,20 +44,14 @@ Go to the **Networking** page and open the **Data Networks** tab.
 
 Click **Create**, turn on **Voice (IMS)**, set the IP pool, and click **Create**.
 
-## 5. Disable NAT
-
-Go to the **Networking** page and open the **NAT** tab.
-
-Turn off the switch so that it shows **NAT is OFF**.
-
-## 6. Add a voice policy to the profiles
+## 5. Add a voice policy to the profiles
 
 For each profile whose subscribers should make calls:
 
 - Go to the **Profiles** page and click on the profile you want to configure.
 - Click **Add Policy**, enter a **Name**, set the **Data Network** to `ims`, and click **Create**.
 
-## 7. Give subscribers an MSISDN
+## 6. Give subscribers an MSISDN
 
 For each subscriber that should make or receive calls:
 
@@ -63,9 +59,13 @@ For each subscriber that should make or receive calls:
 - In Provisioning, click the edit icon next to MSISDN.
 - Enter the subscriber's E.164 number, e.g. `+15551230001`, and click on **Update**.
 
-## 8. Enable voice on the phones
+## 7. Enable voice on the phones
 
 On each phone, turn on VoLTE (4G) or VoNR (5G).
+
+## 8. Verify the IMS registration
+
+Go to the **Subscribers** page and click on a subscriber with an MSISDN. **IMS Registration** should show **Registered**.
 
 ## 9. Make a test call
 

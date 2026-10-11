@@ -81,6 +81,7 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)), zap.Int("admitted", len(admitted)))
 		mme.SendUEContextRelease(ctx, m, radio.Conn, mmeUEID, enbUEID, true, causeHOFailureInTarget)
 		m.FailHandoverToSource(ctx, ue, causeHOFailureInTarget)
+		m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 
 		return
 	}

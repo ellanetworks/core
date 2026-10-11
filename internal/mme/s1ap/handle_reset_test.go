@@ -77,7 +77,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 			t.Fatalf("UE %q not in ECM-IDLE after S1 reset", ue.IMSI())
 		}
 
-		m.RemoveUe(ue)
+		m.RemoveUe(context.Background(), ue)
 	}
 
 	if got, ok := m.LookupUeByIMSI(other.IMSI()); !ok || !got.Connected() {
@@ -121,7 +121,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 		t.Fatalf("listed UE not released to ECM-IDLE: ok=%v connected=%v", ok, got1.Connected())
 	}
 
-	m.RemoveUe(ue1)
+	m.RemoveUe(context.Background(), ue1)
 
 	if got2, ok := m.LookupUeByIMSI(ue2.IMSI()); !ok || !got2.Connected() {
 		t.Fatal("unlisted UE disturbed by part-of-interface reset")

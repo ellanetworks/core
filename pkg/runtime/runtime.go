@@ -64,6 +64,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
 	"github.com/ellanetworks/core/version"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
@@ -563,7 +564,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	mmeInstance.SMS = smsfInstance
 
 	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, logger.HssLog)
-	hssInstance.RegisterMetrics()
+	hssInstance.RegisterMetrics(prometheus.DefaultRegisterer)
 	hssInstance.Register(diameterNode)
 	amfInstance.IMSVoice = hssInstance
 	mmeInstance.IMSVoice = hssInstance
@@ -611,7 +612,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}(), smfInstance.Reconcile, pcfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
+	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
 
 	registrationsWakeup, stopRegistrationsWakeup := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
@@ -1021,27 +1022,9 @@ func (a *hssDBAdapter) CountRegistered(ctx context.Context) (int, error) {
 }
 
 func (a *hssDBAdapter) PCSCFReachable(ctx context.Context) (bool, error) {
-	addresses, err := a.db.ListPCSCFAddresses(ctx)
-	if err != nil || len(addresses) == 0 {
-		return false, err
-	}
+	status, err := a.db.IMSVoiceStatus(ctx)
 
-	dn, err := a.db.GetDataNetwork(ctx, models.IMSDataNetworkName)
-	if errors.Is(err, db.ErrNotFound) {
-		return false, nil
-	}
-
-	if err != nil {
-		return false, err
-	}
-
-	return slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
-		if addr.Is4() {
-			return dn.IPv4Pool != ""
-		}
-
-		return dn.IPv6Pool != ""
-	}), nil
+	return status == db.IMSVoiceEnabled, err
 }
 
 func (a *hssDBAdapter) Subscriber(ctx context.Context, imsi string) (*hss.Subscriber, error) {
@@ -1133,7 +1116,6 @@ func hssRegistration(reg *db.IMSRegistration) *hss.Registration {
 		AuthPending: reg.AuthPending,
 		OriginHost:  reg.OriginHost,
 		OriginRealm: reg.OriginRealm,
-		UpdatedAt:   reg.UpdatedAt,
 	}
 }
 
@@ -1149,7 +1131,6 @@ func dbIMSRegistration(imsi string, reg *hss.Registration) *db.IMSRegistration {
 		AuthPending: reg.AuthPending,
 		OriginHost:  reg.OriginHost,
 		OriginRealm: reg.OriginRealm,
-		UpdatedAt:   reg.UpdatedAt,
 	}
 }
 

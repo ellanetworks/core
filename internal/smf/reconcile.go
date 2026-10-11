@@ -116,6 +116,8 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 		logger.SmfLog.Warn("transient error fetching session policy, skipping reconciliation",
 			logger.SMContextRef(ref), zap.Error(err))
 
+		s.replanBearers(ctx, ref)
+
 		return nil
 	}
 
@@ -194,10 +196,13 @@ func (s *SMF) reconcileTarget(ctx context.Context, ref string, supi etsi.SUPI, s
 
 	decision := authorized
 
-	if !in.subscribed.equal(reported) {
-		if decision, err = s.pcf.UpdateAssociation(ctx, ref, in.subscribed); err != nil {
-			return nil, authorized, reported, fmt.Errorf("report the subscribed QoS to the PCF: %w", err)
-		}
+	updated, err := s.pcf.UpdateAssociation(ctx, ref, in.subscribed)
+	if err != nil && !in.subscribed.equal(reported) {
+		return nil, authorized, reported, fmt.Errorf("report the subscribed QoS to the PCF: %w", err)
+	}
+
+	if err == nil && updated != nil {
+		decision = updated
 	}
 
 	applyDecision(in.policy, decision)
@@ -215,6 +220,8 @@ func (s *SMF) UpdateNotify(ctx context.Context, ref string, d *PolicyDecision) e
 	sc.Mutex.Lock()
 
 	stale := sc.policyDecision != nil && d.Revision <= sc.policyDecision.Revision
+	sessionLevel := sc.policyDecision == nil || !sc.policyDecision.sameSessionPolicy(d)
+
 	if !stale {
 		sc.policyDecision = d
 	}
@@ -222,11 +229,31 @@ func (s *SMF) UpdateNotify(ctx context.Context, ref string, d *PolicyDecision) e
 	sc.Mutex.Unlock()
 	sc.reconcileMu.Unlock()
 
-	if stale {
+	switch {
+	case stale:
+		return nil
+	case sessionLevel:
+		return s.ReconcileSession(ctx, ref)
+	default:
+		s.replanBearers(ctx, ref)
+
 		return nil
 	}
+}
 
-	return s.ReconcileSession(ctx, ref)
+func (s *SMF) replanBearers(ctx context.Context, ref string) {
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return
+	}
+
+	sc.reconcileMu.Lock()
+	sc.Mutex.Lock()
+	dedicated, failed := s.planDedicatedLocked(ctx, sc)
+	sc.Mutex.Unlock()
+	sc.reconcileMu.Unlock()
+
+	s.runDedicated(ctx, sc, dedicated, failed)
 }
 
 func (s *SMF) discardPendingPolicyLocked(sc *SMContext) {

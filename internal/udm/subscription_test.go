@@ -111,6 +111,47 @@ func TestSessionManagementSelectsTheEPSSlice(t *testing.T) {
 	}
 }
 
+func TestDefaultDNNPrefersTheDefaultPolicyOnASharedSlice(t *testing.T) {
+	ctx := context.Background()
+	database, subs, profileID := subscriptionFixture(t)
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "ims", IPv4Pool: "10.46.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+		t.Fatalf("create data network: %s", err)
+	}
+
+	ims, err := database.GetDataNetwork(ctx, "ims")
+	if err != nil {
+		t.Fatalf("get data network: %s", err)
+	}
+
+	slice, err := database.GetNetworkSlice(ctx, db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("get slice: %s", err)
+	}
+
+	if err := database.CreatePolicy(ctx, &db.Policy{
+		Name: "ims", ProfileID: profileID, SliceID: slice.ID, DataNetworkID: ims.ID,
+		Var5qi: 5, Arp: 1, SessionAmbrUplink: "10 Mbps", SessionAmbrDownlink: "10 Mbps",
+	}); err != nil {
+		t.Fatalf("create policy: %s", err)
+	}
+
+	for _, tc := range []struct{ policy, dnn string }{{"ims", "ims"}, {db.InitialPolicyName, db.InitialDataNetworkName}} {
+		if err := database.SetDefaultPolicy(ctx, profileID, tc.policy); err != nil {
+			t.Fatalf("set default %s: %s", tc.policy, err)
+		}
+
+		sm, err := subs.SessionManagement(ctx, subscriptionIMSI)
+		if err != nil {
+			t.Fatalf("SessionManagement: %s", err)
+		}
+
+		if dnn, ok := sm.DefaultDNN(models.Snssai{Sst: db.InitialSliceSst}); !ok || dnn != tc.dnn {
+			t.Fatalf("DefaultDNN with default policy %s = %q, %t; want %s", tc.policy, dnn, ok, tc.dnn)
+		}
+	}
+}
+
 func TestAccessAndMobilitySubscription(t *testing.T) {
 	ctx := context.Background()
 	_, subs, _ := subscriptionFixture(t)

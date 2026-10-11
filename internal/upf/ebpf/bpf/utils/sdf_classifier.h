@@ -133,7 +133,8 @@ classifier_query_for(const struct packet_context *ctx, __u64 seid,
 	q->sport = ctx->l4_sport;
 	q->dport = ctx->l4_dport;
 	q->ports = ctx->l4_unavailable ? CLASSIFIER_PORTS_UNAVAILABLE :
-		   ctx->l4_resolved    ? CLASSIFIER_PORTS_RESOLVED :
+		   (ctx->l4_resolved | ctx->l4_ports) ?
+					 CLASSIFIER_PORTS_RESOLVED :
 					 CLASSIFIER_PORTS_PACKET;
 	q->local_port_override = 0;
 	q->tunnel = 0;

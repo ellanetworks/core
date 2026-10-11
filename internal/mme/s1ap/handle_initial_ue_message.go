@@ -37,7 +37,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	// completes; drop any stale conn first so a deferred UEContextReleaseComplete
 	// cannot remove the fresh context (TS 36.413). Dropping before the new
 	// connection exists keeps this independent of DropStaleUe's own guards.
-	m.DropStaleUe(radio.Conn, msg.ENBUES1APID)
+	m.DropStaleUe(ctx, radio.Conn, msg.ENBUES1APID)
 
 	// A bare UE-associated S1-connection tracks the message. The NAS layer binds a
 	// persistent context only for an ATTACH REQUEST; a recognised resume is bound

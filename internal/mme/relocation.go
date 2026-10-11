@@ -111,7 +111,7 @@ func (m *MME) dropRelocation(ctx context.Context, ue *UeContext) {
 	ctx = context.WithoutCancel(ctx)
 
 	m.ReleaseAllSessions(ctx, ue)
-	m.RemoveUe(ue)
+	m.RemoveUe(ctx, ue)
 	m.endRelocation(ue.Supi(), ue)
 }
 

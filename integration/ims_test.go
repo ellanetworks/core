@@ -59,10 +59,6 @@ func TestIntegrationIMS(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	if err := env.Client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
-		t.Fatalf("disable NAT: %v", err)
-	}
-
 	addIMSCorePeer(ctx, t, env.Client)
 
 	if err := sendIMS(ctx, http.MethodPut, "/api/v1/policy", map[string]string{"interface": "rx"}); err != nil {

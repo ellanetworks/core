@@ -30,6 +30,8 @@ jobs:
   run:
     name: ${{ matrix.name }}
     needs: discover
+    env:
+      ELLA_IMS_IMAGE: ghcr.io/ellanetworks/ella-ims:sha-da64ecf831f8
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
@@ -66,7 +68,7 @@ jobs:
 
       - name: Pull Ella IMS image
         if: ${{ matrix.needs_ims }}
-        run: docker pull ghcr.io/ellanetworks/ella-ims:latest
+        run: docker pull "$ELLA_IMS_IMAGE"
 
       - uses: actions/setup-go@v7
         with:

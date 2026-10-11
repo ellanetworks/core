@@ -54,11 +54,14 @@ None
             "smsNumber": "+15550001111"
         },
         "ims": {
-            "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
+            "pcscfAddresses": ["192.0.2.20", "2001:db8::20"],
+            "voiceStatus": "enabled"
         }
     }
 }
 ```
+
+`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the `ims` data network's pools).
 
 ## Update the Operator ID
 

@@ -1266,11 +1266,11 @@ func TestReleasingAConnectionKeepsTheGBRFlowsOfSessionsIdleOnIt(t *testing.T) {
 	smf.mu.Lock()
 	defer smf.mu.Unlock()
 
-	if smf.PreservedGBR["ref-active"] {
-		t.Error("the session active on the released connection kept its GBR flows")
+	if preserved, ok := smf.PreservedGBR["ref-active"]; !ok || preserved {
+		t.Errorf("session active on the released connection: deactivated %v, GBR flows kept %v; want it deactivated without its GBR flows", ok, preserved)
 	}
 
-	if preserved, ok := smf.PreservedGBR["ref-idle"]; ok && !preserved {
-		t.Error("the release dropped the GBR flows of a session with no AN resources on the connection (TS 23.502 §4.2.6 step 5)")
+	if preserved, ok := smf.PreservedGBR["ref-idle"]; !ok || !preserved {
+		t.Errorf("session with no AN resources on the connection: deactivated %v, GBR flows kept %v; want its GBR flows kept (TS 23.502 §4.2.6 step 5)", ok, preserved)
 	}
 }

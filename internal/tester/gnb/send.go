@@ -188,6 +188,7 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 
 	for _, session := range opts.PDUSessions {
 		if session != nil {
+			g.recordFlowFiveQIs(opts.RANUENGAPID, session.PDUSessionID, session.FlowFiveQIs)
 			g.admitQoSFlows(opts.RANUENGAPID, session.PDUSessionID, session.Flows, nil)
 		}
 	}
@@ -317,6 +318,7 @@ func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledge
 	}
 
 	for _, session := range opts.PDUSessions {
+		g.recordFlowFiveQIs(opts.RANUENGAPID, session.PDUSessionID, session.FiveQIs)
 		g.admitQoSFlows(opts.RANUENGAPID, session.PDUSessionID, session.QFIs, nil)
 	}
 

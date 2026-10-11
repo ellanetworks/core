@@ -189,7 +189,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 	}
 
-	if (masquerade && !translated &&
+	if (masquerade && !translated && !(pdr->flags & PDR_F_NAT_EXEMPT) &&
 	    !frame_is_reinjected(ctx->ctx_buff)) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4",
 			   &ip4->daddr);

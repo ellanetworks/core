@@ -23,8 +23,12 @@ export interface OperatorData {
   ims: OperatorIMS;
 }
 
+export type IMSVoiceStatus =
+  "enabled" | "no_pcscf" | "no_ims_data_network" | "ip_family_mismatch";
+
 export interface OperatorIMS {
   pcscfAddresses: string[];
+  voiceStatus?: IMSVoiceStatus;
 }
 
 export const MAX_PCSCF_ADDRESSES_PER_FAMILY = 3;

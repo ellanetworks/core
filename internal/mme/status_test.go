@@ -107,7 +107,7 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 		t.Fatal("idle registered subscriber missing from ConnectedSubscribers")
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }
 
 func TestMobileIdentityDigitsIMEISV(t *testing.T) {
@@ -207,7 +207,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 		t.Errorf("idle UE last-seen radio = %q (found %v), want enb-a", seen.RadioName, ok)
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 
 	if _, ok := m.LookupSubscriber("001010000000001"); ok {
 		t.Fatal("deregistered UE still reported as registered")

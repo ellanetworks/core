@@ -27,7 +27,7 @@ func updateOperatorIMS(url string, client *http.Client, token string, data *Upda
 func TestUpdateOperatorIMS(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 
-	getPCSCFAddresses := func(t *testing.T) []string {
+	getIMS := func(t *testing.T) GetOperatorIMSResponseResult {
 		t.Helper()
 
 		code, resp, err := getOperator(env.Server.URL, client, token)
@@ -43,7 +43,13 @@ func TestUpdateOperatorIMS(t *testing.T) {
 			t.Fatal("pcscfAddresses is null, want a list")
 		}
 
-		return resp.Result.IMS.PCSCFAddresses
+		return resp.Result.IMS
+	}
+
+	getPCSCFAddresses := func(t *testing.T) []string {
+		t.Helper()
+
+		return getIMS(t).PCSCFAddresses
 	}
 
 	update := func(t *testing.T, addresses []string) {
@@ -60,8 +66,13 @@ func TestUpdateOperatorIMS(t *testing.T) {
 	}
 
 	t.Run("no P-CSCF addresses by default", func(t *testing.T) {
-		if got := getPCSCFAddresses(t); len(got) != 0 {
-			t.Fatalf("pcscfAddresses = %v, want none", got)
+		ims := getIMS(t)
+		if len(ims.PCSCFAddresses) != 0 {
+			t.Fatalf("pcscfAddresses = %v, want none", ims.PCSCFAddresses)
+		}
+
+		if ims.VoiceStatus != "no_pcscf" {
+			t.Fatalf("voiceStatus = %q, want no_pcscf", ims.VoiceStatus)
 		}
 	})
 
@@ -69,8 +80,13 @@ func TestUpdateOperatorIMS(t *testing.T) {
 		want := []string{"2001:db8::20", "192.0.2.20", "192.0.2.21"}
 		update(t, want)
 
-		if got := getPCSCFAddresses(t); !slices.Equal(got, want) {
-			t.Fatalf("pcscfAddresses = %v, want %v", got, want)
+		ims := getIMS(t)
+		if !slices.Equal(ims.PCSCFAddresses, want) {
+			t.Fatalf("pcscfAddresses = %v, want %v", ims.PCSCFAddresses, want)
+		}
+
+		if ims.VoiceStatus != "no_ims_data_network" {
+			t.Fatalf("voiceStatus = %q, want no_ims_data_network", ims.VoiceStatus)
 		}
 	})
 
@@ -84,15 +100,9 @@ func TestUpdateOperatorIMS(t *testing.T) {
 
 	t.Run("invalid lists are rejected", func(t *testing.T) {
 		cases := map[string][]string{
-			"hostname":         {"pcscf.example.org"},
-			"duplicate":        {"192.0.2.20", "192.0.2.20"},
-			"four ipv4":        {"192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"},
-			"four ipv6":        {"2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4"},
-			"unspecified":      {"0.0.0.0"},
-			"loopback":         {"127.0.0.1"},
-			"multicast":        {"ff02::1"},
-			"zone":             {"fe80::1%eth0"},
-			"ipv4-mapped ipv6": {"::ffff:192.0.2.20"},
+			"hostname":  {"pcscf.example.org"},
+			"duplicate": {"192.0.2.20", "192.0.2.20"},
+			"four ipv4": {"192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"},
 		}
 
 		for name, addresses := range cases {

@@ -117,8 +117,8 @@ func forkedRule(prev, next smf.PCCRule) smf.PCCRule {
 		}
 	}
 
-	out.MBR = maxRate(prev.MBR, next.MBR)
-	out.GBR = maxRate(prev.GBR, next.GBR)
+	out.MBR = prev.MBR.Max(next.MBR)
+	out.GBR = prev.GBR.Max(next.GBR)
 	out.Gate = models.GateStatus{ULGate: min(prev.Gate.ULGate, next.Gate.ULGate), DLGate: min(prev.Gate.DLGate, next.Gate.DLGate)}
 
 	return out
@@ -127,13 +127,6 @@ func forkedRule(prev, next smf.PCCRule) smf.PCCRule {
 func sameFlow(a, b models.SDFFilter) bool {
 	a.Precedence, b.Precedence = 0, 0
 	return a == b
-}
-
-func maxRate(a, b models.Ambr) models.Ambr {
-	return models.Ambr{
-		Uplink:   models.BitRateFromBps(max(a.Uplink.Bps(), b.Uplink.Bps())),
-		Downlink: models.BitRateFromBps(max(a.Downlink.Bps(), b.Downlink.Bps())),
-	}
 }
 
 func mediaQoS(c rx.MediaComponent) (uint8, models.Arp, bool) {

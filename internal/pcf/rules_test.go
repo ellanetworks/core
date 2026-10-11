@@ -124,6 +124,58 @@ func TestPreliminaryServiceInfoInstallsNoRule(t *testing.T) {
 	n.none(t)
 }
 
+func TestFinalServiceInfoAuthorizesThePreliminaryMedia(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+
+	requireResult(t, aa(t, p, "af;call", callAAR(50000, rx.ServiceInfoPreliminary)), success)
+	n.none(t)
+
+	update := rx.RequestUpdate
+	final := signallingAAR(testUEv4)
+	final.RequestType = &update
+	final.MediaComponents = nil
+	requireResult(t, aa(t, p, "af;call", final), success)
+
+	if d := n.next(t); len(d.Rules) != 1 || d.Rules[0].QCI != 1 || d.Rules[0].Filters[0].LocalPort != 50000 {
+		t.Fatalf("pushed rules %+v, want the preliminary voice flow now authorized (TS 29.214 §5.3.7)", d.Rules)
+	}
+}
+
+func TestFinalServiceInfoKeepsThePreliminaryAVPsItOmits(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+
+	requireResult(t, aa(t, p, "af;call", callAAR(50000, rx.ServiceInfoPreliminary)), success)
+
+	update := rx.RequestUpdate
+	final := signallingAAR(testUEv4)
+	final.RequestType = &update
+	final.MediaComponents = []rx.MediaComponent{{
+		Number: 1,
+		SubComponents: []rx.MediaSubComponent{{
+			FlowNumber: 1,
+			FlowDescriptions: []string{
+				"permit out 17 from 192.0.2.10 49000 to 10.60.0.1 50002",
+				"permit in 17 from 10.60.0.1 50002 to 192.0.2.10 49000",
+			},
+		}},
+	}}
+	requireResult(t, aa(t, p, "af;call", final), success)
+
+	if d := n.next(t); len(d.Rules) != 1 || d.Rules[0].QCI != 1 || d.Rules[0].GBR.Uplink.Bps() != 41000 || d.Rules[0].Filters[0].LocalPort != 50002 {
+		t.Fatalf("pushed rules %+v, want the answered port with the preliminary media type and bandwidth", d.Rules)
+	}
+}
+
+func TestPreliminaryServiceInfoIsCheckedEarly(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+
+	r := callAAR(50000, rx.ServiceInfoPreliminary)
+	r.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{"deny out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}
+
+	requireResult(t, aa(t, p, "af;call", r), tgpp.Experimental(tgpp.ResultFilterRestrictions))
+	n.none(t)
+}
+
 func TestRemovedMediaComponentRemovesItsRule(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 
@@ -173,21 +225,6 @@ func TestFailedVoiceRuleAbortsTheCall(t *testing.T) {
 	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: &update}), tgpp.Result{Code: diameter.ResultUnknownSessionID})
 }
 
-func TestUpdateWithOneTimeActionKeepsTheSubscriptions(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-
-	requireResult(t, aa(t, p, "af;call", callAAR(50000, rx.ServiceInfoFinal)), success)
-	d := n.next(t)
-
-	update := rx.RequestUpdate
-	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: &update, SpecificActions: []rx.SpecificAction{rx.ActionChargingCorrelationExchange}}), success)
-
-	p.ReportEnforcementFailure(testRef, failedRules(d.Rules...), smf.ResourcesNotAllocated)
-	n.next(t)
-
-	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: &update}), tgpp.Result{Code: diameter.ResultUnknownSessionID})
-}
-
 func TestLosingEveryFlowAbortsWithoutASubscription(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 
@@ -217,36 +254,6 @@ func TestUpdateOmittingUnchangedAVPsKeepsTheRule(t *testing.T) {
 	n.none(t)
 }
 
-func TestFailedModificationRestoresThePreviousRule(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-
-	requireResult(t, aa(t, p, "af;call", callAAR(50000, rx.ServiceInfoFinal)), success)
-	first := n.next(t)
-
-	update := callAAR(50002, rx.ServiceInfoFinal)
-	update.RequestType = ptr(rx.RequestUpdate)
-	requireResult(t, aa(t, p, "af;call", update), success)
-	second := n.next(t)
-
-	if samePorts(first.Rules[0], second.Rules[0]) {
-		t.Fatal("the update did not change the rule")
-	}
-
-	if second.Rules[0].Version == first.Rules[0].Version {
-		t.Fatal("the changed rule kept its version")
-	}
-
-	p.ReportEnforcementFailure(testRef, []smf.RuleReport{{Rule: second.Rules[0], Active: &first.Rules[0]}}, smf.ResourcesNotAllocated)
-
-	restored := n.next(t)
-
-	if len(restored.Rules) != 1 || !reflect.DeepEqual(restored.Rules[0], first.Rules[0]) {
-		t.Fatalf("rules after the failed modification = %+v, want the enforced rule %+v (TS 29.212 §4.5.12)", restored.Rules, first.Rules)
-	}
-
-	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: ptr(rx.RequestUpdate)}), success)
-}
-
 func TestFailureRestoresTheVersionTheSMFEnforces(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 
@@ -264,11 +271,17 @@ func TestFailureRestoresTheVersionTheSMFEnforces(t *testing.T) {
 		latest = other
 	}
 
+	if samePorts(latest, enforced) || latest.Version <= enforced.Version {
+		t.Fatalf("updated rule %+v, want new ports under a newer version than %+v", latest, enforced)
+	}
+
 	p.ReportEnforcementFailure(testRef, []smf.RuleReport{{Rule: latest, Active: &enforced}}, smf.ResourcesNotAllocated)
 
 	if d := n.next(t); len(d.Rules) != 1 || !reflect.DeepEqual(d.Rules[0], enforced) {
 		t.Fatalf("rules after the failure = %+v, want the enforced version %+v, not an intermediate one", d.Rules, enforced)
 	}
+
+	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: ptr(rx.RequestUpdate)}), success)
 }
 
 func TestReportForASupersededVersionIsIgnored(t *testing.T) {
@@ -284,29 +297,6 @@ func TestReportForASupersededVersionIsIgnored(t *testing.T) {
 
 	p.ReportEnforcementFailure(testRef, failedRules(first), smf.ResourcesNotAllocated)
 	n.none(t)
-}
-
-func TestLostBearerDoesNotRestoreAPreviousRule(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-
-	r := callAAR(50000, rx.ServiceInfoFinal)
-	r.SpecificActions = []rx.SpecificAction{rx.ActionIndicationOfReleaseOfBearer}
-	requireResult(t, aa(t, p, "af;call", r), success)
-	n.next(t)
-
-	update := callAAR(50002, rx.ServiceInfoFinal)
-	update.RequestType = ptr(rx.RequestUpdate)
-	update.SpecificActions = nil
-	requireResult(t, aa(t, p, "af;call", update), success)
-	second := n.next(t)
-
-	p.ReportEnforcementFailure(testRef, failedRules(second.Rules...), smf.BearerReleased)
-
-	if d := n.next(t); len(d.Rules) != 0 {
-		t.Fatalf("rules after the bearer was lost = %+v, want none", d.Rules)
-	}
-
-	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: ptr(rx.RequestUpdate)}), tgpp.Result{Code: diameter.ResultUnknownSessionID})
 }
 
 func failedRules(rules ...smf.PCCRule) []smf.RuleReport {

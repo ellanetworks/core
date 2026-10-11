@@ -145,7 +145,10 @@ func (s *SMF) handoverRequestTransferForArrival(ctx context.Context, sc *SMConte
 		return nil, nil, fmt.Errorf("%w: PDU session %d is EPS bearer %d, not %d", ErrSessionNotMovable, sc.PDUSessionID, sc.EBI, epsBearerIdentity)
 	}
 
-	s.prepareFlowsLocked(ctx, sc, Access5G)
+	if err := s.prepareFlowsLocked(ctx, sc, Access5G); err != nil {
+		logger.From(ctx, logger.SmfLog).Warn("QoS flows not prepared for the target access; they are released at the move",
+			logger.SUPI(sc.Supi.String()), zap.Error(err))
+	}
 
 	flows, flowEBIs := sc.handoverFlowsTo5GSLocked()
 	policy := sc.PolicyData

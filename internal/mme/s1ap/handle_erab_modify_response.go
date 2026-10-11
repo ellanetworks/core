@@ -45,10 +45,27 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 	}
 
 	for _, item := range resp.ERABFailedToModify {
+		if handoverTriggered(item.Cause) && m.DedicatedRadioInterrupted(ctx, ue, uint8(item.ERABID)) {
+			continue
+		}
+
 		m.RadioBearerModified(ctx, ue, uint8(item.ERABID), false)
 	}
 
 	if len(resp.ERABModify) == 0 && len(resp.ERABFailedToModify) == 0 {
 		m.RadioBearerModifiedUnlisted(ctx, ue)
+	}
+}
+
+func handoverTriggered(c s1ap.Cause) bool {
+	if c.Group != s1ap.CauseGroupRadioNetwork || c.Extended {
+		return false
+	}
+
+	switch c.Value {
+	case s1ap.CauseRadioNetworkS1IntraSystemHandoverTriggered, s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered, s1ap.CauseRadioNetworkX2HandoverTriggered:
+		return true
+	default:
+		return false
 	}
 }

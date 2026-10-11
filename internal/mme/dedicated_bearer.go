@@ -266,7 +266,7 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 		return err
 	}
 
-	if !m.armDedicatedGuardLocked(ctx, ue, b, "Activate Dedicated EPS Bearer Context Request", plain, func(ctx context.Context) {
+	if !m.armDedicatedGuardLocked(ctx, ue, ueConn, b, "Activate Dedicated EPS Bearer Context Request", plain, func(ctx context.Context) {
 		m.failDedicated(ctx, ue, b, "T3485 expired")
 	}) {
 		ue.mu.Unlock()
@@ -334,8 +334,8 @@ func sendDedicatedActivation(ctx context.Context, ueConn *UeConn, plain []byte, 
 	return nil
 }
 
-func (m *MME) armDedicatedGuardLocked(ctx context.Context, ue *UeContext, b *DedicatedBearer, name string, plain []byte, onAbort func(context.Context)) bool {
-	if ue.Conn() == nil {
+func (m *MME) armDedicatedGuardLocked(ctx context.Context, ue *UeContext, ueConn *UeConn, b *DedicatedBearer, name string, plain []byte, onAbort func(context.Context)) bool {
+	if ueConn == nil || ue.Conn() != ueConn {
 		return false
 	}
 
@@ -494,7 +494,7 @@ func (m *MME) failDedicated(ctx context.Context, ue *UeContext, b *DedicatedBear
 	delete(p.Dedicated, b.Ebi)
 
 	activating, radioUp, accepted := b.Activating, b.radioUp, b.accepted
-	if !activating {
+	if !activating || accepted {
 		ue.localBearerDeactivation = true
 	}
 
@@ -574,9 +574,19 @@ func (m *MME) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi ui
 		return ErrNoDedicatedBearer
 	}
 
+	if m.handoverDefersBearerSignalling(ue) {
+		return ErrUENotReachable
+	}
+
 	m.DeactivateDedicated(ctx, ue, ebi)
 
 	return nil
+}
+
+func (m *MME) handoverDefersBearerSignalling(ue *UeContext) bool {
+	ueConn, ready := m.ReconcileReady(ue)
+
+	return (!ready || ueConn.ICS() != ICSCompleted) && m.handoverInProgress(ue)
 }
 
 func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8) {
@@ -636,7 +646,7 @@ func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8)
 	b.Activating = false
 	b.modifying = nil
 
-	armed := m.armDedicatedGuardLocked(ctx, ue, b, "Deactivate EPS Bearer Context Request", plain, func(ctx context.Context) {
+	armed := m.armDedicatedGuardLocked(ctx, ue, ueConn, b, "Deactivate EPS Bearer Context Request", plain, func(ctx context.Context) {
 		m.releaseDedicated(ctx, ue, b, true)
 	})
 	ue.mu.Unlock()
@@ -754,7 +764,7 @@ func preservesGBRBearers(cause *s1ap.Cause) bool {
 	}
 }
 
-func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (lost, interrupted []dedicatedLoss) {
+func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLosses) {
 	for _, p := range ue.Pdns {
 		for ebi, b := range p.Dedicated {
 			hadRadio := b.radioUp
@@ -767,13 +777,18 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (lost, interr
 				b.modifying = nil
 				b.guard.Stop()
 
-				accepted := pending.ue == ueAccepted
-				if accepted {
+				outcome := models.ModificationInterrupted
+
+				switch pending.ue {
+				case ueAccepted:
+					outcome = models.ModificationCommitted
 					b.DedicatedBearerInfo = pending.target
+				case ueRejected:
+					outcome = models.ModificationFailed
 				}
 
 				if !drop && !pending.realign {
-					interrupted = append(interrupted, dedicatedLoss{ref: p.SessionRef, teid: b.SgwFTEID.TEID, accepted: accepted})
+					l.interrupted = append(l.interrupted, dedicatedLoss{ref: p.SessionRef, teid: b.SgwFTEID.TEID, outcome: outcome})
 				}
 			}
 
@@ -783,35 +798,40 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (lost, interr
 
 			b.guard.Stop()
 			delete(p.Dedicated, ebi)
-			lost = append(lost, dedicatedLoss{ref: p.SessionRef, teid: b.SgwFTEID.TEID})
+			l.lost = append(l.lost, dedicatedLoss{ref: p.SessionRef, teid: b.SgwFTEID.TEID})
 		}
 	}
 
-	if len(lost) > 0 {
+	if len(l.lost) > 0 {
 		ue.localBearerDeactivation = true
 	}
 
-	return lost, interrupted
+	return l
 }
 
 type dedicatedLoss struct {
-	ref      string
-	teid     uint32
-	accepted bool
+	ref     string
+	teid    uint32
+	outcome models.BearerModificationOutcome
 }
 
-func (m *MME) reportDedicatedLosses(lost, interrupted []dedicatedLoss) {
-	if len(lost) == 0 && len(interrupted) == 0 {
-		return
+type bearerLosses struct {
+	lost, interrupted []dedicatedLoss
+}
+
+func (l *bearerLosses) merge(o bearerLosses) {
+	l.lost = append(l.lost, o.lost...)
+	l.interrupted = append(l.interrupted, o.interrupted...)
+}
+
+func (m *MME) reportDedicatedLosses(ctx context.Context, l bearerLosses) {
+	ctx = context.WithoutCancel(ctx)
+
+	for _, d := range l.lost {
+		m.Session.DedicatedBearerReleased(ctx, d.ref, d.teid)
 	}
 
-	go func() {
-		for _, l := range lost {
-			m.Session.DedicatedBearerReleased(context.Background(), l.ref, l.teid)
-		}
-
-		for _, l := range interrupted {
-			m.Session.DedicatedBearerModified(context.Background(), l.ref, l.teid, l.accepted)
-		}
-	}()
+	for _, d := range l.interrupted {
+		m.Session.DedicatedBearerModified(ctx, d.ref, d.teid, d.outcome)
+	}
 }

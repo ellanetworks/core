@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func newPCSCFAddressesTestDatabase(t *testing.T) *db.Database {
@@ -151,5 +152,52 @@ func TestValidatePCSCFAddresses(t *testing.T) {
 				t.Fatalf("ValidatePCSCFAddresses(%v) = %v, want valid=%v", tc.addresses, err, tc.valid)
 			}
 		})
+	}
+}
+
+func TestIMSVoiceStatus(t *testing.T) {
+	ctx := context.Background()
+	database := newPCSCFAddressesTestDatabase(t)
+
+	status := func(addresses ...string) db.IMSVoiceStatus {
+		t.Helper()
+
+		if err := database.ReplacePCSCFAddresses(ctx, addrs(t, addresses...)); err != nil {
+			t.Fatalf("ReplacePCSCFAddresses: %s", err)
+		}
+
+		s, err := database.IMSVoiceStatus(ctx)
+		if err != nil {
+			t.Fatalf("IMSVoiceStatus: %s", err)
+		}
+
+		return s
+	}
+
+	if got := status(); got != db.IMSVoiceNoPCSCF {
+		t.Fatalf("no P-CSCF address: status = %q, want %q", got, db.IMSVoiceNoPCSCF)
+	}
+
+	if got := status("10.6.0.5"); got != db.IMSVoiceNoDataNetwork {
+		t.Fatalf("no ims data network: status = %q, want %q", got, db.IMSVoiceNoDataNetwork)
+	}
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: models.IMSDataNetworkName, IPv4Pool: "10.60.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+		t.Fatalf("CreateDataNetwork: %s", err)
+	}
+
+	cases := []struct {
+		addresses []string
+		want      db.IMSVoiceStatus
+	}{
+		{nil, db.IMSVoiceNoPCSCF},
+		{[]string{"2001:db8::5"}, db.IMSVoiceIPFamilyMismatch},
+		{[]string{"2001:db8::5", "10.6.0.5"}, db.IMSVoiceEnabled},
+	}
+
+	for _, tc := range cases {
+		if got := status(tc.addresses...); got != tc.want {
+			t.Errorf("P-CSCF %v on an IPv4-only ims data network: status = %q, want %q", tc.addresses, got, tc.want)
+		}
 	}
 }

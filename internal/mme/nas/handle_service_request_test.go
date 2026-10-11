@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/binary"
 	"net/netip"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
@@ -139,6 +140,82 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 		if len(e.NASPDU) != 0 {
 			t.Fatalf("E-RAB %d carries a NAS PDU on a Service Request (want none)", ebi)
 		}
+	}
+}
+
+func TestServiceRequestRestoresThePreservedVoiceBearer(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, nil, mme.MintAuthProofForAttachRequest())
+	ue.Conn().SetICS(mme.ICSCompleted)
+	testPDN(ue).SgwFTEID = testSGWFTEID
+
+	guti, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rate := models.BitRateFromBps(41000)
+	voiceSGW := models.FTEID{TEID: 0x2010, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 2})}
+
+	if err := m.ActivateDedicatedBearer(t.Context(), testSubscriber.IMSI, models.DedicatedBearerRequest{
+		LinkedEBI: mme.DefaultERABID,
+		QCI:       1,
+		ARP:       models.Arp{PriorityLevel: 2, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable},
+		MBR:       models.Ambr{Uplink: rate, Downlink: rate},
+		GBR:       models.Ambr{Uplink: rate, Downlink: rate},
+		Filters: []models.SDFFilter{
+			{ID: 1, Direction: models.FilterBidirectional, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
+		},
+		SGW: voiceSGW,
+	}); err != nil {
+		t.Fatalf("ActivateDedicatedBearer: %v", err)
+	}
+
+	m.DedicatedBearerAccepted(t.Context(), ue, 6)
+	m.ReconcileBearersToRAN(t.Context(), ue, mme.RANBearers{Present: []mme.RANBearer{{Ebi: 6, EnbFTEID: models.FTEID{TEID: 0x77, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}}}})
+
+	m.ReleaseUEContext(t.Context(), ue, s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	m.FreeUeConn(t.Context(), ue)
+
+	if ue.Connected() {
+		t.Fatal("UE still ECM-CONNECTED after the S1 release")
+	}
+
+	if _, b := m.LookupDedicated(ue, 6); b == nil {
+		t.Fatal("the voice bearer did not survive a release for user inactivity (TS 23.401 §5.3.5)")
+	}
+
+	cc := &captureConn{}
+	HandleServiceRequest(t.Context(), m, cc, &s1ap.InitialUEMessage{
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
+	})
+
+	if len(cc.sent) == 0 {
+		t.Fatal("no Initial Context Setup Request after the Service Request")
+	}
+
+	ics := parseInitialContextSetup(t, cc.sent[0])
+
+	i := slices.IndexFunc(ics.ERABToBeSetup, func(e s1ap.ERABToBeSetupItemCtxtSUReq) bool { return e.ERABID == 6 })
+	if i < 0 {
+		t.Fatalf("E-RABs %+v, want the preserved voice bearer 6 (TS 23.401 §5.3.4.1)", ics.ERABToBeSetup)
+	}
+
+	voice := ics.ERABToBeSetup[i]
+	if voice.QoS.QCI != 1 || voice.QoS.GBR == nil || uint32(voice.GTPTEID) != voiceSGW.TEID || len(voice.NASPDU) != 0 {
+		t.Fatalf("E-RAB %+v, want QCI 1 with GBR on S-GW TEID %#x and no NAS PDU (TS 36.413 §9.1.4.1)", voice, voiceSGW.TEID)
+	}
+
+	gbr := voice.QoS.GBR
+	if gbr.MaximumBitrateDL != 41000 || gbr.MaximumBitrateUL != 41000 || gbr.GuaranteedBitrateDL != 41000 || gbr.GuaranteedBitrateUL != 41000 {
+		t.Fatalf("GBR QoS %+v, want 41 kbps maximum and guaranteed both ways", gbr)
+	}
+
+	if arp := voice.QoS.ARP; arp.PriorityLevel != 2 || arp.PreemptionCapability != s1ap.PreemptionMayTrigger || arp.PreemptionVulnerability != s1ap.PreemptionNotPreemptable {
+		t.Fatalf("ARP %+v, want priority 2, may pre-empt, not pre-emptable", arp)
 	}
 }
 

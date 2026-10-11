@@ -257,8 +257,9 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	old, superseded := m.UEs[supi]
 	superseded = superseded && old != ue
 
+	var losses bearerLosses
 	if superseded {
-		m.removeContextLocked(old)
+		losses = m.removeContextLocked(old)
 	}
 
 	m.UEs[supi] = ue
@@ -266,6 +267,8 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	ue.sms = m.SMS
 	m.recordLastSeenLocked(ue, ue.Conn())
 	m.mu.Unlock()
+
+	m.reportDedicatedLosses(ctx, losses)
 
 	// TS 24.301 §5.5.1.2.7 f): a genuine re-attach supersedes the old context and
 	// its EPS bearer contexts are deleted. The anchor sessions are released outside
@@ -646,12 +649,12 @@ func (m *MME) NewUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1AP
 // superseded) and stopping its idle/paging supervision. The caller holds m.mu. Secure
 // exchange is established by the subsequent decode, not here (the bare connection
 // carries the message that establishes it).
-func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
+func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn, losses bearerLosses) {
 	m.stopIdleTimersLocked(ue)
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
 	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
-	superseded = m.detachConnLocked(ue, false)
+	superseded, losses = m.detachConnLocked(ue, false)
 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
 	// native-GUTI reuse — detach it there so that discarded context does not appear
@@ -677,15 +680,17 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 	ue.TouchLastSeen()
 	m.recordLastSeenLocked(ue, c)
 
-	return superseded
+	return superseded, losses
 }
 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
 // releasing any superseded connection.
 func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
 	m.mu.Lock()
-	superseded := m.attachUeConnLocked(ue, c)
+	superseded, losses := m.attachUeConnLocked(ue, c)
 	m.mu.Unlock()
+
+	m.reportDedicatedLosses(ctx, losses)
 
 	if superseded != nil {
 		m.deactivateSupersededUserPlane(ctx, ue)
@@ -731,10 +736,10 @@ func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 // detachConnLocked unbinds the UE's current S1-connection and stops its connection-scoped
 // supervision, returning the connection (nil if none). The connection stays in m.conns;
 // the caller frees or reserves its MME-UE-S1AP-ID. The caller holds m.mu.
-func (m *MME) detachConnLocked(ue *UeContext, releaseGBR bool) *UeConn {
+func (m *MME) detachConnLocked(ue *UeContext, releaseGBR bool) (*UeConn, bearerLosses) {
 	old := ue.Conn()
 	if old == nil {
-		return nil
+		return nil, bearerLosses{}
 	}
 
 	// Abort any in-flight handover so its supervision does not outlive ue.active and
@@ -761,26 +766,27 @@ func (m *MME) detachConnLocked(ue *UeContext, releaseGBR bool) *UeConn {
 		}
 	}
 
-	lost, interrupted := ue.takeDedicatedOnReleaseLocked(releaseGBR)
-	ue.mu.Unlock()
-
-	m.reportDedicatedLosses(lost, interrupted)
-
 	old.ue.Store(nil)
 	ue.active.Store(nil)
 
-	return old
+	losses := ue.takeDedicatedOnReleaseLocked(releaseGBR)
+	ue.mu.Unlock()
+
+	return old, losses
 }
 
-func (m *MME) freeUeConnLocked(ue *UeContext) {
+func (m *MME) freeUeConnLocked(ue *UeContext) bearerLosses {
 	releaseGBR := true
 	if c := ue.Conn(); c != nil {
 		releaseGBR = !preservesGBRBearers(c.releaseCause.Load())
 	}
 
-	if old := m.detachConnLocked(ue, releaseGBR); old != nil {
+	old, losses := m.detachConnLocked(ue, releaseGBR)
+	if old != nil {
 		m.releaseConnIDLocked(uint32(old.MMEUES1APID))
 	}
+
+	return losses
 }
 
 // FreeUeConn releases the UE's S1-connection under m.mu, moving it to ECM-IDLE.
@@ -788,30 +794,32 @@ func (m *MME) FreeUeConn(ctx context.Context, ue *UeContext) {
 	ue.settleDeliveryOnRelease(ctx)
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	losses := m.freeUeConnLocked(ue)
+	m.mu.Unlock()
 
-	m.freeUeConnLocked(ue)
+	m.reportDedicatedLosses(ctx, losses)
 }
 
 // RemoveUe deletes a UE context entirely: its S1-connection, idle/paging
 // supervision, and all registry indexes. Idempotent, absorbing the detach/RLF
 // release race.
-func (m *MME) RemoveUe(ue *UeContext) {
+func (m *MME) RemoveUe(ctx context.Context, ue *UeContext) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	losses := m.removeContextLocked(ue)
+	m.mu.Unlock()
 
-	m.removeContextLocked(ue)
+	m.reportDedicatedLosses(ctx, losses)
 }
 
 // removeContextLocked deletes the UE from every registry index and stops all its
 // supervision. The caller holds m.mu.
-func (m *MME) removeContextLocked(ue *UeContext) {
+func (m *MME) removeContextLocked(ue *UeContext) bearerLosses {
 	ue.clearKeyChainProc()
 
 	m.stopIdleTimersLocked(ue)
 	ue.clearPaging()
 	m.releaseMTMSIsLocked(ue)
-	m.freeUeConnLocked(ue)
+	losses := m.freeUeConnLocked(ue)
 	m.endRelocationLocked(ue.supi, ue)
 
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
@@ -819,6 +827,8 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 		delete(m.UEs, supi)
 		m.purgeRegistration(supi)
 	}
+
+	return losses
 }
 
 func (m *MME) recordLastSeenLocked(ue *UeContext, c *UeConn) {
@@ -929,24 +939,24 @@ func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
 // connection that is no longer the UE's leaves the UE untouched and reports
 // released false. It returns whether the UE was registered, plus its IMSI for
 // post-release logging.
-func (m *MME) releaseContextLockedPart(ue *UeContext, expected *UeConn) (released, registered bool, imsi string) {
+func (m *MME) releaseContextLockedPart(ue *UeContext, expected *UeConn) (released, registered bool, imsi string, losses bearerLosses) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if expected != nil && ue.Conn() != expected {
-		return false, false, ""
+		return false, false, "", bearerLosses{}
 	}
 
 	registered = ue.EMMState() == EMMRegistered
 	imsi = ue.imsiOrEmpty()
 
 	if registered {
-		m.freeUeConnLocked(ue)
+		losses = m.freeUeConnLocked(ue)
 	} else {
-		m.removeContextLocked(ue)
+		losses = m.removeContextLocked(ue)
 	}
 
-	return true, registered, imsi
+	return true, registered, imsi, losses
 }
 
 // ConnsOnConn returns every UE-associated connection on the given eNB association.
@@ -997,9 +1007,8 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 // DropStaleUe removes any context bound to the same eNB association and
 // ENB-UE-S1AP-ID, so a fresh Initial UE Message (e.g. a re-attach reusing the
 // eNB UE id) does not leak the previous context.
-func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
+func (m *MME) DropStaleUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	var stale []*UeContext
 
@@ -1009,9 +1018,15 @@ func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 		}
 	}
 
+	var losses bearerLosses
+
 	for _, ue := range stale {
-		m.removeContextLocked(ue)
+		losses.merge(m.removeContextLocked(ue))
 	}
+
+	m.mu.Unlock()
+
+	m.reportDedicatedLosses(ctx, losses)
 }
 
 // S1Identity snapshots the UE's S1 association — the eNB connection and the

@@ -288,12 +288,8 @@ func TestTCPCloseSendsFINAfterQueuedMessages(t *testing.T) {
 }
 
 func TestTCPCloseBoundedWhenPeerKeepsSending(t *testing.T) {
-	original := tcpLingerTimeout
-	tcpLingerTimeout = 200 * time.Millisecond
-
-	defer func() { tcpLingerTimeout = original }()
-
 	tr, remote := tcpPair(t)
+	tr.linger = 200 * time.Millisecond
 
 	stop := make(chan struct{})
 	defer close(stop)

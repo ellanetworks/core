@@ -23,7 +23,6 @@ import (
 const (
 	defaultMaxPacketFilters      uint16 = 16
 	minSignalledMaxPacketFilters uint16 = 17
-	maxEPSFallbacks                     = 1
 	firstFlowQFI                 uint8  = 2
 	lastFlowQFI                  uint8  = 63
 	firstFlowQRI                 uint8  = 2
@@ -152,15 +151,17 @@ func (b *dedicatedBearer) flowTFT(current bearerTFT, rules []PCCRule) (bearerTFT
 	}
 
 	for k, f := range tft {
-		f.Precedence = b.precedence[k.rule]
-		tft[k] = f
+		if k != blockingUplinkKey {
+			f.Precedence = b.precedence[k.rule]
+			tft[k] = f
+		}
 	}
 
 	return tft, nil
 }
 
 func (sc *SMContext) packetFiltersWith(b *dedicatedBearer, tft bearerTFT) int {
-	n := 1 + len(tft)
+	n := 1 + tft.signalledFilters()
 
 	for _, o := range sc.dedicated {
 		if o == b {
@@ -168,9 +169,9 @@ func (sc *SMContext) packetFiltersWith(b *dedicatedBearer, tft bearerTFT) int {
 		}
 
 		if o.modification != nil {
-			n += len(o.modification.tft)
+			n += o.modification.tft.signalledFilters()
 		} else {
-			n += len(o.tft)
+			n += o.tft.signalledFilters()
 		}
 	}
 
@@ -303,7 +304,7 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 				continue
 			}
 
-			if time.Now().Before(b.rejected.until) {
+			if b.rejected.removal {
 				continue
 			}
 
@@ -395,10 +396,6 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		err = fmt.Errorf("the UE supports %d packet filters (TS 24.501 §6.4.1.3)", sc.filterLimit())
 	}
 
-	if err == nil && len(directionFilters(tft.list(), models.FilterUplink)) == 0 {
-		err = fmt.Errorf("the rules have no uplink packet filter")
-	}
-
 	mbr, gbr := bearerRates(rules)
 
 	var desc fgs.QoSFlowDescription
@@ -461,10 +458,6 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		err = fmt.Errorf("the UE supports %d packet filters (TS 24.501 §6.4.1.3)", sc.filterLimit())
 	}
 
-	if err == nil && len(directionFilters(tft.list(), models.FilterUplink)) == 0 {
-		err = fmt.Errorf("the rules leave the QoS flow with no uplink packet filter")
-	}
-
 	if err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("QoS flow cannot carry the rules", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
 		b.pruneRuleIdentities(b.rules)
@@ -472,10 +465,16 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		return addedOrChangedRules(rules, b.rules)
 	}
 
-	ops := b.qosRuleOps(b.rules, b.tft, rules, tft)
-
 	mbr, gbr := bearerRates(rules)
-	ratesChanged := !ambrEqual(mbr, b.mbr) || !ambrEqual(gbr, b.gbr)
+
+	if b.rejected.refuses(binding, tft, mbr, gbr) {
+		b.pruneRuleIdentities(b.rules)
+
+		return nil
+	}
+
+	ops := b.qosRuleOps(b.rules, b.tft, rules, tft)
+	ratesChanged := !mbr.Equal(b.mbr) || !gbr.Equal(b.gbr)
 	arpChanged := binding != b.binding
 
 	if len(ops) == 0 && !ratesChanged && !arpChanged {
@@ -810,10 +809,6 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 
 	var notAllocated, released []PCCRule
 
-	if p.epsFallback {
-		sc.fallbacks++
-	}
-
 	for b, parts := range p.parts {
 		ueApplied := !parts.n1 || p.ueAccepted
 		ranApplied := !parts.n2 || !p.ranRejected && !slices.Contains(p.ranFailed, b.qfi)
@@ -841,11 +836,9 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 		}
 	}
 
-	if p.epsFallback && sc.fallbacks <= maxEPSFallbacks {
+	if p.epsFallback {
 		sc.fallbackUntil = time.Now().Add(s.dedicatedAwaitLimit)
 		s.reconcileAfter(sc.Ref, s.dedicatedAwaitLimit)
-	} else {
-		sc.fallbacks = 0
 	}
 
 	notReports := sc.ruleReportsLocked(notAllocated)
@@ -855,10 +848,8 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 	logger.From(ctx, logger.SmfLog).Info("QoS flow modification concluded", logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID),
 		zap.Bool("ue_accepted", p.ueAccepted), zap.Bool("ran_rejected", p.ranRejected), zap.Int("failed_qos_flows", len(p.ranFailed)), zap.Bool("eps_fallback", p.epsFallback))
 
-	go func() {
-		s.reportFailedRules(sc, notReports, ResourcesNotAllocated)
-		s.reportFailedRules(sc, releasedReports, BearerReleased)
-	}()
+	s.reportFailedRules(sc, notReports, ResourcesNotAllocated)
+	s.reportFailedRules(sc, releasedReports, BearerReleased)
 
 	s.reconcileAfter(sc.Ref, 0)
 }
@@ -892,7 +883,7 @@ func (s *SMF) concludeCreatedFlowLocked(ctx context.Context, sc *SMContext, b *d
 		}
 	}
 
-	if p.epsFallback && sc.fallbacks <= maxEPSFallbacks {
+	if p.epsFallback {
 		return nil
 	}
 
@@ -916,20 +907,24 @@ func (s *SMF) concludeModifiedFlowLocked(ctx context.Context, sc *SMContext, b *
 		b.pruneRuleIdentities(append(slices.Clone(b.rules), m.rules...))
 		s.restoreLegLocked(ctx, sc, b)
 
-		return addedOrChangedRules(m.rules, b.rules)
+		return b.refuse(m)
 	default:
-		failed := addedOrChangedRules(m.rules, b.rules)
 		b.pruneRuleIdentities(b.rules)
-		b.realignRAN = parts.n2 && ranApplied && (m.binding != b.binding || !ambrEqual(m.mbr, b.mbr) || !ambrEqual(m.gbr, b.gbr))
+		b.realignRAN = parts.n2 && ranApplied && (m.binding != b.binding || !m.mbr.Equal(b.mbr) || !m.gbr.Equal(b.gbr))
 		s.restoreLegLocked(ctx, sc, b)
 
-		if len(failed) == 0 {
-			b.rejected = rejectedStep{until: time.Now().Add(s.dedicatedAwaitLimit)}
-			s.reconcileAfter(sc.Ref, s.dedicatedAwaitLimit)
-		}
-
-		return failed
+		return b.refuse(m)
 	}
+}
+
+func (b *dedicatedBearer) refuse(m *pendingModification) []PCCRule {
+	failed := addedOrChangedRules(m.rules, b.rules)
+
+	if len(failed) == 0 {
+		b.rejected = rejectedStep{target: m}
+	}
+
+	return failed
 }
 
 func (s *SMF) concludeRemovedFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, ueApplied, ranApplied bool) {
@@ -952,8 +947,7 @@ func (s *SMF) concludeRemovedFlowLocked(ctx context.Context, sc *SMContext, b *d
 	}
 
 	b.state = dedicatedActive
-	b.rejected = rejectedStep{until: time.Now().Add(s.dedicatedAwaitLimit)}
-	s.reconcileAfter(sc.Ref, s.dedicatedAwaitLimit)
+	b.rejected = rejectedStep{removal: true}
 }
 
 func (s *SMF) commitFlowLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
@@ -1027,7 +1021,7 @@ func (s *SMF) realignUELocked(change *flowChange, b *dedicatedBearer) {
 
 	rules = b.qosRuleOps(ue.rules, ue.tft, b.rules, b.tft)
 
-	ratesChanged := !ambrEqual(ue.mbr, b.mbr) || !ambrEqual(ue.gbr, b.gbr)
+	ratesChanged := !ue.mbr.Equal(b.mbr) || !ue.gbr.Equal(b.gbr)
 	if ratesChanged {
 		if desc, err := b.qosFlowDescription(b.binding.QCI, fgs.QoSFlowOpModify, b.mbr, b.gbr); err == nil {
 			flows = append(flows, desc)
@@ -1174,7 +1168,7 @@ func (s *SMF) reportLostLocked(sc *SMContext, lost []PCCRule) {
 	reports := sc.ruleReportsLocked(lost)
 	sc.recordFailedRulesLocked(lost)
 
-	go s.reportFailedRules(sc, reports, BearerReleased)
+	s.reportFailedRules(sc, reports, BearerReleased)
 }
 
 func (s *SMF) admitFlowsLocked(ctx context.Context, sc *SMContext, accepted []uint8) {
@@ -1357,6 +1351,18 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 	logger.From(ctx, logger.SmfLog).Info("accepted the UE's deletion of QoS rules (TS 24.501 §6.4.2.2)",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), zap.Int("qos_rules", len(rules)), zap.Int("qos_flows", len(flows)))
 
+	s.sendRequestedModificationLocked(ctx, sc, pti, n1)
+
+	for _, d := range deletions {
+		d.flow.pruneRuleIdentities(d.flow.rules)
+	}
+
+	s.reportLostRulesLocked(sc, lost)
+
+	return &UpdateResult{N1Msg: n1}, nil
+}
+
+func (s *SMF) sendRequestedModificationLocked(ctx context.Context, sc *SMContext, pti uint8, n1 []byte) {
 	sc.MarkPTIInUse(pti)
 
 	supi, pduSessionID := sc.Supi, sc.PDUSessionID
@@ -1367,12 +1373,4 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 			sc.ClearPTIInUse(pti)
 			s.reconcileAfter(sc.Ref, 0)
 		})
-
-	for _, d := range deletions {
-		d.flow.pruneRuleIdentities(d.flow.rules)
-	}
-
-	s.reportLostRulesLocked(sc, lost)
-
-	return &UpdateResult{N1Msg: n1}, nil
 }

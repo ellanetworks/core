@@ -34,7 +34,6 @@ func pendingRegistration(server string) *db.IMSRegistration {
 		AuthPending: true,
 		OriginHost:  "scscf.ims.mnc001.mcc001.3gppnetwork.org",
 		OriginRealm: "ims.mnc001.mcc001.3gppnetwork.org",
-		UpdatedAt:   1000,
 	}
 }
 
@@ -76,7 +75,6 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 	registered := *pending
 	registered.State = db.IMSRegistered
 	registered.AuthPending = false
-	registered.UpdatedAt = 2000
 
 	if _, swapped, err = dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, pending, &registered); err != nil || !swapped {
 		t.Fatalf("register: swapped=%v err=%v", swapped, err)
@@ -87,7 +85,7 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 		t.Fatalf("get: %v", err)
 	}
 
-	if got.State != db.IMSRegistered || got.AuthPending || got.ServerName != pending.ServerName || got.OriginHost != pending.OriginHost || got.UpdatedAt != 2000 {
+	if got.State != db.IMSRegistered || got.AuthPending || got.ServerName != pending.ServerName || got.OriginHost != pending.OriginHost {
 		t.Fatalf("stored registration = %+v", got)
 	}
 

@@ -178,7 +178,11 @@ func (m *MME) AbandonHandoverToFiveGS(ctx context.Context, ue *UeContext, id int
 	// PDN connections already moved has nobody left to release it.
 	if ue.PDNCount() == 0 {
 		m.DeregisterEmptyUE(ctx, ue)
+
+		return true
 	}
+
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 
 	return true
 }

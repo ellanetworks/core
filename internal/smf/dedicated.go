@@ -43,7 +43,6 @@ type dedicatedBearer struct {
 	ebi           uint8
 	state         dedicatedState
 	rules         []PCCRule
-	enb           models.FTEID
 	awaitingSince time.Time
 
 	tft       bearerTFT
@@ -150,7 +149,7 @@ func (sc *SMContext) ruleReportsLocked(failed []PCCRule) []RuleReport {
 	for _, r := range failed {
 		report := RuleReport{Rule: r}
 
-		if active := sc.installedRuleLocked(r.ID); active != nil && !samePCCRule(*active, r) {
+		if active := sc.installedRuleLocked(r.ID); active != nil && !active.Equal(r) {
 			report.Active = new(*active)
 		}
 
@@ -168,7 +167,7 @@ func (sc *SMContext) enforceableRulesLocked() ([]PCCRule, []PCCRule) {
 	for _, r := range sc.policyDecision.Rules {
 		current[r.ID] = r
 
-		if f, ok := sc.failedRules[r.ID]; ok && samePCCRule(f, r) {
+		if f, ok := sc.failedRules[r.ID]; ok && f.Equal(r) {
 			if active := sc.installedRuleLocked(r.ID); active != nil {
 				rules = append(rules, *active)
 			}
@@ -185,19 +184,12 @@ func (sc *SMContext) enforceableRulesLocked() ([]PCCRule, []PCCRule) {
 	}
 
 	for id, f := range sc.failedRules {
-		if r, ok := current[id]; !ok || !samePCCRule(f, r) {
+		if r, ok := current[id]; !ok || !f.Equal(r) {
 			delete(sc.failedRules, id)
 		}
 	}
 
 	return rules, unsupported
-}
-
-func samePCCRule(a, b PCCRule) bool {
-	return a.ID == b.ID && a.Version == b.Version && a.QCI == b.QCI && a.ARP == b.ARP &&
-		a.MBR.Uplink.Equal(b.MBR.Uplink) && a.MBR.Downlink.Equal(b.MBR.Downlink) &&
-		a.GBR.Uplink.Equal(b.GBR.Uplink) && a.GBR.Downlink.Equal(b.GBR.Downlink) &&
-		a.Gate == b.Gate && slices.Equal(a.Filters, b.Filters)
 }
 
 func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicatedAction, []RuleReport) {
@@ -341,10 +333,6 @@ func (s *SMF) addDedicatedLocked(ctx context.Context, sc *SMContext, binding bea
 	tft, err := assignFilters(slot, nil, rules)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(directionFilters(tft.list(), models.FilterUplink)) == 0 {
-		return nil, fmt.Errorf("the rules have no uplink packet filter, which a dedicated bearer TFT needs (TS 24.301 §6.4.2.3)")
 	}
 
 	b := &dedicatedBearer{binding: binding, slot: slot, rules: rules}
@@ -499,13 +487,24 @@ func (s *SMF) runDedicated(ctx context.Context, sc *SMContext, actions []dedicat
 			continue
 		}
 
-		if err := s.mme.DeactivateDedicatedBearer(ctx, imsi, a.deactivate, a.sgwTEID); err != nil {
+		if err := s.mme.DeactivateDedicatedBearer(ctx, imsi, a.deactivate, a.sgwTEID); errors.Is(err, ErrUENotReachable) {
+			deactivationNotSent(sc, a.sgwTEID)
+		} else if err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer deactivation not sent; releasing it locally", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", a.deactivate), zap.Error(err))
 			s.DedicatedBearerReleased(ctx, sc.Ref, a.sgwTEID)
 		}
 	}
 
 	s.reportFailedRules(sc, failed, ResourcesNotAllocated)
+}
+
+func deactivationNotSent(sc *SMContext, teid uint32) {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if b := sc.dedicatedBySGWTEID(teid); b != nil && b.state == dedicatedReleasing {
+		b.state = dedicatedActive
+	}
 }
 
 func (s *SMF) dedicatedAwaitUE(sc *SMContext, teid uint32) {
@@ -527,11 +526,7 @@ func (s *SMF) dedicatedAwaitUE(sc *SMContext, teid uint32) {
 }
 
 func (s *SMF) reconcileAfter(ref string, d time.Duration) {
-	run := func() {
-		if err := s.ReconcileSession(context.Background(), ref); err != nil {
-			logger.SmfLog.Warn("dedicated bearer reconcile failed", logger.SMContextRef(ref), zap.Error(err))
-		}
-	}
+	run := func() { s.replanBearers(context.Background(), ref) }
 
 	if d == 0 {
 		go run()
@@ -607,8 +602,6 @@ func (s *SMF) moveDedicatedLocked(ctx context.Context, sc *SMContext, sgwTEID ui
 			return nil, fmt.Errorf("forward the bearer's downlink: %w", err)
 		}
 	}
-
-	b.enb = enb
 
 	return b, nil
 }

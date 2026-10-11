@@ -117,3 +117,24 @@ type DedicatedBearerEndpoint struct {
 	SGWTEID uint32
 	ENB     FTEID
 }
+
+type BearerModificationOutcome uint8
+
+const (
+	ModificationCommitted BearerModificationOutcome = iota
+	ModificationFailed
+	ModificationInterrupted
+)
+
+func (o BearerModificationOutcome) String() string {
+	switch o {
+	case ModificationCommitted:
+		return "committed"
+	case ModificationFailed:
+		return "failed"
+	case ModificationInterrupted:
+		return "interrupted"
+	default:
+		return "unknown"
+	}
+}

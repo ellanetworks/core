@@ -12,13 +12,6 @@ import (
 )
 
 func (h *HSS) UserAuthorization(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
-	ans := h.authorizeUser(ctx, id, req)
-	recordAuthorization(req, ans)
-
-	return ans
-}
-
-func (h *HSS) authorizeUser(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
 	r, err := cx.ParseUserAuthorizationRequest(req)
 	if err != nil {
 		return cx.NewErrorAnswer(req, id, err, 0)

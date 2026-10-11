@@ -307,6 +307,7 @@ const (
 	voicePacketInterval = 20 * time.Millisecond
 	gateSettleInterval  = 300 * time.Millisecond
 	gatedProbes         = 3
+	voiceFiveQI         = 1
 )
 
 var voicePayload = []byte{0x80, 0x76, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1}
@@ -329,9 +330,16 @@ func awaitVoiceQFIs(ctx context.Context, legs []voiceLeg) ([]uint8, error) {
 		qfis := make([]uint8, 0, len(legs))
 
 		for _, l := range legs {
-			if flows := l.flows(); len(flows) == 1 {
-				qfis = append(qfis, flows[0])
+			flows := l.flows()
+			if len(flows) != 1 {
+				continue
 			}
+
+			if fiveQI, _ := l.gnb.QoSFlowFiveQI(l.ranUEID, int64(l.session.PDUSessionID), flows[0]); fiveQI != voiceFiveQI {
+				return nil, fmt.Errorf("voice QoS flow %d has 5QI %d, want %d", flows[0], fiveQI, voiceFiveQI)
+			}
+
+			qfis = append(qfis, flows[0])
 		}
 
 		if len(qfis) == len(legs) {

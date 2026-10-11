@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Box,
+  Chip,
   IconButton,
   Table,
   TableBody,
@@ -15,11 +16,27 @@ import {
   Typography,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
-import type { OperatorIMS } from "@/queries/operator";
+import type { IMSVoiceStatus, OperatorIMS } from "@/queries/operator";
 import EditOperatorIMSModal from "@/components/EditOperatorIMSModal";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { TABLE_CONTAINER_SX } from "@/utils/layout";
 import { IMS_DATA_NETWORK } from "@/utils/voice";
+
+const voiceStatuses: Record<
+  IMSVoiceStatus,
+  { label: string; color: "success" | "default" | "warning" }
+> = {
+  enabled: { label: "Enabled", color: "success" },
+  no_pcscf: { label: "Off: no P-CSCF address", color: "default" },
+  no_ims_data_network: {
+    label: `Off: no ${IMS_DATA_NETWORK} data network`,
+    color: "warning",
+  },
+  ip_family_mismatch: {
+    label: `Off: no P-CSCF address matches the ${IMS_DATA_NETWORK} IP pool's family`,
+    color: "warning",
+  },
+};
 
 interface VoiceSectionProps {
   ims?: OperatorIMS;
@@ -41,6 +58,7 @@ const VoiceSection: React.FC<VoiceSectionProps> = ({
   }, [editOpen, onModalOpenChange]);
 
   const addresses = ims?.pcscfAddresses ?? [];
+  const status = ims?.voiceStatus ? voiceStatuses[ims.voiceStatus] : undefined;
 
   return (
     <Box sx={{ mt: 4 }}>
@@ -56,6 +74,22 @@ const VoiceSection: React.FC<VoiceSectionProps> = ({
       <TableContainer sx={TABLE_CONTAINER_SX}>
         <Table>
           <TableBody>
+            {status && (
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, width: "35%" }}>
+                  Status
+                </TableCell>
+                <TableCell sx={{ width: "55%" }}>
+                  <Chip
+                    label={status.label}
+                    color={status.color}
+                    size="small"
+                    variant="filled"
+                  />
+                </TableCell>
+                <TableCell sx={{ width: "10%" }} />
+              </TableRow>
+            )}
             <TableRow>
               <TableCell sx={{ fontWeight: 600, width: "35%" }}>
                 <Tooltip title="The IMS entry points handsets call" arrow>

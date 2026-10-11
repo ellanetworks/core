@@ -338,18 +338,33 @@ func TestAcceptedActivationStillWaitsForTheRadio(t *testing.T) {
 	activateVoiceBearer(t, m, ue, cc)
 	m.DedicatedBearerAccepted(context.Background(), ue, 6)
 
-	deadline := time.Now().Add(5 * time.Second)
+	if activated, _ := fake.dedicatedOutcomes(); len(activated) != 0 {
+		t.Fatalf("activation reported on the UE's accept alone: %+v", activated)
+	}
 
-	for {
-		if _, dropped := fake.dedicatedOutcomes(); len(dropped) == 1 {
-			break
-		}
+	before := len(cc.snapshot())
 
-		if time.Now().After(deadline) {
-			t.Fatal("an activation with no E-RAB Setup Response never failed")
-		}
+	eventually(t, 5*time.Second, func() bool {
+		_, dropped := fake.dedicatedOutcomes()
+		return len(dropped) == 1
+	})
 
-		time.Sleep(10 * time.Millisecond)
+	if _, b := m.LookupDedicated(ue, 6); b != nil {
+		t.Fatal("the bearer survived an activation the eNB never confirmed")
+	}
+
+	if !ue.LocalBearerDeactivationPending() {
+		t.Fatal("the next TAU accept would not carry the EPS bearer context status for a context the UE still holds (TS 24.301 §5.5.3.2.4)")
+	}
+
+	sent := cc.snapshot()[before:]
+	if len(sent) != 1 {
+		t.Fatalf("sent %d messages on guard expiry, want one deactivation", len(sent))
+	}
+
+	deact, err := eps.ParseDeactivateEPSBearerContextRequest(downlinkPlain(t, ue, decodeDownlinkNAS(t, sent[0])))
+	if err != nil || deact.EPSBearerIdentity != 6 {
+		t.Fatalf("deactivation %+v (%v), want EBI 6 over Downlink NAS Transport: the UE holds a context the eNB never set up (TS 24.301 §6.4.4.2)", deact, err)
 	}
 }
 
@@ -419,73 +434,85 @@ func TestESMStatusInvalidBearerReleasesTheDedicatedBearer(t *testing.T) {
 }
 
 func TestRefusedRadioEndpointReleasesTheBearer(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	fake := m.Session.(*fakeSessionManager)
+	refused := models.FTEID{TEID: 0x78, Addr: netip.MustParseAddr("10.3.0.4")}
 
-	activateVoiceBearer(t, m, ue, cc)
-	m.DedicatedBearerAccepted(context.Background(), ue, 6)
-	m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
-
-	fake.outcomeMu.Lock()
-	fake.moveErr = errors.New("UPF refused the rules")
-	fake.outcomeMu.Unlock()
-
-	before := len(cc.snapshot())
-
-	result := m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6, EnbFTEID: models.FTEID{TEID: 0x78, Addr: netip.MustParseAddr("10.3.0.4")}}}})
-	if len(result.Applied) != 0 || len(result.Failed) != 1 || result.Failed[0] != 6 {
-		t.Fatalf("result %+v, want E-RAB 6 failed", result)
+	cases := []struct {
+		name          string
+		active        bool
+		ran           RANBearers
+		inERABRelease bool
+	}{
+		{
+			name:          "moved by the eNB",
+			active:        true,
+			ran:           RANBearers{Present: []RANBearer{{Ebi: 6, EnbFTEID: refused}}},
+			inERABRelease: true,
+		},
+		{
+			name:   "moved on a path switch",
+			active: true,
+			ran:    RANBearers{Present: []RANBearer{{Ebi: 5}, {Ebi: 6, EnbFTEID: refused}}, Authoritative: true, ReleaseFailed: true},
+		},
+		{
+			name: "activated on a path switch",
+			ran:  RANBearers{Present: []RANBearer{{Ebi: 5, EnbFTEID: refused}, {Ebi: 6, EnbFTEID: refused}}, ReleaseFailed: true, AfterCommit: true},
+		},
 	}
 
-	if sent := cc.snapshot(); len(sent) != before {
-		t.Fatalf("sent %d messages before the procedure concluded, want none", len(sent)-before)
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, cc := connectedBearerUE(t, m)
+			fake := m.Session.(*fakeSessionManager)
 
-	m.DeactivatePendingDedicated(context.Background(), ue)
+			activateVoiceBearer(t, m, ue, cc)
+			m.DedicatedBearerAccepted(context.Background(), ue, 6)
 
-	sent := cc.snapshot()
+			if tc.active {
+				m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
+			}
 
-	cmd, err := s1ap.ParseERABReleaseCommand(initiating(t, sent[len(sent)-1], s1ap.ProcERABRelease))
-	if err != nil {
-		t.Fatalf("parse E-RAB Release Command: %v", err)
-	}
+			refusal := errors.New("UPF refused the rules")
 
-	deact, err := eps.ParseDeactivateEPSBearerContextRequest(downlinkPlain(t, ue, []byte(cmd.NASPDU)))
-	if err != nil || deact.EPSBearerIdentity != 6 {
-		t.Fatalf("deactivation %+v (%v), want EBI 6", deact, err)
-	}
-}
+			fake.outcomeMu.Lock()
+			if tc.active {
+				fake.moveErr = refusal
+			} else {
+				fake.activateErr = refusal
+			}
+			fake.outcomeMu.Unlock()
 
-func TestBearerRefusedOnPathSwitchIsDeactivatedOverNAS(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	fake := m.Session.(*fakeSessionManager)
+			before := len(cc.snapshot())
 
-	activateVoiceBearer(t, m, ue, cc)
-	m.DedicatedBearerAccepted(context.Background(), ue, 6)
-	m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
+			result := m.ReconcileBearersToRAN(context.Background(), ue, tc.ran)
+			if !slices.Equal(result.Failed, []uint8{6}) || slices.Contains(result.Applied, 6) {
+				t.Fatalf("result %+v, want E-RAB 6 failed", result)
+			}
 
-	fake.outcomeMu.Lock()
-	fake.moveErr = errors.New("UPF refused the rules")
-	fake.outcomeMu.Unlock()
+			if sent := cc.snapshot(); len(sent) != before {
+				t.Fatalf("sent %d messages before the procedure concluded, want none", len(sent)-before)
+			}
 
-	result := m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{
-		Present:       []RANBearer{{Ebi: 5}, {Ebi: 6, EnbFTEID: models.FTEID{TEID: 0x78, Addr: netip.MustParseAddr("10.3.0.4")}}},
-		Authoritative: true,
-		ReleaseFailed: true,
-	})
-	if len(result.Failed) != 1 || result.Failed[0] != 6 {
-		t.Fatalf("result %+v, want E-RAB 6 in the To Be Released list", result)
-	}
+			m.DeactivatePendingDedicated(context.Background(), ue)
 
-	m.DeactivatePendingDedicated(context.Background(), ue)
+			var nasPDU []byte
 
-	sent := cc.snapshot()
+			if tc.inERABRelease {
+				cmd, err := s1ap.ParseERABReleaseCommand(initiating(t, lastSent(cc), s1ap.ProcERABRelease))
+				if err != nil {
+					t.Fatalf("parse E-RAB Release Command: %v", err)
+				}
 
-	deact, err := eps.ParseDeactivateEPSBearerContextRequest(downlinkPlain(t, ue, decodeDownlinkNAS(t, sent[len(sent)-1])))
-	if err != nil || deact.EPSBearerIdentity != 6 {
-		t.Fatalf("deactivation %+v (%v), want EBI 6 in Downlink NAS Transport", deact, err)
+				nasPDU = []byte(cmd.NASPDU)
+			} else {
+				nasPDU = decodeDownlinkNAS(t, lastSent(cc))
+			}
+
+			deact, err := eps.ParseDeactivateEPSBearerContextRequest(downlinkPlain(t, ue, nasPDU))
+			if err != nil || deact.EPSBearerIdentity != 6 {
+				t.Fatalf("deactivation %+v (%v), want EBI 6", deact, err)
+			}
+		})
 	}
 }
 
@@ -651,5 +678,68 @@ func TestDedicatedBearerReportsAWithheldMappedQoSFlow(t *testing.T) {
 
 	if got := m.Session.(*fakeSessionManager).withheldFiveGSQoS(); !slices.Equal(got, []uint32{req.SGW.TEID}) {
 		t.Fatalf("withheld 5GS QoS reports %v, want the bearer's S-GW TEID %d: the SMF must not move it to 5GS (TS 24.301 §6.4.2.3)", got, req.SGW.TEID)
+	}
+}
+
+func waitDropped(t *testing.T, fake *fakeSessionManager, teid uint32) {
+	t.Helper()
+
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		if _, dropped := fake.dedicatedOutcomes(); slices.ContainsFunc(dropped, func(o dedicatedOutcome) bool { return o.teid == teid }) {
+			return
+		}
+	}
+
+	t.Fatalf("the SMF was never told bearer %#x was released", teid)
+}
+
+func TestT3485ExpiryReleasesTheBearer(t *testing.T) {
+	m := newTestMME(t)
+	m.esmGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.esmGuardCfg.MaxRetryTimes = 2
+
+	ue, cc := connectedBearerUE(t, m)
+	activateVoiceBearer(t, m, ue, cc)
+
+	sent := cc.count()
+
+	waitDropped(t, m.Session.(*fakeSessionManager), voiceSGWTEID)
+
+	if _, b := m.LookupDedicated(ue, 6); b != nil {
+		t.Fatal("the bearer survived T3485 expiring on every retransmission (TS 24.301 §6.4.1.6)")
+	}
+
+	if retransmitted := cc.count() - sent; retransmitted < 2 {
+		t.Fatalf("%d messages after the activation, want the request retransmitted twice", retransmitted)
+	}
+}
+
+func TestT3495ExpiryReleasesTheBearerLocally(t *testing.T) {
+	m, ue, cc, fake := activeVoiceBearer(t)
+	m.esmGuardCfg.ExpireTime = 5 * time.Millisecond
+	m.esmGuardCfg.MaxRetryTimes = 2
+
+	sent := cc.count()
+
+	m.DeactivateDedicated(context.Background(), ue, 6)
+
+	waitDropped(t, fake, voiceSGWTEID)
+
+	if _, b := m.LookupDedicated(ue, 6); b != nil {
+		t.Fatal("the bearer survived T3495 expiring on every retransmission (TS 24.301 §6.4.4.6)")
+	}
+
+	if retransmitted := cc.count() - sent; retransmitted < 3 {
+		t.Fatalf("%d messages after the deactivation, want the request and two retransmissions", retransmitted)
+	}
+}
+
+func TestSubKilobitRatesAreSignalledRoundedUp(t *testing.T) {
+	rate := models.BitRateFromBps(51450)
+	info := DedicatedBearerInfo{QCI: 1, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}}
+
+	gbr := DedicatedERABQoS(&info).GBR
+	if gbr == nil || gbr.GuaranteedBitrateDL != 52000 || gbr.MaximumBitrateUL != 52000 {
+		t.Fatalf("E-RAB rates %+v, want 52 kbit/s: the eNB must not be told less than the 51.45 kbit/s authorized", gbr)
 	}
 }

@@ -4,6 +4,7 @@
 package smf_test
 
 import (
+	"bytes"
 	"context"
 	"slices"
 	"testing"
@@ -203,6 +204,26 @@ func TestVoiceRuleCreatesAGBRQoSFlow(t *testing.T) {
 		t.Fatalf("QoS rule %+v, want a new non-default rule on QFI %d with both filters (TS 24.501 §9.11.4.13)", rule, voiceQFI)
 	}
 
+	wantComponents := []fgs.PacketFilterComponent{
+		{Type: 0x10, Value: []byte{192, 0, 2, 10, 255, 255, 255, 255}},
+		{Type: 0x30, Value: []byte{17}},
+		{Type: 0x40, Value: []byte{0xc3, 0x50}},
+		{Type: 0x50, Value: []byte{0xbf, 0x68}},
+	}
+
+	for _, dir := range []fgs.PacketFilterDirection{fgs.PacketFilterDownlink, fgs.PacketFilterUplink} {
+		i := slices.IndexFunc(rule.Filters, func(f fgs.PacketFilter) bool { return f.Direction == dir })
+		if i < 0 || !slices.EqualFunc(rule.Filters[i].Components, wantComponents, func(a, b fgs.PacketFilterComponent) bool {
+			return a.Type == b.Type && bytes.Equal(a.Value, b.Value)
+		}) {
+			t.Fatalf("packet filters %+v, want a %v filter on the peer 192.0.2.10/32, UDP, local port 50000, remote port 49000 (TS 24.501 table 9.11.4.13.1)", rule.Filters, dir)
+		}
+	}
+
+	if rule.Filters[0].Identifier == rule.Filters[1].Identifier {
+		t.Fatalf("packet filters %+v share an identifier (TS 24.501 §9.11.4.13)", rule.Filters)
+	}
+
 	if len(cmd.QoSFlowDescriptions) != 1 {
 		t.Fatalf("QoS flow descriptions %+v, want one", cmd.QoSFlowDescriptions)
 	}
@@ -226,6 +247,15 @@ func TestVoiceRuleCreatesAGBRQoSFlow(t *testing.T) {
 		item.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI != 1 ||
 		item.QosFlowLevelQosParameters.GBRQosInformation.GuaranteedFlowBitRateDL != 41000 {
 		t.Fatalf("N2 QoS flow %+v, want 5QI 1 with GBR QoS Flow Information (TS 38.413 §8.2.3.4)", item)
+	}
+
+	wantARP := libngap.AllocationAndRetentionPriority{
+		PriorityLevelARP:        libngap.PriorityLevelARP(voiceARP.PriorityLevel),
+		PreemptionCapability:    libngap.PreemptionMayTrigger,
+		PreemptionVulnerability: libngap.PreemptionNotPreemptable,
+	}
+	if arp := item.QosFlowLevelQosParameters.AllocationAndRetentionPriority; arp != wantARP {
+		t.Fatalf("N2 ARP %+v, want the rule's %+v (TS 38.413 §9.3.1.19)", arp, wantARP)
 	}
 
 	m := lastModify(t, upf)
@@ -303,6 +333,66 @@ func TestSecondCallAddsAQoSRuleToTheFlow(t *testing.T) {
 	}
 }
 
+func TestRefusedRuleRemovalIsHeldUntilThePolicyChanges(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		refuse func(t *testing.T, s *smf.SMF, ref string)
+	}{
+		{"ue rejects", func(t *testing.T, s *smf.SMF, ref string) {
+			ueAnswers(t, s, ref, false)
+			ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+		}},
+		{"ran refuses", func(t *testing.T, s *smf.SMF, ref string) {
+			ueAnswers(t, s, ref, true)
+			ranAnswers(t, s, ref, nil, []uint8{voiceQFI})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+			pushRules(t, s, ref, voiceRule(), secondCallRule())
+			waitFlowModifications(t, amfCb, 2)
+			ueAnswers(t, s, ref, true)
+			ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+			pushRules(t, s, ref, secondCallRule())
+			waitFlowModifications(t, amfCb, 3)
+
+			tc.refuse(t, s, ref)
+
+			realign := waitFlowModifications(t, amfCb, 4)[3]
+			if realign.n1Msg != nil {
+				ueAnswers(t, s, ref, true)
+			}
+
+			if realign.n2Msg != nil {
+				ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+			}
+
+			if err := s.ReconcileSession(context.Background(), ref); err != nil {
+				t.Fatalf("ReconcileSession: %v", err)
+			}
+
+			time.Sleep(100 * time.Millisecond)
+
+			if got := len(amfCb.modifications()); got != 4 {
+				t.Fatalf("%d QoS flow modifications sent, want 4: the refused removal and its realignment, then nothing until the rules change", got)
+			}
+
+			if r := pcf.reportedRules(); len(r) != 0 {
+				t.Fatalf("reported rules %v, want none: a removal does not fail", r)
+			}
+
+			pushRules(t, s, ref)
+
+			cmd := flowCommand(t, waitFlowModifications(t, amfCb, 5)[4])
+			if len(cmd.QoSFlowDescriptions) != 1 || cmd.QoSFlowDescriptions[0].OperationCode != fgs.QoSFlowOpDelete {
+				t.Fatalf("command %+v, want the flow deleted once the last call ended", cmd)
+			}
+		})
+	}
+}
+
 func TestRANRefusingTheFlowWithdrawsItFromTheUE(t *testing.T) {
 	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
 
@@ -366,24 +456,6 @@ func TestEPSFallbackKeepsTheVoiceRulePending(t *testing.T) {
 
 	if r := pcf.reportedRules(); len(r) != 0 {
 		t.Fatalf("reported rules %v, want none: EPS fallback keeps the PCC rules (TS 23.502 §4.13.6.1 step 4)", r)
-	}
-}
-
-func TestHoldOnAQoSFlowChangesOnlyTheUPF(t *testing.T) {
-	s, _, upf, amfCb, ref := activeFiveGVoice(t)
-
-	pushRules(t, s, ref, heldRule(voiceRule()))
-	requireOneFlowModification(t, amfCb)
-
-	gates := ruleGates(t, upf)
-	if len(gates) != 1 {
-		t.Fatalf("rule gates %+v, want the voice rule's", gates)
-	}
-
-	for _, g := range gates {
-		if g != (models.GateStatus{DLGate: models.GateClose}) {
-			t.Fatalf("gate %+v, want the downlink closed (TS 29.244 §5.4.3)", g)
-		}
 	}
 }
 
@@ -497,4 +569,20 @@ func TestRANSettingUpAFlowWithoutListingItActivatesTheFlow(t *testing.T) {
 	}
 
 	requireOneFlowModification(t, amfCb)
+}
+
+func TestDownlinkOnlyRuleCreatesAQoSFlow(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, downlinkOnlyRule())
+
+	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 1)[0])
+
+	if len(cmd.QoSRules) != 1 || len(cmd.QoSRules[0].Filters) != 1 || cmd.QoSRules[0].Filters[0].Direction != fgs.PacketFilterDownlink {
+		t.Fatalf("QoS rules %+v, want one carrying only the rule's downlink filter", cmd.QoSRules)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none", r)
+	}
 }

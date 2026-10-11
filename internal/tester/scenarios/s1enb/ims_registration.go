@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
@@ -1104,6 +1105,7 @@ func runIMSCallS1Handover(ctx context.Context, env scenarios.Env) error {
 	caller, callee := ues[0], ues[1]
 	active := []chan *s1enb.DedicatedBearer{make(chan *s1enb.DedicatedBearer, 1), make(chan *s1enb.DedicatedBearer, 1)}
 	moved := make(chan handedOver, 1)
+	closeMoved := sync.OnceFunc(func() { close(moved) })
 	results := make(chan error, 2)
 
 	go func() {
@@ -1160,7 +1162,7 @@ func runIMSCallS1Handover(ctx context.Context, env scenarios.Env) error {
 
 		h, err := handOverVoiceUE(source, target, callee, bearers[1])
 		if err != nil {
-			close(moved)
+			closeMoved()
 			return fmt.Errorf("S1 handover of %s: %w", callee.ue.IMSI, err)
 		}
 
@@ -1185,6 +1187,8 @@ func runIMSCallS1Handover(ctx context.Context, env scenarios.Env) error {
 	}
 
 	callErr := scenarios.RequireIMSCallWithMedia(ctx, endpoints[0], endpoints[1], sip.UDP, media)
+
+	closeMoved()
 
 	return errors.Join(callErr, <-results, <-results)
 }

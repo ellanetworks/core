@@ -58,6 +58,7 @@ type UpdateOperatorIMSParams struct {
 
 type GetOperatorIMSResponse struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
+	VoiceStatus    string   `json:"voiceStatus"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -256,6 +257,14 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		voiceStatus, err := dbInstance.IMSVoiceStatus(r.Context())
+		if err != nil {
+			logger.APILog.Warn("Failed to get the voice status", zap.Error(err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get the voice status", err, logger.APILog)
+
+			return
+		}
+
 		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
@@ -278,6 +287,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			},
 			IMS: GetOperatorIMSResponse{
 				PCSCFAddresses: addrStrings(pcscfAddresses),
+				VoiceStatus:    string(voiceStatus),
 			},
 		}
 

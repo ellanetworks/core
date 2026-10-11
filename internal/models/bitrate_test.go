@@ -130,3 +130,11 @@ func TestBitRateJSONKeepsConfiguredText(t *testing.T) {
 		t.Error("decoded an unknown unit, want an error")
 	}
 }
+
+func TestKbpsRoundsUp(t *testing.T) {
+	for bps, want := range map[uint64]uint64{0: 0, 1: 1, 999: 1, 1000: 1, 1001: 2, 51450: 52} {
+		if got := models.BitRateFromBps(bps).Kbps(); got != want {
+			t.Errorf("BitRateFromBps(%d).Kbps() = %d, want %d: a rate signalled in kbps must not fall below the authorized one", bps, got, want)
+		}
+	}
+}

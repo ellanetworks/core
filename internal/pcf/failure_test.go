@@ -59,7 +59,7 @@ func TestReportedFlowsCarryTheMediaComponentStatus(t *testing.T) {
 		t.Fatalf("component 2 status %v, want INACTIVE", st)
 	}
 
-	if r, ok := s.rules[flowKey{1, 1}]; !ok || !samePCCRule(r, enforced) || len(s.rules) != 2 {
+	if r, ok := s.rules[flowKey{1, 1}]; !ok || !r.Equal(enforced) || len(s.rules) != 2 {
 		t.Fatalf("session rules %+v, want the enforced RTP version and the untouched RTCP rule", s.rules)
 	}
 }

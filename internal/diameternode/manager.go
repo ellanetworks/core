@@ -42,14 +42,11 @@ type NodeSettings struct {
 }
 
 type PeerConfig struct {
-	ID               string
-	Role             string
-	Host             string
-	Address          netip.AddrPort
-	Transports       []diameter.Transport
-	Dial             bool
-	Applications     []diameter.Application
-	SupportedVendors []uint32
+	ID           string
+	Role         string
+	Host         string
+	Address      netip.AddrPort
+	Applications []diameter.Application
 }
 
 type PeerStatus struct {
@@ -213,7 +210,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 		return
 	}
 
-	identity, err := m.desiredIdentity(settings, peers)
+	identity, err := m.desiredIdentity(settings)
 	if err != nil {
 		m.fail(err)
 		return
@@ -247,7 +244,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 	}
 }
 
-func (m *Manager) desiredIdentity(settings NodeSettings, peers []PeerConfig) (diameter.Identity, error) {
+func (m *Manager) desiredIdentity(settings NodeSettings) (diameter.Identity, error) {
 	identity, err := IdentityOf(settings)
 	if err != nil {
 		return diameter.Identity{}, err
@@ -255,33 +252,15 @@ func (m *Manager) desiredIdentity(settings NodeSettings, peers []PeerConfig) (di
 
 	var addrs []netip.Addr
 
-	for _, p := range peers {
-		remote := p.Address.Addr().Unmap()
-
-		local, err := m.localAddr(remote)
-		if err != nil {
-			return diameter.Identity{}, fmt.Errorf("find a local address towards the %s peer %s: %w", p.Role, remote, err)
-		}
-
-		if !slices.Contains(addrs, local) {
-			addrs = append(addrs, local)
-		}
-	}
-
-	if len(addrs) == 0 && m.listen.enabled() {
+	if m.listen.enabled() {
 		listenAddrs, err := m.listenAddrs()
 		if err != nil {
 			return diameter.Identity{}, err
 		}
 
-		if len(listenAddrs) == 0 {
-			return diameter.Identity{}, errors.New("the Diameter listen address is unspecified; set a specific address or an interface name to listen without an SMSC")
-		}
-
 		addrs = slices.Clone(listenAddrs)
+		slices.SortFunc(addrs, func(a, b netip.Addr) int { return a.Compare(b) })
 	}
-
-	slices.SortFunc(addrs, func(a, b netip.Addr) int { return a.Compare(b) })
 
 	return diameter.Identity{
 		OriginHost:      identity.Host,
@@ -295,20 +274,14 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 	out := make([]diameter.Peer, 0, len(peers))
 
 	for _, p := range peers {
-		peer := diameter.Peer{
-			ID:               p.ID,
-			Host:             p.Host,
-			Addresses:        []netip.Addr{p.Address.Addr().Unmap()},
-			Transports:       p.Transports,
-			Applications:     p.Applications,
-			SupportedVendors: p.SupportedVendors,
-		}
-
-		if p.Dial {
-			peer.Dial = &diameter.Dial{Port: p.Address.Port()}
-		}
-
-		out = append(out, peer)
+		out = append(out, diameter.Peer{
+			ID:           p.ID,
+			Host:         p.Host,
+			Addresses:    []netip.Addr{p.Address.Addr().Unmap()},
+			Transports:   []diameter.Transport{diameter.TransportSCTP},
+			Dial:         &diameter.Dial{Port: p.Address.Port()},
+			Applications: p.Applications,
+		})
 	}
 
 	return out
@@ -320,9 +293,7 @@ func sameIdentity(a, b diameter.Identity) bool {
 
 func samePeers(a, b []PeerConfig) bool {
 	return slices.EqualFunc(a, b, func(x, y PeerConfig) bool {
-		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && x.Dial == y.Dial &&
-			slices.Equal(x.Transports, y.Transports) && slices.Equal(x.Applications, y.Applications) &&
-			slices.Equal(x.SupportedVendors, y.SupportedVendors)
+		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && slices.Equal(x.Applications, y.Applications)
 	})
 }
 
@@ -333,6 +304,7 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 		WatchdogInterval:  watchdogInterval,
 		Handler:           m.mux,
 		OnPeerStateChange: m.peerStateChanged,
+		SourceAddress:     m.localAddr,
 		Logger:            m.slog,
 	}
 

@@ -28,6 +28,7 @@ type Session struct {
 	ueIPv4       netip.Addr
 	ueIPv6       netip.Addr
 	localSwitch  bool
+	natExempt    bool
 	classified   bool
 	filtered     bool
 	written      *ebpf.Classifier
@@ -73,6 +74,13 @@ func (s *Session) SetLocalSwitch(on bool) {
 	s.localSwitch = on
 }
 
+func (s *Session) SetNATExempt(on bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.natExempt = on
+}
+
 func (s *Session) SetClassified(classified bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,6 +123,10 @@ func (s *Session) pdrFlags(spdrInfo SPDRInfo) uint8 {
 
 	if s.localSwitch {
 		flags |= ebpf.PdrFlagLocalSwitch
+	}
+
+	if s.natExempt {
+		flags |= ebpf.PdrFlagNATExempt
 	}
 
 	if spdrInfo.UEIP.IsValid() && s.classified || !spdrInfo.UEIP.IsValid() && len(spdrInfo.SDF) > 0 {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
@@ -143,4 +144,14 @@ func applyDecision(p *Policy, d *PolicyDecision) {
 	p.PolicyID = d.PolicyID
 	p.Ambr = d.SessionAMBR
 	p.QosData = models.QosData{QFI: models.DefaultQFI, Var5qi: d.Var5qi, Arp: &models.Arp{PriorityLevel: d.Arp}}
+}
+
+func (d *PolicyDecision) sameSessionPolicy(o *PolicyDecision) bool {
+	return d.PolicyID == o.PolicyID && d.Var5qi == o.Var5qi && d.Arp == o.Arp &&
+		d.SessionAMBR.Equal(o.SessionAMBR)
+}
+
+func (r PCCRule) Equal(o PCCRule) bool {
+	return r.ID == o.ID && r.Version == o.Version && r.QCI == o.QCI && r.ARP == o.ARP &&
+		r.MBR.Equal(o.MBR) && r.GBR.Equal(o.GBR) && r.Gate == o.Gate && slices.Equal(r.Filters, o.Filters)
 }

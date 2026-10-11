@@ -27,52 +27,8 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		}
 	})
 
-	profile := &db.Profile{Name: "voice", UeAmbrUplink: "200 Mbps", UeAmbrDownlink: "200 Mbps"}
-	if err := database.CreateProfile(ctx, profile); err != nil {
-		t.Fatalf("CreateProfile: %s", err)
-	}
-
-	createdProfile, err := database.GetProfile(ctx, profile.Name)
-	if err != nil {
-		t.Fatalf("GetProfile: %s", err)
-	}
-
-	slice := &db.NetworkSlice{Name: "embb", Sst: 1}
-	if err := database.CreateNetworkSlice(ctx, slice); err != nil {
-		t.Fatalf("CreateNetworkSlice: %s", err)
-	}
-
-	createdSlice, err := database.GetNetworkSlice(ctx, slice.Name)
-	if err != nil {
-		t.Fatalf("GetNetworkSlice: %s", err)
-	}
-
-	for i, name := range []string{"ims", "enterprise"} {
-		dn := &db.DataNetwork{Name: name, IPv4Pool: []string{"10.46.0.0/16", "10.45.0.0/16"}[i], DNS: "8.8.8.8", MTU: 1400}
-		if err := database.CreateDataNetwork(ctx, dn); err != nil {
-			t.Fatalf("CreateDataNetwork %s: %s", name, err)
-		}
-
-		created, err := database.GetDataNetwork(ctx, name)
-		if err != nil {
-			t.Fatalf("GetDataNetwork %s: %s", name, err)
-		}
-
-		policy := &db.Policy{Name: name, DataNetworkID: created.ID, ProfileID: createdProfile.ID, SliceID: createdSlice.ID, Var5qi: 9, Arp: 1, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps"}
-		if err := database.CreatePolicy(ctx, policy); err != nil {
-			t.Fatalf("CreatePolicy %s: %s", name, err)
-		}
-	}
-
-	imsi := "001010123456789"
-	if err := database.CreateSubscriber(ctx, &db.Subscriber{
-		Imsi:           imsi,
-		SequenceNumber: "000000000001",
-		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
-		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      createdProfile.ID,
-	}); err != nil {
-		t.Fatalf("CreateSubscriber: %s", err)
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "ims", IPv4Pool: "10.46.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+		t.Fatalf("CreateDataNetwork ims: %s", err)
 	}
 
 	want := []netip.Addr{netip.MustParseAddr("2001:db8::5"), netip.MustParseAddr("10.0.0.5")}
@@ -96,17 +52,17 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		t.Fatalf("ims P-CSCF = %v, want %v", got, want)
 	}
 
-	enterprise, err := store.ResolveDNN(ctx, "enterprise")
+	internet, err := store.ResolveDNN(ctx, db.InitialDataNetworkName)
 	if err != nil {
-		t.Fatalf("ResolveDNN enterprise: %s", err)
+		t.Fatalf("ResolveDNN internet: %s", err)
 	}
 
-	enterpriseConfig, err := enterprise.Config(ctx)
+	internetConfig, err := internet.Config(ctx)
 	if err != nil {
-		t.Fatalf("Config enterprise: %s", err)
+		t.Fatalf("Config internet: %s", err)
 	}
 
-	if got := enterpriseConfig.PCSCF; len(got) != 0 {
-		t.Fatalf("enterprise P-CSCF = %v, want none", got)
+	if got := internetConfig.PCSCF; len(got) != 0 {
+		t.Fatalf("internet P-CSCF = %v, want none", got)
 	}
 }

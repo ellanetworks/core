@@ -199,8 +199,8 @@ static __always_inline void account_flow(struct packet_context *ctx,
 
 	fq->l3_hdr_len = ctx->l3_hdr_len;
 	fq->ports = ctx->l4_unavailable ? FLOW_PORTS_UNAVAILABLE :
-		    ctx->l4_resolved	? FLOW_PORTS_RESOLVED :
-					  FLOW_PORTS_PACKET;
+		    (ctx->l4_resolved | ctx->l4_ports) ? FLOW_PORTS_RESOLVED :
+							 FLOW_PORTS_PACKET;
 
 	flow_record(ctx->ctx_buff, fq);
 }

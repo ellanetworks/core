@@ -57,7 +57,9 @@ const (
 	CauseRadioNetworkUENotAvailableForPSService        = 24 // ue-not-available-for-ps-service
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
 	CauseRadioNetworkInterRATRedirection               = 28 // interrat-redirection
+	CauseRadioNetworkS1IntraSystemHandoverTriggered    = 33 // s1-intra-system-handover-triggered
 	CauseRadioNetworkS1InterSystemHandoverTriggered    = 34 // s1-inter-system-handover-triggered
+	CauseRadioNetworkX2HandoverTriggered               = 35 // x2-handover-triggered
 	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure
 	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances
 

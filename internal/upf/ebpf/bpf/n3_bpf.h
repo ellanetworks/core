@@ -844,6 +844,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	 * inner tuple does not survive encapsulation. */
 	if (ctx->ip4) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, FLOW_UPLINK, ALLOW);
+		ctx->nat_exempt = !!(pdr->flags & PDR_F_NAT_EXEMPT);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
 			route_ipv4(ctx, route_statistic, false);

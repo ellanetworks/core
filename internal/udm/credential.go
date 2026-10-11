@@ -90,25 +90,12 @@ func (s *Service) Generate5GHEAV(ctx context.Context, suci, servingNetwork, resy
 		return nil, fmt.Errorf("rand read error: %w", err)
 	}
 
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	ck, ik := make([]byte, 16), make([]byte, 16)
-	res := make([]byte, 8)
-	ak := make([]byte, 6)
-
-	if err = F1(opc, k, randBytes, sqn, amf, macA, macS); err != nil {
-		return nil, fmt.Errorf("milenage F1 err: %w", err)
+	v, err := milenageVector(k, opc, sqn, amf, randBytes)
+	if err != nil {
+		return nil, err
 	}
 
-	if err = F2345(opc, k, randBytes, res, ck, ik, ak, nil); err != nil {
-		return nil, fmt.Errorf("milenage F2345 err: %w", err)
-	}
-
-	sqnXorAK := make([]byte, 6)
-	for i := range sqn {
-		sqnXorAK[i] = sqn[i] ^ ak[i]
-	}
-
-	autn := append(append(append([]byte{}, sqnXorAK...), amf...), macA...)
+	res, ck, ik, sqnXorAK, autn := v.res, v.ck, v.ik, v.sqnXorAK, v.autn
 
 	xresStar, err := DeriveXresStar(ck, ik, servingNetwork, randBytes, res)
 	if err != nil {
@@ -138,21 +125,38 @@ func (s *Service) advance(ctx context.Context, imsi, resyncAuts, resyncRand stri
 		return nil, nil, nil, fmt.Errorf("couldn't advance sequence number for subscriber %s: %w", imsi, err)
 	}
 
-	if creds.PermanentKey == "" || creds.Opc == "" {
-		return nil, nil, nil, fmt.Errorf("subscriber %s missing key material", imsi)
-	}
-
-	if k, err = hex.DecodeString(creds.PermanentKey); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to decode k: %w", err)
-	}
-
-	if opc, err = hex.DecodeString(creds.Opc); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to decode opc: %w", err)
-	}
-
-	if sqn, err = hex.DecodeString(creds.SequenceNumber); err != nil {
-		return nil, nil, nil, fmt.Errorf("error decoding sqn: %w", err)
+	if k, opc, sqn, err = decodeCredentials(creds); err != nil {
+		return nil, nil, nil, fmt.Errorf("subscriber %s: %w", imsi, err)
 	}
 
 	return k, opc, sqn, nil
+}
+
+type milenageOutput struct {
+	autn, res, ck, ik, sqnXorAK []byte
+}
+
+func milenageVector(k, opc, sqn, amf, randBytes []byte) (milenageOutput, error) {
+	macA, macS := make([]byte, 8), make([]byte, 8)
+	ck, ik := make([]byte, 16), make([]byte, 16)
+	res := make([]byte, 8)
+	ak := make([]byte, 6)
+
+	if err := F1(opc, k, randBytes, sqn, amf, macA, macS); err != nil {
+		return milenageOutput{}, fmt.Errorf("milenage F1: %w", err)
+	}
+
+	if err := F2345(opc, k, randBytes, res, ck, ik, ak, nil); err != nil {
+		return milenageOutput{}, fmt.Errorf("milenage F2345: %w", err)
+	}
+
+	sqnXorAK := make([]byte, 6)
+	for i := range sqn {
+		sqnXorAK[i] = sqn[i] ^ ak[i]
+	}
+
+	// AUTN = (SQN⊕AK) ‖ AMF ‖ MAC-A (TS 33.102 §6.3.2).
+	autn := append(append(append([]byte{}, sqnXorAK...), amf...), macA...)
+
+	return milenageOutput{autn: autn, res: res, ck: ck, ik: ik, sqnXorAK: sqnXorAK}, nil
 }

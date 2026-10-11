@@ -63,28 +63,12 @@ func (c *IMSCredentials) GenerateIMSVector(ctx context.Context, imsi string, res
 }
 
 func newIMSVector(k, opc, sqn, randBytes []byte) (*IMSAV, error) {
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	ck, ik := make([]byte, 16), make([]byte, 16)
-	res := make([]byte, 8)
-	ak := make([]byte, 6)
-
-	if err := F1(opc, k, randBytes, sqn, imsAuthAMF, macA, macS); err != nil {
-		return nil, fmt.Errorf("milenage F1: %w", err)
+	v, err := milenageVector(k, opc, sqn, imsAuthAMF, randBytes)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := F2345(opc, k, randBytes, res, ck, ik, ak, nil); err != nil {
-		return nil, fmt.Errorf("milenage F2345: %w", err)
-	}
-
-	autn := make([]byte, 0, 16)
-	for i := range sqn {
-		autn = append(autn, sqn[i]^ak[i])
-	}
-
-	autn = append(autn, imsAuthAMF...)
-	autn = append(autn, macA...)
-
-	return &IMSAV{RAND: randBytes, AUTN: autn, XRES: res, CK: ck, IK: ik}, nil
+	return &IMSAV{RAND: randBytes, AUTN: v.autn, XRES: v.res, CK: v.ck, IK: v.ik}, nil
 }
 
 func decodeCredentials(creds *AdvancedCredentials) (k, opc, sqn []byte, err error) {

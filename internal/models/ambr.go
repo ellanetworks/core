@@ -9,3 +9,14 @@ type Ambr struct {
 	Uplink   BitRate
 	Downlink BitRate
 }
+
+func (a Ambr) Equal(o Ambr) bool {
+	return a.Uplink.Equal(o.Uplink) && a.Downlink.Equal(o.Downlink)
+}
+
+func (a Ambr) Max(o Ambr) Ambr {
+	return Ambr{
+		Uplink:   BitRateFromBps(max(a.Uplink.Bps(), o.Uplink.Bps())),
+		Downlink: BitRateFromBps(max(a.Downlink.Bps(), o.Downlink.Bps())),
+	}
+}

@@ -79,12 +79,6 @@ func TestIntegrationHAIMS(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
-	for i, c := range nodeClients {
-		if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
-			t.Fatalf("disable NAT on node %d: %v", i+1, err)
-		}
-	}
-
 	peers, err := addHAIMSCorePeers(ctx, nodeClients)
 	if err != nil {
 		t.Fatal(err)

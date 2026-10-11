@@ -32,10 +32,6 @@ var (
 	imsVideoRefused5GCallee  = scenarios.IMSSubscriber("001018700000006", "+15558700006")
 	imsVideoRefused4GCaller  = scenarios.IMSSubscriber("001018700000007", "+15558700007")
 	imsVideoRefused4GCallee  = scenarios.IMSSubscriber("001018700000008", "+15558700008")
-	imsVideoLost5GCaller     = scenarios.IMSSubscriber("001018700000009", "+15558700009")
-	imsVideoLost5GCallee     = scenarios.IMSSubscriber("001018700000010", "+15558700010")
-	imsVideoLost4GCaller     = scenarios.IMSSubscriber("001018700000011", "+15558700011")
-	imsVideoLost4GCallee     = scenarios.IMSSubscriber("001018700000012", "+15558700012")
 	imsVideoHandoverCaller   = scenarios.IMSSubscriber("001018700000013", "+15558700013")
 	imsVideoHandoverCallee   = scenarios.IMSSubscriber("001018700000014", "+15558700014")
 	imsVideoFallbackCaller   = scenarios.IMSSubscriber("001018700000015", "+15558700015")
@@ -51,8 +47,6 @@ func init() {
 	registerIMS("ims/4g_video_call", runIMSVideoCall4G, imsVideo4GCaller, imsVideo4GCallee)
 	registerIMS("ims/5g_video_refused", runIMSVideoRefused5G, imsVideoRefused5GCaller, imsVideoRefused5GCallee)
 	registerIMS("ims/4g_video_refused", runIMSVideoRefused4G, imsVideoRefused4GCaller, imsVideoRefused4GCallee)
-	registerIMS("ims/5g_video_lost", runIMSVideoLost5G, imsVideoLost5GCaller, imsVideoLost5GCallee)
-	registerIMS("ims/4g_video_lost", runIMSVideoLost4G, imsVideoLost4GCaller, imsVideoLost4GCallee)
 	registerIMS("ims/5g_video_call_handover_to_4g_and_back", runIMSVideoCallHandover, imsVideoHandoverCaller, imsVideoHandoverCallee)
 	registerIMS("ims/5g_video_call_eps_fallback", runIMSVideoCallEPSFallback, imsVideoFallbackCaller, imsVideoFallbackCallee)
 }
@@ -322,7 +316,33 @@ func runIMSVideoCall5G(ctx context.Context, env scenarios.Env) error {
 			return fmt.Errorf("callee: %w", err)
 		}
 
-		return exchangeMedia(ctx, call, caller.nr.legs(a2), callee.nr.legs(b2), imsVideoMediaKinds...)
+		if err := exchangeMedia(ctx, call, caller.nr.legs(a2), callee.nr.legs(b2), imsVideoMediaKinds...); err != nil {
+			return fmt.Errorf("video added back: %w", err)
+		}
+
+		if err := holdVideoFlows(ctx, caller.nr, callee.nr); err != nil {
+			return err
+		}
+
+		n := callee.nr
+		if err := n.g.SendQoSFlowsReleased(n.g.GetAMFUENGAPID(n.ranUEID), n.ranUEID, int64(imsPDUSessionID), []uint8{b2[imsVideo5QI]}); err != nil {
+			return fmt.Errorf("release the video flow at the gNB: %w", err)
+		}
+
+		if err := call.Callee.BearerLost(ctx, sdp.Video); err != nil {
+			return fmt.Errorf("drop the lost video (IR.94 §2.4.1): %w", err)
+		}
+
+		now, err := caller.nr.awaitFlows(ctx, imsVoice5QI)
+		if err != nil {
+			return fmt.Errorf("caller after the video was lost: %w", err)
+		}
+
+		if err := requireSameFlows(a, now, imsVoice5QI); err != nil {
+			return err
+		}
+
+		return exchangeMedia(ctx, call, caller.nr.legs(a), callee.nr.legs(b), sdp.Audio)
 	}
 
 	if err := scenarios.RequireIMSVideoCall(ctx, caller.ep, callee.ep, imsVideoTransport, true, script); err != nil {
@@ -330,10 +350,6 @@ func runIMSVideoCall5G(ctx context.Context, env scenarios.Env) error {
 	}
 
 	return awaitQoSFlowsReleased(ctx, caller.nr, callee.nr)
-}
-
-func videoCall4GSteps() []bearerStep {
-	return []bearerStep{{accept: 2}, {release: []uint8{imsVideoQCI}}, {accept: 1}, {release: []uint8{imsVoiceQCI, imsVideoQCI}}}
 }
 
 func runIMSVideoCall4G(ctx context.Context, env scenarios.Env) error {
@@ -352,7 +368,8 @@ func runIMSVideoCall4G(ctx context.Context, env scenarios.Env) error {
 	defer caller.close()
 	defer callee.close()
 
-	ac, bc := caller.lte.runBearers(videoCall4GSteps()...), callee.lte.runBearers(videoCall4GSteps()...)
+	ac := caller.lte.runBearers(bearerStep{accept: 2}, bearerStep{release: []uint8{imsVideoQCI}}, bearerStep{accept: 1}, bearerStep{release: []uint8{imsVideoQCI}}, bearerStep{release: []uint8{imsVoiceQCI}})
+	bc := callee.lte.runBearers(bearerStep{accept: 2}, bearerStep{release: []uint8{imsVideoQCI}}, bearerStep{accept: 1}, bearerStep{release: []uint8{imsVoiceQCI}})
 
 	script := func(ctx context.Context, call scenarios.IMSCall) error {
 		a, err := awaitBearers(ctx, ac, imsVoiceQCI, imsVideoQCI)
@@ -407,7 +424,30 @@ func runIMSVideoCall4G(ctx context.Context, env scenarios.Env) error {
 			return fmt.Errorf("the voice bearers moved from E-RABs %d/%d to %d/%d, want them kept", a[imsVoiceQCI].erab, b[imsVoiceQCI].erab, a2[imsVoiceQCI].erab, b2[imsVoiceQCI].erab)
 		}
 
-		return exchangeMedia(ctx, call, lteLegs(a2), lteLegs(b2), imsVideoMediaKinds...)
+		if err := exchangeMedia(ctx, call, lteLegs(a2), lteLegs(b2), imsVideoMediaKinds...); err != nil {
+			return fmt.Errorf("video added back: %w", err)
+		}
+
+		if err := holdVideoBearers(ctx, ac, bc); err != nil {
+			return err
+		}
+
+		l := callee.lte
+		if err := l.e.SendERABReleaseIndication(l.mmeUEID, l.enbUEID, b2[imsVideoQCI].erab, imsVideoFlowReleaseCause); err != nil {
+			return fmt.Errorf("release the video bearer at the eNB: %w", err)
+		}
+
+		if err := call.Callee.BearerLost(ctx, sdp.Video); err != nil {
+			return fmt.Errorf("drop the lost video (IR.94 §2.4.1): %w", err)
+		}
+
+		if _, err := awaitBearers(ctx, ac, imsVoiceQCI); err != nil {
+			return fmt.Errorf("caller after the video was lost: %w", err)
+		}
+
+		delete(b2, imsVideoQCI)
+
+		return exchangeMedia(ctx, call, lteLegs(a2), lteLegs(b2), sdp.Audio)
 	}
 
 	if err := scenarios.RequireIMSVideoCall(ctx, caller.ep, callee.ep, imsVideoTransport, true, script); err != nil {
@@ -548,132 +588,6 @@ func runIMSVideoRefused4G(ctx context.Context, env scenarios.Env) error {
 	}
 
 	if err := scenarios.RequireIMSVideoCall(ctx, caller.ep, callee.ep, imsVideoTransport, false, script); err != nil {
-		return err
-	}
-
-	if _, err := awaitBearers(ctx, ac); err != nil {
-		return fmt.Errorf("caller bearers after the call: %w", err)
-	}
-
-	if _, err := awaitBearers(ctx, bc); err != nil {
-		return fmt.Errorf("callee bearers after the call: %w", err)
-	}
-
-	return nil
-}
-
-func runIMSVideoLost5G(ctx context.Context, env scenarios.Env) error {
-	r, err := startIMSCallRANs(env)
-	if err != nil {
-		return err
-	}
-
-	defer r.close()
-
-	caller, callee, err := r.partiesOn5GS(env, imsVideoLost5GCaller, imsVideoLost5GCallee)
-	if err != nil {
-		return err
-	}
-
-	defer caller.close()
-	defer callee.close()
-
-	script := func(ctx context.Context, call scenarios.IMSCall) error {
-		a, err := caller.nr.awaitFlows(ctx, imsVoice5QI, imsVideo5QI)
-		if err != nil {
-			return fmt.Errorf("caller: %w", err)
-		}
-
-		b, err := callee.nr.awaitFlows(ctx, imsVoice5QI, imsVideo5QI)
-		if err != nil {
-			return fmt.Errorf("callee: %w", err)
-		}
-
-		if err := holdVideoFlows(ctx, caller.nr, callee.nr); err != nil {
-			return err
-		}
-
-		n := callee.nr
-		if err := n.g.SendQoSFlowsReleased(n.g.GetAMFUENGAPID(n.ranUEID), n.ranUEID, int64(imsPDUSessionID), []uint8{b[imsVideo5QI]}); err != nil {
-			return fmt.Errorf("release the video flow at the gNB: %w", err)
-		}
-
-		if err := call.Callee.BearerLost(ctx, sdp.Video); err != nil {
-			return fmt.Errorf("drop the lost video (IR.94 §2.4.1): %w", err)
-		}
-
-		now, err := caller.nr.awaitFlows(ctx, imsVoice5QI)
-		if err != nil {
-			return fmt.Errorf("caller after the video was lost: %w", err)
-		}
-
-		if err := requireSameFlows(a, now, imsVoice5QI); err != nil {
-			return err
-		}
-
-		return exchangeMedia(ctx, call, caller.nr.legs(a), callee.nr.legs(b), sdp.Audio)
-	}
-
-	if err := scenarios.RequireIMSVideoCall(ctx, caller.ep, callee.ep, imsVideoTransport, true, script); err != nil {
-		return err
-	}
-
-	return awaitQoSFlowsReleased(ctx, caller.nr, callee.nr)
-}
-
-func runIMSVideoLost4G(ctx context.Context, env scenarios.Env) error {
-	r, err := startIMSCallRANs(env)
-	if err != nil {
-		return err
-	}
-
-	defer r.close()
-
-	caller, callee, err := r.partiesOn4G(env, imsVideoLost4GCaller, imsVideoLost4GCallee)
-	if err != nil {
-		return err
-	}
-
-	defer caller.close()
-	defer callee.close()
-
-	ac := caller.lte.runBearers(bearerStep{accept: 2}, bearerStep{release: []uint8{imsVideoQCI}}, bearerStep{release: []uint8{imsVoiceQCI}})
-	bc := callee.lte.runBearers(bearerStep{accept: 2}, bearerStep{release: []uint8{imsVoiceQCI}})
-
-	script := func(ctx context.Context, call scenarios.IMSCall) error {
-		a, err := awaitBearers(ctx, ac, imsVoiceQCI, imsVideoQCI)
-		if err != nil {
-			return fmt.Errorf("caller: %w", err)
-		}
-
-		b, err := awaitBearers(ctx, bc, imsVoiceQCI, imsVideoQCI)
-		if err != nil {
-			return fmt.Errorf("callee: %w", err)
-		}
-
-		if err := holdVideoBearers(ctx, ac, bc); err != nil {
-			return err
-		}
-
-		l := callee.lte
-		if err := l.e.SendERABReleaseIndication(l.mmeUEID, l.enbUEID, b[imsVideoQCI].erab, imsVideoFlowReleaseCause); err != nil {
-			return fmt.Errorf("release the video bearer at the eNB: %w", err)
-		}
-
-		if err := call.Callee.BearerLost(ctx, sdp.Video); err != nil {
-			return fmt.Errorf("drop the lost video (IR.94 §2.4.1): %w", err)
-		}
-
-		if _, err := awaitBearers(ctx, ac, imsVoiceQCI); err != nil {
-			return fmt.Errorf("caller after the video was lost: %w", err)
-		}
-
-		delete(b, imsVideoQCI)
-
-		return exchangeMedia(ctx, call, lteLegs(a), lteLegs(b), sdp.Audio)
-	}
-
-	if err := scenarios.RequireIMSVideoCall(ctx, caller.ep, callee.ep, imsVideoTransport, true, script); err != nil {
 		return err
 	}
 

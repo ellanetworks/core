@@ -37,6 +37,16 @@ func TestActivatingBothBearersKeepsThem(t *testing.T) {
 		pushRules(t, s, ref, voiceRule(), videoRule())
 
 		acts := mmeCb.dedicatedActivations()
+		if len(acts) != 2 {
+			t.Fatalf("activations %+v, want one bearer for voice and one for video with the same ARP (TS 29.213 §5.4)", acts)
+		}
+
+		qcis := []uint8{acts[0].QCI, acts[1].QCI}
+		slices.Sort(qcis)
+
+		if !slices.Equal(qcis, []uint8{1, 2}) || acts[0].SGW.TEID == acts[1].SGW.TEID {
+			t.Fatalf("activations %+v, want QCI 1 and QCI 2 on their own S-GW endpoints (IR.94 §4.2.1)", acts)
+		}
 
 		for i, qci := range order {
 			j := slices.IndexFunc(acts, func(a models.DedicatedBearerRequest) bool { return a.QCI == qci })
@@ -48,24 +58,6 @@ func TestActivatingBothBearersKeepsThem(t *testing.T) {
 		if d := mmeCb.dedicatedDeactivations(); len(d) != 0 {
 			t.Fatalf("activated QCIs %v: deactivations %v, want the voice and video bearers kept", order, d)
 		}
-	}
-}
-
-func TestVideoGetsADedicatedBearerOfItsOwn(t *testing.T) {
-	s, _, _, mmeCb, ref := epsReconcileFixture(t, 0)
-
-	pushRules(t, s, ref, voiceRule(), videoRule())
-
-	acts := mmeCb.dedicatedActivations()
-	if len(acts) != 2 {
-		t.Fatalf("activations %+v, want one bearer for voice and one for video with the same ARP (TS 29.213 §5.4)", acts)
-	}
-
-	qcis := []uint8{acts[0].QCI, acts[1].QCI}
-	slices.Sort(qcis)
-
-	if !slices.Equal(qcis, []uint8{1, 2}) || acts[0].SGW.TEID == acts[1].SGW.TEID {
-		t.Fatalf("activations %+v, want QCI 1 and QCI 2 on their own S-GW endpoints (IR.94 §4.2.1)", acts)
 	}
 }
 

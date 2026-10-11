@@ -53,6 +53,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	sess := NewSession(seid)
 	sess.SetIMSI(req.IMSI)
 	sess.SetLocalSwitch(req.LocalSwitch)
+	sess.SetNATExempt(req.NATExempt)
 	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
 
 	logger.From(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))

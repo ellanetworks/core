@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/diameter/rx"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -108,31 +109,72 @@ func TestFlowStatusGatesMediaButNotRTCP(t *testing.T) {
 	}
 }
 
-func TestMediaRulesRTCPBandwidth(t *testing.T) {
-	c := audioComponent()
-	c.RSBandwidth, c.RRBandwidth = ptr(uint32(800)), ptr(uint32(2000))
-
-	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
-	if err != nil {
-		t.Fatal(err)
+func TestMediaRulesBandwidth(t *testing.T) {
+	tests := []struct {
+		name      string
+		edit      func(*rx.MediaComponent)
+		rtp, rtcp [4]uint64
+	}{
+		{
+			name: "GBR defaults to the MBR",
+			edit: func(*rx.MediaComponent) {},
+			rtp:  [4]uint64{41000, 41000, 41000, 41000},
+			rtcp: [4]uint64{2050, 2050, 2050, 2050},
+		},
+		{
+			name: "RTCP is RS plus RR",
+			edit: func(c *rx.MediaComponent) { c.RSBandwidth, c.RRBandwidth = ptr(uint32(800)), ptr(uint32(2000)) },
+			rtp:  [4]uint64{41000, 41000, 41000, 41000},
+			rtcp: [4]uint64{2800, 2800, 2800, 2800},
+		},
+		{
+			name: "a direction without a flow has no bit rate",
+			edit: func(c *rx.MediaComponent) {
+				c.SubComponents = []rx.MediaSubComponent{{FlowNumber: 1, FlowDescriptions: []string{"permit out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}}}
+			},
+			rtp: [4]uint64{0, 41000, 0, 41000},
+		},
+		{
+			name: "audio default plus the RTCP RS bandwidth",
+			edit: func(c *rx.MediaComponent) {
+				c.MaxRequestedBandwidthUL, c.MaxRequestedBandwidthDL = nil, nil
+				c.RSBandwidth = ptr(uint32(4000))
+			},
+			rtp:  [4]uint64{defaultAudioBitRate, defaultAudioBitRate, defaultAudioBitRate, defaultAudioBitRate},
+			rtcp: [4]uint64{4000, 4000, 4000, 4000},
+		},
+		{
+			name: "GBR from Min-Requested-Bandwidth, capped at the MBR (TS 29.213 Table 6.3.1)",
+			edit: func(c *rx.MediaComponent) {
+				c.MinRequestedBandwidthUL, c.MinRequestedBandwidthDL = ptr(rx.Bandwidth(24000)), ptr(rx.Bandwidth(90000))
+			},
+			rtp:  [4]uint64{41000, 41000, 24000, 41000},
+			rtcp: [4]uint64{2050, 2050, 2050, 2050},
+		},
 	}
 
-	if got := rules[flowKey{1, 2}].MBR.Uplink.Bps(); got != 2800 {
-		t.Fatalf("RTCP uplink MBR %d, want RS plus RR", got)
-	}
-}
-
-func TestMediaRulesDirectionWithoutFlowHasNoBitRate(t *testing.T) {
-	c := audioComponent()
-	c.SubComponents = []rx.MediaSubComponent{{FlowNumber: 1, FlowDescriptions: []string{"permit out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}}}
-
-	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
-	if err != nil {
-		t.Fatal(err)
+	rates := func(r smf.PCCRule) [4]uint64 {
+		return [4]uint64{r.MBR.Uplink.Bps(), r.MBR.Downlink.Bps(), r.GBR.Uplink.Bps(), r.GBR.Downlink.Bps()}
 	}
 
-	if r := rules[flowKey{1, 1}]; r.MBR.Uplink.Bps() != 0 || r.MBR.Downlink.Bps() != 41000 {
-		t.Fatalf("MBR %s/%s, want downlink only", r.MBR.Uplink, r.MBR.Downlink)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := audioComponent()
+			tc.edit(&c)
+
+			rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := rates(rules[flowKey{1, 1}]); got != tc.rtp {
+				t.Errorf("RTP MBR UL/DL, GBR UL/DL = %v, want %v", got, tc.rtp)
+			}
+
+			if got := rates(rules[flowKey{1, 2}]); got != tc.rtcp {
+				t.Errorf("RTCP MBR UL/DL, GBR UL/DL = %v, want %v", got, tc.rtcp)
+			}
+		})
 	}
 }
 
@@ -166,21 +208,6 @@ func TestMediaRulesRejectsBadFlowDescription(t *testing.T) {
 
 	if _, err := mediaRules("af;1", []rx.MediaComponent{c}); !errors.Is(err, errFilterRestrictions) {
 		t.Fatalf("err %v, want filter restrictions", err)
-	}
-}
-
-func TestMediaRulesDefaultBandwidth(t *testing.T) {
-	c := audioComponent()
-	c.MaxRequestedBandwidthUL, c.MaxRequestedBandwidthDL = nil, nil
-	c.RSBandwidth = ptr(uint32(4000))
-
-	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := rules[flowKey{1, 1}].GBR.Uplink.Bps() + rules[flowKey{1, 2}].GBR.Uplink.Bps(); got != defaultAudioBitRate+4000 {
-		t.Fatalf("uplink GBR %d, want the audio default plus the RTCP RS bandwidth", got)
 	}
 }
 
@@ -235,34 +262,20 @@ func TestMediaRulesVideoHasALowerPreemptableARP(t *testing.T) {
 	}
 }
 
-func TestMediaRulesGuaranteedRateFromMinRequestedBandwidth(t *testing.T) {
-	c := audioComponent()
-	c.MinRequestedBandwidthUL, c.MinRequestedBandwidthDL = ptr(rx.Bandwidth(24000)), ptr(rx.Bandwidth(90000))
+func TestSDFFilterOrientsIPv6AndWildcardFlows(t *testing.T) {
+	for desc, want := range map[string]models.SDFFilter{
+		"permit out 17 from 2001:db8::10 49000 to fd60::1 50000": {Direction: models.FilterDownlink, Protocol: 17, Remote: netip.MustParsePrefix("2001:db8::10/128"), LocalPort: 50000, RemotePort: 49000},
+		"permit in 17 from fd60::1 50000 to 2001:db8::10 49000":  {Direction: models.FilterUplink, Protocol: 17, Remote: netip.MustParsePrefix("2001:db8::10/128"), LocalPort: 50000, RemotePort: 49000},
+		"permit in ip from fd60::1 to any":                       {Direction: models.FilterUplink},
+	} {
+		fd, err := rx.ParseFlowDescription(desc)
+		if err != nil {
+			t.Fatalf("parse %q: %v", desc, err)
+		}
 
-	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rtp, rtcp := rules[flowKey{1, 1}], rules[flowKey{1, 2}]
-
-	switch {
-	case rtp.GBR.Uplink.Bps() != 24000:
-		t.Fatalf("RTP GBR UL %d, want Min-Requested-Bandwidth-UL 24000 (TS 29.213 Table 6.3.1)", rtp.GBR.Uplink.Bps())
-	case rtp.GBR.Downlink.Bps() != 41000:
-		t.Fatalf("RTP GBR DL %d, want it capped at the MBR 41000", rtp.GBR.Downlink.Bps())
-	case rtcp.GBR != rtcp.MBR:
-		t.Fatalf("RTCP GBR %+v, want its MBR %+v", rtcp.GBR, rtcp.MBR)
-	}
-}
-
-func TestMediaRulesGuaranteedRateDefaultsToTheMBR(t *testing.T) {
-	rules, err := mediaRules("af;1", []rx.MediaComponent{audioComponent()})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if rtp := rules[flowKey{1, 1}]; rtp.GBR != rtp.MBR {
-		t.Fatalf("RTP GBR %+v, want the MBR %+v without Min-Requested-Bandwidth", rtp.GBR, rtp.MBR)
+		got := sdfFilter(fd, 0)
+		if got.Direction != want.Direction || got.Protocol != want.Protocol || got.Remote != want.Remote || got.LocalPort != want.LocalPort || got.RemotePort != want.RemotePort {
+			t.Errorf("%q gives %+v, want %+v", desc, got, want)
+		}
 	}
 }

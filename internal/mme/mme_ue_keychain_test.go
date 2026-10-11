@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme/procedure"
@@ -18,7 +19,7 @@ func TestRemoveUeEndsTheKeyChainOfAConnectionlessUE(t *testing.T) {
 		t.Fatal("could not claim the key chain")
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 
 	if !ue.BeginKeyChainProc(procedure.SecurityMode) {
 		t.Error("a removed UE still holds its key chain")

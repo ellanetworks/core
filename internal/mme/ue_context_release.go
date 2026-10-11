@@ -204,10 +204,12 @@ func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expect
 
 	ue.settleDeliveryOnRelease(ctx)
 
-	released, registered, imsi := m.releaseContextLockedPart(ue, expected)
+	released, registered, imsi, losses := m.releaseContextLockedPart(ue, expected)
 	if !released {
 		return
 	}
+
+	m.reportDedicatedLosses(ctx, losses)
 
 	if ueConn == nil {
 		log = log.With(logger.SUPIFromIMSI(imsi))

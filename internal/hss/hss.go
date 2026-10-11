@@ -6,15 +6,13 @@ package hss
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/udm"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -53,18 +51,17 @@ type HSS struct {
 	credentials Credentials
 	peers       Peers
 	log         *zap.Logger
-	now         func() time.Time
 }
 
 func New(store Store, credentials Credentials, peers Peers, log *zap.Logger) *HSS {
-	return &HSS{store: store, credentials: credentials, peers: peers, log: log, now: time.Now}
+	return &HSS{store: store, credentials: credentials, peers: peers, log: log}
 }
 
 func (h *HSS) Register(r Registrar) {
-	r.Handle(cx.ApplicationID, cx.CommandUserAuthorization, observed("cx/user-authorization", h.UserAuthorization))
-	r.Handle(cx.ApplicationID, cx.CommandMultimediaAuth, observed("cx/multimedia-auth", h.MultimediaAuth))
-	r.Handle(cx.ApplicationID, cx.CommandServerAssignment, observed("cx/server-assignment", h.ServerAssignment))
-	r.Handle(cx.ApplicationID, cx.CommandLocationInfo, observed("cx/location-info", h.LocationInfo))
+	r.Handle(cx.ApplicationID, cx.CommandUserAuthorization, diameternode.Traced(tracer, "cx/user-authorization", h.UserAuthorization))
+	r.Handle(cx.ApplicationID, cx.CommandMultimediaAuth, diameternode.Traced(tracer, "cx/multimedia-auth", h.MultimediaAuth))
+	r.Handle(cx.ApplicationID, cx.CommandServerAssignment, diameternode.Traced(tracer, "cx/server-assignment", h.ServerAssignment))
+	r.Handle(cx.ApplicationID, cx.CommandLocationInfo, diameternode.Traced(tracer, "cx/location-info", h.LocationInfo))
 }
 
 func (h *HSS) errorAnswer(req *diameter.Message, id diameter.Identity, procedure string, err error) *diameter.Message {
@@ -89,29 +86,4 @@ func (h *HSS) errorAnswer(req *diameter.Message, id diameter.Identity, procedure
 
 func experimentalAnswer(req *diameter.Message, id diameter.Identity, code uint32) *diameter.Message {
 	return cx.NewAnswer(req, id, tgpp.Experimental(code), 0)
-}
-
-func observed(name string, h func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message) diameter.Handler {
-	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		ctx, span := tracer.Start(ctx, name,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(
-				attribute.String("network.protocol.name", "diameter"),
-				attribute.Int64("diameter.application_id", int64(req.ApplicationID)),
-				attribute.Int64("diameter.command_code", int64(req.CommandCode)),
-			),
-		)
-		defer span.End()
-
-		ans := h(ctx, c.LocalIdentity(), req)
-		if ans == nil {
-			return nil
-		}
-
-		if r, err := tgpp.ParseResult(ans); err == nil {
-			span.SetAttributes(attribute.Int64("diameter.result_code", int64(r.Code)))
-		}
-
-		return ans
-	})
 }

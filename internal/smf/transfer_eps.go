@@ -48,8 +48,14 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 
 	sc.Mutex.Lock()
 	retained := sc.PolicyData
-	s.prepareFlowsLocked(ctx, sc, Access4G)
+	err = s.prepareFlowsLocked(ctx, sc, Access4G)
 	sc.Mutex.Unlock()
+
+	if err != nil {
+		s.abandonTransfer(ctx, sc, Access4G)
+
+		return models.EPSBearer{}, fmt.Errorf("%w: %v", ErrSessionNotMovable, err)
+	}
 
 	bearer, err := epsBearerForSession(sc, retained, req.EPSBearerIdentity)
 	if err != nil {

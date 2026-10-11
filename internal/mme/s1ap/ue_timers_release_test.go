@@ -38,5 +38,5 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 		t.Fatal("mobile reachable timer not armed when UE moved to ECM-IDLE")
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }

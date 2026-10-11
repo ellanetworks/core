@@ -7,7 +7,9 @@ import (
 	"context"
 	"net"
 	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
@@ -192,8 +194,9 @@ func TestPathSwitchWithoutTheVoiceFlowKeepsTheSession(t *testing.T) {
 	}
 }
 
-func TestUEDeletingTheVoiceRuleIsAccepted(t *testing.T) {
+func TestUEDeletingTheVoiceRuleReleasesTheFlow(t *testing.T) {
 	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+	ctx := context.Background()
 	rule := flowCommand(t, amfCb.modifications()[0]).QoSRules[0]
 
 	cause := fgs.GSMCauseSemanticErrorsInPacketFilters
@@ -208,7 +211,7 @@ func TestUEDeletingTheVoiceRuleIsAccepted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := s.UpdateSmContextN1Msg(context.Background(), ref, raw)
+	res, err := s.UpdateSmContextN1Msg(ctx, ref, raw)
 	if err != nil || res == nil || res.N1Msg == nil {
 		t.Fatalf("UpdateSmContextN1Msg = %+v, %v; want a command", res, err)
 	}
@@ -221,9 +224,24 @@ func TestUEDeletingTheVoiceRuleIsAccepted(t *testing.T) {
 	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
 		t.Fatalf("reported rules %v, want the call lost", r)
 	}
+
+	pushRules(t, s, ref)
+
+	complete, err := (&fgs.PDUSessionModificationComplete{PDUSessionID: 3, PTI: 7}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, complete); err != nil {
+		t.Fatalf("UpdateSmContextN1Msg(Complete): %v", err)
+	}
+
+	if c := waitFlowModifications(t, amfCb, 2)[1]; c.n2Msg == nil {
+		t.Fatal("the deleted flow was never released in the RAN (TS 23.502 §4.3.3.2 step 3b)")
+	}
 }
 
-func TestRepeatedEPSFallbackStopsRetrying(t *testing.T) {
+func TestEveryEPSFallbackKeepsTheCallsRules(t *testing.T) {
 	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
 	s.SetDedicatedAwaitLimitForTest(10 * 1e6)
 
@@ -231,11 +249,15 @@ func TestRepeatedEPSFallbackStopsRetrying(t *testing.T) {
 	waitFlowModifications(t, amfCb, 1)
 	ranFallsBack(t, s, ref)
 
+	pushRules(t, s, ref)
+	pushRules(t, s, ref, secondCallRule())
 	waitFlowModifications(t, amfCb, 2)
 	ranFallsBack(t, s, ref)
 
-	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
-		t.Fatalf("reported rules %v, want the call failed once EPS fallback did not happen", r)
+	waitFlowModifications(t, amfCb, 3)
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: the SMF maintains the PCC rules on every EPS fallback (TS 23.502 §4.13.6.1 step 4)", r)
 	}
 }
 
@@ -265,43 +287,6 @@ func TestBufferedVoicePagesWithTheVoiceFlowARP(t *testing.T) {
 
 	if len(arps) != 1 || arps[0] == nil || *arps[0] != voiceARP {
 		t.Fatalf("paging ARPs %+v, want the voice flow's %+v (TS 23.502 §4.2.3.3 step 3a)", arps, voiceARP)
-	}
-}
-
-func TestUEDeletionReleasesTheFlowInTheRAN(t *testing.T) {
-	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
-	ctx := context.Background()
-	rule := flowCommand(t, amfCb.modifications()[0]).QoSRules[0]
-	cause := fgs.GSMCauseSemanticErrorsInPacketFilters
-
-	raw, err := (&fgs.PDUSessionModificationRequest{
-		PDUSessionID:      3,
-		PTI:               7,
-		Cause:             &cause,
-		RequestedQoSRules: fgs.QoSRules{{Identifier: rule.Identifier, OperationCode: fgs.QoSRuleOpDelete}},
-	}).MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := s.UpdateSmContextN1Msg(ctx, ref, raw); err != nil {
-		t.Fatalf("UpdateSmContextN1Msg: %v", err)
-	}
-
-	waitReportedRules(t, pcf)
-	pushRules(t, s, ref)
-
-	complete, err := (&fgs.PDUSessionModificationComplete{PDUSessionID: 3, PTI: 7}).MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := s.UpdateSmContextN1Msg(ctx, ref, complete); err != nil {
-		t.Fatalf("UpdateSmContextN1Msg(Complete): %v", err)
-	}
-
-	if c := waitFlowModifications(t, amfCb, 2)[1]; c.n2Msg == nil {
-		t.Fatal("the deleted flow was never released in the RAN (TS 23.502 §4.3.3.2 step 3b)")
 	}
 }
 
@@ -341,5 +326,144 @@ func TestRulesRemovedWhileIdleAreNotSetUpAgain(t *testing.T) {
 
 	if req := reactivate(t, s, ref); setupRequestCarries(req, voiceQFI) {
 		t.Fatal("the ended call's voice flow was set up again on activation")
+	}
+}
+
+func TestVoiceRuleForAnIdleUEPagesThenSetsUpTheFlow(t *testing.T) {
+	s, _, _, amfCb, ref := fiveGVoiceFixture(t)
+	ctx := context.Background()
+
+	if err := s.DeactivateSmContext(ctx, ref, false); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	pushRules(t, s, ref, voiceRule())
+
+	waitFor(t, "the UE paged for the voice flow", func() bool {
+		amfCb.mu.Lock()
+		defer amfCb.mu.Unlock()
+
+		return len(amfCb.pageARPs) == 1 && amfCb.pageARPs[0] != nil && *amfCb.pageARPs[0] == voiceARP
+	})
+
+	if got := amfCb.modifications(); len(got) != 0 {
+		t.Fatalf("%d QoS flow modifications sent to an idle UE, want none until it returns (TS 23.502 §4.2.3.3)", len(got))
+	}
+
+	if _, err := s.ActivateSmContext(ctx, ref); err != nil {
+		t.Fatalf("ActivateSmContext: %v", err)
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7002, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 1)[0])
+	if len(cmd.QoSRules) != 1 || cmd.QoSRules[0].OperationCode != fgs.QoSRuleOpCreate || cmd.QoSRules[0].Parameters.QFI != voiceQFI {
+		t.Fatalf("QoS rules %+v, want the voice rule created once the UE is back", cmd.QoSRules)
+	}
+}
+
+func TestAnswersArrivingAfterTheReleaseOfASessionAreIgnored(t *testing.T) {
+	s, _, upf, amfCb, ref := activeFiveGVoice(t)
+	ctx := context.Background()
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	waitFlowModifications(t, amfCb, 2)
+
+	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+		t.Fatalf("ReleaseSmContext: %v", err)
+	}
+
+	upf.mu.Lock()
+	modifies := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	raw, err := (&fgs.PDUSessionModificationComplete{PDUSessionID: 3}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _ = s.UpdateSmContextN1Msg(ctx, ref, raw)
+
+	tr := libngap.PDUSessionResourceModifyResponseTransfer{QosFlowAddOrModifyResponse: []libngap.QosFlowAddOrModifyResponseItem{{QosFlowIdentifier: voiceQFI}}}
+
+	n2, err := tr.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = s.UpdateSmContextN2InfoPduResModifyRsp(ctx, ref, n2)
+
+	time.Sleep(100 * time.Millisecond)
+
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != modifies {
+		t.Fatal("a late answer reprogrammed the user plane of a released session")
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("a late answer revived the released session")
+	}
+}
+
+func TestRulePushRacingTheReleaseOfASession(t *testing.T) {
+	s, _, _, _, ref := activeFiveGVoice(t) //nolint:dogsled // only the session is under test
+	ctx := context.Background()
+	policy := committedPolicy(s, ref)
+
+	decisions := make([]*smf.PolicyDecision, 0, 40)
+
+	for i := range 40 {
+		nextRevision++
+
+		rules := []smf.PCCRule{voiceRule()}
+		if i%2 == 0 {
+			rules = append(rules, secondCallRule())
+		}
+
+		decisions = append(decisions, &smf.PolicyDecision{
+			Revision: nextRevision, PolicyID: policy.PolicyID, Var5qi: policy.QosData.Var5qi,
+			Arp: policy.QosData.Arp.PriorityLevel, SessionAMBR: policy.Ambr, Rules: rules,
+		})
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for _, d := range decisions {
+			_ = s.UpdateNotify(ctx, ref, d)
+		}
+	})
+
+	wg.Go(func() {
+		if err := s.ReleaseSmContext(ctx, ref); err != nil {
+			t.Errorf("ReleaseSmContext: %v", err)
+		}
+	})
+
+	wg.Wait()
+}
+
+func TestUnansweredFlowCommandIsRetransmittedThenFails(t *testing.T) {
+	pcf, store, upf, amfCb, _ := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3591(procedureTimerInterval))
+	sc := establish5GS(t, s)
+
+	pushRules(t, s, sc.Ref, voiceRule())
+
+	if r := waitReportedRules(t, pcf); len(r) != 1 {
+		t.Fatalf("reported rules %v, want the voice rule failed once T3591 expired a fifth time (TS 24.501 §6.3.2.5 a)", r)
+	}
+
+	if got := len(amfCb.modifications()); got != 5 {
+		t.Fatalf("%d transmissions of the QoS flow command, want the first plus four retransmissions", got)
 	}
 }

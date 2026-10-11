@@ -39,6 +39,7 @@ type EstablishRequest struct {
 	URRs         []URR
 	FramedRoutes []netip.Prefix
 	LocalSwitch  bool
+	NATExempt    bool
 }
 
 // No SEID: the UPF keys the session on the one the request named. One endpoint

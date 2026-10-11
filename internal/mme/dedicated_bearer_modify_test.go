@@ -231,7 +231,7 @@ func TestRejectedModificationRealignsTheERAB(t *testing.T) {
 	m.RadioBearerModified(ctx, ue, 6, true)
 	m.DedicatedBearerModifyRejected(ctx, ue, 6, eps.ESMCauseSemanticErrorInTFT)
 
-	if got := waitModification(t, fake); len(got) != 1 || got[0].accepted {
+	if got := fake.modifications(); len(got) != 1 || got[0].accepted {
 		t.Fatalf("SMF told %+v, want one failed modification", got)
 	}
 
@@ -245,9 +245,14 @@ func TestRejectedModificationRealignsTheERAB(t *testing.T) {
 	}
 
 	m.RadioBearerModified(ctx, ue, 6, true)
-	m.DedicatedBearerModifyAccepted(ctx, ue, 6)
 
-	time.Sleep(50 * time.Millisecond)
+	if !m.DedicatedBearerModifyAccepted(ctx, ue, 6) {
+		t.Fatal("the UE's accept was not matched to the realignment")
+	}
+
+	if _, pending := m.pendingModification(ue, 6); pending != nil {
+		t.Fatal("the realignment is still pending after both legs answered")
+	}
 
 	if got := fake.modifications(); len(got) != 1 {
 		t.Fatalf("SMF told %+v, want the realignment kept internal", got)
@@ -271,8 +276,8 @@ func TestFailedRealignmentDeactivatesTheBearer(t *testing.T) {
 	requireDeactivationSent(t, ue, cc)
 }
 
-func TestAcceptedModificationTheENBDidNotApplyDeactivatesTheBearer(t *testing.T) {
-	m, ue, cc, _ := activeVoiceBearer(t)
+func TestAcceptedModificationTheENBDidNotConfirmRealignsTheERAB(t *testing.T) {
+	m, ue, cc, fake := activeVoiceBearer(t)
 	ctx := context.Background()
 
 	if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
@@ -280,9 +285,54 @@ func TestAcceptedModificationTheENBDidNotApplyDeactivatesTheBearer(t *testing.T)
 	}
 
 	m.DedicatedBearerModifyAccepted(ctx, ue, 6)
-	m.RadioBearerModified(ctx, ue, 6, false)
+	m.interruptRadioModifications(ctx, ue)
 
-	requireDeactivationSent(t, ue, cc)
+	if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationCommitted {
+		t.Fatalf("SMF told %+v, want the modification the UE accepted committed", got)
+	}
+
+	erab := sentERABModify(t, lastSent(cc))
+	if item := erab.ERABToBeModified[0]; item.ERABID != 6 || item.QoS.GBR == nil || item.QoS.GBR.GuaranteedBitrateDL != 88000 {
+		t.Fatalf("realignment %+v, want the E-RAB brought to the 88 kbps the UE accepted (TS 24.301 §6.4.3.4)", item)
+	}
+
+	if _, b := m.LookupDedicated(ue, 6); b == nil || b.GBR.Downlink.Bps() != 88000 {
+		t.Fatal("the MME did not commit the configuration the UE accepted")
+	}
+}
+
+func TestModificationInterruptedBeforeTheUEAnsweredIsLeftToTheSMF(t *testing.T) {
+	for name, interrupt := range map[string]func(m *MME, ue *UeContext){
+		"handover ends":          func(m *MME, ue *UeContext) { m.interruptRadioModifications(context.Background(), ue) },
+		"eNB reports a handover": func(m *MME, ue *UeContext) { m.DedicatedRadioInterrupted(context.Background(), ue, 6) },
+		"S1 release keeps the bearer": func(m *MME, ue *UeContext) {
+			ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+			m.FreeUeConn(context.Background(), ue)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m, ue, cc, fake := activeVoiceBearer(t)
+			ctx := context.Background()
+
+			if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+				t.Fatalf("ModifyDedicatedBearer: %v", err)
+			}
+
+			sent := cc.count()
+
+			interrupt(m, ue)
+
+			if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationInterrupted {
+				t.Fatalf("SMF told %+v, want the modification reported interrupted, not rejected", got)
+			}
+
+			if cc.count() != sent {
+				t.Fatal("the MME signalled the bearer after an interruption the SMF retries")
+			}
+
+			requirePreviousConfiguration(t, m, ue)
+		})
+	}
 }
 
 func TestAcceptedModificationSurvivesAnS1Release(t *testing.T) {
@@ -298,7 +348,7 @@ func TestAcceptedModificationSurvivesAnS1Release(t *testing.T) {
 	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
 	m.FreeUeConn(ctx, ue)
 
-	if got := waitModification(t, fake); len(got) != 1 || !got[0].accepted {
+	if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationCommitted {
 		t.Fatalf("SMF told %+v, want the modification the UE accepted committed", got)
 	}
 
@@ -449,5 +499,23 @@ func TestUnlistedERABModifyAnswersTheOnlyPendingModification(t *testing.T) {
 
 	if got := waitModification(t, fake); len(got) != 1 || !got[0].accepted {
 		t.Fatalf("SMF told %+v, want the modification accepted by a successful response that lists nothing (TS 36.413 §8.2.2.2)", got)
+	}
+}
+
+func TestProcedureStartedOnASupersededConnectionIsNotArmed(t *testing.T) {
+	m, ue, _, _ := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	stale := ue.Conn()
+	stale.releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	m.FreeUeConn(ctx, ue)
+	m.AttachUeConn(ctx, ue, m.NewUeConn(&captureConn{}, 9))
+
+	if err := m.startModification(ctx, ue, stale, 6, qosModification(), false); !errors.Is(err, ErrUENotReachable) {
+		t.Fatalf("startModification on the released connection = %v, want %v", err, ErrUENotReachable)
+	}
+
+	if _, b := m.LookupDedicated(ue, 6); b == nil || b.modifying != nil {
+		t.Fatal("a modification was left outstanding on a connection no answer can arrive on")
 	}
 }

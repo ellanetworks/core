@@ -47,7 +47,7 @@ func TestHoldGatesOnlyTheHeldCallWithoutSignalling(t *testing.T) {
 
 	pushRules(t, s, ref, voiceRule(), secondCallRule())
 	waitDedicatedModifications(t, mmeCb, 1)
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	pushRules(t, s, ref, heldRule(voiceRule()), secondCallRule())
 	requireModificationCount(t, mmeCb, 1)
@@ -103,7 +103,7 @@ func TestPartlyCarriedRuleKeepsItsRatesAndGate(t *testing.T) {
 	pushRules(t, s, ref, moved)
 	waitDedicatedModifications(t, mmeCb, 1)
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 	waitDedicatedModifications(t, mmeCb, 2)
 
 	upf.mu.Lock()

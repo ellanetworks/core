@@ -26,13 +26,6 @@ type assignmentOutcome struct {
 }
 
 func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
-	ans := h.assignServer(ctx, id, req)
-	recordAssignment(req, ans)
-
-	return ans
-}
-
-func (h *HSS) assignServer(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
 	r, err := cx.ParseServerAssignmentRequest(req)
 	if err != nil {
 		return cx.NewErrorAnswer(req, id, err, 0)
@@ -51,12 +44,12 @@ func (h *HSS) assignServer(ctx context.Context, id diameter.Identity, req *diame
 		return h.errorAnswer(req, id, "server assignment", err)
 	}
 
-	host, realm := origin(req)
+	af := tgpp.ParseEnvelope(req).Origin
 
 	var outcome assignmentOutcome
 
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
-		next, o, err := assign(current, r, host, realm)
+		next, o, err := assign(current, r, af.OriginHost, af.OriginRealm)
 		outcome = o
 
 		return next, err

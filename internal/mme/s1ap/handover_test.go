@@ -933,7 +933,7 @@ func TestHandoverSourceConnLossReclaims(t *testing.T) {
 		t.Fatal("handover not cleared on source association loss")
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }
 
 func TestHandoverTargetResetAborts(t *testing.T) {
@@ -976,7 +976,7 @@ func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
 		t.Fatalf("expected UE Context Release Command to target, got %T", lastPDU(t, target))
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }
 
 func TestHandoverNotifyUEReleasedDuringSwitch(t *testing.T) {

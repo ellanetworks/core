@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
@@ -166,4 +168,45 @@ func startPCSCFAddressesSpan(ctx context.Context, operation string) (context.Con
 			semconv.DBCollectionName(PCSCFAddressesTableName),
 		),
 	)
+}
+
+type IMSVoiceStatus string
+
+const (
+	IMSVoiceEnabled          IMSVoiceStatus = "enabled"
+	IMSVoiceNoPCSCF          IMSVoiceStatus = "no_pcscf"
+	IMSVoiceNoDataNetwork    IMSVoiceStatus = "no_ims_data_network"
+	IMSVoiceIPFamilyMismatch IMSVoiceStatus = "ip_family_mismatch"
+)
+
+func (db *Database) IMSVoiceStatus(ctx context.Context) (IMSVoiceStatus, error) {
+	addresses, err := db.ListPCSCFAddresses(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if len(addresses) == 0 {
+		return IMSVoiceNoPCSCF, nil
+	}
+
+	dn, err := db.GetDataNetwork(ctx, models.IMSDataNetworkName)
+	if errors.Is(err, ErrNotFound) {
+		return IMSVoiceNoDataNetwork, nil
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	if slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
+		if addr.Is4() {
+			return dn.IPv4Pool != ""
+		}
+
+		return dn.IPv6Pool != ""
+	}) {
+		return IMSVoiceEnabled, nil
+	}
+
+	return IMSVoiceIPFamilyMismatch, nil
 }

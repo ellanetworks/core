@@ -17,7 +17,9 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-func TestModifySessionAddsAndRemovesASecondUplinkEndpoint(t *testing.T) {
+func newBearerTestEngine(t *testing.T, teidRange uint32) (*upfebpf.BpfObjects, *engine.SessionEngine) {
+	t.Helper()
+
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
 		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
@@ -38,7 +40,7 @@ func TestModifySessionAddsAndRemovesASecondUplinkEndpoint(t *testing.T) {
 
 	t.Cleanup(func() { _ = obj.Close() })
 
-	rm, err := engine.NewFteIDResourceManager(4)
+	rm, err := engine.NewFteIDResourceManager(teidRange)
 	if err != nil {
 		t.Fatalf("new fteid resource manager: %v", err)
 	}
@@ -47,6 +49,12 @@ func TestModifySessionAddsAndRemovesASecondUplinkEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new session engine: %v", err)
 	}
+
+	return obj, conn
+}
+
+func TestModifySessionAddsAndRemovesASecondUplinkEndpoint(t *testing.T) {
+	obj, conn := newBearerTestEngine(t, 4)
 
 	ctx := context.Background()
 
@@ -102,35 +110,7 @@ func TestModifySessionAddsAndRemovesASecondUplinkEndpoint(t *testing.T) {
 }
 
 func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
-	if os.Geteuid() != 0 {
-		const msg = "loading eBPF maps requires root/CAP_BPF"
-		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
-			t.Fatal(msg)
-		}
-
-		t.Skip(msg + "; skipping")
-	}
-
-	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Fatalf("cannot remove memlock rlimit: %v", err)
-	}
-
-	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
-	if err := obj.Load(); err != nil {
-		t.Fatalf("load eBPF objects: %v", err)
-	}
-
-	t.Cleanup(func() { _ = obj.Close() })
-
-	rm, err := engine.NewFteIDResourceManager(4)
-	if err != nil {
-		t.Fatalf("new fteid resource manager: %v", err)
-	}
-
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
-	if err != nil {
-		t.Fatalf("new session engine: %v", err)
-	}
+	obj, conn := newBearerTestEngine(t, 4)
 
 	ctx := context.Background()
 
@@ -142,6 +122,7 @@ func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 		SEID:        seid,
 		IMSI:        "001010000000001",
 		LocalSwitch: true,
+		NATExempt:   true,
 		URRs:        []models.URR{{URRID: 1}, {URRID: 2}},
 		QERs:        []models.QER{{QERID: 1}},
 		FARs:        []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}, {FARID: 2, ApplyAction: models.ApplyAction{Forw: true}}},
@@ -162,8 +143,8 @@ func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 		return pdr.Flags
 	}
 
-	if got := defaultFlags(); got != upfebpf.PdrFlagLocalSwitch {
-		t.Fatalf("default downlink PDR flags = %#x, want only local switch", got)
+	if got := defaultFlags(); got != upfebpf.PdrFlagLocalSwitch|upfebpf.PdrFlagNATExempt {
+		t.Fatalf("default downlink PDR flags = %#x, want local switch and NAT exemption", got)
 	}
 
 	voice := []models.SDFFilter{{Direction: models.FilterDownlink, Protocol: 17, Remote: netip.MustParsePrefix("10.0.0.33/32"), LocalPort: 40000, RemotePort: 30000}}
@@ -177,8 +158,8 @@ func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 		t.Fatalf("add the bearer's downlink PDR: %v", err)
 	}
 
-	if got := defaultFlags(); got != upfebpf.PdrFlagLocalSwitch|upfebpf.PdrFlagSDF {
-		t.Fatalf("default downlink PDR flags = %#x, want local switch and SDF", got)
+	if got := defaultFlags(); got != upfebpf.PdrFlagLocalSwitch|upfebpf.PdrFlagNATExempt|upfebpf.PdrFlagSDF {
+		t.Fatalf("default downlink PDR flags = %#x, want local switch, NAT exemption and SDF", got)
 	}
 
 	var c upfebpf.N3N6EntrypointSdfClassifier
@@ -194,8 +175,8 @@ func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 		t.Fatalf("remove the bearer's downlink PDR: %v", err)
 	}
 
-	if got := defaultFlags(); got != upfebpf.PdrFlagLocalSwitch {
-		t.Fatalf("default downlink PDR flags = %#x after removal, want only local switch", got)
+	if got := defaultFlags(); got != upfebpf.PdrFlagLocalSwitch|upfebpf.PdrFlagNATExempt {
+		t.Fatalf("default downlink PDR flags = %#x after removal, want local switch and NAT exemption", got)
 	}
 
 	if err := obj.SdfClassifiers.Lookup(seid, &c); err == nil {
@@ -208,42 +189,14 @@ func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 }
 
 func TestFailedEstablishLeavesNoSDFClassifier(t *testing.T) {
-	if os.Geteuid() != 0 {
-		const msg = "loading eBPF maps requires root/CAP_BPF"
-		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
-			t.Fatal(msg)
-		}
-
-		t.Skip(msg + "; skipping")
-	}
-
-	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Fatalf("cannot remove memlock rlimit: %v", err)
-	}
-
-	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
-	if err := obj.Load(); err != nil {
-		t.Fatalf("load eBPF objects: %v", err)
-	}
-
-	t.Cleanup(func() { _ = obj.Close() })
-
-	rm, err := engine.NewFteIDResourceManager(4)
-	if err != nil {
-		t.Fatalf("new fteid resource manager: %v", err)
-	}
-
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
-	if err != nil {
-		t.Fatalf("new session engine: %v", err)
-	}
+	obj, conn := newBearerTestEngine(t, 4)
 
 	const seid = uint64(53)
 
 	ue := netip.MustParseAddr("10.0.0.34")
 	voice := []models.SDFFilter{{Direction: models.FilterDownlink, Protocol: 17, LocalPort: 40000}}
 
-	_, err = conn.EstablishSession(context.Background(), &models.EstablishRequest{
+	_, err := conn.EstablishSession(context.Background(), &models.EstablishRequest{
 		SEID: seid,
 		IMSI: "not-an-imsi",
 		URRs: []models.URR{{URRID: 2}},
@@ -265,35 +218,7 @@ func TestFailedEstablishLeavesNoSDFClassifier(t *testing.T) {
 }
 
 func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
-	if os.Geteuid() != 0 {
-		const msg = "loading eBPF maps requires root/CAP_BPF"
-		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
-			t.Fatal(msg)
-		}
-
-		t.Skip(msg + "; skipping")
-	}
-
-	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Fatalf("cannot remove memlock rlimit: %v", err)
-	}
-
-	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
-	if err := obj.Load(); err != nil {
-		t.Fatalf("load eBPF objects: %v", err)
-	}
-
-	t.Cleanup(func() { _ = obj.Close() })
-
-	rm, err := engine.NewFteIDResourceManager(4)
-	if err != nil {
-		t.Fatalf("new fteid resource manager: %v", err)
-	}
-
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
-	if err != nil {
-		t.Fatalf("new session engine: %v", err)
-	}
+	obj, conn := newBearerTestEngine(t, 4)
 
 	ctx := context.Background()
 
@@ -370,35 +295,7 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 }
 
 func TestDeletingASessionRemovesItsSharedUplinkEndpoint(t *testing.T) {
-	if os.Geteuid() != 0 {
-		const msg = "loading eBPF maps requires root/CAP_BPF"
-		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
-			t.Fatal(msg)
-		}
-
-		t.Skip(msg + "; skipping")
-	}
-
-	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Fatalf("cannot remove memlock rlimit: %v", err)
-	}
-
-	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
-	if err := obj.Load(); err != nil {
-		t.Fatalf("load eBPF objects: %v", err)
-	}
-
-	t.Cleanup(func() { _ = obj.Close() })
-
-	rm, err := engine.NewFteIDResourceManager(4)
-	if err != nil {
-		t.Fatalf("new fteid resource manager: %v", err)
-	}
-
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
-	if err != nil {
-		t.Fatalf("new session engine: %v", err)
-	}
+	obj, conn := newBearerTestEngine(t, 4)
 
 	ctx := context.Background()
 
@@ -433,35 +330,7 @@ func TestDeletingASessionRemovesItsSharedUplinkEndpoint(t *testing.T) {
 }
 
 func TestModifySessionMovesAnUplinkPDRToTheTargetEndpoint(t *testing.T) {
-	if os.Geteuid() != 0 {
-		const msg = "loading eBPF maps requires root/CAP_BPF"
-		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
-			t.Fatal(msg)
-		}
-
-		t.Skip(msg + "; skipping")
-	}
-
-	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Fatalf("cannot remove memlock rlimit: %v", err)
-	}
-
-	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
-	if err := obj.Load(); err != nil {
-		t.Fatalf("load eBPF objects: %v", err)
-	}
-
-	t.Cleanup(func() { _ = obj.Close() })
-
-	rm, err := engine.NewFteIDResourceManager(8)
-	if err != nil {
-		t.Fatalf("new fteid resource manager: %v", err)
-	}
-
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
-	if err != nil {
-		t.Fatalf("new session engine: %v", err)
-	}
+	_, conn := newBearerTestEngine(t, 8)
 
 	ctx := context.Background()
 

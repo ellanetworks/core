@@ -178,14 +178,6 @@ func TestAA(t *testing.T) {
 	}
 }
 
-func TestAAUpdatesAnOpenSession(t *testing.T) {
-	p := newPCF(t)
-	update := rx.RequestUpdate
-
-	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
-	requireResult(t, aa(t, p, "af;1", rx.AARequest{RequestType: &update}), success)
-}
-
 func TestAAOnlyBindsToTheIMSDataNetwork(t *testing.T) {
 	p := pcf.New(policyStore{}, zap.NewNop())
 	establish(t, p, "internet", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: "internet", IPv4: testUEv4})

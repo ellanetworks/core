@@ -46,7 +46,7 @@ type epsSessionManager interface {
 	DedicatedBearerActivated(ctx context.Context, ref string, sgwTEID uint32, ebi uint8, enb models.FTEID) error
 	DedicatedBearerMoved(ctx context.Context, ref string, sgwTEID uint32, enb models.FTEID) error
 	DedicatedBearerReleased(ctx context.Context, ref string, sgwTEID uint32)
-	DedicatedBearerModified(ctx context.Context, ref string, sgwTEID uint32, accepted bool)
+	DedicatedBearerModified(ctx context.Context, ref string, sgwTEID uint32, outcome models.BearerModificationOutcome)
 	DedicatedBearerWithoutFiveGSQoS(ctx context.Context, ref string, sgwTEID uint32)
 }
 

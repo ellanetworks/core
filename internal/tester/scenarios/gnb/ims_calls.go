@@ -466,6 +466,15 @@ func movedLeg(target *gnb.GnodeB, u imsCallUE, ul *ngaplib.UPTransportLayerInfor
 	return voiceLeg{gnb: target, ranUEID: imsHandoverTargetRANID, session: session}
 }
 
+func sourceFiveQIs(l voiceLeg, qfi uint8) map[uint8]int64 {
+	fiveQI, ok := l.gnb.QoSFlowFiveQI(l.ranUEID, int64(l.session.PDUSessionID), qfi)
+	if !ok {
+		return nil
+	}
+
+	return map[uint8]int64{qfi: fiveQI}
+}
+
 func xnHandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8) (voiceLeg, error) {
 	ack, err := xnPathSwitch(target, &xnPathSwitchOpts{
 		SourceAMFUENGAPID: u.leg.gnb.GetAMFUENGAPID(u.leg.ranUEID),
@@ -473,6 +482,7 @@ func xnHandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 		TargetN3IP:        n3,
 		TargetDLTEID:      imsHandoverTargetTEID,
 		Flows:             []uint8{qfi},
+		FlowFiveQIs:       sourceFiveQIs(u.leg, qfi),
 	})
 	if err != nil {
 		return voiceLeg{}, fmt.Errorf("handover over Xn: %w", err)
@@ -522,9 +532,10 @@ func n2HandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 		return voiceLeg{}, fmt.Errorf("parse the Handover Request's session transfer: %w", err)
 	}
 
-	if !slices.ContainsFunc(transfer.QosFlowSetupRequest, func(i ngaplib.QosFlowSetupRequestItem) bool {
+	voice := slices.IndexFunc(transfer.QosFlowSetupRequest, func(i ngaplib.QosFlowSetupRequestItem) bool {
 		return uint8(i.QosFlowIdentifier) == qfi && i.QosFlowLevelQosParameters.GBRQosInformation != nil
-	}) {
+	})
+	if voice < 0 {
 		return voiceLeg{}, fmt.Errorf("the Handover Request flows %+v lack the voice QFI %d with its GBR (TS 23.502 §4.9.1.3.2 step 9)", transfer.QosFlowSetupRequest, qfi)
 	}
 
@@ -541,6 +552,7 @@ func n2HandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 			DLTEID:       imsHandoverTargetTEID,
 			DLIP:         n3,
 			QFIs:         []uint8{qfi},
+			FiveQIs:      map[uint8]int64{qfi: int64(transfer.QosFlowSetupRequest[voice].QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)},
 		}},
 		TargetToSourceTransparentContainer: n2HandoverRRCContainer,
 	}); err != nil {

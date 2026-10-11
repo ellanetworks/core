@@ -5,6 +5,8 @@ package smf_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/netip"
 	"slices"
 	"testing"
@@ -90,6 +92,10 @@ func TestVoiceRuleActivatesADedicatedBearer(t *testing.T) {
 		t.Fatalf("filters %+v, want two with distinct precedences", a.Filters)
 	}
 
+	if a.MappedFiveGSQoS != nil {
+		t.Fatalf("activation %+v, want no 5GS QoS for a PDN connection without a PDU session ID", a)
+	}
+
 	enb := models.FTEID{TEID: 0x66, Addr: netip.MustParseAddr("10.3.0.3")}
 	if err := s.DedicatedBearerActivated(context.Background(), ref, dedicatedUplinkTEID, 6, enb); err != nil {
 		t.Fatalf("DedicatedBearerActivated: %v", err)
@@ -161,7 +167,7 @@ func TestDedicatedBearerWaitsForAnIdleUE(t *testing.T) {
 	}
 }
 
-func TestVoiceRulesAreIgnoredOn5G(t *testing.T) {
+func TestVoiceRuleOn5GActivatesNoEPSBearer(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	mmeCb := &fakeMME{}
@@ -510,6 +516,44 @@ func activeVoiceSession(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, *fakeMME, s
 	return s, pcf, upf, mmeCb, ref
 }
 
+func waitDedicatedDeactivations(t *testing.T, mmeCb *fakeMME, n int) {
+	t.Helper()
+
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		if len(mmeCb.dedicatedDeactivations()) >= n {
+			return
+		}
+	}
+
+	t.Fatalf("%d dedicated bearer deactivations sent, want %d", len(mmeCb.dedicatedDeactivations()), n)
+}
+
+func TestDeactivationRefusedDuringAHandoverIsSentWhenItEnds(t *testing.T) {
+	s, pcf, _, mmeCb, ref := activeVoiceSession(t)
+
+	mmeCb.mu.Lock()
+	mmeCb.deactivateErr = fmt.Errorf("%w: handover in progress", smf.ErrUENotReachable)
+	mmeCb.mu.Unlock()
+
+	pushRules(t, s, ref)
+	waitDedicatedDeactivations(t, mmeCb, 1)
+
+	mmeCb.mu.Lock()
+	mmeCb.deactivateErr = nil
+	refused := len(mmeCb.deactivated)
+	mmeCb.mu.Unlock()
+
+	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	waitDedicatedDeactivations(t, mmeCb, refused+1)
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: the bearer was never released", r)
+	}
+}
+
 func waitDedicatedModifications(t *testing.T, mmeCb *fakeMME, n int) []models.DedicatedBearerModification {
 	t.Helper()
 
@@ -559,7 +603,7 @@ func TestSecondCallAndHangUpModifyTheSharedBearer(t *testing.T) {
 		t.Fatalf("bearer uplink PDR has %d filters while the UE has not accepted, want old and new (2)", n)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	pushRules(t, s, ref, secondCallRule())
 
@@ -568,7 +612,7 @@ func TestSecondCallAndHangUpModifyTheSharedBearer(t *testing.T) {
 		t.Fatalf("modification %+v, want filters 1 and 2 deleted with a 41 kbps GBR", del)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	if n := bearerUplinkFilters(t, upf); n != 1 {
 		t.Fatalf("bearer uplink PDR has %d filters after the first call ended, want 1", n)
@@ -609,7 +653,7 @@ func TestSwappedCallAddsBeforeItDeletes(t *testing.T) {
 		t.Fatalf("first step %+v, want the additions so the TFT never empties (TS 24.301 §6.4.3.4 a3)", first)
 	}
 
-	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, true)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	if second := waitDedicatedModifications(t, mmeCb, 2)[1]; second.Operation != models.TFTDeleteFilters || !slices.Equal(second.DeleteIDs, []uint8{1, 2}) {
 		t.Fatalf("second step %+v, want filters 1 and 2 deleted", second)
@@ -622,7 +666,7 @@ func TestRejectedModificationKeepsTheFirstCall(t *testing.T) {
 	pushRules(t, s, ref, voiceRule(), secondCallRule())
 	waitDedicatedModifications(t, mmeCb, 1)
 
-	s.DedicatedBearerModified(context.Background(), ref, dedicatedUplinkTEID, false)
+	s.DedicatedBearerModified(context.Background(), ref, dedicatedUplinkTEID, models.ModificationFailed)
 
 	if r := pcf.reportedRules(); !slices.Equal(r, []string{"af;2#1"}) {
 		t.Fatalf("reported rules %v, want only the second call's", r)
@@ -692,5 +736,149 @@ func TestBufferedVoiceIsReportedOnTheVoiceBearer(t *testing.T) {
 
 	if got := mmeCb.notifiedEBIs(); !slices.Equal(got, []uint8{6, epsTestEBI}) {
 		t.Fatalf("Downlink Data Notifications for EBIs %v, want the voice bearer's then the default's (TS 23.401 §5.3.4.3)", got)
+	}
+}
+
+func TestRulePushPlansBearersWithoutReadingTheDatabase(t *testing.T) {
+	s, _, _, mmeCb, ref, store := epsReconcileFixtureWithStore(t, 0)
+
+	store.mu.Lock()
+	lookups := store.apnLookups
+	store.mu.Unlock()
+
+	pushRules(t, s, ref, voiceRule())
+
+	if a := mmeCb.dedicatedActivations(); len(a) != 1 {
+		t.Fatalf("activations %+v, want the voice bearer", a)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.apnLookups != lookups {
+		t.Fatalf("a rule push read the subscription %d times, want none: only the rules changed", store.apnLookups-lookups)
+	}
+}
+
+func TestTransientPolicyErrorStillPlansTheBearers(t *testing.T) {
+	s, pcf, _, mmeCb, ref := epsReconcileFixture(t, 0)
+
+	mmeCb.mu.Lock()
+	mmeCb.activateErr = smf.ErrUENotReachable
+	mmeCb.mu.Unlock()
+
+	pushRules(t, s, ref, voiceRule())
+
+	mmeCb.mu.Lock()
+	mmeCb.activateErr = nil
+	mmeCb.mu.Unlock()
+
+	pcf.mu.Lock()
+	pcf.err = errors.New("database is locked")
+	pcf.mu.Unlock()
+
+	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	if a := mmeCb.dedicatedActivations(); len(a) != 1 {
+		t.Fatalf("activations %+v, want the voice bearer set up from the cached decision despite the database error", a)
+	}
+}
+
+func downlinkOnlyRule() smf.PCCRule {
+	r := voiceRule()
+	r.ID = "af;3#1"
+	r.Filters = []models.SDFFilter{
+		{Direction: models.FilterDownlink, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.30/32"), LocalPort: 50004, RemotePort: 49004},
+	}
+
+	return r
+}
+
+func blocksUplink(f models.SDFFilter) bool {
+	return f.Direction == models.FilterUplink && f.RemotePort == 9 && f.Protocol == 0 && !f.Remote.IsValid() && f.LocalPort == 0
+}
+
+func TestDownlinkOnlyRuleActivatesABearerThatBlocksUplink(t *testing.T) {
+	s, pcf, upf, mmeCb, ref := epsReconcileFixture(t, 0)
+
+	pushRules(t, s, ref, downlinkOnlyRule())
+
+	acts := mmeCb.dedicatedActivations()
+	if len(acts) != 1 {
+		t.Fatalf("activations %+v, want one for the downlink-only rule (TS 23.401 §4.7.2)", acts)
+	}
+
+	if f := acts[0].Filters; len(f) != 2 || !slices.ContainsFunc(f, blocksUplink) || f[0].ID == f[1].ID {
+		t.Fatalf("filters %+v, want the rule's downlink filter and an uplink filter on the discard port (TS 23.060 §15.3.3.4)", f)
+	}
+
+	m := lastModify(t, upf)
+
+	uplink := bearerUplinkPDRs(m)
+	if len(uplink) != 1 || len(uplink[0].PDI.SDFFilters) != 1 || !blocksUplink(uplink[0].PDI.SDFFilters[0]) {
+		t.Fatalf("bearer uplink PDRs %+v, want one matching only the discard port", uplink)
+	}
+
+	qer := slices.IndexFunc(m.UpdateQERs, func(q models.QER) bool { return q.QERID == uplink[0].QERID })
+	if qer < 0 || m.UpdateQERs[qer].GateStatus == nil || m.UpdateQERs[qer].GateStatus.ULGate != models.GateClose {
+		t.Fatalf("QERs %+v, want the discard-port PDR's uplink gate closed", m.UpdateQERs)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none", r)
+	}
+}
+
+func TestEndingTheLastUplinkFlowBlocksUplinkBeforeDeletingIt(t *testing.T) {
+	s, pcf, _, mmeCb, ref := activeVoiceSession(t)
+	ctx := context.Background()
+
+	pushRules(t, s, ref, voiceRule(), downlinkOnlyRule())
+
+	add := waitDedicatedModifications(t, mmeCb, 1)[0]
+	if add.Operation != models.TFTAddFilters || len(add.Filters) != 1 || add.Filters[0].Direction != models.FilterDownlink {
+		t.Fatalf("modification %+v, want the downlink-only filter added", add)
+	}
+
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
+
+	pushRules(t, s, ref, downlinkOnlyRule())
+
+	block := waitDedicatedModifications(t, mmeCb, 2)[1]
+	if block.Operation != models.TFTAddFilters || len(block.Filters) != 1 || !blocksUplink(block.Filters[0]) {
+		t.Fatalf("modification %+v, want the discard-port uplink filter added before the last uplink filter goes (TS 24.301 §6.4.3.4)", block)
+	}
+
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
+
+	del := waitDedicatedModifications(t, mmeCb, 3)[2]
+	if del.Operation != models.TFTDeleteFilters || !slices.Equal(del.DeleteIDs, []uint8{1, 2}) {
+		t.Fatalf("modification %+v, want the first call's filters 1 and 2 deleted", del)
+	}
+
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
+
+	pushRules(t, s, ref, voiceRule(), downlinkOnlyRule())
+
+	back := waitDedicatedModifications(t, mmeCb, 4)[3]
+	if back.Operation != models.TFTAddFilters || len(back.Filters) != 2 || slices.ContainsFunc(back.Filters, blocksUplink) {
+		t.Fatalf("modification %+v, want the call's two filters added", back)
+	}
+
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
+
+	unblock := waitDedicatedModifications(t, mmeCb, 5)[4]
+	if unblock.Operation != models.TFTDeleteFilters || len(unblock.DeleteIDs) != 1 || unblock.DeleteIDs[0] != block.Filters[0].ID {
+		t.Fatalf("modification %+v, want the discard-port filter %d deleted once real uplink filters exist", unblock, block.Filters[0].ID)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none", r)
+	}
+
+	if n := len(mmeCb.dedicatedDeactivations()); n != 0 {
+		t.Fatalf("the bearer was deactivated while the downlink flow goes on")
 	}
 }

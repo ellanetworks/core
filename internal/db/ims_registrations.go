@@ -21,7 +21,7 @@ const imsRegistrationsSchema = 23
 
 const (
 	getIMSRegistrationStmt    = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	upsertIMSRegistrationStmt = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm, updatedAt) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.updatedAt) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm, updatedAt=excluded.updatedAt"
+	upsertIMSRegistrationStmt = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm"
 	deleteIMSRegistrationStmt = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
 	countIMSRegistrationsStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
 	resetIMSRegistrationsSQL  = "DELETE FROM %s"
@@ -42,7 +42,6 @@ type IMSRegistration struct {
 	AuthPending bool                 `json:"authPending"`
 	OriginHost  string               `json:"originHost"`
 	OriginRealm string               `json:"originRealm"`
-	UpdatedAt   int64                `json:"updatedAt"`
 }
 
 type imsRegistrationRow struct {
@@ -52,7 +51,6 @@ type imsRegistrationRow struct {
 	AuthPending bool   `db:"authPending"`
 	OriginHost  string `db:"originHost"`
 	OriginRealm string `db:"originRealm"`
-	UpdatedAt   int64  `db:"updatedAt"`
 }
 
 type imsRegistrationCASPayload struct {
@@ -74,7 +72,6 @@ func (r imsRegistrationRow) registration() *IMSRegistration {
 		AuthPending: r.AuthPending,
 		OriginHost:  r.OriginHost,
 		OriginRealm: r.OriginRealm,
-		UpdatedAt:   r.UpdatedAt,
 	}
 }
 
@@ -86,7 +83,6 @@ func imsRegistrationRowOf(imsi string, r *IMSRegistration) imsRegistrationRow {
 		AuthPending: r.AuthPending,
 		OriginHost:  r.OriginHost,
 		OriginRealm: r.OriginRealm,
-		UpdatedAt:   r.UpdatedAt,
 	}
 }
 
@@ -99,8 +95,7 @@ func sameIMSRegistration(a, b *IMSRegistration) bool {
 		a.ServerName == b.ServerName &&
 		a.AuthPending == b.AuthPending &&
 		a.OriginHost == b.OriginHost &&
-		a.OriginRealm == b.OriginRealm &&
-		a.UpdatedAt == b.UpdatedAt
+		a.OriginRealm == b.OriginRealm
 }
 
 func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRegistration, error) {

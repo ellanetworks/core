@@ -4316,7 +4316,7 @@ components:
           description: "Session AMBR downlink (e.g. \"200 Mbps\")."
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR)."
+          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
@@ -4385,7 +4385,7 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR)."
+          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
@@ -4420,7 +4420,7 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR)."
+          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
@@ -4877,13 +4877,17 @@ components:
 
     OperatorIMS:
       type: object
-      required: [pcscfAddresses]
+      required: [pcscfAddresses, voiceStatus]
       properties:
         pcscfAddresses:
           type: array
           items:
             type: string
           description: "P-CSCF addresses of the IMS given to UEs, in preference order. Empty when unset."
+        voiceStatus:
+          type: string
+          enum: [enabled, no_pcscf, no_ims_data_network, ip_family_mismatch]
+          description: "Whether UEs are told IMS voice is supported, or why not."
 
     UpdateOperatorIMSParams:
       type: object

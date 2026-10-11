@@ -212,6 +212,12 @@ func (f *fakePCF) UpdateAssociation(_ context.Context, ref string, subscribed sm
 		return nil, fmt.Errorf("no policy association %q", ref)
 	}
 
+	if c.Subscribed.Var5qi == subscribed.Var5qi && c.Subscribed.Arp == subscribed.Arp &&
+		c.Subscribed.SessionAMBR.Uplink.Equal(subscribed.SessionAMBR.Uplink) &&
+		c.Subscribed.SessionAMBR.Downlink.Equal(subscribed.SessionAMBR.Downlink) {
+		return nil, nil
+	}
+
 	c.Subscribed = subscribed
 	f.associations[ref] = c
 	f.updates++
@@ -601,20 +607,21 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 
 // fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
 type fakeMME struct {
-	mu           sync.Mutex
-	pagedIMSI    []string
-	notifyCauses []models.DownlinkDataNotificationCause
-	droppedCalls []mmeTransferredCall
-	modified     []models.EPSBearerModification
-	reactivated  []uint8
-	activations  []models.DedicatedBearerRequest
-	deactivated  []uint8
-	dedicatedMod []models.DedicatedBearerModification
-	pagedEBIs    []uint8
-	activateErr  error
-	modifyErr    error
-	dedicatedErr error
-	err          error
+	mu            sync.Mutex
+	pagedIMSI     []string
+	notifyCauses  []models.DownlinkDataNotificationCause
+	droppedCalls  []mmeTransferredCall
+	modified      []models.EPSBearerModification
+	reactivated   []uint8
+	activations   []models.DedicatedBearerRequest
+	deactivated   []uint8
+	dedicatedMod  []models.DedicatedBearerModification
+	pagedEBIs     []uint8
+	activateErr   error
+	deactivateErr error
+	modifyErr     error
+	dedicatedErr  error
+	err           error
 }
 
 func (f *fakeMME) ModifyDedicatedBearer(_ context.Context, _ string, _ uint8, mod models.DedicatedBearerModification) error {
@@ -663,7 +670,7 @@ func (f *fakeMME) DeactivateDedicatedBearer(_ context.Context, _ string, ebi uin
 
 	f.deactivated = append(f.deactivated, ebi)
 
-	return nil
+	return f.deactivateErr
 }
 
 func (f *fakeMME) dedicatedActivations() []models.DedicatedBearerRequest {

@@ -5,6 +5,7 @@ package smf
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -38,7 +39,7 @@ func (b *dedicatedBearer) ueView() pendingModification {
 func (b *dedicatedBearer) tftOn(t bearerTFT, access AccessType) bearerTFT {
 	tft := maps.Clone(t)
 	for k, f := range tft {
-		if access == Access4G {
+		if access == Access4G || k == blockingUplinkKey {
 			f.Precedence = filterPrecedence(b.slot, f.ID)
 		} else {
 			f.Precedence = b.precedence[k.rule]
@@ -50,51 +51,58 @@ func (b *dedicatedBearer) tftOn(t bearerTFT, access AccessType) bearerTFT {
 	return tft
 }
 
-func (s *SMF) prepareFlowsLocked(ctx context.Context, sc *SMContext, to AccessType) {
-	if sc.Access == to || sc.Tunnel == nil || len(sc.dedicated) == 0 {
-		return
-	}
-
-	if to == Access4G {
-		s.interruptFlowProcedureLocked(ctx, sc)
+func (s *SMF) prepareFlowsLocked(ctx context.Context, sc *SMContext, to AccessType) error {
+	if sc.Access == to || sc.Tunnel == nil || len(sc.dedicated) == 0 && to != Access4G {
+		return nil
 	}
 
 	next := sc.Tunnel.dataPlane
-	next.Bearers = slices.Clone(next.Bearers)
+	next.TargetUplink = to == Access4G
 
-	for i, l := range next.Bearers {
-		j := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.slot == l.Slot })
-		if j < 0 {
-			continue
+	if len(sc.dedicated) > 0 {
+		if to == Access4G {
+			s.interruptFlowProcedureLocked(ctx, sc)
 		}
 
-		b := sc.dedicated[j]
-		next.Bearers[i].TargetUplink = b.movesTo(to)
+		withFlows := next
+		withFlows.Bearers = slices.Clone(next.Bearers)
 
-		if to == Access5G {
-			next.Bearers[i].QFI = b.qfi
+		for i, l := range withFlows.Bearers {
+			j := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.slot == l.Slot })
+			if j < 0 {
+				continue
+			}
+
+			b := sc.dedicated[j]
+			withFlows.Bearers[i].TargetUplink = b.movesTo(to)
+
+			if to == Access5G {
+				withFlows.Bearers[i].QFI = b.qfi
+			}
 		}
-	}
 
-	if err := next.checkSDFCapacity(); err != nil {
-		logger.From(ctx, logger.SmfLog).Warn("QoS flows not prepared for the target access; they are released at the move",
-			logger.SUPI(sc.Supi.String()), zap.Stringer("to", to), zap.Error(err))
-
-		return
+		if err := withFlows.checkSDFCapacity(); err != nil {
+			logger.From(ctx, logger.SmfLog).Warn("QoS flows not prepared for the target access; they are released at the move",
+				logger.SUPI(sc.Supi.String()), zap.Stringer("to", to), zap.Error(err))
+		} else {
+			next = withFlows
+		}
 	}
 
 	if err := s.applyDataPlane(ctx, sc, next, sc.policyID()); err != nil {
-		logger.From(ctx, logger.SmfLog).Warn("QoS flows not prepared for the target access; they are released at the move",
-			logger.SUPI(sc.Supi.String()), zap.Stringer("to", to), zap.Error(err))
+		return fmt.Errorf("prepare the user plane for %s: %w", to, err)
 	}
+
+	return nil
 }
 
 func (s *SMF) clearTargetUplinkLocked(ctx context.Context, sc *SMContext) {
-	if sc.Tunnel == nil || !slices.ContainsFunc(sc.Tunnel.Bearers, func(l bearerLeg) bool { return l.TargetUplink }) {
+	if sc.Tunnel == nil || !sc.Tunnel.TargetUplink && !slices.ContainsFunc(sc.Tunnel.Bearers, func(l bearerLeg) bool { return l.TargetUplink }) {
 		return
 	}
 
 	next := sc.Tunnel.dataPlane
+	next.TargetUplink = false
 	next.Bearers = slices.Clone(next.Bearers)
 
 	for i := range next.Bearers {
@@ -216,7 +224,6 @@ func (s *SMF) adoptMovedFlowsLocked(ctx context.Context, sc *SMContext, f moving
 
 		b.fiveGSQoS = true
 		b.rejected = rejectedStep{}
-		b.enb = models.FTEID{}
 		b.modifyWaitingSince = time.Time{}
 	}
 

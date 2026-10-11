@@ -77,7 +77,7 @@ The datapath attaches to N3 and N6 at the hook set by `datapath.attach-mode`. Th
 | -------- | --------- |
 | Default | Enabled |
 | Address family | IPv4 only |
-| Scope | Uplink traffic leaving N6, sourced from the N6 address |
+| Scope | Uplink traffic leaving N6, sourced from the N6 address. Sessions on the `ims` data network are never translated. |
 | Translated protocols | TCP, UDP, and ICMP |
 | Source ports | `1024`-`32767` |
 | Downlink traffic | Delivered only when it matches a translation the subscriber's own traffic created. |

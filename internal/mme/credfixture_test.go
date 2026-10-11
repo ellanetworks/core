@@ -223,13 +223,14 @@ func (f *fakeSessionManager) DedicatedBearerMoved(_ context.Context, ref string,
 type modificationOutcome struct {
 	teid     uint32
 	accepted bool
+	outcome  models.BearerModificationOutcome
 }
 
-func (f *fakeSessionManager) DedicatedBearerModified(_ context.Context, _ string, teid uint32, accepted bool) {
+func (f *fakeSessionManager) DedicatedBearerModified(_ context.Context, _ string, teid uint32, outcome models.BearerModificationOutcome) {
 	f.outcomeMu.Lock()
 	defer f.outcomeMu.Unlock()
 
-	f.modified = append(f.modified, modificationOutcome{teid: teid, accepted: accepted})
+	f.modified = append(f.modified, modificationOutcome{teid: teid, accepted: outcome == models.ModificationCommitted, outcome: outcome})
 }
 
 func (f *fakeSessionManager) DedicatedBearerWithoutFiveGSQoS(_ context.Context, _ string, teid uint32) {

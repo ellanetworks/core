@@ -81,6 +81,7 @@ export type SubscriberDetailStatus = {
   integrity_algorithm: string;
   last_seen_at?: string;
   last_seen_radio?: string;
+  ims_voice_over_ps?: boolean;
 };
 
 const isPresent = (registration: Registration) =>
@@ -109,6 +110,10 @@ export function mergeRegistrations(
 
   const answering = serving ?? retained;
 
+  const registered = serving?.registered
+    ? serving
+    : present.find((r) => r.registered);
+
   return {
     registered: present.some((r) => r.registered),
     connection_state:
@@ -123,6 +128,7 @@ export function mergeRegistrations(
     integrity_algorithm: serving?.integrity_algorithm ?? "",
     last_seen_at: answering?.last_seen_at,
     last_seen_radio: answering?.radio,
+    ims_voice_over_ps: registered?.ims_voice_over_ps,
   };
 }
 

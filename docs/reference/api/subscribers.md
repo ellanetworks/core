@@ -137,6 +137,7 @@ None
         "imei": "359881234567890",
         "ciphering_algorithm": "128-NEA2",
         "integrity_algorithm": "128-NIA2",
+        "ims_voice_over_ps": true,
         "connection": {
           "amf_ue_ngap_id": 12,
           "ran_ue_ngap_id": 39
@@ -167,12 +168,28 @@ None
         "ambr_uplink": "100 Mbps",
         "ambr_downlink": "200 Mbps"
       }
-    ]
+    ],
+    "ims": {
+      "private_identity": "001010100007487@ims.mnc001.mcc001.3gppnetwork.org",
+      "scscf_name": "sip:scscf.ims.mnc001.mcc001.3gppnetwork.org:6060",
+      "public_identities": [
+        {
+          "identity": "tel:+15551230001",
+          "barred": false,
+          "user_state": "registered"
+        },
+        {
+          "identity": "sip:001010100007487@ims.mnc001.mcc001.3gppnetwork.org",
+          "barred": true,
+          "user_state": "registered"
+        }
+      ]
+    }
   }
 }
 ```
 
-`description` and `msisdn` are omitted when unset.
+`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on the `ims` data network and the subscriber has no IMS registration.
 
 ### Registrations
 
@@ -188,6 +205,7 @@ None
 | `imei` | 15-digit IMEI of the device. Absent once the core has released the context. |
 | `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5G, `EEA0` / `128-EEA1..3` in 4G. Absent when none is established. |
 | `integrity_algorithm` | `NIA0` / `128-NIA1..3` in 5G, `EIA0` / `128-EIA1..3` in 4G. Absent when none is established. |
+| `ims_voice_over_ps` | IMS voice over PS session indicator sent to the device in the registration accept (5G) or attach and tracking area update accept (4G). Absent once the core has released the context. |
 | `connection` | UE-associated logical connection, or `null` when the device holds none. |
 
 ### Connection identifiers
@@ -211,6 +229,16 @@ None
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |
 | `data_network` | DNN (5G) or APN (4G). |
 | `slice` | S-NSSAI. 5G only. |
+
+### IMS
+
+| Field | Description |
+| ----- | ----------- |
+| `private_identity` | IMS private identity (IMPI): `<imsi>@<IMS home domain>`. |
+| `scscf_name` | S-CSCF serving the subscriber. Absent when the subscriber is not registered in IMS. |
+| `public_identities` | IMS public identities (IMPU): `tel:+<msisdn>` when the subscriber has an MSISDN, and `sip:<private_identity>`, which is barred. |
+| `public_identities[].barred` | `true` when the identity cannot be used for calls. |
+| `public_identities[].user_state` | `registered`, `registered_unreg_services`, `authentication_pending` or `not_registered`. |
 
 ## Get Subscriber Credentials
 

@@ -359,3 +359,29 @@ func TestVoiceAndVideoWithASecondCallFitWhileMovingAccess(t *testing.T) {
 		t.Fatalf("two voice calls and a video stream prepared for another access: %v", err)
 	}
 }
+
+func TestIMSSessionsAreLocallySwitchedAndExemptFromNAT(t *testing.T) {
+	for _, ims := range []bool{false, true} {
+		req := dataPlane{}.establishRequest(1, "001010000000001", "", nil, ims)
+		if req.LocalSwitch != ims || req.NATExempt != ims {
+			t.Fatalf("ims=%v: establish request local switch %v, NAT exempt %v", ims, req.LocalSwitch, req.NATExempt)
+		}
+	}
+}
+
+func TestQoSRuleFiltersEncodeIPv6AndWildcards(t *testing.T) {
+	tft := bearerTFT{
+		{rule: "r", index: 0}:     {ID: 1, Remote: netip.MustParsePrefix("2001:db8::10/128"), Protocol: 17, LocalPort: 50000, RemotePort: 49000},
+		{rule: "r", index: 1}:     {ID: 2, LocalPort: 50002},
+		{rule: "other", index: 0}: {ID: 3, LocalPort: 1},
+	}
+
+	filters := ruleFilters(tft, "r")
+	if len(filters) != 2 {
+		t.Fatalf("%d filters, want only rule r's two", len(filters))
+	}
+
+	if len(filters[0].Components) != 4 || len(filters[1].Components) != 1 {
+		t.Fatalf("components %+v / %+v, want the IPv6 remote, protocol and both ports, then only the local port: no remote component means any remote (TS 24.501 §9.11.4.13)", filters[0].Components, filters[1].Components)
+	}
+}

@@ -28,7 +28,6 @@ func migrateV23(ctx context.Context, tx *sql.Tx) error {
 		authPending INTEGER NOT NULL CHECK (authPending IN (0, 1)),
 		originHost  TEXT    NOT NULL,
 		originRealm TEXT    NOT NULL,
-		updatedAt   INTEGER NOT NULL,
 		CHECK (state != 0 OR authPending = 1)
 	)`, IMSRegistrationsTableName)
 

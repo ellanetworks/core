@@ -209,6 +209,92 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 	}
 }
 
+func defaultUplinkQFI(t *testing.T, upf *fakeUPF) uint8 {
+	t.Helper()
+
+	for _, p := range lastModify(t, upf).UpdatePDRs {
+		if p.PDI.SourceInterface == models.InterfaceAccess && len(p.PDI.SDFFilters) == 0 && p.PDI.LocalFTEID != nil {
+			return p.PDI.QFI
+		}
+	}
+
+	t.Fatal("the last session modification carries no default uplink PDR")
+
+	return 0
+}
+
+func TestPreparedMoveToEPSAcceptsUplinkWithoutAQFI(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc := establish5GS(t, s)
+
+	if got := defaultUplinkQFI(t, upf); got != models.DefaultQFI {
+		t.Fatalf("default uplink QFI on 5GS = %d, want %d", got, models.DefaultQFI)
+	}
+
+	if _, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID)); err != nil {
+		t.Fatalf("prepare the move to EPS: %v", err)
+	}
+
+	if got := defaultUplinkQFI(t, upf); got != 0 {
+		t.Errorf("default uplink QFI once the move to EPS is prepared = %d, want none: the target eNB's S1-U uplink carries no QFI", got)
+	}
+
+	if err := s.ReleaseEPSSession(ctx, sc.Ref); err != nil {
+		t.Fatalf("abandon the move: %v", err)
+	}
+
+	if got := defaultUplinkQFI(t, upf); got != models.DefaultQFI {
+		t.Errorf("default uplink QFI after the move was abandoned = %d, want %d", got, models.DefaultQFI)
+	}
+
+	bearer, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID))
+	if err != nil {
+		t.Fatalf("prepare the move to EPS again: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	if got := defaultUplinkQFI(t, upf); got != 0 {
+		t.Errorf("default uplink QFI on EPS = %d, want none", got)
+	}
+}
+
+func TestMoveToEPSIsRefusedWhenTheUserPlaneCannotBePrepared(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	sc := establish5GS(t, s)
+
+	upf.mu.Lock()
+	upf.err = errors.New("UPF unreachable")
+	upf.mu.Unlock()
+
+	if _, err := s.CreateEPSSession(context.Background(), epsMove(movedPDUSessionID)); !errors.Is(err, models.ErrSessionNotMovable) {
+		t.Fatalf("move to EPS = %v, want %v: the eNB's uplink would be dropped until the move commits", err, models.ErrSessionNotMovable)
+	}
+
+	upf.mu.Lock()
+	upf.err = nil
+	upf.mu.Unlock()
+
+	if _, err := s.CreateEPSSession(context.Background(), epsMove(movedPDUSessionID)); err != nil {
+		t.Fatalf("the session stayed unmovable after the refused move: %v", err)
+	}
+
+	if s.GetSession(sc.Ref) == nil {
+		t.Fatal("the refused move released the session")
+	}
+}
+
 func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

@@ -30,8 +30,9 @@ type dataPlane struct {
 	QFI      uint8
 	AMBR     models.Ambr
 
-	Forwarding *AnchorBinding
-	Bearers    []bearerLeg
+	TargetUplink bool
+	Forwarding   *AnchorBinding
+	Bearers      []bearerLeg
 }
 
 type bearerLeg struct {
@@ -215,16 +216,12 @@ func (r ruleLeg) policedGate() models.GateStatus {
 	return g
 }
 
-func ceilKbps(b models.BitRate) uint64 {
-	return (b.Bps() + 999) / 1000
-}
-
 func sameFamily(f models.SDFFilter, ue netip.Addr) bool {
 	return !f.Remote.IsValid() || f.Remote.Addr().Is4() == ue.Is4()
 }
 
 func (d dataPlane) uplinkQFI() uint8 {
-	if d.Access == Access5G {
+	if d.Access == Access5G && !d.TargetUplink {
 		return d.QFI
 	}
 
@@ -248,7 +245,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 			QERID:           qerID,
 			QFI:             qfi,
 			GateStatus:      new(r.policedGate()),
-			MBR:             &models.MBR{ULMBR: ceilKbps(r.MBR.Uplink), DLMBR: ceilKbps(r.MBR.Downlink)},
+			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
 			AveragingWindow: new(bearerAveragingWindow),
 		})
 
@@ -551,7 +548,7 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 	return params
 }
 
-func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRoutes []netip.Prefix, localSwitch bool) *models.EstablishRequest {
+func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRoutes []netip.Prefix, ims bool) *models.EstablishRequest {
 	pdrs, fars, qers, urrs := d.rules()
 
 	return &models.EstablishRequest{
@@ -563,7 +560,8 @@ func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRo
 		QERs:         qers,
 		URRs:         urrs,
 		FramedRoutes: framedRoutes,
-		LocalSwitch:  localSwitch,
+		LocalSwitch:  ims,
+		NATExempt:    ims,
 	}
 }
 
