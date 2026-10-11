@@ -54,9 +54,9 @@ func reactivate(t *testing.T, s *smf.SMF, ref string, accepted ...uint8) *libnga
 	return req
 }
 
-func setupRequestCarries(req *libngap.PDUSessionResourceSetupRequestTransfer, qfi uint8) bool {
+func setupRequestCarriesVoice(req *libngap.PDUSessionResourceSetupRequestTransfer) bool {
 	return slices.ContainsFunc(req.QosFlowSetupRequest, func(i libngap.QosFlowSetupRequestItem) bool {
-		return i.QosFlowIdentifier == libngap.QosFlowIdentifier(qfi) && i.QosFlowLevelQosParameters.GBRQosInformation != nil
+		return i.QosFlowIdentifier == voiceQFI && i.QosFlowLevelQosParameters.GBRQosInformation != nil
 	})
 }
 
@@ -79,7 +79,7 @@ func TestUserInactivityKeepsTheVoiceFlowAcrossIdle(t *testing.T) {
 	}
 
 	req := reactivate(t, s, ref, voiceQFI)
-	if !setupRequestCarries(req, voiceQFI) {
+	if !setupRequestCarriesVoice(req) {
 		t.Fatalf("Setup Request Transfer flows %+v, want the voice QFI with its GBR (TS 23.501 §5.7.1.3)", req.QosFlowSetupRequest)
 	}
 
@@ -113,7 +113,7 @@ func TestRadioLossReleasesTheVoiceFlowAndSyncsTheUELater(t *testing.T) {
 	pushRules(t, s, ref)
 	requireOneFlowModification(t, amfCb)
 
-	if req := reactivate(t, s, ref); setupRequestCarries(req, voiceQFI) {
+	if req := reactivate(t, s, ref); setupRequestCarriesVoice(req) {
 		t.Fatal("the lost voice flow was set up again on activation")
 	}
 
@@ -324,7 +324,7 @@ func TestRulesRemovedWhileIdleAreNotSetUpAgain(t *testing.T) {
 		t.Fatal("the ended call's voice downlink still pages the idle UE")
 	}
 
-	if req := reactivate(t, s, ref); setupRequestCarries(req, voiceQFI) {
+	if req := reactivate(t, s, ref); setupRequestCarriesVoice(req) {
 		t.Fatal("the ended call's voice flow was set up again on activation")
 	}
 }
@@ -465,5 +465,109 @@ func TestUnansweredFlowCommandIsRetransmittedThenFails(t *testing.T) {
 
 	if got := len(amfCb.modifications()); got != 5 {
 		t.Fatalf("%d transmissions of the QoS flow command, want the first plus four retransmissions", got)
+	}
+}
+
+func refusedFlowRemoval(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, *fakeAMF, string) {
+	t.Helper()
+
+	s, pcf, upf, amfCb, ref := activeFiveGVoice(t)
+
+	pushRules(t, s, ref)
+	waitFlowModifications(t, amfCb, 2)
+
+	ueAnswers(t, s, ref, false)
+	ranAnswers(t, s, ref, nil, nil)
+
+	return s, pcf, upf, amfCb, ref
+}
+
+func TestRefusedFlowRemovalStopsEnforcingTheRemovedRules(t *testing.T) {
+	s, pcf, upf, amfCb, ref := refusedFlowRemoval(t)
+
+	if slices.ContainsFunc(lastModify(t, upf).UpdatePDRs, func(p models.PDR) bool { return p.PDI.QFI == voiceQFI || p.QERID >= 256 }) {
+		t.Fatal("the PCF removed the voice rule but the UPF still enforces it (TS 23.502 §4.3.3.2 step 8)")
+	}
+
+	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if got := len(amfCb.modifications()); got != 2 {
+		t.Fatalf("%d QoS flow modifications sent, want 2: the deletion waits to be synchronised with the UE", got)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: a removal does not fail", r)
+	}
+}
+
+func TestRefusedFlowRemovalIsResentWhenTheUserPlaneReturns(t *testing.T) {
+	s, _, _, amfCb, ref := refusedFlowRemoval(t)
+
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	if req := reactivate(t, s, ref); setupRequestCarriesVoice(req) {
+		t.Fatal("the removed voice flow was set up again on activation")
+	}
+
+	c := waitFlowModifications(t, amfCb, 3)[2]
+	if c.n2Msg != nil {
+		t.Fatal("the resync asked the RAN to release a flow it no longer holds")
+	}
+
+	cmd := flowCommand(t, c)
+	if len(cmd.QoSRules) != 1 || cmd.QoSRules[0].OperationCode != fgs.QoSRuleOpDelete ||
+		len(cmd.QoSFlowDescriptions) != 1 || cmd.QoSFlowDescriptions[0].QFI != voiceQFI || cmd.QoSFlowDescriptions[0].OperationCode != fgs.QoSFlowOpDelete {
+		t.Fatalf("command %+v, want the unsynchronised rule and flow deleted (TS 23.502 §4.3.3.2 step 1d)", cmd)
+	}
+
+	ueAnswers(t, s, ref, true)
+
+	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+		t.Fatalf("ReconcileSession: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if got := len(amfCb.modifications()); got != 3 {
+		t.Fatalf("%d QoS flow modifications sent, want 3: the flow is gone once the UE confirmed", got)
+	}
+}
+
+func TestRefusedFlowRemovalRidesOnTheNextCommand(t *testing.T) {
+	s, _, _, amfCb, ref := refusedFlowRemoval(t)
+
+	pushRules(t, s, ref, voiceRule())
+
+	c := waitFlowModifications(t, amfCb, 3)[2]
+	cmd := flowCommand(t, c)
+
+	var created, deleted []uint8
+
+	for _, d := range cmd.QoSFlowDescriptions {
+		switch d.OperationCode {
+		case fgs.QoSFlowOpCreate:
+			created = append(created, d.QFI)
+		case fgs.QoSFlowOpDelete:
+			deleted = append(deleted, d.QFI)
+		}
+	}
+
+	if !slices.Equal(deleted, []uint8{voiceQFI}) || len(created) != 1 || created[0] == voiceQFI {
+		t.Fatalf("flow descriptions %+v, want the call on a new QFI and the unsynchronised flow deleted in the same command (TS 24.501 §6.3.2.2)", cmd.QoSFlowDescriptions)
+	}
+
+	rules := map[fgs.QoSRuleOperation]int{}
+	for _, r := range cmd.QoSRules {
+		rules[r.OperationCode]++
+	}
+
+	if rules[fgs.QoSRuleOpCreate] != 1 || rules[fgs.QoSRuleOpDelete] != 1 {
+		t.Fatalf("QoS rules %+v, want one created and the stale one deleted", cmd.QoSRules)
 	}
 }

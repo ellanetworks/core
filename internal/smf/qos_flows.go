@@ -272,11 +272,17 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 	want := bindRules(enforceable)
 
 	var (
-		change  flowChange
-		removed []*dedicatedBearer
+		change   flowChange
+		removed  []*dedicatedBearer
+		unsynced []*dedicatedBearer
 	)
 
 	for _, b := range slices.Clone(sc.dedicated) {
+		if b.syncPending && (b.ueHolds || b.admitted) {
+			unsynced = append(unsynced, b)
+			continue
+		}
+
 		key := b.binding
 		if moved, ok := movedBinding(b, want, sc.dedicated); ok {
 			key = moved
@@ -301,10 +307,6 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 					s.loseFlowLocked(ctx, sc, b)
 				}
 
-				continue
-			}
-
-			if b.rejected.removal {
 				continue
 			}
 
@@ -341,6 +343,10 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 	}
 
 	if len(change.parts) > 0 {
+		for _, b := range unsynced {
+			s.removeFlowLocked(&change, b)
+		}
+
 		failed = append(failed, s.sendFlowChangeLocked(ctx, sc, &change)...)
 	}
 
@@ -590,6 +596,7 @@ func (s *SMF) removeFlowLocked(change *flowChange, b *dedicatedBearer) {
 	}
 
 	b.state = dedicatedReleasing
+	b.syncPending = false
 	change.touch(b, n1, b.admitted)
 }
 
@@ -947,7 +954,8 @@ func (s *SMF) concludeRemovedFlowLocked(ctx context.Context, sc *SMContext, b *d
 	}
 
 	b.state = dedicatedActive
-	b.rejected = rejectedStep{removal: true}
+	b.syncPending = true
+	s.loseFlowLocked(ctx, sc, b)
 }
 
 func (s *SMF) commitFlowLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
@@ -1175,6 +1183,14 @@ func (s *SMF) admitFlowsLocked(ctx context.Context, sc *SMContext, accepted []ui
 	sc.userPlaneRequested = false
 
 	var lost []PCCRule
+
+	for _, b := range sc.dedicated {
+		if b.syncPending {
+			b.syncPending = false
+
+			s.reconcileAfter(sc.Ref, 0)
+		}
+	}
 
 	for _, b := range sc.dedicated {
 		if b.qfi == 0 || b.state != dedicatedActive || !b.ueHolds || b.withdraw || len(b.rules) == 0 {

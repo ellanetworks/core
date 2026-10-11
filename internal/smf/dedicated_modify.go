@@ -41,8 +41,7 @@ type pendingModification struct {
 }
 
 type rejectedStep struct {
-	target  *pendingModification
-	removal bool
+	target *pendingModification
 }
 
 func (r rejectedStep) refuses(binding bearerBinding, tft bearerTFT, mbr, gbr models.Ambr) bool {
@@ -176,8 +175,20 @@ type ruleSet struct {
 
 func (sc *SMContext) legRulesLocked(b *dedicatedBearer, sets ...ruleSet) []ruleLeg {
 	fallback := slices.Clone(b.rules)
-	if sc.policyDecision != nil {
-		fallback = append(fallback, sc.policyDecision.Rules...)
+	if sc.policyDecision == nil {
+		return b.legRules(fallback, sets...)
+	}
+
+	fallback = append(fallback, sc.policyDecision.Rules...)
+
+	authorized := func(k filterKey) bool {
+		return k == blockingUplinkKey || slices.ContainsFunc(sc.policyDecision.Rules, func(r PCCRule) bool { return r.ID == k.rule })
+	}
+
+	for i, set := range sets {
+		tft := maps.Clone(set.tft)
+		maps.DeleteFunc(tft, func(k filterKey, _ models.SDFFilter) bool { return !authorized(k) })
+		sets[i].tft = tft
 	}
 
 	return b.legRules(fallback, sets...)

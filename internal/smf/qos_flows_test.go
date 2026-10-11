@@ -348,7 +348,7 @@ func TestRefusedRuleRemovalIsHeldUntilThePolicyChanges(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+			s, pcf, upf, amfCb, ref := activeFiveGVoice(t)
 
 			pushRules(t, s, ref, voiceRule(), secondCallRule())
 			waitFlowModifications(t, amfCb, 2)
@@ -359,6 +359,10 @@ func TestRefusedRuleRemovalIsHeldUntilThePolicyChanges(t *testing.T) {
 			waitFlowModifications(t, amfCb, 3)
 
 			tc.refuse(t, s, ref)
+
+			if enforcesPeer(lastModify(t, upf), firstCallPeer) {
+				t.Fatal("the UPF still enforces the rule the PCF removed (TS 23.502 §4.3.3.2 step 8)")
+			}
 
 			realign := waitFlowModifications(t, amfCb, 4)[3]
 			if realign.n1Msg != nil {

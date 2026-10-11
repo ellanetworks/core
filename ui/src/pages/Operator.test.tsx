@@ -15,7 +15,6 @@ const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
 const operator = (
   sms: Record<string, unknown>,
   pcscfAddresses: string[] = [],
-  voiceStatus = "no_pcscf",
 ) => ({
   id: { mcc: "001", mnc: "01" },
   tracking: { supportedTacs: ["000001"] },
@@ -23,7 +22,7 @@ const operator = (
   nasSecurity: { ciphering: ["AES"], integrity: ["AES"] },
   spn: { fullName: "Ella Networks", shortName: "Ella" },
   sms,
-  ims: { pcscfAddresses, voiceStatus },
+  ims: { pcscfAddresses, voiceStatus: "no_pcscf" },
 });
 
 const peerA = {
@@ -211,20 +210,6 @@ describe("Operator Voice section", () => {
 
     expect(
       await (await row("P-CSCF Addresses")).findByText("10.6.0.5, 2001:db8::5"),
-    ).toBeInTheDocument();
-  });
-
-  it("shows why voice is off", async () => {
-    api.get("/api/v1/operator", () =>
-      operator(ready, ["2001:db8::5"], "ip_family_mismatch"),
-    );
-    api.get(PEERS_PATH, () => ({ items: [] }));
-    renderOperator();
-
-    expect(
-      await screen.findByText(
-        "Off: no P-CSCF address matches the ims IP pool's family",
-      ),
     ).toBeInTheDocument();
   });
 

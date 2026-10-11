@@ -57,6 +57,7 @@ type dedicatedBearer struct {
 	realignRAN         bool
 	realignUE          *pendingModification
 	withdraw           bool
+	syncPending        bool
 	mbr                models.Ambr
 	gbr                models.Ambr
 	modification       *pendingModification
@@ -296,7 +297,7 @@ func movedBinding(b *dedicatedBearer, want map[bearerBinding][]PCCRule, bearers 
 	}
 
 	for binding, rules := range want {
-		if binding.QCI != b.binding.QCI || slices.ContainsFunc(bearers, func(o *dedicatedBearer) bool { return o.binding == binding }) {
+		if binding.QCI != b.binding.QCI || slices.ContainsFunc(bearers, func(o *dedicatedBearer) bool { return o.binding == binding && !o.syncPending }) {
 			continue
 		}
 

@@ -882,3 +882,36 @@ func TestEndingTheLastUplinkFlowBlocksUplinkBeforeDeletingIt(t *testing.T) {
 		t.Fatalf("the bearer was deactivated while the downlink flow goes on")
 	}
 }
+
+var firstCallPeer = netip.MustParsePrefix("192.0.2.10/32")
+
+func enforcesPeer(m *models.ModifyRequest, peer netip.Prefix) bool {
+	return slices.ContainsFunc(m.UpdatePDRs, func(p models.PDR) bool {
+		return slices.ContainsFunc(p.PDI.SDFFilters, func(f models.SDFFilter) bool { return f.Remote == peer })
+	})
+}
+
+func TestFailedFilterDeletionStopsEnforcingTheRemovedRule(t *testing.T) {
+	s, pcf, upf, mmeCb, ref := activeVoiceSession(t)
+	ctx := context.Background()
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	waitDedicatedModifications(t, mmeCb, 1)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
+
+	pushRules(t, s, ref, secondCallRule())
+	waitDedicatedModifications(t, mmeCb, 2)
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
+
+	if enforcesPeer(lastModify(t, upf), firstCallPeer) {
+		t.Fatal("the UPF still enforces the rule the PCF removed (TS 23.401 §5.4.3 step 2)")
+	}
+
+	if n := bearerUplinkFilters(t, upf); n != 1 {
+		t.Fatalf("bearer uplink PDR has %d filters, want the remaining call's 1", n)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: a removal does not fail", r)
+	}
+}

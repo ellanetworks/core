@@ -12,12 +12,14 @@ import type {
   IMSUserState,
   SubscriberDetailStatus,
 } from "@/queries/subscribers";
+import type { IMSVoiceStatus, OperatorIMS } from "@/queries/operator";
 import { formatRelativeTime } from "@/utils/formatters";
+import { IMS_DATA_NETWORK } from "@/utils/voice";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
   ims?: IMSSubscription;
-  msisdn?: string;
+  network?: OperatorIMS;
 }
 
 const InfoRow: React.FC<{
@@ -138,36 +140,85 @@ const ConnectionChip: React.FC<{ state?: ConnectionState }> = ({ state }) => {
   );
 };
 
-const imsUserStates: Record<
-  IMSUserState,
-  { label: string; color: "success" | "default" }
-> = {
+type ChipColor = "success" | "default" | "warning";
+
+interface VoiceState {
+  label: string;
+  color: ChipColor;
+  detail?: string;
+}
+
+const imsUserStates: Record<IMSUserState, VoiceState> = {
   registered: { label: "Registered", color: "success" },
-  registered_unreg_services: {
-    label: "Unregistered (S-CSCF assigned)",
-    color: "default",
-  },
+  registered_unreg_services: { label: "Not registered", color: "default" },
   authentication_pending: { label: "Authenticating", color: "default" },
   not_registered: { label: "Not registered", color: "default" },
 };
 
-const IMSStateChip: React.FC<{ ims: IMSSubscription }> = ({ ims }) => {
-  const state = ims.public_identities[0]?.user_state ?? "not_registered";
-  const { label, color } = imsUserStates[state] ?? {
-    label: state,
-    color: "default",
-  };
-
-  return <Chip label={label} color={color} size="small" variant="filled" />;
+const networkReasons: Record<Exclude<IMSVoiceStatus, "enabled">, string> = {
+  no_pcscf: "No P-CSCF address is set on the Operator page",
+  no_ims_data_network: `There is no ${IMS_DATA_NETWORK} data network`,
+  ip_family_mismatch: `No P-CSCF address matches the ${IMS_DATA_NETWORK} data network's IP family`,
 };
 
-const VoiceOverPSChip: React.FC<{ supported: boolean }> = ({ supported }) => (
-  <Chip
-    label={supported ? "Yes" : "No"}
-    color={supported ? "success" : "default"}
-    size="small"
-    variant="filled"
-  />
+export const voiceState = (
+  status: SubscriberDetailStatus,
+  ims?: IMSSubscription,
+  network?: OperatorIMS,
+): VoiceState | undefined => {
+  if (!ims) {
+    if (!network?.pcscfAddresses.length) return undefined;
+
+    return {
+      label: "Not subscribed",
+      color: "default",
+      detail: `The profile has no policy on the ${IMS_DATA_NETWORK} data network`,
+    };
+  }
+
+  if (ims.public_identities.every((identity) => identity.barred)) {
+    return {
+      label: "No phone number",
+      color: "warning",
+      detail: "Set an MSISDN to give the subscriber voice",
+    };
+  }
+
+  if (network?.voiceStatus && network.voiceStatus !== "enabled") {
+    return {
+      label: "Off",
+      color: "warning",
+      detail: networkReasons[network.voiceStatus],
+    };
+  }
+
+  if (status.registered && status.ims_voice_over_ps === false) {
+    return {
+      label: "Not offered to the phone",
+      color: "warning",
+      detail: "Changes reach the phone at its next registration",
+    };
+  }
+
+  const state = ims.public_identities[0]?.user_state ?? "not_registered";
+
+  return imsUserStates[state] ?? { label: state, color: "default" };
+};
+
+const VoiceValue: React.FC<{ state: VoiceState }> = ({ state }) => (
+  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+    <Chip
+      label={state.label}
+      color={state.color}
+      size="small"
+      variant="filled"
+    />
+    {state.detail && (
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+        {state.detail}
+      </Typography>
+    )}
+  </Box>
 );
 
 const SystemChips: React.FC<{ systems: string[] }> = ({ systems }) => (
@@ -197,9 +248,10 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
   ims,
-  msisdn,
+  network,
 }) => {
   const systems = status.systems ?? [];
+  const voice = voiceState(status, ims, network);
 
   return (
     <Card
@@ -218,28 +270,8 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="Connection"
           value={<ConnectionChip state={status.connection_state} />}
         />
-        {ims && (
-          <InfoRow
-            label="IMS Registration"
-            value={
-              msisdn ? (
-                <IMSStateChip ims={ims} />
-              ) : (
-                <Chip
-                  label="No MSISDN"
-                  color="default"
-                  size="small"
-                  variant="filled"
-                />
-              )
-            }
-          />
-        )}
-        {ims && status.ims_voice_over_ps !== undefined && (
-          <InfoRow
-            label="Voice over PS"
-            value={<VoiceOverPSChip supported={status.ims_voice_over_ps} />}
-          />
+        {voice && (
+          <InfoRow label="Voice" value={<VoiceValue state={voice} />} />
         )}
         {systems.length > 0 && (
           <InfoRow

@@ -65,7 +65,7 @@ On each phone, turn on VoLTE (4G) or VoNR (5G).
 
 ## 8. Verify the IMS registration
 
-Go to the **Subscribers** page and click on a subscriber with an MSISDN. **IMS Registration** should show **Registered**.
+Go to the **Subscribers** page and click on a subscriber with an MSISDN. **Voice** should show **Registered**.
 
 ## 9. Make a test call
 
