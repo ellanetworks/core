@@ -60,6 +60,7 @@ func (m *MME) ResumeBearerReconfigurationAfterHandover(ctx context.Context, ue *
 
 	m.interruptRadioModifications(ctx, ue)
 	m.DeactivatePendingDedicated(ctx, ue)
+	m.realignInterruptedERABs(ctx, ue)
 	m.ReconcileUE(ctx, ue)
 }
 

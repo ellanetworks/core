@@ -234,6 +234,9 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 	}
 
 	b.modifying = pending
+	if radioChange(mod) {
+		b.realignRadio = false
+	}
 	ue.mu.Unlock()
 
 	write := func(wire []byte) error {
@@ -462,25 +465,27 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	}
 
 	ref, teid, ebi := p.SessionRef, b.SgwFTEID.TEID, b.Ebi
-	realign := models.DedicatedBearerModification{
-		SessionRef: ref, SGWTEID: teid,
-		QoSChanged: true, MBR: b.MBR, GBR: b.GBR,
-	}
-
-	if pending.mod.ARP != nil {
-		realign.ARP = new(b.ARP)
-	}
+	interrupted := pending.radio == radioInterrupted
+	resume := b.realignRadio && !pending.realign
 	ue.mu.Unlock()
 
 	log := logger.From(ctx, logger.MmeLog).With(logger.SUPI(ue.Supi().String()), logger.ERABID(ebi))
 
 	if pending.realign {
-		if verdict != verdictCommitted && verdict != verdictInterrupted {
+		switch {
+		case verdict == verdictCommitted:
+		case interrupted:
+			m.realignERAB(ctx, ue, ebi)
+		default:
 			log.Warn("the E-RAB could not be realigned with the UE; deactivating the bearer (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
 			m.DeactivateDedicated(ctx, ue, ebi)
 		}
 
 		return
+	}
+
+	if resume && verdict != verdictUEAhead && verdict != verdictRadioAhead {
+		defer m.realignERAB(ctx, ue, ebi)
 	}
 
 	switch verdict {
@@ -490,11 +495,11 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	case verdictUEAhead:
 		log.Warn("the UE accepted a modification the eNB did not confirm; realigning the E-RAB with the UE (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationCommitted)
-		m.realignERAB(ctx, ue, ebi, realign)
+		m.realignERAB(ctx, ue, ebi)
 	case verdictRadioAhead:
 		log.Warn("the UE rejected a modification the eNB applied; realigning the E-RAB (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationFailed)
-		m.realignERAB(ctx, ue, ebi, realign)
+		m.realignERAB(ctx, ue, ebi)
 	case verdictFailed:
 		log.Warn("dedicated EPS bearer modification failed; keeping the previous configuration", zap.String("reason", pending.reason))
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationFailed)
@@ -504,9 +509,51 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	}
 }
 
-func (m *MME) realignERAB(ctx context.Context, ue *UeContext, ebi uint8, realign models.DedicatedBearerModification) {
-	if err := m.startModification(ctx, ue, ue.Conn(), ebi, realign, true); err != nil {
+func (m *MME) realignERAB(ctx context.Context, ue *UeContext, ebi uint8) {
+	ueConn, ready := m.ReconcileReady(ue)
+	ready = ready && ueConn.ICS() == ICSCompleted
+
+	ue.mu.Lock()
+
+	p, b := ue.dedicatedLocked(ebi)
+	if b == nil {
+		ue.mu.Unlock()
+		return
+	}
+
+	b.realignRadio = ue.Conn() != nil && !b.Activating && !b.Deactivating && (b.modifying == nil || b.modifying.radio == radioNotNeeded)
+	if !ready || b.Activating || b.Deactivating || b.modifying != nil {
+		ue.mu.Unlock()
+		return
+	}
+
+	realign := models.DedicatedBearerModification{
+		SessionRef: p.SessionRef, SGWTEID: b.SgwFTEID.TEID,
+		QoSChanged: true, MBR: b.MBR, GBR: b.GBR,
+	}
+	ue.mu.Unlock()
+
+	if err := m.startModification(ctx, ue, ueConn, ebi, realign, true); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB realignment not sent; deactivating the bearer", logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.Error(err))
 		m.DeactivateDedicated(ctx, ue, ebi)
+	}
+}
+
+func (m *MME) realignInterruptedERABs(ctx context.Context, ue *UeContext) {
+	var ebis []uint8
+
+	ue.mu.Lock()
+
+	for _, p := range ue.Pdns {
+		for ebi, b := range p.Dedicated {
+			if b.realignRadio {
+				ebis = append(ebis, ebi)
+			}
+		}
+	}
+	ue.mu.Unlock()
+
+	for _, ebi := range ebis {
+		m.realignERAB(ctx, ue, ebi)
 	}
 }

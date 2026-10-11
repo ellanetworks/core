@@ -194,15 +194,15 @@ func (p *PCF) updateRx(id string, r rx.AARequest) error {
 		return errRxSessionUnknown
 	}
 
+	if err := p.applyServiceInfoLocked(s, r); err != nil {
+		p.mu.Unlock()
+		return err
+	}
+
 	for _, a := range r.SpecificActions {
 		if !slices.Contains(s.actions, a) {
 			s.actions = append(s.actions, a)
 		}
-	}
-
-	if err := p.applyServiceInfoLocked(s, r); err != nil {
-		p.mu.Unlock()
-		return err
 	}
 
 	var d *smf.PolicyDecision

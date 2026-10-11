@@ -47,6 +47,7 @@ type flowProcedure struct {
 	n2Answered  bool
 	ranRejected bool
 	ranFailed   []uint8
+	ranReleased []uint8
 	epsFallback bool
 
 	n1Msg, n2Msg []byte
@@ -268,7 +269,11 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 		return nil
 	}
 
+	unmoved := sc.unmovedFallbackRulesLocked()
+	sc.recordFailedRulesLocked(unmoved)
+
 	enforceable, failed := sc.enforceableRulesLocked()
+	failed = append(failed, unmoved...)
 	want := bindRules(enforceable)
 
 	var (
@@ -818,7 +823,7 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 
 	for b, parts := range p.parts {
 		ueApplied := !parts.n1 || p.ueAccepted
-		ranApplied := !parts.n2 || !p.ranRejected && !slices.Contains(p.ranFailed, b.qfi)
+		ranApplied := !parts.n2 || !p.ranRejected && !slices.Contains(p.ranFailed, b.qfi) && !slices.Contains(p.ranReleased, b.qfi)
 
 		switch {
 		case b.state == dedicatedActivating:
@@ -891,10 +896,25 @@ func (s *SMF) concludeCreatedFlowLocked(ctx context.Context, sc *SMContext, b *d
 	}
 
 	if p.epsFallback {
+		sc.fallbackRules = append(sc.fallbackRules, m.rules...)
 		return nil
 	}
 
 	return m.rules
+}
+
+func (sc *SMContext) unmovedFallbackRulesLocked() []PCCRule {
+	var out []PCCRule
+
+	for _, r := range sc.fallbackRules {
+		if slices.ContainsFunc(sc.policyDecision.Rules, r.Equal) {
+			out = append(out, r)
+		}
+	}
+
+	sc.fallbackRules = nil
+
+	return out
 }
 
 func (s *SMF) concludeModifiedFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, parts flowParts, ueApplied, ranApplied bool) []PCCRule {
@@ -1193,7 +1213,12 @@ func (s *SMF) admitFlowsLocked(ctx context.Context, sc *SMContext, accepted []ui
 	}
 
 	for _, b := range sc.dedicated {
-		if b.qfi == 0 || b.state != dedicatedActive || !b.ueHolds || b.withdraw || len(b.rules) == 0 {
+		if b.qfi != 0 && b.state == dedicatedActive && b.withdraw {
+			b.admitted = b.admitted && slices.Contains(accepted, b.qfi)
+			continue
+		}
+
+		if b.qfi == 0 || b.state != dedicatedActive || !b.ueHolds || len(b.rules) == 0 {
 			continue
 		}
 
@@ -1217,7 +1242,16 @@ func (s *SMF) releaseFlowsLocked(ctx context.Context, sc *SMContext, qfis []uint
 	var lost []PCCRule
 
 	for _, b := range sc.dedicated {
-		if b.qfi == 0 || !slices.Contains(qfis, b.qfi) || b.state != dedicatedActive {
+		if b.qfi == 0 || !slices.Contains(qfis, b.qfi) {
+			continue
+		}
+
+		if p := sc.flowProcedure; p != nil && b.state == dedicatedActivating && p.parts[b].n2 {
+			p.ranReleased = append(p.ranReleased, b.qfi)
+			continue
+		}
+
+		if b.state != dedicatedActive {
 			continue
 		}
 

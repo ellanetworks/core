@@ -148,8 +148,8 @@ func TestRANNotAdmittingTheFlowOnActivationLosesTheCall(t *testing.T) {
 	}
 }
 
-func TestRANReleasingTheFlowEndsTheCall(t *testing.T) {
-	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+func ranReleasesVoice(t *testing.T, s *smf.SMF, ref string) {
+	t.Helper()
 
 	raw, err := (&libngap.PDUSessionResourceNotifyTransfer{
 		QosFlowReleased: libngap.QosFlowListWithCause{{
@@ -164,6 +164,12 @@ func TestRANReleasingTheFlowEndsTheCall(t *testing.T) {
 	if err := s.UpdateSmContextN2InfoNotify(context.Background(), ref, raw); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoNotify: %v", err)
 	}
+}
+
+func TestRANReleasingTheFlowEndsTheCall(t *testing.T) {
+	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+	ranReleasesVoice(t, s, ref)
 
 	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
 		t.Fatalf("reported rules %v, want the call released (TS 38.413 §8.2.4.2)", r)
@@ -174,6 +180,20 @@ func TestRANReleasingTheFlowEndsTheCall(t *testing.T) {
 	c := waitFlowModifications(t, amfCb, 2)[1]
 	if c.n2Msg != nil || len(flowCommand(t, c).QoSFlowDescriptions) != 1 {
 		t.Fatalf("modification %+v, want an N1-only deletion of the released flow", c)
+	}
+}
+
+func TestRANReleasingTheFlowBeforeTheUECompletesEndsTheCall(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+	ranReleasesVoice(t, s, ref)
+	ueAnswers(t, s, ref, true)
+
+	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
+		t.Fatalf("reported rules %v, want the call released (TS 38.413 §8.2.4.2)", r)
 	}
 }
 
@@ -252,12 +272,34 @@ func TestEveryEPSFallbackKeepsTheCallsRules(t *testing.T) {
 	pushRules(t, s, ref)
 	pushRules(t, s, ref, secondCallRule())
 	waitFlowModifications(t, amfCb, 2)
+	s.SetDedicatedAwaitLimitForTest(time.Hour)
 	ranFallsBack(t, s, ref)
-
-	waitFlowModifications(t, amfCb, 3)
 
 	if r := pcf.reportedRules(); len(r) != 0 {
 		t.Fatalf("reported rules %v, want none: the SMF maintains the PCC rules on every EPS fallback (TS 23.502 §4.13.6.1 step 4)", r)
+	}
+}
+
+func TestEPSFallbackThatNeverMovesTheUEFailsTheCall(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+	s.SetDedicatedAwaitLimitForTest(10 * time.Millisecond)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+	ranFallsBack(t, s, ref)
+
+	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
+		t.Fatalf("reported rules %v, want the call failed once the UE stayed on 5GS", r)
+	}
+
+	if reports := pcf.reportedFailures(); reports[0].cause != smf.ResourcesNotAllocated {
+		t.Fatalf("report %+v, want ResourcesNotAllocated", reports[0])
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	if n := len(amfCb.modifications()); n != 1 {
+		t.Fatalf("%d QoS flow modifications, want the gNB not asked to fall back again", n)
 	}
 }
 
@@ -569,5 +611,65 @@ func TestRefusedFlowRemovalRidesOnTheNextCommand(t *testing.T) {
 
 	if rules[fgs.QoSRuleOpCreate] != 1 || rules[fgs.QoSRuleOpDelete] != 1 {
 		t.Fatalf("QoS rules %+v, want one created and the stale one deleted", cmd.QoSRules)
+	}
+}
+
+func TestPathSwitchClearsAPendingDeletionTheTargetNeverHeld(t *testing.T) {
+	s, _, _, amfCb, ref := activeFiveGVoice(t)
+	ctx := context.Background()
+
+	pushRules(t, s, ref)
+	waitFlowModifications(t, amfCb, 2)
+
+	raw, err := (&libngap.PDUSessionResourceModifyUnsuccessfulTransfer{
+		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResModifyFail(ctx, ref, raw); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResModifyFail: %v", err)
+	}
+
+	n2, err := buildPathSwitchRequestTransfer(0x8001, net.ParseIP("10.3.0.10"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.UpdateSmContextXnHandoverPathSwitchReq(ctx, ref, n2); err != nil {
+		t.Fatalf("path switch: %v", err)
+	}
+
+	c := waitFlowModifications(t, amfCb, 3)[2]
+	if c.n2Msg != nil {
+		t.Fatal("the deletion asked the target gNB to release a flow it never set up (TS 38.413 §8.4.4)")
+	}
+
+	if cmd := flowCommand(t, c); len(cmd.QoSFlowDescriptions) != 1 || cmd.QoSFlowDescriptions[0].OperationCode != fgs.QoSFlowOpDelete {
+		t.Fatalf("command %+v, want the flow deleted in the UE", cmd)
+	}
+}
+
+func TestRuleOnAReleasedFlowIsNotReportedActive(t *testing.T) {
+	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+	ranReleasesVoice(t, s, ref)
+	waitReportedRules(t, pcf)
+
+	updated := voiceRule()
+	updated.Version = 2
+	updated.Filters[0].RemotePort, updated.Filters[1].RemotePort = 49100, 49100
+	pushRules(t, s, ref, updated)
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, false)
+
+	waitFlowModifications(t, amfCb, 3)
+	ueAnswers(t, s, ref, false)
+	ranAnswers(t, s, ref, nil, []uint8{voiceQFI + 1})
+
+	reports := pcf.reportedFailures()
+	if last := reports[len(reports)-1]; last.Rule.Version != 2 || last.Active != nil {
+		t.Fatalf("report %+v, want version 2 failed with no rule left active: the released flow enforces nothing", last)
 	}
 }

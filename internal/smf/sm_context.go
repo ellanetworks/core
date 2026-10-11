@@ -118,6 +118,7 @@ type SMContext struct {
 	maxPacketFilters uint16
 	flowProcedure    *flowProcedure
 	fallbackUntil    time.Time
+	fallbackRules    []PCCRule
 
 	userPlaneRequested bool
 

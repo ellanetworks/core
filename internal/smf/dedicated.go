@@ -132,7 +132,7 @@ func (sc *SMContext) dedicatedReady() bool {
 
 func (sc *SMContext) installedRuleLocked(id string) *PCCRule {
 	for _, b := range sc.dedicated {
-		if b.state != dedicatedActive {
+		if b.state != dedicatedActive || b.withdraw {
 			continue
 		}
 

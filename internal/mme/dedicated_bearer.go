@@ -48,6 +48,7 @@ type DedicatedBearer struct {
 	accepted          bool
 	radioUp           bool
 	deactivatePending bool
+	realignRadio      bool
 	modifying         *dedicatedModification
 	mappedFiveGSQoS   []nas.PCOContainer
 
@@ -770,6 +771,7 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLoss
 			hadRadio := b.radioUp
 			b.EnbFTEID = models.FTEID{}
 			b.radioUp = false
+			b.realignRadio = false
 
 			drop := b.Activating || b.Deactivating || releaseGBR && hadRadio && models.GBRQCI(b.QCI)
 

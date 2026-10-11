@@ -213,6 +213,8 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 }
 
 func (sc *SMContext) finishTransferCommit(c *transferCommit) *droppedSource {
+	sc.fallbackRules = nil
+
 	if sc.Access == Access4G {
 		sc.discardOutstandingProcedures()
 	}

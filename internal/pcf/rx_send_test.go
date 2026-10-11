@@ -201,3 +201,43 @@ func TestPartialFailureReportsTheFailedFlowsAfterAnUpdate(t *testing.T) {
 		t.Fatal("the AF was told the session was aborted although one component kept its rule")
 	}
 }
+
+func TestRejectedUpdateKeepsNoSubscription(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+	af := connectAF(t, p)
+
+	r := callAAR(50000, rx.ServiceInfoFinal)
+	r.SpecificActions = nil
+	extra := r.MediaComponents[0]
+	extra.Number = 2
+	extra.SubComponents = []rx.MediaSubComponent{{
+		FlowNumber: 1,
+		FlowDescriptions: []string{
+			"permit out 17 from 192.0.2.20 49002 to 10.60.0.1 50004",
+			"permit in 17 from 10.60.0.1 50004 to 192.0.2.20 49002",
+		},
+	}}
+	r.MediaComponents = append(r.MediaComponents, extra)
+
+	requireResult(t, aa(t, p, "af;call", r), success)
+	d := n.next(t)
+
+	bad := callAAR(50000, rx.ServiceInfoFinal)
+	update := rx.RequestUpdate
+	bad.RequestType = &update
+	bad.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{"deny out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}
+	bad.SpecificActions = []rx.SpecificAction{rx.ActionIndicationOfFailedResourcesAllocation}
+	requireResult(t, aa(t, p, "af;call", bad), tgpp.Experimental(tgpp.ResultFilterRestrictions))
+
+	second := slices.IndexFunc(d.Rules, func(r smf.PCCRule) bool { return r.ID == "af;call#2.1" })
+	first := slices.IndexFunc(d.Rules, func(r smf.PCCRule) bool { return r.ID != "af;call#2.1" })
+
+	p.ReportEnforcementFailure(testRef, failedRules(d.Rules[second]), smf.ResourcesNotAllocated)
+	n.next(t)
+	p.ReportEnforcementFailure(testRef, failedRules(d.Rules[first]), smf.ResourcesNotAllocated)
+	af.await(t, true)
+
+	if got := af.received(false); len(got) != 0 {
+		t.Fatal("the AF was sent a RAR for an event it subscribed to in a rejected AAR (TS 29.214 §5.5.3)")
+	}
+}

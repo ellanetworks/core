@@ -276,6 +276,78 @@ func TestFailedRealignmentDeactivatesTheBearer(t *testing.T) {
 	requireDeactivationSent(t, ue, cc)
 }
 
+func startRealignment(t *testing.T) (*MME, *UeContext, *captureConn) {
+	t.Helper()
+
+	m, ue, cc, _ := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+		t.Fatalf("ModifyDedicatedBearer: %v", err)
+	}
+
+	m.RadioBearerModified(ctx, ue, 6, true)
+	m.DedicatedBearerModifyRejected(ctx, ue, 6, eps.ESMCauseSemanticErrorInTFT)
+	sentERABModify(t, lastSent(cc))
+
+	return m, ue, cc
+}
+
+func requireRealignedTo41kbps(t *testing.T, cc *captureConn) {
+	t.Helper()
+
+	erab := sentERABModify(t, lastSent(cc))
+	if item := erab.ERABToBeModified[0]; item.ERABID != 6 || item.QoS.GBR == nil || item.QoS.GBR.GuaranteedBitrateDL != 41000 {
+		t.Fatalf("realignment %+v, want the E-RAB back at the committed 41 kbps (TS 24.301 §6.4.3.4)", item)
+	}
+}
+
+func TestRealignmentInterruptedByAHandoverIsRedoneAfterIt(t *testing.T) {
+	m, ue, cc := startRealignment(t)
+	ctx := context.Background()
+
+	m.mu.Lock()
+	ue.handover = &handoverContext{state: hoPreparing, source: ue.Conn()}
+	m.mu.Unlock()
+
+	sent := cc.count()
+
+	m.DedicatedRadioInterrupted(ctx, ue, 6)
+
+	if cc.count() != sent {
+		t.Fatal("the MME signalled the source eNB during the handover")
+	}
+
+	m.mu.Lock()
+	ue.handover = nil
+	m.mu.Unlock()
+
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+
+	if cc.count() != sent+1 {
+		t.Fatalf("%d messages after the handover, want one realignment", cc.count()-sent)
+	}
+
+	requireRealignedTo41kbps(t, cc)
+}
+
+func TestRealignmentTheUEAcceptedIsRedoneWhenAHandoverInterruptsIt(t *testing.T) {
+	m, ue, cc := startRealignment(t)
+	ctx := context.Background()
+
+	m.DedicatedBearerModifyAccepted(ctx, ue, 6)
+
+	sent := cc.count()
+
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+
+	if cc.count() != sent+1 {
+		t.Fatalf("%d messages after the handover, want one realignment", cc.count()-sent)
+	}
+
+	requireRealignedTo41kbps(t, cc)
+}
+
 func TestAcceptedModificationTheENBDidNotConfirmRealignsTheERAB(t *testing.T) {
 	m, ue, cc, fake := activeVoiceBearer(t)
 	ctx := context.Background()
