@@ -267,9 +267,9 @@ func TestEveryEPSFallbackKeepsTheCallsRules(t *testing.T) {
 
 	pushRules(t, s, ref, voiceRule())
 	waitFlowModifications(t, amfCb, 1)
+	pushRules(t, s, ref)
 	ranFallsBack(t, s, ref)
 
-	pushRules(t, s, ref)
 	pushRules(t, s, ref, secondCallRule())
 	waitFlowModifications(t, amfCb, 2)
 	s.SetDedicatedAwaitLimitForTest(time.Hour)

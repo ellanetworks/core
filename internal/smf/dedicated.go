@@ -49,8 +49,7 @@ type dedicatedBearer struct {
 	ruleIndex map[string]uint8
 
 	qfi                uint8
-	qri                map[string]uint8
-	precedence         map[string]uint8
+	ruleIdentity       map[string]ruleIdentity
 	admitted           bool
 	ueHolds            bool
 	fiveGSQoS          bool
@@ -66,11 +65,10 @@ type dedicatedBearer struct {
 }
 
 type dedicatedAction struct {
-	activate   *models.DedicatedBearerRequest
-	modify     *models.DedicatedBearerModification
-	ebi        uint8
-	deactivate uint8
-	sgwTEID    uint32
+	activate *models.DedicatedBearerRequest
+	modify   *models.DedicatedBearerModification
+	ebi      uint8
+	sgwTEID  uint32
 }
 
 func bindRules(rules []PCCRule) map[bearerBinding][]PCCRule {
@@ -160,6 +158,14 @@ func (sc *SMContext) ruleReportsLocked(failed []PCCRule) []RuleReport {
 	return reports
 }
 
+func (sc *SMContext) gbrQoS(qci uint8) bool {
+	if sc.Access == Access5G {
+		return models.GBRFiveQI(qci)
+	}
+
+	return models.GBRQCI(qci)
+}
+
 func (sc *SMContext) enforceableRulesLocked() ([]PCCRule, []PCCRule) {
 	var rules, unsupported []PCCRule
 
@@ -176,7 +182,7 @@ func (sc *SMContext) enforceableRulesLocked() ([]PCCRule, []PCCRule) {
 			continue
 		}
 
-		if !models.GBRQCI(r.QCI) {
+		if !sc.gbrQoS(r.QCI) || slices.ContainsFunc(r.Filters, func(f models.SDFFilter) bool { return !f.Constrained() }) {
 			unsupported = append(unsupported, r)
 			continue
 		}
@@ -224,7 +230,7 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 		switch {
 		case !ok && b.state == dedicatedActive && b.modification == nil:
 			b.state = dedicatedReleasing
-			actions = append(actions, dedicatedAction{deactivate: b.ebi, sgwTEID: sc.Tunnel.bearerTEID(b.slot)})
+			actions = append(actions, dedicatedAction{ebi: b.ebi, sgwTEID: sc.Tunnel.bearerTEID(b.slot)})
 		case !ok && b.state == dedicatedAwaitingUE:
 			removed = append(removed, b)
 		case ok && b.state == dedicatedAwaitingUE && time.Since(b.awaitingSince) > s.dedicatedAwaitLimit:
@@ -488,10 +494,10 @@ func (s *SMF) runDedicated(ctx context.Context, sc *SMContext, actions []dedicat
 			continue
 		}
 
-		if err := s.mme.DeactivateDedicatedBearer(ctx, imsi, a.deactivate, a.sgwTEID); errors.Is(err, ErrUENotReachable) {
+		if err := s.mme.DeactivateDedicatedBearer(ctx, imsi, a.ebi, a.sgwTEID); errors.Is(err, ErrUENotReachable) {
 			deactivationNotSent(sc, a.sgwTEID)
 		} else if err != nil {
-			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer deactivation not sent; releasing it locally", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", a.deactivate), zap.Error(err))
+			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer deactivation not sent; releasing it locally", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", a.ebi), zap.Error(err))
 			s.DedicatedBearerReleased(ctx, sc.Ref, a.sgwTEID)
 		}
 	}

@@ -202,7 +202,7 @@ func TestPartialFailureReportsTheFailedFlowsAfterAnUpdate(t *testing.T) {
 	}
 }
 
-func TestRejectedUpdateKeepsNoSubscription(t *testing.T) {
+func TestUpdateCannotSubscribeToBearerEvents(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 	af := connectAF(t, p)
 
@@ -222,12 +222,8 @@ func TestRejectedUpdateKeepsNoSubscription(t *testing.T) {
 	requireResult(t, aa(t, p, "af;call", r), success)
 	d := n.next(t)
 
-	bad := callAAR(50000, rx.ServiceInfoFinal)
 	update := rx.RequestUpdate
-	bad.RequestType = &update
-	bad.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{"deny out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}
-	bad.SpecificActions = []rx.SpecificAction{rx.ActionIndicationOfFailedResourcesAllocation}
-	requireResult(t, aa(t, p, "af;call", bad), tgpp.Experimental(tgpp.ResultFilterRestrictions))
+	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: &update, SpecificActions: []rx.SpecificAction{rx.ActionIndicationOfFailedResourcesAllocation}}), success)
 
 	second := slices.IndexFunc(d.Rules, func(r smf.PCCRule) bool { return r.ID == "af;call#2.1" })
 	first := slices.IndexFunc(d.Rules, func(r smf.PCCRule) bool { return r.ID != "af;call#2.1" })
@@ -238,6 +234,6 @@ func TestRejectedUpdateKeepsNoSubscription(t *testing.T) {
 	af.await(t, true)
 
 	if got := af.received(false); len(got) != 0 {
-		t.Fatal("the AF was sent a RAR for an event it subscribed to in a rejected AAR (TS 29.214 §5.5.3)")
+		t.Fatal("the AF was sent a RAR for a bearer event it subscribed to after the initial AAR (TS 29.214 §5.3.13)")
 	}
 }

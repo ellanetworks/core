@@ -199,12 +199,6 @@ func (p *PCF) updateRx(id string, r rx.AARequest) error {
 		return err
 	}
 
-	for _, a := range r.SpecificActions {
-		if !slices.Contains(s.actions, a) {
-			s.actions = append(s.actions, a)
-		}
-	}
-
 	var d *smf.PolicyDecision
 	if a, ok := p.associations[s.ref]; ok {
 		d = p.refreshRulesLocked(a)

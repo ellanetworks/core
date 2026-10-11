@@ -9,8 +9,8 @@ import (
 )
 
 func (h *HSS) VoiceSupported(ctx context.Context, imsi string) (bool, error) {
-	configured, err := h.store.PCSCFReachable(ctx)
-	if err != nil || !configured {
+	enabled, err := h.store.IMSVoiceEnabled(ctx)
+	if err != nil || !enabled {
 		return false, err
 	}
 

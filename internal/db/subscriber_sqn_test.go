@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/milenage"
+	"github.com/ellanetworks/core/internal/util/milenage"
 )
 
 func TestAdvanceSubscriberSQNIsAtomicUnderConcurrency(t *testing.T) {
@@ -181,22 +181,10 @@ func TestAdvanceSubscriberIMSSQNResynchronises(t *testing.T) {
 	opcb, _ := hex.DecodeString(opc)
 	sqnMS, _ := hex.DecodeString("00000000105e")
 
-	akStar := make([]byte, 6)
-	if err := milenage.F2345(opcb, kb, rand, nil, nil, nil, nil, akStar); err != nil {
-		t.Fatalf("f5*: %v", err)
+	auts, err := milenage.GenerateAUTS(opcb, kb, rand, sqnMS)
+	if err != nil {
+		t.Fatalf("generate AUTS: %v", err)
 	}
-
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	if err := milenage.F1(opcb, kb, rand, sqnMS, []byte{0, 0}, macA, macS); err != nil {
-		t.Fatalf("f1*: %v", err)
-	}
-
-	auts := make([]byte, 0, 14)
-	for i := range sqnMS {
-		auts = append(auts, sqnMS[i]^akStar[i])
-	}
-
-	auts = append(auts, macS...)
 
 	creds, err := dbInstance.AdvanceSubscriberIMSSQN(context.Background(), imsi, hex.EncodeToString(auts), hex.EncodeToString(rand))
 	if err != nil {

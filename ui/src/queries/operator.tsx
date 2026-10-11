@@ -28,7 +28,7 @@ export type IMSVoiceStatus =
 
 export interface OperatorIMS {
   pcscfAddresses: string[];
-  voiceStatus?: IMSVoiceStatus;
+  voiceStatus: IMSVoiceStatus;
 }
 
 export const MAX_PCSCF_ADDRESSES_PER_FAMILY = 3;
@@ -208,7 +208,7 @@ export const deleteSMSCPeer = async (
 
 export const updateOperatorIMS = async (
   authToken: string,
-  ims: OperatorIMS,
+  ims: Pick<OperatorIMS, "pcscfAddresses">,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/operator/ims`, {
     method: "PUT",

@@ -303,7 +303,7 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 
 func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueStatus nas.EPSBearerContextStatus) {
 	for _, d := range m.SnapshotDedicated(ue) {
-		if d.Activating || (d.Ebi < uint8(len(ueStatus.Active)) && ueStatus.Active[d.Ebi]) {
+		if d.ESM == mme.ESMActivePending || (d.Ebi < uint8(len(ueStatus.Active)) && ueStatus.Active[d.Ebi]) {
 			continue
 		}
 
@@ -343,7 +343,7 @@ func bearerContextStatus(m *mme.MME, ue *mme.UeContext) nas.EPSBearerContextStat
 	}
 
 	for _, d := range m.SnapshotDedicated(ue) {
-		if !d.Activating && !d.Deactivating && d.Ebi < uint8(len(status.Active)) {
+		if d.ESM == mme.ESMActive && d.Ebi < uint8(len(status.Active)) {
 			status.Active[d.Ebi] = true
 		}
 	}

@@ -4063,7 +4063,7 @@ components:
 
     IMSSubscription:
       type: object
-      description: "IMS subscription held by the HSS (TS 23.228 §4.3.3.4). Absent when the subscriber's profile has no policy on the ims data network."
+      description: "IMS subscription held by the HSS (TS 23.228 §4.3.3.4). Absent when the subscriber's profile has no policy on the ims data network and the subscriber has no IMS registration."
       properties:
         private_identity:
           type: string

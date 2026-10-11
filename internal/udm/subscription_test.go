@@ -8,6 +8,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -173,7 +174,7 @@ func TestAccessAndMobilitySubscription(t *testing.T) {
 	}
 }
 
-func TestSessionManagementSkipsAnUnusableDNNConfiguration(t *testing.T) {
+func TestSessionManagementRejectsAnUnusableSessionAMBR(t *testing.T) {
 	ctx := context.Background()
 	database, subs, _ := subscriptionFixture(t)
 
@@ -188,16 +189,8 @@ func TestSessionManagementSkipsAnUnusableDNNConfiguration(t *testing.T) {
 	}
 
 	sm, err := subs.SessionManagement(ctx, subscriptionIMSI)
-	if err != nil {
-		t.Fatalf("SessionManagement: %s", err)
-	}
-
-	if _, ok := sm.ForDNN(models.Snssai{Sst: 2}, "internet"); ok {
-		t.Fatal("the DNN configuration with an unusable Session-AMBR was kept")
-	}
-
-	if _, ok := sm.ForDNN(models.Snssai{Sst: db.InitialSliceSst}, "internet"); !ok {
-		t.Fatal("an unusable DNN configuration hid the subscriber's other ones")
+	if err == nil || !strings.Contains(err.Error(), broken.ID) {
+		t.Fatalf("SessionManagement = %+v, %v; want an error naming policy %s", sm, err, broken.ID)
 	}
 }
 

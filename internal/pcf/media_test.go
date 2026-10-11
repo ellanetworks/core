@@ -211,6 +211,31 @@ func TestMediaRulesRejectsBadFlowDescription(t *testing.T) {
 	}
 }
 
+func TestMediaRulesRejectsAFlowDescriptionThatMatchesEveryPacket(t *testing.T) {
+	for _, fd := range []string{"permit out ip from any to 10.60.0.1", "permit in ip from 10.60.0.1 to any"} {
+		c := audioComponent()
+		c.SubComponents[0].FlowDescriptions = []string{fd}
+
+		if _, err := mediaRules("af;1", []rx.MediaComponent{c}); !errors.Is(err, errFilterRestrictions) {
+			t.Fatalf("%q: err %v, want filter restrictions: no packet filter component describes it (TS 29.214 §5.3.8, TS 24.008 §10.5.6.12)", fd, err)
+		}
+	}
+}
+
+func TestMediaRulesAcceptsAProtocolOnlyFlowDescription(t *testing.T) {
+	c := audioComponent()
+	c.SubComponents[0].FlowDescriptions = []string{"permit out 6 from any to 10.60.0.1"}
+
+	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if f := rules[flowKey{1, 1}].Filters; len(f) != 1 || f[0].Protocol != 6 {
+		t.Fatalf("filters %+v, want the TCP protocol filter", f)
+	}
+}
+
 func TestOverlayComponentKeepsOmittedAVPs(t *testing.T) {
 	prev := audioComponent()
 	next := rx.MediaComponent{Number: 1, SubComponents: []rx.MediaSubComponent{{FlowNumber: 2, FlowStatus: ptr(rx.FlowStatusRemoved)}}}

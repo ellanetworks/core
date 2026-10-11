@@ -590,3 +590,20 @@ func TestDownlinkOnlyRuleCreatesAQoSFlow(t *testing.T) {
 		t.Fatalf("reported rules %v, want none", r)
 	}
 }
+
+func TestRuleWithAnUnconstrainedFilterIsReported(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+
+	rule := voiceRule()
+	rule.Filters = append(rule.Filters, models.SDFFilter{Direction: models.FilterDownlink, Precedence: 34})
+
+	pushRules(t, s, ref, rule)
+
+	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{rule.ID}) {
+		t.Fatalf("reported rules %v, want the rule whose filter has no component (TS 24.501 §9.11.4.13, §6.2.5.1.1)", r)
+	}
+
+	if m := amfCb.modifications(); len(m) != 0 {
+		t.Fatalf("%d QoS flow modifications sent, want none", len(m))
+	}
+}

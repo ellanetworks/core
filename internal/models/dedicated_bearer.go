@@ -77,7 +77,15 @@ type DedicatedBearerModification struct {
 }
 
 func GBRQCI(qci uint8) bool {
-	return (qci >= 1 && qci <= 4) || (qci >= 65 && qci <= 67) || (qci >= 75 && qci <= 76) || (qci >= 82 && qci <= 85)
+	return (qci >= 1 && qci <= 4) || (qci >= 65 && qci <= 67) || (qci >= 71 && qci <= 76) || (qci >= 82 && qci <= 85)
+}
+
+func GBRFiveQI(fiveQI uint8) bool {
+	return GBRQCI(fiveQI) || (fiveQI >= 86 && fiveQI <= 90)
+}
+
+func (f SDFFilter) Constrained() bool {
+	return f.Remote.IsValid() || f.Protocol != 0 || f.LocalPort != 0 || f.RemotePort != 0
 }
 
 func EPSTFT(op eps.TFTOperation, filters []SDFFilter) eps.TrafficFlowTemplate {

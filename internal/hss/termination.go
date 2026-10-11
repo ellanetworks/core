@@ -35,7 +35,7 @@ type Termination struct {
 
 func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error) {
 	reg, err := h.store.Registration(ctx, imsi)
-	if err != nil || reg == nil || reg.State == NotRegistered || reg.OriginHost == "" {
+	if err != nil || reg == nil || reg.State == NotRegistered {
 		return nil, err
 	}
 
@@ -44,9 +44,11 @@ func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error
 		return nil, err
 	}
 
+	s := subject{Subscriber: Subscriber{IMSI: imsi}, domain: strings.ToLower(domain)}
+
 	return &Termination{
 		IMSI:            imsi,
-		PrivateIdentity: imsi + "@" + strings.ToLower(domain),
+		PrivateIdentity: s.privateIdentity(),
 		ServerHost:      reg.OriginHost,
 		ServerRealm:     reg.OriginRealm,
 	}, nil

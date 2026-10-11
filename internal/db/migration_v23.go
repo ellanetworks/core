@@ -24,10 +24,10 @@ func migrateV23(ctx context.Context, tx *sql.Tx) error {
 	stmt = fmt.Sprintf(`CREATE TABLE %s (
 		imsi        TEXT    PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,
 		state       INTEGER NOT NULL CHECK (state IN (0, 1, 2)),
-		serverName  TEXT    NOT NULL,
+		serverName  TEXT    NOT NULL CHECK (serverName != ''),
 		authPending INTEGER NOT NULL CHECK (authPending IN (0, 1)),
-		originHost  TEXT    NOT NULL,
-		originRealm TEXT    NOT NULL,
+		originHost  TEXT    NOT NULL CHECK (originHost != ''),
+		originRealm TEXT    NOT NULL CHECK (originRealm != ''),
 		CHECK (state != 0 OR authPending = 1)
 	)`, IMSRegistrationsTableName)
 

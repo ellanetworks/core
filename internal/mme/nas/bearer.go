@@ -219,7 +219,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	for _, d := range m.SnapshotDedicated(ue) {
-		if d.Activating || d.Deactivating {
+		if d.ESM != mme.ESMActive {
 			continue
 		}
 

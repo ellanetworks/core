@@ -214,7 +214,7 @@ func (ue *UeContext) dedicatedEndpoints(p *PdnConnection, present []RANBearer) [
 	var out []models.DedicatedBearerEndpoint
 
 	for _, b := range present {
-		if d, ok := p.Dedicated[b.Ebi]; ok && !d.Activating && !d.Deactivating {
+		if d, ok := p.Dedicated[b.Ebi]; ok && d.ESM == ESMActive {
 			out = append(out, models.DedicatedBearerEndpoint{SGWTEID: d.SgwFTEID.TEID, ENB: b.EnbFTEID})
 		}
 	}

@@ -24,7 +24,6 @@ const (
 	upsertIMSRegistrationStmt = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm"
 	deleteIMSRegistrationStmt = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
 	countIMSRegistrationsStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
-	resetIMSRegistrationsSQL  = "DELETE FROM %s"
 )
 
 type IMSRegistrationState int
@@ -219,23 +218,6 @@ func (db *Database) getIMSRegistration(ctx context.Context, q *sqlair.DB, imsi s
 	}
 
 	return row.registration(), nil
-}
-
-func resetIMSRegistrationsInRestoredDB(ctx context.Context, conn *sql.DB) error {
-	var count int
-	if err := conn.QueryRowContext(ctx, fmt.Sprintf(ueRegistrationsTableExistsSQLFmt, IMSRegistrationsTableName)).Scan(&count); err != nil {
-		return fmt.Errorf("look up %s: %w", IMSRegistrationsTableName, err)
-	}
-
-	if count == 0 {
-		return nil
-	}
-
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(resetIMSRegistrationsSQL, IMSRegistrationsTableName)); err != nil {
-		return fmt.Errorf("reset %s: %w", IMSRegistrationsTableName, err)
-	}
-
-	return nil
 }
 
 func startIMSRegistrationsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {

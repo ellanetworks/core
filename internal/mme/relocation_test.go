@@ -1017,7 +1017,7 @@ func TestForwardRelocationCarriesTheVoiceBearer(t *testing.T) {
 	}
 
 	ue, _ := m.LookupUe(hoReq.MMEUES1APID)
-	if _, b := m.LookupDedicated(ue, 8); b == nil || b.Activating {
+	if _, b := m.LookupDedicated(ue, 8); b == nil || b.ESM == ESMActivePending {
 		t.Fatalf("dedicated bearer %+v, want it held as an established bearer", b)
 	}
 }

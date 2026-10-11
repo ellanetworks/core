@@ -66,7 +66,12 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 					return nil, fmt.Errorf("%w: %v", errFilterRestrictions, err)
 				}
 
-				rule.Filters = append(rule.Filters, sdfFilter(fd, precedence))
+				f := sdfFilter(fd, precedence)
+				if !f.Constrained() {
+					return nil, fmt.Errorf("%w: %q matches every packet", errFilterRestrictions, raw)
+				}
+
+				rule.Filters = append(rule.Filters, f)
 				precedence++
 
 				if fd.Direction == rx.FlowDirectionIn {

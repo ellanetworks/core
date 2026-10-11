@@ -6,9 +6,12 @@ package db_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func createIMSSubscriber(t *testing.T, dbInstance *db.Database, imsi string) {
@@ -166,5 +169,97 @@ func TestCountIMSRegistrations(t *testing.T) {
 		if err != nil || got != want {
 			t.Fatalf("CountIMSRegistrations(%d) = %d, %v; want %d", state, got, err, want)
 		}
+	}
+}
+
+func TestRestoreKeepsIMSRegistrations(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+
+	dbInstance, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.FastTestConfig())
+	if err != nil {
+		t.Fatalf("create database: %v", err)
+	}
+
+	t.Cleanup(func() { _ = dbInstance.Close() })
+
+	if err := dbInstance.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
+	}
+
+	const imsi = "001010000000053"
+
+	createIMSSubscriber(t, dbInstance, imsi)
+
+	registered := &db.IMSRegistration{
+		State:       db.IMSRegistered,
+		ServerName:  "sip:scscf.example.org",
+		OriginHost:  "scscf.ims.mnc001.mcc001.3gppnetwork.org",
+		OriginRealm: "ims.mnc001.mcc001.3gppnetwork.org",
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, registered); err != nil || !swapped {
+		t.Fatalf("register: swapped=%v err=%v", swapped, err)
+	}
+
+	backup, err := os.Create(filepath.Join(tempDir, "backup.tar.gz"))
+	if err != nil {
+		t.Fatalf("create backup file: %v", err)
+	}
+
+	defer func() { _ = backup.Close() }()
+
+	if err := dbInstance.Backup(ctx, backup); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, registered, nil); err != nil || !swapped {
+		t.Fatalf("deregister: swapped=%v err=%v", swapped, err)
+	}
+
+	if _, err := backup.Seek(0, 0); err != nil {
+		t.Fatalf("rewind backup: %v", err)
+	}
+
+	if err := dbInstance.Restore(ctx, backup); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	got, err := dbInstance.GetIMSRegistration(ctx, imsi)
+	if err != nil || got == nil {
+		t.Fatalf("restored registration = %+v, %v; want the backed-up registration", got, err)
+	}
+
+	registered.IMSI = imsi
+	if *got != *registered {
+		t.Fatalf("restored registration = %+v, want %+v", *got, *registered)
+	}
+}
+
+func TestIMSRegistrationRefusesEmptyPeerIdentity(t *testing.T) {
+	dbInstance := setupTestDB(t)
+	ctx := context.Background()
+
+	const imsi = "001010000000054"
+
+	createIMSSubscriber(t, dbInstance, imsi)
+
+	for name, blank := range map[string]func(*db.IMSRegistration){
+		"serverName":  func(r *db.IMSRegistration) { r.ServerName = "" },
+		"originHost":  func(r *db.IMSRegistration) { r.OriginHost = "" },
+		"originRealm": func(r *db.IMSRegistration) { r.OriginRealm = "" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			reg := pendingRegistration("sip:scscf.example.org")
+			blank(reg)
+
+			if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err == nil || swapped {
+				t.Fatalf("stored a registration with an empty %s: swapped=%v err=%v", name, swapped, err)
+			}
+
+			if got, err := dbInstance.GetIMSRegistration(ctx, imsi); err != nil || got != nil {
+				t.Fatalf("registration = %+v, %v; want none", got, err)
+			}
+		})
 	}
 }

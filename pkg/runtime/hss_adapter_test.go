@@ -32,3 +32,31 @@ func TestHSSErrorMarksOnlyTransientRaftErrorsUnavailable(t *testing.T) {
 		t.Error("hssError(nil) is not nil")
 	}
 }
+
+func TestIMSRegistrationStatesMapExplicitly(t *testing.T) {
+	pairs := map[hss.State]db.IMSRegistrationState{
+		hss.NotRegistered: db.IMSNotRegistered,
+		hss.Registered:    db.IMSRegistered,
+		hss.Unregistered:  db.IMSUnregistered,
+	}
+
+	for hssState, dbState := range pairs {
+		stored, err := dbIMSRegistration("001010000000001", &hss.Registration{State: hssState, ServerName: "sip:scscf.example.org"})
+		if err != nil || stored.State != dbState {
+			t.Fatalf("dbIMSRegistration(%d) = %+v, %v; want state %d", hssState, stored, err, dbState)
+		}
+
+		loaded, err := hssRegistration(stored)
+		if err != nil || loaded.State != hssState {
+			t.Fatalf("hssRegistration(%d) = %+v, %v; want state %d", dbState, loaded, err, hssState)
+		}
+	}
+
+	if got, err := dbIMSRegistration("001010000000001", &hss.Registration{State: hss.Unregistered + 1}); err == nil {
+		t.Fatalf("dbIMSRegistration of an unknown state = %+v, want an error", got)
+	}
+
+	if got, err := hssRegistration(&db.IMSRegistration{State: db.IMSUnregistered + 1}); err == nil {
+		t.Fatalf("hssRegistration of an unknown state = %+v, want an error", got)
+	}
+}

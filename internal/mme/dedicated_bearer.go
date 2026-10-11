@@ -38,9 +38,16 @@ type DedicatedBearerInfo struct {
 	GBR       models.Ambr
 	Filters   []models.SDFFilter
 
-	Activating   bool
-	Deactivating bool
+	ESM ESMState
 }
+
+type ESMState uint8
+
+const (
+	ESMActive ESMState = iota
+	ESMActivePending
+	ESMInactivePending
+)
 
 type DedicatedBearer struct {
 	DedicatedBearerInfo
@@ -50,7 +57,6 @@ type DedicatedBearer struct {
 	deactivatePending bool
 	realignRadio      bool
 	modifying         *dedicatedModification
-	mappedFiveGSQoS   []nas.PCOContainer
 
 	guard guard.Guard
 }
@@ -88,7 +94,7 @@ func (m *MME) DedicatedActivating(ue *UeContext, ebi uint8) bool {
 
 	_, b := ue.dedicatedLocked(ebi)
 
-	return b != nil && b.Activating
+	return b != nil && b.ESM == ESMActivePending
 }
 
 func (m *MME) SnapshotDedicated(ue *UeContext) []DedicatedBearerInfo {
@@ -155,7 +161,7 @@ func dedicatedEPSQoS(b *DedicatedBearerInfo) (eps.EPSQoS, error) {
 	})
 }
 
-func dedicatedActivationRequest(linked uint8, b *DedicatedBearer, useEPCO bool) ([]byte, error) {
+func dedicatedActivationRequest(linked uint8, b *DedicatedBearer, mappedFiveGSQoS []nas.PCOContainer, useEPCO bool) ([]byte, error) {
 	qos, err := dedicatedEPSQoS(&b.DedicatedBearerInfo)
 	if err != nil {
 		return nil, err
@@ -168,7 +174,7 @@ func dedicatedActivationRequest(linked uint8, b *DedicatedBearer, useEPCO bool) 
 		TFT:                     models.EPSTFT(eps.TFTCreate, b.Filters),
 	}
 
-	req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions = mappedFiveGSQoSOptions(b.mappedFiveGSQoS, useEPCO)
+	req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions = mappedFiveGSQoSOptions(mappedFiveGSQoS, useEPCO)
 
 	return req.MarshalBinary()
 }
@@ -256,12 +262,12 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 	b := &DedicatedBearer{DedicatedBearerInfo: DedicatedBearerInfo{
 		Ebi: ebi, SgwFTEID: req.SGW, SgwN3IPv6: req.SGWN3IPv6,
 		QCI: req.QCI, ARP: req.ARP, MBR: req.MBR, GBR: req.GBR, Filters: req.Filters,
-		Activating: true,
-	}, mappedFiveGSQoS: req.MappedFiveGSQoS}
+		ESM: ESMActivePending,
+	}}
 
-	withheld := withholdsFiveGSQoS(b.mappedFiveGSQoS, ue.ueNetCap.SupportsEPCO())
+	withheld := withholdsFiveGSQoS(req.MappedFiveGSQoS, ue.ueNetCap.SupportsEPCO())
 
-	plain, setup, err := dedicatedActivation(p.Ebi, b, ue.ueNetCap.SupportsEPCO())
+	plain, setup, err := dedicatedActivation(p.Ebi, b, req.MappedFiveGSQoS, ue.ueNetCap.SupportsEPCO())
 	if err != nil {
 		ue.mu.Unlock()
 		return err
@@ -295,8 +301,8 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 	return nil
 }
 
-func dedicatedActivation(linked uint8, b *DedicatedBearer, useEPCO bool) ([]byte, *s1ap.ERABSetupRequest, error) {
-	plain, err := dedicatedActivationRequest(linked, b, useEPCO)
+func dedicatedActivation(linked uint8, b *DedicatedBearer, mappedFiveGSQoS []nas.PCOContainer, useEPCO bool) ([]byte, *s1ap.ERABSetupRequest, error) {
+	plain, err := dedicatedActivationRequest(linked, b, mappedFiveGSQoS, useEPCO)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build Activate Dedicated EPS Bearer Context Request: %w", err)
 	}
@@ -378,7 +384,7 @@ func (m *MME) DedicatedBearerAccepted(ctx context.Context, ue *UeContext, ebi ui
 	ue.mu.Lock()
 
 	p, b := ue.dedicatedLocked(ebi)
-	if b == nil || !b.Activating {
+	if b == nil || b.ESM != ESMActivePending {
 		ue.mu.Unlock()
 		return b != nil
 	}
@@ -405,7 +411,7 @@ func (m *MME) dedicatedRadioUp(ctx context.Context, ue *UeContext, p *PdnConnect
 	ue.mu.Lock()
 	b.EnbFTEID = enb
 	b.radioUp = true
-	activating := b.Activating
+	activating := b.ESM == ESMActivePending
 	ue.mu.Unlock()
 
 	if activating {
@@ -456,12 +462,12 @@ func (m *MME) DeactivatePendingDedicated(ctx context.Context, ue *UeContext) {
 func (m *MME) completeDedicated(ctx context.Context, ue *UeContext, p *PdnConnection, b *DedicatedBearer) bool {
 	ue.mu.Lock()
 
-	if !b.Activating || !b.accepted || !b.radioUp || p.Dedicated[b.Ebi] != b {
+	if b.ESM != ESMActivePending || !b.accepted || !b.radioUp || p.Dedicated[b.Ebi] != b {
 		ue.mu.Unlock()
 		return true
 	}
 
-	b.Activating = false
+	b.ESM = ESMActive
 	b.guard.Stop()
 	ref, teid, ebi, enb := p.SessionRef, b.SgwFTEID.TEID, b.Ebi, b.EnbFTEID
 	ue.mu.Unlock()
@@ -494,7 +500,7 @@ func (m *MME) failDedicated(ctx context.Context, ue *UeContext, b *DedicatedBear
 	b.guard.Stop()
 	delete(p.Dedicated, b.Ebi)
 
-	activating, radioUp, accepted := b.Activating, b.radioUp, b.accepted
+	activating, radioUp, accepted := b.ESM == ESMActivePending, b.radioUp, b.accepted
 	if !activating || accepted {
 		ue.localBearerDeactivation = true
 	}
@@ -544,7 +550,7 @@ func (m *MME) DedicatedESMStatus(ctx context.Context, ue *UeContext, ebi uint8, 
 	}
 
 	ue.mu.Lock()
-	deactivating, activating, radioUp, modifying := b.Deactivating, b.Activating, b.radioUp, b.modifying
+	deactivating, activating, radioUp, modifying := b.ESM == ESMInactivePending, b.ESM == ESMActivePending, b.radioUp, b.modifying
 	ue.mu.Unlock()
 
 	switch {
@@ -598,7 +604,7 @@ func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8)
 
 	if !ready && m.handoverInProgress(ue) {
 		ue.mu.Lock()
-		if _, b := ue.dedicatedLocked(ebi); b != nil && !b.Deactivating {
+		if _, b := ue.dedicatedLocked(ebi); b != nil && b.ESM != ESMInactivePending {
 			b.deactivatePending = true
 		}
 		ue.mu.Unlock()
@@ -620,12 +626,12 @@ func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8)
 	ue.mu.Lock()
 
 	p, b := ue.dedicatedLocked(ebi)
-	if b == nil || b.Deactivating {
+	if b == nil || b.ESM == ESMInactivePending {
 		ue.mu.Unlock()
 		return
 	}
 
-	if !ready || (b.Activating && !b.accepted) {
+	if !ready || (b.ESM == ESMActivePending && !b.accepted) {
 		b.guard.Stop()
 		delete(p.Dedicated, ebi)
 
@@ -642,9 +648,8 @@ func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8)
 		return
 	}
 
-	enbHolds := b.radioUp || b.Activating
-	b.Deactivating = true
-	b.Activating = false
+	enbHolds := b.radioUp || b.ESM == ESMActivePending
+	b.ESM = ESMInactivePending
 	b.modifying = nil
 
 	armed := m.armDedicatedGuardLocked(ctx, ue, ueConn, b, "Deactivate EPS Bearer Context Request", plain, func(ctx context.Context) {
@@ -773,7 +778,7 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLoss
 			b.radioUp = false
 			b.realignRadio = false
 
-			drop := b.Activating || b.Deactivating || releaseGBR && hadRadio && models.GBRQCI(b.QCI)
+			drop := b.ESM != ESMActive || releaseGBR && hadRadio && models.GBRQCI(b.QCI)
 
 			if pending := b.modifying; pending != nil {
 				b.modifying = nil
@@ -784,7 +789,8 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLoss
 				switch pending.ue {
 				case ueAccepted:
 					outcome = models.ModificationCommitted
-					b.DedicatedBearerInfo = pending.target
+
+					pending.target.applyTo(&b.DedicatedBearerInfo)
 				case ueRejected:
 					outcome = models.ModificationFailed
 				}

@@ -36,21 +36,40 @@ type flowParts struct {
 	n2 bool
 }
 
+type legOutcome uint8
+
+const (
+	legPending legOutcome = iota
+	legApplied
+	legRefused
+)
+
 type flowProcedure struct {
 	parts map[*dedicatedBearer]flowParts
 
-	n1         bool
-	n1Answered bool
-	ueAccepted bool
-
-	n2          bool
-	n2Answered  bool
-	ranRejected bool
+	ue, ran     legOutcome
 	ranFailed   []uint8
-	ranReleased []uint8
 	epsFallback bool
 
 	n1Msg, n2Msg []byte
+}
+
+func newFlowProcedure(parts map[*dedicatedBearer]flowParts, n1, n2 []byte) *flowProcedure {
+	p := &flowProcedure{parts: parts, n1Msg: n1, n2Msg: n2}
+
+	if n1 == nil {
+		p.ue = legApplied
+	}
+
+	if n2 == nil {
+		p.ran = legApplied
+	}
+
+	return p
+}
+
+func (p *flowProcedure) answered() bool {
+	return p.ue != legPending && p.ran != legPending
 }
 
 type flowChange struct {
@@ -93,16 +112,31 @@ func (sc *SMContext) freeQFI() (uint8, bool) {
 	return 0, false
 }
 
+type ruleIdentity struct {
+	qri, precedence uint8
+}
+
+func (b *dedicatedBearer) qris() []uint8 {
+	qris := make([]uint8, 0, len(b.ruleIdentity))
+	for _, r := range b.ruleIdentity {
+		qris = append(qris, r.qri)
+	}
+
+	return qris
+}
+
 func (sc *SMContext) allocateRuleIdentity(b *dedicatedBearer, id string) bool {
-	if _, ok := b.qri[id]; ok {
+	if _, ok := b.ruleIdentity[id]; ok {
 		return true
 	}
 
 	var qris, precedences []uint8
 
 	for _, o := range sc.dedicated {
-		qris = append(qris, slices.Collect(maps.Values(o.qri))...)
-		precedences = append(precedences, slices.Collect(maps.Values(o.precedence))...)
+		for _, r := range o.ruleIdentity {
+			qris = append(qris, r.qri)
+			precedences = append(precedences, r.precedence)
+		}
 	}
 
 	qri, ok := firstFree(firstFlowQRI, lastFlowQRI, qris)
@@ -115,11 +149,11 @@ func (sc *SMContext) allocateRuleIdentity(b *dedicatedBearer, id string) bool {
 		return false
 	}
 
-	if b.qri == nil {
-		b.qri, b.precedence = make(map[string]uint8), make(map[string]uint8)
+	if b.ruleIdentity == nil {
+		b.ruleIdentity = make(map[string]ruleIdentity)
 	}
 
-	b.qri[id], b.precedence[id] = qri, precedence
+	b.ruleIdentity[id] = ruleIdentity{qri: qri, precedence: precedence}
 
 	return true
 }
@@ -137,10 +171,9 @@ func firstFree(first, last uint8, taken []uint8) (uint8, bool) {
 }
 
 func (b *dedicatedBearer) pruneRuleIdentities(rules []PCCRule) {
-	for id := range b.qri {
+	for id := range b.ruleIdentity {
 		if !slices.ContainsFunc(rules, func(r PCCRule) bool { return r.ID == id }) {
-			delete(b.qri, id)
-			delete(b.precedence, id)
+			delete(b.ruleIdentity, id)
 		}
 	}
 }
@@ -153,7 +186,7 @@ func (b *dedicatedBearer) flowTFT(current bearerTFT, rules []PCCRule) (bearerTFT
 
 	for k, f := range tft {
 		if k != blockingUplinkKey {
-			f.Precedence = b.precedence[k.rule]
+			f.Precedence = b.ruleIdentity[k.rule].precedence
 			tft[k] = f
 		}
 	}
@@ -380,7 +413,7 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 		return nil, fmt.Errorf("add the QoS flow's user plane: %w", err)
 	}
 
-	if sc.EBI != 0 {
+	if sc.EBI != 0 && models.GBRQCI(binding.QCI) {
 		ebi, err := s.amf.AssignEPSBearerIdentity(sc.Supi, sc.PDUSessionID, sc.Ref)
 		if err != nil {
 			logger.From(ctx, logger.SmfLog).Info("QoS flow set up without an EPS bearer identity; it stays in 5GS",
@@ -438,9 +471,9 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 
 	for _, r := range rules {
 		change.rules = append(change.rules, fgs.QoSRule{
-			Identifier:    b.qri[r.ID],
+			Identifier:    b.ruleIdentity[r.ID].qri,
 			OperationCode: fgs.QoSRuleOpCreate,
-			Parameters:    &fgs.QoSRuleParameters{Precedence: b.precedence[r.ID], QFI: b.qfi},
+			Parameters:    &fgs.QoSRuleParameters{Precedence: b.ruleIdentity[r.ID].precedence, QFI: b.qfi},
 			Filters:       ruleFilters(tft, r.ID),
 		})
 	}
@@ -559,19 +592,19 @@ func (b *dedicatedBearer) qosRuleOps(prevRules []PCCRule, prevTFT bearerTFT, rul
 		switch i := slices.IndexFunc(prevRules, func(o PCCRule) bool { return o.ID == r.ID }); {
 		case i < 0:
 			ops = append(ops, fgs.QoSRule{
-				Identifier:    b.qri[r.ID],
+				Identifier:    b.ruleIdentity[r.ID].qri,
 				OperationCode: fgs.QoSRuleOpCreate,
-				Parameters:    &fgs.QoSRuleParameters{Precedence: b.precedence[r.ID], QFI: b.qfi},
+				Parameters:    &fgs.QoSRuleParameters{Precedence: b.ruleIdentity[r.ID].precedence, QFI: b.qfi},
 				Filters:       filters,
 			})
 		case !slices.EqualFunc(filters, ruleFilters(prevTFT, r.ID), samePacketFilter):
-			ops = append(ops, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpModifyReplaceFilters, Filters: filters})
+			ops = append(ops, fgs.QoSRule{Identifier: b.ruleIdentity[r.ID].qri, OperationCode: fgs.QoSRuleOpModifyReplaceFilters, Filters: filters})
 		}
 	}
 
 	for _, r := range prevRules {
 		if !slices.ContainsFunc(rules, func(o PCCRule) bool { return o.ID == r.ID }) {
-			ops = append(ops, fgs.QoSRule{Identifier: b.qri[r.ID], OperationCode: fgs.QoSRuleOpDelete})
+			ops = append(ops, fgs.QoSRule{Identifier: b.ruleIdentity[r.ID].qri, OperationCode: fgs.QoSRuleOpDelete})
 		}
 	}
 
@@ -588,8 +621,8 @@ func samePacketFilter(a, b fgs.PacketFilter) bool {
 func (s *SMF) removeFlowLocked(change *flowChange, b *dedicatedBearer) {
 	n1 := b.ueHolds
 	if n1 {
-		for _, id := range slices.Sorted(maps.Keys(b.qri)) {
-			change.rules = append(change.rules, fgs.QoSRule{Identifier: b.qri[id], OperationCode: fgs.QoSRuleOpDelete})
+		for _, id := range slices.Sorted(maps.Keys(b.ruleIdentity)) {
+			change.rules = append(change.rules, fgs.QoSRule{Identifier: b.ruleIdentity[id].qri, OperationCode: fgs.QoSRuleOpDelete})
 		}
 
 		change.flows = append(change.flows, fgs.QoSFlowDescription{QFI: b.qfi, OperationCode: fgs.QoSFlowOpDelete})
@@ -642,7 +675,7 @@ func (s *SMF) sendFlowChangeLocked(ctx context.Context, sc *SMContext, change *f
 		return s.unsentFlowChangeLocked(ctx, sc, change, errors.Is(err, ErrUENotReachable) || errors.Is(err, ErrHandoverInProgress))
 	}
 
-	sc.flowProcedure = &flowProcedure{parts: change.parts, n1: n1 != nil, n2: n2 != nil, n1Msg: n1, n2Msg: n2}
+	sc.flowProcedure = newFlowProcedure(change.parts, n1, n2)
 
 	if n1 != nil {
 		sc.MarkPTIInUse(networkRequestedPTI)
@@ -668,12 +701,12 @@ func (s *SMF) sendFlowChangeLocked(ctx context.Context, sc *SMContext, change *f
 			logger.From(ctx, logger.SmfLog).Warn("T3591 expired; QoS flow modification aborted",
 				logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
-			if !p.n1Answered {
-				p.n1Answered, p.ueAccepted = true, false
+			if p.ue == legPending {
+				p.ue = legRefused
 			}
 
-			if !p.n2Answered {
-				p.n2Answered, p.ranRejected = true, true
+			if p.ran == legPending {
+				p.ran = legRefused
 			}
 
 			s.concludeFlowsLocked(ctx, sc)
@@ -738,7 +771,7 @@ func (s *SMF) flowAnswered(ctx context.Context, ref string, update func(*flowPro
 		return
 	}
 
-	if (!p.n1 || p.n1Answered) && (!p.n2 || p.n2Answered) {
+	if p.answered() {
 		s.concludeFlowsLocked(ctx, sc)
 	}
 }
@@ -749,13 +782,16 @@ func (s *SMF) qosFlowsModifiedByUE(ctx context.Context, sc *SMContext, accepted 
 		return sc.pendingPolicy == nil
 	}
 
-	if !p.n1 || p.n1Answered {
+	if p.ue != legPending {
 		return true
 	}
 
-	p.n1Answered, p.ueAccepted = true, accepted
+	p.ue = legRefused
+	if accepted {
+		p.ue = legApplied
+	}
 
-	if !p.n2 || p.n2Answered {
+	if p.answered() {
 		s.concludeFlowsLocked(ctx, sc)
 	}
 
@@ -769,11 +805,12 @@ func (s *SMF) UpdateSmContextN2InfoPduResModifyRsp(ctx context.Context, ref stri
 	}
 
 	s.flowAnswered(ctx, ref, func(p *flowProcedure) bool {
-		if !p.n2 || p.n2Answered {
+		if p.ran != legPending {
 			return false
 		}
 
-		p.n2Answered, p.ranFailed, p.epsFallback = true, outcome.Failed, outcome.EPSFallback
+		p.ran, p.epsFallback = legApplied, outcome.EPSFallback
+		p.ranFailed = append(p.ranFailed, outcome.Failed...)
 
 		return true
 	})
@@ -793,14 +830,14 @@ func (s *SMF) UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, ref str
 	}
 
 	s.flowAnswered(ctx, ref, func(p *flowProcedure) bool {
-		if !p.n2 || p.n2Answered {
+		if p.ran != legPending {
 			return false
 		}
 
-		p.n2Answered, p.ranRejected, p.epsFallback = true, true, outcome.EPSFallback
+		p.ran, p.epsFallback = legRefused, outcome.EPSFallback
 
-		if p.n1 && !p.n1Answered {
-			p.n1Answered, p.ueAccepted = true, false
+		if p.ue == legPending {
+			p.ue = legRefused
 		}
 
 		return true
@@ -815,15 +852,15 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 
 	sc.stopProcedureTimer()
 
-	if p.n1 {
+	if p.n1Msg != nil {
 		sc.ClearPTIInUse(networkRequestedPTI)
 	}
 
 	var notAllocated, released []PCCRule
 
 	for b, parts := range p.parts {
-		ueApplied := !parts.n1 || p.ueAccepted
-		ranApplied := !parts.n2 || !p.ranRejected && !slices.Contains(p.ranFailed, b.qfi) && !slices.Contains(p.ranReleased, b.qfi)
+		ueApplied := !parts.n1 || p.ue == legApplied
+		ranApplied := !parts.n2 || p.ran == legApplied && !slices.Contains(p.ranFailed, b.qfi)
 
 		switch {
 		case b.state == dedicatedActivating:
@@ -858,7 +895,7 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 	sc.recordFailedRulesLocked(append(slices.Clone(notAllocated), released...))
 
 	logger.From(ctx, logger.SmfLog).Info("QoS flow modification concluded", logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID),
-		zap.Bool("ue_accepted", p.ueAccepted), zap.Bool("ran_rejected", p.ranRejected), zap.Int("failed_qos_flows", len(p.ranFailed)), zap.Bool("eps_fallback", p.epsFallback))
+		zap.Bool("ue_accepted", p.ue == legApplied), zap.Bool("ran_rejected", p.ran == legRefused), zap.Int("failed_qos_flows", len(p.ranFailed)), zap.Bool("eps_fallback", p.epsFallback))
 
 	s.reportFailedRules(sc, notReports, ResourcesNotAllocated)
 	s.reportFailedRules(sc, releasedReports, BearerReleased)
@@ -996,7 +1033,7 @@ func (s *SMF) interruptFlowProcedureLocked(ctx context.Context, sc *SMContext) {
 	sc.flowProcedure = nil
 	sc.stopProcedureTimer()
 
-	if p.n1 {
+	if p.n1Msg != nil {
 		sc.ClearPTIInUse(networkRequestedPTI)
 	}
 
@@ -1027,11 +1064,11 @@ func (s *SMF) unansweredFlowLegs(ref string) ([]byte, []byte, bool) {
 
 	var n1, n2 []byte
 
-	if !p.n1Answered {
+	if p.ue == legPending {
 		n1 = p.n1Msg
 	}
 
-	if !p.n2Answered {
+	if p.ran == legPending {
 		n2 = p.n2Msg
 	}
 
@@ -1083,7 +1120,7 @@ func (s *SMF) flowInterruptedByHandover(ctx context.Context, ref string) {
 	defer sc.Mutex.Unlock()
 
 	p := sc.flowProcedure
-	if p == nil || !p.n2 || p.n2Answered {
+	if p == nil || p.ran != legPending {
 		return
 	}
 
@@ -1093,7 +1130,7 @@ func (s *SMF) flowInterruptedByHandover(ctx context.Context, ref string) {
 	sc.flowProcedure = nil
 	sc.stopProcedureTimer()
 
-	if p.n1 {
+	if p.n1Msg != nil {
 		sc.ClearPTIInUse(networkRequestedPTI)
 	}
 
@@ -1247,7 +1284,7 @@ func (s *SMF) releaseFlowsLocked(ctx context.Context, sc *SMContext, qfis []uint
 		}
 
 		if p := sc.flowProcedure; p != nil && b.state == dedicatedActivating && p.parts[b].n2 {
-			p.ranReleased = append(p.ranReleased, b.qfi)
+			p.ranFailed = append(p.ranFailed, b.qfi)
 			continue
 		}
 
@@ -1321,15 +1358,15 @@ func (sc *SMContext) requestedFlowDeletions(req *fgs.PDUSessionModificationReque
 		}
 
 		i := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool {
-			return b.ueHolds && slices.Contains(slices.Collect(maps.Values(b.qri)), r.Identifier)
+			return b.ueHolds && slices.Contains(b.qris(), r.Identifier)
 		})
 		if i < 0 {
 			return nil, false
 		}
 
 		b := sc.dedicated[i]
-		for id, qri := range b.qri {
-			if qri == r.Identifier {
+		for id, ri := range b.ruleIdentity {
+			if ri.qri == r.Identifier {
 				deletion(b).rules = append(deletion(b).rules, id)
 			}
 		}
@@ -1361,11 +1398,11 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 
 		gone := d.rules
 		if d.whole {
-			gone = slices.Collect(maps.Keys(b.qri))
+			gone = slices.Collect(maps.Keys(b.ruleIdentity))
 		}
 
 		for _, id := range gone {
-			rules = append(rules, fgs.QoSRule{Identifier: b.qri[id], OperationCode: fgs.QoSRuleOpDelete})
+			rules = append(rules, fgs.QoSRule{Identifier: b.ruleIdentity[id].qri, OperationCode: fgs.QoSRuleOpDelete})
 
 			if i := slices.IndexFunc(b.rules, func(r PCCRule) bool { return r.ID == id }); i >= 0 {
 				lost = append(lost, b.rules[i])

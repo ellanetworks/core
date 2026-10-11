@@ -569,7 +569,7 @@ func TestGetOperator_IncludesIMS(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"ims": {"pcscfAddresses": ["192.0.2.20", "2001:db8::20"]}}`),
+			Result:     []byte(`{"ims": {"pcscfAddresses": ["192.0.2.20", "2001:db8::20"], "voiceStatus": "enabled"}}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
@@ -582,5 +582,9 @@ func TestGetOperator_IncludesIMS(t *testing.T) {
 	got := operator.IMS.PCSCFAddresses
 	if len(got) != 2 || got[0] != "192.0.2.20" || got[1] != "2001:db8::20" {
 		t.Fatalf("pcscfAddresses = %v", got)
+	}
+
+	if operator.IMS.VoiceStatus != "enabled" {
+		t.Fatalf("voiceStatus = %q, want enabled", operator.IMS.VoiceStatus)
 	}
 }

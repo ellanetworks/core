@@ -50,7 +50,7 @@ type fakeIMSSubscriber struct {
 type fakeIMSStore struct {
 	subscribers   map[string]*fakeIMSSubscriber
 	registrations map[string]hss.Registration
-	noPCSCF       bool
+	voiceDisabled bool
 	fail          bool
 	unavailable   bool
 	contended     bool
@@ -119,12 +119,12 @@ func (f *fakeIMSStore) IMSDomain(context.Context) (string, error) {
 	return testIMSDomain, nil
 }
 
-func (f *fakeIMSStore) PCSCFReachable(context.Context) (bool, error) {
+func (f *fakeIMSStore) IMSVoiceEnabled(context.Context) (bool, error) {
 	if f.fail {
 		return false, errStoreDown
 	}
 
-	return !f.noPCSCF, nil
+	return !f.voiceDisabled, nil
 }
 
 func (f *fakeIMSStore) Subscriber(_ context.Context, imsi string) (*hss.Subscriber, error) {

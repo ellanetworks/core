@@ -53,7 +53,7 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 
 		for _, ebi := range slices.Sorted(maps.Keys(p.Dedicated)) {
 			b := p.Dedicated[ebi]
-			if b.Activating || b.Deactivating {
+			if b.ESM != ESMActive {
 				continue
 			}
 

@@ -348,6 +348,57 @@ func TestRealignmentTheUEAcceptedIsRedoneWhenAHandoverInterruptsIt(t *testing.T)
 	requireRealignedTo41kbps(t, cc)
 }
 
+func TestRejectedModificationAHandoverLeftUnconfirmedRealignsTheERAB(t *testing.T) {
+	m, ue, cc, fake := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+		t.Fatalf("ModifyDedicatedBearer: %v", err)
+	}
+
+	m.DedicatedBearerModifyRejected(ctx, ue, 6, eps.ESMCauseSemanticErrorInTFT)
+
+	sent := cc.count()
+
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+
+	if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationFailed {
+		t.Fatalf("SMF told %+v, want the modification the UE rejected failed", got)
+	}
+
+	if cc.count() != sent+1 {
+		t.Fatalf("%d messages after the handover, want one realignment of an E-RAB the source eNB may have modified (TS 36.413 §8.2.2.2)", cc.count()-sent)
+	}
+
+	requireRealignedTo41kbps(t, cc)
+	requirePreviousConfiguration(t, m, ue)
+}
+
+func TestRejectedModificationTheENBFailedForAHandoverIsNotRealigned(t *testing.T) {
+	m, ue, cc, fake := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+		t.Fatalf("ModifyDedicatedBearer: %v", err)
+	}
+
+	m.DedicatedBearerModifyRejected(ctx, ue, 6, eps.ESMCauseSemanticErrorInTFT)
+
+	sent := cc.count()
+
+	m.DedicatedRadioInterrupted(ctx, ue, 6)
+
+	if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationFailed {
+		t.Fatalf("SMF told %+v, want the modification the UE rejected failed", got)
+	}
+
+	if cc.count() != sent {
+		t.Fatal("the MME realigned an E-RAB the eNB reported unmodified (TS 36.413 §8.2.2.2)")
+	}
+
+	requirePreviousConfiguration(t, m, ue)
+}
+
 func TestAcceptedModificationTheENBDidNotConfirmRealignsTheERAB(t *testing.T) {
 	m, ue, cc, fake := activeVoiceBearer(t)
 	ctx := context.Background()
@@ -426,6 +477,54 @@ func TestAcceptedModificationSurvivesAnS1Release(t *testing.T) {
 
 	if _, b := m.LookupDedicated(ue, 6); b == nil || len(b.Filters) != 4 || b.GBR.Downlink.Bps() != 88000 {
 		t.Fatalf("bearer %+v, want the modified configuration", b)
+	}
+}
+
+func TestModificationCommittedAfterAnS1ReleaseKeepsTheRadioEndpointCleared(t *testing.T) {
+	m, ue, _, fake := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	voiceENB := models.FTEID{TEID: 0x82, Addr: netip.MustParseAddr("10.3.0.4")}
+	m.ReconcileBearersToRAN(ctx, ue, RANBearers{Present: []RANBearer{{Ebi: 6, EnbFTEID: voiceENB}}})
+
+	if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+		t.Fatalf("ModifyDedicatedBearer: %v", err)
+	}
+
+	m.DedicatedBearerModifyAccepted(ctx, ue, 6)
+
+	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	m.FreeUeConn(ctx, ue)
+
+	if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationCommitted {
+		t.Fatalf("SMF told %+v, want the modification the UE accepted committed", got)
+	}
+
+	if _, b := m.LookupDedicated(ue, 6); b == nil || b.EnbFTEID != (models.FTEID{}) || b.GBR.Downlink.Bps() != 88000 {
+		t.Fatalf("bearer %+v, want the modified QoS without the released eNB endpoint", b)
+	}
+}
+
+func TestModificationCommittedAfterAPathSwitchKeepsTheNewRadioEndpoint(t *testing.T) {
+	m, ue, _, fake := activeVoiceBearer(t)
+	ctx := context.Background()
+
+	if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+		t.Fatalf("ModifyDedicatedBearer: %v", err)
+	}
+
+	targetENB := models.FTEID{TEID: 0x92, Addr: netip.MustParseAddr("10.3.0.5")}
+	m.ReconcileBearersToRAN(ctx, ue, RANBearers{Present: []RANBearer{{Ebi: 6, EnbFTEID: targetENB}}})
+
+	m.DedicatedBearerModifyAccepted(ctx, ue, 6)
+	m.interruptRadioModifications(ctx, ue)
+
+	if got := waitModification(t, fake); len(got) != 1 || got[0].outcome != models.ModificationCommitted {
+		t.Fatalf("SMF told %+v, want the modification the UE accepted committed", got)
+	}
+
+	if _, b := m.LookupDedicated(ue, 6); b == nil || b.EnbFTEID != targetENB || b.GBR.Downlink.Bps() != 88000 {
+		t.Fatalf("bearer %+v, want the modified QoS on the target eNB endpoint %+v", b, targetENB)
 	}
 }
 

@@ -153,7 +153,7 @@ func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*Se
 
 		ambr, err := sessionAMBR(&p)
 		if err != nil {
-			continue
+			return nil, err
 		}
 
 		sm.DNNs = append(sm.DNNs, DNNConfiguration{

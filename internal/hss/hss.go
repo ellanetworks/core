@@ -32,7 +32,7 @@ type Subscriber struct {
 type Store interface {
 	RegistrationStore
 	IMSDomain(ctx context.Context) (string, error)
-	PCSCFReachable(ctx context.Context) (bool, error)
+	IMSVoiceEnabled(ctx context.Context) (bool, error)
 	Subscriber(ctx context.Context, imsi string) (*Subscriber, error)
 	SubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error)
 	CountRegistered(ctx context.Context) (int, error)

@@ -42,7 +42,7 @@ func (b *dedicatedBearer) tftOn(t bearerTFT, access AccessType) bearerTFT {
 		if access == Access4G || k == blockingUplinkKey {
 			f.Precedence = filterPrecedence(b.slot, f.ID)
 		} else {
-			f.Precedence = b.precedence[k.rule]
+			f.Precedence = b.ruleIdentity[k.rule].precedence
 		}
 
 		tft[k] = f

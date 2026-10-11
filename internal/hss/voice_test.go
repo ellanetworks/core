@@ -11,13 +11,13 @@ import (
 
 func TestVoiceSupported(t *testing.T) {
 	cases := []struct {
-		name    string
-		imsi    string
-		noPCSCF bool
-		want    bool
+		name          string
+		imsi          string
+		voiceDisabled bool
+		want          bool
 	}{
 		{name: "subscriber with an MSISDN and the ims data network", imsi: testIMSI, want: true},
-		{name: "no P-CSCF address", imsi: testIMSI, noPCSCF: true},
+		{name: "IMS voice disabled", imsi: testIMSI, voiceDisabled: true},
 		{name: "no MSISDN", imsi: testNoMSISDN},
 		{name: "no ims data network", imsi: testNoIMS},
 		{name: "unknown subscriber", imsi: "001010000000099"},
@@ -26,7 +26,7 @@ func TestVoiceSupported(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
-			store.noPCSCF = tc.noPCSCF
+			store.voiceDisabled = tc.voiceDisabled
 
 			got, err := newHSS(store).VoiceSupported(context.Background(), tc.imsi)
 			if err != nil {

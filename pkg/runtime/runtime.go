@@ -1021,7 +1021,7 @@ func (a *hssDBAdapter) CountRegistered(ctx context.Context) (int, error) {
 	return a.db.CountIMSRegistrations(ctx, db.IMSRegistered)
 }
 
-func (a *hssDBAdapter) PCSCFReachable(ctx context.Context) (bool, error) {
+func (a *hssDBAdapter) IMSVoiceEnabled(ctx context.Context) (bool, error) {
 	status, err := a.db.IMSVoiceStatus(ctx)
 
 	return status == db.IMSVoiceEnabled, err
@@ -1071,11 +1071,21 @@ func (a *hssDBAdapter) Registration(ctx context.Context, imsi string) (*hss.Regi
 		return nil, err
 	}
 
-	return hssRegistration(reg), nil
+	return hssRegistration(reg)
 }
 
 func (a *hssDBAdapter) CompareAndSwapRegistration(ctx context.Context, imsi string, expected, next *hss.Registration) (*hss.Registration, bool, error) {
-	current, swapped, err := a.db.CompareAndSwapIMSRegistration(ctx, imsi, dbIMSRegistration(imsi, expected), dbIMSRegistration(imsi, next))
+	dbExpected, err := dbIMSRegistration(imsi, expected)
+	if err != nil {
+		return nil, false, err
+	}
+
+	dbNext, err := dbIMSRegistration(imsi, next)
+	if err != nil {
+		return nil, false, err
+	}
+
+	current, swapped, err := a.db.CompareAndSwapIMSRegistration(ctx, imsi, dbExpected, dbNext)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			return nil, false, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
@@ -1084,7 +1094,12 @@ func (a *hssDBAdapter) CompareAndSwapRegistration(ctx context.Context, imsi stri
 		return nil, false, hssError(err)
 	}
 
-	return hssRegistration(current), swapped, nil
+	reg, err := hssRegistration(current)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return reg, swapped, nil
 }
 
 type hssCredentials struct {
@@ -1105,33 +1120,72 @@ func hssError(err error) error {
 	return err
 }
 
-func hssRegistration(reg *db.IMSRegistration) *hss.Registration {
+var imsRegistrationStates = []struct {
+	hss hss.State
+	db  db.IMSRegistrationState
+}{
+	{hss.NotRegistered, db.IMSNotRegistered},
+	{hss.Registered, db.IMSRegistered},
+	{hss.Unregistered, db.IMSUnregistered},
+}
+
+func hssState(state db.IMSRegistrationState) (hss.State, error) {
+	for _, s := range imsRegistrationStates {
+		if s.db == state {
+			return s.hss, nil
+		}
+	}
+
+	return 0, fmt.Errorf("unknown stored IMS registration state %d", state)
+}
+
+func dbIMSState(state hss.State) (db.IMSRegistrationState, error) {
+	for _, s := range imsRegistrationStates {
+		if s.hss == state {
+			return s.db, nil
+		}
+	}
+
+	return 0, fmt.Errorf("unknown IMS registration state %d", state)
+}
+
+func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
 	if reg == nil {
-		return nil
+		return nil, nil
+	}
+
+	state, err := hssState(reg.State)
+	if err != nil {
+		return nil, err
 	}
 
 	return &hss.Registration{
-		State:       hss.State(reg.State),
+		State:       state,
 		ServerName:  reg.ServerName,
 		AuthPending: reg.AuthPending,
 		OriginHost:  reg.OriginHost,
 		OriginRealm: reg.OriginRealm,
-	}
+	}, nil
 }
 
-func dbIMSRegistration(imsi string, reg *hss.Registration) *db.IMSRegistration {
+func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration, error) {
 	if reg == nil {
-		return nil
+		return nil, nil
+	}
+
+	state, err := dbIMSState(reg.State)
+	if err != nil {
+		return nil, err
 	}
 
 	return &db.IMSRegistration{
 		IMSI:        imsi,
-		State:       db.IMSRegistrationState(reg.State),
+		State:       state,
 		ServerName:  reg.ServerName,
 		AuthPending: reg.AuthPending,
 		OriginHost:  reg.OriginHost,
 		OriginRealm: reg.OriginRealm,
-	}
+	}, nil
 }
 
 // bgpImportPrefixAdapter adapts *db.Database to the bgp.ImportPrefixStore interface.

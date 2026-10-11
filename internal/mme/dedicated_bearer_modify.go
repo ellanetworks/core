@@ -26,6 +26,7 @@ const (
 	radioModified
 	radioNotModified
 	radioInterrupted
+	radioUnknown
 )
 
 type ueOutcome uint8
@@ -36,9 +37,18 @@ const (
 	ueRejected
 )
 
+type dedicatedModificationTarget struct {
+	arp      models.Arp
+	mbr, gbr models.Ambr
+	filters  []models.SDFFilter
+}
+
+func (t dedicatedModificationTarget) applyTo(info *DedicatedBearerInfo) {
+	info.ARP, info.MBR, info.GBR, info.Filters = t.arp, t.mbr, t.gbr, t.filters
+}
+
 type dedicatedModification struct {
-	mod     models.DedicatedBearerModification
-	target  DedicatedBearerInfo
+	target  dedicatedModificationTarget
 	radio   radioOutcome
 	ue      ueOutcome
 	reason  string
@@ -60,15 +70,15 @@ func (d *dedicatedModification) verdict() modificationVerdict {
 	switch {
 	case d.ue == ueAccepted && (d.radio == radioNotNeeded || d.radio == radioModified):
 		return verdictCommitted
-	case d.ue == ueAccepted && (d.radio == radioNotModified || d.radio == radioInterrupted):
+	case d.ue == ueAccepted && (d.radio == radioNotModified || d.radio == radioInterrupted || d.radio == radioUnknown):
 		return verdictUEAhead
-	case d.ue == ueRejected && d.radio == radioModified:
+	case d.ue == ueRejected && (d.radio == radioModified || d.radio == radioUnknown):
 		return verdictRadioAhead
 	case d.ue == ueRejected && d.radio != radioPending:
 		return verdictFailed
 	case d.ue == uePending && d.radio == radioNotModified:
 		return verdictFailed
-	case d.ue == uePending && d.radio == radioInterrupted:
+	case d.ue == uePending && (d.radio == radioInterrupted || d.radio == radioUnknown):
 		return verdictInterrupted
 	default:
 		return verdictPending
@@ -202,7 +212,7 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 		return ErrNoDedicatedBearer
 	}
 
-	if b.Activating || b.Deactivating || b.modifying != nil {
+	if b.ESM != ESMActive || b.modifying != nil {
 		ue.mu.Unlock()
 		return ErrBearerBusy
 	}
@@ -221,7 +231,10 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 		return fmt.Errorf("build Modify EPS Bearer Context Request: %w", err)
 	}
 
-	pending := &dedicatedModification{mod: mod, target: target, realign: realign}
+	pending := &dedicatedModification{
+		target:  dedicatedModificationTarget{arp: target.ARP, mbr: target.MBR, gbr: target.GBR, filters: target.Filters},
+		realign: realign,
+	}
 	if radioChange(mod) {
 		pending.radio = radioPending
 	}
@@ -286,7 +299,7 @@ func (m *MME) commitIdleDedicatedARP(ctx context.Context, ue *UeContext, ebi uin
 	ue.mu.Lock()
 
 	p, b := ue.dedicatedLocked(ebi)
-	if b == nil || p.SessionRef != mod.SessionRef || b.SgwFTEID.TEID != mod.SGWTEID || b.Activating || b.Deactivating || b.modifying != nil {
+	if b == nil || p.SessionRef != mod.SessionRef || b.SgwFTEID.TEID != mod.SGWTEID || b.ESM != ESMActive || b.modifying != nil {
 		ue.mu.Unlock()
 		return false
 	}
@@ -397,7 +410,7 @@ func (m *MME) interruptRadioModifications(ctx context.Context, ue *UeContext) {
 	ue.mu.Unlock()
 
 	for _, i := range out {
-		m.settleRadio(ctx, ue, i.b, i.pending, radioInterrupted, "a handover interrupted the E-RAB modification")
+		m.settleRadio(ctx, ue, i.b, i.pending, radioUnknown, "a handover ended before the eNB answered the E-RAB modification")
 	}
 }
 
@@ -461,11 +474,11 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 	b.modifying = nil
 
 	if verdict == verdictCommitted || verdict == verdictUEAhead {
-		b.DedicatedBearerInfo = pending.target
+		pending.target.applyTo(&b.DedicatedBearerInfo)
 	}
 
 	ref, teid, ebi := p.SessionRef, b.SgwFTEID.TEID, b.Ebi
-	interrupted := pending.radio == radioInterrupted
+	interrupted := pending.radio == radioInterrupted || pending.radio == radioUnknown
 	resume := b.realignRadio && !pending.realign
 	ue.mu.Unlock()
 
@@ -497,7 +510,7 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationCommitted)
 		m.realignERAB(ctx, ue, ebi)
 	case verdictRadioAhead:
-		log.Warn("the UE rejected a modification the eNB applied; realigning the E-RAB (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
+		log.Warn("the UE rejected a modification the eNB applied or may have applied; realigning the E-RAB (TS 24.301 §6.4.3.4)", zap.String("reason", pending.reason))
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationFailed)
 		m.realignERAB(ctx, ue, ebi)
 	case verdictFailed:
@@ -521,8 +534,8 @@ func (m *MME) realignERAB(ctx context.Context, ue *UeContext, ebi uint8) {
 		return
 	}
 
-	b.realignRadio = ue.Conn() != nil && !b.Activating && !b.Deactivating && (b.modifying == nil || b.modifying.radio == radioNotNeeded)
-	if !ready || b.Activating || b.Deactivating || b.modifying != nil {
+	b.realignRadio = ue.Conn() != nil && b.ESM == ESMActive && (b.modifying == nil || b.modifying.radio == radioNotNeeded)
+	if !ready || b.ESM != ESMActive || b.modifying != nil {
 		ue.mu.Unlock()
 		return
 	}

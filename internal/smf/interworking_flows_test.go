@@ -4,6 +4,7 @@
 package smf_test
 
 import (
+	"bytes"
 	"context"
 	"net/netip"
 	"slices"
@@ -573,5 +574,31 @@ func TestHandoverToEPSBindsTheVoiceBearerWithTheDefaultBearer(t *testing.T) {
 
 	if got := modifyCount(upf) - before; got != 0 {
 		t.Fatalf("%d PFCP modifications for an endpoint already bound, want 0", got)
+	}
+}
+
+func TestDelayCriticalFlowStaysIn5GS(t *testing.T) {
+	s, amfCb, ref := interworkingVoiceFixture(t)
+
+	rule := voiceRule()
+	rule.QCI = 86
+
+	pushRules(t, s, ref, rule)
+
+	c := waitFlowModifications(t, amfCb, 1)[0]
+	cmd := flowCommand(t, c)
+
+	if len(cmd.QoSFlowDescriptions) != 1 || !slices.ContainsFunc(cmd.QoSFlowDescriptions[0].Parameters, func(p fgs.QoSFlowParameter) bool {
+		return p.ID == fgs.QoSFlowParam5QI && bytes.Equal(p.Value, []byte{86})
+	}) {
+		t.Fatalf("QoS flow descriptions %+v, want one for the delay-critical GBR 5QI 86 (TS 23.501 Table 5.7.4-1)", cmd.QoSFlowDescriptions)
+	}
+
+	amfCb.mu.Lock()
+	assigned := len(amfCb.flowEBIs)
+	amfCb.mu.Unlock()
+
+	if _, ok := cmd.QoSFlowDescriptions[0].EPSBearerID(); ok || cmd.MappedEPSBearerContexts != nil || assigned != 0 {
+		t.Fatalf("command %+v, want no EPS bearer for a 5QI with no QCI (TS 23.203 Table 6.1.7)", cmd)
 	}
 }
