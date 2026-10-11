@@ -743,3 +743,17 @@ func TestSubKilobitRatesAreSignalledRoundedUp(t *testing.T) {
 		t.Fatalf("E-RAB rates %+v, want 52 kbit/s: the eNB must not be told less than the 51.45 kbit/s authorized", gbr)
 	}
 }
+
+func TestActivationBeforeTheTAUAdoptsTheSessionIsDeferred(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.ForceStateForTest(EMMRegistrationInitiated)
+
+	if m.LookupPDN(ue, DefaultERABID) != nil {
+		t.Fatal("fixture: want a UE whose tracking area update has not adopted its session yet")
+	}
+
+	if err := m.ActivateDedicatedBearer(context.Background(), ue.imsiOrEmpty(), voiceBearerRequest()); !errors.Is(err, ErrUENotReachable) {
+		t.Fatalf("ActivateDedicatedBearer error = %v, want ErrUENotReachable: temporarily rejected while the mobility procedure runs (TS 23.401 §5.3.3.0)", err)
+	}
+}

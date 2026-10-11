@@ -216,11 +216,6 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
 
-	p := m.LookupPDN(ue, req.LinkedEBI)
-	if p == nil || p.SessionRef != req.SessionRef {
-		return ErrLinkedBearerUnknown
-	}
-
 	ueConn, ready := m.ReconcileReady(ue)
 	if !ready {
 		if ue.EMMState() == EMMRegistered && ue.Conn() == nil {
@@ -232,6 +227,11 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 
 	if ueConn.ICS() != ICSCompleted {
 		return ErrUENotReachable
+	}
+
+	p := m.LookupPDN(ue, req.LinkedEBI)
+	if p == nil || p.SessionRef != req.SessionRef {
+		return ErrLinkedBearerUnknown
 	}
 
 	ue.mu.Lock()
