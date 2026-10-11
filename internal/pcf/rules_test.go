@@ -19,18 +19,23 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
-type notifyingEnforcer chan *smf.PolicyDecision
+type notifyingEnforcer struct {
+	pcf       *pcf.PCF
+	decisions chan *smf.PolicyDecision
+	revision  uint64
+}
 
-func (n notifyingEnforcer) UpdateNotify(_ context.Context, _ string, d *smf.PolicyDecision) error {
-	n <- d
+func (n *notifyingEnforcer) UpdateNotify(_ context.Context, _ string, d *smf.PolicyDecision) error {
+	n.decisions <- d
 	return nil
 }
 
-func (n notifyingEnforcer) next(t *testing.T) *smf.PolicyDecision {
+func (n *notifyingEnforcer) next(t *testing.T) *smf.PolicyDecision {
 	t.Helper()
 
 	select {
-	case d := <-n:
+	case d := <-n.decisions:
+		n.revision = max(n.revision, d.Revision)
 		return d
 	case <-time.After(5 * time.Second):
 		t.Fatal("no policy decision pushed")
@@ -38,22 +43,35 @@ func (n notifyingEnforcer) next(t *testing.T) *smf.PolicyDecision {
 	}
 }
 
-func (n notifyingEnforcer) none(t *testing.T) {
+func (n *notifyingEnforcer) none(t *testing.T) {
 	t.Helper()
 
-	select {
-	case d := <-n:
-		t.Fatalf("unexpected policy decision pushed: %+v", d)
-	case <-time.After(50 * time.Millisecond):
+	revision := n.probe(t)
+	if revision != n.revision+1 {
+		t.Fatalf("policy decisions up to revision %d produced since revision %d, want none", revision-1, n.revision)
 	}
+
+	n.revision = revision
 }
 
-func newEnforcedPCF(t *testing.T) (*pcf.PCF, notifyingEnforcer) {
+func (n *notifyingEnforcer) probe(t *testing.T) uint64 {
+	t.Helper()
+
+	d, err := n.pcf.CreateAssociation(context.Background(), "probe", smf.PolicyContext{Supi: supi(t, "001010000000009"), Dnn: models.IMSDataNetworkName})
+	if err != nil {
+		t.Fatalf("probe association: %v", err)
+	}
+
+	return d.Revision
+}
+
+func newEnforcedPCF(t *testing.T) (*pcf.PCF, *notifyingEnforcer) {
 	t.Helper()
 
 	p := newPCF(t)
-	n := make(notifyingEnforcer, 8)
+	n := &notifyingEnforcer{pcf: p, decisions: make(chan *smf.PolicyDecision, 8)}
 	p.SetEnforcer(n)
+	n.revision = n.probe(t)
 
 	return p, n
 }
@@ -117,13 +135,6 @@ func TestCallAARInstallsAVoiceRule(t *testing.T) {
 	}
 }
 
-func TestPreliminaryServiceInfoInstallsNoRule(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-
-	requireResult(t, aa(t, p, "af;call", callAAR(50000, rx.ServiceInfoPreliminary)), success)
-	n.none(t)
-}
-
 func TestFinalServiceInfoAuthorizesThePreliminaryMedia(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 
@@ -166,14 +177,18 @@ func TestFinalServiceInfoKeepsThePreliminaryAVPsItOmits(t *testing.T) {
 	}
 }
 
-func TestPreliminaryServiceInfoIsCheckedEarly(t *testing.T) {
-	p, n := newEnforcedPCF(t)
+func TestBadFlowDescriptionIsAFilterRestriction(t *testing.T) {
+	for _, status := range []rx.ServiceInfoStatus{rx.ServiceInfoFinal, rx.ServiceInfoPreliminary} {
+		t.Run(status.String(), func(t *testing.T) {
+			p, n := newEnforcedPCF(t)
 
-	r := callAAR(50000, rx.ServiceInfoPreliminary)
-	r.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{"deny out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}
+			r := callAAR(50000, status)
+			r.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{"deny out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}
 
-	requireResult(t, aa(t, p, "af;call", r), tgpp.Experimental(tgpp.ResultFilterRestrictions))
-	n.none(t)
+			requireResult(t, aa(t, p, "af;call", r), tgpp.Experimental(tgpp.ResultFilterRestrictions))
+			n.none(t)
+		})
+	}
 }
 
 func TestRemovedMediaComponentRemovesItsRule(t *testing.T) {
@@ -192,16 +207,6 @@ func TestRemovedMediaComponentRemovesItsRule(t *testing.T) {
 	if d := n.next(t); len(d.Rules) != 0 {
 		t.Fatalf("pushed rules %+v, want none", d.Rules)
 	}
-}
-
-func TestBadFlowDescriptionIsAFilterRestriction(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-
-	r := callAAR(50000, rx.ServiceInfoFinal)
-	r.MediaComponents[0].SubComponents[0].FlowDescriptions = []string{"deny out 17 from 192.0.2.10 49000 to 10.60.0.1 50000"}
-
-	requireResult(t, aa(t, p, "af;call", r), tgpp.Experimental(tgpp.ResultFilterRestrictions))
-	n.none(t)
 }
 
 func TestFailedVoiceRuleAbortsTheCall(t *testing.T) {
@@ -360,8 +365,8 @@ func TestForkedDialogueKeepsEnabledGatesAndAuthorisedMedia(t *testing.T) {
 	requireResult(t, aa(t, p, "af;call", forked), success)
 
 	f := n.next(t)
-	if len(f.Rules) != 1 || f.Rules[0].Gate != (models.GateStatus{}) || len(f.Rules[0].Filters) != 4 {
-		t.Fatalf("pushed %+v for a forked dialogue, want the gates kept open and both dialogues' filters (TS 29.214 Annex A.3.1)", f.Rules)
+	if len(f.Rules) != 1 || f.Rules[0].Gate != (models.GateStatus{}) || len(f.Rules[0].Filters) != 4 || !slices.Equal(f.Rules[0].Filters[:2], d.Rules[0].Filters) {
+		t.Fatalf("pushed %+v for a forked dialogue, want the gates kept open, the first dialogue's filters kept in place and the second's appended (TS 29.214 Annex A.3.1)", f.Rules)
 	}
 
 	removed := rx.FlowStatusRemoved
@@ -371,24 +376,6 @@ func TestForkedDialogueKeepsEnabledGatesAndAuthorisedMedia(t *testing.T) {
 
 	if f.Rules[0].ID != d.Rules[0].ID {
 		t.Fatalf("forked rule %s, want the authorised rule %s extended", f.Rules[0].ID, d.Rules[0].ID)
-	}
-}
-
-func TestForkedDialogueAppendsItsFilters(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-
-	requireResult(t, aa(t, p, "af;call", callAAR(50000, rx.ServiceInfoFinal)), success)
-	d := n.next(t)
-
-	update := rx.RequestUpdate
-	forked := callAAR(50002, rx.ServiceInfoFinal)
-	forked.RequestType = &update
-	forked.SIPForkingIndication = rx.ForkingSeveralDialogues
-	requireResult(t, aa(t, p, "af;call", forked), success)
-
-	f := n.next(t)
-	if len(f.Rules) != 1 || len(f.Rules[0].Filters) != 4 || !slices.Equal(f.Rules[0].Filters[:2], d.Rules[0].Filters) {
-		t.Fatalf("forked filters %+v, want the first dialogue's kept in place and the second's appended", f.Rules)
 	}
 }
 

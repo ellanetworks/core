@@ -53,62 +53,6 @@ func newBearerTestEngine(t *testing.T, teidRange uint32) (*upfebpf.BpfObjects, *
 	return obj, conn
 }
 
-func TestModifySessionAddsAndRemovesASecondUplinkEndpoint(t *testing.T) {
-	obj, conn := newBearerTestEngine(t, 4)
-
-	ctx := context.Background()
-
-	const seid = uint64(51)
-
-	resp, err := conn.EstablishSession(ctx, &models.EstablishRequest{
-		SEID: seid,
-		IMSI: "001010000000001",
-		URRs: []models.URR{{URRID: 1}, {URRID: 2}},
-		QERs: []models.QER{{QERID: 1}},
-		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-		PDRs: []models.PDR{
-			{PDRID: 1, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
-			{PDRID: 2, FARID: 1, QERID: 1, URRID: 2, PDI: models.PDI{UEIPAddress: netip.MustParseAddr("10.0.0.31")}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("establish: %v", err)
-	}
-
-	added, err := conn.ModifySession(ctx, &models.ModifyRequest{
-		SEID:       seid,
-		UpdateFARs: []models.FAR{{FARID: 16, ApplyAction: models.ApplyAction{Forw: true}}},
-		UpdateQERs: []models.QER{{QERID: 16, MBR: &models.MBR{ULMBR: 44, DLMBR: 44}}},
-		UpdatePDRs: []models.PDR{{PDRID: 16, FARID: 16, QERID: 16, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}}}},
-	})
-	if err != nil {
-		t.Fatalf("add the second uplink endpoint: %v", err)
-	}
-
-	teid := added.ChosenTEIDs[1]
-	if teid == 0 || teid == resp.N3TEID {
-		t.Fatalf("chosen TEIDs %v, want a fresh TEID for CHOOSE ID 1 next to %d", added.ChosenTEIDs, resp.N3TEID)
-	}
-
-	removed, err := conn.ModifySession(ctx, &models.ModifyRequest{SEID: seid, RemovePDRs: []uint16{16}, RemoveFARs: []uint32{16}, RemoveQERs: []uint32{16}})
-	if err != nil {
-		t.Fatalf("remove the second uplink endpoint: %v", err)
-	}
-
-	if _, ok := removed.ChosenTEIDs[1]; ok {
-		t.Fatalf("chosen TEIDs %v still list the removed PDR", removed.ChosenTEIDs)
-	}
-
-	if _, ok := conn.GetSession(seid).ListQERs()[16]; ok {
-		t.Fatal("the removed QER is still held")
-	}
-
-	var perCPU []uint64
-	if err := obj.UrrMap.Lookup(upfebpf.N3N6EntrypointUrrKey{Seid: seid, UrrId: 1}, &perCPU); err != nil {
-		t.Fatalf("the default uplink URR was deleted with the PDR sharing it: %v", err)
-	}
-}
-
 func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 	obj, conn := newBearerTestEngine(t, 4)
 
@@ -224,7 +168,7 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 
 	const seid = uint64(54)
 
-	if _, err := conn.EstablishSession(ctx, &models.EstablishRequest{
+	resp, err := conn.EstablishSession(ctx, &models.EstablishRequest{
 		SEID: seid,
 		IMSI: "001010000000001",
 		URRs: []models.URR{{URRID: 1}, {URRID: 2}},
@@ -234,7 +178,8 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 			{PDRID: 1, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
 			{PDRID: 2, FARID: 1, QERID: 1, URRID: 2, PDI: models.PDI{UEIPAddress: netip.MustParseAddr("10.0.0.35")}},
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("establish: %v", err)
 	}
 
@@ -242,14 +187,15 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 	rtcp := []models.SDFFilter{{Direction: models.FilterUplink, Protocol: 17, LocalPort: 40001}}
 
 	added, err := conn.ModifySession(ctx, &models.ModifyRequest{
-		SEID: seid,
+		SEID:       seid,
+		UpdateFARs: []models.FAR{{FARID: 17, ApplyAction: models.ApplyAction{Forw: true}}},
 		UpdateQERs: []models.QER{
 			{QERID: 16, GateStatus: &models.GateStatus{ULGate: models.GateClose}},
-			{QERID: 17},
+			{QERID: 17, MBR: &models.MBR{ULMBR: 44, DLMBR: 44}},
 		},
 		UpdatePDRs: []models.PDR{
 			{PDRID: 16, Precedence: 32, FARID: 1, QERID: 16, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, SDFFilters: rtp}},
-			{PDRID: 17, Precedence: 33, FARID: 1, QERID: 17, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, SDFFilters: rtcp}},
+			{PDRID: 17, Precedence: 33, FARID: 17, QERID: 17, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{ChooseID: 1}, SDFFilters: rtcp}},
 		},
 	})
 	if err != nil {
@@ -257,6 +203,9 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 	}
 
 	teid := added.ChosenTEIDs[1]
+	if teid == 0 || teid == resp.N3TEID {
+		t.Fatalf("chosen TEIDs %v, want a fresh TEID for CHOOSE ID 1 next to %d", added.ChosenTEIDs, resp.N3TEID)
+	}
 
 	var entry upfebpf.N3N6EntrypointPdrInfo
 	if err := obj.PdrsUplink.Lookup(teid, &entry); err != nil || entry.PdrId != 16 || entry.Flags&upfebpf.PdrFlagSDF == 0 {
@@ -285,12 +234,26 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 		t.Fatalf("uplink entry for TEID %d = %+v (%v), want PDR 17 after PDR 16 left", teid, entry, err)
 	}
 
-	if _, err := conn.ModifySession(ctx, &models.ModifyRequest{SEID: seid, RemovePDRs: []uint16{17}, RemoveQERs: []uint32{17}}); err != nil {
+	removed, err = conn.ModifySession(ctx, &models.ModifyRequest{SEID: seid, RemovePDRs: []uint16{17}, RemoveFARs: []uint32{17}, RemoveQERs: []uint32{17}})
+	if err != nil {
 		t.Fatalf("remove the RTCP rule: %v", err)
 	}
 
 	if err := obj.PdrsUplink.Lookup(teid, &entry); err == nil {
 		t.Fatalf("uplink entry for TEID %d outlived the bearer's last rule", teid)
+	}
+
+	if _, ok := removed.ChosenTEIDs[1]; ok {
+		t.Fatalf("chosen TEIDs %v still list the removed PDRs", removed.ChosenTEIDs)
+	}
+
+	if _, ok := conn.GetSession(seid).ListQERs()[17]; ok {
+		t.Fatal("the removed QER is still held")
+	}
+
+	var perCPU []uint64
+	if err := obj.UrrMap.Lookup(upfebpf.N3N6EntrypointUrrKey{Seid: seid, UrrId: 1}, &perCPU); err != nil {
+		t.Fatalf("the default uplink URR was deleted with the PDRs sharing it: %v", err)
 	}
 }
 

@@ -89,7 +89,7 @@ func TestRejectedChangeKeepsTheEnforcedRule(t *testing.T) {
 }
 
 func TestRejectedRemovalIsHeldUntilThePolicyChanges(t *testing.T) {
-	s, pcf, _, mmeCb, ref := activeVoiceSession(t)
+	s, pcf, upf, mmeCb, ref := activeVoiceSession(t)
 	ctx := context.Background()
 
 	pushRules(t, s, ref, voiceRule(), secondCallRule())
@@ -100,6 +100,14 @@ func TestRejectedRemovalIsHeldUntilThePolicyChanges(t *testing.T) {
 	waitDedicatedModifications(t, mmeCb, 2)
 
 	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
+
+	if enforcesPeer(lastModify(t, upf), firstCallPeer) {
+		t.Fatal("the UPF still enforces the rule the PCF removed (TS 23.401 §5.4.3 step 2)")
+	}
+
+	if n := bearerUplinkFilters(t, upf); n != 1 {
+		t.Fatalf("bearer uplink PDR has %d filters, want the remaining call's 1", n)
+	}
 
 	if err := s.ReconcileSession(ctx, ref); err != nil {
 		t.Fatalf("ReconcileSession: %v", err)

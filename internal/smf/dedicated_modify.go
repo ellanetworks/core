@@ -32,7 +32,7 @@ var (
 	blockingUplinkFilter = models.SDFFilter{Direction: models.FilterUplink, RemotePort: discardPort}
 )
 
-type pendingModification struct {
+type bearerConfig struct {
 	binding bearerBinding
 	rules   []PCCRule
 	tft     bearerTFT
@@ -40,13 +40,8 @@ type pendingModification struct {
 	gbr     models.Ambr
 }
 
-type rejectedStep struct {
-	target *pendingModification
-}
-
-func (r rejectedStep) refuses(binding bearerBinding, tft bearerTFT, mbr, gbr models.Ambr) bool {
-	return r.target != nil && r.target.binding == binding &&
-		maps.Equal(r.target.tft, tft) && r.target.mbr.Equal(mbr) && r.target.gbr.Equal(gbr)
+func (c *bearerConfig) refuses(binding bearerBinding, tft bearerTFT, mbr, gbr models.Ambr) bool {
+	return c != nil && c.binding == binding && maps.Equal(c.tft, tft) && c.mbr.Equal(mbr) && c.gbr.Equal(gbr)
 }
 
 func (t bearerTFT) carries(r PCCRule) bool {
@@ -174,7 +169,11 @@ type ruleSet struct {
 }
 
 func (sc *SMContext) legRulesLocked(b *dedicatedBearer, sets ...ruleSet) []ruleLeg {
-	fallback := slices.Clone(b.rules)
+	fallback := slices.Clone(b.installed.rules)
+	if b.pending != nil {
+		fallback = append(fallback, b.pending.rules...)
+	}
+
 	if sc.policyDecision == nil {
 		return b.legRules(fallback, sets...)
 	}
@@ -349,53 +348,53 @@ func addedOrChangedRules(next, previous []PCCRule) []PCCRule {
 }
 
 func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, binding bearerBinding, rules []PCCRule) (*dedicatedAction, []PCCRule) {
-	if !b.modifyWaitingSince.IsZero() && time.Since(b.modifyWaitingSince) > s.dedicatedAwaitLimit {
-		b.modifyWaitingSince = time.Time{}
-		return nil, addedOrChangedRules(rules, b.rules)
+	if !b.deferredSince.IsZero() && time.Since(b.deferredSince) > s.dedicatedAwaitLimit {
+		b.deferredSince = time.Time{}
+		return nil, addedOrChangedRules(rules, b.installed.rules)
 	}
 
-	next, err := assignFilters(b.slot, b.tft, rules)
+	next, err := assignFilters(b.slot, b.installed.tft, rules)
 	if err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("dedicated bearer cannot carry the rules", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
-		return nil, addedOrChangedRules(rules, b.rules)
+		return nil, addedOrChangedRules(rules, b.installed.rules)
 	}
 
-	op, step, filters, deleted := nextTFTStep(b.tft, next)
-	after := installedAfter(b.rules, rules, step)
+	op, step, filters, deleted := nextTFTStep(b.installed.tft, next)
+	after := installedAfter(b.installed.rules, rules, step)
 	mbr, gbr := bearerRates(after)
 
-	if b.rejected.refuses(binding, step, mbr, gbr) {
+	if b.refused.refuses(binding, step, mbr, gbr) {
 		return nil, nil
 	}
 
-	qos := !mbr.Equal(b.mbr) || !gbr.Equal(b.gbr)
-	arpChanged := binding != b.binding
+	qos := !mbr.Equal(b.installed.mbr) || !gbr.Equal(b.installed.gbr)
+	arpChanged := binding != b.installed.binding
 
 	if op == models.TFTNoChange && !qos && !arpChanged {
-		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, after})); err != nil {
+		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, after})); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
-			return nil, addedOrChangedRules(after, b.rules)
+			return nil, addedOrChangedRules(after, b.installed.rules)
 		}
 
-		b.rules = after
-		b.modifyWaitingSince = time.Time{}
+		b.installed.rules = after
+		b.deferredSince = time.Time{}
 
 		return nil, nil
 	}
 
 	teid := sc.Tunnel.bearerTEID(b.slot)
 
-	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, b.rules}, ruleSet{step, after})); err != nil {
+	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules}, ruleSet{step, after})); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("dedicated bearer user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
-		return nil, addedOrChangedRules(after, b.rules)
+		return nil, addedOrChangedRules(after, b.installed.rules)
 	}
 
-	b.modification = &pendingModification{binding: binding, rules: after, tft: step, mbr: mbr, gbr: gbr}
+	b.pending = &bearerConfig{binding: binding, rules: after, tft: step, mbr: mbr, gbr: gbr}
 
 	var mapped []nas.PCOContainer
 
 	if b.fiveGSQoS {
-		mapped, err = sc.mappedFiveGSQoSLocked(b, b.rules, b.tft, after, step, qos)
+		mapped, err = sc.mappedFiveGSQoSLocked(b, binding.QCI, b.installed.rules, b.installed.tft, after, step, qos)
 		if err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer modified without its 5GS QoS; it stays in EPS", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
 
@@ -422,20 +421,20 @@ func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 }
 
 func (s *SMF) restoreLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
-	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, b.rules})); err != nil {
+	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules})); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("dedicated bearer user plane not restored", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
 	}
 }
 
 func (s *SMF) failModificationLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) []RuleReport {
-	refused := b.modification
-	failed := addedOrChangedRules(refused.rules, b.rules)
-	b.modification = nil
-	b.pruneRuleIdentities(b.rules)
+	refused := b.pending
+	failed := addedOrChangedRules(refused.rules, b.installed.rules)
+	b.pending = nil
+	b.pruneRuleIdentities()
 	s.restoreLegLocked(ctx, sc, b)
 
 	if len(failed) == 0 {
-		b.rejected = rejectedStep{target: refused}
+		b.refused = refused
 
 		return nil
 	}
@@ -449,7 +448,7 @@ func (s *SMF) modificationNotSent(ctx context.Context, sc *SMContext, teid uint3
 	sc.Mutex.Lock()
 
 	b := sc.dedicatedBySGWTEID(teid)
-	if b == nil || b.modification == nil {
+	if b == nil || b.pending == nil {
 		sc.Mutex.Unlock()
 		return
 	}
@@ -469,12 +468,12 @@ func (s *SMF) modificationNotSent(ctx context.Context, sc *SMContext, teid uint3
 }
 
 func (s *SMF) deferModificationLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
-	b.modification = nil
-	b.pruneRuleIdentities(b.rules)
+	b.pending = nil
+	b.pruneRuleIdentities()
 	s.restoreLegLocked(ctx, sc, b)
 
-	if b.modifyWaitingSince.IsZero() {
-		b.modifyWaitingSince = time.Now()
+	if b.deferredSince.IsZero() {
+		b.deferredSince = time.Now()
 	}
 
 	s.reconcileAfter(sc.Ref, s.dedicatedAwaitLimit)
@@ -489,7 +488,7 @@ func (s *SMF) DedicatedBearerModified(ctx context.Context, ref string, sgwTEID u
 	sc.Mutex.Lock()
 
 	b := sc.dedicatedBySGWTEID(sgwTEID)
-	if b == nil || b.modification == nil {
+	if b == nil || b.pending == nil {
 		sc.Mutex.Unlock()
 		return
 	}
@@ -503,16 +502,14 @@ func (s *SMF) DedicatedBearerModified(ctx context.Context, ref string, sgwTEID u
 		return
 	}
 
-	b.modifyWaitingSince = time.Time{}
+	b.deferredSince = time.Time{}
 
 	var reports []RuleReport
 
 	if outcome == models.ModificationCommitted {
-		m := b.modification
-		b.modification = nil
-		b.binding, b.tft, b.mbr, b.gbr, b.rules = m.binding, m.tft, m.mbr, m.gbr, m.rules
-		b.pruneRuleIdentities(b.rules)
-		b.rejected = rejectedStep{}
+		b.installed, b.pending = *b.pending, nil
+		b.pruneRuleIdentities()
+		b.refused = nil
 		s.restoreLegLocked(ctx, sc, b)
 	} else {
 		reports = s.failModificationLocked(ctx, sc, b)

@@ -162,7 +162,7 @@ func (sc *SMContext) interworksWith5GS() bool {
 	return sc.PDUSessionID != 0 && sc.Snssai != nil
 }
 
-func (sc *SMContext) mappedFiveGSQoSLocked(b *dedicatedBearer, prevRules []PCCRule, prevTFT bearerTFT, rules []PCCRule, tft bearerTFT, describe bool) ([]nas.PCOContainer, error) {
+func (sc *SMContext) mappedFiveGSQoSLocked(b *dedicatedBearer, qci uint8, prevRules []PCCRule, prevTFT bearerTFT, rules []PCCRule, tft bearerTFT, describe bool) ([]nas.PCOContainer, error) {
 	if !sc.interworksWith5GS() {
 		return nil, nil
 	}
@@ -192,7 +192,7 @@ func (sc *SMContext) mappedFiveGSQoSLocked(b *dedicatedBearer, prevRules []PCCRu
 
 		mbr, gbr := bearerRates(rules)
 
-		desc, err := b.qosFlowDescription(b.binding.QCI, op, mbr, gbr)
+		desc, err := b.qosFlowDescription(qci, op, mbr, gbr)
 		if err != nil {
 			return nil, err
 		}
@@ -270,11 +270,11 @@ func (s *SMF) acceptMappedDeletionLocked(ctx context.Context, sc *SMContext, del
 		ebis = append(ebis, b.ebi)
 		b.ebi = 0
 
-		if !b.ueHolds {
+		if b.ue == nil {
 			continue
 		}
 
-		desc, err := b.qosFlowDescription(b.binding.QCI, fgs.QoSFlowOpModify, b.mbr, b.gbr)
+		desc, err := b.qosFlowDescription(b.ue.binding.QCI, fgs.QoSFlowOpModify, b.ue.mbr, b.ue.gbr)
 		if err != nil {
 			return nil, fmt.Errorf("QoS flow %d without its EPS bearer: %w", b.qfi, err)
 		}

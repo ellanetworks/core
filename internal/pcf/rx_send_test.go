@@ -158,10 +158,7 @@ func TestLosingEveryFlowSendsTheAFAnAbort(t *testing.T) {
 	}
 }
 
-func TestPartialFailureReportsTheFailedFlowsAfterAnUpdate(t *testing.T) {
-	p, n := newEnforcedPCF(t)
-	af := connectAF(t, p)
-
+func twoComponentAAR() rx.AARequest {
 	r := callAAR(50000, rx.ServiceInfoFinal)
 	second := r.MediaComponents[0]
 	second.Number = 2
@@ -174,7 +171,14 @@ func TestPartialFailureReportsTheFailedFlowsAfterAnUpdate(t *testing.T) {
 	}}
 	r.MediaComponents = append(r.MediaComponents, second)
 
-	requireResult(t, aa(t, p, "af;call", r), success)
+	return r
+}
+
+func TestPartialFailureReportsTheFailedFlowsAfterAnUpdate(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+	af := connectAF(t, p)
+
+	requireResult(t, aa(t, p, "af;call", twoComponentAAR()), success)
 	d := n.next(t)
 
 	update := rx.RequestUpdate
@@ -206,18 +210,8 @@ func TestUpdateCannotSubscribeToBearerEvents(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 	af := connectAF(t, p)
 
-	r := callAAR(50000, rx.ServiceInfoFinal)
+	r := twoComponentAAR()
 	r.SpecificActions = nil
-	extra := r.MediaComponents[0]
-	extra.Number = 2
-	extra.SubComponents = []rx.MediaSubComponent{{
-		FlowNumber: 1,
-		FlowDescriptions: []string{
-			"permit out 17 from 192.0.2.20 49002 to 10.60.0.1 50004",
-			"permit in 17 from 10.60.0.1 50004 to 192.0.2.20 49002",
-		},
-	}}
-	r.MediaComponents = append(r.MediaComponents, extra)
 
 	requireResult(t, aa(t, p, "af;call", r), success)
 	d := n.next(t)
@@ -236,4 +230,19 @@ func TestUpdateCannotSubscribeToBearerEvents(t *testing.T) {
 	if got := af.received(false); len(got) != 0 {
 		t.Fatal("the AF was sent a RAR for a bearer event it subscribed to after the initial AAR (TS 29.214 §5.3.13)")
 	}
+}
+
+func TestReorderedComponentsKeepTheRules(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+
+	requireResult(t, aa(t, p, "af;call", twoComponentAAR()), success)
+	n.next(t)
+
+	reordered := twoComponentAAR()
+	update := rx.RequestUpdate
+	reordered.RequestType = &update
+	slices.Reverse(reordered.MediaComponents)
+
+	requireResult(t, aa(t, p, "af;call", reordered), success)
+	n.none(t)
 }

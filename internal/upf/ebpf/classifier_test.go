@@ -8,8 +8,6 @@ package ebpf
 import (
 	"net/netip"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/models"
 )
 
 const (
@@ -292,13 +290,6 @@ func TestQERAveragingWindowAdmitsABurst(t *testing.T) {
 				t.Errorf("admitted %d of %d back-to-back packets, want %d", admitted, packets, tc.want)
 			}
 		})
-	}
-}
-
-func TestClassifierLimitsMatchTheSessionModel(t *testing.T) {
-	if MaxClassifierRules != models.MaxSessionSDFRules || MaxClassifierTargets != models.MaxSessionSDFPDRs {
-		t.Fatalf("classifier holds %d rules in %d targets, the session model allows %d in %d",
-			MaxClassifierRules, MaxClassifierTargets, models.MaxSessionSDFRules, models.MaxSessionSDFPDRs)
 	}
 }
 

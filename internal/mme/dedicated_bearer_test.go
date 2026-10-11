@@ -256,18 +256,8 @@ func TestConnectionLossFailsAnActivation(t *testing.T) {
 	activateVoiceBearer(t, m, ue, cc)
 	m.FreeUeConn(context.Background(), ue)
 
-	deadline := time.Now().Add(5 * time.Second)
-
-	for {
-		if _, dropped := fake.dedicatedOutcomes(); len(dropped) == 1 {
-			break
-		}
-
-		if time.Now().After(deadline) {
-			t.Fatal("the SMF was not told the activation failed")
-		}
-
-		time.Sleep(10 * time.Millisecond)
+	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 {
+		t.Fatalf("SMF told dropped %+v, want the failed activation", dropped)
 	}
 }
 
@@ -368,25 +358,53 @@ func TestAcceptedActivationStillWaitsForTheRadio(t *testing.T) {
 	}
 }
 
-func TestActiveDedicatedBearerFailsLocally(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	fake := m.Session.(*fakeSessionManager)
-
-	activateVoiceBearer(t, m, ue, cc)
-	m.DedicatedBearerAccepted(context.Background(), ue, 6)
-	m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
-
-	before := len(cc.snapshot())
-
-	m.FailDedicatedBearer(context.Background(), ue, 6, "inactive at the UE")
-
-	if n := len(cc.snapshot()) - before; n != 0 {
-		t.Fatalf("sent %d messages for an active bearer the UE dropped, want a local deactivation", n)
+func TestActiveDedicatedBearerTheUEDroppedIsReleasedLocally(t *testing.T) {
+	tests := []struct {
+		name         string
+		drop         func(m *MME, ue *UeContext) bool
+		erabReleased bool
+	}{
+		{"inactive at the UE", func(m *MME, ue *UeContext) bool {
+			m.FailDedicatedBearer(context.Background(), ue, 6, "inactive at the UE")
+			return true
+		}, false},
+		{"ESM STATUS #43", func(m *MME, ue *UeContext) bool {
+			return m.DedicatedESMStatus(context.Background(), ue, 6, eps.ESMCauseInvalidEPSBearerIdentity)
+		}, true},
 	}
 
-	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 || !ue.LocalBearerDeactivationPending() {
-		t.Fatalf("dropped %+v, local flag %v, want a reported local deactivation", dropped, ue.LocalBearerDeactivationPending())
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, cc := connectedBearerUE(t, m)
+			fake := m.Session.(*fakeSessionManager)
+
+			activateVoiceBearer(t, m, ue, cc)
+			m.DedicatedBearerAccepted(context.Background(), ue, 6)
+			m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
+
+			before := len(cc.snapshot())
+
+			if !tc.drop(m, ue) {
+				t.Fatal("the report was not matched to the dedicated bearer")
+			}
+
+			if tc.erabReleased {
+				if cmd := lastERABRelease(t, cc); len(cc.snapshot()) != before+1 || len(cmd.NASPDU) != 0 || !slices.Equal(releasedEBIs(cmd), []uint8{6}) {
+					t.Fatalf("release %+v, want only the E-RAB released without NAS", cmd)
+				}
+			} else if n := len(cc.snapshot()) - before; n != 0 {
+				t.Fatalf("sent %d messages for an active bearer the UE dropped, want a local deactivation", n)
+			}
+
+			if _, b := m.LookupDedicated(ue, 6); b != nil {
+				t.Fatal("the bearer survived")
+			}
+
+			if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 || !ue.LocalBearerDeactivationPending() {
+				t.Fatalf("dropped %+v, local flag %v, want a reported local deactivation", dropped, ue.LocalBearerDeactivationPending())
+			}
+		})
 	}
 }
 
@@ -408,28 +426,6 @@ func TestDeactivationAfterTheUEAcceptedSignalsTheUE(t *testing.T) {
 
 	if !m.ReleaseDedicated(context.Background(), ue, 6) {
 		t.Fatal("the deactivation was not pending the UE's accept")
-	}
-}
-
-func TestESMStatusInvalidBearerReleasesTheDedicatedBearer(t *testing.T) {
-	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	fake := m.Session.(*fakeSessionManager)
-
-	activateVoiceBearer(t, m, ue, cc)
-	m.DedicatedBearerAccepted(context.Background(), ue, 6)
-	m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
-
-	if !m.DedicatedESMStatus(context.Background(), ue, 6, eps.ESMCauseInvalidEPSBearerIdentity) {
-		t.Fatal("the ESM STATUS was not matched to the dedicated bearer")
-	}
-
-	if _, b := m.LookupDedicated(ue, 6); b != nil {
-		t.Fatal("the bearer survived ESM STATUS #43")
-	}
-
-	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 {
-		t.Fatalf("SMF told dropped %+v, want the bearer", dropped)
 	}
 }
 
@@ -545,14 +541,7 @@ func TestS1ReleaseKeepsGBRBearersOnlyForPreservingCauses(t *testing.T) {
 			m.FreeUeConn(context.Background(), ue)
 
 			_, b := m.LookupDedicated(ue, 6)
-
-			var dropped []dedicatedOutcome
-
-			for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-				if _, dropped = fake.dedicatedOutcomes(); len(dropped) > 0 || tc.kept {
-					break
-				}
-			}
+			_, dropped := fake.dedicatedOutcomes()
 
 			if tc.kept {
 				if b == nil || len(dropped) != 0 {
@@ -562,8 +551,8 @@ func TestS1ReleaseKeepsGBRBearersOnlyForPreservingCauses(t *testing.T) {
 				return
 			}
 
-			if b != nil || len(dropped) != 1 || !ue.LocalBearerDeactivationPending() {
-				t.Fatalf("GBR bearer kept = %v, SMF told dropped %+v, TAU sync pending = %v; want it deactivated locally",
+			if b != nil || len(dropped) != 1 || dropped[0].teid != voiceSGWTEID || !ue.LocalBearerDeactivationPending() {
+				t.Fatalf("GBR bearer kept = %v, SMF told dropped %+v when the release returned, TAU sync pending = %v; want it deactivated locally",
 					b != nil, dropped, ue.LocalBearerDeactivationPending())
 			}
 		})
@@ -681,16 +670,9 @@ func TestDedicatedBearerReportsAWithheldMappedQoSFlow(t *testing.T) {
 	}
 }
 
-func waitDropped(t *testing.T, fake *fakeSessionManager, teid uint32) {
-	t.Helper()
-
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-		if _, dropped := fake.dedicatedOutcomes(); slices.ContainsFunc(dropped, func(o dedicatedOutcome) bool { return o.teid == teid }) {
-			return
-		}
-	}
-
-	t.Fatalf("the SMF was never told bearer %#x was released", teid)
+func droppedBearer(fake *fakeSessionManager, teid uint32) bool {
+	_, dropped := fake.dedicatedOutcomes()
+	return slices.ContainsFunc(dropped, func(o dedicatedOutcome) bool { return o.teid == teid })
 }
 
 func TestT3485ExpiryReleasesTheBearer(t *testing.T) {
@@ -703,7 +685,9 @@ func TestT3485ExpiryReleasesTheBearer(t *testing.T) {
 
 	sent := cc.count()
 
-	waitDropped(t, m.Session.(*fakeSessionManager), voiceSGWTEID)
+	fake := m.Session.(*fakeSessionManager)
+
+	eventually(t, 2*time.Second, func() bool { return droppedBearer(fake, voiceSGWTEID) })
 
 	if _, b := m.LookupDedicated(ue, 6); b != nil {
 		t.Fatal("the bearer survived T3485 expiring on every retransmission (TS 24.301 §6.4.1.6)")
@@ -723,7 +707,7 @@ func TestT3495ExpiryReleasesTheBearerLocally(t *testing.T) {
 
 	m.DeactivateDedicated(context.Background(), ue, 6)
 
-	waitDropped(t, fake, voiceSGWTEID)
+	eventually(t, 2*time.Second, func() bool { return droppedBearer(fake, voiceSGWTEID) })
 
 	if _, b := m.LookupDedicated(ue, 6); b != nil {
 		t.Fatal("the bearer survived T3495 expiring on every retransmission (TS 24.301 §6.4.4.6)")

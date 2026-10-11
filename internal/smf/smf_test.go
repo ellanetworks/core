@@ -23,7 +23,6 @@ import (
 
 type fakeStore struct {
 	mu              sync.Mutex
-	apnLookups      int
 	pcf             *fakePCF
 	teardownSeq     *teardownRecorder
 	allocatedIP     netip.Addr
@@ -270,7 +269,6 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 
 func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.SessionManagementSubscription, error) {
 	f.mu.Lock()
-	f.apnLookups++
 	pcf := f.pcf
 	f.mu.Unlock()
 

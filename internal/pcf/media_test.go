@@ -68,10 +68,10 @@ func TestMediaRulesAudio(t *testing.T) {
 
 	remote := netip.MustParsePrefix("192.0.2.10/32")
 	wantFilters := []models.SDFFilter{
-		{Direction: models.FilterDownlink, Precedence: 32, Protocol: 17, Remote: remote, LocalPort: 50000, RemotePort: 49000},
-		{Direction: models.FilterUplink, Precedence: 33, Protocol: 17, Remote: remote, LocalPort: 50000, RemotePort: 49000},
-		{Direction: models.FilterDownlink, Precedence: 34, Protocol: 17, Remote: remote, LocalPort: 50001, RemotePort: 49001},
-		{Direction: models.FilterUplink, Precedence: 35, Protocol: 17, Remote: remote, LocalPort: 50001, RemotePort: 49001},
+		{Direction: models.FilterDownlink, Protocol: 17, Remote: remote, LocalPort: 50000, RemotePort: 49000},
+		{Direction: models.FilterUplink, Protocol: 17, Remote: remote, LocalPort: 50000, RemotePort: 49000},
+		{Direction: models.FilterDownlink, Protocol: 17, Remote: remote, LocalPort: 50001, RemotePort: 49001},
+		{Direction: models.FilterUplink, Protocol: 17, Remote: remote, LocalPort: 50001, RemotePort: 49001},
 	}
 
 	if got := append(slices.Clone(rtp.Filters), rtcp.Filters...); !slices.Equal(got, wantFilters) {
@@ -202,37 +202,40 @@ func TestMediaRulesSkips(t *testing.T) {
 	}
 }
 
-func TestMediaRulesRejectsBadFlowDescription(t *testing.T) {
-	c := audioComponent()
-	c.SubComponents[0].FlowDescriptions = []string{"deny out 17 from any to any"}
-
-	if _, err := mediaRules("af;1", []rx.MediaComponent{c}); !errors.Is(err, errFilterRestrictions) {
-		t.Fatalf("err %v, want filter restrictions", err)
-	}
-}
-
-func TestMediaRulesRejectsAFlowDescriptionThatMatchesEveryPacket(t *testing.T) {
-	for _, fd := range []string{"permit out ip from any to 10.60.0.1", "permit in ip from 10.60.0.1 to any"} {
-		c := audioComponent()
-		c.SubComponents[0].FlowDescriptions = []string{fd}
-
-		if _, err := mediaRules("af;1", []rx.MediaComponent{c}); !errors.Is(err, errFilterRestrictions) {
-			t.Fatalf("%q: err %v, want filter restrictions: no packet filter component describes it (TS 29.214 §5.3.8, TS 24.008 §10.5.6.12)", fd, err)
-		}
-	}
-}
-
-func TestMediaRulesAcceptsAProtocolOnlyFlowDescription(t *testing.T) {
-	c := audioComponent()
-	c.SubComponents[0].FlowDescriptions = []string{"permit out 6 from any to 10.60.0.1"}
-
-	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
-	if err != nil {
-		t.Fatal(err)
+func TestMediaRulesFlowDescription(t *testing.T) {
+	tests := []struct {
+		name     string
+		fd       string
+		protocol uint8
+	}{
+		{name: "deny is rejected", fd: "deny out 17 from any to any"},
+		{name: "downlink matching every packet is rejected (TS 29.214 §5.3.8, TS 24.008 §10.5.6.12)", fd: "permit out ip from any to 10.60.0.1"},
+		{name: "uplink matching every packet is rejected (TS 29.214 §5.3.8, TS 24.008 §10.5.6.12)", fd: "permit in ip from 10.60.0.1 to any"},
+		{name: "protocol only is accepted", fd: "permit out 6 from any to 10.60.0.1", protocol: 6},
 	}
 
-	if f := rules[flowKey{1, 1}].Filters; len(f) != 1 || f[0].Protocol != 6 {
-		t.Fatalf("filters %+v, want the TCP protocol filter", f)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := audioComponent()
+			c.SubComponents[0].FlowDescriptions = []string{tc.fd}
+
+			rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+			if tc.protocol == 0 {
+				if !errors.Is(err, errFilterRestrictions) {
+					t.Fatalf("err %v, want filter restrictions", err)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if f := rules[flowKey{1, 1}].Filters; len(f) != 1 || f[0].Protocol != tc.protocol {
+				t.Fatalf("filters %+v, want one protocol %d filter", f, tc.protocol)
+			}
+		})
 	}
 }
 
@@ -298,7 +301,7 @@ func TestSDFFilterOrientsIPv6AndWildcardFlows(t *testing.T) {
 			t.Fatalf("parse %q: %v", desc, err)
 		}
 
-		got := sdfFilter(fd, 0)
+		got := sdfFilter(fd)
 		if got.Direction != want.Direction || got.Protocol != want.Protocol || got.Remote != want.Remote || got.LocalPort != want.LocalPort || got.RemotePort != want.RemotePort {
 			t.Errorf("%q gives %+v, want %+v", desc, got, want)
 		}

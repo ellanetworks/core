@@ -319,6 +319,11 @@ func TestUserAuthorization(t *testing.T) {
 			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "tel:+" + testOtherTel},
 			want: tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch),
 		},
+		{
+			name: "subscriber without an MSISDN",
+			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testNoMSISDN), PublicIdentity: "sip:" + impiOf(testNoMSISDN)},
+			want: tgpp.Result{Code: diameter.ResultAuthorizationRejected},
+		},
 	}
 
 	for _, tc := range cases {
@@ -342,12 +347,39 @@ func TestUserAuthorization(t *testing.T) {
 	}
 }
 
-func TestUserAuthorizationStoreFailureIsUnableToComply(t *testing.T) {
-	store := newFakeIMSStore()
-	store.fail = true
+func TestStoreFailureIsUnableToComply(t *testing.T) {
+	cases := []struct {
+		name string
+		send func(*testing.T, *fakeIMSStore) *diameter.Message
+	}{
+		{
+			name: "user authorization",
+			send: func(t *testing.T, store *fakeIMSStore) *diameter.Message {
+				return userAuthorization(t, store, cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:" + impiOf(testIMSI)})
+			},
+		},
+		{
+			name: "server assignment",
+			send: func(t *testing.T, store *fakeIMSStore) *diameter.Message {
+				return serverAssignment(t, store, register(testIMSI, cx.AssignmentRegistration))
+			},
+		},
+		{
+			name: "location info",
+			send: func(t *testing.T, store *fakeIMSStore) *diameter.Message {
+				return locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: "sip:" + impiOf(testIMSI)})
+			},
+		},
+	}
 
-	ans := userAuthorization(t, store, cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:" + impiOf(testIMSI)})
-	requireResult(t, ans, tgpp.Result{Code: diameter.ResultUnableToComply})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeIMSStore()
+			store.fail = true
+
+			requireResult(t, tc.send(t, store), tgpp.Result{Code: diameter.ResultUnableToComply})
+		})
+	}
 }
 
 func TestMultimediaAuthReturnsAnIMSAKAVector(t *testing.T) {

@@ -535,44 +535,42 @@ func TestHandoverInterruptingAFlowRetriesWithoutReporting(t *testing.T) {
 	}
 }
 
-func TestRANModifyingAFlowWithoutListingItAppliesTheModification(t *testing.T) {
-	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
-
-	pushRules(t, s, ref, voiceRule(), secondCallRule())
-	waitFlowModifications(t, amfCb, 2)
-
-	ueAnswers(t, s, ref, true)
-	ranAnswers(t, s, ref, nil, nil)
-
-	time.Sleep(100 * time.Millisecond)
-
-	if r := pcf.reportedRules(); len(r) != 0 {
-		t.Fatalf("reported rules %v, want none: a successful response that lists no failed flow applies them (TS 38.413 §8.2.3.2)", r)
+func TestRANAnsweringWithoutListingTheFlowAppliesIt(t *testing.T) {
+	tests := []struct {
+		name    string
+		fixture func(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, *fakeAMF, string)
+		rules   []smf.PCCRule
+		mods    int
+	}{
+		{"setup activates the flow", fiveGVoiceFixture, []smf.PCCRule{voiceRule()}, 1},
+		{"modification is applied without realigning the UE", activeFiveGVoice, []smf.PCCRule{voiceRule(), secondCallRule()}, 2},
 	}
 
-	if got := len(amfCb.modifications()); got != 2 {
-		t.Fatalf("%d QoS flow modifications sent, want no realignment of the UE", got)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, pcf, upf, amfCb, ref := tc.fixture(t)
+
+			pushRules(t, s, ref, tc.rules...)
+			waitFlowModifications(t, amfCb, tc.mods)
+
+			ueAnswers(t, s, ref, true)
+			ranAnswers(t, s, ref, nil, nil)
+
+			if m := lastModify(t, upf); !slices.ContainsFunc(m.UpdatePDRs, func(p models.PDR) bool { return p.PDI.UEIPAddress.IsValid() && p.QERID >= 256 }) {
+				t.Fatalf("UPF PDRs %+v, want the voice downlink installed", m.UpdatePDRs)
+			}
+
+			time.Sleep(100 * time.Millisecond)
+
+			if r := pcf.reportedRules(); len(r) != 0 {
+				t.Fatalf("reported rules %v, want none: a successful response that lists no failed flow applies them (TS 38.413 §8.2.3.2)", r)
+			}
+
+			if got := len(amfCb.modifications()); got != tc.mods {
+				t.Fatalf("%d QoS flow modifications sent, want %d: no realignment of the UE", got, tc.mods)
+			}
+		})
 	}
-}
-
-func TestRANSettingUpAFlowWithoutListingItActivatesTheFlow(t *testing.T) {
-	s, pcf, upf, amfCb, ref := fiveGVoiceFixture(t)
-
-	pushRules(t, s, ref, voiceRule())
-	waitFlowModifications(t, amfCb, 1)
-
-	ueAnswers(t, s, ref, true)
-	ranAnswers(t, s, ref, nil, nil)
-
-	if m := lastModify(t, upf); !slices.ContainsFunc(m.UpdatePDRs, func(p models.PDR) bool { return p.PDI.UEIPAddress.IsValid() && p.QERID >= 256 }) {
-		t.Fatalf("UPF PDRs %+v, want the voice downlink installed", m.UpdatePDRs)
-	}
-
-	if r := pcf.reportedRules(); len(r) != 0 {
-		t.Fatalf("reported rules %v, want none", r)
-	}
-
-	requireOneFlowModification(t, amfCb)
 }
 
 func TestDownlinkOnlyRuleCreatesAQoSFlow(t *testing.T) {

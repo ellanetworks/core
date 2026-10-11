@@ -18,7 +18,6 @@ const (
 	voiceARPPriority        = 2
 	videoARPPriority        = 4
 	rtcpBandwidthPercentage = 5
-	firstFilterPrecedence   = 32
 	defaultAudioBitRate     = 49000
 	defaultVideoBitRate     = 512000
 )
@@ -32,8 +31,6 @@ type flowKey struct {
 
 func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]smf.PCCRule, error) {
 	rules := make(map[flowKey]smf.PCCRule)
-
-	precedence := uint8(firstFilterPrecedence)
 
 	for _, c := range components {
 		qci, arp, ok := mediaQoS(c)
@@ -66,13 +63,12 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 					return nil, fmt.Errorf("%w: %v", errFilterRestrictions, err)
 				}
 
-				f := sdfFilter(fd, precedence)
+				f := sdfFilter(fd)
 				if !f.Constrained() {
 					return nil, fmt.Errorf("%w: %q matches every packet", errFilterRestrictions, raw)
 				}
 
 				rule.Filters = append(rule.Filters, f)
-				precedence++
 
 				if fd.Direction == rx.FlowDirectionIn {
 					hasUL = true
@@ -117,7 +113,7 @@ func forkedRule(prev, next smf.PCCRule) smf.PCCRule {
 	out.Filters = slices.Clone(prev.Filters)
 
 	for _, f := range next.Filters {
-		if !slices.ContainsFunc(out.Filters, func(o models.SDFFilter) bool { return sameFlow(o, f) }) {
+		if !slices.ContainsFunc(out.Filters, func(o models.SDFFilter) bool { return o == f }) {
 			out.Filters = append(out.Filters, f)
 		}
 	}
@@ -127,11 +123,6 @@ func forkedRule(prev, next smf.PCCRule) smf.PCCRule {
 	out.Gate = models.GateStatus{ULGate: min(prev.Gate.ULGate, next.Gate.ULGate), DLGate: min(prev.Gate.DLGate, next.Gate.DLGate)}
 
 	return out
-}
-
-func sameFlow(a, b models.SDFFilter) bool {
-	a.Precedence, b.Precedence = 0, 0
-	return a == b
 }
 
 func mediaQoS(c rx.MediaComponent) (uint8, models.Arp, bool) {
@@ -242,8 +233,8 @@ func signalling(sub rx.MediaSubComponent) bool {
 	return sub.FlowUsage != nil && *sub.FlowUsage == rx.FlowUsageAFSignalling
 }
 
-func sdfFilter(fd rx.FlowDescription, precedence uint8) models.SDFFilter {
-	f := models.SDFFilter{Precedence: precedence}
+func sdfFilter(fd rx.FlowDescription) models.SDFFilter {
+	var f models.SDFFilter
 
 	if fd.Protocol != rx.ProtocolIP {
 		f.Protocol = uint8(fd.Protocol)

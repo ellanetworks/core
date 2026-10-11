@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -26,10 +27,12 @@ var ErrDedicatedBearerUnknown = errors.New("no such dedicated bearer")
 type dedicatedState uint8
 
 const (
-	dedicatedAwaitingUE dedicatedState = iota
+	dedicatedPlanned dedicatedState = iota
+	dedicatedAwaitingUE
 	dedicatedActivating
 	dedicatedActive
 	dedicatedReleasing
+	dedicatedRemovalDeferred
 )
 
 type bearerBinding struct {
@@ -38,30 +41,64 @@ type bearerBinding struct {
 }
 
 type dedicatedBearer struct {
-	binding       bearerBinding
 	slot          uint8
 	ebi           uint8
+	qfi           uint8
 	state         dedicatedState
-	rules         []PCCRule
-	awaitingSince time.Time
+	deferredSince time.Time
 
-	tft       bearerTFT
-	ruleIndex map[string]uint8
+	installed bearerConfig
+	pending   *bearerConfig
+	ue        *bearerConfig
+	ran       *bearerConfig
+	refused   *bearerConfig
 
-	qfi                uint8
-	ruleIdentity       map[string]ruleIdentity
-	admitted           bool
-	ueHolds            bool
-	fiveGSQoS          bool
-	realignRAN         bool
-	realignUE          *pendingModification
-	withdraw           bool
-	syncPending        bool
-	mbr                models.Ambr
-	gbr                models.Ambr
-	modification       *pendingModification
-	modifyWaitingSince time.Time
-	rejected           rejectedStep
+	ruleIndex    map[string]uint8
+	ruleIdentity map[string]ruleIdentity
+	fiveGSQoS    bool
+}
+
+func (c bearerConfig) clone() *bearerConfig {
+	c.rules = slices.Clone(c.rules)
+	c.tft = maps.Clone(c.tft)
+
+	return &c
+}
+
+func (b *dedicatedBearer) target() bearerConfig {
+	if b.pending != nil {
+		return *b.pending
+	}
+
+	return b.installed
+}
+
+func (b *dedicatedBearer) enforces() bool {
+	return len(b.installed.rules) > 0
+}
+
+func (b *dedicatedBearer) ueBehind() bool {
+	if b.ue == nil {
+		return false
+	}
+
+	ids := func(rules []PCCRule) []string {
+		out := make([]string, 0, len(rules))
+		for _, r := range rules {
+			out = append(out, r.ID)
+		}
+
+		slices.Sort(out)
+
+		return out
+	}
+
+	return b.ue.binding.QCI != b.installed.binding.QCI || !b.ue.mbr.Equal(b.installed.mbr) || !b.ue.gbr.Equal(b.installed.gbr) ||
+		!maps.Equal(b.ue.tft, b.installed.tft) || !slices.Equal(ids(b.ue.rules), ids(b.installed.rules))
+}
+
+func (b *dedicatedBearer) ranBehind() bool {
+	return b.ran != nil && (b.ran.binding != b.installed.binding || !b.ran.mbr.Equal(b.installed.mbr) || !b.ran.gbr.Equal(b.installed.gbr))
 }
 
 type dedicatedAction struct {
@@ -130,12 +167,12 @@ func (sc *SMContext) dedicatedReady() bool {
 
 func (sc *SMContext) installedRuleLocked(id string) *PCCRule {
 	for _, b := range sc.dedicated {
-		if b.state != dedicatedActive || b.withdraw {
+		if b.state != dedicatedActive {
 			continue
 		}
 
-		if i := slices.IndexFunc(b.rules, func(r PCCRule) bool { return r.ID == id }); i >= 0 {
-			return &b.rules[i]
+		if i := slices.IndexFunc(b.installed.rules, func(r PCCRule) bool { return r.ID == id }); i >= 0 {
+			return &b.installed.rules[i]
 		}
 	}
 
@@ -217,33 +254,32 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 	)
 
 	for _, b := range sc.dedicated {
-		key := b.binding
-		if b.modification != nil {
-			key = b.modification.binding
-		} else if moved, ok := movedBinding(b, want, sc.dedicated); ok {
-			key = moved
+		key := b.target().binding
+		if b.pending == nil {
+			if moved, ok := movedBinding(b, want, sc.dedicated); ok {
+				key = moved
+			}
 		}
 
 		rules, ok := want[key]
 		delete(want, key)
 
 		switch {
-		case !ok && b.state == dedicatedActive && b.modification == nil:
+		case !ok && b.state == dedicatedActive && b.pending == nil:
 			b.state = dedicatedReleasing
 			actions = append(actions, dedicatedAction{ebi: b.ebi, sgwTEID: sc.Tunnel.bearerTEID(b.slot)})
 		case !ok && b.state == dedicatedAwaitingUE:
 			removed = append(removed, b)
-		case ok && b.state == dedicatedAwaitingUE && time.Since(b.awaitingSince) > s.dedicatedAwaitLimit:
-			b.rules = rules
+		case ok && b.state == dedicatedAwaitingUE && time.Since(b.deferredSince) > s.dedicatedAwaitLimit:
 			removed = append(removed, b)
-			failed = append(failed, b.rules...)
+			failed = append(failed, rules...)
 		case ok && b.state == dedicatedAwaitingUE:
-			b.rules = rules
+			b.pending = &bearerConfig{binding: key, rules: rules}
 
 			req, err := s.dedicatedRequest(ctx, sc, b)
 			if err != nil {
 				removed = append(removed, b)
-				failed = append(failed, b.rules...)
+				failed = append(failed, rules...)
 
 				continue
 			}
@@ -251,7 +287,7 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 			b.state = dedicatedActivating
 
 			actions = append(actions, dedicatedAction{activate: req, sgwTEID: req.SGW.TEID})
-		case ok && b.state == dedicatedActive && b.modification == nil:
+		case ok && b.state == dedicatedActive && b.pending == nil:
 			act, notApplied := s.planModificationLocked(ctx, sc, b, key, rules)
 			failed = append(failed, notApplied...)
 
@@ -274,7 +310,7 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 		req, err := s.dedicatedRequest(ctx, sc, b)
 		if err != nil {
 			removed = append(removed, b)
-			failed = append(failed, b.rules...)
+			failed = append(failed, rules...)
 
 			continue
 		}
@@ -294,20 +330,20 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 }
 
 func movedBinding(b *dedicatedBearer, want map[bearerBinding][]PCCRule, bearers []*dedicatedBearer) (bearerBinding, bool) {
-	if b.state != dedicatedActive || len(b.rules) == 0 {
+	if b.state != dedicatedActive || len(b.installed.rules) == 0 {
 		return bearerBinding{}, false
 	}
 
-	if _, ok := want[b.binding]; ok {
+	if _, ok := want[b.installed.binding]; ok {
 		return bearerBinding{}, false
 	}
 
 	for binding, rules := range want {
-		if binding.QCI != b.binding.QCI || slices.ContainsFunc(bearers, func(o *dedicatedBearer) bool { return o.binding == binding && !o.syncPending }) {
+		if binding.QCI != b.installed.binding.QCI || slices.ContainsFunc(bearers, func(o *dedicatedBearer) bool { return o.installed.binding == binding }) {
 			continue
 		}
 
-		if !slices.ContainsFunc(b.rules, func(r PCCRule) bool {
+		if !slices.ContainsFunc(b.installed.rules, func(r PCCRule) bool {
 			return !slices.ContainsFunc(rules, func(w PCCRule) bool { return w.ID == r.ID })
 		}) {
 			return binding, true
@@ -342,7 +378,7 @@ func (s *SMF) addDedicatedLocked(ctx context.Context, sc *SMContext, binding bea
 		return nil, err
 	}
 
-	b := &dedicatedBearer{binding: binding, slot: slot, rules: rules}
+	b := &dedicatedBearer{slot: slot, pending: &bearerConfig{binding: binding, rules: rules}}
 
 	next := sc.Tunnel.dataPlane
 	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, Rules: sc.legRulesLocked(b, ruleSet{tft, rules})})
@@ -425,16 +461,18 @@ func (s *SMF) setLegRulesLocked(ctx context.Context, sc *SMContext, b *dedicated
 }
 
 func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedBearer) (*models.DedicatedBearerRequest, error) {
-	tft, err := assignFilters(b.slot, nil, b.rules)
+	t := b.pending
+
+	tft, err := assignFilters(b.slot, nil, t.rules)
 	if err != nil {
 		return nil, err
 	}
 
 	filters := tft.list()
-	mbr, gbr := bearerRates(b.rules)
-	b.tft, b.mbr, b.gbr = tft, mbr, gbr
+	mbr, gbr := bearerRates(t.rules)
+	t.tft, t.mbr, t.gbr = tft, mbr, gbr
 
-	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{tft, b.rules})); err != nil {
+	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{tft, t.rules})); err != nil {
 		return nil, fmt.Errorf("update the bearer's user plane: %w", err)
 	}
 
@@ -443,10 +481,10 @@ func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedB
 		return nil, fmt.Errorf("the UPF assigned no uplink endpoint to the bearer")
 	}
 
-	mapped, err := sc.mappedFiveGSQoSLocked(b, nil, nil, b.rules, tft, true)
+	mapped, err := sc.mappedFiveGSQoSLocked(b, t.binding.QCI, nil, nil, t.rules, tft, true)
 	if err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("dedicated bearer activated without its 5GS QoS; it stays in EPS",
-			logger.SUPI(sc.Supi.String()), zap.Uint8("qci", b.binding.QCI), zap.Error(err))
+			logger.SUPI(sc.Supi.String()), zap.Uint8("qci", t.binding.QCI), zap.Error(err))
 	}
 
 	b.fiveGSQoS = mapped != nil
@@ -454,8 +492,8 @@ func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedB
 	return &models.DedicatedBearerRequest{
 		SessionRef:      sc.Ref,
 		LinkedEBI:       sc.EBI,
-		QCI:             b.binding.QCI,
-		ARP:             b.binding.ARP,
+		QCI:             t.binding.QCI,
+		ARP:             t.binding.ARP,
 		MBR:             mbr,
 		GBR:             gbr,
 		Filters:         filters,
@@ -523,8 +561,8 @@ func (s *SMF) dedicatedAwaitUE(sc *SMContext, teid uint32) {
 		return
 	}
 
-	if b.awaitingSince.IsZero() {
-		b.awaitingSince = time.Now()
+	if b.deferredSince.IsZero() {
+		b.deferredSince = time.Now()
 
 		s.reconcileAfter(sc.Ref, s.dedicatedAwaitLimit)
 	}
@@ -570,11 +608,16 @@ func (s *SMF) DedicatedBearerActivated(ctx context.Context, ref string, sgwTEID 
 	activated := b.state == dedicatedActivating || b.state == dedicatedAwaitingUE
 	if activated {
 		b.state = dedicatedActive
+		b.deferredSince = time.Time{}
+
+		if b.pending != nil {
+			b.installed, b.pending = *b.pending, nil
+		}
 	}
 	sc.Mutex.Unlock()
 
 	if activated {
-		logger.From(ctx, logger.SmfLog).Info("dedicated bearer active", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", ebi), zap.Uint8("qci", b.binding.QCI))
+		logger.From(ctx, logger.SmfLog).Info("dedicated bearer active", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", ebi), zap.Uint8("qci", b.installed.binding.QCI))
 
 		s.reconcileAfter(ref, 0)
 	}
@@ -630,10 +673,10 @@ func (s *SMF) DedicatedBearerReleased(ctx context.Context, ref string, sgwTEID u
 	var failed []PCCRule
 
 	if b.state != dedicatedReleasing {
-		failed = slices.Clone(b.rules)
+		failed = slices.Clone(b.installed.rules)
 
-		if b.modification != nil {
-			failed = append(failed, addedOrChangedRules(b.modification.rules, b.rules)...)
+		if b.pending != nil {
+			failed = append(failed, addedOrChangedRules(b.pending.rules, b.installed.rules)...)
 		}
 	}
 

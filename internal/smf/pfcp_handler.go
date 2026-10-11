@@ -60,7 +60,7 @@ func (s *SMF) notifyDownlinkWaitingOn(ctx context.Context, smContext *SMContext,
 				}
 
 				if !onEPS {
-					arp = new(b.binding.ARP)
+					arp = new(b.installed.binding.ARP)
 				}
 			}
 		}

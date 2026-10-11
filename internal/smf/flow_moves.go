@@ -17,23 +17,23 @@ import (
 )
 
 func (b *dedicatedBearer) movesTo(access AccessType) bool {
-	if b.ebi == 0 || b.state != dedicatedActive || b.withdraw {
+	if b.ebi == 0 || b.state != dedicatedActive || !b.enforces() {
 		return false
 	}
 
 	if access == Access4G {
-		return b.ueHolds && b.modification == nil
+		return b.ue != nil && b.pending == nil
 	}
 
-	return b.qfi != 0 && b.fiveGSQoS && len(b.rules) > 0
+	return b.qfi != 0 && b.fiveGSQoS && len(b.installed.rules) > 0
 }
 
-func (b *dedicatedBearer) ueView() pendingModification {
-	if b.realignUE != nil {
-		return *b.realignUE
+func (b *dedicatedBearer) ueView() bearerConfig {
+	if b.ue != nil {
+		return *b.ue
 	}
 
-	return pendingModification{binding: b.binding, rules: b.rules, tft: b.tft, mbr: b.mbr, gbr: b.gbr}
+	return b.installed
 }
 
 func (b *dedicatedBearer) tftOn(t bearerTFT, access AccessType) bearerTFT {
@@ -130,14 +130,13 @@ func (sc *SMContext) epsDedicatedLocked() []models.DedicatedBearerContext {
 		}
 
 		v := b.ueView()
-		mbr, gbr := bearerRates(v.rules)
 
 		out = append(out, models.DedicatedBearerContext{
 			EBI:       b.ebi,
 			QCI:       v.binding.QCI,
 			ARP:       v.binding.ARP,
-			MBR:       mbr,
-			GBR:       gbr,
+			MBR:       v.mbr,
+			GBR:       v.gbr,
 			Filters:   epsFilters(b.slot, v.tft),
 			SGW:       models.FTEID{TEID: teid, Addr: sc.Tunnel.N3IPv4},
 			SGWN3IPv6: sc.Tunnel.N3IPv6,
@@ -158,7 +157,7 @@ func (sc *SMContext) handoverFlowsTo5GSLocked() ([]smfNgap.GBRQoSFlow, []uint8) 
 			continue
 		}
 
-		flows = append(flows, gbrFlow(b, b.binding, b.mbr, b.gbr))
+		flows = append(flows, gbrFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
 		ebis = append(ebis, b.ebi)
 	}
 
@@ -210,21 +209,26 @@ func (sc *SMContext) movingFlowsLocked(to AccessType, prepared bool) movingFlows
 func (s *SMF) adoptMovedFlowsLocked(ctx context.Context, sc *SMContext, f movingFlows, reconcile bool) {
 	for _, b := range f.kept {
 		if f.to == Access4G {
-			v := b.ueView()
-			b.binding, b.rules, b.tft, b.mbr, b.gbr = v.binding, v.rules, v.tft, v.mbr, v.gbr
+			b.installed = *b.ueView().clone()
 		}
 
-		b.tft = b.tftOn(b.tft, f.to)
-		b.admitted, b.ueHolds, b.realignRAN, b.realignUE = false, f.to == Access5G, false, nil
+		b.installed.tft = b.tftOn(b.installed.tft, f.to)
+		b.ue, b.ran = nil, nil
 
-		if m := b.modification; m != nil {
-			b.modification = nil
-			b.realignUE = &pendingModification{binding: m.binding, rules: m.rules, tft: b.tftOn(m.tft, f.to), mbr: m.mbr, gbr: m.gbr}
+		if f.to == Access5G {
+			b.ue = b.installed.clone()
+		}
+
+		if m := b.pending; m != nil {
+			b.pending = nil
+			b.ue = m.clone()
+			b.ue.tft = b.tftOn(m.tft, f.to)
 		}
 
 		b.fiveGSQoS = true
-		b.rejected = rejectedStep{}
-		b.modifyWaitingSince = time.Time{}
+		b.refused = nil
+		b.deferredSince = time.Time{}
+		b.pruneRuleIdentities()
 	}
 
 	var (
@@ -233,8 +237,8 @@ func (s *SMF) adoptMovedFlowsLocked(ctx context.Context, sc *SMContext, f moving
 	)
 
 	for _, b := range f.dropped {
-		if b.state == dedicatedActive && !b.withdraw {
-			lost = append(lost, b.rules...)
+		if b.state == dedicatedActive {
+			lost = append(lost, b.installed.rules...)
 		}
 
 		if b.ebi != 0 {
@@ -327,16 +331,16 @@ func (s *SMF) ReleaseInactiveEPSBearers(ctx context.Context, ref string, ebis []
 			continue
 		}
 
-		if b.state == dedicatedActive && !b.withdraw {
-			lost = append(lost, b.rules...)
-		}
-
-		b.ueHolds = false
+		b.ue = nil
 		b.ebi = 0
 
-		if b.admitted {
-			s.loseFlowLocked(ctx, sc, b)
+		if b.ran != nil {
+			lost = append(lost, s.loseFlowLocked(ctx, sc, b)...)
 			continue
+		}
+
+		if b.state == dedicatedActive {
+			lost = append(lost, b.installed.rules...)
 		}
 
 		gone = append(gone, b)

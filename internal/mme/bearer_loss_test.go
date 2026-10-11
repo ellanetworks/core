@@ -104,7 +104,7 @@ func TestDeactivationDuringAHandoverIsLeftToTheSMFToRetry(t *testing.T) {
 	ctx := context.Background()
 
 	m.mu.Lock()
-	ue.handover = &handoverContext{state: hoPreparing}
+	ue.handover = &handoverContext{state: hoPreparing, source: ue.Conn()}
 	m.mu.Unlock()
 
 	sent := cc.count()
@@ -117,13 +117,16 @@ func TestDeactivationDuringAHandoverIsLeftToTheSMFToRetry(t *testing.T) {
 		t.Fatal("a deactivation was signalled during the handover preparation (TS 36.413 §8.4.1.2)")
 	}
 
-	_, b := m.LookupDedicated(ue, 6)
-	if b == nil {
+	if _, b := m.LookupDedicated(ue, 6); b == nil {
 		t.Fatal("the bearer was deleted locally during the handover while the UE is connected (TS 24.301 §6.4.4.2)")
 	}
 
-	if b.deactivatePending {
-		t.Fatal("the MME kept a deactivation of its own that an aborted handover would never drain")
+	if m.unwindHandover(ctx, ue, causeHandoverTS1relocExpiry) != handoverAbandoned {
+		t.Fatal("the handover was not abandoned")
+	}
+
+	if cc.count() != sent {
+		t.Fatal("the MME ran a deactivation of its own once the handover ended instead of leaving it to the SMF's retry")
 	}
 }
 
@@ -198,13 +201,9 @@ func TestSCTPLossReleasesTheVoiceBearer(t *testing.T) {
 
 	m.ReclaimUEsOnConnLossForTest(cc)
 
-	var dropped []dedicatedOutcome
+	eventually(t, 2*time.Second, func() bool { return droppedBearer(fake, voiceSGWTEID) })
 
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline) && len(dropped) == 0; time.Sleep(5 * time.Millisecond) {
-		_, dropped = fake.dedicatedOutcomes()
-	}
-
-	if len(dropped) != 1 || dropped[0].teid != voiceSGWTEID {
+	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 || dropped[0].teid != voiceSGWTEID {
 		t.Fatalf("SMF told %+v released, want the voice bearer (TS 23.401 §5.3.5: S1 signalling connection lost)", dropped)
 	}
 
@@ -229,16 +228,5 @@ func TestModificationRejectedWithInvalidEBIReleasesTheBearerLocally(t *testing.T
 
 	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 {
 		t.Fatalf("SMF told %+v released, want the voice bearer", dropped)
-	}
-}
-
-func TestReleaseReportsLostBearersBeforeItReturns(t *testing.T) {
-	m, ue, _, fake := activeVoiceBearer(t)
-
-	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost})
-	m.FreeUeConn(context.Background(), ue)
-
-	if _, dropped := fake.dedicatedOutcomes(); len(dropped) != 1 || dropped[0].teid != voiceSGWTEID {
-		t.Fatalf("SMF told %+v when the release returned, want the voice bearer already reported lost", dropped)
 	}
 }

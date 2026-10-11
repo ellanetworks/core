@@ -167,33 +167,44 @@ func ranReleasesVoice(t *testing.T, s *smf.SMF, ref string) {
 }
 
 func TestRANReleasingTheFlowEndsTheCall(t *testing.T) {
-	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+	tests := []struct {
+		name    string
+		release func(t *testing.T) (*smf.SMF, *fakePCF, *fakeAMF, string)
+	}{
+		{"after the call is up", func(t *testing.T) (*smf.SMF, *fakePCF, *fakeAMF, string) {
+			s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+			ranReleasesVoice(t, s, ref)
 
-	ranReleasesVoice(t, s, ref)
+			return s, pcf, amfCb, ref
+		}},
+		{"before the UE completes", func(t *testing.T) (*smf.SMF, *fakePCF, *fakeAMF, string) {
+			s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
 
-	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
-		t.Fatalf("reported rules %v, want the call released (TS 38.413 §8.2.4.2)", r)
+			pushRules(t, s, ref, voiceRule())
+			waitFlowModifications(t, amfCb, 1)
+			ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+			ranReleasesVoice(t, s, ref)
+			ueAnswers(t, s, ref, true)
+
+			return s, pcf, amfCb, ref
+		}},
 	}
 
-	pushRules(t, s, ref)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, pcf, amfCb, ref := tc.release(t)
 
-	c := waitFlowModifications(t, amfCb, 2)[1]
-	if c.n2Msg != nil || len(flowCommand(t, c).QoSFlowDescriptions) != 1 {
-		t.Fatalf("modification %+v, want an N1-only deletion of the released flow", c)
-	}
-}
+			if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
+				t.Fatalf("reported rules %v, want the call released (TS 38.413 §8.2.4.2)", r)
+			}
 
-func TestRANReleasingTheFlowBeforeTheUECompletesEndsTheCall(t *testing.T) {
-	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+			pushRules(t, s, ref)
 
-	pushRules(t, s, ref, voiceRule())
-	waitFlowModifications(t, amfCb, 1)
-	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
-	ranReleasesVoice(t, s, ref)
-	ueAnswers(t, s, ref, true)
-
-	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
-		t.Fatalf("reported rules %v, want the call released (TS 38.413 §8.2.4.2)", r)
+			c := waitFlowModifications(t, amfCb, 2)[1]
+			if c.n2Msg != nil || len(flowCommand(t, c).QoSFlowDescriptions) != 1 {
+				t.Fatalf("modification %+v, want an N1-only deletion of the released flow", c)
+			}
+		})
 	}
 }
 
@@ -656,13 +667,13 @@ func TestRuleOnAReleasedFlowIsNotReportedActive(t *testing.T) {
 
 	ranReleasesVoice(t, s, ref)
 	waitReportedRules(t, pcf)
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, false)
 
 	updated := voiceRule()
 	updated.Version = 2
 	updated.Filters[0].RemotePort, updated.Filters[1].RemotePort = 49100, 49100
 	pushRules(t, s, ref, updated)
-	waitFlowModifications(t, amfCb, 2)
-	ueAnswers(t, s, ref, false)
 
 	waitFlowModifications(t, amfCb, 3)
 	ueAnswers(t, s, ref, false)
@@ -671,5 +682,22 @@ func TestRuleOnAReleasedFlowIsNotReportedActive(t *testing.T) {
 	reports := pcf.reportedFailures()
 	if last := reports[len(reports)-1]; last.Rule.Version != 2 || last.Active != nil {
 		t.Fatalf("report %+v, want version 2 failed with no rule left active: the released flow enforces nothing", last)
+	}
+}
+
+func TestFlowTheRANDidNotSetUpIsNotEnforced(t *testing.T) {
+	s, pcf, upf, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, nil, []uint8{voiceQFI})
+
+	if slices.ContainsFunc(lastModify(t, upf).UpdatePDRs, func(p models.PDR) bool { return p.PDI.QFI == voiceQFI || p.QERID >= 256 }) {
+		t.Fatal("the UPF enforces a QoS flow the NG-RAN node did not set up")
+	}
+
+	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
+		t.Fatalf("reported rules %v, want the call failed", r)
 	}
 }

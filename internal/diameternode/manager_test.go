@@ -713,39 +713,12 @@ func TestListenerRunsWithoutSMSC(t *testing.T) {
 	})
 }
 
-func TestListenerServesIMSWhenTheSMSCHasNoRoute(t *testing.T) {
-	requireSCTP(t)
-
-	smsc := netip.MustParseAddrPort("[2001:db8::1]:3868")
-	port := freePort(t)
-
-	source := newSettingsSource()
-	source.setSMSC(smsc)
-
-	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: port}, zap.NewNop())
-	link.SetLocalAddrForTest(func(remote netip.Addr) (netip.Addr, error) {
-		return netip.Addr{}, fmt.Errorf("no route to %s", remote)
-	})
-
-	runManager(t, link)
-
-	ims := newDialingNode(t, "scscf.ims.mnc001.mcc001.3gppnetwork.org", loopback2)
-	dialEllaFor(t, ims, port, diameter.TransportSCTP, imsApplications)
-
-	waitFor(t, "IMS peer open despite the unroutable SMSC", func() bool {
-		return ellaStatus(ims).State == diameter.PeerOpen && imsPeer(link).State == diameter.PeerOpen
-	})
-
-	if st := smscState(link); st == diameter.PeerOpen {
-		t.Fatalf("SMSC state = %s, want it not connected", st)
-	}
-}
-
 func TestSMSCChangesKeepTheIMSPeersConnected(t *testing.T) {
 	requireSCTP(t)
 
 	port := freePort(t)
 	source := newSettingsSource()
+	source.setSMSC(netip.MustParseAddrPort("[2001:db8::1]:3868"))
 
 	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: port}, zap.NewNop())
 	link.SetLocalAddrForTest(func(remote netip.Addr) (netip.Addr, error) {
@@ -761,7 +734,13 @@ func TestSMSCChangesKeepTheIMSPeersConnected(t *testing.T) {
 	ims := newDialingNode(t, "scscf.ims.mnc001.mcc001.3gppnetwork.org", loopback2)
 	dialEllaFor(t, ims, port, diameter.TransportSCTP, imsApplications)
 
-	waitFor(t, "IMS peer open", func() bool { return imsPeer(link).State == diameter.PeerOpen })
+	waitFor(t, "IMS peer open despite the unroutable SMSC", func() bool {
+		return ellaStatus(ims).State == diameter.PeerOpen && imsPeer(link).State == diameter.PeerOpen
+	})
+
+	if st := smscState(link); st == diameter.PeerOpen {
+		t.Fatalf("SMSC state = %s, want it not connected", st)
+	}
 
 	node, since := link.Node(), imsPeer(link).Since
 

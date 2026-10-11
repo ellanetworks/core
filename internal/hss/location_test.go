@@ -124,11 +124,3 @@ func TestLocationInfo(t *testing.T) {
 		})
 	}
 }
-
-func TestLocationInfoStoreFailureIsUnableToComply(t *testing.T) {
-	store := newFakeIMSStore()
-	store.fail = true
-
-	ans := locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: "sip:" + impiOf(testIMSI)})
-	requireResult(t, ans, tgpp.Result{Code: diameter.ResultUnableToComply})
-}

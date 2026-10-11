@@ -116,10 +116,14 @@ type ruleIdentity struct {
 	qri, precedence uint8
 }
 
-func (b *dedicatedBearer) qris() []uint8 {
-	qris := make([]uint8, 0, len(b.ruleIdentity))
-	for _, r := range b.ruleIdentity {
-		qris = append(qris, r.qri)
+func (b *dedicatedBearer) ueQRIs() []uint8 {
+	if b.ue == nil {
+		return nil
+	}
+
+	qris := make([]uint8, 0, len(b.ue.rules))
+	for _, r := range b.ue.rules {
+		qris = append(qris, b.ruleIdentity[r.ID].qri)
 	}
 
 	return qris
@@ -170,12 +174,18 @@ func firstFree(first, last uint8, taken []uint8) (uint8, bool) {
 	}
 }
 
-func (b *dedicatedBearer) pruneRuleIdentities(rules []PCCRule) {
-	for id := range b.ruleIdentity {
-		if !slices.ContainsFunc(rules, func(r PCCRule) bool { return r.ID == id }) {
-			delete(b.ruleIdentity, id)
+func (b *dedicatedBearer) pruneRuleIdentities() {
+	held := func(id string) bool {
+		for _, c := range []*bearerConfig{&b.installed, b.pending, b.ue} {
+			if c != nil && slices.ContainsFunc(c.rules, func(r PCCRule) bool { return r.ID == id }) {
+				return true
+			}
 		}
+
+		return false
 	}
+
+	maps.DeleteFunc(b.ruleIdentity, func(id string, _ ruleIdentity) bool { return !held(id) })
 }
 
 func (b *dedicatedBearer) flowTFT(current bearerTFT, rules []PCCRule) (bearerTFT, error) {
@@ -202,10 +212,13 @@ func (sc *SMContext) packetFiltersWith(b *dedicatedBearer, tft bearerTFT) int {
 			continue
 		}
 
-		if o.modification != nil {
-			n += o.modification.tft.signalledFilters()
-		} else {
-			n += o.tft.signalledFilters()
+		switch {
+		case o.pending != nil:
+			n += o.pending.tft.signalledFilters()
+		case o.ue != nil:
+			n += o.ue.tft.signalledFilters()
+		default:
+			n += o.installed.tft.signalledFilters()
 		}
 	}
 
@@ -316,12 +329,17 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 	)
 
 	for _, b := range slices.Clone(sc.dedicated) {
-		if b.syncPending && (b.ueHolds || b.admitted) {
-			unsynced = append(unsynced, b)
+		if b.state == dedicatedRemovalDeferred {
+			if b.ue != nil || b.ran != nil {
+				unsynced = append(unsynced, b)
+			} else {
+				removed = append(removed, b)
+			}
+
 			continue
 		}
 
-		key := b.binding
+		key := b.target().binding
 		if moved, ok := movedBinding(b, want, sc.dedicated); ok {
 			key = moved
 		}
@@ -332,16 +350,16 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 		switch {
 		case b.state == dedicatedAwaitingUE && !ok:
 			removed = append(removed, b)
-		case b.state == dedicatedAwaitingUE && time.Since(b.awaitingSince) > s.dedicatedAwaitLimit:
+		case b.state == dedicatedAwaitingUE && time.Since(b.deferredSince) > s.dedicatedAwaitLimit:
 			removed = append(removed, b)
 			failed = append(failed, rules...)
 		case b.state == dedicatedAwaitingUE:
 			failed = append(failed, s.createFlowLocked(ctx, sc, &change, b, key, rules)...)
-		case (b.withdraw || !ok) && !b.ueHolds && !b.admitted:
+		case (!b.enforces() || !ok) && b.ue == nil && b.ran == nil:
 			removed = append(removed, b)
-		case b.withdraw || !ok:
+		case !b.enforces() || !ok:
 			if !sc.upConnectionActive() {
-				if !b.withdraw {
+				if b.enforces() {
 					s.loseFlowLocked(ctx, sc, b)
 				}
 
@@ -349,14 +367,14 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 			}
 
 			s.removeFlowLocked(&change, b)
-		case b.realignUE != nil:
+		case b.ueBehind():
 			if !sc.upConnectionActive() {
 				continue
 			}
 
 			s.realignUELocked(&change, b)
-		case b.realignRAN:
-			change.n2Add = append(change.n2Add, gbrFlow(b, b.binding, b.mbr, b.gbr))
+		case b.ranBehind():
+			change.n2Add = append(change.n2Add, gbrFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
 			change.touch(b, false, true)
 		default:
 			failed = append(failed, s.modifyFlowLocked(ctx, sc, &change, b, key, rules)...)
@@ -404,7 +422,7 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 		return nil, fmt.Errorf("no free QFI")
 	}
 
-	b := &dedicatedBearer{binding: binding, slot: slot, qfi: qfi, state: dedicatedAwaitingUE}
+	b := &dedicatedBearer{slot: slot, qfi: qfi, pending: &bearerConfig{binding: binding}}
 
 	next := sc.Tunnel.dataPlane
 	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, QFI: qfi})
@@ -458,9 +476,9 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 
 	if err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("QoS flow cannot carry the rules", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
-		b.pruneRuleIdentities(b.rules)
+		b.pruneRuleIdentities()
 
-		if b.state == dedicatedAwaitingUE && len(b.rules) == 0 {
+		if b.state == dedicatedPlanned {
 			if rmErr := s.removeDedicatedLocked(ctx, sc, b); rmErr != nil {
 				logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not removed", logger.SUPI(sc.Supi.String()), zap.Error(rmErr))
 			}
@@ -483,7 +501,7 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 	change.n2Add = append(change.n2Add, gbrFlow(b, binding, mbr, gbr))
 	change.touch(b, true, true)
 
-	b.modification = &pendingModification{binding: binding, rules: rules, tft: tft, mbr: mbr, gbr: gbr}
+	b.pending = &bearerConfig{binding: binding, rules: rules, tft: tft, mbr: mbr, gbr: gbr}
 	b.state = dedicatedActivating
 
 	return nil
@@ -492,68 +510,68 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowChange, b *dedicatedBearer, binding bearerBinding, rules []PCCRule) []PCCRule {
 	for _, r := range rules {
 		if !sc.allocateRuleIdentity(b, r.ID) {
-			b.pruneRuleIdentities(b.rules)
-			return addedOrChangedRules(rules, b.rules)
+			b.pruneRuleIdentities()
+			return addedOrChangedRules(rules, b.installed.rules)
 		}
 	}
 
-	tft, err := b.flowTFT(b.tft, rules)
+	tft, err := b.flowTFT(b.installed.tft, rules)
 	if err == nil && sc.packetFiltersWith(b, tft) > sc.filterLimit() {
 		err = fmt.Errorf("the UE supports %d packet filters (TS 24.501 §6.4.1.3)", sc.filterLimit())
 	}
 
 	if err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("QoS flow cannot carry the rules", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
-		b.pruneRuleIdentities(b.rules)
+		b.pruneRuleIdentities()
 
-		return addedOrChangedRules(rules, b.rules)
+		return addedOrChangedRules(rules, b.installed.rules)
 	}
 
 	mbr, gbr := bearerRates(rules)
 
-	if b.rejected.refuses(binding, tft, mbr, gbr) {
-		b.pruneRuleIdentities(b.rules)
+	if b.refused.refuses(binding, tft, mbr, gbr) {
+		b.pruneRuleIdentities()
 
 		return nil
 	}
 
-	ops := b.qosRuleOps(b.rules, b.tft, rules, tft)
-	ratesChanged := !mbr.Equal(b.mbr) || !gbr.Equal(b.gbr)
-	arpChanged := binding != b.binding
+	ops := b.qosRuleOps(b.installed.rules, b.installed.tft, rules, tft)
+	ratesChanged := !mbr.Equal(b.installed.mbr) || !gbr.Equal(b.installed.gbr)
+	arpChanged := binding != b.installed.binding
 
 	if len(ops) == 0 && !ratesChanged && !arpChanged {
-		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, rules})); err != nil {
+		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, rules})); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
-			return addedOrChangedRules(rules, b.rules)
+			return addedOrChangedRules(rules, b.installed.rules)
 		}
 
-		b.rules = rules
+		b.installed.rules = rules
 
 		return nil
 	}
 
 	if len(ops) == 0 && !ratesChanged && !sc.upConnectionActive() {
-		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, rules})); err != nil {
+		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, rules})); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
-			return addedOrChangedRules(rules, b.rules)
+			return addedOrChangedRules(rules, b.installed.rules)
 		}
 
-		b.binding, b.rules = binding, rules
+		b.installed.binding, b.installed.rules = binding, rules
 
 		return nil
 	}
 
-	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, b.rules}, ruleSet{tft, rules})); err != nil {
+	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules}, ruleSet{tft, rules})); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
-		b.pruneRuleIdentities(b.rules)
+		b.pruneRuleIdentities()
 
-		return addedOrChangedRules(rules, b.rules)
+		return addedOrChangedRules(rules, b.installed.rules)
 	}
 
-	mapped, err := b.mappedModify(binding.QCI, mbr, gbr, ratesChanged, b.tft, tft)
+	mapped, err := b.mappedModify(binding.QCI, mbr, gbr, ratesChanged, b.installed.tft, tft)
 	if err != nil {
 		s.restoreLegLocked(ctx, sc, b)
-		return addedOrChangedRules(rules, b.rules)
+		return addedOrChangedRules(rules, b.installed.rules)
 	}
 
 	change.rules = append(change.rules, ops...)
@@ -565,7 +583,7 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		desc, err := b.qosFlowDescription(binding.QCI, fgs.QoSFlowOpModify, mbr, gbr)
 		if err != nil {
 			s.restoreLegLocked(ctx, sc, b)
-			return addedOrChangedRules(rules, b.rules)
+			return addedOrChangedRules(rules, b.installed.rules)
 		}
 
 		change.flows = append(change.flows, desc)
@@ -578,7 +596,7 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 	}
 
 	change.touch(b, n1, n2)
-	b.modification = &pendingModification{binding: binding, rules: rules, tft: tft, mbr: mbr, gbr: gbr}
+	b.pending = &bearerConfig{binding: binding, rules: rules, tft: tft, mbr: mbr, gbr: gbr}
 
 	return nil
 }
@@ -619,23 +637,23 @@ func samePacketFilter(a, b fgs.PacketFilter) bool {
 }
 
 func (s *SMF) removeFlowLocked(change *flowChange, b *dedicatedBearer) {
-	n1 := b.ueHolds
+	n1, n2 := b.ue != nil, b.ran != nil
+
 	if n1 {
-		for _, id := range slices.Sorted(maps.Keys(b.ruleIdentity)) {
-			change.rules = append(change.rules, fgs.QoSRule{Identifier: b.ruleIdentity[id].qri, OperationCode: fgs.QoSRuleOpDelete})
+		for _, qri := range slices.Sorted(slices.Values(b.ueQRIs())) {
+			change.rules = append(change.rules, fgs.QoSRule{Identifier: qri, OperationCode: fgs.QoSRuleOpDelete})
 		}
 
 		change.flows = append(change.flows, fgs.QoSFlowDescription{QFI: b.qfi, OperationCode: fgs.QoSFlowOpDelete})
 		change.mapped = append(change.mapped, b.mappedDelete()...)
 	}
 
-	if b.admitted {
+	if n2 {
 		change.n2Release = append(change.n2Release, b.qfi)
 	}
 
 	b.state = dedicatedReleasing
-	b.syncPending = false
-	change.touch(b, n1, b.admitted)
+	change.touch(b, n1, n2)
 }
 
 func (s *SMF) sendFlowChangeLocked(ctx context.Context, sc *SMContext, change *flowChange) []PCCRule {
@@ -725,31 +743,28 @@ func (s *SMF) unsentFlowChangeLocked(ctx context.Context, sc *SMContext, change 
 		switch {
 		case b.state == dedicatedActivating && unreachable:
 			b.state = dedicatedAwaitingUE
-			b.rules = b.modification.rules
-			b.modification = nil
 
-			if b.awaitingSince.IsZero() {
-				b.awaitingSince = time.Now()
+			if b.deferredSince.IsZero() {
+				b.deferredSince = time.Now()
 
 				s.reconcileAfter(sc.Ref, s.dedicatedAwaitLimit)
 			}
 		case b.state == dedicatedActivating:
-			failed = append(failed, b.modification.rules...)
-			b.modification = nil
-			b.pruneRuleIdentities(nil)
+			failed = append(failed, b.pending.rules...)
+			b.pending = nil
 
 			if err := s.removeDedicatedLocked(ctx, sc, b); err != nil {
 				logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not removed", logger.SUPI(sc.Supi.String()), zap.Error(err))
 			}
 		case b.state == dedicatedReleasing:
 			b.state = dedicatedActive
-		case b.modification != nil:
+		case b.pending != nil:
 			if !unreachable {
-				failed = append(failed, addedOrChangedRules(b.modification.rules, b.rules)...)
+				failed = append(failed, addedOrChangedRules(b.pending.rules, b.installed.rules)...)
 			}
 
-			b.modification = nil
-			b.pruneRuleIdentities(b.rules)
+			b.pending = nil
+			b.pruneRuleIdentities()
 			s.restoreLegLocked(ctx, sc, b)
 		}
 	}
@@ -867,21 +882,15 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 			notAllocated = append(notAllocated, s.concludeCreatedFlowLocked(ctx, sc, b, p, ueApplied, ranApplied)...)
 		case b.state == dedicatedReleasing:
 			s.concludeRemovedFlowLocked(ctx, sc, b, ueApplied, ranApplied)
-		case b.modification != nil:
+		case b.pending != nil:
 			notAllocated = append(notAllocated, s.concludeModifiedFlowLocked(ctx, sc, b, parts, ueApplied, ranApplied)...)
-		case b.realignUE != nil && ueApplied:
-			b.realignUE = nil
-			b.pruneRuleIdentities(b.rules)
-		case b.realignUE != nil:
-			b.realignUE = nil
-			b.withdraw = true
-			released = append(released, b.rules...)
-		case b.realignRAN && ranApplied:
-			b.realignRAN = false
-		case b.realignRAN:
-			b.realignRAN = false
-			b.withdraw = true
-			released = append(released, b.rules...)
+		case parts.n1 && ueApplied:
+			b.ue = b.installed.clone()
+			b.pruneRuleIdentities()
+		case parts.n2 && ranApplied:
+			b.ran = b.installed.clone()
+		default:
+			released = append(released, s.loseFlowLocked(ctx, sc, b)...)
 		}
 	}
 
@@ -904,29 +913,33 @@ func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
 }
 
 func (s *SMF) concludeCreatedFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, p *flowProcedure, ueApplied, ranApplied bool) []PCCRule {
-	m := b.modification
-	b.modification = nil
+	m := b.pending
+	b.pending = nil
+
+	b.deferredSince = time.Time{}
 
 	switch {
 	case ueApplied && ranApplied:
 		b.state = dedicatedActive
-		b.binding, b.tft, b.mbr, b.gbr, b.rules = m.binding, m.tft, m.mbr, m.gbr, m.rules
-		b.ueHolds, b.admitted = true, true
-		b.awaitingSince = time.Time{}
+		b.installed, b.ue, b.ran = *m, m.clone(), m.clone()
 		s.commitFlowLegLocked(ctx, sc, b)
 
-		logger.From(ctx, logger.SmfLog).Info("QoS flow active", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Uint8("5qi", b.binding.QCI))
+		logger.From(ctx, logger.SmfLog).Info("QoS flow active", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Uint8("5qi", b.installed.binding.QCI))
 
 		return nil
 	case ueApplied || ranApplied:
 		b.state = dedicatedActive
-		b.binding, b.tft, b.mbr, b.gbr, b.rules = m.binding, m.tft, m.mbr, m.gbr, m.rules
-		b.ueHolds, b.admitted = ueApplied, ranApplied
-		b.withdraw = true
-		s.commitFlowLegLocked(ctx, sc, b)
-	default:
-		b.pruneRuleIdentities(nil)
 
+		if ueApplied {
+			b.ue = m.clone()
+		}
+
+		if ranApplied {
+			b.ran = m.clone()
+		}
+
+		s.loseFlowLocked(ctx, sc, b)
+	default:
 		if err := s.removeDedicatedLocked(ctx, sc, b); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not removed", logger.SUPI(sc.Supi.String()), zap.Error(err))
 		}
@@ -955,37 +968,43 @@ func (sc *SMContext) unmovedFallbackRulesLocked() []PCCRule {
 }
 
 func (s *SMF) concludeModifiedFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, parts flowParts, ueApplied, ranApplied bool) []PCCRule {
-	m := b.modification
-	b.modification = nil
+	m := b.pending
+	b.pending = nil
 
 	switch {
 	case ueApplied && ranApplied:
-		b.binding, b.tft, b.mbr, b.gbr, b.rules = m.binding, m.tft, m.mbr, m.gbr, m.rules
-		b.pruneRuleIdentities(b.rules)
-		b.rejected = rejectedStep{}
+		b.installed = *m
+
+		if b.ue != nil {
+			b.ue = m.clone()
+		}
+
+		if b.ran != nil {
+			b.ran = m.clone()
+		}
+
+		b.pruneRuleIdentities()
+		b.refused = nil
 		s.commitFlowLegLocked(ctx, sc, b)
 
 		return nil
 	case parts.n1 && ueApplied:
-		b.realignUE = m
-		b.pruneRuleIdentities(append(slices.Clone(b.rules), m.rules...))
-		s.restoreLegLocked(ctx, sc, b)
-
-		return b.refuse(m)
-	default:
-		b.pruneRuleIdentities(b.rules)
-		b.realignRAN = parts.n2 && ranApplied && (m.binding != b.binding || !m.mbr.Equal(b.mbr) || !m.gbr.Equal(b.gbr))
-		s.restoreLegLocked(ctx, sc, b)
-
-		return b.refuse(m)
+		b.ue = m.clone()
+	case parts.n2 && ranApplied:
+		b.ran = m.clone()
 	}
+
+	b.pruneRuleIdentities()
+	s.restoreLegLocked(ctx, sc, b)
+
+	return b.refuse(m)
 }
 
-func (b *dedicatedBearer) refuse(m *pendingModification) []PCCRule {
-	failed := addedOrChangedRules(m.rules, b.rules)
+func (b *dedicatedBearer) refuse(m *bearerConfig) []PCCRule {
+	failed := addedOrChangedRules(m.rules, b.installed.rules)
 
 	if len(failed) == 0 {
-		b.rejected = rejectedStep{target: m}
+		b.refused = m
 	}
 
 	return failed
@@ -993,14 +1012,14 @@ func (b *dedicatedBearer) refuse(m *pendingModification) []PCCRule {
 
 func (s *SMF) concludeRemovedFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, ueApplied, ranApplied bool) {
 	if ueApplied {
-		b.ueHolds = false
+		b.ue = nil
 	}
 
 	if ranApplied {
-		b.admitted = false
+		b.ran = nil
 	}
 
-	if !b.ueHolds && !b.admitted {
+	if b.ue == nil && b.ran == nil {
 		if err := s.removeDedicatedLocked(ctx, sc, b); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not removed", logger.SUPI(sc.Supi.String()), zap.Error(err))
 		}
@@ -1010,15 +1029,14 @@ func (s *SMF) concludeRemovedFlowLocked(ctx context.Context, sc *SMContext, b *d
 		return
 	}
 
-	b.state = dedicatedActive
-	b.syncPending = true
+	b.state = dedicatedRemovalDeferred
 	s.loseFlowLocked(ctx, sc, b)
 }
 
 func (s *SMF) commitFlowLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
 	if err := s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) {
-		l.Admitted = b.admitted
-		l.Rules = sc.legRulesLocked(b, ruleSet{b.tft, b.rules})
+		l.Admitted = b.ran != nil
+		l.Rules = sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules})
 	}); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
 	}
@@ -1076,7 +1094,7 @@ func (s *SMF) unansweredFlowLegs(ref string) ([]byte, []byte, bool) {
 }
 
 func (s *SMF) realignUELocked(change *flowChange, b *dedicatedBearer) {
-	ue := b.realignUE
+	ue := b.ue
 
 	var (
 		rules  fgs.QoSRules
@@ -1084,22 +1102,22 @@ func (s *SMF) realignUELocked(change *flowChange, b *dedicatedBearer) {
 		mapped fgs.MappedEPSBearerContexts
 	)
 
-	rules = b.qosRuleOps(ue.rules, ue.tft, b.rules, b.tft)
+	rules = b.qosRuleOps(ue.rules, ue.tft, b.installed.rules, b.installed.tft)
 
-	ratesChanged := !ue.mbr.Equal(b.mbr) || !ue.gbr.Equal(b.gbr)
+	ratesChanged := !ue.mbr.Equal(b.installed.mbr) || !ue.gbr.Equal(b.installed.gbr)
 	if ratesChanged {
-		if desc, err := b.qosFlowDescription(b.binding.QCI, fgs.QoSFlowOpModify, b.mbr, b.gbr); err == nil {
+		if desc, err := b.qosFlowDescription(b.installed.binding.QCI, fgs.QoSFlowOpModify, b.installed.mbr, b.installed.gbr); err == nil {
 			flows = append(flows, desc)
 		}
 	}
 
-	if m, err := b.mappedModify(b.binding.QCI, b.mbr, b.gbr, ratesChanged, ue.tft, b.tft); err == nil {
+	if m, err := b.mappedModify(b.installed.binding.QCI, b.installed.mbr, b.installed.gbr, ratesChanged, ue.tft, b.installed.tft); err == nil {
 		mapped = m
 	}
 
 	if len(rules) == 0 && len(flows) == 0 && len(mapped) == 0 {
-		b.realignUE = nil
-		b.pruneRuleIdentities(b.rules)
+		b.ue = b.installed.clone()
+		b.pruneRuleIdentities()
 
 		return
 	}
@@ -1142,11 +1160,11 @@ func (sc *SMContext) heldFlowsLocked() []smfNgap.GBRQoSFlow {
 	var flows []smfNgap.GBRQoSFlow
 
 	for _, b := range sc.dedicated {
-		if b.qfi == 0 || b.state != dedicatedActive || !b.ueHolds || b.withdraw || len(b.rules) == 0 {
+		if b.qfi == 0 || b.state != dedicatedActive || b.ue == nil || !b.enforces() {
 			continue
 		}
 
-		flows = append(flows, gbrFlow(b, b.binding, b.mbr, b.gbr))
+		flows = append(flows, gbrFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
 	}
 
 	return flows
@@ -1190,30 +1208,29 @@ func (s *SMF) radioReleasedLocked(ctx context.Context, sc *SMContext, preserveGB
 			continue
 		}
 
-		wasAdmitted := b.admitted
-		b.admitted = false
-		b.realignRAN = false
+		wasAdmitted := b.ran != nil
+		b.ran = nil
 
 		if preserveGBR || b.state != dedicatedActive || !wasAdmitted {
 			continue
 		}
 
-		if !b.withdraw {
-			lost = append(lost, b.rules...)
-		}
-
-		s.loseFlowLocked(ctx, sc, b)
+		lost = append(lost, s.loseFlowLocked(ctx, sc, b)...)
 	}
 
 	s.reportLostRulesLocked(sc, lost)
 }
 
-func (s *SMF) loseFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
-	b.withdraw = true
+func (s *SMF) loseFlowLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) []PCCRule {
+	lost := b.installed.rules
+	b.installed = bearerConfig{}
+	b.pruneRuleIdentities()
 
 	if err := s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) { l.Rules, l.Admitted = nil, false }); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("lost QoS flow's user plane not removed", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
 	}
+
+	return lost
 }
 
 func (s *SMF) reportLostRulesLocked(sc *SMContext, lost []PCCRule) {
@@ -1242,32 +1259,38 @@ func (s *SMF) admitFlowsLocked(ctx context.Context, sc *SMContext, accepted []ui
 	var lost []PCCRule
 
 	for _, b := range sc.dedicated {
-		if b.syncPending {
-			b.syncPending = false
+		if b.state == dedicatedRemovalDeferred {
+			b.state = dedicatedActive
 
 			s.reconcileAfter(sc.Ref, 0)
 		}
 	}
 
 	for _, b := range sc.dedicated {
-		if b.qfi != 0 && b.state == dedicatedActive && b.withdraw {
-			b.admitted = b.admitted && slices.Contains(accepted, b.qfi)
+		if b.qfi == 0 || b.state != dedicatedActive {
 			continue
 		}
 
-		if b.qfi == 0 || b.state != dedicatedActive || !b.ueHolds || len(b.rules) == 0 {
+		if !b.enforces() {
+			if !slices.Contains(accepted, b.qfi) {
+				b.ran = nil
+			}
+
+			continue
+		}
+
+		if b.ue == nil {
 			continue
 		}
 
 		if slices.Contains(accepted, b.qfi) {
-			b.admitted = true
+			b.ran = b.installed.clone()
 			s.commitFlowLegLocked(ctx, sc, b)
 
 			continue
 		}
 
-		lost = append(lost, b.rules...)
-		s.loseFlowLocked(ctx, sc, b)
+		lost = append(lost, s.loseFlowLocked(ctx, sc, b)...)
 
 		logger.From(ctx, logger.SmfLog).Info("the NG-RAN node did not admit the QoS flow", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi))
 	}
@@ -1288,17 +1311,12 @@ func (s *SMF) releaseFlowsLocked(ctx context.Context, sc *SMContext, qfis []uint
 			continue
 		}
 
-		if b.state != dedicatedActive {
+		if b.state != dedicatedActive && b.state != dedicatedRemovalDeferred {
 			continue
 		}
 
-		b.admitted = false
-
-		if !b.withdraw {
-			lost = append(lost, b.rules...)
-		}
-
-		s.loseFlowLocked(ctx, sc, b)
+		b.ran = nil
+		lost = append(lost, s.loseFlowLocked(ctx, sc, b)...)
 	}
 
 	s.reportLostRulesLocked(sc, lost)
@@ -1358,22 +1376,22 @@ func (sc *SMContext) requestedFlowDeletions(req *fgs.PDUSessionModificationReque
 		}
 
 		i := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool {
-			return b.ueHolds && slices.Contains(b.qris(), r.Identifier)
+			return slices.Contains(b.ueQRIs(), r.Identifier)
 		})
 		if i < 0 {
 			return nil, false
 		}
 
 		b := sc.dedicated[i]
-		for id, ri := range b.ruleIdentity {
-			if ri.qri == r.Identifier {
-				deletion(b).rules = append(deletion(b).rules, id)
+		for _, held := range b.ue.rules {
+			if b.ruleIdentity[held.ID].qri == r.Identifier {
+				deletion(b).rules = append(deletion(b).rules, held.ID)
 			}
 		}
 	}
 
 	for _, f := range req.RequestedQoSFlows {
-		i := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.ueHolds && b.qfi == f.QFI })
+		i := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.ue != nil && b.qfi == f.QFI })
 		if f.OperationCode != fgs.QoSFlowOpDelete || i < 0 {
 			return nil, false
 		}
@@ -1394,38 +1412,45 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 
 	for _, d := range deletions {
 		b := d.flow
-		before := maps.Clone(b.tft)
+		before := maps.Clone(b.ue.tft)
 
 		gone := d.rules
 		if d.whole {
-			gone = slices.Collect(maps.Keys(b.ruleIdentity))
+			gone = nil
+			for _, r := range b.ue.rules {
+				gone = append(gone, r.ID)
+			}
 		}
+
+		isGone := func(id string) bool { return slices.Contains(gone, id) }
 
 		for _, id := range gone {
 			rules = append(rules, fgs.QoSRule{Identifier: b.ruleIdentity[id].qri, OperationCode: fgs.QoSRuleOpDelete})
 
-			if i := slices.IndexFunc(b.rules, func(r PCCRule) bool { return r.ID == id }); i >= 0 {
-				lost = append(lost, b.rules[i])
+			if i := slices.IndexFunc(b.installed.rules, func(r PCCRule) bool { return r.ID == id }); i >= 0 {
+				lost = append(lost, b.installed.rules[i])
 			}
 		}
 
-		b.rules = slices.DeleteFunc(b.rules, func(r PCCRule) bool { return slices.Contains(gone, r.ID) })
-		maps.DeleteFunc(b.tft, func(k filterKey, _ models.SDFFilter) bool { return slices.Contains(gone, k.rule) })
+		for _, c := range []*bearerConfig{&b.installed, b.ue} {
+			c.rules = slices.DeleteFunc(c.rules, func(r PCCRule) bool { return isGone(r.ID) })
+			maps.DeleteFunc(c.tft, func(k filterKey, _ models.SDFFilter) bool { return isGone(k.rule) })
+		}
 
-		if d.whole || len(b.rules) == 0 {
+		if d.whole || len(b.ue.rules) == 0 {
 			flows = append(flows, fgs.QoSFlowDescription{QFI: b.qfi, OperationCode: fgs.QoSFlowOpDelete})
 			mapped = append(mapped, b.mappedDelete()...)
-			b.ueHolds = false
-			s.loseFlowLocked(ctx, sc, b)
+			b.ue = nil
+			lost = append(lost, s.loseFlowLocked(ctx, sc, b)...)
 
 			continue
 		}
 
-		if m, err := b.mappedModify(b.binding.QCI, b.mbr, b.gbr, false, before, b.tft); err == nil {
+		if m, err := b.mappedModify(b.ue.binding.QCI, b.ue.mbr, b.ue.gbr, false, before, b.ue.tft); err == nil {
 			mapped = append(mapped, m...)
 		}
 
-		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.tft, b.rules})); err != nil {
+		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules})); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
 		}
 	}
@@ -1441,7 +1466,7 @@ func (s *SMF) acceptFlowDeletionLocked(ctx context.Context, sc *SMContext, delet
 	s.sendRequestedModificationLocked(ctx, sc, pti, n1)
 
 	for _, d := range deletions {
-		d.flow.pruneRuleIdentities(d.flow.rules)
+		d.flow.pruneRuleIdentities()
 	}
 
 	s.reportLostRulesLocked(sc, lost)

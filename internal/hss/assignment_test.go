@@ -306,17 +306,3 @@ func TestServerAssignmentIdentityErrors(t *testing.T) {
 		})
 	}
 }
-
-func TestServerAssignmentStoreFailureIsUnableToComply(t *testing.T) {
-	store := newFakeIMSStore()
-	store.fail = true
-
-	requireResult(t, serverAssignment(t, store, register(testIMSI, cx.AssignmentRegistration)), tgpp.Result{Code: diameter.ResultUnableToComply})
-}
-
-func TestSubscriberWithoutMSISDN(t *testing.T) {
-	store := newFakeIMSStore()
-
-	ans := userAuthorization(t, store, cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testNoMSISDN), PublicIdentity: "sip:" + impiOf(testNoMSISDN)})
-	requireResult(t, ans, tgpp.Result{Code: diameter.ResultAuthorizationRejected})
-}

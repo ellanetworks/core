@@ -19,14 +19,6 @@ import (
 func epsReconcileFixture(t *testing.T, pduSessionID uint8) (*smf.SMF, *fakePCF, *fakeUPF, *fakeMME, string) {
 	t.Helper()
 
-	s, pcf, upf, mmeCb, ref, _ := epsReconcileFixtureWithStore(t, pduSessionID)
-
-	return s, pcf, upf, mmeCb, ref
-}
-
-func epsReconcileFixtureWithStore(t *testing.T, pduSessionID uint8) (*smf.SMF, *fakePCF, *fakeUPF, *fakeMME, string, *fakeStore) {
-	t.Helper()
-
 	store, upf := epsTestSMF()
 	pcf := &fakePCF{policy: epsPolicy()}
 	s := newTestSMF(pcf, store, upf, &fakeAMF{})
@@ -47,7 +39,7 @@ func epsReconcileFixtureWithStore(t *testing.T, pduSessionID uint8) (*smf.SMF, *
 		t.Fatal(err)
 	}
 
-	return s, pcf, upf, mmeCb, bearer.Ref, store
+	return s, pcf, upf, mmeCb, bearer.Ref
 }
 
 func changePolicy(pcf *fakePCF, mutate func(*smf.Policy)) {

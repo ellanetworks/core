@@ -173,24 +173,51 @@ func TestInterworkingFlowModificationUpdatesTheMappedBearer(t *testing.T) {
 	}
 }
 
-func TestFlowWithoutAFreeEBIStaysIn5GS(t *testing.T) {
-	s, amfCb, ref := interworkingVoiceFixture(t)
+func TestFlowWithoutAnEPSBearerStaysIn5GS(t *testing.T) {
+	delayCritical := voiceRule()
+	delayCritical.QCI = 86
 
-	amfCb.mu.Lock()
-	amfCb.noFreeEBI = true
-	amfCb.mu.Unlock()
-
-	pushRules(t, s, ref, voiceRule())
-
-	c := waitFlowModifications(t, amfCb, 1)[0]
-	cmd := flowCommand(t, c)
-
-	if _, ok := cmd.QoSFlowDescriptions[0].EPSBearerID(); ok || cmd.MappedEPSBearerContexts != nil {
-		t.Fatalf("command %+v, want no EPS bearer for a flow the AMF gave no EBI (TS 23.502 §4.11.1.4.1)", cmd)
+	tests := []struct {
+		name      string
+		noFreeEBI bool
+		rule      smf.PCCRule
+		fiveQI    byte
+	}{
+		{"no free EBI (TS 23.502 §4.11.1.4.1)", true, voiceRule(), 1},
+		{"delay-critical GBR 5QI with no QCI (TS 23.203 Table 6.1.7)", false, delayCritical, 86},
 	}
 
-	if item := modifyTransfer(t, c).QosFlowAddOrModifyRequest[0]; item.ERABID != nil {
-		t.Fatalf("N2 QoS flow %+v, want no E-RAB ID", item)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, amfCb, ref := interworkingVoiceFixture(t)
+
+			amfCb.mu.Lock()
+			amfCb.noFreeEBI = tc.noFreeEBI
+			amfCb.mu.Unlock()
+
+			pushRules(t, s, ref, tc.rule)
+
+			c := waitFlowModifications(t, amfCb, 1)[0]
+			cmd := flowCommand(t, c)
+
+			if len(cmd.QoSFlowDescriptions) != 1 || !slices.ContainsFunc(cmd.QoSFlowDescriptions[0].Parameters, func(p fgs.QoSFlowParameter) bool {
+				return p.ID == fgs.QoSFlowParam5QI && bytes.Equal(p.Value, []byte{tc.fiveQI})
+			}) {
+				t.Fatalf("QoS flow descriptions %+v, want one for 5QI %d (TS 23.501 Table 5.7.4-1)", cmd.QoSFlowDescriptions, tc.fiveQI)
+			}
+
+			amfCb.mu.Lock()
+			assigned := len(amfCb.flowEBIs)
+			amfCb.mu.Unlock()
+
+			if _, ok := cmd.QoSFlowDescriptions[0].EPSBearerID(); ok || cmd.MappedEPSBearerContexts != nil || assigned != 0 {
+				t.Fatalf("command %+v, %d EBIs assigned; want no EPS bearer for the flow", cmd, assigned)
+			}
+
+			if item := modifyTransfer(t, c).QosFlowAddOrModifyRequest[0]; item.ERABID != nil {
+				t.Fatalf("N2 QoS flow %+v, want no E-RAB ID", item)
+			}
+		})
 	}
 }
 
@@ -574,31 +601,5 @@ func TestHandoverToEPSBindsTheVoiceBearerWithTheDefaultBearer(t *testing.T) {
 
 	if got := modifyCount(upf) - before; got != 0 {
 		t.Fatalf("%d PFCP modifications for an endpoint already bound, want 0", got)
-	}
-}
-
-func TestDelayCriticalFlowStaysIn5GS(t *testing.T) {
-	s, amfCb, ref := interworkingVoiceFixture(t)
-
-	rule := voiceRule()
-	rule.QCI = 86
-
-	pushRules(t, s, ref, rule)
-
-	c := waitFlowModifications(t, amfCb, 1)[0]
-	cmd := flowCommand(t, c)
-
-	if len(cmd.QoSFlowDescriptions) != 1 || !slices.ContainsFunc(cmd.QoSFlowDescriptions[0].Parameters, func(p fgs.QoSFlowParameter) bool {
-		return p.ID == fgs.QoSFlowParam5QI && bytes.Equal(p.Value, []byte{86})
-	}) {
-		t.Fatalf("QoS flow descriptions %+v, want one for the delay-critical GBR 5QI 86 (TS 23.501 Table 5.7.4-1)", cmd.QoSFlowDescriptions)
-	}
-
-	amfCb.mu.Lock()
-	assigned := len(amfCb.flowEBIs)
-	amfCb.mu.Unlock()
-
-	if _, ok := cmd.QoSFlowDescriptions[0].EPSBearerID(); ok || cmd.MappedEPSBearerContexts != nil || assigned != 0 {
-		t.Fatalf("command %+v, want no EPS bearer for a 5QI with no QCI (TS 23.203 Table 6.1.7)", cmd)
 	}
 }

@@ -13,6 +13,11 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
+var (
+	_ = [1]struct{}{}[ebpf.MaxClassifierRules-models.MaxSessionSDFRules]
+	_ = [1]struct{}{}[ebpf.MaxClassifierTargets-models.MaxSessionSDFPDRs]
+)
+
 func sdfDownlink(spdrInfo SPDRInfo) bool {
 	return spdrInfo.UEIP.IsValid() && len(spdrInfo.SDF) > 0
 }
