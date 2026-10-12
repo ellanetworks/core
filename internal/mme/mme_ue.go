@@ -94,6 +94,9 @@ type PdnConnection struct {
 	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
 
+	ESM        ESMState
+	activation *pdnActivation
+
 	Modifying *models.EPSBearerModification
 
 	Dedicated map[uint8]*DedicatedBearer
@@ -116,6 +119,7 @@ type ESMInfoWait struct {
 type PendingPDNConnectivity struct {
 	PTI     uint8
 	PDNType uint8
+	Request []byte
 }
 
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
@@ -543,6 +547,7 @@ func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
 	defer ue.mu.Unlock()
 
 	if p, ok := ue.Pdns[ebi]; ok {
+		p.guard.Stop()
 		p.takeDedicatedLocked()
 	}
 

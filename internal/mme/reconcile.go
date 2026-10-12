@@ -160,7 +160,7 @@ func (m *MME) reconcilableBearer(ctx context.Context, imsi string, ebi uint8, pa
 	}
 
 	ue.mu.Lock()
-	busy := p.Deactivating || p.Modifying != nil
+	busy := p.Deactivating || p.Modifying != nil || p.ESM == ESMActivePending
 	ue.mu.Unlock()
 
 	if busy {
@@ -235,7 +235,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 
 	ue.mu.Lock()
 
-	if p.Deactivating || p.Modifying != nil {
+	if p.Deactivating || p.Modifying != nil || p.ESM == ESMActivePending {
 		ue.mu.Unlock()
 
 		return ErrBearerBusy

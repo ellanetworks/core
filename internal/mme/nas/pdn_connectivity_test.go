@@ -5,6 +5,7 @@ package nas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -535,5 +536,209 @@ func TestAttachBearerRejectCauseNamesAnUnknownAPN(t *testing.T) {
 
 	if got := attachBearerRejectCause(eps.RequestTypeInitialRequest, err); got != eps.ESMCauseMissingOrUnknownAPN {
 		t.Fatalf("cause = %d, want #27", got)
+	}
+}
+
+func openIMSPDN(t *testing.T, m *mme.MME, ue *mme.UeContext) *mme.PdnConnection {
+	t.Helper()
+
+	testPDN(ue).Apn = "internet"
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), imsConnectivityRequest(2))
+
+	p := ue.PdnForAPN("ims")
+	if p == nil {
+		t.Fatal("second PDN connection not created")
+	}
+
+	return p
+}
+
+func imsConnectivityRequest(pti nas.ProcedureTransactionIdentity) *eps.PDNConnectivityRequest {
+	return &eps.PDNConnectivityRequest{
+		PTI: pti, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
+	}
+}
+
+func failERABSetup(t *testing.T, m *mme.MME, ue *mme.UeContext, cc *captureConn, ebi uint8) {
+	t.Helper()
+
+	resp := &s1ap.ERABSetupResponse{
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(ue.Conn().ENBUES1APID()),
+		ERABFailedToSetup: []s1ap.ERABItem{{
+			ERABID: s1ap.ERABID(ebi),
+			Cause:  s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable},
+		}},
+	}
+
+	rb, err := resp.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rpdu, err := s1ap.Unmarshal(rb)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mmes1ap.HandleERABSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), rpdu.(*s1ap.SuccessfulOutcome).Value)
+}
+
+func sentERABRelease(t *testing.T, cc *captureConn) bool {
+	t.Helper()
+
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+
+	for _, b := range cc.sent {
+		if pdu, err := s1ap.Unmarshal(b); err == nil {
+			if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcERABRelease {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func TestFailedDefaultBearerSetupRejectsThePDNConnectivityRequest(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	p := openIMSPDN(t, m, ue)
+
+	failERABSetup(t, m, ue, cc, p.Ebi)
+
+	rej, err := eps.ParsePDNConnectivityReject(lastDownlinkESM(t, ue, cc))
+	if err != nil {
+		t.Fatalf("last downlink is not a PDN Connectivity Reject: %v", err)
+	}
+
+	if rej.PTI != 2 || rej.Cause != eps.ESMCauseServiceOptionTemporarilyOut {
+		t.Fatalf("reject PTI %d cause %v, want PTI 2 and #34", rej.PTI, rej.Cause)
+	}
+
+	if sentERABRelease(t, cc) {
+		t.Fatal("an E-RAB the eNB never set up was released, with a deactivation of a bearer the UE never activated")
+	}
+
+	if ue.PdnForAPN("ims") != nil {
+		t.Fatal("the refused PDN connection was kept")
+	}
+
+	if m.ESMGuardActiveForTest(p) {
+		t.Fatal("T3485 still armed for a PDN connection that was dropped")
+	}
+
+	if !m.Session.(*fakeSessionManager).released {
+		t.Fatal("the anchor session of the refused PDN connection was not released")
+	}
+
+	if ue.PdnForAPN("internet") == nil || ue.EMMState() != mme.EMMRegistered {
+		t.Fatal("the UE's other PDN connection or registration was disturbed")
+	}
+}
+
+func TestFailedSetupOfAnActiveDefaultBearerStillDisconnectsIt(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	p := openIMSPDN(t, m, ue)
+	handleActivateDefaultBearerAccept(context.Background(), m, ue, &eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi), PTI: 2})
+
+	failERABSetup(t, m, ue, cc, p.Ebi)
+
+	cmd := findERABReleaseCommand(t, cc)
+	if _, err := eps.ParseDeactivateEPSBearerContextRequest(decodeDeactivate(t, ue, cmd)); err != nil {
+		t.Fatalf("an active PDN connection that lost its E-RAB was not disconnected: %v", err)
+	}
+}
+
+func decodeDeactivate(t *testing.T, ue *mme.UeContext, cmd *s1ap.ERABReleaseCommand) []byte {
+	t.Helper()
+
+	wire := []byte(cmd.NASPDU)
+	if len(wire) == 0 {
+		t.Fatal("E-RAB Release Command carries no NAS")
+	}
+
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+	if err != nil {
+		t.Fatalf("unprotect downlink: %v", err)
+	}
+
+	return plain
+}
+
+func TestRetransmittedPDNConnectivityRequestResendsTheActivation(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	p := openIMSPDN(t, m, ue)
+	setups := cc.count()
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), imsConnectivityRequest(2))
+
+	act, err := eps.ParseActivateDefaultEPSBearerContextRequest(lastDownlinkESM(t, ue, cc))
+	if err != nil {
+		t.Fatalf("a retransmitted request was not answered with the Activate Default EPS Bearer Context Request: %v", err)
+	}
+
+	if uint8(act.EPSBearerIdentity) != p.Ebi || act.PTI != 2 {
+		t.Fatalf("resent activation EBI %d PTI %d, want EBI %d PTI 2", act.EPSBearerIdentity, act.PTI, p.Ebi)
+	}
+
+	if cc.count() != setups+1 {
+		t.Fatalf("sent %d messages for the retransmission, want only the resent activation", cc.count()-setups)
+	}
+
+	if ue.PdnForAPN("ims") != p || !m.ESMGuardActiveForTest(p) {
+		t.Fatal("the pending activation was not continued under T3485")
+	}
+}
+
+func TestDifferentPDNConnectivityRequestForAnActivatingAPNIsRejected(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	p := openIMSPDN(t, m, ue)
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), imsConnectivityRequest(3))
+
+	rej, err := eps.ParsePDNConnectivityReject(lastDownlinkESM(t, ue, cc))
+	if err != nil || rej.PTI != 3 || rej.Cause != eps.ESMCauseMultiplePDNNotAllowed {
+		t.Fatalf("reject %+v (%v), want PTI 3 with #55", rej, err)
+	}
+
+	if ue.PdnForAPN("ims") != p {
+		t.Fatal("the pending activation was disturbed")
+	}
+}
+
+func TestPDNConnectivityRequestForAnActiveAPNIsRejected(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	p := openIMSPDN(t, m, ue)
+	handleActivateDefaultBearerAccept(context.Background(), m, ue, &eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi), PTI: 2})
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), imsConnectivityRequest(2))
+
+	rej, err := eps.ParsePDNConnectivityReject(lastDownlinkESM(t, ue, cc))
+	if err != nil || rej.Cause != eps.ESMCauseMultiplePDNNotAllowed {
+		t.Fatalf("reject %+v (%v), want #55 once the activation was accepted", rej, err)
+	}
+}
+
+func TestActivatingDefaultBearerIsNotModified(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.Conn().SetICS(mme.ICSCompleted)
+
+	p := openIMSPDN(t, m, ue)
+
+	err := m.ModifyEPSBearer(context.Background(), testSubscriber.IMSI, p.Ebi, models.EPSBearerModification{DNS: netip.MustParseAddr("10.9.9.9")})
+	if !errors.Is(err, mme.ErrBearerBusy) {
+		t.Fatalf("ModifyEPSBearer = %v, want %v while T3485 supervises the activation", err, mme.ErrBearerBusy)
 	}
 }

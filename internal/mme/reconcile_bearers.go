@@ -125,7 +125,11 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 		named[ebi] = struct{}{}
 
 		if p := m.LookupPDN(ue, ebi); p != nil {
-			later(func(ctx context.Context) { m.DisconnectLostPDN(ctx, ue, p) })
+			later(func(ctx context.Context) {
+				if !m.RejectPDNActivation(ctx, ue, p, "the eNB did not set up the default bearer") {
+					m.DisconnectLostPDN(ctx, ue, p)
+				}
+			})
 
 			result.Released = append(result.Released, ebi)
 		} else if _, d := m.LookupDedicated(ue, ebi); d != nil {

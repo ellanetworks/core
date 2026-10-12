@@ -18,6 +18,7 @@ func takeAllPDNs(ue *UeContext) []*PdnConnection {
 
 	out := make([]*PdnConnection, 0, len(ue.Pdns))
 	for _, p := range ue.Pdns {
+		p.guard.Stop()
 		p.takeDedicatedLocked()
 		out = append(out, p)
 	}
@@ -56,6 +57,7 @@ func (ue *UeContext) LocalBearerDeactivationPending() bool {
 }
 
 func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	m.StopESMGuard(p)
 	m.releaseAnchorSession(ctx, ue, p)
 
 	ue.mu.Lock()

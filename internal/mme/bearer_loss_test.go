@@ -230,3 +230,28 @@ func TestModificationRejectedWithInvalidEBIReleasesTheBearerLocally(t *testing.T
 		t.Fatalf("SMF told %+v released, want the voice bearer", dropped)
 	}
 }
+
+func TestReleasingAPDNConnectionStopsItsESMGuard(t *testing.T) {
+	for name, release := range map[string]func(m *MME, ue *UeContext, p *PdnConnection){
+		"one":   func(m *MME, ue *UeContext, p *PdnConnection) { m.ReleasePDN(context.Background(), ue, p) },
+		"all":   func(m *MME, ue *UeContext, _ *PdnConnection) { m.ReleaseAllSessions(context.Background(), ue) },
+		"local": func(m *MME, ue *UeContext, p *PdnConnection) { m.DropPDN(ue, p.Ebi) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m, ue, _, _ := activeVoiceBearer(t)
+			p := addSecondPDN(ue)
+
+			m.ArmESMGuard(context.Background(), ue, p, "Activate Default EPS Bearer Context Request", []byte{0x02}, eps.SHTIntegrityProtectedCiphered)
+
+			if !p.guard.Active() {
+				t.Fatal("guard not armed")
+			}
+
+			release(m, ue, p)
+
+			if p.guard.Active() {
+				t.Fatal("T3485 kept retransmitting for a PDN connection that was released (TS 24.301 §6.4.1.6)")
+			}
+		})
+	}
+}
