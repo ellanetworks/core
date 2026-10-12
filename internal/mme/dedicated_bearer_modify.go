@@ -91,11 +91,9 @@ func (d *dedicatedModification) awaitsRadio() bool {
 
 func modificationTFT(mod models.DedicatedBearerModification) (eps.TrafficFlowTemplate, bool) {
 	switch mod.Operation {
-	case models.TFTAddFilters:
-		return models.EPSTFT(eps.TFTAddFilters, mod.Filters), true
-	case models.TFTReplaceFilters:
-		return models.EPSTFT(eps.TFTReplaceFilters, mod.Filters), true
-	case models.TFTDeleteFilters:
+	case eps.TFTAddFilters, eps.TFTReplaceFilters:
+		return models.EPSTFT(mod.Operation, mod.Filters), true
+	case eps.TFTDeleteFilters:
 		return eps.TrafficFlowTemplate{Operation: eps.TFTDeleteFilters, DeleteIdentifiers: slices.Clone(mod.DeleteIDs)}, true
 	default:
 		return eps.TrafficFlowTemplate{}, false
@@ -103,8 +101,8 @@ func modificationTFT(mod models.DedicatedBearerModification) (eps.TrafficFlowTem
 }
 
 func modifiedInfo(info DedicatedBearerInfo, mod models.DedicatedBearerModification) DedicatedBearerInfo {
-	if mod.QoSChanged {
-		info.MBR, info.GBR = mod.MBR, mod.GBR
+	if mod.Rates != nil {
+		info.MBR, info.GBR = mod.Rates.MBR, mod.Rates.GBR
 	}
 
 	if mod.ARP != nil {
@@ -114,12 +112,12 @@ func modifiedInfo(info DedicatedBearerInfo, mod models.DedicatedBearerModificati
 	filters := slices.Clone(info.Filters)
 
 	switch mod.Operation {
-	case models.TFTAddFilters, models.TFTReplaceFilters:
+	case eps.TFTAddFilters, eps.TFTReplaceFilters:
 		for _, f := range mod.Filters {
 			filters = slices.DeleteFunc(filters, func(old models.SDFFilter) bool { return old.ID == f.ID })
 			filters = append(filters, f)
 		}
-	case models.TFTDeleteFilters:
+	case eps.TFTDeleteFilters:
 		filters = slices.DeleteFunc(filters, func(old models.SDFFilter) bool { return slices.Contains(mod.DeleteIDs, old.ID) })
 	}
 
@@ -129,7 +127,7 @@ func modifiedInfo(info DedicatedBearerInfo, mod models.DedicatedBearerModificati
 }
 
 func checkModification(target DedicatedBearerInfo, mod models.DedicatedBearerModification) error {
-	if !radioChange(mod) && mod.Operation == models.TFTNoChange {
+	if !radioChange(mod) && mod.Operation == eps.TFTIgnore {
 		return fmt.Errorf("%w: it changes nothing", ErrInvalidModification)
 	}
 
@@ -145,11 +143,11 @@ func checkModification(target DedicatedBearerInfo, mod models.DedicatedBearerMod
 }
 
 func radioChange(mod models.DedicatedBearerModification) bool {
-	return mod.QoSChanged || mod.ARP != nil
+	return mod.Rates != nil || mod.ARP != nil
 }
 
 func arpOnlyModification(mod models.DedicatedBearerModification) bool {
-	return mod.ARP != nil && !mod.QoSChanged && mod.Operation == models.TFTNoChange
+	return mod.ARP != nil && mod.Rates == nil && mod.Operation == eps.TFTIgnore
 }
 
 func dedicatedModifyRequest(ebi uint8, target DedicatedBearerInfo, mod models.DedicatedBearerModification, useEPCO bool) ([]byte, error) {
@@ -207,7 +205,7 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 	ue.mu.Lock()
 
 	p, b := ue.dedicatedLocked(ebi)
-	if b == nil || p.SessionRef != mod.SessionRef || b.SgwFTEID.TEID != mod.SGWTEID {
+	if b == nil || p.SessionRef != mod.SessionRef || b.SGW.TEID != mod.SGWTEID {
 		ue.mu.Unlock()
 		return ErrNoDedicatedBearer
 	}
@@ -282,7 +280,7 @@ func (m *MME) startModification(ctx context.Context, ue *UeContext, ueConn *UeCo
 		return err
 	}
 
-	ueConn.Log(ctx).Info("modifying dedicated EPS bearer", logger.ERABID(ebi), zap.Bool("qos", mod.QoSChanged), zap.Uint8("tft_operation", uint8(mod.Operation)))
+	ueConn.Log(ctx).Info("modifying dedicated EPS bearer", logger.ERABID(ebi), zap.Bool("qos", mod.Rates != nil), zap.Uint8("tft_operation", uint8(mod.Operation)))
 
 	if withheld {
 		m.reportWithheldFiveGSQoS(ctx, ueConn, mod.SessionRef, ebi, mod.SGWTEID)
@@ -299,13 +297,13 @@ func (m *MME) commitIdleDedicatedARP(ctx context.Context, ue *UeContext, ebi uin
 	ue.mu.Lock()
 
 	p, b := ue.dedicatedLocked(ebi)
-	if b == nil || p.SessionRef != mod.SessionRef || b.SgwFTEID.TEID != mod.SGWTEID || b.ESM != ESMActive || b.modifying != nil {
+	if b == nil || p.SessionRef != mod.SessionRef || b.SGW.TEID != mod.SGWTEID || b.ESM != ESMActive || b.modifying != nil {
 		ue.mu.Unlock()
 		return false
 	}
 
 	b.ARP = *mod.ARP
-	ref, teid := p.SessionRef, b.SgwFTEID.TEID
+	ref, teid := p.SessionRef, b.SGW.TEID
 	ue.mu.Unlock()
 
 	m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationCommitted)
@@ -462,7 +460,7 @@ func (m *MME) settleRadio(ctx context.Context, ue *UeContext, b *DedicatedBearer
 func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, b *DedicatedBearer, pending *dedicatedModification) {
 	ue.mu.Lock()
 
-	p, held := ue.dedicatedLocked(b.Ebi)
+	p, held := ue.dedicatedLocked(b.EBI)
 
 	verdict := pending.verdict()
 	if held != b || b.modifying != pending || verdict == verdictPending {
@@ -477,7 +475,7 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 		pending.target.applyTo(&b.DedicatedBearerInfo)
 	}
 
-	ref, teid, ebi := p.SessionRef, b.SgwFTEID.TEID, b.Ebi
+	ref, teid, ebi := p.SessionRef, b.SGW.TEID, b.EBI
 	interrupted := pending.radio == radioInterrupted || pending.radio == radioUnknown
 	resume := b.realignRadio && !pending.realign
 	ue.mu.Unlock()
@@ -541,8 +539,8 @@ func (m *MME) realignERAB(ctx context.Context, ue *UeContext, ebi uint8) {
 	}
 
 	realign := models.DedicatedBearerModification{
-		SessionRef: p.SessionRef, SGWTEID: b.SgwFTEID.TEID,
-		QoSChanged: true, MBR: b.MBR, GBR: b.GBR,
+		SessionRef: p.SessionRef, SGWTEID: b.SGW.TEID,
+		Rates: &models.BearerRates{MBR: b.MBR, GBR: b.GBR},
 	}
 	ue.mu.Unlock()
 

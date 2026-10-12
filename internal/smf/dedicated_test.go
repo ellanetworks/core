@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 const dedicatedUplinkTEID = 0x1000 + 16
@@ -80,16 +81,16 @@ func TestVoiceRuleActivatesADedicatedBearer(t *testing.T) {
 	}
 
 	a := acts[0]
-	if a.LinkedEBI != epsTestEBI || a.QCI != 1 || a.ARP != voiceARP || a.SGW.TEID != dedicatedUplinkTEID || a.SessionRef != ref {
+	if a.LinkedEBI != epsTestEBI || a.Bearer.QCI != 1 || a.Bearer.ARP != voiceARP || a.Bearer.SGW.TEID != dedicatedUplinkTEID || a.SessionRef != ref {
 		t.Fatalf("activation %+v, want QCI 1 linked to EBI %d on TEID %#x", a, epsTestEBI, dedicatedUplinkTEID)
 	}
 
-	if a.GBR.Uplink.Bps() != 41000 || a.MBR.Downlink.Bps() != 41000 {
-		t.Fatalf("bitrates MBR %+v GBR %+v, want 41 kbps", a.MBR, a.GBR)
+	if a.Bearer.GBR.Uplink.Bps() != 41000 || a.Bearer.MBR.Downlink.Bps() != 41000 {
+		t.Fatalf("bitrates MBR %+v GBR %+v, want 41 kbps", a.Bearer.MBR, a.Bearer.GBR)
 	}
 
-	if len(a.Filters) != 2 || a.Filters[0].Precedence == a.Filters[1].Precedence {
-		t.Fatalf("filters %+v, want two with distinct precedences", a.Filters)
+	if len(a.Bearer.Filters) != 2 || a.Bearer.Filters[0].Precedence == a.Bearer.Filters[1].Precedence {
+		t.Fatalf("filters %+v, want two with distinct precedences", a.Bearer.Filters)
 	}
 
 	if a.MappedFiveGSQoS != nil {
@@ -162,7 +163,7 @@ func TestDedicatedBearerWaitsForAnIdleUE(t *testing.T) {
 	}
 
 	acts := mmeCb.dedicatedActivations()
-	if len(acts) != 1 || acts[0].SGW.TEID != dedicatedUplinkTEID {
+	if len(acts) != 1 || acts[0].Bearer.SGW.TEID != dedicatedUplinkTEID {
 		t.Fatalf("activations %+v, want one on the bearer's original endpoint", acts)
 	}
 }
@@ -591,7 +592,7 @@ func TestSecondCallAndHangUpModifyTheSharedBearer(t *testing.T) {
 	pushRules(t, s, ref, voiceRule(), secondCallRule())
 
 	add := waitDedicatedModifications(t, mmeCb, 1)[0]
-	if add.Operation != models.TFTAddFilters || len(add.Filters) != 2 || add.Filters[0].ID != 3 || add.Filters[1].ID != 4 || !add.QoSChanged || add.GBR.Downlink.Bps() != 82000 {
+	if add.Operation != eps.TFTAddFilters || len(add.Filters) != 2 || add.Filters[0].ID != 3 || add.Filters[1].ID != 4 || add.Rates == nil || add.Rates.GBR.Downlink.Bps() != 82000 {
 		t.Fatalf("modification %+v, want filters 3 and 4 added with an 82 kbps GBR", add)
 	}
 
@@ -608,7 +609,7 @@ func TestSecondCallAndHangUpModifyTheSharedBearer(t *testing.T) {
 	pushRules(t, s, ref, secondCallRule())
 
 	del := waitDedicatedModifications(t, mmeCb, 2)[1]
-	if del.Operation != models.TFTDeleteFilters || !slices.Equal(del.DeleteIDs, []uint8{1, 2}) || del.GBR.Downlink.Bps() != 41000 {
+	if del.Operation != eps.TFTDeleteFilters || !slices.Equal(del.DeleteIDs, []uint8{1, 2}) || del.Rates.GBR.Downlink.Bps() != 41000 {
 		t.Fatalf("modification %+v, want filters 1 and 2 deleted with a 41 kbps GBR", del)
 	}
 
@@ -634,7 +635,7 @@ func TestPortChangeReplacesFiltersInPlace(t *testing.T) {
 	pushRules(t, s, ref, moved)
 
 	mod := waitDedicatedModifications(t, mmeCb, 1)[0]
-	if mod.Operation != models.TFTReplaceFilters || len(mod.Filters) != 2 || mod.Filters[0].ID != 1 || mod.Filters[1].ID != 2 || mod.QoSChanged {
+	if mod.Operation != eps.TFTReplaceFilters || len(mod.Filters) != 2 || mod.Filters[0].ID != 1 || mod.Filters[1].ID != 2 || mod.Rates != nil {
 		t.Fatalf("modification %+v, want filters 1 and 2 replaced without a QoS change (TS 23.401 §5.4.3)", mod)
 	}
 
@@ -649,13 +650,13 @@ func TestSwappedCallAddsBeforeItDeletes(t *testing.T) {
 
 	pushRules(t, s, ref, secondCallRule())
 
-	if first := waitDedicatedModifications(t, mmeCb, 1)[0]; first.Operation != models.TFTAddFilters {
+	if first := waitDedicatedModifications(t, mmeCb, 1)[0]; first.Operation != eps.TFTAddFilters {
 		t.Fatalf("first step %+v, want the additions so the TFT never empties (TS 24.301 §6.4.3.4 a3)", first)
 	}
 
 	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
-	if second := waitDedicatedModifications(t, mmeCb, 2)[1]; second.Operation != models.TFTDeleteFilters || !slices.Equal(second.DeleteIDs, []uint8{1, 2}) {
+	if second := waitDedicatedModifications(t, mmeCb, 2)[1]; second.Operation != eps.TFTDeleteFilters || !slices.Equal(second.DeleteIDs, []uint8{1, 2}) {
 		t.Fatalf("second step %+v, want filters 1 and 2 deleted", second)
 	}
 }
@@ -789,7 +790,7 @@ func TestDownlinkOnlyRuleActivatesABearerThatBlocksUplink(t *testing.T) {
 		t.Fatalf("activations %+v, want one for the downlink-only rule (TS 23.401 §4.7.2)", acts)
 	}
 
-	if f := acts[0].Filters; len(f) != 2 || !slices.ContainsFunc(f, blocksUplink) || f[0].ID == f[1].ID {
+	if f := acts[0].Bearer.Filters; len(f) != 2 || !slices.ContainsFunc(f, blocksUplink) || f[0].ID == f[1].ID {
 		t.Fatalf("filters %+v, want the rule's downlink filter and an uplink filter on the discard port (TS 23.060 §15.3.3.4)", f)
 	}
 
@@ -817,7 +818,7 @@ func TestEndingTheLastUplinkFlowBlocksUplinkBeforeDeletingIt(t *testing.T) {
 	pushRules(t, s, ref, voiceRule(), downlinkOnlyRule())
 
 	add := waitDedicatedModifications(t, mmeCb, 1)[0]
-	if add.Operation != models.TFTAddFilters || len(add.Filters) != 1 || add.Filters[0].Direction != models.FilterDownlink {
+	if add.Operation != eps.TFTAddFilters || len(add.Filters) != 1 || add.Filters[0].Direction != models.FilterDownlink {
 		t.Fatalf("modification %+v, want the downlink-only filter added", add)
 	}
 
@@ -826,14 +827,14 @@ func TestEndingTheLastUplinkFlowBlocksUplinkBeforeDeletingIt(t *testing.T) {
 	pushRules(t, s, ref, downlinkOnlyRule())
 
 	block := waitDedicatedModifications(t, mmeCb, 2)[1]
-	if block.Operation != models.TFTAddFilters || len(block.Filters) != 1 || !blocksUplink(block.Filters[0]) {
+	if block.Operation != eps.TFTAddFilters || len(block.Filters) != 1 || !blocksUplink(block.Filters[0]) {
 		t.Fatalf("modification %+v, want the discard-port uplink filter added before the last uplink filter goes (TS 24.301 §6.4.3.4)", block)
 	}
 
 	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	del := waitDedicatedModifications(t, mmeCb, 3)[2]
-	if del.Operation != models.TFTDeleteFilters || !slices.Equal(del.DeleteIDs, []uint8{1, 2}) {
+	if del.Operation != eps.TFTDeleteFilters || !slices.Equal(del.DeleteIDs, []uint8{1, 2}) {
 		t.Fatalf("modification %+v, want the first call's filters 1 and 2 deleted", del)
 	}
 
@@ -842,14 +843,14 @@ func TestEndingTheLastUplinkFlowBlocksUplinkBeforeDeletingIt(t *testing.T) {
 	pushRules(t, s, ref, voiceRule(), downlinkOnlyRule())
 
 	back := waitDedicatedModifications(t, mmeCb, 4)[3]
-	if back.Operation != models.TFTAddFilters || len(back.Filters) != 2 || slices.ContainsFunc(back.Filters, blocksUplink) {
+	if back.Operation != eps.TFTAddFilters || len(back.Filters) != 2 || slices.ContainsFunc(back.Filters, blocksUplink) {
 		t.Fatalf("modification %+v, want the call's two filters added", back)
 	}
 
 	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	unblock := waitDedicatedModifications(t, mmeCb, 5)[4]
-	if unblock.Operation != models.TFTDeleteFilters || len(unblock.DeleteIDs) != 1 || unblock.DeleteIDs[0] != block.Filters[0].ID {
+	if unblock.Operation != eps.TFTDeleteFilters || len(unblock.DeleteIDs) != 1 || unblock.DeleteIDs[0] != block.Filters[0].ID {
 		t.Fatalf("modification %+v, want the discard-port filter %d deleted once real uplink filters exist", unblock, block.Filters[0].ID)
 	}
 

@@ -31,13 +31,7 @@ type SDFFilter struct {
 type DedicatedBearerRequest struct {
 	SessionRef string
 	LinkedEBI  uint8
-	QCI        uint8
-	ARP        Arp
-	MBR        Ambr
-	GBR        Ambr
-	Filters    []SDFFilter
-	SGW        FTEID
-	SGWN3IPv6  netip.Addr
+	Bearer     DedicatedBearerContext
 
 	MappedFiveGSQoS []nas.PCOContainer
 }
@@ -53,23 +47,17 @@ type DedicatedBearerContext struct {
 	SGWN3IPv6 netip.Addr
 }
 
-type TFTOperation uint8
-
-const (
-	TFTNoChange TFTOperation = iota
-	TFTAddFilters
-	TFTReplaceFilters
-	TFTDeleteFilters
-)
+type BearerRates struct {
+	MBR Ambr
+	GBR Ambr
+}
 
 type DedicatedBearerModification struct {
 	SessionRef string
 	SGWTEID    uint32
-	QoSChanged bool
-	MBR        Ambr
-	GBR        Ambr
+	Rates      *BearerRates
 	ARP        *Arp
-	Operation  TFTOperation
+	Operation  eps.TFTOperation
 	Filters    []SDFFilter
 	DeleteIDs  []uint8
 

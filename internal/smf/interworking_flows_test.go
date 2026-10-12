@@ -329,7 +329,7 @@ func TestDedicatedBearerCarriesItsQoSFlowForN1Mode(t *testing.T) {
 		t.Fatalf("QoS flow descriptions %+v, want the rule's QFI with its GFBR", flows)
 	}
 
-	if err := s.DedicatedBearerActivated(context.Background(), ref, activations[0].SGW.TEID, 6, models.FTEID{TEID: 0x66, Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
+	if err := s.DedicatedBearerActivated(context.Background(), ref, activations[0].Bearer.SGW.TEID, 6, models.FTEID{TEID: 0x66, Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
 		t.Fatalf("DedicatedBearerActivated: %v", err)
 	}
 

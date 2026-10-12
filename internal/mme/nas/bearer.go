@@ -223,18 +223,18 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 			continue
 		}
 
-		sgwTLA, err := models.EncodeTransportLayerAddress(d.SgwFTEID.Addr, d.SgwN3IPv6)
+		sgwTLA, err := models.EncodeTransportLayerAddress(d.SGW.Addr, d.SGWN3IPv6)
 		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", logger.ERABID(d.Ebi), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", logger.ERABID(d.EBI), zap.Error(err))
 
 			continue
 		}
 
 		erabs = append(erabs, s1ap.ERABToBeSetupItemCtxtSUReq{
-			ERABID:                s1ap.ERABID(d.Ebi),
+			ERABID:                s1ap.ERABID(d.EBI),
 			QoS:                   mme.DedicatedERABQoS(&d),
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
-			GTPTEID:               s1ap.GTPTEID(d.SgwFTEID.TEID),
+			GTPTEID:               s1ap.GTPTEID(d.SGW.TEID),
 		})
 	}
 

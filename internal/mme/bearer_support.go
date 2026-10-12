@@ -111,7 +111,7 @@ func (m *MME) RadioBearerModifiedUnlisted(ctx context.Context, ue *UeContext) {
 
 		for _, b := range p.Dedicated {
 			if b.modifying != nil && b.modifying.radio == radioPending {
-				awaiting = append(awaiting, b.Ebi)
+				awaiting = append(awaiting, b.EBI)
 			}
 		}
 	}

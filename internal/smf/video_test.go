@@ -41,16 +41,16 @@ func TestActivatingBothBearersKeepsThem(t *testing.T) {
 			t.Fatalf("activations %+v, want one bearer for voice and one for video with the same ARP (TS 29.213 §5.4)", acts)
 		}
 
-		qcis := []uint8{acts[0].QCI, acts[1].QCI}
+		qcis := []uint8{acts[0].Bearer.QCI, acts[1].Bearer.QCI}
 		slices.Sort(qcis)
 
-		if !slices.Equal(qcis, []uint8{1, 2}) || acts[0].SGW.TEID == acts[1].SGW.TEID {
+		if !slices.Equal(qcis, []uint8{1, 2}) || acts[0].Bearer.SGW.TEID == acts[1].Bearer.SGW.TEID {
 			t.Fatalf("activations %+v, want QCI 1 and QCI 2 on their own S-GW endpoints (IR.94 §4.2.1)", acts)
 		}
 
 		for i, qci := range order {
-			j := slices.IndexFunc(acts, func(a models.DedicatedBearerRequest) bool { return a.QCI == qci })
-			if err := s.DedicatedBearerActivated(context.Background(), ref, acts[j].SGW.TEID, uint8(6+i), models.FTEID{TEID: uint32(0x66 + i), Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
+			j := slices.IndexFunc(acts, func(a models.DedicatedBearerRequest) bool { return a.Bearer.QCI == qci })
+			if err := s.DedicatedBearerActivated(context.Background(), ref, acts[j].Bearer.SGW.TEID, uint8(6+i), models.FTEID{TEID: uint32(0x66 + i), Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
 				t.Fatalf("DedicatedBearerActivated: %v", err)
 			}
 		}
@@ -70,13 +70,13 @@ func TestLostVideoBearerReportsOnlyTheVideoRule(t *testing.T) {
 	var voiceTEID, videoTEID uint32
 
 	for i, a := range mmeCb.dedicatedActivations() {
-		if a.QCI == 2 {
-			videoTEID = a.SGW.TEID
+		if a.Bearer.QCI == 2 {
+			videoTEID = a.Bearer.SGW.TEID
 		} else {
-			voiceTEID = a.SGW.TEID
+			voiceTEID = a.Bearer.SGW.TEID
 		}
 
-		if err := s.DedicatedBearerActivated(ctx, ref, a.SGW.TEID, uint8(6+i), models.FTEID{TEID: uint32(0x66 + i), Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
+		if err := s.DedicatedBearerActivated(ctx, ref, a.Bearer.SGW.TEID, uint8(6+i), models.FTEID{TEID: uint32(0x66 + i), Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
 			t.Fatalf("DedicatedBearerActivated: %v", err)
 		}
 	}

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/netip"
 	"slices"
 
 	"github.com/ellanetworks/core/internal/guard"
@@ -28,17 +27,10 @@ var (
 )
 
 type DedicatedBearerInfo struct {
-	Ebi       uint8
-	SgwFTEID  models.FTEID
-	SgwN3IPv6 netip.Addr
-	EnbFTEID  models.FTEID
-	QCI       uint8
-	ARP       models.Arp
-	MBR       models.Ambr
-	GBR       models.Ambr
-	Filters   []models.SDFFilter
+	models.DedicatedBearerContext
 
-	ESM ESMState
+	EnbFTEID models.FTEID
+	ESM      ESMState
 }
 
 type ESMState uint8
@@ -168,7 +160,7 @@ func dedicatedActivationRequest(linked uint8, b *DedicatedBearer, mappedFiveGSQo
 	}
 
 	req := &eps.ActivateDedicatedEPSBearerContextRequest{
-		EPSBearerIdentity:       eps.EPSBearerIdentity(b.Ebi),
+		EPSBearerIdentity:       eps.EPSBearerIdentity(b.EBI),
 		LinkedEPSBearerIdentity: eps.EPSBearerIdentity(linked),
 		EPSQoS:                  qos,
 		TFT:                     models.EPSTFT(eps.TFTCreate, b.Filters),
@@ -259,11 +251,10 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 		return ErrNoFreeEBI
 	}
 
-	b := &DedicatedBearer{DedicatedBearerInfo: DedicatedBearerInfo{
-		Ebi: ebi, SgwFTEID: req.SGW, SgwN3IPv6: req.SGWN3IPv6,
-		QCI: req.QCI, ARP: req.ARP, MBR: req.MBR, GBR: req.GBR, Filters: req.Filters,
-		ESM: ESMActivePending,
-	}}
+	bearer := req.Bearer
+	bearer.EBI = ebi
+
+	b := &DedicatedBearer{DedicatedBearerInfo: DedicatedBearerInfo{DedicatedBearerContext: bearer, ESM: ESMActivePending}}
 
 	withheld := withholdsFiveGSQoS(req.MappedFiveGSQoS, ue.ueNetCap.SupportsEPCO())
 
@@ -295,7 +286,7 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 	ueConn.Log(ctx).Info("activating dedicated EPS bearer", zap.String("apn", p.Apn), logger.ERABID(ebi), zap.Uint8("qci", b.QCI))
 
 	if withheld {
-		m.reportWithheldFiveGSQoS(ctx, ueConn, req.SessionRef, ebi, req.SGW.TEID)
+		m.reportWithheldFiveGSQoS(ctx, ueConn, req.SessionRef, ebi, req.Bearer.SGW.TEID)
 	}
 
 	return nil
@@ -307,17 +298,17 @@ func dedicatedActivation(linked uint8, b *DedicatedBearer, mappedFiveGSQoS []nas
 		return nil, nil, fmt.Errorf("build Activate Dedicated EPS Bearer Context Request: %w", err)
 	}
 
-	sgwTLA, err := models.EncodeTransportLayerAddress(b.SgwFTEID.Addr, b.SgwN3IPv6)
+	sgwTLA, err := models.EncodeTransportLayerAddress(b.SGW.Addr, b.SGWN3IPv6)
 	if err != nil {
 		return nil, nil, fmt.Errorf("encode the S-GW transport layer address: %w", err)
 	}
 
 	return plain, &s1ap.ERABSetupRequest{
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemBearerSUReq{{
-			ERABID:                s1ap.ERABID(b.Ebi),
+			ERABID:                s1ap.ERABID(b.EBI),
 			QoS:                   DedicatedERABQoS(&b.DedicatedBearerInfo),
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
-			GTPTEID:               s1ap.GTPTEID(b.SgwFTEID.TEID),
+			GTPTEID:               s1ap.GTPTEID(b.SGW.TEID),
 		}},
 	}, nil
 }
@@ -371,11 +362,11 @@ func (m *MME) dropDedicated(ue *UeContext, p *PdnConnection, b *DedicatedBearer)
 
 	b.guard.Stop()
 
-	if p.Dedicated[b.Ebi] != b {
+	if p.Dedicated[b.EBI] != b {
 		return false
 	}
 
-	delete(p.Dedicated, b.Ebi)
+	delete(p.Dedicated, b.EBI)
 
 	return true
 }
@@ -418,8 +409,8 @@ func (m *MME) dedicatedRadioUp(ctx context.Context, ue *UeContext, p *PdnConnect
 		if m.completeDedicated(ctx, ue, p, b) {
 			return true
 		}
-	} else if err := m.Session.DedicatedBearerMoved(ctx, p.SessionRef, b.SgwFTEID.TEID, enb); err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("SMF refused the dedicated bearer's radio endpoint; releasing it", logger.SUPI(ue.Supi().String()), logger.ERABID(b.Ebi), zap.Error(err))
+	} else if err := m.Session.DedicatedBearerMoved(ctx, p.SessionRef, b.SGW.TEID, enb); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("SMF refused the dedicated bearer's radio endpoint; releasing it", logger.SUPI(ue.Supi().String()), logger.ERABID(b.EBI), zap.Error(err))
 	} else {
 		return true
 	}
@@ -462,14 +453,14 @@ func (m *MME) DeactivatePendingDedicated(ctx context.Context, ue *UeContext) {
 func (m *MME) completeDedicated(ctx context.Context, ue *UeContext, p *PdnConnection, b *DedicatedBearer) bool {
 	ue.mu.Lock()
 
-	if b.ESM != ESMActivePending || !b.accepted || !b.radioUp || p.Dedicated[b.Ebi] != b {
+	if b.ESM != ESMActivePending || !b.accepted || !b.radioUp || p.Dedicated[b.EBI] != b {
 		ue.mu.Unlock()
 		return true
 	}
 
 	b.ESM = ESMActive
 	b.guard.Stop()
-	ref, teid, ebi, enb := p.SessionRef, b.SgwFTEID.TEID, b.Ebi, b.EnbFTEID
+	ref, teid, ebi, enb := p.SessionRef, b.SGW.TEID, b.EBI, b.EnbFTEID
 	ue.mu.Unlock()
 
 	logger.From(ctx, logger.MmeLog).Info("dedicated EPS bearer active", logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.Uint8("qci", b.QCI))
@@ -491,21 +482,21 @@ func (m *MME) FailDedicatedBearer(ctx context.Context, ue *UeContext, ebi uint8,
 func (m *MME) failDedicated(ctx context.Context, ue *UeContext, b *DedicatedBearer, reason string) {
 	ue.mu.Lock()
 
-	p, held := ue.dedicatedLocked(b.Ebi)
+	p, held := ue.dedicatedLocked(b.EBI)
 	if held != b {
 		ue.mu.Unlock()
 		return
 	}
 
 	b.guard.Stop()
-	delete(p.Dedicated, b.Ebi)
+	delete(p.Dedicated, b.EBI)
 
 	activating, radioUp, accepted := b.ESM == ESMActivePending, b.radioUp, b.accepted
 	if !activating || accepted {
 		ue.localBearerDeactivation = true
 	}
 
-	ref, teid, ebi := p.SessionRef, b.SgwFTEID.TEID, b.Ebi
+	ref, teid, ebi := p.SessionRef, b.SGW.TEID, b.EBI
 	ue.mu.Unlock()
 
 	logger.From(ctx, logger.MmeLog).Info("dedicated EPS bearer failed", logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.String("reason", reason))
@@ -533,7 +524,7 @@ func (m *MME) DedicatedReleasedByRAN(ctx context.Context, ue *UeContext, ebi uin
 	b.guard.Stop()
 	delete(p.Dedicated, ebi)
 
-	ref, teid := p.SessionRef, b.SgwFTEID.TEID
+	ref, teid := p.SessionRef, b.SGW.TEID
 	ue.mu.Unlock()
 
 	logger.From(ctx, logger.MmeLog).Info("eNB released the dedicated EPS bearer", logger.SUPI(ue.Supi().String()), logger.ERABID(ebi))
@@ -577,7 +568,7 @@ func (m *MME) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi ui
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
 
-	if _, b := m.LookupDedicated(ue, ebi); b == nil || b.SgwFTEID.TEID != sgwTEID {
+	if _, b := m.LookupDedicated(ue, ebi); b == nil || b.SGW.TEID != sgwTEID {
 		return ErrNoDedicatedBearer
 	}
 
@@ -636,7 +627,7 @@ func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8)
 		delete(p.Dedicated, ebi)
 
 		ue.localBearerDeactivation = true
-		ref, teid, radioUp := p.SessionRef, b.SgwFTEID.TEID, b.radioUp
+		ref, teid, radioUp := p.SessionRef, b.SGW.TEID, b.radioUp
 		ue.mu.Unlock()
 
 		if ueConn := ue.Conn(); ueConn != nil && radioUp && ueConn.ICS() == ICSCompleted {
@@ -693,20 +684,20 @@ func (m *MME) ReleaseDedicated(ctx context.Context, ue *UeContext, ebi uint8) bo
 func (m *MME) releaseDedicated(ctx context.Context, ue *UeContext, b *DedicatedBearer, local bool) bool {
 	ue.mu.Lock()
 
-	p, held := ue.dedicatedLocked(b.Ebi)
+	p, held := ue.dedicatedLocked(b.EBI)
 	if held != b {
 		ue.mu.Unlock()
 		return false
 	}
 
 	b.guard.Stop()
-	delete(p.Dedicated, b.Ebi)
+	delete(p.Dedicated, b.EBI)
 
 	if local {
 		ue.localBearerDeactivation = true
 	}
 
-	ref, teid := p.SessionRef, b.SgwFTEID.TEID
+	ref, teid := p.SessionRef, b.SGW.TEID
 	ue.mu.Unlock()
 
 	m.Session.DedicatedBearerReleased(ctx, ref, teid)
@@ -796,7 +787,7 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLoss
 				}
 
 				if !drop && !pending.realign {
-					l.interrupted = append(l.interrupted, dedicatedLoss{ref: p.SessionRef, teid: b.SgwFTEID.TEID, outcome: outcome})
+					l.interrupted = append(l.interrupted, dedicatedLoss{ref: p.SessionRef, teid: b.SGW.TEID, outcome: outcome})
 				}
 			}
 
@@ -806,7 +797,7 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLoss
 
 			b.guard.Stop()
 			delete(p.Dedicated, ebi)
-			l.lost = append(l.lost, dedicatedLoss{ref: p.SessionRef, teid: b.SgwFTEID.TEID})
+			l.lost = append(l.lost, dedicatedLoss{ref: p.SessionRef, teid: b.SGW.TEID})
 		}
 	}
 

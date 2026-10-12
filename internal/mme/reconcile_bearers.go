@@ -150,11 +150,11 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 		}
 
 		for _, d := range m.SnapshotDedicated(ue) {
-			if _, ok := named[d.Ebi]; ok {
+			if _, ok := named[d.EBI]; ok {
 				continue
 			}
 
-			ebi := d.Ebi
+			ebi := d.EBI
 
 			later(func(ctx context.Context) { m.FailDedicatedBearer(ctx, ue, ebi, "the RAN did not report the E-RAB") })
 
@@ -215,7 +215,7 @@ func (ue *UeContext) dedicatedEndpoints(p *PdnConnection, present []RANBearer) [
 
 	for _, b := range present {
 		if d, ok := p.Dedicated[b.Ebi]; ok && d.ESM == ESMActive {
-			out = append(out, models.DedicatedBearerEndpoint{SGWTEID: d.SgwFTEID.TEID, ENB: b.EnbFTEID})
+			out = append(out, models.DedicatedBearerEndpoint{SGWTEID: d.SGW.TEID, ENB: b.EnbFTEID})
 		}
 	}
 

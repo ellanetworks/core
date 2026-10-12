@@ -25,15 +25,17 @@ func voiceBearerRequest() models.DedicatedBearerRequest {
 	return models.DedicatedBearerRequest{
 		SessionRef: "ref-internet",
 		LinkedEBI:  DefaultERABID,
-		QCI:        1,
-		ARP:        models.Arp{PriorityLevel: 2, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable},
-		MBR:        models.Ambr{Uplink: rate, Downlink: rate},
-		GBR:        models.Ambr{Uplink: rate, Downlink: rate},
-		Filters: []models.SDFFilter{
-			{ID: 1, Direction: models.FilterDownlink, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
-			{ID: 2, Direction: models.FilterUplink, Precedence: 33, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
+		Bearer: models.DedicatedBearerContext{
+			QCI: 1,
+			ARP: models.Arp{PriorityLevel: 2, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable},
+			MBR: models.Ambr{Uplink: rate, Downlink: rate},
+			GBR: models.Ambr{Uplink: rate, Downlink: rate},
+			Filters: []models.SDFFilter{
+				{ID: 1, Direction: models.FilterDownlink, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
+				{ID: 2, Direction: models.FilterUplink, Precedence: 33, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
+			},
+			SGW: models.FTEID{TEID: voiceSGWTEID, Addr: netip.MustParseAddr("10.3.0.1")},
 		},
-		SGW: models.FTEID{TEID: voiceSGWTEID, Addr: netip.MustParseAddr("10.3.0.1")},
 	}
 }
 
@@ -665,8 +667,8 @@ func TestDedicatedBearerReportsAWithheldMappedQoSFlow(t *testing.T) {
 		t.Fatalf("ActivateDedicatedBearer: %v", err)
 	}
 
-	if got := m.Session.(*fakeSessionManager).withheldFiveGSQoS(); !slices.Equal(got, []uint32{req.SGW.TEID}) {
-		t.Fatalf("withheld 5GS QoS reports %v, want the bearer's S-GW TEID %d: the SMF must not move it to 5GS (TS 24.301 §6.4.2.3)", got, req.SGW.TEID)
+	if got := m.Session.(*fakeSessionManager).withheldFiveGSQoS(); !slices.Equal(got, []uint32{req.Bearer.SGW.TEID}) {
+		t.Fatalf("withheld 5GS QoS reports %v, want the bearer's S-GW TEID %d: the SMF must not move it to 5GS (TS 24.301 §6.4.2.3)", got, req.Bearer.SGW.TEID)
 	}
 }
 
@@ -720,7 +722,7 @@ func TestT3495ExpiryReleasesTheBearerLocally(t *testing.T) {
 
 func TestSubKilobitRatesAreSignalledRoundedUp(t *testing.T) {
 	rate := models.BitRateFromBps(51450)
-	info := DedicatedBearerInfo{QCI: 1, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}}
+	info := DedicatedBearerInfo{DedicatedBearerContext: models.DedicatedBearerContext{QCI: 1, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}}}
 
 	gbr := DedicatedERABQoS(&info).GBR
 	if gbr == nil || gbr.GuaranteedBitrateDL != 52000 || gbr.MaximumBitrateUL != 52000 {

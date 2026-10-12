@@ -47,11 +47,11 @@ func epsCallForArrival(t *testing.T) arrivingCall {
 	}
 
 	enb := models.FTEID{TEID: 0x6002, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.DedicatedBearerActivated(context.Background(), sc.Ref, activations[0].SGW.TEID, flowEBI, enb); err != nil {
+	if err := s.DedicatedBearerActivated(context.Background(), sc.Ref, activations[0].Bearer.SGW.TEID, flowEBI, enb); err != nil {
 		t.Fatalf("DedicatedBearerActivated: %v", err)
 	}
 
-	return arrivingCall{s: s, pcf: pcf, upf: upf, amfCb: amfCb, sc: sc, qfi: flows[0].QFI, sgw: activations[0].SGW.TEID}
+	return arrivingCall{s: s, pcf: pcf, upf: upf, amfCb: amfCb, sc: sc, qfi: flows[0].QFI, sgw: activations[0].Bearer.SGW.TEID}
 }
 
 func qfiUplinkOnSessionTEID(m *models.ModifyRequest, qfi uint8) bool {

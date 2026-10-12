@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 func (f *fakePCF) reportedFailures() []reportedRule {
@@ -136,14 +137,14 @@ func TestRejectedLaterStepIsReportedOnce(t *testing.T) {
 	pushRules(t, s, ref, movedVoiceRule(), second)
 
 	replace := waitDedicatedModifications(t, mmeCb, 1)[0]
-	if replace.Operation != models.TFTReplaceFilters || replace.QoSChanged {
+	if replace.Operation != eps.TFTReplaceFilters || replace.Rates != nil {
 		t.Fatalf("first step %+v, want the replacement alone, without the second call's QoS", replace)
 	}
 
 	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationCommitted)
 
 	add := waitDedicatedModifications(t, mmeCb, 2)[1]
-	if add.Operation != models.TFTAddFilters || add.GBR.Downlink.Bps() != 82000 {
+	if add.Operation != eps.TFTAddFilters || add.Rates.GBR.Downlink.Bps() != 82000 {
 		t.Fatalf("second step %+v, want the addition with an 82 kbps GBR", add)
 	}
 
@@ -173,7 +174,7 @@ func TestRulesChangedDuringActivationAreModifiedAfterIt(t *testing.T) {
 		t.Fatalf("DedicatedBearerActivated: %v", err)
 	}
 
-	if add := waitDedicatedModifications(t, mmeCb, 1)[0]; add.Operation != models.TFTAddFilters {
+	if add := waitDedicatedModifications(t, mmeCb, 1)[0]; add.Operation != eps.TFTAddFilters {
 		t.Fatalf("modification %+v, want the second call added after the activation", add)
 	}
 
@@ -246,7 +247,7 @@ func TestARPChangeOfEveryRuleModifiesTheBearerInPlace(t *testing.T) {
 	pushRules(t, s, ref, raised)
 
 	mod := waitDedicatedModifications(t, mmeCb, 1)[0]
-	if mod.ARP == nil || mod.ARP.PriorityLevel != 1 || mod.QoSChanged || mod.Operation != models.TFTNoChange {
+	if mod.ARP == nil || mod.ARP.PriorityLevel != 1 || mod.Rates != nil || mod.Operation != eps.TFTIgnore {
 		t.Fatalf("modification %+v, want only the ARP changed (TS 29.213 §5.4)", mod)
 	}
 
@@ -260,7 +261,7 @@ func TestARPChangeOfEveryRuleModifiesTheBearerInPlace(t *testing.T) {
 	second.ARP.PriorityLevel = 1
 	pushRules(t, s, ref, raised, second)
 
-	if add := waitDedicatedModifications(t, mmeCb, 2)[1]; add.Operation != models.TFTAddFilters || add.ARP != nil {
+	if add := waitDedicatedModifications(t, mmeCb, 2)[1]; add.Operation != eps.TFTAddFilters || add.ARP != nil {
 		t.Fatalf("modification %+v, want the second call added to the re-keyed bearer", add)
 	}
 

@@ -470,12 +470,7 @@ func (ue *UeContext) publishPDNLocked(ebi uint8, apn string, bearer models.EPSBe
 			p.Dedicated = make(map[uint8]*DedicatedBearer)
 		}
 
-		p.Dedicated[d.EBI] = &DedicatedBearer{
-			DedicatedBearerInfo: DedicatedBearerInfo{
-				Ebi: d.EBI, SgwFTEID: d.SGW, SgwN3IPv6: d.SGWN3IPv6,
-				QCI: d.QCI, ARP: d.ARP, MBR: d.MBR, GBR: d.GBR, Filters: d.Filters,
-			},
-		}
+		p.Dedicated[d.EBI] = &DedicatedBearer{DedicatedBearerInfo: DedicatedBearerInfo{DedicatedBearerContext: d}}
 	}
 
 	ue.Pdns[ebi] = p

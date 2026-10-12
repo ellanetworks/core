@@ -315,7 +315,7 @@ func TestHandoverRequiredToFiveGSReleasesTheVoiceBearerTheTargetRefused(t *testi
 			peer := &fiveGSPeerStub{accepted: tc.accepted}
 			ue, source := relocatingToFiveGSUE(t, m, peer)
 
-			m.LookupPDN(ue, mme.DefaultERABID).Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{Ebi: 6, QCI: 1}}}
+			m.LookupPDN(ue, mme.DefaultERABID).Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{DedicatedBearerContext: models.DedicatedBearerContext{EBI: 6, QCI: 1}}}}
 
 			before := source.count()
 

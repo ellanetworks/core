@@ -746,7 +746,7 @@ func TestS1AcknowledgeAdmittingOnlyADedicatedBearerRejectsTheHandover(t *testing
 	ue, source, target := handoverUE(t, m)
 
 	p := m.LookupPDN(ue, mme.DefaultERABID)
-	p.Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{Ebi: 6, QCI: 1}}}
+	p.Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{DedicatedBearerContext: models.DedicatedBearerContext{EBI: 6, QCI: 1}}}}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))

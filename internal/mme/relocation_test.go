@@ -985,9 +985,8 @@ func TestForwardRelocationTimeoutUnwindsWithALiveContext(t *testing.T) {
 
 func TestForwardRelocationCarriesTheVoiceBearer(t *testing.T) {
 	voice := voiceBearerRequest()
-	sessions := &fakeSessionManager{dedicated: []models.DedicatedBearerContext{{
-		EBI: 8, QCI: voice.QCI, ARP: voice.ARP, MBR: voice.MBR, GBR: voice.GBR, Filters: voice.Filters, SGW: voice.SGW,
-	}}}
+	voice.Bearer.EBI = 8
+	sessions := &fakeSessionManager{dedicated: []models.DedicatedBearerContext{voice.Bearer}}
 	m := New(nil, fakeBearerStore{}, sessions)
 	target := newRelocationTarget(t, m)
 	req := relocationRequest(interworking.PDNConnection{PDUSessionID: 3, EPSBearerIdentity: 7, APN: "internet"})

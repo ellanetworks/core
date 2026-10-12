@@ -303,11 +303,11 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 
 func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueStatus nas.EPSBearerContextStatus) {
 	for _, d := range m.SnapshotDedicated(ue) {
-		if d.ESM == mme.ESMActivePending || (d.Ebi < uint8(len(ueStatus.Active)) && ueStatus.Active[d.Ebi]) {
+		if d.ESM == mme.ESMActivePending || (d.EBI < uint8(len(ueStatus.Active)) && ueStatus.Active[d.EBI]) {
 			continue
 		}
 
-		m.FailDedicatedBearer(ctx, ue, d.Ebi, "the UE reported it inactive")
+		m.FailDedicatedBearer(ctx, ue, d.EBI, "the UE reported it inactive")
 	}
 
 	pdns := m.SnapshotPDNs(ue)
@@ -343,8 +343,8 @@ func bearerContextStatus(m *mme.MME, ue *mme.UeContext) nas.EPSBearerContextStat
 	}
 
 	for _, d := range m.SnapshotDedicated(ue) {
-		if d.ESM == mme.ESMActive && d.Ebi < uint8(len(status.Active)) {
-			status.Active[d.Ebi] = true
+		if d.ESM == mme.ESMActive && d.EBI < uint8(len(status.Active)) {
+			status.Active[d.EBI] = true
 		}
 	}
 

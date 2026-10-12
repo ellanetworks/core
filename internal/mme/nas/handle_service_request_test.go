@@ -160,14 +160,16 @@ func TestServiceRequestRestoresThePreservedVoiceBearer(t *testing.T) {
 
 	if err := m.ActivateDedicatedBearer(t.Context(), testSubscriber.IMSI, models.DedicatedBearerRequest{
 		LinkedEBI: mme.DefaultERABID,
-		QCI:       1,
-		ARP:       models.Arp{PriorityLevel: 2, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable},
-		MBR:       models.Ambr{Uplink: rate, Downlink: rate},
-		GBR:       models.Ambr{Uplink: rate, Downlink: rate},
-		Filters: []models.SDFFilter{
-			{ID: 1, Direction: models.FilterBidirectional, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
+		Bearer: models.DedicatedBearerContext{
+			QCI: 1,
+			ARP: models.Arp{PriorityLevel: 2, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable},
+			MBR: models.Ambr{Uplink: rate, Downlink: rate},
+			GBR: models.Ambr{Uplink: rate, Downlink: rate},
+			Filters: []models.SDFFilter{
+				{ID: 1, Direction: models.FilterBidirectional, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), LocalPort: 50000, RemotePort: 49000},
+			},
+			SGW: voiceSGW,
 		},
-		SGW: voiceSGW,
 	}); err != nil {
 		t.Fatalf("ActivateDedicatedBearer: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -27,7 +28,7 @@ func TestERABReleaseIndicationReleasesTheVoiceBearerWithoutNAS(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
 
-	m.LookupPDN(ue, mme.DefaultERABID).Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{Ebi: 6, QCI: 1}}}
+	m.LookupPDN(ue, mme.DefaultERABID).Dedicated = map[uint8]*mme.DedicatedBearer{6: {DedicatedBearerInfo: mme.DedicatedBearerInfo{DedicatedBearerContext: models.DedicatedBearerContext{EBI: 6, QCI: 1}}}}
 
 	sent := source.count()
 

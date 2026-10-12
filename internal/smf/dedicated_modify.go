@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
@@ -274,7 +275,7 @@ func sameRuleLeg(a, b ruleLeg) bool {
 	return a.Index == b.Index && a.Gate == b.Gate && a.MBR.Equal(b.MBR) && slices.Equal(a.Filters, b.Filters)
 }
 
-func nextTFTStep(current, next bearerTFT) (models.TFTOperation, bearerTFT, []models.SDFFilter, []uint8) {
+func nextTFTStep(current, next bearerTFT) (eps.TFTOperation, bearerTFT, []models.SDFFilter, []uint8) {
 	var replaced, added []models.SDFFilter
 
 	var deleted []uint8
@@ -306,7 +307,7 @@ func nextTFTStep(current, next bearerTFT) (models.TFTOperation, bearerTFT, []mod
 			}
 		}
 
-		return models.TFTReplaceFilters, step, sortedFilters(replaced), nil
+		return eps.TFTReplaceFilters, step, sortedFilters(replaced), nil
 	case len(added) > 0:
 		for k, f := range next {
 			if _, ok := current[k]; !ok {
@@ -314,7 +315,7 @@ func nextTFTStep(current, next bearerTFT) (models.TFTOperation, bearerTFT, []mod
 			}
 		}
 
-		return models.TFTAddFilters, step, sortedFilters(added), nil
+		return eps.TFTAddFilters, step, sortedFilters(added), nil
 	case len(deleted) > 0:
 		for k := range current {
 			if _, ok := next[k]; !ok {
@@ -324,9 +325,9 @@ func nextTFTStep(current, next bearerTFT) (models.TFTOperation, bearerTFT, []mod
 
 		slices.Sort(deleted)
 
-		return models.TFTDeleteFilters, step, nil, deleted
+		return eps.TFTDeleteFilters, step, nil, deleted
 	default:
-		return models.TFTNoChange, step, nil, nil
+		return eps.TFTIgnore, step, nil, nil
 	}
 }
 
@@ -370,7 +371,7 @@ func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 	qos := !mbr.Equal(b.installed.mbr) || !gbr.Equal(b.installed.gbr)
 	arpChanged := binding != b.installed.binding
 
-	if op == models.TFTNoChange && !qos && !arpChanged {
+	if op == eps.TFTIgnore && !qos && !arpChanged {
 		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, after})); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
 			return nil, addedOrChangedRules(after, b.installed.rules)
@@ -404,9 +405,12 @@ func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 
 	modify := &models.DedicatedBearerModification{
 		SessionRef: sc.Ref, SGWTEID: teid,
-		QoSChanged: qos, MBR: mbr, GBR: gbr,
 		Operation: op, Filters: filters, DeleteIDs: deleted,
 		MappedFiveGSQoS: mapped,
+	}
+
+	if qos {
+		modify.Rates = &models.BearerRates{MBR: mbr, GBR: gbr}
 	}
 
 	if arpChanged {

@@ -76,15 +76,15 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 }
 
 func dedicatedHandoverItem(b *DedicatedBearer, forwarding bool) (s1ap.ERABToBeSetupItemHOReq, error) {
-	sgwTLA, err := models.EncodeTransportLayerAddress(b.SgwFTEID.Addr, b.SgwN3IPv6)
+	sgwTLA, err := models.EncodeTransportLayerAddress(b.SGW.Addr, b.SGWN3IPv6)
 	if err != nil {
 		return s1ap.ERABToBeSetupItemHOReq{}, err
 	}
 
 	item := s1ap.ERABToBeSetupItemHOReq{
-		ERABID:                s1ap.ERABID(b.Ebi),
+		ERABID:                s1ap.ERABID(b.EBI),
 		TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
-		GTPTEID:               s1ap.GTPTEID(b.SgwFTEID.TEID),
+		GTPTEID:               s1ap.GTPTEID(b.SGW.TEID),
 		QoS:                   DedicatedERABQoS(&b.DedicatedBearerInfo),
 	}
 

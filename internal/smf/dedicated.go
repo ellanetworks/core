@@ -286,7 +286,7 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 
 			b.state = dedicatedActivating
 
-			actions = append(actions, dedicatedAction{activate: req, sgwTEID: req.SGW.TEID})
+			actions = append(actions, dedicatedAction{activate: req, sgwTEID: req.Bearer.SGW.TEID})
 		case ok && b.state == dedicatedActive && b.pending == nil:
 			act, notApplied := s.planModificationLocked(ctx, sc, b, key, rules)
 			failed = append(failed, notApplied...)
@@ -317,7 +317,7 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 
 		b.state = dedicatedActivating
 
-		actions = append(actions, dedicatedAction{activate: req, sgwTEID: req.SGW.TEID})
+		actions = append(actions, dedicatedAction{activate: req, sgwTEID: req.Bearer.SGW.TEID})
 	}
 
 	if err := s.removeDedicatedLocked(ctx, sc, removed...); err != nil {
@@ -490,15 +490,17 @@ func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedB
 	b.fiveGSQoS = mapped != nil
 
 	return &models.DedicatedBearerRequest{
-		SessionRef:      sc.Ref,
-		LinkedEBI:       sc.EBI,
-		QCI:             t.binding.QCI,
-		ARP:             t.binding.ARP,
-		MBR:             mbr,
-		GBR:             gbr,
-		Filters:         filters,
-		SGW:             models.FTEID{TEID: teid, Addr: sc.Tunnel.N3IPv4},
-		SGWN3IPv6:       sc.Tunnel.N3IPv6,
+		SessionRef: sc.Ref,
+		LinkedEBI:  sc.EBI,
+		Bearer: models.DedicatedBearerContext{
+			QCI:       t.binding.QCI,
+			ARP:       t.binding.ARP,
+			MBR:       mbr,
+			GBR:       gbr,
+			Filters:   filters,
+			SGW:       models.FTEID{TEID: teid, Addr: sc.Tunnel.N3IPv4},
+			SGWN3IPv6: sc.Tunnel.N3IPv6,
+		},
 		MappedFiveGSQoS: mapped,
 	}, nil
 }

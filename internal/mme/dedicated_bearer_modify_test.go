@@ -49,8 +49,8 @@ func TestSecondCallModifiesTheVoiceBearer(t *testing.T) {
 	rate := models.BitRateFromBps(88000)
 	mod := models.DedicatedBearerModification{
 		SessionRef: "ref-internet", SGWTEID: voiceSGWTEID,
-		QoSChanged: true, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate},
-		Operation: models.TFTAddFilters, Filters: secondCallFilters(),
+		Rates:     &models.BearerRates{MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}},
+		Operation: eps.TFTAddFilters, Filters: secondCallFilters(),
 	}
 
 	if err := m.ModifyDedicatedBearer(context.Background(), ue.imsiOrEmpty(), 6, mod); err != nil {
@@ -95,7 +95,7 @@ func TestSecondCallModifiesTheVoiceBearer(t *testing.T) {
 func TestTFTOnlyModificationUsesDownlinkNAS(t *testing.T) {
 	m, ue, cc, fake := activeVoiceBearer(t)
 
-	mod := models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: models.TFTDeleteFilters, DeleteIDs: []uint8{1}}
+	mod := models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: eps.TFTDeleteFilters, DeleteIDs: []uint8{1}}
 
 	if err := m.ModifyDedicatedBearer(context.Background(), ue.imsiOrEmpty(), 6, mod); err != nil {
 		t.Fatalf("ModifyDedicatedBearer: %v", err)
@@ -122,8 +122,8 @@ func qosModification() models.DedicatedBearerModification {
 
 	return models.DedicatedBearerModification{
 		SessionRef: "ref-internet", SGWTEID: voiceSGWTEID,
-		QoSChanged: true, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate},
-		Operation: models.TFTAddFilters, Filters: secondCallFilters(),
+		Rates:     &models.BearerRates{MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}},
+		Operation: eps.TFTAddFilters, Filters: secondCallFilters(),
 	}
 }
 
@@ -190,7 +190,7 @@ func TestT3486ExpiryFailsTheModification(t *testing.T) {
 	m.esmGuardCfg.ExpireTime = 5 * time.Millisecond
 	m.esmGuardCfg.MaxRetryTimes = 2
 
-	mod := models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: models.TFTDeleteFilters, DeleteIDs: []uint8{1}}
+	mod := models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: eps.TFTDeleteFilters, DeleteIDs: []uint8{1}}
 	if err := m.ModifyDedicatedBearer(context.Background(), ue.imsiOrEmpty(), 6, mod); err != nil {
 		t.Fatalf("ModifyDedicatedBearer: %v", err)
 	}
@@ -491,7 +491,7 @@ func TestModificationRetransmitsOnTheConnectionAfterAHandover(t *testing.T) {
 	m.esmGuardCfg.ExpireTime = 10 * time.Millisecond
 	m.esmGuardCfg.MaxRetryTimes = 1
 
-	mod := models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: models.TFTDeleteFilters, DeleteIDs: []uint8{1}}
+	mod := models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: eps.TFTDeleteFilters, DeleteIDs: []uint8{1}}
 	if err := m.ModifyDedicatedBearer(context.Background(), ue.imsiOrEmpty(), 6, mod); err != nil {
 		t.Fatalf("ModifyDedicatedBearer: %v", err)
 	}
@@ -522,13 +522,13 @@ func TestInvalidModificationsAreRefused(t *testing.T) {
 		{
 			name: "deletion that empties the TFT",
 			ebi:  6,
-			mod:  models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: models.TFTDeleteFilters, DeleteIDs: []uint8{1, 2}},
+			mod:  models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID, Operation: eps.TFTDeleteFilters, DeleteIDs: []uint8{1, 2}},
 			want: ErrInvalidModification,
 		},
 		{
 			name: "another bearer's TEID",
 			ebi:  6,
-			mod:  models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID + 1, Operation: models.TFTDeleteFilters, DeleteIDs: []uint8{1}},
+			mod:  models.DedicatedBearerModification{SessionRef: "ref-internet", SGWTEID: voiceSGWTEID + 1, Operation: eps.TFTDeleteFilters, DeleteIDs: []uint8{1}},
 			want: ErrNoDedicatedBearer,
 		},
 		{
@@ -632,7 +632,7 @@ func TestUnlistedERABModifyAnswersTheOnlyPendingModification(t *testing.T) {
 	rate := models.BitRateFromBps(88000)
 	mod := models.DedicatedBearerModification{
 		SessionRef: "ref-internet", SGWTEID: voiceSGWTEID,
-		QoSChanged: true, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate},
+		Rates: &models.BearerRates{MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}},
 	}
 
 	if err := m.ModifyDedicatedBearer(context.Background(), ue.imsiOrEmpty(), 6, mod); err != nil {
