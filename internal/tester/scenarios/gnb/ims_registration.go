@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/ue"
@@ -19,8 +20,9 @@ import (
 )
 
 const (
-	imsTunIface   = gtpInterfaceNamePrefix + "ims0"
-	imsRouteTable = 100
+	imsTunIface     = gtpInterfaceNamePrefix + "ims0"
+	imsRouteTable   = 100
+	imsPDUSessionID = scenarios.DefaultPDUSessionID + 1
 )
 
 var (
@@ -50,18 +52,18 @@ func registerIMS(name string, sub scenarios.SubscriberSpec, run func(context.Con
 }
 
 func runIMSRegistration(ctx context.Context, env scenarios.Env) error {
-	g, registration, local, err := registerIMSUE(env, imsRegistrationSubscriber, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
+	g, registration, session, local, err := registerIMSUE(env, imsRegistrationSubscriber, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
 	if err != nil {
 		return err
 	}
 
-	defer closeIMSUE(g, registration)
+	defer closeIMSUE(g, session)
 
 	if !registration.IMSVoPS {
 		return fmt.Errorf("the Registration Accept does not indicate IMS voice over PS sessions")
 	}
 
-	acc, err := fgs.ParsePDUSessionEstablishmentAccept(registration.Session.Accept)
+	acc, err := fgs.ParsePDUSessionEstablishmentAccept(session.Accept)
 	if err != nil {
 		return fmt.Errorf("parse PDU Session Establishment Accept: %w", err)
 	}
@@ -89,12 +91,12 @@ func runIMSRegistration(ctx context.Context, env scenarios.Env) error {
 }
 
 func runIMSNotEntitled(ctx context.Context, env scenarios.Env) error {
-	g, registration, local, err := registerIMSUE(env, imsNotEntitledSubscriber, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool, scenarios.DefaultUEIPv6Pool)
+	g, registration, session, local, err := registerIMSUE(env, imsNotEntitledSubscriber, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool, scenarios.DefaultUEIPv6Pool)
 	if err != nil {
 		return err
 	}
 
-	defer closeIMSUE(g, registration)
+	defer closeIMSUE(g, session)
 
 	if registration.IMSVoPS {
 		return fmt.Errorf("the Registration Accept indicates IMS voice over PS sessions to a subscriber without the ims data network")
@@ -105,38 +107,51 @@ func runIMSNotEntitled(ctx context.Context, env scenarios.Env) error {
 	return scenarios.RequireIMSRegistrationForbidden(ctx, imsNotEntitledSubscriber, pcscf, local, scenarios.IMSTransports[0])
 }
 
-func registerIMSUE(env scenarios.Env, s scenarios.SubscriberSpec, dnn, v4Pool, v6Pool string) (*gnb.GnodeB, *gnb.RegistrationResult, netip.Addr, error) {
+func registerIMSUE(env scenarios.Env, s scenarios.SubscriberSpec, dnn, v4Pool, v6Pool string) (*gnb.GnodeB, *gnb.RegistrationResult, gnb.PDUSessionResult, netip.Addr, error) {
 	g, err := startGNB(env)
 	if err != nil {
-		return nil, nil, netip.Addr{}, err
+		return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, err
 	}
 
-	_, registration, local, err := registerAndTunnelIMSUE(env, g, s, int64(scenarios.DefaultRANUENGAPID), imsTunIface, dnn, v4Pool, v6Pool)
+	_, registration, session, local, err := registerAndTunnelIMSUE(env, g, s, int64(scenarios.DefaultRANUENGAPID), imsTunIface, dnn, v4Pool, v6Pool)
 	if err != nil {
 		g.Close()
-		return nil, nil, netip.Addr{}, err
+		return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, err
 	}
 
-	return g, registration, local, nil
+	return g, registration, session, local, nil
 }
 
-func registerAndTunnelIMSUE(env scenarios.Env, g *gnb.GnodeB, s scenarios.SubscriberSpec, ranUENGAPID int64, tunIface, dnn, v4Pool, v6Pool string) (*ue.UE, *gnb.RegistrationResult, netip.Addr, error) {
+func registerAndTunnelIMSUE(env scenarios.Env, g *gnb.GnodeB, s scenarios.SubscriberSpec, ranUENGAPID int64, tunIface, dnn, v4Pool, v6Pool string) (*ue.UE, *gnb.RegistrationResult, gnb.PDUSessionResult, netip.Addr, error) {
 	sub := subscriber{IMSI: s.IMSI, Key: s.Key, OPc: s.OPc, SequenceNumber: s.SequenceNumber, ProfileName: s.ProfileName}
 
-	newUE, err := newSubscriberUE(g, sub, dnn, env.PDUSessionType())
+	newUE, err := newSubscriberUE(g, sub, scenarios.DefaultDNN, env.PDUSessionType())
 	if err != nil {
-		return nil, nil, netip.Addr{}, err
+		return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, err
 	}
 
 	g.AddUE(ranUENGAPID, newUE)
 
 	registration, err := g.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
-		return nil, nil, netip.Addr{}, fmt.Errorf("registration failed: %w", err)
+		return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, fmt.Errorf("registration failed: %w", err)
 	}
 
-	if err := tunnelIMSSession(env, g, registration.Session, tunIface, v6Pool); err != nil {
-		return nil, nil, netip.Addr{}, err
+	session := registration.Session
+
+	if dnn != scenarios.DefaultDNN {
+		snssai := models.Snssai{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD}
+
+		ims, err := g.EstablishPDUSession(newUE, ranUENGAPID, imsPDUSessionID, dnn, snssai, registrationTimeout)
+		if err != nil {
+			return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, fmt.Errorf("establish the %s PDU session: %w", dnn, err)
+		}
+
+		session = *ims
+	}
+
+	if err := tunnelIMSSession(env, g, session, tunIface, v6Pool); err != nil {
+		return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, err
 	}
 
 	pool := v4Pool
@@ -146,10 +161,10 @@ func registerAndTunnelIMSUE(env scenarios.Env, g *gnb.GnodeB, s scenarios.Subscr
 
 	local, err := scenarios.UEAddress(tunIface, netip.MustParsePrefix(pool))
 	if err != nil {
-		return nil, nil, netip.Addr{}, err
+		return nil, nil, gnb.PDUSessionResult{}, netip.Addr{}, err
 	}
 
-	return newUE, registration, local, nil
+	return newUE, registration, session, local, nil
 }
 
 func tunnelIMSSession(env scenarios.Env, g *gnb.GnodeB, session gnb.PDUSessionResult, tunIface, v6Pool string) error {
@@ -209,15 +224,15 @@ func attachIMSCallUEs(env scenarios.Env, g *gnb.GnodeB, subs ...scenarios.Subscr
 		tunIface := fmt.Sprintf("%sims%d", gtpInterfaceNamePrefix, i)
 		ranUEID := int64(scenarios.DefaultRANUENGAPID + i)
 
-		u, registration, local, err := registerAndTunnelIMSUE(env, g, sub, ranUEID, tunIface, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
+		u, _, session, local, err := registerAndTunnelIMSUE(env, g, sub, ranUEID, tunIface, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
 		if err != nil {
 			cleanup()
 			return nil, nil, nil, fmt.Errorf("UE %s: %w", sub.IMSI, err)
 		}
 
-		cleanups = append(cleanups, func() { g.CloseTunnel(registration.Session.DLTEID) })
+		cleanups = append(cleanups, func() { g.CloseTunnel(session.DLTEID) })
 
-		acc, err := fgs.ParsePDUSessionEstablishmentAccept(registration.Session.Accept)
+		acc, err := fgs.ParsePDUSessionEstablishmentAccept(session.Accept)
 		if err != nil {
 			cleanup()
 			return nil, nil, nil, fmt.Errorf("parse PDU Session Establishment Accept: %w", err)
@@ -244,7 +259,7 @@ func attachIMSCallUEs(env scenarios.Env, g *gnb.GnodeB, subs ...scenarios.Subscr
 		endpoints = append(endpoints, scenarios.IMSEndpoint{Subscriber: sub, PCSCF: pcscf, Local: local})
 		ues = append(ues, imsCallUE{
 			ue:    u,
-			leg:   voiceLeg{gnb: g, ranUEID: ranUEID, session: registration.Session},
+			leg:   voiceLeg{gnb: g, ranUEID: ranUEID, session: session},
 			iface: tunIface,
 			table: imsRouteTable + i,
 		})
@@ -290,14 +305,14 @@ func runIMSCall(ctx context.Context, env scenarios.Env) error {
 	}
 
 	release := func() error {
-		return g.ReleasePDUSession(ues[1].ue, ues[1].leg.ranUEID, scenarios.DefaultPDUSessionID, releaseTimeout)
+		return g.ReleasePDUSession(ues[1].ue, ues[1].leg.ranUEID, imsPDUSessionID, releaseTimeout)
 	}
 
 	return scenarios.RequireIMSSignallingLoss(ctx, endpoints[0], endpoints[1], scenarios.IMSTransports[0], release)
 }
 
-func closeIMSUE(g *gnb.GnodeB, registration *gnb.RegistrationResult) {
-	g.CloseTunnel(registration.Session.DLTEID)
+func closeIMSUE(g *gnb.GnodeB, session gnb.PDUSessionResult) {
+	g.CloseTunnel(session.DLTEID)
 	g.Close()
 }
 

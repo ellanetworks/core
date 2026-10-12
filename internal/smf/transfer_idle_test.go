@@ -118,6 +118,10 @@ func TestTransferIdle5GSToEPSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 		t.Errorf("AMF told about ref %q pdu session %d, want %q / %d",
 			calls[0].ref, calls[0].pduSessionID, sc.Ref, movedPDUSessionID)
 	}
+
+	if calls[0].n2Transfer != nil {
+		t.Error("an N2 release went for a session transferred to EPS: the AMF releases only the PDU sessions not transferred (TS 23.502 §4.11.1.3.2 step 15)")
+	}
 }
 
 // TS 24.501 §5.5.1.3.2

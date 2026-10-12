@@ -18,10 +18,13 @@ import (
 )
 
 const (
-	imsHandoverTargetRANID = int64(300)
-	imsHandoverTargetTEID  = uint32(9300)
-	pagingTimeout          = 10 * time.Second
+	imsHandoverTargetRANID        = int64(300)
+	imsHandoverTargetTEID         = uint32(9300)
+	imsInternetHandoverTargetTEID = uint32(9301)
+	pagingTimeout                 = 10 * time.Second
 )
+
+var imsUESessions = []uint8{scenarios.DefaultPDUSessionID, imsPDUSessionID}
 
 var (
 	imsHoldCaller       = scenarios.IMSSubscriber("001018400000005", "+15558400005")
@@ -272,7 +275,7 @@ func releaseFlowAtGNB(u imsCallUE, qfi uint8) error {
 }
 
 func loseRadioConnection(u imsCallUE, _ uint8) error {
-	return u.leg.gnb.ReleaseContext(u.ue, u.leg.ranUEID, []uint8{u.leg.session.PDUSessionID}, gnb.CauseRadioConnectionWithUELost, releaseTimeout)
+	return u.leg.gnb.ReleaseContext(u.ue, u.leg.ranUEID, imsUESessions, gnb.CauseRadioConnectionWithUELost, releaseTimeout)
 }
 
 func runIMSCallLoss(ctx context.Context, env scenarios.Env, caller, callee scenarios.SubscriberSpec, lose flowLoss) error {
@@ -323,7 +326,7 @@ func runIMSCallIdle(ctx context.Context, env scenarios.Env) error {
 			return fmt.Errorf("before the release: %w", err)
 		}
 
-		if err := c.g.ReleaseContext(callee.ue, callee.leg.ranUEID, []uint8{callee.leg.session.PDUSessionID}, gnb.CauseUserInactivity, releaseTimeout); err != nil {
+		if err := c.g.ReleaseContext(callee.ue, callee.leg.ranUEID, imsUESessions, gnb.CauseUserInactivity, releaseTimeout); err != nil {
 			return err
 		}
 
@@ -342,8 +345,9 @@ func runIMSCallIdle(ctx context.Context, env scenarios.Env) error {
 		}
 
 		if _, err := c.g.ServiceRequest(callee.ue, callee.leg.ranUEID, callee.leg.session.PDUSessionID, releaseTimeout, &gnb.ServiceRequestOpts{
-			DLTEID:      callee.leg.session.DLTEID,
-			ServiceType: fgs.ServiceTypeMobileTerminatedServices,
+			DLTEID:           callee.leg.session.DLTEID,
+			ServiceType:      fgs.ServiceTypeMobileTerminatedServices,
+			OtherPDUSessions: []uint8{scenarios.DefaultPDUSessionID},
 		}); err != nil {
 			return fmt.Errorf("answer the page: %w", err)
 		}
@@ -483,12 +487,18 @@ func xnHandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 		TargetDLTEID:      imsHandoverTargetTEID,
 		Flows:             []uint8{qfi},
 		FlowFiveQIs:       sourceFiveQIs(u.leg, qfi),
+		PDUSessionID:      imsPDUSessionID,
+		OtherSessions:     []*gnb.PDUSessionInformation{{PDUSessionID: scenarios.DefaultPDUSessionID, DLTEID: imsInternetHandoverTargetTEID}},
 	})
 	if err != nil {
 		return voiceLeg{}, fmt.Errorf("handover over Xn: %w", err)
 	}
 
-	transfer, err := ngaplib.ParsePathSwitchRequestAcknowledgeTransfer(ack.PDUSessionResourceSwitchedList[0].Transfer)
+	i := slices.IndexFunc(ack.PDUSessionResourceSwitchedList, func(it ngaplib.PDUSessionResourceSwitchedItem) bool {
+		return uint8(it.PDUSessionID) == imsPDUSessionID
+	})
+
+	transfer, err := ngaplib.ParsePathSwitchRequestAcknowledgeTransfer(ack.PDUSessionResourceSwitchedList[i].Transfer)
 	if err != nil {
 		return voiceLeg{}, fmt.Errorf("parse the Path Switch Request Acknowledge Transfer: %w", err)
 	}
@@ -506,6 +516,7 @@ func n2HandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 		HandoverType: ngaplib.HandoverTypeIntra5GS,
 		TargetGnbID:  handoverTargetGnbID,
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
+			{PDUSessionID: scenarios.DefaultPDUSessionID, HandoverRequiredTransfer: directForwardingRequiredTransfer},
 			{PDUSessionID: int64(u.leg.session.PDUSessionID), HandoverRequiredTransfer: directForwardingRequiredTransfer},
 		},
 		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
@@ -523,11 +534,14 @@ func n2HandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 		return voiceLeg{}, fmt.Errorf("parse Handover Request: %w", err)
 	}
 
-	if len(req.PDUSessionResourceSetupListHOReq) != 1 {
-		return voiceLeg{}, fmt.Errorf("the Handover Request sets up %d PDU sessions, want 1", len(req.PDUSessionResourceSetupListHOReq))
+	ims := slices.IndexFunc(req.PDUSessionResourceSetupListHOReq, func(it ngaplib.PDUSessionResourceSetupItemHOReq) bool {
+		return uint8(it.PDUSessionID) == u.leg.session.PDUSessionID
+	})
+	if len(req.PDUSessionResourceSetupListHOReq) != len(imsUESessions) || ims < 0 {
+		return voiceLeg{}, fmt.Errorf("the Handover Request sets up PDU sessions %+v, want the internet and the ims sessions", req.PDUSessionResourceSetupListHOReq)
 	}
 
-	transfer, err := ngaplib.ParsePDUSessionResourceSetupRequestTransfer(req.PDUSessionResourceSetupListHOReq[0].Transfer)
+	transfer, err := ngaplib.ParsePDUSessionResourceSetupRequestTransfer(req.PDUSessionResourceSetupListHOReq[ims].Transfer)
 	if err != nil {
 		return voiceLeg{}, fmt.Errorf("parse the Handover Request's session transfer: %w", err)
 	}
@@ -548,6 +562,10 @@ func n2HandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 		AMFUENGAPID: targetAMFUEID,
 		RANUENGAPID: imsHandoverTargetRANID,
 		PDUSessions: []gnb.HandoverAdmittedPDUSession{{
+			PDUSessionID: scenarios.DefaultPDUSessionID,
+			DLTEID:       imsInternetHandoverTargetTEID,
+			DLIP:         n3,
+		}, {
 			PDUSessionID: int64(u.leg.session.PDUSessionID),
 			DLTEID:       imsHandoverTargetTEID,
 			DLIP:         n3,

@@ -93,6 +93,10 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
 		zap.Uint8("ebi", ebi), logger.DNN(dnn), zap.Stringer("to", access))
 
+	if dropped != nil {
+		dropped.upActive = false
+	}
+
 	s.dropSourceRouting(ctx, sc.Ref, dropped)
 
 	return sc.Ref, nil

@@ -31,8 +31,6 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
-	gnb.countModifyRequest(ranUeNgapID)
-
 	ids := make([]int64, 0, len(req.PDUSessionResourceModify))
 	accepted := make(map[int64][]uint8)
 	failed := make(map[int64][]uint8)
@@ -41,6 +39,8 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 	for _, item := range req.PDUSessionResourceModify {
 		pduSessionID := int64(item.PDUSessionID)
 		ids = append(ids, pduSessionID)
+
+		forward := true
 
 		modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.Transfer)
 		if err != nil {
@@ -83,6 +83,8 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 			gnb.recordFlowFiveQIs(ranUeNgapID, pduSessionID, fiveQIs)
 			gnb.admitQoSFlows(ranUeNgapID, pduSessionID, dedicated, modInfo.Released)
 
+			forward = len(modInfo.Flows) == 0 || len(modInfo.Released) > 0 || len(accepted[pduSessionID]) > 0
+
 			logger.GnbLogger.Debug(
 				"Updated PDU session QoS from Modify Request Transfer",
 				zap.Int64("PDU Session ID", pduSessionID),
@@ -93,7 +95,7 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 			)
 		}
 
-		if item.NASPDU != nil {
+		if item.NASPDU != nil && forward {
 			if err := ue.SendDownlinkNAS(*item.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
 				return fmt.Errorf("forward NAS PDU for PDU session %d: %w", pduSessionID, err)
 			}
@@ -110,6 +112,8 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 	}); err != nil {
 		return fmt.Errorf("failed to send PDUSessionResourceModifyResponse: %w", err)
 	}
+
+	gnb.countModifyRequest(ranUeNgapID)
 
 	logger.GnbLogger.Debug(
 		"Sent PDU Session Resource Modify Response",

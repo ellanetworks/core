@@ -295,8 +295,9 @@ func (g *GnodeB) openPDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 type ServiceRequestOpts struct {
 	// DLTEID pins the downlink TEID reported at the next re-establishment
 	// of the session. Zero allocates a fresh one.
-	DLTEID      uint32
-	ServiceType fgs.ServiceType
+	DLTEID           uint32
+	ServiceType      fgs.ServiceType
+	OtherPDUSessions []uint8
 }
 
 // ServiceRequest performs a mobile-originated service request for a UE in
@@ -306,6 +307,12 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 	var status [16]bool
 
 	status[pduSessionID] = true
+
+	if opts != nil {
+		for _, id := range opts.OtherPDUSessions {
+			status[id] = true
+		}
+	}
 
 	if opts != nil && opts.DLTEID != 0 {
 		g.PinDLTEID(ranUENGAPID, int64(pduSessionID), opts.DLTEID)

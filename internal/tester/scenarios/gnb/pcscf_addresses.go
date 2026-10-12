@@ -40,16 +40,7 @@ func fixturePCSCFAddresses(env scenarios.Env) scenarios.FixtureSpec {
 		DataNetworks: []scenarios.DataNetworkSpec{scenarios.IMSDataNetwork(env)},
 		Policies: []scenarios.PolicySpec{
 			scenarios.IMSPolicy(scenarios.IMSProfileName),
-			{
-				Name:                scenarios.IMSInternetPolicyName,
-				ProfileName:         scenarios.IMSProfileName,
-				SliceName:           scenarios.DefaultSliceName,
-				DataNetworkName:     scenarios.DefaultDNN,
-				SessionAmbrUplink:   "100 Mbps",
-				SessionAmbrDownlink: "100 Mbps",
-				Var5qi:              9,
-				Arp:                 15,
-			},
+			scenarios.IMSInternetPolicy(scenarios.IMSProfileName),
 		},
 		Subscribers: []scenarios.SubscriberSpec{
 			scenarios.DefaultSubscriberWith(pcscfAddressesIMSI, scenarios.IMSProfileName),

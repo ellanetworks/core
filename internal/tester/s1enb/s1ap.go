@@ -260,6 +260,8 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 // context release on inactivity (TS 36.413 §9.2.1.3, value 20).
 var CauseUserInactivity = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 20}
 
+var CauseNotSupportedQCIValue = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 1, Extended: true}
+
 // SendUEContextReleaseRequest asks the MME to release the UE's S1 context, as an
 // eNB does on inactivity or radio-link failure (TS 36.413 §8.3.2).
 func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cause) error {

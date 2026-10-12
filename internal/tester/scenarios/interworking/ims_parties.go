@@ -13,12 +13,14 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -28,17 +30,18 @@ import (
 )
 
 const (
-	imsPDUSessionID     = scenarios.DefaultPDUSessionID
-	imsDefaultEBI       = s1ap.ERABID(5)
-	imsVoiceEBI         = s1ap.ERABID(6)
-	imsVoiceQCI         = 1
-	imsTunIface         = "iwkims"
-	imsRouteTable       = 120
-	imsVoiceTimeout     = 30 * time.Second
-	imsMediaTimeout     = 5 * time.Second
-	imsPacketInterval   = 20 * time.Millisecond
-	imsFirstGNBRANUEID  = int64(scenarios.DefaultRANUENGAPID)
-	imsMovedGNBRANUEIDs = int64(90)
+	imsPDUSessionID       = scenarios.DefaultPDUSessionID
+	imsSecondPDUSessionID = scenarios.DefaultPDUSessionID + 1
+	imsDefaultEBI         = s1ap.ERABID(5)
+	imsVoiceEBI           = s1ap.ERABID(6)
+	imsVoiceQCI           = 1
+	imsTunIface           = "iwkims"
+	imsRouteTable         = 120
+	imsVoiceTimeout       = 30 * time.Second
+	imsMediaTimeout       = 5 * time.Second
+	imsPacketInterval     = 20 * time.Millisecond
+	imsFirstGNBRANUEID    = int64(scenarios.DefaultRANUENGAPID)
+	imsMovedGNBRANUEIDs   = int64(90)
 )
 
 var (
@@ -88,6 +91,47 @@ type imsParty struct {
 	lte     *lteAttachment
 	guti    *eps.EPSMobileIdentity
 	unroute func()
+	bearers partyBearers
+}
+
+type partyBearers struct {
+	session    uint8
+	defaultEBI s1ap.ERABID
+	voiceEBI   s1ap.ERABID
+	others     map[uint8]s1ap.ERABID
+}
+
+var imsOnlyBearers = partyBearers{session: imsPDUSessionID, defaultEBI: imsDefaultEBI, voiceEBI: imsVoiceEBI}
+
+var imsBehindInternetBearers = partyBearers{
+	session:    imsSecondPDUSessionID,
+	defaultEBI: imsDefaultEBI + 1,
+	voiceEBI:   imsVoiceEBI + 1,
+	others:     map[uint8]s1ap.ERABID{scenarios.DefaultPDUSessionID: imsDefaultEBI},
+}
+
+func (b partyBearers) sessions() []uint8 {
+	out := []uint8{b.session}
+	for id := range b.others {
+		out = append(out, id)
+	}
+
+	slices.Sort(out)
+
+	return out
+}
+
+func (b partyBearers) status() *nas.EPSBearerContextStatus {
+	var status nas.EPSBearerContextStatus
+
+	status.Active[b.defaultEBI] = true
+	status.Active[b.voiceEBI] = true
+
+	for _, ebi := range b.others {
+		status.Active[ebi] = true
+	}
+
+	return &status
 }
 
 func (p *imsParty) close() {
@@ -116,9 +160,13 @@ func (p *imsParty) pool() netip.Prefix {
 }
 
 func newIMSUEOn5GS(g *gnb.GnodeB, env scenarios.Env, sub scenarios.SubscriberSpec, autoSession bool) (*ue.UE, error) {
+	return newUEOn5GS(g, env, sub, autoSession, imsPDUSessionID, scenarios.IMSDNN)
+}
+
+func newUEOn5GS(g *gnb.GnodeB, env scenarios.Env, sub scenarios.SubscriberSpec, autoSession bool, pduSessionID uint8, dnn string) (*ue.UE, error) {
 	u, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:           g,
-		PDUSessionID:     imsPDUSessionID,
+		PDUSessionID:     pduSessionID,
 		PDUSessionType:   fgs.PDUSessionType(env.PDUSessionType()),
 		NoAutoPDUSession: !autoSession,
 		Msin:             sub.IMSI[5:],
@@ -133,7 +181,7 @@ func newIMSUEOn5GS(g *gnb.GnodeB, env scenarios.Env, sub scenarios.SubscriberSpe
 			PublicKeyID:      "0",
 		},
 		RoutingIndicator: scenarios.DefaultRoutingIndicator,
-		DNN:              scenarios.IMSDNN,
+		DNN:              dnn,
 		Sst:              scenarios.DefaultSST,
 		Sd:               scenarios.DefaultSD,
 		IMEISV:           scenarios.DefaultIMEISV,
@@ -162,11 +210,37 @@ func registerIMSPartyOn5GS(env scenarios.Env, g *gnb.GnodeB, sub scenarios.Subsc
 		return nil, fmt.Errorf("UE %s: registration over NR: %w", sub.IMSI, err)
 	}
 
+	return imsPartyOn5GS(env, g, u, sub, ranUEID, index, reg.Session, imsOnlyBearers)
+}
+
+func registerIMSPartyBehindInternetOn5GS(env scenarios.Env, g *gnb.GnodeB, sub scenarios.SubscriberSpec, ranUEID int64, index int) (*imsParty, error) {
+	u, err := newUEOn5GS(g, env, sub, true, scenarios.DefaultPDUSessionID, scenarios.DefaultDNN)
+	if err != nil {
+		return nil, err
+	}
+
+	g.AddUE(ranUEID, u)
+
+	if _, err := g.Register(u, ranUEID, scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
+		return nil, fmt.Errorf("UE %s: registration over NR: %w", sub.IMSI, err)
+	}
+
+	snssai := models.Snssai{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD}
+
+	session, err := g.EstablishPDUSession(u, ranUEID, imsSecondPDUSessionID, scenarios.IMSDNN, snssai, registrationTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("UE %s: establish the ims PDU session: %w", sub.IMSI, err)
+	}
+
+	return imsPartyOn5GS(env, g, u, sub, ranUEID, index, *session, imsBehindInternetBearers)
+}
+
+func imsPartyOn5GS(env scenarios.Env, g *gnb.GnodeB, u *ue.UE, sub scenarios.SubscriberSpec, ranUEID int64, index int, session gnb.PDUSessionResult, bearers partyBearers) (*imsParty, error) {
 	if err := assertEPSNASAlgorithms(u); err != nil {
 		return nil, err
 	}
 
-	acc, err := fgs.ParsePDUSessionEstablishmentAccept(reg.Session.Accept)
+	acc, err := fgs.ParsePDUSessionEstablishmentAccept(session.Accept)
 	if err != nil {
 		return nil, fmt.Errorf("UE %s: parse PDU Session Establishment Accept: %w", sub.IMSI, err)
 	}
@@ -176,13 +250,14 @@ func registerIMSPartyOn5GS(env scenarios.Env, g *gnb.GnodeB, sub scenarios.Subsc
 	}
 
 	p := &imsParty{
-		env:    env,
-		sub:    sub,
-		iface:  fmt.Sprintf("%s%d", imsTunIface, index),
-		table:  imsRouteTable + index,
-		ueIPv4: reg.Session.UEIPv4,
-		ueIPv6: reg.Session.UEIPv6,
-		nr:     &nrAttachment{g: g, u: u, ranUEID: ranUEID, session: reg.Session},
+		env:     env,
+		sub:     sub,
+		iface:   fmt.Sprintf("%s%d", imsTunIface, index),
+		table:   imsRouteTable + index,
+		ueIPv4:  session.UEIPv4,
+		ueIPv6:  session.UEIPv6,
+		nr:      &nrAttachment{g: g, u: u, ranUEID: ranUEID, session: session},
+		bearers: bearers,
 	}
 
 	pcscf, err := scenarios.SelectPCSCF(acc.ExtendedPCO.PCSCFAddresses(), !env.HasIPv4())
@@ -210,13 +285,14 @@ func attachIMSPartyOn4G(env scenarios.Env, e *s1enb.ENB, sub scenarios.Subscribe
 	}
 
 	p := &imsParty{
-		env:    env,
-		sub:    sub,
-		iface:  fmt.Sprintf("%s%d", imsTunIface, index),
-		table:  imsRouteTable + index,
-		ueIPv4: res.UEIPv4,
-		ueIPv6: res.UEIPv6,
-		guti:   res.GUTI,
+		env:     env,
+		sub:     sub,
+		iface:   fmt.Sprintf("%s%d", imsTunIface, index),
+		table:   imsRouteTable + index,
+		ueIPv4:  res.UEIPv4,
+		ueIPv6:  res.UEIPv6,
+		guti:    res.GUTI,
+		bearers: imsOnlyBearers,
 		lte: &lteAttachment{
 			e: e, u: u, mmeUEID: res.MMEUES1APID, enbUEID: res.ENBUES1APID,
 			upf: res.UpfAddress, ulTEID: res.ULTEID, dlTEID: res.DLTEID,
@@ -413,13 +489,13 @@ func (a *nrAttachment) awaitVoiceQFI(ctx context.Context) (uint8, error) {
 	defer cancel()
 
 	for {
-		if flows := a.g.QoSFlows(a.ranUEID, int64(imsPDUSessionID)); len(flows) == 1 {
+		if flows := a.g.QoSFlows(a.ranUEID, int64(a.session.PDUSessionID)); len(flows) == 1 {
 			return flows[0], nil
 		}
 
 		select {
 		case <-ctx.Done():
-			return 0, fmt.Errorf("the gNB holds QoS flows %v, want one voice flow: %w", a.g.QoSFlows(a.ranUEID, int64(imsPDUSessionID)), ctx.Err())
+			return 0, fmt.Errorf("the gNB holds QoS flows %v, want one voice flow: %w", a.g.QoSFlows(a.ranUEID, int64(a.session.PDUSessionID)), ctx.Err())
 		case <-time.After(imsPacketInterval):
 		}
 	}

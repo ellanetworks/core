@@ -603,3 +603,57 @@ func TestHandoverToEPSBindsTheVoiceBearerWithTheDefaultBearer(t *testing.T) {
 		t.Fatalf("%d PFCP modifications for an endpoint already bound, want 0", got)
 	}
 }
+
+func TestEPSFallbackByHandoverMovesOnlyTheDefaultBearer(t *testing.T) {
+	tests := []struct {
+		name    string
+		answers func(t *testing.T, s *smf.SMF, ref string)
+	}{
+		{"UE answers first", func(t *testing.T, s *smf.SMF, ref string) {
+			ueAnswers(t, s, ref, true)
+			ranFailsFlowsWithCause(t, s, ref, libngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered, voiceQFI)
+		}},
+		{"RAN answers first", func(t *testing.T, s *smf.SMF, ref string) {
+			ranFailsFlowsWithCause(t, s, ref, libngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered, voiceQFI)
+			ueAnswers(t, s, ref, true)
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+			s.SetMME(mmeCb)
+
+			ref := establish5GSWithEBI(t, s, sessionEBI).Ref
+
+			pushRules(t, s, ref, voiceRule())
+			waitFlowModifications(t, amfCb, 1)
+			tc.answers(t, s, ref)
+
+			ctx := context.Background()
+
+			bearer, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID))
+			if err != nil {
+				t.Fatalf("move to EPS: %v", err)
+			}
+
+			if len(bearer.Dedicated) != 0 {
+				t.Fatalf("dedicated bearer contexts %+v, want none: the NG-RAN node refused the voice flow before the handover (TS 23.502 §4.13.6.1 steps 4-5)", bearer.Dedicated)
+			}
+
+			if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}, nil); err != nil {
+				t.Fatalf("ModifyEPSSession: %v", err)
+			}
+
+			waitFor(t, "the voice bearer set up in EPS for the maintained rule (TS 23.502 §4.13.6.1 step 7)", func() bool {
+				acts := mmeCb.dedicatedActivations()
+				return len(acts) == 1 && acts[0].Bearer.QCI == 1
+			})
+
+			if r := pcf.reportedRules(); len(r) != 0 {
+				t.Fatalf("reported rules %v, want none: EPS fallback keeps the PCC rules (TS 23.502 §4.13.6.1 step 4)", r)
+			}
+		})
+	}
+}

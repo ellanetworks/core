@@ -58,6 +58,19 @@ func IMSPolicy(profile string) PolicySpec {
 	}
 }
 
+func IMSInternetPolicy(profile string) PolicySpec {
+	return PolicySpec{
+		Name:                IMSInternetPolicyName,
+		ProfileName:         profile,
+		SliceName:           DefaultSliceName,
+		DataNetworkName:     DefaultDNN,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 15,
+	}
+}
+
 func ExpectedPCSCFAddresses(env Env) []netip.Addr {
 	var out []netip.Addr
 
@@ -119,7 +132,7 @@ func IMSFixture(env Env, subs ...SubscriberSpec) FixtureSpec {
 			UeAmbrDownlink: DefaultProfileUeAmbrDownlink,
 		}},
 		DataNetworks:   []DataNetworkSpec{IMSDataNetwork(env)},
-		Policies:       []PolicySpec{IMSPolicy(IMSProfileName)},
+		Policies:       []PolicySpec{IMSPolicy(IMSProfileName), IMSInternetPolicy(IMSProfileName)},
 		Subscribers:    subs,
 		PCSCFAddresses: IMSServerAddresses,
 	}

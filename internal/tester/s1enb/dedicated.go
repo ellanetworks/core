@@ -109,6 +109,32 @@ func (e *ENB) RejectDedicatedBearer(ue *UE, enbUEID int64, timeout time.Duration
 	return req.ERABToBeSetup[0].ERABID, nil
 }
 
+func (e *ENB) RefuseDedicatedBearer(ue *UE, enbUEID int64, cause s1ap.Cause, timeout time.Duration) (s1ap.ERABID, error) {
+	req, _, err := e.awaitDedicatedActivation(ue, enbUEID, timeout)
+	if err != nil {
+		return 0, err
+	}
+
+	erab := req.ERABToBeSetup[0].ERABID
+
+	resp := &s1ap.ERABSetupResponse{
+		MMEUES1APID:       s1ap.Ptr(req.MMEUES1APID),
+		ENBUES1APID:       s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
+		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: erab, Cause: cause}},
+	}
+
+	b, err := resp.Marshal()
+	if err != nil {
+		return 0, fmt.Errorf("build E-RAB Setup Response: %w", err)
+	}
+
+	if err := e.SendMessage(b, true); err != nil {
+		return 0, fmt.Errorf("send E-RAB Setup Response: %w", err)
+	}
+
+	return erab, nil
+}
+
 func (e *ENB) AwaitDedicatedDeactivation(ue *UE, enbUEID int64, timeout time.Duration) (s1ap.ERABID, *eps.DeactivateEPSBearerContextRequest, error) {
 	frame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcERABRelease, timeout)
 	if err != nil {

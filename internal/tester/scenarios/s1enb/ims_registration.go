@@ -91,7 +91,7 @@ func registerIMS(name string, sub scenarios.SubscriberSpec, run func(context.Con
 func runIMSRegistration(ctx context.Context, env scenarios.Env) error {
 	ipv6 := !env.HasIPv4()
 
-	e, res, local, err := attachIMSUE(env, imsRegistrationSubscriber, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
+	e, res, local, err := attachIMSUE(env, imsRegistrationSubscriber, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func runIMSRegistration(ctx context.Context, env scenarios.Env) error {
 }
 
 func runIMSNotEntitled(ctx context.Context, env scenarios.Env) error {
-	e, res, local, err := attachIMSUE(env, imsNotEntitledSubscriber, scenarios.DefaultUEIPv4Pool, scenarios.DefaultUEIPv6Pool)
+	e, res, local, err := attachIMSUE(env, imsNotEntitledSubscriber, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool, scenarios.DefaultUEIPv6Pool)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func runIMSNotEntitled(ctx context.Context, env scenarios.Env) error {
 	return scenarios.RequireIMSRegistrationForbidden(ctx, imsNotEntitledSubscriber, pcscf, local, scenarios.IMSTransports[0])
 }
 
-func attachIMSUE(env scenarios.Env, sub scenarios.SubscriberSpec, v4Pool, v6Pool string) (*s1enb.ENB, *s1enb.AttachResult, netip.Addr, error) {
+func attachIMSUE(env scenarios.Env, sub scenarios.SubscriberSpec, apn, v4Pool, v6Pool string) (*s1enb.ENB, *s1enb.AttachResult, netip.Addr, error) {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
 		return nil, nil, netip.Addr{}, err
@@ -152,25 +152,46 @@ func attachIMSUE(env scenarios.Env, sub scenarios.SubscriberSpec, v4Pool, v6Pool
 		return nil, nil, netip.Addr{}, fmt.Errorf("start S1 eNB: %w", err)
 	}
 
-	_, local, res, err := attachAndTunnelIMSUE(env, e, sub, k, opc, imsTunIface, v4Pool, v6Pool)
+	att, err := attachAndTunnelIMSUE(env, e, sub, k, opc, imsTunIface, apn, v4Pool, v6Pool)
 	if err != nil {
 		_ = e.Close()
 		return nil, nil, netip.Addr{}, err
 	}
 
-	return e, res, local, nil
+	return e, att.res, att.local, nil
 }
 
-func attachAndTunnelIMSUE(env scenarios.Env, e *s1enb.ENB, sub scenarios.SubscriberSpec, k, opc [16]byte, tunIface, v4Pool, v6Pool string) (*s1enb.UE, netip.Addr, *s1enb.AttachResult, error) {
+type imsAttachment struct {
+	ue       *s1enb.UE
+	local    netip.Addr
+	res      *s1enb.AttachResult
+	internet s1ap.ERABID
+}
+
+func attachAndTunnelIMSUE(env scenarios.Env, e *s1enb.ENB, sub scenarios.SubscriberSpec, k, opc [16]byte, tunIface, apn, v4Pool, v6Pool string) (*imsAttachment, error) {
 	ipv6 := !env.HasIPv4()
 
 	ue := e.NewUE(sub.IMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
-	ue.RequestPCSCFAddresses()
+	ue.RequestAPN(scenarios.DefaultDNN)
+	ue.DeferESMInformation()
 
-	res, err := e.Attach(ue, attachTimeout)
+	attached, err := e.Attach(ue, attachTimeout)
 	if err != nil {
-		return nil, netip.Addr{}, nil, fmt.Errorf("attach: %w", err)
+		return nil, fmt.Errorf("attach: %w", err)
+	}
+
+	res := attached
+
+	if apn != scenarios.DefaultDNN {
+		ue.RequestPCSCFAddresses()
+
+		pdn, err := e.OpenPDN(ue, attached.MMEUES1APID, attached.ENBUES1APID, apn, env.PDUSessionType(), attachTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("open the %s PDN connection: %w", apn, err)
+		}
+
+		res = pdnView(attached, pdn)
 	}
 
 	tun := &s1enb.TunnelOpts{
@@ -191,12 +212,12 @@ func attachAndTunnelIMSUE(env scenarios.Env, e *s1enb.ENB, sub scenarios.Subscri
 	}
 
 	if err := e.AddTunnel(tun); err != nil {
-		return nil, netip.Addr{}, nil, fmt.Errorf("add GTP tunnel: %w", err)
+		return nil, fmt.Errorf("add GTP tunnel: %w", err)
 	}
 
 	if ipv6 {
 		if err := s1enb.WaitForULAAddr(tunIface, pool, 5*time.Second); err != nil {
-			return nil, netip.Addr{}, nil, fmt.Errorf("await SLAAC address: %w", err)
+			return nil, fmt.Errorf("await SLAAC address: %w", err)
 		}
 	} else {
 		awaitDownlinkReady()
@@ -204,15 +225,26 @@ func attachAndTunnelIMSUE(env scenarios.Env, e *s1enb.ENB, sub scenarios.Subscri
 
 	local, err := scenarios.UEAddress(tunIface, netip.MustParsePrefix(pool))
 	if err != nil {
-		return nil, netip.Addr{}, nil, err
+		return nil, err
 	}
 
-	return ue, local, res, nil
+	return &imsAttachment{ue: ue, local: local, res: res, internet: attached.ERABID}, nil
+}
+
+func pdnView(attached *s1enb.AttachResult, pdn *s1enb.PDNResult) *s1enb.AttachResult {
+	v := *attached
+	v.ERABID, v.APN, v.PDNType, v.QCI, v.ARP = pdn.ERABID, pdn.APN, pdn.PDNType, pdn.QCI, pdn.ARP
+	v.SessAmbrDownlinkBps, v.SessAmbrUplinkBps = pdn.SessAmbrDownlinkBps, pdn.SessAmbrUplinkBps
+	v.UEIPv4, v.UEIPv6, v.UpfAddress, v.ULTEID, v.DLTEID = pdn.UEIPv4, pdn.UEIPv6, pdn.UpfAddress, pdn.ULTEID, pdn.DLTEID
+	v.PCSCF = pdn.PCSCF
+
+	return &v
 }
 
 type imsCallUE struct {
-	ue  *s1enb.UE
-	res *s1enb.AttachResult
+	ue       *s1enb.UE
+	res      *s1enb.AttachResult
+	internet s1ap.ERABID
 }
 
 func attachIMSCallUEs(env scenarios.Env, e *s1enb.ENB, subs ...scenarios.SubscriberSpec) ([]scenarios.IMSEndpoint, []imsCallUE, func(), error) {
@@ -241,11 +273,13 @@ func attachIMSCallUEsFrom(env scenarios.Env, e *s1enb.ENB, first int, subs ...sc
 		i := first + n
 		tunIface := fmt.Sprintf("%s%d", imsTunIface, i)
 
-		u, local, res, err := attachAndTunnelIMSUE(env, e, sub, k, opc, tunIface, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
+		att, err := attachAndTunnelIMSUE(env, e, sub, k, opc, tunIface, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
 		if err != nil {
 			cleanup()
 			return nil, nil, nil, fmt.Errorf("UE %s: %w", sub.IMSI, err)
 		}
+
+		res, local := att.res, att.local
 
 		cleanups = append(cleanups, func() { e.CloseTunnel(res.DLTEID) })
 
@@ -263,7 +297,7 @@ func attachIMSCallUEsFrom(env scenarios.Env, e *s1enb.ENB, first int, subs ...sc
 
 		cleanups = append(cleanups, unroute)
 		endpoints = append(endpoints, scenarios.IMSEndpoint{Subscriber: sub, PCSCF: pcscf, Local: local})
-		ues = append(ues, imsCallUE{ue: u, res: res})
+		ues = append(ues, imsCallUE{ue: att.ue, res: res, internet: att.internet})
 	}
 
 	return endpoints, ues, cleanup, nil
@@ -578,7 +612,7 @@ func runIMSCallBearerRejected(ctx context.Context, env scenarios.Env) error {
 	rejected := make(chan error, 1)
 
 	go func() {
-		_, err := e.RejectDedicatedBearer(caller.ue, caller.res.ENBUES1APID, voiceBearerTimeout)
+		_, err := e.RefuseDedicatedBearer(caller.ue, caller.res.ENBUES1APID, s1enb.CauseNotSupportedQCIValue, voiceBearerTimeout)
 		rejected <- err
 	}()
 
@@ -587,7 +621,7 @@ func runIMSCallBearerRejected(ctx context.Context, env scenarios.Env) error {
 	}
 
 	if err := <-rejected; err != nil {
-		return fmt.Errorf("reject the voice bearer: %w", err)
+		return fmt.Errorf("refuse the voice E-RAB: %w", err)
 	}
 
 	return nil
@@ -1006,9 +1040,11 @@ func handOverVoiceUE(source, target *s1enb.ENB, u imsCallUE, voice *s1enb.Dedica
 		return handedOver{}, fmt.Errorf("await Handover Request: %w", err)
 	}
 
+	erabs := []s1ap.ERABID{u.internet, u.res.ERABID, voice.ERABID}
+
 	i := slices.IndexFunc(req.ERABToBeSetup, func(it s1ap.ERABToBeSetupItemHOReq) bool { return it.ERABID == voice.ERABID })
-	if i < 0 || len(req.ERABToBeSetup) != 2 {
-		return handedOver{}, fmt.Errorf("the Handover Request E-RABs are %+v, want the default and the voice bearer (TS 23.401 §5.5.1.2.2)", req.ERABToBeSetup)
+	if i < 0 || len(req.ERABToBeSetup) != len(erabs) {
+		return handedOver{}, fmt.Errorf("the Handover Request E-RABs are %+v, want the internet and ims default bearers and the voice bearer (TS 23.401 §5.5.1.2.2)", req.ERABToBeSetup)
 	}
 
 	if qos := req.ERABToBeSetup[i].QoS; qos.QCI != 1 || qos.GBR == nil {
@@ -1017,7 +1053,7 @@ func handOverVoiceUE(source, target *s1enb.ENB, u imsCallUE, voice *s1enb.Dedica
 
 	out := handedOver{enbUEID: target.AllocateENBUEID(), mmeUEID: int64(req.MMEUES1APID)}
 
-	teids, err := target.SendHandoverRequestAcknowledgePartial(out.enbUEID, out.mmeUEID, []s1ap.ERABID{u.res.ERABID, voice.ERABID}, nil, s1ap.Cause{})
+	teids, err := target.SendHandoverRequestAcknowledgePartial(out.enbUEID, out.mmeUEID, erabs, nil, s1ap.Cause{})
 	if err != nil {
 		return handedOver{}, fmt.Errorf("send Handover Request Acknowledge: %w", err)
 	}

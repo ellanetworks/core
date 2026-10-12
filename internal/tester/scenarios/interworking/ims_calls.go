@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -80,12 +81,16 @@ func (r *imsCallRANs) close() {
 }
 
 func (r *imsCallRANs) partiesOn5GS(env scenarios.Env, caller, callee scenarios.SubscriberSpec) (*imsParty, *imsParty, error) {
-	a, err := registerIMSPartyOn5GS(env, r.g, caller, imsFirstGNBRANUEID, 0)
+	return r.partiesOn5GSWith(env, registerIMSPartyOn5GS, caller, callee)
+}
+
+func (r *imsCallRANs) partiesOn5GSWith(env scenarios.Env, register func(scenarios.Env, *gnb.GnodeB, scenarios.SubscriberSpec, int64, int) (*imsParty, error), caller, callee scenarios.SubscriberSpec) (*imsParty, *imsParty, error) {
+	a, err := register(env, r.g, caller, imsFirstGNBRANUEID, 0)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	b, err := registerIMSPartyOn5GS(env, r.g, callee, imsFirstGNBRANUEID+1, 1)
+	b, err := register(env, r.g, callee, imsFirstGNBRANUEID+1, 1)
 	if err != nil {
 		a.close()
 		return nil, nil, err
@@ -116,7 +121,7 @@ func awaitQoSFlowsReleased(ctx context.Context, attachments ...*nrAttachment) er
 	for {
 		held := 0
 		for _, a := range attachments {
-			held += len(a.g.QoSFlows(a.ranUEID, int64(imsPDUSessionID)))
+			held += len(a.g.QoSFlows(a.ranUEID, int64(a.session.PDUSessionID)))
 		}
 
 		if held == 0 {
@@ -289,7 +294,7 @@ func runIMSCallIdleTo4GAndBack(ctx context.Context, env scenarios.Env) error {
 
 	defer r.close()
 
-	caller, callee, err := r.partiesOn5GS(env, imsIdleCaller, imsIdleCallee)
+	caller, callee, err := r.partiesOn5GSWith(env, registerIMSPartyBehindInternetOn5GS, imsIdleCaller, imsIdleCallee)
 	if err != nil {
 		return err
 	}
@@ -343,20 +348,12 @@ func runIMSCallIdleTo4GAndBack(ctx context.Context, env scenarios.Env) error {
 }
 
 func voiceBearerStatus() *nas.EPSBearerContextStatus {
-	var status nas.EPSBearerContextStatus
-
-	status.Active[imsDefaultEBI] = true
-	status.Active[imsVoiceEBI] = true
-
-	return &status
+	return imsOnlyBearers.status()
 }
 
 func (p *imsParty) idleToEPS(e *s1enb.ENB) (*s1enb.AttachResult, *s1enb.UE, error) {
 	nr := p.nr
-
-	if err := nr.g.ReleaseContext(nr.u, nr.ranUEID, []uint8{imsPDUSessionID}, gnb.CauseUserInactivity, releaseTimeout); err != nil {
-		return nil, nil, fmt.Errorf("release the NR connection over user inactivity: %w", err)
-	}
+	amfUEID := nr.g.GetAMFUENGAPID(nr.ranUEID)
 
 	security, guti, err := idleMobilityMaterial(nr.u)
 	if err != nil {
@@ -369,33 +366,73 @@ func (p *imsParty) idleToEPS(e *s1enb.ENB) (*s1enb.AttachResult, *s1enb.UE, erro
 	}
 
 	epsUE := e.NewUE(p.sub.IMSI, k, opc)
+	b := p.bearers
 
 	tau, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI:         guti,
 		UpdateType:   eps.EPSUpdateTypeTA,
-		BearerStatus: voiceBearerStatus(),
+		BearerStatus: b.status(),
 		Security:     security,
 	}, attachTimeout)
 	if err != nil {
-		return nil, nil, fmt.Errorf("tracking area update after the idle move to EPS: %w", err)
+		return nil, nil, fmt.Errorf("tracking area update after reselecting E-UTRAN: %w", err)
 	}
 
 	switch {
 	case tau.BearerStatus == nil:
 		return nil, nil, errors.New("the tracking area update accept carries no EPS bearer context status")
-	case !tau.BearerStatus.Active[imsDefaultEBI] || !tau.BearerStatus.Active[imsVoiceEBI]:
-		return nil, nil, fmt.Errorf("EPS bearer context status = %v, want the default bearer %d and the voice bearer %d active (TS 23.502 §4.11.1.3.2 step 5c)",
-			tau.BearerStatus.Active, imsDefaultEBI, imsVoiceEBI)
+	case !slices.Equal(activeEBIs(tau.BearerStatus), activeEBIs(b.status())):
+		return nil, nil, fmt.Errorf("EPS bearer context status = %v, want EBIs %v: every PDU session and its voice flow moved to EPS (TS 23.502 §4.11.1.3.2 steps 5c and 15)",
+			activeEBIs(tau.BearerStatus), activeEBIs(b.status()))
 	case tau.GUTI == nil || tau.GUTI.GUTI == nil:
 		return nil, nil, errors.New("the tracking area update accept assigned no GUTI")
+	}
+
+	if err := awaitNGContextReleased(nr.g, amfUEID); err != nil {
+		return nil, nil, err
 	}
 
 	return tau, epsUE, nil
 }
 
+func activeEBIs(s *nas.EPSBearerContextStatus) []uint8 {
+	var out []uint8
+
+	for ebi, active := range s.Active {
+		if active {
+			out = append(out, uint8(ebi))
+		}
+	}
+
+	return out
+}
+
+func awaitNGContextReleased(g *gnb.GnodeB, amfUEID int64) error {
+	frame, err := g.WaitForMessage(gnb.Initiating, ngap.ProcUEContextRelease, releaseTimeout)
+	if err != nil {
+		return fmt.Errorf("the AMF kept the NG context of a UE that moved to EPS: %w", err)
+	}
+
+	cmd, err := ngap.ParseUEContextReleaseCommand(frame.Value)
+	if err != nil {
+		return fmt.Errorf("parse UE Context Release Command: %w", err)
+	}
+
+	if int64(cmd.UENGAPIDs.AMFUENGAPID) != amfUEID {
+		return fmt.Errorf("the AMF released AMF UE NGAP ID %d, want %d", cmd.UENGAPIDs.AMFUENGAPID, amfUEID)
+	}
+
+	if _, err := g.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceRelease, 0); err == nil {
+		return errors.New("the AMF released PDU session resources of sessions that moved to EPS, want only those not transferred released (TS 23.502 §4.11.1.3.2 step 15)")
+	}
+
+	return nil
+}
+
 func (p *imsParty) idleTo5GS(ctx context.Context, g *gnb.GnodeB, epsUE *s1enb.UE, tau *s1enb.AttachResult, ranUEID int64) (fiveGSHandover, error) {
 	u := p.nr.u
-	status := voiceBearerStatus()
+	b := p.bearers
+	status := b.status()
 
 	container, err := epsUE.BuildTrackingAreaUpdateForContainer(*tau.GUTI.GUTI, status)
 	if err != nil {
@@ -404,7 +441,9 @@ func (p *imsParty) idleTo5GS(ctx context.Context, g *gnb.GnodeB, epsUE *s1enb.UE
 
 	var sessions [16]bool
 
-	sessions[imsPDUSessionID] = true
+	for _, id := range b.sessions() {
+		sessions[id] = true
+	}
 
 	g.AddUE(ranUEID, u)
 
@@ -429,11 +468,15 @@ func (p *imsParty) idleTo5GS(ctx context.Context, g *gnb.GnodeB, epsUE *s1enb.UE
 		return fiveGSHandover{}, fmt.Errorf("parse the registration accept: %w", err)
 	}
 
-	if s := accept.EPSBearerContextStatus; s == nil || !s.Active[imsVoiceEBI] {
-		return fiveGSHandover{}, fmt.Errorf("the registration accept EPS bearer context status %+v omits the voice EBI %d, so the UE would delete its voice flow (TS 24.501 §5.5.1.3.4)", s, imsVoiceEBI)
+	if s := accept.EPSBearerContextStatus; s == nil || !s.Active[b.voiceEBI] {
+		return fiveGSHandover{}, fmt.Errorf("the registration accept EPS bearer context status %+v omits the voice EBI %d, so the UE would delete its voice flow (TS 24.501 §5.5.1.3.4)", s, b.voiceEBI)
 	}
 
-	session, err := awaitSession(ctx, g, ranUEID)
+	if s := accept.PDUSessionStatus; s == nil || !slices.Equal(activeSessions(&s.PSI), b.sessions()) {
+		return fiveGSHandover{}, fmt.Errorf("the registration accept PDU session status %+v, want PDU sessions %v kept across the round trip (TS 24.501 §5.5.1.3.4 a)", s, b.sessions())
+	}
+
+	session, err := awaitSession(ctx, g, ranUEID, b.session)
 	if err != nil {
 		return fiveGSHandover{}, err
 	}
@@ -448,18 +491,30 @@ func (p *imsParty) idleTo5GS(ctx context.Context, g *gnb.GnodeB, epsUE *s1enb.UE
 	return fiveGSHandover{nr: nr, voice: &nrFlow{a: nr, qfi: qfi}}, p.rehome(nr, nil)
 }
 
-func awaitSession(ctx context.Context, g *gnb.GnodeB, ranUEID int64) (gnb.PDUSessionResult, error) {
+func activeSessions(s *[16]bool) []uint8 {
+	var out []uint8
+
+	for id, active := range s {
+		if active {
+			out = append(out, uint8(id))
+		}
+	}
+
+	return out
+}
+
+func awaitSession(ctx context.Context, g *gnb.GnodeB, ranUEID int64, pduSessionID uint8) (gnb.PDUSessionResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, imsVoiceTimeout)
 	defer cancel()
 
 	for {
-		if s, ok := g.PDUSession(ranUEID, imsPDUSessionID); ok && s.ULTEID != 0 {
+		if s, ok := g.PDUSession(ranUEID, pduSessionID); ok && s.ULTEID != 0 {
 			return s, nil
 		}
 
 		select {
 		case <-ctx.Done():
-			return gnb.PDUSessionResult{}, fmt.Errorf("the gNB holds no user plane for PDU session %d: %w", imsPDUSessionID, ctx.Err())
+			return gnb.PDUSessionResult{}, fmt.Errorf("the gNB holds no user plane for PDU session %d: %w", pduSessionID, ctx.Err())
 		case <-time.After(imsPacketInterval):
 		}
 	}
