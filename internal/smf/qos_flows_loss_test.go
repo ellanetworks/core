@@ -701,3 +701,52 @@ func TestFlowTheRANDidNotSetUpIsNotEnforced(t *testing.T) {
 		t.Fatalf("reported rules %v, want the call failed", r)
 	}
 }
+
+func TestModificationTheUEAppliedSurvivesAnANRelease(t *testing.T) {
+	s, _, _, amfCb, ref := activeFiveGVoice(t)
+
+	faster := voiceRule()
+	faster.Version = 1
+	rate := models.BitRateFromBps(64000)
+	faster.MBR, faster.GBR = models.Ambr{Uplink: rate, Downlink: rate}, models.Ambr{Uplink: rate, Downlink: rate}
+
+	pushRules(t, s, ref, faster)
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, true)
+
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	req := reactivate(t, s, ref, voiceQFI)
+
+	i := slices.IndexFunc(req.QosFlowSetupRequest, func(f libngap.QosFlowSetupRequestItem) bool { return f.QosFlowIdentifier == voiceQFI })
+	if i < 0 || req.QosFlowSetupRequest[i].QosFlowLevelQosParameters.GBRQosInformation.GuaranteedFlowBitRateDL != 64000 {
+		t.Fatalf("Setup Request Transfer flows %+v, want the 64 kbps the UE applied before the release", req.QosFlowSetupRequest)
+	}
+}
+
+func TestRefusedRuleRemovalIsResentWhenTheUserPlaneReturns(t *testing.T) {
+	s, _, _, amfCb, ref := activeFiveGVoice(t)
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 3)
+	ueAnswers(t, s, ref, false)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	reactivate(t, s, ref, voiceQFI)
+
+	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 4)[3])
+	if !slices.ContainsFunc(cmd.QoSRules, func(r fgs.QoSRule) bool { return r.OperationCode == fgs.QoSRuleOpDelete }) {
+		t.Fatalf("command %+v, want the removed rule deleted once the user plane is back (TS 29.212 §4.5.12)", cmd)
+	}
+}

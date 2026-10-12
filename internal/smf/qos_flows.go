@@ -1055,7 +1055,37 @@ func (s *SMF) interruptFlowProcedureLocked(ctx context.Context, sc *SMContext) {
 		sc.ClearPTIInUse(networkRequestedPTI)
 	}
 
-	s.unsentFlowChangeLocked(ctx, sc, &flowChange{parts: p.parts}, true)
+	var unanswered flowChange
+
+	for b, parts := range p.parts {
+		if parts.n1 && p.ue != legApplied {
+			unanswered.touch(b, parts.n1, parts.n2)
+			continue
+		}
+
+		switch {
+		case b.state == dedicatedReleasing:
+			b.ue = nil
+			b.state = dedicatedActive
+		case b.pending != nil:
+			m := b.pending
+			b.state, b.pending = dedicatedActive, nil
+			b.installed = *m
+
+			if parts.n1 || b.ue != nil {
+				b.ue = m.clone()
+			}
+
+			b.deferredSince = time.Time{}
+			b.pruneRuleIdentities()
+			s.commitFlowLegLocked(ctx, sc, b)
+		case parts.n1:
+			b.ue = b.installed.clone()
+			b.pruneRuleIdentities()
+		}
+	}
+
+	s.unsentFlowChangeLocked(ctx, sc, &unanswered, true)
 	s.reconcileAfter(sc.Ref, 0)
 }
 
@@ -1243,6 +1273,12 @@ func (s *SMF) reportLostRulesLocked(sc *SMContext, lost []PCCRule) {
 }
 
 func (s *SMF) reportLostLocked(sc *SMContext, lost []PCCRule) {
+	if sc.policyDecision != nil {
+		lost = slices.DeleteFunc(slices.Clone(lost), func(r PCCRule) bool {
+			return !slices.ContainsFunc(sc.policyDecision.Rules, func(p PCCRule) bool { return p.ID == r.ID })
+		})
+	}
+
 	if len(lost) == 0 {
 		return
 	}
@@ -1261,6 +1297,12 @@ func (s *SMF) admitFlowsLocked(ctx context.Context, sc *SMContext, accepted []ui
 	for _, b := range sc.dedicated {
 		if b.state == dedicatedRemovalDeferred {
 			b.state = dedicatedActive
+
+			s.reconcileAfter(sc.Ref, 0)
+		}
+
+		if b.refused != nil {
+			b.refused = nil
 
 			s.reconcileAfter(sc.Ref, 0)
 		}
