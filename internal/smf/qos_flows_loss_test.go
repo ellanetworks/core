@@ -750,3 +750,101 @@ func TestRefusedRuleRemovalIsResentWhenTheUserPlaneReturns(t *testing.T) {
 		t.Fatalf("command %+v, want the removed rule deleted once the user plane is back (TS 29.212 §4.5.12)", cmd)
 	}
 }
+
+func TestModificationTheUEHasNotAnsweredIsAbortedByAnANRelease(t *testing.T) {
+	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+	slower := voiceRule()
+	slower.Version = 1
+	rate := models.BitRateFromBps(30000)
+	slower.MBR, slower.GBR = models.Ambr{Uplink: rate, Downlink: rate}, models.Ambr{Uplink: rate, Downlink: rate}
+
+	pushRules(t, s, ref, slower)
+	waitFlowModifications(t, amfCb, 2)
+
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	reports := pcf.reportedFailures()
+	if len(reports) != 1 || reports[0].Rule.Version != 1 || reports[0].Active == nil || reports[0].Active.Version != 0 || reports[0].cause != smf.ResourcesNotAllocated {
+		t.Fatalf("reports %+v, want version 1 not enforced with version 0 still active (TS 23.502 §4.3.3.2 step 13)", reports)
+	}
+
+	req := reactivate(t, s, ref, voiceQFI)
+
+	i := slices.IndexFunc(req.QosFlowSetupRequest, func(f libngap.QosFlowSetupRequestItem) bool { return f.QosFlowIdentifier == voiceQFI })
+	if i < 0 || req.QosFlowSetupRequest[i].QosFlowLevelQosParameters.GBRQosInformation.GuaranteedFlowBitRateDL != 41000 {
+		t.Fatalf("Setup Request Transfer flows %+v, want the previous 41 kbps (TS 24.501 §6.3.2.5)", req.QosFlowSetupRequest)
+	}
+
+	pushRules(t, s, ref, slower)
+	time.Sleep(100 * time.Millisecond)
+
+	if n := len(amfCb.modifications()); n != 2 {
+		t.Fatalf("%d QoS flow modifications, want the aborted one not sent again once the UE is back", n)
+	}
+}
+
+func TestFlowCreationTheUEHasNotAnsweredIsAbortedByAnANRelease(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	reports := pcf.reportedFailures()
+	if len(reports) != 1 || reports[0].Rule.ID != "af;1#1" || reports[0].Active != nil || reports[0].cause != smf.ResourcesNotAllocated {
+		t.Fatalf("reports %+v, want the call's rule not installed (TS 23.502 §4.3.3.2 step 13)", reports)
+	}
+
+	if req := reactivate(t, s, ref); setupRequestCarriesVoice(req) {
+		t.Fatal("the aborted voice flow was set up on activation")
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if n := len(amfCb.modifications()); n != 1 {
+		t.Fatalf("%d QoS flow modifications, want the aborted creation not sent again once the UE is back", n)
+	}
+}
+
+func TestRuleRemovalAbortedByAnANReleaseIsResentWhenTheUserPlaneReturns(t *testing.T) {
+	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+	pushRules(t, s, ref, voiceRule(), secondCallRule())
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 3)
+
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none: a removal does not fail (TS 29.212 §4.5.12)", r)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	amfCb.mu.Lock()
+	pages := len(amfCb.pageARPs)
+	amfCb.mu.Unlock()
+
+	if n := len(amfCb.modifications()); n != 3 || pages != 0 {
+		t.Fatalf("%d QoS flow modifications and %d pages after the release, want the UE neither paged nor signalled until it returns", n, pages)
+	}
+
+	reactivate(t, s, ref, voiceQFI)
+
+	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 4)[3])
+	if !slices.ContainsFunc(cmd.QoSRules, func(r fgs.QoSRule) bool { return r.OperationCode == fgs.QoSRuleOpDelete }) {
+		t.Fatalf("command %+v, want the removed rule deleted once the user plane is back (TS 29.212 §4.5.12)", cmd)
+	}
+}

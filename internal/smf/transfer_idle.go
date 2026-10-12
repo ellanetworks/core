@@ -119,7 +119,7 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 
 	if access == Access4G {
-		s.interruptFlowProcedureLocked(ctx, sc)
+		s.interruptFlowProcedureLocked(ctx, sc, false)
 	}
 
 	flows := sc.movingFlowsLocked(access, false)

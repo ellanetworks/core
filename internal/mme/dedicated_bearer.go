@@ -775,15 +775,12 @@ func (ue *UeContext) takeDedicatedOnReleaseLocked(releaseGBR bool) (l bearerLoss
 				b.modifying = nil
 				b.guard.Stop()
 
-				outcome := models.ModificationInterrupted
+				outcome := models.ModificationFailed
 
-				switch pending.ue {
-				case ueAccepted:
+				if pending.ue == ueAccepted {
 					outcome = models.ModificationCommitted
 
 					pending.target.applyTo(&b.DedicatedBearerInfo)
-				case ueRejected:
-					outcome = models.ModificationFailed
 				}
 
 				if !drop && !pending.realign {

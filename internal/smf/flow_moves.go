@@ -61,7 +61,7 @@ func (s *SMF) prepareFlowsLocked(ctx context.Context, sc *SMContext, to AccessTy
 
 	if len(sc.dedicated) > 0 {
 		if to == Access4G {
-			s.interruptFlowProcedureLocked(ctx, sc)
+			s.interruptFlowProcedureLocked(ctx, sc, false)
 		}
 
 		withFlows := next

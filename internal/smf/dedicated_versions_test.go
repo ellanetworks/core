@@ -270,7 +270,7 @@ func TestARPChangeOfEveryRuleModifiesTheBearerInPlace(t *testing.T) {
 	}
 }
 
-func TestInterruptedModificationIsRetriedWithoutReporting(t *testing.T) {
+func TestModificationInterruptedByAHandoverIsRetriedWithoutReporting(t *testing.T) {
 	s, pcf, _, mmeCb, ref := activeVoiceSession(t)
 	ctx := context.Background()
 

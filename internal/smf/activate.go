@@ -46,7 +46,7 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 		smContext.pendingPolicy = nil
 	}
 
-	s.interruptFlowProcedureLocked(ctx, smContext)
+	s.interruptFlowProcedureLocked(ctx, smContext, false)
 
 	smContext.activating = true
 

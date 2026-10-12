@@ -8,6 +8,16 @@ Ella Core can be integrated with an external IP Multimedia Subsystem (IMS) to al
 
 This guide uses [Ella IMS](https://github.com/ellanetworks/ims) to enable voice, but any 3GPP-compliant IMS can be used.
 
+## Prerequisites
+
+- **Radio QoS support**: your radios must support the following QoS classes, as QCIs on 4G and 5QIs on 5G.
+
+| QCI / 5QI | Used for |
+|---|---|
+| 5 | IMS signalling |
+| 1 | Voice |
+| 2 | Video |
+
 ## 1. Enable the Diameter interface
 
 In the Ella Core configuration file, set the address Ella Core accepts Diameter connections on:

@@ -759,13 +759,14 @@ func (s *SMF) unsentFlowChangeLocked(ctx context.Context, sc *SMContext, change 
 		case b.state == dedicatedReleasing:
 			b.state = dedicatedActive
 		case b.pending != nil:
-			if !unreachable {
-				failed = append(failed, addedOrChangedRules(b.pending.rules, b.installed.rules)...)
-			}
-
+			m := b.pending
 			b.pending = nil
 			b.pruneRuleIdentities()
 			s.restoreLegLocked(ctx, sc, b)
+
+			if !unreachable {
+				failed = append(failed, b.refuse(m)...)
+			}
 		}
 	}
 
@@ -1042,7 +1043,7 @@ func (s *SMF) commitFlowLegLocked(ctx context.Context, sc *SMContext, b *dedicat
 	}
 }
 
-func (s *SMF) interruptFlowProcedureLocked(ctx context.Context, sc *SMContext) {
+func (s *SMF) interruptFlowProcedureLocked(ctx context.Context, sc *SMContext, abort bool) {
 	p := sc.flowProcedure
 	if p == nil {
 		return
@@ -1085,7 +1086,16 @@ func (s *SMF) interruptFlowProcedureLocked(ctx context.Context, sc *SMContext) {
 		}
 	}
 
-	s.unsentFlowChangeLocked(ctx, sc, &unanswered, true)
+	if abort && len(unanswered.parts) > 0 {
+		logger.From(ctx, logger.SmfLog).Warn("QoS flow modification aborted: the access network connection was released before the UE answered; keeping the previous configuration (TS 24.501 §6.3.2.5)",
+			logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID))
+	}
+
+	failed := s.unsentFlowChangeLocked(ctx, sc, &unanswered, !abort)
+	reports := sc.ruleReportsLocked(failed)
+	sc.recordFailedRulesLocked(failed)
+
+	s.reportFailedRules(sc, reports, ResourcesNotAllocated)
 	s.reconcileAfter(sc.Ref, 0)
 }
 
@@ -1227,7 +1237,7 @@ func (s *SMF) requestUserPlaneLocked(sc *SMContext, flows []smfNgap.GBRQoSFlow) 
 }
 
 func (s *SMF) radioReleasedLocked(ctx context.Context, sc *SMContext, preserveGBR bool) {
-	s.interruptFlowProcedureLocked(ctx, sc)
+	s.interruptFlowProcedureLocked(ctx, sc, true)
 
 	sc.userPlaneRequested = false
 

@@ -381,10 +381,6 @@ func TestModificationInterruptedBeforeTheUEAnsweredIsLeftToTheSMF(t *testing.T) 
 	for name, interrupt := range map[string]func(m *MME, ue *UeContext){
 		"handover ends":          func(m *MME, ue *UeContext) { m.interruptRadioModifications(context.Background(), ue) },
 		"eNB reports a handover": func(m *MME, ue *UeContext) { m.DedicatedRadioInterrupted(context.Background(), ue, 6) },
-		"S1 release keeps the bearer": func(m *MME, ue *UeContext) {
-			ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
-			m.FreeUeConn(context.Background(), ue)
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			m, ue, cc, fake := activeVoiceBearer(t)
@@ -404,6 +400,41 @@ func TestModificationInterruptedBeforeTheUEAnsweredIsLeftToTheSMF(t *testing.T) 
 
 			if cc.count() != sent {
 				t.Fatal("the MME signalled the bearer after an interruption the SMF retries")
+			}
+
+			requirePreviousConfiguration(t, m, ue)
+		})
+	}
+}
+
+func TestModificationTheUEHasNotAnsweredIsAbortedByAConnectionRelease(t *testing.T) {
+	for name, eNBConfirmed := range map[string]bool{
+		"eNB pending":   false,
+		"eNB confirmed": true,
+	} {
+		t.Run(name, func(t *testing.T) {
+			m, ue, cc, fake := activeVoiceBearer(t)
+			ctx := context.Background()
+
+			if err := m.ModifyDedicatedBearer(ctx, ue.imsiOrEmpty(), 6, qosModification()); err != nil {
+				t.Fatalf("ModifyDedicatedBearer: %v", err)
+			}
+
+			if eNBConfirmed {
+				m.RadioBearerModified(ctx, ue, 6, true)
+			}
+
+			sent := cc.count()
+
+			ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+			m.FreeUeConn(ctx, ue)
+
+			if got := fake.modifications(); len(got) != 1 || got[0].outcome != models.ModificationFailed {
+				t.Fatalf("SMF told %+v, want the modification failed: only a handover warrants sending it again (TS 24.301 §6.3.4, §6.4.3.6)", got)
+			}
+
+			if cc.count() != sent {
+				t.Fatal("the MME signalled the bearer after the connection was released")
 			}
 
 			requirePreviousConfiguration(t, m, ue)
