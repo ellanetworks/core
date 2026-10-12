@@ -80,3 +80,8 @@ Go to the **Subscribers** page and click on a subscriber with an MSISDN. **Voice
 ## 9. Make a test call
 
 Call a phone from another in your private mobile network. The call should connect with audio in both directions.
+
+<figure markdown="span">
+  ![Ella Core and Voice](../images/voice.png){ width="200" }
+  <figcaption>Enable Voice in Ella Core</figcaption>
+</figure>
