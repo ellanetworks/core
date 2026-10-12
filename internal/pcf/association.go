@@ -156,7 +156,7 @@ func (p *PCF) ReportEnforcementFailure(ref string, reports []smf.RuleReport, cau
 			continue
 		}
 
-		flows := s.applyReports(reports)
+		flows := s.applyReports(reports, p.nextRevisionLocked)
 		if len(flows) == 0 {
 			continue
 		}
@@ -190,7 +190,7 @@ func (p *PCF) ReportEnforcementFailure(ref string, reports []smf.RuleReport, cau
 	}
 }
 
-func (s *rxSession) applyReports(reports []smf.RuleReport) []rx.Flows {
+func (s *rxSession) applyReports(reports []smf.RuleReport, version func() uint64) []rx.Flows {
 	type affected struct {
 		flows  []uint32
 		active bool
@@ -213,7 +213,7 @@ func (s *rxSession) applyReports(reports []smf.RuleReport) []rx.Flows {
 		a.flows = append(a.flows, k.flow)
 
 		if active := reports[i].Active; active != nil && active.ID == r.ID {
-			s.rules[k] = *active
+			s.rules[k] = authorizedGate(*active, r, version)
 		} else {
 			delete(s.rules, k)
 
@@ -236,6 +236,23 @@ func (s *rxSession) applyReports(reports []smf.RuleReport) []rx.Flows {
 	slices.SortFunc(flows, func(x, y rx.Flows) int { return cmp.Compare(x.MediaComponentNumber, y.MediaComponentNumber) })
 
 	return flows
+}
+
+func authorizedGate(active, failed smf.PCCRule, version func() uint64) smf.PCCRule {
+	if active.Gate == failed.Gate {
+		return active
+	}
+
+	gated := active
+	gated.Gate, gated.Version = failed.Gate, failed.Version
+
+	if gated.Equal(failed) {
+		return active
+	}
+
+	gated.Version = version()
+
+	return gated
 }
 
 func failureAction(actions []rx.SpecificAction, cause smf.EnforcementFailure) (rx.SpecificAction, bool) {

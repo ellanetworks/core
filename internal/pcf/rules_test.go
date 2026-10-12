@@ -289,6 +289,50 @@ func TestFailureRestoresTheVersionTheSMFEnforces(t *testing.T) {
 	requireResult(t, aa(t, p, "af;call", rx.AARequest{RequestType: ptr(rx.RequestUpdate)}), success)
 }
 
+func TestFailedModificationKeepsTheEnforcedQoSUnderTheAuthorizedGate(t *testing.T) {
+	p, n := newEnforcedPCF(t)
+
+	ringing := callAAR(50000, rx.ServiceInfoFinal)
+	ringing.MediaComponents[0].FlowStatus = ptr(rx.FlowStatusDisabled)
+	requireResult(t, aa(t, p, "af;call", ringing), success)
+	enforced := n.next(t).Rules[0]
+
+	answered := callAAR(50000, rx.ServiceInfoFinal)
+	answered.RequestType = ptr(rx.RequestUpdate)
+	answered.MediaComponents[0].FlowStatus = ptr(rx.FlowStatusEnabled)
+	answered.MediaComponents[0].MaxRequestedBandwidthUL = ptr(rx.Bandwidth(30000))
+	requireResult(t, aa(t, p, "af;call", answered), success)
+	modified := n.next(t).Rules[0]
+
+	if modified.Gate != (models.GateStatus{}) || modified.MBR.Equal(enforced.MBR) {
+		t.Fatalf("answered rule %+v, want the gates open and new rates", modified)
+	}
+
+	p.ReportEnforcementFailure(testRef, []smf.RuleReport{{Rule: modified, Active: &enforced}}, smf.ResourcesNotAllocated)
+
+	d := n.next(t)
+	if len(d.Rules) != 1 {
+		t.Fatalf("rules after the failure = %+v, want one", d.Rules)
+	}
+
+	gated := d.Rules[0]
+	want := enforced
+	want.Gate, want.Version = models.GateStatus{}, gated.Version
+
+	if !reflect.DeepEqual(gated, want) || gated.Version <= modified.Version {
+		t.Fatalf("rule after the failure = %+v, want the enforced QoS and filters %+v with the gates the AF opened at a newer version (TS 29.212 §4.5.12, TS 29.214 §4.4.3)", gated, enforced)
+	}
+
+	p.ReportEnforcementFailure(testRef, []smf.RuleReport{{Rule: gated, Active: &enforced}}, smf.ResourcesNotAllocated)
+
+	if d := n.next(t); len(d.Rules) != 1 || !reflect.DeepEqual(d.Rules[0], enforced) {
+		t.Fatalf("rules after the gate change failed = %+v, want the enforced version %+v", d.Rules, enforced)
+	}
+
+	p.ReportEnforcementFailure(testRef, []smf.RuleReport{{Rule: gated, Active: &enforced}}, smf.ResourcesNotAllocated)
+	n.none(t)
+}
+
 func TestReportForASupersededVersionIsIgnored(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 

@@ -515,7 +515,7 @@ func (m *MME) concludeDedicatedModification(ctx context.Context, ue *UeContext, 
 		log.Warn("dedicated EPS bearer modification failed; keeping the previous configuration", zap.String("reason", pending.reason))
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationFailed)
 	case verdictInterrupted:
-		log.Info("dedicated EPS bearer modification interrupted before the UE answered; the SMF retries it", zap.String("reason", pending.reason))
+		log.Info("dedicated EPS bearer modification interrupted by a handover before the UE answered; the SMF retries it after the handover", zap.String("reason", pending.reason))
 		m.Session.DedicatedBearerModified(ctx, ref, teid, models.ModificationInterrupted)
 	}
 }

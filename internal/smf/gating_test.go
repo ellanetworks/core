@@ -5,8 +5,10 @@ package smf_test
 
 import (
 	"context"
+	"net/netip"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
@@ -120,5 +122,105 @@ func TestPartlyCarriedRuleKeepsItsRatesAndGate(t *testing.T) {
 				t.Fatalf("rule QER %+v, want the call's rate and open gates while its filters are replaced step by step", q)
 			}
 		}
+	}
+}
+
+func ringingRule() smf.PCCRule {
+	r := voiceRule()
+	r.Gate = models.GateStatus{ULGate: models.GateClose, DLGate: models.GateClose}
+
+	return r
+}
+
+func answeredRule() smf.PCCRule {
+	r := voiceRule()
+	r.Version = 1
+
+	rate := models.BitRateFromBps(30000)
+	r.MBR, r.GBR = models.Ambr{Uplink: rate, Downlink: rate}, models.Ambr{Uplink: rate, Downlink: rate}
+
+	return r
+}
+
+func reopenedRule() smf.PCCRule {
+	r := voiceRule()
+	r.Version = 2
+
+	return r
+}
+
+func requireOpenGates(t *testing.T, upf *fakeUPF) {
+	t.Helper()
+
+	gates := ruleGates(t, upf)
+	if len(gates) == 0 {
+		t.Fatal("no rule QER")
+	}
+
+	for q, g := range gates {
+		if g != (models.GateStatus{}) {
+			t.Fatalf("QER %d gate %+v, want open", q, g)
+		}
+	}
+}
+
+func TestGateReopenedOnTheEnforcedBearerQoSNeedsNoSignalling(t *testing.T) {
+	s, pcf, upf, mmeCb, ref := epsReconcileFixture(t, 0)
+	ctx := context.Background()
+
+	pushRules(t, s, ref, ringingRule())
+
+	if err := s.DedicatedBearerActivated(ctx, ref, dedicatedUplinkTEID, 6, models.FTEID{TEID: 0x66, Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
+		t.Fatalf("DedicatedBearerActivated: %v", err)
+	}
+
+	pushRules(t, s, ref, answeredRule())
+	waitDedicatedModifications(t, mmeCb, 1)
+
+	s.DedicatedBearerModified(ctx, ref, dedicatedUplinkTEID, models.ModificationFailed)
+
+	reports := pcf.reportedFailures()
+	if len(reports) != 1 || reports[0].Active == nil || !reports[0].Active.Equal(ringingRule()) {
+		t.Fatalf("reports %+v, want the answered rule failed with the ringing rule still active (TS 29.212 §4.5.12)", reports)
+	}
+
+	pushRules(t, s, ref, reopenedRule())
+	requireModificationCount(t, mmeCb, 1)
+	requireOpenGates(t, upf)
+
+	if r := pcf.reportedFailures(); len(r) != 1 {
+		t.Fatalf("reports %+v, want only the failed modification", r)
+	}
+}
+
+func TestGateReopenedOnTheEnforcedQoSFlowNeedsNoSignalling(t *testing.T) {
+	s, pcf, upf, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, ringingRule())
+	waitFlowModifications(t, amfCb, 1)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+	pushRules(t, s, ref, answeredRule())
+	waitFlowModifications(t, amfCb, 2)
+	ueAnswers(t, s, ref, false)
+	ranAnswers(t, s, ref, nil, []uint8{voiceQFI})
+
+	reports := pcf.reportedFailures()
+	if len(reports) != 1 || reports[0].Active == nil || !reports[0].Active.Equal(ringingRule()) {
+		t.Fatalf("reports %+v, want the answered rule failed with the ringing rule still active (TS 29.512 RES_ALLO_FAIL)", reports)
+	}
+
+	pushRules(t, s, ref, reopenedRule())
+	time.Sleep(100 * time.Millisecond)
+
+	if n := len(amfCb.modifications()); n != 2 {
+		t.Fatalf("%d QoS flow modifications, want the gate opened without another", n)
+	}
+
+	requireOpenGates(t, upf)
+
+	if r := pcf.reportedFailures(); len(r) != 1 {
+		t.Fatalf("reports %+v, want only the failed modification", r)
 	}
 }
