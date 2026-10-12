@@ -518,6 +518,164 @@ func TestRANRefusingAJoiningCallKeepsTheFirstCall(t *testing.T) {
 	}
 }
 
+func ranFailsFlowsWithCause(t *testing.T, s *smf.SMF, ref string, value int, failed ...uint8) {
+	t.Helper()
+
+	var tr libngap.PDUSessionResourceModifyResponseTransfer
+
+	for _, qfi := range failed {
+		tr.QosFlowFailedToAddOrModify = append(tr.QosFlowFailedToAddOrModify, libngap.QosFlowWithCauseItem{
+			QosFlowIdentifier: libngap.QosFlowIdentifier(qfi),
+			Cause:             libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: value},
+		})
+	}
+
+	raw, err := tr.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResModifyRsp(context.Background(), ref, raw); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResModifyRsp: %v", err)
+	}
+}
+
+func TestRANRefusingEveryRequestedFlowFailsTheCallAtOnce(t *testing.T) {
+	tests := []struct {
+		name    string
+		fixture func(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, *fakeAMF, string)
+		rules   []smf.PCCRule
+		mods    int
+		failed  string
+	}{
+		{"flow setup", fiveGVoiceFixture, []smf.PCCRule{voiceRule()}, 1, "af;1#1"},
+		{"flow modification", activeFiveGVoice, []smf.PCCRule{voiceRule(), secondCallRule()}, 2, "af;2#1"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, pcf, upf, amfCb, ref := tc.fixture(t)
+
+			pushRules(t, s, ref, tc.rules...)
+			waitFlowModifications(t, amfCb, tc.mods)
+
+			ranAnswers(t, s, ref, nil, []uint8{voiceQFI})
+
+			if r := pcf.reportedRules(); !slices.Equal(r, []string{tc.failed}) {
+				t.Fatalf("reported rules %v, want %s failed as soon as the RAN refused the whole request (TS 23.502 §4.3.3.2 step 7)", r, tc.failed)
+			}
+
+			if reports := pcf.reportedFailures(); reports[0].cause != smf.ResourcesNotAllocated {
+				t.Fatalf("report %+v, want a resource allocation failure", reports[0])
+			}
+
+			if tc.mods == 1 && slices.ContainsFunc(lastModify(t, upf).UpdatePDRs, func(p models.PDR) bool { return p.PDI.QFI == voiceQFI }) {
+				t.Fatal("the refused flow's user plane was kept")
+			}
+
+			time.Sleep(100 * time.Millisecond)
+
+			if got := len(amfCb.modifications()); got != tc.mods {
+				t.Fatalf("%d QoS flow modifications sent, want %d: the NG-RAN node did not pass the command to the UE (TS 38.413 §8.2.3.2), so nothing is retransmitted or realigned", got, tc.mods)
+			}
+		})
+	}
+}
+
+func TestWholeRefusalStopsT3591(t *testing.T) {
+	pcf, store, upf, amfCb, _ := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3591(procedureTimerInterval))
+	sc := establish5GS(t, s)
+
+	pushRules(t, s, sc.Ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+
+	ranAnswers(t, s, sc.Ref, nil, []uint8{voiceQFI})
+
+	time.Sleep(10 * procedureTimerInterval)
+
+	if got := len(amfCb.modifications()); got > 2 {
+		t.Fatalf("%d transmissions of the QoS flow command, want T3591 stopped by the refusal", got)
+	}
+
+	if r := pcf.reportedRules(); len(r) != 1 {
+		t.Fatalf("reported rules %v, want the voice rule failed once", r)
+	}
+}
+
+func TestRANRefusingSomeFlowsWaitsForTheUE(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule(), videoRule())
+
+	var voice, video uint8
+
+	for _, item := range modifyTransfer(t, waitFlowModifications(t, amfCb, 1)[0]).QosFlowAddOrModifyRequest {
+		if item.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI == 1 {
+			voice = uint8(item.QosFlowIdentifier)
+		} else {
+			video = uint8(item.QosFlowIdentifier)
+		}
+	}
+
+	ranAnswers(t, s, ref, []uint8{video}, []uint8{voice})
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none before the UE answers: part of the request succeeded, so the UE got the command (TS 23.502 §4.3.3.2 step 7)", r)
+	}
+
+	ueAnswers(t, s, ref, true)
+
+	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#1"}) {
+		t.Fatalf("reported rules %v, want the voice rule failed", r)
+	}
+
+	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 2)[1])
+	if len(cmd.QoSFlowDescriptions) != 1 || cmd.QoSFlowDescriptions[0].QFI != voice || cmd.QoSFlowDescriptions[0].OperationCode != fgs.QoSFlowOpDelete {
+		t.Fatalf("command %+v, want the refused voice flow withdrawn from the UE", cmd)
+	}
+}
+
+func TestRANRefusingAnAddedFlowWhileReleasingAnotherWaitsForTheUE(t *testing.T) {
+	s, pcf, _, amfCb, ref := activeFiveGVoice(t)
+
+	pushRules(t, s, ref, videoRule())
+
+	tr := modifyTransfer(t, waitFlowModifications(t, amfCb, 2)[1])
+	if len(tr.QosFlowToRelease) != 1 || len(tr.QosFlowAddOrModifyRequest) != 1 {
+		t.Fatalf("transfer %+v, want the voice flow released and the video flow added", tr)
+	}
+
+	ranAnswers(t, s, ref, nil, []uint8{uint8(tr.QosFlowAddOrModifyRequest[0].QosFlowIdentifier)})
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none before the UE answers: the release succeeded, so the UE got the command", r)
+	}
+
+	ueAnswers(t, s, ref, true)
+
+	if r := waitReportedRules(t, pcf); !slices.Equal(r, []string{"af;1#2.1"}) {
+		t.Fatalf("reported rules %v, want the video rule failed", r)
+	}
+}
+
+func TestHandoverRefusingEveryRequestedFlowRetriesWithoutReporting(t *testing.T) {
+	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+
+	ranFailsFlowsWithCause(t, s, ref, libngap.CauseRadioNetworkNGIntraSystemHandoverTriggered, voiceQFI)
+
+	if c := waitFlowModifications(t, amfCb, 2)[1]; len(flowCommand(t, c).QoSRules) != 1 {
+		t.Fatal("the flow was not set up again after the handover (TS 24.501 §6.3.2.5 f)")
+	}
+
+	if r := pcf.reportedRules(); len(r) != 0 {
+		t.Fatalf("reported rules %v, want none for a handover collision", r)
+	}
+}
+
 func TestHandoverInterruptingAFlowRetriesWithoutReporting(t *testing.T) {
 	s, pcf, _, amfCb, ref := fiveGVoiceFixture(t)
 

@@ -47,6 +47,8 @@ const (
 type flowProcedure struct {
 	parts map[*dedicatedBearer]flowParts
 
+	ranAdds, ranReleases []uint8
+
 	ue, ran     legOutcome
 	ranFailed   []uint8
 	epsFallback bool
@@ -54,8 +56,12 @@ type flowProcedure struct {
 	n1Msg, n2Msg []byte
 }
 
-func newFlowProcedure(parts map[*dedicatedBearer]flowParts, n1, n2 []byte) *flowProcedure {
-	p := &flowProcedure{parts: parts, n1Msg: n1, n2Msg: n2}
+func newFlowProcedure(change *flowChange, n1, n2 []byte) *flowProcedure {
+	p := &flowProcedure{parts: change.parts, ranReleases: change.n2Release, n1Msg: n1, n2Msg: n2}
+
+	for _, f := range change.n2Add {
+		p.ranAdds = append(p.ranAdds, f.QFI)
+	}
 
 	if n1 == nil {
 		p.ue = legApplied
@@ -70,6 +76,10 @@ func newFlowProcedure(parts map[*dedicatedBearer]flowParts, n1, n2 []byte) *flow
 
 func (p *flowProcedure) answered() bool {
 	return p.ue != legPending && p.ran != legPending
+}
+
+func (p *flowProcedure) refusedEntirely(failed []uint8) bool {
+	return len(p.ranReleases) == 0 && !slices.ContainsFunc(p.ranAdds, func(qfi uint8) bool { return !slices.Contains(failed, qfi) })
 }
 
 type flowChange struct {
@@ -693,7 +703,7 @@ func (s *SMF) sendFlowChangeLocked(ctx context.Context, sc *SMContext, change *f
 		return s.unsentFlowChangeLocked(ctx, sc, change, errors.Is(err, ErrUENotReachable) || errors.Is(err, ErrHandoverInProgress))
 	}
 
-	sc.flowProcedure = newFlowProcedure(change.parts, n1, n2)
+	sc.flowProcedure = newFlowProcedure(change, n1, n2)
 
 	if n1 != nil {
 		sc.MarkPTIInUse(networkRequestedPTI)
@@ -773,25 +783,6 @@ func (s *SMF) unsentFlowChangeLocked(ctx context.Context, sc *SMContext, change 
 	return failed
 }
 
-func (s *SMF) flowAnswered(ctx context.Context, ref string, update func(*flowProcedure) bool) {
-	sc := s.GetSession(ref)
-	if sc == nil {
-		return
-	}
-
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	p := sc.flowProcedure
-	if p == nil || !update(p) {
-		return
-	}
-
-	if p.answered() {
-		s.concludeFlowsLocked(ctx, sc)
-	}
-}
-
 func (s *SMF) qosFlowsModifiedByUE(ctx context.Context, sc *SMContext, accepted bool) bool {
 	p := sc.flowProcedure
 	if p == nil {
@@ -820,16 +811,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResModifyRsp(ctx context.Context, ref stri
 		return err
 	}
 
-	s.flowAnswered(ctx, ref, func(p *flowProcedure) bool {
-		if p.ran != legPending {
-			return false
-		}
-
-		p.ran, p.epsFallback = legApplied, outcome.EPSFallback
-		p.ranFailed = append(p.ranFailed, outcome.Failed...)
-
-		return true
-	})
+	s.ranAnswered(ctx, ref, outcome)
 
 	return nil
 }
@@ -840,26 +822,45 @@ func (s *SMF) UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, ref str
 		return err
 	}
 
-	if outcome.Handover {
-		s.flowInterruptedByHandover(ctx, ref)
-		return nil
+	s.ranAnswered(ctx, ref, outcome)
+
+	return nil
+}
+
+func (s *SMF) ranAnswered(ctx context.Context, ref string, outcome smfNgap.QoSFlowsOutcome) {
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return
 	}
 
-	s.flowAnswered(ctx, ref, func(p *flowProcedure) bool {
-		if p.ran != legPending {
-			return false
-		}
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
 
-		p.ran, p.epsFallback = legRefused, outcome.EPSFallback
+	p := sc.flowProcedure
+	if p == nil || p.ran != legPending {
+		return
+	}
+
+	switch {
+	case !outcome.Unsuccessful && !p.refusedEntirely(outcome.Failed):
+		p.ran = legApplied
+	case outcome.Handover:
+		s.flowInterruptedByHandoverLocked(ctx, sc)
+		return
+	default:
+		p.ran = legRefused
 
 		if p.ue == legPending {
 			p.ue = legRefused
 		}
+	}
 
-		return true
-	})
+	p.epsFallback = outcome.EPSFallback
+	p.ranFailed = append(p.ranFailed, outcome.Failed...)
 
-	return nil
+	if p.answered() {
+		s.concludeFlowsLocked(ctx, sc)
+	}
 }
 
 func (s *SMF) concludeFlowsLocked(ctx context.Context, sc *SMContext) {
@@ -1168,19 +1169,8 @@ func (s *SMF) realignUELocked(change *flowChange, b *dedicatedBearer) {
 	change.touch(b, true, false)
 }
 
-func (s *SMF) flowInterruptedByHandover(ctx context.Context, ref string) {
-	sc := s.GetSession(ref)
-	if sc == nil {
-		return
-	}
-
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
+func (s *SMF) flowInterruptedByHandoverLocked(ctx context.Context, sc *SMContext) {
 	p := sc.flowProcedure
-	if p == nil || p.ran != legPending {
-		return
-	}
 
 	logger.From(ctx, logger.SmfLog).Info("QoS flow modification interrupted by a handover; retrying after it (TS 24.501 §6.3.2.5 f)",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID))

@@ -76,10 +76,11 @@ func BuildQoSFlowsModifyRequestTransfer(addOrModify []GBRQoSFlow, release []uint
 }
 
 type QoSFlowsOutcome struct {
-	Accepted    []uint8
-	Failed      []uint8
-	EPSFallback bool
-	Handover    bool
+	Accepted     []uint8
+	Failed       []uint8
+	Unsuccessful bool
+	EPSFallback  bool
+	Handover     bool
 }
 
 func ParseQoSFlowsModifyResponse(n2 []byte) (QoSFlowsOutcome, error) {
@@ -94,9 +95,12 @@ func ParseQoSFlowsModifyResponse(n2 []byte) (QoSFlowsOutcome, error) {
 		out.Accepted = append(out.Accepted, uint8(item.QosFlowIdentifier))
 	}
 
+	out.Handover = len(t.QosFlowFailedToAddOrModify) > 0
+
 	for _, item := range t.QosFlowFailedToAddOrModify {
 		out.Failed = append(out.Failed, uint8(item.QosFlowIdentifier))
 		out.EPSFallback = out.EPSFallback || epsFallbackTriggered(item.Cause)
+		out.Handover = out.Handover && handoverTriggered(item.Cause)
 	}
 
 	return out, nil
@@ -108,7 +112,7 @@ func ParseModifyUnsuccessful(n2 []byte) (QoSFlowsOutcome, error) {
 		return QoSFlowsOutcome{}, fmt.Errorf("decode PDU Session Resource Modify Unsuccessful Transfer: %w", err)
 	}
 
-	return QoSFlowsOutcome{EPSFallback: epsFallbackTriggered(t.Cause), Handover: handoverTriggered(t.Cause)}, nil
+	return QoSFlowsOutcome{Unsuccessful: true, EPSFallback: epsFallbackTriggered(t.Cause), Handover: handoverTriggered(t.Cause)}, nil
 }
 
 func handoverTriggered(c libngap.Cause) bool {
