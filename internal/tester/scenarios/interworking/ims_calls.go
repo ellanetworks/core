@@ -649,13 +649,17 @@ func fallBackByRedirection(_ context.Context, p *imsParty, e *s1enb.ENB) (*lteAt
 }
 
 func awaitModifyRequest(ctx context.Context, a *nrAttachment, before int) error {
+	return awaitModifyCount(ctx, a.g.ModifyRequestCount, a, before, "the gNB was never asked to set up the flow")
+}
+
+func awaitModifyCount(ctx context.Context, count func(int64) int, a *nrAttachment, before int, failure string) error {
 	ctx, cancel := context.WithTimeout(ctx, imsFallbackRequestDeadline)
 	defer cancel()
 
-	for a.g.ModifyRequestCount(a.ranUEID) == before {
+	for count(a.ranUEID) == before {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("the gNB was never asked to set up the flow: %w", ctx.Err())
+			return fmt.Errorf("%s: %w", failure, ctx.Err())
 		case <-time.After(imsPacketInterval):
 		}
 	}
@@ -664,7 +668,7 @@ func awaitModifyRequest(ctx context.Context, a *nrAttachment, before int) error 
 }
 
 func awaitFlowRefused(ctx context.Context, a *nrAttachment, before int) error {
-	if err := awaitModifyRequest(ctx, a, before); err != nil {
+	if err := awaitModifyCount(ctx, a.g.ModifyResponseCount, a, before, "the gNB never answered the flow setup"); err != nil {
 		return err
 	}
 
@@ -691,7 +695,7 @@ func runIMSCallEPSFallback(ctx context.Context, env scenarios.Env, callerSub, ca
 	defer caller.close()
 	defer callee.close()
 
-	before := r.g.ModifyRequestCount(callee.nr.ranUEID)
+	before := r.g.ModifyResponseCount(callee.nr.ranUEID)
 	r.g.RefuseNextGBRQoSFlows(callee.nr.ranUEID, imsEPSFallbackCause)
 
 	released := make(chan error, 1)

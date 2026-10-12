@@ -122,6 +122,7 @@ type GnodeB struct {
 	downlinkUDP       map[uint32]map[uint16]int
 	qosFlows          map[int64]map[int64][]uint8
 	modifyRequests    map[int64]int
+	modifyResponses   map[int64]int
 	refuseGBRFlows    map[int64]ngap.Cause
 	flowFiveQIs       map[int64]map[int64]map[uint8]int64
 	lastGeneratedTEID uint32
@@ -1324,4 +1325,22 @@ func (g *GnodeB) ModifyRequestCount(ranUeID int64) int {
 	defer g.mu.Unlock()
 
 	return g.modifyRequests[ranUeID]
+}
+
+func (g *GnodeB) countModifyResponse(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.modifyResponses == nil {
+		g.modifyResponses = make(map[int64]int)
+	}
+
+	g.modifyResponses[ranUeID]++
+}
+
+func (g *GnodeB) ModifyResponseCount(ranUeID int64) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.modifyResponses[ranUeID]
 }

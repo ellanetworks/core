@@ -696,7 +696,7 @@ func runIMSVideoCallEPSFallback(ctx context.Context, env scenarios.Env) error {
 	defer caller.close()
 	defer callee.close()
 
-	before := r.g.ModifyRequestCount(callee.nr.ranUEID)
+	before := r.g.ModifyResponseCount(callee.nr.ranUEID)
 	r.g.RefuseNextGBRQoSFlows(callee.nr.ranUEID, imsEPSFallbackCause)
 
 	var bc <-chan bearerState
