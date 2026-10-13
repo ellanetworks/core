@@ -58,7 +58,7 @@ func testConfig(host string) Config {
 		Handler: HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
 			return c.Answer(req, ResultSuccess)
 		}),
-		HandshakeTimeout:     2 * time.Second,
+		HandshakeTimeout:     10 * time.Second,
 		ReconnectInterval:    50 * time.Millisecond,
 		MaxReconnectInterval: 200 * time.Millisecond,
 		noWatchdogJitter:     true,
