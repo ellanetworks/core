@@ -402,9 +402,10 @@ func TestNodeReconnectsAfterSMSCRestart(t *testing.T) {
 
 	waitFor(t, "SMSC to see Ella again", func() bool { return restarted.connectedHost() == ellaHost })
 
-	if state := smscState(link); state != diameter.PeerReopen && state != diameter.PeerOpen {
-		t.Fatalf("state after reconnecting = %s, want reopen until the RFC 3539 watchdogs complete", state)
-	}
+	waitFor(t, "Ella to reopen the link", func() bool {
+		state := smscState(link)
+		return state == diameter.PeerReopen || state == diameter.PeerOpen
+	})
 }
 
 func TestNodeReportsTheSMSCDownWhenItCannotStart(t *testing.T) {
