@@ -168,11 +168,6 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 		return fmt.Errorf("validation failed for registration accept: %v", err)
 	}
 
-	err = opts.UE.SendPDUSessionEstablishmentRequest(opts.GnodeB.GetAMFUENGAPID(opts.RANUENGAPID), opts.RANUENGAPID, opts.UE.PDUSessionID, opts.UE.DNN, opts.UE.Snssai)
-	if err != nil {
-		return fmt.Errorf("could not build PDU Session Establishment Request NAS PDU: %v", err)
-	}
-
 	msg, err := opts.UE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive PDU Session Establishment Accept: %v", err)
@@ -197,6 +192,11 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 	})
 	if err != nil {
 		return fmt.Errorf("PDUSessionResourceSetupRequest validation failed: %v", err)
+	}
+
+	err = opts.UE.SendPDUSessionEstablishmentRequest(opts.GnodeB.GetAMFUENGAPID(opts.RANUENGAPID), opts.RANUENGAPID, opts.UE.PDUSessionID, opts.UE.DNN, opts.UE.Snssai)
+	if err != nil {
+		return fmt.Errorf("could not build PDU Session Establishment Request NAS PDU: %v", err)
 	}
 
 	return nil
