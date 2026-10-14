@@ -27,7 +27,9 @@ type ue2ueParams struct {
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name: "s1enb/ue2ue",
+		Name:     "s1enb/ue2ue",
+		Requires: []scenarios.Capability{scenarios.Datapath},
+		DrivenBy: "TestIntegration4GUE2UE",
 		BindFlags: func(fs *pflag.FlagSet) any {
 			var p ue2ueParams
 			fs.BoolVar(&p.ExpectSuccess, "expect-success", true, "expect the UDP probe to succeed")
@@ -60,7 +62,7 @@ func runS1ENBUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 		expectSuccess = true
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

@@ -54,7 +54,7 @@ type s1HandoverPair struct {
 }
 
 func startS1HandoverPair(env scenarios.Env, imsi string) (*s1HandoverPair, func(), error) {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return nil, nil, err
 	}

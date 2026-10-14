@@ -21,12 +21,13 @@ import (
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMain(m *testing.M) {
-	smf.RegisterMetrics(nil)
+	smf.RegisterMetrics(prometheus.NewRegistry(), nil)
 	os.Exit(m.Run())
 }
 

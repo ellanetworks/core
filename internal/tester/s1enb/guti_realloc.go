@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
 func (e *ENB) answerGUTIReallocation(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) (*eps.EPSMobileIdentity, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)

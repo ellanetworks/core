@@ -25,7 +25,7 @@ func TestGenerateSupportBundleFromData(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := GenerateSupportBundleFromData(context.Background(), data, &buf); err != nil {
+	if err := GenerateSupportBundleFromData(context.Background(), data, &buf, Sources{}); err != nil {
 		t.Fatalf("GenerateSupportBundleFromData failed: %v", err)
 	}
 
@@ -111,16 +111,11 @@ func TestGenerateSupportBundleFromData(t *testing.T) {
 }
 
 func TestGenerateSupportBundleFromData_AMFUesSeparateFile(t *testing.T) {
-	// Set AMFDumper to return test data.
-	origDumper := AMFDumper
-
-	defer func() { AMFDumper = origDumper }()
-
-	AMFDumper = func(ctx context.Context) (any, error) {
+	src := Sources{AMF: func(ctx context.Context) (any, error) {
 		return []map[string]any{
 			{"supi": "imsi-001010000000099", "state": "Registered"},
 		}, nil
-	}
+	}}
 
 	captured := time.Now().UTC().Format(time.RFC3339)
 	data := map[string]any{
@@ -129,7 +124,7 @@ func TestGenerateSupportBundleFromData_AMFUesSeparateFile(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := GenerateSupportBundleFromData(context.Background(), data, &buf); err != nil {
+	if err := GenerateSupportBundleFromData(context.Background(), data, &buf, src); err != nil {
 		t.Fatalf("GenerateSupportBundleFromData failed: %v", err)
 	}
 

@@ -72,8 +72,18 @@ func bindFlags(fs *pflag.FlagSet) any {
 }
 
 func register(name string, subs []scenarios.SubscriberSpec, run func(ctx context.Context, env scenarios.Env, p *params) error) {
+	requires := []scenarios.Capability{scenarios.SMSC}
+	drivenBy := "TestIntegrationSMS"
+
+	if strings.HasPrefix(name, "ha_sms/") {
+		requires = append(requires, scenarios.MultiCore)
+		drivenBy = "TestIntegrationHASMS"
+	}
+
 	scenarios.Register(scenarios.Scenario{
 		Name:      name,
+		Requires:  requires,
+		DrivenBy:  drivenBy,
 		BindFlags: bindFlags,
 		Run: func(ctx context.Context, env scenarios.Env, raw any) error {
 			p, ok := raw.(*params)

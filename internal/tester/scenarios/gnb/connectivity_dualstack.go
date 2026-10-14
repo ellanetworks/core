@@ -23,8 +23,10 @@ import (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "gnb/connectivity_dualstack",
-		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
+		Name:       "gnb/connectivity_dualstack",
+		OnlyFamily: scenarios.Only(scenarios.DualStack),
+		Requires:   []scenarios.Capability{scenarios.Datapath},
+		BindFlags:  func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runConnectivityDualStack(ctx, env, params)
 		},

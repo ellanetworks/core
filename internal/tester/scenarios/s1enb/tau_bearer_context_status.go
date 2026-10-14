@@ -23,6 +23,7 @@ const bearerStatusTun = "s1enbbs0"
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/tau_bearer_context_status",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runS1ENBTAUBearerContextStatus,
 		Fixture:   multiPDNFixture,
@@ -30,7 +31,7 @@ func init() {
 }
 
 func runS1ENBTAUBearerContextStatus(ctx context.Context, env scenarios.Env, _ any) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

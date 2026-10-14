@@ -51,7 +51,7 @@ func TestIntegrationTesterVRF(t *testing.T) {
 	for _, name := range vrfDatapathScenarios {
 		name := name
 
-		if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok && DetectIPFamily() != requiredFamily {
+		if requiredFamily, ok := scenarioRequiredFamily(name); ok && DetectIPFamily() != requiredFamily {
 			tr := registerScenarioTest(name)
 			t.Run(name, func(t *testing.T) {
 				t.Skipf("skipping %s: requires %s mode", name, requiredFamily)
@@ -109,7 +109,7 @@ func TestIntegrationTesterVRF(t *testing.T) {
 
 			var extraArgs []string
 
-			if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+			if requiredFamily, ok := scenarioRequiredFamily(name); ok {
 				extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
 			}
 

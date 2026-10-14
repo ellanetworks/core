@@ -12,13 +12,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/supportbundle"
 	"go.uber.org/zap"
 )
 
 const SupportBundleAction = "support_bundle:generate"
 
 // SupportBundle handler streams a gzipped tar support bundle assembled from DB.
-func SupportBundle(dbInstance *db.Database) http.Handler {
+func SupportBundle(dbInstance *db.Database, src supportbundle.Sources) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := r.Context().Value(contextKeyEmail)
 		emailStr, _ := email.(string)
@@ -30,7 +31,7 @@ func SupportBundle(dbInstance *db.Database) http.Handler {
 		start := time.Now()
 
 		go func(ctx context.Context) {
-			err := dbInstance.WriteSupportBundle(ctx, pw)
+			err := dbInstance.WriteSupportBundle(ctx, pw, src)
 			if err != nil {
 				_ = pw.CloseWithError(err)
 			} else {

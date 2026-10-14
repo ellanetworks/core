@@ -15,6 +15,8 @@ const (
 	DefaultTAC = "000001"
 	DefaultDNN = "internet"
 
+	DefaultS1MMEPort = "36412"
+
 	DefaultProfileName               = "default"
 	DefaultSliceName                 = "default"
 	DefaultPolicyName                = "default"

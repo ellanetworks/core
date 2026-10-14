@@ -16,43 +16,40 @@ import (
 	"go.uber.org/zap"
 )
 
-// stubInterfaceIPs replaces the host lookup with a fixed set of addresses for
-// the duration of the test, on an interface that is up.
-func stubInterfaceIPs(t *testing.T, v4, v6 string) {
-	t.Helper()
-
-	stubLinkIsUp(t, true)
-
-	original := config.GetInterfaceIPFunc
-
-	t.Cleanup(func() {
-		config.GetInterfaceIPFunc = original
-	})
-
-	config.GetInterfaceIPFunc = func(_ string, family config.AddressFamily) (string, error) {
-		switch {
-		case family == config.IPv4 && v4 != "":
-			return v4, nil
-		case family == config.IPv6 && v6 != "":
-			return v6, nil
-		}
-
-		return "", config.ErrNoInterfaceIP
-	}
+type stubAddresses struct {
+	v4, v6 string
+	down   bool
 }
 
-// stubLinkIsUp fixes the administrative state of the interface for the duration
-// of the test.
-func stubLinkIsUp(t *testing.T, up bool) {
-	t.Helper()
+func (s stubAddresses) IPs(string) ([]string, error) {
+	var ips []string
 
-	original := linkIsUp
+	for _, ip := range []string{s.v4, s.v6} {
+		if ip != "" {
+			ips = append(ips, ip)
+		}
+	}
 
-	t.Cleanup(func() {
-		linkIsUp = original
-	})
+	return ips, nil
+}
 
-	linkIsUp = func(string) bool { return up }
+func (s stubAddresses) IP(_ string, family config.AddressFamily) (string, error) {
+	switch {
+	case family == config.IPv4 && s.v4 != "":
+		return s.v4, nil
+	case family == config.IPv6 && s.v6 != "":
+		return s.v6, nil
+	}
+
+	return "", config.ErrNoInterfaceIP
+}
+
+func (s stubAddresses) Subnets(string) []netip.Prefix {
+	return nil
+}
+
+func (s stubAddresses) LinkUp(string) bool {
+	return !s.down
 }
 
 func TestLookupN6Addresses(t *testing.T) {
@@ -66,9 +63,7 @@ func TestLookupN6Addresses(t *testing.T) {
 		{name: "neither"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			stubInterfaceIPs(t, tc.v4, tc.v6)
-
-			v4, v6 := lookupN6Addresses("n6eth0")
+			v4, v6 := lookupN6Addresses(stubAddresses{v4: tc.v4, v6: tc.v6}, "n6eth0")
 
 			if got := addrString(v4); got != tc.v4 {
 				t.Fatalf("IPv4 = %q, want %q", got, tc.v4)
@@ -90,10 +85,7 @@ func addrString(addr netip.Addr) string {
 }
 
 func TestLookupN6AddressesTreatsADownedLinkAsAddressless(t *testing.T) {
-	stubInterfaceIPs(t, "192.0.2.10", "2001:db8::10")
-	stubLinkIsUp(t, false)
-
-	v4, v6 := lookupN6Addresses("n6eth0")
+	v4, v6 := lookupN6Addresses(stubAddresses{v4: "192.0.2.10", v6: "2001:db8::10", down: true}, "n6eth0")
 
 	if v4.IsValid() || v6.IsValid() {
 		t.Fatalf("addresses = %v, %v; want both empty while the link is down", v4, v6)
@@ -106,8 +98,7 @@ func TestReconcileN6AddressesAppliesAcquiredAddresses(t *testing.T) {
 
 	var announced []netip.Addr
 
-	stubInterfaceIPs(t, "192.0.2.10", "2001:db8::10")
-	reconcileN6Addresses("n6eth0", svc, func(v4 netip.Addr) {
+	reconcileN6Addresses(stubAddresses{v4: "192.0.2.10", v6: "2001:db8::10"}, "n6eth0", svc, func(v4 netip.Addr) {
 		announced = append(announced, v4)
 	})
 
@@ -129,8 +120,7 @@ func TestReconcileN6AddressesAppliesLostAddresses(t *testing.T) {
 
 	// Only IPv6 goes away: the watcher must not clear the address that is
 	// still assigned.
-	stubInterfaceIPs(t, "192.0.2.10", "")
-	reconcileN6Addresses("n6eth0", svc, nil)
+	reconcileN6Addresses(stubAddresses{v4: "192.0.2.10", v6: ""}, "n6eth0", svc, nil)
 
 	v4, v6 := svc.N6Addresses()
 	if v4.String() != "192.0.2.10" {
@@ -146,14 +136,14 @@ func TestWatchN6StreamReadsTheInterfaceOnEntry(t *testing.T) {
 	svc := bgp.New(netip.Addr{}, netip.Addr{}, zap.NewNop())
 	svc.SetListenPort(-1)
 
-	stubInterfaceIPs(t, "192.0.2.10", "2001:db8::10")
+	addrs := stubAddresses{v4: "192.0.2.10", v6: "2001:db8::10"}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	// No update is ever sent and the backstop is a minute away, so only an
 	// entry reconcile can populate the addresses.
-	stopped := watchN6Stream(ctx, make(chan struct{}), make(chan netlink.AddrUpdate), "n6eth0", svc, nil)
+	stopped := watchN6Stream(ctx, make(chan struct{}), make(chan netlink.AddrUpdate), addrs, "n6eth0", svc, nil)
 	if !stopped {
 		t.Fatal("watchN6Stream should report a clean stop when the context is cancelled")
 	}
@@ -269,8 +259,7 @@ func TestReconcileN6AddressesDoesNotAnnounceAMissingIPv4(t *testing.T) {
 	svc := bgp.New(netip.MustParseAddr("192.0.2.10"), netip.Addr{}, zap.NewNop())
 	svc.SetListenPort(-1)
 
-	stubInterfaceIPs(t, "", "")
-	reconcileN6Addresses("n6eth0", svc, func(v4 netip.Addr) {
+	reconcileN6Addresses(stubAddresses{v4: "", v6: ""}, "n6eth0", svc, func(v4 netip.Addr) {
 		t.Fatalf("callback ran with %v while the interface has no IPv4 address", v4)
 	})
 }

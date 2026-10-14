@@ -32,6 +32,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/framed_route",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GFramedRouting",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runS1ENBFramedRoute(ctx, env, framedRouteIMSI, framedSubnet, framedHost, unframedHost, false)
@@ -43,6 +45,8 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/framed_route_ipv6",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GFramedRouting",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runS1ENBFramedRoute(ctx, env, framedRouteIMSIv6, framedSubnetV6, framedHostV6, unframedHostV6, true)
@@ -71,7 +75,7 @@ func s1enbFramedRouteFixture(imsi string, ipv4, ipv6 []string) scenarios.Fixture
 // reaches the network and its reply returns down the framed-route downlink,
 // while a host outside any framed route does not (TS 23.501 §5.6.14).
 func runS1ENBFramedRoute(ctx context.Context, env scenarios.Env, imsi, subnet, host, offRouteHost string, ipv6 bool) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

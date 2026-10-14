@@ -22,6 +22,7 @@ import (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/service_request_pdu_session_status",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runServiceRequestPDUSessionStatus(ctx, env, params)

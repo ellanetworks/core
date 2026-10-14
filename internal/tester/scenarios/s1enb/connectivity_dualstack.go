@@ -23,9 +23,11 @@ const (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "s1enb/connectivity_dualstack",
-		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
-		Run:       runS1ENBConnectivityDualStack,
+		Name:       "s1enb/connectivity_dualstack",
+		OnlyFamily: scenarios.Only(scenarios.DualStack),
+		Requires:   []scenarios.Capability{scenarios.Datapath},
+		BindFlags:  func(fs *pflag.FlagSet) any { return struct{}{} },
+		Run:        runS1ENBConnectivityDualStack,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
 				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(connDualStackIMSI, "")},
@@ -38,7 +40,7 @@ func init() {
 // destination over both families. The IPv6 link-local is promoted to a global
 // address by the UPF Router Advertisement before the ping.
 func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

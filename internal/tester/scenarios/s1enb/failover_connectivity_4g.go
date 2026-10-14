@@ -32,6 +32,8 @@ const failoverIMSI = "001017271246606"
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "ha/failover_connectivity_4g",
+		Requires:  []scenarios.Capability{scenarios.Datapath, scenarios.MultiCore},
+		DrivenBy:  "TestIntegration4GHAFailover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runS1ENBFailoverConnectivity(ctx, env)
@@ -52,7 +54,7 @@ func runS1ENBFailoverConnectivity(ctx context.Context, env scenarios.Env) error 
 	mmeAddrs := make([]string, 0, len(env.CoreN2Addresses))
 
 	for _, a := range env.CoreN2Addresses {
-		s1mme, err := s1mmeAddress(a)
+		s1mme, err := env.S1MMEAddress(a)
 		if err != nil {
 			return err
 		}

@@ -113,7 +113,7 @@ const (
 )
 
 func resolveRouterIDFromN6(cfg config.Config) (string, error) {
-	addr, err := config.GetInterfaceIP(cfg.Interfaces.N6.Name, config.IPv4)
+	addr, err := cfg.Addresses().IP(cfg.Interfaces.N6.Name, config.IPv4)
 	if err != nil {
 		return "", err
 	}
@@ -805,22 +805,20 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 		})
 	}
 
-	n6Subnets := bgp.InterfaceIPv4Subnets(cfg.Interfaces.N6.Name)
-	for _, s := range n6Subnets {
-		filters = append(filters, RejectedPrefix{
-			Prefix:      s.String(),
-			Source:      "interface",
-			Description: "N6 interface subnet",
-		})
-	}
+	n6Subnets := cfg.Addresses().Subnets(cfg.Interfaces.N6.Name)
 
-	n6Subnets6 := bgp.InterfaceIPv6Subnets(cfg.Interfaces.N6.Name)
-	for _, s := range n6Subnets6 {
-		filters = append(filters, RejectedPrefix{
-			Prefix:      s.String(),
-			Source:      "interface",
-			Description: "N6 interface subnet",
-		})
+	for _, v4 := range []bool{true, false} {
+		for _, s := range n6Subnets {
+			if s.Addr().Is4() != v4 {
+				continue
+			}
+
+			filters = append(filters, RejectedPrefix{
+				Prefix:      s.String(),
+				Source:      "interface",
+				Description: "N6 interface subnet",
+			})
+		}
 	}
 
 	return filters

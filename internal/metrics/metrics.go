@@ -6,7 +6,11 @@
 // (5G) and the MME (4G). Single-NF metrics stay in their own packages.
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // RAT label values distinguishing the radio access technology a metric belongs to.
 const (
@@ -26,7 +30,13 @@ var (
 )
 
 // RegisterMetrics registers the cross-NF metrics. Called once at startup.
+var registerMetricsOnce sync.Once
+
 func RegisterMetrics() {
+	registerMetricsOnce.Do(registerMetrics)
+}
+
+func registerMetrics() {
 	signalingMessages = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "app_signaling_messages_total",
 		Help: "Total radio signaling messages by RAT (NGAP for 5G, S1AP for 4G), direction, and type.",
@@ -44,7 +54,7 @@ func RegisterMetrics() {
 // gauges, each broken down by RAT. The callbacks tally the live counts from the
 // AMF (5G) and MME (4G); a nil callback contributes zero, so a single-RAT
 // deployment can omit the absent side.
-func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func() int) {
+func RegisterRadioGauges(reg prometheus.Registerer, radios5G, subscribers5G, radios4G, subscribers4G func() int) {
 	radiosDesc := prometheus.NewDesc(
 		"app_connected_radios",
 		"Number of radios currently connected to Ella Core, by RAT (5G gNBs, 4G eNBs).",
@@ -59,7 +69,7 @@ func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func()
 		nil,
 	)
 
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(radios5G)), RAT5G)
 
 		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(radios4G)), RAT4G)

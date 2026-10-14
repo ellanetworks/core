@@ -16,9 +16,10 @@ const v4v6IMSI = "001017271246605"
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "s1enb/registration/v4v6",
-		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
-		Run:       runS1ENBRegistrationV4V6,
+		Name:       "s1enb/registration/v4v6",
+		OnlyFamily: scenarios.Only(scenarios.DualStack),
+		BindFlags:  func(fs *pflag.FlagSet) any { return struct{}{} },
+		Run:        runS1ENBRegistrationV4V6,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
 				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(v4v6IMSI, "")},

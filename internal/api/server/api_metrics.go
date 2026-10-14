@@ -31,9 +31,21 @@ func (metricsErrorLogger) Println(v ...any) {
 }
 
 var metricsHandler = sync.OnceValue(func() http.Handler {
+	return newMetricsHandler(prometheus.DefaultGatherer)
+})
+
+func metricsHandlerFor(g prometheus.Gatherer) http.Handler {
+	if g == nil {
+		return GetMetrics()
+	}
+
+	return newMetricsHandler(g)
+}
+
+func newMetricsHandler(g prometheus.Gatherer) http.Handler {
 	return promhttp.InstrumentMetricHandler(
 		prometheus.DefaultRegisterer,
-		promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		promhttp.HandlerFor(g, promhttp.HandlerOpts{
 			CoalesceGather:      true,
 			Timeout:             metricsScrapeTimeout,
 			MaxRequestsInFlight: metricsMaxRequestsInFlight,
@@ -41,7 +53,7 @@ var metricsHandler = sync.OnceValue(func() http.Handler {
 			ErrorLog:            metricsErrorLogger{},
 		}),
 	)
-})
+}
 
 func GetMetrics() http.Handler {
 	return metricsHandler()

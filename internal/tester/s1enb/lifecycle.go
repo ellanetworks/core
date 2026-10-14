@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -27,7 +28,7 @@ func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) erro
 
 	// Skip proactive downlink NAS the MME interleaves (e.g. EMM INFORMATION),
 	// which a real UE ignores, until the DETACH ACCEPT.
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)
@@ -232,7 +233,7 @@ func (e *ENB) TrackingAreaUpdateWithBearerStatus(ue *UE, guti *eps.EPSMobileIden
 }
 
 func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, timeout time.Duration) (int64, []byte, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)

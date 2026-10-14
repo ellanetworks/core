@@ -23,6 +23,8 @@ const n2IndirectForwardingIMSI = "001017271246592"
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/n2_handover_indirect_forwarding",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GN2Handover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runN2HandoverIndirectForwarding,
 		Fixture:   fixtureN2HandoverIndirectForwarding,

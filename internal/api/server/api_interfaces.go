@@ -77,7 +77,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 		var apiAddresses []string
 
 		if cfg.Interfaces.API.Name != "" {
-			ips, err := config.GetInterfaceIPs(cfg.Interfaces.API.Name)
+			ips, err := cfg.Addresses().IPs(cfg.Interfaces.API.Name)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get API interface IPs", err, logger.APILog)
 				return
@@ -91,7 +91,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 		var n2Addresses []string
 
 		if cfg.Interfaces.N2.Name != "" {
-			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N2.Name)
+			ips, err := cfg.Addresses().IPs(cfg.Interfaces.N2.Name)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N2 interface IPs", err, logger.APILog)
 				return
@@ -105,7 +105,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 		var n3Addresses []string
 
 		if cfg.Interfaces.N3.Name != "" {
-			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N3.Name)
+			ips, err := cfg.Addresses().IPs(cfg.Interfaces.N3.Name)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N3 interface IPs", err, logger.APILog)
 				return
@@ -119,7 +119,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 		var n6Addresses []string
 
 		if cfg.Interfaces.N6.Name != "" {
-			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N6.Name)
+			ips, err := cfg.Addresses().IPs(cfg.Interfaces.N6.Name)
 			if err != nil {
 				logger.APILog.Warn("Failed to get N6 interface IPs; returning empty list", zap.Error(err), zap.String("interface", cfg.Interfaces.N6.Name))
 			} else {
@@ -152,7 +152,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			diameterAddresses := []string{cfg.Interfaces.Diameter.Address}
 
 			if cfg.Interfaces.Diameter.Name != "" {
-				ips, err := config.GetInterfaceIPs(cfg.Interfaces.Diameter.Name)
+				ips, err := cfg.Addresses().IPs(cfg.Interfaces.Diameter.Name)
 				if err != nil {
 					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get Diameter interface IPs", err, logger.APILog)
 					return

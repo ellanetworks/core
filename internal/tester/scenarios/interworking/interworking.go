@@ -6,7 +6,6 @@ package interworking
 import (
 	"encoding/hex"
 	"fmt"
-	"net"
 	"strconv"
 	"time"
 
@@ -37,8 +36,6 @@ const (
 
 	ipv4TunPrefix = "/16"
 	ipv6TunPrefix = "/64"
-
-	s1MMEPort = "36412"
 )
 
 func fixture(_ scenarios.Env) scenarios.FixtureSpec {
@@ -91,7 +88,7 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 }
 
 func startENBOn(env scenarios.Env, n3Address string) (*s1enb.ENB, error) {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return nil, err
 	}
@@ -119,15 +116,6 @@ func startENBOn(env scenarios.Env, n3Address string) (*s1enb.ENB, error) {
 	}
 
 	return e, nil
-}
-
-func s1mmeAddress(coreN2 string) (string, error) {
-	host, _, err := net.SplitHostPort(coreN2)
-	if err != nil {
-		return "", fmt.Errorf("parse core N2 address %q: %w", coreN2, err)
-	}
-
-	return net.JoinHostPort(host, s1MMEPort), nil
 }
 
 func defaultKeyAndOPc() (k, opc [16]byte, err error) {

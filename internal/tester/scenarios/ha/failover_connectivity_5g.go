@@ -32,7 +32,9 @@ const failoverTimeout = 60 * time.Second
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name: "ha/failover_connectivity_5g",
+		Name:     "ha/failover_connectivity_5g",
+		Requires: []scenarios.Capability{scenarios.Datapath, scenarios.MultiCore},
+		DrivenBy: "TestIntegration5GHAFailover",
 		BindFlags: func(fs *pflag.FlagSet) any {
 			return struct{}{}
 		},

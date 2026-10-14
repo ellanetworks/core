@@ -5,6 +5,7 @@ package scenarios
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 )
@@ -41,10 +42,12 @@ func ParseIPFamily(s string) (IPFamily, error) {
 
 type Env struct {
 	CoreN2Addresses []string
+	CoreS1Addresses []string
 	GNBs            []GNB
 	GNBCoreTargets  map[string]string
 	APIAddress      string
 	APIToken        string
+	Family          *IPFamily
 }
 
 type GNB struct {
@@ -62,6 +65,21 @@ func (e Env) FirstCore() string {
 	return e.CoreN2Addresses[0]
 }
 
+func (e Env) S1MMEAddress(coreN2 string) (string, error) {
+	for i, a := range e.CoreN2Addresses {
+		if a == coreN2 && i < len(e.CoreS1Addresses) {
+			return e.CoreS1Addresses[i], nil
+		}
+	}
+
+	host, _, err := net.SplitHostPort(coreN2)
+	if err != nil {
+		return "", fmt.Errorf("parse core N2 address %q: %w", coreN2, err)
+	}
+
+	return net.JoinHostPort(host, DefaultS1MMEPort), nil
+}
+
 func (e Env) FirstGNB() GNB {
 	if len(e.GNBs) == 0 {
 		return GNB{}
@@ -71,6 +89,10 @@ func (e Env) FirstGNB() GNB {
 }
 
 func (e Env) IPFamily() IPFamily {
+	if e.Family != nil {
+		return *e.Family
+	}
+
 	return detectIPFamily()
 }
 

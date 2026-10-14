@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	lppmodels "github.com/ellanetworks/core/internal/lmf/lpp/models"
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -24,7 +25,7 @@ type LPPFix struct {
 }
 
 func (e *ENB) AnswerLPP(ue *UE, enbUEID int64, fix LPPFix, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)

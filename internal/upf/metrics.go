@@ -4,6 +4,8 @@
 package upf
 
 import (
+	"sync"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,7 +33,9 @@ const (
 	dlBufferEvictReinjectFailed = "reinject_failed"
 )
 
-func RegisterMetrics() {
+var registerCountersOnce sync.Once
+
+func registerCounters() {
 	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
 
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
@@ -46,6 +50,10 @@ func RegisterMetrics() {
 	} {
 		dlBufferEvicted.WithLabelValues(reason)
 	}
+}
+
+func RegisterMetrics(reg prometheus.Registerer) {
+	registerCountersOnce.Do(registerCounters)
 
 	dlBufferCaptureDesc := prometheus.NewDesc(
 		"app_upf_dl_buffer_capture_attempts_total",
@@ -54,7 +62,7 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		c, ok := bpfObjects.GetDlBufferCounters()
 		if !ok {
 			return
@@ -95,7 +103,7 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for name, usage := range bpfObjects.MapUsage() {
 			ch <- prometheus.MustNewConstMetric(mapEntriesDesc, prometheus.GaugeValue,
 				float64(usage.Entries), name)
@@ -145,7 +153,7 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		lost, err := ebpf.RingbufLost(bpfObjects)
 		if err != nil {
 			logger.UpfLog.Warn("failed to fetch UPF ringbuf lost counters", zap.Error(err))
@@ -167,7 +175,7 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
 			for _, a := range []struct {
 				label string
@@ -199,7 +207,7 @@ func RegisterMetrics() {
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for dir, stats := range ebpf.GetRouteStats(bpfObjects) {
 			for _, entry := range []struct {
 				result string
@@ -267,7 +275,7 @@ func RegisterMetrics() {
 		ebpf.ProfN6FibRouting:   {"downlink", "fib_routing"},
 	}
 
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		stats, err := ebpf.ReadProfilingStats(bpfObjects)
 		if err != nil {
 			logger.UpfLog.Warn("failed to fetch UPF profiling stats", zap.Error(err))

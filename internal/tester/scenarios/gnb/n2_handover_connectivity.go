@@ -27,6 +27,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/n2_handover_connectivity",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GN2Handover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runN2HandoverConnectivity,
 		Fixture:   fixtureN2HandoverConnectivity,

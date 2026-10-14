@@ -26,6 +26,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/error_indication",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GErrorIndication",
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runErrorIndication(ctx, env)

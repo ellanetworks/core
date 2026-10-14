@@ -29,6 +29,8 @@ jobs:
     uses: ./.github/workflows/upf-ebpf-tests.yaml
   go-race-detection-test:
     uses: ./.github/workflows/go-racedetect.yaml
+  inprocess-tests:
+    uses: ./.github/workflows/inprocess-tests.yaml
   go-vet:
     uses: ./.github/workflows/go-vet.yaml
   go-lint:

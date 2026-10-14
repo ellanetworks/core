@@ -25,6 +25,7 @@ const modificationRANUENGAPID = scenarios.DefaultRANUENGAPID + 1
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_eps_to_5gs_session_modification",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runIdleEPSTo5GSSessionModification,
 		Fixture:   fixture,

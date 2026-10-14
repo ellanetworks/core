@@ -29,7 +29,9 @@ type clusterTrafficParams struct {
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name: "multi/cluster_traffic_5g",
+		Name:     "multi/cluster_traffic_5g",
+		Requires: []scenarios.Capability{scenarios.Datapath, scenarios.MultiCore},
+		DrivenBy: "TestIntegration5GMultiGNB",
 		BindFlags: func(fs *pflag.FlagSet) any {
 			p := &clusterTrafficParams{}
 			fs.IntVar(&p.UECount, "ue-count", 5, "number of UEs to drive on this gNB")

@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"net"
 	"net/netip"
 	"time"
 
@@ -23,30 +22,20 @@ const (
 	n6WatchRetryMaxInterval = time.Minute
 )
 
-// linkIsUp reports whether an interface is administratively up.
-var linkIsUp = func(name string) bool {
-	link, err := netlink.LinkByName(name)
-	if err != nil {
-		return false
-	}
-
-	return link.Attrs().Flags&net.FlagUp != 0
-}
-
-func lookupN6Addresses(n6IfName string) (netip.Addr, netip.Addr) {
-	if !linkIsUp(n6IfName) {
+func lookupN6Addresses(addrs config.AddressSource, n6IfName string) (netip.Addr, netip.Addr) {
+	if !addrs.LinkUp(n6IfName) {
 		return netip.Addr{}, netip.Addr{}
 	}
 
 	var v4, v6 netip.Addr
 
-	if ip, err := config.GetInterfaceIPFunc(n6IfName, config.IPv4); err == nil {
+	if ip, err := addrs.IP(n6IfName, config.IPv4); err == nil {
 		if addr, err := netip.ParseAddr(ip); err == nil {
 			v4 = addr
 		}
 	}
 
-	if ip, err := config.GetInterfaceIPFunc(n6IfName, config.IPv6); err == nil {
+	if ip, err := addrs.IP(n6IfName, config.IPv6); err == nil {
 		if addr, err := netip.ParseAddr(ip); err == nil {
 			v6 = addr
 		}
@@ -58,7 +47,7 @@ func lookupN6Addresses(n6IfName string) (netip.Addr, netip.Addr) {
 // watchN6Addresses keeps the BGP next-hops aligned with the N6 interface.
 // onIPv4Available, when set, is called after every change that leaves the
 // interface with an IPv4 address. It may be nil.
-func watchN6Addresses(ctx context.Context, n6IfName string, bgpService *bgp.BGPService, onIPv4Available func(netip.Addr)) {
+func watchN6Addresses(ctx context.Context, addrs config.AddressSource, n6IfName string, bgpService *bgp.BGPService, onIPv4Available func(netip.Addr)) {
 	backoff := n6WatchRetryInterval
 
 	for {
@@ -70,7 +59,7 @@ func watchN6Addresses(ctx context.Context, n6IfName string, bgpService *bgp.BGPS
 		} else {
 			backoff = n6WatchRetryInterval
 
-			if watchN6Stream(ctx, done, updates, n6IfName, bgpService, onIPv4Available) {
+			if watchN6Stream(ctx, done, updates, addrs, n6IfName, bgpService, onIPv4Available) {
 				return
 			}
 
@@ -87,13 +76,13 @@ func watchN6Addresses(ctx context.Context, n6IfName string, bgpService *bgp.BGPS
 	}
 }
 
-func watchN6Stream(ctx context.Context, done chan struct{}, updates chan netlink.AddrUpdate, n6IfName string, bgpService *bgp.BGPService, onIPv4Available func(netip.Addr)) bool {
+func watchN6Stream(ctx context.Context, done chan struct{}, updates chan netlink.AddrUpdate, addrs config.AddressSource, n6IfName string, bgpService *bgp.BGPService, onIPv4Available func(netip.Addr)) bool {
 	defer close(done)
 
 	backstop := time.NewTicker(n6WatchBackstopInterval)
 	defer backstop.Stop()
 
-	reconcileN6Addresses(n6IfName, bgpService, onIPv4Available)
+	reconcileN6Addresses(addrs, n6IfName, bgpService, onIPv4Available)
 
 	drain := func() bool {
 		for {
@@ -117,17 +106,17 @@ func watchN6Stream(ctx context.Context, done chan struct{}, updates chan netlink
 				return false
 			}
 
-			reconcileN6Addresses(n6IfName, bgpService, onIPv4Available)
+			reconcileN6Addresses(addrs, n6IfName, bgpService, onIPv4Available)
 		case <-backstop.C:
-			reconcileN6Addresses(n6IfName, bgpService, onIPv4Available)
+			reconcileN6Addresses(addrs, n6IfName, bgpService, onIPv4Available)
 		}
 	}
 }
 
-func reconcileN6Addresses(n6IfName string, bgpService *bgp.BGPService, onIPv4Available func(netip.Addr)) {
+func reconcileN6Addresses(addrs config.AddressSource, n6IfName string, bgpService *bgp.BGPService, onIPv4Available func(netip.Addr)) {
 	curV4, curV6 := bgpService.N6Addresses()
 
-	v4, v6 := lookupN6Addresses(n6IfName)
+	v4, v6 := lookupN6Addresses(addrs, n6IfName)
 	if v4 == curV4 && v6 == curV6 {
 		return
 	}

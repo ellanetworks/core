@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
 	"github.com/ellanetworks/core/s1ap"
@@ -445,9 +446,9 @@ func (e *ENB) AllocateENBUEID() int64 {
 // messages (S1 Setup, Reset). Filtering by enbUEID lets concurrent per-UE flows
 // share one association without consuming each other's frames.
 func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCode, timeout time.Duration) (Frame, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
-	timer := time.AfterFunc(timeout, func() { e.cond.Broadcast() })
+	timer := time.AfterFunc(testenv.Timeout(timeout), func() { e.cond.Broadcast() })
 	defer timer.Stop()
 
 	e.mu.Lock()

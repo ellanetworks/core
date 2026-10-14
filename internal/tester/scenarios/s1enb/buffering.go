@@ -32,6 +32,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/buffered_downlink",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GBufferedDownlink",
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runS1ENBBufferedDownlink(ctx, env)

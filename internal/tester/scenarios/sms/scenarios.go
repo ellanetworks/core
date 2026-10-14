@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/sms"
@@ -403,7 +404,7 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 }
 
 func eventually(timeout time.Duration, what string, cond func() bool) error {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for !cond() {
 		if time.Now().After(deadline) {

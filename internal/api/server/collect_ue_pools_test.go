@@ -60,7 +60,7 @@ func TestCollectUEPoolsIncludesIPv6(t *testing.T) {
 
 	// The IPv6 pool must reach the BGP safety filter so a peer-advertised
 	// route overlapping a UE IPv6 pool is rejected rather than installed.
-	filter := bgp.BuildRouteFilter(pools, netip.Addr{}, "")
+	filter := bgp.BuildRouteFilter(pools, netip.Addr{}, nil)
 
 	var v6InReject bool
 

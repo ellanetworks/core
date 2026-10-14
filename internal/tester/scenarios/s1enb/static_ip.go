@@ -61,7 +61,7 @@ func runS1ENBStaticIP(ctx context.Context, env scenarios.Env, p *staticIPParams,
 		return fmt.Errorf("--expected-ip is required")
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

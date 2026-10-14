@@ -31,6 +31,7 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/connectivity_multi_pdn",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runS1ENBMultiPDN,
 		Fixture:   multiPDNFixture,
@@ -74,7 +75,7 @@ func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 }
 
 func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

@@ -34,6 +34,7 @@ var handoverRequiredCause = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/handover_eps_to_5gs",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runHandoverEPSTo5GS,
 		Fixture:   fixture,
@@ -41,6 +42,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/handover_eps_to_5gs_target_refuses",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runHandoverEPSTo5GSTargetRefuses,
 		Fixture:   fixture,

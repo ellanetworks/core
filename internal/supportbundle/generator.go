@@ -29,28 +29,18 @@ func getVersionInfo() *struct{ Version, Revision string } {
 	return &struct{ Version, Revision string }{Version: v.Version, Revision: v.Revision}
 }
 
-// ConfigProvider can be set by main to provide the runtime configuration YAML
-// bytes to include in support bundles. If nil, the generator falls back to
-// repository-local config paths.
-var ConfigProvider func(ctx context.Context) ([]byte, error)
-
-// BpfDumper writes BPF map data into the provided tar writer. Returns nil if
-// BPF objects are not available.
-var BpfDumper func(ctx context.Context, tw *tar.Writer) error
-
-// AMFDumper, when set, is called during support bundle generation to collect
-// live AMF/SMF UE state. Returns a JSON-serializable value or nil.
-var AMFDumper func(ctx context.Context) (any, error)
-
-// MMEDumper, when set, is called during support bundle generation to collect
-// live MME UE state. Returns a JSON-serializable value or nil.
-var MMEDumper func(ctx context.Context) (any, error)
+type Sources struct {
+	Config func(ctx context.Context) ([]byte, error)
+	BPF    func(ctx context.Context, tw *tar.Writer) error
+	AMF    func(ctx context.Context) (any, error)
+	MME    func(ctx context.Context) (any, error)
+}
 
 // GenerateSupportBundleFromData writes a minimal support bundle containing the
 // provided redacted data as db.json into the writer as a gzipped tar archive.
 // This avoids import cycles: callers (e.g. internal/db) should fetch and redact
 // the data and then call this helper to write the archive.
-func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w io.Writer) error {
+func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w io.Writer, src Sources) error {
 	// No test hooks; generate normally.
 	gz := gzip.NewWriter(w)
 
@@ -82,8 +72,8 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 		return fmt.Errorf("failed to write db.json to tar: %w", err)
 	}
 
-	if ConfigProvider != nil {
-		if bs, err := ConfigProvider(ctx); err == nil {
+	if src.Config != nil {
+		if bs, err := src.Config(ctx); err == nil {
 			hdr := &tar.Header{Name: "config.yaml", Size: int64(len(bs)), Mode: 0o600, ModTime: time.Now()}
 			_ = tw.WriteHeader(hdr)
 			_, _ = tw.Write(bs)
@@ -165,8 +155,8 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 
 	// Attempt to dump BPF data if a dumper is installed. This is best-effort:
 	// failures are logged and included in the bundle, but do not abort creation.
-	if BpfDumper != nil {
-		if err := BpfDumper(ctx, tw); err != nil {
+	if src.BPF != nil {
+		if err := src.BPF(ctx, tw); err != nil {
 			// Structured log the error
 			logger.APILog.Error("bpf dump failed", zap.Error(err))
 
@@ -186,8 +176,8 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 
 	// Attempt to dump live AMF UE state if a dumper is installed. This is
 	// best-effort: failures are logged but do not abort bundle creation.
-	if AMFDumper != nil {
-		amfData, err := AMFDumper(ctx)
+	if src.AMF != nil {
+		amfData, err := src.AMF(ctx)
 		if err != nil {
 			logger.APILog.Warn("amf ue dump failed", zap.Error(err))
 
@@ -205,8 +195,8 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 
 	// Attempt to dump live MME UE state if a dumper is installed. This is
 	// best-effort: failures are logged but do not abort bundle creation.
-	if MMEDumper != nil {
-		mmeData, err := MMEDumper(ctx)
+	if src.MME != nil {
+		mmeData, err := src.MME(ctx)
 		if err != nil {
 			logger.APILog.Warn("mme ue dump failed", zap.Error(err))
 

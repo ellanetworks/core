@@ -29,6 +29,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/error_indication",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GErrorIndication",
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runS1ENBErrorIndication(ctx, env)

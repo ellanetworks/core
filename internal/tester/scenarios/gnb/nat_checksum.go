@@ -29,7 +29,9 @@ type natChecksumParams struct {
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name: "gnb/nat_checksum",
+		Name:     "gnb/nat_checksum",
+		Requires: []scenarios.Capability{scenarios.Datapath},
+		DrivenBy: "TestIntegration5GUPFNATChecksum",
 		BindFlags: func(fs *pflag.FlagSet) any {
 			p := &natChecksumParams{PayloadBytes: natChecksumDefaultSizes}
 			fs.StringVar(&p.PayloadBytes, "probe-payload-bytes", p.PayloadBytes,

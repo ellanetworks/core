@@ -6,7 +6,6 @@ package sms
 import (
 	"encoding/hex"
 	"fmt"
-	"net"
 	"strconv"
 	"time"
 
@@ -16,8 +15,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
-
-const s1MMEPort = "36412"
 
 type lte struct {
 	enb *s1enb.ENB
@@ -40,9 +37,9 @@ func startLTE(env scenarios.Env) (*lte, error) {
 }
 
 func startLTEAt(env scenarios.Env, core string, index int) (*lte, error) {
-	host, _, err := net.SplitHostPort(core)
+	s1mme, err := env.S1MMEAddress(core)
 	if err != nil {
-		return nil, fmt.Errorf("parse core N2 address %q: %w", core, err)
+		return nil, err
 	}
 
 	enbID, err := strconv.ParseUint(scenarios.DefaultGNBID, 16, 32)
@@ -58,7 +55,7 @@ func startLTEAt(env scenarios.Env, core string, index int) (*lte, error) {
 		MNC:              scenarios.DefaultMNC,
 		TAC:              scenarios.DefaultTAC,
 		Name:             fmt.Sprintf("Ella-Core-Tester-SMS-eNB-%d", index),
-		CoreS1MMEAddress: net.JoinHostPort(host, s1MMEPort),
+		CoreS1MMEAddress: s1mme,
 		ENBAddress:       g.N2Address,
 		ENBN3Address:     g.N3Address,
 	})

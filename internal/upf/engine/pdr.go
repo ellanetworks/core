@@ -7,10 +7,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) error {
+func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects Maps) error {
 	if spdrInfo.UEIP.IsValid() {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.UEIP, spdrInfo.PdrInfo); err != nil {
 			return fmt.Errorf("can't apply downlink PDR: %w", err)
@@ -59,7 +58,7 @@ func pdrKeyChanged(old, updated SPDRInfo) bool {
 }
 
 // unapplyPDR removes the eBPF map entry applyPDR installed for spdrInfo.
-func unapplyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
+func unapplyPDR(spdrInfo SPDRInfo, bpfObjects Maps) error {
 	if spdrInfo.UEIP.IsValid() {
 		return bpfObjects.DeletePdrDownlink(spdrInfo.UEIP)
 	}

@@ -3,7 +3,11 @@
 
 package server
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
 	APIRequestsTotal   *prometheus.CounterVec
@@ -11,7 +15,13 @@ var (
 	APIAuthAttempts    *prometheus.CounterVec
 )
 
+var registerMetricsOnce sync.Once
+
 func RegisterMetrics() {
+	registerMetricsOnce.Do(registerMetrics)
+}
+
+func registerMetrics() {
 	APIRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "app_api_requests_total",

@@ -76,7 +76,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		return false, nil, nil, err
 	}
 
-	bpfObjects := conn.BpfObjects
+	bpfObjects := conn.datapathMaps()
 
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 

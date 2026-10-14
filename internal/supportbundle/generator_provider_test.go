@@ -23,18 +23,14 @@ func TestGenerateSupportBundle_IncludesConfigFromProvider(t *testing.T) {
 other: value
 `
 
-	// Install provider and restore after test.
-	old := ConfigProvider
-	ConfigProvider = func(ctx context.Context) ([]byte, error) {
+	src := Sources{Config: func(ctx context.Context) ([]byte, error) {
 		return []byte(sampleYAML), nil
-	}
-
-	defer func() { ConfigProvider = old }()
+	}}
 
 	data := map[string]any{"bundle_metadata": map[string]any{"version": "1.0"}}
 
 	var buf bytes.Buffer
-	if err := GenerateSupportBundleFromData(context.Background(), data, &buf); err != nil {
+	if err := GenerateSupportBundleFromData(context.Background(), data, &buf, src); err != nil {
 		t.Fatalf("GenerateSupportBundleFromData failed: %v", err)
 	}
 

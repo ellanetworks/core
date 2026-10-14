@@ -67,14 +67,17 @@ func TestSharedMetricsByRAT(t *testing.T) {
 }
 
 func TestRadioGaugesByRAT(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
 	RegisterRadioGauges(
+		reg,
 		func() int { return 2 }, // radios5G
 		func() int { return 3 }, // subscribers5G
 		nil,                     // radios4G absent → zero
 		func() int { return 5 }, // subscribers4G
 	)
 
-	families, err := prometheus.DefaultGatherer.Gather()
+	families, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("gather: %v", err)
 	}

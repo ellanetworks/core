@@ -105,8 +105,8 @@ func (conn *SessionEngine) installFilter(policyID string, direction models.Direc
 		idx = allocated
 	}
 
-	if conn.BpfObjects != nil {
-		if err := conn.BpfObjects.PutSdfFilterList(idx, list); err != nil {
+	if conn.datapathMaps() != nil {
+		if err := conn.datapathMaps().PutSdfFilterList(idx, list); err != nil {
 			if !existing {
 				conn.SdfIndexAllocator.Release(idx)
 			}
@@ -138,8 +138,8 @@ func (conn *SessionEngine) releaseFilter(policyID string, direction models.Direc
 
 	// A zeroed list matches nothing, which is what a session still pointing at
 	// a reissued slot should see.
-	if conn.BpfObjects != nil {
-		if err := conn.BpfObjects.DeleteSdfFilterList(idx); err != nil {
+	if conn.datapathMaps() != nil {
+		if err := conn.datapathMaps().DeleteSdfFilterList(idx); err != nil {
 			return fmt.Errorf("clear sdf filter list: %w", err)
 		}
 	}
@@ -211,9 +211,9 @@ func (conn *SessionEngine) applyFilterIndexToSession(session *Session, isUplink 
 		spdrInfo.PdrInfo.FilterMapIndex = idx
 		session.PutPDR(pdrID, spdrInfo)
 
-		if conn.BpfObjects != nil {
+		if conn.datapathMaps() != nil {
 			// One PDR's failure must not strand the rest on the old index.
-			if err := applyPDR(spdrInfo, session, conn.BpfObjects); err != nil {
+			if err := applyPDR(spdrInfo, session, conn.datapathMaps()); err != nil {
 				errs = append(errs, fmt.Errorf("propagate filter index to PDR %d (SEID %d): %w", pdrID, session.SEID, err))
 			}
 		}

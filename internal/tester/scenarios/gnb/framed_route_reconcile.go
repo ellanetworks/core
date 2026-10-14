@@ -38,6 +38,8 @@ func bindFramedReconcileFlags(fs *pflag.FlagSet) any {
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/framed_route_add_live",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GFramedRoutingReconcile",
 		BindFlags: bindFramedReconcileFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runFramedRouteReconcile(ctx, env, params.(*framedReconcileParams), framedReconcileAddIMSI, true)
@@ -51,6 +53,8 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/framed_route_remove_live",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GFramedRoutingReconcile",
 		BindFlags: bindFramedReconcileFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runFramedRouteReconcile(ctx, env, params.(*framedReconcileParams), framedReconcileRemoveIMSI, false)

@@ -4,7 +4,6 @@
 package runtime
 
 import (
-	"archive/tar"
 	"context"
 	"errors"
 	"fmt"
@@ -42,7 +41,6 @@ import (
 	mmenas "github.com/ellanetworks/core/internal/mme/nas"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/netutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/reconciler"
 	"github.com/ellanetworks/core/internal/sctplisten"
@@ -54,11 +52,11 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/internal/upf"
-	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
 	"github.com/ellanetworks/core/version"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
@@ -68,14 +66,14 @@ var getInterfaceIPs = config.GetInterfaceIPs
 
 var staleLeaseCleanup struct {
 	mu   sync.Mutex
-	done bool
+	done map[*db.Database]bool
 }
 
 func clearStaleDynamicLeases(ctx context.Context, dbInstance *db.Database) error {
 	staleLeaseCleanup.mu.Lock()
 	defer staleLeaseCleanup.mu.Unlock()
 
-	if staleLeaseCleanup.done {
+	if staleLeaseCleanup.done[dbInstance] {
 		return nil
 	}
 
@@ -83,7 +81,11 @@ func clearStaleDynamicLeases(ctx context.Context, dbInstance *db.Database) error
 		return err
 	}
 
-	staleLeaseCleanup.done = true
+	if staleLeaseCleanup.done == nil {
+		staleLeaseCleanup.done = map[*db.Database]bool{}
+	}
+
+	staleLeaseCleanup.done[dbInstance] = true
 
 	return nil
 }
@@ -92,35 +94,46 @@ type RuntimeConfig struct {
 	ConfigPath          string
 	RegisterExtraRoutes func(mux *http.ServeMux)
 	EmbedFS             fs.FS
+	Config              *config.Config
+	Kernel              kernel.Kernel
+	Datapath            DatapathFactory
+	Metrics             *prometheus.Registry
+	Embedded            bool
+	OnReady             func(Endpoints)
+	RaftTimeouts        RaftTimeouts
+}
+
+type RaftTimeouts struct {
+	Heartbeat   time.Duration
+	Election    time.Duration
+	LeaderLease time.Duration
+}
+
+type Endpoints struct {
+	API  string
+	N2   string
+	S1AP string
 }
 
 func Start(ctx context.Context, rc RuntimeConfig) error {
 	// A native-XDP attach on a NIC shared by N2 and N3 briefly flushes the RAN
 	// interface's address, which can be absent at startup. Retry validation
 	// across that window; any non-address error fails fast.
-	var cfg config.Config
-
-	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval,
-		func(e error) bool { return errors.Is(e, config.ErrNoInterfaceIP) },
-		func() error {
-			var vErr error
-
-			cfg, vErr = config.Validate(rc.ConfigPath)
-
-			return vErr
-		})
+	cfg, err := loadConfig(ctx, rc)
 	if err != nil {
 		return fmt.Errorf("couldn't validate config: %w", err)
 	}
 
-	if err := logger.ConfigureLogging(
-		cfg.Logging.SystemLogging.Level,
-		cfg.Logging.SystemLogging.Output,
-		cfg.Logging.SystemLogging.Path,
-		cfg.Logging.AuditLogging.Output,
-		cfg.Logging.AuditLogging.Path,
-	); err != nil {
-		return fmt.Errorf("couldn't configure logging: %w", err)
+	if !rc.Embedded {
+		if err := logger.ConfigureLogging(
+			cfg.Logging.SystemLogging.Level,
+			cfg.Logging.SystemLogging.Output,
+			cfg.Logging.SystemLogging.Path,
+			cfg.Logging.AuditLogging.Output,
+			cfg.Logging.AuditLogging.Path,
+		); err != nil {
+			return fmt.Errorf("couldn't configure logging: %w", err)
+		}
 	}
 
 	ver := version.GetVersion()
@@ -144,6 +157,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
+	metricsReg, metricsGatherer := metricsRegistry(rc.Metrics)
+
 	ellaraft.RegisterMetrics()
 
 	apiScheme := "http"
@@ -164,21 +179,24 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	raftCfg := ellaraft.ClusterConfig{
-		Enabled:           cfg.Cluster.Enabled,
-		RaftID:            raftID,
-		BindAddress:       cfg.Cluster.BindAddress,
-		AdvertiseAddress:  cfg.Cluster.AdvertiseAddress,
-		APIAddress:        apiAddress,
-		Peers:             cfg.Cluster.Peers,
-		HasJoinToken:      cfg.Cluster.JoinToken != "",
-		JoinTimeout:       cfg.Cluster.JoinTimeout,
-		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
-		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
-		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
-		TrailingLogs:      cfg.Cluster.TrailingLogs,
-		SchemaVersion:     db.SchemaVersion(),
-		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
-		BinaryVersion:     ver.Version,
+		Enabled:            cfg.Cluster.Enabled,
+		RaftID:             raftID,
+		BindAddress:        cfg.Cluster.BindAddress,
+		AdvertiseAddress:   cfg.Cluster.AdvertiseAddress,
+		APIAddress:         apiAddress,
+		Peers:              cfg.Cluster.Peers,
+		HasJoinToken:       cfg.Cluster.JoinToken != "",
+		JoinTimeout:        cfg.Cluster.JoinTimeout,
+		ProposeTimeout:     cfg.Cluster.ProposeTimeout,
+		SnapshotInterval:   cfg.Cluster.SnapshotInterval,
+		SnapshotThreshold:  cfg.Cluster.SnapshotThreshold,
+		TrailingLogs:       cfg.Cluster.TrailingLogs,
+		SchemaVersion:      db.SchemaVersion(),
+		InitialSuffrage:    cfg.Cluster.InitialSuffrage,
+		BinaryVersion:      ver.Version,
+		HeartbeatTimeout:   rc.RaftTimeouts.Heartbeat,
+		ElectionTimeout:    rc.RaftTimeouts.Election,
+		LeaderLeaseTimeout: rc.RaftTimeouts.LeaderLease,
 	}
 
 	var clusterLn *listener.Listener
@@ -239,22 +257,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
-	logger.SetDb(bufferedWriter)
+	ctx = logger.WithDBWriter(ctx, bufferedWriter)
 
-	// Provide the runtime config file contents to the supportbundle generator
-	// so support bundles include the exact YAML used at startup. This is safe
-	// because main controls what is exposed via the provider; here we simply
-	// read the file from the configured path.
-	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
-		return os.ReadFile(rc.ConfigPath)
+	if !rc.Embedded {
+		logger.SetDb(bufferedWriter)
 	}
 
 	server.RegisterMetrics()
+	db.RegisterCollector(metricsReg, dbInstance)
 
 	// --- Phase A: start the HTTP server with discovery-only routes so
 	// peers can probe /api/v1/status and POST /api/v1/cluster/members
 	// during Raft cluster formation. ---
-	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg, rc.EmbedFS)
+	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg, rc.EmbedFS, metricsGatherer)
 	if err != nil {
 		return fmt.Errorf("couldn't start API (discovery): %w", err)
 	}
@@ -356,17 +371,20 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if local switch is enabled: %w", err)
 	}
 
-	n6AddrV4, n6AddrV6 := lookupN6Addresses(cfg.Interfaces.N6.Name)
+	n6AddrV4, n6AddrV6 := lookupN6Addresses(cfg.Addresses(), cfg.Interfaces.N6.Name)
 	if !n6AddrV4.IsValid() {
 		logger.EllaLog.Warn("N6 interface has no IPv4 address; starting without it. User-plane and BGP will be degraded until an address is present",
 			zap.String("interface", cfg.Interfaces.N6.Name))
 	}
 
-	realKernel := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
+	realKernel := rc.Kernel
+	if realKernel == nil {
+		realKernel = kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
+	}
 
 	uePools := collectUEPools(ctx, dbInstance)
 	n3Addr, _ := netip.ParseAddr(cfg.Interfaces.N3.Address)
-	routeFilter := bgp.BuildRouteFilter(uePools, n3Addr, cfg.Interfaces.N6.Name)
+	routeFilter := bgp.BuildRouteFilter(uePools, n3Addr, cfg.Addresses().Subnets(cfg.Interfaces.N6.Name))
 	importStore := &bgpImportPrefixAdapter{db: dbInstance}
 
 	bgpService := bgp.New(n6AddrV4, n6AddrV6, logger.EllaLog,
@@ -426,7 +444,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	go func() {
 		defer close(n6WatchDone)
 
-		watchN6Addresses(n6WatchCtx, cfg.Interfaces.N6.Name, bgpService, func(v4 netip.Addr) {
+		watchN6Addresses(n6WatchCtx, cfg.Addresses(), cfg.Interfaces.N6.Name, bgpService, func(v4 netip.Addr) {
 			adoptRouterIDWhenMissing(n6WatchCtx, dbInstance, v4)
 		})
 	}()
@@ -461,53 +479,36 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF)
 
-	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
+	newDatapath := rc.Datapath
+	if newDatapath == nil {
+		newDatapath = startUPFDatapath
+	}
+
+	dp, err := newDatapath(ctx, DatapathParams{
+		Config:           cfg,
+		Metrics:          metricsReg,
+		SMF:              smfInstance,
+		DB:               dbInstance,
+		N3IPv4:           n3IPv4,
+		N3IPv6:           n3IPv6,
+		AdvertisedN3IPv4: advertisedN3IPv4,
+		AdvertisedN3IPv6: advertisedN3IPv6,
+		NAT:              isNATEnabled,
+		FlowAccounting:   isFlowAccountingEnabled,
+		LocalSwitch:      isLocalSwitchEnabled,
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
-	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), n3IPv4, n3IPv6)
+	upfReconciler := upf.NewSettingsReconciler(dp, dbInstance, dbInstance.Changefeed(), n3IPv4, n3IPv6)
 	upfReconciler.Start()
 
 	defer upfReconciler.Stop()
 
-	eng := upfInstance.Engine()
+	smfInstance.SetUPF(dp)
 
-	smfUPF := &smfUPFAdapter{engine: eng, upf: upfInstance}
-	smfInstance.SetUPF(smfUPF)
-
-	// Initialize SDF filters from database
-	if eng != nil && dbInstance != nil {
-		eng.SetBPFObjects(ctx, eng.BpfObjects, dbInstance)
-	}
-
-	// Wire supportbundle BPF dumper to dump live BPF maps from the UPF process.
-	// The closure captures the live BPF objects via the session engine.
-	// If the UPF hasn't initialized BPF objects, the dumper is a no-op.
-	supportbundle.BpfDumper = func(ctx context.Context, tw *tar.Writer) error {
-		if eng == nil || eng.BpfObjects == nil {
-			// graceful no-op
-			return nil
-		}
-
-		opts := bpfdump.DumpOptions{
-			Exclude:          []string{"nat_ct", "flow_stats", "nocp_map"},
-			MaxEntriesPerMap: 10000,
-		}
-
-		_, err := bpfdump.DumpAll(ctx, eng.BpfObjects, opts, tw)
-		if err != nil {
-			logger.EllaLog.Error("supportbundle: bpf dump failed", zap.Error(err))
-			return err
-		}
-
-		logger.EllaLog.Info("supportbundle: bpf dump completed")
-
-		return nil
-	}
-
-	smf.RegisterMetrics(smfInstance)
-	upf.RegisterMetrics()
+	smf.RegisterMetrics(metricsReg, smfInstance)
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
@@ -538,7 +539,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	mmeInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, mmeInstance)
 
 	metrics.RegisterMetrics()
-	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
+	metrics.RegisterRadioGauges(metricsReg, amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
@@ -547,7 +548,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		Address: cfg.Interfaces.Diameter.Address,
 		Port:    cfg.Interfaces.Diameter.Port,
 	}, logger.DiameterLog)
-	diameternode.RegisterMetrics(diameterNode)
+	diameternode.RegisterMetrics(metricsReg, diameterNode)
 	smsf.RegisterMetrics()
 
 	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.SMSCOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
@@ -630,7 +631,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
-		DatapathAttachMode:  upfInstance.DatapathAttachMode,
+		DatapathAttachMode:  dp.DatapathAttachMode,
+		Kernel:              realKernel,
+		Metrics:             metricsGatherer,
+		SupportBundle: supportbundle.Sources{
+			Config: func(context.Context) ([]byte, error) {
+				return os.ReadFile(rc.ConfigPath)
+			},
+			BPF: dp.DumpBPF,
+			AMF: func(ctx context.Context) (any, error) {
+				return amfInstance.ExportUEs(ctx)
+			},
+			MME: func(ctx context.Context) (any, error) {
+				return mmeInstance.ExportUEs(ctx)
+			},
+		},
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
@@ -696,14 +711,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	mmeServer.Serve(ctx, s1apListener)
-
-	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
-		return amfInstance.ExportUEs(ctx)
-	}
-
-	supportbundle.MMEDumper = func(ctx context.Context) (any, error) {
-		return mmeInstance.ExportUEs(ctx)
-	}
 
 	defer func() {
 		// Each shutdown step gets its own timeout so that a slow step
@@ -808,7 +815,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		// 5. Stop UPF — this flushes remaining flow reports to SMF.
 		step("Shutting down UPF", func(stepCtx context.Context) {
-			upfInstance.Close(stepCtx)
+			dp.Close(stepCtx)
 		})
 
 		// 6. Drain the buffered writer so queued events (including the
@@ -838,10 +845,25 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			})
 		}
 
+		if rc.Embedded {
+			return
+		}
+
 		if err := logger.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "could not flush logs: %v\n", err)
 		}
 	}()
+
+	if rc.OnReady != nil {
+		apiAddr, err := apiServer.Addr(ctx)
+		if err == nil {
+			rc.OnReady(Endpoints{
+				API:  apiAddr.String(),
+				N2:   ngapListener.Addr().String(),
+				S1AP: s1apListener.Addr().String(),
+			})
+		}
+	}
 
 	<-ctx.Done()
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
@@ -1181,4 +1203,12 @@ func (d *diameterDirectory) Identity(ctx context.Context, nodeID string) (diamet
 	}
 
 	return diameternode.IdentityOf(diameterNodeSettings(op, member.AMFPointer))
+}
+
+func metricsRegistry(reg *prometheus.Registry) (prometheus.Registerer, prometheus.Gatherer) {
+	if reg == nil {
+		return prometheus.DefaultRegisterer, prometheus.DefaultGatherer
+	}
+
+	return reg, prometheus.Gatherers{prometheus.DefaultGatherer, reg}
 }

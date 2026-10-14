@@ -6,7 +6,6 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,69 +16,20 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// scenariosSkipped lists scenarios the integration suite does not exercise,
-// mapped to why.
-var scenariosSkipped = map[string]string{
-	"gnb/n2_handover":                        "multi-gNB, covered by TestIntegration5GN2Handover",
-	"gnb/n2_handover_connectivity":           "multi-gNB, covered by TestIntegration5GN2Handover",
-	"gnb/xn_handover_connectivity":           "multi-gNB datapath, covered by TestIntegration5GXnHandover",
-	"s1enb/x2_handover_connectivity":         "multi-eNB datapath, covered by TestIntegration4GX2Handover",
-	"s1enb/s1_handover":                      "multi-eNB datapath, covered by TestIntegration4GS1Handover",
-	"gnb/n2_handover_indirect_forwarding":    "multi-gNB, covered by TestIntegration5GN2Handover",
-	"s1enb/s1_handover_indirect_forwarding":  "multi-eNB, covered by TestIntegration4GS1Handover",
-	"s1enb/s1_handover_ping_pong":            "multi-eNB, covered by TestIntegration4GS1Handover",
-	"gnb/n2_handover_ping_pong":              "multi-gNB, covered by TestIntegration5GN2Handover",
-	"ha/failover_connectivity_5g":            "multi-core HA topology, covered by TestIntegration5GHAFailover",
-	"ha/failover_connectivity_4g":            "multi-core HA topology, covered by TestIntegration4GHAFailover",
-	"ha/drain_4g":                            "multi-core HA topology, covered by TestIntegration4GHADrain",
-	"ha/drain_5g":                            "multi-core HA topology, covered by TestIntegration5GHADrain",
-	"ha_sms/cross_node_routing":              "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
-	"ha_sms/ue_moves":                        "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
-	"ha_sms/node_failure":                    "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
-	"ha_sms/absent_then_attach_elsewhere":    "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",
-	"multi/cluster_traffic_5g":               "multi-core HA topology, covered by TestIntegration5GMultiGNB",
-	"gnb/connectivity_expect_blocked":        "test-only harness; requires a pre-installed deny rule",
-	"gnb/connectivity_expect_allowed":        "test-only harness; minimal allow-path",
-	"gnb/connectivity_expect_blocked_ipv6":   "test-only harness; requires a pre-installed deny rule",
-	"gnb/connectivity_expect_allowed_ipv6":   "test-only harness; minimal allow-path",
-	"gnb/session_hold":                       "long-lived session for BGP tests; covered by TestIntegration5GBGP",
-	"s1enb/session_hold":                     "long-lived session for BGP tests; covered by TestIntegration4GBGP",
-	"gnb/nat_checksum":                       "capture-driven harness; covered by TestIntegration5GUPFNATChecksum",
-	"s1enb/nat_checksum":                     "capture-driven harness; covered by TestIntegration4GUPFNATChecksum",
-	"s1enb/connectivity_expect_allowed":      "test-only harness; driven by TestIntegration4GNetworkRules",
-	"s1enb/connectivity_expect_blocked":      "test-only harness; driven by TestIntegration4GNetworkRules",
-	"s1enb/connectivity_expect_allowed_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
-	"s1enb/connectivity_expect_blocked_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
-	"gnb/framed_route":                       "requires NAT disabled; covered by TestIntegration5GFramedRouting",
-	"gnb/framed_route_ipv6":                  "requires NAT disabled; covered by TestIntegration5GFramedRouting",
-	"gnb/framed_route_add_live":              "requires NAT disabled; covered by TestIntegration5GFramedRoutingReconcile",
-	"gnb/framed_route_remove_live":           "requires NAT disabled; covered by TestIntegration5GFramedRoutingReconcile",
-	"s1enb/framed_route":                     "requires NAT disabled; covered by TestIntegration4GFramedRouting",
-	"s1enb/framed_route_ipv6":                "requires NAT disabled; covered by TestIntegration4GFramedRouting",
-	"gnb/ue2ue":                              "requires NAT disabled; covered by TestIntegration5GUE2UE",
-	"s1enb/ue2ue":                            "requires NAT disabled; covered by TestIntegration4GUE2UE",
-	"gnb/buffered_downlink":                  "requires local switch enabled; covered by TestIntegration5GBufferedDownlink",
-	"s1enb/buffered_downlink":                "requires local switch enabled; covered by TestIntegration4GBufferedDownlink",
-	"gnb/error_indication":                   "requires local switch enabled; covered by TestIntegration5GErrorIndication",
-	"s1enb/error_indication":                 "requires local switch enabled; covered by TestIntegration4GErrorIndication",
-}
+func scenarioRequiredFamily(name string) (IPFamily, bool) {
+	s, ok := scenarios.Get(name)
+	if !ok || s.OnlyFamily == nil {
+		return "", false
+	}
 
-// scenarioIPFamilyRestrictions returns a map of scenario name → required IP
-// family. Scenarios that only make sense in a specific address-family
-// configuration are listed here so the integration runner can skip them
-// when the compose topology does not match.
-var scenarioIPFamilyRestrictions = map[string]IPFamily{
-	"gnb/connectivity_ipv6":                  IPv6Only,
-	"gnb/connectivity_dualstack":             DualStack,
-	"gnb/connectivity_expect_allowed_ipv6":   IPv6Only,
-	"gnb/connectivity_expect_blocked_ipv6":   IPv6Only,
-	"s1enb/connectivity_expect_allowed_ipv6": IPv6Only,
-	"s1enb/connectivity_expect_blocked_ipv6": IPv6Only,
-	"s1enb/registration/v4v6":                DualStack,
-	"s1enb/connectivity_dualstack":           DualStack,
-	"s1enb/connectivity_ipv6":                IPv6Only,
-	"gnb/static_ip_ipv6":                     IPv6Only,
-	"s1enb/static_ip_ipv6":                   IPv6Only,
+	switch *s.OnlyFamily {
+	case scenarios.IPv6Only:
+		return IPv6Only, true
+	case scenarios.DualStack:
+		return DualStack, true
+	default:
+		return IPv4Only, true
+	}
 }
 
 var scenarioFollowsDeploymentIPFamily = map[string]bool{
@@ -136,18 +86,6 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only:  true,
 		DualStack: true,
 	},
-	"gnb/static_ip": {
-		IPv6Only:  true,
-		DualStack: true,
-	},
-	"gnb/framed_route": {
-		IPv6Only:  true,
-		DualStack: true,
-	},
-	"s1enb/static_ip": {
-		IPv6Only:  true,
-		DualStack: true,
-	},
 }
 
 // TestIntegrationTester brings the core-tester compose up once,
@@ -172,28 +110,10 @@ func TestIntegrationTester(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	// Track which scenarios to run (filtering skipped/restricted ones).
-	var scenarioNames []string
-
-	scenarioNames = append(scenarioNames, scenarios.List()...)
-
-	// Run each scenario with reporter tracking.
-	for _, name := range scenarioNames {
+	for _, name := range scenarios.ListTier(scenarios.TierCompose) {
 		name := name
 
-		if strings.HasPrefix(name, smsScenarioPrefix) {
-			continue
-		}
-
-		if reason, skip := scenariosSkipped[name]; skip {
-			tr := registerScenarioTest(name)
-			t.Run(name, func(t *testing.T) { t.Skipf("%s: %s", name, reason) })
-			skipScenarioTest(tr, reason)
-
-			continue
-		}
-
-		if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+		if requiredFamily, ok := scenarioRequiredFamily(name); ok {
 			if DetectIPFamily() != requiredFamily {
 				reason := fmt.Sprintf("requires %s mode, running %s", requiredFamily, DetectIPFamily())
 
@@ -246,7 +166,7 @@ func TestIntegrationTester(t *testing.T) {
 
 			var extraArgs []string
 
-			if _, both := scenarioIPFamilyRestrictions[name]; both && scenarioFollowsDeploymentIPFamily[name] {
+			if _, both := scenarioRequiredFamily(name); both && scenarioFollowsDeploymentIPFamily[name] {
 				t.Fatalf("scenario %q is both pinned to one IP family and told to follow the deployment's", name)
 			}
 
@@ -254,7 +174,7 @@ func TestIntegrationTester(t *testing.T) {
 			case scenarioFollowsDeploymentIPFamily[name]:
 				extraArgs = append(extraArgs, "--ip-version", string(DetectIPFamily()))
 			default:
-				if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+				if requiredFamily, ok := scenarioRequiredFamily(name); ok {
 					extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
 				}
 			}

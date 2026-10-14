@@ -53,7 +53,7 @@ func newClusterDatabaseAtV19(t *testing.T) *Database {
 		t.Fatalf("prepare statements: %v", err)
 	}
 
-	RegisterMetrics(d)
+	registerQueryMetrics()
 
 	return d
 }

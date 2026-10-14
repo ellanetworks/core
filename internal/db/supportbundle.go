@@ -186,11 +186,11 @@ func toAnySlice(v any) ([]any, error) {
 // WriteSupportBundle streams a gzipped tar archive containing db.json to w.
 // It gathers the redacted export via ExportSupportData and delegates to the
 // supportbundle writer helper.
-func (db *Database) WriteSupportBundle(ctx context.Context, w io.Writer) error {
+func (db *Database) WriteSupportBundle(ctx context.Context, w io.Writer, src supportbundle.Sources) error {
 	data, err := db.ExportSupportData(ctx)
 	if err != nil {
 		return err
 	}
 
-	return supportbundle.GenerateSupportBundleFromData(ctx, data, w)
+	return supportbundle.GenerateSupportBundleFromData(ctx, data, w, src)
 }

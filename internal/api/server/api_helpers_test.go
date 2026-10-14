@@ -159,11 +159,10 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 		AMF:          amfInstance,
 		LMF:          lmfInstance,
 		BcryptCost:   bcrypt.MinCost,
+		SupportBundle: supportbundle.Sources{Config: func(ctx context.Context) ([]byte, error) {
+			return []byte("fake test config"), nil
+		}},
 	}))
-
-	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
-		return []byte("fake test config"), nil
-	}
 
 	return testEnv{
 		Server:    ts,

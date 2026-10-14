@@ -30,7 +30,10 @@ func init() {
 		{"gnb/connectivity_expect_blocked_ipv6", ipv6StartIMSI, gtpInterfaceNamePrefix + "v6", false, true},
 	} {
 		scenarios.Register(scenarios.Scenario{
-			Name: v.name,
+			Name:       v.name,
+			Requires:   []scenarios.Capability{scenarios.Datapath},
+			DrivenBy:   "TestIntegration5GNetworkRulesAndFlowReports",
+			OnlyFamily: onlyFamily(v.ipv6),
 			BindFlags: func(fs *pflag.FlagSet) any {
 				return bindConnectivityProbeFlags(fs)
 			},
@@ -43,6 +46,14 @@ func init() {
 			},
 		})
 	}
+}
+
+func onlyFamily(ipv6 bool) *scenarios.IPFamily {
+	if ipv6 {
+		return scenarios.Only(scenarios.IPv6Only)
+	}
+
+	return nil
 }
 
 func connectivityExpectFixture(startIMSI string) scenarios.FixtureSpec {

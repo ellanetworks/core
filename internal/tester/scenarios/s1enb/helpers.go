@@ -29,7 +29,7 @@ func startENBWithDatapath(env scenarios.Env) (*s1enb.ENB, error) {
 }
 
 func startENBOpts(env scenarios.Env, datapath bool) (*s1enb.ENB, error) {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return nil, err
 	}

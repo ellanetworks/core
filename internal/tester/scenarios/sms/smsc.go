@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/ellanetworks/core/internal/testenv"
 )
 
 const (
@@ -180,7 +182,7 @@ func (c *smscClient) openPeers(ctx context.Context) ([]string, error) {
 }
 
 func (c *smscClient) waitFor(ctx context.Context, timeout time.Duration, what string, fetch func(context.Context) (smscMessage, error), done func(smscMessage) bool) error {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		m, err := fetch(ctx)

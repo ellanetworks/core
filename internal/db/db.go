@@ -1523,7 +1523,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	raftMgr.OnLeadership(db.runClusterCoordinator)
 
-	RegisterMetrics(db)
+	registerQueryMetrics()
 
 	// Local-only singleton tables (NAT, flow accounting, BGP, N3) seed
 	// their default rows here on every node — leader, follower, standalone.
@@ -1592,7 +1592,7 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	RegisterMetrics(db)
+	registerQueryMetrics()
 
 	if err := db.InitializeLocalSettings(ctx); err != nil {
 		_ = db.Close()

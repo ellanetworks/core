@@ -24,6 +24,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/x2_handover_connectivity",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GX2Handover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runS1ENBX2HandoverConnectivity,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
@@ -43,7 +45,7 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 		return fmt.Errorf("x2_handover_connectivity requires at least 2 eNB radios, got %d", len(env.GNBs))
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

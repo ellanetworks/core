@@ -47,7 +47,7 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	// after this point skips the session (see applyFilterIndexToSession).
 	session.deleted = true
 
-	bpfObjects := conn.BpfObjects
+	bpfObjects := conn.datapathMaps()
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
 	// An already-removed PDR map key is a benign no-op; the session must still be fully

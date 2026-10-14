@@ -27,6 +27,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/s1_handover_ping_pong",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GS1Handover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runS1HandoverPingPong,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
@@ -50,7 +52,7 @@ func runS1HandoverPingPong(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("s1_handover_ping_pong requires at least 2 eNB radios, got %d", len(env.GNBs))
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,11 @@
 
 package smsf
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 const (
 	directionMO = "mo"
@@ -33,7 +37,13 @@ const (
 
 var attempts *prometheus.CounterVec
 
+var registerMetricsOnce sync.Once
+
 func RegisterMetrics() {
+	registerMetricsOnce.Do(registerMetrics)
+}
+
+func registerMetrics() {
 	attempts = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "app_sms_attempts_total",
 		Help: "Total SMS attempts by direction (mo: mobile-originated, mt: mobile-terminated) and result.",

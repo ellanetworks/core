@@ -5,6 +5,7 @@ package smf
 
 import (
 	"context"
+	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -25,14 +26,20 @@ type sessionCounter interface {
 
 // RegisterMetrics registers the SMF metrics. The sessions gauge reads per-RAT
 // counts from sessionCounter on each scrape; pass nil to report 0.
-func RegisterMetrics(sessions sessionCounter) {
-	SessionEstablishmentAttempts = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "app_session_establishment_attempts_total",
-			Help: "Total session establishment attempts by RAT and result (5G PDU sessions, 4G EPS sessions).",
-		},
-		[]string{"rat", "result"},
-	)
+var registerAttemptsOnce sync.Once
+
+func RegisterMetrics(reg prometheus.Registerer, sessions sessionCounter) {
+	registerAttemptsOnce.Do(func() {
+		SessionEstablishmentAttempts = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "app_session_establishment_attempts_total",
+				Help: "Total session establishment attempts by RAT and result (5G PDU sessions, 4G EPS sessions).",
+			},
+			[]string{"rat", "result"},
+		)
+
+		prometheus.MustRegister(SessionEstablishmentAttempts)
+	})
 
 	sessionsDesc := prometheus.NewDesc(
 		"app_sessions",
@@ -41,9 +48,7 @@ func RegisterMetrics(sessions sessionCounter) {
 		nil,
 	)
 
-	prometheus.MustRegister(SessionEstablishmentAttempts)
-
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		var fourG, fiveG int
 		if sessions != nil {
 			fourG, fiveG = sessions.SessionCountByRAT()

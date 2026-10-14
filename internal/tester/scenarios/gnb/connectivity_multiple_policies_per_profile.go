@@ -20,6 +20,7 @@ import (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/connectivity_multiple_policies_per_profile",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runConnectivityMultiplePoliciesPerProfile(ctx, env, params)

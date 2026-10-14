@@ -63,7 +63,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	farMap := make(map[uint32]ebpf.FarInfo)
 	qerMap := make(map[uint32]ebpf.QerInfo)
 
-	bpfObjects := conn.BpfObjects
+	bpfObjects := conn.datapathMaps()
 
 	var txn sessionTxn
 

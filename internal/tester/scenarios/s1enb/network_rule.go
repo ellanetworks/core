@@ -51,6 +51,8 @@ func bindProbeFlags(fs *pflag.FlagSet) any {
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/connectivity_expect_allowed",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GNetworkRules",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIMSI, "s1enbnra", true, false)
@@ -62,6 +64,8 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/connectivity_expect_blocked",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GNetworkRules",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIMSI, "s1enbnrb", false, false)
@@ -72,8 +76,11 @@ func init() {
 	})
 
 	scenarios.Register(scenarios.Scenario{
-		Name:      "s1enb/connectivity_expect_allowed_ipv6",
-		BindFlags: bindProbeFlags,
+		Name:       "s1enb/connectivity_expect_allowed_ipv6",
+		OnlyFamily: scenarios.Only(scenarios.IPv6Only),
+		Requires:   []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:   "TestIntegration4GNetworkRules",
+		BindFlags:  bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIPv6IMSI, "s1enbnrav6", true, true)
 		},
@@ -83,8 +90,11 @@ func init() {
 	})
 
 	scenarios.Register(scenarios.Scenario{
-		Name:      "s1enb/connectivity_expect_blocked_ipv6",
-		BindFlags: bindProbeFlags,
+		Name:       "s1enb/connectivity_expect_blocked_ipv6",
+		OnlyFamily: scenarios.Only(scenarios.IPv6Only),
+		Requires:   []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:   "TestIntegration4GNetworkRules",
+		BindFlags:  bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIPv6IMSI, "s1enbnrbv6", false, true)
 		},

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
@@ -205,7 +206,7 @@ func delAutoLinkLocal(link netlink.Link) error {
 // WaitForULAAddr blocks until a non-tentative global IPv6 address in prefix has
 // been formed on the interface via SLAAC, or the timeout elapses.
 func WaitForULAAddr(ifName, prefix string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for time.Now().Before(deadline) {
 		link, err := netlink.LinkByName(ifName)

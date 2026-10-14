@@ -23,9 +23,11 @@ const (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "s1enb/connectivity_ipv6",
-		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
-		Run:       runS1ENBConnectivityIPv6,
+		Name:       "s1enb/connectivity_ipv6",
+		OnlyFamily: scenarios.Only(scenarios.IPv6Only),
+		Requires:   []scenarios.Capability{scenarios.Datapath},
+		BindFlags:  func(fs *pflag.FlagSet) any { return struct{}{} },
+		Run:        runS1ENBConnectivityIPv6,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
 				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(connIPv6IMSI, "")},
@@ -38,7 +40,7 @@ func init() {
 // PDN IID's link-local is promoted to a global address by the UPF Router
 // Advertisement before the ping.
 func runS1ENBConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

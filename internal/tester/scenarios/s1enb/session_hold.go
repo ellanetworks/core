@@ -19,6 +19,8 @@ const sessionHoldIMSI = "001017271246591"
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "s1enb/session_hold",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration4GBGP",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runS1ENBSessionHold,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {

@@ -20,6 +20,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/framed_route_ipv6",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GFramedRouting",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runFramedRoute(ctx, env, framedRouteIMSIv6, framedSubnetV6, framedHostV6, unframedHostV6, true)

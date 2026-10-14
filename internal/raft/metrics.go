@@ -4,6 +4,8 @@
 package raft
 
 import (
+	"sync"
+
 	armonmetrics "github.com/armon/go-metrics"
 	armonprom "github.com/armon/go-metrics/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,7 +22,13 @@ var changesetBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 // this sink receives the raft_* and raft_boltdb_* metrics automatically.
 // It also registers the application-specific app_raft_* counter. Call once
 // at process startup before creating the Raft instance.
+var registerMetricsOnce sync.Once
+
 func RegisterMetrics() {
+	registerMetricsOnce.Do(registerMetrics)
+}
+
+func registerMetrics() {
 	sink, err := armonprom.NewPrometheusSinkFrom(armonprom.PrometheusOpts{
 		Expiration: 0, // never expire raft metrics
 	})

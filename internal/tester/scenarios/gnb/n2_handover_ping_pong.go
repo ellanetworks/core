@@ -30,6 +30,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/n2_handover_ping_pong",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GN2Handover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runN2HandoverPingPong,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {

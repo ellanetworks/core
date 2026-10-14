@@ -38,7 +38,7 @@ func runSCTPBasic(ctx context.Context, env scenarios.Env, _ any) error {
 		Name:            "Ella-Core-Tester",
 		CoreN2Addresses: env.CoreN2Addresses,
 		GnbN2Address:    g.N2Address,
-		GnbN3Address:    "0.0.0.0",
+		GnbN3Address:    g.N3Address,
 	})
 	if err != nil {
 		return fmt.Errorf("start gNB: %w", err)

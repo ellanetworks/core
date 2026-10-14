@@ -4,7 +4,6 @@
 package bgp
 
 import (
-	"net"
 	"net/netip"
 )
 
@@ -101,8 +100,8 @@ func BuildRejectPrefixes(subnets []netip.Prefix) []netip.Prefix {
 // Parameters:
 //   - uePools: UE IP pool CIDRs from all data networks
 //   - n3Addr: N3 interface IP address (added as /32 for IPv4, /128 for IPv6), may be invalid
-//   - n6IfName: N6 interface name (its IPv4 and IPv6 subnets are added)
-func BuildRouteFilter(uePools []netip.Prefix, n3Addr netip.Addr, n6IfName string) *RouteFilter {
+//   - n6Subnets: the N6 interface's IPv4 and IPv6 subnets
+func BuildRouteFilter(uePools []netip.Prefix, n3Addr netip.Addr, n6Subnets []netip.Prefix) *RouteFilter {
 	var subnets []netip.Prefix
 
 	subnets = append(subnets, uePools...)
@@ -111,8 +110,7 @@ func BuildRouteFilter(uePools []netip.Prefix, n3Addr netip.Addr, n6IfName string
 		subnets = append(subnets, netip.PrefixFrom(n3Addr, prefixLenFor(n3Addr)))
 	}
 
-	subnets = append(subnets, InterfaceIPv4Subnets(n6IfName)...)
-	subnets = append(subnets, InterfaceIPv6Subnets(n6IfName)...)
+	subnets = append(subnets, n6Subnets...)
 
 	return &RouteFilter{RejectPrefixes: BuildRejectPrefixes(subnets)}
 }
@@ -125,62 +123,4 @@ func prefixLenFor(addr netip.Addr) int {
 	}
 
 	return 128
-}
-
-// InterfaceIPv6Subnets returns the IPv6 subnets configured on the named
-// network interface.
-func InterfaceIPv6Subnets(ifName string) []netip.Prefix {
-	iface, err := net.InterfaceByName(ifName)
-	if err != nil {
-		return nil
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil
-	}
-
-	var subnets []netip.Prefix
-
-	for _, addr := range addrs {
-		p, err := netip.ParsePrefix(addr.String())
-		if err != nil {
-			continue
-		}
-
-		if p.Addr().Is6() {
-			subnets = append(subnets, p.Masked())
-		}
-	}
-
-	return subnets
-}
-
-// InterfaceIPv4Subnets returns the IPv4 subnets configured on the named
-// network interface.
-func InterfaceIPv4Subnets(ifName string) []netip.Prefix {
-	iface, err := net.InterfaceByName(ifName)
-	if err != nil {
-		return nil
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil
-	}
-
-	var subnets []netip.Prefix
-
-	for _, addr := range addrs {
-		p, err := netip.ParsePrefix(addr.String())
-		if err != nil {
-			continue
-		}
-
-		if p.Addr().Is4() {
-			subnets = append(subnets, p.Masked())
-		}
-	}
-
-	return subnets
 }

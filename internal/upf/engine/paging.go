@@ -10,7 +10,7 @@ import "github.com/ellanetworks/core/internal/upf/ebpf"
 // downlink packet (TS 23.401 §5.3.4.3; TS 23.502 §4.2.3.3).
 func (conn *SessionEngine) SuppressDownlinkDataNotification(seid uint64) {
 	conn.eachDownlinkNotification(seid, func(d ebpf.DataNotification) {
-		conn.BpfObjects.MarkNotified(d)
+		conn.datapathMaps().MarkNotified(d)
 	})
 
 	if b := conn.downlinkBuffer(); b != nil {
@@ -24,12 +24,12 @@ func (conn *SessionEngine) SuppressDownlinkDataNotification(seid uint64) {
 // suppress and the clear run at different times.
 func (conn *SessionEngine) ClearDownlinkDataNotification(seid uint64) {
 	conn.eachDownlinkNotification(seid, func(d ebpf.DataNotification) {
-		conn.BpfObjects.ClearNotified(d.LocalSEID, d.PdrID)
+		conn.datapathMaps().ClearNotified(d.LocalSEID, d.PdrID)
 	})
 }
 
 func (conn *SessionEngine) eachDownlinkNotification(seid uint64, apply func(ebpf.DataNotification)) {
-	if conn.BpfObjects == nil {
+	if conn.datapathMaps() == nil {
 		return
 	}
 

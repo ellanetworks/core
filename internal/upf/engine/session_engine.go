@@ -30,6 +30,7 @@ type SessionEngine struct {
 	advertisedN3AddressIPv4 netip.Addr
 	advertisedN3AddressIPv6 netip.Addr
 	BpfObjects              *ebpf.BpfObjects
+	maps                    Maps
 	// Downlink packet buffering; nil disables it.
 	dlBuffer             DownlinkBuffer
 	FteIDResourceManager *FteIDResourceManager
@@ -259,6 +260,25 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 	}
 
 	return conn, nil
+}
+
+func (pc *SessionEngine) datapathMaps() Maps {
+	if pc.maps != nil {
+		return pc.maps
+	}
+
+	if pc.BpfObjects != nil {
+		return pc.BpfObjects
+	}
+
+	return nil
+}
+
+func (pc *SessionEngine) SetMaps(m Maps) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	pc.maps = m
 }
 
 func (connection *SessionEngine) ReleaseResources(seID uint64) {

@@ -28,6 +28,8 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/xn_handover_connectivity",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GXnHandover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runXnHandoverConnectivity,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {

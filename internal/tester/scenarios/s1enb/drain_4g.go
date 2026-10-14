@@ -30,6 +30,8 @@ var causeLoadBalancingTAURequired = s1ap.Cause{
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "ha/drain_4g",
+		Requires:  []scenarios.Capability{scenarios.Datapath, scenarios.MultiCore},
+		DrivenBy:  "TestIntegration4GHADrain",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(_ context.Context, env scenarios.Env, _ any) error {
 			return runS1ENBDrain(env)
@@ -47,7 +49,7 @@ func runS1ENBDrain(env scenarios.Env) error {
 		return fmt.Errorf("ha/drain_4g requires at least one core address")
 	}
 
-	primary, err := s1mmeAddress(env.CoreN2Addresses[0])
+	primary, err := env.S1MMEAddress(env.CoreN2Addresses[0])
 	if err != nil {
 		return err
 	}

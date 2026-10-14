@@ -27,6 +27,65 @@ type Scenario struct {
 	// Fixture returns the Ella Core fixture to provision before the scenario
 	// runs. When nil, only the baseline fixture applies.
 	Fixture func(env Env) FixtureSpec
+
+	Requires []Capability
+
+	DrivenBy string
+
+	OnlyFamily *IPFamily
+}
+
+func Only(f IPFamily) *IPFamily {
+	return &f
+}
+
+type Capability string
+
+const (
+	Datapath  Capability = "datapath"
+	MultiCore Capability = "multi-core"
+	SMSC      Capability = "smsc"
+)
+
+type Tier string
+
+const (
+	TierInProcess Tier = "in-process"
+	TierCompose   Tier = "compose"
+	TierDedicated Tier = "dedicated"
+)
+
+func (s Scenario) Needs(c Capability) bool {
+	for _, r := range s.Requires {
+		if r == c {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s Scenario) Tier() Tier {
+	switch {
+	case s.DrivenBy != "", s.Needs(MultiCore), s.Needs(SMSC):
+		return TierDedicated
+	case s.Needs(Datapath):
+		return TierCompose
+	default:
+		return TierInProcess
+	}
+}
+
+func ListTier(t Tier) []string {
+	var names []string
+
+	for _, name := range List() {
+		if s, _ := Get(name); s.Tier() == t {
+			names = append(names, name)
+		}
+	}
+
+	return names
 }
 
 var (

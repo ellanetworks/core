@@ -24,6 +24,8 @@ const noReleaseWindow = 10 * time.Second
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "ha/drain_5g",
+		Requires:  []scenarios.Capability{scenarios.Datapath, scenarios.MultiCore},
+		DrivenBy:  "TestIntegration5GHADrain",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runDrain5G(ctx, env)

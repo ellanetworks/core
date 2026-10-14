@@ -16,8 +16,9 @@ const (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "s1enb/static_ip_ipv6",
-		BindFlags: bindStaticIPFlags,
+		Name:       "s1enb/static_ip_ipv6",
+		OnlyFamily: scenarios.Only(scenarios.IPv6Only),
+		BindFlags:  bindStaticIPFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runS1ENBStaticIP(ctx, env, params.(*staticIPParams), staticIPv6IMSI, true)
 		},

@@ -172,6 +172,20 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
+type dbWriterCtxKey struct{}
+
+func WithDBWriter(ctx context.Context, w dbwriter.DBWriter) context.Context {
+	return context.WithValue(ctx, dbWriterCtxKey{}, w)
+}
+
+func dbWriterFrom(ctx context.Context) dbwriter.DBWriter {
+	if w, ok := ctx.Value(dbWriterCtxKey{}).(dbwriter.DBWriter); ok {
+		return w
+	}
+
+	return dbInstance
+}
+
 func SwapSystemCore(core zapcore.Core) func() {
 	prev := log
 
@@ -280,7 +294,8 @@ func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 		zap.String("details", details),
 	)
 
-	if dbInstance == nil {
+	w := dbWriterFrom(ctx)
+	if w == nil {
 		log.Warn("cannot persist audit log: no database configured")
 		return
 	}
@@ -291,7 +306,7 @@ func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 		return
 	}
 
-	err = dbInstance.InsertAuditLog(ctx, &dbwriter.AuditLog{
+	err = w.InsertAuditLog(ctx, &dbwriter.AuditLog{
 		ID:        id.String(),
 		Timestamp: dbwriter.EpochMillis(time.Now()),
 		Level:     "INFO",
@@ -399,12 +414,13 @@ func LogNetworkEvent(
 		zap.String("radio_name", radioName),
 	)
 
-	if dbInstance == nil {
+	w := dbWriterFrom(ctx)
+	if w == nil {
 		log.Warn("cannot persist radio event: no database configured")
 		return
 	}
 
-	err := dbInstance.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
+	err := w.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
 		Timestamp:     dbwriter.EpochMillis(time.Now()),
 		Protocol:      string(protocol),
 		MessageType:   messageType,

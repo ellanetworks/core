@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
@@ -215,9 +216,9 @@ func (g *GnodeB) sessionGeneration() uint64 {
 // storePDUSession updates it in place, so a shared pointer would report a later
 // TEID reallocation to a caller that had already built its tunnel.
 func (g *GnodeB) awaitPDUSession(ranUeID, pduSessionID int64, after uint64, timeout time.Duration) (PDUSessionInformation, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
-	timer := time.AfterFunc(timeout, func() { g.cond.Broadcast() })
+	timer := time.AfterFunc(testenv.Timeout(timeout), func() { g.cond.Broadcast() })
 	defer timer.Stop()
 
 	g.mu.Lock()
@@ -358,9 +359,9 @@ func (g *GnodeB) AwaitPDUSessionRelease(ranUeID int64, pduSessionID uint8, timeo
 // pduSessionID, which it drops when the AMF asks for them back in a PDU SESSION
 // RESOURCE RELEASE COMMAND.
 func (g *GnodeB) awaitPDUSessionRelease(ranUeID, pduSessionID int64, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
-	timer := time.AfterFunc(timeout, func() { g.cond.Broadcast() })
+	timer := time.AfterFunc(testenv.Timeout(timeout), func() { g.cond.Broadcast() })
 	defer timer.Stop()
 
 	g.mu.Lock()
@@ -445,9 +446,9 @@ func (g *GnodeB) LoadUE(ranUeId int64) (air.DownlinkSender, error) {
 // WaitForMessage waits for an inbound PDU of the given category and procedure,
 // consuming it from the receive buffer. internal/tester/s1enb waits the same way.
 func (g *GnodeB) WaitForMessage(cat Category, code ngap.ProcedureCode, timeout time.Duration) (SCTPFrame, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
-	timer := time.AfterFunc(timeout, func() {
+	timer := time.AfterFunc(testenv.Timeout(timeout), func() {
 		g.cond.Broadcast()
 	})
 	defer timer.Stop()

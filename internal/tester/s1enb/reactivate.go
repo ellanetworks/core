@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -17,7 +18,7 @@ import (
 // Proactive downlink NAS the MME interleaves (e.g. EMM INFORMATION) is skipped, as
 // a real UE would.
 func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.DeactivateEPSBearerContextRequest, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)
@@ -67,7 +68,7 @@ func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*e
 // returns the parsed request so the caller can assert the detach type.
 // Proactive downlink NAS (e.g. EMM INFORMATION) is skipped, as a real UE would.
 func (e *ENB) AwaitNetworkDetach(ue *UE, enbUEID int64, timeout time.Duration) (*eps.DetachRequestNetwork, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)
@@ -118,7 +119,7 @@ func (e *ENB) AwaitNetworkDetach(ue *UE, enbUEID int64, timeout time.Duration) (
 // the new DNS in the Protocol Configuration Options. Proactive downlink NAS (e.g.
 // EMM INFORMATION) is skipped, as a real UE would.
 func (e *ENB) ModifyBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.ModifyEPSBearerContextRequest, error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)

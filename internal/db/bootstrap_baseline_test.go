@@ -57,7 +57,7 @@ func TestBootstrapSeedWorksAtBaselineSchema(t *testing.T) {
 		t.Fatalf("prepare statements: %v", err)
 	}
 
-	RegisterMetrics(d)
+	registerQueryMetrics()
 
 	if err := d.InitializeLocalSettings(ctx); err != nil {
 		t.Fatalf("initialize local settings: %v", err)

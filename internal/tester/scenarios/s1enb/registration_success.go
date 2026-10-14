@@ -10,17 +10,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
 )
-
-// s1MMEPort is the standard S1-MME SCTP port (TS 36.412). The core listens for
-// S1AP here, on the same address as the AMF's N2.
-const s1MMEPort = "36412"
 
 // s1enbIMSI is dedicated to this scenario so it does not race the ng-eNB and gNB
 // scenarios that reuse the default IMSI.
@@ -40,7 +35,7 @@ func init() {
 }
 
 func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}
@@ -82,15 +77,6 @@ func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) er
 	}
 
 	return assertAttach(res, familyExpect(env, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool))
-}
-
-func s1mmeAddress(coreN2 string) (string, error) {
-	host, _, err := net.SplitHostPort(coreN2)
-	if err != nil {
-		return "", fmt.Errorf("parse core N2 address %q: %w", coreN2, err)
-	}
-
-	return net.JoinHostPort(host, s1MMEPort), nil
 }
 
 func defaultKeyAndOPc() (k, opc [16]byte, err error) {

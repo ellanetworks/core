@@ -31,7 +31,9 @@ type natChecksumParams struct {
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name: "s1enb/nat_checksum",
+		Name:     "s1enb/nat_checksum",
+		Requires: []scenarios.Capability{scenarios.Datapath},
+		DrivenBy: "TestIntegration4GUPFNATChecksum",
 		BindFlags: func(fs *pflag.FlagSet) any {
 			p := &natChecksumParams{PayloadBytes: natChecksumDefaultSizes}
 			fs.StringVar(&p.PayloadBytes, "probe-payload-bytes", p.PayloadBytes,
@@ -94,7 +96,7 @@ func runS1ENBNATChecksum(ctx context.Context, env scenarios.Env, params *natChec
 		return err
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

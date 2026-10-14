@@ -22,7 +22,7 @@ func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManag
 	}
 }
 
-func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
+func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects Maps) error {
 	if spdrInfo.UEIP.IsValid() {
 		if err := bpfObjects.DeletePdrDownlink(spdrInfo.UEIP); err != nil {
 			return fmt.Errorf("can't delete downlink PDR: %s", err.Error())

@@ -31,7 +31,7 @@ func init() {
 }
 
 func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := env.S1MMEAddress(env.FirstCore())
 	if err != nil {
 		return err
 	}

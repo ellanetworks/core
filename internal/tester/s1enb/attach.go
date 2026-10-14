@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/ellanetworks/core/internal/testenv"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -250,7 +251,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 // the proactive EMM INFORMATION), which a fresh UE cannot decrypt. The first NAS
 // of an attach (Identity or Authentication Request) is always plain.
 func (e *ENB) waitForPlainDownlink(enbUEID int64, timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(testenv.Timeout(timeout))
 
 	for {
 		remaining := time.Until(deadline)

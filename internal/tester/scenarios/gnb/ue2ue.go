@@ -27,7 +27,9 @@ type ue2ueParams struct {
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name: "gnb/ue2ue",
+		Name:     "gnb/ue2ue",
+		Requires: []scenarios.Capability{scenarios.Datapath},
+		DrivenBy: "TestIntegration5GUE2UE",
 		BindFlags: func(fs *pflag.FlagSet) any {
 			var p ue2ueParams
 			fs.BoolVar(&p.ExpectSuccess, "expect-success", true, "expect the UDP probe to succeed")

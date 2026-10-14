@@ -24,6 +24,7 @@ import (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_eps_to_5gs",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runIdleEPSTo5GS(ctx, env, arriveAndResumeUserPlane)
@@ -33,6 +34,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_eps_to_5gs_returning_to_idle",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runIdleEPSTo5GS(ctx, env, arriveAndStayIdle)
@@ -42,6 +44,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_5gs_to_eps",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runIdle5GSToEPS(ctx, env, eps.EPSUpdateTypeTA, true)
@@ -51,6 +54,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_5gs_to_eps_returning_to_idle",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runIdle5GSToEPS(ctx, env, eps.EPSUpdateTypeCombinedTALA, false)
@@ -60,6 +64,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_round_trip_through_eps",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runIdleRoundTripThroughEPS,
 		Fixture:   fixture,
@@ -67,6 +72,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_round_trip_through_5gs",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runIdleRoundTripThrough5GS,
 		Fixture:   fixture,

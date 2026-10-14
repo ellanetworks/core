@@ -31,6 +31,7 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/handover_5gs_to_eps",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runHandover5GSToEPS,
 		Fixture:   fixture,
@@ -271,6 +272,7 @@ func assertEPSNASAlgorithms(u *ue.UE) error {
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/handover_5gs_to_eps_target_refuses",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runHandover5GSToEPSTargetRefuses,
 		Fixture:   fixture,

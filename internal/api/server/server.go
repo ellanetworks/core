@@ -20,6 +20,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/supportbundle"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -42,6 +44,9 @@ type HandlerConfig struct {
 	LMF                 *lmf.LMF
 	Diameter            DiameterNode
 	DatapathAttachMode  func() string
+	Metrics             prometheus.Gatherer
+	SupportBundle       supportbundle.Sources
+	Context             context.Context
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -74,7 +79,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 
 	// Metrics (Unauthenticated)
-	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/metrics", metricsHandlerFor(cfg.Metrics).ServeHTTP)
 
 	// Pprof (Authenticated)
 	registerAuthenticatedPprof(mux, jwtSecret, dbInstance)
@@ -82,6 +87,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Authentication
 	loginLimiter := newIPRateLimiter(LoginRateLimit, LoginRateWindow)
 	lookupTokenLimiter := newIPRateLimiter(LookupTokenRateLimit, LookupTokenRateWindow)
+
+	if cfg.Context != nil {
+		context.AfterFunc(cfg.Context, func() {
+			loginLimiter.stop()
+			lookupTokenLimiter.stop()
+		})
+	}
 
 	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret, secureCookie, loginLimiter).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)
@@ -237,7 +249,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, dbInstance, Authorize(PermRestore, Restore(dbInstance))).ServeHTTP)
 
 	// Support bundle generation (Authenticated)
-	mux.HandleFunc("POST /api/v1/support-bundle", Authenticate(jwtSecret, dbInstance, Authorize(PermSupportBundle, SupportBundle(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/support-bundle", Authenticate(jwtSecret, dbInstance, Authorize(PermSupportBundle, SupportBundle(dbInstance, cfg.SupportBundle))).ServeHTTP)
 
 	// Audit Logs (Authenticated)
 	mux.HandleFunc("GET /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetAuditLogRetentionPolicy, GetAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
@@ -314,6 +326,7 @@ type DiscoveryHandlerConfig struct {
 	Config      config.Config
 	FrontendFS  fs.FS
 	APIUpgraded <-chan struct{}
+	Metrics     prometheus.Gatherer
 }
 
 // NewDiscoveryHandler returns an HTTP handler serving only the routes
@@ -330,7 +343,7 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 
 	// The datapath is not attached during discovery, so the mode is absent.
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, nil).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/metrics", metricsHandlerFor(cfg.Metrics).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 
 	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)

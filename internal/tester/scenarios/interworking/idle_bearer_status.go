@@ -32,6 +32,7 @@ const (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_eps_to_5gs_bearer_status",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runIdleEPSTo5GSBearerStatus,
 		Fixture:   bearerStatusFixture,

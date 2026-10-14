@@ -28,6 +28,8 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/supportbundle"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -69,6 +71,17 @@ type Server struct {
 	cfg        config.Config
 	ready      atomic.Bool
 	upgraded   chan struct{}
+	bound      chan struct{}
+	addr       net.Addr
+}
+
+func (s *Server) Addr(ctx context.Context) (net.Addr, error) {
+	select {
+	case <-s.bound:
+		return s.addr, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // handlerRef is a concurrency-safe swappable HTTP handler.
@@ -105,19 +118,23 @@ type UpgradeConfig struct {
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
 	DatapathAttachMode  func() string
+	Kernel              kernel.Kernel
+	Metrics             prometheus.Gatherer
+	SupportBundle       supportbundle.Sources
 }
 
 // StartDiscovery creates and starts the HTTP server with only the routes
 // required for cluster discovery (status, cluster membership, metrics,
 // OpenAPI spec). Call Upgrade after cluster formation to enable the full API.
-func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config, frontendFS fs.FS) (*Server, error) {
-	s := &Server{cfg: cfg, upgraded: make(chan struct{})}
+func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config, frontendFS fs.FS, metrics prometheus.Gatherer) (*Server, error) {
+	s := &Server{cfg: cfg, upgraded: make(chan struct{}), bound: make(chan struct{})}
 
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
 		DB:          dbInstance,
 		Config:      cfg,
 		FrontendFS:  frontendFS,
 		APIUpgraded: s.upgraded,
+		Metrics:     metrics,
 	})
 
 	s.handler.set(discoveryHandler)
@@ -136,6 +153,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		ReadTimeout:       1 * time.Minute,
 		WriteTimeout:      5 * time.Minute,
 		IdleTimeout:       120 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
 	}
 
 	s.httpServer = srv
@@ -146,6 +164,9 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 			logger.APILog.Fatal("couldn't create listener", zap.Error(listenErr))
 			return
 		}
+
+		s.addr = ln.Addr()
+		close(s.bound)
 
 		logFields := []zap.Field{
 			zap.String("scheme", string(scheme)),
@@ -212,8 +233,12 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	}
 
 	jwtSecret := server.NewJWTSecret(jwtSecretBytes)
-	kernelInt := kernel.NewRealKernel(s.cfg.Interfaces.N3.Name, s.cfg.Interfaces.N6.Name)
 	secureCookie := resolveScheme(s.cfg) == HTTPS
+
+	kernelInt := opts.Kernel
+	if kernelInt == nil {
+		kernelInt = kernel.NewRealKernel(s.cfg.Interfaces.N3.Name, s.cfg.Interfaces.N6.Name)
+	}
 
 	fullHandler := server.NewHandler(server.HandlerConfig{
 		DB:                 opts.DB,
@@ -229,6 +254,9 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		Diameter:           opts.Diameter,
 		BcryptCost:         bcrypt.DefaultCost,
 		DatapathAttachMode: opts.DatapathAttachMode,
+		Metrics:            opts.Metrics,
+		SupportBundle:      opts.SupportBundle,
+		Context:            ctx,
 		Ready:              &s.ready,
 		ReconcileRoutes: func(rcCtx context.Context) error {
 			return routeReconciler(rcCtx, opts.DB, kernelInt)
@@ -274,7 +302,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 			reject = append(reject, server.CollectFramedRoutes(fbCtx, opts.DB)...)
 			n3Addr, _ := netip.ParseAddr(s.cfg.Interfaces.N3.Address)
 
-			return bgp.BuildRouteFilter(reject, n3Addr, s.cfg.Interfaces.N6.Name), nil
+			return bgp.BuildRouteFilter(reject, n3Addr, s.cfg.Addresses().Subnets(s.cfg.Interfaces.N6.Name)), nil
 		}
 
 		bgpSettingsWakeup, stopBGPSettingsWakeup := opts.DB.Changefeed().Wakeup(

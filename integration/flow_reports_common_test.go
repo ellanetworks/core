@@ -316,7 +316,7 @@ func apiProtocolFilter(pp probeProtocolParams) string {
 func scenarioRunArgs(name string, spec scenarios.FixtureSpec, pp probeProtocolParams, srcPortBase int) []string {
 	var args []string
 
-	if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+	if requiredFamily, ok := scenarioRequiredFamily(name); ok {
 		args = append(args, "--ip-version", string(requiredFamily))
 	}
 

@@ -280,6 +280,8 @@ type Config struct {
 	Datapath   Datapath
 	Telemetry  Telemetry
 	Cluster    Cluster
+
+	AddressSource AddressSource
 }
 
 type VlanConfig struct {

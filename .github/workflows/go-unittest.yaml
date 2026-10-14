@@ -20,7 +20,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
       - name: Unit tests
-        run: go test -cover ./...
+        run: go test -cover $(go list ./... | grep -v '/integration/inprocess')
 
       - name: Sub-module unit tests
         run: |

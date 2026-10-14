@@ -23,6 +23,7 @@ import (
 
 var (
 	coreN2Addresses []string
+	coreS1Addresses []string
 	gnbSpecs        []string
 	gnbCoreTargets  []string
 	verbose         bool
@@ -80,6 +81,8 @@ func runCmd() *cobra.Command {
 
 	run.PersistentFlags().StringSliceVar(&coreN2Addresses, "ella-core-n2-address", nil,
 		"Ella Core N2 SCTP address (repeatable)")
+	run.PersistentFlags().StringSliceVar(&coreS1Addresses, "ella-core-s1-address", nil,
+		"Ella Core S1-MME SCTP address, paired by position with --ella-core-n2-address (repeatable)")
 	run.PersistentFlags().StringArrayVar(&gnbSpecs, "gnb", nil,
 		"gNB spec: <name>,n2=<addr>,n3=<addr>[,n3-secondary=<addr>] (repeatable)")
 	run.PersistentFlags().StringArrayVar(&gnbCoreTargets, "gnb-core-target", nil,
@@ -124,20 +127,25 @@ func scenarioSubcommand(sc scenarios.Scenario) *cobra.Command {
 				return fmt.Errorf("invalid --gnb-core-target: %w", err)
 			}
 
+			var family *scenarios.IPFamily
+
 			if ipVersion != "" {
-				if _, err := scenarios.ParseIPFamily(ipVersion); err != nil {
+				f, err := scenarios.ParseIPFamily(ipVersion)
+				if err != nil {
 					return fmt.Errorf("invalid --ip-version: %w", err)
 				}
 
-				_ = os.Setenv("IP_VERSION", ipVersion)
+				family = &f
 			}
 
 			env := scenarios.Env{
 				CoreN2Addresses: coreN2Addresses,
+				CoreS1Addresses: coreS1Addresses,
 				GNBs:            gnbs,
 				GNBCoreTargets:  targets,
 				APIAddress:      apiAddress,
 				APIToken:        apiToken,
+				Family:          family,
 			}
 
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

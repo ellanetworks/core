@@ -24,6 +24,7 @@ const mobilityRegStatusIMSI = "001017271246548"
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/mobility_registration_pdu_session_status",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runMobilityRegistrationPDUSessionStatus(ctx, env, params)

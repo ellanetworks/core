@@ -18,6 +18,8 @@ const sessionHoldIMSI = "001017271246590"
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "gnb/session_hold",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
+		DrivenBy:  "TestIntegration5GBGP",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runSessionHold(ctx, env)

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -96,12 +97,17 @@ func (c *metricsCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func RegisterMetrics(db *Database) {
-	if DBQueryDuration != nil {
-		// Already registered, skip
-		return
-	}
+var registerQueryMetricsOnce sync.Once
 
+func RegisterCollector(reg prometheus.Registerer, db *Database) {
+	reg.MustRegister(newMetricsCollector(db))
+}
+
+func registerQueryMetrics() {
+	registerQueryMetricsOnce.Do(newQueryMetrics)
+}
+
+func newQueryMetrics() {
 	DBQueriesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "app_database_queries_total",
@@ -119,7 +125,6 @@ func RegisterMetrics(db *Database) {
 		[]string{"table", "operation"},
 	)
 
-	prometheus.MustRegister(newMetricsCollector(db))
 	prometheus.MustRegister(DBQueryDuration)
 	prometheus.MustRegister(DBQueriesTotal)
 }

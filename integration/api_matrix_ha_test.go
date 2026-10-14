@@ -7,45 +7,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/integration/apimatrix"
 	"github.com/ellanetworks/core/integration/suites"
 )
-
-type apiMatrixHARunner func(ctx context.Context, t *testing.T, h *haMatrixEnv)
-
-// apiMatrixHAResources mirrors apiMatrixResources but each runner sees
-// the full 3-node cluster and is responsible for distributing writes
-// across nodes plus asserting the cross-node invariant (replication for
-// shared resources, locality for per-node resources).
-var apiMatrixHAResources = map[string]apiMatrixHARunner{
-	"profiles":                   runProfilesHAMatrix,
-	"slices":                     runSlicesHAMatrix,
-	"data_networks":              runDataNetworksHAMatrix,
-	"static_ips":                 runStaticIpsHAMatrix,
-	"policies":                   runPoliciesHAMatrix,
-	"policy_rules":               runPolicyRulesHAMatrix,
-	"subscribers":                runSubscribersHAMatrix,
-	"users":                      runUsersHAMatrix,
-	"api_tokens":                 runAPITokensHAMatrix,
-	"home_network_keys":          runHomeNetworkKeysHAMatrix,
-	"operator_id":                runOperatorIDHAMatrix,
-	"operator_code":              runOperatorCodeHAMatrix,
-	"operator_tracking":          runOperatorTrackingHAMatrix,
-	"operator_nas_security":      runOperatorNASSecurityHAMatrix,
-	"operator_spn":               runOperatorSPNHAMatrix,
-	"operator_sms":               runOperatorSMSHAMatrix,
-	"subscriber_usage_retention": runSubscriberUsageRetentionHAMatrix,
-	"radio_events_retention":     runRadioEventsRetentionHAMatrix,
-	"flow_reports_retention":     runFlowReportsRetentionHAMatrix,
-	"audit_log_retention":        runAuditLogRetentionHAMatrix,
-	"routes":                     runRoutesHAMatrix,
-	"bgp_peers":                  runBGPPeersHAMatrix,
-	"bgp_settings":               runBGPSettingsHAMatrix,
-	"n3_interface":               runN3InterfaceHAMatrix,
-	"nat":                        runNATHAMatrix,
-	"flow_accounting":            runFlowAccountingHAMatrix,
-	"audit_logs":                 runAuditLogsHAMatrix,
-	"cluster_routing":            runClusterRoutingHAMatrix,
-}
 
 func TestAPIMatrixHA(t *testing.T) {
 	suites.Require(t, suites.APIMatrixHA)
@@ -55,10 +19,45 @@ func TestAPIMatrixHA(t *testing.T) {
 	ctx := context.Background()
 	h := setupHAMatrixEnv(ctx, t)
 
-	for name, run := range apiMatrixHAResources {
-		name, run := name, run
+	for name, run := range apimatrix.HAResources {
 		t.Run(name, func(t *testing.T) {
 			run(ctx, t, h)
 		})
+	}
+}
+
+func setupHAMatrixEnv(ctx context.Context, t *testing.T) *apimatrix.HAEnv {
+	t.Helper()
+
+	dc, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("docker client: %v", err)
+	}
+
+	t.Cleanup(func() { _ = dc.Close() })
+
+	clients, err := bringUpHACluster(t, ctx, dc)
+	if err != nil {
+		t.Fatalf("bring up HA cluster: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(t, ctx, dc, haComposeDir, haNodeServices, clients)
+	})
+
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
+		t.Fatalf("not all nodes ready: %v", err)
+	}
+
+	leaderIdx, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("find leader: %v", err)
+	}
+
+	return &apimatrix.HAEnv{
+		Clients:   clients,
+		Leader:    leader,
+		LeaderIdx: leaderIdx,
+		IPv6:      DetectIPFamily() != IPv4Only,
 	}
 }

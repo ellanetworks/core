@@ -24,6 +24,7 @@ import (
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/transfer_5gs_to_eps",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runTransfer5GSToEPS,
 		Fixture:   fixture,
@@ -31,6 +32,7 @@ func init() {
 
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/transfer_eps_to_5gs",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run:       runTransferEPSTo5GS,
 		Fixture:   fixture,

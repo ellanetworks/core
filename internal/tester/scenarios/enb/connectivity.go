@@ -63,6 +63,7 @@ func buildEnbSubscribers(numSubscribers int, startIMSI string) ([]enbSubscriber,
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "enb/connectivity",
+		Requires:  []scenarios.Capability{scenarios.Datapath},
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runEnbConnectivity(ctx, env, params)
