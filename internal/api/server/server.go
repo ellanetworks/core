@@ -42,6 +42,7 @@ type HandlerConfig struct {
 	LMF                 *lmf.LMF
 	Diameter            DiameterNode
 	DatapathAttachMode  func() string
+	Context             context.Context
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -82,6 +83,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Authentication
 	loginLimiter := newIPRateLimiter(LoginRateLimit, LoginRateWindow)
 	lookupTokenLimiter := newIPRateLimiter(LookupTokenRateLimit, LookupTokenRateWindow)
+
+	if cfg.Context != nil {
+		context.AfterFunc(cfg.Context, func() {
+			loginLimiter.stop()
+			lookupTokenLimiter.stop()
+		})
+	}
 
 	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret, secureCookie, loginLimiter).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)

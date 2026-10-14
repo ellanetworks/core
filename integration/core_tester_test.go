@@ -82,23 +82,6 @@ var scenarioIPFamilyRestrictions = map[string]IPFamily{
 	"s1enb/static_ip_ipv6":                   IPv6Only,
 }
 
-var scenarioFollowsDeploymentIPFamily = map[string]bool{
-	"interworking/transfer_5gs_to_eps":                  true,
-	"interworking/transfer_eps_to_5gs":                  true,
-	"interworking/handover_5gs_to_eps":                  true,
-	"interworking/handover_5gs_to_eps_target_refuses":   true,
-	"interworking/handover_eps_to_5gs":                  true,
-	"interworking/handover_eps_to_5gs_target_refuses":   true,
-	"interworking/idle_5gs_to_eps":                      true,
-	"interworking/idle_5gs_to_eps_returning_to_idle":    true,
-	"interworking/idle_eps_to_5gs":                      true,
-	"interworking/idle_eps_to_5gs_returning_to_idle":    true,
-	"interworking/idle_round_trip_through_eps":          true,
-	"interworking/idle_round_trip_through_5gs":          true,
-	"interworking/idle_eps_to_5gs_bearer_status":        true,
-	"interworking/idle_eps_to_5gs_session_modification": true,
-}
-
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
 // families in which the scenario should be skipped. This is used for
 // scenarios that test a specific address family but should be skipped
@@ -244,22 +227,7 @@ func TestIntegrationTester(t *testing.T) {
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
 
-			var extraArgs []string
-
-			if _, both := scenarioIPFamilyRestrictions[name]; both && scenarioFollowsDeploymentIPFamily[name] {
-				t.Fatalf("scenario %q is both pinned to one IP family and told to follow the deployment's", name)
-			}
-
-			switch {
-			case scenarioFollowsDeploymentIPFamily[name]:
-				extraArgs = append(extraArgs, "--ip-version", string(DetectIPFamily()))
-			default:
-				if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
-					extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
-				}
-			}
-
-			extraArgs = append(extraArgs, spec.ExtraArgs...)
+			extraArgs := append([]string{"--ip-version", string(DetectIPFamily())}, spec.ExtraArgs...)
 
 			env.RunScenario(ctx, t, name, tr, extraArgs...)
 

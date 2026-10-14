@@ -229,6 +229,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		Diameter:           opts.Diameter,
 		BcryptCost:         bcrypt.DefaultCost,
 		DatapathAttachMode: opts.DatapathAttachMode,
+		Context:            ctx,
 		Ready:              &s.ready,
 		ReconcileRoutes: func(rcCtx context.Context) error {
 			return routeReconciler(rcCtx, opts.DB, kernelInt)
