@@ -128,11 +128,9 @@ func (e Env) UIPrefix() string {
 }
 
 func (e Env) PingCommand() string {
-	family := e.IPFamily()
-	switch family {
-	case IPv6Only, DualStack:
+	if e.IPFamily() == IPv6Only {
 		return "ping6"
-	default:
-		return "ping"
 	}
+
+	return "ping"
 }
