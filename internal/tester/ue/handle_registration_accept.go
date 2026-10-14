@@ -12,8 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const registrationCompleteTimeout = 5 * time.Second
-
 func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAPID int64) error {
 	logger.UeLogger.Debug("Received Registration Accept NAS message", zap.String("IMSI", ue.UeSecurity.Supi))
 
@@ -41,12 +39,14 @@ func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAP
 		return fmt.Errorf("error encoding %s IMSI UE NAS Registration Complete Msg", ue.UeSecurity.Supi)
 	}
 
-	cucSeen := ue.seenGMM(uint8(fgs.MsgConfigurationUpdateCommand))
-
 	err = ue.Gnb.SendUplinkNAS(encodedPdu, amfUENGAPID, ranUENGAPID)
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
+
+	// Registration Complete has no response; pause so the Core finishes processing
+	// it before the PDU Session Establishment Request arrives.
+	time.Sleep(500 * time.Millisecond)
 
 	logger.UeLogger.Debug(
 		"Sent Registration Complete NAS message",
@@ -57,21 +57,6 @@ func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAP
 		return nil
 	}
 
-	go func() {
-		if !ue.waitSeenGMMAbove(uint8(fgs.MsgConfigurationUpdateCommand), cucSeen, registrationCompleteTimeout) {
-			logger.UeLogger.Warn("no Configuration Update Command after Registration Complete; sending the PDU Session Establishment Request anyway",
-				zap.String("IMSI", ue.UeSecurity.Supi))
-		}
-
-		if err := sendPDUSessionEstablishmentRequest(ue, amfUENGAPID, ranUENGAPID); err != nil {
-			logger.UeLogger.Error("could not send PDU Session Establishment Request", zap.String("IMSI", ue.UeSecurity.Supi), zap.Error(err))
-		}
-	}()
-
-	return nil
-}
-
-func sendPDUSessionEstablishmentRequest(ue *UE, amfUENGAPID int64, ranUENGAPID int64) error {
 	pduReq, err := BuildPduSessionEstablishmentRequest(&PduSessionEstablishmentRequestOpts{
 		PDUSessionID:   ue.PDUSessionID,
 		PDUSessionType: ue.PDUSessionType,
@@ -90,12 +75,13 @@ func sendPDUSessionEstablishmentRequest(ue *UE, amfUENGAPID int64, ranUENGAPID i
 		return fmt.Errorf("could not build Uplink NAS Transport for PDU Session: %v", err)
 	}
 
-	encodedPdu, err := ue.EncodeNasPduWithSecurity(pduUplink, uint8(fgs.SHTIntegrityProtectedCiphered))
+	encodedPdu, err = ue.EncodeNasPduWithSecurity(pduUplink, uint8(fgs.SHTIntegrityProtectedCiphered))
 	if err != nil {
 		return fmt.Errorf("error encoding %s IMSI UE NAS Uplink NAS Transport for PDU Session Msg", ue.UeSecurity.Supi)
 	}
 
-	if err := ue.Gnb.SendUplinkNAS(encodedPdu, amfUENGAPID, ranUENGAPID); err != nil {
+	err = ue.Gnb.SendUplinkNAS(encodedPdu, amfUENGAPID, ranUENGAPID)
+	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport for PDU Session Establishment: %v", err)
 	}
 
