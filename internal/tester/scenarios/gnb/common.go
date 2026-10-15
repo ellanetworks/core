@@ -302,6 +302,32 @@ func defaultUEOpts(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType 
 }
 
 func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, dnn string, exp *validate.ExpectedPDUSessionEstablishmentAccept, pduSessionType uint8) error {
+	newUE, err := newSubscriberUE(gNodeB, sub, dnn, pduSessionType)
+	if err != nil {
+		return err
+	}
+
+	gNodeB.AddUE(ranUENGAPID, newUE)
+
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
+	if err != nil {
+		return fmt.Errorf("initial registration procedure failed for subscriber %v: %v", newUE.UeSecurity.Msin, err)
+	}
+
+	err = validate.PDUSessionEstablishmentAccept(registration.Session.Accept, exp)
+	if err != nil {
+		return fmt.Errorf("PDUSessionResourceSetupRequest validation failed: %v", err)
+	}
+
+	err = gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
+	if err != nil {
+		return fmt.Errorf("DeregistrationProcedure failed: %v", err)
+	}
+
+	return nil
+}
+
+func newSubscriberUE(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType uint8) (*ue.UE, error) {
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
@@ -333,25 +359,8 @@ func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, d
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("could not create UE: %v", err)
+		return nil, fmt.Errorf("could not create UE: %v", err)
 	}
 
-	gNodeB.AddUE(ranUENGAPID, newUE)
-
-	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
-	if err != nil {
-		return fmt.Errorf("initial registration procedure failed for subscriber %v: %v", newUE.UeSecurity.Msin, err)
-	}
-
-	err = validate.PDUSessionEstablishmentAccept(registration.Session.Accept, exp)
-	if err != nil {
-		return fmt.Errorf("PDUSessionResourceSetupRequest validation failed: %v", err)
-	}
-
-	err = gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
-	if err != nil {
-		return fmt.Errorf("DeregistrationProcedure failed: %v", err)
-	}
-
-	return nil
+	return newUE, nil
 }

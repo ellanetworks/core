@@ -182,6 +182,10 @@ var (
 	opDeleteStaleSMSWaiting  = registerChangesetOp("DeleteStaleSMSWaiting", (*Database).applyDeleteStaleSMSWaiting, RequireSchema(22))
 )
 
+var opReplacePCSCFAddresses = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
+
+var opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistration", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(23))
+
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.
 var (

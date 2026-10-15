@@ -193,8 +193,8 @@ type EPSQoSBitRates struct {
 	GuaranteedDownlinkKbps uint64
 }
 
-// GBREPSQoS builds the EPS QoS of a GBR bearer, flooring each rate to one the
-// element can express. Rates above 10 Gbit/s need the extended EPS QoS IE and
+// GBREPSQoS builds the EPS QoS of a GBR bearer, rounding each rate up to one
+// the element can express, so the UE is never told less than was authorized. Rates above 10 Gbit/s need the extended EPS QoS IE and
 // are refused, as is a maximum bit rate of 0 kbit/s in both directions.
 func GBREPSQoS(qci uint8, r EPSQoSBitRates) (EPSQoS, error) {
 	if r.MaxUplinkKbps == 0 && r.MaxDownlinkKbps == 0 {
@@ -208,6 +208,8 @@ func GBREPSQoS(qci uint8, r EPSQoSBitRates) (EPSQoS, error) {
 	extended, extended2 := false, false
 
 	for _, kbps := range rates {
+		kbps = ceilEPSQoSKbps(kbps)
+
 		if kbps > epsQoSExtended2MaxKbps {
 			return EPSQoS{}, fmt.Errorf("nas/eps: EPS QoS bit rate %d kbit/s exceeds %d kbit/s", kbps, uint64(epsQoSExtended2MaxKbps))
 		}
@@ -607,4 +609,31 @@ func remainder(r *nas.Reader) ([]byte, error) {
 	}
 
 	return r.Bytes(r.Remaining())
+}
+
+func ceilEPSQoSKbps(kbps uint64) uint64 {
+	up := func(base, step uint64) uint64 {
+		return base + (max(kbps, base)-base+step-1)/step*step
+	}
+
+	switch {
+	case kbps <= 63:
+		return kbps
+	case kbps <= 568:
+		return up(64, 8)
+	case kbps <= 8640:
+		return up(576, 64)
+	case kbps <= 16_000:
+		return up(8700, 100)
+	case kbps <= 128_000:
+		return up(17_000, 1000)
+	case kbps <= epsQoSExtendedMaxKbps:
+		return up(130_000, 2000)
+	case kbps <= 500_000:
+		return up(epsQoSExtendedMaxKbps, 4000)
+	case kbps <= 1_500_000:
+		return up(500_000, 10_000)
+	default:
+		return up(1_500_000, 100_000)
+	}
 }

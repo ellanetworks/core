@@ -46,7 +46,7 @@ func TestCreateEPSSessionKeepsTheUEAllocatedIdentity(t *testing.T) {
 
 func TestCreateEPSSessionWithoutAnIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
 	if err != nil {
@@ -64,7 +64,7 @@ func TestCreateEPSSessionWithoutAnIdentity(t *testing.T) {
 
 func TestCreateEPSSessionSupersedesTheHolderOfADuplicateIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	first := epsRequest(1)
 	first.PDUSessionID = 3
@@ -107,7 +107,7 @@ func TestCreateEPSSessionSupersedesTheHolderOfADuplicateIdentity(t *testing.T) {
 
 func TestCreateEPSSessionRefusesAnUnallocatableIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	req := epsRequest(1)
 	req.PDUSessionID = 64
@@ -120,7 +120,7 @@ func TestCreateEPSSessionRefusesAnUnallocatableIdentity(t *testing.T) {
 func TestCreateEPSSessionRefusesADivergentPDNType(t *testing.T) {
 	for _, pdnType := range []uint8{uint8(eps.PDNTypeNonIP), uint8(eps.PDNTypeEthernet)} {
 		store, upf := epsTestSMF()
-		s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+		s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 		req := epsRequest(pdnType)
 

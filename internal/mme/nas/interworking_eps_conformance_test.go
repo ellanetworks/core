@@ -32,7 +32,7 @@ func TestEPSNetworkFeatureSupportNeverEncodesIWKN26(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &mme.MME{}
 
-			nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: tc.rest})
+			nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: tc.rest}, true)
 
 			raw, err := nfs.MarshalBinary()
 			if err != nil {
@@ -187,7 +187,7 @@ func TestEPSExtendedPCOFollowsTheUEsSupport(t *testing.T) {
 
 			qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("1 Gbps"), Uplink: models.MustParseBitRate("1 Gbps")}}, MTU: 1400}
 
-			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil)
+			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil, nas.PCSCFRequest{})
 			if err != nil {
 				t.Fatalf("build ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST: %v", err)
 			}

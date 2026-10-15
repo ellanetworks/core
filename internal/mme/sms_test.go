@@ -236,7 +236,7 @@ func TestRemovingTheUEContextDeregistersItFromSMS(t *testing.T) {
 	grantSMS(t, m, ue)
 	imsi := ue.imsiOrEmpty()
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 
 	if granted, _ := m.SMSRoute(imsi); granted {
 		t.Fatal("the MME still routes SMS to a removed UE")

@@ -282,6 +282,10 @@ func (c *Conn) setError(reason string) {
 }
 
 func (c *Conn) errorText() string {
+	if cause := c.dprCause.Load(); cause >= 0 {
+		return "the peer disconnected: " + DisconnectCauseName(uint32(cause))
+	}
+
 	if p := c.lastError.Load(); p != nil {
 		return *p
 	}
@@ -361,7 +365,7 @@ func (c *Conn) receiveRequest(m *Message) {
 
 	switch {
 	case connState(c.state.Load()) == stateClosing:
-		code = ResultUnableToDeliver
+		code = UnavailableResult(m)
 	case m.ApplicationID == 0:
 		code = ResultCommandUnsupported
 	case !c.common[m.ApplicationID]:
@@ -378,7 +382,7 @@ func (c *Conn) receiveRequest(m *Message) {
 	select {
 	case c.requests <- struct{}{}:
 	default:
-		c.send(c.Answer(m, ResultTooBusy))
+		c.send(c.Answer(m, UnavailableResult(m)))
 		return
 	}
 

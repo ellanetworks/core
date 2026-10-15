@@ -50,7 +50,26 @@ export type Registration = {
   imei?: string;
   ciphering_algorithm?: string;
   integrity_algorithm?: string;
+  ims_voice_over_ps?: boolean;
   connection: UEConnection | null;
+};
+
+export type IMSUserState =
+  | "registered"
+  | "registered_unreg_services"
+  | "authentication_pending"
+  | "not_registered";
+
+export type IMSPublicIdentity = {
+  identity: string;
+  barred: boolean;
+  user_state: IMSUserState;
+};
+
+export type IMSSubscription = {
+  private_identity: string;
+  scscf_name?: string;
+  public_identities: IMSPublicIdentity[];
 };
 
 export type SubscriberDetailStatus = {
@@ -62,6 +81,7 @@ export type SubscriberDetailStatus = {
   integrity_algorithm: string;
   last_seen_at?: string;
   last_seen_radio?: string;
+  ims_voice_over_ps?: boolean;
 };
 
 const isPresent = (registration: Registration) =>
@@ -90,6 +110,10 @@ export function mergeRegistrations(
 
   const answering = serving ?? retained;
 
+  const registered = serving?.registered
+    ? serving
+    : present.find((r) => r.registered);
+
   return {
     registered: present.some((r) => r.registered),
     connection_state:
@@ -104,6 +128,7 @@ export function mergeRegistrations(
     integrity_algorithm: serving?.integrity_algorithm ?? "",
     last_seen_at: answering?.last_seen_at,
     last_seen_radio: answering?.radio,
+    ims_voice_over_ps: registered?.ims_voice_over_ps,
   };
 }
 
@@ -114,6 +139,7 @@ export type APISubscriber = {
   msisdn?: string;
   registrations: Registration[];
   sessions: SessionInfo[];
+  ims?: IMSSubscription;
 };
 
 export type SubscriberCredentials = {

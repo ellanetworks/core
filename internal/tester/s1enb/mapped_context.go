@@ -6,6 +6,7 @@ package s1enb
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -60,6 +61,7 @@ func (ue *UE) InstallMappedSecurityContext(in MappedFrom5GS) error {
 
 	ue.ulCount = in.UplinkNASCount.SQN()
 	ue.dlCount.seed(in.DownlinkNASCount)
+	ue.kenbCount = math.MaxUint32
 
 	return nil
 }
@@ -74,7 +76,7 @@ func NewUnboundUE() *UE {
 	return &UE{netCapEEA: 0xf0, netCapEIA: 0x70, pti: 1}
 }
 
-func (e *ENB) TrackingAreaUpdateAfterHandover(ue *UE, mmeUEID, enbUEID int64, guti eps.GUTI, timeout time.Duration) error {
+func (e *ENB) TrackingAreaUpdateAfterHandover(ue *UE, mmeUEID, enbUEID int64, guti eps.GUTI, timeout time.Duration) (*eps.EPSMobileIdentity, error) {
 	identity := eps.GUTIIdentity(guti)
 
 	gutiType := eps.GUTITypeNative
@@ -87,29 +89,35 @@ func (e *ENB) TrackingAreaUpdateAfterHandover(ue *UE, mmeUEID, enbUEID int64, gu
 		UEStatus:      &eps.UEStatus{N1ModeReg: true},
 	}).MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("s1enb: build Tracking Area Update Request: %w", err)
+		return nil, fmt.Errorf("s1enb: build Tracking Area Update Request: %w", err)
 	}
 
 	wire, err := eps.Protect(plain, eps.SHTIntegrityProtected,
 		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
 	if err != nil {
-		return fmt.Errorf("s1enb: protect Tracking Area Update Request: %w", err)
+		return nil, fmt.Errorf("s1enb: protect Tracking Area Update Request: %w", err)
 	}
 
 	ue.ulCount++
 
 	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, wire); err != nil {
-		return fmt.Errorf("s1enb: send Tracking Area Update Request: %w", err)
+		return nil, fmt.Errorf("s1enb: send Tracking Area Update Request: %w", err)
 	}
 
-	if _, _, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout); err != nil {
-		return fmt.Errorf("s1enb: await Tracking Area Update Accept: %w", err)
+	_, plain, err = e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: await Tracking Area Update Accept: %w", err)
+	}
+
+	accept, err := expectDownlink[*eps.TrackingAreaUpdateAccept](plain)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse Tracking Area Update Accept: %w", err)
 	}
 
 	complete, err := ue.buildTrackingAreaUpdateComplete()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return e.SendUplinkNASTransport(mmeUEID, enbUEID, complete)
+	return accept.GUTI, e.SendUplinkNASTransport(mmeUEID, enbUEID, complete)
 }

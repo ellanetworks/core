@@ -726,7 +726,7 @@ This path updates the flow accounting configuration.
 
 # Local Switch
 
-Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE is forwarded locally instead of being routed out over N6. It is disabled by default.
+Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE is forwarded locally instead of being routed out over N6. It is disabled by default. Traffic between two UEs on the `ims` data network is always switched locally, to allow voice calls between them.
 
 ## Get Local Switch Info
 
@@ -1101,6 +1101,14 @@ None
                 "port": 3868,
                 "state": "open",
                 "since": "2026-09-29T13:44:09Z"
+            },
+            {
+                "role": "ims",
+                "host": "ims.ims.mnc001.mcc001.3gppnetwork.org",
+                "realm": "ims.mnc001.mcc001.3gppnetwork.org",
+                "address": "192.0.2.20",
+                "state": "open",
+                "since": "2026-10-05T13:44:09Z"
             }
         ]
     }

@@ -31,6 +31,17 @@ func TestDiameterRealm(t *testing.T) {
 	}
 }
 
+func TestIMSRealm(t *testing.T) {
+	got, err := diameternode.IMSRealm("234", "15")
+	if err != nil {
+		t.Fatalf("IMSRealm: %v", err)
+	}
+
+	if want := "ims.mnc015.mcc234.3gppnetwork.org"; got != want {
+		t.Fatalf("IMSRealm = %q, want %q", got, want)
+	}
+}
+
 func TestDiameterRealmRejectsInvalidPLMN(t *testing.T) {
 	for _, plmn := range [][2]string{{"01", "01"}, {"001", "1"}, {"001", "0001"}, {"0a1", "01"}, {"001", ""}} {
 		if _, err := diameternode.DiameterRealm(plmn[0], plmn[1]); err == nil {

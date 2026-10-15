@@ -140,7 +140,7 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	/* GTP-U transport addresses are the UPF's and its peer's (TS 29.281
 	 * §4.4.3), and no downlink path reverses a translation of them. */
 	if (ctx->interface == INTERFACE_N3 && !ctx->gtp) {
-		if (masquerade) {
+		if (masquerade && !ctx->nat_exempt) {
 			PROFILE_START(PROF_N3_NAT);
 			int nat_ok = source_nat(ctx, fib_params);
 			PROFILE_END(PROF_N3_NAT);
@@ -221,7 +221,7 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 	/* Only source_nat reads the derived address, and trust_fib skips it.
 	 * Asking anyway adds BPF_FIB_LKUP_RET_NO_SRC_ADDR as a drop reason. */
 	__u64 flags = 0;
-	if (!trust_fib && masquerade) {
+	if (!trust_fib && masquerade && !ctx->nat_exempt) {
 		flags |= BPF_FIB_LOOKUP_SRC;
 	}
 	int rc = bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),

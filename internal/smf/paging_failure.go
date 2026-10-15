@@ -6,6 +6,7 @@ package smf
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -26,6 +27,10 @@ func (s *SMF) HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pdu
 
 	s.suppressDownlinkDataNotification(ctx, smContext)
 
+	smContext.Mutex.Lock()
+	smContext.userPlaneRequested = false
+	smContext.Mutex.Unlock()
+
 	return nil
 }
 
@@ -35,7 +40,7 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
 	}
 
-	smContext := s.currentEPSSession(supi, ebi)
+	smContext := s.epsSessionOfBearer(supi, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
@@ -60,4 +65,22 @@ func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, smContext *S
 	}
 
 	s.upf.SuppressDownlinkDataNotification(ctx, pfcp.SEID)
+}
+
+func (s *SMF) epsSessionOfBearer(supi etsi.SUPI, ebi uint8) *SMContext {
+	if sc := s.currentEPSSession(supi, ebi); sc != nil {
+		return sc
+	}
+
+	for _, sc := range s.epsSessionsOf(supi) {
+		sc.Mutex.Lock()
+		held := slices.ContainsFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.ebi == ebi })
+		sc.Mutex.Unlock()
+
+		if held {
+			return sc
+		}
+	}
+
+	return nil
 }

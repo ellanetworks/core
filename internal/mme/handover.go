@@ -612,6 +612,8 @@ func (m *MME) unwindHandover(ctx context.Context, ue *UeContext, cause s1ap.Caus
 
 	if relocated {
 		m.dropRelocation(ctx, ue)
+	} else {
+		defer m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 	}
 
 	if releaseTarget == nil {

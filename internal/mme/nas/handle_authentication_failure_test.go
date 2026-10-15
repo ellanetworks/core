@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -85,24 +86,12 @@ func authChallengedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 func autsFor(t *testing.T, ue *mme.UeContext, sqnMS []byte) []byte {
 	t.Helper()
 
-	opc, k, rand := testSubscriber.OPc[:], testSubscriber.K[:], ue.Conn().AuthVector.RAND[:]
-
-	ak := make([]byte, 6)
-	if err := udm.F2345(opc, k, rand, nil, nil, nil, nil, ak); err != nil {
+	auts, err := milenage.GenerateAUTS(testSubscriber.OPc[:], testSubscriber.K[:], ue.Conn().AuthVector.RAND[:], sqnMS)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	conc := make([]byte, 6)
-	for i := range conc {
-		conc[i] = sqnMS[i] ^ ak[i]
-	}
-
-	macS := make([]byte, 8)
-	if err := udm.F1(opc, k, rand, sqnMS, []byte{0x00, 0x00}, nil, macS); err != nil {
-		t.Fatal(err)
-	}
-
-	return append(conc, macS...)
+	return auts
 }
 
 func authFailure(_ *testing.T, cause eps.EMMCause, auts []byte) *eps.AuthenticationFailure {

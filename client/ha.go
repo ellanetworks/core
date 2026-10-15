@@ -4,8 +4,10 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"time"
 )
@@ -58,13 +60,25 @@ func (ha *haRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestRe
 		retries = n
 	}
 
+	body, replayable := replayableBody(opts.Body)
+	if !replayable {
+		retries = 1
+	}
+
 	var lastErr error
 
 	for attempt := range retries {
 		idx := (start + attempt) % n
 		rq := ha.requesters[idx]
 
-		resp, err := rq.Do(ctx, opts)
+		attemptOpts := opts
+		if replayable && opts.Body != nil {
+			replay := *opts
+			replay.Body = bytes.NewReader(body)
+			attemptOpts = &replay
+		}
+
+		resp, err := rq.Do(ctx, attemptOpts)
 		if err != nil {
 			lastErr = err
 
@@ -93,6 +107,17 @@ func (ha *haRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestRe
 	}
 
 	return nil, ConnectionError{fmt.Errorf("all endpoints failed after %d attempts: %w", retries, lastErr)}
+}
+
+func replayableBody(r io.Reader) ([]byte, bool) {
+	switch b := r.(type) {
+	case nil:
+		return nil, true
+	case *bytes.Buffer:
+		return b.Bytes(), true
+	default:
+		return nil, false
+	}
 }
 
 func waitForRetry(ctx context.Context, d time.Duration) error {

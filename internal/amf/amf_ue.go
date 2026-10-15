@@ -34,10 +34,11 @@ import (
 )
 
 type SmContext struct {
-	Ref    string
-	Snssai *models.Snssai
-	Dnn    string
-	EBI    uint8
+	Ref      string
+	Snssai   *models.Snssai
+	Dnn      string
+	EBI      uint8
+	FlowEBIs []uint8
 }
 
 type UeContext struct {
@@ -105,10 +106,12 @@ type UeContext struct {
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A)
 	SmContextList            map[uint8]*SmContext
 
-	allow4G bool
+	allow4G      bool
+	reservedEBIs map[uint8]uint8
 
 	smsOverNAS           atomic.Bool
 	smsRequested         atomic.Bool
+	imsVoPS              atomic.Bool
 	smsIndicationPending atomic.Pointer[bool]
 	smsIndicationSent    atomic.Pointer[bool]
 	smsMu                sync.Mutex
@@ -266,7 +269,7 @@ func (a *AMF) deactivateDisplacedUserPlane(ctx context.Context, ue *UeContext, d
 
 		displaced.SetN2SessionInactive(pduSessionID)
 
-		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
+		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref, true); err != nil {
 			displaced.Log(ctx).Warn("could not deactivate the user plane of a displaced connection",
 				zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
@@ -339,6 +342,7 @@ type UESnapshot struct {
 	IntegrityAlgorithm string
 	Connected          bool
 	Registered         bool
+	IMSVoPS            bool
 	Connection         *UEConnection
 }
 
@@ -360,6 +364,7 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 		Connected:          conn != nil,
 		Registered:         ue.state == Registered || ue.state == DeregistrationInitiated,
+		IMSVoPS:            ue.imsVoPS.Load(),
 	}
 
 	if conn != nil {
@@ -762,13 +767,13 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	logger.From(ctx, logger.AmfLog).Info("UE deregistered", logger.RAT(metrics.RAT5G))
 }
 
-func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
+func (ue *UeContext) deactivateSmContexts(ctx context.Context, ueConn *UeConn) {
 	if ue == nil || ue.smf == nil {
 		return
 	}
 
 	for _, ref := range ue.SmContextRefs() {
-		if err := ue.smf.DeactivateSmContext(ctx, ref.Ref); err != nil {
+		if err := ue.smf.DeactivateSmContext(ctx, ref.Ref, ueConn.N2SessionInactive(ref.PduSessionID)); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to deactivate SM context for paging", zap.Error(err), logger.PDUSessionID(ref.PduSessionID))
 		}
 	}

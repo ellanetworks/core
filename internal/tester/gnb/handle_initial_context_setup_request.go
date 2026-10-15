@@ -103,6 +103,7 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 					FiveQi:       s.FiveQi,
 					PriArp:       s.PriArp,
 					PduSType:     s.PduSType,
+					Flows:        s.Flows,
 				}
 			}
 		}

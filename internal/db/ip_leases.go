@@ -26,6 +26,7 @@ const (
 	createLeaseStmt              = "INSERT INTO %s (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.poolType, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
 	getDynamicLeaseBySessionStmt = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND sessionID==$IPLease.sessionID AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
+	getActiveLeaseByAddressStmt  = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND addressBin==$IPLease.addressBin AND sessionID IS NOT NULL"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	deleteLeaseStmt              = "DELETE FROM %s WHERE id==$IPLease.id AND type='dynamic'"
@@ -246,6 +247,44 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 	row := IPLease{PoolID: poolID, PoolType: poolType, SessionID: &sessionID, IMSI: imsi}
 
 	err := db.conn().Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return &row, nil
+}
+
+func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, address netip.Addr) (*IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (by address)", "SELECT", IPLeasesTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			semconv.DBCollectionName(IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	b := address.As16()
+	row := IPLease{PoolID: poolID, AddressBin: b[:]}
+
+	err := db.conn().Query(ctx, db.getActiveLeaseByAddressStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

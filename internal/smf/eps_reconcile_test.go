@@ -35,7 +35,7 @@ func epsReconcileFixture(t *testing.T, pduSessionID uint8) (*smf.SMF, *fakePCF, 
 	}
 
 	enb := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,7 +111,7 @@ func TestCreateEPSSessionSelectsTheSlice(t *testing.T) {
 	}
 }
 
-func TestEPSSessionMovedFrom5GSKeepsItsSlicesPolicy(t *testing.T) {
+func TestEPSSessionMovedFrom5GSKeepsItsPolicyAssociation(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	s.SetMME(mmeCb)
@@ -128,12 +128,12 @@ func TestEPSSessionMovedFrom5GSKeepsItsSlicesPolicy(t *testing.T) {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	if pcf.lastSnssai == nil || !pcf.lastSnssai.Equal(slice) {
-		t.Fatalf("policy resolved for slice %+v, want the moving session's %+v", pcf.lastSnssai, slice)
+	if pcf.lastSnssai != nil {
+		t.Fatalf("the PCF was asked for a decision on slice %+v, want the moving session to keep its association", pcf.lastSnssai)
 	}
 
-	if pcf.apnLookups != 0 {
-		t.Fatal("the policy of a session moving with its slice was resolved by APN alone")
+	if _, ok := pcf.associations[sc.Ref]; !ok || !sc.Snssai.Equal(slice) {
+		t.Fatalf("session on slice %+v with association %t, want slice %+v and its association kept", sc.Snssai, ok, slice)
 	}
 }
 
@@ -153,8 +153,8 @@ func TestUERequestedEPSHandoverKeepsTheSessionsSlice(t *testing.T) {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	if pcf.apnLookups != 0 || pcf.lastSnssai == nil || !pcf.lastSnssai.Equal(*sc.Snssai) {
-		t.Fatalf("policy resolved for slice %+v after %d APN lookups, want the moving session's %+v", pcf.lastSnssai, pcf.apnLookups, sc.Snssai)
+	if pcf.lastSnssai != nil || bearer.Snssai == nil || !bearer.Snssai.Equal(*sc.Snssai) {
+		t.Fatalf("bearer on slice %+v, PCF asked on %+v; want the moving session's %+v and no new decision", bearer.Snssai, pcf.lastSnssai, sc.Snssai)
 	}
 
 	var flows []byte

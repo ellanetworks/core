@@ -17,6 +17,10 @@ func handleModifyBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 
 	if p == nil {
+		if m.DedicatedBearerModifyAccepted(ctx, ue, uint8(accept.EPSBearerIdentity)) {
+			return nasreply.Handled()
+		}
+
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 

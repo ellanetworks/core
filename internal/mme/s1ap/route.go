@@ -47,6 +47,8 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 			handleENBConfigurationTransfer(ctx, m, radio, p.Value)
 		case s1ap.ProcERABModificationIndication:
 			handleERABModificationIndication(ctx, m, radio, p.Value)
+		case s1ap.ProcERABReleaseIndication:
+			handleERABReleaseIndication(ctx, m, radio, p.Value)
 		case s1ap.ProcUplinkUEAssociatedLPPaTransport:
 			handleUplinkLPPaTransport(ctx, m, radio, p.Value)
 		case s1ap.ProcLocationReport:

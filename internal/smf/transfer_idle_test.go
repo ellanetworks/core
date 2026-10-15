@@ -31,7 +31,7 @@ func establishEPSOnENB(t *testing.T, s *smf.SMF) *smf.SMContext {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -117,6 +117,10 @@ func TestTransferIdle5GSToEPSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	if calls[0].ref != sc.Ref || calls[0].pduSessionID != movedPDUSessionID {
 		t.Errorf("AMF told about ref %q pdu session %d, want %q / %d",
 			calls[0].ref, calls[0].pduSessionID, sc.Ref, movedPDUSessionID)
+	}
+
+	if calls[0].n2Transfer != nil {
+		t.Error("an N2 release went for a session transferred to EPS: the AMF releases only the PDU sessions not transferred (TS 23.502 §4.11.1.3.2 step 15)")
 	}
 }
 
@@ -266,7 +270,7 @@ func TestTransferIdleTo4GLetsTheENBBindTheDownlink(t *testing.T) {
 	}
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, enb, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 

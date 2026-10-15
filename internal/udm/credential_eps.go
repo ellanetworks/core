@@ -44,37 +44,21 @@ func (s *Service) GenerateEPSVector(ctx context.Context, imsi string, plmnID []b
 		return nil, fmt.Errorf("rand read error: %w", err)
 	}
 
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	ck, ik := make([]byte, 16), make([]byte, 16)
-	res := make([]byte, 8)
-	ak := make([]byte, 6)
-
-	if err = F1(opc, k, randArr[:], sqn, amf, macA, macS); err != nil {
-		return nil, fmt.Errorf("milenage F1: %w", err)
-	}
-
-	if err = F2345(opc, k, randArr[:], res, ck, ik, ak, nil); err != nil {
-		return nil, fmt.Errorf("milenage F2345: %w", err)
-	}
-
-	sqnXorAK := make([]byte, 6)
-	for i := range sqn {
-		sqnXorAK[i] = sqn[i] ^ ak[i]
-	}
-
-	// AUTN = (SQN⊕AK) ‖ AMF ‖ MAC-A (TS 33.102 §6.3.2).
-	var autn [16]byte
-
-	copy(autn[0:6], sqnXorAK)
-	copy(autn[6:8], amf)
-	copy(autn[8:16], macA)
-
-	kasme, err := deriveKASME(ck, ik, plmnID, sqnXorAK)
+	v, err := milenageVector(k, opc, sqn, amf, randArr[:])
 	if err != nil {
 		return nil, err
 	}
 
-	return &EPSAV{RAND: randArr, AUTN: autn, XRES: res, KASME: kasme}, nil
+	var autn [16]byte
+
+	copy(autn[:], v.autn)
+
+	kasme, err := deriveKASME(v.ck, v.ik, plmnID, v.sqnXorAK)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EPSAV{RAND: randArr, AUTN: autn, XRES: v.res, KASME: kasme}, nil
 }
 
 // deriveKASME derives K_ASME (TS 33.401 §A.2) from CK‖IK, the serving-network

@@ -33,6 +33,7 @@ var apiMatrixHAResources = map[string]apiMatrixHARunner{
 	"operator_nas_security":      runOperatorNASSecurityHAMatrix,
 	"operator_spn":               runOperatorSPNHAMatrix,
 	"operator_sms":               runOperatorSMSHAMatrix,
+	"operator_ims":               runOperatorIMSHAMatrix,
 	"subscriber_usage_retention": runSubscriberUsageRetentionHAMatrix,
 	"radio_events_retention":     runRadioEventsRetentionHAMatrix,
 	"flow_reports_retention":     runFlowReportsRetentionHAMatrix,

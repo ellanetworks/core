@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -1105,6 +1106,49 @@ func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
 
 	if !regAccept.EPSBearerContextStatus.Active[5] || regAccept.EPSBearerContextStatus.Active[6] {
 		t.Errorf("returned status %v, want only EBI 5 active", regAccept.EPSBearerContextStatus)
+	}
+}
+
+// TS 23.502 §4.11.1.3.3 steps 14, 17
+func TestMobilityReg_ReleasesTheFlowsOfBearersTheUEDeletedInEPS(t *testing.T) {
+	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1, Sd: "010203"}, "ims"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(1, 5)
+	ue.SetFlowEPSBearerIdentities(1, []uint8{6, 7})
+
+	status := new(nas.EPSBearerContextStatus)
+	status.Active[5], status.Active[6] = true, true
+
+	ue.Conn().EPSArrival = &amf.EPSArrival{}
+	ue.Conn().RegistrationRequest.EPSBearerContextStatus = status
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(smf.ReleaseSmContextCalls) != 0 {
+		t.Errorf("released %v, want the session kept for its default bearer", smf.ReleaseSmContextCalls)
+	}
+
+	if got := smf.InactiveEPSBearers; len(got) != 1 || got[0].Ref != "ref-1" || !slices.Equal(got[0].EBIs, []uint8{7}) {
+		t.Errorf("inactive EPS bearers sent to the SMF %+v, want EBI 7 of ref-1", got)
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	got := regAccept.EPSBearerContextStatus
+	if got == nil || !got.Active[5] || !got.Active[6] || got.Active[7] {
+		t.Errorf("returned status %v, want EBIs 5 and 6 active: the UE deletes a voice flow its bearer is missing from", got)
 	}
 }
 

@@ -81,6 +81,7 @@ nav:
     - Enable UE-to-UE communication: how_to/enable_ue_to_ue.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md
     - Enable SMS: how_to/enable_sms.md
+    - Enable Voice: how_to/enable_voice.md
   - Reference:
     - reference/index.md
     - API:

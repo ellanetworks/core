@@ -36,7 +36,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		ue.TransitionTo(ctx, EMMDeregistered)
 		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", logger.SUPIFromIMSI(imsi))
 		m.ReleaseAllSessions(ctx, ue)
-		m.RemoveUe(ue)
+		m.RemoveUe(ctx, ue)
 
 		return
 	}

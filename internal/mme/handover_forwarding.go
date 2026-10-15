@@ -16,12 +16,14 @@ import (
 func (m *MME) OpenForwardingTunnel(ctx context.Context, ue *UeContext, ebi uint8, target models.FTEID) (models.ForwardingTunnel, bool) {
 	p := m.LookupPDN(ue, ebi)
 	if p == nil {
-		return models.ForwardingTunnel{}, false
+		if p, _ = m.LookupDedicated(ue, ebi); p == nil {
+			return models.ForwardingTunnel{}, false
+		}
 	}
 
 	ue.forwardingRelease.Stop()
 
-	local, err := m.Session.OpenEPSForwardingTunnel(ctx, p.SessionRef, target)
+	local, err := m.Session.OpenEPSForwardingTunnel(ctx, p.SessionRef, ebi, target)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("could not open an indirect data forwarding tunnel; this E-RAB forwards nothing",
 			logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.Error(err))

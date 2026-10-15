@@ -12,6 +12,60 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type N3N6EntrypointClassifierQuery struct {
+	_                 structs.HostLayout
+	Seid              uint64
+	Imsi              uint64
+	FilterMapIndex    uint32
+	L3Off             uint32
+	Tunnel            uint32
+	L3HdrLen          uint16
+	Sport             uint16
+	Dport             uint16
+	LocalPortOverride uint16
+	Enabled           uint8
+	Direction         uint8
+	Family            uint8
+	Protocol          uint8
+	Ports             uint8
+	Qfi               uint8
+	RemotePort        uint16
+	LocalPort         uint16
+	_                 [2]byte
+	Remote            N3N6EntrypointIn6Addr
+	Remote4           uint32
+	L4Ports           [2]uint16
+	Target            struct {
+		_     structs.HostLayout
+		PdrId uint32
+		QerId uint32
+		UrrId uint32
+		Pad   uint32
+		Far   struct {
+			_                     structs.HostLayout
+			Action                uint8
+			OuterHeaderCreation   uint8
+			_                     [2]byte
+			Teid                  uint32
+			Remoteip              N3N6EntrypointIn6Addr
+			Localip               N3N6EntrypointIn6Addr
+			TransportLevelMarking uint16
+			_                     [2]byte
+		}
+		_   [4]byte
+		Qer struct {
+			_                 structs.HostLayout
+			UlGateStatus      uint8
+			DlGateStatus      uint8
+			Qfi               uint8
+			Pad               uint8
+			AveragingWindowMs uint32
+			UlMaximumBitrate  uint64
+			DlMaximumBitrate  uint64
+		}
+	}
+}
+
 type N3N6EntrypointDlBufferCounters struct {
 	_        structs.HostLayout
 	Captured uint64
@@ -58,6 +112,17 @@ type N3N6EntrypointFlow struct {
 	Dscp           uint8
 	Action         uint8
 	Direction      uint8
+}
+
+type N3N6EntrypointFlowQuery struct {
+	_        structs.HostLayout
+	L3Off    uint32
+	L3HdrLen uint16
+	Ports    uint8
+	Pad      uint8
+	Hdr      [8]uint8
+	Key      N3N6EntrypointFlow
+	Fresh    N3N6EntrypointFlowStats
 }
 
 type N3N6EntrypointFlowStats struct {
@@ -133,7 +198,8 @@ type N3N6EntrypointPdrInfo struct {
 	QerId              uint32
 	OuterHeaderRemoval uint8
 	Forwarding         uint8
-	Pad                [2]uint8
+	Flags              uint8
+	Qfi                uint8
 	Far                struct {
 		_                     structs.HostLayout
 		Action                uint8
@@ -147,13 +213,14 @@ type N3N6EntrypointPdrInfo struct {
 	}
 	_   [4]byte
 	Qer struct {
-		_                structs.HostLayout
-		UlGateStatus     uint8
-		DlGateStatus     uint8
-		Qfi              uint8
-		_                [5]byte
-		UlMaximumBitrate uint64
-		DlMaximumBitrate uint64
+		_                 structs.HostLayout
+		UlGateStatus      uint8
+		DlGateStatus      uint8
+		Qfi               uint8
+		Pad               uint8
+		AveragingWindowMs uint32
+		UlMaximumBitrate  uint64
+		DlMaximumBitrate  uint64
 	}
 	FilterMapIndex uint32
 	UeIpv4         N3N6EntrypointIn6Addr
@@ -202,6 +269,57 @@ type N3N6EntrypointRouteStat struct {
 	Ip6IfindexMismatch      uint64
 	FibLookupIp4Error       uint64
 	FibLookupIp6Error       uint64
+}
+
+type N3N6EntrypointSdfClassifier struct {
+	_        structs.HostLayout
+	NumRules uint8
+	Pad      [7]uint8
+	Rules    [32]struct {
+		_              structs.HostLayout
+		Remote         N3N6EntrypointIn6Addr
+		Tunnel         uint32
+		RemotePortLow  uint16
+		RemotePortHigh uint16
+		LocalPortLow   uint16
+		LocalPortHigh  uint16
+		PrefixLen      uint8
+		Protocol       uint8
+		Direction      uint8
+		Family         uint8
+		Target         uint8
+		Qfi            uint8
+		Pad            [2]uint8
+	}
+	Targets [32]struct {
+		_     structs.HostLayout
+		PdrId uint32
+		QerId uint32
+		UrrId uint32
+		Pad   uint32
+		Far   struct {
+			_                     structs.HostLayout
+			Action                uint8
+			OuterHeaderCreation   uint8
+			_                     [2]byte
+			Teid                  uint32
+			Remoteip              N3N6EntrypointIn6Addr
+			Localip               N3N6EntrypointIn6Addr
+			TransportLevelMarking uint16
+			_                     [2]byte
+		}
+		_   [4]byte
+		Qer struct {
+			_                 structs.HostLayout
+			UlGateStatus      uint8
+			DlGateStatus      uint8
+			Qfi               uint8
+			Pad               uint8
+			AveragingWindowMs uint32
+			UlMaximumBitrate  uint64
+			DlMaximumBitrate  uint64
+		}
+	}
 }
 
 type N3N6EntrypointSdfFilterList struct {
@@ -260,6 +378,7 @@ type N3N6EntrypointVethTunnelInfo struct {
 //
 // Used for safe lookups in a Collection or CollectionSpec.
 const (
+	N3N6EntrypointMapClassifierScratch   = "classifier_scratch"
 	N3N6EntrypointMapCsumScratch         = "csum_scratch"
 	N3N6EntrypointMapDlBufferCountersMap = "dl_buffer_counters_map"
 	N3N6EntrypointMapDlBufferMap         = "dl_buffer_map"
@@ -267,6 +386,7 @@ const (
 	N3N6EntrypointMapDownlinkRouteStats  = "downlink_route_stats"
 	N3N6EntrypointMapDownlinkStatistics  = "downlink_statistics"
 	N3N6EntrypointMapErrorIndMap         = "error_ind_map"
+	N3N6EntrypointMapFlowScratch         = "flow_scratch"
 	N3N6EntrypointMapFlowStats           = "flow_stats"
 	N3N6EntrypointMapFragNatIdSeq        = "frag_nat_id_seq"
 	N3N6EntrypointMapFragPortsIp4        = "frag_ports_ip4"
@@ -283,6 +403,7 @@ const (
 	N3N6EntrypointMapQerWindows          = "qer_windows"
 	N3N6EntrypointMapRingbufLost         = "ringbuf_lost"
 	N3N6EntrypointMapRsEventMap          = "rs_event_map"
+	N3N6EntrypointMapSdfClassifiers      = "sdf_classifiers"
 	N3N6EntrypointMapSdfFilters          = "sdf_filters"
 	N3N6EntrypointMapUpfCalls            = "upf_calls"
 	N3N6EntrypointMapUplinkRouteStats    = "uplink_route_stats"
@@ -363,6 +484,7 @@ type N3N6EntrypointProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointMapSpecs struct {
+	ClassifierScratch   *ebpf.MapSpec `ebpf:"classifier_scratch"`
 	CsumScratch         *ebpf.MapSpec `ebpf:"csum_scratch"`
 	DlBufferCountersMap *ebpf.MapSpec `ebpf:"dl_buffer_counters_map"`
 	DlBufferMap         *ebpf.MapSpec `ebpf:"dl_buffer_map"`
@@ -370,6 +492,7 @@ type N3N6EntrypointMapSpecs struct {
 	DownlinkRouteStats  *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics  *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	ErrorIndMap         *ebpf.MapSpec `ebpf:"error_ind_map"`
+	FlowScratch         *ebpf.MapSpec `ebpf:"flow_scratch"`
 	FlowStats           *ebpf.MapSpec `ebpf:"flow_stats"`
 	FragNatIdSeq        *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
 	FragPortsIp4        *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
@@ -386,6 +509,7 @@ type N3N6EntrypointMapSpecs struct {
 	QerWindows          *ebpf.MapSpec `ebpf:"qer_windows"`
 	RingbufLost         *ebpf.MapSpec `ebpf:"ringbuf_lost"`
 	RsEventMap          *ebpf.MapSpec `ebpf:"rs_event_map"`
+	SdfClassifiers      *ebpf.MapSpec `ebpf:"sdf_classifiers"`
 	SdfFilters          *ebpf.MapSpec `ebpf:"sdf_filters"`
 	UpfCalls            *ebpf.MapSpec `ebpf:"upf_calls"`
 	UplinkRouteStats    *ebpf.MapSpec `ebpf:"uplink_route_stats"`
@@ -432,6 +556,7 @@ func (o *N3N6EntrypointObjects) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointMaps struct {
+	ClassifierScratch   *ebpf.Map `ebpf:"classifier_scratch"`
 	CsumScratch         *ebpf.Map `ebpf:"csum_scratch"`
 	DlBufferCountersMap *ebpf.Map `ebpf:"dl_buffer_counters_map"`
 	DlBufferMap         *ebpf.Map `ebpf:"dl_buffer_map"`
@@ -439,6 +564,7 @@ type N3N6EntrypointMaps struct {
 	DownlinkRouteStats  *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics  *ebpf.Map `ebpf:"downlink_statistics"`
 	ErrorIndMap         *ebpf.Map `ebpf:"error_ind_map"`
+	FlowScratch         *ebpf.Map `ebpf:"flow_scratch"`
 	FlowStats           *ebpf.Map `ebpf:"flow_stats"`
 	FragNatIdSeq        *ebpf.Map `ebpf:"frag_nat_id_seq"`
 	FragPortsIp4        *ebpf.Map `ebpf:"frag_ports_ip4"`
@@ -455,6 +581,7 @@ type N3N6EntrypointMaps struct {
 	QerWindows          *ebpf.Map `ebpf:"qer_windows"`
 	RingbufLost         *ebpf.Map `ebpf:"ringbuf_lost"`
 	RsEventMap          *ebpf.Map `ebpf:"rs_event_map"`
+	SdfClassifiers      *ebpf.Map `ebpf:"sdf_classifiers"`
 	SdfFilters          *ebpf.Map `ebpf:"sdf_filters"`
 	UpfCalls            *ebpf.Map `ebpf:"upf_calls"`
 	UplinkRouteStats    *ebpf.Map `ebpf:"uplink_route_stats"`
@@ -465,6 +592,7 @@ type N3N6EntrypointMaps struct {
 
 func (m *N3N6EntrypointMaps) Close() error {
 	return _N3N6EntrypointClose(
+		m.ClassifierScratch,
 		m.CsumScratch,
 		m.DlBufferCountersMap,
 		m.DlBufferMap,
@@ -472,6 +600,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.ErrorIndMap,
+		m.FlowScratch,
 		m.FlowStats,
 		m.FragNatIdSeq,
 		m.FragPortsIp4,
@@ -488,6 +617,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.QerWindows,
 		m.RingbufLost,
 		m.RsEventMap,
+		m.SdfClassifiers,
 		m.SdfFilters,
 		m.UpfCalls,
 		m.UplinkRouteStats,

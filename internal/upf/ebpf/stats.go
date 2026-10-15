@@ -313,6 +313,7 @@ var dropReasonNames = [...]string{
 	"mtu_exceeded",
 	"reinject_unowned",
 	"fragmented_transport",
+	"bearer_binding",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.

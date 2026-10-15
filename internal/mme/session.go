@@ -18,6 +18,8 @@ func takeAllPDNs(ue *UeContext) []*PdnConnection {
 
 	out := make([]*PdnConnection, 0, len(ue.Pdns))
 	for _, p := range ue.Pdns {
+		p.guard.Stop()
+		p.takeDedicatedLocked()
 		out = append(out, p)
 	}
 
@@ -55,10 +57,12 @@ func (ue *UeContext) LocalBearerDeactivationPending() bool {
 }
 
 func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	m.StopESMGuard(p)
 	m.releaseAnchorSession(ctx, ue, p)
 
 	ue.mu.Lock()
 	if held, ok := ue.Pdns[p.Ebi]; ok && held == p {
+		p.takeDedicatedLocked()
 		delete(ue.Pdns, p.Ebi)
 		ue.localBearerDeactivation = true
 	}
@@ -168,6 +172,7 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 		return nil, false
 	}
 
+	p.takeDedicatedLocked()
 	delete(ue.Pdns, ebi)
 
 	ue.localBearerDeactivation = true

@@ -382,6 +382,80 @@ func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	}
 }
 
+func TestNATExemptSessionKeepsTheUEAddress(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x4E415407
+
+	f := setupT2(t, true)
+
+	pdr := PdrInfo{
+		IMSI:   "001010000000001",
+		Far:    FarInfo{Action: 0x02},
+		UEIPv4: netip.AddrFrom4(ueIP),
+		Flags:  PdrFlagNATExempt,
+	}
+	if err := f.obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	for _, proto := range natProtos {
+		t.Run(proto.name, func(t *testing.T) {
+			capFD := f.captureN6(t)
+
+			l4 := proto.build(ueIP, serverIP, proto.sport, proto.dport, bytesOf(40))
+			f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, proto.num, l4)))
+
+			got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+				return isInnerIPv4(fr, proto.num, serverIP)
+			})
+			if got == nil {
+				t.Fatal("did not capture the uplink packet on the N6 side")
+			}
+
+			if src := got[ethHdrLen+12 : ethHdrLen+16]; !bytes.Equal(src, ueIP[:]) {
+				t.Fatalf("source = %v, want the UE address %v: a NAT-exempt session must not be translated", src, ueIP)
+			}
+		})
+	}
+}
+
+func TestNATExemptSessionAcceptsUnsolicitedDownlink(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		dlTEID = 0x4E415408
+		qfi    = 7
+	)
+
+	f := setupT2(t, true)
+
+	pdr := ipv4OuterDownlinkPDR(dlTEID, testUPFN3IP, testGNBIP, qfi)
+	pdr.Flags = PdrFlagNATExempt
+
+	if err := f.obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	for _, proto := range natProtos {
+		t.Run(proto.name, func(t *testing.T) {
+			capFD := f.captureN3(t)
+
+			l4 := proto.build(serverIP, ueIP, proto.dport, proto.sport, []byte{1, 2})
+			f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, ueIP, proto.num, l4)))
+
+			got := captureMatching(capFD, time.Second, func(fr []byte) bool {
+				inner := gtpInner(fr)
+
+				return inner != nil && inner[9] == proto.num && bytes.Equal(inner[16:20], ueIP[:])
+			})
+			if got == nil {
+				t.Fatalf("unsolicited %s packet to a NAT-exempt UE did not egress on N3", proto.name)
+			}
+		})
+	}
+}
+
 func TestNATICMPErrorFromRouter(t *testing.T) {
 	requireProgTestRun(t)
 

@@ -1,0 +1,136 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package models
+
+import (
+	"net/netip"
+
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
+)
+
+type FilterDirection uint8
+
+const (
+	FilterDownlink      FilterDirection = 1
+	FilterUplink        FilterDirection = 2
+	FilterBidirectional FilterDirection = 3
+)
+
+type SDFFilter struct {
+	ID         uint8
+	Direction  FilterDirection
+	Precedence uint8
+	Protocol   uint8
+	Remote     netip.Prefix
+	LocalPort  uint16
+	RemotePort uint16
+}
+
+type DedicatedBearerRequest struct {
+	SessionRef string
+	LinkedEBI  uint8
+	Bearer     DedicatedBearerContext
+
+	MappedFiveGSQoS []nas.PCOContainer
+}
+
+type DedicatedBearerContext struct {
+	EBI       uint8
+	QCI       uint8
+	ARP       Arp
+	MBR       Ambr
+	GBR       Ambr
+	Filters   []SDFFilter
+	SGW       FTEID
+	SGWN3IPv6 netip.Addr
+}
+
+type BearerRates struct {
+	MBR Ambr
+	GBR Ambr
+}
+
+type DedicatedBearerModification struct {
+	SessionRef string
+	SGWTEID    uint32
+	Rates      *BearerRates
+	ARP        *Arp
+	Operation  eps.TFTOperation
+	Filters    []SDFFilter
+	DeleteIDs  []uint8
+
+	MappedFiveGSQoS []nas.PCOContainer
+}
+
+func GBRQCI(qci uint8) bool {
+	return (qci >= 1 && qci <= 4) || (qci >= 65 && qci <= 67) || (qci >= 71 && qci <= 76) || (qci >= 82 && qci <= 85)
+}
+
+func GBRFiveQI(fiveQI uint8) bool {
+	return GBRQCI(fiveQI) || (fiveQI >= 86 && fiveQI <= 90)
+}
+
+func (f SDFFilter) Constrained() bool {
+	return f.Remote.IsValid() || f.Protocol != 0 || f.LocalPort != 0 || f.RemotePort != 0
+}
+
+func EPSTFT(op eps.TFTOperation, filters []SDFFilter) eps.TrafficFlowTemplate {
+	t := eps.TrafficFlowTemplate{Operation: op}
+
+	for _, f := range filters {
+		var comps []eps.TFTComponent
+
+		if c, err := eps.RemoteAddress(f.Remote); err == nil {
+			comps = append(comps, c)
+		}
+
+		if f.Protocol != 0 {
+			comps = append(comps, eps.ProtocolIdentifier(f.Protocol))
+		}
+
+		if f.LocalPort != 0 {
+			comps = append(comps, eps.SingleLocalPort(f.LocalPort))
+		}
+
+		if f.RemotePort != 0 {
+			comps = append(comps, eps.SingleRemotePort(f.RemotePort))
+		}
+
+		t.Filters = append(t.Filters, eps.TFTPacketFilter{
+			Identifier: f.ID,
+			Direction:  eps.TFTDirection(f.Direction),
+			Precedence: f.Precedence,
+			Components: comps,
+		})
+	}
+
+	return t
+}
+
+type DedicatedBearerEndpoint struct {
+	SGWTEID uint32
+	ENB     FTEID
+}
+
+type BearerModificationOutcome uint8
+
+const (
+	ModificationCommitted BearerModificationOutcome = iota
+	ModificationFailed
+	ModificationInterrupted
+)
+
+func (o BearerModificationOutcome) String() string {
+	switch o {
+	case ModificationCommitted:
+		return "committed"
+	case ModificationFailed:
+		return "failed"
+	case ModificationInterrupted:
+		return "interrupted"
+	default:
+		return "unknown"
+	}
+}

@@ -33,7 +33,7 @@ func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 
-	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, enb); err == nil {
+	if err := s.ModifyEPSSession(ctx, ref, epsTestEBI, enb, nil); err == nil {
 		t.Error("ModifyEPSSession on a 5G session = nil, want error: the session was established over 5G")
 	}
 

@@ -67,6 +67,22 @@ func TestIngestAttachRequestExtractsAPN(t *testing.T) {
 	}
 }
 
+func TestIngestAttachRequestMatchesTheAPNWithoutCase(t *testing.T) {
+	esm, err := (&eps.PDNConnectivityRequest{
+		PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("IMS")),
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal PDN Connectivity Request: %v", err)
+	}
+
+	ue, ueConn := attachingUE(t)
+	ingestAttachRequest(context.Background(), ue, ueConn, &eps.AttachRequest{ESMMessageContainer: esm})
+
+	if ueConn.ESMRequest.APN != "ims" {
+		t.Errorf("requestedAPN = %q, want %q", ueConn.ESMRequest.APN, "ims")
+	}
+}
+
 // TS 24.301 §7.7.1
 func TestIngestAttachRequest_SoftIEErrorKeepsRequest(t *testing.T) {
 	apn := eps.APN("internet")

@@ -11,6 +11,12 @@ import (
 )
 
 func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) error {
+	if sdfDownlink(spdrInfo) {
+		return nil
+	}
+
+	spdrInfo.PdrInfo.Flags = sess.pdrFlags(spdrInfo)
+
 	if spdrInfo.UEIP.IsValid() {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.UEIP, spdrInfo.PdrInfo); err != nil {
 			return fmt.Errorf("can't apply downlink PDR: %w", err)
@@ -26,9 +32,15 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 			logger.SEID(sess.SEID), logger.TEID(spdrInfo.TeID))
 	}
 
-	spdrInfo.PdrInfo.UEIPv4, spdrInfo.PdrInfo.UEIPv6Prefix = v4, v6
+	entry, ok := sess.tunnelEntry(spdrInfo.TeID)
+	if !ok {
+		entry = spdrInfo
+	}
 
-	if err := bpfObjects.PutPdrUplink(spdrInfo.TeID, spdrInfo.PdrInfo); err != nil {
+	entry.PdrInfo.Flags = sess.pdrFlags(entry)
+	entry.PdrInfo.UEIPv4, entry.PdrInfo.UEIPv6Prefix = v4, v6
+
+	if err := bpfObjects.PutPdrUplink(entry.TeID, entry.PdrInfo); err != nil {
 		return fmt.Errorf("can't apply GTP PDR: %w", err)
 	}
 
@@ -47,7 +59,7 @@ func pdrDirection(spdrInfo SPDRInfo) models.Direction {
 // than old, whose entry then has to be removed. applyPDR keys downlink on the
 // UE address and uplink on the TEID.
 func pdrKeyChanged(old, updated SPDRInfo) bool {
-	if old.UEIP.IsValid() != updated.UEIP.IsValid() {
+	if old.UEIP.IsValid() != updated.UEIP.IsValid() || sdfDownlink(old) != sdfDownlink(updated) {
 		return true
 	}
 
@@ -59,14 +71,22 @@ func pdrKeyChanged(old, updated SPDRInfo) bool {
 }
 
 // unapplyPDR removes the eBPF map entry applyPDR installed for spdrInfo.
-func unapplyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
+func unapplyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) error {
+	if sdfDownlink(spdrInfo) {
+		return nil
+	}
+
 	if spdrInfo.UEIP.IsValid() {
 		return bpfObjects.DeletePdrDownlink(spdrInfo.UEIP)
 	}
 
-	if spdrInfo.TeID != 0 {
-		return bpfObjects.DeletePdrUplink(spdrInfo.TeID)
+	if spdrInfo.TeID == 0 {
+		return nil
 	}
 
-	return nil
+	if entry, ok := sess.tunnelEntry(spdrInfo.TeID); ok && entry.PdrID != spdrInfo.PdrID {
+		return applyPDR(entry, sess, bpfObjects)
+	}
+
+	return bpfObjects.DeletePdrUplink(spdrInfo.TeID)
 }

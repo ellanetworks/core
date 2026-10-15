@@ -33,6 +33,7 @@ type HandlerConfig struct {
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
 	MME                 *mme.MME
+	HSS                 IMSSubscribers
 	BGP                 *bgp.BGPService
 	BcryptCost          int
 	Ready               *atomic.Bool
@@ -53,6 +54,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	sessions := cfg.Sessions
 	amfInstance := cfg.AMF
 	mmeInstance := cfg.MME
+	hssInstance := cfg.HSS
 	bgpService := cfg.BGP
 	bcryptCost := cfg.BcryptCost
 	reconcileRoutes := cfg.ReconcileRoutes
@@ -112,9 +114,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListSubscribers(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateSubscriber, CreateSubscriber(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, UpdateSubscriber(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}/credentials", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriberCredentials, GetSubscriberCredentials(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
 
 	// Subscriber Usage (Authenticated)
 	mux.HandleFunc("GET /api/v1/subscriber-usage/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetSubscriberUsageRetentionPolicy, GetSubscriberUsageRetentionPolicy(dbInstance))).ServeHTTP)
@@ -159,6 +161,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/operator/sms/smsc-peers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, CreateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, UpdateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, DeleteSMSCPeer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/ims", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateOperatorIMS(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)

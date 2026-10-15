@@ -81,6 +81,8 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 
 	native := ue.nativeContextForIdleArrival()
 
+	ue.setRequestedReactivation(opts.UplinkDataStatus != nil || opts.PDUSessionStatus != nil)
+
 	cleartext := &RegistrationRequestOpts{
 		RegistrationType:       uint8(fgs.RegistrationTypeMobilityUpdating),
 		FollowOnRequest:        true,

@@ -5,6 +5,7 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
+import { Alert } from "@mui/material";
 import { updateOperatorID } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
@@ -66,6 +67,11 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
       submittingLabel="Updating..."
       fullWidth={false}
     >
+      <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+        Changing the Operator ID renames the Diameter identity and realm of
+        every node. Update the Ella Core peers configured in the IMS and in the
+        SMSC afterwards.
+      </Alert>
       <TextControl<FormValues> name="mcc" label="MCC" autoFocus />
       <TextControl<FormValues> name="mnc" label="MNC" />
     </FormDialog>

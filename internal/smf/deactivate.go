@@ -15,11 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
-	return s.deactivateSession(ctx, smContextRef, Access5G)
+func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error {
+	return s.deactivateSession(ctx, smContextRef, Access5G, preserveGBR)
 }
 
-func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by AccessType) error {
+func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by AccessType, preserveGBR bool) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -53,8 +53,8 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		smContext.pendingPolicy = nil
 	}
 
-	// Leave any network-requested procedure timer running: CM/ECM-IDLE is resolved
-	// by paging, not by abandoning the procedure (TS 24.501 §6.3.2.5/§6.3.3.5).
+	// Leave the session-level network-requested procedure timer running: CM/ECM-IDLE
+	// is resolved by paging, not by abandoning the procedure (TS 24.501 §6.3.2.5/§6.3.3.5).
 
 	// Session already torn down; nothing to deactivate.
 	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
@@ -69,6 +69,10 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 	}
 
 	seid := smContext.PFCPContext.SEID
+
+	if by == Access5G {
+		s.radioReleasedLocked(ctx, smContext, preserveGBR)
+	}
 
 	next := smContext.Tunnel.dataPlane
 	next.Downlink = DownlinkBuffering

@@ -33,7 +33,7 @@ func establishSecondEPSSession(t *testing.T, s *smf.SMF) *smf.SMContext {
 		t.Fatalf("CreateEPSSession (second PDN connection): %v", err)
 	}
 
-	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI+1, sourceENB); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI+1, sourceENB, nil); err != nil {
 		t.Fatalf("ModifyEPSSession (second PDN connection): %v", err)
 	}
 
@@ -355,7 +355,7 @@ func epsSessionForwardingTo(t *testing.T, s *smf.SMF, target models.FTEID) *smf.
 	sc.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
 	sc.Tunnel.Downlink = smf.DownlinkForwarding
 
-	if _, err := s.OpenEPSForwardingTunnel(context.Background(), sc.Ref, target); err != nil {
+	if _, err := s.OpenEPSForwardingTunnel(context.Background(), sc.Ref, sc.EBI, target); err != nil {
 		t.Fatalf("OpenEPSForwardingTunnel: %v", err)
 	}
 

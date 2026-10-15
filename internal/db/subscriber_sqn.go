@@ -22,7 +22,10 @@ type AdvanceSQNPayload struct {
 	IMSI       string `json:"imsi"`
 	ResyncAuts string `json:"resyncAuts,omitempty"`
 	ResyncRand string `json:"resyncRand,omitempty"`
+	Domain     string `json:"domain,omitempty"`
 }
+
+const SQNDomainIMS = "ims"
 
 type AdvancedCredentials struct {
 	PermanentKey   string `json:"permanentKey"`
@@ -70,7 +73,7 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 			return nil, fmt.Errorf("subscriber %s missing key material", payload.IMSI)
 		}
 
-		next, err := sqn.Next(row.SequenceNumber, row.Opc, row.PermanentKey, payload.ResyncAuts, payload.ResyncRand)
+		next, err := nextSQN(row, payload)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +103,30 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 	return nil, fmt.Errorf("sequence number for subscriber %s contended beyond %d attempts", payload.IMSI, maxSQNCASAttempts)
 }
 
+func nextSQN(row Subscriber, payload *AdvanceSQNPayload) (string, error) {
+	switch payload.Domain {
+	case "":
+		return sqn.Next(row.SequenceNumber, row.Opc, row.PermanentKey, payload.ResyncAuts, payload.ResyncRand)
+	case SQNDomainIMS:
+		if payload.ResyncAuts != "" {
+			return sqn.NextIMSResync(row.SequenceNumber, row.Opc, row.PermanentKey, payload.ResyncAuts, payload.ResyncRand)
+		}
+
+		return sqn.NextIMS(row.SequenceNumber)
+	default:
+		return "", fmt.Errorf("unknown sequence number domain %q", payload.Domain)
+	}
+}
+
 func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
+	return db.advanceSubscriberSQN(ctx, &AdvanceSQNPayload{IMSI: imsi, ResyncAuts: resyncAuts, ResyncRand: resyncRand})
+}
+
+func (db *Database) AdvanceSubscriberIMSSQN(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
+	return db.advanceSubscriberSQN(ctx, &AdvanceSQNPayload{IMSI: imsi, ResyncAuts: resyncAuts, ResyncRand: resyncRand, Domain: SQNDomainIMS})
+}
+
+func (db *Database) advanceSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (*AdvancedCredentials, error) {
 	querySummary := fmt.Sprintf("%s %s (advance sqn)", "UPDATE", SubscribersTableName)
 
 	ctx, span := tracer.Start(
@@ -121,11 +147,7 @@ func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, 
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, &AdvanceSQNPayload{
-		IMSI:       imsi,
-		ResyncAuts: resyncAuts,
-		ResyncRand: resyncRand,
-	})
+	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, payload)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -133,7 +155,7 @@ func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, 
 	}
 
 	if creds == nil {
-		err = fmt.Errorf("advance sequence number for subscriber %s: leader returned no credentials", imsi)
+		err = fmt.Errorf("advance sequence number for subscriber %s: leader returned no credentials", payload.IMSI)
 		recordSpanError(span, err)
 
 		return nil, err

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React from "react";
+import React, { useState } from "react";
+import { FormControlLabel, Switch } from "@mui/material";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -14,6 +15,7 @@ import {
   dataNetworkNameRegex,
   poolAndDnsSchema,
 } from "@/components/dataNetworkForm";
+import { IMS_DATA_NETWORK } from "@/utils/voice";
 
 interface CreateDataNetworkModalProps {
   open: boolean;
@@ -40,6 +42,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   onSuccess,
 }) => {
   const { accessToken } = useAuth();
+  const [voice, setVoice] = useState(false);
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -52,6 +55,11 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       mtu: 1456,
     },
   });
+
+  const toggleVoice = (_: React.ChangeEvent<HTMLInputElement>, on: boolean) => {
+    setVoice(on);
+    form.setValue("name", on ? IMS_DATA_NETWORK : "", { shouldValidate: on });
+  };
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
@@ -78,7 +86,16 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       submittingLabel="Creating..."
       fullWidth={false}
     >
-      <TextControl<FormValues> name="name" label="Name" autoFocus />
+      <FormControlLabel
+        control={<Switch checked={voice} onChange={toggleVoice} />}
+        label="Voice (IMS)"
+      />
+      <TextControl<FormValues>
+        name="name"
+        label="Name"
+        autoFocus
+        disabled={voice}
+      />
       <DataNetworkFields />
     </FormDialog>
   );

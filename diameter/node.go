@@ -81,6 +81,7 @@ type Config struct {
 	MaxDuplicateEntries         int
 	OnPeerStateChange           func(PeerStatus)
 	OnReroute                   func(Reroute)
+	SourceAddress               func(remote netip.Addr) (netip.Addr, error)
 	Resolver                    Resolver
 	Logger                      *slog.Logger
 
@@ -174,8 +175,6 @@ func validateConfig(cfg *Config) error {
 		return errors.New("diameter: Identity.OriginHost is required")
 	case id.OriginRealm == "":
 		return errors.New("diameter: Identity.OriginRealm is required")
-	case len(id.HostIPAddresses) == 0:
-		return errors.New("diameter: at least one Identity.HostIPAddresses entry is required")
 	case id.ProductName == "":
 		return errors.New("diameter: Identity.ProductName is required")
 	case cfg.Handler == nil:
@@ -767,11 +766,7 @@ func (n *Node) admit(req *Message) uint32 {
 		return 0
 	}
 
-	if _, ok := req.Find(AVPDestinationHost, 0); ok {
-		return ResultTooBusy
-	}
-
-	return ResultUnableToDeliver
+	return UnavailableResult(req)
 }
 
 func (n *Node) Shutdown(ctx context.Context) error {

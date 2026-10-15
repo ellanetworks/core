@@ -79,9 +79,10 @@ struct {
 } dl_buffer_counters_map SEC(".maps");
 
 /* Copy the L3 packet at l3 into the ring buffer, prefixed by the session identity. */
-static __always_inline bool
-dl_buffer_capture(struct packet_context *ctx, const struct pdr_info *pdr,
-		  const struct qer_info *qer, const void *l3, __u8 family)
+static __always_inline bool dl_buffer_capture(struct packet_context *ctx,
+					      __u64 seid, __u32 pdr_id,
+					      __u8 qfi, const void *l3,
+					      __u8 family)
 {
 	const __u32 zero = 0;
 	struct dl_buffer_counters *ctrs =
@@ -115,10 +116,10 @@ dl_buffer_capture(struct packet_context *ctx, const struct pdr_info *pdr,
 		return false;
 
 	s->hdr = (struct dl_buffer_hdr){
-		.local_seid = pdr->local_seid,
-		.pdr_id = pdr->pdr_id,
+		.local_seid = seid,
+		.pdr_id = pdr_id,
 		.len = len,
-		.qfi = qer->qfi,
+		.qfi = qfi,
 		.family = family,
 	};
 

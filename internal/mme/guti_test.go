@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -46,7 +47,7 @@ func TestReallocateGUTI(t *testing.T) {
 		t.Fatalf("M-TMSI not unique: both %d", binary.BigEndian.Uint32(guti2.GUTI.TMSI[:]))
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 
 	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:])); ok {
 		t.Fatal("M-TMSI index not cleared on UE removal")

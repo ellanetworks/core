@@ -5,7 +5,6 @@ package amf
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
@@ -13,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel"
@@ -156,6 +156,10 @@ type SubscriberProfile struct {
 	Allow4G      bool
 }
 
+func (amf *AMF) subscriptions() *udm.Subscriptions {
+	return udm.NewSubscriptions(amf.DBInstance, nil)
+}
+
 func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_subscriber_profile",
 		trace.WithAttributes(
@@ -164,93 +168,28 @@ func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subscri
 	)
 	defer span.End()
 
-	imsi := supi.IMSI()
-
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
-	}
-
-	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't list policies for profile %s: %w", subscriber.ProfileID, err)
-	}
-
-	sliceIDSet := make(map[string]struct{})
-	for _, p := range policies {
-		sliceIDSet[p.SliceID] = struct{}{}
-	}
-
-	sliceIDs := make([]string, 0, len(sliceIDSet))
-	for id := range sliceIDSet {
-		sliceIDs = append(sliceIDs, id)
-	}
-
-	sort.Strings(sliceIDs)
-
-	slices, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't list slices by IDs: %w", err)
-	}
-
-	var allowedNssai []models.Snssai
-
-	for _, slice := range slices {
-		sd := ""
-		if slice.Sd != nil {
-			sd = *slice.Sd
-		}
-
-		allowedNssai = append(allowedNssai, models.Snssai{
-			Sst: slice.Sst,
-			Sd:  sd,
-		})
-	}
-
-	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %s: %v", subscriber.ProfileID, err)
-	}
-
-	ambr, err := profileUEAMBR(profile)
+	am, err := amf.subscriptions().AccessAndMobility(ctx, supi.IMSI())
 	if err != nil {
 		return nil, err
 	}
 
+	ambr := am.UEAMBR
+
 	return &SubscriberProfile{
-		AllowedNssai: allowedNssai,
-		Ambr:         ambr,
-		Allow5G:      profile.Allow5G,
-		Allow4G:      profile.Allow4G,
+		AllowedNssai: am.SubscribedSNSSAIs,
+		Ambr:         &ambr,
+		Allow5G:      am.Allow5G,
+		Allow4G:      am.Allow4G,
 	}, nil
 }
 
 func (amf *AMF) SubscribedUEAMBR(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, supi.IMSI())
+	ambr, err := amf.subscriptions().UEAMBR(ctx, supi.IMSI())
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %w", supi.IMSI(), err)
+		return nil, err
 	}
 
-	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %s: %w", subscriber.ProfileID, err)
-	}
-
-	return profileUEAMBR(profile)
-}
-
-func profileUEAMBR(profile *db.Profile) (*models.Ambr, error) {
-	ambrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
-	if err != nil {
-		return nil, fmt.Errorf("profile %s UE-AMBR downlink: %w", profile.ID, err)
-	}
-
-	ambrUL, err := models.ParseBitRate(profile.UeAmbrUplink)
-	if err != nil {
-		return nil, fmt.Errorf("profile %s UE-AMBR uplink: %w", profile.ID, err)
-	}
-
-	return &models.Ambr{Downlink: ambrDL, Uplink: ambrUL}, nil
+	return &ambr, nil
 }
 
 func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {
@@ -267,64 +206,17 @@ func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *model
 	)
 	defer span.End()
 
-	imsi := supi.IMSI()
-
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
+	sm, err := amf.subscriptions().SessionManagement(ctx, supi.IMSI())
 	if err != nil {
-		return "", fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
+		return "", err
 	}
 
-	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
-	if err != nil {
-		return "", fmt.Errorf("couldn't list policies for profile %s: %v", subscriber.ProfileID, err)
+	dnn, ok := sm.DefaultDNN(*snssai)
+	if !ok {
+		return "", fmt.Errorf("no DNN subscribed on sst=%d sd=%q", snssai.Sst, snssai.Sd)
 	}
 
-	sliceIDSet := make(map[string]struct{})
-	for _, p := range policies {
-		sliceIDSet[p.SliceID] = struct{}{}
-	}
-
-	sliceIDs := make([]string, 0, len(sliceIDSet))
-	for id := range sliceIDSet {
-		sliceIDs = append(sliceIDs, id)
-	}
-
-	sort.Strings(sliceIDs)
-
-	sliceList, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
-	if err != nil {
-		return "", fmt.Errorf("couldn't list slices by IDs: %v", err)
-	}
-
-	sliceMap := make(map[string]db.NetworkSlice, len(sliceList))
-	for _, s := range sliceList {
-		sliceMap[s.ID] = s
-	}
-
-	for _, p := range policies {
-		slice, ok := sliceMap[p.SliceID]
-		if !ok {
-			continue
-		}
-
-		sliceSd := ""
-		if slice.Sd != nil {
-			sliceSd = *slice.Sd
-		}
-
-		// A slice provisioned before SDs were stored canonical still holds the
-		// operator's spelling.
-		if slice.Sst == snssai.Sst && models.NormalizeSD(sliceSd) == models.NormalizeSD(snssai.Sd) {
-			dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, p.DataNetworkID)
-			if err != nil {
-				return "", fmt.Errorf("couldn't get data network %s: %v", p.DataNetworkID, err)
-			}
-
-			return dataNetwork.Name, nil
-		}
-	}
-
-	return "", fmt.Errorf("no policy matching sst=%d sd=%q for profile %s", snssai.Sst, snssai.Sd, subscriber.ProfileID)
+	return dnn, nil
 }
 
 // NAS security algorithms are stored as RAT-neutral identities shared by EPS and

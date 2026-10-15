@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/ue"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -313,6 +314,7 @@ func adoptMappedContext(gNodeB *gnb.GnodeB, epsUE *s1enb.UE, attached *s1enb.Att
 		KASME:     material.KASME,
 		NH:        material.NH,
 		Container: container,
+		EPS:       epsAlgorithms(material),
 	}); err != nil {
 		return nil, fmt.Errorf("derive the mapped 5G security context: %w", err)
 	}
@@ -413,4 +415,8 @@ func probeAfterHandoverTo5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb
 	}
 
 	return sessionFactsFor(ctx, env, addrs, gnbTunIface, session.UpfAddress, session.ULTEID, "N3 after the handover")
+}
+
+func epsAlgorithms(m s1enb.EPSKeyMaterial) fgs.SelectedEPSNASSecurityAlgorithms {
+	return fgs.SelectedEPSNASSecurityAlgorithms{Ciphering: nas.CipheringAlgorithm(m.Ciphering), Integrity: nas.IntegrityAlgorithm(m.Integrity)}
 }

@@ -40,7 +40,7 @@ func establishEPSForArrival(t *testing.T, s *smf.SMF) *smf.SMContext {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, sourceENB); err != nil {
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, sourceENB, nil); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
@@ -58,7 +58,7 @@ func prepareArrival(t *testing.T, s *smf.SMF, upf *fakeUPF) (sc *smf.SMContext, 
 	sc = establishEPSForArrival(t, s)
 	pfcpBefore = modifyCount(upf)
 
-	ref, n2, err := s.PrepareSmContextFromEPS(context.Background(), testSUPI(),
+	ref, n2, _, err := s.PrepareSmContextFromEPS(context.Background(), testSUPI(),
 		arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai)
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
@@ -232,7 +232,7 @@ func TestRefusedArrivalLeavesThePDNConnectionOnEPS(t *testing.T) {
 		t.Errorf("PFCP modifications after a refusal = %d, want 0", got)
 	}
 
-	if _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
+	if _, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
 		t.Errorf("the refused move was not unwound, so a second attempt is refused: %v", err)
 	}
 }
@@ -276,7 +276,7 @@ func TestCanceledArrivalRestoresTheSourceENBDownlink(t *testing.T) {
 		t.Errorf("the downlink is addressed as %s, so the UPF would send it on the N3 endpoint", dpAccess)
 	}
 
-	if _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
+	if _, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
 		t.Errorf("the cancelled move was not unwound, so a second attempt is refused: %v", err)
 	}
 }
@@ -290,7 +290,7 @@ func TestPrepareSmContextFromEPSRefusesAMismatchedBearerIdentity(t *testing.T) {
 
 	sc := establishEPSForArrival(t, s)
 
-	if _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI+1, testDNN, testSnssai); err == nil {
+	if _, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI+1, testDNN, testSnssai); err == nil {
 		t.Fatal("a PDN connection was moved under an EPS bearer identity the anchor does not hold")
 	}
 
@@ -298,7 +298,7 @@ func TestPrepareSmContextFromEPSRefusesAMismatchedBearerIdentity(t *testing.T) {
 		t.Errorf("session is on %s after a refused preparation", access)
 	}
 
-	if _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
+	if _, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
 		t.Errorf("the refused preparation was not unwound: %v", err)
 	}
 }
@@ -314,7 +314,7 @@ func TestAbandonedArrivalPutsTheDownlinkBackOnTheSourceENB(t *testing.T) {
 
 	sc := establishEPSForArrival(t, s)
 
-	ref, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai)
+	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai)
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}

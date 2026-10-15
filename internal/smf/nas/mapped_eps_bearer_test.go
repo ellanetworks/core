@@ -21,7 +21,7 @@ func acceptWithEBI(t *testing.T, ebi uint8) *fgs.PDUSessionEstablishmentAccept {
 	snssai := &models.Snssai{Sst: 1}
 
 	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, snssai, "internet",
-		&smfNas.ProtocolConfigurationOptions{}, net.IP{}, 0, nil, nil, nil, ebi)
+		&smfNas.ProtocolConfigurationOptions{}, net.IP{}, nil, 0, nil, nil, nil, ebi)
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
