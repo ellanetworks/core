@@ -739,13 +739,18 @@ func TestRefusedRuleRemovalIsResentWhenTheUserPlaneReturns(t *testing.T) {
 	ueAnswers(t, s, ref, false)
 	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
 
+	realign := waitFlowModifications(t, amfCb, 4)[3]
+	if realign.n1Msg != nil || modifyTransfer(t, realign) == nil {
+		t.Fatal("want the NG-RAN node realigned with the rates the UE kept")
+	}
+
 	if err := s.DeactivateSmContext(context.Background(), ref, true); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
 	reactivate(t, s, ref, voiceQFI)
 
-	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 4)[3])
+	cmd := flowCommand(t, waitFlowModifications(t, amfCb, 5)[4])
 	if !slices.ContainsFunc(cmd.QoSRules, func(r fgs.QoSRule) bool { return r.OperationCode == fgs.QoSRuleOpDelete }) {
 		t.Fatalf("command %+v, want the removed rule deleted once the user plane is back (TS 29.212 §4.5.12)", cmd)
 	}
