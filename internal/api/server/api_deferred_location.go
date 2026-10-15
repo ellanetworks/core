@@ -18,10 +18,11 @@ import (
 const (
 	CreateDeferredLocationRequestAction = "create_deferred_location_request"
 	DeleteDeferredLocationRequestAction = "delete_deferred_location_request"
+	ListLocationReportsAction           = "list_location_reports"
 )
 
 const (
-	ldrTypePeriodic = "PERIODIC"
+	ldrTypePeriodic = lmf.LdrTypePeriodic
 
 	defaultLocationReportsLimit = 100
 	maxLocationReportsLimit     = 1000
@@ -65,7 +66,7 @@ type DeferredLocationRequest struct {
 	Status                string                 `json:"status"`
 	TerminationCause      string                 `json:"termination_cause,omitempty"`
 	TerminationReason     string                 `json:"termination_reason,omitempty"`
-	EventReportCounter    int64                  `json:"event_report_counter"`
+	EventReportCounter    int64                  `json:"event_report_counter,omitempty"`
 	CreatedAt             string                 `json:"created_at"`
 	TerminatedAt          *string                `json:"terminated_at,omitempty"`
 }
@@ -248,7 +249,7 @@ func DeleteDeferredLocationRequest(lmfInstance *lmf.LMF) http.Handler {
 			"User deleted deferred location request "+id,
 		)
 
-		w.WriteHeader(http.StatusNoContent)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Deferred location request deleted successfully"}, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -274,11 +275,27 @@ func ListLocationReports(lmfInstance *lmf.LMF) http.Handler {
 			return
 		}
 
-		reports, err := lmfInstance.ListLocationReports(r.Context(), r.PathValue("id"), after, limit)
+		request, err := lmfInstance.GetDeferredRequest(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeDeferredLocationError(r, w, err)
 			return
 		}
+
+		reports, err := lmfInstance.ListLocationReports(r.Context(), request.ID, after, limit)
+		if err != nil {
+			writeDeferredLocationError(r, w, err)
+			return
+		}
+
+		email, _ := r.Context().Value(contextKeyEmail).(string)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			ListLocationReportsAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("User read location reports of request %s for SUPI %s", request.ID, request.SUPI),
+		)
 
 		response := ListLocationReportsResponse{Items: make([]LocationReport, 0, len(reports)), Next: after}
 
@@ -299,7 +316,7 @@ func toDeferredLocationRequest(r *lmf.DeferredRequest) DeferredLocationRequest {
 	out := DeferredLocationRequest{
 		ID:      r.ID,
 		SUPI:    r.SUPI,
-		LdrType: ldrTypePeriodic,
+		LdrType: r.LdrType,
 		PeriodicEventInfo: PeriodicEventInfo{
 			ReportingAmount:      r.PeriodicEventInfo.ReportingAmount,
 			ReportingInterval:    r.PeriodicEventInfo.ReportingInterval,

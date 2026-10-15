@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	insertLocationReportStmt  = `INSERT INTO %s (request_id, seq, reported_at, location_data) VALUES ($LocationReport.request_id, $LocationReport.seq, $LocationReport.reported_at, $LocationReport.location_data)`
-	pruneLocationReportsStmt  = `DELETE FROM %s WHERE request_id = $locationReportCursor.request_id AND seq <= $locationReportCursor.seq`
-	listLocationReportsStmt   = `SELECT &LocationReport.* FROM %s WHERE request_id = $locationReportCursor.request_id AND seq > $locationReportCursor.seq ORDER BY seq LIMIT $locationReportCursor.limit`
-	lastLocationReportSeqStmt = `SELECT COALESCE(MAX(seq), 0) AS &NumItems.count FROM %s WHERE request_id = $locationReportCursor.request_id`
+	insertLocationReportStmt = `INSERT INTO %s (request_id, seq, reported_at, location_data) VALUES ($LocationReport.request_id, $LocationReport.seq, $LocationReport.reported_at, $LocationReport.location_data)`
+	pruneLocationReportsStmt = `DELETE FROM %s WHERE request_id = $locationReportCursor.request_id AND seq <= $locationReportCursor.seq`
+	listLocationReportsStmt  = `SELECT &LocationReport.* FROM %s WHERE request_id = $locationReportCursor.request_id AND seq > $locationReportCursor.seq ORDER BY seq LIMIT $locationReportCursor.limit`
 )
 
 type LocationReport struct {
@@ -99,24 +98,4 @@ func (db *Database) ListLocationReports(ctx context.Context, requestID string, a
 	}
 
 	return reports, nil
-}
-
-func (db *Database) LastLocationReportSeq(ctx context.Context, requestID string) (int64, error) {
-	ctx, span, timer := startLocationQuery(ctx, LocationReportsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
-
-	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
-		return 0, nil
-	}
-
-	var last NumItems
-
-	if err := db.conn().Query(ctx, db.lastLocationReportSeqStmt, locationReportCursor{RequestID: requestID}).Get(&last); err != nil {
-		recordSpanError(span, err)
-
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	return int64(last.Count), nil
 }

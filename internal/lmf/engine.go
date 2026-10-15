@@ -149,9 +149,6 @@ func (l *LMF) runLPPSession(ctx context.Context, supi etsi.SUPI, session *lpp.Se
 				return l.lppHandler.ForwardLPPToUE(detached, core, supi.String(), session.CorrelationID(), lppMsg)
 			})
 		},
-		nil,
-		nil,
-		nil,
 		func() {
 			l.DeregisterLPPSession(session.SessionID())
 		},

@@ -44,6 +44,7 @@ type TerminationReason string
 const (
 	TerminationReasonUEDeregistered TerminationReason = "ue_deregistered"
 	TerminationReasonUEMobility     TerminationReason = "ue_mobility"
+	TerminationReasonPositioning    TerminationReason = "positioning_failed"
 	TerminationReasonNodeRestart    TerminationReason = "node_restart"
 	TerminationReasonNodeShutdown   TerminationReason = "node_shutdown"
 )
@@ -69,9 +70,12 @@ type DeferredRequestParams struct {
 	ScheduledLocTime  *time.Time
 }
 
+const LdrTypePeriodic = "PERIODIC"
+
 type DeferredRequest struct {
 	ID                 string
 	SUPI               string
+	LdrType            string
 	Location           LocationRequest
 	PeriodicEventInfo  PeriodicEventInfo
 	ScheduledLocTime   *time.Time
@@ -90,17 +94,14 @@ type LocationReport struct {
 }
 
 func (p *PeriodicEventInfo) accept() error {
-	if p.ReportingIntervalMs != nil {
-		if *p.ReportingIntervalMs < 1 || *p.ReportingIntervalMs > 999 {
-			return fmt.Errorf("%w: reportingIntervalMs must be 1..999", ErrInvalidPeriodicEventInfo)
-		}
-
-		p.ReportingIntervalMs = nil
-		p.ReportingInterval = 1
+	if p.ReportingIntervalMs != nil && (*p.ReportingIntervalMs < 1 || *p.ReportingIntervalMs > 999) {
+		return fmt.Errorf("%w: reporting_interval_ms must be 1..999", ErrInvalidPeriodicEventInfo)
 	}
 
+	p.ReportingIntervalMs = nil
+
 	if p.ReportingInterval < 1 || p.ReportingInterval > maxReportingValue {
-		return fmt.Errorf("%w: reportingInterval must be 1..%d", ErrInvalidPeriodicEventInfo, maxReportingValue)
+		return fmt.Errorf("%w: reporting_interval must be 1..%d", ErrInvalidPeriodicEventInfo, maxReportingValue)
 	}
 
 	if p.ReportingInfinite {
@@ -110,11 +111,11 @@ func (p *PeriodicEventInfo) accept() error {
 	}
 
 	if p.ReportingAmount < 1 || p.ReportingAmount > maxReportingValue {
-		return fmt.Errorf("%w: reportingAmount must be 1..%d", ErrInvalidPeriodicEventInfo, maxReportingValue)
+		return fmt.Errorf("%w: reporting_amount must be 1..%d", ErrInvalidPeriodicEventInfo, maxReportingValue)
 	}
 
 	if p.ReportingAmount*p.ReportingInterval > maxReportingValue {
-		return fmt.Errorf("%w: reportingAmount x reportingInterval must not exceed %d", ErrInvalidPeriodicEventInfo, maxReportingValue)
+		return fmt.Errorf("%w: reporting_amount x reporting_interval must not exceed %d", ErrInvalidPeriodicEventInfo, maxReportingValue)
 	}
 
 	return nil
@@ -139,9 +140,12 @@ type deferredRun struct {
 	infinite bool
 	start    time.Time
 	cancel   context.CancelFunc
+	done     chan struct{}
 }
 
 func (l *LMF) Start(ctx context.Context) {
+	l.terminateAllDeferred(ctx, TerminationReasonNodeRestart)
+
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 
 	l.deferred.mu.Lock()
@@ -150,8 +154,6 @@ func (l *LMF) Start(ctx context.Context) {
 	l.deferred.byID = make(map[string]*deferredRun)
 	l.deferred.bySUPI = make(map[string]string)
 	l.deferred.mu.Unlock()
-
-	l.terminateAllDeferred(ctx, TerminationReasonNodeRestart)
 }
 
 func (l *LMF) Stop(ctx context.Context) {
@@ -179,7 +181,10 @@ func (l *LMF) Stop(ctx context.Context) {
 		logger.LmfLog.Warn("deferred location requests did not stop in time")
 	}
 
-	l.terminateAllDeferred(ctx, TerminationReasonNodeShutdown)
+	sweepCtx, cancelSweep := context.WithTimeout(context.WithoutCancel(ctx), deferredWriteTimeout)
+	defer cancelSweep()
+
+	l.terminateAllDeferred(sweepCtx, TerminationReasonNodeShutdown)
 }
 
 func (l *LMF) terminateAllDeferred(ctx context.Context, reason TerminationReason) {
@@ -235,6 +240,10 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 	}
 
 	if err := l.db.CreateDeferredLocationRequest(ctx, row); err != nil {
+		if errors.Is(err, db.ErrAlreadyExists) {
+			return nil, ErrDeferredRequestExists
+		}
+
 		return nil, fmt.Errorf("store deferred location request: %w", err)
 	}
 
@@ -255,12 +264,14 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 		infinite: info.ReportingInfinite,
 		start:    start,
 		cancel:   cancel,
+		done:     make(chan struct{}),
 	}
 
 	l.deferred.byID[run.id] = run
 	l.deferred.bySUPI[params.SUPI.String()] = run.id
 
 	l.deferred.wg.Go(func() {
+		defer close(run.done)
 		defer l.forgetRun(run)
 
 		l.runDeferred(runCtx, run)
@@ -275,7 +286,7 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 		zap.Bool("reporting_infinite", info.ReportingInfinite),
 	)
 
-	return fromDeferredRow(row, 0)
+	return fromDeferredRow(row)
 }
 
 func (l *LMF) forgetRun(run *deferredRun) {
@@ -296,12 +307,7 @@ func (l *LMF) GetDeferredRequest(ctx context.Context, id string) (*DeferredReque
 		return nil, err
 	}
 
-	last, err := l.db.LastLocationReportSeq(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return fromDeferredRow(row, last)
+	return fromDeferredRow(row)
 }
 
 func (l *LMF) ListDeferredRequests(ctx context.Context, page, perPage int, supi *string, status *DeferredStatus) ([]DeferredRequest, int, error) {
@@ -320,12 +326,7 @@ func (l *LMF) ListDeferredRequests(ctx context.Context, page, perPage int, supi 
 	out := make([]DeferredRequest, 0, len(rows))
 
 	for i := range rows {
-		last, err := l.db.LastLocationReportSeq(ctx, rows[i].ID)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		r, err := fromDeferredRow(&rows[i], last)
+		r, err := fromDeferredRow(&rows[i])
 		if err != nil {
 			return nil, 0, err
 		}
@@ -343,6 +344,12 @@ func (l *LMF) DeleteDeferredRequest(ctx context.Context, id string) error {
 
 	if run != nil {
 		run.cancel()
+
+		select {
+		case <-run.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	return l.db.DeleteDeferredLocationRequest(ctx, id)
@@ -375,9 +382,10 @@ func (l *LMF) ListLocationReports(ctx context.Context, id string, afterSeq int64
 func toDeferredRow(params DeferredRequestParams, info PeriodicEventInfo) (*db.DeferredLocationRequest, error) {
 	row := &db.DeferredLocationRequest{
 		SUPI:               params.SUPI.String(),
+		LdrType:            LdrTypePeriodic,
 		Method:             string(params.Location.Method),
-		ReportingIntervalS: info.ReportingInterval,
-		ReportingAmount:    info.ReportingAmount,
+		ReportingIntervalS: &info.ReportingInterval,
+		ReportingAmount:    &info.ReportingAmount,
 		ReportingInfinite:  info.ReportingInfinite,
 	}
 
@@ -404,21 +412,28 @@ func toDeferredRow(params DeferredRequestParams, info PeriodicEventInfo) (*db.De
 	return row, nil
 }
 
-func fromDeferredRow(row *db.DeferredLocationRequest, lastSeq int64) (*DeferredRequest, error) {
+func fromDeferredRow(row *db.DeferredLocationRequest) (*DeferredRequest, error) {
 	r := &DeferredRequest{
-		ID:   row.ID,
-		SUPI: row.SUPI,
+		ID:      row.ID,
+		SUPI:    row.SUPI,
+		LdrType: row.LdrType,
 		Location: LocationRequest{
 			Method: RequestedMethod(row.Method),
 		},
 		PeriodicEventInfo: PeriodicEventInfo{
-			ReportingAmount:   row.ReportingAmount,
-			ReportingInterval: row.ReportingIntervalS,
 			ReportingInfinite: row.ReportingInfinite,
 		},
 		Status:             DeferredStatus(row.Status),
-		EventReportCounter: lastSeq,
+		EventReportCounter: row.LastReportSeq,
 		CreatedAt:          dbwriter.FromEpochMillis(row.CreatedAt),
+	}
+
+	if row.ReportingAmount != nil {
+		r.PeriodicEventInfo.ReportingAmount = *row.ReportingAmount
+	}
+
+	if row.ReportingIntervalS != nil {
+		r.PeriodicEventInfo.ReportingInterval = *row.ReportingIntervalS
 	}
 
 	if row.Mode != nil {

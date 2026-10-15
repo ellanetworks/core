@@ -15,11 +15,14 @@ import (
 func newDeferredLocationRequest(supi string) *db.DeferredLocationRequest {
 	return &db.DeferredLocationRequest{
 		SUPI:               supi,
+		LdrType:            "PERIODIC",
 		Method:             "ecid",
-		ReportingIntervalS: 30,
-		ReportingAmount:    10,
+		ReportingIntervalS: ptrInt64(30),
+		ReportingAmount:    ptrInt64(10),
 	}
 }
+
+func ptrInt64(v int64) *int64 { return &v }
 
 func TestDeferredLocationRequestLifecycle(t *testing.T) {
 	ctx := context.Background()
@@ -81,9 +84,15 @@ func TestDeferredLocationRequestRejectsInvalidRows(t *testing.T) {
 		name   string
 		modify func(*db.DeferredLocationRequest)
 	}{
-		{"interval below 1", func(r *db.DeferredLocationRequest) { r.ReportingIntervalS = 0 }},
-		{"amount below 1", func(r *db.DeferredLocationRequest) { r.ReportingAmount = 0 }},
-		{"duration above 8639999 s", func(r *db.DeferredLocationRequest) { r.ReportingAmount, r.ReportingIntervalS = 8639999, 2 }},
+		{"interval below 1", func(r *db.DeferredLocationRequest) { r.ReportingIntervalS = ptrInt64(0) }},
+		{"amount below 1", func(r *db.DeferredLocationRequest) { r.ReportingAmount = ptrInt64(0) }},
+		{"duration above 8639999 s", func(r *db.DeferredLocationRequest) {
+			r.ReportingAmount, r.ReportingIntervalS = ptrInt64(8639999), ptrInt64(2)
+		}},
+		{"periodic without an interval", func(r *db.DeferredLocationRequest) { r.ReportingIntervalS = nil }},
+		{"periodic fields on another ldr type", func(r *db.DeferredLocationRequest) { r.LdrType = "UE_AVAILABLE" }},
+		{"unknown ldr type", func(r *db.DeferredLocationRequest) { r.LdrType = "SOMETIMES" }},
+		{"unknown method", func(r *db.DeferredLocationRequest) { r.Method = "otdoa" }},
 		{"empty supi", func(r *db.DeferredLocationRequest) { r.SUPI = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -97,7 +106,7 @@ func TestDeferredLocationRequestRejectsInvalidRows(t *testing.T) {
 	}
 
 	infinite := newDeferredLocationRequest("imsi-001010000000001")
-	infinite.ReportingAmount, infinite.ReportingIntervalS, infinite.ReportingInfinite = 8639999, 2, true
+	infinite.ReportingAmount, infinite.ReportingIntervalS, infinite.ReportingInfinite = ptrInt64(8639999), ptrInt64(2), true
 
 	if err := database.CreateDeferredLocationRequest(ctx, infinite); err != nil {
 		t.Fatalf("infinite reporting with the maximum amount: %v", err)
@@ -112,14 +121,22 @@ func TestListDeferredLocationRequestsFilters(t *testing.T) {
 	second := newDeferredLocationRequest("imsi-001010000000002")
 	third := newDeferredLocationRequest("imsi-001010000000001")
 
-	for _, r := range []*db.DeferredLocationRequest{first, second, third} {
+	for _, r := range []*db.DeferredLocationRequest{first, second} {
 		if err := database.CreateDeferredLocationRequest(ctx, r); err != nil {
 			t.Fatalf("create: %v", err)
 		}
 	}
 
+	if err := database.CreateDeferredLocationRequest(ctx, third); !errors.Is(err, db.ErrAlreadyExists) {
+		t.Fatalf("second active request for a UE: err = %v, want ErrAlreadyExists", err)
+	}
+
 	if err := database.TerminateDeferredLocationRequest(ctx, first.ID, db.DeferredLocationTermination{Cause: "NORMAL_TERMINATION", At: time.Now()}); err != nil {
 		t.Fatalf("terminate: %v", err)
+	}
+
+	if err := database.CreateDeferredLocationRequest(ctx, third); err != nil {
+		t.Fatalf("create after the first ended: %v", err)
 	}
 
 	supi := "imsi-001010000000001"
@@ -262,9 +279,8 @@ func TestLocationReportsPagingAndCap(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	last, err := database.LastLocationReportSeq(ctx, r.ID)
-	if err != nil || last != 0 {
-		t.Fatalf("last seq before any report = %d (err %v), want 0", last, err)
+	if got, err := database.GetDeferredLocationRequest(ctx, r.ID); err != nil || got.LastReportSeq != 0 {
+		t.Fatalf("last seq before any report = %+v (err %v), want 0", got, err)
 	}
 
 	const keep = 3
@@ -289,9 +305,13 @@ func TestLocationReportsPagingAndCap(t *testing.T) {
 		t.Fatalf("page after seq 3 = %+v (err %v), want seq 4", page, err)
 	}
 
-	last, err = database.LastLocationReportSeq(ctx, r.ID)
-	if err != nil || last != 5 {
-		t.Fatalf("last seq = %d (err %v), want 5", last, err)
+	if got, err := database.GetDeferredLocationRequest(ctx, r.ID); err != nil || got.LastReportSeq != 5 {
+		t.Fatalf("last seq = %+v (err %v), want 5", got, err)
+	}
+
+	listed, _, err := database.ListDeferredLocationRequests(ctx, 1, 10, nil)
+	if err != nil || len(listed) != 1 || listed[0].LastReportSeq != 5 {
+		t.Fatalf("listed = %+v (err %v), want last seq 5", listed, err)
 	}
 
 	if err := database.AddLocationReport(ctx, &db.LocationReport{RequestID: r.ID, Seq: 5, ReportedAt: 6, LocationData: "{}"}, keep); err == nil {
@@ -300,5 +320,50 @@ func TestLocationReportsPagingAndCap(t *testing.T) {
 
 	if err := database.AddLocationReport(ctx, &db.LocationReport{RequestID: "unknown", Seq: 1, ReportedAt: 1, LocationData: "{}"}, keep); err == nil {
 		t.Fatal("expected a report for an unknown request to be rejected")
+	}
+}
+
+func TestDeferredLocationRequestOtherLdrTypeHasNoPeriodicFields(t *testing.T) {
+	database := setupTestDB(t)
+
+	r := &db.DeferredLocationRequest{SUPI: "imsi-001010000000001", LdrType: "UE_AVAILABLE", Method: "cell_id"}
+	if err := database.CreateDeferredLocationRequest(context.Background(), r); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+}
+
+func TestRetentionRemovesOrphanReports(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	r := newDeferredLocationRequest("imsi-001010000000001")
+	if err := database.CreateDeferredLocationRequest(ctx, r); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := database.AddLocationReport(ctx, &db.LocationReport{RequestID: r.ID, Seq: 1, ReportedAt: 1, LocationData: "{}"}, 10); err != nil {
+		t.Fatalf("add report: %v", err)
+	}
+
+	conn, err := database.PlainDB().Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, stmt := range []string{"PRAGMA foreign_keys = OFF", "DELETE FROM deferred_location_requests", "PRAGMA foreign_keys = ON"} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+
+	_ = conn.Close()
+
+	if err := database.DeleteEndedDeferredLocationRequests(ctx, time.Now()); err != nil {
+		t.Fatalf("retention: %v", err)
+	}
+
+	var n int
+	if err := database.PlainDB().QueryRowContext(ctx, "SELECT COUNT(*) FROM location_reports").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("orphan reports left: %d (err %v)", n, err)
 	}
 }

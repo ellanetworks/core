@@ -14,7 +14,9 @@ func TestDeferredLocationBeforeV24(t *testing.T) {
 	ctx := context.Background()
 	d := newDatabaseAtVersion(t, 23)
 
-	r := &DeferredLocationRequest{SUPI: "imsi-001010000000001", Method: "ecid", ReportingIntervalS: 30, ReportingAmount: 10}
+	interval, amount := int64(30), int64(10)
+
+	r := &DeferredLocationRequest{SUPI: "imsi-001010000000001", LdrType: "PERIODIC", Method: "ecid", ReportingIntervalS: &interval, ReportingAmount: &amount}
 	if err := d.CreateDeferredLocationRequest(ctx, r); !errors.Is(err, ErrMigrationPending) {
 		t.Fatalf("create: err = %v, want ErrMigrationPending", err)
 	}

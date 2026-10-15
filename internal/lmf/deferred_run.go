@@ -6,11 +6,13 @@ package lmf
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -22,8 +24,8 @@ const (
 )
 
 var fixLeadTime = map[RequestedMethod]time.Duration{
-	RequestedECID: 5 * time.Second,
-	RequestedGNSS: 15 * time.Second,
+	RequestedECID: 2 * time.Second,
+	RequestedGNSS: 5 * time.Second,
 }
 
 type periodicSchedule struct {
@@ -56,15 +58,15 @@ func (s *periodicSchedule) finished(now time.Time) bool {
 	return !now.Before(s.end) || !s.due.Before(s.end)
 }
 
-func (s *periodicSchedule) reported(reportedAt time.Time, late bool) {
+func (s *periodicSchedule) reported(reportedAt time.Time) {
 	s.count++
 
-	if late {
-		s.due = reportedAt.Add(s.interval)
-		return
+	next := s.due.Add(s.interval)
+	if !reportedAt.Before(next) {
+		next = reportedAt.Add(s.interval)
 	}
 
-	s.due = s.due.Add(s.interval)
+	s.due = next
 }
 
 func (l *LMF) runDeferred(ctx context.Context, run *deferredRun) {
@@ -76,7 +78,7 @@ func (l *LMF) runDeferred(ctx context.Context, run *deferredRun) {
 			return
 		}
 
-		result, late, reason, ok := l.fixUntilSuccess(ctx, run, schedule)
+		result, reason, ok := l.fixUntilSuccess(ctx, run, schedule)
 		if ctx.Err() != nil {
 			return
 		}
@@ -93,7 +95,7 @@ func (l *LMF) runDeferred(ctx context.Context, run *deferredRun) {
 		reportedAt := time.Now()
 
 		l.storeReport(run, schedule.count+1, reportedAt, result)
-		schedule.reported(reportedAt, late)
+		schedule.reported(reportedAt)
 	}
 
 	if ctx.Err() == nil {
@@ -101,13 +103,12 @@ func (l *LMF) runDeferred(ctx context.Context, run *deferredRun) {
 	}
 }
 
-func (l *LMF) fixUntilSuccess(ctx context.Context, run *deferredRun, schedule *periodicSchedule) (*models.LocationResult, bool, TerminationReason, bool) {
+func (l *LMF) fixUntilSuccess(ctx context.Context, run *deferredRun, schedule *periodicSchedule) (*models.LocationResult, TerminationReason, bool) {
 	backoff := min(time.Second, run.interval)
-	late := false
 
 	for {
 		if reason := l.deferredUnavailable(ctx, run); reason != "" {
-			return nil, false, reason, false
+			return nil, reason, false
 		}
 
 		fixCtx, cancel := context.WithDeadline(ctx, schedule.end)
@@ -116,11 +117,21 @@ func (l *LMF) fixUntilSuccess(ctx context.Context, run *deferredRun, schedule *p
 		cancel()
 
 		if err == nil {
-			return result, late, "", true
+			return result, "", true
 		}
 
 		if ctx.Err() != nil {
-			return nil, false, "", false
+			return nil, "", false
+		}
+
+		if permanentFixError(err) {
+			logger.LmfLog.Warn("deferred location fix cannot succeed; ending the request",
+				zap.String("id", run.id),
+				logger.SUPI(run.supi.String()),
+				zap.Error(err),
+			)
+
+			return nil, TerminationReasonPositioning, false
 		}
 
 		logger.LmfLog.Warn("deferred location fix failed; retrying",
@@ -130,14 +141,18 @@ func (l *LMF) fixUntilSuccess(ctx context.Context, run *deferredRun, schedule *p
 			zap.Error(err),
 		)
 
-		late = true
-
 		if !time.Now().Add(backoff).Before(schedule.end) || !sleepUntil(ctx, time.Now().Add(backoff)) {
-			return nil, false, "", false
+			return nil, "", false
 		}
 
 		backoff = min(2*backoff, run.interval, maxFixBackoff)
 	}
+}
+
+func permanentFixError(err error) bool {
+	return errors.Is(err, ErrNoLocationEstimate) ||
+		errors.Is(err, lpp.ErrUnsupportedLocationShape) ||
+		errors.Is(err, lpp.ErrUEECIDNotSupported)
 }
 
 func (l *LMF) deferredFix(ctx context.Context, run *deferredRun) (*models.LocationResult, error) {

@@ -88,7 +88,9 @@ func TestDeferredLocationRequestReadEndpoints(t *testing.T) {
 
 	lmfInstance := lmf.New(nil, nil, database)
 
-	row := &db.DeferredLocationRequest{SUPI: "imsi-001010000000001", Method: "cell_id", ReportingIntervalS: 30, ReportingAmount: 2}
+	interval, amount := int64(30), int64(2)
+
+	row := &db.DeferredLocationRequest{SUPI: "imsi-001010000000001", LdrType: "PERIODIC", Method: "cell_id", ReportingIntervalS: &interval, ReportingAmount: &amount}
 	if err := database.CreateDeferredLocationRequest(ctx, row); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -121,7 +123,7 @@ func TestDeferredLocationRequestReadEndpoints(t *testing.T) {
 		{http.MethodGet, "/deferred-requests/" + row.ID + "/reports?after=-1", http.StatusBadRequest, "after"},
 		{http.MethodGet, "/deferred-requests/" + row.ID + "/reports?limit=1001", http.StatusBadRequest, "limit"},
 		{http.MethodGet, "/deferred-requests/unknown/reports", http.StatusNotFound, "not found"},
-		{http.MethodDelete, "/deferred-requests/" + row.ID, http.StatusNoContent, ""},
+		{http.MethodDelete, "/deferred-requests/" + row.ID, http.StatusOK, "deleted successfully"},
 		{http.MethodDelete, "/deferred-requests/" + row.ID, http.StatusNotFound, "not found"},
 	} {
 		rec := httptest.NewRecorder()

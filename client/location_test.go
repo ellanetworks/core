@@ -78,7 +78,7 @@ func TestListDeferredLocationRequests_Query(t *testing.T) {
 }
 
 func TestDeleteDeferredLocationRequest_Path(t *testing.T) {
-	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 204, Headers: http.Header{}}}
+	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"message":"Deferred location request deleted successfully"}`)}}
 	clientObj := &client.Client{Requester: fake}
 
 	if err := clientObj.DeleteDeferredLocationRequest(context.Background(), "r-1"); err != nil {

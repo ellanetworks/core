@@ -146,7 +146,6 @@ type Database struct {
 	getBGPSettingsStmt    *sqlair.Statement
 	upsertBGPSettingsStmt *sqlair.Statement
 
-	// Positioning Sessions statements
 	insertDeferredLocationRequestStmt *sqlair.Statement
 	getDeferredLocationRequestStmt    *sqlair.Statement
 	listDeferredLocationRequestsStmt  *sqlair.Statement
@@ -155,10 +154,10 @@ type Database struct {
 	terminateAllDeferredLocationStmt  *sqlair.Statement
 	deleteDeferredLocationRequestStmt *sqlair.Statement
 	deleteEndedDeferredLocationStmt   *sqlair.Statement
+	deleteOrphanLocationReportsStmt   *sqlair.Statement
 	insertLocationReportStmt          *sqlair.Statement
 	pruneLocationReportsStmt          *sqlair.Statement
 	listLocationReportsStmt           *sqlair.Statement
-	lastLocationReportSeqStmt         *sqlair.Statement
 
 	// Cell Positions statements
 	createCellPositionStmt    *sqlair.Statement
@@ -1728,19 +1727,18 @@ func (db *Database) PrepareStatements() error {
 		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 		{&db.upsertBGPSettingsStmt, fmt.Sprintf(upsertBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 
-		// Deferred Location Requests
 		{&db.insertDeferredLocationRequestStmt, fmt.Sprintf(insertDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
-		{&db.getDeferredLocationRequestStmt, fmt.Sprintf(getDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
-		{&db.listDeferredLocationRequestsStmt, fmt.Sprintf(listDeferredLocationRequestsStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}, DeferredLocationRequestFilters{}, ListArgs{}, NumItems{}}},
+		{&db.getDeferredLocationRequestStmt, fmt.Sprintf(getDeferredLocationRequestStmt, DeferredLocationRequestsTableName, LocationReportsTableName), []any{DeferredLocationRequest{}, deferredLocationProgress{}}},
+		{&db.listDeferredLocationRequestsStmt, fmt.Sprintf(listDeferredLocationRequestsStmt, DeferredLocationRequestsTableName, LocationReportsTableName), []any{DeferredLocationRequest{}, deferredLocationProgress{}, DeferredLocationRequestFilters{}, ListArgs{}, NumItems{}}},
 		{&db.countDeferredLocationRequestsStmt, fmt.Sprintf(countDeferredLocationRequestsStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequestFilters{}, NumItems{}}},
 		{&db.terminateDeferredLocationStmt, fmt.Sprintf(terminateDeferredLocationStmt, DeferredLocationRequestsTableName), []any{deferredLocationTermination{}}},
 		{&db.terminateAllDeferredLocationStmt, fmt.Sprintf(terminateAllDeferredLocationStmt, DeferredLocationRequestsTableName), []any{deferredLocationTermination{}}},
 		{&db.deleteDeferredLocationRequestStmt, fmt.Sprintf(deleteDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
 		{&db.deleteEndedDeferredLocationStmt, fmt.Sprintf(deleteEndedDeferredLocationStmt, DeferredLocationRequestsTableName), []any{cutoffArgs{}}},
+		{&db.deleteOrphanLocationReportsStmt, fmt.Sprintf(deleteOrphanLocationReportsStmt, DeferredLocationRequestsTableName, LocationReportsTableName), nil},
 		{&db.insertLocationReportStmt, fmt.Sprintf(insertLocationReportStmt, LocationReportsTableName), []any{LocationReport{}}},
 		{&db.pruneLocationReportsStmt, fmt.Sprintf(pruneLocationReportsStmt, LocationReportsTableName), []any{locationReportCursor{}}},
 		{&db.listLocationReportsStmt, fmt.Sprintf(listLocationReportsStmt, LocationReportsTableName), []any{LocationReport{}, locationReportCursor{}}},
-		{&db.lastLocationReportSeqStmt, fmt.Sprintf(lastLocationReportSeqStmt, LocationReportsTableName), []any{locationReportCursor{}, NumItems{}}},
 
 		// Cell Positions
 		{&db.createCellPositionStmt, fmt.Sprintf(createCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},

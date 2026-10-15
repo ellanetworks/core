@@ -79,7 +79,8 @@ func TestPeriodicEventInfoAccept(t *testing.T) {
 		{"zero interval", PeriodicEventInfo{ReportingAmount: 1}, PeriodicEventInfo{}, true},
 		{"zero amount", PeriodicEventInfo{ReportingInterval: 1}, PeriodicEventInfo{}, true},
 		{"infinite sets the maximum amount", PeriodicEventInfo{ReportingInterval: 60, ReportingInfinite: true}, PeriodicEventInfo{ReportingAmount: 8639999, ReportingInterval: 60, ReportingInfinite: true}, false},
-		{"milliseconds fall back to 1 s", PeriodicEventInfo{ReportingAmount: 10, ReportingInterval: 1, ReportingIntervalMs: &ms}, PeriodicEventInfo{ReportingAmount: 10, ReportingInterval: 1}, false},
+		{"milliseconds are ignored", PeriodicEventInfo{ReportingAmount: 10, ReportingInterval: 60, ReportingIntervalMs: &ms}, PeriodicEventInfo{ReportingAmount: 10, ReportingInterval: 60}, false},
+		{"milliseconds do not excuse an invalid interval", PeriodicEventInfo{ReportingAmount: 10, ReportingIntervalMs: &ms}, PeriodicEventInfo{}, true},
 		{"milliseconds out of range", PeriodicEventInfo{ReportingAmount: 10, ReportingInterval: 1, ReportingIntervalMs: &badMs}, PeriodicEventInfo{}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -115,23 +116,23 @@ func TestPeriodicScheduleLateReportRestartsTheTimer(t *testing.T) {
 		t.Fatalf("end = %v, want start + 30 s", s.end)
 	}
 
-	s.reported(start.Add(time.Second), false)
+	s.reported(start.Add(time.Second))
 
 	if !s.due.Equal(start.Add(10 * time.Second)) {
 		t.Fatalf("on-time report: due = %v, want start + 10 s", s.due)
 	}
 
-	s.reported(start.Add(14*time.Second), true)
+	s.reported(start.Add(14 * time.Second))
 
-	if !s.due.Equal(start.Add(24 * time.Second)) {
-		t.Fatalf("late report: due = %v, want the report time + 10 s", s.due)
+	if !s.due.Equal(start.Add(20 * time.Second)) {
+		t.Fatalf("report within its slot: due = %v, want start + 20 s", s.due)
 	}
 
-	if s.finished(start.Add(25 * time.Second)) {
-		t.Fatal("finished before the amount or the duration was reached")
-	}
+	s.reported(start.Add(31 * time.Second))
 
-	s.reported(start.Add(25*time.Second), false)
+	if !s.due.Equal(start.Add(41 * time.Second)) {
+		t.Fatalf("report after its slot: due = %v, want the report time + 10 s", s.due)
+	}
 
 	if !s.finished(start.Add(25 * time.Second)) {
 		t.Fatal("not finished after the requested amount")
@@ -143,7 +144,7 @@ func TestPeriodicScheduleEndsAtTheReportingDuration(t *testing.T) {
 	start := time.Unix(1000, 0)
 	s := newPeriodicSchedule(start, 10*time.Second, 3, false)
 
-	s.reported(start.Add(25*time.Second), true)
+	s.reported(start.Add(25 * time.Second))
 
 	if !s.finished(start.Add(30 * time.Second)) {
 		t.Fatal("not finished at amount x interval")
@@ -205,10 +206,9 @@ func TestCreateDeferredRequestValidation(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 
-	waitFor(t, func() bool {
-		_, err := l.CreateDeferredRequest(ctx, params)
-		return err == nil
-	})
+	if _, err := l.CreateDeferredRequest(ctx, params); err != nil {
+		t.Fatalf("create right after delete: %v", err)
+	}
 }
 
 func startTestRun(t *testing.T, l *LMF, supi etsi.SUPI, interval time.Duration, amount int64) string {
@@ -248,6 +248,7 @@ func startTestRun(t *testing.T, l *LMF, supi etsi.SUPI, interval time.Duration, 
 		amount:   amount,
 		start:    time.Now(),
 		cancel:   cancel,
+		done:     make(chan struct{}),
 	}
 
 	l.deferred.mu.Lock()
@@ -256,6 +257,7 @@ func startTestRun(t *testing.T, l *LMF, supi etsi.SUPI, interval time.Duration, 
 	l.deferred.mu.Unlock()
 
 	l.deferred.wg.Go(func() {
+		defer close(fast.done)
 		defer l.forgetRun(fast)
 
 		l.runDeferred(runCtx, fast)
@@ -304,7 +306,7 @@ func TestDeferredRunRetriesAFailedFixInsteadOfSkippingTheReport(t *testing.T) {
 
 	l.fixOverride = func(context.Context, etsi.SUPI, LocationRequest) (*models.LocationResult, error) {
 		if attempts.Add(1) <= 2 {
-			return nil, ErrNoLocationEstimate
+			return nil, ErrRefreshTimeout
 		}
 
 		return &models.LocationResult{SUPI: supi.String()}, nil
@@ -384,6 +386,25 @@ func TestDeleteDeferredRequestStopsTheRun(t *testing.T) {
 	}
 }
 
+func TestDeferredRunEndsOnAPermanentPositioningError(t *testing.T) {
+	l, supi := registeredLMF(t)
+
+	var attempts atomic.Int32
+
+	l.fixOverride = func(context.Context, etsi.SUPI, LocationRequest) (*models.LocationResult, error) {
+		attempts.Add(1)
+		return nil, ErrNoLocationEstimate
+	}
+
+	id := startTestRun(t, l, supi, 30*time.Millisecond, 100)
+
+	got := waitForEnd(t, l, id)
+
+	if got.TerminationCause != TerminationByNetwork || got.TerminationReason != TerminationReasonPositioning || attempts.Load() != 1 {
+		t.Fatalf("ended request = %+v after %d attempts, want positioning_failed after 1", got, attempts.Load())
+	}
+}
+
 func TestStopAndStartTerminateActiveRequests(t *testing.T) {
 	l, supi := registeredLMF(t)
 	ctx := context.Background()
@@ -417,7 +438,9 @@ func TestStopAndStartTerminateActiveRequests(t *testing.T) {
 		t.Fatalf("create after Stop: err = %v, want ErrDeferredNotRunning", err)
 	}
 
-	leftover := &db.DeferredLocationRequest{SUPI: supi.String(), Method: "cell_id", ReportingIntervalS: 60, ReportingAmount: 2}
+	interval, amount := int64(60), int64(2)
+
+	leftover := &db.DeferredLocationRequest{SUPI: supi.String(), LdrType: "PERIODIC", Method: "cell_id", ReportingIntervalS: &interval, ReportingAmount: &amount}
 	if err := l.db.CreateDeferredLocationRequest(ctx, leftover); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

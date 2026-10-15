@@ -3344,6 +3344,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       operationId: deleteDeferredLocationRequest
       tags: [Deferred Location Requests]
@@ -3352,8 +3354,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/DeferredLocationRequestIdPath"
       responses:
-        "204":
-          description: Deferred location request deleted.
+        "200":
+          $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -3399,6 +3401,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # -- Cell Positions (beta) -----------------------------------------------
   /api/beta/cell-positions:
@@ -3490,8 +3494,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/CellPositionIdPath"
       responses:
-        "204":
-          description: Cell position deleted.
+        "200":
+          $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -6778,7 +6782,7 @@ components:
           format: int64
           minimum: 1
           maximum: 999
-          description: Sub-second interval. Accepted as a 1-second interval.
+          description: Not supported. Ignored; `reporting_interval` is used.
 
     CreateDeferredLocationRequestParams:
       type: object
@@ -6810,7 +6814,7 @@ components:
 
     DeferredLocationRequest:
       type: object
-      required: [id, supi, ldr_type, periodic_event_info, method, status, event_report_counter, created_at]
+      required: [id, supi, ldr_type, periodic_event_info, method, status, created_at]
       properties:
         id:
           type: string
@@ -6842,11 +6846,12 @@ components:
           description: TS 29.572 TerminationCause.
         termination_reason:
           type: string
-          enum: [ue_deregistered, ue_mobility, node_restart, node_shutdown]
+          enum: [ue_deregistered, ue_mobility, positioning_failed, node_restart, node_shutdown]
         event_report_counter:
           type: integer
           format: int64
-          description: Number of reports produced.
+          minimum: 1
+          description: TS 29.572 EventReportCounter. Absent before the first report.
         created_at:
           type: string
           format: date-time

@@ -150,7 +150,7 @@ This path starts periodic location reporting for a subscriber (TS 23.273 deferre
     - `reporting_amount` (integer): Number of reports, 1 to 8639999. Required unless `reporting_infinite_ind` is `true`.
     - `reporting_interval` (integer): Interval between reports in seconds, 1 to 8639999. `reporting_amount` x `reporting_interval` must not exceed 8639999.
     - `reporting_infinite_ind` (boolean, optional): Report until 8639999 seconds have elapsed.
-    - `reporting_interval_ms` (integer, optional): 1 to 999. Accepted as a `reporting_interval` of 1.
+    - `reporting_interval_ms` (integer, optional): 1 to 999. Not supported; `reporting_interval` is used.
 - `scheduled_loc_time` (string, optional): RFC 3339 time of the first report. Must be in the future.
 - `method` (string, optional): `cell_id`, `ecid`, or `gnss`. Defaults to `cell_id`.
 - `mode` (string, optional): `network_based` or `ue_assisted` for `ecid`; `standalone` for `gnss`. Defaults to every mode supported by `method`.
@@ -161,9 +161,11 @@ This path starts periodic location reporting for a subscriber (TS 23.273 deferre
 | Status | Condition                                                  |
 | ------ | ---------------------------------------------------------- |
 | `201`  | Returns the deferred location request.                     |
+| `400`  | Invalid parameters.                                        |
 | `404`  | Subscriber not registered on this node.                    |
 | `409`  | The subscriber already has an active deferred location request. |
 | `501`  | `ldr_type` is not supported.                               |
+| `503`  | Deferred location requests are unavailable.                |
 
 ### Sample Request
 
@@ -195,8 +197,7 @@ This path starts periodic location reporting for a subscriber (TS 23.273 deferre
         "method": "ecid",
         "mode": "network_based",
         "status": "ACTIVE",
-        "event_report_counter": 0,
-        "created_at": "2026-10-15T14:00:00.000Z"
+        "created_at": "2026-10-15T14:00:00Z"
     }
 }
 ```
@@ -232,8 +233,8 @@ This path returns a paginated list of deferred location requests, newest first.
 | `measurement_quantities` | object  | E-CID measurement quantities.                                                    |
 | `status`                 | string  | `ACTIVE` or `TERMINATED`.                                                        |
 | `termination_cause`      | string  | `NORMAL_TERMINATION`, `TERMINATION_BY_UE`, or `TERMINATION_BY_NETWORK` (TS 29.572). |
-| `termination_reason`     | string  | `ue_deregistered`, `ue_mobility`, `node_restart`, or `node_shutdown`.             |
-| `event_report_counter`   | integer | Number of reports produced.                                                      |
+| `termination_reason`     | string  | `ue_deregistered`, `ue_mobility`, `positioning_failed`, `node_restart`, or `node_shutdown`. |
+| `event_report_counter`   | integer | Number of reports produced (TS 29.572). Absent before the first report.          |
 | `created_at`             | string  | Creation time.                                                                   |
 | `terminated_at`          | string  | Termination time.                                                                |
 
@@ -259,7 +260,7 @@ Terminated requests and their reports are deleted 7 days after termination. Each
                 "termination_cause": "TERMINATION_BY_NETWORK",
                 "termination_reason": "ue_deregistered",
                 "event_report_counter": 42,
-                "created_at": "2026-10-15T14:00:00.000Z",
+                "created_at": "2026-10-15T14:00:00Z",
                 "terminated_at": "2026-10-15T14:21:03.512Z"
             }
         ],
@@ -300,7 +301,7 @@ This path stops a deferred location request if it is active, then deletes it and
 | ---- | ------ | ------------------- |
 | `id` | string | Request identifier. |
 
-Returns `204 No Content` on success.
+Returns `200 OK` on success.
 
 ## List Location Reports
 
@@ -536,4 +537,4 @@ This path deletes a provisioned cell position.
 | ---- | ------ | ------------------------- |
 | `id` | string | Cell position identifier. |
 
-Returns `204 No Content` on success.
+Returns `200 OK` on success.
