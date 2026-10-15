@@ -146,27 +146,51 @@ type deferredRun struct {
 func (l *LMF) Start(ctx context.Context) {
 	l.terminateAllDeferred(ctx, TerminationReasonNodeRestart)
 
-	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-
-	l.deferred.mu.Lock()
-	l.deferred.ctx = runCtx
-	l.deferred.cancel = cancel
-	l.deferred.byID = make(map[string]*deferredRun)
-	l.deferred.bySUPI = make(map[string]string)
-	l.deferred.mu.Unlock()
+	l.deferred.start(ctx)
 }
 
-func (l *LMF) Stop(ctx context.Context) {
-	l.deferred.mu.Lock()
-	cancel := l.deferred.cancel
-	l.deferred.ctx = nil
-	l.deferred.mu.Unlock()
+func (d *deferredRuns) start(parent context.Context) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+	d.cancel = cancel
+	d.ctx = ctx
+	d.byID = make(map[string]*deferredRun)
+	d.bySUPI = make(map[string]string)
+}
+
+func (d *deferredRuns) stop() bool {
+	d.mu.Lock()
+	cancel := d.cancel
+	d.cancel = nil
+	d.ctx = nil
+	d.mu.Unlock()
 
 	if cancel == nil {
-		return
+		return false
 	}
 
 	cancel()
+
+	return true
+}
+
+func (r *deferredRun) stop() {
+	r.cancel()
+}
+
+func (r *deferredRun) bind(parent context.Context) context.Context {
+	ctx, cancel := context.WithCancel(parent)
+	r.cancel = cancel
+
+	return ctx
+}
+
+func (l *LMF) Stop(ctx context.Context) {
+	if !l.deferred.stop() {
+		return
+	}
 
 	done := make(chan struct{})
 
@@ -252,8 +276,6 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 		start = *params.ScheduledLocTime
 	}
 
-	runCtx, cancel := context.WithCancel(l.deferred.ctx)
-
 	run := &deferredRun{
 		id:       row.ID,
 		supi:     params.SUPI,
@@ -263,9 +285,10 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 		amount:   info.ReportingAmount,
 		infinite: info.ReportingInfinite,
 		start:    start,
-		cancel:   cancel,
 		done:     make(chan struct{}),
 	}
+
+	runCtx := run.bind(l.deferred.ctx)
 
 	l.deferred.byID[run.id] = run
 	l.deferred.bySUPI[params.SUPI.String()] = run.id
@@ -290,7 +313,7 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 }
 
 func (l *LMF) forgetRun(run *deferredRun) {
-	run.cancel()
+	run.stop()
 
 	l.deferred.mu.Lock()
 	defer l.deferred.mu.Unlock()
@@ -343,7 +366,7 @@ func (l *LMF) DeleteDeferredRequest(ctx context.Context, id string) error {
 	l.deferred.mu.Unlock()
 
 	if run != nil {
-		run.cancel()
+		run.stop()
 
 		select {
 		case <-run.done:
