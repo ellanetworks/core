@@ -23,19 +23,19 @@ func migrateV15(ctx context.Context, tx *sql.Tx) error {
 		last_result TEXT,
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL
-	)`, PositioningSessionsTableName)
+	)`, "positioning_sessions")
 
 	if _, err := tx.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("failed to create positioning_sessions table: %w", err)
 	}
 
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf(
-		"CREATE INDEX idx_pos_sessions_supi ON %s(supi)", PositioningSessionsTableName)); err != nil {
+		"CREATE INDEX idx_pos_sessions_supi ON %s(supi)", "positioning_sessions")); err != nil {
 		return fmt.Errorf("create positioning_sessions supi index: %w", err)
 	}
 
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf(
-		"CREATE INDEX idx_pos_sessions_status ON %s(status)", PositioningSessionsTableName)); err != nil {
+		"CREATE INDEX idx_pos_sessions_status ON %s(status)", "positioning_sessions")); err != nil {
 		return fmt.Errorf("create positioning_sessions status index: %w", err)
 	}
 

@@ -234,24 +234,6 @@ func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 	}
 }
 
-func TestStoredLocationData(t *testing.T) {
-	stored, err := json.Marshal(&models.LocationResult{Positioning: gnssAttempt(), Estimate: circleEstimate(10)})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	s := string(stored)
-
-	ld := storedLocationData(&s)
-	if ld == nil || ld.LocationEstimate.Shape != gadShapeCircle || len(ld.GnssPositioningDataList) != 1 {
-		t.Fatalf("storedLocationData = %+v, want the spec-shaped rendering of the stored result", ld)
-	}
-
-	if storedLocationData(nil) != nil {
-		t.Error("a session without a result rendered one")
-	}
-}
-
 func TestToLocationData_MeasurementsWithoutEstimate(t *testing.T) {
 	measuredAt := time.Date(2026, 9, 28, 21, 0, 13, 0, time.UTC)
 	r := &models.LocationResult{
@@ -287,15 +269,5 @@ func TestToLocationData_MeasurementsWithoutEstimate(t *testing.T) {
 
 	if m, ok := wire["radioMeasurements"].([]any); !ok || len(m) != 1 {
 		t.Errorf("radioMeasurements = %v, want the measured cell", wire["radioMeasurements"])
-	}
-
-	stored, err := json.Marshal(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	s := string(stored)
-	if ld := storedLocationData(&s); ld == nil || len(ld.RadioMeasurements) != 1 {
-		t.Errorf("storedLocationData = %+v, want the stored measurements", ld)
 	}
 }

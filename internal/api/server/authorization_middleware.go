@@ -42,7 +42,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
 		PermListNetworkRules, PermReadNetworkRule,
 		PermReadLocation,
-		PermReadPositioningSessions,
+		PermReadDeferredLocation,
 		PermListCellPositions, PermReadCellPosition,
 		PermReadClusterHealth,
 	},
@@ -70,7 +70,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermSupportBundle,
 		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
 		PermReadLocation,
-		PermReadPositioningSessions, PermCreatePositioningSession, PermDeletePositioningSession,
+		PermReadDeferredLocation, PermCreateDeferredLocation, PermDeleteDeferredLocation,
 		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
 		PermReadClusterHealth,
 	},
@@ -235,10 +235,9 @@ const (
 	// Location permissions
 	PermReadLocation = "location:read"
 
-	// Positioning permissions
-	PermReadPositioningSessions  = "positioning:sessions:read"
-	PermCreatePositioningSession = "positioning:sessions:create"
-	PermDeletePositioningSession = "positioning:sessions:delete"
+	PermReadDeferredLocation   = "location:deferred:read"
+	PermCreateDeferredLocation = "location:deferred:create"
+	PermDeleteDeferredLocation = "location:deferred:delete"
 
 	// Cell position permissions
 	PermListCellPositions  = "cell_position:list"

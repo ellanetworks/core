@@ -431,8 +431,31 @@ func TestClientMethodsPropagateRequesterErrors(t *testing.T) {
 
 			return c.UpdatePolicy(ctx, "non-existent-policy", updatePolicyOpts)
 		}},
-		{"ListPositioningSessions", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			_, err := c.ListPositioningSessions(ctx, "imsi-001010000000001")
+		{"GetLocation", func(t *testing.T, ctx context.Context, c *client.Client) error {
+			_, err := c.GetLocation(ctx, &client.GetLocationOptions{SUPI: "imsi-001010000000001"})
+
+			return err
+		}},
+		{"CreateDeferredLocationRequest", func(t *testing.T, ctx context.Context, c *client.Client) error {
+			_, err := c.CreateDeferredLocationRequest(ctx, &client.CreateDeferredLocationRequestOptions{SUPI: "imsi-001010000000001", LdrType: "PERIODIC"})
+
+			return err
+		}},
+		{"ListDeferredLocationRequests", func(t *testing.T, ctx context.Context, c *client.Client) error {
+			_, err := c.ListDeferredLocationRequests(ctx, nil)
+
+			return err
+		}},
+		{"GetDeferredLocationRequest", func(t *testing.T, ctx context.Context, c *client.Client) error {
+			_, err := c.GetDeferredLocationRequest(ctx, "r-1")
+
+			return err
+		}},
+		{"DeleteDeferredLocationRequest", func(t *testing.T, ctx context.Context, c *client.Client) error {
+			return c.DeleteDeferredLocationRequest(ctx, "r-1")
+		}},
+		{"ListLocationReports", func(t *testing.T, ctx context.Context, c *client.Client) error {
+			_, err := c.ListLocationReports(ctx, "r-1", 0, 0)
 
 			return err
 		}},

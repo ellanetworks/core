@@ -57,6 +57,10 @@ func runRetentionPass(ctx context.Context, database *db.Database, isLeader bool)
 		logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 	}
 
+	if err := database.DeleteEndedDeferredLocationRequests(ctx, time.Now().Add(-db.DeferredLocationRetention)); err != nil {
+		logger.EllaLog.Error("error enforcing deferred location request retention", zap.Error(err))
+	}
+
 	if !isLeader {
 		return
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	coremodels "github.com/ellanetworks/core/internal/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -32,39 +33,17 @@ const ecidUETimeout = 20 * time.Second
 // ErrNoLocationEstimate, unless E-CID produced radio measurements, which are then
 // returned without an estimate. When no radio measurements are available it
 // degrades to a Cell-ID estimate (still requiring the anchor).
-func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode models.PositioningMode, quantities *models.MeasurementQuantities) (*models.LocationResult, string, error) {
+func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode models.PositioningMode, quantities *models.MeasurementQuantities) (*models.LocationResult, error) {
 	loc, ok := l.getUELocation(supi)
 	if !ok {
-		return nil, "", fmt.Errorf("UE location not available: %w", ErrNotFound)
+		return nil, fmt.Errorf("UE location not available: %w", ErrNotFound)
 	}
 
 	if loc.NrLocation == nil && loc.EutraLocation == nil && loc.N3gaLocation == nil {
-		return nil, "", fmt.Errorf("no location available for UE: %w", ErrNotFound)
+		return nil, fmt.Errorf("no location available for UE: %w", ErrNotFound)
 	}
 
-	sessionID, err := l.sessionMgr.CreateSession(ctx, CreateSessionParams{
-		SUPI:        supi.String(),
-		RequestType: RequestImmediate,
-		Method:      RequestedECID,
-	})
-	if err != nil {
-		return nil, "", fmt.Errorf("create positioning session: %w", err)
-	}
-
-	result, err := l.runECID(ctx, supi, sessionID, loc, mode, quantities)
-	if err != nil {
-		if failErr := l.sessionMgr.FailSession(ctx, sessionID); failErr != nil {
-			logger.LmfLog.Warn("failed to record E-CID session failure", zap.String("session_id", sessionID), zap.Error(failErr))
-		}
-
-		return nil, sessionID, err
-	}
-
-	if err := l.sessionMgr.CompleteSession(ctx, sessionID, result); err != nil {
-		return nil, sessionID, fmt.Errorf("complete positioning session: %w", err)
-	}
-
-	return result, sessionID, nil
+	return l.runECID(ctx, supi, uuid.NewString(), loc, mode, quantities)
 }
 
 func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc coremodels.UserLocation, mode models.PositioningMode, quantities *models.MeasurementQuantities) (*models.LocationResult, error) {
@@ -200,7 +179,7 @@ func (l *LMF) fetchUEECIDMeasurements(ctx context.Context, supi etsi.SUPI, sessi
 	session := lpp.NewSession(supi.String(), sessionID, lpp.MethodECID)
 	session.SetNRAccess(nr)
 
-	result, err := l.runLPPSession(ctx, supi, session, false)
+	result, err := l.runLPPSession(ctx, supi, session)
 	if err != nil {
 		return nil, err
 	}

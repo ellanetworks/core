@@ -4,14 +4,14 @@ description: RESTful API reference for locating subscribers and provisioning cel
 
 # Location (beta)
 
-Ella Core supports three positioning methods: Cell ID, Enhanced Cell ID (E-CID), and GNSS in standalone mode. The Location API requests a subscriber's location, tracks deferred positioning sessions, and provisions the cell positions those estimates are drawn from.
+Ella Core supports three positioning methods: Cell ID, Enhanced Cell ID (E-CID), and GNSS in standalone mode. The Location API requests a subscriber's location, manages periodic location requests, and provisions the cell positions those estimates are drawn from.
 
 !!! warning "Beta"
     The Location API is experimental and served under `/api/beta`. Its paths and payloads may change without notice.
 
 ## Locate a Subscriber
 
-This path requests a subscriber's current location. `immediate` returns an estimate directly; `periodic` and `triggered` open a positioning session; `cancel` terminates one.
+This path returns a subscriber's current location.
 
 | Method | Path                |
 | ------ | ------------------- |
@@ -19,24 +19,22 @@ This path requests a subscriber's current location. `immediate` returns an estim
 
 ### Parameters
 
-- `request_type` (string): `immediate`, `periodic`, `triggered`, or `cancel`.
-- `supi` (string): Subscriber identity. Required unless `request_type` is `cancel`.
+- `supi` (string): Subscriber identity.
 - `method` (string, optional): `cell_id`, `ecid`, or `gnss`. Defaults to `cell_id`.
 - `mode` (string, optional): `network_based` or `ue_assisted` for `ecid`; `standalone` for `gnss`. Defaults to every mode supported by `method`.
-- `session_id` (string): Session to terminate. Required when `request_type` is `cancel`.
-- `measurement_quantities` (object, optional): E-CID measurement quantities (TS 38.455, TS 36.455). Only for `immediate` `ecid` requests with `mode` `network_based` or omitted.
+- `measurement_quantities` (object, optional): E-CID measurement quantities (TS 38.455, TS 36.455). Only for `ecid` with `mode` `network_based` or omitted.
     - `nr` (array of strings, optional): Used when the serving cell is NR. Each entry must be one of `cell-ID`, `sS-RSRP`, `sS-RSRQ`, `cSI-RSRP`, `cSI-RSRQ`, `angleOfArrivalNR`, `timingAdvanceNR`, or `uE-Rx-Tx-Time-Diff`. No duplicates allowed.
     - `eutra` (array of strings, optional): Used when the serving cell is E-UTRA. Each entry must be one of `cell-ID`, `angleOfArrival`, `timingAdvanceType1`, `timingAdvanceType2`, `rSRP`, or `rSRQ`. No duplicates allowed.
 
 ### Responses
 
-| Status | Condition                                              |
-| ------ | ------------------------------------------------------ |
-| `200`  | `immediate` request; returns a location estimate.      |
-| `201`  | `periodic`/`triggered` request; returns a session `id`. |
-| `204`  | `cancel` request; no body.                             |
+| Status | Condition                                 |
+| ------ | ----------------------------------------- |
+| `200`  | Returns a location estimate.              |
+| `404`  | Subscriber not registered, or no estimate. |
+| `504`  | Location request timed out.               |
 
-### Sample Response (`immediate`)
+### Sample Response
 
 ```json
 {
@@ -67,7 +65,7 @@ This path requests a subscriber's current location. `immediate` returns an estim
 }
 ```
 
-### Sample Response (`immediate`, `ecid`)
+### Sample Response (`ecid`)
 
 ```json
 {
@@ -136,135 +134,230 @@ This path requests a subscriber's current location. `immediate` returns an estim
 }
 ```
 
-### Sample Response (`periodic`/`triggered`)
+## Create a Deferred Location Request
+
+This path starts periodic location reporting for a subscriber (TS 23.273 deferred location request).
+
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| POST   | `/api/beta/location/deferred-requests` |
+
+### Parameters
+
+- `supi` (string): Subscriber identity.
+- `ldr_type` (string): One of `UE_AVAILABLE`, `PERIODIC`, `ENTERING_INTO_AREA`, `LEAVING_FROM_AREA`, `BEING_INSIDE_AREA`, or `MOTION`. Only `PERIODIC` is supported.
+- `periodic_event_info` (object):
+    - `reporting_amount` (integer): Number of reports, 1 to 8639999. Required unless `reporting_infinite_ind` is `true`.
+    - `reporting_interval` (integer): Interval between reports in seconds, 1 to 8639999. `reporting_amount` x `reporting_interval` must not exceed 8639999.
+    - `reporting_infinite_ind` (boolean, optional): Report until 8639999 seconds have elapsed.
+    - `reporting_interval_ms` (integer, optional): 1 to 999. Accepted as a `reporting_interval` of 1.
+- `scheduled_loc_time` (string, optional): RFC 3339 time of the first report. Must be in the future.
+- `method` (string, optional): `cell_id`, `ecid`, or `gnss`. Defaults to `cell_id`.
+- `mode` (string, optional): `network_based` or `ue_assisted` for `ecid`; `standalone` for `gnss`. Defaults to every mode supported by `method`.
+- `measurement_quantities` (object, optional): As in [Locate a Subscriber](#locate-a-subscriber).
+
+### Responses
+
+| Status | Condition                                                  |
+| ------ | ---------------------------------------------------------- |
+| `201`  | Returns the deferred location request.                     |
+| `404`  | Subscriber not registered on this node.                    |
+| `409`  | The subscriber already has an active deferred location request. |
+| `501`  | `ldr_type` is not supported.                               |
+
+### Sample Request
+
+```json
+{
+    "supi": "imsi-001010000000001",
+    "ldr_type": "PERIODIC",
+    "periodic_event_info": {
+        "reporting_amount": 120,
+        "reporting_interval": 30
+    },
+    "method": "ecid",
+    "mode": "network_based"
+}
+```
+
+### Sample Response
 
 ```json
 {
     "result": {
-        "id": "018f9f3a-4c2e-7bd1-9f21-0a1b2c3d4e5f"
+        "id": "019a2f3c-8d1e-7b2a-9c4f-1e2d3c4b5a69",
+        "supi": "imsi-001010000000001",
+        "ldr_type": "PERIODIC",
+        "periodic_event_info": {
+            "reporting_amount": 120,
+            "reporting_interval": 30
+        },
+        "method": "ecid",
+        "mode": "network_based",
+        "status": "ACTIVE",
+        "event_report_counter": 0,
+        "created_at": "2026-10-15T14:00:00.000Z"
     }
 }
 ```
 
-## List Positioning Sessions
+## List Deferred Location Requests
 
-This path returns the positioning sessions for a subscriber.
+This path returns a paginated list of deferred location requests, newest first.
 
-| Method | Path                             |
-| ------ | -------------------------------- |
-| GET    | `/api/beta/positioning/sessions` |
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| GET    | `/api/beta/location/deferred-requests` |
 
 ### Query Parameters
 
-| Name   | In    | Type | Default | Allowed | Description                      |
-| ------ | ----- | ---- | ------- | ------- | -------------------------------- |
-| `supi` | query | str  |         |         | Subscriber identity. Required.   |
+| Name       | In    | Type | Default | Allowed                  | Description          |
+| ---------- | ----- | ---- | ------- | ------------------------ | -------------------- |
+| `supi`     | query | str  |         |                          | Subscriber identity. |
+| `status`   | query | str  |         | `ACTIVE`, `TERMINATED`   | Request status.      |
+| `page`     | query | int  | `1`     | `>= 1`                   | Page number.         |
+| `per_page` | query | int  | `25`    | `1..100`                 | Items per page.      |
 
 ### Response Fields
 
-| Field          | Type    | Description                                             |
-| -------------- | ------- | ------------------------------------------------------- |
-| `id`           | string  | Session identifier.                                     |
-| `supi`         | string  | Subscriber identity.                                    |
-| `session_type` | integer | `0` immediate, `1` periodic, `2` triggered.             |
-| `method`       | string  | Positioning method.                                     |
-| `status`       | integer | `0` active, `1` completed, `2` failed, `3` cancelled.   |
-| `created_at`   | integer | Creation time, Unix seconds.                            |
-| `updated_at`   | integer | Last update time, Unix seconds.                         |
+| Field                    | Type    | Description                                                                      |
+| ------------------------ | ------- | -------------------------------------------------------------------------------- |
+| `id`                     | string  | Request identifier.                                                              |
+| `supi`                   | string  | Subscriber identity.                                                             |
+| `ldr_type`               | string  | `PERIODIC`.                                                                      |
+| `periodic_event_info`    | object  | Accepted reporting parameters.                                                   |
+| `scheduled_loc_time`     | string  | Time of the first report.                                                        |
+| `method`                 | string  | Positioning method.                                                              |
+| `mode`                   | string  | Positioning mode.                                                                |
+| `measurement_quantities` | object  | E-CID measurement quantities.                                                    |
+| `status`                 | string  | `ACTIVE` or `TERMINATED`.                                                        |
+| `termination_cause`      | string  | `NORMAL_TERMINATION`, `TERMINATION_BY_UE`, or `TERMINATION_BY_NETWORK` (TS 29.572). |
+| `termination_reason`     | string  | `ue_deregistered`, `ue_mobility`, `node_restart`, or `node_shutdown`.             |
+| `event_report_counter`   | integer | Number of reports produced.                                                      |
+| `created_at`             | string  | Creation time.                                                                   |
+| `terminated_at`          | string  | Termination time.                                                                |
 
-### Sample Response
-
-```json
-{
-    "result": [
-        {
-            "id": "018f9f3a-4c2e-7bd1-9f21-0a1b2c3d4e5f",
-            "supi": "imsi-001010000000001",
-            "session_type": 1,
-            "method": "ecid",
-            "status": 0,
-            "created_at": 1720000000,
-            "updated_at": 1720000000
-        }
-    ]
-}
-```
-
-## Get a Positioning Session
-
-This path returns a positioning session, including its most recent location estimate.
-
-| Method | Path                                  |
-| ------ | ------------------------------------- |
-| GET    | `/api/beta/positioning/sessions/{id}` |
-
-### Path Parameters
-
-| Name | Type   | Description         |
-| ---- | ------ | ------------------- |
-| `id` | string | Session identifier. |
-
-### Response Fields
-
-| Field                       | Type    | Description                                            |
-| --------------------------- | ------- | ----------------------------------------------------- |
-| `id`                        | string  | Session identifier.                                   |
-| `supi`                      | string  | Subscriber identity.                                  |
-| `session_type`              | integer | `0` immediate, `1` periodic, `2` triggered.           |
-| `method`                    | string  | Positioning method.                                   |
-| `status`                    | integer | `0` active, `1` completed, `2` failed, `3` cancelled. |
-| `last_result`               | object  | Most recent location estimate.                        |
-| `created_at`                | integer | Creation time, Unix seconds.                          |
-| `updated_at`                | integer | Last update time, Unix seconds.                       |
+Terminated requests and their reports are deleted 7 days after termination. Each request keeps its 10000 most recent reports.
 
 ### Sample Response
 
 ```json
 {
     "result": {
-        "id": "018f9f3a-4c2e-7bd1-9f21-0a1b2c3d4e5f",
-        "supi": "imsi-001010000000001",
-        "session_type": 1,
-        "method": "ecid",
-        "status": 1,
-        "last_result": {
-            "locationEstimate": {
-                "shape": "POINT_UNCERTAINTY_CIRCLE",
-                "point": {
-                    "lat": 37.7749,
-                    "lon": -122.4194
+        "items": [
+            {
+                "id": "019a2f3c-8d1e-7b2a-9c4f-1e2d3c4b5a69",
+                "supi": "imsi-001010000000001",
+                "ldr_type": "PERIODIC",
+                "periodic_event_info": {
+                    "reporting_amount": 120,
+                    "reporting_interval": 30
                 },
-                "uncertainty": 50
-            },
-            "positioningDataList": [
-                {
-                    "method": "ECID",
-                    "mode": "CONVENTIONAL",
-                    "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
-                }
-            ]
-        },
-        "created_at": 1720000000,
-        "updated_at": 1720000100
+                "method": "ecid",
+                "mode": "network_based",
+                "status": "TERMINATED",
+                "termination_cause": "TERMINATION_BY_NETWORK",
+                "termination_reason": "ue_deregistered",
+                "event_report_counter": 42,
+                "created_at": "2026-10-15T14:00:00.000Z",
+                "terminated_at": "2026-10-15T14:21:03.512Z"
+            }
+        ],
+        "page": 1,
+        "per_page": 25,
+        "total_count": 1
     }
 }
 ```
 
-## Cancel a Positioning Session
+## Get a Deferred Location Request
 
-This path cancels an active positioning session.
+This path returns a deferred location request.
 
-| Method | Path                                  |
-| ------ | ------------------------------------- |
-| DELETE | `/api/beta/positioning/sessions/{id}` |
+| Method | Path                                        |
+| ------ | ------------------------------------------- |
+| GET    | `/api/beta/location/deferred-requests/{id}` |
 
 ### Path Parameters
 
 | Name | Type   | Description         |
 | ---- | ------ | ------------------- |
-| `id` | string | Session identifier. |
+| `id` | string | Request identifier. |
+
+The response fields are those of [List Deferred Location Requests](#list-deferred-location-requests).
+
+## Delete a Deferred Location Request
+
+This path stops a deferred location request if it is active, then deletes it and its reports.
+
+| Method | Path                                        |
+| ------ | ------------------------------------------- |
+| DELETE | `/api/beta/location/deferred-requests/{id}` |
+
+### Path Parameters
+
+| Name | Type   | Description         |
+| ---- | ------ | ------------------- |
+| `id` | string | Request identifier. |
 
 Returns `204 No Content` on success.
+
+## List Location Reports
+
+This path returns the location reports of a deferred location request, oldest first.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| GET    | `/api/beta/location/deferred-requests/{id}/reports` |
+
+### Query Parameters
+
+| Name    | In    | Type | Default | Allowed   | Description                                  |
+| ------- | ----- | ---- | ------- | --------- | -------------------------------------------- |
+| `after` | query | int  | `0`     | `>= 0`    | Return reports with a greater `seq`.         |
+| `limit` | query | int  | `100`   | `1..1000` | Maximum number of reports.                   |
+
+### Response Fields
+
+| Field                   | Type    | Description                                              |
+| ----------------------- | ------- | -------------------------------------------------------- |
+| `items[].seq`           | integer | Report number, starting at 1.                            |
+| `items[].reported_at`   | string  | Report time.                                             |
+| `items[].location_data` | object  | Location estimate, as returned by [Locate a Subscriber](#locate-a-subscriber). |
+| `next`                  | integer | Value to pass as `after` for the following reports.      |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "seq": 1,
+                "reported_at": "2026-10-15T14:00:00.812Z",
+                "location_data": {
+                    "locationEstimate": {
+                        "shape": "POINT_UNCERTAINTY_CIRCLE",
+                        "point": {
+                            "lat": 37.7749,
+                            "lon": -122.4194
+                        },
+                        "uncertainty": 50
+                    },
+                    "positioningDataList": [
+                        {
+                            "method": "NR_ECID",
+                            "mode": "CONVENTIONAL",
+                            "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
+                        }
+                    ]
+                }
+            }
+        ],
+        "next": 1
+    }
+}
+```
 
 ## List Cell Positions
 

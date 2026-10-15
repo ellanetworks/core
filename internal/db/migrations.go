@@ -45,6 +45,7 @@ var migrations = []migration{
 	{21, "add ue_registrations table (HSS MME identity, UDM AMF registration)", migrateV21},
 	{22, "add SMS: subscribers.msisdn column, sms_settings, SMSC peer and message waiting tables", migrateV22},
 	{23, "add pcscf_addresses and ims_registrations tables: P-CSCF addresses given to phones and IMS S-CSCF assignments", migrateV23},
+	{24, "replace positioning_sessions with deferred_location_requests and location_reports for periodic location", migrateV24},
 }
 
 // baselineVersion is the highest migration that runs locally during

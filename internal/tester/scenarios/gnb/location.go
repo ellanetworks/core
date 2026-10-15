@@ -5,7 +5,9 @@ package gnb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -213,6 +215,10 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 
 	logger.Logger.Info("A-GNSS location validated successfully")
 
+	if err := runPeriodicLocation(ctx, cl, supi); err != nil {
+		return err
+	}
+
 	// --- Cleanup: Deregister UE ---
 	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
@@ -244,6 +250,75 @@ func validateNRECID(result *common.LocationData) error {
 			return fmt.Errorf("a %s cell is marked serving on NR access: %+v", m.RAT, result.RadioMeasurements)
 		}
 	}
+
+	return nil
+}
+
+func runPeriodicLocation(ctx context.Context, cl *client.Client, supi string) error {
+	const reports = 3
+
+	created, err := cl.CreateDeferredLocationRequest(ctx, &client.CreateDeferredLocationRequestOptions{
+		SUPI:              supi,
+		LdrType:           "PERIODIC",
+		PeriodicEventInfo: client.PeriodicEventInfo{ReportingAmount: reports, ReportingInterval: 2},
+		Method:            "ecid",
+		Mode:              "network_based",
+	})
+	if err != nil {
+		return fmt.Errorf("create periodic location request: %v", err)
+	}
+
+	deadline := time.Now().Add(30 * time.Second)
+
+	var request *client.DeferredLocationRequest
+
+	for {
+		request, err = cl.GetDeferredLocationRequest(ctx, created.ID)
+		if err != nil {
+			return fmt.Errorf("get periodic location request: %v", err)
+		}
+
+		if request.Status == "TERMINATED" {
+			break
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("periodic location request still %s after 30 s (%d reports)", request.Status, request.EventReportCounter)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if request.TerminationCause != "NORMAL_TERMINATION" || request.EventReportCounter != reports {
+		return fmt.Errorf("periodic location request ended with %s/%s after %d reports, want NORMAL_TERMINATION after %d",
+			request.TerminationCause, request.TerminationReason, request.EventReportCounter, reports)
+	}
+
+	list, err := cl.ListLocationReports(ctx, created.ID, 0, 0)
+	if err != nil {
+		return fmt.Errorf("list location reports: %v", err)
+	}
+
+	if len(list.Items) != reports || list.Next != reports {
+		return fmt.Errorf("got %d location reports (next %d), want %d", len(list.Items), list.Next, reports)
+	}
+
+	for _, report := range list.Items {
+		var data common.LocationData
+		if err := json.Unmarshal(report.LocationData, &data); err != nil {
+			return fmt.Errorf("decode location report %d: %v", report.Seq, err)
+		}
+
+		if !common.HasPositioning(&data, "NR_ECID", "CONVENTIONAL", "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION") {
+			return fmt.Errorf("location report %d is not a network-based NR_ECID fix: %+v", report.Seq, data.PositioningDataList)
+		}
+	}
+
+	if err := cl.DeleteDeferredLocationRequest(ctx, created.ID); err != nil {
+		return fmt.Errorf("delete periodic location request: %v", err)
+	}
+
+	logger.Logger.Info("Periodic location validated successfully", zap.Int("reports", reports))
 
 	return nil
 }

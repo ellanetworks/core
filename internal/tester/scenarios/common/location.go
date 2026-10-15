@@ -129,9 +129,8 @@ func GetECIDLocationWithQuantities(ctx context.Context, cl *client.Client, supi,
 
 func requestLocation(ctx context.Context, cl *client.Client, supi, method, mode string, quantities map[string][]string) (*LocationData, error) {
 	request := map[string]any{
-		"supi":         supi,
-		"request_type": "immediate",
-		"method":       method,
+		"supi":   supi,
+		"method": method,
 	}
 
 	if mode != "" {
