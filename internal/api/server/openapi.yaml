@@ -6420,6 +6420,29 @@ components:
         session_id:
           type: string
           description: Session to terminate. Required when `request_type` is `cancel`.
+        measurement_quantities:
+          $ref: "#/components/schemas/MeasurementQuantities"
+
+    MeasurementQuantities:
+      type: object
+      description: "E-CID measurement quantities (TS 38.455, TS 36.455). Only for `immediate` `ecid` requests with `mode` `network_based` or omitted."
+      properties:
+        nr:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Used when the serving cell is NR.
+          items:
+            type: string
+            enum: [cell-ID, angleOfArrival, timingAdvanceType1, timingAdvanceType2, rSRP, rSRQ, sS-RSRP, sS-RSRQ, cSI-RSRP, cSI-RSRQ, angleOfArrivalNR, timingAdvanceNR, uE-Rx-Tx-Time-Diff]
+        eutra:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Used when the serving cell is E-UTRA.
+          items:
+            type: string
+            enum: [cell-ID, angleOfArrival, timingAdvanceType1, timingAdvanceType2, rSRP, rSRQ]
 
     LocationData:
       type: object

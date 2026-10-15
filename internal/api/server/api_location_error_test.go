@@ -73,3 +73,33 @@ func TestGetSubscriberLocationRejectsUnsupportedMode(t *testing.T) {
 		}
 	}
 }
+
+func TestGetSubscriberLocationRejectsInvalidMeasurementQuantities(t *testing.T) {
+	handler := GetSubscriberLocation(lmf.New(nil, nil, nil))
+
+	for _, tc := range []struct {
+		body    string
+		message string
+	}{
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"cell_id","measurement_quantities":{"nr":["sS-RSRP"]}}`, "only apply to network-based E-CID"},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","mode":"ue_assisted","measurement_quantities":{"nr":["sS-RSRP"]}}`, "only apply to network-based E-CID"},
+		{`{"supi":"imsi-001010000000001","request_type":"periodic","method":"ecid","measurement_quantities":{"nr":["sS-RSRP"]}}`, "only supported for immediate requests"},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"nr":[]}}`, "nr list must not be empty"},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"nr":["ssRsrp"]}}`, `\"ssRsrp\" is not a valid nr quantity`},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"eutra":["sS-RSRP"]}}`, `\"sS-RSRP\" is not a valid eutra quantity`},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"nr":["sS-RSRP","sS-RSRP"]}}`, "listed more than once"},
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/beta/location", strings.NewReader(tc.body))
+
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", tc.body, rec.Code)
+		}
+
+		if !strings.Contains(rec.Body.String(), tc.message) {
+			t.Errorf("%s: body %q does not contain %q", tc.body, rec.Body.String(), tc.message)
+		}
+	}
+}

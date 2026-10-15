@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/nrppa"
 	"github.com/ellanetworks/core/sctp"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
@@ -124,6 +125,7 @@ type GnodeB struct {
 	modifyRequests    map[int64]int
 	modifyResponses   map[int64]int
 	refuseGBRFlows    map[int64]ngap.Cause
+	nrppaQuantities   []nrppa.MeasurementQuantityValue
 	flowFiveQIs       map[int64]map[int64]map[uint8]int64
 	lastGeneratedTEID uint32
 	nextFwdTEID       uint32
@@ -1286,6 +1288,32 @@ func (g *GnodeB) recordFlowFiveQIsLocked(ranUeID, pduSessionID int64, fiveQIs ma
 	}
 
 	maps.Copy(g.flowFiveQIs[ranUeID][pduSessionID], fiveQIs)
+}
+
+func (g *GnodeB) SupportNRPPaMeasurementQuantities(quantities ...nrppa.MeasurementQuantityValue) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.nrppaQuantities = slices.Clone(quantities)
+}
+
+func (g *GnodeB) unsupportedNRPPaQuantities(requested []nrppa.MeasurementQuantityValue) []nrppa.MeasurementQuantityValue {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.nrppaQuantities == nil {
+		return nil
+	}
+
+	var unsupported []nrppa.MeasurementQuantityValue
+
+	for _, q := range requested {
+		if !slices.Contains(g.nrppaQuantities, q) {
+			unsupported = append(unsupported, q)
+		}
+	}
+
+	return unsupported
 }
 
 func (g *GnodeB) RefuseNextGBRQoSFlows(ranUeID int64, cause ngap.Cause) {

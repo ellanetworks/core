@@ -4,6 +4,7 @@
 package nrppa
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -192,5 +193,59 @@ func TestMapECIDResultKeepsCellsAndBeams(t *testing.T) {
 
 	if m.Cells[1].Serving || *m.Cells[1].PCI != 181 {
 		t.Errorf("neighbour cell = %+v", m.Cells[1])
+	}
+}
+
+func TestEncodeMeasurementQuantitiesCoversEveryNRValue(t *testing.T) {
+	for _, q := range lmfmodels.NRMeasurementQuantities {
+		if _, err := encodeMeasurementQuantities([]lmfmodels.MeasurementQuantity{q}); err != nil {
+			t.Errorf("%s: %v", q, err)
+		}
+	}
+}
+
+func TestRequestCarriesTheRequestedQuantities(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		quantities []lmfmodels.MeasurementQuantity
+		want       []nrppa.MeasurementQuantityValue
+	}{
+		{
+			name:       "default",
+			quantities: nil,
+			want: []nrppa.MeasurementQuantityValue{
+				nrppa.MeasRSRP, nrppa.MeasRSRQ, nrppa.MeasSSRSRP, nrppa.MeasSSRSRQ, nrppa.MeasCSIRSRP,
+				nrppa.MeasCSIRSRQ, nrppa.MeasAngleOfArrivalNR, nrppa.MeasTimingAdvanceNR, nrppa.MeasUERxTxTimeDiff,
+			},
+		},
+		{
+			name: "explicit",
+			quantities: []lmfmodels.MeasurementQuantity{
+				lmfmodels.MeasurementQuantitySSRSRP,
+				lmfmodels.MeasurementQuantityTimingAdvanceNR,
+			},
+			want: []nrppa.MeasurementQuantityValue{nrppa.MeasSSRSRP, nrppa.MeasTimingAdvanceNR},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			values, err := encodeMeasurementQuantities(tc.quantities)
+			if err != nil {
+				t.Fatalf("encodeMeasurementQuantities: %v", err)
+			}
+
+			pdu, err := nrppa.BuildECIDMeasurementInitiationRequest(1, values)
+			if err != nil {
+				t.Fatalf("BuildECIDMeasurementInitiationRequest: %v", err)
+			}
+
+			parsed, err := nrppa.ParsePDU(pdu)
+			if err != nil {
+				t.Fatalf("ParsePDU: %v", err)
+			}
+
+			if !slices.Equal(parsed.Request.MeasurementQuantities, tc.want) {
+				t.Errorf("quantities = %v, want %v", parsed.Request.MeasurementQuantities, tc.want)
+			}
+		})
 	}
 }

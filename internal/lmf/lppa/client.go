@@ -17,6 +17,7 @@ package lppa
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -46,60 +47,78 @@ func (c *Client) nextMeasurementID() int64 {
 	return (c.measSeq.Add(1)-1)%15 + 1
 }
 
-// ecidMeasurementQuantities are the E-CID quantities the LMF requests from the
-// RAN. Cell-ID comes from the MME location context; angle of arrival, timing
-// advance and signal level are optional LPPa enhancements (TS 36.455). The eNB
-// returns whichever quantities it supports and omits the rest.
-var ecidMeasurementQuantities = []lppa.MeasurementQuantityValue{
-	lppa.MeasCellID,
-	lppa.MeasAngleOfArrival,
-	lppa.MeasTimingAdvanceType1,
-	lppa.MeasTimingAdvanceType2,
-	lppa.MeasRSRP,
-	lppa.MeasRSRQ,
+var defaultMeasurementQuantities = []lmfmodels.MeasurementQuantity{
+	lmfmodels.MeasurementQuantityCellID,
+	lmfmodels.MeasurementQuantityAngleOfArrival,
+	lmfmodels.MeasurementQuantityTimingAdvanceType1,
+	lmfmodels.MeasurementQuantityTimingAdvanceType2,
+	lmfmodels.MeasurementQuantityRSRP,
+	lmfmodels.MeasurementQuantityRSRQ,
 }
 
-// RequestMeasurements sends an LPPa E-CIDMeasurementInitiationRequest to the RAN
-// for the given UE. The PDU is encoded and sent via S1AP downlink UE-associated
-// LPPa transport.
-//
-// It returns the E-SMLC-UE-Measurement-ID assigned to the request so the caller
-// can match the asynchronous E-CIDMeasurementInitiationResponse via
-// WaitForMeasurements.
-func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error) {
+var measurementQuantityValues = map[lmfmodels.MeasurementQuantity]lppa.MeasurementQuantityValue{
+	lmfmodels.MeasurementQuantityCellID:             lppa.MeasCellID,
+	lmfmodels.MeasurementQuantityAngleOfArrival:     lppa.MeasAngleOfArrival,
+	lmfmodels.MeasurementQuantityTimingAdvanceType1: lppa.MeasTimingAdvanceType1,
+	lmfmodels.MeasurementQuantityTimingAdvanceType2: lppa.MeasTimingAdvanceType2,
+	lmfmodels.MeasurementQuantityRSRP:               lppa.MeasRSRP,
+	lmfmodels.MeasurementQuantityRSRQ:               lppa.MeasRSRQ,
+}
+
+func (c *Client) DefaultMeasurementQuantities() []lmfmodels.MeasurementQuantity {
+	return slices.Clone(defaultMeasurementQuantities)
+}
+
+func encodeMeasurementQuantities(quantities []lmfmodels.MeasurementQuantity) ([]lppa.MeasurementQuantityValue, error) {
+	if len(quantities) == 0 {
+		quantities = defaultMeasurementQuantities
+	}
+
+	values := make([]lppa.MeasurementQuantityValue, 0, len(quantities))
+
+	for _, q := range quantities {
+		v, ok := measurementQuantityValues[q]
+		if !ok {
+			return nil, fmt.Errorf("measurement quantity %q is not defined in LPPa", q)
+		}
+
+		values = append(values, v)
+	}
+
+	return values, nil
+}
+
+func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, quantities []lmfmodels.MeasurementQuantity) (int64, error) {
+	values, err := encodeMeasurementQuantities(quantities)
+	if err != nil {
+		return 0, err
+	}
+
 	ue, ok := c.mme.LookupUeBySupi(supi)
 	if !ok {
 		return 0, fmt.Errorf("UE not found: %s", supi)
 	}
 
+	measID := c.nextMeasurementID()
+
+	payload, err := lppa.BuildECIDMeasurementInitiationRequest(measID, values)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build LPPa E-CID request: %w", err)
+	}
+
 	conn := ue.Conn()
 	if conn == nil {
-		// ECM-IDLE: the MME buffers the request and pages the UE (TS 23.273 §6.11.2 step 2).
-		measID := c.nextMeasurementID()
-
-		payload, err := lppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
-		if err != nil {
-			return 0, fmt.Errorf("failed to build LPPa E-CID request: %w", err)
-		}
-
 		if err := c.mme.PageAndRetryLPPa(ctx, supi, measID, payload); err != nil {
 			return 0, fmt.Errorf("failed to page UE for LPPa: %w", err)
 		}
 
 		logger.LmfLog.Debug("LPPa E-CID measurement request buffered, paging ECM-IDLE UE",
 			logger.SUPI(supi.String()),
-			zap.String("method", method),
+			zap.Any("measurement_quantities", quantities),
 			zap.Int64("esmlc_measurement_id", measID),
 		)
 
 		return measID, nil
-	}
-
-	measID := c.nextMeasurementID()
-
-	payload, err := lppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
-	if err != nil {
-		return 0, fmt.Errorf("failed to build LPPa E-CID request: %w", err)
 	}
 
 	if err := conn.SendDownlinkLPPaTransport(ctx, 0, payload); err != nil {
@@ -108,7 +127,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 
 	logger.LmfLog.Debug("LPPa E-CID measurement request sent",
 		logger.SUPI(supi.String()),
-		zap.String("method", method),
+		zap.Any("measurement_quantities", quantities),
 		zap.Int64("esmlc_measurement_id", measID),
 	)
 

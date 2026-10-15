@@ -9,6 +9,7 @@ package nrppa
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -38,52 +39,77 @@ func (c *Client) nextMeasurementID() int64 {
 	return (c.measSeq.Add(1)-1)%15 + 1
 }
 
-// ecidMeasurementQuantities are the E-CID quantities the LMF requests from the
-// RAN. Cell-ID comes from AMF location context; timing advance and AP position
-// are optional NRPPa enhancements.
-//
-// For an NR cell the relevant quantities are the NR-specific ones (TS 38.455):
-// SS/CSI RSRP/RSRQ for signal level, and angleOfArrivalNR / timingAdvanceNR /
-// uE-Rx-Tx-Time-Diff for angle and timing. The legacy rSRP/rSRQ are kept for
-// gNBs that only report the generic quantities. We deliberately do NOT request
-// the E-UTRA timingAdvanceType1/type2 — an NR gNB reports timingAdvanceNR
-// instead. The gNB returns whichever quantities it supports and omits the rest.
-var ecidMeasurementQuantities = []nrppa.MeasurementQuantityValue{
-	nrppa.MeasRSRP,
-	nrppa.MeasRSRQ,
-	nrppa.MeasSSRSRP,
-	nrppa.MeasSSRSRQ,
-	nrppa.MeasCSIRSRP,
-	nrppa.MeasCSIRSRQ,
-	nrppa.MeasAngleOfArrivalNR,
-	nrppa.MeasTimingAdvanceNR,
-	nrppa.MeasUERxTxTimeDiff,
+var defaultMeasurementQuantities = []lmfmodels.MeasurementQuantity{
+	lmfmodels.MeasurementQuantityRSRP,
+	lmfmodels.MeasurementQuantityRSRQ,
+	lmfmodels.MeasurementQuantitySSRSRP,
+	lmfmodels.MeasurementQuantitySSRSRQ,
+	lmfmodels.MeasurementQuantityCSIRSRP,
+	lmfmodels.MeasurementQuantityCSIRSRQ,
+	lmfmodels.MeasurementQuantityAngleOfArrivalNR,
+	lmfmodels.MeasurementQuantityTimingAdvanceNR,
+	lmfmodels.MeasurementQuantityUERxTxTimeDiff,
 }
 
-// RequestMeasurements sends an NRPPa E-CIDMeasurementInitiationRequest to the
-// RAN for the given UE. The PDU is encoded and sent via NGAP downlink
-// UE-associated NRPPa transport.
-//
-// It returns the LMF-UE-Measurement-ID assigned to the request so the caller
-// can match the asynchronous E-CIDMeasurementInitiationResponse via
-// WaitForMeasurements. The method parameter is accepted for API compatibility;
-// only E-CID is supported in this MVP.
-func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error) {
+var measurementQuantityValues = map[lmfmodels.MeasurementQuantity]nrppa.MeasurementQuantityValue{
+	lmfmodels.MeasurementQuantityCellID:             nrppa.MeasCellID,
+	lmfmodels.MeasurementQuantityAngleOfArrival:     nrppa.MeasAngleOfArrival,
+	lmfmodels.MeasurementQuantityTimingAdvanceType1: nrppa.MeasTimingAdvanceType1,
+	lmfmodels.MeasurementQuantityTimingAdvanceType2: nrppa.MeasTimingAdvanceType2,
+	lmfmodels.MeasurementQuantityRSRP:               nrppa.MeasRSRP,
+	lmfmodels.MeasurementQuantityRSRQ:               nrppa.MeasRSRQ,
+	lmfmodels.MeasurementQuantitySSRSRP:             nrppa.MeasSSRSRP,
+	lmfmodels.MeasurementQuantitySSRSRQ:             nrppa.MeasSSRSRQ,
+	lmfmodels.MeasurementQuantityCSIRSRP:            nrppa.MeasCSIRSRP,
+	lmfmodels.MeasurementQuantityCSIRSRQ:            nrppa.MeasCSIRSRQ,
+	lmfmodels.MeasurementQuantityAngleOfArrivalNR:   nrppa.MeasAngleOfArrivalNR,
+	lmfmodels.MeasurementQuantityTimingAdvanceNR:    nrppa.MeasTimingAdvanceNR,
+	lmfmodels.MeasurementQuantityUERxTxTimeDiff:     nrppa.MeasUERxTxTimeDiff,
+}
+
+func (c *Client) DefaultMeasurementQuantities() []lmfmodels.MeasurementQuantity {
+	return slices.Clone(defaultMeasurementQuantities)
+}
+
+func encodeMeasurementQuantities(quantities []lmfmodels.MeasurementQuantity) ([]nrppa.MeasurementQuantityValue, error) {
+	if len(quantities) == 0 {
+		quantities = defaultMeasurementQuantities
+	}
+
+	values := make([]nrppa.MeasurementQuantityValue, 0, len(quantities))
+
+	for _, q := range quantities {
+		v, ok := measurementQuantityValues[q]
+		if !ok {
+			return nil, fmt.Errorf("measurement quantity %q is not defined in NRPPa", q)
+		}
+
+		values = append(values, v)
+	}
+
+	return values, nil
+}
+
+func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, quantities []lmfmodels.MeasurementQuantity) (int64, error) {
+	values, err := encodeMeasurementQuantities(quantities)
+	if err != nil {
+		return 0, err
+	}
+
 	measID := c.nextMeasurementID()
 
-	payload, err := nrppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
+	payload, err := nrppa.BuildECIDMeasurementInitiationRequest(measID, values)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build NRPPa E-CID request: %w", err)
 	}
 
-	// RoutingID 0 for MVP (single LMF). A CM-IDLE UE is paged and the request buffered.
 	if err := c.amf.TransferN2NRPPaMsg(ctx, supi, 0, payload); err != nil {
 		return 0, fmt.Errorf("failed to transfer NRPPa E-CID request: %w", err)
 	}
 
 	logger.LmfLog.Debug("NRPPa E-CID measurement request sent",
 		logger.SUPI(supi.String()),
-		zap.String("method", method),
+		zap.Any("measurement_quantities", quantities),
 		zap.Int64("lmf_measurement_id", measID),
 	)
 

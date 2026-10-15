@@ -87,3 +87,27 @@ func ValidateMode(method RequestedMethod, mode models.PositioningMode) error {
 
 	return fmt.Errorf("%w: %q for method %q", ErrUnsupportedMode, mode, method)
 }
+
+var ErrMeasurementQuantitiesNotApplicable = errors.New("measurement quantities only apply to network-based E-CID")
+
+type LocationRequest struct {
+	Method                RequestedMethod
+	Mode                  models.PositioningMode
+	MeasurementQuantities models.MeasurementQuantities
+}
+
+func (r LocationRequest) Validate() error {
+	if err := ValidateMode(r.Method, r.Mode); err != nil {
+		return err
+	}
+
+	if r.MeasurementQuantities.IsZero() {
+		return nil
+	}
+
+	if r.Method != RequestedECID || r.Mode == models.PositioningModeUEAssisted {
+		return fmt.Errorf("%w: method %q, mode %q", ErrMeasurementQuantitiesNotApplicable, r.Method, r.Mode)
+	}
+
+	return r.MeasurementQuantities.Validate()
+}
