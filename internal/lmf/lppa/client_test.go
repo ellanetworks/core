@@ -166,3 +166,42 @@ func TestMapECIDResultKeepsTheFullAccessPointPosition(t *testing.T) {
 		t.Errorf("APPosition = %+v, want %+v", m.APPosition, want)
 	}
 }
+
+func TestEncodeMeasurementQuantitiesCoversEveryEUTRAValue(t *testing.T) {
+	for _, q := range lmfmodels.EUTRAMeasurementQuantities {
+		if _, err := encodeMeasurementQuantities([]lmfmodels.MeasurementQuantity{q}); err != nil {
+			t.Errorf("%s: %v", q, err)
+		}
+	}
+}
+
+func TestEncodeMeasurementQuantitiesRejectsNRValues(t *testing.T) {
+	if _, err := encodeMeasurementQuantities([]lmfmodels.MeasurementQuantity{lmfmodels.MeasurementQuantitySSRSRP}); err == nil {
+		t.Fatal("expected an error for an NRPPa-only quantity")
+	}
+}
+
+func TestRequestCarriesTheRequestedQuantities(t *testing.T) {
+	values, err := encodeMeasurementQuantities([]lmfmodels.MeasurementQuantity{
+		lmfmodels.MeasurementQuantityRSRP,
+		lmfmodels.MeasurementQuantityTimingAdvanceType1,
+	})
+	if err != nil {
+		t.Fatalf("encodeMeasurementQuantities: %v", err)
+	}
+
+	pdu, err := lppa.BuildECIDMeasurementInitiationRequest(1, values)
+	if err != nil {
+		t.Fatalf("BuildECIDMeasurementInitiationRequest: %v", err)
+	}
+
+	parsed, err := lppa.ParsePDU(pdu)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	want := []lppa.MeasurementQuantityValue{lppa.MeasRSRP, lppa.MeasTimingAdvanceType1}
+	if !reflect.DeepEqual(parsed.Request.MeasurementQuantities, want) {
+		t.Errorf("quantities = %v, want %v", parsed.Request.MeasurementQuantities, want)
+	}
+}

@@ -80,7 +80,7 @@ func TestDetermineLocation_NR(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, LocationRequest{Method: RequestedCellID})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestDetermineLocation_EUTRA(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, LocationRequest{Method: RequestedCellID})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestDetermineLocation_NotFound(t *testing.T) {
 		t.Fatalf("failed to create SUPI: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, LocationRequest{Method: RequestedCellID})
 	if err == nil {
 		t.Fatal("expected error for non-existent UE")
 	}
@@ -198,7 +198,7 @@ func TestDetermineLocation_Unregistered(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, LocationRequest{Method: RequestedCellID})
 	if err == nil {
 		t.Fatal("expected error for unregistered UE")
 	}
@@ -223,7 +223,7 @@ func TestDetermineLocation_NoLocation(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, LocationRequest{Method: RequestedCellID})
 	if err == nil {
 		t.Fatal("expected error for UE with no location")
 	}
