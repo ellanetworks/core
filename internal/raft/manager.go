@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,10 @@ import (
 var ErrBarrierTimeout = errors.New("raft barrier timed out")
 
 var ErrNoTransferTarget = errors.New("no eligible leadership transfer target")
+
+var ErrTransferLandedElsewhere = errors.New("leadership moved to a node outside the transfer targets")
+
+var ErrTransferUnconfirmed = errors.New("leadership left this node but no new leader was observed")
 
 const boltOpenTimeout = 5 * time.Second
 
@@ -114,8 +119,6 @@ const (
 	leaderPollInterval = 25 * time.Millisecond
 
 	leaderBarrierRetryInterval = 1 * time.Second
-
-	leadershipTransferAttempts = 3
 )
 
 // closeTransport best-effort closes a raft.Transport. The interface itself
@@ -159,6 +162,8 @@ type Manager struct {
 
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
+
+	transferStarter func(*Server) raft.Future
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -789,42 +794,82 @@ func (m *Manager) LeadershipTransferTo(candidates []Server) error {
 }
 
 func (m *Manager) transferLeadership(candidates []Server) error {
-	var lastErr error
-
-	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
-		var (
-			future raft.Future
-			fields []zap.Field
-		)
-
-		if len(candidates) > 0 {
-			target := candidates[(attempt-1)%len(candidates)]
-			future = m.raft.LeadershipTransferToServer(raft.ServerID(target.NodeID), raft.ServerAddress(target.Address))
-			fields = []zap.Field{zap.String("target_node_id", target.NodeID), zap.String("target_address", target.Address)}
-		} else {
-			future = m.raft.LeadershipTransfer()
-		}
-
-		err := future.Error()
-		if err == nil {
-			logger.RaftLog.Info("Leadership transferred", fields...)
-
-			return nil
-		}
-
-		if errors.Is(err, raft.ErrRaftShutdown) || errors.Is(err, raft.ErrUnsupportedProtocol) {
-			return err
-		}
-
-		lastErr = err
-
-		logger.RaftLog.Warn("Leadership transfer attempt failed", append(fields,
-			zap.Int("attempt", attempt),
-			zap.Int("attempts", leadershipTransferAttempts),
-			zap.Error(err))...)
+	var target *Server
+	if len(candidates) > 0 {
+		target = &candidates[0]
 	}
 
-	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
+	err := m.startTransfer(target).Error()
+	if errors.Is(err, raft.ErrRaftShutdown) || errors.Is(err, raft.ErrUnsupportedProtocol) {
+		return err
+	}
+
+	electionTimeout := m.raft.ReloadableConfig().ElectionTimeout
+
+	if !m.awaitLeadershipLoss(electionTimeout) {
+		if err == nil {
+			err = errors.New("leadership remained on this node")
+		}
+
+		return fmt.Errorf("leadership transfer failed: %w", err)
+	}
+
+	leader := m.awaitLeaderID(2 * electionTimeout)
+
+	switch {
+	case leader == "":
+		return ErrTransferUnconfirmed
+	case leader == m.raftID:
+		return errors.New("leadership transfer failed: leadership returned to this node")
+	case target != nil && !slices.ContainsFunc(candidates, func(s Server) bool { return s.NodeID == leader }):
+		return fmt.Errorf("%w: %s", ErrTransferLandedElsewhere, leader)
+	}
+
+	logger.RaftLog.Info("Leadership transferred", zap.String("leader_node_id", leader))
+
+	return nil
+}
+
+func (m *Manager) startTransfer(target *Server) raft.Future {
+	if m.transferStarter != nil {
+		return m.transferStarter(target)
+	}
+
+	if target == nil {
+		return m.raft.LeadershipTransfer()
+	}
+
+	return m.raft.LeadershipTransferToServer(raft.ServerID(target.NodeID), raft.ServerAddress(target.Address))
+}
+
+func (m *Manager) awaitLeadershipLoss(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+
+	for m.IsLeader() {
+		if time.Now().After(deadline) {
+			return false
+		}
+
+		time.Sleep(leaderPollInterval)
+	}
+
+	return true
+}
+
+func (m *Manager) awaitLeaderID(timeout time.Duration) string {
+	deadline := time.Now().Add(timeout)
+
+	for {
+		if _, id := m.raft.LeaderWithID(); id != "" {
+			return string(id)
+		}
+
+		if time.Now().After(deadline) {
+			return ""
+		}
+
+		time.Sleep(leaderPollInterval)
+	}
 }
 
 type Server struct {
