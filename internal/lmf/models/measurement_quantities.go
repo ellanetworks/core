@@ -36,7 +36,8 @@ var EUTRAMeasurementQuantities = []MeasurementQuantity{
 	MeasurementQuantityRSRQ,
 }
 
-var NRMeasurementQuantities = append(slices.Clone(EUTRAMeasurementQuantities),
+var NRMeasurementQuantities = []MeasurementQuantity{
+	MeasurementQuantityCellID,
 	MeasurementQuantitySSRSRP,
 	MeasurementQuantitySSRSRQ,
 	MeasurementQuantityCSIRSRP,
@@ -44,28 +45,56 @@ var NRMeasurementQuantities = append(slices.Clone(EUTRAMeasurementQuantities),
 	MeasurementQuantityAngleOfArrivalNR,
 	MeasurementQuantityTimingAdvanceNR,
 	MeasurementQuantityUERxTxTimeDiff,
-)
+}
+
+var defaultNRMeasurementQuantities = []MeasurementQuantity{
+	MeasurementQuantitySSRSRP,
+	MeasurementQuantitySSRSRQ,
+	MeasurementQuantityCSIRSRP,
+	MeasurementQuantityCSIRSRQ,
+	MeasurementQuantityAngleOfArrivalNR,
+	MeasurementQuantityTimingAdvanceNR,
+	MeasurementQuantityUERxTxTimeDiff,
+}
+
+func DefaultMeasurementQuantities(nr bool) []MeasurementQuantity {
+	if nr {
+		return slices.Clone(defaultNRMeasurementQuantities)
+	}
+
+	return slices.Clone(EUTRAMeasurementQuantities)
+}
 
 type MeasurementQuantities struct {
 	NR    []MeasurementQuantity
 	EUTRA []MeasurementQuantity
 }
 
-func (q MeasurementQuantities) IsZero() bool {
-	return q.NR == nil && q.EUTRA == nil
-}
+func (q *MeasurementQuantities) ForRAT(nr bool) []MeasurementQuantity {
+	var list []MeasurementQuantity
 
-func (q MeasurementQuantities) ForRAT(nr bool) []MeasurementQuantity {
-	if nr {
-		return q.NR
+	switch {
+	case q == nil:
+	case nr:
+		list = q.NR
+	default:
+		list = q.EUTRA
 	}
 
-	return q.EUTRA
+	if list == nil {
+		return DefaultMeasurementQuantities(nr)
+	}
+
+	return list
 }
 
 var ErrInvalidMeasurementQuantities = errors.New("invalid measurement quantities")
 
-func (q MeasurementQuantities) Validate() error {
+func (q *MeasurementQuantities) Validate() error {
+	if q.NR == nil && q.EUTRA == nil {
+		return fmt.Errorf("%w: at least one of nr, eutra is required", ErrInvalidMeasurementQuantities)
+	}
+
 	if err := validateQuantityList("nr", q.NR, NRMeasurementQuantities); err != nil {
 		return err
 	}

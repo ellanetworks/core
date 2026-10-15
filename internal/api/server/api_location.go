@@ -42,12 +42,12 @@ type MeasurementQuantities struct {
 	EUTRA []string `json:"eutra,omitempty"`
 }
 
-func (q *MeasurementQuantities) toModel() lmfmodels.MeasurementQuantities {
+func (q *MeasurementQuantities) toModel() *lmfmodels.MeasurementQuantities {
 	if q == nil {
-		return lmfmodels.MeasurementQuantities{}
+		return nil
 	}
 
-	return lmfmodels.MeasurementQuantities{
+	return &lmfmodels.MeasurementQuantities{
 		NR:    toQuantityList(q.NR),
 		EUTRA: toQuantityList(q.EUTRA),
 	}
@@ -83,6 +83,13 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 		default:
 			writeError(r.Context(), w, http.StatusBadRequest,
 				fmt.Sprintf("unsupported request_type: %s", req.RequestType), nil, logger.APILog)
+
+			return
+		}
+
+		if req.MeasurementQuantities != nil && requestType != lmf.RequestImmediate {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				"measurement_quantities is only supported for immediate requests", nil, logger.APILog)
 
 			return
 		}
@@ -141,13 +148,6 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 		if err := lmf.ValidateMode(method, mode); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest,
 				fmt.Sprintf("unsupported mode %q for method %s (supported: %s)", req.Mode, method, supportedModes(method)), nil, logger.APILog)
-
-			return
-		}
-
-		if req.MeasurementQuantities != nil && requestType != lmf.RequestImmediate {
-			writeError(r.Context(), w, http.StatusBadRequest,
-				"measurement_quantities is only supported for immediate requests", nil, logger.APILog)
 
 			return
 		}

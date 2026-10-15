@@ -88,6 +88,10 @@ func TestGetSubscriberLocationRejectsInvalidMeasurementQuantities(t *testing.T) 
 		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"nr":["ssRsrp"]}}`, `\"ssRsrp\" is not a valid nr quantity`},
 		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"eutra":["sS-RSRP"]}}`, `\"sS-RSRP\" is not a valid eutra quantity`},
 		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"nr":["sS-RSRP","sS-RSRP"]}}`, "listed more than once"},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{}}`, "at least one of nr, eutra"},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"cell_id","measurement_quantities":{}}`, "only apply to network-based E-CID"},
+		{`{"request_type":"cancel","session_id":"x","measurement_quantities":{"nr":["sS-RSRP"]}}`, "only supported for immediate requests"},
+		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","measurement_quantities":{"nr":["rSRP"]}}`, `\"rSRP\" is not a valid nr quantity`},
 	} {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/beta/location", strings.NewReader(tc.body))

@@ -17,7 +17,6 @@ package lppa
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -47,15 +46,6 @@ func (c *Client) nextMeasurementID() int64 {
 	return (c.measSeq.Add(1)-1)%15 + 1
 }
 
-var defaultMeasurementQuantities = []lmfmodels.MeasurementQuantity{
-	lmfmodels.MeasurementQuantityCellID,
-	lmfmodels.MeasurementQuantityAngleOfArrival,
-	lmfmodels.MeasurementQuantityTimingAdvanceType1,
-	lmfmodels.MeasurementQuantityTimingAdvanceType2,
-	lmfmodels.MeasurementQuantityRSRP,
-	lmfmodels.MeasurementQuantityRSRQ,
-}
-
 var measurementQuantityValues = map[lmfmodels.MeasurementQuantity]lppa.MeasurementQuantityValue{
 	lmfmodels.MeasurementQuantityCellID:             lppa.MeasCellID,
 	lmfmodels.MeasurementQuantityAngleOfArrival:     lppa.MeasAngleOfArrival,
@@ -65,13 +55,9 @@ var measurementQuantityValues = map[lmfmodels.MeasurementQuantity]lppa.Measureme
 	lmfmodels.MeasurementQuantityRSRQ:               lppa.MeasRSRQ,
 }
 
-func (c *Client) DefaultMeasurementQuantities() []lmfmodels.MeasurementQuantity {
-	return slices.Clone(defaultMeasurementQuantities)
-}
-
 func encodeMeasurementQuantities(quantities []lmfmodels.MeasurementQuantity) ([]lppa.MeasurementQuantityValue, error) {
 	if len(quantities) == 0 {
-		quantities = defaultMeasurementQuantities
+		return nil, fmt.Errorf("no measurement quantities to request")
 	}
 
 	values := make([]lppa.MeasurementQuantityValue, 0, len(quantities))

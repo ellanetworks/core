@@ -93,7 +93,7 @@ var ErrMeasurementQuantitiesNotApplicable = errors.New("measurement quantities o
 type LocationRequest struct {
 	Method                RequestedMethod
 	Mode                  models.PositioningMode
-	MeasurementQuantities models.MeasurementQuantities
+	MeasurementQuantities *models.MeasurementQuantities
 }
 
 func (r LocationRequest) Validate() error {
@@ -101,7 +101,7 @@ func (r LocationRequest) Validate() error {
 		return err
 	}
 
-	if r.MeasurementQuantities.IsZero() {
+	if r.MeasurementQuantities == nil {
 		return nil
 	}
 

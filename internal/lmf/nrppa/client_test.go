@@ -211,14 +211,6 @@ func TestRequestCarriesTheRequestedQuantities(t *testing.T) {
 		want       []nrppa.MeasurementQuantityValue
 	}{
 		{
-			name:       "default",
-			quantities: nil,
-			want: []nrppa.MeasurementQuantityValue{
-				nrppa.MeasRSRP, nrppa.MeasRSRQ, nrppa.MeasSSRSRP, nrppa.MeasSSRSRQ, nrppa.MeasCSIRSRP,
-				nrppa.MeasCSIRSRQ, nrppa.MeasAngleOfArrivalNR, nrppa.MeasTimingAdvanceNR, nrppa.MeasUERxTxTimeDiff,
-			},
-		},
-		{
 			name: "explicit",
 			quantities: []lmfmodels.MeasurementQuantity{
 				lmfmodels.MeasurementQuantitySSRSRP,
@@ -247,5 +239,11 @@ func TestRequestCarriesTheRequestedQuantities(t *testing.T) {
 				t.Errorf("quantities = %v, want %v", parsed.Request.MeasurementQuantities, tc.want)
 			}
 		})
+	}
+}
+
+func TestEncodeMeasurementQuantitiesRejectsAnEmptyList(t *testing.T) {
+	if _, err := encodeMeasurementQuantities(nil); err == nil {
+		t.Fatal("expected an error for an empty list")
 	}
 }

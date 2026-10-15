@@ -25,7 +25,7 @@ This path requests a subscriber's current location. `immediate` returns an estim
 - `mode` (string, optional): `network_based` or `ue_assisted` for `ecid`; `standalone` for `gnss`. Defaults to every mode supported by `method`.
 - `session_id` (string): Session to terminate. Required when `request_type` is `cancel`.
 - `measurement_quantities` (object, optional): E-CID measurement quantities (TS 38.455, TS 36.455). Only for `immediate` `ecid` requests with `mode` `network_based` or omitted.
-    - `nr` (array of strings, optional): Used when the serving cell is NR. Each entry must be one of `cell-ID`, `angleOfArrival`, `timingAdvanceType1`, `timingAdvanceType2`, `rSRP`, `rSRQ`, `sS-RSRP`, `sS-RSRQ`, `cSI-RSRP`, `cSI-RSRQ`, `angleOfArrivalNR`, `timingAdvanceNR`, or `uE-Rx-Tx-Time-Diff`. No duplicates allowed.
+    - `nr` (array of strings, optional): Used when the serving cell is NR. Each entry must be one of `cell-ID`, `sS-RSRP`, `sS-RSRQ`, `cSI-RSRP`, `cSI-RSRQ`, `angleOfArrivalNR`, `timingAdvanceNR`, or `uE-Rx-Tx-Time-Diff`. No duplicates allowed.
     - `eutra` (array of strings, optional): Used when the serving cell is E-UTRA. Each entry must be one of `cell-ID`, `angleOfArrival`, `timingAdvanceType1`, `timingAdvanceType2`, `rSRP`, or `rSRQ`. No duplicates allowed.
 
 ### Responses

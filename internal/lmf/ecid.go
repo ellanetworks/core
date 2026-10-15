@@ -32,7 +32,7 @@ const ecidUETimeout = 20 * time.Second
 // ErrNoLocationEstimate, unless E-CID produced radio measurements, which are then
 // returned without an estimate. When no radio measurements are available it
 // degrades to a Cell-ID estimate (still requiring the anchor).
-func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode models.PositioningMode, quantities models.MeasurementQuantities) (*models.LocationResult, string, error) {
+func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode models.PositioningMode, quantities *models.MeasurementQuantities) (*models.LocationResult, string, error) {
 	loc, ok := l.getUELocation(supi)
 	if !ok {
 		return nil, "", fmt.Errorf("UE location not available: %w", ErrNotFound)
@@ -67,7 +67,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode mo
 	return result, sessionID, nil
 }
 
-func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc coremodels.UserLocation, mode models.PositioningMode, quantities models.MeasurementQuantities) (*models.LocationResult, error) {
+func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc coremodels.UserLocation, mode models.PositioningMode, quantities *models.MeasurementQuantities) (*models.LocationResult, error) {
 	nr := loc.NrLocation != nil
 
 	method := models.PositioningMethodECID
@@ -237,7 +237,6 @@ func withDistance(cells []models.CellMeasurement) []models.CellMeasurement {
 // ecidMeasurementClient requests and collects E-CID radio measurements from a
 // RAN over a positioning protocol: NRPPa (5G) or LPPa (4G).
 type ecidMeasurementClient interface {
-	DefaultMeasurementQuantities() []models.MeasurementQuantity
 	RequestMeasurements(ctx context.Context, supi etsi.SUPI, quantities []models.MeasurementQuantity) (int64, error)
 	WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*models.RadioMeasurements, error)
 	CancelMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64)
@@ -277,10 +276,6 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI, quantit
 	defer cancel()
 
 	client := l.measurementClient(supi)
-
-	if quantities == nil {
-		quantities = client.DefaultMeasurementQuantities()
-	}
 
 	requestedAt := time.Now()
 

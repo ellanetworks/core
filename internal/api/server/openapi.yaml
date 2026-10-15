@@ -6434,7 +6434,7 @@ components:
           description: Used when the serving cell is NR.
           items:
             type: string
-            enum: [cell-ID, angleOfArrival, timingAdvanceType1, timingAdvanceType2, rSRP, rSRQ, sS-RSRP, sS-RSRQ, cSI-RSRP, cSI-RSRQ, angleOfArrivalNR, timingAdvanceNR, uE-Rx-Tx-Time-Diff]
+            enum: [cell-ID, sS-RSRP, sS-RSRQ, cSI-RSRP, cSI-RSRQ, angleOfArrivalNR, timingAdvanceNR, uE-Rx-Tx-Time-Diff]
         eutra:
           type: array
           minItems: 1
