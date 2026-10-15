@@ -33,6 +33,37 @@ type LocationRequest struct {
 	Method      string `json:"method"`
 	Mode        string `json:"mode,omitempty"`
 	SessionID   string `json:"session_id"`
+
+	MeasurementQuantities *MeasurementQuantities `json:"measurement_quantities,omitempty"`
+}
+
+type MeasurementQuantities struct {
+	NR    []string `json:"nr,omitempty"`
+	EUTRA []string `json:"eutra,omitempty"`
+}
+
+func (q *MeasurementQuantities) toModel() *lmfmodels.MeasurementQuantities {
+	if q == nil {
+		return nil
+	}
+
+	return &lmfmodels.MeasurementQuantities{
+		NR:    toQuantityList(q.NR),
+		EUTRA: toQuantityList(q.EUTRA),
+	}
+}
+
+func toQuantityList(values []string) []lmfmodels.MeasurementQuantity {
+	if values == nil {
+		return nil
+	}
+
+	out := make([]lmfmodels.MeasurementQuantity, len(values))
+	for i, v := range values {
+		out[i] = lmfmodels.MeasurementQuantity(v)
+	}
+
+	return out
 }
 
 func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
@@ -52,6 +83,13 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 		default:
 			writeError(r.Context(), w, http.StatusBadRequest,
 				fmt.Sprintf("unsupported request_type: %s", req.RequestType), nil, logger.APILog)
+
+			return
+		}
+
+		if req.MeasurementQuantities != nil && requestType != lmf.RequestImmediate {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				"measurement_quantities is only supported for immediate requests", nil, logger.APILog)
 
 			return
 		}
@@ -114,6 +152,18 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 			return
 		}
 
+		locationRequest := lmf.LocationRequest{
+			Method:                method,
+			Mode:                  mode,
+			MeasurementQuantities: req.MeasurementQuantities.toModel(),
+		}
+
+		if err := locationRequest.Validate(); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+
+			return
+		}
+
 		// Audit the sensitive location lookup up front, so the access attempt is
 		// recorded regardless of the outcome (success, not-found, or failure).
 		logger.LogAuditEvent(
@@ -131,7 +181,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 				return
 			}
 
-			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, method, mode)
+			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, locationRequest)
 			if err != nil {
 				logger.LmfLog.Warn("Positioning procedure failed",
 					zap.String("session_id", sessionID),

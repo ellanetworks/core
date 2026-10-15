@@ -25,21 +25,21 @@ var (
 // DetermineLocation computes the current location of the UE identified by
 // supi using the configured positioning method. Returns the location result,
 // the session ID (if a session was created), and any error.
-func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method RequestedMethod, mode models.PositioningMode) (*models.LocationResult, string, error) {
-	if err := ValidateMode(method, mode); err != nil {
+func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, req LocationRequest) (*models.LocationResult, string, error) {
+	if err := req.Validate(); err != nil {
 		return nil, "", err
 	}
 
-	switch method {
+	switch req.Method {
 	case RequestedCellID:
 		result, err := l.determineCellIDLocation(ctx, supi)
 		return result, "", err
 	case RequestedECID:
-		return l.determineECIDLocation(ctx, supi, mode)
+		return l.determineECIDLocation(ctx, supi, req.Mode, req.MeasurementQuantities)
 	case RequestedGNSS:
 		return l.determineGNSSLocation(ctx, supi)
 	default:
-		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
+		return nil, "", fmt.Errorf("unsupported positioning method: %s", req.Method)
 	}
 }
 

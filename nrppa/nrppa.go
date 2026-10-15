@@ -52,6 +52,12 @@ const (
 	CauseGroupChoiceExtension
 )
 
+const (
+	CauseRadioNetworkUnspecified int64 = iota
+	CauseRadioNetworkRequestedItemNotSupported
+	CauseRadioNetworkRequestedItemTemporarilyNotAvailable
+)
+
 type Cause struct {
 	Group CauseGroup
 	Value int64 // ENUMERATED ordinal within the group (n/a for choice-Extension)

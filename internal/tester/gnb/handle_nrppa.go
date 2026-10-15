@@ -46,7 +46,36 @@ func handleDownlinkUEAssociatedNRPPaTransport(gnb *GnodeB, value []byte) error {
 		zap.Int("measurementQuantities", len(req.MeasurementQuantities)),
 	)
 
+	if unsupported := gnb.unsupportedNRPPaQuantities(req.MeasurementQuantities); len(unsupported) > 0 {
+		logger.GnbLogger.Debug("Rejecting NRPPa E-CIDMeasurementInitiationRequest with unsupported quantities",
+			zap.Any("unsupported", unsupported),
+		)
+
+		return sendNRPPaECIDMeasurementFailure(gnb, int64(msg.AMFUENGAPID), int64(msg.RANUENGAPID), msg.RoutingID, req.LMFUEMeasurementID)
+	}
+
 	return sendNRPPaECIDMeasurementResponse(gnb, int64(msg.AMFUENGAPID), int64(msg.RANUENGAPID), msg.RoutingID, req.LMFUEMeasurementID)
+}
+
+func sendNRPPaECIDMeasurementFailure(gnb *GnodeB, amfUeNgapID, ranUeNgapID int64, routingID ngap.RoutingID, lmfMeasurementID int64) error {
+	nrppaPdu, err := nrppa.BuildECIDMeasurementInitiationFailure(lmfMeasurementID, nrppa.Cause{
+		Group: nrppa.CauseGroupRadioNetwork,
+		Value: nrppa.CauseRadioNetworkRequestedItemNotSupported,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to build NRPPa E-CID failure: %w", err)
+	}
+
+	pdu, err := buildUplinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID, routingID, nrppaPdu)
+	if err != nil {
+		return fmt.Errorf("failed to build uplink NRPPa transport: %w", err)
+	}
+
+	if err := gnb.SendMessage(pdu, NGAPProcedureUplinkNRPPaTransport); err != nil {
+		return fmt.Errorf("failed to send NRPPa E-CID failure: %w", err)
+	}
+
+	return nil
 }
 
 func sendNRPPaECIDMeasurementResponse(gnb *GnodeB, amfUeNgapID, ranUeNgapID int64, routingID ngap.RoutingID, lmfMeasurementID int64) error {
