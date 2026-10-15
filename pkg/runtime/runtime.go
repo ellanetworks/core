@@ -549,6 +549,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
+	lmfInstance.Start(ctx)
 
 	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), diameternode.ListenConfig{
 		Name:    cfg.Interfaces.Diameter.Name,
@@ -760,6 +761,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			if err := apiServer.Shutdown(stepCtx); err != nil {
 				logger.EllaLog.Warn("API server shutdown error", zap.Error(err))
 			}
+		})
+
+		step("Stopping deferred location requests", func(stepCtx context.Context) {
+			lmfInstance.Stop(stepCtx)
 		})
 
 		// 1b. Stop the session reconciler so no more reconcile calls land

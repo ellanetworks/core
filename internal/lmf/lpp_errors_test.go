@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/ellanetworks/core/internal/lmf/models"
 )
 
 func startCapturedSession(t *testing.T) (*LMF, *captureLPPHandler, *lpp.Session, etsi.SUPI) {
@@ -32,9 +31,6 @@ func startCapturedSession(t *testing.T) (*LMF, *captureLPPHandler, *lpp.Session,
 		func(lppMsg []byte) error {
 			return handler.ForwardLPPToUE(context.Background(), CoreAMF, supi.String(), nil, lppMsg)
 		},
-		func(*models.LocationResult) error { return nil },
-		func() error { return nil },
-		func() error { return nil },
 		func() {},
 	)
 

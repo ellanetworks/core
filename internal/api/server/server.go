@@ -247,13 +247,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetAuditLogRetentionPolicy, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
 
-	// Location - Unified endpoint (immediate, periodic, triggered, cancel)
 	mux.HandleFunc("POST /api/beta/location", Authenticate(jwtSecret, dbInstance, Authorize(PermReadLocation, GetSubscriberLocation(lmfInstance))).ServeHTTP)
-
-	// Positioning - Session listing and lookup only
-	mux.HandleFunc("GET /api/beta/positioning/sessions", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, ListSessions(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, GetSession(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePositioningSession, CancelSession(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/beta/location/deferred-requests", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateDeferredLocation, CreateDeferredLocationRequest(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/location/deferred-requests", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDeferredLocation, ListDeferredLocationRequests(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/location/deferred-requests/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDeferredLocation, GetDeferredLocationRequest(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/beta/location/deferred-requests/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDeferredLocation, DeleteDeferredLocationRequest(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/location/deferred-requests/{id}/reports", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDeferredLocation, ListLocationReports(lmfInstance))).ServeHTTP)
 
 	// Cell positions - provisioned antenna coordinates for Cell-ID / E-CID
 	mux.HandleFunc("GET /api/beta/cell-positions", Authenticate(jwtSecret, dbInstance, Authorize(PermListCellPositions, ListCellPositions(dbInstance))).ServeHTTP)

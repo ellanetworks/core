@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	coremodels "github.com/ellanetworks/core/internal/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -22,31 +23,46 @@ var (
 	ErrRefreshTimeout = errors.New("location refresh timed out")
 )
 
-// DetermineLocation computes the current location of the UE identified by
-// supi using the configured positioning method. Returns the location result,
-// the session ID (if a session was created), and any error.
-func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, req LocationRequest) (*models.LocationResult, string, error) {
+func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, req LocationRequest) (*models.LocationResult, error) {
 	if err := req.Validate(); err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
+	var result *models.LocationResult
+
+	err := l.withUE(ctx, supi, func() error {
+		var err error
+
+		result, err = l.locate(ctx, supi, req, l.locationMaxAge())
+
+		return err
+	})
+
+	return result, err
+}
+
+func (l *LMF) locate(ctx context.Context, supi etsi.SUPI, req LocationRequest, maxAge int32) (*models.LocationResult, error) {
 	switch req.Method {
 	case RequestedCellID:
-		result, err := l.determineCellIDLocation(ctx, supi)
-		return result, "", err
+		return l.determineCellIDLocation(ctx, supi, maxAge)
 	case RequestedECID:
 		return l.determineECIDLocation(ctx, supi, req.Mode, req.MeasurementQuantities)
 	case RequestedGNSS:
 		return l.determineGNSSLocation(ctx, supi)
 	default:
-		return nil, "", fmt.Errorf("unsupported positioning method: %s", req.Method)
+		return nil, fmt.Errorf("unsupported positioning method: %s", req.Method)
 	}
 }
 
-// determineCellIDLocation computes location using the Cell ID method. It maps
-// the serving cell to its provisioned geographic position; if no coordinate is
-// available for the cell it returns ErrNoLocationEstimate.
-func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
+func (l *LMF) locationMaxAge() int32 {
+	if l.maxLocationAge <= 0 {
+		return defaultMaxLocationAge
+	}
+
+	return l.maxLocationAge
+}
+
+func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI, maxAge int32) (*models.LocationResult, error) {
 	if !l.isUERegistered(supi) {
 		return nil, fmt.Errorf("UE not registered: %w", ErrNotFound)
 	}
@@ -58,11 +74,6 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 
 	if loc.NrLocation == nil && loc.EutraLocation == nil && loc.N3gaLocation == nil {
 		return nil, fmt.Errorf("no location available for UE: %w", ErrNotFound)
-	}
-
-	maxAge := l.maxLocationAge
-	if maxAge <= 0 {
-		maxAge = defaultMaxLocationAge
 	}
 
 	if IsLocationStale(loc, maxAge) {
@@ -101,33 +112,23 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 	return result, nil
 }
 
-// determineGNSSLocation computes location using GNSS via the LPP state
-// machine: the LMF requests the UE's capabilities, then a location estimate,
-// and extracts the fix from ProvideLocationInformation. Returns the location
-// result, session ID, and any error.
-func (l *LMF) determineGNSSLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, string, error) {
+func (l *LMF) determineGNSSLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger.LmfLog.Info("GNSS positioning via LPP", logger.SUPI(supi.String()))
 
-	session, err := l.sessionMgr.CreateLPPSession(ctx, CreateSessionParams{
-		SUPI:   supi.String(),
-		Method: RequestedGNSS,
-	})
+	session := lpp.NewSession(supi.String(), uuid.NewString(), string(RequestedGNSS))
+
+	result, err := l.runLPPSession(ctx, supi, session)
 	if err != nil {
-		return nil, "", fmt.Errorf("create LPP session: %w", err)
+		return nil, fmt.Errorf("GNSS positioning: %w", err)
 	}
 
-	result, err := l.runLPPSession(ctx, supi, session, true)
-	if err != nil {
-		return nil, session.SessionID(), fmt.Errorf("GNSS positioning: %w", err)
-	}
-
-	return result, session.SessionID(), nil
+	return result, nil
 }
 
-func (l *LMF) runLPPSession(ctx context.Context, supi etsi.SUPI, session *lpp.Session, persist bool) (*models.LocationResult, error) {
+func (l *LMF) runLPPSession(ctx context.Context, supi etsi.SUPI, session *lpp.Session) (*models.LocationResult, error) {
 	// TS 23.273 §6.11.1: one AMF- or MME-assigned LCS correlation identifier is used for
 	// every message of the positioning session (NOTE 11). Assign it before the
 	// session is registered for uplink routing.
@@ -142,33 +143,12 @@ func (l *LMF) runLPPSession(ctx context.Context, supi etsi.SUPI, session *lpp.Se
 	// and must not use the timeout ctx which may be cancelled when the procedure returns.
 	detached := context.WithoutCancel(ctx)
 
-	var (
-		complete func(result *models.LocationResult) error
-		fail     func() error
-		cancel   func() error
-	)
-
-	if persist {
-		complete = func(result *models.LocationResult) error {
-			return l.sessionMgr.CompleteSession(detached, session.SessionID(), result)
-		}
-		fail = func() error {
-			return l.sessionMgr.FailSession(detached, session.SessionID())
-		}
-		cancel = func() error {
-			return l.sessionMgr.CancelSession(detached, session.SessionID())
-		}
-	}
-
 	session.SetTransport(
 		func(lppMsg []byte) error {
 			return retryWhilePaging(ctx, func() error {
 				return l.lppHandler.ForwardLPPToUE(detached, core, supi.String(), session.CorrelationID(), lppMsg)
 			})
 		},
-		complete,
-		fail,
-		cancel,
 		func() {
 			l.DeregisterLPPSession(session.SessionID())
 		},

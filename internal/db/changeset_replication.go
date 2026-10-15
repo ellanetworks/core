@@ -100,7 +100,9 @@ var localOnlyTables = []string{
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
 	LocalSwitchSettingsTableName,
-	PositioningSessionsTableName,
+	"positioning_sessions",
+	DeferredLocationRequestsTableName,
+	LocationReportsTableName,
 }
 
 var retiredReplicatedTables = []string{

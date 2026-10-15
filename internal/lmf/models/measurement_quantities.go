@@ -66,8 +66,8 @@ func DefaultMeasurementQuantities(nr bool) []MeasurementQuantity {
 }
 
 type MeasurementQuantities struct {
-	NR    []MeasurementQuantity
-	EUTRA []MeasurementQuantity
+	NR    []MeasurementQuantity `json:"nr,omitempty"`
+	EUTRA []MeasurementQuantity `json:"eutra,omitempty"`
 }
 
 func (q *MeasurementQuantities) ForRAT(nr bool) []MeasurementQuantity {
