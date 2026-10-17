@@ -38,21 +38,21 @@ func init() {
 }
 
 func fixtureN2HandoverPartialAdmission(env scenarios.Env) scenarios.FixtureSpec {
-	pool := "10.47.0.0/16"
-	dns := scenarios.DefaultDNS
+	dn := scenarios.DataNetworkSpec{Name: partialAdmissionDNN, IPv4Pool: "10.47.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU}
+
+	if env.HasIPv6() {
+		dn.IPv6Pool = "fd47::/48"
+	}
 
 	if env.IPFamily() == scenarios.IPv6Only {
-		pool = "fd47::/48"
-		dns = scenarios.DefaultDNSv6
+		dn.DNS = scenarios.DefaultDNSv6
 	}
 
 	return scenarios.FixtureSpec{
 		Slices: []scenarios.SliceSpec{
 			{Name: "handover-slice", SST: partialAdmissionSST, SD: partialAdmissionSD},
 		},
-		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: partialAdmissionDNN, IPv4Pool: pool, DNS: dns, MTU: scenarios.DefaultMTU},
-		},
+		DataNetworks: []scenarios.DataNetworkSpec{dn},
 		Policies: []scenarios.PolicySpec{
 			{
 				Name:                "handover-partial-enterprise",
