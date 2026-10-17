@@ -691,6 +691,7 @@ func TestNewValidatesConfiguration(t *testing.T) {
 		"negative timeout":   func(c *Config) { c.RequestTimeout = -1 },
 		"fast watchdog":      func(c *Config) { c.WatchdogInterval = time.Second },
 		"negative the limit": func(c *Config) { c.MaxConcurrentRequests = -1 },
+		"negative dup limit": func(c *Config) { c.DuplicateCacheBytes = -1 },
 	}
 
 	for name, mutate := range tests {
@@ -707,7 +708,7 @@ func TestNewValidatesConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if n.cfg.WatchdogInterval != DefaultWatchdogInterval || n.cfg.OriginStateID == 0 || n.cfg.MaxDuplicateEntries != DefaultMaxDuplicateEntries {
+	if n.cfg.WatchdogInterval != DefaultWatchdogInterval || n.cfg.OriginStateID == 0 || n.cfg.DuplicateCacheBytes != DefaultDuplicateCacheBytes {
 		t.Fatalf("defaults = %+v", n.cfg)
 	}
 

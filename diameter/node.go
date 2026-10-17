@@ -26,7 +26,7 @@ const (
 	DefaultRequestTimeout        = 30 * time.Second
 	DefaultMaxConcurrentRequests = 256
 	DefaultMaxPendingConnections = 64
-	DefaultMaxDuplicateEntries   = 16384
+	DefaultDuplicateCacheBytes   = 64 << 20
 )
 
 const minWatchdogInterval = 6 * time.Second
@@ -78,7 +78,7 @@ type Config struct {
 	HandlerTimeout              time.Duration
 	MaxConcurrentRequests       int
 	MaxPendingConnections       int
-	MaxDuplicateEntries         int
+	DuplicateCacheBytes         int
 	OnPeerStateChange           func(PeerStatus)
 	OnReroute                   func(Reroute)
 	SourceAddress               func(remote netip.Addr) (netip.Addr, error)
@@ -131,7 +131,7 @@ type Node struct {
 
 	inflight   sync.WaitGroup
 	goroutines sync.WaitGroup
-	duplicates duplicateCache
+	duplicates *duplicateCache
 
 	sessionHigh uint32
 	sessionLow  atomic.Uint32
@@ -158,7 +158,7 @@ func New(cfg Config) (*Node, error) {
 		conns:        make(map[*Conn]struct{}),
 		listeners:    make(map[Listener]struct{}),
 		peersChanged: make(chan struct{}),
-		duplicates:   duplicateCache{max: cfg.MaxDuplicateEntries},
+		duplicates:   newDuplicateCache(cfg.DuplicateCacheBytes, cfg.Logger),
 		sessionHigh:  uint32(time.Now().Unix() + ntpUnixOffset),
 	}
 
@@ -227,7 +227,7 @@ func validateConfig(cfg *Config) error {
 		cfg.MaxReconnectInterval = cfg.ReconnectInterval
 	}
 
-	for _, v := range []*int{&cfg.MaxConcurrentRequests, &cfg.MaxPendingConnections, &cfg.MaxDuplicateEntries} {
+	for _, v := range []*int{&cfg.MaxConcurrentRequests, &cfg.MaxPendingConnections, &cfg.DuplicateCacheBytes} {
 		if *v < 0 {
 			return errors.New("diameter: limits must not be negative")
 		}
@@ -241,8 +241,8 @@ func validateConfig(cfg *Config) error {
 		cfg.MaxPendingConnections = DefaultMaxPendingConnections
 	}
 
-	if cfg.MaxDuplicateEntries == 0 {
-		cfg.MaxDuplicateEntries = DefaultMaxDuplicateEntries
+	if cfg.DuplicateCacheBytes == 0 {
+		cfg.DuplicateCacheBytes = DefaultDuplicateCacheBytes
 	}
 
 	if cfg.watchdogJitter == 0 && !cfg.noWatchdogJitter {
