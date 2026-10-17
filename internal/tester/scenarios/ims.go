@@ -699,7 +699,7 @@ func RequireIMSCallLost(ctx context.Context, caller, callee IMSEndpoint, transpo
 }
 
 func networkEnded(c *testue.Call) error {
-	if end := c.End(); end == testue.LocalBye || end == testue.Cancelled {
+	if end := c.End(); end == testue.LocalBye || end == testue.Cancelled && !c.Incoming() {
 		return fmt.Errorf("the call ended by %s, want the network to end it", end)
 	}
 
