@@ -48,7 +48,7 @@ func (s *deregisterTestSmf) ActivateSmContext(context.Context, string) ([]byte, 
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef string) error {
+func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef string, _ bool) error {
 	s.deactivateCalls = append(s.deactivateCalls, smContextRef)
 	return nil
 }
@@ -95,13 +95,17 @@ func (s *deregisterTestSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Co
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
-	return "", nil
-}
-
-func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, error) {
+func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
 	return "", nil, nil
 }
+
+func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, []uint8, error) {
+	return "", nil, nil, nil
+}
+
+func (s *deregisterTestSmf) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
+
+func (s *deregisterTestSmf) ReleaseInactiveEPSBearers(context.Context, string, []uint8) {}
 
 func (s *deregisterTestSmf) UpdateSmContextN2HandoverPreparing(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
@@ -361,4 +365,16 @@ func TestAttachUeConn_DoesNotDeactivateASessionTheDisplacedConnectionNeverServed
 	if got := fake.deactivateCalls; len(got) != 0 {
 		t.Errorf("DeactivateSmContext calls = %v, want none: the displaced connection held no AN resources", got)
 	}
+}
+
+func (*deregisterTestSmf) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*deregisterTestSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*deregisterTestSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
 }

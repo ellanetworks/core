@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -51,7 +52,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if response == nil {
-		logger.From(ctx, logger.AmfLog).Warn("SMF did not return any N1/N2 message", logger.PDUSessionID(pduSessionID))
+		logger.From(ctx, logger.AmfLog).Debug("SMF did not return any N1/N2 message", logger.PDUSessionID(pduSessionID))
 		return
 	}
 
@@ -260,7 +261,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	}
 
 	if ulNasTransport.DNN != nil {
-		dnn = string(*ulNasTransport.DNN)
+		dnn = strings.ToLower(string(*ulNasTransport.DNN))
 	} else {
 		dnnResp, err := amfInstance.SubscriberDnn(ctx, ue.Supi(), snssai)
 		if err != nil {
@@ -279,6 +280,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	}
 
 	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID)
+	defer ue.ReleaseEPSBearerReservation(pduSessionID)
 
 	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
 

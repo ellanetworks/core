@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap/zapcore"
@@ -109,6 +110,10 @@ func setupSessionWithTunnelIdentity(t *testing.T, s *smf.SMF, id smf.SessionIden
 
 	smCtx.PolicyData = policy
 
+	if err := s.AssociateForTest(context.Background(), smCtx); err != nil {
+		t.Fatalf("AssociateForTest: %v", err)
+	}
+
 	return smCtx, smCtx.Ref
 }
 
@@ -144,7 +149,7 @@ func TestSmContextHandlers_UnknownRef(t *testing.T) {
 			return err
 		}},
 		{name: "DeactivateSmContext", call: func(ctx context.Context, s *smf.SMF, ref string) error {
-			return s.DeactivateSmContext(ctx, ref)
+			return s.DeactivateSmContext(ctx, ref, true)
 		}},
 		{name: "UpdateSmContextN1Msg", call: func(ctx context.Context, s *smf.SMF, ref string) error {
 			_, err := s.UpdateSmContextN1Msg(ctx, ref, nil)
@@ -243,7 +248,7 @@ func TestDeactivateSmContext_HappyPath(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.DeactivateSmContext(ctx, ref)
+	err := s.DeactivateSmContext(ctx, ref, true)
 	if err != nil {
 		t.Fatalf("DeactivateSmContext failed: %v", err)
 	}
@@ -274,7 +279,7 @@ func TestDeactivateSmContext_NilPFCPContext(t *testing.T) {
 	smCtx, ref := setupSessionWithTunnel(t, s)
 	smCtx.PFCPContext = nil
 
-	err := s.DeactivateSmContext(ctx, ref)
+	err := s.DeactivateSmContext(ctx, ref, true)
 	if err == nil {
 		t.Fatal("expected error when PFCPContext is nil")
 	}
@@ -288,7 +293,7 @@ func TestDeactivateSmContext_ModifyError(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.DeactivateSmContext(ctx, ref)
+	err := s.DeactivateSmContext(ctx, ref, true)
 	if err == nil {
 		t.Fatal("expected error when ModifySession fails")
 	}
@@ -327,6 +332,36 @@ func TestReleaseSmContext_HappyPath(t *testing.T) {
 		t.Fatalf("expected 1 DeleteSession call, got %d", len(upf.deleteCalls))
 	}
 	upf.mu.Unlock()
+}
+
+func TestSessionLifecycleHoldsAPolicyAssociation(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+	if err != nil {
+		t.Fatalf("CreateSmContext failed: %v", err)
+	}
+
+	pcf.mu.Lock()
+	a, ok := pcf.associations[ref]
+	pcf.mu.Unlock()
+
+	if !ok || a.Dnn != testDNN || a.IPv4 != store.allocatedIP || a.Supi != testSUPI() {
+		t.Fatalf("association for %s = %+v, %t; want DNN %s and IPv4 %s", ref, a, ok, testDNN, store.allocatedIP)
+	}
+
+	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+		t.Fatalf("ReleaseSmContext failed: %v", err)
+	}
+
+	pcf.mu.Lock()
+	defer pcf.mu.Unlock()
+
+	if _, ok := pcf.associations[ref]; ok || len(pcf.terminated) != 1 || pcf.terminated[0] != ref {
+		t.Fatalf("terminated associations = %v, want [%s]", pcf.terminated, ref)
+	}
 }
 
 func TestReleaseSmContext_NotFound(t *testing.T) {
@@ -1184,7 +1219,7 @@ func TestReconcileSession_DeletedSubscriberKeepsSession(t *testing.T) {
 	_, ref := setupSessionWithTunnel(t, s)
 
 	pcf.mu.Lock()
-	pcf.err = fmt.Errorf("%w: subscriber not found", smf.ErrSubscriberNotFound)
+	pcf.err = fmt.Errorf("%w: 001010000000001", udm.ErrSubscriberUnknown)
 	pcf.mu.Unlock()
 
 	if err := s.ReconcileSession(ctx, ref); err != nil {
@@ -2118,7 +2153,7 @@ func TestDeactivateSmContext_TransientModifyFailureKeepsSEID(t *testing.T) {
 	upf.err = errors.New("datapath write failed")
 	upf.mu.Unlock()
 
-	if err := s.DeactivateSmContext(context.Background(), ref); err == nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err == nil {
 		t.Fatal("expected DeactivateSmContext to report the modification failure")
 	}
 
@@ -2146,7 +2181,7 @@ func TestDeactivateSmContext_SessionGoneClearsSEID(t *testing.T) {
 	upf.err = fmt.Errorf("%w: SEID 1", models.ErrSessionNotFound)
 	upf.mu.Unlock()
 
-	if err := s.DeactivateSmContext(context.Background(), ref); err == nil {
+	if err := s.DeactivateSmContext(context.Background(), ref, true); err == nil {
 		t.Fatal("expected DeactivateSmContext to report the failure")
 	}
 

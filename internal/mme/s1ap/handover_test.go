@@ -635,9 +635,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 		t.Fatal("rejected PDN session not released")
 	}
 
-	if m.LookupPDN(ue, 6) != nil {
-		t.Fatal("rejected PDN connection not dropped")
-	}
+	requirePDNDisconnected(t, m, ue, 6)
 
 	if m.LookupPDN(ue, mme.DefaultERABID) == nil {
 		t.Fatal("admitted PDN connection dropped")
@@ -751,8 +749,10 @@ func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 	}
 	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
-	if m.LookupPDN(ue, mme.DefaultERABID) != nil {
-		t.Fatal("rejected attach-default PDN not dropped")
+	requirePDNDisconnected(t, m, ue, mme.DefaultERABID)
+
+	if p := m.LookupPDN(ue, mme.DefaultERABID); p != nil {
+		m.DeactivatePDN(context.Background(), ue, p)
 	}
 
 	survivor := m.LookupPDN(ue, 6)
@@ -933,7 +933,7 @@ func TestHandoverSourceConnLossReclaims(t *testing.T) {
 		t.Fatal("handover not cleared on source association loss")
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }
 
 func TestHandoverTargetResetAborts(t *testing.T) {
@@ -976,7 +976,7 @@ func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
 		t.Fatalf("expected UE Context Release Command to target, got %T", lastPDU(t, target))
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }
 
 func TestHandoverNotifyUEReleasedDuringSwitch(t *testing.T) {

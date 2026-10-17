@@ -46,7 +46,7 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 			continue
 		}
 
-		transfer, err := buildPathSwitchRequestTransfer(pduSession.DLTEID, addr)
+		transfer, err := buildPathSwitchRequestTransfer(pduSession.DLTEID, addr, pduSession.Flows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PathSwitchRequestTransfer: %w", err)
 		}
@@ -71,12 +71,16 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 // buildPathSwitchRequestTransfer encodes the per-session transfer naming the
 // downlink tunnel the target node has set up (TS 38.413 §9.3.4.9). One accepted
 // QoS flow is reported: the list is mandatory and this simulator serves one.
-func buildPathSwitchRequestTransfer(teid uint32, addr ngap.TransportLayerAddress) (ngap.TransferContainer, error) {
+func buildPathSwitchRequestTransfer(teid uint32, addr ngap.TransportLayerAddress, flows []uint8) (ngap.TransferContainer, error) {
 	transfer := &ngap.PathSwitchRequestTransfer{
 		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{
 			GTPTunnel: ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
 		},
 		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
+	}
+
+	for _, qfi := range flows {
+		transfer.QosFlowAccepted = append(transfer.QosFlowAccepted, ngap.QosFlowAcceptedItem{QosFlowIdentifier: ngap.QosFlowIdentifier(qfi)})
 	}
 
 	return transfer.Marshal()

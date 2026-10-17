@@ -75,6 +75,7 @@ type UeConn struct {
 	// Always set at creation.
 	amf              *AMF
 	releaseAction    atomic.Int64
+	releaseCause     atomic.Pointer[ngap.Cause]
 	UeContextRequest bool
 	// ics is the Initial Context Setup progress (an ICSState). It is read and written
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
@@ -687,7 +688,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 	if amfUe != nil {
 		ueConn.Log(ctx).Debug("Ue Context in GMM-Registered")
 
-		a.deactivateReleasedSessions(ctx, ueConn, amfUe, reported)
+		a.deactivateReleasedSessions(ctx, ueConn, amfUe, reported, preservesGBRFlows(cause))
 	}
 
 	ueConn.SetReleaseAction(UeContextN2NormalRelease)
@@ -695,7 +696,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 	ueConn.SendUEContextReleaseCommand(ctx, cause)
 }
 
-func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, amfUe *UeContext, reported []uint8) {
+func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, amfUe *UeContext, reported []uint8, preserveGBR bool) {
 	if reported == nil {
 		ueConn.Log(ctx).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 
@@ -706,7 +707,7 @@ func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, am
 				continue
 			}
 
-			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
+			if err := a.Session.DeactivateSmContext(ctx, sr.Ref, preserveGBR); err != nil {
 				ueConn.Log(ctx).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
@@ -723,7 +724,7 @@ func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, am
 			continue
 		}
 
-		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
+		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref, preserveGBR); err != nil {
 			ueConn.Log(ctx).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
@@ -754,11 +755,12 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 	registered := amfUe.State() == Registered
 	if registered {
 		for _, sr := range amfUe.SmContextRefs() {
-			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && ueConn.N2SessionInactive(sr.PduSessionID) {
+			activeHere := slices.Contains(served, sr.PduSessionID) || !ueConn.N2SessionInactive(sr.PduSessionID)
+			if len(served) > 0 && !activeHere {
 				continue
 			}
 
-			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
+			if err := a.Session.DeactivateSmContext(ctx, sr.Ref, !activeHere || ueConn.preservesGBRFlows()); err != nil {
 				ueConn.Log(ctx).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
@@ -973,4 +975,15 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 	radio.amf.mu.Unlock()
 
 	return ueConn
+}
+
+func (ueConn *UeConn) preservesGBRFlows() bool {
+	cause := ueConn.releaseCause.Load()
+	return cause != nil && preservesGBRFlows(*cause)
+}
+
+// TS 23.502 §4.2.6 step 6a.
+func preservesGBRFlows(cause ngap.Cause) bool {
+	return cause.Group == ngap.CauseGroupRadioNetwork && !cause.Extended &&
+		(cause.Value == ngap.CauseRadioNetworkUserInactivity || cause.Value == ngap.CauseRadioNetworkRedirection)
 }

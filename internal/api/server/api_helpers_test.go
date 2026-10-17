@@ -116,6 +116,10 @@ func setupServerWithRaft(filepath string) (testEnv, error) {
 }
 
 func buildTestEnv(testdb *db.Database) (testEnv, error) {
+	return buildTestEnvWithHSS(testdb, nil)
+}
+
+func buildTestEnvWithHSS(testdb *db.Database, hssInstance server.IMSSubscribers) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
@@ -158,6 +162,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 		Sessions:     smfInstance,
 		AMF:          amfInstance,
 		LMF:          lmfInstance,
+		HSS:          hssInstance,
 		BcryptCost:   bcrypt.MinCost,
 	}))
 
@@ -250,15 +255,23 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 
 type fakePCF struct{}
 
-func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
+func (f *fakePCF) CreateAssociation(context.Context, string, smf.PolicyContext) (*smf.PolicyDecision, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakePCF) GetEPSSessionPolicy(_ context.Context, _ string, _ string) (*smf.Policy, *models.Snssai, error) {
-	return nil, nil, fmt.Errorf("not implemented in test")
+func (f *fakePCF) UpdateAssociation(context.Context, string, smf.SubscribedQoS) (*smf.PolicyDecision, error) {
+	return nil, fmt.Errorf("not implemented in test")
 }
 
+func (f *fakePCF) ReportEnforcementFailure(string, []smf.RuleReport, smf.EnforcementFailure) {}
+
+func (f *fakePCF) TerminateAssociation(string) {}
+
 type fakeSessionStore struct{}
+
+func (f *fakeSessionStore) Config(context.Context) (smf.DataNetworkConfig, error) {
+	return smf.DataNetworkConfig{}, nil
+}
 
 func (f *fakeSessionStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
 	return f, nil
@@ -355,6 +368,13 @@ func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, 
 }
 
 func (f *fakeAMFCallback) SessionDropped(_ context.Context, _ etsi.SUPI, _ uint8, _ string, _ []byte) {
+}
+
+func (f *fakeAMFCallback) AssignEPSBearerIdentity(_ etsi.SUPI, _ uint8, _ string) (uint8, error) {
+	return 0, nil
+}
+
+func (f *fakeAMFCallback) ReleaseEPSBearerIdentities(_ etsi.SUPI, _ uint8, _ string, _ []uint8) {
 }
 
 // ── Profile test helpers ────────────────────────────────────────────────

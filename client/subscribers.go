@@ -84,17 +84,31 @@ type Registration struct {
 	Imei               string        `json:"imei,omitempty"`
 	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
 	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
+	IMSVoiceOverPS     *bool         `json:"ims_voice_over_ps,omitempty"`
 	Connection         *UEConnection `json:"connection"`
+}
+
+type IMSPublicIdentity struct {
+	Identity  string `json:"identity"`
+	Barred    bool   `json:"barred"`
+	UserState string `json:"user_state"`
+}
+
+type IMSSubscription struct {
+	PrivateIdentity  string              `json:"private_identity"`
+	SCSCFName        string              `json:"scscf_name,omitempty"`
+	PublicIdentities []IMSPublicIdentity `json:"public_identities"`
 }
 
 // SubscriberDetail is the full form returned by GetSubscriber.
 type SubscriberDetail struct {
-	Imsi          string         `json:"imsi"`
-	ProfileName   string         `json:"profile_name"`
-	Description   string         `json:"description,omitempty"`
-	Msisdn        string         `json:"msisdn,omitempty"`
-	Registrations []Registration `json:"registrations"`
-	Sessions      []Session      `json:"sessions"`
+	Imsi          string           `json:"imsi"`
+	ProfileName   string           `json:"profile_name"`
+	Description   string           `json:"description,omitempty"`
+	Msisdn        string           `json:"msisdn,omitempty"`
+	Registrations []Registration   `json:"registrations"`
+	Sessions      []Session        `json:"sessions"`
+	IMS           *IMSSubscription `json:"ims,omitempty"`
 }
 
 // SessionSlice is the 5G network slice identifier (S-NSSAI) of a session;

@@ -113,6 +113,15 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 				if ((const void *)(ext + 1) > ctx->data_end)
 					return -1;
 
+				if (next_ext == GTPU_EXT_TYPE_PDU_SESSION_CONTAINER) {
+					const struct gtp_hdr_ext_pdu_session_container
+						*psc = (const void *)ext;
+					if ((const void *)(psc + 1) > ctx->data_end)
+						return -1;
+
+					ctx->qfi = psc->qfi;
+				}
+
 				/* Length is in 4-octet units; the extension header's
 				 * last octet is the next-extension-header type. */
 				__u32 ext_len = (__u32)ext[0] * 4;

@@ -166,6 +166,8 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 		m.DeactivateAllSessions(ctx, ue)
 	}
 
+	conn.releaseCause.Store(&cause)
+
 	if err := conn.SendUEContextReleaseCommand(ctx, cause); err != nil {
 		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent")
 
@@ -202,10 +204,12 @@ func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expect
 
 	ue.settleDeliveryOnRelease(ctx)
 
-	released, registered, imsi := m.releaseContextLockedPart(ue, expected)
+	released, registered, imsi, losses := m.releaseContextLockedPart(ue, expected)
 	if !released {
 		return
 	}
+
+	m.reportDedicatedLosses(ctx, losses)
 
 	if ueConn == nil {
 		log = log.With(logger.SUPIFromIMSI(imsi))

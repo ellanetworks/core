@@ -417,6 +417,7 @@ static __always_inline int parse_udp(struct packet_context *ctx)
 	ctx->udp = udp;
 	ctx->l4_sport = bpf_ntohs(udp->source);
 	ctx->l4_dport = bpf_ntohs(udp->dest);
+	ctx->l4_ports = 1;
 
 	return bpf_ntohs(udp->dest);
 }
@@ -479,6 +480,7 @@ static __always_inline int parse_tcp(struct packet_context *ctx)
 	ctx->tcp = tcp;
 	ctx->l4_sport = bpf_ntohs(tcp->source);
 	ctx->l4_dport = bpf_ntohs(tcp->dest);
+	ctx->l4_ports = 1;
 
 	return bpf_ntohs(tcp->dest);
 }
@@ -619,6 +621,7 @@ static __always_inline void context_reset(struct packet_context *ctx,
 	ctx->l4_unavailable = 0;
 	ctx->exthdr_invalid = 0;
 	ctx->l4_resolved = 0;
+	ctx->l4_ports = 0;
 	ctx->frag_recovered = 0;
 	ctx->is_fragment = 0;
 	ctx->frag_nat_id = 0;

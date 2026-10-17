@@ -174,3 +174,9 @@ func relocatedNetworkCapability(c eps.UESecurityCapability) eps.UENetworkCapabil
 		UIA:     c.UIA,
 	}
 }
+
+func relocatedFeatures(features eps.UENetworkCapability, security eps.UESecurityCapability) eps.UENetworkCapability {
+	features.EEA, features.EIA, features.HasUMTS, features.UEA, features.UIA = security.EEA, security.EIA, security.HasUMTS, security.UEA, security.UIA
+
+	return features
+}

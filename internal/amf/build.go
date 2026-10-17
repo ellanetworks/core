@@ -293,7 +293,7 @@ func BuildRegistrationAccept(
 
 	if nfs := amfInstance.NetworkFeatureSupport(); nfs.Enable {
 		m.NetworkFeatureSupport = &fgs.NetworkFeatureSupport{
-			IMSVoPS3GPP: nfs.ImsVoPS != 0,
+			IMSVoPS3GPP: ue.IMSVoPS(),
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
 			MPSI:        nfs.Mpsi != 0,
@@ -325,6 +325,14 @@ func BuildRegistrationAccept(
 		for _, ebi := range ue.EPSBearerIdentities() {
 			if int(ebi) < len(status.Active) {
 				status.Active[ebi] = true
+			}
+		}
+
+		for _, ebis := range ue.FlowEPSBearerIdentities() {
+			for _, ebi := range ebis {
+				if int(ebi) < len(status.Active) {
+					status.Active[ebi] = true
+				}
 			}
 		}
 

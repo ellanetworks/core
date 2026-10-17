@@ -109,7 +109,7 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 		return interworking.ForwardRelocationRequest{}, nil, fmt.Errorf("amf: UE has no AMBR")
 	}
 
-	return interworking.ForwardRelocationRequest{
+	req := interworking.ForwardRelocationRequest{
 		SUPI:            ue.Supi(),
 		SecurityContext: mapped.Context,
 		PDNConnections:  sessions,
@@ -118,7 +118,13 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 		SourceToTarget:  sourceToTarget,
 		UEAMBRUplink:    ambr.Uplink,
 		UEAMBRDownlink:  ambr.Downlink,
-	}, &mapped, nil
+	}
+
+	if netCap, ok := ue.EPSNetworkCapability(); ok {
+		req.UENetworkCapability = &netCap
+	}
+
+	return req, &mapped, nil
 }
 
 func S1APHandoverFailureCause(cause ngap.Cause) s1ap.Cause {

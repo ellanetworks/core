@@ -87,8 +87,8 @@ tags:
     description: Diagnostic support bundle.
   - name: Location
     description: "Beta: Subscriber location."
-  - name: Positioning Sessions
-    description: "Beta: Deferred positioning sessions."
+  - name: Deferred Location Requests
+    description: "Beta: Periodic location requests and their reports."
   - name: Cell Positions
     description: "Beta: Cell antenna positions."
 
@@ -1667,6 +1667,26 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/operator/ims:
+    put:
+      operationId: updateOperatorIMS
+      tags: [Operator]
+      summary: Update IMS settings
+      description: Sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the ims data network. The list is ordered by preference. UEs receive the addresses of the IP version they request. An empty list clears it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorIMSParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
     get:
@@ -3198,7 +3218,7 @@ paths:
       operationId: getSubscriberLocation
       tags: [Location]
       summary: Locate a subscriber
-      description: "Beta: Locates a subscriber, or creates or cancels a deferred positioning session."
+      description: "Beta: Returns the current location of a subscriber."
       requestBody:
         required: true
         content:
@@ -3207,19 +3227,11 @@ paths:
               $ref: "#/components/schemas/LocationRequest"
       responses:
         "200":
-          description: Location estimate (immediate requests).
+          description: Location estimate.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocationDataResponseEnvelope"
-        "201":
-          description: Deferred positioning session created (periodic/triggered requests).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PositioningSessionCreatedEnvelope"
-        "204":
-          description: Session cancelled (cancel requests).
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3228,28 +3240,84 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+        "504":
+          description: Location request timed out.
 
-  # -- Positioning Sessions (beta) -----------------------------------------
-  /api/beta/positioning/sessions:
+  # -- Deferred Location Requests (beta) -----------------------------------
+  /api/beta/location/deferred-requests:
+    post:
+      operationId: createDeferredLocationRequest
+      tags: [Deferred Location Requests]
+      summary: Create a deferred location request
+      description: "Beta: Starts periodic location reporting for a subscriber (TS 23.273, TS 29.572)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeferredLocationRequestParams"
+      responses:
+        "201":
+          description: Deferred location request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeferredLocationRequestResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "501":
+          description: Unsupported `ldr_type`.
+        "503":
+          description: Deferred location requests are unavailable.
     get:
-      operationId: listPositioningSessions
-      tags: [Positioning Sessions]
-      summary: List positioning sessions
-      description: "Beta: Returns the positioning sessions for a subscriber."
+      operationId: listDeferredLocationRequests
+      tags: [Deferred Location Requests]
+      summary: List deferred location requests
+      description: "Beta: Returns a paginated list of deferred location requests, newest first."
       parameters:
         - name: supi
           in: query
-          required: true
+          required: false
           schema:
             type: string
-          description: "SUPI whose sessions to list (e.g. `imsi-001010000000001`)."
+          description: "Filter by subscriber (e.g. `imsi-001010000000001`)."
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, TERMINATED]
+          description: Filter by status.
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
       responses:
         "200":
-          description: Positioning sessions.
+          description: Deferred location requests.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListPositioningSessionsResponseEnvelope"
+                $ref: "#/components/schemas/ListDeferredLocationRequestsResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3257,39 +3325,84 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/beta/positioning/sessions/{id}:
+  /api/beta/location/deferred-requests/{id}:
     get:
-      operationId: getPositioningSession
-      tags: [Positioning Sessions]
-      summary: Get a positioning session
-      description: "Beta: Returns a positioning session and its last result."
+      operationId: getDeferredLocationRequest
+      tags: [Deferred Location Requests]
+      summary: Get a deferred location request
+      description: "Beta: Returns a deferred location request."
       parameters:
-        - $ref: "#/components/parameters/PositioningSessionIdPath"
+        - $ref: "#/components/parameters/DeferredLocationRequestIdPath"
       responses:
         "200":
-          description: Positioning session details.
+          description: Deferred location request.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PositioningSessionDetailResponseEnvelope"
+                $ref: "#/components/schemas/DeferredLocationRequestResponseEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
-      operationId: cancelPositioningSession
-      tags: [Positioning Sessions]
-      summary: Cancel a positioning session
-      description: "Beta: Cancels an active positioning session."
+      operationId: deleteDeferredLocationRequest
+      tags: [Deferred Location Requests]
+      summary: Delete a deferred location request
+      description: "Beta: Stops a deferred location request if it is active, then deletes it and its reports."
       parameters:
-        - $ref: "#/components/parameters/PositioningSessionIdPath"
+        - $ref: "#/components/parameters/DeferredLocationRequestIdPath"
       responses:
-        "204":
-          description: Session cancelled.
+        "200":
+          $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/beta/location/deferred-requests/{id}/reports:
+    get:
+      operationId: listLocationReports
+      tags: [Deferred Location Requests]
+      summary: List location reports
+      description: "Beta: Returns the location reports of a deferred location request, oldest first."
+      parameters:
+        - $ref: "#/components/parameters/DeferredLocationRequestIdPath"
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+          description: Return reports with a `seq` greater than this value.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        "200":
+          description: Location reports.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListLocationReportsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   # -- Cell Positions (beta) -----------------------------------------------
   /api/beta/cell-positions:
@@ -3381,8 +3494,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/CellPositionIdPath"
       responses:
-        "204":
-          description: Cell position deleted.
+        "200":
+          $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -3481,13 +3594,14 @@ components:
         type: integer
         format: int64
       description: Route ID.
-    PositioningSessionIdPath:
+    DeferredLocationRequestIdPath:
       name: id
       in: path
       required: true
       schema:
         type: string
-      description: Positioning session ID.
+        format: uuid
+      description: Deferred location request ID.
     CellPositionIdPath:
       name: id
       in: path
@@ -4002,6 +4116,9 @@ components:
         integrity_algorithm:
           type: string
           description: "NAS integrity algorithm (NIAx or EIAx). Absent when none."
+        ims_voice_over_ps:
+          type: boolean
+          description: "Whether IMS voice over PS sessions are supported for the UE on this registration's access (3GPP access for 5G), as decided at the last Registration, Attach or Tracking Area Update (TS 23.501 §5.16.3.2, TS 23.401 §4.3.5.8). Absent without a UE context."
         connection:
           oneOf:
             - $ref: "#/components/schemas/UEConnection"
@@ -4034,7 +4151,40 @@ components:
           description: "Active PDU sessions (5G) and PDN connections (4G)."
           items:
             $ref: "#/components/schemas/Session"
+        ims:
+          $ref: "#/components/schemas/IMSSubscription"
       required: [imsi, profile_name, registrations, sessions]
+
+    IMSSubscription:
+      type: object
+      description: "IMS subscription held by the HSS (TS 23.228 §4.3.3.4). Absent when the subscriber's profile has no policy on the ims data network and the subscriber has no IMS registration."
+      properties:
+        private_identity:
+          type: string
+          description: "Private User Identity."
+        scscf_name:
+          type: string
+          description: "SIP URI of the S-CSCF assigned to the IMS subscription (TS 29.328 §7.6.4). Absent when none is assigned."
+        public_identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSPublicIdentity"
+      required: [private_identity, public_identities]
+
+    IMSPublicIdentity:
+      type: object
+      properties:
+        identity:
+          type: string
+          description: "Public User Identity (tel or SIP URI)."
+        barred:
+          type: boolean
+          description: "Barred from IMS communications other than registration (TS 23.228 §5.2.1)."
+        user_state:
+          type: string
+          enum: ["registered", "registered_unreg_services", "authentication_pending", "not_registered"]
+          description: "IMS User State (TS 29.328 §7.6.3)."
+      required: [identity, barred, user_state]
 
     SubscriberCredentials:
       type: object
@@ -4260,7 +4410,7 @@ components:
           description: "Session AMBR downlink (e.g. \"200 Mbps\")."
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR)."
+          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
@@ -4329,7 +4479,7 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR)."
+          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
@@ -4364,7 +4514,7 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR)."
+          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
@@ -4573,6 +4723,8 @@ components:
           $ref: "#/components/schemas/OperatorSPN"
         sms:
           $ref: "#/components/schemas/OperatorSMS"
+        ims:
+          $ref: "#/components/schemas/OperatorIMS"
 
     OperatorResponseEnvelope:
       type: object
@@ -4816,6 +4968,31 @@ components:
           type: string
           pattern: "^(\\+[1-9][0-9]{0,14})?$"
           description: "Ella Core's E.164 number."
+
+    OperatorIMS:
+      type: object
+      required: [pcscfAddresses, voiceStatus]
+      properties:
+        pcscfAddresses:
+          type: array
+          items:
+            type: string
+          description: "P-CSCF addresses of the IMS given to UEs, in preference order. Empty when unset."
+        voiceStatus:
+          type: string
+          enum: [enabled, no_pcscf, no_ims_data_network, ip_family_mismatch]
+          description: "Whether UEs are told IMS voice is supported, or why not."
+
+    UpdateOperatorIMSParams:
+      type: object
+      required: [pcscfAddresses]
+      properties:
+        pcscfAddresses:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+          description: "Unicast IPv4 and IPv6 addresses of the IMS, in preference order. At most 3 of each IP version, without duplicates."
 
     UpdateOperatorSPNParams:
       type: object
@@ -5213,11 +5390,11 @@ components:
 
     DiameterPeer:
       type: object
-      required: [role, address, port, state, since]
+      required: [role, address, state, since]
       properties:
         role:
           type: string
-          enum: [smsc]
+          enum: [smsc, ims]
           description: "What the peer is to Ella Core."
         host:
           type: string
@@ -5230,7 +5407,7 @@ components:
           description: "The peer's IP address."
         port:
           type: integer
-          description: "The peer's SCTP port."
+          description: "The peer's SCTP port. Absent for IMS peers."
         state:
           type: string
           enum: [down, connecting, open, suspect, reopen, closing]
@@ -6317,15 +6494,11 @@ components:
     # -- Location (beta) -------------------------------------------------
     LocationRequest:
       type: object
-      required: [request_type]
+      required: [supi]
       properties:
         supi:
           type: string
-          description: "Subscriber identity (e.g. `imsi-001010000000001`). Required unless `request_type` is `cancel`."
-        request_type:
-          type: string
-          enum: [immediate, periodic, triggered, cancel]
-          description: Kind of location request.
+          description: "Subscriber identity (e.g. `imsi-001010000000001`)."
         method:
           type: string
           enum: [cell_id, ecid, gnss]
@@ -6334,9 +6507,29 @@ components:
           type: string
           enum: [network_based, ue_assisted, standalone]
           description: "Positioning mode. `ecid`: `network_based`, `ue_assisted`. `gnss`: `standalone`. `cell_id`: none. Defaults to every mode supported by `method`."
-        session_id:
-          type: string
-          description: Session to terminate. Required when `request_type` is `cancel`.
+        measurement_quantities:
+          $ref: "#/components/schemas/MeasurementQuantities"
+
+    MeasurementQuantities:
+      type: object
+      description: "E-CID measurement quantities (TS 38.455, TS 36.455). Only for `ecid` with `mode` `network_based` or omitted."
+      properties:
+        nr:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Used when the serving cell is NR.
+          items:
+            type: string
+            enum: [cell-ID, sS-RSRP, sS-RSRQ, cSI-RSRP, cSI-RSRQ, angleOfArrivalNR, timingAdvanceNR, uE-Rx-Tx-Time-Diff]
+        eutra:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Used when the serving cell is E-UTRA.
+          items:
+            type: string
+            enum: [cell-ID, angleOfArrival, timingAdvanceType1, timingAdvanceType2, rSRP, rSRQ]
 
     LocationData:
       type: object
@@ -6563,86 +6756,167 @@ components:
         result:
           $ref: "#/components/schemas/LocationData"
 
-    PositioningSessionCreated:
+    # -- Deferred Location Requests (beta) -----------------------------
+    PeriodicEventInfo:
       type: object
+      description: TS 29.572 PeriodicEventInfo.
+      required: [reporting_interval]
+      properties:
+        reporting_amount:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 8639999
+          description: Number of reports. Required unless `reporting_infinite_ind` is true. `reporting_amount` x `reporting_interval` must not exceed 8639999.
+        reporting_interval:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 8639999
+          description: Interval between reports, in seconds.
+        reporting_infinite_ind:
+          type: boolean
+          description: Report until 8639999 seconds have elapsed.
+        reporting_interval_ms:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 999
+          description: Not supported. Ignored; `reporting_interval` is used.
+
+    CreateDeferredLocationRequestParams:
+      type: object
+      required: [supi, ldr_type, periodic_event_info]
+      properties:
+        supi:
+          type: string
+          description: "Subscriber identity (e.g. `imsi-001010000000001`)."
+        ldr_type:
+          type: string
+          enum: [UE_AVAILABLE, PERIODIC, ENTERING_INTO_AREA, LEAVING_FROM_AREA, BEING_INSIDE_AREA, MOTION]
+          description: TS 29.572 LdrType. Only `PERIODIC` is supported.
+        periodic_event_info:
+          $ref: "#/components/schemas/PeriodicEventInfo"
+        scheduled_loc_time:
+          type: string
+          format: date-time
+          description: Time of the first report.
+        method:
+          type: string
+          enum: [cell_id, ecid, gnss]
+          description: Positioning method. Defaults to `cell_id`.
+        mode:
+          type: string
+          enum: [network_based, ue_assisted, standalone]
+          description: "Positioning mode. `ecid`: `network_based`, `ue_assisted`. `gnss`: `standalone`. `cell_id`: none. Defaults to every mode supported by `method`."
+        measurement_quantities:
+          $ref: "#/components/schemas/MeasurementQuantities"
+
+    DeferredLocationRequest:
+      type: object
+      required: [id, supi, ldr_type, periodic_event_info, method, status, created_at]
       properties:
         id:
           type: string
-          description: Session ID.
-      required: [id]
+          format: uuid
+        supi:
+          type: string
+        ldr_type:
+          type: string
+          enum: [PERIODIC]
+        periodic_event_info:
+          $ref: "#/components/schemas/PeriodicEventInfo"
+        scheduled_loc_time:
+          type: string
+          format: date-time
+        method:
+          type: string
+          enum: [cell_id, ecid, gnss]
+        mode:
+          type: string
+          enum: [network_based, ue_assisted, standalone]
+        measurement_quantities:
+          $ref: "#/components/schemas/MeasurementQuantities"
+        status:
+          type: string
+          enum: [ACTIVE, TERMINATED]
+        termination_cause:
+          type: string
+          enum: [NORMAL_TERMINATION, TERMINATION_BY_UE, TERMINATION_BY_NETWORK]
+          description: TS 29.572 TerminationCause.
+        termination_reason:
+          type: string
+          enum: [ue_deregistered, ue_mobility, positioning_failed, node_restart, node_shutdown]
+        event_report_counter:
+          type: integer
+          format: int64
+          minimum: 1
+          description: TS 29.572 EventReportCounter. Absent before the first report.
+        created_at:
+          type: string
+          format: date-time
+        terminated_at:
+          type: string
+          format: date-time
 
-    PositioningSessionCreatedEnvelope:
+    DeferredLocationRequestResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/PositioningSessionCreated"
+          $ref: "#/components/schemas/DeferredLocationRequest"
 
-    # -- Positioning Sessions (beta) -------------------------------------
-    PositioningSessionListItem:
+    ListDeferredLocationRequestsResponse:
       type: object
       properties:
-        id:
-          type: string
-        supi:
-          type: string
-        session_type:
-          type: integer
-          description: "0 = immediate, 1 = periodic, 2 = triggered."
-        method:
-          type: string
-        status:
-          type: integer
-          description: "0 = active, 1 = completed, 2 = failed, 3 = cancelled."
-        created_at:
-          type: integer
-          format: int64
-          description: Creation time, Unix seconds.
-        updated_at:
-          type: integer
-          format: int64
-          description: Last update time, Unix seconds.
-      required: [id, supi, session_type, method, status, created_at, updated_at]
-
-    PositioningSessionDetail:
-      type: object
-      properties:
-        id:
-          type: string
-        supi:
-          type: string
-        session_type:
-          type: integer
-          description: "0 = immediate, 1 = periodic, 2 = triggered."
-        method:
-          type: string
-        status:
-          type: integer
-          description: "0 = active, 1 = completed, 2 = failed, 3 = cancelled."
-        last_result:
-          $ref: "#/components/schemas/LocationData"
-        created_at:
-          type: integer
-          format: int64
-          description: Creation time, Unix seconds.
-        updated_at:
-          type: integer
-          format: int64
-          description: Last update time, Unix seconds.
-      required: [id, supi, session_type, method, status, created_at, updated_at]
-
-    ListPositioningSessionsResponseEnvelope:
-      type: object
-      properties:
-        result:
+        items:
           type: array
           items:
-            $ref: "#/components/schemas/PositioningSessionListItem"
+            $ref: "#/components/schemas/DeferredLocationRequest"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
 
-    PositioningSessionDetailResponseEnvelope:
+    ListDeferredLocationRequestsResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/PositioningSessionDetail"
+          $ref: "#/components/schemas/ListDeferredLocationRequestsResponse"
+
+    LocationReport:
+      type: object
+      required: [seq, reported_at, location_data]
+      properties:
+        seq:
+          type: integer
+          format: int64
+        reported_at:
+          type: string
+          format: date-time
+        location_data:
+          $ref: "#/components/schemas/LocationData"
+
+    ListLocationReportsResponse:
+      type: object
+      required: [items, next]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocationReport"
+        next:
+          type: integer
+          format: int64
+          description: Value to pass as `after` to get the following reports.
+
+    ListLocationReportsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListLocationReportsResponse"
 
     # -- Cell Positions (beta) -------------------------------------------
     CellPositionRequest:

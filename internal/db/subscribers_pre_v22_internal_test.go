@@ -13,7 +13,7 @@ import (
 	"github.com/canonical/sqlair"
 )
 
-func newDatabaseAtV21(t *testing.T) *Database {
+func newDatabaseAtVersion(t *testing.T, version int) *Database {
 	t.Helper()
 
 	ctx := context.Background()
@@ -24,8 +24,8 @@ func newDatabaseAtV21(t *testing.T) *Database {
 		t.Fatalf("open: %v", err)
 	}
 
-	if err := runMigrations(ctx, conn, 21); err != nil {
-		t.Fatalf("runMigrations(21): %v", err)
+	if err := runMigrations(ctx, conn, version); err != nil {
+		t.Fatalf("runMigrations(%d): %v", version, err)
 	}
 
 	if err := ensureFsmStateTable(ctx, conn); err != nil {
@@ -59,7 +59,7 @@ func newDatabaseAtV21(t *testing.T) *Database {
 
 func TestSMSReadsWorkBeforeV22(t *testing.T) {
 	ctx := context.Background()
-	d := newDatabaseAtV21(t)
+	d := newDatabaseAtVersion(t, 21)
 
 	if _, err := d.conn().PlainDB().ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		t.Fatalf("disable foreign keys: %v", err)
@@ -108,7 +108,7 @@ func TestSMSReadsWorkBeforeV22(t *testing.T) {
 
 func TestSMSWritesAreGatedBeforeV22(t *testing.T) {
 	ctx := context.Background()
-	d := newDatabaseAtV21(t)
+	d := newDatabaseAtVersion(t, 21)
 
 	sub := &Subscriber{
 		ID:             "01890000-0000-7000-8000-000000000001",

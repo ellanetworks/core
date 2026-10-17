@@ -44,9 +44,11 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		present = append(present, mme.RANBearer{Ebi: a.Ebi, EnbFTEID: a.EnbFTEID})
 	}
 
-	m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
-		Present:       present,
-		Authoritative: true,
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
+		Present:        present,
+		Authoritative:  true,
+		ReleaseUnknown: true,
+		AfterCommit:    true,
 	})
 
 	m.ScheduleForwardingRelease(ctx, ue)
@@ -58,6 +60,8 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 		return
 	}
+
+	result.Complete(ctx)
 
 	ue.TouchLastSeen()
 

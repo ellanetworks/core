@@ -140,18 +140,23 @@ func TestGBREPSQoS(t *testing.T) {
 		},
 		{
 			rates: eps.EPSQoSBitRates{MaxUplinkKbps: 100, MaxDownlinkKbps: 0, GuaranteedUplinkKbps: 70, GuaranteedDownlinkKbps: 0},
-			want:  []byte{1, 0x44, 0xFF, 0x40, 0xFF},
-			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 96, GuaranteedUplinkKbps: 64},
+			want:  []byte{1, 0x45, 0xFF, 0x41, 0xFF},
+			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 104, GuaranteedUplinkKbps: 72},
+		},
+		{
+			rates: eps.EPSQoSBitRates{MaxUplinkKbps: 82, MaxDownlinkKbps: 82, GuaranteedUplinkKbps: 82, GuaranteedDownlinkKbps: 82},
+			want:  []byte{1, 0x43, 0x43, 0x43, 0x43},
+			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 88, MaxDownlinkKbps: 88, GuaranteedUplinkKbps: 88, GuaranteedDownlinkKbps: 88},
 		},
 		{
 			rates: eps.EPSQoSBitRates{MaxUplinkKbps: 20_000, MaxDownlinkKbps: 20_000, GuaranteedUplinkKbps: 1000, GuaranteedDownlinkKbps: 1000},
-			want:  []byte{1, 0xFE, 0xFE, 0x86, 0x86, 0x4E, 0x4E, 0, 0},
-			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 20_000, MaxDownlinkKbps: 20_000, GuaranteedUplinkKbps: 960, GuaranteedDownlinkKbps: 960},
+			want:  []byte{1, 0xFE, 0xFE, 0x87, 0x87, 0x4E, 0x4E, 0, 0},
+			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 20_000, MaxDownlinkKbps: 20_000, GuaranteedUplinkKbps: 1024, GuaranteedDownlinkKbps: 1024},
 		},
 		{
 			rates: eps.EPSQoSBitRates{MaxUplinkKbps: 300_000, MaxDownlinkKbps: 1_000_000, GuaranteedUplinkKbps: 2_000_000, GuaranteedDownlinkKbps: 1000},
-			want:  []byte{1, 0xFE, 0xFE, 0xFE, 0x86, 0xFA, 0xFA, 0xFA, 0, 0x0B, 0x6F, 0xA6, 0},
-			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 300_000, MaxDownlinkKbps: 1_000_000, GuaranteedUplinkKbps: 2_000_000, GuaranteedDownlinkKbps: 960},
+			want:  []byte{1, 0xFE, 0xFE, 0xFE, 0x87, 0xFA, 0xFA, 0xFA, 0, 0x0B, 0x6F, 0xA6, 0},
+			read:  eps.EPSQoSBitRates{MaxUplinkKbps: 300_000, MaxDownlinkKbps: 1_000_000, GuaranteedUplinkKbps: 2_000_000, GuaranteedDownlinkKbps: 1024},
 		},
 	} {
 		q, err := eps.GBREPSQoS(1, tc.rates)

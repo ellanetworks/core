@@ -37,6 +37,7 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 		}
 
 		amfInstance.GrantSMSOverNAS(ctx, ue, msg.UpdateType5GS != nil && msg.UpdateType5GS.SMSRequested && msg.RegistrationType != fgs.RegistrationTypeEmergency)
+		amfInstance.DecideIMSVoPS(ctx, ue)
 	}
 
 	switch conn.RegistrationType5GS {

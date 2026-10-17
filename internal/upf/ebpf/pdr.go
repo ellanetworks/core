@@ -53,6 +53,8 @@ type PdrInfo struct {
 	SEID               uint64
 	OuterHeaderRemoval uint8
 	Forwarding         bool
+	Flags              uint8
+	QFI                uint8
 	PdrID              uint32
 	FarID              uint32
 	QerID              uint32
@@ -233,11 +235,12 @@ func In6AddrToIP(b [16]byte) netip.Addr {
 
 // QerInfo holds QoS Enforcement Rule parameters embedded directly in each PDR.
 type QerInfo struct {
-	GateStatusUL uint8
-	GateStatusDL uint8
-	Qfi          uint8
-	MaxBitrateUL uint64
-	MaxBitrateDL uint64
+	GateStatusUL      uint8
+	GateStatusDL      uint8
+	Qfi               uint8
+	AveragingWindowMs uint32
+	MaxBitrateUL      uint64
+	MaxBitrateDL      uint64
 }
 
 // SdfRule mirrors struct sdf_rule in pdr.h.
@@ -353,19 +356,10 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 	}
 
 	pdrToStore.Imsi = imsiTag
+	pdrToStore.Flags = defaultPdr.Flags
+	pdrToStore.Qfi = defaultPdr.QFI
 
-	pdrToStore.Far.Action = defaultPdr.Far.Action
-	pdrToStore.Far.OuterHeaderCreation = defaultPdr.Far.OuterHeaderCreation
-	pdrToStore.Far.Teid = defaultPdr.Far.TeID
-	pdrToStore.Far.Remoteip.In6U.U6Addr8 = defaultPdr.Far.RemoteIP
-	pdrToStore.Far.Localip.In6U.U6Addr8 = defaultPdr.Far.LocalIP
-	pdrToStore.Far.TransportLevelMarking = defaultPdr.Far.TransportLevelMarking
-
-	pdrToStore.Qer.UlGateStatus = defaultPdr.Qer.GateStatusUL
-	pdrToStore.Qer.DlGateStatus = defaultPdr.Qer.GateStatusDL
-	pdrToStore.Qer.Qfi = defaultPdr.Qer.Qfi
-	pdrToStore.Qer.UlMaximumBitrate = defaultPdr.Qer.MaxBitrateUL
-	pdrToStore.Qer.DlMaximumBitrate = defaultPdr.Qer.MaxBitrateDL
+	fillFarQer(&pdrToStore, defaultPdr.Far, defaultPdr.Qer)
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
 
@@ -378,6 +372,22 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 	}
 
 	return pdrToStore, nil
+}
+
+func fillFarQer(dst *N3N6EntrypointPdrInfo, far FarInfo, qer QerInfo) {
+	dst.Far.Action = far.Action
+	dst.Far.OuterHeaderCreation = far.OuterHeaderCreation
+	dst.Far.Teid = far.TeID
+	dst.Far.Remoteip.In6U.U6Addr8 = far.RemoteIP
+	dst.Far.Localip.In6U.U6Addr8 = far.LocalIP
+	dst.Far.TransportLevelMarking = far.TransportLevelMarking
+
+	dst.Qer.UlGateStatus = qer.GateStatusUL
+	dst.Qer.DlGateStatus = qer.GateStatusDL
+	dst.Qer.Qfi = qer.Qfi
+	dst.Qer.AveragingWindowMs = qer.AveragingWindowMs
+	dst.Qer.UlMaximumBitrate = qer.MaxBitrateUL
+	dst.Qer.DlMaximumBitrate = qer.MaxBitrateDL
 }
 
 // PutSdfFilterList writes a filter list into the sdf_filters BPF array.

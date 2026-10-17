@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -137,14 +138,29 @@ type xnPathSwitchOpts struct {
 	TargetRANUENGAPID int64
 	TargetN3IP        netip.Addr
 	TargetDLTEID      uint32
+	Flows             []uint8
+	FlowFiveQIs       map[uint8]int64
+	PDUSessionID      uint8
+	OtherSessions     []*gnb.PDUSessionInformation
 }
 
 func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathSwitchRequestAcknowledge, error) {
 	var sessions [16]*gnb.PDUSessionInformation
 
-	sessions[scenarios.DefaultPDUSessionID] = &gnb.PDUSessionInformation{
-		PDUSessionID: int64(scenarios.DefaultPDUSessionID),
+	id := opts.PDUSessionID
+	if id == 0 {
+		id = scenarios.DefaultPDUSessionID
+	}
+
+	sessions[id] = &gnb.PDUSessionInformation{
+		PDUSessionID: int64(id),
 		DLTEID:       opts.TargetDLTEID,
+		Flows:        opts.Flows,
+		FlowFiveQIs:  opts.FlowFiveQIs,
+	}
+
+	for _, other := range opts.OtherSessions {
+		sessions[other.PDUSessionID] = other
 	}
 
 	if err := targetGNB.SendPathSwitchRequest(&gnb.PathSwitchRequestOpts{
@@ -171,12 +187,12 @@ func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathS
 		return nil, fmt.Errorf("the AMF released %d PDU session(s) instead of switching them", len(ack.PDUSessionResourceReleased))
 	}
 
-	if len(ack.PDUSessionResourceSwitchedList) != 1 {
-		return nil, fmt.Errorf("acknowledge switched %d PDU sessions, want 1", len(ack.PDUSessionResourceSwitchedList))
+	if want := 1 + len(opts.OtherSessions); len(ack.PDUSessionResourceSwitchedList) != want {
+		return nil, fmt.Errorf("acknowledge switched %d PDU sessions, want %d", len(ack.PDUSessionResourceSwitchedList), want)
 	}
 
-	if got := ack.PDUSessionResourceSwitchedList[0].PDUSessionID; int(got) != scenarios.DefaultPDUSessionID {
-		return nil, fmt.Errorf("acknowledge switched PDU session %d, want %d", got, scenarios.DefaultPDUSessionID)
+	if !slices.ContainsFunc(ack.PDUSessionResourceSwitchedList, func(it ngaplib.PDUSessionResourceSwitchedItem) bool { return uint8(it.PDUSessionID) == id }) {
+		return nil, fmt.Errorf("acknowledge switched PDU sessions %+v, want %d among them", ack.PDUSessionResourceSwitchedList, id)
 	}
 
 	return ack, nil

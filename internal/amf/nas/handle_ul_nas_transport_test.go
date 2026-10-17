@@ -1186,3 +1186,29 @@ func TestForward5GSMMessageToSMF_NoRANUEContext_DeliversN1WithoutReleaseCommand(
 		t.Fatalf("downlink nas transports = %d, want 1: the UE still needs the 5GSM message", len(ngapSender.SentDownlinkNASTransport))
 	}
 }
+
+func TestTransport5GSMMessage_InitialRequest_DNNMatchesWithoutCase(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
+
+	snssai := models.Snssai{Sst: 1, Sd: "010203"}
+	ue.SetAllowedNssai([]models.Snssai{snssai})
+
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}, pduSessionIDPtr(fgs.PDUSessionID(1)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
+
+	msg.SNSSAI = &fgs.SNSSAI{SST: 1, SD: &[3]byte{1, 2, 3}}
+	msg.DNN = new(fgs.DNN("IMS"))
+
+	fakeSmf := &fakeSmf{CreateSmContextRef: "ims-ref"}
+
+	transport5GSMMessage(t.Context(), amf.New(&fakeDBInstance{}, nil, fakeSmf), ue, fgsULNAS(t, msg))
+
+	if len(fakeSmf.CreateSmContextCalls) != 1 || fakeSmf.CreateSmContextCalls[0].Dnn != "ims" {
+		t.Fatalf("CreateSmContext calls = %+v, want one for dnn ims", fakeSmf.CreateSmContextCalls)
+	}
+}

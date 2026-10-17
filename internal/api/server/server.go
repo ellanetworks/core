@@ -33,6 +33,7 @@ type HandlerConfig struct {
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
 	MME                 *mme.MME
+	HSS                 IMSSubscribers
 	BGP                 *bgp.BGPService
 	BcryptCost          int
 	Ready               *atomic.Bool
@@ -54,6 +55,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	sessions := cfg.Sessions
 	amfInstance := cfg.AMF
 	mmeInstance := cfg.MME
+	hssInstance := cfg.HSS
 	bgpService := cfg.BGP
 	bcryptCost := cfg.BcryptCost
 	reconcileRoutes := cfg.ReconcileRoutes
@@ -120,9 +122,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListSubscribers(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateSubscriber, CreateSubscriber(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, UpdateSubscriber(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}/credentials", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriberCredentials, GetSubscriberCredentials(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
 
 	// Subscriber Usage (Authenticated)
 	mux.HandleFunc("GET /api/v1/subscriber-usage/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetSubscriberUsageRetentionPolicy, GetSubscriberUsageRetentionPolicy(dbInstance))).ServeHTTP)
@@ -167,6 +169,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/operator/sms/smsc-peers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, CreateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, UpdateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, DeleteSMSCPeer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/ims", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateOperatorIMS(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)
@@ -252,13 +255,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetAuditLogRetentionPolicy, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
 
-	// Location - Unified endpoint (immediate, periodic, triggered, cancel)
 	mux.HandleFunc("POST /api/beta/location", Authenticate(jwtSecret, dbInstance, Authorize(PermReadLocation, GetSubscriberLocation(lmfInstance))).ServeHTTP)
-
-	// Positioning - Session listing and lookup only
-	mux.HandleFunc("GET /api/beta/positioning/sessions", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, ListSessions(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPositioningSessions, GetSession(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/beta/positioning/sessions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePositioningSession, CancelSession(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/beta/location/deferred-requests", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateDeferredLocation, CreateDeferredLocationRequest(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/location/deferred-requests", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDeferredLocation, ListDeferredLocationRequests(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/location/deferred-requests/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDeferredLocation, GetDeferredLocationRequest(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/beta/location/deferred-requests/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDeferredLocation, DeleteDeferredLocationRequest(lmfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/beta/location/deferred-requests/{id}/reports", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDeferredLocation, ListLocationReports(lmfInstance))).ServeHTTP)
 
 	// Cell positions - provisioned antenna coordinates for Cell-ID / E-CID
 	mux.HandleFunc("GET /api/beta/cell-positions", Authenticate(jwtSecret, dbInstance, Authorize(PermListCellPositions, ListCellPositions(dbInstance))).ServeHTTP)

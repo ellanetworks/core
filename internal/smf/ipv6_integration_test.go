@@ -449,6 +449,10 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
+	if err := s.AssociateForTest(context.Background(), smCtx); err != nil {
+		t.Fatalf("AssociateForTest: %v", err)
+	}
+
 	return smCtx, smCtx.Ref
 }
 

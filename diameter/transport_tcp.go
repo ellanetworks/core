@@ -21,7 +21,7 @@ const (
 	minDialAttempt    = 2 * time.Second
 )
 
-var tcpLingerTimeout = 2 * time.Second
+const tcpLingerTimeout = 2 * time.Second
 
 var errFrame = errors.New("diameter: unframeable TCP stream")
 
@@ -54,6 +54,7 @@ type tcpTransport struct {
 
 	writeMu      sync.Mutex
 	writeTimeout time.Duration
+	linger       time.Duration
 }
 
 func newTCPTransport(tc *net.TCPConn) *tcpTransport {
@@ -69,6 +70,7 @@ func newTCPTransport(tc *net.TCPConn) *tcpTransport {
 		r:            bufio.NewReaderSize(tc, tcpReadBufferSize),
 		remote:       remote,
 		writeTimeout: 2 * DefaultWatchdogInterval,
+		linger:       tcpLingerTimeout,
 	}
 }
 
@@ -215,7 +217,7 @@ func (t *tcpTransport) close() error {
 	t.writeMu.Unlock()
 
 	if err == nil {
-		_ = t.conn.SetReadDeadline(time.Now().Add(tcpLingerTimeout))
+		_ = t.conn.SetReadDeadline(time.Now().Add(t.linger))
 		_, _ = io.Copy(io.Discard, t.conn)
 	}
 

@@ -57,7 +57,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 	if ue.EMMState() != mme.EMMRegistered {
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
-		m.RemoveUe(ue)
+		m.RemoveUe(ctx, ue)
 		ueConn.Log(ctx).Info("UE context removed", logger.RAT(metrics.RAT4G))
 
 		return

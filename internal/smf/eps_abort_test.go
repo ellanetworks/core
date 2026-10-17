@@ -62,6 +62,10 @@ type abortFakeDNN struct {
 	releasedV6 []uint8
 }
 
+func (f *abortFakeDNN) Config(context.Context) (DataNetworkConfig, error) {
+	return DataNetworkConfig{}, nil
+}
+
 func (f *abortFakeDNN) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, nil
 }

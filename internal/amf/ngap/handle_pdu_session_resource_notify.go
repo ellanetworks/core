@@ -12,13 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// HandlePDUSessionResourceNotify records a QoS-flow status change or a session
-// the NG-RAN node released on its own initiative (TS 38.413 §8.2.4).
-//
-// §8.2.4.2 has the AMF transfer each Notify Transfer or Notify Released Transfer
-// to the SMF that owns the session. Ella Core's SMF acts on the released list
-// alone; it has no entry point for a QoS-flow notification, so a GBR flow the
-// NG-RAN node reports as no longer fulfilled is logged and not acted on.
+// HandlePDUSessionResourceNotify transfers each Notify Transfer to the SMF and
+// deactivates each session the NG-RAN node released on its own initiative
+// (TS 38.413 §8.2.4.2).
 func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceNotify) {
 	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
@@ -41,8 +37,15 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	for _, item := range msg.PDUSessionResourceNotify {
-		ueConn.Log(ctx).Warn("QoS flow status change not forwarded to the SMF (TS 38.413 §8.2.4.2)",
-			logger.PDUSessionID(uint8(item.PDUSessionID)))
+		smContext, ok := amfUe.SmContextFindByPDUSessionID(uint8(item.PDUSessionID))
+		if !ok {
+			continue
+		}
+
+		if err := amfInstance.Session.UpdateSmContextN2InfoNotify(ctx, smContext.Ref, item.Transfer); err != nil {
+			ueConn.Log(ctx).Warn("SMF did not take the PDU Session Resource Notify Transfer",
+				logger.PDUSessionID(uint8(item.PDUSessionID)), zap.Error(err))
+		}
 	}
 
 	for _, item := range msg.PDUSessionResourceReleased {
@@ -54,7 +57,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 			continue
 		}
 
-		err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref)
+		err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref, false)
 		if err != nil {
 			ueConn.Log(ctx).Error("DeactivateSmContext failed", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			continue

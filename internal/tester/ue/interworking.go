@@ -20,6 +20,7 @@ type MappedFromEPS struct {
 	KASME     [32]byte
 	NH        [32]byte
 	Container fgs.S1ModeToN1ModeNASTransparentContainer
+	EPS       fgs.SelectedEPSNASSecurityAlgorithms
 }
 
 func (ue *UE) InstallMappedSecurityContextFromEPS(in MappedFromEPS) error {
@@ -51,6 +52,7 @@ func (ue *UE) InstallMappedSecurityContextFromEPS(in MappedFromEPS) error {
 	ue.UeSecurity.CipheringAlg, ue.UeSecurity.IntegrityAlg = nea, nia
 	ue.UeSecurity.KnasEnc, ue.UeSecurity.KnasInt = knasEnc, knasInt
 	ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(in.Container.NgKSI.Value), Tsc: models.ScTypeMapped}
+	ue.UeSecurity.EPSNASAlgorithms = &in.EPS
 	ue.UeSecurity.ULCount = 0
 	ue.UeSecurity.DLRecv.Reset()
 	ue.UeSecurity.contextFromAuthentication = false

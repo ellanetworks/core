@@ -27,7 +27,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/smsf")
 
-const PeerRoleSMSC = "smsc"
+const PeerRoleSMSC = diameternode.PeerRoleSMSC
 
 var smscApplications = []diameter.Application{
 	{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
@@ -174,35 +174,9 @@ func (s *SMSF) smscFor(ctx context.Context, serviceCentre string) (string, error
 }
 
 func (s *SMSF) Register(r Registrar) {
-	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, traced("s6c/send-routing-info-for-sm", s.SendRoutingInfoForSM))
-	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, traced("s6c/report-sm-delivery-status", s.ReportSMDeliveryStatus))
-	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, traced("sgd/mt-forward-short-message", s.MTForwardShortMessage))
-}
-
-func traced(name string, h func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message) diameter.Handler {
-	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		ctx, span := tracer.Start(ctx, name,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(
-				attribute.String("network.protocol.name", "diameter"),
-				attribute.Int64("diameter.application_id", int64(req.ApplicationID)),
-				attribute.Int64("diameter.command_code", int64(req.CommandCode)),
-			),
-		)
-		defer span.End()
-
-		ans := h(ctx, c.LocalIdentity(), req)
-
-		if ans == nil {
-			return nil
-		}
-
-		if r, err := tgpp.ParseResult(ans); err == nil {
-			span.SetAttributes(attribute.Int64("diameter.result_code", int64(r.Code)))
-		}
-
-		return ans
-	})
+	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameternode.Traced(tracer, "s6c/send-routing-info-for-sm", s.SendRoutingInfoForSM))
+	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, diameternode.Traced(tracer, "s6c/report-sm-delivery-status", s.ReportSMDeliveryStatus))
+	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, diameternode.Traced(tracer, "sgd/mt-forward-short-message", s.MTForwardShortMessage))
 }
 
 func (s *SMSF) AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error) {

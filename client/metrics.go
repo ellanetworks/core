@@ -49,17 +49,24 @@ func parsePrometheusMetrics(data string) (map[string]float64, error) {
 			continue
 		}
 		// Each metric line should contain the metric name and its value.
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
+		name, rest := line, ""
+		if end := strings.LastIndex(line, "}"); strings.Contains(line, "{") && end >= 0 {
+			name, rest = line[:end+1], line[end+1:]
+		} else if i := strings.IndexAny(line, " \t"); i >= 0 {
+			name, rest = line[:i], line[i:]
+		}
+
+		parts := strings.Fields(rest)
+		if len(parts) < 1 {
 			continue
 		}
 
-		value, err := strconv.ParseFloat(parts[1], 64)
+		value, err := strconv.ParseFloat(parts[0], 64)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse metric %s: %w", parts[0], err)
+			return nil, fmt.Errorf("failed to parse metric %s: %w", name, err)
 		}
 
-		metrics[parts[0]] = value
+		metrics[name] = value
 	}
 
 	return metrics, nil

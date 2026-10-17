@@ -77,6 +77,7 @@ struct packet_context {
 	 * optional word and any extension headers. Drives uplink decapsulation. */
 	__u32 gtp_hdr_len;
 	__u16 l3_hdr_len;
+	__u8 qfi;
 	__u8 l4_proto;
 	__u16 l4_sport;
 	__u16 l4_dport;
@@ -95,6 +96,8 @@ struct packet_context {
 	 * which the IPv6 chain walk sets for every packet. */
 	__u8 frag_recovered : 1;
 	__u8 is_fragment : 1;
+	__u8 nat_exempt : 1;
+	__u8 l4_ports : 1;
 };
 
 __noinline __weak __u32

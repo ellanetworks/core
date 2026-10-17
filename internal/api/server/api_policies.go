@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 const (
@@ -152,6 +153,14 @@ func isValidBitrate(bitrate string) bool {
 }
 
 var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80}
+
+func checkIMSSignalling5QI(dataNetwork string, var5qi int32) error {
+	if dataNetwork == models.IMSDataNetworkName && var5qi != models.IMSSignalling5QI {
+		return fmt.Errorf("5QI %d is not valid on the %s data network; IMS signalling uses 5QI %d", var5qi, models.IMSDataNetworkName, models.IMSSignalling5QI)
+	}
+
+	return nil
+}
 
 func isValid5Qi(var5qi int32) bool {
 	return slices.Contains(valid5Qi, var5qi)
@@ -580,6 +589,11 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if err := checkIMSSignalling5QI(dataNetwork.Name, createPolicyParams.Var5qi); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
 		if err := checkPolicyBindingFree(r.Context(), dbInstance, profile, slice.ID, dataNetwork.ID, createPolicyParams.DataNetworkName, ""); err != nil {
 			writeError(r.Context(), w, http.StatusConflict, err.Error(), nil, logger.APILog)
 			return
@@ -698,6 +712,11 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), updatePolicyParams.DataNetworkName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			return
+		}
+
+		if err := checkIMSSignalling5QI(dataNetwork.Name, updatePolicyParams.Var5qi); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 

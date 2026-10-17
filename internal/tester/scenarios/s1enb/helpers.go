@@ -29,9 +29,18 @@ func startENBWithDatapath(env scenarios.Env) (*s1enb.ENB, error) {
 }
 
 func startENBOpts(env scenarios.Env, datapath bool) (*s1enb.ENB, error) {
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	return startENBOn(env, env.FirstCore(), 0, datapath)
+}
+
+func startENBOn(env scenarios.Env, core string, index int, datapath bool) (*s1enb.ENB, error) {
+	s1mme, err := s1mmeAddress(core)
 	if err != nil {
 		return nil, err
+	}
+
+	name := s1enbName
+	if index > 0 {
+		name = fmt.Sprintf("%s-%d", s1enbName, index)
 	}
 
 	enbID, err := strconv.ParseUint(scenarios.DefaultGNBID, 16, 32)
@@ -42,11 +51,11 @@ func startENBOpts(env scenarios.Env, datapath bool) (*s1enb.ENB, error) {
 	g := env.FirstGNB()
 
 	return s1enb.Start(&s1enb.StartOpts{
-		ENBID:            uint32(enbID),
+		ENBID:            uint32(enbID) + uint32(index), // #nosec G115 -- index is a small core position
 		MCC:              scenarios.DefaultMCC,
 		MNC:              scenarios.DefaultMNC,
 		TAC:              scenarios.DefaultTAC,
-		Name:             s1enbName,
+		Name:             name,
 		CoreS1MMEAddress: s1mme,
 		ENBAddress:       g.N2Address,
 		ENBN3Address:     g.N3Address,

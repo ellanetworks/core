@@ -165,3 +165,61 @@ func TestEPSBearerIdentities(t *testing.T) {
 		t.Fatalf("EPSBearerIdentities = %v, want {1:5, 3:6}", got)
 	}
 }
+
+func TestFlowEPSBearerIdentitiesShareTheUETable(t *testing.T) {
+	ue := ueWithSessions(t, 1, 2)
+
+	if err := assignEBI(t, ue, 1); err != nil {
+		t.Fatalf("assign for session 1: %v", err)
+	}
+
+	flow, err := ue.AssignFlowEPSBearerIdentity(1, "ref")
+	if err != nil || flow != 6 {
+		t.Fatalf("flow EBI %d (%v), want 6: one table per UE (TS 23.502 §4.11.1.4.1)", flow, err)
+	}
+
+	if err := assignEBI(t, ue, 2); err != nil {
+		t.Fatalf("assign for session 2: %v", err)
+	}
+
+	if second, _ := ue.EPSBearerIdentity(2); second != 7 {
+		t.Fatalf("session 2 EBI %d, want 7: the flow holds 6", second)
+	}
+
+	ue.ReleaseFlowEPSBearerIdentities(1, "ref", []uint8{flow})
+
+	if again, err := ue.AssignFlowEPSBearerIdentity(2, "ref"); err != nil || again != 6 {
+		t.Fatalf("flow EBI after release %d (%v), want 6 reused", again, err)
+	}
+}
+
+func TestFlowEPSBearerIdentityNeedsAnInterworkingSession(t *testing.T) {
+	ue := ueWithSessions(t, 1)
+
+	if _, err := ue.AssignFlowEPSBearerIdentity(1, "ref"); !errors.Is(err, amf.ErrSessionNotInterworking) {
+		t.Fatalf("error = %v, want ErrSessionNotInterworking for a session without a default EBI", err)
+	}
+}
+
+func TestEstablishingSessionReservesItsEPSBearerIdentity(t *testing.T) {
+	ue := ueWithSessions(t, 1)
+
+	if err := assignEBI(t, ue, 1); err != nil {
+		t.Fatalf("assign for session 1: %v", err)
+	}
+
+	pending, err := ue.NextEPSBearerIdentity(2)
+	if err != nil {
+		t.Fatalf("NextEPSBearerIdentity: %v", err)
+	}
+
+	if flow, err := ue.AssignFlowEPSBearerIdentity(1, "ref"); err != nil || flow == pending {
+		t.Fatalf("flow EBI %d (%v), want one other than the %d held for the establishing session", flow, err, pending)
+	}
+
+	ue.ReleaseEPSBearerReservation(2)
+
+	if again, err := ue.NextEPSBearerIdentity(3); err != nil || again != pending {
+		t.Fatalf("EBI after the establishment failed %d (%v), want %d free again", again, err, pending)
+	}
+}

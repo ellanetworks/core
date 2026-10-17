@@ -54,8 +54,9 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 	// Not authoritative: an INITIAL CONTEXT SETUP RESPONSE reports the E-RABs this
 	// procedure set up and says nothing about any other bearer (TS 36.413 §8.3.1.2).
 	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
-		Present:  setupBearers(ctx, mmeUEID, ctxtSetupBearers(msg.ERABSetup)),
-		Rejected: failedERABIDs(msg.ERABFailedToSetup),
+		Present:        setupBearers(ctx, mmeUEID, ctxtSetupBearers(msg.ERABSetup)),
+		Rejected:       failedERABIDs(msg.ERABFailedToSetup),
+		ReleaseUnknown: true,
 	})
 
 	setup := len(result.Applied)
@@ -84,6 +85,8 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 	if ueConn != nil {
 		ueConn.SetICS(mme.ICSCompleted)
 	}
+
+	m.DeactivatePendingDedicated(ctx, ue)
 
 	if setup == 0 {
 		return

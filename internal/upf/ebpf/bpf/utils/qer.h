@@ -30,7 +30,7 @@
  *
  * LRU because the window is derived state: no ordering against session setup,
  * no leak, and an eviction costs at most one window of burst. */
-#define QER_WINDOW_MAP_SIZE (2 * MAX_PDU_SESSIONS)
+#define QER_WINDOW_MAP_SIZE (4 * MAX_PDU_SESSIONS)
 
 struct qer_key {
 	__u64 seid;
@@ -69,10 +69,14 @@ static __always_inline struct qer_window *qer_window_for(__u64 seid,
 
 static __always_inline enum ctx_action
 limit_rate_sliding_window(const __u64 packet_size,
-			  volatile __u64 *windows_start, const __u64 rate)
+			  volatile __u64 *windows_start, const __u64 rate,
+			  const __u32 averaging_window_ms)
 {
 	static const __u64 NSEC_PER_SEC = 1000000000ULL;
-	static const __u64 window_size = 5000000ULL;
+	static const __u64 NSEC_PER_MSEC = 1000000ULL;
+	const __u64 window_size = averaging_window_ms ?
+					  averaging_window_ms * NSEC_PER_MSEC :
+					  5000000ULL;
 
 	/* Currently 0 rate means that traffic rate is not limited */
 	if (rate == 0)

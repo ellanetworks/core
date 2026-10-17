@@ -102,7 +102,7 @@ func TestUERequestedModification_CapabilityIndicationAccepted(t *testing.T) {
 		t.Error("the UE asked for no always-on session, so TS 24.501 §6.3.2.2 b) 2) leaves the indication out")
 	}
 
-	if !smCtx.IsPTIInUse(pti) {
+	if !ptiInUse(t, smCtx, pti) {
 		t.Error("the command is outstanding, so its PTI is in use (TS 24.501 §7.3.1)")
 	}
 }
@@ -164,7 +164,7 @@ func TestUERequestedModification_QoSRequestRejected(t *testing.T) {
 		t.Errorf("reject cause = %s, want %s", rej.Cause, fgs.GSMCauseFiveGSQoSNotAccepted)
 	}
 
-	if smCtx.IsPTIInUse(pti) {
+	if ptiInUse(t, smCtx, pti) {
 		t.Error("a rejected request starts no procedure, so its PTI stays free")
 	}
 }
@@ -198,7 +198,7 @@ func TestUERequestedModification_UEReportedErrorDeletionRejected(t *testing.T) {
 		t.Errorf("reject cause = %s, want %s (the SMF performs no QoS rule deletion, TS 24.501 §6.4.2.4.1)", rej.Cause, fgs.GSMCauseRequestRejectedUnspecified)
 	}
 
-	if smCtx.IsPTIInUse(pti) {
+	if ptiInUse(t, smCtx, pti) {
 		t.Error("a rejected request starts no procedure, so its PTI stays free")
 	}
 }
@@ -232,7 +232,7 @@ func TestUERequestedModification_MappedEPSBearerDeletionRejected(t *testing.T) {
 		t.Errorf("reject cause = %s, want %s (TS 24.501 §6.4.2.1 f), §6.4.2.4.1)", rej.Cause, fgs.GSMCauseRequestRejectedUnspecified)
 	}
 
-	if smCtx.IsPTIInUse(pti) {
+	if ptiInUse(t, smCtx, pti) {
 		t.Error("a rejected request starts no procedure, so its PTI stays free")
 	}
 }
@@ -249,7 +249,7 @@ func TestUERequestedModification_CompleteClearsThePTI(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg (request): %v", err)
 	}
 
-	if !smCtx.IsPTIInUse(pti) {
+	if !ptiInUse(t, smCtx, pti) {
 		t.Fatal("the outstanding command left its PTI free")
 	}
 
@@ -259,7 +259,7 @@ func TestUERequestedModification_CompleteClearsThePTI(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg (complete): %v", err)
 	}
 
-	if smCtx.IsPTIInUse(pti) {
+	if ptiInUse(t, smCtx, pti) {
 		t.Error("the completed procedure left its PTI in use")
 	}
 }
@@ -339,11 +339,11 @@ func TestUERequestedModification_IgnoredDuringRelease(t *testing.T) {
 		t.Errorf("the colliding request must be ignored, got a 5GSM answer % x", rsp.N1Msg)
 	}
 
-	if smCtx.IsPTIInUse(modifyPTI) {
+	if ptiInUse(t, smCtx, modifyPTI) {
 		t.Error("an ignored request starts no procedure, so its PTI stays free")
 	}
 
-	if !smCtx.IsPTIInUse(releasePTI) {
+	if !ptiInUse(t, smCtx, releasePTI) {
 		t.Error("the release command is still outstanding, so its PTI stays in use")
 	}
 
@@ -364,7 +364,7 @@ func TestUERequestedModification_IgnoredDuringNetworkModification(t *testing.T) 
 		t.Fatalf("UpdateSmContextN1Msg (first request): %v", err)
 	}
 
-	if !smCtx.IsPTIInUse(firstPTI) {
+	if !ptiInUse(t, smCtx, firstPTI) {
 		t.Fatal("the first command left its PTI free")
 	}
 
@@ -377,11 +377,11 @@ func TestUERequestedModification_IgnoredDuringNetworkModification(t *testing.T) 
 		t.Errorf("the colliding request must be ignored, got a 5GSM answer % x", rsp.N1Msg)
 	}
 
-	if smCtx.IsPTIInUse(secondPTI) {
+	if ptiInUse(t, smCtx, secondPTI) {
 		t.Error("an ignored request starts no procedure, so its PTI stays free")
 	}
 
-	if !smCtx.IsPTIInUse(firstPTI) {
+	if !ptiInUse(t, smCtx, firstPTI) {
 		t.Error("the outstanding procedure must proceed, keeping its PTI in use")
 	}
 }

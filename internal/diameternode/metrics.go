@@ -9,21 +9,42 @@ import (
 )
 
 func RegisterMetrics(m *Manager) {
-	up := prometheus.NewDesc(
-		"app_diameter_peer_up",
-		"Whether this node's Diameter connection to a configured peer is open (1) or not (0), by peer and role.",
-		[]string{"peer", "role"},
+	serviceCentres := prometheus.NewDesc(
+		"app_connected_service_centers",
+		"Number of SMS service centers (SMSCs) connected to this node.",
+		nil,
+		nil,
+	)
+
+	imsNodes := prometheus.NewDesc(
+		"app_connected_ims_nodes",
+		"Number of IMS nodes connected to this node, which use it as their HSS or PCRF.",
+		nil,
 		nil,
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		for _, peer := range m.Peers() {
-			value := 0.0
-			if peer.State == diameter.PeerOpen {
-				value = 1
-			}
+		smsc, ims := connectedPeers(m.Peers())
 
-			ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, value, peer.ID, peer.Role)
-		}
+		ch <- prometheus.MustNewConstMetric(serviceCentres, prometheus.GaugeValue, float64(smsc))
+
+		ch <- prometheus.MustNewConstMetric(imsNodes, prometheus.GaugeValue, float64(ims))
 	}))
+}
+
+func connectedPeers(peers []PeerStatus) (smsc, ims int) {
+	for _, p := range peers {
+		if p.State != diameter.PeerOpen {
+			continue
+		}
+
+		switch p.Role {
+		case PeerRoleSMSC:
+			smsc++
+		case PeerRoleIMS:
+			ims++
+		}
+	}
+
+	return smsc, ims
 }

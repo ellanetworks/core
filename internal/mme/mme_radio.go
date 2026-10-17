@@ -535,6 +535,7 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 
 	var (
 		orphaned       []*UeContext
+		abandoned      []*UeContext
 		releaseTargets []s1Release
 		seen           = map[*UeContext]struct{}{}
 	)
@@ -571,6 +572,8 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 
 			if relocating {
 				orphaned = append(orphaned, ue)
+			} else {
+				abandoned = append(abandoned, ue)
 			}
 		default:
 			c.ue.Store(nil)
@@ -586,6 +589,11 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 
 	for _, ue := range orphaned {
 		m.ReleaseUEContextLocally(ctx, ue, trigger)
+	}
+
+	for _, ue := range abandoned {
+		m.CloseForwardingTunnels(ctx, ue)
+		m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 	}
 }
 

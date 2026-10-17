@@ -89,6 +89,9 @@ type LPPRequest struct {
 }
 
 type UE struct {
+	rejectQoSRules atomic.Bool
+	modifyCommands atomic.Int64
+
 	UeSecurity             *UESecurity
 	StateMM                int
 	DNN                    string

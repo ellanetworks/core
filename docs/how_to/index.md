@@ -15,6 +15,7 @@ Initial setup and configuration of Ella Core.
 - [Disable Merged Packets](disable_merged_packets.md)
 - [Integrate with a Radio](integrate_with_radio.md)
 - [Enable SMS](enable_sms.md)
+- [Enable Voice](enable_voice.md)
 
 ## Day 2 Operations
 

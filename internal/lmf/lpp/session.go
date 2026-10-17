@@ -62,9 +62,6 @@ type Session struct {
 	locationResult *lmmodels.LocationResult
 	log            *zap.Logger
 	transferFunc   func(lppMsg []byte) error
-	completeFunc   func(result *lmmodels.LocationResult) error
-	failFunc       func() error
-	cancelFunc     func() error
 	deregisterFunc func()
 	failure        error
 	deadline       time.Time
@@ -85,11 +82,8 @@ func NewSession(supi, sessionID, method string) *Session {
 
 // SetTransport sets the functions used to send LPP messages to the UE and
 // report session completion/failure back to the session manager.
-func (s *Session) SetTransport(transfer func(lppMsg []byte) error, complete func(result *lmmodels.LocationResult) error, fail func() error, cancel func() error, deregister func()) {
+func (s *Session) SetTransport(transfer func(lppMsg []byte) error, deregister func()) {
 	s.transferFunc = transfer
-	s.completeFunc = complete
-	s.failFunc = fail
-	s.cancelFunc = cancel
 	s.deregisterFunc = deregister
 }
 
@@ -358,13 +352,6 @@ func (s *Session) complete(result *lmmodels.LocationResult) {
 	s.locationResult = result
 	s.state = LocationReceived
 
-	// Signal completion to session manager
-	if s.completeFunc != nil {
-		if err := s.completeFunc(s.locationResult); err != nil {
-			s.log.Error("failed to complete session", zap.Error(err))
-		}
-	}
-
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()
 	}
@@ -456,12 +443,6 @@ func (s *Session) Fail() {
 	s.state = SessionFailed
 	s.log.Warn("session marked as failed")
 
-	if s.failFunc != nil {
-		if err := s.failFunc(); err != nil {
-			s.log.Error("failed to report session failure", zap.Error(err))
-		}
-	}
-
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()
 	}
@@ -517,12 +498,6 @@ func (s *Session) Cancel() {
 
 	s.state = SessionFailed
 	s.log.Info("session cancelled")
-
-	if s.cancelFunc != nil {
-		if err := s.cancelFunc(); err != nil {
-			s.log.Error("failed to report session cancellation", zap.Error(err))
-		}
-	}
 
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()

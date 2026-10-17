@@ -24,7 +24,7 @@ func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti ui
 
 	smContext.stopProcedureTimer()
 	smContext.ClearPTIInUse(pti)
-	smContext.pendingPolicy = nil
+	s.discardPendingPolicyLocked(smContext)
 
 	establishmentMismatch := cause == fgs.GSMCausePTIMismatch &&
 		smContext.establishmentPTI != 0 && pti == smContext.establishmentPTI

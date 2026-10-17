@@ -240,7 +240,7 @@ func TestECIDSessionPrimaryCellOnlyInTheList(t *testing.T) {
 		{"NR access: the single LTE cell is a neighbour", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s, rec := newECIDSession(t, tc.nr)
+			s, _ := newECIDSession(t, tc.nr)
 
 			if err := s.HandleResponse(&models.ProvideLocationCapabilities{ECID: &models.ECIDMeasurements{RSRP: true}}); err != nil {
 				t.Fatal(err)
@@ -251,7 +251,7 @@ func TestECIDSessionPrimaryCellOnlyInTheList(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if got := rec.completed.Measurements[0].Serving; got != tc.serving {
+			if got := s.LocationResult().Measurements[0].Serving; got != tc.serving {
 				t.Fatalf("serving = %t, want %t", got, tc.serving)
 			}
 		})
@@ -259,8 +259,7 @@ func TestECIDSessionPrimaryCellOnlyInTheList(t *testing.T) {
 }
 
 type recordingTransport struct {
-	sent      [][]byte
-	completed *lmfmodels.LocationResult
+	sent [][]byte
 }
 
 func newECIDSession(t *testing.T, nr bool) (*Session, *recordingTransport) {
@@ -274,11 +273,7 @@ func newECIDSession(t *testing.T, nr bool) (*Session, *recordingTransport) {
 			rec.sent = append(rec.sent, msg)
 			return nil
 		},
-		func(result *lmfmodels.LocationResult) error {
-			rec.completed = result
-			return nil
-		},
-		nil, nil, nil,
+		nil,
 	)
 
 	if err := s.StartSession(); err != nil {
@@ -324,8 +319,8 @@ func TestECIDSessionRequestsSupportedMeasurements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if s.State() != LocationReceived || rec.completed == nil || !reflect.DeepEqual(rec.completed.Measurements, cells) {
-		t.Fatalf("state = %s, completed = %+v", s.State(), rec.completed)
+	if s.State() != LocationReceived || s.LocationResult() == nil || !reflect.DeepEqual(s.LocationResult().Measurements, cells) {
+		t.Fatalf("state = %s, completed = %+v", s.State(), s.LocationResult())
 	}
 }
 

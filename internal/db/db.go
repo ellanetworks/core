@@ -79,6 +79,7 @@ type Database struct {
 	createLeaseStmt              *sqlair.Statement
 	getDynamicLeaseBySessionStmt *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
+	getActiveLeaseByAddressStmt  *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
 	updateLeaseNodeStmt          *sqlair.Statement
 	deleteLeaseStmt              *sqlair.Statement
@@ -145,13 +146,18 @@ type Database struct {
 	getBGPSettingsStmt    *sqlair.Statement
 	upsertBGPSettingsStmt *sqlair.Statement
 
-	// Positioning Sessions statements
-	createPositioningSessionStmt      *sqlair.Statement
-	getPositioningSessionStmt         *sqlair.Statement
-	listPositioningSessionsBySupiStmt *sqlair.Statement
-	listPositioningSessionsAllStmt    *sqlair.Statement
-	updatePositioningSessionStmt      *sqlair.Statement
-	deletePositioningSessionStmt      *sqlair.Statement
+	insertDeferredLocationRequestStmt *sqlair.Statement
+	getDeferredLocationRequestStmt    *sqlair.Statement
+	listDeferredLocationRequestsStmt  *sqlair.Statement
+	countDeferredLocationRequestsStmt *sqlair.Statement
+	terminateDeferredLocationStmt     *sqlair.Statement
+	terminateAllDeferredLocationStmt  *sqlair.Statement
+	deleteDeferredLocationRequestStmt *sqlair.Statement
+	deleteEndedDeferredLocationStmt   *sqlair.Statement
+	deleteOrphanLocationReportsStmt   *sqlair.Statement
+	insertLocationReportStmt          *sqlair.Statement
+	pruneLocationReportsStmt          *sqlair.Statement
+	listLocationReportsStmt           *sqlair.Statement
 
 	// Cell Positions statements
 	createCellPositionStmt    *sqlair.Statement
@@ -274,6 +280,15 @@ type Database struct {
 	deleteSMSCPeerStmt           *sqlair.Statement
 	insertSMSCServiceCentreStmt  *sqlair.Statement
 	deleteSMSCServiceCentresStmt *sqlair.Statement
+
+	listPCSCFAddressesStmt   *sqlair.Statement
+	insertPCSCFAddressStmt   *sqlair.Statement
+	deletePCSCFAddressesStmt *sqlair.Statement
+
+	getIMSRegistrationStmt    *sqlair.Statement
+	countIMSRegistrationsStmt *sqlair.Statement
+	upsertIMSRegistrationStmt *sqlair.Statement
+	deleteIMSRegistrationStmt *sqlair.Statement
 
 	getSMSWaitingStmt             *sqlair.Statement
 	listSMSWaitingCentresStmt     *sqlair.Statement
@@ -1645,6 +1660,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getDynamicLeaseBySessionStmt, fmt.Sprintf(getDynamicLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getActiveLeaseByAddressStmt, fmt.Sprintf(getActiveLeaseByAddressStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -1711,13 +1727,18 @@ func (db *Database) PrepareStatements() error {
 		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 		{&db.upsertBGPSettingsStmt, fmt.Sprintf(upsertBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 
-		// Positioning Sessions
-		{&db.createPositioningSessionStmt, fmt.Sprintf(createPositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
-		{&db.getPositioningSessionStmt, fmt.Sprintf(getPositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
-		{&db.listPositioningSessionsBySupiStmt, fmt.Sprintf(listPositioningSessionsBySupiStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
-		{&db.listPositioningSessionsAllStmt, fmt.Sprintf(listPositioningSessionsAllStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
-		{&db.updatePositioningSessionStmt, fmt.Sprintf(updatePositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
-		{&db.deletePositioningSessionStmt, fmt.Sprintf(deletePositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
+		{&db.insertDeferredLocationRequestStmt, fmt.Sprintf(insertDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
+		{&db.getDeferredLocationRequestStmt, fmt.Sprintf(getDeferredLocationRequestStmt, DeferredLocationRequestsTableName, LocationReportsTableName), []any{DeferredLocationRequest{}, deferredLocationProgress{}}},
+		{&db.listDeferredLocationRequestsStmt, fmt.Sprintf(listDeferredLocationRequestsStmt, DeferredLocationRequestsTableName, LocationReportsTableName), []any{DeferredLocationRequest{}, deferredLocationProgress{}, DeferredLocationRequestFilters{}, ListArgs{}, NumItems{}}},
+		{&db.countDeferredLocationRequestsStmt, fmt.Sprintf(countDeferredLocationRequestsStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequestFilters{}, NumItems{}}},
+		{&db.terminateDeferredLocationStmt, fmt.Sprintf(terminateDeferredLocationStmt, DeferredLocationRequestsTableName), []any{deferredLocationTermination{}}},
+		{&db.terminateAllDeferredLocationStmt, fmt.Sprintf(terminateAllDeferredLocationStmt, DeferredLocationRequestsTableName), []any{deferredLocationTermination{}}},
+		{&db.deleteDeferredLocationRequestStmt, fmt.Sprintf(deleteDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
+		{&db.deleteEndedDeferredLocationStmt, fmt.Sprintf(deleteEndedDeferredLocationStmt, DeferredLocationRequestsTableName), []any{cutoffArgs{}}},
+		{&db.deleteOrphanLocationReportsStmt, fmt.Sprintf(deleteOrphanLocationReportsStmt, DeferredLocationRequestsTableName, LocationReportsTableName), nil},
+		{&db.insertLocationReportStmt, fmt.Sprintf(insertLocationReportStmt, LocationReportsTableName), []any{LocationReport{}}},
+		{&db.pruneLocationReportsStmt, fmt.Sprintf(pruneLocationReportsStmt, LocationReportsTableName), []any{locationReportCursor{}}},
+		{&db.listLocationReportsStmt, fmt.Sprintf(listLocationReportsStmt, LocationReportsTableName), []any{LocationReport{}, locationReportCursor{}}},
 
 		// Cell Positions
 		{&db.createCellPositionStmt, fmt.Sprintf(createCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
@@ -1838,6 +1859,13 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteSMSCPeerStmt, fmt.Sprintf(deleteSMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
 		{&db.insertSMSCServiceCentreStmt, fmt.Sprintf(insertSMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
 		{&db.deleteSMSCServiceCentresStmt, fmt.Sprintf(deleteSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
+		{&db.listPCSCFAddressesStmt, fmt.Sprintf(listPCSCFAddressesStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
+		{&db.insertPCSCFAddressStmt, fmt.Sprintf(insertPCSCFAddressStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
+		{&db.deletePCSCFAddressesStmt, fmt.Sprintf(deletePCSCFAddressesStmt, PCSCFAddressesTableName), nil},
+		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
+		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},
+		{&db.upsertIMSRegistrationStmt, fmt.Sprintf(upsertIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
+		{&db.deleteIMSRegistrationStmt, fmt.Sprintf(deleteIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 		{&db.listSMSWaitingCentresStmt, fmt.Sprintf(listSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
 		{&db.upsertSMSWaitingStmt, fmt.Sprintf(upsertSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},

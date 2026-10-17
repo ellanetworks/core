@@ -6,6 +6,7 @@ package smf
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -29,26 +30,63 @@ func (s *SMF) openForwardingTunnel(ctx context.Context, sc *SMContext, target An
 		return fmt.Errorf("program the forwarding tunnel: %w", err)
 	}
 
-	if sc.Tunnel.ForwardingTEID == 0 {
+	if sc.Tunnel.forwardingTEID() == 0 {
 		return fmt.Errorf("the UPF allocated no TEID for the forwarding tunnel")
 	}
 
 	return nil
 }
 
+func (s *SMF) openBearerForwardingTunnel(ctx context.Context, sc *SMContext, ebi uint8, target AnchorBinding) (uint32, error) {
+	if ebi == 0 || ebi == sc.EBI {
+		if err := s.openForwardingTunnel(ctx, sc, target); err != nil {
+			return 0, err
+		}
+
+		return sc.Tunnel.forwardingTEID(), nil
+	}
+
+	i := slices.IndexFunc(sc.dedicated, func(b *dedicatedBearer) bool { return b.ebi == ebi })
+	if i < 0 {
+		return 0, fmt.Errorf("no dedicated bearer %d", ebi)
+	}
+
+	slot := sc.dedicated[i].slot
+
+	sc.forwardingRelease.Stop()
+
+	if err := s.updateLegLocked(ctx, sc, slot, func(l *bearerLeg) { l.Forwarding = &target }); err != nil {
+		return 0, fmt.Errorf("program the bearer's forwarding tunnel: %w", err)
+	}
+
+	teid := sc.Tunnel.ChosenTEIDs[chooseIDBearerForwarding(slot)]
+	if teid == 0 {
+		return 0, fmt.Errorf("the UPF allocated no TEID for the bearer's forwarding tunnel")
+	}
+
+	return teid, nil
+}
+
+func (d dataPlane) forwards() bool {
+	return d.Forwarding != nil || slices.ContainsFunc(d.Bearers, func(l bearerLeg) bool { return l.Forwarding != nil })
+}
+
 func (s *SMF) closeForwardingTunnel(ctx context.Context, sc *SMContext) error {
-	if sc.Tunnel == nil || sc.Tunnel.Forwarding == nil {
+	if sc.Tunnel == nil || !sc.Tunnel.forwards() {
 		return nil
 	}
 
 	next := sc.Tunnel.dataPlane
 	next.Forwarding = nil
+	next.Bearers = slices.Clone(next.Bearers)
+
+	for i := range next.Bearers {
+		next.Bearers[i].Forwarding = nil
+	}
 
 	if err := s.applyDataPlane(ctx, sc, next, sc.policyID()); err != nil {
 		return fmt.Errorf("release the forwarding tunnel: %w", err)
 	}
-
-	sc.Tunnel.ForwardingTEID = 0
 
 	logger.From(ctx, logger.SmfLog).Info("Released an indirect data forwarding tunnel",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID))
@@ -57,7 +95,7 @@ func (s *SMF) closeForwardingTunnel(ctx context.Context, sc *SMContext) error {
 }
 
 func (s *SMF) scheduleForwardingRelease(ctx context.Context, sc *SMContext) {
-	if sc.Tunnel == nil || sc.Tunnel.Forwarding == nil {
+	if sc.Tunnel == nil || !sc.Tunnel.forwards() {
 		return
 	}
 

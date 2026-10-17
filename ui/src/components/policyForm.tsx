@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { useController } from "react-hook-form";
+import { useController, useWatch } from "react-hook-form";
 import type { Control, FieldValues, Path } from "react-hook-form";
 import * as yup from "yup";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,8 +14,9 @@ import SelectControl from "@/components/form/SelectControl";
 import NumberControl from "@/components/form/NumberControl";
 import { AmbrFields, ambrSchema } from "@/components/form/BitrateFields";
 import type { AmbrUnit } from "@/components/form/BitrateFields";
+import { IMS_SIGNALLING_5QI, isVoiceDataNetwork } from "@/utils/voice";
 
-const PER_PAGE = 12;
+const PER_PAGE = 100;
 
 export const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
   { value: 5, label: "5 — IMS signalling" },
@@ -41,6 +42,14 @@ export const policySchema = {
       NON_GBR_5QI_VALUES,
       `5QI must be one of: ${NON_GBR_5QI_VALUES.join(", ")}`,
     )
+    .when("dataNetworkName", {
+      is: isVoiceDataNetwork,
+      then: (schema) =>
+        schema.oneOf(
+          [IMS_SIGNALLING_5QI],
+          `IMS signalling uses 5QI ${IMS_SIGNALLING_5QI}`,
+        ),
+    })
     .required("5QI is required"),
   arp: yup.number().min(1).max(15).required("ARP is required"),
   isDefault: yup.boolean().required(),
@@ -56,25 +65,39 @@ export const splitAmbr = (value: string): { num: number; unit: AmbrUnit } => {
   return { num: Number.isNaN(num) ? 100 : num, unit };
 };
 
+const listAllNames = async (
+  fetchPage: (
+    page: number,
+  ) => Promise<{ items?: { name: string }[]; total_count?: number }>,
+) => {
+  const names: string[] = [];
+
+  for (let page = 1; ; page++) {
+    const result = await fetchPage(page);
+    const items = result.items ?? [];
+    names.push(...items.map((item) => item.name));
+
+    if (items.length < PER_PAGE || names.length >= (result.total_count ?? 0)) {
+      return names;
+    }
+  }
+};
+
 export const useNetworkOptions = (open: boolean) => {
   const { accessToken, authReady } = useAuth();
   const enabled = open && authReady && !!accessToken;
 
   const dataNetworksQuery = useQuery({
     queryKey: ["policy-data-networks"],
-    queryFn: async () => {
-      const page = await listDataNetworks(accessToken!, 1, PER_PAGE);
-      return (page.items ?? []).map((dn) => dn.name);
-    },
+    queryFn: () =>
+      listAllNames((page) => listDataNetworks(accessToken!, page, PER_PAGE)),
     enabled,
   });
 
   const slicesQuery = useQuery({
     queryKey: ["policy-slices"],
-    queryFn: async () => {
-      const page = await listSlices(accessToken!, 1, PER_PAGE);
-      return (page.items ?? []).map((slice) => slice.name);
-    },
+    queryFn: () =>
+      listAllNames((page) => listSlices(accessToken!, page, PER_PAGE)),
     enabled,
   });
 
@@ -121,7 +144,18 @@ const FiveQiSelect = <T extends FieldValues>({
   name: Path<T>;
 }) => {
   const { field } = useController({ control, name });
+  const dataNetwork = useWatch({
+    control,
+    name: "dataNetworkName" as Path<T>,
+  }) as string | undefined;
+  const voice = isVoiceDataNetwork(dataNetwork);
   const current = field.value as number | undefined;
+  const { onChange } = field;
+
+  useEffect(() => {
+    if (voice && current !== IMS_SIGNALLING_5QI) onChange(IMS_SIGNALLING_5QI);
+  }, [voice, current, onChange]);
+
   const options =
     current !== undefined && !NON_GBR_5QI_VALUES.includes(current)
       ? [{ value: current, label: String(current) }, ...NON_GBR_5QI_OPTIONS]
@@ -134,10 +168,12 @@ const FiveQiSelect = <T extends FieldValues>({
         label="5QI / QCI"
         options={options}
         numeric
+        disabled={voice}
       />
       <Typography variant="caption" color="textSecondary">
-        Determines radio scheduling behavior. Only non-GBR classes are
-        supported.
+        {voice
+          ? `IMS signalling on the voice data network uses 5QI ${IMS_SIGNALLING_5QI}.`
+          : "Determines radio scheduling behavior. Only non-GBR classes are supported."}
       </Typography>
     </>
   );

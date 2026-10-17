@@ -18,6 +18,7 @@ import {
   mergeRegistrations,
   type APISubscriber,
 } from "@/queries/subscribers";
+import { getOperator } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditSubscriberProfileModal from "@/components/EditSubscriberProfileModal";
@@ -49,6 +50,13 @@ const SubscriberDetail: React.FC = () => {
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
+
+  const operatorQuery = useQuery({
+    queryKey: ["operator"],
+    queryFn: () => getOperator(accessToken!),
+    enabled: authReady && !!accessToken,
+    retry: false,
+  });
 
   const subscriberQuery = useQuery<APISubscriber>({
     queryKey: ["subscriber", imsi],
@@ -171,6 +179,8 @@ const SubscriberDetail: React.FC = () => {
               >
                 <SubscriberConnectionCard
                   status={mergeRegistrations(subscriber.registrations)}
+                  ims={subscriber.ims}
+                  network={operatorQuery.data?.ims}
                 />
               </Box>
             </Box>

@@ -146,6 +146,10 @@ func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, ueConn *UeConn
 		NASPDU: s1ap.NASPDU(naspdu),
 	}
 
+	for _, ebi := range ue.DedicatedEBIs(p) {
+		cmd.ERABToBeReleased = append(cmd.ERABToBeReleased, s1ap.ERABItem{ERABID: s1ap.ERABID(ebi), Cause: CauseNASNormalRelease})
+	}
+
 	if ul, dl := ue.AmbrRates(); !ul.IsZero() || !dl.IsZero() {
 		cmd.UEAggregateMaximumBitRate = new(S1APUEAMBR(ue.RANUEAMBRWithout(p.Ebi)))
 	}

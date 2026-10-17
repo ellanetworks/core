@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -126,6 +128,10 @@ func TransferablePDNConnections(ue *UeContext) ([]interworking.PDNConnection, []
 
 			candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi, Cause: &causeHandoverInterSystemTriggered})
 
+			for _, ebi := range slices.Sorted(maps.Keys(p.Dedicated)) {
+				candidates = append(candidates, HandoverCandidate{Ebi: ebi, Cause: &causeHandoverInterSystemTriggered})
+			}
+
 			continue
 		}
 
@@ -136,6 +142,10 @@ func TransferablePDNConnections(ue *UeContext) ([]interworking.PDNConnection, []
 			Snssai:            *p.Snssai,
 		})
 		candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi})
+
+		for _, ebi := range slices.Sorted(maps.Keys(p.Dedicated)) {
+			candidates = append(candidates, HandoverCandidate{Ebi: ebi})
+		}
 	}
 
 	return connections, candidates
@@ -168,7 +178,11 @@ func (m *MME) AbandonHandoverToFiveGS(ctx context.Context, ue *UeContext, id int
 	// PDN connections already moved has nobody left to release it.
 	if ue.PDNCount() == 0 {
 		m.DeregisterEmptyUE(ctx, ue)
+
+		return true
 	}
+
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 
 	return true
 }

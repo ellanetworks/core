@@ -13,6 +13,9 @@ type PDUSessionResourceModifyResponseOpts struct {
 	AMFUENGAPID   int64
 	RANUENGAPID   int64
 	PDUSessionIDs []int64
+	AcceptedQFIs  map[int64][]uint8
+	FailedQFIs    map[int64][]uint8
+	FailureCause  ngap.Cause
 }
 
 // BuildPDUSessionResourceModifyResponse encodes a PDU SESSION RESOURCE MODIFY
@@ -29,7 +32,17 @@ func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyRespons
 	}
 
 	for _, pduSessionID := range opts.PDUSessionIDs {
-		transfer, err := (&ngap.PDUSessionResourceModifyResponseTransfer{}).Marshal()
+		var t ngap.PDUSessionResourceModifyResponseTransfer
+
+		for _, qfi := range opts.AcceptedQFIs[pduSessionID] {
+			t.QosFlowAddOrModifyResponse = append(t.QosFlowAddOrModifyResponse, ngap.QosFlowAddOrModifyResponseItem{QosFlowIdentifier: ngap.QosFlowIdentifier(qfi)})
+		}
+
+		for _, qfi := range opts.FailedQFIs[pduSessionID] {
+			t.QosFlowFailedToAddOrModify = append(t.QosFlowFailedToAddOrModify, ngap.QosFlowWithCauseItem{QosFlowIdentifier: ngap.QosFlowIdentifier(qfi), Cause: opts.FailureCause})
+		}
+
+		transfer, err := t.Marshal()
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PDUSessionResourceModifyResponseTransfer: %w", err)
 		}

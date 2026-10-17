@@ -1,0 +1,54 @@
+configs:
+  ims_config:
+    content: |
+      logging:
+        level: debug
+      db:
+        path: /ims.db
+      api:
+        address: "10.3.0.6"
+        port: 5020
+      sip:
+        addresses: ["10.6.0.5"]
+      pcscf:
+        port: 5060
+        ipsec:
+          server_port: 5063
+          client_ports: [5064, 5065]
+      icscf:
+        port: 5070
+      scscf:
+        port: 5080
+      diameter:
+        address: "10.3.0.6"
+
+services:
+  ims:
+    image: ${ELLA_IMS_IMAGE:-ghcr.io/ellanetworks/ella-ims:latest}
+    configs:
+      - source: ims_config
+        target: /ims.yaml
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n3:
+        ipv4_address: 10.3.0.6
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.5
+  ims-routes:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    network_mode: service:ims
+    depends_on: [ims]
+    restart: unless-stopped
+    privileged: true
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip -4 route replace 10.60.0.0/16 via 10.6.0.11;
+        ethtool -K n6 tx off;
+        trap : TERM INT;
+        sleep infinity & wait

@@ -151,7 +151,7 @@ func TestRemoveUe_QueuesPurge(t *testing.T) {
 	m, reg := newRegistrarTestMME(t)
 	ue := newRegisteredTestUE(m, "001010000000001")
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 
 	if len(reg.purged) != 1 || reg.purged[0] != "001010000000001" {
 		t.Fatalf("purges = %v, want the removed UE", reg.purged)
@@ -163,7 +163,7 @@ func TestRemoveUe_NotIndexedDoesNotPurge(t *testing.T) {
 	old := newRegisteredTestUE(m, "001010000000001")
 	newRegisteredTestUE(m, "001010000000001")
 
-	m.RemoveUe(old)
+	m.RemoveUe(context.Background(), old)
 
 	if len(reg.purged) != 0 {
 		t.Fatalf("unexpected purges %v", reg.purged)

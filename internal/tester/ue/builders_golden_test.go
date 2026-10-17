@@ -162,7 +162,7 @@ var builderGolden = map[string]string{
 	"security_mode_complete":             "7e005e7700091532547698103254f67100187e004119000bf200f1100102030405060710012f2e02e0e0",
 	"ul_nas_transport":                   "7e00670100062e0101c1ffff120181220401010203250908696e7465726e6574",
 	"ul_nas_transport_lpp":               "7e0067030003010203",
-	"pdu_session_est_request":            "2e0101c1ffff917b000a80000a00000d00000300",
+	"pdu_session_est_request":            "2e0101c1ffff917b001080000a00000d00000300000100000c00",
 }
 
 func TestBuildersGolden(t *testing.T) {

@@ -120,7 +120,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 }
 
 func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string, pduSessionID uint8) {
-	if err := a.Session.DeactivateSmContext(ctx, ref); err != nil {
+	if err := a.Session.DeactivateSmContext(ctx, ref, false); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to deactivate a PDU session",
 			logger.SMContextRef(ref), logger.PDUSessionID(pduSessionID), zap.Error(err))
 

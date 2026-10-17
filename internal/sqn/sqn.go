@@ -59,6 +59,8 @@ const sqnMax uint64 = 0xFFFFFFFFFFFF // 2^48 - 1; bitwise AND mask
 // sequence-number management.
 const IndStep uint64 = 32
 
+const IMSInd uint64 = IndStep - 1
+
 // AdvanceSQN adds delta to sqn, masked to 48 bits, and returns the
 // new value as a zero-padded 12-character hex string.
 func Advance(sqnHex string, delta uint64) (string, error) {
@@ -117,10 +119,71 @@ func StrictHex(s string, n int) string {
 }
 
 func Next(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
+	next, err := nextPS(currentSQN, opcHex, kHex, autsHex, randHex)
+	if err != nil {
+		return "", err
+	}
+
+	return avoidIMSInd(next)
+}
+
+func NextIMS(currentSQN string) (string, error) {
+	n, err := strconv.ParseUint(StrictHex(currentSQN, 12), 16, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid SQN hex %q: %w", currentSQN, err)
+	}
+
+	n = ((n/IndStep+1)*IndStep + IMSInd) & sqnMax
+
+	return fmt.Sprintf("%012x", n), nil
+}
+
+func avoidIMSInd(sqnHex string) (string, error) {
+	n, err := strconv.ParseUint(sqnHex, 16, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid SQN hex %q: %w", sqnHex, err)
+	}
+
+	if n%IndStep != IMSInd {
+		return sqnHex, nil
+	}
+
+	return Advance(sqnHex, 1)
+}
+
+func NextIMSResync(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
+	sqnMS, err := resyncHex(opcHex, kHex, autsHex, randHex)
+	if err != nil {
+		return "", err
+	}
+
+	he, err := strconv.ParseUint(StrictHex(currentSQN, 12), 16, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid SQN hex %q: %w", currentSQN, err)
+	}
+
+	ms, err := strconv.ParseUint(sqnMS, 16, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid SQN hex %q: %w", sqnMS, err)
+	}
+
+	return NextIMS(fmt.Sprintf("%012x", max(he, ms)))
+}
+
+func nextPS(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
 	if autsHex == "" {
 		return Advance(StrictHex(currentSQN, 12), IndStep)
 	}
 
+	sqnMsHex, err := resyncHex(opcHex, kHex, autsHex, randHex)
+	if err != nil {
+		return "", err
+	}
+
+	return Advance(sqnMsHex, IndStep+1)
+}
+
+func resyncHex(opcHex, kHex, autsHex, randHex string) (string, error) {
 	opc, err := hex.DecodeString(opcHex)
 	if err != nil {
 		return "", fmt.Errorf("failed to decode opc: %w", err)
@@ -141,10 +204,10 @@ func Next(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
 		return "", fmt.Errorf("could not decode rand: %w", err)
 	}
 
-	sqnMsHex, err := Resync(opc, k, auts, randBytes)
+	sqnMS, err := Resync(opc, k, auts, randBytes)
 	if err != nil {
 		return "", fmt.Errorf("SQN resync failed: %w", err)
 	}
 
-	return Advance(sqnMsHex, IndStep+1)
+	return sqnMS, nil
 }

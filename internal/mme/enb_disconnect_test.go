@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 		t.Fatal("EPS session not deactivated for paging after eNB disconnect")
 	}
 
-	m.RemoveUe(ue)
+	m.RemoveUe(context.Background(), ue)
 }
 
 func TestENBDisconnectDropsMidAttachUE(t *testing.T) {

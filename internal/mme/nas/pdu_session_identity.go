@@ -39,6 +39,18 @@ func protocolOptionsFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) ([]nas
 	return nil, false
 }
 
+func pcscfRequestFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) (nas.PCSCFRequest, bool) {
+	for _, opts := range []*nas.ProtocolConfigurationOptions{epco, pco} {
+		if opts == nil {
+			continue
+		}
+
+		return opts.PCSCFRequest(), true
+	}
+
+	return nas.PCSCFRequest{}, false
+}
+
 func fiveGSMCauseFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) (uint8, bool) {
 	for _, opts := range []*nas.ProtocolConfigurationOptions{epco, pco} {
 		if opts == nil {

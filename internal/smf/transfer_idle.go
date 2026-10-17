@@ -16,8 +16,21 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, error) {
-	return s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, []uint8, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+	if err != nil {
+		return "", nil, err
+	}
+
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return "", nil, fmt.Errorf("%w: session %q left the pool as it moved", ErrSessionNotMovable, ref)
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	return ref, sc.flowEBIsLocked(), nil
 }
 
 func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
@@ -54,16 +67,15 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 	)
 	defer span.End()
 
-	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
-	if err != nil {
-		return "", fmt.Errorf("no policy for a session moving to %s in idle mode: %w", access, err)
-	}
-
-	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai, Policy: policy}
+	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
 		return "", fmt.Errorf("no session to move to %s in idle mode: %w", access, err)
+	}
+
+	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+		return "", fmt.Errorf("no subscription for a session moving to %s in idle mode: %w", access, err)
 	}
 
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
@@ -72,7 +84,7 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 
 	dropped, err := s.commitIdleTransfer(ctx, sc, access)
 	if err != nil {
-		sc.abandonTransferTo(access)
+		s.abandonTransfer(ctx, sc, access)
 
 		return "", err
 	}
@@ -80,6 +92,10 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 	logger.From(ctx, logger.SmfLog).Info("moved a session between systems in idle mode",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
 		zap.Uint8("ebi", ebi), logger.DNN(dnn), zap.Stringer("to", access))
+
+	if dropped != nil {
+		dropped.upActive = false
+	}
 
 	s.dropSourceRouting(ctx, sc.Ref, dropped)
 
@@ -101,15 +117,25 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 
 	next := sc.Tunnel.dataPlane
 	next.Access = access
+	next.TargetUplink = false
 	next.Downlink = DownlinkBuffering
 	next.AN = AnchorBinding{}
-	next.QFI, next.AMBR = commit.policy.QosData.QFI, commit.policy.Ambr
+	next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
 
-	if err := s.applyDataPlane(ctx, sc, next, commit.policy.PolicyID); err != nil {
+	if access == Access4G {
+		s.interruptFlowProcedureLocked(ctx, sc, false)
+	}
+
+	flows := sc.movingFlowsLocked(access, false)
+	next.Bearers = flows.legs
+
+	if err := s.applyDataPlane(ctx, sc, next, sc.PolicyData.PolicyID); err != nil {
 		commit.restore()
 
 		return nil, err
 	}
+
+	s.adoptMovedFlowsLocked(ctx, sc, flows, access == Access4G)
 
 	return sc.finishTransferCommit(commit), nil
 }

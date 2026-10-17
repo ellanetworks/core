@@ -19,6 +19,8 @@ func TestGetMetricsSuccess(t *testing.T) {
 # HELP Some metric description
 app_upf_bytes_total{direction="downlink"} 1234
 app_upf_bytes_total{direction="uplink"} 5678
+app_registration_attempts_total{rat="5g",result="accept",type="Initial registration"} 3
+process_open_fds 9
 `
 	resp := &client.RequestResponse{
 		StatusCode: 200,
@@ -47,6 +49,14 @@ app_upf_bytes_total{direction="uplink"} 5678
 
 	if v, ok := metrics[`app_upf_bytes_total{direction="uplink"}`]; !ok || v != 5678 {
 		t.Errorf("Expected uplink app_upf_bytes_total to be 5678, got %v", v)
+	}
+
+	if v, ok := metrics[`app_registration_attempts_total{rat="5g",result="accept",type="Initial registration"}`]; !ok || v != 3 {
+		t.Errorf("Expected a label value with a space to parse to 3, got %v", v)
+	}
+
+	if v, ok := metrics["process_open_fds"]; !ok || v != 9 {
+		t.Errorf("Expected process_open_fds to be 9, got %v", v)
 	}
 }
 

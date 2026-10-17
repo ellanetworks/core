@@ -110,14 +110,35 @@ func GNSSPositioning(d *LocationData) string {
 // GetLocation calls POST /api/beta/location for the given method and decodes the
 // spec-shaped LocationData response.
 func GetLocation(ctx context.Context, cl *client.Client, supi, method, mode string) (*LocationData, error) {
-	request := map[string]string{
-		"supi":         supi,
-		"request_type": "immediate",
-		"method":       method,
+	return requestLocation(ctx, cl, supi, method, mode, nil)
+}
+
+func GetECIDLocationWithQuantities(ctx context.Context, cl *client.Client, supi, mode string, nr, eutra []string) (*LocationData, error) {
+	quantities := map[string][]string{}
+
+	if nr != nil {
+		quantities["nr"] = nr
+	}
+
+	if eutra != nil {
+		quantities["eutra"] = eutra
+	}
+
+	return requestLocation(ctx, cl, supi, "ecid", mode, quantities)
+}
+
+func requestLocation(ctx context.Context, cl *client.Client, supi, method, mode string, quantities map[string][]string) (*LocationData, error) {
+	request := map[string]any{
+		"supi":   supi,
+		"method": method,
 	}
 
 	if mode != "" {
 		request["mode"] = mode
+	}
+
+	if quantities != nil {
+		request["measurement_quantities"] = quantities
 	}
 
 	body, err := json.Marshal(request)

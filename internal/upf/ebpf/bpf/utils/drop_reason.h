@@ -90,6 +90,7 @@ enum upf_drop_reason {
 	/* A frame on the buffer injection veth that the datapath did not forward. */
 	UPF_DROP_REINJECT_UNOWNED,
 	UPF_DROP_FRAGMENTED_TRANSPORT,
+	UPF_DROP_BEARER_BINDING,
 
 	UPF_DROP_REASON_COUNT,
 };

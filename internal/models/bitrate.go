@@ -84,9 +84,10 @@ func ParseBitRate(s string) (BitRate, error) {
 // Bps returns the rate in bits per second.
 func (b BitRate) Bps() uint64 { return b.bps }
 
-// Kbps returns the rate in kilobits per second, truncated. EPS scales the
-// APN-AMBR in kbps (TS 24.008 §10.5.6.5).
-func (b BitRate) Kbps() uint64 { return b.bps / 1000 }
+// Kbps returns the rate in kilobits per second, rounded up so that a rate
+// signalled or enforced in kbps is never below the one authorized. EPS scales
+// the APN-AMBR in kbps (TS 24.008 §10.5.6.5).
+func (b BitRate) Kbps() uint64 { return (b.bps + 999) / 1000 }
 
 // IsZero reports whether the rate is unset.
 func (b BitRate) IsZero() bool { return b.bps == 0 }

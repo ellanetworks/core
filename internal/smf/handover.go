@@ -66,7 +66,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 	smContext.handoverForwarding = forwarding
 	smContext.handoverForwardingPlan = nil
 
-	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType), nil, forwarding)
+	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType), smContext.EBI, forwarding, smContext.heldFlowsLocked())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover request transfer")
@@ -125,6 +125,11 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
+	smContext.handoverAdmitted = nil
+	if flows, err := ngap.HandoverAckQoSFlows(n2Data); err == nil {
+		smContext.handoverAdmitted = &flows.Accepted
+	}
+
 	if err := s.openN2ForwardingTunnel(ctx, smContext); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to open the indirect data forwarding tunnel")
@@ -169,11 +174,11 @@ func (s *SMF) openN2ForwardingTunnel(ctx context.Context, sc *SMContext) error {
 		return fmt.Errorf("encode the forwarding tunnel's transport layer address: %w", err)
 	}
 
-	plan.RelayThrough(sc.Tunnel.ForwardingTEID, addr)
+	plan.RelayThrough(sc.Tunnel.forwardingTEID(), addr)
 
 	logger.From(ctx, logger.SmfLog).Info("Opened an indirect data forwarding tunnel",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID),
-		logger.TEID(sc.Tunnel.ForwardingTEID))
+		logger.TEID(sc.Tunnel.forwardingTEID()))
 
 	return nil
 }
@@ -228,13 +233,18 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("session %q has no prepared handover to complete", smContext.Ref)
 	}
 
-	dropped, err := s.bindDownlink(ctx, smContext, Access5G, *target)
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, *target, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	smContext.handoverTargetAN = nil
 	smContext.handoverForwardingPlan = nil
+
+	if admitted := smContext.handoverAdmitted; admitted != nil {
+		smContext.handoverAdmitted = nil
+		s.admitFlowsLocked(ctx, smContext, *admitted)
+	}
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
@@ -285,11 +295,12 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.abandonTransferTo(Access5G)
+	s.abandonTransfer(ctx, smContext, Access5G)
 
 	smContext.Mutex.Lock()
 	smContext.handoverForwarding = ngap.DataForwardingNone
 	smContext.handoverForwardingPlan = nil
+	smContext.handoverAdmitted = nil
 	smContext.forwardingRelease.Stop()
 
 	if err := s.closeForwardingTunnel(ctx, smContext); err != nil {
@@ -334,6 +345,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 
 	if smContext.pending != nil && smContext.pending.to == Access5G {
 		smContext.clearPendingLocked()
+		s.clearTargetUplinkLocked(ctx, smContext)
 	}
 
 	if smContext.handoverTargetAN == nil {
@@ -342,6 +354,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 
 	smContext.handoverTargetAN = nil
 	smContext.handoverForwardingPlan = nil
+	smContext.handoverAdmitted = nil
 	smContext.handoverForwarding = ngap.DataForwardingNone
 	smContext.forwardingRelease.Stop()
 
@@ -398,6 +411,10 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		return nil, err
 	}
 
+	if flows, err := ngap.PathSwitchQoSFlows(n2Data); err == nil {
+		s.admitFlowsLocked(ctx, smContext, flows.Accepted)
+	}
+
 	// Re-register the IPv6 session with the new gNB tunnel endpoint.
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
@@ -451,10 +468,6 @@ func handlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 }
 
 func (sc *SMContext) signalledQFI() uint8 {
-	if sc.pending != nil && sc.pending.policy != nil {
-		return transferPolicy(sc.PolicyData, sc.pending.policy).QosData.QFI
-	}
-
 	if sc.PolicyData == nil {
 		return 0
 	}

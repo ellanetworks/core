@@ -53,11 +53,45 @@ func TestGetSubscriberLocationRejectsUnsupportedMode(t *testing.T) {
 		body    string
 		message string
 	}{
-		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"ecid","mode":"ue_based"}`, "supported: ue_assisted, network_based"},
-		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"gnss","mode":"ue_assisted"}`, "supported: standalone"},
-		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"cell_id","mode":"network_based"}`, "supported: none"},
-		{`{"supi":"imsi-001010000000001","request_type":"immediate","mode":"ue_assisted"}`, "for method cell_id"},
-		{`{"supi":"imsi-001010000000001","request_type":"immediate","method":"otdoa"}`, "unsupported method: otdoa"},
+		{`{"supi":"imsi-001010000000001","method":"ecid","mode":"ue_based"}`, "supported: ue_assisted, network_based"},
+		{`{"supi":"imsi-001010000000001","method":"gnss","mode":"ue_assisted"}`, "supported: standalone"},
+		{`{"supi":"imsi-001010000000001","method":"cell_id","mode":"network_based"}`, "supported: none"},
+		{`{"supi":"imsi-001010000000001","mode":"ue_assisted"}`, "for method cell_id"},
+		{`{"supi":"imsi-001010000000001","method":"otdoa"}`, "unsupported method: otdoa"},
+		{`{"supi":"imsi-001010000000001","request_type":"periodic"}`, "Invalid request body"},
+		{`{"method":"cell_id"}`, "supi is required"},
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/beta/location", strings.NewReader(tc.body))
+
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", tc.body, rec.Code)
+		}
+
+		if !strings.Contains(rec.Body.String(), tc.message) {
+			t.Errorf("%s: body %q does not contain %q", tc.body, rec.Body.String(), tc.message)
+		}
+	}
+}
+
+func TestGetSubscriberLocationRejectsInvalidMeasurementQuantities(t *testing.T) {
+	handler := GetSubscriberLocation(lmf.New(nil, nil, nil))
+
+	for _, tc := range []struct {
+		body    string
+		message string
+	}{
+		{`{"supi":"imsi-001010000000001","method":"cell_id","measurement_quantities":{"nr":["sS-RSRP"]}}`, "only apply to network-based E-CID"},
+		{`{"supi":"imsi-001010000000001","method":"ecid","mode":"ue_assisted","measurement_quantities":{"nr":["sS-RSRP"]}}`, "only apply to network-based E-CID"},
+		{`{"supi":"imsi-001010000000001","method":"ecid","measurement_quantities":{"nr":[]}}`, "nr list must not be empty"},
+		{`{"supi":"imsi-001010000000001","method":"ecid","measurement_quantities":{"nr":["ssRsrp"]}}`, `\"ssRsrp\" is not a valid nr quantity`},
+		{`{"supi":"imsi-001010000000001","method":"ecid","measurement_quantities":{"eutra":["sS-RSRP"]}}`, `\"sS-RSRP\" is not a valid eutra quantity`},
+		{`{"supi":"imsi-001010000000001","method":"ecid","measurement_quantities":{"nr":["sS-RSRP","sS-RSRP"]}}`, "listed more than once"},
+		{`{"supi":"imsi-001010000000001","method":"ecid","measurement_quantities":{}}`, "at least one of nr, eutra"},
+		{`{"supi":"imsi-001010000000001","method":"cell_id","measurement_quantities":{}}`, "only apply to network-based E-CID"},
+		{`{"supi":"imsi-001010000000001","method":"ecid","measurement_quantities":{"nr":["rSRP"]}}`, `\"rSRP\" is not a valid nr quantity`},
 	} {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/beta/location", strings.NewReader(tc.body))

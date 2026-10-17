@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lppa"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/lmf/nrppa"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -46,7 +47,6 @@ type LMF struct {
 	amf         *amf.AMF
 	mme         *mme.MME
 	db          *db.Database
-	sessionMgr  *SessionManager
 	nrppaClient *nrppa.Client
 	lppaClient  *lppa.Client
 	lppHandler  LPPHandler
@@ -57,6 +57,11 @@ type LMF struct {
 	ackSeq         atomic.Uint32
 	maxLocationAge int32
 	refreshTimeout time.Duration
+	ueLocks        ueLocks
+	deferred       deferredRuns
+
+	fixOverride          func(context.Context, etsi.SUPI, LocationRequest) (*lmfmodels.LocationResult, error)
+	availabilityOverride func(etsi.SUPI) TerminationReason
 }
 
 // defaultMaxLocationAge is the default maximum age (in seconds) for the AMF's
@@ -75,7 +80,6 @@ func New(amfInstance *amf.AMF, mmeInstance *mme.MME, d *db.Database) *LMF {
 		amf:            amfInstance,
 		mme:            mmeInstance,
 		db:             d,
-		sessionMgr:     NewSessionManager(d),
 		nrppaClient:    nrppa.New(amfInstance),
 		lppaClient:     lppa.New(mmeInstance),
 		lppSessions:    make(map[string]*lpp.Session),
@@ -173,11 +177,6 @@ func (l *LMF) cancelBufferedLPP(ctx context.Context, core Core, supi etsi.SUPI, 
 // SetLPPHandler configures the LPP message handler for UE communication.
 func (l *LMF) SetLPPHandler(h LPPHandler) {
 	l.lppHandler = h
-}
-
-// SessionManager returns the session manager for positioning session lifecycle.
-func (l *LMF) SessionManager() *SessionManager {
-	return l.sessionMgr
 }
 
 // ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF or MME to the LMF

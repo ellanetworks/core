@@ -92,7 +92,7 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 	for _, c := range arriving.PDN {
 		snssai := c.Snssai
 
-		ref, err := amfInstance.Session.TransferIdleTo5GS(ctx, supi, c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
+		ref, flowEBIs, err := amfInstance.Session.TransferIdleTo5GS(ctx, supi, c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("a PDN connection could not move onto 5GS; leaving it behind",
 				zap.Error(err), logger.PDUSessionID(c.PDUSessionID), zap.String("apn", c.APN))
@@ -113,6 +113,9 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		}
 
 		ue.SetEPSBearerIdentity(c.PDUSessionID, c.EPSBearerIdentity)
+		ue.SetFlowEPSBearerIdentities(c.PDUSessionID, flowEBIs)
+
+		go reconcileArrivingSession(context.WithoutCancel(ctx), amfInstance, ref)
 
 		transferred = append(transferred, c.PDUSessionID)
 	}
@@ -126,4 +129,10 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		zap.Int("offered", len(arriving.PDN)))
 
 	return true
+}
+
+func reconcileArrivingSession(ctx context.Context, amfInstance *amf.AMF, ref string) {
+	if err := amfInstance.Session.ReconcileSession(ctx, ref); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to re-plan the QoS flows of a PDN connection arriving from EPS", logger.SMContextRef(ref), zap.Error(err))
+	}
 }

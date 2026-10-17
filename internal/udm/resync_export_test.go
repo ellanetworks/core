@@ -7,32 +7,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/util/milenage"
 )
-
-// buildAUTS constructs a valid AUTS = (SQN_MS ⊕ AK*) ‖ MAC-S for the given
-// credentials and SQN, as a UE would on a synch failure.
-func buildAUTS(t *testing.T, opc, k, rand, sqnMS []byte) []byte {
-	t.Helper()
-
-	ak := make([]byte, 6)
-	if err := F2345(opc, k, rand, nil, nil, nil, nil, ak); err != nil {
-		t.Fatal(err)
-	}
-
-	conc := make([]byte, 6)
-	for i := range conc {
-		conc[i] = sqnMS[i] ^ ak[i]
-	}
-
-	amf, _ := hex.DecodeString("0000")
-	macS := make([]byte, 8)
-
-	if err := F1(opc, k, rand, sqnMS, amf, nil, macS); err != nil {
-		t.Fatal(err)
-	}
-
-	return append(conc, macS...)
-}
 
 func TestResyncSQNExport(t *testing.T) {
 	k, _ := hex.DecodeString("465b5ce8b199b49faa5f0a2ee238a6bc")
@@ -45,7 +22,11 @@ func TestResyncSQNExport(t *testing.T) {
 	}
 
 	sqnMS, _ := hex.DecodeString("000000000021") // SEQ with a non-zero IND
-	auts := buildAUTS(t, opc, k, rand, sqnMS)
+
+	auts, err := milenage.GenerateAUTS(opc, k, rand, sqnMS)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	next, err := ResyncSQN(opc, k, auts, rand)
 	if err != nil {

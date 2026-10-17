@@ -143,7 +143,7 @@ func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 	p.SessionRef = "imsi-001010000000001-3#1"
 
 	m.mu.Lock()
-	m.detachConnLocked(ue)
+	m.detachConnLocked(ue, false)
 	m.mu.Unlock()
 
 	m.SessionDropped(context.Background(), ue.IMSI(), DefaultERABID, p.SessionRef)

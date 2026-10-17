@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
-	"github.com/ellanetworks/core/internal/lmf/models"
 )
 
 type captureLPPHandler struct {
@@ -84,9 +83,6 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 		func(lppMsg []byte) error {
 			return handler.ForwardLPPToUE(context.Background(), CoreAMF, supi.String(), session.CorrelationID(), lppMsg)
 		},
-		func(*models.LocationResult) error { return nil },
-		func() error { return nil },
-		func() error { return nil },
 		func() {},
 	)
 
@@ -125,17 +121,11 @@ func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
 		t.Fatalf("NewSUPIFromIMSI: %v", err)
 	}
 
-	failed, deregistered := false, false
+	deregistered := false
 
 	session := lpp.NewSession(supi.String(), "session-deadline", string(RequestedGNSS))
 	session.SetTransport(
 		func([]byte) error { return nil },
-		func(*models.LocationResult) error { return nil },
-		func() error {
-			failed = true
-			return nil
-		},
-		func() error { return nil },
 		func() {
 			deregistered = true
 
@@ -167,8 +157,8 @@ func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
 		t.Errorf("Failure = %v, want it to wrap context.DeadlineExceeded", session.Failure())
 	}
 
-	if !failed || !deregistered {
-		t.Errorf("failFunc called = %t, deregister called = %t, want both", failed, deregistered)
+	if !deregistered {
+		t.Error("the failed session was not deregistered")
 	}
 
 	if lmfInstance.GetLPPSession(session.SessionID()) != nil {

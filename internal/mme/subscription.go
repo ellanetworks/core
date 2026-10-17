@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -16,67 +17,34 @@ import (
 // authorised (TS 24.301 ESM cause #27).
 var ErrUnknownAPN = models.ErrUnknownAPN
 
+func (m *MME) subscriptions() *udm.Subscriptions {
+	return udm.NewSubscriptions(m.Bearer, nil)
+}
+
 func SubscribedAPN(ctx context.Context, m *MME, imsi, requested string) (string, error) {
-	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
+	sm, err := m.subscriptions().SessionManagement(ctx, imsi)
 	if err != nil {
-		return "", fmt.Errorf("get subscriber: %w", err)
+		return "", fmt.Errorf("get session management subscription: %w", err)
 	}
 
 	if requested == "" {
-		pol, err := m.Bearer.GetDefaultPolicyByProfile(ctx, sub.ProfileID)
-		if err != nil {
-			return "", fmt.Errorf("get default policy: %w", err)
+		c, ok := sm.DefaultAPN()
+		if !ok {
+			return "", fmt.Errorf("subscriber %s has no default APN", imsi)
 		}
 
-		dn, err := m.Bearer.GetDataNetworkByID(ctx, pol.DataNetworkID)
-		if err != nil {
-			return "", fmt.Errorf("get data network: %w", err)
-		}
-
-		return dn.Name, nil
+		return c.DNN, nil
 	}
 
-	policies, err := m.Bearer.ListPoliciesByProfile(ctx, sub.ProfileID)
-	if err != nil {
-		return "", fmt.Errorf("list policies: %w", err)
+	if _, ok := sm.ForAPN(requested); !ok {
+		return "", ErrUnknownAPN
 	}
 
-	for i := range policies {
-		dn, err := m.Bearer.GetDataNetworkByID(ctx, policies[i].DataNetworkID)
-		if err != nil {
-			return "", fmt.Errorf("get data network: %w", err)
-		}
-
-		if dn.Name == requested {
-			return requested, nil
-		}
-	}
-
-	return "", ErrUnknownAPN
+	return requested, nil
 }
 
 func SubscribedUEAMBR(ctx context.Context, m *MME, imsi string) (models.Ambr, error) {
-	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return models.Ambr{}, fmt.Errorf("get subscriber: %w", err)
-	}
-
-	profile, err := m.Bearer.GetProfileByID(ctx, sub.ProfileID)
-	if err != nil {
-		return models.Ambr{}, fmt.Errorf("get profile: %w", err)
-	}
-
-	downlink, err := models.ParseBitRate(profile.UeAmbrDownlink)
-	if err != nil {
-		return models.Ambr{}, fmt.Errorf("profile UE-AMBR downlink: %w", err)
-	}
-
-	uplink, err := models.ParseBitRate(profile.UeAmbrUplink)
-	if err != nil {
-		return models.Ambr{}, fmt.Errorf("profile UE-AMBR uplink: %w", err)
-	}
-
-	return models.Ambr{Uplink: uplink, Downlink: downlink}, nil
+	return m.subscriptions().UEAMBR(ctx, imsi)
 }
 
 // Pre-emption is fixed at shall-not-trigger / not-pre-emptable, the same pair

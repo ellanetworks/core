@@ -42,7 +42,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
 		PermListNetworkRules, PermReadNetworkRule,
 		PermReadLocation,
-		PermReadPositioningSessions,
+		PermReadDeferredLocation,
 		PermListCellPositions, PermReadCellPosition,
 		PermReadClusterHealth,
 	},
@@ -50,7 +50,7 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS,
+		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS, PermUpdateOperatorIMS,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListDataNetworkStaticIPs, PermCreateDataNetworkStaticIP, PermUpdateDataNetworkStaticIP, PermDeleteDataNetworkStaticIP,
 		PermListDataNetworkFramedRoutes, PermCreateDataNetworkFramedRoute, PermUpdateDataNetworkFramedRoute, PermDeleteDataNetworkFramedRoute,
@@ -70,7 +70,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermSupportBundle,
 		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
 		PermReadLocation,
-		PermReadPositioningSessions, PermCreatePositioningSession, PermDeletePositioningSession,
+		PermReadDeferredLocation, PermCreateDeferredLocation, PermDeleteDeferredLocation,
 		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
 		PermReadClusterHealth,
 	},
@@ -125,6 +125,7 @@ const (
 	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
 	PermUpdateOperatorSPN         = "operator:update_spn"
 	PermUpdateOperatorSMS         = "operator:update_sms"
+	PermUpdateOperatorIMS         = "operator:update_ims"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"
@@ -234,10 +235,9 @@ const (
 	// Location permissions
 	PermReadLocation = "location:read"
 
-	// Positioning permissions
-	PermReadPositioningSessions  = "positioning:sessions:read"
-	PermCreatePositioningSession = "positioning:sessions:create"
-	PermDeletePositioningSession = "positioning:sessions:delete"
+	PermReadDeferredLocation   = "location:deferred:read"
+	PermCreateDeferredLocation = "location:deferred:create"
+	PermDeleteDeferredLocation = "location:deferred:delete"
 
 	// Cell position permissions
 	PermListCellPositions  = "cell_position:list"

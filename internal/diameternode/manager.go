@@ -24,7 +24,10 @@ const (
 	productName       = "Ella Core"
 	reconcileInterval = 30 * time.Second
 	shutdownTimeout   = 5 * time.Second
+	watchdogInterval  = 6 * time.Second
 )
+
+var ErrNotClusterMember = errors.New("this node is not a member of the cluster")
 
 type Identity struct {
 	Host  string
@@ -164,6 +167,26 @@ func (m *Manager) Peers() []PeerStatus {
 		statuses = append(statuses, status)
 	}
 
+	if node == nil {
+		return statuses
+	}
+
+	for _, peer := range node.Peers() {
+		if peer.Configured {
+			continue
+		}
+
+		statuses = append(statuses, PeerStatus{
+			ID:      peer.ID,
+			Role:    PeerRoleIMS,
+			Host:    peer.Host,
+			Realm:   peer.Realm,
+			Address: netip.AddrPortFrom(peer.RemoteAddr, 0),
+			State:   peer.State,
+			Since:   peer.Since,
+		})
+	}
+
 	return statuses
 }
 
@@ -187,7 +210,13 @@ func (m *Manager) reconcile(ctx context.Context) {
 		return
 	}
 
-	identity, err := m.desiredIdentity(settings, peers)
+	identity, err := m.desiredIdentity(settings)
+	if err != nil {
+		m.fail(err)
+		return
+	}
+
+	imsRealm, err := IMSRealm(settings.MCC, settings.MNC)
 	if err != nil {
 		m.fail(err)
 		return
@@ -210,12 +239,12 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	m.stop()
 
-	if err := m.start(ctx, identity, diameterPeers); err != nil {
+	if err := m.start(ctx, identity, []string{imsRealm}, diameterPeers); err != nil {
 		m.fail(err)
 	}
 }
 
-func (m *Manager) desiredIdentity(settings NodeSettings, peers []PeerConfig) (diameter.Identity, error) {
+func (m *Manager) desiredIdentity(settings NodeSettings) (diameter.Identity, error) {
 	identity, err := IdentityOf(settings)
 	if err != nil {
 		return diameter.Identity{}, err
@@ -223,33 +252,15 @@ func (m *Manager) desiredIdentity(settings NodeSettings, peers []PeerConfig) (di
 
 	var addrs []netip.Addr
 
-	for _, p := range peers {
-		remote := p.Address.Addr().Unmap()
-
-		local, err := m.localAddr(remote)
-		if err != nil {
-			return diameter.Identity{}, fmt.Errorf("find a local address towards the %s peer %s: %w", p.Role, remote, err)
-		}
-
-		if !slices.Contains(addrs, local) {
-			addrs = append(addrs, local)
-		}
-	}
-
-	if len(addrs) == 0 && m.listen.enabled() {
+	if m.listen.enabled() {
 		listenAddrs, err := m.listenAddrs()
 		if err != nil {
 			return diameter.Identity{}, err
 		}
 
-		if len(listenAddrs) == 0 {
-			return diameter.Identity{}, errors.New("the Diameter listen address is unspecified; set a specific address or an interface name to listen without an SMSC")
-		}
-
 		addrs = slices.Clone(listenAddrs)
+		slices.SortFunc(addrs, func(a, b netip.Addr) int { return a.Compare(b) })
 	}
-
-	slices.SortFunc(addrs, func(a, b netip.Addr) int { return a.Compare(b) })
 
 	return diameter.Identity{
 		OriginHost:      identity.Host,
@@ -286,13 +297,24 @@ func samePeers(a, b []PeerConfig) bool {
 	})
 }
 
-func (m *Manager) start(ctx context.Context, identity diameter.Identity, peers []diameter.Peer) error {
-	node, err := diameter.New(diameter.Config{
+func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedRealms []string, peers []diameter.Peer) error {
+	cfg := diameter.Config{
 		Identity:          identity,
+		ServedRealms:      servedRealms,
+		WatchdogInterval:  watchdogInterval,
 		Handler:           m.mux,
 		OnPeerStateChange: m.peerStateChanged,
+		SourceAddress:     m.localAddr,
 		Logger:            m.slog,
-	})
+	}
+
+	if m.listen.enabled() {
+		cfg.AcceptUnknownPeers = true
+		cfg.UnknownPeerApplications = imsApplications
+		cfg.UnknownPeerSupportedVendors = imsSupportedVendors
+	}
+
+	node, err := diameter.New(cfg)
 	if err != nil {
 		return fmt.Errorf("create Diameter node: %w", err)
 	}
@@ -380,7 +402,11 @@ func (m *Manager) setPeers(peers []PeerConfig) {
 }
 
 func (m *Manager) fail(err error) {
-	m.stop()
+	if errors.Is(err, ErrNotClusterMember) {
+		m.stopWithCause(diameter.DisconnectCauseDoNotWantToTalkToYou)
+	} else {
+		m.stop()
+	}
 
 	m.mu.Lock()
 	changed := m.lastError != err.Error()

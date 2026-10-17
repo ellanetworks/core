@@ -10,14 +10,17 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
@@ -33,6 +36,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/diameternode"
+	"github.com/ellanetworks/core/internal/hss"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/lmf"
@@ -43,6 +47,7 @@ import (
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
+	"github.com/ellanetworks/core/internal/pcf"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/reconciler"
 	"github.com/ellanetworks/core/internal/sctplisten"
@@ -59,6 +64,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
 	"github.com/ellanetworks/core/version"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
@@ -455,11 +461,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	// Create SMF with dependency-injected adapters.
-	smfPCF := &pcfDBAdapter{db: dbInstance}
+	pcfInstance := pcf.New(dbInstance, logger.PcfLog)
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
+	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
 
-	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF)
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(subscriptions))
+	pcfInstance.SetEnforcer(smfInstance)
 
 	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
 	if err != nil {
@@ -541,6 +549,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
+	lmfInstance.Start(ctx)
 
 	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), diameternode.ListenConfig{
 		Name:    cfg.Interfaces.Diameter.Name,
@@ -554,6 +563,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smsfInstance.Register(diameterNode)
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
+
+	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, logger.HssLog)
+	hssInstance.RegisterMetrics(prometheus.DefaultRegisterer)
+	hssInstance.Register(diameterNode)
+	amfInstance.IMSVoice = hssInstance
+	mmeInstance.IMSVoice = hssInstance
+
+	pcfInstance.Attach(diameterNode, &rxOwners{db: dbInstance, directory: &diameterDirectory{db: dbInstance, node: diameterNode}, port: diameterPort(cfg)})
 
 	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity)
 
@@ -624,6 +641,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		Sessions:            smfInstance,
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
+		HSS:                 hssInstance,
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
@@ -743,6 +761,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			if err := apiServer.Shutdown(stepCtx); err != nil {
 				logger.EllaLog.Warn("API server shutdown error", zap.Error(err))
 			}
+		})
+
+		step("Stopping deferred location requests", func(stepCtx context.Context) {
+			lmfInstance.Stop(stepCtx)
 		})
 
 		// 1b. Stop the session reconciler so no more reconcile calls land
@@ -969,6 +991,208 @@ func (a *ausfDBAdapter) AdvanceSequenceNumber(ctx context.Context, imsi, resyncA
 	}, nil
 }
 
+func (a *ausfDBAdapter) AdvanceIMSSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
+	creds, err := a.db.AdvanceSubscriberIMSSQN(ctx, imsi, resyncAuts, resyncRand)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", udm.ErrSubscriberUnknown, err)
+		}
+
+		return nil, err
+	}
+
+	return &udm.AdvancedCredentials{
+		PermanentKey:   creds.PermanentKey,
+		Opc:            creds.Opc,
+		SequenceNumber: creds.SequenceNumber,
+	}, nil
+}
+
+type hssDBAdapter struct {
+	db            *db.Database
+	subscriptions *udm.Subscriptions
+}
+
+func (a *hssDBAdapter) IMSDomain(ctx context.Context) (string, error) {
+	op, err := a.db.GetOperator(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return diameternode.IMSRealm(op.Mcc, op.Mnc)
+}
+
+func (a *hssDBAdapter) CountRegistered(ctx context.Context) (int, error) {
+	return a.db.CountIMSRegistrations(ctx, db.IMSRegistered)
+}
+
+func (a *hssDBAdapter) IMSVoiceEnabled(ctx context.Context) (bool, error) {
+	status, err := a.db.IMSVoiceStatus(ctx)
+
+	return status == db.IMSVoiceEnabled, err
+}
+
+func (a *hssDBAdapter) Subscriber(ctx context.Context, imsi string) (*hss.Subscriber, error) {
+	sub, err := a.db.GetSubscriber(ctx, imsi)
+
+	return a.hssSubscriber(ctx, sub, err)
+}
+
+func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*hss.Subscriber, error) {
+	sub, err := a.db.GetSubscriberByMSISDN(ctx, msisdn)
+
+	return a.hssSubscriber(ctx, sub, err)
+}
+
+func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+		}
+
+		return nil, err
+	}
+
+	ims, err := a.hasIMSDataNetwork(ctx, sub.Imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hss.Subscriber{IMSI: sub.Imsi, MSISDN: sub.Msisdn, IMSDataNetwork: ims}, nil
+}
+
+func (a *hssDBAdapter) hasIMSDataNetwork(ctx context.Context, imsi string) (bool, error) {
+	sm, err := a.subscriptions.SessionManagement(ctx, imsi)
+	if err != nil {
+		return false, err
+	}
+
+	return slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.DNN == models.IMSDataNetworkName }), nil
+}
+
+func (a *hssDBAdapter) Registration(ctx context.Context, imsi string) (*hss.Registration, error) {
+	reg, err := a.db.GetIMSRegistration(ctx, imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return hssRegistration(reg)
+}
+
+func (a *hssDBAdapter) CompareAndSwapRegistration(ctx context.Context, imsi string, expected, next *hss.Registration) (*hss.Registration, bool, error) {
+	dbExpected, err := dbIMSRegistration(imsi, expected)
+	if err != nil {
+		return nil, false, err
+	}
+
+	dbNext, err := dbIMSRegistration(imsi, next)
+	if err != nil {
+		return nil, false, err
+	}
+
+	current, swapped, err := a.db.CompareAndSwapIMSRegistration(ctx, imsi, dbExpected, dbNext)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, false, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+		}
+
+		return nil, false, hssError(err)
+	}
+
+	reg, err := hssRegistration(current)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return reg, swapped, nil
+}
+
+type hssCredentials struct {
+	ims *udm.IMSCredentials
+}
+
+func (c hssCredentials) GenerateIMSVector(ctx context.Context, imsi string, resync *udm.IMSResync) (*udm.IMSAV, error) {
+	av, err := c.ims.GenerateIMSVector(ctx, imsi, resync)
+
+	return av, hssError(err)
+}
+
+func hssError(err error) error {
+	if db.IsUnavailable(err) {
+		return fmt.Errorf("%w: %w", hss.ErrUnavailable, err)
+	}
+
+	return err
+}
+
+var imsRegistrationStates = []struct {
+	hss hss.State
+	db  db.IMSRegistrationState
+}{
+	{hss.NotRegistered, db.IMSNotRegistered},
+	{hss.Registered, db.IMSRegistered},
+	{hss.Unregistered, db.IMSUnregistered},
+}
+
+func hssState(state db.IMSRegistrationState) (hss.State, error) {
+	for _, s := range imsRegistrationStates {
+		if s.db == state {
+			return s.hss, nil
+		}
+	}
+
+	return 0, fmt.Errorf("unknown stored IMS registration state %d", state)
+}
+
+func dbIMSState(state hss.State) (db.IMSRegistrationState, error) {
+	for _, s := range imsRegistrationStates {
+		if s.hss == state {
+			return s.db, nil
+		}
+	}
+
+	return 0, fmt.Errorf("unknown IMS registration state %d", state)
+}
+
+func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
+	if reg == nil {
+		return nil, nil
+	}
+
+	state, err := hssState(reg.State)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hss.Registration{
+		State:       state,
+		ServerName:  reg.ServerName,
+		AuthPending: reg.AuthPending,
+		OriginHost:  reg.OriginHost,
+		OriginRealm: reg.OriginRealm,
+	}, nil
+}
+
+func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration, error) {
+	if reg == nil {
+		return nil, nil
+	}
+
+	state, err := dbIMSState(reg.State)
+	if err != nil {
+		return nil, err
+	}
+
+	return &db.IMSRegistration{
+		IMSI:        imsi,
+		State:       state,
+		ServerName:  reg.ServerName,
+		AuthPending: reg.AuthPending,
+		OriginHost:  reg.OriginHost,
+		OriginRealm: reg.OriginRealm,
+	}, nil
+}
+
 // bgpImportPrefixAdapter adapts *db.Database to the bgp.ImportPrefixStore interface.
 type bgpImportPrefixAdapter struct {
 	db *db.Database
@@ -1128,6 +1352,10 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 
 func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
 	return func(ctx context.Context) (diameternode.NodeSettings, error) {
+		if dbInstance.ClusterEnabled() && !dbInstance.IsRaftConfigurationMember(dbInstance.RaftID()) {
+			return diameternode.NodeSettings{}, diameternode.ErrNotClusterMember
+		}
+
 		pointer := dbInstance.AMFPointer()
 		if pointer < 1 {
 			return diameternode.NodeSettings{}, errors.New("this node has no AMF Pointer yet; the leader allocates it into cluster_members on join")
@@ -1150,6 +1378,55 @@ func diameterNodeSettings(op *db.Operator, pointer int) diameternode.NodeSetting
 	})
 
 	return diameternode.NodeSettings{MCC: op.Mcc, MNC: op.Mnc, MMEGroupID: mapped.MMEGroupID, MMECode: mapped.MMECode}
+}
+
+type rxOwners struct {
+	db        *db.Database
+	directory *diameterDirectory
+	port      uint16
+}
+
+func (o *rxOwners) Owner(ctx context.Context, ue netip.Addr) (pcf.Owner, error) {
+	dn, err := o.db.GetDataNetwork(ctx, models.IMSDataNetworkName)
+	if errors.Is(err, db.ErrNotFound) {
+		return pcf.Owner{}, pcf.ErrNoOwner
+	}
+
+	if err != nil {
+		return pcf.Owner{}, fmt.Errorf("get the %s data network: %w", models.IMSDataNetworkName, err)
+	}
+
+	lease, err := o.db.GetActiveLeaseByAddress(ctx, dn.ID, ue)
+	if errors.Is(err, db.ErrNotFound) {
+		return pcf.Owner{}, pcf.ErrNoOwner
+	}
+
+	if err != nil {
+		return pcf.Owner{}, fmt.Errorf("get the lease of %s: %w", ue, err)
+	}
+
+	if lease.NodeID == o.db.RaftID() {
+		return pcf.Owner{Local: true}, nil
+	}
+
+	identity, err := o.directory.Identity(ctx, lease.NodeID)
+	if errors.Is(err, smsf.ErrNotClusterMember) {
+		return pcf.Owner{}, pcf.ErrNoOwner
+	}
+
+	if err != nil {
+		return pcf.Owner{}, err
+	}
+
+	return pcf.Owner{URI: diameter.URI{Host: identity.Host, Port: o.port, Transport: diameter.TransportSCTP}}, nil
+}
+
+func diameterPort(cfg config.Config) uint16 {
+	if p := cfg.Interfaces.Diameter.Port; p > 0 && p <= math.MaxUint16 {
+		return uint16(p)
+	}
+
+	return config.DefaultDiameterPort
 }
 
 type diameterDirectory struct {

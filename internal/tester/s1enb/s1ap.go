@@ -260,6 +260,8 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 // context release on inactivity (TS 36.413 §9.2.1.3, value 20).
 var CauseUserInactivity = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 20}
 
+var CauseNotSupportedQCIValue = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 1, Extended: true}
+
 // SendUEContextReleaseRequest asks the MME to release the UE's S1 context, as an
 // eNB does on inactivity or radio-link failure (TS 36.413 §8.3.2).
 func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cause) error {
@@ -272,6 +274,23 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	b, err := req.Marshal()
 	if err != nil {
 		return fmt.Errorf("s1enb: build UE Context Release Request: %w", err)
+	}
+
+	return e.SendMessage(b, true)
+}
+
+var CauseRadioConnectionWithUELost = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}
+
+func (e *ENB) SendERABReleaseIndication(mmeUEID, enbUEID int64, erab s1ap.ERABID, cause s1ap.Cause) error {
+	ind := &s1ap.ERABReleaseIndication{
+		MMEUES1APID:  s1ap.MMEUES1APID(mmeUEID),
+		ENBUES1APID:  s1ap.ENBUES1APID(enbUEID),
+		ERABReleased: []s1ap.ERABItem{{ERABID: erab, Cause: cause}},
+	}
+
+	b, err := ind.Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build E-RAB Release Indication: %w", err)
 	}
 
 	return e.SendMessage(b, true)

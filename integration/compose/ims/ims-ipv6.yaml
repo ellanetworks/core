@@ -1,0 +1,79 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          address: "2001:db8:1::10"
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          address: "2001:db8:1::10"
+          port: 5002
+        diameter:
+          address: "2001:db8:1::10"
+      datapath:
+        attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
+  ims_config:
+    content: |
+      logging:
+        level: debug
+      db:
+        path: /ims.db
+      api:
+        address: "2001:db8:1::16"
+        port: 5020
+      sip:
+        addresses: ["fd00:6::5"]
+      pcscf:
+        port: 5060
+        ipsec:
+          server_port: 5063
+          client_ports: [5064, 5065]
+      icscf:
+        port: 5070
+      scscf:
+        port: 5080
+      diameter:
+        address: "2001:db8:1::16"
+
+services:
+  ims:
+    image: ${ELLA_IMS_IMAGE:-ghcr.io/ellanetworks/ella-ims:latest}
+    configs:
+      - source: ims_config
+        target: /ims.yaml
+    restart: unless-stopped
+    privileged: true
+    networks:
+      default:
+        ipv6_address: 2001:db8:1::16
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv6_address: fd00:6::5
+  ims-routes:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    network_mode: service:ims
+    depends_on: [ims]
+    restart: unless-stopped
+    privileged: true
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip -6 route replace fd60::/48 via fd00:6::2;
+        ip -6 route replace fd45::/48 via fd00:6::2;
+        ethtool -K n6 tx off;
+        trap : TERM INT;
+        sleep infinity & wait

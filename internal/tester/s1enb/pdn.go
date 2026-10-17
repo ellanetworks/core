@@ -31,6 +31,7 @@ type PDNResult struct {
 	ERABQCI             byte   // QCI signalled in the E-RAB Setup Request's E-RAB Level QoS Parameters
 	UEAmbrDownlinkBps   uint64 // UE-AMBR re-signalled to the eNB in the E-RAB Setup Request (0 when absent)
 	UEAmbrUplinkBps     uint64
+	PCSCF               []netip.Addr
 }
 
 // PDNReleaseResult reports what the MME released and why (TS 36.413 §9.1.3.5).
@@ -55,14 +56,24 @@ func (e *ENB) OpenPDNAnnouncingN1Mode(ue *UE, mmeUEID, enbUEID int64, apn string
 		AccessPointName: new(eps.APN(apn)),
 	}
 
-	if pduSessionID != 0 {
-		connectivity.ProtocolConfigurationOptions = &nas.ProtocolConfigurationOptions{
+	if pduSessionID != 0 || ue.requestPCSCF {
+		pco := &nas.ProtocolConfigurationOptions{
 			ConfigProtocol: nas.PCOConfigProtocolPPP,
 			Direction:      nas.PCOMSToNetwork,
-			Containers: []nas.PCOContainer{
-				{ID: nas.PCOContainerPDUSessionID, Content: []byte{pduSessionID}},
-			},
 		}
+
+		if pduSessionID != 0 {
+			pco.Containers = append(pco.Containers, nas.PCOContainer{ID: nas.PCOContainerPDUSessionID, Content: []byte{pduSessionID}})
+		}
+
+		if ue.requestPCSCF {
+			pco.Containers = append(pco.Containers,
+				nas.PCOContainer{ID: nas.PCOContainerPCSCFIPv6Address},
+				nas.PCOContainer{ID: nas.PCOContainerPCSCFIPv4Address},
+			)
+		}
+
+		connectivity.ProtocolConfigurationOptions = pco
 	}
 
 	connReq, err := connectivity.MarshalBinary()
@@ -141,6 +152,12 @@ func (e *ENB) OpenPDNAnnouncingN1Mode(ue *UE, mmeUEID, enbUEID int64, apn string
 	res.QCI = act.EPSQoS.QCI
 
 	res.APN = string(act.AccessPointName)
+
+	for _, pco := range []*nas.ProtocolConfigurationOptions{act.ProtocolConfigurationOptions, act.ExtendedProtocolConfigurationOptions} {
+		if pco != nil {
+			res.PCSCF = append(res.PCSCF, pco.PCSCFAddresses()...)
+		}
+	}
 
 	if act.APNAMBR != nil {
 		dlKbps, ulKbps, _ := act.APNAMBR.Kbps()

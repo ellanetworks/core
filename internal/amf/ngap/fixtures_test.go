@@ -100,11 +100,15 @@ type SmfPrepareFromEPSCall struct {
 	Snssai            *models.Snssai
 }
 
-func (f *fakeSmfSbi) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
-	return "", nil
+func (f *fakeSmfSbi) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
+	return "", nil, nil
 }
 
-func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, error) {
+func (f *fakeSmfSbi) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
+
+func (f *fakeSmfSbi) ReleaseInactiveEPSBearers(context.Context, string, []uint8) {}
+
+func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, []uint8, error) {
 	f.PrepareFromEPSCalls = append(f.PrepareFromEPSCalls, &SmfPrepareFromEPSCall{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,
@@ -114,10 +118,10 @@ func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, 
 	})
 
 	if f.PrepareFromEPSErr != nil {
-		return "", nil, f.PrepareFromEPSErr
+		return "", nil, nil, f.PrepareFromEPSErr
 	}
 
-	return fmt.Sprintf("ref-from-eps-%d", pduSessionID), f.PrepareFromEPSResponse, nil
+	return fmt.Sprintf("ref-from-eps-%d", pduSessionID), f.PrepareFromEPSResponse, nil, nil
 }
 
 func (f *fakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
@@ -178,7 +182,7 @@ func (f *fakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Conte
 	return nil, nil
 }
 
-func (f *fakeSmfSbi) DeactivateSmContext(_ context.Context, smContextRef string) error {
+func (f *fakeSmfSbi) DeactivateSmContext(_ context.Context, smContextRef string, _ bool) error {
 	f.DeactivateSmContextCalls = append(f.DeactivateSmContextCalls, smContextRef)
 	return nil
 }
@@ -429,4 +433,16 @@ func newTestAMFWithNAS(nasHandler *fakeNASHandler) *amf.AMF {
 	a.NAS = nasHandler
 
 	return a
+}
+
+func (*fakeSmfSbi) UpdateSmContextN2InfoPduResModifyRsp(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmfSbi) UpdateSmContextN2InfoPduResModifyFail(context.Context, string, []byte) error {
+	return nil
+}
+
+func (*fakeSmfSbi) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
+	return nil
 }
