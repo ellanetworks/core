@@ -109,7 +109,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
     services:
       ella-core:
-        image: ghcr.io/ellanetworks/ella-core:v1.19.0
+        image: ghcr.io/ellanetworks/ella-core:v1.20.0
         configs:
           - source: ella_config
             target: /core.yaml
@@ -158,7 +158,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Download the Ella Core manifests:
 
     ```bash
-    git clone --depth 1 --branch v1.19.0 https://github.com/ellanetworks/core.git
+    git clone --depth 1 --branch v1.20.0 https://github.com/ellanetworks/core.git
     ```
 
     Edit `core/k8s/core-ran-nad.yaml` to set `master` to the host interface that connects to your radios, and set the N2/N3 address. Use the same address for `interfaces.n2.address` in `core/k8s/core-configmap.yaml`.

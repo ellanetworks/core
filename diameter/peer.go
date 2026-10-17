@@ -97,14 +97,6 @@ func newConfiguredPeer(cfg Peer) *peer {
 	}
 }
 
-func (p *peer) key() string {
-	if p.cfg != nil && !p.dynamic {
-		return "id:" + p.id
-	}
-
-	return "host:" + p.host
-}
-
 func (p *peer) name() string {
 	if p.id != "" {
 		return p.id
