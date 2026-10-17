@@ -134,7 +134,7 @@ func (r *fakeRing) consumeAll(b *BufferResponder) {
 		cons := r.cons
 		r.mu.Unlock()
 
-		b.advanceConsumed(cons)
+		b.advanceConsumed(cons, false)
 	}
 }
 
@@ -523,6 +523,96 @@ func TestDrainGivesUpOnStalledConsumer(t *testing.T) {
 	}
 }
 
+func TestDrainSkipsWaitWhileConsumerFails(t *testing.T) {
+	b, frames := newTestResponder()
+	ring, _ := withFakeBarrier(b)
+
+	saved := drainBarrierTimeout
+	drainBarrierTimeout = time.Hour
+
+	t.Cleanup(func() { drainBarrierTimeout = saved })
+
+	b.mu.Lock()
+	b.enqueue(3, 1, 4, []byte{1})
+	b.mu.Unlock()
+
+	ring.capture([]byte{2})
+	b.advanceConsumed(ring.consumer(), true)
+
+	drained := make(chan struct{})
+
+	go func() {
+		defer close(drained)
+
+		b.Drain(3)
+	}()
+
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Drain waited on a failing consumer")
+	}
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want the packet already queued", got)
+	}
+}
+
+func TestDrainReturnsWhenConsumerFailsWhileWaiting(t *testing.T) {
+	b, frames := newTestResponder()
+	ring, _ := withFakeBarrier(b)
+
+	saved := drainBarrierTimeout
+	drainBarrierTimeout = time.Hour
+
+	t.Cleanup(func() { drainBarrierTimeout = saved })
+
+	ring.capture([]byte{1})
+
+	snapshotted := make(chan struct{})
+	ring.onProducer = func() { close(snapshotted) }
+
+	drained := make(chan struct{})
+
+	go func() {
+		defer close(drained)
+
+		b.Drain(3)
+	}()
+
+	<-snapshotted
+
+	b.advanceConsumed(ring.consumer(), true)
+
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Drain did not return after the consumer failed")
+	}
+
+	if got := len(*frames); got != 0 {
+		t.Errorf("sent %d frames, want 0", got)
+	}
+}
+
+func TestDrainWaitsAgainOnceConsumerRecovers(t *testing.T) {
+	b, frames := newTestResponder()
+	ring, _ := withFakeBarrier(b)
+
+	b.advanceConsumed(ring.consumer(), true)
+	b.advanceConsumed(ring.consumer(), false)
+
+	ring.capture([]byte{1})
+
+	ring.onProducer = func() { go ring.consumeAll(b) }
+
+	b.Drain(fakeRingSEID)
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want the late-captured packet", got)
+	}
+}
+
 func TestDrainProgramWaitFailureStillDrains(t *testing.T) {
 	b, frames := newTestResponder()
 	_, programs := withFakeBarrier(b)
@@ -568,7 +658,7 @@ func TestAdvanceConsumedWakesWaiters(t *testing.T) {
 	progress := b.progress
 	b.mu.Unlock()
 
-	b.advanceConsumed(b.consumedPos)
+	b.advanceConsumed(b.consumedPos, false)
 
 	select {
 	case <-progress:
@@ -576,7 +666,7 @@ func TestAdvanceConsumedWakesWaiters(t *testing.T) {
 	default:
 	}
 
-	b.advanceConsumed(b.consumedPos + 16)
+	b.advanceConsumed(b.consumedPos+16, false)
 
 	select {
 	case <-progress:

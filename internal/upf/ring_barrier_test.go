@@ -29,7 +29,8 @@ func newRingbufWriter(t *testing.T) (*cebpf.Map, *cebpf.Program) {
 		Type:    cebpf.SocketFilter,
 		License: "GPL",
 		Instructions: asm.Instructions{
-			asm.StoreImm(asm.R10, -8, 0, asm.DWord),
+			asm.Mov.Imm(asm.R1, 0),
+			asm.StoreMem(asm.R10, -8, asm.R1, asm.DWord),
 			asm.LoadMapPtr(asm.R1, rb.FD()),
 			asm.Mov.Reg(asm.R2, asm.R10),
 			asm.Add.Imm(asm.R2, -8),

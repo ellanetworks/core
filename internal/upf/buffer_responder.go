@@ -79,8 +79,9 @@ type BufferResponder struct {
 	positions ringPositions
 	programs  programWaiter
 
-	consumedPos uintptr
-	progress    chan struct{}
+	consumedPos    uintptr
+	consumerFailed bool
+	progress       chan struct{}
 
 	// send injects one frame; overridable in tests.
 	send func(fd int, frame []byte) error
@@ -311,19 +312,20 @@ func (b *BufferResponder) consume() {
 			b.handleRecord(record.RawSample)
 		}
 
-		b.advanceConsumed(b.positions.consumer())
+		b.advanceConsumed(b.positions.consumer(), err != nil)
 	}
 }
 
-func (b *BufferResponder) advanceConsumed(pos uintptr) {
+func (b *BufferResponder) advanceConsumed(pos uintptr, failed bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if pos == b.consumedPos {
+	if pos == b.consumedPos && failed == b.consumerFailed {
 		return
 	}
 
 	b.consumedPos = pos
+	b.consumerFailed = failed
 	b.signalProgressLocked()
 }
 
@@ -491,6 +493,10 @@ func (b *BufferResponder) awaitCaptured() error {
 	defer b.mu.Unlock()
 
 	for !b.closed && positionBefore(b.consumedPos, target) {
+		if b.consumerFailed {
+			return fmt.Errorf("ring consumer is failing at %d, short of %d", b.consumedPos, target)
+		}
+
 		progress := b.progress
 
 		b.mu.Unlock()
