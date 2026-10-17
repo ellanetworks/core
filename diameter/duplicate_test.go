@@ -4,8 +4,11 @@
 package diameter
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,9 +34,9 @@ func (c *testClock) advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
-func testDuplicateCache(maxEntries int) (*duplicateCache, *testClock) {
+func testDuplicateCache(maxBytes int) (*duplicateCache, *testClock) {
 	clock := &testClock{now: time.Unix(1_000_000, 0)}
-	d := newDuplicateCache(DuplicateDetection{Window: DefaultDuplicateWindow, MaxEntries: maxEntries})
+	d := newDuplicateCache(maxBytes, slog.New(slog.DiscardHandler))
 	d.now = clock.Now
 
 	return d, clock
@@ -53,7 +56,7 @@ func encodedAnswer(t testing.TB, req *Message) []byte {
 func serveOnce(t testing.TB, d *duplicateCache, req *Message) bool {
 	t.Helper()
 
-	e, original := d.begin("id:mme", req)
+	e, original := d.begin(req)
 	if original {
 		d.finish(e, encodedAnswer(t, req))
 	}
@@ -61,21 +64,64 @@ func serveOnce(t testing.TB, d *duplicateCache, req *Message) bool {
 	return original
 }
 
+func checkDuplicateCache(t *testing.T, d *duplicateCache, want int) {
+	t.Helper()
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	n, size := 0, 0
+
+	for e := d.head; e != nil; e = e.next {
+		if d.entries[e.key] != e {
+			t.Errorf("queued entry %+v missing from the index", e.key)
+		}
+
+		if e.next != nil && e.next.expires.Before(e.expires) {
+			t.Errorf("queue out of expiry order at %+v", e.key)
+		}
+
+		n++
+		size += e.size
+	}
+
+	if n != len(d.entries) || n != want {
+		t.Errorf("%d queued and %d indexed entries, want %d", n, len(d.entries), want)
+	}
+
+	if size != d.bytes {
+		t.Errorf("accounted %d bytes, entries hold %d", d.bytes, size)
+	}
+}
+
+func cached(d *duplicateCache, endToEnd uint32) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	key, _ := d.key(appRequest(0, endToEnd, "mme.example.org"))
+	_, ok := d.entries[key]
+
+	return ok
+}
+
 func TestDuplicateCacheWindow(t *testing.T) {
-	d, clock := testDuplicateCache(16)
+	d, clock := testDuplicateCache(DefaultDuplicateCacheBytes)
 
 	if !serveOnce(t, d, appRequest(1, 7, "mme.example.org")) {
 		t.Fatal("first request treated as a duplicate")
 	}
 
-	clock.advance(DefaultDuplicateWindow - time.Nanosecond)
+	clock.advance(duplicateWindow - time.Nanosecond)
 
-	e, original := d.begin("id:mme", appRequest(2, 7, "MME.example.org"))
+	retransmit := appRequest(2, 7, "mme.example.org")
+	retransmit.AVPs[1] = UTF8String(AVPOriginHost, AVPFlagMandatory, 0, "MME.example.org")
+
+	e, original := d.begin(retransmit)
 	if original {
 		t.Fatal("retransmission inside the window was not detected")
 	}
 
-	b := e.answerFor(2)
+	b := e.answerFor(retransmit)
 	if binary.BigEndian.Uint32(b[12:16]) != 2 || binary.BigEndian.Uint32(b[16:20]) != 7 {
 		t.Fatalf("cached answer has hop-by-hop %d end-to-end %d", binary.BigEndian.Uint32(b[12:16]), binary.BigEndian.Uint32(b[16:20]))
 	}
@@ -86,13 +132,11 @@ func TestDuplicateCacheWindow(t *testing.T) {
 		t.Fatal("request after the window was treated as a duplicate")
 	}
 
-	if len(d.entries) != 1 || d.completed.len() != 1 {
-		t.Fatalf("%d entries and %d completed after expiry, want 1 and 1", len(d.entries), d.completed.len())
-	}
+	checkDuplicateCache(t, d, 1)
 }
 
 func TestDuplicateCacheKey(t *testing.T) {
-	d, _ := testDuplicateCache(16)
+	d, _ := testDuplicateCache(DefaultDuplicateCacheBytes)
 	serveOnce(t, d, appRequest(1, 7, "mme.example.org"))
 
 	otherCommand := appRequest(2, 7, "mme.example.org")
@@ -101,28 +145,66 @@ func TestDuplicateCacheKey(t *testing.T) {
 	otherApp := appRequest(3, 7, "mme.example.org")
 	otherApp.ApplicationID++
 
-	tests := map[string]struct {
-		peer string
-		req  *Message
-	}{
-		"other End-to-End":  {"id:mme", appRequest(4, 8, "mme.example.org")},
-		"other Origin-Host": {"id:mme", appRequest(5, 7, "mme2.example.org")},
-		"other peer":        {"id:dra", appRequest(6, 7, "mme.example.org")},
-		"other command":     {"id:mme", otherCommand},
-		"other application": {"id:mme", otherApp},
+	tests := map[string]*Message{
+		"other End-to-End":  appRequest(4, 8, "mme.example.org"),
+		"other Origin-Host": appRequest(5, 7, "mme2.example.org"),
+		"other command":     otherCommand,
+		"other application": otherApp,
+		"other content":     appRequest(6, 7, "mme.example.org", UTF8String(AVPUserName, AVPFlagMandatory, 0, "001010000000001")),
 	}
 
-	for name, tc := range tests {
-		if e, original := d.begin(tc.peer, tc.req); !original {
+	for name, req := range tests {
+		if !serveOnce(t, d, req) {
 			t.Errorf("%s: treated as a duplicate", name)
-		} else {
-			d.finish(e, encodedAnswer(t, tc.req))
 		}
+
+		retransmit := *req
+		retransmit.HopByHopID += 100
+		retransmit.Flags |= FlagRetransmit
+
+		if serveOnce(t, d, &retransmit) {
+			t.Errorf("%s: retransmission not detected", name)
+		}
+	}
+
+	checkDuplicateCache(t, d, 6)
+}
+
+func TestDuplicateCacheAcrossPaths(t *testing.T) {
+	d, _ := testDuplicateCache(DefaultDuplicateCacheBytes)
+
+	proxyInfo := func(host string) AVP {
+		return Grouped(AVPProxyInfo, AVPFlagMandatory, 0,
+			UTF8String(280, AVPFlagMandatory, 0, host),
+			OctetString(33, AVPFlagMandatory, 0, []byte(host)))
+	}
+
+	original := appRequest(1, 7, "mme.example.org", UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, "mme.example.org"), proxyInfo("dra1.example.org"))
+	if !serveOnce(t, d, original) {
+		t.Fatal("first request treated as a duplicate")
+	}
+
+	failover := appRequest(2, 7, "mme.example.org", UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, "dra1.example.org"), proxyInfo("dra2.example.org"))
+	failover.Flags |= FlagRetransmit
+
+	e, fresh := d.begin(failover)
+	if fresh {
+		t.Fatal("retransmission through another agent was not detected")
+	}
+
+	ans, err := Unmarshal(e.answerFor(failover))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := FindAll(ans.AVPs, AVPProxyInfo, 0)
+	if ans.HopByHopID != 2 || ans.EndToEndID != 7 || len(got) != 1 || !bytes.Equal(got[0].Data, proxyInfo("dra2.example.org").Data) {
+		t.Fatalf("replayed answer hop-by-hop %d end-to-end %d Proxy-Info %v", ans.HopByHopID, ans.EndToEndID, got)
 	}
 }
 
 func TestDuplicateCacheIgnoresRetransmitFlag(t *testing.T) {
-	d, _ := testDuplicateCache(16)
+	d, _ := testDuplicateCache(DefaultDuplicateCacheBytes)
 
 	retransmit := appRequest(1, 7, "mme.example.org")
 	retransmit.Flags |= FlagRetransmit
@@ -140,33 +222,108 @@ func TestDuplicateCacheIgnoresRetransmitFlag(t *testing.T) {
 	}
 }
 
-func TestDuplicateCacheEvictsOldestAtBound(t *testing.T) {
-	d, clock := testDuplicateCache(3)
+func TestDuplicateCacheWithoutOriginHost(t *testing.T) {
+	d, _ := testDuplicateCache(DefaultDuplicateCacheBytes)
+
+	req := &Message{Flags: FlagRequest, CommandCode: 8388645, ApplicationID: testAppID, HopByHopID: 1, EndToEndID: 7}
+
+	for range 2 {
+		e, original := d.begin(req)
+		if e != nil || !original {
+			t.Fatal("request without Origin-Host was tracked")
+		}
+
+		d.finish(e, nil)
+	}
+
+	checkDuplicateCache(t, d, 0)
+}
+
+func TestDuplicateCacheExpiresInArrivalOrder(t *testing.T) {
+	d, clock := testDuplicateCache(DefaultDuplicateCacheBytes)
+
+	slowReq := appRequest(1, 1, "mme.example.org")
+	slow, _ := d.begin(slowReq)
+
+	clock.advance(10 * time.Second)
+
+	fastReq := appRequest(2, 2, "mme.example.org")
+	fast, _ := d.begin(fastReq)
+
+	clock.advance(10 * time.Second)
+	d.finish(fast, encodedAnswer(t, fastReq))
+
+	clock.advance(40 * time.Second)
+	d.finish(slow, encodedAnswer(t, slowReq))
+
+	clock.advance(duplicateWindow - time.Minute)
+	serveOnce(t, d, appRequest(3, 3, "mme.example.org"))
+
+	if cached(d, 1) || !cached(d, 2) {
+		t.Fatalf("after the slow request's window: slow cached = %v, fast cached = %v", cached(d, 1), cached(d, 2))
+	}
+
+	checkDuplicateCache(t, d, 2)
+}
+
+func TestDuplicateCacheByteBudget(t *testing.T) {
+	answer := encodedAnswer(t, appRequest(0, 0, "mme.example.org"))
+	entrySize := duplicateEntryOverhead + len("mme.example.org") + len(answer)
+
+	var logs bytes.Buffer
+
+	d, clock := testDuplicateCache(3 * entrySize)
+	d.logger = slog.New(slog.NewTextHandler(&logs, nil))
 
 	for i := range uint32(5) {
-		serveOnce(t, d, appRequest(i, i, "mme.example.org"))
+		e, _ := d.begin(appRequest(i, i, "mme.example.org"))
+		d.finish(e, answer)
 		clock.advance(time.Second)
 	}
 
-	if len(d.entries) != 3 || d.completed.len() != 3 {
-		t.Fatalf("%d entries and %d completed, want 3", len(d.entries), d.completed.len())
-	}
+	checkDuplicateCache(t, d, 3)
 
 	for i := range uint32(5) {
-		_, ok := d.entries[duplicateKey{peer: "id:mme", originHost: "mme.example.org", endToEndID: i}]
-		if ok != (i >= 2) {
-			t.Errorf("End-to-End %d cached = %v", i, ok)
+		if cached(d, i) != (i >= 2) {
+			t.Errorf("End-to-End %d cached = %v", i, cached(d, i))
 		}
+	}
+
+	if n := strings.Count(logs.String(), "cache is full"); n != 1 {
+		t.Fatalf("logged %d eviction warnings before the report interval, want 1:\n%s", n, logs.String())
+	}
+
+	clock.advance(duplicateReportInterval)
+
+	e, _ := d.begin(appRequest(5, 5, "mme.example.org"))
+	d.finish(e, answer)
+
+	if !strings.Contains(logs.String(), "evicted=2") {
+		t.Fatalf("evictions since the last warning not reported:\n%s", logs.String())
 	}
 }
 
+func TestDuplicateCacheOversizedAnswer(t *testing.T) {
+	d, _ := testDuplicateCache(duplicateEntryOverhead + 64)
+
+	req := appRequest(1, 7, "mme.example.org")
+	e, _ := d.begin(req)
+	d.finish(e, encodedAnswer(t, req))
+
+	if e.answerFor(req) == nil {
+		t.Fatal("waiting duplicates lost the answer")
+	}
+
+	checkDuplicateCache(t, d, 0)
+}
+
 func TestDuplicateCacheInFlight(t *testing.T) {
-	d, _ := testDuplicateCache(1)
+	d, _ := testDuplicateCache(DefaultDuplicateCacheBytes)
 
 	var originals []*duplicateEntry
 
 	for i := range uint32(3) {
-		e, original := d.begin("id:mme", appRequest(i, i, "mme.example.org"))
+		e, original := d.begin(appRequest(i, i, "mme.example.org"))
 		if !original {
 			t.Fatalf("request %d treated as a duplicate", i)
 		}
@@ -175,7 +332,7 @@ func TestDuplicateCacheInFlight(t *testing.T) {
 	}
 
 	for i := range uint32(3) {
-		e, original := d.begin("id:mme", appRequest(10+i, i, "mme.example.org"))
+		e, original := d.begin(appRequest(10+i, i, "mme.example.org"))
 		if original || e != originals[i] {
 			t.Fatalf("duplicate of in-flight request %d not detected", i)
 		}
@@ -187,6 +344,10 @@ func TestDuplicateCacheInFlight(t *testing.T) {
 		}
 	}
 
+	d.mu.Lock()
+	d.maxBytes = 0
+	d.mu.Unlock()
+
 	req := appRequest(0, 0, "mme.example.org")
 	d.finish(originals[0], encodedAnswer(t, req))
 
@@ -196,25 +357,30 @@ func TestDuplicateCacheInFlight(t *testing.T) {
 		t.Fatal("finished entry not done")
 	}
 
-	if binary.BigEndian.Uint32(originals[0].answerFor(42)[12:16]) != 42 {
+	if binary.BigEndian.Uint32(originals[0].answerFor(appRequest(42, 0, "mme.example.org"))[12:16]) != 42 {
 		t.Fatal("waiting duplicate did not get the original's answer")
 	}
 
-	d.finish(originals[1], encodedAnswer(t, req))
-	d.finish(originals[2], encodedAnswer(t, req))
+	checkDuplicateCache(t, d, 0)
 
-	if len(d.entries) != 1 || d.completed.len() != 1 {
-		t.Fatalf("%d entries and %d completed, want 1", len(d.entries), d.completed.len())
+	d.finish(originals[1], encodedAnswer(t, req))
+
+	select {
+	case <-originals[1].done:
+	default:
+		t.Fatal("evicted in-flight entry not released on finish")
 	}
+
+	checkDuplicateCache(t, d, 0)
 }
 
 func TestDuplicateCacheSlowRequest(t *testing.T) {
-	d, clock := testDuplicateCache(16)
+	d, clock := testDuplicateCache(DefaultDuplicateCacheBytes)
 
 	req := appRequest(1, 7, "mme.example.org")
-	e, _ := d.begin("id:mme", req)
+	e, _ := d.begin(req)
 
-	clock.advance(DefaultDuplicateWindow)
+	clock.advance(duplicateWindow)
 
 	if !serveOnce(t, d, appRequest(2, 7, "mme.example.org")) {
 		t.Fatal("request after the window matched an in-flight original")
@@ -228,13 +394,11 @@ func TestDuplicateCacheSlowRequest(t *testing.T) {
 		t.Fatal("finished entry not done")
 	}
 
-	if len(d.entries) != 1 || d.completed.len() != 1 {
-		t.Fatalf("%d entries and %d completed, want only the newer request", len(d.entries), d.completed.len())
-	}
+	checkDuplicateCache(t, d, 1)
 }
 
 func TestDuplicateCacheConcurrent(t *testing.T) {
-	d, clock := testDuplicateCache(1 << 12)
+	d, clock := testDuplicateCache(DefaultDuplicateCacheBytes)
 
 	const (
 		workers = 16
@@ -251,11 +415,11 @@ func TestDuplicateCacheConcurrent(t *testing.T) {
 			for i := range uint32(keys) {
 				req := appRequest(uint32(w), i, "mme.example.org")
 
-				e, original := d.begin("id:mme", req)
+				e, original := d.begin(req)
 				if !original {
 					<-e.done
 
-					if e.answerFor(uint32(w)) == nil {
+					if e.answerFor(req) == nil {
 						t.Error("duplicate got no answer")
 					}
 
@@ -279,50 +443,19 @@ func TestDuplicateCacheConcurrent(t *testing.T) {
 			t.Errorf("End-to-End %d handled %d times", i, n)
 		}
 	}
-}
 
-func TestDuplicateQueue(t *testing.T) {
-	var q duplicateQueue
-
-	entries := make([]*duplicateEntry, 100)
-	for i := range entries {
-		entries[i] = &duplicateEntry{commandCode: uint32(i)}
-	}
-
-	next := 0
-
-	for i, e := range entries {
-		q.push(e)
-
-		if i%3 == 2 {
-			if got := q.pop(); got != entries[next] {
-				t.Fatalf("pop = %d, want %d", got.commandCode, next)
-			}
-
-			next++
-		}
-	}
-
-	for q.len() > 0 {
-		if got := q.pop(); got != entries[next] {
-			t.Fatalf("pop = %d, want %d", got.commandCode, next)
-		}
-
-		next++
-	}
-
-	if next != len(entries) {
-		t.Fatalf("popped %d, want %d", next, len(entries))
-	}
+	checkDuplicateCache(t, d, keys)
 }
 
 func BenchmarkDuplicateCache(b *testing.B) {
+	answer := encodedAnswer(b, appRequest(0, 0, "mme.example.org"))
+	entrySize := duplicateEntryOverhead + len("mme.example.org") + len(answer)
+
 	for _, resident := range []int{1 << 14, 1 << 20} {
-		d := newDuplicateCache(DuplicateDetection{Window: DefaultDuplicateWindow, MaxEntries: resident})
-		answer := encodedAnswer(b, appRequest(0, 0, "mme.example.org"))
+		d := newDuplicateCache(resident*entrySize, slog.New(slog.DiscardHandler))
 
 		for i := range uint32(resident) {
-			e, _ := d.begin("id:mme", appRequest(i, i, "mme.example.org"))
+			e, _ := d.begin(appRequest(i, i, "mme.example.org"))
 			d.finish(e, answer)
 		}
 
@@ -334,7 +467,7 @@ func BenchmarkDuplicateCache(b *testing.B) {
 
 			for b.Loop() {
 				req.EndToEndID = endToEnd.Add(1)
-				e, _ := d.begin("id:mme", req)
+				e, _ := d.begin(req)
 				d.finish(e, answer)
 			}
 		})
@@ -345,7 +478,7 @@ func BenchmarkDuplicateCache(b *testing.B) {
 
 				for pb.Next() {
 					req.EndToEndID = endToEnd.Add(1)
-					e, _ := d.begin("id:mme", req)
+					e, _ := d.begin(req)
 					d.finish(e, answer)
 				}
 			})

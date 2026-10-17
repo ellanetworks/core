@@ -682,18 +682,16 @@ func TestNewValidatesConfiguration(t *testing.T) {
 	valid := testConfig("a.example.org")
 
 	tests := map[string]func(*Config){
-		"no host":             func(c *Config) { c.Identity.OriginHost = "" },
-		"no realm":            func(c *Config) { c.Identity.OriginRealm = "" },
-		"unspecified":         func(c *Config) { c.Identity.HostIPAddresses = []netip.Addr{netip.IPv4Unspecified()} },
-		"no product":          func(c *Config) { c.Identity.ProductName = "" },
-		"no handler":          func(c *Config) { c.Handler = nil },
-		"unknown, no apps":    func(c *Config) { c.AcceptUnknownPeers = true },
-		"negative timeout":    func(c *Config) { c.RequestTimeout = -1 },
-		"fast watchdog":       func(c *Config) { c.WatchdogInterval = time.Second },
-		"negative the limit":  func(c *Config) { c.MaxConcurrentRequests = -1 },
-		"negative dup limit":  func(c *Config) { c.DuplicateDetection.MaxEntries = -1 },
-		"negative dup window": func(c *Config) { c.DuplicateDetection.Window = -time.Second },
-		"long dup window":     func(c *Config) { c.DuplicateDetection.Window = 5 * time.Minute },
+		"no host":            func(c *Config) { c.Identity.OriginHost = "" },
+		"no realm":           func(c *Config) { c.Identity.OriginRealm = "" },
+		"unspecified":        func(c *Config) { c.Identity.HostIPAddresses = []netip.Addr{netip.IPv4Unspecified()} },
+		"no product":         func(c *Config) { c.Identity.ProductName = "" },
+		"no handler":         func(c *Config) { c.Handler = nil },
+		"unknown, no apps":   func(c *Config) { c.AcceptUnknownPeers = true },
+		"negative timeout":   func(c *Config) { c.RequestTimeout = -1 },
+		"fast watchdog":      func(c *Config) { c.WatchdogInterval = time.Second },
+		"negative the limit": func(c *Config) { c.MaxConcurrentRequests = -1 },
+		"negative dup limit": func(c *Config) { c.DuplicateCacheBytes = -1 },
 	}
 
 	for name, mutate := range tests {
@@ -710,7 +708,7 @@ func TestNewValidatesConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if n.cfg.WatchdogInterval != DefaultWatchdogInterval || n.cfg.OriginStateID == 0 || n.cfg.DuplicateDetection != (DuplicateDetection{Window: DefaultDuplicateWindow, MaxEntries: DefaultMaxDuplicateEntries}) {
+	if n.cfg.WatchdogInterval != DefaultWatchdogInterval || n.cfg.OriginStateID == 0 || n.cfg.DuplicateCacheBytes != DefaultDuplicateCacheBytes {
 		t.Fatalf("defaults = %+v", n.cfg)
 	}
 

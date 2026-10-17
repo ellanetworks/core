@@ -4,6 +4,7 @@
 package diameter
 
 import (
+	"bytes"
 	"context"
 	"net/netip"
 	"sync/atomic"
@@ -395,7 +396,7 @@ func TestWatchdogAndDisconnectAnswered(t *testing.T) {
 	}
 }
 
-func TestDuplicateRequestsPerPeer(t *testing.T) {
+func TestDuplicateRequestsAcrossPeers(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
 			var calls atomic.Int32
@@ -418,11 +419,11 @@ func TestDuplicateRequestsPerPeer(t *testing.T) {
 			victim := dialRaw(t, kind, loopback1, addr)
 			openRaw(t, victim, "mme.example.org", appAVP(sgdApp))
 
-			attacker := dialRaw(t, kind, loopback1, addr)
-			openRaw(t, attacker, "attacker.example.org", appAVP(sgdApp))
+			other := dialRaw(t, kind, loopback1, addr)
+			openRaw(t, other, "dra.example.org", appAVP(sgdApp))
 
-			attacker.send(appRequest(1, 777, "mme.example.org"))
-			attacker.recv()
+			other.send(appRequest(1, 777, "mme.example.org", UTF8String(AVPUserName, AVPFlagMandatory, 0, "spoofed")))
+			other.recv()
 
 			victim.send(appRequest(2, 777, "mme.example.org"))
 
@@ -431,17 +432,26 @@ func TestDuplicateRequestsPerPeer(t *testing.T) {
 				t.Fatalf("victim got %q after %d handler calls", user.UTF8String(), calls.Load())
 			}
 
-			retransmit := appRequest(3, 777, "mme.example.org")
-			retransmit.Flags |= FlagRetransmit
-			victim.send(retransmit)
+			proxyInfo := Grouped(AVPProxyInfo, AVPFlagMandatory, 0,
+				UTF8String(280, AVPFlagMandatory, 0, "dra.example.org"),
+				OctetString(33, AVPFlagMandatory, 0, []byte("state")))
 
-			if again := victim.recv(); again.HopByHopID != 3 || calls.Load() != 2 {
-				t.Fatalf("retransmission hop-by-hop %d after %d calls", again.HopByHopID, calls.Load())
+			retransmit := appRequest(3, 777, "mme.example.org", UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, "mme.example.org"), proxyInfo)
+			retransmit.Flags |= FlagRetransmit
+			other.send(retransmit)
+
+			again := other.recv()
+			if user, _ := again.Find(AVPUserName, 0); again.HopByHopID != 3 || user.UTF8String() != "mme.example.org" || calls.Load() != 2 {
+				t.Fatalf("retransmission through another peer: hop-by-hop %d user %q after %d calls", again.HopByHopID, user.UTF8String(), calls.Load())
 			}
 
-			other := appRequest(4, 777, "mme.example.org")
-			other.CommandCode = 8388646
-			victim.send(other)
+			if got, _ := again.Find(AVPProxyInfo, 0); !bytes.Equal(got.Data, proxyInfo.Data) {
+				t.Fatal("replayed answer does not carry the retransmission's Proxy-Info")
+			}
+
+			command := appRequest(4, 777, "mme.example.org")
+			command.CommandCode = 8388646
+			victim.send(command)
 			victim.recv()
 
 			if calls.Load() != 3 {

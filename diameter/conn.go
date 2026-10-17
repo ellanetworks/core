@@ -664,11 +664,11 @@ func (c *Conn) serve(req *Message) {
 	defer c.n.inflight.Done()
 	defer func() { <-c.requests }()
 
-	entry, original := c.n.duplicates.begin(c.peer.key(), req)
+	entry, original := c.n.duplicates.begin(req)
 	if !original {
 		select {
 		case <-entry.done:
-			if b := entry.answerFor(req.HopByHopID); b != nil {
+			if b := entry.answerFor(req); b != nil {
 				_ = c.writeRaw(b)
 			}
 		case <-c.done:

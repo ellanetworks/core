@@ -26,14 +26,10 @@ const (
 	DefaultRequestTimeout        = 30 * time.Second
 	DefaultMaxConcurrentRequests = 256
 	DefaultMaxPendingConnections = 64
-	DefaultDuplicateWindow       = maxDuplicateWindow
-	DefaultMaxDuplicateEntries   = 1 << 16
+	DefaultDuplicateCacheBytes   = 64 << 20
 )
 
-const (
-	minWatchdogInterval = 6 * time.Second
-	maxDuplicateWindow  = 4 * time.Minute
-)
+const minWatchdogInterval = 6 * time.Second
 
 var (
 	ErrClosed                 = errors.New("diameter: node closed")
@@ -82,7 +78,7 @@ type Config struct {
 	HandlerTimeout              time.Duration
 	MaxConcurrentRequests       int
 	MaxPendingConnections       int
-	DuplicateDetection          DuplicateDetection
+	DuplicateCacheBytes         int
 	OnPeerStateChange           func(PeerStatus)
 	OnReroute                   func(Reroute)
 	SourceAddress               func(remote netip.Addr) (netip.Addr, error)
@@ -92,11 +88,6 @@ type Config struct {
 	watchdogJitter    time.Duration
 	allowFastWatchdog bool
 	noWatchdogJitter  bool
-}
-
-type DuplicateDetection struct {
-	Window     time.Duration
-	MaxEntries int
 }
 
 type Peer struct {
@@ -167,7 +158,7 @@ func New(cfg Config) (*Node, error) {
 		conns:        make(map[*Conn]struct{}),
 		listeners:    make(map[Listener]struct{}),
 		peersChanged: make(chan struct{}),
-		duplicates:   newDuplicateCache(cfg.DuplicateDetection),
+		duplicates:   newDuplicateCache(cfg.DuplicateCacheBytes, cfg.Logger),
 		sessionHigh:  uint32(time.Now().Unix() + ntpUnixOffset),
 	}
 
@@ -213,7 +204,6 @@ func validateConfig(cfg *Config) error {
 		{"ReconnectInterval", &cfg.ReconnectInterval, DefaultReconnectInterval},
 		{"MaxReconnectInterval", &cfg.MaxReconnectInterval, DefaultMaxReconnectInterval},
 		{"RequestTimeout", &cfg.RequestTimeout, DefaultRequestTimeout},
-		{"DuplicateDetection.Window", &cfg.DuplicateDetection.Window, DefaultDuplicateWindow},
 	}
 
 	for _, d := range durations {
@@ -233,15 +223,11 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("diameter: WatchdogInterval %s is below the %s minimum", cfg.WatchdogInterval, minWatchdogInterval)
 	}
 
-	if cfg.DuplicateDetection.Window > maxDuplicateWindow {
-		return fmt.Errorf("diameter: DuplicateDetection.Window %s exceeds the %s End-to-End Identifier uniqueness period", cfg.DuplicateDetection.Window, maxDuplicateWindow)
-	}
-
 	if cfg.MaxReconnectInterval < cfg.ReconnectInterval {
 		cfg.MaxReconnectInterval = cfg.ReconnectInterval
 	}
 
-	for _, v := range []*int{&cfg.MaxConcurrentRequests, &cfg.MaxPendingConnections, &cfg.DuplicateDetection.MaxEntries} {
+	for _, v := range []*int{&cfg.MaxConcurrentRequests, &cfg.MaxPendingConnections, &cfg.DuplicateCacheBytes} {
 		if *v < 0 {
 			return errors.New("diameter: limits must not be negative")
 		}
@@ -255,8 +241,8 @@ func validateConfig(cfg *Config) error {
 		cfg.MaxPendingConnections = DefaultMaxPendingConnections
 	}
 
-	if cfg.DuplicateDetection.MaxEntries == 0 {
-		cfg.DuplicateDetection.MaxEntries = DefaultMaxDuplicateEntries
+	if cfg.DuplicateCacheBytes == 0 {
+		cfg.DuplicateCacheBytes = DefaultDuplicateCacheBytes
 	}
 
 	if cfg.watchdogJitter == 0 && !cfg.noWatchdogJitter {
