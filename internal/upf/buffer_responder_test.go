@@ -101,6 +101,89 @@ func newTestResponder() (*BufferResponder, *[][]byte) {
 	return b, frames
 }
 
+const fakeRingSEID = 3
+
+type fakeRing struct {
+	mu         sync.Mutex
+	prod       uintptr
+	cons       uintptr
+	pending    [][]byte
+	onProducer func()
+}
+
+func (r *fakeRing) capture(payload []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	rec := buildRecord(fakeRingSEID, 1, 1, 4, payload)
+	r.pending = append(r.pending, rec)
+	r.prod += uintptr(8 + (len(rec)+7)&^7)
+}
+
+func (r *fakeRing) consumeAll(b *BufferResponder) {
+	r.mu.Lock()
+	pending := r.pending
+	r.pending = nil
+	r.mu.Unlock()
+
+	for _, rec := range pending {
+		b.handleRecord(rec)
+
+		r.mu.Lock()
+		r.cons += uintptr(8 + (len(rec)+7)&^7)
+		cons := r.cons
+		r.mu.Unlock()
+
+		b.advanceConsumed(cons)
+	}
+}
+
+func (r *fakeRing) producer() uintptr {
+	r.mu.Lock()
+	prod := r.prod
+	r.mu.Unlock()
+
+	if r.onProducer != nil {
+		r.onProducer()
+	}
+
+	return prod
+}
+
+func (r *fakeRing) consumer() uintptr {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.cons
+}
+
+func (r *fakeRing) Close() error { return nil }
+
+type fakePrograms struct {
+	err    error
+	onWait func()
+}
+
+func (p *fakePrograms) wait() error {
+	if p.onWait != nil {
+		p.onWait()
+	}
+
+	return p.err
+}
+
+func (p *fakePrograms) Close() error { return nil }
+
+func withFakeBarrier(b *BufferResponder) (*fakeRing, *fakePrograms) {
+	ring := &fakeRing{}
+	programs := &fakePrograms{}
+
+	b.positions = ring
+	b.programs = programs
+
+	return ring, programs
+}
+
 func TestEnqueuePerQueueCapHeadDrop(t *testing.T) {
 	b, _ := newTestResponder()
 
@@ -274,26 +357,42 @@ func TestDrainFramesPacketsAndClearsQueue(t *testing.T) {
 }
 
 // A packet captured before the FAR flip whose record is read only after
-// the queue was popped must still be delivered.
+// Drain began must still be delivered.
 func TestDrainDeliversLateCapturedPacket(t *testing.T) {
 	b, frames := newTestResponder()
+	ring, _ := withFakeBarrier(b)
 
-	b.mu.Lock()
-	b.enqueue(3, 1, 4, []byte{1})
-	b.mu.Unlock()
+	ring.capture([]byte{1})
+	ring.consumeAll(b)
+	ring.capture([]byte{2})
+
+	snapshotted := make(chan struct{})
+	ring.onProducer = func() { close(snapshotted) }
+
+	drained := make(chan struct{})
 
 	go func() {
-		time.Sleep(drainPace)
+		defer close(drained)
 
-		b.mu.Lock()
-		b.enqueue(3, 1, 4, []byte{2})
-		b.mu.Unlock()
+		b.Drain(3)
 	}()
 
-	b.Drain(3)
+	<-snapshotted
+
+	ring.consumeAll(b)
+
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Drain did not return after the consumer caught up")
+	}
 
 	if got := len(*frames); got != 2 {
 		t.Fatalf("sent %d frames, want 2", got)
+	}
+
+	if got := (*frames)[0][14]; got != 1 {
+		t.Errorf("first frame payload = %d, want the early packet", got)
 	}
 
 	if got := (*frames)[1][14]; got != 2 {
@@ -305,6 +404,184 @@ func TestDrainDeliversLateCapturedPacket(t *testing.T) {
 
 	if _, ok := b.buffers[3]; ok {
 		t.Error("queue still present after Drain")
+	}
+}
+
+func TestDrainSnapshotsProducerAfterProgramsFinish(t *testing.T) {
+	b, frames := newTestResponder()
+	ring, programs := withFakeBarrier(b)
+
+	var order []string
+
+	programs.onWait = func() {
+		order = append(order, "wait")
+
+		ring.capture([]byte{1})
+	}
+
+	ring.onProducer = func() {
+		order = append(order, "producer")
+
+		go ring.consumeAll(b)
+	}
+
+	b.Drain(3)
+
+	if !slices.Equal(order, []string{"wait", "producer"}) {
+		t.Errorf("barrier order = %v, want [wait producer]", order)
+	}
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want the packet captured by the in-flight program", got)
+	}
+}
+
+func TestDrainLeavesPacketsCapturedAfterBarrierQueued(t *testing.T) {
+	b, frames := newTestResponder()
+	withFakeBarrier(b)
+
+	b.mu.Lock()
+	b.enqueue(3, 1, 4, []byte{1})
+	b.mu.Unlock()
+
+	send := b.send
+	b.send = func(fd int, frame []byte) error {
+		b.enqueue(3, 1, 4, []byte{2})
+
+		return send(fd, frame)
+	}
+
+	b.Drain(3)
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want 1", got)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	q, ok := b.buffers[3]
+	if !ok || len(q.packets) != 1 || q.packets[0].data[0] != 2 {
+		t.Error("packet captured after the barrier was not left queued for the next drain")
+	}
+}
+
+func TestDrainReturnsWhenClosedWhileWaiting(t *testing.T) {
+	b, frames := newTestResponder()
+	ring, _ := withFakeBarrier(b)
+
+	ring.capture([]byte{1})
+
+	snapshotted := make(chan struct{})
+	ring.onProducer = func() { close(snapshotted) }
+
+	drained := make(chan struct{})
+
+	go func() {
+		defer close(drained)
+
+		b.Drain(3)
+	}()
+
+	<-snapshotted
+
+	b.mu.Lock()
+	b.closed = true
+	b.signalProgressLocked()
+	b.mu.Unlock()
+
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Drain did not return after Close")
+	}
+
+	if got := len(*frames); got != 0 {
+		t.Errorf("sent %d frames after Close, want 0", got)
+	}
+}
+
+func TestDrainGivesUpOnStalledConsumer(t *testing.T) {
+	b, frames := newTestResponder()
+	ring, _ := withFakeBarrier(b)
+
+	saved := drainBarrierTimeout
+	drainBarrierTimeout = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainBarrierTimeout = saved })
+
+	b.mu.Lock()
+	b.enqueue(3, 1, 4, []byte{1})
+	b.mu.Unlock()
+
+	ring.capture([]byte{2})
+
+	b.Drain(3)
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want the packet already queued", got)
+	}
+}
+
+func TestDrainProgramWaitFailureStillDrains(t *testing.T) {
+	b, frames := newTestResponder()
+	_, programs := withFakeBarrier(b)
+
+	programs.err = errors.New("barrier failed")
+
+	b.mu.Lock()
+	b.enqueue(3, 1, 4, []byte{1})
+	b.mu.Unlock()
+
+	b.Drain(3)
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want 1", got)
+	}
+}
+
+func TestPositionBeforeWraps(t *testing.T) {
+	maxPos := ^uintptr(0)
+
+	cases := []struct {
+		pos, target uintptr
+		want        bool
+	}{
+		{0, 0, false},
+		{1, 2, true},
+		{2, 1, false},
+		{maxPos, 8, true},
+		{8, maxPos, false},
+	}
+
+	for _, tc := range cases {
+		if got := positionBefore(tc.pos, tc.target); got != tc.want {
+			t.Errorf("positionBefore(%d, %d) = %v, want %v", tc.pos, tc.target, got, tc.want)
+		}
+	}
+}
+
+func TestAdvanceConsumedWakesWaiters(t *testing.T) {
+	b, _ := newTestResponder()
+
+	b.mu.Lock()
+	progress := b.progress
+	b.mu.Unlock()
+
+	b.advanceConsumed(b.consumedPos)
+
+	select {
+	case <-progress:
+		t.Fatal("unchanged position signalled progress")
+	default:
+	}
+
+	b.advanceConsumed(b.consumedPos + 16)
+
+	select {
+	case <-progress:
+	default:
+		t.Fatal("advanced position did not signal progress")
 	}
 }
 

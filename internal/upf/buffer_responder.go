@@ -33,13 +33,9 @@ const (
 
 	// drainPace spaces re-injected packets to avoid bursting the rate limiter.
 	drainPace = time.Millisecond
-
-	// drainGrace spaces the drain's re-checks for late-enqueued packets.
-	drainGrace = 2 * time.Millisecond
-
-	// drainGraceWindow bounds the drain's re-checking.
-	drainGraceWindow = 50 * time.Millisecond
 )
+
+var drainBarrierTimeout = time.Second
 
 // queuedPacket is one captured L3 packet awaiting re-injection.
 type queuedPacket struct {
@@ -79,6 +75,13 @@ type BufferResponder struct {
 	buffers    map[uint64]*packetQueue // keyed by local SEID
 	totalBytes int
 
+	barrierMu sync.RWMutex
+	positions ringPositions
+	programs  programWaiter
+
+	consumedPos uintptr
+	progress    chan struct{}
+
 	// send injects one frame; overridable in tests.
 	send func(fd int, frame []byte) error
 }
@@ -90,6 +93,7 @@ func NewBufferResponder(bpfObjects *ebpf.BpfObjects) *BufferResponder {
 		bpfObjects: bpfObjects,
 		injectFD:   -1,
 		buffers:    make(map[uint64]*packetQueue),
+		progress:   make(chan struct{}),
 	}
 	b.send = b.sendFrame
 
@@ -155,6 +159,34 @@ func (b *BufferResponder) Start() error {
 		return fmt.Errorf("open dl_buffer ring buffer: %w", err)
 	}
 
+	positions, err := openRingCursor(b.bpfObjects.DlBufferMap)
+	if err != nil {
+		_ = b.reader.Close()
+		_ = unix.Close(fd)
+		b.injectFD = -1
+
+		return fmt.Errorf("map dl_buffer ring positions: %w", err)
+	}
+
+	programs, err := newProgramBarrier()
+	if err != nil {
+		_ = positions.Close()
+		_ = b.reader.Close()
+		_ = unix.Close(fd)
+		b.injectFD = -1
+
+		return fmt.Errorf("create datapath program barrier: %w", err)
+	}
+
+	b.barrierMu.Lock()
+	b.positions = positions
+	b.programs = programs
+	b.barrierMu.Unlock()
+
+	b.mu.Lock()
+	b.consumedPos = positions.consumer()
+	b.mu.Unlock()
+
 	b.done = make(chan struct{})
 	b.evictStop = make(chan struct{})
 	b.evictDone = make(chan struct{})
@@ -211,6 +243,7 @@ func (b *BufferResponder) Close() error {
 	}
 
 	b.closed = true
+	b.signalProgressLocked()
 	b.mu.Unlock()
 
 	if b.bpfObjects != nil {
@@ -231,6 +264,18 @@ func (b *BufferResponder) Close() error {
 		close(b.evictStop)
 		<-b.evictDone
 	}
+
+	b.barrierMu.Lock()
+	if b.positions != nil {
+		_ = b.positions.Close()
+		b.positions = nil
+	}
+
+	if b.programs != nil {
+		_ = b.programs.Close()
+		b.programs = nil
+	}
+	b.barrierMu.Unlock()
 
 	b.mu.Lock()
 	if b.injectFD >= 0 {
@@ -262,11 +307,29 @@ func (b *BufferResponder) consume() {
 
 		if err != nil {
 			logger.UpfLog.Warn("dl buffer ring read error", zap.Error(err))
-			continue
+		} else {
+			b.handleRecord(record.RawSample)
 		}
 
-		b.handleRecord(record.RawSample)
+		b.advanceConsumed(b.positions.consumer())
 	}
+}
+
+func (b *BufferResponder) advanceConsumed(pos uintptr) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if pos == b.consumedPos {
+		return
+	}
+
+	b.consumedPos = pos
+	b.signalProgressLocked()
+}
+
+func (b *BufferResponder) signalProgressLocked() {
+	close(b.progress)
+	b.progress = make(chan struct{})
 }
 
 // handleRecord decodes one ring record and queues the packet.
@@ -399,35 +462,52 @@ func (b *BufferResponder) evictOldestLocked() bool {
 
 // Drain re-injects a session's buffered packets.
 func (b *BufferResponder) Drain(seid uint64) {
-	deadline := time.Now().Add(drainGraceWindow)
-
-	for time.Now().Before(deadline) {
-		b.drainQueue(seid)
-
-		if b.queueLen(seid) == 0 {
-			if time.Now().After(deadline) {
-				return
-			}
-
-			time.Sleep(drainGrace)
-
-			if b.queueLen(seid) == 0 {
-				return
-			}
-		}
+	if err := b.awaitCaptured(); err != nil {
+		logger.UpfLog.Warn("draining before every captured packet was queued",
+			logger.SEID(seid), zap.Error(err))
 	}
+
+	b.drainQueue(seid)
 }
 
-// queueLen returns the number of packets waiting for the session.
-func (b *BufferResponder) queueLen(seid uint64) int {
+func (b *BufferResponder) awaitCaptured() error {
+	b.barrierMu.RLock()
+	defer b.barrierMu.RUnlock()
+
+	if b.positions == nil {
+		return nil
+	}
+
+	if err := b.programs.wait(); err != nil {
+		return fmt.Errorf("wait for running datapath programs: %w", err)
+	}
+
+	target := b.positions.producer()
+
+	timeout := time.NewTimer(drainBarrierTimeout)
+	defer timeout.Stop()
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if q, ok := b.buffers[seid]; ok {
-		return len(q.packets)
+	for !b.closed && positionBefore(b.consumedPos, target) {
+		progress := b.progress
+
+		b.mu.Unlock()
+
+		select {
+		case <-progress:
+		case <-timeout.C:
+			b.mu.Lock()
+
+			return fmt.Errorf("ring consumer at %d did not reach %d within %s",
+				b.consumedPos, target, drainBarrierTimeout)
+		}
+
+		b.mu.Lock()
 	}
 
-	return 0
+	return nil
 }
 
 // drainQueue pops the session's queued packets and re-injects them paced.
