@@ -11,4 +11,5 @@ The following explanations provide context and clarification on key-topics relat
 - [Managing SIM Cards](managing_sim_cards.md)
 - [Advertising and receiving routes via BGP](bgp.md)
 - [Ella Core and VRFs](vrf.md)
-- [Voice](voice.md)
+- [Voice Integration](voice_integration.md)
+- [SMS Integration](sms_integration.md)

@@ -2,7 +2,7 @@
 description: Explanation of how voice functionality works in Ella Core.
 ---
 
-# Voice
+# Voice Integration
 
 Ella Core lets subscribers make voice and video calls over 4G (VoLTE) and 5G (VoNR). Calls are handled by an external IP Multimedia Subsystem (IMS), and Ella Core provides the subscriber data and the Quality of Service (QoS) the IMS needs.
 
@@ -70,38 +70,20 @@ Ella Core indicates IMS voice support when all of the following hold:
 
 On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
 
-## IMS registration
-
-1. The phone opens a session on the `ims` data network and receives the P-CSCF addresses.
-2. The phone registers with the IMS through the P-CSCF.
-3. The IMS queries Ella Core over Cx to authorize the subscriber and obtain authentication vectors.
-4. The phone and the IMS authenticate each other with IMS AKA, using the keys stored on the SIM.
-5. The S-CSCF registers the subscriber with Ella Core, which records its registration state and S-CSCF.
-
-The [Subscribers API](../reference/api/subscribers.md) returns the subscriber's IMS identities, registration state, and S-CSCF.
-
-When a subscriber is deleted, Ella Core asks the S-CSCF to terminate its IMS registration.
-
 ## Call setup and QoS
 
-1. The caller sends a call request (SIP INVITE) to the IMS.
-2. During call setup, the P-CSCF describes the call's media to Ella Core over Rx: its type, IP addresses, ports, and bandwidth.
-3. Ella Core creates a guaranteed bitrate (GBR) QoS flow (5G) or dedicated bearer (4G) for the media, on the phone's `ims` session.
-4. The radio schedules the media with the matching QoS class, and the user plane steers the media packets into it.
-5. When the call ends, the P-CSCF closes the Rx session and Ella Core releases the QoS flow or bearer.
+1. During call setup, the P-CSCF describes the call's media to Ella Core over Rx: its type, IP addresses, ports, and bandwidth.
+2. Ella Core creates a guaranteed bitrate (GBR) QoS flow (5G) or dedicated bearer (4G) for the media, on the phone's `ims` session.
+3. When the call ends, the P-CSCF closes the Rx session and Ella Core releases the QoS flow or bearer.
 
 | Media | 5QI / QCI | ARP priority |
 | ----- | --------- | ------------ |
 | Voice | 1 | 2 |
 | Video | 2 | 4 |
 
-If the radio or the phone cannot set up the media's resources, Ella Core reports it to the IMS when the IMS asked to be notified. If the phone's `ims` session is released, Ella Core ends the IMS's Rx sessions for that phone.
-
 ## EPS fallback
 
-Some 5G radios are configured not to carry voice calls. When a voice call starts, such a radio refuses the voice QoS flow and moves the phone to 4G. This is called EPS fallback.
-
-Ella Core keeps the call's QoS while the phone moves, and sets it up as a dedicated bearer once the phone is on 4G.
+Some 5G radios are configured not to carry voice calls. When a voice call starts, such a radio refuses the voice QoS flow and moves the phone to 4G, where Ella Core sets up the call's QoS as a dedicated bearer.
 
 ## In an HA cluster
 
