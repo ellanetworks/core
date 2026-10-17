@@ -30,4 +30,13 @@ func TestMTOutcomesLogTheCauseAndDiagnosticByName(t *testing.T) {
 	if detached["absent_user_diagnostic"] != uint32(1) || detached["absent_user_diagnostic_name"] != "IMSI_DETACHED" {
 		t.Fatalf("absent user fields = %v", detached)
 	}
+
+	system := logged(systemFailure().logFields())
+	if system["result"] != uint32(5012) || system["result_name"] != "DIAMETER_UNABLE_TO_COMPLY" {
+		t.Fatalf("system failure fields = %v", system)
+	}
+
+	if _, ok := system["delivery_failure_cause"]; ok {
+		t.Fatalf("system failure fields = %v, want no delivery failure cause", system)
+	}
 }

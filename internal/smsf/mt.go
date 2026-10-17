@@ -23,7 +23,7 @@ import (
 const deliveryTimerMargin = 2 * time.Second
 
 type mtOutcome struct {
-	result     uint32
+	result     tgpp.Result
 	cause      sgd.DeliveryFailureCause
 	report     []byte
 	diagnostic *tgpp.AbsentUserDiagnostic
@@ -40,28 +40,24 @@ func (o mtOutcome) because(class, reason string, err error) mtOutcome {
 	return o
 }
 
-func (o mtOutcome) resultName() string {
-	if o.result == diameter.ResultSuccess {
-		return diameter.ResultName(o.result)
-	}
-
-	return tgpp.Experimental(o.result).Name()
+func (o mtOutcome) succeeded() bool {
+	return o.result == tgpp.Result{Code: diameter.ResultSuccess}
 }
 
 func (o mtOutcome) logFields() []zap.Field {
 	fields := []zap.Field{
-		zap.Uint32("result", o.result),
-		zap.String("result_name", o.resultName()),
+		zap.Uint32("result", o.result.Code),
+		zap.String("result_name", o.result.Name()),
 		zap.String("reason", o.reason),
 	}
 
-	switch o.result {
-	case tgpp.ResultErrorSMDeliveryFailure:
+	switch {
+	case o.result.IsExperimental(tgpp.ResultErrorSMDeliveryFailure):
 		fields = append(fields,
 			zap.Uint32("delivery_failure_cause", uint32(o.cause)),
 			zap.Stringer("delivery_failure_cause_name", o.cause),
 		)
-	case tgpp.ResultErrorAbsentUser:
+	case o.result.IsExperimental(tgpp.ResultErrorAbsentUser):
 		if o.diagnostic != nil {
 			fields = append(fields,
 				zap.Uint32("absent_user_diagnostic", uint32(*o.diagnostic)),
@@ -78,39 +74,47 @@ func (o mtOutcome) logFields() []zap.Field {
 }
 
 func delivered(report []byte) mtOutcome {
-	return mtOutcome{result: diameter.ResultSuccess, report: report, class: mtDelivered}
+	return mtOutcome{result: tgpp.Result{Code: diameter.ResultSuccess}, report: report, class: mtDelivered}
 }
 
 func deliveryFailure(cause sgd.DeliveryFailureCause, diagnostic []byte) mtOutcome {
-	return mtOutcome{result: tgpp.ResultErrorSMDeliveryFailure, cause: cause, report: diagnostic}
+	return mtOutcome{result: tgpp.Experimental(tgpp.ResultErrorSMDeliveryFailure), cause: cause, report: diagnostic}
 }
 
 func absent(diagnostic tgpp.AbsentUserDiagnostic) mtOutcome {
-	return mtOutcome{result: tgpp.ResultErrorAbsentUser, diagnostic: &diagnostic}
+	return mtOutcome{result: tgpp.Experimental(tgpp.ResultErrorAbsentUser), diagnostic: &diagnostic}
 }
 
-func experimental(code uint32) mtOutcome { return mtOutcome{result: code} }
+func unreachable() mtOutcome {
+	return mtOutcome{result: tgpp.Experimental(tgpp.ResultErrorAbsentUser)}
+}
+
+func experimental(code uint32) mtOutcome { return mtOutcome{result: tgpp.Experimental(code)} }
+
+func systemFailure() mtOutcome {
+	return mtOutcome{result: tgpp.Result{Code: diameter.ResultUnableToComply}}
+}
 
 func (o mtOutcome) answer(req *diameter.Message, id diameter.Identity) *diameter.Message {
-	switch o.result {
-	case diameter.ResultSuccess:
+	switch {
+	case o.succeeded():
 		ans, err := sgd.NewMTForwardShortMessageAnswer(req, id, o.report)
 		if err != nil {
 			ans, _ = sgd.NewMTForwardShortMessageAnswer(req, id, nil)
 		}
 
 		return ans
-	case tgpp.ResultErrorSMDeliveryFailure:
+	case o.result.IsExperimental(tgpp.ResultErrorSMDeliveryFailure):
 		ans, err := sgd.NewDeliveryFailureAnswer(req, id, o.cause, o.report)
 		if err != nil {
 			ans, _ = sgd.NewDeliveryFailureAnswer(req, id, o.cause, nil)
 		}
 
 		return ans
-	case tgpp.ResultErrorAbsentUser:
+	case o.result.IsExperimental(tgpp.ResultErrorAbsentUser):
 		return sgd.NewAbsentUserAnswer(req, id, o.diagnostic)
 	default:
-		return tgpp.NewExperimentalAnswer(req, id, o.result)
+		return tgpp.NewResultAnswer(req, id, o.result)
 	}
 }
 
@@ -151,7 +155,7 @@ func (s *SMSF) MTForwardShortMessage(ctx context.Context, id diameter.Identity, 
 		zap.Bool("more_messages_to_send", m.MoreMessagesToSend),
 	)
 
-	if outcome.result == diameter.ResultSuccess {
+	if outcome.succeeded() {
 		log.Info("Delivered a mobile-terminated SMS")
 	} else {
 		log.Warn("Could not deliver a mobile-terminated SMS", outcome.logFields()...)
@@ -196,7 +200,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 			u.mt = nil
 			alert, u.deferredAlert = u.deferredAlert, false
 
-			if moreMessages && outcome.result == diameter.ResultSuccess {
+			if moreMessages && outcome.succeeded() {
 				s.holdForMoreMessagesLocked(ctx, imsi, u)
 			}
 		}
@@ -216,7 +220,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		UserData:   tpdu,
 	}).MarshalBinary()
 	if err != nil {
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because(mtError, "RP-DATA cannot be encoded", err)
+		return systemFailure().because(mtError, "RP-DATA cannot be encoded", err)
 	}
 
 	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, &t.cpTxn)
@@ -260,7 +264,8 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 		s.markWaiting(ctx, imsi, serviceCentre)
 		return absent(tgpp.AbsentUserNoPagingResponseMSC).because(mtAbsent, "UE did not respond to paging", err), true
 	default:
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because(mtError, "could not send the SMS to the UE", err), true
+		s.markWaiting(ctx, imsi, serviceCentre)
+		return unreachable().because(mtError, "could not send the SMS to the UE", err), true
 	}
 }
 
