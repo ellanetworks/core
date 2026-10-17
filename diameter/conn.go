@@ -664,7 +664,7 @@ func (c *Conn) serve(req *Message) {
 	defer c.n.inflight.Done()
 	defer func() { <-c.requests }()
 
-	key, entry, original := c.n.duplicates.begin(c.peer.key(), req)
+	entry, original := c.n.duplicates.begin(c.peer.key(), req)
 	if !original {
 		select {
 		case <-entry.done:
@@ -686,7 +686,7 @@ func (c *Conn) serve(req *Message) {
 		b, _ = c.Answer(req, ResultUnableToComply).Marshal()
 	}
 
-	c.n.duplicates.finish(key, entry, b)
+	c.n.duplicates.finish(entry, b)
 	after.run(c, c.writeRaw(b))
 }
 
