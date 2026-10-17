@@ -16,19 +16,14 @@ Use Ella Core where you need mobile connectivity: in a factory, a warehouse, a f
 
 ## Key features
 
+- **4G and 5G Compliant**: Ella Core implements 3GPP-standard interfaces and has been validated with multiple 4G and 5G radios, including integrated and software-defined RANs, commercial phones and devices. It is 5G RedCap compliant for IoT deployments.
 - **Performant Data Plane**: Achieve high throughput and low latency with an eBPF-based data plane. Ella Core delivers over 10 Gbps of throughput and less than 1 ms of latency.
 - **Lightweight**: Ella Core is a single binary with an embedded database, making it easy and quick to stand up. It requires as little as 1 CPU core, 1GB of RAM, and 10GB of disk space. Forget specialized hardware; all you need to operate your mobile core network is a Linux system with a network interface.
 - **Highly Available**: Deploy Ella Core as a high-availability cluster to ensure continuous operation with failover capabilities.
-- **Subscriber Traffic Control**: Define permitted network flows per subscriber, enforce them in the user plane. Track subscriber traffic and usage in real time.
-- **Data, Voice, and SMS**: Built-in support for data. Integrate with an IMS to enable voice and video calls, and with an SMSC to enable SMS.
+- **Data, Voice, and SMS**: Data is built in. Integrate with an IMS for VoLTE and VoNR voice and video calls, and with an SMSC for SMS.
+- **Enterprise Network Integration**: Plug into your existing network with BGP, VLANs, and VRFs. Define permitted network flows per subscriber, enforce them in the user plane, and track subscriber traffic and usage in real time.
 - **AI-Native API**: Complete RESTful API and Go client for automation and integration. Manage your network programmatically or let AI agents do it securely using the OpenAPI specification and AI agent skill.
-- **BGP Support**: Advertise subscriber routes to your enterprise network and receive routes from BGP peers.
-- **Intuitive User Experience**: Manage subscribers, radios, data networks, policies, and operator information through a user-friendly embedded web interface.
-- **Real-Time Observability**: Access logs, metrics, traces, profiles, and dashboards to monitor network health through the UI, the Prometheus-compliant API, or an OpenTelemetry collector.
-- **Backup and Restore**: Backup and restore your data in 1 click.
-- **4G and 5G Compliant**: Ella Core implements 3GPP-standard interfaces and has been validated with multiple 4G and 5G radios, including integrated and software-defined RANs, commercial phones and devices. It is 5G RedCap compliant for IoT deployments.
-- **Audit Logs**: At any moment, keep track of who did what and when on your network.
-- **Source Available**: Ella Core is available under the Business Source License 1.1 (BUSL-1.1).
+- **Easy to Operate**: Manage your private network through a user-friendly embedded web interface. Monitor network health with real-time observability: logs, metrics (Prometheus), traces (OTel), profiles, and dashboards. Keep track of who did what and when with audit logs, and back up and restore your data in 1 click.
 
 ## Quick Links
 

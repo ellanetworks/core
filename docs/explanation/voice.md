@@ -28,7 +28,7 @@ Ella Core plays two roles for the IMS, both over Diameter:
 | Role | Interface | Used for |
 | ---- | --------- | -------- |
 | HSS | Cx | Subscriber identities, authentication, and the S-CSCF assigned to each subscriber. |
-| PCRF | Rx | QoS for the media of each call. |
+| PCRF / PCF | Rx | QoS for the media of each call. |
 
 Both interfaces are used for 4G and 5G subscribers. The IMS connects to Ella Core's Diameter interface, over SCTP or TCP.
 
@@ -36,10 +36,10 @@ Ella Core also carries the phone's traffic to and from the IMS, on a dedicated d
 
 ## The `ims` data network
 
-The `ims` data network carries SIP signalling and call media between the phones and the IMS.
+The `ims` data network carries the phones' SIP signalling and call media.
 
 - **P-CSCF discovery**: When a phone opens a session on `ims`, Ella Core gives it the P-CSCF addresses configured in the Operator settings, of the IP version the phone requested.
-- **Signalling QoS**: The session's default QoS uses 5QI / QCI 5, the class reserved for IMS signalling.
+- **Signalling QoS**: The session's default QoS uses 5QI / QCI 5, the standard class for IMS signalling.
 - **No NAT**: Traffic on `ims` is never translated, so the IMS can reach phones at their own IP address.
 - **UE-to-UE**: Traffic between two phones on `ims` is always switched locally, so calls between them work even when local switching is disabled.
 
@@ -59,7 +59,7 @@ The `sip:` identity is barred, so it cannot be used for calls. A subscriber with
 
 ## Voice support indication
 
-During registration (5G) or attach and tracking area update (4G), Ella Core tells each phone whether IMS voice is supported. Phones only enable VoLTE or VoNR when it is.
+During registration (5G) or attach and tracking area update (4G), Ella Core tells each phone whether IMS voice is supported. Phones rely on it to decide whether to use VoLTE or VoNR.
 
 Ella Core indicates IMS voice support when all of the following hold:
 
@@ -74,9 +74,9 @@ On the Subscriber page, **Voice** shows the subscriber's voice state and, when v
 
 1. The phone opens a session on the `ims` data network and receives the P-CSCF addresses.
 2. The phone registers with the IMS through the P-CSCF.
-3. The IMS queries Ella Core over Cx to authorize the subscriber, assign an S-CSCF, and obtain authentication vectors.
+3. The IMS queries Ella Core over Cx to authorize the subscriber and obtain authentication vectors.
 4. The phone and the IMS authenticate each other with IMS AKA, using the keys stored on the SIM.
-5. Ella Core records the subscriber's registration state and S-CSCF.
+5. The S-CSCF registers the subscriber with Ella Core, which records its registration state and S-CSCF.
 
 The [Subscribers API](../reference/api/subscribers.md) returns the subscriber's IMS identities, registration state, and S-CSCF.
 
@@ -99,7 +99,7 @@ If the radio or the phone cannot set up the media's resources, Ella Core reports
 
 ## EPS fallback
 
-Some 5G radios do not carry voice calls themselves. When a voice call starts, such a radio refuses the voice QoS flow and moves the phone to 4G. This is called EPS fallback.
+Some 5G radios are configured not to carry voice calls. When a voice call starts, such a radio refuses the voice QoS flow and moves the phone to 4G. This is called EPS fallback.
 
 Ella Core keeps the call's QoS while the phone moves, and sets it up as a dedicated bearer once the phone is on 4G.
 
