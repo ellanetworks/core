@@ -32,10 +32,16 @@ type forwarded struct {
 func forwardAsync(t *testing.T, e *env) <-chan forwarded {
 	t.Helper()
 
+	return forwardMessageAsync(t, e, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU})
+}
+
+func forwardMessageAsync(t *testing.T, e *env, m sgd.MTForwardShortMessage) <-chan forwarded {
+	t.Helper()
+
 	out := make(chan forwarded, 1)
 
 	go func() {
-		ans, err := e.smsc.forward(t, deliverTPDU)
+		ans, err := e.smsc.forwardMessage(t, m)
 		if err != nil {
 			out <- forwarded{err: err}
 			return
@@ -93,6 +99,20 @@ func failure(t *testing.T, f forwarded) *sgd.ResultError {
 	}
 
 	return re
+}
+
+func expectProtocolError(t *testing.T, e *env, f forwarded) {
+	t.Helper()
+
+	re := failure(t, f)
+	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError ||
+		re.DiagnosticInfo != nil {
+		t.Fatalf("TFA = %+v, want SM delivery failure (equipment protocol error) without a diagnostic", re)
+	}
+
+	if e.smsf.Waiting(imsi) {
+		t.Fatal("waiting flag set although the UE was reached")
+	}
 }
 
 func TestMobileTerminatedSMSIsDelivered(t *testing.T) {
@@ -277,9 +297,73 @@ func TestSilentUEGetsRetransmissionsThenProtocolError(t *testing.T) {
 		receiveRPData(t, e)
 	}
 
+	expectProtocolError(t, e, awaitTFA(t, tfa))
+}
+
+func TestUEUnreachableForARetransmissionIsAProtocolError(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardAsync(t, e)
+
+	receiveRPData(t, e)
+	e.ue.fail(smsf.ErrUnreachable)
+
+	expectProtocolError(t, e, awaitTFA(t, tfa))
+}
+
+func TestNoRPReportBeforeTR1NIsAProtocolError(t *testing.T) {
+	timers := fastTimers()
+	timers.TR1N = 300 * time.Millisecond
+
+	e := newEnvWithTimers(t, timers)
+	tfa := forwardAsync(t, e)
+
+	data, _ := receiveRPData(t, e)
+	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPAck{TransactionIdentifier: data.TransactionIdentifier.Peer()}))
+
+	expectProtocolError(t, e, awaitTFA(t, tfa))
+}
+
+func TestDeliveryTimerExpiryBeforeTheRPReportIsAProtocolError(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardMessageAsync(t, e, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU, DeliveryTimer: 3 * time.Second})
+
+	data, _ := receiveRPData(t, e)
+	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPAck{TransactionIdentifier: data.TransactionIdentifier.Peer()}))
+
+	expectProtocolError(t, e, awaitTFA(t, tfa))
+}
+
+func TestRPErrorForwardsTheDeliverReportAsDiagnostic(t *testing.T) {
+	report := []byte{0x00, 0xd0, 0x00}
+
+	e := newEnv(t)
+	tfa := forwardAsync(t, e)
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseProtocolErrorUnspecified, UserData: report})
+
 	re := failure(t, awaitTFA(t, tfa))
-	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError {
-		t.Fatalf("TFA = %+v, want SM delivery failure (equipment protocol error)", re)
+	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError ||
+		!bytes.Equal(re.DiagnosticInfo, report) {
+		t.Fatalf("TFA = %+v, want equipment protocol error carrying the SMS-DELIVER-REPORT", re)
+	}
+
+	if e.smsf.Waiting(imsi) {
+		t.Fatal("waiting flag set for a message the UE rejected")
+	}
+}
+
+func TestRPErrorWithoutUserDataHasNoDiagnostic(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardAsync(t, e)
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseSemanticallyIncorrectMessage})
+
+	re := failure(t, awaitTFA(t, tfa))
+	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError ||
+		re.DiagnosticInfo != nil {
+		t.Fatalf("TFA = %+v, want equipment protocol error without a diagnostic", re)
 	}
 }
 
@@ -291,8 +375,9 @@ func TestUEAbortWithCPError(t *testing.T) {
 	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPError{TransactionIdentifier: data.TransactionIdentifier.Peer(), Cause: sms.CPCauseProtocolErrorUnspecified}))
 
 	re := failure(t, awaitTFA(t, tfa))
-	if *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError {
-		t.Fatalf("TFA = %+v, want equipment protocol error", re)
+	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError ||
+		re.DiagnosticInfo != nil {
+		t.Fatalf("TFA = %+v, want equipment protocol error without a diagnostic", re)
 	}
 }
 
@@ -401,14 +486,7 @@ func TestCPTimeoutAfterReachingTheUEIsAProtocolError(t *testing.T) {
 
 	receiveRPData(t, e)
 
-	re := failure(t, awaitTFA(t, tfa))
-	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || *re.DeliveryFailureCause != sgd.CauseEquipmentProtocolError {
-		t.Fatalf("TFA = %+v, want equipment protocol error rather than absent user", re)
-	}
-
-	if e.smsf.Waiting(imsi) {
-		t.Fatal("waiting flag set although the UE was reached")
-	}
+	expectProtocolError(t, e, awaitTFA(t, tfa))
 }
 
 func TestReportWithAnotherReferenceIsIgnored(t *testing.T) {
@@ -623,4 +701,65 @@ func TestMoreMessagesToSendKeepsTheConnectionForTheNextPart(t *testing.T) {
 
 	eventually(t, "the hold to expire", func() bool { return !e.smsf.TransactionPending(imsi) })
 	eventually(t, "the signalling to settle", func() bool { return e.ue.settlements() == settled+1 })
+}
+
+func TestMoreMessagesToSendDoesNotKeepTheConnectionAfterTheUERejectsAMessage(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardMessageAsync(t, e, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU, MoreMessagesToSend: true})
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseProtocolErrorUnspecified})
+
+	if re := failure(t, awaitTFA(t, tfa)); !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) {
+		t.Fatalf("TFA = %+v, want SM delivery failure", re)
+	}
+
+	if e.smsf.TransactionPending(imsi) {
+		t.Fatal("the connection of a UE that rejected the message was held for more messages")
+	}
+}
+
+func TestSendFailureBeforeReachingTheUEIsAbsentUser(t *testing.T) {
+	e := newEnv(t)
+	e.ue.fail(errors.New("downlink NAS transport failed"))
+
+	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic != nil {
+		t.Fatalf("TFA = %+v, want absent user without a diagnostic", re)
+	}
+
+	if !e.smsf.Waiting(imsi) {
+		t.Fatal("waiting flag not set although the SMS never reached the UE")
+	}
+}
+
+func TestMoreMessagesToSendDoesNotKeepTheConnectionOfASilentUE(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardMessageAsync(t, e, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU, MoreMessagesToSend: true})
+
+	for i := 0; i <= fastTimers().MaxRetransmissions; i++ {
+		receiveRPData(t, e)
+	}
+
+	expectProtocolError(t, e, awaitTFA(t, tfa))
+
+	if e.smsf.TransactionPending(imsi) {
+		t.Fatal("the connection of a UE that stopped answering was held for more messages")
+	}
+}
+
+func TestMoreMessagesToSendDoesNotKeepTheConnectionOfAUEWithFullMemory(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardMessageAsync(t, e, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU, MoreMessagesToSend: true})
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseMemoryCapacityExceeded})
+
+	if re := failure(t, awaitTFA(t, tfa)); re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseMemoryCapacityExceeded {
+		t.Fatalf("TFA = %+v, want memory capacity exceeded", re)
+	}
+
+	if e.smsf.TransactionPending(imsi) {
+		t.Fatal("the connection of a UE with full memory was held for more messages")
+	}
 }
