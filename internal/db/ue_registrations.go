@@ -173,17 +173,19 @@ func startUERegistrationsSpan(ctx context.Context, operation string) (context.Co
 }
 
 func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error) {
-	if db.raftManager != nil {
-		return int64(db.raftManager.AppliedIndex()) + 1, nil
-	}
-
 	var v ueRegistrationVersion
 
 	if err := db.runner(ctx).Query(ctx, db.maxUERegistrationVersionStmt).Get(&v); err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return v.Version + 1, nil
+	next := v.Version + 1
+
+	if db.raftManager != nil {
+		next = max(next, int64(db.raftManager.AppliedIndex())+1)
+	}
+
+	return next, nil
 }
 
 func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (any, error) {

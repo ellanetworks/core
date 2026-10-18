@@ -184,6 +184,20 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 // Compile-time check: FSM must satisfy raft.BatchingFSM.
 var _ raft.BatchingFSM = (*FSM)(nil)
 
+func (f *FSM) syncAppliedIndex() error {
+	lastApplied, err := f.readLastApplied()
+	if err != nil {
+		return fmt.Errorf("read fsm_state.lastApplied: %w", err)
+	}
+
+	for {
+		current := f.appliedIndex.Load()
+		if lastApplied <= current || f.appliedIndex.CompareAndSwap(current, lastApplied) {
+			return nil
+		}
+	}
+}
+
 // readLastApplied returns the durable lastApplied Raft index from the
 // fsm_state table. Returns 0 if the table is empty or missing.
 func (f *FSM) readLastApplied() (uint64, error) {
@@ -436,6 +450,10 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	if err := f.applier.Reopen(ctx); err != nil {
 		return fmt.Errorf("reopen database after restore: %w", err)
+	}
+
+	if err := f.syncAppliedIndex(); err != nil {
+		return err
 	}
 
 	logger.RaftLog.Info("FSM: restored database from Raft snapshot")

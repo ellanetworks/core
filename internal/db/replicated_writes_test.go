@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func expectOneRaftEntry(t *testing.T, database *db.Database, what string, write func() error) {
@@ -151,4 +153,67 @@ func TestReopenWakesEveryChangefeedSubscriber(t *testing.T) {
 	}
 
 	awaitWakeup(t, wakeup, "Reopen")
+}
+
+func TestUERegistrationVersionNeverRegressesAcrossRestart(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
+
+	open := func() *db.Database {
+		database, err := db.NewDatabase(ctx, dbPath, ellaraft.FastTestConfig())
+		if err != nil {
+			t.Fatalf("NewDatabase: %v", err)
+		}
+
+		if err := database.WaitUntilReady(t.Context()); err != nil {
+			t.Fatalf("database never became ready: %v", err)
+		}
+
+		return database
+	}
+
+	first := open()
+
+	profile, err := first.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("GetProfile: %v", err)
+	}
+
+	const imsi = "001010000000001"
+
+	if err := first.CreateSubscriber(ctx, &db.Subscriber{
+		Imsi:           imsi,
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		ProfileID:      profile.ID,
+	}); err != nil {
+		t.Fatalf("CreateSubscriber: %v", err)
+	}
+
+	before, err := first.RegisterUE(ctx, imsi, db.UERegistrationTypeAMF3GPPAccess, "node-a", "")
+	if err != nil {
+		t.Fatalf("RegisterUE: %v", err)
+	}
+
+	if err := first.ForceSnapshot(); err != nil {
+		t.Fatalf("ForceSnapshot: %v", err)
+	}
+
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	second := open()
+
+	t.Cleanup(func() { _ = second.Close() })
+
+	after, err := second.RegisterUE(ctx, imsi, db.UERegistrationTypeAMF3GPPAccess, "node-b", "")
+	if err != nil {
+		t.Fatalf("RegisterUE after restart: %v", err)
+	}
+
+	if after <= before {
+		t.Fatalf("registration version after restart = %d, want > %d: a newer registration must supersede an older one", after, before)
+	}
 }
