@@ -323,8 +323,6 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) er
 	return nil
 }
 
-func (f *fakeUPFClient) FlushUsage(ctx context.Context, remoteSEID uint64) {}
-
 func (f *fakeUPFClient) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {}
 
 func (f *fakeUPFClient) ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {}

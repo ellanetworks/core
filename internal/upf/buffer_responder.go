@@ -169,7 +169,7 @@ func (b *BufferResponder) Start() error {
 		return fmt.Errorf("map dl_buffer ring positions: %w", err)
 	}
 
-	programs, err := newProgramBarrier()
+	programs, err := ebpf.NewProgramBarrier()
 	if err != nil {
 		_ = positions.Close()
 		_ = b.reader.Close()
@@ -480,7 +480,7 @@ func (b *BufferResponder) awaitCaptured() error {
 		return nil
 	}
 
-	if err := b.programs.wait(); err != nil {
+	if err := b.programs.Wait(); err != nil {
 		return fmt.Errorf("wait for running datapath programs: %w", err)
 	}
 

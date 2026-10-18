@@ -32,6 +32,8 @@ type Session struct {
 	classified   bool
 	filtered     bool
 	written      *ebpf.Classifier
+
+	usage usageLedger
 }
 
 func NewSession(seid uint64) *Session {

@@ -17,7 +17,7 @@ import (
 )
 
 // DeleteSession deletes an existing UPF session by SEID.
-func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.DeleteRequest) error {
+func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.DeleteRequest) (*models.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/delete_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -33,14 +33,14 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "session not found")
 
-		return err
+		return nil, err
 	}
 
 	session.opMu.Lock()
 	defer session.opMu.Unlock()
 
 	if session.deleted {
-		return nil
+		return &models.DeleteResponse{Usage: models.UsageReport{SEID: req.SEID}}, nil
 	}
 
 	// Mark deleted before teardown so a filter propagation that acquires opMu
@@ -55,10 +55,12 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	// leaking forwarding state to a later session that reuses the UE IP).
 	var pdrErr error
 
+	directions := urrDirections(session.ListPDRs())
+
 	for id, pdrInfo := range session.ListPDRs() {
 		session.RemovePDR(id)
 
-		if err := pdrContext.deletePDR(pdrInfo, bpfObjects, true); err != nil {
+		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
 			pdrErr = errors.Join(pdrErr, err)
 		}
 	}
@@ -74,6 +76,13 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		if err := bpfObjects.DeleteFramedDownlink(fr); err != nil {
 			pdrErr = errors.Join(pdrErr, err)
 		}
+	}
+
+	conn.waitForPrograms(ctx)
+
+	usage, err := conn.closeUsage(session, directions)
+	if err != nil {
+		pdrErr = errors.Join(pdrErr, err)
 	}
 
 	if bpfObjects != nil {
@@ -104,5 +113,5 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 
 	logger.From(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))
 
-	return nil
+	return &models.DeleteResponse{Usage: usage}, nil
 }

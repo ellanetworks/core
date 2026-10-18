@@ -4,6 +4,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net"
@@ -44,10 +45,18 @@ type SessionEngine struct {
 	filtersByKey map[string]uint32
 
 	endMarkers endMarkerSockets
+
+	programs ProgramWaiter
 }
 
 func (conn *SessionEngine) Close() error {
-	return conn.endMarkers.Close()
+	err := conn.endMarkers.Close()
+
+	if conn.programs != nil {
+		err = errors.Join(err, conn.programs.Close())
+	}
+
+	return err
 }
 
 func (pc *SessionEngine) ListSessions() map[uint64]*Session {
@@ -256,6 +265,15 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		FteIDResourceManager:    resourceManager,
 		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),
 		filtersByKey:            make(map[string]uint32),
+	}
+
+	if bpfObjects != nil {
+		programs, err := ebpf.NewProgramBarrier()
+		if err != nil {
+			return nil, fmt.Errorf("create datapath program barrier: %w", err)
+		}
+
+		conn.programs = programs
 	}
 
 	return conn, nil

@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 
@@ -44,9 +45,15 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	// Defensive: a re-establish over a live SEID would orphan the old session's
 	// datapath state. Not normally reached (SMF allocates a fresh SEID per session).
 	if conn.GetSession(seid) != nil {
-		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+		resp, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
+		if err != nil {
 			logger.From(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
 				logger.SEID(seid), zap.Error(err))
+		}
+
+		if resp != nil && resp.Usage.UplinkVolume+resp.Usage.DownlinkVolume > 0 {
+			logger.From(ctx, logger.UpfLog).Error("usage bytes lost: replaced session's final usage is not reported",
+				logger.SEID(seid), logger.UplinkVolume(resp.Usage.UplinkVolume), logger.DownlinkVolume(resp.Usage.DownlinkVolume))
 		}
 	}
 
@@ -91,6 +98,24 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			logger.QERID(qer.QERID), zap.Any("qer_info", qerInfo))
 	}
 
+	var createdURRs []uint32
+
+	txn.onRollback(func() error {
+		if len(createdURRs) == 0 {
+			return nil
+		}
+
+		conn.waitForPrograms(ctx)
+
+		var errs []error
+
+		for _, id := range createdURRs {
+			errs = append(errs, bpfObjects.DeleteUrr(seid, id))
+		}
+
+		return errors.Join(errs...)
+	})
+
 	for _, urr := range req.URRs {
 		if err := bpfObjects.NewUrr(seid, urr.URRID); err != nil {
 			txn.rollback(ctx)
@@ -99,7 +124,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			return nil, fmt.Errorf("can't put URR: %w", err)
 		}
 
-		txn.onRollback(func() error { return bpfObjects.DeleteUrr(seid, urr.URRID) })
+		createdURRs = append(createdURRs, urr.URRID)
+		sess.usage.track(urr.URRID)
 
 		logger.From(ctx, logger.UpfLog).Debug("Created Usage Reporting Rule",
 			logger.URRID(urr.URRID),

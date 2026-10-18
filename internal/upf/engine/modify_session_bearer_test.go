@@ -127,7 +127,7 @@ func TestModifySessionInstallsAndRemovesTheSDFClassifier(t *testing.T) {
 		t.Fatal("the session's SDF filters outlived its last SDF PDR")
 	}
 
-	if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+	if _, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 }
@@ -281,7 +281,7 @@ func TestDeletingASessionRemovesItsSharedUplinkEndpoint(t *testing.T) {
 			t.Fatalf("establish: %v", err)
 		}
 
-		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+		if _, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 

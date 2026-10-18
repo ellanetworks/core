@@ -270,7 +270,7 @@ func TestDeleteSessionDropsBufferedPackets(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)
 
-	if err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: bufTestSEID}); err != nil {
+	if _, err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: bufTestSEID}); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 

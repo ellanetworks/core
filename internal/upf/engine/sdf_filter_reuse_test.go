@@ -109,7 +109,7 @@ func TestFilterReleaseVsSessionApplyNoSlotReuse(t *testing.T) {
 
 		assertNoForeignFilterSlots(t, conn, i)
 
-		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+		if _, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
 			t.Fatalf("iter %d delete: %v", i, err)
 		}
 

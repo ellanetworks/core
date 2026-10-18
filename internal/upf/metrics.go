@@ -5,6 +5,7 @@ package upf
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -20,6 +21,20 @@ var dlBufferEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Buffered downlink packets discarded before re-injection, by the limit that discarded them.",
 }, []string{"reason"})
 
+var usageBytesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_upf_usage_dropped_bytes_total",
+	Help: "Total number of accounted usage bytes never recorded in the subscriber-usage store, by reason.",
+}, []string{"reason"})
+
+const (
+	usageDropOutcomeUnknown = "outcome_unknown"
+	usageDropSessionGone    = "session_gone"
+)
+
+func countDroppedUsage(reason string, usage models.UsageReport) {
+	usageBytesDropped.WithLabelValues(reason).Add(float64(usage.UplinkVolume + usage.DownlinkVolume))
+}
+
 const (
 	flowReportDropChannelFull = "channel_full"
 
@@ -32,7 +47,11 @@ const (
 )
 
 func RegisterMetrics() {
-	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
+	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted, usageBytesDropped)
+
+	for _, reason := range []string{usageDropOutcomeUnknown, usageDropSessionGone} {
+		usageBytesDropped.WithLabelValues(reason)
+	}
 
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
 

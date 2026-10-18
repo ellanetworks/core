@@ -5,14 +5,13 @@ package upf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
 	"go.uber.org/zap"
 )
@@ -78,83 +77,6 @@ func TestMonitorUsageReturnsWithinTheFlushBudget(t *testing.T) {
 	}
 }
 
-func pdr(pdrID, urrID uint32, ueIP string) engine.SPDRInfo {
-	info := engine.SPDRInfo{
-		PdrID:   pdrID,
-		PdrInfo: ebpf.PdrInfo{PdrID: pdrID, UrrID: urrID},
-	}
-	if ueIP != "" {
-		info.UEIP = netip.MustParseAddr(ueIP)
-	}
-
-	return info
-}
-
-func TestSessionURRsDeduplicatesSharedDownlinkURR(t *testing.T) {
-	pdrs := map[uint32]engine.SPDRInfo{
-		1: pdr(1, 1, ""),
-		2: pdr(2, 2, "10.45.0.1"),
-		3: pdr(3, 2, "2001:db8::1"),
-	}
-
-	got := sessionURRs(pdrs)
-
-	want := []sessionURR{{id: 1, downlink: false}, {id: 2, downlink: true}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("sessionURRs() = %v, want %v", got, want)
-	}
-}
-
-func TestSessionURRsIsOrderIndependent(t *testing.T) {
-	pdrs := map[uint32]engine.SPDRInfo{
-		1: pdr(1, 1, ""),
-		2: pdr(2, 2, "10.45.0.1"),
-		3: pdr(3, 2, "2001:db8::1"),
-	}
-
-	first := sessionURRs(pdrs)
-
-	for range 50 {
-		if got := sessionURRs(pdrs); !reflect.DeepEqual(got, first) {
-			t.Fatalf("sessionURRs() = %v, want the stable %v", got, first)
-		}
-	}
-}
-
-func TestSessionURRsSkipsUnsetURRID(t *testing.T) {
-	pdrs := map[uint32]engine.SPDRInfo{
-		1: pdr(1, 0, ""),
-		2: pdr(2, 2, "10.45.0.1"),
-	}
-
-	got := sessionURRs(pdrs)
-
-	want := []sessionURR{{id: 2, downlink: true}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("sessionURRs() = %v, want %v", got, want)
-	}
-}
-
-func TestSessionURRsWithoutPDRs(t *testing.T) {
-	if got := sessionURRs(map[uint32]engine.SPDRInfo{}); len(got) != 0 {
-		t.Fatalf("sessionURRs() = %v, want none", got)
-	}
-}
-
-func TestSessionURRsSharedByBothDirectionsReportsDownlink(t *testing.T) {
-	pdrs := map[uint32]engine.SPDRInfo{
-		1: pdr(1, 7, ""),
-		2: pdr(2, 7, "10.45.0.1"),
-	}
-
-	got := sessionURRs(pdrs)
-
-	want := []sessionURR{{id: 7, downlink: true}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("sessionURRs() = %v, want %v", got, want)
-	}
-}
-
 type stubReportHandler struct {
 	err   error
 	calls int
@@ -178,25 +100,70 @@ func (s *stubReportHandler) SendFlowReports(context.Context, []*models.FlowRepor
 	return nil
 }
 
-func TestReportUsageKeepsDrainedCountersWhenTheOutcomeIsUnknown(t *testing.T) {
-	smf := &stubReportHandler{err: fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)}
-	u := &UPF{se: &engine.SessionEngine{}, smf: smf}
+func newUsageTestEngine(t *testing.T) *engine.SessionEngine {
+	t.Helper()
 
-	batch := []sessionUsage{
-		{seid: 1, localSeid: 1, uvol: 500, drained: map[uint32]uint64{1: 500}},
-		{seid: 2, localSeid: 2, dvol: 300, drained: map[uint32]uint64{2: 300}},
+	se, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, nil, nil)
+	if err != nil {
+		t.Fatalf("new session engine: %v", err)
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("reportUsage reached the URR restore after an unknown outcome: %v", r)
-		}
-	}()
+	se.AddSession(1, engine.NewSession(1))
 
-	u.reportUsage(context.Background(), batch)
+	return se
+}
+
+func TestReportUsageDropsUsageWhenTheOutcomeIsUnknown(t *testing.T) {
+	smf := &stubReportHandler{err: fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)}
+	se := newUsageTestEngine(t)
+
+	u := &UPF{se: se, smf: smf}
+
+	u.reportUsage(context.Background(), []models.UsageReport{{SEID: 1, UplinkVolume: 500}})
 
 	if smf.calls != 1 {
 		t.Fatalf("the batch was reported %d times, want once", smf.calls)
+	}
+
+	got, err := se.TakeUsage(se.GetSession(1))
+	if err != nil {
+		t.Fatalf("TakeUsage: %v", err)
+	}
+
+	if got.UplinkVolume != 0 {
+		t.Fatalf("usage with an unknown outcome was kept for another report: %+v", got)
+	}
+}
+
+func TestReportUsageReturnsUsageWhenTheReportFails(t *testing.T) {
+	smf := &stubReportHandler{err: errors.New("store unavailable")}
+	se := newUsageTestEngine(t)
+
+	u := &UPF{se: se, smf: smf}
+
+	u.reportUsage(context.Background(), []models.UsageReport{
+		{SEID: 1, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: 2, UplinkVolume: 70},
+	})
+
+	got, err := se.TakeUsage(se.GetSession(1))
+	if err != nil {
+		t.Fatalf("TakeUsage: %v", err)
+	}
+
+	if got.UplinkVolume != 500 || got.DownlinkVolume != 300 {
+		t.Fatalf("failed report was not carried to the next take: %+v", got)
+	}
+}
+
+func TestReportFinalUsageSkipsEmptyUsage(t *testing.T) {
+	smf := &stubReportHandler{}
+	u := &UPF{se: &engine.SessionEngine{}, smf: smf}
+
+	u.ReportFinalUsage(context.Background(), models.UsageReport{SEID: 1})
+
+	if smf.calls != 0 {
+		t.Fatalf("empty final usage was reported %d times", smf.calls)
 	}
 }
 
@@ -211,9 +178,9 @@ func fieldByKey(fields []zap.Field, key string) (zap.Field, bool) {
 }
 
 func TestBatchFieldsSumsVolumeAcrossTheBatch(t *testing.T) {
-	fields := batchFields([]sessionUsage{
-		{localSeid: 7, uvol: 500, dvol: 300},
-		{localSeid: 8, uvol: 70, dvol: 20},
+	fields := batchFields([]models.UsageReport{
+		{SEID: 7, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: 8, UplinkVolume: 70, DownlinkVolume: 20},
 	})
 
 	uvol, ok := fieldByKey(fields, "uplink_volume")
@@ -232,7 +199,7 @@ func TestBatchFieldsSumsVolumeAcrossTheBatch(t *testing.T) {
 }
 
 func TestBatchFieldsNamesTheSessionOfASingleSessionFlush(t *testing.T) {
-	fields := batchFields([]sessionUsage{{localSeid: 42, uvol: 500, dvol: 300}})
+	fields := batchFields([]models.UsageReport{{SEID: 42, UplinkVolume: 500, DownlinkVolume: 300}})
 
 	seid, ok := fieldByKey(fields, "seid")
 	if !ok {

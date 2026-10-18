@@ -426,8 +426,6 @@ func (f *fakeUPF) ClearDownlinkDataNotification(_ context.Context, seid uint64) 
 	f.clearDDNCalls = append(f.clearDDNCalls, seid)
 }
 
-func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}
-
 func (f *fakeUPF) UpdateFilters(_ context.Context, _ string, _ models.Direction, _ []models.FilterRule) error {
 	return nil
 }

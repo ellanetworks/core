@@ -23,7 +23,7 @@ func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManag
 	}
 }
 
-func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects, deleteURR bool) error {
+func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 	switch {
 	case sdfDownlink(spdrInfo):
 	case spdrInfo.UEIP.IsValid():
@@ -34,14 +34,6 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		if err := unapplyPDR(spdrInfo, pdrContext.Session, bpfObjects); err != nil {
 			return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
 		}
-	}
-
-	if !deleteURR {
-		return nil
-	}
-
-	if err := bpfObjects.DeleteUrr(pdrContext.Session.SEID, spdrInfo.PdrInfo.UrrID); err != nil {
-		return fmt.Errorf("could not delete URR %d: %s", spdrInfo.PdrInfo.UrrID, err)
 	}
 
 	return nil

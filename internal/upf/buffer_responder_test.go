@@ -164,7 +164,7 @@ type fakePrograms struct {
 	onWait func()
 }
 
-func (p *fakePrograms) wait() error {
+func (p *fakePrograms) Wait() error {
 	if p.onWait != nil {
 		p.onWait()
 	}

@@ -7,7 +7,13 @@ package ebpf
 
 import (
 	"net/netip"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/cilium/ebpf"
 )
 
 func TestFlowReportUplink(t *testing.T) {
@@ -222,12 +228,13 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 	}
 }
 
-func TestURRAddRestore(t *testing.T) {
+func TestReadUrrUnderTrafficIsExact(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
-		seid  = 0x55525204
+		teid  = 0x55525204
 		urrID = 13
+		seid  = 0x55525204
 	)
 
 	obj := loadN3N6Program(t)
@@ -235,33 +242,60 @@ func TestURRAddRestore(t *testing.T) {
 		t.Fatalf("NewUrr: %v", err)
 	}
 
-	if err := obj.AddUrr(seid, urrID, 500); err != nil {
-		t.Fatalf("AddUrr: %v", err)
+	pdr := PdrInfo{
+		SEID:         seid,
+		IMSI:         "001010000000001",
+		UrrID:        urrID,
+		Far:          FarInfo{Action: 0x02},
+		UEIPv4:       netip.AddrFrom4([4]byte{10, 0, 0, 9}),
+		UEIPv6Prefix: netip.MustParseAddr("2001:db8::"),
+	}
+	if err := obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
 	}
 
-	if got := sumURR(t, obj, seid, urrID); got != 500 {
-		t.Fatalf("URR after AddUrr(500) = %d, want 500", got)
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+	packet := uplinkGPDU(teid, inner)
+	perPacket := uint64(ethHdrLen + len(inner))
+
+	var (
+		stop atomic.Bool
+		sent atomic.Uint64
+		wg   sync.WaitGroup
+	)
+
+	for range max(runtime.NumCPU()-1, 1) {
+		wg.Go(func() {
+			out := make([]byte, len(packet)+256)
+
+			for !stop.Load() {
+				if _, err := obj.UpfEntryFunc.Run(&ebpf.RunOptions{Data: packet, DataOut: out}); err != nil {
+					t.Errorf("run: %v", err)
+					return
+				}
+
+				sent.Add(1)
+			}
+		})
 	}
 
-	drained, err := obj.GetAndResetUrr(seid, urrID)
-	if err != nil {
-		t.Fatalf("GetAndResetUrr: %v", err)
+	deadline := time.Now().Add(500 * time.Millisecond)
+
+	var reads int
+
+	for time.Now().Before(deadline) {
+		if _, err := obj.ReadUrr(seid, urrID); err != nil {
+			t.Fatalf("ReadUrr: %v", err)
+		}
+
+		reads++
 	}
 
-	if drained != 500 {
-		t.Fatalf("drained = %d, want 500", drained)
-	}
+	stop.Store(true)
+	wg.Wait()
 
-	if got := sumURR(t, obj, seid, urrID); got != 0 {
-		t.Fatalf("URR after reset = %d, want 0", got)
-	}
-
-	if err := obj.AddUrr(seid, urrID, drained); err != nil {
-		t.Fatalf("AddUrr restore: %v", err)
-	}
-
-	if got := sumURR(t, obj, seid, urrID); got != 500 {
-		t.Fatalf("URR after restore = %d, want 500", got)
+	if got, want := sumURR(t, obj, seid, urrID), sent.Load()*perPacket; got != want {
+		t.Fatalf("URR after %d concurrent reads = %d, want %d", reads, got, want)
 	}
 }
 

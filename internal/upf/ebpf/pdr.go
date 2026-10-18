@@ -288,46 +288,13 @@ func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
 	return nil
 }
 
-// GetAndResetUrr returns the (SEID, id) byte counter summed across CPUs and
-// resets it to zero.
-func (bpfObjects *BpfObjects) GetAndResetUrr(seid uint64, id uint32) (uint64, error) {
-	key := N3N6EntrypointUrrKey{Seid: seid, UrrId: id}
-
+func (bpfObjects *BpfObjects) ReadUrr(seid uint64, id uint32) ([]uint64, error) {
 	var perCPU []uint64
-	if err := bpfObjects.UrrMap.Lookup(key, &perCPU); err != nil {
-		return 0, fmt.Errorf("failed to lookup URR: %w", err)
+	if err := bpfObjects.UrrMap.Lookup(N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, &perCPU); err != nil {
+		return nil, fmt.Errorf("failed to lookup URR: %w", err)
 	}
 
-	zeroes := make([]uint64, runtime.NumCPU())
-	if err := bpfObjects.UrrMap.Update(key, zeroes, ebpf.UpdateAny); err != nil {
-		return 0, fmt.Errorf("failed to reset URR: %w", err)
-	}
-
-	var total uint64
-	for _, v := range perCPU {
-		total += v
-	}
-
-	return total, nil
-}
-
-// AddUrr adds bytes to the (SEID, id) counter. The read-modify-write can drop
-// datapath increments landing between the lookup and the update, the same bound
-// GetAndResetUrr's reset carries; it runs only on the rare report-failure path.
-func (bpfObjects *BpfObjects) AddUrr(seid uint64, id uint32, bytes uint64) error {
-	key := N3N6EntrypointUrrKey{Seid: seid, UrrId: id}
-
-	var perCPU []uint64
-	if err := bpfObjects.UrrMap.Lookup(key, &perCPU); err != nil {
-		return fmt.Errorf("failed to lookup URR: %w", err)
-	}
-
-	perCPU[0] += bytes
-	if err := bpfObjects.UrrMap.Update(key, perCPU, ebpf.UpdateAny); err != nil {
-		return fmt.Errorf("failed to restore URR: %w", err)
-	}
-
-	return nil
+	return perCPU, nil
 }
 
 // ToN3N6EntrypointPdrInfo converts a PdrInfo (with embedded FAR and QER) to

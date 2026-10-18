@@ -5,7 +5,6 @@ package upf
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -698,13 +697,13 @@ func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
 	for {
 		select {
 		case <-ticker.C:
-			err := u.pollUsageAndResetCounters(u.ctx)
+			err := u.pollUsage(u.ctx)
 			if err != nil {
-				logger.UpfLog.Warn("Failed to poll usage and reset counters", zap.Error(err))
+				logger.UpfLog.Warn("Failed to poll usage", zap.Error(err))
 			}
 		case <-stop:
-			// Drains what was accounted since the last tick; counters are read
-			// and reset together, so this cannot double-count. Own context,
+			// Drains what was accounted since the last tick; each session's usage
+			// is taken under its ledger lock, so this cannot double-count. Own context,
 			// since u.ctx is already cancelled and reporting reaches the SMF
 			// and the database.
 			u.flushUsageAtShutdown()
@@ -720,137 +719,66 @@ func (u *UPF) flushUsageAtShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), usageFlushTimeout)
 	defer cancel()
 
-	if err := u.pollUsageAndResetCounters(ctx); err != nil {
+	if err := u.pollUsage(ctx); err != nil {
 		logger.UpfLog.Warn("Failed to flush usage counters at shutdown", zap.Error(err))
 	}
 }
 
-func (u *UPF) pollUsageAndResetCounters(ctx context.Context) error {
+func (u *UPF) pollUsage(ctx context.Context) error {
 	if u.se == nil {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
 	sessions := u.se.ListSessions()
 
-	drained := make([]sessionUsage, 0, len(sessions))
+	taken := make([]models.UsageReport, 0, len(sessions))
 
-	for localSeid, session := range sessions {
-		usage, ok := u.drainUsageForSession(localSeid, session)
-		if !ok {
+	for _, session := range sessions {
+		usage, err := u.se.TakeUsage(session)
+		if err != nil {
+			logger.UpfLog.Warn("could not read every URR of the session", logger.SEID(session.SEID), zap.Error(err))
+		}
+
+		if usage.UplinkVolume+usage.DownlinkVolume == 0 {
 			continue
 		}
 
-		drained = append(drained, usage)
+		taken = append(taken, usage)
 	}
 
-	for batch := range slices.Chunk(drained, usageReportBatchSize) {
+	for batch := range slices.Chunk(taken, usageReportBatchSize) {
 		u.reportUsage(ctx, batch)
 	}
 
 	return nil
 }
 
-// FlushUsage drains and reports any pending URR counters for the given SEID.
-// Called by the SMF immediately before session deletion so that traffic
-// accounted since the last periodic poll is reported to the subscriber-usage
-// store and not dropped when the session is removed from the engine
-// (3GPP TS 29.244 §5.2.2.4 termination reporting trigger).
-func (u *UPF) FlushUsage(ctx context.Context, seid uint64) {
-	if u.se == nil {
+func (u *UPF) ReportFinalUsage(ctx context.Context, usage models.UsageReport) {
+	if usage.UplinkVolume+usage.DownlinkVolume == 0 {
 		return
 	}
 
-	session := u.se.GetSession(seid)
-	if session == nil {
-		return
-	}
-
-	u.flushUsageForSession(ctx, seid, session)
+	u.reportUsage(ctx, []models.UsageReport{usage})
 }
 
-type sessionUsage struct {
-	seid      uint64
-	localSeid uint64
-	uvol      uint64
-	dvol      uint64
-	drained   map[uint32]uint64
-}
-
-type sessionURR struct {
-	id       uint32
-	downlink bool
-}
-
-func sessionURRs(pdrs map[uint32]engine.SPDRInfo) []sessionURR {
-	downlink := make(map[uint32]bool, len(pdrs))
-
-	for _, pdr := range pdrs {
-		id := pdr.PdrInfo.UrrID
-		if id == 0 {
-			continue
-		}
-
-		downlink[id] = downlink[id] || pdr.UEIP.IsValid()
-	}
-
-	urrs := make([]sessionURR, 0, len(downlink))
-	for id, dl := range downlink {
-		urrs = append(urrs, sessionURR{id: id, downlink: dl})
-	}
-
-	slices.SortFunc(urrs, func(a, b sessionURR) int { return cmp.Compare(a.id, b.id) })
-
-	return urrs
-}
-
-func (u *UPF) drainUsageForSession(localSeid uint64, session *engine.Session) (sessionUsage, bool) {
-	usage := sessionUsage{seid: session.SEID, localSeid: localSeid}
-
-	for _, urr := range sessionURRs(session.ListPDRs()) {
-		volume, err := u.se.BpfObjects.GetAndResetUrr(localSeid, urr.id)
-		if err != nil {
-			logger.UpfLog.Warn("could not get usage for URR", logger.URRID(urr.id), zap.Error(err), logger.SEID(localSeid))
-			continue
-		}
-
-		if volume == 0 {
-			continue
-		}
-
-		if usage.drained == nil {
-			usage.drained = make(map[uint32]uint64, 2)
-		}
-
-		usage.drained[urr.id] = volume
-
-		if urr.downlink {
-			usage.dvol += volume
-		} else {
-			usage.uvol += volume
-		}
-	}
-
-	return usage, len(usage.drained) > 0
-}
-
-func (u *UPF) reportUsage(ctx context.Context, batch []sessionUsage) {
+func (u *UPF) reportUsage(ctx context.Context, batch []models.UsageReport) {
 	if len(batch) == 0 {
 		return
 	}
 
 	reports := make([]*models.UsageReport, len(batch))
-	for i, usage := range batch {
-		reports[i] = &models.UsageReport{
-			SEID:           usage.seid,
-			UplinkVolume:   usage.uvol,
-			DownlinkVolume: usage.dvol,
-		}
+	for i := range batch {
+		reports[i] = &batch[i]
 	}
 
 	if err := u.se.SendUsageReports(ctx, u.smf, reports); err != nil {
 		if errors.Is(err, models.ErrUsageOutcomeUnknown) {
-			logger.UpfLog.Error("usage report outcome unknown: dropping drained counters rather than double-counting them",
+			logger.UpfLog.Error("usage report outcome unknown: dropping the reported usage rather than double-counting it",
 				append(batchFields(batch), zap.Error(err))...)
+
+			for _, usage := range batch {
+				countDroppedUsage(usageDropOutcomeUnknown, usage)
+			}
 
 			return
 		}
@@ -859,7 +787,14 @@ func (u *UPF) reportUsage(ctx context.Context, batch []sessionUsage) {
 			append(batchFields(batch), zap.Error(err))...)
 
 		for _, usage := range batch {
-			u.restoreDrainedUsage(usage)
+			if u.se.ReturnUsage(usage) {
+				continue
+			}
+
+			logger.UpfLog.Error("usage bytes lost: report failed and the session is gone",
+				logger.SEID(usage.SEID), logger.UplinkVolume(usage.UplinkVolume), logger.DownlinkVolume(usage.DownlinkVolume))
+
+			countDroppedUsage(usageDropSessionGone, usage)
 		}
 
 		return
@@ -868,12 +803,12 @@ func (u *UPF) reportUsage(ctx context.Context, batch []sessionUsage) {
 	logger.UpfLog.Debug("Sent usage reports", batchFields(batch)...)
 }
 
-func batchFields(batch []sessionUsage) []zap.Field {
+func batchFields(batch []models.UsageReport) []zap.Field {
 	var uvol, dvol uint64
 
 	for _, usage := range batch {
-		uvol += usage.uvol
-		dvol += usage.dvol
+		uvol += usage.UplinkVolume
+		dvol += usage.DownlinkVolume
 	}
 
 	fields := []zap.Field{
@@ -883,28 +818,10 @@ func batchFields(batch []sessionUsage) []zap.Field {
 	}
 
 	if len(batch) == 1 {
-		fields = append(fields, logger.SEID(batch[0].localSeid))
+		fields = append(fields, logger.SEID(batch[0].SEID))
 	}
 
 	return fields
-}
-
-func (u *UPF) restoreDrainedUsage(usage sessionUsage) {
-	for id, volume := range usage.drained {
-		if err := u.se.BpfObjects.AddUrr(usage.localSeid, id, volume); err != nil {
-			logger.UpfLog.Error("usage bytes lost: report failed and URR counter could not be restored",
-				logger.Bytes(volume), zap.Error(err), logger.SEID(usage.localSeid), logger.URRID(id))
-		}
-	}
-}
-
-func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, session *engine.Session) {
-	usage, ok := u.drainUsageForSession(localSeid, session)
-	if !ok {
-		return
-	}
-
-	u.reportUsage(ctx, []sessionUsage{usage})
 }
 
 func (u *UPF) listenForErrorIndications() {

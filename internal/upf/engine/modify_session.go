@@ -243,7 +243,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 			releasable = append(releasable, removed.TeID)
 		}
 
-		if err := pdrContext.deletePDR(removed, bpfObjects, !urrReferenced(session, removed.PdrInfo.UrrID)); err != nil {
+		if err := pdrContext.deletePDR(removed, bpfObjects); err != nil {
 			return fail(fmt.Errorf("couldn't remove PDR %d: %w", pdrID, err))
 		}
 
@@ -297,16 +297,6 @@ func chosenTEIDs(session *Session) map[uint8]uint32 {
 	}
 
 	return teids
-}
-
-func urrReferenced(session *Session, urrID uint32) bool {
-	for _, pdr := range session.ListPDRs() {
-		if pdr.PdrInfo.UrrID == urrID {
-			return true
-		}
-	}
-
-	return false
 }
 
 func modifyPolicyID(req *models.ModifyRequest, session *Session) string {

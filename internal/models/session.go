@@ -253,6 +253,10 @@ type DeleteRequest struct {
 	SEID uint64
 }
 
+type DeleteResponse struct {
+	Usage UsageReport
+}
+
 // DownlinkDataReport notifies the SMF that buffered downlink data
 // arrived for a UE, triggering paging.
 type DownlinkDataReport struct {

@@ -97,20 +97,3 @@ func TestRingCursorTracksKernelPositions(t *testing.T) {
 		t.Errorf("consumer = %d, want %d after reading the record", got, want)
 	}
 }
-
-func TestProgramBarrierWaits(t *testing.T) {
-	requireRoot(t)
-
-	barrier, err := newProgramBarrier()
-	if err != nil {
-		t.Fatalf("create program barrier: %v", err)
-	}
-
-	t.Cleanup(func() { _ = barrier.Close() })
-
-	for range 3 {
-		if err := barrier.wait(); err != nil {
-			t.Fatalf("wait: %v", err)
-		}
-	}
-}

@@ -276,14 +276,13 @@ func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyReq
 	return a.engine.ModifySession(ctx, req)
 }
 
-func (a *smfUPFAdapter) FlushUsage(ctx context.Context, seid uint64) {
-	if a.upf != nil {
-		a.upf.FlushUsage(ctx, seid)
-	}
-}
-
 func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) error {
-	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
+	resp, err := a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
+	if resp != nil && a.upf != nil {
+		a.upf.ReportFinalUsage(ctx, resp.Usage)
+	}
+
+	return err
 }
 
 func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, seid uint64) {
