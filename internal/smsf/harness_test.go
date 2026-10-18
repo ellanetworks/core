@@ -593,12 +593,6 @@ func (f *fakeSMSC) alerted() []s6c.Alert {
 	return append([]s6c.Alert(nil), f.alerts...)
 }
 
-func (f *fakeSMSC) forward(t *testing.T, tpdu []byte) (*diameter.Message, error) {
-	t.Helper()
-
-	return f.forwardMessage(t, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: tpdu})
-}
-
 func (f *fakeSMSC) forwardMessage(t *testing.T, m sgd.MTForwardShortMessage) (*diameter.Message, error) {
 	t.Helper()
 
