@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -741,5 +742,26 @@ func TestActivationBeforeTheTAUAdoptsTheSessionIsDeferred(t *testing.T) {
 
 	if err := m.ActivateDedicatedBearer(context.Background(), ue.imsiOrEmpty(), voiceBearerRequest()); !errors.Is(err, ErrUENotReachable) {
 		t.Fatalf("ActivateDedicatedBearer error = %v, want ErrUENotReachable: temporarily rejected while the mobility procedure runs (TS 23.401 §5.3.3.0)", err)
+	}
+}
+
+func TestActivationDuringARelocationFrom5GSIsDeferred(t *testing.T) {
+	m := newTestMME(t)
+
+	supi, err := etsi.NewSUPIFromIMSI("001010000000077")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ue := NewUeContext()
+	ue.SetSupi(supi)
+	ue.TransitionTo(t.Context(), EMMRegistrationInitiated)
+
+	if !m.beginRelocation(supi, 1, ue) {
+		t.Fatal("beginRelocation refused a fresh relocation")
+	}
+
+	if err := m.ActivateDedicatedBearer(t.Context(), supi.IMSI(), voiceBearerRequest()); !errors.Is(err, ErrMobilityInProgress) {
+		t.Fatalf("ActivateDedicatedBearer error = %v, want ErrMobilityInProgress while the UE is relocating from 5GS (TS 23.401 §5.5.1.2.2)", err)
 	}
 }

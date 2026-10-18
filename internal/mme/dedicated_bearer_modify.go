@@ -172,7 +172,7 @@ func dedicatedModifyRequest(ebi uint8, target DedicatedBearerInfo, mod models.De
 }
 
 func (m *MME) ModifyDedicatedBearer(ctx context.Context, imsi string, ebi uint8, mod models.DedicatedBearerModification) error {
-	ue, ok := m.LookupUeByIMSI(imsi)
+	ue, ok := m.lookupBearerUe(imsi)
 	if !ok {
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
@@ -181,17 +181,9 @@ func (m *MME) ModifyDedicatedBearer(ctx context.Context, imsi string, ebi uint8,
 		return nil
 	}
 
-	ueConn, ready := m.ReconcileReady(ue)
-	if !ready {
-		if ue.EMMState() == EMMRegistered && ue.Conn() == nil {
-			m.pageForSignalling(ctx, ue)
-		}
-
-		return ErrUENotReachable
-	}
-
-	if ueConn.ICS() != ICSCompleted {
-		return ErrUENotReachable
+	ueConn, err := m.bearerSignallingConn(ctx, ue, true)
+	if err != nil {
+		return err
 	}
 
 	return m.startModification(ctx, ue, ueConn, ebi, mod, false)

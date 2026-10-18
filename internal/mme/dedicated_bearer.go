@@ -210,22 +210,14 @@ func (m *MME) reportWithheldFiveGSQoS(ctx context.Context, ueConn *UeConn, ref s
 }
 
 func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error {
-	ue, ok := m.LookupUeByIMSI(imsi)
+	ue, ok := m.lookupBearerUe(imsi)
 	if !ok {
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
 
-	ueConn, ready := m.ReconcileReady(ue)
-	if !ready {
-		if ue.EMMState() == EMMRegistered && ue.Conn() == nil {
-			m.pageForSignalling(ctx, ue)
-		}
-
-		return ErrUENotReachable
-	}
-
-	if ueConn.ICS() != ICSCompleted {
-		return ErrUENotReachable
+	ueConn, err := m.bearerSignallingConn(ctx, ue, true)
+	if err != nil {
+		return err
 	}
 
 	p := m.LookupPDN(ue, req.LinkedEBI)
@@ -563,7 +555,7 @@ func (m *MME) DedicatedESMStatus(ctx context.Context, ue *UeContext, ebi uint8, 
 }
 
 func (m *MME) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi uint8, sgwTEID uint32) error {
-	ue, ok := m.LookupUeByIMSI(imsi)
+	ue, ok := m.lookupBearerUe(imsi)
 	if !ok {
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
@@ -573,7 +565,7 @@ func (m *MME) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi ui
 	}
 
 	if m.handoverDefersBearerSignalling(ue) {
-		return ErrUENotReachable
+		return ErrMobilityInProgress
 	}
 
 	m.DeactivateDedicated(ctx, ue, ebi)
@@ -584,7 +576,7 @@ func (m *MME) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi ui
 func (m *MME) handoverDefersBearerSignalling(ue *UeContext) bool {
 	ueConn, ready := m.ReconcileReady(ue)
 
-	return (!ready || ueConn.ICS() != ICSCompleted) && m.handoverInProgress(ue)
+	return (!ready || ueConn.ICS() != ICSCompleted) && m.mobilityInProgress(ue)
 }
 
 func (m *MME) DeactivateDedicated(ctx context.Context, ue *UeContext, ebi uint8) {

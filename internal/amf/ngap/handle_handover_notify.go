@@ -75,6 +75,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	if fromEPS {
 		amfInstance.CompleteRelocationFromEPS(ctx, amfUe)
+		amfInstance.ReconcileSessionsForUE(ctx, amfUe)
 
 		return
 	}

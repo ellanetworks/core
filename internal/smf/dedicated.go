@@ -525,6 +525,8 @@ func (s *SMF) runDedicated(ctx context.Context, sc *SMContext, actions []dedicat
 
 			if errors.Is(err, ErrUENotReachable) {
 				s.dedicatedAwaitUE(sc, a.sgwTEID)
+				s.retryAfterMobility(sc, err)
+
 				continue
 			}
 
@@ -536,6 +538,7 @@ func (s *SMF) runDedicated(ctx context.Context, sc *SMContext, actions []dedicat
 
 		if err := s.mme.DeactivateDedicatedBearer(ctx, imsi, a.ebi, a.sgwTEID); errors.Is(err, ErrUENotReachable) {
 			deactivationNotSent(sc, a.sgwTEID)
+			s.retryAfterMobility(sc, err)
 		} else if err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("dedicated bearer deactivation not sent; releasing it locally", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", a.ebi), zap.Error(err))
 			s.DedicatedBearerReleased(ctx, sc.Ref, a.sgwTEID)
@@ -570,6 +573,12 @@ func (s *SMF) dedicatedAwaitUE(sc *SMContext, teid uint32) {
 	}
 
 	b.state = dedicatedAwaitingUE
+}
+
+func (s *SMF) retryAfterMobility(sc *SMContext, err error) {
+	if errors.Is(err, ErrMobilityInProgress) {
+		s.reconcileAfter(sc.Ref, mobilityRetryInterval)
+	}
 }
 
 func (s *SMF) reconcileAfter(ref string, d time.Duration) {

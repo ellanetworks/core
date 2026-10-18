@@ -694,13 +694,13 @@ func (s *SMF) sendFlowChangeLocked(ctx context.Context, sc *SMContext, change *f
 
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrHandoverInProgress):
-			s.reconcileAfter(sc.Ref, time.Second)
+		case errors.Is(err, ErrMobilityInProgress):
+			s.reconcileAfter(sc.Ref, mobilityRetryInterval)
 		case !errors.Is(err, ErrUENotReachable):
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow modification not sent", logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.Error(err))
 		}
 
-		return s.unsentFlowChangeLocked(ctx, sc, change, errors.Is(err, ErrUENotReachable) || errors.Is(err, ErrHandoverInProgress))
+		return s.unsentFlowChangeLocked(ctx, sc, change, errors.Is(err, ErrUENotReachable) || errors.Is(err, ErrMobilityInProgress))
 	}
 
 	sc.flowProcedure = newFlowProcedure(change, n1, n2)
@@ -1183,7 +1183,7 @@ func (s *SMF) flowInterruptedByHandoverLocked(ctx context.Context, sc *SMContext
 	}
 
 	s.unsentFlowChangeLocked(ctx, sc, &flowChange{parts: p.parts}, true)
-	s.reconcileAfter(sc.Ref, time.Second)
+	s.reconcileAfter(sc.Ref, mobilityRetryInterval)
 }
 
 func (sc *SMContext) heldFlowsLocked() []smfNgap.GBRQoSFlow {

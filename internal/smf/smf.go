@@ -64,7 +64,9 @@ var ErrSMContextNotFound = errors.New("sm context not found")
 // connection.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
-var ErrHandoverInProgress = errors.New("the UE is being handed over")
+var ErrMobilityInProgress = fmt.Errorf("%w: temporarily rejected, mobility procedure in progress", ErrUENotReachable)
+
+const mobilityRetryInterval = time.Second
 
 // SessionQuerier provides read-only access to active sessions for external
 // packages (API, AMF export, metrics), avoiding a package-level SMF singleton.
