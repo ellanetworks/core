@@ -210,14 +210,11 @@ func (conn *SessionEngine) programWaiter() ebpf.ProgramWaiter {
 	return nil
 }
 
-func (conn *SessionEngine) waitForPrograms(ctx context.Context, session *Session) {
+func (conn *SessionEngine) waitForPrograms(session *Session) error {
 	programs := conn.programWaiter()
 	if programs == nil || !session.usage.tracksURRs() {
-		return
+		return nil
 	}
 
-	if err := programs.Wait(); err != nil {
-		logger.From(ctx, logger.UpfLog).Error("usage bytes lost: could not wait for running datapath programs before the final reading",
-			logger.SEID(session.SEID), zap.Error(err))
-	}
+	return programs.Wait()
 }
