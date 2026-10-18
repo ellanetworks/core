@@ -18,6 +18,15 @@ import (
 
 // DeleteSession deletes an existing UPF session by SEID.
 func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.DeleteRequest) (*models.DeleteResponse, error) {
+	if !conn.enter() {
+		return nil, ErrClosed
+	}
+	defer conn.exit()
+
+	return conn.deleteSession(ctx, req)
+}
+
+func (conn *SessionEngine) deleteSession(ctx context.Context, req *models.DeleteRequest) (*models.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/delete_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -40,7 +49,7 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	defer session.opMu.Unlock()
 
 	if session.deleted {
-		return &models.DeleteResponse{Usage: models.UsageReport{SEID: req.SEID}}, nil
+		return &models.DeleteResponse{Usage: models.UsageReport{SEID: req.SEID, IMSI: session.IMSI()}}, nil
 	}
 
 	// Mark deleted before teardown so a filter propagation that acquires opMu
@@ -54,8 +63,6 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	// removed so a torn-down session is not orphaned in the engine (reporting usage and
 	// leaking forwarding state to a later session that reuses the UE IP).
 	var pdrErr error
-
-	directions := urrDirections(session.ListPDRs())
 
 	for id, pdrInfo := range session.ListPDRs() {
 		session.RemovePDR(id)
@@ -78,9 +85,9 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		}
 	}
 
-	conn.waitForPrograms(ctx)
+	conn.waitForPrograms(ctx, session)
 
-	usage, err := conn.closeUsage(session, directions)
+	usage, err := conn.closeUsage(ctx, session)
 	if err != nil {
 		pdrErr = errors.Join(pdrErr, err)
 	}

@@ -24,6 +24,8 @@ const (
 	usageDownlinkURR uint32 = 2
 )
 
+const usageIMSI = "001010000000001"
+
 var usageUEIP = netip.MustParseAddr("10.0.0.1")
 
 func newUsageBPFEngine(t *testing.T) (*SessionEngine, *ebpf.BpfObjects) {
@@ -62,12 +64,13 @@ func newUsageBPFEngine(t *testing.T) (*SessionEngine, *ebpf.BpfObjects) {
 func addUsageSession(t *testing.T, conn *SessionEngine, obj *ebpf.BpfObjects, seid uint64) *Session {
 	t.Helper()
 
-	pdrInfo := ebpf.PdrInfo{SEID: seid, PdrID: 2, UrrID: usageDownlinkURR, IMSI: "001010000000001"}
+	pdrInfo := ebpf.PdrInfo{SEID: seid, PdrID: 2, UrrID: usageDownlinkURR, IMSI: usageIMSI}
 	if err := obj.PutPdrDownlink(usageUEIP, pdrInfo); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
 	session := NewSession(seid)
+	session.SetIMSI(usageIMSI)
 
 	for _, id := range []uint32{usageUplinkURR, usageDownlinkURR} {
 		if err := obj.NewUrr(seid, id); err != nil {
@@ -83,7 +86,7 @@ func addUsageSession(t *testing.T, conn *SessionEngine, obj *ebpf.BpfObjects, se
 	return session
 }
 
-func setURR(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32, perCPU ...uint64) {
+func setURR(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32, perCPU ...ebpf.N3N6EntrypointUrrCounters) {
 	t.Helper()
 
 	cpus, err := cebpf.PossibleCPU()
@@ -91,7 +94,7 @@ func setURR(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32, perCP
 		t.Fatalf("possible CPUs: %v", err)
 	}
 
-	values := make([]uint64, cpus)
+	values := make([]ebpf.N3N6EntrypointUrrCounters, cpus)
 	copy(values, perCPU)
 
 	if err := obj.UrrMap.Update(ebpf.N3N6EntrypointUrrKey{Seid: seid, UrrId: urrID}, values, cebpf.UpdateExist); err != nil {
@@ -99,12 +102,14 @@ func setURR(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32, perCP
 	}
 }
 
+func up(v uint64) ebpf.N3N6EntrypointUrrCounters { return counters(v, 0) }
+
+func down(v uint64) ebpf.N3N6EntrypointUrrCounters { return counters(0, v) }
+
 func urrExists(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32) bool {
 	t.Helper()
 
-	var perCPU []uint64
-
-	err := obj.UrrMap.Lookup(ebpf.N3N6EntrypointUrrKey{Seid: seid, UrrId: urrID}, &perCPU)
+	_, err := obj.ReadUrr(seid, urrID)
 	if errors.Is(err, cebpf.ErrKeyNotExist) {
 		return false
 	}
@@ -120,20 +125,20 @@ func TestTakeUsageReportsPerCPUDeltasByDirection(t *testing.T) {
 	conn, obj := newUsageBPFEngine(t)
 	session := addUsageSession(t, conn, obj, 31)
 
-	setURR(t, obj, 31, usageUplinkURR, 100, 50)
-	setURR(t, obj, 31, usageDownlinkURR, 10, 0, 5)
+	setURR(t, obj, 31, usageUplinkURR, up(100), up(50))
+	setURR(t, obj, 31, usageDownlinkURR, down(10), down(0), down(5))
 
 	got, err := conn.TakeUsage(session)
 	if err != nil {
 		t.Fatalf("TakeUsage: %v", err)
 	}
 
-	if got.UplinkVolume != 150 || got.DownlinkVolume != 15 {
-		t.Fatalf("first TakeUsage = %+v, want 150/15", got)
+	if got.UplinkVolume != 150 || got.DownlinkVolume != 15 || got.IMSI != usageIMSI {
+		t.Fatalf("first TakeUsage = %+v, want 150/15 for %s", got, usageIMSI)
 	}
 
-	setURR(t, obj, 31, usageUplinkURR, 130, 50)
-	setURR(t, obj, 31, usageDownlinkURR, 10, 4, 5)
+	setURR(t, obj, 31, usageUplinkURR, up(130), up(50))
+	setURR(t, obj, 31, usageDownlinkURR, down(10), down(4), down(5))
 
 	got, _ = conn.TakeUsage(session)
 	if got.UplinkVolume != 30 || got.DownlinkVolume != 4 {
@@ -145,13 +150,47 @@ func TestTakeUsageReportsPerCPUDeltasByDirection(t *testing.T) {
 		t.Fatalf("TakeUsage without traffic = %+v, want nothing", got)
 	}
 
-	var perCPU []uint64
-	if err := obj.UrrMap.Lookup(ebpf.N3N6EntrypointUrrKey{Seid: 31, UrrId: usageUplinkURR}, &perCPU); err != nil {
-		t.Fatalf("lookup: %v", err)
+	perCPU, err := obj.ReadUrr(31, usageUplinkURR)
+	if err != nil {
+		t.Fatalf("read: %v", err)
 	}
 
-	if perCPU[0] != 130 || perCPU[1] != 50 {
+	if perCPU[0].Uplink != 130 || perCPU[1].Uplink != 50 {
 		t.Fatalf("TakeUsage wrote the datapath counter: %v", perCPU[:2])
+	}
+}
+
+func TestTakeUsageKeepsDirectionOfAURRWithNoPDRLeft(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+	session := addUsageSession(t, conn, obj, 36)
+
+	session.RemovePDR(2)
+
+	setURR(t, obj, 36, usageDownlinkURR, down(80))
+
+	got, err := conn.TakeUsage(session)
+	if err != nil {
+		t.Fatalf("TakeUsage: %v", err)
+	}
+
+	if got.DownlinkVolume != 80 || got.UplinkVolume != 0 {
+		t.Fatalf("TakeUsage = %+v, want 80 downlink", got)
+	}
+}
+
+func TestSharedURRReportsBothDirections(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+	session := addUsageSession(t, conn, obj, 37)
+
+	setURR(t, obj, 37, usageDownlinkURR, counters(12, 40), counters(3, 0))
+
+	got, err := conn.TakeUsage(session)
+	if err != nil {
+		t.Fatalf("TakeUsage: %v", err)
+	}
+
+	if got.UplinkVolume != 15 || got.DownlinkVolume != 40 {
+		t.Fatalf("TakeUsage = %+v, want 15/40", got)
 	}
 }
 
@@ -160,7 +199,7 @@ func TestConcurrentTakeUsageCountsEachByteOnce(t *testing.T) {
 	session := addUsageSession(t, conn, obj, 32)
 
 	for round := range uint64(500) {
-		setURR(t, obj, 32, usageUplinkURR, (round+1)*1000)
+		setURR(t, obj, 32, usageUplinkURR, up((round+1)*1000))
 
 		var (
 			mu    sync.Mutex
@@ -214,25 +253,23 @@ func (p *barrierProbe) Wait() error {
 		p.t.Error("barrier ran after the URR was deleted")
 	}
 
-	setURR(p.t, p.obj, p.seid, usageDownlinkURR, 70)
+	setURR(p.t, p.obj, p.seid, usageDownlinkURR, down(70))
 
 	return nil
 }
-
-func (p *barrierProbe) Close() error { return nil }
 
 func TestDeleteSessionReportsUsageCountedBeforeTheBarrierReturns(t *testing.T) {
 	conn, obj := newUsageBPFEngine(t)
 	session := addUsageSession(t, conn, obj, 33)
 
-	setURR(t, obj, 33, usageUplinkURR, 40)
-	setURR(t, obj, 33, usageDownlinkURR, 20)
+	setURR(t, obj, 33, usageUplinkURR, up(40))
+	setURR(t, obj, 33, usageDownlinkURR, down(20))
 
 	if got, _ := conn.TakeUsage(session); got.UplinkVolume != 40 || got.DownlinkVolume != 20 {
 		t.Fatalf("TakeUsage = %+v, want 40/20", got)
 	}
 
-	setURR(t, obj, 33, usageUplinkURR, 45)
+	setURR(t, obj, 33, usageUplinkURR, up(45))
 
 	probe := &barrierProbe{t: t, obj: obj, seid: 33}
 	conn.programs = probe
@@ -246,8 +283,8 @@ func TestDeleteSessionReportsUsageCountedBeforeTheBarrierReturns(t *testing.T) {
 		t.Fatalf("barrier called %d times, want once", probe.calls)
 	}
 
-	if resp.Usage.UplinkVolume != 5 || resp.Usage.DownlinkVolume != 50 {
-		t.Fatalf("final usage = %+v, want 5 uplink and the 50 counted during the barrier", resp.Usage)
+	if resp.Usage.UplinkVolume != 5 || resp.Usage.DownlinkVolume != 50 || resp.Usage.IMSI != usageIMSI {
+		t.Fatalf("final usage = %+v, want 5 uplink and the 50 counted during the barrier for %s", resp.Usage, usageIMSI)
 	}
 
 	for _, id := range []uint32{usageUplinkURR, usageDownlinkURR} {
@@ -255,9 +292,32 @@ func TestDeleteSessionReportsUsageCountedBeforeTheBarrierReturns(t *testing.T) {
 			t.Errorf("URR %d still present after DeleteSession", id)
 		}
 	}
+}
 
-	if conn.ReturnUsage(models.UsageReport{SEID: 33, UplinkVolume: 1}) {
-		t.Error("ReturnUsage accepted usage for a deleted session")
+type countingWaiter struct {
+	calls int
+}
+
+func (w *countingWaiter) Wait() error {
+	w.calls++
+
+	return nil
+}
+
+func TestDeleteSessionWithoutURRsSkipsTheBarrier(t *testing.T) {
+	conn, _ := newUsageBPFEngine(t)
+
+	waiter := &countingWaiter{}
+	conn.programs = waiter
+
+	conn.AddSession(38, NewSession(38))
+
+	if _, err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: 38}); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+
+	if waiter.calls != 0 {
+		t.Fatalf("barrier called %d times for a session with nothing to count", waiter.calls)
 	}
 }
 
@@ -268,7 +328,7 @@ func TestTakeUsageRacingDeleteSessionLeavesNoURR(t *testing.T) {
 		seid := uint64(1000 + i)
 		session := addUsageSession(t, conn, obj, seid)
 
-		setURR(t, obj, seid, usageUplinkURR, 7)
+		setURR(t, obj, seid, usageUplinkURR, up(7))
 
 		var (
 			wg    sync.WaitGroup
@@ -303,36 +363,12 @@ func TestTakeUsageRacingDeleteSessionLeavesNoURR(t *testing.T) {
 	}
 }
 
-type recordingWaiter struct {
-	t     *testing.T
-	obj   *ebpf.BpfObjects
-	seid  uint64
-	calls int
-}
-
-func (w *recordingWaiter) Wait() error {
-	w.calls++
-
-	if !urrExists(w.t, w.obj, w.seid, usageUplinkURR) {
-		w.t.Error("rollback deleted the URR before waiting for running programs")
-	}
-
-	return nil
-}
-
-func (w *recordingWaiter) Close() error { return nil }
-
-func TestEstablishRollbackWaitsForProgramsBeforeDeletingURRs(t *testing.T) {
-	conn, obj := newUsageBPFEngine(t)
-
-	waiter := &recordingWaiter{t: t, obj: obj, seid: 34}
-	conn.programs = waiter
-
+func failingEstablish(seid uint64) *models.EstablishRequest {
 	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
 
-	_, err := conn.EstablishSession(context.Background(), &models.EstablishRequest{
-		SEID: 34,
-		IMSI: "001010000000001",
+	return &models.EstablishRequest{
+		SEID: seid,
+		IMSI: usageIMSI,
 		URRs: []models.URR{{URRID: usageUplinkURR}},
 		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{}}},
 		QERs: []models.QER{{QERID: 1}},
@@ -344,16 +380,40 @@ func TestEstablishRollbackWaitsForProgramsBeforeDeletingURRs(t *testing.T) {
 			URRID:              usageUplinkURR,
 			PDI:                models.PDI{LocalFTEID: &models.FTEID{}},
 		}},
-	})
-	if err == nil {
+	}
+}
+
+func TestEstablishRollbackDeletesURRsWithoutTheBarrier(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+
+	waiter := &countingWaiter{}
+	conn.programs = waiter
+
+	if _, err := conn.EstablishSession(context.Background(), failingEstablish(34)); err == nil {
 		t.Fatal("establish succeeded without a TEID allocator")
 	}
 
-	if waiter.calls != 1 {
-		t.Fatalf("rollback waited for programs %d times, want once", waiter.calls)
+	if waiter.calls != 0 {
+		t.Fatalf("rollback waited for programs %d times; it reports no usage", waiter.calls)
 	}
 
 	if urrExists(t, obj, 34, usageUplinkURR) {
 		t.Error("URR left behind by the failed establish")
+	}
+}
+
+func TestReestablishHoldsTheReplacedSessionsUsage(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+	addUsageSession(t, conn, obj, 35)
+
+	setURR(t, obj, 35, usageUplinkURR, up(9))
+
+	if _, err := conn.EstablishSession(context.Background(), failingEstablish(35)); err == nil {
+		t.Fatal("establish succeeded without a TEID allocator")
+	}
+
+	held := conn.TakeHeldUsage()
+	if len(held) != 1 || held[0].UplinkVolume != 9 || held[0].IMSI != usageIMSI {
+		t.Fatalf("held usage = %+v, want the replaced session's 9 uplink bytes", held)
 	}
 }

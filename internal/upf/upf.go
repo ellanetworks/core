@@ -721,6 +721,18 @@ func (u *UPF) flushUsageAtShutdown() {
 
 	if err := u.pollUsage(ctx); err != nil {
 		logger.UpfLog.Warn("Failed to flush usage counters at shutdown", zap.Error(err))
+		return
+	}
+
+	unrecorded := u.se.TakeHeldUsage()
+	if len(unrecorded) == 0 {
+		return
+	}
+
+	logger.UpfLog.Error("usage bytes lost: usage could not be recorded before shutdown", batchFields(unrecorded)...)
+
+	for _, usage := range unrecorded {
+		countDroppedUsage(usageDropShutdown, usage)
 	}
 }
 
@@ -731,7 +743,7 @@ func (u *UPF) pollUsage(ctx context.Context) error {
 
 	sessions := u.se.ListSessions()
 
-	taken := make([]models.UsageReport, 0, len(sessions))
+	taken := u.se.TakeHeldUsage()
 
 	for _, session := range sessions {
 		usage, err := u.se.TakeUsage(session)
@@ -787,14 +799,7 @@ func (u *UPF) reportUsage(ctx context.Context, batch []models.UsageReport) {
 			append(batchFields(batch), zap.Error(err))...)
 
 		for _, usage := range batch {
-			if u.se.ReturnUsage(usage) {
-				continue
-			}
-
-			logger.UpfLog.Error("usage bytes lost: report failed and the session is gone",
-				logger.SEID(usage.SEID), logger.UplinkVolume(usage.UplinkVolume), logger.DownlinkVolume(usage.DownlinkVolume))
-
-			countDroppedUsage(usageDropSessionGone, usage)
+			u.se.HoldUsage(usage)
 		}
 
 		return

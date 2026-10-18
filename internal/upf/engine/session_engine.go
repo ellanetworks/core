@@ -46,17 +46,38 @@ type SessionEngine struct {
 
 	endMarkers endMarkerSockets
 
-	programs ProgramWaiter
+	programs ebpf.ProgramWaiter
+
+	heldMu sync.Mutex
+	held   map[string]models.UsageReport
+
+	lifecycle sync.RWMutex
+	closed    bool
+}
+
+var ErrClosed = errors.New("session engine closed")
+
+func (conn *SessionEngine) enter() bool {
+	conn.lifecycle.RLock()
+
+	if conn.closed {
+		conn.lifecycle.RUnlock()
+		return false
+	}
+
+	return true
+}
+
+func (conn *SessionEngine) exit() {
+	conn.lifecycle.RUnlock()
 }
 
 func (conn *SessionEngine) Close() error {
-	err := conn.endMarkers.Close()
+	conn.lifecycle.Lock()
+	conn.closed = true
+	conn.lifecycle.Unlock()
 
-	if conn.programs != nil {
-		err = errors.Join(err, conn.programs.Close())
-	}
-
-	return err
+	return conn.endMarkers.Close()
 }
 
 func (pc *SessionEngine) ListSessions() map[uint64]*Session {
@@ -265,15 +286,6 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		FteIDResourceManager:    resourceManager,
 		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),
 		filtersByKey:            make(map[string]uint32),
-	}
-
-	if bpfObjects != nil {
-		programs, err := ebpf.NewProgramBarrier()
-		if err != nil {
-			return nil, fmt.Errorf("create datapath program barrier: %w", err)
-		}
-
-		conn.programs = programs
 	}
 
 	return conn, nil

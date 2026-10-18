@@ -45,6 +45,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_dl_buffer_capture_attempts_total | Downlink packets for an idle UE the data plane offered to the buffer, labeled by `result`. | Counter |
 | app_upf_dl_buffer_evictions_total | Buffered downlink packets discarded before re-injection, labeled by `reason`. | Counter |
 | app_upf_ringbuf_events_lost_total | Events the data plane raised but could not place in a ring buffer, labeled by `map`. | Counter |
+| app_upf_usage_dropped_bytes_total | Subscriber usage bytes the data plane measured but never recorded, labeled by `reason`: `outcome_unknown` (the store may or may not have applied the report) or `shutdown` (still unrecorded when Ella Core stopped). | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |

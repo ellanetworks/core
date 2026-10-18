@@ -267,7 +267,7 @@ type SdfFilterList struct {
 }
 
 func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
-	zeroVals := make([]uint64, runtime.NumCPU())
+	zeroVals := make([]N3N6EntrypointUrrCounters, runtime.NumCPU())
 
 	err := bpfObjects.putTracked(bpfObjects.UrrMap, MapURR, N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, zeroVals)
 	if err != nil {
@@ -278,8 +278,6 @@ func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 }
 
 func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
-	// A URR shared by several PDRs (the downlink and second PDR share one) is
-	// deleted with the first PDR, so a later delete of the same key is a no-op.
 	err := bpfObjects.deleteTracked(bpfObjects.UrrMap, MapURR, N3N6EntrypointUrrKey{Seid: seid, UrrId: id})
 	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		return fmt.Errorf("failed to delete URR: %w", err)
@@ -288,8 +286,8 @@ func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
 	return nil
 }
 
-func (bpfObjects *BpfObjects) ReadUrr(seid uint64, id uint32) ([]uint64, error) {
-	var perCPU []uint64
+func (bpfObjects *BpfObjects) ReadUrr(seid uint64, id uint32) ([]N3N6EntrypointUrrCounters, error) {
+	var perCPU []N3N6EntrypointUrrCounters
 	if err := bpfObjects.UrrMap.Lookup(N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, &perCPU); err != nil {
 		return nil, fmt.Errorf("failed to lookup URR: %w", err)
 	}

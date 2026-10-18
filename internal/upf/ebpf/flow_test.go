@@ -114,14 +114,14 @@ func TestURRByteAccounting(t *testing.T) {
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if got := sumURR(t, obj, seid, urrID); got != perPacket {
-		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
+	if got := readURR(t, obj, seid, urrID); got.Uplink != perPacket || got.Downlink != 0 {
+		t.Fatalf("URR after 1 packet = %d up/%d down, want %d up", got.Uplink, got.Downlink, perPacket)
 	}
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if got := sumURR(t, obj, seid, urrID); got != 2*perPacket {
-		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)
+	if got := readURR(t, obj, seid, urrID); got.Uplink != 2*perPacket || got.Downlink != 0 {
+		t.Fatalf("URR after 2 packets = %d up/%d down, want %d up", got.Uplink, got.Downlink, 2*perPacket)
 	}
 }
 
@@ -217,14 +217,14 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 
 	runXDP(t, obj.UpfEntryFunc, frame)
 
-	if got := sumURR(t, obj, seid, urrID); got != perPacket {
-		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
+	if got := readURR(t, obj, seid, urrID); got.Downlink != perPacket || got.Uplink != 0 {
+		t.Fatalf("URR after 1 packet = %d up/%d down, want %d down", got.Uplink, got.Downlink, perPacket)
 	}
 
 	runXDP(t, obj.UpfEntryFunc, frame)
 
-	if got := sumURR(t, obj, seid, urrID); got != 2*perPacket {
-		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)
+	if got := readURR(t, obj, seid, urrID); got.Downlink != 2*perPacket || got.Uplink != 0 {
+		t.Fatalf("URR after 2 packets = %d up/%d down, want %d down", got.Uplink, got.Downlink, 2*perPacket)
 	}
 }
 
@@ -299,20 +299,29 @@ func TestReadUrrUnderTrafficIsExact(t *testing.T) {
 	}
 }
 
-func sumURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
+func readURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) N3N6EntrypointUrrCounters {
 	t.Helper()
 
-	var perCPU []uint64
-	if err := obj.UrrMap.Lookup(N3N6EntrypointUrrKey{Seid: seid, UrrId: urrID}, &perCPU); err != nil {
+	perCPU, err := obj.ReadUrr(seid, urrID)
+	if err != nil {
 		t.Fatalf("urr_map lookup: %v", err)
 	}
 
-	var sum uint64
+	var sum N3N6EntrypointUrrCounters
 	for _, v := range perCPU {
-		sum += v
+		sum.Uplink += v.Uplink
+		sum.Downlink += v.Downlink
 	}
 
 	return sum
+}
+
+func sumURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
+	t.Helper()
+
+	counters := readURR(t, obj, seid, urrID)
+
+	return counters.Uplink + counters.Downlink
 }
 
 func TestFlowDSCP(t *testing.T) {

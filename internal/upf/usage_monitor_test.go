@@ -78,8 +78,9 @@ func TestMonitorUsageReturnsWithinTheFlushBudget(t *testing.T) {
 }
 
 type stubReportHandler struct {
-	err   error
-	calls int
+	err     error
+	calls   int
+	reports []models.UsageReport
 }
 
 func (s *stubReportHandler) HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error {
@@ -90,10 +91,18 @@ func (s *stubReportHandler) HandleErrorIndicationReport(context.Context, *models
 	return nil
 }
 
-func (s *stubReportHandler) HandleUsageReports(context.Context, []*models.UsageReport) error {
+func (s *stubReportHandler) HandleUsageReports(_ context.Context, reports []*models.UsageReport) error {
 	s.calls++
 
-	return s.err
+	if s.err != nil {
+		return s.err
+	}
+
+	for _, report := range reports {
+		s.reports = append(s.reports, *report)
+	}
+
+	return nil
 }
 
 func (s *stubReportHandler) SendFlowReports(context.Context, []*models.FlowReportRequest) error {
@@ -119,40 +128,64 @@ func TestReportUsageDropsUsageWhenTheOutcomeIsUnknown(t *testing.T) {
 
 	u := &UPF{se: se, smf: smf}
 
-	u.reportUsage(context.Background(), []models.UsageReport{{SEID: 1, UplinkVolume: 500}})
+	u.reportUsage(context.Background(), []models.UsageReport{{SEID: 1, IMSI: "001010000000001", UplinkVolume: 500}})
 
 	if smf.calls != 1 {
 		t.Fatalf("the batch was reported %d times, want once", smf.calls)
 	}
 
-	got, err := se.TakeUsage(se.GetSession(1))
-	if err != nil {
-		t.Fatalf("TakeUsage: %v", err)
-	}
-
-	if got.UplinkVolume != 0 {
-		t.Fatalf("usage with an unknown outcome was kept for another report: %+v", got)
+	if held := se.TakeHeldUsage(); len(held) != 0 {
+		t.Fatalf("usage with an unknown outcome was kept for another report: %+v", held)
 	}
 }
 
-func TestReportUsageReturnsUsageWhenTheReportFails(t *testing.T) {
+func TestFailedReportIsRetriedByTheNextPoll(t *testing.T) {
 	smf := &stubReportHandler{err: errors.New("store unavailable")}
 	se := newUsageTestEngine(t)
 
 	u := &UPF{se: se, smf: smf}
 
 	u.reportUsage(context.Background(), []models.UsageReport{
-		{SEID: 1, UplinkVolume: 500, DownlinkVolume: 300},
-		{SEID: 2, UplinkVolume: 70},
+		{SEID: 1, IMSI: "001010000000001", UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: 2, IMSI: "001010000000002", UplinkVolume: 70},
 	})
 
-	got, err := se.TakeUsage(se.GetSession(1))
-	if err != nil {
-		t.Fatalf("TakeUsage: %v", err)
+	smf.err = nil
+
+	if err := u.pollUsage(context.Background()); err != nil {
+		t.Fatalf("pollUsage: %v", err)
 	}
 
-	if got.UplinkVolume != 500 || got.DownlinkVolume != 300 {
-		t.Fatalf("failed report was not carried to the next take: %+v", got)
+	got := make(map[string]models.UsageReport)
+	for _, report := range smf.reports {
+		got[report.IMSI] = report
+	}
+
+	if r := got["001010000000001"]; r.UplinkVolume != 500 || r.DownlinkVolume != 300 {
+		t.Errorf("live session's usage = %+v, want 500/300", r)
+	}
+
+	if r := got["001010000000002"]; r.UplinkVolume != 70 {
+		t.Errorf("deleted session's usage = %+v, want 70 uplink", r)
+	}
+
+	if held := se.TakeHeldUsage(); len(held) != 0 {
+		t.Fatalf("recorded usage still held: %+v", held)
+	}
+}
+
+func TestShutdownFlushReportsHeldUsage(t *testing.T) {
+	smf := &stubReportHandler{}
+	se := newUsageTestEngine(t)
+
+	se.HoldUsage(models.UsageReport{SEID: 2, IMSI: "001010000000002", DownlinkVolume: 40})
+
+	u := &UPF{se: se, smf: smf}
+
+	u.flushUsageAtShutdown()
+
+	if len(smf.reports) != 1 || smf.reports[0].DownlinkVolume != 40 {
+		t.Fatalf("shutdown flush reported %+v, want the held 40 downlink bytes", smf.reports)
 	}
 }
 

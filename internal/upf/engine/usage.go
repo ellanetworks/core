@@ -13,18 +13,15 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
 )
 
-type ProgramWaiter interface {
-	Wait() error
-	Close() error
-}
+var errCounterWentBackwards = errors.New("counter went backwards")
 
 type usageLedger struct {
 	mu       sync.Mutex
-	created  map[uint32]struct{}
-	counted  map[uint32][]uint64
+	counted  map[uint32][]ebpf.N3N6EntrypointUrrCounters
 	uplink   uint64
 	downlink uint64
 	closed   bool
@@ -34,70 +31,69 @@ func (l *usageLedger) track(urrID uint32) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.created == nil {
-		l.created = make(map[uint32]struct{})
+	if l.counted == nil {
+		l.counted = make(map[uint32][]ebpf.N3N6EntrypointUrrCounters)
 	}
 
-	l.created[urrID] = struct{}{}
+	if _, ok := l.counted[urrID]; !ok {
+		l.counted[urrID] = nil
+	}
 }
 
-func (l *usageLedger) urrIDsLocked(directions map[uint32]bool) []uint32 {
-	ids := make(map[uint32]struct{}, len(l.created)+len(directions))
+func (l *usageLedger) tracksURRs() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	for id := range l.created {
-		ids[id] = struct{}{}
-	}
-
-	for id := range directions {
-		ids[id] = struct{}{}
-	}
-
-	return slices.Sorted(maps.Keys(ids))
+	return len(l.counted) > 0
 }
 
-func (l *usageLedger) reportLocked(seid uint64) models.UsageReport {
-	report := models.UsageReport{SEID: seid, UplinkVolume: l.uplink, DownlinkVolume: l.downlink}
+func (l *usageLedger) reportLocked(session *Session) models.UsageReport {
+	report := models.UsageReport{
+		SEID:           session.SEID,
+		IMSI:           session.IMSI(),
+		UplinkVolume:   l.uplink,
+		DownlinkVolume: l.downlink,
+	}
 	l.uplink, l.downlink = 0, 0
 
 	return report
 }
 
-func urrDirections(pdrs map[uint32]SPDRInfo) map[uint32]bool {
-	downlink := make(map[uint32]bool, len(pdrs))
-
-	for _, pdr := range pdrs {
-		id := pdr.PdrInfo.UrrID
-		if id == 0 {
-			continue
-		}
-
-		downlink[id] = downlink[id] || pdr.UEIP.IsValid()
+func counterGrowth(prev, current uint64) (uint64, bool) {
+	if current < prev {
+		return current, false
 	}
 
-	return downlink
+	return current - prev, true
 }
 
-func counterDelta(counted, current []uint64) uint64 {
-	var delta uint64
+func counterDelta(counted, current []ebpf.N3N6EntrypointUrrCounters) (uint64, uint64, error) {
+	var (
+		uplink, downlink uint64
+		err              error
+	)
 
 	for cpu, v := range current {
-		var prev uint64
+		var prev ebpf.N3N6EntrypointUrrCounters
 		if cpu < len(counted) {
 			prev = counted[cpu]
 		}
 
-		if v < prev {
-			delta += v
-			continue
+		up, upOK := counterGrowth(prev.Uplink, v.Uplink)
+		down, downOK := counterGrowth(prev.Downlink, v.Downlink)
+
+		if !upOK || !downOK {
+			err = fmt.Errorf("CPU %d: %w", cpu, errCounterWentBackwards)
 		}
 
-		delta += v - prev
+		uplink += up
+		downlink += down
 	}
 
-	return delta
+	return uplink, downlink, err
 }
 
-func (conn *SessionEngine) countURRLocked(session *Session, urrID uint32, downlink bool) error {
+func (conn *SessionEngine) countURRLocked(session *Session, urrID uint32) error {
 	if conn.BpfObjects == nil {
 		return nil
 	}
@@ -109,24 +105,25 @@ func (conn *SessionEngine) countURRLocked(session *Session, urrID uint32, downli
 		return fmt.Errorf("read URR %d: %w", urrID, err)
 	}
 
-	delta := counterDelta(l.counted[urrID], current)
-
-	if l.counted == nil {
-		l.counted = make(map[uint32][]uint64)
-	}
+	uplink, downlink, err := counterDelta(l.counted[urrID], current)
 
 	l.counted[urrID] = current
+	l.uplink += uplink
+	l.downlink += downlink
 
-	if downlink {
-		l.downlink += delta
-	} else {
-		l.uplink += delta
+	if err != nil {
+		return fmt.Errorf("URR %d: %w", urrID, err)
 	}
 
 	return nil
 }
 
 func (conn *SessionEngine) TakeUsage(session *Session) (models.UsageReport, error) {
+	if !conn.enter() {
+		return models.UsageReport{SEID: session.SEID}, ErrClosed
+	}
+	defer conn.exit()
+
 	l := &session.usage
 
 	l.mu.Lock()
@@ -136,41 +133,48 @@ func (conn *SessionEngine) TakeUsage(session *Session) (models.UsageReport, erro
 		return models.UsageReport{SEID: session.SEID}, nil
 	}
 
-	directions := urrDirections(session.ListPDRs())
-
 	var errs []error
 
-	for _, id := range l.urrIDsLocked(directions) {
-		if err := conn.countURRLocked(session, id, directions[id]); err != nil {
+	for _, id := range slices.Sorted(maps.Keys(l.counted)) {
+		if err := conn.countURRLocked(session, id); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
-	return l.reportLocked(session.SEID), errors.Join(errs...)
+	return l.reportLocked(session), errors.Join(errs...)
 }
 
-func (conn *SessionEngine) ReturnUsage(report models.UsageReport) bool {
-	session := conn.GetSession(report.SEID)
-	if session == nil {
-		return false
+func (conn *SessionEngine) HoldUsage(report models.UsageReport) {
+	if report.UplinkVolume+report.DownlinkVolume == 0 {
+		return
 	}
 
-	l := &session.usage
+	conn.heldMu.Lock()
+	defer conn.heldMu.Unlock()
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if l.closed {
-		return false
+	if conn.held == nil {
+		conn.held = make(map[string]models.UsageReport)
 	}
 
-	l.uplink += report.UplinkVolume
-	l.downlink += report.DownlinkVolume
-
-	return true
+	held := conn.held[report.IMSI]
+	held.SEID = report.SEID
+	held.IMSI = report.IMSI
+	held.UplinkVolume += report.UplinkVolume
+	held.DownlinkVolume += report.DownlinkVolume
+	conn.held[report.IMSI] = held
 }
 
-func (conn *SessionEngine) closeUsage(session *Session, directions map[uint32]bool) (models.UsageReport, error) {
+func (conn *SessionEngine) TakeHeldUsage() []models.UsageReport {
+	conn.heldMu.Lock()
+	defer conn.heldMu.Unlock()
+
+	reports := slices.Collect(maps.Values(conn.held))
+	conn.held = nil
+
+	return reports
+}
+
+func (conn *SessionEngine) closeUsage(ctx context.Context, session *Session) (models.UsageReport, error) {
 	l := &session.usage
 
 	l.mu.Lock()
@@ -178,9 +182,10 @@ func (conn *SessionEngine) closeUsage(session *Session, directions map[uint32]bo
 
 	var errs []error
 
-	for _, id := range l.urrIDsLocked(directions) {
-		if err := conn.countURRLocked(session, id, directions[id]); err != nil {
-			errs = append(errs, err)
+	for _, id := range slices.Sorted(maps.Keys(l.counted)) {
+		if err := conn.countURRLocked(session, id); err != nil {
+			logger.From(ctx, logger.UpfLog).Error("usage bytes lost: the final URR reading is not exact",
+				logger.SEID(session.SEID), logger.URRID(id), zap.Error(err))
 		}
 
 		if conn.BpfObjects == nil {
@@ -194,17 +199,30 @@ func (conn *SessionEngine) closeUsage(session *Session, directions map[uint32]bo
 
 	l.closed = true
 	l.counted = nil
-	l.created = nil
 
-	return l.reportLocked(session.SEID), errors.Join(errs...)
+	return l.reportLocked(session), errors.Join(errs...)
 }
 
-func (conn *SessionEngine) waitForPrograms(ctx context.Context) {
-	if conn.programs == nil {
+func (conn *SessionEngine) programWaiter() ebpf.ProgramWaiter {
+	if conn.programs != nil {
+		return conn.programs
+	}
+
+	if conn.BpfObjects != nil && conn.BpfObjects.Programs != nil {
+		return conn.BpfObjects.Programs
+	}
+
+	return nil
+}
+
+func (conn *SessionEngine) waitForPrograms(ctx context.Context, session *Session) {
+	programs := conn.programWaiter()
+	if programs == nil || !session.usage.tracksURRs() {
 		return
 	}
 
-	if err := conn.programs.Wait(); err != nil {
-		logger.From(ctx, logger.UpfLog).Warn("could not wait for running datapath programs", zap.Error(err))
+	if err := programs.Wait(); err != nil {
+		logger.From(ctx, logger.UpfLog).Error("usage bytes lost: could not wait for running datapath programs before the final reading",
+			logger.SEID(session.SEID), zap.Error(err))
 	}
 }

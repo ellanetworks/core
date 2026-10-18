@@ -281,6 +281,7 @@ type ErrorIndicationReport struct {
 // UsageReport delivers periodic volume measurements from UPF to SMF.
 type UsageReport struct {
 	SEID           uint64
+	IMSI           string
 	UplinkVolume   uint64
 	DownlinkVolume uint64
 }

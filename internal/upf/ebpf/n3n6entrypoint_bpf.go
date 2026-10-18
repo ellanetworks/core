@@ -357,6 +357,12 @@ type N3N6EntrypointUpfStatistic struct {
 	NatEvictions     uint64
 }
 
+type N3N6EntrypointUrrCounters struct {
+	_        structs.HostLayout
+	Uplink   uint64
+	Downlink uint64
+}
+
 type N3N6EntrypointUrrKey struct {
 	_     structs.HostLayout
 	Seid  uint64

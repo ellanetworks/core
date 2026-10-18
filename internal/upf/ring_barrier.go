@@ -20,11 +20,6 @@ type ringPositions interface {
 	Close() error
 }
 
-type programWaiter interface {
-	Wait() error
-	Close() error
-}
-
 type ringCursor struct {
 	consPage []byte
 	prodPage []byte

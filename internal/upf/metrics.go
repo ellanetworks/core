@@ -28,7 +28,7 @@ var usageBytesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 const (
 	usageDropOutcomeUnknown = "outcome_unknown"
-	usageDropSessionGone    = "session_gone"
+	usageDropShutdown       = "shutdown"
 )
 
 func countDroppedUsage(reason string, usage models.UsageReport) {
@@ -49,7 +49,7 @@ const (
 func RegisterMetrics() {
 	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted, usageBytesDropped)
 
-	for _, reason := range []string{usageDropOutcomeUnknown, usageDropSessionGone} {
+	for _, reason := range []string{usageDropOutcomeUnknown, usageDropShutdown} {
 		usageBytesDropped.WithLabelValues(reason)
 	}
 

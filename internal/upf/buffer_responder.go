@@ -77,7 +77,7 @@ type BufferResponder struct {
 
 	barrierMu sync.RWMutex
 	positions ringPositions
-	programs  programWaiter
+	programs  ebpf.ProgramWaiter
 
 	consumedPos    uintptr
 	consumerFailed bool
@@ -169,19 +169,9 @@ func (b *BufferResponder) Start() error {
 		return fmt.Errorf("map dl_buffer ring positions: %w", err)
 	}
 
-	programs, err := ebpf.NewProgramBarrier()
-	if err != nil {
-		_ = positions.Close()
-		_ = b.reader.Close()
-		_ = unix.Close(fd)
-		b.injectFD = -1
-
-		return fmt.Errorf("create datapath program barrier: %w", err)
-	}
-
 	b.barrierMu.Lock()
 	b.positions = positions
-	b.programs = programs
+	b.programs = b.bpfObjects.Programs
 	b.barrierMu.Unlock()
 
 	b.mu.Lock()
@@ -272,10 +262,7 @@ func (b *BufferResponder) Close() error {
 		b.positions = nil
 	}
 
-	if b.programs != nil {
-		_ = b.programs.Close()
-		b.programs = nil
-	}
+	b.programs = nil
 	b.barrierMu.Unlock()
 
 	b.mu.Lock()

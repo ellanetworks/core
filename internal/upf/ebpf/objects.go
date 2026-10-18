@@ -117,6 +117,8 @@ type BpfObjects struct {
 
 	occupancyMu sync.Mutex
 	occupancy   map[string]int
+
+	Programs *ProgramBarrier
 }
 
 func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
@@ -217,6 +219,16 @@ func (bpfObjects *BpfObjects) Load() error {
 	// field only exists in N3N6EntrypointMaps when compiled with
 	// -DENABLE_PROFILING; reflection lets us check without a hard reference.
 	bpfObjects.ProfilingMap = profilingMapFromMaps(bpfObjects.N3N6EntrypointMaps)
+
+	if bpfObjects.Programs == nil {
+		programs, err := NewProgramBarrier()
+		if err != nil {
+			logger.UpfLog.Error("failed to create datapath program barrier", zap.Error(err))
+			return err
+		}
+
+		bpfObjects.Programs = programs
+	}
 
 	return nil
 }
@@ -397,9 +409,15 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 }
 
 func (bpfObjects *BpfObjects) Close() error {
-	return CloseAllObjects(
+	err := CloseAllObjects(
 		&bpfObjects.N3N6EntrypointObjects,
 	)
+
+	if bpfObjects.Programs != nil {
+		err = errors.Join(err, bpfObjects.Programs.Close())
+	}
+
+	return err
 }
 
 // SetBufferVethIfindex names the veth re-injected packets arrive on. Zero clears it.
