@@ -576,7 +576,7 @@ func (s *SMF) dedicatedAwaitUE(sc *SMContext, teid uint32) {
 }
 
 func (s *SMF) retryAfterMobility(sc *SMContext, err error) {
-	if errors.Is(err, ErrHandoverInProgress) {
+	if errors.Is(err, ErrMobilityInProgress) {
 		s.reconcileAfter(sc.Ref, mobilityRetryInterval)
 	}
 }

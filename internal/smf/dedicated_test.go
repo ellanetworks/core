@@ -172,7 +172,7 @@ func TestDedicatedBearerTemporarilyRejectedForMobilityIsReattempted(t *testing.T
 	s, _, _, mmeCb, ref := epsReconcileFixture(t, 0)
 
 	mmeCb.mu.Lock()
-	mmeCb.activateErr = fmt.Errorf("%w: %w", smf.ErrHandoverInProgress, smf.ErrUENotReachable)
+	mmeCb.activateErr = smf.ErrMobilityInProgress
 	mmeCb.mu.Unlock()
 
 	pushRules(t, s, ref, voiceRule())

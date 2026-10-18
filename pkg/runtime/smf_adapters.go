@@ -352,10 +352,10 @@ func (a *smfAMFAdapter) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessi
 	err := a.amf.ModifyN1N2Message(ctx, supi, pduSessionID, n1Msg, n2Msg)
 
 	switch {
+	case errors.Is(err, amfContext.ErrMobilityInProgress):
+		return smf.ErrMobilityInProgress
 	case errors.Is(err, amfContext.ErrUENotReachable):
 		return smf.ErrUENotReachable
-	case errors.Is(err, amfContext.ErrHandoverInProgress):
-		return smf.ErrHandoverInProgress
 	}
 
 	return err
@@ -427,7 +427,7 @@ func (a *smfMMEAdapter) DeactivateDedicatedBearer(ctx context.Context, imsi stri
 
 func mmeReachability(err error) error {
 	if errors.Is(err, mme.ErrMobilityInProgress) {
-		return fmt.Errorf("%w: %w: %v", smf.ErrHandoverInProgress, smf.ErrUENotReachable, err)
+		return fmt.Errorf("%w: %v", smf.ErrMobilityInProgress, err)
 	}
 
 	if errors.Is(err, mme.ErrUENotReachable) || errors.Is(err, mme.ErrBearerBusy) {

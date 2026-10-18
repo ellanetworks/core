@@ -471,6 +471,34 @@ type fromEPSRelocation struct {
 	cancelled bool
 }
 
+func (a *AMF) lookupSessionUe(supi etsi.SUPI) (*UeContext, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	if ue, ok := a.UEs[supi]; ok {
+		return ue, true
+	}
+
+	if held, ok := a.relocatingFromEPS[supi]; ok && held.ue != nil {
+		return held.ue, true
+	}
+
+	return nil, false
+}
+
+func (a *AMF) mobilityInProgress(ue *UeContext) bool {
+	if ue.State() == RegistrationInitiated {
+		return true
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	held, ok := a.relocatingFromEPS[ue.Supi()]
+
+	return ok && held.ue == ue
+}
+
 func (a *AMF) beginRelocationFromEPS(supi etsi.SUPI, id interworking.RelocationID, ue *UeContext) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()

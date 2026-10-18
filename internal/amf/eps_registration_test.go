@@ -5,6 +5,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
@@ -264,4 +265,24 @@ func (*cancelRecordingEPSPeer) MMContext(context.Context, interworking.MMContext
 
 func (*cancelRecordingEPSPeer) MMContextAck(context.Context, etsi.SUPI, []uint8) error {
 	return nil
+}
+
+func TestSessionModificationDuringARelocationFromEPSIsTemporarilyRejected(t *testing.T) {
+	supi, err := etsi.NewSUPIFromIMSI("001010000000077")
+	if err != nil {
+		t.Fatalf("NewSUPIFromIMSI: %v", err)
+	}
+
+	a := New(nil, nil, nil)
+
+	ue := NewUeContext()
+	ue.SetSupi(supi)
+
+	if !a.beginRelocationFromEPS(supi, 7, ue) {
+		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
+	}
+
+	if err := a.ModifyN1N2Message(t.Context(), supi, 1, []byte{0x01}, []byte{0x02}); !errors.Is(err, ErrMobilityInProgress) {
+		t.Fatalf("ModifyN1N2Message error = %v, want ErrMobilityInProgress while the UE is relocating from EPS (TS 29.518 TEMPORARY_REJECT_HANDOVER_ONGOING)", err)
+	}
 }

@@ -31,7 +31,7 @@ import (
 // delivery is deferred until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
-var ErrHandoverInProgress = errors.New("temporary reject: PDU session modification during handover")
+var ErrMobilityInProgress = fmt.Errorf("%w: temporarily rejected, mobility procedure in progress", ErrUENotReachable)
 
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
 
@@ -232,9 +232,13 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	)
 	defer span.End()
 
-	ue, ok := amf.LookupUeBySupi(supi)
+	ue, ok := amf.lookupSessionUe(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
+	}
+
+	if amf.mobilityInProgress(ue) {
+		return ErrMobilityInProgress
 	}
 
 	ueConn := ue.Conn()
@@ -252,7 +256,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	// handover's own resource signalling on the source gNB (TS 38.413 §8.4).
 	// Defer it; the reconcile backstop re-applies it once the handover completes.
 	if conn := ue.Conn(); conn != nil && ue.Procedures().Active(procedure.N2Handover) {
-		return ErrHandoverInProgress
+		return ErrMobilityInProgress
 	}
 
 	if n2Msg != nil && !ueConn.RANHoldsUEContext() {
