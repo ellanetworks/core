@@ -461,6 +461,8 @@ func (s *SMF) modificationNotSent(ctx context.Context, sc *SMContext, teid uint3
 		s.deferModificationLocked(ctx, sc, b)
 		sc.Mutex.Unlock()
 
+		s.retryAfterMobility(sc, err)
+
 		return
 	}
 

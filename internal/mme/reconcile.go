@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	ErrUENotReachable = errors.New("UE is not reachable for EPS bearer signalling")
-	ErrBearerBusy     = errors.New("an ESM procedure is outstanding on the EPS bearer")
+	ErrUENotReachable     = errors.New("UE is not reachable for EPS bearer signalling")
+	ErrMobilityInProgress = fmt.Errorf("%w: temporarily rejected, mobility procedure in progress", ErrUENotReachable)
+	ErrBearerBusy         = errors.New("an ESM procedure is outstanding on the EPS bearer")
 )
 
 // ReconcileUE asks the SMF to re-evaluate every PDN connection of a UE against the
@@ -136,7 +137,7 @@ func arpOnly(p *PdnConnection, mod models.EPSBearerModification) bool {
 // collide with the handover's bearer signalling, TS 36.413 §8.4.1.2); the next
 // sweep re-converges the UE.
 func (m *MME) reconcilableBearer(ctx context.Context, imsi string, ebi uint8, pageIfIdle func(*PdnConnection) bool) (*UeContext, *UeConn, *PdnConnection, error) {
-	ue, ok := m.LookupUeByIMSI(imsi)
+	ue, ok := m.lookupBearerUe(imsi)
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("no context for imsi %s", imsi)
 	}
@@ -146,17 +147,9 @@ func (m *MME) reconcilableBearer(ctx context.Context, imsi string, ebi uint8, pa
 		return nil, nil, nil, fmt.Errorf("no EPS bearer %d for imsi %s", ebi, imsi)
 	}
 
-	ueConn, ready := m.ReconcileReady(ue)
-	if !ready {
-		if ue.EMMState() == EMMRegistered && ue.Conn() == nil && pageIfIdle(p) {
-			m.pageForSignalling(ctx, ue)
-		}
-
-		return nil, nil, nil, ErrUENotReachable
-	}
-
-	if ueConn.ICS() != ICSCompleted {
-		return nil, nil, nil, ErrUENotReachable
+	ueConn, err := m.bearerSignallingConn(ctx, ue, pageIfIdle(p))
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	ue.mu.Lock()

@@ -910,6 +910,36 @@ func (m *MME) handoverInProgress(ue *UeContext) bool {
 	return ue.handover != nil && ue.Conn() != nil
 }
 
+func (m *MME) bearerSignallingConn(ctx context.Context, ue *UeContext, pageIfIdle bool) (*UeConn, error) {
+	ueConn, ready := m.ReconcileReady(ue)
+	if ready && ueConn.ICS() == ICSCompleted {
+		return ueConn, nil
+	}
+
+	if m.mobilityInProgress(ue) {
+		return nil, ErrMobilityInProgress
+	}
+
+	if !ready && pageIfIdle && ue.EMMState() == EMMRegistered && ue.Conn() == nil {
+		m.pageForSignalling(ctx, ue)
+	}
+
+	return nil, ErrUENotReachable
+}
+
+func (m *MME) mobilityInProgress(ue *UeContext) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if ue.handover != nil || ue.EMMState() == EMMRegistrationInitiated {
+		return true
+	}
+
+	held, ok := m.relocating[ue.Supi()]
+
+	return ok && held.ue == ue
+}
+
 // claimRelease atomically marks the UE's S1 connection as releasing, returning
 // that connection (nil when there is none) and false when a release of it is
 // already in progress (a NAS guard timeout and an eNB-initiated release can race
@@ -1093,4 +1123,24 @@ func (m *MME) LookupUeByIMSI(imsi string) (*UeContext, bool) {
 	}
 
 	return m.LookupUeBySupi(supi)
+}
+
+func (m *MME) lookupBearerUe(imsi string) (*UeContext, bool) {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return nil, false
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if ue, ok := m.UEs[supi]; ok {
+		return ue, true
+	}
+
+	if held, ok := m.relocating[supi]; ok && held.ue != nil {
+		return held.ue, true
+	}
+
+	return nil, false
 }

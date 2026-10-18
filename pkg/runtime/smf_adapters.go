@@ -426,6 +426,10 @@ func (a *smfMMEAdapter) DeactivateDedicatedBearer(ctx context.Context, imsi stri
 }
 
 func mmeReachability(err error) error {
+	if errors.Is(err, mme.ErrMobilityInProgress) {
+		return fmt.Errorf("%w: %w: %v", smf.ErrHandoverInProgress, smf.ErrUENotReachable, err)
+	}
+
 	if errors.Is(err, mme.ErrUENotReachable) || errors.Is(err, mme.ErrBearerBusy) {
 		return fmt.Errorf("%w: %v", smf.ErrUENotReachable, err)
 	}

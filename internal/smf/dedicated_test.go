@@ -168,6 +168,30 @@ func TestDedicatedBearerWaitsForAnIdleUE(t *testing.T) {
 	}
 }
 
+func TestDedicatedBearerTemporarilyRejectedForMobilityIsReattempted(t *testing.T) {
+	s, _, _, mmeCb, ref := epsReconcileFixture(t, 0)
+
+	mmeCb.mu.Lock()
+	mmeCb.activateErr = fmt.Errorf("%w: %w", smf.ErrHandoverInProgress, smf.ErrUENotReachable)
+	mmeCb.mu.Unlock()
+
+	pushRules(t, s, ref, voiceRule())
+
+	mmeCb.mu.Lock()
+	mmeCb.activateErr = nil
+	mmeCb.mu.Unlock()
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for len(mmeCb.dedicatedActivations()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the temporarily rejected activation was never re-attempted without a reconcile")
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestVoiceRuleOn5GActivatesNoEPSBearer(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
