@@ -34,7 +34,10 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 		})
 	}
 
-	var sessionNAS [][]byte
+	var (
+		sessionNAS [][]byte
+		stored     []int64
+	)
 
 	{
 		for _, pduSession := range req.PDUSessionResourceSetup {
@@ -67,6 +70,8 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 			)
 
 			gnb.storePDUSession(ranUEID, pduSessionInfo)
+
+			stored = append(stored, pduSessionID)
 
 			if pduSession.NASPDU != nil {
 				sessionNAS = append(sessionNAS, []byte(*pduSession.NASPDU))
@@ -131,6 +136,10 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 	})
 	if err != nil {
 		return fmt.Errorf("could not send InitialContextSetupResponse: %v", err)
+	}
+
+	if gnb.N3Address.IsValid() {
+		gnb.markSessionsAnswered(ranUEID, stored)
 	}
 
 	logger.GnbLogger.Debug(
