@@ -291,9 +291,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	if (ctx_action_forwards(tunnel_ret)) {
 		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
-				 billed_bytes);
+				 billed_bytes, URR_DOWNLINK);
 		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
-				 billed_bytes);
+				 billed_bytes, URR_UPLINK);
 	}
 
 	return tunnel_ret;
@@ -853,7 +853,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (ctx_action_forwards(fib_ret)) {
 			ctx->statistics->byte_counter.bytes += billed_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
-					 billed_bytes);
+					 billed_bytes, URR_UPLINK);
 		}
 
 		return fib_ret;
@@ -867,7 +867,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (ctx_action_forwards(fib_ret)) {
 			ctx->statistics->byte_counter.bytes += billed_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
-					 billed_bytes);
+					 billed_bytes, URR_UPLINK);
 		}
 
 		return fib_ret;

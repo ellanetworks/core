@@ -43,6 +43,12 @@ func fixtureRegistrationSuccessMultipleDataNetworks(env scenarios.Env) scenarios
 		{Name: "dnn4", IPv4Pool: "10.49.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
 	}
 
+	if env.HasIPv6() {
+		for i := range dns {
+			dns[i].IPv6Pool = fmt.Sprintf("fd4%d::/48", 6+i)
+		}
+	}
+
 	policies := []scenarios.PolicySpec{
 		{Name: "policy1", ProfileName: "profile1", SliceName: scenarios.DefaultSliceName, DataNetworkName: "dnn1", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15},
 		{Name: "policy2", ProfileName: "profile2", SliceName: scenarios.DefaultSliceName, DataNetworkName: "dnn2", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15},

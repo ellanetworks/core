@@ -29,18 +29,18 @@ func init() {
 }
 
 func fixtureConnectivityMultiplePoliciesPerProfile(env scenarios.Env) scenarios.FixtureSpec {
-	enterpriseIPPool := "10.46.0.0/16"
-	enterpriseDNS := "8.8.4.4"
+	enterprise := scenarios.DataNetworkSpec{Name: "enterprise", IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU}
+
+	if env.HasIPv6() {
+		enterprise.IPv6Pool = "fd46::/48"
+	}
 
 	if env.IPFamily() == scenarios.IPv6Only {
-		enterpriseIPPool = "fd46::/48"
-		enterpriseDNS = scenarios.DefaultDNSv6
+		enterprise.DNS = scenarios.DefaultDNSv6
 	}
 
 	return scenarios.FixtureSpec{
-		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPv4Pool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
-		},
+		DataNetworks: []scenarios.DataNetworkSpec{enterprise},
 		Policies: []scenarios.PolicySpec{
 			{
 				Name:                "enterprise",

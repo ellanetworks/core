@@ -391,10 +391,9 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 	usages := make([]models.SubscriberUsage, 0, len(reports))
 
 	for _, report := range reports {
-		smContext := s.GetSessionBySEID(report.SEID)
-		if smContext == nil || !smContext.Supi.IsIMSI() {
+		if report.IMSI == "" {
 			logger.From(ctx, logger.SmfLog).Error(
-				"usage bytes lost: the SEID no longer resolves to a subscriber",
+				"usage bytes lost: the report names no subscriber",
 				logger.SEID(report.SEID),
 				logger.UplinkVolume(report.UplinkVolume),
 				logger.DownlinkVolume(report.DownlinkVolume),
@@ -404,7 +403,7 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 		}
 
 		usages = append(usages, models.SubscriberUsage{
-			IMSI:           smContext.Supi.IMSI(),
+			IMSI:           report.IMSI,
 			UplinkVolume:   report.UplinkVolume,
 			DownlinkVolume: report.DownlinkVolume,
 		})

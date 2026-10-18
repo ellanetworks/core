@@ -36,12 +36,14 @@ func init() {
 
 func fixtureConnectivityMultiPDUSession(env scenarios.Env) scenarios.FixtureSpec {
 	// Validates UE-AMBR at 500 Mbps, distinct from the baseline default profile (100 Mbps).
-	enterpriseIPPool := "10.46.0.0/16"
-	enterpriseDNS := "8.8.4.4"
+	enterprise := scenarios.DataNetworkSpec{Name: "enterprise", IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU}
+
+	if env.HasIPv6() {
+		enterprise.IPv6Pool = "fd46::/48"
+	}
 
 	if env.IPFamily() == scenarios.IPv6Only {
-		enterpriseIPPool = "fd46::/48"
-		enterpriseDNS = scenarios.DefaultDNSv6
+		enterprise.DNS = scenarios.DefaultDNSv6
 	}
 
 	return scenarios.FixtureSpec{
@@ -51,9 +53,7 @@ func fixtureConnectivityMultiPDUSession(env scenarios.Env) scenarios.FixtureSpec
 		Slices: []scenarios.SliceSpec{
 			{Name: "enterprise-slice", SST: 1, SD: "204060"},
 		},
-		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPv4Pool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
-		},
+		DataNetworks: []scenarios.DataNetworkSpec{enterprise},
 		Policies: []scenarios.PolicySpec{
 			{
 				Name:                "multi-pdu-default",

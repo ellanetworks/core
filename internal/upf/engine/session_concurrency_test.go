@@ -85,7 +85,7 @@ func TestDeleteVsFilterPropagationNoResurrection(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+			if _, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
 				t.Errorf("iter %d delete: %v", i, err)
 			}
 		}()

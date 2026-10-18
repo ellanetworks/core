@@ -120,20 +120,17 @@ func (e Env) PDUSessionType() uint8 {
 
 func (e Env) UIPrefix() string {
 	family := e.IPFamily()
-	switch family {
-	case IPv6Only, DualStack:
+	if family == IPv6Only {
 		return "/64"
-	default:
-		return "/16"
 	}
+
+	return "/16"
 }
 
 func (e Env) PingCommand() string {
-	family := e.IPFamily()
-	switch family {
-	case IPv6Only, DualStack:
+	if e.IPFamily() == IPv6Only {
 		return "ping6"
-	default:
-		return "ping"
 	}
+
+	return "ping"
 }
