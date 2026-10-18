@@ -192,10 +192,7 @@ func TestURRNotChargedWhenRoutingDrops(t *testing.T) {
 		t.Skipf("this environment forwarded the frame (XDP action %d); the billing assertion needs a drop after accounting", action)
 	}
 
-	volume, err := obj.GetAndResetUrr(seid, urrID)
-	if err != nil {
-		t.Fatalf("read URR: %v", err)
-	}
+	volume := sumURR(t, obj, seid, urrID)
 
 	if volume != 0 {
 		t.Errorf("URR charged %d bytes for a packet the datapath dropped after accounting", volume)
@@ -237,10 +234,7 @@ func TestURRChargedWhenForwarded(t *testing.T) {
 		t.Skipf("this environment did not forward the frame (XDP action %d)", action)
 	}
 
-	volume, err := obj.GetAndResetUrr(seid, urrID)
-	if err != nil {
-		t.Fatalf("read URR: %v", err)
-	}
+	volume := sumURR(t, obj, seid, urrID)
 
 	if want := uint64(ethHdrLen + len(inner)); volume != want {
 		t.Errorf("URR charged %d bytes for a forwarded packet, want %d", volume, want)

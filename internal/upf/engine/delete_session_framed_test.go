@@ -61,7 +61,7 @@ func TestDeleteSessionRemovesFramedRoutes(t *testing.T) {
 		t.Fatalf("framed route missing before delete: has=%v err=%v", has, err)
 	}
 
-	if err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err != nil {
+	if _, err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
 

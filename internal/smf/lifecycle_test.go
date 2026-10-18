@@ -2315,8 +2315,8 @@ func TestHandleUsageReports_BatchesEverySessionIntoOneStoreCall(t *testing.T) {
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
 	err := s.HandleUsageReports(ctx, []*models.UsageReport{
-		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
-		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 70, DownlinkVolume: 20},
+		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 70, DownlinkVolume: 20},
 	})
 	if err != nil {
 		t.Fatalf("HandleUsageReports failed: %v", err)
@@ -2345,14 +2345,14 @@ func TestHandleUsageReports_PreservesAnUnknownOutcome(t *testing.T) {
 	store.mu.Unlock()
 
 	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
-		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 500, DownlinkVolume: 300},
 	})
 	if !errors.Is(err, models.ErrUsageOutcomeUnknown) {
 		t.Fatalf("HandleUsageReports lost the unknown-outcome signal: %v", err)
 	}
 }
 
-func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
+func TestHandleUsageReports_SkipsReportsWithNoSubscriber(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
@@ -2361,10 +2361,10 @@ func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
 
 	err := s.HandleUsageReports(ctx, []*models.UsageReport{
 		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 1, DownlinkVolume: 1},
-		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 500, DownlinkVolume: 300},
 	})
 	if err != nil {
-		t.Fatalf("an unresolvable SEID must not fail the batch: %v", err)
+		t.Fatalf("a report with no subscriber must not fail the batch: %v", err)
 	}
 
 	store.mu.Lock()
@@ -2379,6 +2379,25 @@ func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
 	}
 }
 
+func TestHandleUsageReports_RecordsUsageOfAReleasedSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: 424242, IMSI: "001010000000077", UplinkVolume: 500, DownlinkVolume: 300},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.usageLog) != 1 || store.usageLog[0].uplinkBytes != 500 {
+		t.Fatalf("usage of a released session was not recorded: %+v", store.usageLog)
+	}
+}
+
 func TestHandleUsageReports_ReportsEveryDroppedReport(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2390,13 +2409,13 @@ func TestHandleUsageReports_ReportsEveryDroppedReport(t *testing.T) {
 	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
 		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 500, DownlinkVolume: 300},
 		{SEID: smCtx.PFCPContext.SEID + 9998, UplinkVolume: 70, DownlinkVolume: 20},
-		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 1, DownlinkVolume: 1},
+		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 1, DownlinkVolume: 1},
 	})
 	if err != nil {
 		t.Fatalf("HandleUsageReports failed: %v", err)
 	}
 
-	entries := logs.FilterMessage("usage bytes lost: the SEID no longer resolves to a subscriber").All()
+	entries := logs.FilterMessage("usage bytes lost: the report names no subscriber").All()
 	if len(entries) != 2 {
 		t.Fatalf("got %d loss reports, want 2", len(entries))
 	}
@@ -2415,7 +2434,7 @@ func observeSMFLog(t *testing.T) *observer.ObservedLogs {
 	return logs
 }
 
-func TestHandleUsageReports_NoResolvableSessionSkipsTheStore(t *testing.T) {
+func TestHandleUsageReports_NoSubscriberSkipsTheStore(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 

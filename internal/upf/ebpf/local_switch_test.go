@@ -637,15 +637,17 @@ func TestLocalSwitchURR(t *testing.T) {
 		t.Fatalf("local-switched packet got XDP action %d, want a forwarding action", action)
 	}
 
-	ulBytes := sumURR(t, obj, ulSeid, urrID)
-	if ulBytes == 0 {
-		t.Errorf("uplink URR bytes = 0, want > 0")
+	ul := readURR(t, obj, ulSeid, urrID)
+	if ul.Uplink == 0 || ul.Downlink != 0 {
+		t.Errorf("sender URR = %d up/%d down, want uplink only", ul.Uplink, ul.Downlink)
 	}
 
-	dlBytes := sumURR(t, obj, dlSeid, urrID)
-	if dlBytes == 0 {
-		t.Errorf("downlink URR bytes = 0, want > 0")
+	dl := readURR(t, obj, dlSeid, urrID)
+	if dl.Downlink == 0 || dl.Uplink != 0 {
+		t.Errorf("receiver URR = %d up/%d down, want downlink only", dl.Uplink, dl.Downlink)
 	}
+
+	ulBytes, dlBytes := ul.Uplink, dl.Downlink
 
 	if ulBytes != dlBytes {
 		t.Errorf("uplink URR (%d) != downlink URR (%d): both legs should bill the same packet", ulBytes, dlBytes)

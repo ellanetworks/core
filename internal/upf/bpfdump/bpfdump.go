@@ -428,23 +428,23 @@ func decodeUplinkStatistics(m *bpf.Map, mapName string, opts DumpOptions, enc *j
 	return 1, false, nil
 }
 
-// decodeUrrMap decodes urr_map (PerCPUHash with uint32 key and uint64 values).
+// decodeUrrMap decodes urr_map (PerCPUHash keyed by (SEID, URR ID) with uplink and downlink byte counts).
 func decodeUrrMap(m *bpf.Map, mapName string, opts DumpOptions, enc *json.Encoder) (int, bool, error) {
 	iter := m.Iterate()
 
 	var (
-		key   uint32
-		vals  []uint64
+		key   ebpf.N3N6EntrypointUrrKey
+		vals  []ebpf.N3N6EntrypointUrrCounters
 		count int
 	)
 
 	for iter.Next(&key, &vals) {
 		cpusData := make([]any, len(vals))
 		for i, v := range vals {
-			cpusData[i] = v
+			cpusData[i] = map[string]any{"uplink": v.Uplink, "downlink": v.Downlink}
 		}
 
-		if err := enc.Encode(map[string]any{"key": key, "cpus": cpusData}); err != nil {
+		if err := enc.Encode(map[string]any{"seid": key.Seid, "urr_id": key.UrrId, "cpus": cpusData}); err != nil {
 			return count, false, fmt.Errorf("encode failed: %w", err)
 		}
 

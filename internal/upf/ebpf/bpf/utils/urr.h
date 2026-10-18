@@ -20,11 +20,21 @@ struct urr_key {
 	__u32 _pad;
 };
 
-/* (SEID, URR ID) -> Byte count */
+struct urr_counters {
+	__u64 uplink;
+	__u64 downlink;
+};
+
+enum urr_direction {
+	URR_UPLINK,
+	URR_DOWNLINK,
+};
+
+/* (SEID, URR ID) -> Uplink and downlink byte counts */
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
 	__type(key, struct urr_key);
-	__type(value, __u64);
+	__type(value, struct urr_counters);
 	__uint(max_entries, URR_MAP_SIZE);
 } urr_map SEC(".maps");
 
@@ -32,7 +42,8 @@ struct {
  * time encapsulation may have resized the frame. */
 static __always_inline void update_urr_bytes(struct packet_context *ctx,
 					     __u64 seid, __u32 urr_id,
-					     __u64 bytes)
+					     __u64 bytes,
+					     enum urr_direction direction)
 {
 	if (!urr_id) {
 		upf_printk("upf: urr_id is 0 - no URR associated with packet");
@@ -40,13 +51,16 @@ static __always_inline void update_urr_bytes(struct packet_context *ctx,
 	}
 	upf_printk("upf: update URR found for urr_id:%d", urr_id);
 	struct urr_key key = { .seid = seid, .urr_id = urr_id };
-	__u64 *byte_count = bpf_map_lookup_elem(&urr_map, &key);
-	if (!byte_count) {
+	struct urr_counters *counters = bpf_map_lookup_elem(&urr_map, &key);
+	if (!counters) {
 		upf_printk("upf: no URR found for urr_id:%d", urr_id);
 		return;
 	}
 	/* Per-CPU value, and BPF runs with preemption disabled, so nothing else
 	 * can reach this slot: an atomic would only add a locked round trip.
 	 * Userspace sums across CPUs when it reads. */
-	*byte_count += bytes;
+	if (direction == URR_DOWNLINK)
+		counters->downlink += bytes;
+	else
+		counters->uplink += bytes;
 }

@@ -53,7 +53,7 @@ func TestDeleteSessionAccepted(t *testing.T) {
 	seid := uint64(1)
 	conn.AddSession(seid, engine.NewSession(seid))
 
-	err = conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid})
+	_, err = conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid})
 	if err != nil {
 		t.Fatalf("Error deleting session: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestDeleteSessionAccepted(t *testing.T) {
 		t.Fatalf("session %d still held after a successful delete", seid)
 	}
 
-	if err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err == nil {
+	if _, err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err == nil {
 		t.Fatal("deleting the same SEID twice must report it unknown")
 	}
 }
@@ -82,7 +82,7 @@ func TestDeleteSessionNotFound(t *testing.T) {
 		t.Fatalf("Error creating PFCP connection: %v", err)
 	}
 
-	err = conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: 999})
+	_, err = conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: 999})
 	if err == nil {
 		t.Fatal("Expected error for unknown SEID, got nil")
 	}

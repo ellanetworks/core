@@ -352,7 +352,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		/* Exported throughput follows the verdict, as billing does. */
 		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
-				 billed_bytes);
+				 billed_bytes, URR_DOWNLINK);
 	}
 
 	return tunnel_ret;
@@ -520,7 +520,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		/* Exported throughput follows the verdict, as billing does. */
 		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
-				 billed_bytes);
+				 billed_bytes, URR_DOWNLINK);
 	}
 
 	return tunnel_ret;
