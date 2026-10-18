@@ -53,25 +53,21 @@ func TestDeleteSessionRemovesURR(t *testing.T) {
 
 	ueAddr := netip.MustParseAddr("10.0.0.1")
 
-	if err := obj.PutPdrDownlink(ueAddr, upfebpf.PdrInfo{SEID: seid, PdrID: pdrID, UrrID: urrID, IMSI: "001010000000001"}); err != nil {
-		t.Fatalf("install downlink PDR: %v", err)
-	}
-
-	if err := obj.NewUrr(seid, urrID); err != nil {
-		t.Fatalf("install URR: %v", err)
-	}
-
-	sess := engine.NewSession(seid)
-	sess.PutPDR(pdrID, engine.SPDRInfo{
-		PdrID:   pdrID,
-		UEIP:    ueAddr,
-		PdrInfo: upfebpf.PdrInfo{SEID: seid, PdrID: pdrID, UrrID: urrID, IMSI: "001010000000001"},
+	_, err = conn.EstablishSession(context.Background(), &models.EstablishRequest{
+		SEID: seid,
+		IMSI: "001010000000001",
+		URRs: []models.URR{{URRID: urrID}},
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{}}},
+		QERs: []models.QER{{QERID: 1}},
+		PDRs: []models.PDR{{PDRID: uint16(pdrID), FARID: 1, QERID: 1, URRID: urrID, PDI: models.PDI{UEIPAddress: ueAddr}}},
 	})
-	conn.AddSession(seid, sess)
+	if err != nil {
+		t.Fatalf("establish session: %v", err)
+	}
 
 	key := upfebpf.N3N6EntrypointUrrKey{Seid: seid, UrrId: urrID}
 
-	var perCPU []uint64
+	var perCPU []upfebpf.N3N6EntrypointUrrCounters
 	if err := obj.UrrMap.Lookup(key, &perCPU); err != nil {
 		t.Fatalf("URR missing before delete: %v", err)
 	}

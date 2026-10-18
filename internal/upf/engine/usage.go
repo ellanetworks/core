@@ -119,11 +119,6 @@ func (conn *SessionEngine) countURRLocked(session *Session, urrID uint32) error 
 }
 
 func (conn *SessionEngine) TakeUsage(session *Session) (models.UsageReport, error) {
-	if !conn.enter() {
-		return models.UsageReport{SEID: session.SEID}, ErrClosed
-	}
-	defer conn.exit()
-
 	l := &session.usage
 
 	l.mu.Lock()

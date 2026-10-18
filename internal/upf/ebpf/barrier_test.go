@@ -5,10 +5,7 @@
 
 package ebpf
 
-import (
-	"sync"
-	"testing"
-)
+import "testing"
 
 func TestProgramBarrierWaits(t *testing.T) {
 	requireProgTestRun(t)
@@ -25,29 +22,6 @@ func TestProgramBarrierWaits(t *testing.T) {
 			t.Fatalf("wait: %v", err)
 		}
 	}
-}
-
-func TestProgramBarrierConcurrentWaiters(t *testing.T) {
-	requireProgTestRun(t)
-
-	barrier, err := NewProgramBarrier()
-	if err != nil {
-		t.Fatalf("create program barrier: %v", err)
-	}
-
-	t.Cleanup(func() { _ = barrier.Close() })
-
-	var wg sync.WaitGroup
-
-	for range 64 {
-		wg.Go(func() {
-			if err := barrier.Wait(); err != nil {
-				t.Errorf("wait: %v", err)
-			}
-		})
-	}
-
-	wg.Wait()
 }
 
 func TestProgramBarrierFailsAfterClose(t *testing.T) {

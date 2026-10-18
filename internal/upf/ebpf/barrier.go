@@ -6,7 +6,6 @@ package ebpf
 import (
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/cilium/ebpf"
 )
@@ -18,13 +17,6 @@ type ProgramWaiter interface {
 type ProgramBarrier struct {
 	outer *ebpf.Map
 	inner *ebpf.Map
-
-	mu        sync.Mutex
-	done      *sync.Cond
-	started   uint64
-	completed uint64
-	running   bool
-	err       error
 }
 
 func NewProgramBarrier() (*ProgramBarrier, error) {
@@ -53,39 +45,11 @@ func NewProgramBarrier() (*ProgramBarrier, error) {
 		return nil, fmt.Errorf("create barrier outer map: %w", err)
 	}
 
-	p := &ProgramBarrier{outer: outer, inner: inner}
-	p.done = sync.NewCond(&p.mu)
-
-	return p, nil
+	return &ProgramBarrier{outer: outer, inner: inner}, nil
 }
 
 func (p *ProgramBarrier) Wait() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	target := p.started + 1
-
-	for p.completed < target {
-		if p.running {
-			p.done.Wait()
-			continue
-		}
-
-		p.running = true
-		p.started++
-		generation := p.started
-
-		p.mu.Unlock()
-		err := p.outer.Put(uint32(0), p.inner)
-		p.mu.Lock()
-
-		p.running = false
-		p.completed = generation
-		p.err = err
-		p.done.Broadcast()
-	}
-
-	return p.err
+	return p.outer.Put(uint32(0), p.inner)
 }
 
 func (p *ProgramBarrier) Close() error {

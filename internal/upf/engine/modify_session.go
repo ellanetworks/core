@@ -21,11 +21,6 @@ import (
 
 // ModifySession modifies an existing UPF session from typed Go structs.
 func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error) {
-	if !conn.enter() {
-		return nil, ErrClosed
-	}
-	defer conn.exit()
-
 	ctx, span := tracer.Start(ctx, "upf/modify_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(

@@ -18,15 +18,6 @@ import (
 
 // DeleteSession deletes an existing UPF session by SEID.
 func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.DeleteRequest) (*models.DeleteResponse, error) {
-	if !conn.enter() {
-		return nil, ErrClosed
-	}
-	defer conn.exit()
-
-	return conn.deleteSession(ctx, req)
-}
-
-func (conn *SessionEngine) deleteSession(ctx context.Context, req *models.DeleteRequest) (*models.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/delete_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(

@@ -30,11 +30,6 @@ const ohcNoPSC uint8 = 0x10
 // EstablishSession creates a new UPF session from typed Go structs,
 // bypassing PFCP message encoding/decoding.
 func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
-	if !conn.enter() {
-		return nil, ErrClosed
-	}
-	defer conn.exit()
-
 	ctx, span := tracer.Start(ctx, "upf/establish_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -50,7 +45,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	// Defensive: a re-establish over a live SEID would orphan the old session's
 	// datapath state. Not normally reached (SMF allocates a fresh SEID per session).
 	if conn.GetSession(seid) != nil {
-		resp, err := conn.deleteSession(ctx, &models.DeleteRequest{SEID: seid})
+		resp, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
 		if err != nil {
 			logger.From(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
 				logger.SEID(seid), zap.Error(err))

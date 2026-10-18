@@ -4,7 +4,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"net"
@@ -50,33 +49,9 @@ type SessionEngine struct {
 
 	heldMu sync.Mutex
 	held   map[string]models.UsageReport
-
-	lifecycle sync.RWMutex
-	closed    bool
-}
-
-var ErrClosed = errors.New("session engine closed")
-
-func (conn *SessionEngine) enter() bool {
-	conn.lifecycle.RLock()
-
-	if conn.closed {
-		conn.lifecycle.RUnlock()
-		return false
-	}
-
-	return true
-}
-
-func (conn *SessionEngine) exit() {
-	conn.lifecycle.RUnlock()
 }
 
 func (conn *SessionEngine) Close() error {
-	conn.lifecycle.Lock()
-	conn.closed = true
-	conn.lifecycle.Unlock()
-
 	return conn.endMarkers.Close()
 }
 

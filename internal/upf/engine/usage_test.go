@@ -105,31 +105,3 @@ func TestClosedLedgerReportsNothingMore(t *testing.T) {
 		t.Fatalf("TakeUsage after close = %+v, want nothing", got)
 	}
 }
-
-func TestClosedEngineRefusesSessionOperations(t *testing.T) {
-	conn, session := newLedgerTestEngine(t, 4)
-
-	if err := conn.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-
-	if _, err := conn.TakeUsage(session); !errors.Is(err, ErrClosed) {
-		t.Errorf("TakeUsage after Close: %v, want ErrClosed", err)
-	}
-
-	if _, err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: 4}); !errors.Is(err, ErrClosed) {
-		t.Errorf("DeleteSession after Close: %v, want ErrClosed", err)
-	}
-
-	if _, err := conn.EstablishSession(context.Background(), &models.EstablishRequest{SEID: 5}); !errors.Is(err, ErrClosed) {
-		t.Errorf("EstablishSession after Close: %v, want ErrClosed", err)
-	}
-
-	if _, err := conn.ModifySession(context.Background(), &models.ModifyRequest{SEID: 4}); !errors.Is(err, ErrClosed) {
-		t.Errorf("ModifySession after Close: %v, want ErrClosed", err)
-	}
-
-	if conn.GetSession(4) == nil {
-		t.Error("a refused delete removed the session")
-	}
-}

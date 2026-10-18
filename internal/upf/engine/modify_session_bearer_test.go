@@ -251,7 +251,7 @@ func TestPDRsWithTheSameChooseIDShareAnUplinkEndpoint(t *testing.T) {
 		t.Fatal("the removed QER is still held")
 	}
 
-	var perCPU []uint64
+	var perCPU []upfebpf.N3N6EntrypointUrrCounters
 	if err := obj.UrrMap.Lookup(upfebpf.N3N6EntrypointUrrKey{Seid: seid, UrrId: 1}, &perCPU); err != nil {
 		t.Fatalf("the default uplink URR was deleted with the PDRs sharing it: %v", err)
 	}
