@@ -53,6 +53,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_database_queries_total | Total number of database queries by table and operation | Counter |
 | app_database_query_duration_seconds | Duration of database queries | Histogram |
 | app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
+| app_radio_events_dropped_total | Radio events not written to the database because the write buffer was full. | Counter |
 
 !!! note
     When clustering is enabled, Ella Core also exports the full [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`).

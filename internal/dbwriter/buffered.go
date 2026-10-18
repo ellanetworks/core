@@ -52,7 +52,7 @@ func NewBufferedDBWriter(delegate DBWriter, bufferSize int, logger *zap.Logger) 
 }
 
 // InsertRadioEvent enqueues the event for asynchronous insertion.
-// If the buffer is full the event is dropped and a warning is logged.
+// If the buffer is full the event is dropped and counted.
 func (b *BufferedDBWriter) InsertRadioEvent(ctx context.Context, radioEvent *RadioEvent) error {
 	queued := queuedEvent{
 		event: radioEvent,
@@ -66,9 +66,6 @@ func (b *BufferedDBWriter) InsertRadioEvent(ctx context.Context, radioEvent *Rad
 	default:
 		b.pending.Add(-1)
 		b.dropped.Add(1)
-		b.logger.Warn("radio event buffer full, dropping event",
-			zap.String("message_type", radioEvent.MessageType),
-		)
 	}
 
 	return nil

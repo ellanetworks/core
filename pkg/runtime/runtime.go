@@ -516,6 +516,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
+	metrics.RegisterRadioEventDrops(bufferedWriter.Dropped)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 	lmfInstance.Start(ctx)

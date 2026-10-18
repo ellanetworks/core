@@ -474,7 +474,7 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 	}
 
 	captureCtx, captureSpan := tracer.Start(ctx, "db/capture_changeset", trace.WithSpanKind(trace.SpanKindInternal))
-	changeset, applyResult, err := db.captureChangeset(context.WithoutCancel(captureCtx), applyFn, operation)
+	changeset, applyResult, capturedSchema, err := db.captureChangeset(context.WithoutCancel(captureCtx), applyFn, operation)
 	endSpan(captureSpan, err)
 
 	if err != nil {
@@ -489,11 +489,6 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 
 	if len(changeset) == 0 {
 		return &ellaraft.ProposeResult{Value: applyResult}, nil
-	}
-
-	capturedSchema, err := db.CurrentSchemaVersion(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read schema version for %s: %w", operation, err)
 	}
 
 	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{

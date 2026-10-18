@@ -169,3 +169,26 @@ func TestBufferedDBWriter_ReturnsNilErrorOnInsert(t *testing.T) {
 		t.Fatalf("expected nil error from buffered InsertRadioEvent, got: %v", err)
 	}
 }
+
+func TestBufferedDBWriter_CountsDrops(t *testing.T) {
+	fake := &fakeDBWriter{insertDelay: 50 * time.Millisecond}
+	buf := dbwriter.NewBufferedDBWriter(fake, 1, zap.NewNop())
+
+	const sent = 50
+
+	for range sent {
+		_ = buf.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{MessageType: "InitialUEMessage"})
+	}
+
+	buf.Stop(context.Background())
+
+	written := fake.radioEventCount()
+
+	if dropped := buf.Dropped(); dropped == 0 || int(dropped)+written != sent {
+		t.Fatalf("dropped = %d, written = %d, want dropped > 0 and dropped + written = %d", dropped, written, sent)
+	}
+
+	if buf.Pending() != 0 {
+		t.Fatalf("pending = %d after Stop, want 0", buf.Pending())
+	}
+}
