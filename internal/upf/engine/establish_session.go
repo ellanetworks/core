@@ -97,10 +97,19 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			logger.QERID(qer.QERID), zap.Any("qer_info", qerInfo))
 	}
 
-	var createdURRs []uint32
+	var (
+		createdURRs []uint32
+		pdrsWritten bool
+	)
 
 	txn.onRollback(func() error {
 		var errs []error
+
+		if pdrsWritten {
+			if err := conn.waitForPrograms(sess); err != nil {
+				errs = append(errs, fmt.Errorf("wait for running datapath programs: %w", err))
+			}
+		}
 
 		for _, id := range createdURRs {
 			errs = append(errs, bpfObjects.DeleteUrr(seid, id))
@@ -200,6 +209,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	for _, spdrInfo := range extracted {
+		pdrsWritten = true
+
 		if err := applyPDR(spdrInfo, sess, bpfObjects); err != nil {
 			txn.rollback(ctx)
 			span.RecordError(err)

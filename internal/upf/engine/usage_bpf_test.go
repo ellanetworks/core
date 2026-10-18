@@ -383,7 +383,7 @@ func failingEstablish(seid uint64) *models.EstablishRequest {
 	}
 }
 
-func TestEstablishRollbackDeletesURRsWithoutTheBarrier(t *testing.T) {
+func TestEstablishRollbackBeforeAnyPDRSkipsTheBarrier(t *testing.T) {
 	conn, obj := newUsageBPFEngine(t)
 
 	waiter := &countingWaiter{}
@@ -394,10 +394,61 @@ func TestEstablishRollbackDeletesURRsWithoutTheBarrier(t *testing.T) {
 	}
 
 	if waiter.calls != 0 {
-		t.Fatalf("rollback waited for programs %d times; it reports no usage", waiter.calls)
+		t.Fatalf("rollback waited for programs %d times; no PDR reached the datapath", waiter.calls)
 	}
 
 	if urrExists(t, obj, 34, usageUplinkURR) {
+		t.Error("URR left behind by the failed establish")
+	}
+}
+
+type rollbackProbe struct {
+	t     *testing.T
+	obj   *ebpf.BpfObjects
+	seid  uint64
+	calls int
+}
+
+func (p *rollbackProbe) Wait() error {
+	p.calls++
+
+	value := make([]byte, p.obj.PdrsDownlinkIp4.ValueSize())
+
+	if err := p.obj.PdrsDownlinkIp4.Lookup(usageUEIP.As4(), &value); !errors.Is(err, cebpf.ErrKeyNotExist) {
+		p.t.Errorf("barrier ran while the downlink PDR was still installed (lookup err %v)", err)
+	}
+
+	if !urrExists(p.t, p.obj, p.seid, usageDownlinkURR) {
+		p.t.Error("rollback deleted the URR before waiting for running programs")
+	}
+
+	return nil
+}
+
+func TestEstablishRollbackAfterAPDRWaitsBeforeDeletingURRs(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+
+	probe := &rollbackProbe{t: t, obj: obj, seid: 39}
+	conn.programs = probe
+
+	_, err := conn.EstablishSession(context.Background(), &models.EstablishRequest{
+		SEID:         39,
+		IMSI:         usageIMSI,
+		URRs:         []models.URR{{URRID: usageDownlinkURR}},
+		FARs:         []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{}}},
+		QERs:         []models.QER{{QERID: 1}},
+		PDRs:         []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: usageDownlinkURR, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+		FramedRoutes: []netip.Prefix{netip.PrefixFrom(netip.MustParseAddr("192.0.2.0"), 33)},
+	})
+	if err == nil {
+		t.Fatal("establish succeeded with an invalid framed route")
+	}
+
+	if probe.calls != 1 {
+		t.Fatalf("rollback waited for programs %d times, want once", probe.calls)
+	}
+
+	if urrExists(t, obj, 39, usageDownlinkURR) {
 		t.Error("URR left behind by the failed establish")
 	}
 }
