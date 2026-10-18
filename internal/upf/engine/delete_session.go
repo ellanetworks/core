@@ -76,7 +76,10 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		}
 	}
 
-	conn.waitForPrograms(ctx, session)
+	if err := conn.waitForPrograms(session); err != nil {
+		logger.From(ctx, logger.UpfLog).Error("usage bytes lost: could not wait for running datapath programs before the final reading",
+			logger.SEID(req.SEID), zap.Error(err))
+	}
 
 	usage, err := conn.closeUsage(ctx, session)
 	if err != nil {
