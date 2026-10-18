@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 
@@ -47,6 +48,15 @@ func TestIntegrationTesterVRF(t *testing.T) {
 	baseline.Slice(fixture.DefaultSliceSpec())
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
+
+	origLS, err := env.Client.GetLocalSwitchInfo(ctx)
+	if err != nil {
+		t.Fatalf("get local switch (baseline): %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: origLS.Enabled})
+	})
 
 	for _, name := range vrfDatapathScenarios {
 		name := name
@@ -89,20 +99,7 @@ func TestIntegrationTesterVRF(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			defer finishScenarioTest(t, tr)
 
-			if vrfLocalSwitchScenarios[name] {
-				origLS, err := env.Client.GetLocalSwitchInfo(ctx)
-				if err != nil {
-					t.Fatalf("get local switch (baseline): %v", err)
-				}
-
-				t.Cleanup(func() {
-					_ = env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: origLS.Enabled})
-				})
-
-				if err := env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: true}); err != nil {
-					t.Fatalf("enable local switch: %v", err)
-				}
-			}
+			setLocalSwitch(ctx, t, env, vrfLocalSwitchScenarios[name])
 
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
@@ -124,4 +121,47 @@ func TestIntegrationTesterVRF(t *testing.T) {
 	}
 
 	printTesterSummary(t)
+}
+
+const appliedLocalSwitchPattern = `"msg":"applied datapath settings".*"local_switch":%t`
+
+func setLocalSwitch(ctx context.Context, t *testing.T, env *testerEnv, enabled bool) {
+	t.Helper()
+
+	current, err := env.Client.GetLocalSwitchInfo(ctx)
+	if err != nil {
+		t.Fatalf("get local switch: %v", err)
+	}
+
+	if current.Enabled == enabled {
+		return
+	}
+
+	applied := regexp.MustCompile(fmt.Sprintf(appliedLocalSwitchPattern, enabled))
+	before := countCoreLogMatches(ctx, t, env, applied)
+
+	if err := env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: enabled}); err != nil {
+		t.Fatalf("set local switch to %t: %v", enabled, err)
+	}
+
+	deadline := time.Now().Add(30 * time.Second)
+
+	for countCoreLogMatches(ctx, t, env, applied) <= before {
+		if time.Now().After(deadline) {
+			t.Fatalf("the datapath did not apply local switch %t within 30s", enabled)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+func countCoreLogMatches(ctx context.Context, t *testing.T, env *testerEnv, re *regexp.Regexp) int {
+	t.Helper()
+
+	logs, err := env.dc.ComposeLogs(ctx, env.composeDir, "ella-core")
+	if err != nil {
+		t.Fatalf("read ella-core logs: %v", err)
+	}
+
+	return len(re.FindAllStringIndex(logs, -1))
 }

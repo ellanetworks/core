@@ -108,6 +108,7 @@ type UE struct {
 	cond                   *sync.Cond
 	pduSessions            map[uint8]PDUSessionInfo
 	receivedNASGMMMessages map[uint8][][]byte // msgType -> plaintext GMM messages
+	seenNASGMMMessages     map[uint8]int
 	receivedNASGSMMessages map[uint8][][]byte // msgType -> plaintext GSM messages
 	receivedRRCRelease     bool
 	lppRequests            []*LPPRequest // queue of received LPP requests
@@ -274,6 +275,7 @@ func NewUE(opts *UEOpts) (*UE, error) {
 
 	ue.pduSessions = make(map[uint8]PDUSessionInfo)
 	ue.receivedNASGMMMessages = make(map[uint8][][]byte)
+	ue.seenNASGMMMessages = make(map[uint8]int)
 	ue.receivedNASGSMMessages = make(map[uint8][][]byte)
 	ue.lppRequests = make([]*LPPRequest, 0)
 
@@ -663,6 +665,7 @@ func updateReceivedGMMMessages(ue *UE, plain []byte) {
 
 	msgType := plain[2]
 	ue.receivedNASGMMMessages[msgType] = append(ue.receivedNASGMMMessages[msgType], plain)
+	ue.seenNASGMMMessages[msgType]++
 
 	logger.UeLogger.Debug("Stored received NAS GMM Message", zap.String("msgType", getGMMMessageName(msgType)), zap.Int("totalFrames", len(ue.receivedNASGMMMessages[msgType])))
 	ue.cond.Broadcast()
@@ -686,6 +689,35 @@ func (ue *UE) ReceivedNASGMMCount(msgType uint8) int {
 	defer ue.mu.Unlock()
 
 	return len(ue.receivedNASGMMMessages[msgType])
+}
+
+func (ue *UE) seenGMM(msgType uint8) int {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.seenNASGMMMessages[msgType]
+}
+
+func (ue *UE) waitSeenGMMAbove(msgType uint8, n int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+
+	timer := time.AfterFunc(timeout, func() {
+		ue.cond.Broadcast()
+	})
+	defer timer.Stop()
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	for ue.seenNASGMMMessages[msgType] <= n {
+		if time.Now().After(deadline) {
+			return false
+		}
+
+		ue.cond.Wait()
+	}
+
+	return true
 }
 
 func (ue *UE) WaitForNASGMMMessage(msgType uint8, timeout time.Duration) ([]byte, error) {

@@ -27,10 +27,13 @@ func init() {
 }
 
 func fixtureRegistrationSuccessMultiplePoliciesPerProfile(env scenarios.Env) scenarios.FixtureSpec {
+	enterprise := scenarios.DataNetworkSpec{Name: "enterprise", IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU}
+	if env.HasIPv6() {
+		enterprise.IPv6Pool = "fd46::/48"
+	}
+
 	return scenarios.FixtureSpec{
-		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
-		},
+		DataNetworks: []scenarios.DataNetworkSpec{enterprise},
 		Policies: []scenarios.PolicySpec{
 			{
 				Name:                "enterprise",
