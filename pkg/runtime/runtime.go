@@ -244,8 +244,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
-	logger.SetDb(bufferedWriter)
+	bufferedWriter := startRadioEventWriter(dbInstance)
 
 	// Provide the runtime config file contents to the supportbundle generator
 	// so support bundles include the exact YAML used at startup. This is safe
@@ -511,11 +510,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
 
-	ausfStore, ausfInstance, amfInstance, mmeInstance, ueRegistrations := cp.ausfStore, cp.ausf, cp.amf, cp.mme, cp.registrations
+	ausfStore, amfInstance, mmeInstance := cp.ausfStore, cp.amf, cp.mme
 
-	wg.Go(func() {
-		ausfInstance.Run(ctx)
-	})
+	cp.start(ctx, &wg)
 
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
@@ -587,14 +584,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return wakeup
 	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
-
-	registrationsWakeup, stopRegistrationsWakeup := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
-
-	wg.Go(func() {
-		defer stopRegistrationsWakeup()
-
-		ueRegistrations.Run(ctx, registrationsWakeup)
-	})
 
 	// --- Phase B: upgrade the API server to serve all routes once the
 	// replicated initial settings are visible on this node. ---
@@ -1441,6 +1430,7 @@ func newS1APServer(mmeInstance *mme.MME) *amfsctp.Server {
 }
 
 type controlPlane struct {
+	db            *db.Database
 	pcf           *pcf.PCF
 	smf           *smf.SMF
 	subscriptions *udm.Subscriptions
@@ -1486,6 +1476,7 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	mmeInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, mmeInstance)
 
 	return &controlPlane{
+		db:            dbInstance,
 		pcf:           pcfInstance,
 		smf:           smfInstance,
 		subscriptions: subscriptions,
@@ -1495,4 +1486,25 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 		mme:           mmeInstance,
 		registrations: ueRegistrations,
 	}
+}
+
+func (cp *controlPlane) start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Go(func() {
+		cp.ausf.Run(ctx)
+	})
+
+	registrationsWakeup, stopRegistrationsWakeup := cp.db.Changefeed().Wakeup(db.TopicUERegistrations)
+
+	wg.Go(func() {
+		defer stopRegistrationsWakeup()
+
+		cp.registrations.Run(ctx, registrationsWakeup)
+	})
+}
+
+func startRadioEventWriter(dbInstance *db.Database) *dbwriter.BufferedDBWriter {
+	writer := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
+	logger.SetDb(writer)
+
+	return writer
 }

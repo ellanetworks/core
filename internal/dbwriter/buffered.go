@@ -6,6 +6,7 @@ package dbwriter
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
@@ -31,6 +32,8 @@ type BufferedDBWriter struct {
 	logger   *zap.Logger
 	eventCh  chan queuedEvent
 	wg       sync.WaitGroup
+	pending  atomic.Int64
+	dropped  atomic.Uint64
 }
 
 // NewBufferedDBWriter creates a BufferedDBWriter that queues radio events
@@ -56,9 +59,13 @@ func (b *BufferedDBWriter) InsertRadioEvent(ctx context.Context, radioEvent *Rad
 		link:  trace.SpanContextFromContext(ctx),
 	}
 
+	b.pending.Add(1)
+
 	select {
 	case b.eventCh <- queued:
 	default:
+		b.pending.Add(-1)
+		b.dropped.Add(1)
 		b.logger.Warn("radio event buffer full, dropping event",
 			zap.String("message_type", radioEvent.MessageType),
 		)
@@ -103,7 +110,16 @@ func (b *BufferedDBWriter) drainLoop() {
 
 	for queued := range b.eventCh {
 		b.write(queued)
+		b.pending.Add(-1)
 	}
+}
+
+func (b *BufferedDBWriter) Pending() int64 {
+	return b.pending.Load()
+}
+
+func (b *BufferedDBWriter) Dropped() uint64 {
+	return b.dropped.Load()
 }
 
 func (b *BufferedDBWriter) write(queued queuedEvent) {

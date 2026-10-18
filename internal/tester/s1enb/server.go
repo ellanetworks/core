@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -582,6 +583,17 @@ func (e *ENB) DiscardReceivedFrames() {
 	defer e.mu.Unlock()
 
 	clear(e.receivedFrames)
+}
+
+func (e *ENB) DiscardUEFrames(enbUEID int64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, byCode := range e.receivedFrames {
+		for code, frames := range byCode {
+			byCode[code] = slices.DeleteFunc(frames, func(f Frame) bool { return f.ENBUES1APID == enbUEID })
+		}
+	}
 }
 
 // sendS1SetupOnConn builds and writes an S1 Setup Request directly to conn.
