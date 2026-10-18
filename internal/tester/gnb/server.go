@@ -1067,6 +1067,13 @@ func (g *GnodeB) consumePinnedDLTEID(ranUeID, pduSessionID int64) uint32 {
 	return teid
 }
 
+func (g *GnodeB) DiscardReceivedFrames() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	clear(g.receivedFrames)
+}
+
 func (g *GnodeB) AddUE(ranUENGAPID int64, ue air.DownlinkSender) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

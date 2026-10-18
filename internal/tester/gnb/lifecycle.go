@@ -421,6 +421,18 @@ func (g *GnodeB) Deregister(u *ue.UE, ranUENGAPID int64, timeout time.Duration) 
 	return nil
 }
 
+func (g *GnodeB) DeregisterFromIdle(u *ue.UE, ranUENGAPID int64, timeout time.Duration) error {
+	if err := u.SendIdleDeregistrationRequest(ranUENGAPID); err != nil {
+		return fmt.Errorf("send Deregistration Request: %w", err)
+	}
+
+	if err := u.WaitForRRCRelease(timeout); err != nil {
+		return fmt.Errorf("await RRC Release for %s: %w", u.UeSecurity.Supi, err)
+	}
+
+	return nil
+}
+
 // PDUSession reports the gNB's current view of a stored PDU session, by value.
 // Use it to observe what a network-initiated modification changed; a scenario
 // that wants the session it just established reads it off the procedure result
