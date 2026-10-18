@@ -152,7 +152,14 @@ var (
 
 // JWT secret
 var (
-	opSetJWTSecret = registerChangesetOp("SetJWTSecret", (*Database).applySetJWTSecret)
+	opSetJWTSecret    = registerChangesetOp("SetJWTSecret", (*Database).applySetJWTSecret, AffectsTopic(TopicJWTSecret))
+	opRotateJWTSecret = registerChangesetOp("RotateJWTSecret", (*Database).applyRotateJWTSecret, RequireSchema(24), AffectsTopic(TopicJWTSecret))
+)
+
+var (
+	opCreateCellPosition = registerChangesetOp("CreateCellPosition", (*Database).applyCreateCellPosition, RequireSchema(24))
+	opUpdateCellPosition = registerChangesetOp("UpdateCellPosition", (*Database).applyUpdateCellPosition, RequireSchema(24))
+	opDeleteCellPosition = registerChangesetOp("DeleteCellPosition", (*Database).applyDeleteCellPosition, RequireSchema(24))
 )
 
 // Routes

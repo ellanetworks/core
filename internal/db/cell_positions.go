@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -109,10 +108,10 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 	c.CreatedAt = now
 	c.UpdatedAt = now
 
-	if err := db.conn().Query(ctx, db.createCellPositionStmt, c).Run(); err != nil {
+	if _, err := opCreateCellPosition.Invoke(ctx, db, c); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -249,26 +248,10 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 	c.UpdatedAt = time.Now().Format(time.RFC3339)
 	c.CellIdentity = strings.ToLower(c.CellIdentity)
 
-	var outcome sqlair.Outcome
-
-	err := db.conn().Query(ctx, db.updateCellPositionStmt, c).Get(&outcome)
-	if err != nil {
+	if _, err := opUpdateCellPosition.Invoke(ctx, db, c); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		recordSpanError(span, err)
-
-		return fmt.Errorf("rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		recordSpanError(span, ErrNotFound)
-
-		return ErrNotFound
+		return err
 	}
 
 	return nil
@@ -295,26 +278,10 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 
 	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.conn().Query(ctx, db.deleteCellPositionStmt, CellPosition{ID: id}).Get(&outcome)
-	if err != nil {
+	if _, err := opDeleteCellPosition.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		recordSpanError(span, err)
-
-		return fmt.Errorf("rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		recordSpanError(span, ErrNotFound)
-
-		return ErrNotFound
+		return err
 	}
 
 	return nil

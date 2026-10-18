@@ -35,6 +35,7 @@ const (
 	TopicUERegistrations        Topic = "ue_registrations"
 	TopicSMSSettings            Topic = "sms_settings"
 	TopicOperatorIdentity       Topic = "operator_identity"
+	TopicJWTSecret              Topic = "jwt_secret"
 )
 
 // Changefeed is an in-process publish/subscribe broker. One per
@@ -63,6 +64,18 @@ func (c *Changefeed) Publish(topic Topic) {
 			continue
 		}
 
+		select {
+		case sub.wakeup <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (c *Changefeed) PublishAll() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for sub := range c.subs {
 		select {
 		case sub.wakeup <- struct{}{}:
 		default:

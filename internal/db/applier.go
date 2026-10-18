@@ -194,6 +194,10 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("re-prepare statements: %w", err)
 	}
 
+	if db.changefeed != nil {
+		db.changefeed.PublishAll()
+	}
+
 	return nil
 }
 
@@ -1487,6 +1491,72 @@ func (db *Database) applySetJWTSecret(ctx context.Context, p *bytesPayload) (any
 	err := db.runner(ctx).Query(ctx, db.upsertJWTSecretStmt, JWTSecret{Secret: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyRotateJWTSecret(ctx context.Context, p *bytesPayload) (any, error) {
+	if err := db.runner(ctx).Query(ctx, db.upsertJWTSecretStmt, JWTSecret{Secret: p.Value}).Run(); err != nil {
+		return nil, fmt.Errorf("upsert secret: %w", err)
+	}
+
+	if err := db.applyDeleteAllSessions(ctx); err != nil {
+		return nil, fmt.Errorf("delete sessions: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyCreateCellPosition(ctx context.Context, c *CellPosition) (any, error) {
+	if err := db.runner(ctx).Query(ctx, db.createCellPositionStmt, c).Run(); err != nil {
+		if isUniqueNameError(err) {
+			return nil, ErrAlreadyExists
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyUpdateCellPosition(ctx context.Context, c *CellPosition) (any, error) {
+	var outcome sqlair.Outcome
+
+	if err := db.runner(ctx).Query(ctx, db.updateCellPositionStmt, c).Get(&outcome); err != nil {
+		if isUniqueNameError(err) {
+			return nil, ErrAlreadyExists
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyDeleteCellPosition(ctx context.Context, p *stringPayload) (any, error) {
+	var outcome sqlair.Outcome
+
+	if err := db.runner(ctx).Query(ctx, db.deleteCellPositionStmt, CellPosition{ID: p.Value}).Get(&outcome); err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
 	}
 
 	return nil, nil
