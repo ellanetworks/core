@@ -5,7 +5,8 @@ go 1.26.5
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
-	github.com/ellanetworks/ims v0.0.0-20261010135644-da64ecf831f8
+	github.com/ellanetworks/ims v0.0.0-20261018174003-e588b7e0abbc
+	github.com/ellanetworks/ims/sip v0.0.0-20261018174003-e588b7e0abbc
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
@@ -26,13 +27,11 @@ require (
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
-	golang.org/x/net v0.60.0
+	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/tools v0.51.0
 	gopkg.in/yaml.v2 v2.4.0
 )
-
-require go.opentelemetry.io/otel/log v1.47.0 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -49,7 +48,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/ellanetworks/core/diameter v0.0.0-20261009192142-6cec7a535040
+	github.com/ellanetworks/core/diameter v0.0.0-20261017193558-9ed6ed0b4726
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000
@@ -87,7 +86,7 @@ require (
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.0 // indirect
+	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
@@ -103,6 +102,7 @@ require (
 	go.etcd.io/bbolt v1.5.0
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
