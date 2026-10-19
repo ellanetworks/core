@@ -31,7 +31,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: discover
     env:
-      ELLA_IMS_IMAGE: ghcr.io/ellanetworks/ella-ims:sha-e588b7e0abbc
+      ELLA_IMS_IMAGE: ghcr.io/ellanetworks/ella-ims:sha-d61c5bb28e8e
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
