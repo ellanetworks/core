@@ -95,3 +95,7 @@
 
 #define ctx_redirect_out(ctx, ifindex, egress_vid) \
 	((enum ctx_action)bpf_redirect(ifindex, 0))
+
+#define CTX_DEPARTURE_HORIZON_NS 0ULL
+
+#define ctx_set_departure(ctx, tstamp) ((void)(ctx), (void)(tstamp))

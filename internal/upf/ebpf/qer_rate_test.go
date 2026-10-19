@@ -6,12 +6,14 @@
 package ebpf
 
 import (
+	"fmt"
 	"net/netip"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
 )
 
 const qerWindow = 5 * time.Millisecond
@@ -207,4 +209,149 @@ func TestQERDownlinkWindowSharedAcrossFamilies(t *testing.T) {
 		t.Errorf("IPv6 downlink packet got XDP action %d with %d rate-limit drops, want ActionDrop (%d) with 1: the two families are drawing on separate windows, so the session receives twice its downlink AMBR",
 			action, got, ActionDrop)
 	}
+}
+
+const (
+	departureHorizon  = 20 * time.Millisecond
+	departureMinBytes = 8 * 1500
+)
+
+func TestQERQueuesUpToTheDepartureHorizonAtTC(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		innerLen = 1250
+		teid     = 0x51455213
+	)
+
+	frame := uplinkGPDU(teid, innerIPv4UDPSized([4]byte{8, 8, 8, 8}, innerLen))
+
+	unlimited := loadTCProgramConfig(t, false, 0, 1)
+	putTCRateLimitedUplinkPDR(t, unlimited, teid, 0)
+
+	if action, _ := runTCDeparture(t, unlimited.UpfEntryFunc, frame); action == tcActShot {
+		t.Fatal("uplink frame dropped with rate limiting disabled: this environment does not forward it")
+	}
+
+	for _, rateBps := range []uint64{10_000_000, 1_000_000} {
+		t.Run(fmt.Sprintf("%d bit/s", rateBps), func(t *testing.T) {
+			txTime := time.Duration(innerLen * 8 * uint64(time.Second) / rateBps)
+			horizon := max(departureHorizon, time.Duration(departureMinBytes*8*uint64(time.Second)/rateBps))
+
+			objs := loadTCProgramConfig(t, false, 0, 1)
+			putTCRateLimitedUplinkPDR(t, objs, teid, rateBps)
+
+			var departures []time.Duration
+
+			sent, dropped, firstDrop := 3*int(horizon/txTime), 0, -1
+
+			for i := range sent {
+				action, departure := runTCDeparture(t, objs.UpfEntryFunc, frame)
+				now := monotonicNow(t)
+
+				if action == tcActShot {
+					dropped++
+
+					if firstDrop < 0 {
+						firstDrop = i
+					}
+
+					continue
+				}
+
+				if departure == 0 {
+					continue
+				}
+
+				if ahead := departure - now; ahead > horizon {
+					t.Fatalf("departure scheduled %v ahead, past the %v horizon", ahead, horizon)
+				}
+
+				departures = append(departures, departure)
+			}
+
+			if dropped == 0 {
+				t.Fatalf("%d back-to-back frames at %v each all admitted: the horizon is not bounding the queue", sent, txTime)
+			}
+
+			if got := tcUplinkDropCount(t, objs, "qer_rate_limit"); got != uint64(dropped) {
+				t.Fatalf("%d frames dropped but %d as qer_rate_limit: another stage dropped the frame", dropped, got)
+			}
+
+			if minQueued := int(horizon / 4 / txTime); firstDrop < minQueued {
+				t.Fatalf("first drop at frame %d, want none before %d: early drop starts at a quarter of the %v horizon",
+					firstDrop, minQueued, horizon)
+			}
+
+			for i := 1; i < len(departures); i++ {
+				if gap := departures[i] - departures[i-1]; gap != txTime {
+					t.Errorf("departure %d follows the previous by %v, want tx_time %v", i, gap, txTime)
+				}
+			}
+		})
+	}
+}
+
+func putTCRateLimitedUplinkPDR(t *testing.T, objs *N3N6EntrypointTcObjects, teid uint32, rateBps uint64) {
+	t.Helper()
+
+	putTCPdrUplink(t, objs, teid, PdrInfo{
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: rateBps},
+		UEIPv4:       canonicalUEv4,
+		UEIPv6Prefix: canonicalUEv6Prefix,
+	})
+}
+
+func tcUplinkDropCount(t *testing.T, objs *N3N6EntrypointTcObjects, reason string) uint64 {
+	t.Helper()
+
+	i, ok := DropReasonByName(reason)
+	if !ok {
+		t.Fatalf("unknown drop reason %q", reason)
+	}
+
+	var perCPU []N3N6EntrypointUpfStatistic
+	if err := objs.UplinkStatistics.Lookup(uint32(0), &perCPU); err != nil {
+		t.Fatalf("read TC uplink statistics: %v", err)
+	}
+
+	var total uint64
+	for _, s := range perCPU {
+		total += s.DropReasons[i]
+	}
+
+	return total
+}
+
+func runTCDeparture(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, time.Duration) {
+	t.Helper()
+
+	var out skbRunContext
+
+	opts := &ebpf.RunOptions{
+		Data:       packet,
+		DataOut:    make([]byte, len(packet)+256),
+		Context:    skbRunContext{IngressIfindex: 1},
+		ContextOut: &out,
+	}
+
+	action, err := prog.Run(opts)
+	if err != nil {
+		t.Fatalf("run TC program: %v", err)
+	}
+
+	return action, time.Duration(out.Tstamp)
+}
+
+func monotonicNow(t *testing.T) time.Duration {
+	t.Helper()
+
+	var ts unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		t.Fatalf("read CLOCK_MONOTONIC: %v", err)
+	}
+
+	return time.Duration(ts.Nano())
 }

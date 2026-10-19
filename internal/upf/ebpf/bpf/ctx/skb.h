@@ -302,3 +302,11 @@ ctx_redirect_out(struct __ctx_buff *ctx, __u32 ifindex, int egress_vid)
 
 	return CTX_ACT_REDIRECT;
 }
+
+#define CTX_DEPARTURE_HORIZON_NS 20000000ULL
+
+static __always_inline void ctx_set_departure(struct __ctx_buff *ctx,
+					      __u64 tstamp)
+{
+	bpf_skb_set_tstamp(ctx, tstamp, BPF_SKB_CLOCK_MONOTONIC);
+}

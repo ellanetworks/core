@@ -83,6 +83,7 @@ const (
 	pdrPrecedenceDefault         uint32 = 256
 
 	bearerAveragingWindow = 2000 * time.Millisecond
+	ambrAveragingWindow   = 2000 * time.Millisecond
 )
 
 func pdrIDRule(slot, index uint8, leg uint16) uint16 {
@@ -433,6 +434,7 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 			ULMBR: d.AMBR.Uplink.Kbps(),
 			DLMBR: d.AMBR.Downlink.Kbps(),
 		},
+		AveragingWindow: new(ambrAveragingWindow),
 	}}
 
 	urrs = []models.URR{{URRID: urrIDUplink}, {URRID: urrIDDownlink}}
