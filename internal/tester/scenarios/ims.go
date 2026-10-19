@@ -488,17 +488,17 @@ func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Tra
 	}
 
 	u, err := testue.New(testue.Config{
-		IMSI:        sub.IMSI,
-		IMEI:        imsTestUEIMEI,
-		K:           k,
-		OPc:         opc,
-		SQN:         sqnMS,
-		PCSCF:       netip.AddrPortFrom(pcscf, IMSPCSCFPort),
-		Local:       local,
-		Transport:   transport,
-		MMTel:       testue.MMTelConfig{AcceptCalls: true, Video: video},
-		Kernel:      xfrm,
-		Logger:      slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		IMSI:      sub.IMSI,
+		IMEI:      imsTestUEIMEI,
+		K:         k,
+		OPc:       opc,
+		SQN:       sqnMS,
+		PCSCF:     netip.AddrPortFrom(pcscf, IMSPCSCFPort),
+		Local:     local,
+		Transport: transport,
+		MMTel:     testue.MMTelConfig{AcceptCalls: true, Video: video},
+		Kernel:    xfrm,
+		Logger:    slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
 	if err != nil {
 		_ = xfrm.Close()
