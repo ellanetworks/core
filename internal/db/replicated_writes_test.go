@@ -217,3 +217,74 @@ func TestUERegistrationVersionNeverRegressesAcrossRestart(t *testing.T) {
 		t.Fatalf("registration version after restart = %d, want > %d: a newer registration must supersede an older one", after, before)
 	}
 }
+
+func TestReplicatedWritesApplyOnDivergedNode(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+	plain := database.PlainDB()
+
+	if _, err := plain.ExecContext(ctx, `INSERT INTO cell_positions (id, rat, mcc, mnc, cell_identity, latitude, longitude, created_at, updated_at) VALUES
+		('diverged', 'nr', '001', '01', '00000a001', 1, 1, 'x', 'x'),
+		('only-here', 'nr', '001', '01', '00000a002', 1, 1, 'x', 'x')`); err != nil {
+		t.Fatalf("seed diverged cell positions: %v", err)
+	}
+
+	if _, err := plain.ExecContext(ctx, "UPDATE jwt_secret SET secret = ?", bytes.Repeat([]byte{1}, 32)); err != nil {
+		t.Fatalf("seed diverged secret: %v", err)
+	}
+
+	apply := func(cmdType ellaraft.CommandType, payload any) {
+		t.Helper()
+
+		cmd, err := ellaraft.NewCommand(cmdType, payload)
+		if err != nil {
+			t.Fatalf("NewCommand(%s): %v", cmdType, err)
+		}
+
+		if _, err := database.ApplyCommand(ctx, cmd, 0); err != nil {
+			t.Fatalf("apply %s on a diverged node: %v", cmdType, err)
+		}
+	}
+
+	newSecret := bytes.Repeat([]byte{9}, 32)
+	apply(ellaraft.CmdRotateJWTSecret, map[string]any{"value": newSecret})
+
+	got, err := database.GetJWTSecret(ctx)
+	if err != nil {
+		t.Fatalf("GetJWTSecret: %v", err)
+	}
+
+	if !bytes.Equal(got, newSecret) {
+		t.Fatalf("secret = %x, want %x", got, newSecret)
+	}
+
+	leaderRow := db.CellPosition{
+		ID:           "from-leader",
+		RAT:          db.RATNR,
+		Mcc:          "001",
+		Mnc:          "01",
+		CellIdentity: "00000a001",
+		Latitude:     45.5,
+		Longitude:    -73.5,
+		Source:       "provisioned",
+		CreatedAt:    "t",
+		UpdatedAt:    "t",
+	}
+	apply(ellaraft.CmdPutCellPosition, &leaderRow)
+	apply(ellaraft.CmdPutCellPosition, &leaderRow)
+	apply(ellaraft.CmdDeleteCellPosition, map[string]any{"value": "never-existed"})
+
+	positions, err := database.ListCellPositions(ctx)
+	if err != nil {
+		t.Fatalf("ListCellPositions: %v", err)
+	}
+
+	ids := map[string]float64{}
+	for _, p := range positions {
+		ids[p.ID] = p.Latitude
+	}
+
+	if len(ids) != 2 || ids["from-leader"] != 45.5 || ids["only-here"] != 1 {
+		t.Fatalf("cell positions after applying the leader's writes = %v, want from-leader replacing diverged", ids)
+	}
+}

@@ -25,6 +25,10 @@ const (
 	CmdDeleteOldAuditLogs     CommandType = 31
 	CmdDeleteExpiredSessions  CommandType = 72
 
+	CmdRotateJWTSecret    CommandType = 181
+	CmdPutCellPosition    CommandType = 200
+	CmdDeleteCellPosition CommandType = 201
+
 	CmdMigrateShared CommandType = 220
 )
 
@@ -34,6 +38,9 @@ var commandNames = map[CommandType]string{
 	CmdDeleteAllDynamicLeases: "DeleteAllDynamicLeases",
 	CmdDeleteOldAuditLogs:     "DeleteOldAuditLogs",
 	CmdDeleteExpiredSessions:  "DeleteExpiredSessions",
+	CmdRotateJWTSecret:        "RotateJWTSecret",
+	CmdPutCellPosition:        "PutCellPosition",
+	CmdDeleteCellPosition:     "DeleteCellPosition",
 	CmdMigrateShared:          "MigrateShared",
 }
 

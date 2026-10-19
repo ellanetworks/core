@@ -12,7 +12,6 @@ var pinnedChangesetOps = map[string]int{
 	"ClearDailyUsage":                  1,
 	"ConsumeJoinToken":                 9,
 	"CreateAPIToken":                   1,
-	"CreateCellPosition":               24,
 	"CreateDataNetwork":                1,
 	"CreateHomeNetworkKey":             1,
 	"CreateLease":                      9,
@@ -28,7 +27,6 @@ var pinnedChangesetOps = map[string]int{
 	"DeleteAPIToken":                   1,
 	"DeleteAllSessions":                1,
 	"DeleteAllSessionsForUser":         1,
-	"DeleteCellPosition":               24,
 	"DeleteClusterMember":              9,
 	"DeleteClusterNodeCert":            12,
 	"DeleteDataNetwork":                1,
@@ -58,7 +56,6 @@ var pinnedChangesetOps = map[string]int{
 	"RegisterUE":                       21,
 	"ReleaseIPLease":                   13,
 	"ReplaceFramedRoutes":              16,
-	"RotateJWTSecret":                  24,
 	"SetDefaultPolicy":                 14,
 	"SetDisplayName":                   20,
 	"SetDrainState":                    9,
@@ -94,17 +91,20 @@ var pinnedChangesetOps = map[string]int{
 	"UpdateSubscriberProfile":          22,
 	"UpdateUser":                       1,
 	"UpdateUserPassword":               1,
-	"UpdateCellPosition":               24,
 	"UpsertClusterMember":              9,
 	"UpsertClusterNodeCert":            12,
 }
 
 var pinnedIntentOps = map[string]int{
+	"CreateCellPosition":     24,
 	"DeleteAllDynamicLeases": 1,
+	"DeleteCellPosition":     24,
 	"DeleteExpiredSessions":  1,
 	"DeleteOldAuditLogs":     1,
 	"DeleteOldDailyUsage":    1,
 	"MigrateShared":          1,
+	"RotateJWTSecret":        24,
+	"UpdateCellPosition":     24,
 }
 
 const operationRule = `A replicated operation was added, retired, renamed, or had its

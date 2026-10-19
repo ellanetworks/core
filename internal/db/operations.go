@@ -60,8 +60,9 @@ import (
 type OpOption func(*opMeta)
 
 type opMeta struct {
-	minSchema int
-	topics    []Topic
+	minSchema   int
+	topics      []Topic
+	leaderCheck func(db *Database, ctx context.Context, raw json.RawMessage) error
 }
 
 // RequireSchema declares the minimum applied schema version required
@@ -88,6 +89,19 @@ func AffectsTopic(topics ...Topic) OpOption {
 	}
 }
 
+func checkOnLeader[P any](check func(db *Database, ctx context.Context, p *P) error) OpOption {
+	return func(m *opMeta) {
+		m.leaderCheck = func(db *Database, ctx context.Context, raw json.RawMessage) error {
+			var p P
+			if err := json.Unmarshal(raw, &p); err != nil {
+				return fmt.Errorf("unmarshal payload: %w", err)
+			}
+
+			return check(db, ctx, &p)
+		}
+	}
+}
+
 // changesetOpHandler erases the payload type P so changeset ops live
 // in a single map keyed by operation name.
 type changesetOpHandler struct {
@@ -97,9 +111,10 @@ type changesetOpHandler struct {
 }
 
 type intentOpHandler struct {
-	minSchema int
-	topics    []Topic
-	cmdType   ellaraft.CommandType
+	minSchema   int
+	topics      []Topic
+	cmdType     ellaraft.CommandType
+	leaderCheck func(db *Database, ctx context.Context, raw json.RawMessage) error
 }
 
 var (
@@ -176,7 +191,7 @@ func registerIntentOpReturning[R any](name string, cmdType ellaraft.CommandType,
 		opt(&meta)
 	}
 
-	intentOps[name] = intentOpHandler{minSchema: meta.minSchema, topics: meta.topics, cmdType: cmdType}
+	intentOps[name] = intentOpHandler{minSchema: meta.minSchema, topics: meta.topics, cmdType: cmdType, leaderCheck: meta.leaderCheck}
 
 	return intentOp[R]{name: name, minSchema: meta.minSchema, cmdType: cmdType}
 }
@@ -327,7 +342,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	}
 
 	if db.raftManager == nil {
-		result, err := db.ApplyCommand(context.WithoutCancel(ctx), cmd, 0)
+		result, err := db.applyIntentStandalone(context.WithoutCancel(ctx), op.name, cmd)
 		if err != nil {
 			return zero, err
 		}
@@ -340,12 +355,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	}
 
 	if db.IsLeader() {
-		data, err := cmd.MarshalBinary()
-		if err != nil {
-			return zero, fmt.Errorf("marshal intent command: %w", err)
-		}
-
-		result, applyErr := db.leaderProposeIntent(ctx, op.name, data)
+		result, applyErr := db.leaderProposeIntent(ctx, op.name, cmd)
 		if applyErr == nil {
 			return narrowResult[R](op.name, result.Value)
 		}
@@ -369,13 +379,43 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	return narrowResult[R](op.name, result.Value)
 }
 
-func (db *Database) leaderProposeIntent(ctx context.Context, operation string, data []byte) (_ *ellaraft.ProposeResult, err error) {
+func (db *Database) applyIntentStandalone(ctx context.Context, operation string, cmd *ellaraft.Command) (any, error) {
+	check := intentOps[operation].leaderCheck
+	if check == nil {
+		return db.ApplyCommand(ctx, cmd, 0)
+	}
+
+	return db.applyLocalTx(ctx, operation, func(ctx context.Context) (any, error) {
+		if err := check(db, ctx, cmd.Payload); err != nil {
+			return nil, err
+		}
+
+		return db.ApplyCommand(ctx, cmd, 0)
+	})
+}
+
+func (db *Database) leaderProposeIntent(ctx context.Context, operation string, cmd *ellaraft.Command) (_ *ellaraft.ProposeResult, err error) {
 	ctx, span := db.startProposeSpan(ctx, operation)
 
 	defer func() { endSpan(span, err) }()
 
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("marshal intent command: %w", err)
+	}
+
 	db.lockPropose(ctx)
 	defer db.proposeMu.Unlock()
+
+	if check := intentOps[operation].leaderCheck; check != nil {
+		if err := db.tracedWriteBarrier(ctx); err != nil {
+			return nil, err
+		}
+
+		if err := check(db, ctx, cmd.Payload); err != nil {
+			return nil, err
+		}
+	}
 
 	return db.raftApply(ctx, data)
 }
@@ -626,12 +666,5 @@ func (db *Database) applyForwardedIntentOp(ctx context.Context, opName string, h
 		return nil, err
 	}
 
-	cmd := &ellaraft.Command{Type: h.cmdType, Payload: payload}
-
-	data, err := cmd.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("marshal intent command: %w", err)
-	}
-
-	return db.leaderProposeIntent(ctx, opName, data)
+	return db.leaderProposeIntent(ctx, opName, &ellaraft.Command{Type: h.cmdType, Payload: payload})
 }
