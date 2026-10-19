@@ -18,6 +18,7 @@ Ella Core works with any 3GPP-compliant IMS. It has been validated against:
 
 - [Ella IMS](https://github.com/ellanetworks/ims)
 - [Kamailio](https://github.com/kamailio/kamailio), which has [known deviations from 3GPP and IETF specifications](https://github.com/kamailio/kamailio/issues/5027)
+- [OpenSIPS](https://github.com/OpenSIPS/opensips), which has [known deviations from 3GPP and IETF specifications](https://github.com/OpenSIPS/opensips/issues/4386)
 
 <figure markdown="span">
   ![Ella Core and the IMS](../images/voice_diagram.svg){ width="700" }
