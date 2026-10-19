@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"net/netip"
 	"testing"
+	"time"
 )
 
 func loadProgramLocalSwitch(t *testing.T) *BpfObjects {
@@ -342,6 +343,8 @@ func TestLocalSwitchQERRateLimit(t *testing.T) {
 	dlPdr.QerID = qerID
 
 	dlPdr.Qer.MaxBitrateDL = rateBps
+	dlPdr.Qer.AveragingWindowMs = uint32(qerWindow / time.Millisecond)
+
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
@@ -383,7 +386,7 @@ func TestLocalSwitchUplinkQERRateLimit(t *testing.T) {
 		OuterHeaderRemoval: 0,
 		IMSI:               "001010000000001",
 		Far:                FarInfo{Action: 0x02},
-		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: rateBps},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: rateBps, AveragingWindowMs: uint32(qerWindow / time.Millisecond)},
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
@@ -1131,6 +1134,7 @@ func TestLocalSwitchQERMetersFromL3(t *testing.T) {
 			dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
 			dlPdr.QerID = qerID
 			dlPdr.Qer.MaxBitrateDL = rateBps
+			dlPdr.Qer.AveragingWindowMs = uint32(qerWindow / time.Millisecond)
 
 			if err := obj.PutPdrDownlink(tc.dlKey, dlPdr); err != nil {
 				t.Fatalf("install downlink PDR: %v", err)
