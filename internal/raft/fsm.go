@@ -51,18 +51,12 @@ type Applier interface {
 	// file on disk.
 	Reopen(ctx context.Context) error
 
-	// BackupLocalTables copies local-only tables (radio_events,
-	// flow_reports, etc.) from srcPath into destPath so they survive
-	// a full database file swap during restore. fsm_state is NOT
-	// included: its value must come from the snapshot so post-snapshot
-	// log entries are replayed correctly.
-	BackupLocalTables(ctx context.Context, srcPath, destPath string) error
-
-	// RestoreLocalTables copies previously backed-up local-only tables
-	// from backupPath back into destPath after a database file swap.
+	// RestoreLocalTables replaces the local-only tables (radio_events,
+	// flow_reports, etc.) in the staged snapshot at destPath with this
+	// node's rows from livePath, before the snapshot is swapped in.
 	// fsm_state is NOT restored: the snapshot already contains the
 	// correct lastApplied for its point-in-time state.
-	RestoreLocalTables(ctx context.Context, backupPath, destPath string) error
+	RestoreLocalTables(ctx context.Context, livePath, destPath string) error
 }
 
 // FSM implements raft.FSM for the application database.
@@ -183,6 +177,20 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 
 // Compile-time check: FSM must satisfy raft.BatchingFSM.
 var _ raft.BatchingFSM = (*FSM)(nil)
+
+func (f *FSM) syncAppliedIndex() error {
+	lastApplied, err := f.readLastApplied()
+	if err != nil {
+		return fmt.Errorf("read fsm_state.lastApplied: %w", err)
+	}
+
+	for {
+		current := f.appliedIndex.Load()
+		if lastApplied <= current || f.appliedIndex.CompareAndSwap(current, lastApplied) {
+			return nil
+		}
+	}
+}
 
 // readLastApplied returns the durable lastApplied Raft index from the
 // fsm_state table. Returns 0 if the table is empty or missing.
@@ -400,18 +408,14 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 	// overwriting it with a stale value would cause the FSM to skip
 	// replaying post-snapshot log entries.
 	dbPath := f.applier.Path()
-	localOnlyPath := filepath.Join(f.dataDir, "restore_snapshot_local.db")
 
 	ctx := context.Background()
 
-	if err := f.applier.BackupLocalTables(ctx, dbPath, localOnlyPath); err != nil {
+	if err := f.applier.RestoreLocalTables(ctx, dbPath, tmpPath); err != nil {
 		_ = os.Remove(tmpPath)
-		_ = os.Remove(localOnlyPath)
 
-		return fmt.Errorf("backup local-only tables before restore: %w", err)
+		return fmt.Errorf("restore local-only tables into snapshot: %w", err)
 	}
-
-	defer func() { _ = os.Remove(localOnlyPath) }()
 
 	// Remove WAL/SHM sidecars before the rename.
 	for _, suffix := range []string{"-wal", "-shm"} {
@@ -424,10 +428,6 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		return fmt.Errorf("rename snapshot over database: %w", err)
 	}
 
-	if err := f.applier.RestoreLocalTables(ctx, localOnlyPath, dbPath); err != nil {
-		return fmt.Errorf("restore local-only tables after snapshot restore: %w", err)
-	}
-
 	// Fsync the parent directory.
 	if dir, err := os.Open(f.dataDir); err == nil {
 		_ = dir.Sync()
@@ -436,6 +436,10 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	if err := f.applier.Reopen(ctx); err != nil {
 		return fmt.Errorf("reopen database after restore: %w", err)
+	}
+
+	if err := f.syncAppliedIndex(); err != nil {
+		return err
 	}
 
 	logger.RaftLog.Info("FSM: restored database from Raft snapshot")

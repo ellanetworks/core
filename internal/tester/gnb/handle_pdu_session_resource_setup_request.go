@@ -53,7 +53,10 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		return nil
 	}
 
-	var sessionNAS [][]byte
+	var (
+		sessionNAS [][]byte
+		stored     []int64
+	)
 
 	for _, pduSession := range req.PDUSessionResourceSetup {
 		pduSessionID := int64(pduSession.PDUSessionID)
@@ -88,6 +91,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		)
 
 		gnb.storePDUSession(ranUeNgapID, pduSessionInfo)
+
+		stored = append(stored, pduSessionID)
 
 		// Some AMF implementations omit the NAS-PDU when there is no NAS
 		// payload; this is non-fatal.
@@ -136,6 +141,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 	}); err != nil {
 		return fmt.Errorf("failed to send PDUSessionResourceSetupResponse: %w", err)
 	}
+
+	gnb.markSessionsAnswered(ranUeNgapID, stored)
 
 	logger.GnbLogger.Debug(
 		"Sent PDUSession Resource Setup Response",

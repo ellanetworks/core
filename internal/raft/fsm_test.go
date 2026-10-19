@@ -124,7 +124,6 @@ func (a *testApplier) Reopen(_ context.Context) error {
 	return nil
 }
 
-func (a *testApplier) BackupLocalTables(_ context.Context, _, _ string) error  { return nil }
 func (a *testApplier) RestoreLocalTables(_ context.Context, _, _ string) error { return nil }
 
 func (a *testApplier) seen() []*Command {

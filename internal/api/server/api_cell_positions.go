@@ -167,7 +167,13 @@ func CreateCellPosition(dbInstance *db.Database) http.Handler {
 
 		model := req.toModel()
 		if err := dbInstance.CreateCellPosition(r.Context(), model); err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(r.Context(), w, http.StatusConflict, "Cell position already exists for this cell", nil, logger.APILog)
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create cell position", err, logger.APILog)
+
 			return
 		}
 
@@ -202,6 +208,11 @@ func UpdateCellPosition(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpdateCellPosition(r.Context(), model); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Cell position not found", err, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(r.Context(), w, http.StatusConflict, "Cell position already exists for this cell", nil, logger.APILog)
 				return
 			}
 

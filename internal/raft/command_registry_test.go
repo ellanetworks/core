@@ -13,6 +13,9 @@ var pinnedCommandTypes = map[CommandType]string{
 	23:  "DeleteAllDynamicLeases",
 	31:  "DeleteOldAuditLogs",
 	72:  "DeleteExpiredSessions",
+	181: "RotateJWTSecret",
+	200: "PutCellPosition",
+	201: "DeleteCellPosition",
 	220: "MigrateShared",
 }
 

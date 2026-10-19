@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -112,6 +113,8 @@ type ENB struct {
 	s1SetupFrame Frame
 
 	sendMu sync.Mutex // serializes SCTP writes so concurrent per-UE flows are safe
+
+	background sync.WaitGroup
 
 	nextENBUEID int64
 	nextTEID    uint32
@@ -224,7 +227,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 
 		e.n3Conn = n3Conn
 
-		go e.gtpReader()
+		e.background.Go(e.gtpReader)
 	}
 
 	e.mmeMu.Lock()
@@ -316,7 +319,7 @@ func (e *ENB) dialAndActivateLocked(idx int) error {
 	peer.state = mmeStateActive
 	e.active = idx
 
-	go e.runReceiver(idx, conn)
+	e.background.Go(func() { e.runReceiver(idx, conn) })
 
 	if err := e.sendS1SetupOnConn(conn); err != nil {
 		_ = conn.Close()
@@ -566,6 +569,33 @@ func writeMessage(conn *sctp.SCTPConn, pdu []byte, ueAssociated bool) error {
 	return nil
 }
 
+func (e *ENB) SendS1SetupRequest() error {
+	b, err := e.buildS1SetupRequest()
+	if err != nil {
+		return err
+	}
+
+	return e.SendMessage(b, false)
+}
+
+func (e *ENB) DiscardReceivedFrames() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	clear(e.receivedFrames)
+}
+
+func (e *ENB) DiscardUEFrames(enbUEID int64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, byCode := range e.receivedFrames {
+		for code, frames := range byCode {
+			byCode[code] = slices.DeleteFunc(frames, func(f Frame) bool { return f.ENBUES1APID == enbUEID })
+		}
+	}
+}
+
 // sendS1SetupOnConn builds and writes an S1 Setup Request directly to conn.
 // Called from the locked dial/promotion path, so it must not take mmeMu.
 func (e *ENB) sendS1SetupOnConn(conn *sctp.SCTPConn) error {
@@ -631,6 +661,8 @@ func (e *ENB) Close() error {
 			firstErr = err
 		}
 	}
+
+	e.background.Wait()
 
 	return firstErr
 }

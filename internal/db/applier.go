@@ -23,6 +23,25 @@ import (
 	"go.uber.org/zap"
 )
 
+func applyIntent[P any](ctx context.Context, db *Database, cmd *ellaraft.Command, apply func(*Database, context.Context, *P) error) (any, error) {
+	if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
+		return nil, err
+	}
+
+	payload, err := unmarshalPayload[P](cmd.Payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := apply(db, ctx, payload); err != nil {
+		return nil, err
+	}
+
+	db.publishOpTopics(topicsForIntentCmd(cmd.Type))
+
+	return nil, nil
+}
+
 // Compile-time check that *Database implements ellaraft.Applier.
 var _ ellaraft.Applier = (*Database)(nil)
 
@@ -110,6 +129,15 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		return result, applyErr
 
+	case ellaraft.CmdRotateJWTSecret:
+		return applyIntent(ctx, db, cmd, (*Database).applyRotateJWTSecret)
+
+	case ellaraft.CmdPutCellPosition:
+		return applyIntent(ctx, db, cmd, (*Database).applyPutCellPosition)
+
+	case ellaraft.CmdDeleteCellPosition:
+		return applyIntent(ctx, db, cmd, (*Database).applyDeleteCellPosition)
+
 	case ellaraft.CmdMigrateShared:
 		payload, err := unmarshalPayload[migrateSharedPayload](cmd.Payload)
 		if err != nil {
@@ -192,6 +220,10 @@ func (db *Database) Reopen(ctx context.Context) error {
 
 	if err := db.PrepareStatements(); err != nil {
 		return fmt.Errorf("re-prepare statements: %w", err)
+	}
+
+	if db.changefeed != nil {
+		db.changefeed.PublishAll()
 	}
 
 	return nil
@@ -1490,6 +1522,108 @@ func (db *Database) applySetJWTSecret(ctx context.Context, p *bytesPayload) (any
 	}
 
 	return nil, nil
+}
+
+func (db *Database) applyRotateJWTSecret(ctx context.Context, p *bytesPayload) error {
+	if err := db.runner(ctx).Query(ctx, db.upsertJWTSecretStmt, JWTSecret{Secret: p.Value}).Run(); err != nil {
+		return fmt.Errorf("upsert secret: %w", err)
+	}
+
+	if err := db.applyDeleteAllSessions(ctx); err != nil {
+		return fmt.Errorf("delete sessions: %w", err)
+	}
+
+	return nil
+}
+
+func (db *Database) applyPutCellPosition(ctx context.Context, c *CellPosition) error {
+	if err := db.runner(ctx).Query(ctx, db.deleteCellPositionByCellStmt, c).Run(); err != nil {
+		return fmt.Errorf("delete conflicting cell position: %w", err)
+	}
+
+	if err := db.runner(ctx).Query(ctx, db.putCellPositionStmt, c).Run(); err != nil {
+		return fmt.Errorf("put cell position: %w", err)
+	}
+
+	return nil
+}
+
+func (db *Database) applyDeleteCellPosition(ctx context.Context, p *stringPayload) error {
+	if err := db.runner(ctx).Query(ctx, db.deleteCellPositionStmt, CellPosition{ID: p.Value}).Run(); err != nil {
+		return fmt.Errorf("delete cell position: %w", err)
+	}
+
+	return nil
+}
+
+func (db *Database) requireCellPosition(ctx context.Context, id string) error {
+	c := CellPosition{ID: id}
+
+	if err := db.runner(ctx).Query(ctx, db.getCellPositionStmt, c).Get(&c); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("get cell position: %w", err)
+	}
+
+	return nil
+}
+
+func (db *Database) cellPositionTakenByOther(ctx context.Context, c *CellPosition) (bool, error) {
+	existing := CellPosition{RAT: c.RAT, Mcc: c.Mcc, Mnc: c.Mnc, CellIdentity: c.CellIdentity}
+
+	if err := db.runner(ctx).Query(ctx, db.getCellPositionByCellStmt, existing).Get(&existing); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("get cell position by cell: %w", err)
+	}
+
+	return existing.ID != c.ID, nil
+}
+
+func (db *Database) checkCreateCellPosition(ctx context.Context, c *CellPosition) error {
+	if err := db.requireCellPosition(ctx, c.ID); !errors.Is(err, ErrNotFound) {
+		if err == nil {
+			return ErrAlreadyExists
+		}
+
+		return err
+	}
+
+	taken, err := db.cellPositionTakenByOther(ctx, c)
+	if err != nil {
+		return err
+	}
+
+	if taken {
+		return ErrAlreadyExists
+	}
+
+	return nil
+}
+
+func (db *Database) checkUpdateCellPosition(ctx context.Context, c *CellPosition) error {
+	if err := db.requireCellPosition(ctx, c.ID); err != nil {
+		return err
+	}
+
+	taken, err := db.cellPositionTakenByOther(ctx, c)
+	if err != nil {
+		return err
+	}
+
+	if taken {
+		return ErrAlreadyExists
+	}
+
+	return nil
+}
+
+func (db *Database) checkDeleteCellPosition(ctx context.Context, p *stringPayload) error {
+	return db.requireCellPosition(ctx, p.Value)
 }
 
 func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error) {

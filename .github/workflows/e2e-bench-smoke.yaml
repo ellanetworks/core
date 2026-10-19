@@ -1,0 +1,27 @@
+name: E2E Benchmark Smoke
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  e2e-bench-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install libpcap headers and the SCTP kernel module
+        run: |
+          sudo apt-get update && sudo apt-get install -y libpcap-dev "linux-modules-extra-$(uname -r)"
+          sudo modprobe sctp
+
+      - name: Smoke-test every benchmark scenario under the race detector
+        env:
+          ELLA_REQUIRE_SCTP: "1"
+        run: go test -race -count=1 -run '^TestE2EBenchSmoke$' ./pkg/runtime

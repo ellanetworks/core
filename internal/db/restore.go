@@ -306,50 +306,17 @@ func writeArchiveMember(destPath string, src io.Reader, size int64) error {
 	return out.Close()
 }
 
-func backupLocalOnlyTables(ctx context.Context, srcPath, destPath string) error {
-	src, err := sql.Open("sqlite3", srcPath)
+func restoreLocalOnlyTables(ctx context.Context, livePath, destPath string) error {
+	live, err := sql.Open("sqlite3", livePath)
 	if err != nil {
-		return fmt.Errorf("open source database: %w", err)
+		return fmt.Errorf("open live database: %w", err)
 	}
 
-	defer func() { _ = src.Close() }()
+	defer func() { _ = live.Close() }()
 
 	dest, err := sql.Open("sqlite3", destPath)
 	if err != nil {
-		return fmt.Errorf("open local-only backup database: %w", err)
-	}
-
-	defer func() { _ = dest.Close() }()
-
-	for _, table := range localOnlyTables {
-		createStmt, err := readTableDDL(ctx, src, table)
-		if err != nil {
-			continue
-		}
-
-		if _, err := dest.ExecContext(ctx, createStmt); err != nil {
-			return fmt.Errorf("create local-only backup table %s: %w", table, err)
-		}
-
-		if err := copyTableRows(ctx, src, dest, table); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func restoreLocalOnlyTables(ctx context.Context, backupPath, destPath string) error {
-	backup, err := sql.Open("sqlite3", backupPath)
-	if err != nil {
-		return fmt.Errorf("open local-only backup database: %w", err)
-	}
-
-	defer func() { _ = backup.Close() }()
-
-	dest, err := sql.Open("sqlite3", destPath)
-	if err != nil {
-		return fmt.Errorf("open restored database: %w", err)
+		return fmt.Errorf("open staged snapshot database: %w", err)
 	}
 
 	defer func() { _ = dest.Close() }()
@@ -376,7 +343,17 @@ func restoreLocalOnlyTables(ctx context.Context, backupPath, destPath string) er
 			return fmt.Errorf("clear restored %s: %w", table, err)
 		}
 
-		if err := copyTableRowsTx(ctx, backup, tx, table); err != nil {
+		var inLive int
+		if err := live.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&inLive); err != nil {
+			return fmt.Errorf("look up %s in live database: %w", table, err)
+		}
+
+		if inLive == 0 {
+			continue
+		}
+
+		if err := copyTableRowsTx(ctx, live, tx, table); err != nil {
 			return err
 		}
 	}
@@ -386,40 +363,6 @@ func restoreLocalOnlyTables(ctx context.Context, backupPath, destPath string) er
 	}
 
 	tx = nil
-
-	return nil
-}
-
-func readTableDDL(ctx context.Context, conn *sql.DB, table string) (string, error) {
-	var ddl string
-
-	if err := conn.QueryRowContext(ctx,
-		"SELECT sql FROM sqlite_master WHERE type='table' AND name = ?", table).Scan(&ddl); err != nil {
-		return "", fmt.Errorf("read DDL for %s: %w", table, err)
-	}
-
-	if strings.TrimSpace(ddl) == "" {
-		return "", fmt.Errorf("table %s has empty DDL", table)
-	}
-
-	return ddl, nil
-}
-
-func copyTableRows(ctx context.Context, src, dest *sql.DB, table string) error {
-	tx, err := dest.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin copy of %s: %w", table, err)
-	}
-
-	defer func() { _ = tx.Rollback() }()
-
-	if err := copyTableRowsTx(ctx, src, tx, table); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit copy of %s: %w", table, err)
-	}
 
 	return nil
 }
@@ -478,16 +421,10 @@ func copyTableRowsTx(ctx context.Context, src *sql.DB, dest *sql.Tx, table strin
 	return nil
 }
 
-// BackupLocalTables implements ellaraft.Applier. It copies local-only tables
-// from srcPath into destPath so they survive a full database file swap.
-func (db *Database) BackupLocalTables(ctx context.Context, srcPath, destPath string) error {
-	return backupLocalOnlyTables(ctx, srcPath, destPath)
-}
-
-// RestoreLocalTables implements ellaraft.Applier. It copies previously
-// backed-up local-only tables from backupPath back into destPath.
-func (db *Database) RestoreLocalTables(ctx context.Context, backupPath, destPath string) error {
-	return restoreLocalOnlyTables(ctx, backupPath, destPath)
+// RestoreLocalTables implements ellaraft.Applier. It replaces the
+// local-only tables in destPath with this node's rows from livePath.
+func (db *Database) RestoreLocalTables(ctx context.Context, livePath, destPath string) error {
+	return restoreLocalOnlyTables(ctx, livePath, destPath)
 }
 
 // Restore replaces the database file with the contents of the backup tar.gz

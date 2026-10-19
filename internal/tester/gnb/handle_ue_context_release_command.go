@@ -44,8 +44,6 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 		}
 	}
 
-	ue.RRCRelease()
-
 	err = gnb.SendUEContextReleaseComplete(&UEContextReleaseCompleteOpts{
 		AMFUENGAPID:   amfUEID,
 		RANUENGAPID:   ranUEID,
@@ -56,12 +54,16 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 		Tac:           gnb.TAC,
 	})
 	if err != nil {
+		ue.RRCRelease()
+
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)
 	}
 
 	gnb.dropPDUSessions(ranUEID)
 	gnb.dropRadioCapabilityReport(ranUEID)
 	gnb.dropUEContext(ranUEID)
+
+	ue.RRCRelease()
 
 	logger.GnbLogger.Debug(
 		"Sent UE Context Release Complete",

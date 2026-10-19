@@ -1001,6 +1001,34 @@ func (ue *UE) SendDeregistrationRequest(amfUENGAPID int64, ranUENGAPID int64) er
 	return nil
 }
 
+func (ue *UE) SendIdleDeregistrationRequest(ranUENGAPID int64) error {
+	deregBytes, err := BuildDeregistrationRequest(&DeregistrationRequestOpts{
+		Guti: ue.UeSecurity.Guti,
+		Ksi:  ue.UeSecurity.NgKsi.Ksi,
+	})
+	if err != nil {
+		return fmt.Errorf("could not build Deregistration Request NAS PDU: %v", err)
+	}
+
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(deregBytes, uint8(fgs.SHTIntegrityProtected))
+	if err != nil {
+		return fmt.Errorf("could not integrity-protect Deregistration Request NAS PDU: %v", err)
+	}
+
+	var gutiIE []byte
+	if ue.UeSecurity.Guti != nil {
+		if gutiIE, err = ue.UeSecurity.Guti.MarshalBinary(); err != nil {
+			return fmt.Errorf("could not encode 5G-GUTI: %v", err)
+		}
+	}
+
+	if err := ue.Gnb.SendInitialUEMessage(encodedPdu, ranUENGAPID, gutiIE, ngap.RRCCauseMOSignalling); err != nil {
+		return fmt.Errorf("could not send InitialUEMessage: %v", err)
+	}
+
+	return nil
+}
+
 func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai) error {
 	return ue.sendPDUSessionRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeInitialRequest)
 }

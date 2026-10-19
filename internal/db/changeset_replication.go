@@ -76,7 +76,7 @@ var replicatedChangesetTables = []string{
 // localOnlyTables are NOT replicated through Raft. Each node owns its own
 // copy: writes are applied directly to the local SQLite, never proposed
 // through the Raft log; rows are preserved across full DB swaps via
-// BackupLocalTables / RestoreLocalTables.
+// RestoreLocalTables.
 //
 // SEED CONTRACT for singleton local-only tables: every node must seed the
 // singleton row at startup with documented defaults so readers always see
@@ -270,10 +270,10 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 	return nil, nil
 }
 
-func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, error) {
+func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, int, error) {
 	conn, err := db.conn().PlainDB().Conn(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("acquire sqlite conn for capture: %w", err)
+		return nil, nil, 0, fmt.Errorf("acquire sqlite conn for capture: %w", err)
 	}
 
 	defer func() { _ = conn.Close() }()
@@ -281,6 +281,8 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 	var changeset []byte
 
 	var result any
+
+	var schema int
 
 	err = conn.Raw(func(raw any) error {
 		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
@@ -299,6 +301,11 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 		defer func() {
 			_, _ = sqliteConn.ExecContext(context.Background(), "ROLLBACK", nil)
 		}()
+
+		schema, err = readSchemaVersionRaw(ctx, sqliteConn)
+		if err != nil {
+			return err
+		}
 
 		changeset, err = sqliteConn.CaptureChangeset(ctx, func() error {
 			dconn, ok := raw.(driver.Conn)
@@ -322,14 +329,36 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
 	logger.From(ctx, logger.DBLog).Debug("captured changeset",
 		zap.String("operation", operation),
 		logger.Bytes(uint64(len(changeset))))
 
-	return changeset, result, nil
+	return changeset, result, schema, nil
+}
+
+func readSchemaVersionRaw(ctx context.Context, conn *sqlite3.SQLiteConn) (int, error) {
+	rows, err := conn.QueryContext(ctx, "SELECT version FROM schema_version WHERE id = 1", nil)
+	if err != nil {
+		return 0, fmt.Errorf("read schema_version: %w", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	dest := make([]driver.Value, 1)
+
+	if err := rows.Next(dest); err != nil {
+		return 0, fmt.Errorf("read schema_version: %w", err)
+	}
+
+	version, ok := dest[0].(int64)
+	if !ok {
+		return 0, fmt.Errorf("read schema_version: unexpected type %T", dest[0])
+	}
+
+	return int(version), nil
 }
 
 func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn func(context.Context) (any, error)) (any, error) {

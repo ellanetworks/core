@@ -137,37 +137,10 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 
 	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "rotate").Inc()
 
-	tx, err := db.conn().Begin(ctx, nil)
-	if err != nil {
+	if _, err := opRotateJWTSecret.Invoke(ctx, db, &bytesPayload{Value: newSecret}); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("begin transaction failed: %w", err)
-	}
-
-	row := JWTSecret{Secret: newSecret}
-
-	err = tx.Query(ctx, db.upsertJWTSecretStmt, row).Run()
-	if err != nil {
-		_ = tx.Rollback()
-
-		recordSpanError(span, err)
-
-		return fmt.Errorf("upsert secret failed: %w", err)
-	}
-
-	err = tx.Query(ctx, db.deleteAllSessionsStmt).Run()
-	if err != nil {
-		_ = tx.Rollback()
-
-		recordSpanError(span, err)
-
-		return fmt.Errorf("delete sessions failed: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		recordSpanError(span, err)
-
-		return fmt.Errorf("commit failed: %w", err)
+		return err
 	}
 
 	return nil

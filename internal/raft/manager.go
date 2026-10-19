@@ -293,6 +293,14 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
+	if err := fsm.syncAppliedIndex(); err != nil {
+		closeTransport(transport)
+
+		_ = boltStore.Close()
+
+		return nil, err
+	}
+
 	recovered, err := maybeRecoverCluster(raftDir, raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
 	if err != nil {
 		closeTransport(transport)

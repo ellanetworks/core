@@ -285,6 +285,14 @@ func (s *SMF) currentPDUSession(supi etsi.SUPI, pduSessionID uint8) *SMContext {
 	return s.currentSession(supi, SessionIdentity{PDUSessionID: pduSessionID}.sessionKey())
 }
 
+func (s *SMF) HasPDUSession(supi etsi.SUPI, pduSessionID uint8) bool {
+	return s.currentPDUSession(supi, pduSessionID) != nil
+}
+
+func (s *SMF) HasEPSSession(supi etsi.SUPI, ebi uint8) bool {
+	return s.currentEPSSession(supi, ebi) != nil
+}
+
 func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
 	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
 }

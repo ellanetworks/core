@@ -244,8 +244,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
-	logger.SetDb(bufferedWriter)
+	bufferedWriter := startRadioEventWriter(dbInstance)
 
 	// Provide the runtime config file contents to the supportbundle generator
 	// so support bundles include the exact YAML used at startup. This is safe
@@ -460,14 +459,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	// Create SMF with dependency-injected adapters.
-	pcfInstance := pcf.New(dbInstance, logger.PcfLog)
-	smfStore := &smfDBAdapter{db: dbInstance}
-	smfAMF := &smfAMFAdapter{}
-	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
-
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(subscriptions))
-	pcfInstance.SetEnforcer(smfInstance)
+	cp := newControlPlane(ctx, dbInstance, raftID)
+	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
 	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
 	if err != nil {
@@ -517,36 +510,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
 
-	ausfStore := &ausfDBAdapter{db: dbInstance}
-	keyResolver := func(scheme string, keyID int) (string, error) {
-		key, err := dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)
-		if err != nil {
-			return "", err
-		}
+	ausfStore, amfInstance, mmeInstance := cp.ausfStore, cp.amf, cp.mme
 
-		return key.PrivateKey, nil
-	}
-
-	ausfInstance := ausf.New(ausfStore, keyResolver)
-
-	wg.Go(func() {
-		ausfInstance.Run(ctx)
-	})
-
-	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
-	amfInstance.NAS = &nasAdapter{amf: amfInstance}
-	smfAMF.amf = amfInstance
-	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
-	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
-	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
-	amfInstance.EPS = mmeInstance
-	mmeInstance.FiveGS = amfInstance
-	ueRegistrations := ueregistration.New(dbInstance, raftID, logger.EllaLog)
-	amfInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, amfInstance)
-	mmeInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, mmeInstance)
+	cp.start(ctx, &wg)
 
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
+	metrics.RegisterRadioEventDrops(bufferedWriter.Dropped)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 	lmfInstance.Start(ctx)
@@ -616,14 +586,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
 
-	registrationsWakeup, stopRegistrationsWakeup := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
-
-	wg.Go(func() {
-		defer stopRegistrationsWakeup()
-
-		ueRegistrations.Run(ctx, registrationsWakeup)
-	})
-
 	// --- Phase B: upgrade the API server to serve all routes once the
 	// replicated initial settings are visible on this node. ---
 	logger.EllaLog.Info("Waiting for initial settings before serving the full API")
@@ -661,24 +623,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	defer drainReconciler.Stop()
 
-	sctpServer := amfsctp.NewServer(amfsctp.Config{
-		PPID:   amf.NGAPPPID,
-		Name:   "NGAP",
-		Logger: sctpLogger(logger.AmfLog, "AMF"),
-	}, amfsctp.Callbacks{
-		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
-			ngap.Dispatch(ctx, amfInstance, conn, msg)
-		},
-		// A single disconnect path (mirroring the S1-MME wiring below): the server
-		// always runs OnDisconnect when a connection's read loop ends, which covers
-		// every SCTP teardown (COMM_LOST/SHUTDOWN deliver a notification and then end
-		// the read loop), so no separate Notify handler is needed.
-		OnDisconnect: func(conn *amfsctp.SCTPConn) {
-			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
-				amfInstance.DisconnectRadioOnConnLoss(ran)
-			}
-		},
-	})
+	sctpServer := newNGAPServer(amfInstance)
 
 	interfaceName := ""
 	if cfg.Interfaces.N2.Name != "" {
@@ -695,18 +640,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// 4G S1-MME control plane. The composition root owns the SCTP listener and
 	// routes decoded PDUs into the S1AP transport layer (mirrors the AMF/NGAP
 	// wiring above). Bind the RAN-facing interface (same address as N2).
-	mmeServer := amfsctp.NewServer(amfsctp.Config{
-		PPID:   mme.S1apPPID,
-		Name:   "S1-MME",
-		Logger: sctpLogger(logger.MmeLog, "MME"),
-	}, amfsctp.Callbacks{
-		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
-			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
-		},
-		OnDisconnect: func(conn *amfsctp.SCTPConn) {
-			mmeInstance.DisconnectRadio(conn)
-		},
-	})
+	mmeServer := newS1APServer(mmeInstance)
 
 	s1apListener, err := sctplisten.Listen(ctx, logger.MmeLog, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.S1APPort, interfaceName)
 	if err != nil {
@@ -1458,4 +1392,120 @@ func (d *diameterDirectory) Identity(ctx context.Context, nodeID string) (diamet
 	}
 
 	return diameternode.IdentityOf(diameterNodeSettings(op, member.AMFPointer))
+}
+
+func newNGAPServer(amfInstance *amf.AMF) *amfsctp.Server {
+	return amfsctp.NewServer(amfsctp.Config{
+		PPID:   amf.NGAPPPID,
+		Name:   "NGAP",
+		Logger: sctpLogger(logger.AmfLog, "AMF"),
+	}, amfsctp.Callbacks{
+		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
+			ngap.Dispatch(ctx, amfInstance, conn, msg)
+		},
+		// A single disconnect path (mirroring the S1-MME wiring below): the server
+		// always runs OnDisconnect when a connection's read loop ends, which covers
+		// every SCTP teardown (COMM_LOST/SHUTDOWN deliver a notification and then end
+		// the read loop), so no separate Notify handler is needed.
+		OnDisconnect: func(conn *amfsctp.SCTPConn) {
+			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
+				amfInstance.DisconnectRadioOnConnLoss(ran)
+			}
+		},
+	})
+}
+
+func newS1APServer(mmeInstance *mme.MME) *amfsctp.Server {
+	return amfsctp.NewServer(amfsctp.Config{
+		PPID:   mme.S1apPPID,
+		Name:   "S1-MME",
+		Logger: sctpLogger(logger.MmeLog, "MME"),
+	}, amfsctp.Callbacks{
+		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
+			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
+		},
+		OnDisconnect: func(conn *amfsctp.SCTPConn) {
+			mmeInstance.DisconnectRadio(conn)
+		},
+	})
+}
+
+type controlPlane struct {
+	db            *db.Database
+	pcf           *pcf.PCF
+	smf           *smf.SMF
+	subscriptions *udm.Subscriptions
+	ausfStore     *ausfDBAdapter
+	ausf          *ausf.AUSF
+	amf           *amf.AMF
+	mme           *mme.MME
+	registrations *ueregistration.Registry
+}
+
+func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string) *controlPlane {
+	// Create SMF with dependency-injected adapters.
+	pcfInstance := pcf.New(dbInstance, logger.PcfLog)
+	smfStore := &smfDBAdapter{db: dbInstance}
+	smfAMF := &smfAMFAdapter{}
+	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
+
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(subscriptions))
+	pcfInstance.SetEnforcer(smfInstance)
+
+	ausfStore := &ausfDBAdapter{db: dbInstance}
+	keyResolver := func(scheme string, keyID int) (string, error) {
+		key, err := dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)
+		if err != nil {
+			return "", err
+		}
+
+		return key.PrivateKey, nil
+	}
+
+	ausfInstance := ausf.New(ausfStore, keyResolver)
+
+	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
+	amfInstance.NAS = &nasAdapter{amf: amfInstance}
+	smfAMF.amf = amfInstance
+	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
+	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
+	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
+	amfInstance.EPS = mmeInstance
+	mmeInstance.FiveGS = amfInstance
+	ueRegistrations := ueregistration.New(dbInstance, raftID, logger.EllaLog)
+	amfInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, amfInstance)
+	mmeInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, mmeInstance)
+
+	return &controlPlane{
+		db:            dbInstance,
+		pcf:           pcfInstance,
+		smf:           smfInstance,
+		subscriptions: subscriptions,
+		ausfStore:     ausfStore,
+		ausf:          ausfInstance,
+		amf:           amfInstance,
+		mme:           mmeInstance,
+		registrations: ueRegistrations,
+	}
+}
+
+func (cp *controlPlane) start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Go(func() {
+		cp.ausf.Run(ctx)
+	})
+
+	registrationsWakeup, stopRegistrationsWakeup := cp.db.Changefeed().Wakeup(db.TopicUERegistrations)
+
+	wg.Go(func() {
+		defer stopRegistrationsWakeup()
+
+		cp.registrations.Run(ctx, registrationsWakeup)
+	})
+}
+
+func startRadioEventWriter(dbInstance *db.Database) *dbwriter.BufferedDBWriter {
+	writer := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
+	logger.SetDb(writer)
+
+	return writer
 }
