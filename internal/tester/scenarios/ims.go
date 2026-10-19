@@ -293,7 +293,7 @@ func RequireIMSSignallingLoss(ctx context.Context, caller, callee IMSEndpoint, t
 }
 
 func callOutcome(ctx context.Context, u *imsUE, target string) (int, error) {
-	c, err := u.Invite(target, testue.CallOptions{})
+	c, err := u.MMTel().Invite(target, testue.CallOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("invite %s: %w", target, err)
 	}
@@ -488,18 +488,17 @@ func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Tra
 	}
 
 	u, err := testue.New(testue.Config{
-		IMSI:        sub.IMSI,
-		IMEI:        imsTestUEIMEI,
-		K:           k,
-		OPc:         opc,
-		SQN:         sqnMS,
-		PCSCF:       netip.AddrPortFrom(pcscf, IMSPCSCFPort),
-		Local:       local,
-		Transport:   transport,
-		AcceptCalls: true,
-		Video:       video,
-		Kernel:      xfrm,
-		Logger:      slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		IMSI:      sub.IMSI,
+		IMEI:      imsTestUEIMEI,
+		K:         k,
+		OPc:       opc,
+		SQN:       sqnMS,
+		PCSCF:     netip.AddrPortFrom(pcscf, IMSPCSCFPort),
+		Local:     local,
+		Transport: transport,
+		MMTel:     testue.MMTelConfig{AcceptCalls: true, Video: video},
+		Kernel:    xfrm,
+		Logger:    slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
 	if err != nil {
 		_ = xfrm.Close()
@@ -624,7 +623,7 @@ func RequireIMSCallEndedByNetwork(ctx context.Context, caller, callee IMSEndpoin
 
 	target := "tel:" + callee.Subscriber.MSISDN
 
-	ac, err := a.Invite(target, testue.CallOptions{})
+	ac, err := a.MMTel().Invite(target, testue.CallOptions{})
 	if err != nil {
 		return fmt.Errorf("invite: %w", err)
 	}
@@ -632,7 +631,7 @@ func RequireIMSCallEndedByNetwork(ctx context.Context, caller, callee IMSEndpoin
 	var bc *testue.Call
 
 	select {
-	case bc = <-b.Calls():
+	case bc = <-b.MMTel().Calls():
 	case <-ac.Done():
 		return networkEnded(ac)
 	case <-ctx.Done():
@@ -760,7 +759,7 @@ func establishCall(ctx context.Context, a, b *imsUE, target string) (*testue.Cal
 }
 
 func establishCallWith(ctx context.Context, a, b *imsUE, target string, opts testue.CallOptions) (*testue.Call, *testue.Call, error) {
-	ac, err := a.Invite(target, opts)
+	ac, err := a.MMTel().Invite(target, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invite: %w", err)
 	}
@@ -768,7 +767,7 @@ func establishCallWith(ctx context.Context, a, b *imsUE, target string, opts tes
 	var bc *testue.Call
 
 	select {
-	case bc = <-b.Calls():
+	case bc = <-b.MMTel().Calls():
 	case <-ctx.Done():
 		return nil, nil, fmt.Errorf("the callee received no INVITE: %w", ctx.Err())
 	}
@@ -865,13 +864,13 @@ func RequireIMSSecondCallRejected(ctx context.Context, caller, callee IMSEndpoin
 		return fmt.Errorf("first call up: %w", err)
 	}
 
-	ac2, err := a.Invite(target, testue.CallOptions{})
+	ac2, err := a.MMTel().Invite(target, testue.CallOptions{})
 	if err != nil {
 		return fmt.Errorf("second call: invite: %w", err)
 	}
 
 	select {
-	case bc2 := <-b.Calls():
+	case bc2 := <-b.MMTel().Calls():
 		if bc2.Ring(ctx) == nil {
 			_ = bc2.Answer(ctx)
 		}
