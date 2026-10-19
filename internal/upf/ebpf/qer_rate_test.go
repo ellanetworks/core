@@ -94,7 +94,7 @@ func putRateLimitedUplinkPDR(t *testing.T, obj *BpfObjects, teid uint32, rateBps
 	pdr := PdrInfo{
 		IMSI:         "001010000000001",
 		Far:          FarInfo{Action: 0x02},
-		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: rateBps},
+		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: rateBps, AveragingWindowMs: uint32(qerWindow / time.Millisecond)},
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
@@ -182,6 +182,7 @@ func TestQERDownlinkWindowSharedAcrossFamilies(t *testing.T) {
 	pdr.SEID = seid
 	pdr.QerID = qerID
 	pdr.Qer.MaxBitrateDL = rateBps
+	pdr.Qer.AveragingWindowMs = uint32(qerWindow / time.Millisecond)
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
 		t.Fatalf("install IPv4 downlink PDR: %v", err)
