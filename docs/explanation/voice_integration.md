@@ -17,7 +17,7 @@ An IMS is the system that sets up and routes calls in a mobile network. Phones t
 Ella Core works with any 3GPP-compliant IMS. It has been validated against:
 
 - [Ella IMS](https://github.com/ellanetworks/ims)
-- [Kamailio](https://github.com/kamailio/kamailio) (with [known spec compliance gaps](https://github.com/kamailio/kamailio/issues/5027))
+- [Kamailio](https://github.com/kamailio/kamailio), which has [known deviations from 3GPP and IETF specifications](https://github.com/kamailio/kamailio/issues/5027)
 
 <figure markdown="span">
   ![Ella Core and the IMS](../images/voice_diagram.svg){ width="700" }
