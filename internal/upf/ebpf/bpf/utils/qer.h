@@ -25,15 +25,12 @@
 #include <bpf/bpf_helpers.h>
 #include "bpf/ctx/ctx.h"
 #include "bpf/utils/pdr.h"
-#include "bpf/utils/packet_context.h"
 
 /* Per QER: a dual-stack session has two downlink PDRs sharing one AMBR.
  *
  * LRU because the window is derived state: no ordering against session setup,
  * no leak, and an eviction costs at most one window of burst. */
 #define QER_WINDOW_MAP_SIZE (4 * MAX_PDU_SESSIONS)
-
-#define QER_DEPARTURE_MIN_BYTES (8 * 1500ULL)
 
 struct qer_key {
 	__u64 seid;
@@ -71,7 +68,7 @@ static __always_inline struct qer_window *qer_window_for(__u64 seid,
 }
 
 static __always_inline enum ctx_action
-limit_rate_sliding_window(struct packet_context *ctx, const __u64 packet_size,
+limit_rate_sliding_window(const __u64 packet_size,
 			  volatile __u64 *windows_start, const __u64 rate,
 			  const __u32 averaging_window_ms)
 {
@@ -96,33 +93,14 @@ limit_rate_sliding_window(struct packet_context *ctx, const __u64 packet_size,
 	__u64 window_floor = now > window_size ? now - window_size : 0;
 	if (start < window_floor)
 		start = window_floor;
-	if (CTX_DEPARTURE_HORIZON_NS && start < now)
-		start = now;
-
-	__u64 horizon = CTX_DEPARTURE_HORIZON_NS;
-	if (horizon) {
-		__u64 floor = QER_DEPARTURE_MIN_BYTES * 8 * NSEC_PER_SEC / rate;
-		if (horizon < floor)
-			horizon = floor;
-	}
 
 	/* Charged once, below: charging here too under-delivers the rate once
 	 * tx_time exceeds the window. */
-	if (start > now + horizon)
-		return CTX_ACT_DROP;
-
-	if (CTX_DEPARTURE_HORIZON_NS && start > now + horizon / 4 &&
-	    bpf_get_prandom_u32() % (horizon - horizon / 4) <
-		    start - now - horizon / 4)
+	if (start > now)
 		return CTX_ACT_DROP;
 
 	/* A backlogged sender is admitted every tx_time. */
 	*(volatile __u64 *)windows_start = start + tx_time;
-
-	if (start > now && start > ctx->departure) {
-		ctx->departure = start;
-		ctx_set_departure(ctx->ctx_buff, start);
-	}
 
 	return CTX_ACT_OK;
 }

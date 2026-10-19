@@ -185,10 +185,11 @@ enforce_uplink_qer(struct packet_context *ctx, __u64 seid, __u32 qer_id,
 		return CTX_ACT_OK;
 
 	struct qer_window *window = qer_window_for(seid, qer_id);
-	if (window && CTX_ACT_DROP == limit_rate_sliding_window(
-					      ctx, size, &window->ul_start,
-					      qer->ul_maximum_bitrate,
-					      qer->averaging_window_ms))
+	if (window &&
+	    CTX_ACT_DROP == limit_rate_sliding_window(
+				    size, &window->ul_start,
+				    qer->ul_maximum_bitrate,
+				    qer->averaging_window_ms))
 		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
 	return CTX_ACT_OK;
@@ -248,19 +249,6 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		}
 	}
 
-	if (sel->target.qer.dl_maximum_bitrate != 0) {
-		struct qer_window *window =
-			qer_window_for(sel->seid, sel->target.qer_id);
-		if (window &&
-		    CTX_ACT_DROP ==
-			    limit_rate_sliding_window(
-				    ctx, packet_size, &window->dl_start,
-				    sel->target.qer.dl_maximum_bitrate,
-				    sel->target.qer.averaging_window_ms)) {
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
-
 	{
 		__u32 mtu_len = 0;
 		int encap_size = (sel->target.far.outer_header_creation &
@@ -275,6 +263,19 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 			return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 		if (mtu_ret > 0) {
 			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
+		}
+	}
+
+	if (sel->target.qer.dl_maximum_bitrate != 0) {
+		struct qer_window *window =
+			qer_window_for(sel->seid, sel->target.qer_id);
+		if (window &&
+		    CTX_ACT_DROP ==
+			    limit_rate_sliding_window(
+				    packet_size, &window->dl_start,
+				    sel->target.qer.dl_maximum_bitrate,
+				    sel->target.qer.averaging_window_ms)) {
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 		}
 	}
 

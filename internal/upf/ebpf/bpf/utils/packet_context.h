@@ -86,7 +86,6 @@ struct packet_context {
 	__be32 frag_id6;
 	/* Set by drop_with()/abort_with(), read once by record_action(). */
 	enum upf_drop_reason drop_reason;
-	__u64 departure;
 	__u8 interface : 1;
 	__u8 l4_unavailable : 1;
 	__u8 exthdr_invalid : 1;

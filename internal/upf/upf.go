@@ -164,7 +164,6 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	if attachedMode == config.DatapathTCX {
 		warnMergedPacketSources(n3AttachmentInterface, n6AttachmentInterface)
-		installDepartureQdiscs(n3AttachmentInterface, n6AttachmentInterface)
 	}
 
 	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)

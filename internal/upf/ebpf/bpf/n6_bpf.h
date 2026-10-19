@@ -326,7 +326,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		if (window &&
 		    CTX_ACT_DROP ==
 			    limit_rate_sliding_window(
-				    ctx, packet_size, &window->dl_start,
+				    packet_size, &window->dl_start,
 				    sel->target.qer.dl_maximum_bitrate,
 				    sel->target.qer.averaging_window_ms)) {
 			PROFILE_END(PROF_N6_QER_RATELIMIT);
@@ -498,7 +498,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		if (window &&
 		    CTX_ACT_DROP ==
 			    limit_rate_sliding_window(
-				    ctx, packet_size, &window->dl_start,
+				    packet_size, &window->dl_start,
 				    sel->target.qer.dl_maximum_bitrate,
 				    sel->target.qer.averaging_window_ms)) {
 			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
