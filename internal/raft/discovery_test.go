@@ -696,3 +696,26 @@ func TestDiscoveryTick_SkipsPeerThatNamesThisNodeAsLeader(t *testing.T) {
 		t.Fatalf("err = %v, want a retryable skip naming this node", err)
 	}
 }
+
+func TestProbePeerStatusReadsVersionAndAPIAddress(t *testing.T) {
+	t.Parallel()
+
+	m, serverAddr := newProbePeerHarness(t, statusHandler(&statusClusterBlock{
+		Role:          "Follower",
+		NodeID:        "1",
+		ClusterID:     "cluster-1",
+		SchemaVersion: 12,
+		BinaryVersion: "v1.20.0",
+		APIAddress:    "https://10.0.0.1:5000",
+	}))
+
+	status, err := m.ProbePeerStatus(context.Background(), "1", serverAddr)
+	if err != nil {
+		t.Fatalf("ProbePeerStatus: %v", err)
+	}
+
+	want := PeerStatus{SchemaVersion: 12, BinaryVersion: "v1.20.0", APIAddress: "https://10.0.0.1:5000"}
+	if status != want {
+		t.Fatalf("status: want %+v, got %+v", want, status)
+	}
+}
