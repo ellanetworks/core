@@ -76,7 +76,7 @@ var replicatedChangesetTables = []string{
 // localOnlyTables are NOT replicated through Raft. Each node owns its own
 // copy: writes are applied directly to the local SQLite, never proposed
 // through the Raft log; rows are preserved across full DB swaps via
-// BackupLocalTables / RestoreLocalTables.
+// RestoreLocalTables.
 //
 // SEED CONTRACT for singleton local-only tables: every node must seed the
 // singleton row at startup with documented defaults so readers always see
