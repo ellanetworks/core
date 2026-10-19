@@ -14,7 +14,10 @@ An IMS is the system that sets up and routes calls in a mobile network. Phones t
 - **I-CSCF (Interrogating)**: Finds the S-CSCF serving a subscriber.
 - **S-CSCF (Serving)**: Registers subscribers and routes their calls.
 
-Ella Core works with any 3GPP-compliant IMS, for example [Ella IMS](https://github.com/ellanetworks/ims).
+Ella Core works with any 3GPP-compliant IMS. It has been validated against:
+
+- [Ella IMS](https://github.com/ellanetworks/ims)
+- [Kamailio](https://github.com/kamailio/kamailio), which has [known deviations from 3GPP and IETF specifications](https://github.com/kamailio/kamailio/issues/5027)
 
 <figure markdown="span">
   ![Ella Core and the IMS](../images/voice_diagram.svg){ width="700" }

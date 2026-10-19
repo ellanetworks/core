@@ -35,7 +35,7 @@ func (h *HSS) UserAuthorization(ctx context.Context, id diameter.Identity, req *
 	}
 
 	if r.AuthorizationType == cx.AuthorizationRegistrationAndCapabilities {
-		return h.userAuthorizationAnswer(req, id, cx.UserAuthorization{Result: tgpp.Result{Code: diameter.ResultSuccess}, Capabilities: &cx.ServerCapabilities{}})
+		return h.userAuthorizationAnswer(req, id, cx.UserAuthorization{Result: tgpp.Result{Code: diameter.ResultSuccess}})
 	}
 
 	reg, err := h.store.Registration(ctx, sub.IMSI)
@@ -57,7 +57,7 @@ func (h *HSS) UserAuthorization(ctx context.Context, id diameter.Identity, req *
 		return h.userAuthorizationAnswer(req, id, cx.UserAuthorization{Result: tgpp.Experimental(tgpp.ResultSubsequentRegistration), ServerName: reg.ServerName})
 	}
 
-	return h.userAuthorizationAnswer(req, id, cx.UserAuthorization{Result: tgpp.Experimental(tgpp.ResultFirstRegistration), Capabilities: &cx.ServerCapabilities{}})
+	return h.userAuthorizationAnswer(req, id, cx.UserAuthorization{Result: tgpp.Experimental(tgpp.ResultFirstRegistration)})
 }
 
 func (h *HSS) userAuthorizationAnswer(req *diameter.Message, id diameter.Identity, a cx.UserAuthorization) *diameter.Message {
