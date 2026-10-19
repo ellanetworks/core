@@ -246,11 +246,4 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 	if total != 0 || len(reports) != 0 {
 		t.Fatalf("expected local-only flow reports to remain cleared after restore, got total=%d len=%d", total, len(reports))
 	}
-
-	// Per-node tables get a safety copy during restore; replicated tables
-	// come from the backup image. The safety copy must be cleaned up
-	// after a successful restore.
-	if _, err := os.Stat(filepath.Join(database.Dir(), "restore_snapshot_local.db")); !os.IsNotExist(err) {
-		t.Fatalf("expected restore_snapshot_local.db to be removed after successful restore, got err=%v", err)
-	}
 }

@@ -41,15 +41,34 @@ type pkiState struct {
 }
 
 func (p *pkiState) activePins() map[string]string {
-	if m := p.pins.Load(); m != nil && len(*m) > 0 {
-		return *m
+	var replicated, bootstrap map[string]string
+
+	if m := p.pins.Load(); m != nil {
+		replicated = *m
 	}
 
 	if m := p.bootstrapPins.Load(); m != nil {
-		return *m
+		bootstrap = *m
 	}
 
-	return nil
+	if _, caughtUp := replicated[p.leafFingerprint()]; caughtUp || len(bootstrap) == 0 {
+		return replicated
+	}
+
+	if len(replicated) == 0 {
+		return bootstrap
+	}
+
+	merged := make(map[string]string, len(bootstrap)+len(replicated))
+	for fp, nid := range bootstrap {
+		merged[fp] = nid
+	}
+
+	for fp, nid := range replicated {
+		merged[fp] = nid
+	}
+
+	return merged
 }
 
 func (p *pkiState) ensureIssuer(dbInstance *db.Database) {

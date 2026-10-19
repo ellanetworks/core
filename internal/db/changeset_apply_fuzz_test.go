@@ -62,7 +62,7 @@ func captureSliceChangesetTB(tb testing.TB, database *Database) []byte {
 		Name: "fuzz-seed",
 	}
 
-	bytes, _, err := database.captureChangeset(context.Background(),
+	bytes, _, _, err := database.captureChangeset(context.Background(),
 		func(ctx context.Context) (any, error) {
 			return database.applyCreateNetworkSlice(ctx, slice)
 		}, "CreateNetworkSlice")

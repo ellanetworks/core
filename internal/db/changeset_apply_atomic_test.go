@@ -24,7 +24,7 @@ func captureSliceChangeset(t *testing.T, database *Database) []byte {
 		Name: "changeset-regression",
 	}
 
-	bytes, _, err := database.captureChangeset(context.Background(),
+	bytes, _, _, err := database.captureChangeset(context.Background(),
 		func(ctx context.Context) (any, error) {
 			return database.applyCreateNetworkSlice(ctx, slice)
 		}, "CreateNetworkSlice")
@@ -149,7 +149,7 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 func captureSPNChangeset(t *testing.T, database *Database, spn string) []byte {
 	t.Helper()
 
-	bytes, _, err := database.captureChangeset(context.Background(),
+	bytes, _, _, err := database.captureChangeset(context.Background(),
 		func(ctx context.Context) (any, error) {
 			return database.applyUpdateOperatorSPN(ctx, &Operator{
 				ID:           1,

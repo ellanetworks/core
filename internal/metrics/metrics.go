@@ -44,6 +44,13 @@ func RegisterMetrics() {
 // gauges, each broken down by RAT. The callbacks tally the live counts from the
 // AMF (5G) and MME (4G); a nil callback contributes zero, so a single-RAT
 // deployment can omit the absent side.
+func RegisterRadioEventDrops(dropped func() uint64) {
+	prometheus.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Name: "app_radio_events_dropped_total",
+		Help: "Radio events not written to the database because the write buffer was full.",
+	}, func() float64 { return float64(dropped()) }))
+}
+
 func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func() int) {
 	radiosDesc := prometheus.NewDesc(
 		"app_connected_radios",

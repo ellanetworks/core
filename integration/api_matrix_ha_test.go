@@ -46,6 +46,8 @@ var apiMatrixHAResources = map[string]apiMatrixHARunner{
 	"flow_accounting":            runFlowAccountingHAMatrix,
 	"audit_logs":                 runAuditLogsHAMatrix,
 	"cluster_routing":            runClusterRoutingHAMatrix,
+	"cell_positions":             runCellPositionsHAMatrix,
+	"jwt_rotation":               runJWTRotationHAMatrix,
 }
 
 func TestAPIMatrixHA(t *testing.T) {

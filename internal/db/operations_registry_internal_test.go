@@ -96,11 +96,15 @@ var pinnedChangesetOps = map[string]int{
 }
 
 var pinnedIntentOps = map[string]int{
+	"CreateCellPosition":     24,
 	"DeleteAllDynamicLeases": 1,
+	"DeleteCellPosition":     24,
 	"DeleteExpiredSessions":  1,
 	"DeleteOldAuditLogs":     1,
 	"DeleteOldDailyUsage":    1,
 	"MigrateShared":          1,
+	"RotateJWTSecret":        24,
+	"UpdateCellPosition":     24,
 }
 
 const operationRule = `A replicated operation was added, retired, renamed, or had its

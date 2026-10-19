@@ -207,12 +207,22 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 // must be called after Initialize has seeded the replicated JWT secret on
 // this node; it does not require a leader or a formed cluster.
 func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
+	jwtSecretWakeup, stopJWTSecretWakeup := opts.DB.Changefeed().Wakeup(db.TopicJWTSecret)
+
 	jwtSecretBytes, err := opts.DB.GetJWTSecret(ctx)
 	if err != nil {
+		stopJWTSecretWakeup()
 		return fmt.Errorf("couldn't load jwt secret from database: %v", err)
 	}
 
 	jwtSecret := server.NewJWTSecret(jwtSecretBytes)
+
+	go func() {
+		defer stopJWTSecretWakeup()
+
+		watchJWTSecret(ctx, opts.DB, jwtSecret, jwtSecretWakeup)
+	}()
+
 	kernelInt := kernel.NewRealKernel(s.cfg.Interfaces.N3.Name, s.cfg.Interfaces.N6.Name)
 	secureCookie := resolveScheme(s.cfg) == HTTPS
 
@@ -552,4 +562,21 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	logger.APILog.Debug("Routes reconciled")
 
 	return nil
+}
+
+func watchJWTSecret(ctx context.Context, dbInstance *db.Database, jwtSecret *server.JWTSecret, wakeup <-chan struct{}) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-wakeup:
+			secret, err := dbInstance.GetJWTSecret(ctx)
+			if err != nil {
+				logger.APILog.Warn("couldn't reload the JWT secret after a replicated change", zap.Error(err))
+				continue
+			}
+
+			jwtSecret.Set(secret)
+		}
+	}
 }

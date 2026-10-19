@@ -58,6 +58,29 @@ func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) erro
 	return e.completeContextRelease(enbUEID, timeout)
 }
 
+func (e *ENB) WaitForEMMInformation(ue *UE, enbUEID int64, timeout time.Duration) error {
+	wire, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
+	if err != nil {
+		return fmt.Errorf("await EMM Information: %w", err)
+	}
+
+	plain, err := ue.unprotectDownlink(wire)
+	if err != nil {
+		return fmt.Errorf("unprotect downlink NAS: %w", err)
+	}
+
+	mt, err := eps.PeekMessageType(plain)
+	if err != nil {
+		return fmt.Errorf("peek downlink NAS: %w", err)
+	}
+
+	if mt != eps.MsgEMMInformation {
+		return fmt.Errorf("await EMM Information: got message type 0x%02x", uint8(mt))
+	}
+
+	return nil
+}
+
 // ReleaseContext performs an eNB-initiated S1 UE context release (TS 36.413
 // §8.3.2), dropping the UE to ECM-IDLE.
 func (e *ENB) ReleaseContext(mmeUEID, enbUEID int64, cause s1ap.Cause, timeout time.Duration) error {

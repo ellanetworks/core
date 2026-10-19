@@ -1,0 +1,55 @@
+name: E2E Benchmarks
+
+permissions:
+  contents: read
+  actions: read
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  e2e-bench:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install libpcap headers and the SCTP kernel module
+        run: |
+          sudo apt-get update && sudo apt-get install -y libpcap-dev "linux-modules-extra-$(uname -r)"
+          sudo modprobe sctp
+
+      - name: Run benchmarks
+        env:
+          ELLA_REQUIRE_SCTP: "1"
+        run: |
+          go test ./pkg/runtime -run '^$' -bench '^BenchmarkE2E$' -benchmem \
+            -count 10 -cpu 4 -timeout 80m | tee new.txt
+
+      - name: Download the previous main run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh run list --workflow e2e-bench.yaml --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -n "$run_id" ]; then
+            gh run download "$run_id" --name e2e-bench --dir previous || true
+          fi
+
+      - name: Compare with benchstat
+        run: |
+          if [ -f previous/new.txt ]; then
+            go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e previous/new.txt new.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e new.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: e2e-bench
+          path: new.txt
+          retention-days: 90

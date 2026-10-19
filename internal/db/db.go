@@ -160,12 +160,12 @@ type Database struct {
 	listLocationReportsStmt           *sqlair.Statement
 
 	// Cell Positions statements
-	createCellPositionStmt    *sqlair.Statement
-	getCellPositionStmt       *sqlair.Statement
-	getCellPositionByCellStmt *sqlair.Statement
-	listCellPositionsStmt     *sqlair.Statement
-	updateCellPositionStmt    *sqlair.Statement
-	deleteCellPositionStmt    *sqlair.Statement
+	putCellPositionStmt          *sqlair.Statement
+	getCellPositionStmt          *sqlair.Statement
+	getCellPositionByCellStmt    *sqlair.Statement
+	listCellPositionsStmt        *sqlair.Statement
+	deleteCellPositionByCellStmt *sqlair.Statement
+	deleteCellPositionStmt       *sqlair.Statement
 
 	// BGP Peers statements
 	listBGPPeersStmt    *sqlair.Statement
@@ -1741,11 +1741,11 @@ func (db *Database) PrepareStatements() error {
 		{&db.listLocationReportsStmt, fmt.Sprintf(listLocationReportsStmt, LocationReportsTableName), []any{LocationReport{}, locationReportCursor{}}},
 
 		// Cell Positions
-		{&db.createCellPositionStmt, fmt.Sprintf(createCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
+		{&db.putCellPositionStmt, fmt.Sprintf(putCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
 		{&db.getCellPositionStmt, fmt.Sprintf(getCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
 		{&db.getCellPositionByCellStmt, fmt.Sprintf(getCellPositionByCellStmt, CellPositionsTableName), []any{CellPosition{}}},
 		{&db.listCellPositionsStmt, fmt.Sprintf(listCellPositionsStmt, CellPositionsTableName), []any{CellPosition{}}},
-		{&db.updateCellPositionStmt, fmt.Sprintf(updateCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
+		{&db.deleteCellPositionByCellStmt, fmt.Sprintf(deleteCellPositionByCellStmt, CellPositionsTableName), []any{CellPosition{}}},
 		{&db.deleteCellPositionStmt, fmt.Sprintf(deleteCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
 
 		// BGP Peers

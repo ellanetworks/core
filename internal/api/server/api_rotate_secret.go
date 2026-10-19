@@ -31,7 +31,13 @@ func RotateSecret(dbInstance *db.Database, jwtSecret *JWTSecret) http.Handler { 
 			return
 		}
 
-		jwtSecret.Set(newSecret)
+		current, err := dbInstance.GetJWTSecret(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reload secret", err, logger.APILog)
+			return
+		}
+
+		jwtSecret.Set(current)
 
 		email, _ := r.Context().Value(contextKeyEmail).(string)
 

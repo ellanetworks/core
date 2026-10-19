@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -28,7 +27,7 @@ const (
 )
 
 const (
-	createCellPositionStmt    = `INSERT INTO %s (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at) VALUES ($CellPosition.id, $CellPosition.rat, $CellPosition.mcc, $CellPosition.mnc, $CellPosition.cell_identity, $CellPosition.gnb_id, $CellPosition.latitude, $CellPosition.longitude, $CellPosition.altitude, $CellPosition.uncertainty_semi_major, $CellPosition.uncertainty_semi_minor, $CellPosition.orientation_major, $CellPosition.confidence, $CellPosition.source, $CellPosition.created_at, $CellPosition.updated_at);`
+	putCellPositionStmt       = `INSERT INTO %s (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at) VALUES ($CellPosition.id, $CellPosition.rat, $CellPosition.mcc, $CellPosition.mnc, $CellPosition.cell_identity, $CellPosition.gnb_id, $CellPosition.latitude, $CellPosition.longitude, $CellPosition.altitude, $CellPosition.uncertainty_semi_major, $CellPosition.uncertainty_semi_minor, $CellPosition.orientation_major, $CellPosition.confidence, $CellPosition.source, $CellPosition.created_at, $CellPosition.updated_at) ON CONFLICT(id) DO UPDATE SET rat=excluded.rat, mcc=excluded.mcc, mnc=excluded.mnc, cell_identity=excluded.cell_identity, gnb_id=excluded.gnb_id, latitude=excluded.latitude, longitude=excluded.longitude, altitude=excluded.altitude, uncertainty_semi_major=excluded.uncertainty_semi_major, uncertainty_semi_minor=excluded.uncertainty_semi_minor, orientation_major=excluded.orientation_major, confidence=excluded.confidence, updated_at=excluded.updated_at;`
 	getCellPositionStmt       = `SELECT &CellPosition.* FROM %s WHERE id==$CellPosition.id;`
 	getCellPositionByCellStmt = `SELECT &CellPosition.* FROM %s WHERE rat==$CellPosition.rat AND mcc==$CellPosition.mcc AND mnc==$CellPosition.mnc AND cell_identity==$CellPosition.cell_identity;`
 	listCellPositionsStmt     = `SELECT &CellPosition.* FROM %s ORDER BY created_at DESC;`
@@ -36,8 +35,8 @@ const (
 	// row originated (currently always "provisioned") and must not change on
 	// edit. CellPositionRequest has no Source field, so leaving it in the SET
 	// clause would blank it on every update.
-	updateCellPositionStmt = `UPDATE %s SET rat==$CellPosition.rat, mcc==$CellPosition.mcc, mnc==$CellPosition.mnc, cell_identity==$CellPosition.cell_identity, gnb_id==$CellPosition.gnb_id, latitude==$CellPosition.latitude, longitude==$CellPosition.longitude, altitude==$CellPosition.altitude, uncertainty_semi_major==$CellPosition.uncertainty_semi_major, uncertainty_semi_minor==$CellPosition.uncertainty_semi_minor, orientation_major==$CellPosition.orientation_major, confidence==$CellPosition.confidence, updated_at==$CellPosition.updated_at WHERE id==$CellPosition.id;`
-	deleteCellPositionStmt = `DELETE FROM %s WHERE id==$CellPosition.id;`
+	deleteCellPositionByCellStmt = `DELETE FROM %s WHERE id!=$CellPosition.id AND rat==$CellPosition.rat AND mcc==$CellPosition.mcc AND mnc==$CellPosition.mnc AND cell_identity==$CellPosition.cell_identity;`
+	deleteCellPositionStmt       = `DELETE FROM %s WHERE id==$CellPosition.id;`
 )
 
 // CellPosition maps a serving cell (NCGI for NR, ECGI for E-UTRA) to a
@@ -109,10 +108,10 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 	c.CreatedAt = now
 	c.UpdatedAt = now
 
-	if err := db.conn().Query(ctx, db.createCellPositionStmt, c).Run(); err != nil {
+	if _, err := opCreateCellPosition.Invoke(ctx, db, c); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -247,28 +246,17 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "update").Inc()
 
 	c.UpdatedAt = time.Now().Format(time.RFC3339)
+	c.CreatedAt = c.UpdatedAt
 	c.CellIdentity = strings.ToLower(c.CellIdentity)
 
-	var outcome sqlair.Outcome
-
-	err := db.conn().Query(ctx, db.updateCellPositionStmt, c).Get(&outcome)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return fmt.Errorf("query failed: %w", err)
+	if c.Source == "" {
+		c.Source = "provisioned"
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
+	if _, err := opUpdateCellPosition.Invoke(ctx, db, c); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		recordSpanError(span, ErrNotFound)
-
-		return ErrNotFound
+		return err
 	}
 
 	return nil
@@ -295,26 +283,10 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 
 	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.conn().Query(ctx, db.deleteCellPositionStmt, CellPosition{ID: id}).Get(&outcome)
-	if err != nil {
+	if _, err := opDeleteCellPosition.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
 		recordSpanError(span, err)
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		recordSpanError(span, err)
-
-		return fmt.Errorf("rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		recordSpanError(span, ErrNotFound)
-
-		return ErrNotFound
+		return err
 	}
 
 	return nil

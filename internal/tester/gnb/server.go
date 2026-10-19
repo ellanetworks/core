@@ -143,9 +143,11 @@ type GnodeB struct {
 	UERadioCapability    []byte
 	OmitUEContextRequest bool
 	radioCapReported     map[int64]bool
+	answeredGen          map[int64]map[int64]uint64
 	ueContexts           map[int64]bool
 	advertisedDLTEIDs    map[int64]map[int64]uint32
 	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go
+	background           sync.WaitGroup
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
 	// maintains exactly one active SCTP association at a time, starting
@@ -252,6 +254,49 @@ func (g *GnodeB) awaitPDUSession(ranUeID, pduSessionID int64, after uint64, time
 
 		if time.Now().After(deadline) {
 			return PDUSessionInformation{}, fmt.Errorf("timeout waiting for PDU session %d of RAN UE NGAP ID %d", pduSessionID, ranUeID)
+		}
+
+		g.cond.Wait()
+	}
+}
+
+func (g *GnodeB) markSessionsAnswered(ranUeID int64, pduSessionIDs []int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.answeredGen == nil {
+		g.answeredGen = make(map[int64]map[int64]uint64)
+	}
+
+	if g.answeredGen[ranUeID] == nil {
+		g.answeredGen[ranUeID] = make(map[int64]uint64)
+	}
+
+	for _, id := range pduSessionIDs {
+		if s, ok := g.pduSessions[ranUeID][id]; ok {
+			g.answeredGen[ranUeID][id] = s.generation
+		}
+	}
+
+	g.cond.Broadcast()
+}
+
+func (g *GnodeB) awaitSessionAnswered(ranUeID, pduSessionID int64, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	timer := time.AfterFunc(timeout, func() { g.cond.Broadcast() })
+	defer timer.Stop()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for {
+		if s, ok := g.pduSessions[ranUeID][pduSessionID]; ok && g.answeredGen[ranUeID][pduSessionID] >= s.generation {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for the gNB to answer the setup of PDU session %d of RAN UE NGAP ID %d", pduSessionID, ranUeID)
 		}
 
 		g.cond.Wait()
@@ -565,7 +610,7 @@ func NewGnodeB(
 	g.cond = sync.NewCond(&g.mu)
 	g.dispatcher = newDispatcher(g)
 
-	go g.runReceiver(0, n2Conn)
+	g.background.Go(func() { g.runReceiver(0, n2Conn) })
 
 	return g
 }
@@ -586,6 +631,7 @@ type StartOpts struct {
 	CoreN2Addresses []string
 	GnbN2Address    string
 	GnbN3Address    string
+	SignallingOnly  bool
 }
 
 // Start builds a gNB and establishes one active N2 SCTP association. The
@@ -612,7 +658,14 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		gnbN3IPAddress netip.Addr
 	)
 
-	if opts.GnbN3Address != "" {
+	if opts.GnbN3Address != "" && opts.SignallingOnly {
+		var err error
+
+		gnbN3IPAddress, err = netip.ParseAddr(opts.GnbN3Address)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse gNB N3 IP address: %v", err)
+		}
+	} else if opts.GnbN3Address != "" {
 		laddr := &net.UDPAddr{
 			IP:   net.ParseIP(opts.GnbN3Address),
 			Port: 2152,
@@ -668,7 +721,7 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 	g.dispatcher = newDispatcher(g)
 
 	if n3Conn != nil {
-		go g.GTPReader()
+		g.background.Go(g.GTPReader)
 	}
 
 	g.n2Mu.Lock()
@@ -717,7 +770,7 @@ func (g *GnodeB) n2DialAndActivateLocked(idx int) error {
 	peer.state = n2StateActive
 	g.n2Active = idx
 
-	go g.runReceiver(idx, conn)
+	g.background.Go(func() { g.runReceiver(idx, conn) })
 
 	if err := g.sendNGSetupOnConn(conn); err != nil {
 		_ = conn.Close()
@@ -1067,6 +1120,13 @@ func (g *GnodeB) consumePinnedDLTEID(ranUeID, pduSessionID int64) uint32 {
 	return teid
 }
 
+func (g *GnodeB) DiscardReceivedFrames() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	clear(g.receivedFrames)
+}
+
 func (g *GnodeB) AddUE(ranUENGAPID int64, ue air.DownlinkSender) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -1131,6 +1191,8 @@ func (g *GnodeB) Close() {
 			logger.GnbLogger.Error("could not close GTP-U UDP connection", zap.Error(err))
 		}
 	}
+
+	g.background.Wait()
 }
 
 func (g *GnodeB) SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int64) error {

@@ -128,7 +128,9 @@ func (g *GnodeB) Register(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeo
 
 	// The store happens before the gNB answers, so let the PDU Session Resource
 	// Setup Response reach the AMF before the caller drives the next procedure.
-	time.Sleep(setupResponseSettle)
+	if err := g.awaitSessionAnswered(ranUENGAPID, int64(pduSessionID), timeout); err != nil {
+		return nil, err
+	}
 
 	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgConfigurationUpdateCommand), timeout); err != nil {
 		return nil, fmt.Errorf("await Configuration Update Command: %w", err)
@@ -286,7 +288,9 @@ func (g *GnodeB) openPDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 
 	session.Accept = accept
 
-	time.Sleep(setupResponseSettle)
+	if err := g.awaitSessionAnswered(ranUENGAPID, int64(pduSessionID), timeout); err != nil {
+		return nil, err
+	}
 
 	return &session, nil
 }
@@ -421,6 +425,18 @@ func (g *GnodeB) Deregister(u *ue.UE, ranUENGAPID int64, timeout time.Duration) 
 	return nil
 }
 
+func (g *GnodeB) DeregisterFromIdle(u *ue.UE, ranUENGAPID int64, timeout time.Duration) error {
+	if err := u.SendIdleDeregistrationRequest(ranUENGAPID); err != nil {
+		return fmt.Errorf("send Deregistration Request: %w", err)
+	}
+
+	if err := u.WaitForRRCRelease(timeout); err != nil {
+		return fmt.Errorf("await RRC Release for %s: %w", u.UeSecurity.Supi, err)
+	}
+
+	return nil
+}
+
 // PDUSession reports the gNB's current view of a stored PDU session, by value.
 // Use it to observe what a network-initiated modification changed; a scenario
 // that wants the session it just established reads it off the procedure result
@@ -446,11 +462,6 @@ func (g *GnodeB) PDUSession(ranUENGAPID int64, pduSessionID uint8) (PDUSessionRe
 		DLTEID:              s.DLTEID,
 	}, true
 }
-
-// setupResponseSettle lets the gNB's PDU Session Resource Setup Response reach
-// the AMF: the session is stored before the response goes out, so awaiting the
-// store alone would race the next procedure.
-const setupResponseSettle = 50 * time.Millisecond
 
 // awaitSession joins what the UE was told over NAS with what the gNB was told
 // over NGAP into the single result a scenario needs to build its tunnel. Only
