@@ -340,8 +340,8 @@ func TestUserAuthorization(t *testing.T) {
 				t.Fatalf("parse UAA: %v", err)
 			}
 
-			if ua.ServerName != "" || ua.Capabilities == nil {
-				t.Fatalf("UAA server name %q, capabilities %+v; want empty capabilities", ua.ServerName, ua.Capabilities)
+			if ua.ServerName != "" || ua.Capabilities != nil {
+				t.Fatalf("UAA server name %q, capabilities %+v; want neither", ua.ServerName, ua.Capabilities)
 			}
 		})
 	}

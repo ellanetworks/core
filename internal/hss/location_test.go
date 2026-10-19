@@ -35,7 +35,6 @@ func TestLocationInfo(t *testing.T) {
 		req          cx.LocationInfoRequest
 		want         tgpp.Result
 		serverName   string
-		capabilities bool
 	}{
 		{
 			name:         "registered MSISDN public identity",
@@ -77,10 +76,9 @@ func TestLocationInfo(t *testing.T) {
 			want:         tgpp.Experimental(tgpp.ResultErrorIdentityNotRegistered),
 		},
 		{
-			name:         "originating request for a user that is not registered",
-			req:          cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN, Originating: true},
-			want:         tgpp.Experimental(tgpp.ResultUnregisteredService),
-			capabilities: true,
+			name: "originating request for a user that is not registered",
+			req:  cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN, Originating: true},
+			want: tgpp.Experimental(tgpp.ResultUnregisteredService),
 		},
 		{
 			name: "unknown MSISDN",
@@ -118,8 +116,8 @@ func TestLocationInfo(t *testing.T) {
 				t.Fatalf("parse LIA: %v", err)
 			}
 
-			if li.ServerName != tc.serverName || (li.Capabilities != nil) != tc.capabilities {
-				t.Fatalf("LIA server name %q, capabilities %+v; want %q, capabilities %t", li.ServerName, li.Capabilities, tc.serverName, tc.capabilities)
+			if li.ServerName != tc.serverName || li.Capabilities != nil {
+				t.Fatalf("LIA server name %q, capabilities %+v; want %q and no capabilities", li.ServerName, li.Capabilities, tc.serverName)
 			}
 		})
 	}
