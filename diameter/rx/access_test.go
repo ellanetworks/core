@@ -4,6 +4,7 @@
 package rx
 
 import (
+	"bytes"
 	"errors"
 	"net/netip"
 	"reflect"
@@ -320,11 +321,21 @@ func TestFailedAVPKeepsGroupedContext(t *testing.T) {
 	notGrouped := vendorOctets(AVPMediaComponentDescription, []byte{1})
 
 	_, err = ParseAARequest(request(CommandAA, afEnvelope, notGrouped))
-	if e := avpError(t, err); !sameAVP(e.AVP, notGrouped) {
-		t.Fatalf("non-grouped Failed-AVP = %+v", e.AVP)
+
+	e = avpError(t, err)
+	if e.ResultCode != diameter.ResultInvalidAVPLength || e.AVP.Code != AVPMediaComponentDescription {
+		t.Fatalf("non-grouped Failed-AVP = %+v (%v)", e.AVP, err)
+	}
+
+	if truncated, _ := e.AVP.Grouped(); len(truncated) != 1 || truncated[0].Code != 0x01000000 || len(truncated[0].Data) != 0 {
+		t.Fatalf("non-grouped Failed-AVP contents = %+v", truncated)
 	}
 
 	if err := withinGrouped(component, errors.New("plain")); err == nil || err.Error() != "plain" {
 		t.Fatalf("plain error = %v", err)
 	}
+}
+
+func sameAVP(a, b diameter.AVP) bool {
+	return a.Code == b.Code && a.VendorID == b.VendorID && bytes.Equal(a.Data, b.Data)
 }

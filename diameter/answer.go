@@ -50,8 +50,8 @@ func NewErrorAnswer(req *Message, id Identity, err error) *Message {
 	return NewAnswer(req, id, ResultUnableToComply)
 }
 
-func FailedAVP(avps ...AVP) AVP {
-	return Grouped(AVPFailedAVP, AVPFlagMandatory, 0, avps...)
+func FailedAVP(first AVP, rest ...AVP) AVP {
+	return Grouped(AVPFailedAVP, AVPFlagMandatory, 0, append([]AVP{first}, rest...)...)
 }
 
 func newAnswer(req *Message, id Identity) *Message {

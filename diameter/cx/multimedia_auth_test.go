@@ -128,7 +128,7 @@ func TestParseMultimediaAuthRequestErrors(t *testing.T) {
 			with(without(base, AVPPublicIdentity, tgpp.VendorID), vendorString(AVPPublicIdentity, "alice")), diameter.ResultInvalidAVPValue,
 		},
 		"item not grouped": {
-			with(noItem, diameter.OctetString(AVPSIPAuthDataItem, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue,
+			with(noItem, diameter.OctetString(AVPSIPAuthDataItem, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPLength,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

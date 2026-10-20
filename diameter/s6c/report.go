@@ -180,7 +180,7 @@ func ParseReportSMDeliveryStatusRequest(req *diameter.Message) (DeliveryReport, 
 
 	user, err := tgpp.ParseUserIdentifier(ui)
 	if err != nil {
-		return DeliveryReport{}, tgpp.InvalidAVP(ui)
+		return DeliveryReport{}, tgpp.InvalidGroupedAVP(ui, err)
 	}
 
 	rep.MSISDN, rep.IMSI = user.MSISDN, user.IMSI

@@ -408,12 +408,8 @@ func (c *Conn) receiveMalformed(m *Message, err error) {
 		c.send(c.Answer(m, ResultUnsupportedVersion))
 	case errors.Is(err, ErrInvalidMessageLength):
 		c.send(c.Answer(m, ResultInvalidMessageLength))
-	case errors.Is(err, ErrInvalidAVPLength):
-		ans := c.Answer(m, ResultInvalidAVPLength)
-		ans.AVPs = append(ans.AVPs, FailedAVP())
-		c.send(ans)
 	default:
-		c.send(c.Answer(m, ResultUnableToComply))
+		c.send(NewErrorAnswer(m, c.n.cfg.Identity, err))
 	}
 }
 
@@ -574,7 +570,7 @@ func (c *Conn) completeParked() {
 func (c *Conn) rejectCER(req *Message, result uint32, failed ...AVP) {
 	cea := c.capabilitiesAnswer(req, result)
 	if len(failed) > 0 {
-		cea.AVPs = append(cea.AVPs, FailedAVP(failed...))
+		cea.AVPs = append(cea.AVPs, FailedAVP(failed[0], failed[1:]...))
 	}
 
 	c.setError(fmt.Sprintf("CER rejected with %d", result))

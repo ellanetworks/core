@@ -81,7 +81,7 @@ func ParseMOForwardShortMessageRequest(req *diameter.Message) (MOForwardShortMes
 
 	ui, _ := req.Find(tgpp.AVPUserIdentifier, tgpp.VendorID)
 	if m.User, err = tgpp.ParseUserIdentifier(ui); err != nil {
-		return MOForwardShortMessage{}, tgpp.InvalidAVP(ui)
+		return MOForwardShortMessage{}, tgpp.InvalidGroupedAVP(ui, err)
 	}
 
 	smRPUI, _ := req.Find(AVPSMRPUI, tgpp.VendorID)

@@ -132,7 +132,7 @@ func ParseAlertServiceCentreRequest(req *diameter.Message) (Alert, error) {
 
 	ui, _ := req.Find(tgpp.AVPUserIdentifier, tgpp.VendorID)
 	if a.User, err = tgpp.ParseUserIdentifier(ui); err != nil {
-		return Alert{}, tgpp.InvalidAVP(ui)
+		return Alert{}, tgpp.InvalidGroupedAVP(ui, err)
 	}
 
 	if t, ok := req.Find(AVPMaximumUEAvailabilityTime, tgpp.VendorID); ok {
@@ -152,7 +152,7 @@ func ParseAlertServiceCentreRequest(req *diameter.Message) (Alert, error) {
 
 	if n, ok := req.Find(AVPServingNode, tgpp.VendorID); ok {
 		if a.ServingNode, err = parseServingNode(n); err != nil {
-			return Alert{}, tgpp.InvalidAVP(n)
+			return Alert{}, tgpp.InvalidGroupedAVP(n, err)
 		}
 	}
 

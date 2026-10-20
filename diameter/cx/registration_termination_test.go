@@ -91,7 +91,7 @@ func TestParseRegistrationTerminationRequestErrors(t *testing.T) {
 		"short RTR-Flags":     {with(base, diameter.OctetString(AVPRTRFlags, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPLength},
 		"bad Public-Identity": {with(base, vendorString(AVPPublicIdentity, "alice")), diameter.ResultInvalidAVPValue},
 		"reason not grouped": {
-			with(noReason, diameter.OctetString(AVPDeregistrationReason, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue,
+			with(noReason, diameter.OctetString(AVPDeregistrationReason, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPLength,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

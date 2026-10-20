@@ -5,6 +5,7 @@ package diameter
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"net/netip"
@@ -73,9 +74,6 @@ func TestUnmarshalErrors(t *testing.T) {
 	badLength := append([]byte(nil), valid...)
 	badLength[3]++
 
-	badAVPLength := append([]byte(nil), valid...)
-	badAVPLength[27] = 0xff
-
 	tests := map[string]struct {
 		in   []byte
 		want error
@@ -83,7 +81,6 @@ func TestUnmarshalErrors(t *testing.T) {
 		"short header":   {valid[:10], ErrInvalidMessageLength},
 		"version":        {badVersion, ErrUnsupportedVersion},
 		"message length": {badLength, ErrInvalidMessageLength},
-		"avp length":     {badAVPLength, ErrInvalidAVPLength},
 	}
 
 	for name, tt := range tests {
@@ -92,6 +89,108 @@ func TestUnmarshalErrors(t *testing.T) {
 				t.Fatalf("err = %v, want %v", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestUnmarshalInvalidAVPLength(t *testing.T) {
+	header := func(code uint32, flags uint8, length int, vendorID uint32) []byte {
+		b := binary.BigEndian.AppendUint32(nil, code)
+		b = append(b, flags, byte(length>>16), byte(length>>8), byte(length))
+
+		if flags&AVPFlagVendor != 0 {
+			b = binary.BigEndian.AppendUint32(b, vendorID)
+		}
+
+		return b
+	}
+
+	tests := map[string]struct {
+		avps []byte
+		want AVP
+	}{
+		"length below header": {
+			append(header(AVPUserName, AVPFlagMandatory, 4, 0), 0, 0, 0, 0),
+			AVP{Code: AVPUserName, Flags: AVPFlagMandatory},
+		},
+		"length beyond message": {
+			append(header(AVPUserName, AVPFlagMandatory, 64, 0), 0, 0, 0, 0),
+			AVP{Code: AVPUserName, Flags: AVPFlagMandatory},
+		},
+		"vendor length below header": {
+			header(3113, AVPFlagVendor|AVPFlagMandatory, 8, 10415),
+			AVP{Code: 3113, Flags: AVPFlagVendor | AVPFlagMandatory, VendorID: 10415},
+		},
+		"truncated header": {
+			[]byte{0, 0, 0x0c, 0x29},
+			AVP{Code: 3113},
+		},
+		"truncated vendor header": {
+			header(3113, AVPFlagVendor, 64, 10415)[:8],
+			AVP{Code: 3113, Flags: AVPFlagVendor},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, err := (&Message{CommandCode: CommandDeviceWatchdog}).Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			b = append(b, tt.avps...)
+			b = append(b, make([]byte, (4-len(b)%4)%4)...)
+			b[1], b[2], b[3] = byte(len(b)>>16), byte(len(b)>>8), byte(len(b))
+
+			_, err = Unmarshal(b)
+
+			var avpErr *AVPError
+			if !errors.As(err, &avpErr) || avpErr.ResultCode != ResultInvalidAVPLength {
+				t.Fatalf("err = %v, want an AVPError with result %d", err, ResultInvalidAVPLength)
+			}
+
+			if avpErr.AVP.Code != tt.want.Code || avpErr.AVP.Flags != tt.want.Flags ||
+				avpErr.AVP.VendorID != tt.want.VendorID || len(avpErr.AVP.Data) != 0 {
+				t.Fatalf("offending AVP = %+v, want %+v", avpErr.AVP, tt.want)
+			}
+		})
+	}
+}
+
+func TestGroupedInvalidAVPLengthWrapsOffendingAVP(t *testing.T) {
+	proxyInfo := OctetString(AVPProxyInfo, AVPFlagMandatory, 0, []byte{0, 0, 0x01, 0x01, 0x40, 0, 0, 0xff})
+
+	_, err := proxyInfo.Grouped()
+
+	var avpErr *AVPError
+	if !errors.As(err, &avpErr) || avpErr.ResultCode != ResultInvalidAVPLength {
+		t.Fatalf("err = %v", err)
+	}
+
+	if avpErr.AVP.Code != AVPProxyInfo || avpErr.AVP.Flags != AVPFlagMandatory {
+		t.Fatalf("parent = %+v", avpErr.AVP)
+	}
+
+	got, err := avpErr.AVP.Grouped()
+	if err != nil || len(got) != 1 || got[0].Code != AVPHostIPAddress || got[0].Flags != AVPFlagMandatory || len(got[0].Data) != 0 {
+		t.Fatalf("hierarchy = %+v, %v", got, err)
+	}
+}
+
+func TestFailedAVPForInvalidLengthEncodesConsistently(t *testing.T) {
+	failed := FailedAVP(AVP{Code: 3113, Flags: AVPFlagVendor | AVPFlagMandatory, VendorID: 10415})
+
+	b := failed.appendTo(nil)
+	if len(b) != 8+12 {
+		t.Fatalf("Failed-AVP = %x", b)
+	}
+
+	if length := int(b[13])<<16 | int(b[14])<<8 | int(b[15]); length != 12 {
+		t.Fatalf("inner AVP length = %d, want 12", length)
+	}
+
+	inner, err := failed.Grouped()
+	if err != nil || len(inner) != 1 || inner[0].Code != 3113 || inner[0].VendorID != 10415 {
+		t.Fatalf("Failed-AVP contents = %+v, %v", inner, err)
 	}
 }
 
