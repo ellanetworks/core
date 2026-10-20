@@ -344,7 +344,7 @@ func requestServingNodes(req *diameter.Message) (ServingNodes, error) {
 
 	var pe *avpParseError
 	if errors.As(err, &pe) {
-		return ServingNodes{}, tgpp.InvalidAVP(pe.avp)
+		return ServingNodes{}, tgpp.InvalidGroupedAVP(pe.avp, pe.err)
 	}
 
 	return nodes, err

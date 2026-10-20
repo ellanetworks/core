@@ -201,7 +201,7 @@ func TestParseAARequestErrors(t *testing.T) {
 				diameter.UTF8String(diameter.AVPSubscriptionIDData, diameter.AVPFlagMandatory, 0, "x"))),
 			diameter.ResultInvalidAVPValue,
 		},
-		"Media-Component-Description not grouped": {with(base, vendorOctets(AVPMediaComponentDescription, []byte{1})), diameter.ResultInvalidAVPValue},
+		"Media-Component-Description not grouped": {with(base, vendorOctets(AVPMediaComponentDescription, []byte{1})), diameter.ResultInvalidAVPLength},
 		"no Media-Component-Number":               {with(base, vendorGrouped(AVPMediaComponentDescription)), diameter.ResultMissingAVP},
 		"two Media-Component-Number":              {with(base, component(vendorUnsigned(AVPMediaComponentNumber, 2))), diameter.ResultAVPOccursTooManyTimes},
 		"unknown mandatory component AVP":         {with(base, component(vendorUnsigned(999, 1))), diameter.ResultAVPUnsupported},

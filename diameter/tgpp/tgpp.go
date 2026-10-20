@@ -242,6 +242,15 @@ func MissingAVP(code, vendorID uint32, minLength int) error {
 	return diameter.NewAVPError(diameter.ResultMissingAVP, diameter.OctetString(code, diameter.AVPFlagMandatory, vendorID, make([]byte, minLength)))
 }
 
+func InvalidGroupedAVP(a diameter.AVP, err error) error {
+	var avpErr *diameter.AVPError
+	if errors.As(err, &avpErr) {
+		return avpErr
+	}
+
+	return InvalidAVP(a)
+}
+
 func InvalidLength(a diameter.AVP) error {
 	return diameter.NewAVPError(diameter.ResultInvalidAVPLength, a)
 }

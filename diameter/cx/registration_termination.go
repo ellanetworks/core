@@ -108,7 +108,7 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 	if a, ok := req.Find(AVPAssociatedIdentities, tgpp.VendorID); ok {
 		ids, err := parseIdentityList(a)
 		if err != nil {
-			return RegistrationTerminationRequest{}, tgpp.InvalidAVP(a)
+			return RegistrationTerminationRequest{}, tgpp.InvalidGroupedAVP(a, err)
 		}
 
 		r.AssociatedIdentities = ids
@@ -126,7 +126,7 @@ func ParseRegistrationTerminationRequest(req *diameter.Message) (RegistrationTer
 
 	reason, err := reasonAVP.Grouped()
 	if err != nil {
-		return RegistrationTerminationRequest{}, tgpp.InvalidAVP(reasonAVP)
+		return RegistrationTerminationRequest{}, err
 	}
 
 	code, ok := diameter.Find(reason, AVPReasonCode, tgpp.VendorID)

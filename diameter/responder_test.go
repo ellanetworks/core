@@ -6,6 +6,7 @@ package diameter
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"net/netip"
 	"sync/atomic"
 	"testing"
@@ -603,8 +604,14 @@ func TestMalformedRequestAnswered(t *testing.T) {
 				t.Fatalf("answer = %+v", ans)
 			}
 
-			if _, ok := ans.Find(AVPFailedAVP, 0); !ok {
+			failed, ok := ans.Find(AVPFailedAVP, 0)
+			if !ok {
 				t.Fatal("5014 without Failed-AVP")
+			}
+
+			inner, err := failed.Grouped()
+			if err != nil || len(inner) != 1 || inner[0].Code != binary.BigEndian.Uint32(b[headerLen:]) || len(inner[0].Data) != 0 {
+				t.Fatalf("Failed-AVP contents = %+v, %v", inner, err)
 			}
 		})
 	}

@@ -84,6 +84,21 @@ func TestAnswersCarryAuthSessionState(t *testing.T) {
 	}
 }
 
+func TestInvalidGroupedAVP(t *testing.T) {
+	ui := diameter.OctetString(AVPUserIdentifier, diameter.AVPFlagMandatory, VendorID, []byte{1})
+
+	_, err := ParseUserIdentifier(ui)
+
+	var avpErr *diameter.AVPError
+	if !errors.As(InvalidGroupedAVP(ui, err), &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPLength || avpErr.AVP.Code != AVPUserIdentifier {
+		t.Fatalf("decode error = %+v", avpErr)
+	}
+
+	if !errors.As(InvalidGroupedAVP(ui, errors.New("plain")), &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPValue || avpErr.AVP.Code != AVPUserIdentifier {
+		t.Fatalf("plain error = %+v", avpErr)
+	}
+}
+
 func TestNewErrorAnswer(t *testing.T) {
 	req := &diameter.Message{Flags: diameter.FlagRequest}
 	offending := diameter.UTF8String(diameter.AVPUserName, diameter.AVPFlagMandatory, 0, "x")

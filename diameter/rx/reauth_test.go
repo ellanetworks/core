@@ -126,7 +126,7 @@ func TestParseReAuthRequestErrors(t *testing.T) {
 		},
 		"Subscription-Id not grouped": {
 			with(base, diameter.OctetString(diameter.AVPSubscriptionID, diameter.AVPFlagMandatory, 0, []byte{1})),
-			diameter.ResultInvalidAVPValue,
+			diameter.ResultInvalidAVPLength,
 		},
 		"unknown mandatory AVP": {with(base, vendorUnsigned(999, 1)), diameter.ResultAVPUnsupported},
 		"void Specific-Action":  {with(base, vendorUnsigned(AVPSpecificAction, 5)), diameter.ResultInvalidAVPValue},

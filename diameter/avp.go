@@ -22,8 +22,6 @@ const (
 	addressFamilyIPv6 uint16 = 2
 )
 
-var ErrInvalidAVPLength = errors.New("diameter: invalid AVP length")
-
 type AVP struct {
 	Code     uint32
 	Flags    uint8
@@ -67,7 +65,7 @@ func decodeAVPs(b []byte) ([]AVP, error) {
 
 	for len(b) > 0 {
 		if len(b) < 8 {
-			return nil, ErrInvalidAVPLength
+			return nil, invalidAVPLength(b)
 		}
 
 		a := AVP{
@@ -77,7 +75,7 @@ func decodeAVPs(b []byte) ([]AVP, error) {
 
 		length := int(b[5])<<16 | int(b[6])<<8 | int(b[7])
 		if length < a.headerLen() || length > len(b) {
-			return nil, ErrInvalidAVPLength
+			return nil, invalidAVPLength(b)
 		}
 
 		if a.Flags&AVPFlagVendor != 0 {
@@ -96,6 +94,23 @@ func decodeAVPs(b []byte) ([]AVP, error) {
 	}
 
 	return avps, nil
+}
+
+func invalidAVPLength(b []byte) error {
+	var header [12]byte
+
+	copy(header[:], b)
+
+	a := AVP{
+		Code:  binary.BigEndian.Uint32(header[0:4]),
+		Flags: header[4],
+	}
+
+	if a.Flags&AVPFlagVendor != 0 {
+		a.VendorID = binary.BigEndian.Uint32(header[8:12])
+	}
+
+	return NewAVPError(ResultInvalidAVPLength, a)
 }
 
 func newAVP(code uint32, flags uint8, vendorID uint32, data []byte) AVP {
@@ -207,7 +222,14 @@ func (a AVP) Address() (netip.Addr, error) {
 }
 
 func (a AVP) Grouped() ([]AVP, error) {
-	return decodeAVPs(a.Data)
+	avps, err := decodeAVPs(a.Data)
+
+	var avpErr *AVPError
+	if errors.As(err, &avpErr) {
+		return nil, NewAVPError(avpErr.ResultCode, Grouped(a.Code, a.Flags, a.VendorID, avpErr.AVP))
+	}
+
+	return avps, err
 }
 
 func Find(avps []AVP, code, vendorID uint32) (AVP, bool) {

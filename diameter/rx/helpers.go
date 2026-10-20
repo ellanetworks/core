@@ -120,7 +120,7 @@ func parseBandwidth(avps []diameter.AVP, codes bandwidthCodes) (*Bandwidth, erro
 func checkGrouped(rules diameter.Rules, a diameter.AVP) ([]diameter.AVP, error) {
 	inner, err := a.Grouped()
 	if err != nil {
-		return nil, tgpp.InvalidAVP(a)
+		return nil, err
 	}
 
 	if err := rules.Check(&diameter.Message{AVPs: inner}); err != nil {
@@ -132,15 +132,11 @@ func checkGrouped(rules diameter.Rules, a diameter.AVP) ([]diameter.AVP, error) 
 
 func withinGrouped(parent diameter.AVP, err error) error {
 	var avpErr *diameter.AVPError
-	if !errors.As(err, &avpErr) || sameAVP(avpErr.AVP, parent) {
+	if !errors.As(err, &avpErr) || avpErr.AVP.Code == parent.Code && avpErr.AVP.VendorID == parent.VendorID {
 		return err
 	}
 
 	return diameter.NewAVPError(avpErr.ResultCode, diameter.Grouped(parent.Code, parent.Flags, parent.VendorID, avpErr.AVP))
-}
-
-func sameAVP(a, b diameter.AVP) bool {
-	return a.Code == b.Code && a.VendorID == b.VendorID && bytes.Equal(a.Data, b.Data)
 }
 
 func requiredUint32(avps []diameter.AVP, code, vendorID uint32) (uint32, error) {

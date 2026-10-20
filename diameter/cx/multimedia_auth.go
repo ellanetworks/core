@@ -145,7 +145,7 @@ func ParseMultimediaAuthRequest(req *diameter.Message) (MultimediaAuthRequest, e
 
 	item, err := itemAVP.Grouped()
 	if err != nil {
-		return MultimediaAuthRequest{}, tgpp.InvalidAVP(itemAVP)
+		return MultimediaAuthRequest{}, err
 	}
 
 	scheme, ok := diameter.Find(item, AVPSIPAuthenticationScheme, tgpp.VendorID)

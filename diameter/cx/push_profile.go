@@ -105,7 +105,7 @@ func ParsePushProfileRequest(req *diameter.Message) (PushProfileRequest, error) 
 	if c, ok := req.Find(AVPChargingInformation, tgpp.VendorID); ok {
 		charging, err := parseCharging(c)
 		if err != nil {
-			return PushProfileRequest{}, tgpp.InvalidAVP(c)
+			return PushProfileRequest{}, tgpp.InvalidGroupedAVP(c, err)
 		}
 
 		r.Charging = charging
@@ -114,7 +114,7 @@ func ParsePushProfileRequest(req *diameter.Message) (PushProfileRequest, error) 
 	if a, ok := req.Find(AVPAllowedWAFWWSFIdentities, tgpp.VendorID); ok {
 		allowed, err := parseAllowedWebRTC(a)
 		if err != nil {
-			return PushProfileRequest{}, tgpp.InvalidAVP(a)
+			return PushProfileRequest{}, tgpp.InvalidGroupedAVP(a, err)
 		}
 
 		r.AllowedWebRTC = allowed
