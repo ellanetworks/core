@@ -139,36 +139,6 @@ func (conn *SessionEngine) TakeUsage(session *Session) (models.UsageReport, erro
 	return l.reportLocked(session), errors.Join(errs...)
 }
 
-func (conn *SessionEngine) HoldUsage(report models.UsageReport) {
-	if report.UplinkVolume+report.DownlinkVolume == 0 {
-		return
-	}
-
-	conn.heldMu.Lock()
-	defer conn.heldMu.Unlock()
-
-	if conn.held == nil {
-		conn.held = make(map[string]models.UsageReport)
-	}
-
-	held := conn.held[report.IMSI]
-	held.SEID = report.SEID
-	held.IMSI = report.IMSI
-	held.UplinkVolume += report.UplinkVolume
-	held.DownlinkVolume += report.DownlinkVolume
-	conn.held[report.IMSI] = held
-}
-
-func (conn *SessionEngine) TakeHeldUsage() []models.UsageReport {
-	conn.heldMu.Lock()
-	defer conn.heldMu.Unlock()
-
-	reports := slices.Collect(maps.Values(conn.held))
-	conn.held = nil
-
-	return reports
-}
-
 func (conn *SessionEngine) closeUsage(ctx context.Context, session *Session) (models.UsageReport, error) {
 	l := &session.usage
 

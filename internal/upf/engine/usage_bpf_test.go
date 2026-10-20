@@ -452,19 +452,3 @@ func TestEstablishRollbackAfterAPDRWaitsBeforeDeletingURRs(t *testing.T) {
 		t.Error("URR left behind by the failed establish")
 	}
 }
-
-func TestReestablishHoldsTheReplacedSessionsUsage(t *testing.T) {
-	conn, obj := newUsageBPFEngine(t)
-	addUsageSession(t, conn, obj, 35)
-
-	setURR(t, obj, 35, usageUplinkURR, up(9))
-
-	if _, err := conn.EstablishSession(context.Background(), failingEstablish(35)); err == nil {
-		t.Fatal("establish succeeded without a TEID allocator")
-	}
-
-	held := conn.TakeHeldUsage()
-	if len(held) != 1 || held[0].UplinkVolume != 9 || held[0].IMSI != usageIMSI {
-		t.Fatalf("held usage = %+v, want the replaced session's 9 uplink bytes", held)
-	}
-}

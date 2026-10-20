@@ -51,8 +51,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 				logger.SEID(seid), zap.Error(err))
 		}
 
-		if resp != nil {
-			conn.HoldUsage(resp.Usage)
+		if resp != nil && resp.Usage.UplinkVolume+resp.Usage.DownlinkVolume > 0 {
+			logger.From(ctx, logger.UpfLog).Error("usage bytes lost: re-establish over a live session dropped its remaining usage",
+				logger.SEID(seid), logger.UplinkVolume(resp.Usage.UplinkVolume), logger.DownlinkVolume(resp.Usage.DownlinkVolume))
 		}
 	}
 

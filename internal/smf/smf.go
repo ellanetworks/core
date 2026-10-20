@@ -102,7 +102,8 @@ type SessionStore interface {
 type UPFClient interface {
 	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
 	ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error)
-	DeleteSession(ctx context.Context, seid uint64) error
+	QueryUsage(ctx context.Context, seid uint64) (models.UsageReport, error)
+	DeleteSession(ctx context.Context, seid uint64) (models.UsageReport, error)
 	SuppressDownlinkDataNotification(ctx context.Context, seid uint64)
 	ClearDownlinkDataNotification(ctx context.Context, seid uint64)
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
@@ -169,6 +170,11 @@ type SMF struct {
 
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
+
+	usage       usageLedger
+	usageFlush  chan struct{}
+	usageCancel context.CancelFunc
+	usageDone   chan struct{}
 }
 
 // maxSMProcedureRetransmissions is the number of command retransmissions before
@@ -202,6 +208,8 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		amf:    amf,
 		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
+
+		usageFlush: make(chan struct{}, 1),
 
 		dedicatedAwaitLimit: 30 * time.Second,
 	}

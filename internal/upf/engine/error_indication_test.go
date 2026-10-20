@@ -26,10 +26,6 @@ func (r *recordingReportHandler) HandleErrorIndicationReport(_ context.Context, 
 	return nil
 }
 
-func (r *recordingReportHandler) HandleUsageReports(context.Context, []*models.UsageReport) error {
-	return nil
-}
-
 func (r *recordingReportHandler) SendFlowReports(context.Context, []*models.FlowReportRequest) error {
 	return nil
 }

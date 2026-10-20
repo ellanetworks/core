@@ -31,6 +31,7 @@ type fakeStore struct {
 	releasedIPv6    netip.Addr
 	usageLog        []usageEntry
 	batchCalls      int
+	usageErr        error
 	flowLog         []models.FlowReportRequest
 	releasedIPs     []string
 	releasedIPv6s   []string
@@ -89,6 +90,7 @@ type fakePCF struct {
 }
 
 type usageEntry struct {
+	epochDay      int64
 	imsi          string
 	uplinkBytes   uint64
 	downlinkBytes uint64
@@ -324,10 +326,12 @@ func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.
 	f.batchCalls++
 
 	for _, u := range usages {
-		f.usageLog = append(f.usageLog, usageEntry{u.IMSI, u.UplinkVolume, u.DownlinkVolume})
+		if f.usageErr == nil {
+			f.usageLog = append(f.usageLog, usageEntry{u.EpochDay, u.IMSI, u.UplinkVolume, u.DownlinkVolume})
+		}
 	}
 
-	return f.err
+	return f.usageErr
 }
 
 func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowReportRequest) error {
@@ -354,6 +358,9 @@ type fakeUPF struct {
 	lastIPv6Reg      *models.IPv6SessionRegistration
 	forwardingTEID   uint32
 	err              error
+	counters         map[uint64]models.UsageReport
+	queryCalls       []uint64
+	queryErr         error
 }
 
 type deletionCall struct {
@@ -401,7 +408,42 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) (*
 	return &models.ModifyResponse{ChosenTEIDs: teids}, nil
 }
 
-func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {
+func (f *fakeUPF) count(seid uint64, uplink, downlink uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.counters == nil {
+		f.counters = make(map[uint64]models.UsageReport)
+	}
+
+	c := f.counters[seid]
+	c.SEID = seid
+	c.UplinkVolume += uplink
+	c.DownlinkVolume += downlink
+	f.counters[seid] = c
+}
+
+func (f *fakeUPF) takeLocked(seid uint64) models.UsageReport {
+	report, ok := f.counters[seid]
+	if !ok {
+		return models.UsageReport{SEID: seid}
+	}
+
+	delete(f.counters, seid)
+
+	return report
+}
+
+func (f *fakeUPF) QueryUsage(_ context.Context, seid uint64) (models.UsageReport, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.queryCalls = append(f.queryCalls, seid)
+
+	return f.takeLocked(seid), f.queryErr
+}
+
+func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) (models.UsageReport, error) {
 	f.teardownSeq.record("delete-session")
 
 	f.mu.Lock()
@@ -409,7 +451,7 @@ func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {
 
 	f.deleteCalls = append(f.deleteCalls, deletionCall{seid})
 
-	return f.err
+	return f.takeLocked(seid), f.err
 }
 
 func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, seid uint64) {

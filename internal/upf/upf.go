@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"slices"
 	"sync"
 	"time"
 
@@ -34,19 +33,17 @@ import (
 )
 
 const (
-	PfcpAddress          = "0.0.0.0"
-	PfcpNodeID           = "0.0.0.0"
-	FTEIDPool            = 65535
-	ConnTrackTimeout     = 10 * time.Minute
-	natGCInterval        = 10 * time.Second
-	natGCBatchSize       = 4096
-	flowScanBatchSize    = 1024
-	InactiveFlowTimeout  = 30 * time.Second
-	ActiveFlowTimeout    = 30 * time.Minute
-	maxInFlightFlows     = 16384
-	flowReportTimeout    = 5 * time.Second
-	usageFlushTimeout    = 5 * time.Second
-	usageReportBatchSize = 2000
+	PfcpAddress         = "0.0.0.0"
+	PfcpNodeID          = "0.0.0.0"
+	FTEIDPool           = 65535
+	ConnTrackTimeout    = 10 * time.Minute
+	natGCInterval       = 10 * time.Second
+	natGCBatchSize      = 4096
+	flowScanBatchSize   = 1024
+	InactiveFlowTimeout = 30 * time.Second
+	ActiveFlowTimeout   = 30 * time.Minute
+	maxInFlightFlows    = 16384
+	flowReportTimeout   = 5 * time.Second
 )
 
 var bpfObjects *ebpf.BpfObjects
@@ -80,10 +77,6 @@ type UPF struct {
 	fcCancel   context.CancelFunc
 	fcScanDone chan struct{} // closed when collectExpiredFlows exits
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
-
-	// Own cancel, so Close can stop the poller and wait for its final flush.
-	usageCancel context.CancelFunc
-	usageDone   chan struct{} // closed when monitorUsage exits
 
 	// Differs from the configured mode when config.DatapathChain falls back.
 	// Written once in Start, before this struct is returned.
@@ -252,8 +245,6 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
-	upf.startUsageMonitor(ctx, 30*time.Second)
-
 	go upf.listenForMissingNeighbours() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	go upf.listenForErrorIndications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
@@ -272,7 +263,6 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
-	u.stopUsageMonitor()
 
 	// Resource cleanup: BPF detach, object close, perf reader close.
 	// These are kernel-level operations that are normally fast, but run
@@ -655,178 +645,6 @@ func (u *UPF) listenForTrafficNotifications() {
 			}
 		}
 	}
-}
-
-// startUsageMonitor launches the periodic usage poller.
-func (u *UPF) startUsageMonitor(ctx context.Context, interval time.Duration) {
-	uctx, cancel := context.WithCancel(ctx)
-
-	u.usageCancel = cancel
-	u.usageDone = make(chan struct{})
-
-	done := u.usageDone
-
-	go func() {
-		defer close(done)
-
-		u.monitorUsage(interval, uctx.Done())
-	}()
-}
-
-// stopUsageMonitor stops the usage poller and waits for its final flush. Must
-// run before the BPF objects close: stop and the ticker can both be ready, and
-// Go picks between them uniformly.
-func (u *UPF) stopUsageMonitor() {
-	if u.usageCancel == nil {
-		return
-	}
-
-	u.usageCancel()
-
-	select {
-	case <-u.usageDone:
-	case <-time.After(usageFlushTimeout + time.Second):
-		logger.UpfLog.Warn("Usage flush timed out at shutdown; some usage may be unreported")
-	}
-}
-
-func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			err := u.pollUsage(u.ctx)
-			if err != nil {
-				logger.UpfLog.Warn("Failed to poll usage", zap.Error(err))
-			}
-		case <-stop:
-			// Drains what was accounted since the last tick; each session's usage
-			// is taken under its ledger lock, so this cannot double-count. Own context,
-			// since u.ctx is already cancelled and reporting reaches the SMF
-			// and the database.
-			u.flushUsageAtShutdown()
-
-			return
-		}
-	}
-}
-
-// flushUsageAtShutdown drains the counters one last time, bounded so a slow
-// reporter cannot hold up shutdown.
-func (u *UPF) flushUsageAtShutdown() {
-	ctx, cancel := context.WithTimeout(context.Background(), usageFlushTimeout)
-	defer cancel()
-
-	if err := u.pollUsage(ctx); err != nil {
-		logger.UpfLog.Warn("Failed to flush usage counters at shutdown", zap.Error(err))
-		return
-	}
-
-	unrecorded := u.se.TakeHeldUsage()
-	if len(unrecorded) == 0 {
-		return
-	}
-
-	logger.UpfLog.Error("usage bytes lost: usage could not be recorded before shutdown", batchFields(unrecorded)...)
-
-	for _, usage := range unrecorded {
-		countDroppedUsage(usageDropShutdown, usage)
-	}
-}
-
-func (u *UPF) pollUsage(ctx context.Context) error {
-	if u.se == nil {
-		return fmt.Errorf("PFCP connection is nil")
-	}
-
-	sessions := u.se.ListSessions()
-
-	taken := u.se.TakeHeldUsage()
-
-	for _, session := range sessions {
-		usage, err := u.se.TakeUsage(session)
-		if err != nil {
-			logger.UpfLog.Warn("could not read every URR of the session", logger.SEID(session.SEID), zap.Error(err))
-		}
-
-		if usage.UplinkVolume+usage.DownlinkVolume == 0 {
-			continue
-		}
-
-		taken = append(taken, usage)
-	}
-
-	for batch := range slices.Chunk(taken, usageReportBatchSize) {
-		u.reportUsage(ctx, batch)
-	}
-
-	return nil
-}
-
-func (u *UPF) ReportFinalUsage(ctx context.Context, usage models.UsageReport) {
-	if usage.UplinkVolume+usage.DownlinkVolume == 0 {
-		return
-	}
-
-	u.reportUsage(ctx, []models.UsageReport{usage})
-}
-
-func (u *UPF) reportUsage(ctx context.Context, batch []models.UsageReport) {
-	if len(batch) == 0 {
-		return
-	}
-
-	reports := make([]*models.UsageReport, len(batch))
-	for i := range batch {
-		reports[i] = &batch[i]
-	}
-
-	if err := u.se.SendUsageReports(ctx, u.smf, reports); err != nil {
-		if errors.Is(err, models.ErrUsageOutcomeUnknown) {
-			logger.UpfLog.Error("usage report outcome unknown: dropping the reported usage rather than double-counting it",
-				append(batchFields(batch), zap.Error(err))...)
-
-			for _, usage := range batch {
-				countDroppedUsage(usageDropOutcomeUnknown, usage)
-			}
-
-			return
-		}
-
-		logger.UpfLog.Warn("could not send PFCP session report request for usage",
-			append(batchFields(batch), zap.Error(err))...)
-
-		for _, usage := range batch {
-			u.se.HoldUsage(usage)
-		}
-
-		return
-	}
-
-	logger.UpfLog.Debug("Sent usage reports", batchFields(batch)...)
-}
-
-func batchFields(batch []models.UsageReport) []zap.Field {
-	var uvol, dvol uint64
-
-	for _, usage := range batch {
-		uvol += usage.UplinkVolume
-		dvol += usage.DownlinkVolume
-	}
-
-	fields := []zap.Field{
-		zap.Int("sessions", len(batch)),
-		logger.UplinkVolume(uvol),
-		logger.DownlinkVolume(dvol),
-	}
-
-	if len(batch) == 1 {
-		fields = append(fields, logger.SEID(batch[0].SEID))
-	}
-
-	return fields
 }
 
 func (u *UPF) listenForErrorIndications() {

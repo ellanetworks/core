@@ -6,6 +6,7 @@ package smf
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
@@ -122,7 +123,11 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		return nil
 	}
 
-	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID); err != nil {
+	usage, err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID)
+	s.applyUsage(ctx, smContext, usage, time.Now())
+	s.requestUsageFlush()
+
+	if err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}
 

@@ -5,6 +5,8 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
+#include "bpf/utils/common.h"
 #include "bpf/utils/pdr.h"
 #include "bpf/utils/trace.h"
 #include "bpf/utils/packet_context.h"
@@ -37,6 +39,27 @@ struct {
 	__type(value, struct urr_counters);
 	__uint(max_entries, URR_MAP_SIZE);
 } urr_map SEC(".maps");
+
+static __always_inline __u64 urr_packet_len(struct packet_context *ctx)
+{
+	const void *l3;
+	__u64 len;
+
+	if (ctx->ip4) {
+		l3 = ctx->ip4;
+		len = bounded_u16(bpf_ntohs(ctx->ip4->tot_len));
+	} else if (ctx->ip6) {
+		l3 = ctx->ip6;
+		len = bounded_u16(bpf_ntohs(ctx->ip6->payload_len)) +
+		      sizeof(struct ipv6hdr);
+	} else {
+		return 0;
+	}
+
+	const __u64 held = ctx_len_from(ctx->ctx_buff, ctx->data_end, l3);
+
+	return len < held ? len : held;
+}
 
 /* bytes is passed in: the caller charges after the routing verdict, by which
  * time encapsulation may have resized the frame. */

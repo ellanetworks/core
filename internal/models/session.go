@@ -287,6 +287,7 @@ type UsageReport struct {
 }
 
 type SubscriberUsage struct {
+	EpochDay       int64
 	IMSI           string
 	UplinkVolume   uint64
 	DownlinkVolume uint64

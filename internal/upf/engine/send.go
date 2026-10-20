@@ -11,12 +11,11 @@ import (
 )
 
 // SMFReportHandler is the callback interface the UPF uses to deliver
-// reports (downlink data notifications, usage measurements, flow stats)
+// reports (downlink data notifications, error indications, flow stats)
 // back to the SMF.
 type SMFReportHandler interface {
 	HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error
 	HandleErrorIndicationReport(context.Context, *models.ErrorIndicationReport) error
-	HandleUsageReports(context.Context, []*models.UsageReport) error
 	SendFlowReports(context.Context, []*models.FlowReportRequest) error
 }
 
@@ -31,12 +30,4 @@ func (conn *SessionEngine) SendDownlinkDataReport(ctx context.Context, smf SMFRe
 		PDRID: pdrid,
 		QFI:   qfi,
 	})
-}
-
-func (conn *SessionEngine) SendUsageReports(ctx context.Context, smf SMFReportHandler, reports []*models.UsageReport) error {
-	if len(reports) == 0 {
-		return nil
-	}
-
-	return smf.HandleUsageReports(ctx, reports)
 }

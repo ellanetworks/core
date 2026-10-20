@@ -280,7 +280,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	}
 
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
-	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 billed_bytes = urr_packet_len(ctx);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, ctx->ip4 ? IPV4 : IPV6,
 		     FLOW_DOWNLINK, ALLOW);
@@ -289,7 +290,7 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		ctx, &sel->target.far, tos, sel->target.qer.qfi);
 
 	if (ctx_action_forwards(tunnel_ret)) {
-		ctx->statistics->byte_counter.bytes += billed_bytes;
+		ctx->statistics->byte_counter.bytes += frame_bytes;
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
 				 billed_bytes, URR_DOWNLINK);
 		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
@@ -830,7 +831,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	}
 
 	/* Before routing resizes the frame. */
-	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 billed_bytes = urr_packet_len(ctx);
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =
@@ -851,7 +853,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
 		if (ctx_action_forwards(fib_ret)) {
-			ctx->statistics->byte_counter.bytes += billed_bytes;
+			ctx->statistics->byte_counter.bytes += frame_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
 					 billed_bytes, URR_UPLINK);
 		}
@@ -865,7 +867,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
 		if (ctx_action_forwards(fib_ret)) {
-			ctx->statistics->byte_counter.bytes += billed_bytes;
+			ctx->statistics->byte_counter.bytes += frame_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
 					 billed_bytes, URR_UPLINK);
 		}

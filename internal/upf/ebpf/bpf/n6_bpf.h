@@ -340,7 +340,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		   sel->target.far.teid);
 
 	/* Captured before encapsulation resizes the frame. */
-	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 billed_bytes = urr_packet_len(ctx);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, IPV4, FLOW_DOWNLINK, ALLOW);
 
@@ -350,7 +351,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	if (ctx_action_forwards(tunnel_ret)) {
 		/* Exported throughput follows the verdict, as billing does. */
-		ctx->statistics->byte_counter.bytes += billed_bytes;
+		ctx->statistics->byte_counter.bytes += frame_bytes;
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
 				 billed_bytes, URR_DOWNLINK);
 	}
@@ -508,7 +509,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 
 	/* Captured before encapsulation resizes the frame. */
-	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
+	const __u64 billed_bytes = urr_packet_len(ctx);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, IPV6, FLOW_DOWNLINK, ALLOW);
 
@@ -518,7 +520,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	if (ctx_action_forwards(tunnel_ret)) {
 		/* Exported throughput follows the verdict, as billing does. */
-		ctx->statistics->byte_counter.bytes += billed_bytes;
+		ctx->statistics->byte_counter.bytes += frame_bytes;
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
 				 billed_bytes, URR_DOWNLINK);
 	}

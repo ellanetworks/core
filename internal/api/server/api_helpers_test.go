@@ -319,8 +319,12 @@ func (f *fakeUPFClient) ModifySession(ctx context.Context, req *models.ModifyReq
 	return &models.ModifyResponse{}, nil
 }
 
-func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) error {
-	return nil
+func (f *fakeUPFClient) QueryUsage(ctx context.Context, seid uint64) (models.UsageReport, error) {
+	return models.UsageReport{SEID: seid}, nil
+}
+
+func (f *fakeUPFClient) DeleteSession(ctx context.Context, seid uint64) (models.UsageReport, error) {
+	return models.UsageReport{SEID: seid}, nil
 }
 
 func (f *fakeUPFClient) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {}

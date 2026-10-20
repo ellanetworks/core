@@ -6,6 +6,8 @@ package smf
 import (
 	"context"
 	"time"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func (smContext *SMContext) TransferPendingForTest() bool { return smContext.pending != nil }
@@ -75,3 +77,13 @@ func PolicyRevisionForTest(sc *SMContext) uint64 {
 }
 
 func (s *SMF) SetDedicatedAwaitLimitForTest(d time.Duration) { s.dedicatedAwaitLimit = d }
+
+func (s *SMF) CollectUsageForTest(ctx context.Context) { s.collectUsage(ctx) }
+
+func (s *SMF) FlushUsageForTest(ctx context.Context) { s.flushUsage(ctx) }
+
+func (s *SMF) TakeUsageForTest(ctx context.Context, sc *SMContext) { s.takeUsageLocked(ctx, sc) }
+
+func (s *SMF) ApplyUsageForTest(ctx context.Context, sc *SMContext, report models.UsageReport, now time.Time) {
+	s.applyUsage(ctx, sc, report, now)
+}

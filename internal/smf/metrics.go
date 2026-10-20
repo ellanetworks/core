@@ -18,6 +18,20 @@ import (
 // ("4g"|"5g") and result ("accept"|"reject").
 var SessionEstablishmentAttempts *prometheus.CounterVec
 
+var usageBytesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_upf_usage_dropped_bytes_total",
+	Help: "Total number of accounted usage bytes never recorded in the subscriber-usage store, by reason.",
+}, []string{"reason"})
+
+const (
+	usageDropOutcomeUnknown = "outcome_unknown"
+	usageDropShutdown       = "shutdown"
+)
+
+func countDroppedUsage(reason string, bytes uint64) {
+	usageBytesDropped.WithLabelValues(reason).Add(float64(bytes))
+}
+
 // sessionCounter reports active session counts split by RAT.
 type sessionCounter interface {
 	SessionCountByRAT() (fourG, fiveG int)
@@ -41,7 +55,11 @@ func RegisterMetrics(sessions sessionCounter) {
 		nil,
 	)
 
-	prometheus.MustRegister(SessionEstablishmentAttempts)
+	prometheus.MustRegister(SessionEstablishmentAttempts, usageBytesDropped)
+
+	for _, reason := range []string{usageDropOutcomeUnknown, usageDropShutdown} {
+		usageBytesDropped.WithLabelValues(reason)
+	}
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		var fourG, fiveG int

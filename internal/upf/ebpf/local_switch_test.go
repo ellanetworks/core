@@ -526,6 +526,70 @@ func TestLocalSwitchStatistics(t *testing.T) {
 	}
 }
 
+func TestLocalSwitchURRBilledAtIPLength(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgramLocalSwitch(t)
+
+	const (
+		seidA = 0x4C53
+		seidB = 0x4C54
+		urrA  = 1
+		urrB  = 2
+	)
+
+	var (
+		ueAIP = [4]byte{10, 0, 0, 9}
+		ueBIP = [4]byte{10, 0, 0, 10}
+		teidA = uint32(0x4C5356)
+		teidB = uint32(0x4C5357)
+	)
+
+	if err := obj.NewUrr(seidA, urrA); err != nil {
+		t.Fatalf("create sender URR: %v", err)
+	}
+
+	if err := obj.NewUrr(seidB, urrB); err != nil {
+		t.Fatalf("create receiver URR: %v", err)
+	}
+
+	ulPdr := PdrInfo{
+		SEID:         seidA,
+		UrrID:        urrA,
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		UEIPv4:       netip.AddrFrom4(ueAIP),
+		UEIPv6Prefix: canonicalUEv6Prefix,
+	}
+	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
+	dlPdr.SEID = seidB
+	dlPdr.UrrID = urrB
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	inner := ipv4Packet(ueAIP, ueBIP, 17, udpDatagram(4000, 53, nil))
+
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
+	if action == ActionDrop || action == ActionAborted {
+		t.Fatalf("local-switched packet got XDP action %d, want a forwarding action", action)
+	}
+
+	if got := readURR(t, obj, seidA, urrA); got.Uplink != uint64(len(inner)) || got.Downlink != 0 {
+		t.Errorf("sender URR = %d up/%d down, want %d up", got.Uplink, got.Downlink, len(inner))
+	}
+
+	if got := readURR(t, obj, seidB, urrB); got.Downlink != uint64(len(inner)) || got.Uplink != 0 {
+		t.Errorf("receiver URR = %d up/%d down, want %d down", got.Uplink, got.Downlink, len(inner))
+	}
+}
+
 func TestLocalSwitchFlowAccounting(t *testing.T) {
 	requireProgTestRun(t)
 

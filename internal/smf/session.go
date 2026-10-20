@@ -214,8 +214,11 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 
 	imsi := sc.Supi.IMSI()
 
+	sc.Mutex.Lock()
+
 	if sc.Tunnel != nil {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
+			sc.Mutex.Unlock()
 			// Keep the lease so the address is not reused before its NAT conntrack is
 			// purged (see releaseUserPlaneThenAddresses).
 			logger.SmfLog.Warn("failed to release tunnel for aborted session; keeping IP lease", logger.SUPIFromIMSI(imsi), zap.Error(err))
@@ -224,8 +227,6 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 			return
 		}
 	}
-
-	sc.Mutex.Lock()
 
 	if sc.PDUIPV4Address != nil || sc.PDUIPV6Prefix != nil {
 		dn, err := s.store.ResolveDNN(ctx, sc.Dnn)

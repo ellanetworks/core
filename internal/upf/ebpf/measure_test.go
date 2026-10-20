@@ -236,7 +236,7 @@ func TestURRChargedWhenForwarded(t *testing.T) {
 
 	volume := sumURR(t, obj, seid, urrID)
 
-	if want := uint64(ethHdrLen + len(inner)); volume != want {
+	if want := uint64(len(inner)); volume != want {
 		t.Errorf("URR charged %d bytes for a forwarded packet, want %d", volume, want)
 	}
 }
