@@ -74,9 +74,10 @@ limit_rate_sliding_window(const __u64 packet_size,
 {
 	static const __u64 NSEC_PER_SEC = 1000000000ULL;
 	static const __u64 NSEC_PER_MSEC = 1000000ULL;
-	const __u64 window_size = averaging_window_ms ?
-					  averaging_window_ms * NSEC_PER_MSEC :
-					  5000000ULL;
+	static const __u64 MAX_BURST_NSEC = 500 * NSEC_PER_MSEC;
+	const __u64 window = averaging_window_ms * NSEC_PER_MSEC;
+	const __u64 window_size =
+		window && window < MAX_BURST_NSEC ? window : MAX_BURST_NSEC;
 
 	/* Currently 0 rate means that traffic rate is not limited */
 	if (rate == 0)
