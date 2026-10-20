@@ -234,22 +234,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
-	if (sel->target.qer.dl_maximum_bitrate != 0) {
-		const __u64 packet_size =
-			ctx_len_from(ctx->ctx_buff, ctx->data_end,
-				     ctx->ip4 ? (const void *)ctx->ip4 :
-						(const void *)ctx->ip6);
-		struct qer_window *window =
-			qer_window_for(sel->seid, sel->target.qer_id);
-		if (window &&
-		    CTX_ACT_DROP ==
-			    limit_rate_sliding_window(
-				    packet_size, &window->dl_start,
-				    sel->target.qer.dl_maximum_bitrate,
-				    sel->target.qer.averaging_window_ms)) {
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
+	const __u64 packet_size = ctx_len_from(
+		ctx->ctx_buff, ctx->data_end,
+		ctx->ip4 ? (const void *)ctx->ip4 : (const void *)ctx->ip6);
 
 	{
 		enum ctx_action sdf_verdict =
@@ -276,6 +263,19 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 			return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 		if (mtu_ret > 0) {
 			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
+		}
+	}
+
+	if (sel->target.qer.dl_maximum_bitrate != 0) {
+		struct qer_window *window =
+			qer_window_for(sel->seid, sel->target.qer_id);
+		if (window &&
+		    CTX_ACT_DROP ==
+			    limit_rate_sliding_window(
+				    packet_size, &window->dl_start,
+				    sel->target.qer.dl_maximum_bitrate,
+				    sel->target.qer.averaging_window_ms)) {
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 		}
 	}
 

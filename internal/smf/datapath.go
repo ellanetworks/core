@@ -82,7 +82,7 @@ const (
 	rulePDRsPerBearer                   = rulePDRsPerRule * maxDedicatedFilters
 	pdrPrecedenceDefault         uint32 = 256
 
-	bearerAveragingWindow = 2000 * time.Millisecond
+	averagingWindow = 2000 * time.Millisecond
 )
 
 func pdrIDRule(slot, index uint8, leg uint16) uint16 {
@@ -246,7 +246,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 			QFI:             qfi,
 			GateStatus:      new(r.policedGate()),
 			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
-			AveragingWindow: new(bearerAveragingWindow),
+			AveragingWindow: new(averagingWindow),
 		})
 
 		if uplink := directionFilters(r.Filters, models.FilterUplink); len(uplink) > 0 {
@@ -433,6 +433,7 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 			ULMBR: d.AMBR.Uplink.Kbps(),
 			DLMBR: d.AMBR.Downlink.Kbps(),
 		},
+		AveragingWindow: new(averagingWindow),
 	}}
 
 	urrs = []models.URR{{URRID: urrIDUplink}, {URRID: urrIDDownlink}}

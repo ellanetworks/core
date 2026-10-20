@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -85,6 +86,10 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 
 			if g := qers[0].GateStatus; g == nil || g.ULGate != models.GateOpen || g.DLGate != models.GateOpen {
 				t.Errorf("gate status = %+v, want both gates open", g)
+			}
+
+			if w := qers[0].AveragingWindow; w == nil || *w != 2*time.Second {
+				t.Errorf("session QER averaging window %v, want 2 s: without one the UPF meters the Session-AMBR over its 5 ms default, a burst allowance TCP cannot fill", w)
 			}
 
 			if len(urrs) != 2 || urrs[0].URRID != urrIDUplink || urrs[1].URRID != urrIDDownlink {

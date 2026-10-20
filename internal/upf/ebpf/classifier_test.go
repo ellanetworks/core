@@ -8,6 +8,7 @@ package ebpf
 import (
 	"net/netip"
 	"testing"
+	"time"
 )
 
 const (
@@ -253,15 +254,23 @@ func TestLocalSwitchForcedBetweenFlaggedSessions(t *testing.T) {
 func TestQERAveragingWindowAdmitsABurst(t *testing.T) {
 	requireProgTestRun(t)
 
-	const packets = 5
+	const (
+		packets  = 40
+		rateBps  = 64000
+		ipLen    = 20 + 8 + 160
+		maxBurst = 500 * time.Millisecond
+	)
+
+	burst := int(maxBurst/(time.Duration(ipLen*8)*time.Second/rateBps)) + 1
 
 	tests := []struct {
 		name     string
 		windowMs uint32
-		want     int
+		min, max int
 	}{
-		{"default window admits one packet", 0, 1},
-		{"2000 ms window admits the burst", 2000, packets},
+		{"5 ms window admits one packet", 5, 1, 1},
+		{"default window admits a 500 ms burst", 0, burst, burst + 1},
+		{"2000 ms window is capped at a 500 ms burst", 2000, burst, burst + 1},
 	}
 
 	for _, tc := range tests {
@@ -270,7 +279,7 @@ func TestQERAveragingWindowAdmitsABurst(t *testing.T) {
 
 			pdr := ipv4OuterDownlinkPDR(defaultTEID, classifierLocal, classifierENB, defaultQFI)
 			pdr.QerID = 1
-			pdr.Qer.MaxBitrateDL = 64000
+			pdr.Qer.MaxBitrateDL = rateBps
 			pdr.Qer.AveragingWindowMs = tc.windowMs
 
 			if err := obj.PutPdrDownlink(netip.AddrFrom4(classifierUE), pdr); err != nil {
@@ -286,8 +295,8 @@ func TestQERAveragingWindowAdmitsABurst(t *testing.T) {
 				}
 			}
 
-			if admitted != tc.want {
-				t.Errorf("admitted %d of %d back-to-back packets, want %d", admitted, packets, tc.want)
+			if admitted < tc.min || admitted > tc.max {
+				t.Errorf("admitted %d of %d back-to-back packets, want %d to %d", admitted, packets, tc.min, tc.max)
 			}
 		})
 	}
