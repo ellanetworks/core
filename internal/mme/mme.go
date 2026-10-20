@@ -232,7 +232,7 @@ func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability, imsVoPS bool)
 		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	nfs.IMSVoPS = imsVoPS
+	nfs.IMSVoPS = true
 
 	nfs.EPCO = ueCap.SupportsEPCO()
 
