@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -217,7 +218,7 @@ func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expect
 
 	if !registered {
 		m.DropDeferredServiceRequest(ctx, ue)
-		m.ReleaseAllSessions(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 		log.Info("aborted incomplete UE registration", zap.String("trigger", trigger))
 
 		return

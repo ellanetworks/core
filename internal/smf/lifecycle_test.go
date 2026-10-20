@@ -307,7 +307,7 @@ func TestReleaseSmContext_HappyPath(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestSessionLifecycleHoldsAPolicyAssociation(t *testing.T) {
 		t.Fatalf("association for %s = %+v, %t; want DNN %s and IPv4 %s", ref, a, ok, testDNN, store.allocatedIP)
 	}
 
-	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
 
@@ -367,7 +367,7 @@ func TestReleaseSmContext_NotFound(t *testing.T) {
 
 	// Releasing an absent session is an idempotent no-op success (the release path may
 	// tear down the user plane up front and again on completion).
-	if err := s.ReleaseSmContext(context.Background(), "nonexistent-ref"); err != nil {
+	if err := s.ReleaseSmContext(context.Background(), "nonexistent-ref", models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("expected idempotent no-op for a non-existent session, got %v", err)
 	}
 }
@@ -381,7 +381,7 @@ func TestReleaseSmContext_NoTunnel(t *testing.T) {
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	ref := smCtx.Ref
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext without tunnel failed: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestReleaseSmContext_DeleteSessionFails(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
 	if err == nil {
 		t.Fatal("expected error when DeleteSession fails")
 	}
@@ -689,7 +689,7 @@ func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	smCtx, ref := setupSessionWithTunnel(t, s)
 	smCtx.PDUIPV4Address = nil // simulate a session that never had an IP allocated
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
@@ -2018,7 +2018,7 @@ func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	if err := s.ReleaseSmContext(context.Background(), ref); err != nil {
+	if err := s.ReleaseSmContext(context.Background(), ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
 
@@ -2038,7 +2038,7 @@ func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
 	upf.err = fmt.Errorf("PFCP delete failed")
 	upf.mu.Unlock()
 
-	if err := s.ReleaseSmContext(context.Background(), ref); err == nil {
+	if err := s.ReleaseSmContext(context.Background(), ref, models.ReleaseCause(models.ReleaseUERequested)); err == nil {
 		t.Fatal("expected an error when user-plane teardown fails")
 	}
 

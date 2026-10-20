@@ -196,7 +196,7 @@ func TestPDNDisconnectEndsAnInFlightModification(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.DisconnectBearer(context.Background(), ue, ims, 36, 3)
+	m.DisconnectBearer(context.Background(), ue, ims, 36, 3, models.ReleaseCause(models.ReleaseUERequested))
 
 	defer m.StopESMGuard(ims)
 

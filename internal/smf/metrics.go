@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -18,19 +19,7 @@ import (
 // ("4g"|"5g") and result ("accept"|"reject").
 var SessionEstablishmentAttempts *prometheus.CounterVec
 
-var usageBytesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Name: "app_upf_usage_dropped_bytes_total",
-	Help: "Total number of accounted usage bytes never recorded in the subscriber-usage store, by reason.",
-}, []string{"reason"})
-
-const (
-	usageDropOutcomeUnknown = "outcome_unknown"
-	usageDropShutdown       = "shutdown"
-)
-
-func countDroppedUsage(reason string, bytes uint64) {
-	usageBytesDropped.WithLabelValues(reason).Add(float64(bytes))
-}
+var sessionReleases *prometheus.CounterVec
 
 // sessionCounter reports active session counts split by RAT.
 type sessionCounter interface {
@@ -55,10 +44,20 @@ func RegisterMetrics(sessions sessionCounter) {
 		nil,
 	)
 
-	prometheus.MustRegister(SessionEstablishmentAttempts, usageBytesDropped)
+	sessionReleases = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "app_session_releases_total",
+			Help: "Total session releases by RAT and release reason (5G PDU sessions, 4G EPS sessions).",
+		},
+		[]string{"rat", "reason"},
+	)
 
-	for _, reason := range []string{usageDropOutcomeUnknown, usageDropShutdown} {
-		usageBytesDropped.WithLabelValues(reason)
+	prometheus.MustRegister(SessionEstablishmentAttempts, sessionReleases)
+
+	for _, rat := range []string{metrics.RAT4G, metrics.RAT5G} {
+		for _, reason := range models.SessionReleaseReasons {
+			sessionReleases.WithLabelValues(rat, reason.String())
+		}
 	}
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
@@ -108,4 +107,10 @@ func recordSessionEstablishmentResult(ctx context.Context, rat, result string, f
 
 	logger.From(ctx, logger.SmfLog).WithOptions(zap.AddCallerSkip(2)).Info(msg,
 		append([]zap.Field{logger.RAT(rat), logger.Result(result)}, fields...)...)
+}
+
+func recordSessionRelease(rat string, reason models.SessionReleaseReason) {
+	if sessionReleases != nil {
+		sessionReleases.WithLabelValues(rat, reason.String()).Inc()
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -16,15 +17,15 @@ import (
 )
 
 // ReleaseSmContext tears down a PDU session entirely
-func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error {
 	if s.dropHalf(ctx, smContextRef, Access5G) {
 		return nil
 	}
 
-	return s.releaseSession(ctx, smContextRef)
+	return s.releaseSession(ctx, smContextRef, cause)
 }
 
-func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
+func (s *SMF) releaseSession(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -58,10 +59,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	}
 
 	// Remove from pool after all network I/O is complete.
-	s.dropFromPool(smContext)
-
-	logger.From(ctx, logger.SmfLog).Info("PDU session released",
-		logger.RAT(smContext.Access.rat()), logger.SUPI(smContext.Supi.String()), logger.DNN(smContext.Dnn))
+	s.dropFromPool(ctx, smContext, cause)
 
 	return err
 }
@@ -140,11 +138,11 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 // removeSessionUnlocked removes a session from the pool without releasing the IP
 // (caller has already released it or does not want to). ref is the session's unique
 // Ref; a no-op if it is already gone.
-func (s *SMF) removeSessionUnlocked(_ context.Context, ref string) {
+func (s *SMF) removeSessionUnlocked(ctx context.Context, ref string, cause models.SessionReleaseCause) {
 	sc := s.GetSession(ref)
 	if sc == nil {
 		return
 	}
 
-	s.dropFromPool(sc)
+	s.dropFromPool(ctx, sc, cause)
 }

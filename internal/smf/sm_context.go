@@ -95,6 +95,7 @@ type SMContext struct {
 	pendingPolicy *Policy
 
 	releasing                bool // guarded by Mutex
+	releaseCause             models.SessionReleaseCause
 	activating               bool
 	userPlaneStale           bool
 	n1Released               bool
@@ -134,6 +135,12 @@ const (
 
 func (smContext *SMContext) recordN2Release(purpose n2ReleasePurpose) {
 	smContext.n2Release = purpose
+}
+
+func (smContext *SMContext) recordReleaseCause(cause models.SessionReleaseCause) {
+	if smContext.releaseCause.Reason == "" {
+		smContext.releaseCause = cause
+	}
 }
 
 func (smContext *SMContext) releaseLegsComplete() bool {

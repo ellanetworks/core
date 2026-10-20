@@ -465,7 +465,7 @@ func TestAbandonedMoveRemovesTheTargetUplink(t *testing.T) {
 		t.Fatalf("move to EPS: %v", err)
 	}
 
-	if err := s.ReleaseEPSSession(ctx, ref); err != nil {
+	if err := s.ReleaseEPSSession(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseEPSSession: %v", err)
 	}
 

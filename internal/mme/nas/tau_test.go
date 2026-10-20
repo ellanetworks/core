@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -245,7 +246,7 @@ func TestTrackingAreaUpdateReportsALocalDeactivation(t *testing.T) {
 	m.AddDefaultPDN(ue)
 
 	dropped := ue.EnsurePDN(6)
-	m.ReleasePDN(context.Background(), ue, dropped)
+	m.ReleasePDN(context.Background(), ue, dropped, models.ReleaseCause(models.ReleaseUERequested))
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 
@@ -276,7 +277,7 @@ func TestTrackingAreaUpdateReportsALocalDeactivationOnce(t *testing.T) {
 	m.AddDefaultPDN(ue)
 
 	dropped := ue.EnsurePDN(6)
-	m.ReleasePDN(context.Background(), ue, dropped)
+	m.ReleasePDN(context.Background(), ue, dropped, models.ReleaseCause(models.ReleaseUERequested))
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 

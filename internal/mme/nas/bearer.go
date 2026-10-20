@@ -136,7 +136,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
 
 		if p := m.DefaultPDN(ue); p != nil {
-			m.ReleasePDN(ctx, ue, p)
+			m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 		}
 
 		return
@@ -149,7 +149,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ue.RANUEAMBR())
 	if !ok {
 		if p := m.DefaultPDN(ue); p != nil {
-			m.ReleasePDN(ctx, ue, p)
+			m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 		}
 
 		return
@@ -161,7 +161,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		mme.ReportProtectFailure(ctx, ueConn, "Attach Accept", err)
 
 		if p := m.DefaultPDN(ue); p != nil {
-			m.ReleasePDN(ctx, ue, p)
+			m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 		}
 
 		return

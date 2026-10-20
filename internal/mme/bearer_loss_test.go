@@ -233,8 +233,12 @@ func TestModificationRejectedWithInvalidEBIReleasesTheBearerLocally(t *testing.T
 
 func TestReleasingAPDNConnectionStopsItsESMGuard(t *testing.T) {
 	for name, release := range map[string]func(m *MME, ue *UeContext, p *PdnConnection){
-		"one":   func(m *MME, ue *UeContext, p *PdnConnection) { m.ReleasePDN(context.Background(), ue, p) },
-		"all":   func(m *MME, ue *UeContext, _ *PdnConnection) { m.ReleaseAllSessions(context.Background(), ue) },
+		"one": func(m *MME, ue *UeContext, p *PdnConnection) {
+			m.ReleasePDN(context.Background(), ue, p, models.ReleaseCause(models.ReleaseUERequested))
+		},
+		"all": func(m *MME, ue *UeContext, _ *PdnConnection) {
+			m.ReleaseAllSessions(context.Background(), ue, models.ReleaseCause(models.ReleaseUERequested))
+		},
 		"local": func(m *MME, ue *UeContext, p *PdnConnection) { m.DropPDN(ue, p.Ebi) },
 	} {
 		t.Run(name, func(t *testing.T) {

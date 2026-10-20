@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -32,7 +33,7 @@ func (m *MME) BeginPDNActivation(ctx context.Context, ue *UeContext, p *PdnConne
 
 func (m *MME) armPDNActivationGuard(ctx context.Context, ue *UeContext, p *PdnConnection, plain []byte) {
 	m.ArmESMGuardAbortOnly(ctx, ue, p, activateDefaultBearerName, plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 	})
 }
 
@@ -97,7 +98,7 @@ func (m *MME) RejectPDNActivation(ctx context.Context, ue *UeContext, p *PdnConn
 		Cause: cause,
 	})
 
-	m.ReleasePDN(ctx, ue, p)
+	m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 
 	return true
 }

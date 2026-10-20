@@ -429,7 +429,7 @@ func TestAnswersArrivingAfterTheReleaseOfASessionAreIgnored(t *testing.T) {
 	pushRules(t, s, ref, voiceRule(), secondCallRule())
 	waitFlowModifications(t, amfCb, 2)
 
-	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
@@ -497,7 +497,7 @@ func TestRulePushRacingTheReleaseOfASession(t *testing.T) {
 	})
 
 	wg.Go(func() {
-		if err := s.ReleaseSmContext(ctx, ref); err != nil {
+		if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 			t.Errorf("ReleaseSmContext: %v", err)
 		}
 	})

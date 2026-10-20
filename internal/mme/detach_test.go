@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/epskeys"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 )
 
@@ -117,6 +118,8 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released on subscriber deletion")
 	}
+
+	assertReleaseReasons(t, m, models.ReleaseSubscriptionWithdrawn)
 }
 
 // TS 24.301 §5.5.2.3.1
@@ -146,6 +149,25 @@ func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
 
 	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released on local detach")
+	}
+
+	assertReleaseReasons(t, m, models.ReleaseSubscriptionWithdrawn)
+}
+
+func assertReleaseReasons(t *testing.T, m *MME, want models.SessionReleaseReason) {
+	t.Helper()
+
+	var causes []models.SessionReleaseCause
+
+	eventually(t, time.Second, func() bool {
+		causes = m.Session.(*fakeSessionManager).releaseCausesSnapshot()
+		return len(causes) > 0
+	})
+
+	for _, cause := range causes {
+		if cause.Reason != want {
+			t.Fatalf("EPS session released for %s, want %s", cause.Reason, want)
+		}
 	}
 }
 

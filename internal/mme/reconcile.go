@@ -93,6 +93,7 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) e
 
 	if !ue.BearerReleaseOnly(p) {
 		ueConn.Log(ctx).Info("policy/data-network changed on the last PDN connection; detaching for re-attach", zap.String("apn", p.Apn))
+		ue.recordSessionReleaseCause(reactivationCause)
 		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired)
 
 		return nil
@@ -305,5 +306,7 @@ func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, ueConn *UeConn,
 // §6.4.4.2). The request is guarded and retransmitted until the UE answers with
 // DEACTIVATE EPS BEARER CONTEXT ACCEPT.
 func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection) {
-	m.DeactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false)
+	m.DeactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false, reactivationCause)
 }
+
+var reactivationCause = models.ReleaseCause(models.ReleaseReactivationRequested, models.ESMCause(uint8(eps.ESMCauseReactivationRequested)))

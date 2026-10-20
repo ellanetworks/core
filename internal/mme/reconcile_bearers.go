@@ -186,15 +186,17 @@ func (m *MME) DisconnectLostPDN(ctx context.Context, ue *UeContext, p *PdnConnec
 		return
 	}
 
+	cause := models.ReleaseCause(models.ReleaseAccessReleased)
+
 	if !ue.hasOtherPDN(p) {
-		m.DeactivateBearerLocally(ctx, ue, p)
+		m.DeactivateBearerLocally(ctx, ue, p, cause)
 		return
 	}
 
-	m.DisconnectBearer(ctx, ue, p, eps.ESMCauseRegularDeactivation, 0)
+	m.DisconnectBearer(ctx, ue, p, eps.ESMCauseRegularDeactivation, 0, cause)
 
 	if m.LookupPDN(ue, p.Ebi) == p && !ue.BearerDeactivating(p) {
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, cause)
 	}
 }
 

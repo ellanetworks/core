@@ -8,11 +8,12 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 func (m *MME) releaseTo5GS(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
-	m.ReleaseAllSessions(ctx, ue)
+	m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseUEContext(ctx, ue, cause)
 }

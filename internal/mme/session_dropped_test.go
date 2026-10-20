@@ -6,6 +6,8 @@ package mme
 import (
 	"context"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // TS 23.502 §4.11.2.3 step 10
@@ -103,7 +105,7 @@ func TestReleasePDNDeregistersAUELeftWithNone(t *testing.T) {
 	p := testPDN(ue)
 	p.SessionRef = "imsi-001010000000001-3#1"
 
-	m.ReleasePDN(context.Background(), ue, p)
+	m.ReleasePDN(context.Background(), ue, p, models.ReleaseCause(models.ReleaseUERequested))
 
 	if ue.PDNCount() != 0 {
 		t.Fatalf("PDN connections = %d, want 0", ue.PDNCount())
@@ -125,7 +127,7 @@ func TestReleasePDNKeepsAUEWithAnotherConnection(t *testing.T) {
 
 	ue.EnsurePDN(6)
 
-	m.ReleasePDN(context.Background(), ue, p)
+	m.ReleasePDN(context.Background(), ue, p, models.ReleaseCause(models.ReleaseUERequested))
 
 	if ue.EMMState() == EMMDeregistered {
 		t.Error("the UE was detached though it still holds a PDN connection")

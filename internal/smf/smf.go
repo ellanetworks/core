@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/smf/session")
@@ -326,7 +327,7 @@ func (s *SMF) supersedeIdentityHolders(ctx context.Context, supi etsi.SUPI, id S
 	}
 }
 
-func (s *SMF) dropFromPool(sc *SMContext) {
+func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, cause models.SessionReleaseCause) {
 	s.mu.Lock()
 
 	pooled := s.pool[sc.Ref] == sc
@@ -334,7 +335,20 @@ func (s *SMF) dropFromPool(sc *SMContext) {
 	s.removeLocked(sc)
 	s.mu.Unlock()
 
-	if pooled && s.pcf != nil {
+	if !pooled {
+		return
+	}
+
+	sc.recordReleaseCause(cause)
+	reason := sc.releaseCause.Reason
+
+	recordSessionRelease(sc.Access.rat(), reason)
+
+	logger.From(ctx, logger.SmfLog).Info("session released",
+		logger.RAT(sc.Access.rat()), logger.SUPI(sc.Supi.String()), logger.DNN(sc.Dnn),
+		logger.SMContextRef(sc.Ref), zap.Stringer("reason", reason))
+
+	if s.pcf != nil {
 		s.pcf.TerminateAssociation(sc.Ref)
 	}
 }
@@ -381,7 +395,7 @@ func (s *SMF) indexSEID(sc *SMContext, seid uint64) {
 
 // RemoveSession tears down a session's user plane, releases its addresses, and
 // removes it from the pool. Caller holds the session's Mutex.
-func (s *SMF) RemoveSession(ctx context.Context, ref string) {
+func (s *SMF) RemoveSession(ctx context.Context, ref string, cause models.SessionReleaseCause) {
 	smCtx := s.GetSession(ref)
 	if smCtx == nil {
 		return
@@ -389,9 +403,7 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 
 	_ = s.releaseUserPlaneThenAddresses(ctx, smCtx)
 
-	s.dropFromPool(smCtx)
-
-	logger.SmfLog.Info("SM Context removed", logger.SMContextRef(ref))
+	s.dropFromPool(ctx, smCtx, cause)
 }
 
 func (s *SMF) SessionsByDNN(dnn string) []*SMContext {

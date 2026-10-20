@@ -28,6 +28,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, and `result`. | Counter |
 | app_sessions | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
 | app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` and `result`. | Counter |
+| app_session_releases_total | Total session releases, labeled by `rat` and `reason`. | Counter |
 | app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
 | app_connected_service_centers | Number of SMS service centers (SMSCs) connected to this node. | Gauge |
 | app_connected_ims_nodes | Number of IMS nodes connected to this node, which use it as their HSS or PCRF. | Gauge |
@@ -45,7 +46,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_dl_buffer_capture_attempts_total | Downlink packets for an idle UE the data plane offered to the buffer, labeled by `result`. | Counter |
 | app_upf_dl_buffer_evictions_total | Buffered downlink packets discarded before re-injection, labeled by `reason`. | Counter |
 | app_upf_ringbuf_events_lost_total | Events the data plane raised but could not place in a ring buffer, labeled by `map`. | Counter |
-| app_upf_usage_dropped_bytes_total | Subscriber usage bytes the data plane measured but never recorded, labeled by `reason`. | Counter |
+| app_upf_usage_dropped_bytes_total | Subscriber usage bytes the data plane measured but never recorded, labeled by `reason` (`outcome_unknown`, `shutdown`, `stale_session`). | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |

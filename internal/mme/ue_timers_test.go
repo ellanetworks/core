@@ -6,6 +6,8 @@ package mme
 import (
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func eventually(t *testing.T, d time.Duration, cond func() bool) {
@@ -54,6 +56,8 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 	if !ue.Secured() {
 		t.Fatal("retained husk must keep its native security context")
 	}
+
+	assertReleaseReasons(t, m, models.ReleaseUENotResponding)
 }
 
 func TestReconnectStopsIdleTimers(t *testing.T) {

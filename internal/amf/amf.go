@@ -75,7 +75,7 @@ type SmfSbi interface {
 	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
-	ReleaseSmContext(ctx context.Context, smContextRef string) error
+	ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error
 	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
 	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
@@ -375,6 +375,8 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 		logger.AmfLog.Debug("UE with SUPI not found", logger.SUPI(supi.String()))
 		return
 	}
+
+	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseSubscriptionWithdrawn))
 
 	// A connected UE with a security context is told to deregister over the air,
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the

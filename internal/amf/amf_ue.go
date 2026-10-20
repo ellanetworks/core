@@ -51,6 +51,8 @@ type UeContext struct {
 	arrivedFromEPSHandover bool
 	exportableToEPSUntil   time.Time
 
+	sessionReleaseCause models.SessionReleaseCause
+
 	plmnID  models.PlmnID
 	suci    string
 	supi    etsi.SUPI
@@ -553,7 +555,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 }
 
 func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
-	ue.releaseSmContexts(ctx)
+	ue.releaseSmContexts(ctx, models.ReleaseCause(models.ReleaseDeregistration))
 }
 
 func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai, dnn string) error {
@@ -744,6 +746,13 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	ue.transitionToLocked(ctx, Deregistered)
 
+	cause := ue.sessionReleaseCause
+	if cause.Reason == "" {
+		cause = models.ReleaseCause(models.ReleaseDeregistration)
+	}
+
+	ue.sessionReleaseCause = models.SessionReleaseCause{}
+
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
 		smContextRefs = append(smContextRefs, smContext.Ref)
@@ -757,7 +766,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	if ue.smf != nil {
 		for _, smContextRef := range smContextRefs {
-			err := ue.smf.ReleaseSmContext(ctx, smContextRef)
+			err := ue.smf.ReleaseSmContext(ctx, smContextRef, cause)
 			if err != nil {
 				logger.From(ctx, logger.AmfLog).Error("Release SmContext Error", zap.Error(err))
 			}
@@ -779,7 +788,16 @@ func (ue *UeContext) deactivateSmContexts(ctx context.Context, ueConn *UeConn) {
 	}
 }
 
-func (ue *UeContext) releaseSmContexts(ctx context.Context) {
+func (ue *UeContext) recordSessionReleaseCause(cause models.SessionReleaseCause) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.sessionReleaseCause.Reason == "" {
+		ue.sessionReleaseCause = cause
+	}
+}
+
+func (ue *UeContext) releaseSmContexts(ctx context.Context, cause models.SessionReleaseCause) {
 	ue.mu.Lock()
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
@@ -798,7 +816,7 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 	}
 
 	for _, smContextRef := range smContextRefs {
-		err := ue.smf.ReleaseSmContext(ctx, smContextRef)
+		err := ue.smf.ReleaseSmContext(ctx, smContextRef, cause)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Error("Release SmContext Error", zap.Error(err))
 		}

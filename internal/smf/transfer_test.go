@@ -244,7 +244,7 @@ func TestPreparedMoveToEPSAcceptsUplinkWithoutAQFI(t *testing.T) {
 		t.Errorf("default uplink QFI once the move to EPS is prepared = %d, want none: the target eNB's S1-U uplink carries no QFI", got)
 	}
 
-	if err := s.ReleaseEPSSession(ctx, sc.Ref); err != nil {
+	if err := s.ReleaseEPSSession(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("abandon the move: %v", err)
 	}
 
@@ -1072,7 +1072,7 @@ func TestReleaseEPSSessionByTransferState(t *testing.T) {
 	t.Run("prepared: 5GS is still serving it", func(t *testing.T) {
 		s, _, sc := prepare(t)
 
-		if err := s.ReleaseEPSSession(context.Background(), sc.Ref); err != nil {
+		if err := s.ReleaseEPSSession(context.Background(), sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 			t.Fatalf("ReleaseEPSSession: %v", err)
 		}
 
@@ -1092,7 +1092,7 @@ func TestReleaseEPSSessionByTransferState(t *testing.T) {
 			t.Fatalf("ModifyEPSSession: %v", err)
 		}
 
-		if err := s.ReleaseEPSSession(context.Background(), sc.Ref); err != nil {
+		if err := s.ReleaseEPSSession(context.Background(), sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 			t.Fatalf("ReleaseEPSSession: %v", err)
 		}
 
@@ -1112,7 +1112,7 @@ func TestReleaseEPSSessionByTransferState(t *testing.T) {
 
 		upf.err = nil
 
-		if err := s.ReleaseEPSSession(context.Background(), sc.Ref); err != nil {
+		if err := s.ReleaseEPSSession(context.Background(), sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 			t.Fatalf("ReleaseEPSSession: %v", err)
 		}
 

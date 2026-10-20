@@ -677,7 +677,8 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 		ueConn.SendUEContextReleaseCommand(ctx, cause)
 
 		for _, sr := range amfUe.SmContextRefs() {
-			if err := a.Session.ReleaseSmContext(ctx, sr.Ref); err != nil {
+			releaseCause := models.ReleaseCause(models.ReleaseAccessReleased, models.NGAPCause(uint8(cause.Group), uint16(cause.Value)))
+			if err := a.Session.ReleaseSmContext(ctx, sr.Ref, releaseCause); err != nil {
 				ueConn.Log(ctx).Error("error sending release sm context request", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}

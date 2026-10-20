@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -104,7 +105,7 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 			logger.From(ctx, logger.AmfLog).Warn("failed to open the SM context of an arriving PDN connection; releasing the session it moved",
 				zap.Error(err), logger.PDUSessionID(c.PDUSessionID))
 
-			if err := amfInstance.Session.ReleaseSmContext(ctx, ref); err != nil {
+			if err := amfInstance.Session.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseHandoverFailure)); err != nil {
 				logger.From(ctx, logger.AmfLog).Warn("failed to release the session of a PDN connection the AMF could not adopt",
 					zap.Error(err), logger.PDUSessionID(c.PDUSessionID))
 			}

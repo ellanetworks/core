@@ -110,7 +110,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 func (m *MME) dropRelocation(ctx context.Context, ue *UeContext) {
 	ctx = context.WithoutCancel(ctx)
 
-	m.ReleaseAllSessions(ctx, ue)
+	m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseHandoverFailure))
 	m.RemoveUe(ctx, ue)
 	m.endRelocation(ue.Supi(), ue)
 }
@@ -233,7 +233,7 @@ func (m *MME) publishRelocatedPDN(ue *UeContext, ebi uint8, apn string, bearer m
 func (m *MME) dropUnadmittedPDNs(ctx context.Context, ue *UeContext, accepted map[uint8]uint8, unadmitted []HandoverCandidate) []uint8 {
 	for _, c := range unadmitted {
 		if p := m.LookupPDN(ue, c.Ebi); p != nil {
-			m.ReleasePDN(ctx, ue, p)
+			m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseHandoverFailure))
 		}
 
 		delete(accepted, c.Ebi)

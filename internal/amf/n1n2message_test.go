@@ -139,7 +139,10 @@ func (f *fakeSmf) HandleN1N2TransferFailure(context.Context, etsi.SUPI, uint8, m
 }
 
 func (f *fakeSmf) ClearPagingSuppression(context.Context, etsi.SUPI, uint8) error { return nil }
-func (f *fakeSmf) ReleaseSmContext(context.Context, string) error                 { return nil }
+func (f *fakeSmf) ReleaseSmContext(context.Context, string, models.SessionReleaseCause) error {
+	return nil
+}
+
 func (f *fakeSmf) UpdateSmContextN1Msg(context.Context, string, []byte) (*smf.UpdateResult, error) {
 	return nil, nil
 }

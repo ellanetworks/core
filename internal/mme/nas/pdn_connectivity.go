@@ -174,7 +174,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve the serving PLMN", zap.Error(err))
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 
 		return nasreply.Handled()
 	}
@@ -182,7 +182,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	esm, err := buildActivateDefaultESM(p, bearer, uint8(pti), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 
 		return nasreply.Handled()
 	}
@@ -190,7 +190,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	req, err := buildERABSetup(p, ue.SetSubscribedUEAMBR(ueAmbr))
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build E-RAB Setup Request", zap.Error(err))
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 
 		return nasreply.Handled()
 	}
@@ -213,7 +213,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 			logger.From(ctx, logger.MmeLog).Error("failed to send E-RAB Setup Request", zap.Error(writeErr))
 		}
 
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
 
 		return nasreply.Handled()
 	}
@@ -280,7 +280,7 @@ func handlePDNDisconnectRequest(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("disconnecting PDN connection", zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi))
-	m.DisconnectBearer(ctx, ue, p, eps.ESMCauseRegularDeactivation, uint8(pti))
+	m.DisconnectBearer(ctx, ue, p, eps.ESMCauseRegularDeactivation, uint8(pti), models.ReleaseCause(models.ReleaseUERequested))
 
 	return nasreply.Handled()
 }
@@ -322,7 +322,7 @@ func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.
 	if p := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity)); p != nil {
 		logger.From(ctx, logger.MmeLog).Info("UE rejected an additional PDN connection; releasing it", zap.Uint8("ebi", p.Ebi), logger.ESMCause(rej.Cause.String()))
 		m.StopESMGuard(p)
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure, models.ESMCause(uint8(rej.Cause))))
 	}
 
 	return nasreply.Handled()

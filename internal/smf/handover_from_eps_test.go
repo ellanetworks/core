@@ -379,7 +379,7 @@ func TestReleasingAPreparedArrivalRestoresTheSourceENBDownlink(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
 	}
 
-	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 

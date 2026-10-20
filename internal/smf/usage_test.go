@@ -119,7 +119,7 @@ func TestReleaseRecordsTheFinalUsageOnce(t *testing.T) {
 
 	upf.count(seid, 5, 1)
 
-	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
@@ -289,7 +289,7 @@ func TestReleaseFlushesTheFinalUsageWithoutWaitingForTheNextCollection(t *testin
 	s.StartUsageCollection()
 	t.Cleanup(func() { s.StopUsageCollection(ctx) })
 
-	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 

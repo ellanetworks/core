@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -31,7 +32,7 @@ func syncPDUSessionStatus(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			continue
 		}
 
-		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
+		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref, models.ReleaseCause(models.ReleaseStatusMismatch)); err != nil {
 			logger.From(ctx, logger.AmfLog).Error("release PDU session the UE reports inactive",
 				zap.Error(err), logger.PDUSessionID(uint8(psi)))
 		}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -54,6 +55,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		if resp != nil && resp.Usage.UplinkVolume+resp.Usage.DownlinkVolume > 0 {
 			logger.From(ctx, logger.UpfLog).Error("usage bytes lost: re-establish over a live session dropped its remaining usage",
 				logger.SEID(seid), logger.UplinkVolume(resp.Usage.UplinkVolume), logger.DownlinkVolume(resp.Usage.DownlinkVolume))
+			metrics.DroppedUsage(metrics.UsageDropStaleSession, resp.Usage.UplinkVolume+resp.Usage.DownlinkVolume)
 		}
 	}
 

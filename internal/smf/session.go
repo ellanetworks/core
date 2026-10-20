@@ -215,14 +215,16 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 	imsi := sc.Supi.IMSI()
 
 	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	cause := models.ReleaseCause(models.ReleaseEstablishmentFailure)
 
 	if sc.Tunnel != nil {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
-			sc.Mutex.Unlock()
 			// Keep the lease so the address is not reused before its NAT conntrack is
 			// purged (see releaseUserPlaneThenAddresses).
 			logger.SmfLog.Warn("failed to release tunnel for aborted session; keeping IP lease", logger.SUPIFromIMSI(imsi), zap.Error(err))
-			s.dropFromPool(sc)
+			s.dropFromPool(ctx, sc, cause)
 
 			return
 		}
@@ -237,9 +239,7 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 		}
 	}
 
-	sc.Mutex.Unlock()
-
-	s.dropFromPool(sc)
+	s.dropFromPool(ctx, sc, cause)
 }
 
 // AnchorBinding is the access-network tunnel endpoint learned from the RAN: the
@@ -403,7 +403,7 @@ func (s *SMF) finishBinding(ctx context.Context, sc *SMContext, dropped *dropped
 		if errors.Is(err, errTransferRolledBack) {
 			s.reportSessionNotMovedTo5GS(ctx, sc)
 
-			if releaseErr := s.releaseSession(ctx, sc.Ref); releaseErr != nil {
+			if releaseErr := s.releaseSession(ctx, sc.Ref, models.ReleaseCause(models.ReleaseHandoverFailure)); releaseErr != nil {
 				logger.From(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
 					zap.Error(releaseErr), zap.String("ref", sc.Ref))
 			}

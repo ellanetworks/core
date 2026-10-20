@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -31,11 +32,13 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
+	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseSubscriptionWithdrawn))
+
 	ueConn := ue.Conn()
 	if ueConn == nil || !m.UeConnected(ue) {
 		ue.TransitionTo(ctx, EMMDeregistered)
 		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", logger.SUPIFromIMSI(imsi))
-		m.ReleaseAllSessions(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseSubscriptionWithdrawn))
 		m.RemoveUe(ctx, ue)
 
 		return

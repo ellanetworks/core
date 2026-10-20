@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func (smContext *SMContext) TransferPendingForTest() bool { return smContext.pending != nil }
@@ -86,4 +87,20 @@ func (s *SMF) TakeUsageForTest(ctx context.Context, sc *SMContext) { s.takeUsage
 
 func (s *SMF) ApplyUsageForTest(ctx context.Context, sc *SMContext, report models.UsageReport, now time.Time) {
 	s.applyUsage(ctx, sc, report, now)
+}
+
+func (smContext *SMContext) ReleaseCauseForTest() models.SessionReleaseCause {
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	return smContext.releaseCause
+}
+
+func SessionReleasesForTest(rat string, reason models.SessionReleaseReason) float64 {
+	var m dto.Metric
+	if err := sessionReleases.WithLabelValues(rat, reason.String()).Write(&m); err != nil {
+		return -1
+	}
+
+	return m.GetCounter().GetValue()
 }

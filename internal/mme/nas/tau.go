@@ -325,7 +325,7 @@ func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("releasing EPS bearer reported inactive by the UE", zap.Uint8("ebi", p.Ebi))
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseStatusMismatch))
 
 		remaining--
 	}

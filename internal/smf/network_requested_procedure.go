@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	naslib "github.com/ellanetworks/core/nas"
@@ -23,7 +24,7 @@ import (
 // forwarding immediately (TS 23.502 §4.3.4.2 step 2); T3592 then retransmits the
 // Release Command until the UE replies or the retransmission limit aborts, at which
 // point the SM context is removed from the pool. Caller must hold smContext.Mutex.
-func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) error {
+func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause, releaseCause models.SessionReleaseCause) error {
 	if smContext.releasing {
 		logger.From(ctx, logger.SmfLog).Info("a PDU session release is already outstanding, ignoring the colliding release trigger",
 			zap.Uint8("pti", pti), logger.Cause(cause.String()),
@@ -31,6 +32,8 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 
 		return nil
 	}
+
+	smContext.recordReleaseCause(releaseCause)
 
 	upActive := smContext.upConnectionActive()
 
@@ -62,7 +65,7 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 			// No UE to acknowledge and the user plane is already released, so remove
 			// the SM context immediately.
 			s.amf.SessionDropped(ctx, supi, pduSessionID, smContext.Ref, nil)
-			s.removeSessionUnlocked(ctx, smContext.Ref)
+			s.removeSessionUnlocked(ctx, smContext.Ref, models.ReleaseCause(models.ReleaseUENotResponding))
 
 			return nil
 		}
@@ -77,7 +80,9 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 		func(ctx context.Context) error {
 			return s.amf.ReleaseSession(ctx, supi, pduSessionID, n1Msg, n2Transfer)
 		},
-		func(ctx context.Context, sc *SMContext) { s.removeSessionUnlocked(ctx, sc.Ref) })
+		func(ctx context.Context, sc *SMContext) {
+			s.removeSessionUnlocked(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUENotResponding))
+		})
 
 	return nil
 }
@@ -93,9 +98,9 @@ func (s *SMF) releaseUserPlane(ctx context.Context, smContext *SMContext) {
 // teardownAndRemove releases the session's user-plane resources (idempotently) and
 // removes it from the pool, for paths that reach the SM context without the
 // network-requested procedure. Caller must hold smContext.Mutex.
-func (s *SMF) teardownAndRemove(ctx context.Context, smContext *SMContext) {
+func (s *SMF) teardownAndRemove(ctx context.Context, smContext *SMContext, cause models.SessionReleaseCause) {
 	s.releaseUserPlane(ctx, smContext)
-	s.removeSessionUnlocked(ctx, smContext.Ref)
+	s.removeSessionUnlocked(ctx, smContext.Ref, cause)
 }
 
 // armRetransmit starts a network-requested-procedure retransmission timer

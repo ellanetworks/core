@@ -169,6 +169,10 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal("EPS session not released up front on the PDN disconnect request; the UPF would keep forwarding until the accept")
 	}
 
+	if causes := m.Session.(*fakeSessionManager).releaseCauses; len(causes) != 1 || causes[0].Reason != models.ReleaseUERequested {
+		t.Fatalf("release causes = %+v, want one UE-requested release", causes)
+	}
+
 	relCmd := findERABReleaseCommand(t, cc)
 	if len(relCmd.ERABToBeReleased) != 1 || relCmd.ERABToBeReleased[0].ERABID != 6 || len(relCmd.NASPDU) == 0 {
 		t.Fatalf("E-RAB Release Command malformed: %+v", relCmd)

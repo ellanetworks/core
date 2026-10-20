@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
@@ -155,7 +156,7 @@ func (s *SMF) StopUsageCollection(ctx context.Context) {
 	logger.SmfLog.Error("usage bytes lost: usage could not be recorded before shutdown", usageFields(unrecorded)...)
 
 	for _, u := range unrecorded {
-		countDroppedUsage(usageDropShutdown, u.UplinkVolume+u.DownlinkVolume)
+		metrics.DroppedUsage(metrics.UsageDropShutdown, u.UplinkVolume+u.DownlinkVolume)
 	}
 }
 
@@ -240,7 +241,7 @@ func (s *SMF) applyUsage(ctx context.Context, sc *SMContext, report models.Usage
 		logger.From(ctx, logger.SmfLog).Error("usage bytes lost: usage taken after the final shutdown flush",
 			logger.SEID(report.SEID), logger.SUPIFromIMSI(imsi),
 			logger.UplinkVolume(report.UplinkVolume), logger.DownlinkVolume(report.DownlinkVolume))
-		countDroppedUsage(usageDropShutdown, report.UplinkVolume+report.DownlinkVolume)
+		metrics.DroppedUsage(metrics.UsageDropShutdown, report.UplinkVolume+report.DownlinkVolume)
 	}
 }
 
@@ -265,7 +266,7 @@ func (s *SMF) flushUsage(ctx context.Context) {
 				append(usageFields(batch), zap.Error(err))...)
 
 			for _, u := range batch {
-				countDroppedUsage(usageDropOutcomeUnknown, u.UplinkVolume+u.DownlinkVolume)
+				metrics.DroppedUsage(metrics.UsageDropOutcomeUnknown, u.UplinkVolume+u.DownlinkVolume)
 			}
 
 			continue

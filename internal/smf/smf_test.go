@@ -834,7 +834,7 @@ func removeSession(s *smf.SMF, ctx context.Context, sc *smf.SMContext) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	s.RemoveSession(ctx, sc.Ref)
+	s.RemoveSession(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUERequested))
 }
 
 func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
@@ -945,7 +945,7 @@ func TestRemoveSession_NonExistent_NoOp(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	bgCtx := context.Background()
 
-	s.RemoveSession(bgCtx, "nonexistent-ref")
+	s.RemoveSession(bgCtx, "nonexistent-ref", models.ReleaseCause(models.ReleaseUERequested))
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -1089,7 +1089,7 @@ func TestNewSession_ClaimsAnIdentityOnce(t *testing.T) {
 		}
 	}
 
-	s.RemoveSession(t.Context(), ctx1.Ref)
+	s.RemoveSession(t.Context(), ctx1.Ref, models.ReleaseCause(models.ReleaseUERequested))
 
 	ctx2, err := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "ims", testSnssai)
 	if err != nil {

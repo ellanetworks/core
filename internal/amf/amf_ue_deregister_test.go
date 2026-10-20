@@ -17,6 +17,7 @@ import (
 
 type deregisterTestSmf struct {
 	releaseCalls          []string
+	releaseCauses         []models.SessionReleaseCause
 	deactivateCalls       []string
 	suppressCalls         int
 	transferFailures      []models.N1N2MessageTransferCause
@@ -66,8 +67,10 @@ func (s *deregisterTestSmf) ClearPagingSuppression(_ context.Context, _ etsi.SUP
 	return nil
 }
 
-func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error {
 	s.releaseCalls = append(s.releaseCalls, smContextRef)
+	s.releaseCauses = append(s.releaseCauses, cause)
+
 	if s.onRelease != nil {
 		return s.onRelease(ctx, smContextRef)
 	}
@@ -377,4 +380,44 @@ func (*deregisterTestSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context,
 
 func (*deregisterTestSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
 	return nil
+}
+
+func TestDeregister_ReleasesSessionsAsADeregistration(t *testing.T) {
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+
+	fakeSmf := &deregisterTestSmf{}
+	ue.smf = fakeSmf
+
+	ue.Deregister(context.Background())
+
+	if len(fakeSmf.releaseCauses) != 1 || fakeSmf.releaseCauses[0].Reason != models.ReleaseDeregistration {
+		t.Fatalf("release causes = %+v, want one deregistration", fakeSmf.releaseCauses)
+	}
+}
+
+func TestDeregister_UsesTheRecordedCauseOnce(t *testing.T) {
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+
+	fakeSmf := &deregisterTestSmf{}
+	ue.smf = fakeSmf
+
+	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseSubscriptionWithdrawn))
+	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseUENotResponding))
+	ue.Deregister(context.Background())
+
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.Deregister(context.Background())
+
+	want := []models.SessionReleaseReason{models.ReleaseSubscriptionWithdrawn, models.ReleaseDeregistration}
+	if len(fakeSmf.releaseCauses) != len(want) {
+		t.Fatalf("release causes = %+v, want %v", fakeSmf.releaseCauses, want)
+	}
+
+	for i, cause := range fakeSmf.releaseCauses {
+		if cause.Reason != want[i] {
+			t.Fatalf("release %d reason = %s, want %s", i, cause.Reason, want[i])
+		}
+	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -457,6 +458,8 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 
 func (s *SMF) releaseForReactivation(ctx context.Context, smContext *SMContext) (reconcileDecision, error) {
 	if smContext.Access == Access4G {
+		smContext.recordReleaseCause(models.ReleaseCause(models.ReleaseReactivationRequested, models.ESMCause(uint8(eps.ESMCauseReactivationRequested))))
+
 		return reconcileDecision{action: reconcileRelease}, nil
 	}
 
@@ -742,5 +745,6 @@ func staticReservationChanged(ctx context.Context, subs SubscriptionData, imsi, 
 // (TS 23.502, TS 24.501) with cause #39 "reactivation requested" so the UE
 // re-establishes on the correct slice. Caller must hold smContext.Mutex.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
-	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested)
+	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested,
+		models.ReleaseCause(models.ReleaseReactivationRequested, models.GSMCause(uint8(fgs.GSMCauseReactivationRequested))))
 }

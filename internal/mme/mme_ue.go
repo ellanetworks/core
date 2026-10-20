@@ -94,6 +94,8 @@ type PdnConnection struct {
 	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
 
+	deactivationCause models.SessionReleaseCause
+
 	ESM        ESMState
 	activation *pdnActivation
 
@@ -126,6 +128,8 @@ type PendingPDNConnectivity struct {
 // EPS NAS security context, and the bearer state.
 type UeContext struct {
 	active atomic.Pointer[UeConn]
+
+	sessionReleaseCause models.SessionReleaseCause
 
 	supi                     etsi.SUPI
 	Imei                     etsi.IMEI // IMEI/IMEISV equipment identity (TS 24.301; 5G PEI, TS 23.501 §5.9.3)
@@ -280,7 +284,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	if superseded {
 		logger.MmeLog.Info("CommitUEIdentity superseding prior UE context; releasing its EPS sessions",
 			logger.SUPI(supi.String()))
-		m.ReleaseAllSessions(ctx, old)
+		m.ReleaseAllSessions(ctx, old, models.ReleaseCause(models.ReleaseDeregistration))
 	}
 
 	return nil
@@ -1143,4 +1147,31 @@ func (m *MME) lookupBearerUe(imsi string) (*UeContext, bool) {
 	}
 
 	return nil, false
+}
+
+func (ue *UeContext) recordSessionReleaseCause(cause models.SessionReleaseCause) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.sessionReleaseCause.Reason == "" {
+		ue.sessionReleaseCause = cause
+	}
+}
+
+func (ue *UeContext) sessionReleaseCauseOr(cause models.SessionReleaseCause) models.SessionReleaseCause {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.sessionReleaseCause.Reason != "" {
+		return ue.sessionReleaseCause
+	}
+
+	return cause
+}
+
+func (ue *UeContext) DeactivationCause(p *PdnConnection) models.SessionReleaseCause {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return p.deactivationCause
 }

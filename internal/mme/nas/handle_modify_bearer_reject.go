@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -35,7 +36,7 @@ func handleModifyBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	ueConn.Log(ctx).Warn("UE rejected EPS bearer modification")
 
 	if rej.Cause == eps.ESMCauseInvalidEPSBearerIdentity {
-		m.DeactivateBearerLocally(ctx, ue, p)
+		m.DeactivateBearerLocally(ctx, ue, p, models.ReleaseCause(models.ReleaseProtocolError, models.ESMCause(uint8(rej.Cause))))
 	}
 
 	return nasreply.Handled()

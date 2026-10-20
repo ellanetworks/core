@@ -90,6 +90,10 @@ func (ue *UeContext) transitionEMMLocked(ctx context.Context, target EMMState) {
 
 		ue.setEMMStateLocked(target)
 
+		if target == EMMRegistered {
+			ue.sessionReleaseCause = models.SessionReleaseCause{}
+		}
+
 		return
 	}
 

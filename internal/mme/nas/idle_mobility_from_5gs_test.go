@@ -349,7 +349,7 @@ func newCrossAccessSessionManager() *crossAccessSessionManager {
 	return &crossAccessSessionManager{onEPS: map[string]bool{}, destroyed: map[string]bool{}}
 }
 
-func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref string) error {
+func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref string, _ models.SessionReleaseCause) error {
 	if f.onEPS[ref] {
 		f.destroyed[ref] = true
 		delete(f.onEPS, ref)

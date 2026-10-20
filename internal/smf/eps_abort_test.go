@@ -32,7 +32,7 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 		t.Fatal("a second session claimed an EPS bearer identity a live session already holds")
 	}
 
-	s.dropFromPool(scA)
+	s.dropFromPool(context.Background(), scA, models.ReleaseCause(models.ReleaseUERequested))
 
 	scB, err := s.NewSession(supi, Access4G, SessionIdentity{EBI: ebi}, "internet", nil)
 	if err != nil {
@@ -139,7 +139,7 @@ func TestAbortSessionSkipsAddressReleaseWhenSuperseded(t *testing.T) {
 	scA.PDUIPV4Address = net.ParseIP("10.0.0.5").To4()
 	scA.PDUIPV6Prefix = net.ParseIP("2001:db8::")
 
-	s.dropFromPool(scA)
+	s.dropFromPool(context.Background(), scA, models.ReleaseCause(models.ReleaseUERequested))
 
 	scB, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: pduSessionID}, "internet", nil)
 	if err != nil {
@@ -243,7 +243,7 @@ func TestReleaseAllocatedAddressesClearsRecordsWhenSuperseded(t *testing.T) {
 	sc.PDUIPV4Address = net.ParseIP("10.0.0.5").To4()
 	sc.PDUIPV6Prefix = net.ParseIP("2001:db8::")
 
-	s.dropFromPool(sc)
+	s.dropFromPool(context.Background(), sc, models.ReleaseCause(models.ReleaseUERequested))
 
 	if _, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: pduSessionID}, "internet", nil); err != nil {
 		t.Fatal(err)

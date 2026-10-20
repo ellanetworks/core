@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -19,7 +20,7 @@ import (
 // Release Complete has nothing left to buffer for paging.
 func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
-		m.ReleasePDN(ctx, ue, p)
+		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseDeregistration))
 	}
 }
 
