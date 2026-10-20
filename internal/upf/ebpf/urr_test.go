@@ -149,6 +149,54 @@ func TestTakeUrrFirstPacketOfAMissingURR(t *testing.T) {
 	}
 }
 
+func TestTakeUrrFirstPacketDuringReload(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		seid    = 0x55525304
+		urrID   = 23
+		reloads = 10
+	)
+
+	obj := downlinkURRProgram(t, seid, urrID)
+
+	done := make(chan error, 1)
+
+	go func() {
+		for range reloads {
+			if err := obj.LoadWithMapReplacements(); err != nil {
+				done <- err
+				return
+			}
+		}
+
+		done <- nil
+	}()
+
+	for {
+		if _, err := obj.TakeUrrFirstPacket(seid, urrID); err != nil {
+			t.Fatalf("TakeUrrFirstPacket during a reload: %v", err)
+		}
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("LoadWithMapReplacements: %v", err)
+			}
+
+			before := bootNanos(t)
+			runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))))
+
+			if first, err := obj.TakeUrrFirstPacket(seid, urrID); err != nil || first < before {
+				t.Fatalf("first packet after the reloads = %d (%v), want the new packet's time (>= %d)", first, err, before)
+			}
+
+			return
+		default:
+		}
+	}
+}
+
 func TestInconsistentIPLengthIsDroppedUnbilled(t *testing.T) {
 	requireProgTestRun(t)
 

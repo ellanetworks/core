@@ -6,6 +6,7 @@ package smf_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
@@ -53,7 +54,7 @@ func TestEstablishmentRecordsTheUEInformationAndSubscription(t *testing.T) {
 	store.msisdn = "15551234567"
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	ref, _, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, fiveGUEInfo("000000001"))
+	ref, _, err := s.CreateSmContext(context.Background(), models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest(), UE: fiveGUEInfo("000000001")})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -72,8 +73,33 @@ func TestEstablishmentRecordsTheUEInformationAndSubscription(t *testing.T) {
 		t.Errorf("MSISDN = %q, want the subscription's", msisdn)
 	}
 
-	if cc != models.DefaultChargingCharacteristics {
-		t.Errorf("charging characteristics = %+v, want the default", cc)
+	if cc.SelectionMode != models.ChargingCharacteristicsHomeDefault || cc.String() != "0800" {
+		t.Errorf("charging characteristics = %+v, want the SMF's home default", cc)
+	}
+}
+
+func TestSubscribedChargingCharacteristicsTakePrecedence(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	subscribed := uint16(0x0400)
+	store.chargingCharacteristics = &subscribed
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	ref, _, err := s.CreateSmContext(context.Background(), models.SmContextCreateRequest{
+		SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai,
+		RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest(),
+	})
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	sc := s.GetSession(ref)
+
+	sc.Mutex.Lock()
+	cc := sc.ChargingCharacteristics
+	sc.Mutex.Unlock()
+
+	if cc.SelectionMode != models.ChargingCharacteristicsSubscribed || cc.Value != 0x0400 {
+		t.Fatalf("charging characteristics = %+v, want the subscribed 0400", cc)
 	}
 }
 
@@ -82,7 +108,7 @@ func TestUEInfoUpdatesReachOnlySessionsOnThatAccess(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, fiveGUEInfo("000000001"))
+	ref, _, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest(), UE: fiveGUEInfo("000000001")})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -116,13 +142,17 @@ func TestATransferAdoptsTheTargetAccessUEInformationOnCommit(t *testing.T) {
 		ServingNode: models.ServingNode{Functionality: models.ServingNodeSGW},
 	}
 
-	if _, err := s.TransferIdle(context.Background(), testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access4G, target); err != nil {
+	if _, err := s.TransferIdle(context.Background(), models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai, UE: target}, smf.Access4G); err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}
 
 	got := sc.UEInfo()
 	if got.RATType != models.RATTypeEUTRA || got.ServingNode.Functionality != models.ServingNodeSGW || cellOf(got) != "0000001" {
 		t.Fatalf("UE information after the move = %+v, want the EPS side's", got)
+	}
+
+	if got.PEI != "" {
+		t.Fatalf("PEI after the move = %q, want the source's (none here)", got.PEI)
 	}
 
 	moved := eutraLocation("0000002")
@@ -138,7 +168,7 @@ func TestTheReleaseCarriesTheFinalUEInformation(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, fiveGUEInfo("000000001"))
+	ref, _, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest(), UE: fiveGUEInfo("000000001")})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -168,7 +198,7 @@ func TestATargetUpdateBeforeTheHandoverCommitsIsKeptForTheArrival(t *testing.T) 
 
 	sc := establishEPSForArrival(t, s)
 
-	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai, fiveGUEInfo(""))
+	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: arrivingPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai, UE: fiveGUEInfo("")})
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}
@@ -196,5 +226,89 @@ func TestATargetUpdateBeforeTheHandoverCommitsIsKeptForTheArrival(t *testing.T) 
 	got := sc.UEInfo()
 	if got.RATType != models.RATTypeNR || cellOf(got) != "000000007" {
 		t.Fatalf("UE information after the arrival = %+v, want NR in cell 000000007", got)
+	}
+}
+
+func TestATransferKeepsThePEITheTargetDoesNotKnow(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc := establish5GS(t, s)
+
+	pei := "imeisv-3534567890123401"
+	s.UpdateUEInfo(ctx, testSUPI(), models.SessionUEInfoUpdate{PEI: &pei})
+
+	req := models.SessionTransferRequest{
+		SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai,
+		UE: models.SessionUEInfo{Location: eutraLocation("0000001"), RATType: models.RATTypeEUTRA},
+	}
+
+	if _, err := s.TransferIdle(ctx, req, smf.Access4G); err != nil {
+		t.Fatalf("TransferIdle: %v", err)
+	}
+
+	if got := sc.UEInfo().PEI; got != pei {
+		t.Fatalf("PEI after the move = %q, want %q", got, pei)
+	}
+}
+
+func TestOnlyARealChangeMovesTheUEInfoChangeTime(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{
+		SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai,
+		RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest(), UE: fiveGUEInfo("000000001"),
+	})
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	sc := s.GetSession(ref)
+	created := sc.UEInfoChangedAt()
+
+	same := nrLocation("000000001")
+	s.UpdateUEInfo(ctx, testSUPI(), models.SessionUEInfoUpdate{Location: &same})
+
+	if got := sc.UEInfoChangedAt(); !got.Equal(created) {
+		t.Fatalf("change time moved on a same-cell refresh: %v -> %v", created, got)
+	}
+
+	moved := nrLocation("000000002")
+	s.UpdateUEInfo(ctx, testSUPI(), models.SessionUEInfoUpdate{Location: &moved})
+
+	if got := sc.UEInfoChangedAt(); got.IsZero() || got.Before(created) {
+		t.Fatalf("change time after a cell change = %v, want it at or after %v", got, created)
+	}
+}
+
+func TestATimeZoneChangeReachesEverySession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	ref, _, err := s.CreateSmContext(context.Background(), models.SmContextCreateRequest{
+		SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai,
+		RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest(), UE: fiveGUEInfo("000000001"),
+	})
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	sc := s.GetSession(ref)
+
+	montreal, err := time.LoadLocation("America/Montreal")
+	if err != nil {
+		t.Skipf("time zone database lacks America/Montreal: %v", err)
+	}
+
+	s.RefreshTimeZoneForTest(time.Date(2026, time.March, 1, 12, 0, 0, 0, montreal))
+	s.RefreshTimeZoneForTest(time.Date(2026, time.March, 9, 12, 0, 0, 0, montreal))
+
+	if got := sc.UEInfo().TimeZone; got != "-04:00+1" {
+		t.Fatalf("time zone after the DST change = %q, want -04:00+1", got)
 	}
 }

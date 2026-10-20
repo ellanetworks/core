@@ -48,7 +48,7 @@ type DNNConfiguration struct {
 type SessionManagementSubscription struct {
 	DNNs                    []DNNConfiguration
 	MSISDN                  string
-	ChargingCharacteristics models.ChargingCharacteristics
+	ChargingCharacteristics *uint16
 }
 
 type Subscriptions struct {
@@ -141,9 +141,8 @@ func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*Se
 	}
 
 	sm := &SessionManagementSubscription{
-		DNNs:                    make([]DNNConfiguration, 0, len(policies)),
-		MSISDN:                  sub.Msisdn,
-		ChargingCharacteristics: models.DefaultChargingCharacteristics,
+		DNNs:   make([]DNNConfiguration, 0, len(policies)),
+		MSISDN: sub.Msisdn,
 	}
 
 	for _, p := range policies {

@@ -142,7 +142,7 @@ func (s *SMF) prepareSession(ctx context.Context, supi etsi.SUPI, snssai *models
 		dn:                      dn,
 		subscribed:              subscribedQoS(c),
 		msisdn:                  sm.MSISDN,
-		chargingCharacteristics: sm.ChargingCharacteristics,
+		chargingCharacteristics: chargingCharacteristics(sm),
 	}, nil
 }
 
@@ -166,4 +166,14 @@ func (r PCCRule) Equal(o PCCRule) bool {
 	return r.ID == o.ID && r.Version == o.Version && r.QCI == o.QCI && r.ARP == o.ARP &&
 		r.MBR.Equal(o.MBR) && r.GBR.Equal(o.GBR) && r.Gate == o.Gate && r.RatingGroup == o.RatingGroup &&
 		slices.Equal(r.Filters, o.Filters)
+}
+
+const defaultChargingCharacteristics uint16 = 0x0800
+
+func chargingCharacteristics(sm *udm.SessionManagementSubscription) models.ChargingCharacteristics {
+	if sm.ChargingCharacteristics != nil {
+		return models.ChargingCharacteristics{Value: *sm.ChargingCharacteristics, SelectionMode: models.ChargingCharacteristicsSubscribed}
+	}
+
+	return models.ChargingCharacteristics{Value: defaultChargingCharacteristics, SelectionMode: models.ChargingCharacteristicsHomeDefault}
 }

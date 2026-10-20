@@ -58,6 +58,7 @@ type RelocationID uint64
 type ForwardRelocationRequest struct {
 	ID                  RelocationID
 	SUPI                etsi.SUPI
+	MEI                 etsi.IMEI
 	SecurityContext     EPSSecurityContext
 	UENetworkCapability *eps.UENetworkCapability
 	PDNConnections      []PDNConnection
@@ -76,6 +77,7 @@ type ForwardRelocationResponse struct {
 type FiveGSRelocationRequest struct {
 	ID              RelocationID
 	SUPI            etsi.SUPI
+	MEI             etsi.IMEI
 	SecurityContext EPSSecurityContext
 	PDNConnections  []PDNConnection
 	Target          NGRANIdentity

@@ -111,6 +111,7 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 
 	req := interworking.ForwardRelocationRequest{
 		SUPI:            ue.Supi(),
+		MEI:             ue.Imei(),
 		SecurityContext: mapped.Context,
 		PDNConnections:  sessions,
 		Target:          target,

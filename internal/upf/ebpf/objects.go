@@ -38,6 +38,7 @@ import (
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint bpf/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6EntrypointTc bpf/n3n6_bpf.c -- -DCTX_TC -I. -O2 -Wall -Werror -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf -type urr_first_packet_args UrrFirstPacket bpf/urr_first_packet_bpf.c -- -I. -O2 -Wall -Werror -g
 
 // Masquerade source-port range, held below the kernel's default ephemeral
 // floor so an allocation cannot name a port a host socket is using.
@@ -117,6 +118,8 @@ type BpfObjects struct {
 
 	occupancyMu sync.Mutex
 	occupancy   map[string]int
+
+	urrFirstPacket UrrFirstPacketPrograms
 
 	Programs *ProgramBarrier
 }
@@ -215,6 +218,11 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
+	if err := bpfObjects.loadUrrFirstPacket(); err != nil {
+		logger.UpfLog.Error("failed to load URR first packet program", zap.Error(err))
+		return err
+	}
+
 	// Populate the optional profiling map from the embedded maps struct. The
 	// field only exists in N3N6EntrypointMaps when compiled with
 	// -DENABLE_PROFILING; reflection lets us check without a hard reference.
@@ -228,6 +236,23 @@ func (bpfObjects *BpfObjects) Load() error {
 		}
 
 		bpfObjects.Programs = programs
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) loadUrrFirstPacket() error {
+	spec, err := LoadUrrFirstPacket()
+	if err != nil {
+		return fmt.Errorf("load URR first packet spec: %w", err)
+	}
+
+	opts := &ebpf.CollectionOptions{
+		MapReplacements: map[string]*ebpf.Map{"urr_map": bpfObjects.UrrMap},
+	}
+
+	if err := spec.LoadAndAssign(&bpfObjects.urrFirstPacket, opts); err != nil {
+		return fmt.Errorf("load URR first packet program: %w", err)
 	}
 
 	return nil
@@ -410,6 +435,7 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 
 func (bpfObjects *BpfObjects) Close() error {
 	err := CloseAllObjects(
+		&bpfObjects.urrFirstPacket,
 		&bpfObjects.N3N6EntrypointObjects,
 	)
 

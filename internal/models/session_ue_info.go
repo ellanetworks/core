@@ -6,6 +6,8 @@ package models
 import (
 	"fmt"
 	"time"
+
+	"github.com/ellanetworks/core/nas"
 )
 
 type RATType string
@@ -62,6 +64,34 @@ type SessionUEInfoUpdate struct {
 func (u SessionUEInfoUpdate) Empty() bool {
 	return u.PEI == nil && u.Location == nil && u.RATType == nil && u.TimeZone == nil &&
 		u.ServingNode == nil && u.ServingNetwork == nil
+}
+
+func (u SessionUEInfoUpdate) Changes(info SessionUEInfo) bool {
+	return (u.PEI != nil && *u.PEI != info.PEI) ||
+		(u.Location != nil && !u.Location.SameCell(info.Location)) ||
+		(u.RATType != nil && *u.RATType != info.RATType) ||
+		(u.TimeZone != nil && *u.TimeZone != info.TimeZone) ||
+		(u.ServingNode != nil && !u.ServingNode.Equal(info.ServingNode)) ||
+		(u.ServingNetwork != nil && !u.ServingNetwork.Equal(info.ServingNetwork))
+}
+
+func (n ServingNode) Equal(o ServingNode) bool {
+	if n.Functionality != o.Functionality || (n.GUAMI == nil) != (o.GUAMI == nil) {
+		return false
+	}
+
+	return n.GUAMI == nil || (n.GUAMI.AmfID == o.GUAMI.AmfID && samePlmn(n.GUAMI.PlmnID, o.GUAMI.PlmnID))
+}
+
+func (i SessionUEInfo) Update() SessionUEInfoUpdate {
+	return SessionUEInfoUpdate{
+		PEI:            &i.PEI,
+		Location:       &i.Location,
+		RATType:        &i.RATType,
+		TimeZone:       &i.TimeZone,
+		ServingNode:    &i.ServingNode,
+		ServingNetwork: &i.ServingNetwork,
+	}
 }
 
 func (u SessionUEInfoUpdate) ApplyTo(info *SessionUEInfo) {
@@ -154,9 +184,6 @@ func sameEcgi(a, b *Ecgi) bool {
 
 func LocalTimeZone(now time.Time) string {
 	_, offset := now.Zone()
-	if now.IsDST() {
-		offset -= 3600
-	}
 
 	sign := "+"
 	if offset < 0 {
@@ -165,8 +192,12 @@ func LocalTimeZone(now time.Time) string {
 	}
 
 	tz := fmt.Sprintf("%s%02d:%02d", sign, offset/3600, (offset%3600)/60)
-	if now.IsDST() {
+
+	switch nas.NewDaylightSavingTime(now) {
+	case nas.DaylightSavingOneHour:
 		tz += "+1"
+	case nas.DaylightSavingTwoHour:
+		tz += "+2"
 	}
 
 	return tz
@@ -175,13 +206,15 @@ func LocalTimeZone(now time.Time) string {
 type ChargingCharacteristicsSelectionMode string
 
 const (
-	ChargingCharacteristicsSubscribed  ChargingCharacteristicsSelectionMode = ""
+	ChargingCharacteristicsSubscribed  ChargingCharacteristicsSelectionMode = "SUBSCRIBED"
 	ChargingCharacteristicsHomeDefault ChargingCharacteristicsSelectionMode = "HOME_DEFAULT"
 )
 
 type ChargingCharacteristics struct {
-	Value         string
+	Value         uint16
 	SelectionMode ChargingCharacteristicsSelectionMode
 }
 
-var DefaultChargingCharacteristics = ChargingCharacteristics{Value: "0800", SelectionMode: ChargingCharacteristicsHomeDefault}
+func (c ChargingCharacteristics) String() string {
+	return fmt.Sprintf("%04X", c.Value)
+}

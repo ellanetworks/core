@@ -40,7 +40,7 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, uli ngap.UserLocationI
 	ueConn.locMu.Unlock()
 
 	if moved {
-		ue.ReportLocationChange(ctx, loc)
+		ue.ReportLocationChange(ctx)
 	}
 }
 
@@ -51,16 +51,16 @@ func (ueConn *UeConn) ServingLocation() (models.UserLocation, models.Tai) {
 	return ueConn.Location, ueConn.Tai
 }
 
-func (ueConn *UeConn) PublishLocation(ctx context.Context, ue *UeContext) {
+func (ueConn *UeConn) PublishLocation(ue *UeContext) bool {
 	ueConn.locMu.Lock()
+	defer ueConn.locMu.Unlock()
 
 	loc := ueConn.Location
-	moved := (loc.NrLocation != nil || loc.EutraLocation != nil) && ue.SetLocation(loc, ueConn.Tai)
-	ueConn.locMu.Unlock()
-
-	if moved {
-		ue.ReportLocationChange(ctx, loc)
+	if loc.NrLocation == nil && loc.EutraLocation == nil && loc.N3gaLocation == nil {
+		return false
 	}
+
+	return ue.SetLocation(loc, ueConn.Tai)
 }
 
 func (ue *UeContext) SetLocation(loc models.UserLocation, tai models.Tai) bool {
@@ -74,13 +74,17 @@ func (ue *UeContext) SetLocation(loc models.UserLocation, tai models.Tai) bool {
 	return moved
 }
 
-func (ue *UeContext) ReportLocationChange(ctx context.Context, loc models.UserLocation) {
+func (ue *UeContext) ReportLocationChange(ctx context.Context) {
 	if ue.smf == nil || !ue.Supi().IsValid() {
 		return
 	}
 
-	rat := models.RATTypeOf(loc)
-	ue.smf.UpdateUEInfo(ctx, ue.Supi(), models.SessionUEInfoUpdate{Location: &loc, RATType: &rat})
+	update := models.LocationUpdate(ue.GetUserLocation(), time.Now())
+	if update.Location == nil {
+		return
+	}
+
+	ue.smf.UpdateUEInfo(ctx, ue.Supi(), update)
 }
 
 func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationInformation) (models.UserLocation, *models.Tai, bool) {

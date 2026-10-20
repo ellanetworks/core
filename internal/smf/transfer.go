@@ -190,6 +190,10 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 	arriving := sc.takePendingUEInfo(access)
 	sc.clearPendingLocked()
 
+	if arriving.PEI == "" {
+		arriving.PEI = sc.UEInfo().PEI
+	}
+
 	if sc.releasing {
 		return nil, fmt.Errorf("session %q is being released", sc.Ref)
 	}

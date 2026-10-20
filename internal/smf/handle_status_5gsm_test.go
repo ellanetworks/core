@@ -38,7 +38,7 @@ func TestStatus5GSM_PTIMismatchOnEstablishmentAcceptReleasesLocally(t *testing.T
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, rsp, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestWithPTI(10), 0, models.SessionUEInfo{})
+	ref, rsp, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequestWithPTI(10)})
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestStatus5GSM_PTIMismatchOnAnotherPTIKeepsSession(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestWithPTI(10), 0, models.SessionUEInfo{})
+	ref, _, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 1, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequestWithPTI(10)})
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}

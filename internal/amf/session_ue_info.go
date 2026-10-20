@@ -31,12 +31,15 @@ func (amf *AMF) SessionUEInfo(ctx context.Context, ue *UeContext) models.Session
 	}
 
 	if op.Guami != nil {
-		guami := *op.Guami
-		info.ServingNode.GUAMI = &guami
+		guami := models.Guami{AmfID: op.Guami.AmfID}
 
-		if guami.PlmnID != nil {
-			info.ServingNetwork = *guami.PlmnID
+		if op.Guami.PlmnID != nil {
+			plmn := *op.Guami.PlmnID
+			guami.PlmnID = &plmn
+			info.ServingNetwork = plmn
 		}
+
+		info.ServingNode.GUAMI = &guami
 	}
 
 	return info
@@ -44,4 +47,17 @@ func (amf *AMF) SessionUEInfo(ctx context.Context, ue *UeContext) models.Session
 
 func (ue *UeContext) ReleaseUEInfo() models.SessionUEInfoUpdate {
 	return models.LocationUpdate(ue.GetUserLocation(), time.Now())
+}
+
+func (ue *UeContext) ReportPEIChange(ctx context.Context) {
+	if ue.smf == nil || !ue.Supi().IsValid() {
+		return
+	}
+
+	pei := ue.Imei().String()
+	if pei == "" {
+		return
+	}
+
+	ue.smf.UpdateUEInfo(ctx, ue.Supi(), models.SessionUEInfoUpdate{PEI: &pei})
 }

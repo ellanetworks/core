@@ -69,11 +69,20 @@ func (ue *UeContext) Imei() etsi.IMEI {
 	return ue.imei
 }
 
-func (ue *UeContext) SetImei(imei etsi.IMEI) {
+func (ue *UeContext) SetImei(imei etsi.IMEI) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
+	changed := imei != ue.imei
 	ue.imei = imei
+
+	return changed
+}
+
+func (ue *UeContext) AdoptImei(imei etsi.IMEI) {
+	if imei.IsSet() {
+		ue.SetImei(imei)
+	}
 }
 
 func (ue *UeContext) AllowedNssai() []models.Snssai {

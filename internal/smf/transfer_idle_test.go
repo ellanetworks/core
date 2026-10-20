@@ -80,7 +80,7 @@ func TestTransferIdle5GSToEPSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	before := invariantsOf(t, sc)
 	establishes := len(store.ops())
 
-	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access4G, models.SessionUEInfo{})
+	ref, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access4G)
 	if err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestTransferIdleEPSTo5GSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	before := invariantsOf(t, sc)
 	establishes := len(store.ops())
 
-	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G, models.SessionUEInfo{})
+	ref, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access5G)
 	if err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestTransferIdleLeavesNoMoveForTheGuardToAbandon(t *testing.T) {
 	ctx := context.Background()
 	sc := establish5GS(t, s)
 
-	if _, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access4G, models.SessionUEInfo{}); err != nil {
+	if _, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access4G); err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}
 
@@ -219,7 +219,7 @@ func TestTransferIdleRestoresTheSourceWhenTheModifyFails(t *testing.T) {
 
 	upf.err = errors.New("PFCP modify refused")
 
-	if _, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G, models.SessionUEInfo{}); err == nil {
+	if _, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access5G); err == nil {
 		t.Fatal("the move succeeded though the UPF refused the modify")
 	}
 
@@ -264,7 +264,7 @@ func TestTransferIdleTo4GLetsTheENBBindTheDownlink(t *testing.T) {
 
 	sc := establish5GS(t, s)
 
-	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access4G, models.SessionUEInfo{})
+	ref, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access4G)
 	if err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestTransferIdleTo5GSLetsTheGNBBindTheDownlink(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G, models.SessionUEInfo{})
+	ref, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access5G)
 	if err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}

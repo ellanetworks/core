@@ -588,10 +588,4 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 	return ctx_verdict(CTX_ACT_ABORTED);
 }
 
-SEC("syscall")
-int urr_first_packet_func(struct urr_first_packet_args *args)
-{
-	return urr_take_first_packet(args);
-}
-
 char _license[] SEC("license") = "GPL";

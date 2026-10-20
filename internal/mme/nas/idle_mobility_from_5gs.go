@@ -53,6 +53,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 
 	ue := mme.NewUeContext()
 	ue.SetSupi(resp.SUPI)
+	ue.AdoptIMEI(resp.MEI)
 
 	if err := ue.InstallRelocatedSecurityContext(resp.Security, mme.MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to install the EPS context mapped from 5GS", zap.Error(err))

@@ -200,7 +200,7 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) *UeConn {
+func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) (*UeConn, bool) {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue.Store(ue)
@@ -226,12 +226,12 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 
 	ue.active.Store(ueConn)
 
-	ueConn.PublishLocation(ctx, ue)
+	moved := ueConn.PublishLocation(ue)
 
 	a.stopIdleTimersLocked(ue)
 	ue.PagingAnswered()
 
-	return displaced
+	return displaced, moved
 }
 
 func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
@@ -240,8 +240,12 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	}
 
 	a.mu.Lock()
-	displaced := a.attachUeConnLocked(ctx, ue, ueConn)
+	displaced, moved := a.attachUeConnLocked(ctx, ue, ueConn)
 	a.mu.Unlock()
+
+	if moved {
+		ue.ReportLocationChange(ctx)
+	}
 
 	if displaced != nil {
 		a.deactivateDisplacedUserPlane(ctx, ue, displaced)

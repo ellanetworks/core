@@ -78,6 +78,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
 	ue.SetAccess(access)
+	ue.AdoptIMEI(req.MEI)
 
 	if err := ue.InstallRelocatedSecurityContext(req.SecurityContext, MintAuthProofForInterworking()); err != nil {
 		return none, err

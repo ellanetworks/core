@@ -231,22 +231,17 @@ func (conn *SessionEngine) countURRLocked(session *Session, urrID uint32, m *urr
 		return nil
 	}
 
+	firstNs, takeErr := conn.BpfObjects.TakeUrrFirstPacket(session.SEID, urrID)
+
 	current, err := conn.BpfObjects.ReadUrr(session.SEID, urrID)
 	if err != nil {
-		return fmt.Errorf("read URR %d: %w", urrID, err)
+		m.record(urrDelta{}, firstNs)
+		return errors.Join(fmt.Errorf("read URR %d: %w", urrID, err), takeErr)
 	}
 
 	d, deltaErr := counterDelta(m.counted, current)
 	m.counted = current
-
-	var firstNs uint64
-
-	if conn.BpfObjects.UrrFirstPacketFunc != nil {
-		firstNs, err = conn.BpfObjects.TakeUrrFirstPacket(session.SEID, urrID)
-		if err != nil {
-			deltaErr = errors.Join(deltaErr, err)
-		}
-	}
+	deltaErr = errors.Join(deltaErr, takeErr)
 
 	m.record(d, firstNs)
 

@@ -311,7 +311,9 @@ func (s *fakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string,
 	return s.UpdateN1MsgResponse, s.UpdateN1MsgError
 }
 
-func (s *fakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, _ uint8, _ models.SessionUEInfo) (string, []byte, error) {
+func (s *fakeSmf) CreateSmContext(ctx context.Context, req models.SmContextCreateRequest) (string, []byte, error) {
+	supi, pduSessionID, dnn, snssai, requestType, n1Msg := req.SUPI, req.PDUSessionID, req.DNN, req.Snssai, req.RequestType, req.N1SmMsg
+
 	s.CreateSmContextCalls = append(s.CreateSmContextCalls, SmfCreateSmContextCall{
 		Supi:         supi,
 		PduSessionID: pduSessionID,
@@ -358,7 +360,7 @@ func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string)
 	return false, s.Error
 }
 
-func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai, _ models.SessionUEInfo) (string, []byte, []uint8, error) {
+func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ models.SessionTransferRequest) (string, []byte, []uint8, error) {
 	return "", nil, nil, nil
 }
 
@@ -381,7 +383,9 @@ type idleTransfer struct {
 	Snssai            *models.Snssai
 }
 
-func (s *fakeSmf) TransferIdleTo5GS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, _ models.SessionUEInfo) (string, []uint8, error) {
+func (s *fakeSmf) TransferIdleTo5GS(_ context.Context, req models.SessionTransferRequest) (string, []uint8, error) {
+	supi, pduSessionID, epsBearerIdentity, dnn, snssai := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai
+
 	s.IdleTransfers = append(s.IdleTransfers, idleTransfer{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,

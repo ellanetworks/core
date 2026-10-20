@@ -295,22 +295,15 @@ func (bpfObjects *BpfObjects) ReadUrr(seid uint64, id uint32) ([]N3N6EntrypointU
 	return perCPU, nil
 }
 
-type urrFirstPacketArgs struct {
-	Seid          uint64
-	UrrID         uint32
-	NrCPUs        uint32
-	FirstPacketNs uint64
-}
-
 func (bpfObjects *BpfObjects) TakeUrrFirstPacket(seid uint64, id uint32) (uint64, error) {
 	cpus, err := ebpf.PossibleCPU()
 	if err != nil {
 		return 0, fmt.Errorf("possible CPUs: %w", err)
 	}
 
-	args := urrFirstPacketArgs{Seid: seid, UrrID: id, NrCPUs: uint32(cpus)}
+	args := UrrFirstPacketUrrFirstPacketArgs{Seid: seid, UrrId: id, NrCpus: uint32(cpus)}
 
-	ret, err := bpfObjects.UrrFirstPacketFunc.Run(&ebpf.RunOptions{Context: args, ContextOut: &args})
+	ret, err := bpfObjects.urrFirstPacket.UrrFirstPacketFunc.Run(&ebpf.RunOptions{Context: args, ContextOut: &args})
 	if err != nil {
 		return 0, fmt.Errorf("take the first packet time of URR %d: %w", id, err)
 	}

@@ -54,7 +54,7 @@ func TestHandoverCompleteAfterAnIdleMoveIsRefused(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G, models.SessionUEInfo{})
+	ref, err := s.TransferIdle(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: movedPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai}, smf.Access5G)
 	if err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}

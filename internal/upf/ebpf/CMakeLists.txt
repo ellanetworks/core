@@ -17,6 +17,8 @@ add_library(n3n6entrypoint OBJECT bpf/n3n6_bpf.c)
 add_library(n3n6entrypoint_tc OBJECT bpf/n3n6_bpf.c)
 target_compile_definitions(n3n6entrypoint_tc PRIVATE CTX_TC)
 
+add_library(urrfirstpacket OBJECT bpf/urr_first_packet_bpf.c)
+
 add_custom_command(OUTPUT n3n6entrypoint_bpf.o
 	COMMAND bpftool gen object n3n6entrypoint_bpf.o n3n6entrypoint.o
 	DEPENDS n3n6entrypoint.o

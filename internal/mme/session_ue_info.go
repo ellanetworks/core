@@ -41,11 +41,24 @@ func (ue *UeContext) ReleaseUEInfo() models.SessionUEInfoUpdate {
 	return models.LocationUpdate(ue.GetUserLocation(), time.Now())
 }
 
-func (m *MME) reportLocationChange(ctx context.Context, ue *UeContext, loc models.UserLocation) {
+func (m *MME) reportLocationChange(ctx context.Context, ue *UeContext) {
 	if m == nil || m.Session == nil || !ue.Supi().IsValid() {
 		return
 	}
 
-	rat := models.RATTypeEUTRA
-	m.Session.UpdateEPSUEInfo(ctx, ue.Supi(), models.SessionUEInfoUpdate{Location: &loc, RATType: &rat})
+	update := models.LocationUpdate(ue.GetUserLocation(), time.Now())
+	if update.Location == nil {
+		return
+	}
+
+	m.Session.UpdateEPSUEInfo(ctx, ue.Supi(), update)
+}
+
+func (m *MME) ReportPEI(ctx context.Context, ue *UeContext) {
+	if m == nil || m.Session == nil || !ue.Supi().IsValid() {
+		return
+	}
+
+	pei := ue.IMEI().String()
+	m.Session.UpdateEPSUEInfo(ctx, ue.Supi(), models.SessionUEInfoUpdate{PEI: &pei})
 }

@@ -30,7 +30,6 @@ import (
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/sctp"
 	"go.opentelemetry.io/otel/trace"
@@ -50,7 +49,7 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8, ue models.SessionUEInfo) (string, []byte, error)
+	CreateSmContext(ctx context.Context, req models.SmContextCreateRequest) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
 	ReleaseSmContext(ctx context.Context, smContextRef string, release models.SessionReleaseRequest) error
@@ -62,8 +61,8 @@ type SmfSbi interface {
 	UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoNotify(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
-	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (string, []byte, []uint8, error)
-	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (string, []uint8, error)
+	PrepareSmContextFromEPS(ctx context.Context, req models.SessionTransferRequest) (string, []byte, []uint8, error)
+	TransferIdleTo5GS(ctx context.Context, req models.SessionTransferRequest) (string, []uint8, error)
 	UpdateUEInfo(ctx context.Context, supi etsi.SUPI, update models.SessionUEInfoUpdate)
 	HandoverAdmittedFlowEBIs(smContextRef string) []uint8
 	ReleaseInactiveEPSBearers(ctx context.Context, smContextRef string, ebis []uint8)

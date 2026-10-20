@@ -6,7 +6,9 @@
 package ebpf
 
 import (
+	"encoding/binary"
 	"net/netip"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -208,4 +210,74 @@ func TestQERDownlinkWindowSharedAcrossFamilies(t *testing.T) {
 		t.Errorf("IPv6 downlink packet got XDP action %d with %d rate-limit drops, want ActionDrop (%d) with 1: the two families are drawing on separate windows, so the session receives twice its downlink AMBR",
 			action, got, ActionDrop)
 	}
+}
+
+func TestQERMalformedPacketSpendsNoBudget(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		rateBps  = 100_000
+		innerLen = 1250
+	)
+
+	overstateLength := func(pkt []byte) []byte {
+		pkt = slices.Clone(pkt)
+		binary.BigEndian.PutUint16(pkt[2:4], uint16(len(pkt)+100))
+		binary.BigEndian.PutUint16(pkt[10:12], 0)
+		binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+		return pkt
+	}
+
+	t.Run("uplink", func(t *testing.T) {
+		const teid = 0x51455213
+
+		obj := loadN3N6Program(t)
+		putRateLimitedUplinkPDR(t, obj, teid, rateBps)
+
+		inner := innerIPv4UDPSized([4]byte{8, 8, 8, 8}, innerLen)
+
+		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, overstateLength(inner))); action != ActionDrop || DropCount(obj, Uplink, "malformed_header") != 1 {
+			t.Fatalf("malformed uplink packet got XDP action %d with %d malformed_header drops, want ActionDrop (%d) with 1",
+				action, DropCount(obj, Uplink, "malformed_header"), ActionDrop)
+		}
+
+		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action == ActionDrop {
+			t.Fatalf("first well-formed uplink packet was dropped, %d as qer_rate_limit: the malformed packet spent the window",
+				DropCount(obj, Uplink, "qer_rate_limit"))
+		}
+	})
+
+	t.Run("downlink", func(t *testing.T) {
+		const (
+			teid = 0x51455214
+			qfi  = 3
+		)
+
+		obj := loadProgram(t, 1, 0)
+
+		ueIP := [4]byte{10, 45, 0, 3}
+
+		pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+		pdr.SEID = 0x0BADCAFF
+		pdr.QerID = 8
+		pdr.Qer.MaxBitrateDL = rateBps
+		pdr.Qer.AveragingWindowMs = uint32(qerWindow / time.Millisecond)
+
+		if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+			t.Fatalf("install IPv4 downlink PDR: %v", err)
+		}
+
+		pkt := ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 53, make([]byte, innerLen-20-8)))
+
+		if action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, overstateLength(pkt))); action != ActionDrop || DropCount(obj, Downlink, "malformed_header") != 1 {
+			t.Fatalf("malformed downlink packet got XDP action %d with %d malformed_header drops, want ActionDrop (%d) with 1",
+				action, DropCount(obj, Downlink, "malformed_header"), ActionDrop)
+		}
+
+		if action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, pkt)); action == ActionDrop {
+			t.Fatalf("first well-formed downlink packet was dropped, %d as qer_rate_limit: the malformed packet spent the window",
+				DropCount(obj, Downlink, "qer_rate_limit"))
+		}
+	})
 }

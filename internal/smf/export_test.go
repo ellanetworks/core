@@ -142,3 +142,5 @@ func SessionReleasesForTest(rat string, reason models.SessionReleaseReason) floa
 
 	return m.GetCounter().GetValue()
 }
+
+func (s *SMF) RefreshTimeZoneForTest(now time.Time) { s.refreshTimeZone(now) }

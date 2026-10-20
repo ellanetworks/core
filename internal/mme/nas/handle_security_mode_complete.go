@@ -36,7 +36,10 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		}
 	}
 
-	ue.MarkSecured(pei)
+	if ue.MarkSecured(pei) {
+		m.ReportPEI(ctx, ue)
+	}
+
 	ue.PinKeNBFreshness()
 
 	if len(smc.ReplayedNASMessageContainer) > 0 {

@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/sctp"
 )
@@ -100,7 +99,7 @@ type SmfPrepareFromEPSCall struct {
 	Snssai            *models.Snssai
 }
 
-func (f *fakeSmfSbi) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []uint8, error) {
+func (f *fakeSmfSbi) TransferIdleTo5GS(_ context.Context, _ models.SessionTransferRequest) (string, []uint8, error) {
 	return "", nil, nil
 }
 
@@ -108,7 +107,9 @@ func (f *fakeSmfSbi) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
 
 func (f *fakeSmfSbi) ReleaseInactiveEPSBearers(context.Context, string, []uint8) {}
 
-func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, _ models.SessionUEInfo) (string, []byte, []uint8, error) {
+func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, req models.SessionTransferRequest) (string, []byte, []uint8, error) {
+	supi, pduSessionID, epsBearerIdentity, dnn, snssai := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai
+
 	f.PrepareFromEPSCalls = append(f.PrepareFromEPSCalls, &SmfPrepareFromEPSCall{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,
@@ -174,7 +175,7 @@ func (f *fakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef stri
 	return nil, nil
 }
 
-func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, _ uint8, _ models.SessionUEInfo) (string, []byte, error) {
+func (f *fakeSmfSbi) CreateSmContext(context.Context, models.SmContextCreateRequest) (string, []byte, error) {
 	return "", nil, nil
 }
 

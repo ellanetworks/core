@@ -358,8 +358,10 @@ func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref str
 	return nil
 }
 
-func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, _ models.SessionUEInfo) (models.EPSBearer, error) {
-	bearer, err := f.fakeSessionManager.TransferIdleToEPS(ctx, supi, pduSessionID, epsBearerIdentity, dnn, snssai, models.SessionUEInfo{})
+func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, req models.SessionTransferRequest) (models.EPSBearer, error) {
+	supi, pduSessionID, epsBearerIdentity, dnn, snssai := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai
+
+	bearer, err := f.fakeSessionManager.TransferIdleToEPS(ctx, models.SessionTransferRequest{SUPI: supi, PDUSessionID: pduSessionID, EPSBearerIdentity: epsBearerIdentity, DNN: dnn, Snssai: snssai})
 	if err != nil {
 		return models.EPSBearer{}, err
 	}

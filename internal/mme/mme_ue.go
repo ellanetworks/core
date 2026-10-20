@@ -312,15 +312,36 @@ func (ue *UeContext) Connected() bool {
 }
 
 // MarkSecured records the IMEI (when reported) and flags the NAS security context established.
-func (ue *UeContext) MarkSecured(imei etsi.IMEI) {
+func (ue *UeContext) MarkSecured(imei etsi.IMEI) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if imei.IsSet() {
+	changed := imei.IsSet() && imei != ue.Imei
+	if changed {
 		ue.Imei = imei
 	}
 
 	ue.secured = true
+
+	return changed
+}
+
+func (ue *UeContext) IMEI() etsi.IMEI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.Imei
+}
+
+func (ue *UeContext) AdoptIMEI(imei etsi.IMEI) {
+	if !imei.IsSet() {
+		return
+	}
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.Imei = imei
 }
 
 // UESnapshot is a read-only, point-in-time copy of a UE's identity and NAS
@@ -697,7 +718,7 @@ func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
 	m.reportDedicatedLosses(ctx, losses)
 
 	if moved {
-		m.reportLocationChange(ctx, ue, ue.GetUserLocation())
+		m.reportLocationChange(ctx, ue)
 	}
 
 	if superseded != nil {

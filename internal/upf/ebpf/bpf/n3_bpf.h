@@ -234,9 +234,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
-	const __u64 packet_size = ctx_len_from(
-		ctx->ctx_buff, ctx->data_end,
-		ctx->ip4 ? (const void *)ctx->ip4 : (const void *)ctx->ip6);
+	const __u64 billed_bytes = urr_packet_len(ctx);
+	if (!billed_bytes)
+		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	{
 		enum ctx_action sdf_verdict =
@@ -272,7 +272,7 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		if (window &&
 		    CTX_ACT_DROP ==
 			    limit_rate_sliding_window(
-				    packet_size, &window->dl_start,
+				    billed_bytes, &window->dl_start,
 				    sel->target.qer.dl_maximum_bitrate,
 				    sel->target.qer.averaging_window_ms)) {
 			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
@@ -281,9 +281,6 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
-	const __u64 billed_bytes = urr_packet_len(ctx);
-	if (!billed_bytes)
-		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, ctx->ip4 ? IPV4 : IPV6,
 		     FLOW_DOWNLINK, ALLOW);
@@ -293,10 +290,11 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 
 	if (ctx_action_forwards(tunnel_ret)) {
 		ctx->statistics->byte_counter.bytes += frame_bytes;
+		const __u64 now = bpf_ktime_get_boot_ns();
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
-				 billed_bytes, URR_DOWNLINK);
+				 billed_bytes, now, URR_DOWNLINK);
 		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
-				 billed_bytes, URR_UPLINK);
+				 billed_bytes, now, URR_UPLINK);
 	}
 
 	return tunnel_ret;
@@ -650,9 +648,6 @@ handle_gtp_packet(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_DECAP_GSO);
 	}
 
-	const __u64 qer_packet_size =
-		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
-
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
@@ -750,6 +745,10 @@ handle_gtp_packet(struct packet_context *ctx)
 	}
 	PROFILE_END(PROF_N3_GTP_MANIP);
 
+	const __u64 billed_bytes = urr_packet_len(ctx);
+	if (!billed_bytes)
+		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
+
 	/* Without decapsulation the context still holds the tunnel headers,
 	 * whose addresses and ports are the UPF's and its peer's. */
 	if (!ctx->gtp) {
@@ -783,7 +782,7 @@ handle_gtp_packet(struct packet_context *ctx)
 
 				enum ctx_action qer_verdict = enforce_uplink_qer(
 					ctx, pdr->local_seid, qer_id,
-					&sel->target.qer, qer_packet_size);
+					&sel->target.qer, billed_bytes);
 				if (qer_verdict != CTX_ACT_OK) {
 					PROFILE_END(PROF_N3_SDF_FILTER);
 					return qer_verdict;
@@ -802,7 +801,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_START(PROF_N3_QER_RATELIMIT);
 		enum ctx_action qer_verdict =
 			enforce_uplink_qer(ctx, pdr->local_seid, pdr->qer_id,
-					   &pdr->qer, qer_packet_size);
+					   &pdr->qer, billed_bytes);
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
 		if (qer_verdict != CTX_ACT_OK)
 			return qer_verdict;
@@ -834,9 +833,6 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	/* Before routing resizes the frame. */
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
-	const __u64 billed_bytes = urr_packet_len(ctx);
-	if (!billed_bytes)
-		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =
@@ -859,7 +855,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (ctx_action_forwards(fib_ret)) {
 			ctx->statistics->byte_counter.bytes += frame_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
-					 billed_bytes, URR_UPLINK);
+					 billed_bytes, bpf_ktime_get_boot_ns(),
+					 URR_UPLINK);
 		}
 
 		return fib_ret;
@@ -873,7 +870,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (ctx_action_forwards(fib_ret)) {
 			ctx->statistics->byte_counter.bytes += frame_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
-					 billed_bytes, URR_UPLINK);
+					 billed_bytes, bpf_ktime_get_boot_ns(),
+					 URR_UPLINK);
 		}
 
 		return fib_ret;

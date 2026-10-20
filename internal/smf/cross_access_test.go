@@ -18,7 +18,7 @@ func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
+	ref, rejectN1, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 5, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest()})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestCreateEPSSessionKeeps5GSessionWithSameID(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
+	ref5g, rejectN1, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 5, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest()})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestCreateSmContextKeepsEPSSessionWithSameID(t *testing.T) {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
+	ref5g, rejectN1, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 5, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest()})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestLeaseKeysDistinctAcrossAccesses(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil {
+	if _, _, err := s.CreateSmContext(ctx, models.SmContextCreateRequest{SUPI: testSUPI(), PDUSessionID: 5, DNN: testDNN, Snssai: testSnssai, RequestType: fgs.RequestTypeInitialRequest, N1SmMsg: buildPDUSessionEstRequest()}); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 

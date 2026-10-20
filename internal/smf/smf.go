@@ -175,6 +175,7 @@ type SMF struct {
 	t3592 time.Duration // network-requested release command retransmission
 
 	usage          usageLedger
+	timeZone       string
 	usageConsumers []usageConsumer
 	usageFlush     chan struct{}
 	usageCancel    context.CancelFunc
@@ -248,6 +249,10 @@ func (s *SMF) AllocateSEID() uint64 {
 }
 
 func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) (*SMContext, error) {
+	return s.newSession(supi, access, id, dnn, snssai, models.SessionUEInfo{})
+}
+
+func (s *SMF) newSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (*SMContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -270,6 +275,8 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		Dnn:             dnn,
 		Snssai:          snssai,
 		Ref:             fmt.Sprintf("%s#%d", canonicalName(supi, id.sessionKey()), s.refSeq),
+		ueAccess:        access,
+		ue:              ue,
 	}
 
 	s.pool[ctx.Ref] = ctx
@@ -462,6 +469,24 @@ func (s *SMF) UpdateUEInfo(ctx context.Context, supi etsi.SUPI, update models.Se
 
 func (s *SMF) UpdateEPSUEInfo(ctx context.Context, supi etsi.SUPI, update models.SessionUEInfoUpdate) {
 	s.updateUEInfo(ctx, supi, Access4G, update)
+}
+
+func (s *SMF) refreshTimeZone(now time.Time) {
+	tz := models.LocalTimeZone(now)
+	if tz == s.timeZone {
+		return
+	}
+
+	known := s.timeZone != ""
+	s.timeZone = tz
+
+	if !known {
+		return
+	}
+
+	for _, sc := range s.pooledSessions() {
+		sc.applyUEInfo(models.SessionUEInfoUpdate{TimeZone: &tz})
+	}
 }
 
 func (s *SMF) updateUEInfo(ctx context.Context, supi etsi.SUPI, access AccessType, update models.SessionUEInfoUpdate) {

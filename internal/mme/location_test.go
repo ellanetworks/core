@@ -184,3 +184,31 @@ func TestUpdateLocationReportsOnlyACellChange(t *testing.T) {
 		t.Fatalf("last update = %+v, want the new cell on EUTRA", last)
 	}
 }
+
+func TestALearnedIMEIIsReportedOnce(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	imei, err := etsi.NewIMEIFromPEI("imeisv-3534567890123401")
+	if err != nil {
+		t.Fatalf("IMEI: %v", err)
+	}
+
+	for range 2 {
+		if ue.MarkSecured(imei) {
+			m.ReportPEI(t.Context(), ue)
+		}
+	}
+
+	var peis []string
+
+	for _, u := range m.Session.(*fakeSessionManager).ueUpdatesSnapshot() {
+		if u.PEI != nil {
+			peis = append(peis, *u.PEI)
+		}
+	}
+
+	if len(peis) != 1 || peis[0] != "imeisv-3534567890123401" {
+		t.Fatalf("PEI updates = %v, want one", peis)
+	}
+}

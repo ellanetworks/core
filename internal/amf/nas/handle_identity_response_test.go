@@ -247,7 +247,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 
 			id, err := fgs.ParseMobileIdentity(tc.mi)
 			if err == nil {
-				err = updateUEIdentity(tc.ue, id, integrityVerified)
+				err = updateUEIdentity(t.Context(), tc.ue, id, integrityVerified)
 			}
 
 			if tc.expected_err == nil && err != nil {

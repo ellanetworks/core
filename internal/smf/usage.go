@@ -21,6 +21,7 @@ import (
 
 const (
 	usageCollectionInterval = 30 * time.Second
+	timeZoneCheckInterval   = time.Minute
 	usageFlushBatchSize     = 2000
 	usageShutdownRetry      = 10 * time.Millisecond
 )
@@ -138,8 +139,15 @@ func (s *SMF) StartUsageCollection() {
 		dayEnd := time.NewTimer(time.Until(nextEpochDay(time.Now())))
 		defer dayEnd.Stop()
 
+		timeZoneCheck := time.NewTicker(timeZoneCheckInterval)
+		defer timeZoneCheck.Stop()
+
+		s.refreshTimeZone(time.Now())
+
 		for {
 			select {
+			case <-timeZoneCheck.C:
+				s.refreshTimeZone(time.Now())
 			case <-ticker.C:
 				s.collectUsage(ctx)
 			case <-dayEnd.C:

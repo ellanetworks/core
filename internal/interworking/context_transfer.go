@@ -25,6 +25,7 @@ type MMContextRequest struct {
 
 type MMContextResponse struct {
 	SUPI                etsi.SUPI
+	MEI                 etsi.IMEI
 	Security            EPSSecurityContext
 	UENetworkCapability eps.UENetworkCapability
 	PDNConnections      []PDNConnection
@@ -39,6 +40,7 @@ type EPSContextRequest struct {
 
 type EPSContextResponse struct {
 	SUPI           etsi.SUPI
+	MEI            etsi.IMEI
 	Security       EPSSecurityContext
 	PDNConnections []PDNConnection
 	AMBRUplink     models.BitRate

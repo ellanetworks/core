@@ -68,7 +68,7 @@ type ueAddresses struct {
 func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, error) {
 	dn := req.DN
 
-	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
+	sc, err := s.newSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai, req.UE)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errSessionIdentity, err)
 	}
@@ -83,8 +83,6 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 
 	// Build under the session lock so a concurrent reader for the same key never
 	// sees a half-built context.
-	sc.setUEInfo(req.Access, req.UE)
-
 	sc.Mutex.Lock()
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy

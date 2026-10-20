@@ -56,14 +56,15 @@ type SMContext struct {
 	MSISDN                  string
 	ChargingCharacteristics models.ChargingCharacteristics
 
-	ueMu       sync.Mutex
-	ueAccess   AccessType
-	ue         models.SessionUEInfo
-	uePending  *pendingUEInfo
-	Dnn        string
-	Snssai     *models.Snssai
-	Tunnel     *UPTunnel
-	PolicyData *Policy
+	ueMu        sync.Mutex
+	ueAccess    AccessType
+	ue          models.SessionUEInfo
+	ueChangedAt time.Time
+	uePending   *pendingUEInfo
+	Dnn         string
+	Snssai      *models.Snssai
+	Tunnel      *UPTunnel
+	PolicyData  *Policy
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS
@@ -158,16 +159,36 @@ func (smContext *SMContext) setUEInfo(access AccessType, info models.SessionUEIn
 	defer smContext.ueMu.Unlock()
 
 	prevAccess, prev := smContext.ueAccess, smContext.ue
+
+	if access != prevAccess || info.Update().Changes(prev) {
+		smContext.ueChangedAt = time.Now()
+	}
+
 	smContext.ueAccess, smContext.ue = access, info
 
 	return prevAccess, prev
+}
+
+func (smContext *SMContext) UEInfoChangedAt() time.Time {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	return smContext.ueChangedAt
+}
+
+func (smContext *SMContext) applyUEInfoLocked(update models.SessionUEInfoUpdate) {
+	if update.Changes(smContext.ue) {
+		smContext.ueChangedAt = time.Now()
+	}
+
+	update.ApplyTo(&smContext.ue)
 }
 
 func (smContext *SMContext) applyUEInfo(update models.SessionUEInfoUpdate) {
 	smContext.ueMu.Lock()
 	defer smContext.ueMu.Unlock()
 
-	update.ApplyTo(&smContext.ue)
+	smContext.applyUEInfoLocked(update)
 }
 
 func (smContext *SMContext) applyUEInfoOn(access AccessType, update models.SessionUEInfoUpdate) bool {
@@ -176,7 +197,7 @@ func (smContext *SMContext) applyUEInfoOn(access AccessType, update models.Sessi
 
 	switch {
 	case smContext.ueAccess == access:
-		update.ApplyTo(&smContext.ue)
+		smContext.applyUEInfoLocked(update)
 	case smContext.uePending != nil && smContext.uePending.access == access:
 		update.ApplyTo(&smContext.uePending.ue)
 	default:

@@ -90,7 +90,9 @@ func (s *SMF) transferTo5GS(
 	return sc.Ref, nil, nil
 }
 
-func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (ref string, n2 []byte, flowEBIs []uint8, err error) {
+func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, req models.SessionTransferRequest) (ref string, n2 []byte, flowEBIs []uint8, err error) {
+	supi, pduSessionID, epsBearerIdentity, dnn, snssai, ue := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai, req.UE
+
 	defer func() {
 		recordSessionEstablishment(ctx, metrics.RAT5G, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()

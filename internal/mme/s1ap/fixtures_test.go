@@ -134,7 +134,9 @@ func (f *fakeSessionManager) failModify(ebi uint8, err error) {
 	f.modifyErr[ebi] = err
 }
 
-func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, _ etsi.SUPI, pduSessionID, _ uint8, _ string, snssai *models.Snssai, _ models.SessionUEInfo) (models.EPSBearer, error) {
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, req models.SessionTransferRequest) (models.EPSBearer, error) {
+	pduSessionID, snssai := req.PDUSessionID, req.Snssai
+
 	return models.EPSBearer{
 		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
 		PDNType:      eps.PDNTypeIPv4,

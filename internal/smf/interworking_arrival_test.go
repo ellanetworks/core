@@ -82,7 +82,7 @@ func handOverTo5GS(t *testing.T, c arrivingCall, admitted ...uint8) {
 
 	ctx := context.Background()
 
-	ref, n2, flowEBIs, err := c.s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
+	ref, n2, flowEBIs, err := c.s.PrepareSmContextFromEPS(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: arrivingPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai})
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestPreparedHandoverFromEPSReportsTheAdmittedFlowEBIs(t *testing.T) {
 	c := epsCallForArrival(t)
 	ctx := context.Background()
 
-	ref, _, _, err := c.s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
+	ref, _, _, err := c.s.PrepareSmContextFromEPS(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: arrivingPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai})
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestIdleMoveTo5GSKeepsTheVoiceFlow(t *testing.T) {
 	c := epsCallForArrival(t)
 	ctx := context.Background()
 
-	ref, flowEBIs, err := c.s.TransferIdleTo5GS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
+	ref, flowEBIs, err := c.s.TransferIdleTo5GS(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: arrivingPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai})
 	if err != nil {
 		t.Fatalf("TransferIdleTo5GS: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestEPSBearerReportedInactiveReleasesTheFlow(t *testing.T) {
 	c := epsCallForArrival(t)
 	ctx := context.Background()
 
-	ref, _, err := c.s.TransferIdleTo5GS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
+	ref, _, err := c.s.TransferIdleTo5GS(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: arrivingPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai})
 	if err != nil {
 		t.Fatalf("TransferIdleTo5GS: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestBearerWithoutItsFiveGSQoSStaysInEPS(t *testing.T) {
 
 	c.s.DedicatedBearerWithoutFiveGSQoS(ctx, c.sc.Ref, c.sgw)
 
-	_, n2, flowEBIs, err := c.s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
+	_, n2, flowEBIs, err := c.s.PrepareSmContextFromEPS(ctx, models.SessionTransferRequest{SUPI: testSUPI(), PDUSessionID: arrivingPDUSessionID, EPSBearerIdentity: epsTestEBI, DNN: testDNN, Snssai: testSnssai})
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}

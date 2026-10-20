@@ -425,7 +425,6 @@ const (
 	N3N6EntrypointProgUpfGtpuControlFunc = "upf_gtpu_control_func"
 	N3N6EntrypointProgUpfLocalSwitchFunc = "upf_local_switch_func"
 	N3N6EntrypointProgUpfUplinkFunc      = "upf_uplink_func"
-	N3N6EntrypointProgUrrFirstPacketFunc = "urr_first_packet_func"
 	N3N6EntrypointProgVethXdpFunc        = "veth_xdp_func"
 	N3N6EntrypointVarBufferVethIfindex   = "buffer_veth_ifindex"
 	N3N6EntrypointVarFlowact             = "flowact"
@@ -488,7 +487,6 @@ type N3N6EntrypointProgramSpecs struct {
 	UpfGtpuControlFunc *ebpf.ProgramSpec `ebpf:"upf_gtpu_control_func"`
 	UpfLocalSwitchFunc *ebpf.ProgramSpec `ebpf:"upf_local_switch_func"`
 	UpfUplinkFunc      *ebpf.ProgramSpec `ebpf:"upf_uplink_func"`
-	UrrFirstPacketFunc *ebpf.ProgramSpec `ebpf:"urr_first_packet_func"`
 	VethXdpFunc        *ebpf.ProgramSpec `ebpf:"veth_xdp_func"`
 }
 
@@ -666,7 +664,6 @@ type N3N6EntrypointPrograms struct {
 	UpfGtpuControlFunc *ebpf.Program `ebpf:"upf_gtpu_control_func"`
 	UpfLocalSwitchFunc *ebpf.Program `ebpf:"upf_local_switch_func"`
 	UpfUplinkFunc      *ebpf.Program `ebpf:"upf_uplink_func"`
-	UrrFirstPacketFunc *ebpf.Program `ebpf:"urr_first_packet_func"`
 	VethXdpFunc        *ebpf.Program `ebpf:"veth_xdp_func"`
 }
 
@@ -677,7 +674,6 @@ func (p *N3N6EntrypointPrograms) Close() error {
 		p.UpfGtpuControlFunc,
 		p.UpfLocalSwitchFunc,
 		p.UpfUplinkFunc,
-		p.UrrFirstPacketFunc,
 		p.VethXdpFunc,
 	)
 }

@@ -441,11 +441,15 @@ func (a *AMF) FinishHandoverCommit(ctx context.Context, ue *UeContext, targetUe 
 
 	ue.handover = nil
 	// The source connection is managed by the handover flow, not released here.
-	_ = a.attachUeConnLocked(ctx, ue, targetUe)
+	_, moved := a.attachUeConnLocked(ctx, ue, targetUe)
 
 	targetUe.MarkICSCompleted()
 
 	a.mu.Unlock()
+
+	if moved {
+		ue.ReportLocationChange(ctx)
+	}
 
 	ue.EndKeyChainProc(procedure.N2Handover)
 

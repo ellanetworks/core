@@ -57,7 +57,9 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		ue.SetImei(pei)
+		if ue.SetImei(pei) {
+			ue.ReportPEIChange(ctx)
+		}
 	}
 
 	if msg.NASMessageContainer != nil {

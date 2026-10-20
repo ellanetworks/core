@@ -115,7 +115,7 @@ func (f *fakeSmf) deactivated() []string {
 func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
 func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
 func (f *fakeSmf) SessionCount() int                     { return 0 }
-func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8, models.SessionUEInfo) (string, []byte, error) {
+func (f *fakeSmf) CreateSmContext(_ context.Context, _ models.SmContextCreateRequest) (string, []byte, error) {
 	return "", nil, nil
 }
 func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error) { return nil, nil }
@@ -163,11 +163,11 @@ func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, str
 	return nil, nil
 }
 
-func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []uint8, error) {
+func (f *fakeSmf) TransferIdleTo5GS(_ context.Context, _ models.SessionTransferRequest) (string, []uint8, error) {
 	return "", nil, nil
 }
 
-func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []byte, []uint8, error) {
+func (f *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ models.SessionTransferRequest) (string, []byte, []uint8, error) {
 	return "", nil, nil, nil
 }
 

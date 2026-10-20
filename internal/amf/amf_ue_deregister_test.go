@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -42,7 +41,7 @@ func (s *deregisterTestSmf) SessionsByDNN(string) []*smf.SMContext { return nil 
 
 func (s *deregisterTestSmf) SessionCount() int { return 0 }
 
-func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8, models.SessionUEInfo) (string, []byte, error) {
+func (s *deregisterTestSmf) CreateSmContext(_ context.Context, _ models.SmContextCreateRequest) (string, []byte, error) {
 	return "", nil, nil
 }
 
@@ -99,11 +98,11 @@ func (s *deregisterTestSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Co
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []uint8, error) {
+func (s *deregisterTestSmf) TransferIdleTo5GS(_ context.Context, _ models.SessionTransferRequest) (string, []uint8, error) {
 	return "", nil, nil
 }
 
-func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []byte, []uint8, error) {
+func (s *deregisterTestSmf) PrepareSmContextFromEPS(_ context.Context, _ models.SessionTransferRequest) (string, []byte, []uint8, error) {
 	return "", nil, nil, nil
 }
 
@@ -448,7 +447,7 @@ func TestALocationChangeIsReportedToTheSMFOnce(t *testing.T) {
 
 	for _, loc := range []models.UserLocation{cell("000000001"), cell("000000001"), cell("000000002")} {
 		if ue.SetLocation(loc, tai) {
-			ue.ReportLocationChange(context.Background(), loc)
+			ue.ReportLocationChange(context.Background())
 		}
 	}
 
@@ -458,5 +457,51 @@ func TestALocationChangeIsReportedToTheSMFOnce(t *testing.T) {
 
 	if rat := fakeSmf.ueUpdates[1].RATType; rat == nil || *rat != models.RATTypeNR {
 		t.Fatalf("RAT type = %v, want NR", rat)
+	}
+}
+
+func TestALearnedPEIIsReportedOnceAndAnEmptyLocationNever(t *testing.T) {
+	ue := NewUeContext()
+	fakeSmf := &deregisterTestSmf{}
+	ue.smf = fakeSmf
+
+	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
+	if err != nil {
+		t.Fatalf("SUPI: %v", err)
+	}
+
+	ue.supi = supi
+
+	imei, err := etsi.NewIMEIFromPEI("imeisv-3534567890123401")
+	if err != nil {
+		t.Fatalf("IMEI: %v", err)
+	}
+
+	for range 2 {
+		if ue.SetImei(imei) {
+			ue.ReportPEIChange(context.Background())
+		}
+	}
+
+	if ue.SetLocation(models.UserLocation{}, models.Tai{}) {
+		ue.ReportLocationChange(context.Background())
+	}
+
+	if len(fakeSmf.ueUpdates) != 1 || fakeSmf.ueUpdates[0].PEI == nil || *fakeSmf.ueUpdates[0].PEI != "imeisv-3534567890123401" {
+		t.Fatalf("UE information updates = %+v, want only the PEI once", fakeSmf.ueUpdates)
+	}
+}
+
+func TestAnN3IWFLocationIsPublishedOnBind(t *testing.T) {
+	ue := NewUeContext()
+	conn := &UeConn{}
+	conn.Location = models.UserLocation{N3gaLocation: &models.N3gaLocation{UeIpv4Addr: "192.0.2.1"}}
+
+	if !conn.PublishLocation(ue) {
+		t.Fatal("an N3IWF location was not published")
+	}
+
+	if loc := ue.GetUserLocation(); loc.N3gaLocation == nil {
+		t.Fatalf("UE location = %+v, want the N3IWF location", loc)
 	}
 }

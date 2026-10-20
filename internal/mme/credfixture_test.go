@@ -102,7 +102,9 @@ type idleEPSTransfer struct {
 	Snssai            *models.Snssai
 }
 
-func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, _ models.SessionUEInfo) (models.EPSBearer, error) {
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, req models.SessionTransferRequest) (models.EPSBearer, error) {
+	supi, pduSessionID, epsBearerIdentity, dnn, snssai := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai
+
 	f.idleTransfers = append(f.idleTransfers, idleEPSTransfer{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,

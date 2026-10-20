@@ -64,7 +64,7 @@ func (c *UeConn) UpdateLocation(ctx context.Context, cgi s1ap.EUTRANCGI, tai s1a
 	c.locMu.Unlock()
 
 	if moved {
-		c.m.reportLocationChange(ctx, ue, loc)
+		c.m.reportLocationChange(ctx, ue)
 	}
 }
 

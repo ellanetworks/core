@@ -45,6 +45,7 @@ func (a *AMF) AdoptMMContext(ctx context.Context, ue *UeContext, resp interworki
 	}
 
 	ue.SetSupi(resp.SUPI)
+	ue.AdoptImei(resp.MEI)
 	ue.SetAmbr(&models.Ambr{Uplink: resp.AMBRUplink, Downlink: resp.AMBRDownlink})
 
 	if _, ok := ue.EPSNetworkCapability(); !ok {
