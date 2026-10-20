@@ -343,8 +343,8 @@ func TestActiveBearerCarriesItsDownlink(t *testing.T) {
 		t.Fatalf("UPF modification %+v carries no downlink PDR for the active bearer", m.UpdatePDRs)
 	}
 
-	if pdr.QERID != bearerUplinkPDRs(m)[0].QERID || pdr.URRID != 2 || pdr.Precedence != 32 || len(pdr.PDI.SDFFilters) != 1 || pdr.PDI.SDFFilters[0].Direction != models.FilterDownlink {
-		t.Fatalf("bearer downlink PDR %+v, want the rule's QER, URR 2, precedence 32 and the downlink filter", pdr)
+	if pdr.QERID != bearerUplinkPDRs(m)[0].QERID || pdr.URRID != bearerUplinkPDRs(m)[0].URRID || pdr.URRID == 1 || pdr.Precedence != 32 || len(pdr.PDI.SDFFilters) != 1 || pdr.PDI.SDFFilters[0].Direction != models.FilterDownlink {
+		t.Fatalf("bearer downlink PDR %+v, want the rule's QER, the bearer's own URR shared with its uplink, precedence 32 and the downlink filter", pdr)
 	}
 
 	ohc := far.ForwardingParameters.OuterHeaderCreation
@@ -893,4 +893,83 @@ func enforcesPeer(m *models.ModifyRequest, peer netip.Prefix) bool {
 	return slices.ContainsFunc(m.UpdatePDRs, func(p models.PDR) bool {
 		return slices.ContainsFunc(p.PDI.SDFFilters, func(f models.SDFFilter) bool { return f.Remote == peer })
 	})
+}
+
+func TestEachBearerAndRatingGroupGetsItsOwnURR(t *testing.T) {
+	s, _, upf, _, ref := epsReconcileFixture(t, 0)
+
+	voice := voiceRule()
+	voice.RatingGroup = 20
+
+	video := secondCallRule()
+	video.RatingGroup = 30
+
+	pushRules(t, s, ref, voice, video)
+
+	m := lastModify(t, upf)
+
+	urrOf := func(rule smf.PCCRule) uint32 {
+		for _, p := range bearerUplinkPDRs(m) {
+			if slices.ContainsFunc(p.PDI.SDFFilters, func(f models.SDFFilter) bool { return f.RemotePort == rule.Filters[1].RemotePort }) {
+				return p.URRID
+			}
+		}
+
+		t.Fatalf("no uplink PDR for rule %s in %+v", rule.ID, m.UpdatePDRs)
+
+		return 0
+	}
+
+	voiceURR, videoURR := urrOf(voice), urrOf(video)
+	if voiceURR == videoURR || voiceURR == 1 || videoURR == 1 {
+		t.Fatalf("voice URR %d and video URR %d, want one URR per rating group on the bearer, apart from the default rule's", voiceURR, videoURR)
+	}
+
+	var ids []uint32
+	for _, u := range m.UpdateURRs {
+		ids = append(ids, u.URRID)
+	}
+
+	if !slices.Contains(ids, 1) || !slices.Contains(ids, voiceURR) || !slices.Contains(ids, videoURR) || len(ids) != 3 {
+		t.Fatalf("URRs %v, want the default rule's and one per rating group", ids)
+	}
+}
+
+func TestReleasedBearerDeliversItsURRFinalReport(t *testing.T) {
+	s, _, upf, _, ref := epsReconcileFixture(t, 0)
+	ctx := context.Background()
+	observed := s.ObserveUsageForTest()
+
+	voice := voiceRule()
+	voice.RatingGroup = 20
+
+	pushRules(t, s, ref, voice)
+
+	if err := s.DedicatedBearerActivated(ctx, ref, dedicatedUplinkTEID, 6, models.FTEID{TEID: 0x66, Addr: netip.MustParseAddr("10.3.0.3")}); err != nil {
+		t.Fatalf("DedicatedBearerActivated: %v", err)
+	}
+
+	bearerURR := bearerUplinkPDRs(lastModify(t, upf))[0].URRID
+	seid := s.GetSession(ref).PFCPContext.SEID
+
+	upf.countURR(seid, bearerURR, 10, 20)
+	upf.count(seid, 1, 1)
+
+	s.DedicatedBearerReleased(ctx, ref, dedicatedUplinkTEID)
+
+	m := lastModify(t, upf)
+	if !slices.Contains(m.RemoveURRs, bearerURR) || slices.Contains(m.RemoveURRs, 1) {
+		t.Fatalf("removed URRs %v, want the released bearer's URR %d only", m.RemoveURRs, bearerURR)
+	}
+
+	got := observed()
+	if len(got) != 1 {
+		t.Fatalf("observed %+v, want the released bearer's final report", got)
+	}
+
+	u := got[0]
+	if !u.Dedicated || u.RatingGroup != 20 || u.Report.URRID != bearerURR || u.Report.Trigger != models.UsageTriggerTermination ||
+		u.Report.UplinkVolume != 10 || u.Report.DownlinkVolume != 20 {
+		t.Fatalf("observed %+v, want a termination report of 10/20 for the bearer's rating group 20", u)
+	}
 }

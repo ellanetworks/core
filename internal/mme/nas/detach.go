@@ -20,7 +20,7 @@ import (
 // Release Complete has nothing left to buffer for paging.
 func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
-		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseDeregistration))
+		m.ReleasePDN(ctx, ue, p, ue.NetworkDetachOr(models.ReleaseFor(models.ReleaseDeregistration)))
 	}
 }
 

@@ -94,7 +94,7 @@ type PdnConnection struct {
 	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
 
-	deactivationCause models.SessionReleaseCause
+	deactivationCause models.SessionReleaseRequest
 
 	ESM        ESMState
 	activation *pdnActivation
@@ -129,7 +129,7 @@ type PendingPDNConnectivity struct {
 type UeContext struct {
 	active atomic.Pointer[UeConn]
 
-	sessionReleaseCause models.SessionReleaseCause
+	networkDetach *models.SessionReleaseRequest
 
 	supi                     etsi.SUPI
 	Imei                     etsi.IMEI // IMEI/IMEISV equipment identity (TS 24.301; 5G PEI, TS 23.501 §5.9.3)
@@ -284,7 +284,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	if superseded {
 		logger.MmeLog.Info("CommitUEIdentity superseding prior UE context; releasing its EPS sessions",
 			logger.SUPI(supi.String()))
-		m.ReleaseAllSessions(ctx, old, models.ReleaseCause(models.ReleaseDeregistration))
+		m.ReleaseAllSessions(ctx, old, models.ReleaseFor(models.ReleaseDeregistration))
 	}
 
 	return nil
@@ -1149,27 +1149,25 @@ func (m *MME) lookupBearerUe(imsi string) (*UeContext, bool) {
 	return nil, false
 }
 
-func (ue *UeContext) recordSessionReleaseCause(cause models.SessionReleaseCause) {
+func (ue *UeContext) startNetworkDetach(release models.SessionReleaseRequest) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if ue.sessionReleaseCause.Reason == "" {
-		ue.sessionReleaseCause = cause
-	}
+	ue.networkDetach = &release
 }
 
-func (ue *UeContext) sessionReleaseCauseOr(cause models.SessionReleaseCause) models.SessionReleaseCause {
+func (ue *UeContext) NetworkDetachOr(fallback models.SessionReleaseRequest) models.SessionReleaseRequest {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if ue.sessionReleaseCause.Reason != "" {
-		return ue.sessionReleaseCause
+	if ue.networkDetach == nil {
+		return fallback
 	}
 
-	return cause
+	return *ue.networkDetach
 }
 
-func (ue *UeContext) DeactivationCause(p *PdnConnection) models.SessionReleaseCause {
+func (ue *UeContext) DeactivationCause(p *PdnConnection) models.SessionReleaseRequest {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 

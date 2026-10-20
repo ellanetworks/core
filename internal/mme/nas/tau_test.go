@@ -246,7 +246,7 @@ func TestTrackingAreaUpdateReportsALocalDeactivation(t *testing.T) {
 	m.AddDefaultPDN(ue)
 
 	dropped := ue.EnsurePDN(6)
-	m.ReleasePDN(context.Background(), ue, dropped, models.ReleaseCause(models.ReleaseUERequested))
+	m.ReleasePDN(context.Background(), ue, dropped, models.ReleaseFor(models.ReleaseUERequested))
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 
@@ -277,7 +277,7 @@ func TestTrackingAreaUpdateReportsALocalDeactivationOnce(t *testing.T) {
 	m.AddDefaultPDN(ue)
 
 	dropped := ue.EnsurePDN(6)
-	m.ReleasePDN(context.Background(), ue, dropped, models.ReleaseCause(models.ReleaseUERequested))
+	m.ReleasePDN(context.Background(), ue, dropped, models.ReleaseFor(models.ReleaseUERequested))
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 

@@ -38,18 +38,20 @@ type PolicyDecision struct {
 	Var5qi      int32
 	Arp         int32
 	SessionAMBR models.Ambr
+	RatingGroup uint32
 	Rules       []PCCRule
 }
 
 type PCCRule struct {
-	ID      string
-	Version uint64
-	QCI     uint8
-	ARP     models.Arp
-	MBR     models.Ambr
-	GBR     models.Ambr
-	Gate    models.GateStatus
-	Filters []models.SDFFilter
+	ID          string
+	Version     uint64
+	QCI         uint8
+	ARP         models.Arp
+	MBR         models.Ambr
+	GBR         models.Ambr
+	Gate        models.GateStatus
+	RatingGroup uint32
+	Filters     []models.SDFFilter
 }
 
 type PCF interface {
@@ -143,15 +145,17 @@ func dataNetworkPolicy(c DataNetworkConfig) *Policy {
 func applyDecision(p *Policy, d *PolicyDecision) {
 	p.PolicyID = d.PolicyID
 	p.Ambr = d.SessionAMBR
+	p.RatingGroup = d.RatingGroup
 	p.QosData = models.QosData{QFI: models.DefaultQFI, Var5qi: d.Var5qi, Arp: &models.Arp{PriorityLevel: d.Arp}}
 }
 
 func (d *PolicyDecision) sameSessionPolicy(o *PolicyDecision) bool {
 	return d.PolicyID == o.PolicyID && d.Var5qi == o.Var5qi && d.Arp == o.Arp &&
-		d.SessionAMBR.Equal(o.SessionAMBR)
+		d.SessionAMBR.Equal(o.SessionAMBR) && d.RatingGroup == o.RatingGroup
 }
 
 func (r PCCRule) Equal(o PCCRule) bool {
 	return r.ID == o.ID && r.Version == o.Version && r.QCI == o.QCI && r.ARP == o.ARP &&
-		r.MBR.Equal(o.MBR) && r.GBR.Equal(o.GBR) && r.Gate == o.Gate && slices.Equal(r.Filters, o.Filters)
+		r.MBR.Equal(o.MBR) && r.GBR.Equal(o.GBR) && r.Gate == o.Gate && r.RatingGroup == o.RatingGroup &&
+		slices.Equal(r.Filters, o.Filters)
 }

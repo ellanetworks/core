@@ -272,15 +272,26 @@ func (b *BufferResponder) Close() error {
 	}
 	b.mu.Unlock()
 
-	if b.vethLink != nil {
-		_ = b.vethLink.Close()
-	}
+	_ = b.detach()
 
 	if err := destroyVethPair(VethBufName); err != nil {
 		logger.UpfLog.Warn("failed to destroy injection veth pair", zap.Error(err))
 	}
 
 	return nil
+}
+
+func (b *BufferResponder) detach() error {
+	b.mu.Lock()
+	l := b.vethLink
+	b.vethLink = nil
+	b.mu.Unlock()
+
+	if l == nil {
+		return nil
+	}
+
+	return l.Close()
 }
 
 // consume is the ring buffer consumer goroutine.

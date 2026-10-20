@@ -58,7 +58,7 @@ func TestErrorIndicationPagesAConnectedUEOnceS1IsReleased(t *testing.T) {
 		t.Fatalf("NotifyDownlinkData: %v", err)
 	}
 
-	m.ReleaseUEContextLocally(t.Context(), ue, "test-release-complete")
+	m.ReleaseUEContextLocally(t.Context(), ue, "test-release-complete", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 	if ue.Connected() {
 		t.Fatal("the UE should be ECM-IDLE once the release completed")
@@ -86,7 +86,7 @@ func TestErrorIndicationDropsTheServiceRequestWhenTheUEIsNotRegistered(t *testin
 	}
 
 	ue.ForceStateForTest(EMMDeregistered)
-	m.ReleaseUEContextLocally(t.Context(), ue, "test-release-complete")
+	m.ReleaseUEContextLocally(t.Context(), ue, "test-release-complete", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 	if m.pagingActive(ue) {
 		t.Error("a deregistered UE was paged")

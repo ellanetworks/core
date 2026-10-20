@@ -36,7 +36,7 @@ func handleModifyBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	ueConn.Log(ctx).Warn("UE rejected EPS bearer modification")
 
 	if rej.Cause == eps.ESMCauseInvalidEPSBearerIdentity {
-		m.DeactivateBearerLocally(ctx, ue, p, models.ReleaseCause(models.ReleaseProtocolError, models.ESMCause(uint8(rej.Cause))))
+		m.DeactivateBearerLocally(ctx, ue, p, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.ReceivedESMCause(uint8(rej.Cause))))
 	}
 
 	return nasreply.Handled()

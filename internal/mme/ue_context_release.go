@@ -156,7 +156,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 
 	if conn == nil {
 		// No S1 connection to command; release the context locally.
-		m.ReleaseUEContextLocally(ctx, ue, "release-no-connection")
+		m.ReleaseUEContextLocally(ctx, ue, "release-no-connection", models.ReleaseFor(models.ReleaseRegistrationFailure))
 		return
 	}
 
@@ -170,7 +170,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	conn.releaseCause.Store(&cause)
 
 	if err := conn.SendUEContextReleaseCommand(ctx, cause); err != nil {
-		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent")
+		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return
 	}
@@ -183,7 +183,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release", 0)
 		defer span.End()
 
-		m.releaseUEContextLocally(guardCtx, ue, conn, "release-command-timeout")
+		m.releaseUEContextLocally(guardCtx, ue, conn, "release-command-timeout", models.ReleaseFor(models.ReleaseRegistrationFailure))
 	})
 }
 
@@ -191,11 +191,11 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // for cases where the eNB has already released its side (e.g. INITIAL CONTEXT SETUP
 // FAILURE, or an eNB/association loss). An incomplete registration is aborted; a
 // registered UE drops to ECM-IDLE.
-func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string) {
-	m.releaseUEContextLocally(ctx, ue, nil, trigger)
+func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string, release models.SessionReleaseRequest) {
+	m.releaseUEContextLocally(ctx, ue, nil, trigger, release)
 }
 
-func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expected *UeConn, trigger string) {
+func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expected *UeConn, trigger string, release models.SessionReleaseRequest) {
 	ueConn := ue.Conn()
 	if expected != nil && ueConn != expected {
 		return
@@ -218,7 +218,7 @@ func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expect
 
 	if !registered {
 		m.DropDeferredServiceRequest(ctx, ue)
-		m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseEstablishmentFailure))
+		m.ReleaseAllSessions(ctx, ue, ue.NetworkDetachOr(release))
 		log.Info("aborted incomplete UE registration", zap.String("trigger", trigger))
 
 		return

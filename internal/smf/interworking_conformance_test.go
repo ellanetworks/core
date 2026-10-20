@@ -158,7 +158,7 @@ func TestInterworkingEPSReleaseIsIdempotent(t *testing.T) {
 	}
 
 	for i := 1; i <= 3; i++ {
-		if err := s.ReleaseEPSSession(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+		if err := s.ReleaseEPSSession(ctx, sc.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 			t.Fatalf("ReleaseEPSSession call %d: %v", i, err)
 		}
 
@@ -176,7 +176,7 @@ func TestInterworkingEPSReleaseStillReleasesItsOwnSession(t *testing.T) {
 	ctx := context.Background()
 	bearer := movedOnEPS(t, s, 1)
 
-	if err := s.ReleaseEPSSession(ctx, bearer.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseEPSSession(ctx, bearer.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseEPSSession: %v", err)
 	}
 
@@ -184,7 +184,7 @@ func TestInterworkingEPSReleaseStillReleasesItsOwnSession(t *testing.T) {
 		t.Fatal("an EPS session was not released by the access that owns it")
 	}
 
-	if err := s.ReleaseEPSSession(ctx, bearer.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseEPSSession(ctx, bearer.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Errorf("releasing an already-released session: %v, want nil", err)
 	}
 }
@@ -271,7 +271,7 @@ func TestInterworking5GSReleaseSparesAPreparedEPSSession(t *testing.T) {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
 
-	if err := s.ReleaseSmContext(ctx, bearer.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseSmContext(ctx, bearer.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
@@ -290,7 +290,7 @@ func TestInterworking5GSReleaseStillReleasesItsOwnSession(t *testing.T) {
 	ctx := context.Background()
 	sc := establish5GS(t, s)
 
-	if err := s.ReleaseSmContext(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseSmContext(ctx, sc.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
@@ -298,7 +298,7 @@ func TestInterworking5GSReleaseStillReleasesItsOwnSession(t *testing.T) {
 		t.Fatal("a 5GS session was not released by the access that owns it")
 	}
 
-	if err := s.ReleaseSmContext(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseSmContext(ctx, sc.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Errorf("releasing an already-released session: %v, want nil", err)
 	}
 }

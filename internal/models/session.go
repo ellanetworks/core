@@ -53,6 +53,7 @@ type EstablishResponse struct {
 const (
 	MaxSessionSDFRules = 32
 	MaxSessionSDFPDRs  = 32
+	MaxSessionURRs     = 8
 )
 
 // PDR describes a Packet Detection Rule for the UPF session API.
@@ -231,15 +232,18 @@ type ModifyRequest struct {
 	UpdatePDRs []PDR
 	UpdateFARs []FAR
 	UpdateQERs []QER
+	UpdateURRs []URR
 	RemovePDRs []uint16
 	RemoveFARs []uint32
 	RemoveQERs []uint32
+	RemoveURRs []uint32
 
 	SendEndMarkers bool
 }
 
 type ModifyResponse struct {
 	ChosenTEIDs map[uint8]uint32
+	Usage       []UsageReport
 }
 
 type ForwardingTunnel struct {
@@ -254,7 +258,7 @@ type DeleteRequest struct {
 }
 
 type DeleteResponse struct {
-	Usage UsageReport
+	Usage []UsageReport
 }
 
 // DownlinkDataReport notifies the SMF that buffered downlink data
@@ -278,12 +282,53 @@ type ErrorIndicationReport struct {
 	RemoteFTEID FTEID
 }
 
-// UsageReport delivers periodic volume measurements from UPF to SMF.
+type UsageReportTrigger uint8
+
+const (
+	UsageTriggerPeriodic UsageReportTrigger = iota + 1
+	UsageTriggerQuery
+	UsageTriggerTermination
+)
+
+func (t UsageReportTrigger) String() string {
+	switch t {
+	case UsageTriggerPeriodic:
+		return "periodic"
+	case UsageTriggerQuery:
+		return "query"
+	case UsageTriggerTermination:
+		return "termination"
+	default:
+		return "unknown"
+	}
+}
+
+// UsageReport is the measurement of one URR since its previous report.
 type UsageReport struct {
-	SEID           uint64
-	IMSI           string
-	UplinkVolume   uint64
-	DownlinkVolume uint64
+	URRID           uint32
+	SequenceNumber  uint32
+	Trigger         UsageReportTrigger
+	StartTime       time.Time
+	EndTime         time.Time
+	FirstPacket     time.Time
+	LastPacket      time.Time
+	UplinkVolume    uint64
+	DownlinkVolume  uint64
+	UplinkPackets   uint64
+	DownlinkPackets uint64
+}
+
+func (r UsageReport) TotalVolume() uint64 {
+	return r.UplinkVolume + r.DownlinkVolume
+}
+
+func UsageVolume(reports []UsageReport) (uplink, downlink uint64) {
+	for _, r := range reports {
+		uplink += r.UplinkVolume
+		downlink += r.DownlinkVolume
+	}
+
+	return uplink, downlink
 }
 
 type SubscriberUsage struct {

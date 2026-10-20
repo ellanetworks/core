@@ -69,7 +69,7 @@ type fakeSessionManager struct {
 	modifiedENB       models.FTEID
 	boundDedicated    []models.DedicatedBearerEndpoint
 	released          bool
-	releaseCauses     []models.SessionReleaseCause
+	releaseCauses     []models.SessionReleaseRequest
 	deactivated       bool
 	reconciled        []string
 
@@ -177,7 +177,7 @@ func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ stri
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, cause models.SessionReleaseCause) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, cause models.SessionReleaseRequest) error {
 	f.released = true
 
 	f.outcomeMu.Lock()
@@ -448,7 +448,7 @@ func (f *fakeSessionManager) CloseEPSForwardingTunnel(ctx context.Context, ref s
 	return nil
 }
 
-func (f *fakeSessionManager) releaseCausesSnapshot() []models.SessionReleaseCause {
+func (f *fakeSessionManager) releaseCausesSnapshot() []models.SessionReleaseRequest {
 	f.outcomeMu.Lock()
 	defer f.outcomeMu.Unlock()
 

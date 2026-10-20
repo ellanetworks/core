@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -43,7 +44,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 	if conn := amfUe.Conn(); conn != nil && conn.NASGuardActive() {
 		conn.StopNASGuard(ctx)
 
-		amfUe.Deregister(ctx)
+		amfUe.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 		amfUe.ClearRegistrationRequestData()
 	}
 

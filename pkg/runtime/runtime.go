@@ -764,6 +764,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Info("Shutting down UPF settings reconciler")
 		upfReconciler.Stop()
 
+		step("Stopping the datapath", func(context.Context) {
+			if err := upfInstance.StopDatapath(); err != nil {
+				logger.EllaLog.Warn("Datapath did not stop cleanly", zap.Error(err))
+			}
+		})
+
 		step("Collecting final subscriber usage", func(stepCtx context.Context) {
 			smfInstance.StopUsageCollection(stepCtx)
 		})

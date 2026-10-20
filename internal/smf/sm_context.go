@@ -50,11 +50,13 @@ type SMContext struct {
 	// Ref is the session's unique pool key, assigned once at creation and never
 	Ref string
 
-	Supi       etsi.SUPI
-	Dnn        string
-	Snssai     *models.Snssai
-	Tunnel     *UPTunnel
-	PolicyData *Policy
+	Supi etsi.SUPI
+
+	EstablishedAt time.Time
+	Dnn           string
+	Snssai        *models.Snssai
+	Tunnel        *UPTunnel
+	PolicyData    *Policy
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS
@@ -95,7 +97,7 @@ type SMContext struct {
 	pendingPolicy *Policy
 
 	releasing                bool // guarded by Mutex
-	releaseCause             models.SessionReleaseCause
+	release                  *models.SessionReleaseRequest
 	activating               bool
 	userPlaneStale           bool
 	n1Released               bool
@@ -137,9 +139,9 @@ func (smContext *SMContext) recordN2Release(purpose n2ReleasePurpose) {
 	smContext.n2Release = purpose
 }
 
-func (smContext *SMContext) recordReleaseCause(cause models.SessionReleaseCause) {
-	if smContext.releaseCause.Reason == "" {
-		smContext.releaseCause = cause
+func (smContext *SMContext) commitRelease(release models.SessionReleaseRequest) {
+	if smContext.release == nil {
+		smContext.release = &release
 	}
 }
 

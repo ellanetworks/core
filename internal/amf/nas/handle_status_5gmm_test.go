@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -17,7 +18,7 @@ func TestHandleStatus5GMM_UEDeregistered_Ignored(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Deregister(context.TODO())
+	ue.Deregister(context.TODO(), models.ReleaseFor(models.ReleaseDeregistration))
 
 	handleStatus5GMM(context.Background(), ue, buildTestStatus5gmm(t))
 

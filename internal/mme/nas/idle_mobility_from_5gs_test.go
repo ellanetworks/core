@@ -230,7 +230,7 @@ func TestInterSystemTAULeavesTheUERegistered(t *testing.T) {
 		t.Fatalf("EMM state after the accepted update = %v, want %v", got, mme.EMMRegistered)
 	}
 
-	m.ReleaseUEContextLocally(t.Context(), ue, "test")
+	m.ReleaseUEContextLocally(t.Context(), ue, "test", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 	if p := m.LookupPDN(ue, 6); p == nil {
 		t.Error("the S1 release destroyed the PDN connection the inter-system change moved")
@@ -349,7 +349,7 @@ func newCrossAccessSessionManager() *crossAccessSessionManager {
 	return &crossAccessSessionManager{onEPS: map[string]bool{}, destroyed: map[string]bool{}}
 }
 
-func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref string, _ models.SessionReleaseCause) error {
+func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref string, _ models.SessionReleaseRequest) error {
 	if f.onEPS[ref] {
 		f.destroyed[ref] = true
 		delete(f.onEPS, ref)

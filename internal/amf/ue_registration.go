@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -116,11 +117,11 @@ func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) {
 		logger.SUPI(supi.String()))
 
 	if ueConn == nil {
-		amf.DeregisterAndRemoveUeContext(ctx, ue)
+		amf.DeregisterAndRemoveUeContext(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 		return
 	}
 
-	ue.Deregister(ctx)
+	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseDeregistration))
 }
 
 func (amf *AMF) withdrawSubscription(ctx context.Context, ue *UeContext) {

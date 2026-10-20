@@ -292,16 +292,16 @@ func TestDownlinkIPv6TransportRejectsOverDeclaredInnerLength(t *testing.T) {
 	binary.BigEndian.PutUint16(inner[10:12], 0)
 	binary.BigEndian.PutUint16(inner[10:12], ipv4HeaderChecksum(inner[:20]))
 
-	before := DropCount(obj, Downlink, "internal_encap_failed")
+	before := DropCount(obj, Downlink, "malformed_header")
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-	if action != ActionAborted {
-		t.Fatalf("action = %d, want ActionAborted (%d): the frame left with outer lengths it does not carry",
-			action, ActionAborted)
+	if action != ActionDrop {
+		t.Fatalf("action = %d, want ActionDrop (%d): the frame would leave with outer lengths it does not carry",
+			action, ActionDrop)
 	}
 
-	if after := DropCount(obj, Downlink, "internal_encap_failed"); after != before+1 {
-		t.Errorf("internal_encap_failed = %d, want %d", after, before+1)
+	if after := DropCount(obj, Downlink, "malformed_header"); after != before+1 {
+		t.Errorf("malformed_header = %d, want %d", after, before+1)
 	}
 }
 

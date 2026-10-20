@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -36,6 +35,7 @@ type reconcileDecision struct {
 	action reconcileAction
 	policy *Policy
 	mod    models.EPSBearerModification
+	reason models.SessionReleaseReason
 }
 
 type subscriptionDelta struct {
@@ -157,7 +157,7 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 
 	switch outcome.action {
 	case reconcileRelease:
-		err = s.mme.ReactivateEPSBearer(ctx, supi.IMSI(), ebi)
+		err = s.mme.ReactivateEPSBearer(ctx, supi.IMSI(), ebi, outcome.reason)
 	case reconcileModify:
 		err = s.mme.ModifyEPSBearer(ctx, supi.IMSI(), ebi, outcome.mod)
 		if err != nil {
@@ -290,7 +290,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	// Slice (SST/SD) change: stored Snssai matches no configured slice. Release
 	// with cause #39 so the UE re-establishes on the new slice (TS 23.502).
 	if policy == nil {
-		return s.releaseForReactivation(ctx, smContext)
+		return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
 	}
 
 	if smContext.userPlaneStale {
@@ -322,7 +322,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			zap.String("new_ipv6_pool", policy.IPv6Pool),
 		)
 
-		return s.releaseForReactivation(ctx, smContext)
+		return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
 	}
 
 	delta, err := s.subscriptionChanged(ctx, smContext)
@@ -346,7 +346,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 
-		return s.releaseForReactivation(ctx, smContext)
+		return s.releaseForReactivation(ctx, smContext, models.ReleaseSubscriptionChanged)
 	}
 
 	// The UE IP is fixed for the session lifetime (TS 23.501 §5.8.2.2); a
@@ -357,7 +357,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 
-		return s.releaseForReactivation(ctx, smContext)
+		return s.releaseForReactivation(ctx, smContext, models.ReleaseSubscriptionChanged)
 	}
 
 	if policy.PolicyID != current.PolicyID {
@@ -456,14 +456,12 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	return reconcileDecision{}, nil
 }
 
-func (s *SMF) releaseForReactivation(ctx context.Context, smContext *SMContext) (reconcileDecision, error) {
+func (s *SMF) releaseForReactivation(ctx context.Context, smContext *SMContext, reason models.SessionReleaseReason) (reconcileDecision, error) {
 	if smContext.Access == Access4G {
-		smContext.recordReleaseCause(models.ReleaseCause(models.ReleaseReactivationRequested, models.ESMCause(uint8(eps.ESMCauseReactivationRequested))))
-
-		return reconcileDecision{action: reconcileRelease}, nil
+		return reconcileDecision{action: reconcileRelease, reason: reason}, nil
 	}
 
-	return reconcileDecision{}, s.sendSessionRelease(ctx, smContext)
+	return reconcileDecision{}, s.sendSessionRelease(ctx, smContext, reason)
 }
 
 func epsBearerModification(smContext *SMContext, policy *Policy, hasQoSChange, has5QIChange, hasAmbrChange, hasDNSChange bool) (models.EPSBearerModification, error) {
@@ -635,10 +633,10 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 // updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
 // plane (TS 29.244).
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
-	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
+	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
 }
 
-func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
+func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return fmt.Errorf("PFCP session not established")
 	}
@@ -650,6 +648,7 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	next := smContext.Tunnel.dataPlane
 	next.QFI = qfi
 	next.AMBR = models.Ambr{Uplink: ambrUplink, Downlink: ambrDownlink}
+	next.RatingGroup = ratingGroup
 
 	return s.applyDataPlane(ctx, smContext, next, policyID)
 }
@@ -744,7 +743,6 @@ func staticReservationChanged(ctx context.Context, subs SubscriptionData, imsi, 
 // sendSessionRelease performs the network-requested PDU session release
 // (TS 23.502, TS 24.501) with cause #39 "reactivation requested" so the UE
 // re-establishes on the correct slice. Caller must hold smContext.Mutex.
-func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
-	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested,
-		models.ReleaseCause(models.ReleaseReactivationRequested, models.GSMCause(uint8(fgs.GSMCauseReactivationRequested))))
+func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext, reason models.SessionReleaseReason) error {
+	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested, models.ReleaseFor(reason))
 }

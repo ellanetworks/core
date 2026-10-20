@@ -120,7 +120,7 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	next.TargetUplink = false
 	next.Downlink = DownlinkBuffering
 	next.AN = AnchorBinding{}
-	next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
+	next.QFI, next.AMBR, next.RatingGroup = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr, sc.PolicyData.RatingGroup
 
 	if access == Access4G {
 		s.interruptFlowProcedureLocked(ctx, sc, false)

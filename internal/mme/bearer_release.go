@@ -17,7 +17,7 @@ import (
 // DeactivateBearer asks the UE to deactivate EPS bearer p with the given ESM
 // cause and PTI. A disconnect or a non-default bearer releases only this PDN
 // connection on timeout; the default bearer instead detaches the UE (TS 24.301 §6.4.4).
-func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, disconnecting bool, cause models.SessionReleaseCause) {
+func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, disconnecting bool, cause models.SessionReleaseRequest) {
 	// Snapshotted, not re-read: this runs off the dispatch goroutine and the
 	// unlocked calls below let a concurrent release nil ue.Conn().
 	ueConn := ue.Conn()
@@ -38,7 +38,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 	p.Deactivating = true
 	p.Disconnecting = disconnecting
-	p.deactivationCause = cause
+	p.deactivationCause = cause.WithSentCause(uint8(esmCause))
 
 	interrupted := p.Modifying != nil
 	if interrupted {
@@ -97,7 +97,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	// and frees the tunnel before the UE's DEACTIVATE EPS BEARER CONTEXT ACCEPT. The PDN
 	// connection is retained for the ESM handshake (T3495); its later session release is
 	// then an idempotent no-op.
-	m.releaseAnchorSession(ctx, ue, p, cause)
+	m.releaseAnchorSession(ctx, ue, p, p.deactivationCause)
 
 	if releaseOnly {
 		// The eNB releases the radio bearer, but the NAS DEACTIVATE EPS BEARER
@@ -114,12 +114,11 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	m.ArmESMGuard(ctx, ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
-func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseCause) {
+func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseRequest) {
 	ueConn := ue.Conn()
 
 	if !ue.BearerReleaseOnly(p) && ueConn != nil && ue.Secured() {
-		ue.recordSessionReleaseCause(cause)
-		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired)
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, cause)
 
 		return
 	}
@@ -133,7 +132,7 @@ func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *Pdn
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular
 // deactivation; the UE is not asked to re-establish it.
-func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, cause models.SessionReleaseCause) {
+func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, cause models.SessionReleaseRequest) {
 	m.DeactivateBearer(ctx, ue, p, esmCause, pti, true, cause)
 }
 

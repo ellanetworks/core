@@ -60,3 +60,13 @@ func TestCauseInvalidGroup(t *testing.T) {
 		t.Fatal("expected error for invalid cause group")
 	}
 }
+
+func TestCauseEnumeratedValueContinuesPastTheRoot(t *testing.T) {
+	if got := (Cause{Group: CauseGroupNAS, Value: 2}).EnumeratedValue(); got != 2 {
+		t.Fatalf("root value = %d, want 2", got)
+	}
+
+	if got := CauseInsufficientUECapabilities.EnumeratedValue(); got != causeGroupRootCount[CauseGroupRadioNetwork]+5 {
+		t.Fatalf("extension value = %d, want %d", got, causeGroupRootCount[CauseGroupRadioNetwork]+5)
+	}
+}

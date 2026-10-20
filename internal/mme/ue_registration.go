@@ -120,7 +120,7 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseDeregistration))
+	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 

@@ -83,7 +83,7 @@ func TestDeregisterAndRemoveAMFUE(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	_, ok := amfInstance.LookupUeBySupi(supi)
 	if ok {
@@ -214,7 +214,7 @@ func TestGutiIndexLifecycle(t *testing.T) {
 		t.Fatal("current GUTI must still resolve after CommitGUTIRealloc")
 	}
 
-	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if _, ok := amfInstance.LookupUeByGuti(testGuami(), guti2); ok {
 		t.Fatal("removed UE must not resolve by GUTI")
@@ -255,7 +255,7 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 			ue.TmsiForTest(), ue.OldTmsi(), current, old)
 	}
 
-	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if amfInstance.TmsiInUseForTest(current) || amfInstance.TmsiInUseForTest(old) {
 		t.Fatal("teardown must free both the current and staged 5G-TMSI")

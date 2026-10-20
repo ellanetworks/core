@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -274,7 +275,9 @@ func TestLastSeenRadioIsRecordedWhenTheSupiArrivesAfterTheBind(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	t.Cleanup(func() { amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue) })
+	t.Cleanup(func() {
+		amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
+	})
 
 	seen, ok := amfInstance.LastSeen(imsi)
 	if !ok {

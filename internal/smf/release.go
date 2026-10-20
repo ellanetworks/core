@@ -6,7 +6,6 @@ package smf
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -17,7 +16,7 @@ import (
 )
 
 // ReleaseSmContext tears down a PDU session entirely
-func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error {
+func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	if s.dropHalf(ctx, smContextRef, Access5G) {
 		return nil
 	}
@@ -25,7 +24,7 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string, cause m
 	return s.releaseSession(ctx, smContextRef, cause)
 }
 
-func (s *SMF) releaseSession(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error {
+func (s *SMF) releaseSession(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -122,7 +121,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 	}
 
 	usage, err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID)
-	s.applyUsage(ctx, smContext, usage, time.Now())
+	s.deliverUsage(ctx, smContext, smContext.dataPlane().chargedUsage(usage))
 	s.requestUsageFlush()
 
 	if err != nil {
@@ -138,7 +137,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 // removeSessionUnlocked removes a session from the pool without releasing the IP
 // (caller has already released it or does not want to). ref is the session's unique
 // Ref; a no-op if it is already gone.
-func (s *SMF) removeSessionUnlocked(ctx context.Context, ref string, cause models.SessionReleaseCause) {
+func (s *SMF) removeSessionUnlocked(ctx context.Context, ref string, cause models.SessionReleaseRequest) {
 	sc := s.GetSession(ref)
 	if sc == nil {
 		return

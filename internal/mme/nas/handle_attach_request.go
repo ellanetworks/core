@@ -89,7 +89,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// default bearer is activated.
 	if ue.Secured() && integrityVerified {
 		ue.PinKeNBFreshness()
-		m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseDeregistration))
+		m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 		activateDefaultBearer(ctx, m, ue, ueConn)
 
 		return nasreply.Handled()

@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -63,14 +64,14 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 	switch fail.Cause {
 	case fgs.GMMCauseMACFailure:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Mac Failure")
-		ue.Deregister(ctx)
+		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 		amf.SendAuthenticationReject(ctx, ueConn)
 
 		return nasreply.Handled()
 	case fgs.GMMCauseNon5GAuthenticationUnacceptable:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
-		ue.Deregister(ctx)
+		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 		amf.SendAuthenticationReject(ctx, ueConn)
 
@@ -92,7 +93,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		if conn.ResyncTried() {
 			logger.From(ctx, logger.AmfLog).Warn("2 consecutive Synch Failure, terminate authentication procedure")
-			ue.Deregister(ctx)
+			ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 			amf.SendAuthenticationReject(ctx, ueConn)
 
@@ -125,7 +126,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 			logger.From(ctx, logger.AmfLog).Warn("re-synchronised authentication vector unavailable, rejecting registration", zap.Error(err))
 
-			ue.Deregister(ctx)
+			ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 			amf.SendRegistrationReject(ctx, ueConn, cause)
 

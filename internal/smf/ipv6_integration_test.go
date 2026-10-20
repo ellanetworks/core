@@ -475,7 +475,7 @@ func TestReleaseSmContext_IPv6Only(t *testing.T) {
 
 	_, ref := setupIPv6SessionWithTunnel(t, s)
 
-	err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext (IPv6) failed: %v", err)
 	}
@@ -513,7 +513,7 @@ func TestReleaseSmContext_DualStack(t *testing.T) {
 
 	_, ref := setupDualStackSessionWithTunnel(t, s)
 
-	err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext (dual-stack) failed: %v", err)
 	}
@@ -774,7 +774,7 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("expected no IPv4 address for IPv6-only")
 	}
 
-	err = s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
+	err = s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
@@ -829,7 +829,7 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatal("expected PDUAddressIPv6 to be set for dual-stack")
 	}
 
-	err = s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested))
+	err = s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}

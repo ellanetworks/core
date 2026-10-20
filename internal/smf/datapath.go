@@ -6,6 +6,7 @@ package smf
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"net/netip"
 	"slices"
 	"time"
@@ -30,6 +31,10 @@ type dataPlane struct {
 	QFI      uint8
 	AMBR     models.Ambr
 
+	RatingGroup uint32
+	DefaultURR  uint32
+	LastURRID   uint32
+
 	TargetUplink bool
 	Forwarding   *AnchorBinding
 	Bearers      []bearerLeg
@@ -46,10 +51,23 @@ type bearerLeg struct {
 }
 
 type ruleLeg struct {
-	Index   uint8
-	Filters []models.SDFFilter
-	MBR     models.Ambr
-	Gate    models.GateStatus
+	Index       uint8
+	Filters     []models.SDFFilter
+	MBR         models.Ambr
+	Gate        models.GateStatus
+	RatingGroup uint32
+	URRID       uint32
+}
+
+type chargingKey struct {
+	Dedicated   bool
+	Slot        uint8
+	RatingGroup uint32
+}
+
+type urrUsage struct {
+	Charging chargingKey
+	models.UsageReport
 }
 
 const (
@@ -63,9 +81,6 @@ const (
 	farIDForwarding uint32 = 3
 
 	qerIDDefault uint32 = 1
-
-	urrIDUplink   uint32 = 1
-	urrIDDownlink uint32 = 2
 
 	pdrIDBearerForwardingBase uint16 = 64
 	pdrIDRuleBase             uint16 = 256
@@ -256,7 +271,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 				OuterHeaderRemoval: &ohr,
 				FARID:              farIDUplink,
 				QERID:              qerID,
-				URRID:              urrIDUplink,
+				URRID:              r.URRID,
 				PDI: models.PDI{
 					SourceInterface: models.InterfaceAccess,
 					LocalFTEID:      &models.FTEID{ChooseID: chooseID},
@@ -272,7 +287,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 					OuterHeaderRemoval: &ohr,
 					FARID:              farIDUplink,
 					QERID:              qerID,
-					URRID:              urrIDUplink,
+					URRID:              r.URRID,
 					PDI:                d.targetUplinkPDI(b, uplink),
 				})
 			}
@@ -295,7 +310,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 				Precedence: filtersPrecedence(matching),
 				FARID:      downlinkFAR,
 				QERID:      qerID,
-				URRID:      urrIDDownlink,
+				URRID:      r.URRID,
 				PDI: models.PDI{
 					SourceInterface: models.InterfaceCore,
 					UEIPAddress:     ue,
@@ -386,7 +401,7 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 		OuterHeaderRemoval: &ohr,
 		FARID:              farIDUplink,
 		QERID:              qerIDDefault,
-		URRID:              urrIDUplink,
+		URRID:              d.DefaultURR,
 		PDI: models.PDI{
 			SourceInterface: models.InterfaceAccess,
 			LocalFTEID:      &models.FTEID{ChooseID: chooseIDSession},
@@ -395,7 +410,7 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 	}}
 
 	if d.UEIPv4.IsValid() {
-		pdrs = append(pdrs, downlinkPDR(pdrIDDownlink, d.UEIPv4))
+		pdrs = append(pdrs, downlinkPDR(pdrIDDownlink, d.UEIPv4, d.DefaultURR))
 	}
 
 	if d.UEIPv6.IsValid() {
@@ -404,7 +419,7 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 			id = pdrIDSecond
 		}
 
-		pdrs = append(pdrs, downlinkPDR(id, d.UEIPv6))
+		pdrs = append(pdrs, downlinkPDR(id, d.UEIPv6, d.DefaultURR))
 	}
 
 	fars = []models.FAR{
@@ -436,7 +451,9 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 		AveragingWindow: new(averagingWindow),
 	}}
 
-	urrs = []models.URR{{URRID: urrIDUplink}, {URRID: urrIDDownlink}}
+	for _, id := range slices.Sorted(maps.Keys(d.urrKeys())) {
+		urrs = append(urrs, models.URR{URRID: id})
+	}
 
 	for _, b := range d.Bearers {
 		bp, bf, bq := d.bearerRules(b)
@@ -495,13 +512,13 @@ func forwardingTunnelParameters(an AnchorBinding, access AccessType) *models.For
 	}
 }
 
-func downlinkPDR(pdrID uint16, ueIP netip.Addr) models.PDR {
+func downlinkPDR(pdrID uint16, ueIP netip.Addr, urrID uint32) models.PDR {
 	return models.PDR{
 		PDRID:      pdrID,
 		Precedence: pdrPrecedenceDefault,
 		FARID:      farIDDownlink,
 		QERID:      qerIDDefault,
-		URRID:      urrIDDownlink,
+		URRID:      urrID,
 		PDI: models.PDI{
 			SourceInterface: models.InterfaceCore,
 			UEIPAddress:     ueIP,
@@ -567,8 +584,8 @@ func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRo
 }
 
 func (d dataPlane) modifyRequest(prev dataPlane, seid uint64, policyID string) *models.ModifyRequest {
-	pdrs, fars, qers, _ := d.rules()
-	prevPDRs, prevFARs, prevQERs, _ := prev.rules()
+	pdrs, fars, qers, urrs := d.rules()
+	prevPDRs, prevFARs, prevQERs, prevURRs := prev.rules()
 
 	return &models.ModifyRequest{
 		SEID:       seid,
@@ -576,10 +593,96 @@ func (d dataPlane) modifyRequest(prev dataPlane, seid uint64, policyID string) *
 		UpdatePDRs: pdrs,
 		UpdateFARs: fars,
 		UpdateQERs: qers,
+		UpdateURRs: urrs,
 		RemovePDRs: removedIDs(prevPDRs, pdrs, func(p models.PDR) uint16 { return p.PDRID }),
 		RemoveFARs: removedIDs(prevFARs, fars, func(f models.FAR) uint32 { return f.FARID }),
 		RemoveQERs: removedIDs(prevQERs, qers, func(q models.QER) uint32 { return q.QERID }),
+		RemoveURRs: removedIDs(prevURRs, urrs, func(u models.URR) uint32 { return u.URRID }),
 	}
+}
+
+func (d dataPlane) ruleCharging(b bearerLeg, r ruleLeg) chargingKey {
+	rg := r.RatingGroup
+	if rg == 0 {
+		rg = d.RatingGroup
+	}
+
+	return chargingKey{Dedicated: true, Slot: b.Slot, RatingGroup: rg}
+}
+
+func (d dataPlane) urrKeys() map[uint32]chargingKey {
+	keys := make(map[uint32]chargingKey)
+
+	if d.DefaultURR != 0 {
+		keys[d.DefaultURR] = chargingKey{RatingGroup: d.RatingGroup}
+	}
+
+	for _, b := range d.Bearers {
+		for _, r := range b.Rules {
+			if r.URRID != 0 {
+				keys[r.URRID] = d.ruleCharging(b, r)
+			}
+		}
+	}
+
+	return keys
+}
+
+func (d *dataPlane) assignURRs(prev dataPlane) error {
+	ids := make(map[chargingKey]uint32)
+
+	for id, k := range prev.urrKeys() {
+		ids[k] = id
+	}
+
+	last := max(prev.LastURRID, d.LastURRID)
+
+	assign := func(k chargingKey) uint32 {
+		if id, ok := ids[k]; ok {
+			return id
+		}
+
+		last++
+		ids[k] = last
+
+		return last
+	}
+
+	d.DefaultURR = assign(chargingKey{RatingGroup: d.RatingGroup})
+	d.Bearers = slices.Clone(d.Bearers)
+
+	for i, b := range d.Bearers {
+		b.Rules = slices.Clone(b.Rules)
+
+		for j := range b.Rules {
+			b.Rules[j].URRID = assign(d.ruleCharging(b, b.Rules[j]))
+		}
+
+		d.Bearers[i] = b
+	}
+
+	d.LastURRID = last
+
+	if n := len(d.urrKeys()); n > models.MaxSessionURRs {
+		return fmt.Errorf("the session's charging keys need %d URRs, the user plane holds %d", n, models.MaxSessionURRs)
+	}
+
+	return nil
+}
+
+func (d dataPlane) chargedUsage(reports []models.UsageReport) []urrUsage {
+	if len(reports) == 0 {
+		return nil
+	}
+
+	keys := d.urrKeys()
+	out := make([]urrUsage, 0, len(reports))
+
+	for _, r := range reports {
+		out = append(out, urrUsage{Charging: keys[r.URRID], UsageReport: r})
+	}
+
+	return out
 }
 
 func removedIDs[T any, ID comparable](prev, next []T, id func(T) ID) []ID {

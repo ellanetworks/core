@@ -186,7 +186,7 @@ func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ stri
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string, _ models.SessionReleaseCause) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string, _ models.SessionReleaseRequest) error {
 	f.released = true
 	f.releasedRefs = append(f.releasedRefs, ref)
 

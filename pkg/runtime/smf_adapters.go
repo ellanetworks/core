@@ -273,19 +273,19 @@ func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyReq
 	return a.engine.ModifySession(ctx, req)
 }
 
-func (a *smfUPFAdapter) QueryUsage(_ context.Context, seid uint64) (models.UsageReport, error) {
+func (a *smfUPFAdapter) QueryUsage(_ context.Context, seid uint64, trigger models.UsageReportTrigger) ([]models.UsageReport, error) {
 	session := a.engine.GetSession(seid)
 	if session == nil {
-		return models.UsageReport{SEID: seid}, fmt.Errorf("%w: SEID %d", models.ErrSessionNotFound, seid)
+		return nil, fmt.Errorf("%w: SEID %d", models.ErrSessionNotFound, seid)
 	}
 
-	return a.engine.TakeUsage(session)
+	return a.engine.TakeUsage(session, trigger)
 }
 
-func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) (models.UsageReport, error) {
+func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) ([]models.UsageReport, error) {
 	resp, err := a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
 	if resp == nil {
-		return models.UsageReport{SEID: seid}, err
+		return nil, err
 	}
 
 	return resp.Usage, err
@@ -414,8 +414,8 @@ func (a *smfMMEAdapter) ModifyEPSBearer(ctx context.Context, imsi string, ebi ui
 	return mmeReachability(a.MME.ModifyEPSBearer(ctx, imsi, ebi, mod))
 }
 
-func (a *smfMMEAdapter) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error {
-	return mmeReachability(a.MME.ReactivateEPSBearer(ctx, imsi, ebi))
+func (a *smfMMEAdapter) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, reason models.SessionReleaseReason) error {
+	return mmeReachability(a.MME.ReactivateEPSBearer(ctx, imsi, ebi, reason))
 }
 
 func (a *smfMMEAdapter) ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error {

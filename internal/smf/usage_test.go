@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func today() int64 {
@@ -119,7 +122,7 @@ func TestReleaseRecordsTheFinalUsageOnce(t *testing.T) {
 
 	upf.count(seid, 5, 1)
 
-	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
@@ -202,16 +205,19 @@ func TestFlushDropsUsageWhoseOutcomeIsUnknown(t *testing.T) {
 	}
 }
 
-func TestUsageIsRecordedOnTheDayItWasTaken(t *testing.T) {
+func TestUsageIsRecordedOnTheDayOfItsLastPacket(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	sc, _ := setupSessionWithTunnel(t, s)
 	beforeMidnight := time.Date(2026, 10, 19, 23, 59, 59, 0, time.UTC)
+	afterMidnight := beforeMidnight.Add(20 * time.Second)
 
-	s.ApplyUsageForTest(ctx, sc, models.UsageReport{UplinkVolume: 3}, beforeMidnight)
-	s.ApplyUsageForTest(ctx, sc, models.UsageReport{UplinkVolume: 4}, beforeMidnight.Add(2*time.Second))
+	s.DeliverUsageForTest(ctx, sc,
+		models.UsageReport{URRID: 1, UplinkVolume: 3, FirstPacket: beforeMidnight.Add(-time.Second), LastPacket: beforeMidnight, EndTime: afterMidnight},
+		models.UsageReport{URRID: 1, UplinkVolume: 4, EndTime: afterMidnight},
+	)
 	s.FlushUsageForTest(ctx)
 
 	store.mu.Lock()
@@ -240,7 +246,7 @@ func TestStopUsageCollectionTakesAndFlushesTheRemainder(t *testing.T) {
 	upf.count(sc.PFCPContext.SEID, 8, 9)
 	s.StopUsageCollection(ctx)
 
-	s.ApplyUsageForTest(ctx, sc, models.UsageReport{UplinkVolume: 1}, time.Now())
+	s.DeliverUsageForTest(ctx, sc, models.UsageReport{URRID: 1, UplinkVolume: 1, EndTime: time.Now()})
 	s.FlushUsageForTest(ctx)
 
 	store.mu.Lock()
@@ -289,7 +295,7 @@ func TestReleaseFlushesTheFinalUsageWithoutWaitingForTheNextCollection(t *testin
 	s.StartUsageCollection()
 	t.Cleanup(func() { s.StopUsageCollection(ctx) })
 
-	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
@@ -309,5 +315,137 @@ func TestReleaseFlushesTheFinalUsageWithoutWaitingForTheNextCollection(t *testin
 		}
 
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func droppedUsage(t *testing.T, reason string) float64 {
+	t.Helper()
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+
+	for _, f := range families {
+		if f.GetName() != "app_upf_usage_dropped_bytes_total" {
+			continue
+		}
+
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "reason" && l.GetValue() == reason {
+					return m.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
+func TestStopUsageCollectionRetriesAStoreErrorUntilTheUsageIsRecorded(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	sc, _ := setupSessionWithTunnel(t, s)
+	upf.count(sc.PFCPContext.SEID, 8, 9)
+
+	store.mu.Lock()
+	store.usageFailures = 3
+	store.mu.Unlock()
+
+	before := droppedUsage(t, metrics.UsageDropShutdown)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	s.StopUsageCollection(ctx)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.usageLog) != 1 || store.usageLog[0].uplinkBytes != 8 || store.usageLog[0].downlinkBytes != 9 {
+		t.Fatalf("usage = %+v, want the 8/9 recorded once the store recovered", store.usageLog)
+	}
+
+	if got := droppedUsage(t, metrics.UsageDropShutdown) - before; got != 0 {
+		t.Fatalf("%v bytes counted as lost at shutdown, want none", got)
+	}
+}
+
+func TestStopUsageCollectionCountsUsageTheStoreNeverAccepted(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	sc, _ := setupSessionWithTunnel(t, s)
+	upf.count(sc.PFCPContext.SEID, 8, 9)
+
+	store.mu.Lock()
+	store.usageErr = errors.New("database is locked")
+	store.mu.Unlock()
+
+	before := droppedUsage(t, metrics.UsageDropShutdown)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	s.StopUsageCollection(ctx)
+
+	store.mu.Lock()
+	calls := store.batchCalls
+	store.mu.Unlock()
+
+	if calls < 2 {
+		t.Fatalf("the store was tried %d times, want the flush retried until the deadline", calls)
+	}
+
+	if got := droppedUsage(t, metrics.UsageDropShutdown) - before; got != 17 {
+		t.Fatalf("%v bytes counted as lost at shutdown, want the 17 the store refused", got)
+	}
+}
+
+func TestUsageOfASessionWithoutAnIMSIIsCountedAsDropped(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	sc, _ := setupSessionWithTunnel(t, s)
+	sc.Supi = etsi.SUPI{}
+
+	before := droppedUsage(t, metrics.UsageDropNoIMSI)
+
+	s.DeliverUsageForTest(ctx, sc, models.UsageReport{URRID: 1, UplinkVolume: 5, DownlinkVolume: 6, EndTime: time.Now()})
+	s.FlushUsageForTest(ctx)
+
+	if got := droppedUsage(t, metrics.UsageDropNoIMSI) - before; got != 11 {
+		t.Fatalf("%v bytes counted as dropped for a session without an IMSI, want 11", got)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.usageLog) != 0 {
+		t.Fatalf("usage = %+v, want nothing recorded without a subscriber", store.usageLog)
+	}
+}
+
+func TestPeriodicCollectionHandsEveryURRReportToTheConsumers(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	observed := s.ObserveUsageForTest()
+
+	sc, _ := setupSessionWithTunnel(t, s)
+	upf.count(sc.PFCPContext.SEID, 500, 300)
+
+	s.CollectUsageForTest(context.Background())
+
+	got := observed()
+	if len(got) != 1 {
+		t.Fatalf("observed %+v, want the default URR's report", got)
+	}
+
+	if u := got[0]; u.Dedicated || u.Report.URRID != 1 || u.Report.Trigger != models.UsageTriggerPeriodic ||
+		u.Report.UplinkVolume != 500 || u.Report.DownlinkVolume != 300 {
+		t.Fatalf("observed %+v, want a periodic 500/300 report for the default rule", u)
 	}
 }

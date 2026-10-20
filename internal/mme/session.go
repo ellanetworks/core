@@ -57,7 +57,7 @@ func (ue *UeContext) LocalBearerDeactivationPending() bool {
 	return ue.localBearerDeactivation
 }
 
-func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseCause) {
+func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseRequest) {
 	m.StopESMGuard(p)
 	m.releaseAnchorSession(ctx, ue, p, cause)
 
@@ -93,7 +93,7 @@ func (m *MME) DeregisterEmptyUE(ctx context.Context, ue *UeContext) {
 // disconnect releases only that connection and leaves the UE connected;
 // deactivating the default bearer releases the UE context so the UE re-attaches
 // (TS 24.301 §6.4.4).
-func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseCause) {
+func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseRequest) {
 	if ue.BearerReleaseOnly(p) {
 		m.ReleasePDN(ctx, ue, p, cause)
 		return
@@ -106,14 +106,14 @@ func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection
 
 // ReleaseAllSessions releases every PDN connection's anchor session and clears
 // them from the UE.
-func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext, cause models.SessionReleaseCause) {
+func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext, cause models.SessionReleaseRequest) {
 	for _, p := range takeAllPDNs(ue) {
 		m.releaseAnchorSession(ctx, ue, p, cause)
 	}
 }
 
-func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseCause) {
-	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef, ue.sessionReleaseCauseOr(cause)); err != nil {
+func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseRequest) {
+	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef, cause.WithLocation(ue.GetUserLocation())); err != nil {
 		logger.MmeLog.Warn("failed to release PDN connection session",
 			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 	}

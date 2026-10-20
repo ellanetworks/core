@@ -108,7 +108,9 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 
 			failedPDNs[p.Ebi] = true
 
-			later(func(ctx context.Context) { m.DisconnectLostPDN(ctx, ue, p) })
+			later(func(ctx context.Context) {
+				m.DisconnectLostPDN(ctx, ue, p, models.ReleaseFor(models.ReleaseNetworkFailure))
+			})
 
 			result.Failed = append(result.Failed, b.Ebi)
 			result.Released = append(result.Released, b.Ebi)
@@ -126,8 +128,8 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 
 		if p := m.LookupPDN(ue, ebi); p != nil {
 			later(func(ctx context.Context) {
-				if !m.RejectPDNActivation(ctx, ue, p, "the eNB did not set up the default bearer") {
-					m.DisconnectLostPDN(ctx, ue, p)
+				if !m.RejectPDNActivation(ctx, ue, p, "the eNB did not set up the default bearer", models.ReleaseFor(models.ReleaseEstablishmentFailure)) {
+					m.DisconnectLostPDN(ctx, ue, p, models.ReleaseFor(models.ReleaseAccessReleased))
 				}
 			})
 
@@ -148,7 +150,9 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 			logger.From(ctx, logger.MmeLog).Info("the RAN did not report a default bearer's E-RAB; disconnecting its PDN connection",
 				logger.SUPI(ue.Supi().String()), logger.ERABID(p.Ebi))
 
-			later(func(ctx context.Context) { m.DisconnectLostPDN(ctx, ue, p) })
+			later(func(ctx context.Context) {
+				m.DisconnectLostPDN(ctx, ue, p, models.ReleaseFor(models.ReleaseAccessReleased))
+			})
 
 			result.Released = append(result.Released, p.Ebi)
 		}
@@ -181,12 +185,10 @@ func boolRank(b bool) int {
 	return 0
 }
 
-func (m *MME) DisconnectLostPDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
+func (m *MME) DisconnectLostPDN(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseRequest) {
 	if m.LookupPDN(ue, p.Ebi) != p {
 		return
 	}
-
-	cause := models.ReleaseCause(models.ReleaseAccessReleased)
 
 	if !ue.hasOtherPDN(p) {
 		m.DeactivateBearerLocally(ctx, ue, p, cause)

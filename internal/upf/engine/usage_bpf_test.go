@@ -12,11 +12,13 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	cebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -77,7 +79,7 @@ func addUsageSession(t *testing.T, conn *SessionEngine, obj *ebpf.BpfObjects, se
 			t.Fatalf("install URR %d: %v", id, err)
 		}
 
-		session.usage.track(id)
+		session.usage.track(id, time.Now())
 	}
 
 	session.PutPDR(2, SPDRInfo{PdrID: 2, UEIP: usageUEIP, PdrInfo: pdrInfo})
@@ -104,6 +106,12 @@ func setURR(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32, perCP
 
 func up(v uint64) ebpf.N3N6EntrypointUrrCounters { return counters(v, 0) }
 
+func volumeIs(reports []models.UsageReport, uplink, downlink uint64) bool {
+	ul, dl := models.UsageVolume(reports)
+
+	return ul == uplink && dl == downlink
+}
+
 func down(v uint64) ebpf.N3N6EntrypointUrrCounters { return counters(0, v) }
 
 func urrExists(t *testing.T, obj *ebpf.BpfObjects, seid uint64, urrID uint32) bool {
@@ -128,25 +136,25 @@ func TestTakeUsageReportsPerCPUDeltasByDirection(t *testing.T) {
 	setURR(t, obj, 31, usageUplinkURR, up(100), up(50))
 	setURR(t, obj, 31, usageDownlinkURR, down(10), down(0), down(5))
 
-	got, err := conn.TakeUsage(session)
+	got, err := conn.TakeUsage(session, models.UsageTriggerPeriodic)
 	if err != nil {
 		t.Fatalf("TakeUsage: %v", err)
 	}
 
-	if got.UplinkVolume != 150 || got.DownlinkVolume != 15 || got.IMSI != usageIMSI {
-		t.Fatalf("first TakeUsage = %+v, want 150/15 for %s", got, usageIMSI)
+	if len(got) != 2 || got[0].URRID != usageUplinkURR || got[0].UplinkVolume != 150 || got[1].URRID != usageDownlinkURR || got[1].DownlinkVolume != 15 {
+		t.Fatalf("first TakeUsage = %+v, want 150 up on URR %d and 15 down on URR %d", got, usageUplinkURR, usageDownlinkURR)
 	}
 
 	setURR(t, obj, 31, usageUplinkURR, up(130), up(50))
 	setURR(t, obj, 31, usageDownlinkURR, down(10), down(4), down(5))
 
-	got, _ = conn.TakeUsage(session)
-	if got.UplinkVolume != 30 || got.DownlinkVolume != 4 {
-		t.Fatalf("second TakeUsage = %+v, want the 30/4 delta", got)
+	got, _ = conn.TakeUsage(session, models.UsageTriggerPeriodic)
+	if ul, dl := models.UsageVolume(got); ul != 30 || dl != 4 || got[0].SequenceNumber != 1 {
+		t.Fatalf("second TakeUsage = %+v, want the 30/4 delta in each URR's second report", got)
 	}
 
-	got, _ = conn.TakeUsage(session)
-	if got.UplinkVolume+got.DownlinkVolume != 0 {
+	got, _ = conn.TakeUsage(session, models.UsageTriggerPeriodic)
+	if ul, dl := models.UsageVolume(got); ul+dl != 0 {
 		t.Fatalf("TakeUsage without traffic = %+v, want nothing", got)
 	}
 
@@ -168,12 +176,12 @@ func TestTakeUsageKeepsDirectionOfAURRWithNoPDRLeft(t *testing.T) {
 
 	setURR(t, obj, 36, usageDownlinkURR, down(80))
 
-	got, err := conn.TakeUsage(session)
+	got, err := conn.TakeUsage(session, models.UsageTriggerPeriodic)
 	if err != nil {
 		t.Fatalf("TakeUsage: %v", err)
 	}
 
-	if got.DownlinkVolume != 80 || got.UplinkVolume != 0 {
+	if ul, dl := models.UsageVolume(got); dl != 80 || ul != 0 {
 		t.Fatalf("TakeUsage = %+v, want 80 downlink", got)
 	}
 }
@@ -184,13 +192,13 @@ func TestSharedURRReportsBothDirections(t *testing.T) {
 
 	setURR(t, obj, 37, usageDownlinkURR, counters(12, 40), counters(3, 0))
 
-	got, err := conn.TakeUsage(session)
+	got, err := conn.TakeUsage(session, models.UsageTriggerPeriodic)
 	if err != nil {
 		t.Fatalf("TakeUsage: %v", err)
 	}
 
-	if got.UplinkVolume != 15 || got.DownlinkVolume != 40 {
-		t.Fatalf("TakeUsage = %+v, want 15/40", got)
+	if len(got) != 2 || got[1].URRID != usageDownlinkURR || got[1].UplinkVolume != 15 || got[1].DownlinkVolume != 40 {
+		t.Fatalf("TakeUsage = %+v, want 15/40 in the shared URR's report", got)
 	}
 }
 
@@ -213,13 +221,15 @@ func TestConcurrentTakeUsageCountsEachByteOnce(t *testing.T) {
 			wg.Go(func() {
 				<-start
 
-				got, err := conn.TakeUsage(session)
+				got, err := conn.TakeUsage(session, models.UsageTriggerPeriodic)
 				if err != nil {
 					t.Errorf("TakeUsage: %v", err)
 				}
 
+				ul, _ := models.UsageVolume(got)
+
 				mu.Lock()
-				total += got.UplinkVolume
+				total += ul
 				mu.Unlock()
 			})
 		}
@@ -265,7 +275,7 @@ func TestDeleteSessionReportsUsageCountedBeforeTheBarrierReturns(t *testing.T) {
 	setURR(t, obj, 33, usageUplinkURR, up(40))
 	setURR(t, obj, 33, usageDownlinkURR, down(20))
 
-	if got, _ := conn.TakeUsage(session); got.UplinkVolume != 40 || got.DownlinkVolume != 20 {
+	if got, _ := conn.TakeUsage(session, models.UsageTriggerPeriodic); !volumeIs(got, 40, 20) {
 		t.Fatalf("TakeUsage = %+v, want 40/20", got)
 	}
 
@@ -283,8 +293,8 @@ func TestDeleteSessionReportsUsageCountedBeforeTheBarrierReturns(t *testing.T) {
 		t.Fatalf("barrier called %d times, want once", probe.calls)
 	}
 
-	if resp.Usage.UplinkVolume != 5 || resp.Usage.DownlinkVolume != 50 || resp.Usage.IMSI != usageIMSI {
-		t.Fatalf("final usage = %+v, want 5 uplink and the 50 counted during the barrier for %s", resp.Usage, usageIMSI)
+	if !volumeIs(resp.Usage, 5, 50) || resp.Usage[0].Trigger != models.UsageTriggerTermination {
+		t.Fatalf("final usage = %+v, want termination reports of 5 uplink and the 50 counted during the barrier", resp.Usage)
 	}
 
 	for _, id := range []uint32{usageUplinkURR, usageDownlinkURR} {
@@ -332,11 +342,11 @@ func TestTakeUsageRacingDeleteSessionLeavesNoURR(t *testing.T) {
 
 		var (
 			wg    sync.WaitGroup
-			taken models.UsageReport
+			taken []models.UsageReport
 			final *models.DeleteResponse
 		)
 
-		wg.Go(func() { taken, _ = conn.TakeUsage(session) })
+		wg.Go(func() { taken, _ = conn.TakeUsage(session, models.UsageTriggerPeriodic) })
 		wg.Go(func() {
 			var err error
 
@@ -351,7 +361,10 @@ func TestTakeUsageRacingDeleteSessionLeavesNoURR(t *testing.T) {
 			t.FailNow()
 		}
 
-		if got := taken.UplinkVolume + final.Usage.UplinkVolume; got != 7 {
+		takenUp, _ := models.UsageVolume(taken)
+		finalUp, _ := models.UsageVolume(final.Usage)
+
+		if got := takenUp + finalUp; got != 7 {
 			t.Fatalf("iteration %d: take and final report counted %d bytes, want 7", i, got)
 		}
 
@@ -450,5 +463,178 @@ func TestEstablishRollbackAfterAPDRWaitsBeforeDeletingURRs(t *testing.T) {
 
 	if urrExists(t, obj, 39, usageDownlinkURR) {
 		t.Error("URR left behind by the failed establish")
+	}
+}
+
+func bootNanos(t *testing.T) uint64 {
+	t.Helper()
+
+	var ts unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &ts); err != nil {
+		t.Fatalf("boot clock: %v", err)
+	}
+
+	return uint64(ts.Nano())
+}
+
+func TestTakeUsageReportsPacketsAndPacketTimes(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+	session := addUsageSession(t, conn, obj, 40)
+
+	before := time.Now()
+	boot := bootNanos(t)
+	session.usage.urrs[usageDownlinkURR].start = before.Add(-time.Minute)
+	first := boot - uint64(20*time.Second)
+	last := boot - uint64(2*time.Second)
+
+	setURR(t, obj, 40, usageDownlinkURR,
+		ebpf.N3N6EntrypointUrrCounters{Downlink: 300, DownlinkPackets: 3, FirstPacketNs: first + uint64(time.Second), LastPacketNs: last},
+		ebpf.N3N6EntrypointUrrCounters{Uplink: 100, UplinkPackets: 1, FirstPacketNs: first, LastPacketNs: first},
+	)
+
+	got, err := conn.TakeUsage(session, models.UsageTriggerQuery)
+	if err != nil {
+		t.Fatalf("TakeUsage: %v", err)
+	}
+
+	r := got[1]
+	if r.URRID != usageDownlinkURR || r.UplinkPackets != 1 || r.DownlinkPackets != 3 || r.Trigger != models.UsageTriggerQuery {
+		t.Fatalf("report = %+v, want 1/3 packets on URR %d", r, usageDownlinkURR)
+	}
+
+	if d := r.FirstPacket.Sub(before.Add(-20 * time.Second)); d < -time.Second || d > time.Second {
+		t.Fatalf("first packet %v, want about 20 s before %v", r.FirstPacket, before)
+	}
+
+	if d := r.LastPacket.Sub(before.Add(-2 * time.Second)); d < -time.Second || d > time.Second {
+		t.Fatalf("last packet %v, want about 2 s before %v", r.LastPacket, before)
+	}
+
+	perCPU, err := obj.ReadUrr(40, usageDownlinkURR)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	if perCPU[0].FirstPacketNs != 0 || perCPU[1].FirstPacketNs != 0 || perCPU[0].Downlink != 300 || perCPU[0].LastPacketNs != last {
+		t.Fatalf("per-CPU values after the report = %+v, want the first packet times taken and the counters left alone", perCPU[:2])
+	}
+
+	got, _ = conn.TakeUsage(session, models.UsageTriggerQuery)
+	if r := got[1]; !r.FirstPacket.IsZero() || !r.LastPacket.IsZero() || r.SequenceNumber != 1 {
+		t.Fatalf("report without traffic = %+v, want no packet times and UR-SEQN 1", r)
+	}
+}
+
+func establishUsageSession(t *testing.T, conn *SessionEngine, seid uint64, urrs ...uint32) {
+	t.Helper()
+
+	req := &models.EstablishRequest{
+		SEID: seid,
+		IMSI: usageIMSI,
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{}}},
+		QERs: []models.QER{{QERID: 1}},
+		PDRs: []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: urrs[0], PDI: models.PDI{UEIPAddress: usageUEIP}}},
+	}
+
+	for _, id := range urrs {
+		req.URRs = append(req.URRs, models.URR{URRID: id})
+	}
+
+	if _, err := conn.EstablishSession(context.Background(), req); err != nil {
+		t.Fatalf("establish session: %v", err)
+	}
+}
+
+func TestModifySessionReportsTheURRItRemoves(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+
+	establishUsageSession(t, conn, 41, 1, 2)
+	setURR(t, obj, 41, 2, down(25))
+
+	resp, err := conn.ModifySession(context.Background(), &models.ModifyRequest{
+		SEID:       41,
+		UpdatePDRs: []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+		UpdateURRs: []models.URR{{URRID: 1}},
+		RemoveURRs: []uint32{2},
+	})
+	if err != nil {
+		t.Fatalf("ModifySession: %v", err)
+	}
+
+	if len(resp.Usage) != 1 || resp.Usage[0].URRID != 2 || resp.Usage[0].DownlinkVolume != 25 || resp.Usage[0].Trigger != models.UsageTriggerTermination {
+		t.Fatalf("modification usage = %+v, want URR 2's termination report of 25 (TS 29.244 §5.2.2.3.1)", resp.Usage)
+	}
+
+	if urrExists(t, obj, 41, 2) {
+		t.Fatal("removed URR still in the datapath")
+	}
+
+	if !urrExists(t, obj, 41, 1) {
+		t.Fatal("kept URR missing from the datapath")
+	}
+}
+
+func TestModifySessionCreatesANewURRBeforeItsPDR(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+
+	establishUsageSession(t, conn, 42, 1)
+
+	resp, err := conn.ModifySession(context.Background(), &models.ModifyRequest{
+		SEID:       42,
+		UpdatePDRs: []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: 3, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+		UpdateURRs: []models.URR{{URRID: 1}, {URRID: 3}},
+	})
+	if err != nil {
+		t.Fatalf("ModifySession: %v", err)
+	}
+
+	if len(resp.Usage) != 0 {
+		t.Fatalf("modification usage = %+v, want none: no URR was removed", resp.Usage)
+	}
+
+	if !urrExists(t, obj, 42, 3) {
+		t.Fatal("new URR missing from the datapath")
+	}
+}
+
+func TestModifySessionRefusesAPDRWhoseURRItDoesNotKeep(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+
+	establishUsageSession(t, conn, 43, 1)
+
+	_, err := conn.ModifySession(context.Background(), &models.ModifyRequest{
+		SEID:       43,
+		UpdatePDRs: []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+		RemoveURRs: []uint32{1},
+	})
+	if err == nil {
+		t.Fatal("ModifySession removed a URR a PDR still references")
+	}
+
+	if !urrExists(t, obj, 43, 1) {
+		t.Fatal("the refused modification removed the URR")
+	}
+
+	_, err = conn.ModifySession(context.Background(), &models.ModifyRequest{
+		SEID:       43,
+		UpdatePDRs: []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: 9, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+	})
+	if err == nil {
+		t.Fatal("ModifySession accepted a PDR naming a URR the session does not have")
+	}
+}
+
+func TestEstablishSessionRefusesAPDRWithoutItsURR(t *testing.T) {
+	conn, _ := newUsageBPFEngine(t)
+
+	_, err := conn.EstablishSession(context.Background(), &models.EstablishRequest{
+		SEID: 44,
+		IMSI: usageIMSI,
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{}}},
+		QERs: []models.QER{{QERID: 1}},
+		PDRs: []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: 5, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+	})
+	if err == nil {
+		t.Fatal("EstablishSession accepted a PDR whose URR the request does not create")
 	}
 }

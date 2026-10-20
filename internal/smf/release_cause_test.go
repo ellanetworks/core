@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -20,16 +19,38 @@ func buildPDUSessionReleaseRequestWithCause(pduSessionID, pti uint8, cause fgs.G
 	return []byte{uint8(fgs.EPD5GSM), pduSessionID, pti, uint8(fgs.MsgPDUSessionReleaseRequest), 0x59, uint8(cause)}
 }
 
-func assertReleased(t *testing.T, s *smf.SMF, sc *smf.SMContext, want models.SessionReleaseCause) {
+func equalRanNas(a, b models.RanNasRelCause) bool {
+	eq := func(x, y *uint8) bool { return (x == nil) == (y == nil) && (x == nil || *x == *y) }
+
+	return eq(a.FiveGSm, b.FiveGSm) && eq(a.FiveGMm, b.FiveGMm) &&
+		(a.NgAp == nil) == (b.NgAp == nil) && (a.NgAp == nil || *a.NgAp == *b.NgAp) &&
+		(a.EPS == nil) == (b.EPS == nil) && (a.EPS == nil || *a.EPS == *b.EPS)
+}
+
+func assertReleased(t *testing.T, s *smf.SMF, sc *smf.SMContext, want models.SessionReleaseRequest) {
 	t.Helper()
 
 	if s.GetSession(sc.Ref) != nil {
 		t.Fatal("session still pooled")
 	}
 
-	got := sc.ReleaseCauseForTest()
-	if got.Reason != want.Reason || !slices.Equal(got.Diagnostics, want.Diagnostics) {
-		t.Fatalf("release cause = %+v, want %+v", got, want)
+	got := sc.ReleaseForTest()
+	if got.Reason != want.Reason {
+		t.Fatalf("release reason = %s, want %s", got.Reason, want.Reason)
+	}
+
+	if (got.SentCause == nil) != (want.SentCause == nil) || (got.SentCause != nil && *got.SentCause != *want.SentCause) {
+		t.Fatalf("sent cause = %v, want %v", got.SentCause, want.SentCause)
+	}
+
+	if len(got.RanNas) != len(want.RanNas) {
+		t.Fatalf("received causes = %+v, want %+v", got.RanNas, want.RanNas)
+	}
+
+	for i := range want.RanNas {
+		if !equalRanNas(got.RanNas[i], want.RanNas[i]) {
+			t.Fatalf("received cause %d = %+v, want %+v", i, got.RanNas[i], want.RanNas[i])
+		}
 	}
 }
 
@@ -59,7 +80,9 @@ func TestUERequestedReleaseCarriesTheUEsCause(t *testing.T) {
 
 	completeRelease(t, s, sc, 5)
 
-	assertReleased(t, s, sc, models.ReleaseCause(models.ReleaseUERequested, models.GSMCause(uint8(fgs.GSMCauseRegularDeactivation))))
+	assertReleased(t, s, sc, models.ReleaseFor(models.ReleaseUERequested).
+		WithRanNas(models.Received5GSMCause(uint8(fgs.GSMCauseRegularDeactivation))).
+		WithSentCause(uint8(fgs.GSMCauseRegularDeactivation)))
 }
 
 func TestTheFirstReleaseCauseWins(t *testing.T) {
@@ -73,11 +96,11 @@ func TestTheFirstReleaseCauseWins(t *testing.T) {
 		t.Fatalf("release request: %v", err)
 	}
 
-	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseCause(models.ReleaseDeregistration)); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseDeregistration)); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
 	}
 
-	assertReleased(t, s, sc, models.ReleaseCause(models.ReleaseUERequested))
+	assertReleased(t, s, sc, models.ReleaseFor(models.ReleaseUERequested).WithSentCause(uint8(fgs.GSMCauseRegularDeactivation)))
 }
 
 func TestReleaseOnUEUnresponsiveKeepsTheTriggeringCause(t *testing.T) {
@@ -92,10 +115,10 @@ func TestReleaseOnUEUnresponsiveKeepsTheTriggeringCause(t *testing.T) {
 
 	waitFor(t, "session local release after T3592 expiry", func() bool { return s.GetSession(ref) == nil })
 
-	assertReleased(t, s, sc, models.ReleaseCause(models.ReleaseUERequested))
+	assertReleased(t, s, sc, models.ReleaseFor(models.ReleaseUERequested).WithSentCause(uint8(fgs.GSMCauseRegularDeactivation)))
 }
 
-func TestReactivationReleaseIsAManagementIntervention(t *testing.T) {
+func TestASliceChangeReleaseIsAManagementIntervention(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	amfCb.err = smf.ErrUENotReachable
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -106,18 +129,20 @@ func TestReactivationReleaseIsAManagementIntervention(t *testing.T) {
 		t.Fatalf("ReconcileSession: %v", err)
 	}
 
-	want := models.ReleaseCause(models.ReleaseReactivationRequested, models.GSMCause(uint8(fgs.GSMCauseReactivationRequested)))
+	want := models.ReleaseFor(models.ReleasePolicyChanged).WithSentCause(uint8(fgs.GSMCauseReactivationRequested))
 	assertReleased(t, s, sc, want)
 
-	if got := want.Reason.RecordClosing(); got != models.RecordClosingManagementIntervention {
-		t.Fatalf("record closing = %d, want management intervention", got)
+	if got := want.Reason.ChargingTrigger(); got != models.ChargingTriggerManagementIntervention {
+		t.Fatalf("charging trigger = %s, want management intervention", got)
 	}
 }
 
-func TestEPSReactivationIsRecordedBeforeTheMMEReleases(t *testing.T) {
+func TestAnEPSPolicyChangeRecordsNothingUntilTheMMEReleases(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
-	s.SetMME(&fakeMME{})
+
+	mme := &fakeMME{}
+	s.SetMME(mme)
 
 	ctx := context.Background()
 
@@ -132,11 +157,23 @@ func TestEPSReactivationIsRecordedBeforeTheMMEReleases(t *testing.T) {
 		t.Fatalf("ReconcileSession: %v", err)
 	}
 
-	if err := s.ReleaseEPSSession(ctx, sc.Ref, models.ReleaseCause(models.ReleaseUERequested)); err != nil {
+	mme.mu.Lock()
+	reasons := slices.Clone(mme.reactivationReasons)
+	mme.mu.Unlock()
+
+	if len(reasons) != 1 || reasons[0] != models.ReleasePolicyChanged {
+		t.Fatalf("reactivation reasons handed to the MME = %v, want [policy_changed]", reasons)
+	}
+
+	if got := sc.ReleaseForTest(); got.Reason != "" {
+		t.Fatalf("release recorded before anything was released: %+v", got)
+	}
+
+	if err := s.ReleaseEPSSession(ctx, sc.Ref, models.ReleaseFor(models.ReleaseDeregistration)); err != nil {
 		t.Fatalf("ReleaseEPSSession: %v", err)
 	}
 
-	assertReleased(t, s, sc, models.ReleaseCause(models.ReleaseReactivationRequested, models.ESMCause(uint8(eps.ESMCauseReactivationRequested))))
+	assertReleased(t, s, sc, models.ReleaseFor(models.ReleaseDeregistration))
 }
 
 func Test5GSMStatusReleaseIsAProtocolError(t *testing.T) {
@@ -149,7 +186,7 @@ func Test5GSMStatusReleaseIsAProtocolError(t *testing.T) {
 		t.Fatalf("5GSM STATUS: %v", err)
 	}
 
-	assertReleased(t, s, sc, models.ReleaseCause(models.ReleaseProtocolError, models.GSMCause(uint8(fgs.GSMCauseInvalidPDUSessionIdentity))))
+	assertReleased(t, s, sc, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.Received5GSMCause(uint8(fgs.GSMCauseInvalidPDUSessionIdentity))))
 }
 
 func TestDuplicatePDUSessionIDRelease(t *testing.T) {
@@ -167,7 +204,7 @@ func TestDuplicatePDUSessionIDRelease(t *testing.T) {
 		t.Fatalf("N2 release response: %v", err)
 	}
 
-	assertReleased(t, s, sc, models.ReleaseCause(models.ReleaseDuplicateSessionID))
+	assertReleased(t, s, sc, models.ReleaseFor(models.ReleaseDuplicateSessionID))
 }
 
 func TestAReleaseIsCountedOnceUnderItsReason(t *testing.T) {
@@ -179,7 +216,7 @@ func TestAReleaseIsCountedOnceUnderItsReason(t *testing.T) {
 
 	before := smf.SessionReleasesForTest(metrics.RAT5G, models.ReleaseStatusMismatch)
 
-	cause := models.ReleaseCause(models.ReleaseStatusMismatch)
+	cause := models.ReleaseFor(models.ReleaseStatusMismatch)
 
 	if err := s.ReleaseSmContext(ctx, ref, cause); err != nil {
 		t.Fatalf("ReleaseSmContext: %v", err)
@@ -194,7 +231,7 @@ func TestAReleaseIsCountedOnceUnderItsReason(t *testing.T) {
 	}
 }
 
-func TestAFailedEstablishmentIsCountedAsSuch(t *testing.T) {
+func TestASessionThatNeverEstablishedIsNotCountedAsReleased(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	upf.err = errUPFDown
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -205,8 +242,8 @@ func TestAFailedEstablishmentIsCountedAsSuch(t *testing.T) {
 		t.Fatal("CreateEPSSession succeeded with the UPF down")
 	}
 
-	if got := smf.SessionReleasesForTest(metrics.RAT4G, models.ReleaseEstablishmentFailure) - before; got != 1 {
-		t.Fatalf("establishment failures counted = %v, want 1", got)
+	if got := smf.SessionReleasesForTest(metrics.RAT4G, models.ReleaseEstablishmentFailure) - before; got != 0 {
+		t.Fatalf("releases counted for a session that was never established = %v, want 0", got)
 	}
 }
 

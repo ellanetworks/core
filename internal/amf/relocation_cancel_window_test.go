@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -69,7 +70,7 @@ func TestRemovingAUeContextEndsItsRelocationFromEPS(t *testing.T) {
 		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
 	}
 
-	a.DeregisterAndRemoveUeContext(context.Background(), ue)
+	a.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if !a.beginRelocationFromEPS(supi, 8, NewUeContext()) {
 		t.Fatal("the subscriber is still marked as relocating from EPS, so every later handover for it is refused")
@@ -86,7 +87,7 @@ func TestRemovingASupersededContextKeepsTheLiveRelocation(t *testing.T) {
 		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
 	}
 
-	a.DeregisterAndRemoveUeContext(context.Background(), husk)
+	a.DeregisterAndRemoveUeContext(context.Background(), husk, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if a.beginRelocationFromEPS(supi, 8, NewUeContext()) {
 		t.Fatal("tearing down a superseded context dropped the live relocation another context holds")

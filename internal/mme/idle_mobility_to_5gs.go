@@ -102,7 +102,7 @@ func (m *MME) MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []ui
 
 		logger.From(ctx, logger.MmeLog).Info("releasing a PDN connection 5GS did not adopt",
 			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.String("apn", p.Apn))
-		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseHandoverFailure))
+		m.ReleasePDN(ctx, ue, p, models.ReleaseFor(models.ReleaseNotTransferred))
 	}
 
 	m.DeregisterEmptyUE(ctx, ue)

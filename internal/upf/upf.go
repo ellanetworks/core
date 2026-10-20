@@ -260,6 +260,40 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	return upf, nil
 }
 
+func (u *UPF) StopDatapath() error {
+	var errs []error
+
+	if u.n6Link != nil {
+		if err := (*u.n6Link).Close(); err != nil {
+			errs = append(errs, fmt.Errorf("detach eBPF from n6: %w", err))
+		}
+
+		u.n6Link = nil
+	}
+
+	if u.n3Link != nil {
+		if err := u.n3Link.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("detach eBPF from n3: %w", err))
+		}
+
+		u.n3Link = nil
+	}
+
+	if u.bufferResponder != nil {
+		if err := u.bufferResponder.detach(); err != nil {
+			errs = append(errs, fmt.Errorf("detach the downlink buffer program: %w", err))
+		}
+	}
+
+	if u.se != nil {
+		if err := u.se.WaitForDatapath(); err != nil {
+			errs = append(errs, fmt.Errorf("wait for running datapath programs: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
@@ -294,8 +328,10 @@ func (u *UPF) Close(ctx context.Context) {
 			}
 		}
 
-		if err := u.n3Link.Close(); err != nil {
-			logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
+		if u.n3Link != nil {
+			if err := u.n3Link.Close(); err != nil {
+				logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
+			}
 		}
 
 		if err := u.se.BpfObjects.Close(); err != nil {
@@ -358,8 +394,10 @@ func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction mode
 // updateAttachedPrograms points every attached link at the newly loaded
 // programs. A link left on an old program keeps the previous global values.
 func (u *UPF) updateAttachedPrograms() error {
-	if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
-		return err
+	if u.n3Link != nil {
+		if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
+			return err
+		}
 	}
 
 	if u.n6Link != nil {

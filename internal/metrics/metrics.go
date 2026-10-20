@@ -24,6 +24,7 @@ const (
 	UsageDropOutcomeUnknown = "outcome_unknown"
 	UsageDropShutdown       = "shutdown"
 	UsageDropStaleSession   = "stale_session"
+	UsageDropNoIMSI         = "no_imsi"
 )
 
 var (
@@ -51,7 +52,7 @@ func RegisterMetrics() {
 
 	prometheus.MustRegister(signalingMessages, registrationAttempts, usageBytesDropped)
 
-	for _, reason := range []string{UsageDropOutcomeUnknown, UsageDropShutdown, UsageDropStaleSession} {
+	for _, reason := range []string{UsageDropOutcomeUnknown, UsageDropShutdown, UsageDropStaleSession, UsageDropNoIMSI} {
 		usageBytesDropped.WithLabelValues(reason)
 	}
 }

@@ -23,7 +23,7 @@ func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 	fresh := amf.NewUeContext()
 	ueConn.AMFForTest().AttachUeConn(t.Context(), fresh, ueConn)
 
-	amfInstance.DeregisterAndRemoveUeContext(context.Background(), old)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), old, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if got := amfInstance.FindUEByAmfUeNgapID(radio, 500); got != ueConn {
 		t.Fatal("supersede tore down a UeConn already transferred to the fresh context")

@@ -342,6 +342,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
 	const __u64 billed_bytes = urr_packet_len(ctx);
+	if (!billed_bytes)
+		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, IPV4, FLOW_DOWNLINK, ALLOW);
 
@@ -511,6 +513,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
 	const __u64 billed_bytes = urr_packet_len(ctx);
+	if (!billed_bytes)
+		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, IPV6, FLOW_DOWNLINK, ALLOW);
 

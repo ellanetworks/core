@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -46,7 +47,8 @@ func handleERABReleaseIndication(ctx context.Context, m *mme.MME, radio *mme.Rad
 		if p := m.LookupPDN(ue, ebi); p != nil {
 			ueConn.Log(ctx).Warn("eNB released a default bearer's E-RAB; disconnecting its PDN connection (TS 23.401 §5.10.3)",
 				logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.String("cause", erab.Cause.String()))
-			m.DisconnectLostPDN(ctx, ue, p)
+			m.DisconnectLostPDN(ctx, ue, p, models.ReleaseFor(models.ReleaseAccessReleased).
+				WithRanNas(models.ReceivedS1APCause(uint8(erab.Cause.Group), uint16(erab.Cause.EnumeratedValue()))))
 
 			continue
 		}

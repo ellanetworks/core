@@ -33,7 +33,7 @@ func (m *MME) BeginPDNActivation(ctx context.Context, ue *UeContext, p *PdnConne
 
 func (m *MME) armPDNActivationGuard(ctx context.Context, ue *UeContext, p *PdnConnection, plain []byte) {
 	m.ArmESMGuardAbortOnly(ctx, ue, p, activateDefaultBearerName, plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
-		m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
+		m.ReleasePDN(ctx, ue, p, models.ReleaseFor(models.ReleaseEstablishmentFailure))
 	})
 }
 
@@ -71,7 +71,7 @@ func (m *MME) ResendPDNActivation(ctx context.Context, ue *UeContext, p *PdnConn
 	return true
 }
 
-func (m *MME) RejectPDNActivation(ctx context.Context, ue *UeContext, p *PdnConnection, reason string) bool {
+func (m *MME) RejectPDNActivation(ctx context.Context, ue *UeContext, p *PdnConnection, reason string, release models.SessionReleaseRequest) bool {
 	ue.mu.Lock()
 	act := p.activation
 	pending := ue.Pdns[p.Ebi] == p && p.ESM == ESMActivePending && act != nil
@@ -98,7 +98,7 @@ func (m *MME) RejectPDNActivation(ctx context.Context, ue *UeContext, p *PdnConn
 		Cause: cause,
 	})
 
-	m.ReleasePDN(ctx, ue, p, models.ReleaseCause(models.ReleaseEstablishmentFailure))
+	m.ReleasePDN(ctx, ue, p, release.WithSentCause(uint8(cause)))
 
 	return true
 }

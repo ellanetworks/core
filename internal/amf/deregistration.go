@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -23,7 +24,7 @@ func buildDeregistrationRequest() ([]byte, error) {
 // sendNetworkInitiatedDeregistration sends a UE-terminated DEREGISTRATION
 // REQUEST and arms T3522 (TS 24.501): an unanswered request is
 // retransmitted, and on exhaustion the UE context is removed regardless.
-func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext) error {
+func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext, release models.SessionReleaseRequest) error {
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		return fmt.Errorf("ueConn is nil")
@@ -43,6 +44,7 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 	}
 
 	ue.TransitionTo(ctx, DeregistrationInitiated)
+	ue.startNetworkDeregistration(release)
 
 	logger.From(ctx, logger.AmfLog).Info("sent network-initiated Deregistration Request")
 
@@ -70,7 +72,7 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 	}, func(ctx context.Context) {
 		logger.From(ctx, logger.AmfLog).Warn("T3522 expired, abort network-initiated deregistration and remove UE context")
 
-		amf.DeregisterAndRemoveUeContext(ctx, ue)
+		amf.DeregisterAndRemoveUeContext(ctx, ue, release)
 	})
 
 	return nil

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
+	"time"
 
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -52,10 +54,12 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 				logger.SEID(seid), zap.Error(err))
 		}
 
-		if resp != nil && resp.Usage.UplinkVolume+resp.Usage.DownlinkVolume > 0 {
-			logger.From(ctx, logger.UpfLog).Error("usage bytes lost: re-establish over a live session dropped its remaining usage",
-				logger.SEID(seid), logger.UplinkVolume(resp.Usage.UplinkVolume), logger.DownlinkVolume(resp.Usage.DownlinkVolume))
-			metrics.DroppedUsage(metrics.UsageDropStaleSession, resp.Usage.UplinkVolume+resp.Usage.DownlinkVolume)
+		if resp != nil {
+			if uplink, downlink := models.UsageVolume(resp.Usage); uplink+downlink > 0 {
+				logger.From(ctx, logger.UpfLog).Error("usage bytes lost: re-establish over a live session dropped its remaining usage",
+					logger.SEID(seid), logger.UplinkVolume(uplink), logger.DownlinkVolume(downlink))
+				metrics.DroppedUsage(metrics.UsageDropStaleSession, uplink+downlink)
+			}
 		}
 	}
 
@@ -121,6 +125,12 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		return errors.Join(errs...)
 	})
 
+	if err := checkURRReferences(req.PDRs, req.URRs); err != nil {
+		span.RecordError(err)
+
+		return nil, err
+	}
+
 	for _, urr := range req.URRs {
 		if err := bpfObjects.NewUrr(seid, urr.URRID); err != nil {
 			txn.rollback(ctx)
@@ -130,7 +140,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		}
 
 		createdURRs = append(createdURRs, urr.URRID)
-		sess.usage.track(urr.URRID)
+		sess.usage.track(urr.URRID, time.Now())
 
 		logger.From(ctx, logger.UpfLog).Debug("Created Usage Reporting Rule",
 			logger.URRID(urr.URRID),
@@ -294,6 +304,20 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		N3IPv4: advertisedN3IPv4,
 		N3IPv6: advertisedN3IPv6,
 	}, nil
+}
+
+func checkURRReferences(pdrs []models.PDR, urrs []models.URR) error {
+	if len(urrs) > models.MaxSessionURRs {
+		return fmt.Errorf("the session needs %d URRs, the user plane holds %d", len(urrs), models.MaxSessionURRs)
+	}
+
+	for _, pdr := range pdrs {
+		if pdr.URRID != 0 && !slices.ContainsFunc(urrs, func(u models.URR) bool { return u.URRID == pdr.URRID }) {
+			return fmt.Errorf("PDR %d references URR %d, which the session does not have", pdr.PDRID, pdr.URRID)
+		}
+	}
+
+	return nil
 }
 
 const (

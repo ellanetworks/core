@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -51,7 +52,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			// A malformed IMEISV yields no trusted equipment identity; reject and release
 			// (the NAS guard has been stopped).
 			amf.SendRegistrationReject(ctx, conn, fgs.GMMCauseProtocolErrorUnspecified)
-			ue.Deregister(ctx)
+			ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 			return nasreply.Handled()
 		}

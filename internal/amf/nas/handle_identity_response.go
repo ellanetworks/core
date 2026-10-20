@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -104,7 +105,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 	pass, err := authenticationProcedure(ctx, amfInstance, ue)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error in authentication procedure", zap.Error(err))
-		ue.Deregister(ctx)
+		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return nasreply.Handled()
 	}

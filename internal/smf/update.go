@@ -109,12 +109,12 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// retransmits the command meanwhile.
 		logger.From(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		releaseCause := models.ReleaseCause(models.ReleaseUERequested)
+		release := models.ReleaseFor(models.ReleaseUERequested)
 		if msg.Cause != nil {
-			releaseCause = models.ReleaseCause(models.ReleaseUERequested, models.GSMCause(uint8(*msg.Cause)))
+			release = release.WithRanNas(models.Received5GSMCause(uint8(*msg.Cause)))
 		}
 
-		if err := s.startRelease(ctx, smContext, pti, fgs.GSMCauseRegularDeactivation, releaseCause); err != nil {
+		if err := s.startRelease(ctx, smContext, pti, fgs.GSMCauseRegularDeactivation, release); err != nil {
 			return nil, fmt.Errorf("start PDU session release: %w", err)
 		}
 
@@ -135,7 +135,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 			return nil, nil
 		}
 
-		s.teardownAndRemove(ctx, smContext, smContext.releaseCause)
+		s.teardownAndRemove(ctx, smContext, models.SessionReleaseRequest{})
 
 		return &UpdateResult{SessionRemoved: true}, nil
 
@@ -424,7 +424,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		smContext.stopProcedureTimer()
 
 		smContext.PDUSessionReleaseDueToDupPduID = false
-		s.RemoveSession(ctx, smContext.Ref, smContext.releaseCause)
+		s.RemoveSession(ctx, smContext.Ref, models.SessionReleaseRequest{})
 
 		return true, nil
 	}
@@ -436,7 +436,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		return false, nil
 	}
 
-	s.teardownAndRemove(ctx, smContext, smContext.releaseCause)
+	s.teardownAndRemove(ctx, smContext, models.SessionReleaseRequest{})
 
 	return true, nil
 }
@@ -486,7 +486,6 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 	defer smContext.Mutex.Unlock()
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
-	smContext.recordReleaseCause(models.ReleaseCause(models.ReleaseDuplicateSessionID))
 
 	smContext.recordN2Release(n2ReleaseSession)
 
@@ -504,6 +503,8 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 
 		return nil, fmt.Errorf("failed to release tunnel: %v", err)
 	}
+
+	smContext.commitRelease(models.ReleaseFor(models.ReleaseDuplicateSessionID))
 
 	return n2Rsp, nil
 }

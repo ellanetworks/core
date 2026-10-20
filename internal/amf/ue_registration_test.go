@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type fakeRegistrar struct {
@@ -182,7 +183,7 @@ func TestDeregisterAndRemoveUeContext_QueuesPurge(t *testing.T) {
 	a, reg := newRegistrarTestAMF()
 	ue := newRegisteredTestUE(t, a, "001010000000001")
 
-	a.DeregisterAndRemoveUeContext(context.Background(), ue)
+	a.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if len(reg.purged) != 1 || reg.purged[0] != "001010000000001" {
 		t.Fatalf("purges = %v, want the removed UE", reg.purged)
@@ -198,7 +199,7 @@ func TestDeregisterAndRemoveUeContext_SupersededContextDoesNotPurge(t *testing.T
 	old := newRegisteredTestUE(t, a, "001010000000001")
 	newRegisteredTestUE(t, a, "001010000000001")
 
-	a.DeregisterAndRemoveUeContext(context.Background(), old)
+	a.DeregisterAndRemoveUeContext(context.Background(), old, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if len(reg.purged) != 0 {
 		t.Fatalf("unexpected purges %v", reg.purged)

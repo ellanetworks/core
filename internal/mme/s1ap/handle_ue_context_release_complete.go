@@ -57,7 +57,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 	// deleted; a still-registered UE is retained in ECM-IDLE (TS 23.401).
 	if ue.EMMState() != mme.EMMRegistered {
 		m.DropDeferredServiceRequest(ctx, ue)
-		m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseDeregistration))
+		m.ReleaseAllSessions(ctx, ue, ue.NetworkDetachOr(models.ReleaseFor(models.ReleaseRegistrationFailure)))
 		m.RemoveUe(ctx, ue)
 		ueConn.Log(ctx).Info("UE context removed", logger.RAT(metrics.RAT4G))
 

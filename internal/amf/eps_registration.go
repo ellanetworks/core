@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -30,7 +31,7 @@ func (a *AMF) releaseToEPS(ctx context.Context, ue *UeContext, conn *UeConn, cau
 	}
 
 	ue.RetainForEPS(epsContextRetention)
-	ue.Deregister(ctx)
+	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseNotTransferred))
 	a.StartMobileReachable(ue)
 
 	if conn == nil {

@@ -87,7 +87,7 @@ type fakeSessionManager struct {
 	lastRequest       models.EPSBearerRequest
 	modifiedENB       models.FTEID
 	released          bool
-	releaseCauses     []models.SessionReleaseCause
+	releaseCauses     []models.SessionReleaseRequest
 	deactivated       bool
 	idleTransfers     []idleEPSTransfer
 	idleTransferErr   error
@@ -170,7 +170,7 @@ func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ stri
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, cause models.SessionReleaseCause) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, cause models.SessionReleaseRequest) error {
 	f.released = true
 	f.releaseCauses = append(f.releaseCauses, cause)
 

@@ -40,7 +40,7 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	defer session.opMu.Unlock()
 
 	if session.deleted {
-		return &models.DeleteResponse{Usage: models.UsageReport{SEID: req.SEID, IMSI: session.IMSI()}}, nil
+		return &models.DeleteResponse{}, nil
 	}
 
 	// Mark deleted before teardown so a filter propagation that acquires opMu

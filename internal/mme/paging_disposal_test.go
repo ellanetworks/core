@@ -99,7 +99,7 @@ func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 
 	ue.PagingAnswered()
 
-	m.ReleaseUEContextLocally(t.Context(), ue, "test")
+	m.ReleaseUEContextLocally(t.Context(), ue, "test", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after the connection carrying the delivery was released, want Idle", state)

@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -145,11 +146,12 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.maxPacketFilters = req.MaxPacketFilters
 
 	sc.Tunnel = &UPTunnel{dataPlane: dataPlane{
-		UEIPv4: addrs.IPv4,
-		UEIPv6: addrs.IPv6Prefix,
-		Access: req.Access,
-		QFI:    req.Policy.QosData.QFI,
-		AMBR:   req.Policy.Ambr,
+		UEIPv4:      addrs.IPv4,
+		UEIPv6:      addrs.IPv6Prefix,
+		Access:      req.Access,
+		QFI:         req.Policy.QosData.QFI,
+		AMBR:        req.Policy.Ambr,
+		RatingGroup: req.Policy.RatingGroup,
 	}}
 
 	seid := s.AllocateSEID()
@@ -164,6 +166,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	}
 
 	committed = true
+
+	sc.Mutex.Lock()
+	sc.EstablishedAt = time.Now()
+	sc.Mutex.Unlock()
 
 	return sc, nil
 }
@@ -217,7 +223,7 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	cause := models.ReleaseCause(models.ReleaseEstablishmentFailure)
+	cause := models.ReleaseFor(models.ReleaseEstablishmentFailure)
 
 	if sc.Tunnel != nil {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
@@ -293,6 +299,10 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return fmt.Errorf("PFCP session already established")
 	}
 
+	if err := tunnel.assignURRs(dataPlane{}); err != nil {
+		return err
+	}
+
 	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes, strings.EqualFold(smContext.Dnn, models.IMSDataNetworkName))
 
 	resp, err := s.upf.EstablishSession(ctx, req)
@@ -332,6 +342,10 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 		}
 	}
 
+	if err := next.assignURRs(sc.Tunnel.dataPlane); err != nil {
+		return fmt.Errorf("session %q: %w", sc.Ref, err)
+	}
+
 	req := next.modifyRequest(sc.Tunnel.dataPlane, sc.PFCPContext.SEID, policyID)
 	req.SendEndMarkers = next.accessSwitchedFrom(sc.Tunnel.dataPlane)
 
@@ -340,10 +354,12 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 		return fmt.Errorf("failed to send PFCP session modification request: %w", err)
 	}
 
+	prev := sc.Tunnel.dataPlane
 	sc.Tunnel.dataPlane = next
 
 	if resp != nil {
 		sc.Tunnel.ChosenTEIDs = resp.ChosenTEIDs
+		s.deliverUsage(ctx, sc, prev.chargedUsage(resp.Usage))
 	}
 
 	return nil
@@ -368,7 +384,7 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 
 	if commit != nil {
 		next.TargetUplink = false
-		next.QFI, next.AMBR = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr
+		next.QFI, next.AMBR, next.RatingGroup = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr, sc.PolicyData.RatingGroup
 		flows = sc.movingFlowsLocked(access, true)
 		next.Bearers = flows.legs
 	}
@@ -403,7 +419,7 @@ func (s *SMF) finishBinding(ctx context.Context, sc *SMContext, dropped *dropped
 		if errors.Is(err, errTransferRolledBack) {
 			s.reportSessionNotMovedTo5GS(ctx, sc)
 
-			if releaseErr := s.releaseSession(ctx, sc.Ref, models.ReleaseCause(models.ReleaseHandoverFailure)); releaseErr != nil {
+			if releaseErr := s.releaseSession(ctx, sc.Ref, models.ReleaseFor(models.ReleaseHandoverFailure)); releaseErr != nil {
 				logger.From(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
 					zap.Error(releaseErr), zap.String("ref", sc.Ref))
 			}

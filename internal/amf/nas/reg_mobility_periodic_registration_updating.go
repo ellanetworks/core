@@ -59,7 +59,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		logger.From(ctx, logger.AmfLog).Info("registration update rejected: 5G not allowed for subscriber")
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
-		ue.Deregister(ctx)
+		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseSubscriptionChanged))
 
 		return
 	}
@@ -68,7 +68,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
-		ue.Deregister(ctx)
+		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseSubscriptionChanged))
 
 		return
 	}
@@ -452,7 +452,7 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 			continue
 		}
 
-		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref, models.ReleaseCause(models.ReleaseStatusMismatch)); err != nil {
+		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref, models.ReleaseFor(models.ReleaseStatusMismatch).WithLocation(ue.GetUserLocation())); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to release a PDU session the UE deactivated in EPS",
 				zap.Error(err), logger.PDUSessionID(pduSessionID), zap.Uint8("ebi", ebi))
 		}

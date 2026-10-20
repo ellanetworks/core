@@ -17,7 +17,7 @@ import (
 
 type deregisterTestSmf struct {
 	releaseCalls          []string
-	releaseCauses         []models.SessionReleaseCause
+	releaseCauses         []models.SessionReleaseRequest
 	deactivateCalls       []string
 	suppressCalls         int
 	transferFailures      []models.N1N2MessageTransferCause
@@ -67,7 +67,7 @@ func (s *deregisterTestSmf) ClearPagingSuppression(_ context.Context, _ etsi.SUP
 	return nil
 }
 
-func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseCause) error {
+func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	s.releaseCalls = append(s.releaseCalls, smContextRef)
 	s.releaseCauses = append(s.releaseCauses, cause)
 
@@ -168,7 +168,7 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		ue.Deregister(context.Background())
+		ue.Deregister(context.Background(), models.ReleaseFor(models.ReleaseDeregistration))
 		close(done)
 	}()
 
@@ -389,35 +389,36 @@ func TestDeregister_ReleasesSessionsAsADeregistration(t *testing.T) {
 	fakeSmf := &deregisterTestSmf{}
 	ue.smf = fakeSmf
 
-	ue.Deregister(context.Background())
+	ue.Deregister(context.Background(), models.ReleaseFor(models.ReleaseDeregistration))
 
 	if len(fakeSmf.releaseCauses) != 1 || fakeSmf.releaseCauses[0].Reason != models.ReleaseDeregistration {
 		t.Fatalf("release causes = %+v, want one deregistration", fakeSmf.releaseCauses)
 	}
 }
 
-func TestDeregister_UsesTheRecordedCauseOnce(t *testing.T) {
+func TestNetworkDeregistrationCauseAppliesOnlyWhileDeregistrationIsInitiated(t *testing.T) {
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
+	fallback := models.ReleaseFor(models.ReleaseDeregistration)
 
-	fakeSmf := &deregisterTestSmf{}
-	ue.smf = fakeSmf
+	ue.ForceStateForTest(Registered)
+	ue.startNetworkDeregistration(withdrawn)
 
-	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseSubscriptionWithdrawn))
-	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseUENotResponding))
-	ue.Deregister(context.Background())
-
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
-	ue.Deregister(context.Background())
-
-	want := []models.SessionReleaseReason{models.ReleaseSubscriptionWithdrawn, models.ReleaseDeregistration}
-	if len(fakeSmf.releaseCauses) != len(want) {
-		t.Fatalf("release causes = %+v, want %v", fakeSmf.releaseCauses, want)
+	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseDeregistration {
+		t.Fatalf("reason before the request is outstanding = %s, want the fallback", got.Reason)
 	}
 
-	for i, cause := range fakeSmf.releaseCauses {
-		if cause.Reason != want[i] {
-			t.Fatalf("release %d reason = %s, want %s", i, cause.Reason, want[i])
-		}
+	ue.ForceStateForTest(DeregistrationInitiated)
+
+	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseSubscriptionWithdrawn {
+		t.Fatalf("reason while deregistration is initiated = %s, want subscription_withdrawn", got.Reason)
+	}
+
+	ue.ForceStateForTest(Deregistered)
+	ue.TransitionTo(context.Background(), RegistrationInitiated)
+	ue.ForceStateForTest(DeregistrationInitiated)
+
+	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseDeregistration {
+		t.Fatalf("reason after a new registration began = %s, want the fallback", got.Reason)
 	}
 }

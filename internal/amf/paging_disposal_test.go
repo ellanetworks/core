@@ -52,7 +52,7 @@ func pagedUE(t *testing.T) (*AMF, *UeContext, *deregisterTestSmf) {
 func TestDeregisterFailsThePendingTransfer(t *testing.T) {
 	_, ue, fakeSmf := pagedUE(t)
 
-	ue.Deregister(context.Background())
+	ue.Deregister(context.Background(), models.ReleaseFor(models.ReleaseDeregistration))
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after Deregister, want Idle", state)

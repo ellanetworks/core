@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -236,7 +237,7 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 
 	supi := ue.Supi()
 
-	ue.Deregister(ctx)
+	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseDeregistration))
 
 	fresh := amf.NewUeContext()
 	fresh.SetSupi(supi)
@@ -301,7 +302,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 			logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed, rejecting registration", zap.Error(err))
 
-			defer ue.Deregister(ctx)
+			defer ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 			ueConn := ue.Conn()
 			if ueConn == nil {

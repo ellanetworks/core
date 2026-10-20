@@ -86,10 +86,23 @@ func (l *usageLedger) take() []models.SubscriberUsage {
 	return rows
 }
 
-func (l *usageLedger) restore(rows []models.SubscriberUsage) {
+func (l *usageLedger) restore(rows []models.SubscriberUsage) []models.SubscriberUsage {
+	var refused []models.SubscriberUsage
+
 	for _, r := range rows {
-		l.add(usageKey{epochDay: r.EpochDay, imsi: r.IMSI}, r.UplinkVolume, r.DownlinkVolume)
+		if !l.add(usageKey{epochDay: r.EpochDay, imsi: r.IMSI}, r.UplinkVolume, r.DownlinkVolume) {
+			refused = append(refused, r)
+		}
 	}
+
+	return refused
+}
+
+func (l *usageLedger) empty() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return len(l.pending) == 0
 }
 
 func (l *usageLedger) close() {
@@ -102,6 +115,12 @@ func (l *usageLedger) close() {
 func epochDay(t time.Time) int64 {
 	return t.UTC().Unix() / 86400
 }
+
+func nextEpochDay(t time.Time) time.Time {
+	return time.Unix((epochDay(t)+1)*86400, 0)
+}
+
+type usageConsumer func(ctx context.Context, sc *SMContext, usage []urrUsage)
 
 func (s *SMF) StartUsageCollection() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -116,10 +135,16 @@ func (s *SMF) StartUsageCollection() {
 		ticker := time.NewTicker(usageCollectionInterval)
 		defer ticker.Stop()
 
+		dayEnd := time.NewTimer(time.Until(nextEpochDay(time.Now())))
+		defer dayEnd.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
 				s.collectUsage(ctx)
+			case <-dayEnd.C:
+				s.collectUsage(ctx)
+				dayEnd.Reset(time.Until(nextEpochDay(time.Now())))
 			case <-s.usageFlush:
 				s.flushUsage(ctx)
 			case <-ctx.Done():
@@ -145,8 +170,20 @@ func (s *SMF) StopUsageCollection(ctx context.Context) {
 			zap.Int("sessions", busy))
 	}
 
+	for {
+		s.flushUsage(ctx)
+
+		if s.usage.empty() || ctx.Err() != nil {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(usageShutdownRetry):
+		}
+	}
+
 	s.usage.close()
-	s.flushUsage(ctx)
 
 	unrecorded := s.usage.take()
 	if len(unrecorded) == 0 {
@@ -166,7 +203,7 @@ func (s *SMF) collectUsage(ctx context.Context) {
 			continue
 		}
 
-		s.takeUsageLocked(ctx, sc)
+		s.takeUsageLocked(ctx, sc, models.UsageTriggerPeriodic)
 		sc.Mutex.Unlock()
 	}
 
@@ -185,7 +222,7 @@ func (s *SMF) collectAllUsage(ctx context.Context) int {
 				continue
 			}
 
-			s.takeUsageLocked(ctx, sc)
+			s.takeUsageLocked(ctx, sc, models.UsageTriggerQuery)
 			sc.Mutex.Unlock()
 		}
 
@@ -209,40 +246,81 @@ func (s *SMF) pooledSessions() []*SMContext {
 	return slices.Collect(maps.Values(s.pool))
 }
 
-func (s *SMF) takeUsageLocked(ctx context.Context, sc *SMContext) {
+func (s *SMF) takeUsageLocked(ctx context.Context, sc *SMContext, trigger models.UsageReportTrigger) {
 	if sc.PFCPContext == nil || !sc.PFCPContext.Established {
 		return
 	}
 
-	report, err := s.upf.QueryUsage(ctx, sc.PFCPContext.SEID)
+	reports, err := s.upf.QueryUsage(ctx, sc.PFCPContext.SEID, trigger)
 	if err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("could not read every usage counter of the session",
 			logger.SEID(sc.PFCPContext.SEID), logger.SUPI(sc.Supi.String()), zap.Error(err))
 	}
 
-	s.applyUsage(ctx, sc, report, time.Now())
+	s.deliverUsage(ctx, sc, sc.dataPlane().chargedUsage(reports))
 }
 
-func (s *SMF) applyUsage(ctx context.Context, sc *SMContext, report models.UsageReport, now time.Time) {
-	if report.UplinkVolume+report.DownlinkVolume == 0 {
+func (sc *SMContext) dataPlane() dataPlane {
+	if sc.Tunnel == nil {
+		return dataPlane{}
+	}
+
+	return sc.Tunnel.dataPlane
+}
+
+func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []urrUsage) {
+	if len(usage) == 0 {
 		return
 	}
 
+	for _, consume := range s.usageConsumers {
+		consume(ctx, sc, usage)
+	}
+}
+
+func usageTime(r models.UsageReport) time.Time {
+	switch {
+	case !r.LastPacket.IsZero():
+		return r.LastPacket
+	case !r.EndTime.IsZero():
+		return r.EndTime
+	default:
+		return time.Now()
+	}
+}
+
+func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []urrUsage) {
 	imsi := sc.Supi.IMSI()
-	if imsi == "" {
-		logger.From(ctx, logger.SmfLog).Error("usage bytes lost: the session names no IMSI",
-			logger.SEID(report.SEID), logger.SUPI(sc.Supi.String()),
-			logger.UplinkVolume(report.UplinkVolume), logger.DownlinkVolume(report.DownlinkVolume))
 
-		return
+	for _, u := range usage {
+		if u.TotalVolume() == 0 {
+			continue
+		}
+
+		if imsi == "" {
+			logger.From(ctx, logger.SmfLog).Error("usage bytes lost: the session names no IMSI",
+				logger.SEID(sc.seid()), logger.SUPI(sc.Supi.String()), logger.URRID(u.URRID),
+				logger.UplinkVolume(u.UplinkVolume), logger.DownlinkVolume(u.DownlinkVolume))
+			metrics.DroppedUsage(metrics.UsageDropNoIMSI, u.TotalVolume())
+
+			continue
+		}
+
+		if !s.usage.add(usageKey{epochDay: epochDay(usageTime(u.UsageReport)), imsi: imsi}, u.UplinkVolume, u.DownlinkVolume) {
+			logger.From(ctx, logger.SmfLog).Error("usage bytes lost: usage taken after the final shutdown flush",
+				logger.SEID(sc.seid()), logger.SUPIFromIMSI(imsi), logger.URRID(u.URRID),
+				logger.UplinkVolume(u.UplinkVolume), logger.DownlinkVolume(u.DownlinkVolume))
+			metrics.DroppedUsage(metrics.UsageDropShutdown, u.TotalVolume())
+		}
+	}
+}
+
+func (sc *SMContext) seid() uint64 {
+	if sc.PFCPContext == nil {
+		return 0
 	}
 
-	if !s.usage.add(usageKey{epochDay: epochDay(now), imsi: imsi}, report.UplinkVolume, report.DownlinkVolume) {
-		logger.From(ctx, logger.SmfLog).Error("usage bytes lost: usage taken after the final shutdown flush",
-			logger.SEID(report.SEID), logger.SUPIFromIMSI(imsi),
-			logger.UplinkVolume(report.UplinkVolume), logger.DownlinkVolume(report.DownlinkVolume))
-		metrics.DroppedUsage(metrics.UsageDropShutdown, report.UplinkVolume+report.DownlinkVolume)
-	}
+	return sc.PFCPContext.SEID
 }
 
 func (s *SMF) requestUsageFlush() {
@@ -274,7 +352,17 @@ func (s *SMF) flushUsage(ctx context.Context) {
 
 		logger.From(ctx, logger.SmfLog).Warn("could not record usage; retrying on the next flush",
 			append(usageFields(batch), zap.Error(err))...)
-		s.usage.restore(batch)
+
+		refused := s.usage.restore(batch)
+		if len(refused) == 0 {
+			continue
+		}
+
+		logger.From(ctx, logger.SmfLog).Error("usage bytes lost: usage could not be recorded before shutdown", usageFields(refused)...)
+
+		for _, u := range refused {
+			metrics.DroppedUsage(metrics.UsageDropShutdown, u.UplinkVolume+u.DownlinkVolume)
+		}
 	}
 }
 

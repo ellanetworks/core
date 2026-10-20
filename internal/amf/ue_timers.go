@@ -97,6 +97,5 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 
 	a.mu.Unlock()
 
-	ue.recordSessionReleaseCause(models.ReleaseCause(models.ReleaseUENotResponding))
-	a.DeregisterAndRemoveUeContext(ctx, ue)
+	a.DeregisterAndRemoveUeContext(ctx, ue, models.ReleaseFor(models.ReleaseImplicitDeregistration))
 }

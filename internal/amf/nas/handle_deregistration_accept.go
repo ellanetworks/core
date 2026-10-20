@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -18,7 +19,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) nasreply
 		conn.StopNASGuard(ctx)
 	}
 
-	defer ue.Deregister(ctx)
+	defer ue.Deregister(ctx, ue.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseDeregistration)))
 
 	ueConn := ue.Conn()
 	if ueConn == nil {

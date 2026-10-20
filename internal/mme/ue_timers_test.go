@@ -57,7 +57,7 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 		t.Fatal("retained husk must keep its native security context")
 	}
 
-	assertReleaseReasons(t, m, models.ReleaseUENotResponding)
+	assertReleaseReasons(t, m, models.ReleaseImplicitDeregistration)
 }
 
 func TestReconnectStopsIdleTimers(t *testing.T) {

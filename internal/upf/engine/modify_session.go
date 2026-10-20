@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -96,6 +97,10 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		span.RecordError(err)
 
 		return false, nil, nil, err
+	}
+
+	if err := conn.createURRsLocked(ctx, &txn, session, req.UpdateURRs); err != nil {
+		return fail(err)
 	}
 
 	touched := make(map[uint32]struct{}, len(req.UpdatePDRs))
@@ -254,6 +259,10 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		})
 	}
 
+	if err := checkSessionURRReferences(session, req.RemoveURRs); err != nil {
+		return fail(err)
+	}
+
 	for _, farID := range req.RemoveFARs {
 		session.RemoveFar(farID)
 	}
@@ -282,9 +291,86 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 	}
 
+	usage := conn.removeURRsLocked(ctx, session, req.RemoveURRs)
+
 	logger.From(ctx, logger.UpfLog).Debug("Session modification successful")
 
-	return drain, endMarkers, &models.ModifyResponse{ChosenTEIDs: chosenTEIDs(session)}, nil
+	return drain, endMarkers, &models.ModifyResponse{ChosenTEIDs: chosenTEIDs(session), Usage: usage}, nil
+}
+
+func (conn *SessionEngine) createURRsLocked(ctx context.Context, txn *sessionTxn, session *Session, urrs []models.URR) error {
+	var created []uint32
+
+	for _, urr := range urrs {
+		if session.usage.tracks(urr.URRID) || slices.Contains(created, urr.URRID) {
+			continue
+		}
+
+		if len(session.usage.trackedIDs()) >= models.MaxSessionURRs {
+			return fmt.Errorf("the session needs more than %d URRs", models.MaxSessionURRs)
+		}
+
+		if conn.BpfObjects != nil {
+			if err := conn.BpfObjects.NewUrr(session.SEID, urr.URRID); err != nil {
+				return fmt.Errorf("can't put URR %d: %w", urr.URRID, err)
+			}
+		}
+
+		session.usage.track(urr.URRID, time.Now())
+		created = append(created, urr.URRID)
+
+		txn.onRollback(func() error {
+			if err := conn.waitForPrograms(session); err != nil {
+				return fmt.Errorf("wait for running datapath programs: %w", err)
+			}
+
+			reports, err := conn.removeURRs(ctx, session, []uint32{urr.URRID})
+			if uplink, downlink := models.UsageVolume(reports); uplink+downlink > 0 {
+				logger.From(ctx, logger.UpfLog).Error("usage bytes lost: a failed modification removed a URR that had measured traffic",
+					logger.SEID(session.SEID), logger.URRID(urr.URRID), logger.UplinkVolume(uplink), logger.DownlinkVolume(downlink))
+			}
+
+			return err
+		})
+
+		logger.From(ctx, logger.UpfLog).Debug("Created Usage Reporting Rule", logger.URRID(urr.URRID))
+	}
+
+	return nil
+}
+
+func checkSessionURRReferences(session *Session, removing []uint32) error {
+	for _, pdr := range session.ListPDRs() {
+		id := pdr.PdrInfo.UrrID
+		if id == 0 {
+			continue
+		}
+
+		if !session.usage.tracks(id) || slices.Contains(removing, id) {
+			return fmt.Errorf("PDR %d references URR %d, which the session does not keep", pdr.PdrID, id)
+		}
+	}
+
+	return nil
+}
+
+func (conn *SessionEngine) removeURRsLocked(ctx context.Context, session *Session, ids []uint32) []models.UsageReport {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	if err := conn.waitForPrograms(session); err != nil {
+		logger.From(ctx, logger.UpfLog).Error("usage bytes lost: could not wait for running datapath programs before the final reading",
+			logger.SEID(session.SEID), zap.Error(err))
+	}
+
+	reports, err := conn.removeURRs(ctx, session, ids)
+	if err != nil {
+		logger.From(ctx, logger.UpfLog).Warn("could not remove every URR of the session",
+			logger.SEID(session.SEID), zap.Error(err))
+	}
+
+	return reports
 }
 
 func chosenTEIDs(session *Session) map[uint8]uint32 {

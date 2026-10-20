@@ -132,7 +132,7 @@ func (f *fakeSmfSbi) ClearPagingSuppression(_ context.Context, _ etsi.SUPI, _ ui
 	return nil
 }
 
-func (f *fakeSmfSbi) ReleaseSmContext(ctx context.Context, smContextRef string, _ models.SessionReleaseCause) error {
+func (f *fakeSmfSbi) ReleaseSmContext(ctx context.Context, smContextRef string, _ models.SessionReleaseRequest) error {
 	f.ReleaseSmContextCalls = append(f.ReleaseSmContextCalls, smContextRef)
 	return nil
 }

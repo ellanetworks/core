@@ -51,7 +51,7 @@ func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, status 
 
 	if status.Cause == eps.ESMCauseInvalidEPSBearerIdentity {
 		m.ConcludeBearerModification(ctx, ue, p, false)
-		m.DeactivateBearerLocally(ctx, ue, p, models.ReleaseCause(models.ReleaseProtocolError, models.ESMCause(uint8(status.Cause))))
+		m.DeactivateBearerLocally(ctx, ue, p, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.ReceivedESMCause(uint8(status.Cause))))
 
 		return nasreply.Handled()
 	}

@@ -282,6 +282,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
 	const __u64 billed_bytes = urr_packet_len(ctx);
+	if (!billed_bytes)
+		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, ctx->ip4 ? IPV4 : IPV6,
 		     FLOW_DOWNLINK, ALLOW);
@@ -833,6 +835,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	/* Before routing resizes the frame. */
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
 	const __u64 billed_bytes = urr_packet_len(ctx);
+	if (!billed_bytes)
+		return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =

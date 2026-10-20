@@ -316,12 +316,12 @@ func (u *benchUPF) ModifySession(_ context.Context, req *models.ModifyRequest) (
 	return &models.ModifyResponse{ChosenTEIDs: teids}, nil
 }
 
-func (u *benchUPF) QueryUsage(_ context.Context, seid uint64) (models.UsageReport, error) {
-	return models.UsageReport{SEID: seid}, nil
+func (u *benchUPF) QueryUsage(_ context.Context, _ uint64, _ models.UsageReportTrigger) ([]models.UsageReport, error) {
+	return nil, nil
 }
 
-func (u *benchUPF) DeleteSession(_ context.Context, seid uint64) (models.UsageReport, error) {
-	return models.UsageReport{SEID: seid}, nil
+func (u *benchUPF) DeleteSession(_ context.Context, _ uint64) ([]models.UsageReport, error) {
+	return nil, nil
 }
 
 func (u *benchUPF) SuppressDownlinkDataNotification(context.Context, uint64) {}

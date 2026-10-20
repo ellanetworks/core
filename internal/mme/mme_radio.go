@@ -588,7 +588,7 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 	}
 
 	for _, ue := range orphaned {
-		m.ReleaseUEContextLocally(ctx, ue, trigger)
+		m.ReleaseUEContextLocally(ctx, ue, trigger, models.ReleaseFor(models.ReleaseAccessReleased))
 	}
 
 	for _, ue := range abandoned {

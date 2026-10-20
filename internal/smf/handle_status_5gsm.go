@@ -31,7 +31,7 @@ func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti ui
 		smContext.establishmentPTI != 0 && pti == smContext.establishmentPTI
 
 	if cause == fgs.GSMCauseInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
-		s.teardownAndRemove(ctx, smContext, models.ReleaseCause(models.ReleaseProtocolError, models.GSMCause(uint8(cause))))
+		s.teardownAndRemove(ctx, smContext, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.Received5GSMCause(uint8(cause))))
 
 		return true
 	}

@@ -49,10 +49,11 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 			}
 
 			rule := smf.PCCRule{
-				ID:   fmt.Sprintf("%s#%d.%d", sessionID, c.Number, sub.FlowNumber),
-				QCI:  qci,
-				ARP:  arp,
-				Gate: gate(status, sub),
+				ID:          fmt.Sprintf("%s#%d.%d", sessionID, c.Number, sub.FlowNumber),
+				QCI:         qci,
+				ARP:         arp,
+				Gate:        gate(status, sub),
+				RatingGroup: defaultRatingGroup,
 			}
 
 			hasUL, hasDL := false, false

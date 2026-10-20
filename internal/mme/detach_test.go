@@ -157,7 +157,7 @@ func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
 func assertReleaseReasons(t *testing.T, m *MME, want models.SessionReleaseReason) {
 	t.Helper()
 
-	var causes []models.SessionReleaseCause
+	var causes []models.SessionReleaseRequest
 
 	eventually(t, time.Second, func() bool {
 		causes = m.Session.(*fakeSessionManager).releaseCausesSnapshot()
@@ -184,5 +184,25 @@ func TestReleaseUEContextIdleNoPanic(t *testing.T) {
 
 	if ue.Conn() != nil {
 		t.Fatal("the freed connection was resurrected")
+	}
+}
+
+func TestNetworkDetachCauseEndsWithANewRegistration(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	fallback := models.ReleaseFor(models.ReleaseRegistrationFailure)
+
+	ue.startNetworkDetach(models.ReleaseFor(models.ReleaseSubscriptionWithdrawn))
+
+	if got := ue.NetworkDetachOr(fallback); got.Reason != models.ReleaseSubscriptionWithdrawn {
+		t.Fatalf("reason during the network detach = %s, want subscription_withdrawn", got.Reason)
+	}
+
+	ue.ForceStateForTest(EMMDeregistered)
+	ue.TransitionTo(t.Context(), EMMRegistrationInitiated)
+
+	if got := ue.NetworkDetachOr(fallback); got.Reason != models.ReleaseRegistrationFailure {
+		t.Fatalf("reason after a new attach began = %s, want the fallback", got.Reason)
 	}
 }

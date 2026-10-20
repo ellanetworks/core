@@ -24,7 +24,7 @@ func abortRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCont
 
 	conn := ue.Conn()
 	if conn == nil {
-		amfInstance.DeregisterAndRemoveUeContext(ctx, ue)
+		amfInstance.DeregisterAndRemoveUeContext(ctx, ue, models.ReleaseFor(models.ReleaseRegistrationFailure))
 		return
 	}
 

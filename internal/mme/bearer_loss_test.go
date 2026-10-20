@@ -51,7 +51,7 @@ func TestLostDefaultBearerDisconnectsItsPDNWithItsDedicatedBearers(t *testing.T)
 	m, ue, cc, _ := activeVoiceBearer(t)
 	addSecondPDN(ue)
 
-	m.DisconnectLostPDN(context.Background(), ue, m.LookupPDN(ue, 5))
+	m.DisconnectLostPDN(context.Background(), ue, m.LookupPDN(ue, 5), models.ReleaseFor(models.ReleaseAccessReleased))
 
 	cmd := lastERABRelease(t, cc)
 	if got := releasedEBIs(cmd); !slices.Equal(got, []uint8{5, 6}) {
@@ -70,7 +70,7 @@ func TestLostDefaultBearerDisconnectsItsPDNWithItsDedicatedBearers(t *testing.T)
 func TestLostLastDefaultBearerDetachesTheUE(t *testing.T) {
 	m, ue, cc, _ := activeVoiceBearer(t)
 
-	m.DisconnectLostPDN(context.Background(), ue, m.LookupPDN(ue, 5))
+	m.DisconnectLostPDN(context.Background(), ue, m.LookupPDN(ue, 5), models.ReleaseFor(models.ReleaseAccessReleased))
 
 	detach, err := eps.ParseDetachRequestNetwork(downlinkPlain(t, ue, decodeDownlinkNAS(t, lastSent(cc))))
 	if err != nil || detach.TypeOfDetach != eps.DetachTypeReattachRequired {
@@ -234,10 +234,10 @@ func TestModificationRejectedWithInvalidEBIReleasesTheBearerLocally(t *testing.T
 func TestReleasingAPDNConnectionStopsItsESMGuard(t *testing.T) {
 	for name, release := range map[string]func(m *MME, ue *UeContext, p *PdnConnection){
 		"one": func(m *MME, ue *UeContext, p *PdnConnection) {
-			m.ReleasePDN(context.Background(), ue, p, models.ReleaseCause(models.ReleaseUERequested))
+			m.ReleasePDN(context.Background(), ue, p, models.ReleaseFor(models.ReleaseUERequested))
 		},
 		"all": func(m *MME, ue *UeContext, _ *PdnConnection) {
-			m.ReleaseAllSessions(context.Background(), ue, models.ReleaseCause(models.ReleaseUERequested))
+			m.ReleaseAllSessions(context.Background(), ue, models.ReleaseFor(models.ReleaseUERequested))
 		},
 		"local": func(m *MME, ue *UeContext, p *PdnConnection) { m.DropPDN(ue, p.Ebi) },
 	} {

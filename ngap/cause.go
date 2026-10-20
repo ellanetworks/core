@@ -112,6 +112,14 @@ type Cause struct {
 	Extended bool
 }
 
+func (c Cause) EnumeratedValue() int {
+	if c.Extended && int(c.Group) < causeRootGroups {
+		return causeGroupRootCount[c.Group] + c.Value
+	}
+
+	return c.Value
+}
+
 func (c Cause) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if int(c.Group) >= causeRootGroups {
 		return fmt.Errorf("ngap: invalid cause group %d", c.Group)

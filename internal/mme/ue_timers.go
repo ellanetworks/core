@@ -79,5 +79,5 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	logger.From(ctx, logger.MmeLog).Info("implicit detach: UE unreachable, deregistering (native security context retained)",
 		logger.SUPIFromIMSI(imsi))
 
-	m.ReleaseAllSessions(ctx, ue, models.ReleaseCause(models.ReleaseUENotResponding))
+	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseImplicitDeregistration))
 }
