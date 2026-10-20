@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"testing"
@@ -16,6 +17,161 @@ import (
 	bpf "github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
+
+func TestCollectionStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		metas  []MapMetadata
+		status string
+		count  int
+	}{
+		{"empty", nil, "omitted", 0},
+		{"excluded", []MapMetadata{{Error: "excluded"}}, "omitted", 0},
+		{"complete", []MapMetadata{{NumEntriesReported: 3}}, "complete", 3},
+		{"partial", []MapMetadata{{NumEntriesReported: 3}, {Error: "iterate error"}}, "partial", 3},
+		{"partial map", []MapMetadata{{NumEntriesReported: 2, Error: "iterate error"}}, "partial", 2},
+		{"failed", []MapMetadata{{Error: "map not present"}}, "failed", 0},
+		{"truncated", []MapMetadata{{NumEntriesReported: 2, Truncated: true}}, "partial", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CollectionStatus(tc.metas)
+			if got.Status != tc.status || got.Count != tc.count {
+				t.Fatalf("unexpected status: %#v", got)
+			}
+		})
+	}
+}
+
+func TestDecodePdrsPreservesImsiTags(t *testing.T) {
+	imsi := "001010000000001"
+
+	tag, err := ebpf.EncodeIMSITag(imsi)
+	if err != nil {
+		t.Fatalf("EncodeIMSITag: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		key     any
+		keyJSON string
+	}{
+		{"pdrs_uplink", uint32(7), "7"},
+		{"pdrs_downlink_ip4", uint32(7), "7"},
+		{"pdrs_downlink_ip6", ebpf.N3N6EntrypointIn6Addr{}, `"00000000000000000000000000000000"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := &bpf.MapSpec{
+				Name:       tc.name,
+				Type:       bpf.Hash,
+				KeySize:    uint32(binary.Size(tc.key)),
+				ValueSize:  uint32(binary.Size(ebpf.N3N6EntrypointPdrInfo{})),
+				MaxEntries: 4,
+			}
+
+			m, err := bpf.NewMap(spec)
+			if err != nil {
+				t.Skipf("cannot create eBPF map in this environment: %v", err)
+			}
+
+			defer func() { _ = m.Close() }()
+
+			for _, tag := range []uint64{tag, 0, 1<<53 + 1, ^uint64(0)} {
+				val := ebpf.N3N6EntrypointPdrInfo{LocalSeid: 1, Imsi: tag, PdrId: 3}
+
+				if err := m.Put(tc.key, &val); err != nil {
+					t.Fatalf("populate eBPF map: %v", err)
+				}
+
+				var buf bytes.Buffer
+
+				count, truncated, err := getMapDecoder(tc.name)(m, tc.name, DumpOptions{}, json.NewEncoder(&buf))
+				if err != nil {
+					t.Fatalf("decode failed: %v", err)
+				}
+
+				if count != 1 || truncated {
+					t.Fatalf("unexpected decode status: count=%d truncated=%v", count, truncated)
+				}
+
+				var entry struct {
+					Key   json.RawMessage            `json:"key"`
+					Value ebpf.N3N6EntrypointPdrInfo `json:"value"`
+				}
+				if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
+					t.Fatalf("unmarshal dump entry: %v", err)
+				}
+
+				if string(entry.Key) != tc.keyJSON || entry.Value != val {
+					t.Fatalf("dump changed original entry: key=%s value=%#v, expected key=%s value=%#v", entry.Key, entry.Value, tc.keyJSON, val)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeFlowStatsPreservesImsiTag(t *testing.T) {
+	spec := &bpf.MapSpec{
+		Name:       "flow_stats",
+		Type:       bpf.LRUHash,
+		KeySize:    uint32(binary.Size(ebpf.N3N6EntrypointFlow{})),
+		ValueSize:  uint32(binary.Size(ebpf.N3N6EntrypointFlowStats{})),
+		MaxEntries: 4,
+	}
+
+	m, err := bpf.NewMap(spec)
+	if err != nil {
+		t.Skipf("cannot create eBPF map in this environment: %v", err)
+	}
+
+	defer func() { _ = m.Close() }()
+
+	imsi := "001010000000001"
+
+	tag, err := ebpf.EncodeIMSITag(imsi)
+	if err != nil {
+		t.Fatalf("EncodeIMSITag: %v", err)
+	}
+
+	key := ebpf.N3N6EntrypointFlow{Imsi: tag}
+	val := ebpf.N3N6EntrypointFlowStats{Bytes: 42, Packets: 1}
+
+	if err := m.Put(&key, &val); err != nil {
+		t.Fatalf("populate eBPF map: %v", err)
+	}
+
+	var buf bytes.Buffer
+
+	enc := json.NewEncoder(&buf)
+
+	count, truncated, err := decodeFlowStats(m, "flow_stats", DumpOptions{}, enc)
+	if err != nil {
+		t.Fatalf("decodeFlowStats failed: %v", err)
+	}
+
+	if count != 1 || truncated {
+		t.Fatalf("unexpected decode status: count=%d truncated=%v", count, truncated)
+	}
+
+	var entry struct {
+		Key   ebpf.N3N6EntrypointFlow      `json:"key"`
+		Value ebpf.N3N6EntrypointFlowStats `json:"value"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
+		t.Fatalf("unmarshal dump entry: %v", err)
+	}
+
+	if entry.Key != key {
+		t.Fatalf("dump changed original flow key: got %#v, expected %#v", entry.Key, key)
+	}
+
+	if decoded := ebpf.DecodeIMSITag(entry.Key.Imsi); decoded != imsi {
+		t.Fatalf("dump changed original IMSI: got %q, expected %q", decoded, imsi)
+	}
+
+	if entry.Value != val {
+		t.Fatalf("flow stats value corrupted: got %#v, expected %#v", entry.Value, val)
+	}
+}
 
 func TestDumpAll_Nil(t *testing.T) {
 	metas, err := DumpAll(context.Background(), nil, DumpOptions{}, tar.NewWriter(&bytes.Buffer{}))

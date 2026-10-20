@@ -268,6 +268,7 @@ type Database struct {
 	cancelUERegistrationStmt       *sqlair.Statement
 	purgeUERegistrationsByNodeStmt *sqlair.Statement
 	getUERegistrationStmt          *sqlair.Statement
+	listAllUERegistrationsStmt     *sqlair.Statement
 	maxUERegistrationVersionStmt   *sqlair.Statement
 
 	getSMSSettingsStmt    *sqlair.Statement
@@ -285,12 +286,15 @@ type Database struct {
 	insertPCSCFAddressStmt   *sqlair.Statement
 	deletePCSCFAddressesStmt *sqlair.Statement
 
-	getIMSRegistrationStmt    *sqlair.Statement
-	countIMSRegistrationsStmt *sqlair.Statement
-	upsertIMSRegistrationStmt *sqlair.Statement
-	deleteIMSRegistrationStmt *sqlair.Statement
+	getIMSRegistrationStmt      *sqlair.Statement
+	listAllIMSRegistrationsStmt *sqlair.Statement
+	countIMSRegistrationsStmt   *sqlair.Statement
+	upsertIMSRegistrationStmt   *sqlair.Statement
+	deleteIMSRegistrationStmt   *sqlair.Statement
 
 	getSMSWaitingStmt             *sqlair.Statement
+	listAllSMSWaitingStmt         *sqlair.Statement
+	listAllSMSWaitingCentresStmt  *sqlair.Statement
 	listSMSWaitingCentresStmt     *sqlair.Statement
 	upsertSMSWaitingStmt          *sqlair.Statement
 	insertSMSWaitingCentreStmt    *sqlair.Statement
@@ -1938,6 +1942,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.cancelUERegistrationStmt, fmt.Sprintf(cancelUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.purgeUERegistrationsByNodeStmt, fmt.Sprintf(purgeUERegistrationsByNodeStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.getUERegistrationStmt, fmt.Sprintf(getUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.listAllUERegistrationsStmt, fmt.Sprintf(listAllUERegistrationsStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.maxUERegistrationVersionStmt, fmt.Sprintf(maxUERegistrationVersionStmt, UERegistrationsTableName), []any{ueRegistrationVersion{}}},
 
 		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
@@ -1953,10 +1958,13 @@ func (db *Database) PrepareStatements() error {
 		{&db.insertPCSCFAddressStmt, fmt.Sprintf(insertPCSCFAddressStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
 		{&db.deletePCSCFAddressesStmt, fmt.Sprintf(deletePCSCFAddressesStmt, PCSCFAddressesTableName), nil},
 		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
+		{&db.listAllIMSRegistrationsStmt, fmt.Sprintf(listAllIMSRegistrationsStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},
 		{&db.upsertIMSRegistrationStmt, fmt.Sprintf(upsertIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.deleteIMSRegistrationStmt, fmt.Sprintf(deleteIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.listAllSMSWaitingStmt, fmt.Sprintf(listAllSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.listAllSMSWaitingCentresStmt, fmt.Sprintf(listAllSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
 		{&db.listSMSWaitingCentresStmt, fmt.Sprintf(listSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
 		{&db.upsertSMSWaitingStmt, fmt.Sprintf(upsertSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 		{&db.insertSMSWaitingCentreStmt, fmt.Sprintf(insertSMSWaitingCentreStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},

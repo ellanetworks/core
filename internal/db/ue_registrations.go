@@ -29,6 +29,7 @@ const (
 	cancelUERegistrationStmt         = "UPDATE %s SET purged=1, version=$UERegistration.version WHERE imsi==$UERegistration.imsi AND type==$UERegistration.type AND purged==0"
 	purgeUERegistrationsByNodeStmt   = "UPDATE %s SET purged=1, version=$UERegistration.version WHERE nodeID==$UERegistration.nodeID AND purged==0"
 	getUERegistrationStmt            = "SELECT &UERegistration.* FROM %s WHERE imsi==$UERegistration.imsi AND type==$UERegistration.type"
+	listAllUERegistrationsStmt       = "SELECT &UERegistration.* FROM %s ORDER BY imsi ASC"
 	maxUERegistrationVersionStmt     = "SELECT COALESCE(MAX(version), 0) AS &ueRegistrationVersion.version FROM %s"
 	resetUERegistrationsSQL          = "UPDATE %s SET purged=0, version=0"
 	ueRegistrationsTableExistsSQLFmt = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'"
@@ -154,6 +155,34 @@ func (db *Database) GetUERegistration(ctx context.Context, imsi, regType string)
 	}
 
 	return &row, nil
+}
+
+func (db *Database) ListAllUERegistrations(ctx context.Context) ([]UERegistration, error) {
+	ctx, span := startUERegistrationsSpan(ctx, "SELECT")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UERegistrationsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "select").Inc()
+
+	if !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
+		return nil, nil
+	}
+
+	var regs []UERegistration
+
+	if err := db.conn().Query(ctx, db.listAllUERegistrationsStmt).GetAll(&regs); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return regs, nil
 }
 
 func startUERegistrationsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {

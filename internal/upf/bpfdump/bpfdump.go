@@ -18,6 +18,7 @@ import (
 
 	bpf "github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
 )
@@ -25,6 +26,36 @@ import (
 type DumpOptions struct {
 	Exclude          []string
 	MaxEntriesPerMap int // 0 = unlimited
+}
+
+func CollectionStatus(metas []MapMetadata) supportbundle.SectionStatus {
+	status := supportbundle.SectionStatus{Status: "complete"}
+	successful, failed, truncated := 0, 0, false
+
+	for _, meta := range metas {
+		switch meta.Error {
+		case "excluded", "ring buffer maps cannot be iterated":
+			continue
+		case "":
+			successful++
+		default:
+			failed++
+		}
+
+		status.Count += meta.NumEntriesReported
+		truncated = truncated || meta.Truncated
+	}
+
+	if failed > 0 || truncated {
+		status.Status, status.Reason = "partial", "maps failed or truncated"
+		if successful == 0 && status.Count == 0 {
+			status.Status = "failed"
+		}
+	} else if successful == 0 {
+		status.Status, status.Reason = "omitted", "no eligible maps"
+	}
+
+	return status
 }
 
 type MapMetadata struct {
@@ -310,8 +341,8 @@ func decodePdrsDownlinkIp6(m *bpf.Map, mapName string, opts DumpOptions, enc *js
 	)
 
 	for iter.Next(&key, &val) {
-		// Marshal IPv6 address as hex string for JSON
 		keyStr := marshalIn6Addr(&key)
+
 		if err := enc.Encode(map[string]any{"key": keyStr, "value": val}); err != nil {
 			return count, false, fmt.Errorf("encode failed: %w", err)
 		}
@@ -641,6 +672,7 @@ func dumpMapsFromStruct(mapsStruct any, opts DumpOptions, tw *tar.Writer) ([]Map
 			})
 		}
 
+		meta.NumEntriesReported = count
 		if err != nil {
 			meta.Error = fmt.Sprintf("iterate error: %v", err)
 			logger.UpfLog.Error("iterate error", zap.String("map", mapName), zap.Error(err))

@@ -247,6 +247,16 @@ const (
 	PermDeleteCellPosition = "cell_position:delete"
 )
 
+func roleHasPermission(roleID RoleID, permission string) bool {
+	for _, p := range PermissionsByRole[roleID] {
+		if p == permission || p == "*" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func Authorize(permission string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		roleID, ok := r.Context().Value(contextKeyRoleID).(RoleID)
@@ -255,14 +265,11 @@ func Authorize(permission string, next http.Handler) http.Handler {
 			return
 		}
 
-		allowedPerms := PermissionsByRole[roleID]
-		for _, p := range allowedPerms {
-			if p == permission || p == "*" {
-				next.ServeHTTP(w, r)
-				return
-			}
+		if !roleHasPermission(roleID, permission) {
+			writeError(r.Context(), w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+			return
 		}
 
-		writeError(r.Context(), w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+		next.ServeHTTP(w, r)
 	})
 }
