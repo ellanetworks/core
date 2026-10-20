@@ -396,6 +396,7 @@ type Database struct {
 
 	// Field-injected so tests can stub them.
 	probeMemberSchema func(ctx context.Context, nodeID string, raftAddr string) (int, error)
+	probeMemberStatus func(ctx context.Context, nodeID string, raftAddr string) (ellaraft.PeerStatus, error)
 	raftMemberIDs     func() []string
 	raftServers       func() []ellaraft.Server
 }
@@ -615,6 +616,14 @@ func (db *Database) RaftID() string {
 	return db.raftManager.RaftID()
 }
 
+func (db *Database) APIAddress() string {
+	if db.raftManager == nil {
+		return ""
+	}
+
+	return db.raftManager.APIAddress()
+}
+
 // AMFPointer returns the 1-63 value this node stamps into the GUTIs it
 // issues, as the AMF Pointer in 5G and the MME Code in EPS. A clustered
 // node reports 0 until the leader's allocation reaches its
@@ -735,6 +744,7 @@ func (db *Database) adoptRaftManager(mgr *ellaraft.Manager) {
 	db.raftManager = mgr
 	db.proposeTimeout = mgr.ProposeTimeout()
 	db.probeMemberSchema = mgr.ProbePeerSchemaVersion
+	db.probeMemberStatus = mgr.ProbePeerStatus
 	db.raftMemberIDs = mgr.MemberIDs
 	db.raftServers = mgr.Servers
 }
@@ -1223,6 +1233,10 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 		return nil
 	}
 
+	return errors.Join(db.deleteOrphanedClusterMembers(ctx), db.refreshClusterMemberAttributes(ctx))
+}
+
+func (db *Database) deleteOrphanedClusterMembers(ctx context.Context) error {
 	observed, err := db.orphanedClusterMembers(ctx)
 	if err != nil {
 		return err
@@ -1267,6 +1281,82 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 		)
 
 		db.purgeReconciledNodeArtifacts(ctx, nodeID)
+	}
+
+	return errors.Join(errs...)
+}
+
+func (db *Database) refreshClusterMemberAttributes(ctx context.Context) error {
+	if db.probeMemberStatus == nil || db.raftMemberIDs == nil {
+		return nil
+	}
+
+	inConfiguration := make(map[string]struct{})
+	for _, nodeID := range db.raftMemberIDs() {
+		inConfiguration[nodeID] = struct{}{}
+	}
+
+	members, err := db.ListClusterMembers(ctx)
+	if err != nil {
+		return fmt.Errorf("list cluster members: %w", err)
+	}
+
+	selfID := db.raftManager.RaftID()
+
+	var errs []error
+
+	for _, m := range members {
+		if m.NodeID == selfID {
+			continue
+		}
+
+		if _, ok := inConfiguration[m.NodeID]; !ok {
+			continue
+		}
+
+		srv := db.RaftServer(m.NodeID)
+		if srv == nil {
+			continue
+		}
+
+		status, err := db.probeMemberStatus(ctx, m.NodeID, srv.Address)
+		if err != nil {
+			logger.From(ctx, logger.DBLog).Debug("Cluster member reconcile: status probe failed",
+				zap.String("node_id", m.NodeID),
+				zap.String("raft_address", srv.Address),
+				zap.Error(err),
+			)
+
+			continue
+		}
+
+		updated := m
+		if status.BinaryVersion != "" {
+			updated.BinaryVersion = status.BinaryVersion
+		}
+
+		if status.APIAddress != "" {
+			updated.APIAddress = status.APIAddress
+		}
+
+		if updated.BinaryVersion == m.BinaryVersion && updated.APIAddress == m.APIAddress {
+			continue
+		}
+
+		if !db.raftManager.IsLeader() {
+			break
+		}
+
+		if err := db.UpsertClusterMember(ctx, &updated); err != nil {
+			errs = append(errs, fmt.Errorf("update cluster member %s: %w", m.NodeID, err))
+			continue
+		}
+
+		logger.From(ctx, logger.DBLog).Info("Updated cluster member from its reported status",
+			zap.String("node_id", m.NodeID),
+			zap.String("binary_version", updated.BinaryVersion),
+			zap.String("api_address", updated.APIAddress),
+		)
 	}
 
 	return errors.Join(errs...)
