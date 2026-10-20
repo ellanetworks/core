@@ -50,7 +50,7 @@ func establish5GSWithEBI(t *testing.T, s *smf.SMF, ebi uint8) *smf.SMContext {
 
 	ctx := context.Background()
 
-	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildDualStackPDUSessionEstRequest(), ebi)
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildDualStackPDUSessionEstRequest(), ebi, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 	before := invariantsOf(t, sc)
 	establishes := len(store.ops())
 
-	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), 3, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), 0)
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), 3, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("move to 5GS: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestTransferEPSTo5GSAdoptsTheAssignedBearerIdentity(t *testing.T) {
 	const assigned = epsTestEBI + 2
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), 3, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), assigned)
+		fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), assigned, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("move to 5GS: %v", err)
 	}
@@ -493,7 +493,7 @@ func TestTransferRefusals(t *testing.T) {
 		s.SetMME(mmeCb)
 
 		ref, reject, err := s.CreateSmContext(context.Background(), testSUPI(), 3, testDNN, testSnssai,
-			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 		if err == nil {
 			t.Fatal("a move of a session the anchor does not hold succeeded")
 		}
@@ -517,7 +517,7 @@ func TestTransferRefusals(t *testing.T) {
 		establish5GS(t, s)
 
 		_, reject, err := s.CreateSmContext(context.Background(), testSUPI(), 3, testDNN, testSnssai,
-			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 		if err == nil {
 			t.Fatal("a move onto the access already serving the session succeeded")
 		}
@@ -546,7 +546,7 @@ func TestTransferTo5GSChecksTheSlice(t *testing.T) {
 	other := &models.Snssai{Sst: 2, Sd: "0a0b0c"}
 
 	_, reject, err := s.CreateSmContext(ctx, testSUPI(), 3, testDNN, other,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err == nil {
 		t.Fatal("a move naming another slice succeeded")
 	}
@@ -647,7 +647,7 @@ func TestTransferEPSTo5GSStampsTheDownlinkForN3(t *testing.T) {
 	}
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -716,7 +716,7 @@ func TestTransferEPSTo5GSKeepsTheSessionWhenTheAcceptCannotBeDelivered(t *testin
 	amfCb.mu.Unlock()
 
 	if _, _, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0); err == nil {
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err == nil {
 		t.Fatal("the move reported success though the accept could not be delivered")
 	}
 
@@ -788,7 +788,7 @@ func TestFailedCommitLeavesTheSessionMovable(t *testing.T) {
 		}
 
 		if _, _, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0); err != nil {
+			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil {
 			t.Fatalf("move to 5GS: %v", err)
 		}
 
@@ -868,7 +868,7 @@ func TestTransferTo5GSRefusesEmergencySessions(t *testing.T) {
 	}
 
 	_, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingEmergencyPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingEmergencyPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err == nil {
 		t.Fatal("a move naming an emergency PDU session succeeded")
 	}
@@ -952,7 +952,7 @@ func TestTransferKeepsThePolicyAssociationsDecision(t *testing.T) {
 	}
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -1016,7 +1016,7 @@ func TestTransferRegistersTheRAEntryWithTheTargetQFI(t *testing.T) {
 	}
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -1175,7 +1175,7 @@ func TestRefusedCommitRestoresTheSourceBinding(t *testing.T) {
 	sc.Mutex.Unlock()
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -1232,7 +1232,7 @@ func TestBindingTo5GSIsRefusedWithoutACommit(t *testing.T) {
 	}
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -1297,7 +1297,7 @@ func TestTransferEPSTo5GSKeepsTheIPv6IID(t *testing.T) {
 	before := len(amfCb.n1n2())
 
 	if _, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0); err != nil || reject != nil {
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
 

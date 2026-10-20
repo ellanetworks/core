@@ -107,7 +107,7 @@ func TestIdleTransferModificationBuffersTheDownlink(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	if _, err := s.TransferIdle(context.Background(), testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G); err != nil {
+	if _, err := s.TransferIdle(context.Background(), testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G, models.SessionUEInfo{}); err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}
 
@@ -201,7 +201,7 @@ func TestHandoverFromEPSModificationSwitchesTheDownlink(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai)
+	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}

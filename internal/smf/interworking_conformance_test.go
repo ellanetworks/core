@@ -56,7 +56,7 @@ func TestInterworkingExistingPDUSessionKeepsTheUEAddress(t *testing.T) {
 	before := len(amfCb.n1n2())
 
 	if _, reject, err := s.CreateSmContext(context.Background(), testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0); err != nil || reject != nil {
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
 
@@ -91,7 +91,7 @@ func TestInterworkingInitialRequestDoesNotKeepTheUEAddress(t *testing.T) {
 	before := len(amfCb.n1n2())
 
 	if _, reject, err := s.CreateSmContext(context.Background(), testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0); err != nil || reject != nil {
+		fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil || reject != nil {
 		t.Fatalf("establish on 5GS: %v (reject %d bytes)", err, len(reject))
 	}
 
@@ -200,7 +200,7 @@ func TestInterworkingInitialRequestBeforeAMoveSupersedesTheSession(t *testing.T)
 	bearer := movedOnEPS(t, s, 3)
 
 	if _, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0); err != nil || reject != nil {
+		fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil || reject != nil {
 		t.Fatalf("stray initial request: %v (reject %d bytes)", err, len(reject))
 	}
 
@@ -210,7 +210,7 @@ func TestInterworkingInitialRequestBeforeAMoveSupersedesTheSession(t *testing.T)
 
 	// The move that follows can no longer find the session it meant to move.
 	_, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err == nil {
 		t.Fatal("a move succeeded against a session that had already been superseded")
 	}
@@ -228,7 +228,7 @@ func TestInterworkingRefusedRANSetupDropsThe5GSRoutingContext(t *testing.T) {
 	bearer := movedOnEPS(t, s, 1)
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -267,7 +267,7 @@ func TestInterworking5GSReleaseSparesAPreparedEPSSession(t *testing.T) {
 	bearer := movedOnEPS(t, s, 1)
 
 	if _, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0); err != nil || reject != nil {
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
 
@@ -354,7 +354,7 @@ func TestInterworkingNoPoolAnswers5GSMCause28(t *testing.T) {
 			}
 
 			_, reject, err := s.CreateSmContext(context.Background(), testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-				fgs.RequestTypeInitialRequest, raw, 0)
+				fgs.RequestTypeInitialRequest, raw, 0, models.SessionUEInfo{})
 			if err == nil {
 				t.Fatal("the establishment was accepted with no pool to draw an address from")
 			}
@@ -460,7 +460,7 @@ func TestInterworkingUndeliveredAcceptDrawsGSMCause26(t *testing.T) {
 	movedOnEPS(t, s, 1)
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
@@ -566,7 +566,7 @@ func TestInterworkingExpiredMoveDropsThe5GSRoutingContext(t *testing.T) {
 	before := len(amfCb.dropped())
 
 	if _, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0); err != nil || reject != nil {
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, models.SessionUEInfo{}); err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}
 
@@ -596,7 +596,7 @@ func TestInterworkingFailedMoveTo5GSAnswersTheUEAndDropsTheRoutingContext(t *tes
 	movedOnEPS(t, s, 3)
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
-		fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), 0)
+		fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), 0, models.SessionUEInfo{})
 	if err != nil || reject != nil {
 		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
 	}

@@ -652,7 +652,7 @@ func (m *MME) NewUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1AP
 // superseded) and stopping its idle/paging supervision. The caller holds m.mu. Secure
 // exchange is established by the subsequent decode, not here (the bare connection
 // carries the message that establishes it).
-func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn, losses bearerLosses) {
+func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn, losses bearerLosses, moved bool) {
 	m.stopIdleTimersLocked(ue)
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
@@ -674,6 +674,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn, 
 	c.locMu.Lock()
 	if c.Location.EutraLocation != nil {
 		ue.mu.Lock()
+		moved = !ue.Location.SameCell(c.Location)
 		ue.Location = c.Location
 		ue.mu.Unlock()
 	}
@@ -683,17 +684,21 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn, 
 	ue.TouchLastSeen()
 	m.recordLastSeenLocked(ue, c)
 
-	return superseded, losses
+	return superseded, losses, moved
 }
 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
 // releasing any superseded connection.
 func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
 	m.mu.Lock()
-	superseded, losses := m.attachUeConnLocked(ue, c)
+	superseded, losses, moved := m.attachUeConnLocked(ue, c)
 	m.mu.Unlock()
 
 	m.reportDedicatedLosses(ctx, losses)
+
+	if moved {
+		m.reportLocationChange(ctx, ue, ue.GetUserLocation())
+	}
 
 	if superseded != nil {
 		m.deactivateSupersededUserPlane(ctx, ue)

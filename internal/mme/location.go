@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 // UpdateLocation records the UE's serving cell (E-UTRAN CGI + TAI) from an S1AP
 // User Location. The 16-bit S1AP TAC renders as the two least-significant octets
 // of the 6-hex-digit TAC (TS 23.003, matching the gNB TAI rendering).
-func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
+func (c *UeConn) UpdateLocation(ctx context.Context, cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	curTime := time.Now().UTC()
 
 	plmnID, err := decodePLMN(tai.PLMNIdentity)
@@ -48,14 +49,22 @@ func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	}
 
 	c.locMu.Lock()
-	defer c.locMu.Unlock()
-
 	c.Location.EutraLocation = eutra
+	loc := c.Location
 
-	if ue := c.ue.Load(); ue != nil {
+	ue := c.ue.Load()
+	moved := false
+
+	if ue != nil {
 		ue.mu.Lock()
-		ue.Location = c.Location
+		moved = !ue.Location.SameCell(loc)
+		ue.Location = loc
 		ue.mu.Unlock()
+	}
+	c.locMu.Unlock()
+
+	if moved {
+		c.m.reportLocationChange(ctx, ue, loc)
 	}
 }
 

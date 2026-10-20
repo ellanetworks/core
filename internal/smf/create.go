@@ -37,7 +37,7 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 
 // CreateSmContext establishes a new 5G PDU session from the UE's NAS
 // establishment request, returning the SM context ref or a NAS reject message.
-func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error) {
+func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8, ue models.SessionUEInfo) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -125,7 +125,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	if isTransferRequest(requestType) {
 		establishmentResult = metrics.ResultAccept
 
-		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, requestType, req, uint8(reqPTI), epsBearerIdentity)
+		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, requestType, req, uint8(reqPTI), epsBearerIdentity, ue)
 		if err != nil {
 			establishmentResult = metrics.ResultReject
 		}
@@ -190,6 +190,10 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		Subscribed: inputs.subscribed,
 
 		MaxPacketFilters: requestedMaxPacketFilters(req),
+
+		UE:                      ue,
+		MSISDN:                  inputs.msisdn,
+		ChargingCharacteristics: inputs.chargingCharacteristics,
 	})
 	if err != nil {
 		establishmentResult = metrics.ResultReject

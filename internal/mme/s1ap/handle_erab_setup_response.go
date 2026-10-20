@@ -30,7 +30,7 @@ func HandleERABSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ueConn, msg.UserLocationInformation)
+	captureUserLocation(ctx, ueConn, msg.UserLocationInformation)
 
 	for _, it := range msg.ERABFailedToSetup {
 		logger.From(ctx, logger.MmeLog).Warn("eNB failed to set up an E-RAB",

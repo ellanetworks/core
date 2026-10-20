@@ -6,6 +6,7 @@ package models_test
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -94,8 +95,16 @@ func TestReleaseRequestBuildersDoNotShareDiagnostics(t *testing.T) {
 	}
 }
 
-func TestReleaseRequestIgnoresAnEmptyLocation(t *testing.T) {
-	if got := models.ReleaseFor(models.ReleaseDeregistration).WithLocation(models.UserLocation{}); got.UeLocation != nil {
-		t.Fatalf("location = %+v, want none", got.UeLocation)
+func TestLocationUpdateCarriesRATAndTimeZone(t *testing.T) {
+	loc := models.UserLocation{NrLocation: &models.NrLocation{Tai: &models.Tai{Tac: "000001"}, Ncgi: &models.Ncgi{NrCellID: "000000001"}}}
+
+	update := models.LocationUpdate(loc, time.Now())
+	if update.Location == nil || update.RATType == nil || *update.RATType != models.RATTypeNR || update.TimeZone == nil {
+		t.Fatalf("update = %+v, want location, NR and a time zone", update)
+	}
+
+	empty := models.LocationUpdate(models.UserLocation{}, time.Now())
+	if empty.Location != nil || empty.RATType != nil || empty.TimeZone == nil {
+		t.Fatalf("update without a location = %+v, want only the time zone", empty)
 	}
 }

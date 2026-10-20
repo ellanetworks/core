@@ -254,7 +254,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 	for _, c := range conns {
 		snssai := c.Snssai
 
-		ref, n2, flowEBIs, err := a.Session.PrepareSmContextFromEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
+		ref, n2, flowEBIs, err := a.Session.PrepareSmContextFromEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai, a.SessionUEInfo(ctx, ue))
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to take over a PDN connection as a PDU session; leaving it behind",
 				logger.SUPI(ue.Supi().String()), logger.PDUSessionID(c.PDUSessionID),

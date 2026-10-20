@@ -8,6 +8,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	libngap "github.com/ellanetworks/core/ngap"
 )
@@ -53,7 +54,7 @@ func TestHandoverCompleteAfterAnIdleMoveIsRefused(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G)
+	ref, err := s.TransferIdle(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, smf.Access5G, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("TransferIdle: %v", err)
 	}

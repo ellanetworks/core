@@ -18,6 +18,7 @@ import (
 type deregisterTestSmf struct {
 	releaseCalls          []string
 	releaseCauses         []models.SessionReleaseRequest
+	ueUpdates             []models.SessionUEInfoUpdate
 	deactivateCalls       []string
 	suppressCalls         int
 	transferFailures      []models.N1N2MessageTransferCause
@@ -41,7 +42,7 @@ func (s *deregisterTestSmf) SessionsByDNN(string) []*smf.SMContext { return nil 
 
 func (s *deregisterTestSmf) SessionCount() int { return 0 }
 
-func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
+func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8, models.SessionUEInfo) (string, []byte, error) {
 	return "", nil, nil
 }
 
@@ -98,11 +99,11 @@ func (s *deregisterTestSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Co
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
+func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []uint8, error) {
 	return "", nil, nil
 }
 
-func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, []uint8, error) {
+func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, models.SessionUEInfo) (string, []byte, []uint8, error) {
 	return "", nil, nil, nil
 }
 
@@ -420,5 +421,42 @@ func TestNetworkDeregistrationCauseAppliesOnlyWhileDeregistrationIsInitiated(t *
 
 	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseDeregistration {
 		t.Fatalf("reason after a new registration began = %s, want the fallback", got.Reason)
+	}
+}
+
+func (s *deregisterTestSmf) UpdateUEInfo(_ context.Context, _ etsi.SUPI, update models.SessionUEInfoUpdate) {
+	s.ueUpdates = append(s.ueUpdates, update)
+}
+
+func TestALocationChangeIsReportedToTheSMFOnce(t *testing.T) {
+	ue := NewUeContext()
+	fakeSmf := &deregisterTestSmf{}
+	ue.smf = fakeSmf
+
+	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
+	if err != nil {
+		t.Fatalf("SUPI: %v", err)
+	}
+
+	ue.supi = supi
+
+	plmn := &models.PlmnID{Mcc: "001", Mnc: "01"}
+	tai := models.Tai{PlmnID: plmn, Tac: "000001"}
+	cell := func(id string) models.UserLocation {
+		return models.UserLocation{NrLocation: &models.NrLocation{Tai: &tai, Ncgi: &models.Ncgi{PlmnID: plmn, NrCellID: id}}}
+	}
+
+	for _, loc := range []models.UserLocation{cell("000000001"), cell("000000001"), cell("000000002")} {
+		if ue.SetLocation(loc, tai) {
+			ue.ReportLocationChange(context.Background(), loc)
+		}
+	}
+
+	if len(fakeSmf.ueUpdates) != 2 {
+		t.Fatalf("UE information updates = %d, want 2: the first fix and the cell change", len(fakeSmf.ueUpdates))
+	}
+
+	if rat := fakeSmf.ueUpdates[1].RATType; rat == nil || *rat != models.RATTypeNR {
+		t.Fatalf("RAT type = %v, want NR", rat)
 	}
 }

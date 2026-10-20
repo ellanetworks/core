@@ -202,6 +202,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 			Snssai:            &c.Snssai,
 			APN:               c.APN,
 			RequestType:       eps.RequestTypeHandover,
+			UE:                m.SessionUEInfo(ctx, ue),
 		})
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to take over a PDU session as a PDN connection; leaving it behind",

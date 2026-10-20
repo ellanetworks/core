@@ -142,7 +142,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	}
 
 	if req.EUTRANCGI != nil && req.TAI != nil {
-		ueConn.UpdateLocation(*req.EUTRANCGI, *req.TAI)
+		ueConn.UpdateLocation(ctx, *req.EUTRANCGI, *req.TAI)
 	}
 
 	var ambr *s1ap.UEAggregateMaximumBitRate

@@ -483,7 +483,7 @@ func TestIdleMoveToEPSCarriesTheVoiceBearer(t *testing.T) {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
-	bearer, err := s.TransferIdleToEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai)
+	bearer, err := s.TransferIdleToEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("TransferIdleToEPS: %v", err)
 	}

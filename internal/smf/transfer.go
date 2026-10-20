@@ -27,6 +27,7 @@ type transferRequest struct {
 	EBI    uint8
 	Dnn    string
 	Snssai *models.Snssai
+	UE     models.SessionUEInfo
 }
 
 type pendingTransfer struct {
@@ -123,6 +124,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 
 	move := &pendingTransfer{to: req.Access, ebi: req.EBI}
 	sc.pending = move
+	sc.setPendingUEInfo(req.Access, req.UE)
 
 	link := trace.SpanContextFromContext(ctx)
 
@@ -135,6 +137,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 		}
 
 		sc.pending = nil
+		sc.clearPendingUEInfo()
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 		sc.handoverTargetAN = nil
 
@@ -163,6 +166,7 @@ var transferSupervision = 30 * time.Second
 func (sc *SMContext) clearPendingLocked() {
 	sc.pending = nil
 	sc.transferGuard.Stop()
+	sc.clearPendingUEInfo()
 }
 
 func (sc *SMContext) abandonPendingLocked() {
@@ -183,6 +187,7 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 	}
 
 	move := sc.pending
+	arriving := sc.takePendingUEInfo(access)
 	sc.clearPendingLocked()
 
 	if sc.releasing {
@@ -200,6 +205,7 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 	}
 
 	sc.Access = access
+	sourceUEAccess, sourceUE := sc.setUEInfo(access, arriving)
 
 	return &transferCommit{
 		source:   source,
@@ -207,6 +213,7 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 		sourceUP: sourceUP,
 		restore: func() {
 			sc.Access = source
+			sc.setUEInfo(sourceUEAccess, sourceUE)
 			s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI)
 		},
 	}, nil

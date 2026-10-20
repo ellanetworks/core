@@ -134,7 +134,7 @@ func (f *fakeSessionManager) failModify(ebi uint8, err error) {
 	f.modifyErr[ebi] = err
 }
 
-func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, _ etsi.SUPI, pduSessionID, _ uint8, _ string, snssai *models.Snssai) (models.EPSBearer, error) {
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, _ etsi.SUPI, pduSessionID, _ uint8, _ string, snssai *models.Snssai, _ models.SessionUEInfo) (models.EPSBearer, error) {
 	return models.EPSBearer{
 		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
 		PDNType:      eps.PDNTypeIPv4,
@@ -433,4 +433,7 @@ func requirePDNDisconnected(t *testing.T, m *mme.MME, ue *mme.UeContext, ebi uin
 	if p := m.LookupPDN(ue, ebi); p != nil && !ue.BearerDeactivating(p) {
 		t.Fatalf("PDN connection %d is neither released nor being disconnected (TS 23.401 §5.10.3)", ebi)
 	}
+}
+
+func (f *fakeSessionManager) UpdateEPSUEInfo(context.Context, etsi.SUPI, models.SessionUEInfoUpdate) {
 }

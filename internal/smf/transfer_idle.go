@@ -16,8 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, []uint8, error) {
-	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (string, []uint8, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G, ue)
 	if err != nil {
 		return "", nil, err
 	}
@@ -33,8 +33,8 @@ func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionI
 	return ref, sc.flowEBIsLocked(), nil
 }
 
-func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
-	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access4G)
+func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (models.EPSBearer, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access4G, ue)
 	if err != nil {
 		return models.EPSBearer{}, err
 	}
@@ -55,7 +55,7 @@ func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionI
 	return epsBearerForSession(sc, policy, ebi)
 }
 
-func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {
+func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType, ue models.SessionUEInfo) (string, error) {
 	ctx, span := tracer.Start(ctx, "smf/transfer_idle",
 		trace.WithAttributes(
 			attrs.SUPI(supi.String()),
@@ -67,7 +67,7 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 	)
 	defer span.End()
 
-	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai}
+	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai, UE: ue}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {

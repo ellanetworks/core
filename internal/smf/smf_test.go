@@ -34,6 +34,7 @@ type fakeStore struct {
 	usageLog        []usageEntry
 	batchCalls      int
 	usageErr        error
+	msisdn          string
 	usageFailures   int
 	flowLog         []models.FlowReportRequest
 	releasedIPs     []string
@@ -297,7 +298,15 @@ func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.Session
 	other := c
 	other.Snssai, other.Default = otherTestSnssai, false
 
-	return &udm.SessionManagementSubscription{DNNs: []udm.DNNConfiguration{c, other}}, nil
+	f.mu.Lock()
+	msisdn := f.msisdn
+	f.mu.Unlock()
+
+	return &udm.SessionManagementSubscription{
+		DNNs:                    []udm.DNNConfiguration{c, other},
+		MSISDN:                  msisdn,
+		ChargingCharacteristics: models.DefaultChargingCharacteristics,
+	}, nil
 }
 
 func (f *fakeStore) Config(context.Context) (smf.DataNetworkConfig, error) {

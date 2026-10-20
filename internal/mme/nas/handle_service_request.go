@@ -85,7 +85,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	c.ServingTAI = msg.TAI
 
 	if msg.EUTRANCGI != nil {
-		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
+		c.UpdateLocation(ctx, *msg.EUTRANCGI, msg.TAI)
 	}
 
 	ue.PinKeNBFreshness()

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -175,7 +176,7 @@ func TestCreateSmContext_AlwaysOnRequested_IndicationNotAllowed(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestAlwaysOn(), 0)
+	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestAlwaysOn(), 0, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestCreateSmContext_UnassignedPTI_Status81(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestWithPTI(0), 0)
+	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestWithPTI(0), 0, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
@@ -248,7 +249,7 @@ func TestCreateSmContext_ReservedPTI_Ignored(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestWithPTI(0xff), 0)
+	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequestWithPTI(0xff), 0, models.SessionUEInfo{})
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}

@@ -51,7 +51,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	c.ServingTAI = msg.TAI
 
 	if msg.EUTRANCGI != nil {
-		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
+		c.UpdateLocation(ctx, *msg.EUTRANCGI, msg.TAI)
 	}
 
 	c.Log(ctx).Info("Initial UE Message")

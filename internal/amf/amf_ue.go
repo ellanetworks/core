@@ -226,7 +226,7 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 
 	ue.active.Store(ueConn)
 
-	ueConn.PublishLocation(ue)
+	ueConn.PublishLocation(ctx, ue)
 
 	a.stopIdleTimersLocked(ue)
 	ue.PagingAnswered()
@@ -746,7 +746,7 @@ func (ue *UeContext) Deregister(ctx context.Context, release models.SessionRelea
 
 	ue.transitionToLocked(ctx, Deregistered)
 
-	release = release.WithLocation(ue.Location)
+	release = release.WithUE(models.LocationUpdate(ue.Location, time.Now()))
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
@@ -804,7 +804,7 @@ func (ue *UeContext) NetworkDeregistrationOr(fallback models.SessionReleaseReque
 func (ue *UeContext) releaseSmContexts(ctx context.Context, release models.SessionReleaseRequest) {
 	ue.mu.Lock()
 
-	release = release.WithLocation(ue.Location)
+	release = release.WithUE(models.LocationUpdate(ue.Location, time.Now()))
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {

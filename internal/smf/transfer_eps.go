@@ -23,6 +23,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		EBI:    req.EPSBearerIdentity,
 		Dnn:    req.APN,
 		Snssai: req.Snssai,
+		UE:     req.UE,
 	}
 
 	sc, err := s.findTransferable(supi, req.PDUSessionID, move)

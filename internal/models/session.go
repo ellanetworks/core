@@ -104,6 +104,7 @@ type EPSBearerRequest struct {
 	APN               string
 	RequestedPDNType  uint8
 	RequestType       eps.RequestType
+	UE                SessionUEInfo
 }
 
 type EPSBearerQoS struct {

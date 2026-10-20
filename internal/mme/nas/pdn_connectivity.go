@@ -160,6 +160,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		APN:               apn,
 		RequestedPDNType:  uint8(pdnType),
 		RequestType:       ueConn.ESMRequest.Type,
+		UE:                m.SessionUEInfo(ctx, ue),
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: session setup failed", zap.String("apn", apn), zap.Error(err))

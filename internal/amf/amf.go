@@ -37,28 +37,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// localTimeZone formats now's UTC offset as the TS 29.571 time-zone string
-// "[+-]HH:MM[+][1-2]" carried in the Local time zone and Universal time IEs.
-func localTimeZone(now time.Time) string {
-	_, offset := now.Zone()
-	if now.IsDST() {
-		offset -= 3600
-	}
-
-	sign := "+"
-	if offset < 0 {
-		sign = "-"
-		offset = -offset
-	}
-
-	tz := fmt.Sprintf("%s%02d:%02d", sign, offset/3600, (offset%3600)/60)
-	if now.IsDST() {
-		tz += "+1"
-	}
-
-	return tz
-}
-
 // Authenticator is the interface the AMF requires from the AUSF.
 type Authenticator interface {
 	Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
@@ -72,7 +50,7 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8, ue models.SessionUEInfo) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
 	ReleaseSmContext(ctx context.Context, smContextRef string, release models.SessionReleaseRequest) error
@@ -84,8 +62,9 @@ type SmfSbi interface {
 	UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoNotify(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
-	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, []uint8, error)
-	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []uint8, error)
+	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (string, []byte, []uint8, error)
+	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (string, []uint8, error)
+	UpdateUEInfo(ctx context.Context, supi etsi.SUPI, update models.SessionUEInfoUpdate)
 	HandoverAdmittedFlowEBIs(smContextRef string) []uint8
 	ReleaseInactiveEPSBearers(ctx context.Context, smContextRef string, ebis []uint8)
 	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
@@ -769,7 +748,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		tmsi:                     etsi.NewTMSIAllocator(),
 		connIDs:                  idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
 		Name:                     "amf",
-		TimeZone:                 localTimeZone(time.Now()),
+		TimeZone:                 models.LocalTimeZone(time.Now()),
 		T3502Value:               720 * time.Second,
 		T3512Value:               3600 * time.Second,
 		T3513Cfg:                 defaultTimerCfg,

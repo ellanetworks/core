@@ -33,7 +33,8 @@ type NASHandler interface {
 
 type epsSessionManager interface {
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
-	TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error)
+	TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (models.EPSBearer, error)
+	UpdateEPSUEInfo(ctx context.Context, supi etsi.SUPI, update models.SessionUEInfoUpdate)
 	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID, dedicated []models.DedicatedBearerEndpoint) error
 	OpenEPSForwardingTunnel(ctx context.Context, ref string, ebi uint8, target models.FTEID) (models.ForwardingTunnel, error)
 	CloseEPSForwardingTunnel(ctx context.Context, ref string) error

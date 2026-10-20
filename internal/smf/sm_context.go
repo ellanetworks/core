@@ -52,11 +52,18 @@ type SMContext struct {
 
 	Supi etsi.SUPI
 
-	EstablishedAt time.Time
-	Dnn           string
-	Snssai        *models.Snssai
-	Tunnel        *UPTunnel
-	PolicyData    *Policy
+	EstablishedAt           time.Time
+	MSISDN                  string
+	ChargingCharacteristics models.ChargingCharacteristics
+
+	ueMu       sync.Mutex
+	ueAccess   AccessType
+	ue         models.SessionUEInfo
+	uePending  *pendingUEInfo
+	Dnn        string
+	Snssai     *models.Snssai
+	Tunnel     *UPTunnel
+	PolicyData *Policy
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS
@@ -137,6 +144,79 @@ const (
 
 func (smContext *SMContext) recordN2Release(purpose n2ReleasePurpose) {
 	smContext.n2Release = purpose
+}
+
+func (smContext *SMContext) UEInfo() models.SessionUEInfo {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	return smContext.ue
+}
+
+func (smContext *SMContext) setUEInfo(access AccessType, info models.SessionUEInfo) (AccessType, models.SessionUEInfo) {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	prevAccess, prev := smContext.ueAccess, smContext.ue
+	smContext.ueAccess, smContext.ue = access, info
+
+	return prevAccess, prev
+}
+
+func (smContext *SMContext) applyUEInfo(update models.SessionUEInfoUpdate) {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	update.ApplyTo(&smContext.ue)
+}
+
+func (smContext *SMContext) applyUEInfoOn(access AccessType, update models.SessionUEInfoUpdate) bool {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	switch {
+	case smContext.ueAccess == access:
+		update.ApplyTo(&smContext.ue)
+	case smContext.uePending != nil && smContext.uePending.access == access:
+		update.ApplyTo(&smContext.uePending.ue)
+	default:
+		return false
+	}
+
+	return true
+}
+
+type pendingUEInfo struct {
+	access AccessType
+	ue     models.SessionUEInfo
+}
+
+func (smContext *SMContext) setPendingUEInfo(access AccessType, info models.SessionUEInfo) {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	smContext.uePending = &pendingUEInfo{access: access, ue: info}
+}
+
+func (smContext *SMContext) clearPendingUEInfo() {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	smContext.uePending = nil
+}
+
+func (smContext *SMContext) takePendingUEInfo(access AccessType) models.SessionUEInfo {
+	smContext.ueMu.Lock()
+	defer smContext.ueMu.Unlock()
+
+	var info models.SessionUEInfo
+	if smContext.uePending != nil && smContext.uePending.access == access {
+		info = smContext.uePending.ue
+	}
+
+	smContext.uePending = nil
+
+	return info
 }
 
 func (smContext *SMContext) commitRelease(release models.SessionReleaseRequest) {

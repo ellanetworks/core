@@ -152,7 +152,9 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	loc, tai := ueConn.ServingLocation()
-	ue.SetLocation(loc, tai)
+	if ue.SetLocation(loc, tai) {
+		ue.ReportLocationChange(ctx, loc)
+	}
 
 	if !amf.InTaiList(tai, operatorInfo.Tais) {
 		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
