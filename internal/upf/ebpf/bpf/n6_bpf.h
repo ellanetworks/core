@@ -286,30 +286,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
-	PROFILE_START(PROF_N6_QER_RATELIMIT);
-	upf_printk("upf: qer gate_status:%d mbr:%d",
-		   sel->target.qer.dl_gate_status,
-		   sel->target.qer.dl_maximum_bitrate);
-
-	/* Shared with this session's other downlink PDR. */
-	if (sel->target.qer.dl_maximum_bitrate != 0) {
-		const __u64 packet_size =
-			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
-		struct qer_window *window =
-			qer_window_for(sel->seid, sel->target.qer_id);
-
-		if (window &&
-		    CTX_ACT_DROP ==
-			    limit_rate_sliding_window(
-				    packet_size, &window->dl_start,
-				    sel->target.qer.dl_maximum_bitrate,
-				    sel->target.qer.averaging_window_ms)) {
-			PROFILE_END(PROF_N6_QER_RATELIMIT);
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
-	PROFILE_END(PROF_N6_QER_RATELIMIT);
-
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip4->protocol, ctx);
 
@@ -334,6 +310,30 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
+
+	PROFILE_START(PROF_N6_QER_RATELIMIT);
+	upf_printk("upf: qer gate_status:%d mbr:%d",
+		   sel->target.qer.dl_gate_status,
+		   sel->target.qer.dl_maximum_bitrate);
+
+	/* Shared with this session's other downlink PDR. */
+	if (sel->target.qer.dl_maximum_bitrate != 0) {
+		const __u64 packet_size =
+			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
+		struct qer_window *window =
+			qer_window_for(sel->seid, sel->target.qer_id);
+
+		if (window &&
+		    CTX_ACT_DROP ==
+			    limit_rate_sliding_window(
+				    packet_size, &window->dl_start,
+				    sel->target.qer.dl_maximum_bitrate,
+				    sel->target.qer.averaging_window_ms)) {
+			PROFILE_END(PROF_N6_QER_RATELIMIT);
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+		}
+	}
+	PROFILE_END(PROF_N6_QER_RATELIMIT);
 
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr,
