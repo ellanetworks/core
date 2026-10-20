@@ -45,6 +45,14 @@ type statusClusterBlock struct {
 	NodeID        pki.NodeID `json:"nodeId"`
 	ClusterID     string     `json:"clusterId"`
 	SchemaVersion int        `json:"schemaVersion"`
+	BinaryVersion string     `json:"binaryVersion,omitempty"`
+	APIAddress    string     `json:"apiAddress,omitempty"`
+}
+
+type PeerStatus struct {
+	SchemaVersion int
+	BinaryVersion string
+	APIAddress    string
 }
 
 type peerProbe struct {
@@ -370,41 +378,54 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) peerProbe {
 // ProbePeerSchemaVersion reads the peer's reported Schema Version from
 // its /cluster/status endpoint.
 func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID string, peerAddr string) (int, error) {
+	status, err := m.ProbePeerStatus(ctx, peerNodeID, peerAddr)
+	if err != nil {
+		return 0, err
+	}
+
+	return status.SchemaVersion, nil
+}
+
+func (m *Manager) ProbePeerStatus(ctx context.Context, peerNodeID string, peerAddr string) (PeerStatus, error) {
 	if peerNodeID == "" {
-		return 0, fmt.Errorf("peer node id required")
+		return PeerStatus{}, fmt.Errorf("peer node id required")
 	}
 
 	if peerAddr == "" {
-		return 0, fmt.Errorf("peer raft address required")
+		return PeerStatus{}, fmt.Errorf("peer raft address required")
 	}
 
 	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, peerNodeID, "/cluster/status", nil)
 	if err != nil {
-		return 0, fmt.Errorf("dial peer %s: %w", peerAddr, err)
+		return PeerStatus{}, fmt.Errorf("dial peer %s: %w", peerAddr, err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return 0, fmt.Errorf("peer %s returned %d: %s", peerAddr, resp.StatusCode, string(body))
+		return PeerStatus{}, fmt.Errorf("peer %s returned %d: %s", peerAddr, resp.StatusCode, string(body))
 	}
 
 	var status statusResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
-		return 0, fmt.Errorf("decode status from peer %s: %w", peerAddr, err)
+		return PeerStatus{}, fmt.Errorf("decode status from peer %s: %w", peerAddr, err)
 	}
 
 	if status.Result.Cluster == nil {
-		return 0, fmt.Errorf("peer %s reported no cluster status", peerAddr)
+		return PeerStatus{}, fmt.Errorf("peer %s reported no cluster status", peerAddr)
 	}
 
 	v := status.Result.Cluster.SchemaVersion
 	if v < 1 {
-		return 0, fmt.Errorf("peer %s reported invalid schema version %d", peerAddr, v)
+		return PeerStatus{}, fmt.Errorf("peer %s reported invalid schema version %d", peerAddr, v)
 	}
 
-	return v, nil
+	return PeerStatus{
+		SchemaVersion: v,
+		BinaryVersion: status.Result.Cluster.BinaryVersion,
+		APIAddress:    status.Result.Cluster.APIAddress,
+	}, nil
 }
 
 func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID string, clusterID string) error {

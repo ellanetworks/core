@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/raft"
+	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
 )
 
@@ -172,6 +173,8 @@ type clusterNodeStatus struct {
 	SchemaVersion int        `json:"schemaVersion"`
 	AppliedSchema int        `json:"appliedSchema,omitempty"`
 	PendingSchema int        `json:"pendingSchema,omitempty"`
+	BinaryVersion string     `json:"binaryVersion,omitempty"`
+	APIAddress    string     `json:"apiAddress,omitempty"`
 }
 
 type clusterStatusResponse struct {
@@ -186,6 +189,8 @@ func ClusterStatus(dbInstance *db.Database) http.Handler {
 			Role:          dbInstance.RaftState(),
 			NodeID:        pki.NodeID(dbInstance.RaftID()),
 			SchemaVersion: db.SchemaVersion(),
+			BinaryVersion: version.GetVersion().Version,
+			APIAddress:    dbInstance.APIAddress(),
 		}
 
 		op, err := dbInstance.GetOperator(r.Context())
