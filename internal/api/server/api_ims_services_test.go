@@ -147,6 +147,10 @@ func (f *fakeIMSProfileNotifier) SubscriberChanged(_ context.Context, imsi strin
 	f.record("subscriber:" + imsi)
 }
 
+func (f *fakeIMSProfileNotifier) SubscriberIdentitiesChanged(_ context.Context, imsi, previousMSISDN string) {
+	f.record("identities:" + imsi + ":" + previousMSISDN)
+}
+
 func newIMSServicesTestEnv(t *testing.T) (testEnv, *http.Client, string, *fakeIMSProfileNotifier) {
 	t.Helper()
 
@@ -612,6 +616,18 @@ func TestSubscriberProfileChangeNotifiesIMS(t *testing.T) {
 
 	if got := notifier.take(); !slices.Equal(got, []string{"subscriber:" + Imsi}) {
 		t.Fatalf("notifications = %v, want the subscriber", got)
+	}
+
+	if status, resp, err := updateSubscriber(url, client, token, Imsi, &UpdateSubscriberParams{Imsi: Imsi, ProfileName: "mc", Msisdn: "+15550100"}); err != nil || status != http.StatusOK {
+		t.Fatalf("add an MSISDN: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if status, resp, err := updateSubscriber(url, client, token, Imsi, &UpdateSubscriberParams{Imsi: Imsi, ProfileName: DefaultProfileName, Msisdn: "+15550199"}); err != nil || status != http.StatusOK {
+		t.Fatalf("change the MSISDN and the profile: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if got := notifier.take(); !slices.Equal(got, []string{"identities:" + Imsi + ":", "identities:" + Imsi + ":15550100"}) {
+		t.Fatalf("notifications = %v, want two identity changes", got)
 	}
 }
 

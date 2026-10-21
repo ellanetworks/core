@@ -150,3 +150,35 @@ func TestPushProfile(t *testing.T) {
 		t.Fatalf("PushProfile to an unregistered user's S-CSCF: %v, want %v", err, hss.ErrDiameterUnavailable)
 	}
 }
+
+func TestIdentitiesChanged(t *testing.T) {
+	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}
+
+	for _, tc := range []struct {
+		name     string
+		reg      *hss.Registration
+		previous string
+		want     error
+	}{
+		{name: "not registered", previous: "15550000000"},
+		{name: "registered, MSISDN added", reg: &registered, want: hss.ErrDiameterUnavailable},
+		{name: "registered, MSISDN changed", reg: &registered, previous: "15550000000", want: hss.ErrDiameterUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeIMSStore()
+			if tc.reg != nil {
+				store.registrations[testIMSI] = *tc.reg
+			}
+
+			if err := newHSS(store).IdentitiesChanged(context.Background(), testIMSI, tc.previous); !errors.Is(err, tc.want) {
+				t.Fatalf("IdentitiesChanged: %v, want %v", err, tc.want)
+			}
+
+			if tc.reg != nil {
+				if got := store.registrations[testIMSI]; got != *tc.reg {
+					t.Fatalf("registration = %+v after a failed request, want it kept", got)
+				}
+			}
+		})
+	}
+}

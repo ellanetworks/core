@@ -52,6 +52,7 @@ func profileFilterCriteria(ctx context.Context, database *db.Database, profileID
 
 type profilePusher interface {
 	PushProfile(ctx context.Context, imsi string) error
+	IdentitiesChanged(ctx context.Context, imsi, previousMSISDN string) error
 }
 
 type imsProfileNotifier struct {
@@ -102,6 +103,14 @@ func (n *imsProfileNotifier) ProfileChanged(_ context.Context, profileID string)
 func (n *imsProfileNotifier) SubscriberChanged(_ context.Context, imsi string) {
 	n.enqueue(func(context.Context) ([]string, error) {
 		return []string{imsi}, nil
+	})
+}
+
+func (n *imsProfileNotifier) SubscriberIdentitiesChanged(_ context.Context, imsi, previousMSISDN string) {
+	n.enqueue(func(ctx context.Context) ([]string, error) {
+		_ = n.pusher.IdentitiesChanged(ctx, imsi, previousMSISDN)
+
+		return nil, nil
 	})
 }
 

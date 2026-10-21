@@ -228,6 +228,48 @@ func RequireIMSTerminationOnDeletion(ctx context.Context, env Env, sub Subscribe
 	return nil
 }
 
+func RequireIMSReregistrationOnMSISDNChange(ctx context.Context, env Env, sub SubscriberSpec, msisdn string, pcscf, local netip.Addr, transport sip.Transport) error {
+	u, err := newIMSUE(sub, pcscf, local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	defer u.close()
+
+	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
+	defer cancel()
+
+	if err := u.register(ctx, sub, transport); err != nil {
+		return err
+	}
+
+	cl, err := coreClient(env)
+	if err != nil {
+		return err
+	}
+
+	if err := cl.UpdateSubscriber(ctx, sub.IMSI, &client.UpdateSubscriberOptions{ProfileName: sub.ProfileName, Msisdn: msisdn}); err != nil {
+		return fmt.Errorf("change the MSISDN of %s: %w", sub.IMSI, err)
+	}
+
+	renumbered := sub
+	renumbered.MSISDN = msisdn
+	deadline := time.Now().Add(imsTerminationTimeout)
+
+	for {
+		err := checkIMSRegistration(u.UE, renumbered)
+		if err == nil && u.State().Registered {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s did not re-register with its new MSISDN: %v", sub.IMSI, err)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 func coreClient(env Env) (*client.Client, error) {
 	cl, err := client.New(&client.Config{BaseURL: env.APIAddress})
 	if err != nil {

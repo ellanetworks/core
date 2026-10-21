@@ -122,3 +122,45 @@ func (h *HSS) pushProfile(ctx context.Context, privateIdentity string, reg *Regi
 
 	return true, nil
 }
+
+func (h *HSS) IdentitiesChanged(ctx context.Context, imsi, previousMSISDN string) error {
+	reg, err := h.store.Registration(ctx, imsi)
+	if err != nil {
+		return err
+	}
+
+	if reg == nil || reg.State != Registered || previousMSISDN == "" {
+		return h.PushProfile(ctx, imsi)
+	}
+
+	sub, err := h.store.Subscriber(ctx, imsi)
+	if err != nil {
+		return err
+	}
+
+	if sub.MSISDN == previousMSISDN {
+		return h.PushProfile(ctx, imsi)
+	}
+
+	t, err := h.Termination(ctx, imsi)
+	if err != nil || t == nil {
+		return err
+	}
+
+	t.Reason = cx.ReasonServerChange
+	if sub.MSISDN == "" {
+		t.Reason = cx.ReasonPermanentTermination
+	}
+
+	if err := h.Terminate(ctx, t); err != nil {
+		return err
+	}
+
+	return h.updateRegistration(ctx, imsi, func(current *Registration) (*Registration, error) {
+		if current == nil || current.State != Registered || current.ServerName != reg.ServerName {
+			return current, nil
+		}
+
+		return nil, nil
+	})
+}

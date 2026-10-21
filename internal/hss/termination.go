@@ -31,6 +31,7 @@ type Termination struct {
 	PrivateIdentity string
 	ServerHost      string
 	ServerRealm     string
+	Reason          cx.ReasonCode
 }
 
 func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error) {
@@ -98,7 +99,7 @@ func (h *HSS) terminate(ctx context.Context, t *Termination) error {
 		DestinationRealm: t.ServerRealm,
 	}, cx.RegistrationTerminationRequest{
 		PrivateIdentity: t.PrivateIdentity,
-		Reason:          cx.DeregistrationReason{Code: cx.ReasonPermanentTermination},
+		Reason:          cx.DeregistrationReason{Code: t.Reason},
 	})
 	if err != nil {
 		return err

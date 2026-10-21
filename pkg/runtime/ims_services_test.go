@@ -89,6 +89,11 @@ func (r *recordingPusher) PushProfile(_ context.Context, imsi string) error {
 	return nil
 }
 
+func (r *recordingPusher) IdentitiesChanged(_ context.Context, imsi, previousMSISDN string) error {
+	r.pushed = append(r.pushed, imsi+" was "+previousMSISDN)
+	return nil
+}
+
 func TestIMSProfileNotifierCoalescesPushes(t *testing.T) {
 	ctx := context.Background()
 
