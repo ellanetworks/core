@@ -116,6 +116,7 @@ type SMContext struct {
 	pending *pendingTransfer
 
 	dedicated   []*dedicatedBearer
+	onDefault   *dedicatedBearer
 	failedRules map[string]PCCRule
 
 	maxPacketFilters uint16

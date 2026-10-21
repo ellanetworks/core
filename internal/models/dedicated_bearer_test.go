@@ -53,6 +53,14 @@ func TestGBRQCI(t *testing.T) {
 	}
 }
 
+func TestNonGBRQCI(t *testing.T) {
+	for qci, want := range map[uint8]bool{1: false, 4: false, 5: true, 9: true, 10: true, 11: false, 65: false, 69: true, 70: true, 79: true, 80: true, 82: false, 86: false} {
+		if got := models.NonGBRQCI(qci); got != want {
+			t.Errorf("NonGBRQCI(%d) = %v, want %v (TS 23.203 Table 6.1.7-A)", qci, got, want)
+		}
+	}
+}
+
 func TestGBRFiveQI(t *testing.T) {
 	for fiveQI, want := range map[uint8]bool{1: true, 4: true, 5: false, 10: false, 67: true, 69: false, 71: true, 74: true, 76: true, 79: false, 80: false, 82: true, 86: true, 90: true, 91: false} {
 		if got := models.GBRFiveQI(fiveQI); got != want {

@@ -731,6 +731,37 @@ func TestSubKilobitRatesAreSignalledRoundedUp(t *testing.T) {
 	}
 }
 
+func TestNonGBRBearerSignalsNoBitRates_TS36413_9_2_1_15(t *testing.T) {
+	info := DedicatedBearerInfo{DedicatedBearerContext: models.DedicatedBearerContext{
+		QCI: 69,
+		ARP: models.Arp{PriorityLevel: 3, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityPreemptable},
+		Filters: []models.SDFFilter{
+			{ID: 1, Direction: models.FilterUplink, Precedence: 32, Protocol: 17, Remote: netip.MustParsePrefix("192.0.2.10/32"), RemotePort: 49002},
+		},
+	}}
+
+	qos := DedicatedERABQoS(&info)
+	want := s1ap.AllocationAndRetentionPriority{PriorityLevel: 3, PreemptionCapability: s1ap.PreemptionMayTrigger, PreemptionVulnerability: s1ap.PreemptionPreemptable}
+
+	if qos.QCI != 69 || qos.GBR != nil || qos.ARP != want {
+		t.Fatalf("E-RAB QoS %+v, want QCI 69 at ARP %+v without GBR QoS Information", qos, want)
+	}
+
+	raw, err := dedicatedActivationRequest(DefaultERABID, &DedicatedBearer{DedicatedBearerInfo: info}, nil, false)
+	if err != nil {
+		t.Fatalf("dedicatedActivationRequest: %v", err)
+	}
+
+	req, err := eps.ParseActivateDedicatedEPSBearerContextRequest(raw)
+	if err != nil {
+		t.Fatalf("parse the activation request: %v", err)
+	}
+
+	if req.EPSQoS.QCI != 69 || len(req.EPSQoS.BitRates) != 0 {
+		t.Fatalf("EPS QoS %+v, want QCI 69 alone (TS 24.301 §9.9.4.3)", req.EPSQoS)
+	}
+}
+
 func TestActivationBeforeTheTAUAdoptsTheSessionIsDeferred(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

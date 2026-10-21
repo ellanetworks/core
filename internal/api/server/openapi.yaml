@@ -4499,7 +4499,55 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
+        bearers:
+          type: array
+          description: "EPS bearers (4G) or QoS flows (5G) enforcing the session's QoS, the default one first. Absent when the session has no default QoS yet."
+          items:
+            $ref: "#/components/schemas/Bearer"
       required: [system, id, status]
+
+    Bearer:
+      type: object
+      description: "An EPS bearer or QoS flow and the PCC rules bound to it, which share its QCI or 5QI and ARP (TS 23.203 §6.1.1.4)."
+      properties:
+        id:
+          type: integer
+          description: "EPS Bearer ID (4G) or QoS Flow Identifier (5G)."
+        default:
+          type: boolean
+          description: "Whether this is the default bearer or the QoS flow of the default QoS rule."
+        var5qi:
+          type: integer
+          description: "QCI (4G) or 5QI (5G)."
+        arp:
+          type: integer
+          description: "ARP priority level."
+          minimum: 1
+          maximum: 15
+        preemption_capability:
+          type: string
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          enum: [preemptable, not_preemptable]
+        mbr_uplink:
+          type: string
+          description: "Uplink MBR (4G) or MFBR (5G) of a GBR bearer or QoS flow. Absent for non-GBR ones, which the session AMBR caps."
+        mbr_downlink:
+          type: string
+          description: "Downlink MBR (4G) or MFBR (5G) of a GBR bearer or QoS flow."
+        gbr_uplink:
+          type: string
+          description: "Uplink GBR (4G) or GFBR (5G). Absent for non-GBR bearers and QoS flows."
+        gbr_downlink:
+          type: string
+          description: "Downlink GBR (4G) or GFBR (5G)."
+        rules:
+          type: array
+          description: "Identifiers of the PCC rules bound to it."
+          items:
+            type: string
+      required: [id, default, var5qi, arp, preemption_capability, preemption_vulnerability, rules]
 
     CreateSubscriberParams:
       type: object

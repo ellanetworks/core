@@ -130,6 +130,21 @@ type Session struct {
 	Slice        *SessionSlice `json:"slice,omitempty"`        // 5G only
 	AMBRUplink   string        `json:"ambr_uplink,omitempty"`
 	AMBRDownlink string        `json:"ambr_downlink,omitempty"`
+	Bearers      []Bearer      `json:"bearers,omitempty"`
+}
+
+type Bearer struct {
+	ID                      uint8    `json:"id"`
+	Default                 bool     `json:"default"`
+	Var5qi                  uint8    `json:"var5qi"`
+	Arp                     int32    `json:"arp"`
+	PreemptionCapability    string   `json:"preemption_capability"`
+	PreemptionVulnerability string   `json:"preemption_vulnerability"`
+	MBRUplink               string   `json:"mbr_uplink,omitempty"`
+	MBRDownlink             string   `json:"mbr_downlink,omitempty"`
+	GBRUplink               string   `json:"gbr_uplink,omitempty"`
+	GBRDownlink             string   `json:"gbr_downlink,omitempty"`
+	Rules                   []string `json:"rules"`
 }
 
 type SubscriberCredentials struct {

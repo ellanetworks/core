@@ -123,6 +123,10 @@ func BearerARP(arp models.Arp) s1ap.AllocationAndRetentionPriority {
 }
 
 func DedicatedERABQoS(b *DedicatedBearerInfo) s1ap.ERABLevelQoSParameters {
+	if !models.GBRQCI(b.QCI) {
+		return s1ap.ERABLevelQoSParameters{QCI: s1ap.QCI(b.QCI), ARP: BearerARP(b.ARP)}
+	}
+
 	gbr := &s1ap.GBRQosInformation{
 		MaximumBitrateDL:    s1ap.BitRate(b.MBR.Downlink.Bps()),
 		MaximumBitrateUL:    s1ap.BitRate(b.MBR.Uplink.Bps()),
@@ -145,6 +149,10 @@ func DedicatedERABQoS(b *DedicatedBearerInfo) s1ap.ERABLevelQoSParameters {
 }
 
 func dedicatedEPSQoS(b *DedicatedBearerInfo) (eps.EPSQoS, error) {
+	if !models.GBRQCI(b.QCI) {
+		return eps.EPSQoS{QCI: b.QCI}, nil
+	}
+
 	return eps.GBREPSQoS(b.QCI, eps.EPSQoSBitRates{
 		MaxUplinkKbps:          b.MBR.Uplink.Kbps(),
 		MaxDownlinkKbps:        b.MBR.Downlink.Kbps(),

@@ -146,9 +146,9 @@ func (sc *SMContext) epsDedicatedLocked() []models.DedicatedBearerContext {
 	return out
 }
 
-func (sc *SMContext) handoverFlowsTo5GSLocked() ([]smfNgap.GBRQoSFlow, []uint8) {
+func (sc *SMContext) handoverFlowsTo5GSLocked() ([]smfNgap.QoSFlow, []uint8) {
 	var (
-		flows []smfNgap.GBRQoSFlow
+		flows []smfNgap.QoSFlow
 		ebis  []uint8
 	)
 
@@ -157,7 +157,7 @@ func (sc *SMContext) handoverFlowsTo5GSLocked() ([]smfNgap.GBRQoSFlow, []uint8) 
 			continue
 		}
 
-		flows = append(flows, gbrFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
+		flows = append(flows, qosFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
 		ebis = append(ebis, b.ebi)
 	}
 

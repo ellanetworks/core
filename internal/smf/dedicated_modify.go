@@ -366,7 +366,7 @@ func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 
 	op, step, filters, deleted := nextTFTStep(b.installed.tft, next)
 	after := installedAfter(b.installed.rules, rules, step)
-	mbr, gbr := bearerRates(after)
+	mbr, gbr := bearerRates(binding.QCI, after)
 
 	if b.refused.refuses(binding, step, mbr, gbr) {
 		return nil, nil
