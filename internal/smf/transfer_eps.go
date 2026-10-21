@@ -19,12 +19,10 @@ import (
 
 func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSBearerRequest) (models.EPSBearer, error) {
 	move := transferRequest{
-		Access:   Access4G,
-		EBI:      req.EPSBearerIdentity,
-		Dnn:      req.APN,
-		Snssai:   req.Snssai,
-		UE:       req.UE,
-		Handover: true,
+		Access: Access4G,
+		EBI:    req.EPSBearerIdentity,
+		Dnn:    req.APN,
+		Snssai: req.Snssai,
 	}
 
 	sc, err := s.findTransferable(supi, req.PDUSessionID, move)

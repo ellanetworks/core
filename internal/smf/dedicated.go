@@ -43,7 +43,6 @@ type bearerBinding struct {
 type dedicatedBearer struct {
 	slot          uint8
 	ebi           uint8
-	chargingID    uint32
 	qfi           uint8
 	state         dedicatedState
 	deferredSince time.Time
@@ -379,7 +378,7 @@ func (s *SMF) addDedicatedLocked(ctx context.Context, sc *SMContext, binding bea
 		return nil, err
 	}
 
-	b := &dedicatedBearer{slot: slot, chargingID: s.allocateChargingID(), pending: &bearerConfig{binding: binding, rules: rules}}
+	b := &dedicatedBearer{slot: slot, pending: &bearerConfig{binding: binding, rules: rules}}
 
 	next := sc.Tunnel.dataPlane
 	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, Rules: sc.legRulesLocked(b, ruleSet{tft, rules})})

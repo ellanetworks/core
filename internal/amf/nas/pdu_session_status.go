@@ -32,7 +32,7 @@ func syncPDUSessionStatus(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			continue
 		}
 
-		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref, models.ReleaseFor(models.ReleaseStatusMismatch).WithUE(ue.ReleaseUEInfo())); err != nil {
+		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref, models.ReleaseFor(models.ReleaseStatusMismatch).WithLocation(ue.GetUserLocation())); err != nil {
 			logger.From(ctx, logger.AmfLog).Error("release PDU session the UE reports inactive",
 				zap.Error(err), logger.PDUSessionID(uint8(psi)))
 		}

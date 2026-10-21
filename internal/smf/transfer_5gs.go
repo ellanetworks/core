@@ -36,14 +36,13 @@ func (s *SMF) transferTo5GS(
 	req *fgs.PDUSessionEstablishmentRequest,
 	pti uint8,
 	epsBearerIdentity uint8,
-	ue models.SessionUEInfo,
 ) (string, []byte, error) {
 	if requestType == fgs.RequestTypeExistingEmergencyPDUSession {
 		return "", rejectTransfer5GS(pduSessionID, pti, fgs.GSMCausePDUSessionDoesNotExist),
 			fmt.Errorf("no emergency PDU session to move onto 5GS")
 	}
 
-	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, UE: ue, Handover: true}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
@@ -90,9 +89,7 @@ func (s *SMF) transferTo5GS(
 	return sc.Ref, nil, nil
 }
 
-func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, req models.SessionTransferRequest) (ref string, n2 []byte, flowEBIs []uint8, err error) {
-	supi, pduSessionID, epsBearerIdentity, dnn, snssai, ue := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai, req.UE
-
+func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (ref string, n2 []byte, flowEBIs []uint8, err error) {
 	defer func() {
 		recordSessionEstablishment(ctx, metrics.RAT5G, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()
@@ -107,7 +104,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, req models.SessionTra
 	)
 	defer span.End()
 
-	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, UE: ue, Handover: true}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {

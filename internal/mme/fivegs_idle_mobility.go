@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -44,14 +43,7 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 	for _, c := range conns {
 		snssai := c.Snssai
 
-		bearer, err := m.Session.TransferIdleToEPS(ctx, models.SessionTransferRequest{
-			SUPI:              ue.Supi(),
-			PDUSessionID:      c.PDUSessionID,
-			EPSBearerIdentity: c.EPSBearerIdentity,
-			DNN:               c.APN,
-			Snssai:            &snssai,
-			UE:                m.SessionUEInfo(ctx, ue),
-		})
+		bearer, err := m.Session.TransferIdleToEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("a PDU session could not move onto EPS; leaving it behind",
 				zap.Error(err), logger.PDUSessionID(c.PDUSessionID), zap.String("apn", c.APN))

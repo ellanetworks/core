@@ -137,10 +137,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 				zap.Stringer("type", mobileIdentity.Type()), zap.Error(err))
 		}
 
-		if ue.SetImei(pei) {
-			ue.ReportPEIChange(ctx)
-		}
-
+		ue.SetImei(pei)
 		logger.From(ctx, logger.AmfLog).Debug("UE used an equipment identity for registration",
 			zap.Stringer("type", mobileIdentity.Type()), logger.PEI(pei.String()))
 	default:
@@ -155,9 +152,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	loc, tai := ueConn.ServingLocation()
-	if ue.SetLocation(loc, tai) {
-		ue.ReportLocationChange(ctx)
-	}
+	ue.SetLocation(loc, tai)
 
 	if !amf.InTaiList(tai, operatorInfo.Tais) {
 		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)

@@ -79,7 +79,6 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 
 	return interworking.MMContextResponse{
 		SUPI:                ue.Supi(),
-		MEI:                 ue.IMEI(),
 		Security:            security,
 		UENetworkCapability: ue.UeNetCap(),
 		PDNConnections:      connections,

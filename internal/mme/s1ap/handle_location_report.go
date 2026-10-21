@@ -15,12 +15,12 @@ import (
 // captureUserLocation records the serving cell from an optional S1AP User
 // Location Information IE (TS 36.413 §9.2.1.93) that an eNB may attach to E-RAB
 // and release messages. It is a no-op when the IE is absent.
-func captureUserLocation(ctx context.Context, ueConn *mme.UeConn, uli *s1ap.UserLocationInformation) {
+func captureUserLocation(ueConn *mme.UeConn, uli *s1ap.UserLocationInformation) {
 	if uli == nil {
 		return
 	}
 
-	ueConn.UpdateLocation(ctx, uli.EUTRANCGI, uli.TAI)
+	ueConn.UpdateLocation(uli.EUTRANCGI, uli.TAI)
 }
 
 // handleLocationReport records the UE's serving cell from an eNB LOCATION REPORT
@@ -40,7 +40,7 @@ func handleLocationReport(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcLocationReport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	if msg.EUTRANCGI != nil && msg.TAI != nil {
-		ueConn.UpdateLocation(ctx, *msg.EUTRANCGI, *msg.TAI)
+		ueConn.UpdateLocation(*msg.EUTRANCGI, *msg.TAI)
 	}
 
 	fields := []zap.Field{logger.MMEUeS1apID(uint32(msg.MMEUES1APID))}

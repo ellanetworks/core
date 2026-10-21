@@ -96,7 +96,6 @@ func (m *MME) buildFiveGSRelocationRequest(ue *UeContext, connections []interwor
 
 	return &interworking.FiveGSRelocationRequest{
 		SUPI:            ue.Supi(),
-		MEI:             ue.IMEI(),
 		SecurityContext: security,
 		PDNConnections:  connections,
 		Target:          target,

@@ -46,10 +46,6 @@ type SessionRequest struct {
 	Subscribed SubscribedQoS
 
 	MaxPacketFilters uint16
-
-	UE                      models.SessionUEInfo
-	MSISDN                  string
-	ChargingCharacteristics models.ChargingCharacteristics
 }
 
 // ueAddresses is the address set allocated for a session; the IPv6 prefix is the
@@ -68,7 +64,7 @@ type ueAddresses struct {
 func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, error) {
 	dn := req.DN
 
-	sc, err := s.newSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai, req.UE)
+	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errSessionIdentity, err)
 	}
@@ -86,8 +82,6 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.Mutex.Lock()
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
-	sc.MSISDN = req.MSISDN
-	sc.ChargingCharacteristics = req.ChargingCharacteristics
 
 	addrs, err := s.allocateUEAddresses(ctx, dn, sc)
 	if err != nil {
@@ -175,7 +169,6 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 
 	sc.Mutex.Lock()
 	sc.EstablishedAt = time.Now()
-	sc.establishedLocked(sc.EstablishedAt)
 	sc.Mutex.Unlock()
 
 	return sc, nil

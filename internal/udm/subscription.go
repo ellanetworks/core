@@ -46,9 +46,7 @@ type DNNConfiguration struct {
 }
 
 type SessionManagementSubscription struct {
-	DNNs                    []DNNConfiguration
-	MSISDN                  string
-	ChargingCharacteristics *uint16
+	DNNs []DNNConfiguration
 }
 
 type Subscriptions struct {
@@ -140,10 +138,7 @@ func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*Se
 		byID[subscribed[i].ID] = snssaiOf(&subscribed[i])
 	}
 
-	sm := &SessionManagementSubscription{
-		DNNs:   make([]DNNConfiguration, 0, len(policies)),
-		MSISDN: sub.Msisdn,
-	}
+	sm := &SessionManagementSubscription{DNNs: make([]DNNConfiguration, 0, len(policies))}
 
 	for _, p := range policies {
 		snssai, ok := byID[p.SliceID]

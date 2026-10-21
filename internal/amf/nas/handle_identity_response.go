@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func updateUEIdentity(ctx context.Context, ue *amf.UeContext, id fgs.MobileIdentity, integrityVerified bool) error {
+func updateUEIdentity(ue *amf.UeContext, id fgs.MobileIdentity, integrityVerified bool) error {
 	if ue == nil {
 		return fmt.Errorf("amf.UeContext is nil")
 	}
@@ -64,9 +64,7 @@ func updateUEIdentity(ctx context.Context, ue *amf.UeContext, id fgs.MobileIdent
 			return fmt.Errorf("UE sent invalid %s: %w", id.Type(), err)
 		}
 
-		if ue.SetImei(imei) {
-			ue.ReportPEIChange(ctx)
-		}
+		ue.SetImei(imei)
 	default:
 		// An IDENTITY RESPONSE that names no identity — or one this AMF does not
 		// model — identifies nobody, so the identification procedure cannot have
@@ -99,7 +97,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 		conn.StopNASGuard(ctx)
 	}
 
-	if err := updateUEIdentity(ctx, ue, msg.MobileIdentity, integrityVerified); err != nil {
+	if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
 		return nasreply.Handled()
 	}

@@ -683,7 +683,7 @@ func (a *AMF) releaseNGConnection(ctx context.Context, ueConn *UeConn, cause nga
 
 		ueConn.SendUEContextReleaseCommand(ctx, cause)
 
-		release = release.WithUE(amfUe.ReleaseUEInfo())
+		release = release.WithLocation(amfUe.GetUserLocation())
 
 		for _, sr := range amfUe.SmContextRefs() {
 			if err := a.Session.ReleaseSmContext(ctx, sr.Ref, release); err != nil {

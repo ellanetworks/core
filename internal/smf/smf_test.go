@@ -24,32 +24,30 @@ import (
 // --- Fakes ---
 
 type fakeStore struct {
-	mu                      sync.Mutex
-	pcf                     *fakePCF
-	teardownSeq             *teardownRecorder
-	allocatedIP             netip.Addr
-	allocatedIPv6           netip.Addr
-	releasedIP              netip.Addr
-	releasedIPv6            netip.Addr
-	usageLog                []usageEntry
-	batchCalls              int
-	usageErr                error
-	msisdn                  string
-	chargingCharacteristics *uint16
-	usageFailures           int
-	flowLog                 []models.FlowReportRequest
-	releasedIPs             []string
-	releasedIPv6s           []string
-	err                     error
-	allocateIPErr           error
-	allocateIPv6Err         error
-	framedRoutes            []netip.Prefix
-	framedRoutesErr         error
-	staticIPv4              netip.Addr
-	staticIPv6              netip.Addr
-	staticIPErr             error
-	opLog                   []string
-	allocSessionLog         []uint8
+	mu              sync.Mutex
+	pcf             *fakePCF
+	teardownSeq     *teardownRecorder
+	allocatedIP     netip.Addr
+	allocatedIPv6   netip.Addr
+	releasedIP      netip.Addr
+	releasedIPv6    netip.Addr
+	usageLog        []usageEntry
+	batchCalls      int
+	usageErr        error
+	usageFailures   int
+	flowLog         []models.FlowReportRequest
+	releasedIPs     []string
+	releasedIPv6s   []string
+	err             error
+	allocateIPErr   error
+	allocateIPv6Err error
+	framedRoutes    []netip.Prefix
+	framedRoutesErr error
+	staticIPv4      netip.Addr
+	staticIPv6      netip.Addr
+	staticIPErr     error
+	opLog           []string
+	allocSessionLog []uint8
 }
 
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
@@ -299,15 +297,7 @@ func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.Session
 	other := c
 	other.Snssai, other.Default = otherTestSnssai, false
 
-	f.mu.Lock()
-	msisdn, cc := f.msisdn, f.chargingCharacteristics
-	f.mu.Unlock()
-
-	return &udm.SessionManagementSubscription{
-		DNNs:                    []udm.DNNConfiguration{c, other},
-		MSISDN:                  msisdn,
-		ChargingCharacteristics: cc,
-	}, nil
+	return &udm.SessionManagementSubscription{DNNs: []udm.DNNConfiguration{c, other}}, nil
 }
 
 func (f *fakeStore) Config(context.Context) (smf.DataNetworkConfig, error) {

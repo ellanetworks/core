@@ -5,8 +5,6 @@ package smf
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -157,7 +155,6 @@ type SMF struct {
 	mu     sync.RWMutex
 	pool   map[string]*SMContext // key: SMContext.Ref (unique per session instance)
 	byKey  map[string]*SMContext
-	bySUPI map[string]map[*SMContext]struct{}
 	bySEID map[uint64]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
@@ -172,15 +169,12 @@ type SMF struct {
 	subscriptions SubscriptionData
 
 	seidCounter uint64 // atomic; local SEID allocation
-	chargingIDs atomic.Uint32
 
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
 
 	usage          usageLedger
-	timeZone       string
 	usageConsumers []usageConsumer
-	observers      []SessionObserver
 	usageFlush     chan struct{}
 	usageCancel    context.CancelFunc
 	usageDone      chan struct{}
@@ -210,7 +204,6 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 	s := &SMF{
 		pool:   make(map[string]*SMContext),
 		byKey:  make(map[string]*SMContext),
-		bySUPI: make(map[string]map[*SMContext]struct{}),
 		bySEID: make(map[uint64]*SMContext),
 		pcf:    pcf,
 		store:  store,
@@ -224,12 +217,6 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		dedicatedAwaitLimit: 30 * time.Second,
 	}
 	s.usageConsumers = []usageConsumer{s.recordSubscriberUsage}
-	s.observers = []SessionObserver{logSessionEvent}
-
-	var seed [4]byte
-
-	_, _ = rand.Read(seed[:])
-	s.chargingIDs.Store(binary.BigEndian.Uint32(seed[:]))
 
 	for _, o := range opts {
 		o(s)
@@ -258,19 +245,7 @@ func (s *SMF) AllocateSEID() uint64 {
 	return atomic.AddUint64(&s.seidCounter, 1)
 }
 
-func (s *SMF) allocateChargingID() uint32 {
-	for {
-		if id := s.chargingIDs.Add(1); id != 0 {
-			return id
-		}
-	}
-}
-
 func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) (*SMContext, error) {
-	return s.newSession(supi, access, id, dnn, snssai, models.SessionUEInfo{})
-}
-
-func (s *SMF) newSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai, ue models.SessionUEInfo) (*SMContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -293,26 +268,9 @@ func (s *SMF) newSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		Dnn:             dnn,
 		Snssai:          snssai,
 		Ref:             fmt.Sprintf("%s#%d", canonicalName(supi, id.sessionKey()), s.refSeq),
-		ChargingID:      s.allocateChargingID(),
-		ueAccess:        access,
-		ue:              ue,
-		observers:       s.observers,
 	}
-	ctx.Mutex.sc = ctx
 
 	s.pool[ctx.Ref] = ctx
-
-	if s.bySUPI == nil {
-		s.bySUPI = make(map[string]map[*SMContext]struct{})
-	}
-
-	held := s.bySUPI[supi.String()]
-	if held == nil {
-		held = make(map[*SMContext]struct{})
-		s.bySUPI[supi.String()] = held
-	}
-
-	held[ctx] = struct{}{}
 
 	for _, key := range id.sessionKeys() {
 		s.byKey[canonicalName(supi, key)] = ctx
@@ -393,8 +351,6 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 	}
 
 	sc.commitRelease(release)
-	sc.applyUEInfo(release.UE)
-	sc.releasedLocked(*sc.release)
 
 	if !sc.EstablishedAt.IsZero() {
 		reason := sc.release.Reason
@@ -413,14 +369,6 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 
 func (s *SMF) removeLocked(sc *SMContext) {
 	delete(s.pool, sc.Ref)
-
-	if held := s.bySUPI[sc.Supi.String()]; held != nil {
-		delete(held, sc)
-
-		if len(held) == 0 {
-			delete(s.bySUPI, sc.Supi.String())
-		}
-	}
 
 	for seid, held := range s.bySEID {
 		if held == sc {
@@ -470,58 +418,6 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string, cause models.Sessio
 	_ = s.releaseUserPlaneThenAddresses(ctx, smCtx)
 
 	s.dropFromPool(ctx, smCtx, cause)
-}
-
-func (s *SMF) sessionsOf(supi etsi.SUPI) []*SMContext {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	held := make([]*SMContext, 0, len(s.bySUPI[supi.String()]))
-
-	for sc := range s.bySUPI[supi.String()] {
-		held = append(held, sc)
-	}
-
-	return held
-}
-
-func (s *SMF) UpdateUEInfo(ctx context.Context, supi etsi.SUPI, update models.SessionUEInfoUpdate) {
-	s.updateUEInfo(ctx, supi, Access5G, update)
-}
-
-func (s *SMF) UpdateEPSUEInfo(ctx context.Context, supi etsi.SUPI, update models.SessionUEInfoUpdate) {
-	s.updateUEInfo(ctx, supi, Access4G, update)
-}
-
-func (s *SMF) refreshTimeZone(now time.Time) {
-	tz := models.LocalTimeZone(now)
-	if tz == s.timeZone {
-		return
-	}
-
-	known := s.timeZone != ""
-	s.timeZone = tz
-
-	if !known {
-		return
-	}
-
-	for _, sc := range s.pooledSessions() {
-		sc.applyUEInfo(models.SessionUEInfoUpdate{TimeZone: &tz})
-	}
-}
-
-func (s *SMF) updateUEInfo(ctx context.Context, supi etsi.SUPI, access AccessType, update models.SessionUEInfoUpdate) {
-	if update.Empty() {
-		return
-	}
-
-	for _, sc := range s.sessionsOf(supi) {
-		if sc.applyUEInfoOn(access, update) {
-			logger.From(ctx, logger.SmfLog).Debug("UE information updated",
-				logger.SMContextRef(sc.Ref), logger.SUPI(supi.String()))
-		}
-	}
 }
 
 func (s *SMF) SessionsByDNN(dnn string) []*SMContext {

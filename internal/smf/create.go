@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
@@ -36,10 +37,7 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 
 // CreateSmContext establishes a new 5G PDU session from the UE's NAS
 // establishment request, returning the SM context ref or a NAS reject message.
-func (s *SMF) CreateSmContext(ctx context.Context, create models.SmContextCreateRequest) (string, []byte, error) {
-	supi, pduSessionID, dnn, snssai := create.SUPI, create.PDUSessionID, create.DNN, create.Snssai
-	requestType, n1Msg, epsBearerIdentity, ue := create.RequestType, create.N1SmMsg, create.EPSBearerIdentity, create.UE
-
+func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -127,7 +125,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, create models.SmContextCreate
 	if isTransferRequest(requestType) {
 		establishmentResult = metrics.ResultAccept
 
-		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, requestType, req, uint8(reqPTI), epsBearerIdentity, ue)
+		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, requestType, req, uint8(reqPTI), epsBearerIdentity)
 		if err != nil {
 			establishmentResult = metrics.ResultReject
 		}
@@ -192,10 +190,6 @@ func (s *SMF) CreateSmContext(ctx context.Context, create models.SmContextCreate
 		Subscribed: inputs.subscribed,
 
 		MaxPacketFilters: requestedMaxPacketFilters(req),
-
-		UE:                      ue,
-		MSISDN:                  inputs.msisdn,
-		ChargingCharacteristics: inputs.chargingCharacteristics,
 	})
 	if err != nil {
 		establishmentResult = metrics.ResultReject

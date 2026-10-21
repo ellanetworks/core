@@ -113,7 +113,7 @@ func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext, cause model
 }
 
 func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection, cause models.SessionReleaseRequest) {
-	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef, cause.WithUE(ue.ReleaseUEInfo())); err != nil {
+	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef, cause.WithLocation(ue.GetUserLocation())); err != nil {
 		logger.MmeLog.Warn("failed to release PDN connection session",
 			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 	}

@@ -23,18 +23,15 @@ var (
 )
 
 type transferRequest struct {
-	Access   AccessType
-	EBI      uint8
-	Dnn      string
-	Snssai   *models.Snssai
-	UE       models.SessionUEInfo
-	Handover bool
+	Access AccessType
+	EBI    uint8
+	Dnn    string
+	Snssai *models.Snssai
 }
 
 type pendingTransfer struct {
-	to       AccessType
-	ebi      uint8
-	handover bool
+	to  AccessType
+	ebi uint8
 }
 
 type droppedSource struct {
@@ -124,13 +121,8 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 
 	sc.discardOutstandingProcedures()
 
-	move := &pendingTransfer{to: req.Access, ebi: req.EBI, handover: req.Handover}
+	move := &pendingTransfer{to: req.Access, ebi: req.EBI}
 	sc.pending = move
-	sc.setPendingUEInfo(req.Access, req.UE)
-
-	if move.handover {
-		sc.handoverLocked(SessionHandoverStarted)
-	}
 
 	link := trace.SpanContextFromContext(ctx)
 
@@ -142,7 +134,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 			return
 		}
 
-		sc.cancelPendingLocked()
+		sc.pending = nil
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 		sc.handoverTargetAN = nil
 
@@ -171,20 +163,10 @@ var transferSupervision = 30 * time.Second
 func (sc *SMContext) clearPendingLocked() {
 	sc.pending = nil
 	sc.transferGuard.Stop()
-	sc.clearPendingUEInfo()
-}
-
-func (sc *SMContext) cancelPendingLocked() {
-	move := sc.pending
-	sc.clearPendingLocked()
-
-	if move != nil && move.handover {
-		sc.handoverLocked(SessionHandoverCancelled)
-	}
 }
 
 func (sc *SMContext) abandonPendingLocked() {
-	sc.cancelPendingLocked()
+	sc.clearPendingLocked()
 	sc.handoverTargetAN = nil
 }
 
@@ -192,28 +174,16 @@ type transferCommit struct {
 	source   AccessType
 	sourceID SessionIdentity
 	sourceUP bool
-	handover bool
 	restore  func()
 }
 
-func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access AccessType) (commit *transferCommit, err error) {
+func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access AccessType) (*transferCommit, error) {
 	if sc.pending == nil || sc.pending.to != access {
 		return nil, nil
 	}
 
 	move := sc.pending
-	arriving := sc.takePendingUEInfo(access)
 	sc.clearPendingLocked()
-
-	defer func() {
-		if err != nil && move.handover {
-			sc.handoverLocked(SessionHandoverCancelled)
-		}
-	}()
-
-	if arriving.PEI == "" {
-		arriving.PEI = sc.UEInfo().PEI
-	}
 
 	if sc.releasing {
 		return nil, fmt.Errorf("session %q is being released", sc.Ref)
@@ -230,21 +200,14 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 	}
 
 	sc.Access = access
-	sourceUEAccess, sourceUE := sc.setUEInfo(access, arriving)
 
 	return &transferCommit{
 		source:   source,
 		sourceID: sourceID,
 		sourceUP: sourceUP,
-		handover: move.handover,
 		restore: func() {
 			sc.Access = source
-			sc.setUEInfo(sourceUEAccess, sourceUE)
 			s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI)
-
-			if move.handover {
-				sc.handoverLocked(SessionHandoverCancelled)
-			}
 		},
 	}, nil
 }
@@ -254,10 +217,6 @@ func (sc *SMContext) finishTransferCommit(c *transferCommit) *droppedSource {
 
 	if sc.Access == Access4G {
 		sc.discardOutstandingProcedures()
-	}
-
-	if c.handover {
-		sc.handoverLocked(SessionHandoverCompleted)
 	}
 
 	return &droppedSource{supi: sc.Supi, access: c.source, id: c.sourceID, upActive: c.sourceUP}
@@ -316,7 +275,7 @@ func (sc *SMContext) takeAbandonedMoveTo(access AccessType) (etsi.SUPI, uint8, s
 		return sc.Supi, sc.PDUSessionID, sc.Ref, false
 	}
 
-	sc.cancelPendingLocked()
+	sc.clearPendingLocked()
 
 	return sc.Supi, sc.PDUSessionID, sc.Ref, true
 }

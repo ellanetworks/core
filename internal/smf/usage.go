@@ -21,7 +21,6 @@ import (
 
 const (
 	usageCollectionInterval = 30 * time.Second
-	timeZoneCheckInterval   = time.Minute
 	usageFlushBatchSize     = 2000
 	usageShutdownRetry      = 10 * time.Millisecond
 )
@@ -121,7 +120,7 @@ func nextEpochDay(t time.Time) time.Time {
 	return time.Unix((epochDay(t)+1)*86400, 0)
 }
 
-type usageConsumer func(ctx context.Context, sc *SMContext, usage []URRUsage)
+type usageConsumer func(ctx context.Context, sc *SMContext, usage []urrUsage)
 
 func (s *SMF) StartUsageCollection() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -139,15 +138,8 @@ func (s *SMF) StartUsageCollection() {
 		dayEnd := time.NewTimer(time.Until(nextEpochDay(time.Now())))
 		defer dayEnd.Stop()
 
-		timeZoneCheck := time.NewTicker(timeZoneCheckInterval)
-		defer timeZoneCheck.Stop()
-
-		s.refreshTimeZone(time.Now())
-
 		for {
 			select {
-			case <-timeZoneCheck.C:
-				s.refreshTimeZone(time.Now())
 			case <-ticker.C:
 				s.collectUsage(ctx)
 			case <-dayEnd.C:
@@ -276,7 +268,7 @@ func (sc *SMContext) dataPlane() dataPlane {
 	return sc.Tunnel.dataPlane
 }
 
-func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []URRUsage) {
+func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []urrUsage) {
 	if len(usage) == 0 {
 		return
 	}
@@ -284,8 +276,6 @@ func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []URRUsage)
 	for _, consume := range s.usageConsumers {
 		consume(ctx, sc, usage)
 	}
-
-	sc.usageAppliedLocked(usage)
 }
 
 func usageTime(r models.UsageReport) time.Time {
@@ -299,7 +289,7 @@ func usageTime(r models.UsageReport) time.Time {
 	}
 }
 
-func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []URRUsage) {
+func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []urrUsage) {
 	imsi := sc.Supi.IMSI()
 
 	for _, u := range usage {

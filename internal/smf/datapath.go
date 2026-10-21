@@ -59,14 +59,14 @@ type ruleLeg struct {
 	URRID       uint32
 }
 
-type ChargingKey struct {
+type chargingKey struct {
 	Dedicated   bool
 	Slot        uint8
 	RatingGroup uint32
 }
 
-type URRUsage struct {
-	Charging ChargingKey
+type urrUsage struct {
+	Charging chargingKey
 	models.UsageReport
 }
 
@@ -601,20 +601,20 @@ func (d dataPlane) modifyRequest(prev dataPlane, seid uint64, policyID string) *
 	}
 }
 
-func (d dataPlane) ruleCharging(b bearerLeg, r ruleLeg) ChargingKey {
+func (d dataPlane) ruleCharging(b bearerLeg, r ruleLeg) chargingKey {
 	rg := r.RatingGroup
 	if rg == 0 {
 		rg = d.RatingGroup
 	}
 
-	return ChargingKey{Dedicated: true, Slot: b.Slot, RatingGroup: rg}
+	return chargingKey{Dedicated: true, Slot: b.Slot, RatingGroup: rg}
 }
 
-func (d dataPlane) urrKeys() map[uint32]ChargingKey {
-	keys := make(map[uint32]ChargingKey)
+func (d dataPlane) urrKeys() map[uint32]chargingKey {
+	keys := make(map[uint32]chargingKey)
 
 	if d.DefaultURR != 0 {
-		keys[d.DefaultURR] = ChargingKey{RatingGroup: d.RatingGroup}
+		keys[d.DefaultURR] = chargingKey{RatingGroup: d.RatingGroup}
 	}
 
 	for _, b := range d.Bearers {
@@ -629,7 +629,7 @@ func (d dataPlane) urrKeys() map[uint32]ChargingKey {
 }
 
 func (d *dataPlane) assignURRs(prev dataPlane) error {
-	ids := make(map[ChargingKey]uint32)
+	ids := make(map[chargingKey]uint32)
 
 	for id, k := range prev.urrKeys() {
 		ids[k] = id
@@ -637,7 +637,7 @@ func (d *dataPlane) assignURRs(prev dataPlane) error {
 
 	last := max(prev.LastURRID, d.LastURRID)
 
-	assign := func(k ChargingKey) uint32 {
+	assign := func(k chargingKey) uint32 {
 		if id, ok := ids[k]; ok {
 			return id
 		}
@@ -648,7 +648,7 @@ func (d *dataPlane) assignURRs(prev dataPlane) error {
 		return last
 	}
 
-	d.DefaultURR = assign(ChargingKey{RatingGroup: d.RatingGroup})
+	d.DefaultURR = assign(chargingKey{RatingGroup: d.RatingGroup})
 	d.Bearers = slices.Clone(d.Bearers)
 
 	for i, b := range d.Bearers {
@@ -670,16 +670,16 @@ func (d *dataPlane) assignURRs(prev dataPlane) error {
 	return nil
 }
 
-func (d dataPlane) chargedUsage(reports []models.UsageReport) []URRUsage {
+func (d dataPlane) chargedUsage(reports []models.UsageReport) []urrUsage {
 	if len(reports) == 0 {
 		return nil
 	}
 
 	keys := d.urrKeys()
-	out := make([]URRUsage, 0, len(reports))
+	out := make([]urrUsage, 0, len(reports))
 
 	for _, r := range reports {
-		out = append(out, URRUsage{Charging: keys[r.URRID], UsageReport: r})
+		out = append(out, urrUsage{Charging: keys[r.URRID], UsageReport: r})
 	}
 
 	return out

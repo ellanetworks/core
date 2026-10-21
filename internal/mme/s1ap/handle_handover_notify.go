@@ -66,7 +66,7 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 	ue.TouchLastSeen()
 
 	if ueConn := ue.Conn(); ueConn != nil && notify.EUTRANCGI != nil && notify.TAI != nil {
-		ueConn.UpdateLocation(ctx, *notify.EUTRANCGI, *notify.TAI)
+		ueConn.UpdateLocation(*notify.EUTRANCGI, *notify.TAI)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Notify",

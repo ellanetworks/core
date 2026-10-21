@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -23,7 +22,7 @@ func TestUpdateLocationConversion(t *testing.T) {
 	c := &UeConn{}
 	cgi, tai := testCGIAndTAI()
 
-	c.UpdateLocation(t.Context(), cgi, tai)
+	c.UpdateLocation(cgi, tai)
 
 	el := c.Location.EutraLocation
 	if el == nil || el.Tai == nil || el.Ecgi == nil {
@@ -58,7 +57,7 @@ func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 		t.Fatal("expected empty location initially")
 	}
 
-	c.UpdateLocation(t.Context(), cgi, tai)
+	c.UpdateLocation(cgi, tai)
 
 	if ue.IsUserLocationEmpty() {
 		t.Fatal("location not mirrored to the persistent UE context")
@@ -74,7 +73,7 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 	c := &UeConn{}
 	cgi, tai := testCGIAndTAI()
 
-	c.UpdateLocation(t.Context(), cgi, tai)
+	c.UpdateLocation(cgi, tai)
 
 	if c.Location.EutraLocation == nil {
 		t.Fatal("connection location should be set even without a bound UE")
@@ -94,7 +93,7 @@ func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 		defer close(done)
 
 		for i := 0; i < 1000; i++ {
-			c.UpdateLocation(t.Context(), cgi, tai)
+			c.UpdateLocation(cgi, tai)
 		}
 	}()
 
@@ -129,7 +128,7 @@ func TestMMELocationAccessors(t *testing.T) {
 	}
 
 	cgi, tai := testCGIAndTAI()
-	ue.Conn().UpdateLocation(t.Context(), cgi, tai)
+	ue.Conn().UpdateLocation(cgi, tai)
 
 	loc, ok := m.GetUELocation(supi)
 	if !ok || loc.EutraLocation == nil || loc.EutraLocation.Ecgi.EutraCellID != "0abcde1" {
@@ -151,64 +150,12 @@ func TestBindingAConnectionCarriesItsLocationToTheUE(t *testing.T) {
 	m := newTestMME(t)
 	c := m.NewUeConn(&captureConn{}, 7)
 
-	c.UpdateLocation(t.Context(), s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x1234567}, s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1})
+	c.UpdateLocation(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x1234567}, s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1})
 
 	ue := NewUeContext()
 	m.AttachUeConn(t.Context(), ue, c)
 
 	if ue.IsUserLocationEmpty() {
 		t.Fatal("the UE has no location although its Initial UE Message carried one")
-	}
-}
-
-func TestUpdateLocationReportsOnlyACellChange(t *testing.T) {
-	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
-	c := ue.Conn()
-
-	cgi, tai := testCGIAndTAI()
-
-	c.UpdateLocation(t.Context(), cgi, tai)
-	c.UpdateLocation(t.Context(), cgi, tai)
-
-	cgi.CellID = 0x0abcde2
-	c.UpdateLocation(t.Context(), cgi, tai)
-
-	updates := m.Session.(*fakeSessionManager).ueUpdatesSnapshot()
-	if len(updates) != 2 {
-		t.Fatalf("UE information updates = %d, want 2: the first fix and the cell change", len(updates))
-	}
-
-	last := updates[1]
-	if last.Location == nil || last.Location.EutraLocation.Ecgi.EutraCellID != "0abcde2" || last.RATType == nil || *last.RATType != models.RATTypeEUTRA {
-		t.Fatalf("last update = %+v, want the new cell on EUTRA", last)
-	}
-}
-
-func TestALearnedIMEIIsReportedOnce(t *testing.T) {
-	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
-
-	imei, err := etsi.NewIMEIFromPEI("imeisv-3534567890123401")
-	if err != nil {
-		t.Fatalf("IMEI: %v", err)
-	}
-
-	for range 2 {
-		if ue.MarkSecured(imei) {
-			m.ReportPEI(t.Context(), ue)
-		}
-	}
-
-	var peis []string
-
-	for _, u := range m.Session.(*fakeSessionManager).ueUpdatesSnapshot() {
-		if u.PEI != nil {
-			peis = append(peis, *u.PEI)
-		}
-	}
-
-	if len(peis) != 1 || peis[0] != "imeisv-3534567890123401" {
-		t.Fatalf("PEI updates = %v, want one", peis)
 	}
 }

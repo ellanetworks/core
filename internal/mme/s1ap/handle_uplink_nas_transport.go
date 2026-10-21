@@ -35,7 +35,7 @@ func handleUplinkNASTransport(ctx context.Context, m *mme.MME, radio *mme.Radio,
 		ueConn.ServingTAI = *msg.TAI
 
 		if msg.EUTRANCGI != nil {
-			ueConn.UpdateLocation(ctx, *msg.EUTRANCGI, *msg.TAI)
+			ueConn.UpdateLocation(*msg.EUTRANCGI, *msg.TAI)
 		}
 	}
 

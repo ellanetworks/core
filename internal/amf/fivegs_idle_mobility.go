@@ -86,7 +86,6 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 
 	return interworking.EPSContextResponse{
 		SUPI:           ue.Supi(),
-		MEI:            ue.Imei(),
 		Security:       security,
 		PDNConnections: sessions,
 		AMBRUplink:     ambrUplink,

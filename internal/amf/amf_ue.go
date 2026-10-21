@@ -200,7 +200,7 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) (*UeConn, bool) {
+func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue.Store(ue)
@@ -226,12 +226,12 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 
 	ue.active.Store(ueConn)
 
-	moved := ueConn.PublishLocation(ue)
+	ueConn.PublishLocation(ue)
 
 	a.stopIdleTimersLocked(ue)
 	ue.PagingAnswered()
 
-	return displaced, moved
+	return displaced
 }
 
 func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
@@ -240,12 +240,8 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	}
 
 	a.mu.Lock()
-	displaced, moved := a.attachUeConnLocked(ctx, ue, ueConn)
+	displaced := a.attachUeConnLocked(ctx, ue, ueConn)
 	a.mu.Unlock()
-
-	if moved {
-		ue.ReportLocationChange(ctx)
-	}
 
 	if displaced != nil {
 		a.deactivateDisplacedUserPlane(ctx, ue, displaced)
@@ -750,7 +746,7 @@ func (ue *UeContext) Deregister(ctx context.Context, release models.SessionRelea
 
 	ue.transitionToLocked(ctx, Deregistered)
 
-	release = release.WithUE(models.LocationUpdate(ue.Location, time.Now()))
+	release = release.WithLocation(ue.Location)
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
@@ -808,7 +804,7 @@ func (ue *UeContext) NetworkDeregistrationOr(fallback models.SessionReleaseReque
 func (ue *UeContext) releaseSmContexts(ctx context.Context, release models.SessionReleaseRequest) {
 	ue.mu.Lock()
 
-	release = release.WithUE(models.LocationUpdate(ue.Location, time.Now()))
+	release = release.WithLocation(ue.Location)
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {

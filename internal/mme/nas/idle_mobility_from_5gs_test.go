@@ -358,10 +358,8 @@ func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref str
 	return nil
 }
 
-func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, req models.SessionTransferRequest) (models.EPSBearer, error) {
-	supi, pduSessionID, epsBearerIdentity, dnn, snssai := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai
-
-	bearer, err := f.fakeSessionManager.TransferIdleToEPS(ctx, models.SessionTransferRequest{SUPI: supi, PDUSessionID: pduSessionID, EPSBearerIdentity: epsBearerIdentity, DNN: dnn, Snssai: snssai})
+func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	bearer, err := f.fakeSessionManager.TransferIdleToEPS(ctx, supi, pduSessionID, epsBearerIdentity, dnn, snssai)
 	if err != nil {
 		return models.EPSBearer{}, err
 	}
@@ -790,7 +788,4 @@ func TestInterSystemTAUIsAnsweredWhenTheRekeyCannotStart(t *testing.T) {
 	if conn.DeferredTAUPlain != nil {
 		t.Error("the update was buffered behind a command that never left, so nothing will replay it")
 	}
-}
-
-func (f *crossAccessSessionManager) UpdateEPSUEInfo(context.Context, etsi.SUPI, models.SessionUEInfoUpdate) {
 }

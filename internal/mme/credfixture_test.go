@@ -70,7 +70,6 @@ type fakeSessionManager struct {
 	boundDedicated    []models.DedicatedBearerEndpoint
 	released          bool
 	releaseCauses     []models.SessionReleaseRequest
-	ueUpdates         []models.SessionUEInfoUpdate
 	deactivated       bool
 	reconciled        []string
 
@@ -102,9 +101,7 @@ type idleEPSTransfer struct {
 	Snssai            *models.Snssai
 }
 
-func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, req models.SessionTransferRequest) (models.EPSBearer, error) {
-	supi, pduSessionID, epsBearerIdentity, dnn, snssai := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai
-
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
 	f.idleTransfers = append(f.idleTransfers, idleEPSTransfer{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,
@@ -456,18 +453,4 @@ func (f *fakeSessionManager) releaseCausesSnapshot() []models.SessionReleaseRequ
 	defer f.outcomeMu.Unlock()
 
 	return slices.Clone(f.releaseCauses)
-}
-
-func (f *fakeSessionManager) UpdateEPSUEInfo(_ context.Context, _ etsi.SUPI, update models.SessionUEInfoUpdate) {
-	f.outcomeMu.Lock()
-	defer f.outcomeMu.Unlock()
-
-	f.ueUpdates = append(f.ueUpdates, update)
-}
-
-func (f *fakeSessionManager) ueUpdatesSnapshot() []models.SessionUEInfoUpdate {
-	f.outcomeMu.Lock()
-	defer f.outcomeMu.Unlock()
-
-	return slices.Clone(f.ueUpdates)
 }

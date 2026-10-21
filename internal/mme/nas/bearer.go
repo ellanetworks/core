@@ -113,7 +113,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		APN:               apn,
 		RequestedPDNType:  ueConn.ESMRequest.PDNType,
 		RequestType:       ueConn.ESMRequest.Type,
-		UE:                m.SessionUEInfo(ctx, ue),
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed", zap.Error(err))

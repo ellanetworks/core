@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
@@ -15,8 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) TransferIdleTo5GS(ctx context.Context, req models.SessionTransferRequest) (string, []uint8, error) {
-	ref, err := s.TransferIdle(ctx, req, Access5G)
+func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, []uint8, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
 	if err != nil {
 		return "", nil, err
 	}
@@ -32,10 +33,8 @@ func (s *SMF) TransferIdleTo5GS(ctx context.Context, req models.SessionTransferR
 	return ref, sc.flowEBIsLocked(), nil
 }
 
-func (s *SMF) TransferIdleToEPS(ctx context.Context, req models.SessionTransferRequest) (models.EPSBearer, error) {
-	ebi := req.EPSBearerIdentity
-
-	ref, err := s.TransferIdle(ctx, req, Access4G)
+func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access4G)
 	if err != nil {
 		return models.EPSBearer{}, err
 	}
@@ -56,9 +55,7 @@ func (s *SMF) TransferIdleToEPS(ctx context.Context, req models.SessionTransferR
 	return epsBearerForSession(sc, policy, ebi)
 }
 
-func (s *SMF) TransferIdle(ctx context.Context, req models.SessionTransferRequest, access AccessType) (string, error) {
-	supi, pduSessionID, ebi, dnn, snssai, ue := req.SUPI, req.PDUSessionID, req.EPSBearerIdentity, req.DNN, req.Snssai, req.UE
-
+func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {
 	ctx, span := tracer.Start(ctx, "smf/transfer_idle",
 		trace.WithAttributes(
 			attrs.SUPI(supi.String()),
@@ -70,7 +67,7 @@ func (s *SMF) TransferIdle(ctx context.Context, req models.SessionTransferReques
 	)
 	defer span.End()
 
-	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai, UE: ue}
+	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {

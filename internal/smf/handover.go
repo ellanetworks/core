@@ -344,7 +344,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 	defer smContext.Mutex.Unlock()
 
 	if smContext.pending != nil && smContext.pending.to == Access5G {
-		smContext.cancelPendingLocked()
+		smContext.clearPendingLocked()
 		s.clearTargetUplinkLocked(ctx, smContext)
 	}
 

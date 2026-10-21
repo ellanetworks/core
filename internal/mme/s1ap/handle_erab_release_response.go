@@ -29,7 +29,7 @@ func HandleERABReleaseResponse(ctx context.Context, m *mme.MME, radio *mme.Radio
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ctx, ueConn, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	for _, erab := range msg.ERABReleased {
 		ueConn.Log(ctx).Info("E-RAB released at eNB",

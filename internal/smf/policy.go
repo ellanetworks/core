@@ -90,39 +90,37 @@ func (q SubscribedQoS) equal(o SubscribedQoS) bool {
 		q.SessionAMBR.Uplink.Equal(o.SessionAMBR.Uplink) && q.SessionAMBR.Downlink.Equal(o.SessionAMBR.Downlink)
 }
 
-func (s *SMF) sessionSubscription(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (udm.DNNConfiguration, *udm.SessionManagementSubscription, error) {
+func (s *SMF) sessionSubscription(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (udm.DNNConfiguration, error) {
 	sm, err := s.subscriptions.SessionManagement(ctx, supi.IMSI())
 	if err != nil {
-		return udm.DNNConfiguration{}, nil, fmt.Errorf("get session management subscription: %w", err)
+		return udm.DNNConfiguration{}, fmt.Errorf("get session management subscription: %w", err)
 	}
 
 	if c, ok := sm.ForDNN(*snssai, dnn); ok {
-		return c, sm, nil
+		return c, nil
 	}
 
 	if sm.Subscribes(*snssai) {
-		return udm.DNNConfiguration{}, nil, fmt.Errorf("%w: %q on sst=%d sd=%q", ErrDNNNotInSlice, dnn, snssai.Sst, snssai.Sd)
+		return udm.DNNConfiguration{}, fmt.Errorf("%w: %q on sst=%d sd=%q", ErrDNNNotInSlice, dnn, snssai.Sst, snssai.Sd)
 	}
 
-	return udm.DNNConfiguration{}, nil, fmt.Errorf("%w: %q on sst=%d sd=%q", ErrNoPolicyMatch, dnn, snssai.Sst, snssai.Sd)
+	return udm.DNNConfiguration{}, fmt.Errorf("%w: %q on sst=%d sd=%q", ErrNoPolicyMatch, dnn, snssai.Sst, snssai.Sd)
 }
 
 func (s *SMF) checkSubscribed(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) error {
-	_, _, err := s.sessionSubscription(ctx, supi, snssai, dnn)
+	_, err := s.sessionSubscription(ctx, supi, snssai, dnn)
 
 	return err
 }
 
 type sessionInputs struct {
-	policy                  *Policy
-	dn                      DNNStore
-	subscribed              SubscribedQoS
-	msisdn                  string
-	chargingCharacteristics models.ChargingCharacteristics
+	policy     *Policy
+	dn         DNNStore
+	subscribed SubscribedQoS
 }
 
 func (s *SMF) prepareSession(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (sessionInputs, error) {
-	c, sm, err := s.sessionSubscription(ctx, supi, snssai, dnn)
+	c, err := s.sessionSubscription(ctx, supi, snssai, dnn)
 	if err != nil {
 		return sessionInputs{}, err
 	}
@@ -137,13 +135,7 @@ func (s *SMF) prepareSession(ctx context.Context, supi etsi.SUPI, snssai *models
 		return sessionInputs{}, fmt.Errorf("data network %q configuration: %w", dnn, err)
 	}
 
-	return sessionInputs{
-		policy:                  dataNetworkPolicy(config),
-		dn:                      dn,
-		subscribed:              subscribedQoS(c),
-		msisdn:                  sm.MSISDN,
-		chargingCharacteristics: chargingCharacteristics(sm),
-	}, nil
+	return sessionInputs{policy: dataNetworkPolicy(config), dn: dn, subscribed: subscribedQoS(c)}, nil
 }
 
 func dataNetworkPolicy(c DataNetworkConfig) *Policy {
@@ -166,14 +158,4 @@ func (r PCCRule) Equal(o PCCRule) bool {
 	return r.ID == o.ID && r.Version == o.Version && r.QCI == o.QCI && r.ARP == o.ARP &&
 		r.MBR.Equal(o.MBR) && r.GBR.Equal(o.GBR) && r.Gate == o.Gate && r.RatingGroup == o.RatingGroup &&
 		slices.Equal(r.Filters, o.Filters)
-}
-
-const defaultChargingCharacteristics uint16 = 0x0800
-
-func chargingCharacteristics(sm *udm.SessionManagementSubscription) models.ChargingCharacteristics {
-	if sm.ChargingCharacteristics != nil {
-		return models.ChargingCharacteristics{Value: *sm.ChargingCharacteristics, SelectionMode: models.ChargingCharacteristicsSubscribed}
-	}
-
-	return models.ChargingCharacteristics{Value: defaultChargingCharacteristics, SelectionMode: models.ChargingCharacteristicsHomeDefault}
 }

@@ -106,7 +106,7 @@ func (s *SMF) ObserveUsageForTest() func() []ChargedUsage {
 		seen []ChargedUsage
 	)
 
-	s.usageConsumers = append(s.usageConsumers, func(_ context.Context, _ *SMContext, usage []URRUsage) {
+	s.usageConsumers = append(s.usageConsumers, func(_ context.Context, _ *SMContext, usage []urrUsage) {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -141,18 +141,4 @@ func SessionReleasesForTest(rat string, reason models.SessionReleaseReason) floa
 	}
 
 	return m.GetCounter().GetValue()
-}
-
-func (s *SMF) RefreshTimeZoneForTest(now time.Time) { s.refreshTimeZone(now) }
-
-func (smContext *SMContext) DedicatedChargingIDsForTest() []uint32 {
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	ids := make([]uint32, 0, len(smContext.dedicated))
-	for _, b := range smContext.dedicated {
-		ids = append(ids, b.chargingID)
-	}
-
-	return ids
 }

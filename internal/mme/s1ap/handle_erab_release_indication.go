@@ -28,7 +28,7 @@ func handleERABReleaseIndication(ctx context.Context, m *mme.MME, radio *mme.Rad
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABReleaseIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ctx, ueConn, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	seen := make(map[s1ap.ERABID]struct{}, len(msg.ERABReleased))
 

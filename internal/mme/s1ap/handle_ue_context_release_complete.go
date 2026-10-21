@@ -48,7 +48,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
-	captureUserLocation(ctx, ueConn, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	// Cancel the release-supervision guard so it does not also run the cleanup.
 	ueConn.StopReleaseGuard()

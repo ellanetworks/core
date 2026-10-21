@@ -131,7 +131,6 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
-	ue.AdoptImei(req.MEI)
 	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllowedNssai(snssaiList)
 	ue.SetAllow4G(subscriberProfile.Allow4G)
@@ -255,14 +254,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 	for _, c := range conns {
 		snssai := c.Snssai
 
-		ref, n2, flowEBIs, err := a.Session.PrepareSmContextFromEPS(ctx, models.SessionTransferRequest{
-			SUPI:              ue.Supi(),
-			PDUSessionID:      c.PDUSessionID,
-			EPSBearerIdentity: c.EPSBearerIdentity,
-			DNN:               c.APN,
-			Snssai:            &snssai,
-			UE:                a.SessionUEInfo(ctx, ue),
-		})
+		ref, n2, flowEBIs, err := a.Session.PrepareSmContextFromEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to take over a PDN connection as a PDU session; leaving it behind",
 				logger.SUPI(ue.Supi().String()), logger.PDUSessionID(c.PDUSessionID),

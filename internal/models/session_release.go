@@ -122,10 +122,10 @@ type RanNasRelCause struct {
 }
 
 type SessionReleaseRequest struct {
-	Reason    SessionReleaseReason
-	SentCause *uint8
-	RanNas    []RanNasRelCause
-	UE        SessionUEInfoUpdate
+	Reason     SessionReleaseReason
+	SentCause  *uint8
+	RanNas     []RanNasRelCause
+	UeLocation *UserLocation
 }
 
 func ReleaseFor(reason SessionReleaseReason) SessionReleaseRequest {
@@ -144,8 +144,12 @@ func (r SessionReleaseRequest) WithSentCause(cause uint8) SessionReleaseRequest 
 	return r
 }
 
-func (r SessionReleaseRequest) WithUE(update SessionUEInfoUpdate) SessionReleaseRequest {
-	r.UE = update
+func (r SessionReleaseRequest) WithLocation(loc UserLocation) SessionReleaseRequest {
+	if loc.EutraLocation == nil && loc.NrLocation == nil && loc.N3gaLocation == nil {
+		return r
+	}
+
+	r.UeLocation = &loc
 
 	return r
 }
