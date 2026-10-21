@@ -24,16 +24,17 @@ const PoliciesTableName = "policies"
 const policyPreemptionSchema = 25
 
 const (
-	listPoliciesPagedStmt          = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	getPolicyStmt                  = "SELECT &Policy.* FROM %s WHERE name==$Policy.name"
-	getPolicyByLookupStmt          = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
-	createPolicyStmt               = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.preemptionCapability, $Policy.preemptionVulnerability, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
-	editPolicyStmt                 = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, preemptionCapability=$Policy.preemptionCapability, preemptionVulnerability=$Policy.preemptionVulnerability, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
-	deletePolicyStmt               = "DELETE FROM %s WHERE name==$Policy.name"
-	countPoliciesStmt              = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	countPoliciesInProfileStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Policy.profileID"
-	countPoliciesInSliceStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID=$Policy.sliceID"
-	countPoliciesInDataNetworkStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE dataNetworkID=$Policy.dataNetworkID"
+	listPoliciesPagedStmt           = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getPolicyStmt                   = "SELECT &Policy.* FROM %s WHERE name==$Policy.name"
+	getPolicyByLookupStmt           = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
+	createPolicyStmt                = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.preemptionCapability, $Policy.preemptionVulnerability, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
+	editPolicyStmt                  = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, preemptionCapability=$Policy.preemptionCapability, preemptionVulnerability=$Policy.preemptionVulnerability, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
+	deletePolicyStmt                = "DELETE FROM %s WHERE name==$Policy.name"
+	countPoliciesStmt               = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	countPoliciesInProfileStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Policy.profileID"
+	countPoliciesInSliceStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID=$Policy.sliceID"
+	countPoliciesInDataNetworkStmt  = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE dataNetworkID=$Policy.dataNetworkID"
+	listPolicy5QIsInDataNetworkStmt = "SELECT &Policy.var5qi FROM %s WHERE dataNetworkID=$Policy.dataNetworkID"
 
 	getPolicyByProfileAndSliceStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
 	listPoliciesByProfilePagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
@@ -847,6 +848,43 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 	}
 
 	return result.Count, nil
+}
+
+func (db *Database) DataNetworkPolicy5QIs(ctx context.Context, dataNetworkID string) ([]int32, error) {
+	querySummary := fmt.Sprintf("%s %s (5QIs in data network)", "SELECT", PoliciesTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			semconv.DBCollectionName(PoliciesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
+
+	var policies []Policy
+
+	if err := db.conn().Query(ctx, db.listPolicy5QIsInDataNetworkStmt, Policy{DataNetworkID: dataNetworkID}).GetAll(&policies); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	fiveQIs := make([]int32, 0, len(policies))
+	for _, p := range policies {
+		fiveQIs = append(fiveQIs, p.Var5qi)
+	}
+
+	return fiveQIs, nil
 }
 
 func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (bool, error) {

@@ -28,7 +28,12 @@ const page = <T,>(items: T[]) => ({
 });
 
 const seed = () => {
-  api.get(DATA_NETWORKS, () => page([{ name: "internet" }, { name: "ims" }]));
+  api.get(DATA_NETWORKS, () =>
+    page([
+      { name: "internet", ims: false },
+      { name: "ims", ims: true },
+    ]),
+  );
   api.get(SLICES, () => page([{ name: "slice-a" }, { name: "slice-b" }]));
 };
 
@@ -114,7 +119,7 @@ describe("CreatePolicyModal", () => {
     await waitFor(() => expect(button(/^Create$/)).toBeDisabled());
   });
 
-  it("locks 5QI to 5 on the voice data network", async () => {
+  it("limits 5QI to 5 and 69 on an IMS data network", async () => {
     const user = userEvent.setup();
     seed();
     api.post(POLICIES, () => ({}));
@@ -130,10 +135,19 @@ describe("CreatePolicyModal", () => {
 
     const fiveQi = screen.getByRole("combobox", { name: /5QI/ });
     await waitFor(() => expect(fiveQi).toHaveTextContent("5 — IMS signalling"));
-    expect(fiveQi).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText("IMS signalling on the voice data network uses 5QI 5."),
+      screen.getByText(
+        "IMS signalling uses 5QI 5, or 69 for mission critical services.",
+      ),
     ).toBeInTheDocument();
+
+    await user.click(fiveQi);
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["5 — IMS signalling", "69 — Mission critical signalling"]);
+    await user.click(
+      screen.getByRole("option", { name: /69 — Mission critical/ }),
+    );
 
     await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
     await user.click(button(/^Create$/));
@@ -141,11 +155,11 @@ describe("CreatePolicyModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(POLICIES)?.body).toMatchObject({
       data_network_name: "ims",
-      var5qi: 5,
+      var5qi: 69,
     });
   });
 
-  it("unlocks 5QI when leaving the voice data network", async () => {
+  it("offers every 5QI when leaving the IMS data network", async () => {
     const user = userEvent.setup();
     seed();
     render(1);
@@ -158,9 +172,10 @@ describe("CreatePolicyModal", () => {
     await user.click(screen.getByRole("combobox", { name: /Data Network/ }));
     await user.click(await screen.findByRole("option", { name: "internet" }));
 
-    expect(screen.getByRole("combobox", { name: /5QI/ })).not.toHaveAttribute(
-      "aria-disabled",
-    );
+    await user.click(screen.getByRole("combobox", { name: /5QI/ }));
+    expect(
+      await screen.findByRole("option", { name: /9 — Best effort/ }),
+    ).toBeInTheDocument();
   });
 
   it("lists every data network", async () => {
@@ -203,6 +218,8 @@ describe("CreatePolicyModal", () => {
       session_ambr_downlink: "100 Mbps",
       var5qi: 7,
       arp: 1,
+      preemption_capability: "not_preempt",
+      preemption_vulnerability: "not_preemptable",
       default: false,
     });
   });
@@ -216,6 +233,8 @@ describe("EditPolicyModal", () => {
     data_network_name: "internet",
     var5qi: 7,
     arp: 3,
+    preemption_capability: "may_preempt",
+    preemption_vulnerability: "preemptable",
     default: false,
   } as APIPolicy;
 
@@ -278,10 +297,12 @@ describe("EditPolicyModal", () => {
       session_ambr_downlink: "2 Gbps",
       rules: { some: "rules" },
       var5qi: 7,
+      preemption_capability: "may_preempt",
+      preemption_vulnerability: "preemptable",
     });
   });
 
-  it("moves a voice policy with another 5QI to 5", async () => {
+  it("moves an IMS policy with another 5QI to 5", async () => {
     seed();
     api.get(`${POLICIES}/:name`, () => ({
       ...full,
@@ -292,7 +313,21 @@ describe("EditPolicyModal", () => {
 
     const fiveQi = await screen.findByRole("combobox", { name: /5QI/ });
     await waitFor(() => expect(fiveQi).toHaveTextContent("5 — IMS signalling"));
-    expect(fiveQi).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps 5QI 69 on an IMS policy", async () => {
+    seed();
+    api.get(`${POLICIES}/:name`, () => ({
+      ...full,
+      data_network_name: "ims",
+      var5qi: 69,
+    }));
+    render();
+
+    const fiveQi = await screen.findByRole("combobox", { name: /5QI/ });
+    await waitFor(() =>
+      expect(fiveQi).toHaveTextContent("69 — Mission critical signalling"),
+    );
   });
 
   it("keeps a 5QI value that is not in the standard list selectable", async () => {

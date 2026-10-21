@@ -14,7 +14,7 @@ import SelectControl from "@/components/form/SelectControl";
 import NumberControl from "@/components/form/NumberControl";
 import { AmbrFields, ambrSchema } from "@/components/form/BitrateFields";
 import type { AmbrUnit } from "@/components/form/BitrateFields";
-import { IMS_SIGNALLING_5QI, isVoiceDataNetwork } from "@/utils/voice";
+import { IMS_DATA_NETWORK_5QIS, IMS_SIGNALLING_5QI } from "@/utils/voice";
 
 const PER_PAGE = 100;
 
@@ -32,6 +32,26 @@ export const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
 
 export const NON_GBR_5QI_VALUES = NON_GBR_5QI_OPTIONS.map((o) => o.value);
 
+export type PreemptionCapability = "may_preempt" | "not_preempt";
+
+export type PreemptionVulnerability = "preemptable" | "not_preemptable";
+
+const PREEMPTION_CAPABILITY_OPTIONS: {
+  value: PreemptionCapability;
+  label: string;
+}[] = [
+  { value: "not_preempt", label: "Shall not pre-empt" },
+  { value: "may_preempt", label: "May pre-empt" },
+];
+
+const PREEMPTION_VULNERABILITY_OPTIONS: {
+  value: PreemptionVulnerability;
+  label: string;
+}[] = [
+  { value: "not_preemptable", label: "Not pre-emptable" },
+  { value: "preemptable", label: "Pre-emptable" },
+];
+
 export const policySchema = {
   sliceName: yup.string().required("Slice is required."),
   dataNetworkName: yup.string().required("Data Network is required."),
@@ -42,16 +62,16 @@ export const policySchema = {
       NON_GBR_5QI_VALUES,
       `5QI must be one of: ${NON_GBR_5QI_VALUES.join(", ")}`,
     )
-    .when("dataNetworkName", {
-      is: isVoiceDataNetwork,
-      then: (schema) =>
-        schema.oneOf(
-          [IMS_SIGNALLING_5QI],
-          `IMS signalling uses 5QI ${IMS_SIGNALLING_5QI}`,
-        ),
-    })
     .required("5QI is required"),
   arp: yup.number().min(1).max(15).required("ARP is required"),
+  preemptionCapability: yup
+    .mixed<PreemptionCapability>()
+    .oneOf(["may_preempt", "not_preempt"])
+    .required(),
+  preemptionVulnerability: yup
+    .mixed<PreemptionVulnerability>()
+    .oneOf(["preemptable", "not_preemptable"])
+    .required(),
   isDefault: yup.boolean().required(),
 };
 
@@ -65,20 +85,18 @@ export const splitAmbr = (value: string): { num: number; unit: AmbrUnit } => {
   return { num: Number.isNaN(num) ? 100 : num, unit };
 };
 
-const listAllNames = async (
-  fetchPage: (
-    page: number,
-  ) => Promise<{ items?: { name: string }[]; total_count?: number }>,
+const listAll = async <I extends { name: string }>(
+  fetchPage: (page: number) => Promise<{ items?: I[]; total_count?: number }>,
 ) => {
-  const names: string[] = [];
+  const all: I[] = [];
 
   for (let page = 1; ; page++) {
     const result = await fetchPage(page);
     const items = result.items ?? [];
-    names.push(...items.map((item) => item.name));
+    all.push(...items);
 
-    if (items.length < PER_PAGE || names.length >= (result.total_count ?? 0)) {
-      return names;
+    if (items.length < PER_PAGE || all.length >= (result.total_count ?? 0)) {
+      return all;
     }
   }
 };
@@ -90,20 +108,22 @@ export const useNetworkOptions = (open: boolean) => {
   const dataNetworksQuery = useQuery({
     queryKey: ["policy-data-networks"],
     queryFn: () =>
-      listAllNames((page) => listDataNetworks(accessToken!, page, PER_PAGE)),
+      listAll((page) => listDataNetworks(accessToken!, page, PER_PAGE)),
     enabled,
   });
 
   const slicesQuery = useQuery({
     queryKey: ["policy-slices"],
-    queryFn: () =>
-      listAllNames((page) => listSlices(accessToken!, page, PER_PAGE)),
+    queryFn: () => listAll((page) => listSlices(accessToken!, page, PER_PAGE)),
     enabled,
   });
 
   return {
-    dataNetworks: dataNetworksQuery.data,
-    slices: slicesQuery.data,
+    dataNetworks: dataNetworksQuery.data?.map((dn) => dn.name),
+    imsDataNetworks: dataNetworksQuery.data
+      ?.filter((dn) => dn.ims)
+      .map((dn) => dn.name),
+    slices: slicesQuery.data?.map((slice) => slice.name),
     isError: dataNetworksQuery.isError || slicesQuery.isError,
   };
 };
@@ -139,27 +159,36 @@ const NameSelect = <T extends FieldValues>({
 const FiveQiSelect = <T extends FieldValues>({
   control,
   name,
+  imsDataNetworks,
 }: {
   control: Control<T>;
   name: Path<T>;
+  imsDataNetworks: string[];
 }) => {
   const { field } = useController({ control, name });
   const dataNetwork = useWatch({
     control,
     name: "dataNetworkName" as Path<T>,
   }) as string | undefined;
-  const voice = isVoiceDataNetwork(dataNetwork);
+  const ims = !!dataNetwork && imsDataNetworks.includes(dataNetwork);
   const current = field.value as number | undefined;
   const { onChange } = field;
 
   useEffect(() => {
-    if (voice && current !== IMS_SIGNALLING_5QI) onChange(IMS_SIGNALLING_5QI);
-  }, [voice, current, onChange]);
+    if (
+      ims &&
+      (current === undefined || !IMS_DATA_NETWORK_5QIS.includes(current))
+    )
+      onChange(IMS_SIGNALLING_5QI);
+  }, [ims, current, onChange]);
 
+  const allowed = ims
+    ? NON_GBR_5QI_OPTIONS.filter((o) => IMS_DATA_NETWORK_5QIS.includes(o.value))
+    : NON_GBR_5QI_OPTIONS;
   const options =
-    current !== undefined && !NON_GBR_5QI_VALUES.includes(current)
-      ? [{ value: current, label: String(current) }, ...NON_GBR_5QI_OPTIONS]
-      : NON_GBR_5QI_OPTIONS;
+    current !== undefined && !allowed.some((o) => o.value === current)
+      ? [{ value: current, label: String(current) }, ...allowed]
+      : allowed;
 
   return (
     <>
@@ -168,11 +197,10 @@ const FiveQiSelect = <T extends FieldValues>({
         label="5QI / QCI"
         options={options}
         numeric
-        disabled={voice}
       />
       <Typography variant="caption" color="textSecondary">
-        {voice
-          ? `IMS signalling on the voice data network uses 5QI ${IMS_SIGNALLING_5QI}.`
+        {ims
+          ? "IMS signalling uses 5QI 5, or 69 for mission critical services."
           : "Determines radio scheduling behavior. Only non-GBR classes are supported."}
       </Typography>
     </>
@@ -182,12 +210,14 @@ const FiveQiSelect = <T extends FieldValues>({
 interface PolicyFieldsProps<T extends FieldValues> {
   control: Control<T>;
   dataNetworks: string[];
+  imsDataNetworks: string[];
   slices: string[];
 }
 
 export const PolicyFields = <T extends FieldValues>({
   control,
   dataNetworks,
+  imsDataNetworks,
   slices,
 }: PolicyFieldsProps<T>) => (
   <>
@@ -213,11 +243,25 @@ export const PolicyFields = <T extends FieldValues>({
       unitName={"ambrDownUnit" as Path<T>}
       label="Session Bitrate Downlink"
     />
-    <FiveQiSelect control={control} name={"fiveQi" as Path<T>} />
+    <FiveQiSelect
+      control={control}
+      name={"fiveQi" as Path<T>}
+      imsDataNetworks={imsDataNetworks}
+    />
     <NumberControl<T>
       name={"arp" as Path<T>}
       label="Allocation and Retention Priority (ARP)"
-      helperText="Admission control priority at session setup. 1 (highest) to 15 (lowest)."
+      helperText="Admission control priority at session setup. 1 (highest) to 15 (lowest). Levels 1 to 8 are meant for prioritized services."
+    />
+    <SelectControl<T, PreemptionCapability>
+      name={"preemptionCapability" as Path<T>}
+      label="Pre-emption capability"
+      options={PREEMPTION_CAPABILITY_OPTIONS}
+    />
+    <SelectControl<T, PreemptionVulnerability>
+      name={"preemptionVulnerability" as Path<T>}
+      label="Pre-emption vulnerability"
+      options={PREEMPTION_VULNERABILITY_OPTIONS}
     />
   </>
 );

@@ -19,7 +19,6 @@ import type { OperatorIMS } from "@/queries/operator";
 import EditOperatorIMSModal from "@/components/EditOperatorIMSModal";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { TABLE_CONTAINER_SX } from "@/utils/layout";
-import { IMS_DATA_NETWORK } from "@/utils/voice";
 
 interface VoiceSectionProps {
   ims?: OperatorIMS;
@@ -49,8 +48,8 @@ const VoiceSection: React.FC<VoiceSectionProps> = ({
       </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
         Let 4G and 5G subscribers make voice and video calls through your IMS.
-        Each subscriber needs a phone number and a policy on the{" "}
-        {IMS_DATA_NETWORK} data network.
+        Each subscriber needs a phone number and a policy on an IMS data
+        network.
       </Typography>
 
       <TableContainer sx={TABLE_CONTAINER_SX}>

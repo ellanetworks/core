@@ -263,7 +263,7 @@ func pdnConnectionExports(ue *UeContext) map[string]PDNConnectionExport {
 			Apn:                    p.Apn,
 			PdnType:                uint8(p.PdnType),
 			Qci:                    p.Qci,
-			Arp:                    p.Arp,
+			Arp:                    uint8(p.Arp.PriorityLevel),
 			SessionAMBRUplinkBps:   p.SessAmbrULBps,
 			SessionAMBRDownlinkBps: p.SessAmbrDLBps,
 			Tunnel:                 tunnelExport(p),

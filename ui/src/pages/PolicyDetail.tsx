@@ -494,6 +494,18 @@ const PolicyDetail: React.FC = () => {
                         </TableCell>
                         <TableCell sx={valueCellSx}>{policy.arp}</TableCell>
                       </TableRow>
+                      <TableRow>
+                        <TableCell sx={labelCellSx}>Pre-emption</TableCell>
+                        <TableCell sx={valueCellSx}>
+                          {policy.preemption_capability === "may_preempt"
+                            ? "May pre-empt"
+                            : "Shall not pre-empt"}
+                          {", "}
+                          {policy.preemption_vulnerability === "preemptable"
+                            ? "pre-emptable"
+                            : "not pre-emptable"}
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </CardContent>

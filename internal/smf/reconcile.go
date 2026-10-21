@@ -374,13 +374,13 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 
 	oldQoS := current.QosData
 
-	oldArp, newArp := int32(0), int32(0)
+	var oldArp, newArp models.Arp
 	if oldQoS.Arp != nil {
-		oldArp = oldQoS.Arp.PriorityLevel
+		oldArp = *oldQoS.Arp
 	}
 
 	if policy.QosData.Arp != nil {
-		newArp = policy.QosData.Arp.PriorityLevel
+		newArp = *policy.QosData.Arp
 	}
 
 	has5QIChange := oldQoS.Var5qi != policy.QosData.Var5qi
@@ -406,6 +406,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			Arp:    policy.QosData.Arp,
 		},
 		DNS:      dns,
+		IMS:      current.IMS,
 		MTU:      current.MTU,
 		IPv4Pool: current.IPv4Pool,
 		IPv6Pool: current.IPv6Pool,

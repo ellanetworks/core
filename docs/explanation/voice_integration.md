@@ -36,16 +36,16 @@ Ella Core plays two roles for the IMS, both over Diameter:
 
 Both interfaces are used for 4G and 5G subscribers. The IMS connects to Ella Core's Diameter interface, over SCTP or TCP.
 
-Ella Core also carries the phone's traffic to and from the IMS, on a dedicated data network named `ims`.
+Ella Core also carries the phone's traffic to and from the IMS, on an IMS data network, usually named `ims`.
 
-## The `ims` data network
+## IMS data networks
 
-The `ims` data network carries the phones' SIP signalling and call media.
+An IMS data network carries the phones' SIP signalling and call media. Any data network can be marked as IMS; there can be several, for example `ims` for phones and a separate one for mission critical devices.
 
-- **P-CSCF discovery**: When a phone opens a session on `ims`, Ella Core gives it the P-CSCF addresses configured in the Operator settings, of the IP version the phone requested.
-- **Signalling QoS**: The session's default QoS uses 5QI / QCI 5, the standard class for IMS signalling.
-- **No NAT**: Traffic on `ims` is never translated, so the IMS can reach phones at their own IP address.
-- **UE-to-UE**: Traffic between two phones on `ims` is always switched locally, so calls between them work even when local switching is disabled.
+- **P-CSCF discovery**: When a phone opens a session on an IMS data network, Ella Core gives it the P-CSCF addresses configured in the Operator settings, of the IP version the phone requested.
+- **Signalling QoS**: The session's default QoS uses 5QI / QCI 5, the standard class for IMS signalling, or 69 for mission critical signalling.
+- **No NAT**: Traffic on an IMS data network is never translated, so the IMS can reach phones at their own IP address.
+- **UE-to-UE**: Traffic between two phones on an IMS data network is always switched locally, so calls between them work even when local switching is disabled.
 
 ## IMS identities
 
@@ -68,8 +68,8 @@ During registration (5G) or attach and tracking area update (4G), Ella Core tell
 Ella Core indicates IMS voice support when all of the following hold:
 
 - At least one P-CSCF address is configured.
-- The `ims` data network exists, with an IP pool of the same version as one of the P-CSCF addresses.
-- The subscriber's profile has a policy on the `ims` data network.
+- An IMS data network exists, with an IP pool of the same version as one of the P-CSCF addresses.
+- The subscriber's profile has a policy on an IMS data network.
 - The subscriber has an MSISDN.
 
 On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
@@ -77,7 +77,7 @@ On the Subscriber page, **Voice** shows the subscriber's voice state and, when v
 ## Call setup and QoS
 
 1. During call setup, the P-CSCF describes the call's media to Ella Core over Rx: its type, IP addresses, ports, and bandwidth.
-2. Ella Core creates a guaranteed bitrate (GBR) QoS flow (5G) or dedicated bearer (4G) for the media, on the phone's `ims` session.
+2. Ella Core creates a guaranteed bitrate (GBR) QoS flow (5G) or dedicated bearer (4G) for the media, on the phone's IMS session.
 3. When the call ends, the P-CSCF closes the Rx session and Ella Core releases the QoS flow or bearer.
 
 | Media | 5QI / QCI | ARP priority |

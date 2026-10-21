@@ -67,41 +67,47 @@ func toDBPolicyRules(rules *PolicyRules) *db.PolicyRulesInput {
 }
 
 type CreatePolicyParams struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	DataNetworkName     string       `json:"data_network_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi"`
-	Arp                 int32        `json:"arp"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
-	Default             *bool        `json:"default,omitempty"`
+	Name                    string       `json:"name"`
+	ProfileName             string       `json:"profile_name"`
+	SliceName               string       `json:"slice_name"`
+	DataNetworkName         string       `json:"data_network_name"`
+	SessionAmbrUplink       string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink     string       `json:"session_ambr_downlink"`
+	Var5qi                  int32        `json:"var5qi"`
+	Arp                     int32        `json:"arp"`
+	PreemptionCapability    *string      `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability *string      `json:"preemption_vulnerability,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
+	Default                 *bool        `json:"default,omitempty"`
 }
 
 type UpdatePolicyParams struct {
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	DataNetworkName     string       `json:"data_network_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi"`
-	Arp                 int32        `json:"arp"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
-	Default             *bool        `json:"default,omitempty"`
+	ProfileName             string       `json:"profile_name"`
+	SliceName               string       `json:"slice_name"`
+	DataNetworkName         string       `json:"data_network_name"`
+	SessionAmbrUplink       string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink     string       `json:"session_ambr_downlink"`
+	Var5qi                  int32        `json:"var5qi"`
+	Arp                     int32        `json:"arp"`
+	PreemptionCapability    *string      `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability *string      `json:"preemption_vulnerability,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
+	Default                 *bool        `json:"default,omitempty"`
 }
 
 type Policy struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	DataNetworkName     string       `json:"data_network_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi"`
-	Arp                 int32        `json:"arp"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
-	Default             bool         `json:"default"`
+	Name                    string       `json:"name"`
+	ProfileName             string       `json:"profile_name"`
+	SliceName               string       `json:"slice_name"`
+	DataNetworkName         string       `json:"data_network_name"`
+	SessionAmbrUplink       string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink     string       `json:"session_ambr_downlink"`
+	Var5qi                  int32        `json:"var5qi"`
+	Arp                     int32        `json:"arp"`
+	PreemptionCapability    string       `json:"preemption_capability"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
+	Default                 bool         `json:"default"`
 }
 
 var qciCompatible5Qi = []int32{1, 2, 3, 4, 5, 6, 7, 8, 9, 65, 66, 67, 69, 70, 75, 79, 80, 82, 83}
@@ -154,12 +160,70 @@ func isValidBitrate(bitrate string) bool {
 
 var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80}
 
-func checkIMSSignalling5QI(dataNetwork string, var5qi int32) error {
-	if dataNetwork == models.IMSDataNetworkName && var5qi != models.IMSSignalling5QI {
-		return fmt.Errorf("5QI %d is not valid on the %s data network; IMS signalling uses 5QI %d", var5qi, models.IMSDataNetworkName, models.IMSSignalling5QI)
+func checkIMSSignalling5QI(dataNetwork *db.DataNetwork, var5qi int32) error {
+	if dataNetwork.IMS && var5qi != models.IMSSignalling5QI && var5qi != models.MCSignalling5QI {
+		return fmt.Errorf("5QI %d is not valid on IMS data network %s; IMS signalling uses 5QI %d, or %d for mission critical services",
+			var5qi, dataNetwork.Name, models.IMSSignalling5QI, models.MCSignalling5QI)
 	}
 
 	return nil
+}
+
+const (
+	preemptionMayPreempt     = "may_preempt"
+	preemptionNotPreempt     = "not_preempt"
+	preemptionPreemptable    = "preemptable"
+	preemptionNotPreemptable = "not_preemptable"
+)
+
+func validatePreemption(capability, vulnerability *string) error {
+	if capability != nil && *capability != preemptionMayPreempt && *capability != preemptionNotPreempt {
+		return fmt.Errorf("invalid preemption_capability - must be %q or %q", preemptionMayPreempt, preemptionNotPreempt)
+	}
+
+	if vulnerability != nil && *vulnerability != preemptionPreemptable && *vulnerability != preemptionNotPreemptable {
+		return fmt.Errorf("invalid preemption_vulnerability - must be %q or %q", preemptionPreemptable, preemptionNotPreemptable)
+	}
+
+	return nil
+}
+
+func preemptionCapabilityOr(capability *string, fallback models.PreemptionCapability) models.PreemptionCapability {
+	switch {
+	case capability == nil:
+		return fallback
+	case *capability == preemptionMayPreempt:
+		return models.PreemptionCapabilityMayPreempt
+	default:
+		return models.PreemptionCapabilityNotPreempt
+	}
+}
+
+func preemptionVulnerabilityOr(vulnerability *string, fallback models.PreemptionVulnerability) models.PreemptionVulnerability {
+	switch {
+	case vulnerability == nil:
+		return fallback
+	case *vulnerability == preemptionPreemptable:
+		return models.PreemptionVulnerabilityPreemptable
+	default:
+		return models.PreemptionVulnerabilityNotPreemptable
+	}
+}
+
+func preemptionCapabilityName(capability models.PreemptionCapability) string {
+	if capability == models.PreemptionCapabilityMayPreempt {
+		return preemptionMayPreempt
+	}
+
+	return preemptionNotPreempt
+}
+
+func preemptionVulnerabilityName(vulnerability models.PreemptionVulnerability) string {
+	if vulnerability == models.PreemptionVulnerabilityPreemptable {
+		return preemptionPreemptable
+	}
+
+	return preemptionNotPreemptable
 }
 
 func isValid5Qi(var5qi int32) bool {
@@ -335,15 +399,17 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 			}
 
 			policyList = append(policyList, Policy{
-				Name:                dbPolicy.Name,
-				ProfileName:         profile.Name,
-				SliceName:           slice.Name,
-				DataNetworkName:     dataNetwork.Name,
-				SessionAmbrDownlink: dbPolicy.SessionAmbrDownlink,
-				SessionAmbrUplink:   dbPolicy.SessionAmbrUplink,
-				Var5qi:              dbPolicy.Var5qi,
-				Arp:                 dbPolicy.Arp,
-				Default:             dbPolicy.IsDefault,
+				Name:                    dbPolicy.Name,
+				ProfileName:             profile.Name,
+				SliceName:               slice.Name,
+				DataNetworkName:         dataNetwork.Name,
+				SessionAmbrDownlink:     dbPolicy.SessionAmbrDownlink,
+				SessionAmbrUplink:       dbPolicy.SessionAmbrUplink,
+				Var5qi:                  dbPolicy.Var5qi,
+				Arp:                     dbPolicy.Arp,
+				PreemptionCapability:    preemptionCapabilityName(dbPolicy.PreemptionCapability),
+				PreemptionVulnerability: preemptionVulnerabilityName(dbPolicy.PreemptionVulnerability),
+				Default:                 dbPolicy.IsDefault,
 			})
 		}
 
@@ -443,16 +509,18 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		policy := Policy{
-			Name:                dbPolicy.Name,
-			ProfileName:         profile.Name,
-			SliceName:           slice.Name,
-			DataNetworkName:     dataNetwork.Name,
-			SessionAmbrDownlink: dbPolicy.SessionAmbrDownlink,
-			SessionAmbrUplink:   dbPolicy.SessionAmbrUplink,
-			Var5qi:              dbPolicy.Var5qi,
-			Arp:                 dbPolicy.Arp,
-			Rules:               rules,
-			Default:             dbPolicy.IsDefault,
+			Name:                    dbPolicy.Name,
+			ProfileName:             profile.Name,
+			SliceName:               slice.Name,
+			DataNetworkName:         dataNetwork.Name,
+			SessionAmbrDownlink:     dbPolicy.SessionAmbrDownlink,
+			SessionAmbrUplink:       dbPolicy.SessionAmbrUplink,
+			Var5qi:                  dbPolicy.Var5qi,
+			Arp:                     dbPolicy.Arp,
+			PreemptionCapability:    preemptionCapabilityName(dbPolicy.PreemptionCapability),
+			PreemptionVulnerability: preemptionVulnerabilityName(dbPolicy.PreemptionVulnerability),
+			Rules:                   rules,
+			Default:                 dbPolicy.IsDefault,
 		}
 		writeResponse(r.Context(), w, policy, http.StatusOK, logger.APILog)
 	})
@@ -589,7 +657,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := checkIMSSignalling5QI(dataNetwork.Name, createPolicyParams.Var5qi); err != nil {
+		if err := checkIMSSignalling5QI(dataNetwork, createPolicyParams.Var5qi); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
@@ -600,14 +668,16 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		dbPolicy := &db.Policy{
-			Name:                createPolicyParams.Name,
-			SessionAmbrDownlink: createPolicyParams.SessionAmbrDownlink,
-			SessionAmbrUplink:   createPolicyParams.SessionAmbrUplink,
-			Var5qi:              createPolicyParams.Var5qi,
-			Arp:                 createPolicyParams.Arp,
-			DataNetworkID:       dataNetwork.ID,
-			ProfileID:           profile.ID,
-			SliceID:             slice.ID,
+			Name:                    createPolicyParams.Name,
+			SessionAmbrDownlink:     createPolicyParams.SessionAmbrDownlink,
+			SessionAmbrUplink:       createPolicyParams.SessionAmbrUplink,
+			Var5qi:                  createPolicyParams.Var5qi,
+			Arp:                     createPolicyParams.Arp,
+			PreemptionCapability:    preemptionCapabilityOr(createPolicyParams.PreemptionCapability, models.PreemptionCapabilityNotPreempt),
+			PreemptionVulnerability: preemptionVulnerabilityOr(createPolicyParams.PreemptionVulnerability, models.PreemptionVulnerabilityNotPreemptable),
+			DataNetworkID:           dataNetwork.ID,
+			ProfileID:               profile.ID,
+			SliceID:                 slice.ID,
 		}
 
 		if createPolicyParams.Rules != nil {
@@ -715,7 +785,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := checkIMSSignalling5QI(dataNetwork.Name, updatePolicyParams.Var5qi); err != nil {
+		if err := checkIMSSignalling5QI(dataNetwork, updatePolicyParams.Var5qi); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
@@ -730,6 +800,8 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		policy.SessionAmbrUplink = updatePolicyParams.SessionAmbrUplink
 		policy.Var5qi = updatePolicyParams.Var5qi
 		policy.Arp = updatePolicyParams.Arp
+		policy.PreemptionCapability = preemptionCapabilityOr(updatePolicyParams.PreemptionCapability, policy.PreemptionCapability)
+		policy.PreemptionVulnerability = preemptionVulnerabilityOr(updatePolicyParams.PreemptionVulnerability, policy.PreemptionVulnerability)
 		policy.ProfileID = profile.ID
 		policy.SliceID = slice.ID
 		policy.DataNetworkID = dataNetwork.ID
@@ -781,6 +853,10 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("invalid arp format - must be an integer between 1 and 15")
 	}
 
+	if err := validatePreemption(p.PreemptionCapability, p.PreemptionVulnerability); err != nil {
+		return err
+	}
+
 	if err := validatePolicyRules(p.Rules); err != nil {
 		return err
 	}
@@ -812,6 +888,10 @@ func validateUpdatePolicyParams(p UpdatePolicyParams) error {
 		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
 		return errors.New("invalid arp format - must be an integer between 1 and 15")
+	}
+
+	if err := validatePreemption(p.PreemptionCapability, p.PreemptionVulnerability); err != nil {
+		return err
 	}
 
 	if err := validatePolicyRules(p.Rules); err != nil {

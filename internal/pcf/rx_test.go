@@ -63,6 +63,7 @@ func newPCF(t *testing.T) *pcf.PCF {
 	establish(t, p, testRef, smf.PolicyContext{
 		Supi:       supi(t, "001010000000001"),
 		Dnn:        models.IMSDataNetworkName,
+		IMS:        true,
 		IPv4:       testUEv4,
 		IPv6Prefix: netip.MustParsePrefix("fd60:0:0:1::/64"),
 	})
@@ -180,9 +181,16 @@ func TestAA(t *testing.T) {
 
 func TestAAOnlyBindsToTheIMSDataNetwork(t *testing.T) {
 	p := pcf.New(policyStore{}, zap.NewNop())
-	establish(t, p, "internet", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: "internet", IPv4: testUEv4})
+	establish(t, p, "internet", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: models.IMSDataNetworkName, IPv4: testUEv4})
 
 	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable))
+}
+
+func TestAABindsToAnyIMSDataNetwork(t *testing.T) {
+	p := pcf.New(policyStore{}, zap.NewNop())
+	establish(t, p, "mcx", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: "mcx", IMS: true, IPv4: testUEv4})
+
+	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
 }
 
 func TestSessionTermination(t *testing.T) {
@@ -198,7 +206,7 @@ func TestTerminatedAssociationAbortsItsRxSessions(t *testing.T) {
 	p := newPCF(t)
 	update := rx.RequestUpdate
 	other := netip.MustParseAddr("10.60.0.2")
-	establish(t, p, "other", smf.PolicyContext{Supi: supi(t, "001010000000002"), Dnn: models.IMSDataNetworkName, IPv4: other})
+	establish(t, p, "other", smf.PolicyContext{Supi: supi(t, "001010000000002"), Dnn: models.IMSDataNetworkName, IMS: true, IPv4: other})
 
 	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
 	requireResult(t, aa(t, p, "af;2", signallingAAR(testUEv6)), success)
@@ -234,7 +242,7 @@ func TestReplacedAssociationAbortsItsRxSessionsAndRebinds(t *testing.T) {
 
 	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
 
-	establish(t, p, testRef, smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: models.IMSDataNetworkName, IPv4: moved})
+	establish(t, p, testRef, smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: models.IMSDataNetworkName, IMS: true, IPv4: moved})
 
 	requireResult(t, aa(t, p, "af;1", rx.AARequest{RequestType: &update}), tgpp.Result{Code: diameter.ResultUnknownSessionID})
 	requireResult(t, aa(t, p, "af;2", signallingAAR(testUEv4)), tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable))

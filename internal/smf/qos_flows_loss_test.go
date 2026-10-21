@@ -484,7 +484,7 @@ func TestRulePushRacingTheReleaseOfASession(t *testing.T) {
 
 		decisions = append(decisions, &smf.PolicyDecision{
 			Revision: nextRevision, PolicyID: policy.PolicyID, Var5qi: policy.QosData.Var5qi,
-			Arp: policy.QosData.Arp.PriorityLevel, SessionAMBR: policy.Ambr, Rules: rules,
+			Arp: *policy.QosData.Arp, SessionAMBR: policy.Ambr, Rules: rules,
 		})
 	}
 

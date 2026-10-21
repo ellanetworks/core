@@ -11,7 +11,6 @@ import (
 	"net/netip"
 	"slices"
 
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
@@ -189,24 +188,30 @@ func (db *Database) IMSVoiceStatus(ctx context.Context) (IMSVoiceStatus, error) 
 		return IMSVoiceNoPCSCF, nil
 	}
 
-	dn, err := db.GetDataNetwork(ctx, models.IMSDataNetworkName)
-	if errors.Is(err, ErrNotFound) {
-		return IMSVoiceNoDataNetwork, nil
-	}
-
+	dns, err := db.ListAllDataNetworks(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	if slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
-		if addr.Is4() {
-			return dn.IPv4Pool != ""
+	status := IMSVoiceNoDataNetwork
+
+	for _, dn := range dns {
+		if !dn.IMS {
+			continue
 		}
 
-		return dn.IPv6Pool != ""
-	}) {
-		return IMSVoiceEnabled, nil
+		status = IMSVoiceIPFamilyMismatch
+
+		if slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
+			if addr.Is4() {
+				return dn.IPv4Pool != ""
+			}
+
+			return dn.IPv6Pool != ""
+		}) {
+			return IMSVoiceEnabled, nil
+		}
 	}
 
-	return IMSVoiceIPFamilyMismatch, nil
+	return status, nil
 }

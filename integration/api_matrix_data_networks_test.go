@@ -68,7 +68,8 @@ func runDataNetworksMatrix(ctx context.Context, t *testing.T, c *client.Client) 
 		got.IPv4Pool != createOpts.IPv4Pool ||
 		got.IPv6Pool != createOpts.IPv6Pool ||
 		got.DNS != createOpts.DNS ||
-		got.Mtu != createOpts.Mtu {
+		got.Mtu != createOpts.Mtu ||
+		got.IMS {
 		t.Fatalf("post-create round-trip mismatch: got %+v, want %+v", got, createOpts)
 	}
 
@@ -127,6 +128,18 @@ func runDataNetworksMatrix(ctx context.Context, t *testing.T, c *client.Client) 
 			assert: func(t *testing.T, dn *client.DataNetwork) {
 				if dn.Mtu != 1400 {
 					t.Fatalf("Mtu: got %d, want %d", dn.Mtu, 1400)
+				}
+			},
+		},
+		{
+			field: "IMS",
+			mutate: func(o *client.UpdateDataNetworkOptions) {
+				ims := true
+				o.IMS = &ims
+			},
+			assert: func(t *testing.T, dn *client.DataNetwork) {
+				if !dn.IMS {
+					t.Fatalf("IMS: got %t, want true", dn.IMS)
 				}
 			},
 		},

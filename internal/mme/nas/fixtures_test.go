@@ -25,7 +25,7 @@ var (
 	testUEIP      = netip.AddrFrom4([4]byte{10, 45, 0, 2})
 	testUEIPv6IID = [8]byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
 	testSGWFTEID  = models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 2})}
-	testBearerQoS = models.EPSBearerQoS{QCI: 9, ARP: 15, APNAMBR: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}}
+	testBearerQoS = models.EPSBearerQoS{QCI: 9, ARP: models.Arp{PriorityLevel: 15}, APNAMBR: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}}
 )
 
 func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {

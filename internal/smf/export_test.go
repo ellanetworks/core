@@ -51,7 +51,7 @@ func (smContext *SMContext) ForwardingTEIDForTest() uint32 {
 func (s *SMF) AssociateForTest(ctx context.Context, sc *SMContext) error {
 	subscribed := SubscribedQoS{Var5qi: sc.PolicyData.QosData.Var5qi, SessionAMBR: sc.PolicyData.Ambr}
 	if sc.PolicyData.QosData.Arp != nil {
-		subscribed.Arp = sc.PolicyData.QosData.Arp.PriorityLevel
+		subscribed.Arp = *sc.PolicyData.QosData.Arp
 	}
 
 	d, err := s.createAssociation(ctx, sc, PolicyContext{Supi: sc.Supi, PDUSessionID: sc.PDUSessionID, Dnn: sc.Dnn, Snssai: *sc.Snssai, Access: sc.Access, Subscribed: subscribed})

@@ -189,7 +189,7 @@ None
 }
 ```
 
-`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on the `ims` data network and the subscriber has no IMS registration.
+`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on an IMS data network and the subscriber has no IMS registration.
 
 ### Registrations
 

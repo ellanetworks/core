@@ -27,7 +27,7 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	p.SessionRef = "ref-internet"
 	p.PdnType = eps.PDNTypeIPv4
 	p.Qci = 9
-	p.Arp = 1
+	p.Arp = models.Arp{PriorityLevel: 1}
 	p.SessAmbrDLBps = 200_000_000
 	p.SessAmbrULBps = 100_000_000
 
@@ -266,7 +266,7 @@ func TestModifyEPSBearerQoSViaERABModify(t *testing.T) {
 	ambr := testAmbr("300 Mbps", "400 Mbps")
 
 	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{
-		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: 2},
+		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}},
 		APNAMBR: ambr,
 	}); err != nil {
 		t.Fatal(err)

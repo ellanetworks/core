@@ -220,12 +220,13 @@ type Database struct {
 	getPolicyStmt         *sqlair.Statement
 	getPolicyByLookupStmt *sqlair.Statement
 
-	getPolicyByProfileAndSliceStmt *sqlair.Statement
-	getDefaultPolicyByProfileStmt  *sqlair.Statement
-	clearDefaultPoliciesStmt       *sqlair.Statement
-	setDefaultPolicyStmt           *sqlair.Statement
-	listPoliciesByProfileStmt      *sqlair.Statement
-	listPoliciesByProfileAllStmt   *sqlair.Statement
+	getPolicyByProfileAndSliceStmt  *sqlair.Statement
+	getDefaultPolicyByProfileStmt   *sqlair.Statement
+	clearDefaultPoliciesStmt        *sqlair.Statement
+	setDefaultPolicyStmt            *sqlair.Statement
+	listPoliciesByProfileStmt       *sqlair.Statement
+	listPoliciesByProfileAllStmt    *sqlair.Statement
+	listPolicy5QIsInDataNetworkStmt *sqlair.Statement
 
 	listPoliciesPreV25Stmt               *sqlair.Statement
 	getPolicyPreV25Stmt                  *sqlair.Statement
@@ -1950,6 +1951,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countPoliciesInProfileStmt, fmt.Sprintf(countPoliciesInProfileStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
 		{&db.countPoliciesInSliceStmt, fmt.Sprintf(countPoliciesInSliceStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
 		{&db.countPoliciesInDataNetworkStmt, fmt.Sprintf(countPoliciesInDataNetworkStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
+		{&db.listPolicy5QIsInDataNetworkStmt, fmt.Sprintf(listPolicy5QIsInDataNetworkStmt, PoliciesTableName), []any{Policy{}}},
 
 		// Network Slices
 		{&db.listNetworkSlicesStmt, fmt.Sprintf(listNetworkSlicesPagedStmt, NetworkSlicesTableName), []any{ListArgs{}, NetworkSlice{}, NumItems{}}},

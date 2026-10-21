@@ -14,7 +14,6 @@ import (
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pcf"
 )
 
@@ -28,11 +27,11 @@ func TestRxOwnersFindTheNodeHoldingTheAddress(t *testing.T) {
 
 	t.Cleanup(func() { _ = database.Close() })
 
-	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: models.IMSDataNetworkName, IPv4Pool: "10.60.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "mcx", IPv4Pool: "10.60.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}); err != nil {
 		t.Fatalf("CreateDataNetwork: %s", err)
 	}
 
-	dn, err := database.GetDataNetwork(ctx, models.IMSDataNetworkName)
+	dn, err := database.GetDataNetwork(ctx, "mcx")
 	if err != nil {
 		t.Fatalf("GetDataNetwork: %s", err)
 	}
@@ -71,6 +70,16 @@ func TestRxOwnersFindTheNodeHoldingTheAddress(t *testing.T) {
 		}
 	}
 
+	internet, err := database.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	if err != nil {
+		t.Fatalf("GetDataNetwork internet: %s", err)
+	}
+
+	session := 9
+	if err := database.CreateLease(ctx, &db.IPLease{PoolID: internet.ID, PoolType: "ipv4", IMSI: imsi, SessionID: &session, Type: "dynamic", CreatedAt: time.Now().Unix(), NodeID: database.RaftID()}, netip.MustParseAddr("10.45.0.9")); err != nil {
+		t.Fatalf("CreateLease on internet: %s", err)
+	}
+
 	owners := &rxOwners{db: database, directory: &diameterDirectory{db: database}, port: 3868}
 
 	local, err := owners.Owner(ctx, netip.MustParseAddr("10.60.0.1"))
@@ -84,7 +93,7 @@ func TestRxOwnersFindTheNodeHoldingTheAddress(t *testing.T) {
 		t.Fatalf("owner on another node = %+v, %v", remote, err)
 	}
 
-	for _, address := range []string{"10.60.0.3", "10.60.0.4"} {
+	for _, address := range []string{"10.60.0.3", "10.60.0.4", "10.45.0.9"} {
 		if _, err := owners.Owner(ctx, netip.MustParseAddr(address)); !errors.Is(err, pcf.ErrNoOwner) {
 			t.Fatalf("owner of %s: %v, want ErrNoOwner", address, err)
 		}

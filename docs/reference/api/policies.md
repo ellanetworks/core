@@ -37,6 +37,8 @@ This path returns the list of policies.
                 "session_ambr_downlink": "100 Mbps",
                 "var5qi": 9,
                 "arp": 1,
+                "preemption_capability": "not_preempt",
+                "preemption_vulnerability": "not_preemptable",
                 "data_network_name": "internet",
                 "default": true
             }
@@ -63,8 +65,10 @@ This path creates a new policy. Optionally, you can create network rules as part
 - `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
 - `session_ambr_uplink` (string): Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"100 Mbps"`). Allowed units: Kbps, Mbps, Gbps.
 - `session_ambr_downlink` (string): Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"200 Mbps"`). Allowed units: Kbps, Mbps, Gbps.
-- `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only). Must be 5 on the `ims` data network.
+- `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only). Must be 5, or 69 for mission critical services, on an IMS data network.
 - `arp` (integer): Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once the session is established. 1 = highest priority.
+- `preemption_capability` (string, optional): Whether the session's default bearer or QoS flow may pre-empt others at admission (TS 23.501 §5.7.2.2): `may_preempt` or `not_preempt`. Defaults to `not_preempt`.
+- `preemption_vulnerability` (string, optional): Whether the session's default bearer or QoS flow may be pre-empted: `preemptable` or `not_preemptable`. Defaults to `not_preemptable`.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 - `default` (boolean, optional): Make this the profile's default APN/DNN binding (used for the 4G default bearer and 5G fallback). The first policy created in a profile becomes the default regardless.
 - `rules` (object, optional): Network rules to create with the policy, organized by direction. Rules are created in the order provided.
@@ -194,8 +198,10 @@ This path updates an existing policy. Network rules are always replaced on every
 - `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
 - `session_ambr_uplink` (string): Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"100 Mbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the policy's profile permits: when 5G is allowed the number must not exceed 65535 in the chosen unit (TS 24.501 §9.11.4.14); when 4G is allowed the rate must not exceed 10 Gbps (TS 24.008 §10.5.6.5B).
 - `session_ambr_downlink` (string): Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"200 Mbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the policy's profile permits: when 5G is allowed the number must not exceed 65535 in the chosen unit (TS 24.501 §9.11.4.14); when 4G is allowed the rate must not exceed 10 Gbps (TS 24.008 §10.5.6.5B).
-- `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only). Must be 5 on the `ims` data network.
+- `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only). Must be 5, or 69 for mission critical services, on an IMS data network.
 - `arp` (integer): Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once the session is established. 1 = highest priority.
+- `preemption_capability` (string, optional): `may_preempt` or `not_preempt`. Omitted leaves it unchanged.
+- `preemption_vulnerability` (string, optional): `preemptable` or `not_preemptable`. Omitted leaves it unchanged.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 - `default` (boolean, optional): Make this the profile's default APN/DNN binding, clearing the previous default. Omitted or false leaves it unchanged.
 - `rules` (object, optional): Network rules to set on the policy. Existing rules are always deleted first. If this field is omitted, all existing rules are deleted.
@@ -288,6 +294,8 @@ None
         "session_ambr_downlink": "10 Mbps",
         "var5qi": 9,
         "arp": 1,
+        "preemption_capability": "not_preempt",
+        "preemption_vulnerability": "not_preemptable",
         "data_network_name": "internet",
         "default": false,
         "rules": {
@@ -344,6 +352,8 @@ If a policy has no associated rules, the `rules` field will be omitted:
         "session_ambr_downlink": "10 Mbps",
         "var5qi": 9,
         "arp": 1,
+        "preemption_capability": "not_preempt",
+        "preemption_vulnerability": "not_preemptable",
         "data_network_name": "internet",
         "default": false
     }

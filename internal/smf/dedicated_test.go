@@ -49,7 +49,7 @@ func pushRules(t *testing.T, s *smf.SMF, ref string, rules ...smf.PCCRule) {
 		Revision:    nextRevision,
 		PolicyID:    policy.PolicyID,
 		Var5qi:      policy.QosData.Var5qi,
-		Arp:         policy.QosData.Arp.PriorityLevel,
+		Arp:         *policy.QosData.Arp,
 		SessionAMBR: policy.Ambr,
 		Rules:       rules,
 	}
@@ -206,7 +206,7 @@ func TestVoiceRuleOn5GActivatesNoEPSBearer(t *testing.T) {
 		Revision:    1 << 41,
 		PolicyID:    policy.PolicyID,
 		Var5qi:      policy.QosData.Var5qi,
-		Arp:         policy.QosData.Arp.PriorityLevel,
+		Arp:         *policy.QosData.Arp,
 		SessionAMBR: policy.Ambr,
 		Rules:       []smf.PCCRule{voiceRule()},
 	}

@@ -17,7 +17,7 @@ func TestPDNBearerWriteVsStatusNoRace(t *testing.T) {
 
 	ueAmbr := models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	bearer := models.EPSBearer{PDNType: 1, IPv4: netip.MustParseAddr("10.0.0.1"), QoS: models.EPSBearerQoS{
-		QCI: 9, ARP: 1, APNAMBR: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
+		QCI: 9, ARP: models.Arp{PriorityLevel: 1}, APNAMBR: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 	}}
 
 	var wg sync.WaitGroup

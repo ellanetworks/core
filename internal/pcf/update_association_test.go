@@ -30,7 +30,7 @@ func (s *switchingStore) GetSessionPolicy(context.Context, string, int32, string
 func TestUpdateAssociationRevisesOnlyAChangedDecision(t *testing.T) {
 	ctx := context.Background()
 	store := &switchingStore{id: "first"}
-	subscribed := smf.SubscribedQoS{Var5qi: 5, Arp: 1}
+	subscribed := smf.SubscribedQoS{Var5qi: 5, Arp: models.Arp{PriorityLevel: 1}}
 
 	p := pcf.New(store, zap.NewNop())
 

@@ -88,7 +88,7 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 	ue, cc := connectedBearerUE(t, m)
 	dns := netip.MustParseAddr("9.9.9.9")
 	testPDN(ue).Modifying = &models.EPSBearerModification{
-		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: 2},
+		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}},
 		APNAMBR: &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")},
 		DNS:     dns,
 	}
@@ -111,8 +111,8 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 		t.Fatal("UE still marked modifying after Modify Accept")
 	}
 
-	if p.Qci != 8 || p.Arp != 2 || p.Dns != dns || p.SessAmbrDLBps != 400_000_000 || p.SessAmbrULBps != 300_000_000 {
-		t.Fatalf("committed QCI %d ARP %d DNS %v AMBR %d/%d, want the accepted modification", p.Qci, p.Arp, p.Dns, p.SessAmbrDLBps, p.SessAmbrULBps)
+	if p.Qci != 8 || p.Arp.PriorityLevel != 2 || p.Dns != dns || p.SessAmbrDLBps != 400_000_000 || p.SessAmbrULBps != 300_000_000 {
+		t.Fatalf("committed QCI %d ARP %d DNS %v AMBR %d/%d, want the accepted modification", p.Qci, p.Arp.PriorityLevel, p.Dns, p.SessAmbrDLBps, p.SessAmbrULBps)
 	}
 
 	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: true}}

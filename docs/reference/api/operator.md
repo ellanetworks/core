@@ -61,7 +61,7 @@ None
 }
 ```
 
-`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the `ims` data network's pools).
+`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the pools of an IMS data network).
 
 ## Update the Operator ID
 
@@ -434,7 +434,7 @@ None
 
 ## Update the IMS Settings
 
-This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the `ims` data network.
+This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on IMS data networks.
 
 | Method | Path                     |
 | ------ | ------------------------ |

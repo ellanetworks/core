@@ -372,13 +372,13 @@ func (p *PCF) unindexLocked(a *association) {
 	}
 }
 
-func (p *PCF) boundAssociationLocked(dnn string, addr netip.Addr) *association {
+func (p *PCF) boundIMSAssociationLocked(addr netip.Addr) *association {
 	if !addr.IsValid() {
 		return nil
 	}
 
 	a, ok := p.byAddress[addressKey(addr)]
-	if !ok || !strings.EqualFold(a.context.Dnn, dnn) {
+	if !ok || !a.context.IMS {
 		return nil
 	}
 

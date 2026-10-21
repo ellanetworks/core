@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/diameter/rx"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/diameternode"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -168,7 +167,7 @@ func (p *PCF) SessionTermination(ctx context.Context, id diameter.Identity, req 
 func (p *PCF) bindRx(s *rxSession, ue netip.Addr) bool {
 	p.mu.Lock()
 
-	a := p.boundAssociationLocked(models.IMSDataNetworkName, ue)
+	a := p.boundIMSAssociationLocked(ue)
 	if a == nil {
 		p.mu.Unlock()
 		return false

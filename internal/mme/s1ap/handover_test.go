@@ -26,7 +26,7 @@ func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captur
 	ue, source := securedUE(t, m)
 	p := testPDN(ue)
 	p.Apn = "internet"
-	p.Qci, p.Arp = 9, 8
+	p.Qci, p.Arp = 9, models.Arp{PriorityLevel: 8}
 	p.SgwFTEID = models.FTEID{TEID: 0x1111, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 1})}
 
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}, nil, mme.MintAuthProofForAttachRequest())
@@ -591,7 +591,7 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 
 	second := ue.EnsurePDN(6)
 	second.Apn = "ims"
-	second.Qci, second.Arp = 5, 7
+	second.Qci, second.Arp = 5, models.Arp{PriorityLevel: 7}
 	second.SgwFTEID = models.FTEID{TEID: 0x2222, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 2})}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
@@ -719,7 +719,7 @@ func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 
 	second := ue.EnsurePDN(6)
 	second.Apn = "ims"
-	second.Qci, second.Arp = 5, 7
+	second.Qci, second.Arp = 5, models.Arp{PriorityLevel: 7}
 	second.SgwFTEID = models.FTEID{TEID: 0x2222, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 2})}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))

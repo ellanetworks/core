@@ -1013,7 +1013,7 @@ func (a *hssDBAdapter) hasIMSDataNetwork(ctx context.Context, imsi string) (bool
 		return false, err
 	}
 
-	return slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.DNN == models.IMSDataNetworkName }), nil
+	return slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }), nil
 }
 
 func (a *hssDBAdapter) Registration(ctx context.Context, imsi string) (*hss.Registration, error) {
@@ -1333,22 +1333,9 @@ type rxOwners struct {
 }
 
 func (o *rxOwners) Owner(ctx context.Context, ue netip.Addr) (pcf.Owner, error) {
-	dn, err := o.db.GetDataNetwork(ctx, models.IMSDataNetworkName)
-	if errors.Is(err, db.ErrNotFound) {
-		return pcf.Owner{}, pcf.ErrNoOwner
-	}
-
+	lease, err := o.imsLease(ctx, ue)
 	if err != nil {
-		return pcf.Owner{}, fmt.Errorf("get the %s data network: %w", models.IMSDataNetworkName, err)
-	}
-
-	lease, err := o.db.GetActiveLeaseByAddress(ctx, dn.ID, ue)
-	if errors.Is(err, db.ErrNotFound) {
-		return pcf.Owner{}, pcf.ErrNoOwner
-	}
-
-	if err != nil {
-		return pcf.Owner{}, fmt.Errorf("get the lease of %s: %w", ue, err)
+		return pcf.Owner{}, err
 	}
 
 	if lease.NodeID == o.db.RaftID() {
@@ -1365,6 +1352,32 @@ func (o *rxOwners) Owner(ctx context.Context, ue netip.Addr) (pcf.Owner, error) 
 	}
 
 	return pcf.Owner{URI: diameter.URI{Host: identity.Host, Port: o.port, Transport: diameter.TransportSCTP}}, nil
+}
+
+func (o *rxOwners) imsLease(ctx context.Context, ue netip.Addr) (*db.IPLease, error) {
+	dns, err := o.db.ListAllDataNetworks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list data networks: %w", err)
+	}
+
+	for _, dn := range dns {
+		if !dn.IMS {
+			continue
+		}
+
+		lease, err := o.db.GetActiveLeaseByAddress(ctx, dn.ID, ue)
+		if errors.Is(err, db.ErrNotFound) {
+			continue
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("get the lease of %s: %w", ue, err)
+		}
+
+		return lease, nil
+	}
+
+	return nil, pcf.ErrNoOwner
 }
 
 func diameterPort(cfg config.Config) uint16 {

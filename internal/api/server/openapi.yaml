@@ -4410,13 +4410,21 @@ components:
           description: "Session AMBR downlink (e.g. \"200 Mbps\")."
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
+          description: "5G QoS Identifier (non-GBR). Must be 5, or 69 for mission critical services, on an IMS data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
           description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
+        preemption_capability:
+          type: string
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2)."
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2)."
+          enum: [preemptable, not_preemptable]
         data_network_name:
           type: string
           description: Data network name.
@@ -4426,7 +4434,7 @@ components:
         default:
           type: boolean
           description: "Whether this is the profile's default DNN/APN."
-      required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, data_network_name]
+      required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, preemption_capability, preemption_vulnerability, data_network_name]
 
     PolicyResponseEnvelope:
       type: object
@@ -4479,13 +4487,21 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
+          description: "5G QoS Identifier (non-GBR). Must be 5, or 69 for mission critical services, on an IMS data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
           description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
+        preemption_capability:
+          type: string
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Defaults to not_preempt."
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). Defaults to not_preemptable."
+          enum: [preemptable, not_preemptable]
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: "Network rules by direction."
@@ -4514,13 +4530,21 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
+          description: "5G QoS Identifier (non-GBR). Must be 5, or 69 for mission critical services, on an IMS data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
           description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
+        preemption_capability:
+          type: string
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged."
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged."
+          enum: [preemptable, not_preemptable]
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: "Replaces all existing rules. Omitting it deletes all rules."
@@ -5049,6 +5073,9 @@ components:
         mtu:
           type: integer
           description: "MTU."
+        ims:
+          type: boolean
+          description: "Whether this is an IMS data network: phones get the P-CSCF addresses, traffic is NAT exempt and locally switched, and the Rx sessions of its UEs bind here."
         status:
           $ref: "#/components/schemas/DataNetworkStatus"
         ip_allocation:
@@ -5057,7 +5084,7 @@ components:
         ipv6_allocation:
           $ref: "#/components/schemas/DataNetworkIPAllocation"
           description: IPv6 pool usage. Detail response only.
-      required: [name, ipv4_pool, dns, mtu, status]
+      required: [name, ipv4_pool, dns, mtu, ims, status]
 
     DataNetworkResponseEnvelope:
       type: object
@@ -5106,6 +5133,9 @@ components:
           type: integer
           minimum: 0
           maximum: 65535
+        ims:
+          type: boolean
+          description: "Whether this is an IMS data network. Defaults to true for a data network named ims, false otherwise."
 
     UpdateDataNetworkParams:
       type: object
@@ -5124,6 +5154,9 @@ components:
           type: integer
           minimum: 0
           maximum: 65535
+        ims:
+          type: boolean
+          description: "Whether this is an IMS data network. Enabling it requires every policy on the data network to use 5QI 5 or 69. Omitting it leaves it unchanged."
 
     IPAllocationItem:
       type: object
