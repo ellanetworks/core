@@ -121,7 +121,7 @@ func nextEpochDay(t time.Time) time.Time {
 	return time.Unix((epochDay(t)+1)*86400, 0)
 }
 
-type usageConsumer func(ctx context.Context, sc *SMContext, usage []urrUsage)
+type usageConsumer func(ctx context.Context, sc *SMContext, usage []URRUsage)
 
 func (s *SMF) StartUsageCollection() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -276,7 +276,7 @@ func (sc *SMContext) dataPlane() dataPlane {
 	return sc.Tunnel.dataPlane
 }
 
-func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []urrUsage) {
+func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []URRUsage) {
 	if len(usage) == 0 {
 		return
 	}
@@ -284,6 +284,8 @@ func (s *SMF) deliverUsage(ctx context.Context, sc *SMContext, usage []urrUsage)
 	for _, consume := range s.usageConsumers {
 		consume(ctx, sc, usage)
 	}
+
+	sc.usageAppliedLocked(usage)
 }
 
 func usageTime(r models.UsageReport) time.Time {
@@ -297,7 +299,7 @@ func usageTime(r models.UsageReport) time.Time {
 	}
 }
 
-func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []urrUsage) {
+func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []URRUsage) {
 	imsi := sc.Supi.IMSI()
 
 	for _, u := range usage {

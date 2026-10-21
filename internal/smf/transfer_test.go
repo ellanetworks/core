@@ -77,10 +77,11 @@ func establish5GSWithEBI(t *testing.T, s *smf.SMF, ebi uint8) *smf.SMContext {
 }
 
 type sessionInvariants struct {
-	ipv4    string
-	ipv6IID [8]byte
-	seid    uint64
-	n3TEID  uint32
+	ipv4       string
+	ipv6IID    [8]byte
+	seid       uint64
+	n3TEID     uint32
+	chargingID uint32
 }
 
 func buildDualStackPDUSessionEstRequest() []byte {
@@ -115,11 +116,16 @@ func invariantsOf(t *testing.T, sc *smf.SMContext) sessionInvariants {
 		t.Fatal("session carries no interface identifier, so comparing it across a move proves nothing")
 	}
 
+	if sc.ChargingID == 0 {
+		t.Fatal("session carries no Charging ID")
+	}
+
 	return sessionInvariants{
-		ipv4:    sc.PDUIPV4Address.String(),
-		ipv6IID: sc.IPv6IID,
-		seid:    sc.PFCPContext.SEID,
-		n3TEID:  sc.Tunnel.N3TEID,
+		ipv4:       sc.PDUIPV4Address.String(),
+		ipv6IID:    sc.IPv6IID,
+		seid:       sc.PFCPContext.SEID,
+		n3TEID:     sc.Tunnel.N3TEID,
+		chargingID: sc.ChargingID,
 	}
 }
 

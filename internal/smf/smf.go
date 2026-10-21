@@ -5,6 +5,8 @@ package smf
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -170,6 +172,7 @@ type SMF struct {
 	subscriptions SubscriptionData
 
 	seidCounter uint64 // atomic; local SEID allocation
+	chargingIDs atomic.Uint32
 
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
@@ -177,6 +180,7 @@ type SMF struct {
 	usage          usageLedger
 	timeZone       string
 	usageConsumers []usageConsumer
+	observers      []SessionObserver
 	usageFlush     chan struct{}
 	usageCancel    context.CancelFunc
 	usageDone      chan struct{}
@@ -220,6 +224,12 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		dedicatedAwaitLimit: 30 * time.Second,
 	}
 	s.usageConsumers = []usageConsumer{s.recordSubscriberUsage}
+	s.observers = []SessionObserver{logSessionEvent}
+
+	var seed [4]byte
+
+	_, _ = rand.Read(seed[:])
+	s.chargingIDs.Store(binary.BigEndian.Uint32(seed[:]))
 
 	for _, o := range opts {
 		o(s)
@@ -246,6 +256,14 @@ func (s *SMF) SetMME(mme MMECallback) {
 
 func (s *SMF) AllocateSEID() uint64 {
 	return atomic.AddUint64(&s.seidCounter, 1)
+}
+
+func (s *SMF) allocateChargingID() uint32 {
+	for {
+		if id := s.chargingIDs.Add(1); id != 0 {
+			return id
+		}
+	}
 }
 
 func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) (*SMContext, error) {
@@ -275,9 +293,12 @@ func (s *SMF) newSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		Dnn:             dnn,
 		Snssai:          snssai,
 		Ref:             fmt.Sprintf("%s#%d", canonicalName(supi, id.sessionKey()), s.refSeq),
+		ChargingID:      s.allocateChargingID(),
 		ueAccess:        access,
 		ue:              ue,
+		observers:       s.observers,
 	}
+	ctx.Mutex.sc = ctx
 
 	s.pool[ctx.Ref] = ctx
 
@@ -373,6 +394,7 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 
 	sc.commitRelease(release)
 	sc.applyUEInfo(release.UE)
+	sc.releasedLocked(*sc.release)
 
 	if !sc.EstablishedAt.IsZero() {
 		reason := sc.release.Reason

@@ -43,7 +43,7 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("no emergency PDU session to move onto 5GS")
 	}
 
-	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, UE: ue}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, UE: ue, Handover: true}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, req models.SessionTra
 	)
 	defer span.End()
 
-	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, UE: ue}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, UE: ue, Handover: true}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {

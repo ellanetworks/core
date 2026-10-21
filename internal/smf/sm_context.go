@@ -45,13 +45,14 @@ func (t *UPTunnel) bearerTEID(slot uint8) uint32 {
 }
 
 type SMContext struct {
-	Mutex sync.Mutex
+	Mutex sessionMutex
 
 	// Ref is the session's unique pool key, assigned once at creation and never
 	Ref string
 
 	Supi etsi.SUPI
 
+	ChargingID              uint32
 	EstablishedAt           time.Time
 	MSISDN                  string
 	ChargingCharacteristics models.ChargingCharacteristics
@@ -61,10 +62,15 @@ type SMContext struct {
 	ue          models.SessionUEInfo
 	ueChangedAt time.Time
 	uePending   *pendingUEInfo
-	Dnn         string
-	Snssai      *models.Snssai
-	Tunnel      *UPTunnel
-	PolicyData  *Policy
+
+	events    sessionEvents
+	outbox    eventOutbox
+	observers []SessionObserver
+
+	Dnn        string
+	Snssai     *models.Snssai
+	Tunnel     *UPTunnel
+	PolicyData *Policy
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS

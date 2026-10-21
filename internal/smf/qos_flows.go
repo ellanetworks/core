@@ -432,7 +432,7 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 		return nil, fmt.Errorf("no free QFI")
 	}
 
-	b := &dedicatedBearer{slot: slot, qfi: qfi, pending: &bearerConfig{binding: binding}}
+	b := &dedicatedBearer{slot: slot, qfi: qfi, chargingID: s.allocateChargingID(), pending: &bearerConfig{binding: binding}}
 
 	next := sc.Tunnel.dataPlane
 	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, QFI: qfi})

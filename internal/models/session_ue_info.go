@@ -150,6 +150,35 @@ func (l UserLocation) SameCell(o UserLocation) bool {
 	}
 }
 
+func (l UserLocation) SameTAI(o UserLocation) bool {
+	return sameTai(l.tai(), o.tai())
+}
+
+func (l UserLocation) SameECGI(o UserLocation) bool {
+	return sameEcgi(l.ecgi(), o.ecgi())
+}
+
+func (l UserLocation) tai() *Tai {
+	switch {
+	case l.NrLocation != nil:
+		return l.NrLocation.Tai
+	case l.EutraLocation != nil:
+		return l.EutraLocation.Tai
+	case l.N3gaLocation != nil:
+		return l.N3gaLocation.N3gppTai
+	default:
+		return nil
+	}
+}
+
+func (l UserLocation) ecgi() *Ecgi {
+	if l.EutraLocation == nil {
+		return nil
+	}
+
+	return l.EutraLocation.Ecgi
+}
+
 func sameTai(a, b *Tai) bool {
 	if a == nil || b == nil {
 		return a == b

@@ -175,6 +175,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 
 	sc.Mutex.Lock()
 	sc.EstablishedAt = time.Now()
+	sc.establishedLocked(sc.EstablishedAt)
 	sc.Mutex.Unlock()
 
 	return sc, nil
