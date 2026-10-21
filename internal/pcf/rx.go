@@ -58,7 +58,7 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 	features := r.Features & supportedRxFeatures
 
 	switch {
-	case r.FeaturesRequired && r.Features&^supportedRxFeatures != 0:
+	case rx.RequiresUnsupportedFeatures(req, supportedRxFeatures):
 		return rx.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported), 0)
 	case r.RequestType != nil && *r.RequestType == rx.RequestPCSCFRestoration:
 		return rx.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply}, features)

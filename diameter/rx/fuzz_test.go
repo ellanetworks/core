@@ -61,6 +61,7 @@ func FuzzParseRequests(f *testing.F) {
 
 	fuzzSeeds(f,
 		must(NewAARequest(afEnvelope, fullAARequest())),
+		must(NewAARequest(afEnvelope, mcpttAARequest())),
 		must(NewAARequest(afEnvelope, AARequest{
 			NoStateMaintained: true, RequestType: ptr(RequestPCSCFRestoration),
 			SubscriptionIDs: []SubscriptionID{{Type: SubscriptionIDIMSI, Data: "001010000000001"}},
