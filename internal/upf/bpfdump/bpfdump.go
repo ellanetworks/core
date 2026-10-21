@@ -441,7 +441,14 @@ func decodeUrrMap(m *bpf.Map, mapName string, opts DumpOptions, enc *json.Encode
 	for iter.Next(&key, &vals) {
 		cpusData := make([]any, len(vals))
 		for i, v := range vals {
-			cpusData[i] = map[string]any{"uplink": v.Uplink, "downlink": v.Downlink}
+			cpusData[i] = map[string]any{
+				"uplink":           v.Uplink,
+				"downlink":         v.Downlink,
+				"uplink_packets":   v.UplinkPackets,
+				"downlink_packets": v.DownlinkPackets,
+				"first_packet_ns":  v.FirstPacketNs,
+				"last_packet_ns":   v.LastPacketNs,
+			}
 		}
 
 		if err := enc.Encode(map[string]any{"seid": key.Seid, "urr_id": key.UrrId, "cpus": cpusData}); err != nil {

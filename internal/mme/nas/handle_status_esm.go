@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -43,14 +44,14 @@ func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, status 
 	m.StopESMGuard(p)
 
 	if ue.BearerDeactivating(p) {
-		m.DeactivatePDN(ctx, ue, p)
+		m.DeactivatePDN(ctx, ue, p, ue.DeactivationCause(p))
 
 		return nasreply.Handled()
 	}
 
 	if status.Cause == eps.ESMCauseInvalidEPSBearerIdentity {
 		m.ConcludeBearerModification(ctx, ue, p, false)
-		m.DeactivateBearerLocally(ctx, ue, p)
+		m.DeactivateBearerLocally(ctx, ue, p, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.ReceivedESMCause(uint8(status.Cause))))
 
 		return nasreply.Handled()
 	}

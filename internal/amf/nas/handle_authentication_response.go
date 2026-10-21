@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -119,7 +120,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 // genuine credential failure with no stale GUTI→identity mapping to recover by
 // re-identifying.
 func failAuthentication(ctx context.Context, ue *amf.UeContext, ueConn *amf.UeConn) {
-	defer ue.Deregister(ctx)
+	defer ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 	amf.SendAuthenticationReject(ctx, ueConn)
 }

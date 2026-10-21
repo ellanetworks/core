@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -88,7 +89,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// default bearer is activated.
 	if ue.Secured() && integrityVerified {
 		ue.PinKeNBFreshness()
-		m.ReleaseAllSessions(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 		activateDefaultBearer(ctx, m, ue, ueConn)
 
 		return nasreply.Handled()

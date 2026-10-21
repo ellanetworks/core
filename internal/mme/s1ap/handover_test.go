@@ -752,7 +752,7 @@ func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 	requirePDNDisconnected(t, m, ue, mme.DefaultERABID)
 
 	if p := m.LookupPDN(ue, mme.DefaultERABID); p != nil {
-		m.DeactivatePDN(context.Background(), ue, p)
+		m.DeactivatePDN(context.Background(), ue, p, models.ReleaseFor(models.ReleaseUERequested))
 	}
 
 	survivor := m.LookupPDN(ue, 6)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -31,15 +32,98 @@ func TestCounterDelta(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			up, down, err := counterDelta(tc.counted, tc.current)
-			if up != tc.wantUp || down != tc.wantDown {
-				t.Errorf("counterDelta() = %d/%d, want %d/%d", up, down, tc.wantUp, tc.wantDown)
+			d, err := counterDelta(tc.counted, tc.current)
+			if d.uplink != tc.wantUp || d.downlink != tc.wantDown {
+				t.Errorf("counterDelta() = %d/%d, want %d/%d", d.uplink, d.downlink, tc.wantUp, tc.wantDown)
 			}
 
 			if got := errors.Is(err, errCounterWentBackwards); got != tc.wantErr {
 				t.Errorf("counterDelta() error = %v, want went-backwards %v", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestCounterDeltaKeepsTheLastPacketTimesOfCPUsThatCounted(t *testing.T) {
+	counted := []ebpf.N3N6EntrypointUrrCounters{
+		{UplinkPackets: 1, LastPacketNs: 100},
+		{DownlinkPackets: 2, LastPacketNs: 200},
+		{UplinkPackets: 3, LastPacketNs: 300},
+	}
+	current := []ebpf.N3N6EntrypointUrrCounters{
+		{UplinkPackets: 1, LastPacketNs: 100},
+		{DownlinkPackets: 4, LastPacketNs: 500},
+		{UplinkPackets: 5, LastPacketNs: 400},
+	}
+
+	d, err := counterDelta(counted, current)
+	if err != nil {
+		t.Fatalf("counterDelta: %v", err)
+	}
+
+	if d.uplinkPackets != 2 || d.downlinkPackets != 2 || d.earliestLastNs != 400 || d.latestLastNs != 500 {
+		t.Fatalf("delta = %+v, want 2/2 packets last seen between 400 and 500 on the CPUs that counted", d)
+	}
+}
+
+func TestURRMeterReportsOneMeasurementWindowAtATime(t *testing.T) {
+	start := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	now := start.Add(30 * time.Second)
+	bootNow := uint64(1_000 * time.Second)
+
+	m := &urrMeter{start: start}
+	m.record(urrDelta{uplink: 300, downlink: 1200, uplinkPackets: 3, downlinkPackets: 4, earliestLastNs: bootNow - uint64(5*time.Second), latestLastNs: bootNow - uint64(2*time.Second)}, bootNow-uint64(20*time.Second))
+
+	r := m.report(7, models.UsageTriggerPeriodic, now, bootNow)
+
+	want := models.UsageReport{
+		URRID:           7,
+		SequenceNumber:  0,
+		Trigger:         models.UsageTriggerPeriodic,
+		StartTime:       start,
+		EndTime:         now,
+		FirstPacket:     now.Add(-20 * time.Second),
+		LastPacket:      now.Add(-2 * time.Second),
+		UplinkVolume:    300,
+		DownlinkVolume:  1200,
+		UplinkPackets:   3,
+		DownlinkPackets: 4,
+	}
+	if r != want {
+		t.Fatalf("report = %+v, want %+v", r, want)
+	}
+
+	next := m.report(7, models.UsageTriggerTermination, now.Add(time.Second), bootNow+uint64(time.Second))
+	if next.SequenceNumber != 1 || !next.StartTime.Equal(now) || next.TotalVolume() != 0 || !next.FirstPacket.IsZero() || !next.LastPacket.IsZero() {
+		t.Fatalf("next report = %+v, want UR-SEQN 1 starting where the previous one ended, with nothing measured", next)
+	}
+}
+
+func TestURRMeterUsesAFirstPacketStampTakenBeforeItsBytesWereRead(t *testing.T) {
+	m := &urrMeter{}
+
+	m.record(urrDelta{}, 150)
+	m.record(urrDelta{uplink: 10, uplinkPackets: 1, earliestLastNs: 150, latestLastNs: 150}, 0)
+
+	if m.firstPacketNs != 150 || m.lastPacketNs != 150 {
+		t.Fatalf("first/last = %d/%d, want 150/150 from the stamp carried over", m.firstPacketNs, m.lastPacketNs)
+	}
+}
+
+func TestURRMeterBoundsTheFirstPacketByTheEarliestLastPacket(t *testing.T) {
+	m := &urrMeter{}
+
+	m.record(urrDelta{uplink: 10, uplinkPackets: 2, earliestLastNs: 120, latestLastNs: 180}, 0)
+
+	if m.firstPacketNs != 120 {
+		t.Fatalf("first = %d, want 120: no stamp, the earliest last packet bounds it", m.firstPacketNs)
+	}
+
+	m = &urrMeter{}
+	m.record(urrDelta{uplink: 10, uplinkPackets: 2, earliestLastNs: 120, latestLastNs: 180}, 170)
+
+	if m.firstPacketNs != 120 {
+		t.Fatalf("first = %d, want 120: a stamp later than a CPU's last packet belongs to the next window", m.firstPacketNs)
 	}
 }
 
@@ -54,54 +138,44 @@ func newLedgerTestEngine(t *testing.T, seid uint64) (*SessionEngine, *Session) {
 	return conn, session
 }
 
-func TestHeldUsageIsMergedPerSubscriber(t *testing.T) {
-	conn, _ := newLedgerTestEngine(t, 4)
-
-	conn.HoldUsage(models.UsageReport{SEID: 4, IMSI: "001010000000004", UplinkVolume: 100, DownlinkVolume: 30})
-	conn.HoldUsage(models.UsageReport{SEID: 9, IMSI: "001010000000004", UplinkVolume: 1, DownlinkVolume: 2})
-	conn.HoldUsage(models.UsageReport{SEID: 5, IMSI: "001010000000005", UplinkVolume: 7})
-	conn.HoldUsage(models.UsageReport{SEID: 6, IMSI: "001010000000006"})
-
-	held := conn.TakeHeldUsage()
-	if len(held) != 2 {
-		t.Fatalf("held usage = %+v, want one entry per subscriber with usage", held)
-	}
-
-	for _, usage := range held {
-		switch usage.IMSI {
-		case "001010000000004":
-			if usage.UplinkVolume != 101 || usage.DownlinkVolume != 32 {
-				t.Errorf("merged usage = %+v, want 101/32", usage)
-			}
-		case "001010000000005":
-			if usage.UplinkVolume != 7 {
-				t.Errorf("usage = %+v, want 7 uplink", usage)
-			}
-		default:
-			t.Errorf("unexpected held usage %+v", usage)
-		}
-	}
-
-	if again := conn.TakeHeldUsage(); len(again) != 0 {
-		t.Fatalf("second take = %+v, want nothing left", again)
-	}
-}
-
 func TestClosedLedgerReportsNothingMore(t *testing.T) {
 	conn, session := newLedgerTestEngine(t, 4)
 
-	session.usage.uplink = 100
+	session.usage.track(3, time.Now())
+	session.usage.urrs[3].pending.uplink = 100
 
 	final, err := conn.closeUsage(context.Background(), session)
 	if err != nil {
 		t.Fatalf("closeUsage: %v", err)
 	}
 
-	if final.UplinkVolume != 100 || final.IMSI != "001010000000004" {
-		t.Fatalf("final usage = %+v, want the carried 100 for the session's subscriber", final)
+	if len(final) != 1 || final[0].URRID != 3 || final[0].UplinkVolume != 100 || final[0].Trigger != models.UsageTriggerTermination {
+		t.Fatalf("final usage = %+v, want a termination report of the carried 100 for URR 3", final)
 	}
 
-	if got, _ := conn.TakeUsage(session); got.UplinkVolume+got.DownlinkVolume != 0 {
+	if got, _ := conn.TakeUsage(session, models.UsageTriggerQuery); len(got) != 0 {
 		t.Fatalf("TakeUsage after close = %+v, want nothing", got)
+	}
+}
+
+func TestRemovedURRIsReportedOnceAndForgotten(t *testing.T) {
+	conn, session := newLedgerTestEngine(t, 5)
+
+	session.usage.track(1, time.Now())
+	session.usage.track(2, time.Now())
+	session.usage.urrs[2].pending.downlink = 40
+
+	removed, err := conn.removeURRs(context.Background(), session, []uint32{2})
+	if err != nil {
+		t.Fatalf("removeURRs: %v", err)
+	}
+
+	if len(removed) != 1 || removed[0].URRID != 2 || removed[0].DownlinkVolume != 40 || removed[0].Trigger != models.UsageTriggerTermination {
+		t.Fatalf("removed = %+v, want URR 2's termination report of 40", removed)
+	}
+
+	got, _ := conn.TakeUsage(session, models.UsageTriggerPeriodic)
+	if len(got) != 1 || got[0].URRID != 1 {
+		t.Fatalf("TakeUsage = %+v, want URR 1 only", got)
 	}
 }

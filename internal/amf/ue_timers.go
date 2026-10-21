@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -96,5 +97,5 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 
 	a.mu.Unlock()
 
-	a.DeregisterAndRemoveUeContext(ctx, ue)
+	a.DeregisterAndRemoveUeContext(ctx, ue, models.ReleaseFor(models.ReleaseImplicitDeregistration))
 }

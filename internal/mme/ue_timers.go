@@ -5,6 +5,7 @@ package mme
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -78,5 +79,5 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	logger.From(ctx, logger.MmeLog).Info("implicit detach: UE unreachable, deregistering (native security context retained)",
 		logger.SUPIFromIMSI(imsi))
 
-	m.ReleaseAllSessions(ctx, ue)
+	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseImplicitDeregistration))
 }

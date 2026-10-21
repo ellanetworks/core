@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -24,7 +25,7 @@ func abortSecurityMode(ctx context.Context, ue *amf.UeContext, ueConn *amf.UeCon
 	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(ueConn.RegistrationType5GS), logger.RegistrationFailed,
 		logger.Cause(reason), zap.Error(err))
 	amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
-	ue.Deregister(ctx)
+	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 }
 
 func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
@@ -90,7 +91,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 			logger.Cause("NAS security algorithm negotiation failed"))
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUESecurityCapabilitiesMismatch)
-		ue.Deregister(ctx)
+		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return
 	}

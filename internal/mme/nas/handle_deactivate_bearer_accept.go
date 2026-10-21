@@ -34,7 +34,7 @@ func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach")
 	}
 
-	m.DeactivatePDN(ctx, ue, p)
+	m.DeactivatePDN(ctx, ue, p, ue.DeactivationCause(p))
 
 	return nasreply.Handled()
 }

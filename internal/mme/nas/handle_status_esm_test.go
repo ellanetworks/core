@@ -108,7 +108,7 @@ func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	testPDN(ue)
 	p := ue.EnsurePDN(6)
 
-	m.DisconnectBearer(context.Background(), ue, p, eps.ESMCauseRegularDeactivation, 3)
+	m.DisconnectBearer(context.Background(), ue, p, eps.ESMCauseRegularDeactivation, 3, models.ReleaseFor(models.ReleaseUERequested))
 
 	if !ue.BearerDeactivating(p) {
 		t.Fatal("deactivation not in flight after DisconnectBearer")

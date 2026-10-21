@@ -33,7 +33,7 @@ func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.
 	}
 
 	t.Cleanup(func() {
-		amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
+		amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 	})
 
 	return ue

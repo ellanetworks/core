@@ -12,6 +12,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
+const defaultRatingGroup uint32 = 1
+
 func (p *PCF) decide(ctx context.Context, c smf.PolicyContext) (*smf.PolicyDecision, error) {
 	pol, err := p.store.GetSessionPolicy(ctx, c.Supi.IMSI(), c.Snssai.Sst, c.Snssai.Sd, c.Dnn)
 	if err != nil {
@@ -23,6 +25,7 @@ func (p *PCF) decide(ctx context.Context, c smf.PolicyContext) (*smf.PolicyDecis
 		Var5qi:      c.Subscribed.Var5qi,
 		Arp:         c.Subscribed.Arp,
 		SessionAMBR: c.Subscribed.SessionAMBR,
+		RatingGroup: defaultRatingGroup,
 	}, nil
 }
 

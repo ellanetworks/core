@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -15,15 +16,15 @@ import (
 )
 
 // ReleaseSmContext tears down a PDU session entirely
-func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	if s.dropHalf(ctx, smContextRef, Access5G) {
 		return nil
 	}
 
-	return s.releaseSession(ctx, smContextRef)
+	return s.releaseSession(ctx, smContextRef, cause)
 }
 
-func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
+func (s *SMF) releaseSession(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -57,10 +58,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	}
 
 	// Remove from pool after all network I/O is complete.
-	s.dropFromPool(smContext)
-
-	logger.From(ctx, logger.SmfLog).Info("PDU session released",
-		logger.RAT(smContext.Access.rat()), logger.SUPI(smContext.Supi.String()), logger.DNN(smContext.Dnn))
+	s.dropFromPool(ctx, smContext, cause)
 
 	return err
 }
@@ -122,7 +120,11 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		return nil
 	}
 
-	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID); err != nil {
+	usage, err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID)
+	s.deliverUsage(ctx, smContext, smContext.dataPlane().chargedUsage(usage))
+	s.requestUsageFlush()
+
+	if err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}
 
@@ -135,11 +137,11 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 // removeSessionUnlocked removes a session from the pool without releasing the IP
 // (caller has already released it or does not want to). ref is the session's unique
 // Ref; a no-op if it is already gone.
-func (s *SMF) removeSessionUnlocked(_ context.Context, ref string) {
+func (s *SMF) removeSessionUnlocked(ctx context.Context, ref string, cause models.SessionReleaseRequest) {
 	sc := s.GetSession(ref)
 	if sc == nil {
 		return
 	}
 
-	s.dropFromPool(sc)
+	s.dropFromPool(ctx, sc, cause)
 }

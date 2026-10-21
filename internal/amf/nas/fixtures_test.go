@@ -195,6 +195,7 @@ type SmfActivateSmContextCall struct {
 
 type SmfReleaseSmContextCall struct {
 	SmContextRef string
+	Cause        models.SessionReleaseRequest
 }
 
 type fakeSmf struct {
@@ -266,9 +267,10 @@ func (s *fakeSmf) ActivateSmContext(_ context.Context, smContextRef string) ([]b
 	return resp, nil
 }
 
-func (s *fakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *fakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	s.ReleaseSmContextCalls = append(s.ReleaseSmContextCalls, SmfReleaseSmContextCall{
 		SmContextRef: smContextRef,
+		Cause:        cause,
 	})
 
 	if s.ReleaseSmContextError != nil {

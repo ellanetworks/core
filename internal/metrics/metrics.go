@@ -20,9 +20,17 @@ const (
 	ResultReject = "reject"
 )
 
+const (
+	UsageDropOutcomeUnknown = "outcome_unknown"
+	UsageDropShutdown       = "shutdown"
+	UsageDropStaleSession   = "stale_session"
+	UsageDropNoIMSI         = "no_imsi"
+)
+
 var (
 	signalingMessages    *prometheus.CounterVec
 	registrationAttempts *prometheus.CounterVec
+	usageBytesDropped    *prometheus.CounterVec
 )
 
 // RegisterMetrics registers the cross-NF metrics. Called once at startup.
@@ -37,7 +45,16 @@ func RegisterMetrics() {
 		Help: "Total UE registration (5G) and attach/tracking-area-update (4G) attempts by RAT, type, and result.",
 	}, []string{"rat", "type", "result"})
 
-	prometheus.MustRegister(signalingMessages, registrationAttempts)
+	usageBytesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "app_upf_usage_dropped_bytes_total",
+		Help: "Total number of accounted usage bytes never recorded in the subscriber-usage store, by reason.",
+	}, []string{"reason"})
+
+	prometheus.MustRegister(signalingMessages, registrationAttempts, usageBytesDropped)
+
+	for _, reason := range []string{UsageDropOutcomeUnknown, UsageDropShutdown, UsageDropStaleSession, UsageDropNoIMSI} {
+		usageBytesDropped.WithLabelValues(reason)
+	}
 }
 
 // RegisterRadioGauges registers the connected-radio and registered-subscriber
@@ -103,4 +120,12 @@ func RegistrationAttempt(rat, regType, result string) {
 	}
 
 	registrationAttempts.WithLabelValues(rat, regType, result).Inc()
+}
+
+func DroppedUsage(reason string, bytes uint64) {
+	if usageBytesDropped == nil {
+		return
+	}
+
+	usageBytesDropped.WithLabelValues(reason).Add(float64(bytes))
 }

@@ -289,7 +289,7 @@ func TestPDNReleaseTakesItsDedicatedBearers(t *testing.T) {
 	}
 
 	_, b := m.LookupDedicated(ue, 6)
-	m.ReleasePDN(context.Background(), ue, testPDN(ue))
+	m.ReleasePDN(context.Background(), ue, testPDN(ue), models.ReleaseFor(models.ReleaseUERequested))
 
 	if b.guard.Active() {
 		t.Fatal("the dedicated bearer's guard outlived its PDN connection")

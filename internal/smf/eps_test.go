@@ -401,7 +401,7 @@ func TestReleaseEPSSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.ReleaseEPSSession(context.Background(), bearer.Ref); err != nil {
+	if err := s.ReleaseEPSSession(context.Background(), bearer.Ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatal(err)
 	}
 

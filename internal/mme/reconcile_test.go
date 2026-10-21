@@ -79,7 +79,7 @@ func TestReactivateEPSBearerOnTheLastPDNDetachesForReattach(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 
-	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID); err != nil {
+	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.ReleasePolicyChanged); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,7 +118,7 @@ func TestReactivateEPSBearerRequestsReactivation(t *testing.T) {
 	ims.Apn = "ims"
 	ims.SessionRef = "ref-ims"
 
-	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), 6); err != nil {
+	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), 6, models.ReleasePolicyChanged); err != nil {
 		t.Fatal(err)
 	}
 

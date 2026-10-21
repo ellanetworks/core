@@ -40,7 +40,7 @@ type epsSessionManager interface {
 	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8, cause models.EPSPagingFailureCause) error
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
-	ReleaseEPSSession(ctx context.Context, ref string) error
+	ReleaseEPSSession(ctx context.Context, ref string, cause models.SessionReleaseRequest) error
 	ReconcileSession(ctx context.Context, ref string) error
 	CommitEPSBearerModification(ctx context.Context, ref string, accepted bool)
 	DedicatedBearerActivated(ctx context.Context, ref string, sgwTEID uint32, ebi uint8, enb models.FTEID) error

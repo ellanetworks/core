@@ -263,7 +263,7 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()
 	smCtxt.abandonPendingLocked()
-	s.RemoveSession(ctx, smCtxt.Ref)
+	s.RemoveSession(ctx, smCtxt.Ref, models.ReleaseFor(models.ReleaseDuplicateSessionID))
 	smCtxt.Mutex.Unlock()
 
 	s.dropSourceRouting(ctx, smCtxt.Ref, dropped)

@@ -75,7 +75,7 @@ type SmfSbi interface {
 	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
-	ReleaseSmContext(ctx context.Context, smContextRef string) error
+	ReleaseSmContext(ctx context.Context, smContextRef string, release models.SessionReleaseRequest) error
 	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
 	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
@@ -240,7 +240,7 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	amf.mu.Unlock()
 
 	if superseded {
-		amf.DeregisterAndRemoveUeContext(ctx, old)
+		amf.DeregisterAndRemoveUeContext(ctx, old, models.ReleaseFor(models.ReleaseDeregistration))
 	}
 
 	return nil
@@ -328,7 +328,7 @@ func (amf *AMF) ReleaseClaimed(ueConn *UeConn) bool {
 	return ueConn.releasing
 }
 
-func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext) {
+func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext, release models.SessionReleaseRequest) {
 	// Defuse idle-mode supervision so a mobile-reachable/implicit-dereg callback
 	// cannot fire against a UE being torn down (e.g. network-initiated
 	// deregistration of an idle UE).
@@ -338,7 +338,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	// leaves conn.ue intact).
 	ueConn := ue.active.Load()
 
-	ue.Deregister(ctx)
+	ue.Deregister(ctx, release)
 
 	// Only remove the UeConn if it still belongs to this context: a fresh re-registration
 	// transfers the shared radio connection to a new context before this superseded husk is
@@ -376,21 +376,23 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 		return
 	}
 
+	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
+
 	// A connected UE with a security context is told to deregister over the air,
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
 	if ue.Conn() != nil && ue.secured {
-		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
+		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue, withdrawn); err != nil {
 			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
 				zap.Error(err), logger.SUPI(supi.String()))
-			amf.DeregisterAndRemoveUeContext(ctx, ue)
+			amf.DeregisterAndRemoveUeContext(ctx, ue, withdrawn)
 		}
 
 		return
 	}
 
-	amf.DeregisterAndRemoveUeContext(ctx, ue)
+	amf.DeregisterAndRemoveUeContext(ctx, ue, withdrawn)
 	logger.AmfLog.Debug("removed ue context", logger.SUPI(supi.String()))
 }
 

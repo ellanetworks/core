@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
@@ -213,12 +212,10 @@ func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID
 }
 
 func (a *smfDBAdapter) IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error {
-	epochDay := time.Now().UTC().Unix() / 86400
-
 	rows := make([]db.DailyUsage, len(usages))
 	for i, usage := range usages {
 		rows[i] = db.DailyUsage{
-			EpochDay:      epochDay,
+			EpochDay:      usage.EpochDay,
 			IMSI:          usage.IMSI,
 			BytesUplink:   int64(usage.UplinkVolume),
 			BytesDownlink: int64(usage.DownlinkVolume),
@@ -276,13 +273,22 @@ func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyReq
 	return a.engine.ModifySession(ctx, req)
 }
 
-func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) error {
-	resp, err := a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
-	if resp != nil && a.upf != nil {
-		a.upf.ReportFinalUsage(ctx, resp.Usage)
+func (a *smfUPFAdapter) QueryUsage(_ context.Context, seid uint64, trigger models.UsageReportTrigger) ([]models.UsageReport, error) {
+	session := a.engine.GetSession(seid)
+	if session == nil {
+		return nil, fmt.Errorf("%w: SEID %d", models.ErrSessionNotFound, seid)
 	}
 
-	return err
+	return a.engine.TakeUsage(session, trigger)
+}
+
+func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) ([]models.UsageReport, error) {
+	resp, err := a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
+	if resp == nil {
+		return nil, err
+	}
+
+	return resp.Usage, err
 }
 
 func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, seid uint64) {
@@ -408,8 +414,8 @@ func (a *smfMMEAdapter) ModifyEPSBearer(ctx context.Context, imsi string, ebi ui
 	return mmeReachability(a.MME.ModifyEPSBearer(ctx, imsi, ebi, mod))
 }
 
-func (a *smfMMEAdapter) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error {
-	return mmeReachability(a.MME.ReactivateEPSBearer(ctx, imsi, ebi))
+func (a *smfMMEAdapter) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, reason models.SessionReleaseReason) error {
+	return mmeReachability(a.MME.ReactivateEPSBearer(ctx, imsi, ebi, reason))
 }
 
 func (a *smfMMEAdapter) ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error {

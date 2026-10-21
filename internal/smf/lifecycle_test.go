@@ -15,19 +15,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMain(m *testing.M) {
 	smf.RegisterMetrics(nil)
+	metrics.RegisterMetrics()
 	os.Exit(m.Run())
 }
 
@@ -91,6 +90,7 @@ func setupSessionWithTunnelIdentity(t *testing.T, s *smf.SMF, id smf.SessionIden
 
 	s.AssignPFCPSession(smCtx, 100)
 	smCtx.PFCPContext.Established = true
+	smCtx.EstablishedAt = time.Now()
 
 	policy := &smf.Policy{
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
@@ -310,7 +310,7 @@ func TestReleaseSmContext_HappyPath(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestSessionLifecycleHoldsAPolicyAssociation(t *testing.T) {
 		t.Fatalf("association for %s = %+v, %t; want DNN %s and IPv4 %s", ref, a, ok, testDNN, store.allocatedIP)
 	}
 
-	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+	if err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
 
@@ -370,7 +370,7 @@ func TestReleaseSmContext_NotFound(t *testing.T) {
 
 	// Releasing an absent session is an idempotent no-op success (the release path may
 	// tear down the user plane up front and again on completion).
-	if err := s.ReleaseSmContext(context.Background(), "nonexistent-ref"); err != nil {
+	if err := s.ReleaseSmContext(context.Background(), "nonexistent-ref", models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("expected idempotent no-op for a non-existent session, got %v", err)
 	}
 }
@@ -384,7 +384,7 @@ func TestReleaseSmContext_NoTunnel(t *testing.T) {
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	ref := smCtx.Ref
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext without tunnel failed: %v", err)
 	}
@@ -409,7 +409,7 @@ func TestReleaseSmContext_DeleteSessionFails(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err == nil {
 		t.Fatal("expected error when DeleteSession fails")
 	}
@@ -692,7 +692,7 @@ func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	smCtx, ref := setupSessionWithTunnel(t, s)
 	smCtx.PDUIPV4Address = nil // simulate a session that never had an IP allocated
 
-	err := s.ReleaseSmContext(ctx, ref)
+	err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested))
 	if err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
@@ -2021,7 +2021,7 @@ func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	if err := s.ReleaseSmContext(context.Background(), ref); err != nil {
+	if err := s.ReleaseSmContext(context.Background(), ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
 		t.Fatalf("ReleaseSmContext failed: %v", err)
 	}
 
@@ -2041,7 +2041,7 @@ func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
 	upf.err = fmt.Errorf("PFCP delete failed")
 	upf.mu.Unlock()
 
-	if err := s.ReleaseSmContext(context.Background(), ref); err == nil {
+	if err := s.ReleaseSmContext(context.Background(), ref, models.ReleaseFor(models.ReleaseUERequested)); err == nil {
 		t.Fatal("expected an error when user-plane teardown fails")
 	}
 
@@ -2304,151 +2304,5 @@ func TestSendPFCPRules_EstablishesOnceThenModifies(t *testing.T) {
 
 	if modifies != 0 {
 		t.Fatalf("a modification was sent for a session the UPF never accepted: %d calls", modifies)
-	}
-}
-
-func TestHandleUsageReports_BatchesEverySessionIntoOneStoreCall(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, _ := setupSessionWithTunnel(t, s)
-
-	err := s.HandleUsageReports(ctx, []*models.UsageReport{
-		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 500, DownlinkVolume: 300},
-		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 70, DownlinkVolume: 20},
-	})
-	if err != nil {
-		t.Fatalf("HandleUsageReports failed: %v", err)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if store.batchCalls != 1 {
-		t.Errorf("got %d store calls, want 1", store.batchCalls)
-	}
-
-	if len(store.usageLog) != 2 {
-		t.Fatalf("expected 2 usage entries, got %d", len(store.usageLog))
-	}
-}
-
-func TestHandleUsageReports_PreservesAnUnknownOutcome(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	smCtx, _ := setupSessionWithTunnel(t, s)
-
-	store.mu.Lock()
-	store.err = fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)
-	store.mu.Unlock()
-
-	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
-		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 500, DownlinkVolume: 300},
-	})
-	if !errors.Is(err, models.ErrUsageOutcomeUnknown) {
-		t.Fatalf("HandleUsageReports lost the unknown-outcome signal: %v", err)
-	}
-}
-
-func TestHandleUsageReports_SkipsReportsWithNoSubscriber(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, _ := setupSessionWithTunnel(t, s)
-
-	err := s.HandleUsageReports(ctx, []*models.UsageReport{
-		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 1, DownlinkVolume: 1},
-		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 500, DownlinkVolume: 300},
-	})
-	if err != nil {
-		t.Fatalf("a report with no subscriber must not fail the batch: %v", err)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if len(store.usageLog) != 1 {
-		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
-	}
-
-	if store.usageLog[0].uplinkBytes != 500 {
-		t.Errorf("got uplink %d, want 500", store.usageLog[0].uplinkBytes)
-	}
-}
-
-func TestHandleUsageReports_RecordsUsageOfAReleasedSession(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
-		{SEID: 424242, IMSI: "001010000000077", UplinkVolume: 500, DownlinkVolume: 300},
-	})
-	if err != nil {
-		t.Fatalf("HandleUsageReports failed: %v", err)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if len(store.usageLog) != 1 || store.usageLog[0].uplinkBytes != 500 {
-		t.Fatalf("usage of a released session was not recorded: %+v", store.usageLog)
-	}
-}
-
-func TestHandleUsageReports_ReportsEveryDroppedReport(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	smCtx, _ := setupSessionWithTunnel(t, s)
-
-	logs := observeSMFLog(t)
-
-	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
-		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 500, DownlinkVolume: 300},
-		{SEID: smCtx.PFCPContext.SEID + 9998, UplinkVolume: 70, DownlinkVolume: 20},
-		{SEID: smCtx.PFCPContext.SEID, IMSI: smCtx.Supi.IMSI(), UplinkVolume: 1, DownlinkVolume: 1},
-	})
-	if err != nil {
-		t.Fatalf("HandleUsageReports failed: %v", err)
-	}
-
-	entries := logs.FilterMessage("usage bytes lost: the report names no subscriber").All()
-	if len(entries) != 2 {
-		t.Fatalf("got %d loss reports, want 2", len(entries))
-	}
-
-	if got := entries[0].ContextMap()["uplink_volume"]; got != uint64(500) {
-		t.Errorf("uplink_volume = %v, want 500", got)
-	}
-}
-
-func observeSMFLog(t *testing.T) *observer.ObservedLogs {
-	t.Helper()
-
-	core, logs := observer.New(zapcore.ErrorLevel)
-	t.Cleanup(logger.SwapSystemCore(core))
-
-	return logs
-}
-
-func TestHandleUsageReports_NoSubscriberSkipsTheStore(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
-		{SEID: 424242, UplinkVolume: 1, DownlinkVolume: 1},
-	})
-	if err != nil {
-		t.Fatalf("HandleUsageReports failed: %v", err)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if store.batchCalls != 0 {
-		t.Errorf("got %d store calls, want none", store.batchCalls)
 	}
 }

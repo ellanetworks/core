@@ -7,11 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
@@ -31,6 +33,8 @@ type fakeStore struct {
 	releasedIPv6    netip.Addr
 	usageLog        []usageEntry
 	batchCalls      int
+	usageErr        error
+	usageFailures   int
 	flowLog         []models.FlowReportRequest
 	releasedIPs     []string
 	releasedIPv6s   []string
@@ -89,6 +93,7 @@ type fakePCF struct {
 }
 
 type usageEntry struct {
+	epochDay      int64
 	imsi          string
 	uplinkBytes   uint64
 	downlinkBytes uint64
@@ -323,11 +328,19 @@ func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.
 
 	f.batchCalls++
 
-	for _, u := range usages {
-		f.usageLog = append(f.usageLog, usageEntry{u.IMSI, u.UplinkVolume, u.DownlinkVolume})
+	if f.usageFailures > 0 {
+		f.usageFailures--
+
+		return errors.New("database is locked")
 	}
 
-	return f.err
+	for _, u := range usages {
+		if f.usageErr == nil {
+			f.usageLog = append(f.usageLog, usageEntry{u.EpochDay, u.IMSI, u.UplinkVolume, u.DownlinkVolume})
+		}
+	}
+
+	return f.usageErr
 }
 
 func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowReportRequest) error {
@@ -354,6 +367,9 @@ type fakeUPF struct {
 	lastIPv6Reg      *models.IPv6SessionRegistration
 	forwardingTEID   uint32
 	err              error
+	counters         map[uint64]map[uint32]models.UsageReport
+	queryCalls       []uint64
+	queryErr         error
 }
 
 type deletionCall struct {
@@ -398,10 +414,68 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) (*
 		}
 	}
 
-	return &models.ModifyResponse{ChosenTEIDs: teids}, nil
+	resp := &models.ModifyResponse{ChosenTEIDs: teids}
+	if len(req.RemoveURRs) > 0 {
+		resp.Usage = f.takeLocked(req.SEID, models.UsageTriggerTermination, req.RemoveURRs...)
+	}
+
+	return resp, nil
 }
 
-func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {
+const fakeDefaultURR uint32 = 1
+
+func (f *fakeUPF) count(seid uint64, uplink, downlink uint64) {
+	f.countURR(seid, fakeDefaultURR, uplink, downlink)
+}
+
+func (f *fakeUPF) countURR(seid uint64, urrID uint32, uplink, downlink uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.counters == nil {
+		f.counters = make(map[uint64]map[uint32]models.UsageReport)
+	}
+
+	if f.counters[seid] == nil {
+		f.counters[seid] = make(map[uint32]models.UsageReport)
+	}
+
+	c := f.counters[seid][urrID]
+	c.URRID = urrID
+	c.UplinkVolume += uplink
+	c.DownlinkVolume += downlink
+	c.EndTime = time.Now()
+	f.counters[seid][urrID] = c
+}
+
+func (f *fakeUPF) takeLocked(seid uint64, trigger models.UsageReportTrigger, urrIDs ...uint32) []models.UsageReport {
+	var reports []models.UsageReport
+
+	for _, id := range slices.Sorted(maps.Keys(f.counters[seid])) {
+		if len(urrIDs) > 0 && !slices.Contains(urrIDs, id) {
+			continue
+		}
+
+		r := f.counters[seid][id]
+		r.Trigger = trigger
+		reports = append(reports, r)
+
+		delete(f.counters[seid], id)
+	}
+
+	return reports
+}
+
+func (f *fakeUPF) QueryUsage(_ context.Context, seid uint64, trigger models.UsageReportTrigger) ([]models.UsageReport, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.queryCalls = append(f.queryCalls, seid)
+
+	return f.takeLocked(seid, trigger), f.queryErr
+}
+
+func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) ([]models.UsageReport, error) {
 	f.teardownSeq.record("delete-session")
 
 	f.mu.Lock()
@@ -409,7 +483,7 @@ func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {
 
 	f.deleteCalls = append(f.deleteCalls, deletionCall{seid})
 
-	return f.err
+	return f.takeLocked(seid, models.UsageTriggerTermination), f.err
 }
 
 func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, seid uint64) {
@@ -603,21 +677,22 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 
 // fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
 type fakeMME struct {
-	mu            sync.Mutex
-	pagedIMSI     []string
-	notifyCauses  []models.DownlinkDataNotificationCause
-	droppedCalls  []mmeTransferredCall
-	modified      []models.EPSBearerModification
-	reactivated   []uint8
-	activations   []models.DedicatedBearerRequest
-	deactivated   []uint8
-	dedicatedMod  []models.DedicatedBearerModification
-	pagedEBIs     []uint8
-	activateErr   error
-	deactivateErr error
-	modifyErr     error
-	dedicatedErr  error
-	err           error
+	mu                  sync.Mutex
+	pagedIMSI           []string
+	notifyCauses        []models.DownlinkDataNotificationCause
+	droppedCalls        []mmeTransferredCall
+	modified            []models.EPSBearerModification
+	reactivated         []uint8
+	reactivationReasons []models.SessionReleaseReason
+	activations         []models.DedicatedBearerRequest
+	deactivated         []uint8
+	dedicatedMod        []models.DedicatedBearerModification
+	pagedEBIs           []uint8
+	activateErr         error
+	deactivateErr       error
+	modifyErr           error
+	dedicatedErr        error
+	err                 error
 }
 
 func (f *fakeMME) ModifyDedicatedBearer(_ context.Context, _ string, _ uint8, mod models.DedicatedBearerModification) error {
@@ -696,11 +771,12 @@ func (f *fakeMME) ModifyEPSBearer(_ context.Context, _ string, _ uint8, mod mode
 	return nil
 }
 
-func (f *fakeMME) ReactivateEPSBearer(_ context.Context, _ string, ebi uint8) error {
+func (f *fakeMME) ReactivateEPSBearer(_ context.Context, _ string, ebi uint8, reason models.SessionReleaseReason) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.reactivated = append(f.reactivated, ebi)
+	f.reactivationReasons = append(f.reactivationReasons, reason)
 
 	return nil
 }
@@ -792,7 +868,7 @@ func removeSession(s *smf.SMF, ctx context.Context, sc *smf.SMContext) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	s.RemoveSession(ctx, sc.Ref)
+	s.RemoveSession(ctx, sc.Ref, models.ReleaseFor(models.ReleaseUERequested))
 }
 
 func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
@@ -903,7 +979,7 @@ func TestRemoveSession_NonExistent_NoOp(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	bgCtx := context.Background()
 
-	s.RemoveSession(bgCtx, "nonexistent-ref")
+	s.RemoveSession(bgCtx, "nonexistent-ref", models.ReleaseFor(models.ReleaseUERequested))
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -1047,7 +1123,7 @@ func TestNewSession_ClaimsAnIdentityOnce(t *testing.T) {
 		}
 	}
 
-	s.RemoveSession(t.Context(), ctx1.Ref)
+	s.RemoveSession(t.Context(), ctx1.Ref, models.ReleaseFor(models.ReleaseUERequested))
 
 	ctx2, err := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "ims", testSnssai)
 	if err != nil {

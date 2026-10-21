@@ -167,7 +167,7 @@ func TestReleasingAnAdditionalPDNResignalsTheUEAMBR(t *testing.T) {
 	ims := addIMSPDN(ue)
 	ue.Conn().holdUEAMBR(new(S1APUEAMBR(ue.RANUEAMBR())))
 
-	m.ReleasePDN(context.Background(), ue, ims)
+	m.ReleasePDN(context.Background(), ue, ims, models.ReleaseFor(models.ReleaseUERequested))
 
 	if cc.count() != 1 {
 		t.Fatalf("expected one UE Context Modification Request, got %d", cc.count())
@@ -182,7 +182,7 @@ func TestERABReleaseCarriesTheUEAMBRWithoutThePDN(t *testing.T) {
 	ims := addIMSPDN(ue)
 	ue.Conn().holdUEAMBR(new(S1APUEAMBR(ue.RANUEAMBR())))
 
-	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), ims.Ebi); err != nil {
+	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), ims.Ebi, models.ReleasePolicyChanged); err != nil {
 		t.Fatal(err)
 	}
 
@@ -210,7 +210,7 @@ func TestERABReleaseCarriesTheUEAMBRWithoutThePDN(t *testing.T) {
 	assertS1APUEAMBR(t, cmd.UEAggregateMaximumBitRate, 200_000_000, 100_000_000)
 	assertHeldUEAMBR(t, ue.Conn(), 200_000_000, 100_000_000)
 
-	m.ReleasePDN(context.Background(), ue, ims)
+	m.ReleasePDN(context.Background(), ue, ims, models.ReleaseFor(models.ReleaseUERequested))
 
 	if cc.count() != 1 {
 		t.Fatalf("the PDN's removal re-signalled a UE-AMBR the E-RAB Release already carried (%d messages)", cc.count())

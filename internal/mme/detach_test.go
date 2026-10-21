@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/epskeys"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 )
 
@@ -117,6 +118,8 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released on subscriber deletion")
 	}
+
+	assertReleaseReasons(t, m, models.ReleaseSubscriptionWithdrawn)
 }
 
 // TS 24.301 §5.5.2.3.1
@@ -147,6 +150,25 @@ func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
 	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released on local detach")
 	}
+
+	assertReleaseReasons(t, m, models.ReleaseSubscriptionWithdrawn)
+}
+
+func assertReleaseReasons(t *testing.T, m *MME, want models.SessionReleaseReason) {
+	t.Helper()
+
+	var causes []models.SessionReleaseRequest
+
+	eventually(t, time.Second, func() bool {
+		causes = m.Session.(*fakeSessionManager).releaseCausesSnapshot()
+		return len(causes) > 0
+	})
+
+	for _, cause := range causes {
+		if cause.Reason != want {
+			t.Fatalf("EPS session released for %s, want %s", cause.Reason, want)
+		}
+	}
 }
 
 func TestReleaseUEContextIdleNoPanic(t *testing.T) {
@@ -162,5 +184,25 @@ func TestReleaseUEContextIdleNoPanic(t *testing.T) {
 
 	if ue.Conn() != nil {
 		t.Fatal("the freed connection was resurrected")
+	}
+}
+
+func TestNetworkDetachCauseEndsWithANewRegistration(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	fallback := models.ReleaseFor(models.ReleaseRegistrationFailure)
+
+	ue.startNetworkDetach(models.ReleaseFor(models.ReleaseSubscriptionWithdrawn))
+
+	if got := ue.NetworkDetachOr(fallback); got.Reason != models.ReleaseSubscriptionWithdrawn {
+		t.Fatalf("reason during the network detach = %s, want subscription_withdrawn", got.Reason)
+	}
+
+	ue.ForceStateForTest(EMMDeregistered)
+	ue.TransitionTo(t.Context(), EMMRegistrationInitiated)
+
+	if got := ue.NetworkDetachOr(fallback); got.Reason != models.ReleaseRegistrationFailure {
+		t.Fatalf("reason after a new attach began = %s, want the fallback", got.Reason)
 	}
 }

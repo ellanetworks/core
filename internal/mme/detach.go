@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -31,11 +32,13 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
+	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
+
 	ueConn := ue.Conn()
 	if ueConn == nil || !m.UeConnected(ue) {
 		ue.TransitionTo(ctx, EMMDeregistered)
 		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", logger.SUPIFromIMSI(imsi))
-		m.ReleaseAllSessions(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue, withdrawn)
 		m.RemoveUe(ctx, ue)
 
 		return
@@ -45,16 +48,17 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 
 	if !ue.Secured() {
 		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on subscriber deletion")
-		m.ReleaseUEContextLocally(ctx, ue, "subscriber deleted")
+		m.ReleaseUEContextLocally(ctx, ue, "subscriber deleted", withdrawn)
 
 		return
 	}
 
-	m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachNotRequired)
+	m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachNotRequired, withdrawn)
 }
 
-func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork) {
+func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork, release models.SessionReleaseRequest) {
 	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
+	ue.startNetworkDetach(release)
 
 	ueConn.Log(ctx).Info("UE deregistered", logger.RAT(metrics.RAT4G), zap.String("trigger", "network"))
 

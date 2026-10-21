@@ -46,9 +46,6 @@ type SessionEngine struct {
 	endMarkers endMarkerSockets
 
 	programs ebpf.ProgramWaiter
-
-	heldMu sync.Mutex
-	held   map[string]models.UsageReport
 }
 
 func (conn *SessionEngine) Close() error {

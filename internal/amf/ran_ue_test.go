@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func newTestRadioForUeConn() *amf.Radio {
@@ -277,7 +278,7 @@ func TestDeregister_EndsKeyChainProcedures(t *testing.T) {
 				t.Fatalf("Begin: %v", err)
 			}
 
-			ue.Deregister(context.Background())
+			ue.Deregister(context.Background(), models.ReleaseFor(models.ReleaseDeregistration))
 
 			if ue.Procedures().Active(proc) {
 				t.Error("a deregistered UE still holds its key chain")

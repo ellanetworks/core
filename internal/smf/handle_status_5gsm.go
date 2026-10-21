@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -30,7 +31,7 @@ func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti ui
 		smContext.establishmentPTI != 0 && pti == smContext.establishmentPTI
 
 	if cause == fgs.GSMCauseInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
-		s.teardownAndRemove(ctx, smContext)
+		s.teardownAndRemove(ctx, smContext, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.Received5GSMCause(uint8(cause))))
 
 		return true
 	}

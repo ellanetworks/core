@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -135,7 +136,7 @@ func TestFallbackLocalReleaseSparesAConnectionThatWasAlreadyReplaced(t *testing.
 	current := m.NewUeConn(&captureConn{}, 8)
 	m.AttachUeConn(t.Context(), ue, current)
 
-	m.releaseUEContextLocally(t.Context(), ue, failed, "release-command-not-sent")
+	m.releaseUEContextLocally(t.Context(), ue, failed, "release-command-not-sent", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 	if ue.Conn() != current {
 		t.Fatal("the fallback release of a connection that was already replaced released the UE's current connection")

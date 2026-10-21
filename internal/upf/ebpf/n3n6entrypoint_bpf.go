@@ -358,9 +358,13 @@ type N3N6EntrypointUpfStatistic struct {
 }
 
 type N3N6EntrypointUrrCounters struct {
-	_        structs.HostLayout
-	Uplink   uint64
-	Downlink uint64
+	_               structs.HostLayout
+	Uplink          uint64
+	Downlink        uint64
+	UplinkPackets   uint64
+	DownlinkPackets uint64
+	FirstPacketNs   uint64
+	LastPacketNs    uint64
 }
 
 type N3N6EntrypointUrrKey struct {

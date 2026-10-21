@@ -96,6 +96,10 @@ func (ue *UeContext) transitionToLocked(ctx context.Context, target StateType) {
 
 		ue.setStateLocked(target)
 
+		if target == RegistrationInitiated || target == Registered {
+			ue.networkDeregistration = nil
+		}
+
 		return
 	}
 

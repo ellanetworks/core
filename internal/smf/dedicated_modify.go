@@ -213,7 +213,7 @@ func (b *dedicatedBearer) legRules(fallback []PCCRule, sets ...ruleSet) []ruleLe
 
 			l, ok := legs[id]
 			if !ok {
-				legs[id] = &ruleLeg{Filters: fs, MBR: rule.MBR, Gate: rule.Gate}
+				legs[id] = &ruleLeg{Filters: fs, MBR: rule.MBR, Gate: rule.Gate, RatingGroup: rule.RatingGroup}
 				continue
 			}
 
@@ -225,6 +225,10 @@ func (b *dedicatedBearer) legRules(fallback []PCCRule, sets ...ruleSet) []ruleLe
 
 			l.MBR = l.MBR.Max(rule.MBR)
 			l.Gate = openEither(l.Gate, rule.Gate)
+
+			if rule.RatingGroup != 0 {
+				l.RatingGroup = rule.RatingGroup
+			}
 		}
 	}
 

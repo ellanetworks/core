@@ -139,7 +139,10 @@ func (f *fakeSmf) HandleN1N2TransferFailure(context.Context, etsi.SUPI, uint8, m
 }
 
 func (f *fakeSmf) ClearPagingSuppression(context.Context, etsi.SUPI, uint8) error { return nil }
-func (f *fakeSmf) ReleaseSmContext(context.Context, string) error                 { return nil }
+func (f *fakeSmf) ReleaseSmContext(context.Context, string, models.SessionReleaseRequest) error {
+	return nil
+}
+
 func (f *fakeSmf) UpdateSmContextN1Msg(context.Context, string, []byte) (*smf.UpdateResult, error) {
 	return nil, nil
 }
@@ -459,7 +462,7 @@ func TestIdleTimers_ArmedAndStoppedUnderRegistryLock(t *testing.T) {
 		t.Fatal("StartMobileReachable must arm the mobile reachable timer")
 	}
 
-	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
+	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if ue.MobileReachableActiveForTest() {
 		t.Fatal("UE teardown must cancel the mobile reachable timer")

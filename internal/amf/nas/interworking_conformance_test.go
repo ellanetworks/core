@@ -294,7 +294,7 @@ func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 func TestDeregisteredContextIsRetainedAsAHusk(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.Deregister(t.Context())
+	ue.Deregister(t.Context(), models.ReleaseFor(models.ReleaseDeregistration))
 
 	held, ok := amfInstance.LookupUeBySupi(ue.Supi())
 	if !ok || held != ue {

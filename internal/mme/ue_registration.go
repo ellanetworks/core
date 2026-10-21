@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type Registrar interface {
@@ -119,7 +120,7 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	m.ReleaseAllSessions(ctx, ue)
+	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 

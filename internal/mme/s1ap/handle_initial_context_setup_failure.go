@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -38,5 +39,5 @@ func handleInitialContextSetupFailure(ctx context.Context, m *mme.MME, radio *mm
 
 	logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Failure", fields...)
 
-	m.ReleaseUEContextLocally(ctx, ue, "initial context setup failure")
+	m.ReleaseUEContextLocally(ctx, ue, "initial context setup failure", models.ReleaseFor(models.ReleaseRegistrationFailure))
 }

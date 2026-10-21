@@ -498,7 +498,7 @@ func (ueConn *UeConn) superviseICS(ctx context.Context) {
 			return
 		}
 
-		a.ReleaseOnRANRequest(guardCtx, ueConn, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified}, nil)
+		a.releaseNGConnection(guardCtx, ueConn, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified}, nil, models.ReleaseFor(models.ReleaseAccessReleased))
 	})
 }
 
@@ -667,6 +667,13 @@ func (ueConn *UeConn) StopReleaseGuard() {
 }
 
 func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause ngap.Cause, reported []uint8) {
+	received := models.ReleaseFor(models.ReleaseAccessReleased).
+		WithRanNas(models.ReceivedNGAPCause(uint8(cause.Group), uint16(cause.EnumeratedValue())))
+
+	a.releaseNGConnection(ctx, ueConn, cause, reported, received)
+}
+
+func (a *AMF) releaseNGConnection(ctx context.Context, ueConn *UeConn, cause ngap.Cause, reported []uint8, release models.SessionReleaseRequest) {
 	amfUe := ueConn.UeContext()
 
 	if amfUe != nil && amfUe.State() != Registered {
@@ -676,8 +683,10 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 
 		ueConn.SendUEContextReleaseCommand(ctx, cause)
 
+		release = release.WithLocation(amfUe.GetUserLocation())
+
 		for _, sr := range amfUe.SmContextRefs() {
-			if err := a.Session.ReleaseSmContext(ctx, sr.Ref); err != nil {
+			if err := a.Session.ReleaseSmContext(ctx, sr.Ref, release); err != nil {
 				ueConn.Log(ctx).Error("error sending release sm context request", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
@@ -783,7 +792,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 		// A UE without a valid security context (never fully registered) has its AMF UE
 		// context deleted; a registered UE is kept.
 		if !amfUe.Secured() {
-			a.DeregisterAndRemoveUeContext(ctx, amfUe)
+			a.DeregisterAndRemoveUeContext(ctx, amfUe, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 			return false
 		}
@@ -794,7 +803,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
-		a.DeregisterAndRemoveUeContext(ctx, amfUe)
+		a.DeregisterAndRemoveUeContext(ctx, amfUe, amfUe.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseDeregistration)))
 	case UeContextReleaseAbortRegistration:
 		// A mid-registration UE is never "keep-context, go idle": delete unconditionally,
 		// even if it is Secured (a post-SMC registration failure).
@@ -802,7 +811,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
-		a.DeregisterAndRemoveUeContext(ctx, amfUe)
+		a.DeregisterAndRemoveUeContext(ctx, amfUe, models.ReleaseFor(models.ReleaseRegistrationFailure))
 	case UeContextReleaseHandover:
 		a.ClearHandover(amfUe)
 

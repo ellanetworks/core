@@ -295,6 +295,26 @@ func (bpfObjects *BpfObjects) ReadUrr(seid uint64, id uint32) ([]N3N6EntrypointU
 	return perCPU, nil
 }
 
+func (bpfObjects *BpfObjects) TakeUrrFirstPacket(seid uint64, id uint32) (uint64, error) {
+	cpus, err := ebpf.PossibleCPU()
+	if err != nil {
+		return 0, fmt.Errorf("possible CPUs: %w", err)
+	}
+
+	args := UrrFirstPacketUrrFirstPacketArgs{Seid: seid, UrrId: id, NrCpus: uint32(cpus)}
+
+	ret, err := bpfObjects.urrFirstPacket.UrrFirstPacketFunc.Run(&ebpf.RunOptions{Context: args, ContextOut: &args})
+	if err != nil {
+		return 0, fmt.Errorf("take the first packet time of URR %d: %w", id, err)
+	}
+
+	if ret != 0 {
+		return 0, fmt.Errorf("take the first packet time of URR %d: program returned %d", id, int32(ret))
+	}
+
+	return args.FirstPacketNs, nil
+}
+
 // ToN3N6EntrypointPdrInfo converts a PdrInfo (with embedded FAR and QER) to
 // the auto-generated BPF map value type.
 //

@@ -58,7 +58,7 @@ func TestReactivateEPSBearerPagesAnIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID); !errors.Is(err, ErrUENotReachable) {
+	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.ReleasePolicyChanged); !errors.Is(err, ErrUENotReachable) {
 		t.Fatalf("ReactivateEPSBearer error = %v, want ErrUENotReachable", err)
 	}
 
@@ -196,7 +196,7 @@ func TestPDNDisconnectEndsAnInFlightModification(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.DisconnectBearer(context.Background(), ue, ims, 36, 3)
+	m.DisconnectBearer(context.Background(), ue, ims, 36, 3, models.ReleaseFor(models.ReleaseUERequested))
 
 	defer m.StopESMGuard(ims)
 

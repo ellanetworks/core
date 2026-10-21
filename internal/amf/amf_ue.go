@@ -51,6 +51,8 @@ type UeContext struct {
 	arrivedFromEPSHandover bool
 	exportableToEPSUntil   time.Time
 
+	networkDeregistration *models.SessionReleaseRequest
+
 	plmnID  models.PlmnID
 	suci    string
 	supi    etsi.SUPI
@@ -553,7 +555,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 }
 
 func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
-	ue.releaseSmContexts(ctx)
+	ue.releaseSmContexts(ctx, models.ReleaseFor(models.ReleaseDeregistration))
 }
 
 func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai, dnn string) error {
@@ -730,7 +732,7 @@ func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 	log.Debug("registration attempt abandoned on a transient failure; UE context and PDU sessions retained")
 }
 
-func (ue *UeContext) Deregister(ctx context.Context) {
+func (ue *UeContext) Deregister(ctx context.Context, release models.SessionReleaseRequest) {
 	if conn := ue.Conn(); conn != nil {
 		conn.Release(ctx)
 	}
@@ -743,6 +745,8 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	ue.mu.Lock()
 
 	ue.transitionToLocked(ctx, Deregistered)
+
+	release = release.WithLocation(ue.Location)
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
@@ -757,7 +761,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	if ue.smf != nil {
 		for _, smContextRef := range smContextRefs {
-			err := ue.smf.ReleaseSmContext(ctx, smContextRef)
+			err := ue.smf.ReleaseSmContext(ctx, smContextRef, release)
 			if err != nil {
 				logger.From(ctx, logger.AmfLog).Error("Release SmContext Error", zap.Error(err))
 			}
@@ -779,8 +783,28 @@ func (ue *UeContext) deactivateSmContexts(ctx context.Context, ueConn *UeConn) {
 	}
 }
 
-func (ue *UeContext) releaseSmContexts(ctx context.Context) {
+func (ue *UeContext) startNetworkDeregistration(release models.SessionReleaseRequest) {
 	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.networkDeregistration = &release
+}
+
+func (ue *UeContext) NetworkDeregistrationOr(fallback models.SessionReleaseRequest) models.SessionReleaseRequest {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.networkDeregistration == nil || ue.state != DeregistrationInitiated {
+		return fallback
+	}
+
+	return *ue.networkDeregistration
+}
+
+func (ue *UeContext) releaseSmContexts(ctx context.Context, release models.SessionReleaseRequest) {
+	ue.mu.Lock()
+
+	release = release.WithLocation(ue.Location)
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
@@ -798,7 +822,7 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 	}
 
 	for _, smContextRef := range smContextRefs {
-		err := ue.smf.ReleaseSmContext(ctx, smContextRef)
+		err := ue.smf.ReleaseSmContext(ctx, smContextRef, release)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Error("Release SmContext Error", zap.Error(err))
 		}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type associationRecorder struct {
@@ -46,7 +47,7 @@ func TestNoAssociationForASessionAlreadyDropped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.dropFromPool(sc)
+	s.dropFromPool(context.Background(), sc, models.ReleaseFor(models.ReleaseUERequested))
 
 	if _, err := s.createAssociation(context.Background(), sc, PolicyContext{Supi: supi, Dnn: "ims"}); err == nil || len(pcf.created) != 0 {
 		t.Fatalf("createAssociation for a dropped session = %v, created %v; want an error and none", err, pcf.created)

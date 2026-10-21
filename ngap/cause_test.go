@@ -100,3 +100,13 @@ func TestCauseString(t *testing.T) {
 		}
 	}
 }
+
+func TestCauseEnumeratedValueContinuesPastTheRoot(t *testing.T) {
+	if got := (Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}).EnumeratedValue(); got != CauseNASDeregister {
+		t.Fatalf("root value = %d, want %d", got, CauseNASDeregister)
+	}
+
+	if got := CauseInsufficientUECapabilities.EnumeratedValue(); got != causeGroupRootCount[CauseGroupRadioNetwork]+6 {
+		t.Fatalf("extension value = %d, want %d", got, causeGroupRootCount[CauseGroupRadioNetwork]+6)
+	}
+}

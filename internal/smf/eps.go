@@ -208,12 +208,12 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 	return dropped, nil
 }
 
-func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
+func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string, cause models.SessionReleaseRequest) error {
 	if s.dropHalf(ctx, ref, Access4G) {
 		return nil
 	}
 
-	return s.releaseSession(ctx, ref)
+	return s.releaseSession(ctx, ref, cause)
 }
 
 func (s *SMF) dropHalf(ctx context.Context, ref string, by AccessType) bool {

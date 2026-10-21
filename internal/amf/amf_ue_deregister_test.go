@@ -17,6 +17,7 @@ import (
 
 type deregisterTestSmf struct {
 	releaseCalls          []string
+	releaseCauses         []models.SessionReleaseRequest
 	deactivateCalls       []string
 	suppressCalls         int
 	transferFailures      []models.N1N2MessageTransferCause
@@ -66,8 +67,10 @@ func (s *deregisterTestSmf) ClearPagingSuppression(_ context.Context, _ etsi.SUP
 	return nil
 }
 
-func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+func (s *deregisterTestSmf) ReleaseSmContext(ctx context.Context, smContextRef string, cause models.SessionReleaseRequest) error {
 	s.releaseCalls = append(s.releaseCalls, smContextRef)
+	s.releaseCauses = append(s.releaseCauses, cause)
+
 	if s.onRelease != nil {
 		return s.onRelease(ctx, smContextRef)
 	}
@@ -165,7 +168,7 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		ue.Deregister(context.Background())
+		ue.Deregister(context.Background(), models.ReleaseFor(models.ReleaseDeregistration))
 		close(done)
 	}()
 
@@ -377,4 +380,45 @@ func (*deregisterTestSmf) UpdateSmContextN2InfoPduResModifyFail(context.Context,
 
 func (*deregisterTestSmf) UpdateSmContextN2InfoNotify(context.Context, string, []byte) error {
 	return nil
+}
+
+func TestDeregister_ReleasesSessionsAsADeregistration(t *testing.T) {
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+
+	fakeSmf := &deregisterTestSmf{}
+	ue.smf = fakeSmf
+
+	ue.Deregister(context.Background(), models.ReleaseFor(models.ReleaseDeregistration))
+
+	if len(fakeSmf.releaseCauses) != 1 || fakeSmf.releaseCauses[0].Reason != models.ReleaseDeregistration {
+		t.Fatalf("release causes = %+v, want one deregistration", fakeSmf.releaseCauses)
+	}
+}
+
+func TestNetworkDeregistrationCauseAppliesOnlyWhileDeregistrationIsInitiated(t *testing.T) {
+	ue := NewUeContext()
+	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
+	fallback := models.ReleaseFor(models.ReleaseDeregistration)
+
+	ue.ForceStateForTest(Registered)
+	ue.startNetworkDeregistration(withdrawn)
+
+	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseDeregistration {
+		t.Fatalf("reason before the request is outstanding = %s, want the fallback", got.Reason)
+	}
+
+	ue.ForceStateForTest(DeregistrationInitiated)
+
+	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseSubscriptionWithdrawn {
+		t.Fatalf("reason while deregistration is initiated = %s, want subscription_withdrawn", got.Reason)
+	}
+
+	ue.ForceStateForTest(Deregistered)
+	ue.TransitionTo(context.Background(), RegistrationInitiated)
+	ue.ForceStateForTest(DeregistrationInitiated)
+
+	if got := ue.NetworkDeregistrationOr(fallback); got.Reason != models.ReleaseDeregistration {
+		t.Fatalf("reason after a new registration began = %s, want the fallback", got.Reason)
+	}
 }

@@ -83,7 +83,7 @@ func (m *MME) ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod m
 	return m.modifyBearer(ctx, ue, ueConn, p, mod)
 }
 
-func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error {
+func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, reason models.SessionReleaseReason) error {
 	ue, ueConn, p, err := m.reconcilableBearer(ctx, imsi, ebi, func(*PdnConnection) bool { return true })
 	if err != nil {
 		return err
@@ -93,13 +93,13 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) e
 
 	if !ue.BearerReleaseOnly(p) {
 		ueConn.Log(ctx).Info("policy/data-network changed on the last PDN connection; detaching for re-attach", zap.String("apn", p.Apn))
-		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired)
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, models.ReleaseFor(reason))
 
 		return nil
 	}
 
 	ueConn.Log(ctx).Info("policy/data-network changed; reactivating EPS bearer", zap.String("apn", p.Apn))
-	m.reactivateBearer(ctx, ue, p)
+	m.reactivateBearer(ctx, ue, p, reason)
 
 	return nil
 }
@@ -304,6 +304,6 @@ func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, ueConn *UeConn,
 // the default bearer with ESM cause #39 "reactivation requested" (TS 24.301
 // §6.4.4.2). The request is guarded and retransmitted until the UE answers with
 // DEACTIVATE EPS BEARER CONTEXT ACCEPT.
-func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection) {
-	m.DeactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false)
+func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, reason models.SessionReleaseReason) {
+	m.DeactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false, models.ReleaseFor(reason))
 }

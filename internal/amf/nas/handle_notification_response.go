@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -35,7 +36,7 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 		pduSessionID := uint8(psi)
 		if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 			if !psiArray[psi] {
-				if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
+				if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref, models.ReleaseFor(models.ReleaseStatusMismatch).WithLocation(ue.GetUserLocation())); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("failed to release sm context", zap.Error(err))
 				}
 

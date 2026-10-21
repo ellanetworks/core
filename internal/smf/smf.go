@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/smf/session")
@@ -102,7 +103,8 @@ type SessionStore interface {
 type UPFClient interface {
 	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
 	ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error)
-	DeleteSession(ctx context.Context, seid uint64) error
+	QueryUsage(ctx context.Context, seid uint64, trigger models.UsageReportTrigger) ([]models.UsageReport, error)
+	DeleteSession(ctx context.Context, seid uint64) ([]models.UsageReport, error)
 	SuppressDownlinkDataNotification(ctx context.Context, seid uint64)
 	ClearDownlinkDataNotification(ctx context.Context, seid uint64)
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
@@ -128,7 +130,7 @@ type MMECallback interface {
 	NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 	ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) error
-	ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error
+	ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, reason models.SessionReleaseReason) error
 	ActivateDedicatedBearer(ctx context.Context, imsi string, req models.DedicatedBearerRequest) error
 	ModifyDedicatedBearer(ctx context.Context, imsi string, ebi uint8, mod models.DedicatedBearerModification) error
 	DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi uint8, sgwTEID uint32) error
@@ -137,14 +139,15 @@ type MMECallback interface {
 // Policy contains the QoS parameters and DNN configuration the SMF enforces for
 // a session.
 type Policy struct {
-	PolicyID string // DB primary key (UUID)
-	Ambr     models.Ambr
-	QosData  models.QosData
-	DNS      net.IP
-	PCSCF    []netip.Addr
-	MTU      uint16
-	IPv4Pool string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
-	IPv6Pool string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
+	PolicyID    string // DB primary key (UUID)
+	Ambr        models.Ambr
+	QosData     models.QosData
+	RatingGroup uint32
+	DNS         net.IP
+	PCSCF       []netip.Addr
+	MTU         uint16
+	IPv4Pool    string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
+	IPv6Pool    string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
 }
 
 // SMF implements the Session Management Function.
@@ -169,6 +172,12 @@ type SMF struct {
 
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
+
+	usage          usageLedger
+	usageConsumers []usageConsumer
+	usageFlush     chan struct{}
+	usageCancel    context.CancelFunc
+	usageDone      chan struct{}
 }
 
 // maxSMProcedureRetransmissions is the number of command retransmissions before
@@ -203,8 +212,12 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
 
+		usageFlush: make(chan struct{}, 1),
+
 		dedicatedAwaitLimit: 30 * time.Second,
 	}
+	s.usageConsumers = []usageConsumer{s.recordSubscriberUsage}
+
 	for _, o := range opts {
 		o(s)
 	}
@@ -318,7 +331,7 @@ func (s *SMF) supersedeIdentityHolders(ctx context.Context, supi etsi.SUPI, id S
 	}
 }
 
-func (s *SMF) dropFromPool(sc *SMContext) {
+func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.SessionReleaseRequest) {
 	s.mu.Lock()
 
 	pooled := s.pool[sc.Ref] == sc
@@ -326,7 +339,30 @@ func (s *SMF) dropFromPool(sc *SMContext) {
 	s.removeLocked(sc)
 	s.mu.Unlock()
 
-	if pooled && s.pcf != nil {
+	if !pooled {
+		return
+	}
+
+	if release.Reason == "" && sc.release == nil {
+		logger.From(ctx, logger.SmfLog).Error("session released without a release reason",
+			logger.SMContextRef(sc.Ref), logger.SUPI(sc.Supi.String()))
+
+		release = models.ReleaseFor(models.ReleaseProtocolError)
+	}
+
+	sc.commitRelease(release)
+
+	if !sc.EstablishedAt.IsZero() {
+		reason := sc.release.Reason
+
+		recordSessionRelease(sc.Access.rat(), reason)
+
+		logger.From(ctx, logger.SmfLog).Info("session released",
+			logger.RAT(sc.Access.rat()), logger.SUPI(sc.Supi.String()), logger.DNN(sc.Dnn),
+			logger.SMContextRef(sc.Ref), zap.Stringer("reason", reason))
+	}
+
+	if s.pcf != nil {
 		s.pcf.TerminateAssociation(sc.Ref)
 	}
 }
@@ -373,7 +409,7 @@ func (s *SMF) indexSEID(sc *SMContext, seid uint64) {
 
 // RemoveSession tears down a session's user plane, releases its addresses, and
 // removes it from the pool. Caller holds the session's Mutex.
-func (s *SMF) RemoveSession(ctx context.Context, ref string) {
+func (s *SMF) RemoveSession(ctx context.Context, ref string, cause models.SessionReleaseRequest) {
 	smCtx := s.GetSession(ref)
 	if smCtx == nil {
 		return
@@ -381,9 +417,7 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 
 	_ = s.releaseUserPlaneThenAddresses(ctx, smCtx)
 
-	s.dropFromPool(smCtx)
-
-	logger.SmfLog.Info("SM Context removed", logger.SMContextRef(ref))
+	s.dropFromPool(ctx, smCtx, cause)
 }
 
 func (s *SMF) SessionsByDNN(dnn string) []*SMContext {

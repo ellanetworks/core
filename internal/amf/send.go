@@ -257,7 +257,7 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 		amfUe.EndKeyChainProc(procedure.SecurityMode)
 
 		if newContext {
-			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe, models.ReleaseFor(models.ReleaseRegistrationFailure))
 			return
 		}
 
@@ -273,7 +273,7 @@ func (a *AMF) abortCommonProcedure(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	a.DeregisterAndRemoveUeContext(ctx, ue)
+	a.DeregisterAndRemoveUeContext(ctx, ue, models.ReleaseFor(models.ReleaseRegistrationFailure))
 }
 
 func (a *AMF) AbortRegistrationRetainingContext(ctx context.Context, ue *UeContext) {

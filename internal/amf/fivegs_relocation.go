@@ -296,7 +296,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 }
 
 func (a *AMF) releaseArrivingSession(ctx context.Context, ref string) {
-	if err := a.Session.ReleaseSmContext(ctx, ref); err != nil {
+	if err := a.Session.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseHandoverFailure)); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to unwind a PDU session that could not be handed over",
 			zap.String("ref", ref), zap.Error(err))
 	}
@@ -529,7 +529,7 @@ func (a *AMF) endRelocationFromEPSLocked(supi etsi.SUPI, ue *UeContext) {
 func (a *AMF) dropRelocationFromEPS(ctx context.Context, ue *UeContext) {
 	ctx = context.WithoutCancel(ctx)
 
-	ue.releaseSmContexts(ctx)
+	ue.releaseSmContexts(ctx, models.ReleaseFor(models.ReleaseHandoverFailure))
 	a.endRelocationFromEPS(ue.Supi(), ue)
 }
 

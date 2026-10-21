@@ -8,6 +8,7 @@ package ebpf
 import (
 	"net/netip"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -110,7 +111,7 @@ func TestURRByteAccounting(t *testing.T) {
 	}
 
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
-	perPacket := uint64(ethHdrLen + len(inner))
+	perPacket := uint64(len(inner))
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
@@ -213,7 +214,7 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 
 	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
 	frame := ethFrame(0x0800, inner)
-	perPacket := uint64(len(frame))
+	perPacket := uint64(len(inner))
 
 	runXDP(t, obj.UpfEntryFunc, frame)
 
@@ -256,7 +257,7 @@ func TestReadUrrUnderTrafficIsExact(t *testing.T) {
 
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
 	packet := uplinkGPDU(teid, inner)
-	perPacket := uint64(ethHdrLen + len(inner))
+	perPacket := uint64(len(inner))
 
 	var (
 		stop atomic.Bool
@@ -296,6 +297,118 @@ func TestReadUrrUnderTrafficIsExact(t *testing.T) {
 
 	if got, want := sumURR(t, obj, seid, urrID), sent.Load()*perPacket; got != want {
 		t.Fatalf("URR after %d concurrent reads = %d, want %d", reads, got, want)
+	}
+}
+
+func TestURRByteAccountingUplinkIPv6(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x55525204
+		urrID = 12
+		seid  = 0x55525204
+	)
+
+	obj := loadN3N6Program(t)
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("NewUrr: %v", err)
+	}
+
+	pdr := PdrInfo{
+		SEID:         seid,
+		IMSI:         "001010000000001",
+		UrrID:        urrID,
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		UEIPv4:       canonicalUEv4,
+		UEIPv6Prefix: canonicalUEv6Prefix,
+	}
+	if err := obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	server := [16]byte{0x20, 0x01, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
+	inner := innerIPv6UDP(server, 53)
+
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+	if action == ActionDrop || action == ActionAborted {
+		t.Skipf("this environment did not forward the frame (XDP action %d)", action)
+	}
+
+	if got := readURR(t, obj, seid, urrID); got.Uplink != uint64(len(inner)) || got.Downlink != 0 {
+		t.Fatalf("URR = %d up/%d down, want %d up: the IPv6 packet, header included", got.Uplink, got.Downlink, len(inner))
+	}
+}
+
+func TestURRByteAccountingDownlinkIPv6(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x55525205
+		urrID = 14
+		qfi   = 5
+		seid  = 0x55525205
+	)
+
+	obj := loadProgram(t, 1, 0)
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("NewUrr: %v", err)
+	}
+
+	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+	pdr.UrrID = urrID
+	pdr.SEID = seid
+
+	if err := obj.PutPdrDownlink(netip.MustParseAddr("2001:db8::"), pdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	server := [16]byte{0x20, 0x01, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
+	inner := ipv6Packet(server, testUEv6, 17, udpDatagram(4000, 53, nil))
+
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
+	if action == ActionDrop || action == ActionAborted {
+		t.Skipf("this environment did not forward the frame (XDP action %d)", action)
+	}
+
+	if got := readURR(t, obj, seid, urrID); got.Downlink != uint64(len(inner)) || got.Uplink != 0 {
+		t.Fatalf("URR = %d up/%d down, want %d down: the IPv6 packet, header included", got.Uplink, got.Downlink, len(inner))
+	}
+}
+
+func TestURRByteAccountingExcludesFramePadding(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x55525206
+		urrID = 15
+		qfi   = 5
+		seid  = 0x55525206
+	)
+
+	obj := loadProgram(t, 1, 0)
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("NewUrr: %v", err)
+	}
+
+	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+	pdr.UrrID = urrID
+	pdr.SEID = seid
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
+	padded := append(slices.Clone(inner), make([]byte, 64-ethHdrLen-len(inner))...)
+
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, padded))
+	if action == ActionDrop || action == ActionAborted {
+		t.Skipf("this environment did not forward the frame (XDP action %d)", action)
+	}
+
+	if got := readURR(t, obj, seid, urrID); got.Downlink != uint64(len(inner)) {
+		t.Fatalf("URR = %d down, want %d: Ethernet padding is not part of the IP packet", got.Downlink, len(inner))
 	}
 }
 

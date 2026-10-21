@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -21,7 +22,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *fgs.S
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	defer ue.Deregister(ctx)
+	defer ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(msg.Cause))))
 
 	if conn := ue.Conn(); conn != nil {
 		conn.StopNASGuard(ctx)

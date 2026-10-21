@@ -359,7 +359,7 @@ func TestDeregistrationDeregistersTheUEFromSMS(t *testing.T) {
 	a, _, _ := newSMSTestAMF(t)
 	ue := newIdleSMSUE(t, a)
 
-	ue.Deregister(t.Context())
+	ue.Deregister(t.Context(), models.ReleaseFor(models.ReleaseDeregistration))
 
 	if ue.SMSOverNAS() {
 		t.Fatal("the grant survived the deregistration")
@@ -374,7 +374,7 @@ func TestRemovingTheUEContextDeregistersItFromSMS(t *testing.T) {
 	a, _, _ := newSMSTestAMF(t)
 	ue := newIdleSMSUE(t, a)
 
-	a.DeregisterAndRemoveUeContext(t.Context(), ue)
+	a.DeregisterAndRemoveUeContext(t.Context(), ue, models.ReleaseFor(models.ReleaseDeregistration))
 
 	if granted, _ := a.SMSRoute("001019756139901"); granted {
 		t.Fatal("the AMF still routes SMS to a removed UE")
@@ -436,7 +436,7 @@ func TestReachabilityForSMSEndsWhenTheRegistrationIsAbandoned(t *testing.T) {
 	go func() { done <- a.EnableUEReachabilityForSMS(context.Background(), "001019756139901") }()
 
 	time.Sleep(20 * time.Millisecond)
-	ue.Deregister(t.Context())
+	ue.Deregister(t.Context(), models.ReleaseFor(models.ReleaseDeregistration))
 
 	select {
 	case err := <-done:

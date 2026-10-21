@@ -44,7 +44,12 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			pdrs, fars, qers, urrs := tc.dp.rules()
+			dp := tc.dp
+			if err := dp.assignURRs(dataPlane{}); err != nil {
+				t.Fatalf("assignURRs: %v", err)
+			}
+
+			pdrs, fars, qers, urrs := dp.rules()
 
 			if len(pdrs) != len(tc.wantPDRIDs) {
 				t.Fatalf("PDR count = %d, want %d", len(pdrs), len(tc.wantPDRIDs))
@@ -57,6 +62,10 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 					t.Errorf("PDR[%d] ID = %d, want %d", i, pdr.PDRID, tc.wantPDRIDs[i])
 				}
 
+				if pdr.URRID != dp.DefaultURR {
+					t.Errorf("PDR %d names URR %d, want the default rule's URR %d for both directions", pdr.PDRID, pdr.URRID, dp.DefaultURR)
+				}
+
 				if pdr.PDI.LocalFTEID != nil {
 					continue
 				}
@@ -65,10 +74,6 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 
 				if pdr.FARID != farIDDownlink {
 					t.Errorf("downlink PDR %d names FAR %d, want %d", pdr.PDRID, pdr.FARID, farIDDownlink)
-				}
-
-				if pdr.URRID != urrIDDownlink {
-					t.Errorf("downlink PDR %d names URR %d, want %d", pdr.PDRID, pdr.URRID, urrIDDownlink)
 				}
 			}
 
@@ -92,8 +97,8 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 				t.Errorf("session QER averaging window %v, want 2 s: without one the UPF meters the Session-AMBR over its 5 ms default, a burst allowance TCP cannot fill", w)
 			}
 
-			if len(urrs) != 2 || urrs[0].URRID != urrIDUplink || urrs[1].URRID != urrIDDownlink {
-				t.Errorf("URRs = %+v, want one uplink and one downlink", urrs)
+			if len(urrs) != 1 || urrs[0].URRID != dp.DefaultURR || dp.DefaultURR == 0 {
+				t.Errorf("URRs = %+v, want the default rule's single URR", urrs)
 			}
 		})
 	}
@@ -388,5 +393,137 @@ func TestQoSRuleFiltersEncodeIPv6AndWildcards(t *testing.T) {
 
 	if len(filters[0].Components) != 4 || len(filters[1].Components) != 1 {
 		t.Fatalf("components %+v / %+v, want the IPv6 remote, protocol and both ports, then only the local port: no remote component means any remote (TS 24.501 §9.11.4.13)", filters[0].Components, filters[1].Components)
+	}
+}
+
+func voiceLeg(slot uint8, filters ...models.SDFFilter) bearerLeg {
+	return bearerLeg{Slot: slot, Rules: []ruleLeg{{Index: 0, Filters: filters, RatingGroup: 20}}}
+}
+
+func TestAssignURRs_OneURRPerChargingKeyAcrossBothDirections(t *testing.T) {
+	ul := models.SDFFilter{ID: 1, Direction: models.FilterUplink, Precedence: 10, Remote: netip.MustParsePrefix("192.0.2.1/32")}
+	dl := models.SDFFilter{ID: 2, Direction: models.FilterDownlink, Precedence: 10, Remote: netip.MustParsePrefix("192.0.2.1/32")}
+	an := AnchorBinding{TEID: 1, IPv4: net.ParseIP("10.3.0.3")}
+
+	leg := voiceLeg(0, ul, dl)
+	leg.AN, leg.Admitted = an, true
+
+	dp := dataPlane{
+		UEIPv4:      netip.MustParseAddr("10.0.0.1"),
+		Downlink:    DownlinkForwarding,
+		AN:          an,
+		RatingGroup: 1,
+		Bearers:     []bearerLeg{leg},
+	}
+
+	if err := dp.assignURRs(dataPlane{}); err != nil {
+		t.Fatalf("assignURRs: %v", err)
+	}
+
+	pdrs, _, _, urrs := dp.rules()
+
+	bearerURR := dp.Bearers[0].Rules[0].URRID
+	if bearerURR == 0 || bearerURR == dp.DefaultURR {
+		t.Fatalf("bearer URR %d, default URR %d: want a URR of its own for the bearer's rating group", bearerURR, dp.DefaultURR)
+	}
+
+	var directions []models.Interface
+
+	for _, p := range pdrs {
+		if p.PDRID < pdrIDRuleBase {
+			continue
+		}
+
+		if p.URRID != bearerURR {
+			t.Errorf("rule PDR %d names URR %d, want %d", p.PDRID, p.URRID, bearerURR)
+		}
+
+		directions = append(directions, p.PDI.SourceInterface)
+	}
+
+	if !slices.Contains(directions, models.InterfaceAccess) || !slices.Contains(directions, models.InterfaceCore) {
+		t.Fatalf("rule PDR directions %v, want an uplink and a downlink PDR sharing the URR", directions)
+	}
+
+	if len(urrs) != 2 {
+		t.Fatalf("URRs = %+v, want the default rule's and the bearer's", urrs)
+	}
+
+	keys := dp.urrKeys()
+	if k := keys[bearerURR]; !k.Dedicated || k.Slot != 0 || k.RatingGroup != 20 {
+		t.Fatalf("bearer URR key = %+v, want slot 0 rating group 20", k)
+	}
+
+	if k := keys[dp.DefaultURR]; k.Dedicated || k.RatingGroup != 1 {
+		t.Fatalf("default URR key = %+v, want the session's default rating group 1", k)
+	}
+}
+
+func TestAssignURRs_KeepsIDsAndRetiresRemovedKeys(t *testing.T) {
+	ul := models.SDFFilter{ID: 1, Direction: models.FilterUplink, Precedence: 10, Remote: netip.MustParsePrefix("192.0.2.1/32")}
+
+	prev := dataPlane{UEIPv4: netip.MustParseAddr("10.0.0.1"), RatingGroup: 1, Bearers: []bearerLeg{voiceLeg(0, ul)}}
+	if err := prev.assignURRs(dataPlane{}); err != nil {
+		t.Fatalf("assignURRs: %v", err)
+	}
+
+	next := prev
+	next.Bearers = []bearerLeg{voiceLeg(1, ul)}
+
+	if err := next.assignURRs(prev); err != nil {
+		t.Fatalf("assignURRs: %v", err)
+	}
+
+	if next.DefaultURR != prev.DefaultURR {
+		t.Fatalf("default URR %d, want %d kept", next.DefaultURR, prev.DefaultURR)
+	}
+
+	old := prev.Bearers[0].Rules[0].URRID
+
+	moved := next.Bearers[0].Rules[0].URRID
+	if moved == old || moved <= prev.LastURRID {
+		t.Fatalf("URR %d for the rule on another bearer, want a new ID above %d", moved, prev.LastURRID)
+	}
+
+	if m := next.modifyRequest(prev, 1, ""); !slices.Equal(m.RemoveURRs, []uint32{old}) {
+		t.Fatalf("removed URRs %v, want the old bearer's URR %d", m.RemoveURRs, old)
+	}
+
+	back := next
+	back.Bearers = []bearerLeg{voiceLeg(0, ul)}
+
+	if err := back.assignURRs(next); err != nil {
+		t.Fatalf("assignURRs: %v", err)
+	}
+
+	if id := back.Bearers[0].Rules[0].URRID; id <= next.LastURRID {
+		t.Fatalf("URR %d, want a fresh ID: a retired URR ID is never reused within the session", id)
+	}
+}
+
+func TestAssignURRs_RefusesMoreChargingKeysThanTheUserPlaneHolds(t *testing.T) {
+	ul := models.SDFFilter{ID: 1, Direction: models.FilterUplink, Precedence: 10, Remote: netip.MustParsePrefix("192.0.2.1/32")}
+
+	dp := dataPlane{RatingGroup: 1}
+
+	for slot := range uint8(maxDedicatedBearers) {
+		leg := bearerLeg{Slot: slot}
+		for i := range uint8(2) {
+			leg.Rules = append(leg.Rules, ruleLeg{Index: i, Filters: []models.SDFFilter{ul}, RatingGroup: 100 + 10*uint32(slot) + uint32(i)})
+		}
+
+		dp.Bearers = append(dp.Bearers, leg)
+	}
+
+	if err := dp.assignURRs(dataPlane{}); err == nil {
+		t.Fatalf("assignURRs accepted %d charging keys, the user plane holds %d", len(dp.urrKeys()), models.MaxSessionURRs)
+	}
+}
+
+func TestNextEpochDayIsTheNextUTCMidnight(t *testing.T) {
+	now := time.Date(2026, 10, 19, 23, 59, 30, 0, time.FixedZone("UTC+2", 2*3600))
+
+	if got, want := nextEpochDay(now), time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Fatalf("nextEpochDay(%v) = %v, want %v", now, got, want)
 	}
 }
