@@ -1116,7 +1116,12 @@ func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createDataNetworkStmt, dn).Run()
+	stmt := db.createDataNetworkStmt
+	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		stmt = db.createDataNetworkPreV25Stmt
+	}
+
+	err := db.runner(ctx).Query(ctx, stmt, dn).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1131,7 +1136,12 @@ func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork)
 func (db *Database) applyUpdateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.editDataNetworkStmt, dn).Get(&outcome)
+	stmt := db.editDataNetworkStmt
+	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		stmt = db.editDataNetworkPreV25Stmt
+	}
+
+	err := db.runner(ctx).Query(ctx, stmt, dn).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1169,7 +1179,9 @@ func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload
 }
 
 func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createPolicyStmt, p).Run()
+	p.defaultPreemption()
+
+	err := db.runner(ctx).Query(ctx, db.createPolicyStmtFor(ctx), p).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1196,9 +1208,11 @@ func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, 
 }
 
 func (db *Database) applyUpdatePolicy(ctx context.Context, p *Policy) (any, error) {
+	p.defaultPreemption()
+
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.editPolicyStmt, p).Get(&outcome)
+	err := db.runner(ctx).Query(ctx, db.editPolicyStmtFor(ctx), p).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,15 +21,28 @@ import (
 
 const DataNetworksTableName = "data_networks"
 
+const dataNetworkIMSSchema = 25
+
 const (
 	listDataNetworksPagedStmt = "SELECT &DataNetwork.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllDataNetworksStmt   = "SELECT &DataNetwork.* FROM %s ORDER BY id ASC"
 	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
 	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
-	createDataNetworkStmt     = "INSERT INTO %s (id, name, ipPool, ipv6Pool, dns, mtu) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.ipv6Pool, $DataNetwork.dns, $DataNetwork.mtu)"
-	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, ipv6Pool=$DataNetwork.ipv6Pool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
+	createDataNetworkStmt     = "INSERT INTO %s (id, name, ipPool, ipv6Pool, dns, mtu, ims) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.ipv6Pool, $DataNetwork.dns, $DataNetwork.mtu, $DataNetwork.ims)"
+	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, ipv6Pool=$DataNetwork.ipv6Pool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu, ims=$DataNetwork.ims WHERE name==$DataNetwork.name"
 	deleteDataNetworkStmt     = "DELETE FROM %s WHERE name==$DataNetwork.name"
 	countDataNetworksStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+)
+
+const dataNetworkColumnsPreV25 = "&DataNetwork.id, &DataNetwork.name, &DataNetwork.ipPool, &DataNetwork.ipv6Pool, &DataNetwork.dns, &DataNetwork.mtu, iif(name = '" + models.IMSDataNetworkName + "', TRUE, FALSE) AS &DataNetwork.ims"
+
+const (
+	listDataNetworksPagedPreV25Stmt = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listAllDataNetworksPreV25Stmt   = "SELECT " + dataNetworkColumnsPreV25 + " FROM %s ORDER BY id ASC"
+	getDataNetworkPreV25Stmt        = "SELECT " + dataNetworkColumnsPreV25 + " from %s WHERE name==$DataNetwork.name"
+	getDataNetworkByIDPreV25Stmt    = "SELECT " + dataNetworkColumnsPreV25 + " FROM %s WHERE id==$DataNetwork.id"
+	createDataNetworkPreV25Stmt     = "INSERT INTO %s (id, name, ipPool, ipv6Pool, dns, mtu) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.ipv6Pool, $DataNetwork.dns, $DataNetwork.mtu)"
+	editDataNetworkPreV25Stmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, ipv6Pool=$DataNetwork.ipv6Pool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
 )
 
 type DataNetwork struct {
@@ -38,6 +52,7 @@ type DataNetwork struct {
 	IPv6Pool string `db:"ipv6Pool"`
 	DNS      string `db:"dns"`
 	MTU      int32  `db:"mtu"`
+	IMS      bool   `db:"ims"`
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
@@ -72,7 +87,12 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn().Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks, &counts)
+	stmt := db.listDataNetworksStmt
+	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		stmt = db.listDataNetworksPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, args).GetAll(&dataNetworks, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			fallbackCount, countErr := db.CountDataNetworks(ctx)
@@ -119,7 +139,12 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 
 	var dataNetworks []DataNetwork
 
-	err := db.conn().Query(ctx, db.listAllDataNetworksStmt).GetAll(&dataNetworks)
+	stmt := db.listAllDataNetworksStmt
+	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		stmt = db.listAllDataNetworksPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt).GetAll(&dataNetworks)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -156,7 +181,12 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 
 	row := DataNetwork{Name: name}
 
-	err := db.conn().Query(ctx, db.getDataNetworkStmt, row).Get(&row)
+	stmt := db.getDataNetworkStmt
+	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		stmt = db.getDataNetworkPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)
@@ -195,7 +225,12 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 
 	row := DataNetwork{ID: id}
 
-	err := db.conn().Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
+	stmt := db.getDataNetworkByIDStmt
+	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		stmt = db.getDataNetworkByIDPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)

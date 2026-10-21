@@ -193,6 +193,16 @@ var opReplacePCSCFAddresses = registerChangesetOp("ReplacePCSCFAddresses", (*Dat
 
 var opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistration", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(23))
 
+var (
+	opCreateIMSApplicationServer = registerChangesetOp("CreateIMSApplicationServer", (*Database).applyCreateIMSApplicationServer, RequireSchema(25))
+	opUpdateIMSApplicationServer = registerChangesetOp("UpdateIMSApplicationServer", (*Database).applyUpdateIMSApplicationServer, RequireSchema(25))
+	opDeleteIMSApplicationServer = registerChangesetOp("DeleteIMSApplicationServer", (*Database).applyDeleteIMSApplicationServer, RequireSchema(25))
+	opCreateIMSService           = registerChangesetOp("CreateIMSService", (*Database).applyCreateIMSService, RequireSchema(25))
+	opUpdateIMSService           = registerChangesetOp("UpdateIMSService", (*Database).applyUpdateIMSService, RequireSchema(25))
+	opDeleteIMSService           = registerChangesetOp("DeleteIMSService", (*Database).applyDeleteIMSService, RequireSchema(25))
+	opSetProfileIMSServices      = registerChangesetOp("SetProfileIMSServices", (*Database).applySetProfileIMSServices, RequireSchema(25))
+)
+
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.
 var (

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/google/uuid"
@@ -20,12 +21,14 @@ import (
 
 const PoliciesTableName = "policies"
 
+const policyPreemptionSchema = 25
+
 const (
 	listPoliciesPagedStmt          = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getPolicyStmt                  = "SELECT &Policy.* FROM %s WHERE name==$Policy.name"
 	getPolicyByLookupStmt          = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
-	createPolicyStmt               = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
-	editPolicyStmt                 = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
+	createPolicyStmt               = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.preemptionCapability, $Policy.preemptionVulnerability, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
+	editPolicyStmt                 = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, preemptionCapability=$Policy.preemptionCapability, preemptionVulnerability=$Policy.preemptionVulnerability, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
 	deletePolicyStmt               = "DELETE FROM %s WHERE name==$Policy.name"
 	countPoliciesStmt              = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	countPoliciesInProfileStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Policy.profileID"
@@ -44,19 +47,67 @@ const (
 	setDefaultPolicyStmt          = "UPDATE %s SET isDefault=true WHERE name==$Policy.name"
 )
 
+const policyColumnsPreV25 = "&Policy.id, &Policy.name, &Policy.profileID, &Policy.sliceID, &Policy.dataNetworkID, &Policy.var5qi, &Policy.arp, &Policy.sessionAmbrUplink, &Policy.sessionAmbrDownlink, &Policy.isDefault"
+
+const (
+	listPoliciesPagedPreV25Stmt          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getPolicyPreV25Stmt                  = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE name==$Policy.name"
+	getPolicyByLookupPreV25Stmt          = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
+	getPolicyByProfileAndSlicePreV25Stmt = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
+	listPoliciesByProfilePagedPreV25Stmt = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listPoliciesByProfileAllPreV25Stmt   = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID ORDER BY id ASC"
+	getDefaultPolicyByProfilePreV25Stmt  = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID AND isDefault==true LIMIT 1"
+	createPolicyPreV25Stmt               = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
+	editPolicyPreV25Stmt                 = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
+)
+
 type Policy struct {
-	ID                  string `db:"id"` // UUIDv7
-	Name                string `db:"name"`
-	ProfileID           string `db:"profileID"`
-	SliceID             string `db:"sliceID"`
-	DataNetworkID       string `db:"dataNetworkID"`
-	Var5qi              int32  `db:"var5qi"`
-	Arp                 int32  `db:"arp"`
-	SessionAmbrUplink   string `db:"sessionAmbrUplink"`
-	SessionAmbrDownlink string `db:"sessionAmbrDownlink"`
+	ID                      string                         `db:"id"` // UUIDv7
+	Name                    string                         `db:"name"`
+	ProfileID               string                         `db:"profileID"`
+	SliceID                 string                         `db:"sliceID"`
+	DataNetworkID           string                         `db:"dataNetworkID"`
+	Var5qi                  int32                          `db:"var5qi"`
+	Arp                     int32                          `db:"arp"`
+	PreemptionCapability    models.PreemptionCapability    `db:"preemptionCapability"`
+	PreemptionVulnerability models.PreemptionVulnerability `db:"preemptionVulnerability"`
+	SessionAmbrUplink       string                         `db:"sessionAmbrUplink"`
+	SessionAmbrDownlink     string                         `db:"sessionAmbrDownlink"`
 	// IsDefault marks this binding as the profile's default APN/DNN — used for the
 	// 4G default bearer and as the 5G fallback when no DNN is requested.
 	IsDefault bool `db:"isDefault"`
+}
+
+func (db *Database) createPolicyStmtFor(ctx context.Context) *sqlair.Statement {
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		return db.createPolicyPreV25Stmt
+	}
+
+	return db.createPolicyStmt
+}
+
+func (db *Database) editPolicyStmtFor(ctx context.Context) *sqlair.Statement {
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		return db.editPolicyPreV25Stmt
+	}
+
+	return db.editPolicyStmt
+}
+
+func defaultPoliciesPreemption(policies []Policy) {
+	for i := range policies {
+		policies[i].defaultPreemption()
+	}
+}
+
+func (p *Policy) defaultPreemption() {
+	if p.PreemptionCapability == "" {
+		p.PreemptionCapability = models.PreemptionCapabilityNotPreempt
+	}
+
+	if p.PreemptionVulnerability == "" {
+		p.PreemptionVulnerability = models.PreemptionVulnerabilityNotPreemptable
+	}
 }
 
 func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
@@ -91,7 +142,12 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn().Query(ctx, db.listPoliciesStmt, args).GetAll(&policies, &counts)
+	stmt := db.listPoliciesStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.listPoliciesPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, args).GetAll(&policies, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			fallbackCount, countErr := db.CountPolicies(ctx)
@@ -111,6 +167,8 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
+
+	defaultPoliciesPreemption(policies)
 
 	return policies, count, nil
 }
@@ -150,7 +208,12 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 
 	filter := Policy{ProfileID: profileID}
 
-	err := db.conn().Query(ctx, db.listPoliciesByProfileStmt, args, filter).GetAll(&policies, &counts)
+	stmt := db.listPoliciesByProfileStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.listPoliciesByProfilePreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, args, filter).GetAll(&policies, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, 0, nil
@@ -165,6 +228,8 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
+
+	defaultPoliciesPreemption(policies)
 
 	return policies, count, nil
 }
@@ -195,7 +260,12 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 
 	filter := Policy{ProfileID: profileID}
 
-	err := db.conn().Query(ctx, db.listPoliciesByProfileAllStmt, filter).GetAll(&policies)
+	stmt := db.listPoliciesByProfileAllStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.listPoliciesByProfileAllPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, filter).GetAll(&policies)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -205,6 +275,8 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
+
+	defaultPoliciesPreemption(policies)
 
 	return policies, nil
 }
@@ -232,7 +304,12 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 
 	row := Policy{Name: name}
 
-	err := db.conn().Query(ctx, db.getPolicyStmt, row).Get(&row)
+	stmt := db.getPolicyStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.getPolicyPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -242,6 +319,8 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
+
+	row.defaultPreemption()
 
 	return &row, nil
 }
@@ -273,7 +352,12 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 
 	row := Policy{ProfileID: profileID, SliceID: sliceID, DataNetworkID: dataNetworkID}
 
-	err := db.conn().Query(ctx, db.getPolicyByLookupStmt, row).Get(&row)
+	stmt := db.getPolicyByLookupStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.getPolicyByLookupPreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -283,6 +367,8 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
+
+	row.defaultPreemption()
 
 	return &row, nil
 }
@@ -315,7 +401,12 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 
 	row := Policy{ProfileID: profileID}
 
-	err := db.conn().Query(ctx, db.getDefaultPolicyByProfileStmt, row).Get(&row)
+	stmt := db.getDefaultPolicyByProfileStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.getDefaultPolicyByProfilePreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -325,6 +416,8 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
+
+	row.defaultPreemption()
 
 	return &row, nil
 }
@@ -387,7 +480,12 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 
 	row := Policy{ProfileID: profileID, SliceID: sliceID}
 
-	err := db.conn().Query(ctx, db.getPolicyByProfileAndSliceStmt, row).Get(&row)
+	stmt := db.getPolicyByProfileAndSliceStmt
+	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		stmt = db.getPolicyByProfileAndSlicePreV25Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -397,6 +495,8 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
+
+	row.defaultPreemption()
 
 	return &row, nil
 }

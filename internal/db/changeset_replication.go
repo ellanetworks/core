@@ -70,6 +70,11 @@ var replicatedChangesetTables = []string{
 	SMSWaitingCentresTableName,
 	PCSCFAddressesTableName,
 	IMSRegistrationsTableName,
+	IMSApplicationServersTableName,
+	IMSPublicServiceIdentitiesTableName,
+	IMSServicesTableName,
+	IMSInitialFilterCriteriaTableName,
+	ProfileIMSServicesTableName,
 	"schema_version",
 }
 
