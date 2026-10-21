@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/hss"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/ellanetworks/core/internal/milenage"
 	"github.com/ellanetworks/core/internal/sqn"
 	"github.com/ellanetworks/core/internal/udm"
@@ -50,6 +51,7 @@ type fakeIMSSubscriber struct {
 type fakeIMSStore struct {
 	subscribers    map[string]*fakeIMSSubscriber
 	filterCriteria map[string][]cx.InitialFilterCriteria
+	serviceIDs     map[string]string
 	registrations  map[string]hss.Registration
 	voiceDisabled  bool
 	fail           bool
@@ -149,6 +151,19 @@ func (f *fakeIMSStore) FilterCriteria(_ context.Context, imsi string) ([]cx.Init
 	}
 
 	return f.filterCriteria[imsi], nil
+}
+
+func (f *fakeIMSStore) ServiceIdentity(_ context.Context, identity string) (*hss.ServiceIdentity, error) {
+	if f.fail {
+		return nil, errStoreDown
+	}
+
+	m, ok := psi.NewMatcher(f.serviceIDs).Match(identity)
+	if !ok {
+		return nil, nil
+	}
+
+	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
 }
 
 func (f *fakeIMSStore) CountRegistered(context.Context) (int, error) {

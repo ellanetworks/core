@@ -13,6 +13,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/diameter/cx"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -331,7 +332,16 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 		return fmt.Errorf("query failed: %w", err)
 	}
 
+	imsDomain, err := db.imsDomain(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, identity := range identities {
+		if collidesWithSubscriberIdentity(identity, imsDomain) {
+			return fmt.Errorf("%w: %s has the form of a subscriber identity in %s", ErrPSIConflict, identity, imsDomain)
+		}
+
 		for _, other := range stored {
 			if other.ApplicationServerID == applicationServerID {
 				continue
@@ -365,6 +375,39 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 
 	return nil
 }
+
+func (db *Database) imsDomain(ctx context.Context) (string, error) {
+	var op Operator
+
+	if err := db.runner(ctx).Query(ctx, db.getOperatorStmt).Get(&op); err != nil {
+		return "", fmt.Errorf("get operator: %w", err)
+	}
+
+	domain, err := diameternode.IMSRealm(op.Mcc, op.Mnc)
+	if err != nil {
+		return "", nil
+	}
+
+	return domain, nil
+}
+
+func collidesWithSubscriberIdentity(identity, imsDomain string) bool {
+	if imsDomain == "" || psi.Host(identity) != imsDomain {
+		return false
+	}
+
+	if !psi.Wildcarded(identity) {
+		user := psi.User(identity)
+
+		return len(user) >= 6 && len(user) <= 15 && strings.Trim(user, "0123456789") == ""
+	}
+
+	_, ok := psi.NewMatcher(map[string]string{identity: ""}).Match("sip:" + sampleIMSI + "@" + imsDomain)
+
+	return ok
+}
+
+const sampleIMSI = "001010123456789"
 
 func (db *Database) msisdnIsPSI(ctx context.Context, msisdn string) (bool, error) {
 	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {

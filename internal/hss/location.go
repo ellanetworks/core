@@ -5,6 +5,7 @@ package hss
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
@@ -22,6 +23,22 @@ func (h *HSS) LocationInfo(ctx context.Context, id diameter.Identity, req *diame
 	}
 
 	sub, err := h.resolve(ctx, "", r.PublicIdentity)
+	if errors.Is(err, ErrSubscriberUnknown) && !r.Originating {
+		psi, psiErr := h.store.ServiceIdentity(ctx, r.PublicIdentity)
+		if psiErr != nil {
+			return h.errorAnswer(req, id, "location info", psiErr)
+		}
+
+		if psi != nil {
+			return h.locationInfoAnswer(req, id, cx.LocationInfo{
+				Result:                   tgpp.Result{Code: diameter.ResultSuccess},
+				ServerName:               psi.ServerName,
+				WildcardedPublicIdentity: psi.Wildcard,
+				PSIDirectRouting:         true,
+			})
+		}
+	}
+
 	if err != nil {
 		return h.errorAnswer(req, id, "location info", err)
 	}

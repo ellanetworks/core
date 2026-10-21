@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/hss"
 )
 
 func TestProfileFilterCriteriaFollowTheServiceOrder(t *testing.T) {
@@ -126,5 +127,43 @@ func TestIMSProfileNotifierCoalescesPushes(t *testing.T) {
 
 	if !slices.Equal(pusher.pushed, []string{"001010000000002", "001010000000001", "001010000000002"}) {
 		t.Fatalf("pushed %v, want a later change pushed again", pusher.pushed)
+	}
+}
+
+func TestServiceIdentityLookup(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("NewDatabaseWithoutRaft: %s", err)
+	}
+
+	t.Cleanup(func() { _ = database.Close() })
+
+	for _, as := range []*db.IMSApplicationServer{
+		{Name: "mcptt", ServerName: "sip:MCPTT.example.org", PublicServiceIdentities: []string{"sip:!.*!@mcptt.example.org"}},
+		{Name: "conf", ServerName: "sip:conf.example.org", PublicServiceIdentities: []string{"sip:factory@mcptt.example.org", "tel:+1-555-0199"}},
+	} {
+		if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+			t.Fatalf("create application server %s: %s", as.Name, err)
+		}
+	}
+
+	adapter := &hssDBAdapter{db: database}
+
+	for identity, want := range map[string]*hss.ServiceIdentity{
+		"sip:group-1@mcptt.example.org": {ServerName: "sip:mcptt.example.org", Wildcard: "sip:!.*!@mcptt.example.org"},
+		"sip:factory@MCPTT.example.org": {ServerName: "sip:conf.example.org"},
+		"tel:+15550199":                 {ServerName: "sip:conf.example.org"},
+		"sip:group-1@example.org":       nil,
+	} {
+		got, err := adapter.ServiceIdentity(ctx, identity)
+		if err != nil {
+			t.Fatalf("ServiceIdentity(%s): %s", identity, err)
+		}
+
+		if (got == nil) != (want == nil) || (got != nil && *got != *want) {
+			t.Fatalf("ServiceIdentity(%s) = %+v, want %+v", identity, got, want)
+		}
 	}
 }

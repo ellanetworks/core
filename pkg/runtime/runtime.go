@@ -38,6 +38,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/hss"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/lmf"
@@ -1006,6 +1007,28 @@ func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string) ([]cx.In
 	}
 
 	return profileFilterCriteria(ctx, a.db, sub.ProfileID)
+}
+
+func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*hss.ServiceIdentity, error) {
+	servers, err := a.db.ListIMSApplicationServers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list IMS application servers: %w", err)
+	}
+
+	identities := make(map[string]string)
+
+	for _, as := range servers {
+		for _, p := range as.PublicServiceIdentities {
+			identities[p] = as.ServerName
+		}
+	}
+
+	m, ok := psi.NewMatcher(identities).Match(identity)
+	if !ok {
+		return nil, nil
+	}
+
+	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
 }
 
 func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {

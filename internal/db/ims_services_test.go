@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -533,5 +534,40 @@ func TestIMSProfilePushTargets(t *testing.T) {
 	imsis, err := database.IMSRegisteredSubscribersOfProfiles(ctx, []string{profile.ID})
 	if err != nil || !reflect.DeepEqual(imsis, []string{"001010000000001", "001010000000002"}) {
 		t.Fatalf("IMS registered subscribers = %v, %v; want the registered and the unregistered one", imsis, err)
+	}
+}
+
+func TestIMSPublicServiceIdentitiesCannotTakeSubscriberIdentities(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	op, err := database.GetOperator(ctx)
+	if err != nil {
+		t.Fatalf("get operator: %v", err)
+	}
+
+	mnc := op.Mnc
+	if len(mnc) == 2 {
+		mnc = "0" + mnc
+	}
+
+	domain := "ims.mnc" + mnc + ".mcc" + op.Mcc + ".3gppnetwork.org"
+
+	for _, identity := range []string{"sip:001010000000001@" + domain, "sip:!.*!@" + domain, "sip:![0-9]+!@" + strings.ToUpper(domain)} {
+		err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{identity}})
+		if !errors.Is(err, db.ErrPSIConflict) {
+			t.Errorf("create with PSI %s: err = %v, want ErrPSIConflict", identity, err)
+		}
+	}
+
+	for _, identity := range []string{"sip:conference@" + domain, "sip:conf-!.*!@" + domain, "sip:!.*!@mcptt." + domain} {
+		as := &db.IMSApplicationServer{Name: "ok", ServerName: "sip:ok.example.org", PublicServiceIdentities: []string{identity}}
+		if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+			t.Errorf("create with PSI %s: %v", identity, err)
+		}
+
+		if err := database.DeleteIMSApplicationServer(ctx, "ok"); err != nil {
+			t.Fatalf("delete: %v", err)
+		}
 	}
 }

@@ -14,10 +14,11 @@ func TestCanonical(t *testing.T) {
 	for in, want := range map[string]string{
 		"sip:svc@Example.COM":                   "sip:svc@example.com",
 		"SIP:Svc@example.com":                   "sip:Svc@example.com",
-		"sips:example.com;transport=TCP":        "sips:example.com;transport=TCP",
-		"sip:conf@Example.com:5060;lr":          "sip:conf@example.com:5060;lr",
+		"sips:example.com;transport=TCP":        "sips:example.com",
+		"sip:conf@Example.com:5060;lr":          "sip:conf@example.com:5060",
 		"tel:+1-555-0100":                       "tel:+15550100",
-		"tel:7042;phone-context=Example.com":    "tel:7042;phone-context=Example.com",
+		"tel:7042;phone-context=Example.com":    "tel:7042;phone-context=example.com",
+		"tel:+15550100;ext=12":                  "tel:+15550100",
 		"sip:!.*!@MCPTT.ims.example.org":        "sip:!.*!@mcptt.ims.example.org",
 		"sip:chatroom-!.*!@Example.com":         "sip:chatroom-!.*!@example.com",
 		"sip:!a@b!@example.com":                 "sip:!a@b!@example.com",
@@ -81,4 +82,72 @@ func TestOverlap(t *testing.T) {
 			t.Errorf("Overlap(%q, %q) = %t, want %t", tc.a, tc.b, got, tc.want)
 		}
 	}
+}
+
+func TestLiteralTreatsExclamationMarksAsCharacters(t *testing.T) {
+	for in, want := range map[string]string{
+		"sip:chatlist!1@Example.com":       "sip:chatlist!1@example.com",
+		"sip:chatlist1@example.com;user=x": "sip:chatlist1@example.com",
+		"tel:+1-555-0100;isub=1":           "tel:+15550100",
+	} {
+		got, err := psi.Literal(in)
+		if err != nil || got != want {
+			t.Errorf("Literal(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+}
+
+func TestMatcher(t *testing.T) {
+	m := psi.NewMatcher(map[string]string{
+		"sip:chatlist!.*!@example.com":  "chat",
+		"sip:chatlist1@example.com":     "distinct",
+		"sip:!.*!@mcptt.example.org":    "mcptt",
+		"tel:+1555!.*!":                 "numbers",
+		"tel:+15550100":                 "operator",
+		"sip:!([!@broken.example.org":   "broken",
+		"sip:conf-!(a|b)[0-9]+!@ex.org": "conf",
+	})
+
+	for identity, want := range map[string]psi.Match{
+		"sip:chatlist1@example.com":            {Owner: "distinct"},
+		"sip:chatlist2@example.com":            {Owner: "chat", Wildcard: "sip:chatlist!.*!@example.com"},
+		"sip:chatlist42@Example.COM":           {Owner: "chat", Wildcard: "sip:chatlist!.*!@example.com"},
+		"sip:chatlistAbC@example.com":          {Owner: "chat", Wildcard: "sip:chatlist!.*!@example.com"},
+		"sip:chatlist!1@example.com":           {Owner: "chat", Wildcard: "sip:chatlist!.*!@example.com"},
+		"sip:group-7@mcptt.example.org;user=x": {Owner: "mcptt", Wildcard: "sip:!.*!@mcptt.example.org"},
+		"tel:+1-555-0100":                      {Owner: "operator"},
+		"tel:+15559999":                        {Owner: "numbers", Wildcard: "tel:+1555!.*!"},
+		"sip:conf-a12@ex.org":                  {Owner: "conf", Wildcard: "sip:conf-!(a|b)[0-9]+!@ex.org"},
+	} {
+		got, ok := m.Match(identity)
+		if !ok || got != want {
+			t.Errorf("Match(%q) = %+v, %t; want %+v", identity, got, ok, want)
+		}
+	}
+
+	for _, identity := range []string{"sip:chatlist1@example.org", "sip:mcptt.example.org", "tel:+1666", "sip:conf-c12@ex.org", "sip:xconf-a1@ex.org", "not a uri"} {
+		if got, ok := m.Match(identity); ok {
+			t.Errorf("Match(%q) = %+v, want no match", identity, got)
+		}
+	}
+}
+
+func FuzzWildcard(f *testing.F) {
+	for _, seed := range []string{"sip:chatlist!.*!@example.com", "sip:!([!@example.com", "tel:+1555!.*!", "sip:!a!b!@x.org", "sip:!!@x.org"} {
+		f.Add(seed, "sip:chatlist1@example.com")
+	}
+
+	f.Fuzz(func(t *testing.T, stored, identity string) {
+		canonical, err := psi.Canonical(stored)
+		if err != nil {
+			return
+		}
+
+		again, err := psi.Canonical(canonical)
+		if err != nil || again != canonical {
+			t.Fatalf("Canonical(%q) = %q is not stable: %q, %v", stored, canonical, again, err)
+		}
+
+		psi.NewMatcher(map[string]string{canonical: "owner"}).Match(identity)
+	})
 }
