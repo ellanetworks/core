@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	supportedRxFeatures = rx.FeatureRel8
+	supportedRxFeatures = rx.FeatureRel8 | rx.FeatureMCPTT
 	rxRedirectCacheTime = 24 * time.Hour
 )
 
@@ -40,6 +40,7 @@ type rxSession struct {
 	realm      string
 	aborted    bool
 	actions    []rx.SpecificAction
+	service    serviceContext
 	components map[uint32]rx.MediaComponent
 	rules      map[flowKey]smf.PCCRule
 }
@@ -215,9 +216,14 @@ func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
 		merged = append(merged, overlayComponent(s.components[c.Number], c))
 	}
 
-	if _, err := mediaRules(s.id, merged); err != nil {
+	svc := s.service.updated(r)
+
+	if _, err := mediaRules(s.id, svc, merged); err != nil {
 		return err
 	}
+
+	serviceChanged := svc != s.service
+	s.service = svc
 
 	for _, c := range merged {
 		s.components[c.Number] = c
@@ -228,7 +234,7 @@ func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
 	}
 
 	for n, c := range s.components {
-		if !slices.ContainsFunc(merged, func(m rx.MediaComponent) bool { return m.Number == n }) && !s.hasRulesFor(n) {
+		if !slices.ContainsFunc(merged, func(m rx.MediaComponent) bool { return m.Number == n }) && (!s.hasRulesFor(n) || serviceChanged) {
 			merged = append(merged, c)
 		}
 	}
@@ -239,7 +245,7 @@ func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
 
 	p.log.Debug("Rx media components", zap.String("session", s.id), zap.Strings("components", describeComponents(merged)))
 
-	rules, err := mediaRules(s.id, merged)
+	rules, err := mediaRules(s.id, svc, merged)
 	if err != nil {
 		return err
 	}

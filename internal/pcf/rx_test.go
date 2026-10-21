@@ -151,6 +151,7 @@ func TestAA(t *testing.T) {
 		{name: "no UE address", req: rx.AARequest{}, want: tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)},
 		{name: "update of an unknown session", req: rx.AARequest{RequestType: &update}, want: tgpp.Result{Code: diameter.ResultUnknownSessionID}},
 		{name: "P-CSCF restoration", req: rx.AARequest{FramedIPAddress: testUEv4, RequestType: &restoration, NoStateMaintained: true}, want: tgpp.Result{Code: diameter.ResultUnableToComply}},
+		{name: "MCPTT feature", req: rx.AARequest{FramedIPAddress: testUEv4, Features: rx.FeatureRel8 | rx.FeatureMCPTT | rx.FeatureNetLoc}, want: success},
 		{name: "required unsupported feature", req: rx.AARequest{FramedIPAddress: testUEv4, Features: rx.FeatureRel8 | rx.FeatureNetLoc, FeaturesRequired: true}, want: tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported)},
 	}
 
@@ -170,8 +171,8 @@ func TestAA(t *testing.T) {
 				t.Fatalf("parse AAA: %v", err)
 			}
 
-			if a.Features != tc.req.Features&rx.FeatureRel8 {
-				t.Fatalf("AAA features = %v, want %v", a.Features, tc.req.Features&rx.FeatureRel8)
+			if want := tc.req.Features & (rx.FeatureRel8 | rx.FeatureMCPTT); a.Features != want {
+				t.Fatalf("AAA features = %v, want %v", a.Features, want)
 			}
 
 			requireResult(t, str(t, p, "af;1"), success)
