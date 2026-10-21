@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
@@ -598,13 +599,16 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't wait for initial settings: %w", err)
 	}
 
+	imsProfiles := newIMSProfileNotifier(dbInstance, hssInstance)
+	go imsProfiles.run(ctx)
+
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
 		DB:                  dbInstance,
 		Sessions:            smfInstance,
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
 		HSS:                 hssInstance,
-		IMSProfiles:         &imsProfileNotifier{db: dbInstance, hss: hssInstance},
+		IMSProfiles:         imsProfiles,
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
@@ -991,6 +995,19 @@ func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*
 	return a.hssSubscriber(ctx, sub, err)
 }
 
+func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+	sub, err := a.db.GetSubscriber(ctx, imsi)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+		}
+
+		return nil, err
+	}
+
+	return profileFilterCriteria(ctx, a.db, sub.ProfileID)
+}
+
 func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -1005,13 +1022,7 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		return nil, err
 	}
 
-	ifcs, err := profileFilterCriteria(ctx, a.db, sub.ProfileID)
-	if err != nil {
-		return nil, err
-	}
-
 	return &hss.Subscriber{
-		FilterCriteria: ifcs,
 		IMSI:           sub.Imsi,
 		MSISDN:         sub.Msisdn,
 		IMSDataNetwork: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }),

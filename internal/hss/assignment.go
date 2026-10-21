@@ -80,7 +80,12 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 	a := cx.ServerAssignment{Result: outcome.result, PrivateIdentity: sub.privateIdentity()}
 
 	if outcome.userData && !r.UserDataAlreadyAvailable {
-		if a.UserData, err = sub.userData(); err != nil {
+		ifcs, err := h.store.FilterCriteria(ctx, sub.IMSI)
+		if err != nil {
+			return h.errorAnswer(req, id, "server assignment", err)
+		}
+
+		if a.UserData, err = sub.userData(ifcs); err != nil {
 			return h.errorAnswer(req, id, "server assignment", err)
 		}
 	}

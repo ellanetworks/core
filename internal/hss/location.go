@@ -35,7 +35,16 @@ func (h *HSS) LocationInfo(ctx context.Context, id diameter.Identity, req *diame
 		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Result{Code: diameter.ResultSuccess}, ServerName: reg.ServerName})
 	}
 
-	if r.Originating || sub.hasUnregisteredTerminatingServices() {
+	if r.Originating {
+		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Experimental(tgpp.ResultUnregisteredService)})
+	}
+
+	ifcs, err := h.store.FilterCriteria(ctx, sub.IMSI)
+	if err != nil {
+		return h.errorAnswer(req, id, "location info", err)
+	}
+
+	if hasUnregisteredTerminatingServices(ifcs) {
 		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Experimental(tgpp.ResultUnregisteredService)})
 	}
 

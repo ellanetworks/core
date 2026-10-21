@@ -5388,7 +5388,7 @@ components:
 
     IMSInitialFilterCriterion:
       type: object
-      required: [priority, trigger_point, default_handling, include_register_request, include_register_response]
+      required: [trigger_point, default_handling]
       properties:
         priority:
           type: integer

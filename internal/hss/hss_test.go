@@ -48,13 +48,14 @@ type fakeIMSSubscriber struct {
 }
 
 type fakeIMSStore struct {
-	subscribers   map[string]*fakeIMSSubscriber
-	registrations map[string]hss.Registration
-	voiceDisabled bool
-	fail          bool
-	unavailable   bool
-	contended     bool
-	block         chan struct{}
+	subscribers    map[string]*fakeIMSSubscriber
+	filterCriteria map[string][]cx.InitialFilterCriteria
+	registrations  map[string]hss.Registration
+	voiceDisabled  bool
+	fail           bool
+	unavailable    bool
+	contended      bool
+	block          chan struct{}
 }
 
 func newFakeIMSStore() *fakeIMSStore {
@@ -140,6 +141,14 @@ func (f *fakeIMSStore) Subscriber(_ context.Context, imsi string) (*hss.Subscrib
 	sub := s.Subscriber
 
 	return &sub, nil
+}
+
+func (f *fakeIMSStore) FilterCriteria(_ context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+	if f.fail {
+		return nil, errStoreDown
+	}
+
+	return f.filterCriteria[imsi], nil
 }
 
 func (f *fakeIMSStore) CountRegistered(context.Context) (int, error) {

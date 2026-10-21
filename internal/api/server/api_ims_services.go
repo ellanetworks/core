@@ -226,6 +226,11 @@ func CreateIMSApplicationServer(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if params.Name != "" && !isResourceNameValid(params.Name) {
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid name format - must be less than 256 characters", nil, logger.APILog)
+			return
+		}
+
 		as := db.IMSApplicationServer{Name: params.Name, ServerName: params.ServerName, PublicServiceIdentities: params.PublicServiceIdentities}
 
 		if err := as.Validate(); err != nil {
@@ -382,6 +387,11 @@ func CreateIMSService(dbInstance *db.Database) http.Handler {
 		var params CreateIMSServiceParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		if params.Name != "" && !isResourceNameValid(params.Name) {
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid name format - must be less than 256 characters", nil, logger.APILog)
 			return
 		}
 
@@ -544,7 +554,13 @@ func UpdateProfileIMSServices(dbInstance *db.Database, notifier IMSProfileNotifi
 
 		if err := dbInstance.SetProfileIMSServices(r.Context(), profile.ID, ids); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusNotFound, "Profile or IMS service not found", nil, logger.APILog)
+				if _, profileErr := dbInstance.GetProfile(r.Context(), profile.Name); profileErr == nil {
+					writeError(r.Context(), w, http.StatusBadRequest, "IMS service not found", nil, logger.APILog)
+					return
+				}
+
+				writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+
 				return
 			}
 

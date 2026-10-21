@@ -38,7 +38,7 @@ func mcpttFilterCriteria() []cx.InitialFilterCriteria {
 
 func TestServerAssignmentCarriesTheProfileFilterCriteria(t *testing.T) {
 	store := newFakeIMSStore()
-	store.subscribers[testIMSI].FilterCriteria = mcpttFilterCriteria()
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttFilterCriteria()}
 
 	ans := serverAssignment(t, store, cx.ServerAssignmentRequest{
 		PrivateIdentity: impiOf(testIMSI), PublicIdentities: []string{"tel:+" + testMSISDN}, ServerName: testSCSCF, Type: cx.AssignmentUnregisteredUser,
@@ -77,22 +77,60 @@ func TestServerAssignmentCarriesTheProfileFilterCriteria(t *testing.T) {
 }
 
 func TestLocationInfoForUnregisteredTerminatingServices(t *testing.T) {
-	terminating := cx.SessionCaseTerminatingUnregistered
+	sessionCase := func(c cx.SessionCase) *cx.SessionCase { return &c }
+	method := func(m string) *string { return &m }
+
+	notRegistered := tgpp.Experimental(tgpp.ResultErrorIdentityNotRegistered)
+	unregisteredService := tgpp.Experimental(tgpp.ResultUnregisteredService)
 
 	for _, tc := range []struct {
-		name    string
-		negated bool
-		want    tgpp.Result
+		name string
+		ifcs []cx.InitialFilterCriteria
+		want tgpp.Result
 	}{
-		{name: "terminating unregistered iFC", want: tgpp.Experimental(tgpp.ResultUnregisteredService)},
-		{name: "negated terminating unregistered iFC", negated: true, want: tgpp.Experimental(tgpp.ResultErrorIdentityNotRegistered)},
+		{name: "no iFCs", want: notRegistered},
+		{name: "MCPTT iFCs", ifcs: mcpttFilterCriteria(), want: notRegistered},
+		{name: "unconditional iFC", ifcs: []cx.InitialFilterCriteria{{}}, want: unregisteredService},
+		{
+			name: "terminating unregistered session case",
+			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Groups: []int32{0}, SessionCase: sessionCase(cx.SessionCaseTerminatingUnregistered)}}}}},
+			want: unregisteredService,
+		},
+		{
+			name: "negated terminating unregistered session case",
+			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Negated: true, Groups: []int32{0}, SessionCase: sessionCase(cx.SessionCaseTerminatingUnregistered)}}}}},
+			want: notRegistered,
+		},
+		{
+			name: "negated originating registered session case",
+			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Negated: true, Groups: []int32{0}, SessionCase: sessionCase(cx.SessionCaseOriginatingRegistered)}}}}},
+			want: unregisteredService,
+		},
+		{
+			name: "INVITE without a session case",
+			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Groups: []int32{0}, Method: method("INVITE")}}}}},
+			want: unregisteredService,
+		},
+		{
+			name: "terminating registered AND INVITE",
+			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ConjunctiveNormalForm: true, ServicePointTriggers: []cx.ServicePointTrigger{
+				{Groups: []int32{0}, SessionCase: sessionCase(cx.SessionCaseTerminatingRegistered)},
+				{Groups: []int32{1}, Method: method("INVITE")},
+			}}}},
+			want: notRegistered,
+		},
+		{
+			name: "terminating registered OR INVITE",
+			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{
+				{Groups: []int32{0}, SessionCase: sessionCase(cx.SessionCaseTerminatingRegistered)},
+				{Groups: []int32{1}, Method: method("INVITE")},
+			}}}},
+			want: unregisteredService,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
-			store.subscribers[testIMSI].FilterCriteria = []cx.InitialFilterCriteria{{
-				Trigger:           &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Negated: tc.negated, Groups: []int32{0}, SessionCase: &terminating}}},
-				ApplicationServer: cx.ApplicationServer{ServerName: "sip:voicemail.example.org"},
-			}}
+			store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: tc.ifcs}
 
 			requireResult(t, locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN}), tc.want)
 		})

@@ -79,3 +79,47 @@ func TestProfileFilterCriteriaFollowTheServiceOrder(t *testing.T) {
 		t.Fatalf("iFCs of a profile without services = %v, %v", none, err)
 	}
 }
+
+type recordingPusher struct {
+	pushed []string
+}
+
+func (r *recordingPusher) PushProfile(_ context.Context, imsi string) error {
+	r.pushed = append(r.pushed, imsi)
+	return nil
+}
+
+func TestIMSProfileNotifierCoalescesPushes(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("NewDatabaseWithoutRaft: %s", err)
+	}
+
+	t.Cleanup(func() { _ = database.Close() })
+
+	pusher := &recordingPusher{}
+	n := newIMSProfileNotifier(database, pusher)
+
+	n.SubscriberChanged(ctx, "001010000000002")
+	n.SubscriberChanged(ctx, "001010000000001")
+	n.SubscriberChanged(ctx, "001010000000002")
+	n.ProfileChanged(ctx, "no-such-profile")
+
+	for n.step(ctx) {
+	}
+
+	if !slices.Equal(pusher.pushed, []string{"001010000000002", "001010000000001"}) {
+		t.Fatalf("pushed %v, want each subscriber once, in order", pusher.pushed)
+	}
+
+	n.SubscriberChanged(ctx, "001010000000002")
+
+	for n.step(ctx) {
+	}
+
+	if !slices.Equal(pusher.pushed, []string{"001010000000002", "001010000000001", "001010000000002"}) {
+		t.Fatalf("pushed %v, want a later change pushed again", pusher.pushed)
+	}
+}

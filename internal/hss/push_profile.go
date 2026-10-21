@@ -41,7 +41,12 @@ func (h *HSS) PushProfile(ctx context.Context, imsi string) error {
 
 	s := subject{Subscriber: *sub, domain: strings.ToLower(domain)}
 
-	userData, err := s.userData()
+	ifcs, err := h.store.FilterCriteria(ctx, imsi)
+	if err != nil {
+		return err
+	}
+
+	userData, err := s.userData(ifcs)
 	if err != nil {
 		return err
 	}

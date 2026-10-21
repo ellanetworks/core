@@ -676,3 +676,19 @@ func TestIMSServicesPermissions(t *testing.T) {
 		t.Fatalf("network manager set profile services: status %d, err %v", status, err)
 	}
 }
+
+func TestIMSNamesAreBounded(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+	url := env.Server.URL
+	long := strings.Repeat("a", 256)
+
+	status, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/operator/ims/application-servers", token, map[string]any{"name": long, "server_name": "sip:as.example.org"})
+	if err != nil || status != http.StatusBadRequest {
+		t.Fatalf("create an application server with a 256-character name: status %d, err %v", status, err)
+	}
+
+	status, _, err = apiDo[map[string]any](client, "POST", url+"/api/v1/operator/ims/services", token, map[string]any{"name": long, "kind": "mcptt", "application_server_name": "as"})
+	if err != nil || status != http.StatusBadRequest {
+		t.Fatalf("create a service with a 256-character name: status %d, err %v", status, err)
+	}
+}

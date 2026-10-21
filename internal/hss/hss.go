@@ -28,7 +28,6 @@ type Subscriber struct {
 	MSISDN         string
 	IMSDataNetwork bool
 	IMSVoice       bool
-	FilterCriteria []cx.InitialFilterCriteria
 }
 
 type Store interface {
@@ -37,6 +36,7 @@ type Store interface {
 	IMSVoiceEnabled(ctx context.Context) (bool, error)
 	Subscriber(ctx context.Context, imsi string) (*Subscriber, error)
 	SubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error)
+	FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error)
 	CountRegistered(ctx context.Context) (int, error)
 }
 
