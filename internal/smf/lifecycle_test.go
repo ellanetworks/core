@@ -2306,3 +2306,32 @@ func TestSendPFCPRules_EstablishesOnceThenModifies(t *testing.T) {
 		t.Fatalf("a modification was sent for a session the UPF never accepted: %d calls", modifies)
 	}
 }
+
+func TestReconcileSession_IMSChangeReleasesTheSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	ims := true
+
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		IMS:                 &ims,
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSession failed: %v", err)
+	}
+
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if releaseCalls != 1 {
+		t.Fatalf("expected 1 release signaling call after the IMS attribute changed, got %d", releaseCalls)
+	}
+}

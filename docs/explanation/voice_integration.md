@@ -68,9 +68,11 @@ During registration (5G) or attach and tracking area update (4G), Ella Core tell
 Ella Core indicates IMS voice support when all of the following hold:
 
 - At least one P-CSCF address is configured.
-- An IMS data network exists, with an IP pool of the same version as one of the P-CSCF addresses.
-- The subscriber's profile has a policy on an IMS data network.
+- The data network named `ims`, the IMS well-known APN that phones use for voice (GSMA IR.92), exists and is marked as IMS, with an IP pool of the same version as one of the P-CSCF addresses.
+- The subscriber's profile has a policy on the `ims` data network.
 - The subscriber has an MSISDN.
+
+A policy on another IMS data network, such as one for mission critical services, lets the subscriber register with the IMS but does not offer voice over PS.
 
 On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
 

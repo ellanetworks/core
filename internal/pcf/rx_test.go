@@ -248,3 +248,23 @@ func TestReplacedAssociationAbortsItsRxSessionsAndRebinds(t *testing.T) {
 	requireResult(t, aa(t, p, "af;2", signallingAAR(testUEv4)), tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable))
 	requireResult(t, aa(t, p, "af;3", signallingAAR(moved)), success)
 }
+
+func TestAAChecksTheCalledStationID(t *testing.T) {
+	for _, tc := range []struct {
+		apn  string
+		want tgpp.Result
+	}{
+		{"", success},
+		{"ims", success},
+		{"IMS", success},
+		{"ims.mnc001.mcc001.gprs", success},
+		{"internet", tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)},
+		{"imsx", tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)},
+	} {
+		p := newPCF(t)
+		r := signallingAAR(testUEv4)
+		r.CalledStationID = tc.apn
+
+		requireResult(t, aa(t, p, "af;1", r), tc.want)
+	}
+}

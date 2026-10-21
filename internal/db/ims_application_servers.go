@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/diameter/cx"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -33,9 +35,12 @@ const (
 	deleteIMSApplicationServerStmt = "DELETE FROM %s WHERE name==$imsApplicationServerRow.name"
 	listIMSPSIsStmt                = "SELECT &imsPSIRow.* FROM %s ORDER BY identity"
 	listIMSPSIsByASStmt            = "SELECT &imsPSIRow.* FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID ORDER BY identity"
+	getIMSPSIStmt                  = "SELECT &imsPSIRow.* FROM %s WHERE identity==$imsPSIRow.identity"
 	insertIMSPSIStmt               = "INSERT INTO %s (identity, applicationServerID) VALUES ($imsPSIRow.identity, $imsPSIRow.applicationServerID)"
 	deleteIMSPSIsByASStmt          = "DELETE FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID"
 )
+
+var ErrPSIConflict = errors.New("public service identity conflict")
 
 type IMSApplicationServer struct {
 	ID                      string   `json:"id"`
@@ -56,35 +61,47 @@ type imsPSIRow struct {
 }
 
 func (as IMSApplicationServer) Validate() error {
-	if as.Name == "" {
-		return errors.New("application server name is required")
-	}
+	_, err := as.canonical()
 
-	if !hasURIScheme(as.ServerName, "sip:", "sips:") {
-		return fmt.Errorf("application server name must be a SIP URI, got %q", as.ServerName)
-	}
-
-	for i, psi := range as.PublicServiceIdentities {
-		if !hasURIScheme(psi, "sip:", "sips:", "tel:") {
-			return fmt.Errorf("public service identity must be a SIP or tel URI, got %q", psi)
-		}
-
-		if slices.Contains(as.PublicServiceIdentities[:i], psi) {
-			return fmt.Errorf("public service identity %s is listed twice", psi)
-		}
-	}
-
-	return nil
+	return err
 }
 
-func hasURIScheme(uri string, schemes ...string) bool {
-	for _, scheme := range schemes {
-		if len(uri) > len(scheme) && strings.EqualFold(uri[:len(scheme)], scheme) {
-			return true
-		}
+func (as IMSApplicationServer) canonical() (IMSApplicationServer, error) {
+	if as.Name == "" {
+		return as, errors.New("application server name is required")
 	}
 
-	return false
+	serverName, err := psi.CanonicalServerName(as.ServerName)
+	if err != nil {
+		return as, fmt.Errorf("application server name: %w", err)
+	}
+
+	if err := cx.ValidateURI("application server name", serverName); err != nil {
+		return as, err
+	}
+
+	identities := make([]string, 0, len(as.PublicServiceIdentities))
+
+	for _, identity := range as.PublicServiceIdentities {
+		canonical, err := psi.Canonical(identity)
+		if err != nil {
+			return as, fmt.Errorf("public service identity: %w", err)
+		}
+
+		if err := cx.ValidateURI("public service identity", canonical); err != nil {
+			return as, err
+		}
+
+		if slices.Contains(identities, canonical) {
+			return as, fmt.Errorf("public service identity %s is listed twice", canonical)
+		}
+
+		identities = append(identities, canonical)
+	}
+
+	as.ServerName, as.PublicServiceIdentities = serverName, identities
+
+	return as, nil
 }
 
 func (db *Database) ListIMSApplicationServers(ctx context.Context) ([]IMSApplicationServer, error) {
@@ -197,9 +214,12 @@ func (db *Database) UpdateIMSApplicationServer(ctx context.Context, as *IMSAppli
 }
 
 func (db *Database) writeIMSApplicationServer(ctx context.Context, operation string, op *ChangesetOp[IMSApplicationServer, struct{}], as *IMSApplicationServer) error {
-	if err := as.Validate(); err != nil {
+	canonical, err := as.canonical()
+	if err != nil {
 		return err
 	}
+
+	*as = canonical
 
 	ctx, span := startIMSApplicationServersSpan(ctx, operation)
 	defer span.End()
@@ -235,6 +255,10 @@ func (db *Database) DeleteIMSApplicationServer(ctx context.Context, name string)
 }
 
 func (db *Database) applyCreateIMSApplicationServer(ctx context.Context, as *IMSApplicationServer) (any, error) {
+	if err := db.checkPSIsAvailable(ctx, as.ID, as.PublicServiceIdentities); err != nil {
+		return nil, err
+	}
+
 	row := imsApplicationServerRow{ID: as.ID, Name: as.Name, ServerName: as.ServerName}
 
 	if err := db.runner(ctx).Query(ctx, db.insertIMSApplicationServerStmt, row).Run(); err != nil {
@@ -251,6 +275,10 @@ func (db *Database) applyCreateIMSApplicationServer(ctx context.Context, as *IMS
 func (db *Database) applyUpdateIMSApplicationServer(ctx context.Context, as *IMSApplicationServer) (any, error) {
 	existing, err := db.getIMSApplicationServer(ctx, db.runner(ctx), as.Name)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := db.checkPSIsAvailable(ctx, existing.ID, as.PublicServiceIdentities); err != nil {
 		return nil, err
 	}
 
@@ -271,11 +299,72 @@ func (db *Database) applyUpdateIMSApplicationServer(ctx context.Context, as *IMS
 	return nil, db.insertIMSPSIs(ctx, existing.ID, as.PublicServiceIdentities)
 }
 
+func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID string, identities []string) error {
+	var stored []imsPSIRow
+
+	if err := db.runner(ctx).Query(ctx, db.listIMSPSIsStmt).GetAll(&stored); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	for _, identity := range identities {
+		for _, other := range stored {
+			if other.ApplicationServerID == applicationServerID {
+				continue
+			}
+
+			if other.Identity == identity {
+				return fmt.Errorf("%w: %s is hosted by another application server", ErrPSIConflict, identity)
+			}
+
+			if psi.Overlap(identity, other.Identity) {
+				return fmt.Errorf("%w: %s overlaps %s on another application server", ErrPSIConflict, identity, other.Identity)
+			}
+		}
+
+		msisdn, ok := strings.CutPrefix(identity, "tel:+")
+		if !ok || psi.Wildcarded(identity) || strings.ContainsRune(msisdn, ';') {
+			continue
+		}
+
+		holder := Subscriber{Msisdn: msisdn}
+
+		err := db.runner(ctx).Query(ctx, db.getSubscriberByMSISDNStmt, holder).Get(&holder)
+		if err == nil {
+			return fmt.Errorf("%w: %s is the public user identity of subscriber %s", ErrPSIConflict, identity, holder.Imsi)
+		}
+
+		if !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("query failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (db *Database) msisdnIsPSI(ctx context.Context, msisdn string) (bool, error) {
+	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+		return false, nil
+	}
+
+	row := imsPSIRow{Identity: "tel:+" + msisdn}
+
+	err := db.runner(ctx).Query(ctx, db.getIMSPSIStmt, row).Get(&row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("query failed: %w", err)
+	}
+
+	return true, nil
+}
+
 func (db *Database) insertIMSPSIs(ctx context.Context, applicationServerID string, psis []string) error {
-	for _, psi := range psis {
-		if err := db.runner(ctx).Query(ctx, db.insertIMSPSIStmt, imsPSIRow{Identity: psi, ApplicationServerID: applicationServerID}).Run(); err != nil {
+	for _, identity := range psis {
+		if err := db.runner(ctx).Query(ctx, db.insertIMSPSIStmt, imsPSIRow{Identity: identity, ApplicationServerID: applicationServerID}).Run(); err != nil {
 			if isPrimaryKeyError(err) {
-				return fmt.Errorf("public service identity %s: %w", psi, ErrAlreadyExists)
+				return fmt.Errorf("%w: %s is hosted by another application server", ErrPSIConflict, identity)
 			}
 
 			return fmt.Errorf("query failed: %w", err)

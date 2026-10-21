@@ -93,7 +93,7 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 		ue = r.FramedIPv6Address
 	}
 
-	if !p.bindRx(s, ue) {
+	if !p.bindRx(s, ue, r.CalledStationID) {
 		return p.notHosted(ctx, req, id, ue, features)
 	}
 
@@ -164,10 +164,10 @@ func (p *PCF) SessionTermination(ctx context.Context, id diameter.Identity, req 
 	return ans
 }
 
-func (p *PCF) bindRx(s *rxSession, ue netip.Addr) bool {
+func (p *PCF) bindRx(s *rxSession, ue netip.Addr, apn string) bool {
 	p.mu.Lock()
 
-	a := p.boundIMSAssociationLocked(ue)
+	a := p.boundIMSAssociationLocked(ue, apn)
 	if a == nil {
 		p.mu.Unlock()
 		return false

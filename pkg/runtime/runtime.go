@@ -999,21 +999,19 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		return nil, err
 	}
 
-	ims, err := a.hasIMSDataNetwork(ctx, sub.Imsi)
+	sm, err := a.subscriptions.SessionManagement(ctx, sub.Imsi)
 	if err != nil {
 		return nil, err
 	}
 
-	return &hss.Subscriber{IMSI: sub.Imsi, MSISDN: sub.Msisdn, IMSDataNetwork: ims}, nil
-}
-
-func (a *hssDBAdapter) hasIMSDataNetwork(ctx context.Context, imsi string) (bool, error) {
-	sm, err := a.subscriptions.SessionManagement(ctx, imsi)
-	if err != nil {
-		return false, err
-	}
-
-	return slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }), nil
+	return &hss.Subscriber{
+		IMSI:           sub.Imsi,
+		MSISDN:         sub.Msisdn,
+		IMSDataNetwork: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }),
+		IMSVoice: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool {
+			return c.IMS && c.DNN == models.IMSDataNetworkName
+		}),
+	}, nil
 }
 
 func (a *hssDBAdapter) Registration(ctx context.Context, imsi string) (*hss.Registration, error) {

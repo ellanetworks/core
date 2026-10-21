@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -71,8 +73,6 @@ const (
 	IMSRegistrationTypeReRegistration IMSRegistrationType = "RE-REGISTRATION"
 	IMSRegistrationTypeDeregistration IMSRegistrationType = "DE-REGISTRATION"
 )
-
-const maxRegistrationTypesPerSPT = 2
 
 type IMSService struct {
 	ID                    string                      `json:"id"`
@@ -198,58 +198,11 @@ func (t IMSTriggerPoint) Validate() error {
 }
 
 func (spt IMSServicePointTrigger) Validate() error {
-	if len(spt.Groups) == 0 {
-		return errors.New("at least one group is required")
-	}
-
-	for _, g := range spt.Groups {
-		if g < 0 {
-			return fmt.Errorf("group must not be negative, got %d", g)
-		}
-	}
-
 	conditions := 0
 
-	if spt.RequestURI != nil {
-		conditions++
-
-		if *spt.RequestURI == "" {
-			return errors.New("request URI must not be empty")
-		}
-	}
-
-	if spt.Method != nil {
-		conditions++
-
-		if *spt.Method == "" {
-			return errors.New("method must not be empty")
-		}
-	}
-
-	if spt.SIPHeader != nil {
-		conditions++
-
-		if spt.SIPHeader.Header == "" {
-			return errors.New("SIP header name must not be empty")
-		}
-	}
-
-	if spt.SessionCase != nil {
-		conditions++
-
-		switch *spt.SessionCase {
-		case IMSSessionCaseOriginatingRegistered, IMSSessionCaseTerminatingRegistered, IMSSessionCaseTerminatingUnregistered,
-			IMSSessionCaseOriginatingUnregistered, IMSSessionCaseOriginatingCDIV:
-		default:
-			return fmt.Errorf("unknown session case %q", *spt.SessionCase)
-		}
-	}
-
-	if spt.SessionDescription != nil {
-		conditions++
-
-		if spt.SessionDescription.Line == "" {
-			return errors.New("session description line must not be empty")
+	for _, set := range []bool{spt.RequestURI != nil, spt.Method != nil, spt.SIPHeader != nil, spt.SessionCase != nil, spt.SessionDescription != nil} {
+		if set {
+			conditions++
 		}
 	}
 
@@ -257,22 +210,17 @@ func (spt IMSServicePointTrigger) Validate() error {
 		return fmt.Errorf("exactly one of request URI, method, SIP header, session case and session description is required, got %d", conditions)
 	}
 
-	if len(spt.RegistrationTypes) == 0 {
-		return nil
-	}
-
-	if spt.Method == nil || *spt.Method != "REGISTER" {
+	switch {
+	case spt.Method != nil && *spt.Method == "":
+		return errors.New("method must not be empty")
+	case spt.SessionCase != nil && !slices.Contains(imsSessionCases, *spt.SessionCase):
+		return fmt.Errorf("unknown session case %q", *spt.SessionCase)
+	case len(spt.RegistrationTypes) > 0 && (spt.Method == nil || *spt.Method != "REGISTER"):
 		return errors.New("registration types only apply to the REGISTER method")
 	}
 
-	if len(spt.RegistrationTypes) > maxRegistrationTypesPerSPT {
-		return fmt.Errorf("at most %d registration types are allowed, got %d", maxRegistrationTypesPerSPT, len(spt.RegistrationTypes))
-	}
-
 	for i, rt := range spt.RegistrationTypes {
-		switch rt {
-		case IMSRegistrationTypeInitial, IMSRegistrationTypeReRegistration, IMSRegistrationTypeDeregistration:
-		default:
+		if !slices.Contains(imsRegistrationTypes, rt) {
 			return fmt.Errorf("unknown registration type %q", rt)
 		}
 
@@ -281,7 +229,115 @@ func (spt IMSServicePointTrigger) Validate() error {
 		}
 	}
 
+	if err := spt.validateExpressions(); err != nil {
+		return err
+	}
+
+	return spt.CX().Validate()
+}
+
+func (spt IMSServicePointTrigger) validateExpressions() error {
+	type expression struct {
+		name     string
+		value    *string
+		required bool
+	}
+
+	expressions := []expression{{name: "request URI", value: spt.RequestURI, required: true}}
+
+	if h := spt.SIPHeader; h != nil {
+		expressions = append(expressions, expression{name: "SIP header name", value: &h.Header, required: true}, expression{name: "SIP header content", value: h.Content})
+	}
+
+	if d := spt.SessionDescription; d != nil {
+		expressions = append(expressions, expression{name: "session description line", value: &d.Line, required: true}, expression{name: "session description content", value: d.Content})
+	}
+
+	for _, e := range expressions {
+		if e.value == nil {
+			continue
+		}
+
+		if e.required && *e.value == "" {
+			return fmt.Errorf("%s must not be empty", e.name)
+		}
+
+		if _, err := regexp.CompilePOSIX(*e.value); err != nil {
+			return fmt.Errorf("%s %q is not an extended regular expression: %w", e.name, *e.value, err)
+		}
+	}
+
 	return nil
+}
+
+var imsSessionCases = []IMSSessionCase{
+	IMSSessionCaseOriginatingRegistered,
+	IMSSessionCaseTerminatingRegistered,
+	IMSSessionCaseTerminatingUnregistered,
+	IMSSessionCaseOriginatingUnregistered,
+	IMSSessionCaseOriginatingCDIV,
+}
+
+var imsRegistrationTypes = []IMSRegistrationType{
+	IMSRegistrationTypeInitial,
+	IMSRegistrationTypeReRegistration,
+	IMSRegistrationTypeDeregistration,
+}
+
+func (t IMSTriggerPoint) CX() *cx.TriggerPoint {
+	trigger := &cx.TriggerPoint{ConjunctiveNormalForm: t.ConditionTypeCNF}
+
+	for _, spt := range t.ServicePointTriggers {
+		trigger.ServicePointTriggers = append(trigger.ServicePointTriggers, spt.CX())
+	}
+
+	return trigger
+}
+
+func (spt IMSServicePointTrigger) CX() cx.ServicePointTrigger {
+	out := cx.ServicePointTrigger{
+		Negated:    spt.ConditionNegated,
+		Groups:     slices.Clone(spt.Groups),
+		RequestURI: spt.RequestURI,
+		Method:     spt.Method,
+	}
+
+	if h := spt.SIPHeader; h != nil {
+		out.SIPHeader = &cx.HeaderMatch{Header: h.Header, Content: h.Content}
+	}
+
+	if d := spt.SessionDescription; d != nil {
+		out.SessionDescription = &cx.SessionDescriptionMatch{Line: d.Line, Content: d.Content}
+	}
+
+	if spt.SessionCase != nil {
+		c := cx.SessionCase(slices.Index(imsSessionCases, *spt.SessionCase))
+		out.SessionCase = &c
+	}
+
+	for _, rt := range spt.RegistrationTypes {
+		out.RegistrationTypes = append(out.RegistrationTypes, cx.RegistrationType(slices.Index(imsRegistrationTypes, rt)))
+	}
+
+	return out
+}
+
+func (c IMSInitialFilterCriterion) CX(priority int32, serverName string) cx.InitialFilterCriteria {
+	handling := cx.DefaultHandlingSessionContinued
+	if c.DefaultHandling == IMSDefaultHandlingSessionTerminated {
+		handling = cx.DefaultHandlingSessionTerminated
+	}
+
+	return cx.InitialFilterCriteria{
+		Priority: priority,
+		Trigger:  c.TriggerPoint.CX(),
+		ApplicationServer: cx.ApplicationServer{
+			ServerName:              serverName,
+			DefaultHandling:         &handling,
+			IncludeRegisterRequest:  c.IncludeRegisterRequest,
+			IncludeRegisterResponse: c.IncludeRegisterResponse,
+		},
+	}
 }
 
 func (db *Database) ListIMSServices(ctx context.Context) ([]IMSService, error) {

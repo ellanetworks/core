@@ -115,6 +115,16 @@ func TestPolicyPreemption(t *testing.T) {
 		t.Fatalf("create profile: %s", err)
 	}
 
+	noPriority := base("no-priority")
+	noPriority.ProfileName = "mc2"
+	noPriority.Arp = 15
+	noPriority.PreemptionVulnerability = "preemptable"
+
+	status, resp, err = createPolicy(url, client, token, noPriority)
+	if err != nil || status != http.StatusBadRequest || resp.Error != "arp 15 means no priority on 4G, where pre-emption is ignored; use not_preempt and not_preemptable, or an arp between 1 and 14" {
+		t.Fatalf("create with arp 15 and pre-emptable: status %d, response %+v, err %v", status, resp, err)
+	}
+
 	prioritized := base("prioritized")
 	prioritized.ProfileName = "mc2"
 	prioritized.PreemptionCapability = "may_preempt"
@@ -144,5 +154,30 @@ func TestPolicyPreemption(t *testing.T) {
 
 	if _, resp, err := getPolicy(url, client, token, "prioritized"); err != nil || resp.Result.PreemptionCapability != "may_preempt" || resp.Result.PreemptionVulnerability != "not_preemptable" {
 		t.Fatalf("pre-emption after updating vulnerability = %+v, err %v", resp.Result, err)
+	}
+}
+
+func TestPolicyPreemptionNeedsAPriorityOnUpdate(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+	url := env.Server.URL
+
+	if _, _, err := createProfile(url, client, token, &CreateProfileParams{Name: "mc", UeAmbrUplink: "200 Mbps", UeAmbrDownlink: "200 Mbps"}); err != nil {
+		t.Fatalf("create profile: %s", err)
+	}
+
+	create := &CreatePolicyParams{
+		Name: "p", ProfileName: "mc", SliceName: DefaultSliceName, DataNetworkName: "internet",
+		SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 3, PreemptionCapability: "may_preempt",
+	}
+	if status, resp, err := createPolicy(url, client, token, create); err != nil || status != http.StatusCreated {
+		t.Fatalf("create: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	update := &UpdatePolicyParams{
+		ProfileName: "mc", SliceName: DefaultSliceName, DataNetworkName: "internet",
+		SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15,
+	}
+	if status, resp, err := editPolicy(url, client, "p", token, update); err != nil || status != http.StatusBadRequest {
+		t.Fatalf("update to arp 15 keeping may_preempt: status %d, response %+v, err %v", status, resp, err)
 	}
 }

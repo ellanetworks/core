@@ -33,7 +33,7 @@ func originatingIFC() db.IMSInitialFilterCriterion {
 				{Groups: []int32{0}, SessionCase: ptr(db.IMSSessionCaseOriginatingRegistered)},
 				{Groups: []int32{1}, SIPHeader: &db.IMSHeaderMatch{Header: "P-Asserted-Service", Content: ptr(`^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`)}},
 				{Groups: []int32{2}, ConditionNegated: true, SessionDescription: &db.IMSSessionDescription{Line: "m", Content: ptr("video")}},
-				{Groups: []int32{2}, RequestURI: ptr("sip:conf@example.org")},
+				{Groups: []int32{2}, RequestURI: ptr(`^conf\.example\.org$`)},
 			},
 		},
 		DefaultHandling: db.IMSDefaultHandlingSessionTerminated,
@@ -75,8 +75,8 @@ func TestIMSApplicationServersEndToEnd(t *testing.T) {
 	}
 
 	other := &db.IMSApplicationServer{Name: "other", ServerName: "sip:other.example.org", PublicServiceIdentities: []string{"sip:conf-factory@mcptt.ims.example.org"}}
-	if err := database.CreateIMSApplicationServer(ctx, other); !errors.Is(err, db.ErrAlreadyExists) {
-		t.Fatalf("create with a PSI hosted elsewhere: err = %v, want ErrAlreadyExists", err)
+	if err := database.CreateIMSApplicationServer(ctx, other); !errors.Is(err, db.ErrPSIConflict) {
+		t.Fatalf("create with a PSI hosted elsewhere: err = %v, want ErrPSIConflict", err)
 	}
 
 	if _, err := database.GetIMSApplicationServer(ctx, "other"); !errors.Is(err, db.ErrNotFound) {
@@ -128,6 +128,8 @@ func TestIMSApplicationServerValidate(t *testing.T) {
 		"psi listed twice":   {Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{"sip:a@example.org", "sip:a@example.org"}},
 		"bare scheme as":     {Name: "as", ServerName: "sip:"},
 		"bare scheme psi":    {Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{"tel:"}},
+		"server name space":  {Name: "as", ServerName: "sip:as.example.org "},
+		"psi bad wildcard":   {Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{"sip:!([!@example.org"}},
 		"empty psi":          {Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{""}},
 		"missing everything": {},
 	}
@@ -320,19 +322,25 @@ func TestIMSServiceValidate(t *testing.T) {
 	}
 
 	cases := map[string]db.IMSService{
-		"no name":               {Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as"},
-		"no application server": {Name: "s", Kind: db.IMSServiceKindMCPTT},
-		"unknown kind":          {Name: "s", Kind: "mmtel", ApplicationServerID: "as"},
-		"mcptt with iFCs":       {Name: "s", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as", InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC()}},
-		"custom without iFCs":   {Name: "s", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as"},
-		"no group":              spt(func(s *db.IMSServicePointTrigger) { s.Groups = nil }),
-		"negative group":        spt(func(s *db.IMSServicePointTrigger) { s.Groups = []int32{-1} }),
-		"no condition":          spt(func(s *db.IMSServicePointTrigger) { s.Method = nil }),
-		"two conditions":        spt(func(s *db.IMSServicePointTrigger) { s.RequestURI = ptr("sip:a@example.org") }),
-		"empty method":          spt(func(s *db.IMSServicePointTrigger) { s.Method = ptr("") }),
-		"empty header":          spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.SIPHeader = &db.IMSHeaderMatch{} }),
-		"empty sdp line":        spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.SessionDescription = &db.IMSSessionDescription{} }),
-		"empty request URI":     spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.RequestURI = ptr("") }),
+		"no name":                {Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as"},
+		"no application server":  {Name: "s", Kind: db.IMSServiceKindMCPTT},
+		"unknown kind":           {Name: "s", Kind: "mmtel", ApplicationServerID: "as"},
+		"mcptt with iFCs":        {Name: "s", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as", InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC()}},
+		"custom without iFCs":    {Name: "s", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as"},
+		"no group":               spt(func(s *db.IMSServicePointTrigger) { s.Groups = nil }),
+		"negative group":         spt(func(s *db.IMSServicePointTrigger) { s.Groups = []int32{-1} }),
+		"no condition":           spt(func(s *db.IMSServicePointTrigger) { s.Method = nil }),
+		"two conditions":         spt(func(s *db.IMSServicePointTrigger) { s.RequestURI = ptr("sip:a@example.org") }),
+		"empty method":           spt(func(s *db.IMSServicePointTrigger) { s.Method = ptr("") }),
+		"empty header":           spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.SIPHeader = &db.IMSHeaderMatch{} }),
+		"empty sdp line":         spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.SessionDescription = &db.IMSSessionDescription{} }),
+		"empty request URI":      spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.RequestURI = ptr("") }),
+		"request URI not an ERE": spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.RequestURI = ptr("([") }),
+		"header content not an ERE": spt(func(s *db.IMSServicePointTrigger) {
+			s.Method = nil
+			s.SIPHeader = &db.IMSHeaderMatch{Header: "P-Asserted-Service", Content: ptr("(")}
+		}),
+		"control character in method": spt(func(s *db.IMSServicePointTrigger) { s.Method = ptr("INV\x01ITE") }),
 		"unknown session case": spt(func(s *db.IMSServicePointTrigger) {
 			s.Method = nil
 			s.SessionCase = ptr(db.IMSSessionCase("ORIGINATING"))
@@ -373,5 +381,79 @@ func TestIMSServiceValidate(t *testing.T) {
 	ok := db.IMSService{Name: "s", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as", InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC(), originatingIFC()}}
 	if err := ok.Validate(); err != nil {
 		t.Fatalf("Validate rejected the MCPTT iFCs: %v", err)
+	}
+}
+
+func TestIMSApplicationServerCanonicalForms(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	as := &db.IMSApplicationServer{
+		Name:                    "as",
+		ServerName:              "SIP:AS.Example.org;lr",
+		PublicServiceIdentities: []string{"sip:Conf@Example.org", "tel:+1-555-0100", "sip:!.*!@MCPTT.Example.org"},
+	}
+
+	if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	got, err := database.GetIMSApplicationServer(ctx, "as")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+
+	want := []string{"sip:!.*!@mcptt.example.org", "sip:Conf@example.org", "tel:+15550100"}
+	if got.ServerName != "sip:as.example.org;lr" || !reflect.DeepEqual(got.PublicServiceIdentities, want) {
+		t.Fatalf("stored = %+v, want server name sip:as.example.org;lr and PSIs %v", got, want)
+	}
+
+	for _, conflicting := range []db.IMSApplicationServer{
+		{Name: "same-uri", ServerName: "SIP:as.EXAMPLE.org;lr"},
+		{Name: "equivalent-psi", ServerName: "sip:b.example.org", PublicServiceIdentities: []string{"tel:+15550100"}},
+		{Name: "overlapping-wildcard", ServerName: "sip:c.example.org", PublicServiceIdentities: []string{"sip:grp-!.*!@mcptt.example.org"}},
+	} {
+		err := database.CreateIMSApplicationServer(ctx, &conflicting)
+		if !errors.Is(err, db.ErrPSIConflict) && !errors.Is(err, db.ErrAlreadyExists) {
+			t.Errorf("create %s: err = %v, want a conflict", conflicting.Name, err)
+		}
+	}
+
+	if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{
+		Name: "inside-wildcard", ServerName: "sip:d.example.org", PublicServiceIdentities: []string{"sip:conf-1@mcptt.example.org"},
+	}); err != nil {
+		t.Fatalf("a distinct PSI inside another application server's wildcard was refused: %v", err)
+	}
+}
+
+func TestIMSPublicServiceIdentityAndMSISDNExclude(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	profile, err := database.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get profile: %v", err)
+	}
+
+	subscriber := &db.Subscriber{
+		Imsi: "001010000000001", SequenceNumber: "000000000001", PermanentKey: "6f30087629feb0b089783c81d0ae09b5",
+		Opc: "21a7e1897dfb481d62439142cdf1b6ee", ProfileID: profile.ID, Msisdn: "15550100",
+	}
+	if err := database.CreateSubscriber(ctx, subscriber); err != nil {
+		t.Fatalf("create subscriber: %v", err)
+	}
+
+	err = database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{"tel:+1-555-0100"}})
+	if !errors.Is(err, db.ErrPSIConflict) {
+		t.Fatalf("a PSI equal to a subscriber's tel URI: err = %v, want ErrPSIConflict", err)
+	}
+
+	if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{"tel:+15550199"}}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	subscriber.Msisdn = "15550199"
+	if err := database.UpdateSubscriberProfile(ctx, subscriber); !errors.Is(err, db.ErrMSISDNInUse) {
+		t.Fatalf("an MSISDN equal to a PSI: err = %v, want ErrMSISDNInUse", err)
 	}
 }

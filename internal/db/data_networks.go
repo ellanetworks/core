@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -53,6 +54,18 @@ type DataNetwork struct {
 	DNS      string `db:"dns"`
 	MTU      int32  `db:"mtu"`
 	IMS      bool   `db:"ims"`
+}
+
+func (db *Database) dataNetworkWriteStmt(ctx context.Context, dn *DataNetwork, current, preV25 *sqlair.Statement) (*sqlair.Statement, error) {
+	if db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
+		return current, nil
+	}
+
+	if dn.IMS != (dn.Name == models.IMSDataNetworkName) {
+		return nil, ErrMigrationPending
+	}
+
+	return preV25, nil
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {

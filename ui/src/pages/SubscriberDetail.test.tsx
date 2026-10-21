@@ -133,7 +133,7 @@ describe("Subscriber voice", () => {
     const row = await voiceRow();
     expect(row).toHaveTextContent("Off");
     expect(row).toHaveTextContent(
-      "No P-CSCF address matches the IP family of an IMS data network",
+      "No P-CSCF address matches the ims data network's IP family",
     );
   });
 

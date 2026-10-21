@@ -853,3 +853,29 @@ func TestRuleRemovalAbortedByAnANReleaseIsResentWhenTheUserPlaneReturns(t *testi
 		t.Fatalf("command %+v, want the removed rule deleted once the user plane is back (TS 29.212 §4.5.12)", cmd)
 	}
 }
+
+func TestRANReleasingTheDefaultFlowReleasesTheSession(t *testing.T) {
+	s, _, _, amfCb, ref := activeFiveGVoice(t)
+
+	raw, err := (&libngap.PDUSessionResourceNotifyTransfer{
+		QosFlowReleased: libngap.QosFlowListWithCause{{
+			QosFlowIdentifier: libngap.QosFlowIdentifier(models.DefaultQFI),
+			Cause:             libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		}},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateSmContextN2InfoNotify(context.Background(), ref, raw); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoNotify: %v", err)
+	}
+
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if releaseCalls != 1 {
+		t.Fatalf("release signaling calls = %d, want the PDU session released (TS 23.501 §5.7.1.1)", releaseCalls)
+	}
+}

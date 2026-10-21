@@ -310,6 +310,7 @@ type Database struct {
 	deleteIMSApplicationServerStmt *sqlair.Statement
 	listIMSPSIsStmt                *sqlair.Statement
 	listIMSPSIsByASStmt            *sqlair.Statement
+	getIMSPSIStmt                  *sqlair.Statement
 	insertIMSPSIStmt               *sqlair.Statement
 	deleteIMSPSIsByASStmt          *sqlair.Statement
 	listIMSServicesStmt            *sqlair.Statement
@@ -2015,6 +2016,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteIMSApplicationServerStmt, fmt.Sprintf(deleteIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
 		{&db.listIMSPSIsStmt, fmt.Sprintf(listIMSPSIsStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
 		{&db.listIMSPSIsByASStmt, fmt.Sprintf(listIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
+		{&db.getIMSPSIStmt, fmt.Sprintf(getIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
 		{&db.insertIMSPSIStmt, fmt.Sprintf(insertIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
 		{&db.deleteIMSPSIsByASStmt, fmt.Sprintf(deleteIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
 		{&db.listIMSServicesStmt, fmt.Sprintf(listIMSServicesStmt, IMSServicesTableName), []any{imsServiceRow{}}},

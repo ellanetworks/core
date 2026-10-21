@@ -27,6 +27,7 @@ type Subscriber struct {
 	IMSI           string
 	MSISDN         string
 	IMSDataNetwork bool
+	IMSVoice       bool
 }
 
 type Store interface {

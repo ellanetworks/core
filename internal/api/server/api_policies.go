@@ -169,6 +169,8 @@ func checkIMSSignalling5QI(dataNetwork *db.DataNetwork, var5qi int32) error {
 	return nil
 }
 
+const noPriorityARP = 15
+
 const (
 	preemptionMayPreempt     = "may_preempt"
 	preemptionNotPreempt     = "not_preempt"
@@ -183,6 +185,14 @@ func validatePreemption(capability, vulnerability *string) error {
 
 	if vulnerability != nil && *vulnerability != preemptionPreemptable && *vulnerability != preemptionNotPreemptable {
 		return fmt.Errorf("invalid preemption_vulnerability - must be %q or %q", preemptionPreemptable, preemptionNotPreemptable)
+	}
+
+	return nil
+}
+
+func checkPreemptionPriority(p *db.Policy) error {
+	if p.Arp == noPriorityARP && (p.PreemptionCapability == models.PreemptionCapabilityMayPreempt || p.PreemptionVulnerability == models.PreemptionVulnerabilityPreemptable) {
+		return fmt.Errorf("arp %d means no priority on 4G, where pre-emption is ignored; use not_preempt and not_preemptable, or an arp between 1 and 14", noPriorityARP)
 	}
 
 	return nil
@@ -680,6 +690,11 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			SliceID:                 slice.ID,
 		}
 
+		if err := checkPreemptionPriority(dbPolicy); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
 		if createPolicyParams.Rules != nil {
 			if err := dbInstance.CreatePolicyWithRules(r.Context(), dbPolicy, toDBPolicyRules(createPolicyParams.Rules)); err != nil {
 				if errors.Is(err, db.ErrAlreadyExists) {
@@ -805,6 +820,11 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		policy.ProfileID = profile.ID
 		policy.SliceID = slice.ID
 		policy.DataNetworkID = dataNetwork.ID
+
+		if err := checkPreemptionPriority(policy); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
 
 		if err := dbInstance.UpdatePolicyWithRules(r.Context(), policy, toDBPolicyRules(updatePolicyParams.Rules)); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)

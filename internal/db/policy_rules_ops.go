@@ -106,9 +106,12 @@ func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *pol
 		policy.ID = id.String()
 	}
 
-	policy.defaultPreemption()
+	stmt, err := db.policyWriteStmt(ctx, &policy, db.createPolicyStmt, db.createPolicyPreV25Stmt)
+	if err != nil {
+		return nil, err
+	}
 
-	if err := db.runner(ctx).Query(ctx, db.createPolicyStmtFor(ctx), &policy).Run(); err != nil {
+	if err := db.runner(ctx).Query(ctx, stmt, &policy).Run(); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}

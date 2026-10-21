@@ -290,6 +290,10 @@ func validURI(name, v string) error {
 	return validText(name, v)
 }
 
+func ValidateURI(name, v string) error {
+	return validURI(name, v)
+}
+
 func optionalURI(name, v string) error {
 	if v == "" {
 		return nil
@@ -407,7 +411,7 @@ func (c InitialFilterCriteria) validate() error {
 	}
 
 	for _, spt := range c.Trigger.ServicePointTriggers {
-		if err := spt.validate(); err != nil {
+		if err := spt.Validate(); err != nil {
 			return err
 		}
 	}
@@ -415,7 +419,7 @@ func (c InitialFilterCriteria) validate() error {
 	return nil
 }
 
-func (t ServicePointTrigger) validate() error {
+func (t ServicePointTrigger) Validate() error {
 	conditions := 0
 
 	for _, set := range []bool{t.RequestURI != nil, t.Method != nil, t.SIPHeader != nil, t.SessionCase != nil, t.SessionDescription != nil} {

@@ -13,7 +13,7 @@ import (
 
 func migrateV25(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN ims BOOLEAN NOT NULL DEFAULT FALSE", DataNetworksTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN ims BOOLEAN NOT NULL DEFAULT FALSE CHECK (ims IN (0, 1))", DataNetworksTableName),
 		fmt.Sprintf("UPDATE %s SET ims = TRUE WHERE name = '%s'", DataNetworksTableName, models.IMSDataNetworkName),
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN preemptionCapability TEXT NOT NULL DEFAULT '%s' CHECK (preemptionCapability IN ('%s', '%s'))",
 			PoliciesTableName, models.PreemptionCapabilityNotPreempt, models.PreemptionCapabilityNotPreempt, models.PreemptionCapabilityMayPreempt),

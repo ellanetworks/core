@@ -79,20 +79,18 @@ type Policy struct {
 	IsDefault bool `db:"isDefault"`
 }
 
-func (db *Database) createPolicyStmtFor(ctx context.Context) *sqlair.Statement {
-	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		return db.createPolicyPreV25Stmt
+func (db *Database) policyWriteStmt(ctx context.Context, p *Policy, current, preV25 *sqlair.Statement) (*sqlair.Statement, error) {
+	p.defaultPreemption()
+
+	if db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
+		return current, nil
 	}
 
-	return db.createPolicyStmt
-}
-
-func (db *Database) editPolicyStmtFor(ctx context.Context) *sqlair.Statement {
-	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		return db.editPolicyPreV25Stmt
+	if p.PreemptionCapability != models.PreemptionCapabilityNotPreempt || p.PreemptionVulnerability != models.PreemptionVulnerabilityNotPreemptable {
+		return nil, ErrMigrationPending
 	}
 
-	return db.editPolicyStmt
+	return preV25, nil
 }
 
 func defaultPoliciesPreemption(policies []Policy) {

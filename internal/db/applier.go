@@ -299,9 +299,18 @@ func (db *Database) checkMSISDNAvailable(ctx context.Context, s *Subscriber) err
 		return nil
 	}
 
+	isPSI, err := db.msisdnIsPSI(ctx, s.Msisdn)
+	if err != nil {
+		return err
+	}
+
+	if isPSI {
+		return fmt.Errorf("%w: tel:+%s is a public service identity", ErrMSISDNInUse, s.Msisdn)
+	}
+
 	holder := Subscriber{Msisdn: s.Msisdn}
 
-	err := db.runner(ctx).Query(ctx, db.getSubscriberByMSISDNStmt, holder).Get(&holder)
+	err = db.runner(ctx).Query(ctx, db.getSubscriberByMSISDNStmt, holder).Get(&holder)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
@@ -1116,12 +1125,12 @@ func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	stmt := db.createDataNetworkStmt
-	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		stmt = db.createDataNetworkPreV25Stmt
+	stmt, err := db.dataNetworkWriteStmt(ctx, dn, db.createDataNetworkStmt, db.createDataNetworkPreV25Stmt)
+	if err != nil {
+		return nil, err
 	}
 
-	err := db.runner(ctx).Query(ctx, stmt, dn).Run()
+	err = db.runner(ctx).Query(ctx, stmt, dn).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1136,12 +1145,12 @@ func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork)
 func (db *Database) applyUpdateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
 	var outcome sqlair.Outcome
 
-	stmt := db.editDataNetworkStmt
-	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		stmt = db.editDataNetworkPreV25Stmt
+	stmt, err := db.dataNetworkWriteStmt(ctx, dn, db.editDataNetworkStmt, db.editDataNetworkPreV25Stmt)
+	if err != nil {
+		return nil, err
 	}
 
-	err := db.runner(ctx).Query(ctx, stmt, dn).Get(&outcome)
+	err = db.runner(ctx).Query(ctx, stmt, dn).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1179,9 +1188,12 @@ func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload
 }
 
 func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, error) {
-	p.defaultPreemption()
+	stmt, err := db.policyWriteStmt(ctx, p, db.createPolicyStmt, db.createPolicyPreV25Stmt)
+	if err != nil {
+		return nil, err
+	}
 
-	err := db.runner(ctx).Query(ctx, db.createPolicyStmtFor(ctx), p).Run()
+	err = db.runner(ctx).Query(ctx, stmt, p).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1208,11 +1220,14 @@ func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, 
 }
 
 func (db *Database) applyUpdatePolicy(ctx context.Context, p *Policy) (any, error) {
-	p.defaultPreemption()
+	stmt, err := db.policyWriteStmt(ctx, p, db.editPolicyStmt, db.editPolicyPreV25Stmt)
+	if err != nil {
+		return nil, err
+	}
 
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.editPolicyStmtFor(ctx), p).Get(&outcome)
+	err = db.runner(ctx).Query(ctx, stmt, p).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

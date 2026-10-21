@@ -32,6 +32,11 @@ export const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
 
 export const NON_GBR_5QI_VALUES = NON_GBR_5QI_OPTIONS.map((o) => o.value);
 
+const NO_PRIORITY_ARP = 15;
+
+const NO_PRIORITY_MESSAGE =
+  "ARP 15 means no priority on 4G, where pre-emption is ignored. Use an ARP between 1 and 14.";
+
 export type PreemptionCapability = "may_preempt" | "not_preempt";
 
 export type PreemptionVulnerability = "preemptable" | "not_preemptable";
@@ -67,10 +72,22 @@ export const policySchema = {
   preemptionCapability: yup
     .mixed<PreemptionCapability>()
     .oneOf(["may_preempt", "not_preempt"])
+    .test(
+      "no-priority",
+      NO_PRIORITY_MESSAGE,
+      (value, ctx) =>
+        ctx.parent.arp !== NO_PRIORITY_ARP || value === "not_preempt",
+    )
     .required(),
   preemptionVulnerability: yup
     .mixed<PreemptionVulnerability>()
     .oneOf(["preemptable", "not_preemptable"])
+    .test(
+      "no-priority",
+      NO_PRIORITY_MESSAGE,
+      (value, ctx) =>
+        ctx.parent.arp !== NO_PRIORITY_ARP || value === "not_preemptable",
+    )
     .required(),
   isDefault: yup.boolean().required(),
 };
@@ -263,5 +280,9 @@ export const PolicyFields = <T extends FieldValues>({
       label="Pre-emption vulnerability"
       options={PREEMPTION_VULNERABILITY_OPTIONS}
     />
+    <Typography variant="caption" color="textSecondary">
+      A pre-emptable session can be dropped by the radio when a higher priority
+      session needs its resources.
+    </Typography>
   </>
 );

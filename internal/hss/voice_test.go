@@ -14,6 +14,7 @@ func TestVoiceSupported(t *testing.T) {
 		name          string
 		imsi          string
 		voiceDisabled bool
+		mcOnly        bool
 		want          bool
 	}{
 		{name: "subscriber with an MSISDN and the ims data network", imsi: testIMSI, want: true},
@@ -21,12 +22,17 @@ func TestVoiceSupported(t *testing.T) {
 		{name: "no MSISDN", imsi: testNoMSISDN},
 		{name: "no ims data network", imsi: testNoIMS},
 		{name: "unknown subscriber", imsi: "001010000000099"},
+		{name: "IMS data network other than ims only", imsi: testIMSI, mcOnly: true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
 			store.voiceDisabled = tc.voiceDisabled
+
+			if tc.mcOnly {
+				store.subscribers[tc.imsi].IMSVoice = false
+			}
 
 			got, err := newHSS(store).VoiceSupported(context.Background(), tc.imsi)
 			if err != nil {

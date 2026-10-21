@@ -4496,11 +4496,11 @@ components:
           maximum: 15
         preemption_capability:
           type: string
-          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Defaults to not_preempt."
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Defaults to not_preempt. Must be not_preempt when arp is 15."
           enum: [may_preempt, not_preempt]
         preemption_vulnerability:
           type: string
-          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). Defaults to not_preemptable."
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). A pre-emptable session can be released by the radio. Defaults to not_preemptable. Must be not_preemptable when arp is 15."
           enum: [preemptable, not_preemptable]
         rules:
           $ref: "#/components/schemas/PolicyRules"
@@ -4539,11 +4539,11 @@ components:
           maximum: 15
         preemption_capability:
           type: string
-          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged."
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged. Must be the not- value when arp is 15."
           enum: [may_preempt, not_preempt]
         preemption_vulnerability:
           type: string
-          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged."
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged. Must be the not- value when arp is 15."
           enum: [preemptable, not_preemptable]
         rules:
           $ref: "#/components/schemas/PolicyRules"
@@ -5075,7 +5075,7 @@ components:
           description: "MTU."
         ims:
           type: boolean
-          description: "Whether this is an IMS data network: phones get the P-CSCF addresses, traffic is NAT exempt and locally switched, and the Rx sessions of its UEs bind here."
+          description: "Whether this is an IMS data network: phones get the P-CSCF addresses, traffic is NAT exempt and locally switched, and the Rx sessions of its UEs bind here. Voice over PS is offered only to subscribers with a policy on the IMS data network named ims, the IMS well-known APN."
         status:
           $ref: "#/components/schemas/DataNetworkStatus"
         ip_allocation:
@@ -5156,7 +5156,7 @@ components:
           maximum: 65535
         ims:
           type: boolean
-          description: "Whether this is an IMS data network. Enabling it requires every policy on the data network to use 5QI 5 or 69. Omitting it leaves it unchanged."
+          description: "Whether this is an IMS data network. Enabling it requires every policy on the data network to use 5QI 5 or 69. Changing it releases the data network's sessions so that UEs reconnect. Omitting it leaves it unchanged."
 
     IPAllocationItem:
       type: object

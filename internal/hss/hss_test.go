@@ -60,9 +60,9 @@ type fakeIMSStore struct {
 func newFakeIMSStore() *fakeIMSStore {
 	return &fakeIMSStore{
 		subscribers: map[string]*fakeIMSSubscriber{
-			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
-			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true}, sqn: "000000000020"},
-			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
+			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
 			testNoIMS:     {Subscriber: hss.Subscriber{IMSI: testNoIMS, MSISDN: testNoIMSTel}, sqn: "000000000020"},
 		},
 		registrations: map[string]hss.Registration{},

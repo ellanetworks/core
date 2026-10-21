@@ -61,7 +61,7 @@ None
 }
 ```
 
-`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the pools of an IMS data network).
+`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the pools of the `ims` data network). `no_ims_data_network` means there is no IMS data network named `ims` (the IMS well-known APN).
 
 ## Update the Operator ID
 

@@ -65,6 +65,18 @@ func TestDataNetworksAndPoliciesBeforeV25(t *testing.T) {
 		t.Fatalf("update default policy: %v", err)
 	}
 
+	mcx := &DataNetwork{Name: "mcx", IPv4Pool: "10.61.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}
+	if err := d.CreateDataNetwork(ctx, mcx); !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("create an IMS data network not named ims: err = %v, want ErrMigrationPending", err)
+	}
+
+	preempting := *policy
+	preempting.PreemptionCapability = models.PreemptionCapabilityMayPreempt
+
+	if err := d.UpdatePolicy(ctx, &preempting); !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("update with pre-emption: err = %v, want ErrMigrationPending", err)
+	}
+
 	if servers, err := d.ListIMSApplicationServers(ctx); err != nil || len(servers) != 0 {
 		t.Fatalf("list application servers = %d, err %v; want empty", len(servers), err)
 	}

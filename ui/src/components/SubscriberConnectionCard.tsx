@@ -14,6 +14,7 @@ import type {
 } from "@/queries/subscribers";
 import type { IMSVoiceStatus, OperatorIMS } from "@/queries/operator";
 import { formatRelativeTime } from "@/utils/formatters";
+import { IMS_DATA_NETWORK } from "@/utils/voice";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
@@ -156,9 +157,8 @@ const imsUserStates: Record<IMSUserState, VoiceState> = {
 
 const networkReasons: Record<Exclude<IMSVoiceStatus, "enabled">, string> = {
   no_pcscf: "No P-CSCF address is set on the Operator page",
-  no_ims_data_network: "There is no IMS data network",
-  ip_family_mismatch:
-    "No P-CSCF address matches the IP family of an IMS data network",
+  no_ims_data_network: `There is no IMS data network named ${IMS_DATA_NETWORK}`,
+  ip_family_mismatch: `No P-CSCF address matches the ${IMS_DATA_NETWORK} data network's IP family`,
 };
 
 export const voiceState = (
@@ -172,7 +172,7 @@ export const voiceState = (
     return {
       label: "Not subscribed",
       color: "default",
-      detail: "The profile has no policy on an IMS data network",
+      detail: `The profile has no policy on the ${IMS_DATA_NETWORK} data network`,
     };
   }
 

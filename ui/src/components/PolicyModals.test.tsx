@@ -119,6 +119,27 @@ describe("CreatePolicyModal", () => {
     await waitFor(() => expect(button(/^Create$/)).toBeDisabled());
   });
 
+  it("refuses pre-emption with ARP 15", async () => {
+    const user = userEvent.setup();
+    seed();
+    render();
+
+    await user.type(field(/Name/), "p1");
+    fireEvent.change(field(/Allocation and Retention Priority/), {
+      target: { value: "15" },
+    });
+    fireEvent.blur(field(/Allocation and Retention Priority/));
+
+    await user.click(
+      screen.getByRole("combobox", { name: /Pre-emption vulnerability/ }),
+    );
+    await user.click(
+      await screen.findByRole("option", { name: "Pre-emptable" }),
+    );
+
+    await waitFor(() => expect(button(/^Create$/)).toBeDisabled());
+  });
+
   it("limits 5QI to 5 and 69 on an IMS data network", async () => {
     const user = userEvent.setup();
     seed();

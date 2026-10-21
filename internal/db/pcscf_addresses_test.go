@@ -205,8 +205,8 @@ func TestIMSVoiceStatus(t *testing.T) {
 		t.Fatalf("CreateDataNetwork mcx: %s", err)
 	}
 
-	if got := status("2001:db8::5"); got != db.IMSVoiceEnabled {
-		t.Errorf("IPv6 P-CSCF with an IPv6 IMS data network: status = %q, want %q", got, db.IMSVoiceEnabled)
+	if got := status("2001:db8::5"); got != db.IMSVoiceIPFamilyMismatch {
+		t.Errorf("IPv6 P-CSCF with an IPv6 IMS data network other than ims: status = %q, want %q", got, db.IMSVoiceIPFamilyMismatch)
 	}
 }
 

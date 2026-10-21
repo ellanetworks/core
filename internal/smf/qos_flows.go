@@ -1383,6 +1383,13 @@ func (s *SMF) UpdateSmContextN2InfoNotify(ctx context.Context, ref string, n2 []
 			logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), zap.Uint8s("qfis", released))
 	}
 
+	if sc.PolicyData != nil && slices.Contains(released, sc.PolicyData.QosData.QFI) {
+		logger.From(ctx, logger.SmfLog).Warn("the NG-RAN node released the default QoS flow; releasing the PDU session (TS 23.501 §5.7.1.1)",
+			logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID))
+
+		return s.startRelease(ctx, sc, 0, fgs.GSMCauseReactivationRequested, models.ReleaseFor(models.ReleaseAccessReleased))
+	}
+
 	s.releaseFlowsLocked(ctx, sc, released)
 
 	return nil
