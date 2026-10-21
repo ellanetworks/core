@@ -1125,6 +1125,48 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/profiles/{name}/ims-services:
+    get:
+      operationId: getProfileIMSServices
+      tags: [Profiles]
+      summary: Get a profile's IMS services
+      description: Returns the names of the IMS services assigned to a profile, in order. The HSS gives subscribers of the profile the initial filter criteria of these services, in this order.
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      responses:
+        "200":
+          description: The profile's IMS services.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileIMSServicesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateProfileIMSServices
+      tags: [Profiles]
+      summary: Update a profile's IMS services
+      description: Replaces the IMS services assigned to a profile. The order of the list is kept.
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileIMSServices"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # -- Slices --------------------------------------------------------------
   /api/v1/slices:
     get:
@@ -1686,6 +1728,204 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/ims/application-servers:
+    get:
+      operationId: listIMSApplicationServers
+      tags: [Operator]
+      summary: List IMS application servers
+      description: Lists IMS application servers, sorted by name.
+      responses:
+        "200":
+          description: IMS application servers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIMSApplicationServersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createIMSApplicationServer
+      tags: [Operator]
+      summary: Create an IMS application server
+      description: Creates an IMS application server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIMSApplicationServerParams"
+      responses:
+        "201":
+          description: The created IMS application server, in canonical form.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSApplicationServerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/ims/application-servers/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getIMSApplicationServer
+      tags: [Operator]
+      summary: Get an IMS application server
+      description: Returns an IMS application server.
+      responses:
+        "200":
+          description: IMS application server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSApplicationServerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateIMSApplicationServer
+      tags: [Operator]
+      summary: Update an IMS application server
+      description: Replaces the server name and public service identities of an IMS application server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIMSApplicationServerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteIMSApplicationServer
+      tags: [Operator]
+      summary: Delete an IMS application server
+      description: Deletes an IMS application server. An application server used by an IMS service cannot be deleted.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/ims/services:
+    get:
+      operationId: listIMSServices
+      tags: [Operator]
+      summary: List IMS services
+      description: Lists IMS services, sorted by name.
+      responses:
+        "200":
+          description: IMS services.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIMSServicesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createIMSService
+      tags: [Operator]
+      summary: Create an IMS service
+      description: Creates an IMS service.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIMSServiceParams"
+      responses:
+        "201":
+          description: The created IMS service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSServiceResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/ims/services/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getIMSService
+      tags: [Operator]
+      summary: Get an IMS service
+      description: Returns an IMS service.
+      responses:
+        "200":
+          description: IMS service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSServiceResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateIMSService
+      tags: [Operator]
+      summary: Update an IMS service
+      description: Replaces the kind, application server and initial filter criteria of an IMS service.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIMSServiceParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteIMSService
+      tags: [Operator]
+      summary: Delete an IMS service
+      description: Deletes an IMS service. An IMS service assigned to a profile cannot be deleted.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
@@ -4995,8 +5235,11 @@ components:
 
     OperatorIMS:
       type: object
-      required: [pcscfAddresses, voiceStatus]
+      required: [pcscfAddresses, voiceStatus, homeDomain]
       properties:
+        homeDomain:
+          type: string
+          description: "IMS home network domain, ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org (TS 23.003 §13.2)."
         pcscfAddresses:
           type: array
           items:
@@ -5006,6 +5249,233 @@ components:
           type: string
           enum: [enabled, no_pcscf, no_ims_data_network, ip_family_mismatch]
           description: "Whether UEs are told IMS voice is supported, or why not."
+
+    IMSApplicationServer:
+      type: object
+      required: [name, server_name, public_service_identities]
+      properties:
+        name:
+          type: string
+        server_name:
+          type: string
+          description: "SIP URI of the application server, given to the S-CSCF in the initial filter criteria."
+        public_service_identities:
+          type: array
+          items:
+            type: string
+          description: "SIP or tel URIs the application server hosts, in canonical form. A wildcarded identity uses the !regex! syntax."
+
+    ListIMSApplicationServersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListIMSApplicationServersResponse"
+
+    ListIMSApplicationServersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSApplicationServer"
+
+    IMSApplicationServerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/IMSApplicationServer"
+
+    CreateIMSApplicationServerParams:
+      type: object
+      required: [name, server_name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        server_name:
+          type: string
+          description: "SIP URI of the application server."
+        public_service_identities:
+          type: array
+          items:
+            type: string
+          description: "SIP or tel URIs the application server hosts. No identity may be hosted by, or overlap one of, another application server, or be a subscriber's tel URI."
+
+    UpdateIMSApplicationServerParams:
+      type: object
+      required: [server_name]
+      properties:
+        server_name:
+          type: string
+          description: "SIP URI of the application server."
+        public_service_identities:
+          type: array
+          items:
+            type: string
+          description: "SIP or tel URIs the application server hosts. Replaces the current list."
+
+    IMSService:
+      type: object
+      required: [name, kind, application_server_name, initial_filter_criteria]
+      properties:
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [mcptt, custom]
+        application_server_name:
+          type: string
+        initial_filter_criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSInitialFilterCriterion"
+          description: "Generated by Ella Core for kind mcptt, as stored for kind custom."
+
+    ListIMSServicesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListIMSServicesResponse"
+
+    ListIMSServicesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSService"
+
+    IMSServiceResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/IMSService"
+
+    CreateIMSServiceParams:
+      type: object
+      required: [name, kind, application_server_name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [mcptt, custom]
+        application_server_name:
+          type: string
+        initial_filter_criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSInitialFilterCriterion"
+          description: "Omitted or empty for kind mcptt, at least one for kind custom."
+
+    UpdateIMSServiceParams:
+      type: object
+      required: [kind, application_server_name]
+      properties:
+        kind:
+          type: string
+          enum: [mcptt, custom]
+        application_server_name:
+          type: string
+        initial_filter_criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSInitialFilterCriterion"
+          description: "Omitted or empty for kind mcptt, at least one for kind custom."
+
+    IMSInitialFilterCriterion:
+      type: object
+      required: [priority, trigger_point, default_handling, include_register_request, include_register_response]
+      properties:
+        priority:
+          type: integer
+          readOnly: true
+          description: "Index of the criterion within the service. Ignored on writes."
+        trigger_point:
+          $ref: "#/components/schemas/IMSTriggerPoint"
+        default_handling:
+          type: string
+          enum: [SESSION_CONTINUED, SESSION_TERMINATED]
+        include_register_request:
+          type: boolean
+        include_register_response:
+          type: boolean
+
+    IMSTriggerPoint:
+      type: object
+      required: [condition_type_cnf, spt]
+      properties:
+        condition_type_cnf:
+          type: boolean
+          description: "True for conjunctive normal form, false for disjunctive normal form."
+        spt:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/IMSServicePointTrigger"
+
+    IMSServicePointTrigger:
+      type: object
+      required: [group]
+      description: "Exactly one of request_uri, method, sip_header, session_case and session_description is set."
+      properties:
+        condition_negated:
+          type: boolean
+        group:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+        request_uri:
+          type: string
+          description: "Extended regular expression matched against the Request-URI."
+        method:
+          type: string
+        sip_header:
+          type: object
+          required: [header]
+          properties:
+            header:
+              type: string
+            content:
+              type: string
+        session_case:
+          type: string
+          enum: [ORIGINATING_REGISTERED, TERMINATING_REGISTERED, TERMINATING_UNREGISTERED, ORIGINATING_UNREGISTERED, ORIGINATING_CDIV]
+        session_description:
+          type: object
+          required: [line]
+          properties:
+            line:
+              type: string
+            content:
+              type: string
+        registration_type:
+          type: array
+          maxItems: 2
+          items:
+            type: string
+            enum: [INITIAL_REGISTRATION, RE-REGISTRATION, DE-REGISTRATION]
+          description: "Only with the REGISTER method."
+
+    ProfileIMSServices:
+      type: object
+      required: [services]
+      properties:
+        services:
+          type: array
+          items:
+            type: string
+          description: "Names of IMS services, in order."
+
+    ProfileIMSServicesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ProfileIMSServices"
 
     UpdateOperatorIMSParams:
       type: object

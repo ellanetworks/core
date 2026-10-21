@@ -604,6 +604,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
 		HSS:                 hssInstance,
+		IMSProfiles:         &imsProfileNotifier{db: dbInstance, hss: hssInstance},
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
@@ -1004,7 +1005,13 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		return nil, err
 	}
 
+	ifcs, err := profileFilterCriteria(ctx, a.db, sub.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &hss.Subscriber{
+		FilterCriteria: ifcs,
 		IMSI:           sub.Imsi,
 		MSISDN:         sub.Msisdn,
 		IMSDataNetwork: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }),

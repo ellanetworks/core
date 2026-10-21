@@ -44,10 +44,26 @@ func (s *subject) entitled() bool {
 	return s.IMSDataNetwork && s.authorized()
 }
 
+func (s *subject) hasUnregisteredTerminatingServices() bool {
+	for _, ifc := range s.FilterCriteria {
+		if ifc.Trigger == nil {
+			return true
+		}
+
+		for _, spt := range ifc.Trigger.ServicePointTriggers {
+			if !spt.Negated && spt.SessionCase != nil && *spt.SessionCase == cx.SessionCaseTerminatingUnregistered {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (s *subject) userData() ([]byte, error) {
 	return cx.MarshalUserData(cx.IMSSubscription{
 		PrivateIdentity: s.privateIdentity(),
-		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities()}},
+		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities(), InitialFilterCriteria: s.FilterCriteria}},
 	})
 }
 

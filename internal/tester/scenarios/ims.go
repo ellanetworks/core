@@ -1247,3 +1247,76 @@ func MCFixture(env Env, imsi string) FixtureSpec {
 		PCSCFAddresses: PCSCFAddresses,
 	}
 }
+
+const (
+	IMSServiceApplicationServer = "mcptt-as"
+	IMSServiceName              = "mcptt"
+)
+
+func ProvisionMCPTTService(ctx context.Context, env Env, profile string) (func(), error) {
+	cl, err := coreClient(env)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := cl.CreateIMSApplicationServer(ctx, &client.CreateIMSApplicationServerOptions{
+		Name:                    IMSServiceApplicationServer,
+		ServerName:              "sip:mcptt.invalid",
+		PublicServiceIdentities: []string{"sip:!.*!@mcptt." + IMSHomeDomain},
+	}); err != nil {
+		return nil, fmt.Errorf("create the MCPTT application server: %w", err)
+	}
+
+	cleanup := func() {
+		_ = cl.SetProfileIMSServices(context.Background(), profile, nil)
+		_ = cl.DeleteIMSService(context.Background(), IMSServiceName)
+		_ = cl.DeleteIMSApplicationServer(context.Background(), IMSServiceApplicationServer)
+	}
+
+	if _, err := cl.CreateIMSService(ctx, &client.CreateIMSServiceOptions{Name: IMSServiceName, Kind: "mcptt", ApplicationServerName: IMSServiceApplicationServer}); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("create the MCPTT service: %w", err)
+	}
+
+	if err := cl.SetProfileIMSServices(ctx, profile, []string{IMSServiceName}); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("assign the MCPTT service to profile %s: %w", profile, err)
+	}
+
+	return cleanup, nil
+}
+
+func RequireIMSRegistrationAcrossProfilePushes(ctx context.Context, env Env, sub SubscriberSpec, profile string, pcscf, local netip.Addr, transport sip.Transport) error {
+	u, err := newIMSUE(sub, pcscf, local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	defer u.close()
+
+	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
+	defer cancel()
+
+	if err := u.register(ctx, sub, transport); err != nil {
+		return err
+	}
+
+	cl, err := coreClient(env)
+	if err != nil {
+		return err
+	}
+
+	for _, services := range [][]string{nil, {IMSServiceName}} {
+		if err := cl.SetProfileIMSServices(ctx, profile, services); err != nil {
+			return fmt.Errorf("set the IMS services of profile %s to %v: %w", profile, services, err)
+		}
+
+		time.Sleep(time.Second)
+
+		if !u.State().Registered {
+			return fmt.Errorf("%s lost its IMS registration after the profile push for services %v", sub.IMSI, services)
+		}
+	}
+
+	return nil
+}

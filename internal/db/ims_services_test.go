@@ -457,3 +457,81 @@ func TestIMSPublicServiceIdentityAndMSISDNExclude(t *testing.T) {
 		t.Fatalf("an MSISDN equal to a PSI: err = %v, want ErrMSISDNInUse", err)
 	}
 }
+
+func TestMCPTTFilterCriteria(t *testing.T) {
+	svc := db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as"}
+
+	ifcs := svc.FilterCriteria()
+	if len(ifcs) != 2 {
+		t.Fatalf("mcptt iFCs = %d, want REGISTER and originating", len(ifcs))
+	}
+
+	register := ifcs[0]
+	if spt := register.TriggerPoint.ServicePointTriggers; len(spt) != 1 || spt[0].Method == nil || *spt[0].Method != "REGISTER" || len(spt[0].RegistrationTypes) != 0 ||
+		register.DefaultHandling != db.IMSDefaultHandlingSessionContinued || !register.IncludeRegisterRequest || !register.IncludeRegisterResponse {
+		t.Fatalf("REGISTER iFC = %+v", register)
+	}
+
+	originating := ifcs[1]
+	if originating.DefaultHandling != db.IMSDefaultHandlingSessionTerminated || !originating.TriggerPoint.ConditionTypeCNF || len(originating.TriggerPoint.ServicePointTriggers) != 2 {
+		t.Fatalf("originating iFC = %+v", originating)
+	}
+
+	custom := db.IMSService{Name: "c", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as", InitialFilterCriteria: ifcs}
+	if err := custom.Validate(); err != nil {
+		t.Fatalf("the generated iFCs do not validate: %v", err)
+	}
+}
+
+func TestIMSProfilePushTargets(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	as := &db.IMSApplicationServer{Name: "as", ServerName: "sip:as.example.org"}
+	if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+		t.Fatalf("create application server: %v", err)
+	}
+
+	svc := &db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: as.ID}
+	if err := database.CreateIMSService(ctx, svc); err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+
+	profile, err := database.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get profile: %v", err)
+	}
+
+	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{svc.ID}); err != nil {
+		t.Fatalf("set profile services: %v", err)
+	}
+
+	profiles, err := database.ProfilesWithIMSServices(ctx, []string{svc.ID})
+	if err != nil || !reflect.DeepEqual(profiles, []string{profile.ID}) {
+		t.Fatalf("profiles with the service = %v, %v; want %s", profiles, err, profile.ID)
+	}
+
+	states := map[string]db.IMSRegistrationState{"001010000000001": db.IMSRegistered, "001010000000002": db.IMSUnregistered, "001010000000003": db.IMSNotRegistered}
+
+	for _, imsi := range []string{"001010000000001", "001010000000002", "001010000000003", "001010000000004"} {
+		sub := &db.Subscriber{Imsi: imsi, SequenceNumber: "000000000001", PermanentKey: "6f30087629feb0b089783c81d0ae09b5", Opc: "21a7e1897dfb481d62439142cdf1b6ee", ProfileID: profile.ID}
+		if err := database.CreateSubscriber(ctx, sub); err != nil {
+			t.Fatalf("create subscriber %s: %v", imsi, err)
+		}
+
+		state, ok := states[imsi]
+		if !ok {
+			continue
+		}
+
+		next := &db.IMSRegistration{IMSI: imsi, State: state, ServerName: "sip:scscf.example.org", AuthPending: state == db.IMSNotRegistered, OriginHost: "scscf.example.org", OriginRealm: "example.org"}
+		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, next); err != nil || !swapped {
+			t.Fatalf("store IMS registration of %s: swapped %t, %v", imsi, swapped, err)
+		}
+	}
+
+	imsis, err := database.IMSRegisteredSubscribersOfProfiles(ctx, []string{profile.ID})
+	if err != nil || !reflect.DeepEqual(imsis, []string{"001010000000001", "001010000000002"}) {
+		t.Fatalf("IMS registered subscribers = %v, %v; want the registered and the unregistered one", imsis, err)
+	}
+}

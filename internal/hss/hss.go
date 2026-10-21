@@ -28,6 +28,7 @@ type Subscriber struct {
 	MSISDN         string
 	IMSDataNetwork bool
 	IMSVoice       bool
+	FilterCriteria []cx.InitialFilterCriteria
 }
 
 type Store interface {

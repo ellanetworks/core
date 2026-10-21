@@ -28,18 +28,20 @@ const (
 )
 
 const (
-	listIMSServicesStmt          = "SELECT &imsServiceRow.* FROM %s ORDER BY name"
-	getIMSServiceStmt            = "SELECT &imsServiceRow.* FROM %s WHERE name==$imsServiceRow.name"
-	insertIMSServiceStmt         = "INSERT INTO %s (id, name, kind, applicationServerID) VALUES ($imsServiceRow.id, $imsServiceRow.name, $imsServiceRow.kind, $imsServiceRow.applicationServerID)"
-	updateIMSServiceStmt         = "UPDATE %s SET kind=$imsServiceRow.kind, applicationServerID=$imsServiceRow.applicationServerID WHERE id==$imsServiceRow.id"
-	deleteIMSServiceStmt         = "DELETE FROM %s WHERE name==$imsServiceRow.name"
-	listIMSIFCsStmt              = "SELECT &imsIFCRow.* FROM %s ORDER BY serviceID, position"
-	listIMSIFCsByServiceStmt     = "SELECT &imsIFCRow.* FROM %s WHERE serviceID==$imsIFCRow.serviceID ORDER BY position"
-	insertIMSIFCStmt             = "INSERT INTO %s (serviceID, position, triggerPoint, defaultHandling, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.serviceID, $imsIFCRow.position, $imsIFCRow.triggerPoint, $imsIFCRow.defaultHandling, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
-	deleteIMSIFCsByServiceStmt   = "DELETE FROM %s WHERE serviceID==$imsIFCRow.serviceID"
-	listProfileIMSServicesStmt   = "SELECT s.* AS &imsServiceRow.* FROM %s AS s JOIN %s AS p ON p.serviceID = s.id WHERE p.profileID==$profileIMSServiceRow.profileID ORDER BY p.position"
-	insertProfileIMSServiceStmt  = "INSERT INTO %s (profileID, serviceID, position) VALUES ($profileIMSServiceRow.profileID, $profileIMSServiceRow.serviceID, $profileIMSServiceRow.position)"
-	deleteProfileIMSServicesStmt = "DELETE FROM %s WHERE profileID==$profileIMSServiceRow.profileID"
+	listIMSServicesStmt             = "SELECT &imsServiceRow.* FROM %s ORDER BY name"
+	getIMSServiceStmt               = "SELECT &imsServiceRow.* FROM %s WHERE name==$imsServiceRow.name"
+	insertIMSServiceStmt            = "INSERT INTO %s (id, name, kind, applicationServerID) VALUES ($imsServiceRow.id, $imsServiceRow.name, $imsServiceRow.kind, $imsServiceRow.applicationServerID)"
+	updateIMSServiceStmt            = "UPDATE %s SET kind=$imsServiceRow.kind, applicationServerID=$imsServiceRow.applicationServerID WHERE id==$imsServiceRow.id"
+	deleteIMSServiceStmt            = "DELETE FROM %s WHERE name==$imsServiceRow.name"
+	listIMSIFCsStmt                 = "SELECT &imsIFCRow.* FROM %s ORDER BY serviceID, position"
+	listIMSIFCsByServiceStmt        = "SELECT &imsIFCRow.* FROM %s WHERE serviceID==$imsIFCRow.serviceID ORDER BY position"
+	insertIMSIFCStmt                = "INSERT INTO %s (serviceID, position, triggerPoint, defaultHandling, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.serviceID, $imsIFCRow.position, $imsIFCRow.triggerPoint, $imsIFCRow.defaultHandling, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
+	deleteIMSIFCsByServiceStmt      = "DELETE FROM %s WHERE serviceID==$imsIFCRow.serviceID"
+	listProfileIMSServicesStmt      = "SELECT s.* AS &imsServiceRow.* FROM %s AS s JOIN %s AS p ON p.serviceID = s.id WHERE p.profileID==$profileIMSServiceRow.profileID ORDER BY p.position"
+	insertProfileIMSServiceStmt     = "INSERT INTO %s (profileID, serviceID, position) VALUES ($profileIMSServiceRow.profileID, $profileIMSServiceRow.serviceID, $profileIMSServiceRow.position)"
+	deleteProfileIMSServicesStmt    = "DELETE FROM %s WHERE profileID==$profileIMSServiceRow.profileID"
+	listProfilesOfIMSServicesStmt   = "SELECT &profileIMSServiceRow.* FROM %s WHERE serviceID IN ($SliceIDs[:])"
+	listIMSRegisteredOfProfilesStmt = "SELECT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state IN (1, 2) AND s.profileID IN ($SliceIDs[:]) ORDER BY s.imsi"
 )
 
 type IMSServiceKind string
@@ -140,6 +142,38 @@ type profileIMSServiceRow struct {
 type profileIMSServicesPayload struct {
 	ProfileID  string   `json:"profile_id"`
 	ServiceIDs []string `json:"service_ids"`
+}
+
+const mcpttICSI = `^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`
+
+func (s IMSService) FilterCriteria() []IMSInitialFilterCriterion {
+	if s.Kind != IMSServiceKindMCPTT {
+		return s.InitialFilterCriteria
+	}
+
+	register, originating := "REGISTER", IMSSessionCaseOriginatingRegistered
+	header, content := "^P-Asserted-Service$", mcpttICSI
+
+	return []IMSInitialFilterCriterion{
+		{
+			TriggerPoint: IMSTriggerPoint{
+				ServicePointTriggers: []IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}},
+			},
+			DefaultHandling:         IMSDefaultHandlingSessionContinued,
+			IncludeRegisterRequest:  true,
+			IncludeRegisterResponse: true,
+		},
+		{
+			TriggerPoint: IMSTriggerPoint{
+				ConditionTypeCNF: true,
+				ServicePointTriggers: []IMSServicePointTrigger{
+					{Groups: []int32{0}, SessionCase: &originating},
+					{Groups: []int32{1}, SIPHeader: &IMSHeaderMatch{Header: header, Content: &content}},
+				},
+			},
+			DefaultHandling: IMSDefaultHandlingSessionTerminated,
+		},
+	}
 }
 
 func (s IMSService) Validate() error {
@@ -679,6 +713,65 @@ func (db *Database) applySetProfileIMSServices(ctx context.Context, p *profileIM
 	}
 
 	return nil, nil
+}
+
+func (db *Database) ProfilesWithIMSServices(ctx context.Context, serviceIDs []string) ([]string, error) {
+	ctx, span := startIMSServicesSpan(ctx, "SELECT")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfileIMSServicesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(ProfileIMSServicesTableName, "select").Inc()
+
+	if len(serviceIDs) == 0 || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+		return nil, nil
+	}
+
+	var rows []profileIMSServiceRow
+
+	if err := db.conn().Query(ctx, db.listProfilesOfIMSServicesStmt, SliceIDs(serviceIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	var profileIDs []string
+
+	for _, r := range rows {
+		if !slices.Contains(profileIDs, r.ProfileID) {
+			profileIDs = append(profileIDs, r.ProfileID)
+		}
+	}
+
+	return profileIDs, nil
+}
+
+func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, profileIDs []string) ([]string, error) {
+	ctx, span := startIMSServicesSpan(ctx, "SELECT")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "select").Inc()
+
+	if len(profileIDs) == 0 || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+		return nil, nil
+	}
+
+	var rows []subscriberIMSI
+
+	if err := db.conn().Query(ctx, db.listIMSRegisteredOfProfilesStmt, SliceIDs(profileIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	imsis := make([]string, 0, len(rows))
+	for _, r := range rows {
+		imsis = append(imsis, r.Imsi)
+	}
+
+	return imsis, nil
 }
 
 func startIMSServicesSpan(ctx context.Context, operation string) (context.Context, trace.Span) {

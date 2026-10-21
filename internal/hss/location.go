@@ -35,7 +35,7 @@ func (h *HSS) LocationInfo(ctx context.Context, id diameter.Identity, req *diame
 		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Result{Code: diameter.ResultSuccess}, ServerName: reg.ServerName})
 	}
 
-	if r.Originating {
+	if r.Originating || sub.hasUnregisteredTerminatingServices() {
 		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Experimental(tgpp.ResultUnregisteredService)})
 	}
 

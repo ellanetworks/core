@@ -140,3 +140,55 @@ None
     }
 }
 ```
+
+## Get a Profile's IMS Services
+
+This path returns the IMS services assigned to a profile, in order. The HSS gives the profile's subscribers the initial filter criteria of these services, in this order.
+
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| GET    | `/api/v1/profiles/{name}/ims-services` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "services": ["mcptt", "conference"]
+    }
+}
+```
+
+## Update a Profile's IMS Services
+
+This path replaces the IMS services assigned to a profile. The order of the list is kept.
+
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| PUT    | `/api/v1/profiles/{name}/ims-services` |
+
+### Parameters
+
+- `services` (array of strings): Names of [IMS services](operator.md#create-an-ims-service), in order, without duplicates. An empty list removes all of them.
+
+### Sample Request
+
+```json
+{
+    "services": ["mcptt", "conference"]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Profile IMS services updated successfully"
+    }
+}
+```

@@ -461,3 +461,298 @@ This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on IM
     }
 }
 ```
+
+## List IMS Application Servers
+
+This path returns the list of IMS application servers, sorted by name.
+
+| Method | Path                                         |
+| ------ | -------------------------------------------- |
+| GET    | `/api/v1/operator/ims/application-servers`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "name": "mcptt",
+                "server_name": "sip:mcptt.ims.example.org",
+                "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]
+            }
+        ]
+    }
+}
+```
+
+## Get an IMS Application Server
+
+This path returns an IMS application server.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| GET    | `/api/v1/operator/ims/application-servers/{name}`   |
+
+### Parameters
+
+None
+
+## Create an IMS Application Server
+
+This path creates an IMS application server.
+
+| Method | Path                                         |
+| ------ | -------------------------------------------- |
+| POST   | `/api/v1/operator/ims/application-servers`   |
+
+### Parameters
+
+- `name` (string): The name of the application server.
+- `server_name` (string): The SIP URI of the application server, which the S-CSCF receives in the initial filter criteria.
+- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. An identity can't be hosted by, or overlap one of, another application server, or be a subscriber's tel URI.
+
+### Sample Request
+
+```json
+{
+    "name": "mcptt",
+    "server_name": "sip:mcptt.ims.example.org",
+    "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "name": "mcptt",
+        "server_name": "sip:mcptt.ims.example.org",
+        "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]
+    }
+}
+```
+
+## Update an IMS Application Server
+
+This path updates an IMS application server. The server name and the public service identities are replaced.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| PUT    | `/api/v1/operator/ims/application-servers/{name}`   |
+
+### Parameters
+
+Same as [Create an IMS Application Server](#create-an-ims-application-server), without `name`.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Application server updated successfully"
+    }
+}
+```
+
+## Delete an IMS Application Server
+
+This path deletes an IMS application server. An application server used by an IMS service can't be deleted.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| DELETE | `/api/v1/operator/ims/application-servers/{name}`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Application server deleted successfully"
+    }
+}
+```
+
+## List IMS Services
+
+This path returns the list of IMS services, sorted by name.
+
+| Method | Path                            |
+| ------ | ------------------------------- |
+| GET    | `/api/v1/operator/ims/services` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "name": "mcptt",
+                "kind": "mcptt",
+                "application_server_name": "mcptt",
+                "initial_filter_criteria": [
+                    {
+                        "priority": 0,
+                        "trigger_point": {
+                            "condition_type_cnf": false,
+                            "spt": [{"group": [0], "method": "REGISTER"}]
+                        },
+                        "default_handling": "SESSION_CONTINUED",
+                        "include_register_request": true,
+                        "include_register_response": true
+                    },
+                    {
+                        "priority": 1,
+                        "trigger_point": {
+                            "condition_type_cnf": true,
+                            "spt": [
+                                {"group": [0], "session_case": "ORIGINATING_REGISTERED"},
+                                {"group": [1], "sip_header": {"header": "^P-Asserted-Service$", "content": "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$"}}
+                            ]
+                        },
+                        "default_handling": "SESSION_TERMINATED",
+                        "include_register_request": false,
+                        "include_register_response": false
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+## Get an IMS Service
+
+This path returns an IMS service.
+
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| GET    | `/api/v1/operator/ims/services/{name}` |
+
+### Parameters
+
+None
+
+## Create an IMS Service
+
+This path creates an IMS service. Assign it to profiles with [Update a Profile's IMS Services](profiles.md#update-a-profiles-ims-services).
+
+| Method | Path                            |
+| ------ | ------------------------------- |
+| POST   | `/api/v1/operator/ims/services` |
+
+### Parameters
+
+- `name` (string): The name of the IMS service.
+- `kind` (string): `mcptt` or `custom`. Ella Core generates the initial filter criteria of an `mcptt` service. A `custom` service takes its own.
+- `application_server_name` (string): The name of the IMS application server the service triggers.
+- `initial_filter_criteria` (optional array): Omitted or empty for `mcptt`, at least one for `custom`. Each criterion has:
+    - `trigger_point` (object):
+        - `condition_type_cnf` (boolean): `true` for conjunctive normal form, `false` for disjunctive normal form.
+        - `spt` (array): Service point triggers. Each has `group` (array of integers), an optional `condition_negated` (boolean), and exactly one of `request_uri` (string), `method` (string), `sip_header` (`{header, content}`), `session_case` (`ORIGINATING_REGISTERED`, `TERMINATING_REGISTERED`, `TERMINATING_UNREGISTERED`, `ORIGINATING_UNREGISTERED` or `ORIGINATING_CDIV`) and `session_description` (`{line, content}`). With the `REGISTER` method, `registration_type` lists up to two of `INITIAL_REGISTRATION`, `RE-REGISTRATION` and `DE-REGISTRATION`. Request URIs, headers, lines and contents are extended regular expressions.
+    - `default_handling` (string): `SESSION_CONTINUED` or `SESSION_TERMINATED`.
+    - `include_register_request` (optional boolean)
+    - `include_register_response` (optional boolean)
+
+The `priority` of a criterion is its position in the list. It is returned on reads and ignored on writes.
+
+### Sample Request
+
+```json
+{
+    "name": "conference",
+    "kind": "custom",
+    "application_server_name": "conference",
+    "initial_filter_criteria": [
+        {
+            "trigger_point": {
+                "condition_type_cnf": false,
+                "spt": [{"group": [0], "request_uri": "^sip:conference@.*$"}]
+            },
+            "default_handling": "SESSION_TERMINATED"
+        }
+    ]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "name": "conference",
+        "kind": "custom",
+        "application_server_name": "conference",
+        "initial_filter_criteria": [
+            {
+                "priority": 0,
+                "trigger_point": {
+                    "condition_type_cnf": false,
+                    "spt": [{"group": [0], "request_uri": "^sip:conference@.*$"}]
+                },
+                "default_handling": "SESSION_TERMINATED",
+                "include_register_request": false,
+                "include_register_response": false
+            }
+        ]
+    }
+}
+```
+
+## Update an IMS Service
+
+This path updates an IMS service. The kind, application server and initial filter criteria are replaced.
+
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| PUT    | `/api/v1/operator/ims/services/{name}` |
+
+### Parameters
+
+Same as [Create an IMS Service](#create-an-ims-service), without `name`.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "IMS service updated successfully"
+    }
+}
+```
+
+## Delete an IMS Service
+
+This path deletes an IMS service. An IMS service assigned to a profile can't be deleted.
+
+| Method | Path                                   |
+| ------ | -------------------------------------- |
+| DELETE | `/api/v1/operator/ims/services/{name}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "IMS service deleted successfully"
+    }
+}
+```

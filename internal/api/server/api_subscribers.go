@@ -779,7 +779,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateSubscriber(dbInstance *db.Database) http.Handler {
+func UpdateSubscriber(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -862,6 +862,10 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update subscriber", err, logger.APILog)
 
 			return
+		}
+
+		if imsProfiles != nil && existing.ProfileID != profile.ID {
+			imsProfiles.SubscriberChanged(context.WithoutCancel(r.Context()), imsi)
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)

@@ -28,16 +28,17 @@ const (
 const imsServicesSchema = 25
 
 const (
-	listIMSApplicationServersStmt  = "SELECT &imsApplicationServerRow.* FROM %s ORDER BY name"
-	getIMSApplicationServerStmt    = "SELECT &imsApplicationServerRow.* FROM %s WHERE name==$imsApplicationServerRow.name"
-	insertIMSApplicationServerStmt = "INSERT INTO %s (id, name, serverName) VALUES ($imsApplicationServerRow.id, $imsApplicationServerRow.name, $imsApplicationServerRow.serverName)"
-	updateIMSApplicationServerStmt = "UPDATE %s SET serverName=$imsApplicationServerRow.serverName WHERE id==$imsApplicationServerRow.id"
-	deleteIMSApplicationServerStmt = "DELETE FROM %s WHERE name==$imsApplicationServerRow.name"
-	listIMSPSIsStmt                = "SELECT &imsPSIRow.* FROM %s ORDER BY identity"
-	listIMSPSIsByASStmt            = "SELECT &imsPSIRow.* FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID ORDER BY identity"
-	getIMSPSIStmt                  = "SELECT &imsPSIRow.* FROM %s WHERE identity==$imsPSIRow.identity"
-	insertIMSPSIStmt               = "INSERT INTO %s (identity, applicationServerID) VALUES ($imsPSIRow.identity, $imsPSIRow.applicationServerID)"
-	deleteIMSPSIsByASStmt          = "DELETE FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID"
+	listIMSApplicationServersStmt   = "SELECT &imsApplicationServerRow.* FROM %s ORDER BY name"
+	getIMSApplicationServerStmt     = "SELECT &imsApplicationServerRow.* FROM %s WHERE name==$imsApplicationServerRow.name"
+	getIMSApplicationServerByIDStmt = "SELECT &imsApplicationServerRow.* FROM %s WHERE id==$imsApplicationServerRow.id"
+	insertIMSApplicationServerStmt  = "INSERT INTO %s (id, name, serverName) VALUES ($imsApplicationServerRow.id, $imsApplicationServerRow.name, $imsApplicationServerRow.serverName)"
+	updateIMSApplicationServerStmt  = "UPDATE %s SET serverName=$imsApplicationServerRow.serverName WHERE id==$imsApplicationServerRow.id"
+	deleteIMSApplicationServerStmt  = "DELETE FROM %s WHERE name==$imsApplicationServerRow.name"
+	listIMSPSIsStmt                 = "SELECT &imsPSIRow.* FROM %s ORDER BY identity"
+	listIMSPSIsByASStmt             = "SELECT &imsPSIRow.* FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID ORDER BY identity"
+	getIMSPSIStmt                   = "SELECT &imsPSIRow.* FROM %s WHERE identity==$imsPSIRow.identity"
+	insertIMSPSIStmt                = "INSERT INTO %s (identity, applicationServerID) VALUES ($imsPSIRow.identity, $imsPSIRow.applicationServerID)"
+	deleteIMSPSIsByASStmt           = "DELETE FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID"
 )
 
 var ErrPSIConflict = errors.New("public service identity conflict")
@@ -170,10 +171,34 @@ func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (*
 	return as, nil
 }
 
-func (db *Database) getIMSApplicationServer(ctx context.Context, runner *sqlair.DB, name string) (*IMSApplicationServer, error) {
-	row := imsApplicationServerRow{Name: name}
+func (db *Database) GetIMSApplicationServerByID(ctx context.Context, id string) (*IMSApplicationServer, error) {
+	ctx, span := startIMSApplicationServersSpan(ctx, "SELECT")
+	defer span.End()
 
-	if err := runner.Query(ctx, db.getIMSApplicationServerStmt, row).Get(&row); err != nil {
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSApplicationServersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IMSApplicationServersTableName, "select").Inc()
+
+	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+		return nil, ErrNotFound
+	}
+
+	as, err := db.loadIMSApplicationServer(ctx, db.conn(), db.getIMSApplicationServerByIDStmt, imsApplicationServerRow{ID: id})
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, err
+	}
+
+	return as, nil
+}
+
+func (db *Database) getIMSApplicationServer(ctx context.Context, runner *sqlair.DB, name string) (*IMSApplicationServer, error) {
+	return db.loadIMSApplicationServer(ctx, runner, db.getIMSApplicationServerStmt, imsApplicationServerRow{Name: name})
+}
+
+func (db *Database) loadIMSApplicationServer(ctx context.Context, runner *sqlair.DB, stmt *sqlair.Statement, row imsApplicationServerRow) (*IMSApplicationServer, error) {
+	if err := runner.Query(ctx, stmt, row).Get(&row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}

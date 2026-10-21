@@ -99,6 +99,7 @@ type UpgradeConfig struct {
 	AMF                 *amf.AMF
 	MME                 *mme.MME
 	HSS                 server.IMSSubscribers
+	IMSProfiles         server.IMSProfileNotifier
 	BGP                 *bgp.BGPService
 	LMF                 *lmf.LMF
 	Diameter            server.DiameterNode
@@ -236,6 +237,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		AMF:                opts.AMF,
 		MME:                opts.MME,
 		HSS:                opts.HSS,
+		IMSProfiles:        opts.IMSProfiles,
 		BGP:                opts.BGP,
 		LMF:                opts.LMF,
 		Diameter:           opts.Diameter,
