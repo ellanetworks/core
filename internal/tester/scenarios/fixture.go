@@ -71,17 +71,20 @@ type DataNetworkSpec struct {
 	IPv6Pool string
 	DNS      string
 	MTU      int32
+	IMS      *bool
 }
 
 type PolicySpec struct {
-	Name                string
-	ProfileName         string
-	SliceName           string
-	DataNetworkName     string
-	SessionAmbrUplink   string
-	SessionAmbrDownlink string
-	Var5qi              int32
-	Arp                 int32
+	Name                    string
+	ProfileName             string
+	SliceName               string
+	DataNetworkName         string
+	SessionAmbrUplink       string
+	SessionAmbrDownlink     string
+	Var5qi                  int32
+	Arp                     int32
+	PreemptionCapability    string
+	PreemptionVulnerability string
 }
 
 type SubscriberSpec struct {

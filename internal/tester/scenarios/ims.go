@@ -1199,3 +1199,51 @@ func RequireIMSVideoCall(ctx context.Context, caller, callee IMSEndpoint, transp
 
 	return b.deregister(ctx, transport)
 }
+
+const (
+	MCDNN          = "mcx"
+	MCUEIPv4Pool   = "10.62.0.0/16"
+	MCUEIPv6Pool   = "fd62::/48"
+	MCProfileName  = "mcprofile"
+	MCPolicyName   = "mcpolicy"
+	MCPolicy5QI    = 69
+	MCPolicyARP    = 3
+	MCMayPreempt   = "may_preempt"
+	MCNotPreempted = "not_preemptable"
+)
+
+func MCDataNetwork(env Env) DataNetworkSpec {
+	ims := true
+
+	dn := DataNetworkSpec{Name: MCDNN, IPv4Pool: MCUEIPv4Pool, DNS: DefaultDNS, MTU: DefaultMTU, IMS: &ims}
+	if env.HasIPv6() {
+		dn.IPv6Pool = MCUEIPv6Pool
+	}
+
+	return dn
+}
+
+func MCFixture(env Env, imsi string) FixtureSpec {
+	return FixtureSpec{
+		Profiles: []ProfileSpec{{
+			Name:           MCProfileName,
+			UeAmbrUplink:   DefaultProfileUeAmbrUplink,
+			UeAmbrDownlink: DefaultProfileUeAmbrDownlink,
+		}},
+		DataNetworks: []DataNetworkSpec{MCDataNetwork(env)},
+		Policies: []PolicySpec{{
+			Name:                    MCPolicyName,
+			ProfileName:             MCProfileName,
+			SliceName:               DefaultSliceName,
+			DataNetworkName:         MCDNN,
+			SessionAmbrUplink:       "100 Mbps",
+			SessionAmbrDownlink:     "100 Mbps",
+			Var5qi:                  MCPolicy5QI,
+			Arp:                     MCPolicyARP,
+			PreemptionCapability:    MCMayPreempt,
+			PreemptionVulnerability: MCNotPreempted,
+		}},
+		Subscribers:    []SubscriberSpec{DefaultSubscriberWith(imsi, MCProfileName)},
+		PCSCFAddresses: PCSCFAddresses,
+	}
+}

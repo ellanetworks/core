@@ -163,6 +163,8 @@ type PDUSessionInformation struct {
 	QFI          int64
 	FiveQi       int64
 	PriArp       int64
+	PreemptCap   ngap.PreemptionCapability
+	PreemptVuln  ngap.PreemptionVulnerability
 	PduSType     uint64
 	PDUSessionID int64
 	AmbrUplink   int64
@@ -193,6 +195,8 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 
 	var (
 		qosID, fiveQi, priArp int64
+		preemptCap            ngap.PreemptionCapability
+		preemptVuln           ngap.PreemptionVulnerability
 		flows                 []uint8
 		fiveQIs               = make(map[uint8]int64)
 	)
@@ -213,7 +217,8 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 			fiveQi = int64(qos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
 		}
 
-		priArp = int64(qos.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP)
+		arp := qos.QosFlowLevelQosParameters.AllocationAndRetentionPriority
+		priArp, preemptCap, preemptVuln = int64(arp.PriorityLevelARP), arp.PreemptionCapability, arp.PreemptionVulnerability
 	}
 
 	upfIP, err := ParseUPFAddress(t.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress, gnb.N3Address)
@@ -229,6 +234,8 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 		QFI:         qosID,
 		FiveQi:      fiveQi,
 		PriArp:      priArp,
+		PreemptCap:  preemptCap,
+		PreemptVuln: preemptVuln,
 		PduSType:    uint64(t.PDUSessionType),
 		Flows:       flows,
 		FlowFiveQIs: fiveQIs,
