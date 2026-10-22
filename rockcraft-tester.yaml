@@ -20,7 +20,7 @@ parts:
       - git
       - libpcap-dev
     build-snaps:
-      - go/1.26/stable
+      - go/1.27/stable
     override-build: |
       go build -v -o ${CRAFT_PART_INSTALL}/bin/core-tester ./cmd/core-tester
     stage-packages:

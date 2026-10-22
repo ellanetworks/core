@@ -77,7 +77,7 @@ func TestReconnectStopsIdleTimers(t *testing.T) {
 		t.Fatal("UE implicitly detached despite reconnecting")
 	}
 
-	if m.Session.(*fakeSessionManager).released {
+	if m.Session.(*fakeSessionManager).wasReleased() {
 		t.Fatal("EPS session released despite reconnecting")
 	}
 }

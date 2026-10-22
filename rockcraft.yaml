@@ -29,7 +29,7 @@ parts:
     build-packages:
       - git
     build-snaps:
-      - go/1.26/stable
+      - go/1.27/stable
       - node/24/stable
     stage-packages:
       - libc6_libs

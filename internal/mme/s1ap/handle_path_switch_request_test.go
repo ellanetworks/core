@@ -141,7 +141,7 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	ack := parsePathSwitchAck(t, target.sent[0])
 
 	if ack.MMEUES1APID == nil || *ack.MMEUES1APID != ue.Conn().MMEUES1APID || ack.ENBUES1APID == nil || *ack.ENBUES1APID != 42 {
-		t.Fatalf("ack UE IDs: mme=%#x enb=%d", ack.MMEUES1APID, ack.ENBUES1APID)
+		t.Fatalf("ack UE IDs: mme=%#x enb=%v", ack.MMEUES1APID, ack.ENBUES1APID)
 	}
 
 	if ack.SecurityContext.NextHopChainingCount != 2 || s1ap.SecurityKey(wantNH) != ack.SecurityContext.NextHopParameter {

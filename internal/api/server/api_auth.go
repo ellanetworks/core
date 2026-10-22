@@ -85,7 +85,7 @@ func generateJWT(id string, email string, roleID RoleID, jwtSecret []byte) (stri
 
 // clearSessionCookie instructs the browser to delete the session cookie.
 func clearSessionCookie(w http.ResponseWriter, secureCookie bool) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows the server's TLS configuration
 		Name:     SessionTokenCookieName,
 		Value:    "",
 		Path:     "/",
@@ -300,7 +300,7 @@ func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, use
 		return fmt.Errorf("couldn't create session: %w", err)
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows the server's TLS configuration
 		Name:     SessionTokenCookieName,
 		Value:    base64.URLEncoding.EncodeToString(rawToken),
 		Path:     "/",

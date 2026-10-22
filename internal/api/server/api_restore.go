@@ -39,7 +39,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxRestoreSize)
 
-		err := r.ParseMultipartForm(maxRestoreSize)
+		err := r.ParseMultipartForm(maxRestoreSize) // #nosec G120 -- the body is capped by MaxBytesReader above
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
 			return

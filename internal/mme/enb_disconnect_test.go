@@ -52,7 +52,7 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 		t.Fatal("incomplete-registration UE retained on eNB disconnect; expected drop")
 	}
 
-	if !m.Session.(*fakeSessionManager).released {
+	if !m.Session.(*fakeSessionManager).wasReleased() {
 		t.Fatal("EPS session not released when dropping an incomplete UE")
 	}
 }

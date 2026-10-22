@@ -357,9 +357,7 @@ func TestForwardRelocationReleasesTheSessionsItOpenedOnFailure(t *testing.T) {
 		t.Fatalf("error = %v, want ErrRelocationAbandoned", err)
 	}
 
-	if !sessions.released {
-		t.Error("the anchor session opened for the handover was not released")
-	}
+	eventually(t, time.Second, sessions.wasReleased)
 
 	if _, ok := m.LookupUeByIMSI("001010000000001"); ok {
 		t.Error("an abandoned preparation left a UE context behind")
@@ -400,7 +398,7 @@ func TestForwardRelocationReleasesPDNsTheTargetRefused(t *testing.T) {
 		t.Errorf("accepted PDU sessions = %v, want only the admitted one", got.resp.AcceptedPDUSessions)
 	}
 
-	if !sessions.released {
+	if !sessions.wasReleased() {
 		t.Error("the refused PDN connection's anchor half was not released")
 	}
 
@@ -570,7 +568,7 @@ func TestRelocationCancelAbandonsThePreparation(t *testing.T) {
 		t.Fatalf("ForwardRelocation = %v, want ErrRelocationAbandoned", err)
 	}
 
-	if !sessions.released {
+	if !sessions.wasReleased() {
 		t.Error("a cancelled handover left its anchor session behind")
 	}
 
@@ -606,7 +604,7 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 
 	m.abandonHandover(context.Background(), ue, causeHandoverTS1relocExpiry)
 
-	if !sessions.released {
+	if !sessions.wasReleased() {
 		t.Error("the expired handover left its anchor session behind")
 	}
 
@@ -700,7 +698,7 @@ func TestTargetENBDropDuringARelocationDoesNotWedgeTheSubscriber(t *testing.T) {
 
 	m.ReclaimConns(t.Context(), m.ConnsOnConn(target.conn), "eNB disconnect")
 
-	if !sessions.released {
+	if !sessions.wasReleased() {
 		t.Error("the dropped relocation left its anchor session behind")
 	}
 
@@ -798,7 +796,7 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 		t.Error("a refusal was reported as an abandonment")
 	}
 
-	if !sessions.released {
+	if !sessions.wasReleased() {
 		t.Error("the refused handover left its anchor session behind")
 	}
 
