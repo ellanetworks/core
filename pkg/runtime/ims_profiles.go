@@ -6,47 +6,13 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
 
-	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
-
-func profileFilterCriteria(ctx context.Context, database *db.Database, profileID string) ([]cx.InitialFilterCriteria, error) {
-	ifcs, err := database.ListProfileIMSFilterCriteria(ctx, profileID)
-	if err != nil {
-		return nil, fmt.Errorf("list the initial filter criteria of profile %s: %w", profileID, err)
-	}
-
-	out := make([]cx.InitialFilterCriteria, 0, len(ifcs))
-
-	serverNames := make(map[string]string)
-
-	for _, ifc := range ifcs {
-		serverName, ok := serverNames[ifc.ApplicationServerID]
-		if !ok {
-			as, err := database.GetIMSApplicationServerByID(ctx, ifc.ApplicationServerID)
-			if err != nil {
-				return nil, fmt.Errorf("get application server %s: %w", ifc.ApplicationServerID, err)
-			}
-
-			serverName = as.ServerName
-			serverNames[ifc.ApplicationServerID] = serverName
-		}
-
-		if len(out) >= math.MaxInt32 {
-			return nil, fmt.Errorf("profile %s has too many initial filter criteria", profileID)
-		}
-
-		out = append(out, ifc.CX(int32(len(out)), serverName))
-	}
-
-	return out, nil
-}
 
 type profilePusher interface {
 	PushProfile(ctx context.Context, imsi string) error

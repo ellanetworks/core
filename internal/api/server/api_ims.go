@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -247,7 +248,7 @@ func UpdateIMSApplicationServer(dbInstance *db.Database, notifier IMSProfileNoti
 			return
 		}
 
-		if notifier != nil {
+		if serverName, _ := psi.CanonicalServerName(as.ServerName); notifier != nil && serverName != existing.ServerName {
 			notifier.ApplicationServerChanged(context.WithoutCancel(r.Context()), existing.ID)
 		}
 

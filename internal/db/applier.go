@@ -299,13 +299,17 @@ func (db *Database) checkMSISDNAvailable(ctx context.Context, s *Subscriber) err
 		return nil
 	}
 
-	isPSI, err := db.msisdnIsPSI(ctx, s.Msisdn)
+	hosting, err := db.msisdnPSI(ctx, s.Msisdn)
 	if err != nil {
 		return err
 	}
 
-	if isPSI {
+	if hosting == "tel:+"+s.Msisdn {
 		return fmt.Errorf("%w: tel:+%s is a public service identity", ErrMSISDNInUse, s.Msisdn)
+	}
+
+	if hosting != "" {
+		return fmt.Errorf("%w: tel:+%s is covered by the public service identity %s", ErrMSISDNInUse, s.Msisdn, hosting)
 	}
 
 	holder := Subscriber{Msisdn: s.Msisdn}

@@ -75,11 +75,34 @@ func TestOverlap(t *testing.T) {
 		{"sip:!.*!@mcptt.example.org", "sip:conf!.*!@mcptt.example.org", true},
 		{"sip:!.*!@mcptt.example.org", "sip:!.*!@other.example.org", false},
 		{"sip:!.*!@mcptt.example.org", "sip:conf@mcptt.example.org", false},
-		{"tel:+1555!.*!", "tel:+1666!.*!", true},
+		{"sip:conf!.*!@ims.example.org", "sip:chat!.*!@ims.example.org", false},
+		{"sip:conf!.*!@ims.example.org", "sip:con!.*!@ims.example.org", true},
+		{"sip:conf!-[0-9]+!@ims.example.org", "sip:conf!-[a-z]+!@ims.example.org", false},
+		{"sip:conf!-[0-9]+!@ims.example.org", "sip:conf!-[0-9a-f]+!@ims.example.org", true},
+		{"sip:!(a|b)!x@ims.example.org", "sip:!b!x@ims.example.org", true},
+		{"sip:group!.*!@ims.example.org", "sip:!.*!-1@ims.example.org", true},
+		{"tel:+1555!.*!", "tel:+1666!.*!", false},
+		{"tel:+1555!.*!", "tel:+155!.*!", true},
 		{"tel:+1555!.*!", "sip:!.*!@example.org", false},
 	} {
 		if got := psi.Overlap(tc.a, tc.b); got != tc.want {
 			t.Errorf("Overlap(%q, %q) = %t, want %t", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+func TestCovers(t *testing.T) {
+	for _, tc := range []struct {
+		stored, pattern string
+		want            bool
+	}{
+		{"sip:!9.*!@ims.example.org", `^sip:[0-9]{6,15}@ims\.example\.org$`, true},
+		{"sip:conf!.*!@ims.example.org", `^sip:[0-9]{6,15}@ims\.example\.org$`, false},
+		{"sip:!.*!@mcptt.example.org", `^sip:[0-9]{6,15}@ims\.example\.org$`, false},
+		{"sip:conf@ims.example.org", `^sip:conf@ims\.example\.org$`, false},
+	} {
+		if got := psi.Covers(tc.stored, tc.pattern); got != tc.want {
+			t.Errorf("Covers(%q, %q) = %t, want %t", tc.stored, tc.pattern, got, tc.want)
 		}
 	}
 }

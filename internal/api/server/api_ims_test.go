@@ -272,8 +272,12 @@ func TestIMSApplicationServers(t *testing.T) {
 		t.Fatalf("update with a PSI conflict: status %d, err %v", status, err)
 	}
 
+	if status, err := updateIMSAS(url, client, token, "conf", UpdateIMSAS{ServerName: "SIP:conf2.ims.example.org", PublicServiceIdentities: []string{"sip:conference@ims.example.org", "sip:conf-room@ims.example.org"}}); err != nil || status != http.StatusOK {
+		t.Fatalf("update the PSIs only: status %d, err %v", status, err)
+	}
+
 	if got := notifier.take(); len(got) != 0 {
-		t.Fatalf("failed updates notified %v", got)
+		t.Fatalf("failed updates and a PSI-only update notified %v", got)
 	}
 
 	if status, resp, err := apiDo[IMSMessageResponse](client, "PUT", url+"/api/v1/profiles/default/ims-filter-criteria", token, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: mcpttFilterCriteria("mcptt")}); err != nil || status != http.StatusOK {

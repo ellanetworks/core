@@ -69,6 +69,7 @@ type Database struct {
 	getSubscriberPreV22Stmt            *sqlair.Statement
 	getSubscriberByMSISDNStmt          *sqlair.Statement
 	listIMSIsWithMSISDNStmt            *sqlair.Statement
+	listSubscriberMSISDNsStmt          *sqlair.Statement
 	createSubscriberStmt               *sqlair.Statement
 	updateSubscriberProfileStmt        *sqlair.Statement
 	updateSubscriberSqnNumStmt         *sqlair.Statement
@@ -305,7 +306,6 @@ type Database struct {
 
 	listIMSApplicationServersStmt   *sqlair.Statement
 	getIMSApplicationServerStmt     *sqlair.Statement
-	getIMSApplicationServerByIDStmt *sqlair.Statement
 	insertIMSApplicationServerStmt  *sqlair.Statement
 	updateIMSApplicationServerStmt  *sqlair.Statement
 	deleteIMSApplicationServerStmt  *sqlair.Statement
@@ -319,6 +319,7 @@ type Database struct {
 	deleteProfileIMSIFCsStmt        *sqlair.Statement
 	listProfilesOfIMSASStmt         *sqlair.Statement
 	listIMSRegisteredOfProfilesStmt *sqlair.Statement
+	listSubscriberIMSIFCsStmt       *sqlair.Statement
 
 	getIMSRegistrationStmt    *sqlair.Statement
 	countIMSRegistrationsStmt *sqlair.Statement
@@ -1775,6 +1776,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.getSubscriberPreV22Stmt, fmt.Sprintf(getSubscriberPreV22Stmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.getSubscriberByMSISDNStmt, fmt.Sprintf(getSubscriberByMSISDNStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.listIMSIsWithMSISDNStmt, fmt.Sprintf(listIMSIsWithMSISDNStmt, SubscribersTableName), []any{subscriberIMSI{}, SliceIDs{}}},
+		{&db.listSubscriberMSISDNsStmt, fmt.Sprintf(listSubscriberMSISDNsStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
@@ -2005,7 +2007,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.deletePCSCFAddressesStmt, fmt.Sprintf(deletePCSCFAddressesStmt, PCSCFAddressesTableName), nil},
 		{&db.listIMSApplicationServersStmt, fmt.Sprintf(listIMSApplicationServersStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
 		{&db.getIMSApplicationServerStmt, fmt.Sprintf(getIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
-		{&db.getIMSApplicationServerByIDStmt, fmt.Sprintf(getIMSApplicationServerByIDStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
 		{&db.insertIMSApplicationServerStmt, fmt.Sprintf(insertIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
 		{&db.updateIMSApplicationServerStmt, fmt.Sprintf(updateIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
 		{&db.deleteIMSApplicationServerStmt, fmt.Sprintf(deleteIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
@@ -2018,7 +2019,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.listProfileIMSIFCsStmt, fmt.Sprintf(listProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
 		{&db.deleteProfileIMSIFCsStmt, fmt.Sprintf(deleteProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
 		{&db.listProfilesOfIMSASStmt, fmt.Sprintf(listProfilesOfIMSASStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.listIMSRegisteredOfProfilesStmt, fmt.Sprintf(listIMSRegisteredOfProfilesStmt, SubscribersTableName, IMSRegistrationsTableName), []any{subscriberIMSI{}, SliceIDs{}}},
+		{&db.listIMSRegisteredOfProfilesStmt, fmt.Sprintf(listIMSRegisteredOfProfilesStmt, SubscribersTableName, IMSRegistrationsTableName), []any{subscriberIMSI{}, imsRegistrationRow{}, SliceIDs{}}},
+		{&db.listSubscriberIMSIFCsStmt, fmt.Sprintf(listSubscriberIMSIFCsStmt, IMSInitialFilterCriteriaTableName, SubscribersTableName, IMSApplicationServersTableName), []any{imsIFCRow{}, imsApplicationServerRow{}, subscriberIMSI{}}},
 		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},
 		{&db.upsertIMSRegistrationStmt, fmt.Sprintf(upsertIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},

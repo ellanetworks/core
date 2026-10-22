@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -29,17 +30,16 @@ const (
 const imsServicesSchema = 25
 
 const (
-	listIMSApplicationServersStmt   = "SELECT &imsApplicationServerRow.* FROM %s ORDER BY name"
-	getIMSApplicationServerStmt     = "SELECT &imsApplicationServerRow.* FROM %s WHERE name==$imsApplicationServerRow.name"
-	getIMSApplicationServerByIDStmt = "SELECT &imsApplicationServerRow.* FROM %s WHERE id==$imsApplicationServerRow.id"
-	insertIMSApplicationServerStmt  = "INSERT INTO %s (id, name, serverName) VALUES ($imsApplicationServerRow.id, $imsApplicationServerRow.name, $imsApplicationServerRow.serverName)"
-	updateIMSApplicationServerStmt  = "UPDATE %s SET serverName=$imsApplicationServerRow.serverName WHERE id==$imsApplicationServerRow.id"
-	deleteIMSApplicationServerStmt  = "DELETE FROM %s WHERE name==$imsApplicationServerRow.name"
-	listIMSPSIsStmt                 = "SELECT &imsPSIRow.* FROM %s ORDER BY identity"
-	listIMSPSIsByASStmt             = "SELECT &imsPSIRow.* FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID ORDER BY identity"
-	getIMSPSIStmt                   = "SELECT &imsPSIRow.* FROM %s WHERE identity==$imsPSIRow.identity"
-	insertIMSPSIStmt                = "INSERT INTO %s (identity, applicationServerID) VALUES ($imsPSIRow.identity, $imsPSIRow.applicationServerID)"
-	deleteIMSPSIsByASStmt           = "DELETE FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID"
+	listIMSApplicationServersStmt  = "SELECT &imsApplicationServerRow.* FROM %s ORDER BY name"
+	getIMSApplicationServerStmt    = "SELECT &imsApplicationServerRow.* FROM %s WHERE name==$imsApplicationServerRow.name"
+	insertIMSApplicationServerStmt = "INSERT INTO %s (id, name, serverName) VALUES ($imsApplicationServerRow.id, $imsApplicationServerRow.name, $imsApplicationServerRow.serverName)"
+	updateIMSApplicationServerStmt = "UPDATE %s SET serverName=$imsApplicationServerRow.serverName WHERE id==$imsApplicationServerRow.id"
+	deleteIMSApplicationServerStmt = "DELETE FROM %s WHERE name==$imsApplicationServerRow.name"
+	listIMSPSIsStmt                = "SELECT &imsPSIRow.* FROM %s ORDER BY identity"
+	listIMSPSIsByASStmt            = "SELECT &imsPSIRow.* FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID ORDER BY identity"
+	getIMSPSIStmt                  = "SELECT &imsPSIRow.* FROM %s WHERE identity==$imsPSIRow.identity"
+	insertIMSPSIStmt               = "INSERT INTO %s (identity, applicationServerID) VALUES ($imsPSIRow.identity, $imsPSIRow.applicationServerID)"
+	deleteIMSPSIsByASStmt          = "DELETE FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID"
 )
 
 var ErrPSIConflict = errors.New("public service identity conflict")
@@ -164,28 +164,6 @@ func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (*
 	}
 
 	as, err := db.getIMSApplicationServer(ctx, db.conn(), name)
-	if err != nil {
-		recordSpanError(span, err)
-		return nil, err
-	}
-
-	return as, nil
-}
-
-func (db *Database) GetIMSApplicationServerByID(ctx context.Context, id string) (*IMSApplicationServer, error) {
-	ctx, span := startIMSApplicationServersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSApplicationServersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSApplicationServersTableName, "select").Inc()
-
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, ErrNotFound
-	}
-
-	as, err := db.loadIMSApplicationServer(ctx, db.conn(), db.getIMSApplicationServerByIDStmt, imsApplicationServerRow{ID: id})
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
@@ -356,9 +334,23 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 			}
 		}
 
-		msisdn, ok := strings.CutPrefix(identity, "tel:+")
-		if !ok || psi.Wildcarded(identity) || strings.ContainsRune(msisdn, ';') {
-			continue
+		if err := db.checkPSIFreeOfSubscribers(ctx, identity); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity string) error {
+	if !strings.HasPrefix(identity, "tel:+") {
+		return nil
+	}
+
+	if !psi.Wildcarded(identity) {
+		msisdn := strings.TrimPrefix(identity, "tel:+")
+		if strings.ContainsRune(msisdn, ';') {
+			return nil
 		}
 
 		holder := Subscriber{Msisdn: msisdn}
@@ -370,6 +362,22 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 
 		if !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("query failed: %w", err)
+		}
+
+		return nil
+	}
+
+	var holders []Subscriber
+
+	if err := db.runner(ctx).Query(ctx, db.listSubscriberMSISDNsStmt).GetAll(&holders); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	m := psi.NewMatcher(map[string]string{identity: ""})
+
+	for _, holder := range holders {
+		if _, ok := m.Match("tel:+" + holder.Msisdn); ok {
+			return fmt.Errorf("%w: %s covers tel:+%s, the public user identity of subscriber %s", ErrPSIConflict, identity, holder.Msisdn, holder.Imsi)
 		}
 	}
 
@@ -402,30 +410,31 @@ func collidesWithSubscriberIdentity(identity, imsDomain string) bool {
 		return len(user) >= 6 && len(user) <= 15 && strings.Trim(user, "0123456789") == ""
 	}
 
-	_, ok := psi.NewMatcher(map[string]string{identity: ""}).Match("sip:" + sampleIMSI + "@" + imsDomain)
-
-	return ok
+	return psi.Covers(identity, `^sip:[0-9]{6,15}@`+regexp.QuoteMeta(imsDomain)+`$`)
 }
 
-const sampleIMSI = "001010123456789"
-
-func (db *Database) msisdnIsPSI(ctx context.Context, msisdn string) (bool, error) {
+func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, error) {
 	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return false, nil
+		return "", nil
 	}
 
-	row := imsPSIRow{Identity: "tel:+" + msisdn}
+	var stored []imsPSIRow
 
-	err := db.runner(ctx).Query(ctx, db.getIMSPSIStmt, row).Get(&row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+	if err := db.runner(ctx).Query(ctx, db.listIMSPSIsStmt).GetAll(&stored); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("query failed: %w", err)
 	}
 
-	if err != nil {
-		return false, fmt.Errorf("query failed: %w", err)
+	identities := make(map[string]string, len(stored))
+	for _, row := range stored {
+		identities[row.Identity] = row.Identity
 	}
 
-	return true, nil
+	m, ok := psi.NewMatcher(identities).Match("tel:+" + msisdn)
+	if !ok {
+		return "", nil
+	}
+
+	return m.Owner, nil
 }
 
 func (db *Database) insertIMSPSIs(ctx context.Context, applicationServerID string, psis []string) error {

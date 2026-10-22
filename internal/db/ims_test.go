@@ -353,6 +353,21 @@ func TestIMSApplicationServerCanonicalForms(t *testing.T) {
 		}
 	}
 
+	for _, disjoint := range []db.IMSApplicationServer{
+		{Name: "other-prefix", ServerName: "sip:e.example.org", PublicServiceIdentities: []string{"sip:chat!.*!@example.org"}},
+		{Name: "other-number-range", ServerName: "sip:f.example.org", PublicServiceIdentities: []string{"tel:+1666!.*!"}},
+	} {
+		if err := database.CreateIMSApplicationServer(ctx, &disjoint); err != nil {
+			t.Errorf("create %s: %v, want it accepted", disjoint.Name, err)
+		}
+	}
+
+	if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{
+		Name: "overlapping-number-range", ServerName: "sip:g.example.org", PublicServiceIdentities: []string{"tel:+16!.*!"},
+	}); !errors.Is(err, db.ErrPSIConflict) {
+		t.Errorf("create overlapping-number-range: err = %v, want ErrPSIConflict", err)
+	}
+
 	if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{
 		Name: "inside-wildcard", ServerName: "sip:d.example.org", PublicServiceIdentities: []string{"sip:conf-1@mcptt.example.org"},
 	}); err != nil {
@@ -389,6 +404,20 @@ func TestIMSPublicServiceIdentityAndMSISDNExclude(t *testing.T) {
 	subscriber.Msisdn = "15550199"
 	if err := database.UpdateSubscriberProfile(ctx, subscriber); !errors.Is(err, db.ErrMSISDNInUse) {
 		t.Fatalf("an MSISDN equal to a PSI: err = %v, want ErrMSISDNInUse", err)
+	}
+
+	err = database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "range", ServerName: "sip:range.example.org", PublicServiceIdentities: []string{"tel:+1555!01.*!"}})
+	if !errors.Is(err, db.ErrPSIConflict) {
+		t.Fatalf("a wildcarded PSI covering a subscriber's tel URI: err = %v, want ErrPSIConflict", err)
+	}
+
+	if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "range", ServerName: "sip:range.example.org", PublicServiceIdentities: []string{"tel:+1777!.*!"}}); err != nil {
+		t.Fatalf("create range: %v", err)
+	}
+
+	subscriber.Msisdn = "17770001"
+	if err := database.UpdateSubscriberProfile(ctx, subscriber); !errors.Is(err, db.ErrMSISDNInUse) {
+		t.Fatalf("an MSISDN inside a wildcarded PSI: err = %v, want ErrMSISDNInUse", err)
 	}
 }
 
@@ -456,7 +485,7 @@ func TestIMSPublicServiceIdentitiesCannotTakeSubscriberIdentities(t *testing.T) 
 
 	domain := "ims.mnc" + mnc + ".mcc" + op.Mcc + ".3gppnetwork.org"
 
-	for _, identity := range []string{"sip:001010000000001@" + domain, "sip:!.*!@" + domain, "sip:![0-9]+!@" + strings.ToUpper(domain)} {
+	for _, identity := range []string{"sip:001010000000001@" + domain, "sip:!.*!@" + domain, "sip:![0-9]+!@" + strings.ToUpper(domain), "sip:!9.*!@" + domain, "sip:00101!.*!@" + domain} {
 		err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "as", ServerName: "sip:as.example.org", PublicServiceIdentities: []string{identity}})
 		if !errors.Is(err, db.ErrPSIConflict) {
 			t.Errorf("create with PSI %s: err = %v, want ErrPSIConflict", identity, err)

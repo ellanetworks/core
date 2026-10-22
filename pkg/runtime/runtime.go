@@ -997,16 +997,7 @@ func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*
 }
 
 func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
-	sub, err := a.db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			return nil, fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
-		}
-
-		return nil, err
-	}
-
-	return profileFilterCriteria(ctx, a.db, sub.ProfileID)
+	return a.db.ListSubscriberIMSFilterCriteria(ctx, imsi)
 }
 
 func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*hss.ServiceIdentity, error) {

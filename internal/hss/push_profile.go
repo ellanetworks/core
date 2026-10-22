@@ -64,7 +64,7 @@ func (h *HSS) PushProfile(ctx context.Context, imsi string) error {
 	)
 	defer span.End()
 
-	pushed, err := h.pushProfile(ctx, s.privateIdentity(), reg, userData)
+	r, err := h.pushProfile(ctx, s.privateIdentity(), reg, userData)
 	if err != nil {
 		span.RecordError(err)
 		h.log.Warn("Cx profile push failed", zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost), zap.Error(err))
@@ -72,24 +72,68 @@ func (h *HSS) PushProfile(ctx context.Context, imsi string) error {
 		return err
 	}
 
-	if pushed {
-		h.log.Info("IMS user profile pushed", zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
-	} else {
+	switch {
+	case r.Code == diameter.ResultCommandUnsupported:
 		h.log.Info("the S-CSCF does not support profile push; it gets the new profile at its next server assignment",
 			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
+
+		return nil
+	case r.IsExperimental(tgpp.ResultErrorNotSupportedUserData), r.IsExperimental(tgpp.ResultErrorTooMuchData):
+		h.log.Warn("the S-CSCF rejected the IMS user profile; deregistering the user so that another S-CSCF is assigned",
+			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost), zap.Stringer("result", r))
+
+		return h.reassign(ctx, imsi, reg)
+	case r.IsExperimental(tgpp.ResultErrorUserUnknown):
+		h.log.Warn("the S-CSCF does not know the user; marking it not registered",
+			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
+
+		return h.clearRegistration(ctx, imsi, reg.ServerName)
+	case r.Failure():
+		err := fmt.Errorf("the S-CSCF answered %s", r)
+		span.RecordError(err)
+		h.log.Warn("Cx profile push failed", zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost), zap.Error(err))
+
+		return err
 	}
+
+	h.log.Info("IMS user profile pushed", zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
 
 	return nil
 }
 
-func (h *HSS) pushProfile(ctx context.Context, privateIdentity string, reg *Registration, userData []byte) (bool, error) {
+func (h *HSS) reassign(ctx context.Context, imsi string, reg *Registration) error {
+	t, err := h.Termination(ctx, imsi)
+	if err != nil || t == nil {
+		return err
+	}
+
+	t.Reason = cx.ReasonServerChange
+
+	if err := h.Terminate(ctx, t); err != nil {
+		return err
+	}
+
+	return h.clearRegistration(ctx, imsi, reg.ServerName)
+}
+
+func (h *HSS) clearRegistration(ctx context.Context, imsi, serverName string) error {
+	return h.updateRegistration(ctx, imsi, func(current *Registration) (*Registration, error) {
+		if current == nil || current.State == NotRegistered || current.ServerName != serverName {
+			return current, nil
+		}
+
+		return nil, nil
+	})
+}
+
+func (h *HSS) pushProfile(ctx context.Context, privateIdentity string, reg *Registration, userData []byte) (tgpp.Result, error) {
 	var node *diameter.Node
 	if h.peers != nil {
 		node = h.peers.Node()
 	}
 
 	if node == nil {
-		return false, ErrDiameterUnavailable
+		return tgpp.Result{}, ErrDiameterUnavailable
 	}
 
 	req, err := cx.NewPushProfileRequest(tgpp.Envelope{
@@ -99,28 +143,15 @@ func (h *HSS) pushProfile(ctx context.Context, privateIdentity string, reg *Regi
 		DestinationRealm: reg.OriginRealm,
 	}, cx.PushProfileRequest{PrivateIdentity: privateIdentity, UserData: userData})
 	if err != nil {
-		return false, err
+		return tgpp.Result{}, err
 	}
 
 	ans, err := node.Send(ctx, req)
 	if err != nil {
-		return false, err
+		return tgpp.Result{}, err
 	}
 
-	r, err := tgpp.ParseResult(ans)
-	if err != nil {
-		return false, err
-	}
-
-	if r.Code == diameter.ResultCommandUnsupported {
-		return false, nil
-	}
-
-	if r.Failure() {
-		return false, fmt.Errorf("the S-CSCF answered %s", r)
-	}
-
-	return true, nil
+	return tgpp.ParseResult(ans)
 }
 
 func (h *HSS) IdentitiesChanged(ctx context.Context, imsi, previousMSISDN string) error {
@@ -156,11 +187,5 @@ func (h *HSS) IdentitiesChanged(ctx context.Context, imsi, previousMSISDN string
 		return err
 	}
 
-	return h.updateRegistration(ctx, imsi, func(current *Registration) (*Registration, error) {
-		if current == nil || current.State != Registered || current.ServerName != reg.ServerName {
-			return current, nil
-		}
-
-		return nil, nil
-	})
+	return h.clearRegistration(ctx, imsi, reg.ServerName)
 }

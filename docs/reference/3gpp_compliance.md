@@ -68,7 +68,7 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **Initial filter criteria.** Each profile's ordered initial filter criteria in the user data sent to the S-CSCF, with service point triggers, default handling, service information, IncludeRegisterRequest, and IncludeRegisterResponse.
 - **Public Service Identities.** Distinct and wildcarded PSIs hosted by application servers. Location info for a PSI returns its application server, with the PSI direct routing indication and, for a wildcarded match, the wildcarded identity.
 - **Unregistered services.** Location info for a not registered identity whose profile has terminating services for the unregistered state returns DIAMETER_UNREGISTERED_SERVICE.
-- **Push profile.** The HSS pushes the new user data to the S-CSCF when a profile's filter criteria, an application server, or a subscriber's profile or MSISDN changes, and de-registers a registered subscriber whose default public identity changes.
+- **Push profile.** The HSS pushes the new user data to the S-CSCF when a profile's filter criteria, an application server, or a subscriber's profile or MSISDN changes, and de-registers a registered subscriber whose default public identity changes. When the S-CSCF rejects the pushed user data, the HSS de-registers the subscriber so that another S-CSCF is assigned; when the S-CSCF does not know the subscriber, the HSS marks it not registered.
 - **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice, video, and MCPTT.
 - **MCPTT priority.** The Rx MCPTT feature. MCPTT calls are identified by the MCPTT ICSI in AF-Application-Identifier, and their ARP is derived from the MCPTT-Identifier and Reservation-Priority, including priority changes during a call.
 - **EPS fallback.** A 5G voice call moves to 4G when the 5G radio requests it.
@@ -81,5 +81,5 @@ Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. GNSS positioning i
 
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
 - **No roaming.** Ella Core does not support roaming between networks.
-- **PSI direct routing only.** PSIs hosted by an S-CSCF and PSI activation are not supported.
+- **PSI direct routing only.** PSIs hosted by an S-CSCF and PSI activation are not supported. An application server that originates requests on behalf of its PSI routes them itself or through IMS transit functions, not through an S-CSCF.
 - **No MCPTT priority sharing or pre-emption control.** The PrioritySharing and MCPTT-Preemption Rx features are not supported.

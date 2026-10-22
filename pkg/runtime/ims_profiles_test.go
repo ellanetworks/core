@@ -39,7 +39,7 @@ func mcpttIFCs(asID string) []db.IMSInitialFilterCriterion {
 	}
 }
 
-func TestProfileFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
+func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 	ctx := context.Background()
 
 	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
@@ -74,9 +74,17 @@ func TestProfileFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("set profile iFCs: %s", err)
 	}
 
-	ifcs, err := profileFilterCriteria(ctx, database, profile.ID)
+	subscriber := &db.Subscriber{
+		Imsi: "001010000000001", SequenceNumber: "000000000001", PermanentKey: "6f30087629feb0b089783c81d0ae09b5",
+		Opc: "21a7e1897dfb481d62439142cdf1b6ee", ProfileID: profile.ID,
+	}
+	if err := database.CreateSubscriber(ctx, subscriber); err != nil {
+		t.Fatalf("create subscriber: %s", err)
+	}
+
+	ifcs, err := database.ListSubscriberIMSFilterCriteria(ctx, subscriber.Imsi)
 	if err != nil {
-		t.Fatalf("profileFilterCriteria: %s", err)
+		t.Fatalf("ListSubscriberIMSFilterCriteria: %s", err)
 	}
 
 	var priorities []int32
@@ -92,9 +100,9 @@ func TestProfileFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("iFC priorities %v, servers %v; want the other server's iFC first, then the two MCPTT iFCs", priorities, servers)
 	}
 
-	none, err := profileFilterCriteria(ctx, database, "unassigned")
+	none, err := database.ListSubscriberIMSFilterCriteria(ctx, "001010000000002")
 	if err != nil || len(none) != 0 {
-		t.Fatalf("iFCs of an unknown profile = %v, %v", none, err)
+		t.Fatalf("iFCs of an unknown subscriber = %v, %v", none, err)
 	}
 }
 

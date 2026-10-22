@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"regexp/syntax"
 	"slices"
 	"strings"
-	"sync"
+	"unicode"
 )
 
 const wildcardDelimiter = "!"
@@ -94,18 +95,37 @@ func Overlap(a, b string) bool {
 		return false
 	}
 
-	pa, errA := parse(a, modeStored)
-	pb, errB := parse(b, modeStored)
+	pa, errA := wildcardProgram(a)
+	pb, errB := wildcardProgram(b)
 
 	if errA != nil || errB != nil {
 		return false
 	}
 
-	if pa.scheme == "tel" || pb.scheme == "tel" {
-		return pa.scheme == pb.scheme
+	return intersect(pa, pb)
+}
+
+func Covers(stored, pattern string) bool {
+	if !Wildcarded(stored) {
+		return false
 	}
 
-	return pa.host == pb.host
+	ps, err := wildcardProgram(stored)
+	if err != nil {
+		return false
+	}
+
+	re, err := syntax.Parse(pattern, syntax.POSIX)
+	if err != nil {
+		return false
+	}
+
+	pp, err := syntax.Compile(re.Simplify())
+	if err != nil {
+		return false
+	}
+
+	return intersect(ps, pp)
 }
 
 type Match struct {
@@ -168,31 +188,166 @@ func (m *Matcher) Match(identity string) (Match, bool) {
 	return Match{}, false
 }
 
-var compiled sync.Map
-
 func compileWildcard(stored string) (*regexp.Regexp, error) {
-	if re, ok := compiled.Load(stored); ok {
-		return re.(*regexp.Regexp), nil
-	}
-
-	canonical, err := Canonical(stored)
+	pattern, err := wildcardPattern(stored)
 	if err != nil {
 		return nil, err
 	}
 
-	start, end := strings.Index(canonical, wildcardDelimiter), strings.LastIndex(canonical, wildcardDelimiter)
-	if start == end {
-		return nil, fmt.Errorf("%w: %q has no wildcard", ErrInvalidWildcard, stored)
-	}
-
-	re, err := regexp.CompilePOSIX("^" + regexp.QuoteMeta(canonical[:start]) + "(" + canonical[start+1:end] + ")" + regexp.QuoteMeta(canonical[end+1:]) + "$")
+	re, err := regexp.CompilePOSIX(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %q: %w", ErrInvalidWildcard, stored, err)
 	}
 
-	compiled.Store(stored, re)
-
 	return re, nil
+}
+
+func wildcardPattern(stored string) (string, error) {
+	canonical, err := Canonical(stored)
+	if err != nil {
+		return "", err
+	}
+
+	start, end := strings.Index(canonical, wildcardDelimiter), strings.LastIndex(canonical, wildcardDelimiter)
+	if start == end {
+		return "", fmt.Errorf("%w: %q has no wildcard", ErrInvalidWildcard, stored)
+	}
+
+	return "^" + regexp.QuoteMeta(canonical[:start]) + "(" + canonical[start+1:end] + ")" + regexp.QuoteMeta(canonical[end+1:]) + "$", nil
+}
+
+func wildcardProgram(stored string) (*syntax.Prog, error) {
+	pattern, err := wildcardPattern(stored)
+	if err != nil {
+		return nil, err
+	}
+
+	re, err := syntax.Parse(pattern, syntax.POSIX)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %q: %w", ErrInvalidWildcard, stored, err)
+	}
+
+	return syntax.Compile(re.Simplify())
+}
+
+func intersect(a, b *syntax.Prog) bool {
+	type state struct{ a, b uint32 }
+
+	start := state{uint32(a.Start), uint32(b.Start)}
+	seen := map[state]bool{start: true}
+	queue := []state{start}
+
+	for len(queue) > 0 {
+		s := queue[0]
+		queue = queue[1:]
+
+		ca, cb := closure(a, s.a), closure(b, s.b)
+
+		for _, pa := range ca {
+			ia := &a.Inst[pa]
+
+			for _, pb := range cb {
+				ib := &b.Inst[pb]
+
+				if ia.Op == syntax.InstMatch && ib.Op == syntax.InstMatch {
+					return true
+				}
+
+				if !consumes(ia.Op) || !consumes(ib.Op) || !runesIntersect(runeRanges(ia), runeRanges(ib)) {
+					continue
+				}
+
+				next := state{ia.Out, ib.Out}
+				if !seen[next] {
+					seen[next] = true
+					queue = append(queue, next)
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func closure(p *syntax.Prog, pc uint32) []uint32 {
+	var out []uint32
+
+	seen := map[uint32]bool{}
+	stack := []uint32{pc}
+
+	for len(stack) > 0 {
+		pc := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if seen[pc] {
+			continue
+		}
+
+		seen[pc] = true
+		inst := &p.Inst[pc]
+
+		switch inst.Op {
+		case syntax.InstAlt, syntax.InstAltMatch:
+			stack = append(stack, inst.Out, inst.Arg)
+		case syntax.InstCapture, syntax.InstNop, syntax.InstEmptyWidth:
+			stack = append(stack, inst.Out)
+		case syntax.InstFail:
+		default:
+			out = append(out, pc)
+		}
+	}
+
+	return out
+}
+
+func consumes(op syntax.InstOp) bool {
+	switch op {
+	case syntax.InstRune, syntax.InstRune1, syntax.InstRuneAny, syntax.InstRuneAnyNotNL:
+		return true
+	default:
+		return false
+	}
+}
+
+func runeRanges(inst *syntax.Inst) [][2]rune {
+	switch inst.Op {
+	case syntax.InstRuneAny:
+		return [][2]rune{{0, unicode.MaxRune}}
+	case syntax.InstRuneAnyNotNL:
+		return [][2]rune{{0, '\n' - 1}, {'\n' + 1, unicode.MaxRune}}
+	}
+
+	if len(inst.Rune) == 1 {
+		r := inst.Rune[0]
+		out := [][2]rune{{r, r}}
+
+		if syntax.Flags(inst.Arg)&syntax.FoldCase != 0 {
+			for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+				out = append(out, [2]rune{f, f})
+			}
+		}
+
+		return out
+	}
+
+	out := make([][2]rune, 0, len(inst.Rune)/2)
+	for i := 0; i+1 < len(inst.Rune); i += 2 {
+		out = append(out, [2]rune{inst.Rune[i], inst.Rune[i+1]})
+	}
+
+	return out
+}
+
+func runesIntersect(a, b [][2]rune) bool {
+	for _, ra := range a {
+		for _, rb := range b {
+			if ra[0] <= rb[1] && rb[0] <= ra[1] {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func parse(uri string, m mode) (parsed, error) {
