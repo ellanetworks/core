@@ -115,7 +115,7 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 		t.Fatal("idle UE context not removed on subscriber deletion")
 	}
 
-	if !m.Session.(*fakeSessionManager).released {
+	if !m.Session.(*fakeSessionManager).wasReleased() {
 		t.Fatal("EPS session not released on subscriber deletion")
 	}
 
@@ -147,7 +147,7 @@ func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
 		t.Fatalf("expected no downlink for a local detach (no keys to protect one), got %d", cc.count())
 	}
 
-	if !m.Session.(*fakeSessionManager).released {
+	if !m.Session.(*fakeSessionManager).wasReleased() {
 		t.Fatal("EPS session not released on local detach")
 	}
 

@@ -125,7 +125,9 @@ func serveOn(t *testing.T, n *Node, kind Transport, ip netip.Addr) netip.AddrPor
 	t.Cleanup(func() {
 		_ = ln.Close()
 
-		<-served
+		if err := <-served; err != nil {
+			t.Logf("serve: %v", err)
+		}
 	})
 
 	return listenerAddr(ln)

@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/ims/sip"
 	"github.com/ellanetworks/ims/sip/sdp"
 	"github.com/ellanetworks/ims/testue"
+	"github.com/ellanetworks/ims/ue"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -303,7 +304,7 @@ func callOutcome(ctx context.Context, u *imsUE, target string) (int, error) {
 
 	_, err = c.Wait(attempt)
 
-	var rejected *testue.ResponseError
+	var rejected *ue.ResponseError
 
 	switch {
 	case err == nil:
@@ -340,7 +341,7 @@ func RegisterIMSOutOfSync(ctx context.Context, sub SubscriberSpec, pcscf, local 
 func RequireIMSRegistrationForbidden(ctx context.Context, sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport) error {
 	_, err := registerIMS(ctx, sub, pcscf, local, transport, 0)
 
-	var rejected *testue.ResponseError
+	var rejected *ue.ResponseError
 
 	switch {
 	case err == nil:

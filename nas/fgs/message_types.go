@@ -16,6 +16,7 @@ func (m *AuthenticationReject) MessageType() MessageType       { return MsgAuthe
 func (m *AuthenticationResponse) MessageType() MessageType     { return MsgAuthenticationResponse }
 func (m *AuthenticationFailure) MessageType() MessageType      { return MsgAuthenticationFailure }
 func (m *ConfigurationUpdateCommand) MessageType() MessageType { return MsgConfigurationUpdateCommand }
+
 func (m *ConfigurationUpdateComplete) MessageType() MessageType {
 	return MsgConfigurationUpdateComplete
 }
@@ -94,8 +95,11 @@ func (m *PDUSessionModificationComplete) MessageType() GSMMessageType {
 func (m *PDUSessionModificationCommandReject) MessageType() GSMMessageType {
 	return MsgPDUSessionModificationCmdReject
 }
-func (m *PDUSessionReleaseCommand) MessageType() GSMMessageType  { return MsgPDUSessionReleaseCommand }
-func (m *PDUSessionReleaseRequest) MessageType() GSMMessageType  { return MsgPDUSessionReleaseRequest }
+
+func (m *PDUSessionReleaseCommand) MessageType() GSMMessageType { return MsgPDUSessionReleaseCommand }
+
+func (m *PDUSessionReleaseRequest) MessageType() GSMMessageType { return MsgPDUSessionReleaseRequest }
+
 func (m *PDUSessionReleaseComplete) MessageType() GSMMessageType { return MsgPDUSessionReleaseComplete }
 func (m *GSMStatus) MessageType() GSMMessageType                 { return MsgGSMStatus }
 
@@ -186,18 +190,29 @@ var (
 )
 
 // Every 5GSM message names the PDU session it concerns.
-func (m *PDUSessionEstablishmentRequest) SessionIdentity() PDUSessionID      { return m.PDUSessionID }
-func (m *PDUSessionEstablishmentReject) SessionIdentity() PDUSessionID       { return m.PDUSessionID }
-func (m *PDUSessionEstablishmentAccept) SessionIdentity() PDUSessionID       { return m.PDUSessionID }
-func (m *PDUSessionModificationRequest) SessionIdentity() PDUSessionID       { return m.PDUSessionID }
-func (m *PDUSessionModificationReject) SessionIdentity() PDUSessionID        { return m.PDUSessionID }
-func (m *PDUSessionModificationCommand) SessionIdentity() PDUSessionID       { return m.PDUSessionID }
-func (m *PDUSessionModificationComplete) SessionIdentity() PDUSessionID      { return m.PDUSessionID }
+func (m *PDUSessionEstablishmentRequest) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionEstablishmentReject) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionEstablishmentAccept) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionModificationRequest) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionModificationReject) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionModificationCommand) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionModificationComplete) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
 func (m *PDUSessionModificationCommandReject) SessionIdentity() PDUSessionID { return m.PDUSessionID }
-func (m *PDUSessionReleaseCommand) SessionIdentity() PDUSessionID            { return m.PDUSessionID }
-func (m *PDUSessionReleaseRequest) SessionIdentity() PDUSessionID            { return m.PDUSessionID }
-func (m *PDUSessionReleaseComplete) SessionIdentity() PDUSessionID           { return m.PDUSessionID }
-func (m *GSMStatus) SessionIdentity() PDUSessionID                           { return m.PDUSessionID }
+
+func (m *PDUSessionReleaseCommand) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionReleaseRequest) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *PDUSessionReleaseComplete) SessionIdentity() PDUSessionID { return m.PDUSessionID }
+
+func (m *GSMStatus) SessionIdentity() PDUSessionID { return m.PDUSessionID }
 
 // Every 5GSM message names the transaction it belongs to.
 func (m *PDUSessionEstablishmentRequest) TransactionIdentity() nas.ProcedureTransactionIdentity {

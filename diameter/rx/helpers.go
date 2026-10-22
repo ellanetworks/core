@@ -54,6 +54,10 @@ func vendorUnsigned(code, v uint32) diameter.AVP {
 	return diameter.Unsigned32(code, diameter.AVPFlagMandatory, tgpp.VendorID, v)
 }
 
+func reservationPriorityAVP(p ReservationPriority) diameter.AVP {
+	return diameter.Unsigned32(avpReservationPriority, 0, etsiVendorID, uint32(p))
+}
+
 func vendorOctets(code uint32, v []byte) diameter.AVP {
 	return diameter.OctetString(code, diameter.AVPFlagMandatory, tgpp.VendorID, v)
 }

@@ -26,13 +26,17 @@ type AARequest struct {
 	SIPForkingIndication    SIPForkingIndication
 	SpecificActions         []SpecificAction
 	SubscriptionIDs         []SubscriptionID
+	ReservationPriority     *ReservationPriority
 	FramedIPAddress         netip.Addr
 	FramedIPv6Address       netip.Addr
 	CalledStationID         string
 	IPDomainID              []byte
 	ServiceURN              string
+	MCPTTIdentifier         string
+	MCVideoIdentifier       string
 	RequestType             *RequestType
 	RequiredAccessInfo      []RequiredAccessInfo
+	PreemptionControl       *PreemptionControl
 	NoStateMaintained       bool
 	Features                Features
 	FeaturesRequired        bool
@@ -112,6 +116,10 @@ func NewAARequest(env tgpp.Envelope, r AARequest) (*diameter.Message, error) {
 		return nil, invalidf("P-CSCF restoration without NO_STATE_MAINTAINED")
 	case r.FeaturesRequired && r.Features == 0:
 		return nil, invalidf("features required without any feature")
+	case !validEnum(r.ReservationPriority):
+		return nil, invalidf("Reservation-Priority %s", *r.ReservationPriority)
+	case !validEnum(r.PreemptionControl):
+		return nil, invalidf("Pre-emption-Control-Info %s", *r.PreemptionControl)
 	}
 
 	var avps []diameter.AVP
@@ -164,6 +172,10 @@ func NewAARequest(env tgpp.Envelope, r AARequest) (*diameter.Message, error) {
 	avps = append(avps, subscriptions...)
 	avps = append(avps, featureAVPs(r.Features, r.FeaturesRequired)...)
 
+	if r.ReservationPriority != nil {
+		avps = append(avps, reservationPriorityAVP(*r.ReservationPriority))
+	}
+
 	binding, err := bindingAVPs(r.FramedIPAddress, r.FramedIPv6Address)
 	if err != nil {
 		return nil, err
@@ -179,6 +191,14 @@ func NewAARequest(env tgpp.Envelope, r AARequest) (*diameter.Message, error) {
 		avps = append(avps, vendorOctets(AVPServiceURN, []byte(r.ServiceURN)))
 	}
 
+	if r.MCPTTIdentifier != "" {
+		avps = append(avps, diameter.OctetString(avpMCPTTIdentifier, 0, tgpp.VendorID, []byte(r.MCPTTIdentifier)))
+	}
+
+	if r.MCVideoIdentifier != "" {
+		avps = append(avps, diameter.OctetString(avpMCVideoIdentifier, 0, tgpp.VendorID, []byte(r.MCVideoIdentifier)))
+	}
+
 	if r.RequestType != nil {
 		avps = append(avps, diameter.Unsigned32(AVPRxRequestType, 0, tgpp.VendorID, uint32(*r.RequestType)))
 	}
@@ -189,6 +209,10 @@ func NewAARequest(env tgpp.Envelope, r AARequest) (*diameter.Message, error) {
 	}
 
 	avps = append(avps, required...)
+
+	if r.PreemptionControl != nil {
+		avps = append(avps, diameter.Unsigned32(avpPreemptionControlInfo, 0, tgpp.VendorID, uint32(*r.PreemptionControl)))
+	}
 
 	return newRequest(env, CommandAA, avps...)
 }
@@ -232,6 +256,8 @@ func ParseAARequest(req *diameter.Message) (AARequest, error) {
 		{AVPAFChargingIdentifier, tgpp.VendorID, &r.AFChargingIdentifier},
 		{diameter.AVPCalledStationID, 0, &r.CalledStationID},
 		{AVPServiceURN, tgpp.VendorID, &r.ServiceURN},
+		{avpMCPTTIdentifier, tgpp.VendorID, &r.MCPTTIdentifier},
+		{avpMCVideoIdentifier, tgpp.VendorID, &r.MCVideoIdentifier},
 	} {
 		if *f.dst, err = optionalString(req.AVPs, f.code, f.vendorID); err != nil {
 			return AARequest{}, err
@@ -272,6 +298,14 @@ func ParseAARequest(req *diameter.Message) (AARequest, error) {
 	}
 
 	if r.RequiredAccessInfo, err = enumList[RequiredAccessInfo](req.AVPs, AVPRequiredAccessInfo, tgpp.VendorID); err != nil {
+		return AARequest{}, err
+	}
+
+	if r.ReservationPriority, err = optionalEnum[ReservationPriority](req.AVPs, avpReservationPriority, etsiVendorID); err != nil {
+		return AARequest{}, err
+	}
+
+	if r.PreemptionControl, err = optionalEnum[PreemptionControl](req.AVPs, avpPreemptionControlInfo, tgpp.VendorID); err != nil {
 		return AARequest{}, err
 	}
 

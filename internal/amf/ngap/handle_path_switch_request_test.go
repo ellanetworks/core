@@ -113,11 +113,11 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 
 	failure := sender.SentPathSwitchRequestFailures[0]
 	if failure.AMFUENGAPID == nil || *failure.AMFUENGAPID != ngap.AMFUENGAPID(999) {
-		t.Errorf("expected AmfUeNgapID=999, got %d", failure.AMFUENGAPID)
+		t.Errorf("expected AmfUeNgapID=999, got %v", failure.AMFUENGAPID)
 	}
 
 	if failure.RANUENGAPID == nil || *failure.RANUENGAPID != ngap.RANUENGAPID(1) {
-		t.Errorf("expected RanUeNgapID=1, got %d", failure.RANUENGAPID)
+		t.Errorf("expected RanUeNgapID=1, got %v", failure.RANUENGAPID)
 	}
 }
 
@@ -396,11 +396,11 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
 
 	if ack.AMFUENGAPID == nil || *ack.AMFUENGAPID != ngap.AMFUENGAPID(sourceAmfUeNgapID) {
-		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, ack.AMFUENGAPID)
+		t.Errorf("expected AmfUeNgapID=%d, got %v", sourceAmfUeNgapID, ack.AMFUENGAPID)
 	}
 
 	if ack.RANUENGAPID == nil || *ack.RANUENGAPID != ngap.RANUENGAPID(targetRanUeNgapID) {
-		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, ack.RANUENGAPID)
+		t.Errorf("expected RanUeNgapID=%d, got %v", targetRanUeNgapID, ack.RANUENGAPID)
 	}
 
 	if ack.SecurityContext.NextHopChainingCount == 0 {
@@ -555,11 +555,11 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 
 	failure := targetNGAPSender.SentPathSwitchRequestFailures[0]
 	if failure.AMFUENGAPID == nil || *failure.AMFUENGAPID != ngap.AMFUENGAPID(sourceAmfUeNgapID) {
-		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, failure.AMFUENGAPID)
+		t.Errorf("expected AmfUeNgapID=%d, got %v", sourceAmfUeNgapID, failure.AMFUENGAPID)
 	}
 
 	if failure.RANUENGAPID == nil || *failure.RANUENGAPID != ngap.RANUENGAPID(targetRanUeNgapID) {
-		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, failure.RANUENGAPID)
+		t.Errorf("expected RanUeNgapID=%d, got %v", targetRanUeNgapID, failure.RANUENGAPID)
 	}
 
 	if failure.PDUSessionResourceReleased == nil || len(failure.PDUSessionResourceReleased) != 1 {

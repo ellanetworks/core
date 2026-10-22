@@ -26,7 +26,7 @@ func extendedTAI(t *testing.T, crit Criticality) []byte {
 		t.Fatalf("plmn: %v", err)
 	}
 
-	if err := (TAC(1)).MarshalPER(w, per.Aligned); err != nil {
+	if err := TAC(1).MarshalPER(w, per.Aligned); err != nil {
 		t.Fatalf("tac: %v", err)
 	}
 
