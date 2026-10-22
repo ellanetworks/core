@@ -660,8 +660,8 @@ func TestShutdownWaitsForInFlightRequests(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 
 			select {
-			case <-shutdown:
-				t.Fatal("Shutdown returned with a request in flight")
+			case err := <-shutdown:
+				t.Fatalf("Shutdown returned with a request in flight: %v", err)
 			default:
 			}
 
