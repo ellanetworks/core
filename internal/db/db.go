@@ -314,19 +314,10 @@ type Database struct {
 	getIMSPSIStmt                   *sqlair.Statement
 	insertIMSPSIStmt                *sqlair.Statement
 	deleteIMSPSIsByASStmt           *sqlair.Statement
-	listIMSServicesStmt             *sqlair.Statement
-	getIMSServiceStmt               *sqlair.Statement
-	insertIMSServiceStmt            *sqlair.Statement
-	updateIMSServiceStmt            *sqlair.Statement
-	deleteIMSServiceStmt            *sqlair.Statement
-	listIMSIFCsStmt                 *sqlair.Statement
-	listIMSIFCsByServiceStmt        *sqlair.Statement
 	insertIMSIFCStmt                *sqlair.Statement
-	deleteIMSIFCsByServiceStmt      *sqlair.Statement
-	listProfileIMSServicesStmt      *sqlair.Statement
-	insertProfileIMSServiceStmt     *sqlair.Statement
-	deleteProfileIMSServicesStmt    *sqlair.Statement
-	listProfilesOfIMSServicesStmt   *sqlair.Statement
+	listProfileIMSIFCsStmt          *sqlair.Statement
+	deleteProfileIMSIFCsStmt        *sqlair.Statement
+	listProfilesOfIMSASStmt         *sqlair.Statement
 	listIMSRegisteredOfProfilesStmt *sqlair.Statement
 
 	getIMSRegistrationStmt    *sqlair.Statement
@@ -2023,19 +2014,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.getIMSPSIStmt, fmt.Sprintf(getIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
 		{&db.insertIMSPSIStmt, fmt.Sprintf(insertIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
 		{&db.deleteIMSPSIsByASStmt, fmt.Sprintf(deleteIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
-		{&db.listIMSServicesStmt, fmt.Sprintf(listIMSServicesStmt, IMSServicesTableName), []any{imsServiceRow{}}},
-		{&db.getIMSServiceStmt, fmt.Sprintf(getIMSServiceStmt, IMSServicesTableName), []any{imsServiceRow{}}},
-		{&db.insertIMSServiceStmt, fmt.Sprintf(insertIMSServiceStmt, IMSServicesTableName), []any{imsServiceRow{}}},
-		{&db.updateIMSServiceStmt, fmt.Sprintf(updateIMSServiceStmt, IMSServicesTableName), []any{imsServiceRow{}}},
-		{&db.deleteIMSServiceStmt, fmt.Sprintf(deleteIMSServiceStmt, IMSServicesTableName), []any{imsServiceRow{}}},
-		{&db.listIMSIFCsStmt, fmt.Sprintf(listIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.listIMSIFCsByServiceStmt, fmt.Sprintf(listIMSIFCsByServiceStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
 		{&db.insertIMSIFCStmt, fmt.Sprintf(insertIMSIFCStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.deleteIMSIFCsByServiceStmt, fmt.Sprintf(deleteIMSIFCsByServiceStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.listProfileIMSServicesStmt, fmt.Sprintf(listProfileIMSServicesStmt, IMSServicesTableName, ProfileIMSServicesTableName), []any{imsServiceRow{}, profileIMSServiceRow{}}},
-		{&db.insertProfileIMSServiceStmt, fmt.Sprintf(insertProfileIMSServiceStmt, ProfileIMSServicesTableName), []any{profileIMSServiceRow{}}},
-		{&db.deleteProfileIMSServicesStmt, fmt.Sprintf(deleteProfileIMSServicesStmt, ProfileIMSServicesTableName), []any{profileIMSServiceRow{}}},
-		{&db.listProfilesOfIMSServicesStmt, fmt.Sprintf(listProfilesOfIMSServicesStmt, ProfileIMSServicesTableName), []any{profileIMSServiceRow{}, SliceIDs{}}},
+		{&db.listProfileIMSIFCsStmt, fmt.Sprintf(listProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
+		{&db.deleteProfileIMSIFCsStmt, fmt.Sprintf(deleteProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
+		{&db.listProfilesOfIMSASStmt, fmt.Sprintf(listProfilesOfIMSASStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
 		{&db.listIMSRegisteredOfProfilesStmt, fmt.Sprintf(listIMSRegisteredOfProfilesStmt, SubscribersTableName, IMSRegistrationsTableName), []any{subscriberIMSI{}, SliceIDs{}}},
 		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},

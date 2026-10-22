@@ -6,19 +6,61 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { setupApiServer } from "@/test/apiServer";
+import { httpError, setupApiServer } from "@/test/apiServer";
 import ProfileDetail from "./ProfileDetail";
 
 const api = setupApiServer();
 
-const IMS_PATH = "/api/v1/profiles/default/ims-services";
+const IFC_PATH = "/api/v1/profiles/default/ims-filter-criteria";
+const AS_PATH = "/api/v1/operator/ims/application-servers";
 
-const service = (name: string, kind = "mcptt") => ({
-  name,
-  kind,
-  application_server_name: "as",
-  initial_filter_criteria: [],
-});
+const registerIFC = {
+  application_server_name: "voicemail",
+  trigger_point: {
+    condition_type_cnf: false,
+    spt: [{ group: [0], method: "REGISTER" }],
+  },
+  default_handling: "SESSION_CONTINUED",
+};
+
+const terminatingIFC = {
+  application_server_name: "conf",
+  trigger_point: {
+    condition_type_cnf: false,
+    spt: [{ group: [0], session_case: "TERMINATING_UNREGISTERED" }],
+  },
+  default_handling: "SESSION_TERMINATED",
+};
+
+const mcpttPresetIFCs = [
+  {
+    application_server_name: "mcptt",
+    trigger_point: {
+      condition_type_cnf: false,
+      spt: [{ group: [0], method: "REGISTER" }],
+    },
+    default_handling: "SESSION_CONTINUED",
+    include_register_request: true,
+    include_register_response: true,
+  },
+  {
+    application_server_name: "mcptt",
+    trigger_point: {
+      condition_type_cnf: true,
+      spt: [
+        { group: [0], session_case: "ORIGINATING_REGISTERED" },
+        {
+          group: [1],
+          sip_header: {
+            header: "^P-Asserted-Service$",
+            content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
+          },
+        },
+      ],
+    },
+    default_handling: "SESSION_TERMINATED",
+  },
+];
 
 beforeEach(() => {
   api.get("/api/v1/profiles/default", () => ({
@@ -34,8 +76,19 @@ beforeEach(() => {
     per_page: 100,
     total_count: 0,
   }));
-  api.get("/api/v1/operator/ims/services", () => ({
-    items: [service("mcptt"), service("voicemail", "custom"), service("conf")],
+  api.get(AS_PATH, () => ({
+    items: [
+      {
+        name: "mcptt",
+        server_name: "sip:mcptt.ims.example.org",
+        public_service_identities: [],
+      },
+      {
+        name: "voicemail",
+        server_name: "sip:vm.ims.example.org",
+        public_service_identities: [],
+      },
+    ],
   }));
 });
 
@@ -49,81 +102,196 @@ const renderProfile = (role = "Admin") =>
 
 const card = async () =>
   within(
-    (await screen.findByText("IMS Services")).closest(
+    (await screen.findByText("IMS Filter Criteria")).closest(
       ".MuiCard-root",
     ) as HTMLElement,
   );
 
-describe("ProfileDetail IMS services", () => {
-  it("lists the profile's services in order", async () => {
-    api.get(IMS_PATH, () => ({ services: ["voicemail", "mcptt"] }));
+const editor = () =>
+  screen.getByLabelText(/^Filter Criteria \(JSON\)/) as HTMLTextAreaElement;
+
+const openEditor = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(
+    await screen.findByRole("button", { name: "Edit IMS filter criteria" }),
+  );
+  return within(await screen.findByRole("dialog"));
+};
+
+const putBody = () =>
+  api.requests(IFC_PATH).find((r) => r.method === "PUT")?.body;
+
+describe("ProfileDetail IMS filter criteria", () => {
+  it("lists the profile's filter criteria in priority order", async () => {
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [
+        { ...terminatingIFC, priority: 1 },
+        { ...registerIFC, priority: 0 },
+      ],
+    }));
     renderProfile();
 
     const c = await card();
-    const rows = await c.findAllByRole("row");
-    expect(rows.map((r) => r.textContent)).toEqual(["1voicemail", "2mcptt"]);
-    expect(c.getByText(/Order decides iFC priority/)).toBeInTheDocument();
+    await c.findByText("voicemail");
+    const rows = c.getAllByRole("row").slice(1);
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "1voicemailmethod REGISTERContinue",
+      "2confsession case TERMINATING_UNREGISTEREDTerminate",
+    ]);
   });
 
-  it("shows when the profile has no services", async () => {
-    api.get(IMS_PATH, () => ({ services: [] }));
+  it("shows when the profile has no filter criteria", async () => {
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
     renderProfile();
 
     expect(
-      await (await card()).findByText("No IMS services."),
+      await (await card()).findByText("No IMS filter criteria."),
     ).toBeInTheDocument();
   });
 
-  it("adds, removes and reorders services", async () => {
+  it("saves edited JSON without priorities", async () => {
     const user = userEvent.setup();
-    let services = ["mcptt", "voicemail"];
-    api.get(IMS_PATH, () => ({ services }));
-    api.put(IMS_PATH, ({ body }) => {
-      services = (body as { services: string[] }).services;
-      return {};
-    });
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
+    }));
+    api.put(IFC_PATH, () => ({}));
     renderProfile();
 
-    await (await card()).findByText("mcptt");
-    await user.click(screen.getByRole("button", { name: "Edit IMS services" }));
-    const dialog = within(await screen.findByRole("dialog"));
+    await (await card()).findByText("voicemail");
+    const dialog = await openEditor(user);
+    expect(JSON.parse(editor().value)).toEqual([registerIFC]);
 
-    expect(
-      dialog.getByRole("button", { name: "Move mcptt up" }),
-    ).toBeDisabled();
-    await user.click(dialog.getByRole("button", { name: "Remove mcptt" }));
-    await user.click(dialog.getByRole("combobox", { name: /Add Service/ }));
-    await user.click(await screen.findByRole("option", { name: "conf" }));
-    await user.click(dialog.getByRole("button", { name: "Move conf up" }));
+    await user.clear(editor());
+    await user.click(editor());
+    await user.paste(JSON.stringify([terminatingIFC, registerIFC]));
     await user.click(dialog.getByRole("button", { name: "Save" }));
 
-    await screen.findByText("IMS services updated successfully.");
-    expect(
-      api.requests(IMS_PATH).find((r) => r.method === "PUT")?.body,
-    ).toEqual({ services: ["conf", "voicemail"] });
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [terminatingIFC, registerIFC],
+    });
   });
 
-  it("only offers services not already assigned", async () => {
+  it("appends the MCPTT preset for the chosen application server", async () => {
     const user = userEvent.setup();
-    api.get(IMS_PATH, () => ({ services: ["mcptt"] }));
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
+    }));
+    api.put(IFC_PATH, () => ({}));
     renderProfile();
 
-    await (await card()).findByText("mcptt");
-    await user.click(screen.getByRole("button", { name: "Edit IMS services" }));
-    const dialog = within(await screen.findByRole("dialog"));
-    await user.click(dialog.getByRole("combobox", { name: /Add Service/ }));
+    await (await card()).findByText("voicemail");
+    const dialog = await openEditor(user);
+    expect(dialog.getByRole("button", { name: "Add preset" })).toBeDisabled();
+    await user.click(dialog.getByRole("combobox", { name: /Preset/ }));
+    await user.click(await screen.findByRole("option", { name: /^MCPTT/ }));
+    await user.click(
+      dialog.getByRole("combobox", { name: /Application Server/ }),
+    );
+    await user.click(
+      await screen.findByRole("option", { name: /^mcptt \(sip:/ }),
+    );
+    await user.click(dialog.getByRole("button", { name: "Add preset" }));
 
-    const options = await screen.findAllByRole("option");
-    expect(options.map((o) => o.textContent)).toEqual(["voicemail", "conf"]);
+    expect(JSON.parse(editor().value)).toEqual([
+      registerIFC,
+      ...mcpttPresetIFCs,
+    ]);
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [registerIFC, ...mcpttPresetIFCs],
+    });
+  });
+
+  it("clears the filter criteria with an empty array", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
+    }));
+    api.put(IFC_PATH, () => ({}));
+    renderProfile();
+
+    await (await card()).findByText("voicemail");
+    const dialog = await openEditor(user);
+    await user.clear(editor());
+    await user.click(editor());
+    await user.paste("[]");
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({ initial_filter_criteria: [] });
+  });
+
+  it("refuses invalid JSON and criteria without an application server", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+
+    await user.clear(editor());
+    await user.click(editor());
+    await user.paste("[{");
+    await user.tab();
+    expect(await dialog.findByText("Must be valid JSON")).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+
+    await user.clear(editor());
+    await user.paste('{"application_server_name": "mcptt"}');
+    expect(await dialog.findByText("Must be a JSON array")).toBeInTheDocument();
+
+    await user.clear(editor());
+    await user.paste('[{"default_handling": "SESSION_CONTINUED"}]');
+    expect(
+      await dialog.findByText(
+        "Filter criterion 1 needs an application_server_name",
+      ),
+    ).toBeInTheDocument();
+
+    await user.clear(editor());
+    await user.paste('[{"application_server_name": "  "}]');
+    expect(
+      await dialog.findByText(
+        "Filter criterion 1 needs an application_server_name",
+      ),
+    ).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(api.requests(IFC_PATH).some((r) => r.method === "PUT")).toBe(false);
+  });
+
+  it("shows the error when the server rejects the filter criteria", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    api.put(IFC_PATH, () =>
+      httpError(400, "initial_filter_criteria[0]: unknown application server"),
+    );
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+    await user.clear(editor());
+    await user.click(editor());
+    await user.paste('[{"application_server_name": "missing"}]');
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    expect(
+      await dialog.findByText(
+        "Failed to update IMS filter criteria: initial_filter_criteria[0]: unknown application server",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("hides the edit button from a read-only user", async () => {
-    api.get(IMS_PATH, () => ({ services: ["mcptt"] }));
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
+    }));
     renderProfile("Read Only");
 
-    await (await card()).findByText("mcptt");
+    await (await card()).findByText("voicemail");
     expect(
-      screen.queryByRole("button", { name: "Edit IMS services" }),
+      screen.queryByRole("button", { name: "Edit IMS filter criteria" }),
     ).not.toBeInTheDocument();
   });
 });

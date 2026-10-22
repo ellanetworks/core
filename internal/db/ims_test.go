@@ -13,22 +13,25 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func registerIFC() db.IMSInitialFilterCriterion {
+func registerIFC(asID string) db.IMSInitialFilterCriterion {
 	return db.IMSInitialFilterCriterion{
-		TriggerPoint: db.IMSTriggerPoint{
+		ApplicationServerID: asID,
+		TriggerPoint: &db.IMSTriggerPoint{
 			ServicePointTriggers: []db.IMSServicePointTrigger{
 				{Groups: []int32{0}, Method: ptr("REGISTER"), RegistrationTypes: []db.IMSRegistrationType{db.IMSRegistrationTypeInitial, db.IMSRegistrationTypeDeregistration}},
 			},
 		},
-		DefaultHandling:         db.IMSDefaultHandlingSessionContinued,
+		DefaultHandling:         ptr(db.IMSDefaultHandlingSessionContinued),
+		ServiceInfo:             ptr("<mcptt-info/>"),
 		IncludeRegisterRequest:  true,
 		IncludeRegisterResponse: true,
 	}
 }
 
-func originatingIFC() db.IMSInitialFilterCriterion {
+func originatingIFC(asID string) db.IMSInitialFilterCriterion {
 	return db.IMSInitialFilterCriterion{
-		TriggerPoint: db.IMSTriggerPoint{
+		ApplicationServerID: asID,
+		TriggerPoint: &db.IMSTriggerPoint{
 			ConditionTypeCNF: true,
 			ServicePointTriggers: []db.IMSServicePointTrigger{
 				{Groups: []int32{0}, SessionCase: ptr(db.IMSSessionCaseOriginatingRegistered)},
@@ -37,8 +40,13 @@ func originatingIFC() db.IMSInitialFilterCriterion {
 				{Groups: []int32{2}, RequestURI: ptr(`^conf\.example\.org$`)},
 			},
 		},
-		DefaultHandling: db.IMSDefaultHandlingSessionTerminated,
+		ProfilePart:     ptr(db.IMSProfilePartRegistered),
+		DefaultHandling: ptr(db.IMSDefaultHandlingSessionTerminated),
 	}
+}
+
+func unconditionalIFC(asID string) db.IMSInitialFilterCriterion {
+	return db.IMSInitialFilterCriterion{ApplicationServerID: asID, ProfilePart: ptr(db.IMSProfilePartUnregistered)}
 }
 
 func TestIMSApplicationServersEndToEnd(t *testing.T) {
@@ -149,105 +157,16 @@ func TestIMSApplicationServerValidate(t *testing.T) {
 	}
 }
 
-func TestIMSServicesEndToEnd(t *testing.T) {
+func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 	ctx := context.Background()
 	database := setupTestDB(t)
 
-	as := &db.IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org"}
-	if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
-		t.Fatalf("create application server: %v", err)
-	}
+	mcptt := &db.IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org"}
+	conf := &db.IMSApplicationServer{Name: "conf", ServerName: "sip:conf.ims.example.org"}
 
-	mcptt := &db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: as.ID}
-	if err := database.CreateIMSService(ctx, mcptt); err != nil {
-		t.Fatalf("create mcptt service: %v", err)
-	}
-
-	custom := &db.IMSService{
-		Name:                  "stand-in",
-		Kind:                  db.IMSServiceKindCustom,
-		ApplicationServerID:   as.ID,
-		InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC(), originatingIFC()},
-	}
-
-	if err := database.CreateIMSService(ctx, custom); err != nil {
-		t.Fatalf("create custom service: %v", err)
-	}
-
-	got, err := database.GetIMSService(ctx, "stand-in")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-
-	if !reflect.DeepEqual(got, custom) {
-		t.Fatalf("get = %+v, want %+v", got, custom)
-	}
-
-	if err := database.CreateIMSService(ctx, &db.IMSService{Name: "orphan", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "missing"}); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("create with an unknown application server: err = %v, want ErrNotFound", err)
-	}
-
-	if err := database.CreateIMSService(ctx, &db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: as.ID}); !errors.Is(err, db.ErrAlreadyExists) {
-		t.Fatalf("create with a taken name: err = %v, want ErrAlreadyExists", err)
-	}
-
-	custom.InitialFilterCriteria = []db.IMSInitialFilterCriterion{originatingIFC()}
-	if err := database.UpdateIMSService(ctx, custom); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-
-	services, err := database.ListIMSServices(ctx)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-
-	if !reflect.DeepEqual(services, []db.IMSService{*mcptt, *custom}) {
-		t.Fatalf("list = %+v, want %+v", services, []db.IMSService{*mcptt, *custom})
-	}
-
-	custom.Kind = db.IMSServiceKindMCPTT
-	custom.InitialFilterCriteria = nil
-
-	if err := database.UpdateIMSService(ctx, custom); err != nil {
-		t.Fatalf("update to mcptt: %v", err)
-	}
-
-	if got, err := database.GetIMSService(ctx, "stand-in"); err != nil || len(got.InitialFilterCriteria) != 0 {
-		t.Fatalf("get after update to mcptt = %+v, err %v; want no iFCs", got, err)
-	}
-
-	if err := database.UpdateIMSService(ctx, &db.IMSService{Name: "missing", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: as.ID}); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("update missing: err = %v, want ErrNotFound", err)
-	}
-
-	if err := database.DeleteIMSApplicationServer(ctx, "mcptt"); !errors.Is(err, db.ErrInUse) {
-		t.Fatalf("delete an application server with services: err = %v, want ErrInUse", err)
-	}
-
-	if err := database.DeleteIMSService(ctx, "stand-in"); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-
-	if err := database.DeleteIMSService(ctx, "stand-in"); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("delete again: err = %v, want ErrNotFound", err)
-	}
-}
-
-func TestProfileIMSServices(t *testing.T) {
-	ctx := context.Background()
-	database := setupTestDB(t)
-
-	as := &db.IMSApplicationServer{Name: "as", ServerName: "sip:as.example.org"}
-	if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
-		t.Fatalf("create application server: %v", err)
-	}
-
-	a := &db.IMSService{Name: "a", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: as.ID}
-	b := &db.IMSService{Name: "b", Kind: db.IMSServiceKindCustom, ApplicationServerID: as.ID, InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC()}}
-
-	for _, svc := range []*db.IMSService{a, b} {
-		if err := database.CreateIMSService(ctx, svc); err != nil {
-			t.Fatalf("create service %s: %v", svc.Name, err)
+	for _, as := range []*db.IMSApplicationServer{mcptt, conf} {
+		if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+			t.Fatalf("create application server %s: %v", as.Name, err)
 		}
 	}
 
@@ -256,78 +175,84 @@ func TestProfileIMSServices(t *testing.T) {
 		t.Fatalf("create profile: %v", err)
 	}
 
-	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{b.ID, a.ID}); err != nil {
+	if got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID); err != nil || len(got) != 0 {
+		t.Fatalf("iFCs of a new profile = %+v, %v; want none", got, err)
+	}
+
+	want := []db.IMSInitialFilterCriterion{registerIFC(mcptt.ID), originatingIFC(mcptt.ID), unconditionalIFC(conf.ID)}
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, want); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 
-	got, err := database.ListProfileIMSServices(ctx, profile.ID)
-	if err != nil {
-		t.Fatalf("list: %v", err)
+	got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("list = %+v, %v; want %+v in order", got, err, want)
 	}
 
-	if !reflect.DeepEqual(got, []db.IMSService{*b, *a}) {
-		t.Fatalf("list = %+v, want b then a", got)
-	}
-
-	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{a.ID, b.ID}); err != nil {
+	reordered := []db.IMSInitialFilterCriterion{unconditionalIFC(conf.ID), registerIFC(mcptt.ID)}
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, reordered); err != nil {
 		t.Fatalf("reorder: %v", err)
 	}
 
-	if got, _ := database.ListProfileIMSServices(ctx, profile.ID); len(got) != 2 || got[0].Name != "a" || got[1].Name != "b" {
-		t.Fatalf("list after reorder = %+v, want a then b", got)
+	if got, _ := database.ListProfileIMSFilterCriteria(ctx, profile.ID); !reflect.DeepEqual(got, reordered) {
+		t.Fatalf("list after reorder = %+v, want %+v", got, reordered)
 	}
 
-	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{a.ID, a.ID}); err == nil {
-		t.Fatal("a service listed twice was accepted")
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{registerIFC("missing")}); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("set with an unknown application server: err = %v, want ErrNotFound", err)
 	}
 
-	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{"missing"}); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("set with an unknown service: err = %v, want ErrNotFound", err)
-	}
-
-	if got, _ := database.ListProfileIMSServices(ctx, profile.ID); len(got) != 2 {
+	if got, _ := database.ListProfileIMSFilterCriteria(ctx, profile.ID); len(got) != 2 {
 		t.Fatalf("a failed set changed the list: %+v", got)
 	}
 
-	if err := database.SetProfileIMSServices(ctx, "missing", []string{a.ID}); !errors.Is(err, db.ErrNotFound) {
+	if err := database.SetProfileIMSFilterCriteria(ctx, "missing", []db.IMSInitialFilterCriterion{registerIFC(mcptt.ID)}); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("set on an unknown profile: err = %v, want ErrNotFound", err)
 	}
 
-	if err := database.DeleteIMSService(ctx, "a"); !errors.Is(err, db.ErrInUse) {
-		t.Fatalf("delete an assigned service: err = %v, want ErrInUse", err)
+	if profiles, err := database.ProfilesUsingIMSApplicationServer(ctx, mcptt.ID); err != nil || !reflect.DeepEqual(profiles, []string{profile.ID}) {
+		t.Fatalf("profiles using mcptt = %v, %v; want %s", profiles, err, profile.ID)
+	}
+
+	if err := database.DeleteIMSApplicationServer(ctx, "mcptt"); !errors.Is(err, db.ErrInUse) {
+		t.Fatalf("delete an application server a profile uses: err = %v, want ErrInUse", err)
+	}
+
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, nil); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+
+	if err := database.DeleteIMSApplicationServer(ctx, "mcptt"); err != nil {
+		t.Fatalf("delete an unused application server: %v", err)
+	}
+
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{unconditionalIFC(conf.ID)}); err != nil {
+		t.Fatalf("set: %v", err)
 	}
 
 	if err := database.DeleteProfile(ctx, "mc"); err != nil {
-		t.Fatalf("delete profile: %v", err)
+		t.Fatalf("delete a profile with iFCs: %v", err)
 	}
 
-	if err := database.DeleteIMSService(ctx, "a"); err != nil {
-		t.Fatalf("delete a service whose profile was deleted: %v", err)
+	if err := database.DeleteIMSApplicationServer(ctx, "conf"); err != nil {
+		t.Fatalf("delete an application server whose profile was deleted: %v", err)
 	}
 }
 
-func TestIMSServiceValidate(t *testing.T) {
-	spt := func(mutate func(*db.IMSServicePointTrigger)) db.IMSService {
+func TestIMSFilterCriteriaValidate(t *testing.T) {
+	spt := func(mutate func(*db.IMSServicePointTrigger)) []db.IMSInitialFilterCriterion {
 		s := db.IMSServicePointTrigger{Groups: []int32{0}, Method: ptr("INVITE")}
 		mutate(&s)
 
-		return db.IMSService{
-			Name:                "s",
-			Kind:                db.IMSServiceKindCustom,
+		return []db.IMSInitialFilterCriterion{{
 			ApplicationServerID: "as",
-			InitialFilterCriteria: []db.IMSInitialFilterCriterion{{
-				TriggerPoint:    db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{s}},
-				DefaultHandling: db.IMSDefaultHandlingSessionContinued,
-			}},
-		}
+			TriggerPoint:        &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{s}},
+			DefaultHandling:     ptr(db.IMSDefaultHandlingSessionContinued),
+		}}
 	}
 
-	cases := map[string]db.IMSService{
-		"no name":                {Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as"},
-		"no application server":  {Name: "s", Kind: db.IMSServiceKindMCPTT},
-		"unknown kind":           {Name: "s", Kind: "mmtel", ApplicationServerID: "as"},
-		"mcptt with iFCs":        {Name: "s", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as", InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC()}},
-		"custom without iFCs":    {Name: "s", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as"},
+	cases := map[string][]db.IMSInitialFilterCriterion{
+		"no application server":  {registerIFC("")},
 		"no group":               spt(func(s *db.IMSServicePointTrigger) { s.Groups = nil }),
 		"negative group":         spt(func(s *db.IMSServicePointTrigger) { s.Groups = []int32{-1} }),
 		"no condition":           spt(func(s *db.IMSServicePointTrigger) { s.Method = nil }),
@@ -364,24 +289,32 @@ func TestIMSServiceValidate(t *testing.T) {
 	}
 
 	noSPT := spt(func(*db.IMSServicePointTrigger) {})
-	noSPT.InitialFilterCriteria[0].TriggerPoint.ServicePointTriggers = nil
+	noSPT[0].TriggerPoint.ServicePointTriggers = nil
 	cases["no service point trigger"] = noSPT
 
 	badHandling := spt(func(*db.IMSServicePointTrigger) {})
-	badHandling.InitialFilterCriteria[0].DefaultHandling = "CONTINUE"
+	badHandling[0].DefaultHandling = ptr(db.IMSDefaultHandling("CONTINUE"))
 	cases["unknown default handling"] = badHandling
 
-	for name, svc := range cases {
+	badPart := spt(func(*db.IMSServicePointTrigger) {})
+	badPart[0].ProfilePart = ptr(db.IMSProfilePart("BOTH"))
+	cases["unknown profile part"] = badPart
+
+	badInfo := spt(func(*db.IMSServicePointTrigger) {})
+	badInfo[0].ServiceInfo = ptr("info\x00")
+	cases["control character in service info"] = badInfo
+
+	for name, ifcs := range cases {
 		t.Run(name, func(t *testing.T) {
-			if err := svc.Validate(); err == nil {
-				t.Fatalf("Validate accepted %+v", svc)
+			if err := db.ValidateIMSFilterCriteria(ifcs); err == nil {
+				t.Fatalf("Validate accepted %+v", ifcs)
 			}
 		})
 	}
 
-	ok := db.IMSService{Name: "s", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as", InitialFilterCriteria: []db.IMSInitialFilterCriterion{registerIFC(), originatingIFC()}}
-	if err := ok.Validate(); err != nil {
-		t.Fatalf("Validate rejected the MCPTT iFCs: %v", err)
+	ok := []db.IMSInitialFilterCriterion{registerIFC("as"), originatingIFC("as"), unconditionalIFC("as")}
+	if err := db.ValidateIMSFilterCriteria(ok); err != nil {
+		t.Fatalf("Validate rejected iFCs TS 29.228 B.2.2 allows: %v", err)
 	}
 }
 
@@ -459,31 +392,6 @@ func TestIMSPublicServiceIdentityAndMSISDNExclude(t *testing.T) {
 	}
 }
 
-func TestMCPTTFilterCriteria(t *testing.T) {
-	svc := db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: "as"}
-
-	ifcs := svc.FilterCriteria()
-	if len(ifcs) != 2 {
-		t.Fatalf("mcptt iFCs = %d, want REGISTER and originating", len(ifcs))
-	}
-
-	register := ifcs[0]
-	if spt := register.TriggerPoint.ServicePointTriggers; len(spt) != 1 || spt[0].Method == nil || *spt[0].Method != "REGISTER" || len(spt[0].RegistrationTypes) != 0 ||
-		register.DefaultHandling != db.IMSDefaultHandlingSessionContinued || !register.IncludeRegisterRequest || !register.IncludeRegisterResponse {
-		t.Fatalf("REGISTER iFC = %+v", register)
-	}
-
-	originating := ifcs[1]
-	if originating.DefaultHandling != db.IMSDefaultHandlingSessionTerminated || !originating.TriggerPoint.ConditionTypeCNF || len(originating.TriggerPoint.ServicePointTriggers) != 2 {
-		t.Fatalf("originating iFC = %+v", originating)
-	}
-
-	custom := db.IMSService{Name: "c", Kind: db.IMSServiceKindCustom, ApplicationServerID: "as", InitialFilterCriteria: ifcs}
-	if err := custom.Validate(); err != nil {
-		t.Fatalf("the generated iFCs do not validate: %v", err)
-	}
-}
-
 func TestIMSProfilePushTargets(t *testing.T) {
 	ctx := context.Background()
 	database := setupTestDB(t)
@@ -493,23 +401,18 @@ func TestIMSProfilePushTargets(t *testing.T) {
 		t.Fatalf("create application server: %v", err)
 	}
 
-	svc := &db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: as.ID}
-	if err := database.CreateIMSService(ctx, svc); err != nil {
-		t.Fatalf("create service: %v", err)
-	}
-
 	profile, err := database.GetProfile(ctx, db.InitialProfileName)
 	if err != nil {
 		t.Fatalf("get profile: %v", err)
 	}
 
-	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{svc.ID}); err != nil {
-		t.Fatalf("set profile services: %v", err)
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{registerIFC(as.ID)}); err != nil {
+		t.Fatalf("set profile iFCs: %v", err)
 	}
 
-	profiles, err := database.ProfilesWithIMSServices(ctx, []string{svc.ID})
+	profiles, err := database.ProfilesUsingIMSApplicationServer(ctx, as.ID)
 	if err != nil || !reflect.DeepEqual(profiles, []string{profile.ID}) {
-		t.Fatalf("profiles with the service = %v, %v; want %s", profiles, err, profile.ID)
+		t.Fatalf("profiles using the application server = %v, %v; want %s", profiles, err, profile.ID)
 	}
 
 	states := map[string]db.IMSRegistrationState{"001010000000001": db.IMSRegistered, "001010000000002": db.IMSUnregistered, "001010000000003": db.IMSNotRegistered}

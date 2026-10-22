@@ -24,12 +24,34 @@ var updateGolden = flag.Bool("update", false, "rewrite the golden files in testd
 
 const mcpttServerName = "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org"
 
-func mcpttFilterCriteria() []cx.InitialFilterCriteria {
-	svc := db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT}
+func mcpttIFCs() []db.IMSInitialFilterCriterion {
+	register, originating := "REGISTER", db.IMSSessionCaseOriginatingRegistered
+	header, content := "^P-Asserted-Service$", `^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`
 
+	return []db.IMSInitialFilterCriterion{
+		{
+			TriggerPoint:            &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+			DefaultHandling:         new(db.IMSDefaultHandlingSessionContinued),
+			IncludeRegisterRequest:  true,
+			IncludeRegisterResponse: true,
+		},
+		{
+			TriggerPoint: &db.IMSTriggerPoint{
+				ConditionTypeCNF: true,
+				ServicePointTriggers: []db.IMSServicePointTrigger{
+					{Groups: []int32{0}, SessionCase: &originating},
+					{Groups: []int32{1}, SIPHeader: &db.IMSHeaderMatch{Header: header, Content: &content}},
+				},
+			},
+			DefaultHandling: new(db.IMSDefaultHandlingSessionTerminated),
+		},
+	}
+}
+
+func mcpttFilterCriteria() []cx.InitialFilterCriteria {
 	var out []cx.InitialFilterCriteria
 
-	for i, ifc := range svc.FilterCriteria() {
+	for i, ifc := range mcpttIFCs() {
 		out = append(out, ifc.CX(int32(i), mcpttServerName))
 	}
 
@@ -91,6 +113,8 @@ func TestLocationInfoForUnregisteredTerminatingServices(t *testing.T) {
 		{name: "no iFCs", want: notRegistered},
 		{name: "MCPTT iFCs", ifcs: mcpttFilterCriteria(), want: notRegistered},
 		{name: "unconditional iFC", ifcs: []cx.InitialFilterCriteria{{}}, want: unregisteredService},
+		{name: "unconditional iFC of the registered profile part", ifcs: []cx.InitialFilterCriteria{{ProfilePart: new(cx.ProfilePartRegistered)}}, want: notRegistered},
+		{name: "unconditional iFC of the unregistered profile part", ifcs: []cx.InitialFilterCriteria{{ProfilePart: new(cx.ProfilePartUnregistered)}}, want: unregisteredService},
 		{
 			name: "terminating unregistered session case",
 			ifcs: []cx.InitialFilterCriteria{{Trigger: &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Groups: []int32{0}, SessionCase: sessionCase(cx.SessionCaseTerminatingUnregistered)}}}}},

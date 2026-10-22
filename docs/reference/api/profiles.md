@@ -141,13 +141,13 @@ None
 }
 ```
 
-## Get a Profile's IMS Services
+## Get a Profile's IMS Initial Filter Criteria
 
-This path returns the IMS services assigned to a profile, in order. The HSS gives the profile's subscribers the initial filter criteria of these services, in this order.
+This path returns a profile's IMS initial filter criteria, in priority order. The HSS gives them to the S-CSCF in the user profile of the profile's subscribers.
 
-| Method | Path                                   |
-| ------ | -------------------------------------- |
-| GET    | `/api/v1/profiles/{name}/ims-services` |
+| Method | Path                                          |
+| ------ | --------------------------------------------- |
+| GET    | `/api/v1/profiles/{name}/ims-filter-criteria` |
 
 ### Parameters
 
@@ -158,28 +158,60 @@ None
 ```json
 {
     "result": {
-        "services": ["mcptt", "conference"]
+        "initial_filter_criteria": [
+            {
+                "priority": 0,
+                "application_server_name": "conference",
+                "trigger_point": {
+                    "condition_type_cnf": false,
+                    "spt": [{"group": [0], "request_uri": "^sip:conference@.*$"}]
+                },
+                "default_handling": "SESSION_TERMINATED",
+                "include_register_request": false,
+                "include_register_response": false
+            }
+        ]
     }
 }
 ```
 
-## Update a Profile's IMS Services
+## Update a Profile's IMS Initial Filter Criteria
 
-This path replaces the IMS services assigned to a profile. The order of the list is kept.
+This path replaces a profile's IMS initial filter criteria. Registered subscribers of the profile get the new user profile.
 
-| Method | Path                                   |
-| ------ | -------------------------------------- |
-| PUT    | `/api/v1/profiles/{name}/ims-services` |
+| Method | Path                                          |
+| ------ | --------------------------------------------- |
+| PUT    | `/api/v1/profiles/{name}/ims-filter-criteria` |
 
 ### Parameters
 
-- `services` (array of strings): Names of [IMS services](operator.md#create-an-ims-service), in order, without duplicates. An empty list removes all of them.
+- `initial_filter_criteria` (array): In priority order ([TS 29.228 Annex B.2.2](https://www.3gpp.org/DynaReport/29228.htm)). An empty list removes all of them. Each criterion has:
+    - `application_server_name` (string): The name of the [IMS application server](operator.md#create-an-ims-application-server) matching requests are sent to.
+    - `trigger_point` (optional object): Without it, the criterion matches every request.
+        - `condition_type_cnf` (boolean): `true` for conjunctive normal form, `false` for disjunctive normal form.
+        - `spt` (array): Service point triggers. Each has `group` (array of integers), an optional `condition_negated` (boolean), and exactly one of `request_uri` (string), `method` (string), `sip_header` (`{header, content}`), `session_case` (`ORIGINATING_REGISTERED`, `TERMINATING_REGISTERED`, `TERMINATING_UNREGISTERED`, `ORIGINATING_UNREGISTERED` or `ORIGINATING_CDIV`) and `session_description` (`{line, content}`). With the `REGISTER` method, `registration_type` lists up to two of `INITIAL_REGISTRATION`, `RE-REGISTRATION` and `DE-REGISTRATION`. Request URIs, headers, lines and contents are extended regular expressions.
+    - `profile_part` (optional string): `REGISTERED` or `UNREGISTERED`, the part of the user profile the criterion belongs to. Omitted for both.
+    - `default_handling` (optional string): `SESSION_CONTINUED` or `SESSION_TERMINATED`, what the S-CSCF does when the application server can't be reached.
+    - `service_info` (optional string): Passed transparently to the application server.
+    - `include_register_request` (optional boolean)
+    - `include_register_response` (optional boolean)
+
+The `priority` of a criterion is its position in the list. It is returned on reads and ignored on writes.
 
 ### Sample Request
 
 ```json
 {
-    "services": ["mcptt", "conference"]
+    "initial_filter_criteria": [
+        {
+            "application_server_name": "conference",
+            "trigger_point": {
+                "condition_type_cnf": false,
+                "spt": [{"group": [0], "request_uri": "^sip:conference@.*$"}]
+            },
+            "default_handling": "SESSION_TERMINATED"
+        }
+    ]
 }
 ```
 
@@ -188,7 +220,7 @@ This path replaces the IMS services assigned to a profile. The order of the list
 ```json
 {
     "result": {
-        "message": "Profile IMS services updated successfully"
+        "message": "Profile initial filter criteria updated successfully"
     }
 }
 ```

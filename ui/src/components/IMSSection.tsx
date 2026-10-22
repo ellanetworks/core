@@ -6,9 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Button,
-  Chip,
   IconButton,
-  Link,
   Skeleton,
   Stack,
   Table,
@@ -28,16 +26,11 @@ import {
 import type { OperatorIMS } from "@/queries/operator";
 import {
   deleteIMSApplicationServer,
-  deleteIMSService,
   listIMSApplicationServers,
-  listIMSServices,
   type IMSApplicationServer,
-  type IMSService,
 } from "@/queries/ims";
 import EditOperatorIMSModal from "@/components/EditOperatorIMSModal";
 import IMSApplicationServerModal from "@/components/IMSApplicationServerModal";
-import MCPTTServiceModal from "@/components/MCPTTServiceModal";
-import IMSServiceFiltersModal from "@/components/IMSServiceFiltersModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -69,21 +62,8 @@ const IMSSection: React.FC<IMSSectionProps> = ({
   const [asToDelete, setASToDelete] = useState<IMSApplicationServer | null>(
     null,
   );
-  const [serviceModal, setServiceModal] = useState<{
-    service?: IMSService;
-  } | null>(null);
-  const [serviceToDelete, setServiceToDelete] = useState<IMSService | null>(
-    null,
-  );
-  const [serviceToView, setServiceToView] = useState<IMSService | null>(null);
 
-  const anyModalOpen =
-    editOpen ||
-    asModal !== null ||
-    asToDelete !== null ||
-    serviceModal !== null ||
-    serviceToDelete !== null ||
-    serviceToView !== null;
+  const anyModalOpen = editOpen || asModal !== null || asToDelete !== null;
 
   useEffect(() => {
     onModalOpenChange(anyModalOpen);
@@ -97,24 +77,13 @@ const IMSSection: React.FC<IMSSectionProps> = ({
     placeholderData: (prev) => prev,
   });
 
-  const servicesQuery = useQuery<IMSService[]>({
-    queryKey: ["ims-services"],
-    enabled: authReady && !!accessToken && !anyModalOpen,
-    refetchInterval: 5000,
-    queryFn: () => listIMSServices(accessToken!),
-    placeholderData: (prev) => prev,
-  });
-
   const servers = serversQuery.data ?? [];
-  const services = servicesQuery.data ?? [];
   const serversLoading = serversQuery.isLoading && !serversQuery.data;
-  const servicesLoading = servicesQuery.isLoading && !servicesQuery.data;
 
   const addresses = ims?.pcscfAddresses ?? [];
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["ims-application-servers"] });
-    queryClient.invalidateQueries({ queryKey: ["ims-services"] });
   };
 
   const handleDeleteAS = async () => {
@@ -130,19 +99,6 @@ const IMSSection: React.FC<IMSSectionProps> = ({
       );
     } finally {
       setASToDelete(null);
-    }
-  };
-
-  const handleDeleteService = async () => {
-    if (!serviceToDelete || !accessToken) return;
-    try {
-      await deleteIMSService(accessToken, serviceToDelete.name);
-      refresh();
-      showSnackbar("Service deleted successfully.", "success");
-    } catch (error) {
-      showSnackbar(`Failed to delete service: ${errorMessage(error)}`, "error");
-    } finally {
-      setServiceToDelete(null);
     }
   };
 
@@ -202,7 +158,8 @@ const IMSSection: React.FC<IMSSectionProps> = ({
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          SIP servers that services send requests to.
+          SIP servers that receive requests matching a profile's IMS filter
+          criteria.
         </Typography>
         {canEdit && (
           <Button
@@ -218,7 +175,7 @@ const IMSSection: React.FC<IMSSectionProps> = ({
           </Button>
         )}
       </Stack>
-      <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 3 }}>
+      <TableContainer sx={TABLE_CONTAINER_SX}>
         <Table sx={{ tableLayout: "fixed" }}>
           <TableBody sx={headerRowSx}>
             <TableRow>
@@ -288,119 +245,6 @@ const IMSSection: React.FC<IMSSectionProps> = ({
         </Table>
       </TableContainer>
 
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-        Services
-      </Typography>
-      <Stack
-        direction="row"
-        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
-      >
-        <Typography variant="body2" color="textSecondary">
-          Services decide which requests go to which application server. Assign
-          them to profiles. Custom services are managed through the API.
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => setServiceModal({})}
-            aria-label="Add MCPTT service"
-            sx={{ ml: 2, flexShrink: 0 }}
-          >
-            Add MCPTT Service
-          </Button>
-        )}
-      </Stack>
-      <TableContainer sx={TABLE_CONTAINER_SX}>
-        <Table sx={{ tableLayout: "fixed" }}>
-          <TableBody sx={headerRowSx}>
-            <TableRow>
-              <TableCell sx={{ width: "25%" }}>Name</TableCell>
-              <TableCell sx={{ width: "15%" }}>Kind</TableCell>
-              <TableCell sx={{ width: "25%" }}>Application Server</TableCell>
-              <TableCell>Filter Criteria</TableCell>
-              <TableCell align="right" sx={{ width: 100 }}>
-                Actions
-              </TableCell>
-            </TableRow>
-            {servicesLoading && (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <Skeleton variant="text" width={240} />
-                </TableCell>
-              </TableRow>
-            )}
-            {!servicesLoading && services.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="body2" color="textSecondary">
-                    No services yet.
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            )}
-            {services.map((service) => {
-              const count = service.initial_filter_criteria?.length ?? 0;
-              return (
-                <TableRow key={service.name}>
-                  <TableCell sx={{ wordBreak: "break-word" }}>
-                    {service.name}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={service.kind === "mcptt" ? "MCPTT" : "Custom"}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell sx={{ wordBreak: "break-word" }}>
-                    {service.application_server_name}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => setServiceToView(service)}
-                      aria-label={`View filter criteria of ${service.name}`}
-                    >
-                      {count === 1 ? "1 filter" : `${count} filters`}
-                    </Link>
-                  </TableCell>
-                  <TableCell align="right">
-                    {canEdit && (
-                      <>
-                        {service.kind === "mcptt" && (
-                          <Tooltip title="Edit service" arrow>
-                            <IconButton
-                              size="small"
-                              onClick={() => setServiceModal({ service })}
-                              aria-label={`Edit service ${service.name}`}
-                            >
-                              <EditIcon fontSize="small" color="primary" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        <Tooltip title="Delete service" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => setServiceToDelete(service)}
-                            aria-label={`Delete service ${service.name}`}
-                          >
-                            <DeleteIcon fontSize="small" color="primary" />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
       {editOpen && (
         <EditOperatorIMSModal
           open
@@ -435,39 +279,6 @@ const IMSSection: React.FC<IMSSectionProps> = ({
           onConfirm={handleDeleteAS}
           title="Delete Application Server"
           description={`Delete the application server ${asToDelete.name}?`}
-        />
-      )}
-      {serviceModal && (
-        <MCPTTServiceModal
-          open
-          onClose={() => setServiceModal(null)}
-          onSuccess={() => {
-            refresh();
-            showSnackbar(
-              serviceModal.service
-                ? "Service updated successfully."
-                : "Service added successfully.",
-              "success",
-            );
-          }}
-          service={serviceModal.service}
-          homeDomain={ims?.homeDomain}
-        />
-      )}
-      {serviceToDelete && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setServiceToDelete(null)}
-          onConfirm={handleDeleteService}
-          title="Delete Service"
-          description={`Delete the service ${serviceToDelete.name}?`}
-        />
-      )}
-      {serviceToView && (
-        <IMSServiceFiltersModal
-          open
-          onClose={() => setServiceToView(null)}
-          service={serviceToView}
         />
       )}
     </Box>

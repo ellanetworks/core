@@ -47,6 +47,10 @@ func (s *subject) entitled() bool {
 
 func hasUnregisteredTerminatingServices(ifcs []cx.InitialFilterCriteria) bool {
 	return slices.ContainsFunc(ifcs, func(ifc cx.InitialFilterCriteria) bool {
+		if ifc.ProfilePart != nil && *ifc.ProfilePart == cx.ProfilePartRegistered {
+			return false
+		}
+
 		return ifc.Trigger == nil || mayMatchTerminatingUnregistered(*ifc.Trigger)
 	})
 }

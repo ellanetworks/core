@@ -13,7 +13,33 @@ import (
 	"github.com/ellanetworks/core/internal/hss"
 )
 
-func TestProfileFilterCriteriaFollowTheServiceOrder(t *testing.T) {
+func mcpttIFCs(asID string) []db.IMSInitialFilterCriterion {
+	register, originating := "REGISTER", db.IMSSessionCaseOriginatingRegistered
+	header, content := "^P-Asserted-Service$", `^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`
+
+	return []db.IMSInitialFilterCriterion{
+		{
+			ApplicationServerID:     asID,
+			TriggerPoint:            &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+			DefaultHandling:         new(db.IMSDefaultHandlingSessionContinued),
+			IncludeRegisterRequest:  true,
+			IncludeRegisterResponse: true,
+		},
+		{
+			ApplicationServerID: asID,
+			TriggerPoint: &db.IMSTriggerPoint{
+				ConditionTypeCNF: true,
+				ServicePointTriggers: []db.IMSServicePointTrigger{
+					{Groups: []int32{0}, SessionCase: &originating},
+					{Groups: []int32{1}, SIPHeader: &db.IMSHeaderMatch{Header: header, Content: &content}},
+				},
+			},
+			DefaultHandling: new(db.IMSDefaultHandlingSessionTerminated),
+		},
+	}
+}
+
+func TestProfileFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 	ctx := context.Background()
 
 	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
@@ -33,19 +59,10 @@ func TestProfileFilterCriteriaFollowTheServiceOrder(t *testing.T) {
 	}
 
 	register := "REGISTER"
-	custom := &db.IMSService{
-		Name: "custom", Kind: db.IMSServiceKindCustom, ApplicationServerID: otherAS.ID,
-		InitialFilterCriteria: []db.IMSInitialFilterCriterion{{
-			TriggerPoint:    db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
-			DefaultHandling: db.IMSDefaultHandlingSessionContinued,
-		}},
-	}
-	mcptt := &db.IMSService{Name: "mcptt", Kind: db.IMSServiceKindMCPTT, ApplicationServerID: mcpttAS.ID}
-
-	for _, svc := range []*db.IMSService{custom, mcptt} {
-		if err := database.CreateIMSService(ctx, svc); err != nil {
-			t.Fatalf("create service %s: %s", svc.Name, err)
-		}
+	other := db.IMSInitialFilterCriterion{
+		ApplicationServerID: otherAS.ID,
+		TriggerPoint:        &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+		DefaultHandling:     new(db.IMSDefaultHandlingSessionContinued),
 	}
 
 	profile, err := database.GetProfile(ctx, db.InitialProfileName)
@@ -53,8 +70,8 @@ func TestProfileFilterCriteriaFollowTheServiceOrder(t *testing.T) {
 		t.Fatalf("get profile: %s", err)
 	}
 
-	if err := database.SetProfileIMSServices(ctx, profile.ID, []string{custom.ID, mcptt.ID}); err != nil {
-		t.Fatalf("set profile services: %s", err)
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, append([]db.IMSInitialFilterCriterion{other}, mcpttIFCs(mcpttAS.ID)...)); err != nil {
+		t.Fatalf("set profile iFCs: %s", err)
 	}
 
 	ifcs, err := profileFilterCriteria(ctx, database, profile.ID)
@@ -72,12 +89,12 @@ func TestProfileFilterCriteriaFollowTheServiceOrder(t *testing.T) {
 	}
 
 	if !slices.Equal(priorities, []int32{0, 1, 2}) || !slices.Equal(servers, []string{"sip:other.example.org", "sip:mcptt.example.org", "sip:mcptt.example.org"}) {
-		t.Fatalf("iFC priorities %v, servers %v; want the custom service first, then the two MCPTT iFCs", priorities, servers)
+		t.Fatalf("iFC priorities %v, servers %v; want the other server's iFC first, then the two MCPTT iFCs", priorities, servers)
 	}
 
 	none, err := profileFilterCriteria(ctx, database, "unassigned")
 	if err != nil || len(none) != 0 {
-		t.Fatalf("iFCs of a profile without services = %v, %v", none, err)
+		t.Fatalf("iFCs of an unknown profile = %v, %v", none, err)
 	}
 }
 

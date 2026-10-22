@@ -9,8 +9,6 @@ export interface IMSApplicationServer {
   public_service_identities: string[];
 }
 
-export type IMSServiceKind = "mcptt" | "custom";
-
 export type IMSSessionCase =
   | "ORIGINATING_REGISTERED"
   | "TERMINATING_REGISTERED"
@@ -31,24 +29,24 @@ export interface IMSServicePointTrigger {
 
 export interface IMSInitialFilterCriterion {
   priority: number;
+  application_server_name: string;
   trigger_point?: {
     condition_type_cnf: boolean;
     spt: IMSServicePointTrigger[];
   };
-  default_handling: "SESSION_CONTINUED" | "SESSION_TERMINATED";
+  profile_part?: "REGISTERED" | "UNREGISTERED";
+  default_handling?: "SESSION_CONTINUED" | "SESSION_TERMINATED";
+  service_info?: string;
   include_register_request?: boolean;
   include_register_response?: boolean;
 }
 
-export interface IMSService {
-  name: string;
-  kind: IMSServiceKind;
-  application_server_name: string;
-  initial_filter_criteria: IMSInitialFilterCriterion[];
-}
+export type IMSInitialFilterCriterionInput = Omit<
+  IMSInitialFilterCriterion,
+  "priority"
+>;
 
 const AS_PATH = "/api/v1/operator/ims/application-servers";
-const SERVICES_PATH = "/api/v1/operator/ims/services";
 
 export const listIMSApplicationServers = async (
   authToken: string,
@@ -88,72 +86,29 @@ export const deleteIMSApplicationServer = async (
   });
 };
 
-export const listIMSServices = async (
+const profileFilterCriteriaPath = (profileName: string) =>
+  `/api/v1/profiles/${encodeURIComponent(profileName)}/ims-filter-criteria`;
+
+export const getProfileIMSFilterCriteria = async (
   authToken: string,
-): Promise<IMSService[]> => {
-  const res = await apiFetch<{ items: IMSService[] }>(SERVICES_PATH, {
-    authToken,
-  });
-  return res.items ?? [];
+  profileName: string,
+): Promise<IMSInitialFilterCriterion[]> => {
+  const res = await apiFetch<{
+    initial_filter_criteria: IMSInitialFilterCriterion[];
+  }>(profileFilterCriteriaPath(profileName), { authToken });
+  return res.initial_filter_criteria ?? [];
 };
 
-export const createIMSService = async (
+export const setProfileIMSFilterCriteria = async (
   authToken: string,
-  service: {
-    name: string;
-    kind: IMSServiceKind;
-    application_server_name: string;
-  },
+  profileName: string,
+  criteria: IMSInitialFilterCriterionInput[],
 ): Promise<void> => {
-  await apiFetchVoid(SERVICES_PATH, {
-    method: "POST",
-    authToken,
-    body: service,
-  });
-};
-
-export const updateIMSService = async (
-  authToken: string,
-  name: string,
-  service: { kind: IMSServiceKind; application_server_name: string },
-): Promise<void> => {
-  await apiFetchVoid(`${SERVICES_PATH}/${encodeURIComponent(name)}`, {
+  await apiFetchVoid(profileFilterCriteriaPath(profileName), {
     method: "PUT",
     authToken,
-    body: service,
+    body: { initial_filter_criteria: criteria },
   });
-};
-
-export const deleteIMSService = async (
-  authToken: string,
-  name: string,
-): Promise<void> => {
-  await apiFetchVoid(`${SERVICES_PATH}/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-    authToken,
-  });
-};
-
-export const getProfileIMSServices = async (
-  authToken: string,
-  profileName: string,
-): Promise<string[]> => {
-  const res = await apiFetch<{ services: string[] }>(
-    `/api/v1/profiles/${encodeURIComponent(profileName)}/ims-services`,
-    { authToken },
-  );
-  return res.services ?? [];
-};
-
-export const updateProfileIMSServices = async (
-  authToken: string,
-  profileName: string,
-  services: string[],
-): Promise<void> => {
-  await apiFetchVoid(
-    `/api/v1/profiles/${encodeURIComponent(profileName)}/ims-services`,
-    { method: "PUT", authToken, body: { services } },
-  );
 };
 
 export const isSIPURI = (value: string): boolean =>

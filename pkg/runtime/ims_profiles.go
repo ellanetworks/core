@@ -17,34 +17,32 @@ import (
 )
 
 func profileFilterCriteria(ctx context.Context, database *db.Database, profileID string) ([]cx.InitialFilterCriteria, error) {
-	services, err := database.ListProfileIMSServices(ctx, profileID)
+	ifcs, err := database.ListProfileIMSFilterCriteria(ctx, profileID)
 	if err != nil {
-		return nil, fmt.Errorf("list the IMS services of profile %s: %w", profileID, err)
+		return nil, fmt.Errorf("list the initial filter criteria of profile %s: %w", profileID, err)
 	}
 
-	var out []cx.InitialFilterCriteria
+	out := make([]cx.InitialFilterCriteria, 0, len(ifcs))
 
 	serverNames := make(map[string]string)
 
-	for _, svc := range services {
-		serverName, ok := serverNames[svc.ApplicationServerID]
+	for _, ifc := range ifcs {
+		serverName, ok := serverNames[ifc.ApplicationServerID]
 		if !ok {
-			as, err := database.GetIMSApplicationServerByID(ctx, svc.ApplicationServerID)
+			as, err := database.GetIMSApplicationServerByID(ctx, ifc.ApplicationServerID)
 			if err != nil {
-				return nil, fmt.Errorf("get the application server of IMS service %s: %w", svc.Name, err)
+				return nil, fmt.Errorf("get application server %s: %w", ifc.ApplicationServerID, err)
 			}
 
 			serverName = as.ServerName
-			serverNames[svc.ApplicationServerID] = serverName
+			serverNames[ifc.ApplicationServerID] = serverName
 		}
 
-		for _, ifc := range svc.FilterCriteria() {
-			if len(out) >= math.MaxInt32 {
-				return nil, fmt.Errorf("profile %s has too many initial filter criteria", profileID)
-			}
-
-			out = append(out, ifc.CX(int32(len(out)), serverName))
+		if len(out) >= math.MaxInt32 {
+			return nil, fmt.Errorf("profile %s has too many initial filter criteria", profileID)
 		}
+
+		out = append(out, ifc.CX(int32(len(out)), serverName))
 	}
 
 	return out, nil
@@ -71,26 +69,12 @@ func newIMSProfileNotifier(database *db.Database, pusher profilePusher) *imsProf
 
 func (n *imsProfileNotifier) ApplicationServerChanged(_ context.Context, applicationServerID string) {
 	n.enqueue(func(ctx context.Context) ([]string, error) {
-		services, err := n.db.ListIMSServices(ctx)
+		profileIDs, err := n.db.ProfilesUsingIMSApplicationServer(ctx, applicationServerID)
 		if err != nil {
-			return nil, fmt.Errorf("list IMS services: %w", err)
+			return nil, fmt.Errorf("list the profiles using application server %s: %w", applicationServerID, err)
 		}
 
-		var serviceIDs []string
-
-		for _, svc := range services {
-			if svc.ApplicationServerID == applicationServerID {
-				serviceIDs = append(serviceIDs, svc.ID)
-			}
-		}
-
-		return n.subscribersOfServices(ctx, serviceIDs)
-	})
-}
-
-func (n *imsProfileNotifier) ServiceChanged(_ context.Context, serviceID string) {
-	n.enqueue(func(ctx context.Context) ([]string, error) {
-		return n.subscribersOfServices(ctx, []string{serviceID})
+		return n.db.IMSRegisteredSubscribersOfProfiles(ctx, profileIDs)
 	})
 }
 
@@ -112,15 +96,6 @@ func (n *imsProfileNotifier) SubscriberIdentitiesChanged(_ context.Context, imsi
 
 		return nil, nil
 	})
-}
-
-func (n *imsProfileNotifier) subscribersOfServices(ctx context.Context, serviceIDs []string) ([]string, error) {
-	profileIDs, err := n.db.ProfilesWithIMSServices(ctx, serviceIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list the profiles of IMS services: %w", err)
-	}
-
-	return n.db.IMSRegisteredSubscribersOfProfiles(ctx, profileIDs)
 }
 
 func (n *imsProfileNotifier) enqueue(job func(context.Context) ([]string, error)) {

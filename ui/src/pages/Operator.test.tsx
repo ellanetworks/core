@@ -12,11 +12,9 @@ const api = setupApiServer();
 
 const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
 const AS_PATH = "/api/v1/operator/ims/application-servers";
-const SERVICES_PATH = "/api/v1/operator/ims/services";
 
 beforeEach(() => {
   api.get(AS_PATH, () => ({ items: [] }));
-  api.get(SERVICES_PATH, () => ({ items: [] }));
 });
 
 const operator = (
@@ -285,46 +283,6 @@ const mcpttAS = {
   public_service_identities: ["sip:!.*!@mcptt.ims.example.org"],
 };
 
-const mcpttService = {
-  name: "mcptt",
-  kind: "mcptt",
-  application_server_name: "mcptt",
-  initial_filter_criteria: [
-    {
-      priority: 0,
-      trigger_point: {
-        condition_type_cnf: false,
-        spt: [{ group: [0], method: "REGISTER" }],
-      },
-      default_handling: "SESSION_CONTINUED",
-    },
-    {
-      priority: 1,
-      trigger_point: {
-        condition_type_cnf: false,
-        spt: [{ group: [0], request_uri: "sip:!.*!@mcptt.ims.example.org" }],
-      },
-      default_handling: "SESSION_TERMINATED",
-    },
-  ],
-};
-
-const customService = {
-  name: "voicemail",
-  kind: "custom",
-  application_server_name: "vm",
-  initial_filter_criteria: [
-    {
-      priority: 0,
-      trigger_point: {
-        condition_type_cnf: false,
-        spt: [{ group: [0], session_case: "TERMINATING_UNREGISTERED" }],
-      },
-      default_handling: "SESSION_CONTINUED",
-    },
-  ],
-};
-
 const renderIMS = (role = "Admin") => {
   api.get("/api/v1/operator", () => operator(ready));
   api.get(PEERS_PATH, () => ({ items: [] }));
@@ -460,7 +418,7 @@ describe("Operator IMS application servers", () => {
     const user = userEvent.setup();
     api.get(AS_PATH, () => ({ items: [mcpttAS] }));
     api.delete(`${AS_PATH}/mcptt`, () =>
-      httpError(409, "Application server is used by an IMS service"),
+      httpError(409, "Application server is used by a profile"),
     );
     renderIMS();
 
@@ -473,173 +431,32 @@ describe("Operator IMS application servers", () => {
 
     expect(
       await screen.findByText(
-        "Failed to delete application server: Application server is used by an IMS service",
+        "Failed to delete application server: Application server is used by a profile",
       ),
     ).toBeInTheDocument();
   });
 });
 
-describe("Operator IMS services", () => {
-  it("adds an MCPTT service on an existing application server", async () => {
-    const user = userEvent.setup();
+describe("Operator IMS without services", () => {
+  it("shows application servers but no services", async () => {
     api.get(AS_PATH, () => ({ items: [mcpttAS] }));
-    api.post(SERVICES_PATH, () => ({}));
     renderIMS();
 
-    await user.click(
-      await screen.findByRole("button", { name: "Add MCPTT service" }),
-    );
-    await user.type(await screen.findByLabelText(/^Service Name/), "mcptt");
-    await user.click(
-      screen.getByRole("combobox", { name: /Application Server/ }),
-    );
-    await user.click(
-      await screen.findByRole("option", { name: /^mcptt \(sip:/ }),
-    );
-    await user.click(screen.getByRole("button", { name: /^Add$/ }));
-
-    await screen.findByText("Service added successfully.");
-    expect(api.requests(AS_PATH).some((r) => r.method === "POST")).toBe(false);
     expect(
-      api.requests(SERVICES_PATH).find((r) => r.method === "POST")?.body,
-    ).toEqual({
-      name: "mcptt",
-      kind: "mcptt",
-      application_server_name: "mcptt",
-    });
-  });
-
-  it("creates the application server before the MCPTT service", async () => {
-    const user = userEvent.setup();
-    api.post(AS_PATH, () => ({}));
-    api.post(SERVICES_PATH, () => ({}));
-    renderIMS();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Add MCPTT service" }),
-    );
-    await user.type(await screen.findByLabelText(/^Service Name/), "mcptt");
-    expect(screen.getByRole("radio", { name: "Create new" })).toBeChecked();
-    await user.type(
-      screen.getByLabelText(/^Application Server Name/),
-      "mcptt-as",
-    );
-    await user.type(
-      screen.getByLabelText(/^Server Name/),
-      "sip:mcptt.ims.example.org",
-    );
-    await user.type(
-      screen.getByLabelText(/^Public Service Identity/),
-      "sip:!.*!@mcptt.ims.example.org",
-    );
-    await user.click(screen.getByRole("button", { name: /^Add$/ }));
-
-    await screen.findByText("Service added successfully.");
-    const writes = api
-      .requests()
-      .filter((r) => r.method === "POST")
-      .map((r) => ({ path: r.url.pathname, body: r.body }));
-    expect(writes).toEqual([
-      {
-        path: AS_PATH,
-        body: {
-          name: "mcptt-as",
-          server_name: "sip:mcptt.ims.example.org",
-          public_service_identities: ["sip:!.*!@mcptt.ims.example.org"],
-        },
-      },
-      {
-        path: SERVICES_PATH,
-        body: {
-          name: "mcptt",
-          kind: "mcptt",
-          application_server_name: "mcptt-as",
-        },
-      },
-    ]);
-  });
-
-  it("changes the application server of an MCPTT service", async () => {
-    const user = userEvent.setup();
-    const other = { ...mcpttAS, name: "other", server_name: "sip:other.org" };
-    api.get(AS_PATH, () => ({ items: [mcpttAS, other] }));
-    api.get(SERVICES_PATH, () => ({ items: [mcpttService] }));
-    api.put(`${SERVICES_PATH}/mcptt`, () => ({}));
-    renderIMS();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Edit service mcptt" }),
-    );
-    expect(await screen.findByLabelText(/^Service Name/)).toBeDisabled();
-    await user.click(
-      screen.getByRole("combobox", { name: /Application Server/ }),
-    );
-    await user.click(await screen.findByRole("option", { name: /^other/ }));
-    await user.click(screen.getByRole("button", { name: /^Update$/ }));
-
-    await screen.findByText("Service updated successfully.");
-    expect(api.lastRequest(`${SERVICES_PATH}/mcptt`)?.body).toEqual({
-      kind: "mcptt",
-      application_server_name: "other",
-    });
-  });
-
-  it("lists custom services read-only and lets them be deleted", async () => {
-    const user = userEvent.setup();
-    let services: unknown[] = [mcpttService, customService];
-    api.get(SERVICES_PATH, () => ({ items: services }));
-    api.delete(`${SERVICES_PATH}/voicemail`, () => {
-      services = [mcpttService];
-      return {};
-    });
-    renderIMS();
-
-    const custom = await row("voicemail");
-    expect(custom.getByText("Custom")).toBeInTheDocument();
-    expect(custom.getByText("vm")).toBeInTheDocument();
-    expect(custom.getByText("1 filter")).toBeInTheDocument();
+      await screen.findByText("sip:mcptt.ims.example.org"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
+    expect(screen.queryByText("No services yet.")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Edit service voicemail" }),
+      screen.queryByRole("button", { name: /service$/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Edit service mcptt" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Custom services are managed through the API/),
-    ).toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("button", { name: "Delete service voicemail" }),
-    );
-    await user.click(screen.getByRole("button", { name: "Confirm" }));
-
-    await screen.findByText("Service deleted successfully.");
-    expect(
-      api.requests(`${SERVICES_PATH}/voicemail`).map((r) => r.method),
-    ).toEqual(["DELETE"]);
-  });
-
-  it("shows the filter criteria of a service", async () => {
-    const user = userEvent.setup();
-    api.get(SERVICES_PATH, () => ({ items: [mcpttService] }));
-    renderIMS();
-
-    await user.click(
-      await screen.findByRole("button", {
-        name: "View filter criteria of mcptt",
-      }),
-    );
-    const dialog = within(await screen.findByRole("dialog"));
-    expect(dialog.getByText("method REGISTER")).toBeInTheDocument();
-    expect(
-      dialog.getByText("request URI sip:!.*!@mcptt.ims.example.org"),
-    ).toBeInTheDocument();
-    expect(dialog.getByText("Terminate")).toBeInTheDocument();
+      api.requests().some((r) => r.url.pathname.includes("/ims/services")),
+    ).toBe(false);
   });
 
   it("hides IMS writes from a read-only user", async () => {
     api.get(AS_PATH, () => ({ items: [mcpttAS] }));
-    api.get(SERVICES_PATH, () => ({ items: [mcpttService] }));
     renderIMS("Read Only");
 
     expect(
@@ -649,10 +466,10 @@ describe("Operator IMS services", () => {
       screen.queryByRole("button", { name: "Add application server" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Add MCPTT service" }),
+      screen.queryByRole("button", { name: /Edit application server/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Delete service/ }),
+      screen.queryByRole("button", { name: /Delete application server/ }),
     ).not.toBeInTheDocument();
   });
 });

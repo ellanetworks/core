@@ -1291,10 +1291,30 @@ func MCFixture(env Env, imsi string) FixtureSpec {
 	}
 }
 
-const (
-	IMSServiceApplicationServer = "mcptt-as"
-	IMSServiceName              = "mcptt"
-)
+const MCPTTApplicationServer = "mcptt-as"
+
+func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
+	register, originating := "REGISTER", "ORIGINATING_REGISTERED"
+	header, content := "^P-Asserted-Service$", `^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`
+
+	return []client.IMSInitialFilterCriterion{
+		{
+			ApplicationServerName:   MCPTTApplicationServer,
+			TriggerPoint:            &client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			DefaultHandling:         new("SESSION_CONTINUED"),
+			IncludeRegisterRequest:  true,
+			IncludeRegisterResponse: true,
+		},
+		{
+			ApplicationServerName: MCPTTApplicationServer,
+			TriggerPoint: &client.IMSTriggerPoint{ConditionTypeCNF: true, SPT: []client.IMSServicePointTrigger{
+				{Group: []int32{0}, SessionCase: &originating},
+				{Group: []int32{1}, SIPHeader: &client.IMSHeaderMatch{Header: header, Content: &content}},
+			}},
+			DefaultHandling: new("SESSION_TERMINATED"),
+		},
+	}
+}
 
 func ProvisionMCPTTService(ctx context.Context, env Env, profile string) (func(), error) {
 	cl, err := coreClient(env)
@@ -1303,7 +1323,7 @@ func ProvisionMCPTTService(ctx context.Context, env Env, profile string) (func()
 	}
 
 	if _, err := cl.CreateIMSApplicationServer(ctx, &client.CreateIMSApplicationServerOptions{
-		Name:                    IMSServiceApplicationServer,
+		Name:                    MCPTTApplicationServer,
 		ServerName:              "sip:mcptt.invalid",
 		PublicServiceIdentities: []string{"sip:!.*!@mcptt." + IMSHomeDomain},
 	}); err != nil {
@@ -1311,19 +1331,13 @@ func ProvisionMCPTTService(ctx context.Context, env Env, profile string) (func()
 	}
 
 	cleanup := func() {
-		_ = cl.SetProfileIMSServices(context.Background(), profile, nil)
-		_ = cl.DeleteIMSService(context.Background(), IMSServiceName)
-		_ = cl.DeleteIMSApplicationServer(context.Background(), IMSServiceApplicationServer)
+		_ = cl.SetProfileIMSFilterCriteria(context.Background(), profile, nil)
+		_ = cl.DeleteIMSApplicationServer(context.Background(), MCPTTApplicationServer)
 	}
 
-	if _, err := cl.CreateIMSService(ctx, &client.CreateIMSServiceOptions{Name: IMSServiceName, Kind: "mcptt", ApplicationServerName: IMSServiceApplicationServer}); err != nil {
+	if err := cl.SetProfileIMSFilterCriteria(ctx, profile, MCPTTFilterCriteria()); err != nil {
 		cleanup()
-		return nil, fmt.Errorf("create the MCPTT service: %w", err)
-	}
-
-	if err := cl.SetProfileIMSServices(ctx, profile, []string{IMSServiceName}); err != nil {
-		cleanup()
-		return nil, fmt.Errorf("assign the MCPTT service to profile %s: %w", profile, err)
+		return nil, fmt.Errorf("give profile %s the MCPTT initial filter criteria: %w", profile, err)
 	}
 
 	return cleanup, nil
@@ -1349,15 +1363,15 @@ func RequireIMSRegistrationAcrossProfilePushes(ctx context.Context, env Env, sub
 		return err
 	}
 
-	for _, services := range [][]string{nil, {IMSServiceName}} {
-		if err := cl.SetProfileIMSServices(ctx, profile, services); err != nil {
-			return fmt.Errorf("set the IMS services of profile %s to %v: %w", profile, services, err)
+	for _, ifcs := range [][]client.IMSInitialFilterCriterion{nil, MCPTTFilterCriteria()} {
+		if err := cl.SetProfileIMSFilterCriteria(ctx, profile, ifcs); err != nil {
+			return fmt.Errorf("set the %d initial filter criteria of profile %s: %w", len(ifcs), profile, err)
 		}
 
 		time.Sleep(time.Second)
 
 		if !u.State().Registered {
-			return fmt.Errorf("%s lost its IMS registration after the profile push for services %v", sub.IMSI, services)
+			return fmt.Errorf("%s lost its IMS registration after the profile push for %d initial filter criteria", sub.IMSI, len(ifcs))
 		}
 	}
 

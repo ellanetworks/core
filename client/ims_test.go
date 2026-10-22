@@ -98,113 +98,52 @@ func TestIMSApplicationServerWrites(t *testing.T) {
 	}
 }
 
-func TestIMSServiceReads(t *testing.T) {
-	svc := `{"name": "mcptt", "kind": "mcptt", "application_server_name": "mcptt", "initial_filter_criteria": [
-		{"priority": 0, "trigger_point": {"condition_type_cnf": false, "spt": [{"group": [0], "method": "REGISTER"}]},
-		 "default_handling": "SESSION_CONTINUED", "include_register_request": true, "include_register_response": true}]}`
-	register := "REGISTER"
-	want := client.IMSService{
-		Name: "mcptt", Kind: "mcptt", ApplicationServerName: "mcptt",
-		InitialFilterCriteria: []client.IMSInitialFilterCriterion{{
-			TriggerPoint:            client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
-			DefaultHandling:         "SESSION_CONTINUED",
+func TestProfileIMSFilterCriteria(t *testing.T) {
+	fake := imsFake(`{"initial_filter_criteria": [
+		{"priority": 0, "application_server_name": "mcptt", "trigger_point": {"condition_type_cnf": false, "spt": [{"group": [0], "method": "REGISTER"}]},
+		 "default_handling": "SESSION_CONTINUED", "service_info": "info", "include_register_request": true, "include_register_response": true},
+		{"priority": 1, "application_server_name": "conf", "profile_part": "UNREGISTERED", "include_register_request": false, "include_register_response": false}]}`)
+	c := &client.Client{Requester: fake}
+
+	register, handling, info, part := "REGISTER", "SESSION_CONTINUED", "info", "UNREGISTERED"
+	want := []client.IMSInitialFilterCriterion{
+		{
+			ApplicationServerName:   "mcptt",
+			TriggerPoint:            &client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			DefaultHandling:         &handling,
+			ServiceInfo:             &info,
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
-		}},
+		},
+		{Priority: 1, ApplicationServerName: "conf", ProfilePart: &part},
 	}
 
-	fake := imsFake(`{"items": [` + svc + `]}`)
-
-	list, err := (&client.Client{Requester: fake}).ListIMSServices(context.Background())
-	if err != nil || len(list.Items) != 1 || !reflect.DeepEqual(list.Items[0], want) {
-		t.Fatalf("list = %+v, %v", list, err)
-	}
-
-	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/ims/services" {
-		t.Fatalf("list via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-
-	fake = imsFake(svc)
-
-	got, err := (&client.Client{Requester: fake}).GetIMSService(context.Background(), "mcptt")
-	if err != nil || !reflect.DeepEqual(*got, want) {
+	got, err := c.GetProfileIMSFilterCriteria(context.Background(), "mc")
+	if err != nil || !reflect.DeepEqual(got.InitialFilterCriteria, want) {
 		t.Fatalf("get = %+v, %v", got, err)
 	}
 
-	if fake.lastOpts.Path != "api/v1/operator/ims/services/mcptt" {
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/profiles/mc/ims-filter-criteria" {
 		t.Fatalf("get via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
-}
 
-func TestIMSServiceWrites(t *testing.T) {
-	fake := imsFake(`{"name": "mcptt", "kind": "mcptt", "application_server_name": "mcptt", "initial_filter_criteria": []}`)
-	c := &client.Client{Requester: fake}
-
-	if _, err := c.CreateIMSService(context.Background(), &client.CreateIMSServiceOptions{Name: "mcptt", Kind: "mcptt", ApplicationServerName: "mcptt"}); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-
-	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/operator/ims/services" {
-		t.Fatalf("create via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	if err := c.SetProfileIMSFilterCriteria(context.Background(), "mc", nil); err != nil {
+		t.Fatalf("clear: %v", err)
 	}
 
 	body := decodeBody(t, fake.lastOpts.Body)
-	if _, ok := body["initial_filter_criteria"]; ok || body["kind"] != "mcptt" || body["application_server_name"] != "mcptt" {
-		t.Fatalf("create body = %+v", body)
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/profiles/mc/ims-filter-criteria" || !reflect.DeepEqual(body["initial_filter_criteria"], []any{}) {
+		t.Fatalf("clear via %s %s with %+v", fake.lastOpts.Method, fake.lastOpts.Path, body)
 	}
 
-	uri := "^sip:conf@.*$"
-	custom := &client.UpdateIMSServiceOptions{
-		Kind: "custom", ApplicationServerName: "conf",
-		InitialFilterCriteria: []client.IMSInitialFilterCriterion{{
-			TriggerPoint:    client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, RequestURI: &uri}}},
-			DefaultHandling: "SESSION_TERMINATED",
-		}},
-	}
-
-	if err := c.UpdateIMSService(context.Background(), "conf", custom); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-
-	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/ims/services/conf" {
-		t.Fatalf("update via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-
-	var sent client.UpdateIMSServiceOptions
-
-	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&sent); err != nil || !reflect.DeepEqual(&sent, custom) {
-		t.Fatalf("update body = %+v, %v", sent, err)
-	}
-
-	if err := c.DeleteIMSService(context.Background(), "conf"); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-
-	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/operator/ims/services/conf" {
-		t.Fatalf("delete via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-}
-
-func TestProfileIMSServices(t *testing.T) {
-	fake := imsFake(`{"services": ["mcptt", "conf"]}`)
-	c := &client.Client{Requester: fake}
-
-	got, err := c.GetProfileIMSServices(context.Background(), "mc")
-	if err != nil || !reflect.DeepEqual(got.Services, []string{"mcptt", "conf"}) {
-		t.Fatalf("get = %+v, %v", got, err)
-	}
-
-	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/profiles/mc/ims-services" {
-		t.Fatalf("get via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-
-	if err := c.SetProfileIMSServices(context.Background(), "mc", nil); err != nil {
+	if err := c.SetProfileIMSFilterCriteria(context.Background(), "mc", want); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 
-	body := decodeBody(t, fake.lastOpts.Body)
-	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/profiles/mc/ims-services" || !reflect.DeepEqual(body["services"], []any{}) {
-		t.Fatalf("set via %s %s with %+v", fake.lastOpts.Method, fake.lastOpts.Path, body)
+	var sent client.ProfileIMSFilterCriteria
+
+	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&sent); err != nil || !reflect.DeepEqual(sent.InitialFilterCriteria, want) {
+		t.Fatalf("set body = %+v, %v", sent, err)
 	}
 }
 

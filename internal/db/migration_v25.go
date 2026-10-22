@@ -30,29 +30,19 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 		)`, IMSPublicServiceIdentitiesTableName, IMSApplicationServersTableName),
 		fmt.Sprintf("CREATE INDEX idx_ims_public_service_identities_as ON %s(applicationServerID)", IMSPublicServiceIdentitiesTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
-			id                  TEXT PRIMARY KEY,
-			name                TEXT NOT NULL UNIQUE CHECK (name != ''),
-			kind                TEXT NOT NULL CHECK (kind IN ('%s', '%s')),
-			applicationServerID TEXT NOT NULL REFERENCES %s(id)
-		)`, IMSServicesTableName, IMSServiceKindMCPTT, IMSServiceKindCustom, IMSApplicationServersTableName),
-		fmt.Sprintf("CREATE INDEX idx_ims_services_as ON %s(applicationServerID)", IMSServicesTableName),
-		fmt.Sprintf(`CREATE TABLE %s (
-			serviceID               TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			profileID               TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			position                INTEGER NOT NULL CHECK (position >= 0),
-			triggerPoint            TEXT    NOT NULL CHECK (json_valid(triggerPoint)),
-			defaultHandling         TEXT    NOT NULL CHECK (defaultHandling IN ('%s', '%s')),
+			applicationServerID     TEXT    NOT NULL REFERENCES %s(id),
+			triggerPoint            TEXT    CHECK (triggerPoint IS NULL OR json_valid(triggerPoint)),
+			profilePart             TEXT    CHECK (profilePart IS NULL OR profilePart IN ('%s', '%s')),
+			defaultHandling         TEXT    CHECK (defaultHandling IS NULL OR defaultHandling IN ('%s', '%s')),
+			serviceInfo             TEXT,
 			includeRegisterRequest  BOOLEAN NOT NULL CHECK (includeRegisterRequest IN (0, 1)),
 			includeRegisterResponse BOOLEAN NOT NULL CHECK (includeRegisterResponse IN (0, 1)),
-			PRIMARY KEY (serviceID, position)
-		)`, IMSInitialFilterCriteriaTableName, IMSServicesTableName, IMSDefaultHandlingSessionContinued, IMSDefaultHandlingSessionTerminated),
-		fmt.Sprintf(`CREATE TABLE %s (
-			profileID TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
-			serviceID TEXT    NOT NULL REFERENCES %s(id),
-			position  INTEGER NOT NULL CHECK (position >= 0),
-			PRIMARY KEY (profileID, serviceID),
-			UNIQUE (profileID, position)
-		)`, ProfileIMSServicesTableName, ProfilesTableName, IMSServicesTableName),
-		fmt.Sprintf("CREATE INDEX idx_profile_ims_services_service ON %s(serviceID)", ProfileIMSServicesTableName),
+			PRIMARY KEY (profileID, position)
+		)`, IMSInitialFilterCriteriaTableName, ProfilesTableName, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
+			IMSDefaultHandlingSessionContinued, IMSDefaultHandlingSessionTerminated),
+		fmt.Sprintf("CREATE INDEX idx_ims_initial_filter_criteria_as ON %s(applicationServerID)", IMSInitialFilterCriteriaTableName),
 	}
 
 	for _, stmt := range stmts {

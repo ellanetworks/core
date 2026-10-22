@@ -58,45 +58,21 @@ type IMSTriggerPoint struct {
 }
 
 type IMSInitialFilterCriterion struct {
-	Priority                int             `json:"priority"`
-	TriggerPoint            IMSTriggerPoint `json:"trigger_point"`
-	DefaultHandling         string          `json:"default_handling"`
-	IncludeRegisterRequest  bool            `json:"include_register_request"`
-	IncludeRegisterResponse bool            `json:"include_register_response"`
+	Priority                int              `json:"priority"`
+	ApplicationServerName   string           `json:"application_server_name"`
+	TriggerPoint            *IMSTriggerPoint `json:"trigger_point,omitempty"`
+	ProfilePart             *string          `json:"profile_part,omitempty"`
+	DefaultHandling         *string          `json:"default_handling,omitempty"`
+	ServiceInfo             *string          `json:"service_info,omitempty"`
+	IncludeRegisterRequest  bool             `json:"include_register_request"`
+	IncludeRegisterResponse bool             `json:"include_register_response"`
 }
 
-type IMSService struct {
-	Name                  string                      `json:"name"`
-	Kind                  string                      `json:"kind"`
-	ApplicationServerName string                      `json:"application_server_name"`
+type ProfileIMSFilterCriteria struct {
 	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
 }
 
-type ListIMSServicesResponse struct {
-	Items []IMSService `json:"items"`
-}
-
-type CreateIMSServiceOptions struct {
-	Name                  string                      `json:"name"`
-	Kind                  string                      `json:"kind"`
-	ApplicationServerName string                      `json:"application_server_name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria,omitempty"`
-}
-
-type UpdateIMSServiceOptions struct {
-	Kind                  string                      `json:"kind"`
-	ApplicationServerName string                      `json:"application_server_name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria,omitempty"`
-}
-
-type ProfileIMSServices struct {
-	Services []string `json:"services"`
-}
-
-const (
-	imsApplicationServersPath = "api/v1/operator/ims/application-servers"
-	imsServicesPath           = "api/v1/operator/ims/services"
-)
+const imsApplicationServersPath = "api/v1/operator/ims/application-servers"
 
 func (c *Client) imsRequest(ctx context.Context, method, path string, payload any, result any) error {
 	opts := &RequestOptions{
@@ -175,59 +151,21 @@ func (c *Client) DeleteIMSApplicationServer(ctx context.Context, name string) er
 	return c.imsRequest(ctx, "DELETE", imsApplicationServersPath+"/"+url.PathEscape(name), nil, nil)
 }
 
-func (c *Client) ListIMSServices(ctx context.Context) (*ListIMSServicesResponse, error) {
-	var list ListIMSServicesResponse
+func (c *Client) GetProfileIMSFilterCriteria(ctx context.Context, profileName string) (*ProfileIMSFilterCriteria, error) {
+	var ifcs ProfileIMSFilterCriteria
 
-	if err := c.imsRequest(ctx, "GET", imsServicesPath, nil, &list); err != nil {
+	if err := c.imsRequest(ctx, "GET", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-filter-criteria", nil, &ifcs); err != nil {
 		return nil, err
 	}
 
-	return &list, nil
+	return &ifcs, nil
 }
 
-func (c *Client) GetIMSService(ctx context.Context, name string) (*IMSService, error) {
-	var svc IMSService
-
-	if err := c.imsRequest(ctx, "GET", imsServicesPath+"/"+url.PathEscape(name), nil, &svc); err != nil {
-		return nil, err
+func (c *Client) SetProfileIMSFilterCriteria(ctx context.Context, profileName string, ifcs []IMSInitialFilterCriterion) error {
+	payload := ProfileIMSFilterCriteria{InitialFilterCriteria: ifcs}
+	if payload.InitialFilterCriteria == nil {
+		payload.InitialFilterCriteria = []IMSInitialFilterCriterion{}
 	}
 
-	return &svc, nil
-}
-
-func (c *Client) CreateIMSService(ctx context.Context, opts *CreateIMSServiceOptions) (*IMSService, error) {
-	var svc IMSService
-
-	if err := c.imsRequest(ctx, "POST", imsServicesPath, opts, &svc); err != nil {
-		return nil, err
-	}
-
-	return &svc, nil
-}
-
-func (c *Client) UpdateIMSService(ctx context.Context, name string, opts *UpdateIMSServiceOptions) error {
-	return c.imsRequest(ctx, "PUT", imsServicesPath+"/"+url.PathEscape(name), opts, nil)
-}
-
-func (c *Client) DeleteIMSService(ctx context.Context, name string) error {
-	return c.imsRequest(ctx, "DELETE", imsServicesPath+"/"+url.PathEscape(name), nil, nil)
-}
-
-func (c *Client) GetProfileIMSServices(ctx context.Context, profileName string) (*ProfileIMSServices, error) {
-	var services ProfileIMSServices
-
-	if err := c.imsRequest(ctx, "GET", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-services", nil, &services); err != nil {
-		return nil, err
-	}
-
-	return &services, nil
-}
-
-func (c *Client) SetProfileIMSServices(ctx context.Context, profileName string, services []string) error {
-	payload := ProfileIMSServices{Services: services}
-	if payload.Services == nil {
-		payload.Services = []string{}
-	}
-
-	return c.imsRequest(ctx, "PUT", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-services", payload, nil)
+	return c.imsRequest(ctx, "PUT", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-filter-criteria", payload, nil)
 }

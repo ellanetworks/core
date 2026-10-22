@@ -55,46 +55,23 @@ type IMSTriggerPoint struct {
 }
 
 type IMSInitialFilterCriterion struct {
-	Priority                int             `json:"priority"`
-	TriggerPoint            IMSTriggerPoint `json:"trigger_point"`
-	DefaultHandling         string          `json:"default_handling"`
-	IncludeRegisterRequest  bool            `json:"include_register_request"`
-	IncludeRegisterResponse bool            `json:"include_register_response"`
+	Priority                int              `json:"priority"`
+	ApplicationServerName   string           `json:"application_server_name"`
+	TriggerPoint            *IMSTriggerPoint `json:"trigger_point,omitempty"`
+	ProfilePart             *string          `json:"profile_part,omitempty"`
+	DefaultHandling         *string          `json:"default_handling,omitempty"`
+	ServiceInfo             *string          `json:"service_info,omitempty"`
+	IncludeRegisterRequest  bool             `json:"include_register_request"`
+	IncludeRegisterResponse bool             `json:"include_register_response"`
 }
 
-type IMSServiceItem struct {
-	Name                  string                      `json:"name"`
-	Kind                  string                      `json:"kind"`
-	ApplicationServerName string                      `json:"application_server_name"`
+type ProfileIMSFilterCriteriaBody struct {
 	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
 }
 
-type IMSServiceParams struct {
-	Name                  string                      `json:"name,omitempty"`
-	Kind                  string                      `json:"kind"`
-	ApplicationServerName string                      `json:"application_server_name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria,omitempty"`
-}
-
-type IMSServiceResponse struct {
-	Result IMSServiceItem `json:"result"`
-	Error  string         `json:"error,omitempty"`
-}
-
-type ListIMSServicesResponse struct {
-	Result struct {
-		Items []IMSServiceItem `json:"items"`
-	} `json:"result"`
-	Error string `json:"error,omitempty"`
-}
-
-type ProfileIMSServicesBody struct {
-	Services []string `json:"services"`
-}
-
-type ProfileIMSServicesResponse struct {
-	Result ProfileIMSServicesBody `json:"result"`
-	Error  string                 `json:"error,omitempty"`
+type ProfileIMSFilterCriteriaResponse struct {
+	Result ProfileIMSFilterCriteriaBody `json:"result"`
+	Error  string                       `json:"error,omitempty"`
 }
 
 type IMSMessageResponse struct {
@@ -104,10 +81,7 @@ type IMSMessageResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-const (
-	imsASPath      = "/api/v1/operator/ims/application-servers"
-	imsServicePath = "/api/v1/operator/ims/services"
-)
+const imsASPath = "/api/v1/operator/ims/application-servers"
 
 type fakeIMSProfileNotifier struct {
 	mu    sync.Mutex
@@ -133,10 +107,6 @@ func (f *fakeIMSProfileNotifier) take() []string {
 
 func (f *fakeIMSProfileNotifier) ApplicationServerChanged(_ context.Context, id string) {
 	f.record("as:" + id)
-}
-
-func (f *fakeIMSProfileNotifier) ServiceChanged(_ context.Context, id string) {
-	f.record("service:" + id)
 }
 
 func (f *fakeIMSProfileNotifier) ProfileChanged(_ context.Context, id string) {
@@ -182,28 +152,26 @@ func createIMSAS(url string, client *http.Client, token string, as IMSApplicatio
 	return apiDo[IMSApplicationServerResponse](client, "POST", url+imsASPath, token, as)
 }
 
-func createIMSService(url string, client *http.Client, token string, svc IMSServiceParams) (int, *IMSServiceResponse, error) {
-	return apiDo[IMSServiceResponse](client, "POST", url+imsServicePath, token, svc)
-}
-
-func mcpttFilterCriteria() []IMSInitialFilterCriterion {
+func mcpttFilterCriteria(as string) []IMSInitialFilterCriterion {
 	register, originating, header, icsi := "REGISTER", "ORIGINATING_REGISTERED", "^P-Asserted-Service$", `^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`
 
 	return []IMSInitialFilterCriterion{
 		{
 			Priority:                0,
-			TriggerPoint:            IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
-			DefaultHandling:         "SESSION_CONTINUED",
+			ApplicationServerName:   as,
+			TriggerPoint:            &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			DefaultHandling:         strPtr("SESSION_CONTINUED"),
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
 		},
 		{
-			Priority: 1,
-			TriggerPoint: IMSTriggerPoint{ConditionTypeCNF: true, SPT: []IMSServicePointTrigger{
+			Priority:              1,
+			ApplicationServerName: as,
+			TriggerPoint: &IMSTriggerPoint{ConditionTypeCNF: true, SPT: []IMSServicePointTrigger{
 				{Group: []int32{0}, SessionCase: &originating},
 				{Group: []int32{1}, SIPHeader: &IMSHeaderMatch{Header: header, Content: &icsi}},
 			}},
-			DefaultHandling: "SESSION_TERMINATED",
+			DefaultHandling: strPtr("SESSION_TERMINATED"),
 		},
 	}
 }
@@ -308,12 +276,12 @@ func TestIMSApplicationServers(t *testing.T) {
 		t.Fatalf("failed updates notified %v", got)
 	}
 
-	if status, resp, err := createIMSService(url, client, token, IMSServiceParams{Name: "mcptt", Kind: "mcptt", ApplicationServerName: "mcptt"}); err != nil || status != http.StatusCreated {
-		t.Fatalf("create service: status %d, response %+v, err %v", status, resp, err)
+	if status, resp, err := apiDo[IMSMessageResponse](client, "PUT", url+"/api/v1/profiles/default/ims-filter-criteria", token, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: mcpttFilterCriteria("mcptt")}); err != nil || status != http.StatusOK {
+		t.Fatalf("give the default profile MCPTT iFCs: status %d, response %+v, err %v", status, resp, err)
 	}
 
 	status, del, err := apiDo[IMSMessageResponse](client, "DELETE", url+imsASPath+"/mcptt", token, nil)
-	if err != nil || status != http.StatusConflict || del.Error != "Application server is used by an IMS service" {
+	if err != nil || status != http.StatusConflict || del.Error != "Application server is used by a profile" {
 		t.Fatalf("delete an application server in use: status %d, response %+v, err %v", status, del, err)
 	}
 
@@ -338,187 +306,27 @@ func updateIMSAS(url string, client *http.Client, token, name string, as UpdateI
 	return status, err
 }
 
-func TestIMSServices(t *testing.T) {
+func strPtr(s string) *string {
+	return &s
+}
+
+func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 	env, client, token, notifier := newIMSServicesTestEnv(t)
 	url := env.Server.URL
+	path := url + "/api/v1/profiles/mc/ims-filter-criteria"
 
-	for _, as := range []IMSApplicationServerItem{
-		{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org"},
-		{Name: "conf", ServerName: "sip:conf.ims.example.org"},
-	} {
+	for _, as := range []IMSApplicationServerItem{{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org"}, {Name: "conf", ServerName: "sip:conf.ims.example.org"}} {
 		if status, resp, err := createIMSAS(url, client, token, as); err != nil || status != http.StatusCreated {
 			t.Fatalf("create %s: status %d, response %+v, err %v", as.Name, status, resp, err)
 		}
 	}
 
-	status, resp, err := createIMSService(url, client, token, IMSServiceParams{Name: "mcptt", Kind: "mcptt", ApplicationServerName: "mcptt"})
-	if err != nil || status != http.StatusCreated {
-		t.Fatalf("create mcptt: status %d, response %+v, err %v", status, resp, err)
-	}
-
-	wantMCPTT := IMSServiceItem{Name: "mcptt", Kind: "mcptt", ApplicationServerName: "mcptt", InitialFilterCriteria: mcpttFilterCriteria()}
-
-	if !reflect.DeepEqual(resp.Result, wantMCPTT) {
-		t.Fatalf("created mcptt = %+v, want %+v", resp.Result, wantMCPTT)
-	}
-
-	status, resp, err = apiDo[IMSServiceResponse](client, "GET", url+imsServicePath+"/mcptt", token, nil)
-	if err != nil || status != http.StatusOK || !reflect.DeepEqual(resp.Result, wantMCPTT) {
-		t.Fatalf("get mcptt: status %d, response %+v, err %v", status, resp, err)
-	}
-
-	uri, invite := "^sip:conference@.*$", "INVITE"
-	custom := []IMSInitialFilterCriterion{
-		{
-			Priority:        7,
-			TriggerPoint:    IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, RequestURI: &uri}, {Group: []int32{1}, Method: &invite, ConditionNegated: true}}},
-			DefaultHandling: "SESSION_TERMINATED",
-		},
-		{
-			TriggerPoint:            IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: strPtr("REGISTER"), RegistrationType: []string{"INITIAL_REGISTRATION"}}}},
-			DefaultHandling:         "SESSION_CONTINUED",
-			IncludeRegisterResponse: true,
-		},
-	}
-
-	status, resp, err = createIMSService(url, client, token, IMSServiceParams{Name: "conf", Kind: "custom", ApplicationServerName: "conf", InitialFilterCriteria: custom})
-	if err != nil || status != http.StatusCreated {
-		t.Fatalf("create conf: status %d, response %+v, err %v", status, resp, err)
-	}
-
-	wantConf := IMSServiceItem{Name: "conf", Kind: "custom", ApplicationServerName: "conf", InitialFilterCriteria: slices.Clone(custom)}
-	wantConf.InitialFilterCriteria[0].Priority = 0
-	wantConf.InitialFilterCriteria[1].Priority = 1
-
-	if !reflect.DeepEqual(resp.Result, wantConf) {
-		t.Fatalf("created conf = %+v, want %+v", resp.Result, wantConf)
-	}
-
-	listStatus, list, err := apiDo[ListIMSServicesResponse](client, "GET", url+imsServicePath, token, nil)
-	if err != nil || listStatus != http.StatusOK || !reflect.DeepEqual(list.Result.Items, []IMSServiceItem{wantConf, wantMCPTT}) {
-		t.Fatalf("list: status %d, response %+v, err %v", listStatus, list, err)
-	}
-
-	for name, tc := range map[string]struct {
-		svc    IMSServiceParams
-		status int
-		reason string
-	}{
-		"mcptt with iFCs":   {IMSServiceParams{Name: "x", Kind: "mcptt", ApplicationServerName: "mcptt", InitialFilterCriteria: custom}, http.StatusBadRequest, "an IMS service of kind mcptt takes no initial filter criteria"},
-		"custom no iFCs":    {IMSServiceParams{Name: "x", Kind: "custom", ApplicationServerName: "conf"}, http.StatusBadRequest, "an IMS service of kind custom needs at least one initial filter criterion"},
-		"unknown kind":      {IMSServiceParams{Name: "x", Kind: "voice", ApplicationServerName: "conf"}, http.StatusBadRequest, `unknown IMS service kind "voice"`},
-		"no name":           {IMSServiceParams{Kind: "mcptt", ApplicationServerName: "mcptt"}, http.StatusBadRequest, "IMS service name is required"},
-		"unknown AS":        {IMSServiceParams{Name: "x", Kind: "mcptt", ApplicationServerName: "missing"}, http.StatusBadRequest, "Application server not found"},
-		"two conditions":    {IMSServiceParams{Name: "x", Kind: "custom", ApplicationServerName: "conf", InitialFilterCriteria: []IMSInitialFilterCriterion{{TriggerPoint: IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite, RequestURI: &uri}}}, DefaultHandling: "SESSION_CONTINUED"}}}, http.StatusBadRequest, ""},
-		"bad handling":      {IMSServiceParams{Name: "x", Kind: "custom", ApplicationServerName: "conf", InitialFilterCriteria: []IMSInitialFilterCriterion{{TriggerPoint: IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite}}}, DefaultHandling: "MAYBE"}}}, http.StatusBadRequest, ""},
-		"existing service":  {IMSServiceParams{Name: "mcptt", Kind: "mcptt", ApplicationServerName: "mcptt"}, http.StatusConflict, "IMS service already exists"},
-		"registration type": {IMSServiceParams{Name: "x", Kind: "custom", ApplicationServerName: "conf", InitialFilterCriteria: []IMSInitialFilterCriterion{{TriggerPoint: IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite, RegistrationType: []string{"INITIAL_REGISTRATION"}}}}, DefaultHandling: "SESSION_CONTINUED"}}}, http.StatusBadRequest, ""},
-	} {
-		status, resp, err := createIMSService(url, client, token, tc.svc)
-		if err != nil || status != tc.status || resp.Error == "" || (tc.reason != "" && !strings.HasSuffix(resp.Error, tc.reason)) {
-			t.Fatalf("%s: status %d, response %+v, err %v; want %d %q", name, status, resp, err, tc.status, tc.reason)
-		}
-	}
-
-	update := func(name string, svc IMSServiceParams) (int, *IMSMessageResponse) {
-		t.Helper()
-
-		status, resp, err := apiDo[IMSMessageResponse](client, "PUT", url+imsServicePath+"/"+name, token, svc)
-		if err != nil {
-			t.Fatalf("update %s: %v", name, err)
-		}
-
-		return status, resp
-	}
-
-	if status, resp := update("mcptt", IMSServiceParams{Kind: "mcptt", ApplicationServerName: "mcptt", InitialFilterCriteria: custom}); status != http.StatusBadRequest {
-		t.Fatalf("update mcptt with iFCs: status %d, response %+v", status, resp)
-	}
-
-	if status, resp := update("missing", IMSServiceParams{Kind: "mcptt", ApplicationServerName: "mcptt"}); status != http.StatusNotFound || resp.Error != "IMS service not found" {
-		t.Fatalf("update missing: status %d, response %+v", status, resp)
-	}
-
-	if status, resp := update("conf", IMSServiceParams{Kind: "mcptt", ApplicationServerName: "missing"}); status != http.StatusBadRequest || resp.Error != "Application server not found" {
-		t.Fatalf("update to an unknown AS: status %d, response %+v", status, resp)
-	}
-
-	if got := notifier.take(); len(got) != 0 {
-		t.Fatalf("failed updates notified %v", got)
-	}
-
-	if status, resp := update("conf", IMSServiceParams{Kind: "custom", ApplicationServerName: "mcptt", InitialFilterCriteria: custom[1:]}); status != http.StatusOK {
-		t.Fatalf("update conf: status %d, response %+v", status, resp)
-	}
-
-	conf, err := env.DB.GetIMSService(context.Background(), "conf")
-	if err != nil {
-		t.Fatalf("get conf from db: %v", err)
-	}
-
-	if got := notifier.take(); !slices.Equal(got, []string{"service:" + conf.ID}) {
-		t.Fatalf("notifications = %v, want the conf service", got)
-	}
-
-	status, resp, err = apiDo[IMSServiceResponse](client, "GET", url+imsServicePath+"/conf", token, nil)
-	if err != nil || status != http.StatusOK || resp.Result.ApplicationServerName != "mcptt" || len(resp.Result.InitialFilterCriteria) != 1 || resp.Result.InitialFilterCriteria[0].Priority != 0 || !resp.Result.InitialFilterCriteria[0].IncludeRegisterResponse {
-		t.Fatalf("get conf after update: status %d, response %+v, err %v", status, resp, err)
-	}
-
-	if _, _, err := createProfile(url, client, token, &CreateProfileParams{Name: "mc", UeAmbrUplink: "200 Mbps", UeAmbrDownlink: "200 Mbps"}); err != nil {
-		t.Fatalf("create profile: %s", err)
-	}
-
-	if status, _, err := apiDo[IMSMessageResponse](client, "PUT", url+"/api/v1/profiles/mc/ims-services", token, ProfileIMSServicesBody{Services: []string{"conf"}}); err != nil || status != http.StatusOK {
-		t.Fatalf("assign conf: status %d, err %v", status, err)
-	}
-
-	status, del, err := apiDo[IMSMessageResponse](client, "DELETE", url+imsServicePath+"/conf", token, nil)
-	if err != nil || status != http.StatusConflict || del.Error != "IMS service is assigned to a profile" {
-		t.Fatalf("delete an assigned service: status %d, response %+v, err %v", status, del, err)
-	}
-
-	status, del, err = apiDo[IMSMessageResponse](client, "DELETE", url+imsServicePath+"/mcptt", token, nil)
-	if err != nil || status != http.StatusOK {
-		t.Fatalf("delete mcptt: status %d, response %+v, err %v", status, del, err)
-	}
-
-	status, del, err = apiDo[IMSMessageResponse](client, "DELETE", url+imsServicePath+"/mcptt", token, nil)
-	if err != nil || status != http.StatusNotFound {
-		t.Fatalf("delete mcptt again: status %d, response %+v, err %v", status, del, err)
-	}
-
-	status, resp, err = apiDo[IMSServiceResponse](client, "GET", url+imsServicePath+"/mcptt", token, nil)
-	if err != nil || status != http.StatusNotFound {
-		t.Fatalf("get deleted mcptt: status %d, response %+v, err %v", status, resp, err)
-	}
-}
-
-func strPtr(s string) *string {
-	return &s
-}
-
-func TestProfileIMSServices(t *testing.T) {
-	env, client, token, notifier := newIMSServicesTestEnv(t)
-	url := env.Server.URL
-	path := url + "/api/v1/profiles/mc/ims-services"
-
-	if status, resp, err := createIMSAS(url, client, token, IMSApplicationServerItem{Name: "as", ServerName: "sip:as.ims.example.org"}); err != nil || status != http.StatusCreated {
-		t.Fatalf("create AS: status %d, response %+v, err %v", status, resp, err)
-	}
-
-	for _, name := range []string{"a", "b", "c"} {
-		if status, resp, err := createIMSService(url, client, token, IMSServiceParams{Name: name, Kind: "mcptt", ApplicationServerName: "as"}); err != nil || status != http.StatusCreated {
-			t.Fatalf("create service %s: status %d, response %+v, err %v", name, status, resp, err)
-		}
-	}
-
-	status, resp, err := apiDo[ProfileIMSServicesResponse](client, "GET", path, token, nil)
+	status, resp, err := apiDo[ProfileIMSFilterCriteriaResponse](client, "GET", path, token, nil)
 	if err != nil || status != http.StatusNotFound {
 		t.Fatalf("get of a missing profile: status %d, response %+v, err %v", status, resp, err)
 	}
 
-	if status, _, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSServicesBody{Services: []string{"a"}}); err != nil || status != http.StatusNotFound {
+	if status, _, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: mcpttFilterCriteria("mcptt")}); err != nil || status != http.StatusNotFound {
 		t.Fatalf("set on a missing profile: status %d, err %v", status, err)
 	}
 
@@ -531,29 +339,53 @@ func TestProfileIMSServices(t *testing.T) {
 		t.Fatalf("get profile: %v", err)
 	}
 
-	get := func(t *testing.T) []string {
+	get := func(t *testing.T) []IMSInitialFilterCriterion {
 		t.Helper()
 
-		status, resp, err := apiDo[ProfileIMSServicesResponse](client, "GET", path, token, nil)
+		status, resp, err := apiDo[ProfileIMSFilterCriteriaResponse](client, "GET", path, token, nil)
 		if err != nil || status != http.StatusOK {
 			t.Fatalf("get: status %d, response %+v, err %v", status, resp, err)
 		}
 
-		return resp.Result.Services
+		return resp.Result.InitialFilterCriteria
 	}
 
 	if got := get(t); got == nil || len(got) != 0 {
-		t.Fatalf("services = %v, want an empty list", got)
+		t.Fatalf("iFCs = %v, want an empty list", got)
 	}
 
-	for _, order := range [][]string{{"c", "a", "b"}, {"b", "c"}, {}} {
-		status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSServicesBody{Services: order})
+	uri, invite := "^sip:conference@.*$", "INVITE"
+	conf := []IMSInitialFilterCriterion{
+		{
+			Priority:              7,
+			ApplicationServerName: "conf",
+			TriggerPoint:          &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, RequestURI: &uri}, {Group: []int32{1}, Method: &invite, ConditionNegated: true}}},
+			ProfilePart:           strPtr("REGISTERED"),
+			DefaultHandling:       strPtr("SESSION_TERMINATED"),
+		},
+		{
+			ApplicationServerName:   "conf",
+			TriggerPoint:            &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: strPtr("REGISTER"), RegistrationType: []string{"INITIAL_REGISTRATION"}}}},
+			DefaultHandling:         strPtr("SESSION_CONTINUED"),
+			ServiceInfo:             strPtr("conference"),
+			IncludeRegisterResponse: true,
+		},
+		{ApplicationServerName: "conf", ProfilePart: strPtr("UNREGISTERED")},
+	}
+
+	for _, ifcs := range [][]IMSInitialFilterCriterion{append(slices.Clone(conf), mcpttFilterCriteria("mcptt")...), mcpttFilterCriteria("mcptt"), {}} {
+		status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: ifcs})
 		if err != nil || status != http.StatusOK {
-			t.Fatalf("set %v: status %d, response %+v, err %v", order, status, resp, err)
+			t.Fatalf("set %d iFCs: status %d, response %+v, err %v", len(ifcs), status, resp, err)
 		}
 
-		if got := get(t); !slices.Equal(got, order) {
-			t.Fatalf("services = %v, want %v", got, order)
+		want := slices.Clone(ifcs)
+		for i := range want {
+			want[i].Priority = i
+		}
+
+		if got := get(t); !reflect.DeepEqual(got, want) {
+			t.Fatalf("iFCs = %+v, want %+v", got, want)
 		}
 
 		if got := notifier.take(); !slices.Equal(got, []string{"profile:" + profile.ID}) {
@@ -562,14 +394,18 @@ func TestProfileIMSServices(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct {
-		services []string
-		reason   string
+		ifcs   []IMSInitialFilterCriterion
+		reason string
 	}{
-		"unknown":   {[]string{"a", "missing"}, "IMS service not found: missing"},
-		"duplicate": {[]string{"a", "b", "a"}, "IMS service a is listed twice"},
+		"no application server":      {[]IMSInitialFilterCriterion{{}}, "Each initial filter criterion needs an application server"},
+		"unknown application server": {[]IMSInitialFilterCriterion{{ApplicationServerName: "missing"}}, "Application server not found: missing"},
+		"two conditions":             {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", TriggerPoint: &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite, RequestURI: &uri}}}}}, ""},
+		"bad handling":               {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", DefaultHandling: strPtr("MAYBE")}}, `unknown default handling "MAYBE"`},
+		"bad profile part":           {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", ProfilePart: strPtr("BOTH")}}, `unknown profile part "BOTH"`},
+		"registration type":          {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", TriggerPoint: &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite, RegistrationType: []string{"INITIAL_REGISTRATION"}}}}}}, ""},
 	} {
-		status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSServicesBody{Services: tc.services})
-		if err != nil || status != http.StatusBadRequest || resp.Error != tc.reason {
+		status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: tc.ifcs})
+		if err != nil || status != http.StatusBadRequest || resp.Error == "" || (tc.reason != "" && !strings.HasSuffix(resp.Error, tc.reason)) {
 			t.Fatalf("%s: status %d, response %+v, err %v; want 400 %q", name, status, resp, err, tc.reason)
 		}
 	}
@@ -579,7 +415,7 @@ func TestProfileIMSServices(t *testing.T) {
 	}
 
 	if got := get(t); len(got) != 0 {
-		t.Fatalf("rejected updates changed the services to %v", got)
+		t.Fatalf("rejected updates changed the iFCs to %v", got)
 	}
 }
 
@@ -665,7 +501,7 @@ func TestIMSServicesPermissions(t *testing.T) {
 		t.Fatalf("create network manager: %s", err)
 	}
 
-	for _, path := range []string{imsASPath, imsASPath + "/as", imsServicePath, "/api/v1/profiles/default/ims-services"} {
+	for _, path := range []string{imsASPath, imsASPath + "/as", "/api/v1/profiles/default/ims-filter-criteria"} {
 		status, _, err := apiDo[map[string]any](readOnly, "GET", url+path, readOnlyToken, nil)
 		if err != nil || status != http.StatusOK {
 			t.Fatalf("read-only GET %s: status %d, err %v", path, status, err)
@@ -676,20 +512,12 @@ func TestIMSServicesPermissions(t *testing.T) {
 		t.Fatalf("read-only create AS: status %d, err %v", status, err)
 	}
 
-	if status, _, err := createIMSService(url, readOnly, readOnlyToken, IMSServiceParams{Name: "ro", Kind: "mcptt", ApplicationServerName: "as"}); err != nil || status != http.StatusForbidden {
-		t.Fatalf("read-only create service: status %d, err %v", status, err)
+	if status, _, err := apiDo[IMSMessageResponse](readOnly, "PUT", url+"/api/v1/profiles/default/ims-filter-criteria", readOnlyToken, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: []IMSInitialFilterCriterion{}}); err != nil || status != http.StatusForbidden {
+		t.Fatalf("read-only set profile iFCs: status %d, err %v", status, err)
 	}
 
-	if status, _, err := apiDo[IMSMessageResponse](readOnly, "PUT", url+"/api/v1/profiles/default/ims-services", readOnlyToken, ProfileIMSServicesBody{Services: []string{}}); err != nil || status != http.StatusForbidden {
-		t.Fatalf("read-only set profile services: status %d, err %v", status, err)
-	}
-
-	if status, _, err := createIMSService(url, manager, managerToken, IMSServiceParams{Name: "svc", Kind: "mcptt", ApplicationServerName: "as"}); err != nil || status != http.StatusCreated {
-		t.Fatalf("network manager create service: status %d, err %v", status, err)
-	}
-
-	if status, _, err := apiDo[IMSMessageResponse](manager, "PUT", url+"/api/v1/profiles/default/ims-services", managerToken, ProfileIMSServicesBody{Services: []string{"svc"}}); err != nil || status != http.StatusOK {
-		t.Fatalf("network manager set profile services: status %d, err %v", status, err)
+	if status, _, err := apiDo[IMSMessageResponse](manager, "PUT", url+"/api/v1/profiles/default/ims-filter-criteria", managerToken, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: mcpttFilterCriteria("as")}); err != nil || status != http.StatusOK {
+		t.Fatalf("network manager set profile iFCs: status %d, err %v", status, err)
 	}
 }
 
@@ -701,10 +529,5 @@ func TestIMSNamesAreBounded(t *testing.T) {
 	status, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/operator/ims/application-servers", token, map[string]any{"name": long, "server_name": "sip:as.example.org"})
 	if err != nil || status != http.StatusBadRequest {
 		t.Fatalf("create an application server with a 256-character name: status %d, err %v", status, err)
-	}
-
-	status, _, err = apiDo[map[string]any](client, "POST", url+"/api/v1/operator/ims/services", token, map[string]any{"name": long, "kind": "mcptt", "application_server_name": "as"})
-	if err != nil || status != http.StatusBadRequest {
-		t.Fatalf("create a service with a 256-character name: status %d, err %v", status, err)
 	}
 }
