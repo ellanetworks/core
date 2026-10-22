@@ -259,7 +259,20 @@ func featureList(m *diameter.Message) Features {
 }
 
 func featuresRequired(m *diameter.Message) bool {
-	return tgpp.FeaturesMandatory(m.AVPs, tgpp.VendorID)
+	for _, a := range diameter.FindAll(m.AVPs, tgpp.AVPSupportedFeatures, tgpp.VendorID) {
+		f, err := tgpp.ParseSupportedFeatures(a)
+		if err == nil && f.Mandatory && f.VendorID == tgpp.VendorID && listFeatures(f.FeatureListID, f.FeatureList) != 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
+	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
+		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureList1, FeatureList: supported.list(featureList1)},
+		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureList2, FeatureList: supported.list(featureList2)})
 }
 
 func invalidf(format string, args ...any) error {

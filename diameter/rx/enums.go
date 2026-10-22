@@ -585,3 +585,99 @@ func (s MediaComponentStatus) String() string {
 }
 
 func (s MediaComponentStatus) valid() bool { return mediaComponentStatusNames.Has(uint32(s)) }
+
+type ReservationPriority uint32
+
+const (
+	ReservationPriorityDefault  ReservationPriority = 0
+	ReservationPriorityFifteen  ReservationPriority = 15
+	maxReservationPriorityValue                     = 15
+)
+
+func (p ReservationPriority) String() string {
+	switch {
+	case p == ReservationPriorityDefault:
+		return "DEFAULT"
+	case p <= maxReservationPriorityValue:
+		return fmt.Sprintf("PRIORITY-%s", priorityNumberNames[p-1])
+	default:
+		return fmt.Sprintf("ReservationPriority(%d)", uint32(p))
+	}
+}
+
+func (p ReservationPriority) valid() bool { return p <= maxReservationPriorityValue }
+
+var priorityNumberNames = [maxReservationPriorityValue]string{
+	"ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN",
+	"FOURTEEN", "FIFTEEN",
+}
+
+type PrioritySharingIndicator uint32
+
+const (
+	PrioritySharingEnabled  PrioritySharingIndicator = 0
+	PrioritySharingDisabled PrioritySharingIndicator = 1
+)
+
+var prioritySharingNames = tgpp.EnumNames{"PRIORITY_SHARING_ENABLED", "PRIORITY_SHARING_DISABLED"}
+
+func (i PrioritySharingIndicator) String() string {
+	return prioritySharingNames.Name("PrioritySharingIndicator", uint32(i))
+}
+
+func (i PrioritySharingIndicator) valid() bool { return prioritySharingNames.Has(uint32(i)) }
+
+type PreemptionCapability uint32
+
+const (
+	PreemptionCapabilityEnabled  PreemptionCapability = 0
+	PreemptionCapabilityDisabled PreemptionCapability = 1
+)
+
+var preemptionCapabilityNames = tgpp.EnumNames{"PRE-EMPTION_CAPABILITY_ENABLED", "PRE-EMPTION_CAPABILITY_DISABLED"}
+
+func (c PreemptionCapability) String() string {
+	return preemptionCapabilityNames.Name("PreemptionCapability", uint32(c))
+}
+
+func (c PreemptionCapability) valid() bool { return preemptionCapabilityNames.Has(uint32(c)) }
+
+type PreemptionVulnerability uint32
+
+const (
+	PreemptionVulnerabilityEnabled  PreemptionVulnerability = 0
+	PreemptionVulnerabilityDisabled PreemptionVulnerability = 1
+)
+
+var preemptionVulnerabilityNames = tgpp.EnumNames{"PRE-EMPTION_VULNERABILITY_ENABLED", "PRE-EMPTION_VULNERABILITY_DISABLED"}
+
+func (v PreemptionVulnerability) String() string {
+	return preemptionVulnerabilityNames.Name("PreemptionVulnerability", uint32(v))
+}
+
+func (v PreemptionVulnerability) valid() bool { return preemptionVulnerabilityNames.Has(uint32(v)) }
+
+type PreemptionControl uint32
+
+const (
+	PreemptMostRecentFlow       PreemptionControl = 1 << 0
+	PreemptLeastRecentFlow      PreemptionControl = 1 << 1
+	PreemptHighestBandwidthFlow PreemptionControl = 1 << 2
+)
+
+func (c PreemptionControl) String() string {
+	switch c {
+	case PreemptMostRecentFlow:
+		return "MOST_RECENT_ADDED_FLOW"
+	case PreemptLeastRecentFlow:
+		return "LEAST_RECENT_ADDED_FLOW"
+	case PreemptHighestBandwidthFlow:
+		return "HIGHEST_BANDWIDTH_FLOW"
+	default:
+		return fmt.Sprintf("PreemptionControl(%#x)", uint32(c))
+	}
+}
+
+func (c PreemptionControl) valid() bool {
+	return c == PreemptMostRecentFlow || c == PreemptLeastRecentFlow || c == PreemptHighestBandwidthFlow
+}

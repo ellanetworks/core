@@ -30,6 +30,10 @@ type MediaComponent struct {
 	MinRequestedBandwidthUL *Bandwidth
 	MinRequestedBandwidthDL *Bandwidth
 	FlowStatus              *FlowStatus
+	PrioritySharing         *PrioritySharingIndicator
+	PreemptionCapability    *PreemptionCapability
+	PreemptionVulnerability *PreemptionVulnerability
+	ReservationPriority     *ReservationPriority
 	RSBandwidth             *uint32
 	RRBandwidth             *uint32
 	CodecData               []CodecData
@@ -168,6 +172,14 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 		return diameter.AVP{}, invalidf("Flow-Status %s", *c.FlowStatus)
 	case len(c.CodecData) > maxCodecData:
 		return diameter.AVP{}, invalidf("media component %d with %d Codec-Data", c.Number, len(c.CodecData))
+	case !validEnum(c.PrioritySharing):
+		return diameter.AVP{}, invalidf("Priority-Sharing-Indicator %s", *c.PrioritySharing)
+	case !validEnum(c.PreemptionCapability):
+		return diameter.AVP{}, invalidf("Pre-emption-Capability %s", *c.PreemptionCapability)
+	case !validEnum(c.PreemptionVulnerability):
+		return diameter.AVP{}, invalidf("Pre-emption-Vulnerability %s", *c.PreemptionVulnerability)
+	case !validEnum(c.ReservationPriority):
+		return diameter.AVP{}, invalidf("Reservation-Priority %s", *c.ReservationPriority)
 	}
 
 	avps := []diameter.AVP{vendorUnsigned(AVPMediaComponentNumber, c.Number)}
@@ -208,6 +220,14 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 	}
 
 	avps = appendOptional(avps, AVPFlowStatus, diameter.AVPFlagMandatory, (*uint32)(c.FlowStatus))
+	avps = appendOptional(avps, avpPrioritySharingIndicator, 0, (*uint32)(c.PrioritySharing))
+	avps = appendOptional(avps, avpPreemptionCapability, 0, (*uint32)(c.PreemptionCapability))
+	avps = appendOptional(avps, avpPreemptionVulnerability, 0, (*uint32)(c.PreemptionVulnerability))
+
+	if c.ReservationPriority != nil {
+		avps = append(avps, reservationPriorityAVP(*c.ReservationPriority))
+	}
+
 	avps = appendOptional(avps, AVPRSBandwidth, diameter.AVPFlagMandatory, c.RSBandwidth)
 	avps = appendOptional(avps, AVPRRBandwidth, diameter.AVPFlagMandatory, c.RRBandwidth)
 
@@ -280,6 +300,22 @@ func parseMediaComponentData(a diameter.AVP) (MediaComponent, error) {
 	}
 
 	if c.FlowStatus, err = optionalEnum[FlowStatus](inner, AVPFlowStatus, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
+	}
+
+	if c.PrioritySharing, err = optionalEnum[PrioritySharingIndicator](inner, avpPrioritySharingIndicator, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
+	}
+
+	if c.PreemptionCapability, err = optionalEnum[PreemptionCapability](inner, avpPreemptionCapability, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
+	}
+
+	if c.PreemptionVulnerability, err = optionalEnum[PreemptionVulnerability](inner, avpPreemptionVulnerability, tgpp.VendorID); err != nil {
+		return MediaComponent{}, err
+	}
+
+	if c.ReservationPriority, err = optionalEnum[ReservationPriority](inner, avpReservationPriority, etsiVendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
