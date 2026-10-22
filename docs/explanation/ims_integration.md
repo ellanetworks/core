@@ -36,8 +36,6 @@ Ella Core plays two roles for the IMS, both over Diameter:
 
 Both interfaces are used for 4G and 5G subscribers. The IMS connects to Ella Core's Diameter interface, over SCTP or TCP.
 
-Ella Core also carries the phone's traffic to and from the IMS, on an IMS data network, usually named `ims`.
-
 ## IMS data networks
 
 An IMS data network carries the phones' SIP signalling and call media. Any data network can be marked as IMS; there can be several, for example `ims` for phones and a separate one for mission critical devices.
@@ -81,20 +79,20 @@ On the Subscriber page, **Voice** shows the subscriber's voice state and, when v
 Services such as MCPTT run on application servers: SIP servers that the S-CSCF sends some of a subscriber's requests to. Each application server has:
 
 - A **server name**: the SIP URI the S-CSCF sends requests to.
-- **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, either distinct or wildcarded to cover a range of identities. When the IMS asks Ella Core where to send a request addressed to a PSI, Ella Core answers with the application server, and the I-CSCF sends the request straight to it.
+- **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, either distinct or wildcarded to cover a range of identities. Requests addressed to a PSI go straight to its application server.
 
-Each profile has an ordered list of **IMS initial filter criteria** (TS 29.228). A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. It can also ask the S-CSCF to include the subscriber's REGISTER request and its response in the third-party REGISTER it sends to the application server. Ella Core gives the profile's filter criteria to the S-CSCF in each subscriber's user profile, in the profile's order.
+Each profile has an ordered list of **IMS initial filter criteria**. A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. The S-CSCF evaluates them in the profile's order.
 
-When a profile's filter criteria, an application server's server name, or a subscriber's profile or MSISDN changes, Ella Core sends the new user profile to the S-CSCF serving each affected subscriber, with a Cx Push Profile request. An S-CSCF that does not support it gets the new user profile at the subscriber's next registration. When a registered subscriber's MSISDN changes or is removed, Ella Core de-registers the subscriber instead, since its default public identity changes.
+Changes to a profile's filter criteria, an application server's server name, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next registration otherwise. Changing or removing a registered subscriber's MSISDN de-registers it.
 
 ### MCPTT filter criteria
 
 MCPTT needs two filter criteria, both to the MCPTT server:
 
-1. **Registration**: every REGISTER request, with its request and response included. When a subscriber registers, re-registers or de-registers, the S-CSCF sends a third-party REGISTER to the MCPTT server, with the subscriber's REGISTER request and its 200 (OK) response in the body (TS 24.229 §5.4.1.7A). The MCPTT server authorises the MCPTT client from that REGISTER request (TS 24.379 §7.3.2). If the MCPTT server can't be reached, the registration continues.
-2. **Originating MCPTT sessions**: the subscriber's own requests whose P-Asserted-Service is the MCPTT ICSI, `urn:urn-7:3gpp-service.ims.icsi.mcptt`. If the MCPTT server can't be reached, the request fails.
+1. **Registration**: tells the MCPTT server when a subscriber registers or de-registers. If the MCPTT server can't be reached, the IMS registration still succeeds.
+2. **Originating MCPTT sessions**: sends the subscriber's MCPTT calls to the MCPTT server. If the MCPTT server can't be reached, the call fails.
 
-Requests that the MCPTT server sends to subscribers need no filter criteria: they reach the subscribers like any terminating request.
+Calls from the MCPTT server to subscribers need no filter criteria.
 
 ## Call setup and QoS
 
@@ -110,9 +108,9 @@ Requests that the MCPTT server sends to subscribers need no filter criteria: the
 
 ### MCPTT calls
 
-A call is MCPTT when the P-CSCF identifies it with the MCPTT ICSI. Its voice and floor control share one GBR QoS flow or bearer with QCI/5QI 65 (TS 23.379 §5.7.3, TS 23.289 §4.3.3.2). The session's default QoS flow or bearer on the MC data network uses QCI/5QI 69, for SIP signalling (TS 23.280 §5.2.7.2.1). Radios are not required to support every standardized QCI (TS 23.401 §4.7.5): a radio without 69 refuses the session, and one without 65 refuses the call.
+An MCPTT call's voice and floor control share one GBR QoS flow or bearer with QCI/5QI 65. The session's default QoS flow or bearer on the MC data network uses QCI/5QI 69. A radio without 69 refuses the session, and one without 65 refuses the call.
 
-The call's priority comes from its Resource-Priority. The P-CSCF only uses an authorised Resource-Priority header field (TS 24.229 §3.1), one received from within the IMS's trust domain such as from the MCPTT server, and passes it to Ella Core as the MCPTT-Identifier and Reservation-Priority (TS 29.214 §A.13.2). Ella Core derives the ARP from them:
+The call's ARP comes from its Resource-Priority. Only a Resource-Priority set inside the IMS, such as by the MCPTT server, counts; one set by the client does not.
 
 | Resource-Priority | ARP priority | Pre-emption capability | Pre-emption vulnerability |
 | ----------------- | ------------ | ---------------------- | ------------------------- |
@@ -120,11 +118,9 @@ The call's priority comes from its Resource-Priority. The P-CSCF only uses an au
 | `mcpttq.<n>` | 8 − ⌊n / 2⌋ | Shall not pre-empt | Not pre-emptable at priority 1 and 2, pre-emptable otherwise |
 | None | 8 | Shall not pre-empt | Pre-emptable |
 
-`mcpttq` is the queueing namespace (RFC 8101), so it never pre-empts. With `mcpttp.15`, `mcpttp.13` and `mcpttp.11` for emergency, imminent peril and normal calls, emergency calls rank above imminent peril calls, and imminent peril calls above normal calls, as TS 23.379 §5.7.3 requires.
+When a call's priority changes, for example from normal to emergency, Ella Core updates the ARP of its existing QoS flow or bearer.
 
-When the call's priority changes, for example when a normal call becomes an emergency call, Ella Core modifies the ARP of the existing QoS flow or bearer instead of creating a new one.
-
-When a radio pre-empts a session's default QoS flow or bearer, the whole session is released.
+If a radio pre-empts a session's default QoS flow or bearer, the whole session is released. This is why the MC data network's policy is usually not pre-emptable.
 
 ## EPS fallback
 
@@ -139,6 +135,7 @@ Each node of a [High Availability](high_availability.md) cluster is a separate D
 
 ## Further reading
 
+- [Integrate with an IMS](../how_to/integrate_with_ims.md) — step-by-step guide to connect Ella Core to an IMS.
 - [Enable Voice](../how_to/enable_voice.md) — step-by-step guide to enable voice and video calls.
 - [Enable MCPTT](../how_to/enable_mcptt.md) — step-by-step guide to serve MCPTT.
 - [Operator API reference](../reference/api/operator.md) — P-CSCF addresses, voice status, and IMS application servers.

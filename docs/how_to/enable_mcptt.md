@@ -6,11 +6,9 @@ description: Step-by-step instructions to serve Mission Critical Push To Talk (M
 
 This guide shows how to serve Mission Critical Push To Talk (MCPTT) to subscribers over 4G and 5G, with an external IMS and an MCPTT server. To learn how Ella Core works with the IMS, see [IMS Integration](../explanation/ims_integration.md).
 
-This guide uses [Ella IMS](https://github.com/ellanetworks/ims), but any 3GPP-compliant IMS can be used.
-
 ## Prerequisites
 
-- **IMS**: an IMS that uses Ella Core as its HSS and PCRF, set up as in steps 1 to 3 of [Enable Voice](enable_voice.md). Its P-CSCF must send the MCPTT ICSI, `urn:urn-7:3gpp-service.ims.icsi.mcptt`, in the AF-Application-Identifier of MCPTT calls.
+- **IMS**: an IMS integrated with Ella Core, as in [Integrate with an IMS](integrate_with_ims.md). Its P-CSCF must send the MCPTT ICSI, `urn:urn-7:3gpp-service.ims.icsi.mcptt`, in the AF-Application-Identifier of MCPTT calls.
 - **MCPTT server**: a 3GPP MCPTT server, reachable from the IMS.
 - **MCPTT clients**: configured with the MC data network (`mcx` below) as their MC services APN or DNN.
 - **Radios**: support for QCI/5QI 69 and 65.
@@ -25,7 +23,7 @@ In the Ella Core UI, go to the **Networking** page and open the **Data Networks*
 
 Click **Create**, enter `mcx` as the **Name**, set an IP pool, turn on **IMS (voice and mission critical services)**, and click **Create**.
 
-In your IMS, add a route to the `mcx` IP pool via Ella Core's N6 address, as for the voice data network.
+In your IMS, add a route to the `mcx` IP pool via Ella Core's N6 address.
 
 ## 2. Create the MC profile
 
@@ -105,7 +103,7 @@ For each MCPTT user:
 
 - Go to the **Subscribers** page and click on the subscriber.
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
-- Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#6-give-subscribers-an-msisdn), and map its IMS public identity, `tel:+<msisdn>`, to an MCPTT ID on your MCPTT server.
+- Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its IMS public identity, `tel:+<msisdn>`, to an MCPTT ID on your MCPTT server.
 
 ## 6. Configure the call priorities on the MCPTT server
 
