@@ -143,7 +143,7 @@ None
 
 ## Get a Profile's IMS Initial Filter Criteria
 
-This path returns a profile's IMS initial filter criteria, in priority order. The HSS gives them to the S-CSCF in the user profile of the profile's subscribers.
+This path returns a profile's IMS initial filter criteria, in priority order.
 
 | Method | Path                                          |
 | ------ | --------------------------------------------- |

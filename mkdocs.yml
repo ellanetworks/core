@@ -127,7 +127,7 @@ nav:
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
     - Ella Core and VRFs: explanation/vrf.md
-    - Voice Integration: explanation/voice_integration.md
+    - IMS Integration: explanation/ims_integration.md
     - SMS Integration: explanation/sms_integration.md
 plugins:
   - search
@@ -136,6 +136,7 @@ plugins:
       redirect_maps:
         'tutorials/getting_started.md': 'tutorials/getting_started_simulation.md'
         'tutorials/end_to_end_network.md': 'tutorials/getting_started_simulation.md'
+        'explanation/voice_integration.md': 'explanation/ims_integration.md'
   - social:
       cards_layout_options:
         background_color: "#26374a"

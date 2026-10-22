@@ -2,7 +2,7 @@
 description: Explanation of how voice and other IMS services work in Ella Core.
 ---
 
-# Voice Integration
+# IMS Integration
 
 Ella Core lets subscribers make voice and video calls over 4G (VoLTE) and 5G (VoNR). Calls are handled by an external IP Multimedia Subsystem (IMS), and Ella Core provides the subscriber data and the Quality of Service (QoS) the IMS needs. The same integration serves other IMS services, such as Mission Critical Push To Talk (MCPTT).
 
@@ -78,16 +78,23 @@ On the Subscriber page, **Voice** shows the subscriber's voice state and, when v
 
 ## Application servers and filter criteria
 
-Services such as MCPTT run on application servers: SIP servers that the S-CSCF sends some of a subscriber's requests to. Application servers are configured in the Operator settings, and each has:
+Services such as MCPTT run on application servers: SIP servers that the S-CSCF sends some of a subscriber's requests to. Each application server has:
 
 - A **server name**: the SIP URI the S-CSCF sends requests to.
-- **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, distinct or wildcarded with an extended regular expression between `!` delimiters, for example `sip:!.*!@mcptt.ims.mnc001.mcc001.3gppnetwork.org` (TS 23.003 §13.5). When the IMS asks Ella Core where to send a request addressed to a PSI, Ella Core answers with the application server, and the I-CSCF sends the request straight to it.
+- **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, either distinct or wildcarded to cover a range of identities. When the IMS asks Ella Core where to send a request addressed to a PSI, Ella Core answers with the application server, and the I-CSCF sends the request straight to it.
 
 Each profile has an ordered list of **IMS initial filter criteria** (TS 29.228). A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. It can also ask the S-CSCF to include the subscriber's REGISTER request and its response in the third-party REGISTER it sends to the application server. Ella Core gives the profile's filter criteria to the S-CSCF in each subscriber's user profile, in the profile's order.
 
 When a profile's filter criteria, an application server's server name, or a subscriber's profile or MSISDN changes, Ella Core sends the new user profile to the S-CSCF serving each affected subscriber, with a Cx Push Profile request. An S-CSCF that does not support it gets the new user profile at the subscriber's next registration. When a registered subscriber's MSISDN changes or is removed, Ella Core de-registers the subscriber instead, since its default public identity changes.
 
-The UI has a preset with the filter criteria for MCPTT. See [Enable MCPTT](../how_to/enable_mcptt.md).
+### MCPTT filter criteria
+
+MCPTT needs two filter criteria, both to the MCPTT server:
+
+1. **Registration**: every REGISTER request, with its request and response included. When a subscriber registers, re-registers or de-registers, the S-CSCF sends a third-party REGISTER to the MCPTT server, with the subscriber's REGISTER request and its 200 (OK) response in the body (TS 24.229 §5.4.1.7A). The MCPTT server authorises the MCPTT client from that REGISTER request (TS 24.379 §7.3.2). If the MCPTT server can't be reached, the registration continues.
+2. **Originating MCPTT sessions**: the subscriber's own requests whose P-Asserted-Service is the MCPTT ICSI, `urn:urn-7:3gpp-service.ims.icsi.mcptt`. If the MCPTT server can't be reached, the request fails.
+
+Requests that the MCPTT server sends to subscribers need no filter criteria: they reach the subscribers like any terminating request.
 
 ## Call setup and QoS
 
@@ -101,7 +108,23 @@ The UI has a preset with the filter criteria for MCPTT. See [Enable MCPTT](../ho
 | Video | 2 | 4 |
 | MCPTT voice and floor control | 65 | 1 to 8, from the call's Resource-Priority |
 
-A call is MCPTT when the P-CSCF identifies it with the MCPTT ICSI. Its voice and floor control share one GBR QoS flow or bearer, and a change of the call's priority modifies that QoS flow or bearer in place. See [Enable MCPTT](../how_to/enable_mcptt.md#7-check-the-call-qos) for the ARP of each priority.
+### MCPTT calls
+
+A call is MCPTT when the P-CSCF identifies it with the MCPTT ICSI. Its voice and floor control share one GBR QoS flow or bearer with QCI/5QI 65 (TS 23.379 §5.7.3, TS 23.289 §4.3.3.2). The session's default QoS flow or bearer on the MC data network uses QCI/5QI 69, for SIP signalling (TS 23.280 §5.2.7.2.1). Radios are not required to support every standardized QCI (TS 23.401 §4.7.5): a radio without 69 refuses the session, and one without 65 refuses the call.
+
+The call's priority comes from its Resource-Priority. The P-CSCF only uses an authorised Resource-Priority header field (TS 24.229 §3.1), one received from within the IMS's trust domain such as from the MCPTT server, and passes it to Ella Core as the MCPTT-Identifier and Reservation-Priority (TS 29.214 §A.13.2). Ella Core derives the ARP from them:
+
+| Resource-Priority | ARP priority | Pre-emption capability | Pre-emption vulnerability |
+| ----------------- | ------------ | ---------------------- | ------------------------- |
+| `mcpttp.<n>` | 8 − ⌊n / 2⌋, e.g. 1 for `mcpttp.15` | May pre-empt | Not pre-emptable at priority 1 and 2, pre-emptable otherwise |
+| `mcpttq.<n>` | 8 − ⌊n / 2⌋ | Shall not pre-empt | Not pre-emptable at priority 1 and 2, pre-emptable otherwise |
+| None | 8 | Shall not pre-empt | Pre-emptable |
+
+`mcpttq` is the queueing namespace (RFC 8101), so it never pre-empts. With `mcpttp.15`, `mcpttp.13` and `mcpttp.11` for emergency, imminent peril and normal calls, emergency calls rank above imminent peril calls, and imminent peril calls above normal calls, as TS 23.379 §5.7.3 requires.
+
+When the call's priority changes, for example when a normal call becomes an emergency call, Ella Core modifies the ARP of the existing QoS flow or bearer instead of creating a new one.
+
+When a radio pre-empts a session's default QoS flow or bearer, the whole session is released.
 
 ## EPS fallback
 

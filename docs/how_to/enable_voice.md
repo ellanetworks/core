@@ -52,7 +52,7 @@ Click the edit icon next to **P-CSCF Addresses**, enter your IMS's P-CSCF addres
 
 Go to the **Networking** page and open the **Data Networks** tab.
 
-Click **Create**, enter `ims` as the **Name**, set the IP pool, turn on **IMS**, and click **Create**.
+Click **Create**, enter `ims` as the **Name**, set the IP pool, turn on **IMS (voice and mission critical services)**, and click **Create**.
 
 ## 5. Add a voice policy to the profiles
 

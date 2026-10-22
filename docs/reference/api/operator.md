@@ -513,8 +513,8 @@ This path creates an IMS application server.
 ### Parameters
 
 - `name` (string): The name of the application server.
-- `server_name` (string): The SIP URI of the application server, which the S-CSCF receives in the initial filter criteria.
-- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be a subscriber's tel URI, or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`). The I-CSCF routes requests for these identities straight to the application server (PSI direct routing).
+- `server_name` (string): The SIP URI of the application server.
+- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be a subscriber's tel URI, or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`).
 
 ### Sample Request
 

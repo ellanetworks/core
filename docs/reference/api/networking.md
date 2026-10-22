@@ -59,7 +59,7 @@ This path creates a new Data Network.
 - `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 1 and 65535.
-- `ims` (boolean, optional): Whether this is an IMS data network. Defaults to `true` for a data network named `ims`, `false` otherwise. See [Voice integration](../../explanation/voice_integration.md).
+- `ims` (boolean, optional): Whether this is an IMS data network. Defaults to `true` for a data network named `ims`, `false` otherwise. See [IMS Integration](../../explanation/ims_integration.md).
 
 ### Sample Response
 
