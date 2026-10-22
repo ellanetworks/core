@@ -34,6 +34,7 @@ configs:
         port: 5020
       sip:
         addresses: ["fd00:6::5"]
+        trusted_networks: ["2001:db8:1::11/128"]
       pcscf:
         port: 5060
         ipsec:
@@ -74,6 +75,8 @@ services:
       - >
         ip -6 route replace fd60::/48 via fd00:6::2;
         ip -6 route replace fd45::/48 via fd00:6::2;
+        ip -6 route replace fd62::/48 via fd00:6::2;
+        ip6tables-nft -t nat -A POSTROUTING -s fd00:6::5 -d 2001:db8:1::/64 -j SNAT --to-source 2001:db8:1::16;
         ethtool -K n6 tx off;
         trap : TERM INT;
         sleep infinity & wait

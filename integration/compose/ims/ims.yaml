@@ -34,6 +34,7 @@ configs:
         port: 5020
       sip:
         addresses: ["10.6.0.5"]
+        trusted_networks: ["10.3.0.3/32"]
       pcscf:
         port: 5060
         ipsec:
@@ -74,6 +75,8 @@ services:
       - >
         ip -4 route replace 10.60.0.0/16 via 10.6.0.2;
         ip -4 route replace 10.45.0.0/16 via 10.6.0.2;
+        ip -4 route replace 10.62.0.0/16 via 10.6.0.2;
+        iptables-nft -t nat -A POSTROUTING -s 10.6.0.5 -d 10.3.0.0/24 -j SNAT --to-source 10.3.0.6;
         ethtool -K n6 tx off;
         trap : TERM INT;
         sleep infinity & wait

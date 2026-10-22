@@ -141,7 +141,14 @@ func runIMSRegistrationWithService(ctx context.Context, env scenarios.Env) error
 		return err
 	}
 
-	cleanup, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.IMSProfileName)
+	as, err := scenarios.StartMCPTTServer(ctx, env)
+	if err != nil {
+		return err
+	}
+
+	defer as.Close()
+
+	cleanup, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.IMSProfileName, as.URI())
 	if err != nil {
 		return err
 	}
@@ -150,6 +157,10 @@ func runIMSRegistrationWithService(ctx context.Context, env scenarios.Env) error
 
 	if err := scenarios.RegisterIMS(ctx, imsServiceSubscriber, pcscf, local, scenarios.IMSTransports[0]); err != nil {
 		return fmt.Errorf("register with an MCPTT service in the user profile: %w", err)
+	}
+
+	if err := scenarios.RequireThirdPartyRegister(ctx, as, imsServiceSubscriber); err != nil {
+		return err
 	}
 
 	return scenarios.RequireIMSRegistrationAcrossProfilePushes(ctx, env, imsServiceSubscriber, scenarios.IMSProfileName, pcscf, local, scenarios.IMSTransports[1])

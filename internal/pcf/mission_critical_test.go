@@ -49,7 +49,7 @@ func ruleByID(t *testing.T, d *smf.PolicyDecision, id string) smf.PCCRule {
 	return d.Rules[i]
 }
 
-func TestMCPTTMediaQoS_TS23379_5_7_3(t *testing.T) {
+func TestMCPTTMediaQoS_TS23289_4_3_3_2(t *testing.T) {
 	p, n := newEnforcedPCF(t)
 
 	requireResult(t, aa(t, p, "af;mcptt", mcpttAAR("mcpttp", ptr(rx.ReservationPriority(11)))), success)
@@ -62,8 +62,8 @@ func TestMCPTTMediaQoS_TS23379_5_7_3(t *testing.T) {
 	}
 
 	floor := ruleByID(t, d, "af;mcptt#2.1")
-	if floor.QCI != 69 || floor.GBR.Uplink.Bps() != 0 || floor.GBR.Downlink.Bps() != 0 || floor.MBR.Uplink.Bps() != 8000 {
-		t.Fatalf("floor control rule %+v, want non-GBR QCI 69 with an 8 kbps MBR", floor)
+	if floor.QCI != 65 || floor.GBR.Uplink.Bps() != 8000 || floor.GBR.Downlink.Bps() != 8000 || floor.MBR.Uplink.Bps() != 8000 || floor.ARP != voice.ARP {
+		t.Fatalf("floor control rule %+v, want QCI 65 at the voice ARP with an 8 kbps GBR, to share its bearer (TS 23.289 §4.3.3.2)", floor)
 	}
 }
 

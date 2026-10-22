@@ -515,6 +515,12 @@ func newIMSUE(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transpo
 }
 
 func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64, video bool) (*imsUE, error) {
+	return newIMSUEConfigured(sub, pcscf, local, transport, sqnMS, func(cfg *testue.Config) {
+		cfg.MMTel = testue.MMTelConfig{AcceptCalls: true, Video: video}
+	})
+}
+
+func newIMSUEConfigured(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64, configure func(*testue.Config)) (*imsUE, error) {
 	k, err := hex.DecodeString(sub.Key)
 	if err != nil {
 		return nil, fmt.Errorf("decode K: %w", err)
@@ -530,7 +536,7 @@ func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Tra
 		return nil, err
 	}
 
-	u, err := testue.New(testue.Config{
+	cfg := testue.Config{
 		IMSI:      sub.IMSI,
 		IMEI:      imsTestUEIMEI,
 		K:         k,
@@ -539,10 +545,13 @@ func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Tra
 		PCSCF:     netip.AddrPortFrom(pcscf, IMSPCSCFPort),
 		Local:     local,
 		Transport: transport,
-		MMTel:     testue.MMTelConfig{AcceptCalls: true, Video: video},
 		Kernel:    xfrm,
 		Logger:    slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
-	})
+	}
+
+	configure(&cfg)
+
+	u, err := testue.New(cfg)
 	if err != nil {
 		_ = xfrm.Close()
 		return nil, err
@@ -1316,7 +1325,7 @@ func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
 	}
 }
 
-func ProvisionMCPTTService(ctx context.Context, env Env, profile string) (func(), error) {
+func ProvisionMCPTTService(ctx context.Context, env Env, profile, serverName string) (func(), error) {
 	cl, err := coreClient(env)
 	if err != nil {
 		return nil, err
@@ -1324,8 +1333,8 @@ func ProvisionMCPTTService(ctx context.Context, env Env, profile string) (func()
 
 	if _, err := cl.CreateIMSApplicationServer(ctx, &client.CreateIMSApplicationServerOptions{
 		Name:                    MCPTTApplicationServer,
-		ServerName:              "sip:mcptt.invalid",
-		PublicServiceIdentities: []string{"sip:!.*!@mcptt." + IMSHomeDomain},
+		ServerName:              serverName,
+		PublicServiceIdentities: []string{"sip:!.*!@" + MCPTTPSIDomain},
 	}); err != nil {
 		return nil, fmt.Errorf("create the MCPTT application server: %w", err)
 	}

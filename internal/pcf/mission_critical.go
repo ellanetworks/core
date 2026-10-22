@@ -13,8 +13,7 @@ import (
 const (
 	mcpttICSI = "urn:urn-7:3gpp-service.ims.icsi.mcptt"
 
-	qciMCPTTVoice        = 65
-	qciMCSignalling      = 69
+	qciMCPTT             = 65
 	mcpttBaseARPPriority = 8
 
 	mcpttPreemptionNamespace = "mcpttp"
@@ -73,10 +72,8 @@ func mcpttQoS(c rx.MediaComponent, p mcpttPriority) (uint8, models.Arp, bool) {
 	}
 
 	switch *c.Type {
-	case rx.MediaAudio:
-		return qciMCPTTVoice, p.arp(), true
-	case rx.MediaApplication:
-		return qciMCSignalling, p.arp(), true
+	case rx.MediaAudio, rx.MediaApplication:
+		return qciMCPTT, p.arp(), true
 	default:
 		return 0, models.Arp{}, false
 	}
