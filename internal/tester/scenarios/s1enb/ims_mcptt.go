@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
@@ -23,6 +22,7 @@ const (
 	mcpttTunIface    = "s1mcptttun"
 	mcpttRouteTable  = 150
 	mcpttCallTimeout = 90 * time.Second
+	mcpttQuietPeriod = 3 * time.Second
 
 	qciMCPTT = 65
 
@@ -30,26 +30,63 @@ const (
 	mcpttUpgradePriority = "mcpttp.15"
 )
 
-var mcpttCaller = scenarios.MCPTTSubscriber("001017400000021", "+15557400021")
+var mcpttPreemptedCaller = scenarios.MCPTTSubscriber("001017400000024", "+15557400024")
+
+type mcpttCallCase struct {
+	name     string
+	sub      scenarios.SubscriberSpec
+	priority string
+	arp      s1ap.AllocationAndRetentionPriority
+	upgrade  bool
+}
+
+var mcpttCalls = []mcpttCallCase{
+	{
+		name: "ims/4g_mcptt_call", sub: scenarios.MCPTTSubscriber("001017400000021", "+15557400021"),
+		priority: mcpttNormalPriority, arp: mcpttARP(3, true), upgrade: true,
+	},
+	{
+		name: "ims/4g_mcptt_call_imminent_peril", sub: scenarios.MCPTTSubscriber("001017400000022", "+15557400022"),
+		priority: "mcpttp.13", arp: mcpttARP(2, true),
+	},
+	{
+		name: "ims/4g_mcptt_call_no_preemption", sub: scenarios.MCPTTSubscriber("001017400000023", "+15557400023"),
+		priority: "mcpttq.11", arp: mcpttARP(3, false),
+	},
+}
 
 func init() {
+	for _, tc := range mcpttCalls {
+		registerMCPTT(tc.name, tc.sub, func(ctx context.Context, env scenarios.Env) error {
+			return runMCPTTCall(ctx, env, tc)
+		})
+	}
+
+	registerMCPTT("ims/4g_mcptt_call_preempted", mcpttPreemptedCaller, runMCPTTCallPreempted)
+}
+
+func registerMCPTT(name string, sub scenarios.SubscriberSpec, run func(context.Context, scenarios.Env) error) {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "ims/4g_mcptt_call",
+		Name:      name,
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
-			return runMCPTTCall(ctx, env)
+			return run(ctx, env)
 		},
 		Fixture: func(env scenarios.Env) scenarios.FixtureSpec {
-			return scenarios.MCPTTFixture(env, mcpttCaller)
+			return scenarios.MCPTTFixture(env, sub)
 		},
 	})
 }
 
-func mcpttARP(level uint8) s1ap.AllocationAndRetentionPriority {
+func mcpttARP(level uint8, preempts bool) s1ap.AllocationAndRetentionPriority {
 	arp := s1ap.AllocationAndRetentionPriority{
 		PriorityLevel:           level,
-		PreemptionCapability:    s1ap.PreemptionMayTrigger,
+		PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
 		PreemptionVulnerability: s1ap.PreemptionPreemptable,
+	}
+
+	if preempts {
+		arp.PreemptionCapability = s1ap.PreemptionMayTrigger
 	}
 
 	if level <= 2 {
@@ -106,9 +143,20 @@ type mcpttENB struct {
 	e *s1enb.ENB
 	u imsCallUE
 
+	priority string
+	arp      s1ap.AllocationAndRetentionPriority
+	upgrade  bool
+
 	setup    chan error
 	upgraded chan error
 	released chan error
+}
+
+func newMCPTTENB(s *mcpttSession, priority string, arp s1ap.AllocationAndRetentionPriority, upgrade bool) *mcpttENB {
+	return &mcpttENB{
+		e: s.e, u: s.u, priority: priority, arp: arp, upgrade: upgrade,
+		setup: make(chan error, 1), upgraded: make(chan error, 1), released: make(chan error, 1),
+	}
 }
 
 func (m *mcpttENB) run() {
@@ -124,13 +172,15 @@ func (m *mcpttENB) run() {
 		return
 	}
 
-	err = m.awaitUpgrade(b)
+	if m.upgrade {
+		err = m.awaitUpgrade(b)
 
-	m.upgraded <- err
+		m.upgraded <- err
 
-	if err != nil {
-		m.released <- errors.New("the MCPTT bearers were not upgraded")
-		return
+		if err != nil {
+			m.released <- errors.New("the MCPTT bearers were not upgraded")
+			return
+		}
 	}
 
 	m.released <- m.awaitRelease(b)
@@ -151,7 +201,6 @@ func (m *mcpttENB) checkVoice(b *s1enb.DedicatedBearer) error {
 	}
 
 	rates, ok := b.EPSQoS.GBRBitRates()
-	want := mcpttARP(3)
 
 	switch {
 	case b.QoS.QCI != qciMCPTT || b.EPSQoS.QCI != qciMCPTT:
@@ -162,8 +211,8 @@ func (m *mcpttENB) checkVoice(b *s1enb.DedicatedBearer) error {
 		return fmt.Errorf("UE %s MCPTT speech E-RAB has no guaranteed bit rate: %+v", m.u.ue.IMSI, b.QoS.GBR)
 	case !ok || rates.GuaranteedDownlinkKbps == 0 || rates.GuaranteedUplinkKbps == 0:
 		return fmt.Errorf("UE %s MCPTT speech EPS QoS has no guaranteed bit rate", m.u.ue.IMSI)
-	case b.QoS.ARP != want:
-		return fmt.Errorf("UE %s MCPTT speech E-RAB ARP %+v for %s, want %+v (TS 29.214 Annex A.13.2)", m.u.ue.IMSI, b.QoS.ARP, mcpttNormalPriority, want)
+	case b.QoS.ARP != m.arp:
+		return fmt.Errorf("UE %s MCPTT speech E-RAB ARP %+v for %s, want %+v (TS 29.214 Annex A.13.2)", m.u.ue.IMSI, b.QoS.ARP, m.priority, m.arp)
 	case b.TFT.Operation != eps.TFTCreate || len(b.TFT.Filters) == 0:
 		return fmt.Errorf("UE %s MCPTT speech bearer TFT %+v, want new packet filters", m.u.ue.IMSI, b.TFT)
 	case len(localPorts(b.TFT)) < 3:
@@ -174,7 +223,7 @@ func (m *mcpttENB) checkVoice(b *s1enb.DedicatedBearer) error {
 }
 
 func (m *mcpttENB) awaitUpgrade(b mcpttBearers) error {
-	want := mcpttARP(1)
+	want := mcpttARP(1, true)
 	modified := map[s1ap.ERABID]bool{}
 
 	for range b.dedicated() {
@@ -259,72 +308,102 @@ func erabIDs(bs []*s1enb.DedicatedBearer) []s1ap.ERABID {
 	return out
 }
 
-func runMCPTTCall(ctx context.Context, env scenarios.Env) error {
-	ctx, cancel := context.WithTimeout(ctx, mcpttCallTimeout)
-	defer cancel()
+type mcpttSession struct {
+	e     *s1enb.ENB
+	u     imsCallUE
+	as    *scenarios.MCPTTServer
+	c     *scenarios.MCPTTClient
+	close func()
+}
 
+func startMCPTTSession(ctx context.Context, env scenarios.Env, sub scenarios.SubscriberSpec) (*mcpttSession, error) {
 	e, err := startENBWithDatapath(env)
 	if err != nil {
-		return fmt.Errorf("start S1 eNB: %w", err)
+		return nil, fmt.Errorf("start S1 eNB: %w", err)
 	}
 
-	defer func() { _ = e.Close() }()
+	cleanups := []func(){func() { _ = e.Close() }}
+	s := &mcpttSession{e: e}
+	s.close = func() {
+		for _, c := range slices.Backward(cleanups) {
+			c()
+		}
+	}
 
-	ep, u, cleanup, err := attachMCPTTUE(env, e, mcpttCaller)
+	fail := func(err error) (*mcpttSession, error) {
+		s.close()
+		return nil, err
+	}
+
+	ep, u, cleanup, err := attachMCPTTUE(env, e, sub)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 
-	defer cleanup()
+	cleanups = append(cleanups, cleanup)
+	s.u = u
 
 	if u.res.QCI != scenarios.MCPolicy5QI || u.res.ARP != scenarios.MCPolicyARP {
-		return fmt.Errorf("%s default bearer at QCI %d ARP %d, want QCI %d ARP %d", scenarios.MCDNN, u.res.QCI, u.res.ARP, scenarios.MCPolicy5QI, scenarios.MCPolicyARP)
+		return fail(fmt.Errorf("%s default bearer at QCI %d ARP %d, want QCI %d ARP %d", scenarios.MCDNN, u.res.QCI, u.res.ARP, scenarios.MCPolicy5QI, scenarios.MCPolicyARP))
 	}
 
 	as, err := scenarios.StartMCPTTServer(ctx, env)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 
-	defer as.Close()
+	cleanups = append(cleanups, as.Close)
+	s.as = as
 
 	unprovision, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.MCProfileName, as.URI())
 	if err != nil {
-		return err
+		return fail(err)
 	}
 
-	defer unprovision()
+	cleanups = append(cleanups, unprovision)
 
 	c, err := scenarios.NewMCPTTClient(ep, sip.UDP)
+	if err != nil {
+		return fail(err)
+	}
+
+	cleanups = append(cleanups, c.Close)
+	s.c = c
+
+	if err := c.Register(ctx); err != nil {
+		return fail(err)
+	}
+
+	if err := scenarios.RequireThirdPartyRegister(ctx, as, sub); err != nil {
+		return fail(err)
+	}
+
+	return s, nil
+}
+
+func runMCPTTCall(ctx context.Context, env scenarios.Env, tc mcpttCallCase) error {
+	ctx, cancel := context.WithTimeout(ctx, mcpttCallTimeout)
+	defer cancel()
+
+	s, err := startMCPTTSession(ctx, env, tc.sub)
 	if err != nil {
 		return err
 	}
 
-	defer c.Close()
+	defer s.close()
 
-	if err := c.Register(ctx); err != nil {
-		return err
-	}
-
-	if err := scenarios.RequireThirdPartyRegister(ctx, as, mcpttCaller); err != nil {
-		return err
-	}
-
-	m := &mcpttENB{
-		e: e, u: u,
-		setup: make(chan error, 1), upgraded: make(chan error, 1), released: make(chan error, 1),
-	}
+	m := newMCPTTENB(s, tc.priority, tc.arp, tc.upgrade)
 
 	go m.run()
 
-	call, err := c.Call(ctx, scenarios.MCPTTPSI("grp-1"), mcpttNormalPriority)
+	call, err := s.c.Call(ctx, scenarios.MCPTTPSI("grp-1"), tc.priority)
 	if err != nil {
 		return errors.Join(err, <-m.setup)
 	}
 
-	callErr := mcpttCallSteps(ctx, as, call, m)
+	callErr := mcpttCallSteps(ctx, s.as, call, m)
 
-	if err := c.Deregister(ctx); err != nil {
+	if err := s.c.Deregister(ctx); err != nil {
 		callErr = errors.Join(callErr, err)
 	}
 
@@ -336,11 +415,11 @@ func mcpttCallSteps(ctx context.Context, as *scenarios.MCPTTServer, call *scenar
 		return errors.Join(err, call.Bye(ctx))
 	}
 
-	if err := requireMCPTTInvite(ctx, as, 1, mcpttNormalPriority); err != nil {
+	if err := scenarios.RequireMCPTTInvite(ctx, as, 1, m.priority); err != nil {
 		return hangUp(err)
 	}
 
-	if err := requireAuthorisedPriority(call.Response(), mcpttNormalPriority); err != nil {
+	if err := scenarios.RequireAuthorisedPriority(call.Response(), m.priority); err != nil {
 		return hangUp(fmt.Errorf("200 to the INVITE: %w", err))
 	}
 
@@ -348,21 +427,23 @@ func mcpttCallSteps(ctx context.Context, as *scenarios.MCPTTServer, call *scenar
 		return hangUp(err)
 	}
 
-	res, err := call.Reprioritize(ctx, mcpttUpgradePriority)
-	if err != nil {
-		return hangUp(err)
-	}
+	if m.upgrade {
+		res, err := call.Reprioritize(ctx, mcpttUpgradePriority)
+		if err != nil {
+			return hangUp(err)
+		}
 
-	if err := requireMCPTTInvite(ctx, as, 2, mcpttUpgradePriority); err != nil {
-		return hangUp(err)
-	}
+		if err := scenarios.RequireMCPTTInvite(ctx, as, 2, mcpttUpgradePriority); err != nil {
+			return hangUp(err)
+		}
 
-	if err := requireAuthorisedPriority(res, mcpttUpgradePriority); err != nil {
-		return hangUp(fmt.Errorf("200 to the re-INVITE: %w", err))
-	}
+		if err := scenarios.RequireAuthorisedPriority(res, mcpttUpgradePriority); err != nil {
+			return hangUp(fmt.Errorf("200 to the re-INVITE: %w", err))
+		}
 
-	if err := <-m.upgraded; err != nil {
-		return hangUp(err)
+		if err := <-m.upgraded; err != nil {
+			return hangUp(err)
+		}
 	}
 
 	if err := call.Bye(ctx); err != nil {
@@ -376,43 +457,94 @@ func mcpttCallSteps(ctx context.Context, as *scenarios.MCPTTServer, call *scenar
 	return <-m.released
 }
 
-func requireMCPTTInvite(ctx context.Context, as *scenarios.MCPTTServer, n int, priority string) error {
-	req, err := as.AwaitRequest(ctx, "INVITE", n)
+func runMCPTTCallPreempted(ctx context.Context, env scenarios.Env) error {
+	ctx, cancel := context.WithTimeout(ctx, mcpttCallTimeout)
+	defer cancel()
+
+	s, err := startMCPTTSession(ctx, env, mcpttPreemptedCaller)
 	if err != nil {
 		return err
 	}
 
-	what := "INVITE"
-	if n > 1 {
-		what = "re-INVITE"
+	defer s.close()
+
+	m := newMCPTTENB(s, mcpttNormalPriority, mcpttARP(3, true), false)
+	accepted := make(chan mcpttBearers, 1)
+
+	go func() {
+		b, err := m.acceptBearers()
+		m.setup <- err
+
+		accepted <- b
+	}()
+
+	call, err := s.c.Call(ctx, scenarios.MCPTTPSI("grp-1"), mcpttNormalPriority)
+	if err != nil {
+		return errors.Join(err, <-m.setup)
 	}
 
-	switch {
-	case !strings.EqualFold(strings.TrimSpace(req.Header.Get("P-Asserted-Service")), scenarios.MCPTTICSI) && n == 1:
-		return fmt.Errorf("the %s at the MCPTT server has P-Asserted-Service %q, want %q (TS 24.229 §5.4.3.2)", what, req.Header.Get("P-Asserted-Service"), scenarios.MCPTTICSI)
-	case n == 1 && req.URI.String() != scenarios.MCPTTPSI("grp-1"):
-		return fmt.Errorf("the %s at the MCPTT server has Request-URI %s, want the PSI %s", what, req.URI, scenarios.MCPTTPSI("grp-1"))
-	case req.Header.Get("Resource-Priority") != priority:
-		return fmt.Errorf("the %s at the MCPTT server has Resource-Priority %q, want %q", what, req.Header.Get("Resource-Priority"), priority)
+	callErr := mcpttPreemptionSteps(ctx, s, call, m, accepted)
+
+	if err := s.c.Deregister(ctx); err != nil {
+		callErr = errors.Join(callErr, err)
+	}
+
+	return callErr
+}
+
+func mcpttPreemptionSteps(ctx context.Context, s *mcpttSession, call *scenarios.MCPTTCall, m *mcpttENB, accepted <-chan mcpttBearers) error {
+	hangUp := func(err error) error {
+		return errors.Join(err, call.Bye(ctx))
+	}
+
+	if err := scenarios.RequireMCPTTInvite(ctx, s.as, 1, m.priority); err != nil {
+		return hangUp(err)
+	}
+
+	if err := <-m.setup; err != nil {
+		return hangUp(err)
+	}
+
+	b := <-accepted
+
+	if err := s.e.SendERABReleaseIndication(s.u.res.MMEUES1APID, s.u.res.ENBUES1APID, b.voice.ERABID, s1enb.CauseReleaseDueToPreemption); err != nil {
+		return hangUp(err)
+	}
+
+	bye, err := s.as.AwaitRequest(ctx, "BYE", 1)
+	if err != nil {
+		return hangUp(fmt.Errorf("the call outlived its pre-empted MCPTT bearer, want the P-CSCF to release it (TS 24.229 §5.2.8.1.2): %w", err))
+	}
+
+	if err := requireBearerLossReason(bye); err != nil {
+		return err
+	}
+
+	frame, err := s.e.WaitForAnyMessage(s.u.res.ENBUES1APID, s1enb.Initiating, []s1ap.ProcedureCode{s1ap.ProcERABSetup, s1ap.ProcERABModify, s1ap.ProcERABRelease}, mcpttQuietPeriod)
+	if err == nil {
+		return fmt.Errorf("UE %s got %s after the eNB pre-empted its MCPTT E-RAB %d, want no E-RAB signalling: the release ends at the core (TS 23.401 §5.4.4.2 step 7) and the PCF does not request the rule again", m.u.ue.IMSI, frame.ProcedureCode, b.voice.ERABID)
+	}
+
+	select {
+	case <-call.Done():
+		return fmt.Errorf("UE %s got a BYE for the pre-empted call, want the P-CSCF to release only toward the called party (TS 24.229 §5.2.8.1.2)", m.u.ue.IMSI)
+	default:
 	}
 
 	return nil
 }
 
-func requireAuthorisedPriority(res *sip.Response, priority string) error {
-	if res == nil {
-		return errors.New("no response")
+func requireBearerLossReason(bye *sip.Request) error {
+	reasons, err := bye.Header.Reasons()
+	if err != nil {
+		return fmt.Errorf("the BYE at the MCPTT server has a malformed Reason %q: %w", bye.Header.Values("Reason"), err)
 	}
 
-	if got := res.Header.Get("Resource-Priority"); got != priority {
-		return fmt.Errorf("Resource-Priority %q, want the MCPTT server's %q", got, priority)
-	}
-
-	caps, err := res.Header.FeatureCaps()
-	if err != nil || !slices.ContainsFunc(caps, func(fs sip.FeatureSet) bool {
-		return slices.Contains(fs.Tokens("g.3gpp.icsi-ref"), scenarios.MCPTTICSI)
+	if !slices.ContainsFunc(reasons, func(r sip.Reason) bool {
+		cause, ok := r.Cause()
+		return ok && r.Is("SIP") && cause == 503
 	}) {
-		return fmt.Errorf("Feature-Caps %q, want the MCPTT ICSI (TS 29.214 Annex A.1 NOTE 3)", res.Header.Values("Feature-Caps"))
+		return fmt.Errorf("the BYE at the MCPTT server has Reason %q, want SIP cause 503 for the lost bearer (TS 24.229 §5.2.8.1.2)", bye.Header.Values("Reason"))
 	}
 
 	return nil

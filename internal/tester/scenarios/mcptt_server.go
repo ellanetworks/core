@@ -324,3 +324,45 @@ func RequireThirdPartyRegister(ctx context.Context, s *MCPTTServer, sub Subscrib
 		return nil
 	}
 }
+
+func RequireMCPTTInvite(ctx context.Context, as *MCPTTServer, n int, priority string) error {
+	req, err := as.AwaitRequest(ctx, "INVITE", n)
+	if err != nil {
+		return err
+	}
+
+	what := "INVITE"
+	if n > 1 {
+		what = "re-INVITE"
+	}
+
+	switch {
+	case !strings.EqualFold(strings.TrimSpace(req.Header.Get("P-Asserted-Service")), MCPTTICSI) && n == 1:
+		return fmt.Errorf("the %s at the MCPTT server has P-Asserted-Service %q, want %q (TS 24.229 §5.4.3.2)", what, req.Header.Get("P-Asserted-Service"), MCPTTICSI)
+	case n == 1 && req.URI.String() != MCPTTPSI("grp-1"):
+		return fmt.Errorf("the %s at the MCPTT server has Request-URI %s, want the PSI %s", what, req.URI, MCPTTPSI("grp-1"))
+	case req.Header.Get("Resource-Priority") != priority:
+		return fmt.Errorf("the %s at the MCPTT server has Resource-Priority %q, want %q", what, req.Header.Get("Resource-Priority"), priority)
+	}
+
+	return nil
+}
+
+func RequireAuthorisedPriority(res *sip.Response, priority string) error {
+	if res == nil {
+		return errors.New("no response")
+	}
+
+	if got := res.Header.Get("Resource-Priority"); got != priority {
+		return fmt.Errorf("Resource-Priority %q, want the MCPTT server's %q", got, priority)
+	}
+
+	caps, err := res.Header.FeatureCaps()
+	if err != nil || !slices.ContainsFunc(caps, func(fs sip.FeatureSet) bool {
+		return slices.Contains(fs.Tokens("g.3gpp.icsi-ref"), MCPTTICSI)
+	}) {
+		return fmt.Errorf("Feature-Caps %q, want the MCPTT ICSI (TS 29.214 Annex A.1 NOTE 3)", res.Header.Values("Feature-Caps"))
+	}
+
+	return nil
+}

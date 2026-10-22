@@ -82,6 +82,7 @@ nav:
     - Manage Your Network with AI Agents: how_to/ai_agents.md
     - Enable SMS: how_to/enable_sms.md
     - Enable Voice: how_to/enable_voice.md
+    - Enable MCPTT: how_to/enable_mcptt.md
   - Reference:
     - reference/index.md
     - API:

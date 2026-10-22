@@ -92,6 +92,7 @@ type imsParty struct {
 	guti    *eps.EPSMobileIdentity
 	unroute func()
 	bearers partyBearers
+	mc      bool
 }
 
 type partyBearers struct {
@@ -152,11 +153,16 @@ func (p *imsParty) closeTunnel() {
 }
 
 func (p *imsParty) pool() netip.Prefix {
-	if p.env.HasIPv4() {
-		return netip.MustParsePrefix(scenarios.IMSUEIPv4Pool)
+	v4, v6 := scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool
+	if p.mc {
+		v4, v6 = scenarios.MCUEIPv4Pool, scenarios.MCUEIPv6Pool
 	}
 
-	return netip.MustParsePrefix(scenarios.IMSUEIPv6Pool)
+	if p.env.HasIPv4() {
+		return netip.MustParsePrefix(v4)
+	}
+
+	return netip.MustParsePrefix(v6)
 }
 
 func newIMSUEOn5GS(g *gnb.GnodeB, env scenarios.Env, sub scenarios.SubscriberSpec, autoSession bool) (*ue.UE, error) {
@@ -335,10 +341,10 @@ func (p *imsParty) tunnel() error {
 
 	if !p.env.HasIPv4() {
 		if p.nr != nil {
-			return gnb.WaitForULAAddr(p.iface, scenarios.IMSUEIPv6Pool, slaacTimeout)
+			return gnb.WaitForULAAddr(p.iface, p.pool().String(), slaacTimeout)
 		}
 
-		return s1enb.WaitForULAAddr(p.iface, scenarios.IMSUEIPv6Pool, slaacTimeout)
+		return s1enb.WaitForULAAddr(p.iface, p.pool().String(), slaacTimeout)
 	}
 
 	time.Sleep(scenarios.DatapathSettleDelay)
@@ -551,6 +557,7 @@ type epsHandover struct {
 	lte     *lteAttachment
 	voice   *lteBearer
 	bearers map[uint8]*lteBearer
+	qos     map[uint8]s1ap.ERABLevelQoSParameters
 }
 
 type epsHandoverOpts struct {
@@ -679,7 +686,7 @@ func (p *imsParty) handOverToEPSWith(e *s1enb.ENB, opts epsHandoverOpts) (epsHan
 		ulTEID: uint32(req.ERABToBeSetup[def].GTPTEID), dlTEID: teids[imsDefaultEBI],
 	}
 
-	out := epsHandover{lte: lte, bearers: make(map[uint8]*lteBearer)}
+	out := epsHandover{lte: lte, bearers: make(map[uint8]*lteBearer), qos: make(map[uint8]s1ap.ERABLevelQoSParameters)}
 
 	for i, it := range req.ERABToBeSetup {
 		if i == def || slices.Contains(refuse, it.ERABID) {
@@ -687,6 +694,7 @@ func (p *imsParty) handOverToEPSWith(e *s1enb.ENB, opts epsHandoverOpts) (epsHan
 		}
 
 		out.bearers[uint8(it.QoS.QCI)] = &lteBearer{a: lte, erab: it.ERABID, ulTEID: uint32(it.GTPTEID), dlTEID: teids[it.ERABID]}
+		out.qos[uint8(it.QoS.QCI)] = it.QoS
 	}
 
 	p.guti = guti

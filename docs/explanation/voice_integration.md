@@ -1,10 +1,10 @@
 ---
-description: Explanation of how voice functionality works in Ella Core.
+description: Explanation of how voice and other IMS services work in Ella Core.
 ---
 
 # Voice Integration
 
-Ella Core lets subscribers make voice and video calls over 4G (VoLTE) and 5G (VoNR). Calls are handled by an external IP Multimedia Subsystem (IMS), and Ella Core provides the subscriber data and the Quality of Service (QoS) the IMS needs.
+Ella Core lets subscribers make voice and video calls over 4G (VoLTE) and 5G (VoNR). Calls are handled by an external IP Multimedia Subsystem (IMS), and Ella Core provides the subscriber data and the Quality of Service (QoS) the IMS needs. The same integration serves other IMS services, such as Mission Critical Push To Talk (MCPTT).
 
 ## What is an IMS?
 
@@ -31,7 +31,7 @@ Ella Core plays two roles for the IMS, both over Diameter:
 
 | Role | Interface | Used for |
 | ---- | --------- | -------- |
-| HSS | Cx | Subscriber identities, authentication, and the S-CSCF assigned to each subscriber. |
+| HSS | Cx | Subscriber identities, authentication, the S-CSCF assigned to each subscriber, and the application servers that serve them. |
 | PCRF / PCF | Rx | QoS for the media of each call. |
 
 Both interfaces are used for 4G and 5G subscribers. The IMS connects to Ella Core's Diameter interface, over SCTP or TCP.
@@ -76,6 +76,19 @@ A policy on another IMS data network, such as one for mission critical services,
 
 On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
 
+## Application servers and filter criteria
+
+Services such as MCPTT run on application servers: SIP servers that the S-CSCF sends some of a subscriber's requests to. Application servers are configured in the Operator settings, and each has:
+
+- A **server name**: the SIP URI the S-CSCF sends requests to.
+- **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, distinct or wildcarded with an extended regular expression between `!` delimiters, for example `sip:!.*!@mcptt.ims.mnc001.mcc001.3gppnetwork.org` (TS 23.003 §13.5). When the IMS asks Ella Core where to send a request addressed to a PSI, Ella Core answers with the application server, and the I-CSCF sends the request straight to it.
+
+Each profile has an ordered list of **IMS initial filter criteria** (TS 29.228). A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. It can also ask the S-CSCF to include the subscriber's REGISTER request and its response in the third-party REGISTER it sends to the application server. Ella Core gives the profile's filter criteria to the S-CSCF in each subscriber's user profile, in the profile's order.
+
+When a profile's filter criteria, an application server's server name, or a subscriber's profile or MSISDN changes, Ella Core sends the new user profile to the S-CSCF serving each affected subscriber, with a Cx Push Profile request. An S-CSCF that does not support it gets the new user profile at the subscriber's next registration. When a registered subscriber's MSISDN changes or is removed, Ella Core de-registers the subscriber instead, since its default public identity changes.
+
+The UI has a preset with the filter criteria for MCPTT. See [Enable MCPTT](../how_to/enable_mcptt.md).
+
 ## Call setup and QoS
 
 1. During call setup, the P-CSCF describes the call's media to Ella Core over Rx: its type, IP addresses, ports, and bandwidth.
@@ -86,6 +99,9 @@ On the Subscriber page, **Voice** shows the subscriber's voice state and, when v
 | ----- | --------- | ------------ |
 | Voice | 1 | 2 |
 | Video | 2 | 4 |
+| MCPTT voice and floor control | 65 | 1 to 8, from the call's Resource-Priority |
+
+A call is MCPTT when the P-CSCF identifies it with the MCPTT ICSI. Its voice and floor control share one GBR QoS flow or bearer, and a change of the call's priority modifies that QoS flow or bearer in place. See [Enable MCPTT](../how_to/enable_mcptt.md#7-check-the-call-qos) for the ARP of each priority.
 
 ## EPS fallback
 
@@ -101,6 +117,8 @@ Each node of a [High Availability](high_availability.md) cluster is a separate D
 ## Further reading
 
 - [Enable Voice](../how_to/enable_voice.md) — step-by-step guide to enable voice and video calls.
-- [Operator API reference](../reference/api/operator.md) — P-CSCF addresses and voice status.
+- [Enable MCPTT](../how_to/enable_mcptt.md) — step-by-step guide to serve MCPTT.
+- [Operator API reference](../reference/api/operator.md) — P-CSCF addresses, voice status, and IMS application servers.
+- [Profiles API reference](../reference/api/profiles.md) — IMS initial filter criteria.
 - [Subscribers API reference](../reference/api/subscribers.md) — IMS identities and registration state.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported Cx and Rx procedures.

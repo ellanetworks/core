@@ -16,6 +16,7 @@ Initial setup and configuration of Ella Core.
 - [Integrate with a Radio](integrate_with_radio.md)
 - [Enable SMS](enable_sms.md)
 - [Enable Voice](enable_voice.md)
+- [Enable MCPTT](enable_mcptt.md)
 
 ## Day 2 Operations
 

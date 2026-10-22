@@ -44,7 +44,8 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 
 - **Session management.** 4G PDN connectivity and 5G PDU sessions: establishment, modification, and release, including network-requested procedures.
 - **Session types.** IPv4, IPv6, and IPv4v6.
-- **QoS.** One non-GBR QoS flow per session, plus GBR QoS flows (5G) and dedicated bearers (4G) for IMS voice and video.
+- **QoS.** A default QoS flow (5G) or default bearer (4G) per session, with the 5QI/QCI, ARP priority level, and pre-emption capability and vulnerability of the session's policy.
+- **Dynamic PCC rules.** GBR and non-GBR rules from the PCRF/PCF. A rule with the 5QI/QCI and ARP of the default QoS flow or bearer is carried on it; other rules get dedicated QoS flows (5G) or dedicated bearers (4G), up to 4 per session. A change of a rule's ARP modifies its QoS flow or bearer in place. The [Subscribers API](api/subscribers.md#bearers) lists each session's QoS flows or bearers.
 
 ### Security
 
@@ -59,11 +60,17 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **Mobile-originated and mobile-terminated SMS.** Relayed to and from external SMSCs over SGd.
 - **HSS for the SMSC.** Send Routing Info for SM, Report SM Delivery Status, and Alert Service Centre over S6c.
 
-### Voice
+### Voice and IMS services
 
 - **IMS voice and video.** VoLTE on 4G and VoNR on 5G, with an external IMS.
-- **HSS for the IMS.** User authorization, server assignment, location info, multimedia authentication, and registration termination over Cx.
-- **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice and video.
+- **MCPTT.** On-network Mission Critical Push To Talk on 4G and 5G, with an external IMS and MCPTT server. QCI/5QI 69 for SIP signalling on MC data networks, and 65 for MCPTT voice and floor control.
+- **HSS for the IMS.** User authorization, server assignment, location info, multimedia authentication, registration termination, and push profile over Cx.
+- **Initial filter criteria.** Each profile's ordered initial filter criteria in the user data sent to the S-CSCF, with service point triggers, default handling, service information, IncludeRegisterRequest, and IncludeRegisterResponse.
+- **Public Service Identities.** Distinct and wildcarded PSIs hosted by application servers. Location info for a PSI returns its application server, with the PSI direct routing indication and, for a wildcarded match, the wildcarded identity.
+- **Unregistered services.** Location info for a not registered identity whose profile has terminating services for the unregistered state returns DIAMETER_UNREGISTERED_SERVICE.
+- **Push profile.** The HSS pushes the new user data to the S-CSCF when a profile's filter criteria, an application server, or a subscriber's profile or MSISDN changes, and de-registers a registered subscriber whose default public identity changes.
+- **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice, video, and MCPTT.
+- **MCPTT priority.** The Rx MCPTT feature. MCPTT calls are identified by the MCPTT ICSI in AF-Application-Identifier, and their ARP is derived from the MCPTT-Identifier and Reservation-Priority, including priority changes during a call.
 - **EPS fallback.** A 5G voice call moves to 4G when the 5G radio requests it.
 
 ### Location (beta)
@@ -74,3 +81,5 @@ Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. GNSS positioning i
 
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
 - **No roaming.** Ella Core does not support roaming between networks.
+- **PSI direct routing only.** PSIs hosted by an S-CSCF and PSI activation are not supported.
+- **No MCPTT priority sharing or pre-emption control.** The PrioritySharing and MCPTT-Preemption Rx features are not supported.

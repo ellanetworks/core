@@ -5,13 +5,16 @@ package scenarios
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/ims/sip"
 	"github.com/ellanetworks/ims/sip/sdp"
 	"github.com/ellanetworks/ims/sip/ua"
@@ -23,6 +26,7 @@ const (
 	MCPTTICSI      = "urn:urn-7:3gpp-service.ims.icsi.mcptt"
 	MCPTTService   = "mcptt"
 	MCPTTPSIDomain = "mcptt." + IMSHomeDomain
+	MCPTT5QI       = 65
 
 	MCInternetPolicyName = "mcinternetpolicy"
 
@@ -399,4 +403,68 @@ func (m mcpttMedia) sdp() []byte {
 	)
 
 	return []byte(strings.Join(lines, "\r\n") + "\r\n")
+}
+
+func RequireMCPTTQoSFlow(cmd *fgs.PDUSessionModificationCommand, qfi uint8) (fgs.QoSFlowDescription, error) {
+	if ports := qosRuleLocalPorts(cmd.QoSRules, qfi); len(ports) < 3 {
+		return fgs.QoSFlowDescription{}, fmt.Errorf("the QoS rules of QFI %d match local ports %v, want speech RTP, RTCP and floor control on the one 5QI %d flow (TS 23.379 §5.7.3, TS 23.289 §4.3.3.2)", qfi, ports, MCPTT5QI)
+	}
+
+	i := slices.IndexFunc(cmd.QoSFlowDescriptions, func(d fgs.QoSFlowDescription) bool { return d.QFI == qfi })
+	if i < 0 {
+		return fgs.QoSFlowDescription{}, fmt.Errorf("the PDU Session Modification Command describes QoS flows %+v, want QFI %d", cmd.QoSFlowDescriptions, qfi)
+	}
+
+	d := cmd.QoSFlowDescriptions[i]
+
+	var fiveQI uint8
+
+	gfbr := map[fgs.QoSFlowParameterID]uint64{}
+
+	for _, p := range d.Parameters {
+		if p.ID == fgs.QoSFlowParam5QI && len(p.Value) == 1 {
+			fiveQI = p.Value[0]
+		}
+
+		if kbps, ok := p.Kbps(); ok && (p.ID == fgs.QoSFlowParamGFBRUplink || p.ID == fgs.QoSFlowParamGFBRDownlink) {
+			gfbr[p.ID] = kbps
+		}
+	}
+
+	switch {
+	case d.OperationCode != fgs.QoSFlowOpCreate:
+		return d, fmt.Errorf("the QoS flow description of QFI %d has operation %s, want a new flow", qfi, d.OperationCode)
+	case fiveQI != MCPTT5QI:
+		return d, fmt.Errorf("the QoS flow description of QFI %d has 5QI %d, want %d for speech and floor control (TS 23.379 §5.7.3, TS 23.289 §4.3.3.2)", qfi, fiveQI, MCPTT5QI)
+	case gfbr[fgs.QoSFlowParamGFBRUplink] == 0 || gfbr[fgs.QoSFlowParamGFBRDownlink] == 0:
+		return d, fmt.Errorf("the QoS flow description of QFI %d has guaranteed flow bit rates %v, want both directions (TS 24.501 §9.11.4.12)", qfi, gfbr)
+	}
+
+	return d, nil
+}
+
+func qosRuleLocalPorts(rules fgs.QoSRules, qfi uint8) []uint16 {
+	single := fgs.SingleLocalPortComponent(0).Type
+
+	var out []uint16
+
+	for _, r := range rules {
+		if r.Parameters == nil || r.Parameters.QFI != qfi {
+			continue
+		}
+
+		for _, f := range r.Filters {
+			for _, c := range f.Components {
+				if c.Type != single || len(c.Value) != 2 {
+					continue
+				}
+
+				if port := binary.BigEndian.Uint16(c.Value); !slices.Contains(out, port) {
+					out = append(out, port)
+				}
+			}
+		}
+	}
+
+	return out
 }

@@ -44,7 +44,7 @@ Configure your IMS with the following settings, using your network's MCC and 3-d
 
 ## 3. Set the P-CSCF addresses
 
-In the Ella Core UI, go to the Operator page and scroll to the **Voice** section.
+In the Ella Core UI, go to the Operator page and scroll to the **IMS** section.
 
 Click the edit icon next to **P-CSCF Addresses**, enter your IMS's P-CSCF addresses, e.g. `10.6.0.5`, and click **Update**.
 
