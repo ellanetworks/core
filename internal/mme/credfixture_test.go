@@ -178,13 +178,19 @@ func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ stri
 }
 
 func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string, cause models.SessionReleaseRequest) error {
-	f.released = true
-
 	f.outcomeMu.Lock()
+	f.released = true
 	f.releaseCauses = append(f.releaseCauses, cause)
 	f.outcomeMu.Unlock()
 
 	return nil
+}
+
+func (f *fakeSessionManager) wasReleased() bool {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	return f.released
 }
 
 func (f *fakeSessionManager) ReconcileSession(_ context.Context, ref string) error {
