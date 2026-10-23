@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import type { IMSInitialFilterCriterionInput } from "@/queries/ims";
+import type {
+  IMSApplicationServer,
+  IMSInitialFilterCriterionInput,
+} from "@/queries/ims";
 
 export type IMSPresetFilterCriterion = Omit<
   IMSInitialFilterCriterionInput,
@@ -13,6 +16,10 @@ export interface IMSServicePreset {
   label: string;
   description: string;
   initial_filter_criteria: IMSPresetFilterCriterion[];
+  suggestServer: (
+    servers: IMSApplicationServer[],
+    homeDomain?: string,
+  ) => IMSApplicationServer | undefined;
 }
 
 export const applyPreset = (
@@ -30,6 +37,10 @@ export const imsServicePresets: IMSServicePreset[] = [
     label: "MCPTT",
     description:
       "MCPTT server: third-party registration and originating MCPTT sessions",
+    suggestServer: (servers, homeDomain) =>
+      servers.find(
+        (s) => !!homeDomain && s.server_name === `sip:mcptt.${homeDomain}`,
+      ) ?? servers.find((s) => s.name === "mcptt"),
     initial_filter_criteria: [
       {
         trigger: {

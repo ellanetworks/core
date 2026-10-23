@@ -33,6 +33,7 @@ import {
 } from "@/queries/ims";
 import { applyPreset, imsServicePresets } from "@/utils/imsServicePresets";
 import { sameCriterion } from "@/utils/imsFilterCriteria";
+import { getOperator, type OperatorData } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import IMSFilterCriterionFormDialog from "@/components/IMSFilterCriterionFormDialog";
@@ -65,6 +66,11 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
     queryFn: () => listIMSApplicationServers(accessToken!),
   });
   const servers = serversQuery.data ?? [];
+  const operatorQuery = useQuery<OperatorData>({
+    queryKey: ["operator"],
+    enabled: authReady && !!accessToken,
+    queryFn: () => getOperator(accessToken!),
+  });
   const noServers = serversQuery.isSuccess && servers.length === 0;
 
   const form = useForm<FormValues>({
@@ -133,14 +139,20 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
     setHoverIndex(null);
   };
 
-  const append = (added: IMSInitialFilterCriterionInput[]) =>
-    field.onChange([
-      ...criteria,
-      ...added.map((criterion) => {
-        nextId.current += 1;
-        return { tempId: `new-${nextId.current}`, criterion };
-      }),
-    ]);
+  const withIds = (added: IMSInitialFilterCriterionInput[]) =>
+    added.map((criterion) => {
+      nextId.current += 1;
+      return { tempId: `new-${nextId.current}`, criterion };
+    });
+
+  const choosePreset = (name: string) => {
+    setPresetName(name);
+    if (serverName) return;
+    const suggested = imsServicePresets
+      .find((p) => p.name === name)
+      ?.suggestServer(servers, operatorQuery.data?.ims.homeDomain);
+    if (suggested) setServerName(suggested.name);
+  };
 
   const saveCriterion = (criterion: IMSInitialFilterCriterionInput) => {
     if (editingId) {
@@ -148,7 +160,7 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
         criteria.map((c) => (c.tempId === editingId ? { ...c, criterion } : c)),
       );
     } else {
-      append([criterion]);
+      field.onChange([...criteria, ...withIds([criterion])]);
     }
     setFormOpen(false);
   };
@@ -338,7 +350,7 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
                 fullWidth
                 label="Preset"
                 value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
+                onChange={(e) => choosePreset(e.target.value)}
                 slotProps={{
                   select: {
                     renderValue: (value) =>
@@ -374,7 +386,7 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
                 variant="outlined"
                 startIcon={<AddIcon />}
                 onClick={() => {
-                  append(presetCriteria);
+                  field.onChange([...withIds(presetCriteria), ...criteria]);
                   setPresetName("");
                   setServerName("");
                 }}

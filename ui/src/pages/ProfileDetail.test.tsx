@@ -83,6 +83,9 @@ beforeEach(() => {
     per_page: 100,
     total_count: 0,
   }));
+  api.get("/api/v1/operator", () => ({
+    ims: { homeDomain: "ims.example.org" },
+  }));
   api.get(AS_PATH, () => ({
     items: [
       {
@@ -476,7 +479,7 @@ describe("ProfileDetail IMS filter criteria", () => {
     });
   });
 
-  it("appends the MCPTT preset once for the chosen application server", async () => {
+  it("puts the MCPTT preset first, once, for the suggested application server", async () => {
     const user = userEvent.setup();
     api.get(IFC_PATH, () => ({
       initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
@@ -488,7 +491,9 @@ describe("ProfileDetail IMS filter criteria", () => {
     const dialog = await openEditor(user);
     expect(dialog.getByRole("button", { name: "Add preset" })).toBeDisabled();
     await choose(user, dialog, /Preset/, /^MCPTT/);
-    await choose(user, dialog, /Application Server/, /^mcptt \(sip:/);
+    expect(
+      dialog.getByRole("combobox", { name: /Application Server/ }),
+    ).toHaveTextContent("mcptt (sip:mcptt.ims.example.org)");
     await user.click(dialog.getByRole("button", { name: "Add preset" }));
 
     expect(
@@ -505,8 +510,35 @@ describe("ProfileDetail IMS filter criteria", () => {
 
     await screen.findByText("IMS filter criteria updated successfully.");
     expect(putBody()).toEqual({
-      initial_filter_criteria: [registerIFC, ...mcpttPresetIFCs],
+      initial_filter_criteria: [...mcpttPresetIFCs, registerIFC],
     });
+  });
+
+  it("suggests the Ella IMS MCPTT by its server name for the MCPTT preset", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    api.get(AS_PATH, () => ({
+      items: [
+        {
+          name: "mcptt",
+          server_name: "sip:ptt.example.org",
+          public_service_identities: [],
+        },
+        {
+          name: "ella",
+          server_name: "sip:mcptt.ims.example.org",
+          public_service_identities: [],
+        },
+      ],
+    }));
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+    await choose(user, dialog, /Preset/, /^MCPTT/);
+    expect(
+      dialog.getByRole("combobox", { name: /Application Server/ }),
+    ).toHaveTextContent("ella (sip:mcptt.ims.example.org)");
   });
 
   it("points to the Operator page when there is no application server", async () => {

@@ -1495,12 +1495,22 @@ func (db *Database) applyUpdateOperatorTracking(ctx context.Context, op *Operato
 }
 
 func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorIDStmt, op).Run()
+	from, err := db.imsDomain(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.runner(ctx).Query(ctx, db.updateOperatorIDStmt, op).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	to, err := db.imsDomain(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, db.rehomeIMSApplicationServers(ctx, from, to)
 }
 
 func (db *Database) applyUpdateOperatorCode(ctx context.Context, op *Operator) (any, error) {

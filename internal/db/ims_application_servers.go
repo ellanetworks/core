@@ -399,6 +399,62 @@ func (db *Database) imsDomain(ctx context.Context) (string, error) {
 	return domain, nil
 }
 
+func (db *Database) rehomeIMSApplicationServers(ctx context.Context, from, to string) error {
+	if from == "" || to == "" || from == to || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+		return nil
+	}
+
+	var rows []imsApplicationServerRow
+
+	if err := db.runner(ctx).Query(ctx, db.listIMSApplicationServersStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	var stored []imsPSIRow
+
+	if err := db.runner(ctx).Query(ctx, db.listIMSPSIsStmt).GetAll(&stored); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	for _, row := range rows {
+		if serverName, ok := psi.Rehome(row.ServerName, from, to); ok {
+			row.ServerName = serverName
+			if err := db.runner(ctx).Query(ctx, db.updateIMSApplicationServerStmt, row).Run(); err != nil {
+				return fmt.Errorf("query failed: %w", err)
+			}
+		}
+
+		var identities []string
+
+		rehomed := false
+
+		for _, p := range stored {
+			if p.ApplicationServerID != row.ID {
+				continue
+			}
+
+			identity, ok := psi.Rehome(p.Identity, from, to)
+			rehomed = rehomed || ok
+
+			identities = append(identities, identity)
+		}
+
+		if !rehomed {
+			continue
+		}
+
+		if err := db.runner(ctx).Query(ctx, db.deleteIMSPSIsByASStmt, imsPSIRow{ApplicationServerID: row.ID}).Run(); err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
+
+		if err := db.insertIMSPSIs(ctx, row.ID, identities); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func collidesWithSubscriberIdentity(identity, imsDomain string) bool {
 	if imsDomain == "" || psi.Host(identity) != imsDomain {
 		return false

@@ -107,6 +107,30 @@ func TestCovers(t *testing.T) {
 	}
 }
 
+func TestRehome(t *testing.T) {
+	const from, to = "ims.mnc001.mcc001.3gppnetwork.org", "ims.mnc010.mcc999.3gppnetwork.org"
+
+	for _, tc := range []struct {
+		in, want string
+		ok       bool
+	}{
+		{"sip:ims.mnc001.mcc001.3gppnetwork.org", "sip:" + to, true},
+		{"sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org", "sip:mcptt." + to, true},
+		{"sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org:5060;lr", "sip:mcptt." + to + ":5060;lr", true},
+		{"sip:!.*!@mcptt.ims.mnc001.mcc001.3gppnetwork.org", "sip:!.*!@mcptt." + to, true},
+		{"sip:!a@mcptt.ims.mnc001.mcc001.3gppnetwork.org!@mcptt.ims.mnc001.mcc001.3gppnetwork.org", "sip:!a@mcptt.ims.mnc001.mcc001.3gppnetwork.org!@mcptt." + to, true},
+		{"sip:conf@mcptt.ims.mnc001.mcc001.3gppnetwork.org", "sip:conf@mcptt." + to, true},
+		{"sip:mcptt.example.org", "sip:mcptt.example.org", false},
+		{"sip:xims.mnc001.mcc001.3gppnetwork.org", "sip:xims.mnc001.mcc001.3gppnetwork.org", false},
+		{"sip:[2001:db8::1]:5060", "sip:[2001:db8::1]:5060", false},
+		{"tel:+15550100", "tel:+15550100", false},
+	} {
+		if got, ok := psi.Rehome(tc.in, from, to); got != tc.want || ok != tc.ok {
+			t.Errorf("Rehome(%q) = %q, %t; want %q, %t", tc.in, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
 func TestLiteralTreatsExclamationMarksAsCharacters(t *testing.T) {
 	for in, want := range map[string]string{
 		"sip:chatlist!1@Example.com":       "sip:chatlist!1@example.com",

@@ -389,6 +389,72 @@ func TestIMSApplicationServerCanonicalForms(t *testing.T) {
 	}
 }
 
+func TestIMSApplicationServersFollowOperatorID(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	if err := database.UpdateOperatorID(ctx, "001", "01"); err != nil {
+		t.Fatalf("set operator ID: %v", err)
+	}
+
+	servers := []*db.IMSApplicationServer{
+		{
+			Name:                    "mcptt",
+			ServerName:              "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org",
+			PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.mnc001.mcc001.3gppnetwork.org"},
+		},
+		{
+			Name:                    "mmtel",
+			ServerName:              "sip:ims.mnc001.mcc001.3gppnetwork.org:5070;lr",
+			PublicServiceIdentities: []string{"sip:conf@example.org", "sip:conf@ims.mnc001.mcc001.3gppnetwork.org", "tel:+15550100"},
+		},
+		{
+			Name:                    "external",
+			ServerName:              "sip:as.example.org",
+			PublicServiceIdentities: []string{"sip:svc@example.org"},
+		},
+	}
+
+	for _, as := range servers {
+		if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+			t.Fatalf("create %s: %v", as.Name, err)
+		}
+	}
+
+	if err := database.UpdateOperatorID(ctx, "999", "010"); err != nil {
+		t.Fatalf("update operator ID: %v", err)
+	}
+
+	got, err := database.ListIMSApplicationServers(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+
+	want := []db.IMSApplicationServer{
+		{
+			ID:                      servers[2].ID,
+			Name:                    "external",
+			ServerName:              "sip:as.example.org",
+			PublicServiceIdentities: []string{"sip:svc@example.org"},
+		},
+		{
+			ID:                      servers[0].ID,
+			Name:                    "mcptt",
+			ServerName:              "sip:mcptt.ims.mnc010.mcc999.3gppnetwork.org",
+			PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.mnc010.mcc999.3gppnetwork.org"},
+		},
+		{
+			ID:                      servers[1].ID,
+			Name:                    "mmtel",
+			ServerName:              "sip:ims.mnc010.mcc999.3gppnetwork.org:5070;lr",
+			PublicServiceIdentities: []string{"sip:conf@example.org", "sip:conf@ims.mnc010.mcc999.3gppnetwork.org", "tel:+15550100"},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("servers = %+v, want %+v", got, want)
+	}
+}
+
 func TestIMSPublicServiceIdentityAndMSISDNExclude(t *testing.T) {
 	ctx := context.Background()
 	database := setupTestDB(t)

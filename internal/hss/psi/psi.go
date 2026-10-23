@@ -81,6 +81,36 @@ func Host(stored string) string {
 	return p.host
 }
 
+func Rehome(uri, from, to string) (string, bool) {
+	m := modeServerName
+	if strings.Contains(uri, wildcardDelimiter) {
+		m = modeStored
+	}
+
+	p, err := parse(uri, m)
+	if err != nil || p.scheme == "tel" || strings.HasPrefix(p.host, "[") {
+		return uri, false
+	}
+
+	name, port := p.host, ""
+	if i := strings.LastIndexByte(p.host, ':'); i >= 0 {
+		name, port = p.host[:i], p.host[i:]
+	}
+
+	switch {
+	case name == from:
+		name = to
+	case strings.HasSuffix(name, "."+from):
+		name = strings.TrimSuffix(name, from) + to
+	default:
+		return uri, false
+	}
+
+	p.host = name + port
+
+	return p.String(), true
+}
+
 func User(stored string) string {
 	p, err := parse(stored, modeStored)
 	if err != nil {

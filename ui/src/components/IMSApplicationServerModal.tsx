@@ -22,6 +22,7 @@ interface IMSApplicationServerModalProps {
   onClose: () => void;
   onSuccess: () => void;
   applicationServer?: IMSApplicationServer;
+  homeDomain?: string;
 }
 
 const sipURI = (required: string) =>
@@ -58,6 +59,7 @@ const IMSApplicationServerModal: React.FC<IMSApplicationServerModalProps> = ({
   onClose,
   onSuccess,
   applicationServer,
+  homeDomain,
 }) => {
   const { accessToken } = useAuth();
   const editing = !!applicationServer;
@@ -72,13 +74,24 @@ const IMSApplicationServerModal: React.FC<IMSApplicationServerModalProps> = ({
       ),
     },
   });
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "psis",
   });
   const psisError =
     form.formState.errors.psis?.root?.message ??
     form.formState.errors.psis?.message;
+
+  const fillEllaMCPTT = () => {
+    const options = {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    };
+    form.setValue("name", "mcptt", options);
+    form.setValue("serverName", `sip:mcptt.${homeDomain}`, options);
+    replace([]);
+  };
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
@@ -117,6 +130,16 @@ const IMSApplicationServerModal: React.FC<IMSApplicationServerModalProps> = ({
       submitLabel={editing ? "Update" : "Add"}
       submittingLabel={editing ? "Updating..." : "Adding..."}
     >
+      {!editing && homeDomain && (
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={fillEllaMCPTT}
+          sx={{ mt: 2 }}
+        >
+          Fill for Ella IMS MCPTT
+        </Button>
+      )}
       <TextControl<FormValues>
         name="name"
         label="Name"

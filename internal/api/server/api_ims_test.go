@@ -476,6 +476,41 @@ func TestSubscriberProfileChangeNotifiesIMS(t *testing.T) {
 	}
 }
 
+func TestIMSApplicationServersFollowOperatorID(t *testing.T) {
+	env, client, token, _ := newIMSServicesTestEnv(t)
+	url := env.Server.URL
+
+	if status, resp, err := updateOperatorID(url, client, token, &UpdateOperatorIDParams{Mcc: "001", Mnc: "01"}); err != nil || status != http.StatusCreated {
+		t.Fatalf("set operator ID: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if status, resp, err := createIMSAS(url, client, token, IMSApplicationServerItem{
+		Name:                    "mcptt",
+		ServerName:              "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org",
+		PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.mnc001.mcc001.3gppnetwork.org"},
+	}); err != nil || status != http.StatusCreated {
+		t.Fatalf("create mcptt: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if status, resp, err := updateOperatorID(url, client, token, &UpdateOperatorIDParams{Mcc: "999", Mnc: "010"}); err != nil || status != http.StatusCreated {
+		t.Fatalf("update operator ID: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	status, resp, err := apiDo[IMSApplicationServerResponse](client, "GET", url+imsASPath+"/mcptt", token, nil)
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("get mcptt: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	want := IMSApplicationServerItem{
+		Name:                    "mcptt",
+		ServerName:              "sip:mcptt.ims.mnc010.mcc999.3gppnetwork.org",
+		PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.mnc010.mcc999.3gppnetwork.org"},
+	}
+	if !reflect.DeepEqual(resp.Result, want) {
+		t.Fatalf("mcptt = %+v, want %+v", resp.Result, want)
+	}
+}
+
 func TestIMSServicesPermissions(t *testing.T) {
 	env, err := setupServer(filepath.Join(t.TempDir(), "db.sqlite3"))
 	if err != nil {

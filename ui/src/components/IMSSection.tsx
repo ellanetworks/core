@@ -270,6 +270,7 @@ const IMSSection: React.FC<IMSSectionProps> = ({
             );
           }}
           applicationServer={asModal.applicationServer}
+          homeDomain={ims?.homeDomain}
         />
       )}
       {asToDelete && (

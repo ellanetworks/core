@@ -9,7 +9,7 @@ This guide shows how to serve Mission Critical Push To Talk (MCPTT) to subscribe
 ## Prerequisites
 
 - **IMS**: an IMS integrated with Ella Core, as in [Integrate with an IMS](integrate_with_ims.md). Its P-CSCF must send the MCPTT ICSI, `urn:urn-7:3gpp-service.ims.icsi.mcptt`, in the AF-Application-Identifier of MCPTT calls.
-- **MCPTT server**: a 3GPP MCPTT server, reachable from the IMS, which resolves the server's domain. The IMS and the server trust each other's SIP addresses.
+- **MCPTT server**: [Ella IMS](https://github.com/ellanetworks/ims) with the `mcptt` section set in its `ims.yaml`, or a 3GPP MCPTT server that the IMS reaches and trusts.
 - **MCPTT clients**: configured with the MC data network (`mcx` below) as their MC services APN or DNN.
 - **Radios**: support for QCI/5QI 69 and 65.
 
@@ -35,21 +35,15 @@ Click **Create**.
 
 ## 3. Add the MCPTT application server
 
-Go to the **Operator** page and scroll to the **IMS** section. Under **Application Servers**, click **Add Application Server** and enter:
+Go to the **Operator** page and scroll to the **IMS** section. Under **Application Servers**, click **Add Application Server**, click **Fill for Ella IMS MCPTT**, and click **Add**.
 
-- **Name**: `mcptt`.
-- **Server Name**: the SIP URI of your MCPTT server, e.g. `sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org`.
-- **Identity 1**: `sip:!.*!@mcptt.<IMS home domain>`, e.g. `sip:!.*!@mcptt.ims.mnc001.mcc001.3gppnetwork.org`.
-
-Click **Add**.
-
-Configure your MCPTT server's identities, such as its group identities, in the same domain, so that they match this identity.
+With another MCPTT server, enter `mcptt` as the **Name**, its SIP URI as the **Server Name**, and an **Identity** matching its identities, e.g. `sip:!.*!@mcptt.example.org`.
 
 ## 4. Add the MCPTT filter criteria to the MC profile
 
 Go to the **Profiles** page and click on the MC profile. Click the edit icon next to **IMS Filter Criteria**.
 
-Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add**. Click **Save**.
+Under **Add from preset**, select the `MCPTT` **Preset** and click **Add**. Click **Save**.
 
 ## 5. Put MCPTT users on the MC profile
 
