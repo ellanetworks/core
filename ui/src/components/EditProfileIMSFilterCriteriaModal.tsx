@@ -330,13 +330,12 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
             </Typography>
             <Stack
               direction={{ xs: "column", sm: "row" }}
-              spacing={{ xs: 0, sm: 2 }}
-              sx={{ alignItems: { sm: "flex-start" } }}
+              spacing={2}
+              sx={{ alignItems: { sm: "flex-start" }, mt: 2 }}
             >
               <TextField
                 select
                 fullWidth
-                margin="normal"
                 label="Preset"
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
@@ -357,7 +356,6 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
               <TextField
                 select
                 fullWidth
-                margin="normal"
                 label="Application Server"
                 value={serverName}
                 onChange={(e) => setServerName(e.target.value)}
@@ -372,17 +370,20 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
                   </MenuItem>
                 ))}
               </TextField>
-              <Box sx={{ flexShrink: 0, mt: { sm: 3 } }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => append(presetCriteria)}
-                  aria-label="Add preset"
-                  disabled={presetCriteria.length === 0 || presetAdded}
-                >
-                  Add
-                </Button>
-              </Box>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  append(presetCriteria);
+                  setPresetName("");
+                  setServerName("");
+                }}
+                aria-label="Add preset"
+                disabled={presetCriteria.length === 0 || presetAdded}
+                sx={{ flexShrink: 0, height: 56 }}
+              >
+                Add
+              </Button>
             </Stack>
           </>
         )}

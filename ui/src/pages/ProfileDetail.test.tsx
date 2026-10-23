@@ -492,6 +492,12 @@ describe("ProfileDetail IMS filter criteria", () => {
     await user.click(dialog.getByRole("button", { name: "Add preset" }));
 
     expect(
+      dialog.queryByText("This preset is already added."),
+    ).not.toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Add preset" })).toBeDisabled();
+    await choose(user, dialog, /Preset/, /^MCPTT/);
+    await choose(user, dialog, /Application Server/, /^mcptt \(sip:/);
+    expect(
       dialog.getByText("This preset is already added."),
     ).toBeInTheDocument();
     expect(dialog.getByRole("button", { name: "Add preset" })).toBeDisabled();
