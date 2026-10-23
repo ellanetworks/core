@@ -8,6 +8,7 @@ import (
 	"fmt"
 	stdlog "log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -252,6 +253,10 @@ func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, []*o
 }
 
 func openLogFile(path string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return nil, fmt.Errorf("create log directory for %q: %w", path, err)
+	}
+
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) // #nosec: G304
 	if err != nil {
 		return nil, fmt.Errorf("open log file %q: %w", path, err)
