@@ -32,7 +32,7 @@ Each member is best-effort: a collector that fails writes an error file in its p
 
 | Path | Contents |
 | ---- | -------- |
-| `db.json` | Database export: `bundle_metadata`, `operator`, `home_network_keys`, `policies`, `networking`, `subscribers`, `ip_leases`, `radio_logs` and other operational sections. The `audit_logs` section requires `audit_logs:list`; `usage_per_day` and `usage_per_subscriber` require `subscriber_usage:get`. Restricted sections are omitted and marked in `bundle_metadata.sections`. |
+| `db.json` | Database export: `bundle_metadata`, `operator`, `home_network_keys`, `policies`, `networking`, `subscribers`, `ip_leases`, `ims_application_servers`, `ims_filter_criteria`, `radio_logs` and other operational sections. The `audit_logs` section requires `audit_logs:list`; `usage_per_day` and `usage_per_subscriber` require `subscriber_usage:get`. Restricted sections are omitted and marked in `bundle_metadata.sections`. |
 | `config.yaml` | Runtime configuration file |
 | `logs/system.log` | Recent in-memory system logs, preserving original messages and identities |
 | `collection_status.json` | Status of optional configuration, live UE and BPF collectors; database section status is recorded in `db.json` under `bundle_metadata.sections` |
@@ -48,7 +48,7 @@ Each member is best-effort: a collector that fails writes an error file in its p
 | `operator.OperatorCode` | `*` |
 | `home_network_keys[].PrivateKey` | `*` |
 | `bgp_peers[].password` | `*` |
-| `subscribers[]` | `imsi` and `msisdn` only; keys, OPc and sequence numbers are not exported |
+| `subscribers[]` | `imsi`, `msisdn` and `profile_id` only; keys, OPc and sequence numbers are not exported |
 | `cluster.join-token` (`config.yaml`) | `*` |
 | Live UE security state | Curated exports omit authentication vectors and key material |
 | Application authentication data | Password hashes, API/session token hashes, signing secrets and cluster authentication keys are not exported |
