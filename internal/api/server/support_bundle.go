@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/supportbundle"
 	"go.uber.org/zap"
 )
 
@@ -23,6 +24,12 @@ func SupportBundle(dbInstance *db.Database) http.Handler {
 		email := r.Context().Value(contextKeyEmail)
 		emailStr, _ := email.(string)
 
+		roleID, _ := r.Context().Value(contextKeyRoleID).(RoleID)
+		options := supportbundle.ExportOptions{
+			IncludeAuditLogs:       roleHasPermission(roleID, PermListAuditLogs),
+			IncludeSubscriberUsage: roleHasPermission(roleID, PermGetSubscriberUsage),
+		}
+
 		ctxVar := r.Context()
 
 		pr, pw := io.Pipe()
@@ -30,7 +37,7 @@ func SupportBundle(dbInstance *db.Database) http.Handler {
 		start := time.Now()
 
 		go func(ctx context.Context) {
-			err := dbInstance.WriteSupportBundle(ctx, pw)
+			err := dbInstance.WriteSupportBundle(ctx, pw, options)
 			if err != nil {
 				_ = pw.CloseWithError(err)
 			} else {

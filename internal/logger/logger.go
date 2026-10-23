@@ -76,6 +76,8 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	atomicLevel.SetLevel(zl)
 
+	sysCores = append(sysCores, recentLogCore(atomicLevel))
+
 	log = zap.New(newDedupeCore(zapcore.NewTee(sysCores...)), zap.AddCaller())
 	auditRoot := zap.New(newDedupeCore(zapcore.NewTee(auditCores...)), zap.AddCaller())
 
@@ -179,7 +181,7 @@ func SetDb(db dbwriter.DBWriter) {
 func SwapSystemCore(core zapcore.Core) func() {
 	prev := log
 
-	log = zap.New(newDedupeCore(core), zap.AddCaller())
+	log = zap.New(newDedupeCore(zapcore.NewTee(core, recentLogCore(core))), zap.AddCaller())
 
 	restore := namedScopes()
 

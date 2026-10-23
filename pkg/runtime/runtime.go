@@ -484,13 +484,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		eng.SetBPFObjects(ctx, eng.BpfObjects, dbInstance)
 	}
 
-	// Wire supportbundle BPF dumper to dump live BPF maps from the UPF process.
-	// The closure captures the live BPF objects via the session engine.
-	// If the UPF hasn't initialized BPF objects, the dumper is a no-op.
-	supportbundle.BpfDumper = func(ctx context.Context, tw *tar.Writer) error {
+	supportbundle.BpfDumper = func(ctx context.Context, tw *tar.Writer) (supportbundle.SectionStatus, error) {
 		if eng == nil || eng.BpfObjects == nil {
-			// graceful no-op
-			return nil
+			return supportbundle.SectionStatus{Status: "omitted", Reason: "BPF objects unavailable"}, nil
 		}
 
 		opts := bpfdump.DumpOptions{
@@ -498,15 +494,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			MaxEntriesPerMap: 10000,
 		}
 
-		_, err := bpfdump.DumpAll(ctx, eng.BpfObjects, opts, tw)
+		metas, err := bpfdump.DumpAll(ctx, eng.BpfObjects, opts, tw)
 		if err != nil {
 			logger.EllaLog.Error("supportbundle: bpf dump failed", zap.Error(err))
-			return err
+			return bpfdump.CollectionStatus(metas), err
 		}
 
 		logger.EllaLog.Info("supportbundle: bpf dump completed")
 
-		return nil
+		return bpfdump.CollectionStatus(metas), nil
 	}
 
 	smf.RegisterMetrics(smfInstance)

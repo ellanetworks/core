@@ -25,6 +25,8 @@ const (
 
 const (
 	getSMSWaitingStmt             = "SELECT &smsWaitingRow.* FROM %s WHERE imsi==$smsWaitingRow.imsi"
+	listAllSMSWaitingStmt         = "SELECT &smsWaitingRow.* FROM %s ORDER BY imsi ASC"
+	listAllSMSWaitingCentresStmt  = "SELECT &smsWaitingCentre.* FROM %s ORDER BY imsi, serviceCentre"
 	listSMSWaitingCentresStmt     = "SELECT &smsWaitingCentre.* FROM %s WHERE imsi==$smsWaitingCentre.imsi ORDER BY serviceCentre"
 	upsertSMSWaitingStmt          = "INSERT INTO %s (imsi, mcef, updatedAt) VALUES ($smsWaitingRow.imsi, $smsWaitingRow.mcef, $smsWaitingRow.updatedAt) ON CONFLICT(imsi) DO UPDATE SET mcef=MAX(mcef, excluded.mcef), updatedAt=excluded.updatedAt"
 	insertSMSWaitingCentreStmt    = "INSERT INTO %s (imsi, serviceCentre) VALUES ($smsWaitingCentre.imsi, $smsWaitingCentre.serviceCentre) ON CONFLICT(imsi, serviceCentre) DO NOTHING"
@@ -76,6 +78,58 @@ type smsWaitingCentrePayload struct {
 
 type smsWaitingCutoffPayload struct {
 	Cutoff int64 `json:"cutoff"`
+}
+
+func (db *Database) ListAllSMSWaiting(ctx context.Context) ([]SMSWaiting, error) {
+	ctx, span := startSMSWaitingSpan(ctx, "SELECT")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSWaitingTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SMSWaitingTableName, "select").Inc()
+
+	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
+		return nil, nil
+	}
+
+	var rows []smsWaitingRow
+
+	if err := db.conn().Query(ctx, db.listAllSMSWaitingStmt).GetAll(&rows); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	waiting := make([]SMSWaiting, 0, len(rows))
+
+	var centres []smsWaitingCentre
+	if err := db.conn().Query(ctx, db.listAllSMSWaitingCentresStmt).GetAll(&centres); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	byIMSI := make(map[string][]string)
+	for _, centre := range centres {
+		byIMSI[centre.Imsi] = append(byIMSI[centre.Imsi], centre.ServiceCentre)
+	}
+
+	for _, row := range rows {
+		w := SMSWaiting{
+			IMSI:           row.Imsi,
+			MemoryFull:     row.MCEF,
+			UpdatedAt:      time.Unix(row.UpdatedAt, 0).UTC(),
+			ServiceCentres: byIMSI[row.Imsi],
+		}
+
+		waiting = append(waiting, w)
+	}
+
+	return waiting, nil
 }
 
 func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (*SMSWaiting, error) {
