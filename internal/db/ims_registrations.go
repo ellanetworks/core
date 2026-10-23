@@ -20,10 +20,11 @@ const IMSRegistrationsTableName = "ims_registrations"
 const imsRegistrationsSchema = 23
 
 const (
-	getIMSRegistrationStmt    = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	upsertIMSRegistrationStmt = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm"
-	deleteIMSRegistrationStmt = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	countIMSRegistrationsStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
+	getIMSRegistrationStmt      = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
+	listAllIMSRegistrationsStmt = "SELECT &imsRegistrationRow.* FROM %s ORDER BY imsi ASC"
+	upsertIMSRegistrationStmt   = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm"
+	deleteIMSRegistrationStmt   = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
+	countIMSRegistrationsStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
 )
 
 type IMSRegistrationState int
@@ -95,6 +96,40 @@ func sameIMSRegistration(a, b *IMSRegistration) bool {
 		a.AuthPending == b.AuthPending &&
 		a.OriginHost == b.OriginHost &&
 		a.OriginRealm == b.OriginRealm
+}
+
+func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistration, error) {
+	ctx, span := startIMSRegistrationsSpan(ctx, "SELECT")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "select").Inc()
+
+	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
+		return nil, nil
+	}
+
+	var rows []imsRegistrationRow
+
+	if err := db.conn().Query(ctx, db.listAllIMSRegistrationsStmt).GetAll(&rows); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	regs := make([]IMSRegistration, 0, len(rows))
+
+	for _, r := range rows {
+		regs = append(regs, *r.registration())
+	}
+
+	return regs, nil
 }
 
 func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRegistration, error) {

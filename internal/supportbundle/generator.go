@@ -9,13 +9,16 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"reflect"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/redact"
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
 )
@@ -29,45 +32,40 @@ func getVersionInfo() *struct{ Version, Revision string } {
 	return &struct{ Version, Revision string }{Version: v.Version, Revision: v.Revision}
 }
 
-// ConfigProvider can be set by main to provide the runtime configuration YAML
-// bytes to include in support bundles. If nil, the generator falls back to
-// repository-local config paths.
 var ConfigProvider func(ctx context.Context) ([]byte, error)
 
-// BpfDumper writes BPF map data into the provided tar writer. Returns nil if
-// BPF objects are not available.
-var BpfDumper func(ctx context.Context, tw *tar.Writer) error
+var BpfDumper func(ctx context.Context, tw *tar.Writer) (SectionStatus, error)
 
-// AMFDumper, when set, is called during support bundle generation to collect
-// live AMF/SMF UE state. Returns a JSON-serializable value or nil.
 var AMFDumper func(ctx context.Context) (any, error)
 
-// MMEDumper, when set, is called during support bundle generation to collect
-// live MME UE state. Returns a JSON-serializable value or nil.
 var MMEDumper func(ctx context.Context) (any, error)
 
-// GenerateSupportBundleFromData writes a minimal support bundle containing the
-// provided redacted data as db.json into the writer as a gzipped tar archive.
-// This avoids import cycles: callers (e.g. internal/db) should fetch and redact
-// the data and then call this helper to write the archive.
-func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w io.Writer) error {
-	// No test hooks; generate normally.
-	gz := gzip.NewWriter(w)
+func GenerateSupportBundleFromData(ctx context.Context, data SanitizedData, w io.Writer) (result error) {
+	output := &errorWriter{Writer: w}
+	gz := gzip.NewWriter(output)
 
 	tw := tar.NewWriter(gz)
 
 	defer func() {
-		_ = tw.Close()
-		_ = gz.Close()
+		result = errors.Join(result, tw.Close(), gz.Close(), output.err)
 	}()
 
-	// Marshal pretty JSON
+	collectors := map[string]SectionStatus{}
+
+	for name, present := range map[string]bool{"config.yaml": ConfigProvider != nil, "bpf": BpfDumper != nil, "amf_ues.json": AMFDumper != nil, "mme_ues.json": MMEDumper != nil} {
+		status := SectionStatus{Status: "complete"}
+		if !present {
+			status = SectionStatus{Status: "omitted", Reason: "provider unavailable"}
+		}
+
+		collectors[name] = status
+	}
+
 	b, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal db.json: %w", err)
 	}
 
-	// write db.json into tar
 	hdr := &tar.Header{
 		Name:    "db.json",
 		Size:    int64(len(b)),
@@ -84,13 +82,25 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 
 	if ConfigProvider != nil {
 		if bs, err := ConfigProvider(ctx); err == nil {
-			hdr := &tar.Header{Name: "config.yaml", Size: int64(len(bs)), Mode: 0o600, ModTime: time.Now()}
-			_ = tw.WriteHeader(hdr)
-			_, _ = tw.Write(bs)
+			masked, maskErr := redact.ApplyYAML(bs)
+			if maskErr != nil {
+				collectors["config.yaml"] = SectionStatus{Status: "failed", Reason: "sanitization failed"}
+				errBs := []byte(maskErr.Error())
+				hdr := &tar.Header{Name: "system/error-config.txt", Size: int64(len(errBs)), Mode: 0o600, ModTime: time.Now()}
+				_ = tw.WriteHeader(hdr)
+				_, _ = tw.Write(errBs)
+			} else {
+				collectors["config.yaml"] = SectionStatus{Status: "complete", Count: 1}
+				hdr := &tar.Header{Name: "config.yaml", Size: int64(len(masked)), Mode: 0o600, ModTime: time.Now()}
+				_ = tw.WriteHeader(hdr)
+				_, _ = tw.Write(masked)
+			}
 		} else {
-			hdr := &tar.Header{Name: "system/error-config.txt", Size: int64(len(err.Error())), Mode: 0o600, ModTime: time.Now()}
+			collectors["config.yaml"] = SectionStatus{Status: "failed", Reason: "collection failed"}
+			errText := "Configuration collection failed"
+			hdr := &tar.Header{Name: "system/error-config.txt", Size: int64(len(errText)), Mode: 0o600, ModTime: time.Now()}
 			_ = tw.WriteHeader(hdr)
-			_, _ = tw.Write([]byte(err.Error()))
+			_, _ = tw.Write([]byte(errText))
 		}
 	}
 
@@ -105,6 +115,8 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 		return err
 	}
 
+	_ = writeFile("logs/system.log", logger.RecentLogs())
+
 	if ver := getVersionInfo(); ver != nil {
 		buf := &bytes.Buffer{}
 		fmt.Fprintf(buf, "Version: %s\nRevision: %s\n", ver.Version, ver.Revision)
@@ -117,7 +129,7 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 		_ = writeFile("system/error-etc-os-release.txt", []byte(err.Error()))
 	}
 
-	if out, err := runCommand(ctx, "uname", "-r"); err == nil {
+	if out, err := runCommand(ctx, "uname"); err == nil {
 		_ = writeFile("system/uname.txt", out)
 	} else {
 		_ = writeFile("system/error-uname.txt", []byte(err.Error()))
@@ -131,47 +143,47 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 		}
 	}
 
-	if out, err := runCommand(ctx, "df", "-h"); err == nil {
+	if out, err := runCommand(ctx, "df"); err == nil {
 		_ = writeFile("system/df.txt", out)
 	} else {
 		_ = writeFile("system/error-df.txt", []byte(err.Error()))
 	}
 
-	if out, err := runCommand(ctx, "ip", "a"); err == nil {
+	if out, err := runCommand(ctx, "ip a"); err == nil {
 		_ = writeFile("system/ip_a.txt", out)
 	} else {
 		_ = writeFile("system/error-ip_a.txt", []byte(err.Error()))
 	}
 
-	if out, err := runCommand(ctx, "ip", "route"); err == nil {
+	if out, err := runCommand(ctx, "ip route"); err == nil {
 		_ = writeFile("system/ip_route.txt", out)
 	} else {
 		_ = writeFile("system/error-ip_route.txt", []byte(err.Error()))
 	}
 
-	if out, err := runCommand(ctx, "ip", "neigh"); err == nil {
+	if out, err := runCommand(ctx, "ip neigh"); err == nil {
 		_ = writeFile("system/ip_neigh.txt", out)
 	} else {
 		_ = writeFile("system/error-ip_neigh.txt", []byte(err.Error()))
 	}
 
-	if out, err := runCommand(ctx, "ss", "-tunap"); err == nil {
+	if out, err := runCommand(ctx, "ss"); err == nil {
 		_ = writeFile("system/netstat.txt", out)
-	} else if out2, err2 := runCommand(ctx, "netstat", "-tunap"); err2 == nil {
+	} else if out2, err2 := runCommand(ctx, "netstat"); err2 == nil {
 		_ = writeFile("system/netstat.txt", out2)
 	} else {
 		_ = writeFile("system/error-netstat.txt", []byte(err.Error()))
 	}
 
-	// Attempt to dump BPF data if a dumper is installed. This is best-effort:
-	// failures are logged and included in the bundle, but do not abort creation.
 	if BpfDumper != nil {
-		if err := BpfDumper(ctx, tw); err != nil {
-			// Structured log the error
+		status, err := BpfDumper(ctx, tw)
+		if err != nil {
+			status.Status, status.Reason = "failed", "collection failed"
+			status = status.WithCount(status.Count)
+
 			logger.APILog.Error("bpf dump failed", zap.Error(err))
 
-			// Include error text in the bundle so it's visible to support tooling.
-			errBs := []byte(err.Error())
+			errBs := []byte("BPF collection failed")
 
 			hdr := &tar.Header{Name: "bpf/error.txt", Size: int64(len(errBs)), Mode: 0o600, ModTime: time.Now()}
 			if werr := tw.WriteHeader(hdr); werr != nil {
@@ -182,61 +194,131 @@ func GenerateSupportBundleFromData(ctx context.Context, data map[string]any, w i
 				}
 			}
 		}
+
+		collectors["bpf"] = status
 	}
 
-	// Attempt to dump live AMF UE state if a dumper is installed. This is
-	// best-effort: failures are logged but do not abort bundle creation.
 	if AMFDumper != nil {
 		amfData, err := AMFDumper(ctx)
 		if err != nil {
+			collectors["amf_ues.json"] = SectionStatus{Status: "failed", Reason: "collection failed"}
+
 			logger.APILog.Warn("amf ue dump failed", zap.Error(err))
 
-			errBs := []byte(err.Error())
+			errBs := []byte("AMF collection failed")
 			_ = writeFile("amf_ues_error.txt", errBs)
 		} else if amfData != nil {
 			amfJSON, err := json.MarshalIndent(amfData, "", "  ")
 			if err != nil {
+				collectors["amf_ues.json"] = SectionStatus{Status: "failed", Reason: "encoding failed"}
+
 				logger.APILog.Warn("failed to marshal amf_ues.json", zap.Error(err))
 			} else {
-				_ = writeFile("amf_ues.json", amfJSON)
+				count := 1
+				if records := reflect.ValueOf(amfData); records.Kind() == reflect.Slice || records.Kind() == reflect.Array {
+					count = records.Len()
+				}
+
+				collectors["amf_ues.json"] = SectionStatus{Status: "complete", Count: count}
+
+				if err := writeFile("amf_ues.json", amfJSON); err != nil {
+					return err
+				}
 			}
+		} else {
+			collectors["amf_ues.json"] = SectionStatus{Status: "omitted", Reason: "state unavailable"}
 		}
 	}
 
-	// Attempt to dump live MME UE state if a dumper is installed. This is
-	// best-effort: failures are logged but do not abort bundle creation.
 	if MMEDumper != nil {
 		mmeData, err := MMEDumper(ctx)
 		if err != nil {
+			collectors["mme_ues.json"] = SectionStatus{Status: "failed", Reason: "collection failed"}
+
 			logger.APILog.Warn("mme ue dump failed", zap.Error(err))
 
-			errBs := []byte(err.Error())
+			errBs := []byte("MME collection failed")
 			_ = writeFile("mme_ues_error.txt", errBs)
 		} else if mmeData != nil {
 			mmeJSON, err := json.MarshalIndent(mmeData, "", "  ")
 			if err != nil {
+				collectors["mme_ues.json"] = SectionStatus{Status: "failed", Reason: "encoding failed"}
+
 				logger.APILog.Warn("failed to marshal mme_ues.json", zap.Error(err))
 			} else {
-				_ = writeFile("mme_ues.json", mmeJSON)
+				count := 1
+				if records := reflect.ValueOf(mmeData); records.Kind() == reflect.Slice || records.Kind() == reflect.Array {
+					count = records.Len()
+				}
+
+				collectors["mme_ues.json"] = SectionStatus{Status: "complete", Count: count}
+
+				if err := writeFile("mme_ues.json", mmeJSON); err != nil {
+					return err
+				}
 			}
+		} else {
+			collectors["mme_ues.json"] = SectionStatus{Status: "omitted", Reason: "state unavailable"}
 		}
 	}
 
-	return nil
+	manifest, err := json.MarshalIndent(collectors, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return writeFile("collection_status.json", manifest)
 }
 
-// runCommand executes a command with a fixed timeout and returns combined output.
-func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
+type errorWriter struct {
+	io.Writer
+	err error
+}
+
+func (w *errorWriter) Write(b []byte) (int, error) {
+	n, err := w.Writer.Write(b)
+	if err == nil && n < len(b) {
+		err = io.ErrShortWrite
+	}
+
+	if err != nil && w.err == nil {
+		w.err = err
+	}
+
+	return n, err
+}
+
+func runCommand(ctx context.Context, name string) ([]byte, error) {
 	timeout := 5 * time.Second
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 
 	defer cancel()
 
-	cmd := exec.CommandContext(cctx, name, args...) // #nosec: G204 -- all callers pass hard-coded command strings
+	var cmd *exec.Cmd
+
+	switch name {
+	case "uname":
+		cmd = exec.CommandContext(cctx, "uname", "-r")
+	case "df":
+		cmd = exec.CommandContext(cctx, "df", "-h")
+	case "ip a":
+		cmd = exec.CommandContext(cctx, "ip", "a")
+	case "ip route":
+		cmd = exec.CommandContext(cctx, "ip", "route")
+	case "ip neigh":
+		cmd = exec.CommandContext(cctx, "ip", "neigh")
+	case "ss":
+		cmd = exec.CommandContext(cctx, "ss", "-tunap")
+	case "netstat":
+		cmd = exec.CommandContext(cctx, "netstat", "-tunap")
+	default:
+		return nil, fmt.Errorf("unsupported command: %s", name)
+	}
+
 	out, err := cmd.CombinedOutput()
 
 	if cctx.Err() == context.DeadlineExceeded {
-		return nil, fmt.Errorf("command timed out: %s %v", name, args)
+		return nil, fmt.Errorf("command timed out: %s", name)
 	}
 
 	if err != nil {
