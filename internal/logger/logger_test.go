@@ -123,6 +123,20 @@ func TestCloseFlushesPendingRecords(t *testing.T) {
 	}
 }
 
+func TestConfigureLoggingCreatesMissingLogDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log", "nested", "system.log")
+
+	if err := ConfigureLogging("info", "file", path, "stdout", ""); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+
+	t.Cleanup(func() { _ = ConfigureLogging("info", "stdout", "", "stdout", "") })
+
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("log file was not created: %v", err)
+	}
+}
+
 func TestCloseDisablesFurtherLogging(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "system.log")
 
