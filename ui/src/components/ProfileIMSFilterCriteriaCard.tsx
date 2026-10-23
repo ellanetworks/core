@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import {
-  describeTriggerPoint,
+  describeTrigger,
   getProfileIMSFilterCriteria,
   type IMSInitialFilterCriterion,
 } from "@/queries/ims";
@@ -116,7 +116,7 @@ const ProfileIMSFilterCriteriaCard: React.FC<
                     {ifc.application_server_name}
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
-                    {describeTriggerPoint(ifc)}
+                    {describeTrigger(ifc.trigger)}
                   </TableCell>
                   <TableCell>
                     {ifc.default_handling

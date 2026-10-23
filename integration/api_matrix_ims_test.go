@@ -67,17 +67,17 @@ func imsMatrixMCPTTCriteria(as string) []client.IMSInitialFilterCriterion {
 	return []client.IMSInitialFilterCriterion{
 		{
 			ApplicationServerName:   as,
-			TriggerPoint:            &client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			Trigger:                 &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{{Method: &register}}}}},
 			DefaultHandling:         new("SESSION_CONTINUED"),
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
 		},
 		{
 			ApplicationServerName: as,
-			TriggerPoint: &client.IMSTriggerPoint{ConditionTypeCNF: true, SPT: []client.IMSServicePointTrigger{
-				{Group: []int32{0}, SessionCase: &originating},
-				{Group: []int32{1}, SIPHeader: &client.IMSHeaderMatch{Header: header, Content: &icsi}},
-			}},
+			Trigger: &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{
+				{SessionCase: &originating},
+				{SIPHeader: &client.IMSHeaderMatch{Header: header, Content: &icsi}},
+			}}}},
 			DefaultHandling: new("SESSION_TERMINATED"),
 		},
 	}
@@ -86,7 +86,7 @@ func imsMatrixMCPTTCriteria(as string) []client.IMSInitialFilterCriterion {
 func imsMatrixConferenceCriterion(as, uri string) client.IMSInitialFilterCriterion {
 	return client.IMSInitialFilterCriterion{
 		ApplicationServerName: as,
-		TriggerPoint:          &client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, RequestURI: &uri}}},
+		Trigger:               &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{{RequestURI: &uri}}}}},
 		DefaultHandling:       new("SESSION_TERMINATED"),
 	}
 }

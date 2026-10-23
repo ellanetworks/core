@@ -10,16 +10,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/internal/db"
 )
 
 func registerIFC(asID string) db.IMSInitialFilterCriterion {
 	return db.IMSInitialFilterCriterion{
 		ApplicationServerID: asID,
-		TriggerPoint: &db.IMSTriggerPoint{
-			ServicePointTriggers: []db.IMSServicePointTrigger{
-				{Groups: []int32{0}, Method: ptr("REGISTER"), RegistrationTypes: []db.IMSRegistrationType{db.IMSRegistrationTypeInitial, db.IMSRegistrationTypeDeregistration}},
-			},
+		Trigger: &db.IMSTrigger{
+			ConditionsMatch: db.IMSConditionsMatchAll,
+			Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{
+				{Method: ptr("REGISTER"), RegistrationTypes: []db.IMSRegistrationType{db.IMSRegistrationTypeInitial, db.IMSRegistrationTypeDeregistration}},
+			}}},
 		},
 		DefaultHandling:         ptr(db.IMSDefaultHandlingSessionContinued),
 		ServiceInfo:             ptr("<mcptt-info/>"),
@@ -31,13 +33,15 @@ func registerIFC(asID string) db.IMSInitialFilterCriterion {
 func originatingIFC(asID string) db.IMSInitialFilterCriterion {
 	return db.IMSInitialFilterCriterion{
 		ApplicationServerID: asID,
-		TriggerPoint: &db.IMSTriggerPoint{
-			ConditionTypeCNF: true,
-			ServicePointTriggers: []db.IMSServicePointTrigger{
-				{Groups: []int32{0}, SessionCase: ptr(db.IMSSessionCaseOriginatingRegistered)},
-				{Groups: []int32{1}, SIPHeader: &db.IMSHeaderMatch{Header: "P-Asserted-Service", Content: ptr(`^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`)}},
-				{Groups: []int32{2}, ConditionNegated: true, SessionDescription: &db.IMSSessionDescription{Line: "m", Content: ptr("video")}},
-				{Groups: []int32{2}, RequestURI: ptr(`^conf\.example\.org$`)},
+		Trigger: &db.IMSTrigger{
+			ConditionsMatch: db.IMSConditionsMatchAny,
+			Groups: []db.IMSConditionGroup{
+				{Conditions: []db.IMSCondition{{SessionCase: ptr(db.IMSSessionCaseOriginatingRegistered)}}},
+				{Conditions: []db.IMSCondition{{SIPHeader: &db.IMSHeaderMatch{Header: "P-Asserted-Service", Content: ptr(`^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`)}}}},
+				{Conditions: []db.IMSCondition{
+					{Negated: true, SessionDescription: &db.IMSSessionDescription{Line: "m", Content: ptr("video")}},
+					{RequestURI: ptr(`^conf\.example\.org$`)},
+				}},
 			},
 		},
 		ProfilePart:     ptr(db.IMSProfilePartRegistered),
@@ -240,67 +244,77 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 }
 
 func TestIMSFilterCriteriaValidate(t *testing.T) {
-	spt := func(mutate func(*db.IMSServicePointTrigger)) []db.IMSInitialFilterCriterion {
-		s := db.IMSServicePointTrigger{Groups: []int32{0}, Method: ptr("INVITE")}
+	spt := func(mutate func(*db.IMSCondition)) []db.IMSInitialFilterCriterion {
+		s := db.IMSCondition{Method: ptr("INVITE")}
 		mutate(&s)
 
 		return []db.IMSInitialFilterCriterion{{
 			ApplicationServerID: "as",
-			TriggerPoint:        &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{s}},
+			Trigger:             &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{s}}}},
 			DefaultHandling:     ptr(db.IMSDefaultHandlingSessionContinued),
 		}}
 	}
 
 	cases := map[string][]db.IMSInitialFilterCriterion{
 		"no application server":  {registerIFC("")},
-		"no group":               spt(func(s *db.IMSServicePointTrigger) { s.Groups = nil }),
-		"negative group":         spt(func(s *db.IMSServicePointTrigger) { s.Groups = []int32{-1} }),
-		"no condition":           spt(func(s *db.IMSServicePointTrigger) { s.Method = nil }),
-		"two conditions":         spt(func(s *db.IMSServicePointTrigger) { s.RequestURI = ptr("sip:a@example.org") }),
-		"empty method":           spt(func(s *db.IMSServicePointTrigger) { s.Method = ptr("") }),
-		"empty header":           spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.SIPHeader = &db.IMSHeaderMatch{} }),
-		"empty sdp line":         spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.SessionDescription = &db.IMSSessionDescription{} }),
-		"empty request URI":      spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.RequestURI = ptr("") }),
-		"request URI not an ERE": spt(func(s *db.IMSServicePointTrigger) { s.Method = nil; s.RequestURI = ptr("([") }),
-		"header content not an ERE": spt(func(s *db.IMSServicePointTrigger) {
+		"no condition":           spt(func(s *db.IMSCondition) { s.Method = nil }),
+		"two conditions":         spt(func(s *db.IMSCondition) { s.RequestURI = ptr("sip:a@example.org") }),
+		"empty method":           spt(func(s *db.IMSCondition) { s.Method = ptr("") }),
+		"empty header":           spt(func(s *db.IMSCondition) { s.Method = nil; s.SIPHeader = &db.IMSHeaderMatch{} }),
+		"empty sdp line":         spt(func(s *db.IMSCondition) { s.Method = nil; s.SessionDescription = &db.IMSSessionDescription{} }),
+		"empty request URI":      spt(func(s *db.IMSCondition) { s.Method = nil; s.RequestURI = ptr("") }),
+		"request URI not an ERE": spt(func(s *db.IMSCondition) { s.Method = nil; s.RequestURI = ptr("([") }),
+		"header content not an ERE": spt(func(s *db.IMSCondition) {
 			s.Method = nil
 			s.SIPHeader = &db.IMSHeaderMatch{Header: "P-Asserted-Service", Content: ptr("(")}
 		}),
-		"control character in method": spt(func(s *db.IMSServicePointTrigger) { s.Method = ptr("INV\x01ITE") }),
-		"unknown session case": spt(func(s *db.IMSServicePointTrigger) {
+		"control character in method": spt(func(s *db.IMSCondition) { s.Method = ptr("INV\x01ITE") }),
+		"unknown session case": spt(func(s *db.IMSCondition) {
 			s.Method = nil
 			s.SessionCase = ptr(db.IMSSessionCase("ORIGINATING"))
 		}),
-		"registration type INVITE": spt(func(s *db.IMSServicePointTrigger) {
+		"registration type INVITE": spt(func(s *db.IMSCondition) {
 			s.RegistrationTypes = []db.IMSRegistrationType{db.IMSRegistrationTypeInitial}
 		}),
-		"unknown registration type": spt(func(s *db.IMSServicePointTrigger) {
+		"unknown registration type": spt(func(s *db.IMSCondition) {
 			s.Method = ptr("REGISTER")
 			s.RegistrationTypes = []db.IMSRegistrationType{"RE_REGISTRATION"}
 		}),
-		"registration type twice": spt(func(s *db.IMSServicePointTrigger) {
+		"registration type twice": spt(func(s *db.IMSCondition) {
 			s.Method = ptr("REGISTER")
 			s.RegistrationTypes = []db.IMSRegistrationType{db.IMSRegistrationTypeInitial, db.IMSRegistrationTypeInitial}
 		}),
-		"three registration types": spt(func(s *db.IMSServicePointTrigger) {
+		"three registration types": spt(func(s *db.IMSCondition) {
 			s.Method = ptr("REGISTER")
 			s.RegistrationTypes = []db.IMSRegistrationType{db.IMSRegistrationTypeInitial, db.IMSRegistrationTypeReRegistration, db.IMSRegistrationTypeDeregistration}
 		}),
 	}
 
-	noSPT := spt(func(*db.IMSServicePointTrigger) {})
-	noSPT[0].TriggerPoint.ServicePointTriggers = nil
-	cases["no service point trigger"] = noSPT
+	noGroup := spt(func(*db.IMSCondition) {})
+	noGroup[0].Trigger.Groups = nil
+	cases["no group"] = noGroup
 
-	badHandling := spt(func(*db.IMSServicePointTrigger) {})
+	emptyGroup := spt(func(*db.IMSCondition) {})
+	emptyGroup[0].Trigger.Groups = append(emptyGroup[0].Trigger.Groups, db.IMSConditionGroup{})
+	cases["empty group"] = emptyGroup
+
+	noMatch := spt(func(*db.IMSCondition) {})
+	noMatch[0].Trigger.ConditionsMatch = ""
+	cases["no conditions match"] = noMatch
+
+	badMatch := spt(func(*db.IMSCondition) {})
+	badMatch[0].Trigger.ConditionsMatch = "some"
+	cases["unknown conditions match"] = badMatch
+
+	badHandling := spt(func(*db.IMSCondition) {})
 	badHandling[0].DefaultHandling = ptr(db.IMSDefaultHandling("CONTINUE"))
 	cases["unknown default handling"] = badHandling
 
-	badPart := spt(func(*db.IMSServicePointTrigger) {})
+	badPart := spt(func(*db.IMSCondition) {})
 	badPart[0].ProfilePart = ptr(db.IMSProfilePart("BOTH"))
 	cases["unknown profile part"] = badPart
 
-	badInfo := spt(func(*db.IMSServicePointTrigger) {})
+	badInfo := spt(func(*db.IMSCondition) {})
 	badInfo[0].ServiceInfo = ptr("info\x00")
 	cases["control character in service info"] = badInfo
 
@@ -501,5 +515,44 @@ func TestIMSPublicServiceIdentitiesCannotTakeSubscriberIdentities(t *testing.T) 
 		if err := database.DeleteIMSApplicationServer(ctx, "ok"); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
+	}
+}
+
+func TestIMSTriggerCX_TS29228_AnnexC(t *testing.T) {
+	invite, message, subscribe := "INVITE", "MESSAGE", "SUBSCRIBE"
+	from := &db.IMSHeaderMatch{Header: "From", Content: ptr(`"joe"`)}
+	groups := []db.IMSConditionGroup{
+		{Conditions: []db.IMSCondition{{Method: &invite}}},
+		{Conditions: []db.IMSCondition{{Method: &message}}},
+		{Conditions: []db.IMSCondition{{Method: &subscribe}, {Negated: true, SIPHeader: from}}},
+	}
+	cxFrom := &cx.HeaderMatch{Header: "From", Content: ptr(`"joe"`)}
+	wantSPTs := []cx.ServicePointTrigger{
+		{Groups: []int32{0}, Method: &invite},
+		{Groups: []int32{1}, Method: &message},
+		{Groups: []int32{2}, Method: &subscribe},
+		{Groups: []int32{2}, Negated: true, SIPHeader: cxFrom},
+	}
+
+	for _, tc := range []struct {
+		match   db.IMSConditionsMatch
+		wantCNF bool
+	}{
+		{match: db.IMSConditionsMatchAll, wantCNF: false},
+		{match: db.IMSConditionsMatchAny, wantCNF: true},
+	} {
+		t.Run(string(tc.match), func(t *testing.T) {
+			got := db.IMSTrigger{ConditionsMatch: tc.match, Groups: groups}.CX()
+
+			want := &cx.TriggerPoint{ConjunctiveNormalForm: tc.wantCNF, ServicePointTriggers: wantSPTs}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("CX() = %+v, want %+v", got, want)
+			}
+
+			ifc := cx.InitialFilterCriteria{Trigger: got, ApplicationServer: cx.ApplicationServer{ServerName: "sip:as.example.org"}}
+			if err := ifc.Validate(); err != nil {
+				t.Fatalf("Validate: %v", err)
+			}
+		})
 	}
 }

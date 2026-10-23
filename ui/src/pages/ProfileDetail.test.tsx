@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { beforeEach, describe, it, expect } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -16,28 +16,32 @@ const AS_PATH = "/api/v1/operator/ims/application-servers";
 
 const registerIFC = {
   application_server_name: "voicemail",
-  trigger_point: {
-    condition_type_cnf: false,
-    spt: [{ group: [0], method: "REGISTER" }],
+  trigger: {
+    conditions_match: "all",
+    groups: [{ conditions: [{ method: "REGISTER" }] }],
   },
   default_handling: "SESSION_CONTINUED",
+  include_register_request: false,
+  include_register_response: false,
 };
 
 const terminatingIFC = {
   application_server_name: "conf",
-  trigger_point: {
-    condition_type_cnf: false,
-    spt: [{ group: [0], session_case: "TERMINATING_UNREGISTERED" }],
+  trigger: {
+    conditions_match: "all",
+    groups: [{ conditions: [{ session_case: "TERMINATING_UNREGISTERED" }] }],
   },
   default_handling: "SESSION_TERMINATED",
+  include_register_request: false,
+  include_register_response: false,
 };
 
 const mcpttPresetIFCs = [
   {
     application_server_name: "mcptt",
-    trigger_point: {
-      condition_type_cnf: false,
-      spt: [{ group: [0], method: "REGISTER" }],
+    trigger: {
+      conditions_match: "all",
+      groups: [{ conditions: [{ method: "REGISTER" }] }],
     },
     default_handling: "SESSION_CONTINUED",
     include_register_request: true,
@@ -45,16 +49,19 @@ const mcpttPresetIFCs = [
   },
   {
     application_server_name: "mcptt",
-    trigger_point: {
-      condition_type_cnf: true,
-      spt: [
-        { group: [0], session_case: "ORIGINATING_REGISTERED" },
+    trigger: {
+      conditions_match: "all",
+      groups: [
         {
-          group: [1],
-          sip_header: {
-            header: "^P-Asserted-Service$",
-            content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
-          },
+          conditions: [
+            { session_case: "ORIGINATING_REGISTERED" },
+            {
+              sip_header: {
+                header: "^P-Asserted-Service$",
+                content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
+              },
+            },
+          ],
         },
       ],
     },
@@ -107,18 +114,33 @@ const card = async () =>
     ) as HTMLElement,
   );
 
-const editor = () =>
-  screen.getByLabelText(/^Filter Criteria \(JSON\)/) as HTMLTextAreaElement;
-
 const openEditor = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(
     await screen.findByRole("button", { name: "Edit IMS filter criteria" }),
   );
-  return within(await screen.findByRole("dialog"));
+  return within(
+    await screen.findByRole("dialog", { name: "Edit IMS Filter Criteria" }),
+  );
+};
+
+const criterionForm = async () =>
+  within(await screen.findByRole("dialog", { name: /Filter Criterion$/ }));
+
+const choose = async (
+  user: ReturnType<typeof userEvent.setup>,
+  scope: ReturnType<typeof within>,
+  name: string | RegExp,
+  option: string | RegExp,
+) => {
+  await user.click(scope.getByRole("combobox", { name }));
+  await user.click(await screen.findByRole("option", { name: option }));
 };
 
 const putBody = () =>
   api.requests(IFC_PATH).find((r) => r.method === "PUT")?.body;
+
+const rows = (dialog: ReturnType<typeof within>) =>
+  dialog.queryAllByRole("listitem").map((r: HTMLElement) => r.textContent);
 
 describe("ProfileDetail IMS filter criteria", () => {
   it("lists the profile's filter criteria in priority order", async () => {
@@ -132,10 +154,10 @@ describe("ProfileDetail IMS filter criteria", () => {
 
     const c = await card();
     await c.findByText("voicemail");
-    const rows = c.getAllByRole("row").slice(1);
-    expect(rows.map((r) => r.textContent)).toEqual([
-      "1voicemailmethod REGISTERContinue",
-      "2confsession case TERMINATING_UNREGISTEREDTerminate",
+    const tableRows = c.getAllByRole("row").slice(1);
+    expect(tableRows.map((r) => r.textContent)).toEqual([
+      "1voicemailmethod is REGISTERContinue",
+      "2confTerminating (unregistered)Terminate",
     ]);
   });
 
@@ -148,7 +170,37 @@ describe("ProfileDetail IMS filter criteria", () => {
     ).toBeInTheDocument();
   });
 
-  it("saves edited JSON without priorities", async () => {
+  it("saves the criteria unchanged without priorities", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [
+        { ...registerIFC, priority: 0 },
+        { ...terminatingIFC, priority: 1 },
+      ],
+    }));
+    api.put(IFC_PATH, () => ({}));
+    renderProfile();
+
+    await (await card()).findByText("voicemail");
+    const dialog = await openEditor(user);
+    expect(rows(dialog)).toEqual([
+      "1voicemailmethod is REGISTERContinue",
+      "2confTerminating (unregistered)Terminate",
+    ]);
+
+    await user.click(dialog.getByRole("button", { name: "Edit criterion 1" }));
+    await user.click(
+      (await criterionForm()).getByRole("button", { name: "Update" }),
+    );
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [registerIFC, terminatingIFC],
+    });
+  });
+
+  it("edits a criterion's trigger and handling", async () => {
     const user = userEvent.setup();
     api.get(IFC_PATH, () => ({
       initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
@@ -158,11 +210,264 @@ describe("ProfileDetail IMS filter criteria", () => {
 
     await (await card()).findByText("voicemail");
     const dialog = await openEditor(user);
-    expect(JSON.parse(editor().value)).toEqual([registerIFC]);
+    await user.click(dialog.getByRole("button", { name: "Edit criterion 1" }));
+    const form = await criterionForm();
 
-    await user.clear(editor());
-    await user.click(editor());
-    await user.paste(JSON.stringify([terminatingIFC, registerIFC]));
+    const condition = within(form.getByRole("group", { name: "Condition 1" }));
+    expect(condition.getByRole("combobox", { name: "Method" })).toHaveValue(
+      "REGISTER",
+    );
+    await user.click(
+      condition.getByRole("checkbox", { name: "Re-registration" }),
+    );
+    await user.click(
+      form.getByRole("radio", { name: "Terminate the session" }),
+    );
+    await user.click(form.getByRole("button", { name: "Update" }));
+
+    expect(rows(dialog)).toEqual([
+      "1voicemailmethod is REGISTER (initial, de-registration)Terminate",
+    ]);
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [
+        {
+          ...registerIFC,
+          trigger: {
+            conditions_match: "all",
+            groups: [
+              {
+                conditions: [
+                  {
+                    method: "REGISTER",
+                    registration_types: [
+                      "INITIAL_REGISTRATION",
+                      "DE-REGISTRATION",
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          default_handling: "SESSION_TERMINATED",
+        },
+      ],
+    });
+  });
+
+  it("adds a criterion with condition groups", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    api.put(IFC_PATH, () => ({}));
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+    await user.click(dialog.getByRole("button", { name: "Add Criterion" }));
+    const form = await criterionForm();
+
+    await choose(user, form, "Application Server", /^voicemail/);
+    await user.type(
+      within(form.getByRole("group", { name: "Condition 1" })).getByRole(
+        "combobox",
+        { name: "Method" },
+      ),
+      "INVITE",
+    );
+    await user.click(form.getByRole("button", { name: "Add Condition" }));
+    const second = within(form.getByRole("group", { name: "Condition 2" }));
+    await choose(user, second, "Field", "SIP method");
+    await user.type(
+      second.getByRole("combobox", { name: "Method" }),
+      "MESSAGE",
+    );
+    await choose(user, form, "Conditions match", "any");
+
+    await user.click(form.getByRole("button", { name: "Add Group" }));
+    expect(
+      form.getByText(/The criterion matches when every group matches/),
+    ).toBeInTheDocument();
+    const third = within(
+      form.getByRole("group", { name: "Condition 1 of group 2" }),
+    );
+    await choose(user, third, "Field", "SIP header");
+    await choose(user, third, "Operator", "is absent");
+    await user.type(
+      third.getByRole("textbox", { name: "Header name (regex)" }),
+      "^Privacy$",
+    );
+    await user.click(form.getByRole("button", { name: "Add" }));
+
+    expect(rows(dialog)).toEqual([
+      "1voicemail(method is INVITE or method is MESSAGE) and header ^Privacy$ absentContinue",
+    ]);
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [
+        {
+          application_server_name: "voicemail",
+          trigger: {
+            conditions_match: "any",
+            groups: [
+              { conditions: [{ method: "INVITE" }, { method: "MESSAGE" }] },
+              {
+                conditions: [
+                  { negated: true, sip_header: { header: "^Privacy$" } },
+                ],
+              },
+            ],
+          },
+          default_handling: "SESSION_CONTINUED",
+          include_register_request: false,
+          include_register_response: false,
+        },
+      ],
+    });
+  });
+
+  it("adds an unconditional criterion with advanced settings", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    api.put(IFC_PATH, () => ({}));
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+    await user.click(dialog.getByRole("button", { name: "Add Criterion" }));
+    const form = await criterionForm();
+
+    await user.click(form.getByRole("radio", { name: "Always" }));
+    await user.click(form.getByRole("button", { name: "Advanced" }));
+    await choose(user, form, "Applies To", "Unregistered subscribers");
+    await user.type(form.getByRole("textbox", { name: "Service Info" }), "vm");
+    await user.click(form.getByRole("button", { name: "Add" }));
+
+    expect(rows(dialog)).toEqual(["1mcpttAlwaysContinue"]);
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [
+        {
+          application_server_name: "mcptt",
+          default_handling: "SESSION_CONTINUED",
+          profile_part: "UNREGISTERED",
+          service_info: "vm",
+          include_register_request: false,
+          include_register_response: false,
+        },
+      ],
+    });
+  });
+
+  it("refuses an incomplete condition", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+    await user.click(dialog.getByRole("button", { name: "Add Criterion" }));
+    const form = await criterionForm();
+    const condition = within(form.getByRole("group", { name: "Condition 1" }));
+
+    await user.click(condition.getByRole("combobox", { name: "Method" }));
+    await user.tab();
+    expect(await form.findByText("Enter a SIP method")).toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Add" })).toBeDisabled();
+
+    await choose(user, condition, "Field", "Request-URI");
+    await user.type(
+      condition.getByRole("textbox", { name: "Pattern (regex)" }),
+      "([[",
+    );
+    await user.tab();
+    expect(
+      await form.findByText("Must be a regular expression"),
+    ).toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Add" })).toBeDisabled();
+
+    await choose(user, condition, "Field", "SIP method");
+    await user.type(
+      condition.getByRole("combobox", { name: "Method" }),
+      "REGISTER",
+    );
+    for (const name of [
+      "Initial registration",
+      "Re-registration",
+      "De-registration",
+    ])
+      await user.click(condition.getByRole("checkbox", { name }));
+    expect(await form.findByText("Select at least one")).toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Add" })).toBeDisabled();
+  });
+
+  it("warns about a negated session case", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    renderProfile();
+
+    await (await card()).findByText("No IMS filter criteria.");
+    const dialog = await openEditor(user);
+    await user.click(dialog.getByRole("button", { name: "Add Criterion" }));
+    const form = await criterionForm();
+    const condition = within(form.getByRole("group", { name: "Condition 1" }));
+
+    await choose(user, condition, "Field", "Session case");
+    await choose(user, condition, "Operator", "is not");
+    expect(
+      form.getByText(/also matches session cases that later 3GPP releases add/),
+    ).toBeInTheDocument();
+  });
+
+  it("deletes a criterion", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [
+        { ...registerIFC, priority: 0 },
+        { ...terminatingIFC, priority: 1 },
+      ],
+    }));
+    api.put(IFC_PATH, () => ({}));
+    renderProfile();
+
+    await (await card()).findByText("voicemail");
+    const dialog = await openEditor(user);
+    await user.click(
+      dialog.getByRole("button", { name: "Delete criterion 1" }),
+    );
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await screen.findByText("IMS filter criteria updated successfully.");
+    expect(putBody()).toEqual({ initial_filter_criteria: [terminatingIFC] });
+  });
+
+  it("reorders criteria by dragging", async () => {
+    const user = userEvent.setup();
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [
+        { ...registerIFC, priority: 0 },
+        { ...terminatingIFC, priority: 1 },
+      ],
+    }));
+    api.put(IFC_PATH, () => ({}));
+    renderProfile();
+
+    await (await card()).findByText("voicemail");
+    const dialog = await openEditor(user);
+    const [first, second] = dialog.getAllByRole("listitem");
+    const dataTransfer = {
+      setDragImage: () => {},
+      effectAllowed: "",
+      dropEffect: "",
+    };
+    fireEvent.dragStart(second, { dataTransfer });
+    fireEvent.dragOver(first, { dataTransfer });
+    fireEvent.drop(first, { dataTransfer });
     await user.click(dialog.getByRole("button", { name: "Save" }));
 
     await screen.findByText("IMS filter criteria updated successfully.");
@@ -171,7 +476,7 @@ describe("ProfileDetail IMS filter criteria", () => {
     });
   });
 
-  it("appends the MCPTT preset for the chosen application server", async () => {
+  it("appends the MCPTT preset once for the chosen application server", async () => {
     const user = userEvent.setup();
     api.get(IFC_PATH, () => ({
       initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
@@ -182,20 +487,14 @@ describe("ProfileDetail IMS filter criteria", () => {
     await (await card()).findByText("voicemail");
     const dialog = await openEditor(user);
     expect(dialog.getByRole("button", { name: "Add preset" })).toBeDisabled();
-    await user.click(dialog.getByRole("combobox", { name: /Preset/ }));
-    await user.click(await screen.findByRole("option", { name: /^MCPTT/ }));
-    await user.click(
-      dialog.getByRole("combobox", { name: /Application Server/ }),
-    );
-    await user.click(
-      await screen.findByRole("option", { name: /^mcptt \(sip:/ }),
-    );
+    await choose(user, dialog, /Preset/, /^MCPTT/);
+    await choose(user, dialog, /Application Server/, /^mcptt \(sip:/);
     await user.click(dialog.getByRole("button", { name: "Add preset" }));
 
-    expect(JSON.parse(editor().value)).toEqual([
-      registerIFC,
-      ...mcpttPresetIFCs,
-    ]);
+    expect(
+      dialog.getByText("This preset is already added."),
+    ).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Add preset" })).toBeDisabled();
     await user.click(dialog.getByRole("button", { name: "Save" }));
 
     await screen.findByText("IMS filter criteria updated successfully.");
@@ -204,81 +503,39 @@ describe("ProfileDetail IMS filter criteria", () => {
     });
   });
 
-  it("clears the filter criteria with an empty array", async () => {
-    const user = userEvent.setup();
-    api.get(IFC_PATH, () => ({
-      initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
-    }));
-    api.put(IFC_PATH, () => ({}));
-    renderProfile();
-
-    await (await card()).findByText("voicemail");
-    const dialog = await openEditor(user);
-    await user.clear(editor());
-    await user.click(editor());
-    await user.paste("[]");
-    await user.click(dialog.getByRole("button", { name: "Save" }));
-
-    await screen.findByText("IMS filter criteria updated successfully.");
-    expect(putBody()).toEqual({ initial_filter_criteria: [] });
-  });
-
-  it("refuses invalid JSON and criteria without an application server", async () => {
+  it("points to the Operator page when there is no application server", async () => {
     const user = userEvent.setup();
     api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    api.get(AS_PATH, () => ({ items: [] }));
     renderProfile();
 
     await (await card()).findByText("No IMS filter criteria.");
     const dialog = await openEditor(user);
-
-    await user.clear(editor());
-    await user.click(editor());
-    await user.paste("[{");
-    await user.tab();
-    expect(await dialog.findByText("Must be valid JSON")).toBeInTheDocument();
-    expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
-
-    await user.clear(editor());
-    await user.paste('{"application_server_name": "mcptt"}');
-    expect(await dialog.findByText("Must be a JSON array")).toBeInTheDocument();
-
-    await user.clear(editor());
-    await user.paste('[{"default_handling": "SESSION_CONTINUED"}]');
     expect(
-      await dialog.findByText(
-        "Filter criterion 1 needs an application_server_name",
-      ),
+      await dialog.findByRole("link", { name: "Operator page" }),
     ).toBeInTheDocument();
-
-    await user.clear(editor());
-    await user.paste('[{"application_server_name": "  "}]');
     expect(
-      await dialog.findByText(
-        "Filter criterion 1 needs an application_server_name",
-      ),
-    ).toBeInTheDocument();
-    expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(api.requests(IFC_PATH).some((r) => r.method === "PUT")).toBe(false);
+      dialog.queryByRole("button", { name: "Add Criterion" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the error when the server rejects the filter criteria", async () => {
     const user = userEvent.setup();
-    api.get(IFC_PATH, () => ({ initial_filter_criteria: [] }));
+    api.get(IFC_PATH, () => ({
+      initial_filter_criteria: [{ ...registerIFC, priority: 0 }],
+    }));
     api.put(IFC_PATH, () =>
-      httpError(400, "initial_filter_criteria[0]: unknown application server"),
+      httpError(400, "Application server not found: voicemail"),
     );
     renderProfile();
 
-    await (await card()).findByText("No IMS filter criteria.");
+    await (await card()).findByText("voicemail");
     const dialog = await openEditor(user);
-    await user.clear(editor());
-    await user.click(editor());
-    await user.paste('[{"application_server_name": "missing"}]');
     await user.click(dialog.getByRole("button", { name: "Save" }));
 
     expect(
       await dialog.findByText(
-        "Failed to update IMS filter criteria: initial_filter_criteria[0]: unknown application server",
+        "Failed to update IMS filter criteria: Application server not found: voicemail",
       ),
     ).toBeInTheDocument();
   });

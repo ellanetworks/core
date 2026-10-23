@@ -1309,17 +1309,17 @@ func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
 	return []client.IMSInitialFilterCriterion{
 		{
 			ApplicationServerName:   MCPTTApplicationServer,
-			TriggerPoint:            &client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			Trigger:                 &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{{Method: &register}}}}},
 			DefaultHandling:         new("SESSION_CONTINUED"),
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
 		},
 		{
 			ApplicationServerName: MCPTTApplicationServer,
-			TriggerPoint: &client.IMSTriggerPoint{ConditionTypeCNF: true, SPT: []client.IMSServicePointTrigger{
-				{Group: []int32{0}, SessionCase: &originating},
-				{Group: []int32{1}, SIPHeader: &client.IMSHeaderMatch{Header: header, Content: &content}},
-			}},
+			Trigger: &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{
+				{SessionCase: &originating},
+				{SIPHeader: &client.IMSHeaderMatch{Header: header, Content: &content}},
+			}}}},
 			DefaultHandling: new("SESSION_TERMINATED"),
 		},
 	}

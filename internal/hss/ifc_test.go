@@ -30,18 +30,18 @@ func mcpttIFCs() []db.IMSInitialFilterCriterion {
 
 	return []db.IMSInitialFilterCriterion{
 		{
-			TriggerPoint:            &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+			Trigger:                 &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{{Method: &register}}}}},
 			DefaultHandling:         new(db.IMSDefaultHandlingSessionContinued),
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
 		},
 		{
-			TriggerPoint: &db.IMSTriggerPoint{
-				ConditionTypeCNF: true,
-				ServicePointTriggers: []db.IMSServicePointTrigger{
-					{Groups: []int32{0}, SessionCase: &originating},
-					{Groups: []int32{1}, SIPHeader: &db.IMSHeaderMatch{Header: header, Content: &content}},
-				},
+			Trigger: &db.IMSTrigger{
+				ConditionsMatch: db.IMSConditionsMatchAll,
+				Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{
+					{SessionCase: &originating},
+					{SIPHeader: &db.IMSHeaderMatch{Header: header, Content: &content}},
+				}}},
 			},
 			DefaultHandling: new(db.IMSDefaultHandlingSessionTerminated),
 		},

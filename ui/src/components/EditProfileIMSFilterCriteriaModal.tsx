@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
+import React, { useRef, useState } from "react";
+import { useController, useForm, useFormState } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import {
   Box,
   Button,
+  Chip,
+  IconButton,
   Link,
   ListItemText,
   MenuItem,
@@ -17,8 +17,14 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { Add as AddIcon } from "@mui/icons-material";
 import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  DragIndicator as DragIcon,
+  Edit as EditIcon,
+} from "@mui/icons-material";
+import {
+  describeTrigger,
   listIMSApplicationServers,
   setProfileIMSFilterCriteria,
   type IMSApplicationServer,
@@ -26,9 +32,10 @@ import {
   type IMSInitialFilterCriterionInput,
 } from "@/queries/ims";
 import { applyPreset, imsServicePresets } from "@/utils/imsServicePresets";
+import { sameCriterion } from "@/utils/imsFilterCriteria";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
-import TextControl from "@/components/form/TextControl";
+import IMSFilterCriterionFormDialog from "@/components/IMSFilterCriterionFormDialog";
 
 interface EditProfileIMSFilterCriteriaModalProps {
   open: boolean;
@@ -38,50 +45,14 @@ interface EditProfileIMSFilterCriteriaModalProps {
   initialCriteria: IMSInitialFilterCriterion[];
 }
 
-const formatCriteria = (criteria: IMSInitialFilterCriterionInput[]) =>
-  JSON.stringify(criteria, null, 2);
+interface InMemoryCriterion {
+  tempId: string;
+  criterion: IMSInitialFilterCriterionInput;
+}
 
-const withoutPriority = (criteria: IMSInitialFilterCriterion[]) =>
-  criteria.map(({ priority: _priority, ...rest }) => rest);
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const parseCriteria = (
-  text: string,
-): { criteria?: IMSInitialFilterCriterionInput[]; error?: string } => {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return { error: "Must be valid JSON" };
-  }
-  if (!Array.isArray(parsed)) return { error: "Must be a JSON array" };
-  if (!parsed.every(isObject))
-    return { error: "Each filter criterion must be a JSON object" };
-  const missing = parsed.findIndex(
-    (c) =>
-      typeof c.application_server_name !== "string" ||
-      !c.application_server_name.trim(),
-  );
-  if (missing !== -1)
-    return {
-      error: `Filter criterion ${missing + 1} needs an application_server_name`,
-    };
-  return { criteria: parsed as IMSInitialFilterCriterionInput[] };
-};
-
-const schema = yup.object({
-  criteria: yup
-    .string()
-    .default("")
-    .test("criteria", (v, ctx) => {
-      const { error } = parseCriteria(v ?? "");
-      return error ? ctx.createError({ message: error }) : true;
-    }),
-});
-
-type FormValues = yup.InferType<typeof schema>;
+interface FormValues {
+  criteria: InMemoryCriterion[];
+}
 
 const EditProfileIMSFilterCriteriaModal: React.FC<
   EditProfileIMSFilterCriteriaModalProps
@@ -96,126 +67,337 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
   const servers = serversQuery.data ?? [];
   const noServers = serversQuery.isSuccess && servers.length === 0;
 
-  const presets = imsServicePresets;
-  const [presetName, setPresetName] = useState("");
-  const [serverName, setServerName] = useState("");
-
   const form = useForm<FormValues>({
-    mode: "onTouched",
-    resolver: yupResolver(schema),
     defaultValues: {
-      criteria: formatCriteria(withoutPriority(initialCriteria)),
+      criteria: initialCriteria.map(({ priority, ...criterion }) => ({
+        tempId: `criterion-${priority}`,
+        criterion,
+      })),
     },
   });
-  const criteriaText = useWatch({ control: form.control, name: "criteria" });
-  const current = criteriaText.trim()
-    ? parseCriteria(criteriaText).criteria
-    : [];
+  const { field } = useController({ control: form.control, name: "criteria" });
+  const { isSubmitting } = useFormState({ control: form.control });
+  const criteria: InMemoryCriterion[] = field.value ?? [];
 
-  const addPreset = () => {
-    const preset = presets.find((p) => p.name === presetName);
-    if (!preset || !serverName || !current) return;
-    form.setValue(
-      "criteria",
-      formatCriteria([...current, ...applyPreset(preset, serverName)]),
-      { shouldDirty: true, shouldTouch: true, shouldValidate: true },
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const nextId = useRef(0);
+
+  const [presetName, setPresetName] = useState("");
+  const [serverName, setServerName] = useState("");
+  const preset = imsServicePresets.find((p) => p.name === presetName);
+  const presetCriteria =
+    preset && serverName ? applyPreset(preset, serverName) : [];
+  const presetAdded =
+    presetCriteria.length > 0 &&
+    presetCriteria.every((p) =>
+      criteria.some((c) => sameCriterion(c.criterion, p)),
     );
+
+  const dragIndexRef = useRef<number | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const handleDragStart = (index: number) => (event: React.DragEvent) => {
+    dragIndexRef.current = index;
+    event.dataTransfer.effectAllowed = "move";
+    const element = event.currentTarget as HTMLElement;
+    event.dataTransfer.setDragImage(
+      element,
+      element.offsetWidth / 2,
+      element.offsetHeight / 2,
+    );
+  };
+
+  const handleDragOver = (index: number) => (event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setHoverIndex(index);
+  };
+
+  const handleDrop = (targetIndex: number) => (event: React.DragEvent) => {
+    event.preventDefault();
+    setHoverIndex(null);
+
+    const sourceIndex = dragIndexRef.current;
+    dragIndexRef.current = null;
+    if (sourceIndex === null || sourceIndex === targetIndex) return;
+
+    const next = [...criteria];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    field.onChange(next);
+  };
+
+  const handleDragEnd = () => {
+    dragIndexRef.current = null;
+    setHoverIndex(null);
+  };
+
+  const append = (added: IMSInitialFilterCriterionInput[]) =>
+    field.onChange([
+      ...criteria,
+      ...added.map((criterion) => {
+        nextId.current += 1;
+        return { tempId: `new-${nextId.current}`, criterion };
+      }),
+    ]);
+
+  const saveCriterion = (criterion: IMSInitialFilterCriterionInput) => {
+    if (editingId) {
+      field.onChange(
+        criteria.map((c) => (c.tempId === editingId ? { ...c, criterion } : c)),
+      );
+    } else {
+      append([criterion]);
+    }
+    setFormOpen(false);
   };
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    const { criteria } = parseCriteria(values.criteria);
-    if (!criteria) return false;
-    await setProfileIMSFilterCriteria(accessToken, profileName, criteria);
+    await setProfileIMSFilterCriteria(
+      accessToken,
+      profileName,
+      values.criteria.map((c) => c.criterion),
+    );
   };
 
   return (
-    <FormDialog
-      open={open}
-      onClose={onClose}
-      onSuccess={onSuccess}
-      title="Edit IMS Filter Criteria"
-      description="Sends requests that match a filter criterion to its application server. Earlier criteria get higher priority."
-      form={form}
-      onSubmit={submit}
-      errorPrefix="Failed to update IMS filter criteria"
-      submitLabel="Save"
-      submittingLabel="Saving..."
-      maxWidth="md"
-    >
-      <Typography variant="subtitle2">Add from preset</Typography>
-      {noServers ? (
-        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-          No application servers yet. Add one on the{" "}
-          <Link component={RouterLink} to="/operator">
-            Operator page
-          </Link>{" "}
-          first.
-        </Typography>
-      ) : (
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={{ xs: 0, sm: 2 }}
-          sx={{ alignItems: { sm: "center" } }}
-        >
-          <TextField
-            select
-            fullWidth
-            margin="normal"
-            label="Preset"
-            value={presetName}
-            onChange={(e) => setPresetName(e.target.value)}
-            slotProps={{
-              select: {
-                renderValue: (value) =>
-                  presets.find((p) => p.name === value)?.label ??
-                  (value as string),
-              },
+    <>
+      <FormDialog
+        open={open}
+        onClose={onClose}
+        onSuccess={onSuccess}
+        title="Edit IMS Filter Criteria"
+        description="The S-CSCF checks the criteria from top to bottom and sends matching requests to their application server. Drag rows to reorder."
+        form={form}
+        onSubmit={submit}
+        errorPrefix="Failed to update IMS filter criteria"
+        submitLabel="Save"
+        submittingLabel="Saving..."
+        maxWidth="md"
+      >
+        {criteria.length === 0 ? (
+          <Typography color="textSecondary" sx={{ p: 2 }}>
+            No IMS filter criteria.
+          </Typography>
+        ) : (
+          <Box
+            component="ul"
+            aria-label="Filter criteria"
+            sx={{
+              border: 1,
+              borderColor: "divider",
+              borderRadius: 1,
+              listStyle: "none",
+              m: 0,
+              p: 0,
             }}
           >
-            {presets.map((p) => (
-              <MenuItem key={p.name} value={p.name}>
-                <ListItemText primary={p.label} secondary={p.description} />
-              </MenuItem>
+            {criteria.map(({ tempId, criterion }, index) => (
+              <Box
+                key={tempId}
+                component="li"
+                draggable
+                onDragStart={handleDragStart(index)}
+                onDragOver={handleDragOver(index)}
+                onDrop={handleDrop(index)}
+                onDragEnd={handleDragEnd}
+                sx={{
+                  display: "flex",
+                  flexWrap: { xs: "wrap", sm: "nowrap" },
+                  alignItems: "center",
+                  py: 1,
+                  px: 1.5,
+                  backgroundColor:
+                    hoverIndex === index ? "action.hover" : "transparent",
+                  cursor: "grab",
+                  transition: "background-color 0.2s",
+                  "&:not(:last-child)": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                }}
+              >
+                <DragIcon
+                  fontSize="small"
+                  sx={{ color: "text.secondary", flexShrink: 0, mr: 1 }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, width: 24, flexShrink: 0 }}
+                >
+                  {index + 1}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    flex: { xs: 1, sm: "0 0 120px" },
+                    minWidth: 0,
+                    pr: 1,
+                    overflow: { xs: "hidden", sm: "visible" },
+                    textOverflow: "ellipsis",
+                    whiteSpace: { xs: "nowrap", sm: "normal" },
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {criterion.application_server_name}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  sx={{
+                    flex: { xs: "1 1 100%", sm: 1 },
+                    order: { xs: 1, sm: 0 },
+                    minWidth: 0,
+                    wordBreak: "break-word",
+                    pr: 1,
+                    pl: { xs: 4.5, sm: 0 },
+                    pt: { xs: 0.5, sm: 0 },
+                  }}
+                >
+                  {describeTrigger(criterion.trigger)}
+                </Typography>
+                <Box sx={{ width: { xs: "auto", sm: 96 }, flexShrink: 0 }}>
+                  {criterion.default_handling && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={
+                        criterion.default_handling === "SESSION_TERMINATED"
+                          ? "Terminate"
+                          : "Continue"
+                      }
+                    />
+                  )}
+                </Box>
+                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => {
+                      setEditingId(tempId);
+                      setFormOpen(true);
+                    }}
+                    aria-label={`Edit criterion ${index + 1}`}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() =>
+                      field.onChange(
+                        criteria.filter((c) => c.tempId !== tempId),
+                      )
+                    }
+                    aria-label={`Delete criterion ${index + 1}`}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Box>
             ))}
-          </TextField>
-          <TextField
-            select
-            fullWidth
-            margin="normal"
-            label="Application Server"
-            value={serverName}
-            onChange={(e) => setServerName(e.target.value)}
-          >
-            {servers.map((s) => (
-              <MenuItem key={s.name} value={s.name}>
-                {`${s.name} (${s.server_name})`}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Box sx={{ flexShrink: 0 }}>
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={addPreset}
-              aria-label="Add preset"
-              disabled={!presetName || !serverName || !current}
-            >
-              Add
-            </Button>
           </Box>
-        </Stack>
+        )}
+
+        {noServers ? (
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
+            No application servers yet. Add one on the{" "}
+            <Link component={RouterLink} to="/operator">
+              Operator page
+            </Link>{" "}
+            first.
+          </Typography>
+        ) : (
+          <>
+            <Box sx={{ mt: 2 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  setEditingId(null);
+                  setFormOpen(true);
+                }}
+                disabled={isSubmitting || !serversQuery.isSuccess}
+              >
+                Add Criterion
+              </Button>
+            </Box>
+            <Typography variant="subtitle2" sx={{ mt: 3 }}>
+              Add from preset
+            </Typography>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={{ xs: 0, sm: 2 }}
+              sx={{ alignItems: { sm: "flex-start" } }}
+            >
+              <TextField
+                select
+                fullWidth
+                margin="normal"
+                label="Preset"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                slotProps={{
+                  select: {
+                    renderValue: (value) =>
+                      imsServicePresets.find((p) => p.name === value)?.label ??
+                      (value as string),
+                  },
+                }}
+              >
+                {imsServicePresets.map((p) => (
+                  <MenuItem key={p.name} value={p.name}>
+                    <ListItemText primary={p.label} secondary={p.description} />
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                fullWidth
+                margin="normal"
+                label="Application Server"
+                value={serverName}
+                onChange={(e) => setServerName(e.target.value)}
+                error={presetAdded}
+                helperText={
+                  presetAdded ? "This preset is already added." : undefined
+                }
+              >
+                {servers.map((s) => (
+                  <MenuItem key={s.name} value={s.name}>
+                    {`${s.name} (${s.server_name})`}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Box sx={{ flexShrink: 0, mt: { sm: 3 } }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => append(presetCriteria)}
+                  aria-label="Add preset"
+                  disabled={presetCriteria.length === 0 || presetAdded}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Stack>
+          </>
+        )}
+      </FormDialog>
+
+      {formOpen && (
+        <IMSFilterCriterionFormDialog
+          open
+          onClose={() => setFormOpen(false)}
+          onSave={saveCriterion}
+          criterion={criteria.find((c) => c.tempId === editingId)?.criterion}
+          servers={servers}
+        />
       )}
-      <TextControl<FormValues>
-        name="criteria"
-        label="Filter Criteria (JSON)"
-        multiline
-        minRows={8}
-        maxRows={20}
-        helperText="JSON array of initial filter criteria (TS 29.228), in priority order. Each needs an application_server_name. Use [] to clear them."
-        sx={{ "& textarea": { fontFamily: "monospace", fontSize: 13 } }}
-      />
-    </FormDialog>
+    </>
   );
 };
 

@@ -5267,7 +5267,7 @@ components:
 
     IMSInitialFilterCriterion:
       type: object
-      description: "An initial filter criterion (TS 29.228 Annex B.2.2). Without trigger_point it matches every request."
+      description: "An initial filter criterion (TS 29.228 Annex B.2.2). Without trigger it matches every request."
       required: [application_server_name]
       properties:
         priority:
@@ -5277,8 +5277,8 @@ components:
         application_server_name:
           type: string
           description: "Name of the IMS application server matching requests are sent to."
-        trigger_point:
-          $ref: "#/components/schemas/IMSTriggerPoint"
+        trigger:
+          $ref: "#/components/schemas/IMSTrigger"
         profile_part:
           type: string
           enum: [REGISTERED, UNREGISTERED]
@@ -5295,31 +5295,37 @@ components:
         include_register_response:
           type: boolean
 
-    IMSTriggerPoint:
+    IMSTrigger:
       type: object
-      required: [condition_type_cnf, spt]
+      required: [conditions_match, groups]
+      description: "Matches when any group matches if conditions_match is all, or when every group matches if conditions_match is any."
       properties:
-        condition_type_cnf:
-          type: boolean
-          description: "True for conjunctive normal form, false for disjunctive normal form."
-        spt:
+        conditions_match:
+          type: string
+          enum: [all, any]
+          description: "Whether a group matches when all of its conditions match, or when any of them does."
+        groups:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/IMSServicePointTrigger"
+            $ref: "#/components/schemas/IMSConditionGroup"
 
-    IMSServicePointTrigger:
+    IMSConditionGroup:
       type: object
-      required: [group]
+      required: [conditions]
+      properties:
+        conditions:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/IMSCondition"
+
+    IMSCondition:
+      type: object
       description: "Exactly one of request_uri, method, sip_header, session_case and session_description is set."
       properties:
-        condition_negated:
+        negated:
           type: boolean
-        group:
-          type: array
-          minItems: 1
-          items:
-            type: integer
         request_uri:
           type: string
           description: "Extended regular expression matched against the Request-URI."
@@ -5344,7 +5350,7 @@ components:
               type: string
             content:
               type: string
-        registration_type:
+        registration_types:
           type: array
           maxItems: 2
           items:

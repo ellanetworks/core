@@ -39,30 +39,33 @@ type IMSHeaderMatch struct {
 	Content *string `json:"content,omitempty"`
 }
 
-type IMSServicePointTrigger struct {
-	ConditionNegated bool            `json:"condition_negated,omitempty"`
-	Group            []int32         `json:"group"`
-	RequestURI       *string         `json:"request_uri,omitempty"`
-	Method           *string         `json:"method,omitempty"`
-	SIPHeader        *IMSHeaderMatch `json:"sip_header,omitempty"`
-	SessionCase      *string         `json:"session_case,omitempty"`
-	RegistrationType []string        `json:"registration_type,omitempty"`
+type IMSCondition struct {
+	Negated           bool            `json:"negated,omitempty"`
+	RequestURI        *string         `json:"request_uri,omitempty"`
+	Method            *string         `json:"method,omitempty"`
+	RegistrationTypes []string        `json:"registration_types,omitempty"`
+	SIPHeader         *IMSHeaderMatch `json:"sip_header,omitempty"`
+	SessionCase       *string         `json:"session_case,omitempty"`
 }
 
-type IMSTriggerPoint struct {
-	ConditionTypeCNF bool                     `json:"condition_type_cnf"`
-	SPT              []IMSServicePointTrigger `json:"spt"`
+type IMSConditionGroup struct {
+	Conditions []IMSCondition `json:"conditions"`
+}
+
+type IMSTrigger struct {
+	ConditionsMatch string              `json:"conditions_match"`
+	Groups          []IMSConditionGroup `json:"groups"`
 }
 
 type IMSInitialFilterCriterion struct {
-	Priority                int              `json:"priority"`
-	ApplicationServerName   string           `json:"application_server_name"`
-	TriggerPoint            *IMSTriggerPoint `json:"trigger_point,omitempty"`
-	ProfilePart             *string          `json:"profile_part,omitempty"`
-	DefaultHandling         *string          `json:"default_handling,omitempty"`
-	ServiceInfo             *string          `json:"service_info,omitempty"`
-	IncludeRegisterRequest  bool             `json:"include_register_request"`
-	IncludeRegisterResponse bool             `json:"include_register_response"`
+	Priority                int         `json:"priority"`
+	ApplicationServerName   string      `json:"application_server_name"`
+	Trigger                 *IMSTrigger `json:"trigger,omitempty"`
+	ProfilePart             *string     `json:"profile_part,omitempty"`
+	DefaultHandling         *string     `json:"default_handling,omitempty"`
+	ServiceInfo             *string     `json:"service_info,omitempty"`
+	IncludeRegisterRequest  bool        `json:"include_register_request"`
+	IncludeRegisterResponse bool        `json:"include_register_response"`
 }
 
 type ProfileIMSFilterCriteriaBody struct {
@@ -159,7 +162,7 @@ func mcpttFilterCriteria(as string) []IMSInitialFilterCriterion {
 		{
 			Priority:                0,
 			ApplicationServerName:   as,
-			TriggerPoint:            &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			Trigger:                 &IMSTrigger{ConditionsMatch: "all", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{{Method: &register}}}}},
 			DefaultHandling:         strPtr("SESSION_CONTINUED"),
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
@@ -167,10 +170,10 @@ func mcpttFilterCriteria(as string) []IMSInitialFilterCriterion {
 		{
 			Priority:              1,
 			ApplicationServerName: as,
-			TriggerPoint: &IMSTriggerPoint{ConditionTypeCNF: true, SPT: []IMSServicePointTrigger{
-				{Group: []int32{0}, SessionCase: &originating},
-				{Group: []int32{1}, SIPHeader: &IMSHeaderMatch{Header: header, Content: &icsi}},
-			}},
+			Trigger: &IMSTrigger{ConditionsMatch: "all", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{
+				{SessionCase: &originating},
+				{SIPHeader: &IMSHeaderMatch{Header: header, Content: &icsi}},
+			}}}},
 			DefaultHandling: strPtr("SESSION_TERMINATED"),
 		},
 	}
@@ -363,13 +366,13 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 		{
 			Priority:              7,
 			ApplicationServerName: "conf",
-			TriggerPoint:          &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, RequestURI: &uri}, {Group: []int32{1}, Method: &invite, ConditionNegated: true}}},
+			Trigger:               &IMSTrigger{ConditionsMatch: "any", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{{RequestURI: &uri}}}, {Conditions: []IMSCondition{{Method: &invite, Negated: true}}}}},
 			ProfilePart:           strPtr("REGISTERED"),
 			DefaultHandling:       strPtr("SESSION_TERMINATED"),
 		},
 		{
 			ApplicationServerName:   "conf",
-			TriggerPoint:            &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: strPtr("REGISTER"), RegistrationType: []string{"INITIAL_REGISTRATION"}}}},
+			Trigger:                 &IMSTrigger{ConditionsMatch: "all", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{{Method: strPtr("REGISTER"), RegistrationTypes: []string{"INITIAL_REGISTRATION"}}}}}},
 			DefaultHandling:         strPtr("SESSION_CONTINUED"),
 			ServiceInfo:             strPtr("conference"),
 			IncludeRegisterResponse: true,
@@ -403,10 +406,12 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 	}{
 		"no application server":      {[]IMSInitialFilterCriterion{{}}, "Each initial filter criterion needs an application server"},
 		"unknown application server": {[]IMSInitialFilterCriterion{{ApplicationServerName: "missing"}}, "Application server not found: missing"},
-		"two conditions":             {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", TriggerPoint: &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite, RequestURI: &uri}}}}}, ""},
+		"two conditions":             {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", Trigger: &IMSTrigger{ConditionsMatch: "all", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{{Method: &invite, RequestURI: &uri}}}}}}}, ""},
 		"bad handling":               {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", DefaultHandling: strPtr("MAYBE")}}, `unknown default handling "MAYBE"`},
+		"empty group":                {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", Trigger: &IMSTrigger{ConditionsMatch: "all", Groups: []IMSConditionGroup{{}}}}}, "criterion 1: group 1 needs at least one condition"},
+		"bad conditions match":       {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", Trigger: &IMSTrigger{ConditionsMatch: "both", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{{Method: &invite}}}}}}}, `conditions match must be "all" or "any", got "both"`},
 		"bad profile part":           {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", ProfilePart: strPtr("BOTH")}}, `unknown profile part "BOTH"`},
-		"registration type":          {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", TriggerPoint: &IMSTriggerPoint{SPT: []IMSServicePointTrigger{{Group: []int32{0}, Method: &invite, RegistrationType: []string{"INITIAL_REGISTRATION"}}}}}}, ""},
+		"registration type":          {[]IMSInitialFilterCriterion{{ApplicationServerName: "conf", Trigger: &IMSTrigger{ConditionsMatch: "all", Groups: []IMSConditionGroup{{Conditions: []IMSCondition{{Method: &invite, RegistrationTypes: []string{"INITIAL_REGISTRATION"}}}}}}}}, ""},
 	} {
 		status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSFilterCriteriaBody{InitialFilterCriteria: tc.ifcs})
 		if err != nil || status != http.StatusBadRequest || resp.Error == "" || (tc.reason != "" && !strings.HasSuffix(resp.Error, tc.reason)) {

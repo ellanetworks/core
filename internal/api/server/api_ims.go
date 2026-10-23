@@ -45,14 +45,14 @@ type UpdateIMSApplicationServerParams struct {
 }
 
 type IMSInitialFilterCriterion struct {
-	Priority                int                 `json:"priority"`
-	ApplicationServerName   string              `json:"application_server_name"`
-	TriggerPoint            *db.IMSTriggerPoint `json:"trigger_point,omitempty"`
-	ProfilePart             *string             `json:"profile_part,omitempty"`
-	DefaultHandling         *string             `json:"default_handling,omitempty"`
-	ServiceInfo             *string             `json:"service_info,omitempty"`
-	IncludeRegisterRequest  bool                `json:"include_register_request"`
-	IncludeRegisterResponse bool                `json:"include_register_response"`
+	Priority                int            `json:"priority"`
+	ApplicationServerName   string         `json:"application_server_name"`
+	Trigger                 *db.IMSTrigger `json:"trigger,omitempty"`
+	ProfilePart             *string        `json:"profile_part,omitempty"`
+	DefaultHandling         *string        `json:"default_handling,omitempty"`
+	ServiceInfo             *string        `json:"service_info,omitempty"`
+	IncludeRegisterRequest  bool           `json:"include_register_request"`
+	IncludeRegisterResponse bool           `json:"include_register_response"`
 }
 
 type ProfileIMSFilterCriteria struct {
@@ -86,7 +86,7 @@ func imsFilterCriteriaResponse(criteria []db.IMSInitialFilterCriterion, applicat
 		ifc := IMSInitialFilterCriterion{
 			Priority:                i,
 			ApplicationServerName:   applicationServerNames[c.ApplicationServerID],
-			TriggerPoint:            c.TriggerPoint,
+			Trigger:                 c.Trigger,
 			ServiceInfo:             c.ServiceInfo,
 			IncludeRegisterRequest:  c.IncludeRegisterRequest,
 			IncludeRegisterResponse: c.IncludeRegisterResponse,
@@ -112,7 +112,7 @@ func imsFilterCriteriaFromParams(criteria []IMSInitialFilterCriterion, applicati
 	for _, c := range criteria {
 		ifc := db.IMSInitialFilterCriterion{
 			ApplicationServerID:     applicationServerIDs[c.ApplicationServerName],
-			TriggerPoint:            c.TriggerPoint,
+			Trigger:                 c.Trigger,
 			ServiceInfo:             c.ServiceInfo,
 			IncludeRegisterRequest:  c.IncludeRegisterRequest,
 			IncludeRegisterResponse: c.IncludeRegisterResponse,

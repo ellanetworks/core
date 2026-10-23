@@ -62,9 +62,16 @@ const (
 	IMSRegistrationTypeDeregistration IMSRegistrationType = "DE-REGISTRATION"
 )
 
+type IMSConditionsMatch string
+
+const (
+	IMSConditionsMatchAll IMSConditionsMatch = "all"
+	IMSConditionsMatchAny IMSConditionsMatch = "any"
+)
+
 type IMSInitialFilterCriterion struct {
 	ApplicationServerID     string              `json:"application_server_id"`
-	TriggerPoint            *IMSTriggerPoint    `json:"trigger_point,omitempty"`
+	Trigger                 *IMSTrigger         `json:"trigger,omitempty"`
 	ProfilePart             *IMSProfilePart     `json:"profile_part,omitempty"`
 	DefaultHandling         *IMSDefaultHandling `json:"default_handling,omitempty"`
 	ServiceInfo             *string             `json:"service_info,omitempty"`
@@ -72,20 +79,23 @@ type IMSInitialFilterCriterion struct {
 	IncludeRegisterResponse bool                `json:"include_register_response,omitempty"`
 }
 
-type IMSTriggerPoint struct {
-	ConditionTypeCNF     bool                     `json:"condition_type_cnf"`
-	ServicePointTriggers []IMSServicePointTrigger `json:"spt"`
+type IMSTrigger struct {
+	ConditionsMatch IMSConditionsMatch  `json:"conditions_match"`
+	Groups          []IMSConditionGroup `json:"groups"`
 }
 
-type IMSServicePointTrigger struct {
-	ConditionNegated   bool                   `json:"condition_negated,omitempty"`
-	Groups             []int32                `json:"group"`
+type IMSConditionGroup struct {
+	Conditions []IMSCondition `json:"conditions"`
+}
+
+type IMSCondition struct {
+	Negated            bool                   `json:"negated,omitempty"`
 	RequestURI         *string                `json:"request_uri,omitempty"`
 	Method             *string                `json:"method,omitempty"`
+	RegistrationTypes  []IMSRegistrationType  `json:"registration_types,omitempty"`
 	SIPHeader          *IMSHeaderMatch        `json:"sip_header,omitempty"`
 	SessionCase        *IMSSessionCase        `json:"session_case,omitempty"`
 	SessionDescription *IMSSessionDescription `json:"session_description,omitempty"`
-	RegistrationTypes  []IMSRegistrationType  `json:"registration_type,omitempty"`
 }
 
 type IMSHeaderMatch struct {
@@ -123,8 +133,8 @@ func (c IMSInitialFilterCriterion) Validate() error {
 		return fmt.Errorf("unknown profile part %q", *c.ProfilePart)
 	}
 
-	if c.TriggerPoint != nil {
-		if err := c.TriggerPoint.Validate(); err != nil {
+	if c.Trigger != nil {
+		if err := c.Trigger.Validate(); err != nil {
 			return err
 		}
 	}
@@ -132,21 +142,31 @@ func (c IMSInitialFilterCriterion) Validate() error {
 	return c.CX(0, "sip:validation.invalid").Validate()
 }
 
-func (t IMSTriggerPoint) Validate() error {
-	if len(t.ServicePointTriggers) == 0 {
-		return errors.New("trigger point needs at least one service point trigger")
+func (t IMSTrigger) Validate() error {
+	if t.ConditionsMatch != IMSConditionsMatchAll && t.ConditionsMatch != IMSConditionsMatchAny {
+		return fmt.Errorf("conditions match must be %q or %q, got %q", IMSConditionsMatchAll, IMSConditionsMatchAny, t.ConditionsMatch)
 	}
 
-	for i, spt := range t.ServicePointTriggers {
-		if err := spt.Validate(); err != nil {
-			return fmt.Errorf("service point trigger %d: %w", i, err)
+	if len(t.Groups) == 0 {
+		return errors.New("trigger needs at least one group")
+	}
+
+	for i, g := range t.Groups {
+		if len(g.Conditions) == 0 {
+			return fmt.Errorf("group %d needs at least one condition", i+1)
+		}
+
+		for j, c := range g.Conditions {
+			if err := c.Validate(); err != nil {
+				return fmt.Errorf("group %d condition %d: %w", i+1, j+1, err)
+			}
 		}
 	}
 
 	return nil
 }
 
-func (spt IMSServicePointTrigger) Validate() error {
+func (spt IMSCondition) Validate() error {
 	conditions := 0
 
 	for _, set := range []bool{spt.RequestURI != nil, spt.Method != nil, spt.SIPHeader != nil, spt.SessionCase != nil, spt.SessionDescription != nil} {
@@ -182,10 +202,10 @@ func (spt IMSServicePointTrigger) Validate() error {
 		return err
 	}
 
-	return spt.CX().Validate()
+	return spt.CX(0).Validate()
 }
 
-func (spt IMSServicePointTrigger) validateExpressions() error {
+func (spt IMSCondition) validateExpressions() error {
 	type expression struct {
 		name     string
 		value    *string
@@ -233,20 +253,22 @@ var imsRegistrationTypes = []IMSRegistrationType{
 	IMSRegistrationTypeDeregistration,
 }
 
-func (t IMSTriggerPoint) CX() *cx.TriggerPoint {
-	trigger := &cx.TriggerPoint{ConjunctiveNormalForm: t.ConditionTypeCNF}
+func (t IMSTrigger) CX() *cx.TriggerPoint {
+	trigger := &cx.TriggerPoint{ConjunctiveNormalForm: t.ConditionsMatch == IMSConditionsMatchAny}
 
-	for _, spt := range t.ServicePointTriggers {
-		trigger.ServicePointTriggers = append(trigger.ServicePointTriggers, spt.CX())
+	for i, g := range t.Groups {
+		for _, c := range g.Conditions {
+			trigger.ServicePointTriggers = append(trigger.ServicePointTriggers, c.CX(int32(i)))
+		}
 	}
 
 	return trigger
 }
 
-func (spt IMSServicePointTrigger) CX() cx.ServicePointTrigger {
+func (spt IMSCondition) CX(group int32) cx.ServicePointTrigger {
 	out := cx.ServicePointTrigger{
-		Negated:    spt.ConditionNegated,
-		Groups:     slices.Clone(spt.Groups),
+		Negated:    spt.Negated,
+		Groups:     []int32{group},
 		RequestURI: spt.RequestURI,
 		Method:     spt.Method,
 	}
@@ -282,8 +304,8 @@ func (c IMSInitialFilterCriterion) CX(priority int32, serverName string) cx.Init
 		},
 	}
 
-	if c.TriggerPoint != nil {
-		out.Trigger = c.TriggerPoint.CX()
+	if c.Trigger != nil {
+		out.Trigger = c.Trigger.CX()
 	}
 
 	if c.DefaultHandling != nil {
@@ -315,7 +337,7 @@ type profileIMSIFCsPayload struct {
 func ValidateIMSFilterCriteria(ifcs []IMSInitialFilterCriterion) error {
 	for i, ifc := range ifcs {
 		if err := ifc.Validate(); err != nil {
-			return fmt.Errorf("initial filter criterion %d: %w", i, err)
+			return fmt.Errorf("criterion %d: %w", i+1, err)
 		}
 	}
 
@@ -416,9 +438,9 @@ func imsIFCOf(r imsIFCRow) (IMSInitialFilterCriterion, error) {
 	}
 
 	if r.TriggerPoint != nil {
-		ifc.TriggerPoint = new(IMSTriggerPoint)
+		ifc.Trigger = new(IMSTrigger)
 
-		if err := json.Unmarshal([]byte(*r.TriggerPoint), ifc.TriggerPoint); err != nil {
+		if err := json.Unmarshal([]byte(*r.TriggerPoint), ifc.Trigger); err != nil {
 			return IMSInitialFilterCriterion{}, fmt.Errorf("decode the trigger point of initial filter criterion %d of profile %s: %w", r.Position, r.ProfileID, err)
 		}
 	}
@@ -462,8 +484,8 @@ func (db *Database) applySetProfileIMSFilterCriteria(ctx context.Context, p *pro
 			IncludeRegisterResponse: ifc.IncludeRegisterResponse,
 		}
 
-		if ifc.TriggerPoint != nil {
-			trigger, err := json.Marshal(ifc.TriggerPoint)
+		if ifc.Trigger != nil {
+			trigger, err := json.Marshal(ifc.Trigger)
 			if err != nil {
 				return nil, fmt.Errorf("encode trigger point: %w", err)
 			}

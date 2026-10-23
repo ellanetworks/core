@@ -100,7 +100,7 @@ func TestIMSApplicationServerWrites(t *testing.T) {
 
 func TestProfileIMSFilterCriteria(t *testing.T) {
 	fake := imsFake(`{"initial_filter_criteria": [
-		{"priority": 0, "application_server_name": "mcptt", "trigger_point": {"condition_type_cnf": false, "spt": [{"group": [0], "method": "REGISTER"}]},
+		{"priority": 0, "application_server_name": "mcptt", "trigger": {"conditions_match": "all", "groups": [{"conditions": [{"method": "REGISTER"}]}]},
 		 "default_handling": "SESSION_CONTINUED", "service_info": "info", "include_register_request": true, "include_register_response": true},
 		{"priority": 1, "application_server_name": "conf", "profile_part": "UNREGISTERED", "include_register_request": false, "include_register_response": false}]}`)
 	c := &client.Client{Requester: fake}
@@ -109,7 +109,7 @@ func TestProfileIMSFilterCriteria(t *testing.T) {
 	want := []client.IMSInitialFilterCriterion{
 		{
 			ApplicationServerName:   "mcptt",
-			TriggerPoint:            &client.IMSTriggerPoint{SPT: []client.IMSServicePointTrigger{{Group: []int32{0}, Method: &register}}},
+			Trigger:                 &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{{Method: &register}}}}},
 			DefaultHandling:         &handling,
 			ServiceInfo:             &info,
 			IncludeRegisterRequest:  true,

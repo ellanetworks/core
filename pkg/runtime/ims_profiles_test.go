@@ -20,19 +20,19 @@ func mcpttIFCs(asID string) []db.IMSInitialFilterCriterion {
 	return []db.IMSInitialFilterCriterion{
 		{
 			ApplicationServerID:     asID,
-			TriggerPoint:            &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+			Trigger:                 &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{{Method: &register}}}}},
 			DefaultHandling:         new(db.IMSDefaultHandlingSessionContinued),
 			IncludeRegisterRequest:  true,
 			IncludeRegisterResponse: true,
 		},
 		{
 			ApplicationServerID: asID,
-			TriggerPoint: &db.IMSTriggerPoint{
-				ConditionTypeCNF: true,
-				ServicePointTriggers: []db.IMSServicePointTrigger{
-					{Groups: []int32{0}, SessionCase: &originating},
-					{Groups: []int32{1}, SIPHeader: &db.IMSHeaderMatch{Header: header, Content: &content}},
-				},
+			Trigger: &db.IMSTrigger{
+				ConditionsMatch: db.IMSConditionsMatchAll,
+				Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{
+					{SessionCase: &originating},
+					{SIPHeader: &db.IMSHeaderMatch{Header: header, Content: &content}},
+				}}},
 			},
 			DefaultHandling: new(db.IMSDefaultHandlingSessionTerminated),
 		},
@@ -61,7 +61,7 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 	register := "REGISTER"
 	other := db.IMSInitialFilterCriterion{
 		ApplicationServerID: otherAS.ID,
-		TriggerPoint:        &db.IMSTriggerPoint{ServicePointTriggers: []db.IMSServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+		Trigger:             &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{{Method: &register}}}}},
 		DefaultHandling:     new(db.IMSDefaultHandlingSessionContinued),
 	}
 

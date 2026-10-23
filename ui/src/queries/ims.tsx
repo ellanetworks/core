@@ -16,24 +16,34 @@ export type IMSSessionCase =
   | "ORIGINATING_UNREGISTERED"
   | "ORIGINATING_CDIV";
 
-export interface IMSServicePointTrigger {
-  condition_negated?: boolean;
-  group: number[];
+export type IMSRegistrationType =
+  "INITIAL_REGISTRATION" | "RE-REGISTRATION" | "DE-REGISTRATION";
+
+export interface IMSCondition {
+  negated?: boolean;
   request_uri?: string;
   method?: string;
+  registration_types?: IMSRegistrationType[];
   sip_header?: { header: string; content?: string };
   session_case?: IMSSessionCase;
   session_description?: { line: string; content?: string };
-  registration_type?: string[];
+}
+
+export interface IMSConditionGroup {
+  conditions: IMSCondition[];
+}
+
+export type IMSConditionsMatch = "all" | "any";
+
+export interface IMSTrigger {
+  conditions_match: IMSConditionsMatch;
+  groups: IMSConditionGroup[];
 }
 
 export interface IMSInitialFilterCriterion {
   priority: number;
   application_server_name: string;
-  trigger_point?: {
-    condition_type_cnf: boolean;
-    spt: IMSServicePointTrigger[];
-  };
+  trigger?: IMSTrigger;
   profile_part?: "REGISTERED" | "UNREGISTERED";
   default_handling?: "SESSION_CONTINUED" | "SESSION_TERMINATED";
   service_info?: string;
@@ -114,53 +124,55 @@ export const setProfileIMSFilterCriteria = async (
 export const isSIPURI = (value: string): boolean =>
   /^(sips?|tel):\S+$/i.test(value.trim());
 
-export const describeTrigger = (spt: IMSServicePointTrigger): string => {
-  const not = spt.condition_negated ? "not " : "";
-  if (spt.method !== undefined) {
-    const types = spt.registration_type?.length
-      ? ` (${spt.registration_type.join(", ")})`
-      : "";
-    return `${not}method ${spt.method}${types}`;
-  }
-  if (spt.request_uri !== undefined)
-    return `${not}request URI ${spt.request_uri}`;
-  if (spt.session_case !== undefined)
-    return `${not}session case ${spt.session_case}`;
-  if (spt.sip_header !== undefined) {
-    const content = spt.sip_header.content
-      ? ` = ${spt.sip_header.content}`
-      : "";
-    return `${not}header ${spt.sip_header.header}${content}`;
-  }
-  if (spt.session_description !== undefined) {
-    const content = spt.session_description.content
-      ? ` = ${spt.session_description.content}`
-      : "";
-    return `${not}SDP ${spt.session_description.line}${content}`;
-  }
-  return `${not}any`;
+export const sessionCaseLabels: Record<IMSSessionCase, string> = {
+  ORIGINATING_REGISTERED: "Originating (registered)",
+  ORIGINATING_UNREGISTERED: "Originating (unregistered)",
+  TERMINATING_REGISTERED: "Terminating (registered)",
+  TERMINATING_UNREGISTERED: "Terminating (unregistered)",
+  ORIGINATING_CDIV: "Originating after call diversion",
 };
 
-export const describeTriggerPoint = (
-  ifc: IMSInitialFilterCriterion,
-): string => {
-  const spts = ifc.trigger_point?.spt ?? [];
-  if (spts.length === 0) return "Always";
-  const groups = new Map<number, string[]>();
-  for (const spt of spts) {
-    for (const g of spt.group.length ? spt.group : [0]) {
-      groups.set(g, [...(groups.get(g) ?? []), describeTrigger(spt)]);
-    }
+export const registrationTypeLabels: Record<IMSRegistrationType, string> = {
+  INITIAL_REGISTRATION: "initial",
+  "RE-REGISTRATION": "re-registration",
+  "DE-REGISTRATION": "de-registration",
+};
+
+export const describeCondition = (c: IMSCondition): string => {
+  const not = c.negated ? "not " : "";
+  if (c.method !== undefined) {
+    const types = c.registration_types?.length
+      ? ` (${c.registration_types.map((t) => registrationTypeLabels[t]).join(", ")})`
+      : "";
+    return `method ${c.negated ? "is not" : "is"} ${c.method}${types}`;
   }
-  const cnf = ifc.trigger_point?.condition_type_cnf ?? false;
-  const inner = cnf ? " or " : " and ";
-  const outer = cnf ? " and " : " or ";
-  const parts = [...groups.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([, items]) =>
-      items.length > 1 && groups.size > 1
-        ? `(${items.join(inner)})`
-        : items.join(inner),
-    );
-  return parts.join(outer);
+  if (c.request_uri !== undefined)
+    return `Request-URI ${c.negated ? "does not match" : "matches"} ${c.request_uri}`;
+  if (c.session_case !== undefined)
+    return `${not}${sessionCaseLabels[c.session_case] ?? c.session_case}`;
+  if (c.sip_header !== undefined) {
+    const { header, content } = c.sip_header;
+    if (!content) return `header ${header} ${c.negated ? "absent" : "present"}`;
+    return `header ${header} ${c.negated ? "does not match" : "matches"} ${content}`;
+  }
+  if (c.session_description !== undefined) {
+    const { line, content } = c.session_description;
+    if (!content) return `SDP line ${line} ${c.negated ? "absent" : "present"}`;
+    return `SDP line ${line} ${c.negated ? "does not match" : "matches"} ${content}`;
+  }
+  return `${not}unknown condition`;
+};
+
+export const describeTrigger = (trigger?: IMSTrigger): string => {
+  if (!trigger || trigger.groups.length === 0) return "Always";
+  const all = trigger.conditions_match === "all";
+  const inner = all ? " and " : " or ";
+  const outer = all ? " or " : " and ";
+  const multipleGroups = trigger.groups.length > 1;
+  return trigger.groups
+    .map(({ conditions }) => {
+      const text = conditions.map(describeCondition).join(inner);
+      return multipleGroups && conditions.length > 1 ? `(${text})` : text;
+    })
+    .join(outer);
 };

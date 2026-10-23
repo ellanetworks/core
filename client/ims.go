@@ -41,31 +41,34 @@ type IMSSessionDescription struct {
 	Content *string `json:"content,omitempty"`
 }
 
-type IMSServicePointTrigger struct {
-	ConditionNegated   bool                   `json:"condition_negated,omitempty"`
-	Group              []int32                `json:"group"`
+type IMSCondition struct {
+	Negated            bool                   `json:"negated,omitempty"`
 	RequestURI         *string                `json:"request_uri,omitempty"`
 	Method             *string                `json:"method,omitempty"`
+	RegistrationTypes  []string               `json:"registration_types,omitempty"`
 	SIPHeader          *IMSHeaderMatch        `json:"sip_header,omitempty"`
 	SessionCase        *string                `json:"session_case,omitempty"`
 	SessionDescription *IMSSessionDescription `json:"session_description,omitempty"`
-	RegistrationType   []string               `json:"registration_type,omitempty"`
 }
 
-type IMSTriggerPoint struct {
-	ConditionTypeCNF bool                     `json:"condition_type_cnf"`
-	SPT              []IMSServicePointTrigger `json:"spt"`
+type IMSConditionGroup struct {
+	Conditions []IMSCondition `json:"conditions"`
+}
+
+type IMSTrigger struct {
+	ConditionsMatch string              `json:"conditions_match"`
+	Groups          []IMSConditionGroup `json:"groups"`
 }
 
 type IMSInitialFilterCriterion struct {
-	Priority                int              `json:"priority"`
-	ApplicationServerName   string           `json:"application_server_name"`
-	TriggerPoint            *IMSTriggerPoint `json:"trigger_point,omitempty"`
-	ProfilePart             *string          `json:"profile_part,omitempty"`
-	DefaultHandling         *string          `json:"default_handling,omitempty"`
-	ServiceInfo             *string          `json:"service_info,omitempty"`
-	IncludeRegisterRequest  bool             `json:"include_register_request"`
-	IncludeRegisterResponse bool             `json:"include_register_response"`
+	Priority                int         `json:"priority"`
+	ApplicationServerName   string      `json:"application_server_name"`
+	Trigger                 *IMSTrigger `json:"trigger,omitempty"`
+	ProfilePart             *string     `json:"profile_part,omitempty"`
+	DefaultHandling         *string     `json:"default_handling,omitempty"`
+	ServiceInfo             *string     `json:"service_info,omitempty"`
+	IncludeRegisterRequest  bool        `json:"include_register_request"`
+	IncludeRegisterResponse bool        `json:"include_register_response"`
 }
 
 type ProfileIMSFilterCriteria struct {

@@ -32,25 +32,28 @@ export const imsServicePresets: IMSServicePreset[] = [
       "MCPTT server: third-party registration and originating MCPTT sessions",
     initial_filter_criteria: [
       {
-        trigger_point: {
-          condition_type_cnf: false,
-          spt: [{ group: [0], method: "REGISTER" }],
+        trigger: {
+          conditions_match: "all",
+          groups: [{ conditions: [{ method: "REGISTER" }] }],
         },
         default_handling: "SESSION_CONTINUED",
         include_register_request: true,
         include_register_response: true,
       },
       {
-        trigger_point: {
-          condition_type_cnf: true,
-          spt: [
-            { group: [0], session_case: "ORIGINATING_REGISTERED" },
+        trigger: {
+          conditions_match: "all",
+          groups: [
             {
-              group: [1],
-              sip_header: {
-                header: "^P-Asserted-Service$",
-                content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
-              },
+              conditions: [
+                { session_case: "ORIGINATING_REGISTERED" },
+                {
+                  sip_header: {
+                    header: "^P-Asserted-Service$",
+                    content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
+                  },
+                },
+              ],
             },
           ],
         },
