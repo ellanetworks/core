@@ -182,14 +182,19 @@ func TestIdentitiesChanged(t *testing.T) {
 		name     string
 		reg      *hss.Registration
 		previous string
+		msisdn   string
 		want     error
+		wantKept bool
 	}{
-		{name: "not registered", previous: "15550000000"},
-		{name: "registered, MSISDN added", reg: &registered, want: hss.ErrDiameterUnavailable},
-		{name: "registered, MSISDN changed", reg: &registered, previous: "15550000000", want: hss.ErrDiameterUnavailable},
+		{name: "not registered", previous: "15550000000", msisdn: testMSISDN},
+		{name: "registered, MSISDN added", reg: &registered, msisdn: testMSISDN, want: hss.ErrDiameterUnavailable, wantKept: true},
+		{name: "registered, MSISDN changed", reg: &registered, previous: "15550000000", msisdn: testMSISDN, want: hss.ErrDiameterUnavailable},
+		{name: "registered, MSISDN removed", reg: &registered, previous: testMSISDN, want: hss.ErrDiameterUnavailable, wantKept: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
+			store.subscribers[testIMSI].MSISDN = tc.msisdn
+
 			if tc.reg != nil {
 				store.registrations[testIMSI] = *tc.reg
 			}
@@ -199,8 +204,9 @@ func TestIdentitiesChanged(t *testing.T) {
 			}
 
 			if tc.reg != nil {
-				if got := store.registrations[testIMSI]; got != *tc.reg {
-					t.Fatalf("registration = %+v after a failed request, want it kept", got)
+				got, kept := store.registrations[testIMSI]
+				if kept != tc.wantKept || (kept && got != *tc.reg) {
+					t.Fatalf("registration = %+v (kept %t) after a failed request, want kept %t", got, kept, tc.wantKept)
 				}
 			}
 		})

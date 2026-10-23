@@ -22,7 +22,9 @@ import (
 var cxApplication = diameter.Application{ID: cx.ApplicationID, VendorID: tgpp.VendorID}
 
 type fakeSCSCF struct {
-	pushResult tgpp.Result
+	pushResult   tgpp.Result
+	rtrResult    tgpp.Result
+	rtrEmergency []cx.EmergencyIdentity
 
 	mu           sync.Mutex
 	terminations []cx.ReasonCode
@@ -48,7 +50,13 @@ func (f *fakeSCSCF) ServeDiameter(_ context.Context, _ *diameter.Conn, req *diam
 		f.terminations = append(f.terminations, r.Reason.Code)
 		f.mu.Unlock()
 
-		ans, _ := cx.NewRegistrationTerminationAnswer(req, cscfIdentity, cx.RegistrationTermination{Result: tgpp.Result{Code: diameter.ResultSuccess}})
+		if f.rtrResult.Failure() {
+			ans, _ := cx.NewRegistrationTerminationErrorAnswer(req, cscfIdentity, cx.RegistrationTerminationError{ResultError: cx.ResultError{Result: f.rtrResult}, EmergencyIdentities: f.rtrEmergency})
+
+			return ans
+		}
+
+		ans, _ := cx.NewRegistrationTerminationAnswer(req, cscfIdentity, cx.RegistrationTermination{Result: f.rtrResult.OrSuccess(), EmergencyIdentities: f.rtrEmergency})
 
 		return ans
 	default:
@@ -157,6 +165,7 @@ func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		result           tgpp.Result
+		rtrResult        tgpp.Result
 		wantErr          bool
 		wantTerminations []cx.ReasonCode
 		wantCleared      bool
@@ -165,13 +174,14 @@ func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 		{name: "profile push unsupported", result: tgpp.Result{Code: diameter.ResultCommandUnsupported}},
 		{name: "unsupported user data", result: tgpp.Experimental(tgpp.ResultErrorNotSupportedUserData), wantTerminations: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true},
 		{name: "too much data", result: tgpp.Experimental(tgpp.ResultErrorTooMuchData), wantTerminations: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true},
+		{name: "unsupported user data, de-registration refused", result: tgpp.Experimental(tgpp.ResultErrorNotSupportedUserData), rtrResult: tgpp.Result{Code: diameter.ResultUnableToComply}, wantErr: true, wantTerminations: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true},
 		{name: "user unknown", result: tgpp.Experimental(tgpp.ResultErrorUserUnknown), wantCleared: true},
 		{name: "unable to comply", result: tgpp.Result{Code: diameter.ResultUnableToComply}, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
 			store.registrations[testIMSI] = registered
-			scscf := &fakeSCSCF{pushResult: tc.result}
+			scscf := &fakeSCSCF{pushResult: tc.result, rtrResult: tc.rtrResult}
 
 			err := connectedHSS(t, store, scscf).PushProfile(context.Background(), testIMSI)
 			if (err != nil) != tc.wantErr {
@@ -185,6 +195,59 @@ func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 			_, kept := store.registrations[testIMSI]
 			if kept == tc.wantCleared {
 				t.Fatalf("registration kept = %t, want %t", kept, !tc.wantCleared)
+			}
+		})
+	}
+}
+
+func TestRegistrationTermination_TS29228_6_1_3_1(t *testing.T) {
+	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}
+	emergency := []cx.EmergencyIdentity{{PrivateIdentity: testIMSI + "@" + testIMSDomain, PublicIdentity: "tel:+" + testMSISDN}}
+	unableToComply := tgpp.Result{Code: diameter.ResultUnableToComply}
+
+	for _, tc := range []struct {
+		name         string
+		msisdn       string
+		rtrResult    tgpp.Result
+		rtrEmergency []cx.EmergencyIdentity
+		wantReason   cx.ReasonCode
+		wantErr      bool
+		want         *hss.Registration
+	}{
+		{name: "server change answered", msisdn: "15559990000", wantReason: cx.ReasonServerChange},
+		{name: "server change refused", msisdn: "15559990000", rtrResult: unableToComply, wantReason: cx.ReasonServerChange, wantErr: true},
+		{name: "permanent termination answered", wantReason: cx.ReasonPermanentTermination},
+		{name: "permanent termination refused", rtrResult: unableToComply, wantReason: cx.ReasonPermanentTermination, wantErr: true, want: &registered},
+		{
+			name: "permanent termination of an emergency registration", rtrResult: unableToComply, rtrEmergency: emergency, wantReason: cx.ReasonPermanentTermination,
+			want: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm},
+		},
+		{
+			name: "permanent termination with limited success", rtrResult: tgpp.Result{Code: diameter.ResultLimitedSuccess}, rtrEmergency: emergency, wantReason: cx.ReasonPermanentTermination,
+			want: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeIMSStore()
+			store.registrations[testIMSI] = registered
+			store.subscribers[testIMSI].MSISDN = tc.msisdn
+			scscf := &fakeSCSCF{rtrResult: tc.rtrResult, rtrEmergency: tc.rtrEmergency}
+
+			err := connectedHSS(t, store, scscf).IdentitiesChanged(context.Background(), testIMSI, testMSISDN)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("IdentitiesChanged: %v, want error %t", err, tc.wantErr)
+			}
+
+			if got := scscf.Terminations(); len(got) != 1 || got[0] != tc.wantReason {
+				t.Fatalf("registration terminations = %v, want [%v]", got, tc.wantReason)
+			}
+
+			got, kept := store.registrations[testIMSI]
+			switch {
+			case tc.want == nil && kept:
+				t.Fatalf("registration = %+v, want it cleared", got)
+			case tc.want != nil && (!kept || got != *tc.want):
+				t.Fatalf("registration = %+v (kept %t), want %+v", got, kept, *tc.want)
 			}
 		})
 	}

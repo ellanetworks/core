@@ -650,7 +650,7 @@ func TestTermination(t *testing.T) {
 				return
 			}
 
-			want := hss.Termination{IMSI: testIMSI, PrivateIdentity: impiOf(testIMSI), ServerHost: cscfIdentity.OriginHost, ServerRealm: cscfIdentity.OriginRealm}
+			want := hss.Termination{IMSI: testIMSI, PrivateIdentity: impiOf(testIMSI), ServerName: testSCSCF, ServerHost: cscfIdentity.OriginHost, ServerRealm: cscfIdentity.OriginRealm}
 			if got == nil || *got != want {
 				t.Fatalf("Termination = %+v, want %+v", got, want)
 			}

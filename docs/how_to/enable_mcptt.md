@@ -61,16 +61,11 @@ For each MCPTT user:
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
 - Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its IMS public identity, `tel:+<msisdn>`, to an MCPTT ID on your MCPTT server.
 
-## 6. Configure the call priorities on the MCPTT server
-
-Configure your MCPTT server to set the Resource-Priority of each call:
-
-| Call type | Resource-Priority | ARP priority |
-| --------- | ----------------- | ------------ |
-| Emergency | `mcpttp.15` | 1 |
-| Imminent peril | `mcpttp.13` | 2 |
-| Normal | `mcpttp.11` | 3 |
-
-## 7. Make an MCPTT call
+## 6. Make an MCPTT call
 
 On the MCPTT client, make a call to another MCPTT user. The call should connect with audio in both directions.
+
+<figure markdown="span">
+  ![Ella Core and MCPTT](../images/mcptt_screenshot.jpg){ width="200" }
+  <figcaption>Enable MCPTT in Ella Core</figcaption>
+</figure>

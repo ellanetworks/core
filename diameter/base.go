@@ -65,6 +65,7 @@ const (
 
 const (
 	ResultSuccess                uint32 = 2001
+	ResultLimitedSuccess         uint32 = 2002
 	ResultCommandUnsupported     uint32 = 3001
 	ResultUnableToDeliver        uint32 = 3002
 	ResultRealmNotServed         uint32 = 3003
@@ -91,6 +92,7 @@ const (
 
 var resultNames = map[uint32]string{
 	ResultSuccess:                "DIAMETER_SUCCESS",
+	ResultLimitedSuccess:         "DIAMETER_LIMITED_SUCCESS",
 	ResultCommandUnsupported:     "DIAMETER_COMMAND_UNSUPPORTED",
 	ResultUnableToDeliver:        "DIAMETER_UNABLE_TO_DELIVER",
 	ResultRealmNotServed:         "DIAMETER_REALM_NOT_SERVED",

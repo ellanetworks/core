@@ -82,7 +82,7 @@ func (h *HSS) PushProfile(ctx context.Context, imsi string) error {
 		h.log.Warn("the S-CSCF rejected the IMS user profile; deregistering the user so that another S-CSCF is assigned",
 			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost), zap.Stringer("result", r))
 
-		return h.reassign(ctx, imsi, reg)
+		return h.reassign(ctx, imsi)
 	case r.IsExperimental(tgpp.ResultErrorUserUnknown):
 		h.log.Warn("the S-CSCF does not know the user; marking it not registered",
 			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
@@ -101,7 +101,7 @@ func (h *HSS) PushProfile(ctx context.Context, imsi string) error {
 	return nil
 }
 
-func (h *HSS) reassign(ctx context.Context, imsi string, reg *Registration) error {
+func (h *HSS) reassign(ctx context.Context, imsi string) error {
 	t, err := h.Termination(ctx, imsi)
 	if err != nil || t == nil {
 		return err
@@ -109,11 +109,7 @@ func (h *HSS) reassign(ctx context.Context, imsi string, reg *Registration) erro
 
 	t.Reason = cx.ReasonServerChange
 
-	if err := h.Terminate(ctx, t); err != nil {
-		return err
-	}
-
-	return h.clearRegistration(ctx, imsi, reg.ServerName)
+	return h.Terminate(ctx, t)
 }
 
 func (h *HSS) clearRegistration(ctx context.Context, imsi, serverName string) error {
@@ -183,9 +179,5 @@ func (h *HSS) IdentitiesChanged(ctx context.Context, imsi, previousMSISDN string
 		t.Reason = cx.ReasonPermanentTermination
 	}
 
-	if err := h.Terminate(ctx, t); err != nil {
-		return err
-	}
-
-	return h.clearRegistration(ctx, imsi, reg.ServerName)
+	return h.Terminate(ctx, t)
 }
