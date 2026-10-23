@@ -36,3 +36,7 @@ Configure your IMS with the following settings, using your network's MCC and 3-d
 In the Ella Core UI, go to the Operator page and scroll to the **IMS** section.
 
 Click the edit icon next to **P-CSCF Addresses**, enter your IMS's P-CSCF addresses, e.g. `10.6.0.5`, and click **Update**.
+
+## 4. Route the IMS data networks
+
+In your IMS, add a route to each IMS data network's IP pool via Ella Core's N6 address, with an MTU of 1400, e.g. `ip route add 10.46.0.0/16 via 10.6.0.2 mtu lock 1400`.

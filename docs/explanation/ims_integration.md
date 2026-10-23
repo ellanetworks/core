@@ -108,7 +108,7 @@ Calls from the MCPTT server to subscribers need no filter criteria.
 
 ### MCPTT calls
 
-An MCPTT call's voice and floor control share one GBR QoS flow or bearer with QCI/5QI 65. The session's default QoS flow or bearer on the MC data network uses QCI/5QI 69. A radio without 69 refuses the session, and one without 65 refuses the call.
+An MCPTT call's voice and floor control share one GBR QoS flow or bearer with QCI/5QI 65. The session's default QoS flow or bearer on the MC data network uses its policy's QCI/5QI, 5 or 69.
 
 The call's ARP comes from its Resource-Priority. Only a Resource-Priority set inside the IMS, such as by the MCPTT server, counts; one set by the client does not.
 

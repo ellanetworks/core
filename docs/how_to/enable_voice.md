@@ -23,8 +23,6 @@ Go to the **Networking** page and open the **Data Networks** tab.
 
 Click **Create**, enter `ims` as the **Name**, set the IP pool, turn on **IMS (voice and mission critical services)**, and click **Create**.
 
-In your IMS, add a route to the `ims` IP pool via Ella Core's N6 address, e.g. `10.46.0.0/16` via `10.6.0.2`.
-
 ## 2. Add a voice policy to the profiles
 
 For each profile whose subscribers should make calls:
