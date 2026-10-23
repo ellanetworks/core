@@ -1,6 +1,6 @@
 # Ella Core configuration file.
 # When you use the Ella Core snap, this file is located at
-# /var/snap/ella-core/common/config.yaml. After modifying it, restart Ella Core
+# /var/snap/ella-core/common/core.yaml. After modifying it, restart Ella Core
 # with `sudo snap restart ella-core.cored` for the changes to take effect.
 
 # The logging configuration.
