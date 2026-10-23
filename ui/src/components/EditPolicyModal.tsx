@@ -44,7 +44,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   initialData,
 }) => {
   const { accessToken, authReady } = useAuth();
-  const { dataNetworks, slices } = useNetworkOptions(open);
+  const { dataNetworks, imsDataNetworks, slices } = useNetworkOptions(open);
 
   const policyQuery = useQuery({
     queryKey: ["policy", initialData.name],
@@ -69,6 +69,11 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       ambrDownUnit: down.unit,
       fiveQi: policy?.var5qi ?? initialData.var5qi,
       arp: policy?.arp ?? initialData.arp,
+      preemptionCapability:
+        policy?.preemption_capability ?? initialData.preemption_capability,
+      preemptionVulnerability:
+        policy?.preemption_vulnerability ??
+        initialData.preemption_vulnerability,
       dataNetworkName:
         policy?.data_network_name ?? initialData.data_network_name,
       isDefault: policy?.default ?? initialData.default,
@@ -90,6 +95,8 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       session_ambr_downlink: `${values.ambrDownValue} ${values.ambrDownUnit}`,
       var5qi: values.fiveQi,
       arp: values.arp,
+      preemption_capability: values.preemptionCapability,
+      preemption_vulnerability: values.preemptionVulnerability,
       rules: currentRules,
       default: values.isDefault,
     });
@@ -112,6 +119,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       <PolicyFields<FormValues>
         control={form.control}
         dataNetworks={dataNetworks ?? []}
+        imsDataNetworks={imsDataNetworks ?? []}
         slices={slices ?? []}
       />
       <Box sx={{ mt: 1 }}>

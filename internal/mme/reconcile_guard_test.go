@@ -21,7 +21,7 @@ func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 	p.Apn = "ims"
 	p.SessionRef = "ref-ims"
 	p.Qci = 5
-	p.Arp = 1
+	p.Arp = models.Arp{PriorityLevel: 1}
 
 	return ue, p
 }
@@ -29,7 +29,7 @@ func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 func modifyQoS(t *testing.T, m *MME, ue *UeContext, ebi uint8) {
 	t.Helper()
 
-	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), ebi, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 6, ARP: 1}}); err != nil {
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), ebi, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 6, ARP: models.Arp{PriorityLevel: 1}}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -92,7 +92,7 @@ func TestModifyBearerGuardAbortLeavesOtherPDNsIntact(t *testing.T) {
 	ue, p := modifyingAdditionalPDN(t, m)
 
 	def := testPDN(ue)
-	pending := &models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: 1}}
+	pending := &models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: models.Arp{PriorityLevel: 1}}}
 	def.Modifying = pending
 
 	m.SetESMGuardConfigForTest(20*time.Millisecond, 0)

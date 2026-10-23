@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func TestPoliciesEndToEnd(t *testing.T) {
@@ -432,5 +433,57 @@ func TestDefaultPolicyBinding(t *testing.T) {
 
 	if defaults != 1 {
 		t.Fatalf("expected exactly one default policy, got %d", defaults)
+	}
+}
+
+func TestPolicyPreemption(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	policy, err := database.GetPolicy(ctx, db.InitialPolicyName)
+	if err != nil {
+		t.Fatalf("get default policy: %v", err)
+	}
+
+	if policy.PreemptionCapability != models.PreemptionCapabilityNotPreempt || policy.PreemptionVulnerability != models.PreemptionVulnerabilityNotPreemptable {
+		t.Fatalf("default policy pre-emption %s/%s, want NOT_PREEMPT/NOT_PREEMPTABLE", policy.PreemptionCapability, policy.PreemptionVulnerability)
+	}
+
+	policy.Arp = 3
+	policy.PreemptionCapability = models.PreemptionCapabilityMayPreempt
+	policy.PreemptionVulnerability = models.PreemptionVulnerabilityPreemptable
+
+	if err := database.UpdatePolicy(ctx, policy); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	got, err := database.GetPolicyByLookup(ctx, policy.ProfileID, policy.SliceID, policy.DataNetworkID)
+	if err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+
+	if got.Arp != 3 || got.PreemptionCapability != models.PreemptionCapabilityMayPreempt || got.PreemptionVulnerability != models.PreemptionVulnerabilityPreemptable {
+		t.Fatalf("after update = %+v, want ARP 3, MAY_PREEMPT, PREEMPTABLE", got)
+	}
+
+	policy.PreemptionCapability = ""
+	policy.PreemptionVulnerability = ""
+
+	if err := database.UpdatePolicyWithRules(ctx, policy, nil); err != nil {
+		t.Fatalf("update with rules: %v", err)
+	}
+
+	got, err = database.GetPolicy(ctx, policy.Name)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+
+	if got.PreemptionCapability != models.PreemptionCapabilityNotPreempt || got.PreemptionVulnerability != models.PreemptionVulnerabilityNotPreemptable {
+		t.Fatalf("empty pre-emption stored as %s/%s, want NOT_PREEMPT/NOT_PREEMPTABLE", got.PreemptionCapability, got.PreemptionVulnerability)
+	}
+
+	policy.PreemptionCapability = "SHALL_NOT_TRIGGER"
+	if err := database.UpdatePolicy(ctx, policy); err == nil {
+		t.Fatal("an unknown pre-emption capability was stored")
 	}
 }

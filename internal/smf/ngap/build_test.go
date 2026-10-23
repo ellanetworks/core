@@ -277,9 +277,6 @@ func TestBuildPDUSessionResourceSetupRequestTransferRejectsARPZero(t *testing.T)
 	}
 }
 
-// A policy has an ARP priority column and no pre-emption columns, so the
-// unprovisioned pair is the only one an operator's configuration can produce,
-// and it must match what the 4G paths encode (mme.BearerARP).
 func TestQosFlowARPPreemptionDefaults(t *testing.T) {
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
 

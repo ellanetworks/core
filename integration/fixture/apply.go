@@ -185,6 +185,7 @@ func (f *F) scopedDataNetwork(spec scenarios.DataNetworkSpec) {
 		IPv6Pool: spec.IPv6Pool,
 		DNS:      spec.DNS,
 		Mtu:      spec.MTU,
+		IMS:      spec.IMS,
 	}); err != nil {
 		f.fatalf("create scoped data network %q: %v", spec.Name, err)
 	}
@@ -202,14 +203,16 @@ func (f *F) scopedPolicy(spec scenarios.PolicySpec) {
 	f.t.Helper()
 
 	if err := f.c.CreatePolicy(f.ctx, &client.CreatePolicyOptions{
-		Name:                spec.Name,
-		ProfileName:         spec.ProfileName,
-		SliceName:           spec.SliceName,
-		DataNetworkName:     spec.DataNetworkName,
-		SessionAmbrUplink:   spec.SessionAmbrUplink,
-		SessionAmbrDownlink: spec.SessionAmbrDownlink,
-		Var5qi:              spec.Var5qi,
-		Arp:                 spec.Arp,
+		Name:                    spec.Name,
+		ProfileName:             spec.ProfileName,
+		SliceName:               spec.SliceName,
+		DataNetworkName:         spec.DataNetworkName,
+		SessionAmbrUplink:       spec.SessionAmbrUplink,
+		SessionAmbrDownlink:     spec.SessionAmbrDownlink,
+		Var5qi:                  spec.Var5qi,
+		Arp:                     spec.Arp,
+		PreemptionCapability:    spec.PreemptionCapability,
+		PreemptionVulnerability: spec.PreemptionVulnerability,
 	}); err != nil {
 		f.fatalf("create scoped policy %q: %v", spec.Name, err)
 	}

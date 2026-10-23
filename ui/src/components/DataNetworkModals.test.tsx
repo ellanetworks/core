@@ -43,6 +43,8 @@ const replace = async (
   await user.tab();
 };
 
+const IMS_SWITCH = "IMS (voice and mission critical services)";
+
 describe("CreateDataNetworkModal", () => {
   it("prefills the documented defaults", () => {
     renderCreate();
@@ -105,6 +107,7 @@ describe("CreateDataNetworkModal", () => {
       ipv4_pool: "10.45.0.0/22",
       dns: "8.8.8.8",
       mtu: 1456,
+      ims: false,
     });
   });
 
@@ -123,33 +126,34 @@ describe("CreateDataNetworkModal", () => {
     );
   });
 
-  it("creates the voice data network under the ims name", async () => {
+  it("creates an IMS data network under any name", async () => {
     const user = userEvent.setup();
     api.post(PATH, () => ({}));
     const { onSuccess } = renderCreate();
 
-    await user.type(field(/Name/), "internet");
-    await user.click(screen.getByRole("switch", { name: "Voice (IMS)" }));
+    await user.type(field(/Name/), "mcx");
+    await user.click(screen.getByRole("switch", { name: IMS_SWITCH }));
 
-    expect(field(/Name/)).toHaveValue("ims");
-    expect(field(/Name/)).toBeDisabled();
+    expect(field(/Name/)).toHaveValue("mcx");
+    expect(field(/Name/)).toBeEnabled();
 
     await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
     await user.click(button(/^Create$/));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(api.lastRequest(PATH)?.body).toMatchObject({ name: "ims" });
+    expect(api.lastRequest(PATH)?.body).toMatchObject({
+      name: "mcx",
+      ims: true,
+    });
   });
 
-  it("clears and enables the name when voice is switched off", async () => {
+  it("suggests the ims name when IMS is switched on with no name", async () => {
     const user = userEvent.setup();
     renderCreate();
 
-    const voice = screen.getByRole("switch", { name: "Voice (IMS)" });
-    await user.click(voice);
-    await user.click(voice);
+    await user.click(screen.getByRole("switch", { name: IMS_SWITCH }));
 
-    expect(field(/Name/)).toHaveValue("");
+    expect(field(/Name/)).toHaveValue("ims");
     expect(field(/Name/)).toBeEnabled();
   });
 
@@ -176,6 +180,7 @@ describe("EditDataNetworkModal", () => {
     ipv6_pool: "",
     dns: "8.8.8.8",
     mtu: 1456,
+    ims: false,
   };
 
   it("seeds from initialData and locks the name", () => {
@@ -219,6 +224,32 @@ describe("EditDataNetworkModal", () => {
       ipv4_pool: "10.60.0.0/16",
       dns: "8.8.8.8",
       mtu: 1456,
+      ims: false,
+    });
+  });
+
+  it("marks the data network as IMS", async () => {
+    const user = userEvent.setup();
+    api.put(`${PATH}/:name`, () => ({}));
+    const onClose = vi.fn();
+
+    renderWithProviders(
+      <EditDataNetworkModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        initialData={initialData}
+      />,
+      { auth: {} },
+    );
+
+    await user.click(screen.getByRole("switch", { name: IMS_SWITCH }));
+    await waitFor(() => expect(button(/^Update$/)).toBeEnabled());
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(`${PATH}/internet`)?.body).toMatchObject({
+      ims: true,
     });
   });
 });

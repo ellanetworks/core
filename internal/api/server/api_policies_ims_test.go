@@ -41,7 +41,7 @@ func TestPoliciesOnTheIMSDataNetworkUse5QI5(t *testing.T) {
 		}
 	}
 
-	const refused = "5QI 9 is not valid on the ims data network; IMS signalling uses 5QI 5"
+	const refused = "5QI 9 is not valid on IMS data network ims; IMS signalling uses 5QI 5, or 69 for mission critical services"
 
 	status, resp, err := createPolicy(url, client, token, policy("voice-9", "voice", "ims", 9))
 	if err != nil || status != http.StatusBadRequest || resp.Error != refused {

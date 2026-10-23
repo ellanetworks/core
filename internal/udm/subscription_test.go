@@ -206,3 +206,49 @@ func TestSessionManagementOfADeletedSubscriber(t *testing.T) {
 		t.Fatalf("SessionManagement: %v, want ErrSubscriberUnknown", err)
 	}
 }
+
+func TestSessionManagementCarriesIMSAndTheFullARP(t *testing.T) {
+	ctx := context.Background()
+	database, subs, profileID := subscriptionFixture(t)
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "mcx", IPv4Pool: "10.47.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}); err != nil {
+		t.Fatalf("create data network: %s", err)
+	}
+
+	mcx, err := database.GetDataNetwork(ctx, "mcx")
+	if err != nil {
+		t.Fatalf("get data network: %s", err)
+	}
+
+	slice, err := database.GetNetworkSlice(ctx, db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("get slice: %s", err)
+	}
+
+	if err := database.CreatePolicy(ctx, &db.Policy{
+		Name: "mcx", ProfileID: profileID, SliceID: slice.ID, DataNetworkID: mcx.ID,
+		Var5qi: 69, Arp: 3, PreemptionCapability: models.PreemptionCapabilityMayPreempt, PreemptionVulnerability: models.PreemptionVulnerabilityNotPreemptable,
+		SessionAmbrUplink: "10 Mbps", SessionAmbrDownlink: "10 Mbps",
+	}); err != nil {
+		t.Fatalf("create policy: %s", err)
+	}
+
+	sm, err := subs.SessionManagement(ctx, subscriptionIMSI)
+	if err != nil {
+		t.Fatalf("SessionManagement: %s", err)
+	}
+
+	snssai := models.Snssai{Sst: db.InitialSliceSst}
+
+	c, ok := sm.ForDNN(snssai, "mcx")
+	want := models.Arp{PriorityLevel: 3, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityNotPreemptable}
+
+	if !ok || !c.IMS || c.Var5qi != 69 || c.Arp != want {
+		t.Fatalf("mcx configuration = %+v, %t; want IMS, 5QI 69, ARP %+v", c, ok, want)
+	}
+
+	internet, ok := sm.ForDNN(snssai, db.InitialDataNetworkName)
+	if !ok || internet.IMS || internet.Arp.PreemptCap != models.PreemptionCapabilityNotPreempt || internet.Arp.PreemptVuln != models.PreemptionVulnerabilityNotPreemptable {
+		t.Fatalf("internet configuration = %+v, %t; want not IMS and not pre-empting", internet, ok)
+	}
+}

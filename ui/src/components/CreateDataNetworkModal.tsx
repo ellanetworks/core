@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState } from "react";
-import { FormControlLabel, Switch } from "@mui/material";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -13,6 +12,7 @@ import TextControl from "@/components/form/TextControl";
 import {
   DataNetworkFields,
   dataNetworkNameRegex,
+  IMSSwitch,
   poolAndDnsSchema,
 } from "@/components/dataNetworkForm";
 import { IMS_DATA_NETWORK } from "@/utils/voice";
@@ -32,6 +32,7 @@ export const schema = yup.object({
     )
     .required("Data Network Name is required"),
   ...poolAndDnsSchema,
+  ims: yup.boolean().default(false),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -42,7 +43,6 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   onSuccess,
 }) => {
   const { accessToken } = useAuth();
-  const [voice, setVoice] = useState(false);
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -53,12 +53,14 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       ipv6_pool: "",
       dns: "8.8.8.8",
       mtu: 1456,
+      ims: false,
     },
   });
 
-  const toggleVoice = (_: React.ChangeEvent<HTMLInputElement>, on: boolean) => {
-    setVoice(on);
-    form.setValue("name", on ? IMS_DATA_NETWORK : "", { shouldValidate: on });
+  const onIMSChange = (on: boolean) => {
+    if (on && !form.getValues("name")) {
+      form.setValue("name", IMS_DATA_NETWORK, { shouldValidate: true });
+    }
   };
 
   const submit = async (values: FormValues) => {
@@ -69,6 +71,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       values.ipv4_pool,
       values.dns,
       values.mtu,
+      values.ims,
       values.ipv6_pool || undefined,
     );
   };
@@ -86,17 +89,9 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       submittingLabel="Creating..."
       fullWidth={false}
     >
-      <FormControlLabel
-        control={<Switch checked={voice} onChange={toggleVoice} />}
-        label="Voice (IMS)"
-      />
-      <TextControl<FormValues>
-        name="name"
-        label="Name"
-        autoFocus
-        disabled={voice}
-      />
+      <TextControl<FormValues> name="name" label="Name" autoFocus />
       <DataNetworkFields />
+      <IMSSwitch<FormValues> control={form.control} onChange={onIMSChange} />
     </FormDialog>
   );
 };

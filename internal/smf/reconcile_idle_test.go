@@ -125,7 +125,7 @@ func TestPolicyUpdateRebindsTheSessionToANewPolicy(t *testing.T) {
 		Revision:    1 << 32,
 		PolicyID:    "replacement",
 		Var5qi:      policy.QosData.Var5qi,
-		Arp:         policy.QosData.Arp.PriorityLevel,
+		Arp:         *policy.QosData.Arp,
 		SessionAMBR: policy.Ambr,
 	}
 
@@ -287,7 +287,7 @@ func TestConcurrentPolicyUpdatesKeepTheNewestDecision(t *testing.T) {
 				Revision:    1<<32 + i,
 				PolicyID:    policy.PolicyID,
 				Var5qi:      policy.QosData.Var5qi,
-				Arp:         policy.QosData.Arp.PriorityLevel,
+				Arp:         *policy.QosData.Arp,
 				SessionAMBR: policy.Ambr,
 			})
 		}()

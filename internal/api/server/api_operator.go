@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -59,6 +60,7 @@ type UpdateOperatorIMSParams struct {
 type GetOperatorIMSResponse struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 	VoiceStatus    string   `json:"voiceStatus"`
+	HomeDomain     string   `json:"homeDomain"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -288,6 +290,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			IMS: GetOperatorIMSResponse{
 				PCSCFAddresses: addrStrings(pcscfAddresses),
 				VoiceStatus:    string(voiceStatus),
+				HomeDomain:     imsHomeDomain(dbOperator.Mcc, dbOperator.Mnc),
 			},
 		}
 
@@ -736,4 +739,13 @@ func addrStrings(addresses []netip.Addr) []string {
 	}
 
 	return out
+}
+
+func imsHomeDomain(mcc, mnc string) string {
+	domain, err := diameternode.IMSRealm(mcc, mnc)
+	if err != nil {
+		return ""
+	}
+
+	return domain
 }

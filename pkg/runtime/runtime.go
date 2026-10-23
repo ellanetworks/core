@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
@@ -37,6 +38,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/hss"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/lmf"
@@ -594,12 +596,16 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't wait for initial settings: %w", err)
 	}
 
+	imsProfiles := newIMSProfileNotifier(dbInstance, hssInstance)
+	go imsProfiles.run(ctx)
+
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
 		DB:                  dbInstance,
 		Sessions:            smfInstance,
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
 		HSS:                 hssInstance,
+		IMSProfiles:         imsProfiles,
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
@@ -986,6 +992,32 @@ func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*
 	return a.hssSubscriber(ctx, sub, err)
 }
 
+func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+	return a.db.ListSubscriberIMSFilterCriteria(ctx, imsi)
+}
+
+func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*hss.ServiceIdentity, error) {
+	servers, err := a.db.ListIMSApplicationServers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list IMS application servers: %w", err)
+	}
+
+	identities := make(map[string]string)
+
+	for _, as := range servers {
+		for _, p := range as.PublicServiceIdentities {
+			identities[p] = as.ServerName
+		}
+	}
+
+	m, ok := psi.NewMatcher(identities).Match(identity)
+	if !ok {
+		return nil, nil
+	}
+
+	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
+}
+
 func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -995,21 +1027,19 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		return nil, err
 	}
 
-	ims, err := a.hasIMSDataNetwork(ctx, sub.Imsi)
+	sm, err := a.subscriptions.SessionManagement(ctx, sub.Imsi)
 	if err != nil {
 		return nil, err
 	}
 
-	return &hss.Subscriber{IMSI: sub.Imsi, MSISDN: sub.Msisdn, IMSDataNetwork: ims}, nil
-}
-
-func (a *hssDBAdapter) hasIMSDataNetwork(ctx context.Context, imsi string) (bool, error) {
-	sm, err := a.subscriptions.SessionManagement(ctx, imsi)
-	if err != nil {
-		return false, err
-	}
-
-	return slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.DNN == models.IMSDataNetworkName }), nil
+	return &hss.Subscriber{
+		IMSI:           sub.Imsi,
+		MSISDN:         sub.Msisdn,
+		IMSDataNetwork: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }),
+		IMSVoice: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool {
+			return c.IMS && c.DNN == models.IMSDataNetworkName
+		}),
+	}, nil
 }
 
 func (a *hssDBAdapter) Registration(ctx context.Context, imsi string) (*hss.Registration, error) {
@@ -1329,22 +1359,9 @@ type rxOwners struct {
 }
 
 func (o *rxOwners) Owner(ctx context.Context, ue netip.Addr) (pcf.Owner, error) {
-	dn, err := o.db.GetDataNetwork(ctx, models.IMSDataNetworkName)
-	if errors.Is(err, db.ErrNotFound) {
-		return pcf.Owner{}, pcf.ErrNoOwner
-	}
-
+	lease, err := o.imsLease(ctx, ue)
 	if err != nil {
-		return pcf.Owner{}, fmt.Errorf("get the %s data network: %w", models.IMSDataNetworkName, err)
-	}
-
-	lease, err := o.db.GetActiveLeaseByAddress(ctx, dn.ID, ue)
-	if errors.Is(err, db.ErrNotFound) {
-		return pcf.Owner{}, pcf.ErrNoOwner
-	}
-
-	if err != nil {
-		return pcf.Owner{}, fmt.Errorf("get the lease of %s: %w", ue, err)
+		return pcf.Owner{}, err
 	}
 
 	if lease.NodeID == o.db.RaftID() {
@@ -1361,6 +1378,32 @@ func (o *rxOwners) Owner(ctx context.Context, ue netip.Addr) (pcf.Owner, error) 
 	}
 
 	return pcf.Owner{URI: diameter.URI{Host: identity.Host, Port: o.port, Transport: diameter.TransportSCTP}}, nil
+}
+
+func (o *rxOwners) imsLease(ctx context.Context, ue netip.Addr) (*db.IPLease, error) {
+	dns, err := o.db.ListAllDataNetworks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list data networks: %w", err)
+	}
+
+	for _, dn := range dns {
+		if !dn.IMS {
+			continue
+		}
+
+		lease, err := o.db.GetActiveLeaseByAddress(ctx, dn.ID, ue)
+		if errors.Is(err, db.ErrNotFound) {
+			continue
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("get the lease of %s: %w", ue, err)
+		}
+
+		return lease, nil
+	}
+
+	return nil, pcf.ErrNoOwner
 }
 
 func diameterPort(cfg config.Config) uint16 {

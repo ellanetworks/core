@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -134,6 +133,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		Access:       req.Access,
 		IPv4:         addrs.IPv4,
 		IPv6Prefix:   ipv6Prefix(addrs.IPv6Prefix),
+		IMS:          req.Policy.IMS,
 		Subscribed:   req.Subscribed,
 	})
 	if err != nil {
@@ -303,7 +303,7 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return err
 	}
 
-	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes, strings.EqualFold(smContext.Dnn, models.IMSDataNetworkName))
+	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes, smContext.PolicyData.IMS)
 
 	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {

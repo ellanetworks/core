@@ -36,7 +36,7 @@ func TestModifyEPSBearerCommitsAnIdleUEsARPOnlyChange(t *testing.T) {
 	p.Qci = 9
 	p.SessionRef = "ref-internet"
 
-	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: 3}}); err != nil {
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: models.Arp{PriorityLevel: 3}}}); err != nil {
 		t.Fatalf("ModifyEPSBearer: %v", err)
 	}
 
@@ -44,8 +44,8 @@ func TestModifyEPSBearerCommitsAnIdleUEsARPOnlyChange(t *testing.T) {
 		t.Fatal("the idle UE was paged for an ARP-only change")
 	}
 
-	if p.Arp != 3 {
-		t.Fatalf("ARP = %d, want the committed 3", p.Arp)
+	if p.Arp.PriorityLevel != 3 {
+		t.Fatalf("ARP = %d, want the committed 3", p.Arp.PriorityLevel)
 	}
 
 	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: true}}
@@ -73,7 +73,7 @@ func TestQoSModificationCommitsOnlyOnceTheENBAndTheUEAgree(t *testing.T) {
 	p := testPDN(ue)
 	fake := m.Session.(*fakeSessionManager)
 
-	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: 2}}); err != nil {
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -99,7 +99,7 @@ func TestFailedERABModifyAbandonsTheModification(t *testing.T) {
 	p := testPDN(ue)
 	fake := m.Session.(*fakeSessionManager)
 
-	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: 2}}); err != nil {
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -164,7 +164,7 @@ func TestUnansweredERABModifyAbandonsTheModification(t *testing.T) {
 	ue, _ := connectedBearerUE(t, m)
 	p := testPDN(ue)
 
-	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: 2}}); err != nil {
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatal(err)
 	}
 

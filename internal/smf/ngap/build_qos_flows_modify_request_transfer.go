@@ -10,7 +10,7 @@ import (
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
-type GBRQoSFlow struct {
+type QoSFlow struct {
 	QFI    uint8
 	FiveQI int32
 	ARP    models.Arp
@@ -19,10 +19,14 @@ type GBRQoSFlow struct {
 	ERABID uint8
 }
 
-func gbrQosFlowLevelQosParameters(f GBRQoSFlow) (libngap.QosFlowLevelQosParameters, error) {
+func flowQosParameters(f QoSFlow) (libngap.QosFlowLevelQosParameters, error) {
 	params, err := qosFlowLevelQosParameters(&models.QosData{QFI: f.QFI, Var5qi: f.FiveQI, Arp: &f.ARP})
 	if err != nil {
 		return libngap.QosFlowLevelQosParameters{}, err
+	}
+
+	if !models.GBRFiveQI(uint8(f.FiveQI)) {
+		return params, nil
 	}
 
 	params.GBRQosInformation = &libngap.GBRQosInformation{
@@ -35,11 +39,11 @@ func gbrQosFlowLevelQosParameters(f GBRQoSFlow) (libngap.QosFlowLevelQosParamete
 	return params, nil
 }
 
-func BuildQoSFlowsModifyRequestTransfer(addOrModify []GBRQoSFlow, release []uint8) ([]byte, error) {
+func BuildQoSFlowsModifyRequestTransfer(addOrModify []QoSFlow, release []uint8) ([]byte, error) {
 	var transfer libngap.PDUSessionResourceModifyRequestTransfer
 
 	for _, f := range addOrModify {
-		params, err := gbrQosFlowLevelQosParameters(f)
+		params, err := flowQosParameters(f)
 		if err != nil {
 			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
 		}

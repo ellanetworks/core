@@ -43,7 +43,7 @@ func audioComponent() rx.MediaComponent {
 }
 
 func TestMediaRulesAudio(t *testing.T) {
-	rules, err := mediaRules("af;1", []rx.MediaComponent{audioComponent()})
+	rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{audioComponent()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestFlowStatusGatesMediaButNotRTCP(t *testing.T) {
 		c := audioComponent()
 		c.FlowStatus = ptr(tc.status)
 
-		rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+		rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{c})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +162,7 @@ func TestMediaRulesBandwidth(t *testing.T) {
 			c := audioComponent()
 			tc.edit(&c)
 
-			rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+			rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{c})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -192,7 +192,7 @@ func TestMediaRulesSkips(t *testing.T) {
 	video := audioComponent()
 	video.Number, video.Type = 4, ptr(rx.MediaVideo)
 
-	rules, err := mediaRules("af;1", []rx.MediaComponent{removedAudio, untyped, signallingOnly, video})
+	rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{removedAudio, untyped, signallingOnly, video})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestMediaRulesFlowDescription(t *testing.T) {
 			c := audioComponent()
 			c.SubComponents[0].FlowDescriptions = []string{tc.fd}
 
-			rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+			rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{c})
 			if tc.protocol == 0 {
 				if !errors.Is(err, errFilterRestrictions) {
 					t.Fatalf("err %v, want filter restrictions", err)
@@ -245,7 +245,7 @@ func TestOverlayComponentKeepsOmittedAVPs(t *testing.T) {
 
 	merged := overlayComponent(prev, next)
 
-	rules, err := mediaRules("af;1", []rx.MediaComponent{merged})
+	rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{merged})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestSubComponentFlowStatusOverridesTheComponent(t *testing.T) {
 	c.FlowStatus = ptr(rx.FlowStatusRemoved)
 	c.SubComponents[0].FlowStatus = ptr(rx.FlowStatusEnabled)
 
-	rules, err := mediaRules("af;1", []rx.MediaComponent{c})
+	rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{c})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestMediaRulesVideoHasALowerPreemptableARP(t *testing.T) {
 	video := audioComponent()
 	video.Number, video.Type = 2, ptr(rx.MediaVideo)
 
-	rules, err := mediaRules("af;1", []rx.MediaComponent{audioComponent(), video})
+	rules, err := mediaRules("af;1", serviceContext{}, []rx.MediaComponent{audioComponent(), video})
 	if err != nil {
 		t.Fatal(err)
 	}

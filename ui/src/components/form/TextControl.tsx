@@ -34,12 +34,12 @@ const TextControl = <
 
   return (
     <TextField
+      margin="normal"
       {...rest}
       {...field}
       value={field.value ?? ""}
       label={label}
       fullWidth
-      margin="normal"
       error={showError}
       helperText={showError ? fieldState.error?.message : helperText}
     />

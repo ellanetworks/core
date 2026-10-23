@@ -281,6 +281,8 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 
 var CauseRadioConnectionWithUELost = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}
 
+var CauseReleaseDueToPreemption = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 3, Extended: true}
+
 func (e *ENB) SendERABReleaseIndication(mmeUEID, enbUEID int64, erab s1ap.ERABID, cause s1ap.Cause) error {
 	ind := &s1ap.ERABReleaseIndication{
 		MMEUES1APID:  s1ap.MMEUES1APID(mmeUEID),

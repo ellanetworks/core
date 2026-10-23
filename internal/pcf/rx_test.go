@@ -63,6 +63,7 @@ func newPCF(t *testing.T) *pcf.PCF {
 	establish(t, p, testRef, smf.PolicyContext{
 		Supi:       supi(t, "001010000000001"),
 		Dnn:        models.IMSDataNetworkName,
+		IMS:        true,
 		IPv4:       testUEv4,
 		IPv6Prefix: netip.MustParsePrefix("fd60:0:0:1::/64"),
 	})
@@ -150,6 +151,7 @@ func TestAA(t *testing.T) {
 		{name: "no UE address", req: rx.AARequest{}, want: tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)},
 		{name: "update of an unknown session", req: rx.AARequest{RequestType: &update}, want: tgpp.Result{Code: diameter.ResultUnknownSessionID}},
 		{name: "P-CSCF restoration", req: rx.AARequest{FramedIPAddress: testUEv4, RequestType: &restoration, NoStateMaintained: true}, want: tgpp.Result{Code: diameter.ResultUnableToComply}},
+		{name: "MCPTT feature", req: rx.AARequest{FramedIPAddress: testUEv4, Features: rx.FeatureRel8 | rx.FeatureMCPTT | rx.FeatureNetLoc}, want: success},
 		{name: "required unsupported feature", req: rx.AARequest{FramedIPAddress: testUEv4, Features: rx.FeatureRel8 | rx.FeatureNetLoc, FeaturesRequired: true}, want: tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported)},
 	}
 
@@ -169,8 +171,8 @@ func TestAA(t *testing.T) {
 				t.Fatalf("parse AAA: %v", err)
 			}
 
-			if a.Features != tc.req.Features&rx.FeatureRel8 {
-				t.Fatalf("AAA features = %v, want %v", a.Features, tc.req.Features&rx.FeatureRel8)
+			if want := tc.req.Features & (rx.FeatureRel8 | rx.FeatureMCPTT); a.Features != want {
+				t.Fatalf("AAA features = %v, want %v", a.Features, want)
 			}
 
 			requireResult(t, str(t, p, "af;1"), success)
@@ -180,9 +182,16 @@ func TestAA(t *testing.T) {
 
 func TestAAOnlyBindsToTheIMSDataNetwork(t *testing.T) {
 	p := pcf.New(policyStore{}, zap.NewNop())
-	establish(t, p, "internet", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: "internet", IPv4: testUEv4})
+	establish(t, p, "internet", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: models.IMSDataNetworkName, IPv4: testUEv4})
 
 	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable))
+}
+
+func TestAABindsToAnyIMSDataNetwork(t *testing.T) {
+	p := pcf.New(policyStore{}, zap.NewNop())
+	establish(t, p, "mcx", smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: "mcx", IMS: true, IPv4: testUEv4})
+
+	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
 }
 
 func TestSessionTermination(t *testing.T) {
@@ -198,7 +207,7 @@ func TestTerminatedAssociationAbortsItsRxSessions(t *testing.T) {
 	p := newPCF(t)
 	update := rx.RequestUpdate
 	other := netip.MustParseAddr("10.60.0.2")
-	establish(t, p, "other", smf.PolicyContext{Supi: supi(t, "001010000000002"), Dnn: models.IMSDataNetworkName, IPv4: other})
+	establish(t, p, "other", smf.PolicyContext{Supi: supi(t, "001010000000002"), Dnn: models.IMSDataNetworkName, IMS: true, IPv4: other})
 
 	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
 	requireResult(t, aa(t, p, "af;2", signallingAAR(testUEv6)), success)
@@ -234,9 +243,29 @@ func TestReplacedAssociationAbortsItsRxSessionsAndRebinds(t *testing.T) {
 
 	requireResult(t, aa(t, p, "af;1", signallingAAR(testUEv4)), success)
 
-	establish(t, p, testRef, smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: models.IMSDataNetworkName, IPv4: moved})
+	establish(t, p, testRef, smf.PolicyContext{Supi: supi(t, "001010000000001"), Dnn: models.IMSDataNetworkName, IMS: true, IPv4: moved})
 
 	requireResult(t, aa(t, p, "af;1", rx.AARequest{RequestType: &update}), tgpp.Result{Code: diameter.ResultUnknownSessionID})
 	requireResult(t, aa(t, p, "af;2", signallingAAR(testUEv4)), tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable))
 	requireResult(t, aa(t, p, "af;3", signallingAAR(moved)), success)
+}
+
+func TestAAChecksTheCalledStationID(t *testing.T) {
+	for _, tc := range []struct {
+		apn  string
+		want tgpp.Result
+	}{
+		{"", success},
+		{"ims", success},
+		{"IMS", success},
+		{"ims.mnc001.mcc001.gprs", success},
+		{"internet", tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)},
+		{"imsx", tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)},
+	} {
+		p := newPCF(t)
+		r := signallingAAR(testUEv4)
+		r.CalledStationID = tc.apn
+
+		requireResult(t, aa(t, p, "af;1", r), tc.want)
+	}
 }

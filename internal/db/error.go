@@ -15,6 +15,7 @@ import (
 var (
 	ErrAlreadyExists            = errors.New("already exists")
 	ErrNotFound                 = errors.New("not found")
+	ErrInUse                    = errors.New("in use")
 	ErrSubscriberNotFound       = fmt.Errorf("subscriber %w", ErrNotFound)
 	ErrMSISDNInUse              = errors.New("msisdn is assigned to another subscriber")
 	ErrDataNetworkNotFound      = errors.New("data network not found")
@@ -43,6 +44,15 @@ func isUniqueNameError(err error) bool {
 	var se sqlite3.Error
 	if errors.As(err, &se) {
 		return se.ExtendedCode == sqlite3.ErrConstraintUnique
+	}
+
+	return false
+}
+
+func isPrimaryKeyError(err error) bool {
+	var se sqlite3.Error
+	if errors.As(err, &se) {
+		return se.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
 	}
 
 	return false

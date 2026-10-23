@@ -189,7 +189,7 @@ None
 }
 ```
 
-`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on the `ims` data network and the subscriber has no IMS registration.
+`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on an IMS data network and the subscriber has no IMS registration.
 
 ### Registrations
 
@@ -229,6 +229,21 @@ None
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |
 | `data_network` | DNN (5G) or APN (4G). |
 | `slice` | S-NSSAI. 5G only. |
+| `bearers` | The session's QoS flows (5G) or EPS bearers (4G), the default one first. Omitted when the core holds no session context. |
+
+### Bearers
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | QFI (5G) or EPS Bearer ID (4G). |
+| `default` | `true` for the session's default QoS flow or bearer. |
+| `var5qi` | 5QI (5G) or QCI (4G). |
+| `arp` | ARP priority level, 1 (highest) to 15. |
+| `preemption_capability` | `may_preempt` or `not_preempt`. |
+| `preemption_vulnerability` | `preemptable` or `not_preemptable`. |
+| `mbr_uplink`, `mbr_downlink` | Maximum bitrate. Present on GBR QoS flows and bearers. |
+| `gbr_uplink`, `gbr_downlink` | Guaranteed bitrate. Present on GBR QoS flows and bearers. |
+| `rules` | IDs of the PCC rules the QoS flow or bearer carries, such as those of an IMS call. |
 
 ### IMS
 

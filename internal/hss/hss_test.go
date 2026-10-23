@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/hss"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/ellanetworks/core/internal/milenage"
 	"github.com/ellanetworks/core/internal/sqn"
 	"github.com/ellanetworks/core/internal/udm"
@@ -48,21 +49,23 @@ type fakeIMSSubscriber struct {
 }
 
 type fakeIMSStore struct {
-	subscribers   map[string]*fakeIMSSubscriber
-	registrations map[string]hss.Registration
-	voiceDisabled bool
-	fail          bool
-	unavailable   bool
-	contended     bool
-	block         chan struct{}
+	subscribers    map[string]*fakeIMSSubscriber
+	filterCriteria map[string][]cx.InitialFilterCriteria
+	serviceIDs     map[string]string
+	registrations  map[string]hss.Registration
+	voiceDisabled  bool
+	fail           bool
+	unavailable    bool
+	contended      bool
+	block          chan struct{}
 }
 
 func newFakeIMSStore() *fakeIMSStore {
 	return &fakeIMSStore{
 		subscribers: map[string]*fakeIMSSubscriber{
-			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
-			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true}, sqn: "000000000020"},
-			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
+			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
 			testNoIMS:     {Subscriber: hss.Subscriber{IMSI: testNoIMS, MSISDN: testNoIMSTel}, sqn: "000000000020"},
 		},
 		registrations: map[string]hss.Registration{},
@@ -140,6 +143,27 @@ func (f *fakeIMSStore) Subscriber(_ context.Context, imsi string) (*hss.Subscrib
 	sub := s.Subscriber
 
 	return &sub, nil
+}
+
+func (f *fakeIMSStore) FilterCriteria(_ context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+	if f.fail {
+		return nil, errStoreDown
+	}
+
+	return f.filterCriteria[imsi], nil
+}
+
+func (f *fakeIMSStore) ServiceIdentity(_ context.Context, identity string) (*hss.ServiceIdentity, error) {
+	if f.fail {
+		return nil, errStoreDown
+	}
+
+	m, ok := psi.NewMatcher(f.serviceIDs).Match(identity)
+	if !ok {
+		return nil, nil
+	}
+
+	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
 }
 
 func (f *fakeIMSStore) CountRegistered(context.Context) (int, error) {
@@ -626,7 +650,7 @@ func TestTermination(t *testing.T) {
 				return
 			}
 
-			want := hss.Termination{IMSI: testIMSI, PrivateIdentity: impiOf(testIMSI), ServerHost: cscfIdentity.OriginHost, ServerRealm: cscfIdentity.OriginRealm}
+			want := hss.Termination{IMSI: testIMSI, PrivateIdentity: impiOf(testIMSI), ServerName: testSCSCF, ServerHost: cscfIdentity.OriginHost, ServerRealm: cscfIdentity.OriginRealm}
 			if got == nil || *got != want {
 				t.Fatalf("Termination = %+v, want %+v", got, want)
 			}

@@ -358,7 +358,7 @@ func (p ServiceProfile) validate() error {
 	}
 
 	for _, ifc := range p.InitialFilterCriteria {
-		if err := ifc.validate(); err != nil {
+		if err := ifc.Validate(); err != nil {
 			return err
 		}
 	}
@@ -386,7 +386,7 @@ func (id ProfileIdentity) validate() error {
 	return nil
 }
 
-func (c InitialFilterCriteria) validate() error {
+func (c InitialFilterCriteria) Validate() error {
 	if err := validURI("ServerName", c.ApplicationServer.ServerName); err != nil {
 		return err
 	}

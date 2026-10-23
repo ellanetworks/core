@@ -1,16 +1,21 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { setupApiServer } from "@/test/apiServer";
+import { httpError, setupApiServer } from "@/test/apiServer";
 import Operator from "./Operator";
 
 const api = setupApiServer();
 
 const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
+const AS_PATH = "/api/v1/operator/ims/application-servers";
+
+beforeEach(() => {
+  api.get(AS_PATH, () => ({ items: [] }));
+});
 
 const operator = (
   sms: Record<string, unknown>,
@@ -200,7 +205,7 @@ describe("Operator SMS section", () => {
   });
 });
 
-describe("Operator Voice section", () => {
+describe("Operator IMS section", () => {
   it("shows the P-CSCF addresses", async () => {
     api.get("/api/v1/operator", () =>
       operator(ready, ["10.6.0.5", "2001:db8::5"]),
@@ -229,7 +234,7 @@ describe("Operator Voice section", () => {
     );
     await user.click(screen.getByRole("button", { name: /^Update$/ }));
 
-    await screen.findByText("Voice settings updated successfully.");
+    await screen.findByText("P-CSCF addresses updated successfully.");
     expect(api.lastRequest("/api/v1/operator/ims")?.body).toEqual({
       pcscfAddresses: ["10.6.0.5", "2001:db8::5"],
     });
@@ -268,6 +273,203 @@ describe("Operator Voice section", () => {
     expect(await screen.findByText("P-CSCF Addresses")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Edit P-CSCF addresses" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+const mcpttAS = {
+  name: "mcptt",
+  server_name: "sip:mcptt.ims.example.org",
+  public_service_identities: ["sip:!.*!@mcptt.ims.example.org"],
+};
+
+const renderIMS = (role = "Admin") => {
+  api.get("/api/v1/operator", () => operator(ready));
+  api.get(PEERS_PATH, () => ({ items: [] }));
+  renderOperator(role);
+};
+
+describe("Operator IMS application servers", () => {
+  it("adds an application server with public service identities", async () => {
+    const user = userEvent.setup();
+    let servers: unknown[] = [];
+    api.get(AS_PATH, () => ({ items: servers }));
+    api.post(AS_PATH, () => {
+      servers = [mcpttAS];
+      return {};
+    });
+    renderIMS();
+
+    expect(
+      await screen.findByText("No application servers yet."),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Add application server" }),
+    );
+    await user.type(await screen.findByLabelText(/^Name/), "mcptt");
+    await user.type(
+      screen.getByLabelText(/^Server Name/),
+      "sip:mcptt.ims.example.org",
+    );
+    await user.click(screen.getByRole("button", { name: "Add Identity" }));
+    await user.type(
+      screen.getByLabelText(/^Identity 1/),
+      "sip:!.*!@mcptt.ims.example.org",
+    );
+    await user.click(screen.getByRole("button", { name: /^Add$/ }));
+
+    await screen.findByText("Application server added successfully.");
+    expect(
+      api.requests(AS_PATH).find((r) => r.method === "POST")?.body,
+    ).toEqual(mcpttAS);
+  });
+
+  it("adds an application server without identities", async () => {
+    const user = userEvent.setup();
+    api.post(AS_PATH, () => ({}));
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add application server" }),
+    );
+    await user.type(await screen.findByLabelText(/^Name/), "conf");
+    await user.type(
+      screen.getByLabelText(/^Server Name/),
+      "sip:conf.ims.example.org",
+    );
+    await user.click(screen.getByRole("button", { name: /^Add$/ }));
+
+    await screen.findByText("Application server added successfully.");
+    expect(
+      api.requests(AS_PATH).find((r) => r.method === "POST")?.body,
+    ).toEqual({
+      name: "conf",
+      server_name: "sip:conf.ims.example.org",
+      public_service_identities: [],
+    });
+  });
+
+  it("rejects a server name that is not a SIP URI", async () => {
+    const user = userEvent.setup();
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add application server" }),
+    );
+    await user.type(await screen.findByLabelText(/^Name/), "conf");
+    await user.type(screen.getByLabelText(/^Server Name/), "conf.example.org");
+    await user.tab();
+
+    expect(await screen.findByText(/Must be a SIP URI/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Add$/ })).toBeDisabled();
+  });
+
+  it("edits an application server", async () => {
+    const user = userEvent.setup();
+    api.get(AS_PATH, () => ({ items: [mcpttAS] }));
+    api.put(`${AS_PATH}/mcptt`, () => ({}));
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Edit application server mcptt",
+      }),
+    );
+    expect(await screen.findByLabelText(/^Name/)).toBeDisabled();
+    const server = screen.getByLabelText(/^Server Name/);
+    await user.clear(server);
+    await user.type(server, "sip:as.ims.example.org");
+    await user.click(screen.getByRole("button", { name: "Remove identity 1" }));
+    await user.click(screen.getByRole("button", { name: /^Update$/ }));
+
+    await screen.findByText("Application server updated successfully.");
+    expect(api.lastRequest(`${AS_PATH}/mcptt`)?.body).toEqual({
+      server_name: "sip:as.ims.example.org",
+      public_service_identities: [],
+    });
+  });
+
+  it("deletes an application server", async () => {
+    const user = userEvent.setup();
+    let servers: unknown[] = [mcpttAS];
+    api.get(AS_PATH, () => ({ items: servers }));
+    api.delete(`${AS_PATH}/mcptt`, () => {
+      servers = [];
+      return {};
+    });
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete application server mcptt",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(
+      await screen.findByText("No application servers yet."),
+    ).toBeInTheDocument();
+    expect(api.requests(`${AS_PATH}/mcptt`).map((r) => r.method)).toEqual([
+      "DELETE",
+    ]);
+  });
+
+  it("reports an application server still in use", async () => {
+    const user = userEvent.setup();
+    api.get(AS_PATH, () => ({ items: [mcpttAS] }));
+    api.delete(`${AS_PATH}/mcptt`, () =>
+      httpError(409, "Application server is used by a profile"),
+    );
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete application server mcptt",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(
+      await screen.findByText(
+        "Failed to delete application server: Application server is used by a profile",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Operator IMS without services", () => {
+  it("shows application servers but no services", async () => {
+    api.get(AS_PATH, () => ({ items: [mcpttAS] }));
+    renderIMS();
+
+    expect(
+      await screen.findByText("sip:mcptt.ims.example.org"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
+    expect(screen.queryByText("No services yet.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /service$/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      api.requests().some((r) => r.url.pathname.includes("/ims/services")),
+    ).toBe(false);
+  });
+
+  it("hides IMS writes from a read-only user", async () => {
+    api.get(AS_PATH, () => ({ items: [mcpttAS] }));
+    renderIMS("Read Only");
+
+    expect(
+      await screen.findByText("sip:mcptt.ims.example.org"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add application server" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Edit application server/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Delete application server/ }),
     ).not.toBeInTheDocument();
   });
 });

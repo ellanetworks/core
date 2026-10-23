@@ -19,6 +19,7 @@ export type APIDataNetwork = {
   ipv6_pool?: string;
   dns: string;
   mtu: number;
+  ims: boolean;
   status?: DataNetworkStatus;
   ip_allocation?: DataNetworkIPAllocation;
   ipv6_allocation?: DataNetworkIPAllocation;
@@ -84,9 +85,16 @@ export const createDataNetwork = async (
   ipv4Pool: string,
   dns: string,
   mtu: number,
+  ims: boolean,
   ipv6Pool?: string,
 ): Promise<void> => {
-  const body: Record<string, unknown> = { name, ipv4_pool: ipv4Pool, dns, mtu };
+  const body: Record<string, unknown> = {
+    name,
+    ipv4_pool: ipv4Pool,
+    dns,
+    mtu,
+    ims,
+  };
   if (ipv6Pool) {
     body.ipv6_pool = ipv6Pool;
   }
@@ -103,9 +111,16 @@ export const updateDataNetwork = async (
   ipv4Pool: string,
   dns: string,
   mtu: number,
+  ims: boolean,
   ipv6Pool?: string,
 ): Promise<void> => {
-  const body: Record<string, unknown> = { name, ipv4_pool: ipv4Pool, dns, mtu };
+  const body: Record<string, unknown> = {
+    name,
+    ipv4_pool: ipv4Pool,
+    dns,
+    mtu,
+    ims,
+  };
   if (ipv6Pool) {
     body.ipv6_pool = ipv6Pool;
   }

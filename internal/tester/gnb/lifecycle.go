@@ -33,6 +33,8 @@ type PDUSessionResult struct {
 	Accept              []byte
 	FiveQI              int64 // QCI on EPS
 	ARP                 int64
+	PreemptCap          ngap.PreemptionCapability
+	PreemptVuln         ngap.PreemptionVulnerability
 	SessAmbrUplinkBps   int64
 	SessAmbrDownlinkBps int64
 	UpfAddress          string // UPF N3 address (uplink target)
@@ -455,6 +457,8 @@ func (g *GnodeB) PDUSession(ranUENGAPID int64, pduSessionID uint8) (PDUSessionRe
 		QFI:                 uint8(s.QFI),
 		FiveQI:              s.FiveQi,
 		ARP:                 s.PriArp,
+		PreemptCap:          s.PreemptCap,
+		PreemptVuln:         s.PreemptVuln,
 		SessAmbrUplinkBps:   s.AmbrUplink,
 		SessAmbrDownlinkBps: s.AmbrDownlink,
 		UpfAddress:          s.UpfAddress,
@@ -487,6 +491,8 @@ func (g *GnodeB) awaitSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, g
 		QFI:                 ueSession.QFI,
 		FiveQI:              ranSession.FiveQi,
 		ARP:                 ranSession.PriArp,
+		PreemptCap:          ranSession.PreemptCap,
+		PreemptVuln:         ranSession.PreemptVuln,
 		SessAmbrUplinkBps:   ranSession.AmbrUplink,
 		SessAmbrDownlinkBps: ranSession.AmbrDownlink,
 		UpfAddress:          ranSession.UpfAddress,

@@ -27,6 +27,12 @@ type Subscriber struct {
 	IMSI           string
 	MSISDN         string
 	IMSDataNetwork bool
+	IMSVoice       bool
+}
+
+type ServiceIdentity struct {
+	ServerName string
+	Wildcard   string
 }
 
 type Store interface {
@@ -35,6 +41,8 @@ type Store interface {
 	IMSVoiceEnabled(ctx context.Context) (bool, error)
 	Subscriber(ctx context.Context, imsi string) (*Subscriber, error)
 	SubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error)
+	FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error)
+	ServiceIdentity(ctx context.Context, identity string) (*ServiceIdentity, error)
 	CountRegistered(ctx context.Context) (int, error)
 }
 

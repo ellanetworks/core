@@ -25,7 +25,7 @@ const (
 func secondPDN(ue *mme.UeContext) {
 	p := ue.EnsurePDN(6)
 	p.Apn = "ims"
-	p.Qci, p.Arp = 5, 7
+	p.Qci, p.Arp = 5, models.Arp{PriorityLevel: 7}
 	p.SgwFTEID = models.FTEID{TEID: 0x2222, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 2})}
 }
 
@@ -211,7 +211,7 @@ func TestS1HandoverCommandReportsABearerTheCoreCouldNotOffer(t *testing.T) {
 
 	unusable := ue.EnsurePDN(6)
 	unusable.Apn = "ims"
-	unusable.Qci, unusable.Arp = 5, 7
+	unusable.Qci, unusable.Arp = 5, models.Arp{PriorityLevel: 7}
 	unusable.SgwFTEID = models.FTEID{TEID: 0x2222}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),

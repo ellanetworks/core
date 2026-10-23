@@ -86,7 +86,7 @@ func TestCreateAssociationDecision(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	subscribed := smf.SubscribedQoS{Var5qi: 5, Arp: 3, SessionAMBR: models.Ambr{Uplink: models.MustParseBitRate("10 Mbps"), Downlink: models.MustParseBitRate("20 Mbps")}}
+	subscribed := smf.SubscribedQoS{Var5qi: 5, Arp: models.Arp{PriorityLevel: 3}, SessionAMBR: models.Ambr{Uplink: models.MustParseBitRate("10 Mbps"), Downlink: models.MustParseBitRate("20 Mbps")}}
 
 	ims, err := database.GetPolicy(ctx, "ims")
 	if err != nil {
@@ -98,7 +98,7 @@ func TestCreateAssociationDecision(t *testing.T) {
 		t.Fatalf("CreateAssociation: %s", err)
 	}
 
-	if d.PolicyID != ims.ID || d.Var5qi != 5 || d.Arp != 3 || !d.SessionAMBR.Downlink.Equal(subscribed.SessionAMBR.Downlink) {
+	if d.PolicyID != ims.ID || d.Var5qi != 5 || d.Arp.PriorityLevel != 3 || !d.SessionAMBR.Downlink.Equal(subscribed.SessionAMBR.Downlink) {
 		t.Fatalf("decision = %+v, want policy %s with the subscribed QoS", d, ims.ID)
 	}
 

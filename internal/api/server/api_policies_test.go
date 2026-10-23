@@ -42,15 +42,17 @@ type PolicyRules struct {
 }
 
 type Policy struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name,omitempty"`
-	SliceName           string       `json:"slice_name,omitempty"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
-	DataNetworkName     string       `json:"data_network_name,omitempty"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
+	Name                    string       `json:"name"`
+	ProfileName             string       `json:"profile_name,omitempty"`
+	SliceName               string       `json:"slice_name,omitempty"`
+	SessionAmbrUplink       string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink     string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi                  int32        `json:"var5qi,omitempty"`
+	Arp                     int32        `json:"arp,omitempty"`
+	PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+	DataNetworkName         string       `json:"data_network_name,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
 }
 
 type GetPolicyResponse struct {
@@ -59,15 +61,17 @@ type GetPolicyResponse struct {
 }
 
 type CreatePolicyParams struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
-	DataNetworkName     string       `json:"data_network_name,omitempty"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
+	Name                    string       `json:"name"`
+	ProfileName             string       `json:"profile_name"`
+	SliceName               string       `json:"slice_name"`
+	SessionAmbrUplink       string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink     string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi                  int32        `json:"var5qi,omitempty"`
+	Arp                     int32        `json:"arp,omitempty"`
+	PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+	DataNetworkName         string       `json:"data_network_name,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
 }
 
 type CreatePolicyResponse struct {
@@ -76,14 +80,16 @@ type CreatePolicyResponse struct {
 }
 
 type UpdatePolicyParams struct {
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
-	DataNetworkName     string       `json:"data_network_name,omitempty"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
+	ProfileName             string       `json:"profile_name"`
+	SliceName               string       `json:"slice_name"`
+	SessionAmbrUplink       string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink     string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi                  int32        `json:"var5qi,omitempty"`
+	Arp                     int32        `json:"arp,omitempty"`
+	PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+	DataNetworkName         string       `json:"data_network_name,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
 }
 
 type DeletePolicyResponseResult struct {

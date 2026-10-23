@@ -198,6 +198,10 @@ func (db *Database) IMSVoiceStatus(ctx context.Context) (IMSVoiceStatus, error) 
 		return "", err
 	}
 
+	if !dn.IMS {
+		return IMSVoiceNoDataNetwork, nil
+	}
+
 	if slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
 		if addr.Is4() {
 			return dn.IPv4Pool != ""

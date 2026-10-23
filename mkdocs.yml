@@ -73,6 +73,7 @@ nav:
     - Use native XDP with veth: how_to/native_xdp_veth.md
     - Disable Merged Packets: how_to/disable_merged_packets.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
+    - Integrate with an IMS: how_to/integrate_with_ims.md
     - Backup and Restore: how_to/backup_and_restore.md
     - Scale Up a High Availability Cluster: how_to/scale_up_ha_cluster.md
     - Perform a Rolling Upgrade: how_to/rolling_upgrade.md
@@ -82,6 +83,7 @@ nav:
     - Manage Your Network with AI Agents: how_to/ai_agents.md
     - Enable SMS: how_to/enable_sms.md
     - Enable Voice: how_to/enable_voice.md
+    - Enable MCPTT: how_to/enable_mcptt.md
   - Reference:
     - reference/index.md
     - API:
@@ -126,7 +128,7 @@ nav:
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
     - Ella Core and VRFs: explanation/vrf.md
-    - Voice Integration: explanation/voice_integration.md
+    - IMS Integration: explanation/ims_integration.md
     - SMS Integration: explanation/sms_integration.md
 plugins:
   - search
@@ -135,6 +137,7 @@ plugins:
       redirect_maps:
         'tutorials/getting_started.md': 'tutorials/getting_started_simulation.md'
         'tutorials/end_to_end_network.md': 'tutorials/getting_started_simulation.md'
+        'explanation/voice_integration.md': 'explanation/ims_integration.md'
   - social:
       cards_layout_options:
         background_color: "#26374a"

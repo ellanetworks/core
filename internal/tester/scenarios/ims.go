@@ -229,6 +229,48 @@ func RequireIMSTerminationOnDeletion(ctx context.Context, env Env, sub Subscribe
 	return nil
 }
 
+func RequireIMSReregistrationOnMSISDNChange(ctx context.Context, env Env, sub SubscriberSpec, msisdn string, pcscf, local netip.Addr, transport sip.Transport) error {
+	u, err := newIMSUE(sub, pcscf, local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	defer u.close()
+
+	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
+	defer cancel()
+
+	if err := u.register(ctx, sub, transport); err != nil {
+		return err
+	}
+
+	cl, err := coreClient(env)
+	if err != nil {
+		return err
+	}
+
+	if err := cl.UpdateSubscriber(ctx, sub.IMSI, &client.UpdateSubscriberOptions{ProfileName: sub.ProfileName, Msisdn: msisdn}); err != nil {
+		return fmt.Errorf("change the MSISDN of %s: %w", sub.IMSI, err)
+	}
+
+	renumbered := sub
+	renumbered.MSISDN = msisdn
+	deadline := time.Now().Add(imsTerminationTimeout)
+
+	for {
+		err := checkIMSRegistration(u.UE, renumbered)
+		if err == nil && u.State().Registered {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s did not re-register with its new MSISDN: %v", sub.IMSI, err)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 func coreClient(env Env) (*client.Client, error) {
 	cl, err := client.New(&client.Config{BaseURL: env.APIAddress})
 	if err != nil {
@@ -473,6 +515,12 @@ func newIMSUE(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transpo
 }
 
 func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64, video bool) (*imsUE, error) {
+	return newIMSUEConfigured(sub, pcscf, local, transport, sqnMS, func(cfg *testue.Config) {
+		cfg.MMTel = testue.MMTelConfig{AcceptCalls: true, Video: video}
+	})
+}
+
+func newIMSUEConfigured(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Transport, sqnMS uint64, configure func(*testue.Config)) (*imsUE, error) {
 	k, err := hex.DecodeString(sub.Key)
 	if err != nil {
 		return nil, fmt.Errorf("decode K: %w", err)
@@ -488,7 +536,7 @@ func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Tra
 		return nil, err
 	}
 
-	u, err := testue.New(testue.Config{
+	cfg := testue.Config{
 		IMSI:      sub.IMSI,
 		IMEI:      imsTestUEIMEI,
 		K:         k,
@@ -497,10 +545,13 @@ func newIMSUEWith(sub SubscriberSpec, pcscf, local netip.Addr, transport sip.Tra
 		PCSCF:     netip.AddrPortFrom(pcscf, IMSPCSCFPort),
 		Local:     local,
 		Transport: transport,
-		MMTel:     testue.MMTelConfig{AcceptCalls: true, Video: video},
 		Kernel:    xfrm,
 		Logger:    slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
-	})
+	}
+
+	configure(&cfg)
+
+	u, err := testue.New(cfg)
 	if err != nil {
 		_ = xfrm.Close()
 		return nil, err
@@ -1199,4 +1250,139 @@ func RequireIMSVideoCall(ctx context.Context, caller, callee IMSEndpoint, transp
 	}
 
 	return b.deregister(ctx, transport)
+}
+
+const (
+	MCDNN          = "mcx"
+	MCUEIPv4Pool   = "10.62.0.0/16"
+	MCUEIPv6Pool   = "fd62::/48"
+	MCProfileName  = "mcprofile"
+	MCPolicyName   = "mcpolicy"
+	MCPolicy5QI    = 69
+	MCPolicyARP    = 3
+	MCMayPreempt   = "may_preempt"
+	MCNotPreempted = "not_preemptable"
+)
+
+func MCDataNetwork(env Env) DataNetworkSpec {
+	ims := true
+
+	dn := DataNetworkSpec{Name: MCDNN, IPv4Pool: MCUEIPv4Pool, DNS: DefaultDNS, MTU: DefaultMTU, IMS: &ims}
+	if env.HasIPv6() {
+		dn.IPv6Pool = MCUEIPv6Pool
+	}
+
+	return dn
+}
+
+func MCFixture(env Env, imsi string) FixtureSpec {
+	return FixtureSpec{
+		Profiles: []ProfileSpec{{
+			Name:           MCProfileName,
+			UeAmbrUplink:   DefaultProfileUeAmbrUplink,
+			UeAmbrDownlink: DefaultProfileUeAmbrDownlink,
+		}},
+		DataNetworks: []DataNetworkSpec{MCDataNetwork(env)},
+		Policies: []PolicySpec{{
+			Name:                    MCPolicyName,
+			ProfileName:             MCProfileName,
+			SliceName:               DefaultSliceName,
+			DataNetworkName:         MCDNN,
+			SessionAmbrUplink:       "100 Mbps",
+			SessionAmbrDownlink:     "100 Mbps",
+			Var5qi:                  MCPolicy5QI,
+			Arp:                     MCPolicyARP,
+			PreemptionCapability:    MCMayPreempt,
+			PreemptionVulnerability: MCNotPreempted,
+		}},
+		Subscribers:    []SubscriberSpec{DefaultSubscriberWith(imsi, MCProfileName)},
+		PCSCFAddresses: PCSCFAddresses,
+	}
+}
+
+const MCPTTApplicationServer = "mcptt-as"
+
+func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
+	register, originating := "REGISTER", "ORIGINATING_REGISTERED"
+	header, content := "^P-Asserted-Service$", `^urn:urn-7:3gpp-service\.ims\.icsi\.mcptt$`
+
+	return []client.IMSInitialFilterCriterion{
+		{
+			ApplicationServerName:   MCPTTApplicationServer,
+			Trigger:                 &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{{Method: &register}}}}},
+			DefaultHandling:         new("SESSION_CONTINUED"),
+			IncludeRegisterRequest:  true,
+			IncludeRegisterResponse: true,
+		},
+		{
+			ApplicationServerName: MCPTTApplicationServer,
+			Trigger: &client.IMSTrigger{ConditionsMatch: "all", Groups: []client.IMSConditionGroup{{Conditions: []client.IMSCondition{
+				{SessionCase: &originating},
+				{SIPHeader: &client.IMSHeaderMatch{Header: header, Content: &content}},
+			}}}},
+			DefaultHandling: new("SESSION_TERMINATED"),
+		},
+	}
+}
+
+func ProvisionMCPTTService(ctx context.Context, env Env, profile, serverName string) (func(), error) {
+	cl, err := coreClient(env)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := cl.CreateIMSApplicationServer(ctx, &client.CreateIMSApplicationServerOptions{
+		Name:                    MCPTTApplicationServer,
+		ServerName:              serverName,
+		PublicServiceIdentities: []string{"sip:!.*!@" + MCPTTPSIDomain},
+	}); err != nil {
+		return nil, fmt.Errorf("create the MCPTT application server: %w", err)
+	}
+
+	cleanup := func() {
+		_ = cl.SetProfileIMSFilterCriteria(context.Background(), profile, nil)
+		_ = cl.DeleteIMSApplicationServer(context.Background(), MCPTTApplicationServer)
+	}
+
+	if err := cl.SetProfileIMSFilterCriteria(ctx, profile, MCPTTFilterCriteria()); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("give profile %s the MCPTT initial filter criteria: %w", profile, err)
+	}
+
+	return cleanup, nil
+}
+
+func RequireIMSRegistrationAcrossProfilePushes(ctx context.Context, env Env, sub SubscriberSpec, profile string, pcscf, local netip.Addr, transport sip.Transport) error {
+	u, err := newIMSUE(sub, pcscf, local, transport, 0)
+	if err != nil {
+		return err
+	}
+
+	defer u.close()
+
+	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
+	defer cancel()
+
+	if err := u.register(ctx, sub, transport); err != nil {
+		return err
+	}
+
+	cl, err := coreClient(env)
+	if err != nil {
+		return err
+	}
+
+	for _, ifcs := range [][]client.IMSInitialFilterCriterion{nil, MCPTTFilterCriteria()} {
+		if err := cl.SetProfileIMSFilterCriteria(ctx, profile, ifcs); err != nil {
+			return fmt.Errorf("set the %d initial filter criteria of profile %s: %w", len(ifcs), profile, err)
+		}
+
+		time.Sleep(time.Second)
+
+		if !u.State().Registered {
+			return fmt.Errorf("%s lost its IMS registration after the profile push for %d initial filter criteria", sub.IMSI, len(ifcs))
+		}
+	}
+
+	return nil
 }

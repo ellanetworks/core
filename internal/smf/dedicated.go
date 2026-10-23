@@ -119,7 +119,11 @@ func bindRules(rules []PCCRule) map[bearerBinding][]PCCRule {
 	return groups
 }
 
-func bearerRates(rules []PCCRule) (mbr, gbr models.Ambr) {
+func bearerRates(qci uint8, rules []PCCRule) (mbr, gbr models.Ambr) {
+	if !models.GBRFiveQI(qci) {
+		return models.Ambr{}, models.Ambr{}
+	}
+
 	var mbrUL, mbrDL, gbrUL, gbrDL uint64
 
 	for _, r := range rules {
@@ -166,6 +170,12 @@ func (sc *SMContext) dedicatedReady() bool {
 }
 
 func (sc *SMContext) installedRuleLocked(id string) *PCCRule {
+	if sc.onDefault != nil {
+		if i := slices.IndexFunc(sc.onDefault.installed.rules, func(r PCCRule) bool { return r.ID == id }); i >= 0 {
+			return &sc.onDefault.installed.rules[i]
+		}
+	}
+
 	for _, b := range sc.dedicated {
 		if b.state != dedicatedActive {
 			continue
@@ -195,14 +205,6 @@ func (sc *SMContext) ruleReportsLocked(failed []PCCRule) []RuleReport {
 	return reports
 }
 
-func (sc *SMContext) gbrQoS(qci uint8) bool {
-	if sc.Access == Access5G {
-		return models.GBRFiveQI(qci)
-	}
-
-	return models.GBRQCI(qci)
-}
-
 func (sc *SMContext) enforceableRulesLocked() ([]PCCRule, []PCCRule) {
 	var rules, unsupported []PCCRule
 
@@ -219,7 +221,7 @@ func (sc *SMContext) enforceableRulesLocked() ([]PCCRule, []PCCRule) {
 			continue
 		}
 
-		if !sc.gbrQoS(r.QCI) || slices.ContainsFunc(r.Filters, func(f models.SDFFilter) bool { return !f.Constrained() }) {
+		if slices.ContainsFunc(r.Filters, func(f models.SDFFilter) bool { return !f.Constrained() }) {
 			unsupported = append(unsupported, r)
 			continue
 		}
@@ -246,6 +248,8 @@ func (s *SMF) planDedicatedLocked(ctx context.Context, sc *SMContext) ([]dedicat
 	}
 
 	enforceable, failed := sc.enforceableRulesLocked()
+	onDefault, enforceable := sc.splitDefaultRules(enforceable)
+	failed = append(failed, s.bindDefaultLocked(ctx, sc, onDefault)...)
 	want := bindRules(enforceable)
 
 	var (
@@ -469,7 +473,7 @@ func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedB
 	}
 
 	filters := tft.list()
-	mbr, gbr := bearerRates(t.rules)
+	mbr, gbr := bearerRates(t.binding.QCI, t.rules)
 	t.tft, t.mbr, t.gbr = tft, mbr, gbr
 
 	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{tft, t.rules})); err != nil {

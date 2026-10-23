@@ -5,6 +5,7 @@ package hss
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/ellanetworks/core/diameter/cx"
@@ -44,10 +45,54 @@ func (s *subject) entitled() bool {
 	return s.IMSDataNetwork && s.authorized()
 }
 
-func (s *subject) userData() ([]byte, error) {
+func hasUnregisteredTerminatingServices(ifcs []cx.InitialFilterCriteria) bool {
+	return slices.ContainsFunc(ifcs, func(ifc cx.InitialFilterCriteria) bool {
+		if ifc.ProfilePart != nil && *ifc.ProfilePart == cx.ProfilePartRegistered {
+			return false
+		}
+
+		return ifc.Trigger == nil || mayMatchTerminatingUnregistered(*ifc.Trigger)
+	})
+}
+
+func mayMatchTerminatingUnregistered(t cx.TriggerPoint) bool {
+	groups := make(map[int32][]bool)
+
+	for _, spt := range t.ServicePointTriggers {
+		possible := sptMayMatchTerminatingUnregistered(spt)
+		for _, g := range spt.Groups {
+			groups[g] = append(groups[g], possible)
+		}
+	}
+
+	for _, possible := range groups {
+		if t.ConjunctiveNormalForm && !slices.Contains(possible, true) {
+			return false
+		}
+
+		if !t.ConjunctiveNormalForm && !slices.Contains(possible, false) {
+			return true
+		}
+	}
+
+	return t.ConjunctiveNormalForm
+}
+
+func sptMayMatchTerminatingUnregistered(spt cx.ServicePointTrigger) bool {
+	switch {
+	case spt.SessionCase != nil:
+		return (*spt.SessionCase == cx.SessionCaseTerminatingUnregistered) != spt.Negated
+	case spt.Method != nil && *spt.Method == "REGISTER":
+		return spt.Negated
+	default:
+		return true
+	}
+}
+
+func (s *subject) userData(ifcs []cx.InitialFilterCriteria) ([]byte, error) {
 	return cx.MarshalUserData(cx.IMSSubscription{
 		PrivateIdentity: s.privateIdentity(),
-		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities()}},
+		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities(), InitialFilterCriteria: ifcs}},
 	})
 }
 

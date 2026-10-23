@@ -61,11 +61,11 @@ None
 }
 ```
 
-`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the `ims` data network's pools).
+`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the pools of the `ims` data network). `no_ims_data_network` means there is no IMS data network named `ims` (the IMS well-known APN).
 
 ## Update the Operator ID
 
-This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system. Changing it renames the Diameter identity and realm of every node, so the Ella Core peers configured in the IMS and in the SMSC must be updated afterwards.
+This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system. Changing it renames the Diameter identity and realm of every node, so the Ella Core peers configured in the IMS and in the SMSC must be updated afterwards. IMS application servers in the old IMS home domain move to the new one.
 
 | Method | Path                  |
 | ------ | --------------------- |
@@ -434,7 +434,7 @@ None
 
 ## Update the IMS Settings
 
-This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on the `ims` data network.
+This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on IMS data networks.
 
 | Method | Path                     |
 | ------ | ------------------------ |
@@ -458,6 +458,126 @@ This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on th
 {
     "result": {
         "message": "Operator IMS settings updated successfully"
+    }
+}
+```
+
+## List IMS Application Servers
+
+This path returns the list of IMS application servers, sorted by name.
+
+| Method | Path                                         |
+| ------ | -------------------------------------------- |
+| GET    | `/api/v1/operator/ims/application-servers`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "name": "mcptt",
+                "server_name": "sip:mcptt.ims.example.org",
+                "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]
+            }
+        ]
+    }
+}
+```
+
+## Get an IMS Application Server
+
+This path returns an IMS application server.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| GET    | `/api/v1/operator/ims/application-servers/{name}`   |
+
+### Parameters
+
+None
+
+## Create an IMS Application Server
+
+This path creates an IMS application server.
+
+| Method | Path                                         |
+| ------ | -------------------------------------------- |
+| POST   | `/api/v1/operator/ims/application-servers`   |
+
+### Parameters
+
+- `name` (string): The name of the application server.
+- `server_name` (string): The SIP URI of the application server.
+- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be a subscriber's tel URI, or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`).
+
+### Sample Request
+
+```json
+{
+    "name": "mcptt",
+    "server_name": "sip:mcptt.ims.example.org",
+    "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "name": "mcptt",
+        "server_name": "sip:mcptt.ims.example.org",
+        "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]
+    }
+}
+```
+
+## Update an IMS Application Server
+
+This path updates an IMS application server. The server name and the public service identities are replaced.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| PUT    | `/api/v1/operator/ims/application-servers/{name}`   |
+
+### Parameters
+
+Same as [Create an IMS Application Server](#create-an-ims-application-server), without `name`.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Application server updated successfully"
+    }
+}
+```
+
+## Delete an IMS Application Server
+
+This path deletes an IMS application server. An application server used by a profile's initial filter criteria can't be deleted.
+
+| Method | Path                                                |
+| ------ | --------------------------------------------------- |
+| DELETE | `/api/v1/operator/ims/application-servers/{name}`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Application server deleted successfully"
     }
 }
 ```

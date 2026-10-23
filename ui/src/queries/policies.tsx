@@ -26,6 +26,8 @@ export type APIPolicy = {
   session_ambr_downlink: string;
   var5qi: number;
   arp: number;
+  preemption_capability: "may_preempt" | "not_preempt";
+  preemption_vulnerability: "preemptable" | "not_preemptable";
   rules?: PolicyRules;
   default: boolean;
 };
@@ -70,6 +72,8 @@ export async function createPolicy(
     session_ambr_downlink: string;
     var5qi: number;
     arp: number;
+    preemption_capability?: "may_preempt" | "not_preempt";
+    preemption_vulnerability?: "preemptable" | "not_preemptable";
     default?: boolean;
   },
 ): Promise<void> {
@@ -91,6 +95,8 @@ export async function updatePolicy(
     session_ambr_downlink: string;
     var5qi: number;
     arp: number;
+    preemption_capability?: "may_preempt" | "not_preempt";
+    preemption_vulnerability?: "preemptable" | "not_preemptable";
     rules?: PolicyRules;
     default?: boolean;
   },

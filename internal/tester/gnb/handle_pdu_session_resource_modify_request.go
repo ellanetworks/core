@@ -5,6 +5,7 @@ package gnb
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/ngap"
@@ -36,16 +37,30 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 	ids := make([]int64, 0, len(req.PDUSessionResourceModify))
 	accepted := make(map[int64][]uint8)
 	failed := make(map[int64][]uint8)
-	refusal, refuse := gnb.takeGBRFlowRefusal(ranUeNgapID)
+	modInfos := make([]*PDUSessionModifyRequest, len(req.PDUSessionResourceModify))
+	modErrs := make([]error, len(req.PDUSessionResourceModify))
 
-	for _, item := range req.PDUSessionResourceModify {
+	var (
+		refusal ngap.Cause
+		refuse  bool
+	)
+
+	for i, item := range req.PDUSessionResourceModify {
+		modInfos[i], modErrs[i] = getPDUSessionInfoFromModifyRequestTransfer(item.Transfer)
+
+		if modErrs[i] == nil && modInfos[i].carriesGBRFlow() && !refuse {
+			refusal, refuse = gnb.takeGBRFlowRefusal(ranUeNgapID)
+		}
+	}
+
+	for i, item := range req.PDUSessionResourceModify {
 		pduSessionID := int64(item.PDUSessionID)
 		ids = append(ids, pduSessionID)
 
 		forward := true
 		admit := func() {}
 
-		modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.Transfer)
+		modInfo, err := modInfos[i], modErrs[i]
 		if err != nil {
 			logger.GnbLogger.Debug("could not parse PDU Session Resource Modify Request Transfer",
 				zap.Error(err),
@@ -57,13 +72,18 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 			var dedicated []uint8
 
 			fiveQIs := make(map[uint8]int64)
+			flowQoS := make(map[uint8]QoSFlowParams)
 
 			for _, f := range modInfo.Flows {
 				if f.FiveQi != 0 {
 					fiveQIs[uint8(f.QFI)] = f.FiveQi
 				}
 
-				if refuse && defaultQFI != 0 && f.QFI != defaultQFI {
+				if f.Params != nil {
+					flowQoS[uint8(f.QFI)] = *f.Params
+				}
+
+				if refuse && f.GBR {
 					failed[pduSessionID] = append(failed[pduSessionID], uint8(f.QFI))
 					continue
 				}
@@ -84,6 +104,7 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 			}
 
 			gnb.recordFlowFiveQIs(ranUeNgapID, pduSessionID, fiveQIs)
+			gnb.recordFlowQoS(ranUeNgapID, pduSessionID, flowQoS)
 
 			admit = func() { gnb.admitQoSFlows(ranUeNgapID, pduSessionID, dedicated, modInfo.Released) }
 
@@ -137,6 +158,8 @@ type PDUSessionModifyInfo struct {
 	QFI          int64
 	AmbrUplink   int64
 	AmbrDownlink int64
+	GBR          bool
+	Params       *QoSFlowParams
 }
 
 type PDUSessionModifyRequest struct {
@@ -144,6 +167,10 @@ type PDUSessionModifyRequest struct {
 	AmbrDownlink int64
 	Flows        []PDUSessionModifyInfo
 	Released     []uint8
+}
+
+func (r *PDUSessionModifyRequest) carriesGBRFlow() bool {
+	return slices.ContainsFunc(r.Flows, func(f PDUSessionModifyInfo) bool { return f.GBR })
 }
 
 // getPDUSessionInfoFromModifyRequestTransfer reads the QoS the SMF asks the
@@ -169,11 +196,8 @@ func getPDUSessionInfoFromModifyRequestTransfer(transfer ngap.TransferContainer)
 		f := PDUSessionModifyInfo{QFI: int64(qos.QosFlowIdentifier)}
 
 		if p := qos.QosFlowLevelQosParameters; p != nil {
-			if p.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
-				f.FiveQi = int64(p.QosCharacteristics.NonDynamic5QI.FiveQI)
-			}
-
-			f.PriArp = int64(p.AllocationAndRetentionPriority.PriorityLevelARP)
+			params := qosFlowParams(uint8(qos.QosFlowIdentifier), p)
+			f.FiveQi, f.PriArp, f.GBR, f.Params = params.FiveQI, params.PriArp, params.GBR, &params
 		}
 
 		info.Flows = append(info.Flows, f)

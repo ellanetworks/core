@@ -12,6 +12,7 @@ import EditOperatorSPNModal from "./EditOperatorSPNModal";
 import EditOperatorSMSModal from "./EditOperatorSMSModal";
 import SMSCPeerModal from "./SMSCPeerModal";
 import EditOperatorTrackingModal from "./EditOperatorTrackingModal";
+import IMSApplicationServerModal from "./IMSApplicationServerModal";
 
 const api = setupApiServer();
 
@@ -451,5 +452,78 @@ describe("SMSCPeerModal", () => {
     expect(
       await screen.findByText(/another SMSC peer serves the service centre/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("IMSApplicationServerModal", () => {
+  const AS_PATH = "/api/v1/operator/ims/application-servers";
+
+  const render = (
+    props: Partial<React.ComponentProps<typeof IMSApplicationServerModal>>,
+  ) => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <IMSApplicationServerModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        {...props}
+      />,
+      { auth: {} },
+    );
+    return { onClose };
+  };
+
+  const fillButton = () =>
+    within(dialog()).queryByRole("button", {
+      name: "Fill for Ella IMS MCPTT",
+    });
+
+  it("fills in the Ella IMS MCPTT without a PSI", async () => {
+    const user = userEvent.setup();
+    api.post(AS_PATH, () => ({}));
+    const { onClose } = render({
+      homeDomain: "ims.mnc001.mcc001.3gppnetwork.org",
+    });
+
+    await retype(user, /^Name/, "other");
+    await user.click(
+      within(dialog()).getByRole("button", { name: "Add Identity" }),
+    );
+    await user.type(field(/Identity 1/), "sip:!.*!@other.example.org");
+    await user.click(fillButton()!);
+
+    expect(field(/^Name/)).toHaveValue("mcptt");
+    expect(field(/Server Name/)).toHaveValue(
+      "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org",
+    );
+    expect(screen.queryByLabelText(/Identity 1/)).not.toBeInTheDocument();
+    const addButton = within(dialog()).getByRole("button", { name: /^Add$/ });
+    await waitFor(() => expect(addButton).toBeEnabled());
+    await user.click(addButton);
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(AS_PATH)?.body).toEqual({
+      name: "mcptt",
+      server_name: "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org",
+      public_service_identities: [],
+    });
+  });
+
+  it("offers the fill only when adding, with a home domain", () => {
+    render({
+      homeDomain: "ims.mnc001.mcc001.3gppnetwork.org",
+      applicationServer: {
+        name: "mcptt",
+        server_name: "sip:mcptt.example.org",
+        public_service_identities: [],
+      },
+    });
+    expect(fillButton()).not.toBeInTheDocument();
+  });
+
+  it("hides the fill without a home domain", () => {
+    render({});
+    expect(fillButton()).not.toBeInTheDocument();
   });
 });

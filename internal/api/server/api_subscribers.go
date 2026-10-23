@@ -21,6 +21,8 @@ import (
 	"github.com/ellanetworks/core/internal/hss"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 )
 
@@ -118,16 +120,31 @@ type SNSSAI struct {
 }
 
 type Session struct {
-	System       string  `json:"system"` // "5G" | "4G"
-	ID           uint8   `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
-	Status       string  `json:"status"`
-	IPType       string  `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
-	IPv4Address  string  `json:"ipv4_address,omitempty"`
-	IPv6Prefix   string  `json:"ipv6_prefix,omitempty"`
-	DataNetwork  string  `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
-	Slice        *SNSSAI `json:"slice,omitempty"`        // 5G only
-	AMBRUplink   string  `json:"ambr_uplink,omitempty"`
-	AMBRDownlink string  `json:"ambr_downlink,omitempty"`
+	System       string   `json:"system"` // "5G" | "4G"
+	ID           uint8    `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
+	Status       string   `json:"status"`
+	IPType       string   `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address  string   `json:"ipv4_address,omitempty"`
+	IPv6Prefix   string   `json:"ipv6_prefix,omitempty"`
+	DataNetwork  string   `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice        *SNSSAI  `json:"slice,omitempty"`        // 5G only
+	AMBRUplink   string   `json:"ambr_uplink,omitempty"`
+	AMBRDownlink string   `json:"ambr_downlink,omitempty"`
+	Bearers      []Bearer `json:"bearers,omitempty"`
+}
+
+type Bearer struct {
+	ID                      uint8    `json:"id"`
+	Default                 bool     `json:"default"`
+	Var5qi                  uint8    `json:"var5qi"`
+	Arp                     int32    `json:"arp"`
+	PreemptionCapability    string   `json:"preemption_capability"`
+	PreemptionVulnerability string   `json:"preemption_vulnerability"`
+	MBRUplink               string   `json:"mbr_uplink,omitempty"`
+	MBRDownlink             string   `json:"mbr_downlink,omitempty"`
+	GBRUplink               string   `json:"gbr_uplink,omitempty"`
+	GBRDownlink             string   `json:"gbr_downlink,omitempty"`
+	Rules                   []string `json:"rules"`
 }
 
 const (
@@ -495,7 +512,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 	})
 }
 
-func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, hssInstance IMSSubscribers) http.Handler {
+func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, sessionQuerier smf.SessionQuerier, hssInstance IMSSubscribers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
@@ -564,7 +581,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 					break
 				}
 
-				sessions = append(sessions, sessionFrom5G(pdu))
+				sessions = append(sessions, withBearers(sessionFrom5G(pdu), sessionQuerier, pdu.Ref))
 			}
 		}
 
@@ -573,7 +590,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 				break
 			}
 
-			sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
+			sessions = append(sessions, withBearers(sessionFrom4G(&cs.Sessions[i]), sessionQuerier, cs.Sessions[i].SessionRef))
 		}
 
 		subscriber := SubscriberDetail{
@@ -779,7 +796,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateSubscriber(dbInstance *db.Database) http.Handler {
+func UpdateSubscriber(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -862,6 +879,15 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update subscriber", err, logger.APILog)
 
 			return
+		}
+
+		if imsProfiles != nil {
+			switch {
+			case existing.Msisdn != updated.Msisdn:
+				imsProfiles.SubscriberIdentitiesChanged(context.WithoutCancel(r.Context()), imsi, existing.Msisdn)
+			case existing.ProfileID != profile.ID:
+				imsProfiles.SubscriberChanged(context.WithoutCancel(r.Context()), imsi)
+			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)
@@ -1101,6 +1127,45 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	}
 
 	return s
+}
+
+func withBearers(s Session, sessionQuerier smf.SessionQuerier, ref string) Session {
+	if sessionQuerier == nil || ref == "" {
+		return s
+	}
+
+	sc := sessionQuerier.GetSession(ref)
+	if sc == nil {
+		return s
+	}
+
+	for _, b := range sc.Bearers() {
+		s.Bearers = append(s.Bearers, bearerFrom(b))
+	}
+
+	return s
+}
+
+func bearerFrom(b smf.BearerView) Bearer {
+	out := Bearer{
+		ID:                      b.ID,
+		Default:                 b.Default,
+		Var5qi:                  b.QCI,
+		Arp:                     b.ARP.PriorityLevel,
+		PreemptionCapability:    preemptionCapabilityName(b.ARP.PreemptCap),
+		PreemptionVulnerability: preemptionVulnerabilityName(b.ARP.PreemptVuln),
+		Rules:                   b.Rules,
+	}
+
+	if !b.MBR.Equal(models.Ambr{}) {
+		out.MBRUplink, out.MBRDownlink = b.MBR.Uplink.String(), b.MBR.Downlink.String()
+	}
+
+	if !b.GBR.Equal(models.Ambr{}) {
+		out.GBRUplink, out.GBRDownlink = b.GBR.Uplink.String(), b.GBR.Downlink.String()
+	}
+
+	return out
 }
 
 func ipTypeName(t uint8) string {

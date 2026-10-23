@@ -11,6 +11,7 @@ import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import {
   DataNetworkFields,
+  IMSSwitch,
   poolAndDnsSchema,
 } from "@/components/dataNetworkForm";
 
@@ -24,6 +25,7 @@ interface EditDataNetworkModalProps {
 export const schema = yup.object({
   name: yup.string().required(),
   ...poolAndDnsSchema,
+  ims: yup.boolean().default(false),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -45,6 +47,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
       ipv6_pool: initialData.ipv6_pool || "",
       dns: initialData.dns,
       mtu: initialData.mtu,
+      ims: initialData.ims,
     },
   });
 
@@ -56,6 +59,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
       values.ipv4_pool,
       values.dns,
       values.mtu,
+      values.ims,
       values.ipv6_pool || undefined,
     );
   };
@@ -75,6 +79,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
     >
       <TextControl<FormValues> name="name" label="Name" disabled />
       <DataNetworkFields autoFocusPool />
+      <IMSSwitch<FormValues> control={form.control} />
     </FormDialog>
   );
 };

@@ -17,6 +17,7 @@ type CreateDataNetworkOptions struct {
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns"`
 	Mtu      int32  `json:"mtu"`
+	IMS      *bool  `json:"ims,omitempty"`
 }
 
 type UpdateDataNetworkOptions struct {
@@ -25,6 +26,7 @@ type UpdateDataNetworkOptions struct {
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns"`
 	Mtu      int32  `json:"mtu"`
+	IMS      *bool  `json:"ims,omitempty"`
 }
 
 type GetDataNetworkOptions struct {
@@ -55,6 +57,7 @@ type DataNetwork struct {
 	IPv6Pool     string                   `json:"ipv6_pool,omitempty"`
 	DNS          string                   `json:"dns"`
 	Mtu          int32                    `json:"mtu"`
+	IMS          bool                     `json:"ims"`
 	Status       DataNetworkStatus        `json:"status"`
 	IPAllocation *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
 }
@@ -88,12 +91,14 @@ func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkO
 		IPv6Pool string `json:"ipv6_pool,omitempty"`
 		DNS      string `json:"dns"`
 		Mtu      int32  `json:"mtu"`
+		IMS      *bool  `json:"ims,omitempty"`
 	}{
 		Name:     opts.Name,
 		IPv4Pool: opts.IPv4Pool,
 		IPv6Pool: opts.IPv6Pool,
 		DNS:      opts.DNS,
 		Mtu:      opts.Mtu,
+		IMS:      opts.IMS,
 	}
 
 	var body bytes.Buffer
@@ -124,12 +129,14 @@ func (c *Client) UpdateDataNetwork(ctx context.Context, opts *UpdateDataNetworkO
 		IPv6Pool string `json:"ipv6_pool,omitempty"`
 		DNS      string `json:"dns"`
 		Mtu      int32  `json:"mtu"`
+		IMS      *bool  `json:"ims,omitempty"`
 	}{
 		Name:     opts.Name,
 		IPv4Pool: opts.IPv4Pool,
 		IPv6Pool: opts.IPv6Pool,
 		DNS:      opts.DNS,
 		Mtu:      opts.Mtu,
+		IMS:      opts.IMS,
 	}
 
 	var body bytes.Buffer

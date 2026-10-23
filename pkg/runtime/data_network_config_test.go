@@ -27,8 +27,8 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		}
 	})
 
-	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "ims", IPv4Pool: "10.46.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
-		t.Fatalf("CreateDataNetwork ims: %s", err)
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "mcx", IPv4Pool: "10.46.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}); err != nil {
+		t.Fatalf("CreateDataNetwork mcx: %s", err)
 	}
 
 	want := []netip.Addr{netip.MustParseAddr("2001:db8::5"), netip.MustParseAddr("10.0.0.5")}
@@ -38,7 +38,7 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 
 	store := &smfDBAdapter{db: database}
 
-	ims, err := store.ResolveDNN(ctx, "ims")
+	ims, err := store.ResolveDNN(ctx, "mcx")
 	if err != nil {
 		t.Fatalf("ResolveDNN ims: %s", err)
 	}
@@ -48,8 +48,8 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		t.Fatalf("Config ims: %s", err)
 	}
 
-	if got := imsConfig.PCSCF; !slices.Equal(got, want) {
-		t.Fatalf("ims P-CSCF = %v, want %v", got, want)
+	if got := imsConfig.PCSCF; !slices.Equal(got, want) || !imsConfig.IMS {
+		t.Fatalf("mcx config = %+v, want IMS with P-CSCF %v", imsConfig, want)
 	}
 
 	internet, err := store.ResolveDNN(ctx, db.InitialDataNetworkName)
@@ -62,7 +62,7 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		t.Fatalf("Config internet: %s", err)
 	}
 
-	if got := internetConfig.PCSCF; len(got) != 0 {
-		t.Fatalf("internet P-CSCF = %v, want none", got)
+	if got := internetConfig.PCSCF; len(got) != 0 || internetConfig.IMS {
+		t.Fatalf("internet config = %+v, want no IMS and no P-CSCF", internetConfig)
 	}
 }

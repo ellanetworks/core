@@ -104,7 +104,7 @@ func (m *MME) SnapshotDedicated(ue *UeContext) []DedicatedBearerInfo {
 	return out
 }
 
-func DedicatedBearerARP(arp models.Arp) s1ap.AllocationAndRetentionPriority {
+func BearerARP(arp models.Arp) s1ap.AllocationAndRetentionPriority {
 	a := s1ap.AllocationAndRetentionPriority{
 		PriorityLevel:           uint8(arp.PriorityLevel),
 		PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
@@ -123,6 +123,10 @@ func DedicatedBearerARP(arp models.Arp) s1ap.AllocationAndRetentionPriority {
 }
 
 func DedicatedERABQoS(b *DedicatedBearerInfo) s1ap.ERABLevelQoSParameters {
+	if !models.GBRQCI(b.QCI) {
+		return s1ap.ERABLevelQoSParameters{QCI: s1ap.QCI(b.QCI), ARP: BearerARP(b.ARP)}
+	}
+
 	gbr := &s1ap.GBRQosInformation{
 		MaximumBitrateDL:    s1ap.BitRate(b.MBR.Downlink.Bps()),
 		MaximumBitrateUL:    s1ap.BitRate(b.MBR.Uplink.Bps()),
@@ -141,10 +145,14 @@ func DedicatedERABQoS(b *DedicatedBearerInfo) s1ap.ERABLevelQoSParameters {
 		}
 	}
 
-	return s1ap.ERABLevelQoSParameters{QCI: s1ap.QCI(b.QCI), ARP: DedicatedBearerARP(b.ARP), GBR: gbr}
+	return s1ap.ERABLevelQoSParameters{QCI: s1ap.QCI(b.QCI), ARP: BearerARP(b.ARP), GBR: gbr}
 }
 
 func dedicatedEPSQoS(b *DedicatedBearerInfo) (eps.EPSQoS, error) {
+	if !models.GBRQCI(b.QCI) {
+		return eps.EPSQoS{QCI: b.QCI}, nil
+	}
+
 	return eps.GBREPSQoS(b.QCI, eps.EPSQoSBitRates{
 		MaxUplinkKbps:          b.MBR.Uplink.Kbps(),
 		MaxDownlinkKbps:        b.MBR.Downlink.Kbps(),

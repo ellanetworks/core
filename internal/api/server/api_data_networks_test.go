@@ -34,6 +34,7 @@ type DataNetwork struct {
 	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
 	DNS            string                   `json:"dns,omitempty"`
 	MTU            int32                    `json:"mtu,omitempty"`
+	IMS            bool                     `json:"ims"`
 	IPAllocation   *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
 	IPv6Allocation *DataNetworkIPAllocation `json:"ipv6_allocation,omitempty"`
 }
@@ -49,6 +50,7 @@ type CreateDataNetworkParams struct {
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns,omitempty"`
 	MTU      int32  `json:"mtu,omitempty"`
+	IMS      *bool  `json:"ims,omitempty"`
 }
 
 type CreateDataNetworkResponse struct {
@@ -61,6 +63,7 @@ type UpdateDataNetworkParams struct {
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns,omitempty"`
 	MTU      int32  `json:"mtu,omitempty"`
+	IMS      *bool  `json:"ims,omitempty"`
 }
 
 type DeleteDataNetworkResponseResult struct {

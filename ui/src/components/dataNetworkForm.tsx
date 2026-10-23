@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
+import { FormControlLabel, FormHelperText, Switch } from "@mui/material";
+import { useController } from "react-hook-form";
+import type { Control, FieldValues, Path } from "react-hook-form";
 import * as yup from "yup";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
@@ -78,3 +81,34 @@ export const DataNetworkFields = ({
     <NumberControl name="mtu" label="MTU" />
   </>
 );
+
+export const IMSSwitch = <T extends FieldValues>({
+  control,
+  onChange,
+}: {
+  control: Control<T>;
+  onChange?: (on: boolean) => void;
+}) => {
+  const { field } = useController({ control, name: "ims" as Path<T> });
+
+  return (
+    <>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={!!field.value}
+            onChange={(_, on) => {
+              field.onChange(on);
+              onChange?.(on);
+            }}
+          />
+        }
+        label="IMS (voice and mission critical services)"
+      />
+      <FormHelperText>
+        Phones get the P-CSCF addresses, traffic is NAT exempt and locally
+        switched, and policies use 5QI 5 or 69.
+      </FormHelperText>
+    </>
+  );
+};

@@ -38,6 +38,7 @@ type dataPlane struct {
 	TargetUplink bool
 	Forwarding   *AnchorBinding
 	Bearers      []bearerLeg
+	DefaultRules []ruleLeg
 }
 
 type bearerLeg struct {
@@ -95,6 +96,7 @@ const (
 	rulePDRsPerRule              uint16 = 4
 	rulePDRTargetUplink          uint16 = 3
 	rulePDRsPerBearer                   = rulePDRsPerRule * maxDedicatedFilters
+	defaultRuleSlot              uint8  = maxDedicatedBearers
 	pdrPrecedenceDefault         uint32 = 256
 
 	averagingWindow = 2000 * time.Millisecond
@@ -105,7 +107,7 @@ func pdrIDRule(slot, index uint8, leg uint16) uint16 {
 }
 
 func ruleOfPDR(id uint16) (slot, index uint8, leg uint16, ok bool) {
-	if id < pdrIDRuleBase || id >= pdrIDRuleBase+maxDedicatedBearers*rulePDRsPerBearer {
+	if id < pdrIDRuleBase || id >= pdrIDRuleBase+(uint16(defaultRuleSlot)+1)*rulePDRsPerBearer {
 		return 0, 0, 0, false
 	}
 
@@ -173,7 +175,7 @@ func (d dataPlane) checkSDFCapacity() error {
 
 	var rules, pdrs int
 
-	for _, b := range d.Bearers {
+	for _, b := range append(slices.Clone(d.Bearers), bearerLeg{Slot: defaultRuleSlot, Rules: d.DefaultRules}) {
 		for _, r := range b.Rules {
 			uplink := directionFilters(r.Filters, models.FilterUplink)
 			rules += len(uplink)
@@ -350,6 +352,63 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 	return pdrs, fars, qers
 }
 
+func (d dataPlane) defaultBearerRules() (pdrs []models.PDR, qers []models.QER) {
+	ohr := models.OuterHeaderRemovalGtpUUdpIP
+
+	for _, r := range d.DefaultRules {
+		qerID := qerIDRule(defaultRuleSlot, r.Index)
+
+		qers = append(qers, models.QER{
+			QERID:           qerID,
+			QFI:             d.QFI,
+			GateStatus:      new(r.policedGate()),
+			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
+			AveragingWindow: new(averagingWindow),
+		})
+
+		if uplink := directionFilters(r.Filters, models.FilterUplink); len(uplink) > 0 {
+			pdrs = append(pdrs, models.PDR{
+				PDRID:              pdrIDRule(defaultRuleSlot, r.Index, 0),
+				Precedence:         filtersPrecedence(uplink),
+				OuterHeaderRemoval: &ohr,
+				FARID:              farIDUplink,
+				QERID:              qerID,
+				URRID:              r.URRID,
+				PDI: models.PDI{
+					SourceInterface: models.InterfaceAccess,
+					LocalFTEID:      &models.FTEID{ChooseID: chooseIDSession},
+					QFI:             d.uplinkQFI(),
+					SDFFilters:      uplink,
+				},
+			})
+		}
+
+		downlink := directionFilters(r.Filters, models.FilterDownlink)
+
+		for i, ue := range d.ueAddresses() {
+			matching := slices.DeleteFunc(slices.Clone(downlink), func(f models.SDFFilter) bool { return !sameFamily(f, ue) })
+			if len(matching) == 0 {
+				continue
+			}
+
+			pdrs = append(pdrs, models.PDR{
+				PDRID:      pdrIDRule(defaultRuleSlot, r.Index, uint16(i)+1),
+				Precedence: filtersPrecedence(matching),
+				FARID:      farIDDownlink,
+				QERID:      qerID,
+				URRID:      r.URRID,
+				PDI: models.PDI{
+					SourceInterface: models.InterfaceCore,
+					UEIPAddress:     ue,
+					SDFFilters:      matching,
+				},
+			})
+		}
+	}
+
+	return pdrs, qers
+}
+
 func (d dataPlane) targetUplinkPDI(b bearerLeg, uplink []models.SDFFilter) models.PDI {
 	if d.Access == Access5G {
 		return models.PDI{
@@ -461,6 +520,10 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 		fars = append(fars, bf...)
 		qers = append(qers, bq...)
 	}
+
+	dp, dq := d.defaultBearerRules()
+	pdrs = append(pdrs, dp...)
+	qers = append(qers, dq...)
 
 	if d.Forwarding != nil {
 		pdrs = append(pdrs, models.PDR{
@@ -610,6 +673,14 @@ func (d dataPlane) ruleCharging(b bearerLeg, r ruleLeg) chargingKey {
 	return chargingKey{Dedicated: true, Slot: b.Slot, RatingGroup: rg}
 }
 
+func (d dataPlane) defaultRuleCharging(r ruleLeg) chargingKey {
+	if r.RatingGroup == 0 {
+		return chargingKey{RatingGroup: d.RatingGroup}
+	}
+
+	return chargingKey{RatingGroup: r.RatingGroup}
+}
+
 func (d dataPlane) urrKeys() map[uint32]chargingKey {
 	keys := make(map[uint32]chargingKey)
 
@@ -622,6 +693,12 @@ func (d dataPlane) urrKeys() map[uint32]chargingKey {
 			if r.URRID != 0 {
 				keys[r.URRID] = d.ruleCharging(b, r)
 			}
+		}
+	}
+
+	for _, r := range d.DefaultRules {
+		if r.URRID != 0 {
+			keys[r.URRID] = d.defaultRuleCharging(r)
 		}
 	}
 
@@ -659,6 +736,12 @@ func (d *dataPlane) assignURRs(prev dataPlane) error {
 		}
 
 		d.Bearers[i] = b
+	}
+
+	d.DefaultRules = slices.Clone(d.DefaultRules)
+
+	for i := range d.DefaultRules {
+		d.DefaultRules[i].URRID = assign(d.defaultRuleCharging(d.DefaultRules[i]))
 	}
 
 	d.LastURRID = last

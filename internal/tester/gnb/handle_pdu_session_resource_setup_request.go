@@ -163,12 +163,15 @@ type PDUSessionInformation struct {
 	QFI          int64
 	FiveQi       int64
 	PriArp       int64
+	PreemptCap   ngap.PreemptionCapability
+	PreemptVuln  ngap.PreemptionVulnerability
 	PduSType     uint64
 	PDUSessionID int64
 	AmbrUplink   int64
 	AmbrDownlink int64
 	Flows        []uint8
 	FlowFiveQIs  map[uint8]int64
+	FlowQoS      map[uint8]QoSFlowParams
 
 	// generation orders stores of the same session so a procedure can tell the
 	// resources its own signalling established from ones already there.
@@ -193,27 +196,30 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 
 	var (
 		qosID, fiveQi, priArp int64
+		preemptCap            ngap.PreemptionCapability
+		preemptVuln           ngap.PreemptionVulnerability
 		flows                 []uint8
 		fiveQIs               = make(map[uint8]int64)
+		flowQoS               = make(map[uint8]QoSFlowParams)
+		haveDefault           bool
 	)
 
 	for _, qos := range t.QosFlowSetupRequest {
-		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
-			fiveQIs[uint8(qos.QosFlowIdentifier)] = int64(qos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
+		params := qosFlowParams(uint8(qos.QosFlowIdentifier), &qos.QosFlowLevelQosParameters)
+		flowQoS[params.QFI] = params
+
+		if params.FiveQI != 0 {
+			fiveQIs[params.QFI] = params.FiveQI
 		}
 
-		if qos.QosFlowLevelQosParameters.GBRQosInformation != nil {
-			flows = append(flows, uint8(qos.QosFlowIdentifier))
+		if params.GBR || haveDefault {
+			flows = append(flows, params.QFI)
 			continue
 		}
 
-		qosID = int64(qos.QosFlowIdentifier)
-
-		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
-			fiveQi = int64(qos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
-		}
-
-		priArp = int64(qos.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP)
+		haveDefault = true
+		qosID, fiveQi = int64(params.QFI), params.FiveQI
+		priArp, preemptCap, preemptVuln = params.PriArp, params.PreemptCap, params.PreemptVuln
 	}
 
 	upfIP, err := ParseUPFAddress(t.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress, gnb.N3Address)
@@ -229,10 +235,38 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 		QFI:         qosID,
 		FiveQi:      fiveQi,
 		PriArp:      priArp,
+		PreemptCap:  preemptCap,
+		PreemptVuln: preemptVuln,
 		PduSType:    uint64(t.PDUSessionType),
 		Flows:       flows,
 		FlowFiveQIs: fiveQIs,
+		FlowQoS:     flowQoS,
 	}, nil
+}
+
+type QoSFlowParams struct {
+	QFI         uint8
+	FiveQI      int64
+	PriArp      int64
+	PreemptCap  ngap.PreemptionCapability
+	PreemptVuln ngap.PreemptionVulnerability
+	GBR         bool
+}
+
+func qosFlowParams(qfi uint8, p *ngap.QosFlowLevelQosParameters) QoSFlowParams {
+	params := QoSFlowParams{
+		QFI:         qfi,
+		PriArp:      int64(p.AllocationAndRetentionPriority.PriorityLevelARP),
+		PreemptCap:  p.AllocationAndRetentionPriority.PreemptionCapability,
+		PreemptVuln: p.AllocationAndRetentionPriority.PreemptionVulnerability,
+		GBR:         p.GBRQosInformation != nil,
+	}
+
+	if p.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
+		params.FiveQI = int64(p.QosCharacteristics.NonDynamic5QI.FiveQI)
+	}
+
+	return params
 }
 
 // ParseUPFAddress selects the UPF IP address from a 3GPP TransportLayerAddress BIT STRING

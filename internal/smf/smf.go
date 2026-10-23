@@ -144,6 +144,7 @@ type Policy struct {
 	QosData     models.QosData
 	RatingGroup uint32
 	DNS         net.IP
+	IMS         bool
 	PCSCF       []netip.Addr
 	MTU         uint16
 	IPv4Pool    string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
