@@ -58,7 +58,7 @@ Ella Core derives each subscriber's IMS identities from its existing data. No IM
 
 The IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, built from the operator's PLMN ID.
 
-The `sip:<private identity>` identity is barred, so it cannot be used for calls. A subscriber without an MSISDN has no usable public identity, and cannot make or receive calls.
+A subscriber without an MSISDN has no usable public identity and cannot make or receive calls.
 
 ## Voice support indication
 
@@ -84,12 +84,7 @@ Services such as MCPTT run on application servers: SIP servers that the S-CSCF s
 
 Each profile has an ordered list of **IMS initial filter criteria**. A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. The S-CSCF evaluates them in the profile's order.
 
-Ella Core keeps the S-CSCF's copy of each registered subscriber's IMS profile up to date:
-
-- A change to a profile's filter criteria, an application server's server name, or a subscriber's profile is pushed to the S-CSCF with Cx Push Profile. The S-CSCF applies it to new calls right away. An application server that a new filter criterion sends registrations to hears of the subscriber at its next re-registration, which the S-CSCF may bring forward.
-- If a push doesn't reach the S-CSCF, for example because the S-CSCF doesn't support Cx Push Profile or isn't connected to the Ella Core node that handled the change, the S-CSCF gets the new profile at the subscriber's next re-registration: Ella Core sends the profile on every registration.
-- Changing or removing a registered subscriber's MSISDN, or changing the operator's MCC or MNC, de-registers it.
-- A subscriber that loses access to the IMS, because its profile no longer has a policy on an IMS data network, or the data network is no longer marked as IMS, is de-registered right away.
+Changes to a profile's filter criteria, an application server's server name, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
 
 ### MCPTT filter criteria
 
@@ -116,15 +111,13 @@ Calls from the MCPTT server to subscribers need no filter criteria.
 
 An MCPTT call's voice and floor control share one GBR QoS flow or bearer with QCI/5QI 65. The session's default QoS flow or bearer on the MC data network uses its policy's QCI/5QI, 5 or 69.
 
-The call's ARP comes from its Resource-Priority. Only a Resource-Priority set inside the IMS, such as by the MCPTT server, counts; one set by the client does not.
+The call's ARP comes from the Resource-Priority the MCPTT server sets.
 
 | Resource-Priority | ARP priority | Pre-emption capability | Pre-emption vulnerability |
 | ----------------- | ------------ | ---------------------- | ------------------------- |
 | `mcpttp.<n>` | 8 − ⌊n / 2⌋, e.g. 1 for `mcpttp.15` | May pre-empt | Not pre-emptable at priority 1 and 2, pre-emptable otherwise |
 | `mcpttq.<n>` | 8 − ⌊n / 2⌋ | Shall not pre-empt | Not pre-emptable at priority 1 and 2, pre-emptable otherwise |
 | None | 8 | Shall not pre-empt | Pre-emptable |
-
-When a call's priority changes, for example from normal to emergency, Ella Core updates the ARP of its existing QoS flow or bearer.
 
 If a radio pre-empts a session's default QoS flow or bearer, the whole session is released. This is why the MC data network's policy is usually not pre-emptable.
 
@@ -137,7 +130,7 @@ Some 5G radios are configured not to carry voice calls. When a voice call starts
 Each node of a [High Availability](high_availability.md) cluster is a separate Diameter peer of the IMS.
 
 - **Cx**: Any node can answer. IMS registrations replicate across the cluster.
-- **Rx**: The QoS for a call must be set up by the node that holds the phone's session. When the IMS reaches another node, that node redirects it to the right one.
+- **Rx**: Connect the IMS to every node; a call's QoS is set up on the node that holds the phone's session.
 
 ## Further reading
 
