@@ -52,12 +52,13 @@ Ella Core derives each subscriber's IMS identities from its existing data. No IM
 | Identity | Format | Example |
 | -------- | ------ | ------- |
 | Private identity (IMPI) | `<imsi>@<IMS home domain>` | `001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
+| Public identity (IMPU), default | `sip:+<msisdn>@<IMS home domain>` | `sip:+15551230001@ims.mnc001.mcc001.3gppnetwork.org` |
 | Public identity (IMPU) | `tel:+<msisdn>` | `tel:+15551230001` |
 | Public identity (IMPU), barred | `sip:<private identity>` | `sip:001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
 
 The IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, built from the operator's PLMN ID.
 
-The `sip:` identity is barred, so it cannot be used for calls. A subscriber without an MSISDN has no usable public identity, and cannot make or receive calls.
+The `sip:<private identity>` identity is barred, so it cannot be used for calls. A subscriber without an MSISDN has no usable public identity, and cannot make or receive calls.
 
 ## Voice support indication
 

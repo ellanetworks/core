@@ -251,7 +251,7 @@ None
 | ----- | ----------- |
 | `private_identity` | IMS private identity (IMPI): `<imsi>@<IMS home domain>`. |
 | `scscf_name` | S-CSCF serving the subscriber. Absent when the subscriber is not registered in IMS. |
-| `public_identities` | IMS public identities (IMPU): `tel:+<msisdn>` when the subscriber has an MSISDN, and `sip:<private_identity>`, which is barred. |
+| `public_identities` | IMS public identities (IMPU): `sip:+<msisdn>@<IMS home domain>` and `tel:+<msisdn>` when the subscriber has an MSISDN, and `sip:<private_identity>`, which is barred. |
 | `public_identities[].barred` | `true` when the identity cannot be used for calls. |
 | `public_identities[].user_state` | `registered`, `registered_unreg_services`, `authentication_pending` or `not_registered`. |
 

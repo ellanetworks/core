@@ -24,7 +24,7 @@ Restart Ella Core.
 
 ## 2. Configure the IMS
 
-Configure your IMS with the following settings, using your network's MCC and 3-digit MNC:
+Configure your IMS with the following settings, using the MCC and 3-digit MNC of Ella Core's Operator settings:
 
 - **HSS (Cx)**: Ella Core's Diameter address, e.g. `10.3.0.2`, port `3868`.
 - **PCRF (Rx)**: Ella Core's Diameter address, e.g. `10.3.0.2`, port `3868`.

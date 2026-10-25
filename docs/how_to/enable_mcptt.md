@@ -51,7 +51,7 @@ For each MCPTT user:
 
 - Go to the **Subscribers** page and click on the subscriber.
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
-- Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its IMS public identity, `tel:+<msisdn>`, to an MCPTT ID on your MCPTT server.
+- Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its IMS public identity, `sip:+<msisdn>@<IMS home domain>`, to an MCPTT ID on your MCPTT server.
 
 ## 6. Make an MCPTT call
 

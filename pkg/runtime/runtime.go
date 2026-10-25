@@ -6,6 +6,7 @@ package runtime
 import (
 	"archive/tar"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1334,6 +1335,10 @@ func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
 		}
 
 		op, err := dbInstance.GetOperator(ctx)
+		if errors.Is(err, sql.ErrNoRows) {
+			return diameternode.NodeSettings{}, diameternode.ErrNoOperator
+		}
+
 		if err != nil {
 			return diameternode.NodeSettings{}, fmt.Errorf("get operator: %w", err)
 		}

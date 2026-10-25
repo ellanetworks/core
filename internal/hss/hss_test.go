@@ -294,6 +294,11 @@ func TestUserAuthorization(t *testing.T) {
 			want: tgpp.Experimental(tgpp.ResultFirstRegistration),
 		},
 		{
+			name: "registration with the SIP URI of the MSISDN",
+			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:+" + testMSISDN + "@" + testIMSDomain},
+			want: tgpp.Experimental(tgpp.ResultFirstRegistration),
+		},
+		{
 			name: "registration and capabilities",
 			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:" + impiOf(testIMSI), AuthorizationType: cx.AuthorizationRegistrationAndCapabilities},
 			want: tgpp.Result{Code: diameter.ResultSuccess},
@@ -341,6 +346,11 @@ func TestUserAuthorization(t *testing.T) {
 		{
 			name: "MSISDN of another subscriber",
 			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "tel:+" + testOtherTel},
+			want: tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch),
+		},
+		{
+			name: "SIP URI of the MSISDN of another subscriber",
+			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:+" + testOtherTel + "@" + testIMSDomain},
 			want: tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch),
 		},
 		{

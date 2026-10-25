@@ -334,7 +334,7 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 			}
 		}
 
-		if err := db.checkPSIFreeOfSubscribers(ctx, identity); err != nil {
+		if err := db.checkPSIFreeOfSubscribers(ctx, identity, imsDomain); err != nil {
 			return err
 		}
 	}
@@ -342,14 +342,19 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 	return nil
 }
 
-func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity string) error {
-	if !strings.HasPrefix(identity, "tel:+") {
+func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity, imsDomain string) error {
+	inIMSDomain := imsDomain != "" && strings.HasPrefix(identity, "sip:") && psi.Host(identity) == imsDomain
+	if !strings.HasPrefix(identity, "tel:+") && !inIMSDomain {
 		return nil
 	}
 
 	if !psi.Wildcarded(identity) {
-		msisdn := strings.TrimPrefix(identity, "tel:+")
-		if strings.ContainsRune(msisdn, ';') {
+		msisdn, ok := strings.CutPrefix(identity, "tel:+")
+		if inIMSDomain {
+			msisdn, ok = strings.CutPrefix(psi.User(identity), "+")
+		}
+
+		if !ok || strings.ContainsRune(msisdn, ';') {
 			return nil
 		}
 
@@ -376,8 +381,10 @@ func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity stri
 	m := psi.NewMatcher(map[string]string{identity: ""})
 
 	for _, holder := range holders {
-		if _, ok := m.Match("tel:+" + holder.Msisdn); ok {
-			return fmt.Errorf("%w: %s covers tel:+%s, the public user identity of subscriber %s", ErrPSIConflict, identity, holder.Msisdn, holder.Imsi)
+		for _, impu := range msisdnIdentities(holder.Msisdn, imsDomain) {
+			if _, ok := m.Match(impu); ok {
+				return fmt.Errorf("%w: %s covers %s, a public user identity of subscriber %s", ErrPSIConflict, identity, impu, holder.Imsi)
+			}
 		}
 	}
 
@@ -469,15 +476,29 @@ func collidesWithSubscriberIdentity(identity, imsDomain string) bool {
 	return psi.Covers(identity, `^sip:[0-9]{6,15}@`+regexp.QuoteMeta(imsDomain)+`$`)
 }
 
-func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, error) {
+func msisdnIdentities(msisdn, imsDomain string) []string {
+	identities := []string{"tel:+" + msisdn}
+	if imsDomain != "" {
+		identities = append(identities, "sip:+"+msisdn+"@"+imsDomain)
+	}
+
+	return identities
+}
+
+func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, string, error) {
 	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return "", nil
+		return "", "", nil
 	}
 
 	var stored []imsPSIRow
 
 	if err := db.runner(ctx).Query(ctx, db.listIMSPSIsStmt).GetAll(&stored); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("query failed: %w", err)
+		return "", "", fmt.Errorf("query failed: %w", err)
+	}
+
+	imsDomain, err := db.imsDomain(ctx)
+	if err != nil {
+		return "", "", err
 	}
 
 	identities := make(map[string]string, len(stored))
@@ -485,12 +506,15 @@ func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, error
 		identities[row.Identity] = row.Identity
 	}
 
-	m, ok := psi.NewMatcher(identities).Match("tel:+" + msisdn)
-	if !ok {
-		return "", nil
+	matcher := psi.NewMatcher(identities)
+
+	for _, identity := range msisdnIdentities(msisdn, imsDomain) {
+		if m, ok := matcher.Match(identity); ok {
+			return identity, m.Owner, nil
+		}
 	}
 
-	return m.Owner, nil
+	return "", "", nil
 }
 
 func (db *Database) insertIMSPSIs(ctx context.Context, applicationServerID string, psis []string) error {

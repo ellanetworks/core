@@ -25,7 +25,10 @@ func (s *subject) publicIdentities() []cx.ProfileIdentity {
 	var identities []cx.ProfileIdentity
 
 	if s.MSISDN != "" {
-		identities = append(identities, cx.ProfileIdentity{Identity: "tel:+" + s.MSISDN})
+		identities = append(identities,
+			cx.ProfileIdentity{Identity: "sip:+" + s.MSISDN + "@" + s.domain},
+			cx.ProfileIdentity{Identity: "tel:+" + s.MSISDN},
+		)
 	}
 
 	return append(identities, cx.ProfileIdentity{Identity: "sip:" + s.privateIdentity(), Barred: true})
@@ -145,22 +148,38 @@ func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Su
 
 	switch strings.ToLower(scheme) {
 	case "sip":
-		imsi, ok := imsiFromPrivateIdentity(rest, domain)
+		user, host, ok := strings.Cut(rest, "@")
+		if !ok || !strings.EqualFold(host, domain) {
+			return nil, ErrSubscriberUnknown
+		}
+
+		if msisdn, ok := strings.CutPrefix(user, "+"); ok {
+			return h.subscriberByMSISDN(ctx, msisdn)
+		}
+
+		if !isDigits(user, 6, 15) {
+			return nil, ErrSubscriberUnknown
+		}
+
+		return h.store.Subscriber(ctx, user)
+	case "tel":
+		msisdn, ok := strings.CutPrefix(rest, "+")
 		if !ok {
 			return nil, ErrSubscriberUnknown
 		}
 
-		return h.store.Subscriber(ctx, imsi)
-	case "tel":
-		msisdn, ok := strings.CutPrefix(rest, "+")
-		if !ok || !isDigits(msisdn, 1, 15) {
-			return nil, ErrSubscriberUnknown
-		}
-
-		return h.store.SubscriberByMSISDN(ctx, msisdn)
+		return h.subscriberByMSISDN(ctx, msisdn)
 	default:
 		return nil, ErrSubscriberUnknown
 	}
+}
+
+func (h *HSS) subscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {
+	if !isDigits(msisdn, 1, 15) {
+		return nil, ErrSubscriberUnknown
+	}
+
+	return h.store.SubscriberByMSISDN(ctx, msisdn)
 }
 
 func imsiFromPrivateIdentity(impi, domain string) (string, bool) {

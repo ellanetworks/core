@@ -44,6 +44,13 @@ func TestLocationInfo(t *testing.T) {
 			serverName:   testSCSCF,
 		},
 		{
+			name:         "registered SIP URI of the MSISDN",
+			registration: &registered,
+			req:          cx.LocationInfoRequest{PublicIdentity: "sip:+" + testMSISDN + "@" + testIMSDomain},
+			want:         tgpp.Result{Code: diameter.ResultSuccess},
+			serverName:   testSCSCF,
+		},
+		{
 			name:         "registered temporary public identity",
 			registration: &registered,
 			req:          cx.LocationInfoRequest{PublicIdentity: "sip:" + impiOf(testIMSI)},
@@ -83,6 +90,16 @@ func TestLocationInfo(t *testing.T) {
 		{
 			name: "unknown MSISDN",
 			req:  cx.LocationInfoRequest{PublicIdentity: "tel:+15559999999"},
+			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
+		},
+		{
+			name: "unknown SIP URI of an MSISDN",
+			req:  cx.LocationInfoRequest{PublicIdentity: "sip:+15559999999@" + testIMSDomain},
+			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
+		},
+		{
+			name: "SIP URI of an MSISDN in another domain",
+			req:  cx.LocationInfoRequest{PublicIdentity: "sip:+" + testMSISDN + "@ims.example.org"},
 			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
 		},
 		{

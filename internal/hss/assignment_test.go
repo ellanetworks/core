@@ -108,6 +108,7 @@ func TestRegistrationAndDeregistration(t *testing.T) {
 	}
 
 	want := []cx.ProfileIdentity{
+		{Identity: "sip:+" + testMSISDN + "@" + testIMSDomain},
 		{Identity: "tel:+" + testMSISDN},
 		{Identity: "sip:" + impiOf(testIMSI), Barred: true},
 	}

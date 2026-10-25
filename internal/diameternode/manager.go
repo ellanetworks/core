@@ -27,7 +27,10 @@ const (
 	watchdogInterval  = 6 * time.Second
 )
 
-var ErrNotClusterMember = errors.New("this node is not a member of the cluster")
+var (
+	ErrNotClusterMember = errors.New("this node is not a member of the cluster")
+	ErrNoOperator       = errors.New("the operator is not configured yet")
+)
 
 type Identity struct {
 	Host  string
@@ -417,7 +420,11 @@ func (m *Manager) fail(err error) {
 	}
 	m.mu.Unlock()
 
-	if changed {
+	switch {
+	case !changed:
+	case errors.Is(err, ErrNoOperator):
+		m.logger.Info("Diameter node waiting for the operator")
+	default:
 		m.logger.Warn("Diameter node unavailable", zap.Error(err))
 	}
 }

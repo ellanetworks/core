@@ -499,6 +499,49 @@ func TestIMSPublicServiceIdentityAndMSISDNExclude(t *testing.T) {
 	if err := database.UpdateSubscriberProfile(ctx, subscriber); !errors.Is(err, db.ErrMSISDNInUse) {
 		t.Fatalf("an MSISDN inside a wildcarded PSI: err = %v, want ErrMSISDNInUse", err)
 	}
+
+	op, err := database.GetOperator(ctx)
+	if err != nil {
+		t.Fatalf("get operator: %v", err)
+	}
+
+	mnc := op.Mnc
+	if len(mnc) == 2 {
+		mnc = "0" + mnc
+	}
+
+	domain := "ims.mnc" + mnc + ".mcc" + op.Mcc + ".3gppnetwork.org"
+
+	subscriber.Msisdn = "15550100"
+	if err := database.UpdateSubscriberProfile(ctx, subscriber); err != nil {
+		t.Fatalf("restore MSISDN: %v", err)
+	}
+
+	for _, identity := range []string{"sip:+15550100@" + domain, "sip:+15550100@" + strings.ToUpper(domain) + ";user=phone", "sip:!\\+1555.*!@" + domain} {
+		err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "sip-number", ServerName: "sip:n.example.org", PublicServiceIdentities: []string{identity}})
+		if !errors.Is(err, db.ErrPSIConflict) {
+			t.Errorf("a PSI %s taking a subscriber's SIP URI: err = %v, want ErrPSIConflict", identity, err)
+		}
+	}
+
+	for _, identity := range []string{"sip:+15550100@example.org", "sip:+15550188@" + domain} {
+		if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "sip-number", ServerName: "sip:n.example.org", PublicServiceIdentities: []string{identity}}); err != nil {
+			t.Fatalf("create with PSI %s: %v", identity, err)
+		}
+
+		if err := database.DeleteIMSApplicationServer(ctx, "sip-number"); err != nil {
+			t.Fatalf("delete: %v", err)
+		}
+	}
+
+	if err := database.CreateIMSApplicationServer(ctx, &db.IMSApplicationServer{Name: "sip-number", ServerName: "sip:n.example.org", PublicServiceIdentities: []string{"sip:+15550188@" + domain}}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	subscriber.Msisdn = "15550188"
+	if err := database.UpdateSubscriberProfile(ctx, subscriber); !errors.Is(err, db.ErrMSISDNInUse) {
+		t.Fatalf("an MSISDN whose SIP URI is a PSI: err = %v, want ErrMSISDNInUse", err)
+	}
 }
 
 func TestIMSProfilePushTargets(t *testing.T) {
