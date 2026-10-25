@@ -43,10 +43,12 @@ func (c change) String() string {
 }
 
 func decide(reg *Registration, sub *subject, p *profile) change {
+	terminated := !sub.entitled() || p.privateIdentity != reg.PrivateIdentity
+
 	switch {
-	case reg.DefaultIdentity == "":
+	case terminated && reg.Emergency:
 		return changeNone
-	case !sub.entitled(), p.privateIdentity != reg.PrivateIdentity:
+	case terminated:
 		return changePermanentTermination
 	case p.defaultIdentity != reg.DefaultIdentity && reg.State == Registered:
 		return changeServerChange

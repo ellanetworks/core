@@ -43,9 +43,10 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 		)`, IMSInitialFilterCriteriaTableName, ProfilesTableName, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
 			IMSDefaultHandlingSessionContinued, IMSDefaultHandlingSessionTerminated),
 		fmt.Sprintf("CREATE INDEX idx_ims_initial_filter_criteria_as ON %s(applicationServerID)", IMSInitialFilterCriteriaTableName),
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN privateIdentity TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN privateIdentity TEXT NOT NULL DEFAULT '' CHECK (state = 0 OR privateIdentity != '')", IMSRegistrationsTableName),
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN defaultIdentity TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN profileDigest TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN profileDigest TEXT NOT NULL DEFAULT '' CHECK (state = 0 OR profileDigest != '')", IMSRegistrationsTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN emergency BOOLEAN NOT NULL DEFAULT FALSE CHECK (emergency IN (0, 1) AND (emergency = 0 OR state = 2))", IMSRegistrationsTableName),
 	}
 
 	for _, stmt := range stmts {

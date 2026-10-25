@@ -103,7 +103,7 @@ func (h *HSS) permanentlyTerminated(ctx context.Context, t *Termination, emergen
 		}
 
 		next := *current
-		next.State = Unregistered
+		next.State, next.Emergency = Unregistered, true
 
 		return &next, nil
 	})

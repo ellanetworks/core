@@ -247,6 +247,7 @@ func TestReconcile_TS29228_6_5_2_1(t *testing.T) {
 		imsi           string
 		assignment     cx.AssignmentType
 		change         func(store *fakeIMSStore)
+		emergency      bool
 		wantPushes     int
 		wantTerminated []cx.ReasonCode
 		wantCleared    bool
@@ -274,13 +275,26 @@ func TestReconcile_TS29228_6_5_2_1(t *testing.T) {
 		{name: "unregistered, MSISDN removed", imsi: testIMSI, assignment: cx.AssignmentUnregisteredUser, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}, wantCleared: true, change: func(store *fakeIMSStore) {
 			store.subscribers[testIMSI].MSISDN = ""
 		}},
-		{name: "emergency registration, MSISDN added", imsi: testNoMSISDN, assignment: cx.AssignmentRegistration, change: func(store *fakeIMSStore) {
+		{name: "emergency registration, MSISDN added", imsi: testNoMSISDN, assignment: cx.AssignmentRegistration, wantTerminated: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true, change: func(store *fakeIMSStore) {
 			store.subscribers[testNoMSISDN].MSISDN = "15559990000"
+		}},
+		{name: "emergency registration without an MSISDN", imsi: testNoMSISDN, assignment: cx.AssignmentRegistration, emergency: true, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}},
+		{name: "emergency registration with an MSISDN", imsi: testIMSI, assignment: cx.AssignmentRegistration, emergency: true, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].IMSDataNetwork = false
+		}},
+		{name: "unregistered emergency registration, IMS data network lost", imsi: testIMSI, assignment: cx.AssignmentUnregisteredUser, emergency: true, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].IMSDataNetwork = false
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
 			scscf := &fakeSCSCF{}
+
+			if tc.emergency {
+				scscf.rtrResult = tgpp.Result{Code: diameter.ResultUnableToComply}
+				scscf.rtrEmergency = []cx.EmergencyIdentity{{PrivateIdentity: impiOf(tc.imsi), PublicIdentity: "sip:" + impiOf(tc.imsi)}}
+			}
+
 			h := connectedHSS(t, store, scscf)
 
 			assigned(t, store, tc.imsi, tc.assignment)
@@ -301,8 +315,13 @@ func TestReconcile_TS29228_6_5_2_1(t *testing.T) {
 				t.Fatalf("registration terminations = %v, want %v", got, tc.wantTerminated)
 			}
 
-			if _, kept := registration(t, store, tc.imsi); kept == tc.wantCleared {
+			reg, kept := registration(t, store, tc.imsi)
+			if kept == tc.wantCleared {
 				t.Fatalf("registration kept = %t, want %t", kept, !tc.wantCleared)
+			}
+
+			if tc.emergency && (reg.State != hss.Unregistered || !reg.Emergency || reg.ServerName == "") {
+				t.Fatalf("registration = %+v, want the S-CSCF kept for the emergency registration", reg)
 			}
 
 			if err := h.Reconcile(context.Background(), tc.imsi); err != nil {

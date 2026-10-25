@@ -156,7 +156,10 @@ func imsNotifierDatabase(t *testing.T, registrations map[string]string) *db.Data
 			continue
 		}
 
-		reg := &db.IMSRegistration{IMSI: imsi, State: db.IMSRegistered, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org"}
+		reg := &db.IMSRegistration{
+			IMSI: imsi, State: db.IMSRegistered, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org",
+			PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest",
+		}
 		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err != nil || !swapped {
 			t.Fatalf("store the IMS registration of %s: swapped %t, %v", imsi, swapped, err)
 		}

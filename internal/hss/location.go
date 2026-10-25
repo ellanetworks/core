@@ -48,24 +48,32 @@ func (h *HSS) LocationInfo(ctx context.Context, id diameter.Identity, req *diame
 		return h.errorAnswer(req, id, "location info", err)
 	}
 
-	if reg != nil && reg.ServerName != "" && (reg.State == Registered || reg.State == Unregistered) {
+	assigned := reg != nil && reg.ServerName != ""
+
+	if assigned && (reg.State == Registered || reg.State == Unregistered) {
 		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Result{Code: diameter.ResultSuccess}, ServerName: reg.ServerName})
 	}
 
-	if r.Originating {
-		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Experimental(tgpp.ResultUnregisteredService)})
+	if !sub.entitled() {
+		return experimentalAnswer(req, id, tgpp.ResultErrorIdentityNotRegistered)
 	}
 
-	ifcs, err := h.store.FilterCriteria(ctx, sub.IMSI)
-	if err != nil {
-		return h.errorAnswer(req, id, "location info", err)
+	if !r.Originating {
+		ifcs, err := h.store.FilterCriteria(ctx, sub.IMSI)
+		if err != nil {
+			return h.errorAnswer(req, id, "location info", err)
+		}
+
+		if !hasUnregisteredTerminatingServices(ifcs) {
+			return experimentalAnswer(req, id, tgpp.ResultErrorIdentityNotRegistered)
+		}
 	}
 
-	if hasUnregisteredTerminatingServices(ifcs) {
-		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Experimental(tgpp.ResultUnregisteredService)})
+	if assigned {
+		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Result{Code: diameter.ResultSuccess}, ServerName: reg.ServerName})
 	}
 
-	return experimentalAnswer(req, id, tgpp.ResultErrorIdentityNotRegistered)
+	return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Experimental(tgpp.ResultUnregisteredService)})
 }
 
 func (h *HSS) locationInfoAnswer(req *diameter.Message, id diameter.Identity, l cx.LocationInfo) *diameter.Message {

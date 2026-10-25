@@ -26,6 +26,7 @@ type Registration struct {
 	PrivateIdentity string
 	DefaultIdentity string
 	ProfileDigest   string
+	Emergency       bool
 }
 
 type RegistrationStore interface {

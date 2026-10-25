@@ -132,7 +132,7 @@ func assign(current *Registration, r cx.ServerAssignmentRequest, host, realm str
 	case cx.AssignmentUnregisteredUser:
 		next := &Registration{State: Unregistered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm}
 		if current != nil {
-			next.AuthPending = current.AuthPending
+			next.AuthPending, next.Emergency = current.AuthPending, current.Emergency
 		}
 
 		return delivered(next, p), success, nil

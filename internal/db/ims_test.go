@@ -580,7 +580,10 @@ func TestIMSProfilePushTargets(t *testing.T) {
 			continue
 		}
 
-		next := &db.IMSRegistration{IMSI: imsi, State: state, ServerName: "sip:scscf.example.org", AuthPending: state == db.IMSNotRegistered, OriginHost: "scscf.example.org", OriginRealm: "example.org"}
+		next := &db.IMSRegistration{
+			IMSI: imsi, State: state, ServerName: "sip:scscf.example.org", AuthPending: state == db.IMSNotRegistered, OriginHost: "scscf.example.org", OriginRealm: "example.org",
+			PrivateIdentity: imsi + "@example.org", ProfileDigest: "digest",
+		}
 		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, next); err != nil || !swapped {
 			t.Fatalf("store IMS registration of %s: swapped %t, %v", imsi, swapped, err)
 		}

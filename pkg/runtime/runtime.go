@@ -1146,6 +1146,7 @@ func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
 		PrivateIdentity: reg.PrivateIdentity,
 		DefaultIdentity: reg.DefaultIdentity,
 		ProfileDigest:   reg.ProfileDigest,
+		Emergency:       reg.Emergency,
 	}, nil
 }
 
@@ -1169,6 +1170,7 @@ func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration,
 		PrivateIdentity: reg.PrivateIdentity,
 		DefaultIdentity: reg.DefaultIdentity,
 		ProfileDigest:   reg.ProfileDigest,
+		Emergency:       reg.Emergency,
 	}, nil
 }
 

@@ -22,7 +22,7 @@ const imsRegistrationsSchema = 25
 const (
 	getIMSRegistrationStmt      = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
 	listAllIMSRegistrationsStmt = "SELECT &imsRegistrationRow.* FROM %s ORDER BY imsi ASC"
-	upsertIMSRegistrationStmt   = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm, privateIdentity, defaultIdentity, profileDigest) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.privateIdentity, $imsRegistrationRow.defaultIdentity, $imsRegistrationRow.profileDigest) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity, defaultIdentity=excluded.defaultIdentity, profileDigest=excluded.profileDigest"
+	upsertIMSRegistrationStmt   = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm, privateIdentity, defaultIdentity, profileDigest, emergency) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.privateIdentity, $imsRegistrationRow.defaultIdentity, $imsRegistrationRow.profileDigest, $imsRegistrationRow.emergency) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity, defaultIdentity=excluded.defaultIdentity, profileDigest=excluded.profileDigest, emergency=excluded.emergency"
 	deleteIMSRegistrationStmt   = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
 	countIMSRegistrationsStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
 )
@@ -45,6 +45,7 @@ type IMSRegistration struct {
 	PrivateIdentity string               `json:"privateIdentity"`
 	DefaultIdentity string               `json:"defaultIdentity"`
 	ProfileDigest   string               `json:"profileDigest"`
+	Emergency       bool                 `json:"emergency"`
 }
 
 type imsRegistrationRow struct {
@@ -57,6 +58,7 @@ type imsRegistrationRow struct {
 	PrivateIdentity string `db:"privateIdentity"`
 	DefaultIdentity string `db:"defaultIdentity"`
 	ProfileDigest   string `db:"profileDigest"`
+	Emergency       bool   `db:"emergency"`
 }
 
 type imsRegistrationCASPayload struct {
@@ -81,6 +83,7 @@ func (r imsRegistrationRow) registration() *IMSRegistration {
 		PrivateIdentity: r.PrivateIdentity,
 		DefaultIdentity: r.DefaultIdentity,
 		ProfileDigest:   r.ProfileDigest,
+		Emergency:       r.Emergency,
 	}
 }
 
@@ -95,6 +98,7 @@ func imsRegistrationRowOf(imsi string, r *IMSRegistration) imsRegistrationRow {
 		PrivateIdentity: r.PrivateIdentity,
 		DefaultIdentity: r.DefaultIdentity,
 		ProfileDigest:   r.ProfileDigest,
+		Emergency:       r.Emergency,
 	}
 }
 
@@ -110,7 +114,8 @@ func sameIMSRegistration(a, b *IMSRegistration) bool {
 		a.OriginRealm == b.OriginRealm &&
 		a.PrivateIdentity == b.PrivateIdentity &&
 		a.DefaultIdentity == b.DefaultIdentity &&
-		a.ProfileDigest == b.ProfileDigest
+		a.ProfileDigest == b.ProfileDigest &&
+		a.Emergency == b.Emergency
 }
 
 func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistration, error) {

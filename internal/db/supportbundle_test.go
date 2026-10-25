@@ -371,10 +371,12 @@ func TestExportSupportData_IdentitySectionsPreserved(t *testing.T) {
 	}
 
 	if _, _, err := database.CompareAndSwapIMSRegistration(context.Background(), imsi, nil, &db.IMSRegistration{
-		State:       db.IMSRegistered,
-		ServerName:  "scscf.ims.test",
-		OriginHost:  "h",
-		OriginRealm: "r",
+		State:           db.IMSRegistered,
+		ServerName:      "scscf.ims.test",
+		OriginHost:      "h",
+		OriginRealm:     "r",
+		PrivateIdentity: imsi + "@ims.test",
+		ProfileDigest:   "digest",
 	}); err != nil {
 		t.Fatalf("CompareAndSwapIMSRegistration failed: %v", err)
 	}

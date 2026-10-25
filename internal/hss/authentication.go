@@ -48,15 +48,12 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 
 		next := Registration{State: NotRegistered, ServerName: r.ServerName, AuthPending: true, OriginHost: af.OriginHost, OriginRealm: af.OriginRealm}
 
-		if current != nil {
-			next.State = current.State
-		}
-
 		if current != nil && current.ServerName == r.ServerName {
+			next.State, next.Emergency = current.State, current.Emergency
 			next.PrivateIdentity, next.DefaultIdentity, next.ProfileDigest = current.PrivateIdentity, current.DefaultIdentity, current.ProfileDigest
 		}
 
-		if current != nil && current.State == Registered {
+		if current != nil && current.State != NotRegistered && current.ServerName != r.ServerName {
 			h.log.Info("IMS subscriber moved to another S-CSCF; the previous S-CSCF is not notified",
 				zap.String("imsi", sub.IMSI), zap.String("previous", current.ServerName), zap.String("serverName", r.ServerName))
 		}
