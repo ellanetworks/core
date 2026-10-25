@@ -7,6 +7,7 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -106,21 +107,29 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 	}
 }
 
-type recordingPusher struct {
-	pushed []string
+type recordingReconciler struct {
+	mu         sync.Mutex
+	reconciled []string
 }
 
-func (r *recordingPusher) PushProfile(_ context.Context, imsi string) error {
-	r.pushed = append(r.pushed, imsi)
+func (r *recordingReconciler) Reconcile(_ context.Context, imsi string) error {
+	r.mu.Lock()
+	r.reconciled = append(r.reconciled, imsi)
+	r.mu.Unlock()
+
 	return nil
 }
 
-func (r *recordingPusher) IdentitiesChanged(_ context.Context, imsi, previousMSISDN string) error {
-	r.pushed = append(r.pushed, imsi+" was "+previousMSISDN)
-	return nil
+func (r *recordingReconciler) seen() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.reconciled)
 }
 
-func TestIMSProfileNotifierCoalescesPushes(t *testing.T) {
+func imsNotifierDatabase(t *testing.T, registrations map[string]string) *db.Database {
+	t.Helper()
+
 	ctx := context.Background()
 
 	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
@@ -130,8 +139,42 @@ func TestIMSProfileNotifierCoalescesPushes(t *testing.T) {
 
 	t.Cleanup(func() { _ = database.Close() })
 
-	pusher := &recordingPusher{}
-	n := newIMSProfileNotifier(database, pusher)
+	profile, err := database.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get profile: %s", err)
+	}
+
+	for imsi, host := range registrations {
+		if err := database.CreateSubscriber(ctx, &db.Subscriber{
+			Imsi: imsi, SequenceNumber: "000000000001", PermanentKey: "6f30087629feb0b089783c81d0ae09b5",
+			Opc: "21a7e1897dfb481d62439142cdf1b6ee", ProfileID: profile.ID,
+		}); err != nil {
+			t.Fatalf("create subscriber: %s", err)
+		}
+
+		if host == "" {
+			continue
+		}
+
+		reg := &db.IMSRegistration{IMSI: imsi, State: db.IMSRegistered, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org"}
+		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err != nil || !swapped {
+			t.Fatalf("store the IMS registration of %s: swapped %t, %v", imsi, swapped, err)
+		}
+	}
+
+	return database
+}
+
+func TestIMSProfileNotifierReconcilesEachSubscriberOnce(t *testing.T) {
+	ctx := context.Background()
+	database := imsNotifierDatabase(t, map[string]string{
+		"001010000000001": "scscf.example.org",
+		"001010000000002": "scscf.example.org",
+		"001010000000003": "",
+	})
+
+	reconciler := &recordingReconciler{}
+	n := newIMSProfileNotifier(database, reconciler)
 
 	n.SubscriberChanged(ctx, "001010000000002")
 	n.SubscriberChanged(ctx, "001010000000001")
@@ -141,17 +184,18 @@ func TestIMSProfileNotifierCoalescesPushes(t *testing.T) {
 	for n.step(ctx) {
 	}
 
-	if !slices.Equal(pusher.pushed, []string{"001010000000002", "001010000000001"}) {
-		t.Fatalf("pushed %v, want each subscriber once, in order", pusher.pushed)
+	if got := reconciler.seen(); !slices.Equal(got, []string{"001010000000002", "001010000000001"}) {
+		t.Fatalf("reconciled %v, want each subscriber once, in order", got)
 	}
 
 	n.SubscriberChanged(ctx, "001010000000002")
+	n.AllSubscribersChanged(ctx)
 
 	for n.step(ctx) {
 	}
 
-	if !slices.Equal(pusher.pushed, []string{"001010000000002", "001010000000001", "001010000000002"}) {
-		t.Fatalf("pushed %v, want a later change pushed again", pusher.pushed)
+	if got := reconciler.seen()[2:]; !slices.Equal(got, []string{"001010000000002", "001010000000001"}) {
+		t.Fatalf("reconciled %v after the next changes, want each registered subscriber once more", got)
 	}
 }
 

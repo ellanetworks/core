@@ -5,8 +5,6 @@ package hss_test
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -17,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/hss"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files in testdata")
@@ -157,58 +154,6 @@ func TestLocationInfoForUnregisteredTerminatingServices(t *testing.T) {
 			store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: tc.ifcs}
 
 			requireResult(t, locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN}), tc.want)
-		})
-	}
-}
-
-func TestPushProfile(t *testing.T) {
-	store := newFakeIMSStore()
-
-	if err := newHSS(store).PushProfile(context.Background(), testIMSI); err != nil {
-		t.Fatalf("PushProfile without a registration: %v, want nothing to push", err)
-	}
-
-	store.registrations[testIMSI] = hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}
-
-	if err := newHSS(store).PushProfile(context.Background(), testIMSI); !errors.Is(err, hss.ErrDiameterUnavailable) {
-		t.Fatalf("PushProfile to an unregistered user's S-CSCF: %v, want %v", err, hss.ErrDiameterUnavailable)
-	}
-}
-
-func TestIdentitiesChanged(t *testing.T) {
-	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}
-
-	for _, tc := range []struct {
-		name     string
-		reg      *hss.Registration
-		previous string
-		msisdn   string
-		want     error
-		wantKept bool
-	}{
-		{name: "not registered", previous: "15550000000", msisdn: testMSISDN},
-		{name: "registered, MSISDN added", reg: &registered, msisdn: testMSISDN, want: hss.ErrDiameterUnavailable, wantKept: true},
-		{name: "registered, MSISDN changed", reg: &registered, previous: "15550000000", msisdn: testMSISDN, want: hss.ErrDiameterUnavailable},
-		{name: "registered, MSISDN removed", reg: &registered, previous: testMSISDN, want: hss.ErrDiameterUnavailable, wantKept: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			store := newFakeIMSStore()
-			store.subscribers[testIMSI].MSISDN = tc.msisdn
-
-			if tc.reg != nil {
-				store.registrations[testIMSI] = *tc.reg
-			}
-
-			if err := newHSS(store).IdentitiesChanged(context.Background(), testIMSI, tc.previous); !errors.Is(err, tc.want) {
-				t.Fatalf("IdentitiesChanged: %v, want %v", err, tc.want)
-			}
-
-			if tc.reg != nil {
-				got, kept := store.registrations[testIMSI]
-				if kept != tc.wantKept || (kept && got != *tc.reg) {
-					t.Fatalf("registration = %+v (kept %t) after a failed request, want kept %t", got, kept, tc.wantKept)
-				}
-			}
 		})
 	}
 }

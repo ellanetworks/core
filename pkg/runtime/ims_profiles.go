@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -14,23 +13,23 @@ import (
 	"go.uber.org/zap"
 )
 
-type profilePusher interface {
-	PushProfile(ctx context.Context, imsi string) error
-	IdentitiesChanged(ctx context.Context, imsi, previousMSISDN string) error
+type imsReconciler interface {
+	Reconcile(ctx context.Context, imsi string) error
 }
 
 type imsProfileNotifier struct {
-	db     *db.Database
-	pusher profilePusher
+	db  *db.Database
+	hss imsReconciler
 
 	mu      sync.Mutex
 	jobs    []func(context.Context) ([]string, error)
 	pending []string
+	queued  map[string]bool
 	wake    chan struct{}
 }
 
-func newIMSProfileNotifier(database *db.Database, pusher profilePusher) *imsProfileNotifier {
-	return &imsProfileNotifier{db: database, pusher: pusher, wake: make(chan struct{}, 1)}
+func newIMSProfileNotifier(database *db.Database, hss imsReconciler) *imsProfileNotifier {
+	return &imsProfileNotifier{db: database, hss: hss, queued: make(map[string]bool), wake: make(chan struct{}, 1)}
 }
 
 func (n *imsProfileNotifier) ApplicationServerChanged(_ context.Context, applicationServerID string) {
@@ -56,11 +55,22 @@ func (n *imsProfileNotifier) SubscriberChanged(_ context.Context, imsi string) {
 	})
 }
 
-func (n *imsProfileNotifier) SubscriberIdentitiesChanged(_ context.Context, imsi, previousMSISDN string) {
+func (n *imsProfileNotifier) AllSubscribersChanged(_ context.Context) {
 	n.enqueue(func(ctx context.Context) ([]string, error) {
-		_ = n.pusher.IdentitiesChanged(ctx, imsi, previousMSISDN)
+		regs, err := n.db.ListAllIMSRegistrations(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list the IMS registrations: %w", err)
+		}
 
-		return nil, nil
+		imsis := make([]string, 0, len(regs))
+
+		for _, r := range regs {
+			if r.State != db.IMSNotRegistered {
+				imsis = append(imsis, r.IMSI)
+			}
+		}
+
+		return imsis, nil
 	})
 }
 
@@ -100,13 +110,14 @@ func (n *imsProfileNotifier) step(ctx context.Context) bool {
 	for _, job := range jobs {
 		imsis, err := job(ctx)
 		if err != nil {
-			logger.HssLog.Warn("IMS profile push: failed to find the affected subscribers", zap.Error(err))
+			logger.HssLog.Warn("IMS subscription change: failed to find the affected subscribers", zap.Error(err))
 			continue
 		}
 
 		n.mu.Lock()
 		for _, imsi := range imsis {
-			if !slices.Contains(n.pending, imsi) {
+			if !n.queued[imsi] {
+				n.queued[imsi] = true
 				n.pending = append(n.pending, imsi)
 			}
 		}
@@ -123,9 +134,12 @@ func (n *imsProfileNotifier) step(ctx context.Context) bool {
 
 	imsi := n.pending[0]
 	n.pending = n.pending[1:]
+	delete(n.queued, imsi)
 	n.mu.Unlock()
 
-	_ = n.pusher.PushProfile(ctx, imsi)
+	if err := n.hss.Reconcile(ctx, imsi); err != nil {
+		logger.HssLog.Debug("IMS subscription change not applied", zap.String("imsi", imsi), zap.Error(err))
+	}
 
 	return true
 }

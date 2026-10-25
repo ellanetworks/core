@@ -460,7 +460,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
+func UpdateDataNetwork(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -537,6 +537,10 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
 
 			return
+		}
+
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)

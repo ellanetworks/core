@@ -881,13 +881,8 @@ func UpdateSubscriber(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			return
 		}
 
-		if imsProfiles != nil {
-			switch {
-			case existing.Msisdn != updated.Msisdn:
-				imsProfiles.SubscriberIdentitiesChanged(context.WithoutCancel(r.Context()), imsi, existing.Msisdn)
-			case existing.ProfileID != profile.ID:
-				imsProfiles.SubscriberChanged(context.WithoutCancel(r.Context()), imsi)
-			}
+		if imsProfiles != nil && (existing.Msisdn != updated.Msisdn || existing.ProfileID != profile.ID) {
+			imsProfiles.SubscriberChanged(context.WithoutCancel(r.Context()), imsi)
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)

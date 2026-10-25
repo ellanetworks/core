@@ -43,6 +43,9 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 		)`, IMSInitialFilterCriteriaTableName, ProfilesTableName, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
 			IMSDefaultHandlingSessionContinued, IMSDefaultHandlingSessionTerminated),
 		fmt.Sprintf("CREATE INDEX idx_ims_initial_filter_criteria_as ON %s(applicationServerID)", IMSInitialFilterCriteriaTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN privateIdentity TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN defaultIdentity TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
+		fmt.Sprintf("ALTER TABLE %s ADD COLUMN profileDigest TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
 	}
 
 	for _, stmt := range stmts {

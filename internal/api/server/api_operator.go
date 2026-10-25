@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -351,7 +352,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateOperatorID(dbInstance *db.Database) http.Handler {
+func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -401,6 +402,10 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpdateOperatorID(r.Context(), params.Mcc, params.Mnc); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
 			return
+		}
+
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
 		resp := SuccessResponse{Message: "Operator ID updated successfully"}

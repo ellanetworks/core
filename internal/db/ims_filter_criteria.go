@@ -335,10 +335,33 @@ type profileIMSIFCsPayload struct {
 }
 
 func ValidateIMSFilterCriteria(ifcs []IMSInitialFilterCriterion) error {
+	if len(ifcs) > math.MaxInt32 {
+		return fmt.Errorf("at most %d initial filter criteria", math.MaxInt32)
+	}
+
+	criteria := make([]cx.InitialFilterCriteria, 0, len(ifcs))
+
 	for i, ifc := range ifcs {
 		if err := ifc.Validate(); err != nil {
 			return fmt.Errorf("criterion %d: %w", i+1, err)
 		}
+
+		criteria = append(criteria, ifc.CX(int32(i), "sip:validation.invalid"))
+	}
+
+	userData, err := cx.MarshalUserData(cx.IMSSubscription{
+		PrivateIdentity: "validation@validation.invalid",
+		ServiceProfiles: []cx.ServiceProfile{{
+			PublicIdentities:      []cx.ProfileIdentity{{Identity: "sip:validation@validation.invalid"}},
+			InitialFilterCriteria: criteria,
+		}},
+	})
+	if err != nil {
+		return err
+	}
+
+	if _, err := cx.ParseUserData(userData); err != nil {
+		return err
 	}
 
 	return nil

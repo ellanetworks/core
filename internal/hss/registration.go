@@ -18,11 +18,14 @@ const (
 )
 
 type Registration struct {
-	State       State
-	ServerName  string
-	AuthPending bool
-	OriginHost  string
-	OriginRealm string
+	State           State
+	ServerName      string
+	AuthPending     bool
+	OriginHost      string
+	OriginRealm     string
+	PrivateIdentity string
+	DefaultIdentity string
+	ProfileDigest   string
 }
 
 type RegistrationStore interface {
@@ -40,11 +43,7 @@ func sameRegistration(a, b *Registration) bool {
 		return a == nil && b == nil
 	}
 
-	return a.State == b.State &&
-		a.ServerName == b.ServerName &&
-		a.AuthPending == b.AuthPending &&
-		a.OriginHost == b.OriginHost &&
-		a.OriginRealm == b.OriginRealm
+	return *a == *b
 }
 
 func (h *HSS) updateRegistration(ctx context.Context, imsi string, next func(current *Registration) (*Registration, error)) error {

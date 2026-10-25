@@ -4,6 +4,7 @@
 package hss_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -129,8 +130,8 @@ func TestRegistrationAndDeregistration(t *testing.T) {
 	ans = serverAssignment(t, store, reRegister)
 	requireResult(t, ans, tgpp.Result{Code: diameter.ResultSuccess})
 
-	if sa, err := cx.ParseServerAssignmentAnswer(ans); err != nil || len(sa.UserData) != 0 {
-		t.Fatalf("re-registration SAA user data %d octets, err %v", len(sa.UserData), err)
+	if again, err := cx.ParseServerAssignmentAnswer(ans); err != nil || !bytes.Equal(again.UserData, sa.UserData) {
+		t.Fatalf("re-registration SAA user data %d octets, err %v; want the profile despite USER_DATA_ALREADY_AVAILABLE", len(again.UserData), err)
 	}
 
 	dereg := uar

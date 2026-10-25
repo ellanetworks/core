@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -49,6 +50,7 @@ type fakeIMSSubscriber struct {
 }
 
 type fakeIMSStore struct {
+	mu             sync.Mutex
 	subscribers    map[string]*fakeIMSSubscriber
 	filterCriteria map[string][]cx.InitialFilterCriteria
 	serviceIDs     map[string]string
@@ -73,6 +75,9 @@ func newFakeIMSStore() *fakeIMSStore {
 }
 
 func (f *fakeIMSStore) Registration(_ context.Context, imsi string) (*hss.Registration, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.fail {
 		return nil, errStoreDown
 	}
@@ -93,6 +98,9 @@ func (f *fakeIMSStore) CompareAndSwapRegistration(_ context.Context, imsi string
 	if f.unavailable {
 		return nil, false, fmt.Errorf("%w: raft commit timeout", hss.ErrUnavailable)
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	current, ok := f.registrations[imsi]
 
@@ -636,8 +644,8 @@ func TestTermination(t *testing.T) {
 	}{
 		{name: "no registration"},
 		{name: "authentication pending", reg: &hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}},
-		{name: "registered", reg: &hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}, want: true},
-		{name: "unregistered", reg: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}, want: true},
+		{name: "registered", reg: &hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: impiOf(testIMSI)}, want: true},
+		{name: "unregistered", reg: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: "stored@" + testIMSDomain}, want: true},
 	}
 
 	for _, tc := range cases {
@@ -660,9 +668,9 @@ func TestTermination(t *testing.T) {
 				return
 			}
 
-			want := hss.Termination{IMSI: testIMSI, PrivateIdentity: impiOf(testIMSI), ServerName: testSCSCF, ServerHost: cscfIdentity.OriginHost, ServerRealm: cscfIdentity.OriginRealm}
-			if got == nil || *got != want {
-				t.Fatalf("Termination = %+v, want %+v", got, want)
+			if got == nil || got.IMSI != testIMSI || got.PrivateIdentity != tc.reg.PrivateIdentity || got.ServerName != testSCSCF ||
+				got.ServerHost != cscfIdentity.OriginHost || got.ServerRealm != cscfIdentity.OriginRealm || got.Reason != cx.ReasonPermanentTermination {
+				t.Fatalf("Termination = %+v, want the registration's S-CSCF and the private identity it knows", got)
 			}
 		})
 	}

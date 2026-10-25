@@ -1138,11 +1138,14 @@ func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
 	}
 
 	return &hss.Registration{
-		State:       state,
-		ServerName:  reg.ServerName,
-		AuthPending: reg.AuthPending,
-		OriginHost:  reg.OriginHost,
-		OriginRealm: reg.OriginRealm,
+		State:           state,
+		ServerName:      reg.ServerName,
+		AuthPending:     reg.AuthPending,
+		OriginHost:      reg.OriginHost,
+		OriginRealm:     reg.OriginRealm,
+		PrivateIdentity: reg.PrivateIdentity,
+		DefaultIdentity: reg.DefaultIdentity,
+		ProfileDigest:   reg.ProfileDigest,
 	}, nil
 }
 
@@ -1157,12 +1160,15 @@ func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration,
 	}
 
 	return &db.IMSRegistration{
-		IMSI:        imsi,
-		State:       state,
-		ServerName:  reg.ServerName,
-		AuthPending: reg.AuthPending,
-		OriginHost:  reg.OriginHost,
-		OriginRealm: reg.OriginRealm,
+		IMSI:            imsi,
+		State:           state,
+		ServerName:      reg.ServerName,
+		AuthPending:     reg.AuthPending,
+		OriginHost:      reg.OriginHost,
+		OriginRealm:     reg.OriginRealm,
+		PrivateIdentity: reg.PrivateIdentity,
+		DefaultIdentity: reg.DefaultIdentity,
+		ProfileDigest:   reg.ProfileDigest,
 	}, nil
 }
 

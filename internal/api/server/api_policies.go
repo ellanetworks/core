@@ -536,7 +536,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DeletePolicy(dbInstance *db.Database) http.Handler {
+func DeletePolicy(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -559,6 +559,10 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete policy", err, logger.APILog)
 
 			return
+		}
+
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy deleted successfully"}, http.StatusOK, logger.APILog)
@@ -601,7 +605,7 @@ func checkPolicyBindingFree(ctx context.Context, dbInstance *db.Database, profil
 	return fmt.Errorf("policy %q already binds this slice to data network %q", existing.Name, dataNetworkName)
 }
 
-func CreatePolicy(dbInstance *db.Database) http.Handler {
+func CreatePolicy(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -726,13 +730,17 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
 	})
 }
 
-func UpdatePolicy(dbInstance *db.Database) http.Handler {
+func UpdatePolicy(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -836,6 +844,10 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to set default policy", err, logger.APILog)
 				return
 			}
+		}
+
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)

@@ -84,7 +84,12 @@ Services such as MCPTT run on application servers: SIP servers that the S-CSCF s
 
 Each profile has an ordered list of **IMS initial filter criteria**. A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. The S-CSCF evaluates them in the profile's order.
 
-Changes to a profile's filter criteria, an application server's server name, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next registration otherwise. Changing or removing a registered subscriber's MSISDN de-registers it.
+Ella Core keeps the S-CSCF's copy of each registered subscriber's IMS profile up to date:
+
+- A change to a profile's filter criteria, an application server's server name, or a subscriber's profile is pushed to the S-CSCF with Cx Push Profile. The S-CSCF applies it to new calls right away. An application server that a new filter criterion sends registrations to hears of the subscriber at its next re-registration, which the S-CSCF may bring forward.
+- If a push doesn't reach the S-CSCF, for example because the S-CSCF doesn't support Cx Push Profile or isn't connected to the Ella Core node that handled the change, the S-CSCF gets the new profile at the subscriber's next re-registration: Ella Core sends the profile on every registration.
+- Changing or removing a registered subscriber's MSISDN, or changing the operator's MCC or MNC, de-registers it.
+- A subscriber that loses access to the IMS, because its profile no longer has a policy on an IMS data network, or the data network is no longer marked as IMS, is de-registered right away.
 
 ### MCPTT filter criteria
 

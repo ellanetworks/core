@@ -5,6 +5,8 @@ package hss
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"slices"
 	"strings"
 
@@ -92,11 +94,49 @@ func sptMayMatchTerminatingUnregistered(spt cx.ServicePointTrigger) bool {
 	}
 }
 
-func (s *subject) userData(ifcs []cx.InitialFilterCriteria) ([]byte, error) {
-	return cx.MarshalUserData(cx.IMSSubscription{
+func (s *subject) defaultIdentity() string {
+	for _, identity := range s.publicIdentities() {
+		if !identity.Barred {
+			return identity.Identity
+		}
+	}
+
+	return ""
+}
+
+type profile struct {
+	privateIdentity string
+	defaultIdentity string
+	userData        []byte
+	digest          string
+}
+
+func (h *HSS) profileOf(ctx context.Context, s *subject) (*profile, error) {
+	ifcs, err := h.store.FilterCriteria(ctx, s.IMSI)
+	if err != nil {
+		return nil, err
+	}
+
+	userData, err := cx.MarshalUserData(cx.IMSSubscription{
 		PrivateIdentity: s.privateIdentity(),
 		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities(), InitialFilterCriteria: ifcs}},
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &profile{
+		privateIdentity: s.privateIdentity(),
+		defaultIdentity: s.defaultIdentity(),
+		userData:        userData,
+		digest:          digest(userData),
+	}, nil
+}
+
+func digest(b []byte) string {
+	sum := sha256.Sum256(b)
+
+	return hex.EncodeToString(sum[:])
 }
 
 func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subject, error) {

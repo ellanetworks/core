@@ -4,9 +4,12 @@
 package hss_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -25,14 +28,24 @@ type fakeSCSCF struct {
 	pushResult   tgpp.Result
 	rtrResult    tgpp.Result
 	rtrEmergency []cx.EmergencyIdentity
+	onPush       func()
 
 	mu           sync.Mutex
 	terminations []cx.ReasonCode
+	pushes       []*diameter.Message
 }
 
 func (f *fakeSCSCF) ServeDiameter(_ context.Context, _ *diameter.Conn, req *diameter.Message) *diameter.Message {
 	switch req.CommandCode {
 	case cx.CommandPushProfile:
+		f.mu.Lock()
+		f.pushes = append(f.pushes, req)
+		f.mu.Unlock()
+
+		if f.onPush != nil {
+			f.onPush()
+		}
+
 		if f.pushResult.Failure() {
 			return cx.NewErrorAnswer(req, cscfIdentity, &cx.ResultError{Result: f.pushResult}, 0)
 		}
@@ -69,6 +82,13 @@ func (f *fakeSCSCF) Terminations() []cx.ReasonCode {
 	defer f.mu.Unlock()
 
 	return append([]cx.ReasonCode(nil), f.terminations...)
+}
+
+func (f *fakeSCSCF) Pushes() []*diameter.Message {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*diameter.Message(nil), f.pushes...)
 }
 
 type nodePeers struct{ node *diameter.Node }
@@ -159,9 +179,209 @@ func connectedHSS(t *testing.T, store *fakeIMSStore, scscf *fakeSCSCF) *hss.HSS 
 	return hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: hssNode}, zap.NewNop())
 }
 
-func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
-	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}
+func assigned(t *testing.T, store *fakeIMSStore, imsi string, typ cx.AssignmentType) []byte {
+	t.Helper()
 
+	ans := serverAssignment(t, store, register(imsi, typ))
+	requireResult(t, ans, tgpp.Result{Code: diameter.ResultSuccess})
+
+	sa, err := cx.ParseServerAssignmentAnswer(ans)
+	if err != nil {
+		t.Fatalf("parse SAA: %v", err)
+	}
+
+	return sa.UserData
+}
+
+func registration(t *testing.T, store *fakeIMSStore, imsi string) (hss.Registration, bool) {
+	t.Helper()
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	reg, ok := store.registrations[imsi]
+
+	return reg, ok
+}
+
+func mcpttCriteria() []cx.InitialFilterCriteria {
+	register := "REGISTER"
+
+	return []cx.InitialFilterCriteria{{
+		Trigger:           &cx.TriggerPoint{ServicePointTriggers: []cx.ServicePointTrigger{{Groups: []int32{0}, Method: &register}}},
+		ApplicationServer: cx.ApplicationServer{ServerName: "sip:mcptt.example.org"},
+	}}
+}
+
+func TestServerAssignmentAlwaysDownloadsTheProfile_TS29228_6_6(t *testing.T) {
+	store := newFakeIMSStore()
+
+	first := assigned(t, store, testIMSI, cx.AssignmentRegistration)
+	reg, _ := registration(t, store, testIMSI)
+
+	if reg.PrivateIdentity != impiOf(testIMSI) || reg.DefaultIdentity != "sip:+"+testMSISDN+"@"+testIMSDomain || reg.ProfileDigest == "" {
+		t.Fatalf("registration = %+v, want what the SAA delivered", reg)
+	}
+
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+	reRegister := register(testIMSI, cx.AssignmentReRegistration)
+	reRegister.UserDataAlreadyAvailable = true
+
+	ans := serverAssignment(t, store, reRegister)
+
+	sa, err := cx.ParseServerAssignmentAnswer(ans)
+	if err != nil || len(sa.UserData) == 0 || bytes.Equal(sa.UserData, first) {
+		t.Fatalf("re-registration SAA = %d octets, %v; want the changed profile despite USER_DATA_ALREADY_AVAILABLE", len(sa.UserData), err)
+	}
+
+	again, _ := registration(t, store, testIMSI)
+	if again.ProfileDigest == reg.ProfileDigest {
+		t.Fatalf("registration = %+v after the re-registration, want the digest of the new profile", again)
+	}
+}
+
+func TestReconcile_TS29228_6_5_2_1(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		imsi           string
+		assignment     cx.AssignmentType
+		change         func(store *fakeIMSStore)
+		wantPushes     int
+		wantTerminated []cx.ReasonCode
+		wantCleared    bool
+	}{
+		{name: "nothing changed", imsi: testIMSI, assignment: cx.AssignmentRegistration},
+		{name: "filter criteria changed", imsi: testIMSI, assignment: cx.AssignmentRegistration, wantPushes: 1, change: func(store *fakeIMSStore) {
+			store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+		}},
+		{name: "MSISDN changed and changed back", imsi: testIMSI, assignment: cx.AssignmentRegistration, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].MSISDN = "15559990000"
+			store.subscribers[testIMSI].MSISDN = testMSISDN
+		}},
+		{name: "MSISDN changed", imsi: testIMSI, assignment: cx.AssignmentRegistration, wantTerminated: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].MSISDN = "15559990000"
+		}},
+		{name: "MSISDN removed", imsi: testIMSI, assignment: cx.AssignmentRegistration, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}, wantCleared: true, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].MSISDN = ""
+		}},
+		{name: "IMS data network lost", imsi: testIMSI, assignment: cx.AssignmentRegistration, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}, wantCleared: true, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].IMSDataNetwork = false
+		}},
+		{name: "unregistered, MSISDN changed", imsi: testIMSI, assignment: cx.AssignmentUnregisteredUser, wantPushes: 1, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].MSISDN = "15559990000"
+		}},
+		{name: "unregistered, MSISDN removed", imsi: testIMSI, assignment: cx.AssignmentUnregisteredUser, wantTerminated: []cx.ReasonCode{cx.ReasonPermanentTermination}, wantCleared: true, change: func(store *fakeIMSStore) {
+			store.subscribers[testIMSI].MSISDN = ""
+		}},
+		{name: "emergency registration, MSISDN added", imsi: testNoMSISDN, assignment: cx.AssignmentRegistration, change: func(store *fakeIMSStore) {
+			store.subscribers[testNoMSISDN].MSISDN = "15559990000"
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeIMSStore()
+			scscf := &fakeSCSCF{}
+			h := connectedHSS(t, store, scscf)
+
+			assigned(t, store, tc.imsi, tc.assignment)
+
+			if tc.change != nil {
+				tc.change(store)
+			}
+
+			if err := h.Reconcile(context.Background(), tc.imsi); err != nil {
+				t.Fatalf("Reconcile: %v", err)
+			}
+
+			if got := len(scscf.Pushes()); got != tc.wantPushes {
+				t.Fatalf("profile pushes = %d, want %d", got, tc.wantPushes)
+			}
+
+			if got := scscf.Terminations(); !slices.Equal(got, tc.wantTerminated) {
+				t.Fatalf("registration terminations = %v, want %v", got, tc.wantTerminated)
+			}
+
+			if _, kept := registration(t, store, tc.imsi); kept == tc.wantCleared {
+				t.Fatalf("registration kept = %t, want %t", kept, !tc.wantCleared)
+			}
+
+			if err := h.Reconcile(context.Background(), tc.imsi); err != nil {
+				t.Fatalf("Reconcile again: %v", err)
+			}
+
+			if got := len(scscf.Pushes()); got != tc.wantPushes || len(scscf.Terminations()) != len(tc.wantTerminated) {
+				t.Fatalf("a second reconciliation sent more: %d pushes, %v terminations", got, scscf.Terminations())
+			}
+		})
+	}
+}
+
+func TestReconcileSkipsUsersNotAssigned(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{}
+	h := connectedHSS(t, store, scscf)
+
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile without a registration: %v", err)
+	}
+
+	challenge(t, store, testSCSCF)
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile while authentication is pending: %v", err)
+	}
+
+	if len(scscf.Pushes()) != 0 || len(scscf.Terminations()) != 0 {
+		t.Fatalf("sent %d pushes and %v terminations to a user not registered", len(scscf.Pushes()), scscf.Terminations())
+	}
+}
+
+func TestPushProfileRequest_TS29229_6_1_11(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{}
+	h := connectedHSS(t, store, scscf)
+
+	assigned(t, store, testIMSI, cx.AssignmentRegistration)
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	pushes := scscf.Pushes()
+	if len(pushes) != 1 {
+		t.Fatalf("profile pushes = %d, want 1", len(pushes))
+	}
+
+	req := pushes[0]
+
+	ppr, err := cx.ParsePushProfileRequest(req)
+	if err != nil {
+		t.Fatalf("parse PPR: %v", err)
+	}
+
+	env := tgpp.ParseEnvelope(req)
+	if ppr.PrivateIdentity != impiOf(testIMSI) || env.DestinationHost != cscfIdentity.OriginHost || env.DestinationRealm != cscfIdentity.OriginRealm {
+		t.Fatalf("PPR User-Name %q to %q in %q, want the S-CSCF's own and the identity it knows", ppr.PrivateIdentity, env.DestinationHost, env.DestinationRealm)
+	}
+
+	if _, ok := req.Find(tgpp.AVPSupportedFeatures, tgpp.VendorID); ok || ppr.Charging != nil || ppr.AllowedWebRTC != nil {
+		t.Fatalf("PPR = %+v, want only the user data", ppr)
+	}
+
+	saa := assigned(t, store, testIMSI, cx.AssignmentNoAssignment)
+	if !bytes.Equal(ppr.UserData, saa) {
+		t.Fatalf("PPR user data differs from the SAA's:\n%s\n%s", ppr.UserData, saa)
+	}
+
+	sub, err := cx.ParseUserData(ppr.UserData)
+	if err != nil || len(sub.ServiceProfiles) != 1 || len(sub.ServiceProfiles[0].InitialFilterCriteria) != 1 {
+		t.Fatalf("PPR user data = %+v, %v; want the whole profile with its iFC", sub, err)
+	}
+}
+
+func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		result           tgpp.Result
@@ -169,8 +389,9 @@ func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 		wantErr          bool
 		wantTerminations []cx.ReasonCode
 		wantCleared      bool
+		wantDelivered    bool
 	}{
-		{name: "accepted", result: tgpp.Result{Code: diameter.ResultSuccess}},
+		{name: "accepted", result: tgpp.Result{Code: diameter.ResultSuccess}, wantDelivered: true},
 		{name: "profile push unsupported", result: tgpp.Result{Code: diameter.ResultCommandUnsupported}},
 		{name: "unsupported user data", result: tgpp.Experimental(tgpp.ResultErrorNotSupportedUserData), wantTerminations: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true},
 		{name: "too much data", result: tgpp.Experimental(tgpp.ResultErrorTooMuchData), wantTerminations: []cx.ReasonCode{cx.ReasonServerChange}, wantCleared: true},
@@ -180,75 +401,75 @@ func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
-			store.registrations[testIMSI] = registered
 			scscf := &fakeSCSCF{pushResult: tc.result, rtrResult: tc.rtrResult}
+			h := connectedHSS(t, store, scscf)
 
-			err := connectedHSS(t, store, scscf).PushProfile(context.Background(), testIMSI)
+			assigned(t, store, testIMSI, cx.AssignmentRegistration)
+			before, _ := registration(t, store, testIMSI)
+			store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+			err := h.Reconcile(context.Background(), testIMSI)
 			if (err != nil) != tc.wantErr {
-				t.Fatalf("PushProfile: %v, want error %t", err, tc.wantErr)
+				t.Fatalf("Reconcile: %v, want error %t", err, tc.wantErr)
 			}
 
-			if got := scscf.Terminations(); len(got) != len(tc.wantTerminations) || (len(got) > 0 && got[0] != tc.wantTerminations[0]) {
+			if got := scscf.Terminations(); !slices.Equal(got, tc.wantTerminations) {
 				t.Fatalf("registration terminations = %v, want %v", got, tc.wantTerminations)
 			}
 
-			_, kept := store.registrations[testIMSI]
+			after, kept := registration(t, store, testIMSI)
 			if kept == tc.wantCleared {
 				t.Fatalf("registration kept = %t, want %t", kept, !tc.wantCleared)
+			}
+
+			if kept && (after.ProfileDigest != before.ProfileDigest) != tc.wantDelivered {
+				t.Fatalf("delivered digest changed = %t, want %t", after.ProfileDigest != before.ProfileDigest, tc.wantDelivered)
 			}
 		})
 	}
 }
 
-func TestRegistrationTermination_TS29228_6_1_3_1(t *testing.T) {
-	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}
-	emergency := []cx.EmergencyIdentity{{PrivateIdentity: testIMSI + "@" + testIMSDomain, PublicIdentity: "tel:+" + testMSISDN}}
-	unableToComply := tgpp.Result{Code: diameter.ResultUnableToComply}
+func TestUserUnknownSparesANewerRegistration_TS29228_6_2_2_1(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{pushResult: tgpp.Experimental(tgpp.ResultErrorUserUnknown)}
+	h := connectedHSS(t, store, scscf)
 
-	for _, tc := range []struct {
-		name         string
-		msisdn       string
-		rtrResult    tgpp.Result
-		rtrEmergency []cx.EmergencyIdentity
-		wantReason   cx.ReasonCode
-		wantErr      bool
-		want         *hss.Registration
-	}{
-		{name: "server change answered", msisdn: "15559990000", wantReason: cx.ReasonServerChange},
-		{name: "server change refused", msisdn: "15559990000", rtrResult: unableToComply, wantReason: cx.ReasonServerChange, wantErr: true},
-		{name: "permanent termination answered", wantReason: cx.ReasonPermanentTermination},
-		{name: "permanent termination refused", rtrResult: unableToComply, wantReason: cx.ReasonPermanentTermination, wantErr: true, want: &registered},
-		{
-			name: "permanent termination of an emergency registration", rtrResult: unableToComply, rtrEmergency: emergency, wantReason: cx.ReasonPermanentTermination,
-			want: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm},
-		},
-		{
-			name: "permanent termination with limited success", rtrResult: tgpp.Result{Code: diameter.ResultLimitedSuccess}, rtrEmergency: emergency, wantReason: cx.ReasonPermanentTermination,
-			want: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			store := newFakeIMSStore()
-			store.registrations[testIMSI] = registered
-			store.subscribers[testIMSI].MSISDN = tc.msisdn
-			scscf := &fakeSCSCF{rtrResult: tc.rtrResult, rtrEmergency: tc.rtrEmergency}
+	assigned(t, store, testIMSI, cx.AssignmentRegistration)
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
 
-			err := connectedHSS(t, store, scscf).IdentitiesChanged(context.Background(), testIMSI, testMSISDN)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("IdentitiesChanged: %v, want error %t", err, tc.wantErr)
-			}
+	var fresh hss.Registration
 
-			if got := scscf.Terminations(); len(got) != 1 || got[0] != tc.wantReason {
-				t.Fatalf("registration terminations = %v, want [%v]", got, tc.wantReason)
-			}
+	scscf.onPush = func() {
+		assigned(t, store, testIMSI, cx.AssignmentRegistration)
+		fresh, _ = registration(t, store, testIMSI)
+	}
 
-			got, kept := store.registrations[testIMSI]
-			switch {
-			case tc.want == nil && kept:
-				t.Fatalf("registration = %+v, want it cleared", got)
-			case tc.want != nil && (!kept || got != *tc.want):
-				t.Fatalf("registration = %+v (kept %t), want %+v", got, kept, *tc.want)
-			}
-		})
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	if got, kept := registration(t, store, testIMSI); !kept || got != fresh {
+		t.Fatalf("registration = %+v (kept %t), want the registration made while the push was answered", got, kept)
+	}
+}
+
+func TestReconcileFailsFastWithoutTheSCSCF(t *testing.T) {
+	store := newFakeIMSStore()
+	node := newTestDiameterNode(t, hssIdentity, netip.MustParseAddr("127.0.0.1"), diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
+		return c.Answer(req, diameter.ResultCommandUnsupported)
+	}))
+	h := hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: node}, zap.NewNop())
+
+	assigned(t, store, testIMSI, cx.AssignmentRegistration)
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+	start := time.Now()
+
+	if err := h.Reconcile(context.Background(), testIMSI); !errors.Is(err, diameter.ErrNotConnected) && !errors.Is(err, diameter.ErrUnableToDeliver) {
+		t.Fatalf("Reconcile: %v, want no route to the S-CSCF", err)
+	}
+
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("Reconcile took %s, want it to fail fast", elapsed)
 	}
 }

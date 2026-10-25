@@ -6,7 +6,6 @@ package hss
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
@@ -32,6 +31,7 @@ type Termination struct {
 	ServerHost      string
 	ServerRealm     string
 	Reason          cx.ReasonCode
+	expected        Registration
 }
 
 func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error) {
@@ -40,25 +40,24 @@ func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error
 		return nil, err
 	}
 
-	domain, err := h.store.IMSDomain(ctx)
-	if err != nil {
-		return nil, err
-	}
+	return termination(imsi, reg, cx.ReasonPermanentTermination), nil
+}
 
-	s := subject{Subscriber: Subscriber{IMSI: imsi}, domain: strings.ToLower(domain)}
-
+func termination(imsi string, reg *Registration, reason cx.ReasonCode) *Termination {
 	return &Termination{
 		IMSI:            imsi,
-		PrivateIdentity: s.privateIdentity(),
+		PrivateIdentity: reg.PrivateIdentity,
 		ServerName:      reg.ServerName,
 		ServerHost:      reg.OriginHost,
 		ServerRealm:     reg.OriginRealm,
-	}, nil
+		Reason:          reason,
+		expected:        *reg,
+	}
 }
 
 func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 	if t.Reason == cx.ReasonServerChange {
-		if err := h.clearRegistration(ctx, t.IMSI, t.ServerName); err != nil {
+		if err := h.clearRegistration(ctx, t); err != nil {
 			return err
 		}
 	}
@@ -95,11 +94,11 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 
 func (h *HSS) permanentlyTerminated(ctx context.Context, t *Termination, emergency bool) error {
 	if !emergency {
-		return h.clearRegistration(ctx, t.IMSI, t.ServerName)
+		return h.clearRegistration(ctx, t)
 	}
 
 	return h.updateRegistration(ctx, t.IMSI, func(current *Registration) (*Registration, error) {
-		if current == nil || current.State == NotRegistered || current.ServerName != t.ServerName {
+		if current == nil || current.State == NotRegistered || !t.holds(current) {
 			return current, nil
 		}
 
@@ -133,7 +132,7 @@ func (h *HSS) terminate(ctx context.Context, t *Termination) (bool, error) {
 		return false, err
 	}
 
-	ans, err := node.Send(ctx, req)
+	ans, err := node.Send(ctx, req, diameter.FailFast())
 	if err != nil {
 		return false, err
 	}
@@ -150,4 +149,18 @@ func (h *HSS) terminate(ctx context.Context, t *Termination) (bool, error) {
 	}
 
 	return len(a.EmergencyIdentities) > 0, nil
+}
+
+func (t *Termination) holds(current *Registration) bool {
+	return *current == t.expected
+}
+
+func (h *HSS) clearRegistration(ctx context.Context, t *Termination) error {
+	return h.updateRegistration(ctx, t.IMSI, func(current *Registration) (*Registration, error) {
+		if current == nil || current.State == NotRegistered || !t.holds(current) {
+			return current, nil
+		}
+
+		return nil, nil
+	})
 }

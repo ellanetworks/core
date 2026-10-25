@@ -52,6 +52,10 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 			next.State = current.State
 		}
 
+		if current != nil && current.ServerName == r.ServerName {
+			next.PrivateIdentity, next.DefaultIdentity, next.ProfileDigest = current.PrivateIdentity, current.DefaultIdentity, current.ProfileDigest
+		}
+
 		if current != nil && current.State == Registered {
 			h.log.Info("IMS subscriber moved to another S-CSCF; the previous S-CSCF is not notified",
 				zap.String("imsi", sub.IMSI), zap.String("previous", current.ServerName), zap.String("serverName", r.ServerName))

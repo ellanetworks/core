@@ -17,12 +17,12 @@ import (
 
 const IMSRegistrationsTableName = "ims_registrations"
 
-const imsRegistrationsSchema = 23
+const imsRegistrationsSchema = 25
 
 const (
 	getIMSRegistrationStmt      = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
 	listAllIMSRegistrationsStmt = "SELECT &imsRegistrationRow.* FROM %s ORDER BY imsi ASC"
-	upsertIMSRegistrationStmt   = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm"
+	upsertIMSRegistrationStmt   = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm, privateIdentity, defaultIdentity, profileDigest) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.privateIdentity, $imsRegistrationRow.defaultIdentity, $imsRegistrationRow.profileDigest) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity, defaultIdentity=excluded.defaultIdentity, profileDigest=excluded.profileDigest"
 	deleteIMSRegistrationStmt   = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
 	countIMSRegistrationsStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
 )
@@ -36,21 +36,27 @@ const (
 )
 
 type IMSRegistration struct {
-	IMSI        string               `json:"imsi"`
-	State       IMSRegistrationState `json:"state"`
-	ServerName  string               `json:"serverName"`
-	AuthPending bool                 `json:"authPending"`
-	OriginHost  string               `json:"originHost"`
-	OriginRealm string               `json:"originRealm"`
+	IMSI            string               `json:"imsi"`
+	State           IMSRegistrationState `json:"state"`
+	ServerName      string               `json:"serverName"`
+	AuthPending     bool                 `json:"authPending"`
+	OriginHost      string               `json:"originHost"`
+	OriginRealm     string               `json:"originRealm"`
+	PrivateIdentity string               `json:"privateIdentity"`
+	DefaultIdentity string               `json:"defaultIdentity"`
+	ProfileDigest   string               `json:"profileDigest"`
 }
 
 type imsRegistrationRow struct {
-	Imsi        string `db:"imsi"`
-	State       int    `db:"state"`
-	ServerName  string `db:"serverName"`
-	AuthPending bool   `db:"authPending"`
-	OriginHost  string `db:"originHost"`
-	OriginRealm string `db:"originRealm"`
+	Imsi            string `db:"imsi"`
+	State           int    `db:"state"`
+	ServerName      string `db:"serverName"`
+	AuthPending     bool   `db:"authPending"`
+	OriginHost      string `db:"originHost"`
+	OriginRealm     string `db:"originRealm"`
+	PrivateIdentity string `db:"privateIdentity"`
+	DefaultIdentity string `db:"defaultIdentity"`
+	ProfileDigest   string `db:"profileDigest"`
 }
 
 type imsRegistrationCASPayload struct {
@@ -66,23 +72,29 @@ type imsRegistrationCASResult struct {
 
 func (r imsRegistrationRow) registration() *IMSRegistration {
 	return &IMSRegistration{
-		IMSI:        r.Imsi,
-		State:       IMSRegistrationState(r.State),
-		ServerName:  r.ServerName,
-		AuthPending: r.AuthPending,
-		OriginHost:  r.OriginHost,
-		OriginRealm: r.OriginRealm,
+		IMSI:            r.Imsi,
+		State:           IMSRegistrationState(r.State),
+		ServerName:      r.ServerName,
+		AuthPending:     r.AuthPending,
+		OriginHost:      r.OriginHost,
+		OriginRealm:     r.OriginRealm,
+		PrivateIdentity: r.PrivateIdentity,
+		DefaultIdentity: r.DefaultIdentity,
+		ProfileDigest:   r.ProfileDigest,
 	}
 }
 
 func imsRegistrationRowOf(imsi string, r *IMSRegistration) imsRegistrationRow {
 	return imsRegistrationRow{
-		Imsi:        imsi,
-		State:       int(r.State),
-		ServerName:  r.ServerName,
-		AuthPending: r.AuthPending,
-		OriginHost:  r.OriginHost,
-		OriginRealm: r.OriginRealm,
+		Imsi:            imsi,
+		State:           int(r.State),
+		ServerName:      r.ServerName,
+		AuthPending:     r.AuthPending,
+		OriginHost:      r.OriginHost,
+		OriginRealm:     r.OriginRealm,
+		PrivateIdentity: r.PrivateIdentity,
+		DefaultIdentity: r.DefaultIdentity,
+		ProfileDigest:   r.ProfileDigest,
 	}
 }
 
@@ -95,7 +107,10 @@ func sameIMSRegistration(a, b *IMSRegistration) bool {
 		a.ServerName == b.ServerName &&
 		a.AuthPending == b.AuthPending &&
 		a.OriginHost == b.OriginHost &&
-		a.OriginRealm == b.OriginRealm
+		a.OriginRealm == b.OriginRealm &&
+		a.PrivateIdentity == b.PrivateIdentity &&
+		a.DefaultIdentity == b.DefaultIdentity &&
+		a.ProfileDigest == b.ProfileDigest
 }
 
 func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistration, error) {

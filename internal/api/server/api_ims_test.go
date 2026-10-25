@@ -120,8 +120,8 @@ func (f *fakeIMSProfileNotifier) SubscriberChanged(_ context.Context, imsi strin
 	f.record("subscriber:" + imsi)
 }
 
-func (f *fakeIMSProfileNotifier) SubscriberIdentitiesChanged(_ context.Context, imsi, previousMSISDN string) {
-	f.record("identities:" + imsi + ":" + previousMSISDN)
+func (f *fakeIMSProfileNotifier) AllSubscribersChanged(_ context.Context) {
+	f.record("all")
 }
 
 func newIMSServicesTestEnv(t *testing.T) (testEnv, *http.Client, string, *fakeIMSProfileNotifier) {
@@ -443,6 +443,10 @@ func TestSubscriberProfileChangeNotifiesIMS(t *testing.T) {
 		t.Fatalf("create policy: status %d, response %+v, err %v", status, resp, err)
 	}
 
+	if got := notifier.take(); !slices.Equal(got, []string{"all"}) {
+		t.Fatalf("notifications = %v, want every registered subscriber after a policy change", got)
+	}
+
 	if status, resp, err := createSubscriber(url, client, token, &CreateSubscriberParams{Imsi: Imsi, Key: Key, Opc: Opc, SequenceNumber: SequenceNumber, ProfileName: DefaultProfileName}); err != nil || status != http.StatusCreated {
 		t.Fatalf("create subscriber: status %d, response %+v, err %v", status, resp, err)
 	}
@@ -471,8 +475,8 @@ func TestSubscriberProfileChangeNotifiesIMS(t *testing.T) {
 		t.Fatalf("change the MSISDN and the profile: status %d, response %+v, err %v", status, resp, err)
 	}
 
-	if got := notifier.take(); !slices.Equal(got, []string{"identities:" + Imsi + ":", "identities:" + Imsi + ":15550100"}) {
-		t.Fatalf("notifications = %v, want two identity changes", got)
+	if got := notifier.take(); !slices.Equal(got, []string{"subscriber:" + Imsi, "subscriber:" + Imsi}) {
+		t.Fatalf("notifications = %v, want the subscriber twice", got)
 	}
 }
 
@@ -573,5 +577,40 @@ func TestIMSNamesAreBounded(t *testing.T) {
 	status, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/operator/ims/application-servers", token, map[string]any{"name": long, "server_name": "sip:as.example.org"})
 	if err != nil || status != http.StatusBadRequest {
 		t.Fatalf("create an application server with a 256-character name: status %d, err %v", status, err)
+	}
+}
+
+func TestEntitlementChangesNotifyEveryIMSSubscriber(t *testing.T) {
+	env, client, token, notifier := newIMSServicesTestEnv(t)
+	url := env.Server.URL
+
+	if _, _, err := createProfile(url, client, token, &CreateProfileParams{Name: "mc", UeAmbrUplink: "200 Mbps", UeAmbrDownlink: "200 Mbps"}); err != nil {
+		t.Fatalf("create profile: %s", err)
+	}
+
+	if status, resp, err := createPolicy(url, client, token, &CreatePolicyParams{
+		Name: "mc", ProfileName: "mc", SliceName: DefaultSliceName, DataNetworkName: "internet",
+		SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 3,
+	}); err != nil || status != http.StatusCreated {
+		t.Fatalf("create policy: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if status, resp, err := deletePolicy(url, client, token, "mc"); err != nil || status != http.StatusOK {
+		t.Fatalf("delete policy: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	ims := false
+	if status, resp, err := apiDo[CreateDataNetworkResponse](client, "PUT", url+"/api/v1/networking/data-networks/internet", token, &UpdateDataNetworkParams{
+		IPv4Pool: "10.45.0.0/22", DNS: "8.8.8.8", MTU: 1400, IMS: &ims,
+	}); err != nil || status != http.StatusOK {
+		t.Fatalf("update data network: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if status, resp, err := updateOperatorID(url, client, token, &UpdateOperatorIDParams{Mcc: "002", Mnc: "02"}); err != nil || status != http.StatusCreated {
+		t.Fatalf("update operator ID: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if got := notifier.take(); !slices.Equal(got, []string{"all", "all", "all", "all"}) {
+		t.Fatalf("notifications = %v, want every registered subscriber after each change", got)
 	}
 }

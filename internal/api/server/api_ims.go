@@ -20,7 +20,7 @@ type IMSProfileNotifier interface {
 	ApplicationServerChanged(ctx context.Context, applicationServerID string)
 	ProfileChanged(ctx context.Context, profileID string)
 	SubscriberChanged(ctx context.Context, imsi string)
-	SubscriberIdentitiesChanged(ctx context.Context, imsi, previousMSISDN string)
+	AllSubscribersChanged(ctx context.Context)
 }
 
 type IMSApplicationServer struct {

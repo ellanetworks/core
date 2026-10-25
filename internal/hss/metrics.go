@@ -13,6 +13,20 @@ import (
 
 const registeredCountTimeout = 5 * time.Second
 
+const (
+	pushDelivered    = "delivered"
+	pushUnsupported  = "unsupported"
+	pushRejected     = "rejected"
+	pushUserUnknown  = "user_unknown"
+	pushNotConnected = "not_connected"
+	pushFailed       = "failed"
+)
+
+var pushes = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_ims_profile_pushes_total",
+	Help: "Cx profile pushes to the S-CSCF, by outcome.",
+}, []string{"outcome"})
+
 func (h *HSS) RegisterMetrics(reg prometheus.Registerer) {
 	registered := prometheus.NewDesc(
 		"app_ims_registered_subscribers",
@@ -20,6 +34,8 @@ func (h *HSS) RegisterMetrics(reg prometheus.Registerer) {
 		nil,
 		nil,
 	)
+
+	reg.MustRegister(pushes)
 
 	reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		ctx, cancel := context.WithTimeout(context.Background(), registeredCountTimeout)
