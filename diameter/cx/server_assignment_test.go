@@ -25,6 +25,14 @@ func TestServerAssignmentRequestRoundTrip(t *testing.T) {
 			PublicIdentities: []string{testPublic, testTel}, ServerName: testServer, Type: AssignmentUserDeregistration,
 		},
 		"authentication failure": {PrivateIdentity: testPrivate, PublicIdentities: []string{testPublic}, ServerName: testServer, Type: AssignmentAuthenticationFailure},
+		"p-cscf restoration": {
+			PrivateIdentity: testPrivate, PublicIdentities: []string{testPublic}, ServerName: testServer,
+			Type: AssignmentUnregisteredUser, PCSCFRestoration: true, Features: FeaturePCSCFRestoration,
+		},
+		"p-cscf restoration of one private identity": {
+			PrivateIdentity: testPrivate, PublicIdentities: []string{testPublic}, ServerName: testServer,
+			Type: AssignmentAdministrativeDeregistration, PCSCFRestoration: true, Features: FeaturePCSCFRestoration,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			req, err := NewServerAssignmentRequest(cscfEnvelope, r)
