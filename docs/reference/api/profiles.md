@@ -140,3 +140,87 @@ None
     }
 }
 ```
+
+## Get a Profile's IMS Initial Filter Criteria
+
+This path returns a profile's IMS initial filter criteria, in priority order.
+
+| Method | Path                                          |
+| ------ | --------------------------------------------- |
+| GET    | `/api/v1/profiles/{name}/ims-filter-criteria` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "initial_filter_criteria": [
+            {
+                "priority": 0,
+                "application_server_name": "conference",
+                "trigger": {
+                    "conditions_match": "all",
+                    "groups": [{"conditions": [{"request_uri": "^sip:conference@.*$"}]}]
+                },
+                "default_handling": "SESSION_TERMINATED",
+                "include_register_request": false,
+                "include_register_response": false
+            }
+        ]
+    }
+}
+```
+
+## Update a Profile's IMS Initial Filter Criteria
+
+This path replaces a profile's IMS initial filter criteria. Registered subscribers of the profile get the new user profile.
+
+| Method | Path                                          |
+| ------ | --------------------------------------------- |
+| PUT    | `/api/v1/profiles/{name}/ims-filter-criteria` |
+
+### Parameters
+
+- `initial_filter_criteria` (array): In priority order ([TS 29.228 Annex B.2.2](https://www.3gpp.org/DynaReport/29228.htm)). An empty list removes all of them. Each criterion has:
+    - `application_server_name` (string): The name of the [IMS application server](operator.md#create-an-ims-application-server) matching requests are sent to.
+    - `trigger` (optional object): Without it, the criterion matches every request.
+        - `conditions_match` (string): `all` if a group matches when all of its conditions match, and the trigger matches when any group matches. `any` if a group matches when any of its conditions matches, and the trigger matches when every group matches.
+        - `groups` (array): Groups of `conditions`. Each condition has an optional `negated` (boolean) and exactly one of `request_uri` (string), `method` (string), `sip_header` (`{header, content}`), `session_case` (`ORIGINATING_REGISTERED`, `TERMINATING_REGISTERED`, `TERMINATING_UNREGISTERED`, `ORIGINATING_UNREGISTERED` or `ORIGINATING_CDIV`) and `session_description` (`{line, content}`). With the `REGISTER` method, `registration_types` lists up to two of `INITIAL_REGISTRATION`, `RE-REGISTRATION` and `DE-REGISTRATION`. Request URIs, headers, lines and contents are extended regular expressions.
+    - `profile_part` (optional string): `REGISTERED` or `UNREGISTERED`, the part of the user profile the criterion belongs to. Omitted for both.
+    - `default_handling` (optional string): `SESSION_CONTINUED` or `SESSION_TERMINATED`, what the S-CSCF does when the application server can't be reached.
+    - `service_info` (optional string): Passed transparently to the application server.
+    - `include_register_request` (optional boolean)
+    - `include_register_response` (optional boolean)
+
+The `priority` of a criterion is its position in the list. It is returned on reads and ignored on writes.
+
+### Sample Request
+
+```json
+{
+    "initial_filter_criteria": [
+        {
+            "application_server_name": "conference",
+            "trigger": {
+                "conditions_match": "all",
+                "groups": [{"conditions": [{"request_uri": "^sip:conference@.*$"}]}]
+            },
+            "default_handling": "SESSION_TERMINATED"
+        }
+    ]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Profile initial filter criteria updated successfully"
+    }
+}
+```

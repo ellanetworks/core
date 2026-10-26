@@ -46,6 +46,7 @@ var migrations = []migration{
 	{22, "add SMS: subscribers.msisdn column, sms_settings, SMSC peer and message waiting tables", migrateV22},
 	{23, "add pcscf_addresses and ims_registrations tables: P-CSCF addresses given to phones and IMS S-CSCF assignments", migrateV23},
 	{24, "replace positioning_sessions with deferred_location_requests and location_reports for periodic location", migrateV24},
+	{25, "add IMS services: data_networks.ims, policies pre-emption capability and vulnerability, IMS application server, PSI, service, iFC and profile assignment tables", migrateV25},
 }
 
 // baselineVersion is the highest migration that runs locally during

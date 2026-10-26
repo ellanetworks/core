@@ -29,6 +29,7 @@ export type IMSVoiceStatus =
 export interface OperatorIMS {
   pcscfAddresses: string[];
   voiceStatus: IMSVoiceStatus;
+  homeDomain: string;
 }
 
 export const MAX_PCSCF_ADDRESSES_PER_FAMILY = 3;

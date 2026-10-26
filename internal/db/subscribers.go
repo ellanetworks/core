@@ -50,6 +50,7 @@ const (
 	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberByMSISDNStmt = "SELECT &Subscriber.* from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
 	listIMSIsWithMSISDNStmt   = "SELECT &subscriberIMSI.imsi FROM %s WHERE msisdn!='' AND imsi IN ($SliceIDs[:])"
+	listSubscriberMSISDNsStmt = "SELECT &Subscriber.imsi, &Subscriber.msisdn FROM %s WHERE msisdn!=''"
 )
 
 const (

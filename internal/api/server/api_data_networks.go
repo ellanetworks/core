@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 )
@@ -27,6 +28,7 @@ type CreateDataNetworkParams struct {
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns"`
 	MTU      int32  `json:"mtu"`
+	IMS      *bool  `json:"ims,omitempty"`
 }
 
 type UpdateDataNetworkParams struct {
@@ -34,6 +36,7 @@ type UpdateDataNetworkParams struct {
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns"`
 	MTU      int32  `json:"mtu"`
+	IMS      *bool  `json:"ims,omitempty"`
 }
 
 type DataNetworkStatus struct {
@@ -52,6 +55,7 @@ type DataNetwork struct {
 	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
 	DNS            string                   `json:"dns"`
 	MTU            int32                    `json:"mtu"`
+	IMS            bool                     `json:"ims"`
 	Status         DataNetworkStatus        `json:"status"`
 	IPAllocation   *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
 	IPv6Allocation *DataNetworkIPAllocation `json:"ipv6_allocation,omitempty"`
@@ -126,6 +130,7 @@ func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http
 				IPv6Pool: dbDataNetwork.IPv6Pool,
 				DNS:      dbDataNetwork.DNS,
 				MTU:      dbDataNetwork.MTU,
+				IMS:      dbDataNetwork.IMS,
 				Status: DataNetworkStatus{
 					Sessions: sessionCount,
 				},
@@ -168,6 +173,7 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 			IPv6Pool: dbDataNetwork.IPv6Pool,
 			DNS:      dbDataNetwork.DNS,
 			MTU:      dbDataNetwork.MTU,
+			IMS:      dbDataNetwork.IMS,
 			Status: DataNetworkStatus{
 				Sessions: sessionCount,
 			},
@@ -434,6 +440,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			IPv6Pool: createDataNetworkParams.IPv6Pool,
 			DNS:      createDataNetworkParams.DNS,
 			MTU:      createDataNetworkParams.MTU,
+			IMS:      boolOr(createDataNetworkParams.IMS, createDataNetworkParams.Name == models.IMSDataNetworkName),
 		}
 
 		if err := dbInstance.CreateDataNetwork(r.Context(), dbDataNetwork); err != nil {
@@ -453,7 +460,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
+func UpdateDataNetwork(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -493,12 +500,32 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		existing, err := dbInstance.GetDataNetwork(r.Context(), name)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update data network", err, logger.APILog)
+
+			return
+		}
+
 		dn := &db.DataNetwork{
 			Name:     name,
 			IPv4Pool: updateDataNetworkParams.IPv4Pool,
 			IPv6Pool: updateDataNetworkParams.IPv6Pool,
 			DNS:      updateDataNetworkParams.DNS,
 			MTU:      updateDataNetworkParams.MTU,
+			IMS:      boolOr(updateDataNetworkParams.IMS, existing.IMS),
+		}
+
+		if dn.IMS && !existing.IMS {
+			if err := checkIMSPolicies(r.Context(), dbInstance, existing); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
 		}
 
 		if err := dbInstance.UpdateDataNetwork(r.Context(), dn); err != nil {
@@ -512,10 +539,32 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+name)
 	})
+}
+
+func checkIMSPolicies(ctx context.Context, dbInstance *db.Database, dn *db.DataNetwork) error {
+	fiveQIs, err := dbInstance.DataNetworkPolicy5QIs(ctx, dn.ID)
+	if err != nil {
+		return fmt.Errorf("list the policies of data network %s: %w", dn.Name, err)
+	}
+
+	ims := *dn
+	ims.IMS = true
+
+	for _, var5qi := range fiveQIs {
+		if err := checkIMSSignalling5QI(&ims, var5qi); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func isDataNetworkNameValid(name string) bool {

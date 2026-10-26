@@ -6,7 +6,7 @@ require (
 	github.com/armon/go-metrics v0.4.1
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
-	github.com/ellanetworks/core/diameter v0.0.0-20261017193558-9ed6ed0b4726
+	github.com/ellanetworks/core/diameter v0.0.0-20261022122753-8d5c8bdaaf89
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000
@@ -14,8 +14,8 @@ require (
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/sctp v0.0.0-20260928204907-fc197c42dc3f
-	github.com/ellanetworks/ims v0.0.0-20261021174727-d678b5f4160a
-	github.com/ellanetworks/ims/sip v0.0.0-20261021174727-d678b5f4160a
+	github.com/ellanetworks/ims v0.0.0-20261022130621-a2851bd8ae6a
+	github.com/ellanetworks/ims/sip v0.0.0-20261022130621-a2851bd8ae6a
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0

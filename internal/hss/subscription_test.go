@@ -16,6 +16,7 @@ func TestSubscription(t *testing.T) {
 	impi := impiOf(testIMSI)
 	identities := func(state hss.UserState) []hss.PublicIdentity {
 		return []hss.PublicIdentity{
+			{Identity: "sip:+" + testMSISDN + "@" + testIMSDomain, UserState: state},
 			{Identity: "tel:+" + testMSISDN, UserState: state},
 			{Identity: "sip:" + impi, Barred: true, UserState: state},
 		}

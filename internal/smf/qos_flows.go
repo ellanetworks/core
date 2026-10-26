@@ -86,7 +86,7 @@ type flowChange struct {
 	rules     fgs.QoSRules
 	flows     fgs.QoSFlowDescriptions
 	mapped    fgs.MappedEPSBearerContexts
-	n2Add     []smfNgap.GBRQoSFlow
+	n2Add     []smfNgap.QoSFlow
 	n2Release []uint8
 	parts     map[*dedicatedBearer]flowParts
 }
@@ -279,6 +279,9 @@ func ruleFilters(tft bearerTFT, id string) []fgs.PacketFilter {
 
 func flowDescription(qfi uint8, fiveQI uint8, op fgs.QoSFlowOperation, mbr, gbr models.Ambr) (fgs.QoSFlowDescription, error) {
 	d := fgs.FiveQIQoSFlow(qfi, fiveQI, op)
+	if !models.GBRFiveQI(fiveQI) {
+		return d, nil
+	}
 
 	for _, p := range []struct {
 		id  fgs.QoSFlowParameterID
@@ -316,8 +319,8 @@ func (b *dedicatedBearer) qosFlowDescription(fiveQI uint8, op fgs.QoSFlowOperati
 	return d, nil
 }
 
-func gbrFlow(b *dedicatedBearer, binding bearerBinding, mbr, gbr models.Ambr) smfNgap.GBRQoSFlow {
-	return smfNgap.GBRQoSFlow{QFI: b.qfi, FiveQI: int32(binding.QCI), ARP: binding.ARP, MFBR: mbr, GFBR: gbr, ERABID: b.ebi}
+func qosFlow(b *dedicatedBearer, binding bearerBinding, mbr, gbr models.Ambr) smfNgap.QoSFlow {
+	return smfNgap.QoSFlow{QFI: b.qfi, FiveQI: int32(binding.QCI), ARP: binding.ARP, MFBR: mbr, GFBR: gbr, ERABID: b.ebi}
 }
 
 func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
@@ -330,6 +333,8 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 
 	enforceable, failed := sc.enforceableRulesLocked()
 	failed = append(failed, unmoved...)
+	onDefault, enforceable := sc.splitDefaultRules(enforceable)
+	failed = append(failed, s.bindDefaultLocked(ctx, sc, onDefault)...)
 	want := bindRules(enforceable)
 
 	var (
@@ -384,7 +389,7 @@ func (s *SMF) planFlowsLocked(ctx context.Context, sc *SMContext) []RuleReport {
 
 			s.realignUELocked(&change, b)
 		case b.ranBehind():
-			change.n2Add = append(change.n2Add, gbrFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
+			change.n2Add = append(change.n2Add, qosFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
 			change.touch(b, false, true)
 		default:
 			failed = append(failed, s.modifyFlowLocked(ctx, sc, &change, b, key, rules)...)
@@ -441,7 +446,7 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 		return nil, fmt.Errorf("add the QoS flow's user plane: %w", err)
 	}
 
-	if sc.EBI != 0 && models.GBRQCI(binding.QCI) {
+	if sc.EBI != 0 && (models.GBRQCI(binding.QCI) || models.NonGBRQCI(binding.QCI)) {
 		ebi, err := s.amf.AssignEPSBearerIdentity(sc.Supi, sc.PDUSessionID, sc.Ref)
 		if err != nil {
 			logger.From(ctx, logger.SmfLog).Info("QoS flow set up without an EPS bearer identity; it stays in 5GS",
@@ -468,7 +473,7 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		err = fmt.Errorf("the UE supports %d packet filters (TS 24.501 §6.4.1.3)", sc.filterLimit())
 	}
 
-	mbr, gbr := bearerRates(rules)
+	mbr, gbr := bearerRates(binding.QCI, rules)
 
 	var desc fgs.QoSFlowDescription
 	if err == nil {
@@ -508,7 +513,7 @@ func (s *SMF) createFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 
 	change.flows = append(change.flows, desc)
 	change.mapped = append(change.mapped, mapped...)
-	change.n2Add = append(change.n2Add, gbrFlow(b, binding, mbr, gbr))
+	change.n2Add = append(change.n2Add, qosFlow(b, binding, mbr, gbr))
 	change.touch(b, true, true)
 
 	b.pending = &bearerConfig{binding: binding, rules: rules, tft: tft, mbr: mbr, gbr: gbr}
@@ -537,7 +542,7 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 		return addedOrChangedRules(rules, b.installed.rules)
 	}
 
-	mbr, gbr := bearerRates(rules)
+	mbr, gbr := bearerRates(binding.QCI, rules)
 
 	if b.refused.refuses(binding, tft, mbr, gbr) {
 		b.pruneRuleIdentities()
@@ -602,7 +607,7 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 
 	n2 := ratesChanged || arpChanged
 	if n2 {
-		change.n2Add = append(change.n2Add, gbrFlow(b, binding, mbr, gbr))
+		change.n2Add = append(change.n2Add, qosFlow(b, binding, mbr, gbr))
 	}
 
 	change.touch(b, n1, n2)
@@ -1186,21 +1191,21 @@ func (s *SMF) flowInterruptedByHandoverLocked(ctx context.Context, sc *SMContext
 	s.reconcileAfter(sc.Ref, mobilityRetryInterval)
 }
 
-func (sc *SMContext) heldFlowsLocked() []smfNgap.GBRQoSFlow {
-	var flows []smfNgap.GBRQoSFlow
+func (sc *SMContext) heldFlowsLocked() []smfNgap.QoSFlow {
+	var flows []smfNgap.QoSFlow
 
 	for _, b := range sc.dedicated {
 		if b.qfi == 0 || b.state != dedicatedActive || b.ue == nil || !b.enforces() {
 			continue
 		}
 
-		flows = append(flows, gbrFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
+		flows = append(flows, qosFlow(b, b.installed.binding, b.installed.mbr, b.installed.gbr))
 	}
 
 	return flows
 }
 
-func (s *SMF) requestUserPlaneLocked(sc *SMContext, flows []smfNgap.GBRQoSFlow) {
+func (s *SMF) requestUserPlaneLocked(sc *SMContext, flows []smfNgap.QoSFlow) {
 	if sc.userPlaneRequested {
 		return
 	}
@@ -1241,7 +1246,7 @@ func (s *SMF) radioReleasedLocked(ctx context.Context, sc *SMContext, preserveGB
 		wasAdmitted := b.ran != nil
 		b.ran = nil
 
-		if preserveGBR || b.state != dedicatedActive || !wasAdmitted {
+		if preserveGBR || !models.GBRFiveQI(b.installed.binding.QCI) || b.state != dedicatedActive || !wasAdmitted {
 			continue
 		}
 
@@ -1381,6 +1386,13 @@ func (s *SMF) UpdateSmContextN2InfoNotify(ctx context.Context, ref string, n2 []
 	if len(released) > 0 {
 		logger.From(ctx, logger.SmfLog).Info("the NG-RAN node released QoS flows (TS 38.413 §8.2.4.2)",
 			logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), zap.Uint8s("qfis", released))
+	}
+
+	if sc.PolicyData != nil && slices.Contains(released, sc.PolicyData.QosData.QFI) {
+		logger.From(ctx, logger.SmfLog).Warn("the NG-RAN node released the default QoS flow; releasing the PDU session (TS 23.501 §5.7.1.1)",
+			logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID))
+
+		return s.startRelease(ctx, sc, 0, fgs.GSMCauseReactivationRequested, models.ReleaseFor(models.ReleaseAccessReleased))
 	}
 
 	s.releaseFlowsLocked(ctx, sc, released)

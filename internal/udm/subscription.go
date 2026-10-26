@@ -39,9 +39,10 @@ type AccessAndMobilitySubscription struct {
 type DNNConfiguration struct {
 	Snssai      models.Snssai
 	DNN         string
+	IMS         bool
 	Default     bool
 	Var5qi      int32
-	Arp         int32
+	Arp         models.Arp
 	SessionAMBR models.Ambr
 }
 
@@ -159,9 +160,10 @@ func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*Se
 		sm.DNNs = append(sm.DNNs, DNNConfiguration{
 			Snssai:      snssai,
 			DNN:         dn.Name,
+			IMS:         dn.IMS,
 			Default:     p.IsDefault,
 			Var5qi:      p.Var5qi,
-			Arp:         p.Arp,
+			Arp:         models.Arp{PriorityLevel: p.Arp, PreemptCap: p.PreemptionCapability, PreemptVuln: p.PreemptionVulnerability},
 			SessionAMBR: ambr,
 		})
 	}

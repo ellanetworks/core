@@ -73,6 +73,7 @@ type ListSMSCPeersResponse struct {
 type GetOperatorIMSResponse struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 	VoiceStatus    string   `json:"voiceStatus"`
+	HomeDomain     string   `json:"homeDomain"`
 }
 
 type Operator struct {

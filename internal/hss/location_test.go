@@ -28,18 +28,28 @@ func TestLocationInfo(t *testing.T) {
 	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF}
 	unregistered := hss.Registration{State: hss.Unregistered, ServerName: testSCSCF}
 	authenticating := hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true}
+	emergency := hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, Emergency: true}
 
 	cases := []struct {
-		name         string
-		registration *hss.Registration
-		req          cx.LocationInfoRequest
-		want         tgpp.Result
-		serverName   string
+		name                 string
+		registration         *hss.Registration
+		unentitled           bool
+		unregisteredServices bool
+		req                  cx.LocationInfoRequest
+		want                 tgpp.Result
+		serverName           string
 	}{
 		{
 			name:         "registered MSISDN public identity",
 			registration: &registered,
 			req:          cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN},
+			want:         tgpp.Result{Code: diameter.ResultSuccess},
+			serverName:   testSCSCF,
+		},
+		{
+			name:         "registered SIP URI of the MSISDN",
+			registration: &registered,
+			req:          cx.LocationInfoRequest{PublicIdentity: "sip:+" + testMSISDN + "@" + testIMSDomain},
 			want:         tgpp.Result{Code: diameter.ResultSuccess},
 			serverName:   testSCSCF,
 		},
@@ -76,13 +86,65 @@ func TestLocationInfo(t *testing.T) {
 			want:         tgpp.Experimental(tgpp.ResultErrorIdentityNotRegistered),
 		},
 		{
+			name:                 "authentication pending, with unregistered services",
+			registration:         &authenticating,
+			unregisteredServices: true,
+			req:                  cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN},
+			want:                 tgpp.Result{Code: diameter.ResultSuccess},
+			serverName:           testSCSCF,
+		},
+		{
+			name:                 "not registered, with unregistered services",
+			unregisteredServices: true,
+			req:                  cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN},
+			want:                 tgpp.Experimental(tgpp.ResultUnregisteredService),
+		},
+		{
 			name: "originating request for a user that is not registered",
 			req:  cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN, Originating: true},
 			want: tgpp.Experimental(tgpp.ResultUnregisteredService),
 		},
 		{
+			name:         "originating request for a user authenticating",
+			registration: &authenticating,
+			req:          cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN, Originating: true},
+			want:         tgpp.Result{Code: diameter.ResultSuccess},
+			serverName:   testSCSCF,
+		},
+		{
+			name:                 "user not entitled to IMS, with unregistered services",
+			unentitled:           true,
+			unregisteredServices: true,
+			req:                  cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN},
+			want:                 tgpp.Experimental(tgpp.ResultErrorIdentityNotRegistered),
+		},
+		{
+			name:       "originating request for a user not entitled to IMS",
+			unentitled: true,
+			req:        cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN, Originating: true},
+			want:       tgpp.Experimental(tgpp.ResultErrorIdentityNotRegistered),
+		},
+		{
+			name:         "emergency registration of a user not entitled to IMS",
+			registration: &emergency,
+			unentitled:   true,
+			req:          cx.LocationInfoRequest{PublicIdentity: "tel:+" + testMSISDN},
+			want:         tgpp.Result{Code: diameter.ResultSuccess},
+			serverName:   testSCSCF,
+		},
+		{
 			name: "unknown MSISDN",
 			req:  cx.LocationInfoRequest{PublicIdentity: "tel:+15559999999"},
+			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
+		},
+		{
+			name: "unknown SIP URI of an MSISDN",
+			req:  cx.LocationInfoRequest{PublicIdentity: "sip:+15559999999@" + testIMSDomain},
+			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
+		},
+		{
+			name: "SIP URI of an MSISDN in another domain",
+			req:  cx.LocationInfoRequest{PublicIdentity: "sip:+" + testMSISDN + "@ims.example.org"},
 			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
 		},
 		{
@@ -102,6 +164,12 @@ func TestLocationInfo(t *testing.T) {
 			store := newFakeIMSStore()
 			if tc.registration != nil {
 				store.registrations[testIMSI] = *tc.registration
+			}
+
+			store.subscribers[testIMSI].IMSDataNetwork = !tc.unentitled
+
+			if tc.unregisteredServices {
+				store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: {{ApplicationServer: cx.ApplicationServer{ServerName: "sip:voicemail.example.org"}}}}
 			}
 
 			ans := locationInfo(t, store, tc.req)

@@ -68,6 +68,10 @@ func GBRQCI(qci uint8) bool {
 	return (qci >= 1 && qci <= 4) || (qci >= 65 && qci <= 67) || (qci >= 71 && qci <= 76) || (qci >= 82 && qci <= 85)
 }
 
+func NonGBRQCI(qci uint8) bool {
+	return (qci >= 5 && qci <= 10) || qci == 69 || qci == 70 || qci == 79 || qci == 80
+}
+
 func GBRFiveQI(fiveQI uint8) bool {
 	return GBRQCI(fiveQI) || (fiveQI >= 86 && fiveQI <= 90)
 }

@@ -20,11 +20,6 @@ func (e *assignedToAnother) Error() string {
 	return "subscriber assigned to " + e.serverName
 }
 
-type assignmentOutcome struct {
-	result   tgpp.Result
-	userData bool
-}
-
 func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
 	r, err := cx.ParseServerAssignmentRequest(req)
 	if err != nil {
@@ -46,11 +41,19 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 
 	af := tgpp.ParseEnvelope(req).Origin
 
-	var outcome assignmentOutcome
+	var p *profile
+
+	if carriesProfile(r.Type) {
+		if p, err = h.profileOf(ctx, sub); err != nil {
+			return h.errorAnswer(req, id, "server assignment", err)
+		}
+	}
+
+	var outcome tgpp.Result
 
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
-		next, o, err := assign(current, r, af.OriginHost, af.OriginRealm)
-		outcome = o
+		next, result, err := assign(current, r, af.OriginHost, af.OriginRealm, p)
+		outcome = result
 
 		return next, err
 	})
@@ -73,16 +76,14 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 		return h.errorAnswer(req, id, "server assignment", err)
 	}
 
-	if outcome.result.Failure() {
-		return cx.NewAnswer(req, id, outcome.result, 0)
+	if outcome.Failure() {
+		return cx.NewAnswer(req, id, outcome, 0)
 	}
 
-	a := cx.ServerAssignment{Result: outcome.result, PrivateIdentity: sub.privateIdentity()}
+	a := cx.ServerAssignment{Result: outcome, PrivateIdentity: sub.privateIdentity()}
 
-	if outcome.userData && !r.UserDataAlreadyAvailable {
-		if a.UserData, err = sub.userData(); err != nil {
-			return h.errorAnswer(req, id, "server assignment", err)
-		}
+	if p != nil {
+		a.UserData = p.userData
 	}
 
 	ans, err := cx.NewServerAssignmentAnswer(req, id, a)
@@ -93,45 +94,63 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 	return ans
 }
 
-func assign(current *Registration, r cx.ServerAssignmentRequest, host, realm string) (*Registration, assignmentOutcome, error) {
+func carriesProfile(t cx.AssignmentType) bool {
+	switch t {
+	case cx.AssignmentNoAssignment, cx.AssignmentRegistration, cx.AssignmentReRegistration, cx.AssignmentUnregisteredUser:
+		return true
+	default:
+		return false
+	}
+}
+
+func delivered(next *Registration, p *profile) *Registration {
+	next.PrivateIdentity, next.DefaultIdentity, next.ProfileDigest = p.privateIdentity, p.defaultIdentity, p.digest
+
+	return next
+}
+
+func assign(current *Registration, r cx.ServerAssignmentRequest, host, realm string, p *profile) (*Registration, tgpp.Result, error) {
 	success := tgpp.Result{Code: diameter.ResultSuccess}
 
 	if r.Type != cx.AssignmentNoAssignment && assignedElsewhere(current, r.ServerName) {
-		return nil, assignmentOutcome{}, &assignedToAnother{serverName: current.ServerName}
+		return nil, tgpp.Result{}, &assignedToAnother{serverName: current.ServerName}
 	}
 
 	switch r.Type {
 	case cx.AssignmentNoAssignment:
 		if current == nil || current.ServerName != r.ServerName {
-			return current, assignmentOutcome{result: tgpp.Result{Code: diameter.ResultUnableToComply}}, nil
+			return current, tgpp.Result{Code: diameter.ResultUnableToComply}, nil
 		}
 
-		return current, assignmentOutcome{result: success, userData: true}, nil
+		next := *current
+
+		return delivered(&next, p), success, nil
 	case cx.AssignmentRegistration, cx.AssignmentReRegistration:
-		return &Registration{State: Registered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm},
-			assignmentOutcome{result: success, userData: true}, nil
+		next := &Registration{State: Registered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm}
+
+		return delivered(next, p), success, nil
 	case cx.AssignmentUnregisteredUser:
-		next := Registration{State: Unregistered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm}
+		next := &Registration{State: Unregistered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm}
 		if current != nil {
-			next.AuthPending = current.AuthPending
+			next.AuthPending, next.Emergency = current.AuthPending, current.Emergency
 		}
 
-		return &next, assignmentOutcome{result: success, userData: true}, nil
+		return delivered(next, p), success, nil
 	case cx.AssignmentTimeoutDeregistration, cx.AssignmentUserDeregistration,
 		cx.AssignmentAdministrativeDeregistration, cx.AssignmentDeregistrationTooMuchData:
-		return nil, assignmentOutcome{result: success}, nil
+		return nil, success, nil
 	case cx.AssignmentTimeoutDeregistrationStoreServer, cx.AssignmentUserDeregistrationStoreServer:
-		return nil, assignmentOutcome{result: tgpp.Experimental(tgpp.ResultSuccessServerNameNotStored)}, nil
+		return nil, tgpp.Experimental(tgpp.ResultSuccessServerNameNotStored), nil
 	case cx.AssignmentAuthenticationFailure, cx.AssignmentAuthenticationTimeout:
 		if current == nil || current.State == NotRegistered {
-			return nil, assignmentOutcome{result: success}, nil
+			return nil, success, nil
 		}
 
 		next := *current
 		next.AuthPending = false
 
-		return &next, assignmentOutcome{result: success}, nil
+		return &next, success, nil
 	default:
-		return current, assignmentOutcome{result: tgpp.Experimental(tgpp.ResultErrorInAssignmentType)}, nil
+		return current, tgpp.Experimental(tgpp.ResultErrorInAssignmentType), nil
 	}
 }

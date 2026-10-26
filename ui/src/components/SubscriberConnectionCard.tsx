@@ -157,7 +157,7 @@ const imsUserStates: Record<IMSUserState, VoiceState> = {
 
 const networkReasons: Record<Exclude<IMSVoiceStatus, "enabled">, string> = {
   no_pcscf: "No P-CSCF address is set on the Operator page",
-  no_ims_data_network: `There is no ${IMS_DATA_NETWORK} data network`,
+  no_ims_data_network: `There is no IMS data network named ${IMS_DATA_NETWORK}`,
   ip_family_mismatch: `No P-CSCF address matches the ${IMS_DATA_NETWORK} data network's IP family`,
 };
 

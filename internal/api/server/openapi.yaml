@@ -1125,6 +1125,48 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/profiles/{name}/ims-filter-criteria:
+    get:
+      operationId: getProfileIMSFilterCriteria
+      tags: [Profiles]
+      summary: Get a profile's IMS initial filter criteria
+      description: Returns the initial filter criteria of a profile, in priority order. The HSS gives them to the S-CSCF in the user profile of the profile's subscribers (TS 29.228 Annex B).
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      responses:
+        "200":
+          description: The profile's initial filter criteria.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileIMSFilterCriteriaResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateProfileIMSFilterCriteria
+      tags: [Profiles]
+      summary: Update a profile's IMS initial filter criteria
+      description: Replaces the initial filter criteria of a profile. The order of the list is their priority. Registered subscribers of the profile get the new user profile.
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileIMSFilterCriteria"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # -- Slices --------------------------------------------------------------
   /api/v1/slices:
     get:
@@ -1686,6 +1728,106 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/operator/ims/application-servers:
+    get:
+      operationId: listIMSApplicationServers
+      tags: [Operator]
+      summary: List IMS application servers
+      description: Lists IMS application servers, sorted by name.
+      responses:
+        "200":
+          description: IMS application servers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIMSApplicationServersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createIMSApplicationServer
+      tags: [Operator]
+      summary: Create an IMS application server
+      description: Creates an IMS application server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIMSApplicationServerParams"
+      responses:
+        "201":
+          description: The created IMS application server, in canonical form.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSApplicationServerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/ims/application-servers/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getIMSApplicationServer
+      tags: [Operator]
+      summary: Get an IMS application server
+      description: Returns an IMS application server.
+      responses:
+        "200":
+          description: IMS application server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSApplicationServerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateIMSApplicationServer
+      tags: [Operator]
+      summary: Update an IMS application server
+      description: Replaces the server name and public service identities of an IMS application server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIMSApplicationServerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteIMSApplicationServer
+      tags: [Operator]
+      summary: Delete an IMS application server
+      description: Deletes an IMS application server. An application server used by a profile's initial filter criteria cannot be deleted.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
@@ -4259,7 +4401,55 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
+        bearers:
+          type: array
+          description: "EPS bearers (4G) or QoS flows (5G) enforcing the session's QoS, the default one first. Absent when the session has no default QoS yet."
+          items:
+            $ref: "#/components/schemas/Bearer"
       required: [system, id, status]
+
+    Bearer:
+      type: object
+      description: "An EPS bearer or QoS flow and the PCC rules bound to it, which share its QCI or 5QI and ARP (TS 23.203 §6.1.1.4)."
+      properties:
+        id:
+          type: integer
+          description: "EPS Bearer ID (4G) or QoS Flow Identifier (5G)."
+        default:
+          type: boolean
+          description: "Whether this is the default bearer or the QoS flow of the default QoS rule."
+        var5qi:
+          type: integer
+          description: "QCI (4G) or 5QI (5G)."
+        arp:
+          type: integer
+          description: "ARP priority level."
+          minimum: 1
+          maximum: 15
+        preemption_capability:
+          type: string
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          enum: [preemptable, not_preemptable]
+        mbr_uplink:
+          type: string
+          description: "Uplink MBR (4G) or MFBR (5G) of a GBR bearer or QoS flow. Absent for non-GBR ones, which the session AMBR caps."
+        mbr_downlink:
+          type: string
+          description: "Downlink MBR (4G) or MFBR (5G) of a GBR bearer or QoS flow."
+        gbr_uplink:
+          type: string
+          description: "Uplink GBR (4G) or GFBR (5G). Absent for non-GBR bearers and QoS flows."
+        gbr_downlink:
+          type: string
+          description: "Downlink GBR (4G) or GFBR (5G)."
+        rules:
+          type: array
+          description: "Identifiers of the PCC rules bound to it."
+          items:
+            type: string
+      required: [id, default, var5qi, arp, preemption_capability, preemption_vulnerability, rules]
 
     CreateSubscriberParams:
       type: object
@@ -4410,13 +4600,21 @@ components:
           description: "Session AMBR downlink (e.g. \"200 Mbps\")."
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
+          description: "5G QoS Identifier (non-GBR). Must be 5, or 69 for mission critical services, on an IMS data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
           description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
+        preemption_capability:
+          type: string
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2)."
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2)."
+          enum: [preemptable, not_preemptable]
         data_network_name:
           type: string
           description: Data network name.
@@ -4426,7 +4624,7 @@ components:
         default:
           type: boolean
           description: "Whether this is the profile's default DNN/APN."
-      required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, data_network_name]
+      required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, preemption_capability, preemption_vulnerability, data_network_name]
 
     PolicyResponseEnvelope:
       type: object
@@ -4479,13 +4677,21 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
+          description: "5G QoS Identifier (non-GBR). Must be 5, or 69 for mission critical services, on an IMS data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
           description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
+        preemption_capability:
+          type: string
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Defaults to not_preempt. Must be not_preempt when arp is 15."
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). A pre-emptable session can be released by the radio. Defaults to not_preemptable. Must be not_preemptable when arp is 15."
+          enum: [preemptable, not_preemptable]
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: "Network rules by direction."
@@ -4514,13 +4720,21 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier (non-GBR). Must be 5 on the ims data network."
+          description: "5G QoS Identifier (non-GBR). Must be 5, or 69 for mission critical services, on an IMS data network."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
           description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
+        preemption_capability:
+          type: string
+          description: "Whether the default bearer or QoS flow may pre-empt others (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged. Must be the not- value when arp is 15."
+          enum: [may_preempt, not_preempt]
+        preemption_vulnerability:
+          type: string
+          description: "Whether the default bearer or QoS flow may be pre-empted (TS 23.501 §5.7.2.2). Omitting it leaves it unchanged. Must be the not- value when arp is 15."
+          enum: [preemptable, not_preemptable]
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: "Replaces all existing rules. Omitting it deletes all rules."
@@ -4971,8 +5185,11 @@ components:
 
     OperatorIMS:
       type: object
-      required: [pcscfAddresses, voiceStatus]
+      required: [pcscfAddresses, voiceStatus, homeDomain]
       properties:
+        homeDomain:
+          type: string
+          description: "IMS home network domain, ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org (TS 23.003 §13.2)."
         pcscfAddresses:
           type: array
           items:
@@ -4982,6 +5199,180 @@ components:
           type: string
           enum: [enabled, no_pcscf, no_ims_data_network, ip_family_mismatch]
           description: "Whether UEs are told IMS voice is supported, or why not."
+
+    IMSApplicationServer:
+      type: object
+      required: [name, server_name, public_service_identities]
+      properties:
+        name:
+          type: string
+        server_name:
+          type: string
+          description: "SIP URI of the application server, given to the S-CSCF in the initial filter criteria."
+        public_service_identities:
+          type: array
+          items:
+            type: string
+          description: "SIP or tel URIs the application server hosts, in canonical form. A wildcarded identity uses the !regex! syntax."
+
+    ListIMSApplicationServersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListIMSApplicationServersResponse"
+
+    ListIMSApplicationServersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSApplicationServer"
+
+    IMSApplicationServerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/IMSApplicationServer"
+
+    CreateIMSApplicationServerParams:
+      type: object
+      required: [name, server_name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        server_name:
+          type: string
+          description: "SIP URI of the application server."
+        public_service_identities:
+          type: array
+          items:
+            type: string
+          description: "SIP or tel URIs the application server hosts. No identity may be hosted by, or overlap one of, another application server, or be a subscriber's tel URI."
+
+    UpdateIMSApplicationServerParams:
+      type: object
+      required: [server_name]
+      properties:
+        server_name:
+          type: string
+          description: "SIP URI of the application server."
+        public_service_identities:
+          type: array
+          items:
+            type: string
+          description: "SIP or tel URIs the application server hosts. Replaces the current list."
+
+    IMSInitialFilterCriterion:
+      type: object
+      description: "An initial filter criterion (TS 29.228 Annex B.2.2). Without trigger it matches every request."
+      required: [application_server_name]
+      properties:
+        priority:
+          type: integer
+          readOnly: true
+          description: "Index of the criterion in the profile's list. Ignored on writes."
+        application_server_name:
+          type: string
+          description: "Name of the IMS application server matching requests are sent to."
+        trigger:
+          $ref: "#/components/schemas/IMSTrigger"
+        profile_part:
+          type: string
+          enum: [REGISTERED, UNREGISTERED]
+          description: "The part of the user profile the criterion belongs to. Omitted for both."
+        default_handling:
+          type: string
+          enum: [SESSION_CONTINUED, SESSION_TERMINATED]
+          description: "What the S-CSCF does when the application server cannot be reached."
+        service_info:
+          type: string
+          description: "Passed transparently to the application server."
+        include_register_request:
+          type: boolean
+        include_register_response:
+          type: boolean
+
+    IMSTrigger:
+      type: object
+      required: [conditions_match, groups]
+      description: "Matches when any group matches if conditions_match is all, or when every group matches if conditions_match is any."
+      properties:
+        conditions_match:
+          type: string
+          enum: [all, any]
+          description: "Whether a group matches when all of its conditions match, or when any of them does."
+        groups:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/IMSConditionGroup"
+
+    IMSConditionGroup:
+      type: object
+      required: [conditions]
+      properties:
+        conditions:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/IMSCondition"
+
+    IMSCondition:
+      type: object
+      description: "Exactly one of request_uri, method, sip_header, session_case and session_description is set."
+      properties:
+        negated:
+          type: boolean
+        request_uri:
+          type: string
+          description: "Extended regular expression matched against the Request-URI."
+        method:
+          type: string
+        sip_header:
+          type: object
+          required: [header]
+          properties:
+            header:
+              type: string
+            content:
+              type: string
+        session_case:
+          type: string
+          enum: [ORIGINATING_REGISTERED, TERMINATING_REGISTERED, TERMINATING_UNREGISTERED, ORIGINATING_UNREGISTERED, ORIGINATING_CDIV]
+        session_description:
+          type: object
+          required: [line]
+          properties:
+            line:
+              type: string
+            content:
+              type: string
+        registration_types:
+          type: array
+          maxItems: 2
+          items:
+            type: string
+            enum: [INITIAL_REGISTRATION, RE-REGISTRATION, DE-REGISTRATION]
+          description: "Only with the REGISTER method."
+
+    ProfileIMSFilterCriteria:
+      type: object
+      required: [initial_filter_criteria]
+      properties:
+        initial_filter_criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSInitialFilterCriterion"
+          description: "In priority order."
+
+    ProfileIMSFilterCriteriaResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ProfileIMSFilterCriteria"
 
     UpdateOperatorIMSParams:
       type: object
@@ -5049,6 +5440,9 @@ components:
         mtu:
           type: integer
           description: "MTU."
+        ims:
+          type: boolean
+          description: "Whether this is an IMS data network: phones get the P-CSCF addresses, traffic is NAT exempt and locally switched, and the Rx sessions of its UEs bind here. Voice over PS is offered only to subscribers with a policy on the IMS data network named ims, the IMS well-known APN."
         status:
           $ref: "#/components/schemas/DataNetworkStatus"
         ip_allocation:
@@ -5057,7 +5451,7 @@ components:
         ipv6_allocation:
           $ref: "#/components/schemas/DataNetworkIPAllocation"
           description: IPv6 pool usage. Detail response only.
-      required: [name, ipv4_pool, dns, mtu, status]
+      required: [name, ipv4_pool, dns, mtu, ims, status]
 
     DataNetworkResponseEnvelope:
       type: object
@@ -5106,6 +5500,9 @@ components:
           type: integer
           minimum: 0
           maximum: 65535
+        ims:
+          type: boolean
+          description: "Whether this is an IMS data network. Defaults to true for a data network named ims, false otherwise."
 
     UpdateDataNetworkParams:
       type: object
@@ -5124,6 +5521,9 @@ components:
           type: integer
           minimum: 0
           maximum: 65535
+        ims:
+          type: boolean
+          description: "Whether this is an IMS data network. Enabling it requires every policy on the data network to use 5QI 5 or 69. Changing it releases the data network's sessions so that UEs reconnect. Omitting it leaves it unchanged."
 
     IPAllocationItem:
       type: object

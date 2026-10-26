@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -59,6 +61,7 @@ type UpdateOperatorIMSParams struct {
 type GetOperatorIMSResponse struct {
 	PCSCFAddresses []string `json:"pcscfAddresses"`
 	VoiceStatus    string   `json:"voiceStatus"`
+	HomeDomain     string   `json:"homeDomain"`
 }
 
 type GetOperatorTrackingResponse struct {
@@ -288,6 +291,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			IMS: GetOperatorIMSResponse{
 				PCSCFAddresses: addrStrings(pcscfAddresses),
 				VoiceStatus:    string(voiceStatus),
+				HomeDomain:     imsHomeDomain(dbOperator.Mcc, dbOperator.Mnc),
 			},
 		}
 
@@ -348,7 +352,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateOperatorID(dbInstance *db.Database) http.Handler {
+func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -398,6 +402,10 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpdateOperatorID(r.Context(), params.Mcc, params.Mnc); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
 			return
+		}
+
+		if imsProfiles != nil {
+			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
 		resp := SuccessResponse{Message: "Operator ID updated successfully"}
@@ -736,4 +744,13 @@ func addrStrings(addresses []netip.Addr) []string {
 	}
 
 	return out
+}
+
+func imsHomeDomain(mcc, mnc string) string {
+	domain, err := diameternode.IMSRealm(mcc, mnc)
+	if err != nil {
+		return ""
+	}
+
+	return domain
 }

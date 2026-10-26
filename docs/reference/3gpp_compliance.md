@@ -44,7 +44,8 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 
 - **Session management.** 4G PDN connectivity and 5G PDU sessions: establishment, modification, and release, including network-requested procedures.
 - **Session types.** IPv4, IPv6, and IPv4v6.
-- **QoS.** One non-GBR QoS flow per session, plus GBR QoS flows (5G) and dedicated bearers (4G) for IMS voice and video.
+- **QoS.** A default QoS flow (5G) or default bearer (4G) per session, with the 5QI/QCI, ARP priority level, and pre-emption capability and vulnerability of the session's policy.
+- **Dynamic PCC rules.** GBR and non-GBR rules from the PCRF/PCF. A rule with the 5QI/QCI and ARP of the default QoS flow or bearer is carried on it; other rules get dedicated QoS flows (5G) or dedicated bearers (4G), up to 4 per session. A change of a rule's ARP modifies its QoS flow or bearer in place. The [Subscribers API](api/subscribers.md#bearers) lists each session's QoS flows or bearers.
 
 ### Security
 
@@ -59,12 +60,13 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **Mobile-originated and mobile-terminated SMS.** Relayed to and from external SMSCs over SGd.
 - **HSS for the SMSC.** Send Routing Info for SM, Report SM Delivery Status, and Alert Service Centre over S6c.
 
-### Voice
+### Voice and IMS services
 
-- **IMS voice and video.** VoLTE on 4G and VoNR on 5G, with an external IMS.
-- **HSS for the IMS.** User authorization, server assignment, location info, multimedia authentication, and registration termination over Cx.
-- **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice and video.
-- **EPS fallback.** A 5G voice call moves to 4G when the 5G radio requests it.
+- **IMS voice and video.** VoLTE on 4G and VoNR on 5G, with an external IMS. EPS fallback from 5G to 4G.
+- **MCPTT.** On-network MCPTT on 4G and 5G, with an external IMS and MCPTT server. QCI/5QI 69 for signalling, 65 for calls, and the Rx MCPTT priority feature.
+- **HSS for the IMS.** User authorization, server assignment, location info, multimedia authentication, registration termination, and push profile over Cx.
+- **User profile.** Initial filter criteria per profile, and distinct and wildcarded Public Service Identities per application server.
+- **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice, video, and MCPTT.
 
 ### Location (beta)
 

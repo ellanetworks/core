@@ -78,6 +78,8 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 	registered := *pending
 	registered.State = db.IMSRegistered
 	registered.AuthPending = false
+	registered.PrivateIdentity = imsi + "@ims.mnc001.mcc001.3gppnetwork.org"
+	registered.ProfileDigest = "digest"
 
 	if _, swapped, err = dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, pending, &registered); err != nil || !swapped {
 		t.Fatalf("register: swapped=%v err=%v", swapped, err)
@@ -88,7 +90,8 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 		t.Fatalf("get: %v", err)
 	}
 
-	if got.State != db.IMSRegistered || got.AuthPending || got.ServerName != pending.ServerName || got.OriginHost != pending.OriginHost {
+	if got.State != db.IMSRegistered || got.AuthPending || got.ServerName != pending.ServerName || got.OriginHost != pending.OriginHost ||
+		got.PrivateIdentity != registered.PrivateIdentity || got.ProfileDigest != registered.ProfileDigest {
 		t.Fatalf("stored registration = %+v", got)
 	}
 
@@ -103,6 +106,40 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 	got, err = dbInstance.GetIMSRegistration(ctx, imsi)
 	if err != nil || got != nil {
 		t.Fatalf("after delete = %+v, %v; want none", got, err)
+	}
+}
+
+func TestIMSRegistrationCarriesTheIdentitiesTheSCSCFKnows(t *testing.T) {
+	dbInstance := setupTestDB(t)
+	ctx := context.Background()
+
+	const imsi = "001010000000054"
+
+	createIMSSubscriber(t, dbInstance, imsi)
+
+	for name, reg := range map[string]db.IMSRegistration{
+		"registered without a private identity":  {State: db.IMSRegistered, ProfileDigest: "digest"},
+		"unregistered without a profile digest":  {State: db.IMSUnregistered, PrivateIdentity: imsi + "@ims.example.org"},
+		"registered with an emergency only flag": {State: db.IMSRegistered, PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest", Emergency: true},
+	} {
+		reg.ServerName, reg.OriginHost, reg.OriginRealm = "sip:scscf.example.org", "scscf.example.org", "example.org"
+
+		if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, &reg); err == nil || swapped {
+			t.Fatalf("%s: swapped=%v err=%v, want refused", name, swapped, err)
+		}
+	}
+
+	emergency := &db.IMSRegistration{
+		State: db.IMSUnregistered, ServerName: "sip:scscf.example.org", OriginHost: "scscf.example.org", OriginRealm: "example.org",
+		PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest", Emergency: true,
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, emergency); err != nil || !swapped {
+		t.Fatalf("insert: swapped=%v err=%v", swapped, err)
+	}
+
+	if got, err := dbInstance.GetIMSRegistration(ctx, imsi); err != nil || got == nil || !got.Emergency {
+		t.Fatalf("stored registration = %+v, %v; want the emergency registration", got, err)
 	}
 }
 
@@ -159,6 +196,10 @@ func TestCountIMSRegistrations(t *testing.T) {
 		reg := pendingRegistration("sip:scscf.example.org")
 		reg.State = state
 
+		if state != db.IMSNotRegistered {
+			reg.AuthPending, reg.PrivateIdentity, reg.ProfileDigest = false, imsi+"@ims.example.org", "digest"
+		}
+
 		if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err != nil || !swapped {
 			t.Fatalf("insert %s: swapped=%v err=%v", imsi, swapped, err)
 		}
@@ -192,10 +233,12 @@ func TestRestoreKeepsIMSRegistrations(t *testing.T) {
 	createIMSSubscriber(t, dbInstance, imsi)
 
 	registered := &db.IMSRegistration{
-		State:       db.IMSRegistered,
-		ServerName:  "sip:scscf.example.org",
-		OriginHost:  "scscf.ims.mnc001.mcc001.3gppnetwork.org",
-		OriginRealm: "ims.mnc001.mcc001.3gppnetwork.org",
+		State:           db.IMSRegistered,
+		ServerName:      "sip:scscf.example.org",
+		OriginHost:      "scscf.ims.mnc001.mcc001.3gppnetwork.org",
+		OriginRealm:     "ims.mnc001.mcc001.3gppnetwork.org",
+		PrivateIdentity: imsi + "@ims.mnc001.mcc001.3gppnetwork.org",
+		ProfileDigest:   "digest",
 	}
 
 	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, registered); err != nil || !swapped {

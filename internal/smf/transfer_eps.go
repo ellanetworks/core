@@ -134,7 +134,7 @@ func epsBearerQoS(policy *Policy) models.EPSBearerQoS {
 	}
 
 	if policy.QosData.Arp != nil {
-		qos.ARP = uint8(policy.QosData.Arp.PriorityLevel)
+		qos.ARP = *policy.QosData.Arp
 	}
 
 	return qos

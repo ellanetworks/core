@@ -5,6 +5,9 @@ package hss
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"slices"
 	"strings"
 
 	"github.com/ellanetworks/core/diameter/cx"
@@ -24,7 +27,10 @@ func (s *subject) publicIdentities() []cx.ProfileIdentity {
 	var identities []cx.ProfileIdentity
 
 	if s.MSISDN != "" {
-		identities = append(identities, cx.ProfileIdentity{Identity: "tel:+" + s.MSISDN})
+		identities = append(identities,
+			cx.ProfileIdentity{Identity: "sip:+" + s.MSISDN + "@" + s.domain},
+			cx.ProfileIdentity{Identity: "tel:+" + s.MSISDN},
+		)
 	}
 
 	return append(identities, cx.ProfileIdentity{Identity: "sip:" + s.privateIdentity(), Barred: true})
@@ -44,11 +50,93 @@ func (s *subject) entitled() bool {
 	return s.IMSDataNetwork && s.authorized()
 }
 
-func (s *subject) userData() ([]byte, error) {
-	return cx.MarshalUserData(cx.IMSSubscription{
-		PrivateIdentity: s.privateIdentity(),
-		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities()}},
+func hasUnregisteredTerminatingServices(ifcs []cx.InitialFilterCriteria) bool {
+	return slices.ContainsFunc(ifcs, func(ifc cx.InitialFilterCriteria) bool {
+		if ifc.ProfilePart != nil && *ifc.ProfilePart == cx.ProfilePartRegistered {
+			return false
+		}
+
+		return ifc.Trigger == nil || mayMatchTerminatingUnregistered(*ifc.Trigger)
 	})
+}
+
+func mayMatchTerminatingUnregistered(t cx.TriggerPoint) bool {
+	groups := make(map[int32][]bool)
+
+	for _, spt := range t.ServicePointTriggers {
+		possible := sptMayMatchTerminatingUnregistered(spt)
+		for _, g := range spt.Groups {
+			groups[g] = append(groups[g], possible)
+		}
+	}
+
+	for _, possible := range groups {
+		if t.ConjunctiveNormalForm && !slices.Contains(possible, true) {
+			return false
+		}
+
+		if !t.ConjunctiveNormalForm && !slices.Contains(possible, false) {
+			return true
+		}
+	}
+
+	return t.ConjunctiveNormalForm
+}
+
+func sptMayMatchTerminatingUnregistered(spt cx.ServicePointTrigger) bool {
+	switch {
+	case spt.SessionCase != nil:
+		return (*spt.SessionCase == cx.SessionCaseTerminatingUnregistered) != spt.Negated
+	case spt.Method != nil && *spt.Method == "REGISTER":
+		return spt.Negated
+	default:
+		return true
+	}
+}
+
+func (s *subject) defaultIdentity() string {
+	for _, identity := range s.publicIdentities() {
+		if !identity.Barred {
+			return identity.Identity
+		}
+	}
+
+	return ""
+}
+
+type profile struct {
+	privateIdentity string
+	defaultIdentity string
+	userData        []byte
+	digest          string
+}
+
+func (h *HSS) profileOf(ctx context.Context, s *subject) (*profile, error) {
+	ifcs, err := h.store.FilterCriteria(ctx, s.IMSI)
+	if err != nil {
+		return nil, err
+	}
+
+	userData, err := cx.MarshalUserData(cx.IMSSubscription{
+		PrivateIdentity: s.privateIdentity(),
+		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities(), InitialFilterCriteria: ifcs}},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &profile{
+		privateIdentity: s.privateIdentity(),
+		defaultIdentity: s.defaultIdentity(),
+		userData:        userData,
+		digest:          digest(userData),
+	}, nil
+}
+
+func digest(b []byte) string {
+	sum := sha256.Sum256(b)
+
+	return hex.EncodeToString(sum[:])
 }
 
 func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subject, error) {
@@ -100,22 +188,38 @@ func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Su
 
 	switch strings.ToLower(scheme) {
 	case "sip":
-		imsi, ok := imsiFromPrivateIdentity(rest, domain)
+		user, host, ok := strings.Cut(rest, "@")
+		if !ok || !strings.EqualFold(host, domain) {
+			return nil, ErrSubscriberUnknown
+		}
+
+		if msisdn, ok := strings.CutPrefix(user, "+"); ok {
+			return h.subscriberByMSISDN(ctx, msisdn)
+		}
+
+		if !isDigits(user, 6, 15) {
+			return nil, ErrSubscriberUnknown
+		}
+
+		return h.store.Subscriber(ctx, user)
+	case "tel":
+		msisdn, ok := strings.CutPrefix(rest, "+")
 		if !ok {
 			return nil, ErrSubscriberUnknown
 		}
 
-		return h.store.Subscriber(ctx, imsi)
-	case "tel":
-		msisdn, ok := strings.CutPrefix(rest, "+")
-		if !ok || !isDigits(msisdn, 1, 15) {
-			return nil, ErrSubscriberUnknown
-		}
-
-		return h.store.SubscriberByMSISDN(ctx, msisdn)
+		return h.subscriberByMSISDN(ctx, msisdn)
 	default:
 		return nil, ErrSubscriberUnknown
 	}
+}
+
+func (h *HSS) subscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {
+	if !isDigits(msisdn, 1, 15) {
+		return nil, ErrSubscriberUnknown
+	}
+
+	return h.store.SubscriberByMSISDN(ctx, msisdn)
 }
 
 func imsiFromPrivateIdentity(impi, domain string) (string, bool) {

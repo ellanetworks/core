@@ -151,7 +151,9 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		got.SessionAmbrUplink != createOpts.SessionAmbrUplink ||
 		got.SessionAmbrDownlink != createOpts.SessionAmbrDownlink ||
 		got.Var5qi != createOpts.Var5qi ||
-		got.Arp != createOpts.Arp {
+		got.Arp != createOpts.Arp ||
+		got.PreemptionCapability != "not_preempt" ||
+		got.PreemptionVulnerability != "not_preemptable" {
 		t.Fatalf("post-create round-trip mismatch: got %+v, want %+v", got, createOpts)
 	}
 
@@ -244,6 +246,28 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				}
 			},
 		},
+		{
+			field: "PreemptionCapability",
+			mutate: func(o *client.UpdatePolicyOptions) {
+				o.PreemptionCapability = "may_preempt"
+			},
+			assert: func(t *testing.T, p *client.Policy) {
+				if p.PreemptionCapability != "may_preempt" {
+					t.Fatalf("PreemptionCapability: got %q, want %q", p.PreemptionCapability, "may_preempt")
+				}
+			},
+		},
+		{
+			field: "PreemptionVulnerability",
+			mutate: func(o *client.UpdatePolicyOptions) {
+				o.PreemptionVulnerability = "preemptable"
+			},
+			assert: func(t *testing.T, p *client.Policy) {
+				if p.PreemptionVulnerability != "preemptable" {
+					t.Fatalf("PreemptionVulnerability: got %q, want %q", p.PreemptionVulnerability, "preemptable")
+				}
+			},
+		},
 	}
 
 	for _, tc := range updateCases {
@@ -293,13 +317,15 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 // per-field sub-cases can mutate exactly one field.
 func updateOptsFromPolicy(p *client.Policy) client.UpdatePolicyOptions {
 	return client.UpdatePolicyOptions{
-		ProfileName:         p.ProfileName,
-		SliceName:           p.SliceName,
-		DataNetworkName:     p.DataNetworkName,
-		SessionAmbrUplink:   p.SessionAmbrUplink,
-		SessionAmbrDownlink: p.SessionAmbrDownlink,
-		Var5qi:              p.Var5qi,
-		Arp:                 p.Arp,
-		Rules:               p.Rules,
+		ProfileName:             p.ProfileName,
+		SliceName:               p.SliceName,
+		DataNetworkName:         p.DataNetworkName,
+		SessionAmbrUplink:       p.SessionAmbrUplink,
+		SessionAmbrDownlink:     p.SessionAmbrDownlink,
+		Var5qi:                  p.Var5qi,
+		Arp:                     p.Arp,
+		PreemptionCapability:    p.PreemptionCapability,
+		PreemptionVulnerability: p.PreemptionVulnerability,
+		Rules:                   p.Rules,
 	}
 }

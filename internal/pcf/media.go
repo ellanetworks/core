@@ -29,11 +29,11 @@ type flowKey struct {
 	flow      uint32
 }
 
-func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]smf.PCCRule, error) {
+func mediaRules(sessionID string, svc serviceContext, components []rx.MediaComponent) (map[flowKey]smf.PCCRule, error) {
 	rules := make(map[flowKey]smf.PCCRule)
 
 	for _, c := range components {
-		qci, arp, ok := mediaQoS(c)
+		qci, arp, ok := componentQoS(c, svc)
 		if !ok {
 			continue
 		}
@@ -84,7 +84,11 @@ func mediaRules(sessionID string, components []rx.MediaComponent) (map[flowKey]s
 
 			ul, dl := subComponentRates(c, sub, hasUL, hasDL)
 			rule.MBR = models.Ambr{Uplink: models.BitRateFromBps(ul), Downlink: models.BitRateFromBps(dl)}
-			rule.GBR = guaranteedRates(c, sub, rule.MBR)
+
+			if models.GBRQCI(qci) {
+				rule.GBR = guaranteedRates(c, sub, rule.MBR)
+			}
+
 			rules[flowKey{component: c.Number, flow: sub.FlowNumber}] = rule
 		}
 	}
@@ -124,6 +128,16 @@ func forkedRule(prev, next smf.PCCRule) smf.PCCRule {
 	out.Gate = models.GateStatus{ULGate: min(prev.Gate.ULGate, next.Gate.ULGate), DLGate: min(prev.Gate.DLGate, next.Gate.DLGate)}
 
 	return out
+}
+
+func componentQoS(c rx.MediaComponent, svc serviceContext) (uint8, models.Arp, bool) {
+	if svc.service(c) == mcpttICSI {
+		if qci, arp, ok := mcpttQoS(c, svc.mcptt); ok {
+			return qci, arp, true
+		}
+	}
+
+	return mediaQoS(c)
 }
 
 func mediaQoS(c rx.MediaComponent) (uint8, models.Arp, bool) {

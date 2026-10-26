@@ -183,7 +183,7 @@ func (f *fakePCF) decisionLocked(snssai models.Snssai) (*smf.PolicyDecision, err
 
 	d := &smf.PolicyDecision{Revision: f.revision, PolicyID: f.policy.PolicyID, Var5qi: f.policy.QosData.Var5qi, SessionAMBR: f.policy.Ambr}
 	if f.policy.QosData.Arp != nil {
-		d.Arp = f.policy.QosData.Arp.PriorityLevel
+		d.Arp = *f.policy.QosData.Arp
 	}
 
 	return d, nil
@@ -255,7 +255,7 @@ func (f *fakePCF) subscribed() (smf.SubscribedQoS, error) {
 
 	q := smf.SubscribedQoS{Var5qi: f.policy.QosData.Var5qi, SessionAMBR: f.policy.Ambr}
 	if f.policy.QosData.Arp != nil {
-		q.Arp = f.policy.QosData.Arp.PriorityLevel
+		q.Arp = *f.policy.QosData.Arp
 	}
 
 	return q, nil
@@ -269,7 +269,7 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 		return smf.DataNetworkConfig{}
 	}
 
-	return smf.DataNetworkConfig{DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, PCSCF: f.policy.PCSCF}
+	return smf.DataNetworkConfig{DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, PCSCF: f.policy.PCSCF}
 }
 
 func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.SessionManagementSubscription, error) {

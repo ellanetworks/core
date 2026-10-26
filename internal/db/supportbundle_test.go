@@ -103,6 +103,7 @@ func TestExportSupportData_Default(t *testing.T) {
 		"profiles", "network_slices", "network_rules", "cell_positions", "cluster_members", "routes",
 		"nat_settings", "n3_settings", "flow_accounting_settings", "local_switch_settings", "sms_settings",
 		"diameter_peers", "pcscf_addresses", "retention_policies", "bgp_settings", "bgp_peers", "bgp_import_prefixes",
+		"ims_application_servers", "ims_filter_criteria",
 		"ue_registrations", "ims_registrations", "sms_message_waiting", "subscriber_framed_routes",
 		"usage_per_day", "usage_per_subscriber", "audit_logs", "radio_logs",
 	} {
@@ -175,7 +176,7 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("subscriber entry wrong type: %T", subsAny[0])
 	}
 
-	if !reflect.DeepEqual(subEntry, map[string]any{"imsi": sub.Imsi, "msisdn": sub.Msisdn}) {
+	if !reflect.DeepEqual(subEntry, map[string]any{"imsi": sub.Imsi, "msisdn": sub.Msisdn, "profile_id": defaultProfile.ID}) {
 		t.Fatalf("subscriber identities changed or non-allowlisted fields exported: %#v", subEntry)
 	}
 
@@ -211,6 +212,64 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 
 	if !foundNet {
 		t.Fatalf("created data network not found in export")
+	}
+}
+
+func TestExportSupportData_IMSServices(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	as := &db.IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org", PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.example.org"}}
+	if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+		t.Fatalf("CreateIMSApplicationServer failed: %v", err)
+	}
+
+	profile, err := database.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("GetProfile failed: %v", err)
+	}
+
+	register := "REGISTER"
+	handling := db.IMSDefaultHandlingSessionContinued
+	trigger := &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{{Method: &register}}}}}
+
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{
+		{ApplicationServerID: as.ID, Trigger: trigger, DefaultHandling: &handling, IncludeRegisterRequest: true},
+		{ApplicationServerID: as.ID},
+	}); err != nil {
+		t.Fatalf("SetProfileIMSFilterCriteria failed: %v", err)
+	}
+
+	out, err := database.ExportSupportData(ctx, supportbundle.ExportOptions{})
+	if err != nil {
+		t.Fatalf("ExportSupportData failed: %v", err)
+	}
+
+	wantServers := []any{map[string]any{"name": "mcptt", "server_name": "sip:mcptt.ims.example.org", "public_service_identities": []string{"sip:!.*!@mcptt.ims.example.org"}}}
+	if !reflect.DeepEqual(out["ims_application_servers"], wantServers) {
+		t.Fatalf("ims_application_servers = %#v, want %#v", out["ims_application_servers"], wantServers)
+	}
+
+	criteria, ok := out["ims_filter_criteria"].([]any)
+	if !ok || len(criteria) != 2 {
+		t.Fatalf("ims_filter_criteria = %#v, want 2 entries", out["ims_filter_criteria"])
+	}
+
+	first := criteria[0].(map[string]any)
+	if first["profile"] != db.InitialProfileName || first["priority"] != 0 || first["application_server_name"] != "mcptt" ||
+		!reflect.DeepEqual(first["trigger"], trigger) || first["include_register_request"] != true {
+		t.Fatalf("first filter criterion = %#v", first)
+	}
+
+	if second := criteria[1].(map[string]any); second["priority"] != 1 || second["trigger"] != (*db.IMSTrigger)(nil) {
+		t.Fatalf("second filter criterion = %#v", second)
+	}
+
+	sections := out["bundle_metadata"].(map[string]any)["sections"].(map[string]supportbundle.SectionStatus)
+	for key, count := range map[string]int{"ims_application_servers": 1, "ims_filter_criteria": 2} {
+		if sections[key].Status != "complete" || sections[key].Count != count {
+			t.Fatalf("%s section = %#v, want complete with %d", key, sections[key], count)
+		}
 	}
 }
 
@@ -312,10 +371,12 @@ func TestExportSupportData_IdentitySectionsPreserved(t *testing.T) {
 	}
 
 	if _, _, err := database.CompareAndSwapIMSRegistration(context.Background(), imsi, nil, &db.IMSRegistration{
-		State:       db.IMSRegistered,
-		ServerName:  "scscf.ims.test",
-		OriginHost:  "h",
-		OriginRealm: "r",
+		State:           db.IMSRegistered,
+		ServerName:      "scscf.ims.test",
+		OriginHost:      "h",
+		OriginRealm:     "r",
+		PrivateIdentity: imsi + "@ims.test",
+		ProfileDigest:   "digest",
 	}); err != nil {
 		t.Fatalf("CompareAndSwapIMSRegistration failed: %v", err)
 	}
@@ -933,7 +994,7 @@ func TestWriteSupportBundle_SecretsOnly(t *testing.T) {
 		t.Fatalf("db.json subscribers missing or wrong length: %#v", dbJSON["subscribers"])
 	}
 
-	if !reflect.DeepEqual(subsAny[0], map[string]any{"imsi": imsi, "msisdn": sub.Msisdn}) {
+	if !reflect.DeepEqual(subsAny[0], map[string]any{"imsi": imsi, "msisdn": sub.Msisdn, "profile_id": defaultProfile.ID}) {
 		t.Fatalf("db.json subscriber identities changed or non-allowlisted fields exported: %#v", subsAny[0])
 	}
 

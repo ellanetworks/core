@@ -36,12 +36,10 @@ func handlePDUSessionEstablishmentAccept(ue *UE, payload []byte) error {
 		mtu, _ = acc.ExtendedPCO.IPv4LinkMTU()
 	}
 
-	qosFlowDescs := acc.QoSFlowDescriptions
-	if len(qosFlowDescs) < 1 {
-		return fmt.Errorf("not enough AuthorizedQosFlowDescriptions")
+	qfi, err := defaultQFI(acc)
+	if err != nil {
+		return err
 	}
-
-	qfi := qosFlowDescs[0].QFI
 
 	logger.UeLogger.Debug(
 		"Received PDU Session Establishment Accept NAS message",
@@ -62,4 +60,18 @@ func handlePDUSessionEstablishmentAccept(ue *UE, payload []byte) error {
 	})
 
 	return nil
+}
+
+func defaultQFI(acc *fgs.PDUSessionEstablishmentAccept) (uint8, error) {
+	for _, rule := range acc.QoSRules {
+		if rule.DQR == 1 && rule.Parameters != nil {
+			return rule.Parameters.QFI, nil
+		}
+	}
+
+	if len(acc.QoSFlowDescriptions) < 1 {
+		return 0, fmt.Errorf("not enough AuthorizedQosFlowDescriptions")
+	}
+
+	return acc.QoSFlowDescriptions[0].QFI, nil
 }

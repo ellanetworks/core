@@ -4,6 +4,7 @@
 package hss_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -108,6 +109,7 @@ func TestRegistrationAndDeregistration(t *testing.T) {
 	}
 
 	want := []cx.ProfileIdentity{
+		{Identity: "sip:+" + testMSISDN + "@" + testIMSDomain},
 		{Identity: "tel:+" + testMSISDN},
 		{Identity: "sip:" + impiOf(testIMSI), Barred: true},
 	}
@@ -128,8 +130,8 @@ func TestRegistrationAndDeregistration(t *testing.T) {
 	ans = serverAssignment(t, store, reRegister)
 	requireResult(t, ans, tgpp.Result{Code: diameter.ResultSuccess})
 
-	if sa, err := cx.ParseServerAssignmentAnswer(ans); err != nil || len(sa.UserData) != 0 {
-		t.Fatalf("re-registration SAA user data %d octets, err %v", len(sa.UserData), err)
+	if again, err := cx.ParseServerAssignmentAnswer(ans); err != nil || !bytes.Equal(again.UserData, sa.UserData) {
+		t.Fatalf("re-registration SAA user data %d octets, err %v; want the profile despite USER_DATA_ALREADY_AVAILABLE", len(again.UserData), err)
 	}
 
 	dereg := uar
@@ -177,7 +179,7 @@ func TestChallengeFromAnotherSCSCFMovesTheAssignment(t *testing.T) {
 	requireResult(t, serverAssignment(t, store, register(testIMSI, cx.AssignmentRegistration)), tgpp.Result{Code: diameter.ResultSuccess})
 
 	challenge(t, store, otherSCSCF)
-	requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: otherSCSCF, AuthPending: true})
+	requireRegistration(t, store, &hss.Registration{State: hss.NotRegistered, ServerName: otherSCSCF, AuthPending: true})
 
 	stale := register(testIMSI, cx.AssignmentTimeoutDeregistration)
 	requireResult(t, serverAssignment(t, store, stale), tgpp.Experimental(tgpp.ResultErrorIdentityAlreadyRegistered))
@@ -216,7 +218,16 @@ func TestAuthenticationFailure(t *testing.T) {
 			r.ServerName = otherSCSCF
 
 			requireResult(t, serverAssignment(t, store, r), tgpp.Result{Code: diameter.ResultSuccess})
-			requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: otherSCSCF})
+			requireRegistration(t, store, nil)
+
+			assigned(t, store, testIMSI, cx.AssignmentUnregisteredUser)
+			challenge(t, store, testSCSCF)
+			requireResult(t, serverAssignment(t, store, register(testIMSI, typ)), tgpp.Result{Code: diameter.ResultSuccess})
+			requireRegistration(t, store, &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF})
+
+			if reg, _ := registration(t, store, testIMSI); reg.PrivateIdentity != impiOf(testIMSI) || reg.ProfileDigest == "" {
+				t.Fatalf("registration = %+v, want the identities the S-CSCF knows", reg)
+			}
 		})
 	}
 }

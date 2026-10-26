@@ -673,6 +673,12 @@ const DataNetworkDetail: React.FC = () => {
                             {dataNetwork.mtu || "—"}
                           </TableCell>
                         </TableRow>
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>IMS</TableCell>
+                          <TableCell sx={valueCellSx}>
+                            {dataNetwork.ims ? "Yes" : "No"}
+                          </TableCell>
+                        </TableRow>
                       </TableBody>
                     </Table>
                   </CardContent>

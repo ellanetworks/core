@@ -40,8 +40,10 @@ type CreatePolicyOptions struct {
 	// 69, 70, 79, 80.
 	Var5qi int32 `json:"var5qi"`
 	// Arp is the Allocation and Retention Priority (1–15, 1 = highest).
-	Arp   int32        `json:"arp"`
-	Rules *PolicyRules `json:"rules,omitempty"`
+	Arp                     int32        `json:"arp"`
+	PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
 }
 
 type UpdatePolicyOptions struct {
@@ -54,8 +56,10 @@ type UpdatePolicyOptions struct {
 	// 69, 70, 79, 80.
 	Var5qi int32 `json:"var5qi,omitempty"`
 	// Arp is the Allocation and Retention Priority (1–15, 1 = highest).
-	Arp   int32        `json:"arp,omitempty"`
-	Rules *PolicyRules `json:"rules,omitempty"`
+	Arp                     int32        `json:"arp,omitempty"`
+	PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
 }
 
 type GetPolicyOptions struct {
@@ -79,8 +83,10 @@ type Policy struct {
 	// 69, 70, 79, 80.
 	Var5qi int32 `json:"var5qi"`
 	// Arp is the Allocation and Retention Priority (1–15, 1 = highest).
-	Arp   int32        `json:"arp"`
-	Rules *PolicyRules `json:"rules,omitempty"`
+	Arp                     int32        `json:"arp"`
+	PreemptionCapability    string       `json:"preemption_capability"`
+	PreemptionVulnerability string       `json:"preemption_vulnerability"`
+	Rules                   *PolicyRules `json:"rules,omitempty"`
 }
 
 type ListPoliciesResponse struct {
@@ -94,25 +100,29 @@ type ListPoliciesResponse struct {
 // applied in the order they appear in opts.Rules.
 func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) error {
 	payload := struct {
-		Name                string       `json:"name"`
-		ProfileName         string       `json:"profile_name"`
-		SliceName           string       `json:"slice_name"`
-		DataNetworkName     string       `json:"data_network_name"`
-		SessionAmbrUplink   string       `json:"session_ambr_uplink"`
-		SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-		Var5qi              int32        `json:"var5qi"`
-		Arp                 int32        `json:"arp"`
-		Rules               *PolicyRules `json:"rules,omitempty"`
+		Name                    string       `json:"name"`
+		ProfileName             string       `json:"profile_name"`
+		SliceName               string       `json:"slice_name"`
+		DataNetworkName         string       `json:"data_network_name"`
+		SessionAmbrUplink       string       `json:"session_ambr_uplink"`
+		SessionAmbrDownlink     string       `json:"session_ambr_downlink"`
+		Var5qi                  int32        `json:"var5qi"`
+		Arp                     int32        `json:"arp"`
+		PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+		PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+		Rules                   *PolicyRules `json:"rules,omitempty"`
 	}{
-		Name:                opts.Name,
-		ProfileName:         opts.ProfileName,
-		SliceName:           opts.SliceName,
-		DataNetworkName:     opts.DataNetworkName,
-		SessionAmbrUplink:   opts.SessionAmbrUplink,
-		SessionAmbrDownlink: opts.SessionAmbrDownlink,
-		Var5qi:              opts.Var5qi,
-		Arp:                 opts.Arp,
-		Rules:               opts.Rules,
+		Name:                    opts.Name,
+		ProfileName:             opts.ProfileName,
+		SliceName:               opts.SliceName,
+		DataNetworkName:         opts.DataNetworkName,
+		SessionAmbrUplink:       opts.SessionAmbrUplink,
+		SessionAmbrDownlink:     opts.SessionAmbrDownlink,
+		Var5qi:                  opts.Var5qi,
+		Arp:                     opts.Arp,
+		PreemptionCapability:    opts.PreemptionCapability,
+		PreemptionVulnerability: opts.PreemptionVulnerability,
+		Rules:                   opts.Rules,
 	}
 
 	var body bytes.Buffer
@@ -162,23 +172,27 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 // existing rules are deleted. To keep them, re-supply the current list.
 func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePolicyOptions) error {
 	payload := struct {
-		ProfileName         string       `json:"profile_name,omitempty"`
-		SliceName           string       `json:"slice_name,omitempty"`
-		DataNetworkName     string       `json:"data_network_name,omitempty"`
-		SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
-		SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
-		Var5qi              int32        `json:"var5qi,omitempty"`
-		Arp                 int32        `json:"arp,omitempty"`
-		Rules               *PolicyRules `json:"rules,omitempty"`
+		ProfileName             string       `json:"profile_name,omitempty"`
+		SliceName               string       `json:"slice_name,omitempty"`
+		DataNetworkName         string       `json:"data_network_name,omitempty"`
+		SessionAmbrUplink       string       `json:"session_ambr_uplink,omitempty"`
+		SessionAmbrDownlink     string       `json:"session_ambr_downlink,omitempty"`
+		Var5qi                  int32        `json:"var5qi,omitempty"`
+		Arp                     int32        `json:"arp,omitempty"`
+		PreemptionCapability    string       `json:"preemption_capability,omitempty"`
+		PreemptionVulnerability string       `json:"preemption_vulnerability,omitempty"`
+		Rules                   *PolicyRules `json:"rules,omitempty"`
 	}{
-		ProfileName:         opts.ProfileName,
-		SliceName:           opts.SliceName,
-		DataNetworkName:     opts.DataNetworkName,
-		SessionAmbrUplink:   opts.SessionAmbrUplink,
-		SessionAmbrDownlink: opts.SessionAmbrDownlink,
-		Var5qi:              opts.Var5qi,
-		Arp:                 opts.Arp,
-		Rules:               opts.Rules,
+		ProfileName:             opts.ProfileName,
+		SliceName:               opts.SliceName,
+		DataNetworkName:         opts.DataNetworkName,
+		SessionAmbrUplink:       opts.SessionAmbrUplink,
+		SessionAmbrDownlink:     opts.SessionAmbrDownlink,
+		Var5qi:                  opts.Var5qi,
+		Arp:                     opts.Arp,
+		PreemptionCapability:    opts.PreemptionCapability,
+		PreemptionVulnerability: opts.PreemptionVulnerability,
+		Rules:                   opts.Rules,
 	}
 
 	var body bytes.Buffer

@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/diameter/rx"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/diameternode"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -24,7 +23,7 @@ import (
 )
 
 const (
-	supportedRxFeatures = rx.FeatureRel8
+	supportedRxFeatures = rx.FeatureRel8 | rx.FeatureMCPTT
 	rxRedirectCacheTime = 24 * time.Hour
 )
 
@@ -41,6 +40,7 @@ type rxSession struct {
 	realm      string
 	aborted    bool
 	actions    []rx.SpecificAction
+	service    serviceContext
 	components map[uint32]rx.MediaComponent
 	rules      map[flowKey]smf.PCCRule
 }
@@ -59,7 +59,7 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 	features := r.Features & supportedRxFeatures
 
 	switch {
-	case r.FeaturesRequired && r.Features&^supportedRxFeatures != 0:
+	case rx.RequiresUnsupportedFeatures(req, supportedRxFeatures):
 		return rx.NewAnswer(req, id, tgpp.Experimental(tgpp.ResultErrorFeatureUnsupported), 0)
 	case r.RequestType != nil && *r.RequestType == rx.RequestPCSCFRestoration:
 		return rx.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply}, features)
@@ -94,7 +94,7 @@ func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Messag
 		ue = r.FramedIPv6Address
 	}
 
-	if !p.bindRx(s, ue) {
+	if !p.bindRx(s, ue, r.CalledStationID) {
 		return p.notHosted(ctx, req, id, ue, features)
 	}
 
@@ -165,10 +165,10 @@ func (p *PCF) SessionTermination(ctx context.Context, id diameter.Identity, req 
 	return ans
 }
 
-func (p *PCF) bindRx(s *rxSession, ue netip.Addr) bool {
+func (p *PCF) bindRx(s *rxSession, ue netip.Addr, apn string) bool {
 	p.mu.Lock()
 
-	a := p.boundAssociationLocked(models.IMSDataNetworkName, ue)
+	a := p.boundIMSAssociationLocked(ue, apn)
 	if a == nil {
 		p.mu.Unlock()
 		return false
@@ -216,9 +216,14 @@ func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
 		merged = append(merged, overlayComponent(s.components[c.Number], c))
 	}
 
-	if _, err := mediaRules(s.id, merged); err != nil {
+	svc := s.service.updated(r)
+
+	if _, err := mediaRules(s.id, svc, merged); err != nil {
 		return err
 	}
+
+	serviceChanged := svc != s.service
+	s.service = svc
 
 	for _, c := range merged {
 		s.components[c.Number] = c
@@ -229,7 +234,7 @@ func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
 	}
 
 	for n, c := range s.components {
-		if !slices.ContainsFunc(merged, func(m rx.MediaComponent) bool { return m.Number == n }) && !s.hasRulesFor(n) {
+		if !slices.ContainsFunc(merged, func(m rx.MediaComponent) bool { return m.Number == n }) && (!s.hasRulesFor(n) || serviceChanged) {
 			merged = append(merged, c)
 		}
 	}
@@ -240,7 +245,7 @@ func (p *PCF) applyServiceInfoLocked(s *rxSession, r rx.AARequest) error {
 
 	p.log.Debug("Rx media components", zap.String("session", s.id), zap.Strings("components", describeComponents(merged)))
 
-	rules, err := mediaRules(s.id, merged)
+	rules, err := mediaRules(s.id, svc, merged)
 	if err != nil {
 		return err
 	}

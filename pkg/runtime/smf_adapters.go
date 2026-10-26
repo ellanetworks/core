@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
@@ -466,12 +465,13 @@ func (s *smfDNNStore) Config(ctx context.Context) (smf.DataNetworkConfig, error)
 		MTU:      uint16(s.dn.MTU),
 		IPv4Pool: s.dn.IPv4Pool,
 		IPv6Pool: s.dn.IPv6Pool,
+		IMS:      s.dn.IMS,
 		PCSCF:    pcscf,
 	}, nil
 }
 
 func (a *smfDBAdapter) pcscfAddresses(ctx context.Context, dn *db.DataNetwork) ([]netip.Addr, error) {
-	if !strings.EqualFold(dn.Name, models.IMSDataNetworkName) {
+	if !dn.IMS {
 		return nil, nil
 	}
 

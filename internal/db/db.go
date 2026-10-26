@@ -69,6 +69,7 @@ type Database struct {
 	getSubscriberPreV22Stmt            *sqlair.Statement
 	getSubscriberByMSISDNStmt          *sqlair.Statement
 	listIMSIsWithMSISDNStmt            *sqlair.Statement
+	listSubscriberMSISDNsStmt          *sqlair.Statement
 	createSubscriberStmt               *sqlair.Statement
 	updateSubscriberProfileStmt        *sqlair.Statement
 	updateSubscriberSqnNumStmt         *sqlair.Statement
@@ -129,10 +130,17 @@ type Database struct {
 	listAllDataNetworksStmt *sqlair.Statement
 	getDataNetworkStmt      *sqlair.Statement
 	getDataNetworkByIDStmt  *sqlair.Statement
-	createDataNetworkStmt   *sqlair.Statement
-	editDataNetworkStmt     *sqlair.Statement
-	deleteDataNetworkStmt   *sqlair.Statement
-	countDataNetworksStmt   *sqlair.Statement
+
+	listDataNetworksPreV25Stmt    *sqlair.Statement
+	listAllDataNetworksPreV25Stmt *sqlair.Statement
+	getDataNetworkPreV25Stmt      *sqlair.Statement
+	getDataNetworkByIDPreV25Stmt  *sqlair.Statement
+	createDataNetworkPreV25Stmt   *sqlair.Statement
+	editDataNetworkPreV25Stmt     *sqlair.Statement
+	createDataNetworkStmt         *sqlair.Statement
+	editDataNetworkStmt           *sqlair.Statement
+	deleteDataNetworkStmt         *sqlair.Statement
+	countDataNetworksStmt         *sqlair.Statement
 
 	// N3 Settings statements
 	updateN3SettingsStmt *sqlair.Statement
@@ -213,19 +221,30 @@ type Database struct {
 	getPolicyStmt         *sqlair.Statement
 	getPolicyByLookupStmt *sqlair.Statement
 
-	getPolicyByProfileAndSliceStmt *sqlair.Statement
-	getDefaultPolicyByProfileStmt  *sqlair.Statement
-	clearDefaultPoliciesStmt       *sqlair.Statement
-	setDefaultPolicyStmt           *sqlair.Statement
-	listPoliciesByProfileStmt      *sqlair.Statement
-	listPoliciesByProfileAllStmt   *sqlair.Statement
-	createPolicyStmt               *sqlair.Statement
-	editPolicyStmt                 *sqlair.Statement
-	deletePolicyStmt               *sqlair.Statement
-	countPoliciesStmt              *sqlair.Statement
-	countPoliciesInProfileStmt     *sqlair.Statement
-	countPoliciesInSliceStmt       *sqlair.Statement
-	countPoliciesInDataNetworkStmt *sqlair.Statement
+	getPolicyByProfileAndSliceStmt  *sqlair.Statement
+	getDefaultPolicyByProfileStmt   *sqlair.Statement
+	clearDefaultPoliciesStmt        *sqlair.Statement
+	setDefaultPolicyStmt            *sqlair.Statement
+	listPoliciesByProfileStmt       *sqlair.Statement
+	listPoliciesByProfileAllStmt    *sqlair.Statement
+	listPolicy5QIsInDataNetworkStmt *sqlair.Statement
+
+	listPoliciesPreV25Stmt               *sqlair.Statement
+	getPolicyPreV25Stmt                  *sqlair.Statement
+	getPolicyByLookupPreV25Stmt          *sqlair.Statement
+	getPolicyByProfileAndSlicePreV25Stmt *sqlair.Statement
+	getDefaultPolicyByProfilePreV25Stmt  *sqlair.Statement
+	listPoliciesByProfilePreV25Stmt      *sqlair.Statement
+	listPoliciesByProfileAllPreV25Stmt   *sqlair.Statement
+	createPolicyPreV25Stmt               *sqlair.Statement
+	editPolicyPreV25Stmt                 *sqlair.Statement
+	createPolicyStmt                     *sqlair.Statement
+	editPolicyStmt                       *sqlair.Statement
+	deletePolicyStmt                     *sqlair.Statement
+	countPoliciesStmt                    *sqlair.Statement
+	countPoliciesInProfileStmt           *sqlair.Statement
+	countPoliciesInSliceStmt             *sqlair.Statement
+	countPoliciesInDataNetworkStmt       *sqlair.Statement
 
 	// Network Slices statements
 	listNetworkSlicesStmt      *sqlair.Statement
@@ -285,6 +304,23 @@ type Database struct {
 	listPCSCFAddressesStmt   *sqlair.Statement
 	insertPCSCFAddressStmt   *sqlair.Statement
 	deletePCSCFAddressesStmt *sqlair.Statement
+
+	listIMSApplicationServersStmt   *sqlair.Statement
+	getIMSApplicationServerStmt     *sqlair.Statement
+	insertIMSApplicationServerStmt  *sqlair.Statement
+	updateIMSApplicationServerStmt  *sqlair.Statement
+	deleteIMSApplicationServerStmt  *sqlair.Statement
+	listIMSPSIsStmt                 *sqlair.Statement
+	listIMSPSIsByASStmt             *sqlair.Statement
+	getIMSPSIStmt                   *sqlair.Statement
+	insertIMSPSIStmt                *sqlair.Statement
+	deleteIMSPSIsByASStmt           *sqlair.Statement
+	insertIMSIFCStmt                *sqlair.Statement
+	listProfileIMSIFCsStmt          *sqlair.Statement
+	deleteProfileIMSIFCsStmt        *sqlair.Statement
+	listProfilesOfIMSASStmt         *sqlair.Statement
+	listIMSRegisteredOfProfilesStmt *sqlair.Statement
+	listSubscriberIMSIFCsStmt       *sqlair.Statement
 
 	getIMSRegistrationStmt      *sqlair.Statement
 	listAllIMSRegistrationsStmt *sqlair.Statement
@@ -1744,6 +1780,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.getSubscriberPreV22Stmt, fmt.Sprintf(getSubscriberPreV22Stmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.getSubscriberByMSISDNStmt, fmt.Sprintf(getSubscriberByMSISDNStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.listIMSIsWithMSISDNStmt, fmt.Sprintf(listIMSIsWithMSISDNStmt, SubscribersTableName), []any{subscriberIMSI{}, SliceIDs{}}},
+		{&db.listSubscriberMSISDNsStmt, fmt.Sprintf(listSubscriberMSISDNsStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
@@ -1804,6 +1841,12 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAllDataNetworksStmt, fmt.Sprintf(listAllDataNetworksStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.getDataNetworkStmt, fmt.Sprintf(getDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.getDataNetworkByIDStmt, fmt.Sprintf(getDataNetworkByIDStmt, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.listDataNetworksPreV25Stmt, fmt.Sprintf(listDataNetworksPagedPreV25Stmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},
+		{&db.listAllDataNetworksPreV25Stmt, fmt.Sprintf(listAllDataNetworksPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.getDataNetworkPreV25Stmt, fmt.Sprintf(getDataNetworkPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.getDataNetworkByIDPreV25Stmt, fmt.Sprintf(getDataNetworkByIDPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.createDataNetworkPreV25Stmt, fmt.Sprintf(createDataNetworkPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.editDataNetworkPreV25Stmt, fmt.Sprintf(editDataNetworkPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.createDataNetworkStmt, fmt.Sprintf(createDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.editDataNetworkStmt, fmt.Sprintf(editDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.deleteDataNetworkStmt, fmt.Sprintf(deleteDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
@@ -1893,6 +1936,15 @@ func (db *Database) PrepareStatements() error {
 		{&db.setDefaultPolicyStmt, fmt.Sprintf(setDefaultPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.listPoliciesByProfileStmt, fmt.Sprintf(listPoliciesByProfilePagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
 		{&db.listPoliciesByProfileAllStmt, fmt.Sprintf(listPoliciesByProfileAllStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.listPoliciesPreV25Stmt, fmt.Sprintf(listPoliciesPagedPreV25Stmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
+		{&db.getPolicyPreV25Stmt, fmt.Sprintf(getPolicyPreV25Stmt, PoliciesTableName), []any{Policy{}}},
+		{&db.getPolicyByLookupPreV25Stmt, fmt.Sprintf(getPolicyByLookupPreV25Stmt, PoliciesTableName), []any{Policy{}}},
+		{&db.getPolicyByProfileAndSlicePreV25Stmt, fmt.Sprintf(getPolicyByProfileAndSlicePreV25Stmt, PoliciesTableName), []any{Policy{}}},
+		{&db.getDefaultPolicyByProfilePreV25Stmt, fmt.Sprintf(getDefaultPolicyByProfilePreV25Stmt, PoliciesTableName), []any{Policy{}}},
+		{&db.listPoliciesByProfilePreV25Stmt, fmt.Sprintf(listPoliciesByProfilePagedPreV25Stmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
+		{&db.listPoliciesByProfileAllPreV25Stmt, fmt.Sprintf(listPoliciesByProfileAllPreV25Stmt, PoliciesTableName), []any{Policy{}}},
+		{&db.createPolicyPreV25Stmt, fmt.Sprintf(createPolicyPreV25Stmt, PoliciesTableName), []any{Policy{}}},
+		{&db.editPolicyPreV25Stmt, fmt.Sprintf(editPolicyPreV25Stmt, PoliciesTableName), []any{Policy{}}},
 		{&db.createPolicyStmt, fmt.Sprintf(createPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.editPolicyStmt, fmt.Sprintf(editPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.deletePolicyStmt, fmt.Sprintf(deletePolicyStmt, PoliciesTableName), []any{Policy{}}},
@@ -1900,6 +1952,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countPoliciesInProfileStmt, fmt.Sprintf(countPoliciesInProfileStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
 		{&db.countPoliciesInSliceStmt, fmt.Sprintf(countPoliciesInSliceStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
 		{&db.countPoliciesInDataNetworkStmt, fmt.Sprintf(countPoliciesInDataNetworkStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
+		{&db.listPolicy5QIsInDataNetworkStmt, fmt.Sprintf(listPolicy5QIsInDataNetworkStmt, PoliciesTableName), []any{Policy{}}},
 
 		// Network Slices
 		{&db.listNetworkSlicesStmt, fmt.Sprintf(listNetworkSlicesPagedStmt, NetworkSlicesTableName), []any{ListArgs{}, NetworkSlice{}, NumItems{}}},
@@ -1957,6 +2010,22 @@ func (db *Database) PrepareStatements() error {
 		{&db.listPCSCFAddressesStmt, fmt.Sprintf(listPCSCFAddressesStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
 		{&db.insertPCSCFAddressStmt, fmt.Sprintf(insertPCSCFAddressStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
 		{&db.deletePCSCFAddressesStmt, fmt.Sprintf(deletePCSCFAddressesStmt, PCSCFAddressesTableName), nil},
+		{&db.listIMSApplicationServersStmt, fmt.Sprintf(listIMSApplicationServersStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
+		{&db.getIMSApplicationServerStmt, fmt.Sprintf(getIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
+		{&db.insertIMSApplicationServerStmt, fmt.Sprintf(insertIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
+		{&db.updateIMSApplicationServerStmt, fmt.Sprintf(updateIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
+		{&db.deleteIMSApplicationServerStmt, fmt.Sprintf(deleteIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
+		{&db.listIMSPSIsStmt, fmt.Sprintf(listIMSPSIsStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
+		{&db.listIMSPSIsByASStmt, fmt.Sprintf(listIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
+		{&db.getIMSPSIStmt, fmt.Sprintf(getIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
+		{&db.insertIMSPSIStmt, fmt.Sprintf(insertIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
+		{&db.deleteIMSPSIsByASStmt, fmt.Sprintf(deleteIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
+		{&db.insertIMSIFCStmt, fmt.Sprintf(insertIMSIFCStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
+		{&db.listProfileIMSIFCsStmt, fmt.Sprintf(listProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
+		{&db.deleteProfileIMSIFCsStmt, fmt.Sprintf(deleteProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
+		{&db.listProfilesOfIMSASStmt, fmt.Sprintf(listProfilesOfIMSASStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
+		{&db.listIMSRegisteredOfProfilesStmt, fmt.Sprintf(listIMSRegisteredOfProfilesStmt, SubscribersTableName, IMSRegistrationsTableName), []any{subscriberIMSI{}, imsRegistrationRow{}, SliceIDs{}}},
+		{&db.listSubscriberIMSIFCsStmt, fmt.Sprintf(listSubscriberIMSIFCsStmt, IMSInitialFilterCriteriaTableName, SubscribersTableName, IMSApplicationServersTableName), []any{imsIFCRow{}, imsApplicationServerRow{}, subscriberIMSI{}}},
 		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.listAllIMSRegistrationsStmt, fmt.Sprintf(listAllIMSRegistrationsStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},

@@ -13,7 +13,7 @@ import (
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []GBRQoSFlow) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []QoSFlow) ([]byte, error) {
 	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, erabID, flows)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ const (
 	DataForwardingIndirect
 )
 
-func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, forwarding DataForwarding, flows []GBRQoSFlow) ([]byte, error) {
+func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, forwarding DataForwarding, flows []QoSFlow) ([]byte, error) {
 	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType, erabID, flows)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func marshalPDUSessionResourceSetupRequestTransfer(transfer *libngap.PDUSessionR
 	return buf, nil
 }
 
-func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []GBRQoSFlow) (*libngap.PDUSessionResourceSetupRequestTransfer, error) {
+func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []QoSFlow) (*libngap.PDUSessionResourceSetupRequestTransfer, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
 	}
@@ -94,7 +94,7 @@ func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.Q
 	}
 
 	for _, f := range flows {
-		params, err := gbrQosFlowLevelQosParameters(f)
+		params, err := flowQosParameters(f)
 		if err != nil {
 			return nil, fmt.Errorf("QoS flow %d: %w", f.QFI, err)
 		}

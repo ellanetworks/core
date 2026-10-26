@@ -83,3 +83,33 @@ func TestDataNetworksEndToEnd(t *testing.T) {
 		t.Fatalf("Expected only one data network (the default one) after deletion, but found %d", len(res))
 	}
 }
+
+func TestDataNetworkIMSAttribute(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	dn := &db.DataNetwork{Name: "mcx", IPv4Pool: "10.70.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}
+	if err := database.CreateDataNetwork(ctx, dn); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	got, err := database.GetDataNetworkByID(ctx, dn.ID)
+	if err != nil || !got.IMS {
+		t.Fatalf("get = %+v, err %v; want IMS", got, err)
+	}
+
+	dn.IMS = false
+	if err := database.UpdateDataNetwork(ctx, dn); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	got, err = database.GetDataNetwork(ctx, "mcx")
+	if err != nil || got.IMS {
+		t.Fatalf("get after update = %+v, err %v; want not IMS", got, err)
+	}
+
+	internet, err := database.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	if err != nil || internet.IMS {
+		t.Fatalf("default data network = %+v, err %v; want not IMS", internet, err)
+	}
+}

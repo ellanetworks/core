@@ -309,9 +309,10 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	mtuChanged := policy.MTU != 0 && current.MTU != policy.MTU
 	ipv4PoolChanged := policy.IPv4Pool != "" && current.IPv4Pool != policy.IPv4Pool
 	ipv6PoolChanged := policy.IPv6Pool != "" && current.IPv6Pool != policy.IPv6Pool
+	imsChanged := current.IMS != policy.IMS
 
-	if mtuChanged || ipv4PoolChanged || ipv6PoolChanged {
-		logger.SmfLog.Info("MTU or IP pool changed, releasing session for re-establishment",
+	if mtuChanged || ipv4PoolChanged || ipv6PoolChanged || imsChanged {
+		logger.SmfLog.Info("MTU, IP pool or IMS attribute changed, releasing session for re-establishment",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
 			zap.Uint16("old_mtu", current.MTU),
@@ -320,6 +321,8 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			zap.String("new_ipv4_pool", policy.IPv4Pool),
 			zap.String("old_ipv6_pool", current.IPv6Pool),
 			zap.String("new_ipv6_pool", policy.IPv6Pool),
+			zap.Bool("old_ims", current.IMS),
+			zap.Bool("new_ims", policy.IMS),
 		)
 
 		return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
@@ -374,13 +377,13 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 
 	oldQoS := current.QosData
 
-	oldArp, newArp := int32(0), int32(0)
+	var oldArp, newArp models.Arp
 	if oldQoS.Arp != nil {
-		oldArp = oldQoS.Arp.PriorityLevel
+		oldArp = *oldQoS.Arp
 	}
 
 	if policy.QosData.Arp != nil {
-		newArp = policy.QosData.Arp.PriorityLevel
+		newArp = *policy.QosData.Arp
 	}
 
 	has5QIChange := oldQoS.Var5qi != policy.QosData.Var5qi
@@ -406,6 +409,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			Arp:    policy.QosData.Arp,
 		},
 		DNS:      dns,
+		IMS:      current.IMS,
 		MTU:      current.MTU,
 		IPv4Pool: current.IPv4Pool,
 		IPv6Pool: current.IPv6Pool,

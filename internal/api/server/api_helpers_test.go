@@ -120,6 +120,10 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 }
 
 func buildTestEnvWithHSS(testdb *db.Database, hssInstance server.IMSSubscribers) (testEnv, error) {
+	return buildTestEnvWith(testdb, hssInstance, nil)
+}
+
+func buildTestEnvWith(testdb *db.Database, hssInstance server.IMSSubscribers, imsProfiles server.IMSProfileNotifier) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
@@ -163,6 +167,7 @@ func buildTestEnvWithHSS(testdb *db.Database, hssInstance server.IMSSubscribers)
 		AMF:          amfInstance,
 		LMF:          lmfInstance,
 		HSS:          hssInstance,
+		IMSProfiles:  imsProfiles,
 		BcryptCost:   bcrypt.MinCost,
 	}))
 

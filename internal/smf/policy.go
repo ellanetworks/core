@@ -17,7 +17,7 @@ import (
 
 type SubscribedQoS struct {
 	Var5qi      int32
-	Arp         int32
+	Arp         models.Arp
 	SessionAMBR models.Ambr
 }
 
@@ -29,6 +29,7 @@ type PolicyContext struct {
 	Access       AccessType
 	IPv4         netip.Addr
 	IPv6Prefix   netip.Prefix
+	IMS          bool
 	Subscribed   SubscribedQoS
 }
 
@@ -36,7 +37,7 @@ type PolicyDecision struct {
 	Revision    uint64
 	PolicyID    string
 	Var5qi      int32
-	Arp         int32
+	Arp         models.Arp
 	SessionAMBR models.Ambr
 	RatingGroup uint32
 	Rules       []PCCRule
@@ -78,6 +79,7 @@ type DataNetworkConfig struct {
 	MTU      uint16
 	IPv4Pool string
 	IPv6Pool string
+	IMS      bool
 	PCSCF    []netip.Addr
 }
 
@@ -139,14 +141,15 @@ func (s *SMF) prepareSession(ctx context.Context, supi etsi.SUPI, snssai *models
 }
 
 func dataNetworkPolicy(c DataNetworkConfig) *Policy {
-	return &Policy{DNS: c.DNS, MTU: c.MTU, IPv4Pool: c.IPv4Pool, IPv6Pool: c.IPv6Pool, PCSCF: c.PCSCF}
+	return &Policy{DNS: c.DNS, MTU: c.MTU, IPv4Pool: c.IPv4Pool, IPv6Pool: c.IPv6Pool, IMS: c.IMS, PCSCF: c.PCSCF}
 }
 
 func applyDecision(p *Policy, d *PolicyDecision) {
 	p.PolicyID = d.PolicyID
 	p.Ambr = d.SessionAMBR
 	p.RatingGroup = d.RatingGroup
-	p.QosData = models.QosData{QFI: models.DefaultQFI, Var5qi: d.Var5qi, Arp: &models.Arp{PriorityLevel: d.Arp}}
+	arp := d.Arp
+	p.QosData = models.QosData{QFI: models.DefaultQFI, Var5qi: d.Var5qi, Arp: &arp}
 }
 
 func (d *PolicyDecision) sameSessionPolicy(o *PolicyDecision) bool {

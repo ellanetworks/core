@@ -32,6 +32,8 @@ type AttachResult struct {
 	PDNType             eps.PDNType
 	QCI                 byte
 	ARP                 byte
+	PreemptCap          s1ap.PreemptionCapability
+	PreemptVuln         s1ap.PreemptionVulnerability
 	UEAmbrDownlinkBps   uint64
 	UEAmbrUplinkBps     uint64
 	APN                 string
@@ -208,6 +210,8 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		GUTI:              guti,
 		IdentityRequested: identityRequested,
 		ARP:               erab.QoS.ARP.PriorityLevel,
+		PreemptCap:        erab.QoS.ARP.PreemptionCapability,
+		PreemptVuln:       erab.QoS.ARP.PreemptionVulnerability,
 		UEAmbrDownlinkBps: uint64(ics.UEAggregateMaximumBitRate.DL),
 		UEAmbrUplinkBps:   uint64(ics.UEAggregateMaximumBitRate.UL),
 		UpfAddress:        upf.Unmap().String(),

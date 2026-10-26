@@ -34,6 +34,7 @@ type HandlerConfig struct {
 	AMF                 *amf.AMF
 	MME                 *mme.MME
 	HSS                 IMSSubscribers
+	IMSProfiles         IMSProfileNotifier
 	BGP                 *bgp.BGPService
 	BcryptCost          int
 	Ready               *atomic.Bool
@@ -121,8 +122,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Subscribers (Authenticated)
 	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListSubscribers(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateSubscriber, CreateSubscriber(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, UpdateSubscriber(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, UpdateSubscriber(dbInstance, cfg.IMSProfiles))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance, sessions, hssInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}/credentials", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriberCredentials, GetSubscriberCredentials(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
 
@@ -134,10 +135,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Policies (Authenticated)
 	mux.HandleFunc("GET /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermListPolicies, ListPolicies(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermCreatePolicy, CreatePolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdatePolicy, UpdatePolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermCreatePolicy, CreatePolicy(dbInstance, cfg.IMSProfiles))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdatePolicy, UpdatePolicy(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPolicy, GetPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePolicy, DeletePolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePolicy, DeletePolicy(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 
 	// Profiles (Authenticated)
 	mux.HandleFunc("GET /api/v1/profiles", Authenticate(jwtSecret, dbInstance, Authorize(PermListProfiles, ListProfiles(dbInstance))).ServeHTTP)
@@ -145,6 +146,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateProfile, UpdateProfile(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadProfile, GetProfile(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteProfile, DeleteProfile(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/profiles/{name}/ims-filter-criteria", Authenticate(jwtSecret, dbInstance, Authorize(PermReadProfile, GetProfileIMSFilterCriteria(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/profiles/{name}/ims-filter-criteria", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateProfile, UpdateProfileIMSFilterCriteria(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 
 	// Slices (Authenticated)
 	mux.HandleFunc("GET /api/v1/slices", Authenticate(jwtSecret, dbInstance, Authorize(PermListSlices, ListSlices(dbInstance))).ServeHTTP)
@@ -156,7 +159,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Operator (Authenticated)
 	mux.HandleFunc("GET /api/v1/operator", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetOperator(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/tracking", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorTracking, UpdateOperatorTracking(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/operator/id", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorID, UpdateOperatorID(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/id", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorID, UpdateOperatorID(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/operator/home-network-keys/{id}/private-key", Authenticate(jwtSecret, dbInstance, Authorize(PermReadHomeNetworkPrivateKey, GetHomeNetworkKeyPrivateKey(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/operator/home-network-keys", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, CreateHomeNetworkKey(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/home-network-keys/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorHomeNetwork, DeleteHomeNetworkKey(dbInstance))).ServeHTTP)
@@ -170,11 +173,16 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, UpdateSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/sms/smsc-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorSMS, DeleteSMSCPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/ims", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateOperatorIMS(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/ims/application-servers", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, ListIMSApplicationServers(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/ims/application-servers/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetIMSApplicationServer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/operator/ims/application-servers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, CreateIMSApplicationServer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/ims/application-servers/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateIMSApplicationServer(dbInstance, cfg.IMSProfiles))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/operator/ims/application-servers/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, DeleteIMSApplicationServer(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateDataNetwork, CreateDataNetwork(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetwork, UpdateDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetwork, UpdateDataNetwork(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, GetDataNetwork(dbInstance, sessions))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetwork, DeleteDataNetwork(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ipv4-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, ListIPv4Allocations(dbInstance))).ServeHTTP)

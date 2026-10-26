@@ -38,6 +38,7 @@ type UEConnection struct {
 // SubscriberSession is one PDN connection of an attached UE — a default EPS
 // bearer to an APN (TS 23.401).
 type SubscriberSession struct {
+	SessionRef  string
 	BearerID    uint8
 	APN         string
 	PDNType     eps.PDNType // negotiated PDN type: 1 IPv4 / 2 IPv6 / 3 IPv4v6
@@ -90,6 +91,7 @@ func (m *MME) pdnSessionViews(ue *UeContext) []SubscriberSession {
 
 	for _, p := range ue.Pdns {
 		s := SubscriberSession{
+			SessionRef:   p.SessionRef,
 			BearerID:     p.Ebi,
 			APN:          p.Apn,
 			PDNType:      eps.PDNType(uint8(p.PdnType)),

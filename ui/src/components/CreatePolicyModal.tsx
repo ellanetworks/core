@@ -40,7 +40,8 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 }) => {
   const { accessToken } = useAuth();
   const isFirstPolicy = policyCount === 0;
-  const { dataNetworks, slices, isError } = useNetworkOptions(open);
+  const { dataNetworks, imsDataNetworks, slices, isError } =
+    useNetworkOptions(open);
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -54,6 +55,8 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       ambrDownUnit: "Mbps",
       fiveQi: 9,
       arp: 1,
+      preemptionCapability: "not_preempt",
+      preemptionVulnerability: "not_preemptable",
       dataNetworkName: "",
       isDefault: false,
     },
@@ -92,6 +95,8 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       session_ambr_downlink: `${values.ambrDownValue} ${values.ambrDownUnit}`,
       var5qi: values.fiveQi,
       arp: values.arp,
+      preemption_capability: values.preemptionCapability,
+      preemption_vulnerability: values.preemptionVulnerability,
       default: isFirstPolicy || values.isDefault,
     });
   };
@@ -118,6 +123,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       <PolicyFields<FormValues>
         control={form.control}
         dataNetworks={dataNetworks ?? []}
+        imsDataNetworks={imsDataNetworks ?? []}
         slices={slices ?? []}
       />
       <Box sx={{ mt: 1 }}>

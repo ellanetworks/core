@@ -9,12 +9,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/hss"
+	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/ellanetworks/core/internal/milenage"
 	"github.com/ellanetworks/core/internal/sqn"
 	"github.com/ellanetworks/core/internal/udm"
@@ -48,21 +50,24 @@ type fakeIMSSubscriber struct {
 }
 
 type fakeIMSStore struct {
-	subscribers   map[string]*fakeIMSSubscriber
-	registrations map[string]hss.Registration
-	voiceDisabled bool
-	fail          bool
-	unavailable   bool
-	contended     bool
-	block         chan struct{}
+	mu             sync.Mutex
+	subscribers    map[string]*fakeIMSSubscriber
+	filterCriteria map[string][]cx.InitialFilterCriteria
+	serviceIDs     map[string]string
+	registrations  map[string]hss.Registration
+	voiceDisabled  bool
+	fail           bool
+	unavailable    bool
+	contended      bool
+	block          chan struct{}
 }
 
 func newFakeIMSStore() *fakeIMSStore {
 	return &fakeIMSStore{
 		subscribers: map[string]*fakeIMSSubscriber{
-			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
-			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true}, sqn: "000000000020"},
-			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
+			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
 			testNoIMS:     {Subscriber: hss.Subscriber{IMSI: testNoIMS, MSISDN: testNoIMSTel}, sqn: "000000000020"},
 		},
 		registrations: map[string]hss.Registration{},
@@ -70,6 +75,9 @@ func newFakeIMSStore() *fakeIMSStore {
 }
 
 func (f *fakeIMSStore) Registration(_ context.Context, imsi string) (*hss.Registration, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.fail {
 		return nil, errStoreDown
 	}
@@ -90,6 +98,9 @@ func (f *fakeIMSStore) CompareAndSwapRegistration(_ context.Context, imsi string
 	if f.unavailable {
 		return nil, false, fmt.Errorf("%w: raft commit timeout", hss.ErrUnavailable)
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	current, ok := f.registrations[imsi]
 
@@ -140,6 +151,27 @@ func (f *fakeIMSStore) Subscriber(_ context.Context, imsi string) (*hss.Subscrib
 	sub := s.Subscriber
 
 	return &sub, nil
+}
+
+func (f *fakeIMSStore) FilterCriteria(_ context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+	if f.fail {
+		return nil, errStoreDown
+	}
+
+	return f.filterCriteria[imsi], nil
+}
+
+func (f *fakeIMSStore) ServiceIdentity(_ context.Context, identity string) (*hss.ServiceIdentity, error) {
+	if f.fail {
+		return nil, errStoreDown
+	}
+
+	m, ok := psi.NewMatcher(f.serviceIDs).Match(identity)
+	if !ok {
+		return nil, nil
+	}
+
+	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
 }
 
 func (f *fakeIMSStore) CountRegistered(context.Context) (int, error) {
@@ -270,6 +302,11 @@ func TestUserAuthorization(t *testing.T) {
 			want: tgpp.Experimental(tgpp.ResultFirstRegistration),
 		},
 		{
+			name: "registration with the SIP URI of the MSISDN",
+			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:+" + testMSISDN + "@" + testIMSDomain},
+			want: tgpp.Experimental(tgpp.ResultFirstRegistration),
+		},
+		{
 			name: "registration and capabilities",
 			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:" + impiOf(testIMSI), AuthorizationType: cx.AuthorizationRegistrationAndCapabilities},
 			want: tgpp.Result{Code: diameter.ResultSuccess},
@@ -317,6 +354,11 @@ func TestUserAuthorization(t *testing.T) {
 		{
 			name: "MSISDN of another subscriber",
 			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "tel:+" + testOtherTel},
+			want: tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch),
+		},
+		{
+			name: "SIP URI of the MSISDN of another subscriber",
+			req:  cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "sip:+" + testOtherTel + "@" + testIMSDomain},
 			want: tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch),
 		},
 		{
@@ -602,8 +644,8 @@ func TestTermination(t *testing.T) {
 	}{
 		{name: "no registration"},
 		{name: "authentication pending", reg: &hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}},
-		{name: "registered", reg: &hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}, want: true},
-		{name: "unregistered", reg: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}, want: true},
+		{name: "registered", reg: &hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: impiOf(testIMSI)}, want: true},
+		{name: "unregistered", reg: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: "stored@" + testIMSDomain}, want: true},
 	}
 
 	for _, tc := range cases {
@@ -626,9 +668,9 @@ func TestTermination(t *testing.T) {
 				return
 			}
 
-			want := hss.Termination{IMSI: testIMSI, PrivateIdentity: impiOf(testIMSI), ServerHost: cscfIdentity.OriginHost, ServerRealm: cscfIdentity.OriginRealm}
-			if got == nil || *got != want {
-				t.Fatalf("Termination = %+v, want %+v", got, want)
+			if got == nil || got.IMSI != testIMSI || got.PrivateIdentity != tc.reg.PrivateIdentity || got.ServerName != testSCSCF ||
+				got.ServerHost != cscfIdentity.OriginHost || got.ServerRealm != cscfIdentity.OriginRealm || got.Reason != cx.ReasonPermanentTermination {
+				t.Fatalf("Termination = %+v, want the registration's S-CSCF and the private identity it knows", got)
 			}
 		})
 	}

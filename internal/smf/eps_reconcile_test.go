@@ -69,7 +69,7 @@ func TestCreateEPSSessionReturnsTheAuthorizedQoS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := models.EPSBearerQoS{QCI: 9, ARP: 1, APNAMBR: epsPolicy().Ambr}
+	want := models.EPSBearerQoS{QCI: 9, ARP: models.Arp{PriorityLevel: 1}, APNAMBR: epsPolicy().Ambr}
 	if bearer.QoS != want {
 		t.Errorf("bearer QoS = %+v, want %+v", bearer.QoS, want)
 	}
@@ -277,7 +277,7 @@ func TestEPSReconcileRetriesARejectedModification(t *testing.T) {
 	}
 
 	mod := mmeCb.modifications()[0]
-	if mod.QoS == nil || *mod.QoS != (models.EPSBearerQoS{QCI: 8, ARP: 2, APNAMBR: epsPolicy().Ambr}) {
+	if mod.QoS == nil || *mod.QoS != (models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}, APNAMBR: epsPolicy().Ambr}) {
 		t.Fatalf("modification QoS = %+v, want QCI 8 ARP 2", mod.QoS)
 	}
 

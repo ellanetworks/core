@@ -100,7 +100,7 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 	second := ue.EnsurePDN(secondEBI)
 	second.SgwFTEID = models.FTEID{TEID: 0x5678, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 	second.Qci = 8
-	second.Arp = 10
+	second.Arp = models.Arp{PriorityLevel: 10}
 
 	cc := &captureConn{}
 	HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{

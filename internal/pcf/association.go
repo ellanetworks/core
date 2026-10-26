@@ -372,17 +372,23 @@ func (p *PCF) unindexLocked(a *association) {
 	}
 }
 
-func (p *PCF) boundAssociationLocked(dnn string, addr netip.Addr) *association {
+func (p *PCF) boundIMSAssociationLocked(addr netip.Addr, apn string) *association {
 	if !addr.IsValid() {
 		return nil
 	}
 
 	a, ok := p.byAddress[addressKey(addr)]
-	if !ok || !strings.EqualFold(a.context.Dnn, dnn) {
+	if !ok || !a.context.IMS || (apn != "" && !sameAPN(apn, a.context.Dnn)) {
 		return nil
 	}
 
 	return a
+}
+
+func sameAPN(apn, dnn string) bool {
+	apn, dnn = strings.ToLower(apn), strings.ToLower(dnn)
+
+	return apn == dnn || strings.HasPrefix(apn, dnn+".mnc")
 }
 
 func sameDecision(a, b *smf.PolicyDecision) bool {

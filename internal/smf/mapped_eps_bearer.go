@@ -27,12 +27,7 @@ func epsFilters(slot uint8, tft bearerTFT) []models.SDFFilter {
 }
 
 func mappedEPSQoS(qci uint8, mbr, gbr models.Ambr) (fgs.EPSParameter, error) {
-	qos, err := eps.GBREPSQoS(qci, eps.EPSQoSBitRates{
-		MaxUplinkKbps:          mbr.Uplink.Kbps(),
-		MaxDownlinkKbps:        mbr.Downlink.Kbps(),
-		GuaranteedUplinkKbps:   gbr.Uplink.Kbps(),
-		GuaranteedDownlinkKbps: gbr.Downlink.Kbps(),
-	})
+	qos, err := epsQoS(qci, mbr, gbr)
 	if err != nil {
 		return fgs.EPSParameter{}, fmt.Errorf("mapped EPS QoS: %w", err)
 	}
@@ -43,6 +38,19 @@ func mappedEPSQoS(qci uint8, mbr, gbr models.Ambr) (fgs.EPSParameter, error) {
 	}
 
 	return fgs.EPSParameter{Identifier: fgs.EPSParameterMappedEPSQoS, Contents: raw}, nil
+}
+
+func epsQoS(qci uint8, mbr, gbr models.Ambr) (eps.EPSQoS, error) {
+	if !models.GBRQCI(qci) {
+		return eps.EPSQoS{QCI: qci}, nil
+	}
+
+	return eps.GBREPSQoS(qci, eps.EPSQoSBitRates{
+		MaxUplinkKbps:          mbr.Uplink.Kbps(),
+		MaxDownlinkKbps:        mbr.Downlink.Kbps(),
+		GuaranteedUplinkKbps:   gbr.Uplink.Kbps(),
+		GuaranteedDownlinkKbps: gbr.Downlink.Kbps(),
+	})
 }
 
 func mappedTFT(t eps.TrafficFlowTemplate) (fgs.EPSParameter, error) {
@@ -190,7 +198,7 @@ func (sc *SMContext) mappedFiveGSQoSLocked(b *dedicatedBearer, qci uint8, prevRu
 			op = fgs.QoSFlowOpCreate
 		}
 
-		mbr, gbr := bearerRates(rules)
+		mbr, gbr := bearerRates(qci, rules)
 
 		desc, err := b.qosFlowDescription(qci, op, mbr, gbr)
 		if err != nil {

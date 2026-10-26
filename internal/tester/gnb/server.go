@@ -127,6 +127,7 @@ type GnodeB struct {
 	refuseGBRFlows    map[int64]ngap.Cause
 	nrppaQuantities   []nrppa.MeasurementQuantityValue
 	flowFiveQIs       map[int64]map[int64]map[uint8]int64
+	flowQoS           map[int64]map[int64]map[uint8]QoSFlowParams
 	lastGeneratedTEID uint32
 	nextFwdTEID       uint32
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
@@ -193,6 +194,7 @@ func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 
 	g.qosFlows[ranUeID][info.PDUSessionID] = slices.Clone(info.Flows)
 	g.recordFlowFiveQIsLocked(ranUeID, info.PDUSessionID, info.FlowFiveQIs)
+	g.recordFlowQoSLocked(ranUeID, info.PDUSessionID, info.FlowQoS)
 
 	if g.pduSessions == nil {
 		g.pduSessions = make(map[int64]map[int64]*PDUSessionInformation)
@@ -1350,6 +1352,42 @@ func (g *GnodeB) recordFlowFiveQIsLocked(ranUeID, pduSessionID int64, fiveQIs ma
 	}
 
 	maps.Copy(g.flowFiveQIs[ranUeID][pduSessionID], fiveQIs)
+}
+
+func (g *GnodeB) recordFlowQoS(ranUeID, pduSessionID int64, flows map[uint8]QoSFlowParams) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.recordFlowQoSLocked(ranUeID, pduSessionID, flows)
+}
+
+func (g *GnodeB) recordFlowQoSLocked(ranUeID, pduSessionID int64, flows map[uint8]QoSFlowParams) {
+	if g.flowQoS == nil {
+		g.flowQoS = make(map[int64]map[int64]map[uint8]QoSFlowParams)
+	}
+
+	if g.flowQoS[ranUeID] == nil {
+		g.flowQoS[ranUeID] = make(map[int64]map[uint8]QoSFlowParams)
+	}
+
+	if g.flowQoS[ranUeID][pduSessionID] == nil {
+		g.flowQoS[ranUeID][pduSessionID] = make(map[uint8]QoSFlowParams)
+	}
+
+	maps.Copy(g.flowQoS[ranUeID][pduSessionID], flows)
+}
+
+func (g *GnodeB) DedicatedQoSFlow(ranUeID, pduSessionID, fiveQI int64) (QoSFlowParams, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for _, qfi := range g.qosFlows[ranUeID][pduSessionID] {
+		if params, ok := g.flowQoS[ranUeID][pduSessionID][qfi]; ok && params.FiveQI == fiveQI {
+			return params, true
+		}
+	}
+
+	return QoSFlowParams{}, false
 }
 
 func (g *GnodeB) SupportNRPPaMeasurementQuantities(quantities ...nrppa.MeasurementQuantityValue) {

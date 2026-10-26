@@ -22,6 +22,7 @@ type policyChange struct {
 	MTU                 uint16
 	IPv4Pool            string
 	IPv6Pool            string
+	IMS                 *bool
 }
 
 func currentPolicy(s *smf.SMF, ref string) *smf.Policy {
@@ -71,6 +72,10 @@ func reconcileWithPolicy(ctx context.Context, s *smf.SMF, pcf *fakePCF, ref stri
 
 		if change.IPv6Pool != "" {
 			policy.IPv6Pool = change.IPv6Pool
+		}
+
+		if change.IMS != nil {
+			policy.IMS = *change.IMS
 		}
 	}
 

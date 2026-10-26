@@ -222,7 +222,7 @@ func TestERABModifyCarriesTheUpdatedUEAMBR(t *testing.T) {
 	ue, cc := ueAMBRUE(t, m)
 
 	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{
-		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: 2},
+		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: models.Arp{PriorityLevel: 2}},
 		APNAMBR: testAmbr("300 Mbps", "400 Mbps"),
 	}); err != nil {
 		t.Fatal(err)

@@ -150,8 +150,9 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 
 		for _, s := range subs {
 			entry := map[string]any{
-				"imsi":   s.Imsi,
-				"msisdn": s.Msisdn,
+				"imsi":       s.Imsi,
+				"msisdn":     s.Msisdn,
+				"profile_id": s.ProfileID,
 			}
 			subscribersList = append(subscribersList, entry)
 		}
@@ -205,6 +206,8 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 
 	out["profiles"] = profilesList
 	sections["profiles"] = sections["profiles"].WithCount(len(profilesList))
+
+	db.collectSupportIMSServices(ctx, out, sections, failure, profilesList)
 
 	if slicesList, err := db.ListAllNetworkSlices(ctx); err != nil {
 		failure("network_slices", err)
@@ -540,4 +543,56 @@ func (db *Database) WriteSupportBundle(ctx context.Context, w io.Writer, options
 	}
 
 	return supportbundle.GenerateSupportBundleFromData(ctx, data, w)
+}
+
+func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbundle.SanitizedData, sections map[string]supportbundle.SectionStatus, failure func(string, error), profiles []Profile) {
+	servers, err := db.ListIMSApplicationServers(ctx)
+	if err != nil {
+		failure("ims_application_servers", err)
+		failure("ims_filter_criteria", err)
+
+		return
+	}
+
+	serverEntries := make([]any, 0, len(servers))
+	serverNames := make(map[string]string, len(servers))
+
+	for _, as := range servers {
+		serverNames[as.ID] = as.Name
+		serverEntries = append(serverEntries, map[string]any{
+			"name":                      as.Name,
+			"server_name":               as.ServerName,
+			"public_service_identities": as.PublicServiceIdentities,
+		})
+	}
+
+	out["ims_application_servers"] = serverEntries
+	sections["ims_application_servers"] = sections["ims_application_servers"].WithCount(len(serverEntries))
+
+	criteriaEntries := []any{}
+
+	for _, p := range profiles {
+		ifcs, err := db.ListProfileIMSFilterCriteria(ctx, p.ID)
+		if err != nil {
+			failure("ims_filter_criteria", err)
+			continue
+		}
+
+		for i, ifc := range ifcs {
+			criteriaEntries = append(criteriaEntries, map[string]any{
+				"profile":                   p.Name,
+				"priority":                  i,
+				"application_server_name":   serverNames[ifc.ApplicationServerID],
+				"trigger":                   ifc.Trigger,
+				"profile_part":              ifc.ProfilePart,
+				"default_handling":          ifc.DefaultHandling,
+				"service_info":              ifc.ServiceInfo,
+				"include_register_request":  ifc.IncludeRegisterRequest,
+				"include_register_response": ifc.IncludeRegisterResponse,
+			})
+		}
+	}
+
+	out["ims_filter_criteria"] = criteriaEntries
+	sections["ims_filter_criteria"] = sections["ims_filter_criteria"].WithCount(len(criteriaEntries))
 }

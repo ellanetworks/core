@@ -46,6 +46,8 @@ var (
 	imsModRejectCallee        = scenarios.IMSSubscriber("001017400000016", "+15557400016")
 	imsHoldCaller             = scenarios.IMSSubscriber("001017400000017", "+15557400017")
 	imsHoldCallee             = scenarios.IMSSubscriber("001017400000018", "+15557400018")
+	imsServiceSubscriber      = scenarios.IMSSubscriber("001017400000019", "+15557400019")
+	imsRenumberedSubscriber   = scenarios.IMSSubscriber("001017400000020", "+15557400020")
 )
 
 const (
@@ -61,6 +63,8 @@ var voicePayload = []byte{0x80, 0x76, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1}
 func init() {
 	registerIMS("ims/4g_registration", imsRegistrationSubscriber, runIMSRegistration)
 	registerIMS("ims/4g_not_entitled", imsNotEntitledSubscriber, runIMSNotEntitled)
+	registerIMS("ims/4g_registration_ims_service", imsServiceSubscriber, runIMSRegistrationWithService)
+	registerIMS("ims/4g_msisdn_change", imsRenumberedSubscriber, runIMSMSISDNChange)
 	registerIMS("ims/4g_call", imsCaller, runIMSCall, imsCallee)
 	registerIMS("ims/4g_call_bearer_rejected", imsRejectingCaller, runIMSCallBearerRejected, imsRejectedCallee)
 	registerIMS("ims/4g_two_calls", imsSharingCaller, runIMSTwoCalls, imsSharingCallee)
@@ -122,6 +126,60 @@ func runIMSRegistration(ctx context.Context, env scenarios.Env) error {
 	}
 
 	return scenarios.RequireIMSTerminationOnDeletion(ctx, env, imsRegistrationSubscriber, pcscf, local, scenarios.IMSTransports[0])
+}
+
+func runIMSRegistrationWithService(ctx context.Context, env scenarios.Env) error {
+	e, res, local, err := attachIMSUE(env, imsServiceSubscriber, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
+	if err != nil {
+		return err
+	}
+
+	defer closeIMSUE(e, res)
+
+	pcscf, err := scenarios.SelectPCSCF(res.PCSCF, !env.HasIPv4())
+	if err != nil {
+		return err
+	}
+
+	as, err := scenarios.StartMCPTTServer(ctx, env)
+	if err != nil {
+		return err
+	}
+
+	defer as.Close()
+
+	cleanup, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.IMSProfileName, as.URI())
+	if err != nil {
+		return err
+	}
+
+	defer cleanup()
+
+	if err := scenarios.RegisterIMS(ctx, imsServiceSubscriber, pcscf, local, scenarios.IMSTransports[0]); err != nil {
+		return fmt.Errorf("register with an MCPTT service in the user profile: %w", err)
+	}
+
+	if err := scenarios.RequireThirdPartyRegister(ctx, as, imsServiceSubscriber); err != nil {
+		return err
+	}
+
+	return scenarios.RequireIMSRegistrationAcrossProfilePushes(ctx, env, imsServiceSubscriber, scenarios.IMSProfileName, pcscf, local, scenarios.IMSTransports[1])
+}
+
+func runIMSMSISDNChange(ctx context.Context, env scenarios.Env) error {
+	e, res, local, err := attachIMSUE(env, imsRenumberedSubscriber, scenarios.IMSDNN, scenarios.IMSUEIPv4Pool, scenarios.IMSUEIPv6Pool)
+	if err != nil {
+		return err
+	}
+
+	defer closeIMSUE(e, res)
+
+	pcscf, err := scenarios.SelectPCSCF(res.PCSCF, !env.HasIPv4())
+	if err != nil {
+		return err
+	}
+
+	return scenarios.RequireIMSReregistrationOnMSISDNChange(ctx, env, imsRenumberedSubscriber, "+15557400120", pcscf, local, scenarios.IMSTransports[0])
 }
 
 func runIMSNotEntitled(ctx context.Context, env scenarios.Env) error {

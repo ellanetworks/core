@@ -31,6 +31,7 @@ This path returns the list of data networks.
                 "ipv6_pool": "2001:db8::/48",
                 "dns": "8.8.8.8",
                 "mtu": 1460,
+                "ims": false,
                 "status": {
                     "sessions": 0
                 }
@@ -58,6 +59,7 @@ This path creates a new Data Network.
 - `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 1 and 65535.
+- `ims` (boolean, optional): Whether this is an IMS data network. Defaults to `true` for a data network named `ims`, `false` otherwise. See [IMS Integration](../../explanation/ims_integration.md).
 
 ### Sample Response
 
@@ -83,6 +85,7 @@ This path updates an existing data network.
 - `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 1 and 65535.
+- `ims` (boolean, optional): Whether this is an IMS data network. Enabling it requires every policy on the data network to use 5QI 5 or 69. Changing it releases the data network's sessions so that UEs reconnect. Omitted leaves it unchanged.
 
 ### Sample Response
 
@@ -116,6 +119,7 @@ None
         "ipv6_pool": "2001:db8::/48",
         "dns": "8.8.8.8",
         "mtu": 1460,
+        "ims": false,
         "status": {
             "sessions": 0
         },
@@ -726,7 +730,7 @@ This path updates the flow accounting configuration.
 
 # Local Switch
 
-Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE is forwarded locally instead of being routed out over N6. It is disabled by default. Traffic between two UEs on the `ims` data network is always switched locally, to allow voice calls between them.
+Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE is forwarded locally instead of being routed out over N6. It is disabled by default. Traffic between two UEs on an IMS data network is always switched locally, to allow voice calls between them.
 
 ## Get Local Switch Info
 

@@ -6,8 +6,6 @@ package hss
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
@@ -29,8 +27,11 @@ type Peers interface {
 type Termination struct {
 	IMSI            string
 	PrivateIdentity string
+	ServerName      string
 	ServerHost      string
 	ServerRealm     string
+	Reason          cx.ReasonCode
+	expected        Registration
 }
 
 func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error) {
@@ -39,22 +40,28 @@ func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error
 		return nil, err
 	}
 
-	domain, err := h.store.IMSDomain(ctx)
-	if err != nil {
-		return nil, err
-	}
+	return termination(imsi, reg, cx.ReasonPermanentTermination), nil
+}
 
-	s := subject{Subscriber: Subscriber{IMSI: imsi}, domain: strings.ToLower(domain)}
-
+func termination(imsi string, reg *Registration, reason cx.ReasonCode) *Termination {
 	return &Termination{
 		IMSI:            imsi,
-		PrivateIdentity: s.privateIdentity(),
+		PrivateIdentity: reg.PrivateIdentity,
+		ServerName:      reg.ServerName,
 		ServerHost:      reg.OriginHost,
 		ServerRealm:     reg.OriginRealm,
-	}, nil
+		Reason:          reason,
+		expected:        *reg,
+	}
 }
 
 func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
+	if t.Reason == cx.ReasonServerChange {
+		if err := h.clearRegistration(ctx, t); err != nil {
+			return err
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, terminationTimeout)
 	defer cancel()
 
@@ -68,7 +75,7 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 	)
 	defer span.End()
 
-	err := h.terminate(ctx, t)
+	emergency, err := h.terminate(ctx, t)
 	if err != nil {
 		span.RecordError(err)
 		h.log.Warn("Cx registration termination failed", zap.String("imsi", t.IMSI), zap.String("serverHost", t.ServerHost), zap.Error(err))
@@ -76,19 +83,40 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 		return err
 	}
 
-	h.log.Info("IMS registration terminated", zap.String("imsi", t.IMSI), zap.String("serverHost", t.ServerHost))
+	h.log.Info("IMS registration terminated", zap.String("imsi", t.IMSI), zap.String("serverHost", t.ServerHost), zap.Bool("emergencyRegistered", emergency))
+
+	if t.Reason == cx.ReasonPermanentTermination {
+		return h.permanentlyTerminated(ctx, t, emergency)
+	}
 
 	return nil
 }
 
-func (h *HSS) terminate(ctx context.Context, t *Termination) error {
+func (h *HSS) permanentlyTerminated(ctx context.Context, t *Termination, emergency bool) error {
+	if !emergency {
+		return h.clearRegistration(ctx, t)
+	}
+
+	return h.updateRegistration(ctx, t.IMSI, func(current *Registration) (*Registration, error) {
+		if current == nil || current.State == NotRegistered || !t.holds(current) {
+			return current, nil
+		}
+
+		next := *current
+		next.State, next.Emergency = Unregistered, true
+
+		return &next, nil
+	})
+}
+
+func (h *HSS) terminate(ctx context.Context, t *Termination) (bool, error) {
 	var node *diameter.Node
 	if h.peers != nil {
 		node = h.peers.Node()
 	}
 
 	if node == nil {
-		return ErrDiameterUnavailable
+		return false, ErrDiameterUnavailable
 	}
 
 	req, err := cx.NewRegistrationTerminationRequest(tgpp.Envelope{
@@ -98,25 +126,41 @@ func (h *HSS) terminate(ctx context.Context, t *Termination) error {
 		DestinationRealm: t.ServerRealm,
 	}, cx.RegistrationTerminationRequest{
 		PrivateIdentity: t.PrivateIdentity,
-		Reason:          cx.DeregistrationReason{Code: cx.ReasonPermanentTermination},
+		Reason:          cx.DeregistrationReason{Code: t.Reason},
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	ans, err := node.Send(ctx, req)
+	ans, err := node.Send(ctx, req, diameter.FailFast())
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	r, err := tgpp.ParseResult(ans)
+	a, err := cx.ParseRegistrationTerminationAnswer(ans)
+
+	var re *cx.RegistrationTerminationError
+	if errors.As(err, &re) && re.Code == diameter.ResultUnableToComply && len(re.EmergencyIdentities) > 0 {
+		return true, nil
+	}
+
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	if r.Failure() {
-		return fmt.Errorf("the S-CSCF answered %s", r)
-	}
+	return len(a.EmergencyIdentities) > 0, nil
+}
 
-	return nil
+func (t *Termination) holds(current *Registration) bool {
+	return *current == t.expected
+}
+
+func (h *HSS) clearRegistration(ctx context.Context, t *Termination) error {
+	return h.updateRegistration(ctx, t.IMSI, func(current *Registration) (*Registration, error) {
+		if current == nil || current.State == NotRegistered || !t.holds(current) {
+			return current, nil
+		}
+
+		return nil, nil
+	})
 }

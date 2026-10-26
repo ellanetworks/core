@@ -80,7 +80,7 @@ type PDNConnectionExport struct {
 	UeIPv4Address          string        `json:"ue_ipv4_address,omitempty"`
 	UeIPv6Prefix           string        `json:"ue_ipv6_prefix,omitempty"`
 	Qci                    uint8         `json:"qci,omitempty"`
-	Arp                    uint8         `json:"arp,omitempty"`
+	Arp                    models.Arp    `json:"arp"`
 	SessionAMBRUplinkBps   uint64        `json:"session_ambr_uplink_bps,omitempty"`
 	SessionAMBRDownlinkBps uint64        `json:"session_ambr_downlink_bps,omitempty"`
 	Tunnel                 *TunnelExport `json:"tunnel,omitempty"`

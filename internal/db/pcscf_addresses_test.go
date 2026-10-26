@@ -182,7 +182,7 @@ func TestIMSVoiceStatus(t *testing.T) {
 		t.Fatalf("no ims data network: status = %q, want %q", got, db.IMSVoiceNoDataNetwork)
 	}
 
-	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: models.IMSDataNetworkName, IPv4Pool: "10.60.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: models.IMSDataNetworkName, IPv4Pool: "10.60.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}); err != nil {
 		t.Fatalf("CreateDataNetwork: %s", err)
 	}
 
@@ -199,5 +199,30 @@ func TestIMSVoiceStatus(t *testing.T) {
 		if got := status(tc.addresses...); got != tc.want {
 			t.Errorf("P-CSCF %v on an IPv4-only ims data network: status = %q, want %q", tc.addresses, got, tc.want)
 		}
+	}
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "mcx", IPv6Pool: "2001:db8:60::/48", DNS: "8.8.8.8", MTU: 1400, IMS: true}); err != nil {
+		t.Fatalf("CreateDataNetwork mcx: %s", err)
+	}
+
+	if got := status("2001:db8::5"); got != db.IMSVoiceIPFamilyMismatch {
+		t.Errorf("IPv6 P-CSCF with an IPv6 IMS data network other than ims: status = %q, want %q", got, db.IMSVoiceIPFamilyMismatch)
+	}
+}
+
+func TestIMSVoiceStatusIgnoresNonIMSDataNetworks(t *testing.T) {
+	ctx := context.Background()
+	database := newPCSCFAddressesTestDatabase(t)
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: models.IMSDataNetworkName, IPv4Pool: "10.60.0.0/16", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+		t.Fatalf("CreateDataNetwork: %s", err)
+	}
+
+	if err := database.ReplacePCSCFAddresses(ctx, addrs(t, "10.6.0.5")); err != nil {
+		t.Fatalf("ReplacePCSCFAddresses: %s", err)
+	}
+
+	if got, err := database.IMSVoiceStatus(ctx); err != nil || got != db.IMSVoiceNoDataNetwork {
+		t.Fatalf("status = %q, %v; want %q", got, err, db.IMSVoiceNoDataNetwork)
 	}
 }

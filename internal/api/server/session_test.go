@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 func TestSessionFrom5G_AllFields(t *testing.T) {
@@ -85,5 +86,21 @@ func TestSessionFrom4G(t *testing.T) {
 
 	if s.Slice != nil {
 		t.Fatalf("4G session must not carry a slice, got %+v", s.Slice)
+	}
+}
+
+func TestBearerViewShowsRatesOnlyForGBRBearers(t *testing.T) {
+	rate := models.BitRateFromBps(41000)
+	arp := models.Arp{PriorityLevel: 3, PreemptCap: models.PreemptionCapabilityMayPreempt, PreemptVuln: models.PreemptionVulnerabilityPreemptable}
+
+	voice := bearerFrom(smf.BearerView{ID: 6, QCI: 65, ARP: arp, MBR: models.Ambr{Uplink: rate, Downlink: rate}, GBR: models.Ambr{Uplink: rate, Downlink: rate}, Rules: []string{"af;1#1.1"}})
+	if voice.Var5qi != 65 || voice.Arp != 3 || voice.PreemptionCapability != "may_preempt" || voice.PreemptionVulnerability != "preemptable" ||
+		voice.GBRDownlink != "41 Kbps" || voice.MBRUplink != "41 Kbps" || len(voice.Rules) != 1 {
+		t.Fatalf("voice bearer = %+v", voice)
+	}
+
+	floor := bearerFrom(smf.BearerView{ID: 7, QCI: 69, ARP: arp, Rules: []string{"af;1#2.1"}})
+	if floor.MBRUplink != "" || floor.GBRUplink != "" {
+		t.Fatalf("non-GBR bearer = %+v, want no bit rates", floor)
 	}
 }

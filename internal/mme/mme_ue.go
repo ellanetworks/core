@@ -80,7 +80,7 @@ type PdnConnection struct {
 	SessAmbrDLBps uint64
 	SessAmbrULBps uint64
 	Qci           uint8
-	Arp           uint8
+	Arp           models.Arp
 	EsmCause      eps.ESMCause // PDN-type downgrade cause (#50/#51), 0 when none
 	SgwFTEID      models.FTEID // S-GW S1-U endpoint (anchor-assigned), sent to the eNB; Addr is the IPv4 N3
 	SgwN3IPv6     netip.Addr   // S-GW S1-U IPv6 N3 endpoint, when the N3 has one

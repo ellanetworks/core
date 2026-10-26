@@ -16,6 +16,7 @@ import (
 const (
 	IMSDataNetworkName = "ims"
 	IMSSignalling5QI   = 5
+	MCSignalling5QI    = 69
 )
 
 // The only error that lets a caller conclude the UPF session is gone: on any
@@ -108,7 +109,7 @@ type EPSBearerRequest struct {
 
 type EPSBearerQoS struct {
 	QCI     uint8
-	ARP     uint8
+	ARP     Arp
 	APNAMBR Ambr
 }
 
