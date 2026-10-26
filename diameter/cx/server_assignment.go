@@ -19,6 +19,7 @@ type ServerAssignmentRequest struct {
 	ServerName               string
 	Type                     AssignmentType
 	UserDataAlreadyAvailable bool
+	PCSCFRestoration         bool
 	Features                 Features
 	FeaturesRequired         bool
 }
@@ -160,6 +161,10 @@ func NewServerAssignmentRequest(env tgpp.Envelope, r ServerAssignmentRequest) (*
 		vendorUnsigned(AVPUserDataAlreadyAvailable, available),
 	)
 
+	if r.PCSCFRestoration {
+		avps = append(avps, diameter.Unsigned32(AVPSARFlags, 0, tgpp.VendorID, sarFlagPCSCFRestoration))
+	}
+
 	return newRequest(env, CommandServerAssignment, r.Features, r.FeaturesRequired, avps...)
 }
 
@@ -187,10 +192,16 @@ func ParseServerAssignmentRequest(req *diameter.Message) (ServerAssignmentReques
 		return ServerAssignmentRequest{}, err
 	}
 
+	sarFlags, err := optionalFlags(req, AVPSARFlags)
+	if err != nil {
+		return ServerAssignmentRequest{}, err
+	}
+
 	r := ServerAssignmentRequest{
 		ServerName:               server,
 		Type:                     AssignmentType(t),
 		UserDataAlreadyAvailable: available == userDataAlreadyAvailable,
+		PCSCFRestoration:         sarFlags&sarFlagPCSCFRestoration != 0,
 		Features:                 featureList(req),
 		FeaturesRequired:         featuresRequired(req),
 	}

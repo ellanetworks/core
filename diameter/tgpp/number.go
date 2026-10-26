@@ -19,7 +19,7 @@ const (
 )
 
 func EncodeE164(number string) ([]byte, error) {
-	if !decimal(number, 1, maxE164Digits) {
+	if !ValidE164(number) {
 		return nil, fmt.Errorf("%w: E.164 number %q", ErrInvalidNumber, number)
 	}
 
@@ -32,22 +32,22 @@ func DecodeE164(b []byte) (string, error) {
 		return "", err
 	}
 
-	if !decimal(number, 1, maxE164Digits) {
+	if !ValidE164(number) {
 		return "", fmt.Errorf("%w: E.164 number %q", ErrInvalidNumber, number)
 	}
 
 	return number, nil
 }
 
-func ValidIMSI(imsi string) bool {
-	return decimal(imsi, minIMSIDigits, maxIMSIDigits)
+func ValidE164(number string) bool {
+	return len(number) >= 1 && len(number) <= maxE164Digits && decimal(number)
 }
 
-func decimal(s string, minLen, maxLen int) bool {
-	if len(s) < minLen || len(s) > maxLen {
-		return false
-	}
+func ValidIMSI(imsi string) bool {
+	return len(imsi) >= minIMSIDigits && len(imsi) <= maxIMSIDigits && decimal(imsi)
+}
 
+func decimal(s string) bool {
 	for i := range len(s) {
 		if s[i] < '0' || s[i] > '9' {
 			return false

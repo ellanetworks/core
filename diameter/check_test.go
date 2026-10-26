@@ -58,7 +58,7 @@ func TestRulesCheck(t *testing.T) {
 	err := rules.Check(base())
 
 	var avpErr *AVPError
-	if !errors.As(err, &avpErr) || avpErr.AVP.Code != 3300 || avpErr.AVP.Flags&AVPFlagMandatory == 0 {
+	if !errors.As(err, &avpErr) || avpErr.AVPs[0].Code != 3300 || avpErr.AVPs[0].Flags&AVPFlagMandatory == 0 {
 		t.Fatalf("missing AVP placeholder = %+v", avpErr)
 	}
 }
@@ -84,6 +84,22 @@ func TestNewErrorAnswer(t *testing.T) {
 
 	if resultCode(t, NewErrorAnswer(req, id, errors.New("boom"))) != ResultUnableToComply {
 		t.Fatal("plain error not mapped to 5012")
+	}
+
+	other := UTF8String(3301, 0, 10415, "x")
+
+	ans = NewErrorAnswer(req, id, NewAVPError(ResultContradictingAVPs, offending, other))
+	if resultCode(t, ans) != ResultContradictingAVPs {
+		t.Fatalf("answer = %+v", ans)
+	}
+
+	failed, _ = ans.Find(AVPFailedAVP, 0)
+	if inner, _ := failed.Grouped(); len(inner) != 2 || inner[0].Code != 3300 || inner[1].Code != 3301 {
+		t.Fatalf("contradicting Failed-AVP = %+v", inner)
+	}
+
+	if ResultName(ResultContradictingAVPs) != "DIAMETER_CONTRADICTING_AVPS" {
+		t.Fatal("5007 not named")
 	}
 }
 

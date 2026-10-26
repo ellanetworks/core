@@ -136,11 +136,11 @@ func checkGrouped(rules diameter.Rules, a diameter.AVP) ([]diameter.AVP, error) 
 
 func withinGrouped(parent diameter.AVP, err error) error {
 	var avpErr *diameter.AVPError
-	if !errors.As(err, &avpErr) || avpErr.AVP.Code == parent.Code && avpErr.AVP.VendorID == parent.VendorID {
+	if !errors.As(err, &avpErr) || avpErr.AVPs[0].Code == parent.Code && avpErr.AVPs[0].VendorID == parent.VendorID {
 		return err
 	}
 
-	return diameter.NewAVPError(avpErr.ResultCode, diameter.Grouped(parent.Code, parent.Flags, parent.VendorID, avpErr.AVP))
+	return diameter.NewAVPError(avpErr.ResultCode, diameter.Grouped(parent.Code, parent.Flags, parent.VendorID, avpErr.AVPs...))
 }
 
 func requiredUint32(avps []diameter.AVP, code, vendorID uint32) (uint32, error) {

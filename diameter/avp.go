@@ -226,7 +226,7 @@ func (a AVP) Grouped() ([]AVP, error) {
 
 	var avpErr *AVPError
 	if errors.As(err, &avpErr) {
-		return nil, NewAVPError(avpErr.ResultCode, Grouped(a.Code, a.Flags, a.VendorID, avpErr.AVP))
+		return nil, NewAVPError(avpErr.ResultCode, Grouped(a.Code, a.Flags, a.VendorID, avpErr.AVPs...))
 	}
 
 	return avps, err

@@ -58,6 +58,20 @@ const (
 )
 
 const (
+	ResultUserDataNotAvailable          uint32 = 4100
+	ResultPriorUpdateInProgress         uint32 = 4101
+	ResultErrorUserDataNotRecognized    uint32 = 5100
+	ResultErrorOperationNotAllowed      uint32 = 5101
+	ResultErrorUserDataCannotBeRead     uint32 = 5102
+	ResultErrorUserDataCannotBeModified uint32 = 5103
+	ResultErrorUserDataCannotBeNotified uint32 = 5104
+	ResultErrorTransparentDataOutOfSync uint32 = 5105
+	ResultErrorSubsDataAbsent           uint32 = 5106
+	ResultErrorNoSubscriptionToData     uint32 = 5107
+	ResultErrorDSAINotAvailable         uint32 = 5108
+)
+
+const (
 	ResultErrorUserUnknown          uint32 = 5001
 	ResultErrorAbsentUser           uint32 = 5550
 	ResultErrorUserBusyForMTSMS     uint32 = 5551
@@ -99,6 +113,17 @@ var experimentalResultNames = map[uint32]string{
 	ResultErrorNotSupportedUserData:                "DIAMETER_ERROR_NOT_SUPPORTED_USER_DATA",
 	ResultErrorFeatureUnsupported:                  "DIAMETER_ERROR_FEATURE_UNSUPPORTED",
 	ResultErrorServingNodeFeatureUnsupported:       "DIAMETER_ERROR_SERVING_NODE_FEATURE_UNSUPPORTED",
+	ResultUserDataNotAvailable:                     "DIAMETER_USER_DATA_NOT_AVAILABLE",
+	ResultPriorUpdateInProgress:                    "DIAMETER_PRIOR_UPDATE_IN_PROGRESS",
+	ResultErrorUserDataNotRecognized:               "DIAMETER_ERROR_USER_DATA_NOT_RECOGNIZED",
+	ResultErrorOperationNotAllowed:                 "DIAMETER_ERROR_OPERATION_NOT_ALLOWED",
+	ResultErrorUserDataCannotBeRead:                "DIAMETER_ERROR_USER_DATA_CANNOT_BE_READ",
+	ResultErrorUserDataCannotBeModified:            "DIAMETER_ERROR_USER_DATA_CANNOT_BE_MODIFIED",
+	ResultErrorUserDataCannotBeNotified:            "DIAMETER_ERROR_USER_DATA_CANNOT_BE_NOTIFIED",
+	ResultErrorTransparentDataOutOfSync:            "DIAMETER_ERROR_TRANSPARENT_DATA_OUT_OF_SYNC",
+	ResultErrorSubsDataAbsent:                      "DIAMETER_ERROR_SUBS_DATA_ABSENT",
+	ResultErrorNoSubscriptionToData:                "DIAMETER_ERROR_NO_SUBSCRIPTION_TO_DATA",
+	ResultErrorDSAINotAvailable:                    "DIAMETER_ERROR_DSAI_NOT_AVAILABLE",
 	ResultErrorUserUnknown:                         "DIAMETER_ERROR_USER_UNKNOWN",
 	ResultErrorAbsentUser:                          "DIAMETER_ERROR_ABSENT_USER",
 	ResultErrorUserBusyForMTSMS:                    "DIAMETER_ERROR_USER_BUSY_FOR_MT_SMS",
