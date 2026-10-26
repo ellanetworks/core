@@ -42,7 +42,7 @@ func NewErrorAnswer(req *Message, id Identity, err error) *Message {
 	var avpErr *AVPError
 	if errors.As(err, &avpErr) {
 		ans := NewAnswer(req, id, avpErr.ResultCode)
-		ans.AVPs = append(ans.AVPs, FailedAVP(avpErr.AVP))
+		ans.AVPs = append(ans.AVPs, FailedAVP(avpErr.AVPs[0], avpErr.AVPs[1:]...))
 
 		return ans
 	}

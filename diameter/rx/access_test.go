@@ -191,8 +191,8 @@ func TestParseAccessInfoErrors(t *testing.T) {
 				t.Fatalf("result = %d, want %d (%v)", e.ResultCode, tc.result, err)
 			}
 
-			if tc.exampleN >= 0 && len(e.AVP.Data) != tc.exampleN {
-				t.Fatalf("Failed-AVP example of %d octets, want %d", len(e.AVP.Data), tc.exampleN)
+			if tc.exampleN >= 0 && len(e.AVPs[0].Data) != tc.exampleN {
+				t.Fatalf("Failed-AVP example of %d octets, want %d", len(e.AVPs[0].Data), tc.exampleN)
 			}
 		})
 	}
@@ -304,11 +304,11 @@ func TestFailedAVPKeepsGroupedContext(t *testing.T) {
 	_, err := ParseAARequest(request(CommandAA, afEnvelope, component))
 
 	e := avpError(t, err)
-	if e.ResultCode != diameter.ResultInvalidAVPLength || e.AVP.Code != AVPMediaComponentDescription {
-		t.Fatalf("Failed-AVP = %+v (%v)", e.AVP, err)
+	if e.ResultCode != diameter.ResultInvalidAVPLength || e.AVPs[0].Code != AVPMediaComponentDescription {
+		t.Fatalf("Failed-AVP = %+v (%v)", e.AVPs, err)
 	}
 
-	outer, _ := e.AVP.Grouped()
+	outer, _ := e.AVPs[0].Grouped()
 	if len(outer) != 1 || outer[0].Code != AVPMediaSubComponent {
 		t.Fatalf("Failed-AVP component = %+v", outer)
 	}
@@ -323,11 +323,11 @@ func TestFailedAVPKeepsGroupedContext(t *testing.T) {
 	_, err = ParseAARequest(request(CommandAA, afEnvelope, notGrouped))
 
 	e = avpError(t, err)
-	if e.ResultCode != diameter.ResultInvalidAVPLength || e.AVP.Code != AVPMediaComponentDescription {
-		t.Fatalf("non-grouped Failed-AVP = %+v (%v)", e.AVP, err)
+	if e.ResultCode != diameter.ResultInvalidAVPLength || e.AVPs[0].Code != AVPMediaComponentDescription {
+		t.Fatalf("non-grouped Failed-AVP = %+v (%v)", e.AVPs, err)
 	}
 
-	if truncated, _ := e.AVP.Grouped(); len(truncated) != 1 || truncated[0].Code != 0x01000000 || len(truncated[0].Data) != 0 {
+	if truncated, _ := e.AVPs[0].Grouped(); len(truncated) != 1 || truncated[0].Code != 0x01000000 || len(truncated[0].Data) != 0 {
 		t.Fatalf("non-grouped Failed-AVP contents = %+v", truncated)
 	}
 

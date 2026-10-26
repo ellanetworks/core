@@ -148,9 +148,9 @@ func TestUnmarshalInvalidAVPLength(t *testing.T) {
 				t.Fatalf("err = %v, want an AVPError with result %d", err, ResultInvalidAVPLength)
 			}
 
-			if avpErr.AVP.Code != tt.want.Code || avpErr.AVP.Flags != tt.want.Flags ||
-				avpErr.AVP.VendorID != tt.want.VendorID || len(avpErr.AVP.Data) != 0 {
-				t.Fatalf("offending AVP = %+v, want %+v", avpErr.AVP, tt.want)
+			if avpErr.AVPs[0].Code != tt.want.Code || avpErr.AVPs[0].Flags != tt.want.Flags ||
+				avpErr.AVPs[0].VendorID != tt.want.VendorID || len(avpErr.AVPs[0].Data) != 0 {
+				t.Fatalf("offending AVP = %+v, want %+v", avpErr.AVPs[0], tt.want)
 			}
 		})
 	}
@@ -166,11 +166,11 @@ func TestGroupedInvalidAVPLengthWrapsOffendingAVP(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 
-	if avpErr.AVP.Code != AVPProxyInfo || avpErr.AVP.Flags != AVPFlagMandatory {
-		t.Fatalf("parent = %+v", avpErr.AVP)
+	if avpErr.AVPs[0].Code != AVPProxyInfo || avpErr.AVPs[0].Flags != AVPFlagMandatory {
+		t.Fatalf("parent = %+v", avpErr.AVPs[0])
 	}
 
-	got, err := avpErr.AVP.Grouped()
+	got, err := avpErr.AVPs[0].Grouped()
 	if err != nil || len(got) != 1 || got[0].Code != AVPHostIPAddress || got[0].Flags != AVPFlagMandatory || len(got[0].Data) != 0 {
 		t.Fatalf("hierarchy = %+v, %v", got, err)
 	}

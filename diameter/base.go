@@ -80,6 +80,7 @@ const (
 	ResultAuthorizationRejected  uint32 = 5003
 	ResultInvalidAVPValue        uint32 = 5004
 	ResultMissingAVP             uint32 = 5005
+	ResultContradictingAVPs      uint32 = 5007
 	ResultAVPOccursTooManyTimes  uint32 = 5009
 	ResultNoCommonApplication    uint32 = 5010
 	ResultUnsupportedVersion     uint32 = 5011
@@ -106,6 +107,7 @@ var resultNames = map[uint32]string{
 	ResultAuthorizationRejected:  "DIAMETER_AUTHORIZATION_REJECTED",
 	ResultInvalidAVPValue:        "DIAMETER_INVALID_AVP_VALUE",
 	ResultMissingAVP:             "DIAMETER_MISSING_AVP",
+	ResultContradictingAVPs:      "DIAMETER_CONTRADICTING_AVPS",
 	ResultAVPOccursTooManyTimes:  "DIAMETER_AVP_OCCURS_TOO_MANY_TIMES",
 	ResultNoCommonApplication:    "DIAMETER_NO_COMMON_APPLICATION",
 	ResultUnsupportedVersion:     "DIAMETER_UNSUPPORTED_VERSION",
