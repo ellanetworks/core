@@ -664,7 +664,6 @@ func TestListenerAndDialerResolveToOneConnection(t *testing.T) {
 	}
 }
 
-// The IMS, an unknown peer, may use the SMS applications too: its IP-SM-GW (TS 23.204).
 func TestListenerOffersSMSToUnknownPeers(t *testing.T) {
 	requireSCTP(t)
 

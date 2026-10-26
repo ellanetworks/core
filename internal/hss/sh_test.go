@@ -54,8 +54,6 @@ func profileUpdate(t *testing.T, store *fakeIMSStore, sms hss.SMS, r sh.ProfileU
 	return hss.New(store, udm.NewIMSCredentials(store), nil, sms, zap.NewNop()).ProfileUpdate(context.Background(), hssIdentity, req)
 }
 
-// The IP-SM-GW registers by an Sh-Update of SMSRegistrationInfo, of its number, and deregisters by an empty one (TS
-// 29.328 §6.1.2.1 step 4b).
 func TestProfileUpdateRegistersTheIPSMGW(t *testing.T) {
 	for name, user := range map[string]sh.UserIdentity{
 		"MSISDN":     {MSISDN: testMSISDN},

@@ -26,8 +26,6 @@ const (
 	deleteIPSMGWRegistrationStmt   = "DELETE FROM %s WHERE imsi==$ipSMGWRegistrationRow.imsi"
 )
 
-// IPSMGWRegistration is the IP-SM-GW registered for a subscriber by an Sh-Update of its SMSRegistrationInfo (TS 29.328
-// §6.1.2.1 step 4b): its number, and its Diameter identity, the Origin-Host and Origin-Realm of the update.
 type IPSMGWRegistration struct {
 	IMSI          string `json:"imsi"`
 	Number        string `json:"number"`
@@ -114,8 +112,6 @@ func (db *Database) ListAllIPSMGWRegistrations(ctx context.Context) ([]IPSMGWReg
 	return out, nil
 }
 
-// PutIPSMGWRegistration stores the IP-SM-GW registered for a subscriber, replacing any. ErrNotFound if the
-// subscriber does not exist.
 func (db *Database) PutIPSMGWRegistration(ctx context.Context, r IPSMGWRegistration) error {
 	if r.IMSI == "" || r.Number == "" || r.DiameterHost == "" || r.DiameterRealm == "" {
 		return fmt.Errorf("IMSI, number and Diameter identity are required")
@@ -126,7 +122,6 @@ func (db *Database) PutIPSMGWRegistration(ctx context.Context, r IPSMGWRegistrat
 	})
 }
 
-// DeleteIPSMGWRegistration deletes the IP-SM-GW registered for a subscriber, if any.
 func (db *Database) DeleteIPSMGWRegistration(ctx context.Context, imsi string) error {
 	return db.invokeIPSMGWRegistration(ctx, "DELETE", opDeleteIPSMGWRegistration, &ipSMGWRegistrationPayload{Imsi: imsi})
 }

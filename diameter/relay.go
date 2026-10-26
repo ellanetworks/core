@@ -10,15 +10,8 @@ import (
 	"strings"
 )
 
-// ErrLoopDetected is of a request that passed the node already: its identity is in a Route-Record of the request
-// (RFC 6733 §6.1.3). The handler answers it DIAMETER_LOOP_DETECTED.
 var ErrLoopDetected = errors.New("diameter: forwarding loop detected")
 
-// Relay forwards req, a request the node received from the peer of identity from, to the peer of host in realm, as a
-// proxy agent (RFC 6733 §6.1.9): with from appended in a Route-Record, its Destination-Host and
-// Destination-Realm those of host and realm, its End-to-End Identifier, Origin-Host and other AVPs as received. It
-// returns the answer with the Hop-by-Hop and End-to-End Identifiers of req, for the handler to return as it is
-// (§6.2.2). A request whose Route-Records have the identity of the node gets ErrLoopDetected.
 func (n *Node) Relay(ctx context.Context, req *Message, from, host, realm string, opts ...RequestOption) (*Message, error) {
 	own := n.Identity().OriginHost
 

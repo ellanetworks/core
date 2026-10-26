@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// A proxy forwards a request to a host with a Route-Record of the peer it came from, its End-to-End Identifier and
-// Origin-Host kept, and returns the answer of the host as its own (RFC 6733 §6.1.9, §6.2.2).
 func TestRelay(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
@@ -42,7 +40,6 @@ func TestRelay(t *testing.T) {
 
 			got := <-target.seen
 
-			// The Origin-Host of the request, "x", as the client sent it.
 			checks := map[uint32]string{
 				AVPOriginHost:      "x",
 				AVPDestinationHost: target.host,
@@ -66,7 +63,6 @@ func TestRelay(t *testing.T) {
 	}
 }
 
-// A request of the node's identity in a Route-Record is of a loop (RFC 6733 §6.1.3).
 func TestRelayLoop(t *testing.T) {
 	kind := transports[0]
 

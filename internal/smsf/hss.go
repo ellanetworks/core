@@ -103,8 +103,6 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	// The IP-SM-GW, if registered, reports the outcome of the delivery it made, not the SMS-GMSC (TS 23.204 §6.5 step
-	// 8).
 	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi, req)
 	if err != nil {
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
@@ -116,7 +114,7 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 
 	result := s6c.ReportResult{AlertMSISDN: storedMSISDN(sub.Msisdn, rep.MSISDN)}
 
-	if failed := nodeNames(rep.Failed); len(failed) > 0 {
+	if failed := nodeNames(rep.Failed); len(failed) > 0 && ipsmgw == nil {
 		settings, err := s.store.GetSMSSettings(ctx)
 		if err == nil {
 			current, _, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, rep.SMSFSupport)
@@ -134,7 +132,6 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 	return ans
 }
 
-// ipSMGW is the IP-SM-GW registered for imsi, if any and if req is not of it.
 func (s *SMSF) ipSMGW(ctx context.Context, imsi string, req *diameter.Message) (*db.IPSMGWRegistration, error) {
 	reg, err := s.store.GetIPSMGWRegistration(ctx, imsi)
 	if errors.Is(err, db.ErrNotFound) {
@@ -153,8 +150,6 @@ func (s *SMSF) ipSMGW(ctx context.Context, imsi string, req *diameter.Message) (
 	return reg, nil
 }
 
-// relayToIPSMGW forwards a routing request to the IP-SM-GW registered for the subscriber, as a Diameter proxy (TS
-// 29.338 §5.3.1.1.3).
 func (s *SMSF) relayToIPSMGW(ctx context.Context, id diameter.Identity, from string, req *diameter.Message, imsi string, reg *db.IPSMGWRegistration) *diameter.Message {
 	log := logger.From(ctx, s.logger, zap.String("imsi", imsi), zap.String("ip_sm_gw", reg.DiameterHost))
 

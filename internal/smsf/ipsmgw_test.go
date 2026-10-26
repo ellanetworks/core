@@ -24,8 +24,6 @@ func registerIPSMGW(store *fakeStore) {
 	store.mu.Unlock()
 }
 
-// The HSS forwards the routing request of an SMS-GMSC to the IP-SM-GW registered for the user, as a Diameter proxy
-// (TS 29.338 §5.3.1.1.3).
 func TestRoutingRequestIsForwardedToTheIPSMGW(t *testing.T) {
 	type relayed struct{ from, host, realm string }
 
@@ -50,7 +48,6 @@ func TestRoutingRequestIsForwardedToTheIPSMGW(t *testing.T) {
 	}
 }
 
-// The routing request of the IP-SM-GW itself is answered with the serving nodes (TS 23.204 §6.4 NOTE 1).
 func TestRoutingRequestOfTheIPSMGWIsAnswered(t *testing.T) {
 	s, store := newHSSWith(t, idleSMSC{relay: func(*diameter.Message, string, string, string) (*diameter.Message, error) {
 		t.Fatal("relayed the IP-SM-GW's own routing request")
@@ -100,7 +97,6 @@ func TestRoutingRequestToAnUnreachableIPSMGW(t *testing.T) {
 	}
 }
 
-// The IP-SM-GW, not the SMS-GMSC, reports the outcome of the delivery it made (TS 23.204 §6.5 step 8).
 func TestDeliveryReportOfTheSMSGMSCIsIgnoredWhenAnIPSMGWIsRegistered(t *testing.T) {
 	s, store := newHSS(t)
 	store.register(db.UERegistrationTypeMME, localNode, false)
@@ -108,11 +104,17 @@ func TestDeliveryReportOfTheSMSGMSCIsIgnoredWhenAnIPSMGWIsRegistered(t *testing.
 
 	absent := tgpp.AbsentUserNoPagingResponseMSC
 
-	if _, err := report(t, s, s6c.DeliveryReport{
+	res, err := report(t, s, s6c.DeliveryReport{
 		MSISDN: msisdn,
-		MME:    &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseAbsentUser, AbsentDiagnostic: &absent},
-	}); err != nil {
+		IPSMGW: &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseAbsentUser, AbsentDiagnostic: &absent},
+		Failed: s6c.ServingNodes{Serving: &s6c.ServingNode{IPSMGW: &s6c.NodeAddress{Name: ipSMGWHost, Realm: ipSMGWRealm, Number: "15550000100"}}},
+	})
+	if err != nil {
 		t.Fatalf("RDR: %v", err)
+	}
+
+	if res.Serving != nil || res.SMSF3GPP != nil {
+		t.Fatalf("RDA = %+v, want no serving node to retry with", res)
 	}
 
 	if s.Waiting(imsi) {
@@ -141,7 +143,6 @@ func TestDeliveryReportOfTheSMSGMSCIsIgnoredWhenAnIPSMGWIsRegistered(t *testing.
 	}
 }
 
-// The registration of an IP-SM-GW alerts the service centres of the messages waiting (TS 23.040 §3.2.6 2c).
 func TestIPSMGWRegistrationAlertsTheSMSC(t *testing.T) {
 	e := newEnv(t)
 

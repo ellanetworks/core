@@ -71,8 +71,6 @@ func (s *SMSF) UEReachable(ctx context.Context, imsi string) {
 	s.startAlert(ctx, imsi)
 }
 
-// IPSMGWRegistered alerts the service centres of the messages waiting for a UE an IP-SM-GW registered (TS 23.040
-// §3.2.6 2c).
 func (s *SMSF) IPSMGWRegistered(ctx context.Context, imsi string) {
 	s.startAlert(ctx, imsi)
 }

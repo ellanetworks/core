@@ -14,25 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// IPSMGWRegistration is the IP-SM-GW registered for a subscriber (TS 29.328 §6.1.2.1 step 4b): its number and
-// Diameter identity.
 type IPSMGWRegistration struct {
 	Number        string
 	DiameterHost  string
 	DiameterRealm string
 }
 
-// SMS is the SMS function of the HSS, told of the IP-SM-GW registered for a subscriber: of a UE reachable for SMS over
-// IP, for which it alerts the service centres of the messages waiting (TS 23.040 §3.2.6 2c).
 type SMS interface {
 	IPSMGWRegistered(ctx context.Context, imsi string)
 }
 
-// ProfileUpdate serves an Sh-Update of an AS (TS 29.328 §6.1.2.1): of the SMSRegistrationInfo of a subscriber only,
-// by its IMS public user identity or MSISDN, from an IP-SM-GW. An IP-SM-GW number registers the IP-SM-GW, of the
-// Origin-Host and Origin-Realm of the request, and has the SMS function alert the service centres; an empty one
-// deregisters it. The Service Centre Address is not updated. Any connected AS may update it: the HSS has no AS
-// permission list (§6.2).
 func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
 	pur, err := sh.ParseProfileUpdateRequest(req)
 	if err != nil {
@@ -43,15 +34,12 @@ func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diam
 		return shAnswer(req, id, tgpp.ResultErrorFeatureUnsupported)
 	}
 
-	// Step 1: of the data an AS may update, the SMSRegistrationInfo only.
 	for _, ref := range pur.DataReferences {
 		if ref != sh.DataSMSRegistrationInfo {
 			return shAnswer(req, id, tgpp.ResultErrorUserDataCannotBeModified)
 		}
 	}
 
-	// Steps 2, 2a and 3: an IMS public user identity or an MSISDN of a subscriber, of its private user identity, if
-	// any; not a public service identity (Table 7.6.1).
 	if pur.WildcardedPublicIdentity != "" || pur.WildcardedIMPU != "" {
 		return shAnswer(req, id, tgpp.ResultErrorOperationNotAllowed)
 	}
@@ -71,7 +59,6 @@ func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diam
 	case pur.User.MSISDN != "":
 		sub, err = h.resolveMSISDN(ctx, pur.PrivateIdentity, pur.User.MSISDN)
 	default:
-		// No subscriber has an External Identifier.
 		err = ErrSubscriberUnknown
 	}
 
@@ -84,7 +71,6 @@ func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diam
 		return shAnswer(req, id, tgpp.ResultErrorUserDataNotRecognized)
 	}
 
-	// Step 4b.
 	var reg *IPSMGWRegistration
 
 	if number := data.SMSRegistration.IPSMGWNumber; number != "" {
@@ -116,7 +102,6 @@ func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diam
 	return ans
 }
 
-// resolveMSISDN is the subscriber of msisdn, of the private user identity impi if not "".
 func (h *HSS) resolveMSISDN(ctx context.Context, impi, msisdn string) (*subject, error) {
 	owner, err := h.subscriberByMSISDN(ctx, msisdn)
 	if err != nil {

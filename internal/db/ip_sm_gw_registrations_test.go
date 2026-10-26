@@ -61,7 +61,6 @@ func TestIPSMGWRegistration(t *testing.T) {
 		t.Fatalf("deleted registration: %v, want not found", err)
 	}
 
-	// A subscriber deleted takes its registration.
 	if err := dbInstance.PutIPSMGWRegistration(ctx, reg); err != nil {
 		t.Fatal(err)
 	}

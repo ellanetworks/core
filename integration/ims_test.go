@@ -92,7 +92,7 @@ func TestIntegrationIMS(t *testing.T) {
 	printTesterSummary(t)
 }
 
-func addIMSCorePeer(ctx context.Context, t *testing.T, cl *client.Client) {
+func addIMSCorePeer(ctx context.Context, t *testing.T, cl *client.Client, applications ...string) {
 	t.Helper()
 
 	status, err := cl.GetDiameterStatus(ctx)
@@ -105,7 +105,7 @@ func addIMSCorePeer(ctx context.Context, t *testing.T, cl *client.Client) {
 		"address":      N2Address(0),
 		"port":         coreDiameterPort,
 		"transport":    "sctp",
-		"applications": []string{"cx", "rx"},
+		"applications": append([]string{"cx", "rx"}, applications...),
 	}
 
 	deadline := time.Now().Add(time.Minute)

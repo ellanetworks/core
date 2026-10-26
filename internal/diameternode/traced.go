@@ -18,7 +18,6 @@ func Traced(tracer trace.Tracer, name string, h func(context.Context, diameter.I
 	})
 }
 
-// TracedFrom is Traced of a handler also given the Diameter identity of the peer the request came from.
 func TracedFrom(tracer trace.Tracer, name string, h func(context.Context, diameter.Identity, string, *diameter.Message) *diameter.Message) diameter.Handler {
 	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
 		ctx, span := tracer.Start(ctx, name,
