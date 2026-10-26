@@ -17,7 +17,9 @@ import (
 	"go.uber.org/zap"
 )
 
-type idleSMSC struct{}
+type idleSMSC struct {
+	relay func(req *diameter.Message, from, host, realm string) (*diameter.Message, error)
+}
 
 func (idleSMSC) Envelope(string) (tgpp.Envelope, error) {
 	return tgpp.Envelope{}, smsf.ErrSMSCUnavailable
@@ -27,13 +29,27 @@ func (idleSMSC) Do(context.Context, string, *diameter.Message) (*diameter.Messag
 	return nil, smsf.ErrSMSCUnavailable
 }
 
+func (c idleSMSC) Relay(_ context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error) {
+	if c.relay == nil {
+		return nil, diameter.ErrUnableToDeliver
+	}
+
+	return c.relay(req, from, host, realm)
+}
+
 func (idleSMSC) LocalHost() (string, bool) { return "", false }
 
 func newHSS(t *testing.T) (*smsf.SMSF, *fakeStore) {
 	t.Helper()
 
+	return newHSSWith(t, idleSMSC{})
+}
+
+func newHSSWith(t *testing.T, smsc idleSMSC) (*smsf.SMSF, *fakeStore) {
+	t.Helper()
+
 	store := newFakeStore()
-	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, idleSMSC{}, newFakeUE(), zap.NewNop(), fastTimers())
+	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, smsc, newFakeUE(), zap.NewNop(), fastTimers())
 
 	return s, store
 }
@@ -57,7 +73,7 @@ func routingRequest(t *testing.T, r s6c.RoutingRequest) *diameter.Message {
 func route(t *testing.T, s *smsf.SMSF, r s6c.RoutingRequest) (s6c.Routing, error) {
 	t.Helper()
 
-	return s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, routingRequest(t, r)))
+	return s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, smscHost, routingRequest(t, r)))
 }
 
 func routeError(t *testing.T, s *smsf.SMSF, r s6c.RoutingRequest) *s6c.ResultError {
@@ -230,7 +246,7 @@ func TestATransientLookupErrorIsNotAnsweredAsAbsent(t *testing.T) {
 			s, store := newHSS(t)
 			fail(store)
 
-			ans := s.SendRoutingInfoForSM(context.Background(), localIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn}))
+			ans := s.SendRoutingInfoForSM(context.Background(), localIdentity, smscHost, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn}))
 
 			result, err := tgpp.ParseResult(ans)
 			if err != nil || result.Code != diameter.ResultUnableToComply {
@@ -437,7 +453,7 @@ func TestRoutingWithDeliveryNotIntendedReturnsTheIMSI(t *testing.T) {
 
 	notIntended := s6c.SMDeliveryNotIntendedIMSI
 
-	ans := s.SendRoutingInfoForSM(context.Background(), localIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn, DeliveryNotIntended: &notIntended}))
+	ans := s.SendRoutingInfoForSM(context.Background(), localIdentity, smscHost, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn, DeliveryNotIntended: &notIntended}))
 
 	result, err := tgpp.ParseResult(ans)
 	if err != nil || !result.Success() {

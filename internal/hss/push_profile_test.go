@@ -176,7 +176,7 @@ func connectedHSS(t *testing.T, store *fakeIMSStore, scscf *fakeSCSCF) *hss.HSS 
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	return hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: hssNode}, zap.NewNop())
+	return hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: hssNode}, nil, zap.NewNop())
 }
 
 func assigned(t *testing.T, store *fakeIMSStore, imsi string, typ cx.AssignmentType) []byte {
@@ -477,7 +477,7 @@ func TestReconcileFailsFastWithoutTheSCSCF(t *testing.T) {
 	node := newTestDiameterNode(t, hssIdentity, netip.MustParseAddr("127.0.0.1"), diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
 		return c.Answer(req, diameter.ResultCommandUnsupported)
 	}))
-	h := hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: node}, zap.NewNop())
+	h := hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: node}, nil, zap.NewNop())
 
 	assigned(t, store, testIMSI, cx.AssignmentRegistration)
 	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}

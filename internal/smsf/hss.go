@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, from string, req *diameter.Message) *diameter.Message {
 	r, err := s6c.ParseSendRoutingInfoForSMRequest(req)
 	if err != nil {
 		return s6c.NewErrorAnswer(req, id, err)
@@ -44,6 +44,12 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		}
 
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	if ipsmgw, err := s.ipSMGW(ctx, sub.Imsi, req); err != nil {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	} else if ipsmgw != nil {
+		return s.relayToIPSMGW(ctx, id, from, req, sub.Imsi, ipsmgw)
 	}
 
 	alertMSISDN = storedMSISDN(sub.Msisdn, r.MSISDN)
@@ -97,7 +103,14 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	if !rep.SingleAttempt {
+	// The IP-SM-GW, if registered, reports the outcome of the delivery it made, not the SMS-GMSC (TS 23.204 §6.5 step
+	// 8).
+	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi, req)
+	if err != nil {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	if !rep.SingleAttempt && ipsmgw == nil {
 		s.recordDeliveryReport(ctx, sub.Imsi, rep)
 	}
 
@@ -119,6 +132,45 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 	}
 
 	return ans
+}
+
+// ipSMGW is the IP-SM-GW registered for imsi, if any and if req is not of it.
+func (s *SMSF) ipSMGW(ctx context.Context, imsi string, req *diameter.Message) (*db.IPSMGWRegistration, error) {
+	reg, err := s.store.GetIPSMGWRegistration(ctx, imsi)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil, nil
+	}
+
+	if err != nil {
+		logger.From(ctx, s.logger).Warn("Could not look up the IP-SM-GW of a subscriber", zap.String("imsi", imsi), zap.Error(err))
+		return nil, err
+	}
+
+	if strings.EqualFold(tgpp.ParseEnvelope(req).Origin.OriginHost, reg.DiameterHost) {
+		return nil, nil
+	}
+
+	return reg, nil
+}
+
+// relayToIPSMGW forwards a routing request to the IP-SM-GW registered for the subscriber, as a Diameter proxy (TS
+// 29.338 §5.3.1.1.3).
+func (s *SMSF) relayToIPSMGW(ctx context.Context, id diameter.Identity, from string, req *diameter.Message, imsi string, reg *db.IPSMGWRegistration) *diameter.Message {
+	log := logger.From(ctx, s.logger, zap.String("imsi", imsi), zap.String("ip_sm_gw", reg.DiameterHost))
+
+	ans, err := s.smsc.Relay(ctx, req, from, reg.DiameterHost, reg.DiameterRealm)
+	if err == nil {
+		log.Debug("Forwarded a routing request to the IP-SM-GW")
+		return ans
+	}
+
+	if errors.Is(err, diameter.ErrLoopDetected) {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultLoopDetected})
+	}
+
+	log.Info("Could not forward a routing request to the IP-SM-GW", zap.Error(err))
+
+	return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToDeliver})
 }
 
 func (s *SMSF) recordDeliveryReport(ctx context.Context, imsi string, rep s6c.DeliveryReport) {

@@ -71,6 +71,12 @@ func (s *SMSF) UEReachable(ctx context.Context, imsi string) {
 	s.startAlert(ctx, imsi)
 }
 
+// IPSMGWRegistered alerts the service centres of the messages waiting for a UE an IP-SM-GW registered (TS 23.040
+// §3.2.6 2c).
+func (s *SMSF) IPSMGWRegistered(ctx context.Context, imsi string) {
+	s.startAlert(ctx, imsi)
+}
+
 func (s *SMSF) memoryAvailable(ctx context.Context, imsi string, m *sms.RPSMMA) sms.RPMessage {
 	if err := s.clearMemoryFull(ctx, imsi); err != nil {
 		logger.From(ctx, s.logger).Warn("Could not clear the memory capacity exceeded flag; asking the UE to retry", zap.String("imsi", imsi), zap.Error(err))

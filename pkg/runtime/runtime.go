@@ -533,7 +533,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
 
-	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, logger.HssLog)
+	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, smsfInstance, logger.HssLog)
 	hssInstance.RegisterMetrics(prometheus.DefaultRegisterer)
 	hssInstance.Register(diameterNode)
 	amfInstance.IMSVoice = hssInstance
@@ -1017,6 +1017,24 @@ func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*h
 	}
 
 	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
+}
+
+func (a *hssDBAdapter) SetIPSMGWRegistration(ctx context.Context, imsi string, r *hss.IPSMGWRegistration) error {
+	var err error
+
+	if r == nil {
+		err = a.db.DeleteIPSMGWRegistration(ctx, imsi)
+	} else {
+		err = a.db.PutIPSMGWRegistration(ctx, db.IPSMGWRegistration{
+			IMSI: imsi, Number: r.Number, DiameterHost: r.DiameterHost, DiameterRealm: r.DiameterRealm,
+		})
+	}
+
+	if errors.Is(err, db.ErrNotFound) {
+		return fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+	}
+
+	return hssError(err)
 }
 
 func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {

@@ -67,6 +67,7 @@ type Store interface {
 	RemoveSMSWaitingCentre(ctx context.Context, imsi, serviceCentre string) error
 	DeleteSMSWaiting(ctx context.Context, imsi string) error
 	ListSMSCPeers(ctx context.Context) ([]db.SMSCPeer, error)
+	GetIPSMGWRegistration(ctx context.Context, imsi string) (*db.IPSMGWRegistration, error)
 }
 
 type Directory interface {
@@ -76,6 +77,7 @@ type Directory interface {
 type SMSC interface {
 	Envelope(peer string) (tgpp.Envelope, error)
 	Do(ctx context.Context, peer string, req *diameter.Message) (*diameter.Message, error)
+	Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error)
 	LocalHost() (string, bool)
 }
 
@@ -174,7 +176,7 @@ func (s *SMSF) smscFor(ctx context.Context, serviceCentre string) (string, error
 }
 
 func (s *SMSF) Register(r Registrar) {
-	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameternode.Traced(tracer, "s6c/send-routing-info-for-sm", s.SendRoutingInfoForSM))
+	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameternode.TracedFrom(tracer, "s6c/send-routing-info-for-sm", s.SendRoutingInfoForSM))
 	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, diameternode.Traced(tracer, "s6c/report-sm-delivery-status", s.ReportSMDeliveryStatus))
 	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, diameternode.Traced(tracer, "sgd/mt-forward-short-message", s.MTForwardShortMessage))
 }
@@ -272,6 +274,15 @@ func (c nodeSMSC) Do(ctx context.Context, peer string, req *diameter.Message) (*
 	}
 
 	return ans, nil
+}
+
+func (c nodeSMSC) Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error) {
+	node := c.node.Node()
+	if node == nil {
+		return nil, diameter.ErrUnableToDeliver
+	}
+
+	return node.Relay(ctx, req, from, host, realm)
 }
 
 func (c nodeSMSC) LocalHost() (string, bool) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
+	"github.com/ellanetworks/core/diameter/sh"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/udm"
@@ -44,6 +45,7 @@ type Store interface {
 	FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error)
 	ServiceIdentity(ctx context.Context, identity string) (*ServiceIdentity, error)
 	CountRegistered(ctx context.Context) (int, error)
+	SetIPSMGWRegistration(ctx context.Context, imsi string, r *IPSMGWRegistration) error
 }
 
 type Credentials interface {
@@ -58,11 +60,12 @@ type HSS struct {
 	store       Store
 	credentials Credentials
 	peers       Peers
+	sms         SMS
 	log         *zap.Logger
 }
 
-func New(store Store, credentials Credentials, peers Peers, log *zap.Logger) *HSS {
-	return &HSS{store: store, credentials: credentials, peers: peers, log: log}
+func New(store Store, credentials Credentials, peers Peers, sms SMS, log *zap.Logger) *HSS {
+	return &HSS{store: store, credentials: credentials, peers: peers, sms: sms, log: log}
 }
 
 func (h *HSS) Register(r Registrar) {
@@ -70,6 +73,7 @@ func (h *HSS) Register(r Registrar) {
 	r.Handle(cx.ApplicationID, cx.CommandMultimediaAuth, diameternode.Traced(tracer, "cx/multimedia-auth", h.MultimediaAuth))
 	r.Handle(cx.ApplicationID, cx.CommandServerAssignment, diameternode.Traced(tracer, "cx/server-assignment", h.ServerAssignment))
 	r.Handle(cx.ApplicationID, cx.CommandLocationInfo, diameternode.Traced(tracer, "cx/location-info", h.LocationInfo))
+	r.Handle(sh.ApplicationID, sh.CommandProfileUpdate, diameternode.Traced(tracer, "sh/profile-update", h.ProfileUpdate))
 }
 
 func (h *HSS) errorAnswer(req *diameter.Message, id diameter.Identity, procedure string, err error) *diameter.Message {

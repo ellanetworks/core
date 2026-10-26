@@ -417,6 +417,23 @@ func (db *Database) collectSupportRegistrations(ctx context.Context, out support
 		sections["ims_registrations"] = sections["ims_registrations"].WithCount(len(entries))
 	}
 
+	if ipsmgw, err := db.ListAllIPSMGWRegistrations(ctx); err != nil {
+		failure("ip_sm_gw_registrations", err)
+	} else {
+		entries := make([]any, 0, len(ipsmgw))
+		for _, r := range ipsmgw {
+			entries = append(entries, map[string]any{
+				"imsi":           r.IMSI,
+				"number":         r.Number,
+				"diameter_host":  r.DiameterHost,
+				"diameter_realm": r.DiameterRealm,
+			})
+		}
+
+		out["ip_sm_gw_registrations"] = entries
+		sections["ip_sm_gw_registrations"] = sections["ip_sm_gw_registrations"].WithCount(len(entries))
+	}
+
 	if waiting, err := db.ListAllSMSWaiting(ctx); err != nil {
 		failure("sms_message_waiting", err)
 	} else {

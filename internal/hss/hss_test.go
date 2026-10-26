@@ -55,6 +55,7 @@ type fakeIMSStore struct {
 	filterCriteria map[string][]cx.InitialFilterCriteria
 	serviceIDs     map[string]string
 	registrations  map[string]hss.Registration
+	ipSMGWs        map[string]hss.IPSMGWRegistration
 	voiceDisabled  bool
 	fail           bool
 	unavailable    bool
@@ -71,6 +72,7 @@ func newFakeIMSStore() *fakeIMSStore {
 			testNoIMS:     {Subscriber: hss.Subscriber{IMSI: testNoIMS, MSISDN: testNoIMSTel}, sqn: "000000000020"},
 		},
 		registrations: map[string]hss.Registration{},
+		ipSMGWs:       map[string]hss.IPSMGWRegistration{},
 	}
 }
 
@@ -186,6 +188,23 @@ func (f *fakeIMSStore) CountRegistered(context.Context) (int, error) {
 	return n, nil
 }
 
+func (f *fakeIMSStore) SetIPSMGWRegistration(_ context.Context, imsi string, r *hss.IPSMGWRegistration) error {
+	if f.unavailable {
+		return fmt.Errorf("%w: raft commit timeout", hss.ErrUnavailable)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if r == nil {
+		delete(f.ipSMGWs, imsi)
+	} else {
+		f.ipSMGWs[imsi] = *r
+	}
+
+	return nil
+}
+
 func (f *fakeIMSStore) SubscriberByMSISDN(_ context.Context, msisdn string) (*hss.Subscriber, error) {
 	for _, s := range f.subscribers {
 		if s.MSISDN == msisdn {
@@ -222,7 +241,7 @@ func (f *fakeIMSStore) AdvanceIMSSequenceNumber(_ context.Context, imsi, resyncA
 }
 
 func newHSS(store *fakeIMSStore) *hss.HSS {
-	return hss.New(store, udm.NewIMSCredentials(store), nil, zap.NewNop())
+	return hss.New(store, udm.NewIMSCredentials(store), nil, nil, zap.NewNop())
 }
 
 func impiOf(imsi string) string {

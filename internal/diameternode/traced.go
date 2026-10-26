@@ -13,6 +13,13 @@ import (
 )
 
 func Traced(tracer trace.Tracer, name string, h func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message) diameter.Handler {
+	return TracedFrom(tracer, name, func(ctx context.Context, id diameter.Identity, _ string, req *diameter.Message) *diameter.Message {
+		return h(ctx, id, req)
+	})
+}
+
+// TracedFrom is Traced of a handler also given the Diameter identity of the peer the request came from.
+func TracedFrom(tracer trace.Tracer, name string, h func(context.Context, diameter.Identity, string, *diameter.Message) *diameter.Message) diameter.Handler {
 	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
 		ctx, span := tracer.Start(ctx, name,
 			trace.WithSpanKind(trace.SpanKindServer),
@@ -24,7 +31,7 @@ func Traced(tracer trace.Tracer, name string, h func(context.Context, diameter.I
 		)
 		defer span.End()
 
-		ans := h(ctx, c.LocalIdentity(), req)
+		ans := h(ctx, c.LocalIdentity(), c.PeerHost(), req)
 		if ans == nil {
 			return nil
 		}

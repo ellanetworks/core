@@ -328,6 +328,11 @@ type Database struct {
 	upsertIMSRegistrationStmt   *sqlair.Statement
 	deleteIMSRegistrationStmt   *sqlair.Statement
 
+	getIPSMGWRegistrationStmt      *sqlair.Statement
+	listAllIPSMGWRegistrationsStmt *sqlair.Statement
+	upsertIPSMGWRegistrationStmt   *sqlair.Statement
+	deleteIPSMGWRegistrationStmt   *sqlair.Statement
+
 	getSMSWaitingStmt             *sqlair.Statement
 	listAllSMSWaitingStmt         *sqlair.Statement
 	listAllSMSWaitingCentresStmt  *sqlair.Statement
@@ -2031,6 +2036,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationsTableName), []any{NumItems{}, imsRegistrationRow{}}},
 		{&db.upsertIMSRegistrationStmt, fmt.Sprintf(upsertIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
 		{&db.deleteIMSRegistrationStmt, fmt.Sprintf(deleteIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
+		{&db.getIPSMGWRegistrationStmt, fmt.Sprintf(getIPSMGWRegistrationStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
+		{&db.listAllIPSMGWRegistrationsStmt, fmt.Sprintf(listAllIPSMGWRegistrationsStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
+		{&db.upsertIPSMGWRegistrationStmt, fmt.Sprintf(upsertIPSMGWRegistrationStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
+		{&db.deleteIPSMGWRegistrationStmt, fmt.Sprintf(deleteIPSMGWRegistrationStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
 		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 		{&db.listAllSMSWaitingStmt, fmt.Sprintf(listAllSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 		{&db.listAllSMSWaitingCentresStmt, fmt.Sprintf(listAllSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
