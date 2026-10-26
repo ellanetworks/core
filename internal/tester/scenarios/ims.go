@@ -1163,7 +1163,8 @@ func prefixNet(a netip.Addr) *net.IPNet {
 
 func checkIMSRegistration(u *testue.UE, sub SubscriberSpec) error {
 	impi := sub.IMSI + "@" + IMSHomeDomain
-	impu := "tel:" + sub.MSISDN
+	impu := "sip:" + sub.MSISDN + "@" + IMSHomeDomain
+	tel := "tel:" + sub.MSISDN
 	s := u.State()
 
 	switch {
@@ -1171,8 +1172,8 @@ func checkIMSRegistration(u *testue.UE, sub SubscriberSpec) error {
 		return fmt.Errorf("IMPI = %q, want %q", u.IMPI(), impi)
 	case s.DefaultIMPU != impu:
 		return fmt.Errorf("default IMPU = %q, want %q", s.DefaultIMPU, impu)
-	case !slices.Contains(s.AssociatedURIs, impu):
-		return fmt.Errorf("associated URIs %v do not include %q", s.AssociatedURIs, impu)
+	case !slices.Contains(s.AssociatedURIs, tel):
+		return fmt.Errorf("associated URIs %v do not include %q", s.AssociatedURIs, tel)
 	}
 
 	return nil
