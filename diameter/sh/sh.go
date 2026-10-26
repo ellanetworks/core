@@ -324,26 +324,23 @@ func wildcardedAVPs(publicIdentity, impu string) ([]diameter.AVP, error) {
 }
 
 func requestWildcarded(req *diameter.Message) (string, string, error) {
-	var values [2]string
+	psi, psiFound := req.Find(AVPWildcardedPublicIdentity, tgpp.VendorID)
+	impu, impuFound := req.Find(AVPWildcardedIMPU, tgpp.VendorID)
 
-	for i, code := range []uint32{AVPWildcardedPublicIdentity, AVPWildcardedIMPU} {
-		a, ok := req.Find(code, tgpp.VendorID)
-		if !ok {
-			continue
+	for _, w := range []struct {
+		avp   diameter.AVP
+		found bool
+	}{{psi, psiFound}, {impu, impuFound}} {
+		if w.found && !ValidPublicIdentity(w.avp.UTF8String()) {
+			return "", "", tgpp.InvalidAVP(w.avp)
 		}
-
-		if !ValidPublicIdentity(a.UTF8String()) {
-			return "", "", tgpp.InvalidAVP(a)
-		}
-
-		if i == 1 && values[0] != "" {
-			return "", "", tgpp.InvalidAVP(a)
-		}
-
-		values[i] = a.UTF8String()
 	}
 
-	return values[0], values[1], nil
+	if psiFound && impuFound {
+		return "", "", diameter.NewAVPError(diameter.ResultContradictingAVPs, psi, impu)
+	}
+
+	return psi.UTF8String(), impu.UTF8String(), nil
 }
 
 func answerWildcarded(ans *diameter.Message) (string, string, error) {

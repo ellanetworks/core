@@ -25,15 +25,17 @@ type Rules map[AVPKey]Rule
 
 type AVPError struct {
 	ResultCode uint32
-	AVP        AVP
+	AVPs       []AVP
 }
 
 func (e *AVPError) Error() string {
-	return fmt.Sprintf("diameter: AVP %d (vendor %d) rejected with result %d", e.AVP.Code, e.AVP.VendorID, e.ResultCode)
+	first := e.AVPs[0]
+
+	return fmt.Sprintf("diameter: AVP %d (vendor %d) rejected with result %d", first.Code, first.VendorID, e.ResultCode)
 }
 
-func NewAVPError(resultCode uint32, a AVP) error {
-	return &AVPError{ResultCode: resultCode, AVP: a}
+func NewAVPError(resultCode uint32, first AVP, rest ...AVP) error {
+	return &AVPError{ResultCode: resultCode, AVPs: append([]AVP{first}, rest...)}
 }
 
 func BaseRequestRules() Rules {

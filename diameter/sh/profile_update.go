@@ -60,8 +60,10 @@ func NewProfileUpdateRequest(env tgpp.Envelope, r ProfileUpdateRequest) (*diamet
 	switch {
 	case len(r.DataReferences) == 0:
 		return nil, invalidf("profile update without a data reference")
-	case len(r.DataReferences) > 1 && r.Features&FeatureUpdateEffEnhance == 0:
-		return nil, invalidf("profile update of %d data references without Update-Eff-Enhance", len(r.DataReferences))
+	case len(r.DataReferences) > 1 && !r.Features.updateEffEnhance():
+		return nil, invalidf("profile update of %d data references without Update-Eff and Update-Eff-Enhance", len(r.DataReferences))
+	case len(r.DataReferences) > 1 && !r.FeaturesRequired:
+		return nil, invalidf("profile update of %d data references without requiring Update-Eff-Enhance", len(r.DataReferences))
 	case len(r.UserData) == 0:
 		return nil, invalidf("profile update without user data")
 	}
@@ -130,7 +132,7 @@ func ParseProfileUpdateRequest(req *diameter.Message) (ProfileUpdateRequest, err
 	}
 
 	for i, a := range diameter.FindAll(req.AVPs, AVPDataReference, tgpp.VendorID) {
-		if i > 0 && r.Features&FeatureUpdateEffEnhance == 0 {
+		if i > 0 && !r.Features.updateEffEnhance() {
 			return ProfileUpdateRequest{}, diameter.NewAVPError(diameter.ResultAVPOccursTooManyTimes, a)
 		}
 
@@ -178,7 +180,13 @@ func NewProfileUpdateErrorAnswer(req *diameter.Message, id diameter.Identity, e 
 	ans := NewAnswer(req, id, e.Result, e.Features)
 	ans.AVPs = append(ans.AVPs, wildcarded...)
 
+	requested := featureList(req)
+
 	if e.RepositoryDataID != nil {
+		if !requested.updateEff() || !e.Features.updateEff() {
+			return nil, invalidf("Repository-Data-ID without Update-Eff or Update-Eff-Enhance on both sides")
+		}
+
 		repository, err := repositoryDataIDAVP(*e.RepositoryDataID)
 		if err != nil {
 			return nil, err
@@ -188,6 +196,10 @@ func NewProfileUpdateErrorAnswer(req *diameter.Message, id diameter.Identity, e 
 	}
 
 	if e.DataReference != nil {
+		if !requested.updateEffEnhance() || !e.Features.updateEffEnhance() {
+			return nil, invalidf("Data-Reference without Update-Eff-Enhance on both sides")
+		}
+
 		ref, err := dataReferenceAVP(*e.DataReference)
 		if err != nil {
 			return nil, err

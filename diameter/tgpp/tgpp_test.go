@@ -90,11 +90,11 @@ func TestInvalidGroupedAVP(t *testing.T) {
 	_, err := ParseUserIdentifier(ui)
 
 	var avpErr *diameter.AVPError
-	if !errors.As(InvalidGroupedAVP(ui, err), &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPLength || avpErr.AVP.Code != AVPUserIdentifier {
+	if !errors.As(InvalidGroupedAVP(ui, err), &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPLength || avpErr.AVPs[0].Code != AVPUserIdentifier {
 		t.Fatalf("decode error = %+v", avpErr)
 	}
 
-	if !errors.As(InvalidGroupedAVP(ui, errors.New("plain")), &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPValue || avpErr.AVP.Code != AVPUserIdentifier {
+	if !errors.As(InvalidGroupedAVP(ui, errors.New("plain")), &avpErr) || avpErr.ResultCode != diameter.ResultInvalidAVPValue || avpErr.AVPs[0].Code != AVPUserIdentifier {
 		t.Fatalf("plain error = %+v", avpErr)
 	}
 }
@@ -251,7 +251,7 @@ func TestEnvelopeValidate(t *testing.T) {
 
 func TestMissingAVPExample(t *testing.T) {
 	var avpErr *diameter.AVPError
-	if !errors.As(MissingAVP(AVPSCAddress, VendorID, 4), &avpErr) || len(avpErr.AVP.Data) != 4 || avpErr.ResultCode != diameter.ResultMissingAVP {
+	if !errors.As(MissingAVP(AVPSCAddress, VendorID, 4), &avpErr) || len(avpErr.AVPs[0].Data) != 4 || avpErr.ResultCode != diameter.ResultMissingAVP {
 		t.Fatalf("MissingAVP = %+v", avpErr)
 	}
 }

@@ -207,7 +207,7 @@ func TestParseRegistrationTerminationRequestPointsAtReasonCode(t *testing.T) {
 	_, err := ParseRegistrationTerminationRequest(req)
 
 	var avpErr *diameter.AVPError
-	if !errors.As(err, &avpErr) || avpErr.AVP.Code != AVPReasonCode {
+	if !errors.As(err, &avpErr) || avpErr.AVPs[0].Code != AVPReasonCode {
 		t.Fatalf("err = %v, want Reason-Code reported", err)
 	}
 }

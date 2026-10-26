@@ -55,7 +55,7 @@ func FuzzParseProfileUpdateRequest(f *testing.F) {
 			return
 		}
 
-		if r.FeaturesRequired && r.Features == 0 {
+		if r.FeaturesRequired && r.Features == 0 || len(r.DataReferences) > 1 && !r.FeaturesRequired {
 			return
 		}
 
@@ -73,13 +73,13 @@ func FuzzParseProfileUpdateRequest(f *testing.F) {
 
 func FuzzParseProfileUpdateAnswer(f *testing.F) {
 	must := mustMessage(f)
-	req := profileUpdateRequest()
+	req := profileUpdateRequestWith(FeatureUpdateEff | FeatureUpdateEffEnhance)
 	dsai := DataDSAI
 
 	fuzzSeeds(f,
 		must(NewProfileUpdateAnswer(req, hssIdentity, ProfileUpdate{WildcardedIMPU: testWildcarded, Features: FeatureUpdateEff})),
 		must(NewProfileUpdateErrorAnswer(req, hssIdentity, ProfileUpdateError{
-			ResultError:      ResultError{Result: tgpp.Experimental(tgpp.ResultErrorTransparentDataOutOfSync)},
+			ResultError:      ResultError{Result: tgpp.Experimental(tgpp.ResultErrorTransparentDataOutOfSync), Features: FeatureUpdateEff | FeatureUpdateEffEnhance},
 			RepositoryDataID: &RepositoryDataID{ServiceIndication: []byte("mmtel"), SequenceNumber: 3},
 			DataReference:    &dsai,
 		})),
@@ -107,7 +107,7 @@ func FuzzParseProfileUpdateAnswer(f *testing.F) {
 				t.Fatalf("rebuilt %+v parses as %+v, %v", a, again, err)
 			}
 		case errors.As(err, &pe):
-			if pe.WildcardedPublicIdentity != "" && pe.WildcardedIMPU != "" {
+			if pe.RepositoryDataID != nil && !pe.Features.updateEff() || pe.DataReference != nil && !pe.Features.updateEffEnhance() {
 				return
 			}
 

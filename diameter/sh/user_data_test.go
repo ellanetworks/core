@@ -97,6 +97,57 @@ func TestParseShDataFromHSS(t *testing.T) {
 	}
 }
 
+func smsRegistrationDocument(inner string) string {
+	return `<Sh-Data><Sh-IMS-Data><Extension><Extension><Extension><SMSRegistrationInfo>` + inner +
+		`</SMSRegistrationInfo></Extension></Extension></Extension></Sh-IMS-Data></Sh-Data>`
+}
+
+func TestParseShDataStrictness(t *testing.T) {
+	supported, unsupported := true, false
+
+	for name, tt := range map[string]struct {
+		doc  string
+		want SMSRegistrationInfo
+	}{
+		"self-closing number": {smsRegistrationDocument(`<IP-SM-GW-Number/>`), SMSRegistrationInfo{}},
+		"foreign-namespace number ignored": {
+			smsRegistrationDocument(`<IP-SM-GW-Number>1</IP-SM-GW-Number><o:IP-SM-GW-Number xmlns:o="urn:o">2</o:IP-SM-GW-Number>`),
+			SMSRegistrationInfo{IPSMGWNumber: "1"},
+		},
+		"foreign-namespace extension ignored": {
+			smsRegistrationDocument(`<IP-SM-GW-Number>1</IP-SM-GW-Number><o:Extension xmlns:o="urn:o"><SCAddress>9</SCAddress></o:Extension>`),
+			SMSRegistrationInfo{IPSMGWNumber: "1"},
+		},
+		"SBI without SC address": {
+			smsRegistrationDocument(`<IP-SM-GW-Number>1</IP-SM-GW-Number><Extension><Extension><IP-SM-GW-SBISupportIndication>1</IP-SM-GW-SBISupportIndication></Extension></Extension>`),
+			SMSRegistrationInfo{IPSMGWNumber: "1", SBISupported: &supported},
+		},
+		"SBI with leading zero": {
+			smsRegistrationDocument(`<IP-SM-GW-Number>1</IP-SM-GW-Number><Extension><Extension><IP-SM-GW-SBISupportIndication>01</IP-SM-GW-SBISupportIndication></Extension></Extension>`),
+			SMSRegistrationInfo{IPSMGWNumber: "1", SBISupported: &supported},
+		},
+		"SBI with sign": {
+			smsRegistrationDocument(`<IP-SM-GW-Number>1</IP-SM-GW-Number><Extension><Extension><IP-SM-GW-SBISupportIndication>+0</IP-SM-GW-SBISupportIndication></Extension></Extension>`),
+			SMSRegistrationInfo{IPSMGWNumber: "1", SBISupported: &unsupported},
+		},
+	} {
+		got, err := ParseShData([]byte(tt.doc))
+		if err != nil || got.SMSRegistration == nil || !reflect.DeepEqual(*got.SMSRegistration, tt.want) {
+			t.Errorf("%s: parsed %+v, %v", name, got.SMSRegistration, err)
+		}
+	}
+}
+
+func TestParseShDataInDefaultNamespace(t *testing.T) {
+	doc := `<!DOCTYPE Sh-Data><Sh-Data xmlns="urn:example"><Sh-IMS-Data><Extension><Extension><Extension><SMSRegistrationInfo>` +
+		`<IP-SM-GW-Number>15550000050</IP-SM-GW-Number></SMSRegistrationInfo></Extension></Extension></Extension></Sh-IMS-Data></Sh-Data>`
+
+	got, err := ParseShData([]byte(doc))
+	if err != nil || got.SMSRegistration == nil || got.SMSRegistration.IPSMGWNumber != "15550000050" {
+		t.Fatalf("parsed %+v, %v", got.SMSRegistration, err)
+	}
+}
+
 func TestParseShDataErrors(t *testing.T) {
 	registration := func(inner string) string {
 		return `<Sh-Data><Sh-IMS-Data><Extension><Extension><Extension><SMSRegistrationInfo>` + inner +
@@ -117,6 +168,17 @@ func TestParseShDataErrors(t *testing.T) {
 			`<Extension><SCAddress>sc</SCAddress></Extension>`),
 		"bad SBI indication": registration(`<IP-SM-GW-Number>1</IP-SM-GW-Number>` +
 			`<Extension><Extension><IP-SM-GW-SBISupportIndication>2</IP-SM-GW-SBISupportIndication></Extension></Extension>`),
+		"empty SBI indication": registration(`<IP-SM-GW-Number>1</IP-SM-GW-Number>` +
+			`<Extension><Extension><IP-SM-GW-SBISupportIndication/></Extension></Extension>`),
+		"two numbers":         registration(`<IP-SM-GW-Number>1</IP-SM-GW-Number><IP-SM-GW-Number>2</IP-SM-GW-Number>`),
+		"two SC addresses":    registration(`<IP-SM-GW-Number>1</IP-SM-GW-Number><Extension><SCAddress>1</SCAddress><SCAddress>2</SCAddress></Extension>`),
+		"number with element": registration(`<IP-SM-GW-Number>1<x>2</x>3</IP-SM-GW-Number>`),
+		"number with NBSP":    registration("<IP-SM-GW-Number>\u00a01</IP-SM-GW-Number>"),
+		"two registrations": `<Sh-Data><Sh-IMS-Data><Extension><Extension><Extension>` +
+			`<SMSRegistrationInfo><IP-SM-GW-Number>1</IP-SM-GW-Number></SMSRegistrationInfo><SMSRegistrationInfo/>` +
+			`</Extension></Extension></Extension></Sh-IMS-Data></Sh-Data>`,
+		"two Sh-IMS-Data":     `<Sh-Data><Sh-IMS-Data/><Sh-IMS-Data/></Sh-Data>`,
+		"content before root": `x<Sh-Data/>`,
 	} {
 		if _, err := ParseShData([]byte(doc)); !errors.Is(err, ErrInvalidUserData) {
 			t.Errorf("%s: err = %v", name, err)

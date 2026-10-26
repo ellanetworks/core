@@ -102,6 +102,10 @@ func profileUpdateRequest() *diameter.Message {
 	}
 }
 
+func profileUpdateRequestWith(features Features) *diameter.Message {
+	return with(profileUpdateRequest(), featureAVPs(features, false)...)
+}
+
 func without(m *diameter.Message, code, vendorID uint32) *diameter.Message {
 	out := *m
 	out.AVPs = nil

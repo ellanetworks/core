@@ -80,6 +80,14 @@ const (
 	FeatureAdditionalMSISDN Features = 1 << 3
 )
 
+func (f Features) updateEff() bool {
+	return f&(FeatureUpdateEff|FeatureUpdateEffEnhance) != 0
+}
+
+func (f Features) updateEffEnhance() bool {
+	return f&FeatureUpdateEff != 0 && f&FeatureUpdateEffEnhance != 0
+}
+
 func (f Features) String() string {
 	return tgpp.BitNames(uint32(f), "Notif-Eff", "Update-Eff", "Update-Eff-Enhance", "Additional-MSISDN")
 }
