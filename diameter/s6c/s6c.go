@@ -171,6 +171,7 @@ type ResultError struct {
 	MWDStatus   MWDStatus
 	Absent      AbsentUserDiagnostics
 	AlertMSISDN string
+	IMSI        string
 }
 
 func (e *ResultError) Error() string {
@@ -229,6 +230,10 @@ func parseResult(ans *diameter.Message) error {
 	}
 
 	e.Absent = absentUserDiagnostics(ans)
+
+	if userName, ok := ans.Find(diameter.AVPUserName, 0); ok {
+		e.IMSI = userName.UTF8String()
+	}
 
 	return e
 }

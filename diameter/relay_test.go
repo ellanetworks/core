@@ -33,7 +33,7 @@ func TestRelay(t *testing.T) {
 			setPeers(t, client, proxy.peer(kind, 10))
 			waitOpen(t, client, proxy.host)
 
-			ans := send(t, client, routed())
+			ans := send(t, client, proxiable(routed()))
 			if err := <-relayErr; err != nil || answeredBy(t, ans) != target.host || resultCode(t, ans) != ResultSuccess {
 				t.Fatalf("answer of %s, %d, %v", answeredBy(t, ans), resultCode(t, ans), err)
 			}
@@ -79,8 +79,37 @@ func TestRelayLoop(t *testing.T) {
 	setPeers(t, client, proxy.peer(kind, 10))
 	waitOpen(t, client, proxy.host)
 
-	ans := send(t, client, routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, "HSS.example.org")))
+	ans := send(t, client, proxiable(routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, "HSS.example.org"))))
 	if err := <-relayErr; !errors.Is(err, ErrLoopDetected) || resultCode(t, ans) != ResultLoopDetected {
 		t.Fatalf("relay = %v, answer %d", err, resultCode(t, ans))
 	}
+}
+
+func TestRelayNotProxiable(t *testing.T) {
+	kind := transports[0]
+
+	relayErr := make(chan error, 1)
+
+	proxy := newServer(t, kind, "hss.example.org", loopback2, func(s *server, c *Conn, req *Message) *Message {
+		_, err := s.node.Relay(context.Background(), req, c.PeerHost(), "ipsmgw.example.org", routeRealm)
+		relayErr <- err
+
+		return c.Answer(req, ResultSuccess)
+	})
+
+	client := newClient(t)
+	setPeers(t, client, proxy.peer(kind, 10))
+	waitOpen(t, client, proxy.host)
+
+	send(t, client, routed())
+
+	if err := <-relayErr; !errors.Is(err, ErrNotProxiable) {
+		t.Fatalf("relay = %v, want %v", err, ErrNotProxiable)
+	}
+}
+
+func proxiable(m *Message) *Message {
+	m.Flags |= FlagProxiable
+
+	return m
 }

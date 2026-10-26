@@ -295,6 +295,7 @@ func TestSendRoutingInfoForSMErrorAnswerRoundTrip(t *testing.T) {
 		MWDStatus:   MWDStatusMNRF | MWDStatusMNR5G,
 		Absent:      AbsentUserDiagnostics{MME: absent(tgpp.AbsentUserIMSIDetached)},
 		AlertMSISDN: "15559999000",
+		IMSI:        "001010000000001",
 	}
 
 	ans, err := NewSendRoutingInfoForSMErrorAnswer(req, hssIdentity, e, true)

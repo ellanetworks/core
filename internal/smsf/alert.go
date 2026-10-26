@@ -71,10 +71,6 @@ func (s *SMSF) UEReachable(ctx context.Context, imsi string) {
 	s.startAlert(ctx, imsi)
 }
 
-func (s *SMSF) IPSMGWRegistered(ctx context.Context, imsi string) {
-	s.startAlert(ctx, imsi)
-}
-
 func (s *SMSF) memoryAvailable(ctx context.Context, imsi string, m *sms.RPSMMA) sms.RPMessage {
 	if err := s.clearMemoryFull(ctx, imsi); err != nil {
 		logger.From(ctx, s.logger).Warn("Could not clear the memory capacity exceeded flag; asking the UE to retry", zap.String("imsi", imsi), zap.Error(err))
@@ -194,7 +190,7 @@ func (s *SMSF) alert(ctx context.Context, imsi string) {
 			return
 		}
 
-		envelope, err := s.smsc.Envelope(peer)
+		envelope, err := s.peers.Envelope(peer)
 		if err != nil {
 			log.Info("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
 			continue
@@ -224,7 +220,7 @@ func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, peer str
 	ctx, cancel := context.WithTimeout(ctx, s.timers.AlertTimeout)
 	defer cancel()
 
-	ans, err := s.smsc.Do(ctx, peer, req)
+	ans, err := s.peers.Do(ctx, peer, req)
 	if err == nil {
 		err = s6c.ParseAlertServiceCentreAnswer(ans)
 	}

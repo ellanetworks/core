@@ -95,6 +95,30 @@ func (f *fakeStore) GetIPSMGWRegistration(_ context.Context, imsi string) (*db.I
 	return &r, nil
 }
 
+func (f *fakeStore) PutIPSMGWRegistration(_ context.Context, r db.IPSMGWRegistration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, ok := f.subscribers[r.IMSI]; !ok {
+		return db.ErrNotFound
+	}
+
+	f.ipSMGW = &r
+
+	return nil
+}
+
+func (f *fakeStore) DeleteIPSMGWRegistration(_ context.Context, imsi string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.ipSMGW != nil && f.ipSMGW.IMSI == imsi {
+		f.ipSMGW = nil
+	}
+
+	return nil
+}
+
 func (f *fakeStore) GetSMSWaiting(_ context.Context, imsi string) (*db.SMSWaiting, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

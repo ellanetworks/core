@@ -45,7 +45,6 @@ type Store interface {
 	FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error)
 	ServiceIdentity(ctx context.Context, identity string) (*ServiceIdentity, error)
 	CountRegistered(ctx context.Context) (int, error)
-	SetIPSMGWRegistration(ctx context.Context, imsi string, r *IPSMGWRegistration) error
 }
 
 type Credentials interface {

@@ -10,9 +10,16 @@ import (
 	"strings"
 )
 
-var ErrLoopDetected = errors.New("diameter: forwarding loop detected")
+var (
+	ErrLoopDetected = errors.New("diameter: forwarding loop detected")
+	ErrNotProxiable = errors.New("diameter: request not proxiable")
+)
 
 func (n *Node) Relay(ctx context.Context, req *Message, from, host, realm string, opts ...RequestOption) (*Message, error) {
+	if req.Flags&FlagProxiable == 0 {
+		return nil, ErrNotProxiable
+	}
+
 	own := n.Identity().OriginHost
 
 	for _, rr := range FindAll(req.AVPs, AVPRouteRecord, 0) {

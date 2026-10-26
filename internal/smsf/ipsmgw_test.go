@@ -5,6 +5,7 @@ package smsf_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -48,13 +49,8 @@ func TestRoutingRequestIsForwardedToTheIPSMGW(t *testing.T) {
 	}
 }
 
-func TestRoutingRequestOfTheIPSMGWIsAnswered(t *testing.T) {
-	s, store := newHSSWith(t, idleSMSC{relay: func(*diameter.Message, string, string, string) (*diameter.Message, error) {
-		t.Fatal("relayed the IP-SM-GW's own routing request")
-		return nil, nil
-	}})
-	store.register(db.UERegistrationTypeMME, remoteNode, false)
-	registerIPSMGW(store)
+func ipSMGWRoutingRequest(t *testing.T) *diameter.Message {
+	t.Helper()
 
 	req, err := s6c.NewSendRoutingInfoForSMRequest(tgpp.Envelope{
 		SessionID: ipSMGWHost + ";1;1", Origin: diameter.Identity{OriginHost: ipSMGWHost, OriginRealm: ipSMGWRealm},
@@ -64,7 +60,52 @@ func TestRoutingRequestOfTheIPSMGWIsAnswered(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	routing, err := s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, ipSMGWHost, req))
+	return req
+}
+
+func TestAbsentUserIsAnsweredToTheIPSMGWWithTheIMSI(t *testing.T) {
+	s, store := newHSS(t)
+	registerIPSMGW(store)
+
+	_, err := s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, ipSMGWHost, ipSMGWRoutingRequest(t)))
+
+	var re *s6c.ResultError
+	if !errors.As(err, &re) || !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.IMSI != imsi {
+		t.Fatalf("SRA = %v, want absent user with the IMSI", err)
+	}
+
+	store.mu.Lock()
+	store.ipSMGW = nil
+	store.mu.Unlock()
+
+	_, err = s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, smscHost, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn})))
+	if !errors.As(err, &re) || re.IMSI != "" {
+		t.Fatalf("SRA to the SMS-GMSC = %v, want absent user without the IMSI", err)
+	}
+}
+
+func TestNonProxiableRoutingRequestIsAnsweredLocally(t *testing.T) {
+	s, store := newHSSWith(t, idleSMSC{relay: func(*diameter.Message, string, string, string) (*diameter.Message, error) {
+		return nil, diameter.ErrNotProxiable
+	}})
+	store.register(db.UERegistrationTypeMME, remoteNode, false)
+	registerIPSMGW(store)
+
+	routing, err := route(t, s, s6c.RoutingRequest{MSISDN: msisdn})
+	if err != nil || routing.Serving == nil || routing.Serving.MME == nil {
+		t.Fatalf("SRA = %+v, %v, want the MME", routing, err)
+	}
+}
+
+func TestRoutingRequestOfTheIPSMGWIsAnswered(t *testing.T) {
+	s, store := newHSSWith(t, idleSMSC{relay: func(*diameter.Message, string, string, string) (*diameter.Message, error) {
+		t.Fatal("relayed the IP-SM-GW's own routing request")
+		return nil, nil
+	}})
+	store.register(db.UERegistrationTypeMME, remoteNode, false)
+	registerIPSMGW(store)
+
+	routing, err := s6c.ParseSendRoutingInfoForSMAnswer(s.SendRoutingInfoForSM(context.Background(), localIdentity, ipSMGWHost, ipSMGWRoutingRequest(t)))
 	if err != nil || routing.Serving == nil || routing.Serving.MME == nil || routing.Serving.MME.Name != remoteIdent.Host {
 		t.Fatalf("SRA = %+v, %v, want the MME", routing, err)
 	}
@@ -150,7 +191,19 @@ func TestIPSMGWRegistrationAlertsTheSMSC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e.smsf.IPSMGWRegistered(context.Background(), imsi)
+	if err := e.smsf.RegisterIPSMGW(context.Background(), db.IPSMGWRegistration{
+		IMSI: imsi, Number: "15550000100", DiameterHost: ipSMGWHost, DiameterRealm: ipSMGWRealm,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+
+	if err := e.smsf.DeregisterIPSMGW(context.Background(), imsi); err != nil {
+		t.Fatal(err)
+	}
+
+	if reg, err := e.store.GetIPSMGWRegistration(context.Background(), imsi); err == nil {
+		t.Fatalf("registration %+v left after deregistration", reg)
+	}
 }

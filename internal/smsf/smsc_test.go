@@ -23,7 +23,7 @@ type stubNode struct {
 func (n stubNode) Node() *diameter.Node { return n.node }
 
 func TestTheSMSCIsUnavailableBeforeTheNodeStarts(t *testing.T) {
-	c := smsf.SMSCOver(stubNode{})
+	c := smsf.PeersOver(stubNode{})
 
 	if _, err := c.Envelope(smsf.SMSCPeerID(smscPeerID)); !errors.Is(err, smsf.ErrSMSCUnavailable) {
 		t.Fatalf("Envelope = %v, want the SMSC unavailable", err)
@@ -92,7 +92,7 @@ func TestTheSMSCEnvelopeTargetsTheNamedPeer(t *testing.T) {
 		return ok && p.State == diameter.PeerOpen
 	})
 
-	c := smsf.SMSCOver(stubNode{node: node})
+	c := smsf.PeersOver(stubNode{node: node})
 
 	env, err := c.Envelope(open)
 	if err != nil {

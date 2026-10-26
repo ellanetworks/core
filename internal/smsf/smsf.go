@@ -68,13 +68,15 @@ type Store interface {
 	DeleteSMSWaiting(ctx context.Context, imsi string) error
 	ListSMSCPeers(ctx context.Context) ([]db.SMSCPeer, error)
 	GetIPSMGWRegistration(ctx context.Context, imsi string) (*db.IPSMGWRegistration, error)
+	PutIPSMGWRegistration(ctx context.Context, r db.IPSMGWRegistration) error
+	DeleteIPSMGWRegistration(ctx context.Context, imsi string) error
 }
 
 type Directory interface {
 	Identity(ctx context.Context, nodeID string) (diameternode.Identity, error)
 }
 
-type SMSC interface {
+type Peers interface {
 	Envelope(peer string) (tgpp.Envelope, error)
 	Do(ctx context.Context, peer string, req *diameter.Message) (*diameter.Message, error)
 	Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error)
@@ -114,7 +116,7 @@ func DefaultTimers() Timers {
 type SMSF struct {
 	store     Store
 	directory Directory
-	smsc      SMSC
+	peers     Peers
 	logger    *zap.Logger
 	timers    Timers
 
@@ -125,11 +127,11 @@ type SMSF struct {
 	alerting map[string]bool
 }
 
-func New(store Store, directory Directory, smsc SMSC, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
+func New(store Store, directory Directory, peers Peers, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
 	return &SMSF{
 		store:     store,
 		directory: directory,
-		smsc:      smsc,
+		peers:     peers,
 		transport: transport,
 		logger:    logger,
 		timers:    timers,
@@ -217,15 +219,15 @@ func (s *SMSF) readySettings(ctx context.Context) (*db.SMSSettings, bool, error)
 	return settings, len(peers) > 0, nil
 }
 
-func SMSCOver(node DiameterNode) SMSC {
-	return nodeSMSC{node: node}
+func PeersOver(node DiameterNode) Peers {
+	return nodePeers{node: node}
 }
 
-type nodeSMSC struct {
+type nodePeers struct {
 	node DiameterNode
 }
 
-func (c nodeSMSC) Envelope(peer string) (tgpp.Envelope, error) {
+func (c nodePeers) Envelope(peer string) (tgpp.Envelope, error) {
 	node := c.node.Node()
 	if node == nil {
 		return tgpp.Envelope{}, ErrSMSCUnavailable
@@ -244,7 +246,7 @@ func (c nodeSMSC) Envelope(peer string) (tgpp.Envelope, error) {
 	}, nil
 }
 
-func (c nodeSMSC) Do(ctx context.Context, peer string, req *diameter.Message) (*diameter.Message, error) {
+func (c nodePeers) Do(ctx context.Context, peer string, req *diameter.Message) (*diameter.Message, error) {
 	node := c.node.Node()
 	if node == nil {
 		return nil, ErrSMSCUnavailable
@@ -276,16 +278,16 @@ func (c nodeSMSC) Do(ctx context.Context, peer string, req *diameter.Message) (*
 	return ans, nil
 }
 
-func (c nodeSMSC) Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error) {
+func (c nodePeers) Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error) {
 	node := c.node.Node()
 	if node == nil {
 		return nil, diameter.ErrUnableToDeliver
 	}
 
-	return node.Relay(ctx, req, from, host, realm)
+	return node.Relay(ctx, req, from, host, realm, diameter.FailFast())
 }
 
-func (c nodeSMSC) LocalHost() (string, bool) {
+func (c nodePeers) LocalHost() (string, bool) {
 	node := c.node.Node()
 	if node == nil {
 		return "", false

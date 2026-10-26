@@ -19,10 +19,36 @@ const testIPSMGWNumber = "15550000100"
 
 var ipSMGWIdentity = diameter.Identity{OriginHost: "ipsmgw.ims.mnc001.mcc001.3gppnetwork.org", OriginRealm: testIMSDomain}
 
-type fakeSMS struct{ registered []string }
+type fakeSMS struct {
+	registrations map[string]hss.IPSMGWRegistration
+	calls         int
+	err           error
+}
 
-func (f *fakeSMS) IPSMGWRegistered(_ context.Context, imsi string) {
-	f.registered = append(f.registered, imsi)
+func newFakeSMS() *fakeSMS {
+	return &fakeSMS{registrations: map[string]hss.IPSMGWRegistration{}}
+}
+
+func (f *fakeSMS) RegisterIPSMGW(_ context.Context, imsi string, r hss.IPSMGWRegistration) error {
+	f.calls++
+	if f.err != nil {
+		return f.err
+	}
+
+	f.registrations[imsi] = r
+
+	return nil
+}
+
+func (f *fakeSMS) DeregisterIPSMGW(_ context.Context, imsi string) error {
+	f.calls++
+	if f.err != nil {
+		return f.err
+	}
+
+	delete(f.registrations, imsi)
+
+	return nil
 }
 
 func smsRegistration(t *testing.T, number string) []byte {
@@ -62,25 +88,21 @@ func TestProfileUpdateRegistersTheIPSMGW(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			store := newFakeIMSStore()
-			sms := &fakeSMS{}
+			sms := newFakeSMS()
 
 			requireResult(t, profileUpdate(t, store, sms, sh.ProfileUpdateRequest{User: user, UserData: smsRegistration(t, testIPSMGWNumber)}),
 				tgpp.Result{Code: diameter.ResultSuccess})
 
 			want := hss.IPSMGWRegistration{Number: testIPSMGWNumber, DiameterHost: ipSMGWIdentity.OriginHost, DiameterRealm: ipSMGWIdentity.OriginRealm}
-			if got := store.ipSMGWs[testIMSI]; got != want {
+			if got := sms.registrations[testIMSI]; got != want {
 				t.Fatalf("registration = %+v, want %+v", got, want)
-			}
-
-			if len(sms.registered) != 1 || sms.registered[0] != testIMSI {
-				t.Fatalf("SMS function told of %v", sms.registered)
 			}
 
 			requireResult(t, profileUpdate(t, store, sms, sh.ProfileUpdateRequest{User: user, UserData: smsRegistration(t, "")}),
 				tgpp.Result{Code: diameter.ResultSuccess})
 
-			if _, ok := store.ipSMGWs[testIMSI]; ok || len(sms.registered) != 1 {
-				t.Fatalf("after deregistration: %+v, SMS told of %v", store.ipSMGWs, sms.registered)
+			if _, ok := sms.registrations[testIMSI]; ok {
+				t.Fatalf("after deregistration: %+v", sms.registrations)
 			}
 		})
 	}
@@ -89,7 +111,7 @@ func TestProfileUpdateRegistersTheIPSMGW(t *testing.T) {
 func TestProfileUpdateErrors(t *testing.T) {
 	cases := map[string]struct {
 		req   sh.ProfileUpdateRequest
-		setup func(*fakeIMSStore)
+		setup func(*fakeIMSStore, *fakeSMS)
 		want  tgpp.Result
 	}{
 		"unknown MSISDN": {
@@ -110,7 +132,7 @@ func TestProfileUpdateErrors(t *testing.T) {
 		},
 		"public service identity": {
 			req: sh.ProfileUpdateRequest{User: sh.UserIdentity{PublicIdentity: "sip:conference@" + testIMSDomain}},
-			setup: func(s *fakeIMSStore) {
+			setup: func(s *fakeIMSStore, _ *fakeSMS) {
 				s.serviceIDs = map[string]string{"sip:conference@" + testIMSDomain: "sip:as.example.org"}
 			},
 			want: tgpp.Experimental(tgpp.ResultErrorOperationNotAllowed),
@@ -123,30 +145,36 @@ func TestProfileUpdateErrors(t *testing.T) {
 			req:  sh.ProfileUpdateRequest{User: sh.UserIdentity{MSISDN: testMSISDN}, UserData: []byte("<Sh-Data/>")},
 			want: tgpp.Experimental(tgpp.ResultErrorUserDataNotRecognized),
 		},
+		"wildcarded PSI": {
+			req:  sh.ProfileUpdateRequest{User: sh.UserIdentity{PublicIdentity: "sip:conf1@" + testIMSDomain}, WildcardedPublicIdentity: "sip:conf!.*!@" + testIMSDomain},
+			want: tgpp.Experimental(tgpp.ResultErrorOperationNotAllowed),
+		},
+		"wildcarded IMPU": {
+			req:  sh.ProfileUpdateRequest{User: sh.UserIdentity{PublicIdentity: "tel:+" + testMSISDN}, WildcardedIMPU: "sip:user!.*!@" + testIMSDomain},
+			want: tgpp.Experimental(tgpp.ResultErrorUserUnknown),
+		},
 		"store unavailable": {
 			req:   sh.ProfileUpdateRequest{User: sh.UserIdentity{MSISDN: testMSISDN}},
-			setup: func(s *fakeIMSStore) { s.unavailable = true },
+			setup: func(_ *fakeIMSStore, sms *fakeSMS) { sms.err = hss.ErrUnavailable },
 			want:  tgpp.Result{Code: diameter.ResultTooBusy},
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			store := newFakeIMSStore()
+			store, sms := newFakeIMSStore(), newFakeSMS()
 			if tc.setup != nil {
-				tc.setup(store)
+				tc.setup(store, sms)
 			}
 
 			if tc.req.UserData == nil {
 				tc.req.UserData = smsRegistration(t, testIPSMGWNumber)
 			}
 
-			sms := &fakeSMS{}
-
 			requireResult(t, profileUpdate(t, store, sms, tc.req), tc.want)
 
-			if len(store.ipSMGWs) != 0 || len(sms.registered) != 0 {
-				t.Fatalf("registered %+v, SMS told of %v", store.ipSMGWs, sms.registered)
+			if len(sms.registrations) != 0 {
+				t.Fatalf("registered %+v", sms.registrations)
 			}
 		})
 	}

@@ -21,7 +21,8 @@ type IPSMGWRegistration struct {
 }
 
 type SMS interface {
-	IPSMGWRegistered(ctx context.Context, imsi string)
+	RegisterIPSMGW(ctx context.Context, imsi string, r IPSMGWRegistration) error
+	DeregisterIPSMGW(ctx context.Context, imsi string) error
 }
 
 func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
@@ -40,21 +41,26 @@ func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diam
 		}
 	}
 
-	if pur.WildcardedPublicIdentity != "" || pur.WildcardedIMPU != "" {
+	if pur.WildcardedPublicIdentity != "" {
 		return shAnswer(req, id, tgpp.ResultErrorOperationNotAllowed)
+	}
+
+	impu := pur.User.PublicIdentity
+	if pur.WildcardedIMPU != "" {
+		impu = pur.WildcardedIMPU
 	}
 
 	var sub *subject
 
 	switch {
-	case pur.User.PublicIdentity != "":
+	case impu != "":
 		var psi *ServiceIdentity
-		if psi, err = h.store.ServiceIdentity(ctx, pur.User.PublicIdentity); err == nil && psi != nil {
+		if psi, err = h.store.ServiceIdentity(ctx, impu); err == nil && psi != nil {
 			return shAnswer(req, id, tgpp.ResultErrorOperationNotAllowed)
 		}
 
 		if err == nil {
-			sub, err = h.resolve(ctx, pur.PrivateIdentity, pur.User.PublicIdentity)
+			sub, err = h.resolve(ctx, pur.PrivateIdentity, impu)
 		}
 	case pur.User.MSISDN != "":
 		sub, err = h.resolveMSISDN(ctx, pur.PrivateIdentity, pur.User.MSISDN)
@@ -71,27 +77,19 @@ func (h *HSS) ProfileUpdate(ctx context.Context, id diameter.Identity, req *diam
 		return shAnswer(req, id, tgpp.ResultErrorUserDataNotRecognized)
 	}
 
-	var reg *IPSMGWRegistration
+	if h.sms == nil {
+		return sh.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply}, 0)
+	}
 
 	if number := data.SMSRegistration.IPSMGWNumber; number != "" {
 		origin := tgpp.ParseEnvelope(req).Origin
-		reg = &IPSMGWRegistration{Number: number, DiameterHost: origin.OriginHost, DiameterRealm: origin.OriginRealm}
-	}
-
-	if err := h.store.SetIPSMGWRegistration(ctx, sub.IMSI, reg); err != nil {
-		return h.shErrorAnswer(req, id, err)
-	}
-
-	log := h.log.With(zap.String("imsi", sub.IMSI))
-
-	if reg != nil {
-		log.Info("Registered an IP-SM-GW", zap.String("number", reg.Number), zap.String("diameter_host", reg.DiameterHost))
-
-		if h.sms != nil {
-			h.sms.IPSMGWRegistered(context.WithoutCancel(ctx), sub.IMSI)
-		}
+		err = h.sms.RegisterIPSMGW(ctx, sub.IMSI, IPSMGWRegistration{Number: number, DiameterHost: origin.OriginHost, DiameterRealm: origin.OriginRealm})
 	} else {
-		log.Info("Deregistered the IP-SM-GW")
+		err = h.sms.DeregisterIPSMGW(ctx, sub.IMSI)
+	}
+
+	if err != nil {
+		return h.shErrorAnswer(req, id, err)
 	}
 
 	ans, err := sh.NewProfileUpdateAnswer(req, id, sh.ProfileUpdate{Result: tgpp.Result{Code: diameter.ResultSuccess}})

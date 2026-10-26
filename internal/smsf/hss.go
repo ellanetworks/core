@@ -26,10 +26,16 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, f
 	var (
 		alertMSISDN string
 		mwd         s6c.MWDStatus
+		ipsmgwIMSI  string
 	)
 
 	fail := func(code uint32, absent s6c.AbsentUserDiagnostics) *diameter.Message {
-		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN, MWDStatus: mwd}, r.SMSFSupport)
+		e := s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN, MWDStatus: mwd}
+		if code == tgpp.ResultErrorAbsentUser {
+			e.IMSI = ipsmgwIMSI
+		}
+
+		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, e, r.SMSFSupport)
 		if err != nil {
 			return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 		}
@@ -46,10 +52,19 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, f
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	if ipsmgw, err := s.ipSMGW(ctx, sub.Imsi, req); err != nil {
+	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi)
+	if err != nil {
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
-	} else if ipsmgw != nil {
-		return s.relayToIPSMGW(ctx, id, from, req, sub.Imsi, ipsmgw)
+	}
+
+	switch {
+	case ipsmgw == nil:
+	case sentBy(req, ipsmgw):
+		ipsmgwIMSI = sub.Imsi
+	default:
+		if ans := s.relayToIPSMGW(ctx, id, from, req, sub.Imsi, ipsmgw); ans != nil {
+			return ans
+		}
 	}
 
 	alertMSISDN = storedMSISDN(sub.Msisdn, r.MSISDN)
@@ -103,18 +118,20 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi, req)
+	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi)
 	if err != nil {
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	if !rep.SingleAttempt && ipsmgw == nil {
+	ignored := ipsmgw != nil && !sentBy(req, ipsmgw)
+
+	if !rep.SingleAttempt && !ignored {
 		s.recordDeliveryReport(ctx, sub.Imsi, rep)
 	}
 
 	result := s6c.ReportResult{AlertMSISDN: storedMSISDN(sub.Msisdn, rep.MSISDN)}
 
-	if failed := nodeNames(rep.Failed); len(failed) > 0 && ipsmgw == nil {
+	if failed := nodeNames(rep.Failed); len(failed) > 0 && !ignored {
 		settings, err := s.store.GetSMSSettings(ctx)
 		if err == nil {
 			current, _, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, rep.SMSFSupport)
@@ -130,42 +147,6 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 	}
 
 	return ans
-}
-
-func (s *SMSF) ipSMGW(ctx context.Context, imsi string, req *diameter.Message) (*db.IPSMGWRegistration, error) {
-	reg, err := s.store.GetIPSMGWRegistration(ctx, imsi)
-	if errors.Is(err, db.ErrNotFound) {
-		return nil, nil
-	}
-
-	if err != nil {
-		logger.From(ctx, s.logger).Warn("Could not look up the IP-SM-GW of a subscriber", zap.String("imsi", imsi), zap.Error(err))
-		return nil, err
-	}
-
-	if strings.EqualFold(tgpp.ParseEnvelope(req).Origin.OriginHost, reg.DiameterHost) {
-		return nil, nil
-	}
-
-	return reg, nil
-}
-
-func (s *SMSF) relayToIPSMGW(ctx context.Context, id diameter.Identity, from string, req *diameter.Message, imsi string, reg *db.IPSMGWRegistration) *diameter.Message {
-	log := logger.From(ctx, s.logger, zap.String("imsi", imsi), zap.String("ip_sm_gw", reg.DiameterHost))
-
-	ans, err := s.smsc.Relay(ctx, req, from, reg.DiameterHost, reg.DiameterRealm)
-	if err == nil {
-		log.Debug("Forwarded a routing request to the IP-SM-GW")
-		return ans
-	}
-
-	if errors.Is(err, diameter.ErrLoopDetected) {
-		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultLoopDetected})
-	}
-
-	log.Info("Could not forward a routing request to the IP-SM-GW", zap.Error(err))
-
-	return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToDeliver})
 }
 
 func (s *SMSF) recordDeliveryReport(ctx context.Context, imsi string, rep s6c.DeliveryReport) {
@@ -300,7 +281,7 @@ func (s *SMSF) servedElsewhere(ctx context.Context, imsi string) bool {
 		return false
 	}
 
-	local, ok := s.smsc.LocalHost()
+	local, ok := s.peers.LocalHost()
 	if !ok {
 		return true
 	}

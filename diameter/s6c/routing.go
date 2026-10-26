@@ -284,6 +284,10 @@ func NewSendRoutingInfoForSMErrorAnswer(req *diameter.Message, id diameter.Ident
 		return nil, err
 	}
 
+	if e.IMSI != "" {
+		ans.AVPs = append(ans.AVPs, diameter.UTF8String(diameter.AVPUserName, diameter.AVPFlagMandatory, 0, e.IMSI))
+	}
+
 	ans.AVPs = append(ans.AVPs, alert...)
 
 	if e.MWDStatus != 0 {
