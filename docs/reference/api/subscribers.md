@@ -268,7 +268,7 @@ None
 | `public_identities` | IMS public identities (IMPU): `sip:+<msisdn>@<IMS home domain>` and `tel:+<msisdn>` when the subscriber has an MSISDN, `sip:mcptt-<msisdn>@<IMS home domain>` when it also has an MCPTT service profile, and `sip:<private_identity>`, which is barred. |
 | `public_identities[].identity` | The public identity. |
 | `public_identities[].barred` | `true` when the identity cannot be used for calls. |
-| `public_identities[].registration_set` | The implicit registration set of the identity: `mmtel` or `mcptt`. |
+| `public_identities[].registration_set` | `mmtel` or `mcptt`. |
 | `public_identities[].user_state` | The state of the identity's registration set: `registered`, `registered_unreg_services`, `authentication_pending` or `not_registered`. |
 
 ## Get Subscriber Credentials

@@ -13,7 +13,7 @@ This guide shows how to serve Mission Critical Push To Talk (MCPTT) to subscribe
 - **MCPTT clients**: configured with the MC data network (`mcx` below) as their MC services APN or DNN.
 - **Radios**: support for QCI/5QI 69 and 65.
 - **SIMs**: with an ISIM you can program.
-- **Phones**: an IMS client that registers with a `reg-id` (SIP outbound, RFC 5626).
+- **Phones**: an IMS client that registers with a `reg-id`.
 
 ## 1. Create the MC data network
 
@@ -56,7 +56,7 @@ For each MCPTT user:
 - Go to the **Subscribers** page and click on the subscriber.
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
 - Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its MCPTT public identity, `sip:mcptt-<msisdn>@<IMS home domain>`, to an MCPTT ID on your MCPTT server.
-- Program the SIM's ISIM with the MCPTT public identity in a record of EF.IMPU after the first.
+- Program the SIM's ISIM with `sip:mcptt-<msisdn>@<IMS home domain>` in a record of EF.IMPU after the first.
 
 ## 7. Verify the MCPTT registration
 

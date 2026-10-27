@@ -47,7 +47,7 @@ An IMS data network carries the phones' SIP signalling and call media. Any data 
 
 ## IMS identities
 
-Ella Core derives each subscriber's IMS identities from its existing data, with no IMS-specific provisioning in Ella Core.
+Ella Core derives each subscriber's IMS identities from its existing data.
 
 | Identity | Registration set | Format | Example |
 | -------- | ---------------- | ------ | ------- |
@@ -59,9 +59,9 @@ Ella Core derives each subscriber's IMS identities from its existing data, with 
 
 The IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, built from the operator's PLMN ID.
 
-The public identities form two implicit registration sets ([TS 23.228 §5.2.1a](https://www.3gpp.org/DynaReport/23228.htm)), each registered on its own. The phone's own IMS client registers the MMTel set for voice and SMS. An MCPTT client registers the MCPTT set with the same SIM, reading the MCPTT identity from the ISIM. Both registrations hold only if the phone's IMS client registers with a `reg-id` ([RFC 5626](https://www.rfc-editor.org/rfc/rfc5626)); otherwise the S-CSCF de-registers the MCPTT client at each of its registrations ([TS 24.229 §5.4.1.2.2](https://www.3gpp.org/DynaReport/24229.htm)).
+The phone's IMS client registers the MMTel identities, for voice and SMS. An MCPTT client registers the MCPTT identity, from the same SIM. Both stay registered only if the phone's IMS client registers with a `reg-id`.
 
-A subscriber without an MSISDN has only the barred identity, and cannot make or receive calls.
+A subscriber without an MSISDN has no usable public identity and cannot make or receive calls.
 
 ## Voice support indication
 
@@ -76,7 +76,7 @@ Ella Core indicates IMS voice support when all of the following hold:
 
 A policy on another IMS data network, such as one for mission critical services, lets the subscriber register with the IMS but does not offer voice over PS.
 
-On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing. **MCPTT** shows the state of the MCPTT registration while it is registered.
+On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
 
 ## Application servers and service profiles
 
@@ -85,15 +85,15 @@ Services such as MCPTT run on application servers: SIP servers that the S-CSCF s
 - A **server name**: the SIP URI the S-CSCF sends requests to.
 - **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, either distinct or wildcarded to cover a range of identities. Requests addressed to a PSI go straight to its application server.
 
-An **IMS service profile** is an ordered list of **initial filter criteria** ([TS 29.228 Annex B.2](https://www.3gpp.org/DynaReport/29228.htm)). A filter criterion sends the requests that match its trigger, such as a SIP method or header, to an application server. The S-CSCF evaluates them in order.
+An **IMS service profile** is an ordered list of **initial filter criteria**. A filter criterion sends the requests that match its trigger, such as a SIP method or header, to an application server.
 
-Each public identity has one service profile ([TS 23.228 §4.3.3.4](https://www.3gpp.org/DynaReport/23228.htm)). A subscriber's profile assigns one service profile to the MMTel registration set and one to the MCPTT set, and every identity of a set gets the set's service profile. Without one, the MMTel set has no filter criteria, and the MCPTT identity does not exist, so MCPTT is off.
+A profile gives its subscribers one service profile for their MMTel identities and one for their MCPTT identity. Without an MCPTT service profile, MCPTT is off.
 
-Changes to a service profile, a profile's service profiles, an application server's server name, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
+Changes to service profiles, application servers, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
 
 ### MCPTT service profile
 
-MCPTT needs a service profile on the MCPTT registration set with two filter criteria, both to the MCPTT server:
+The MCPTT service profile has two filter criteria, both to the MCPTT server:
 
 1. **Registration**: tells the MCPTT server when a subscriber registers or de-registers. If the MCPTT server can't be reached, the IMS registration still succeeds.
 2. **Originating MCPTT sessions**: sends the subscriber's MCPTT calls to the MCPTT server. If the MCPTT server can't be reached, the call fails.

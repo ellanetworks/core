@@ -584,7 +584,7 @@ None
 
 ## List IMS Service Profiles
 
-This path returns the IMS service profiles, sorted by name. A service profile holds initial filter criteria ([TS 29.228 Annex B.2](https://www.3gpp.org/DynaReport/29228.htm)); a [profile](profiles.md#update-a-profiles-ims-service-profiles) assigns one to each implicit registration set of its subscribers.
+This path returns the IMS service profiles, sorted by name.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |

@@ -143,7 +143,7 @@ None
 
 ## Get a Profile's IMS Service Profiles
 
-This path returns the [IMS service profile](operator.md#create-an-ims-service-profile) assigned to each implicit registration set of the profile's subscribers. Every public identity of a set gets the set's service profile. A set without one is `null`.
+This path returns the [IMS service profile](operator.md#create-an-ims-service-profile) of each registration set of the profile. A set without one is `null`.
 
 | Method | Path                                           |
 | ------ | ---------------------------------------------- |
@@ -174,10 +174,10 @@ This path replaces the IMS service profiles of a profile. Registered subscribers
 
 ### Parameters
 
-- `mmtel` (optional string): The service profile of the MMTel implicit registration set: `sip:+<msisdn>@<IMS home domain>`, `tel:+<msisdn>` and the barred `sip:<private identity>`.
-- `mcptt` (optional string): The service profile of the MCPTT implicit registration set: `sip:mcptt-<msisdn>@<IMS home domain>`.
+- `mmtel` (optional string): The service profile of the MMTel registration set.
+- `mcptt` (optional string): The service profile of the MCPTT registration set.
 
-A set left out, `null` or `""` has no service profile. The MMTel identities then have no initial filter criteria, and the MCPTT identity does not exist.
+A set left out, `null` or `""` has no service profile.
 
 ### Sample Request
 
