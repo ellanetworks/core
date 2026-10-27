@@ -151,7 +151,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 			order: []canonicalIE{{ieiESMInformationTransferFlag, nas.IETV1}, {ieiAccessPointName, nas.IETLV}, {ieiProtocolConfigurationOptions, nas.IETLV}},
 		},
 		{
-			name:  "AttachReject (TS 24.301 §8.2)",
+			name:  "AttachReject (TS 24.301 §8.2.3)",
 			bare:  &AttachReject{},
 			order: []canonicalIE{{ieiESMMessageContainer, nas.IETLVE}, {ieiT3346Value, nas.IETLV}, {ieiT3402Value, nas.IETLV}, {ieiExtendedEMMCause, nas.IETV1}},
 		},

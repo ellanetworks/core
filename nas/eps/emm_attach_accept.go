@@ -349,7 +349,7 @@ type AttachReject struct {
 	Cause               EMMCause
 	ESMMessageContainer []byte
 	T3346               *nas.GPRSTimer2
-	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16A); 0 omits the IE.
+	// T3402 is the GPRS timer 2 value (§9.9.3.16A); nil omits the IE.
 	T3402            *nas.GPRSTimer2
 	ExtendedEMMCause *ExtendedEMMCause
 
@@ -362,6 +362,7 @@ var attachRejectIEs = []nas.OptionalIE{
 	{IEI: ieiESMMessageContainer, Format: nas.IETLVE, Name: "ESM message container"},
 	{IEI: ieiT3346Value, Format: nas.IETLV, Name: "T3346 value"},
 	{IEI: ieiT3402Value, Format: nas.IETLV, Name: "T3402 value"},
+	{IEI: ieiExtendedEMMCause, Format: nas.IETV1, Name: "Extended EMM cause"},
 	{IEI: ieiLowerBoundTimer, Format: nas.IETLV, Name: "Lower bound timer value"},
 	{IEI: ieiForbiddenTAIRoaming, Format: nas.IETLV, Name: "Forbidden TAIs for roaming"},
 	{IEI: ieiForbiddenTAIRegional, Format: nas.IETLV, Name: "Forbidden TAIs for regional provision of service"},
@@ -431,8 +432,6 @@ func ParseAttachReject(b []byte) (*AttachReject, error) {
 		switch iei {
 		case ieiESMMessageContainer:
 			m.ESMMessageContainer = value
-
-			return true, nil
 		case ieiT3346Value:
 			timer, err := nas.ParseGPRSTimer2(value)
 			if err != nil {
@@ -440,8 +439,6 @@ func ParseAttachReject(b []byte) (*AttachReject, error) {
 			}
 
 			m.T3346 = &timer
-
-			return true, nil
 		case ieiT3402Value:
 			timer, err := nas.ParseGPRSTimer2(value)
 			if err != nil {
@@ -449,8 +446,6 @@ func ParseAttachReject(b []byte) (*AttachReject, error) {
 			}
 
 			m.T3402 = &timer
-
-			return true, nil
 		case ieiExtendedEMMCause:
 			v := tv1Value(value)
 			if v == nil {
@@ -459,11 +454,11 @@ func ParseAttachReject(b []byte) (*AttachReject, error) {
 
 			c := ParseExtendedEMMCause(*v)
 			m.ExtendedEMMCause = &c
-
-			return true, nil
+		default:
+			return false, nil
 		}
 
-		return false, nil
+		return true, nil
 	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err

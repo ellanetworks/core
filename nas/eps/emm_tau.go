@@ -517,6 +517,7 @@ type TrackingAreaUpdateReject struct {
 
 var trackingAreaUpdateRejectIEs = []nas.OptionalIE{
 	{IEI: ieiT3346Value, Format: nas.IETLV, Name: "T3346 value"},
+	{IEI: ieiExtendedEMMCause, Format: nas.IETV1, Name: "Extended EMM cause"},
 	{IEI: ieiLowerBoundTimer, Format: nas.IETLV, Name: "Lower bound timer value"},
 	{IEI: ieiForbiddenTAIRoaming, Format: nas.IETLV, Name: "Forbidden TAIs for roaming"},
 	{IEI: ieiForbiddenTAIRegional, Format: nas.IETLV, Name: "Forbidden TAIs for regional provision of service"},

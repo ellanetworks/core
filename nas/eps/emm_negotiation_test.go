@@ -216,6 +216,69 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 			t.Errorf("carried ESM cause = %d, want %d", inner.Cause, ESMCauseMissingOrUnknownAPN)
 		}
 	})
+
+	for _, tc := range []struct {
+		name string
+		in   *AttachReject
+		wire []byte
+	}{
+		{
+			name: "RejectCongestionWithT3346",
+			in: &AttachReject{
+				Cause: EMMCauseCongestion,
+				T3346: &nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 2},
+			},
+			wire: []byte{0x07, 0x44, 0x16, 0x5F, 0x01, 0x22},
+		},
+		{
+			name: "RejectWithExtendedEMMCause",
+			in: &AttachReject{
+				Cause:            EMMCauseNoSuitableCellsInTrackingArea,
+				ExtendedEMMCause: &ExtendedEMMCause{EUTRANNotAllowed: true},
+			},
+			wire: []byte{0x07, 0x44, 0x0F, 0xA1},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := tc.in.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(b, tc.wire) {
+				t.Fatalf("encoding = % x, want % x", b, tc.wire)
+			}
+
+			out, err := ParseAttachReject(tc.wire)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !reflect.DeepEqual(out, tc.in) {
+				t.Fatalf("decoded %+v, want %+v", out, tc.in)
+			}
+		})
+	}
+
+	t.Run("RejectExtendedEMMCauseOutOfOrder", func(t *testing.T) {
+		out, err := ParseAttachReject([]byte{0x07, 0x44, 0x0F, 0xA1, 0x16, 0x01, 0x2C})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if out.ExtendedEMMCause == nil || !out.ExtendedEMMCause.EUTRANNotAllowed || out.T3402 == nil || len(out.Unrecognized) != 0 {
+			t.Fatalf("decoded %+v", out)
+		}
+
+		b, err := out.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if want := []byte{0x07, 0x44, 0x0F, 0x16, 0x01, 0x2C, 0xA1}; !bytes.Equal(b, want) {
+			t.Fatalf("re-encoding = % x, want % x", b, want)
+		}
+	})
 }
 
 func TestNetworkFeatureSupportRejectsAnOverlongValue(t *testing.T) {
