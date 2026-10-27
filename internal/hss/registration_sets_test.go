@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
@@ -117,7 +118,10 @@ func TestRegistrationSetsAreIndependent_TS29228_6_5_1(t *testing.T) {
 	challengeIdentity(t, store, mcpttIdentity)
 	assignIdentity(t, store, mcpttIdentity, cx.AssignmentRegistration, success)
 	assignIdentity(t, store, mmtelIdentity, cx.AssignmentUserDeregistrationStoreServer, success)
-	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MCPTT: {State: hss.Registered}}})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{
+		hss.MMTel: {State: hss.Unregistered},
+		hss.MCPTT: {State: hss.Registered},
+	}})
 
 	requireResult(t, serverAssignment(t, store, cx.ServerAssignmentRequest{PrivateIdentity: impiOf(testIMSI), Type: cx.AssignmentUserDeregistrationStoreServer}),
 		tgpp.Experimental(tgpp.ResultSuccessServerNameNotStored))
@@ -235,7 +239,7 @@ func TestReconcileEachSet_TS29228_6_5_2_1(t *testing.T) {
 	requireRegistration(t, store, nil)
 }
 
-func TestTerminationOfOneSetKeepsTheOther_TS29228_6_1_3(t *testing.T) {
+func TestRejectedProfileEndsTheSubscription_TS29228_6_2_2_1(t *testing.T) {
 	store := newFakeIMSStore()
 	scscf := &fakeSCSCF{pushResult: tgpp.Experimental(tgpp.ResultErrorNotSupportedUserData)}
 	h := connectedHSS(t, store, scscf)
@@ -247,11 +251,134 @@ func TestTerminationOfOneSetKeepsTheOther_TS29228_6_1_3(t *testing.T) {
 		t.Fatalf("Reconcile: %v", err)
 	}
 
-	if got, want := scscf.TerminatedIdentities(), [][]string{{mcpttIdentity}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("terminated identities = %v, want %v", got, want)
+	if got := scscf.Terminations(); !slices.Equal(got, []cx.ReasonCode{cx.ReasonServerChange}) {
+		t.Fatalf("registration terminations = %v, want one server change", got)
 	}
 
-	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}})
+	if got := scscf.TerminatedIdentities(); len(got) != 1 || len(got[0]) != 0 {
+		t.Fatalf("terminated identities = %v, want the private identity alone", got)
+	}
+
+	requireRegistration(t, store, nil)
+}
+
+func TestUserUnknownClearsEverySet_TS29228_6_2_2_1(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{pushResult: tgpp.Experimental(tgpp.ResultErrorUserUnknown)}
+	h := connectedHSS(t, store, scscf)
+
+	registerBoth(t, store)
+	store.mcpttFilterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	requireRegistration(t, store, nil)
+}
+
+func TestStoredServerNameKeepsTheSetUnregistered_TS29228_6_1_2_1(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{}
+	h := connectedHSS(t, store, scscf)
+
+	registerBoth(t, store)
+	assignIdentity(t, store, mmtelIdentity, cx.AssignmentTimeoutDeregistrationStoreServer, tgpp.Result{Code: diameter.ResultSuccess})
+
+	store.filterCriteria = map[string][]cx.InitialFilterCriteria{testIMSI: mcpttCriteria()}
+
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	pushes := scscf.Pushes()
+	if len(pushes) != 1 {
+		t.Fatalf("profile pushes = %d, want one for the unregistered MMTel set", len(pushes))
+	}
+
+	ppr, err := cx.ParsePushProfileRequest(pushes[0])
+	if err != nil {
+		t.Fatalf("parse PPR: %v", err)
+	}
+
+	if pushed, err := cx.ParseUserData(ppr.UserData); err != nil || pushed.ServiceProfiles[0].PublicIdentities[0].Identity != mmtelIdentity {
+		t.Fatalf("PPR user data = %+v, %v; want the MMTel set", pushed, err)
+	}
+}
+
+func TestChallengeFromAnotherSCSCFDeregistersAtThePreviousOne_TS29228_6_1_3_1(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{}
+	h := connectedHSS(t, store, scscf)
+
+	registerBoth(t, store)
+
+	req, err := cx.NewMultimediaAuthRequest(envelope(), cx.MultimediaAuthRequest{
+		PrivateIdentity: impiOf(testIMSI), PublicIdentity: mcpttIdentity, ServerName: otherSCSCF, Scheme: cx.SchemeDigestAKAv1MD5,
+	})
+	if err != nil {
+		t.Fatalf("build MAR: %v", err)
+	}
+
+	requireResult(t, h.MultimediaAuth(context.Background(), hssIdentity, req), tgpp.Result{Code: diameter.ResultSuccess})
+	requireRegistration(t, store, &hss.Registration{ServerName: otherSCSCF, Sets: sets{hss.MCPTT: {State: hss.NotRegistered, AuthPending: true}}})
+
+	deadline := time.Now().Add(5 * time.Second)
+	for len(scscf.Terminations()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if got := scscf.Terminations(); !slices.Equal(got, []cx.ReasonCode{cx.ReasonNewServerAssigned}) {
+		t.Fatalf("registration terminations = %v, want new server assigned", got)
+	}
+
+	if got, want := scscf.TerminatedIdentities(), [][]string{{mcpttIdentity, mmtelIdentity}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("terminated identities = %v, want %v", got, want)
+	}
+}
+
+func TestAuthorizationOfASetWhileTheOtherAuthenticates_TS29228_6_1_1_1(t *testing.T) {
+	store := newFakeIMSStore()
+
+	challengeIdentity(t, store, mmtelIdentity)
+
+	ans := authorizeIdentity(t, store, mcpttIdentity, cx.AuthorizationRegistration)
+	requireResult(t, ans, tgpp.Experimental(tgpp.ResultSubsequentRegistration))
+
+	if name := uarServerName(t, ans); name != testSCSCF {
+		t.Fatalf("UAA server name = %q, want the S-CSCF authenticating the other set", name)
+	}
+}
+
+func TestOriginatingLocationInfoOfTheUnregisteredSet_TS29228_6_1_4_1(t *testing.T) {
+	store := newFakeIMSStore()
+
+	challengeIdentity(t, store, mmtelIdentity)
+	assignIdentity(t, store, mmtelIdentity, cx.AssignmentRegistration, tgpp.Result{Code: diameter.ResultSuccess})
+
+	ans := locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: mcpttIdentity, Originating: true})
+	requireResult(t, ans, tgpp.Result{Code: diameter.ResultSuccess})
+
+	if l, err := cx.ParseLocationInfoAnswer(ans); err != nil || l.ServerName != testSCSCF {
+		t.Fatalf("LIA = %+v, %v; want the S-CSCF of the subscription", l, err)
+	}
+}
+
+func TestUnregisteredUserOfOneSetLeavesTheOther_TS29228_6_1_2_1(t *testing.T) {
+	store := newFakeIMSStore()
+
+	challengeIdentity(t, store, mmtelIdentity)
+	assignIdentity(t, store, mmtelIdentity, cx.AssignmentRegistration, tgpp.Result{Code: diameter.ResultSuccess})
+
+	mmtel, _ := registration(t, store, testIMSI)
+
+	requireResult(t, serverAssignment(t, store, cx.ServerAssignmentRequest{PublicIdentities: []string{mcpttIdentity}, Type: cx.AssignmentUnregisteredUser}),
+		tgpp.Result{Code: diameter.ResultSuccess})
+
+	got, _ := registration(t, store, testIMSI)
+	if got.Sets[hss.MMTel] != mmtel.Sets[hss.MMTel] || got.Sets[hss.MCPTT].State != hss.Unregistered {
+		t.Fatalf("registration = %+v, want MMTel unchanged and MCPTT unregistered", got)
+	}
 }
 
 func TestTerminationOfThePrivateIdentityKeepsTheEmergencySet_TS29228_6_1_3_1(t *testing.T) {

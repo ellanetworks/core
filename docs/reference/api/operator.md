@@ -514,7 +514,7 @@ This path creates an IMS application server.
 
 - `name` (string): The name of the application server.
 - `server_name` (string): The SIP URI of the application server.
-- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be a subscriber's tel URI, or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`).
+- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be or cover a subscriber's public identity (`sip:+<msisdn>@<IMS home domain>`, `tel:+<msisdn>` or `sip:mcptt-<msisdn>@<IMS home domain>`), or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`).
 
 ### Sample Request
 
@@ -672,6 +672,29 @@ The `priority` of a criterion is its position in the list. It is returned on rea
             "default_handling": "SESSION_TERMINATED"
         }
     ]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "name": "conference",
+        "initial_filter_criteria": [
+            {
+                "priority": 0,
+                "application_server_name": "conference",
+                "trigger": {
+                    "conditions_match": "all",
+                    "groups": [{"conditions": [{"request_uri": "^sip:conference@.*$"}]}]
+                },
+                "default_handling": "SESSION_TERMINATED",
+                "include_register_request": false,
+                "include_register_response": false
+            }
+        ]
+    }
 }
 ```
 

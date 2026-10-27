@@ -158,12 +158,11 @@ func assign(current *Registration, r cx.ServerAssignmentRequest, sets []Registra
 		cx.AssignmentAdministrativeDeregistration, cx.AssignmentDeregistrationTooMuchData:
 		return current.without(sets), success, nil
 	case cx.AssignmentTimeoutDeregistrationStoreServer, cx.AssignmentUserDeregistrationStoreServer:
-		next := current.without(sets)
-		if next == nil {
+		if current.without(sets) == nil {
 			return nil, tgpp.Experimental(tgpp.ResultSuccessServerNameNotStored), nil
 		}
 
-		return next, success, nil
+		return current.unregistered(sets), success, nil
 	case cx.AssignmentAuthenticationFailure, cx.AssignmentAuthenticationTimeout:
 		if !known || previous.State == NotRegistered {
 			return current.without([]RegistrationSet{set}), success, nil

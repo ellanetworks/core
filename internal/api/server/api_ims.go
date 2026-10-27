@@ -432,7 +432,7 @@ func CreateIMSServiceProfile(dbInstance *db.Database) http.Handler {
 		email := getEmailFromContext(r)
 
 		var params CreateIMSServiceProfileParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		if err := decodeStrict(r, &params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
@@ -472,8 +472,13 @@ func UpdateIMSServiceProfile(dbInstance *db.Database, notifier IMSProfileNotifie
 		email := getEmailFromContext(r)
 
 		var params UpdateIMSServiceProfileParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		if err := decodeStrict(r, &params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		if params.InitialFilterCriteria == nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "initial_filter_criteria is required", nil, logger.APILog)
 			return
 		}
 
@@ -563,7 +568,7 @@ func UpdateProfileIMSServiceProfiles(dbInstance *db.Database, notifier IMSProfil
 		email := getEmailFromContext(r)
 
 		var params ProfileIMSServiceProfiles
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		if err := decodeStrict(r, &params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}

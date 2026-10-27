@@ -1130,7 +1130,7 @@ paths:
       operationId: getProfileIMSServiceProfiles
       tags: [Profiles]
       summary: Get a profile's IMS service profiles
-      description: Returns the IMS service profile of each implicit registration set of the profile's subscribers. Each public user identity of a set gets the set's service profile (TS 23.228 §4.3.3.4).
+      description: Returns the IMS service profile of each implicit registration set of the profile's subscribers. Each public user identity has one service profile (TS 23.228 §4.3.3.4); every identity of a set gets the set's.
       parameters:
         - $ref: "#/components/parameters/ProfileNamePath"
       responses:

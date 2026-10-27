@@ -579,6 +579,7 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	if err != nil {
 		failure("ims_application_servers", err)
 		failure("ims_service_profiles", err)
+		failure("ims_service_profile_assignments", err)
 
 		return
 	}
@@ -601,6 +602,7 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	serviceProfiles, err := db.ListIMSServiceProfiles(ctx)
 	if err != nil {
 		failure("ims_service_profiles", err)
+		failure("ims_service_profile_assignments", err)
 
 		return
 	}

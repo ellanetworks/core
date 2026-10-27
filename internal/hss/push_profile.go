@@ -182,7 +182,7 @@ func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, s
 		h.log.Warn("the S-CSCF rejected the IMS user profile; de-registering the user so that another S-CSCF is assigned",
 			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost), zap.Stringer("result", r))
 
-		return h.Terminate(context.WithoutCancel(ctx), termination(imsi, reg, cx.ReasonServerChange, []RegistrationSet{set}))
+		return h.Terminate(context.WithoutCancel(ctx), termination(imsi, reg, cx.ReasonServerChange, nil))
 	case r.IsExperimental(tgpp.ResultErrorUserUnknown):
 		pushes.WithLabelValues(pushUserUnknown).Inc()
 		h.log.Warn("the S-CSCF does not know the user; marking it not registered",
@@ -193,7 +193,7 @@ func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, s
 				return current, nil
 			}
 
-			return current.without([]RegistrationSet{set}), nil
+			return nil, nil
 		})
 	default:
 		pushes.WithLabelValues(pushFailed).Inc()

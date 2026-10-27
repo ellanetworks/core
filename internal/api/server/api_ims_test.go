@@ -460,6 +460,15 @@ func TestIMSServiceProfiles_TS29228_B2(t *testing.T) {
 		}
 	}
 
+	for name, body := range map[string]map[string]any{
+		"no initial filter criteria": {},
+		"an unknown field":           {"initial_filter_criteria": []any{}, "initial_filter_criterion": []any{}},
+	} {
+		if status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, body); err != nil || status != http.StatusBadRequest {
+			t.Fatalf("%s: status %d, response %+v, err %v; want 400", name, status, resp, err)
+		}
+	}
+
 	if got := notifier.take(); len(got) != 0 {
 		t.Fatalf("failed updates notified %v", got)
 	}
@@ -543,6 +552,10 @@ func TestProfileIMSServiceProfiles_TS23228_4_3_3_4(t *testing.T) {
 	status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, ProfileIMSServiceProfilesBody{MMTel: strPtr("missing")})
 	if err != nil || status != http.StatusBadRequest || resp.Error != "Service profile not found: missing" {
 		t.Fatalf("assign a missing service profile: status %d, response %+v, err %v", status, resp, err)
+	}
+
+	if status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, map[string]any{"mmtel": "volte", "mcpt": "mcptt"}); err != nil || status != http.StatusBadRequest {
+		t.Fatalf("assign with a misspelt set: status %d, response %+v, err %v; want 400", status, resp, err)
 	}
 
 	if got := get(t); !reflect.DeepEqual(got, both) {

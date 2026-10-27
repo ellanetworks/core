@@ -63,7 +63,7 @@ func ProvisionIPSMGWService(ctx context.Context, env Env, profile string) (func(
 		return nil, fmt.Errorf("create the IP-SM-GW application server: %w", err)
 	}
 
-	unassign, err := provisionServiceProfile(ctx, cl, profile, IPSMGWServiceProfile, IPSMGWFilterCriteria())
+	unassign, err := provisionServiceProfile(ctx, cl, profile, MMTelSet, IPSMGWServiceProfile, IPSMGWFilterCriteria())
 	if err != nil {
 		_ = cl.DeleteIMSApplicationServer(context.Background(), IPSMGWApplicationServer)
 

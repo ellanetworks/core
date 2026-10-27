@@ -1306,7 +1306,14 @@ const (
 	MCPTTServiceProfile    = "mcptt"
 )
 
-func provisionServiceProfile(ctx context.Context, cl *client.Client, profile, name string, ifcs []client.IMSInitialFilterCriterion) (func(), error) {
+type RegistrationSet string
+
+const (
+	MMTelSet RegistrationSet = "mmtel"
+	MCPTTSet RegistrationSet = "mcptt"
+)
+
+func provisionServiceProfile(ctx context.Context, cl *client.Client, profile string, set RegistrationSet, name string, ifcs []client.IMSInitialFilterCriterion) (func(), error) {
 	previous, err := cl.GetProfileIMSServiceProfiles(ctx, profile)
 	if err != nil {
 		return nil, fmt.Errorf("get the IMS service profiles of profile %s: %w", profile, err)
@@ -1322,7 +1329,11 @@ func provisionServiceProfile(ctx context.Context, cl *client.Client, profile, na
 	}
 
 	assigned := *previous
-	assigned.MMTel = &name
+	if set == MCPTTSet {
+		assigned.MCPTT = &name
+	} else {
+		assigned.MMTel = &name
+	}
 
 	if err := cl.SetProfileIMSServiceProfiles(ctx, profile, &assigned); err != nil {
 		cleanup()
@@ -1355,7 +1366,7 @@ func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
 	}
 }
 
-func ProvisionMCPTTService(ctx context.Context, env Env, profile, serverName string) (func(), error) {
+func ProvisionMCPTTService(ctx context.Context, env Env, profile string, set RegistrationSet, serverName string) (func(), error) {
 	cl, err := coreClient(env)
 	if err != nil {
 		return nil, err
@@ -1369,7 +1380,7 @@ func ProvisionMCPTTService(ctx context.Context, env Env, profile, serverName str
 		return nil, fmt.Errorf("create the MCPTT application server: %w", err)
 	}
 
-	unassign, err := provisionServiceProfile(ctx, cl, profile, MCPTTServiceProfile, MCPTTFilterCriteria())
+	unassign, err := provisionServiceProfile(ctx, cl, profile, set, MCPTTServiceProfile, MCPTTFilterCriteria())
 	if err != nil {
 		_ = cl.DeleteIMSApplicationServer(context.Background(), MCPTTApplicationServer)
 

@@ -105,6 +105,25 @@ func (r *Registration) with(name RegistrationSet, s SetRegistration) *Registrati
 	return next
 }
 
+func (r *Registration) unregistered(names []RegistrationSet) *Registration {
+	next := r.clone()
+
+	for _, name := range names {
+		s, ok := next.Sets[name]
+
+		switch {
+		case !ok:
+		case s.State == NotRegistered:
+			delete(next.Sets, name)
+		default:
+			s.State, s.AuthPending = Unregistered, false
+			next.Sets[name] = s
+		}
+	}
+
+	return next
+}
+
 func (r *Registration) without(names []RegistrationSet) *Registration {
 	if r == nil || len(names) == 0 {
 		return nil

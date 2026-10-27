@@ -4,7 +4,7 @@ description: RESTful API reference for managing profiles.
 
 # Profiles
 
-Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR). Ella Core signals this value to the radio, which enforces it. A profile can be shared across multiple policies.
+Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR) and the IMS service profiles of its registration sets. Ella Core signals the UE-AMBR to the radio, which enforces it. A profile can be shared across multiple policies.
 
 ## List Profiles
 
@@ -143,7 +143,7 @@ None
 
 ## Get a Profile's IMS Service Profiles
 
-This path returns the [IMS service profile](operator.md#create-an-ims-service-profile) of each implicit registration set of the profile's subscribers. Every public identity of a set gets the set's service profile ([TS 23.228 §4.3.3.4](https://www.3gpp.org/DynaReport/23228.htm)). A set without one is `null`.
+This path returns the [IMS service profile](operator.md#create-an-ims-service-profile) assigned to each implicit registration set of the profile's subscribers. Every public identity of a set gets the set's service profile. A set without one is `null`.
 
 | Method | Path                                           |
 | ------ | ---------------------------------------------- |
@@ -177,7 +177,7 @@ This path replaces the IMS service profiles of a profile. Registered subscribers
 - `mmtel` (optional string): The service profile of the MMTel implicit registration set: `sip:+<msisdn>@<IMS home domain>`, `tel:+<msisdn>` and the barred `sip:<private identity>`.
 - `mcptt` (optional string): The service profile of the MCPTT implicit registration set: `sip:mcptt-<msisdn>@<IMS home domain>`.
 
-A set left out or `null` gets a service profile without initial filter criteria.
+A set left out, `null` or `""` has no service profile, and its identities have no initial filter criteria.
 
 ### Sample Request
 

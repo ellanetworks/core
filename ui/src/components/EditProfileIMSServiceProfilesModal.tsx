@@ -29,7 +29,8 @@ interface EditProfileIMSServiceProfilesModalProps {
 type FormValues = Record<IMSRegistrationSet, string>;
 
 const helperTexts: Record<IMSRegistrationSet, string> = {
-  mmtel: "The subscriber's sip:+MSISDN and tel:+MSISDN identities.",
+  mmtel:
+    "The subscriber's sip:+MSISDN and tel:+MSISDN identities, and its barred IMSI identity.",
   mcptt: "The subscriber's sip:mcptt-MSISDN identity.",
 };
 

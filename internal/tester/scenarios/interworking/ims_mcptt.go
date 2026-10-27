@@ -115,7 +115,7 @@ func runMCPTTCallHandoverTo4G(ctx context.Context, env scenarios.Env) error {
 
 	defer as.Close()
 
-	unprovision, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.MCProfileName, as.URI())
+	unprovision, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.MCProfileName, scenarios.MCPTTSet, as.URI())
 	if err != nil {
 		return err
 	}

@@ -60,8 +60,14 @@ func termination(imsi string, reg *Registration, reason cx.ReasonCode, sets []Re
 	}
 
 	for _, set := range sets {
-		if s, ok := reg.Sets[set]; ok && s.DefaultIdentity != "" {
+		s, ok := reg.Sets[set]
+
+		switch {
+		case !ok:
+		case s.DefaultIdentity != "":
 			t.PublicIdentities = append(t.PublicIdentities, s.DefaultIdentity)
+		case set == MMTel && reg.PrivateIdentity != "":
+			t.PublicIdentities = append(t.PublicIdentities, "sip:"+reg.PrivateIdentity)
 		}
 	}
 
@@ -198,7 +204,7 @@ func (t *Termination) holds(current *Registration) bool {
 	}
 
 	if len(t.sets) == 0 {
-		return maps.Equal(current.Sets, t.expected.Sets)
+		return true
 	}
 
 	for _, set := range t.sets {

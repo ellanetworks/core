@@ -94,6 +94,7 @@ type MCPTTClient struct {
 
 func NewMCPTTClient(ep IMSEndpoint, transport sip.Transport) (*MCPTTClient, error) {
 	u, err := newIMSUEConfigured(ep.Subscriber, ep.PCSCF, ep.Local, transport, 0, func(cfg *testue.Config) {
+		cfg.IMPU = MCPTTIdentity(ep.Subscriber)
 		cfg.NoMMTel = true
 		cfg.NoSMS = true
 		cfg.Services = []ue.Service{mcpttService()}
@@ -107,9 +108,19 @@ func NewMCPTTClient(ep IMSEndpoint, transport sip.Transport) (*MCPTTClient, erro
 
 func (c *MCPTTClient) Close() { c.u.close() }
 
+func MCPTTIdentity(sub SubscriberSpec) string {
+	return "sip:mcptt-" + strings.TrimPrefix(sub.MSISDN, "+") + "@" + IMSHomeDomain
+}
+
 func (c *MCPTTClient) Register(ctx context.Context) error {
-	if err := c.u.register(ctx, c.sub, c.transport); err != nil {
-		return err
+	if err := c.u.Register(ctx); err != nil {
+		return fmt.Errorf("MCPTT registration of %s over %s: %w", c.sub.IMSI, c.transport, err)
+	}
+
+	impu := MCPTTIdentity(c.sub)
+
+	if s := c.u.State(); s.DefaultIMPU != impu || slices.Contains(s.AssociatedURIs, "tel:"+c.sub.MSISDN) {
+		return fmt.Errorf("default IMPU %q and associated URIs %v, want the MCPTT set alone, %q", s.DefaultIMPU, s.AssociatedURIs, impu)
 	}
 
 	contact, err := c.u.RegisterContact()

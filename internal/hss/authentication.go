@@ -6,6 +6,8 @@ package hss
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
@@ -39,7 +41,11 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 
 	set := sub.requestedSet()
 
+	var moved *Registration
+
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
+		moved = nil
+
 		if r.Resync != nil && (current == nil || current.ServerName != r.ServerName) {
 			return nil, errResyncFromAnotherServer
 		}
@@ -54,8 +60,7 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 
 		if current == nil || current.ServerName != r.ServerName {
 			if current.registered() {
-				h.log.Info("IMS subscriber moved to another S-CSCF; the previous S-CSCF is not notified",
-					zap.String("imsi", sub.IMSI), zap.String("previous", current.ServerName), zap.String("serverName", r.ServerName))
+				moved = current
 			}
 
 			next := &Registration{ServerName: r.ServerName, OriginHost: af.OriginHost, OriginRealm: af.OriginRealm}
@@ -81,6 +86,13 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 
 	if err != nil {
 		return h.errorAnswer(req, id, "multimedia auth", err)
+	}
+
+	if moved != nil {
+		h.log.Info("IMS subscriber moved to another S-CSCF; de-registering it at the previous one",
+			zap.String("imsi", sub.IMSI), zap.String("previous", moved.ServerName), zap.String("serverName", r.ServerName))
+
+		go h.newServerAssigned(context.WithoutCancel(ctx), sub.IMSI, moved)
 	}
 
 	var resync *udm.IMSResync
@@ -114,4 +126,21 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 	}
 
 	return ans
+}
+
+func (h *HSS) newServerAssigned(ctx context.Context, imsi string, previous *Registration) {
+	var sets []RegistrationSet
+
+	for _, set := range slices.Sorted(maps.Keys(previous.Sets)) {
+		if previous.Sets[set].State != NotRegistered {
+			sets = append(sets, set)
+		}
+	}
+
+	t := termination(imsi, previous, cx.ReasonNewServerAssigned, sets)
+	if len(t.PublicIdentities) == 0 {
+		return
+	}
+
+	_ = h.Terminate(ctx, t)
 }

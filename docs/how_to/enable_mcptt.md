@@ -12,6 +12,8 @@ This guide shows how to serve Mission Critical Push To Talk (MCPTT) to subscribe
 - **MCPTT server**: [Ella IMS](https://github.com/ellanetworks/ims), set up as in [Enable Push-to-Talk](https://docs.ellanetworks.com/ims/how_to/enable_push_to_talk/), or a 3GPP MCPTT server that the IMS reaches and trusts.
 - **MCPTT clients**: configured with the MC data network (`mcx` below) as their MC services APN or DNN.
 - **Radios**: support for QCI/5QI 69 and 65.
+- **SIMs**: with an ISIM you can program.
+- **Phones**: an IMS client that registers with a `reg-id` (SIP outbound, RFC 5626).
 
 ## 1. Create the MC data network
 
@@ -41,7 +43,7 @@ With another MCPTT server, enter `mcptt` as the **Name**, its SIP URI as the **S
 
 ## 4. Create the MCPTT service profile
 
-On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and click **Add**. Click **Create**.
+On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add**. Click **Add**.
 
 ## 5. Give the MC profile the MCPTT service profile
 
@@ -54,9 +56,13 @@ For each MCPTT user:
 - Go to the **Subscribers** page and click on the subscriber.
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
 - Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its MCPTT public identity, `sip:mcptt-<msisdn>@<IMS home domain>`, to an MCPTT ID on your MCPTT server.
-- Program the SIM with the MCPTT public identity as the second record of the ISIM's EF.IMPU, after `sip:+<msisdn>@<IMS home domain>`. The MCPTT client registers it, alongside the phone's own IMS registration.
+- Program the SIM's ISIM with the MCPTT public identity in a record of EF.IMPU after the first, which is `sip:+<msisdn>@<IMS home domain>`.
 
-## 7. Make an MCPTT call
+## 7. Verify the MCPTT registration
+
+Start the MCPTT client. Go to the **Subscribers** page and click on the MCPTT user. **MCPTT** should show **Registered**.
+
+## 8. Make an MCPTT call
 
 On the MCPTT client, make a call to another MCPTT user. The call should connect with audio in both directions.
 

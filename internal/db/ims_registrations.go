@@ -178,13 +178,22 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 		setRows []imsRegistrationSetRow
 	)
 
-	if err := db.conn().Query(ctx, db.listAllIMSRegistrationsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	tx, err := db.conn().Begin(ctx, &sqlair.TXOptions{ReadOnly: true})
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("begin transaction failed: %w", err)
+	}
+
+	defer func() { _ = tx.Rollback() }()
+
+	if err := tx.Query(ctx, db.listAllIMSRegistrationsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.conn().Query(ctx, db.listAllIMSRegistrationSetsStmt).GetAll(&setRows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := tx.Query(ctx, db.listAllIMSRegistrationSetsStmt).GetAll(&setRows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -217,7 +226,16 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRe
 		return nil, nil
 	}
 
-	reg, err := db.getIMSRegistration(ctx, db.conn(), imsi)
+	tx, err := db.conn().Begin(ctx, &sqlair.TXOptions{ReadOnly: true})
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("begin transaction failed: %w", err)
+	}
+
+	defer func() { _ = tx.Rollback() }()
+
+	reg, err := db.getIMSRegistration(ctx, tx, imsi)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -363,7 +381,11 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 	return nil
 }
 
-func (db *Database) getIMSRegistration(ctx context.Context, q *sqlair.DB, imsi string) (*IMSRegistration, error) {
+type sqlairQuerier interface {
+	Query(ctx context.Context, s *sqlair.Statement, inputArgs ...any) *sqlair.Query
+}
+
+func (db *Database) getIMSRegistration(ctx context.Context, q sqlairQuerier, imsi string) (*IMSRegistration, error) {
 	row := imsRegistrationRow{Imsi: imsi}
 
 	if err := q.Query(ctx, db.getIMSRegistrationStmt, row).Get(&row); err != nil {
