@@ -263,8 +263,8 @@ func authItemAVP(item AuthItem) (diameter.AVP, error) {
 	inner = append(inner,
 		diameter.OctetString(AVPSIPAuthenticate, diameter.AVPFlagMandatory, tgpp.VendorID, append(append([]byte(nil), v.RAND...), v.AUTN...)),
 		diameter.OctetString(AVPSIPAuthorization, diameter.AVPFlagMandatory, tgpp.VendorID, v.XRES),
-		diameter.OctetString(AVPConfidentialityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.CK),
-		diameter.OctetString(AVPIntegrityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.IK),
+		diameter.OctetString(tgpp.AVPConfidentialityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.CK),
+		diameter.OctetString(tgpp.AVPIntegrityKey, diameter.AVPFlagMandatory, tgpp.VendorID, v.IK),
 	)
 
 	return diameter.Grouped(AVPSIPAuthDataItem, diameter.AVPFlagMandatory, tgpp.VendorID, inner...), nil
@@ -339,8 +339,8 @@ func parseAuthItem(avp diameter.AVP) (AuthItem, error) {
 
 	authenticate, _ := diameter.Find(inner, AVPSIPAuthenticate, tgpp.VendorID)
 	xres, _ := diameter.Find(inner, AVPSIPAuthorization, tgpp.VendorID)
-	ck, _ := diameter.Find(inner, AVPConfidentialityKey, tgpp.VendorID)
-	ik, _ := diameter.Find(inner, AVPIntegrityKey, tgpp.VendorID)
+	ck, _ := diameter.Find(inner, tgpp.AVPConfidentialityKey, tgpp.VendorID)
+	ik, _ := diameter.Find(inner, tgpp.AVPIntegrityKey, tgpp.VendorID)
 
 	switch {
 	case len(authenticate.Data) != randLen+autnLen:

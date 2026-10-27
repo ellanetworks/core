@@ -36,8 +36,8 @@ type bandwidthCodes struct {
 }
 
 var (
-	maxRequestedUL = bandwidthCodes{AVPMaxRequestedBandwidthUL, AVPExtendedMaxRequestedBWUL, diameter.AVPFlagMandatory}
-	maxRequestedDL = bandwidthCodes{AVPMaxRequestedBandwidthDL, AVPExtendedMaxRequestedBWDL, diameter.AVPFlagMandatory}
+	maxRequestedUL = bandwidthCodes{tgpp.AVPMaxRequestedBandwidthUL, tgpp.AVPExtendedMaxRequestedBWUL, diameter.AVPFlagMandatory}
+	maxRequestedDL = bandwidthCodes{tgpp.AVPMaxRequestedBandwidthDL, tgpp.AVPExtendedMaxRequestedBWDL, diameter.AVPFlagMandatory}
 	minRequestedUL = bandwidthCodes{AVPMinRequestedBandwidthUL, AVPExtendedMinRequestedBWUL, 0}
 	minRequestedDL = bandwidthCodes{AVPMinRequestedBandwidthDL, AVPExtendedMinRequestedBWDL, 0}
 	maxSupportedUL = bandwidthCodes{AVPMaxSupportedBandwidthUL, AVPExtendedMaxSupportedBWUL, 0}

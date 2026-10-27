@@ -45,7 +45,6 @@ const (
 	AVPIPSMGWSMDeliveryOutcome           uint32 = 3320
 	AVPSMDeliveryCause                   uint32 = 3321
 	AVPRDRFlags                          uint32 = 3323
-	AVPMaximumUEAvailabilityTime         uint32 = 3329
 	AVPSMSGMSCAlertEvent                 uint32 = 3333
 	AVPSMSF3GPPAbsentUserDiagnosticSM    uint32 = 3334
 	AVPSMSFNon3GPPAbsentUserDiagnosticSM uint32 = 3335

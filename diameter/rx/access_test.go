@@ -18,7 +18,7 @@ import (
 func TestAAAnswerAccessNetworkRoundTrip(t *testing.T) {
 	a := AAAnswer{
 		Result:              tgpp.Result{Code: diameter.ResultSuccess},
-		AccessNetwork:       AccessNetwork{IPCANType: ptr(IPCAN3GPPEPS), RATType: ptr(RATType(9999))},
+		AccessNetwork:       AccessNetwork{IPCANType: ptr(IPCAN3GPPEPS), RATType: ptr(tgpp.RATType(9999))},
 		ServingNetwork:      ServingNetwork{PLMN: "00101"},
 		NetLocAccessSupport: ptr(NetLocAccessNotSupported),
 		Flows:               []Flows{{MediaComponentNumber: 1, FlowNumbers: []uint32{1}}},
@@ -256,8 +256,8 @@ func TestBandwidthEncoding(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			bps, _ := optionalUint32(avps, AVPMaxRequestedBandwidthUL, tgpp.VendorID)
-			kbps, _ := optionalUint32(avps, AVPExtendedMaxRequestedBWUL, tgpp.VendorID)
+			bps, _ := optionalUint32(avps, tgpp.AVPMaxRequestedBandwidthUL, tgpp.VendorID)
+			kbps, _ := optionalUint32(avps, tgpp.AVPExtendedMaxRequestedBWUL, tgpp.VendorID)
 
 			if !reflect.DeepEqual(bps, tc.bps) || !reflect.DeepEqual(kbps, tc.kbps) {
 				t.Fatalf("encoded bps %v, kbps %v", bps, kbps)
@@ -281,7 +281,7 @@ func TestBandwidthEncoding(t *testing.T) {
 		})
 	}
 
-	extendedOnly := []diameter.AVP{diameter.Unsigned32(AVPExtendedMaxRequestedBWDL, 0, tgpp.VendorID, 3)}
+	extendedOnly := []diameter.AVP{diameter.Unsigned32(tgpp.AVPExtendedMaxRequestedBWDL, 0, tgpp.VendorID, 3)}
 	if got, err := parseBandwidth(extendedOnly, maxRequestedDL); err != nil || *got != 3000 {
 		t.Fatalf("extended only = %v, %v", got, err)
 	}
@@ -290,7 +290,7 @@ func TestBandwidthEncoding(t *testing.T) {
 		t.Fatalf("absent = %v, %v", got, err)
 	}
 
-	shortExtended := []diameter.AVP{diameter.OctetString(AVPExtendedMaxRequestedBWDL, 0, tgpp.VendorID, []byte{1})}
+	shortExtended := []diameter.AVP{diameter.OctetString(tgpp.AVPExtendedMaxRequestedBWDL, 0, tgpp.VendorID, []byte{1})}
 	if _, err := parseBandwidth(shortExtended, maxRequestedDL); avpError(t, err).ResultCode != diameter.ResultInvalidAVPLength {
 		t.Fatalf("short extended = %v", err)
 	}

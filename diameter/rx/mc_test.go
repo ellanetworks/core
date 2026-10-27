@@ -68,8 +68,8 @@ func TestMissionCriticalAVPEncoding(t *testing.T) {
 		{"session Reservation-Priority", req.AVPs, avpReservationPriority, etsiVendorID, 15},
 		{"Pre-emption-Control-Info", req.AVPs, avpPreemptionControlInfo, tgpp.VendorID, 2},
 		{"Priority-Sharing-Indicator", inner, avpPrioritySharingIndicator, tgpp.VendorID, 0},
-		{"Pre-emption-Capability", inner, avpPreemptionCapability, tgpp.VendorID, 0},
-		{"Pre-emption-Vulnerability", inner, avpPreemptionVulnerability, tgpp.VendorID, 1},
+		{"Pre-emption-Capability", inner, tgpp.AVPPreemptionCapability, tgpp.VendorID, 0},
+		{"Pre-emption-Vulnerability", inner, tgpp.AVPPreemptionVulnerability, tgpp.VendorID, 1},
 		{"component Reservation-Priority", inner, avpReservationPriority, etsiVendorID, 13},
 	} {
 		a, ok := diameter.Find(tc.avps, tc.code, tc.vendorID)
@@ -123,8 +123,8 @@ func TestMissionCriticalAVPsFollowTheGrammar(t *testing.T) {
 	component := order(inner,
 		vendorKey(AVPFlowStatus),
 		vendorKey(avpPrioritySharingIndicator),
-		vendorKey(avpPreemptionCapability),
-		vendorKey(avpPreemptionVulnerability),
+		vendorKey(tgpp.AVPPreemptionCapability),
+		vendorKey(tgpp.AVPPreemptionVulnerability),
 		diameter.AVPKey{Code: avpReservationPriority, VendorID: etsiVendorID},
 	)
 
@@ -183,11 +183,11 @@ func TestParseMissionCriticalAVPErrors(t *testing.T) {
 			diameter.ResultInvalidAVPValue,
 		},
 		"Pre-emption-Vulnerability 2": {
-			with(base, component(diameter.Unsigned32(avpPreemptionVulnerability, 0, tgpp.VendorID, 2))),
+			with(base, component(diameter.Unsigned32(tgpp.AVPPreemptionVulnerability, 0, tgpp.VendorID, 2))),
 			diameter.ResultInvalidAVPValue,
 		},
 		"short Pre-emption-Capability": {
-			with(base, component(diameter.OctetString(avpPreemptionCapability, 0, tgpp.VendorID, []byte{0, 1}))),
+			with(base, component(diameter.OctetString(tgpp.AVPPreemptionCapability, 0, tgpp.VendorID, []byte{0, 1}))),
 			diameter.ResultInvalidAVPLength,
 		},
 	} {

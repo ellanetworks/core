@@ -20,7 +20,7 @@ const (
 
 type AccessNetwork struct {
 	IPCANType     *IPCANType
-	RATType       *RATType
+	RATType       *tgpp.RATType
 	ANTrusted     *ANTrusted
 	ANGWAddresses []netip.Addr
 }
@@ -103,7 +103,7 @@ func parseAccessNetwork(avps []diameter.AVP) (AccessNetwork, error) {
 		return AccessNetwork{}, err
 	}
 
-	n.RATType = (*RATType)(rat)
+	n.RATType = (*tgpp.RATType)(rat)
 
 	return n, nil
 }

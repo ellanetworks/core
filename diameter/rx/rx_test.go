@@ -124,8 +124,8 @@ var mandatoryBit = map[diameter.AVPKey]bool{
 	vendorKey(AVPFlowStatus):                           true,
 	vendorKey(AVPFlowUsage):                            true,
 	vendorKey(AVPSpecificAction):                       true,
-	vendorKey(AVPMaxRequestedBandwidthDL):              true,
-	vendorKey(AVPMaxRequestedBandwidthUL):              true,
+	vendorKey(tgpp.AVPMaxRequestedBandwidthDL):         true,
+	vendorKey(tgpp.AVPMaxRequestedBandwidthUL):         true,
 	vendorKey(AVPMediaComponentDescription):            true,
 	vendorKey(AVPMediaComponentNumber):                 true,
 	vendorKey(AVPMediaSubComponent):                    true,
@@ -145,8 +145,8 @@ var mandatoryBit = map[diameter.AVPKey]bool{
 	vendorKey(AVPMaxSupportedBandwidthDL):              false,
 	vendorKey(AVPMinDesiredBandwidthUL):                false,
 	vendorKey(AVPMinDesiredBandwidthDL):                false,
-	vendorKey(AVPExtendedMaxRequestedBWUL):             false,
-	vendorKey(AVPExtendedMaxRequestedBWDL):             false,
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWUL):        false,
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWDL):        false,
 	vendorKey(AVPExtendedMaxSupportedBWUL):             false,
 	vendorKey(AVPExtendedMaxSupportedBWDL):             false,
 	vendorKey(AVPExtendedMinDesiredBWUL):               false,
@@ -244,7 +244,7 @@ func checkFlags(t *testing.T, avps []diameter.AVP, featuresMandatory bool) {
 func fullAccessNetwork() AccessNetwork {
 	return AccessNetwork{
 		IPCANType:     ptr(IPCANNon3GPPEPS),
-		RATType:       ptr(RATWLAN),
+		RATType:       ptr(tgpp.RATWLAN),
 		ANTrusted:     ptr(ANTrustedUntrusted),
 		ANGWAddresses: []netip.Addr{netip.MustParseAddr("10.0.0.9"), netip.MustParseAddr("2001:db8::9")},
 	}

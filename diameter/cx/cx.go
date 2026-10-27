@@ -24,7 +24,6 @@ const (
 )
 
 const (
-	AVPVisitedNetworkIdentifier                uint32 = 600
 	AVPPublicIdentity                          uint32 = 601
 	AVPServerName                              uint32 = 602
 	AVPServerCapabilities                      uint32 = 603
@@ -49,8 +48,6 @@ const (
 	AVPSecondaryChargingCollectionFunctionName uint32 = 622
 	AVPUserAuthorizationType                   uint32 = 623
 	AVPUserDataAlreadyAvailable                uint32 = 624
-	AVPConfidentialityKey                      uint32 = 625
-	AVPIntegrityKey                            uint32 = 626
 	AVPAssociatedIdentities                    uint32 = 632
 	AVPOriginatingRequest                      uint32 = 633
 	AVPWildcardedPublicIdentity                uint32 = 634

@@ -92,16 +92,16 @@ var mediaComponentRules = diameter.Rules{
 	vendorKey(AVPAFApplicationIdentifier):                  {},
 	vendorKey(avpFLUSIdentifier):                           {},
 	vendorKey(AVPMediaType):                                {},
-	vendorKey(AVPMaxRequestedBandwidthUL):                  {},
-	vendorKey(AVPMaxRequestedBandwidthDL):                  {},
+	vendorKey(tgpp.AVPMaxRequestedBandwidthUL):             {},
+	vendorKey(tgpp.AVPMaxRequestedBandwidthDL):             {},
 	vendorKey(AVPMaxSupportedBandwidthUL):                  {},
 	vendorKey(AVPMaxSupportedBandwidthDL):                  {},
 	vendorKey(AVPMinDesiredBandwidthUL):                    {},
 	vendorKey(AVPMinDesiredBandwidthDL):                    {},
 	vendorKey(AVPMinRequestedBandwidthUL):                  {},
 	vendorKey(AVPMinRequestedBandwidthDL):                  {},
-	vendorKey(AVPExtendedMaxRequestedBWUL):                 {},
-	vendorKey(AVPExtendedMaxRequestedBWDL):                 {},
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWUL):            {},
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWDL):            {},
 	vendorKey(AVPExtendedMaxSupportedBWUL):                 {},
 	vendorKey(AVPExtendedMaxSupportedBWDL):                 {},
 	vendorKey(AVPExtendedMinDesiredBWUL):                   {},
@@ -110,8 +110,8 @@ var mediaComponentRules = diameter.Rules{
 	vendorKey(AVPExtendedMinRequestedBWDL):                 {},
 	vendorKey(AVPFlowStatus):                               {},
 	vendorKey(avpPrioritySharingIndicator):                 {},
-	vendorKey(avpPreemptionCapability):                     {},
-	vendorKey(avpPreemptionVulnerability):                  {},
+	vendorKey(tgpp.AVPPreemptionCapability):                {},
+	vendorKey(tgpp.AVPPreemptionVulnerability):             {},
 	{Code: avpReservationPriority, VendorID: etsiVendorID}: {},
 	vendorKey(AVPRSBandwidth):                              {},
 	vendorKey(AVPRRBandwidth):                              {},
@@ -126,16 +126,16 @@ var mediaComponentRules = diameter.Rules{
 }
 
 var mediaSubComponentRules = diameter.Rules{
-	vendorKey(AVPFlowNumber):               {Required: true, MinLength: 4},
-	vendorKey(AVPFlowDescription):          {Multiple: true},
-	vendorKey(AVPFlowStatus):               {},
-	vendorKey(AVPFlowUsage):                {},
-	vendorKey(AVPMaxRequestedBandwidthUL):  {},
-	vendorKey(AVPMaxRequestedBandwidthDL):  {},
-	vendorKey(AVPExtendedMaxRequestedBWUL): {},
-	vendorKey(AVPExtendedMaxRequestedBWDL): {},
-	vendorKey(AVPAFSignallingProtocol):     {},
-	vendorKey(avpToSTrafficClass):          {},
+	vendorKey(AVPFlowNumber):                    {Required: true, MinLength: 4},
+	vendorKey(AVPFlowDescription):               {Multiple: true},
+	vendorKey(AVPFlowStatus):                    {},
+	vendorKey(AVPFlowUsage):                     {},
+	vendorKey(tgpp.AVPMaxRequestedBandwidthUL):  {},
+	vendorKey(tgpp.AVPMaxRequestedBandwidthDL):  {},
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWUL): {},
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWDL): {},
+	vendorKey(AVPAFSignallingProtocol):          {},
+	vendorKey(avpToSTrafficClass):               {},
 }
 
 var flowsRules = diameter.Rules{
@@ -157,11 +157,11 @@ var subscriptionIDRules = diameter.Rules{
 }
 
 var acceptableServiceInfoRules = diameter.Rules{
-	vendorKey(AVPMediaComponentDescription): {Multiple: true},
-	vendorKey(AVPMaxRequestedBandwidthDL):   {},
-	vendorKey(AVPMaxRequestedBandwidthUL):   {},
-	vendorKey(AVPExtendedMaxRequestedBWDL):  {},
-	vendorKey(AVPExtendedMaxRequestedBWUL):  {},
+	vendorKey(AVPMediaComponentDescription):     {Multiple: true},
+	vendorKey(tgpp.AVPMaxRequestedBandwidthDL):  {},
+	vendorKey(tgpp.AVPMaxRequestedBandwidthUL):  {},
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWDL): {},
+	vendorKey(tgpp.AVPExtendedMaxRequestedBWUL): {},
 }
 
 func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
@@ -221,8 +221,8 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 
 	avps = appendOptional(avps, AVPFlowStatus, diameter.AVPFlagMandatory, (*uint32)(c.FlowStatus))
 	avps = appendOptional(avps, avpPrioritySharingIndicator, 0, (*uint32)(c.PrioritySharing))
-	avps = appendOptional(avps, avpPreemptionCapability, 0, (*uint32)(c.PreemptionCapability))
-	avps = appendOptional(avps, avpPreemptionVulnerability, 0, (*uint32)(c.PreemptionVulnerability))
+	avps = appendOptional(avps, tgpp.AVPPreemptionCapability, 0, (*uint32)(c.PreemptionCapability))
+	avps = appendOptional(avps, tgpp.AVPPreemptionVulnerability, 0, (*uint32)(c.PreemptionVulnerability))
 
 	if c.ReservationPriority != nil {
 		avps = append(avps, reservationPriorityAVP(*c.ReservationPriority))
@@ -307,11 +307,11 @@ func parseMediaComponentData(a diameter.AVP) (MediaComponent, error) {
 		return MediaComponent{}, err
 	}
 
-	if c.PreemptionCapability, err = optionalEnum[PreemptionCapability](inner, avpPreemptionCapability, tgpp.VendorID); err != nil {
+	if c.PreemptionCapability, err = optionalEnum[PreemptionCapability](inner, tgpp.AVPPreemptionCapability, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
-	if c.PreemptionVulnerability, err = optionalEnum[PreemptionVulnerability](inner, avpPreemptionVulnerability, tgpp.VendorID); err != nil {
+	if c.PreemptionVulnerability, err = optionalEnum[PreemptionVulnerability](inner, tgpp.AVPPreemptionVulnerability, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 

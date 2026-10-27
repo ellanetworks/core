@@ -181,10 +181,10 @@ func TestMultimediaAuthAnswerEncoding(t *testing.T) {
 	inner, _ := avp.Grouped()
 
 	for code, want := range map[uint32][]byte{
-		AVPSIPAuthenticate:    append(append([]byte(nil), v.RAND...), v.AUTN...),
-		AVPSIPAuthorization:   v.XRES,
-		AVPConfidentialityKey: v.CK,
-		AVPIntegrityKey:       v.IK,
+		AVPSIPAuthenticate:         append(append([]byte(nil), v.RAND...), v.AUTN...),
+		AVPSIPAuthorization:        v.XRES,
+		tgpp.AVPConfidentialityKey: v.CK,
+		tgpp.AVPIntegrityKey:       v.IK,
 	} {
 		a, ok := diameter.Find(inner, code, tgpp.VendorID)
 		if !ok || !bytes.Equal(a.Data, want) || a.Flags&diameter.AVPFlagMandatory == 0 {
@@ -324,8 +324,8 @@ func TestParseMultimediaAuthAnswerErrors(t *testing.T) {
 		"short XRES": with(success, item(scheme,
 			diameter.OctetString(AVPSIPAuthenticate, 0, tgpp.VendorID, octets(32, 1)),
 			diameter.OctetString(AVPSIPAuthorization, 0, tgpp.VendorID, octets(3, 1)),
-			diameter.OctetString(AVPConfidentialityKey, 0, tgpp.VendorID, octets(16, 1)),
-			diameter.OctetString(AVPIntegrityKey, 0, tgpp.VendorID, octets(16, 1)))),
+			diameter.OctetString(tgpp.AVPConfidentialityKey, 0, tgpp.VendorID, octets(16, 1)),
+			diameter.OctetString(tgpp.AVPIntegrityKey, 0, tgpp.VendorID, octets(16, 1)))),
 		"short item number": with(success, item(scheme, diameter.OctetString(AVPSIPItemNumber, 0, tgpp.VendorID, octets(2, 1)))),
 	} {
 		if _, err := ParseMultimediaAuthAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {

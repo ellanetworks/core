@@ -141,14 +141,14 @@ func requireVendorSpecificApplicationID(t *testing.T, m *diameter.Message) {
 }
 
 var mandatoryBit = map[uint32]bool{
-	AVPVisitedNetworkIdentifier: true, AVPPublicIdentity: true, AVPServerName: true, AVPServerCapabilities: true,
+	tgpp.AVPVisitedNetworkIdentifier: true, AVPPublicIdentity: true, AVPServerName: true, AVPServerCapabilities: true,
 	AVPMandatoryCapability: true, AVPOptionalCapability: true, AVPUserData: true, AVPSIPNumberAuthItems: true,
 	AVPSIPAuthenticationScheme: true, AVPSIPAuthenticate: true, AVPSIPAuthorization: true, AVPSIPAuthDataItem: true,
 	AVPSIPItemNumber: true, AVPServerAssignmentType: true, AVPDeregistrationReason: true, AVPReasonCode: true,
 	AVPReasonInfo: true, AVPChargingInformation: true, AVPPrimaryEventChargingFunctionName: true,
 	AVPSecondaryEventChargingFunctionName: true, AVPPrimaryChargingCollectionFunctionName: true,
 	AVPSecondaryChargingCollectionFunctionName: true, AVPUserAuthorizationType: true, AVPUserDataAlreadyAvailable: true,
-	AVPConfidentialityKey: true, AVPIntegrityKey: true, AVPOriginatingRequest: true,
+	tgpp.AVPConfidentialityKey: true, tgpp.AVPIntegrityKey: true, AVPOriginatingRequest: true,
 	tgpp.AVPSupportedFeatures: false, tgpp.AVPFeatureListID: false, tgpp.AVPFeatureList: false,
 	AVPAssociatedIdentities: false, AVPWildcardedPublicIdentity: false, AVPUARFlags: false, AVPLooseRouteIndication: false,
 	AVPIdentityWithEmergencyRegistration: false, AVPPriviledgedSenderIndication: false, AVPLIAFlags: false, AVPRTRFlags: false,

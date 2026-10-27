@@ -230,7 +230,7 @@ func TestParseAARequestErrors(t *testing.T) {
 			with(base, sub(vendorUnsigned(AVPFlowUsage, uint32(FlowUsageAFSignalling)), diameter.Unsigned32(AVPAFSignallingProtocol, 0, tgpp.VendorID, 2))),
 			diameter.ResultInvalidAVPValue,
 		},
-		"short sub-component bandwidth": {with(base, sub(vendorOctets(AVPMaxRequestedBandwidthDL, []byte{1}))), diameter.ResultInvalidAVPLength},
+		"short sub-component bandwidth": {with(base, sub(vendorOctets(tgpp.AVPMaxRequestedBandwidthDL, []byte{1}))), diameter.ResultInvalidAVPLength},
 		"two Flow-Number":               {with(base, sub(vendorOctets(AVPFlowNumber, []byte{0, 0, 0, 0, 1}))), diameter.ResultAVPOccursTooManyTimes},
 		"long Flow-Number": {
 			with(base, component(vendorGrouped(AVPMediaSubComponent, vendorOctets(AVPFlowNumber, make([]byte, 8))))),
@@ -527,8 +527,8 @@ func TestParseAcceptableServiceInfoErrors(t *testing.T) {
 	for name, a := range map[string]diameter.AVP{
 		"not grouped":         vendorOctets(AVPAcceptableServiceInfo, []byte{1}),
 		"bad media component": vendorGrouped(AVPAcceptableServiceInfo, vendorGrouped(AVPMediaComponentDescription)),
-		"short UL":            vendorGrouped(AVPAcceptableServiceInfo, vendorOctets(AVPMaxRequestedBandwidthUL, []byte{1})),
-		"short DL":            vendorGrouped(AVPAcceptableServiceInfo, vendorOctets(AVPMaxRequestedBandwidthDL, []byte{1})),
+		"short UL":            vendorGrouped(AVPAcceptableServiceInfo, vendorOctets(tgpp.AVPMaxRequestedBandwidthUL, []byte{1})),
+		"short DL":            vendorGrouped(AVPAcceptableServiceInfo, vendorOctets(tgpp.AVPMaxRequestedBandwidthDL, []byte{1})),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := parseAcceptableServiceInfo(a); err == nil {

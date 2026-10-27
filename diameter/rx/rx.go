@@ -33,8 +33,6 @@ const (
 	AVPFlowStatus                           uint32 = 511
 	AVPFlowUsage                            uint32 = 512
 	AVPSpecificAction                       uint32 = 513
-	AVPMaxRequestedBandwidthDL              uint32 = 515
-	AVPMaxRequestedBandwidthUL              uint32 = 516
 	AVPMediaComponentDescription            uint32 = 517
 	AVPMediaComponentNumber                 uint32 = 518
 	AVPMediaSubComponent                    uint32 = 519
@@ -59,8 +57,6 @@ const (
 	AVPMinDesiredBandwidthUL                uint32 = 546
 	AVPMediaComponentStatus                 uint32 = 549
 	AVPContentVersion                       uint32 = 552
-	AVPExtendedMaxRequestedBWDL             uint32 = 554
-	AVPExtendedMaxRequestedBWUL             uint32 = 555
 	AVPExtendedMaxSupportedBWDL             uint32 = 556
 	AVPExtendedMaxSupportedBWUL             uint32 = 557
 	AVPExtendedMinDesiredBWDL               uint32 = 558
@@ -96,16 +92,14 @@ const (
 )
 
 const (
-	avpReservationPriority     uint32 = 458
-	avpOCSupportedFeatures     uint32 = 621
-	avpCallingPartyAddress     uint32 = 831
-	avpToSTrafficClass         uint32 = 1014
-	avpPreemptionCapability    uint32 = 1047
-	avpPreemptionVulnerability uint32 = 1048
-	avpMaxPLRDL                uint32 = 2852
-	avpMaxPLRUL                uint32 = 2853
-	avpReferenceID             uint32 = 4202
-	etsiVendorID               uint32 = 13019
+	avpReservationPriority uint32 = 458
+	avpOCSupportedFeatures uint32 = 621
+	avpCallingPartyAddress uint32 = 831
+	avpToSTrafficClass     uint32 = 1014
+	avpMaxPLRDL            uint32 = 2852
+	avpMaxPLRUL            uint32 = 2853
+	avpReferenceID         uint32 = 4202
+	etsiVendorID           uint32 = 13019
 )
 
 var (

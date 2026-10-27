@@ -13,31 +13,45 @@ import (
 const VendorID uint32 = 10415
 
 const (
-	AVP3GPPSGSNMCCMNC         uint32 = 18
-	AVP3GPPUserLocationInfo   uint32 = 22
-	AVP3GPPMSTimeZone         uint32 = 23
-	AVPTWANIdentifier         uint32 = 29
-	AVPIPCANType              uint32 = 1027
-	AVPRATType                uint32 = 1032
-	AVPANGWAddress            uint32 = 1050
-	AVPANTrusted              uint32 = 1503
-	AVPUELocalIPAddress       uint32 = 2805
-	AVPUDPSourcePort          uint32 = 2806
-	AVPUserLocationInfoTime   uint32 = 2812
-	AVPRANNASReleaseCause     uint32 = 2819
-	AVPNetLocAccessSupport    uint32 = 2824
-	AVPTCPSourcePort          uint32 = 2843
-	AVPSupportedFeatures      uint32 = 628
-	AVPFeatureListID          uint32 = 629
-	AVPFeatureList            uint32 = 630
-	AVPMSISDN                 uint32 = 701
-	AVPSGSNNumber             uint32 = 1489
-	AVPMMENumberForMTSMS      uint32 = 1645
-	AVPUserIdentifier         uint32 = 3102
-	AVPSCAddress              uint32 = 3300
-	AVPSMDeliveryOutcome      uint32 = 3316
-	AVPAbsentUserDiagnosticSM uint32 = 3322
-	AVPSMSMICorrelationID     uint32 = 3324
+	AVP3GPPChargingCharacteristics uint32 = 13
+	AVP3GPPSGSNMCCMNC              uint32 = 18
+	AVP3GPPUserLocationInfo        uint32 = 22
+	AVP3GPPMSTimeZone              uint32 = 23
+	AVPTWANIdentifier              uint32 = 29
+	AVPIPCANType                   uint32 = 1027
+	AVPQoSClassIdentifier          uint32 = 1028
+	AVPRATType                     uint32 = 1032
+	AVPAllocationRetentionPriority uint32 = 1034
+	AVPPriorityLevel               uint32 = 1046
+	AVPPreemptionCapability        uint32 = 1047
+	AVPPreemptionVulnerability     uint32 = 1048
+	AVPANGWAddress                 uint32 = 1050
+	AVPANTrusted                   uint32 = 1503
+	AVPUELocalIPAddress            uint32 = 2805
+	AVPUDPSourcePort               uint32 = 2806
+	AVPUserLocationInfoTime        uint32 = 2812
+	AVPRANNASReleaseCause          uint32 = 2819
+	AVPNetLocAccessSupport         uint32 = 2824
+	AVPTCPSourcePort               uint32 = 2843
+	AVPMaxRequestedBandwidthDL     uint32 = 515
+	AVPMaxRequestedBandwidthUL     uint32 = 516
+	AVPExtendedMaxRequestedBWDL    uint32 = 554
+	AVPExtendedMaxRequestedBWUL    uint32 = 555
+	AVPVisitedNetworkIdentifier    uint32 = 600
+	AVPConfidentialityKey          uint32 = 625
+	AVPIntegrityKey                uint32 = 626
+	AVPSupportedFeatures           uint32 = 628
+	AVPFeatureListID               uint32 = 629
+	AVPFeatureList                 uint32 = 630
+	AVPMSISDN                      uint32 = 701
+	AVPSGSNNumber                  uint32 = 1489
+	AVPMMENumberForMTSMS           uint32 = 1645
+	AVPUserIdentifier              uint32 = 3102
+	AVPSCAddress                   uint32 = 3300
+	AVPSMDeliveryOutcome           uint32 = 3316
+	AVPAbsentUserDiagnosticSM      uint32 = 3322
+	AVPSMSMICorrelationID          uint32 = 3324
+	AVPMaximumUEAvailabilityTime   uint32 = 3329
 )
 
 const (
@@ -82,6 +96,15 @@ const (
 	ResultErrorServiceNotSubscribed uint32 = 5556
 	ResultErrorServiceBarred        uint32 = 5557
 	ResultErrorMWDListFull          uint32 = 5558
+)
+
+const (
+	ResultAuthenticationDataUnavailable uint32 = 4181
+	ResultErrorCAMELSubscriptionPresent uint32 = 4182
+	ResultErrorUnknownEPSSubscription   uint32 = 5420
+	ResultErrorRATNotAllowed            uint32 = 5421
+	ResultErrorEquipmentUnknown         uint32 = 5422
+	ResultErrorUnknownServingNode       uint32 = 5423
 )
 
 const (
@@ -134,6 +157,12 @@ var experimentalResultNames = map[uint32]string{
 	ResultErrorServiceNotSubscribed:                "DIAMETER_ERROR_SERVICE_NOT_SUBSCRIBED",
 	ResultErrorServiceBarred:                       "DIAMETER_ERROR_SERVICE_BARRED",
 	ResultErrorMWDListFull:                         "DIAMETER_ERROR_MWD_LIST_FULL",
+	ResultAuthenticationDataUnavailable:            "DIAMETER_AUTHENTICATION_DATA_UNAVAILABLE",
+	ResultErrorCAMELSubscriptionPresent:            "DIAMETER_ERROR_CAMEL_SUBSCRIPTION_PRESENT",
+	ResultErrorUnknownEPSSubscription:              "DIAMETER_ERROR_UNKNOWN_EPS_SUBSCRIPTION",
+	ResultErrorRATNotAllowed:                       "DIAMETER_ERROR_RAT_NOT_ALLOWED",
+	ResultErrorEquipmentUnknown:                    "DIAMETER_ERROR_EQUIPMENT_UNKNOWN",
+	ResultErrorUnknownServingNode:                  "DIAMETER_ERROR_UNKNOWN_SERVING_NODE",
 	ResultRequestedServiceTemporarilyNotAuthorized: "REQUESTED_SERVICE_TEMPORARILY_NOT_AUTHORIZED",
 	ResultPCEFFailure:                              "PCEF_FAILURE",
 	ResultInvalidServiceInformation:                "INVALID_SERVICE_INFORMATION",
