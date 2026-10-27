@@ -177,7 +177,7 @@ This path replaces the IMS service profiles of a profile. Registered subscribers
 - `mmtel` (optional string): The service profile of the MMTel implicit registration set: `sip:+<msisdn>@<IMS home domain>`, `tel:+<msisdn>` and the barred `sip:<private identity>`.
 - `mcptt` (optional string): The service profile of the MCPTT implicit registration set: `sip:mcptt-<msisdn>@<IMS home domain>`.
 
-A set left out, `null` or `""` has no service profile, and its identities have no initial filter criteria.
+A set left out, `null` or `""` has no service profile. The MMTel identities then have no initial filter criteria, and the MCPTT identity does not exist.
 
 ### Sample Request
 

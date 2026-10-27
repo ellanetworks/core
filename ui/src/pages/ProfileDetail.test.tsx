@@ -68,8 +68,9 @@ describe("ProfileDetail IMS service profiles", () => {
     const c = await card();
     await c.findByText("volte");
     expect(c.getAllByRole("row").map((r) => r.textContent)).toEqual([
-      "MMTelvolte",
-      "MCPTTNone",
+      "Registration SetService Profile",
+      "MMTelsip:+MSISDN, tel:+MSISDN, barred IMSIvolte",
+      "MCPTTsip:mcptt-MSISDNOff",
     ]);
   });
 
@@ -87,7 +88,7 @@ describe("ProfileDetail IMS service profiles", () => {
       await screen.findByRole("dialog", { name: "Edit IMS Service Profiles" }),
     );
     await choose(user, dialog, /MCPTT/, "mcptt");
-    await choose(user, dialog, /MMTel/, "None");
+    await choose(user, dialog, /MMTel/, "None (no filter criteria)");
     await user.click(dialog.getByRole("button", { name: "Save" }));
 
     await screen.findByText("IMS service profiles updated successfully.");

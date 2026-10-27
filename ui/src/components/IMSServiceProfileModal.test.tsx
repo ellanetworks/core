@@ -513,6 +513,62 @@ describe("IMS service profile filter criteria", () => {
     ).toHaveTextContent("ella (sip:mcptt.ims.example.org)");
   });
 
+  it("adds the SMS over IP preset for the IP-SM-GW", async () => {
+    const user = userEvent.setup();
+    api.get(AS_PATH, () => ({
+      items: [
+        {
+          name: "ip-sm-gw",
+          server_name: "sip:ipsmgw.ims.example.org",
+          public_service_identities: [],
+        },
+      ],
+    }));
+    api.put(SP_ITEM_PATH, () => ({}));
+
+    const dialog = await openEditor([]);
+    await choose(user, dialog, /Preset/, /^SMS over IP/);
+    await user.click(dialog.getByRole("button", { name: "Add preset" }));
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(putBody()).toEqual({
+      initial_filter_criteria: [
+        {
+          application_server_name: "ip-sm-gw",
+          trigger: {
+            conditions_match: "all",
+            groups: [{ conditions: [{ method: "REGISTER" }] }],
+          },
+          default_handling: "SESSION_CONTINUED",
+          include_register_request: true,
+          include_register_response: true,
+        },
+        {
+          application_server_name: "ip-sm-gw",
+          trigger: {
+            conditions_match: "all",
+            groups: [
+              {
+                conditions: [
+                  { method: "MESSAGE" },
+                  { session_case: "ORIGINATING_REGISTERED" },
+                  {
+                    sip_header: {
+                      header: "^Content-Type$",
+                      content: "^application/vnd\\.3gpp\\.sms$",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          default_handling: "SESSION_CONTINUED",
+        },
+      ],
+    });
+  });
+
   it("points to the Operator page when there is no application server", async () => {
     const criteria: object[] = [];
     api.get(AS_PATH, () => ({ items: [] }));

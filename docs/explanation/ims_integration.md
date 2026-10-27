@@ -87,7 +87,7 @@ Services such as MCPTT run on application servers: SIP servers that the S-CSCF s
 
 An **IMS service profile** is an ordered list of **initial filter criteria** ([TS 29.228 Annex B.2](https://www.3gpp.org/DynaReport/29228.htm)). A filter criterion sends the requests that match its trigger, such as a SIP method or header, to an application server. The S-CSCF evaluates them in order.
 
-Each public identity has one service profile ([TS 23.228 §4.3.3.4](https://www.3gpp.org/DynaReport/23228.htm)). A subscriber's profile assigns one service profile to the MMTel registration set and one to the MCPTT set, and every identity of a set gets the set's service profile. A set without one has no filter criteria.
+Each public identity has one service profile ([TS 23.228 §4.3.3.4](https://www.3gpp.org/DynaReport/23228.htm)). A subscriber's profile assigns one service profile to the MMTel registration set and one to the MCPTT set, and every identity of a set gets the set's service profile. Without one, the MMTel set has no filter criteria, and the MCPTT identity does not exist, so MCPTT is off.
 
 Changes to a service profile, a profile's service profiles, an application server's server name, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
 

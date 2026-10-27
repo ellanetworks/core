@@ -440,7 +440,7 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
                 disabled={presetCriteria.length === 0 || presetAdded}
                 sx={{ flexShrink: 0, height: 56 }}
               >
-                Add
+                Add Criteria
               </Button>
             </Stack>
           </>

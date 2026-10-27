@@ -43,7 +43,7 @@ With another MCPTT server, enter `mcptt` as the **Name**, its SIP URI as the **S
 
 ## 4. Create the MCPTT service profile
 
-On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add** next to them. Click **Add** at the bottom of the dialog.
+On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add Criteria**. Click **Add**.
 
 ## 5. Give the MC profile the MCPTT service profile
 

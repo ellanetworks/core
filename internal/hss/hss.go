@@ -29,6 +29,7 @@ type Subscriber struct {
 	MSISDN         string
 	IMSDataNetwork bool
 	IMSVoice       bool
+	MCPTT          bool
 }
 
 type ServiceIdentity struct {

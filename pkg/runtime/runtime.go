@@ -1060,6 +1060,13 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		return nil, err
 	}
 
+	serviceProfiles, err := a.db.GetProfileIMSServiceProfiles(ctx, sub.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+
+	_, mcptt := serviceProfiles[db.IMSRegistrationSetMCPTT]
+
 	return &hss.Subscriber{
 		IMSI:           sub.Imsi,
 		MSISDN:         sub.Msisdn,
@@ -1067,6 +1074,7 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		IMSVoice: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool {
 			return c.IMS && c.DNN == models.IMSDataNetworkName
 		}),
+		MCPTT: mcptt,
 	}, nil
 }
 

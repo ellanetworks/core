@@ -5525,7 +5525,7 @@ components:
           description: "Service profile of the MMTel implicit registration set: the subscriber's sip:+MSISDN and tel:+MSISDN identities, and the barred IMSI identity."
         mcptt:
           type: ["string", "null"]
-          description: "Service profile of the MCPTT implicit registration set: the subscriber's sip:mcptt-MSISDN identity."
+          description: "Service profile of the MCPTT implicit registration set: the subscriber's sip:mcptt-MSISDN identity, which exists only with one."
 
     ProfileIMSServiceProfilesResponseEnvelope:
       type: object

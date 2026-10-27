@@ -346,10 +346,13 @@ const IMSSection: React.FC<IMSSectionProps> = ({
                 <TableCell sx={{ wordBreak: "break-word" }}>
                   {sp.initial_filter_criteria.length === 0
                     ? "None"
-                    : [...sp.initial_filter_criteria]
-                        .sort((a, b) => a.priority - b.priority)
-                        .map((ifc) => ifc.application_server_name)
-                        .join(", ")}
+                    : [
+                        ...new Set(
+                          [...sp.initial_filter_criteria]
+                            .sort((a, b) => a.priority - b.priority)
+                            .map((ifc) => ifc.application_server_name),
+                        ),
+                      ].join(", ")}
                 </TableCell>
                 <TableCell align="right">
                   {canEdit && (

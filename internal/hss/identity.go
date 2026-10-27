@@ -27,7 +27,7 @@ func (s *subject) privateIdentity() string {
 }
 
 func (s *subject) sets() []RegistrationSet {
-	if s.MSISDN == "" {
+	if s.MSISDN == "" || !s.MCPTT {
 		return []RegistrationSet{MMTel}
 	}
 
@@ -44,7 +44,7 @@ func (s *subject) publicIdentities(set RegistrationSet) []cx.ProfileIdentity {
 		}
 	case set == MMTel:
 		return []cx.ProfileIdentity{{Identity: "sip:" + s.privateIdentity(), Barred: true}}
-	case set == MCPTT && s.MSISDN != "":
+	case set == MCPTT && s.MSISDN != "" && s.MCPTT:
 		return []cx.ProfileIdentity{{Identity: "sip:" + mcpttUserPrefix + s.MSISDN + "@" + s.domain}}
 	default:
 		return nil
@@ -246,6 +246,10 @@ func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Su
 
 	if err != nil {
 		return nil, "", err
+	}
+
+	if set == MCPTT && !sub.MCPTT {
+		return nil, "", ErrSubscriberUnknown
 	}
 
 	return sub, set, nil

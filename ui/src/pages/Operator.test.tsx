@@ -452,6 +452,11 @@ const mcpttSP = {
       application_server_name: "ip-sm-gw",
       default_handling: "SESSION_CONTINUED",
     },
+    {
+      priority: 2,
+      application_server_name: "mcptt",
+      default_handling: "SESSION_CONTINUED",
+    },
   ],
 };
 

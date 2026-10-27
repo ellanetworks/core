@@ -110,6 +110,17 @@ export const imsRegistrationSetLabels: Record<IMSRegistrationSet, string> = {
   mcptt: "MCPTT",
 };
 
+export const imsRegistrationSetIdentities: Record<IMSRegistrationSet, string> =
+  {
+    mmtel: "sip:+MSISDN, tel:+MSISDN, barred IMSI",
+    mcptt: "sip:mcptt-MSISDN",
+  };
+
+export const imsUnassignedLabels: Record<IMSRegistrationSet, string> = {
+  mmtel: "None (no filter criteria)",
+  mcptt: "Off",
+};
+
 export type ProfileIMSServiceProfiles = Partial<
   Record<IMSRegistrationSet, string | null>
 >;

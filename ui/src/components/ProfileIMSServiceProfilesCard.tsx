@@ -8,18 +8,23 @@ import {
   Card,
   CardContent,
   IconButton,
+  Link,
   Skeleton,
   Table,
   TableBody,
   TableCell,
+  TableHead,
   TableRow,
   Typography,
 } from "@mui/material";
+import { Link as RouterLink } from "react-router-dom";
 import { Edit as EditIcon } from "@mui/icons-material";
 import {
   getProfileIMSServiceProfiles,
+  imsRegistrationSetIdentities,
   imsRegistrationSetLabels,
   imsRegistrationSets,
+  imsUnassignedLabels,
   type ProfileIMSServiceProfiles,
 } from "@/queries/ims";
 import { useAuth } from "@/contexts/AuthContext";
@@ -71,8 +76,8 @@ const ProfileIMSServiceProfilesCard: React.FC<
           )}
         </Box>
         <Typography variant="body2" color="textSecondary" sx={{ mb: 1.5 }}>
-          The service profile, and so the filter criteria, of the MMTel and
-          MCPTT identities of subscribers on this profile.
+          The service profile of each registration set of subscribers on this
+          profile. MCPTT is off without one.
         </Typography>
         {query.isLoading ? (
           <Skeleton variant="text" width={200} />
@@ -86,14 +91,33 @@ const ProfileIMSServiceProfilesCard: React.FC<
             aria-label="IMS service profiles"
             sx={{ "& tr:last-child td": { borderBottom: "none" } }}
           >
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, width: "35%" }}>
+                  Registration Set
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Service Profile</TableCell>
+              </TableRow>
+            </TableHead>
             <TableBody>
               {imsRegistrationSets.map((set) => (
                 <TableRow key={set}>
-                  <TableCell sx={{ fontWeight: 600, width: "35%" }}>
-                    {imsRegistrationSetLabels[set]}
+                  <TableCell sx={{ width: "35%" }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {imsRegistrationSetLabels[set]}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      {imsRegistrationSetIdentities[set]}
+                    </Typography>
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
-                    {query.data?.[set] ?? "None"}
+                    {query.data?.[set] ? (
+                      <Link component={RouterLink} to="/operator">
+                        {query.data[set]}
+                      </Link>
+                    ) : (
+                      imsUnassignedLabels[set]
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

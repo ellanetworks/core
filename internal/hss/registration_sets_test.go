@@ -405,3 +405,29 @@ func TestTerminationOfThePrivateIdentityKeepsTheEmergencySet_TS29228_6_1_3_1(t *
 		t.Fatalf("registration = %+v (kept %t), want the emergency MMTel set alone", reg, ok)
 	}
 }
+
+func TestMCPTTIdentityNeedsAnMCPTTServiceProfile(t *testing.T) {
+	store := newFakeIMSStore()
+	scscf := &fakeSCSCF{}
+	h := connectedHSS(t, store, scscf)
+
+	registerBoth(t, store)
+
+	store.subscribers[testIMSI].MCPTT = false
+
+	if err := h.Reconcile(context.Background(), testIMSI); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	if got := scscf.Terminations(); !slices.Equal(got, []cx.ReasonCode{cx.ReasonPermanentTermination}) {
+		t.Fatalf("registration terminations = %v, want a permanent termination of the MCPTT set", got)
+	}
+
+	if got, want := scscf.TerminatedIdentities(), [][]string{{mcpttIdentity}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("terminated identities = %v, want %v", got, want)
+	}
+
+	requireResult(t, authorizeIdentity(t, store, mcpttIdentity, cx.AuthorizationRegistration), tgpp.Experimental(tgpp.ResultErrorUserUnknown))
+	requireResult(t, locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: mcpttIdentity}), tgpp.Experimental(tgpp.ResultErrorUserUnknown))
+	requireResult(t, locationInfo(t, store, cx.LocationInfoRequest{PublicIdentity: mmtelIdentity}), tgpp.Result{Code: diameter.ResultSuccess})
+}

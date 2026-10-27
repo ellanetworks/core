@@ -7,8 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { Link, MenuItem, TextField, Typography } from "@mui/material";
 import {
+  imsRegistrationSetIdentities,
   imsRegistrationSetLabels,
   imsRegistrationSets,
+  imsUnassignedLabels,
   listIMSServiceProfiles,
   setProfileIMSServiceProfiles,
   type IMSRegistrationSet,
@@ -27,12 +29,6 @@ interface EditProfileIMSServiceProfilesModalProps {
 }
 
 type FormValues = Record<IMSRegistrationSet, string>;
-
-const helperTexts: Record<IMSRegistrationSet, string> = {
-  mmtel:
-    "The subscriber's sip:+MSISDN and tel:+MSISDN identities, and its barred IMSI identity.",
-  mcptt: "The subscriber's sip:mcptt-MSISDN identity.",
-};
 
 const EditProfileIMSServiceProfilesModal: React.FC<
   EditProfileIMSServiceProfilesModalProps
@@ -75,7 +71,7 @@ const EditProfileIMSServiceProfilesModal: React.FC<
       onClose={onClose}
       onSuccess={onSuccess}
       title="Edit IMS Service Profiles"
-      description="Each implicit registration set gets the filter criteria of its service profile."
+      description="Each registration set gets the filter criteria of its service profile. MCPTT is off without one."
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update IMS service profiles"
@@ -103,10 +99,10 @@ const EditProfileIMSServiceProfilesModal: React.FC<
               fullWidth
               margin="normal"
               label={imsRegistrationSetLabels[set]}
-              helperText={helperTexts[set]}
+              helperText={imsRegistrationSetIdentities[set]}
             >
               <MenuItem value="">
-                <em>None</em>
+                <em>{imsUnassignedLabels[set]}</em>
               </MenuItem>
               {names.map((name) => (
                 <MenuItem key={name} value={name}>
