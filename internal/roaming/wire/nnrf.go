@@ -5,6 +5,7 @@ package wire
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -14,9 +15,6 @@ import (
 )
 
 const (
-	ServiceNnrfDisc            = "nnrf-disc"
-	NnrfDiscAPIRoot            = "/nnrf-disc/v1"
-	NnrfDiscNFInstances        = NnrfDiscAPIRoot + "/nf-instances"
 	QueryTargetNFType          = "target-nf-type"
 	QueryRequesterNFType       = "requester-nf-type"
 	QueryServiceNames          = "service-names"
@@ -68,15 +66,6 @@ func (s NFStatus) Known() bool {
 	return oneOf(s, NFStatusRegistered, NFStatusSuspended, NFStatusUndiscoverable, NFStatusCanaryRelease)
 }
 
-type ServiceName string
-
-const (
-	ServiceNameNnrfDisc  ServiceName = ServiceNnrfDisc
-	ServiceNameNausfAuth ServiceName = ServiceNausfAuth
-	ServiceNameNudmSDM   ServiceName = ServiceNudmSDM
-	ServiceNameNudmUECM  ServiceName = ServiceNudmUECM
-)
-
 type TransportProtocol string
 
 const TransportTCP TransportProtocol = "TCP"
@@ -92,16 +81,11 @@ type NFServiceVersion struct {
 }
 
 func (v NFServiceVersion) Check(p Policy) error {
-	if v.APIVersionInURI == "" {
-		return missing("/apiVersionInUri")
-	}
-
-	if p != Strict {
-		return nil
-	}
-
-	if v.APIFullVersion == "" {
-		return missing("/apiFullVersion")
+	if err := firstError(
+		present("/apiVersionInUri", v.APIVersionInURI != ""),
+		present("/apiFullVersion", v.APIFullVersion != ""),
+	); err != nil || p != Strict {
+		return err
 	}
 
 	return checkDateTime("/expiry", v.Expiry, true)
@@ -115,33 +99,27 @@ type IPEndPoint struct {
 }
 
 func (e IPEndPoint) Check(p Policy) error {
-	if e.Port != nil {
-		if err := checkRange("/port", *e.Port, 0, 65535, true); err != nil {
-			return err
-		}
-	}
-
-	if p != Strict {
-		return nil
+	if err := checkOptionalRange("/port", e.Port, 0, 65535); err != nil || p != Strict {
+		return err
 	}
 
 	if e.Ipv4Address != "" && e.Ipv6Address != "" {
-		return incorrect("/ipv6Address", true, "both ipv4Address and ipv6Address")
+		return Incorrect("/ipv6Address", true, "both ipv4Address and ipv6Address")
 	}
 
 	if e.Ipv4Address != "" {
 		if ip := net.ParseIP(e.Ipv4Address); ip == nil || ip.To4() == nil || strings.Contains(e.Ipv4Address, ":") {
-			return incorrect("/ipv4Address", true, "invalid IPv4 address %q", e.Ipv4Address)
+			return Incorrect("/ipv4Address", true, "invalid IPv4 address %q", e.Ipv4Address)
 		}
 	}
 
 	if e.Ipv6Address != "" {
 		if ip := net.ParseIP(e.Ipv6Address); ip == nil || !strings.Contains(e.Ipv6Address, ":") {
-			return incorrect("/ipv6Address", true, "invalid IPv6 address %q", e.Ipv6Address)
+			return Incorrect("/ipv6Address", true, "invalid IPv6 address %q", e.Ipv6Address)
 		}
 	}
 
-	return checkEnum("/transport", e.Transport, p, true)
+	return CheckEnum("/transport", e.Transport, p, true)
 }
 
 type NFService struct {
@@ -163,50 +141,33 @@ type NFService struct {
 }
 
 func (s NFService) Check(p Policy) error {
-	if s.ServiceName == "" {
-		return missing("/serviceName")
-	}
-
-	if s.Scheme == "" {
-		return missing("/scheme")
-	}
-
-	if s.NfServiceStatus == "" {
-		return missing("/nfServiceStatus")
-	}
-
 	if err := firstError(
-		checkString("/fqdn", s.Fqdn, ValidFqdn, true),
-		checkAll("/ipEndPoints", s.IPEndPoints, p),
-		checkAPIPrefix(s.APIPrefix),
-	); err != nil {
+		present("/serviceInstanceId", s.ServiceInstanceID != ""),
+		present("/serviceName", s.ServiceName != ""),
+		present("/versions", len(s.Versions) > 0),
+		CheckEnum("/scheme", s.Scheme, p, false),
+		CheckEnum("/nfServiceStatus", s.NfServiceStatus, p, false),
+		CheckAll("/versions", s.Versions, p),
+		CheckAll("/ipEndPoints", s.IPEndPoints, p),
+		CheckAll("/allowedPlmns", s.AllowedPlmns, p),
+	); err != nil || p != Strict {
 		return err
 	}
 
-	if p != Strict {
-		return nil
-	}
-
-	if s.ServiceInstanceID == "" {
-		return missing("/serviceInstanceId")
-	}
-
-	if len(s.Versions) == 0 {
-		return missing("/versions")
-	}
-
 	return firstError(
-		checkAll("/versions", s.Versions, p),
-		checkEnum("/scheme", s.Scheme, p, false),
-		checkEnum("/nfServiceStatus", s.NfServiceStatus, p, false),
+		checkString("/fqdn", s.Fqdn, ValidFqdn, true),
 		checkString("/interPlmnFqdn", s.InterPlmnFqdn, ValidFqdn, true),
-		checkAll("/allowedPlmns", s.AllowedPlmns, p),
-		checkEnums("/allowedNfTypes", s.AllowedNfTypes, p),
-		checkOptionalMax("/priority", s.Priority, 65535),
-		checkOptionalMax("/capacity", s.Capacity, 65535),
-		checkOptionalMax("/load", s.Load, 100),
+		checkAPIPrefix(s.APIPrefix),
+		CheckEnums("/allowedNfTypes", s.AllowedNfTypes, p),
+		checkOptionalRange("/priority", s.Priority, 0, 65535),
+		checkOptionalRange("/capacity", s.Capacity, 0, 65535),
+		checkOptionalRange("/load", s.Load, 0, 100),
 		Nest("/supportedFeatures", s.SupportedFeatures.Check(p)),
 	)
+}
+
+func (s NFService) supportsVersion(v string) bool {
+	return slices.ContainsFunc(s.Versions, func(sv NFServiceVersion) bool { return sv.APIVersionInURI == v })
 }
 
 func checkAPIPrefix(prefix string) error {
@@ -216,18 +177,10 @@ func checkAPIPrefix(prefix string) error {
 
 	u, err := url.Parse(prefix)
 	if err != nil || u.Scheme != "" || u.Host != "" || u.RawQuery != "" || u.Fragment != "" || !strings.HasPrefix(prefix, "/") {
-		return incorrect("/apiPrefix", true, "%q is not an absolute path", prefix)
+		return Incorrect("/apiPrefix", true, "%q is not an absolute path", prefix)
 	}
 
 	return nil
-}
-
-func checkOptionalMax(param string, v *int, hi int) error {
-	if v == nil {
-		return nil
-	}
-
-	return checkRange(param, *v, 0, hi, true)
 }
 
 type NFProfile struct {
@@ -250,22 +203,42 @@ type NFProfile struct {
 	NfServiceList  map[string]NFService `json:"nfServiceList,omitempty"`
 }
 
-func (n NFProfile) Check(p Policy) error {
-	if n.NfInstanceID == "" {
-		return missing("/nfInstanceId")
+func (n *NFProfile) UnmarshalJSON(data []byte) error {
+	type plain NFProfile
+
+	aux := struct {
+		*plain
+		NfServices    []json.RawMessage          `json:"nfServices"`
+		NfServiceList map[string]json.RawMessage `json:"nfServiceList"`
+	}{plain: (*plain)(n)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
 	}
 
+	n.NfServices = decodeValid[NFService](aux.NfServices)
+	n.NfServiceList = decodeValidMap(aux.NfServiceList, func(string) bool { return true }, func(id string, s *NFService) {
+		if s.ServiceInstanceID == "" {
+			s.ServiceInstanceID = id
+		}
+	})
+
+	return nil
+}
+
+func (n NFProfile) Check(p Policy) error {
 	if err := firstError(
-		checkEnum("/nfType", n.NfType, p, false),
-		checkEnum("/nfStatus", n.NfStatus, p, false),
-		checkString("/fqdn", n.Fqdn, ValidFqdn, true),
-		checkAll("/plmnList", n.PlmnList, p),
-		checkAll("/nfServices", n.NfServices, p),
+		present("/nfInstanceId", n.NfInstanceID != ""),
+		CheckEnum("/nfType", n.NfType, p, false),
+		CheckEnum("/nfStatus", n.NfStatus, p, false),
+		CheckAll("/plmnList", n.PlmnList, p),
+		CheckAll("/allowedPlmns", n.AllowedPlmns, p),
+		CheckAll("/nfServices", n.NfServices, p),
 	); err != nil {
 		return err
 	}
 
-	for _, id := range slicesSorted(n.NfServiceList) {
+	for _, id := range sortedKeys(n.NfServiceList) {
 		if err := n.NfServiceList[id].Check(p); err != nil {
 			return Nest("/nfServiceList/"+id, err)
 		}
@@ -277,19 +250,19 @@ func (n NFProfile) Check(p Policy) error {
 
 	return firstError(
 		checkString("/nfInstanceId", n.NfInstanceID, ValidNfInstanceID, false),
+		checkString("/fqdn", n.Fqdn, ValidFqdn, true),
 		checkString("/interPlmnFqdn", n.InterPlmnFqdn, ValidFqdn, true),
-		checkAll("/allowedPlmns", n.AllowedPlmns, p),
-		checkEnums("/allowedNfTypes", n.AllowedNfTypes, p),
-		checkOptionalMax("/priority", n.Priority, 65535),
-		checkOptionalMax("/capacity", n.Capacity, 65535),
-		checkOptionalMax("/load", n.Load, 100),
+		CheckEnums("/allowedNfTypes", n.AllowedNfTypes, p),
+		checkOptionalRange("/priority", n.Priority, 0, 65535),
+		checkOptionalRange("/capacity", n.Capacity, 0, 65535),
+		checkOptionalRange("/load", n.Load, 0, 100),
 	)
 }
 
 func (n NFProfile) Services() []NFService {
 	out := append([]NFService(nil), n.NfServices...)
 
-	for _, id := range slicesSorted(n.NfServiceList) {
+	for _, id := range sortedKeys(n.NfServiceList) {
 		s := n.NfServiceList[id]
 		if s.ServiceInstanceID == "" {
 			s.ServiceInstanceID = id
@@ -301,14 +274,52 @@ func (n NFProfile) Services() []NFService {
 	return out
 }
 
-func (n NFProfile) Service(name ServiceName) (NFService, bool) {
-	for _, s := range n.Services() {
-		if s.ServiceName == name && s.NfServiceStatus == NFStatusRegistered {
-			return s, true
-		}
+type Selector struct {
+	Service   ServiceName
+	Target    PlmnID
+	Requester PlmnID
+}
+
+type Candidate struct {
+	NfInstanceID string
+	Service      NFService
+	APIRoot      string
+}
+
+func (n NFProfile) Candidate(sel Selector) (Candidate, bool) {
+	if n.NfStatus != NFStatusRegistered {
+		return Candidate{}, false
 	}
 
-	return NFService{}, false
+	if len(n.PlmnList) > 0 && !slices.Contains(n.PlmnList, sel.Target) {
+		return Candidate{}, false
+	}
+
+	version := sel.Service.Version()
+
+	for _, s := range n.Services() {
+		if s.ServiceName != sel.Service || s.NfServiceStatus != NFStatusRegistered || !s.supportsVersion(version) {
+			continue
+		}
+
+		allowed := s.AllowedPlmns
+		if len(allowed) == 0 {
+			allowed = n.AllowedPlmns
+		}
+
+		if len(allowed) > 0 && !slices.Contains(allowed, sel.Requester) {
+			continue
+		}
+
+		root, err := n.APIRoot(s)
+		if err != nil {
+			continue
+		}
+
+		return Candidate{NfInstanceID: n.NfInstanceID, Service: s, APIRoot: root}, true
+	}
+
+	return Candidate{}, false
 }
 
 func (n NFProfile) APIRoot(s NFService) (string, error) {
@@ -316,9 +327,14 @@ func (n NFProfile) APIRoot(s NFService) (string, error) {
 		return "", fmt.Errorf("wire: service %s has scheme %q", s.ServiceName, s.Scheme)
 	}
 
-	host := s.Fqdn
-	if host == "" {
-		host = n.Fqdn
+	var host string
+
+	for _, h := range []string{s.InterPlmnFqdn, n.InterPlmnFqdn, s.Fqdn, n.Fqdn} {
+		if h != "" {
+			host = h
+
+			break
+		}
 	}
 
 	if host == "" {
@@ -344,43 +360,65 @@ func (n NFProfile) APIRoot(s NFService) (string, error) {
 	}
 
 	if err := checkAPIPrefix(s.APIPrefix); err != nil {
-		return "", fmt.Errorf("wire: service %s: %w", s.ServiceName, err)
+		return "", fmt.Errorf("wire: service %s: %v", s.ServiceName, err)
 	}
 
 	return string(s.Scheme) + "://" + authority + strings.TrimSuffix(s.APIPrefix, "/"), nil
 }
 
 type SearchResult struct {
-	ValidityPeriod       int               `json:"validityPeriod"`
+	ValidityPeriod       *int              `json:"validityPeriod"`
 	NfInstances          []NFProfile       `json:"nfInstances"`
 	SearchID             string            `json:"searchId,omitempty"`
 	NrfSupportedFeatures SupportedFeatures `json:"nrfSupportedFeatures,omitempty"`
 }
 
 func (r *SearchResult) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "validityPeriod", "nfInstances"); err != nil {
+	type plain SearchResult
+
+	aux := struct {
+		*plain
+		NfInstances []json.RawMessage `json:"nfInstances"`
+	}{plain: (*plain)(r)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
-	type plain SearchResult
+	r.NfInstances = decodeValid[NFProfile](aux.NfInstances)
 
-	return json.Unmarshal(data, (*plain)(r))
+	return nil
 }
 
 func (r SearchResult) Check(p Policy) error {
-	if r.ValidityPeriod < 0 {
-		return incorrect("/validityPeriod", false, "negative validity period %d", r.ValidityPeriod)
-	}
-
-	if err := checkAll("/nfInstances", r.NfInstances, p); err != nil {
+	if err := firstError(
+		present("/validityPeriod", r.ValidityPeriod != nil),
+		present("/nfInstances", r.NfInstances != nil),
+	); err != nil {
 		return err
 	}
 
-	if p == Strict {
-		return Nest("/nrfSupportedFeatures", r.NrfSupportedFeatures.Check(p))
+	if *r.ValidityPeriod < 0 {
+		return Incorrect("/validityPeriod", false, "negative validity period %d", *r.ValidityPeriod)
 	}
 
-	return nil
+	if err := CheckAll("/nfInstances", r.NfInstances, p); err != nil || p != Strict {
+		return err
+	}
+
+	return Nest("/nrfSupportedFeatures", r.NrfSupportedFeatures.Check(p))
+}
+
+func (r SearchResult) Candidates(sel Selector) []Candidate {
+	var out []Candidate
+
+	for _, n := range r.NfInstances {
+		if c, ok := n.Candidate(sel); ok {
+			out = append(out, c)
+		}
+	}
+
+	return out
 }
 
 type DiscoveryQuery struct {
@@ -398,16 +436,13 @@ type DiscoveryQuery struct {
 func (q DiscoveryQuery) Values() (url.Values, error) {
 	v := url.Values{}
 
-	if err := checkEnum("query "+QueryTargetNFType, q.TargetNFType, Strict, false); err != nil {
-		return nil, err
-	}
+	for name, t := range map[string]NFType{QueryTargetNFType: q.TargetNFType, QueryRequesterNFType: q.RequesterNFType} {
+		if !t.Known() {
+			return nil, queryError(name, fmt.Errorf("invalid NF type %q", t))
+		}
 
-	if err := checkEnum("query "+QueryRequesterNFType, q.RequesterNFType, Strict, false); err != nil {
-		return nil, err
+		v.Set(name, string(t))
 	}
-
-	v.Set(QueryTargetNFType, string(q.TargetNFType))
-	v.Set(QueryRequesterNFType, string(q.RequesterNFType))
 
 	if len(q.ServiceNames) > 0 {
 		names := make([]string, 0, len(q.ServiceNames))
@@ -424,6 +459,10 @@ func (q DiscoveryQuery) Values() (url.Values, error) {
 		}
 
 		v.Set(QueryServiceNames, strings.Join(names, ","))
+	}
+
+	if err := checkInterPLMNTarget(q.TargetPlmnList, q.RequesterPlmnList); err != nil {
+		return nil, err
 	}
 
 	for _, param := range []struct {
@@ -448,37 +487,42 @@ func (q DiscoveryQuery) Values() (url.Values, error) {
 		v.Set(param.name, string(b))
 	}
 
-	if q.RoutingIndicator != "" {
-		if !ValidRoutingIndicator(q.RoutingIndicator) {
-			return nil, queryError(QueryRoutingIndicator, fmt.Errorf("invalid routing indicator %q", q.RoutingIndicator))
+	for _, opt := range []struct {
+		name, value string
+		valid       func(string) bool
+	}{
+		{QueryRoutingIndicator, q.RoutingIndicator, ValidRoutingIndicator},
+		{QuerySupi, q.Supi, ValidSupi},
+		{QueryRequesterNFInstanceID, q.RequesterNFInstanceID, ValidNfInstanceID},
+		{QueryRequesterFeatures, string(q.RequesterFeatures), func(s string) bool { return SupportedFeatures(s).Check(Strict) == nil }},
+	} {
+		if opt.value == "" {
+			continue
 		}
 
-		v.Set(QueryRoutingIndicator, q.RoutingIndicator)
-	}
-
-	if q.Supi != "" {
-		if !ValidSupi(q.Supi) {
-			return nil, queryError(QuerySupi, fmt.Errorf("invalid SUPI %q", q.Supi))
+		if !opt.valid(opt.value) {
+			return nil, queryError(opt.name, fmt.Errorf("invalid value %q", opt.value))
 		}
 
-		v.Set(QuerySupi, q.Supi)
-	}
-
-	if q.RequesterNFInstanceID != "" {
-		if !ValidNfInstanceID(q.RequesterNFInstanceID) {
-			return nil, queryError(QueryRequesterNFInstanceID, fmt.Errorf("invalid NF instance ID %q", q.RequesterNFInstanceID))
-		}
-
-		v.Set(QueryRequesterNFInstanceID, q.RequesterNFInstanceID)
-	}
-
-	if q.RequesterFeatures != "" {
-		if err := q.RequesterFeatures.Check(Strict); err != nil {
-			return nil, queryError(QueryRequesterFeatures, err)
-		}
-
-		v.Set(QueryRequesterFeatures, string(q.RequesterFeatures))
+		v.Set(opt.name, opt.value)
 	}
 
 	return v, nil
+}
+
+func checkInterPLMNTarget(target, requester []PlmnID) error {
+	if len(target) == 0 {
+		return nil
+	}
+
+	if len(requester) == 0 {
+		return queryError(QueryRequesterPlmnList, errors.New("required with target-plmn-list"))
+	}
+
+	interPLMN := slices.ContainsFunc(target, func(p PlmnID) bool { return !slices.Contains(requester, p) })
+	if interPLMN && len(target) > 1 {
+		return queryError(QueryTargetPlmnList, errors.New("inter-PLMN discovery takes one target PLMN"))
+	}
+
+	return nil
 }

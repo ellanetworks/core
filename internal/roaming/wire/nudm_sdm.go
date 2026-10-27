@@ -6,17 +6,9 @@ package wire
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"regexp"
-)
-
-const (
-	ServiceNudmSDM   = "nudm-sdm"
-	NudmSDMAPIRoot   = "/nudm-sdm/v2"
-	SDMAmData        = "am-data"
-	SDMSmfSelectData = "smf-select-data"
-	SDMSmData        = "sm-data"
-	SDMSubscriptions = "sdm-subscriptions"
-	SDMSorAck        = "am-data/sor-ack"
+	"strings"
 )
 
 var (
@@ -140,6 +132,30 @@ func (a AccessTech) Known() bool {
 		AccessTechSatelliteEUTRANNBS1, AccessTechSatelliteEUTRANWBS1)
 }
 
+type OdbPacketServices string
+
+const (
+	OdbAllPacketServices   OdbPacketServices = "ALL_PACKET_SERVICES"
+	OdbRoamerAccessHPLMNAP OdbPacketServices = "ROAMER_ACCESS_HPLMN_AP"
+	OdbRoamerAccessVPLMNAP OdbPacketServices = "ROAMER_ACCESS_VPLMN_AP"
+)
+
+func (o OdbPacketServices) Known() bool {
+	return oneOf(o, OdbAllPacketServices, OdbRoamerAccessHPLMNAP, OdbRoamerAccessVPLMNAP)
+}
+
+func (o OdbPacketServices) BarsLocalBreakout() bool {
+	return o == OdbAllPacketServices || o == OdbRoamerAccessVPLMNAP
+}
+
+type RoamingRestrictions struct {
+	AccessAllowed *bool `json:"accessAllowed,omitempty"`
+}
+
+func (RoamingRestrictions) Check(Policy) error {
+	return nil
+}
+
 type Nssai struct {
 	SupportedFeatures   SupportedFeatures `json:"supportedFeatures,omitempty"`
 	DefaultSingleNssais []Snssai          `json:"defaultSingleNssais"`
@@ -148,16 +164,12 @@ type Nssai struct {
 }
 
 func (n Nssai) Check(p Policy) error {
-	if len(n.DefaultSingleNssais) == 0 {
-		return missing("/defaultSingleNssais")
-	}
-
-	if err := firstError(checkAll("/defaultSingleNssais", n.DefaultSingleNssais, p), checkAll("/singleNssais", n.SingleNssais, p)); err != nil {
+	if err := firstError(
+		present("/defaultSingleNssais", len(n.DefaultSingleNssais) > 0),
+		CheckAll("/defaultSingleNssais", n.DefaultSingleNssais, p),
+		CheckAll("/singleNssais", n.SingleNssais, p),
+	); err != nil || p != Strict {
 		return err
-	}
-
-	if p != Strict {
-		return nil
 	}
 
 	return firstError(
@@ -167,29 +179,20 @@ func (n Nssai) Check(p Policy) error {
 }
 
 type SteeringInfo struct {
-	PlmnID         PlmnID       `json:"plmnId"`
+	PlmnID         *PlmnID      `json:"plmnId"`
 	AccessTechList []AccessTech `json:"accessTechList,omitempty"`
 }
 
 func (s SteeringInfo) Check(p Policy) error {
-	if err := s.PlmnID.Check(p); err != nil {
-		return Nest("/plmnId", err)
-	}
-
-	return checkEnums("/accessTechList", s.AccessTechList, p)
+	return firstError(
+		CheckRequired("/plmnId", s.PlmnID, p),
+		CheckEnums("/accessTechList", s.AccessTechList, p),
+	)
 }
 
 type SteeringContainer struct {
 	SteeringInfo  []SteeringInfo
 	SecuredPacket []byte
-}
-
-func (c SteeringContainer) MarshalJSON() ([]byte, error) {
-	if c.SecuredPacket != nil {
-		return json.Marshal(c.SecuredPacket)
-	}
-
-	return json.Marshal(c.SteeringInfo)
 }
 
 func (c *SteeringContainer) UnmarshalJSON(data []byte) error {
@@ -217,45 +220,30 @@ func (c *SteeringContainer) UnmarshalJSON(data []byte) error {
 
 func (c SteeringContainer) Check(p Policy) error {
 	if c.SecuredPacket == nil && len(c.SteeringInfo) == 0 {
-		return incorrect("", true, "empty steering container")
+		return Incorrect("", true, "empty steering container")
 	}
 
-	return checkAll("", c.SteeringInfo, p)
+	return CheckAll("", c.SteeringInfo, p)
 }
 
 type SorInfo struct {
 	SteeringContainer       *SteeringContainer `json:"steeringContainer,omitempty"`
-	AckInd                  bool               `json:"ackInd"`
+	AckInd                  *bool              `json:"ackInd"`
 	SorMacIausf             string             `json:"sorMacIausf,omitempty"`
 	Countersor              string             `json:"countersor,omitempty"`
 	ProvisioningTime        DateTime           `json:"provisioningTime"`
 	SorTransparentContainer []byte             `json:"sorTransparentContainer,omitempty"`
-	SorCmci                 []byte             `json:"sorCmci,omitempty"`
-	StoreSorCmciInMe        *bool              `json:"storeSorCmciInMe,omitempty"`
-	UsimSupportOfSorCmci    *bool              `json:"usimSupportOfSorCmci,omitempty"`
-}
-
-func (s *SorInfo) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "ackInd", "provisioningTime"); err != nil {
-		return err
-	}
-
-	type plain SorInfo
-
-	return json.Unmarshal(data, (*plain)(s))
 }
 
 func (s SorInfo) Check(p Policy) error {
 	if err := firstError(
+		present("/ackInd", s.AckInd != nil),
+		present("/provisioningTime", s.ProvisioningTime != ""),
+		CheckOptional("/steeringContainer", s.SteeringContainer, p),
 		checkPattern("/sorMacIausf", s.SorMacIausf, sorMacPattern, true),
 		checkPattern("/countersor", s.Countersor, counterSorPattern, true),
-		checkOptional("/steeringContainer", s.SteeringContainer, p),
-	); err != nil {
+	); err != nil || p != Strict {
 		return err
-	}
-
-	if p != Strict {
-		return nil
 	}
 
 	return checkDateTime("/provisioningTime", s.ProvisioningTime, false)
@@ -263,73 +251,58 @@ func (s SorInfo) Check(p Policy) error {
 
 type AcknowledgeInfo struct {
 	SorMacIue               string   `json:"sorMacIue,omitempty"`
-	UpuMacIue               string   `json:"upuMacIue,omitempty"`
 	ProvisioningTime        DateTime `json:"provisioningTime"`
 	SorTransparentContainer []byte   `json:"sorTransparentContainer,omitempty"`
-	UeNotReachable          bool     `json:"ueNotReachable,omitempty"`
-	UpuTransparentContainer []byte   `json:"upuTransparentContainer,omitempty"`
 }
 
-func (a AcknowledgeInfo) Check(Policy) error {
+func (a AcknowledgeInfo) Check(p Policy) error {
+	if err := present("/provisioningTime", a.ProvisioningTime != ""); err != nil || p != Strict {
+		return err
+	}
+
 	return firstError(
 		checkDateTime("/provisioningTime", a.ProvisioningTime, false),
 		checkPattern("/sorMacIue", a.SorMacIue, sorMacPattern, true),
-		checkPattern("/upuMacIue", a.UpuMacIue, sorMacPattern, true),
 	)
 }
 
 type AccessAndMobilitySubscriptionData struct {
-	SupportedFeatures           SupportedFeatures `json:"supportedFeatures,omitempty"`
-	Gpsis                       []string          `json:"gpsis,omitempty"`
-	SubscribedUeAmbr            *Ambr             `json:"subscribedUeAmbr,omitempty"`
-	Nssai                       *Nssai            `json:"nssai,omitempty"`
-	RatRestrictions             []RatType         `json:"ratRestrictions,omitempty"`
-	CoreNetworkTypeRestrictions []CoreNetworkType `json:"coreNetworkTypeRestrictions,omitempty"`
-	RfspIndex                   *int              `json:"rfspIndex,omitempty"`
-	SubsRegTimer                *int              `json:"subsRegTimer,omitempty"`
-	UeUsageType                 *int              `json:"ueUsageType,omitempty"`
-	MicoAllowed                 bool              `json:"micoAllowed,omitempty"`
-	SorInfo                     *SorInfo          `json:"sorInfo,omitempty"`
-	SorInfoExpectInd            bool              `json:"sorInfoExpectInd,omitempty"`
-	SharedAmDataIDs             []string          `json:"sharedAmDataIds,omitempty"`
+	SupportedFeatures           SupportedFeatures    `json:"supportedFeatures,omitempty"`
+	SubscribedUeAmbr            *Ambr                `json:"subscribedUeAmbr,omitempty"`
+	Nssai                       *Nssai               `json:"nssai,omitempty"`
+	RatRestrictions             []RatType            `json:"ratRestrictions,omitempty"`
+	CoreNetworkTypeRestrictions []CoreNetworkType    `json:"coreNetworkTypeRestrictions,omitempty"`
+	SorInfo                     *SorInfo             `json:"sorInfo,omitempty"`
+	SorInfoExpectInd            bool                 `json:"sorInfoExpectInd,omitempty"`
+	OdbPacketServices           OdbPacketServices    `json:"odbPacketServices,omitempty"`
+	RoamingRestrictions         *RoamingRestrictions `json:"roamingRestrictions,omitempty"`
 }
 
 func (a AccessAndMobilitySubscriptionData) Check(p Policy) error {
 	if err := firstError(
-		checkOptional("/subscribedUeAmbr", a.SubscribedUeAmbr, p),
-		checkOptional("/nssai", a.Nssai, p),
-		checkOptional("/sorInfo", a.SorInfo, p),
-	); err != nil {
+		CheckOptional("/subscribedUeAmbr", a.SubscribedUeAmbr, p),
+		CheckOptional("/nssai", a.Nssai, p),
+		CheckEnums("/ratRestrictions", a.RatRestrictions, p),
+		CheckEnums("/coreNetworkTypeRestrictions", a.CoreNetworkTypeRestrictions, p),
+		CheckOptional("/sorInfo", a.SorInfo, p),
+		CheckEnum("/odbPacketServices", a.OdbPacketServices, p, true),
+	); err != nil || p != Strict {
 		return err
 	}
 
-	if p != Strict {
-		return nil
-	}
+	return Nest("/supportedFeatures", a.SupportedFeatures.Check(p))
+}
 
-	for i, g := range a.Gpsis {
-		if !ValidGpsi(g) {
-			return NestIndex("/gpsis", i, incorrect("", true, "invalid GPSI %q", g))
-		}
-	}
+func (a AccessAndMobilitySubscriptionData) RATRestricted(r RatType) bool {
+	return oneOf(r, a.RatRestrictions...)
+}
 
-	if a.RfspIndex != nil {
-		if err := checkRange("/rfspIndex", *a.RfspIndex, 1, 256, true); err != nil {
-			return err
-		}
-	}
+func (a AccessAndMobilitySubscriptionData) CoreNetworkRestricted(c CoreNetworkType) bool {
+	return oneOf(c, a.CoreNetworkTypeRestrictions...)
+}
 
-	for i, id := range a.SharedAmDataIDs {
-		if !sharedDataIDPattern.MatchString(id) {
-			return NestIndex("/sharedAmDataIds", i, incorrect("", true, "invalid shared data ID %q", id))
-		}
-	}
-
-	return firstError(
-		Nest("/supportedFeatures", a.SupportedFeatures.Check(p)),
-		checkEnums("/ratRestrictions", a.RatRestrictions, p),
-		checkEnums("/coreNetworkTypeRestrictions", a.CoreNetworkTypeRestrictions, p),
-	)
+func (a AccessAndMobilitySubscriptionData) RoamingAccessDenied() bool {
+	return a.RoamingRestrictions != nil && a.RoamingRestrictions.AccessAllowed != nil && !*a.RoamingRestrictions.AccessAllowed
 }
 
 type DnnInfo struct {
@@ -345,33 +318,46 @@ type DnnInfo struct {
 
 const WildcardDnn = "*"
 
-func (d DnnInfo) Check(Policy) error {
-	if d.Dnn == "" {
-		return missing("/dnn")
+func validDnnKey(s string) bool {
+	return s == WildcardDnn || ValidDnn(s)
+}
+
+func (d DnnInfo) Check(p Policy) error {
+	if err := present("/dnn", d.Dnn != ""); err != nil || p != Strict {
+		return err
 	}
 
-	if d.Dnn != WildcardDnn && !ValidDnn(d.Dnn) {
-		return incorrect("/dnn", false, "invalid DNN %q", d.Dnn)
-	}
-
-	return nil
+	return checkString("/dnn", d.Dnn, validDnnKey, false)
 }
 
 type SnssaiInfo struct {
 	DnnInfos []DnnInfo `json:"dnnInfos"`
 }
 
-func (s SnssaiInfo) Check(p Policy) error {
-	if p == Strict && len(s.DnnInfos) == 0 {
-		return missing("/dnnInfos")
+func (s *SnssaiInfo) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		DnnInfos []json.RawMessage `json:"dnnInfos"`
 	}
 
-	return checkAll("/dnnInfos", s.DnnInfos, p)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	s.DnnInfos = decodeValid[DnnInfo](aux.DnnInfos)
+
+	return nil
+}
+
+func (s SnssaiInfo) Check(p Policy) error {
+	return firstError(
+		present("/dnnInfos", len(s.DnnInfos) > 0),
+		CheckAll("/dnnInfos", s.DnnInfos, p),
+	)
 }
 
 func (s SnssaiInfo) DefaultDnn() (DnnInfo, bool) {
 	for _, d := range s.DnnInfos {
-		if d.DefaultDnnIndicator {
+		if d.DefaultDnnIndicator && d.Dnn != WildcardDnn {
 			return d, true
 		}
 	}
@@ -381,7 +367,7 @@ func (s SnssaiInfo) DefaultDnn() (DnnInfo, bool) {
 
 func (s SnssaiInfo) Dnn(dnn string) (DnnInfo, bool) {
 	for _, d := range s.DnnInfos {
-		if equalDnn(d.Dnn, dnn) {
+		if d.Dnn != WildcardDnn && equalDnn(d.Dnn, dnn) {
 			return d, true
 		}
 	}
@@ -401,10 +387,33 @@ type SmfSelectionSubscriptionData struct {
 	SharedSnssaiInfosID   string                `json:"sharedSnssaiInfosId,omitempty"`
 }
 
+func validSnssaiKey(k string) bool {
+	_, err := ParseSnssai(k)
+
+	return err == nil
+}
+
+func (s *SmfSelectionSubscriptionData) UnmarshalJSON(data []byte) error {
+	type plain SmfSelectionSubscriptionData
+
+	aux := struct {
+		*plain
+		SubscribedSnssaiInfos map[string]json.RawMessage `json:"subscribedSnssaiInfos"`
+	}{plain: (*plain)(s)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	s.SubscribedSnssaiInfos = decodeValidMap[SnssaiInfo](aux.SubscribedSnssaiInfos, validSnssaiKey, nil)
+
+	return nil
+}
+
 func (s SmfSelectionSubscriptionData) Check(p Policy) error {
-	for _, key := range slicesSorted(s.SubscribedSnssaiInfos) {
-		if _, err := ParseSnssai(key); err != nil {
-			return incorrect("/subscribedSnssaiInfos/"+key, true, "key is not <sst>[-<sd>]")
+	for _, key := range sortedKeys(s.SubscribedSnssaiInfos) {
+		if !validSnssaiKey(key) {
+			return Incorrect("/subscribedSnssaiInfos/"+key, true, "key is not <sst>[-<sd>]")
 		}
 
 		if err := s.SubscribedSnssaiInfos[key].Check(p); err != nil {
@@ -423,9 +432,9 @@ func (s SmfSelectionSubscriptionData) Check(p Policy) error {
 }
 
 func (s SmfSelectionSubscriptionData) SnssaiInfo(snssai Snssai) (SnssaiInfo, bool) {
-	for key, info := range s.SubscribedSnssaiInfos {
+	for _, key := range sortedKeys(s.SubscribedSnssaiInfos) {
 		if k, err := ParseSnssai(key); err == nil && k.Equal(snssai) {
-			return info, true
+			return s.SubscribedSnssaiInfos[key], true
 		}
 	}
 
@@ -441,41 +450,30 @@ type Arp struct {
 func (a Arp) Check(p Policy) error {
 	return firstError(
 		checkRange("/priorityLevel", a.PriorityLevel, 1, 15, false),
-		checkEnum("/preemptCap", a.PreemptCap, p, false),
-		checkEnum("/preemptVuln", a.PreemptVuln, p, false),
+		CheckEnum("/preemptCap", a.PreemptCap, p, false),
+		CheckEnum("/preemptVuln", a.PreemptVuln, p, false),
 	)
 }
 
 type SubscribedDefaultQos struct {
-	FiveQi        int  `json:"5qi"`
-	Arp           Arp  `json:"arp"`
+	FiveQi        *int `json:"5qi"`
+	Arp           *Arp `json:"arp"`
 	PriorityLevel *int `json:"priorityLevel,omitempty"`
 }
 
-func (q *SubscribedDefaultQos) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "5qi", "arp"); err != nil {
-		return err
-	}
-
-	type plain SubscribedDefaultQos
-
-	return json.Unmarshal(data, (*plain)(q))
-}
-
 func (q SubscribedDefaultQos) Check(p Policy) error {
-	if err := checkRange("/5qi", q.FiveQi, 0, 255, false); err != nil {
+	if err := firstError(
+		present("/5qi", q.FiveQi != nil),
+		present("/arp", q.Arp != nil),
+	); err != nil || p != Strict {
 		return err
 	}
 
-	if err := q.Arp.Check(p); err != nil {
-		return Nest("/arp", err)
-	}
-
-	if q.PriorityLevel != nil {
-		return checkRange("/priorityLevel", *q.PriorityLevel, 1, 127, true)
-	}
-
-	return nil
+	return firstError(
+		checkRequiredRange("/5qi", q.FiveQi, 0, 255),
+		CheckRequired("/arp", q.Arp, p),
+		checkOptionalRange("/priorityLevel", q.PriorityLevel, 1, 127),
+	)
 }
 
 type PduSessionTypes struct {
@@ -485,8 +483,8 @@ type PduSessionTypes struct {
 
 func (t PduSessionTypes) Check(p Policy) error {
 	return firstError(
-		checkEnum("/defaultSessionType", t.DefaultSessionType, p, true),
-		checkEnums("/allowedSessionTypes", t.AllowedSessionTypes, p),
+		CheckEnum("/defaultSessionType", t.DefaultSessionType, p, true),
+		CheckEnums("/allowedSessionTypes", t.AllowedSessionTypes, p),
 	)
 }
 
@@ -496,20 +494,20 @@ type SscModes struct {
 }
 
 func (m SscModes) Check(p Policy) error {
-	if err := checkEnum("/defaultSscMode", m.DefaultSscMode, p, false); err != nil {
+	if err := CheckEnum("/defaultSscMode", m.DefaultSscMode, p, false); err != nil {
 		return err
 	}
 
 	if p == Strict && len(m.AllowedSscModes) > 2 {
-		return incorrect("/allowedSscModes", true, "more than 2 items")
+		return Incorrect("/allowedSscModes", true, "more than 2 items")
 	}
 
-	return checkEnums("/allowedSscModes", m.AllowedSscModes, p)
+	return CheckEnums("/allowedSscModes", m.AllowedSscModes, p)
 }
 
 type DnnConfiguration struct {
-	PduSessionTypes  PduSessionTypes       `json:"pduSessionTypes"`
-	SscModes         SscModes              `json:"sscModes"`
+	PduSessionTypes  *PduSessionTypes      `json:"pduSessionTypes"`
+	SscModes         *SscModes             `json:"sscModes"`
 	IwkEpsInd        bool                  `json:"iwkEpsInd,omitempty"`
 	FiveGQosProfile  *SubscribedDefaultQos `json:"5gQosProfile,omitempty"`
 	SessionAmbr      *Ambr                 `json:"sessionAmbr,omitempty"`
@@ -519,61 +517,50 @@ type DnnConfiguration struct {
 	RedundantSession *bool                 `json:"redundantSessionAllowed,omitempty"`
 }
 
-func (d *DnnConfiguration) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "pduSessionTypes", "sscModes"); err != nil {
-		return err
-	}
-
-	type plain DnnConfiguration
-
-	return json.Unmarshal(data, (*plain)(d))
-}
-
 func (d DnnConfiguration) Check(p Policy) error {
-	if err := d.PduSessionTypes.Check(p); err != nil {
-		return Nest("/pduSessionTypes", err)
-	}
-
-	if err := d.SscModes.Check(p); err != nil {
-		return Nest("/sscModes", err)
-	}
-
-	if err := checkOptional("/sessionAmbr", d.SessionAmbr, p); err != nil {
+	if err := firstError(
+		CheckRequired("/pduSessionTypes", d.PduSessionTypes, p),
+		CheckRequired("/sscModes", d.SscModes, p),
+		CheckOptional("/sessionAmbr", d.SessionAmbr, p),
+	); err != nil || p != Strict {
 		return err
 	}
 
-	if p != Strict {
-		return nil
-	}
-
-	return checkOptional("/5gQosProfile", d.FiveGQosProfile, p)
+	return CheckOptional("/5gQosProfile", d.FiveGQosProfile, p)
 }
 
 type SessionManagementSubscriptionData struct {
-	SingleNssai               Snssai                      `json:"singleNssai"`
+	SingleNssai               *Snssai                     `json:"singleNssai"`
 	DnnConfigurations         map[string]DnnConfiguration `json:"dnnConfigurations,omitempty"`
 	SharedDnnConfigurationsID string                      `json:"sharedDnnConfigurationsId,omitempty"`
 	SupportedFeatures         SupportedFeatures           `json:"supportedFeatures,omitempty"`
 }
 
 func (s *SessionManagementSubscriptionData) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "singleNssai"); err != nil {
+	type plain SessionManagementSubscriptionData
+
+	aux := struct {
+		*plain
+		DnnConfigurations map[string]json.RawMessage `json:"dnnConfigurations"`
+	}{plain: (*plain)(s)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
-	type plain SessionManagementSubscriptionData
+	s.DnnConfigurations = decodeValidMap[DnnConfiguration](aux.DnnConfigurations, func(k string) bool { return k != "" }, nil)
 
-	return json.Unmarshal(data, (*plain)(s))
+	return nil
 }
 
 func (s SessionManagementSubscriptionData) Check(p Policy) error {
-	if err := s.SingleNssai.Check(p); err != nil {
-		return Nest("/singleNssai", err)
+	if err := CheckRequired("/singleNssai", s.SingleNssai, p); err != nil {
+		return err
 	}
 
-	for _, dnn := range slicesSorted(s.DnnConfigurations) {
-		if dnn != WildcardDnn && !ValidDnn(dnn) {
-			return incorrect("/dnnConfigurations/"+dnn, true, "key is not a DNN")
+	for _, dnn := range sortedKeys(s.DnnConfigurations) {
+		if dnn == "" || p == Strict && !validDnnKey(dnn) {
+			return Incorrect("/dnnConfigurations/"+dnn, true, "key is not a DNN")
 		}
 
 		if err := s.DnnConfigurations[dnn].Check(p); err != nil {
@@ -592,9 +579,13 @@ func (s SessionManagementSubscriptionData) Check(p Policy) error {
 }
 
 func (s SessionManagementSubscriptionData) DnnConfiguration(dnn string) (DnnConfiguration, bool) {
-	for key, cfg := range s.DnnConfigurations {
-		if equalDnn(key, dnn) {
-			return cfg, true
+	if cfg, ok := s.DnnConfigurations[dnn]; ok && dnn != WildcardDnn {
+		return cfg, true
+	}
+
+	for _, key := range sortedKeys(s.DnnConfigurations) {
+		if key != WildcardDnn && equalDnn(key, dnn) {
+			return s.DnnConfigurations[key], true
 		}
 	}
 
@@ -606,74 +597,79 @@ func (s SessionManagementSubscriptionData) DnnConfiguration(dnn string) (DnnConf
 type SmSubsData struct {
 	Individual          []SessionManagementSubscriptionData
 	SharedSmSubsDataIDs []string
-}
-
-type extendedSmSubsData struct {
-	SharedSmSubsDataIDs  []string                            `json:"sharedSmSubsDataIds"`
-	IndividualSmSubsData []SessionManagementSubscriptionData `json:"individualSmSubsData,omitempty"`
-}
-
-func (d SmSubsData) MarshalJSON() ([]byte, error) {
-	if len(d.SharedSmSubsDataIDs) == 0 {
-		if d.Individual == nil {
-			return []byte("[]"), nil
-		}
-
-		return json.Marshal(d.Individual)
-	}
-
-	return json.Marshal(extendedSmSubsData{SharedSmSubsDataIDs: d.SharedSmSubsDataIDs, IndividualSmSubsData: d.Individual})
+	extended            bool
 }
 
 func (d *SmSubsData) UnmarshalJSON(data []byte) error {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) > 0 && trimmed[0] == '{' {
-		if err := requireKeys(trimmed, "sharedSmSubsDataIds"); err != nil {
-			return err
+		var ext struct {
+			SharedSmSubsDataIDs  []string          `json:"sharedSmSubsDataIds"`
+			IndividualSmSubsData []json.RawMessage `json:"individualSmSubsData"`
 		}
 
-		var ext extendedSmSubsData
 		if err := json.Unmarshal(trimmed, &ext); err != nil {
 			return err
 		}
 
-		*d = SmSubsData{Individual: ext.IndividualSmSubsData, SharedSmSubsDataIDs: ext.SharedSmSubsDataIDs}
+		*d = SmSubsData{
+			Individual:          decodeValid[SessionManagementSubscriptionData](ext.IndividualSmSubsData),
+			SharedSmSubsDataIDs: ext.SharedSmSubsDataIDs,
+			extended:            true,
+		}
 
 		return nil
 	}
 
-	var list []SessionManagementSubscriptionData
+	var list []json.RawMessage
 	if err := json.Unmarshal(trimmed, &list); err != nil {
 		return err
 	}
 
-	*d = SmSubsData{Individual: list}
+	*d = SmSubsData{Individual: decodeValid[SessionManagementSubscriptionData](list)}
 
 	return nil
 }
 
 func (d SmSubsData) Check(p Policy) error {
+	if d.extended || len(d.SharedSmSubsDataIDs) > 0 {
+		if err := present("/sharedSmSubsDataIds", len(d.SharedSmSubsDataIDs) > 0); err != nil {
+			return err
+		}
+	} else if len(d.Individual) == 0 {
+		return Missing("")
+	}
+
 	for i, id := range d.SharedSmSubsDataIDs {
 		if !sharedDataIDPattern.MatchString(id) {
-			return NestIndex("/sharedSmSubsDataIds", i, incorrect("", false, "invalid shared data ID %q", id))
+			return NestIndex("/sharedSmSubsDataIds", i, Incorrect("", false, "invalid shared data ID %q", id))
 		}
 	}
 
-	return checkAll("", d.Individual, p)
+	return CheckAll("", d.Individual, p)
 }
 
-func (d SmSubsData) Find(snssai Snssai, dnn string) (SessionManagementSubscriptionData, DnnConfiguration, bool) {
+var (
+	ErrNotSubscribed = errors.New("wire: S-NSSAI and DNN not subscribed")
+	ErrSharedData    = errors.New("wire: subscription data refers to shared data, which Ella does not negotiate")
+)
+
+func (d SmSubsData) Find(snssai Snssai, dnn string) (SessionManagementSubscriptionData, DnnConfiguration, error) {
 	for _, s := range d.Individual {
-		if !s.SingleNssai.Equal(snssai) {
+		if s.SingleNssai == nil || !s.SingleNssai.Equal(snssai) {
 			continue
 		}
 
 		if cfg, ok := s.DnnConfiguration(dnn); ok {
-			return s, cfg, true
+			return s, cfg, nil
 		}
 	}
 
-	return SessionManagementSubscriptionData{}, DnnConfiguration{}, false
+	if len(d.SharedSmSubsDataIDs) > 0 {
+		return SessionManagementSubscriptionData{}, DnnConfiguration{}, ErrSharedData
+	}
+
+	return SessionManagementSubscriptionData{}, DnnConfiguration{}, ErrNotSubscribed
 }
 
 type SubscriptionDataSets struct {
@@ -684,9 +680,9 @@ type SubscriptionDataSets struct {
 
 func (s SubscriptionDataSets) Check(p Policy) error {
 	return firstError(
-		checkOptional("/amData", s.AmData, p),
-		checkOptional("/smfSelData", s.SmfSelData, p),
-		checkOptional("/smData", s.SmData, p),
+		CheckOptional("/amData", s.AmData, p),
+		CheckOptional("/smfSelData", s.SmfSelData, p),
+		CheckOptional("/smData", s.SmData, p),
 	)
 }
 
@@ -702,35 +698,104 @@ type SdmSubscription struct {
 	PlmnID                *PlmnID           `json:"plmnId,omitempty"`
 	ImmediateReport       bool              `json:"immediateReport,omitempty"`
 	SupportedFeatures     SupportedFeatures `json:"supportedFeatures,omitempty"`
+	UniqueSubscription    *bool             `json:"uniqueSubscription,omitempty"`
 }
 
 func (s SdmSubscription) Check(p Policy) error {
-	if err := checkDateTime("/expires", s.Expires, true); err != nil {
+	if err := firstError(
+		present("/nfInstanceId", s.NfInstanceID != ""),
+		present("/callbackReference", s.CallbackReference != ""),
+		present("/monitoredResourceUris", len(s.MonitoredResourceUris) > 0),
+		checkDateTime("/expires", s.Expires, true),
+	); err != nil || p != Strict {
 		return err
-	}
-
-	if p != Strict {
-		return nil
-	}
-
-	if len(s.MonitoredResourceUris) == 0 {
-		return missing("/monitoredResourceUris")
 	}
 
 	for i, u := range s.MonitoredResourceUris {
 		if u == "" {
-			return NestIndex("/monitoredResourceUris", i, missing(""))
+			return NestIndex("/monitoredResourceUris", i, Missing(""))
 		}
 	}
 
 	return firstError(
 		checkString("/nfInstanceId", s.NfInstanceID, ValidNfInstanceID, false),
 		checkAbsoluteURI("/callbackReference", s.CallbackReference, false),
-		checkOptional("/singleNssai", s.SingleNssai, p),
+		CheckOptional("/singleNssai", s.SingleNssai, p),
 		checkString("/dnn", s.Dnn, ValidDnn, true),
-		checkOptional("/plmnId", s.PlmnID, p),
+		CheckOptional("/plmnId", s.PlmnID, p),
 		Nest("/supportedFeatures", s.SupportedFeatures.Check(p)),
 	)
+}
+
+type SdmSubsModification struct {
+	Expires               DateTime `json:"expires,omitempty"`
+	MonitoredResourceUris []string `json:"monitoredResourceUris,omitempty"`
+}
+
+func (m SdmSubsModification) Check(p Policy) error {
+	if p != Strict {
+		return nil
+	}
+
+	if m.Expires == "" && m.MonitoredResourceUris == nil {
+		return Incorrect("", false, "empty modification")
+	}
+
+	if m.MonitoredResourceUris != nil && len(m.MonitoredResourceUris) == 0 {
+		return Incorrect("/monitoredResourceUris", true, "empty list")
+	}
+
+	for i, u := range m.MonitoredResourceUris {
+		if u == "" {
+			return NestIndex("/monitoredResourceUris", i, Missing(""))
+		}
+	}
+
+	return checkDateTime("/expires", m.Expires, true)
+}
+
+type SdmSubsModifyResult struct {
+	Subscription *SdmSubscription
+	Patch        *PatchResult
+}
+
+func (r *SdmSubsModifyResult) UnmarshalJSON(data []byte) error {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return err
+	}
+
+	if _, ok := keys["report"]; ok {
+		var pr PatchResult
+		if err := json.Unmarshal(data, &pr); err != nil {
+			return err
+		}
+
+		*r = SdmSubsModifyResult{Patch: &pr}
+
+		return nil
+	}
+
+	var s SdmSubscription
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*r = SdmSubsModifyResult{Subscription: &s}
+
+	return nil
+}
+
+func (r SdmSubsModifyResult) Check(p Policy) error {
+	if r.Patch != nil {
+		return r.Patch.Check(p)
+	}
+
+	if r.Subscription == nil {
+		return Missing("")
+	}
+
+	return r.Subscription.Check(p)
 }
 
 type ChangeType string
@@ -748,29 +813,22 @@ func (c ChangeType) Known() bool {
 
 type ChangeItem struct {
 	Op        ChangeType      `json:"op"`
-	Path      string          `json:"path"`
+	Path      *string         `json:"path"`
 	From      string          `json:"from,omitempty"`
 	OrigValue json.RawMessage `json:"origValue,omitempty"`
 	NewValue  json.RawMessage `json:"newValue,omitempty"`
 }
 
-func (c *ChangeItem) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "path"); err != nil {
-		return err
-	}
-
-	type plain ChangeItem
-
-	return json.Unmarshal(data, (*plain)(c))
-}
-
 func (c ChangeItem) Check(p Policy) error {
-	if err := checkEnum("/op", c.Op, p, false); err != nil {
+	if err := firstError(
+		CheckEnum("/op", c.Op, p, false),
+		present("/path", c.Path != nil),
+	); err != nil || p != Strict {
 		return err
 	}
 
-	if p == Strict && c.Op == ChangeMove && c.From == "" {
-		return missing("/from")
+	if c.Op == ChangeMove && c.From == "" {
+		return Missing("/from")
 	}
 
 	return nil
@@ -782,15 +840,18 @@ type NotifyItem struct {
 }
 
 func (n NotifyItem) Check(p Policy) error {
-	if n.ResourceID == "" {
-		return missing("/resourceId")
+	if err := firstError(
+		present("/resourceId", n.ResourceID != ""),
+		present("/changes", len(n.Changes) > 0),
+	); err != nil || p != Strict {
+		return err
 	}
 
-	if len(n.Changes) == 0 {
-		return missing("/changes")
-	}
+	return CheckAll("/changes", n.Changes, p)
+}
 
-	return checkAll("/changes", n.Changes, p)
+func (n NotifyItem) About(supi string, resource func(string) string) bool {
+	return strings.HasSuffix(n.ResourceID, resource(supi))
 }
 
 type ModificationNotification struct {
@@ -800,9 +861,12 @@ type ModificationNotification struct {
 }
 
 func (m ModificationNotification) Check(p Policy) error {
-	if len(m.NotifyItems) == 0 {
-		return missing("/notifyItems")
+	if err := firstError(
+		present("/notifyItems", len(m.NotifyItems) > 0),
+		CheckAll("/notifyItems", m.NotifyItems, p),
+	); err != nil || p != Strict {
+		return err
 	}
 
-	return firstError(checkAll("/notifyItems", m.NotifyItems, p), checkOptional("/oldGuami", m.OldGuami, p))
+	return CheckOptional("/oldGuami", m.OldGuami, p)
 }

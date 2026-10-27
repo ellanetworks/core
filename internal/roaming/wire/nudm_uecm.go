@@ -3,15 +3,6 @@
 
 package wire
 
-import "encoding/json"
-
-const (
-	ServiceNudmUECM      = "nudm-uecm"
-	NudmUECMAPIRoot      = "/nudm-uecm/v1"
-	UECMAmf3GppAccess    = "registrations/amf-3gpp-access"
-	UECMSmfRegistrations = "registrations/smf-registrations"
-)
-
 type ImsVoPs string
 
 const (
@@ -51,158 +42,94 @@ func (r DeregistrationReason) Known() bool {
 		Dereg3GPPAccessNotAllowed, DeregNon3GPPAccessNotAllowed)
 }
 
-type RegistrationReason string
-
-const RegistrationSMFContextTransferred RegistrationReason = "SMF_CONTEXT_TRANSFERRED"
-
-func (r RegistrationReason) Known() bool {
-	return r == RegistrationSMFContextTransferred
-}
-
 type Amf3GppAccessRegistration struct {
-	AmfInstanceID            string            `json:"amfInstanceId"`
-	SupportedFeatures        SupportedFeatures `json:"supportedFeatures,omitempty"`
-	PurgeFlag                bool              `json:"purgeFlag,omitempty"`
-	Pei                      string            `json:"pei,omitempty"`
-	ImsVoPs                  ImsVoPs           `json:"imsVoPs,omitempty"`
-	DeregCallbackURI         string            `json:"deregCallbackUri"`
-	InitialRegistrationInd   *bool             `json:"initialRegistrationInd,omitempty"`
-	EmergencyRegistrationInd *bool             `json:"emergencyRegistrationInd,omitempty"`
-	Guami                    Guami             `json:"guami"`
-	RatType                  RatType           `json:"ratType"`
-	UrrpIndicator            *bool             `json:"urrpIndicator,omitempty"`
-	RegistrationTime         DateTime          `json:"registrationTime,omitempty"`
-	NoEeSubscriptionInd      *bool             `json:"noEeSubscriptionInd,omitempty"`
-	Supi                     string            `json:"supi,omitempty"`
-	ReRegistrationRequired   *bool             `json:"reRegistrationRequired,omitempty"`
-}
-
-func (r *Amf3GppAccessRegistration) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "guami"); err != nil {
-		return err
-	}
-
-	type plain Amf3GppAccessRegistration
-
-	return json.Unmarshal(data, (*plain)(r))
+	AmfInstanceID          string            `json:"amfInstanceId"`
+	SupportedFeatures      SupportedFeatures `json:"supportedFeatures,omitempty"`
+	Pei                    string            `json:"pei,omitempty"`
+	ImsVoPs                ImsVoPs           `json:"imsVoPs,omitempty"`
+	DeregCallbackURI       string            `json:"deregCallbackUri"`
+	InitialRegistrationInd *bool             `json:"initialRegistrationInd,omitempty"`
+	Guami                  *Guami            `json:"guami"`
+	RatType                RatType           `json:"ratType"`
 }
 
 func (r Amf3GppAccessRegistration) Check(p Policy) error {
-	if err := r.Guami.Check(p); err != nil {
-		return Nest("/guami", err)
-	}
-
-	if err := checkEnum("/ratType", r.RatType, p, false); err != nil {
+	if err := firstError(
+		present("/amfInstanceId", r.AmfInstanceID != ""),
+		present("/deregCallbackUri", r.DeregCallbackURI != ""),
+		present("/guami", r.Guami != nil),
+		present("/ratType", r.RatType != ""),
+	); err != nil || p != Strict {
 		return err
-	}
-
-	if p != Strict {
-		return nil
 	}
 
 	return firstError(
 		checkString("/amfInstanceId", r.AmfInstanceID, ValidNfInstanceID, false),
 		checkAbsoluteURI("/deregCallbackUri", r.DeregCallbackURI, false),
+		CheckRequired("/guami", r.Guami, p),
+		CheckEnum("/ratType", r.RatType, p, false),
 		checkString("/pei", r.Pei, ValidPei, true),
-		checkEnum("/imsVoPs", r.ImsVoPs, p, true),
-		checkDateTime("/registrationTime", r.RegistrationTime, true),
-		checkString("/supi", r.Supi, ValidSupi, true),
+		CheckEnum("/imsVoPs", r.ImsVoPs, p, true),
 		Nest("/supportedFeatures", r.SupportedFeatures.Check(p)),
 	)
 }
 
 type Amf3GppAccessRegistrationModification struct {
-	Guami     Guami   `json:"guami"`
-	PurgeFlag *bool   `json:"purgeFlag,omitempty"`
-	Pei       string  `json:"pei,omitempty"`
-	ImsVoPs   ImsVoPs `json:"imsVoPs,omitempty"`
+	Guami     *Guami `json:"guami"`
+	PurgeFlag *bool  `json:"purgeFlag,omitempty"`
 }
 
 func PurgeModification(g Guami) Amf3GppAccessRegistrationModification {
 	purge := true
 
-	return Amf3GppAccessRegistrationModification{Guami: g, PurgeFlag: &purge}
+	return Amf3GppAccessRegistrationModification{Guami: &g, PurgeFlag: &purge}
 }
 
 func (m Amf3GppAccessRegistrationModification) Check(p Policy) error {
-	if err := m.Guami.Check(p); err != nil {
-		return Nest("/guami", err)
+	if err := present("/guami", m.Guami != nil); err != nil || p != Strict {
+		return err
 	}
 
-	if p != Strict {
-		return nil
-	}
-
-	return firstError(checkString("/pei", m.Pei, ValidPei, true), checkEnum("/imsVoPs", m.ImsVoPs, p, true))
+	return CheckRequired("/guami", m.Guami, p)
 }
 
 type SmfRegistration struct {
-	SmfInstanceID      string             `json:"smfInstanceId"`
-	SupportedFeatures  SupportedFeatures  `json:"supportedFeatures,omitempty"`
-	PduSessionID       int                `json:"pduSessionId"`
-	SingleNssai        Snssai             `json:"singleNssai"`
-	Dnn                string             `json:"dnn,omitempty"`
-	EmergencyServices  bool               `json:"emergencyServices,omitempty"`
-	PlmnID             PlmnID             `json:"plmnId"`
-	DeregCallbackURI   string             `json:"deregCallbackUri,omitempty"`
-	RegistrationReason RegistrationReason `json:"registrationReason,omitempty"`
-	RegistrationTime   DateTime           `json:"registrationTime,omitempty"`
+	SmfInstanceID     string            `json:"smfInstanceId"`
+	SupportedFeatures SupportedFeatures `json:"supportedFeatures,omitempty"`
+	PduSessionID      *int              `json:"pduSessionId"`
+	SingleNssai       *Snssai           `json:"singleNssai"`
+	Dnn               string            `json:"dnn,omitempty"`
+	PlmnID            *PlmnID           `json:"plmnId"`
 }
 
 func (r SmfRegistration) Check(p Policy) error {
-	if p != Strict {
-		return nil
-	}
-
-	if err := r.SingleNssai.Check(p); err != nil {
-		return Nest("/singleNssai", err)
-	}
-
-	if err := r.PlmnID.Check(p); err != nil {
-		return Nest("/plmnId", err)
+	if err := firstError(
+		present("/smfInstanceId", r.SmfInstanceID != ""),
+		present("/pduSessionId", r.PduSessionID != nil),
+		present("/singleNssai", r.SingleNssai != nil),
+		present("/plmnId", r.PlmnID != nil),
+	); err != nil || p != Strict {
+		return err
 	}
 
 	return firstError(
 		checkString("/smfInstanceId", r.SmfInstanceID, ValidNfInstanceID, false),
-		checkRange("/pduSessionId", r.PduSessionID, 0, 255, false),
+		checkRequiredRange("/pduSessionId", r.PduSessionID, 0, 255),
+		CheckRequired("/singleNssai", r.SingleNssai, p),
 		checkString("/dnn", r.Dnn, ValidDnn, true),
-		checkAbsoluteURI("/deregCallbackUri", r.DeregCallbackURI, true),
-		checkEnum("/registrationReason", r.RegistrationReason, p, true),
-		checkDateTime("/registrationTime", r.RegistrationTime, true),
+		CheckRequired("/plmnId", r.PlmnID, p),
 		Nest("/supportedFeatures", r.SupportedFeatures.Check(p)),
 	)
 }
 
 type DeregistrationData struct {
-	DeregReason      DeregistrationReason `json:"deregReason"`
-	AccessType       AccessType           `json:"accessType,omitempty"`
-	PduSessionID     *int                 `json:"pduSessionId,omitempty"`
-	NewSmfInstanceID string               `json:"newSmfInstanceId,omitempty"`
-	OldGuami         *Guami               `json:"oldGuami,omitempty"`
+	DeregReason DeregistrationReason `json:"deregReason"`
+	AccessType  AccessType           `json:"accessType,omitempty"`
 }
 
 func (d DeregistrationData) Check(p Policy) error {
-	if err := checkEnum("/deregReason", d.DeregReason, p, false); err != nil {
-		return err
-	}
-
-	if err := checkEnum("/accessType", d.AccessType, p, true); err != nil {
-		return err
-	}
-
-	if d.PduSessionID != nil {
-		if err := checkRange("/pduSessionId", *d.PduSessionID, 0, 255, true); err != nil {
-			return err
-		}
-	}
-
-	if err := checkOptional("/oldGuami", d.OldGuami, p); err != nil {
-		return err
-	}
-
-	if p == Strict {
-		return checkString("/newSmfInstanceId", d.NewSmfInstanceID, ValidNfInstanceID, true)
-	}
-
-	return nil
+	return firstError(
+		CheckEnum("/deregReason", d.DeregReason, p, false),
+		CheckEnum("/accessType", d.AccessType, p, true),
+	)
 }

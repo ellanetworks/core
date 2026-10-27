@@ -4,7 +4,6 @@
 package wire
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -19,37 +18,35 @@ var (
 )
 
 type Snssai struct {
-	Sst int    `json:"sst"`
+	Sst *int   `json:"sst"`
 	Sd  string `json:"sd,omitempty"`
 }
 
-func (s *Snssai) UnmarshalJSON(data []byte) error {
-	if err := requireKeys(data, "sst"); err != nil {
-		return err
-	}
-
-	type plain Snssai
-
-	return json.Unmarshal(data, (*plain)(s))
+func NewSnssai(sst int, sd string) Snssai {
+	return Snssai{Sst: &sst, Sd: sd}
 }
 
 func (s Snssai) Check(Policy) error {
 	return firstError(
-		checkRange("/sst", s.Sst, 0, 255, false),
+		checkRequiredRange("/sst", s.Sst, 0, 255),
 		checkPattern("/sd", s.Sd, sdPattern, true),
 	)
 }
 
 func (s Snssai) Equal(o Snssai) bool {
-	return s.Sst == o.Sst && strings.EqualFold(s.Sd, o.Sd)
+	return s.Sst != nil && o.Sst != nil && *s.Sst == *o.Sst && strings.EqualFold(s.Sd, o.Sd)
 }
 
 func (s Snssai) String() string {
-	if s.Sd == "" {
-		return strconv.Itoa(s.Sst)
+	if s.Sst == nil {
+		return ""
 	}
 
-	return strconv.Itoa(s.Sst) + "-" + strings.ToLower(s.Sd)
+	if s.Sd == "" {
+		return strconv.Itoa(*s.Sst)
+	}
+
+	return strconv.Itoa(*s.Sst) + "-" + strings.ToLower(s.Sd)
 }
 
 func ParseSnssai(key string) (Snssai, error) {
@@ -63,7 +60,7 @@ func ParseSnssai(key string) (Snssai, error) {
 		return Snssai{}, fmt.Errorf("wire: S-NSSAI key %q: SST out of range", key)
 	}
 
-	return Snssai{Sst: sst, Sd: strings.ToLower(m[2])}, nil
+	return NewSnssai(sst, strings.ToLower(m[2])), nil
 }
 
 func SnssaiFromModel(m models.Snssai) Snssai {
@@ -72,9 +69,13 @@ func SnssaiFromModel(m models.Snssai) Snssai {
 		sd = models.NormalizeSD(m.Sd)
 	}
 
-	return Snssai{Sst: int(m.Sst), Sd: sd}
+	return NewSnssai(int(m.Sst), sd)
 }
 
-func (s Snssai) Model() models.Snssai {
-	return models.Snssai{Sst: int32(s.Sst), Sd: strings.ToLower(s.Sd)}
+func (s Snssai) Model() (models.Snssai, error) {
+	if err := s.Check(Strict); err != nil {
+		return models.Snssai{}, err
+	}
+
+	return models.Snssai{Sst: int32(*s.Sst), Sd: strings.ToLower(s.Sd)}, nil
 }

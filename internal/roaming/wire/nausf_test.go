@@ -4,7 +4,6 @@
 package wire
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 )
@@ -14,6 +13,7 @@ const (
 	testAutn  = "fedcba9876543210fedcba9876543210"
 	testHxres = "00112233445566778899aabbccddeeff"
 	testAuts  = "0102030405060708090a0b0c0d0e"
+	testAv    = `{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"}`
 )
 
 func TestAuthenticationInfoEncoding(t *testing.T) {
@@ -53,15 +53,17 @@ func TestAuthenticationInfoEncoding(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*AuthenticationInfo){
-		"no supiOrSuci": func(a *AuthenticationInfo) { a.SupiOrSuci = "" },
-		"bad SNN":       func(a *AuthenticationInfo) { a.ServingNetworkName = "5G:mnc70.mcc999.3gppnetwork.org" },
-		"lower NID":     func(a *AuthenticationInfo) { a.ServingNetworkName += ":000007ed9d5" },
+		"no supiOrSuci":  func(a *AuthenticationInfo) { a.SupiOrSuci = "" },
+		"bad supiOrSuci": func(a *AuthenticationInfo) { a.SupiOrSuci = "x" },
+		"bad SNN":        func(a *AuthenticationInfo) { a.ServingNetworkName = "5G:mnc70.mcc999.3gppnetwork.org" },
+		"lower NID":      func(a *AuthenticationInfo) { a.ServingNetworkName += ":000007ed9d5" },
 		"short AUTS": func(a *AuthenticationInfo) {
 			a.ResynchronizationInfo = &ResynchronizationInfo{Rand: testRand, Auts: "01"}
 		},
-		"no RAND":     func(a *AuthenticationInfo) { a.ResynchronizationInfo = &ResynchronizationInfo{Auts: testAuts} },
-		"RI too long": func(a *AuthenticationInfo) { a.RoutingIndicator = "12345" },
-		"bad PEI":     func(a *AuthenticationInfo) { a.Pei = "imei-1" },
+		"no RAND":      func(a *AuthenticationInfo) { a.ResynchronizationInfo = &ResynchronizationInfo{Auts: testAuts} },
+		"RI too long":  func(a *AuthenticationInfo) { a.RoutingIndicator = "12345" },
+		"bad PEI":      func(a *AuthenticationInfo) { a.Pei = "imei-1" },
+		"bad features": func(a *AuthenticationInfo) { a.SupportedFeatures = "x" },
 	} {
 		a := in
 		mutate(&a)
@@ -70,6 +72,11 @@ func TestAuthenticationInfoEncoding(t *testing.T) {
 			t.Errorf("%s: encoded", name)
 		}
 	}
+
+	requireParams[AuthenticationInfo](t, []paramCase{
+		{`{"servingNetworkName":"x"}`, "/supiOrSuci"},
+		{`{"supiOrSuci":"x"}`, "/servingNetworkName"},
+	})
 }
 
 func TestServingNetworkName(t *testing.T) {
@@ -94,8 +101,8 @@ func TestServingNetworkName(t *testing.T) {
 	}
 }
 
-func TestUEAuthenticationCtxOpen5GS(t *testing.T) {
-	body := `{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"},` +
+func TestUEAuthenticationCtxSingleLink(t *testing.T) {
+	body := `{"authType":"5G_AKA","5gAuthData":` + testAv + `,` +
 		`"_links":{"5g-aka":{"href":"http://ausf.5gc.mnc001.mcc001.3gppnetwork.org/nausf-auth/v1/ue-authentications/1/5g-aka-confirmation"}}}`
 
 	ctx, err := Decode[UEAuthenticationCtx]([]byte(body))
@@ -113,18 +120,13 @@ func TestUEAuthenticationCtxOpen5GS(t *testing.T) {
 		t.Fatalf("Vector = %x %x %x, %v", rand, hxres, autn, err)
 	}
 
-	b, err := Encode(ctx)
-	if err != nil {
+	if err := ctx.Check(Strict); err != nil {
 		t.Fatal(err)
-	}
-
-	if string(b) != body {
-		t.Fatalf("re-encode\n%s\n%s", b, body)
 	}
 }
 
 func TestUEAuthenticationCtxShapes(t *testing.T) {
-	arrayLinks := `{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"},` +
+	arrayLinks := `{"authType":"5G_AKA","5gAuthData":` + testAv + `,` +
 		`"_links":{"5g-aka":[{"href":"https://ausf.example.com/a"},{"href":"https://ausf.example.com/b"}]},` +
 		`"servingNetworkName":"5G:mnc070.mcc999.3gppnetwork.org"}`
 
@@ -137,14 +139,17 @@ func TestUEAuthenticationCtxShapes(t *testing.T) {
 		t.Fatalf("array links = %+v", ctx.Links)
 	}
 
-	b, _ := json.Marshal(ctx)
-	if back, err := Decode[UEAuthenticationCtx](b); err != nil || len(back.Links[LinkRel5GAKA]) != 2 {
-		t.Fatalf("array round trip = %s, %v", b, err)
+	if err := ctx.Check(Strict); err != nil {
+		t.Fatal(err)
 	}
 
 	eap, err := Decode[UEAuthenticationCtx]([]byte(`{"authType":"EAP_AKA_PRIME","5gAuthData":"AQIDBA==","_links":{"eap-session":{"href":"https://ausf.example.com/x"}}}`))
 	if err != nil || eap.AuthType != AuthTypeEAPAKAPrime || string(eap.AuthData.EapPayload) != "\x01\x02\x03\x04" {
 		t.Fatalf("EAP = %+v, %v", eap, err)
+	}
+
+	if _, ok := eap.Href(LinkRel5GAKA); ok {
+		t.Fatal("5g-aka link on EAP context")
 	}
 
 	unknown, err := Decode[UEAuthenticationCtx]([]byte(`{"authType":"FUTURE_AKA","5gAuthData":"AA==","_links":{}}`))
@@ -156,27 +161,34 @@ func TestUEAuthenticationCtxShapes(t *testing.T) {
 		t.Fatal("strict accepted unknown authType")
 	}
 
-	for _, tc := range []struct{ body, param string }{
+	nullLinks, err := Decode[UEAuthenticationCtx]([]byte(`{"authType":"EAP_TLS","5gAuthData":"AA==","_links":{"eap-session":null}}`))
+	if err != nil || nullLinks.Check(Strict) == nil {
+		t.Fatalf("null link value = %+v, %v", nullLinks, err)
+	}
+
+	requireParams[UEAuthenticationCtx](t, []paramCase{
 		{`{"5gAuthData":"AA==","_links":{}}`, "/authType"},
 		{`{"authType":"5G_AKA","_links":{}}`, "/5gAuthData"},
-		{`{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"}}`, "/_links"},
+		{`{"authType":"5G_AKA","5gAuthData":null,"_links":{}}`, "/5gAuthData"},
+		{`{"authType":"5G_AKA","5gAuthData":` + testAv + `}`, "/_links"},
 		{`{"authType":"5G_AKA","5gAuthData":"AA==","_links":{}}`, "/5gAuthData"},
+		{`{"authType":"EAP_AKA_PRIME","5gAuthData":` + testAv + `,"_links":{}}`, "/5gAuthData"},
 		{`{"authType":"5G_AKA","5gAuthData":{"rand":"00","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"},"_links":{}}`, "/5gAuthData/rand"},
 		{`{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","autn":"` + testAutn + `"},"_links":{}}`, "/5gAuthData/hxresStar"},
 		{`{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"zz` + testAutn[2:] + `"},"_links":{}}`, "/5gAuthData/autn"},
-		{`{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"},"_links":{"eap-session":{"href":"x"}}}`, "/_links/5g-aka"},
-		{`{"authType":"5G_AKA","5gAuthData":{"rand":"` + testRand + `","hxresStar":"` + testHxres + `","autn":"` + testAutn + `"},"_links":{"5g-aka":{"href":"/relative"}}}`, "/_links/5g-aka/href"},
+		{`{"authType":"5G_AKA","5gAuthData":` + testAv + `,"_links":{"eap-session":{"href":"x"}}}`, "/_links/5g-aka"},
+		{`{"authType":"5G_AKA","5gAuthData":` + testAv + `,"_links":{"5g-aka":{"href":"/relative"}}}`, "/_links/5g-aka/href"},
+	})
+
+	for _, body := range []string{
+		`{"authType":"5G_AKA","5gAuthData":7,"_links":{}}`,
+		`{"authType":"5G_AKA","5gAuthData":{"rand":1},"_links":{}}`,
+		`{"authType":"5G_AKA","5gAuthData":` + testAv + `,"_links":{"5g-aka":[1]}}`,
+		`{"authType":"5G_AKA","5gAuthData":` + testAv + `,"_links":{"5g-aka":7}}`,
 	} {
-		_, err := Decode[UEAuthenticationCtx]([]byte(tc.body))
-
-		var ie *IEError
-		if !errors.As(err, &ie) || ie.Param != tc.param {
-			t.Errorf("Decode(%s) = %v, want %s", tc.body, err, tc.param)
+		if _, err := Decode[UEAuthenticationCtx]([]byte(body)); !errors.Is(err, ErrMalformed) {
+			t.Errorf("Decode(%s) = %v", body, err)
 		}
-	}
-
-	if _, err := Decode[UEAuthenticationCtx]([]byte(`{"authType":"5G_AKA","5gAuthData":7,"_links":{}}`)); !errors.Is(err, ErrMalformed) {
-		t.Fatalf("numeric 5gAuthData: %v", err)
 	}
 }
 
@@ -210,37 +222,60 @@ func TestConfirmationData(t *testing.T) {
 
 func TestConfirmationDataResponse(t *testing.T) {
 	kseaf := testRand + testAutn
+	suci := "suci-0-001-01-0000-0-0-0000000001"
 
 	r, err := Decode[ConfirmationDataResponse]([]byte(`{"authResult":"AUTHENTICATION_SUCCESS","supi":"imsi-001010000000001","kseaf":"` + kseaf + `"}`))
 	if err != nil || r.AuthResult != AuthResultSuccess || r.Supi != "imsi-001010000000001" {
 		t.Fatalf("success = %+v, %v", r, err)
 	}
 
-	k, err := r.KseafBytes()
-	if err != nil || k[0] != 0x01 || k[31] != 0x10 {
-		t.Fatalf("Kseaf = %x, %v", k, err)
+	supi, k, err := r.Success(suci)
+	if err != nil || supi != "imsi-001010000000001" || k[0] != 0x01 || k[31] != 0x10 {
+		t.Fatalf("Success = %q %x, %v", supi, k, err)
+	}
+
+	if supi, _, err := r.Success("imsi-001010000000001"); err != nil || supi != "imsi-001010000000001" {
+		t.Fatalf("Success(SUPI) = %q, %v", supi, err)
+	}
+
+	noSupi := ConfirmationDataResponse{AuthResult: AuthResultSuccess, Kseaf: kseaf}
+	if supi, _, err := noSupi.Success("imsi-001010000000002"); err != nil || supi != "imsi-001010000000002" {
+		t.Fatalf("SUPI sent, none returned = %q, %v", supi, err)
+	}
+
+	for name, tc := range map[string]struct {
+		r          ConfirmationDataResponse
+		supiOrSuci string
+	}{
+		"SUCI sent, no SUPI":   {noSupi, suci},
+		"other SUPI":           {r, "imsi-001010000000002"},
+		"SUPI of another PLMN": {ConfirmationDataResponse{AuthResult: AuthResultSuccess, Kseaf: kseaf, Supi: "imsi-999700000000001"}, suci},
+		"bad SUCI":             {r, "suci-x"},
+		"no Kseaf":             {ConfirmationDataResponse{AuthResult: AuthResultSuccess, Supi: "imsi-001010000000001"}, suci},
+		"failure":              {ConfirmationDataResponse{AuthResult: AuthResultFailure}, suci},
+	} {
+		if _, _, err := tc.r.Success(tc.supiOrSuci); err == nil {
+			t.Errorf("%s: Success accepted", name)
+		}
+	}
+
+	if _, _, err := (ConfirmationDataResponse{AuthResult: AuthResultFailure}).Success(suci); !errors.Is(err, ErrAuthenticationFailed) {
+		t.Fatalf("failure = %v", err)
 	}
 
 	failure, err := Decode[ConfirmationDataResponse]([]byte(`{"authResult":"AUTHENTICATION_FAILURE"}`))
 	if err != nil || failure.AuthResult != AuthResultFailure {
-		t.Fatalf("Open5GS failure = %+v, %v", failure, err)
-	}
-
-	if _, err := failure.KseafBytes(); err == nil {
-		t.Fatal("absent Kseaf decoded")
+		t.Fatalf("failure without kseaf = %+v, %v", failure, err)
 	}
 
 	if r, err := Decode[ConfirmationDataResponse]([]byte(`{"authResult":"AUTHENTICATION_MAYBE"}`)); err != nil || r.Check(Strict) == nil {
 		t.Fatalf("unknown authResult = %v", err)
 	}
 
-	for _, body := range []string{`{}`, `{"authResult":"AUTHENTICATION_SUCCESS","kseaf":"00"}`} {
-		if _, err := Decode[ConfirmationDataResponse]([]byte(body)); err == nil {
-			t.Errorf("Decode(%s) accepted", body)
-		}
-	}
-
-	if _, err := Encode(ConfirmationDataResponse{AuthResult: AuthResultSuccess, Supi: "bogus"}); err == nil {
-		t.Fatal("bad SUPI encoded")
-	}
+	requireParams[ConfirmationDataResponse](t, []paramCase{
+		{`{}`, "/authResult"},
+		{`{"authResult":"AUTHENTICATION_SUCCESS","supi":"imsi-001010000000001"}`, "/kseaf"},
+		{`{"authResult":"AUTHENTICATION_SUCCESS","kseaf":"00"}`, "/kseaf"},
+		{`{"authResult":"AUTHENTICATION_SUCCESS","kseaf":"` + kseaf + `","supi":"bogus"}`, "/supi"},
+	})
 }

@@ -15,7 +15,7 @@ import (
 var (
 	imsiSupiPattern  = regexp.MustCompile(`^imsi-([0-9]{5,15})$`)
 	supiPattern      = regexp.MustCompile(`^(imsi-[0-9]{5,15}|nai-.+|gci-.+|gli-.+)$`)
-	suciPattern      = regexp.MustCompile(`^suci-(0-[0-9]{3}-[0-9]{2,3}|[1-7]-.+)-[0-9]{1,4}-(0-0-.*|[a-fA-F1-9]-([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])-[a-fA-F0-9]+)$`)
+	suciPattern      = regexp.MustCompile(`^suci-(0-[0-9]{3}-[0-9]{2,3}|[1-7]-.+)-[0-9]{1,4}-(0-0-.+|[a-fA-F1-9]-([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])-[a-fA-F0-9]+)$`)
 	gpsiPattern      = regexp.MustCompile(`^(msisdn-[0-9]{5,15}|extid-[^@]+@[^@]+)$`)
 	peiPattern       = regexp.MustCompile(`^(imei-[0-9]{15}|imeisv-[0-9]{16}|mac((-[0-9a-fA-F]{2}){6})(-untrusted)?|eui((-[0-9a-fA-F]{2}){8}))$`)
 	uuidPattern      = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -69,10 +69,29 @@ func IMSIFromSupi(supi string) (string, bool) {
 	return m[1], true
 }
 
-func SupiInPLMN(supi string, p PlmnID) bool {
+func HomePLMN(supi string, candidates []PlmnID) (PlmnID, bool) {
 	imsi, ok := IMSIFromSupi(supi)
+	if !ok {
+		return PlmnID{}, false
+	}
 
-	return ok && p.Valid() && len(imsi) > len(p.Mcc)+len(p.Mnc) && strings.HasPrefix(imsi, p.Mcc+p.Mnc)
+	var (
+		best  PlmnID
+		found bool
+	)
+
+	for _, p := range candidates {
+		prefix := p.Mcc + p.Mnc
+		if !p.Valid() || len(imsi) <= len(prefix) || !strings.HasPrefix(imsi, prefix) {
+			continue
+		}
+
+		if !found || len(p.Mnc) > len(best.Mnc) {
+			best, found = p, true
+		}
+	}
+
+	return best, found
 }
 
 type Suci struct {
@@ -97,6 +116,10 @@ func ParseSuci(s string) (Suci, error) {
 	scheme, err := strconv.ParseUint(parts[5], 16, 8)
 	if err != nil {
 		return Suci{}, fmt.Errorf("wire: SUCI %q protection scheme: %w", s, err)
+	}
+
+	if scheme == 0 && !allDigits(parts[7]) {
+		return Suci{}, fmt.Errorf("wire: SUCI %q null-scheme output is not an MSIN", s)
 	}
 
 	keyID, err := strconv.Atoi(parts[6])
@@ -125,7 +148,7 @@ func DateTimeOf(t time.Time) DateTime {
 }
 
 func (d DateTime) Time() (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, string(d))
+	return time.Parse(time.RFC3339Nano, strings.ToUpper(string(d)))
 }
 
 func checkDateTime(param string, d DateTime, optional bool) error {
@@ -134,11 +157,11 @@ func checkDateTime(param string, d DateTime, optional bool) error {
 			return nil
 		}
 
-		return missing(param)
+		return Missing(param)
 	}
 
 	if _, err := d.Time(); err != nil {
-		return incorrect(param, optional, "%q is not an RFC 3339 date-time", string(d))
+		return Incorrect(param, optional, "%q is not an RFC 3339 date-time", string(d))
 	}
 
 	return nil
@@ -150,12 +173,12 @@ func checkAbsoluteURI(param string, s string, optional bool) error {
 			return nil
 		}
 
-		return missing(param)
+		return Missing(param)
 	}
 
 	u, err := url.Parse(s)
 	if err != nil || !u.IsAbs() || u.Host == "" {
-		return incorrect(param, optional, "%q is not an absolute URI", s)
+		return Incorrect(param, optional, "%q is not an absolute URI", s)
 	}
 
 	return nil
@@ -167,11 +190,11 @@ func checkString(param string, s string, valid func(string) bool, optional bool)
 			return nil
 		}
 
-		return missing(param)
+		return Missing(param)
 	}
 
 	if !valid(s) {
-		return incorrect(param, optional, "invalid value %q", s)
+		return Incorrect(param, optional, "invalid value %q", s)
 	}
 
 	return nil

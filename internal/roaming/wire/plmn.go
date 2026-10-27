@@ -67,6 +67,10 @@ func (p PlmnID) mnc3() string {
 	return p.Mnc
 }
 
+func (p PlmnID) DomainKey() string {
+	return p.Mcc + p.mnc3()
+}
+
 func (p PlmnID) ServingNetworkName() string {
 	return "5G:mnc" + p.mnc3() + ".mcc" + p.Mcc + ".3gppnetwork.org"
 }

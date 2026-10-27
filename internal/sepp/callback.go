@@ -6,6 +6,7 @@ package sepp
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -14,6 +15,11 @@ import (
 )
 
 const CallbackPathRoot = "/roaming-callbacks/v1"
+
+const (
+	MinAMFPointer = 1
+	MaxAMFPointer = 63
+)
 
 type CallbackNF string
 
@@ -29,13 +35,25 @@ const (
 	CallbackSDMChange CallbackKind = "sdm-change"
 )
 
+func (k CallbackKind) Method() string {
+	return http.MethodPost
+}
+
+func (k CallbackKind) NotFound(detail string) wire.ProblemDetails {
+	if k == CallbackUECMDereg {
+		return wire.NewProblem(http.StatusNotFound, wire.CauseContextNotFound, detail)
+	}
+
+	return wire.NewProblem(http.StatusNotFound, wire.CauseSubscriptionNotFound, detail)
+}
+
 var ErrCallbackURI = errors.New("sepp: not a roaming callback URI")
 
 type Callback struct {
-	NF     CallbackNF
-	NodeID int
-	Supi   string
-	Kind   CallbackKind
+	NF         CallbackNF
+	AMFPointer int
+	Supi       string
+	Kind       CallbackKind
 }
 
 func callbackAllowed(nf CallbackNF, kind CallbackKind) bool {
@@ -54,8 +72,8 @@ func (c Callback) validate() error {
 		return fmt.Errorf("%w: %s %s is not on the allow-list", ErrCallbackURI, c.NF, c.Kind)
 	}
 
-	if c.NodeID < 0 {
-		return fmt.Errorf("%w: node ID %d", ErrCallbackURI, c.NodeID)
+	if c.AMFPointer < MinAMFPointer || c.AMFPointer > MaxAMFPointer {
+		return fmt.Errorf("%w: AMF pointer %d is outside [%d, %d]", ErrCallbackURI, c.AMFPointer, MinAMFPointer, MaxAMFPointer)
 	}
 
 	if _, ok := wire.IMSIFromSupi(c.Supi); !ok {
@@ -66,7 +84,7 @@ func (c Callback) validate() error {
 }
 
 func (c Callback) Path() string {
-	return CallbackPathRoot + "/" + strconv.Itoa(c.NodeID) + "/" + string(c.NF) + "/" + c.Supi + "/" + string(c.Kind)
+	return CallbackPathRoot + "/" + strconv.Itoa(c.AMFPointer) + "/" + string(c.NF) + "/" + c.Supi + "/" + string(c.Kind)
 }
 
 func (c Callback) URI(op wire.PlmnID) (string, error) {
@@ -87,25 +105,29 @@ func CallbackHost(nf CallbackNF, op wire.PlmnID) string {
 	return op.NFFQDN(string(nf))
 }
 
-func ParseCallback(host string, path string, op wire.PlmnID) (Callback, error) {
-	rest, ok := strings.CutPrefix(path, CallbackPathRoot+"/")
-	if !ok {
-		return Callback{}, fmt.Errorf("%w: path %q", ErrCallbackURI, path)
+func ParseCallback(method, host, escapedPath string, op wire.PlmnID) (Callback, error) {
+	rest, ok := strings.CutPrefix(escapedPath, CallbackPathRoot+"/")
+	if !ok || strings.Contains(escapedPath, "%") || hasDotSegment(escapedPath) {
+		return Callback{}, fmt.Errorf("%w: path %q", ErrCallbackURI, escapedPath)
 	}
 
 	parts := strings.Split(rest, "/")
 	if len(parts) != 4 {
-		return Callback{}, fmt.Errorf("%w: path %q", ErrCallbackURI, path)
+		return Callback{}, fmt.Errorf("%w: path %q", ErrCallbackURI, escapedPath)
 	}
 
-	node, err := strconv.Atoi(parts[0])
-	if err != nil || strconv.Itoa(node) != parts[0] {
-		return Callback{}, fmt.Errorf("%w: node ID %q", ErrCallbackURI, parts[0])
+	ptr, err := strconv.Atoi(parts[0])
+	if err != nil || strconv.Itoa(ptr) != parts[0] {
+		return Callback{}, fmt.Errorf("%w: AMF pointer %q", ErrCallbackURI, parts[0])
 	}
 
-	c := Callback{NF: CallbackNF(parts[1]), NodeID: node, Supi: parts[2], Kind: CallbackKind(parts[3])}
+	c := Callback{NF: CallbackNF(parts[1]), AMFPointer: ptr, Supi: parts[2], Kind: CallbackKind(parts[3])}
 	if err := c.validate(); err != nil {
 		return Callback{}, err
+	}
+
+	if method != c.Kind.Method() {
+		return Callback{}, fmt.Errorf("%w: method %s", ErrCallbackURI, method)
 	}
 
 	h := host

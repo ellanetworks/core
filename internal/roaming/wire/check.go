@@ -4,7 +4,6 @@
 package wire
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,11 +37,16 @@ type IEError struct {
 }
 
 func (e *IEError) Error() string {
-	if e.Missing {
-		return fmt.Sprintf("wire: %s: missing mandatory IE", e.Param)
+	prefix := "wire: "
+	if e.Param != "" {
+		prefix += e.Param + ": "
 	}
 
-	return fmt.Sprintf("wire: %s: %s", e.Param, e.Reason)
+	if e.Missing {
+		return prefix + "missing mandatory IE"
+	}
+
+	return prefix + e.Reason
 }
 
 func (e *IEError) Unwrap() error {
@@ -53,7 +57,7 @@ func (e *IEError) Unwrap() error {
 	return ErrIncorrectIE
 }
 
-func (e *IEError) Cause() string {
+func (e *IEError) Cause() Cause {
 	switch {
 	case e.Missing:
 		return CauseMandatoryIEMissing
@@ -90,11 +94,11 @@ func Encode(c Checker) ([]byte, error) {
 	return json.Marshal(c)
 }
 
-func missing(param string) error {
+func Missing(param string) error {
 	return &IEError{Param: param, Missing: true}
 }
 
-func incorrect(param string, optional bool, format string, args ...any) error {
+func Incorrect(param string, optional bool, format string, args ...any) error {
 	return &IEError{Param: param, Optional: optional, Reason: fmt.Sprintf(format, args...)}
 }
 
@@ -114,51 +118,66 @@ func NestIndex(prefix string, i int, err error) error {
 	return Nest(prefix+"/"+strconv.Itoa(i), err)
 }
 
-func requireKeys(data []byte, keys ...string) error {
-	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return nil
-	}
-
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(data, &obj); err != nil {
-		return err
-	}
-
-	for _, k := range keys {
-		if v, ok := obj[k]; !ok || bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
-			return missing("/" + k)
-		}
-	}
-
-	return nil
-}
-
 type enum interface {
 	~string
 	Known() bool
 }
 
-func checkEnum[E enum](param string, v E, p Policy, optional bool) error {
+func CheckEnum[E enum](param string, v E, p Policy, optional bool) error {
 	if v == "" {
 		if optional {
 			return nil
 		}
 
-		return missing(param)
+		return Missing(param)
 	}
 
 	if p == Strict && !v.Known() {
-		return incorrect(param, optional, "unknown value %q", string(v))
+		return Incorrect(param, optional, "unknown value %q", string(v))
 	}
 
 	return nil
 }
 
-func checkEnums[E enum](param string, vs []E, p Policy) error {
+func CheckEnums[E enum](param string, vs []E, p Policy) error {
 	for i, v := range vs {
-		if err := checkEnum(param+"/"+strconv.Itoa(i), v, p, false); err != nil {
+		if err := CheckEnum(param+"/"+strconv.Itoa(i), v, p, false); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func CheckAll[T Checker](param string, vs []T, p Policy) error {
+	for i, v := range vs {
+		if err := v.Check(p); err != nil {
+			return NestIndex(param, i, err)
+		}
+	}
+
+	return nil
+}
+
+func CheckOptional[T Checker](param string, v *T, p Policy) error {
+	if v == nil {
+		return nil
+	}
+
+	return Nest(param, (*v).Check(p))
+}
+
+func CheckRequired[T Checker](param string, v *T, p Policy) error {
+	if v == nil {
+		return Missing(param)
+	}
+
+	return Nest(param, (*v).Check(p))
+}
+
+func present(param string, ok bool) error {
+	if !ok {
+		return Missing(param)
 	}
 
 	return nil
@@ -174,11 +193,11 @@ func checkPattern(param string, v string, re *regexp.Regexp, optional bool) erro
 			return nil
 		}
 
-		return missing(param)
+		return Missing(param)
 	}
 
 	if !re.MatchString(v) {
-		return incorrect(param, optional, "%q does not match %s", v, re)
+		return Incorrect(param, optional, "%q does not match %s", v, re)
 	}
 
 	return nil
@@ -186,32 +205,26 @@ func checkPattern(param string, v string, re *regexp.Regexp, optional bool) erro
 
 func checkRange(param string, v, lo, hi int, optional bool) error {
 	if v < lo || v > hi {
-		return incorrect(param, optional, "%d out of range [%d, %d]", v, lo, hi)
+		return Incorrect(param, optional, "%d out of range [%d, %d]", v, lo, hi)
 	}
 
 	return nil
 }
 
-func checkAll[T Checker](param string, vs []T, p Policy) error {
-	for i, v := range vs {
-		if err := v.Check(p); err != nil {
-			return NestIndex(param, i, err)
-		}
+func checkRequiredRange(param string, v *int, lo, hi int) error {
+	if v == nil {
+		return Missing(param)
 	}
 
-	return nil
+	return checkRange(param, *v, lo, hi, false)
 }
 
-func checkOptional[T Checker](param string, v *T, p Policy) error {
+func checkOptionalRange(param string, v *int, lo, hi int) error {
 	if v == nil {
 		return nil
 	}
 
-	if err := (*v).Check(p); err != nil {
-		return Nest(param, err)
-	}
-
-	return nil
+	return checkRange(param, *v, lo, hi, true)
 }
 
 func firstError(errs ...error) error {
@@ -222,4 +235,67 @@ func firstError(errs ...error) error {
 	}
 
 	return nil
+}
+
+func decodeValid[T any, P interface {
+	*T
+	Checker
+}](raw []json.RawMessage) []T {
+	if raw == nil {
+		return nil
+	}
+
+	out := make([]T, 0, len(raw))
+
+	for _, r := range raw {
+		var v T
+		if json.Unmarshal(r, &v) == nil && P(&v).Check(Lenient) == nil {
+			out = append(out, v)
+		}
+	}
+
+	return out
+}
+
+func decodeValidMap[T any, P interface {
+	*T
+	Checker
+}](raw map[string]json.RawMessage, validKey func(string) bool, fill func(string, *T)) map[string]T {
+	if raw == nil {
+		return nil
+	}
+
+	out := make(map[string]T, len(raw))
+
+	for k, r := range raw {
+		if !validKey(k) {
+			continue
+		}
+
+		var v T
+		if json.Unmarshal(r, &v) != nil {
+			continue
+		}
+
+		if fill != nil {
+			fill(k, &v)
+		}
+
+		if P(&v).Check(Lenient) == nil {
+			out[k] = v
+		}
+	}
+
+	return out
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	slices.Sort(keys)
+
+	return keys
 }

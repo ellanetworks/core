@@ -4,12 +4,9 @@
 package sepp
 
 import (
-	"errors"
-	"fmt"
-	"net"
-	"net/url"
+	"net/http"
 	"regexp"
-	"strconv"
+	"slices"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/roaming/wire"
@@ -24,150 +21,37 @@ const (
 	HeaderServer               = "Server"
 )
 
-var ErrHeader = errors.New("sepp: malformed header")
-
 func headerError(name, format string, args ...any) error {
-	return fmt.Errorf("%w %s: %s", ErrHeader, name, fmt.Sprintf(format, args...))
+	return wire.Incorrect("header: "+name, false, format, args...)
+}
+
+func singleHeader(name string, values []string) (string, error) {
+	switch len(values) {
+	case 0:
+		return "", wire.Missing("header: " + name)
+	case 1:
+		return values[0], nil
+	default:
+		return "", headerError(name, "repeated %d times", len(values))
+	}
 }
 
 func trimOWS(s string) string {
 	return strings.Trim(s, " \t")
 }
 
-type APIRoot struct {
-	Scheme    string
-	Authority string
-	Prefix    string
-}
-
-func (r APIRoot) String() string {
-	return r.Scheme + "://" + r.Authority + r.Prefix
-}
-
-func (r APIRoot) Hostname() string {
-	return (&url.URL{Host: r.Authority}).Hostname()
-}
-
-func (r APIRoot) Port() string {
-	return (&url.URL{Host: r.Authority}).Port()
-}
-
-func ParseAPIRoot(v string) (APIRoot, error) {
-	s := trimOWS(v)
-
-	scheme, rest, ok := strings.Cut(s, "://")
-	if !ok {
-		return APIRoot{}, headerError(HeaderTargetAPIRoot, "%q has no scheme", v)
+func ParseTargetAPIRoot(values []string) (APIRoot, error) {
+	v, err := singleHeader(HeaderTargetAPIRoot, values)
+	if err != nil {
+		return APIRoot{}, err
 	}
 
-	scheme = strings.ToLower(scheme)
-	if scheme != "http" && scheme != "https" {
-		return APIRoot{}, headerError(HeaderTargetAPIRoot, "scheme %q is not http or https", scheme)
-	}
-
-	authority, prefix := rest, ""
-	if i := strings.IndexByte(rest, '/'); i >= 0 {
-		authority, prefix = rest[:i], rest[i:]
-	}
-
-	if err := checkAuthority(authority); err != nil {
+	root, err := ParseAPIRoot(v)
+	if err != nil {
 		return APIRoot{}, headerError(HeaderTargetAPIRoot, "%v", err)
 	}
 
-	if err := checkPrefix(prefix); err != nil {
-		return APIRoot{}, headerError(HeaderTargetAPIRoot, "%v", err)
-	}
-
-	return APIRoot{Scheme: scheme, Authority: authority, Prefix: prefix}, nil
-}
-
-var hostnamePattern = regexp.MustCompile(`^[0-9A-Za-z]([-0-9A-Za-z]{0,61}[0-9A-Za-z])?(\.[0-9A-Za-z]([-0-9A-Za-z]{0,61}[0-9A-Za-z])?)*\.?$`)
-
-func checkAuthority(a string) error {
-	if a == "" {
-		return errors.New("empty authority")
-	}
-
-	if strings.ContainsAny(a, "@?#") {
-		return fmt.Errorf("authority %q has userinfo, query or fragment", a)
-	}
-
-	host, port := a, ""
-
-	if strings.HasPrefix(a, "[") {
-		end := strings.IndexByte(a, ']')
-		if end < 0 {
-			return fmt.Errorf("authority %q has an unterminated IPv6 literal", a)
-		}
-
-		host, port = a[1:end], a[end+1:]
-		if ip := net.ParseIP(host); ip == nil || ip.To4() != nil {
-			return fmt.Errorf("authority %q has an invalid IPv6 literal", a)
-		}
-
-		if port != "" {
-			p, ok := strings.CutPrefix(port, ":")
-			if !ok {
-				return fmt.Errorf("authority %q has garbage after the IPv6 literal", a)
-			}
-
-			port = p
-		}
-	} else if i := strings.LastIndexByte(a, ':'); i >= 0 {
-		host, port = a[:i], a[i+1:]
-		if port == "" {
-			port = "0"
-		}
-	}
-
-	if !strings.HasPrefix(a, "[") && !hostnamePattern.MatchString(host) {
-		return fmt.Errorf("host %q is not a host name or IPv4 address", host)
-	}
-
-	if port != "" {
-		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-			return fmt.Errorf("port %q is not a TCP port", port)
-		}
-	}
-
-	return nil
-}
-
-func checkPrefix(p string) error {
-	if p == "" {
-		return nil
-	}
-
-	if strings.HasPrefix(p, "//") {
-		return fmt.Errorf("prefix %q starts with an empty segment", p)
-	}
-
-	for i := 0; i < len(p); i++ {
-		c := p[i]
-
-		switch {
-		case c == '%':
-			if i+2 >= len(p) || !isHex(p[i+1:i+3]) {
-				return fmt.Errorf("prefix %q has a malformed percent-encoding", p)
-			}
-
-			i += 2
-		case c == '/', isPathChar(c):
-		default:
-			return fmt.Errorf("prefix %q is not an absolute path", p)
-		}
-	}
-
-	return nil
-}
-
-func isPathChar(c byte) bool {
-	switch {
-	case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
-		return true
-	default:
-		return strings.IndexByte("-._~!$&'()*+,;=:@", c) >= 0
-	}
+	return root, nil
 }
 
 type OriginatingNetworkID struct {
@@ -179,7 +63,16 @@ type OriginatingNetworkID struct {
 
 var srcFQDNPattern = regexp.MustCompile(`^[A-Za-z0-9.-]{4,}$`)
 
-func ParseOriginatingNetworkID(v string) (OriginatingNetworkID, error) {
+func ParseOriginatingNetworkID(values []string) (OriginatingNetworkID, error) {
+	v, err := singleHeader(HeaderOriginatingNetworkID, values)
+	if err != nil {
+		return OriginatingNetworkID{}, err
+	}
+
+	return parseOriginatingNetworkID(v)
+}
+
+func parseOriginatingNetworkID(v string) (OriginatingNetworkID, error) {
 	s := trimOWS(v)
 
 	id, src, hasSrc := strings.Cut(s, ";")
@@ -208,12 +101,11 @@ func ParseOriginatingNetworkID(v string) (OriginatingNetworkID, error) {
 
 	src = strings.TrimLeft(src, " \t")
 
-	rest, ok := strings.CutPrefix(src, "src:")
-	if !ok || rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
+	if len(src) < 5 || !strings.EqualFold(src[:4], "src:") || (src[4] != ' ' && src[4] != '\t') {
 		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "%q has a malformed srcinfo", v)
 	}
 
-	rest = strings.TrimLeft(rest, " \t")
+	rest := strings.TrimLeft(src[4:], " \t")
 
 	typ, fqdn, ok := strings.Cut(rest, "-")
 	typ = strings.ToUpper(typ)
@@ -240,6 +132,10 @@ func (o OriginatingNetworkID) String() string {
 	return s
 }
 
+func (o OriginatingNetworkID) Matches(p wire.PlmnID) bool {
+	return o.Nid == "" && o.PlmnID == p
+}
+
 func isHex(s string) bool {
 	for i := range len(s) {
 		c := s[i]
@@ -251,13 +147,64 @@ func isHex(s string) bool {
 	return true
 }
 
-func ParseN32HandshakeID(v string) (string, error) {
+func ParseN32HandshakeID(values []string) (string, error) {
+	v, err := singleHeader(HeaderN32HandshakeID, values)
+	if err != nil {
+		return "", err
+	}
+
 	s := trimOWS(v)
 	if len(s) != 16 || !isHex(s) {
 		return "", headerError(HeaderN32HandshakeID, "%q is not 16 hexadecimal digits", v)
 	}
 
 	return s, nil
+}
+
+type InterPLMNPurpose struct {
+	Purpose        N32Purpose
+	AdditionalInfo string
+}
+
+func ParseInterPLMNPurpose(values []string) (InterPLMNPurpose, error) {
+	v, err := singleHeader(HeaderInterPLMNPurpose, values)
+	if err != nil {
+		return InterPLMNPurpose{}, err
+	}
+
+	purpose, info, hasInfo := strings.Cut(trimOWS(v), ":")
+	info = trimOWS(info)
+
+	if !isToken(purpose) || hasInfo && !isToken(info) {
+		return InterPLMNPurpose{}, headerError(HeaderInterPLMNPurpose, "%q is not <purpose>[: <additional-info>]", v)
+	}
+
+	return InterPLMNPurpose{Purpose: N32Purpose(purpose), AdditionalInfo: info}, nil
+}
+
+func CheckInterPLMNPurpose(values []string, allowed []N32Purpose) error {
+	if len(values) == 0 {
+		if slices.Contains(allowed, PurposeRoaming) || slices.Contains(allowed, PurposeInterPLMNMobility) {
+			return nil
+		}
+
+		return forbidden(wire.CauseRequestedPurposeNotAllowed, "no purpose given, roaming is not allowed")
+	}
+
+	p, err := ParseInterPLMNPurpose(values)
+	if err != nil {
+		return err
+	}
+
+	if !slices.Contains(allowed, p.Purpose) {
+		return forbidden(wire.CauseRequestedPurposeNotAllowed, "purpose "+string(p.Purpose)+" is not allowed")
+	}
+
+	return nil
+}
+
+func forbidden(cause wire.Cause, detail string) error {
+	return wire.NewProblem(http.StatusForbidden, cause, detail)
 }
 
 type ViaEntry struct {
@@ -283,20 +230,52 @@ func (e ViaEntry) String() string {
 	return s
 }
 
-func (e ViaEntry) NetworkEntity() (string, string, bool) {
-	return splitEntity(e.ReceivedBy)
+type NetworkEntity struct {
+	Type wire.NFType
+	ID   string
 }
 
-func splitEntity(s string) (string, string, bool) {
+func (e ViaEntry) NetworkEntity() (NetworkEntity, bool) {
+	return parseEntity(e.ReceivedBy)
+}
+
+func parseEntity(s string) (NetworkEntity, bool) {
 	typ, id, ok := strings.Cut(s, "-")
-	if !ok || typ == "" || id == "" {
-		return "", "", false
+	id, _, _ = strings.Cut(id, "/")
+
+	if !ok || !isToken(typ) || id == "" {
+		return NetworkEntity{}, false
 	}
 
-	return typ, id, true
+	return NetworkEntity{Type: wire.NFType(strings.ToUpper(typ)), ID: id}, true
 }
 
-func ParseVia(v string) ([]ViaEntry, error) {
+func IsSEPP(value, fqdn string) bool {
+	e, ok := parseEntity(value)
+
+	return ok && e.Type == wire.NFTypeSEPP && strings.EqualFold(strings.TrimSuffix(e.ID, "."), strings.TrimSuffix(fqdn, "."))
+}
+
+func ParseVia(values []string) ([]ViaEntry, error) {
+	var out []ViaEntry
+
+	for _, v := range values {
+		entries, err := parseViaLine(v)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, entries...)
+	}
+
+	if len(out) == 0 {
+		return nil, headerError(HeaderVia, "empty")
+	}
+
+	return out, nil
+}
+
+func parseViaLine(v string) ([]ViaEntry, error) {
 	var (
 		out   []ViaEntry
 		depth int
@@ -325,7 +304,7 @@ func ParseVia(v string) ([]ViaEntry, error) {
 			}
 		}
 
-		elem := trimOWS(v[start:i])
+		elem := trimOWS(v[start:min(i, len(v))])
 		start = i + 1
 
 		if elem == "" {
@@ -344,10 +323,6 @@ func ParseVia(v string) ([]ViaEntry, error) {
 		return nil, headerError(HeaderVia, "%q has an unterminated comment", v)
 	}
 
-	if len(out) == 0 {
-		return nil, headerError(HeaderVia, "empty")
-	}
-
 	return out, nil
 }
 
@@ -359,15 +334,122 @@ func parseViaElement(elem string) (ViaEntry, error) {
 
 	by, comment, _ := cutRWS(rest)
 
-	if !isToken(strings.Replace(proto, "/", "", 1)) || !isViaReceivedBy(by) {
+	if !isReceivedProtocol(proto) || !isReceivedBy(by) {
 		return ViaEntry{}, headerError(HeaderVia, "%q is malformed", elem)
 	}
 
-	if comment != "" && (!strings.HasPrefix(comment, "(") || !strings.HasSuffix(comment, ")")) {
-		return ViaEntry{}, headerError(HeaderVia, "%q has trailing garbage", elem)
+	if comment != "" && !isComment(comment) {
+		return ViaEntry{}, headerError(HeaderVia, "%q has a malformed comment", elem)
 	}
 
 	return ViaEntry{Protocol: proto, ReceivedBy: by, Comment: comment}, nil
+}
+
+func isReceivedProtocol(s string) bool {
+	name, version, hasName := strings.Cut(s, "/")
+	if !hasName {
+		return isToken(s)
+	}
+
+	return isToken(name) && isToken(version)
+}
+
+func isReceivedBy(s string) bool {
+	host, port := s, ""
+
+	if strings.HasPrefix(s, "[") {
+		end := strings.IndexByte(s, ']')
+		if end < 0 {
+			return false
+		}
+
+		host, port = s[1:end], s[end+1:]
+		if !isIPv6Literal(host) {
+			return false
+		}
+
+		if port == "" {
+			return true
+		}
+
+		p, ok := strings.CutPrefix(port, ":")
+
+		return ok && isDigits(p)
+	}
+
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		host, port = s[:i], s[i+1:]
+		if !isDigits(port) {
+			return false
+		}
+	}
+
+	return isToken(host)
+}
+
+func isIPv6Literal(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	for i := range len(s) {
+		c := s[i]
+		if !isHex(s[i:i+1]) && c != ':' && c != '.' {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isDigits(s string) bool {
+	if s == "" || len(s) > 5 {
+		return false
+	}
+
+	for i := range len(s) {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isComment(s string) bool {
+	if len(s) < 2 || s[0] != '(' {
+		return false
+	}
+
+	depth := 0
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		switch {
+		case c == '\\':
+			if i+1 >= len(s) || !isQuotedPairChar(s[i+1]) {
+				return false
+			}
+
+			i++
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+			if depth == 0 && i != len(s)-1 {
+				return false
+			}
+		case c != '\t' && (c < 0x20 || c == 0x7f):
+			return false
+		}
+	}
+
+	return depth == 0
+}
+
+func isQuotedPairChar(c byte) bool {
+	return c == '\t' || c >= 0x20 && c != 0x7f
 }
 
 func cutRWS(s string) (string, string, bool) {
@@ -402,25 +484,15 @@ func isToken(s string) bool {
 	return true
 }
 
-func isViaReceivedBy(s string) bool {
-	if s == "" {
-		return false
+func ParseServer(values []string) (NetworkEntity, bool) {
+	if len(values) != 1 {
+		return NetworkEntity{}, false
 	}
 
-	for i := range len(s) {
-		if !isTokenChar(s[i]) && s[i] != ':' && s[i] != '[' && s[i] != ']' {
-			return false
-		}
+	product, _, _ := cutRWS(trimOWS(values[0]))
+	if !isReceivedProtocol(product) {
+		return NetworkEntity{}, false
 	}
 
-	return true
-}
-
-func ParseServer(v string) (string, string, bool) {
-	product, _, _ := cutRWS(trimOWS(v))
-	if !isToken(strings.Replace(product, "/", "", 1)) {
-		return "", "", false
-	}
-
-	return splitEntity(product)
+	return parseEntity(product)
 }

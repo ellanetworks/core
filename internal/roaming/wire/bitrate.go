@@ -114,11 +114,11 @@ func allDigits(s string) bool {
 
 func (b BitRate) Check(Policy) error {
 	if b == "" {
-		return missing("")
+		return Missing("")
 	}
 
 	if _, err := b.Bps(); err != nil {
-		return incorrect("", false, "%v", err)
+		return Incorrect("", false, "%v", err)
 	}
 
 	return nil

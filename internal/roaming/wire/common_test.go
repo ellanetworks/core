@@ -8,25 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 )
-
-func roundTrip[T any](t *testing.T, in T) T {
-	t.Helper()
-
-	b, err := json.Marshal(in)
-	if err != nil {
-		t.Fatalf("marshal %T: %v", in, err)
-	}
-
-	var out T
-	if err := json.Unmarshal(b, &out); err != nil {
-		t.Fatalf("unmarshal %s: %v", b, err)
-	}
-
-	return out
-}
 
 func requireIE(t *testing.T, err error, param string, wantMissing bool) {
 	t.Helper()
@@ -41,12 +26,48 @@ func requireIE(t *testing.T, err error, param string, wantMissing bool) {
 	}
 }
 
+type paramCase struct{ body, param string }
+
+func requireParams[T any, P interface {
+	*T
+	Checker
+}](t *testing.T, cases []paramCase) {
+	t.Helper()
+
+	for _, tc := range cases {
+		_, err := Decode[T, P]([]byte(tc.body))
+
+		var ie *IEError
+		if !errors.As(err, &ie) || ie.Param != tc.param {
+			t.Errorf("Decode(%s) = %v, want %s", tc.body, err, tc.param)
+		}
+	}
+}
+
+func TestIEError(t *testing.T) {
+	if got := (&IEError{Missing: true}).Error(); got != "wire: missing mandatory IE" {
+		t.Fatalf("root missing = %q", got)
+	}
+
+	if got := (&IEError{Reason: "r"}).Error(); got != "wire: r" {
+		t.Fatalf("root incorrect = %q", got)
+	}
+
+	if got := (&IEError{Param: "/a", Reason: "r"}).Error(); got != "wire: /a: r" {
+		t.Fatalf("nested = %q", got)
+	}
+
+	if Nest("/x", nil) != nil || Nest("/x", errors.New("e")).Error() != "e" {
+		t.Fatal("Nest passthrough")
+	}
+
+	if _, err := Encode(ProblemDetails{InvalidParams: []InvalidParam{{}}}); !errors.Is(err, ErrMissingIE) {
+		t.Fatalf("Encode = %v", err)
+	}
+}
+
 func TestPlmnID(t *testing.T) {
 	p := PlmnID{Mcc: "001", Mnc: "01"}
-
-	if got := roundTrip(t, p); got != p {
-		t.Fatalf("round trip = %+v", got)
-	}
 
 	if p.String() != "001-01" || p.ServingNetworkName() != "5G:mnc001.mcc001.3gppnetwork.org" {
 		t.Fatalf("String/ServingNetworkName = %q %q", p.String(), p.ServingNetworkName())
@@ -76,18 +97,63 @@ func TestPlmnID(t *testing.T) {
 	requireIE(t, PlmnIDNid{Mcc: "001", Mnc: "01", Nid: "xyz"}.Check(Strict), "/nid", false)
 }
 
+func TestPlmnDomainKeyCollision(t *testing.T) {
+	two, three := PlmnID{Mcc: "999", Mnc: "70"}, PlmnID{Mcc: "999", Mnc: "070"}
+
+	if two == three || two.DomainKey() != three.DomainKey() || two.DomainKey() != "999070" {
+		t.Fatalf("DomainKey = %q %q", two.DomainKey(), three.DomainKey())
+	}
+
+	if two.HomeNetworkDomain() != three.HomeNetworkDomain() {
+		t.Fatal("999-70 and 999-070 must share a home network domain")
+	}
+
+	f, _ := ParseNetworkFQDN(two.NFFQDN(FQDNLabelSEPP))
+	if !f.InPLMN(two) || !f.InPLMN(three) {
+		t.Fatal("an FQDN cannot tell 999-70 from 999-070")
+	}
+
+	if (PlmnID{Mcc: "999", Mnc: "700"}).DomainKey() == two.DomainKey() {
+		t.Fatal("999-700 collides with 999-70")
+	}
+}
+
+func TestHomePLMN(t *testing.T) {
+	short, long, other := PlmnID{Mcc: "999", Mnc: "70"}, PlmnID{Mcc: "999", Mnc: "700"}, PlmnID{Mcc: "001", Mnc: "01"}
+
+	for _, tc := range []struct {
+		supi       string
+		candidates []PlmnID
+		want       PlmnID
+		ok         bool
+	}{
+		{"imsi-999700000000001", []PlmnID{short, other}, short, true},
+		{"imsi-999700000000001", []PlmnID{short, long, other}, long, true},
+		{"imsi-999700000000001", []PlmnID{long, short}, long, true},
+		{"imsi-999710000000001", []PlmnID{short, long}, PlmnID{}, false},
+		{"imsi-99970", []PlmnID{short}, PlmnID{}, false},
+		{"nai-999700000000001", []PlmnID{short}, PlmnID{}, false},
+		{"imsi-999700000000001", []PlmnID{{Mcc: "99", Mnc: "9"}}, PlmnID{}, false},
+	} {
+		got, ok := HomePLMN(tc.supi, tc.candidates)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("HomePLMN(%q, %v) = %v, %v", tc.supi, tc.candidates, got, ok)
+		}
+	}
+}
+
 func TestSnssai(t *testing.T) {
 	for _, tc := range []struct {
 		json string
 		want Snssai
 		key  string
 	}{
-		{`{"sst":1}`, Snssai{Sst: 1}, "1"},
-		{`{"sst":1,"sd":"0000AB"}`, Snssai{Sst: 1, Sd: "0000AB"}, "1-0000ab"},
-		{`{"sst":0}`, Snssai{Sst: 0}, "0"},
+		{`{"sst":1}`, NewSnssai(1, ""), "1"},
+		{`{"sst":1,"sd":"0000AB"}`, NewSnssai(1, "0000AB"), "1-0000ab"},
+		{`{"sst":0}`, NewSnssai(0, ""), "0"},
 	} {
 		got, err := Decode[Snssai]([]byte(tc.json))
-		if err != nil || got != tc.want {
+		if err != nil || !got.Equal(tc.want) {
 			t.Fatalf("Decode(%s) = %+v, %v", tc.json, got, err)
 		}
 
@@ -101,14 +167,12 @@ func TestSnssai(t *testing.T) {
 		}
 	}
 
-	_, err := Decode[Snssai]([]byte(`{"sd":"000001"}`))
-	requireIE(t, err, "/sst", true)
-
-	_, err = Decode[Snssai]([]byte(`{"sst":256}`))
-	requireIE(t, err, "/sst", false)
-
-	_, err = Decode[Snssai]([]byte(`{"sst":1,"sd":"01"}`))
-	requireIE(t, err, "/sd", false)
+	requireParams[Snssai](t, []paramCase{
+		{`{"sd":"000001"}`, "/sst"},
+		{`{"sst":null}`, "/sst"},
+		{`{"sst":256}`, "/sst"},
+		{`{"sst":1,"sd":"01"}`, "/sd"},
+	})
 
 	if _, err := Decode[Snssai]([]byte(`{"sst":"1"}`)); !errors.Is(err, ErrMalformed) {
 		t.Fatalf("string SST: %v", err)
@@ -121,12 +185,18 @@ func TestSnssai(t *testing.T) {
 	}
 
 	m := SnssaiFromModel(models.Snssai{Sst: 1, Sd: "102030"})
-	if m != (Snssai{Sst: 1, Sd: "102030"}) || !m.Model().Equal(models.Snssai{Sst: 1, Sd: "102030"}) {
-		t.Fatalf("model conversion = %+v", m)
+
+	mm, err := m.Model()
+	if !m.Equal(NewSnssai(1, "102030")) || err != nil || !mm.Equal(models.Snssai{Sst: 1, Sd: "102030"}) {
+		t.Fatalf("model conversion = %+v, %v", m, err)
 	}
 
-	if SnssaiFromModel(models.Snssai{Sst: 2}) != (Snssai{Sst: 2}) {
+	if !SnssaiFromModel(models.Snssai{Sst: 2}).Equal(NewSnssai(2, "")) {
 		t.Fatal("no-SD model conversion")
+	}
+
+	if _, err := (Snssai{}).Model(); err == nil || (Snssai{}).String() != "" || (Snssai{}).Equal(Snssai{}) {
+		t.Fatal("Snssai without SST")
 	}
 }
 
@@ -136,13 +206,13 @@ func TestGuami(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !g.Equal(Guami{PlmnID: PlmnIDNid{Mcc: "999", Mnc: "70"}, AmfID: "cafe00"}) {
+	if !g.Equal(Guami{PlmnID: &PlmnIDNid{Mcc: "999", Mnc: "70"}, AmfID: "cafe00"}) {
 		t.Fatalf("Guami = %+v", g)
 	}
 
-	m := g.Model()
-	if m.PlmnID == nil || *m.PlmnID != (models.PlmnID{Mcc: "999", Mnc: "70"}) || m.AmfID != "cafe00" {
-		t.Fatalf("Model = %+v", m)
+	m, err := g.Model()
+	if err != nil || m.PlmnID == nil || *m.PlmnID != (models.PlmnID{Mcc: "999", Mnc: "70"}) || m.AmfID != "cafe00" {
+		t.Fatalf("Model = %+v, %v", m, err)
 	}
 
 	back, err := GuamiFromModel(m)
@@ -154,11 +224,15 @@ func TestGuami(t *testing.T) {
 		t.Fatal("GUAMI without PLMN accepted")
 	}
 
-	_, err = Decode[Guami]([]byte(`{"plmnId":{"mcc":"999","mnc":"70"}}`))
-	requireIE(t, err, "/amfId", true)
+	if _, err := (Guami{AmfID: "cafe00"}).Model(); err == nil {
+		t.Fatal("Model of GUAMI without PLMN")
+	}
 
-	_, err = Decode[Guami]([]byte(`{"plmnId":{"mcc":"999"},"amfId":"cafe00"}`))
-	requireIE(t, err, "/plmnId/mnc", true)
+	requireParams[Guami](t, []paramCase{
+		{`{"plmnId":{"mcc":"999","mnc":"70"}}`, "/amfId"},
+		{`{"amfId":"cafe00"}`, "/plmnId"},
+		{`{"plmnId":{"mcc":"999"},"amfId":"cafe00"}`, "/plmnId/mnc"},
+	})
 }
 
 func TestBitRate(t *testing.T) {
@@ -171,6 +245,7 @@ func TestBitRate(t *testing.T) {
 		{"100 Mbps", 100_000_000},
 		{"1 Gbps", 1_000_000_000},
 		{"1.5 Kbps", 1500},
+		{"1048576 Kbps", 1_048_576_000},
 		{"1.5000 Mbps", 1_500_000},
 		{"0.0001 Kbps", 1},
 		{"2.0000000000000000001 Tbps", 2_000_000_000_001},
@@ -185,7 +260,7 @@ func TestBitRate(t *testing.T) {
 	}
 
 	for _, in := range []BitRate{
-		"", "100", "100Mbps", "100 mbps", "100  Mbps", " 100 Mbps", "100 Mbps ", "1. Mbps", ".5 Mbps",
+		"", "100", "100Mbps", "100 mbps", "100 kbps", "100  Mbps", " 100 Mbps", "100 Mbps ", "1. Mbps", ".5 Mbps",
 		"-1 Mbps", "+1 Mbps", "1e3 bps", "1,5 Mbps", "18446744073709551616 bps", "18446745 Tbps",
 		"18446744.073709551616 Tbps", "NaN bps", "1 Pbps",
 	} {
@@ -216,6 +291,10 @@ func TestBitRate(t *testing.T) {
 		t.Fatalf("Model = %v, %v", m, err)
 	}
 
+	if _, err := BitRate("x").Model(); err == nil {
+		t.Fatal("bad bit rate converted")
+	}
+
 	if BitRateFromModel(models.MustParseBitRate("1 Gbps")) != "1 Gbps" {
 		t.Fatal("BitRateFromModel")
 	}
@@ -236,30 +315,17 @@ func TestAmbr(t *testing.T) {
 		t.Fatalf("AmbrFromModel = %+v", got)
 	}
 
-	_, err = Decode[Ambr]([]byte(`{"uplink":"1 Gbps"}`))
-	requireIE(t, err, "/downlink", true)
-
-	_, err = Decode[Ambr]([]byte(`{"uplink":"fast","downlink":"1 Gbps"}`))
-	requireIE(t, err, "/uplink", false)
-}
-
-func FuzzBitRate(f *testing.F) {
-	for _, s := range []string{"100 Mbps", "1.5 Kbps", "0 bps", "18446744073709551615 bps", "0.0000000000001 Tbps", "1 Pbps"} {
-		f.Add(s)
+	if _, err := (Ambr{Uplink: "x", Downlink: "1 bps"}).Model(); err == nil {
+		t.Fatal("bad uplink converted")
 	}
 
-	f.Fuzz(func(t *testing.T, s string) {
-		bps, err := BitRate(s).Bps()
-		if err != nil {
-			return
-		}
+	if _, err := (Ambr{Uplink: "1 bps", Downlink: "x"}).Model(); err == nil {
+		t.Fatal("bad downlink converted")
+	}
 
-		canonical := BitRateFromBps(bps)
-
-		again, err := canonical.Bps()
-		if err != nil || again != bps {
-			t.Fatalf("%q -> %d -> %q -> %d, %v", s, bps, canonical, again, err)
-		}
+	requireParams[Ambr](t, []paramCase{
+		{`{"uplink":"1 Gbps"}`, "/downlink"},
+		{`{"uplink":"fast","downlink":"1 Gbps"}`, "/uplink"},
 	})
 }
 
@@ -294,17 +360,17 @@ func TestSupportedFeatures(t *testing.T) {
 	}
 
 	if SupportedFeatures("xyz").Check(Lenient) == nil || SupportedFeatures("").Check(Strict) != nil {
-		t.Fatal("Check")
+		t.Fatal("Check: TS 29.571 SupportedFeatures pattern ^[A-Fa-f0-9]*$ allows the empty string")
 	}
 }
 
 func TestProblemDetails(t *testing.T) {
-	open5gs := []byte(`{"type":"/nausf-auth/v1","title":"Not supported Auth Method","status":403,` +
+	withoutCause := []byte(`{"type":"/nausf-auth/v1","title":"Not supported Auth Method","status":403,` +
 		`"detail":"suci-0-999-70-0000-0-0-0000000001","instance":"/ue-authentications"}`)
 
-	pd := ParseProblem(http.StatusForbidden, open5gs)
+	pd := ParseProblem(http.StatusForbidden, withoutCause)
 	if pd.Cause != "" || pd.Status != 403 || pd.Title != "Not supported Auth Method" {
-		t.Fatalf("Open5GS problem = %+v", pd)
+		t.Fatalf("problem without cause (TS 29.571 §5.2.4.1: cause is optional) = %+v", pd)
 	}
 
 	pd = ParseProblem(http.StatusNotFound, []byte(`{"status":400,"cause":"USER_NOT_FOUND"}`))
@@ -321,22 +387,35 @@ func TestProblemDetails(t *testing.T) {
 		InvalidParams: []InvalidParam{{Param: "/sender", Reason: "missing"}}, SupportedFeatures: "1",
 	}
 
-	got := roundTrip(t, full)
-	if got.Cause != full.Cause || len(got.InvalidParams) != 1 || got.InvalidParams[0] != full.InvalidParams[0] {
-		t.Fatalf("round trip = %+v", got)
+	b, err := Encode(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Decode[ProblemDetails](b)
+	if err != nil || got.Cause != full.Cause || len(got.InvalidParams) != 1 || got.InvalidParams[0] != full.InvalidParams[0] {
+		t.Fatalf("round trip = %+v, %v", got, err)
 	}
 
 	if _, err := Encode(ProblemDetails{Status: 99}); err == nil {
 		t.Fatal("status 99 encoded")
 	}
 
-	if _, err := Decode[ProblemDetails]([]byte(`{"invalidParams":[{"reason":"x"}]}`)); err == nil {
-		t.Fatal("invalidParams without param accepted")
+	if _, err := Encode(ProblemDetails{SupportedFeatures: "x"}); err == nil {
+		t.Fatal("bad features encoded")
+	}
+
+	if _, err := Decode[ProblemDetails]([]byte(`{"invalidParams":[{"reason":"x"}],"cause":"FUTURE"}`)); err != nil {
+		t.Fatalf("lenient decode of unread invalidParams: %v", err)
 	}
 
 	var asErr error = NewProblem(http.StatusForbidden, "X", "y")
 	if asErr.Error() != "problem 403 X: y" {
 		t.Fatalf("Error() = %q", asErr.Error())
+	}
+
+	if (ProblemDetails{Status: 500, Title: "t"}).Error() != "problem 500: t" {
+		t.Fatal("Error() with title")
 	}
 }
 
@@ -371,6 +450,19 @@ func TestProblemFromError(t *testing.T) {
 	}
 }
 
+func TestPatchResult(t *testing.T) {
+	r, err := Decode[PatchResult]([]byte(`{"report":[{"path":"","reason":"x"}]}`))
+	if err != nil || len(r.Report) != 1 || r.Report[0].Path == nil || *r.Report[0].Path != "" {
+		t.Fatalf("PatchResult = %+v, %v", r, err)
+	}
+
+	requireParams[PatchResult](t, []paramCase{{`{}`, "/report"}, {`{"report":[]}`, "/report"}})
+
+	if _, err := Encode(PatchResult{Report: []ReportItem{{Reason: "x"}}}); err == nil {
+		t.Fatal("report item without path encoded")
+	}
+}
+
 func TestIdentities(t *testing.T) {
 	for s, want := range map[string]bool{
 		"imsi-001010000000001": true, "imsi-1234": false, "imsi-0010100000000012": false, "nai-x@y": true,
@@ -387,6 +479,7 @@ func TestIdentities(t *testing.T) {
 		"suci-0-999-70-12345-0-0-1":         false,
 		"suci-0-999-70-1-1-0-ab":            false,
 		"suci-0-99-70-1-0-0-1":              false,
+		"suci-0-001-01-0000-0-0-":           false,
 		"suci-1-example.com-0-0-0-user":     true,
 		"imsi-001010000000001":              false,
 	} {
@@ -408,8 +501,10 @@ func TestIdentities(t *testing.T) {
 		t.Fatal("Suci.PlmnID")
 	}
 
-	if _, err := ParseSuci("suci-1-example.com-0-0-0-user"); err == nil {
-		t.Fatal("NAI SUCI parsed as IMSI SUCI")
+	for _, bad := range []string{"suci-1-example.com-0-0-0-user", "suci-0-001-01-0000-0-0-", "suci-0-001-01-0000-0-0-12ab"} {
+		if _, err := ParseSuci(bad); err == nil {
+			t.Errorf("ParseSuci(%q) accepted", bad)
+		}
 	}
 
 	for s, want := range map[string]bool{"msisdn-12345": true, "msisdn-1234": false, "extid-a@b": true, "extid-ab": false} {
@@ -448,16 +543,23 @@ func TestIdentities(t *testing.T) {
 	if imsi, ok := IMSIFromSupi("imsi-999700000000001"); !ok || imsi != "999700000000001" {
 		t.Fatal("IMSIFromSupi")
 	}
+}
 
-	p := PlmnID{Mcc: "999", Mnc: "70"}
-	if !SupiInPLMN("imsi-999700000000001", p) || SupiInPLMN("imsi-001010000000001", p) || SupiInPLMN("imsi-99970", p) ||
-		SupiInPLMN("nai-999700000000001", p) || SupiInPLMN("imsi-999700000000001", PlmnID{}) {
-		t.Fatal("SupiInPLMN")
-	}
-
+func TestDateTime(t *testing.T) {
 	ts := DateTime("2026-10-27T10:00:00.123456+09:00")
 	if tm, err := ts.Time(); err != nil || DateTimeOf(tm) != ts {
 		t.Fatalf("DateTime = %v, %v, %q", tm, err, DateTimeOf(tm))
+	}
+
+	lower, err := DateTime("2026-10-27t10:00:00z").Time()
+	if err != nil || !lower.Equal(time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RFC 3339 §5.6 lowercase t/z = %v, %v", lower, err)
+	}
+
+	for _, bad := range []DateTime{"2026-10-27", "2026-10-27 10:00:00Z", "tomorrow"} {
+		if _, err := bad.Time(); err == nil {
+			t.Errorf("%q parsed", bad)
+		}
 	}
 }
 
@@ -484,7 +586,7 @@ func TestNetworkFQDN(t *testing.T) {
 		t.Fatalf("ParseNetworkFQDN = %+v, %v", f, ok)
 	}
 
-	if !f.InPLMN(p) || !f.InPLMN(PlmnID{Mcc: "999", Mnc: "070"}) || f.InPLMN(PlmnID{Mcc: "999", Mnc: "71"}) {
+	if !f.InPLMN(p) || f.InPLMN(PlmnID{Mcc: "999", Mnc: "71"}) || f.InPLMN(PlmnID{}) {
 		t.Fatal("InPLMN")
 	}
 
@@ -508,6 +610,33 @@ func TestNetworkFQDN(t *testing.T) {
 	}
 }
 
+func TestServicePaths(t *testing.T) {
+	supi := "imsi-001010000000001"
+
+	for got, want := range map[string]string{
+		NFInstancesPath():                            "/nnrf-disc/v1/nf-instances",
+		UEAuthenticationsPath():                      "/nausf-auth/v1/ue-authentications",
+		SDMDataSetsPath(supi):                        "/nudm-sdm/v2/imsi-001010000000001",
+		SDMAmDataPath(supi):                          "/nudm-sdm/v2/imsi-001010000000001/am-data",
+		SDMSorAckPath(supi):                          "/nudm-sdm/v2/imsi-001010000000001/am-data/sor-ack",
+		SDMSmfSelectDataPath(supi):                   "/nudm-sdm/v2/imsi-001010000000001/smf-select-data",
+		SDMSmDataPath(supi):                          "/nudm-sdm/v2/imsi-001010000000001/sm-data",
+		SDMSubscriptionsPath(supi):                   "/nudm-sdm/v2/imsi-001010000000001/sdm-subscriptions",
+		SDMSubscriptionPath(supi, "a/b c"):           "/nudm-sdm/v2/imsi-001010000000001/sdm-subscriptions/a%2Fb%20c",
+		UECMAmf3GppAccessPath(supi):                  "/nudm-uecm/v1/imsi-001010000000001/registrations/amf-3gpp-access",
+		UECMSmfRegistrationPath(supi, 5):             "/nudm-uecm/v1/imsi-001010000000001/registrations/smf-registrations/5",
+		UECMAmf3GppAccessPath("imsi-1/../x"):         "/nudm-uecm/v1/imsi-1%2F..%2Fx/registrations/amf-3gpp-access",
+		ServiceNudmUECM.Version():                    "v1",
+		ServiceNausfAuth.Version():                   "v1",
+		ServiceNnrfDisc.Version():                    "v1",
+		"[" + ServiceName("nudm-ee").Version() + "]": "[]",
+	} {
+		if got != want {
+			t.Errorf("path = %q, want %q", got, want)
+		}
+	}
+}
+
 func TestDecodeUnknownFieldsAndNull(t *testing.T) {
 	g, err := Decode[Guami]([]byte(`{"plmnId":{"mcc":"999","mnc":"70","extra":1},"amfId":"cafe00","future":[1,2]}`))
 	if err != nil || g.AmfID != "cafe00" {
@@ -520,5 +649,9 @@ func TestDecodeUnknownFieldsAndNull(t *testing.T) {
 
 	if _, err := Decode[Guami]([]byte(``)); !errors.Is(err, ErrMalformed) {
 		t.Fatalf("empty body: %v", err)
+	}
+
+	if b, _ := json.Marshal(NewSnssai(1, "")); string(b) != `{"sst":1}` {
+		t.Fatalf("marshal = %s", b)
 	}
 }

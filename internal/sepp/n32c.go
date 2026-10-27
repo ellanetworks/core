@@ -5,8 +5,6 @@ package sepp
 
 import (
 	"errors"
-	"fmt"
-	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
@@ -16,16 +14,15 @@ import (
 )
 
 const (
-	N32cAPIRoot            = "/n32c-handshake/v1"
-	N32cExchangeCapability = N32cAPIRoot + "/exchange-capability"
+	N32cHandshakePath          = "/n32c-handshake/v1"
+	N32cExchangeCapabilityPath = N32cHandshakePath + "/exchange-capability"
 )
 
 const (
-	CauseRequestedParamMismatch         = "REQUESTED_PARAM_MISMATCH"
-	CauseRequestedPurposeNotAllowed     = "REQUESTED_PURPOSE_NOT_ALLOWED"
-	CauseNegotiationNotAllowed          = "NEGOTIATION_NOT_ALLOWED"
-	CauseN32cExchangeCapabilityOngoing  = "N32C_EXCHANGE_CAPABILITY_ONGOING"
-	CauseSecurityParamExchangeCollision = "SECURITY_PARAM_EXCHANGE_COLLISION"
+	CauseRequestedParamMismatch         wire.Cause = "REQUESTED_PARAM_MISMATCH"
+	CauseNegotiationNotAllowed          wire.Cause = "NEGOTIATION_NOT_ALLOWED"
+	CauseN32cExchangeCapabilityOngoing  wire.Cause = "N32C_EXCHANGE_CAPABILITY_ONGOING"
+	CauseSecurityParamExchangeCollision wire.Cause = "SECURITY_PARAM_EXCHANGE_COLLISION"
 )
 
 const (
@@ -35,6 +32,8 @@ const (
 	FeatureSNDN32F = 4
 	FeatureTLSCOR  = 5
 )
+
+const LocalFeatures wire.SupportedFeatures = "1"
 
 type SecurityCapability string
 
@@ -74,6 +73,11 @@ func (p N32Purpose) Known() bool {
 	}, p)
 }
 
+var (
+	acceptedPurposes = []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}
+	defaultPurposes  = []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}
+)
+
 type IntendedN32Purpose struct {
 	UsagePurpose   N32Purpose `json:"usagePurpose"`
 	AdditionalInfo string     `json:"additionalInfo,omitempty"`
@@ -81,12 +85,31 @@ type IntendedN32Purpose struct {
 }
 
 func (ip IntendedN32Purpose) Check(p wire.Policy) error {
-	if ip.UsagePurpose == "" {
-		return &wire.IEError{Param: "/usagePurpose", Missing: true}
-	}
+	return wire.CheckEnum("/usagePurpose", ip.UsagePurpose, p, false)
+}
 
-	if p == wire.Strict && !ip.UsagePurpose.Known() {
-		return &wire.IEError{Param: "/usagePurpose", Reason: "unknown value " + strconv.Quote(string(ip.UsagePurpose))}
+type purposeList int
+
+const (
+	requestedPurposes purposeList = iota
+	allowedPurposes
+	rejectedPurposes
+)
+
+func checkPurposes(param string, list []IntendedN32Purpose, p wire.Policy, kind purposeList) error {
+	for i, ip := range list {
+		pol := p
+		if kind == rejectedPurposes {
+			pol = wire.Lenient
+		}
+
+		if err := ip.Check(pol); err != nil {
+			return wire.NestIndex(param, i, err)
+		}
+
+		if p == wire.Strict && kind == allowedPurposes && ip.Cause != "" {
+			return wire.NestIndex(param, i, wire.Incorrect("/cause", true, "cause in an allowed purpose"))
+		}
 	}
 
 	return nil
@@ -110,56 +133,47 @@ type SecNegotiateReqData struct {
 	N32KeepaliveTimer          *int                   `json:"n32KeepaliveTimer,omitempty"`
 }
 
+func (r SecNegotiateReqData) Teardown() bool {
+	return slices.Contains(r.SupportedSecCapabilityList, SecurityNone)
+}
+
 func (r SecNegotiateReqData) Check(p wire.Policy) error {
-	if err := checkFqdn("/sender", r.Sender, false); err != nil {
+	if err := firstError(
+		checkFqdn("/sender", r.Sender, false),
+		present("/supportedSecCapabilityList", len(r.SupportedSecCapabilityList) > 0),
+		wire.CheckEnums("/supportedSecCapabilityList", r.SupportedSecCapabilityList, p),
+	); err != nil {
 		return err
 	}
 
-	if len(r.SupportedSecCapabilityList) == 0 {
-		return &wire.IEError{Param: "/supportedSecCapabilityList", Missing: true}
+	if r.Teardown() && len(r.SupportedSecCapabilityList) != 1 {
+		return wire.Incorrect("/supportedSecCapabilityList", false, "NONE combined with other capabilities")
 	}
 
-	for i, c := range r.SupportedSecCapabilityList {
-		if err := checkCapability("/supportedSecCapabilityList/"+strconv.Itoa(i), c, p); err != nil {
-			return err
-		}
-	}
-
-	if err := checkPlmnIDs("/plmnIdList", r.PlmnIDList, p); err != nil {
+	if err := firstError(
+		wire.CheckAll("/plmnIdList", r.PlmnIDList, p),
+		wire.CheckOptional("/targetPlmnId", r.TargetPlmnID, p),
+		checkPurposes("/intendedUsagePurpose", r.IntendedUsagePurpose, p, requestedPurposes),
+		wire.Nest("/supportedFeatures", r.SupportedFeatures.Check(p)),
+	); err != nil || p != wire.Strict {
 		return err
-	}
-
-	if err := checkOptionalPlmnID("/targetPlmnId", r.TargetPlmnID, p); err != nil {
-		return err
-	}
-
-	if err := checkPurposes("/intendedUsagePurpose", r.IntendedUsagePurpose, p); err != nil {
-		return err
-	}
-
-	if err := checkFeatures(r.SupportedFeatures, p); err != nil {
-		return err
-	}
-
-	if p != wire.Strict {
-		return nil
 	}
 
 	if r.N32HandshakeID != "" && !handshakeIDPattern.MatchString(r.N32HandshakeID) {
-		return &wire.IEError{Param: "/n32HandshakeId", Optional: true, Reason: "not 16 hexadecimal digits"}
-	}
-
-	if err := checkFqdn("/senderN32fFqdn", r.SenderN32fFqdn, true); err != nil {
-		return err
+		return wire.Incorrect("/n32HandshakeId", true, "not 16 hexadecimal digits")
 	}
 
 	for i, port := range r.SenderN32fPortList {
 		if port < 0 || port > 65535 {
-			return &wire.IEError{Param: "/senderN32fPortList/" + strconv.Itoa(i), Optional: true, Reason: "not a TCP port"}
+			return wire.Incorrect("/senderN32fPortList/"+strconv.Itoa(i), true, "not a TCP port")
 		}
 	}
 
-	return checkSnpnIDs(r.SnpnIDList, r.TargetSnpnID, p)
+	return firstError(
+		checkFqdn("/senderN32fFqdn", r.SenderN32fFqdn, true),
+		wire.CheckAll("/snpnIdList", r.SnpnIDList, p),
+		wire.CheckOptional("/targetSnpnId", r.TargetSnpnID, p),
+	)
 }
 
 type SecNegotiateRspData struct {
@@ -178,47 +192,42 @@ type SecNegotiateRspData struct {
 }
 
 func (r SecNegotiateRspData) Check(p wire.Policy) error {
-	if err := checkFqdn("/sender", r.Sender, false); err != nil {
+	if err := firstError(
+		checkFqdn("/sender", r.Sender, false),
+		wire.CheckEnum("/selectedSecCapability", r.SelectedSecCapability, p, false),
+		wire.CheckAll("/plmnIdList", r.PlmnIDList, p),
+		checkPurposes("/allowedUsagePurpose", r.AllowedUsagePurpose, p, allowedPurposes),
+		checkPurposes("/rejectedUsagePurpose", r.RejectedUsagePurpose, p, rejectedPurposes),
+		wire.Nest("/supportedFeatures", r.SupportedFeatures.Check(p)),
+	); err != nil || p != wire.Strict {
 		return err
-	}
-
-	if err := checkCapability("/selectedSecCapability", r.SelectedSecCapability, p); err != nil {
-		return err
-	}
-
-	if err := checkPlmnIDs("/plmnIdList", r.PlmnIDList, p); err != nil {
-		return err
-	}
-
-	if err := checkFeatures(r.SupportedFeatures, p); err != nil {
-		return err
-	}
-
-	if p != wire.Strict {
-		return nil
 	}
 
 	if r.N32HandshakeID != "" && !handshakeIDPattern.MatchString(r.N32HandshakeID) {
-		return &wire.IEError{Param: "/n32HandshakeId", Optional: true, Reason: "not 16 hexadecimal digits"}
-	}
-
-	if err := checkPurposes("/allowedUsagePurpose", r.AllowedUsagePurpose, p); err != nil {
-		return err
-	}
-
-	if err := checkPurposes("/rejectedUsagePurpose", r.RejectedUsagePurpose, p); err != nil {
-		return err
-	}
-
-	if err := checkFqdn("/senderN32fFqdn", r.SenderN32fFqdn, true); err != nil {
-		return err
+		return wire.Incorrect("/n32HandshakeId", true, "not 16 hexadecimal digits")
 	}
 
 	if r.SenderN32fPort != nil && (*r.SenderN32fPort < 0 || *r.SenderN32fPort > 65535) {
-		return &wire.IEError{Param: "/senderN32fPort", Optional: true, Reason: "not a TCP port"}
+		return wire.Incorrect("/senderN32fPort", true, "not a TCP port")
 	}
 
-	return checkSnpnIDs(r.SnpnIDList, nil, p)
+	return firstError(
+		checkFqdn("/senderN32fFqdn", r.SenderN32fFqdn, true),
+		wire.CheckAll("/snpnIdList", r.SnpnIDList, p),
+	)
+}
+
+func (r SecNegotiateRspData) Purposes() []N32Purpose {
+	if len(r.AllowedUsagePurpose) == 0 {
+		return slices.Clone(defaultPurposes)
+	}
+
+	out := make([]N32Purpose, 0, len(r.AllowedUsagePurpose))
+	for _, ip := range r.AllowedUsagePurpose {
+		out = append(out, ip.UsagePurpose)
+	}
+
+	return out
 }
 
 func checkFqdn(param, v string, optional bool) error {
@@ -227,88 +236,48 @@ func checkFqdn(param, v string, optional bool) error {
 			return nil
 		}
 
-		return &wire.IEError{Param: param, Missing: true}
+		return wire.Missing(param)
 	}
 
 	if !wire.ValidFqdn(v) {
-		return &wire.IEError{Param: param, Optional: optional, Reason: strconv.Quote(v) + " is not an FQDN"}
+		return wire.Incorrect(param, optional, "%q is not an FQDN", v)
 	}
 
 	return nil
 }
 
-func checkCapability(param string, c SecurityCapability, p wire.Policy) error {
-	if c == "" {
-		return &wire.IEError{Param: param, Missing: true}
-	}
-
-	if p == wire.Strict && !c.Known() {
-		return &wire.IEError{Param: param, Reason: "unknown value " + strconv.Quote(string(c))}
+func present(param string, ok bool) error {
+	if !ok {
+		return wire.Missing(param)
 	}
 
 	return nil
 }
 
-func checkPlmnIDs(param string, list []wire.PlmnID, p wire.Policy) error {
-	for i, id := range list {
-		if err := id.Check(p); err != nil {
-			return wire.Nest(param+"/"+strconv.Itoa(i), err)
+func firstError(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func checkOptionalPlmnID(param string, id *wire.PlmnID, p wire.Policy) error {
-	if id == nil {
-		return nil
-	}
+var ErrNegotiation = errors.New("sepp: N32-c negotiation failed")
 
-	if err := id.Check(p); err != nil {
-		return wire.Nest(param, err)
-	}
-
-	return nil
+type NegotiationError struct {
+	Reason          string
+	TeardownAllowed bool
 }
 
-func checkSnpnIDs(list []wire.PlmnIDNid, target *wire.PlmnIDNid, p wire.Policy) error {
-	for i, id := range list {
-		if err := id.Check(p); err != nil {
-			return wire.Nest("/snpnIdList/"+strconv.Itoa(i), err)
-		}
-	}
-
-	if target != nil {
-		if err := target.Check(p); err != nil {
-			return wire.Nest("/targetSnpnId", err)
-		}
-	}
-
-	return nil
+func (e *NegotiationError) Error() string {
+	return ErrNegotiation.Error() + ": " + e.Reason
 }
 
-func checkPurposes(param string, list []IntendedN32Purpose, p wire.Policy) error {
-	for i, ip := range list {
-		if err := ip.Check(p); err != nil {
-			return wire.Nest(param+"/"+strconv.Itoa(i), err)
-		}
-	}
-
-	return nil
+func (e *NegotiationError) Unwrap() error {
+	return ErrNegotiation
 }
-
-func checkFeatures(f wire.SupportedFeatures, p wire.Policy) error {
-	if err := f.Check(p); err != nil {
-		return wire.Nest("/supportedFeatures", err)
-	}
-
-	return nil
-}
-
-var (
-	ErrNegotiation = errors.New("sepp: N32-c negotiation failed")
-	LocalFeatures  = wire.Features(FeatureNFTLST)
-)
 
 type Negotiation struct {
 	LocalFQDN         string
@@ -342,22 +311,25 @@ func (n Negotiation) TeardownRequest() SecNegotiateReqData {
 type Outcome int
 
 const (
-	OutcomeEstablish Outcome = iota
+	OutcomeEstablish Outcome = iota + 1
 	OutcomeTeardown
 )
 
-func forbidden(cause, detail string) error {
-	return wire.NewProblem(http.StatusForbidden, cause, detail)
+type Established struct {
+	NFTLST   bool
+	Purposes []N32Purpose
+}
+
+func sameFQDN(a, b string) bool {
+	return strings.EqualFold(strings.TrimSuffix(a, "."), strings.TrimSuffix(b, "."))
 }
 
 func (n Negotiation) senderMatches(sender string) bool {
-	if !strings.EqualFold(strings.TrimSuffix(sender, "."), strings.TrimSuffix(n.PeerFQDN, ".")) {
-		return false
-	}
+	return sameFQDN(sender, n.PeerFQDN) && slices.ContainsFunc(n.PeerCertDNSNames, func(name string) bool { return sameFQDN(name, sender) })
+}
 
-	return slices.ContainsFunc(n.PeerCertDNSNames, func(name string) bool {
-		return strings.EqualFold(strings.TrimSuffix(name, "."), strings.TrimSuffix(sender, "."))
-	})
+func LocalPrecedes(local, peer string) bool {
+	return strings.ToLower(strings.TrimSuffix(local, ".")) < strings.ToLower(strings.TrimSuffix(peer, "."))
 }
 
 func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outcome, error) {
@@ -365,23 +337,20 @@ func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outc
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "sender does not match the partner SEPP")
 	}
 
-	if slices.Contains(req.SupportedSecCapabilityList, SecurityNone) {
+	if req.Teardown() {
 		return SecNegotiateRspData{Sender: n.LocalFQDN, SelectedSecCapability: SecurityNone}, OutcomeTeardown, nil
 	}
 
-	if !slices.Contains(req.SupportedSecCapabilityList, SecurityTLS) {
+	switch {
+	case !slices.Contains(req.SupportedSecCapabilityList, SecurityTLS):
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "TLS is the only supported security capability")
-	}
-
-	if !req.TargetAPIRootSupported {
+	case !req.TargetAPIRootSupported:
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "3gpp-Sbi-Target-apiRoot support is required")
-	}
-
-	if len(req.PlmnIDList) > 0 && !slices.Contains(req.PlmnIDList, n.PeerPlmnID) {
+	case len(req.SnpnIDList) > 0 || req.TargetSnpnID != nil:
+		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "SNPN interconnect is not supported")
+	case len(req.PlmnIDList) > 0 && !slices.Contains(req.PlmnIDList, n.PeerPlmnID):
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "plmnIdList does not contain the partner PLMN")
-	}
-
-	if req.TargetPlmnID != nil && *req.TargetPlmnID != n.LocalPlmnID {
+	case req.TargetPlmnID != nil && *req.TargetPlmnID != n.LocalPlmnID:
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "targetPlmnId is not the local PLMN")
 	}
 
@@ -393,36 +362,64 @@ func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outc
 		SupportedFeatures:      req.SupportedFeatures.Intersect(n.SupportedFeatures),
 	}
 
-	if len(req.IntendedUsagePurpose) > 0 {
-		for _, ip := range req.IntendedUsagePurpose {
-			if ip.UsagePurpose == PurposeRoaming {
-				rsp.AllowedUsagePurpose = []IntendedN32Purpose{{UsagePurpose: PurposeRoaming}}
-			} else {
-				rsp.RejectedUsagePurpose = append(rsp.RejectedUsagePurpose, IntendedN32Purpose{UsagePurpose: ip.UsagePurpose})
-			}
+	if len(req.IntendedUsagePurpose) == 0 {
+		return rsp, OutcomeEstablish, nil
+	}
+
+	for _, ip := range req.IntendedUsagePurpose {
+		list := &rsp.RejectedUsagePurpose
+		if slices.Contains(acceptedPurposes, ip.UsagePurpose) {
+			list = &rsp.AllowedUsagePurpose
 		}
 
-		if rsp.AllowedUsagePurpose == nil {
-			return SecNegotiateRspData{}, 0, forbidden(CauseRequestedPurposeNotAllowed, "only ROAMING is allowed")
+		if !slices.ContainsFunc(*list, func(x IntendedN32Purpose) bool { return x.UsagePurpose == ip.UsagePurpose }) {
+			*list = append(*list, IntendedN32Purpose{UsagePurpose: ip.UsagePurpose})
 		}
+	}
+
+	if rsp.AllowedUsagePurpose == nil {
+		return SecNegotiateRspData{}, 0, forbidden(wire.CauseRequestedPurposeNotAllowed, "only ROAMING and INTER_PLMN_MOBILITY are allowed")
 	}
 
 	return rsp, OutcomeEstablish, nil
 }
 
-func (n Negotiation) CheckResponse(rsp SecNegotiateRspData) (bool, error) {
-	nftlst := rsp.SelectedSecCapability == SecurityTLS && rsp.SupportedFeatures.Has(FeatureNFTLST)
+func hasPurpose(list []IntendedN32Purpose, p N32Purpose) bool {
+	return slices.ContainsFunc(list, func(ip IntendedN32Purpose) bool { return ip.UsagePurpose == p })
+}
+
+func (n Negotiation) CheckResponse(rsp SecNegotiateRspData) (Established, error) {
+	nftlst := rsp.SupportedFeatures.Has(FeatureNFTLST)
+	fail := func(reason string) (Established, error) {
+		return Established{}, &NegotiationError{Reason: reason, TeardownAllowed: rsp.SelectedSecCapability == SecurityTLS && nftlst}
+	}
 
 	switch {
 	case !n.senderMatches(rsp.Sender):
-		return nftlst, fmt.Errorf("%w: sender %q does not match the partner SEPP", ErrNegotiation, rsp.Sender)
+		return fail("sender " + strconv.Quote(rsp.Sender) + " does not match the partner SEPP")
 	case rsp.SelectedSecCapability != SecurityTLS:
-		return nftlst, fmt.Errorf("%w: selected security capability %q", ErrNegotiation, rsp.SelectedSecCapability)
+		return fail("selected security capability " + strconv.Quote(string(rsp.SelectedSecCapability)))
 	case !rsp.TargetAPIRootSupported:
-		return nftlst, fmt.Errorf("%w: peer does not support 3gpp-Sbi-Target-apiRoot", ErrNegotiation)
+		return fail("peer does not support 3gpp-Sbi-Target-apiRoot")
 	case len(rsp.PlmnIDList) > 0 && !slices.Contains(rsp.PlmnIDList, n.PeerPlmnID):
-		return nftlst, fmt.Errorf("%w: plmnIdList does not contain the partner PLMN %s", ErrNegotiation, n.PeerPlmnID)
+		return fail("plmnIdList does not contain the partner PLMN " + n.PeerPlmnID.String())
+	case len(rsp.SnpnIDList) > 0:
+		return fail("peer answered with SNPN IDs")
+	case hasPurpose(rsp.RejectedUsagePurpose, PurposeRoaming),
+		len(rsp.AllowedUsagePurpose) > 0 && !hasPurpose(rsp.AllowedUsagePurpose, PurposeRoaming):
+		return fail("ROAMING is not an allowed purpose")
 	}
 
-	return nftlst, nil
+	return Established{NFTLST: nftlst, Purposes: rsp.Purposes()}, nil
+}
+
+func (n Negotiation) CheckTeardownResponse(rsp SecNegotiateRspData) error {
+	switch {
+	case !n.senderMatches(rsp.Sender):
+		return &NegotiationError{Reason: "sender " + strconv.Quote(rsp.Sender) + " does not match the partner SEPP"}
+	case rsp.SelectedSecCapability != SecurityNone:
+		return &NegotiationError{Reason: "teardown answered with " + strconv.Quote(string(rsp.SelectedSecCapability))}
+	}
+
+	return nil
 }

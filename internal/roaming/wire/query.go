@@ -19,7 +19,7 @@ const (
 )
 
 func queryError(name string, err error) error {
-	return &IEError{Param: "query " + name, Reason: err.Error()}
+	return fmt.Errorf("wire: query %s: %v", name, err)
 }
 
 func jsonQueryValue(name string, v Checker) (string, error) {
@@ -43,32 +43,6 @@ func SnssaiQueryValue(s Snssai) (string, error) {
 	return jsonQueryValue(QuerySingleNssai, s)
 }
 
-func ParsePlmnIDQueryValue(v string) (PlmnID, error) {
-	var p PlmnID
-	if err := json.Unmarshal([]byte(v), &p); err != nil {
-		return PlmnID{}, queryError(QueryPlmnID, err)
-	}
-
-	if err := p.Check(Strict); err != nil {
-		return PlmnID{}, queryError(QueryPlmnID, err)
-	}
-
-	return p, nil
-}
-
-func ParseSnssaiQueryValue(v string) (Snssai, error) {
-	var s Snssai
-	if err := json.Unmarshal([]byte(v), &s); err != nil {
-		return Snssai{}, queryError(QuerySingleNssai, err)
-	}
-
-	if err := s.Check(Strict); err != nil {
-		return Snssai{}, queryError(QuerySingleNssai, err)
-	}
-
-	return s, nil
-}
-
 func DatasetNamesQueryValue(names ...DataSetName) (string, error) {
 	if len(names) < 2 {
 		return "", queryError(QueryDatasetNames, fmt.Errorf("needs at least 2 data sets, got %d", len(names)))
@@ -88,18 +62,6 @@ func DatasetNamesQueryValue(names ...DataSetName) (string, error) {
 	}
 
 	return strings.Join(parts, ","), nil
-}
-
-func ParseDatasetNamesQueryValue(v string) []DataSetName {
-	var out []DataSetName
-
-	for n := range strings.SplitSeq(v, ",") {
-		if n != "" {
-			out = append(out, DataSetName(n))
-		}
-	}
-
-	return out
 }
 
 type SDMQuery struct {

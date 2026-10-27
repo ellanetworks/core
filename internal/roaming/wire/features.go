@@ -33,7 +33,7 @@ func Features(numbers ...int) SupportedFeatures {
 
 func (f SupportedFeatures) Check(Policy) error {
 	if !supportedFeaturesPattern.MatchString(string(f)) {
-		return incorrect("", true, "%q is not hexadecimal", string(f))
+		return Incorrect("", true, "%q is not hexadecimal", string(f))
 	}
 
 	return nil
