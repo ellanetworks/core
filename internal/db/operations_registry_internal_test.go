@@ -91,6 +91,8 @@ var pinnedChangesetOps = map[string]int{
 	"UpdateIMSApplicationServer":       25,
 	"DeleteIMSApplicationServer":       25,
 	"SetProfileIMSFilterCriteria":      25,
+	"PutIPSMGWRegistration":            25,
+	"DeleteIPSMGWRegistration":         25,
 	"UpdateStaticLeaseAddress":         13,
 	"UpdateSubscriberProfile":          22,
 	"UpdateUser":                       1,

@@ -528,12 +528,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	diameternode.RegisterMetrics(diameterNode)
 	smsf.RegisterMetrics()
 
-	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.SMSCOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
+	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.PeersOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
 
-	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, logger.HssLog)
+	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, hssSMS{smsf: smsfInstance}, logger.HssLog)
 	hssInstance.RegisterMetrics(prometheus.DefaultRegisterer)
 	hssInstance.Register(diameterNode)
 	amfInstance.IMSVoice = hssInstance
@@ -1017,6 +1017,28 @@ func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*h
 	}
 
 	return &hss.ServiceIdentity{ServerName: m.Owner, Wildcard: m.Wildcard}, nil
+}
+
+type hssSMS struct {
+	smsf *smsf.SMSF
+}
+
+func (a hssSMS) RegisterIPSMGW(ctx context.Context, imsi string, r hss.IPSMGWRegistration) error {
+	return hssSMSError(a.smsf.RegisterIPSMGW(ctx, db.IPSMGWRegistration{
+		IMSI: imsi, Number: r.Number, DiameterHost: r.DiameterHost, DiameterRealm: r.DiameterRealm,
+	}))
+}
+
+func (a hssSMS) DeregisterIPSMGW(ctx context.Context, imsi string) error {
+	return hssSMSError(a.smsf.DeregisterIPSMGW(ctx, imsi))
+}
+
+func hssSMSError(err error) error {
+	if errors.Is(err, db.ErrNotFound) {
+		return fmt.Errorf("%w: %w", hss.ErrSubscriberUnknown, err)
+	}
+
+	return hssError(err)
 }
 
 func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, err error) (*hss.Subscriber, error) {

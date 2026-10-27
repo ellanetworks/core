@@ -161,7 +161,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "SMSC peers unavailable", err)
 	}
 
-	envelope, err := s.smsc.Envelope(peer)
+	envelope, err := s.peers.Envelope(peer)
 	if err != nil {
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC not connected", err)
 	}
@@ -178,7 +178,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	ctx, cancel := context.WithTimeout(ctx, s.timers.TR2N)
 	defer cancel()
 
-	ans, err := s.smsc.Do(ctx, peer, req)
+	ans, err := s.peers.Do(ctx, peer, req)
 	if err != nil {
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
 	}

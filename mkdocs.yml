@@ -1,6 +1,6 @@
 site_name: Ella Core Documentation
 site_description: A mobile core network for private deployments - easy to operate, reliable, and secure.
-site_url: https://docs.ellanetworks.com/
+site_url: https://docs.ellanetworks.com/core/
 docs_dir: docs
 theme:
   name: material

@@ -11,8 +11,6 @@ import (
 	"net/netip"
 	"os"
 	"slices"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -23,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/diameter/rx"
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/sgd"
+	"github.com/ellanetworks/core/diameter/sh"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/sctp"
@@ -665,7 +664,7 @@ func TestListenerAndDialerResolveToOneConnection(t *testing.T) {
 	}
 }
 
-func TestListenerRefusesSMSFromPeersOtherThanTheSMSC(t *testing.T) {
+func TestListenerOffersSMSToUnknownPeers(t *testing.T) {
 	requireSCTP(t)
 
 	port := freePort(t)
@@ -689,9 +688,7 @@ func TestListenerRefusesSMSFromPeersOtherThanTheSMSC(t *testing.T) {
 			other := newDialingNode(t, "other.example.org", tc.ip)
 			dialElla(t, other, port, tc.transport)
 
-			waitFor(t, "no common application", func() bool {
-				return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultNoCommonApplication)))
-			})
+			waitFor(t, "peer open", func() bool { return ellaStatus(other).State == diameter.PeerOpen })
 		})
 	}
 }
@@ -708,9 +705,7 @@ func TestListenerRunsWithoutSMSC(t *testing.T) {
 	other := newDialingNode(t, "other.example.org", loopback)
 	dialElla(t, other, port, diameter.TransportSCTP)
 
-	waitFor(t, "no common application", func() bool {
-		return strings.Contains(ellaStatus(other).LastError, strconv.Itoa(int(diameter.ResultNoCommonApplication)))
-	})
+	waitFor(t, "peer open", func() bool { return ellaStatus(other).State == diameter.PeerOpen })
 }
 
 func TestSMSCChangesKeepTheIMSPeersConnected(t *testing.T) {
@@ -771,6 +766,9 @@ func TestSMSCChangesKeepTheIMSPeersConnected(t *testing.T) {
 var imsApplications = []diameter.Application{
 	{ID: cx.ApplicationID, VendorID: tgpp.VendorID},
 	{ID: rx.ApplicationID, VendorID: tgpp.VendorID},
+	{ID: sh.ApplicationID, VendorID: tgpp.VendorID},
+	{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
+	{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
 }
 
 func imsPeer(link *diameternode.Manager) diameternode.PeerStatus {

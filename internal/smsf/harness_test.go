@@ -67,6 +67,7 @@ type fakeStore struct {
 	clearErr      error
 	peers         []db.SMSCPeer
 	peersErr      error
+	ipSMGW        *db.IPSMGWRegistration
 }
 
 func newFakeStore() *fakeStore {
@@ -79,6 +80,43 @@ func newFakeStore() *fakeStore {
 		registrations: make(map[[2]string]db.UERegistration),
 		waiting:       make(map[string]*db.SMSWaiting),
 	}
+}
+
+func (f *fakeStore) GetIPSMGWRegistration(_ context.Context, imsi string) (*db.IPSMGWRegistration, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.ipSMGW == nil || f.ipSMGW.IMSI != imsi {
+		return nil, db.ErrNotFound
+	}
+
+	r := *f.ipSMGW
+
+	return &r, nil
+}
+
+func (f *fakeStore) PutIPSMGWRegistration(_ context.Context, r db.IPSMGWRegistration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, ok := f.subscribers[r.IMSI]; !ok {
+		return db.ErrNotFound
+	}
+
+	f.ipSMGW = &r
+
+	return nil
+}
+
+func (f *fakeStore) DeleteIPSMGWRegistration(_ context.Context, imsi string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.ipSMGW != nil && f.ipSMGW.IMSI == imsi {
+		f.ipSMGW = nil
+	}
+
+	return nil
 }
 
 func (f *fakeStore) GetSMSWaiting(_ context.Context, imsi string) (*db.SMSWaiting, error) {
@@ -476,6 +514,10 @@ func (f *fakeSMSC) Envelope(peer string) (tgpp.Envelope, error) {
 		DestinationHost:  smscHost,
 		DestinationRealm: smscRealm,
 	}, nil
+}
+
+func (f *fakeSMSC) Relay(context.Context, *diameter.Message, string, string, string) (*diameter.Message, error) {
+	return nil, errSMSCDown
 }
 
 func (f *fakeSMSC) LocalHost() (string, bool) {

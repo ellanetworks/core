@@ -47,6 +47,12 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN defaultIdentity TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN profileDigest TEXT NOT NULL DEFAULT '' CHECK (state = 0 OR profileDigest != '')", IMSRegistrationsTableName),
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN emergency BOOLEAN NOT NULL DEFAULT FALSE CHECK (emergency IN (0, 1) AND (emergency = 0 OR state = 2))", IMSRegistrationsTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			imsi          TEXT PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,
+			number        TEXT NOT NULL CHECK (number != ''),
+			diameterHost  TEXT NOT NULL CHECK (diameterHost != ''),
+			diameterRealm TEXT NOT NULL CHECK (diameterRealm != '')
+		)`, IPSMGWRegistrationsTableName),
 	}
 
 	for _, stmt := range stmts {

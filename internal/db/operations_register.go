@@ -198,6 +198,8 @@ var (
 	opUpdateIMSApplicationServer  = registerChangesetOp("UpdateIMSApplicationServer", (*Database).applyUpdateIMSApplicationServer, RequireSchema(25))
 	opDeleteIMSApplicationServer  = registerChangesetOp("DeleteIMSApplicationServer", (*Database).applyDeleteIMSApplicationServer, RequireSchema(25))
 	opSetProfileIMSFilterCriteria = registerChangesetOp("SetProfileIMSFilterCriteria", (*Database).applySetProfileIMSFilterCriteria, RequireSchema(25))
+	opPutIPSMGWRegistration       = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration, RequireSchema(25))
+	opDeleteIPSMGWRegistration    = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration, RequireSchema(25))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

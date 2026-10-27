@@ -6,7 +6,7 @@ description: Step-by-step instructions to integrate Ella Core with an external I
 
 This guide connects Ella Core to an external IP Multimedia Subsystem (IMS), with Ella Core as the IMS's HSS and PCRF. It is the first part of [Enable Voice](enable_voice.md) and [Enable MCPTT](enable_mcptt.md). To learn how Ella Core works with the IMS, see [IMS Integration](../explanation/ims_integration.md).
 
-This guide uses [Ella IMS](https://github.com/ellanetworks/ims), but any 3GPP-compliant IMS can be used.
+This guide uses [Ella IMS](https://github.com/ellanetworks/ims), but any 3GPP-compliant IMS can be used. For the Ella IMS side, see [Integrate with Ella Core](https://docs.ellanetworks.com/ims/how_to/integrate_with_ella_core/).
 
 ## 1. Enable the Diameter interface
 

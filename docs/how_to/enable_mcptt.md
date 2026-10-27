@@ -9,7 +9,7 @@ This guide shows how to serve Mission Critical Push To Talk (MCPTT) to subscribe
 ## Prerequisites
 
 - **IMS**: an IMS integrated with Ella Core, as in [Integrate with an IMS](integrate_with_ims.md). Its P-CSCF must send the MCPTT ICSI, `urn:urn-7:3gpp-service.ims.icsi.mcptt`, in the AF-Application-Identifier of MCPTT calls.
-- **MCPTT server**: [Ella IMS](https://github.com/ellanetworks/ims) with the `mcptt` section set in its `ims.yaml`, or a 3GPP MCPTT server that the IMS reaches and trusts.
+- **MCPTT server**: [Ella IMS](https://github.com/ellanetworks/ims), set up as in [Enable Push-to-Talk](https://docs.ellanetworks.com/ims/how_to/enable_push_to_talk/), or a 3GPP MCPTT server that the IMS reaches and trusts.
 - **MCPTT clients**: configured with the MC data network (`mcx` below) as their MC services APN or DNN.
 - **Radios**: support for QCI/5QI 69 and 65.
 

@@ -24,8 +24,9 @@ Ella Core implements 3GPP-standard interfaces for signalling.
 | Rx | Diameter over SCTP or TCP |
 | S1-MME | S1AP over SCTP |
 | S1-U | GTP-U over UDP (IPv4 and IPv6) |
-| S6c | Diameter over SCTP |
-| SGd | Diameter over SCTP |
+| S6c | Diameter over SCTP; over SCTP or TCP with the IMS |
+| SGd | Diameter over SCTP; over SCTP or TCP with the IMS |
+| Sh | Diameter over SCTP or TCP |
 | SGi | IP |
 
 Ella Core is a single binary and does not expose internal 3GPP interfaces. See [Architecture](../explanation/architecture.md).
@@ -59,6 +60,7 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **SMS over NAS.** 4G (SMS in MME) and 5G.
 - **Mobile-originated and mobile-terminated SMS.** Relayed to and from external SMSCs over SGd.
 - **HSS for the SMSC.** Send Routing Info for SM, Report SM Delivery Status, and Alert Service Centre over S6c.
+- **HSS for the IP-SM-GW.** IP-SM-GW registration by Sh-Update of SMS registration info. Send Routing Info for SM proxied to the registered IP-SM-GW over S6c.
 
 ### Voice and IMS services
 

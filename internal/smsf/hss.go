@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, from string, req *diameter.Message) *diameter.Message {
 	r, err := s6c.ParseSendRoutingInfoForSMRequest(req)
 	if err != nil {
 		return s6c.NewErrorAnswer(req, id, err)
@@ -26,10 +26,16 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 	var (
 		alertMSISDN string
 		mwd         s6c.MWDStatus
+		ipsmgwIMSI  string
 	)
 
 	fail := func(code uint32, absent s6c.AbsentUserDiagnostics) *diameter.Message {
-		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN, MWDStatus: mwd}, r.SMSFSupport)
+		e := s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN, MWDStatus: mwd}
+		if code == tgpp.ResultErrorAbsentUser {
+			e.IMSI = ipsmgwIMSI
+		}
+
+		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, e, r.SMSFSupport)
 		if err != nil {
 			return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 		}
@@ -44,6 +50,21 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		}
 
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi)
+	if err != nil {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	switch {
+	case ipsmgw == nil:
+	case sentBy(req, ipsmgw):
+		ipsmgwIMSI = sub.Imsi
+	default:
+		if ans := s.relayToIPSMGW(ctx, id, from, req, sub.Imsi, ipsmgw); ans != nil {
+			return ans
+		}
 	}
 
 	alertMSISDN = storedMSISDN(sub.Msisdn, r.MSISDN)
@@ -97,13 +118,20 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
-	if !rep.SingleAttempt {
+	ipsmgw, err := s.ipSMGW(ctx, sub.Imsi)
+	if err != nil {
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
+	ignored := ipsmgw != nil && !sentBy(req, ipsmgw)
+
+	if !rep.SingleAttempt && !ignored {
 		s.recordDeliveryReport(ctx, sub.Imsi, rep)
 	}
 
 	result := s6c.ReportResult{AlertMSISDN: storedMSISDN(sub.Msisdn, rep.MSISDN)}
 
-	if failed := nodeNames(rep.Failed); len(failed) > 0 {
+	if failed := nodeNames(rep.Failed); len(failed) > 0 && !ignored {
 		settings, err := s.store.GetSMSSettings(ctx)
 		if err == nil {
 			current, _, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, rep.SMSFSupport)
@@ -253,7 +281,7 @@ func (s *SMSF) servedElsewhere(ctx context.Context, imsi string) bool {
 		return false
 	}
 
-	local, ok := s.smsc.LocalHost()
+	local, ok := s.peers.LocalHost()
 	if !ok {
 		return true
 	}

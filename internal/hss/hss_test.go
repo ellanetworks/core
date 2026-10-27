@@ -222,7 +222,7 @@ func (f *fakeIMSStore) AdvanceIMSSequenceNumber(_ context.Context, imsi, resyncA
 }
 
 func newHSS(store *fakeIMSStore) *hss.HSS {
-	return hss.New(store, udm.NewIMSCredentials(store), nil, zap.NewNop())
+	return hss.New(store, udm.NewIMSCredentials(store), nil, nil, zap.NewNop())
 }
 
 func impiOf(imsi string) string {
