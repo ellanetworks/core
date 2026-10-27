@@ -30,7 +30,7 @@ func NewPurgeUERequest(env tgpp.Envelope, r PurgeUERequest) (*diameter.Message, 
 		return nil, err
 	}
 
-	avps, err := appendFlags([]diameter.AVP{userName}, AVPPURFlags, "PUR-Flags", r.Flags, purFlagsDefined)
+	avps, err := appendFlags([]diameter.AVP{userName}, AVPPURFlags, "PUR-Flags", r.Flags)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func ParsePurgeUERequest(req *diameter.Message) (PurgeUERequest, error) {
 
 	r.Features = featuresOf(req)
 
-	if r.Flags, err = optionalFlags(req.AVPs, AVPPURFlags, purFlagsDefined); err != nil {
+	if r.Flags, err = requestFlags(req.AVPs, AVPPURFlags, purFlagsDefined); err != nil {
 		return PurgeUERequest{}, err
 	}
 
@@ -70,7 +70,7 @@ func NewPurgeUEAnswer(req *diameter.Message, id diameter.Identity, p PurgeUE) (*
 
 	var err error
 
-	if ans.AVPs, err = appendFlags(ans.AVPs, AVPPUAFlags, "PUA-Flags", p.Flags, puaFlagsDefined); err != nil {
+	if ans.AVPs, err = appendFlags(ans.AVPs, AVPPUAFlags, "PUA-Flags", p.Flags); err != nil {
 		return nil, err
 	}
 
@@ -85,7 +85,7 @@ func ParsePurgeUEAnswer(ans *diameter.Message) (PurgeUE, error) {
 
 	p := PurgeUE{Features: features}
 
-	if p.Flags, err = optionalFlags(ans.AVPs, AVPPUAFlags, puaFlagsDefined); err != nil {
+	if p.Flags, err = answerFlags[PUAFlags](ans.AVPs, AVPPUAFlags); err != nil {
 		return PurgeUE{}, malformed(err)
 	}
 

@@ -27,13 +27,13 @@ type UserAuthorization struct {
 
 var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}: {Multiple: true},
-	{Code: avpOCSupportedFeatures}:                             {},
+	{Code: diameter.AVPOCSupportedFeatures}:                    {},
 })
 
 var uarRules = commonRequestRules.With(diameter.Rules{
-	{Code: diameter.AVPUserName}:                                      {Required: true},
-	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:                {Required: true},
-	{Code: tgpp.AVPVisitedNetworkIdentifier, VendorID: tgpp.VendorID}: {Required: true},
+	{Code: diameter.AVPUserName}:                                      {Required: true, MinLength: 1},
+	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:                {Required: true, MinLength: 1},
+	{Code: tgpp.AVPVisitedNetworkIdentifier, VendorID: tgpp.VendorID}: {Required: true, MinLength: 1},
 	{Code: AVPUserAuthorizationType, VendorID: tgpp.VendorID}:         {},
 	{Code: AVPUARFlags, VendorID: tgpp.VendorID}:                      {},
 })

@@ -28,9 +28,9 @@ func (p PLMN) String() string {
 	return p.MCC + p.MNC
 }
 
-func (p PLMN) Encode() ([]byte, error) {
+func (p PLMN) Octets() ([plmnLen]byte, error) {
 	if !p.Valid() {
-		return nil, fmt.Errorf("%w: MCC %q MNC %q", ErrInvalidPLMN, p.MCC, p.MNC)
+		return [plmnLen]byte{}, fmt.Errorf("%w: MCC %q MNC %q", ErrInvalidPLMN, p.MCC, p.MNC)
 	}
 
 	mnc3 := byte(plmnFiller)
@@ -38,14 +38,25 @@ func (p PLMN) Encode() ([]byte, error) {
 		mnc3 = p.MNC[2] - '0'
 	}
 
-	return []byte{
+	return [plmnLen]byte{
 		(p.MCC[1]-'0')<<4 | (p.MCC[0] - '0'),
 		mnc3<<4 | (p.MCC[2] - '0'),
 		(p.MNC[1]-'0')<<4 | (p.MNC[0] - '0'),
 	}, nil
 }
 
-func DecodePLMN(b []byte) (PLMN, error) {
+func (p PLMN) AppendBinary(b []byte) ([]byte, error) {
+	o, err := p.Octets()
+	if err != nil {
+		return b, err
+	}
+
+	return append(b, o[:]...), nil
+}
+
+func (p PLMN) MarshalBinary() ([]byte, error) { return p.AppendBinary(nil) }
+
+func ParsePLMN(b []byte) (PLMN, error) {
 	if len(b) != plmnLen {
 		return PLMN{}, fmt.Errorf("%w: %d octets", ErrInvalidPLMN, len(b))
 	}
@@ -64,4 +75,17 @@ func DecodePLMN(b []byte) (PLMN, error) {
 	}
 
 	return PLMN{MCC: string(digits[:3]), MNC: string(digits[3:])}, nil
+}
+
+func ParseMCCMNC(s string) (PLMN, error) {
+	if len(s) != 5 && len(s) != 6 {
+		return PLMN{}, fmt.Errorf("%w: MCC-MNC %q", ErrInvalidPLMN, s)
+	}
+
+	p := PLMN{MCC: s[:3], MNC: s[3:]}
+	if !p.Valid() {
+		return PLMN{}, fmt.Errorf("%w: MCC-MNC %q", ErrInvalidPLMN, s)
+	}
+
+	return p, nil
 }

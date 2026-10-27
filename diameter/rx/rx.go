@@ -93,7 +93,6 @@ const (
 
 const (
 	avpReservationPriority uint32 = 458
-	avpOCSupportedFeatures uint32 = 621
 	avpCallingPartyAddress uint32 = 831
 	avpToSTrafficClass     uint32 = 1014
 	avpMaxPLRDL            uint32 = 2852
@@ -116,9 +115,9 @@ func (e *ResultError) Error() string {
 }
 
 var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
-	{Code: diameter.AVPAuthSessionState}:  {},
-	{Code: diameter.AVPAuthApplicationID}: {Required: true, MinLength: 4},
-	{Code: avpOCSupportedFeatures}:        {},
+	{Code: diameter.AVPAuthSessionState}:    {},
+	{Code: diameter.AVPAuthApplicationID}:   {Required: true, MinLength: 4},
+	{Code: diameter.AVPOCSupportedFeatures}: {},
 })
 
 func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features) *diameter.Message {
@@ -233,23 +232,18 @@ func checkRequest(rules diameter.Rules, req *diameter.Message) error {
 	return nil
 }
 
+func (f Features) lists() tgpp.FeatureLists {
+	return tgpp.FeatureLists{featureList1: f.list(featureList1), featureList2: f.list(featureList2)}
+}
+
 func featureAVPs(features Features, mandatory bool) []diameter.AVP {
-	var avps []diameter.AVP
-
-	for _, id := range []uint32{featureList1, featureList2} {
-		if list := features.list(id); list != 0 {
-			avps = append(avps, tgpp.SupportedFeatures{
-				VendorID: tgpp.VendorID, FeatureListID: id, FeatureList: list, Mandatory: mandatory,
-			}.AVP())
-		}
-	}
-
-	return avps
+	return features.lists().AVPs(mandatory)
 }
 
 func featureList(m *diameter.Message) Features {
-	return listFeatures(featureList1, tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureList1)) |
-		listFeatures(featureList2, tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureList2))
+	lists := tgpp.ParseFeatureLists(m.AVPs)
+
+	return listFeatures(featureList1, lists[featureList1]) | listFeatures(featureList2, lists[featureList2])
 }
 
 func featuresRequired(m *diameter.Message) bool {
@@ -264,9 +258,7 @@ func featuresRequired(m *diameter.Message) bool {
 }
 
 func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
-	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureList1, FeatureList: supported.list(featureList1)},
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureList2, FeatureList: supported.list(featureList2)})
+	return supported.lists().Unsupported(req.AVPs)
 }
 
 func invalidf(format string, args ...any) error {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/diameter/rx"
+	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -24,8 +25,8 @@ func mcpttAAR(identifier string, priority *rx.ReservationPriority) rx.AARequest 
 	r.MediaComponents = append(r.MediaComponents, rx.MediaComponent{
 		Number:                  2,
 		Type:                    &application,
-		MaxRequestedBandwidthUL: ptr(rx.Bandwidth(8000)),
-		MaxRequestedBandwidthDL: ptr(rx.Bandwidth(8000)),
+		MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(8000)),
+		MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(8000)),
 		SubComponents: []rx.MediaSubComponent{{
 			FlowNumber: 1,
 			FlowDescriptions: []string{

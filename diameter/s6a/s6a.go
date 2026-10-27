@@ -25,6 +25,7 @@ const (
 )
 
 const (
+	AVPServedPartyIPAddress                      uint32 = 848
 	AVPSubscriptionData                          uint32 = 1400
 	AVPTerminalInformation                       uint32 = 1401
 	AVPIMEI                                      uint32 = 1402
@@ -82,8 +83,11 @@ const (
 	AVPGPRSSubscriptionData                      uint32 = 1467
 	AVP3GPP2MEID                                 uint32 = 1471
 	AVPSpecificAPNInfo                           uint32 = 1472
+	AVPLCSInfo                                   uint32 = 1473
 	AVPSSCode                                    uint32 = 1476
+	AVPTeleserviceList                           uint32 = 1486
 	AVPTSCode                                    uint32 = 1487
+	AVPCallBarringInfo                           uint32 = 1488
 	AVPIDRFlags                                  uint32 = 1490
 	AVPICSIndicator                              uint32 = 1491
 	AVPIMSVoiceOverPSSessionsSupported           uint32 = 1492
@@ -91,10 +95,17 @@ const (
 	AVPLastUEActivityTime                        uint32 = 1494
 	AVPEPSUserState                              uint32 = 1495
 	AVPEPSLocationInformation                    uint32 = 1496
+	AVPEmergencyServices                         uint32 = 1538
 	AVPActiveAPN                                 uint32 = 1612
+	AVPSIPTOPermission                           uint32 = 1613
 	AVPErrorDiagnostic                           uint32 = 1614
 	AVPUESRVCCCapability                         uint32 = 1615
+	AVPMPSPriority                               uint32 = 1616
+	AVPVPLMNLIPAAllowed                          uint32 = 1617
+	AVPLIPAPermission                            uint32 = 1618
 	AVPSubscribedPeriodicRAUTAUTimer             uint32 = 1619
+	AVPRelayNodeIndicator                        uint32 = 1633
+	AVPMDTUserConsent                            uint32 = 1634
 	AVPPURFlags                                  uint32 = 1635
 	AVPSubscribedVSRVCC                          uint32 = 1636
 	AVPEquivalentPLMNList                        uint32 = 1637
@@ -104,38 +115,55 @@ const (
 	AVPSMSRegisterRequest                        uint32 = 1648
 	AVPLocalTimeZone                             uint32 = 1649
 	AVPDaylightSavingTime                        uint32 = 1650
+	AVPSubscriptionDataFlags                     uint32 = 1654
+	AVPRestorationPriority                       uint32 = 1663
 	AVPSGsMMEIdentity                            uint32 = 1664
+	AVPSIPTOLocalNetworkPermission               uint32 = 1665
 	AVPCoupledNodeDiameterID                     uint32 = 1666
+	AVPWLANOffloadability                        uint32 = 1667
 	AVPResetID                                   uint32 = 1670
 	AVPAdjacentPLMNs                             uint32 = 1672
+	AVPAdjacentAccessRestrictionData             uint32 = 1673
+	AVPDLBufferingSuggestedPacketCount           uint32 = 1674
+	AVPIMSIGroupID                               uint32 = 1675
 	AVPAIRFlags                                  uint32 = 1679
 	AVPUEUsageType                               uint32 = 1680
+	AVPNonIPPDNTypeIndicator                     uint32 = 1681
+	AVPNonIPDataDeliveryMechanism                uint32 = 1682
 	AVPAdditionalContextIdentifier               uint32 = 1683
+	AVPSCEFRealm                                 uint32 = 1684
 	AVPSubscriptionDataDeletion                  uint32 = 1685
+	AVPPreferredDataMode                         uint32 = 1686
+	AVPEmergencyInfo                             uint32 = 1687
+	AVPV2XSubscriptionData                       uint32 = 1688
+	AVPPDNConnectionContinuity                   uint32 = 1690
+	AVPEDRXCycleLength                           uint32 = 1691
+	AVPRDSIndicator                              uint32 = 1697
+	AVPServiceGapTime                            uint32 = 1698
+	AVPAerialUESubscriptionInformation           uint32 = 1699
+	AVPBroadcastLocationAssistanceDataTypes      uint32 = 1700
+	AVPPagingTimeWindow                          uint32 = 1701
+	AVPCoreNetworkRestrictions                   uint32 = 1704
 	AVPEDRXRelatedRAT                            uint32 = 1705
 	AVPInterworking5GSIndicator                  uint32 = 1706
+	AVPEthernetPDNTypeIndicator                  uint32 = 1707
+	AVPSubscribedARPI                            uint32 = 1708
+	AVPIABOperationPermission                    uint32 = 1709
+	AVPV2XSubscriptionDataNR                     uint32 = 1710
 	AVPThirdContextIdentifier                    uint32 = 1719
+	AVPPLMNRATUsageControl                       uint32 = 1728
 	AVPSFULRTimestamp                            uint32 = 1729
 	AVPSFProvisionalIndication                   uint32 = 1730
-	AVPServedPartyIPAddress                      uint32 = 848
 	AVPGMLCAddress                               uint32 = 2405
-	AVPSupportedServices                         uint32 = 3143
-	AVPMonitoringEventConfigStatus               uint32 = 3142
+	AVPExternalIdentifier                        uint32 = 3111
+	AVPAESECommunicationPattern                  uint32 = 3113
+	AVPMonitoringEventConfiguration              uint32 = 3122
 	AVPMonitoringEventReport                     uint32 = 3123
 	AVPSCEFID                                    uint32 = 3125
-	AVPExternalIdentifier                        uint32 = 3111
-	AVPEmergencyServices                         uint32 = 1538
-)
-
-const (
-	AVPMIPHomeAgentAddress uint32 = 334
-	AVPMIPHomeAgentHost    uint32 = 348
-	AVPMIP6AgentInfo       uint32 = 486
-	AVPServiceSelection    uint32 = 493
-	avpMIP6HomeLinkPrefix  uint32 = 125
-	avpOCSupportedFeatures uint32 = 621
-	avpOCOLR               uint32 = 623
-	avpLoad                uint32 = 650
+	AVPMonitoringEventConfigStatus               uint32 = 3142
+	AVPSupportedServices                         uint32 = 3143
+	AVPProSeSubscriptionData                     uint32 = 3701
+	AVPActiveTime                                uint32 = 4342
 )
 
 const (
@@ -152,6 +180,7 @@ type ResultError struct {
 	tgpp.Result
 
 	ErrorDiagnostic *ErrorDiagnostic
+	UEUsageType     *UEUsageType
 	Features        Features
 }
 
@@ -169,32 +198,22 @@ type Features struct {
 	List2 FeatureList2
 }
 
+func (f Features) lists() tgpp.FeatureLists {
+	return tgpp.FeatureLists{FeatureListID1: uint32(f.List1), FeatureListID2: uint32(f.List2)}
+}
+
 func (f Features) avps() []diameter.AVP {
-	var avps []diameter.AVP
-
-	if f.List1 != 0 {
-		avps = append(avps, tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID1, FeatureList: uint32(f.List1)}.AVP())
-	}
-
-	if f.List2 != 0 {
-		avps = append(avps, tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID2, FeatureList: uint32(f.List2)}.AVP())
-	}
-
-	return avps
+	return f.lists().AVPs(false)
 }
 
 func featuresOf(m *diameter.Message) Features {
-	return Features{
-		List1: FeatureList1(tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID1)),
-		List2: FeatureList2(tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID2)),
-	}
+	lists := tgpp.ParseFeatureLists(m.AVPs)
+
+	return Features{List1: FeatureList1(lists[FeatureListID1]), List2: FeatureList2(lists[FeatureListID2])}
 }
 
 func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
-	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID1, FeatureList: uint32(supported.List1)},
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: FeatureListID2, FeatureList: uint32(supported.List2)},
-	)
+	return supported.lists().Unsupported(req.AVPs)
 }
 
 func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features) *diameter.Message {
@@ -204,23 +223,39 @@ func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, featu
 	return ans
 }
 
-func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error) *diameter.Message {
+func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error, features Features) *diameter.Message {
 	var re *ResultError
 	if !errors.As(err, &re) {
-		return tgpp.NewErrorAnswer(req, id, err)
+		ans := tgpp.NewErrorAnswer(req, id, err)
+		ans.AVPs = append(ans.AVPs, features.avps()...)
+
+		return ans
 	}
 
-	ans := NewAnswer(req, id, re.Result, re.Features)
+	ans := NewAnswer(req, id, re.Result, features)
 
-	if re.ErrorDiagnostic != nil && carriesErrorDiagnostic(req.CommandCode) {
-		ans.AVPs = append(ans.AVPs, unsignedAVP(AVPErrorDiagnostic, uint32(*re.ErrorDiagnostic)))
+	if d := re.ErrorDiagnostic; d != nil && errorDiagnosticAllowed(req.CommandCode, re.Result, *d) {
+		ans.AVPs = append(ans.AVPs, unsignedAVP(AVPErrorDiagnostic, uint32(*d)))
+	}
+
+	if u := re.UEUsageType; u != nil && req.CommandCode == CommandAuthenticationInformation &&
+		re.IsExperimental(tgpp.ResultAuthenticationDataUnavailable) {
+		ans.AVPs = append(ans.AVPs, u.avp())
 	}
 
 	return ans
 }
 
-func carriesErrorDiagnostic(command uint32) bool {
-	return command == CommandUpdateLocation || command == CommandAuthenticationInformation
+func errorDiagnosticAllowed(command uint32, r tgpp.Result, d ErrorDiagnostic) bool {
+	switch {
+	case r.IsExperimental(tgpp.ResultErrorUnknownEPSSubscription):
+		return (command == CommandUpdateLocation || command == CommandAuthenticationInformation) &&
+			(d == ErrorDiagnosticGPRSDataSubscribed || d == ErrorDiagnosticNoGPRSDataSubscribed)
+	case r.IsExperimental(tgpp.ResultErrorRoamingNotAllowed):
+		return command == CommandUpdateLocation && d >= ErrorDiagnosticODBAllAPN && d <= ErrorDiagnosticODBVPLMNAPN
+	default:
+		return false
+	}
 }
 
 func newRequest(env tgpp.Envelope, command uint32, fromHSS bool, avps ...diameter.AVP) (*diameter.Message, error) {
@@ -275,6 +310,12 @@ func parseResult(ans *diameter.Message) error {
 		}
 	}
 
+	if a, ok := ans.Find(AVPUEUsageType, tgpp.VendorID); ok {
+		if u, err := parseUEUsageType(a); err == nil {
+			e.UEUsageType = &u
+		}
+	}
+
 	return e
 }
 
@@ -286,37 +327,10 @@ func parseAnswer(ans *diameter.Message) (Features, error) {
 	return featuresOf(ans), nil
 }
 
-func avpFlags(code uint32) uint8 {
-	switch code {
-	case AVPUserID:
-		return 0
-	case tgpp.AVPMSISDN, tgpp.AVPQoSClassIdentifier, tgpp.AVPMaxRequestedBandwidthDL, tgpp.AVPMaxRequestedBandwidthUL,
-		tgpp.AVPVisitedNetworkIdentifier, tgpp.AVPConfidentialityKey, tgpp.AVPIntegrityKey,
-		tgpp.AVP3GPPChargingCharacteristics, AVPServedPartyIPAddress:
-		return diameter.AVPFlagMandatory
-	}
+func origin(m *diameter.Message) diameter.Identity {
+	e := tgpp.ParseEnvelope(m)
 
-	if code >= AVPSubscriptionData && code <= AVPIDRFlags {
-		return diameter.AVPFlagMandatory
-	}
-
-	return 0
-}
-
-func unsignedAVP(code, v uint32) diameter.AVP {
-	return diameter.Unsigned32(code, avpFlags(code), tgpp.VendorID, v)
-}
-
-func octetsAVP(code uint32, v []byte) diameter.AVP {
-	return diameter.OctetString(code, avpFlags(code), tgpp.VendorID, v)
-}
-
-func stringAVP(code uint32, v string) diameter.AVP {
-	return diameter.UTF8String(code, avpFlags(code), tgpp.VendorID, v)
-}
-
-func groupedAVP(code uint32, avps ...diameter.AVP) diameter.AVP {
-	return diameter.Grouped(code, avpFlags(code), tgpp.VendorID, avps...)
+	return e.Origin
 }
 
 func userNameAVP(imsi string) (diameter.AVP, error) {
@@ -328,7 +342,7 @@ func userNameAVP(imsi string) (diameter.AVP, error) {
 }
 
 func visitedPLMNAVP(p tgpp.PLMN) (diameter.AVP, error) {
-	b, err := p.Encode()
+	b, err := p.MarshalBinary()
 	if err != nil {
 		return diameter.AVP{}, invalidf("%w", err)
 	}
@@ -336,8 +350,21 @@ func visitedPLMNAVP(p tgpp.PLMN) (diameter.AVP, error) {
 	return octetsAVP(AVPVisitedPLMNID, b), nil
 }
 
+func parsePLMN(a diameter.AVP) (tgpp.PLMN, error) {
+	p, err := tgpp.ParsePLMN(a.Data)
+	if err != nil {
+		return tgpp.PLMN{}, tgpp.InvalidAVP(a)
+	}
+
+	return p, nil
+}
+
 func vendorKey(code uint32) diameter.AVPKey {
 	return diameter.AVPKey{Code: code, VendorID: tgpp.VendorID}
+}
+
+func ietfKey(code uint32) diameter.AVPKey {
+	return diameter.AVPKey{Code: code}
 }
 
 func requestIMSI(req *diameter.Message) (string, error) {
@@ -352,26 +379,21 @@ func requestIMSI(req *diameter.Message) (string, error) {
 func requestVisitedPLMN(req *diameter.Message) (tgpp.PLMN, error) {
 	a, _ := req.Find(AVPVisitedPLMNID, tgpp.VendorID)
 
-	p, err := tgpp.DecodePLMN(a.Data)
-	if err != nil {
-		return tgpp.PLMN{}, tgpp.InvalidAVP(a)
-	}
-
-	return p, nil
+	return parsePLMN(a)
 }
 
 var commonRules = diameter.Rules{
-	{Code: avpOCSupportedFeatures}:                             {},
-	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}: {Multiple: true},
+	ietfKey(diameter.AVPOCSupportedFeatures): {},
+	vendorKey(tgpp.AVPSupportedFeatures):     {Multiple: true},
 }
 
-var userNameRule = diameter.Rules{{Code: diameter.AVPUserName}: {Required: true}}
+var userNameRule = diameter.Rules{ietfKey(diameter.AVPUserName): {Required: true, MinLength: 1}}
 
 func requestRules(fromHSS bool, extra diameter.Rules) diameter.Rules {
 	rules := diameter.BaseRequestRules().With(commonRules).With(extra)
 
 	if fromHSS {
-		rules[diameter.AVPKey{Code: diameter.AVPDestinationHost}] = diameter.Rule{Required: true}
+		rules[ietfKey(diameter.AVPDestinationHost)] = diameter.Rule{Required: true, MinLength: 1}
 	}
 
 	return rules

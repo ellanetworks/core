@@ -27,7 +27,7 @@ type LocationInfo struct {
 
 var lirRules = commonRequestRules.With(diameter.Rules{
 	{Code: AVPOriginatingRequest, VendorID: tgpp.VendorID}:    {},
-	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:        {Required: true},
+	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:        {Required: true, MinLength: 1},
 	{Code: AVPUserAuthorizationType, VendorID: tgpp.VendorID}: {},
 	{Code: AVPSessionPriority, VendorID: tgpp.VendorID}:       {},
 })

@@ -10,6 +10,10 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
+type Notify struct {
+	Features Features
+}
+
 type NotifyRequest struct {
 	IMSI                      string
 	Features                  Features
@@ -27,10 +31,10 @@ type NotifyRequest struct {
 
 var norRules = requestRules(false, userNameRule.With(diameter.Rules{
 	vendorKey(AVPTerminalInformation):                       {},
-	{Code: AVPMIP6AgentInfo}:                                {},
+	ietfKey(diameter.AVPMIP6AgentInfo):                      {},
 	vendorKey(tgpp.AVPVisitedNetworkIdentifier):             {},
 	vendorKey(AVPContextIdentifier):                         {},
-	{Code: AVPServiceSelection}:                             {},
+	ietfKey(diameter.AVPServiceSelection):                   {},
 	vendorKey(AVPAlertReason):                               {},
 	vendorKey(AVPUESRVCCCapability):                         {},
 	vendorKey(AVPNORFlags):                                  {},
@@ -73,7 +77,7 @@ func NewNotifyRequest(env tgpp.Envelope, r NotifyRequest) (*diameter.Message, er
 	}
 
 	if r.ServiceSelection != "" {
-		avps = append(avps, diameter.UTF8String(AVPServiceSelection, diameter.AVPFlagMandatory, 0, r.ServiceSelection))
+		avps = append(avps, ietfString(diameter.AVPServiceSelection, r.ServiceSelection))
 	}
 
 	if avps, err = appendEnum(avps, AVPAlertReason, "Alert-Reason", r.AlertReason); err != nil {
@@ -84,7 +88,7 @@ func NewNotifyRequest(env tgpp.Envelope, r NotifyRequest) (*diameter.Message, er
 		return nil, err
 	}
 
-	if avps, err = appendFlags(avps, AVPNORFlags, "NOR-Flags", r.Flags, norFlagsDefined); err != nil {
+	if avps, err = appendFlags(avps, AVPNORFlags, "NOR-Flags", r.Flags); err != nil {
 		return nil, err
 	}
 
@@ -93,7 +97,11 @@ func NewNotifyRequest(env tgpp.Envelope, r NotifyRequest) (*diameter.Message, er
 	}
 
 	if !r.MaximumUEAvailabilityTime.IsZero() {
-		avps = append(avps, diameter.Time(tgpp.AVPMaximumUEAvailabilityTime, 0, tgpp.VendorID, r.MaximumUEAvailabilityTime))
+		if !diameter.ValidTime(r.MaximumUEAvailabilityTime) {
+			return nil, invalidf("Maximum-UE-Availability-Time %s", r.MaximumUEAvailabilityTime)
+		}
+
+		avps = append(avps, diameter.Time(tgpp.AVPMaximumUEAvailabilityTime, avpFlags(tgpp.AVPMaximumUEAvailabilityTime), tgpp.VendorID, r.MaximumUEAvailabilityTime))
 	}
 
 	return newRequest(env, CommandNotify, false, avps...)
@@ -120,13 +128,13 @@ func ParseNotifyRequest(req *diameter.Message) (NotifyRequest, error) {
 	r.Features = featuresOf(req)
 
 	if t, ok := req.Find(AVPTerminalInformation, tgpp.VendorID); ok {
-		if r.Terminal, err = parseTerminalInformation(t); err != nil {
+		if r.Terminal, err = requestDecoder.terminal(t); err != nil {
 			return NotifyRequest{}, err
 		}
 	}
 
-	if gw, ok := req.Find(AVPMIP6AgentInfo, 0); ok {
-		if r.PDNGateway, err = parseMIP6AgentInfo(gw); err != nil {
+	if gw, ok := req.Find(diameter.AVPMIP6AgentInfo, 0); ok {
+		if r.PDNGateway, err = requestDecoder.mip6AgentInfo(gw); err != nil {
 			return NotifyRequest{}, err
 		}
 	}
@@ -135,27 +143,33 @@ func ParseNotifyRequest(req *diameter.Message) (NotifyRequest, error) {
 		return NotifyRequest{}, err
 	}
 
-	if r.ContextIdentifier, _, err = optionalUnsigned(req.AVPs, AVPContextIdentifier); err != nil {
+	if id, ok := req.Find(AVPContextIdentifier, tgpp.VendorID); ok {
+		if r.ContextIdentifier, err = tgpp.Unsigned32(id); err != nil {
+			return NotifyRequest{}, err
+		}
+
+		if r.ContextIdentifier == 0 {
+			return NotifyRequest{}, tgpp.InvalidAVP(id)
+		}
+	}
+
+	if r.ServiceSelection, err = optionalString(req.AVPs, diameter.AVPServiceSelection, 0); err != nil {
 		return NotifyRequest{}, err
 	}
 
-	if r.ServiceSelection, err = optionalString(req.AVPs, AVPServiceSelection, 0); err != nil {
+	if r.AlertReason, err = optionalEnum[AlertReason](req.AVPs, AVPAlertReason, true); err != nil {
 		return NotifyRequest{}, err
 	}
 
-	if r.AlertReason, err = optionalEnum[AlertReason](req.AVPs, AVPAlertReason); err != nil {
+	if r.UESRVCCCapability, err = optionalEnum[UESRVCCCapability](req.AVPs, AVPUESRVCCCapability, true); err != nil {
 		return NotifyRequest{}, err
 	}
 
-	if r.UESRVCCCapability, err = optionalEnum[UESRVCCCapability](req.AVPs, AVPUESRVCCCapability); err != nil {
+	if r.Flags, err = requestFlags(req.AVPs, AVPNORFlags, norFlagsDefined); err != nil {
 		return NotifyRequest{}, err
 	}
 
-	if r.Flags, err = optionalFlags(req.AVPs, AVPNORFlags, norFlagsDefined); err != nil {
-		return NotifyRequest{}, err
-	}
-
-	if r.HomogeneousIMSVoiceOverPS, err = optionalEnum[IMSVoiceOverPS](req.AVPs, AVPHomogeneousSupportOfIMSVoiceOverPSSession); err != nil {
+	if r.HomogeneousIMSVoiceOverPS, err = optionalEnum[IMSVoiceOverPS](req.AVPs, AVPHomogeneousSupportOfIMSVoiceOverPSSession, true); err != nil {
 		return NotifyRequest{}, err
 	}
 
@@ -168,10 +182,15 @@ func ParseNotifyRequest(req *diameter.Message) (NotifyRequest, error) {
 	return r, nil
 }
 
-func NewNotifyAnswer(req *diameter.Message, id diameter.Identity, features Features) *diameter.Message {
-	return newSuccessAnswer(req, id, features)
+func NewNotifyAnswer(req *diameter.Message, id diameter.Identity, n Notify) (*diameter.Message, error) {
+	return newSuccessAnswer(req, id, n.Features), nil
 }
 
-func ParseNotifyAnswer(ans *diameter.Message) (Features, error) {
-	return parseAnswer(ans)
+func ParseNotifyAnswer(ans *diameter.Message) (Notify, error) {
+	features, err := parseAnswer(ans)
+	if err != nil {
+		return Notify{}, err
+	}
+
+	return Notify{Features: features}, nil
 }

@@ -422,7 +422,7 @@ func TestAAErrorRoundTrip(t *testing.T) {
 			ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceNotAuthorized)},
 			AcceptableServiceInfo: &AcceptableServiceInfo{
 				MediaComponents: []MediaBandwidth{
-					{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(Bandwidth(24000)), MaxRequestedBandwidthDL: ptr(Bandwidth(24000))},
+					{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(24000)), MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(24000))},
 					{MediaComponentNumber: 2},
 				},
 			},
@@ -430,7 +430,7 @@ func TestAAErrorRoundTrip(t *testing.T) {
 		},
 		"temporarily not authorized": {
 			ResultError:           ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceTemporarilyNotAuthorized)},
-			AcceptableServiceInfo: &AcceptableServiceInfo{MaxRequestedBandwidthUL: ptr(Bandwidth(64000)), MaxRequestedBandwidthDL: ptr(Bandwidth(128000))},
+			AcceptableServiceInfo: &AcceptableServiceInfo{MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(64000)), MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(128000))},
 			RetryInterval:         90 * time.Second,
 		},
 		"session binding": {ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultIPCANSessionNotAvailable)}},

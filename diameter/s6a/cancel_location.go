@@ -15,6 +15,10 @@ type CancelLocationRequest struct {
 	Flags    CLRFlags
 }
 
+type CancelLocation struct {
+	Features Features
+}
+
 var clrRules = requestRules(true, userNameRule.With(diameter.Rules{
 	vendorKey(AVPCancellationType): {Required: true, MinLength: 4},
 	vendorKey(AVPCLRFlags):         {},
@@ -26,14 +30,14 @@ func NewCancelLocationRequest(env tgpp.Envelope, r CancelLocationRequest) (*diam
 		return nil, err
 	}
 
-	if !r.Type.valid() {
+	if !r.Type.Known() {
 		return nil, invalidf("Cancellation-Type %d", r.Type)
 	}
 
 	avps := append([]diameter.AVP{userName}, r.Features.avps()...)
 	avps = append(avps, unsignedAVP(AVPCancellationType, uint32(r.Type)))
 
-	if avps, err = appendFlags(avps, AVPCLRFlags, "CLR-Flags", r.Flags, clrFlagsDefined); err != nil {
+	if avps, err = appendFlags(avps, AVPCLRFlags, "CLR-Flags", r.Flags); err != nil {
 		return nil, err
 	}
 
@@ -60,21 +64,26 @@ func ParseCancelLocationRequest(req *diameter.Message) (CancelLocationRequest, e
 
 	r.Features = featuresOf(req)
 
-	if r.Type, err = requiredEnum[CancellationType](req.AVPs, AVPCancellationType); err != nil {
+	if r.Type, err = requiredEnum[CancellationType](req.AVPs, AVPCancellationType, true); err != nil {
 		return CancelLocationRequest{}, err
 	}
 
-	if r.Flags, err = optionalFlags(req.AVPs, AVPCLRFlags, clrFlagsDefined); err != nil {
+	if r.Flags, err = requestFlags(req.AVPs, AVPCLRFlags, clrFlagsDefined); err != nil {
 		return CancelLocationRequest{}, err
 	}
 
 	return r, nil
 }
 
-func NewCancelLocationAnswer(req *diameter.Message, id diameter.Identity, features Features) *diameter.Message {
-	return newSuccessAnswer(req, id, features)
+func NewCancelLocationAnswer(req *diameter.Message, id diameter.Identity, c CancelLocation) (*diameter.Message, error) {
+	return newSuccessAnswer(req, id, c.Features), nil
 }
 
-func ParseCancelLocationAnswer(ans *diameter.Message) (Features, error) {
-	return parseAnswer(ans)
+func ParseCancelLocationAnswer(ans *diameter.Message) (CancelLocation, error) {
+	features, err := parseAnswer(ans)
+	if err != nil {
+		return CancelLocation{}, err
+	}
+
+	return CancelLocation{Features: features}, nil
 }

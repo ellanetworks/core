@@ -38,10 +38,10 @@ type ReportResult struct {
 
 var rdrRules = diameter.BaseRequestRules().With(diameter.Rules{
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}:  {Multiple: true},
-	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:     {Required: true},
+	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:     {Required: true, MinLength: 1},
 	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}: {},
-	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:          {Required: true},
-	{Code: tgpp.AVPSMDeliveryOutcome, VendorID: tgpp.VendorID}:  {Required: true},
+	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:          {Required: true, MinLength: 1},
+	{Code: tgpp.AVPSMDeliveryOutcome, VendorID: tgpp.VendorID}:  {Required: true, MinLength: 1},
 	{Code: AVPRDRFlags, VendorID: tgpp.VendorID}:                {},
 	{Code: AVPServingNode, VendorID: tgpp.VendorID}:             {},
 	{Code: AVPAdditionalServingNode, VendorID: tgpp.VendorID}:   {},

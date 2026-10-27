@@ -48,12 +48,12 @@ func (e *ProfileUpdateError) Unwrap() error {
 }
 
 var purRules = commonRequestRules.With(diameter.Rules{
-	{Code: AVPUserIdentity, VendorID: tgpp.VendorID}:             {Required: true},
+	{Code: AVPUserIdentity, VendorID: tgpp.VendorID}:             {Required: true, MinLength: 1},
 	{Code: AVPWildcardedPublicIdentity, VendorID: tgpp.VendorID}: {},
 	{Code: AVPWildcardedIMPU, VendorID: tgpp.VendorID}:           {},
 	{Code: diameter.AVPUserName}:                                 {},
 	{Code: AVPDataReference, VendorID: tgpp.VendorID}:            {Required: true, Multiple: true, MinLength: 4},
-	{Code: AVPUserData, VendorID: tgpp.VendorID}:                 {Required: true},
+	{Code: AVPUserData, VendorID: tgpp.VendorID}:                 {Required: true, MinLength: 1},
 })
 
 func NewProfileUpdateRequest(env tgpp.Envelope, r ProfileUpdateRequest) (*diameter.Message, error) {

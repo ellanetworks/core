@@ -17,7 +17,7 @@ type AbortSessionAnswer struct {
 }
 
 var asrRules = commonRequestRules.With(diameter.Rules{
-	{Code: diameter.AVPDestinationHost}: {Required: true},
+	{Code: diameter.AVPDestinationHost}: {Required: true, MinLength: 1},
 	vendorKey(AVPAbortCause):            {Required: true, MinLength: 4},
 })
 
@@ -25,7 +25,7 @@ func NewAbortSessionRequest(env tgpp.Envelope, r AbortSessionRequest) (*diameter
 	switch {
 	case env.DestinationHost == "":
 		return nil, invalidf("abort session without a destination host")
-	case !r.Cause.valid():
+	case !r.Cause.Known():
 		return nil, invalidf("Abort-Cause %s", r.Cause)
 	}
 

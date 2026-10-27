@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/diameter/rx"
+	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -166,7 +167,7 @@ func guaranteedRates(c rx.MediaComponent, sub rx.MediaSubComponent, mbr models.A
 	}
 }
 
-func guaranteed(minRequested *rx.Bandwidth, mbr models.BitRate) models.BitRate {
+func guaranteed(minRequested *tgpp.Bandwidth, mbr models.BitRate) models.BitRate {
 	if minRequested == nil {
 		return mbr
 	}
@@ -174,8 +175,8 @@ func guaranteed(minRequested *rx.Bandwidth, mbr models.BitRate) models.BitRate {
 	return models.BitRateFromBps(min(uint64(*minRequested), mbr.Bps()))
 }
 
-func defaultBandwidth(c rx.MediaComponent) *rx.Bandwidth {
-	b := rx.Bandwidth(defaultAudioBitRate)
+func defaultBandwidth(c rx.MediaComponent) *tgpp.Bandwidth {
+	b := tgpp.Bandwidth(defaultAudioBitRate)
 	if c.Type != nil && *c.Type == rx.MediaVideo {
 		b = defaultVideoBitRate
 	}
@@ -208,7 +209,7 @@ func subComponentRates(c rx.MediaComponent, sub rx.MediaSubComponent, hasUL, has
 	return requested(maxUL, hasUL), requested(maxDL, hasDL)
 }
 
-func rtcpRate(c rx.MediaComponent, maxRequested *rx.Bandwidth, present bool) uint64 {
+func rtcpRate(c rx.MediaComponent, maxRequested *tgpp.Bandwidth, present bool) uint64 {
 	if !present {
 		return 0
 	}
@@ -232,7 +233,7 @@ func rtcpRate(c rx.MediaComponent, maxRequested *rx.Bandwidth, present bool) uin
 	return share
 }
 
-func requested(b *rx.Bandwidth, present bool) uint64 {
+func requested(b *tgpp.Bandwidth, present bool) uint64 {
 	if !present || b == nil {
 		return 0
 	}
@@ -270,7 +271,7 @@ func overlayComponent(prev, next rx.MediaComponent) rx.MediaComponent {
 	out := prev
 	out.Number = next.Number
 
-	for _, f := range []struct{ dst, src **rx.Bandwidth }{
+	for _, f := range []struct{ dst, src **tgpp.Bandwidth }{
 		{&out.MaxRequestedBandwidthUL, &next.MaxRequestedBandwidthUL},
 		{&out.MaxRequestedBandwidthDL, &next.MaxRequestedBandwidthDL},
 		{&out.MaxSupportedBandwidthUL, &next.MaxSupportedBandwidthUL},

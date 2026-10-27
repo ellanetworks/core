@@ -30,7 +30,7 @@ type ReAuthAnswer struct {
 }
 
 var rarRules = commonRequestRules.With(accessNetworkRules).With(servingNetworkRules).With(userLocationRules).With(diameter.Rules{
-	{Code: diameter.AVPDestinationHost}:           {Required: true},
+	{Code: diameter.AVPDestinationHost}:           {Required: true, MinLength: 1},
 	vendorKey(AVPSpecificAction):                  {Required: true, Multiple: true, MinLength: 4},
 	vendorKey(AVPAccessNetworkChargingIdentifier): {Multiple: true},
 	vendorKey(AVPAccessNetworkChargingAddress):    {},
@@ -58,7 +58,7 @@ func (r ReAuthRequest) missing() (missingAVP, bool) {
 	}{
 		{ActionChargingCorrelationExchange, len(r.AccessNetworkChargingIdentifiers) > 0, missingAVP{AVPAccessNetworkChargingIdentifier, 0}},
 		{ActionIPCANChange, r.AccessNetwork.IPCANType != nil, missingAVP{tgpp.AVPIPCANType, 4}},
-		{ActionPLMNChange, r.ServingNetwork.PLMN != "", missingAVP{tgpp.AVP3GPPSGSNMCCMNC, 5}},
+		{ActionPLMNChange, r.ServingNetwork.PLMN != nil, missingAVP{tgpp.AVP3GPPSGSNMCCMNC, 5}},
 		{ActionCNHealthMonitor, r.PCSessionRecoveryStatus != nil, missingAVP{AVPPCSessionRecoveryStatus, 4}},
 	} {
 		if slices.Contains(r.SpecificActions, req.action) && !req.present {

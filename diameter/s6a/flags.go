@@ -33,6 +33,8 @@ var ulrFlagNames = []string{
 
 func (f ULRFlags) String() string { return tgpp.BitNames(uint32(f), ulrFlagNames...) }
 
+func (f ULRFlags) Known() bool { return f&^ulrFlagsDefined == 0 }
+
 type ULAFlags uint32
 
 const (
@@ -44,6 +46,8 @@ const (
 var ulaFlagNames = []string{"SEPARATION_INDICATION", "MME_REGISTERED_FOR_SMS"}
 
 func (f ULAFlags) String() string { return tgpp.BitNames(uint32(f), ulaFlagNames...) }
+
+func (f ULAFlags) Known() bool { return f&^ulaFlagsDefined == 0 }
 
 type AIRFlags uint32
 
@@ -57,6 +61,8 @@ var airFlagNames = []string{"SEND_UE_USAGE_TYPE", "DISASTER_ROAMING_SERVICE_IN_E
 
 func (f AIRFlags) String() string { return tgpp.BitNames(uint32(f), airFlagNames...) }
 
+func (f AIRFlags) Known() bool { return f&^airFlagsDefined == 0 }
+
 type CLRFlags uint32
 
 const (
@@ -68,6 +74,8 @@ const (
 var clrFlagNames = []string{"S6A_S6D_INDICATOR", "REATTACH_REQUIRED"}
 
 func (f CLRFlags) String() string { return tgpp.BitNames(uint32(f), clrFlagNames...) }
+
+func (f CLRFlags) Known() bool { return f&^clrFlagsDefined == 0 }
 
 type IDRFlags uint32
 
@@ -92,6 +100,8 @@ var idrFlagNames = []string{
 
 func (f IDRFlags) String() string { return tgpp.BitNames(uint32(f), idrFlagNames...) }
 
+func (f IDRFlags) Known() bool { return f&^idrFlagsDefined == 0 }
+
 type IDAFlags uint32
 
 const (
@@ -100,6 +110,8 @@ const (
 )
 
 func (f IDAFlags) String() string { return tgpp.BitNames(uint32(f), "NETWORK_NODE_AREA_RESTRICTED") }
+
+func (f IDAFlags) Known() bool { return f&^idaFlagsDefined == 0 }
 
 type DSRFlags uint32
 
@@ -136,6 +148,7 @@ const (
 	DSRFlagActiveTimeWithdrawal                      DSRFlags = 1 << 29
 	DSRFlagEDRXCycleLengthWithdrawal                 DSRFlags = 1 << 30
 	DSRFlagServiceGapTimeWithdrawal                  DSRFlags = 1 << 31
+	dsrPDNAndPDPContextsWithdrawal                   DSRFlags = DSRFlagPDNSubscriptionContextsWithdrawal | DSRFlagPDPContextsWithdrawal
 )
 
 var dsrFlagNames = []string{
@@ -153,6 +166,10 @@ var dsrFlagNames = []string{
 
 func (f DSRFlags) String() string { return tgpp.BitNames(uint32(f), dsrFlagNames...) }
 
+func (f DSRFlags) Known() bool {
+	return f&dsrPDNAndPDPContextsWithdrawal != dsrPDNAndPDPContextsWithdrawal
+}
+
 type DSAFlags uint32
 
 const (
@@ -161,6 +178,8 @@ const (
 )
 
 func (f DSAFlags) String() string { return tgpp.BitNames(uint32(f), "NETWORK_NODE_AREA_RESTRICTED") }
+
+func (f DSAFlags) Known() bool { return f&^dsaFlagsDefined == 0 }
 
 type PURFlags uint32
 
@@ -174,6 +193,8 @@ var purFlagNames = []string{"UE_PURGED_IN_MME", "UE_PURGED_IN_SGSN"}
 
 func (f PURFlags) String() string { return tgpp.BitNames(uint32(f), purFlagNames...) }
 
+func (f PURFlags) Known() bool { return f&^purFlagsDefined == 0 }
+
 type PUAFlags uint32
 
 const (
@@ -185,6 +206,8 @@ const (
 var puaFlagNames = []string{"FREEZE_M_TMSI", "FREEZE_P_TMSI"}
 
 func (f PUAFlags) String() string { return tgpp.BitNames(uint32(f), puaFlagNames...) }
+
+func (f PUAFlags) Known() bool { return f&^puaFlagsDefined == 0 }
 
 type NORFlags uint32
 
@@ -209,6 +232,8 @@ var norFlagNames = []string{
 
 func (f NORFlags) String() string { return tgpp.BitNames(uint32(f), norFlagNames...) }
 
+func (f NORFlags) Known() bool { return f&^norFlagsDefined == 0 }
+
 type OperatorDeterminedBarring uint32
 
 const (
@@ -221,6 +246,7 @@ const (
 	ODBAllOutgoingInterzonalCalls                       OperatorDeterminedBarring = 1 << 6
 	ODBAllOutgoingInterzonalCallsExceptHPLMNCountry     OperatorDeterminedBarring = 1 << 7
 	ODBAllOutgoingInternationalExceptHPLMNAndInterzonal OperatorDeterminedBarring = 1 << 8
+	odbDefined                                          OperatorDeterminedBarring = 1<<9 - 1
 )
 
 var odbNames = []string{
@@ -232,6 +258,24 @@ var odbNames = []string{
 }
 
 func (b OperatorDeterminedBarring) String() string { return tgpp.BitNames(uint32(b), odbNames...) }
+
+func (b OperatorDeterminedBarring) Known() bool { return b&^odbDefined == 0 }
+
+type HPLMNODB uint32
+
+const (
+	HPLMNODBType1   HPLMNODB = 1 << 0
+	HPLMNODBType2   HPLMNODB = 1 << 1
+	HPLMNODBType3   HPLMNODB = 1 << 2
+	HPLMNODBType4   HPLMNODB = 1 << 3
+	hplmnODBDefined HPLMNODB = 1<<4 - 1
+)
+
+var hplmnODBNames = []string{"HPLMN_SPECIFIC_BARRING_TYPE_1", "HPLMN_SPECIFIC_BARRING_TYPE_2", "HPLMN_SPECIFIC_BARRING_TYPE_3", "HPLMN_SPECIFIC_BARRING_TYPE_4"}
+
+func (b HPLMNODB) String() string { return tgpp.BitNames(uint32(b), hplmnODBNames...) }
+
+func (b HPLMNODB) Known() bool { return b&^hplmnODBDefined == 0 }
 
 type AccessRestrictionData uint32
 
@@ -282,6 +326,8 @@ var ardNames = []string{
 }
 
 func (d AccessRestrictionData) String() string { return tgpp.BitNames(uint32(d), ardNames...) }
+
+func (d AccessRestrictionData) Known() bool { return d&^ardDefined == 0 }
 
 type FeatureList1 uint32
 

@@ -5,6 +5,8 @@ package tgpp
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/ellanetworks/core/diameter"
 )
@@ -59,16 +61,51 @@ func ParseSupportedFeatures(a diameter.AVP) (SupportedFeatures, error) {
 	return f, nil
 }
 
-func FeatureList(avps []diameter.AVP, vendorID, featureListID uint32) uint32 {
-	var list uint32
+type FeatureLists map[uint32]uint32
 
-	for _, f := range supportedFeatures(avps, vendorID) {
-		if f.FeatureListID == featureListID {
-			list |= f.FeatureList
+func ParseFeatureLists(avps []diameter.AVP) FeatureLists {
+	lists := FeatureLists{}
+
+	for _, f := range supportedFeatures(avps, VendorID) {
+		lists[f.FeatureListID] |= f.FeatureList
+	}
+
+	return lists
+}
+
+func (l FeatureLists) AVPs(mandatory bool) []diameter.AVP {
+	var avps []diameter.AVP
+
+	for _, id := range slices.Sorted(maps.Keys(l)) {
+		if list := l[id]; list != 0 {
+			avps = append(avps, SupportedFeatures{VendorID: VendorID, FeatureListID: id, FeatureList: list, Mandatory: mandatory}.AVP())
 		}
 	}
 
-	return list
+	return avps
+}
+
+func (l FeatureLists) Unsupported(avps []diameter.AVP) bool {
+	for _, a := range diameter.FindAll(avps, AVPSupportedFeatures, VendorID) {
+		f, err := ParseSupportedFeatures(a)
+		if err != nil {
+			if a.Flags&diameter.AVPFlagMandatory != 0 {
+				return true
+			}
+
+			continue
+		}
+
+		if !f.Mandatory {
+			continue
+		}
+
+		if f.VendorID != VendorID || f.FeatureList&^l[f.FeatureListID] != 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func FeaturesMandatory(avps []diameter.AVP, vendorID uint32) bool {
@@ -91,35 +128,4 @@ func supportedFeatures(avps []diameter.AVP, vendorID uint32) []SupportedFeatures
 	}
 
 	return out
-}
-
-func UnsupportedRequiredFeatures(avps []diameter.AVP, supported ...SupportedFeatures) bool {
-	for _, a := range diameter.FindAll(avps, AVPSupportedFeatures, VendorID) {
-		f, err := ParseSupportedFeatures(a)
-		if err != nil {
-			if a.Flags&diameter.AVPFlagMandatory != 0 {
-				return true
-			}
-
-			continue
-		}
-
-		if f.Mandatory && f.FeatureList&^supportedList(supported, f.VendorID, f.FeatureListID) != 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
-func supportedList(supported []SupportedFeatures, vendorID, featureListID uint32) uint32 {
-	var list uint32
-
-	for _, s := range supported {
-		if s.VendorID == vendorID && s.FeatureListID == featureListID {
-			list |= s.FeatureList
-		}
-	}
-
-	return list
 }

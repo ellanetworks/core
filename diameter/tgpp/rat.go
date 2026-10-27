@@ -59,6 +59,16 @@ var ratTypeNames = map[RATType]string{
 	RATNREnhancedRedCap: "NR-EREDCAP", RATCDMA20001X: "CDMA2000_1X", RATHRPD: "HRPD", RATUMB: "UMB", RATEHRPD: "EHRPD",
 }
 
+func (t RATType) Known() bool {
+	_, ok := ratTypeNames[t]
+
+	return ok
+}
+
+func (t RATType) ThreeGPP() bool {
+	return t >= RATUTRAN && t < RATCDMA20001X
+}
+
 func (t RATType) String() string {
 	if name, ok := ratTypeNames[t]; ok {
 		return name

@@ -24,7 +24,7 @@ const (
 	hssHost       = "hss.epc.mnc001.mcc001.3gppnetwork.org"
 	testIMEI      = "35846012345678"
 	testSoftware  = "07"
-	testResetID   = "\x01\x02"
+	testResetID   = ResetID("\x01\x02")
 	testMSISDN    = "15551230002"
 	testRAUTimer  = 54 * time.Minute
 	testUEAMBRUL  = 1_000_000_000
@@ -84,7 +84,7 @@ func roundTrip(t *testing.T, m *diameter.Message) *diameter.Message {
 	return out
 }
 
-func avpResult(t *testing.T, err error) uint32 {
+func avpError(t *testing.T, err error) *diameter.AVPError {
 	t.Helper()
 
 	var avpErr *diameter.AVPError
@@ -92,7 +92,13 @@ func avpResult(t *testing.T, err error) uint32 {
 		t.Fatalf("err = %v, want an AVP error", err)
 	}
 
-	return avpErr.ResultCode
+	return avpErr
+}
+
+func avpResult(t *testing.T, err error) uint32 {
+	t.Helper()
+
+	return avpError(t, err).ResultCode
 }
 
 func request(command uint32, env tgpp.Envelope, avps ...diameter.AVP) *diameter.Message {
@@ -102,6 +108,13 @@ func request(command uint32, env tgpp.Envelope, avps ...diameter.AVP) *diameter.
 		ApplicationID: ApplicationID,
 		AVPs:          append(env.AVPs(), avps...),
 	}
+}
+
+func success(req *diameter.Message, avps ...diameter.AVP) *diameter.Message {
+	ans := NewAnswer(req, hssIdentity, tgpp.Result{Code: diameter.ResultSuccess}, Features{})
+	ans.AVPs = append(ans.AVPs, avps...)
+
+	return ans
 }
 
 func without(m *diameter.Message, code, vendorID uint32) *diameter.Message {
@@ -140,6 +153,10 @@ func vendorGroup(code uint32, avps ...diameter.AVP) diameter.AVP {
 	return diameter.Grouped(code, diameter.AVPFlagMandatory, tgpp.VendorID, avps...)
 }
 
+func optionalU32(code, v uint32) diameter.AVP {
+	return diameter.Unsigned32(code, 0, tgpp.VendorID, v)
+}
+
 func encodeAVP(t *testing.T, a diameter.AVP) []byte {
 	t.Helper()
 
@@ -153,62 +170,91 @@ func encodeAVP(t *testing.T, a diameter.AVP) []byte {
 	return b[20:]
 }
 
-func testSubscription() SubscriptionData {
-	return SubscriptionData{
-		SubscriberStatus:          ptr(SubscriberStatusServiceGranted),
-		MSISDN:                    testMSISDN,
-		NetworkAccessMode:         ptr(NetworkAccessOnlyPacket),
-		OperatorDeterminedBarring: ptr(ODBRoamerAccessHPLMNAP),
-		AccessRestrictionData:     ptr(ARDUTRANNotAllowed | ARDGERANNotAllowed),
-		APNOIReplacement:          "mnc001.mcc001.gprs",
-		ChargingCharacteristics:   "0800",
-		AMBR:                      &AMBR{UplinkBPS: testUEAMBRUL, DownlinkBPS: testUEAMBRDL},
-		APNConfigurationProfile: &APNConfigurationProfile{
+func testAPNConfigurations() []APNConfiguration {
+	return []APNConfiguration{
+		{
 			ContextIdentifier: 1,
-			Included:          AllAPNConfigurationsIncluded,
-			Configurations: []APNConfiguration{
-				{
-					ContextIdentifier: 1,
-					PDNType:           PDNTypeIPv4,
-					ServiceSelection:  "internet",
-					QoS: &EPSSubscribedQoSProfile{
-						QCI: 9, ARP: AllocationRetentionPriority{PriorityLevel: 8, PreemptionVulnerability: true},
-					},
-					VPLMNDynamicAddressAllowed: true,
-					AMBR:                       &AMBR{UplinkBPS: testAPNAMBRUL, DownlinkBPS: testAPNAMBRDL},
-					Interworking5GSIndicator:   true,
-				},
-				{
-					ContextIdentifier:      2,
-					PDNType:                PDNTypeIPv4v6,
-					ServiceSelection:       "ims",
-					ServedPartyIPAddresses: []netip.Addr{netip.MustParseAddr("10.45.0.2"), netip.MustParseAddr("2001:db8::")},
-					QoS: &EPSSubscribedQoSProfile{
-						QCI: 5, ARP: AllocationRetentionPriority{PriorityLevel: 1, PreemptionCapability: true},
-					},
-					PDNGateway: &MIP6AgentInfo{
-						HomeAgentAddresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")},
-						HomeAgentHost:      "topon.s5.pgw.epc.mnc001.mcc001.3gppnetwork.org",
-						HomeAgentRealm:     homeRealm,
-					},
-					PDNGWAllocationType:      ptr(PDNGWAllocationStatic),
-					VisitedNetworkIdentifier: "mnc001.mcc001.3gppnetwork.org",
-					APNOIReplacement:         "ims.mnc001.mcc001.gprs",
-				},
-				{
-					ContextIdentifier: 3,
-					PDNType:           PDNTypeIPv4OrIPv6,
-					ServiceSelection:  WildcardAPN,
-					SpecificAPNInfo: []SpecificAPNInfo{{
-						ServiceSelection: "corp",
-						PDNGateway:       MIP6AgentInfo{HomeAgentAddresses: []netip.Addr{netip.MustParseAddr("2001:db8::1")}},
-					}},
+			PDNType:           PDNTypeIPv4,
+			ServiceSelection:  "internet",
+			QoS: &EPSSubscribedQoSProfile{
+				QCI: 9, ARP: tgpp.AllocationRetentionPriority{
+					PriorityLevel: 8, PreemptionCapability: tgpp.PreemptionCapabilityDisabled,
+					PreemptionVulnerability: tgpp.PreemptionVulnerabilityEnabled,
 				},
 			},
+			VPLMNDynamicAddressAllowed: true,
+			AMBR:                       &AMBR{UL: testAPNAMBRUL, DL: testAPNAMBRDL},
+			Interworking5GSIndicator:   true,
 		},
-		RATFrequencySelectionPriorityID: 12,
-		SubscribedPeriodicRAUTAUTimer:   testRAUTimer,
-		UEUsageType:                     ptr(uint32(0)),
+		{
+			ContextIdentifier:      2,
+			PDNType:                PDNTypeIPv4v6,
+			ServiceSelection:       "ims",
+			ServedPartyIPAddresses: []netip.Addr{netip.MustParseAddr("10.45.0.2"), netip.MustParseAddr("2001:db8::")},
+			QoS: &EPSSubscribedQoSProfile{
+				QCI: 5, ARP: tgpp.AllocationRetentionPriority{
+					PriorityLevel: 1, PreemptionCapability: tgpp.PreemptionCapabilityEnabled,
+					PreemptionVulnerability: tgpp.PreemptionVulnerabilityDisabled,
+				},
+			},
+			PDNGateway: &MIP6AgentInfo{
+				HomeAgentAddresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")},
+				HomeAgentHost:      "topon.s5.pgw.epc.mnc001.mcc001.3gppnetwork.org",
+				HomeAgentRealm:     homeRealm,
+			},
+			PDNGWAllocationType:      ptr(PDNGWAllocationStatic),
+			VisitedNetworkIdentifier: "mnc001.mcc001.3gppnetwork.org",
+			AMBR:                     &AMBR{UL: 1000, DL: 2000},
+			APNOIReplacement:         "ims.mnc001.mcc001.gprs",
+		},
+		{
+			ContextIdentifier: 3,
+			PDNType:           PDNTypeIPv4OrIPv6,
+			ServiceSelection:  WildcardAPN,
+			QoS:               &EPSSubscribedQoSProfile{QCI: 8, ARP: tgpp.DefaultAllocationRetentionPriority(15)},
+			AMBR:              &AMBR{UL: 1, DL: 1},
+			SpecificAPNInfo: []SpecificAPNInfo{{
+				ServiceSelection: "corp",
+				PDNGateway:       MIP6AgentInfo{HomeAgentAddresses: []netip.Addr{netip.MustParseAddr("2001:db8::1")}},
+			}},
+		},
+		{
+			ContextIdentifier:          4,
+			PDNType:                    PDNTypeIPv4,
+			ServiceSelection:           "sensors",
+			QoS:                        &EPSSubscribedQoSProfile{QCI: 128, ARP: tgpp.DefaultAllocationRetentionPriority(9)},
+			AMBR:                       &AMBR{UL: 64000, DL: 64000},
+			NonIPPDNType:               true,
+			NonIPDataDeliveryMechanism: ptr(NonIPDataDeliverySGi),
+		},
+	}
+}
+
+func testSubscription() SubscriptionData {
+	return SubscriptionData{
+		SubscriberStatus:              ptr(SubscriberStatusServiceGranted),
+		MSISDN:                        testMSISDN,
+		AMSISDN:                       "15551230003",
+		STNSR:                         "15550000999",
+		NetworkAccessMode:             ptr(NetworkAccessOnlyPacket),
+		OperatorDeterminedBarring:     ptr(ODBRoamerAccessHPLMNAP),
+		HPLMNODB:                      ptr(HPLMNODBType2),
+		AccessRestrictionData:         ptr(ARDUTRANNotAllowed | ARDGERANNotAllowed),
+		RegionalSubscriptionZoneCodes: [][]byte{{0x01, 0x02}},
+		APNOIReplacement:              "mnc001.mcc001.gprs",
+		ChargingCharacteristics:       "0800",
+		AMBR:                          &AMBR{UL: testUEAMBRUL, DL: testUEAMBRDL},
+		APNConfigurationProfile: &APNConfigurationProfile{
+			ContextIdentifier:           1,
+			AdditionalContextIdentifier: 4,
+			Included:                    AllAPNConfigurationsIncluded,
+			Configurations:              testAPNConfigurations(),
+		},
+		RATFrequencySelectionPriorityID:          12,
+		RoamingRestrictedDueToUnsupportedFeature: true,
+		SubscribedPeriodicRAUTAUTimer:            testRAUTimer,
+		UEUsageType:                              ptr(UEUsageType(0)),
+		SubscribedVSRVCC:                         true,
 	}
 }
 
@@ -229,6 +275,46 @@ func requireNoVendorSpecificApplicationID(t *testing.T, m *diameter.Message) {
 	}
 }
 
+func requireFlagRules(t *testing.T, avps []diameter.AVP) {
+	t.Helper()
+
+	for _, a := range avps {
+		if a.VendorID == tgpp.VendorID {
+			if a.Code == tgpp.AVPSupportedFeatures || a.Code == tgpp.AVPPriorityLevel ||
+				a.Code == tgpp.AVPPreemptionCapability || a.Code == tgpp.AVPPreemptionVulnerability {
+				continue
+			}
+
+			want, ok := mandatoryBit[a.Code]
+			if !ok {
+				t.Errorf("AVP %d has no flag rule", a.Code)
+			}
+
+			if got := a.Flags&diameter.AVPFlagMandatory != 0; got != want {
+				t.Errorf("AVP %d: M = %v, want %v", a.Code, got, want)
+			}
+		}
+
+		if inner, err := a.Grouped(); err == nil && len(a.Data) > 0 && isGrouped(a) {
+			requireFlagRules(t, inner)
+		}
+	}
+}
+
+func isGrouped(a diameter.AVP) bool {
+	switch a.Code {
+	case AVPSubscriptionData, AVPAPNConfigurationProfile, AVPAPNConfiguration, AVPEPSSubscribedQoSProfile, AVPAMBR,
+		AVPSpecificAPNInfo, AVPTerminalInformation, AVPRequestedEUTRANAuthenticationInfo,
+		AVPRequestedUTRANGERANAuthenticationInfo, AVPAuthenticationInfo, AVPEUTRANVector, AVPUTRANVector, AVPGERANVector,
+		AVPEquivalentPLMNList, AVPLocalTimeZone, AVPSubscriptionDataDeletion, tgpp.AVPAllocationRetentionPriority:
+		return a.VendorID == tgpp.VendorID
+	case diameter.AVPMIP6AgentInfo, diameter.AVPMIPHomeAgentHost:
+		return a.VendorID == 0
+	}
+
+	return false
+}
+
 func TestVisitedPLMNIDEncoding(t *testing.T) {
 	for _, tt := range []struct {
 		plmn tgpp.PLMN
@@ -244,51 +330,6 @@ func TestVisitedPLMNIDEncoding(t *testing.T) {
 	}
 }
 
-func TestULRFlagsEncoding(t *testing.T) {
-	r := UpdateLocationRequest{
-		IMSI: testIMSI, RATType: tgpp.RATEUTRAN, VisitedPLMN: visitedPLMN,
-		Flags: ULRFlagS6aS6dIndicator | ULRFlagInitialAttachIndicator,
-	}
-
-	req := must[*diameter.Message](t)(NewUpdateLocationRequest(mmeEnvelope, r))
-
-	flags, _ := req.Find(AVPULRFlags, tgpp.VendorID)
-	if got := encodeAVP(t, flags); !bytes.Equal(got, mustHex(t, "0000057dc0000010000028af00000022")) {
-		t.Fatalf("ULR-Flags = %x", got)
-	}
-
-	if s := r.Flags.String(); s != "S6A_S6D_INDICATOR|INITIAL_ATTACH_INDICATOR" {
-		t.Fatalf("String = %q", s)
-	}
-}
-
-func TestEUTRANVectorEncoding(t *testing.T) {
-	v := EUTRANVector{
-		ItemNumber: 1,
-		RAND:       bytes.Repeat([]byte{0x11}, 16),
-		XRES:       bytes.Repeat([]byte{0x22}, 8),
-		AUTN:       bytes.Repeat([]byte{0x33}, 16),
-		KASME:      bytes.Repeat([]byte{0x44}, 32),
-	}
-
-	want := "00000586c0000094000028af" +
-		"0000058bc0000010000028af00000001" +
-		"000005a7c000001c000028af" + "11111111111111111111111111111111" +
-		"000005a8c0000014000028af" + "2222222222222222" +
-		"000005a9c000001c000028af" + "33333333333333333333333333333333" +
-		"000005aac000002c000028af" + "4444444444444444444444444444444444444444444444444444444444444444"
-
-	a := must[diameter.AVP](t)(v.avp())
-	if got := encodeAVP(t, a); !bytes.Equal(got, mustHex(t, want)) {
-		t.Fatalf("E-UTRAN-Vector =\n%x\nwant\n%s", got, want)
-	}
-
-	back, err := parseEUTRANVector(a)
-	if err != nil || !reflect.DeepEqual(back, v) {
-		t.Fatalf("parse = %+v, %v", back, err)
-	}
-}
-
 func TestAVPFlagRules(t *testing.T) {
 	for _, tt := range []struct {
 		code      uint32
@@ -297,6 +338,7 @@ func TestAVPFlagRules(t *testing.T) {
 		{AVPSubscriptionData, true},
 		{AVPULRFlags, true},
 		{AVPIDRFlags, true},
+		{tgpp.AVPSGSNNumber, true},
 		{AVPUserID, false},
 		{AVPHomogeneousSupportOfIMSVoiceOverPSSession, false},
 		{AVPErrorDiagnostic, false},
@@ -304,13 +346,19 @@ func TestAVPFlagRules(t *testing.T) {
 		{AVPPURFlags, false},
 		{AVPSubscribedPeriodicRAUTAUTimer, false},
 		{AVPResetID, false},
+		{AVPUEUsageType, false},
+		{AVPNonIPPDNTypeIndicator, false},
+		{AVPSubscriptionDataDeletion, false},
 		{tgpp.AVPMSISDN, true},
 		{tgpp.AVPQoSClassIdentifier, true},
 		{tgpp.AVPAllocationRetentionPriority, false},
-		{tgpp.AVPPriorityLevel, false},
 		{tgpp.AVPMaxRequestedBandwidthUL, true},
 		{tgpp.AVPExtendedMaxRequestedBWUL, false},
 		{AVPServedPartyIPAddress, true},
+		{tgpp.AVPRATType, true},
+		{tgpp.AVPVisitedNetworkIdentifier, false},
+		{tgpp.AVP3GPPChargingCharacteristics, false},
+		{AVPSCEFID, false},
 	} {
 		if got := avpFlags(tt.code)&diameter.AVPFlagMandatory != 0; got != tt.mandatory {
 			t.Errorf("AVP %d: M = %v, want %v", tt.code, got, tt.mandatory)
@@ -318,79 +366,95 @@ func TestAVPFlagRules(t *testing.T) {
 	}
 }
 
-func TestAMBREncoding(t *testing.T) {
-	for _, tt := range []struct {
-		bps, decoded uint64
-		extended     bool
-	}{
-		{0, 0, false},
-		{1<<32 - 1, 1<<32 - 1, false},
-		{1 << 32, 4294968000, true},
-		{6_000_000_000, 6_000_000_000, true},
-		{6_000_000_999, 6_000_000_000, true},
+func TestEmittedAVPsFollowFlagTable(t *testing.T) {
+	sub := testSubscription()
+	ulr := must[*diameter.Message](t)(NewUpdateLocationRequest(mmeEnvelope, testULR()))
+
+	for name, m := range map[string]*diameter.Message{
+		"ULR": ulr,
+		"ULA": must[*diameter.Message](t)(NewUpdateLocationAnswer(ulr, hssIdentity, UpdateLocation{
+			Flags: ULAFlagSeparationIndication, Subscription: &sub, ResetIDs: []ResetID{testResetID},
+		})),
+		"AIR": must[*diameter.Message](t)(NewAuthenticationInformationRequest(mmeEnvelope, testAIR())),
+		"AIA": must[*diameter.Message](t)(NewAuthenticationInformationAnswer(ulr, hssIdentity, testAIA())),
+		"IDR": must[*diameter.Message](t)(NewInsertSubscriberDataRequest(hssEnvelope, InsertSubscriberDataRequest{
+			IMSI: testIMSI, Subscription: sub, Flags: IDRFlagRATTypeRequested,
+		})),
+		"IDA": must[*diameter.Message](t)(NewInsertSubscriberDataAnswer(ulr, mmeIdentity, testIDA())),
+		"DSR": must[*diameter.Message](t)(NewDeleteSubscriberDataRequest(hssEnvelope, testDSR())),
+		"NOR": must[*diameter.Message](t)(NewNotifyRequest(mmeEnvelope, testNOR())),
+		"RSR": must[*diameter.Message](t)(NewResetRequest(hssEnvelope, ResetRequest{
+			UserIDs: []string{"00101"}, ResetIDs: []ResetID{testResetID}, Deletion: ptr(testDSR().SubscriptionDataDeletion),
+		})),
+		"CLR": must[*diameter.Message](t)(NewCancelLocationRequest(hssEnvelope, CancelLocationRequest{IMSI: testIMSI, Flags: CLRFlagReattachRequired})),
+		"PUR": must[*diameter.Message](t)(NewPurgeUERequest(mmeEnvelope, PurgeUERequest{IMSI: testIMSI, Flags: PURFlagUEPurgedInMME})),
+		"error": NewErrorAnswer(ulr, hssIdentity, &ResultError{
+			Result: tgpp.Experimental(tgpp.ResultErrorUnknownEPSSubscription), ErrorDiagnostic: ptr(ErrorDiagnosticGPRSDataSubscribed),
+		}, Features{}),
 	} {
-		a := must[diameter.AVP](t)(AMBR{UplinkBPS: tt.bps, DownlinkBPS: 1}.avp())
-
-		inner := must[[]diameter.AVP](t)(a.Grouped())
-		if _, ok := diameter.Find(inner, tgpp.AVPExtendedMaxRequestedBWUL, tgpp.VendorID); ok != tt.extended {
-			t.Errorf("%d: extended = %v", tt.bps, ok)
-		}
-
-		back := must[*AMBR](t)(parseAMBR(a))
-		if back.UplinkBPS != tt.decoded || back.DownlinkBPS != 1 {
-			t.Errorf("%d decodes to %+v", tt.bps, back)
-		}
-	}
-
-	if _, err := (AMBR{UplinkBPS: 1 << 63}).avp(); !errors.Is(err, ErrInvalidMessage) {
-		t.Fatalf("huge AMBR err = %v", err)
+		t.Run(name, func(t *testing.T) { requireFlagRules(t, m.AVPs) })
 	}
 }
 
 func TestErrorAnswerDiagnostic(t *testing.T) {
-	ulr := must[*diameter.Message](t)(NewUpdateLocationRequest(mmeEnvelope, UpdateLocationRequest{
-		IMSI: testIMSI, RATType: tgpp.RATEUTRAN, VisitedPLMN: visitedPLMN, Flags: ULRFlagS6aS6dIndicator,
-	}))
+	ulr := must[*diameter.Message](t)(NewUpdateLocationRequest(mmeEnvelope, testULR()))
+	air := must[*diameter.Message](t)(NewAuthenticationInformationRequest(mmeEnvelope, testAIR()))
 
 	for _, tt := range []struct {
-		name string
-		err  *ResultError
+		name     string
+		req      *diameter.Message
+		err      *ResultError
+		withDiag bool
 	}{
-		{"unknown EPS subscription", &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUnknownEPSSubscription), ErrorDiagnostic: ptr(ErrorDiagnosticNoGPRSDataSubscribed)}},
-		{"roaming not allowed", &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorRoamingNotAllowed), ErrorDiagnostic: ptr(ErrorDiagnosticODBAllAPN)}},
-		{"user unknown", &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUserUnknown)}},
-		{"RAT not allowed", &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorRATNotAllowed)}},
-		{"unable to comply", &ResultError{Result: tgpp.Result{Code: diameter.ResultUnableToComply}}},
+		{"ULA unknown EPS subscription", ulr, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUnknownEPSSubscription), ErrorDiagnostic: ptr(ErrorDiagnosticNoGPRSDataSubscribed)}, true},
+		{"AIA unknown EPS subscription", air, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUnknownEPSSubscription), ErrorDiagnostic: ptr(ErrorDiagnosticGPRSDataSubscribed)}, true},
+		{"ULA roaming not allowed", ulr, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorRoamingNotAllowed), ErrorDiagnostic: ptr(ErrorDiagnosticODBAllAPN)}, true},
+		{"AIA roaming not allowed", air, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorRoamingNotAllowed), ErrorDiagnostic: ptr(ErrorDiagnosticODBAllAPN)}, false},
+		{"ODB diagnostic on 5420", ulr, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUnknownEPSSubscription), ErrorDiagnostic: ptr(ErrorDiagnosticODBVPLMNAPN)}, false},
+		{"GPRS diagnostic on 5004", ulr, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorRoamingNotAllowed), ErrorDiagnostic: ptr(ErrorDiagnosticGPRSDataSubscribed)}, false},
+		{"user unknown", ulr, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUserUnknown), ErrorDiagnostic: ptr(ErrorDiagnosticODBAllAPN)}, false},
+		{"base 5004", ulr, &ResultError{Result: tgpp.Result{Code: diameter.ResultInvalidAVPValue}, ErrorDiagnostic: ptr(ErrorDiagnosticODBAllAPN)}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			ans := roundTrip(t, NewErrorAnswer(ulr, hssIdentity, tt.err))
+			ans := roundTrip(t, NewErrorAnswer(tt.req, hssIdentity, tt.err, Features{List2: FeatureResetIDs}))
 			requireNoVendorSpecificApplicationID(t, ans)
+
+			if _, ok := ans.Find(AVPErrorDiagnostic, tgpp.VendorID); ok != tt.withDiag {
+				t.Fatalf("Error-Diagnostic present = %v", ok)
+			}
 
 			_, err := ParseUpdateLocationAnswer(ans)
 
 			var re *ResultError
-			if !errors.As(err, &re) || re.Result != tt.err.Result || !reflect.DeepEqual(re.ErrorDiagnostic, tt.err.ErrorDiagnostic) {
+			if !errors.As(err, &re) || re.Result != tt.err.Result || re.Features.List2 != FeatureResetIDs {
 				t.Fatalf("err = %v", err)
+			}
+
+			if tt.withDiag && !reflect.DeepEqual(re.ErrorDiagnostic, tt.err.ErrorDiagnostic) {
+				t.Fatalf("diagnostic = %v", re.ErrorDiagnostic)
 			}
 		})
 	}
+}
 
+func TestErrorAnswerFromAVPError(t *testing.T) {
 	clr := must[*diameter.Message](t)(NewCancelLocationRequest(hssEnvelope, CancelLocationRequest{IMSI: testIMSI}))
+	features := Features{List1: FeatureODBAllAPN}
 
-	ans := NewErrorAnswer(clr, mmeIdentity, &ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUserUnknown), ErrorDiagnostic: ptr(ErrorDiagnosticODBAllAPN)})
-	if _, ok := ans.Find(AVPErrorDiagnostic, tgpp.VendorID); ok {
-		t.Fatal("CLA carries Error-Diagnostic")
-	}
-
-	ans = NewErrorAnswer(clr, mmeIdentity, tgpp.MissingAVP(AVPCancellationType, tgpp.VendorID, 4))
+	ans := NewErrorAnswer(clr, mmeIdentity, tgpp.MissingAVP(AVPCancellationType, tgpp.VendorID, 4), features)
 
 	var re *ResultError
-	if _, err := ParseCancelLocationAnswer(ans); !errors.As(err, &re) || re.Code != diameter.ResultMissingAVP {
+	if _, err := ParseCancelLocationAnswer(ans); !errors.As(err, &re) || re.Code != diameter.ResultMissingAVP || re.Features != features {
 		t.Fatalf("err = %v", err)
 	}
 
 	if _, ok := ans.Find(diameter.AVPFailedAVP, 0); !ok {
 		t.Fatal("AVP error answer without Failed-AVP")
+	}
+
+	ans = NewErrorAnswer(clr, mmeIdentity, errors.New("boom"), features)
+	if _, err := ParseCancelLocationAnswer(ans); !errors.As(err, &re) || re.Code != diameter.ResultUnableToComply || re.Features != features {
+		t.Fatalf("plain error: err = %v", err)
 	}
 }
 
@@ -413,11 +477,10 @@ func TestMalformedAnswers(t *testing.T) {
 	}
 
 	req := request(CommandUpdateLocation, mmeEnvelope)
-	ans := NewAnswer(req, hssIdentity, tgpp.Result{Code: diameter.ResultSuccess}, Features{})
-	ans.AVPs = append(ans.AVPs, vendorGroup(AVPSubscriptionData, vendorU32(AVPSubscriberStatus, 7)))
+	ans := with(NewAnswer(req, hssIdentity, tgpp.Result{Code: 1001}, Features{}))
 
 	if _, err := ParseUpdateLocationAnswer(ans); !errors.Is(err, ErrMalformedAnswer) {
-		t.Fatalf("bad Subscriber-Status: err = %v", err)
+		t.Fatalf("informational result: err = %v", err)
 	}
 }
 
@@ -444,6 +507,10 @@ func TestFeatures(t *testing.T) {
 	if s := f.List1.String(); s != "ODB-all-APN|ODB-HPLMN-APN|ODB-VPLMN-APN" {
 		t.Fatalf("String = %q", s)
 	}
+
+	if s := FeatureEthernetPDNTypeAPNs.String(); s != "Ethernet PDN Type APNs" {
+		t.Fatalf("String = %q", s)
+	}
 }
 
 func TestEnumStrings(t *testing.T) {
@@ -454,10 +521,31 @@ func TestEnumStrings(t *testing.T) {
 		{CancellationType(9).String(), "CancellationType(9)"},
 		{NetworkAccessMode(1).String(), "NetworkAccessMode(1)"},
 		{PDNTypeIPv4v6.String(), "IPv4v6"},
+		{PDNGWAllocationDynamic.String(), "DYNAMIC"},
+		{ModifiedAddedAPNConfigurationsIncluded.String(), "MODIFIED_ADDED_APN_CONFIGURATIONS_INCLUDED"},
+		{SubscriberStatusOperatorDeterminedBarring.String(), "OPERATOR_DETERMINED_BARRING"},
 		{ErrorDiagnosticODBVPLMNAPN.String(), "ODB_VPLMN_APN"},
+		{IMSVoiceOverPSSupported.String(), "SUPPORTED"},
+		{UESRVCCSupported.String(), "UE-SRVCC-SUPPORTED"},
+		{AlertReasonUEMemoryAvailable.String(), "UE_MEMORY_AVAILABLE"},
+		{SMSRegistrationNoPreference.String(), "NO_PREFERENCE"},
+		{DaylightSavingPlusTwoHours.String(), "PLUS_TWO_HOURS_ADJUSTMENT"},
+		{NonIPDataDeliverySCEF.String(), "SCEF-BASED-DATA-DELIVERY"},
+		{NonIPDataDeliveryMechanism(7).String(), "NonIPDataDeliveryMechanism(7)"},
 		{(ARDWBEUTRANNotAllowed | 1<<31).String(), "WB_E_UTRAN_NOT_ALLOWED|0x80000000"},
 		{NORFlags(1 << 4).String(), "RESERVED"},
 		{DSRFlagServiceGapTimeWithdrawal.String(), "SERVICE_GAP_TIME_WITHDRAWAL"},
+		{(HPLMNODBType1 | HPLMNODBType4).String(), "HPLMN_SPECIFIC_BARRING_TYPE_1|HPLMN_SPECIFIC_BARRING_TYPE_4"},
+		{ODBAllPacketOrientedServices.String(), "ALL_PACKET_ORIENTED_SERVICES_BARRED"},
+		{(ULAFlagSeparationIndication | ULAFlagMMERegisteredForSMS).String(), "SEPARATION_INDICATION|MME_REGISTERED_FOR_SMS"},
+		{AIRFlagSendUEUsageType.String(), "SEND_UE_USAGE_TYPE"},
+		{CLRFlagReattachRequired.String(), "REATTACH_REQUIRED"},
+		{IDRFlagPCSCFRestorationRequest.String(), "P_CSCF_RESTORATION_REQUEST"},
+		{IDAFlagNetworkNodeAreaRestricted.String(), "NETWORK_NODE_AREA_RESTRICTED"},
+		{DSAFlagNetworkNodeAreaRestricted.String(), "NETWORK_NODE_AREA_RESTRICTED"},
+		{PURFlagUEPurgedInSGSN.String(), "UE_PURGED_IN_SGSN"},
+		{PUAFlagFreezePTMSI.String(), "FREEZE_P_TMSI"},
+		{ULRFlags(0).String(), "0"},
 	} {
 		if tt.got != tt.want {
 			t.Errorf("got %q, want %q", tt.got, tt.want)
@@ -465,4 +553,39 @@ func TestEnumStrings(t *testing.T) {
 	}
 }
 
-func mustAddr(s string) netip.Addr { return netip.MustParseAddr(s) }
+func TestKnown(t *testing.T) {
+	for name, tt := range map[string]struct {
+		known, unknown interface{ Known() bool }
+	}{
+		"ULR-Flags":  {ULRFlagDisasterRoamingServiceIndication, ULRFlags(1 << 13)},
+		"ULA-Flags":  {ULAFlagMMERegisteredForSMS, ULAFlags(1 << 2)},
+		"AIR-Flags":  {AIRFlagSendUEUsageType, AIRFlags(1 << 2)},
+		"CLR-Flags":  {CLRFlagS6aS6dIndicator, CLRFlags(1 << 2)},
+		"IDR-Flags":  {IDRFlagPCSCFRestorationRequest, IDRFlags(1 << 9)},
+		"IDA-Flags":  {IDAFlagNetworkNodeAreaRestricted, IDAFlags(1 << 1)},
+		"DSA-Flags":  {DSAFlagNetworkNodeAreaRestricted, DSAFlags(1 << 1)},
+		"DSR-Flags":  {DSRFlagPDNSubscriptionContextsWithdrawal, DSRFlagPDNSubscriptionContextsWithdrawal | DSRFlagPDPContextsWithdrawal},
+		"PUR-Flags":  {PURFlagUEPurgedInMME, PURFlags(1 << 2)},
+		"PUA-Flags":  {PUAFlagFreezeMTMSI, PUAFlags(1 << 2)},
+		"NOR-Flags":  {NORFlagRemovalOfMMERegistrationForSMS, NORFlags(1 << 4)},
+		"ODB":        {ODBAllOutgoingInternationalExceptHPLMNAndInterzonal, OperatorDeterminedBarring(1 << 9)},
+		"HPLMN-ODB":  {HPLMNODBType4, HPLMNODB(1 << 4)},
+		"ARD":        {ARDNREnhancedRedCapNotAllowed, AccessRestrictionData(1 << 31)},
+		"PDN-Type":   {PDNTypeIPv4OrIPv6, PDNType(4)},
+		"NAM":        {NetworkAccessPacketAndCircuit, NetworkAccessMode(1)},
+		"Diagnostic": {ErrorDiagnosticODBHPLMNAPN, ErrorDiagnostic(5)},
+		"Non-IP":     {NonIPDataDeliverySCEF, NonIPDataDeliveryMechanism(2)},
+		"QoS":        {EPSSubscribedQoSProfile{QCI: 9, ARP: tgpp.DefaultAllocationRetentionPriority(1)}, EPSSubscribedQoSProfile{QCI: 1, ARP: tgpp.DefaultAllocationRetentionPriority(1)}},
+		"QoS ARP":    {EPSSubscribedQoSProfile{QCI: 254, ARP: tgpp.DefaultAllocationRetentionPriority(15)}, EPSSubscribedQoSProfile{QCI: 9, ARP: tgpp.DefaultAllocationRetentionPriority(16)}},
+		"AMBR":       {AMBR{UL: 1, DL: 4294968000}, AMBR{UL: 0, DL: 1}},
+		"AMBR gap":   {AMBR{UL: 1<<32 - 1, DL: 1}, AMBR{UL: 1 << 32, DL: 1}},
+	} {
+		if !tt.known.Known() || tt.unknown.Known() {
+			t.Errorf("%s: Known = %v, %v", name, tt.known.Known(), tt.unknown.Known())
+		}
+	}
+
+	if !UEUsageType(128).OperatorSpecific() || UEUsageType(127).OperatorSpecific() {
+		t.Fatal("UE-Usage-Type operator range")
+	}
+}

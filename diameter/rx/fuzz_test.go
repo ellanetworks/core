@@ -69,7 +69,7 @@ func FuzzParseRequests(f *testing.F) {
 		must(NewAARequest(afEnvelope, AARequest{
 			MediaComponents: []MediaComponent{signallingComponent(), {
 				Number: 2, Type: ptr(MediaVideo), FlowStatus: ptr(FlowStatusDisabled),
-				MinRequestedBandwidthUL: ptr(Bandwidth(1)), MinRequestedBandwidthDL: ptr(Bandwidth(2)),
+				MinRequestedBandwidthUL: ptr(tgpp.Bandwidth(1)), MinRequestedBandwidthDL: ptr(tgpp.Bandwidth(2)),
 				SubComponents: []MediaSubComponent{{FlowNumber: 1, FlowUsage: ptr(FlowUsageRTCP), FlowStatus: ptr(FlowStatusRemoved)}},
 				CodecData:     []CodecData{{Direction: CodecDownlink, Kind: CodecOffer, SDP: "m=video 0 RTP/AVP 96"}, {Kind: CodecAnswer}},
 			}},
@@ -91,7 +91,7 @@ func FuzzParseRequests(f *testing.F) {
 		must(NewReAuthRequest(pcrfEnvelope, ReAuthRequest{
 			SpecificActions:         []SpecificAction{ActionIPCANChange, ActionPLMNChange, ActionCNHealthMonitor},
 			AccessNetwork:           fullAccessNetwork(),
-			ServingNetwork:          ServingNetwork{PLMN: "00101", NID: []byte{1}},
+			ServingNetwork:          ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "01"}, NID: []byte{1}},
 			Location:                fullUserLocation(),
 			NetLocAccessSupport:     ptr(NetLocAccessNotSupported),
 			PCSessionRecoveryStatus: ptr(SessionNotFound),
@@ -145,18 +145,18 @@ func FuzzParseAnswers(f *testing.F) {
 		must(NewAAErrorAnswer(aar, pcrfIdentity, AAError{
 			ResultError: ResultError{Result: tgpp.Experimental(tgpp.ResultRequestedServiceTemporarilyNotAuthorized)},
 			AcceptableServiceInfo: &AcceptableServiceInfo{
-				MediaComponents:         []MediaBandwidth{{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(Bandwidth(1))}},
-				MaxRequestedBandwidthDL: ptr(Bandwidth(2)),
+				MediaComponents:         []MediaBandwidth{{MediaComponentNumber: 1, MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(1))}},
+				MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(2)),
 			},
 			RetryInterval: time.Minute,
 			Features:      FeatureRel8,
 		})),
 		NewAnswer(request(CommandReAuth, pcrfEnvelope), afIdentity, tgpp.Result{Code: diameter.ResultUnknownSessionID}, 0),
 		must(NewSessionTerminationAnswer(request(CommandSessionTermination, afEnvelope), pcrfIdentity, SessionTerminationAnswer{
-			ServingNetwork: ServingNetwork{PLMN: "00101"}, Location: fullUserLocation(), NetLocAccessSupport: ptr(NetLocAccessNotSupported),
+			ServingNetwork: ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "01"}}, Location: fullUserLocation(), NetLocAccessSupport: ptr(NetLocAccessNotSupported),
 		})),
 		must(NewAAAnswer(aar, pcrfIdentity, AAAnswer{
-			AccessNetwork: fullAccessNetwork(), ServingNetwork: ServingNetwork{PLMN: "00101"},
+			AccessNetwork: fullAccessNetwork(), ServingNetwork: ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "01"}},
 			Flows: []Flows{{MediaComponentNumber: 1, MediaComponentStatus: ptr(MediaComponentActive)}},
 		})),
 		must(NewAbortSessionAnswer(request(CommandAbortSession, pcrfEnvelope), afIdentity, AbortSessionAnswer{})),

@@ -6,6 +6,7 @@ package rx
 import (
 	"bytes"
 	"errors"
+	"math"
 	"net/netip"
 	"reflect"
 	"testing"
@@ -19,7 +20,7 @@ func TestAAAnswerAccessNetworkRoundTrip(t *testing.T) {
 	a := AAAnswer{
 		Result:              tgpp.Result{Code: diameter.ResultSuccess},
 		AccessNetwork:       AccessNetwork{IPCANType: ptr(IPCAN3GPPEPS), RATType: ptr(tgpp.RATType(9999))},
-		ServingNetwork:      ServingNetwork{PLMN: "00101"},
+		ServingNetwork:      ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "01"}},
 		NetLocAccessSupport: ptr(NetLocAccessNotSupported),
 		Flows:               []Flows{{MediaComponentNumber: 1, FlowNumbers: []uint32{1}}},
 	}
@@ -49,7 +50,7 @@ func TestSessionTerminationAccessInfoRoundTrip(t *testing.T) {
 
 	a := SessionTerminationAnswer{
 		Result:              tgpp.Result{Code: diameter.ResultSuccess},
-		ServingNetwork:      ServingNetwork{PLMN: "001010", NID: []byte{0xab}},
+		ServingNetwork:      ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "010"}, NID: []byte{0xab}},
 		Location:            fullUserLocation(),
 		NetLocAccessSupport: ptr(NetLocAccessNotSupported),
 	}
@@ -81,8 +82,8 @@ func TestAccessInfoValidation(t *testing.T) {
 		"zoned AN-GW address": func(r *ReAuthRequest) {
 			r.AccessNetwork.ANGWAddresses = []netip.Addr{netip.MustParseAddr("fe80::1%eth0")}
 		},
-		"short PLMN":                  func(r *ReAuthRequest) { r.ServingNetwork.PLMN = "0010" },
-		"PLMN with letters":           func(r *ReAuthRequest) { r.ServingNetwork.PLMN = "0010a" },
+		"short PLMN":                  func(r *ReAuthRequest) { r.ServingNetwork.PLMN = &tgpp.PLMN{MCC: "001", MNC: "0"} },
+		"PLMN with letters":           func(r *ReAuthRequest) { r.ServingNetwork.PLMN = &tgpp.PLMN{MCC: "001", MNC: "0a"} },
 		"NetLoc-Access-Support":       func(r *ReAuthRequest) { r.NetLocAccessSupport = ptr(NetLocAccessSupport(1)) },
 		"PC-Session-Recovery-Status":  func(r *ReAuthRequest) { r.PCSessionRecoveryStatus = ptr(PCSessionRecoveryStatus(4)) },
 		"MS-TimeZone":                 func(r *ReAuthRequest) { r.Location.MSTimeZone = []byte{1} },
@@ -107,7 +108,7 @@ func TestAccessInfoValidation(t *testing.T) {
 	for name, a := range map[string]SessionTerminationAnswer{
 		"NetLoc-Access-Support": {NetLocAccessSupport: ptr(NetLocAccessSupport(1))},
 		"MS-TimeZone":           {Location: UserLocation{MSTimeZone: []byte{1, 2, 3}}},
-		"PLMN":                  {ServingNetwork: ServingNetwork{PLMN: "1"}},
+		"PLMN":                  {ServingNetwork: ServingNetwork{PLMN: &tgpp.PLMN{MCC: "1"}}},
 		"result":                {Result: tgpp.Result{Code: diameter.ResultUnableToComply}},
 	} {
 		t.Run("STA "+name, func(t *testing.T) {
@@ -120,7 +121,7 @@ func TestAccessInfoValidation(t *testing.T) {
 	for name, a := range map[string]AAAnswer{
 		"NetLoc-Access-Support": {NetLocAccessSupport: ptr(NetLocAccessSupport(1))},
 		"IP-CAN-Type":           {AccessNetwork: AccessNetwork{IPCANType: ptr(IPCANType(10))}},
-		"PLMN":                  {ServingNetwork: ServingNetwork{PLMN: "1"}},
+		"PLMN":                  {ServingNetwork: ServingNetwork{PLMN: &tgpp.PLMN{MCC: "1"}}},
 		"Flows":                 {Flows: []Flows{{FinalUnitAction: ptr(FinalUnitAction(3))}}},
 	} {
 		t.Run("AAA "+name, func(t *testing.T) {
@@ -242,13 +243,13 @@ func TestParseAccessInfoAnswersMalformed(t *testing.T) {
 
 func TestBandwidthEncoding(t *testing.T) {
 	for name, tc := range map[string]struct {
-		value     Bandwidth
+		value     tgpp.Bandwidth
 		bps, kbps *uint32
 	}{
 		"bps":          {64000, ptr(uint32(64000)), nil},
-		"largest bps":  {maxBandwidthBPS, ptr(uint32(maxBandwidthBPS)), nil},
-		"extended":     {5_000_000_000, ptr(uint32(maxBandwidthBPS)), ptr(uint32(5_000_000))},
-		"largest kbps": {Bandwidth(maxBandwidthBPS) * bitsPerKilobit, ptr(uint32(maxBandwidthBPS)), ptr(uint32(maxBandwidthBPS))},
+		"largest bps":  {math.MaxUint32, ptr(uint32(math.MaxUint32)), nil},
+		"extended":     {5_000_000_000, ptr(uint32(math.MaxUint32)), ptr(uint32(5_000_000))},
+		"largest kbps": {tgpp.Bandwidth(math.MaxUint32) * 1000, ptr(uint32(math.MaxUint32)), ptr(uint32(math.MaxUint32))},
 	} {
 		t.Run(name, func(t *testing.T) {
 			avps, err := appendBandwidth(nil, maxRequestedUL, &tc.value)
@@ -270,9 +271,9 @@ func TestBandwidthEncoding(t *testing.T) {
 		})
 	}
 
-	for name, b := range map[string]Bandwidth{
-		"not whole kbps": maxBandwidthBPS + 1,
-		"too large":      (Bandwidth(maxBandwidthBPS) + 1) * bitsPerKilobit,
+	for name, b := range map[string]tgpp.Bandwidth{
+		"not whole kbps": math.MaxUint32 + 1,
+		"too large":      (tgpp.Bandwidth(math.MaxUint32) + 1) * 1000,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := appendBandwidth(nil, maxRequestedUL, &b); !errors.Is(err, ErrInvalidMessage) {
@@ -331,7 +332,7 @@ func TestFailedAVPKeepsGroupedContext(t *testing.T) {
 		t.Fatalf("non-grouped Failed-AVP contents = %+v", truncated)
 	}
 
-	if err := withinGrouped(component, errors.New("plain")); err == nil || err.Error() != "plain" {
+	if err := diameter.WithinGrouped(component, errors.New("plain")); err == nil || err.Error() != "plain" {
 		t.Fatalf("plain error = %v", err)
 	}
 }

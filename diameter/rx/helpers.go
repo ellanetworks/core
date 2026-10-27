@@ -6,8 +6,6 @@ package rx
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
-	"math"
 	"net/netip"
 	"time"
 
@@ -18,32 +16,22 @@ import (
 const (
 	addressFamilyIPv4 uint16 = 1
 	addressFamilyIPv6 uint16 = 2
-	maxBandwidthBPS          = math.MaxUint32
-	bitsPerKilobit           = 1000
-	ntpUnixOffset            = 2208988800
 )
 
 type enum interface {
 	~uint32
-	valid() bool
-}
-
-type Bandwidth uint64
-
-type bandwidthCodes struct {
-	bps, kbps uint32
-	bpsFlags  uint8
+	Known() bool
 }
 
 var (
-	maxRequestedUL = bandwidthCodes{tgpp.AVPMaxRequestedBandwidthUL, tgpp.AVPExtendedMaxRequestedBWUL, diameter.AVPFlagMandatory}
-	maxRequestedDL = bandwidthCodes{tgpp.AVPMaxRequestedBandwidthDL, tgpp.AVPExtendedMaxRequestedBWDL, diameter.AVPFlagMandatory}
-	minRequestedUL = bandwidthCodes{AVPMinRequestedBandwidthUL, AVPExtendedMinRequestedBWUL, 0}
-	minRequestedDL = bandwidthCodes{AVPMinRequestedBandwidthDL, AVPExtendedMinRequestedBWDL, 0}
-	maxSupportedUL = bandwidthCodes{AVPMaxSupportedBandwidthUL, AVPExtendedMaxSupportedBWUL, 0}
-	maxSupportedDL = bandwidthCodes{AVPMaxSupportedBandwidthDL, AVPExtendedMaxSupportedBWDL, 0}
-	minDesiredUL   = bandwidthCodes{AVPMinDesiredBandwidthUL, AVPExtendedMinDesiredBWUL, 0}
-	minDesiredDL   = bandwidthCodes{AVPMinDesiredBandwidthDL, AVPExtendedMinDesiredBWDL, 0}
+	maxRequestedUL = tgpp.MaxRequestedBandwidthUL
+	maxRequestedDL = tgpp.MaxRequestedBandwidthDL
+	minRequestedUL = tgpp.BandwidthAVPs{BPS: AVPMinRequestedBandwidthUL, KBPS: AVPExtendedMinRequestedBWUL}
+	minRequestedDL = tgpp.BandwidthAVPs{BPS: AVPMinRequestedBandwidthDL, KBPS: AVPExtendedMinRequestedBWDL}
+	maxSupportedUL = tgpp.BandwidthAVPs{BPS: AVPMaxSupportedBandwidthUL, KBPS: AVPExtendedMaxSupportedBWUL}
+	maxSupportedDL = tgpp.BandwidthAVPs{BPS: AVPMaxSupportedBandwidthDL, KBPS: AVPExtendedMaxSupportedBWDL}
+	minDesiredUL   = tgpp.BandwidthAVPs{BPS: AVPMinDesiredBandwidthUL, KBPS: AVPExtendedMinDesiredBWUL}
+	minDesiredDL   = tgpp.BandwidthAVPs{BPS: AVPMinDesiredBandwidthDL, KBPS: AVPExtendedMinDesiredBWDL}
 )
 
 func vendorKey(code uint32) diameter.AVPKey {
@@ -82,65 +70,21 @@ func appendOctets(avps []diameter.AVP, code uint32, v []byte) []diameter.AVP {
 	return avps
 }
 
-func appendBandwidth(avps []diameter.AVP, codes bandwidthCodes, b *Bandwidth) ([]diameter.AVP, error) {
-	switch {
-	case b == nil:
+func appendBandwidth(avps []diameter.AVP, codes tgpp.BandwidthAVPs, b *tgpp.Bandwidth) ([]diameter.AVP, error) {
+	if b == nil {
 		return avps, nil
-	case *b <= maxBandwidthBPS:
-		return append(avps, diameter.Unsigned32(codes.bps, codes.bpsFlags, tgpp.VendorID, uint32(*b))), nil
-	case *b%bitsPerKilobit != 0 || *b/bitsPerKilobit > math.MaxUint32:
-		return nil, invalidf("bandwidth of %d bit/s above 2^32-1 is not a whole number of kbit/s below 2^32", uint64(*b))
 	}
 
-	return append(avps,
-		diameter.Unsigned32(codes.bps, codes.bpsFlags, tgpp.VendorID, maxBandwidthBPS),
-		diameter.Unsigned32(codes.kbps, 0, tgpp.VendorID, uint32(*b/bitsPerKilobit)),
-	), nil
+	out, err := codes.Append(avps, *b)
+	if err != nil {
+		return nil, invalidf("%w", err)
+	}
+
+	return out, nil
 }
 
-func parseBandwidth(avps []diameter.AVP, codes bandwidthCodes) (*Bandwidth, error) {
-	bps, err := optionalUint32(avps, codes.bps, tgpp.VendorID)
-	if err != nil {
-		return nil, err
-	}
-
-	kbps, err := optionalUint32(avps, codes.kbps, tgpp.VendorID)
-	if err != nil {
-		return nil, err
-	}
-
-	switch {
-	case kbps != nil:
-		b := Bandwidth(*kbps) * bitsPerKilobit
-		return &b, nil
-	case bps != nil:
-		b := Bandwidth(*bps)
-		return &b, nil
-	}
-
-	return nil, nil
-}
-
-func checkGrouped(rules diameter.Rules, a diameter.AVP) ([]diameter.AVP, error) {
-	inner, err := a.Grouped()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := rules.Check(&diameter.Message{AVPs: inner}); err != nil {
-		return nil, err
-	}
-
-	return inner, nil
-}
-
-func withinGrouped(parent diameter.AVP, err error) error {
-	var avpErr *diameter.AVPError
-	if !errors.As(err, &avpErr) || avpErr.AVPs[0].Code == parent.Code && avpErr.AVPs[0].VendorID == parent.VendorID {
-		return err
-	}
-
-	return diameter.NewAVPError(avpErr.ResultCode, diameter.Grouped(parent.Code, parent.Flags, parent.VendorID, avpErr.AVPs...))
+func parseBandwidth(avps []diameter.AVP, codes tgpp.BandwidthAVPs) (*tgpp.Bandwidth, error) {
+	return codes.Parse(avps)
 }
 
 func requiredUint32(avps []diameter.AVP, code, vendorID uint32) (uint32, error) {
@@ -177,7 +121,7 @@ func enumValue[T enum](a diameter.AVP) (T, error) {
 		return 0, err
 	}
 
-	if !T(v).valid() {
+	if !T(v).Known() {
 		return 0, tgpp.InvalidAVP(a)
 	}
 
@@ -226,7 +170,7 @@ func enumListAVPs[T enum](code uint32, flags uint8, values []T) ([]diameter.AVP,
 	var avps []diameter.AVP
 
 	for _, v := range values {
-		if !v.valid() {
+		if !v.Known() {
 			return nil, invalidf("AVP %d value %d", code, uint32(v))
 		}
 
@@ -237,7 +181,7 @@ func enumListAVPs[T enum](code uint32, flags uint8, values []T) ([]diameter.AVP,
 }
 
 func validEnum[T enum](v *T) bool {
-	return v == nil || (*v).valid()
+	return v == nil || (*v).Known()
 }
 
 func optionalOctets(avps []diameter.AVP, code, vendorID uint32) ([]byte, error) {
@@ -256,12 +200,6 @@ func optionalOctets(avps []diameter.AVP, code, vendorID uint32) ([]byte, error) 
 func optionalString(avps []diameter.AVP, code, vendorID uint32) (string, error) {
 	v, err := optionalOctets(avps, code, vendorID)
 	return string(v), err
-}
-
-func validTime(t time.Time) bool {
-	ntp := t.Unix() + ntpUnixOffset
-
-	return t.Nanosecond() == 0 && ntp >= 1<<31 && ntp < 1<<31+1<<32
 }
 
 func optionalTime(avps []diameter.AVP, code uint32) (time.Time, error) {
@@ -340,7 +278,7 @@ func specificActions(avps []diameter.AVP, ignoreVoid bool) ([]SpecificAction, er
 		switch {
 		case ignoreVoid && action.void():
 			continue
-		case !action.valid():
+		case !action.Known():
 			return nil, tgpp.InvalidAVP(a)
 		}
 

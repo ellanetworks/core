@@ -21,18 +21,18 @@ type MediaComponent struct {
 	SubComponents           []MediaSubComponent
 	AFApplicationIdentifier string
 	Type                    *MediaType
-	MaxRequestedBandwidthUL *Bandwidth
-	MaxRequestedBandwidthDL *Bandwidth
-	MaxSupportedBandwidthUL *Bandwidth
-	MaxSupportedBandwidthDL *Bandwidth
-	MinDesiredBandwidthUL   *Bandwidth
-	MinDesiredBandwidthDL   *Bandwidth
-	MinRequestedBandwidthUL *Bandwidth
-	MinRequestedBandwidthDL *Bandwidth
+	MaxRequestedBandwidthUL *tgpp.Bandwidth
+	MaxRequestedBandwidthDL *tgpp.Bandwidth
+	MaxSupportedBandwidthUL *tgpp.Bandwidth
+	MaxSupportedBandwidthDL *tgpp.Bandwidth
+	MinDesiredBandwidthUL   *tgpp.Bandwidth
+	MinDesiredBandwidthDL   *tgpp.Bandwidth
+	MinRequestedBandwidthUL *tgpp.Bandwidth
+	MinRequestedBandwidthDL *tgpp.Bandwidth
 	FlowStatus              *FlowStatus
 	PrioritySharing         *PrioritySharingIndicator
-	PreemptionCapability    *PreemptionCapability
-	PreemptionVulnerability *PreemptionVulnerability
+	PreemptionCapability    *tgpp.PreemptionCapability
+	PreemptionVulnerability *tgpp.PreemptionVulnerability
 	ReservationPriority     *ReservationPriority
 	RSBandwidth             *uint32
 	RRBandwidth             *uint32
@@ -45,8 +45,8 @@ type MediaSubComponent struct {
 	FlowDescriptions        []string
 	FlowStatus              *FlowStatus
 	FlowUsage               *FlowUsage
-	MaxRequestedBandwidthUL *Bandwidth
-	MaxRequestedBandwidthDL *Bandwidth
+	MaxRequestedBandwidthUL *tgpp.Bandwidth
+	MaxRequestedBandwidthDL *tgpp.Bandwidth
 	SignallingProtocol      AFSignallingProtocol
 }
 
@@ -76,14 +76,14 @@ type SubscriptionID struct {
 
 type MediaBandwidth struct {
 	MediaComponentNumber    uint32
-	MaxRequestedBandwidthUL *Bandwidth
-	MaxRequestedBandwidthDL *Bandwidth
+	MaxRequestedBandwidthUL *tgpp.Bandwidth
+	MaxRequestedBandwidthDL *tgpp.Bandwidth
 }
 
 type AcceptableServiceInfo struct {
 	MediaComponents         []MediaBandwidth
-	MaxRequestedBandwidthUL *Bandwidth
-	MaxRequestedBandwidthDL *Bandwidth
+	MaxRequestedBandwidthUL *tgpp.Bandwidth
+	MaxRequestedBandwidthDL *tgpp.Bandwidth
 }
 
 var mediaComponentRules = diameter.Rules{
@@ -147,13 +147,13 @@ var flowsRules = diameter.Rules{
 }
 
 var chargingIdentifierRules = diameter.Rules{
-	vendorKey(AVPAccessNetworkChargingIdentifierValue): {Required: true},
+	vendorKey(AVPAccessNetworkChargingIdentifierValue): {Required: true, MinLength: 1},
 	vendorKey(AVPFlows): {Multiple: true},
 }
 
 var subscriptionIDRules = diameter.Rules{
 	{Code: diameter.AVPSubscriptionIDType}: {Required: true, MinLength: 4},
-	{Code: diameter.AVPSubscriptionIDData}: {Required: true},
+	{Code: diameter.AVPSubscriptionIDData}: {Required: true, MinLength: 1},
 }
 
 var acceptableServiceInfoRules = diameter.Rules{
@@ -202,8 +202,8 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 	var err error
 
 	for _, b := range []struct {
-		codes bandwidthCodes
-		value *Bandwidth
+		codes tgpp.BandwidthAVPs
+		value *tgpp.Bandwidth
 	}{
 		{maxRequestedUL, c.MaxRequestedBandwidthUL},
 		{maxRequestedDL, c.MaxRequestedBandwidthDL},
@@ -249,11 +249,11 @@ func mediaComponentAVP(c MediaComponent) (diameter.AVP, error) {
 
 func parseMediaComponent(a diameter.AVP) (MediaComponent, error) {
 	c, err := parseMediaComponentData(a)
-	return c, withinGrouped(a, err)
+	return c, diameter.WithinGrouped(a, err)
 }
 
 func parseMediaComponentData(a diameter.AVP) (MediaComponent, error) {
-	inner, err := checkGrouped(mediaComponentRules, a)
+	inner, err := mediaComponentRules.CheckGrouped(a)
 	if err != nil {
 		return MediaComponent{}, err
 	}
@@ -282,8 +282,8 @@ func parseMediaComponentData(a diameter.AVP) (MediaComponent, error) {
 	}
 
 	for _, b := range []struct {
-		codes bandwidthCodes
-		dst   **Bandwidth
+		codes tgpp.BandwidthAVPs
+		dst   **tgpp.Bandwidth
 	}{
 		{maxRequestedUL, &c.MaxRequestedBandwidthUL},
 		{maxRequestedDL, &c.MaxRequestedBandwidthDL},
@@ -307,11 +307,11 @@ func parseMediaComponentData(a diameter.AVP) (MediaComponent, error) {
 		return MediaComponent{}, err
 	}
 
-	if c.PreemptionCapability, err = optionalEnum[PreemptionCapability](inner, tgpp.AVPPreemptionCapability, tgpp.VendorID); err != nil {
+	if c.PreemptionCapability, err = optionalEnum[tgpp.PreemptionCapability](inner, tgpp.AVPPreemptionCapability, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
-	if c.PreemptionVulnerability, err = optionalEnum[PreemptionVulnerability](inner, tgpp.AVPPreemptionVulnerability, tgpp.VendorID); err != nil {
+	if c.PreemptionVulnerability, err = optionalEnum[tgpp.PreemptionVulnerability](inner, tgpp.AVPPreemptionVulnerability, tgpp.VendorID); err != nil {
 		return MediaComponent{}, err
 	}
 
@@ -364,7 +364,7 @@ func mediaSubComponentAVP(s MediaSubComponent) (diameter.AVP, error) {
 		return diameter.AVP{}, invalidf("Flow-Status %s", *s.FlowStatus)
 	case !validEnum(s.FlowUsage):
 		return diameter.AVP{}, invalidf("Flow-Usage %s", *s.FlowUsage)
-	case !s.SignallingProtocol.valid():
+	case !s.SignallingProtocol.Known():
 		return diameter.AVP{}, invalidf("AF-Signalling-Protocol %s", s.SignallingProtocol)
 	case !signallingProtocolAllowed(s):
 		return diameter.AVP{}, invalidf("AF-Signalling-Protocol on flow %d without AF_SIGNALLING usage", s.FlowNumber)
@@ -401,11 +401,11 @@ func mediaSubComponentAVP(s MediaSubComponent) (diameter.AVP, error) {
 
 func parseMediaSubComponent(a diameter.AVP) (MediaSubComponent, error) {
 	s, err := parseMediaSubComponentData(a)
-	return s, withinGrouped(a, err)
+	return s, diameter.WithinGrouped(a, err)
 }
 
 func parseMediaSubComponentData(a diameter.AVP) (MediaSubComponent, error) {
-	inner, err := checkGrouped(mediaSubComponentRules, a)
+	inner, err := mediaSubComponentRules.CheckGrouped(a)
 	if err != nil {
 		return MediaSubComponent{}, err
 	}
@@ -453,7 +453,7 @@ func parseMediaSubComponentData(a diameter.AVP) (MediaSubComponent, error) {
 }
 
 func codecDataAVP(d CodecData) (diameter.AVP, error) {
-	if !d.Direction.valid() || !d.Kind.valid() {
+	if !d.Direction.Known() || !d.Kind.Known() {
 		return diameter.AVP{}, invalidf("Codec-Data %s %s", d.Direction, d.Kind)
 	}
 
@@ -519,11 +519,11 @@ func flowsAVP(f Flows) (diameter.AVP, error) {
 
 func parseFlows(a diameter.AVP) (Flows, error) {
 	f, err := parseFlowsData(a)
-	return f, withinGrouped(a, err)
+	return f, diameter.WithinGrouped(a, err)
 }
 
 func parseFlowsData(a diameter.AVP) (Flows, error) {
-	inner, err := checkGrouped(flowsRules, a)
+	inner, err := flowsRules.CheckGrouped(a)
 	if err != nil {
 		return Flows{}, err
 	}
@@ -580,11 +580,11 @@ func chargingIdentifierAVP(c AccessNetworkChargingIdentifier) (diameter.AVP, err
 
 func parseChargingIdentifier(a diameter.AVP) (AccessNetworkChargingIdentifier, error) {
 	c, err := parseChargingIdentifierData(a)
-	return c, withinGrouped(a, err)
+	return c, diameter.WithinGrouped(a, err)
 }
 
 func parseChargingIdentifierData(a diameter.AVP) (AccessNetworkChargingIdentifier, error) {
-	inner, err := checkGrouped(chargingIdentifierRules, a)
+	inner, err := chargingIdentifierRules.CheckGrouped(a)
 	if err != nil {
 		return AccessNetworkChargingIdentifier{}, err
 	}
@@ -601,7 +601,7 @@ func parseChargingIdentifierData(a diameter.AVP) (AccessNetworkChargingIdentifie
 
 func subscriptionIDAVP(s SubscriptionID) (diameter.AVP, error) {
 	switch {
-	case !s.Type.valid():
+	case !s.Type.Known():
 		return diameter.AVP{}, invalidf("Subscription-Id-Type %s", s.Type)
 	case s.Data == "":
 		return diameter.AVP{}, invalidf("empty Subscription-Id-Data")
@@ -615,11 +615,11 @@ func subscriptionIDAVP(s SubscriptionID) (diameter.AVP, error) {
 
 func parseSubscriptionID(a diameter.AVP) (SubscriptionID, error) {
 	s, err := parseSubscriptionIDData(a)
-	return s, withinGrouped(a, err)
+	return s, diameter.WithinGrouped(a, err)
 }
 
 func parseSubscriptionIDData(a diameter.AVP) (SubscriptionID, error) {
-	inner, err := checkGrouped(subscriptionIDRules, a)
+	inner, err := subscriptionIDRules.CheckGrouped(a)
 	if err != nil {
 		return SubscriptionID{}, err
 	}
@@ -655,7 +655,7 @@ func acceptableServiceInfoAVP(s AcceptableServiceInfo) (diameter.AVP, error) {
 	return vendorGrouped(AVPAcceptableServiceInfo, avps...), nil
 }
 
-func bandwidthPair(avps []diameter.AVP, ul, dl *Bandwidth) ([]diameter.AVP, error) {
+func bandwidthPair(avps []diameter.AVP, ul, dl *tgpp.Bandwidth) ([]diameter.AVP, error) {
 	avps, err := appendBandwidth(avps, maxRequestedUL, ul)
 	if err != nil {
 		return nil, err
@@ -665,7 +665,7 @@ func bandwidthPair(avps []diameter.AVP, ul, dl *Bandwidth) ([]diameter.AVP, erro
 }
 
 func parseAcceptableServiceInfo(a diameter.AVP) (*AcceptableServiceInfo, error) {
-	inner, err := checkGrouped(acceptableServiceInfoRules, a)
+	inner, err := acceptableServiceInfoRules.CheckGrouped(a)
 	if err != nil {
 		return nil, err
 	}

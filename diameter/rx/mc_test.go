@@ -20,12 +20,12 @@ func mcpttAARequest() AARequest {
 		MediaComponents: []MediaComponent{{
 			Number:                  1,
 			Type:                    ptr(MediaAudio),
-			MaxRequestedBandwidthUL: ptr(Bandwidth(64000)),
-			MaxRequestedBandwidthDL: ptr(Bandwidth(64000)),
+			MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(64000)),
+			MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(64000)),
 			FlowStatus:              ptr(FlowStatusEnabled),
 			PrioritySharing:         ptr(PrioritySharingEnabled),
-			PreemptionCapability:    ptr(PreemptionCapabilityEnabled),
-			PreemptionVulnerability: ptr(PreemptionVulnerabilityDisabled),
+			PreemptionCapability:    ptr(tgpp.PreemptionCapabilityEnabled),
+			PreemptionVulnerability: ptr(tgpp.PreemptionVulnerabilityDisabled),
 			ReservationPriority:     ptr(ReservationPriority(13)),
 			SubComponents:           []MediaSubComponent{{FlowNumber: 1, FlowDescriptions: []string{"permit out 17 from 10.6.0.7 40000 to 10.60.0.1 50000"}}},
 		}},
@@ -140,8 +140,10 @@ func TestMissionCriticalAVPValidation(t *testing.T) {
 		"Reservation-Priority 16":        func(r *AARequest) { r.ReservationPriority = ptr(ReservationPriority(16)) },
 		"component Reservation-Priority": func(r *AARequest) { r.MediaComponents[0].ReservationPriority = ptr(ReservationPriority(16)) },
 		"Priority-Sharing-Indicator":     func(r *AARequest) { r.MediaComponents[0].PrioritySharing = ptr(PrioritySharingIndicator(2)) },
-		"Pre-emption-Capability":         func(r *AARequest) { r.MediaComponents[0].PreemptionCapability = ptr(PreemptionCapability(2)) },
-		"Pre-emption-Vulnerability":      func(r *AARequest) { r.MediaComponents[0].PreemptionVulnerability = ptr(PreemptionVulnerability(2)) },
+		"Pre-emption-Capability":         func(r *AARequest) { r.MediaComponents[0].PreemptionCapability = ptr(tgpp.PreemptionCapability(2)) },
+		"Pre-emption-Vulnerability": func(r *AARequest) {
+			r.MediaComponents[0].PreemptionVulnerability = ptr(tgpp.PreemptionVulnerability(2))
+		},
 		"two Pre-emption-Control-Info bits": func(r *AARequest) {
 			r.PreemptionControl = ptr(PreemptMostRecentFlow | PreemptHighestBandwidthFlow)
 		},

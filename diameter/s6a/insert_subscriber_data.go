@@ -15,7 +15,7 @@ type InsertSubscriberDataRequest struct {
 	Features     Features
 	Subscription SubscriptionData
 	Flags        IDRFlags
-	ResetIDs     [][]byte
+	ResetIDs     []ResetID
 }
 
 type InsertSubscriberData struct {
@@ -27,11 +27,22 @@ type InsertSubscriberData struct {
 	LocalTimeZone           *LocalTimeZone
 }
 
-var idrRules = requestRules(true, userNameRule.With(diameter.Rules{
-	vendorKey(AVPSubscriptionData): {},
-	vendorKey(AVPIDRFlags):         {},
-	vendorKey(AVPResetID):          {Multiple: true},
-}))
+type LocalTimeZone struct {
+	TimeZone       string
+	DaylightSaving DaylightSavingTime
+}
+
+var (
+	idrRules = requestRules(true, userNameRule.With(diameter.Rules{
+		vendorKey(AVPSubscriptionData): {Required: true},
+		vendorKey(AVPIDRFlags):         {},
+		vendorKey(AVPResetID):          {Multiple: true},
+	}))
+	localTimeZoneRules = diameter.Rules{
+		vendorKey(AVPTimeZone):           {},
+		vendorKey(AVPDaylightSavingTime): {},
+	}
+)
 
 func NewInsertSubscriberDataRequest(env tgpp.Envelope, r InsertSubscriberDataRequest) (*diameter.Message, error) {
 	userName, err := userNameAVP(r.IMSI)
@@ -47,7 +58,7 @@ func NewInsertSubscriberDataRequest(env tgpp.Envelope, r InsertSubscriberDataReq
 	avps := append([]diameter.AVP{userName}, r.Features.avps()...)
 	avps = append(avps, sub)
 
-	if avps, err = appendFlags(avps, AVPIDRFlags, "IDR-Flags", r.Flags, idrFlagsDefined); err != nil {
+	if avps, err = appendFlags(avps, AVPIDRFlags, "IDR-Flags", r.Flags); err != nil {
 		return nil, err
 	}
 
@@ -57,15 +68,7 @@ func NewInsertSubscriberDataRequest(env tgpp.Envelope, r InsertSubscriberDataReq
 }
 
 func CheckInsertSubscriberData(req *diameter.Message) error {
-	if err := idrRules.Check(req); err != nil {
-		return err
-	}
-
-	if _, ok := req.Find(AVPSubscriptionData, tgpp.VendorID); !ok {
-		return tgpp.MissingAVP(AVPSubscriptionData, tgpp.VendorID, 0)
-	}
-
-	return nil
+	return idrRules.Check(req)
 }
 
 func ParseInsertSubscriberDataRequest(req *diameter.Message) (InsertSubscriberDataRequest, error) {
@@ -86,20 +89,58 @@ func ParseInsertSubscriberDataRequest(req *diameter.Message) (InsertSubscriberDa
 
 	subAVP, _ := req.Find(AVPSubscriptionData, tgpp.VendorID)
 
-	sub, err := parseSubscriptionData(subAVP)
+	sub, err := requestDecoder.subscriptionData(subAVP)
 	if err != nil {
 		return InsertSubscriberDataRequest{}, err
 	}
 
 	r.Subscription = *sub
 
-	if r.Flags, err = optionalFlags(req.AVPs, AVPIDRFlags, idrFlagsDefined); err != nil {
+	if r.Flags, err = requestFlags(req.AVPs, AVPIDRFlags, idrFlagsDefined); err != nil {
 		return InsertSubscriberDataRequest{}, err
 	}
 
 	r.ResetIDs = resetIDs(req)
 
 	return r, nil
+}
+
+func (l LocalTimeZone) avp() (diameter.AVP, error) {
+	if l.TimeZone == "" {
+		return diameter.AVP{}, invalidf("local time zone without a time zone")
+	}
+
+	if !l.DaylightSaving.Known() {
+		return diameter.AVP{}, invalidf("Daylight-Saving-Time %d", l.DaylightSaving)
+	}
+
+	return groupedAVP(AVPLocalTimeZone,
+		stringAVP(AVPTimeZone, l.TimeZone),
+		unsignedAVP(AVPDaylightSavingTime, uint32(l.DaylightSaving)),
+	), nil
+}
+
+func (d decoder) localTimeZone(a diameter.AVP) (*LocalTimeZone, error) {
+	inner, err := d.group(a, localTimeZoneRules)
+	if err != nil {
+		return nil, err
+	}
+
+	tz, ok := diameter.Find(inner, AVPTimeZone, tgpp.VendorID)
+
+	switch {
+	case !ok:
+		return nil, diameter.WithinGrouped(a, tgpp.MissingAVP(AVPTimeZone, tgpp.VendorID, 0))
+	case len(tz.Data) == 0:
+		return nil, diameter.WithinGrouped(a, tgpp.InvalidAVP(tz))
+	}
+
+	dst, err := requiredEnum[DaylightSavingTime](inner, AVPDaylightSavingTime, d.strict)
+	if err != nil {
+		return nil, diameter.WithinGrouped(a, err)
+	}
+
+	return &LocalTimeZone{TimeZone: tz.UTF8String(), DaylightSaving: dst}, nil
 }
 
 func NewInsertSubscriberDataAnswer(req *diameter.Message, id diameter.Identity, a InsertSubscriberData) (*diameter.Message, error) {
@@ -112,14 +153,22 @@ func NewInsertSubscriberDataAnswer(req *diameter.Message, id diameter.Identity, 
 	}
 
 	if !a.LastUEActivityTime.IsZero() {
-		ans.AVPs = append(ans.AVPs, diameter.Time(AVPLastUEActivityTime, 0, tgpp.VendorID, a.LastUEActivityTime))
+		if !diameter.ValidTime(a.LastUEActivityTime) {
+			return nil, invalidf("Last-UE-Activity-Time %s", a.LastUEActivityTime)
+		}
+
+		ans.AVPs = append(ans.AVPs, diameter.Time(AVPLastUEActivityTime, avpFlags(AVPLastUEActivityTime), tgpp.VendorID, a.LastUEActivityTime))
 	}
 
 	if a.RATType != nil {
-		ans.AVPs = append(ans.AVPs, diameter.Unsigned32(tgpp.AVPRATType, 0, tgpp.VendorID, uint32(*a.RATType)))
+		if !a.RATType.ThreeGPP() {
+			return nil, invalidf("RAT-Type %s is not a 3GPP radio access technology", *a.RATType)
+		}
+
+		ans.AVPs = append(ans.AVPs, unsignedAVP(tgpp.AVPRATType, uint32(*a.RATType)))
 	}
 
-	if ans.AVPs, err = appendFlags(ans.AVPs, AVPIDAFlags, "IDA-Flags", a.Flags, idaFlagsDefined); err != nil {
+	if ans.AVPs, err = appendFlags(ans.AVPs, AVPIDAFlags, "IDA-Flags", a.Flags); err != nil {
 		return nil, err
 	}
 
@@ -143,7 +192,7 @@ func ParseInsertSubscriberDataAnswer(ans *diameter.Message) (InsertSubscriberDat
 
 	a := InsertSubscriberData{Features: features}
 
-	if a.IMSVoiceOverPSSupported, err = optionalEnum[IMSVoiceOverPS](ans.AVPs, AVPIMSVoiceOverPSSessionsSupported); err != nil {
+	if a.IMSVoiceOverPSSupported, err = optionalEnum[IMSVoiceOverPS](ans.AVPs, AVPIMSVoiceOverPSSessionsSupported, false); err != nil {
 		return InsertSubscriberData{}, malformed(err)
 	}
 
@@ -160,12 +209,12 @@ func ParseInsertSubscriberDataAnswer(ans *diameter.Message) (InsertSubscriberDat
 		a.RATType = &t
 	}
 
-	if a.Flags, err = optionalFlags(ans.AVPs, AVPIDAFlags, idaFlagsDefined); err != nil {
+	if a.Flags, err = answerFlags[IDAFlags](ans.AVPs, AVPIDAFlags); err != nil {
 		return InsertSubscriberData{}, malformed(err)
 	}
 
 	if tz, ok := ans.Find(AVPLocalTimeZone, tgpp.VendorID); ok {
-		if a.LocalTimeZone, err = parseLocalTimeZone(tz); err != nil {
+		if a.LocalTimeZone, err = answerDecoder.localTimeZone(tz); err != nil {
 			return InsertSubscriberData{}, malformed(err)
 		}
 	}

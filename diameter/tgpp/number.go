@@ -40,11 +40,15 @@ func DecodeE164(b []byte) (string, error) {
 }
 
 func ValidE164(number string) bool {
-	return len(number) >= 1 && len(number) <= maxE164Digits && decimal(number)
+	return Digits(number, 1, maxE164Digits)
 }
 
 func ValidIMSI(imsi string) bool {
-	return len(imsi) >= minIMSIDigits && len(imsi) <= maxIMSIDigits && decimal(imsi)
+	return Digits(imsi, minIMSIDigits, maxIMSIDigits)
+}
+
+func Digits(s string, minLen, maxLen int) bool {
+	return len(s) >= minLen && len(s) <= maxLen && decimal(s)
 }
 
 func decimal(s string) bool {

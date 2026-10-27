@@ -21,8 +21,8 @@ type Alert struct {
 const alertEvents = AlertEventUEAvailableForMTSMS | AlertEventUEUnderNewNode
 
 var alrRules = diameter.BaseRequestRules().With(diameter.Rules{
-	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:                 {Required: true},
-	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:            {Required: true},
+	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:                 {Required: true, MinLength: 1},
+	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:            {Required: true, MinLength: 1},
 	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}:        {},
 	{Code: tgpp.AVPMaximumUEAvailabilityTime, VendorID: tgpp.VendorID}: {},
 	{Code: AVPSMSGMSCAlertEvent, VendorID: tgpp.VendorID}:              {},

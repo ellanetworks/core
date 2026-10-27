@@ -15,13 +15,13 @@ type MOForwardShortMessage struct {
 }
 
 var ofrRules = diameter.BaseRequestRules().With(diameter.Rules{
-	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:          {Required: true},
+	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:          {Required: true, MinLength: 1},
 	{Code: AVPOFRFlags, VendorID: tgpp.VendorID}:                {},
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}:  {Multiple: true},
-	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:     {Required: true},
+	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:     {Required: true, MinLength: 1},
 	{Code: AVPEPSLocationInformation, VendorID: tgpp.VendorID}:  {},
 	{Code: AVPNRCellGlobalIdentity, VendorID: tgpp.VendorID}:    {},
-	{Code: AVPSMRPUI, VendorID: tgpp.VendorID}:                  {Required: true},
+	{Code: AVPSMRPUI, VendorID: tgpp.VendorID}:                  {Required: true, MinLength: 1},
 	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}: {},
 	{Code: tgpp.AVPSMDeliveryOutcome, VendorID: tgpp.VendorID}:  {},
 	{Code: AVPMPSPriority, VendorID: tgpp.VendorID}:             {},

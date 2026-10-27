@@ -140,11 +140,11 @@ func TestParseReportSMDeliveryStatusRequestErrors(t *testing.T) {
 		want uint32
 	}{
 		"no outcome":      {request(CommandReportSMDeliveryStatus, ui, sc), diameter.ResultMissingAVP},
-		"empty outcome":   {request(CommandReportSMDeliveryStatus, ui, sc, outcome()), diameter.ResultInvalidAVPValue},
+		"empty outcome":   {request(CommandReportSMDeliveryStatus, ui, sc, outcome()), diameter.ResultInvalidAVPLength},
 		"MME and MSC":     {request(CommandReportSMDeliveryStatus, ui, sc, outcome(cause(AVPMMESMDeliveryOutcome, 1), cause(AVPMSCSMDeliveryOutcome, 1))), diameter.ResultInvalidAVPValue},
 		"unknown cause":   {request(CommandReportSMDeliveryStatus, ui, sc, outcome(cause(AVPMMESMDeliveryOutcome, 7))), diameter.ResultInvalidAVPValue},
 		"cause missing":   {request(CommandReportSMDeliveryStatus, ui, sc, outcome(diameter.Grouped(AVPMMESMDeliveryOutcome, diameter.AVPFlagMandatory, tgpp.VendorID))), diameter.ResultInvalidAVPValue},
-		"empty identity":  {request(CommandReportSMDeliveryStatus, diameter.Grouped(tgpp.AVPUserIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID), sc, outcome(cause(AVPMMESMDeliveryOutcome, 1))), diameter.ResultInvalidAVPValue},
+		"empty identity":  {request(CommandReportSMDeliveryStatus, diameter.Grouped(tgpp.AVPUserIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID), sc, outcome(cause(AVPMMESMDeliveryOutcome, 1))), diameter.ResultInvalidAVPLength},
 		"bad failed node": {request(CommandReportSMDeliveryStatus, ui, sc, outcome(cause(AVPMMESMDeliveryOutcome, 1)), diameter.Grouped(AVPServingNode, diameter.AVPFlagMandatory, tgpp.VendorID)), diameter.ResultInvalidAVPValue},
 	}
 

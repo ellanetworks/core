@@ -58,11 +58,11 @@ type MultimediaAuth struct {
 }
 
 var marRules = commonRequestRules.With(diameter.Rules{
-	{Code: diameter.AVPUserName}:                           {Required: true},
-	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:     {Required: true},
-	{Code: AVPSIPAuthDataItem, VendorID: tgpp.VendorID}:    {Required: true},
-	{Code: AVPSIPNumberAuthItems, VendorID: tgpp.VendorID}: {Required: true},
-	{Code: AVPServerName, VendorID: tgpp.VendorID}:         {Required: true},
+	{Code: diameter.AVPUserName}:                           {Required: true, MinLength: 1},
+	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:     {Required: true, MinLength: 1},
+	{Code: AVPSIPAuthDataItem, VendorID: tgpp.VendorID}:    {Required: true, MinLength: 1},
+	{Code: AVPSIPNumberAuthItems, VendorID: tgpp.VendorID}: {Required: true, MinLength: 1},
+	{Code: AVPServerName, VendorID: tgpp.VendorID}:         {Required: true, MinLength: 1},
 })
 
 func NewMultimediaAuthRequest(env tgpp.Envelope, r MultimediaAuthRequest) (*diameter.Message, error) {

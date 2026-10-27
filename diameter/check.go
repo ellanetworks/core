@@ -5,6 +5,7 @@ package diameter
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -29,6 +30,10 @@ type AVPError struct {
 }
 
 func (e *AVPError) Error() string {
+	if len(e.AVPs) == 0 {
+		return fmt.Sprintf("diameter: rejected with result %d", e.ResultCode)
+	}
+
 	first := e.AVPs[0]
 
 	return fmt.Sprintf("diameter: AVP %d (vendor %d) rejected with result %d", first.Code, first.VendorID, e.ResultCode)
@@ -40,14 +45,14 @@ func NewAVPError(resultCode uint32, first AVP, rest ...AVP) error {
 
 func BaseRequestRules() Rules {
 	return Rules{
-		{Code: AVPSessionID}:                   {Required: true},
+		{Code: AVPSessionID}:                   {Required: true, MinLength: 1},
 		{Code: AVPDRMP}:                        {},
 		{Code: AVPVendorSpecificApplicationID}: {},
 		{Code: AVPAuthSessionState}:            {Required: true, MinLength: 4},
-		{Code: AVPOriginHost}:                  {Required: true},
-		{Code: AVPOriginRealm}:                 {Required: true},
+		{Code: AVPOriginHost}:                  {Required: true, MinLength: 1},
+		{Code: AVPOriginRealm}:                 {Required: true, MinLength: 1},
 		{Code: AVPDestinationHost}:             {},
-		{Code: AVPDestinationRealm}:            {Required: true},
+		{Code: AVPDestinationRealm}:            {Required: true, MinLength: 1},
 		{Code: AVPOriginStateID}:               {},
 		{Code: AVPProxyInfo}:                   {Multiple: true},
 		{Code: AVPRouteRecord}:                 {Multiple: true},
@@ -62,9 +67,36 @@ func (r Rules) With(extra Rules) Rules {
 }
 
 func (r Rules) Check(m *Message) error {
-	seen := make(map[AVPKey]int, len(m.AVPs))
+	return r.check(m.AVPs)
+}
 
-	for _, a := range m.AVPs {
+func (r Rules) CheckGrouped(a AVP) ([]AVP, error) {
+	inner, err := a.Grouped()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.check(inner); err != nil {
+		return nil, WithinGrouped(a, err)
+	}
+
+	return inner, nil
+}
+
+func WithinGrouped(parent AVP, err error) error {
+	var avpErr *AVPError
+	if !errors.As(err, &avpErr) || len(avpErr.AVPs) == 0 ||
+		avpErr.AVPs[0].Code == parent.Code && avpErr.AVPs[0].VendorID == parent.VendorID {
+		return err
+	}
+
+	return NewAVPError(avpErr.ResultCode, Grouped(parent.Code, parent.Flags, parent.VendorID, avpErr.AVPs...))
+}
+
+func (r Rules) check(avps []AVP) error {
+	seen := make(map[AVPKey]int, len(avps))
+
+	for _, a := range avps {
 		key := AVPKey{Code: a.Code, VendorID: a.VendorID}
 
 		rule, known := r[key]
@@ -82,8 +114,8 @@ func (r Rules) Check(m *Message) error {
 			return NewAVPError(ResultAVPOccursTooManyTimes, a)
 		}
 
-		if rule.Required && len(a.Data) == 0 {
-			return NewAVPError(ResultInvalidAVPValue, a)
+		if len(a.Data) < rule.MinLength {
+			return NewAVPError(ResultInvalidAVPLength, a)
 		}
 	}
 

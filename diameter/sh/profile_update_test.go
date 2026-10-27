@@ -113,7 +113,7 @@ func TestParseProfileUpdateRequestErrors(t *testing.T) {
 		"short reference": {with(without(base, AVPDataReference, tgpp.VendorID),
 			diameter.OctetString(AVPDataReference, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPLength},
 		"bad user identity": {with(without(base, AVPUserIdentity, tgpp.VendorID),
-			diameter.Grouped(AVPUserIdentity, diameter.AVPFlagMandatory, tgpp.VendorID)), diameter.ResultInvalidAVPValue},
+			diameter.Grouped(AVPUserIdentity, diameter.AVPFlagMandatory, tgpp.VendorID)), diameter.ResultInvalidAVPLength},
 		"bad wildcarded": {with(base, diameter.UTF8String(AVPWildcardedIMPU, 0, tgpp.VendorID, "chatroom")), diameter.ResultInvalidAVPValue},
 		"both wildcarded": {with(base,
 			diameter.UTF8String(AVPWildcardedPublicIdentity, 0, tgpp.VendorID, testWildcarded),

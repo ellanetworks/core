@@ -3,7 +3,10 @@
 
 package s6a
 
-import "github.com/ellanetworks/core/diameter/tgpp"
+import (
+	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/diameter/tgpp"
+)
 
 type CancellationType uint32
 
@@ -25,7 +28,7 @@ func (t CancellationType) String() string {
 	return cancellationTypeNames.Name("CancellationType", uint32(t))
 }
 
-func (t CancellationType) valid() bool { return cancellationTypeNames.Has(uint32(t)) }
+func (t CancellationType) Known() bool { return cancellationTypeNames.Has(uint32(t)) }
 
 type SubscriberStatus uint32
 
@@ -40,7 +43,7 @@ func (s SubscriberStatus) String() string {
 	return subscriberStatusNames.Name("SubscriberStatus", uint32(s))
 }
 
-func (s SubscriberStatus) valid() bool { return subscriberStatusNames.Has(uint32(s)) }
+func (s SubscriberStatus) Known() bool { return subscriberStatusNames.Has(uint32(s)) }
 
 type NetworkAccessMode uint32
 
@@ -55,7 +58,7 @@ func (m NetworkAccessMode) String() string {
 	return networkAccessModeNames.Name("NetworkAccessMode", uint32(m))
 }
 
-func (m NetworkAccessMode) valid() bool { return networkAccessModeNames.Has(uint32(m)) }
+func (m NetworkAccessMode) Known() bool { return networkAccessModeNames.Has(uint32(m)) }
 
 type PDNType uint32
 
@@ -70,7 +73,7 @@ var pdnTypeNames = tgpp.EnumNames{"IPv4", "IPv6", "IPv4v6", "IPv4_OR_IPv6"}
 
 func (t PDNType) String() string { return pdnTypeNames.Name("PDNType", uint32(t)) }
 
-func (t PDNType) valid() bool { return pdnTypeNames.Has(uint32(t)) }
+func (t PDNType) Known() bool { return pdnTypeNames.Has(uint32(t)) }
 
 type PDNGWAllocationType uint32
 
@@ -85,7 +88,7 @@ func (t PDNGWAllocationType) String() string {
 	return pdnGWAllocationTypeNames.Name("PDNGWAllocationType", uint32(t))
 }
 
-func (t PDNGWAllocationType) valid() bool { return pdnGWAllocationTypeNames.Has(uint32(t)) }
+func (t PDNGWAllocationType) Known() bool { return pdnGWAllocationTypeNames.Has(uint32(t)) }
 
 type APNConfigurationsIncluded uint32
 
@@ -102,7 +105,7 @@ func (i APNConfigurationsIncluded) String() string {
 	return apnConfigurationsIncludedNames.Name("APNConfigurationsIncluded", uint32(i))
 }
 
-func (i APNConfigurationsIncluded) valid() bool { return apnConfigurationsIncludedNames.Has(uint32(i)) }
+func (i APNConfigurationsIncluded) Known() bool { return apnConfigurationsIncludedNames.Has(uint32(i)) }
 
 type ErrorDiagnostic uint32
 
@@ -122,6 +125,8 @@ func (d ErrorDiagnostic) String() string {
 	return errorDiagnosticNames.Name("ErrorDiagnostic", uint32(d))
 }
 
+func (d ErrorDiagnostic) Known() bool { return errorDiagnosticNames.Has(uint32(d)) }
+
 type IMSVoiceOverPS uint32
 
 const (
@@ -133,7 +138,7 @@ var imsVoiceOverPSNames = tgpp.EnumNames{"NOT_SUPPORTED", "SUPPORTED"}
 
 func (s IMSVoiceOverPS) String() string { return imsVoiceOverPSNames.Name("IMSVoiceOverPS", uint32(s)) }
 
-func (s IMSVoiceOverPS) valid() bool { return imsVoiceOverPSNames.Has(uint32(s)) }
+func (s IMSVoiceOverPS) Known() bool { return imsVoiceOverPSNames.Has(uint32(s)) }
 
 type UESRVCCCapability uint32
 
@@ -148,7 +153,7 @@ func (c UESRVCCCapability) String() string {
 	return ueSRVCCCapabilityNames.Name("UESRVCCCapability", uint32(c))
 }
 
-func (c UESRVCCCapability) valid() bool { return ueSRVCCCapabilityNames.Has(uint32(c)) }
+func (c UESRVCCCapability) Known() bool { return ueSRVCCCapabilityNames.Has(uint32(c)) }
 
 type AlertReason uint32
 
@@ -161,7 +166,7 @@ var alertReasonNames = tgpp.EnumNames{"UE_PRESENT", "UE_MEMORY_AVAILABLE"}
 
 func (r AlertReason) String() string { return alertReasonNames.Name("AlertReason", uint32(r)) }
 
-func (r AlertReason) valid() bool { return alertReasonNames.Has(uint32(r)) }
+func (r AlertReason) Known() bool { return alertReasonNames.Has(uint32(r)) }
 
 type SMSRegisterRequest uint32
 
@@ -177,7 +182,7 @@ func (r SMSRegisterRequest) String() string {
 	return smsRegisterRequestNames.Name("SMSRegisterRequest", uint32(r))
 }
 
-func (r SMSRegisterRequest) valid() bool { return smsRegisterRequestNames.Has(uint32(r)) }
+func (r SMSRegisterRequest) Known() bool { return smsRegisterRequestNames.Has(uint32(r)) }
 
 type DaylightSavingTime uint32
 
@@ -193,7 +198,47 @@ func (d DaylightSavingTime) String() string {
 	return daylightSavingTimeNames.Name("DaylightSavingTime", uint32(d))
 }
 
-func (d DaylightSavingTime) valid() bool { return daylightSavingTimeNames.Has(uint32(d)) }
+func (d DaylightSavingTime) Known() bool { return daylightSavingTimeNames.Has(uint32(d)) }
+
+type NonIPDataDeliveryMechanism uint32
+
+const (
+	NonIPDataDeliverySGi  NonIPDataDeliveryMechanism = 0
+	NonIPDataDeliverySCEF NonIPDataDeliveryMechanism = 1
+)
+
+var nonIPDataDeliveryMechanismNames = tgpp.EnumNames{"SGi-BASED-DATA-DELIVERY", "SCEF-BASED-DATA-DELIVERY"}
+
+func (m NonIPDataDeliveryMechanism) String() string {
+	return nonIPDataDeliveryMechanismNames.Name("NonIPDataDeliveryMechanism", uint32(m))
+}
+
+func (m NonIPDataDeliveryMechanism) Known() bool {
+	return nonIPDataDeliveryMechanismNames.Has(uint32(m))
+}
+
+type UEUsageType uint8
+
+const UEUsageTypeOperatorSpecificMin UEUsageType = 128
+
+const maxUEUsageType = 255
+
+func (u UEUsageType) OperatorSpecific() bool { return u >= UEUsageTypeOperatorSpecificMin }
+
+func (u UEUsageType) avp() diameter.AVP { return unsignedAVP(AVPUEUsageType, uint32(u)) }
+
+func parseUEUsageType(a diameter.AVP) (UEUsageType, error) {
+	v, err := tgpp.Unsigned32(a)
+	if err != nil {
+		return 0, err
+	}
+
+	if v > maxUEUsageType {
+		return 0, tgpp.InvalidAVP(a)
+	}
+
+	return UEUsageType(v), nil
+}
 
 const (
 	enumFalse uint32 = 0
@@ -201,10 +246,8 @@ const (
 )
 
 const (
-	vplmnDynamicAddressNotAllowed uint32 = 0
-	vplmnDynamicAddressAllowed    uint32 = 1
-	roamingRestrictedValue        uint32 = 0
-	vsrvccSubscribedValue         uint32 = 0
-	preemptionEnabled             uint32 = 0
-	preemptionDisabled            uint32 = 1
+	vplmnDynamicAddressAllowed uint32 = 1
+	roamingRestrictedValue     uint32 = 0
+	vsrvccSubscribedValue      uint32 = 0
+	interworking5GSSubscribed  uint32 = 1
 )

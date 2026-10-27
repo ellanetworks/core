@@ -106,9 +106,9 @@ var aarRules = commonRequestRules.With(diameter.Rules{
 
 func NewAARequest(env tgpp.Envelope, r AARequest) (*diameter.Message, error) {
 	switch {
-	case !r.ServiceInfoStatus.valid():
+	case !r.ServiceInfoStatus.Known():
 		return nil, invalidf("Service-Info-Status %s", r.ServiceInfoStatus)
-	case !r.SIPForkingIndication.valid():
+	case !r.SIPForkingIndication.Known():
 		return nil, invalidf("SIP-Forking-Indication %s", r.SIPForkingIndication)
 	case !validEnum(r.RequestType):
 		return nil, invalidf("Rx-Request-Type %s", *r.RequestType)

@@ -10,9 +10,7 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
-type DeleteSubscriberDataRequest struct {
-	IMSI               string
-	Features           Features
+type SubscriptionDataDeletion struct {
 	Flags              DSRFlags
 	SCEFID             string
 	ContextIdentifiers []uint32
@@ -21,40 +19,59 @@ type DeleteSubscriberDataRequest struct {
 	SSCodes            [][]byte
 }
 
+type DeleteSubscriberDataRequest struct {
+	IMSI     string
+	Features Features
+	SubscriptionDataDeletion
+}
+
 type DeleteSubscriberData struct {
 	Features Features
 	Flags    DSAFlags
 }
 
-var dsrRules = requestRules(true, userNameRule.With(diameter.Rules{
-	vendorKey(AVPDSRFlags):           {Required: true, MinLength: 4},
-	vendorKey(AVPSCEFID):             {},
-	vendorKey(AVPContextIdentifier):  {Multiple: true},
-	vendorKey(AVPTraceReference):     {},
-	vendorKey(AVPTSCode):             {Multiple: true},
-	vendorKey(AVPSSCode):             {Multiple: true},
-	vendorKey(AVPEDRXRelatedRAT):     {},
-	vendorKey(AVPExternalIdentifier): {Multiple: true},
-}))
-
-func NewDeleteSubscriberDataRequest(env tgpp.Envelope, r DeleteSubscriberDataRequest) (*diameter.Message, error) {
-	userName, err := userNameAVP(r.IMSI)
-	if err != nil {
-		return nil, err
+var (
+	deletionRules = diameter.Rules{
+		vendorKey(AVPDSRFlags):          {Required: true, MinLength: 4},
+		vendorKey(AVPSCEFID):            {},
+		vendorKey(AVPContextIdentifier): {Multiple: true},
+		vendorKey(AVPTraceReference):    {},
+		vendorKey(AVPTSCode):            {Multiple: true},
+		vendorKey(AVPSSCode):            {Multiple: true},
 	}
+	subscriptionDataDeletionRules = deletionRules
+	dsrRules                      = requestRules(true, userNameRule.With(deletionRules).With(diameter.Rules{
+		vendorKey(AVPEDRXRelatedRAT):     {},
+		vendorKey(AVPExternalIdentifier): {Multiple: true},
+	}))
+)
 
-	if r.Flags&DSRFlagDeleteMonitoringEvents != 0 && r.SCEFID == "" {
+func (d SubscriptionDataDeletion) contextsWithdrawn() bool {
+	return d.Flags&dsrPDNAndPDPContextsWithdrawal != 0
+}
+
+func (d SubscriptionDataDeletion) avps() ([]diameter.AVP, error) {
+	switch {
+	case !d.Flags.Known():
+		return nil, invalidf("DSR-Flags %s: PDN and PDP context withdrawal are exclusive", d.Flags)
+	case d.Flags&DSRFlagDeleteMonitoringEvents != 0 && d.SCEFID == "":
 		return nil, invalidf("monitoring event deletion without an SCEF-ID")
+	case d.contextsWithdrawn() && len(d.ContextIdentifiers) == 0:
+		return nil, invalidf("context withdrawal without a Context-Identifier")
+	case !d.contextsWithdrawn() && len(d.ContextIdentifiers) > 0:
+		return nil, invalidf("Context-Identifier without a context withdrawal")
+	case d.Flags&DSRFlagTraceDataWithdrawal == 0 && len(d.TraceReference) > 0:
+		return nil, invalidf("Trace-Reference without trace data withdrawal")
+	case d.Flags&DSRFlagSMSWithdrawal == 0 && len(d.TSCodes) > 0:
+		return nil, invalidf("TS-Code without SMS withdrawal")
+	case d.Flags&(DSRFlagSMSWithdrawal|DSRFlagLCSWithdrawal) == 0 && len(d.SSCodes) > 0:
+		return nil, invalidf("SS-Code without SMS or LCS withdrawal")
 	}
 
-	avps := append([]diameter.AVP{userName}, r.Features.avps()...)
-	avps = append(avps, unsignedAVP(AVPDSRFlags, uint32(r.Flags)))
+	avps := []diameter.AVP{unsignedAVP(AVPDSRFlags, uint32(d.Flags))}
+	avps = appendString(avps, AVPSCEFID, d.SCEFID)
 
-	if r.SCEFID != "" {
-		avps = append(avps, diameter.UTF8String(AVPSCEFID, diameter.AVPFlagMandatory, tgpp.VendorID, r.SCEFID))
-	}
-
-	for _, id := range r.ContextIdentifiers {
+	for _, id := range d.ContextIdentifiers {
 		if id == 0 {
 			return nil, invalidf("zero context identifier")
 		}
@@ -62,38 +79,109 @@ func NewDeleteSubscriberDataRequest(env tgpp.Envelope, r DeleteSubscriberDataReq
 		avps = append(avps, unsignedAVP(AVPContextIdentifier, id))
 	}
 
-	if len(r.TraceReference) > 0 {
-		avps = append(avps, octetsAVP(AVPTraceReference, r.TraceReference))
+	if len(d.TraceReference) > 0 {
+		avps = append(avps, octetsAVP(AVPTraceReference, d.TraceReference))
 	}
 
-	for _, code := range r.TSCodes {
+	for _, code := range d.TSCodes {
 		avps = append(avps, octetsAVP(AVPTSCode, code))
 	}
 
-	for _, code := range r.SSCodes {
+	for _, code := range d.SSCodes {
 		avps = append(avps, octetsAVP(AVPSSCode, code))
 	}
 
-	return newRequest(env, CommandDeleteSubscriberData, true, avps...)
+	return avps, nil
 }
 
-func CheckDeleteSubscriberData(req *diameter.Message) error {
-	if err := dsrRules.Check(req); err != nil {
-		return err
-	}
+func parseSubscriptionDataDeletion(avps []diameter.AVP) (SubscriptionDataDeletion, error) {
+	var d SubscriptionDataDeletion
 
-	flags, _ := req.Find(AVPDSRFlags, tgpp.VendorID)
+	flags, ok := diameter.Find(avps, AVPDSRFlags, tgpp.VendorID)
+	if !ok {
+		return SubscriptionDataDeletion{}, tgpp.MissingAVP(AVPDSRFlags, tgpp.VendorID, 4)
+	}
 
 	v, err := tgpp.Unsigned32(flags)
 	if err != nil {
-		return err
+		return SubscriptionDataDeletion{}, err
 	}
 
-	if _, ok := req.Find(AVPSCEFID, tgpp.VendorID); DSRFlags(v)&DSRFlagDeleteMonitoringEvents != 0 && !ok {
-		return tgpp.MissingAVP(AVPSCEFID, tgpp.VendorID, 0)
+	if d.Flags = DSRFlags(v); !d.Flags.Known() {
+		return SubscriptionDataDeletion{}, tgpp.InvalidAVP(flags)
 	}
 
-	return nil
+	if d.SCEFID, err = optionalString(avps, AVPSCEFID, tgpp.VendorID); err != nil {
+		return SubscriptionDataDeletion{}, err
+	}
+
+	if d.Flags&DSRFlagDeleteMonitoringEvents != 0 && d.SCEFID == "" {
+		return SubscriptionDataDeletion{}, tgpp.MissingAVP(AVPSCEFID, tgpp.VendorID, 0)
+	}
+
+	if d.contextsWithdrawn() {
+		ids := diameter.FindAll(avps, AVPContextIdentifier, tgpp.VendorID)
+		if len(ids) == 0 {
+			return SubscriptionDataDeletion{}, tgpp.MissingAVP(AVPContextIdentifier, tgpp.VendorID, 4)
+		}
+
+		for _, a := range ids {
+			id, err := tgpp.Unsigned32(a)
+			if err != nil {
+				return SubscriptionDataDeletion{}, err
+			}
+
+			if id == 0 {
+				return SubscriptionDataDeletion{}, tgpp.InvalidAVP(a)
+			}
+
+			d.ContextIdentifiers = append(d.ContextIdentifiers, id)
+		}
+	}
+
+	if a, ok := diameter.Find(avps, AVPTraceReference, tgpp.VendorID); ok && d.Flags&DSRFlagTraceDataWithdrawal != 0 && len(a.Data) > 0 {
+		d.TraceReference = bytes.Clone(a.Data)
+	}
+
+	if d.Flags&DSRFlagSMSWithdrawal != 0 {
+		d.TSCodes = octetsList(avps, AVPTSCode)
+	}
+
+	if d.Flags&(DSRFlagSMSWithdrawal|DSRFlagLCSWithdrawal) != 0 {
+		d.SSCodes = octetsList(avps, AVPSSCode)
+	}
+
+	return d, nil
+}
+
+func octetsList(avps []diameter.AVP, code uint32) [][]byte {
+	var out [][]byte
+
+	for _, a := range diameter.FindAll(avps, code, tgpp.VendorID) {
+		out = append(out, bytes.Clone(a.Data))
+	}
+
+	return out
+}
+
+func NewDeleteSubscriberDataRequest(env tgpp.Envelope, r DeleteSubscriberDataRequest) (*diameter.Message, error) {
+	userName, err := userNameAVP(r.IMSI)
+	if err != nil {
+		return nil, err
+	}
+
+	deletion, err := r.avps()
+	if err != nil {
+		return nil, err
+	}
+
+	avps := append([]diameter.AVP{userName}, r.Features.avps()...)
+
+	return newRequest(env, CommandDeleteSubscriberData, true, append(avps, deletion...)...)
+}
+
+func CheckDeleteSubscriberData(req *diameter.Message) error {
+	return dsrRules.Check(req)
 }
 
 func ParseDeleteSubscriberDataRequest(req *diameter.Message) (DeleteSubscriberDataRequest, error) {
@@ -101,51 +189,17 @@ func ParseDeleteSubscriberDataRequest(req *diameter.Message) (DeleteSubscriberDa
 		return DeleteSubscriberDataRequest{}, err
 	}
 
-	var (
-		r   DeleteSubscriberDataRequest
-		err error
-	)
-
-	if r.IMSI, err = requestIMSI(req); err != nil {
+	imsi, err := requestIMSI(req)
+	if err != nil {
 		return DeleteSubscriberDataRequest{}, err
 	}
 
-	r.Features = featuresOf(req)
-
-	flags, _ := req.Find(AVPDSRFlags, tgpp.VendorID)
-	v, _ := flags.Unsigned32()
-	r.Flags = DSRFlags(v)
-
-	if r.SCEFID, err = optionalString(req.AVPs, AVPSCEFID, tgpp.VendorID); err != nil {
+	d, err := parseSubscriptionDataDeletion(req.AVPs)
+	if err != nil {
 		return DeleteSubscriberDataRequest{}, err
 	}
 
-	for _, a := range diameter.FindAll(req.AVPs, AVPContextIdentifier, tgpp.VendorID) {
-		id, err := tgpp.Unsigned32(a)
-		if err != nil {
-			return DeleteSubscriberDataRequest{}, err
-		}
-
-		if id == 0 {
-			return DeleteSubscriberDataRequest{}, tgpp.InvalidAVP(a)
-		}
-
-		r.ContextIdentifiers = append(r.ContextIdentifiers, id)
-	}
-
-	if a, ok := req.Find(AVPTraceReference, tgpp.VendorID); ok {
-		r.TraceReference = bytes.Clone(a.Data)
-	}
-
-	for _, a := range diameter.FindAll(req.AVPs, AVPTSCode, tgpp.VendorID) {
-		r.TSCodes = append(r.TSCodes, bytes.Clone(a.Data))
-	}
-
-	for _, a := range diameter.FindAll(req.AVPs, AVPSSCode, tgpp.VendorID) {
-		r.SSCodes = append(r.SSCodes, bytes.Clone(a.Data))
-	}
-
-	return r, nil
+	return DeleteSubscriberDataRequest{IMSI: imsi, Features: featuresOf(req), SubscriptionDataDeletion: d}, nil
 }
 
 func NewDeleteSubscriberDataAnswer(req *diameter.Message, id diameter.Identity, d DeleteSubscriberData) (*diameter.Message, error) {
@@ -153,7 +207,7 @@ func NewDeleteSubscriberDataAnswer(req *diameter.Message, id diameter.Identity, 
 
 	var err error
 
-	if ans.AVPs, err = appendFlags(ans.AVPs, AVPDSAFlags, "DSA-Flags", d.Flags, dsaFlagsDefined); err != nil {
+	if ans.AVPs, err = appendFlags(ans.AVPs, AVPDSAFlags, "DSA-Flags", d.Flags); err != nil {
 		return nil, err
 	}
 
@@ -168,7 +222,7 @@ func ParseDeleteSubscriberDataAnswer(ans *diameter.Message) (DeleteSubscriberDat
 
 	d := DeleteSubscriberData{Features: features}
 
-	if d.Flags, err = optionalFlags(ans.AVPs, AVPDSAFlags, dsaFlagsDefined); err != nil {
+	if d.Flags, err = answerFlags[DSAFlags](ans.AVPs, AVPDSAFlags); err != nil {
 		return DeleteSubscriberData{}, malformed(err)
 	}
 

@@ -26,7 +26,7 @@ type AccessNetwork struct {
 }
 
 type ServingNetwork struct {
-	PLMN string
+	PLMN *tgpp.PLMN
 	NID  []byte
 }
 
@@ -108,29 +108,15 @@ func parseAccessNetwork(avps []diameter.AVP) (AccessNetwork, error) {
 	return n, nil
 }
 
-func validPLMN(s string) bool {
-	if len(s) != 5 && len(s) != 6 {
-		return false
-	}
-
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (n ServingNetwork) avps() ([]diameter.AVP, error) {
-	if n.PLMN != "" && !validPLMN(n.PLMN) {
-		return nil, invalidf("3GPP-SGSN-MCC-MNC %q", n.PLMN)
-	}
-
 	var avps []diameter.AVP
 
-	if n.PLMN != "" {
-		avps = append(avps, diameter.UTF8String(tgpp.AVP3GPPSGSNMCCMNC, 0, tgpp.VendorID, n.PLMN))
+	if n.PLMN != nil {
+		if !n.PLMN.Valid() {
+			return nil, invalidf("3GPP-SGSN-MCC-MNC %+v", *n.PLMN)
+		}
+
+		avps = append(avps, diameter.UTF8String(tgpp.AVP3GPPSGSNMCCMNC, 0, tgpp.VendorID, n.PLMN.String()))
 	}
 
 	return appendOctets(avps, AVPNID, n.NID), nil
@@ -143,9 +129,12 @@ func parseServingNetwork(avps []diameter.AVP) (ServingNetwork, error) {
 	)
 
 	if a, ok := diameter.Find(avps, tgpp.AVP3GPPSGSNMCCMNC, tgpp.VendorID); ok {
-		if n.PLMN = a.UTF8String(); !validPLMN(n.PLMN) {
+		p, err := tgpp.ParseMCCMNC(a.UTF8String())
+		if err != nil {
 			return ServingNetwork{}, tgpp.InvalidAVP(a)
 		}
+
+		n.PLMN = &p
 	}
 
 	if n.NID, err = optionalOctets(avps, AVPNID, tgpp.VendorID); err != nil {
@@ -157,7 +146,7 @@ func parseServingNetwork(avps []diameter.AVP) (ServingNetwork, error) {
 
 func (l UserLocation) avps() ([]diameter.AVP, error) {
 	switch {
-	case !l.UserLocationInfoTime.IsZero() && !validTime(l.UserLocationInfoTime):
+	case !l.UserLocationInfoTime.IsZero() && !diameter.ValidTime(l.UserLocationInfoTime):
 		return nil, invalidf("User-Location-Info-Time %s", l.UserLocationInfoTime)
 	case l.MSTimeZone != nil && len(l.MSTimeZone) != msTimeZoneOctets:
 		return nil, invalidf("3GPP-MS-TimeZone of %d octets", len(l.MSTimeZone))

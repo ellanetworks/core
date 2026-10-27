@@ -192,7 +192,7 @@ func withFeatures(ans *diameter.Message) *diameter.Message {
 }
 
 func smsfSupported(m *diameter.Message) bool {
-	return tgpp.FeatureList(m.AVPs, tgpp.VendorID, FeatureListID)&FeatureSMSFSupport != 0
+	return tgpp.ParseFeatureLists(m.AVPs)[FeatureListID]&FeatureSMSFSupport != 0
 }
 
 func invalidf(format string, args ...any) error {

@@ -4,6 +4,7 @@
 package tgpp
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -40,7 +41,7 @@ func TestParseSupportedFeaturesErrors(t *testing.T) {
 	}
 }
 
-func TestFeatureList(t *testing.T) {
+func TestParseFeatureLists(t *testing.T) {
 	avps := []diameter.AVP{
 		SupportedFeatures{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x1}.AVP(),
 		SupportedFeatures{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x4}.AVP(),
@@ -49,12 +50,32 @@ func TestFeatureList(t *testing.T) {
 		diameter.OctetString(AVPSupportedFeatures, 0, VendorID, []byte{0x01}),
 	}
 
-	if got := FeatureList(avps, VendorID, 1); got != 0x5 {
-		t.Fatalf("FeatureList = %#x, want 0x5", got)
+	if got := ParseFeatureLists(avps); !maps.Equal(got, FeatureLists{1: 0x5, 2: 0x2}) {
+		t.Fatalf("ParseFeatureLists = %v", got)
 	}
 
-	if got := FeatureList(nil, VendorID, 1); got != 0 {
-		t.Fatalf("FeatureList of nothing = %#x", got)
+	if got := ParseFeatureLists(nil); got[1] != 0 {
+		t.Fatalf("ParseFeatureLists of nothing = %v", got)
+	}
+}
+
+func TestFeatureListsAVPs(t *testing.T) {
+	avps := FeatureLists{2: 0x2, 1: 0x1, 3: 0}.AVPs(true)
+	if len(avps) != 2 {
+		t.Fatalf("AVPs = %+v", avps)
+	}
+
+	for i, want := range []SupportedFeatures{
+		{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x1, Mandatory: true},
+		{VendorID: VendorID, FeatureListID: 2, FeatureList: 0x2, Mandatory: true},
+	} {
+		if got, err := ParseSupportedFeatures(avps[i]); err != nil || got != want {
+			t.Errorf("AVP %d = %+v, %v", i, got, err)
+		}
+	}
+
+	if FeatureLists(nil).AVPs(false) != nil {
+		t.Fatal("empty lists produce AVPs")
 	}
 }
 
@@ -94,8 +115,8 @@ func TestFeaturesMandatory(t *testing.T) {
 	}
 }
 
-func TestUnsupportedRequiredFeatures(t *testing.T) {
-	supported := []SupportedFeatures{{VendorID: VendorID, FeatureListID: 1, FeatureList: 0x3}}
+func TestFeatureListsUnsupported(t *testing.T) {
+	supported := FeatureLists{1: 0x3}
 	required := func(vendorID, listID, list uint32) diameter.AVP {
 		return SupportedFeatures{VendorID: vendorID, FeatureListID: listID, FeatureList: list, Mandatory: true}.AVP()
 	}
@@ -114,8 +135,8 @@ func TestUnsupportedRequiredFeatures(t *testing.T) {
 		"malformed advertised only": {[]diameter.AVP{diameter.Grouped(AVPSupportedFeatures, 0, VendorID)}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := UnsupportedRequiredFeatures(tc.avps, supported...); got != tc.want {
-				t.Fatalf("UnsupportedRequiredFeatures = %v, want %v", got, tc.want)
+			if got := supported.Unsupported(tc.avps); got != tc.want {
+				t.Fatalf("Unsupported = %v, want %v", got, tc.want)
 			}
 		})
 	}

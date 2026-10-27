@@ -4,8 +4,6 @@
 package s6a
 
 import (
-	"bytes"
-
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
@@ -28,37 +26,49 @@ type UpdateLocationRequest struct {
 }
 
 type UpdateLocation struct {
+	HSS          diameter.Identity
 	Features     Features
 	Flags        ULAFlags
 	Subscription *SubscriptionData
-	ResetIDs     [][]byte
+	ResetIDs     []ResetID
 }
 
-var ulrRules = requestRules(false, userNameRule.With(diameter.Rules{
-	vendorKey(AVPTerminalInformation):                       {},
-	vendorKey(tgpp.AVPRATType):                              {Required: true, MinLength: 4},
-	vendorKey(AVPULRFlags):                                  {Required: true, MinLength: 4},
-	vendorKey(AVPUESRVCCCapability):                         {},
-	vendorKey(AVPVisitedPLMNID):                             {Required: true, MinLength: 3},
-	vendorKey(tgpp.AVPSGSNNumber):                           {},
-	vendorKey(AVPHomogeneousSupportOfIMSVoiceOverPSSession): {},
-	vendorKey(AVPGMLCAddress):                               {},
-	vendorKey(AVPActiveAPN):                                 {Multiple: true},
-	vendorKey(AVPEquivalentPLMNList):                        {},
-	vendorKey(tgpp.AVPMMENumberForMTSMS):                    {},
-	vendorKey(AVPSMSRegisterRequest):                        {},
-	vendorKey(AVPSGsMMEIdentity):                            {},
-	vendorKey(AVPCoupledNodeDiameterID):                     {},
-	vendorKey(AVPAdjacentPLMNs):                             {},
-	vendorKey(AVPSupportedServices):                         {},
-	vendorKey(AVPSFULRTimestamp):                            {},
-	vendorKey(AVPSFProvisionalIndication):                   {},
-}))
+var (
+	ulrRules = requestRules(false, userNameRule.With(diameter.Rules{
+		vendorKey(AVPTerminalInformation):                       {},
+		vendorKey(tgpp.AVPRATType):                              {Required: true, MinLength: 4},
+		vendorKey(AVPULRFlags):                                  {Required: true, MinLength: 4},
+		vendorKey(AVPUESRVCCCapability):                         {},
+		vendorKey(AVPVisitedPLMNID):                             {Required: true, MinLength: 3},
+		vendorKey(tgpp.AVPSGSNNumber):                           {},
+		vendorKey(AVPHomogeneousSupportOfIMSVoiceOverPSSession): {},
+		vendorKey(AVPGMLCAddress):                               {},
+		vendorKey(AVPActiveAPN):                                 {Multiple: true},
+		vendorKey(AVPEquivalentPLMNList):                        {},
+		vendorKey(tgpp.AVPMMENumberForMTSMS):                    {},
+		vendorKey(AVPSMSRegisterRequest):                        {},
+		vendorKey(AVPSGsMMEIdentity):                            {},
+		vendorKey(AVPCoupledNodeDiameterID):                     {},
+		vendorKey(AVPAdjacentPLMNs):                             {},
+		vendorKey(AVPSupportedServices):                         {},
+		vendorKey(AVPSFULRTimestamp):                            {},
+		vendorKey(AVPSFProvisionalIndication):                   {},
+	}))
+	equivalentPLMNListRules = diameter.Rules{vendorKey(AVPVisitedPLMNID): {Multiple: true}}
+)
 
 func NewUpdateLocationRequest(env tgpp.Envelope, r UpdateLocationRequest) (*diameter.Message, error) {
 	userName, err := userNameAVP(r.IMSI)
 	if err != nil {
 		return nil, err
+	}
+
+	if !r.RATType.ThreeGPP() {
+		return nil, invalidf("RAT-Type %s is not a 3GPP radio access technology", r.RATType)
+	}
+
+	if !r.Flags.Known() {
+		return nil, invalidf("ULR-Flags with undefined bits %#x", uint32(r.Flags&^ulrFlagsDefined))
 	}
 
 	avps := append([]diameter.AVP{userName}, r.Features.avps()...)
@@ -72,13 +82,7 @@ func NewUpdateLocationRequest(env tgpp.Envelope, r UpdateLocationRequest) (*diam
 		avps = append(avps, terminal)
 	}
 
-	avps = append(avps, diameter.Unsigned32(tgpp.AVPRATType, 0, tgpp.VendorID, uint32(r.RATType)))
-
-	if r.Flags&^ulrFlagsDefined != 0 {
-		return nil, invalidf("ULR-Flags with undefined bits %#x", uint32(r.Flags&^ulrFlagsDefined))
-	}
-
-	avps = append(avps, unsignedAVP(AVPULRFlags, uint32(r.Flags)))
+	avps = append(avps, unsignedAVP(tgpp.AVPRATType, uint32(r.RATType)), unsignedAVP(AVPULRFlags, uint32(r.Flags)))
 
 	if avps, err = appendEnum(avps, AVPUESRVCCCapability, "UE-SRVCC-Capability", r.UESRVCCCapability); err != nil {
 		return nil, err
@@ -137,23 +141,23 @@ func equivalentPLMNList(plmns []tgpp.PLMN) (diameter.AVP, error) {
 	return groupedAVP(AVPEquivalentPLMNList, inner...), nil
 }
 
-func parseEquivalentPLMNList(a diameter.AVP) ([]tgpp.PLMN, error) {
-	inner, err := grouped(a)
+func (d decoder) equivalentPLMNList(a diameter.AVP) ([]tgpp.PLMN, error) {
+	inner, err := d.group(a, equivalentPLMNListRules)
 	if err != nil {
 		return nil, err
 	}
 
 	ids := diameter.FindAll(inner, AVPVisitedPLMNID, tgpp.VendorID)
 	if len(ids) == 0 {
-		return nil, tgpp.MissingAVP(AVPVisitedPLMNID, tgpp.VendorID, 3)
+		return nil, diameter.WithinGrouped(a, tgpp.MissingAVP(AVPVisitedPLMNID, tgpp.VendorID, 3))
 	}
 
 	plmns := make([]tgpp.PLMN, 0, len(ids))
 
 	for _, id := range ids {
-		p, err := tgpp.DecodePLMN(id.Data)
+		p, err := parsePLMN(id)
 		if err != nil {
-			return nil, tgpp.InvalidAVP(id)
+			return nil, diameter.WithinGrouped(a, err)
 		}
 
 		plmns = append(plmns, p)
@@ -183,23 +187,27 @@ func ParseUpdateLocationRequest(req *diameter.Message) (UpdateLocationRequest, e
 	r.Features = featuresOf(req)
 
 	if t, ok := req.Find(AVPTerminalInformation, tgpp.VendorID); ok {
-		if r.Terminal, err = parseTerminalInformation(t); err != nil {
+		if r.Terminal, err = requestDecoder.terminal(t); err != nil {
 			return UpdateLocationRequest{}, err
 		}
 	}
 
-	rat, _, err := optionalUnsigned(req.AVPs, tgpp.AVPRATType)
+	ratAVP, _ := req.Find(tgpp.AVPRATType, tgpp.VendorID)
+
+	rat, err := tgpp.Unsigned32(ratAVP)
 	if err != nil {
 		return UpdateLocationRequest{}, err
 	}
 
-	r.RATType = tgpp.RATType(rat)
+	if r.RATType = tgpp.RATType(rat); !r.RATType.ThreeGPP() {
+		return UpdateLocationRequest{}, tgpp.InvalidAVP(ratAVP)
+	}
 
-	if r.Flags, err = optionalFlags(req.AVPs, AVPULRFlags, ulrFlagsDefined); err != nil {
+	if r.Flags, err = requestFlags(req.AVPs, AVPULRFlags, ulrFlagsDefined); err != nil {
 		return UpdateLocationRequest{}, err
 	}
 
-	if r.UESRVCCCapability, err = optionalEnum[UESRVCCCapability](req.AVPs, AVPUESRVCCCapability); err != nil {
+	if r.UESRVCCCapability, err = optionalEnum[UESRVCCCapability](req.AVPs, AVPUESRVCCCapability, true); err != nil {
 		return UpdateLocationRequest{}, err
 	}
 
@@ -211,12 +219,12 @@ func ParseUpdateLocationRequest(req *diameter.Message) (UpdateLocationRequest, e
 		return UpdateLocationRequest{}, err
 	}
 
-	if r.HomogeneousIMSVoiceOverPS, err = optionalEnum[IMSVoiceOverPS](req.AVPs, AVPHomogeneousSupportOfIMSVoiceOverPSSession); err != nil {
+	if r.HomogeneousIMSVoiceOverPS, err = optionalEnum[IMSVoiceOverPS](req.AVPs, AVPHomogeneousSupportOfIMSVoiceOverPSSession, true); err != nil {
 		return UpdateLocationRequest{}, err
 	}
 
 	if list, ok := req.Find(AVPEquivalentPLMNList, tgpp.VendorID); ok {
-		if r.EquivalentPLMNs, err = parseEquivalentPLMNList(list); err != nil {
+		if r.EquivalentPLMNs, err = requestDecoder.equivalentPLMNList(list); err != nil {
 			return UpdateLocationRequest{}, err
 		}
 	}
@@ -225,7 +233,7 @@ func ParseUpdateLocationRequest(req *diameter.Message) (UpdateLocationRequest, e
 		return UpdateLocationRequest{}, err
 	}
 
-	if r.SMSRegisterRequest, err = optionalEnum[SMSRegisterRequest](req.AVPs, AVPSMSRegisterRequest); err != nil {
+	if r.SMSRegisterRequest, err = optionalEnum[SMSRegisterRequest](req.AVPs, AVPSMSRegisterRequest, true); err != nil {
 		return UpdateLocationRequest{}, err
 	}
 
@@ -240,16 +248,47 @@ func ParseUpdateLocationRequest(req *diameter.Message) (UpdateLocationRequest, e
 	return r, nil
 }
 
-func NewUpdateLocationAnswer(req *diameter.Message, id diameter.Identity, u UpdateLocation) (*diameter.Message, error) {
-	ans := newSuccessAnswer(req, id, u.Features)
-
-	var err error
-
-	if ans.AVPs, err = appendFlags(ans.AVPs, AVPULAFlags, "ULA-Flags", u.Flags, ulaFlagsDefined); err != nil {
-		return nil, err
+func validateULASubscription(s SubscriptionData) error {
+	switch {
+	case s.SubscriberStatus == nil:
+		return invalidf("ULA subscription data without Subscriber-Status")
+	case *s.SubscriberStatus == SubscriberStatusOperatorDeterminedBarring && s.OperatorDeterminedBarring == nil && s.HPLMNODB == nil:
+		return invalidf("OPERATOR_DETERMINED_BARRING without Operator-Determined-Barring or HPLMN-ODB")
+	case s.APNConfigurationProfile == nil:
+		return nil
+	case s.AMBR == nil:
+		return invalidf("ULA APN configuration profile without a UE-AMBR")
 	}
 
+	if _, ok := s.APNConfigurationProfile.Default(); !ok {
+		return invalidf("ULA APN configuration profile without an explicit default APN configuration")
+	}
+
+	for _, c := range s.APNConfigurationProfile.Configurations {
+		if c.QoS == nil || c.AMBR == nil {
+			return invalidf("ULA APN configuration %d without an EPS-Subscribed-QoS-Profile and an AMBR", c.ContextIdentifier)
+		}
+	}
+
+	return nil
+}
+
+func NewUpdateLocationAnswer(req *diameter.Message, id diameter.Identity, u UpdateLocation) (*diameter.Message, error) {
+	switch {
+	case !u.Flags.Known():
+		return nil, invalidf("ULA-Flags with undefined bits %#x", uint32(u.Flags&^ulaFlagsDefined))
+	case u.Flags&ULAFlagSeparationIndication == 0:
+		return nil, invalidf("ULA-Flags without the Separation Indication")
+	}
+
+	ans := newSuccessAnswer(req, id, u.Features)
+	ans.AVPs = append(ans.AVPs, unsignedAVP(AVPULAFlags, uint32(u.Flags)))
+
 	if u.Subscription != nil {
+		if err := validateULASubscription(*u.Subscription); err != nil {
+			return nil, err
+		}
+
 		sub, err := u.Subscription.avp()
 		if err != nil {
 			return nil, err
@@ -269,37 +308,17 @@ func ParseUpdateLocationAnswer(ans *diameter.Message) (UpdateLocation, error) {
 		return UpdateLocation{}, err
 	}
 
-	u := UpdateLocation{Features: features, ResetIDs: resetIDs(ans)}
+	u := UpdateLocation{HSS: origin(ans), Features: features, ResetIDs: resetIDs(ans)}
 
-	if u.Flags, err = optionalFlags(ans.AVPs, AVPULAFlags, ulaFlagsDefined); err != nil {
+	if u.Flags, err = answerFlags[ULAFlags](ans.AVPs, AVPULAFlags); err != nil {
 		return UpdateLocation{}, malformed(err)
 	}
 
 	if sub, ok := ans.Find(AVPSubscriptionData, tgpp.VendorID); ok {
-		if u.Subscription, err = parseSubscriptionData(sub); err != nil {
+		if u.Subscription, err = answerDecoder.subscriptionData(sub); err != nil {
 			return UpdateLocation{}, malformed(err)
 		}
 	}
 
 	return u, nil
-}
-
-func resetIDAVPs(ids [][]byte) []diameter.AVP {
-	avps := make([]diameter.AVP, 0, len(ids))
-
-	for _, id := range ids {
-		avps = append(avps, octetsAVP(AVPResetID, id))
-	}
-
-	return avps
-}
-
-func resetIDs(m *diameter.Message) [][]byte {
-	var ids [][]byte
-
-	for _, a := range diameter.FindAll(m.AVPs, AVPResetID, tgpp.VendorID) {
-		ids = append(ids, bytes.Clone(a.Data))
-	}
-
-	return ids
 }

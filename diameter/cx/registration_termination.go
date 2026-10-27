@@ -39,11 +39,11 @@ type RegistrationTermination struct {
 }
 
 var rtrRules = commonRequestRules.With(diameter.Rules{
-	{Code: diameter.AVPDestinationHost}:                      {Required: true},
-	{Code: diameter.AVPUserName}:                             {Required: true},
+	{Code: diameter.AVPDestinationHost}:                      {Required: true, MinLength: 1},
+	{Code: diameter.AVPUserName}:                             {Required: true, MinLength: 1},
 	{Code: AVPAssociatedIdentities, VendorID: tgpp.VendorID}: {},
 	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:       {Multiple: true},
-	{Code: AVPDeregistrationReason, VendorID: tgpp.VendorID}: {Required: true},
+	{Code: AVPDeregistrationReason, VendorID: tgpp.VendorID}: {Required: true, MinLength: 1},
 	{Code: AVPRTRFlags, VendorID: tgpp.VendorID}:             {},
 })
 
