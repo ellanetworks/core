@@ -302,7 +302,7 @@ func GetProfileIMSFilterCriteria(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		ifcs, err := dbInstance.ListProfileIMSFilterCriteria(r.Context(), profile.ID)
+		ifcs, err := dbInstance.ListProfileIMSFilterCriteria(r.Context(), profile.ID, db.IMSRegistrationSetMMTel)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list the profile's initial filter criteria", err, logger.APILog)
 			return
@@ -371,7 +371,7 @@ func UpdateProfileIMSFilterCriteria(dbInstance *db.Database, notifier IMSProfile
 			return
 		}
 
-		if err := dbInstance.SetProfileIMSFilterCriteria(r.Context(), profile.ID, ifcs); err != nil {
+		if err := dbInstance.SetProfileIMSFilterCriteria(r.Context(), profile.ID, db.IMSRegistrationSetMMTel, ifcs); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Profile or application server not found", nil, logger.APILog)
 				return

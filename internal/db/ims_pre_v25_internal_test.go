@@ -81,7 +81,7 @@ func TestDataNetworksAndPoliciesBeforeV25(t *testing.T) {
 		t.Fatalf("list application servers = %d, err %v; want empty", len(servers), err)
 	}
 
-	if ifcs, err := d.ListProfileIMSFilterCriteria(ctx, policy.ProfileID); err != nil || len(ifcs) != 0 {
+	if ifcs, err := d.ListProfileIMSFilterCriteria(ctx, policy.ProfileID, IMSRegistrationSetMMTel); err != nil || len(ifcs) != 0 {
 		t.Fatalf("list profile iFCs = %d, err %v; want empty", len(ifcs), err)
 	}
 
@@ -90,7 +90,7 @@ func TestDataNetworksAndPoliciesBeforeV25(t *testing.T) {
 		t.Fatalf("create application server: err = %v, want ErrMigrationPending", err)
 	}
 
-	if err := d.SetProfileIMSFilterCriteria(ctx, policy.ProfileID, nil); !errors.Is(err, ErrMigrationPending) {
+	if err := d.SetProfileIMSFilterCriteria(ctx, policy.ProfileID, IMSRegistrationSetMMTel, nil); !errors.Is(err, ErrMigrationPending) {
 		t.Fatalf("set profile iFCs: err = %v, want ErrMigrationPending", err)
 	}
 }

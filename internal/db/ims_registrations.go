@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,16 +17,23 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const IMSRegistrationsTableName = "ims_registrations"
+const (
+	IMSRegistrationsTableName    = "ims_registrations"
+	IMSRegistrationSetsTableName = "ims_registration_sets"
+)
 
 const imsRegistrationsSchema = 25
 
 const (
-	getIMSRegistrationStmt      = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	listAllIMSRegistrationsStmt = "SELECT &imsRegistrationRow.* FROM %s ORDER BY imsi ASC"
-	upsertIMSRegistrationStmt   = "INSERT INTO %s (imsi, state, serverName, authPending, originHost, originRealm, privateIdentity, defaultIdentity, profileDigest, emergency) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.state, $imsRegistrationRow.serverName, $imsRegistrationRow.authPending, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.privateIdentity, $imsRegistrationRow.defaultIdentity, $imsRegistrationRow.profileDigest, $imsRegistrationRow.emergency) ON CONFLICT(imsi) DO UPDATE SET state=excluded.state, serverName=excluded.serverName, authPending=excluded.authPending, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity, defaultIdentity=excluded.defaultIdentity, profileDigest=excluded.profileDigest, emergency=excluded.emergency"
-	deleteIMSRegistrationStmt   = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	countIMSRegistrationsStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE state==$imsRegistrationRow.state"
+	getIMSRegistrationStmt         = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
+	listAllIMSRegistrationsStmt    = "SELECT &imsRegistrationRow.* FROM %s ORDER BY imsi ASC"
+	upsertIMSRegistrationStmt      = "INSERT INTO %s (imsi, serverName, originHost, originRealm, privateIdentity) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.serverName, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.privateIdentity) ON CONFLICT(imsi) DO UPDATE SET serverName=excluded.serverName, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity"
+	deleteIMSRegistrationStmt      = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
+	listIMSRegistrationSetsStmt    = "SELECT &imsRegistrationSetRow.* FROM %s WHERE imsi==$imsRegistrationSetRow.imsi ORDER BY registrationSet ASC"
+	listAllIMSRegistrationSetsStmt = "SELECT &imsRegistrationSetRow.* FROM %s ORDER BY imsi ASC, registrationSet ASC"
+	insertIMSRegistrationSetStmt   = "INSERT INTO %s (imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency) VALUES ($imsRegistrationSetRow.imsi, $imsRegistrationSetRow.registrationSet, $imsRegistrationSetRow.state, $imsRegistrationSetRow.authPending, $imsRegistrationSetRow.defaultIdentity, $imsRegistrationSetRow.profileDigest, $imsRegistrationSetRow.emergency)"
+	deleteIMSRegistrationSetsStmt  = "DELETE FROM %s WHERE imsi==$imsRegistrationSetRow.imsi"
+	countIMSRegistrationsStmt      = "SELECT COUNT(DISTINCT imsi) AS &NumItems.count FROM %s WHERE state==$imsRegistrationSetRow.state"
 )
 
 type IMSRegistrationState int
@@ -35,14 +44,35 @@ const (
 	IMSUnregistered  IMSRegistrationState = 2
 )
 
+type IMSRegistrationSet string
+
+const (
+	IMSRegistrationSetMMTel IMSRegistrationSet = "mmtel"
+	IMSRegistrationSetMCPTT IMSRegistrationSet = "mcptt"
+)
+
+var IMSRegistrationSets = []IMSRegistrationSet{IMSRegistrationSetMMTel, IMSRegistrationSetMCPTT}
+
+func (s IMSRegistrationSet) Validate() error {
+	if !slices.Contains(IMSRegistrationSets, s) {
+		return fmt.Errorf("unknown IMS registration set %q", s)
+	}
+
+	return nil
+}
+
 type IMSRegistration struct {
-	IMSI            string               `json:"imsi"`
+	IMSI            string                                    `json:"imsi"`
+	ServerName      string                                    `json:"serverName"`
+	OriginHost      string                                    `json:"originHost"`
+	OriginRealm     string                                    `json:"originRealm"`
+	PrivateIdentity string                                    `json:"privateIdentity"`
+	Sets            map[IMSRegistrationSet]IMSSetRegistration `json:"sets"`
+}
+
+type IMSSetRegistration struct {
 	State           IMSRegistrationState `json:"state"`
-	ServerName      string               `json:"serverName"`
 	AuthPending     bool                 `json:"authPending"`
-	OriginHost      string               `json:"originHost"`
-	OriginRealm     string               `json:"originRealm"`
-	PrivateIdentity string               `json:"privateIdentity"`
 	DefaultIdentity string               `json:"defaultIdentity"`
 	ProfileDigest   string               `json:"profileDigest"`
 	Emergency       bool                 `json:"emergency"`
@@ -50,12 +80,17 @@ type IMSRegistration struct {
 
 type imsRegistrationRow struct {
 	Imsi            string `db:"imsi"`
-	State           int    `db:"state"`
 	ServerName      string `db:"serverName"`
-	AuthPending     bool   `db:"authPending"`
 	OriginHost      string `db:"originHost"`
 	OriginRealm     string `db:"originRealm"`
 	PrivateIdentity string `db:"privateIdentity"`
+}
+
+type imsRegistrationSetRow struct {
+	Imsi            string `db:"imsi"`
+	RegistrationSet string `db:"registrationSet"`
+	State           int    `db:"state"`
+	AuthPending     bool   `db:"authPending"`
 	DefaultIdentity string `db:"defaultIdentity"`
 	ProfileDigest   string `db:"profileDigest"`
 	Emergency       bool   `db:"emergency"`
@@ -72,34 +107,27 @@ type imsRegistrationCASResult struct {
 	Current *IMSRegistration `json:"current,omitempty"`
 }
 
-func (r imsRegistrationRow) registration() *IMSRegistration {
-	return &IMSRegistration{
+func imsRegistrationOf(r imsRegistrationRow, sets []imsRegistrationSetRow) *IMSRegistration {
+	reg := &IMSRegistration{
 		IMSI:            r.Imsi,
-		State:           IMSRegistrationState(r.State),
 		ServerName:      r.ServerName,
-		AuthPending:     r.AuthPending,
 		OriginHost:      r.OriginHost,
 		OriginRealm:     r.OriginRealm,
 		PrivateIdentity: r.PrivateIdentity,
-		DefaultIdentity: r.DefaultIdentity,
-		ProfileDigest:   r.ProfileDigest,
-		Emergency:       r.Emergency,
+		Sets:            make(map[IMSRegistrationSet]IMSSetRegistration, len(sets)),
 	}
-}
 
-func imsRegistrationRowOf(imsi string, r *IMSRegistration) imsRegistrationRow {
-	return imsRegistrationRow{
-		Imsi:            imsi,
-		State:           int(r.State),
-		ServerName:      r.ServerName,
-		AuthPending:     r.AuthPending,
-		OriginHost:      r.OriginHost,
-		OriginRealm:     r.OriginRealm,
-		PrivateIdentity: r.PrivateIdentity,
-		DefaultIdentity: r.DefaultIdentity,
-		ProfileDigest:   r.ProfileDigest,
-		Emergency:       r.Emergency,
+	for _, s := range sets {
+		reg.Sets[IMSRegistrationSet(s.RegistrationSet)] = IMSSetRegistration{
+			State:           IMSRegistrationState(s.State),
+			AuthPending:     s.AuthPending,
+			DefaultIdentity: s.DefaultIdentity,
+			ProfileDigest:   s.ProfileDigest,
+			Emergency:       s.Emergency,
+		}
 	}
+
+	return reg
 }
 
 func sameIMSRegistration(a, b *IMSRegistration) bool {
@@ -107,15 +135,29 @@ func sameIMSRegistration(a, b *IMSRegistration) bool {
 		return a == nil && b == nil
 	}
 
-	return a.State == b.State &&
-		a.ServerName == b.ServerName &&
-		a.AuthPending == b.AuthPending &&
+	return a.ServerName == b.ServerName &&
 		a.OriginHost == b.OriginHost &&
 		a.OriginRealm == b.OriginRealm &&
 		a.PrivateIdentity == b.PrivateIdentity &&
-		a.DefaultIdentity == b.DefaultIdentity &&
-		a.ProfileDigest == b.ProfileDigest &&
-		a.Emergency == b.Emergency
+		maps.Equal(a.Sets, b.Sets)
+}
+
+func validateIMSRegistration(r *IMSRegistration) error {
+	if len(r.Sets) == 0 {
+		return errors.New("an IMS registration needs at least one registration set")
+	}
+
+	for set, s := range r.Sets {
+		if err := set.Validate(); err != nil {
+			return err
+		}
+
+		if s.State != IMSNotRegistered && r.PrivateIdentity == "" {
+			return fmt.Errorf("registration set %s is in state %d without a private identity", set, s.State)
+		}
+	}
+
+	return nil
 }
 
 func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistration, error) {
@@ -131,22 +173,32 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 		return nil, nil
 	}
 
-	var rows []imsRegistrationRow
+	var (
+		rows    []imsRegistrationRow
+		setRows []imsRegistrationSetRow
+	)
 
-	if err := db.conn().Query(ctx, db.listAllIMSRegistrationsStmt).GetAll(&rows); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
+	if err := db.conn().Query(ctx, db.listAllIMSRegistrationsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	if err := db.conn().Query(ctx, db.listAllIMSRegistrationSetsStmt).GetAll(&setRows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	sets := make(map[string][]imsRegistrationSetRow, len(rows))
+	for _, s := range setRows {
+		sets[s.Imsi] = append(sets[s.Imsi], s)
+	}
+
 	regs := make([]IMSRegistration, 0, len(rows))
 
 	for _, r := range rows {
-		regs = append(regs, *r.registration())
+		regs = append(regs, *imsRegistrationOf(r, sets[r.Imsi]))
 	}
 
 	return regs, nil
@@ -190,7 +242,7 @@ func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistra
 
 	var result NumItems
 
-	if err := db.conn().Query(ctx, db.countIMSRegistrationsStmt, imsRegistrationRow{State: int(state)}).Get(&result); err != nil {
+	if err := db.conn().Query(ctx, db.countIMSRegistrationsStmt, imsRegistrationSetRow{State: int(state)}).Get(&result); err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
@@ -235,19 +287,9 @@ func (db *Database) applyCompareAndSwapIMSRegistration(ctx context.Context, payl
 		return &imsRegistrationCASResult{Current: current}, nil
 	}
 
-	switch {
-	case sameIMSRegistration(current, payload.Next):
-	case payload.Next == nil:
-		if err := db.runner(ctx).Query(ctx, db.deleteIMSRegistrationStmt, imsRegistrationRow{Imsi: payload.IMSI}).Run(); err != nil {
-			return nil, fmt.Errorf("query failed: %w", err)
-		}
-	default:
-		if err := db.runner(ctx).Query(ctx, db.upsertIMSRegistrationStmt, imsRegistrationRowOf(payload.IMSI, payload.Next)).Run(); err != nil {
-			if isForeignKeyError(err) {
-				return nil, ErrNotFound
-			}
-
-			return nil, fmt.Errorf("query failed: %w", err)
+	if !sameIMSRegistration(current, payload.Next) {
+		if err := db.writeIMSRegistration(ctx, payload.IMSI, payload.Next); err != nil {
+			return nil, err
 		}
 	}
 
@@ -261,6 +303,66 @@ func (db *Database) applyCompareAndSwapIMSRegistration(ctx context.Context, payl
 	return &imsRegistrationCASResult{Swapped: true, Current: next}, nil
 }
 
+func (db *Database) applyRetiredCompareAndSwapIMSRegistration(context.Context, *struct{}) (any, error) {
+	return nil, ErrRetiredOperation
+}
+
+func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next *IMSRegistration) error {
+	if next != nil {
+		if err := validateIMSRegistration(next); err != nil {
+			return err
+		}
+	}
+
+	if err := db.runner(ctx).Query(ctx, db.deleteIMSRegistrationSetsStmt, imsRegistrationSetRow{Imsi: imsi}).Run(); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	if next == nil {
+		if err := db.runner(ctx).Query(ctx, db.deleteIMSRegistrationStmt, imsRegistrationRow{Imsi: imsi}).Run(); err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
+
+		return nil
+	}
+
+	row := imsRegistrationRow{
+		Imsi:            imsi,
+		ServerName:      next.ServerName,
+		OriginHost:      next.OriginHost,
+		OriginRealm:     next.OriginRealm,
+		PrivateIdentity: next.PrivateIdentity,
+	}
+
+	if err := db.runner(ctx).Query(ctx, db.upsertIMSRegistrationStmt, row).Run(); err != nil {
+		if isForeignKeyError(err) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	for _, set := range slices.Sorted(maps.Keys(next.Sets)) {
+		s := next.Sets[set]
+
+		setRow := imsRegistrationSetRow{
+			Imsi:            imsi,
+			RegistrationSet: string(set),
+			State:           int(s.State),
+			AuthPending:     s.AuthPending,
+			DefaultIdentity: s.DefaultIdentity,
+			ProfileDigest:   s.ProfileDigest,
+			Emergency:       s.Emergency,
+		}
+
+		if err := db.runner(ctx).Query(ctx, db.insertIMSRegistrationSetStmt, setRow).Run(); err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (db *Database) getIMSRegistration(ctx context.Context, q *sqlair.DB, imsi string) (*IMSRegistration, error) {
 	row := imsRegistrationRow{Imsi: imsi}
 
@@ -272,7 +374,13 @@ func (db *Database) getIMSRegistration(ctx context.Context, q *sqlair.DB, imsi s
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return row.registration(), nil
+	var sets []imsRegistrationSetRow
+
+	if err := q.Query(ctx, db.listIMSRegistrationSetsStmt, imsRegistrationSetRow{Imsi: imsi}).GetAll(&sets); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return imsRegistrationOf(row, sets), nil
 }
 
 func startIMSRegistrationsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {

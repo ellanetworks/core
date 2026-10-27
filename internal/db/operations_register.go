@@ -50,7 +50,8 @@ var (
 
 var (
 	retiredChangesetOps = map[string]struct{}{
-		"InsertAuditLog": {},
+		"InsertAuditLog":                {},
+		"CompareAndSwapIMSRegistration": {},
 	}
 
 	retiredIntentOps = map[string]struct{}{
@@ -191,7 +192,10 @@ var (
 
 var opReplacePCSCFAddresses = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
 
-var opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistration", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(23))
+var (
+	_                               = registerChangesetOp("CompareAndSwapIMSRegistration", (*Database).applyRetiredCompareAndSwapIMSRegistration, RequireSchema(23))
+	opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistrationSets", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(25))
+)
 
 var (
 	opCreateIMSApplicationServer  = registerChangesetOp("CreateIMSApplicationServer", (*Database).applyCreateIMSApplicationServer, RequireSchema(25))

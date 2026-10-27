@@ -22,12 +22,12 @@ import (
 const IMSInitialFilterCriteriaTableName = "ims_initial_filter_criteria"
 
 const (
-	listProfileIMSIFCsStmt          = "SELECT &imsIFCRow.* FROM %s WHERE profileID==$imsIFCRow.profileID ORDER BY position"
-	insertIMSIFCStmt                = "INSERT INTO %s (profileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.profileID, $imsIFCRow.position, $imsIFCRow.applicationServerID, $imsIFCRow.triggerPoint, $imsIFCRow.profilePart, $imsIFCRow.defaultHandling, $imsIFCRow.serviceInfo, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
-	deleteProfileIMSIFCsStmt        = "DELETE FROM %s WHERE profileID==$imsIFCRow.profileID"
+	listProfileIMSIFCsStmt          = "SELECT &imsIFCRow.* FROM %s WHERE profileID==$imsIFCRow.profileID AND registrationSet==$imsIFCRow.registrationSet ORDER BY position"
+	insertIMSIFCStmt                = "INSERT INTO %s (profileID, registrationSet, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.profileID, $imsIFCRow.registrationSet, $imsIFCRow.position, $imsIFCRow.applicationServerID, $imsIFCRow.triggerPoint, $imsIFCRow.profilePart, $imsIFCRow.defaultHandling, $imsIFCRow.serviceInfo, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
+	deleteProfileIMSIFCsStmt        = "DELETE FROM %s WHERE profileID==$imsIFCRow.profileID AND registrationSet==$imsIFCRow.registrationSet"
 	listProfilesOfIMSASStmt         = "SELECT DISTINCT &imsIFCRow.profileID FROM %s WHERE applicationServerID==$imsIFCRow.applicationServerID"
-	listIMSRegisteredOfProfilesStmt = "SELECT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state != $imsRegistrationRow.state AND s.profileID IN ($SliceIDs[:]) ORDER BY s.imsi"
-	listSubscriberIMSIFCsStmt       = "SELECT f.* AS &imsIFCRow.*, a.serverName AS &imsApplicationServerRow.serverName FROM %s AS f JOIN %s AS s ON s.profileID = f.profileID JOIN %s AS a ON a.id = f.applicationServerID WHERE s.imsi = $subscriberIMSI.imsi ORDER BY f.position"
+	listIMSRegisteredOfProfilesStmt = "SELECT DISTINCT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state != $imsRegistrationSetRow.state AND s.profileID IN ($SliceIDs[:]) ORDER BY s.imsi"
+	listSubscriberIMSIFCsStmt       = "SELECT f.* AS &imsIFCRow.*, a.serverName AS &imsApplicationServerRow.serverName FROM %s AS f JOIN %s AS s ON s.profileID = f.profileID JOIN %s AS a ON a.id = f.applicationServerID WHERE s.imsi = $subscriberIMSI.imsi AND f.registrationSet = $imsIFCRow.registrationSet ORDER BY f.position"
 )
 
 type IMSProfilePart string
@@ -110,6 +110,7 @@ type IMSSessionDescription struct {
 
 type imsIFCRow struct {
 	ProfileID               string  `db:"profileID"`
+	RegistrationSet         string  `db:"registrationSet"`
 	Position                int     `db:"position"`
 	ApplicationServerID     string  `db:"applicationServerID"`
 	TriggerPoint            *string `db:"triggerPoint"`
@@ -331,6 +332,7 @@ func (c IMSInitialFilterCriterion) CX(priority int32, serverName string) cx.Init
 
 type profileIMSIFCsPayload struct {
 	ProfileID             string                      `json:"profile_id"`
+	RegistrationSet       IMSRegistrationSet          `json:"registration_set"`
 	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
 }
 
@@ -367,7 +369,7 @@ func ValidateIMSFilterCriteria(ifcs []IMSInitialFilterCriterion) error {
 	return nil
 }
 
-func (db *Database) ListProfileIMSFilterCriteria(ctx context.Context, profileID string) ([]IMSInitialFilterCriterion, error) {
+func (db *Database) ListProfileIMSFilterCriteria(ctx context.Context, profileID string, set IMSRegistrationSet) ([]IMSInitialFilterCriterion, error) {
 	ctx, span := startIMSFilterCriteriaSpan(ctx, "SELECT")
 	defer span.End()
 
@@ -382,7 +384,7 @@ func (db *Database) ListProfileIMSFilterCriteria(ctx context.Context, profileID 
 
 	var rows []imsIFCRow
 
-	if err := db.conn().Query(ctx, db.listProfileIMSIFCsStmt, imsIFCRow{ProfileID: profileID}).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.conn().Query(ctx, db.listProfileIMSIFCsStmt, imsIFCRow{ProfileID: profileID, RegistrationSet: string(set)}).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -402,7 +404,7 @@ func (db *Database) ListProfileIMSFilterCriteria(ctx context.Context, profileID 
 	return ifcs, nil
 }
 
-func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi string, set IMSRegistrationSet) ([]cx.InitialFilterCriteria, error) {
 	ctx, span := startIMSFilterCriteriaSpan(ctx, "SELECT")
 	defer span.End()
 
@@ -420,13 +422,13 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 		servers []imsApplicationServerRow
 	)
 
-	if err := db.conn().Query(ctx, db.listSubscriberIMSIFCsStmt, subscriberIMSI{Imsi: imsi}).GetAll(&rows, &servers); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.conn().Query(ctx, db.listSubscriberIMSIFCsStmt, subscriberIMSI{Imsi: imsi}, imsIFCRow{RegistrationSet: string(set)}).GetAll(&rows, &servers); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(rows) > math.MaxInt32 {
-		return nil, fmt.Errorf("subscriber %s has too many initial filter criteria", imsi)
+		return nil, fmt.Errorf("subscriber %s has too many initial filter criteria in registration set %s", imsi, set)
 	}
 
 	ifcs := make([]cx.InitialFilterCriteria, 0, len(rows))
@@ -464,14 +466,18 @@ func imsIFCOf(r imsIFCRow) (IMSInitialFilterCriterion, error) {
 		ifc.Trigger = new(IMSTrigger)
 
 		if err := json.Unmarshal([]byte(*r.TriggerPoint), ifc.Trigger); err != nil {
-			return IMSInitialFilterCriterion{}, fmt.Errorf("decode the trigger point of initial filter criterion %d of profile %s: %w", r.Position, r.ProfileID, err)
+			return IMSInitialFilterCriterion{}, fmt.Errorf("decode the trigger point of initial filter criterion %d of registration set %s of profile %s: %w", r.Position, r.RegistrationSet, r.ProfileID, err)
 		}
 	}
 
 	return ifc, nil
 }
 
-func (db *Database) SetProfileIMSFilterCriteria(ctx context.Context, profileID string, ifcs []IMSInitialFilterCriterion) error {
+func (db *Database) SetProfileIMSFilterCriteria(ctx context.Context, profileID string, set IMSRegistrationSet, ifcs []IMSInitialFilterCriterion) error {
+	if err := set.Validate(); err != nil {
+		return err
+	}
+
 	if err := ValidateIMSFilterCriteria(ifcs); err != nil {
 		return err
 	}
@@ -484,7 +490,7 @@ func (db *Database) SetProfileIMSFilterCriteria(ctx context.Context, profileID s
 
 	DBQueriesTotal.WithLabelValues(IMSInitialFilterCriteriaTableName, "update").Inc()
 
-	if _, err := opSetProfileIMSFilterCriteria.Invoke(ctx, db, &profileIMSIFCsPayload{ProfileID: profileID, InitialFilterCriteria: ifcs}); err != nil {
+	if _, err := opSetProfileIMSFilterCriteria.Invoke(ctx, db, &profileIMSIFCsPayload{ProfileID: profileID, RegistrationSet: set, InitialFilterCriteria: ifcs}); err != nil {
 		recordSpanError(span, err)
 		return err
 	}
@@ -493,13 +499,14 @@ func (db *Database) SetProfileIMSFilterCriteria(ctx context.Context, profileID s
 }
 
 func (db *Database) applySetProfileIMSFilterCriteria(ctx context.Context, p *profileIMSIFCsPayload) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deleteProfileIMSIFCsStmt, imsIFCRow{ProfileID: p.ProfileID}).Run(); err != nil {
+	if err := db.runner(ctx).Query(ctx, db.deleteProfileIMSIFCsStmt, imsIFCRow{ProfileID: p.ProfileID, RegistrationSet: string(p.RegistrationSet)}).Run(); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	for i, ifc := range p.InitialFilterCriteria {
 		row := imsIFCRow{
 			ProfileID:               p.ProfileID,
+			RegistrationSet:         string(p.RegistrationSet),
 			Position:                i,
 			ApplicationServerID:     ifc.ApplicationServerID,
 			ServiceInfo:             ifc.ServiceInfo,
@@ -568,10 +575,10 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 	ctx, span := startIMSFilterCriteriaSpan(ctx, "SELECT")
 	defer span.End()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "select"))
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationSetsTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "select").Inc()
+	DBQueriesTotal.WithLabelValues(IMSRegistrationSetsTableName, "select").Inc()
 
 	if len(profileIDs) == 0 || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -579,7 +586,7 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 
 	var rows []subscriberIMSI
 
-	if err := db.conn().Query(ctx, db.listIMSRegisteredOfProfilesStmt, imsRegistrationRow{State: int(IMSNotRegistered)}, SliceIDs(profileIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.conn().Query(ctx, db.listIMSRegisteredOfProfilesStmt, imsRegistrationSetRow{State: int(IMSNotRegistered)}, SliceIDs(profileIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

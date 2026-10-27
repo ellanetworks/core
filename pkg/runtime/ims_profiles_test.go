@@ -71,7 +71,7 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("get profile: %s", err)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, append([]db.IMSInitialFilterCriterion{other}, mcpttIFCs(mcpttAS.ID)...)); err != nil {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, append([]db.IMSInitialFilterCriterion{other}, mcpttIFCs(mcpttAS.ID)...)); err != nil {
 		t.Fatalf("set profile iFCs: %s", err)
 	}
 
@@ -83,7 +83,7 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("create subscriber: %s", err)
 	}
 
-	ifcs, err := database.ListSubscriberIMSFilterCriteria(ctx, subscriber.Imsi)
+	ifcs, err := database.ListSubscriberIMSFilterCriteria(ctx, subscriber.Imsi, db.IMSRegistrationSetMMTel)
 	if err != nil {
 		t.Fatalf("ListSubscriberIMSFilterCriteria: %s", err)
 	}
@@ -101,7 +101,7 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("iFC priorities %v, servers %v; want the other server's iFC first, then the two MCPTT iFCs", priorities, servers)
 	}
 
-	none, err := database.ListSubscriberIMSFilterCriteria(ctx, "001010000000002")
+	none, err := database.ListSubscriberIMSFilterCriteria(ctx, "001010000000002", db.IMSRegistrationSetMMTel)
 	if err != nil || len(none) != 0 {
 		t.Fatalf("iFCs of an unknown subscriber = %v, %v", none, err)
 	}
@@ -157,8 +157,8 @@ func imsNotifierDatabase(t *testing.T, registrations map[string]string) *db.Data
 		}
 
 		reg := &db.IMSRegistration{
-			IMSI: imsi, State: db.IMSRegistered, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org",
-			PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest",
+			IMSI: imsi, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org", PrivateIdentity: imsi + "@ims.example.org",
+			Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{db.IMSRegistrationSetMMTel: {State: db.IMSRegistered, ProfileDigest: "digest"}},
 		}
 		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err != nil || !swapped {
 			t.Fatalf("store the IMS registration of %s: swapped %t, %v", imsi, swapped, err)

@@ -42,7 +42,7 @@ func TestIMSRegistrationStatesMapExplicitly(t *testing.T) {
 
 	for hssState, dbState := range pairs {
 		stored, err := dbIMSRegistration("001010000000001", &hss.Registration{State: hssState, ServerName: "sip:scscf.example.org"})
-		if err != nil || stored.State != dbState {
+		if err != nil || stored.Sets[db.IMSRegistrationSetMMTel].State != dbState {
 			t.Fatalf("dbIMSRegistration(%d) = %+v, %v; want state %d", hssState, stored, err, dbState)
 		}
 
@@ -56,7 +56,11 @@ func TestIMSRegistrationStatesMapExplicitly(t *testing.T) {
 		t.Fatalf("dbIMSRegistration of an unknown state = %+v, want an error", got)
 	}
 
-	if got, err := hssRegistration(&db.IMSRegistration{State: db.IMSUnregistered + 1}); err == nil {
+	if got, err := hssRegistration(&db.IMSRegistration{Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{db.IMSRegistrationSetMMTel: {State: db.IMSUnregistered + 1}}}); err == nil {
 		t.Fatalf("hssRegistration of an unknown state = %+v, want an error", got)
+	}
+
+	if got, err := hssRegistration(&db.IMSRegistration{Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{db.IMSRegistrationSetMCPTT: {State: db.IMSRegistered}}}); err == nil {
+		t.Fatalf("hssRegistration without the %s set = %+v, want an error", db.IMSRegistrationSetMMTel, got)
 	}
 }

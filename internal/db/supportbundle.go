@@ -6,6 +6,8 @@ package db
 import (
 	"context"
 	"io"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -403,13 +405,23 @@ func (db *Database) collectSupportRegistrations(ctx context.Context, out support
 	} else {
 		entries := make([]any, 0, len(imsRegs))
 		for _, r := range imsRegs {
+			sets := make([]any, 0, len(r.Sets))
+
+			for _, set := range slices.Sorted(maps.Keys(r.Sets)) {
+				sets = append(sets, map[string]any{
+					"registration_set": set,
+					"state":            r.Sets[set].State,
+					"auth_pending":     r.Sets[set].AuthPending,
+					"emergency":        r.Sets[set].Emergency,
+				})
+			}
+
 			entries = append(entries, map[string]any{
-				"imsi":         r.IMSI,
-				"state":        r.State,
-				"server_name":  r.ServerName,
-				"auth_pending": r.AuthPending,
-				"origin_host":  r.OriginHost,
-				"origin_realm": r.OriginRealm,
+				"imsi":              r.IMSI,
+				"server_name":       r.ServerName,
+				"origin_host":       r.OriginHost,
+				"origin_realm":      r.OriginRealm,
+				"registration_sets": sets,
 			})
 		}
 
@@ -589,24 +601,27 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	criteriaEntries := []any{}
 
 	for _, p := range profiles {
-		ifcs, err := db.ListProfileIMSFilterCriteria(ctx, p.ID)
-		if err != nil {
-			failure("ims_filter_criteria", err)
-			continue
-		}
+		for _, set := range IMSRegistrationSets {
+			ifcs, err := db.ListProfileIMSFilterCriteria(ctx, p.ID, set)
+			if err != nil {
+				failure("ims_filter_criteria", err)
+				continue
+			}
 
-		for i, ifc := range ifcs {
-			criteriaEntries = append(criteriaEntries, map[string]any{
-				"profile":                   p.Name,
-				"priority":                  i,
-				"application_server_name":   serverNames[ifc.ApplicationServerID],
-				"trigger":                   ifc.Trigger,
-				"profile_part":              ifc.ProfilePart,
-				"default_handling":          ifc.DefaultHandling,
-				"service_info":              ifc.ServiceInfo,
-				"include_register_request":  ifc.IncludeRegisterRequest,
-				"include_register_response": ifc.IncludeRegisterResponse,
-			})
+			for i, ifc := range ifcs {
+				criteriaEntries = append(criteriaEntries, map[string]any{
+					"profile":                   p.Name,
+					"registration_set":          set,
+					"priority":                  i,
+					"application_server_name":   serverNames[ifc.ApplicationServerID],
+					"trigger":                   ifc.Trigger,
+					"profile_part":              ifc.ProfilePart,
+					"default_handling":          ifc.DefaultHandling,
+					"service_info":              ifc.ServiceInfo,
+					"include_register_request":  ifc.IncludeRegisterRequest,
+					"include_register_response": ifc.IncludeRegisterResponse,
+				})
+			}
 		}
 	}
 

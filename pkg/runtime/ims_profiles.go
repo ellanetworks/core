@@ -65,8 +65,11 @@ func (n *imsProfileNotifier) AllSubscribersChanged(_ context.Context) {
 		imsis := make([]string, 0, len(regs))
 
 		for _, r := range regs {
-			if r.State != db.IMSNotRegistered {
-				imsis = append(imsis, r.IMSI)
+			for _, set := range r.Sets {
+				if set.State != db.IMSNotRegistered {
+					imsis = append(imsis, r.IMSI)
+					break
+				}
 			}
 		}
 

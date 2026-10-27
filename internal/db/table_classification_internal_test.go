@@ -30,6 +30,7 @@ var (
 		"operator",
 		"pcscf_addresses",
 		"ims_registrations",
+		"ims_registration_sets",
 		"ip_sm_gw_registrations",
 		"policies",
 		"profiles",

@@ -179,38 +179,38 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 		t.Fatalf("create profile: %v", err)
 	}
 
-	if got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID); err != nil || len(got) != 0 {
+	if got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel); err != nil || len(got) != 0 {
 		t.Fatalf("iFCs of a new profile = %+v, %v; want none", got, err)
 	}
 
 	want := []db.IMSInitialFilterCriterion{registerIFC(mcptt.ID), originatingIFC(mcptt.ID), unconditionalIFC(conf.ID)}
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, want); err != nil {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, want); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 
-	got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID)
+	got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("list = %+v, %v; want %+v in order", got, err, want)
 	}
 
 	reordered := []db.IMSInitialFilterCriterion{unconditionalIFC(conf.ID), registerIFC(mcptt.ID)}
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, reordered); err != nil {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, reordered); err != nil {
 		t.Fatalf("reorder: %v", err)
 	}
 
-	if got, _ := database.ListProfileIMSFilterCriteria(ctx, profile.ID); !reflect.DeepEqual(got, reordered) {
+	if got, _ := database.ListProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel); !reflect.DeepEqual(got, reordered) {
 		t.Fatalf("list after reorder = %+v, want %+v", got, reordered)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{registerIFC("missing")}); !errors.Is(err, db.ErrNotFound) {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, []db.IMSInitialFilterCriterion{registerIFC("missing")}); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("set with an unknown application server: err = %v, want ErrNotFound", err)
 	}
 
-	if got, _ := database.ListProfileIMSFilterCriteria(ctx, profile.ID); len(got) != 2 {
+	if got, _ := database.ListProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel); len(got) != 2 {
 		t.Fatalf("a failed set changed the list: %+v", got)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, "missing", []db.IMSInitialFilterCriterion{registerIFC(mcptt.ID)}); !errors.Is(err, db.ErrNotFound) {
+	if err := database.SetProfileIMSFilterCriteria(ctx, "missing", db.IMSRegistrationSetMMTel, []db.IMSInitialFilterCriterion{registerIFC(mcptt.ID)}); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("set on an unknown profile: err = %v, want ErrNotFound", err)
 	}
 
@@ -222,7 +222,7 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 		t.Fatalf("delete an application server a profile uses: err = %v, want ErrInUse", err)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, nil); err != nil {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, nil); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 
@@ -230,7 +230,7 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 		t.Fatalf("delete an unused application server: %v", err)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{unconditionalIFC(conf.ID)}); err != nil {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, []db.IMSInitialFilterCriterion{unconditionalIFC(conf.ID)}); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 
@@ -240,6 +240,74 @@ func TestProfileIMSFilterCriteria_TS29228_B22(t *testing.T) {
 
 	if err := database.DeleteIMSApplicationServer(ctx, "conf"); err != nil {
 		t.Fatalf("delete an application server whose profile was deleted: %v", err)
+	}
+}
+
+func TestProfileIMSFilterCriteriaPerRegistrationSet(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	mcptt := &db.IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org"}
+	ipsmgw := &db.IMSApplicationServer{Name: "ip-sm-gw", ServerName: "sip:ipsmgw.ims.example.org"}
+
+	for _, as := range []*db.IMSApplicationServer{mcptt, ipsmgw} {
+		if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+			t.Fatalf("create application server %s: %v", as.Name, err)
+		}
+	}
+
+	profile := &db.Profile{Name: "mc", UeAmbrUplink: "1 Gbps", UeAmbrDownlink: "1 Gbps", Allow4G: true, Allow5G: true}
+	if err := database.CreateProfile(ctx, profile); err != nil {
+		t.Fatalf("create profile: %v", err)
+	}
+
+	const imsi = "001010000000071"
+
+	sub := &db.Subscriber{Imsi: imsi, SequenceNumber: "000000000001", PermanentKey: "6f30087629feb0b089783c81d0ae09b5", Opc: "21a7e1897dfb481d62439142cdf1b6ee", ProfileID: profile.ID}
+	if err := database.CreateSubscriber(ctx, sub); err != nil {
+		t.Fatalf("create subscriber: %v", err)
+	}
+
+	want := map[db.IMSRegistrationSet][]db.IMSInitialFilterCriterion{
+		db.IMSRegistrationSetMMTel: {registerIFC(ipsmgw.ID)},
+		db.IMSRegistrationSetMCPTT: {registerIFC(mcptt.ID), originatingIFC(mcptt.ID)},
+	}
+
+	for set, ifcs := range want {
+		if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, set, ifcs); err != nil {
+			t.Fatalf("set the %s iFCs: %v", set, err)
+		}
+	}
+
+	servers := map[db.IMSRegistrationSet]string{db.IMSRegistrationSetMMTel: ipsmgw.ServerName, db.IMSRegistrationSetMCPTT: mcptt.ServerName}
+
+	for set, ifcs := range want {
+		if got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID, set); err != nil || !reflect.DeepEqual(got, ifcs) {
+			t.Fatalf("%s iFCs = %+v, %v; want %+v", set, got, err, ifcs)
+		}
+
+		got, err := database.ListSubscriberIMSFilterCriteria(ctx, imsi, set)
+		if err != nil || len(got) != len(ifcs) {
+			t.Fatalf("subscriber %s iFCs = %+v, %v; want %d", set, got, err, len(ifcs))
+		}
+
+		for i, ifc := range got {
+			if ifc.Priority != int32(i) || ifc.ApplicationServer.ServerName != servers[set] {
+				t.Fatalf("subscriber %s iFC %d = %+v, want priority %d at %s", set, i, ifc, i, servers[set])
+			}
+		}
+	}
+
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, nil); err != nil {
+		t.Fatalf("clear the mmtel iFCs: %v", err)
+	}
+
+	if got, err := database.ListProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMCPTT); err != nil || !reflect.DeepEqual(got, want[db.IMSRegistrationSetMCPTT]) {
+		t.Fatalf("mcptt iFCs after clearing mmtel = %+v, %v; want %+v", got, err, want[db.IMSRegistrationSetMCPTT])
+	}
+
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, "rcs", []db.IMSInitialFilterCriterion{registerIFC(mcptt.ID)}); err == nil {
+		t.Fatal("set the iFCs of an unknown registration set: accepted")
 	}
 }
 
@@ -558,7 +626,7 @@ func TestIMSProfilePushTargets(t *testing.T) {
 		t.Fatalf("get profile: %v", err)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{registerIFC(as.ID)}); err != nil {
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, []db.IMSInitialFilterCriterion{registerIFC(as.ID)}); err != nil {
 		t.Fatalf("set profile iFCs: %v", err)
 	}
 
@@ -581,8 +649,10 @@ func TestIMSProfilePushTargets(t *testing.T) {
 		}
 
 		next := &db.IMSRegistration{
-			IMSI: imsi, State: state, ServerName: "sip:scscf.example.org", AuthPending: state == db.IMSNotRegistered, OriginHost: "scscf.example.org", OriginRealm: "example.org",
-			PrivateIdentity: imsi + "@example.org", ProfileDigest: "digest",
+			IMSI: imsi, ServerName: "sip:scscf.example.org", OriginHost: "scscf.example.org", OriginRealm: "example.org", PrivateIdentity: imsi + "@example.org",
+			Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{
+				db.IMSRegistrationSetMMTel: {State: state, AuthPending: state == db.IMSNotRegistered, ProfileDigest: "digest"},
+			},
 		}
 		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, next); err != nil || !swapped {
 			t.Fatalf("store IMS registration of %s: swapped %t, %v", imsi, swapped, err)

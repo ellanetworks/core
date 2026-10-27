@@ -994,7 +994,7 @@ func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*
 }
 
 func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
-	return a.db.ListSubscriberIMSFilterCriteria(ctx, imsi)
+	return a.db.ListSubscriberIMSFilterCriteria(ctx, imsi, db.IMSRegistrationSetMMTel)
 }
 
 func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*hss.ServiceIdentity, error) {
@@ -1154,7 +1154,12 @@ func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
 		return nil, nil
 	}
 
-	state, err := hssState(reg.State)
+	set, ok := reg.Sets[db.IMSRegistrationSetMMTel]
+	if !ok {
+		return nil, fmt.Errorf("IMS registration of subscriber %s has no %s registration set", reg.IMSI, db.IMSRegistrationSetMMTel)
+	}
+
+	state, err := hssState(set.State)
 	if err != nil {
 		return nil, err
 	}
@@ -1162,13 +1167,13 @@ func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
 	return &hss.Registration{
 		State:           state,
 		ServerName:      reg.ServerName,
-		AuthPending:     reg.AuthPending,
+		AuthPending:     set.AuthPending,
 		OriginHost:      reg.OriginHost,
 		OriginRealm:     reg.OriginRealm,
 		PrivateIdentity: reg.PrivateIdentity,
-		DefaultIdentity: reg.DefaultIdentity,
-		ProfileDigest:   reg.ProfileDigest,
-		Emergency:       reg.Emergency,
+		DefaultIdentity: set.DefaultIdentity,
+		ProfileDigest:   set.ProfileDigest,
+		Emergency:       set.Emergency,
 	}, nil
 }
 
@@ -1184,15 +1189,19 @@ func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration,
 
 	return &db.IMSRegistration{
 		IMSI:            imsi,
-		State:           state,
 		ServerName:      reg.ServerName,
-		AuthPending:     reg.AuthPending,
 		OriginHost:      reg.OriginHost,
 		OriginRealm:     reg.OriginRealm,
 		PrivateIdentity: reg.PrivateIdentity,
-		DefaultIdentity: reg.DefaultIdentity,
-		ProfileDigest:   reg.ProfileDigest,
-		Emergency:       reg.Emergency,
+		Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{
+			db.IMSRegistrationSetMMTel: {
+				State:           state,
+				AuthPending:     reg.AuthPending,
+				DefaultIdentity: reg.DefaultIdentity,
+				ProfileDigest:   reg.ProfileDigest,
+				Emergency:       reg.Emergency,
+			},
+		},
 	}, nil
 }
 

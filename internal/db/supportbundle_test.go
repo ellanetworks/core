@@ -233,7 +233,7 @@ func TestExportSupportData_IMSServices(t *testing.T) {
 	handling := db.IMSDefaultHandlingSessionContinued
 	trigger := &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{{Method: &register}}}}}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, []db.IMSInitialFilterCriterion{
+	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, []db.IMSInitialFilterCriterion{
 		{ApplicationServerID: as.ID, Trigger: trigger, DefaultHandling: &handling, IncludeRegisterRequest: true},
 		{ApplicationServerID: as.ID},
 	}); err != nil {
@@ -256,7 +256,7 @@ func TestExportSupportData_IMSServices(t *testing.T) {
 	}
 
 	first := criteria[0].(map[string]any)
-	if first["profile"] != db.InitialProfileName || first["priority"] != 0 || first["application_server_name"] != "mcptt" ||
+	if first["profile"] != db.InitialProfileName || first["registration_set"] != db.IMSRegistrationSetMMTel || first["priority"] != 0 || first["application_server_name"] != "mcptt" ||
 		!reflect.DeepEqual(first["trigger"], trigger) || first["include_register_request"] != true {
 		t.Fatalf("first filter criterion = %#v", first)
 	}
@@ -371,12 +371,13 @@ func TestExportSupportData_IdentitySectionsPreserved(t *testing.T) {
 	}
 
 	if _, _, err := database.CompareAndSwapIMSRegistration(context.Background(), imsi, nil, &db.IMSRegistration{
-		State:           db.IMSRegistered,
 		ServerName:      "scscf.ims.test",
 		OriginHost:      "h",
 		OriginRealm:     "r",
 		PrivateIdentity: imsi + "@ims.test",
-		ProfileDigest:   "digest",
+		Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{
+			db.IMSRegistrationSetMMTel: {State: db.IMSRegistered, ProfileDigest: "digest"},
+		},
 	}); err != nil {
 		t.Fatalf("CompareAndSwapIMSRegistration failed: %v", err)
 	}
@@ -448,6 +449,11 @@ func TestExportSupportData_IdentitySectionsPreserved(t *testing.T) {
 
 	if imsReg["server_name"] != "scscf.ims.test" {
 		t.Fatalf("unexpected ims_registrations server_name: %#v", imsReg["server_name"])
+	}
+
+	wantSets := []any{map[string]any{"registration_set": db.IMSRegistrationSetMMTel, "state": db.IMSRegistered, "auth_pending": false, "emergency": false}}
+	if !reflect.DeepEqual(imsReg["registration_sets"], wantSets) {
+		t.Fatalf("ims_registrations registration_sets = %#v, want %#v", imsReg["registration_sets"], wantSets)
 	}
 
 	waitingAny, ok := out["sms_message_waiting"].([]any)
