@@ -20,12 +20,12 @@ func mcpttAARequest() AARequest {
 		MediaComponents: []MediaComponent{{
 			Number:                  1,
 			Type:                    ptr(MediaAudio),
-			MaxRequestedBandwidthUL: ptr(Bandwidth(64000)),
-			MaxRequestedBandwidthDL: ptr(Bandwidth(64000)),
+			MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(64000)),
+			MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(64000)),
 			FlowStatus:              ptr(FlowStatusEnabled),
 			PrioritySharing:         ptr(PrioritySharingEnabled),
-			PreemptionCapability:    ptr(PreemptionCapabilityEnabled),
-			PreemptionVulnerability: ptr(PreemptionVulnerabilityDisabled),
+			PreemptionCapability:    ptr(tgpp.PreemptionCapabilityEnabled),
+			PreemptionVulnerability: ptr(tgpp.PreemptionVulnerabilityDisabled),
 			ReservationPriority:     ptr(ReservationPriority(13)),
 			SubComponents:           []MediaSubComponent{{FlowNumber: 1, FlowDescriptions: []string{"permit out 17 from 10.6.0.7 40000 to 10.60.0.1 50000"}}},
 		}},
@@ -68,8 +68,8 @@ func TestMissionCriticalAVPEncoding(t *testing.T) {
 		{"session Reservation-Priority", req.AVPs, avpReservationPriority, etsiVendorID, 15},
 		{"Pre-emption-Control-Info", req.AVPs, avpPreemptionControlInfo, tgpp.VendorID, 2},
 		{"Priority-Sharing-Indicator", inner, avpPrioritySharingIndicator, tgpp.VendorID, 0},
-		{"Pre-emption-Capability", inner, avpPreemptionCapability, tgpp.VendorID, 0},
-		{"Pre-emption-Vulnerability", inner, avpPreemptionVulnerability, tgpp.VendorID, 1},
+		{"Pre-emption-Capability", inner, tgpp.AVPPreemptionCapability, tgpp.VendorID, 0},
+		{"Pre-emption-Vulnerability", inner, tgpp.AVPPreemptionVulnerability, tgpp.VendorID, 1},
 		{"component Reservation-Priority", inner, avpReservationPriority, etsiVendorID, 13},
 	} {
 		a, ok := diameter.Find(tc.avps, tc.code, tc.vendorID)
@@ -123,8 +123,8 @@ func TestMissionCriticalAVPsFollowTheGrammar(t *testing.T) {
 	component := order(inner,
 		vendorKey(AVPFlowStatus),
 		vendorKey(avpPrioritySharingIndicator),
-		vendorKey(avpPreemptionCapability),
-		vendorKey(avpPreemptionVulnerability),
+		vendorKey(tgpp.AVPPreemptionCapability),
+		vendorKey(tgpp.AVPPreemptionVulnerability),
 		diameter.AVPKey{Code: avpReservationPriority, VendorID: etsiVendorID},
 	)
 
@@ -140,8 +140,10 @@ func TestMissionCriticalAVPValidation(t *testing.T) {
 		"Reservation-Priority 16":        func(r *AARequest) { r.ReservationPriority = ptr(ReservationPriority(16)) },
 		"component Reservation-Priority": func(r *AARequest) { r.MediaComponents[0].ReservationPriority = ptr(ReservationPriority(16)) },
 		"Priority-Sharing-Indicator":     func(r *AARequest) { r.MediaComponents[0].PrioritySharing = ptr(PrioritySharingIndicator(2)) },
-		"Pre-emption-Capability":         func(r *AARequest) { r.MediaComponents[0].PreemptionCapability = ptr(PreemptionCapability(2)) },
-		"Pre-emption-Vulnerability":      func(r *AARequest) { r.MediaComponents[0].PreemptionVulnerability = ptr(PreemptionVulnerability(2)) },
+		"Pre-emption-Capability":         func(r *AARequest) { r.MediaComponents[0].PreemptionCapability = ptr(tgpp.PreemptionCapability(2)) },
+		"Pre-emption-Vulnerability": func(r *AARequest) {
+			r.MediaComponents[0].PreemptionVulnerability = ptr(tgpp.PreemptionVulnerability(2))
+		},
 		"two Pre-emption-Control-Info bits": func(r *AARequest) {
 			r.PreemptionControl = ptr(PreemptMostRecentFlow | PreemptHighestBandwidthFlow)
 		},
@@ -183,11 +185,11 @@ func TestParseMissionCriticalAVPErrors(t *testing.T) {
 			diameter.ResultInvalidAVPValue,
 		},
 		"Pre-emption-Vulnerability 2": {
-			with(base, component(diameter.Unsigned32(avpPreemptionVulnerability, 0, tgpp.VendorID, 2))),
+			with(base, component(diameter.Unsigned32(tgpp.AVPPreemptionVulnerability, 0, tgpp.VendorID, 2))),
 			diameter.ResultInvalidAVPValue,
 		},
 		"short Pre-emption-Capability": {
-			with(base, component(diameter.OctetString(avpPreemptionCapability, 0, tgpp.VendorID, []byte{0, 1}))),
+			with(base, component(diameter.OctetString(tgpp.AVPPreemptionCapability, 0, tgpp.VendorID, []byte{0, 1}))),
 			diameter.ResultInvalidAVPLength,
 		},
 	} {

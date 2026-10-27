@@ -79,7 +79,7 @@ func TestParseUserAuthorizationRequestErrors(t *testing.T) {
 	base := request(CommandUserAuthorization,
 		userName(testPrivate),
 		vendorString(AVPPublicIdentity, testPublic),
-		diameter.OctetString(AVPVisitedNetworkIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID, []byte(testRealm)),
+		diameter.OctetString(tgpp.AVPVisitedNetworkIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID, []byte(testRealm)),
 	)
 
 	if _, err := ParseUserAuthorizationRequest(base); err != nil {
@@ -92,7 +92,7 @@ func TestParseUserAuthorizationRequestErrors(t *testing.T) {
 	}{
 		"no User-Name":       {without(base, diameter.AVPUserName, 0), diameter.ResultMissingAVP},
 		"no Public-Identity": {without(base, AVPPublicIdentity, tgpp.VendorID), diameter.ResultMissingAVP},
-		"no visited network": {without(base, AVPVisitedNetworkIdentifier, tgpp.VendorID), diameter.ResultMissingAVP},
+		"no visited network": {without(base, tgpp.AVPVisitedNetworkIdentifier, tgpp.VendorID), diameter.ResultMissingAVP},
 		"bad Public-Identity": {
 			with(without(base, AVPPublicIdentity, tgpp.VendorID), vendorString(AVPPublicIdentity, "alice")), diameter.ResultInvalidAVPValue,
 		},

@@ -4,6 +4,7 @@
 package eps
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
@@ -275,6 +276,77 @@ func TestTrackingAreaUpdateRejectMarshal(t *testing.T) {
 
 	if parsed.Cause != 9 {
 		t.Fatalf("cause = %d, want 9", parsed.Cause)
+	}
+}
+
+func TestTrackingAreaUpdateRejectOptionalIEs(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   *TrackingAreaUpdateReject
+		wire []byte
+	}{
+		{
+			name: "CongestionWithT3346",
+			in: &TrackingAreaUpdateReject{
+				Cause: EMMCauseCongestion,
+				T3346: &nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 2},
+			},
+			wire: []byte{0x07, 0x4B, 0x16, 0x5F, 0x01, 0x22},
+		},
+		{
+			name: "ExtendedEMMCause",
+			in: &TrackingAreaUpdateReject{
+				Cause:            EMMCauseNoSuitableCellsInTrackingArea,
+				ExtendedEMMCause: &ExtendedEMMCause{EUTRANNotAllowed: true},
+			},
+			wire: []byte{0x07, 0x4B, 0x0F, 0xA1},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := tc.in.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(b, tc.wire) {
+				t.Fatalf("encoding = % x, want % x", b, tc.wire)
+			}
+
+			out, err := ParseTrackingAreaUpdateReject(tc.wire)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !reflect.DeepEqual(out, tc.in) {
+				t.Fatalf("decoded %+v, want %+v", out, tc.in)
+			}
+		})
+	}
+}
+
+func TestTrackingAreaUpdateRejectPreservesUnmodelledIEs(t *testing.T) {
+	wire := []byte{0x07, 0x4B, 0x4E, 0xA0, 0x1C, 0x01, 0x21}
+
+	out, err := ParseTrackingAreaUpdateReject(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.ExtendedEMMCause == nil || *out.ExtendedEMMCause != (ExtendedEMMCause{}) {
+		t.Fatalf("extended EMM cause = %+v, want present and all clear", out.ExtendedEMMCause)
+	}
+
+	if len(out.Unrecognized) != 1 || out.Unrecognized[0].IEI != ieiLowerBoundTimer {
+		t.Fatalf("unrecognized = %+v, want the lower bound timer", out.Unrecognized)
+	}
+
+	b, err := out.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(b, wire) {
+		t.Fatalf("re-encoding = % x, want % x", b, wire)
 	}
 }
 

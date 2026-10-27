@@ -29,7 +29,7 @@ var strRules = commonRequestRules.With(diameter.Rules{
 })
 
 func NewSessionTerminationRequest(env tgpp.Envelope, r SessionTerminationRequest) (*diameter.Message, error) {
-	if !r.Cause.valid() {
+	if !r.Cause.Known() {
 		return nil, invalidf("Termination-Cause %s", r.Cause)
 	}
 

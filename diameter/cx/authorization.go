@@ -27,15 +27,15 @@ type UserAuthorization struct {
 
 var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}: {Multiple: true},
-	{Code: avpOCSupportedFeatures}:                             {},
+	{Code: diameter.AVPOCSupportedFeatures}:                    {},
 })
 
 var uarRules = commonRequestRules.With(diameter.Rules{
-	{Code: diameter.AVPUserName}:                                 {Required: true},
-	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:           {Required: true},
-	{Code: AVPVisitedNetworkIdentifier, VendorID: tgpp.VendorID}: {Required: true},
-	{Code: AVPUserAuthorizationType, VendorID: tgpp.VendorID}:    {},
-	{Code: AVPUARFlags, VendorID: tgpp.VendorID}:                 {},
+	{Code: diameter.AVPUserName}:                                      {Required: true, MinLength: 1},
+	{Code: AVPPublicIdentity, VendorID: tgpp.VendorID}:                {Required: true, MinLength: 1},
+	{Code: tgpp.AVPVisitedNetworkIdentifier, VendorID: tgpp.VendorID}: {Required: true, MinLength: 1},
+	{Code: AVPUserAuthorizationType, VendorID: tgpp.VendorID}:         {},
+	{Code: AVPUARFlags, VendorID: tgpp.VendorID}:                      {},
 })
 
 func NewUserAuthorizationRequest(env tgpp.Envelope, r UserAuthorizationRequest) (*diameter.Message, error) {
@@ -56,7 +56,7 @@ func NewUserAuthorizationRequest(env tgpp.Envelope, r UserAuthorizationRequest) 
 	avps := []diameter.AVP{
 		userName(r.PrivateIdentity),
 		public,
-		diameter.OctetString(AVPVisitedNetworkIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID, []byte(r.VisitedNetwork)),
+		diameter.OctetString(tgpp.AVPVisitedNetworkIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID, []byte(r.VisitedNetwork)),
 	}
 
 	if r.AuthorizationType != AuthorizationRegistration {
@@ -94,7 +94,7 @@ func ParseUserAuthorizationRequest(req *diameter.Message) (UserAuthorizationRequ
 		return UserAuthorizationRequest{}, err
 	}
 
-	visited, _ := req.Find(AVPVisitedNetworkIdentifier, tgpp.VendorID)
+	visited, _ := req.Find(tgpp.AVPVisitedNetworkIdentifier, tgpp.VendorID)
 	user, _ := req.Find(diameter.AVPUserName, 0)
 
 	return UserAuthorizationRequest{

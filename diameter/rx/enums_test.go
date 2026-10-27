@@ -62,16 +62,16 @@ func TestEnumValidity(t *testing.T) {
 		valid, invalid []bool
 	}{
 		"SpecificAction": {
-			valid:   []bool{SpecificAction(1).valid(), SpecificAction(4).valid(), SpecificAction(6).valid(), ActionCNHealthMonitor.valid()},
-			invalid: []bool{SpecificAction(0).valid(), SpecificAction(5).valid(), SpecificAction(22).valid()},
+			valid:   []bool{SpecificAction(1).Known(), SpecificAction(4).Known(), SpecificAction(6).Known(), ActionCNHealthMonitor.Known()},
+			invalid: []bool{SpecificAction(0).Known(), SpecificAction(5).Known(), SpecificAction(22).Known()},
 		},
 		"TerminationCause": {
-			valid:   []bool{TerminationLogout.valid(), TerminationSessionTimeout.valid(), TerminationUserRequest.valid(), TerminationPortDisabled.valid()},
-			invalid: []bool{TerminationCause(0).valid(), TerminationCause(9).valid(), TerminationCause(10).valid(), TerminationCause(33).valid()},
+			valid:   []bool{TerminationLogout.Known(), TerminationSessionTimeout.Known(), TerminationUserRequest.Known(), TerminationPortDisabled.Known()},
+			invalid: []bool{TerminationCause(0).Known(), TerminationCause(9).Known(), TerminationCause(10).Known(), TerminationCause(33).Known()},
 		},
 		"MediaType": {
-			valid:   []bool{MediaAudio.valid(), MediaMessage.valid(), MediaOther.valid()},
-			invalid: []bool{MediaType(7).valid(), MediaType(0xfffffffe).valid()},
+			valid:   []bool{MediaAudio.Known(), MediaMessage.Known(), MediaOther.Known()},
+			invalid: []bool{MediaType(7).Known(), MediaType(0xfffffffe).Known()},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

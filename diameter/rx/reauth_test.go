@@ -32,9 +32,9 @@ func TestReAuthRequestRoundTrip(t *testing.T) {
 			SpecificActions: []SpecificAction{ActionIPCANChange, ActionAccessNetworkInfoReport},
 			AccessNetwork:   fullAccessNetwork(),
 			Location:        fullUserLocation(),
-			ServingNetwork:  ServingNetwork{PLMN: "00101"},
+			ServingNetwork:  ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "01"}},
 		},
-		"PLMN change":       {SpecificActions: []SpecificAction{ActionPLMNChange}, ServingNetwork: ServingNetwork{PLMN: "001010", NID: []byte{1, 2}}},
+		"PLMN change":       {SpecificActions: []SpecificAction{ActionPLMNChange}, ServingNetwork: ServingNetwork{PLMN: &tgpp.PLMN{MCC: "001", MNC: "010"}, NID: []byte{1, 2}}},
 		"CN health monitor": {SpecificActions: []SpecificAction{ActionCNHealthMonitor}, PCSessionRecoveryStatus: ptr(SessionNotFound)},
 		"reporting failure": {
 			SpecificActions: []SpecificAction{ActionIndicationOfAccessNetworkInfoReportFailure}, NetLocAccessSupport: ptr(NetLocAccessNotSupported),

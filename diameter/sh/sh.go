@@ -55,10 +55,8 @@ const (
 )
 
 const (
-	avpOCSupportedFeatures uint32 = 621
-	avpOCOLR               uint32 = 623
-	featureListID          uint32 = 1
-	maxSequenceNumber      uint32 = 65535
+	featureListID     uint32 = 1
+	maxSequenceNumber uint32 = 65535
 )
 
 var (
@@ -84,7 +82,7 @@ type UserIdentity struct {
 
 var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}: {Multiple: true},
-	{Code: avpOCSupportedFeatures}:                             {},
+	{Code: diameter.AVPOCSupportedFeatures}:                    {},
 })
 
 func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features) *diameter.Message {
@@ -131,23 +129,20 @@ func newRequest(env tgpp.Envelope, command uint32, features Features, required b
 	return msg, nil
 }
 
-func featureAVPs(features Features, required bool) []diameter.AVP {
-	if features == 0 {
-		return nil
-	}
+func (f Features) lists() tgpp.FeatureLists {
+	return tgpp.FeatureLists{featureListID: uint32(f)}
+}
 
-	return []diameter.AVP{tgpp.SupportedFeatures{
-		VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(features), Mandatory: required,
-	}.AVP()}
+func featureAVPs(features Features, required bool) []diameter.AVP {
+	return features.lists().AVPs(required)
 }
 
 func featureList(m *diameter.Message) Features {
-	return Features(tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID))
+	return Features(tgpp.ParseFeatureLists(m.AVPs)[featureListID])
 }
 
 func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
-	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(supported)})
+	return supported.lists().Unsupported(req.AVPs)
 }
 
 func featuresRequired(m *diameter.Message) bool {

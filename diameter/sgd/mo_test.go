@@ -67,10 +67,10 @@ func TestParseMOForwardShortMessageRequestErrors(t *testing.T) {
 		want uint32
 	}{
 		"no SM-RP-UI":       {request(CommandMOForwardShortMessage, ofrEnvelope, sc, ui), diameter.ResultMissingAVP},
-		"empty SM-RP-UI":    {request(CommandMOForwardShortMessage, ofrEnvelope, sc, ui, smRPUIAVP(nil)), diameter.ResultInvalidAVPValue},
+		"empty SM-RP-UI":    {request(CommandMOForwardShortMessage, ofrEnvelope, sc, ui, smRPUIAVP(nil)), diameter.ResultInvalidAVPLength},
 		"large SM-RP-UI":    {request(CommandMOForwardShortMessage, ofrEnvelope, sc, ui, smRPUIAVP(make([]byte, 201))), diameter.ResultInvalidAVPValue},
 		"bad SC address":    {request(CommandMOForwardShortMessage, ofrEnvelope, diameter.OctetString(tgpp.AVPSCAddress, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{0xba}), ui, smRPUI), diameter.ResultInvalidAVPValue},
-		"empty identity":    {request(CommandMOForwardShortMessage, ofrEnvelope, sc, diameter.Grouped(tgpp.AVPUserIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID), smRPUI), diameter.ResultInvalidAVPValue},
+		"empty identity":    {request(CommandMOForwardShortMessage, ofrEnvelope, sc, diameter.Grouped(tgpp.AVPUserIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID), smRPUI), diameter.ResultInvalidAVPLength},
 		"repeated SM-RP-UI": {request(CommandMOForwardShortMessage, ofrEnvelope, sc, ui, smRPUI, smRPUI), diameter.ResultAVPOccursTooManyTimes},
 	}
 

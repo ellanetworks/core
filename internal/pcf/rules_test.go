@@ -83,8 +83,8 @@ func callAAR(port uint16, status rx.ServiceInfoStatus) rx.AARequest {
 	r.MediaComponents = []rx.MediaComponent{{
 		Number:                  1,
 		Type:                    &audio,
-		MaxRequestedBandwidthUL: ptr(rx.Bandwidth(41000)),
-		MaxRequestedBandwidthDL: ptr(rx.Bandwidth(41000)),
+		MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(41000)),
+		MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(41000)),
 		SubComponents: []rx.MediaSubComponent{{
 			FlowNumber: 1,
 			FlowDescriptions: []string{
@@ -300,7 +300,7 @@ func TestFailedModificationKeepsTheEnforcedQoSUnderTheAuthorizedGate(t *testing.
 	answered := callAAR(50000, rx.ServiceInfoFinal)
 	answered.RequestType = ptr(rx.RequestUpdate)
 	answered.MediaComponents[0].FlowStatus = ptr(rx.FlowStatusEnabled)
-	answered.MediaComponents[0].MaxRequestedBandwidthUL = ptr(rx.Bandwidth(30000))
+	answered.MediaComponents[0].MaxRequestedBandwidthUL = ptr(tgpp.Bandwidth(30000))
 	requireResult(t, aa(t, p, "af;call", answered), success)
 	modified := n.next(t).Rules[0]
 

@@ -22,12 +22,12 @@ type MTForwardShortMessage struct {
 }
 
 var tfrRules = diameter.BaseRequestRules().With(diameter.Rules{
-	{Code: diameter.AVPDestinationHost}:                           {Required: true},
-	{Code: diameter.AVPUserName}:                                  {Required: true},
+	{Code: diameter.AVPDestinationHost}:                           {Required: true, MinLength: 1},
+	{Code: diameter.AVPUserName}:                                  {Required: true, MinLength: 1},
 	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}:    {Multiple: true},
 	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}:   {},
-	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:            {Required: true},
-	{Code: AVPSMRPUI, VendorID: tgpp.VendorID}:                    {Required: true},
+	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:            {Required: true, MinLength: 1},
+	{Code: AVPSMRPUI, VendorID: tgpp.VendorID}:                    {Required: true, MinLength: 1},
 	{Code: tgpp.AVPMMENumberForMTSMS, VendorID: tgpp.VendorID}:    {},
 	{Code: tgpp.AVPSGSNNumber, VendorID: tgpp.VendorID}:           {},
 	{Code: AVPTFRFlags, VendorID: tgpp.VendorID}:                  {},

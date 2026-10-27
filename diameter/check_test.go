@@ -37,7 +37,8 @@ func TestRulesCheck(t *testing.T) {
 		"repeated single":      {base(sc, sc), ResultAVPOccursTooManyTimes},
 		"unknown mandatory":    {base(sc, Unsigned32(9999, AVPFlagMandatory, 0, 1)), ResultAVPUnsupported},
 		"unknown optional":     {base(sc, Unsigned32(9999, 0, 0, 1)), 0},
-		"empty required value": {base(OctetString(3300, AVPFlagMandatory, 10415, nil)), ResultInvalidAVPValue},
+		"empty required value": {base(OctetString(3300, AVPFlagMandatory, 10415, nil)), 0},
+		"short Session-Id":     {replaceSessionID(base(sc), ""), ResultInvalidAVPLength},
 	}
 
 	for name, tt := range tests {
@@ -60,6 +61,102 @@ func TestRulesCheck(t *testing.T) {
 	var avpErr *AVPError
 	if !errors.As(err, &avpErr) || avpErr.AVPs[0].Code != 3300 || avpErr.AVPs[0].Flags&AVPFlagMandatory == 0 {
 		t.Fatalf("missing AVP placeholder = %+v", avpErr)
+	}
+}
+
+func replaceSessionID(m *Message, id string) *Message {
+	m.AVPs[0] = UTF8String(AVPSessionID, AVPFlagMandatory, 0, id)
+
+	return m
+}
+
+func TestRulesMinLength(t *testing.T) {
+	rules := Rules{{Code: 1}: {Required: true, MinLength: 4}}
+
+	for name, tt := range map[string]struct {
+		data []byte
+		code uint32
+	}{
+		"exact":  {[]byte{0, 0, 0, 1}, 0},
+		"longer": {[]byte{0, 0, 0, 0, 1}, 0},
+		"short":  {[]byte{1}, ResultInvalidAVPLength},
+		"empty":  {nil, ResultInvalidAVPLength},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := rules.Check(&Message{AVPs: []AVP{OctetString(1, AVPFlagMandatory, 0, tt.data)}})
+
+			var avpErr *AVPError
+
+			switch {
+			case tt.code == 0 && err != nil:
+				t.Fatalf("Check = %v", err)
+			case tt.code != 0 && (!errors.As(err, &avpErr) || avpErr.ResultCode != tt.code):
+				t.Fatalf("Check = %v, want %d", err, tt.code)
+			}
+		})
+	}
+}
+
+func TestCheckGrouped(t *testing.T) {
+	rules := Rules{{Code: 2, VendorID: 10415}: {Required: true, MinLength: 4}}
+	parent := func(inner ...AVP) AVP { return Grouped(1, AVPFlagMandatory, 10415, inner...) }
+
+	inner, err := rules.CheckGrouped(parent(Unsigned32(2, AVPFlagMandatory, 10415, 7)))
+	if err != nil || len(inner) != 1 {
+		t.Fatalf("CheckGrouped = %v, %v", inner, err)
+	}
+
+	for name, tt := range map[string]struct {
+		a    AVP
+		code uint32
+	}{
+		"unknown mandatory": {parent(Unsigned32(2, AVPFlagMandatory, 10415, 7), Unsigned32(3, AVPFlagMandatory, 0, 1)), ResultAVPUnsupported},
+		"missing":           {parent(), ResultMissingAVP},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := rules.CheckGrouped(tt.a)
+
+			var avpErr *AVPError
+			if !errors.As(err, &avpErr) || avpErr.ResultCode != tt.code || len(avpErr.AVPs) != 1 || avpErr.AVPs[0].Code != 1 {
+				t.Fatalf("err = %v", err)
+			}
+
+			nested, err := avpErr.AVPs[0].Grouped()
+			if err != nil || len(nested) != 1 {
+				t.Fatalf("Failed-AVP not nested: %v, %v", nested, err)
+			}
+		})
+	}
+
+	_, err = rules.CheckGrouped(OctetString(1, 0, 10415, []byte{0, 0, 0}))
+
+	var avpErr *AVPError
+	if !errors.As(err, &avpErr) || avpErr.ResultCode != ResultInvalidAVPLength {
+		t.Fatalf("truncated grouped err = %v", err)
+	}
+
+	plain := errors.New("boom")
+	if WithinGrouped(parent(), plain) != plain {
+		t.Fatal("WithinGrouped wrapped a non-AVP error")
+	}
+
+	self := NewAVPError(ResultInvalidAVPValue, parent())
+	if WithinGrouped(parent(), self) != self {
+		t.Fatal("WithinGrouped nested the parent in itself")
+	}
+}
+
+func TestAVPErrorWithoutAVPs(t *testing.T) {
+	err := &AVPError{ResultCode: ResultUnableToComply}
+	if err.Error() == "" {
+		t.Fatal("empty message")
+	}
+
+	req := &Message{Flags: FlagRequest, CommandCode: 1}
+
+	ans := NewErrorAnswer(req, Identity{OriginHost: "h", OriginRealm: "r"}, err)
+	if _, ok := ans.Find(AVPFailedAVP, 0); ok || resultCode(t, ans) != ResultUnableToComply {
+		t.Fatalf("answer = %+v", ans)
 	}
 }
 

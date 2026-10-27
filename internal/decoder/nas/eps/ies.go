@@ -50,6 +50,24 @@ func additionalUpdateType(a *eps.AdditionalUpdateType) *AdditionalUpdateType {
 	}
 }
 
+type ExtendedEMMCause struct {
+	EUTRANNotAllowed            bool `json:"eutran_not_allowed"`
+	EPSOptimizationNotSupported bool `json:"eps_optimization_not_supported"`
+	NBIoTNotAllowed             bool `json:"nb_iot_not_allowed"`
+}
+
+func extendedEMMCause(c *eps.ExtendedEMMCause) *ExtendedEMMCause {
+	if c == nil {
+		return nil
+	}
+
+	return &ExtendedEMMCause{
+		EUTRANNotAllowed:            c.EUTRANNotAllowed,
+		EPSOptimizationNotSupported: c.EPSOptimizationNotSupported,
+		NBIoTNotAllowed:             c.NBIoTNotAllowed,
+	}
+}
+
 type UEStatus struct {
 	S1ModeReg bool `json:"s1_mode_reg"`
 	N1ModeReg bool `json:"n1_mode_reg"`

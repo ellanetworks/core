@@ -58,7 +58,7 @@ func (f FlowDescription) String() string {
 
 func (f FlowDescription) MarshalText() ([]byte, error) {
 	switch {
-	case !f.Direction.valid():
+	case !f.Direction.Known():
 		return nil, flowErrorf("direction %d", f.Direction)
 	case f.Protocol > ProtocolIP:
 		return nil, flowErrorf("protocol %d", f.Protocol)

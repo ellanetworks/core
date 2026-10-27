@@ -153,6 +153,12 @@ func Address(code uint32, flags uint8, vendorID uint32, v netip.Addr) AVP {
 
 const ntpUnixOffset = 2208988800
 
+func ValidTime(t time.Time) bool {
+	ntp := t.Unix() + ntpUnixOffset
+
+	return t.Nanosecond() == 0 && ntp >= 1<<31 && ntp < 1<<31+1<<32
+}
+
 func Time(code uint32, flags uint8, vendorID uint32, t time.Time) AVP {
 	return newAVP(code, flags, vendorID, binary.BigEndian.AppendUint32(nil, uint32(t.Unix()+ntpUnixOffset)))
 }

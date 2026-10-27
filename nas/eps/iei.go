@@ -72,4 +72,5 @@ const (
 	ieiAdditionalUpdateType    uint8 = 0xF0
 	ieiAdditionalUpdateResult  uint8 = 0xF0
 	ieiSMSServicesStatus       uint8 = 0xE0
+	ieiExtendedEMMCause        uint8 = 0xA0
 )

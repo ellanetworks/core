@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/diameter/rx"
+	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -20,8 +21,8 @@ func audioComponent() rx.MediaComponent {
 	return rx.MediaComponent{
 		Number:                  1,
 		Type:                    ptr(rx.MediaAudio),
-		MaxRequestedBandwidthUL: ptr(rx.Bandwidth(41000)),
-		MaxRequestedBandwidthDL: ptr(rx.Bandwidth(41000)),
+		MaxRequestedBandwidthUL: ptr(tgpp.Bandwidth(41000)),
+		MaxRequestedBandwidthDL: ptr(tgpp.Bandwidth(41000)),
 		SubComponents: []rx.MediaSubComponent{
 			{
 				FlowNumber: 1,
@@ -146,7 +147,7 @@ func TestMediaRulesBandwidth(t *testing.T) {
 		{
 			name: "GBR from Min-Requested-Bandwidth, capped at the MBR (TS 29.213 Table 6.3.1)",
 			edit: func(c *rx.MediaComponent) {
-				c.MinRequestedBandwidthUL, c.MinRequestedBandwidthDL = ptr(rx.Bandwidth(24000)), ptr(rx.Bandwidth(90000))
+				c.MinRequestedBandwidthUL, c.MinRequestedBandwidthDL = ptr(tgpp.Bandwidth(24000)), ptr(tgpp.Bandwidth(90000))
 			},
 			rtp:  [4]uint64{41000, 41000, 24000, 41000},
 			rtcp: [4]uint64{2050, 2050, 2050, 2050},

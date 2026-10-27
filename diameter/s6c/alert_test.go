@@ -36,7 +36,7 @@ func TestHSSAlertServiceCentreRoundTrip(t *testing.T) {
 		t.Fatalf("header = %+v", req)
 	}
 
-	if mua, _ := req.Find(AVPMaximumUEAvailabilityTime, tgpp.VendorID); mua.Flags&diameter.AVPFlagMandatory != 0 {
+	if mua, _ := req.Find(tgpp.AVPMaximumUEAvailabilityTime, tgpp.VendorID); mua.Flags&diameter.AVPFlagMandatory != 0 {
 		t.Fatalf("Maximum-UE-Availability-Time = %+v", mua)
 	}
 
@@ -120,9 +120,9 @@ func TestParseAlertServiceCentreRequestErrors(t *testing.T) {
 		"no SC address":  {request(CommandAlertServiceCentre, ui), diameter.ResultMissingAVP},
 		"no identity":    {request(CommandAlertServiceCentre, sc), diameter.ResultMissingAVP},
 		"bad SC address": {request(CommandAlertServiceCentre, ui, diameter.OctetString(tgpp.AVPSCAddress, diameter.AVPFlagMandatory, tgpp.VendorID, []byte{0xba})), diameter.ResultInvalidAVPValue},
-		"empty identity": {request(CommandAlertServiceCentre, sc, diameter.Grouped(tgpp.AVPUserIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID)), diameter.ResultInvalidAVPValue},
+		"empty identity": {request(CommandAlertServiceCentre, sc, diameter.Grouped(tgpp.AVPUserIdentifier, diameter.AVPFlagMandatory, tgpp.VendorID)), diameter.ResultInvalidAVPLength},
 		"SRR-Flags":      {request(CommandAlertServiceCentre, ui, sc, diameter.Unsigned32(AVPSRRFlags, diameter.AVPFlagMandatory, tgpp.VendorID, 0)), diameter.ResultAVPUnsupported},
-		"short time":     {request(CommandAlertServiceCentre, ui, sc, diameter.OctetString(AVPMaximumUEAvailabilityTime, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue},
+		"short time":     {request(CommandAlertServiceCentre, ui, sc, diameter.OctetString(tgpp.AVPMaximumUEAvailabilityTime, 0, tgpp.VendorID, []byte{1})), diameter.ResultInvalidAVPValue},
 	}
 
 	for name, tt := range tests {

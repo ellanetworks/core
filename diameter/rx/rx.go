@@ -33,8 +33,6 @@ const (
 	AVPFlowStatus                           uint32 = 511
 	AVPFlowUsage                            uint32 = 512
 	AVPSpecificAction                       uint32 = 513
-	AVPMaxRequestedBandwidthDL              uint32 = 515
-	AVPMaxRequestedBandwidthUL              uint32 = 516
 	AVPMediaComponentDescription            uint32 = 517
 	AVPMediaComponentNumber                 uint32 = 518
 	AVPMediaSubComponent                    uint32 = 519
@@ -59,8 +57,6 @@ const (
 	AVPMinDesiredBandwidthUL                uint32 = 546
 	AVPMediaComponentStatus                 uint32 = 549
 	AVPContentVersion                       uint32 = 552
-	AVPExtendedMaxRequestedBWDL             uint32 = 554
-	AVPExtendedMaxRequestedBWUL             uint32 = 555
 	AVPExtendedMaxSupportedBWDL             uint32 = 556
 	AVPExtendedMaxSupportedBWUL             uint32 = 557
 	AVPExtendedMinDesiredBWDL               uint32 = 558
@@ -96,16 +92,13 @@ const (
 )
 
 const (
-	avpReservationPriority     uint32 = 458
-	avpOCSupportedFeatures     uint32 = 621
-	avpCallingPartyAddress     uint32 = 831
-	avpToSTrafficClass         uint32 = 1014
-	avpPreemptionCapability    uint32 = 1047
-	avpPreemptionVulnerability uint32 = 1048
-	avpMaxPLRDL                uint32 = 2852
-	avpMaxPLRUL                uint32 = 2853
-	avpReferenceID             uint32 = 4202
-	etsiVendorID               uint32 = 13019
+	avpReservationPriority uint32 = 458
+	avpCallingPartyAddress uint32 = 831
+	avpToSTrafficClass     uint32 = 1014
+	avpMaxPLRDL            uint32 = 2852
+	avpMaxPLRUL            uint32 = 2853
+	avpReferenceID         uint32 = 4202
+	etsiVendorID           uint32 = 13019
 )
 
 var (
@@ -122,9 +115,9 @@ func (e *ResultError) Error() string {
 }
 
 var commonRequestRules = diameter.BaseRequestRules().With(diameter.Rules{
-	{Code: diameter.AVPAuthSessionState}:  {},
-	{Code: diameter.AVPAuthApplicationID}: {Required: true, MinLength: 4},
-	{Code: avpOCSupportedFeatures}:        {},
+	{Code: diameter.AVPAuthSessionState}:    {},
+	{Code: diameter.AVPAuthApplicationID}:   {Required: true, MinLength: 4},
+	{Code: diameter.AVPOCSupportedFeatures}: {},
 })
 
 func NewAnswer(req *diameter.Message, id diameter.Identity, r tgpp.Result, features Features) *diameter.Message {
@@ -239,23 +232,18 @@ func checkRequest(rules diameter.Rules, req *diameter.Message) error {
 	return nil
 }
 
+func (f Features) lists() tgpp.FeatureLists {
+	return tgpp.FeatureLists{featureList1: f.list(featureList1), featureList2: f.list(featureList2)}
+}
+
 func featureAVPs(features Features, mandatory bool) []diameter.AVP {
-	var avps []diameter.AVP
-
-	for _, id := range []uint32{featureList1, featureList2} {
-		if list := features.list(id); list != 0 {
-			avps = append(avps, tgpp.SupportedFeatures{
-				VendorID: tgpp.VendorID, FeatureListID: id, FeatureList: list, Mandatory: mandatory,
-			}.AVP())
-		}
-	}
-
-	return avps
+	return features.lists().AVPs(mandatory)
 }
 
 func featureList(m *diameter.Message) Features {
-	return listFeatures(featureList1, tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureList1)) |
-		listFeatures(featureList2, tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureList2))
+	lists := tgpp.ParseFeatureLists(m.AVPs)
+
+	return listFeatures(featureList1, lists[featureList1]) | listFeatures(featureList2, lists[featureList2])
 }
 
 func featuresRequired(m *diameter.Message) bool {
@@ -270,9 +258,7 @@ func featuresRequired(m *diameter.Message) bool {
 }
 
 func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
-	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureList1, FeatureList: supported.list(featureList1)},
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureList2, FeatureList: supported.list(featureList2)})
+	return supported.lists().Unsupported(req.AVPs)
 }
 
 func invalidf(format string, args ...any) error {

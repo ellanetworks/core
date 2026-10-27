@@ -28,7 +28,7 @@ var abortCauseNames = tgpp.EnumNames{
 
 func (c AbortCause) String() string { return abortCauseNames.Name("AbortCause", uint32(c)) }
 
-func (c AbortCause) valid() bool { return abortCauseNames.Has(uint32(c)) }
+func (c AbortCause) Known() bool { return abortCauseNames.Has(uint32(c)) }
 
 type TerminationCause uint32
 
@@ -78,7 +78,7 @@ func (c TerminationCause) String() string {
 	return terminationCauseNames.Name("TerminationCause", uint32(c))
 }
 
-func (c TerminationCause) valid() bool { return terminationCauseNames.Has(uint32(c)) }
+func (c TerminationCause) Known() bool { return terminationCauseNames.Has(uint32(c)) }
 
 type SpecificAction uint32
 
@@ -117,7 +117,7 @@ var specificActionNames = tgpp.EnumNames{
 
 func (a SpecificAction) String() string { return specificActionNames.Name("SpecificAction", uint32(a)) }
 
-func (a SpecificAction) valid() bool { return specificActionNames.Has(uint32(a)) }
+func (a SpecificAction) Known() bool { return specificActionNames.Has(uint32(a)) }
 
 func (a SpecificAction) void() bool { return a == 0 || a == 5 }
 
@@ -133,7 +133,7 @@ var requestTypeNames = tgpp.EnumNames{"INITIAL_REQUEST", "UPDATE_REQUEST", "PCSC
 
 func (t RequestType) String() string { return requestTypeNames.Name("RequestType", uint32(t)) }
 
-func (t RequestType) valid() bool { return requestTypeNames.Has(uint32(t)) }
+func (t RequestType) Known() bool { return requestTypeNames.Has(uint32(t)) }
 
 type ServiceInfoStatus uint32
 
@@ -148,7 +148,7 @@ func (s ServiceInfoStatus) String() string {
 	return serviceInfoStatusNames.Name("ServiceInfoStatus", uint32(s))
 }
 
-func (s ServiceInfoStatus) valid() bool { return serviceInfoStatusNames.Has(uint32(s)) }
+func (s ServiceInfoStatus) Known() bool { return serviceInfoStatusNames.Has(uint32(s)) }
 
 type SIPForkingIndication uint32
 
@@ -163,7 +163,7 @@ func (f SIPForkingIndication) String() string {
 	return sipForkingIndicationNames.Name("SIPForkingIndication", uint32(f))
 }
 
-func (f SIPForkingIndication) valid() bool { return sipForkingIndicationNames.Has(uint32(f)) }
+func (f SIPForkingIndication) Known() bool { return sipForkingIndicationNames.Has(uint32(f)) }
 
 type MediaType uint32
 
@@ -188,7 +188,7 @@ func (t MediaType) String() string {
 	return mediaTypeNames.Name("MediaType", uint32(t))
 }
 
-func (t MediaType) valid() bool { return t == MediaOther || mediaTypeNames.Has(uint32(t)) }
+func (t MediaType) Known() bool { return t == MediaOther || mediaTypeNames.Has(uint32(t)) }
 
 type FlowStatus uint32
 
@@ -204,7 +204,7 @@ var flowStatusNames = tgpp.EnumNames{"ENABLED-UPLINK", "ENABLED-DOWNLINK", "ENAB
 
 func (s FlowStatus) String() string { return flowStatusNames.Name("FlowStatus", uint32(s)) }
 
-func (s FlowStatus) valid() bool { return flowStatusNames.Has(uint32(s)) }
+func (s FlowStatus) Known() bool { return flowStatusNames.Has(uint32(s)) }
 
 type FlowUsage uint32
 
@@ -218,7 +218,7 @@ var flowUsageNames = tgpp.EnumNames{"NO_INFORMATION", "RTCP", "AF_SIGNALLING"}
 
 func (u FlowUsage) String() string { return flowUsageNames.Name("FlowUsage", uint32(u)) }
 
-func (u FlowUsage) valid() bool { return flowUsageNames.Has(uint32(u)) }
+func (u FlowUsage) Known() bool { return flowUsageNames.Has(uint32(u)) }
 
 type AFSignallingProtocol uint32
 
@@ -233,7 +233,7 @@ func (p AFSignallingProtocol) String() string {
 	return signallingProtocolNames.Name("AFSignallingProtocol", uint32(p))
 }
 
-func (p AFSignallingProtocol) valid() bool { return signallingProtocolNames.Has(uint32(p)) }
+func (p AFSignallingProtocol) Known() bool { return signallingProtocolNames.Has(uint32(p)) }
 
 type SubscriptionIDType uint32
 
@@ -251,7 +251,7 @@ func (t SubscriptionIDType) String() string {
 	return subscriptionIDTypeNames.Name("SubscriptionIDType", uint32(t))
 }
 
-func (t SubscriptionIDType) valid() bool { return subscriptionIDTypeNames.Has(uint32(t)) }
+func (t SubscriptionIDType) Known() bool { return subscriptionIDTypeNames.Has(uint32(t)) }
 
 type CodecDirection uint8
 
@@ -264,7 +264,7 @@ var codecDirectionNames = tgpp.EnumNames{"uplink", "downlink"}
 
 func (d CodecDirection) String() string { return codecDirectionNames.Name("CodecDirection", uint32(d)) }
 
-func (d CodecDirection) valid() bool { return codecDirectionNames.Has(uint32(d)) }
+func (d CodecDirection) Known() bool { return codecDirectionNames.Has(uint32(d)) }
 
 type CodecKind uint8
 
@@ -278,7 +278,7 @@ var codecKindNames = tgpp.EnumNames{"offer", "answer", "description"}
 
 func (k CodecKind) String() string { return codecKindNames.Name("CodecKind", uint32(k)) }
 
-func (k CodecKind) valid() bool { return codecKindNames.Has(uint32(k)) }
+func (k CodecKind) Known() bool { return codecKindNames.Has(uint32(k)) }
 
 type FlowDirection uint8
 
@@ -291,7 +291,7 @@ var flowDirectionNames = tgpp.EnumNames{"in", "out"}
 
 func (d FlowDirection) String() string { return flowDirectionNames.Name("FlowDirection", uint32(d)) }
 
-func (d FlowDirection) valid() bool { return flowDirectionNames.Has(uint32(d)) }
+func (d FlowDirection) Known() bool { return flowDirectionNames.Has(uint32(d)) }
 
 type Features uint64
 
@@ -431,69 +431,7 @@ var ipcanTypeNames = tgpp.EnumNames{
 
 func (t IPCANType) String() string { return ipcanTypeNames.Name("IPCANType", uint32(t)) }
 
-func (t IPCANType) valid() bool { return ipcanTypeNames.Has(uint32(t)) }
-
-type RATType uint32
-
-const (
-	RATWLAN                RATType = 0
-	RATVirtual             RATType = 1
-	RATTrustedN3GA         RATType = 2
-	RATWireline            RATType = 3
-	RATWirelineCable       RATType = 4
-	RATWirelineBBF         RATType = 5
-	RATUTRAN               RATType = 1000
-	RATGERAN               RATType = 1001
-	RATGAN                 RATType = 1002
-	RATHSPAEvolution       RATType = 1003
-	RATEUTRAN              RATType = 1004
-	RATEUTRANNBIoT         RATType = 1005
-	RATNR                  RATType = 1006
-	RATLTEM                RATType = 1007
-	RATNRU                 RATType = 1008
-	RATEUTRANLEO           RATType = 1011
-	RATEUTRANMEO           RATType = 1012
-	RATEUTRANGEO           RATType = 1013
-	RATEUTRANOtherSat      RATType = 1014
-	RATEUTRANNBIoTLEO      RATType = 1021
-	RATEUTRANNBIoTMEO      RATType = 1022
-	RATEUTRANNBIoTGEO      RATType = 1023
-	RATEUTRANNBIoTOtherSat RATType = 1024
-	RATLTEMLEO             RATType = 1031
-	RATLTEMMEO             RATType = 1032
-	RATLTEMGEO             RATType = 1033
-	RATLTEMOtherSat        RATType = 1034
-	RATNRLEO               RATType = 1035
-	RATNRMEO               RATType = 1036
-	RATNRGEO               RATType = 1037
-	RATNROtherSat          RATType = 1038
-	RATNRRedCap            RATType = 1039
-	RATNREnhancedRedCap    RATType = 1040
-	RATCDMA20001X          RATType = 2000
-	RATHRPD                RATType = 2001
-	RATUMB                 RATType = 2002
-	RATEHRPD               RATType = 2003
-)
-
-var ratTypeNames = map[RATType]string{
-	RATWLAN: "WLAN", RATVirtual: "VIRTUAL", RATTrustedN3GA: "TRUSTED-N3GA", RATWireline: "WIRELINE",
-	RATWirelineCable: "WIRELINE-CABLE", RATWirelineBBF: "WIRELINE-BBF", RATUTRAN: "UTRAN", RATGERAN: "GERAN", RATGAN: "GAN",
-	RATHSPAEvolution: "HSPA_EVOLUTION", RATEUTRAN: "EUTRAN", RATEUTRANNBIoT: "EUTRAN-NB-IoT", RATNR: "NR", RATLTEM: "LTE-M",
-	RATNRU: "NR-U", RATEUTRANLEO: "EUTRAN(LEO)", RATEUTRANMEO: "EUTRAN(MEO)", RATEUTRANGEO: "EUTRAN(GEO)",
-	RATEUTRANOtherSat: "EUTRAN(OTHERSAT)", RATEUTRANNBIoTLEO: "EUTRAN-NB-IoT(LEO)", RATEUTRANNBIoTMEO: "EUTRAN-NB-IoT(MEO)",
-	RATEUTRANNBIoTGEO: "EUTRAN-NB-IoT(GEO)", RATEUTRANNBIoTOtherSat: "EUTRAN-NB-IoT(OTHERSAT)", RATLTEMLEO: "LTE-M(LEO)",
-	RATLTEMMEO: "LTE-M(MEO)", RATLTEMGEO: "LTE-M(GEO)", RATLTEMOtherSat: "LTE-M(OTHERSAT)", RATNRLEO: "NR(LEO)",
-	RATNRMEO: "NR(MEO)", RATNRGEO: "NR(GEO)", RATNROtherSat: "NR(OTHERSAT)", RATNRRedCap: "NR-REDCAP",
-	RATNREnhancedRedCap: "NR-EREDCAP", RATCDMA20001X: "CDMA2000_1X", RATHRPD: "HRPD", RATUMB: "UMB", RATEHRPD: "EHRPD",
-}
-
-func (t RATType) String() string {
-	if name, ok := ratTypeNames[t]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("RATType(%d)", uint32(t))
-}
+func (t IPCANType) Known() bool { return ipcanTypeNames.Has(uint32(t)) }
 
 type ANTrusted uint32
 
@@ -506,7 +444,7 @@ var anTrustedNames = tgpp.EnumNames{"TRUSTED", "UNTRUSTED"}
 
 func (t ANTrusted) String() string { return anTrustedNames.Name("ANTrusted", uint32(t)) }
 
-func (t ANTrusted) valid() bool { return anTrustedNames.Has(uint32(t)) }
+func (t ANTrusted) Known() bool { return anTrustedNames.Has(uint32(t)) }
 
 type NetLocAccessSupport uint32
 
@@ -518,7 +456,7 @@ func (s NetLocAccessSupport) String() string {
 	return netLocAccessSupportNames.Name("NetLocAccessSupport", uint32(s))
 }
 
-func (s NetLocAccessSupport) valid() bool { return netLocAccessSupportNames.Has(uint32(s)) }
+func (s NetLocAccessSupport) Known() bool { return netLocAccessSupportNames.Has(uint32(s)) }
 
 type RequiredAccessInfo uint32
 
@@ -534,7 +472,7 @@ func (r RequiredAccessInfo) String() string {
 	return requiredAccessInfoNames.Name("RequiredAccessInfo", uint32(r))
 }
 
-func (r RequiredAccessInfo) valid() bool { return requiredAccessInfoNames.Has(uint32(r)) }
+func (r RequiredAccessInfo) Known() bool { return requiredAccessInfoNames.Has(uint32(r)) }
 
 type PCSessionRecoveryStatus uint32
 
@@ -553,7 +491,7 @@ func (s PCSessionRecoveryStatus) String() string {
 	return pcSessionRecoveryStatusNames.Name("PCSessionRecoveryStatus", uint32(s))
 }
 
-func (s PCSessionRecoveryStatus) valid() bool { return pcSessionRecoveryStatusNames.Has(uint32(s)) }
+func (s PCSessionRecoveryStatus) Known() bool { return pcSessionRecoveryStatusNames.Has(uint32(s)) }
 
 type FinalUnitAction uint32
 
@@ -569,7 +507,7 @@ func (a FinalUnitAction) String() string {
 	return finalUnitActionNames.Name("FinalUnitAction", uint32(a))
 }
 
-func (a FinalUnitAction) valid() bool { return finalUnitActionNames.Has(uint32(a)) }
+func (a FinalUnitAction) Known() bool { return finalUnitActionNames.Has(uint32(a)) }
 
 type MediaComponentStatus uint32
 
@@ -584,7 +522,7 @@ func (s MediaComponentStatus) String() string {
 	return mediaComponentStatusNames.Name("MediaComponentStatus", uint32(s))
 }
 
-func (s MediaComponentStatus) valid() bool { return mediaComponentStatusNames.Has(uint32(s)) }
+func (s MediaComponentStatus) Known() bool { return mediaComponentStatusNames.Has(uint32(s)) }
 
 type ReservationPriority uint32
 
@@ -605,7 +543,7 @@ func (p ReservationPriority) String() string {
 	}
 }
 
-func (p ReservationPriority) valid() bool { return p <= maxReservationPriorityValue }
+func (p ReservationPriority) Known() bool { return p <= maxReservationPriorityValue }
 
 var priorityNumberNames = [maxReservationPriorityValue]string{
 	"ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN",
@@ -625,37 +563,7 @@ func (i PrioritySharingIndicator) String() string {
 	return prioritySharingNames.Name("PrioritySharingIndicator", uint32(i))
 }
 
-func (i PrioritySharingIndicator) valid() bool { return prioritySharingNames.Has(uint32(i)) }
-
-type PreemptionCapability uint32
-
-const (
-	PreemptionCapabilityEnabled  PreemptionCapability = 0
-	PreemptionCapabilityDisabled PreemptionCapability = 1
-)
-
-var preemptionCapabilityNames = tgpp.EnumNames{"PRE-EMPTION_CAPABILITY_ENABLED", "PRE-EMPTION_CAPABILITY_DISABLED"}
-
-func (c PreemptionCapability) String() string {
-	return preemptionCapabilityNames.Name("PreemptionCapability", uint32(c))
-}
-
-func (c PreemptionCapability) valid() bool { return preemptionCapabilityNames.Has(uint32(c)) }
-
-type PreemptionVulnerability uint32
-
-const (
-	PreemptionVulnerabilityEnabled  PreemptionVulnerability = 0
-	PreemptionVulnerabilityDisabled PreemptionVulnerability = 1
-)
-
-var preemptionVulnerabilityNames = tgpp.EnumNames{"PRE-EMPTION_VULNERABILITY_ENABLED", "PRE-EMPTION_VULNERABILITY_DISABLED"}
-
-func (v PreemptionVulnerability) String() string {
-	return preemptionVulnerabilityNames.Name("PreemptionVulnerability", uint32(v))
-}
-
-func (v PreemptionVulnerability) valid() bool { return preemptionVulnerabilityNames.Has(uint32(v)) }
+func (i PrioritySharingIndicator) Known() bool { return prioritySharingNames.Has(uint32(i)) }
 
 type PreemptionControl uint32
 
@@ -678,6 +586,6 @@ func (c PreemptionControl) String() string {
 	}
 }
 
-func (c PreemptionControl) valid() bool {
+func (c PreemptionControl) Known() bool {
 	return c == PreemptMostRecentFlow || c == PreemptLeastRecentFlow || c == PreemptHighestBandwidthFlow
 }

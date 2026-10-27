@@ -27,6 +27,26 @@ func TestValueIdentity(t *testing.T) {
 			func(b []byte) (any, error) { return ParseAttachReject(b) },
 		},
 		{
+			"AttachRejectAllOptional",
+			&AttachReject{
+				Cause:               EMMCauseCongestion,
+				ESMMessageContainer: []byte{0x02, 0x01, 0xd1, 0x1b},
+				T3346:               &nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 2},
+				T3402:               &nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 12},
+				ExtendedEMMCause:    &ExtendedEMMCause{EUTRANNotAllowed: true, EPSOptimizationNotSupported: true, NBIoTNotAllowed: true},
+			},
+			func(b []byte) (any, error) { return ParseAttachReject(b) },
+		},
+		{
+			"TrackingAreaUpdateRejectAllOptional",
+			&TrackingAreaUpdateReject{
+				Cause:            EMMCauseCongestion,
+				T3346:            &nas.GPRSTimer2{Unit: nas.GPRSTimer2Unit1Minute, Value: 2},
+				ExtendedEMMCause: &ExtendedEMMCause{EUTRANNotAllowed: true, EPSOptimizationNotSupported: true, NBIoTNotAllowed: true},
+			},
+			func(b []byte) (any, error) { return ParseTrackingAreaUpdateReject(b) },
+		},
+		{
 			"EMMStatus", &EMMStatus{Cause: EMMCauseProtocolErrorUnspecified},
 			func(b []byte) (any, error) { return ParseEMMStatus(b) },
 		},

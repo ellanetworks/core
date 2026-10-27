@@ -21,13 +21,13 @@ type Alert struct {
 const alertEvents = AlertEventUEAvailableForMTSMS | AlertEventUEUnderNewNode
 
 var alrRules = diameter.BaseRequestRules().With(diameter.Rules{
-	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:            {Required: true},
-	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:       {Required: true},
-	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}:   {},
-	{Code: AVPMaximumUEAvailabilityTime, VendorID: tgpp.VendorID}: {},
-	{Code: AVPSMSGMSCAlertEvent, VendorID: tgpp.VendorID}:         {},
-	{Code: AVPServingNode, VendorID: tgpp.VendorID}:               {},
-	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}:    {Multiple: true},
+	{Code: tgpp.AVPSCAddress, VendorID: tgpp.VendorID}:                 {Required: true, MinLength: 1},
+	{Code: tgpp.AVPUserIdentifier, VendorID: tgpp.VendorID}:            {Required: true, MinLength: 1},
+	{Code: tgpp.AVPSMSMICorrelationID, VendorID: tgpp.VendorID}:        {},
+	{Code: tgpp.AVPMaximumUEAvailabilityTime, VendorID: tgpp.VendorID}: {},
+	{Code: AVPSMSGMSCAlertEvent, VendorID: tgpp.VendorID}:              {},
+	{Code: AVPServingNode, VendorID: tgpp.VendorID}:                    {},
+	{Code: tgpp.AVPSupportedFeatures, VendorID: tgpp.VendorID}:         {Multiple: true},
 })
 
 func NewHSSAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Message, error) {
@@ -85,7 +85,7 @@ func newAlertServiceCentreRequest(env tgpp.Envelope, a Alert) (*diameter.Message
 	)
 
 	if !a.MaximumUEAvailabilityTime.IsZero() {
-		avps = append(avps, diameter.Time(AVPMaximumUEAvailabilityTime, 0, tgpp.VendorID, a.MaximumUEAvailabilityTime))
+		avps = append(avps, diameter.Time(tgpp.AVPMaximumUEAvailabilityTime, 0, tgpp.VendorID, a.MaximumUEAvailabilityTime))
 	}
 
 	if a.Event != 0 {
@@ -135,7 +135,7 @@ func ParseAlertServiceCentreRequest(req *diameter.Message) (Alert, error) {
 		return Alert{}, tgpp.InvalidGroupedAVP(ui, err)
 	}
 
-	if t, ok := req.Find(AVPMaximumUEAvailabilityTime, tgpp.VendorID); ok {
+	if t, ok := req.Find(tgpp.AVPMaximumUEAvailabilityTime, tgpp.VendorID); ok {
 		if a.MaximumUEAvailabilityTime, err = t.Time(); err != nil {
 			return Alert{}, tgpp.InvalidAVP(t)
 		}

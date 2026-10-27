@@ -30,8 +30,8 @@ type PushProfile struct {
 }
 
 var pprRules = commonRequestRules.With(diameter.Rules{
-	{Code: diameter.AVPDestinationHost}:                          {Required: true},
-	{Code: diameter.AVPUserName}:                                 {Required: true},
+	{Code: diameter.AVPDestinationHost}:                          {Required: true, MinLength: 1},
+	{Code: diameter.AVPUserName}:                                 {Required: true, MinLength: 1},
 	{Code: AVPUserData, VendorID: tgpp.VendorID}:                 {},
 	{Code: AVPChargingInformation, VendorID: tgpp.VendorID}:      {},
 	{Code: AVPSIPAuthDataItem, VendorID: tgpp.VendorID}:          {},

@@ -506,11 +506,21 @@ func ParseTrackingAreaUpdateComplete(b []byte) (*TrackingAreaUpdateComplete, err
 // updating procedure (TS 24.301). With EMM cause #9 or #10 the UE
 // accepts it without integrity protection and re-attaches.
 type TrackingAreaUpdateReject struct {
-	Cause EMMCause
+	Cause            EMMCause
+	T3346            *nas.GPRSTimer2
+	ExtendedEMMCause *ExtendedEMMCause
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
+}
+
+var trackingAreaUpdateRejectIEs = []nas.OptionalIE{
+	{IEI: ieiT3346Value, Format: nas.IETLV, Name: "T3346 value"},
+	{IEI: ieiExtendedEMMCause, Format: nas.IETV1, Name: "Extended EMM cause"},
+	{IEI: ieiLowerBoundTimer, Format: nas.IETLV, Name: "Lower bound timer value"},
+	{IEI: ieiForbiddenTAIRoaming, Format: nas.IETLV, Name: "Forbidden TAIs for roaming"},
+	{IEI: ieiForbiddenTAIRegional, Format: nas.IETLV, Name: "Forbidden TAIs for regional provision of service"},
 }
 
 // AppendBinary encodes the plain TRACKING AREA UPDATE REJECT message.
@@ -522,6 +532,19 @@ func (m *TrackingAreaUpdateReject) AppendBinary(b []byte) ([]byte, error) {
 
 	writeEMMHeader(w, MsgTrackingAreaUpdateReject)
 	w.U8(uint8(m.Cause))
+
+	if m.T3346 != nil {
+		raw, err := m.T3346.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiT3346Value, raw)
+	}
+
+	if m.ExtendedEMMCause != nil {
+		o.TV1(ieiExtendedEMMCause, m.ExtendedEMMCause.Nibble())
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -548,7 +571,29 @@ func ParseTrackingAreaUpdateReject(b []byte) (*TrackingAreaUpdateReject, error) 
 
 	out := &TrackingAreaUpdateReject{Cause: EMMCause(cause)}
 
-	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	_unrec, err := walkOptionalIEs(r, trackingAreaUpdateRejectIEs, func(iei uint8, value []byte) (bool, error) {
+		switch iei {
+		case ieiT3346Value:
+			timer, err := nas.ParseGPRSTimer2(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.T3346 = &timer
+		case ieiExtendedEMMCause:
+			v := tv1Value(value)
+			if v == nil {
+				return false, nil
+			}
+
+			c := ParseExtendedEMMCause(*v)
+			out.ExtendedEMMCause = &c
+		default:
+			return false, nil
+		}
+
+		return true, nil
+	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}

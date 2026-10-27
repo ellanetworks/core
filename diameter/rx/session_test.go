@@ -16,7 +16,7 @@ import (
 func TestSessionTerminationRoundTrip(t *testing.T) {
 	for _, env := range []tgpp.Envelope{afEnvelope, {SessionID: "s;1", Origin: afIdentity, DestinationHost: pcrfIdentity.OriginHost, DestinationRealm: testEPCRealm}} {
 		for c := TerminationCause(0); c <= TerminationPortDisabled+1; c++ {
-			if !c.valid() {
+			if !c.Known() {
 				continue
 			}
 

@@ -25,6 +25,7 @@ const (
 	AVPSessionTimeout              uint32 = 27
 	AVPCalledStationID             uint32 = 30
 	AVPFramedIPv6Prefix            uint32 = 97
+	AVPMIP6HomeLinkPrefix          uint32 = 125
 	AVPHostIPAddress               uint32 = 257
 	AVPAuthApplicationID           uint32 = 258
 	AVPAcctApplicationID           uint32 = 259
@@ -57,10 +58,17 @@ const (
 	AVPOriginRealm                 uint32 = 296
 	AVPExperimentalResult          uint32 = 297
 	AVPExperimentalResultCode      uint32 = 298
+	AVPMIPHomeAgentAddress         uint32 = 334
+	AVPMIPHomeAgentHost            uint32 = 348
 	AVPSubscriptionID              uint32 = 443
 	AVPFinalUnitAction             uint32 = 449
 	AVPSubscriptionIDData          uint32 = 444
 	AVPSubscriptionIDType          uint32 = 450
+	AVPMIP6AgentInfo               uint32 = 486
+	AVPServiceSelection            uint32 = 493
+	AVPOCSupportedFeatures         uint32 = 621
+	AVPOCOLR                       uint32 = 623
+	AVPLoad                        uint32 = 650
 )
 
 const (

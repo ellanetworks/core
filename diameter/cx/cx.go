@@ -24,7 +24,6 @@ const (
 )
 
 const (
-	AVPVisitedNetworkIdentifier                uint32 = 600
 	AVPPublicIdentity                          uint32 = 601
 	AVPServerName                              uint32 = 602
 	AVPServerCapabilities                      uint32 = 603
@@ -49,8 +48,6 @@ const (
 	AVPSecondaryChargingCollectionFunctionName uint32 = 622
 	AVPUserAuthorizationType                   uint32 = 623
 	AVPUserDataAlreadyAvailable                uint32 = 624
-	AVPConfidentialityKey                      uint32 = 625
-	AVPIntegrityKey                            uint32 = 626
 	AVPAssociatedIdentities                    uint32 = 632
 	AVPOriginatingRequest                      uint32 = 633
 	AVPWildcardedPublicIdentity                uint32 = 634
@@ -70,8 +67,6 @@ const (
 	AVPRTRFlags                                uint32 = 659
 	AVPFailedPCSCF                             uint32 = 664
 )
-
-const avpOCSupportedFeatures uint32 = 621
 
 const (
 	uarFlagEmergencyRegistration    uint32 = 1 << 0
@@ -182,23 +177,20 @@ func newRequest(env tgpp.Envelope, command uint32, features Features, required b
 	return msg, nil
 }
 
-func featureAVPs(features Features, required bool) []diameter.AVP {
-	if features == 0 {
-		return nil
-	}
+func (f Features) lists() tgpp.FeatureLists {
+	return tgpp.FeatureLists{featureListID: uint32(f)}
+}
 
-	return []diameter.AVP{tgpp.SupportedFeatures{
-		VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(features), Mandatory: required,
-	}.AVP()}
+func featureAVPs(features Features, required bool) []diameter.AVP {
+	return features.lists().AVPs(required)
 }
 
 func featureList(m *diameter.Message) Features {
-	return Features(tgpp.FeatureList(m.AVPs, tgpp.VendorID, featureListID))
+	return Features(tgpp.ParseFeatureLists(m.AVPs)[featureListID])
 }
 
 func RequiresUnsupportedFeatures(req *diameter.Message, supported Features) bool {
-	return tgpp.UnsupportedRequiredFeatures(req.AVPs,
-		tgpp.SupportedFeatures{VendorID: tgpp.VendorID, FeatureListID: featureListID, FeatureList: uint32(supported)})
+	return supported.lists().Unsupported(req.AVPs)
 }
 
 func featuresRequired(m *diameter.Message) bool {

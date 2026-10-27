@@ -22,6 +22,8 @@ var canonicalValues = map[uint8][]byte{
 	ieiMSIdentity:                    {0xf4, 0x01, 0x02, 0x03, 0x04},
 	ieiEMMCause:                      {uint8(EMMCauseIllegalUE)},
 	ieiEPSBearerContextStatus:        {0x00, 0x00},
+	ieiESMMessageContainer:           {0x02, 0x01, 0xd1, 0x1b},
+	ieiExtendedEMMCause:              {0x05},
 	ieiESMCause:                      {uint8(ESMCauseRegularDeactivation)},
 	ieiESMInformationTransferFlag:    {0x01},
 	ieiFullNameForNetwork:            {0x89, 0x41},
@@ -149,9 +151,14 @@ func canonicalCases(t *testing.T) []canonicalCase {
 			order: []canonicalIE{{ieiESMInformationTransferFlag, nas.IETV1}, {ieiAccessPointName, nas.IETLV}, {ieiProtocolConfigurationOptions, nas.IETLV}},
 		},
 		{
-			name:  "AttachReject (TS 24.301 §8.2)",
+			name:  "AttachReject (TS 24.301 §8.2.3)",
 			bare:  &AttachReject{},
-			order: []canonicalIE{{ieiT3402Value, nas.IETLV}},
+			order: []canonicalIE{{ieiESMMessageContainer, nas.IETLVE}, {ieiT3346Value, nas.IETLV}, {ieiT3402Value, nas.IETLV}, {ieiExtendedEMMCause, nas.IETV1}},
+		},
+		{
+			name:  "TrackingAreaUpdateReject (TS 24.301 §8.2.28)",
+			bare:  &TrackingAreaUpdateReject{},
+			order: []canonicalIE{{ieiT3346Value, nas.IETLV}, {ieiExtendedEMMCause, nas.IETV1}},
 		},
 		{
 			name:  "AuthenticationFailure (TS 24.301 §8.2)",
