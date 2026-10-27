@@ -60,6 +60,8 @@ func FuzzParseMessage(f *testing.F) {
 	f.Add(mustHex("0769010004deadbeef650107"))
 	f.Add(mustHex("0763028904"))
 	f.Add(mustHex("07420221060000f110000100040201d0111300f110fffe2305f401020304f2"))
+	f.Add(mustHex("07440f5f012216012ca1"))
+	f.Add(mustHex("074b0fa65f0122"))
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		for _, dir := range []nas.Direction{nas.DirectionUplink, nas.DirectionDownlink} {

@@ -220,3 +220,29 @@ func causeString(kind string, value uint8, name string) string {
 
 	return fmt.Sprintf("%s (%d)", name, value)
 }
+
+// ExtendedEMMCause is the Extended EMM cause value (TS 24.301 §9.9.3.26A).
+type ExtendedEMMCause struct {
+	EUTRANNotAllowed            bool
+	EPSOptimizationNotSupported bool
+	NBIoTNotAllowed             bool
+}
+
+// ParseExtendedEMMCause decodes an Extended EMM cause value nibble.
+func ParseExtendedEMMCause(v uint8) ExtendedEMMCause {
+	return ExtendedEMMCause{
+		EUTRANNotAllowed:            v&0x01 != 0,
+		EPSOptimizationNotSupported: v&0x02 != 0,
+		NBIoTNotAllowed:             v&0x04 != 0,
+	}
+}
+
+// Nibble is the value half-octet this element occupies.
+func (c ExtendedEMMCause) Nibble() uint8 {
+	return boolBit(c.EUTRANNotAllowed, 0) | boolBit(c.EPSOptimizationNotSupported, 1) | boolBit(c.NBIoTNotAllowed, 2)
+}
+
+func (c ExtendedEMMCause) String() string {
+	return fmt.Sprintf("E-UTRAN not allowed=%t requested EPS optimization not supported=%t NB-IoT not allowed=%t",
+		c.EUTRANNotAllowed, c.EPSOptimizationNotSupported, c.NBIoTNotAllowed)
+}

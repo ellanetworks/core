@@ -234,6 +234,50 @@ func TestDecodeTrackingAreaUpdateReject(t *testing.T) {
 	}
 }
 
+func TestDecodeTrackingAreaUpdateRejectCongestion(t *testing.T) {
+	rej := decodeHex(t, "074b0f5f0122a6").EMMMessage.TrackingAreaUpdateReject
+	if rej == nil {
+		t.Fatal("no tracking area update reject decoded")
+	}
+
+	if rej.T3346 == nil || *rej.T3346 != 0x22 {
+		t.Errorf("T3346 = %v, want 0x22", rej.T3346)
+	}
+
+	want := ExtendedEMMCause{EPSOptimizationNotSupported: true, NBIoTNotAllowed: true}
+	if rej.ExtendedEMMCause == nil || *rej.ExtendedEMMCause != want {
+		t.Errorf("extended EMM cause = %+v, want %+v", rej.ExtendedEMMCause, want)
+	}
+
+	if len(rej.UnrecognizedIEs) != 0 {
+		t.Errorf("unrecognized IEs = %+v", rej.UnrecognizedIEs)
+	}
+}
+
+func TestDecodeAttachRejectCongestion(t *testing.T) {
+	rej := decodeHex(t, "07440f5f012216012ca1").EMMMessage.AttachReject
+	if rej == nil {
+		t.Fatal("no attach reject decoded")
+	}
+
+	if rej.T3346 == nil || *rej.T3346 != 0x22 {
+		t.Errorf("T3346 = %v, want 0x22", rej.T3346)
+	}
+
+	if rej.T3402 == nil || *rej.T3402 != 0x2c {
+		t.Errorf("T3402 = %v, want 0x2c", rej.T3402)
+	}
+
+	want := ExtendedEMMCause{EUTRANNotAllowed: true}
+	if rej.ExtendedEMMCause == nil || *rej.ExtendedEMMCause != want {
+		t.Errorf("extended EMM cause = %+v, want %+v", rej.ExtendedEMMCause, want)
+	}
+
+	if len(rej.UnrecognizedIEs) != 0 {
+		t.Errorf("unrecognized IEs = %+v", rej.UnrecognizedIEs)
+	}
+}
+
 func TestDecodeEMMInformation(t *testing.T) {
 	msg := decodeHex(t, "2701fb5493030761430d8545363b0c7296e9f7b77c3d0745058445363b0c")
 

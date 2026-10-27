@@ -13,18 +13,22 @@ import (
 )
 
 type AttachReject struct {
-	EMMCause     utils.EnumField `json:"emm_cause"`
-	ESMContainer *ESMMessage     `json:"esm_container,omitempty"`
-	T3402        *uint8          `json:"t3402,omitempty"`
+	EMMCause         utils.EnumField   `json:"emm_cause"`
+	ESMContainer     *ESMMessage       `json:"esm_container,omitempty"`
+	T3346            *uint8            `json:"t3346,omitempty"`
+	T3402            *uint8            `json:"t3402,omitempty"`
+	ExtendedEMMCause *ExtendedEMMCause `json:"extended_emm_cause,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildAttachReject(msg *eps.AttachReject) *AttachReject {
 	out := &AttachReject{
-		EMMCause:     emmCauseToEnum(msg.Cause),
-		ESMContainer: decodeESMContainer(msg.ESMMessageContainer),
-		T3402:        optionalTimer(msg.T3402),
+		EMMCause:         emmCauseToEnum(msg.Cause),
+		ESMContainer:     decodeESMContainer(msg.ESMMessageContainer),
+		T3346:            optionalTimer(msg.T3346),
+		T3402:            optionalTimer(msg.T3402),
+		ExtendedEMMCause: extendedEMMCause(msg.ExtendedEMMCause),
 	}
 
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)

@@ -25,13 +25,19 @@ func buildAttachComplete(msg *eps.AttachComplete) *AttachComplete {
 }
 
 type TrackingAreaUpdateReject struct {
-	EMMCause utils.EnumField `json:"emm_cause"`
+	EMMCause         utils.EnumField   `json:"emm_cause"`
+	T3346            *uint8            `json:"t3346,omitempty"`
+	ExtendedEMMCause *ExtendedEMMCause `json:"extended_emm_cause,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildTrackingAreaUpdateReject(msg *eps.TrackingAreaUpdateReject) *TrackingAreaUpdateReject {
-	out := &TrackingAreaUpdateReject{EMMCause: emmCauseToEnum(msg.Cause)}
+	out := &TrackingAreaUpdateReject{
+		EMMCause:         emmCauseToEnum(msg.Cause),
+		T3346:            optionalTimer(msg.T3346),
+		ExtendedEMMCause: extendedEMMCause(msg.ExtendedEMMCause),
+	}
 
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
