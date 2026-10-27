@@ -76,7 +76,7 @@ const voiceOn = { pcscfAddresses: ["10.6.0.5"], voiceStatus: "enabled" };
 const identities = (
   userState: string,
   msisdn = true,
-  mcpttState = "not_registered",
+  mcpttState: string | null = null,
 ) => ({
   private_identity: `${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`,
   public_identities: [
@@ -96,7 +96,7 @@ const identities = (
       registration_set: "mmtel",
       user_state: userState,
     },
-    ...(msisdn
+    ...(msisdn && mcpttState
       ? [
           {
             identity: "sip:mcptt-15551230001@ims.mnc001.mcc001.3gppnetwork.org",
@@ -154,7 +154,24 @@ describe("Subscriber voice", () => {
     );
   });
 
-  it("hides MCPTT while its identity is not registered", async () => {
+  it("shows MCPTT as not registered while its client is not registered", async () => {
+    seedSubscriber(
+      "+15551230001",
+      {
+        ims: identities("registered", true, "not_registered"),
+        registrations: registered(true),
+      },
+      voiceOn,
+    );
+    renderDetail();
+
+    expect(await voiceRow()).toHaveTextContent("Registered");
+    expect((await screen.findByText("MCPTT")).parentElement!).toHaveTextContent(
+      "Not registered",
+    );
+  });
+
+  it("hides MCPTT without an MCPTT identity", async () => {
     seedSubscriber(
       "+15551230001",
       { ims: identities("registered"), registrations: registered(true) },

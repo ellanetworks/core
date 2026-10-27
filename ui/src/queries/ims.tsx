@@ -106,7 +106,7 @@ export type IMSRegistrationSet = "mmtel" | "mcptt";
 export const imsRegistrationSets: IMSRegistrationSet[] = ["mmtel", "mcptt"];
 
 export const imsRegistrationSetLabels: Record<IMSRegistrationSet, string> = {
-  mmtel: "MMTel",
+  mmtel: "MMTel (voice, SMS)",
   mcptt: "MCPTT",
 };
 
@@ -117,7 +117,7 @@ export const imsRegistrationSetIdentities: Record<IMSRegistrationSet, string> =
   };
 
 export const imsUnassignedLabels: Record<IMSRegistrationSet, string> = {
-  mmtel: "None (no filter criteria)",
+  mmtel: "None (basic calls only)",
   mcptt: "Off",
 };
 

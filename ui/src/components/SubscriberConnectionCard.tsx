@@ -212,7 +212,7 @@ export const mcpttState = (ims?: IMSSubscription): VoiceState | undefined => {
     (i) => i.registration_set === "mcptt",
   )?.user_state;
 
-  if (!state || state === "not_registered") return undefined;
+  if (!state) return undefined;
 
   return imsUserStates[state] ?? { label: state, color: "default" };
 };

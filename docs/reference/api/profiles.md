@@ -4,7 +4,7 @@ description: RESTful API reference for managing profiles.
 
 # Profiles
 
-Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR) and the IMS service profiles of its registration sets. Ella Core signals the UE-AMBR to the radio, which enforces it. A profile can be shared across multiple policies.
+Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR) and the IMS service profiles of its registration sets. Ella Core signals the UE-AMBR to the radio, which enforces it. A profile groups the policies of its subscribers.
 
 ## List Profiles
 

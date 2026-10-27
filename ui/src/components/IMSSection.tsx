@@ -295,8 +295,8 @@ const IMSSection: React.FC<IMSSectionProps> = ({
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          Initial filter criteria that a profile gives the MMTel or MCPTT
-          identities of its subscribers.
+          Ordered initial filter criteria. Assign one to a profile's MMTel or
+          MCPTT identities on the Profiles page.
         </Typography>
         {canEdit && (
           <Button

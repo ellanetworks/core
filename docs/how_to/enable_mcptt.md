@@ -35,6 +35,8 @@ Click on the new profile, click **Add Policy**, and set:
 
 Click **Create**.
 
+Also add the policies the MCPTT users have on their current profile, e.g. on `internet` and `ims`.
+
 ## 3. Add the MCPTT application server
 
 Go to the **Operator** page and scroll to the **IMS** section. Under **Application Servers**, click **Add Application Server**, click **Fill for Ella IMS MCPTT**, and click **Add**.
@@ -47,7 +49,7 @@ On the **Operator** page, in the **IMS** section, under **Service Profiles**, cl
 
 ## 5. Give the MC profile the MCPTT service profile
 
-Go to the **Profiles** page and click on the MC profile. Click the edit icon next to **IMS Service Profiles**, select `mcptt` for **MCPTT**, and click **Save**.
+Go to the **Profiles** page and click on the MC profile. Click the edit icon next to **IMS Service Profiles**, select `mcptt` for **MCPTT** and, for **MMTel (voice, SMS)**, the service profile of the users' current profile, if any. Click **Save**.
 
 ## 6. Put MCPTT users on the MC profile
 
