@@ -59,7 +59,7 @@ Ella Core derives each subscriber's IMS identities from its existing data, with 
 
 The IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, built from the operator's PLMN ID.
 
-The public identities form two implicit registration sets ([TS 23.228 §5.2.1a](https://www.3gpp.org/DynaReport/23228.htm)), each registered on its own. The phone's own IMS client registers the MMTel set for voice and SMS. An MCPTT client registers the MCPTT set with the same SIM, reading the MCPTT identity from the ISIM. Both registrations hold only if the phone's IMS client registers with a `reg-id` ([RFC 5626](https://www.rfc-editor.org/rfc/rfc5626)); otherwise each of its registrations de-registers the MCPTT client.
+The public identities form two implicit registration sets ([TS 23.228 §5.2.1a](https://www.3gpp.org/DynaReport/23228.htm)), each registered on its own. The phone's own IMS client registers the MMTel set for voice and SMS. An MCPTT client registers the MCPTT set with the same SIM, reading the MCPTT identity from the ISIM. Both registrations hold only if the phone's IMS client registers with a `reg-id` ([RFC 5626](https://www.rfc-editor.org/rfc/rfc5626)); otherwise the S-CSCF de-registers the MCPTT client at each of its registrations ([TS 24.229 §5.4.1.2.2](https://www.3gpp.org/DynaReport/24229.htm)).
 
 A subscriber without an MSISDN has only the barred identity, and cannot make or receive calls.
 

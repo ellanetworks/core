@@ -43,7 +43,7 @@ With another MCPTT server, enter `mcptt` as the **Name**, its SIP URI as the **S
 
 ## 4. Create the MCPTT service profile
 
-On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add**. Click **Add**.
+On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add** next to them. Click **Add** at the bottom of the dialog.
 
 ## 5. Give the MC profile the MCPTT service profile
 
@@ -56,7 +56,7 @@ For each MCPTT user:
 - Go to the **Subscribers** page and click on the subscriber.
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
 - Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its MCPTT public identity, `sip:mcptt-<msisdn>@<IMS home domain>`, to an MCPTT ID on your MCPTT server.
-- Program the SIM's ISIM with the MCPTT public identity in a record of EF.IMPU after the first, which is `sip:+<msisdn>@<IMS home domain>`.
+- Program the SIM's ISIM with the MCPTT public identity in a record of EF.IMPU after the first.
 
 ## 7. Verify the MCPTT registration
 
