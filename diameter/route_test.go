@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -357,5 +358,169 @@ func TestImplicitRoutesFollowTheConnection(t *testing.T) {
 
 	if len(hub.rotation) != 0 {
 		t.Fatalf("rotation kept %v", hub.rotation)
+	}
+}
+
+const visitedRealm = "epc.mnc002.mcc002.3gppnetwork.org"
+
+func (s *server) defaultPeer(priority int) Peer {
+	p := s.peer(TransportTCP, priority)
+	p.Routes = []Route{{Application: testAppID, Priority: priority, Default: true}}
+
+	return p
+}
+
+func destination(t *testing.T, m *Message, code uint32) string {
+	t.Helper()
+
+	a, ok := m.Find(code, 0)
+	if !ok {
+		t.Fatalf("no AVP %d", code)
+	}
+
+	return a.UTF8String()
+}
+
+func TestSendRoutesAnUnmatchedRealmByTheDefaultRoute(t *testing.T) {
+	kind := TransportTCP
+	agent := newServerIn(t, kind, "dea.ipx.example.net", visitedRealm, loopback2, []Application{sgdApp}, nil)
+
+	client := newClient(t)
+	setPeers(t, client, agent.defaultPeer(0))
+	waitOpen(t, client, agent.host)
+
+	if got := answeredBy(t, send(t, client, routedTo(visitedRealm))); got != agent.host {
+		t.Fatalf("realm-only request answered by %s", got)
+	}
+
+	if got := destination(t, <-agent.seen, AVPDestinationRealm); got != visitedRealm {
+		t.Fatalf("Destination-Realm %s", got)
+	}
+
+	ans := send(t, client, routedTo(visitedRealm, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1.visited.example.org")))
+	if resultCode(t, ans) != ResultUnableToDeliver || answeredBy(t, ans) != agent.host {
+		t.Fatalf("answer %d from %s", resultCode(t, ans), answeredBy(t, ans))
+	}
+
+	routes := client.Routes()
+	if len(routes) != 1 || !routes[0].Default || routes[0].Realm != "" || routes[0].Application != testAppID ||
+		len(routes[0].Peers) != 1 || routes[0].Peers[0].ID != agent.host || routes[0].Peers[0].State != PeerOpen {
+		t.Fatalf("Routes = %+v", routes)
+	}
+}
+
+func TestSendPrefersARealmRouteOverTheDefault(t *testing.T) {
+	kind := TransportTCP
+	realm := newServer(t, kind, "dra.example.org", loopback2, nil)
+	fallback := newServer(t, kind, "dea.ipx.example.net", loopback3, nil)
+
+	client := newClient(t)
+	setPeers(t, client, realm.peer(kind, 5), fallback.defaultPeer(0))
+	waitOpen(t, client, realm.host, fallback.host)
+
+	for range 4 {
+		if got := answeredBy(t, send(t, client, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "pcrf7.example.org")))); got != realm.host {
+			t.Fatalf("answered by %s", got)
+		}
+	}
+
+	if fallback.calls.Load() != 0 {
+		t.Fatalf("default route got %d requests", fallback.calls.Load())
+	}
+}
+
+func TestSendPrefersAcceptedPeersOverTheDefault(t *testing.T) {
+	kind := TransportTCP
+	hub, addr := newHub(t, kind)
+
+	fallback := newServer(t, kind, "dea.ipx.example.net", loopback2, nil)
+	setPeers(t, hub, fallback.defaultPeer(0))
+	waitOpen(t, hub, fallback.host)
+
+	hss := newServer(t, kind, "hss1.example.org", loopback3, nil)
+	hss.dialIn(t, kind, addr)
+	waitImplicit(t, hub, hss.host)
+
+	if got := answeredBy(t, send(t, hub, routed())); got != hss.host {
+		t.Fatalf("realm-only request answered by %s", got)
+	}
+
+	if got := answeredBy(t, send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme2.example.org")))); got != fallback.host {
+		t.Fatalf("request to an unknown Destination-Host answered by %s", got)
+	}
+}
+
+func TestDefaultRouteDoesNotCoverServedRealms(t *testing.T) {
+	const servedRealm = "served.example.org"
+
+	kind := TransportTCP
+	fallback := newServer(t, kind, "dea.ipx.example.net", loopback2, nil)
+
+	client := newClient(t, func(cfg *Config) { cfg.ServedRealms = []string{servedRealm} })
+	setPeers(t, client, fallback.defaultPeer(0))
+	waitOpen(t, client, fallback.host)
+
+	own := client.Identity().OriginRealm
+
+	for _, req := range []*Message{
+		routedTo(own, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+own)),
+		routedTo(strings.ToUpper(own)),
+		routedTo(servedRealm, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+servedRealm)),
+	} {
+		if _, err := client.Send(context.Background(), req, FailFast()); !errors.Is(err, ErrUnableToDeliver) {
+			t.Fatalf("Send to %s = %v", destination(t, req, AVPDestinationRealm), err)
+		}
+	}
+
+	if fallback.calls.Load() != 0 {
+		t.Fatalf("default route got %d requests for a served realm", fallback.calls.Load())
+	}
+
+	p := fallback.defaultPeer(0)
+	p.Routes = append(p.Routes, Route{Realm: own, Application: testAppID})
+	setPeers(t, client, p)
+
+	if got := answeredBy(t, send(t, client, routedTo(own, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+own)))); got != fallback.host {
+		t.Fatalf("explicit route for the own realm answered by %s", got)
+	}
+}
+
+func TestDefaultRouteDoesNotCoverServedRealmsOfAHub(t *testing.T) {
+	kind := TransportTCP
+	hub, _ := newHub(t, kind)
+
+	fallback := newServer(t, kind, "dea.ipx.example.net", loopback2, nil)
+	setPeers(t, hub, fallback.defaultPeer(0))
+	waitOpen(t, hub, fallback.host)
+
+	own := hub.Identity().OriginRealm
+
+	if _, err := hub.Send(context.Background(), routedTo(own), FailFast()); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("realm-only Send = %v", err)
+	}
+
+	if fallback.calls.Load() != 0 {
+		t.Fatalf("default route got %d requests for the own realm", fallback.calls.Load())
+	}
+}
+
+func TestSendFailsOverBetweenDefaultRoutes(t *testing.T) {
+	kind := TransportTCP
+	refusing := newServerIn(t, kind, "dea1.ipx.example.net", visitedRealm, loopback2, []Application{sgdApp}, func(_ *server, c *Conn, req *Message) *Message {
+		return c.Answer(req, ResultUnableToDeliver)
+	})
+	good := newServerIn(t, kind, "dea2.ipx.example.net", visitedRealm, loopback3, []Application{sgdApp}, nil)
+
+	client := newClient(t)
+	setPeers(t, client, refusing.defaultPeer(0), good.defaultPeer(1))
+	waitOpen(t, client, refusing.host, good.host)
+
+	if got := answeredBy(t, send(t, client, routedTo(visitedRealm))); got != good.host {
+		t.Fatalf("answered by %s", got)
+	}
+
+	first, second := <-refusing.seen, <-good.seen
+	if first.EndToEndID != second.EndToEndID || second.Flags&FlagRetransmit == 0 {
+		t.Fatalf("End-to-End %d then %d, flags %#x", first.EndToEndID, second.EndToEndID, second.Flags)
 	}
 }
