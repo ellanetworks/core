@@ -8,11 +8,11 @@ export const VENDOR = {
   websiteUrl: "https://ellanetworks.com",
 } as const;
 
-const DOCS_URL = "https://docs.ellanetworks.com";
+const DOCS_URL = "https://docs.ellanetworks.com/core";
 
 export const PRODUCT = {
   name: DEFAULT_PRODUCT_NAME,
-  docsUrl: DOCS_URL,
+  docsUrl: `${DOCS_URL}/`,
   haDocsUrl: `${DOCS_URL}/explanation/high_availability/`,
   backupRestoreDocsUrl: `${DOCS_URL}/how_to/backup_and_restore/`,
 };

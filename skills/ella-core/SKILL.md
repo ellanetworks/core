@@ -92,4 +92,4 @@ For any `POST`, `PUT`, `PATCH`, or `DELETE`:
 
 ## External documentation
 
-For non-API guidance, fetch from `https://docs.ellanetworks.com/` — for example `how_to/ai_agents/`, `how_to/backup_and_restore/`, or `reference/`.
+For non-API guidance, fetch from `https://docs.ellanetworks.com/core/` — for example `how_to/ai_agents/`, `how_to/backup_and_restore/`, or `reference/`.
