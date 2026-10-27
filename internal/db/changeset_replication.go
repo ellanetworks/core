@@ -74,7 +74,9 @@ var replicatedChangesetTables = []string{
 	IPSMGWRegistrationsTableName,
 	IMSApplicationServersTableName,
 	IMSPublicServiceIdentitiesTableName,
+	IMSServiceProfilesTableName,
 	IMSInitialFilterCriteriaTableName,
+	IMSServiceProfileAssignmentsTableName,
 	"schema_version",
 }
 

@@ -32,6 +32,7 @@ type fakeSCSCF struct {
 
 	mu           sync.Mutex
 	terminations []cx.ReasonCode
+	terminated   [][]string
 	pushes       []*diameter.Message
 }
 
@@ -61,6 +62,7 @@ func (f *fakeSCSCF) ServeDiameter(_ context.Context, _ *diameter.Conn, req *diam
 
 		f.mu.Lock()
 		f.terminations = append(f.terminations, r.Reason.Code)
+		f.terminated = append(f.terminated, r.PublicIdentities)
 		f.mu.Unlock()
 
 		if f.rtrResult.Failure() {
@@ -82,6 +84,13 @@ func (f *fakeSCSCF) Terminations() []cx.ReasonCode {
 	defer f.mu.Unlock()
 
 	return append([]cx.ReasonCode(nil), f.terminations...)
+}
+
+func (f *fakeSCSCF) TerminatedIdentities() [][]string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([][]string(nil), f.terminated...)
 }
 
 func (f *fakeSCSCF) Pushes() []*diameter.Message {
@@ -219,7 +228,7 @@ func TestServerAssignmentAlwaysDownloadsTheProfile_TS29228_6_6(t *testing.T) {
 	first := assigned(t, store, testIMSI, cx.AssignmentRegistration)
 	reg, _ := registration(t, store, testIMSI)
 
-	if reg.PrivateIdentity != impiOf(testIMSI) || reg.DefaultIdentity != "sip:+"+testMSISDN+"@"+testIMSDomain || reg.ProfileDigest == "" {
+	if reg.PrivateIdentity != impiOf(testIMSI) || reg.Sets[hss.MMTel].DefaultIdentity != "sip:+"+testMSISDN+"@"+testIMSDomain || reg.Sets[hss.MMTel].ProfileDigest == "" {
 		t.Fatalf("registration = %+v, want what the SAA delivered", reg)
 	}
 
@@ -236,7 +245,7 @@ func TestServerAssignmentAlwaysDownloadsTheProfile_TS29228_6_6(t *testing.T) {
 	}
 
 	again, _ := registration(t, store, testIMSI)
-	if again.ProfileDigest == reg.ProfileDigest {
+	if again.Sets[hss.MMTel].ProfileDigest == reg.Sets[hss.MMTel].ProfileDigest {
 		t.Fatalf("registration = %+v after the re-registration, want the digest of the new profile", again)
 	}
 }
@@ -320,7 +329,7 @@ func TestReconcile_TS29228_6_5_2_1(t *testing.T) {
 				t.Fatalf("registration kept = %t, want %t", kept, !tc.wantCleared)
 			}
 
-			if tc.emergency && (reg.State != hss.Unregistered || !reg.Emergency || reg.ServerName == "") {
+			if s := reg.Sets[hss.MMTel]; tc.emergency && (s.State != hss.Unregistered || !s.Emergency || reg.ServerName == "") {
 				t.Fatalf("registration = %+v, want the S-CSCF kept for the emergency registration", reg)
 			}
 
@@ -441,8 +450,8 @@ func TestPushProfileAnswer_TS29228_6_2_2_1(t *testing.T) {
 				t.Fatalf("registration kept = %t, want %t", kept, !tc.wantCleared)
 			}
 
-			if kept && (after.ProfileDigest != before.ProfileDigest) != tc.wantDelivered {
-				t.Fatalf("delivered digest changed = %t, want %t", after.ProfileDigest != before.ProfileDigest, tc.wantDelivered)
+			if changed := after.Sets[hss.MMTel].ProfileDigest != before.Sets[hss.MMTel].ProfileDigest; kept && changed != tc.wantDelivered {
+				t.Fatalf("delivered digest changed = %t, want %t", changed, tc.wantDelivered)
 			}
 		})
 	}
@@ -467,7 +476,7 @@ func TestUserUnknownSparesANewerRegistration_TS29228_6_2_2_1(t *testing.T) {
 		t.Fatalf("Reconcile: %v", err)
 	}
 
-	if got, kept := registration(t, store, testIMSI); !kept || got != fresh {
+	if got, kept := registration(t, store, testIMSI); !kept || !sameRegistration(got, fresh) {
 		t.Fatalf("registration = %+v (kept %t), want the registration made while the push was answered", got, kept)
 	}
 }

@@ -39,21 +39,24 @@ Go to the **Operator** page and scroll to the **IMS** section. Under **Applicati
 
 With another MCPTT server, enter `mcptt` as the **Name**, its SIP URI as the **Server Name**, and an **Identity** matching its identities, e.g. `sip:!.*!@mcptt.example.org`.
 
-## 4. Add the MCPTT filter criteria to the MC profile
+## 4. Create the MCPTT service profile
 
-Go to the **Profiles** page and click on the MC profile. Click the edit icon next to **IMS Filter Criteria**.
+On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and click **Add**. Click **Create**.
 
-Under **Add from preset**, select the `MCPTT` **Preset** and click **Add**. Click **Save**.
+## 5. Give the MC profile the MCPTT service profile
 
-## 5. Put MCPTT users on the MC profile
+Go to the **Profiles** page and click on the MC profile. Click the edit icon next to **IMS Service Profiles**, select `mcptt` for **MCPTT**, and click **Save**.
+
+## 6. Put MCPTT users on the MC profile
 
 For each MCPTT user:
 
 - Go to the **Subscribers** page and click on the subscriber.
 - In Provisioning, click the edit icon next to **Profile**, select the MC profile, and click **Update**.
-- Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its IMS public identity, `sip:+<msisdn>@<IMS home domain>`, to an MCPTT ID on your MCPTT server.
+- Give the subscriber an MSISDN, as in [Enable Voice](enable_voice.md#3-give-subscribers-an-msisdn), and map its MCPTT public identity, `sip:mcptt-<msisdn>@<IMS home domain>`, to an MCPTT ID on your MCPTT server.
+- Program the SIM with the MCPTT public identity as the second record of the ISIM's EF.IMPU, after `sip:+<msisdn>@<IMS home domain>`. The MCPTT client registers it, alongside the phone's own IMS registration.
 
-## 6. Make an MCPTT call
+## 7. Make an MCPTT call
 
 On the MCPTT client, make a call to another MCPTT user. The call should connect with audio in both directions.
 

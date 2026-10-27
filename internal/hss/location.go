@@ -48,18 +48,19 @@ func (h *HSS) LocationInfo(ctx context.Context, id diameter.Identity, req *diame
 		return h.errorAnswer(req, id, "location info", err)
 	}
 
+	set := sub.requestedSet()
 	assigned := reg != nil && reg.ServerName != ""
 
-	if assigned && (reg.State == Registered || reg.State == Unregistered) {
+	if s, ok := reg.set(set); assigned && ok && (s.State == Registered || s.State == Unregistered) {
 		return h.locationInfoAnswer(req, id, cx.LocationInfo{Result: tgpp.Result{Code: diameter.ResultSuccess}, ServerName: reg.ServerName})
 	}
 
-	if !sub.entitled() {
+	if !sub.entitled(set) {
 		return experimentalAnswer(req, id, tgpp.ResultErrorIdentityNotRegistered)
 	}
 
 	if !r.Originating {
-		ifcs, err := h.store.FilterCriteria(ctx, sub.IMSI)
+		ifcs, err := h.store.FilterCriteria(ctx, sub.IMSI, set)
 		if err != nil {
 			return h.errorAnswer(req, id, "location info", err)
 		}

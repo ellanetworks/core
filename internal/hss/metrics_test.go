@@ -12,8 +12,8 @@ import (
 
 func TestIMSMetrics(t *testing.T) {
 	store := newFakeIMSStore()
-	store.registrations[testIMSI] = hss.Registration{State: hss.Registered, ServerName: testSCSCF}
-	store.registrations[testOtherIMSI] = hss.Registration{State: hss.Unregistered, ServerName: testSCSCF}
+	store.registrations[testIMSI] = hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}}
+	store.registrations[testOtherIMSI] = hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Unregistered}}}
 
 	reg := prometheus.NewRegistry()
 	newHSS(store).RegisterMetrics(reg)

@@ -73,17 +73,39 @@ describe("Subscriber MSISDN", () => {
 
 const voiceOn = { pcscfAddresses: ["10.6.0.5"], voiceStatus: "enabled" };
 
-const identities = (userState: string, msisdn = true) => ({
+const identities = (
+  userState: string,
+  msisdn = true,
+  mcpttState = "not_registered",
+) => ({
   private_identity: `${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`,
   public_identities: [
     ...(msisdn
-      ? [{ identity: "tel:+15551230001", barred: false, user_state: userState }]
+      ? [
+          {
+            identity: "tel:+15551230001",
+            barred: false,
+            registration_set: "mmtel",
+            user_state: userState,
+          },
+        ]
       : []),
     {
       identity: `sip:${IMSI}@ims.mnc001.mcc001.3gppnetwork.org`,
       barred: true,
+      registration_set: "mmtel",
       user_state: userState,
     },
+    ...(msisdn
+      ? [
+          {
+            identity: "sip:mcptt-15551230001@ims.mnc001.mcc001.3gppnetwork.org",
+            barred: false,
+            registration_set: "mcptt",
+            user_state: mcpttState,
+          },
+        ]
+      : []),
   ],
 });
 
@@ -113,6 +135,35 @@ describe("Subscriber voice", () => {
     renderDetail();
 
     expect(await voiceRow()).toHaveTextContent("Registered");
+  });
+
+  it("shows the MCPTT registration apart from voice", async () => {
+    seedSubscriber(
+      "+15551230001",
+      {
+        ims: identities("not_registered", true, "registered"),
+        registrations: registered(true),
+      },
+      voiceOn,
+    );
+    renderDetail();
+
+    expect(await voiceRow()).toHaveTextContent("Not registered");
+    expect((await screen.findByText("MCPTT")).parentElement!).toHaveTextContent(
+      "Registered",
+    );
+  });
+
+  it("hides MCPTT while its identity is not registered", async () => {
+    seedSubscriber(
+      "+15551230001",
+      { ims: identities("registered"), registrations: registered(true) },
+      voiceOn,
+    );
+    renderDetail();
+
+    expect(await voiceRow()).toHaveTextContent("Registered");
+    expect(screen.queryByText("MCPTT")).not.toBeInTheDocument();
   });
 
   it("says the phone has no number when every identity is barred", async () => {

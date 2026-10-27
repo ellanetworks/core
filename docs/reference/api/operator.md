@@ -562,7 +562,7 @@ Same as [Create an IMS Application Server](#create-an-ims-application-server), w
 
 ## Delete an IMS Application Server
 
-This path deletes an IMS application server. An application server used by a profile's initial filter criteria can't be deleted.
+This path deletes an IMS application server. An application server used by the initial filter criteria of a service profile can't be deleted.
 
 | Method | Path                                                |
 | ------ | --------------------------------------------------- |
@@ -578,6 +578,143 @@ None
 {
     "result": {
         "message": "Application server deleted successfully"
+    }
+}
+```
+
+## List IMS Service Profiles
+
+This path returns the IMS service profiles, sorted by name. A service profile holds initial filter criteria ([TS 29.228 Annex B.2](https://www.3gpp.org/DynaReport/29228.htm)); a [profile](profiles.md#update-a-profiles-ims-service-profiles) assigns one to each implicit registration set of its subscribers.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| GET    | `/api/v1/operator/ims/service-profiles` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "name": "mcptt",
+                "initial_filter_criteria": [
+                    {
+                        "priority": 0,
+                        "application_server_name": "mcptt",
+                        "trigger": {
+                            "conditions_match": "all",
+                            "groups": [{"conditions": [{"method": "REGISTER"}]}]
+                        },
+                        "default_handling": "SESSION_CONTINUED",
+                        "include_register_request": true,
+                        "include_register_response": true
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+## Get an IMS Service Profile
+
+This path returns an IMS service profile.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| GET    | `/api/v1/operator/ims/service-profiles/{name}` |
+
+### Parameters
+
+None
+
+## Create an IMS Service Profile
+
+This path creates an IMS service profile.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| POST   | `/api/v1/operator/ims/service-profiles` |
+
+### Parameters
+
+- `name` (string): The name of the service profile.
+- `initial_filter_criteria` (optional array): In priority order ([TS 29.228 Annex B.2.2](https://www.3gpp.org/DynaReport/29228.htm)). Each criterion has:
+    - `application_server_name` (string): The name of the [IMS application server](#create-an-ims-application-server) matching requests are sent to.
+    - `trigger` (optional object): Without it, the criterion matches every request.
+        - `conditions_match` (string): `all` if a group matches when all of its conditions match, and the trigger matches when any group matches. `any` if a group matches when any of its conditions matches, and the trigger matches when every group matches.
+        - `groups` (array): Groups of `conditions`. Each condition has an optional `negated` (boolean) and exactly one of `request_uri` (string), `method` (string), `sip_header` (`{header, content}`), `session_case` (`ORIGINATING_REGISTERED`, `TERMINATING_REGISTERED`, `TERMINATING_UNREGISTERED`, `ORIGINATING_UNREGISTERED` or `ORIGINATING_CDIV`) and `session_description` (`{line, content}`). With the `REGISTER` method, `registration_types` lists up to two of `INITIAL_REGISTRATION`, `RE-REGISTRATION` and `DE-REGISTRATION`. Request URIs, headers, lines and contents are extended regular expressions.
+    - `profile_part` (optional string): `REGISTERED` or `UNREGISTERED`, the part of the user profile the criterion belongs to. Omitted for both.
+    - `default_handling` (optional string): `SESSION_CONTINUED` or `SESSION_TERMINATED`, what the S-CSCF does when the application server can't be reached.
+    - `service_info` (optional string): Passed transparently to the application server.
+    - `include_register_request` (optional boolean)
+    - `include_register_response` (optional boolean)
+
+The `priority` of a criterion is its position in the list. It is returned on reads and ignored on writes.
+
+### Sample Request
+
+```json
+{
+    "name": "conference",
+    "initial_filter_criteria": [
+        {
+            "application_server_name": "conference",
+            "trigger": {
+                "conditions_match": "all",
+                "groups": [{"conditions": [{"request_uri": "^sip:conference@.*$"}]}]
+            },
+            "default_handling": "SESSION_TERMINATED"
+        }
+    ]
+}
+```
+
+## Update an IMS Service Profile
+
+This path replaces the initial filter criteria of an IMS service profile. Registered subscribers whose profile assigns it get the new user profile.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| PUT    | `/api/v1/operator/ims/service-profiles/{name}` |
+
+### Parameters
+
+- `initial_filter_criteria` (array): In priority order, as in [Create an IMS Service Profile](#create-an-ims-service-profile). An empty list removes all of them.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Service profile updated successfully"
+    }
+}
+```
+
+## Delete an IMS Service Profile
+
+This path deletes an IMS service profile. A service profile a profile assigns can't be deleted.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| DELETE | `/api/v1/operator/ims/service-profiles/{name}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Service profile deleted successfully"
     }
 }
 ```

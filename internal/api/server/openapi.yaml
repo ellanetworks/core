@@ -1125,30 +1125,30 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  /api/v1/profiles/{name}/ims-filter-criteria:
+  /api/v1/profiles/{name}/ims-service-profiles:
     get:
-      operationId: getProfileIMSFilterCriteria
+      operationId: getProfileIMSServiceProfiles
       tags: [Profiles]
-      summary: Get a profile's IMS initial filter criteria
-      description: Returns the initial filter criteria of a profile, in priority order. The HSS gives them to the S-CSCF in the user profile of the profile's subscribers (TS 29.228 Annex B).
+      summary: Get a profile's IMS service profiles
+      description: Returns the IMS service profile of each implicit registration set of the profile's subscribers. Each public user identity of a set gets the set's service profile (TS 23.228 §4.3.3.4).
       parameters:
         - $ref: "#/components/parameters/ProfileNamePath"
       responses:
         "200":
-          description: The profile's initial filter criteria.
+          description: The profile's IMS service profiles.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProfileIMSFilterCriteriaResponseEnvelope"
+                $ref: "#/components/schemas/ProfileIMSServiceProfilesResponseEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
-      operationId: updateProfileIMSFilterCriteria
+      operationId: updateProfileIMSServiceProfiles
       tags: [Profiles]
-      summary: Update a profile's IMS initial filter criteria
-      description: Replaces the initial filter criteria of a profile. The order of the list is their priority. Registered subscribers of the profile get the new user profile.
+      summary: Update a profile's IMS service profiles
+      description: Replaces the IMS service profile of each implicit registration set. A set without one gets a service profile without initial filter criteria. Registered subscribers of the profile get the new user profile.
       parameters:
         - $ref: "#/components/parameters/ProfileNamePath"
       requestBody:
@@ -1156,7 +1156,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProfileIMSFilterCriteria"
+              $ref: "#/components/schemas/ProfileIMSServiceProfiles"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1818,7 +1818,105 @@ paths:
       operationId: deleteIMSApplicationServer
       tags: [Operator]
       summary: Delete an IMS application server
-      description: Deletes an IMS application server. An application server used by a profile's initial filter criteria cannot be deleted.
+      description: Deletes an IMS application server. An application server used by the initial filter criteria of a service profile cannot be deleted.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/ims/service-profiles:
+    get:
+      operationId: listIMSServiceProfiles
+      tags: [Operator]
+      summary: List IMS service profiles
+      description: Lists IMS service profiles, sorted by name.
+      responses:
+        "200":
+          description: IMS service profiles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIMSServiceProfilesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createIMSServiceProfile
+      tags: [Operator]
+      summary: Create an IMS service profile
+      description: Creates an IMS service profile (TS 29.228 Annex B.2).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIMSServiceProfileParams"
+      responses:
+        "201":
+          description: The created IMS service profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSServiceProfileResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/ims/service-profiles/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getIMSServiceProfile
+      tags: [Operator]
+      summary: Get an IMS service profile
+      description: Returns an IMS service profile.
+      responses:
+        "200":
+          description: IMS service profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IMSServiceProfileResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateIMSServiceProfile
+      tags: [Operator]
+      summary: Update an IMS service profile
+      description: Replaces the initial filter criteria of an IMS service profile. Registered subscribers whose profile assigns it get the new user profile.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIMSServiceProfileParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteIMSServiceProfile
+      tags: [Operator]
+      summary: Delete an IMS service profile
+      description: Deletes an IMS service profile. A service profile a profile assigns cannot be deleted.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -4322,11 +4420,15 @@ components:
         barred:
           type: boolean
           description: "Barred from IMS communications other than registration (TS 23.228 §5.2.1)."
+        registration_set:
+          type: string
+          enum: [mmtel, mcptt]
+          description: "Implicit registration set of the identity (TS 23.228 §5.2.1a). Each set registers on its own."
         user_state:
           type: string
           enum: ["registered", "registered_unreg_services", "authentication_pending", "not_registered"]
           description: "IMS User State (TS 29.328 §7.6.3)."
-      required: [identity, barred, user_state]
+      required: [identity, barred, registration_set, user_state]
 
     SubscriberCredentials:
       type: object
@@ -5358,7 +5460,54 @@ components:
             enum: [INITIAL_REGISTRATION, RE-REGISTRATION, DE-REGISTRATION]
           description: "Only with the REGISTER method."
 
-    ProfileIMSFilterCriteria:
+    IMSServiceProfile:
+      type: object
+      description: "An IMS service profile (TS 29.228 Annex B.2)."
+      required: [name, initial_filter_criteria]
+      properties:
+        name:
+          type: string
+        initial_filter_criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSInitialFilterCriterion"
+          description: "In priority order."
+
+    ListIMSServiceProfilesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListIMSServiceProfilesResponse"
+
+    ListIMSServiceProfilesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSServiceProfile"
+
+    IMSServiceProfileResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/IMSServiceProfile"
+
+    CreateIMSServiceProfileParams:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        initial_filter_criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/IMSInitialFilterCriterion"
+          description: "In priority order."
+
+    UpdateIMSServiceProfileParams:
       type: object
       required: [initial_filter_criteria]
       properties:
@@ -5366,13 +5515,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/IMSInitialFilterCriterion"
-          description: "In priority order."
+          description: "In priority order. Replaces the current list."
 
-    ProfileIMSFilterCriteriaResponseEnvelope:
+    ProfileIMSServiceProfiles:
+      type: object
+      properties:
+        mmtel:
+          type: ["string", "null"]
+          description: "Service profile of the MMTel implicit registration set: the subscriber's sip:+MSISDN and tel:+MSISDN identities, and the barred IMSI identity."
+        mcptt:
+          type: ["string", "null"]
+          description: "Service profile of the MCPTT implicit registration set: the subscriber's sip:mcptt-MSISDN identity."
+
+    ProfileIMSServiceProfilesResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/ProfileIMSFilterCriteria"
+          $ref: "#/components/schemas/ProfileIMSServiceProfiles"
 
     UpdateOperatorIMSParams:
       type: object

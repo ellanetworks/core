@@ -116,9 +116,9 @@ func TestRetransmittedRequestsGetTheSameOutcome(t *testing.T) {
 		req  *diameter.Message
 		want *hss.Registration
 	}{
-		{"MAR", mar(t, envelope()), &hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true}},
-		{"SAR registration", sar(t, envelope(), register(testIMSI, cx.AssignmentRegistration)), &hss.Registration{State: hss.Registered, ServerName: testSCSCF}},
-		{"SAR re-registration", sar(t, envelope(), register(testIMSI, cx.AssignmentReRegistration)), &hss.Registration{State: hss.Registered, ServerName: testSCSCF}},
+		{"MAR", mar(t, envelope()), &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.NotRegistered, AuthPending: true}}}},
+		{"SAR registration", sar(t, envelope(), register(testIMSI, cx.AssignmentRegistration)), &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}}},
+		{"SAR re-registration", sar(t, envelope(), register(testIMSI, cx.AssignmentReRegistration)), &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}}},
 		{"SAR user deregistration", sar(t, envelope(), register(testIMSI, cx.AssignmentUserDeregistration)), nil},
 	}
 

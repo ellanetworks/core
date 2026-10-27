@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useRef, useState } from "react";
-import { useController, useForm, useFormState } from "react-hook-form";
+import {
+  useController,
+  useForm,
+  useFormState,
+  type Resolver,
+  type ResolverResult,
+} from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import {
@@ -24,26 +30,27 @@ import {
   Edit as EditIcon,
 } from "@mui/icons-material";
 import {
+  createIMSServiceProfile,
   describeTrigger,
   listIMSApplicationServers,
-  setProfileIMSFilterCriteria,
+  updateIMSServiceProfile,
   type IMSApplicationServer,
-  type IMSInitialFilterCriterion,
   type IMSInitialFilterCriterionInput,
+  type IMSServiceProfile,
 } from "@/queries/ims";
 import { applyPreset, imsServicePresets } from "@/utils/imsServicePresets";
 import { sameCriterion } from "@/utils/imsFilterCriteria";
 import { getOperator, type OperatorData } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
 import IMSFilterCriterionFormDialog from "@/components/IMSFilterCriterionFormDialog";
 
-interface EditProfileIMSFilterCriteriaModalProps {
+interface IMSServiceProfileModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  profileName: string;
-  initialCriteria: IMSInitialFilterCriterion[];
+  serviceProfile?: IMSServiceProfile;
 }
 
 interface InMemoryCriterion {
@@ -52,13 +59,28 @@ interface InMemoryCriterion {
 }
 
 interface FormValues {
+  name: string;
   criteria: InMemoryCriterion[];
 }
 
-const EditProfileIMSFilterCriteriaModal: React.FC<
-  EditProfileIMSFilterCriteriaModalProps
-> = ({ open, onClose, onSuccess, profileName, initialCriteria }) => {
+const nameRequired: Resolver<FormValues> = async (values) => {
+  if (values.name.trim())
+    return { values, errors: {} } as ResolverResult<FormValues>;
+
+  return {
+    values: {},
+    errors: { name: { type: "required", message: "Name is required" } },
+  };
+};
+
+const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
+  open,
+  onClose,
+  onSuccess,
+  serviceProfile,
+}) => {
   const { accessToken, authReady } = useAuth();
+  const editing = !!serviceProfile;
 
   const serversQuery = useQuery<IMSApplicationServer[]>({
     queryKey: ["ims-application-servers"],
@@ -74,11 +96,16 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
   const noServers = serversQuery.isSuccess && servers.length === 0;
 
   const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: nameRequired,
     defaultValues: {
-      criteria: initialCriteria.map(({ priority, ...criterion }) => ({
-        tempId: `criterion-${priority}`,
-        criterion,
-      })),
+      name: serviceProfile?.name ?? "",
+      criteria: [...(serviceProfile?.initial_filter_criteria ?? [])]
+        .sort((a, b) => a.priority - b.priority)
+        .map(({ priority, ...criterion }) => ({
+          tempId: `criterion-${priority}`,
+          criterion,
+        })),
     },
   });
   const { field } = useController({ control: form.control, name: "criteria" });
@@ -167,11 +194,16 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await setProfileIMSFilterCriteria(
-      accessToken,
-      profileName,
-      values.criteria.map((c) => c.criterion),
-    );
+    const submitted = values.criteria.map((c) => c.criterion);
+    if (serviceProfile) {
+      await updateIMSServiceProfile(
+        accessToken,
+        serviceProfile.name,
+        submitted,
+      );
+    } else {
+      await createIMSServiceProfile(accessToken, values.name.trim(), submitted);
+    }
   };
 
   return (
@@ -180,15 +212,29 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
         open={open}
         onClose={onClose}
         onSuccess={onSuccess}
-        title="Edit IMS Filter Criteria"
-        description="The S-CSCF checks the criteria from top to bottom and sends matching requests to their application server. Drag rows to reorder."
+        title={editing ? "Edit Service Profile" : "Add Service Profile"}
+        description="The initial filter criteria of an IMS service profile. The S-CSCF checks them from top to bottom and sends matching requests to their application server. Drag rows to reorder."
         form={form}
         onSubmit={submit}
-        errorPrefix="Failed to update IMS filter criteria"
-        submitLabel="Save"
-        submittingLabel="Saving..."
+        errorPrefix={
+          editing
+            ? "Failed to update service profile"
+            : "Failed to add service profile"
+        }
+        submitLabel={editing ? "Save" : "Add"}
+        submittingLabel={editing ? "Saving..." : "Adding..."}
         maxWidth="md"
       >
+        <TextControl<FormValues>
+          name="name"
+          label="Name"
+          placeholder="mcptt"
+          disabled={editing}
+          autoFocus={!editing}
+        />
+        <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+          Initial Filter Criteria
+        </Typography>
         {criteria.length === 0 ? (
           <Typography color="textSecondary" sx={{ p: 2 }}>
             No IMS filter criteria.
@@ -414,4 +460,4 @@ const EditProfileIMSFilterCriteriaModal: React.FC<
   );
 };
 
-export default EditProfileIMSFilterCriteriaModal;
+export default IMSServiceProfileModal;

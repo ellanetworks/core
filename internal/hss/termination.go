@@ -6,6 +6,8 @@ package hss
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
@@ -25,34 +27,45 @@ type Peers interface {
 }
 
 type Termination struct {
-	IMSI            string
-	PrivateIdentity string
-	ServerName      string
-	ServerHost      string
-	ServerRealm     string
-	Reason          cx.ReasonCode
-	expected        Registration
+	IMSI             string
+	PrivateIdentity  string
+	PublicIdentities []string
+	ServerName       string
+	ServerHost       string
+	ServerRealm      string
+	Reason           cx.ReasonCode
+	sets             []RegistrationSet
+	expected         Registration
 }
 
 func (h *HSS) Termination(ctx context.Context, imsi string) (*Termination, error) {
 	reg, err := h.store.Registration(ctx, imsi)
-	if err != nil || reg == nil || reg.State == NotRegistered {
+	if err != nil || !reg.registered() {
 		return nil, err
 	}
 
-	return termination(imsi, reg, cx.ReasonPermanentTermination), nil
+	return termination(imsi, reg, cx.ReasonPermanentTermination, nil), nil
 }
 
-func termination(imsi string, reg *Registration, reason cx.ReasonCode) *Termination {
-	return &Termination{
+func termination(imsi string, reg *Registration, reason cx.ReasonCode, sets []RegistrationSet) *Termination {
+	t := &Termination{
 		IMSI:            imsi,
 		PrivateIdentity: reg.PrivateIdentity,
 		ServerName:      reg.ServerName,
 		ServerHost:      reg.OriginHost,
 		ServerRealm:     reg.OriginRealm,
 		Reason:          reason,
-		expected:        *reg,
+		sets:            sets,
+		expected:        *reg.clone(),
 	}
+
+	for _, set := range sets {
+		if s, ok := reg.Sets[set]; ok && s.DefaultIdentity != "" {
+			t.PublicIdentities = append(t.PublicIdentities, s.DefaultIdentity)
+		}
+	}
+
+	return t
 }
 
 func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
@@ -83,7 +96,8 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 		return err
 	}
 
-	h.log.Info("IMS registration terminated", zap.String("imsi", t.IMSI), zap.String("serverHost", t.ServerHost), zap.Bool("emergencyRegistered", emergency))
+	h.log.Info("IMS registration terminated", zap.String("imsi", t.IMSI), zap.Strings("publicIdentities", t.PublicIdentities),
+		zap.String("serverHost", t.ServerHost), zap.Strings("emergencyRegistered", emergency))
 
 	if t.Reason == cx.ReasonPermanentTermination {
 		return h.permanentlyTerminated(ctx, t, emergency)
@@ -92,31 +106,48 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 	return nil
 }
 
-func (h *HSS) permanentlyTerminated(ctx context.Context, t *Termination, emergency bool) error {
-	if !emergency {
-		return h.clearRegistration(ctx, t)
-	}
-
+func (h *HSS) permanentlyTerminated(ctx context.Context, t *Termination, emergency []string) error {
 	return h.updateRegistration(ctx, t.IMSI, func(current *Registration) (*Registration, error) {
-		if current == nil || current.State == NotRegistered || !t.holds(current) {
+		if !t.holds(current) {
 			return current, nil
 		}
 
-		next := *current
-		next.State, next.Emergency = Unregistered, true
+		affected := t.sets
+		if len(affected) == 0 {
+			affected = slices.Collect(maps.Keys(current.Sets))
+		}
 
-		return &next, nil
+		next := current.clone()
+
+		for _, set := range affected {
+			s := next.Sets[set]
+
+			if s.State != NotRegistered && slices.ContainsFunc(emergency, func(identity string) bool { return identitySet(identity) == set }) {
+				s.State, s.Emergency = Unregistered, true
+				next.Sets[set] = s
+
+				continue
+			}
+
+			delete(next.Sets, set)
+		}
+
+		if len(next.Sets) == 0 {
+			return nil, nil
+		}
+
+		return next, nil
 	})
 }
 
-func (h *HSS) terminate(ctx context.Context, t *Termination) (bool, error) {
+func (h *HSS) terminate(ctx context.Context, t *Termination) ([]string, error) {
 	var node *diameter.Node
 	if h.peers != nil {
 		node = h.peers.Node()
 	}
 
 	if node == nil {
-		return false, ErrDiameterUnavailable
+		return nil, ErrDiameterUnavailable
 	}
 
 	req, err := cx.NewRegistrationTerminationRequest(tgpp.Envelope{
@@ -125,42 +156,69 @@ func (h *HSS) terminate(ctx context.Context, t *Termination) (bool, error) {
 		DestinationHost:  t.ServerHost,
 		DestinationRealm: t.ServerRealm,
 	}, cx.RegistrationTerminationRequest{
-		PrivateIdentity: t.PrivateIdentity,
-		Reason:          cx.DeregistrationReason{Code: t.Reason},
+		PrivateIdentity:  t.PrivateIdentity,
+		PublicIdentities: t.PublicIdentities,
+		Reason:           cx.DeregistrationReason{Code: t.Reason},
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	ans, err := node.Send(ctx, req, diameter.FailFast())
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	a, err := cx.ParseRegistrationTerminationAnswer(ans)
 
 	var re *cx.RegistrationTerminationError
 	if errors.As(err, &re) && re.Code == diameter.ResultUnableToComply && len(re.EmergencyIdentities) > 0 {
-		return true, nil
+		return emergencyIdentities(re.EmergencyIdentities), nil
 	}
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return len(a.EmergencyIdentities) > 0, nil
+	return emergencyIdentities(a.EmergencyIdentities), nil
+}
+
+func emergencyIdentities(pairs []cx.EmergencyIdentity) []string {
+	out := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		out = append(out, p.PublicIdentity)
+	}
+
+	return out
 }
 
 func (t *Termination) holds(current *Registration) bool {
-	return *current == t.expected
+	if current == nil || !sameAssignment(current, &t.expected) {
+		return false
+	}
+
+	if len(t.sets) == 0 {
+		return maps.Equal(current.Sets, t.expected.Sets)
+	}
+
+	for _, set := range t.sets {
+		c, ok := current.Sets[set]
+		e, expected := t.expected.Sets[set]
+
+		if ok != expected || c != e {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (h *HSS) clearRegistration(ctx context.Context, t *Termination) error {
 	return h.updateRegistration(ctx, t.IMSI, func(current *Registration) (*Registration, error) {
-		if current == nil || current.State == NotRegistered || !t.holds(current) {
+		if !t.holds(current) {
 			return current, nil
 		}
 
-		return nil, nil
+		return current.without(t.sets), nil
 	})
 }

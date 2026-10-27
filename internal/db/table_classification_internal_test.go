@@ -31,6 +31,8 @@ var (
 		"pcscf_addresses",
 		"ims_registrations",
 		"ims_registration_sets",
+		"ims_service_profiles",
+		"ims_service_profile_assignments",
 		"ip_sm_gw_registrations",
 		"policies",
 		"profiles",

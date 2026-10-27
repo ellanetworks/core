@@ -251,9 +251,10 @@ None
 | ----- | ----------- |
 | `private_identity` | IMS private identity (IMPI): `<imsi>@<IMS home domain>`. |
 | `scscf_name` | S-CSCF serving the subscriber. Absent when the subscriber is not registered in IMS. |
-| `public_identities` | IMS public identities (IMPU): `sip:+<msisdn>@<IMS home domain>` and `tel:+<msisdn>` when the subscriber has an MSISDN, and `sip:<private_identity>`, which is barred. |
+| `public_identities` | IMS public identities (IMPU): `sip:+<msisdn>@<IMS home domain>`, `tel:+<msisdn>` and `sip:mcptt-<msisdn>@<IMS home domain>` when the subscriber has an MSISDN, and `sip:<private_identity>`, which is barred. |
 | `public_identities[].barred` | `true` when the identity cannot be used for calls. |
-| `public_identities[].user_state` | `registered`, `registered_unreg_services`, `authentication_pending` or `not_registered`. |
+| `public_identities[].registration_set` | The implicit registration set of the identity: `mmtel` or `mcptt`. The identities of a set register together, and each set registers on its own. |
+| `public_identities[].user_state` | The state of the identity's registration set: `registered`, `registered_unreg_services`, `authentication_pending` or `not_registered`. |
 
 ## Get Subscriber Credentials
 

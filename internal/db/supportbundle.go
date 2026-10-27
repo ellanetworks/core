@@ -578,7 +578,7 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	servers, err := db.ListIMSApplicationServers(ctx)
 	if err != nil {
 		failure("ims_application_servers", err)
-		failure("ims_filter_criteria", err)
+		failure("ims_service_profiles", err)
 
 		return
 	}
@@ -598,33 +598,64 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	out["ims_application_servers"] = serverEntries
 	sections["ims_application_servers"] = sections["ims_application_servers"].WithCount(len(serverEntries))
 
-	criteriaEntries := []any{}
+	serviceProfiles, err := db.ListIMSServiceProfiles(ctx)
+	if err != nil {
+		failure("ims_service_profiles", err)
 
+		return
+	}
+
+	serviceProfileEntries := make([]any, 0, len(serviceProfiles))
+	serviceProfileNames := make(map[string]string, len(serviceProfiles))
+
+	for _, sp := range serviceProfiles {
+		serviceProfileNames[sp.ID] = sp.Name
+
+		criteria := make([]any, 0, len(sp.InitialFilterCriteria))
+
+		for i, ifc := range sp.InitialFilterCriteria {
+			criteria = append(criteria, map[string]any{
+				"priority":                  i,
+				"application_server_name":   serverNames[ifc.ApplicationServerID],
+				"trigger":                   ifc.Trigger,
+				"profile_part":              ifc.ProfilePart,
+				"default_handling":          ifc.DefaultHandling,
+				"service_info":              ifc.ServiceInfo,
+				"include_register_request":  ifc.IncludeRegisterRequest,
+				"include_register_response": ifc.IncludeRegisterResponse,
+			})
+		}
+
+		serviceProfileEntries = append(serviceProfileEntries, map[string]any{"name": sp.Name, "initial_filter_criteria": criteria})
+	}
+
+	out["ims_service_profiles"] = serviceProfileEntries
+	sections["ims_service_profiles"] = sections["ims_service_profiles"].WithCount(len(serviceProfileEntries))
+
+	assignments, err := db.ListIMSServiceProfileAssignments(ctx)
+	if err != nil {
+		failure("ims_service_profile_assignments", err)
+
+		return
+	}
+
+	profileNames := make(map[string]string, len(profiles))
 	for _, p := range profiles {
-		for _, set := range IMSRegistrationSets {
-			ifcs, err := db.ListProfileIMSFilterCriteria(ctx, p.ID, set)
-			if err != nil {
-				failure("ims_filter_criteria", err)
-				continue
-			}
+		profileNames[p.ID] = p.Name
+	}
 
-			for i, ifc := range ifcs {
-				criteriaEntries = append(criteriaEntries, map[string]any{
-					"profile":                   p.Name,
-					"registration_set":          set,
-					"priority":                  i,
-					"application_server_name":   serverNames[ifc.ApplicationServerID],
-					"trigger":                   ifc.Trigger,
-					"profile_part":              ifc.ProfilePart,
-					"default_handling":          ifc.DefaultHandling,
-					"service_info":              ifc.ServiceInfo,
-					"include_register_request":  ifc.IncludeRegisterRequest,
-					"include_register_response": ifc.IncludeRegisterResponse,
-				})
-			}
+	assignmentEntries := []any{}
+
+	for _, a := range assignments {
+		for _, set := range slices.Sorted(maps.Keys(a.ServiceProfiles)) {
+			assignmentEntries = append(assignmentEntries, map[string]any{
+				"profile":          profileNames[a.ProfileID],
+				"registration_set": set,
+				"service_profile":  serviceProfileNames[a.ServiceProfiles[set]],
+			})
 		}
 	}
 
-	out["ims_filter_criteria"] = criteriaEntries
-	sections["ims_filter_criteria"] = sections["ims_filter_criteria"].WithCount(len(criteriaEntries))
+	out["ims_service_profile_assignments"] = assignmentEntries
+	sections["ims_service_profile_assignments"] = sections["ims_service_profile_assignments"].WithCount(len(assignmentEntries))
 }

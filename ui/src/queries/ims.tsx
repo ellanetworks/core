@@ -96,28 +96,89 @@ export const deleteIMSApplicationServer = async (
   });
 };
 
-const profileFilterCriteriaPath = (profileName: string) =>
-  `/api/v1/profiles/${encodeURIComponent(profileName)}/ims-filter-criteria`;
+export interface IMSServiceProfile {
+  name: string;
+  initial_filter_criteria: IMSInitialFilterCriterion[];
+}
 
-export const getProfileIMSFilterCriteria = async (
-  authToken: string,
-  profileName: string,
-): Promise<IMSInitialFilterCriterion[]> => {
-  const res = await apiFetch<{
-    initial_filter_criteria: IMSInitialFilterCriterion[];
-  }>(profileFilterCriteriaPath(profileName), { authToken });
-  return res.initial_filter_criteria ?? [];
+export type IMSRegistrationSet = "mmtel" | "mcptt";
+
+export const imsRegistrationSets: IMSRegistrationSet[] = ["mmtel", "mcptt"];
+
+export const imsRegistrationSetLabels: Record<IMSRegistrationSet, string> = {
+  mmtel: "MMTel",
+  mcptt: "MCPTT",
 };
 
-export const setProfileIMSFilterCriteria = async (
+export type ProfileIMSServiceProfiles = Partial<
+  Record<IMSRegistrationSet, string | null>
+>;
+
+const SP_PATH = "/api/v1/operator/ims/service-profiles";
+
+export const listIMSServiceProfiles = async (
   authToken: string,
-  profileName: string,
+): Promise<IMSServiceProfile[]> => {
+  const res = await apiFetch<{ items: IMSServiceProfile[] }>(SP_PATH, {
+    authToken,
+  });
+  return res.items ?? [];
+};
+
+export const createIMSServiceProfile = async (
+  authToken: string,
+  name: string,
   criteria: IMSInitialFilterCriterionInput[],
 ): Promise<void> => {
-  await apiFetchVoid(profileFilterCriteriaPath(profileName), {
+  await apiFetchVoid(SP_PATH, {
+    method: "POST",
+    authToken,
+    body: { name, initial_filter_criteria: criteria },
+  });
+};
+
+export const updateIMSServiceProfile = async (
+  authToken: string,
+  name: string,
+  criteria: IMSInitialFilterCriterionInput[],
+): Promise<void> => {
+  await apiFetchVoid(`${SP_PATH}/${encodeURIComponent(name)}`, {
     method: "PUT",
     authToken,
     body: { initial_filter_criteria: criteria },
+  });
+};
+
+export const deleteIMSServiceProfile = async (
+  authToken: string,
+  name: string,
+): Promise<void> => {
+  await apiFetchVoid(`${SP_PATH}/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+    authToken,
+  });
+};
+
+const profileServiceProfilesPath = (profileName: string) =>
+  `/api/v1/profiles/${encodeURIComponent(profileName)}/ims-service-profiles`;
+
+export const getProfileIMSServiceProfiles = async (
+  authToken: string,
+  profileName: string,
+): Promise<ProfileIMSServiceProfiles> =>
+  apiFetch<ProfileIMSServiceProfiles>(profileServiceProfilesPath(profileName), {
+    authToken,
+  });
+
+export const setProfileIMSServiceProfiles = async (
+  authToken: string,
+  profileName: string,
+  assigned: ProfileIMSServiceProfiles,
+): Promise<void> => {
+  await apiFetchVoid(profileServiceProfilesPath(profileName), {
+    method: "PUT",
+    authToken,
+    body: assigned,
   });
 };
 

@@ -44,7 +44,7 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 	var p *profile
 
 	if carriesProfile(r.Type) {
-		if p, err = h.profileOf(ctx, sub); err != nil {
+		if p, err = h.profileOf(ctx, sub, sub.requestedSet()); err != nil {
 			return h.errorAnswer(req, id, "server assignment", err)
 		}
 	}
@@ -52,7 +52,7 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 	var outcome tgpp.Result
 
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
-		next, result, err := assign(current, r, af.OriginHost, af.OriginRealm, p)
+		next, result, err := assign(current, r, sub.requested, af.OriginHost, af.OriginRealm, p)
 		outcome = result
 
 		return next, err
@@ -103,18 +103,36 @@ func carriesProfile(t cx.AssignmentType) bool {
 	}
 }
 
-func delivered(next *Registration, p *profile) *Registration {
-	next.PrivateIdentity, next.DefaultIdentity, next.ProfileDigest = p.privateIdentity, p.defaultIdentity, p.digest
+func delivered(s SetRegistration, p *profile) SetRegistration {
+	s.DefaultIdentity, s.ProfileDigest = p.defaultIdentity, p.digest
+
+	return s
+}
+
+func assignedTo(current *Registration, serverName, host, realm string, p *profile) *Registration {
+	next := &Registration{}
+	if current != nil {
+		next = current.clone()
+	}
+
+	next.ServerName, next.OriginHost, next.OriginRealm, next.PrivateIdentity = serverName, host, realm, p.privateIdentity
 
 	return next
 }
 
-func assign(current *Registration, r cx.ServerAssignmentRequest, host, realm string, p *profile) (*Registration, tgpp.Result, error) {
+func assign(current *Registration, r cx.ServerAssignmentRequest, sets []RegistrationSet, host, realm string, p *profile) (*Registration, tgpp.Result, error) {
 	success := tgpp.Result{Code: diameter.ResultSuccess}
 
 	if r.Type != cx.AssignmentNoAssignment && assignedElsewhere(current, r.ServerName) {
 		return nil, tgpp.Result{}, &assignedToAnother{serverName: current.ServerName}
 	}
+
+	set := MMTel
+	if len(sets) > 0 {
+		set = sets[0]
+	}
+
+	previous, known := current.set(set)
 
 	switch r.Type {
 	case cx.AssignmentNoAssignment:
@@ -122,34 +140,38 @@ func assign(current *Registration, r cx.ServerAssignmentRequest, host, realm str
 			return current, tgpp.Result{Code: diameter.ResultUnableToComply}, nil
 		}
 
-		next := *current
-
-		return delivered(&next, p), success, nil
-	case cx.AssignmentRegistration, cx.AssignmentReRegistration:
-		next := &Registration{State: Registered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm}
-
-		return delivered(next, p), success, nil
-	case cx.AssignmentUnregisteredUser:
-		next := &Registration{State: Unregistered, ServerName: r.ServerName, OriginHost: host, OriginRealm: realm}
-		if current != nil {
-			next.AuthPending, next.Emergency = current.AuthPending, current.Emergency
+		if !known {
+			return current, success, nil
 		}
 
-		return delivered(next, p), success, nil
+		next := current.with(set, delivered(previous, p))
+		next.PrivateIdentity = p.privateIdentity
+
+		return next, success, nil
+	case cx.AssignmentRegistration, cx.AssignmentReRegistration:
+		return assignedTo(current, r.ServerName, host, realm, p).with(set, delivered(SetRegistration{State: Registered}, p)), success, nil
+	case cx.AssignmentUnregisteredUser:
+		next := SetRegistration{State: Unregistered, AuthPending: previous.AuthPending, Emergency: previous.Emergency}
+
+		return assignedTo(current, r.ServerName, host, realm, p).with(set, delivered(next, p)), success, nil
 	case cx.AssignmentTimeoutDeregistration, cx.AssignmentUserDeregistration,
 		cx.AssignmentAdministrativeDeregistration, cx.AssignmentDeregistrationTooMuchData:
-		return nil, success, nil
+		return current.without(sets), success, nil
 	case cx.AssignmentTimeoutDeregistrationStoreServer, cx.AssignmentUserDeregistrationStoreServer:
-		return nil, tgpp.Experimental(tgpp.ResultSuccessServerNameNotStored), nil
-	case cx.AssignmentAuthenticationFailure, cx.AssignmentAuthenticationTimeout:
-		if current == nil || current.State == NotRegistered {
-			return nil, success, nil
+		next := current.without(sets)
+		if next == nil {
+			return nil, tgpp.Experimental(tgpp.ResultSuccessServerNameNotStored), nil
 		}
 
-		next := *current
-		next.AuthPending = false
+		return next, success, nil
+	case cx.AssignmentAuthenticationFailure, cx.AssignmentAuthenticationTimeout:
+		if !known || previous.State == NotRegistered {
+			return current.without([]RegistrationSet{set}), success, nil
+		}
 
-		return &next, success, nil
+		previous.AuthPending = false
+
+		return current.with(set, previous), success, nil
 	default:
 		return current, tgpp.Experimental(tgpp.ResultErrorInAssignmentType), nil
 	}

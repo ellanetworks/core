@@ -30,8 +30,11 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 		)`, IMSPublicServiceIdentitiesTableName, IMSApplicationServersTableName),
 		fmt.Sprintf("CREATE INDEX idx_ims_public_service_identities_as ON %s(applicationServerID)", IMSPublicServiceIdentitiesTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
-			profileID               TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
-			registrationSet         TEXT    NOT NULL CHECK (registrationSet IN ('%s', '%s')),
+			id   TEXT PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE CHECK (name != '')
+		)`, IMSServiceProfilesTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			serviceProfileID        TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			position                INTEGER NOT NULL CHECK (position >= 0),
 			applicationServerID     TEXT    NOT NULL REFERENCES %s(id),
 			triggerPoint            TEXT    CHECK (triggerPoint IS NULL OR json_valid(triggerPoint)),
@@ -40,9 +43,16 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 			serviceInfo             TEXT,
 			includeRegisterRequest  BOOLEAN NOT NULL CHECK (includeRegisterRequest IN (0, 1)),
 			includeRegisterResponse BOOLEAN NOT NULL CHECK (includeRegisterResponse IN (0, 1)),
-			PRIMARY KEY (profileID, registrationSet, position)
-		)`, IMSInitialFilterCriteriaTableName, ProfilesTableName, IMSRegistrationSetMMTel, IMSRegistrationSetMCPTT, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
+			PRIMARY KEY (serviceProfileID, position)
+		)`, IMSInitialFilterCriteriaTableName, IMSServiceProfilesTableName, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
 			IMSDefaultHandlingSessionContinued, IMSDefaultHandlingSessionTerminated),
+		fmt.Sprintf(`CREATE TABLE %s (
+			profileID        TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			registrationSet  TEXT NOT NULL CHECK (registrationSet IN ('%s', '%s')),
+			serviceProfileID TEXT NOT NULL REFERENCES %s(id),
+			PRIMARY KEY (profileID, registrationSet)
+		)`, IMSServiceProfileAssignmentsTableName, ProfilesTableName, IMSRegistrationSetMMTel, IMSRegistrationSetMCPTT, IMSServiceProfilesTableName),
+		fmt.Sprintf("CREATE INDEX idx_ims_service_profile_assignments_sp ON %s(serviceProfileID)", IMSServiceProfileAssignmentsTableName),
 		fmt.Sprintf("CREATE INDEX idx_ims_initial_filter_criteria_as ON %s(applicationServerID)", IMSInitialFilterCriteriaTableName),
 		fmt.Sprintf("DROP TABLE %s", IMSRegistrationsTableName),
 		fmt.Sprintf(`CREATE TABLE %s (

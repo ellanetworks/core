@@ -130,8 +130,15 @@ func TestMigrationV25SplitsIMSRegistrationsPerRegistrationSet(t *testing.T) {
 		t.Error("an unknown registration set was accepted")
 	}
 
-	if _, err := conn.ExecContext(ctx, `INSERT INTO ims_initial_filter_criteria (profileID, registrationSet, position, applicationServerID, includeRegisterRequest, includeRegisterResponse)
-		VALUES ('pr', 'rcs', 0, 'as', 0, 0)`); err == nil {
-		t.Error("an initial filter criterion of an unknown registration set was accepted")
+	if _, err := conn.ExecContext(ctx, `INSERT INTO ims_service_profiles (id, name) VALUES ('sp', 'volte')`); err != nil {
+		t.Fatalf("insert a service profile: %v", err)
+	}
+
+	if _, err := conn.ExecContext(ctx, `INSERT INTO ims_service_profile_assignments (profileID, registrationSet, serviceProfileID) VALUES ('pr', 'mmtel', 'sp')`); err != nil {
+		t.Fatalf("assign the service profile to the mmtel set: %v", err)
+	}
+
+	if _, err := conn.ExecContext(ctx, `INSERT INTO ims_service_profile_assignments (profileID, registrationSet, serviceProfileID) VALUES ('pr', 'rcs', 'sp')`); err == nil {
+		t.Error("a service profile was assigned to an unknown registration set")
 	}
 }

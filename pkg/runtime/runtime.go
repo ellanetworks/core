@@ -993,8 +993,13 @@ func (a *hssDBAdapter) SubscriberByMSISDN(ctx context.Context, msisdn string) (*
 	return a.hssSubscriber(ctx, sub, err)
 }
 
-func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
-	return a.db.ListSubscriberIMSFilterCriteria(ctx, imsi, db.IMSRegistrationSetMMTel)
+func (a *hssDBAdapter) FilterCriteria(ctx context.Context, imsi string, set hss.RegistrationSet) ([]cx.InitialFilterCriteria, error) {
+	dbSet, err := dbIMSRegistrationSet(set)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.db.ListSubscriberIMSFilterCriteria(ctx, imsi, dbSet)
 }
 
 func (a *hssDBAdapter) ServiceIdentity(ctx context.Context, identity string) (*hss.ServiceIdentity, error) {
@@ -1149,32 +1154,68 @@ func dbIMSState(state hss.State) (db.IMSRegistrationState, error) {
 	return 0, fmt.Errorf("unknown IMS registration state %d", state)
 }
 
+var imsRegistrationSets = []struct {
+	hss hss.RegistrationSet
+	db  db.IMSRegistrationSet
+}{
+	{hss.MMTel, db.IMSRegistrationSetMMTel},
+	{hss.MCPTT, db.IMSRegistrationSetMCPTT},
+}
+
+func hssRegistrationSet(set db.IMSRegistrationSet) (hss.RegistrationSet, error) {
+	for _, s := range imsRegistrationSets {
+		if s.db == set {
+			return s.hss, nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown stored IMS registration set %q", set)
+}
+
+func dbIMSRegistrationSet(set hss.RegistrationSet) (db.IMSRegistrationSet, error) {
+	for _, s := range imsRegistrationSets {
+		if s.hss == set {
+			return s.db, nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown IMS registration set %q", set)
+}
+
 func hssRegistration(reg *db.IMSRegistration) (*hss.Registration, error) {
 	if reg == nil {
 		return nil, nil
 	}
 
-	set, ok := reg.Sets[db.IMSRegistrationSetMMTel]
-	if !ok {
-		return nil, fmt.Errorf("IMS registration of subscriber %s has no %s registration set", reg.IMSI, db.IMSRegistrationSetMMTel)
-	}
-
-	state, err := hssState(set.State)
-	if err != nil {
-		return nil, err
-	}
-
-	return &hss.Registration{
-		State:           state,
+	out := &hss.Registration{
 		ServerName:      reg.ServerName,
-		AuthPending:     set.AuthPending,
 		OriginHost:      reg.OriginHost,
 		OriginRealm:     reg.OriginRealm,
 		PrivateIdentity: reg.PrivateIdentity,
-		DefaultIdentity: set.DefaultIdentity,
-		ProfileDigest:   set.ProfileDigest,
-		Emergency:       set.Emergency,
-	}, nil
+		Sets:            make(map[hss.RegistrationSet]hss.SetRegistration, len(reg.Sets)),
+	}
+
+	for dbSet, s := range reg.Sets {
+		set, err := hssRegistrationSet(dbSet)
+		if err != nil {
+			return nil, err
+		}
+
+		state, err := hssState(s.State)
+		if err != nil {
+			return nil, err
+		}
+
+		out.Sets[set] = hss.SetRegistration{
+			State:           state,
+			AuthPending:     s.AuthPending,
+			DefaultIdentity: s.DefaultIdentity,
+			ProfileDigest:   s.ProfileDigest,
+			Emergency:       s.Emergency,
+		}
+	}
+
+	return out, nil
 }
 
 func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration, error) {
@@ -1182,27 +1223,36 @@ func dbIMSRegistration(imsi string, reg *hss.Registration) (*db.IMSRegistration,
 		return nil, nil
 	}
 
-	state, err := dbIMSState(reg.State)
-	if err != nil {
-		return nil, err
-	}
-
-	return &db.IMSRegistration{
+	out := &db.IMSRegistration{
 		IMSI:            imsi,
 		ServerName:      reg.ServerName,
 		OriginHost:      reg.OriginHost,
 		OriginRealm:     reg.OriginRealm,
 		PrivateIdentity: reg.PrivateIdentity,
-		Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{
-			db.IMSRegistrationSetMMTel: {
-				State:           state,
-				AuthPending:     reg.AuthPending,
-				DefaultIdentity: reg.DefaultIdentity,
-				ProfileDigest:   reg.ProfileDigest,
-				Emergency:       reg.Emergency,
-			},
-		},
-	}, nil
+		Sets:            make(map[db.IMSRegistrationSet]db.IMSSetRegistration, len(reg.Sets)),
+	}
+
+	for set, s := range reg.Sets {
+		dbSet, err := dbIMSRegistrationSet(set)
+		if err != nil {
+			return nil, err
+		}
+
+		state, err := dbIMSState(s.State)
+		if err != nil {
+			return nil, err
+		}
+
+		out.Sets[dbSet] = db.IMSSetRegistration{
+			State:           state,
+			AuthPending:     s.AuthPending,
+			DefaultIdentity: s.DefaultIdentity,
+			ProfileDigest:   s.ProfileDigest,
+			Emergency:       s.Emergency,
+		}
+	}
+
+	return out, nil
 }
 
 // bgpImportPrefixAdapter adapts *db.Database to the bgp.ImportPrefixStore interface.

@@ -14,40 +14,57 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 )
 
+const mcpttUserPrefix = "mcptt-"
+
 type subject struct {
 	Subscriber
-	domain string
+	domain    string
+	requested []RegistrationSet
 }
 
 func (s *subject) privateIdentity() string {
 	return s.IMSI + "@" + s.domain
 }
 
-func (s *subject) publicIdentities() []cx.ProfileIdentity {
-	var identities []cx.ProfileIdentity
-
-	if s.MSISDN != "" {
-		identities = append(identities,
-			cx.ProfileIdentity{Identity: "sip:+" + s.MSISDN + "@" + s.domain},
-			cx.ProfileIdentity{Identity: "tel:+" + s.MSISDN},
-		)
+func (s *subject) sets() []RegistrationSet {
+	if s.MSISDN == "" {
+		return []RegistrationSet{MMTel}
 	}
 
-	return append(identities, cx.ProfileIdentity{Identity: "sip:" + s.privateIdentity(), Barred: true})
+	return []RegistrationSet{MMTel, MCPTT}
 }
 
-func (s *subject) authorized() bool {
-	for _, identity := range s.publicIdentities() {
-		if !identity.Barred {
-			return true
+func (s *subject) publicIdentities(set RegistrationSet) []cx.ProfileIdentity {
+	switch {
+	case set == MMTel && s.MSISDN != "":
+		return []cx.ProfileIdentity{
+			{Identity: "sip:+" + s.MSISDN + "@" + s.domain},
+			{Identity: "tel:+" + s.MSISDN},
+			{Identity: "sip:" + s.privateIdentity(), Barred: true},
 		}
+	case set == MMTel:
+		return []cx.ProfileIdentity{{Identity: "sip:" + s.privateIdentity(), Barred: true}}
+	case set == MCPTT && s.MSISDN != "":
+		return []cx.ProfileIdentity{{Identity: "sip:" + mcpttUserPrefix + s.MSISDN + "@" + s.domain}}
+	default:
+		return nil
 	}
-
-	return false
 }
 
-func (s *subject) entitled() bool {
-	return s.IMSDataNetwork && s.authorized()
+func (s *subject) requestedSet() RegistrationSet {
+	if len(s.requested) == 0 {
+		return MMTel
+	}
+
+	return s.requested[0]
+}
+
+func (s *subject) authorized(set RegistrationSet) bool {
+	return s.defaultIdentity(set) != ""
+}
+
+func (s *subject) entitled(set RegistrationSet) bool {
+	return s.IMSDataNetwork && s.authorized(set)
 }
 
 func hasUnregisteredTerminatingServices(ifcs []cx.InitialFilterCriteria) bool {
@@ -94,8 +111,8 @@ func sptMayMatchTerminatingUnregistered(spt cx.ServicePointTrigger) bool {
 	}
 }
 
-func (s *subject) defaultIdentity() string {
-	for _, identity := range s.publicIdentities() {
+func (s *subject) defaultIdentity(set RegistrationSet) string {
+	for _, identity := range s.publicIdentities(set) {
 		if !identity.Barred {
 			return identity.Identity
 		}
@@ -111,15 +128,15 @@ type profile struct {
 	digest          string
 }
 
-func (h *HSS) profileOf(ctx context.Context, s *subject) (*profile, error) {
-	ifcs, err := h.store.FilterCriteria(ctx, s.IMSI)
+func (h *HSS) profileOf(ctx context.Context, s *subject, set RegistrationSet) (*profile, error) {
+	ifcs, err := h.store.FilterCriteria(ctx, s.IMSI, set)
 	if err != nil {
 		return nil, err
 	}
 
 	userData, err := cx.MarshalUserData(cx.IMSSubscription{
 		PrivateIdentity: s.privateIdentity(),
-		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities(), InitialFilterCriteria: ifcs}},
+		ServiceProfiles: []cx.ServiceProfile{{PublicIdentities: s.publicIdentities(set), InitialFilterCriteria: ifcs}},
 	})
 	if err != nil {
 		return nil, err
@@ -127,7 +144,7 @@ func (h *HSS) profileOf(ctx context.Context, s *subject) (*profile, error) {
 
 	return &profile{
 		privateIdentity: s.privateIdentity(),
-		defaultIdentity: s.defaultIdentity(),
+		defaultIdentity: s.defaultIdentity(set),
 		userData:        userData,
 		digest:          digest(userData),
 	}, nil
@@ -158,8 +175,10 @@ func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subje
 		}
 	}
 
+	var requested []RegistrationSet
+
 	for _, impu := range impus {
-		owner, err := h.publicIdentityOwner(ctx, impu, domain)
+		owner, set, err := h.publicIdentityOwner(ctx, impu, domain)
 		if err != nil {
 			return nil, err
 		}
@@ -171,47 +190,74 @@ func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subje
 		if owner.IMSI != sub.IMSI {
 			return nil, &cx.ResultError{Result: tgpp.Experimental(tgpp.ResultErrorIdentitiesDontMatch)}
 		}
+
+		if !slices.Contains(requested, set) {
+			requested = append(requested, set)
+		}
 	}
 
 	if sub == nil {
 		return nil, ErrSubscriberUnknown
 	}
 
-	return &subject{Subscriber: *sub, domain: strings.ToLower(domain)}, nil
+	return &subject{Subscriber: *sub, domain: strings.ToLower(domain), requested: requested}, nil
 }
 
-func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Subscriber, error) {
+func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Subscriber, RegistrationSet, error) {
 	scheme, rest, ok := strings.Cut(impu, ":")
 	if !ok {
-		return nil, ErrSubscriberUnknown
+		return nil, "", ErrSubscriberUnknown
 	}
+
+	var (
+		sub *Subscriber
+		set = MMTel
+		err error
+	)
 
 	switch strings.ToLower(scheme) {
 	case "sip":
 		user, host, ok := strings.Cut(rest, "@")
 		if !ok || !strings.EqualFold(host, domain) {
-			return nil, ErrSubscriberUnknown
+			return nil, "", ErrSubscriberUnknown
 		}
 
-		if msisdn, ok := strings.CutPrefix(user, "+"); ok {
-			return h.subscriberByMSISDN(ctx, msisdn)
+		switch {
+		case strings.HasPrefix(user, "+"):
+			sub, err = h.subscriberByMSISDN(ctx, user[1:])
+		case strings.HasPrefix(user, mcpttUserPrefix):
+			set = MCPTT
+			sub, err = h.subscriberByMSISDN(ctx, user[len(mcpttUserPrefix):])
+		case isDigits(user, 6, 15):
+			sub, err = h.store.Subscriber(ctx, user)
+		default:
+			err = ErrSubscriberUnknown
 		}
-
-		if !isDigits(user, 6, 15) {
-			return nil, ErrSubscriberUnknown
-		}
-
-		return h.store.Subscriber(ctx, user)
 	case "tel":
 		msisdn, ok := strings.CutPrefix(rest, "+")
 		if !ok {
-			return nil, ErrSubscriberUnknown
+			return nil, "", ErrSubscriberUnknown
 		}
 
-		return h.subscriberByMSISDN(ctx, msisdn)
+		sub, err = h.subscriberByMSISDN(ctx, msisdn)
 	default:
-		return nil, ErrSubscriberUnknown
+		err = ErrSubscriberUnknown
 	}
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	return sub, set, nil
+}
+
+func identitySet(impu string) RegistrationSet {
+	scheme, rest, ok := strings.Cut(impu, ":")
+	if ok && strings.EqualFold(scheme, "sip") && strings.HasPrefix(rest, mcpttUserPrefix) {
+		return MCPTT
+	}
+
+	return MMTel
 }
 
 func (h *HSS) subscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {

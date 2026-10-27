@@ -103,7 +103,7 @@ func TestExportSupportData_Default(t *testing.T) {
 		"profiles", "network_slices", "network_rules", "cell_positions", "cluster_members", "routes",
 		"nat_settings", "n3_settings", "flow_accounting_settings", "local_switch_settings", "sms_settings",
 		"diameter_peers", "pcscf_addresses", "retention_policies", "bgp_settings", "bgp_peers", "bgp_import_prefixes",
-		"ims_application_servers", "ims_filter_criteria",
+		"ims_application_servers", "ims_service_profiles", "ims_service_profile_assignments",
 		"ue_registrations", "ims_registrations", "sms_message_waiting", "subscriber_framed_routes",
 		"usage_per_day", "usage_per_subscriber", "audit_logs", "radio_logs",
 	} {
@@ -233,11 +233,16 @@ func TestExportSupportData_IMSServices(t *testing.T) {
 	handling := db.IMSDefaultHandlingSessionContinued
 	trigger := &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatchAll, Groups: []db.IMSConditionGroup{{Conditions: []db.IMSCondition{{Method: &register}}}}}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, db.IMSRegistrationSetMMTel, []db.IMSInitialFilterCriterion{
+	sp := &db.IMSServiceProfile{Name: "mcptt", InitialFilterCriteria: []db.IMSInitialFilterCriterion{
 		{ApplicationServerID: as.ID, Trigger: trigger, DefaultHandling: &handling, IncludeRegisterRequest: true},
 		{ApplicationServerID: as.ID},
-	}); err != nil {
-		t.Fatalf("SetProfileIMSFilterCriteria failed: %v", err)
+	}}
+	if err := database.CreateIMSServiceProfile(ctx, sp); err != nil {
+		t.Fatalf("CreateIMSServiceProfile failed: %v", err)
+	}
+
+	if err := database.SetProfileIMSServiceProfiles(ctx, profile.ID, map[db.IMSRegistrationSet]string{db.IMSRegistrationSetMCPTT: sp.ID}); err != nil {
+		t.Fatalf("SetProfileIMSServiceProfiles failed: %v", err)
 	}
 
 	out, err := database.ExportSupportData(ctx, supportbundle.ExportOptions{})
@@ -250,13 +255,18 @@ func TestExportSupportData_IMSServices(t *testing.T) {
 		t.Fatalf("ims_application_servers = %#v, want %#v", out["ims_application_servers"], wantServers)
 	}
 
-	criteria, ok := out["ims_filter_criteria"].([]any)
+	serviceProfiles, ok := out["ims_service_profiles"].([]any)
+	if !ok || len(serviceProfiles) != 1 || serviceProfiles[0].(map[string]any)["name"] != "mcptt" {
+		t.Fatalf("ims_service_profiles = %#v, want the mcptt service profile", out["ims_service_profiles"])
+	}
+
+	criteria, ok := serviceProfiles[0].(map[string]any)["initial_filter_criteria"].([]any)
 	if !ok || len(criteria) != 2 {
-		t.Fatalf("ims_filter_criteria = %#v, want 2 entries", out["ims_filter_criteria"])
+		t.Fatalf("initial filter criteria = %#v, want 2 entries", serviceProfiles[0])
 	}
 
 	first := criteria[0].(map[string]any)
-	if first["profile"] != db.InitialProfileName || first["registration_set"] != db.IMSRegistrationSetMMTel || first["priority"] != 0 || first["application_server_name"] != "mcptt" ||
+	if first["priority"] != 0 || first["application_server_name"] != "mcptt" ||
 		!reflect.DeepEqual(first["trigger"], trigger) || first["include_register_request"] != true {
 		t.Fatalf("first filter criterion = %#v", first)
 	}
@@ -265,8 +275,13 @@ func TestExportSupportData_IMSServices(t *testing.T) {
 		t.Fatalf("second filter criterion = %#v", second)
 	}
 
+	wantAssignments := []any{map[string]any{"profile": db.InitialProfileName, "registration_set": db.IMSRegistrationSetMCPTT, "service_profile": "mcptt"}}
+	if !reflect.DeepEqual(out["ims_service_profile_assignments"], wantAssignments) {
+		t.Fatalf("ims_service_profile_assignments = %#v, want %#v", out["ims_service_profile_assignments"], wantAssignments)
+	}
+
 	sections := out["bundle_metadata"].(map[string]any)["sections"].(map[string]supportbundle.SectionStatus)
-	for key, count := range map[string]int{"ims_application_servers": 1, "ims_filter_criteria": 2} {
+	for key, count := range map[string]int{"ims_application_servers": 1, "ims_service_profiles": 1, "ims_service_profile_assignments": 1} {
 		if sections[key].Status != "complete" || sections[key].Count != count {
 			t.Fatalf("%s section = %#v, want complete with %d", key, sections[key], count)
 		}

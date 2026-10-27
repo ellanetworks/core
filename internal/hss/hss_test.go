@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"testing"
 
@@ -44,22 +45,36 @@ var (
 	errStoreDown = errors.New("store unavailable")
 )
 
+type sets = map[hss.RegistrationSet]hss.SetRegistration
+
+func cloneRegistration(r hss.Registration) *hss.Registration {
+	r.Sets = maps.Clone(r.Sets)
+
+	return &r
+}
+
+func sameRegistration(a, b hss.Registration) bool {
+	return a.ServerName == b.ServerName && a.OriginHost == b.OriginHost && a.OriginRealm == b.OriginRealm &&
+		a.PrivateIdentity == b.PrivateIdentity && maps.Equal(a.Sets, b.Sets)
+}
+
 type fakeIMSSubscriber struct {
 	hss.Subscriber
 	sqn string
 }
 
 type fakeIMSStore struct {
-	mu             sync.Mutex
-	subscribers    map[string]*fakeIMSSubscriber
-	filterCriteria map[string][]cx.InitialFilterCriteria
-	serviceIDs     map[string]string
-	registrations  map[string]hss.Registration
-	voiceDisabled  bool
-	fail           bool
-	unavailable    bool
-	contended      bool
-	block          chan struct{}
+	mu                  sync.Mutex
+	subscribers         map[string]*fakeIMSSubscriber
+	filterCriteria      map[string][]cx.InitialFilterCriteria
+	mcpttFilterCriteria map[string][]cx.InitialFilterCriteria
+	serviceIDs          map[string]string
+	registrations       map[string]hss.Registration
+	voiceDisabled       bool
+	fail                bool
+	unavailable         bool
+	contended           bool
+	block               chan struct{}
 }
 
 func newFakeIMSStore() *fakeIMSStore {
@@ -87,7 +102,7 @@ func (f *fakeIMSStore) Registration(_ context.Context, imsi string) (*hss.Regist
 		return nil, nil
 	}
 
-	return &reg, nil
+	return cloneRegistration(reg), nil
 }
 
 func (f *fakeIMSStore) CompareAndSwapRegistration(_ context.Context, imsi string, expected, next *hss.Registration) (*hss.Registration, bool, error) {
@@ -105,21 +120,23 @@ func (f *fakeIMSStore) CompareAndSwapRegistration(_ context.Context, imsi string
 	current, ok := f.registrations[imsi]
 
 	if f.contended {
-		return &current, false, nil
+		return cloneRegistration(current), false, nil
 	}
 
 	switch {
 	case !ok && expected != nil:
 		return nil, false, nil
-	case ok && (expected == nil || current != *expected):
-		return &current, false, nil
+	case ok && (expected == nil || !sameRegistration(current, *expected)):
+		return cloneRegistration(current), false, nil
 	case next == nil:
 		delete(f.registrations, imsi)
+
+		return nil, true, nil
 	default:
-		f.registrations[imsi] = *next
+		f.registrations[imsi] = *cloneRegistration(*next)
 	}
 
-	return next, true, nil
+	return cloneRegistration(*next), true, nil
 }
 
 func (f *fakeIMSStore) IMSDomain(context.Context) (string, error) {
@@ -153,9 +170,13 @@ func (f *fakeIMSStore) Subscriber(_ context.Context, imsi string) (*hss.Subscrib
 	return &sub, nil
 }
 
-func (f *fakeIMSStore) FilterCriteria(_ context.Context, imsi string) ([]cx.InitialFilterCriteria, error) {
+func (f *fakeIMSStore) FilterCriteria(_ context.Context, imsi string, set hss.RegistrationSet) ([]cx.InitialFilterCriteria, error) {
 	if f.fail {
 		return nil, errStoreDown
+	}
+
+	if set == hss.MCPTT {
+		return f.mcpttFilterCriteria[imsi], nil
 	}
 
 	return f.filterCriteria[imsi], nil
@@ -178,8 +199,12 @@ func (f *fakeIMSStore) CountRegistered(context.Context) (int, error) {
 	n := 0
 
 	for _, reg := range f.registrations {
-		if reg.State == hss.Registered {
-			n++
+		for _, s := range reg.Sets {
+			if s.State == hss.Registered {
+				n++
+
+				break
+			}
 		}
 	}
 
@@ -643,9 +668,9 @@ func TestTermination(t *testing.T) {
 		want bool
 	}{
 		{name: "no registration"},
-		{name: "authentication pending", reg: &hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm}},
-		{name: "registered", reg: &hss.Registration{State: hss.Registered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: impiOf(testIMSI)}, want: true},
-		{name: "unregistered", reg: &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: "stored@" + testIMSDomain}, want: true},
+		{name: "authentication pending", reg: &hss.Registration{ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, Sets: sets{hss.MMTel: {State: hss.NotRegistered, AuthPending: true}}}},
+		{name: "registered", reg: &hss.Registration{ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: impiOf(testIMSI), Sets: sets{hss.MMTel: {State: hss.Registered}}}, want: true},
+		{name: "unregistered", reg: &hss.Registration{ServerName: testSCSCF, OriginHost: cscfIdentity.OriginHost, OriginRealm: cscfIdentity.OriginRealm, PrivateIdentity: "stored@" + testIMSDomain, Sets: sets{hss.MMTel: {State: hss.Unregistered}}}, want: true},
 	}
 
 	for _, tc := range cases {

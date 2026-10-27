@@ -19,6 +19,7 @@ import (
 
 const (
 	IPSMGWApplicationServer = "ip-sm-gw"
+	IPSMGWServiceProfile    = "ip-sm-gw"
 	IPSMGWServerName        = "sip:ipsmgw." + IMSHomeDomain
 	imsSMSRegistrationDelay = 3 * time.Second
 )
@@ -62,17 +63,18 @@ func ProvisionIPSMGWService(ctx context.Context, env Env, profile string) (func(
 		return nil, fmt.Errorf("create the IP-SM-GW application server: %w", err)
 	}
 
-	cleanup := func() {
-		_ = cl.SetProfileIMSFilterCriteria(context.Background(), profile, nil)
+	unassign, err := provisionServiceProfile(ctx, cl, profile, IPSMGWServiceProfile, IPSMGWFilterCriteria())
+	if err != nil {
 		_ = cl.DeleteIMSApplicationServer(context.Background(), IPSMGWApplicationServer)
+
+		return nil, err
 	}
 
-	if err := cl.SetProfileIMSFilterCriteria(ctx, profile, IPSMGWFilterCriteria()); err != nil {
-		cleanup()
-		return nil, fmt.Errorf("give profile %s the IP-SM-GW initial filter criteria: %w", profile, err)
-	}
+	return func() {
+		unassign()
 
-	return cleanup, nil
+		_ = cl.DeleteIMSApplicationServer(context.Background(), IPSMGWApplicationServer)
+	}, nil
 }
 
 func RequireIMSSMS(ctx context.Context, sender, receiver IMSEndpoint, transport sip.Transport, serviceCentre string) error {
