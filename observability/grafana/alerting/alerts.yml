@@ -47,7 +47,7 @@ groups:
           severity: critical
           component: network
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#no-radios-connected
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#no-radios-connected
           summary: No radios are connected to the 5G core.
           description: "The metric `app_connected_radios` has been {{ $values.A.Value }} for more than 2 minutes. Check that the radio is powered on, reachable from the core, and configured with this core's address and PLMN."
 
@@ -97,7 +97,7 @@ groups:
           severity: critical
           component: network
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-registration-failure-rate
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-registration-failure-rate
           summary: More than 10% of subscriber registrations are failing.
           description: "Registration failure rate is {{ $values.A.Value | printf \"%.1f\" }}%. Break down `app_registration_attempts_total` by `result`, then check the subscriber's credentials, profile, and policy."
 
@@ -147,7 +147,7 @@ groups:
           severity: critical
           component: network
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-pdu-session-failure-rate
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-pdu-session-failure-rate
           summary: More than 10% of PDU session establishments are failing.
           description: "PDU session failure rate is {{ $values.A.Value | printf \"%.1f\" }}%. Break down `app_session_establishment_attempts_total` by `result`, then check the subscriber's policy, its data network, and the IP pool."
 
@@ -193,7 +193,7 @@ groups:
           severity: warning
           component: network
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#ip-address-pool-near-exhaustion
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#ip-address-pool-near-exhaustion
           summary: IP address pool is more than 90% allocated.
           description: "IP pool utilization is {{ $values.A.Value | printf \"%.1f\" }}% ({{ $values.A.Value }} allocated). Enlarge the data network's IP pool, or remove subscribers that no longer need addresses."
 
@@ -248,7 +248,7 @@ groups:
           severity: warning
           component: api
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-api-error-rate
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-api-error-rate
           summary: API server error rate exceeds 5%.
           description: "API 5xx error rate is {{ $values.A.Value | printf \"%.1f\" }}%. Check `app_api_requests_total` by endpoint to identify which endpoints are failing."
 
@@ -294,7 +294,7 @@ groups:
           severity: warning
           component: api
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-api-latency-p99
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-api-latency-p99
           summary: API P99 latency exceeds 2 seconds.
           description: "API P99 latency is {{ $values.A.Value | printf \"%.3f\" }}s. Check database query latency and CPU usage on the Deep Dive dashboard."
 
@@ -344,7 +344,7 @@ groups:
           severity: warning
           component: api
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#authentication-failure-spike
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#authentication-failure-spike
           summary: More than 25% of API authentication attempts are failing.
           description: "API authentication failure rate is {{ $values.B.Value | printf \"%.1f\" }}%. Review the audit log to identify the source and whether the credentials are still valid."
 
@@ -395,7 +395,7 @@ groups:
           severity: critical
           component: runtime
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#instance-down
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#instance-down
           summary: Ella Core instance is unreachable.
           description: "The scrape target `up{job=\"ella-core\"}` has been unreachable for more than 20% of the last 10 minutes. Check for a crash or a network issue."
 
@@ -440,7 +440,7 @@ groups:
           severity: warning
           component: runtime
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-memory-usage
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-memory-usage
           summary: Process memory is forecast to exceed 1 GiB.
           description: "Resident memory is forecast to reach {{ $values.A.Value | humanize1024 }}B within 48 hours, based on the last 6 hours of growth. Check for a memory leak using the Pyroscope heap profile."
 
@@ -485,7 +485,7 @@ groups:
           severity: warning
           component: runtime
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-goroutine-count
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-goroutine-count
           summary: Goroutine count is forecast to exceed 10,000.
           description: "Goroutines are forecast to reach {{ $values.A.Value | printf \"%.0f\" }} within 48 hours, based on the last hour of growth. This indicates a resource leak in Ella Core. Capture a goroutine profile from Pyroscope and report it."
 
@@ -531,7 +531,7 @@ groups:
           severity: warning
           component: db
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-database-query-latency-p99
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-database-query-latency-p99
           summary: Database P99 query latency exceeds 500ms.
           description: "DB P99 latency is {{ $values.A.Value | printf \"%.3f\" }}s. Check the database size and the query rate on the Deep Dive dashboard."
 
@@ -576,7 +576,7 @@ groups:
           severity: warning
           component: db
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#large-database-size
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#large-database-size
           summary: Database size exceeds 1 GiB.
           description: "Database file is {{ $values.A.Value | humanize1024 }}B. Shorten the retention policy for network logs, audit logs, or flow reports."
 
@@ -627,7 +627,7 @@ groups:
           severity: warning
           component: data-plane
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-data-plane-packet-drop-rate
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-data-plane-packet-drop-rate
           summary: The data plane is dropping more than 10 packets/sec.
           description: "Drop rate is {{ $values.A.Value | printf \"%.1f\" }} pkt/s. Check `app_upf_datapath_drop_total` by reason and direction to localize the issue."
 
@@ -670,7 +670,7 @@ groups:
           severity: critical
           component: data-plane
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#no-data-plane-traffic
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#no-data-plane-traffic
           summary: Radios are connected but no data is flowing through the user plane.
           description: "Radios are connected (app_connected_radios > 0) but uplink + downlink throughput has been zero for 10 minutes. Confirm a subscriber is actually sending traffic, then check the data network and route configuration."
 
@@ -716,7 +716,7 @@ groups:
           severity: critical
           component: data-plane
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#data-plane-aborted-actions-detected
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#data-plane-aborted-actions-detected
           summary: The data plane is failing to process traffic.
           description: "Abort rate is {{ $values.A.Value | printf \"%.1f\" }} pkt/s. An `internal_` reason means Ella Core's data plane failed rather than dropping traffic by policy. Break down `app_upf_datapath_drop_total` by `reason` and report it."
 
@@ -762,6 +762,6 @@ groups:
           severity: warning
           component: data-plane
         annotations:
-          runbook_url: https://docs.ellanetworks.com/reference/observability/#flow-reports-being-dropped
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#flow-reports-being-dropped
           summary: Flow reports are being dropped.
           description: "{{ $values.A.Value | printf \"%.0f\" }} flow reports were dropped in the last 5 minutes. Data usage reporting is incomplete while this persists. Shorten the flow report retention policy, or report this if it continues at normal traffic levels."

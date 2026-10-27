@@ -18,8 +18,8 @@ jobs:
 
       - name: Install libpcap headers and the SCTP kernel module
         run: |
-          sudo apt-get update && sudo apt-get install -y libpcap-dev "linux-modules-extra-$(uname -r)"
-          sudo modprobe sctp
+          sudo apt-get update && sudo apt-get install -y libpcap-dev
+          sudo modprobe sctp || { sudo apt-get install -y "linux-modules-extra-$(uname -r)" && sudo modprobe sctp; }
 
       - name: Smoke-test every benchmark scenario under the race detector
         env:

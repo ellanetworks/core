@@ -6,7 +6,7 @@
     "name": "Ella Networks",
     "email": "contact@ellanetworks.com"
   },
-  "homepage": "https://docs.ellanetworks.com",
+  "homepage": "https://docs.ellanetworks.com/core/",
   "repository": "https://github.com/ellanetworks/core",
   "license": "Apache-2.0",
   "keywords": ["5g", "mobile-network", "private-5g", "ella-core", "ellanetworks"]

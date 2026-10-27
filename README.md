@@ -12,7 +12,7 @@ Typical mobile networks are expensive, complex, and inadequate for private deplo
 
 Use Ella Core where you need mobile connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
 
-[Get Started Now!](https://docs.ellanetworks.com/tutorials/)
+[Get Started Now!](https://docs.ellanetworks.com/core/tutorials/)
 
 ## Key features
 
@@ -28,7 +28,7 @@ Use Ella Core where you need mobile connectivity: in a factory, a warehouse, a f
 ## Quick Links
 
 - [Website](https://ellanetworks.com/)
-- [Documentation](https://docs.ellanetworks.com/)
+- [Documentation](https://docs.ellanetworks.com/core/)
 - [YouTube Channel](https://www.youtube.com/@ellanetworks)
 - [Whitepaper](https://medium.com/@gruyaume/ella-core-simplifying-private-mobile-networks-a82de955c92c)
 - [Snap Store Listing](https://snapcraft.io/ella-core)

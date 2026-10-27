@@ -3,4 +3,4 @@ Allow: /
 
 Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
-Sitemap: https://docs.ellanetworks.com/sitemap.xml
+Sitemap: https://docs.ellanetworks.com/core/sitemap.xml

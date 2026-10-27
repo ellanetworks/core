@@ -14,7 +14,7 @@ source-code: https://github.com/ellanetworks/core
 issues:
   - https://github.com/ellanetworks/core/issues
 website:
-  - https://docs.ellanetworks.com
+  - https://docs.ellanetworks.com/core/
 grade: stable
 confinement: strict
 license: BUSL-1.1
