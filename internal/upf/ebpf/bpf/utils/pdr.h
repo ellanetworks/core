@@ -129,6 +129,8 @@ struct qer_info {
 	__u32 averaging_window_ms;
 	__u64 ul_maximum_bitrate;
 	__u64 dl_maximum_bitrate;
+	__u16 class_id;
+	__u8 pad2[6];
 };
 
 struct pdr_info {

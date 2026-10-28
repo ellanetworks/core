@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <bpf/bpf_helpers.h>
 #include "bpf/utils/statistics.h"
+#include "bpf/utils/traffic_class.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -231,6 +232,8 @@ static __always_inline int record_action(struct packet_context *ctx,
 	else
 		ctx->statistics->forwarded_actions[action & UPF_ACTION_MASK] +=
 			1;
+
+	traffic_class_settle(ctx_action_forwards(action), ctx->drop_reason);
 
 	return ctx_verdict(action);
 }

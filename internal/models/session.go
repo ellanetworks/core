@@ -34,6 +34,8 @@ type EstablishRequest struct {
 	SEID         uint64
 	IMSI         string
 	PolicyID     string
+	Snssai       *Snssai
+	DNN          string
 	PDRs         []PDR
 	FARs         []FAR
 	QERs         []QER
@@ -199,6 +201,7 @@ const (
 type QER struct {
 	QERID           uint32
 	QFI             uint8
+	FiveQI          uint8
 	GateStatus      *GateStatus
 	MBR             *MBR
 	AveragingWindow *time.Duration

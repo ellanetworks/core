@@ -43,9 +43,28 @@ type SessionEngine struct {
 	filterMu     sync.RWMutex
 	filtersByKey map[string]uint32
 
+	classes *TrafficClasses
+
 	endMarkers endMarkerSockets
 
 	programs ebpf.ProgramWaiter
+}
+
+func (conn *SessionEngine) TrafficClasses() *TrafficClasses {
+	return conn.classes
+}
+
+func (conn *SessionEngine) trafficClassID(sess *Session, fiveQI uint8) uint16 {
+	if conn.classes == nil {
+		return 0
+	}
+
+	c, ok := sess.trafficClass(fiveQI)
+	if !ok {
+		return 0
+	}
+
+	return conn.classes.ID(c)
 }
 
 func (conn *SessionEngine) Close() error {
@@ -258,6 +277,7 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		FteIDResourceManager:    resourceManager,
 		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),
 		filtersByKey:            make(map[string]uint32),
+		classes:                 NewTrafficClasses(),
 	}
 
 	return conn, nil

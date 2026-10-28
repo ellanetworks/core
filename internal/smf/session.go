@@ -150,6 +150,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		UEIPv6:      addrs.IPv6Prefix,
 		Access:      req.Access,
 		QFI:         req.Policy.QosData.QFI,
+		FiveQI:      uint8(req.Policy.QosData.Var5qi),
 		AMBR:        req.Policy.Ambr,
 		RatingGroup: req.Policy.RatingGroup,
 	}}
@@ -303,7 +304,7 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return err
 	}
 
-	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes, smContext.PolicyData.IMS)
+	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.Snssai, smContext.Dnn, smContext.FramedRoutes, smContext.PolicyData.IMS)
 
 	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {

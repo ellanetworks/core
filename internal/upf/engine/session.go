@@ -21,6 +21,7 @@ type Session struct {
 	SEID         uint64
 	imsi         string
 	policyID     string
+	class        TrafficClass
 	pdrs         map[uint32]SPDRInfo
 	fars         map[uint32]ebpf.FarInfo
 	qers         map[uint32]ebpf.QerInfo
@@ -154,6 +155,32 @@ func (s *Session) SetIMSI(imsi string) {
 	defer s.mu.Unlock()
 
 	s.imsi = imsi
+}
+
+func (s *Session) SetTrafficClass(snssai *models.Snssai, dnn string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.class = TrafficClass{DNN: dnn}
+
+	if snssai != nil {
+		s.class.SST = uint8(snssai.Sst)
+		s.class.SD = snssai.Sd
+	}
+}
+
+func (s *Session) trafficClass(fiveQI uint8) (TrafficClass, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.class.DNN == "" {
+		return TrafficClass{}, false
+	}
+
+	c := s.class
+	c.FiveQI = fiveQI
+
+	return c, true
 }
 
 func (s *Session) PutFar(id uint32, farInfo ebpf.FarInfo) {

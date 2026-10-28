@@ -203,6 +203,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	if (!sel)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
+	traffic_class_mark(sel->target.qer.class_id, TRAFFIC_CLASS_DOWNLINK);
+
 	ctx->interface = INTERFACE_N6;
 
 	if (sel->target.qer.dl_gate_status != GATE_STATUS_OPEN) {
@@ -295,6 +297,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 				 billed_bytes, now, URR_DOWNLINK);
 		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
 				 billed_bytes, now, URR_UPLINK);
+		traffic_class_bill(billed_bytes);
+		traffic_class_forward(ul_pdr->qer.class_id,
+				      TRAFFIC_CLASS_UPLINK, billed_bytes);
 	}
 
 	return tunnel_ret;
@@ -594,6 +599,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	__u32 urr_id = pdr->urr_id;
 	__u8 outer_header_removal = pdr->outer_header_removal;
 
+	traffic_class_mark(pdr->qer.class_id, TRAFFIC_CLASS_UPLINK);
+
 	struct far_info *far = &pdr->far;
 	__u32 qer_id = pdr->qer_id;
 	__u32 rule_pdr_id = 0;
@@ -779,6 +786,8 @@ handle_gtp_packet(struct packet_context *ctx)
 				rule_pdr_id = sel->target.pdr_id;
 				qer_id = sel->target.qer_id;
 				urr_id = sel->target.urr_id;
+				traffic_class_mark(sel->target.qer.class_id,
+						   TRAFFIC_CLASS_UPLINK);
 
 				enum ctx_action qer_verdict = enforce_uplink_qer(
 					ctx, pdr->local_seid, qer_id,
@@ -825,6 +834,8 @@ handle_gtp_packet(struct packet_context *ctx)
 					ul_stash->pdr_id = rule_pdr_id;
 					ul_stash->qer_id = qer_id;
 					ul_stash->urr_id = urr_id;
+					ul_stash->qer.class_id =
+						traffic_class_marked();
 				}
 			}
 			return local_switch_tail_call(ctx);
@@ -857,6 +868,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
 					 billed_bytes, bpf_ktime_get_boot_ns(),
 					 URR_UPLINK);
+			traffic_class_bill(billed_bytes);
 		}
 
 		return fib_ret;
@@ -872,6 +884,7 @@ handle_gtp_packet(struct packet_context *ctx)
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
 					 billed_bytes, bpf_ktime_get_boot_ns(),
 					 URR_UPLINK);
+			traffic_class_bill(billed_bytes);
 		}
 
 		return fib_ret;

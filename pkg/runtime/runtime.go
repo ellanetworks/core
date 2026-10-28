@@ -507,7 +507,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	smf.RegisterMetrics(smfInstance)
-	upf.RegisterMetrics()
+	upf.RegisterMetrics(eng.TrafficClasses())
 
 	ausfStore, amfInstance, mmeInstance := cp.ausfStore, cp.amf, cp.mme
 

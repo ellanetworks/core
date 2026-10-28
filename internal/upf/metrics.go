@@ -4,8 +4,12 @@
 package upf
 
 import (
+	"slices"
+	"strconv"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/engine"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -31,7 +35,7 @@ const (
 	dlBufferEvictReinjectFailed = "reinject_failed"
 )
 
-func RegisterMetrics() {
+func RegisterMetrics(classes *engine.TrafficClasses) {
 	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
 
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
@@ -198,6 +202,8 @@ func RegisterMetrics() {
 		}
 	}))
 
+	registerTrafficClassMetrics(classes)
+
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for dir, stats := range ebpf.GetRouteStats(bpfObjects) {
@@ -284,6 +290,75 @@ func RegisterMetrics() {
 			ch <- prometheus.MustNewConstMetric(profilingNsDesc, prometheus.CounterValue, float64(entry.TotalNs)/1e9, info.direction, info.stage)
 
 			ch <- prometheus.MustNewConstMetric(profilingCallsDesc, prometheus.CounterValue, float64(entry.Count), info.direction, info.stage)
+		}
+	}))
+}
+
+func registerTrafficClassMetrics(classes *engine.TrafficClasses) {
+	classLabels := []string{"direction", "sst", "sd", "dnn", "fiveqi"}
+
+	packetsDesc := prometheus.NewDesc(
+		"app_upf_traffic_class_packets_total",
+		"Packets the data plane forwarded for subscribers, by direction and traffic class (slice, data network and 5QI of the QoS flow).",
+		classLabels,
+		nil,
+	)
+
+	bytesDesc := prometheus.NewDesc(
+		"app_upf_traffic_class_bytes_total",
+		"Bytes the data plane forwarded for subscribers, by direction and traffic class (slice, data network and 5QI of the QoS flow). Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does.",
+		classLabels,
+		nil,
+	)
+
+	dropDesc := prometheus.NewDesc(
+		"app_upf_traffic_class_drop_total",
+		"Subscriber packets the data plane dropped after matching them to a session, by direction, traffic class and reason. A reason appears once it has occurred for the class.",
+		append(slices.Clone(classLabels), "reason"),
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		if classes == nil || bpfObjects == nil {
+			return
+		}
+
+		all := classes.All()
+
+		labels := func(c engine.TrafficClass, dir ebpf.Direction) []string {
+			return []string{string(dir), strconv.Itoa(int(c.SST)), c.SD, c.DNN, strconv.Itoa(int(c.FiveQI))}
+		}
+
+		for id, c := range all {
+			for _, dir := range []ebpf.Direction{ebpf.Uplink, ebpf.Downlink} {
+				counters, err := bpfObjects.ReadTrafficClassForwarded(id, dir)
+				if err != nil {
+					logger.UpfLog.Warn("failed to fetch UPF traffic class counters", zap.Error(err))
+					return
+				}
+
+				ch <- prometheus.MustNewConstMetric(packetsDesc, prometheus.CounterValue,
+					float64(counters.Packets), labels(c, dir)...)
+
+				ch <- prometheus.MustNewConstMetric(bytesDesc, prometheus.CounterValue,
+					float64(counters.Bytes), labels(c, dir)...)
+			}
+		}
+
+		drops, err := bpfObjects.ReadTrafficClassDrops()
+		if err != nil {
+			logger.UpfLog.Warn("failed to fetch UPF traffic class drop counters", zap.Error(err))
+			return
+		}
+
+		for d, count := range drops {
+			c, ok := all[d.ClassID]
+			if !ok {
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(dropDesc, prometheus.CounterValue,
+				float64(count), append(labels(c, d.Direction), d.Reason)...)
 		}
 	}))
 }

@@ -29,6 +29,7 @@ type dataPlane struct {
 	Access   AccessType
 	Downlink DownlinkState
 	QFI      uint8
+	FiveQI   uint8
 	AMBR     models.Ambr
 
 	RatingGroup uint32
@@ -44,6 +45,7 @@ type dataPlane struct {
 type bearerLeg struct {
 	Slot         uint8
 	QFI          uint8
+	FiveQI       uint8
 	Admitted     bool
 	TargetUplink bool
 	Rules        []ruleLeg
@@ -261,6 +263,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 		qers = append(qers, models.QER{
 			QERID:           qerID,
 			QFI:             qfi,
+			FiveQI:          b.FiveQI,
 			GateStatus:      new(r.policedGate()),
 			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
 			AveragingWindow: new(averagingWindow),
@@ -361,6 +364,7 @@ func (d dataPlane) defaultBearerRules() (pdrs []models.PDR, qers []models.QER) {
 		qers = append(qers, models.QER{
 			QERID:           qerID,
 			QFI:             d.QFI,
+			FiveQI:          d.FiveQI,
 			GateStatus:      new(r.policedGate()),
 			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
 			AveragingWindow: new(averagingWindow),
@@ -497,8 +501,9 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 	}
 
 	qers = []models.QER{{
-		QERID: qerIDDefault,
-		QFI:   d.QFI,
+		QERID:  qerIDDefault,
+		QFI:    d.QFI,
+		FiveQI: d.FiveQI,
 		GateStatus: &models.GateStatus{
 			ULGate: models.GateOpen,
 			DLGate: models.GateOpen,
@@ -629,13 +634,15 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 	return params
 }
 
-func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRoutes []netip.Prefix, ims bool) *models.EstablishRequest {
+func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, snssai *models.Snssai, dnn string, framedRoutes []netip.Prefix, ims bool) *models.EstablishRequest {
 	pdrs, fars, qers, urrs := d.rules()
 
 	return &models.EstablishRequest{
 		SEID:         seid,
 		IMSI:         imsi,
 		PolicyID:     policyID,
+		Snssai:       snssai,
+		DNN:          dnn,
 		PDRs:         pdrs,
 		FARs:         fars,
 		QERs:         qers,

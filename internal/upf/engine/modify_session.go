@@ -133,6 +133,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	for _, qer := range req.UpdateQERs {
 		qerInfo := qerInfoFromMerge(qer, session.GetQer(qer.QERID))
+		qerInfo.ClassID = conn.trafficClassID(session, qer.FiveQI)
 
 		session.PutQer(qer.QERID, qerInfo)
 

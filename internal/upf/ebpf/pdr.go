@@ -241,6 +241,7 @@ type QerInfo struct {
 	AveragingWindowMs uint32
 	MaxBitrateUL      uint64
 	MaxBitrateDL      uint64
+	ClassID           uint16
 }
 
 // SdfRule mirrors struct sdf_rule in pdr.h.
@@ -373,6 +374,7 @@ func fillFarQer(dst *N3N6EntrypointPdrInfo, far FarInfo, qer QerInfo) {
 	dst.Qer.AveragingWindowMs = qer.AveragingWindowMs
 	dst.Qer.UlMaximumBitrate = qer.MaxBitrateUL
 	dst.Qer.DlMaximumBitrate = qer.MaxBitrateDL
+	dst.Qer.ClassId = qer.ClassID
 }
 
 // PutSdfFilterList writes a filter list into the sdf_filters BPF array.
