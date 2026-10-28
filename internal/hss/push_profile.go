@@ -127,7 +127,7 @@ func (h *HSS) reconcileSet(ctx context.Context, imsi string, reg *Registration, 
 	}
 }
 
-func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, set RegistrationSet, p *profile) error {
+func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, set RegistrationSet, p *profile) (err error) {
 	pushCtx, cancel := context.WithTimeout(ctx, pushProfileTimeout)
 	defer cancel()
 
