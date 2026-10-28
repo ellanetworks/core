@@ -14,6 +14,7 @@ type Route struct {
 	Realm       string
 	Application uint32
 	Priority    int
+	Default     bool
 }
 
 type routeKey struct {
@@ -30,6 +31,7 @@ type routeEntry struct {
 type RouteStatus struct {
 	Realm       string
 	Application uint32
+	Default     bool
 	Peers       []RoutePeerStatus
 }
 
@@ -88,6 +90,18 @@ func (n *Node) routeEntriesLocked(key routeKey, implicit bool) []routeEntry {
 	}
 
 	return entries
+}
+
+func defaultRouteKey(app uint32) routeKey {
+	return routeKey{app: app}
+}
+
+func (n *Node) defaultEntriesLocked(realm string, app uint32) []routeEntry {
+	if realm == "" || n.servesRealm(realm) {
+		return nil
+	}
+
+	return slices.Clone(n.routes[defaultRouteKey(app)])
 }
 
 func (n *Node) implicitKeysLocked() map[routeKey]bool {
@@ -155,9 +169,14 @@ func (n *Node) Routes() []RouteStatus {
 	statuses := make([]RouteStatus, 0, len(keys))
 
 	for key := range keys {
-		s := RouteStatus{Realm: key.realm, Application: key.app}
+		s := RouteStatus{Realm: key.realm, Application: key.app, Default: key.realm == ""}
 
-		for _, e := range n.routeEntriesLocked(key, true) {
+		entries := n.routeEntriesLocked(key, true)
+		if s.Default {
+			entries = n.routes[key]
+		}
+
+		for _, e := range entries {
 			s.Peers = append(s.Peers, RoutePeerStatus{
 				ID:       e.peer.id,
 				Host:     e.peer.lastHost,
@@ -184,8 +203,12 @@ func validateRoutes(p Peer) error {
 		key := routeKey{realm: strings.ToLower(r.Realm), app: r.Application}
 
 		switch {
-		case !isDiameterIdentity(r.Realm):
+		case r.Default && r.Realm != "":
+			return fmt.Errorf("diameter: peer %q has a default route with realm %q", p.ID, r.Realm)
+		case !r.Default && !isDiameterIdentity(r.Realm):
 			return fmt.Errorf("diameter: peer %q has a route with an invalid realm %q", p.ID, r.Realm)
+		case seen[key] && r.Default:
+			return fmt.Errorf("diameter: peer %q lists the default route for application %d twice", p.ID, r.Application)
 		case seen[key]:
 			return fmt.Errorf("diameter: peer %q lists the route for %s and application %d twice", p.ID, r.Realm, r.Application)
 		case !slices.ContainsFunc(p.Applications, func(a Application) bool { return a.ID == r.Application || a.ID == RelayApplicationID }):

@@ -111,10 +111,14 @@ func waitOpen(t *testing.T, n *Node, ids ...string) {
 }
 
 func routed(extra ...AVP) *Message {
+	return routedTo(routeRealm, extra...)
+}
+
+func routedTo(realm string, extra ...AVP) *Message {
 	m := request()
 	m.AVPs = append(m.AVPs,
 		UTF8String(AVPSessionID, AVPFlagMandatory, 0, "ims.example.org;1;1"),
-		UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, routeRealm),
+		UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, realm),
 	)
 	m.AVPs = append(m.AVPs, extra...)
 
@@ -486,10 +490,13 @@ func TestSetPeersValidatesRoutes(t *testing.T) {
 	base := Peer{ID: "p", Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportTCP}, Applications: []Application{sgdApp}}
 
 	for name, routes := range map[string][]Route{
-		"invalid realm": {{Realm: "bad realm", Application: testAppID}},
-		"empty realm":   {{Application: testAppID}},
-		"duplicate":     {{Realm: routeRealm, Application: testAppID}, {Realm: strings.ToUpper(routeRealm), Application: testAppID, Priority: 4}},
-		"unadvertised":  {{Realm: routeRealm, Application: otherAppID}},
+		"invalid realm":        {{Realm: "bad realm", Application: testAppID}},
+		"empty realm":          {{Application: testAppID}},
+		"duplicate":            {{Realm: routeRealm, Application: testAppID}, {Realm: strings.ToUpper(routeRealm), Application: testAppID, Priority: 4}},
+		"unadvertised":         {{Realm: routeRealm, Application: otherAppID}},
+		"default realm":        {{Realm: routeRealm, Application: testAppID, Default: true}},
+		"two defaults":         {{Application: testAppID, Default: true}, {Application: testAppID, Default: true, Priority: 1}},
+		"default unadvertised": {{Application: otherAppID, Default: true}},
 	} {
 		p := base
 		p.Routes = routes
@@ -505,6 +512,13 @@ func TestSetPeersValidatesRoutes(t *testing.T) {
 
 	if err := client.SetPeers([]Peer{relay}); err != nil {
 		t.Fatalf("relay route: %v", err)
+	}
+
+	withDefault := base
+	withDefault.Routes = []Route{{Realm: routeRealm, Application: testAppID}, {Application: testAppID, Default: true, Priority: 1}}
+
+	if err := client.SetPeers([]Peer{withDefault}); err != nil {
+		t.Fatalf("default route: %v", err)
 	}
 }
 
