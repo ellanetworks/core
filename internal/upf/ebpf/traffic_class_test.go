@@ -164,6 +164,66 @@ func TestTrafficClassCountsDropsByReason(t *testing.T) {
 	}
 }
 
+func TestTrafficClassDoesNotCountBufferedPacketsAsDrops(t *testing.T) {
+	requireProgTestRun(t)
+
+	dl := classifiedDownlinkPDR(15)
+	dl.Far.Action = farBuffNocp
+
+	obj := loadProgram(t, 1, 0)
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(classifierUE), dl); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	runXDP(t, obj.UpfEntryFunc, downlinkUDP(remotePort, localPort))
+
+	if got := DropCount(obj, Downlink, "nocp_buffer"); got != 1 {
+		t.Fatalf("nocp_buffer drops = %d, want the packet to have reached the buffer", got)
+	}
+
+	if drops := trafficClassDrops(t, obj); len(drops) != 0 {
+		t.Errorf("drops = %v, want none: a buffered packet is delivered after paging", drops)
+	}
+}
+
+func TestTrafficClassCountsOversizeDownlinkAsDropped(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid    = 0x54434c34
+		classID = 17
+	)
+
+	f := setupT2(t, false)
+
+	dl := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, 7)
+	dl.Qer.ClassID = classID
+
+	if err := f.obj.PutPdrDownlink(netip.AddrFrom4(ueIP), dl); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	if out, err := ipCmd("link", "set", t2N3Dev, "mtu", "1280"); err != nil {
+		t.Fatalf("shrink N3 MTU: %v: %s", err, out)
+	}
+
+	capFD := f.captureN6(t)
+
+	f.injectDownlink(t, ethFrame(0x0800, withDF(ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 4001, bytesOf(1400))))))
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return isInnerIPv4(fr, 1, serverIP) }) == nil {
+		t.Fatal("did not capture an ICMP fragmentation-needed on the N6 side")
+	}
+
+	if got := trafficClassDrops(t, f.obj)[TrafficClassDrop{ClassID: classID, Direction: Downlink, Reason: "mtu_exceeded"}]; got != 1 {
+		t.Errorf("mtu_exceeded drops = %d, want 1", got)
+	}
+
+	if got := trafficClassForwarded(t, f.obj, classID, Downlink); got != (TrafficClassCounters{}) {
+		t.Errorf("downlink counters = %+v, want zero for a packet that never reached the UE", got)
+	}
+}
+
 func TestTrafficClassDoesNotOutliveItsPacket(t *testing.T) {
 	requireProgTestRun(t)
 

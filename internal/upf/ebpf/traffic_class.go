@@ -55,9 +55,12 @@ func (bpfObjects *BpfObjects) ReadTrafficClassDrops() (map[TrafficClassDrop]uint
 
 	names := DropReasonNames()
 	out := make(map[TrafficClassDrop]uint64)
+	entries := 0
 
 	it := bpfObjects.TrafficClassDrops.Iterate()
 	for it.Next(&key, &perCPU) {
+		entries++
+
 		dir := Uplink
 		if key.Direction == 1 {
 			dir = Downlink
@@ -79,6 +82,8 @@ func (bpfObjects *BpfObjects) ReadTrafficClassDrops() (map[TrafficClassDrop]uint
 	if err := it.Err(); err != nil {
 		return nil, fmt.Errorf("iterate traffic class drops: %w", err)
 	}
+
+	bpfObjects.SetOccupancy(MapTrafficClassDrops, entries)
 
 	return out, nil
 }

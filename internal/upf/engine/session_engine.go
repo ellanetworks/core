@@ -51,6 +51,10 @@ type SessionEngine struct {
 }
 
 func (conn *SessionEngine) TrafficClasses() *TrafficClasses {
+	if conn == nil {
+		return nil
+	}
+
 	return conn.classes
 }
 

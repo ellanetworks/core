@@ -334,7 +334,7 @@ func registerTrafficClassMetrics(classes *engine.TrafficClasses) {
 				counters, err := bpfObjects.ReadTrafficClassForwarded(id, dir)
 				if err != nil {
 					logger.UpfLog.Warn("failed to fetch UPF traffic class counters", zap.Error(err))
-					return
+					continue
 				}
 
 				ch <- prometheus.MustNewConstMetric(packetsDesc, prometheus.CounterValue,

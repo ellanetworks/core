@@ -360,11 +360,12 @@ type N3N6EntrypointTrafficClassDropKey struct {
 }
 
 type N3N6EntrypointTrafficClassMark struct {
-	_         structs.HostLayout
-	Bytes     uint64
-	ClassId   uint16
-	Direction uint8
-	Pad       [5]uint8
+	_            structs.HostLayout
+	Bytes        uint64
+	ClassId      uint16
+	Direction    uint8
+	BounceReason uint8
+	Pad          [4]uint8
 }
 
 type N3N6EntrypointUpfStatistic struct {

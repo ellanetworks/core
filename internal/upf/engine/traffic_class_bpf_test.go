@@ -91,6 +91,17 @@ func TestSessionQERsCarryTheirTrafficClass(t *testing.T) {
 
 	if _, err := conn.ModifySession(ctx, &models.ModifyRequest{
 		SEID:       seid,
+		UpdateQERs: []models.QER{{QERID: 1, GateStatus: &models.GateStatus{}}},
+	}); err != nil {
+		t.Fatalf("modify without a 5QI: %v", err)
+	}
+
+	if got := session.GetQer(1).ClassID; got != id {
+		t.Fatalf("QER 1 class after an update without a 5QI = %d, want it kept at %d", got, id)
+	}
+
+	if _, err := conn.ModifySession(ctx, &models.ModifyRequest{
+		SEID:       seid,
 		UpdateQERs: []models.QER{{QERID: 1, FiveQI: 2}},
 	}); err != nil {
 		t.Fatalf("modify: %v", err)
