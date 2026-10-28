@@ -30,6 +30,8 @@ const (
 	smsNumber         = "+15550000000"
 	smscServiceCentre = "+15550000000"
 	smscHost          = "smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
+	smscAdminEmail    = "admin@ellanetworks.com"
+	smscAdminPassword = "integration-test-password"
 )
 
 func smscAddress() string {
@@ -65,7 +67,7 @@ func TestIntegrationSMS(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	configureSMSC(ctx, t)
+	smscToken := configureSMSC(ctx, t)
 	enableSMS(ctx, t, env.Client, smscAddress())
 
 	for _, name := range scenarios.List() {
@@ -81,14 +83,14 @@ func TestIntegrationSMS(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			defer finishScenarioTest(t, tr)
 
-			if err := waitForSMSCLink(ctx, env.Client); err != nil {
+			if err := waitForSMSCLink(ctx, env.Client, smscToken); err != nil {
 				t.Fatal(err)
 			}
 
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(sc.Fixture(scenarios.Env{}))
 
-			env.RunScenario(ctx, t, name, tr, "--smsc-api-address", smscAPIAddress())
+			env.RunScenario(ctx, t, name, tr, "--smsc-api-address", smscAPIAddress(), "--smsc-api-token", smscToken)
 		})
 	}
 
@@ -112,7 +114,7 @@ func enableSMS(ctx context.Context, t *testing.T, cl *client.Client, address str
 	}
 }
 
-func waitForSMSCLink(ctx context.Context, cl *client.Client) error {
+func waitForSMSCLink(ctx context.Context, cl *client.Client, smscToken string) error {
 	deadline := time.Now().Add(2 * time.Minute)
 
 	for {
@@ -125,7 +127,7 @@ func waitForSMSCLink(ctx context.Context, cl *client.Client) error {
 			}
 		}
 
-		hss := smscSeesHSS(ctx)
+		hss := smscSeesHSS(ctx, smscToken)
 		if coreOpen && hss {
 			return nil
 		}
@@ -138,7 +140,7 @@ func waitForSMSCLink(ctx context.Context, cl *client.Client) error {
 	}
 }
 
-func configureSMSC(ctx context.Context, t *testing.T) {
+func configureSMSC(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
 	operator := map[string]any{
@@ -156,13 +158,17 @@ func configureSMSC(ctx context.Context, t *testing.T) {
 	deadline := time.Now().Add(time.Minute)
 
 	for {
-		err := putSMSC(ctx, "/api/v1/operator", operator)
+		token, err := smscAPIToken(ctx)
 		if err == nil {
-			err = putSMSC(ctx, "/api/v1/delivery", delivery)
+			err = callSMSC(ctx, http.MethodPut, token, "/api/v1/operator", operator, nil)
 		}
 
 		if err == nil {
-			return
+			err = callSMSC(ctx, http.MethodPut, token, "/api/v1/delivery", delivery, nil)
+		}
+
+		if err == nil {
+			return token
 		}
 
 		if time.Now().After(deadline) {
@@ -173,19 +179,54 @@ func configureSMSC(ctx context.Context, t *testing.T) {
 	}
 }
 
-func putSMSC(ctx context.Context, path string, body any) error {
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return err
+func smscAPIToken(ctx context.Context) (string, error) {
+	credentials := map[string]string{"email": smscAdminEmail, "password": smscAdminPassword}
+
+	var initialized struct {
+		Token string `json:"token"`
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, smscAPIAddress()+path, bytes.NewReader(raw))
+	if err := callSMSC(ctx, http.MethodPost, "", "/api/v1/init", credentials, &initialized); err != nil {
+		if err := callSMSC(ctx, http.MethodPost, "", "/api/v1/auth/login", credentials, &initialized); err != nil {
+			return "", err
+		}
+	}
+
+	var created struct {
+		Token string `json:"token"`
+	}
+
+	name := fmt.Sprintf("integration-%d", time.Now().UnixNano())
+	if err := callSMSC(ctx, http.MethodPost, initialized.Token, "/api/v1/users/me/api-tokens", map[string]string{"name": name}, &created); err != nil {
+		return "", err
+	}
+
+	return created.Token, nil
+}
+
+func callSMSC(ctx context.Context, method, token, path string, body any, out any) error {
+	var reader io.Reader
+
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+
+		reader = bytes.NewReader(raw)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, smscAPIAddress()+path, reader)
 	if err != nil {
 		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -193,41 +234,43 @@ func putSMSC(ctx context.Context, path string, body any) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("PUT %s: %s: %s", path, resp.Status, msg)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, raw)
+	}
+
+	if out == nil {
+		return nil
+	}
+
+	envelope := struct {
+		Result json.RawMessage `json:"result"`
+	}{}
+
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("%s %s: %w", method, path, err)
+	}
+
+	return json.Unmarshal(envelope.Result, out)
 }
 
-func smscSeesHSS(ctx context.Context) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, smscAPIAddress()+"/api/v1/diameter", nil)
-	if err != nil {
+func smscSeesHSS(ctx context.Context, token string) bool {
+	var diameter struct {
+		Routes []struct {
+			Application string   `json:"application"`
+			Peers       []string `json:"peers"`
+		} `json:"routes"`
+	}
+
+	if callSMSC(ctx, http.MethodGet, token, "/api/v1/diameter", nil, &diameter) != nil {
 		return false
 	}
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	var body struct {
-		Result struct {
-			Routes []struct {
-				Application string   `json:"application"`
-				Peers       []string `json:"peers"`
-			} `json:"routes"`
-		} `json:"result"`
-	}
-
-	if json.NewDecoder(resp.Body).Decode(&body) != nil {
-		return false
-	}
-
-	for _, r := range body.Result.Routes {
+	for _, r := range diameter.Routes {
 		if r.Application == "s6c" && len(r.Peers) > 0 {
 			return true
 		}

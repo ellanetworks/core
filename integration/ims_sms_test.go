@@ -36,7 +36,7 @@ func TestIntegrationIMSSMS(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	configureSMSC(ctx, t)
+	smscToken := configureSMSC(ctx, t)
 	enableSMS(ctx, t, env.Client, smscAddress())
 	addIMSCorePeer(ctx, t, env.Client, "sh", "s6c", "sgd")
 	configureIPSMGW(ctx, t, env.Client)
@@ -58,7 +58,7 @@ func TestIntegrationIMSSMS(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := waitForSMSCLink(ctx, env.Client); err != nil {
+			if err := waitForSMSCLink(ctx, env.Client, smscToken); err != nil {
 				t.Fatal(err)
 			}
 

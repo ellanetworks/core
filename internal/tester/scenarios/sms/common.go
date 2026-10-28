@@ -27,6 +27,7 @@ const (
 
 type params struct {
 	SMSCAPI       string
+	SMSCAPIToken  string
 	ServiceCentre string
 	NodeHosts     []string
 }
@@ -65,6 +66,7 @@ type ratScenario struct {
 func bindFlags(fs *pflag.FlagSet) any {
 	p := &params{}
 	fs.StringVar(&p.SMSCAPI, "smsc-api-address", "", "SMSC API address (e.g. http://10.3.0.5:5010)")
+	fs.StringVar(&p.SMSCAPIToken, "smsc-api-token", "", "SMSC API token")
 	fs.StringVar(&p.ServiceCentre, "service-centre", "+15550000000", "the SMSC's service centre address")
 	fs.StringSliceVar(&p.NodeHosts, "node-host", nil, "Diameter Origin-Host of each core, in --ella-core-n2-address order")
 
