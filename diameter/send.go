@@ -256,6 +256,12 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 
 	entries := n.routeEntriesLocked(key, s.host == "")
 	if len(entries) == 0 {
+		if entries = n.defaultEntriesLocked(s.realm, s.m.ApplicationID); len(entries) > 0 {
+			key = defaultRouteKey(s.m.ApplicationID)
+		}
+	}
+
+	if len(entries) == 0 {
 		if s.last != nil {
 			return nil, errExhausted
 		}

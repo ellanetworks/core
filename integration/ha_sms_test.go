@@ -80,10 +80,10 @@ func TestIntegrationHASMS(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
-	configureSMSC(ctx, t)
+	smscToken := configureSMSC(ctx, t)
 	enableSMS(ctx, t, haClient, haSMSSMSCAddress)
 
-	hosts, err := waitForClusterSMSCLinks(ctx, nodeClients)
+	hosts, err := waitForClusterSMSCLinks(ctx, nodeClients, smscToken)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +112,7 @@ func TestIntegrationHASMS(t *testing.T) {
 		return append(args,
 			"--gnb", fmt.Sprintf("gnb1,n2=%s,n3=%s", haSMSTesterN2, haSMSTesterN3),
 			"--smsc-api-address", "http://"+net.JoinHostPort(haSMSSMSCAddress, strconv.Itoa(smscAPIPort)),
+			"--smsc-api-token", smscToken,
 			"--verbose",
 		)
 	}
@@ -166,7 +167,7 @@ func others(skip, n int) []int {
 	return out
 }
 
-func waitForClusterSMSCLinks(ctx context.Context, nodes []*client.Client) ([]string, error) {
+func waitForClusterSMSCLinks(ctx context.Context, nodes []*client.Client, smscToken string) ([]string, error) {
 	deadline := time.Now().Add(2 * time.Minute)
 
 	for {
@@ -189,7 +190,7 @@ func waitForClusterSMSCLinks(ctx context.Context, nodes []*client.Client) ([]str
 			}
 		}
 
-		if open == len(nodes) && smscSeesHSS(ctx) {
+		if open == len(nodes) && smscSeesHSS(ctx, smscToken) {
 			return hosts, nil
 		}
 
