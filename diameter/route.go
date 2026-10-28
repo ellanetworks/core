@@ -41,6 +41,9 @@ type RoutePeerStatus struct {
 	Priority int
 	State    PeerState
 	Implicit bool
+	// Available reports whether Send can use the peer for the route now: its
+	// connection is available and negotiated the route's application.
+	Available bool
 }
 
 func (n *Node) rebuildRoutesLocked() {
@@ -177,13 +180,21 @@ func (n *Node) Routes() []RouteStatus {
 		}
 
 		for _, e := range entries {
-			s.Peers = append(s.Peers, RoutePeerStatus{
-				ID:       e.peer.id,
-				Host:     e.peer.lastHost,
-				Priority: e.priority,
-				State:    e.peer.state(),
-				Implicit: e.implicit,
-			})
+			c := e.peer.available()
+			ps := RoutePeerStatus{
+				ID:        e.peer.id,
+				Host:      e.peer.lastHost,
+				Priority:  e.priority,
+				State:     e.peer.state(),
+				Implicit:  e.implicit,
+				Available: c != nil && c.supports(key.app),
+			}
+
+			if ps.Host == "" && e.peer.cfg != nil {
+				ps.Host = e.peer.cfg.Host
+			}
+
+			s.Peers = append(s.Peers, ps)
 		}
 
 		statuses = append(statuses, s)

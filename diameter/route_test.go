@@ -524,3 +524,57 @@ func TestSendFailsOverBetweenDefaultRoutes(t *testing.T) {
 		t.Fatalf("End-to-End %d then %d, flags %#x", first.EndToEndID, second.EndToEndID, second.Flags)
 	}
 }
+
+func TestRoutesReportWhetherAPeerNegotiatedTheApplication(t *testing.T) {
+	kind := TransportTCP
+	agent := newServer(t, kind, "dra.example.org", loopback2, nil)
+
+	p := agent.peer(kind, 0)
+	p.Applications = []Application{sgdApp, otherApp}
+	p.Routes = append(p.Routes, Route{Realm: routeRealm, Application: otherAppID})
+
+	client := newClient(t)
+	setPeers(t, client, p)
+	waitOpen(t, client, agent.host)
+
+	available := make(map[uint32]bool)
+
+	for _, r := range client.Routes() {
+		if len(r.Peers) != 1 || r.Peers[0].State != PeerOpen || r.Peers[0].Host != agent.host {
+			t.Fatalf("route = %+v", r)
+		}
+
+		available[r.Application] = r.Peers[0].Available
+	}
+
+	// The agent supports only the first application: Send would not use it for the other.
+	if !available[testAppID] || available[otherAppID] {
+		t.Fatalf("available = %v", available)
+	}
+
+	other := routed()
+	other.ApplicationID = otherAppID
+
+	if _, err := client.Send(context.Background(), other, FailFast()); !errors.Is(err, ErrApplicationUnsupported) {
+		t.Fatalf("Send = %v", err)
+	}
+}
+
+func TestRoutesReportAPeerThatIsDownAsUnavailable(t *testing.T) {
+	client := newClient(t)
+	setPeers(t, client, Peer{
+		ID: "dra", Host: "dra.example.org", Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportTCP},
+		Applications: []Application{sgdApp}, Routes: []Route{{Realm: routeRealm, Application: testAppID}},
+		Dial: &Dial{Port: 1},
+	})
+
+	routes := client.Routes()
+	if len(routes) != 1 || len(routes[0].Peers) != 1 {
+		t.Fatalf("Routes = %+v", routes)
+	}
+
+	// A configured peer that never connected shows its configured host.
+	if p := routes[0].Peers[0]; p.Available || p.State == PeerOpen || p.Host != "dra.example.org" {
+		t.Fatalf("route peer = %+v", p)
+	}
+}
