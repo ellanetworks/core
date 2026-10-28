@@ -20,6 +20,13 @@ const (
 	CommandSessionTermination        = diameter.CommandSessionTermination
 )
 
+func init() {
+	diameter.RegisterMethod(ApplicationID, CommandAA, "Rx/AA")
+	diameter.RegisterMethod(ApplicationID, CommandReAuth, "Rx/Re-Auth")
+	diameter.RegisterMethod(ApplicationID, CommandAbortSession, "Rx/Abort-Session")
+	diameter.RegisterMethod(ApplicationID, CommandSessionTermination, "Rx/Session-Termination")
+}
+
 const (
 	AVPAbortCause                           uint32 = 500
 	AVPAccessNetworkChargingAddress         uint32 = 501

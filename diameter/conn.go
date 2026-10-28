@@ -70,6 +70,8 @@ type Conn struct {
 	parkedCER    *Message
 	lastError    atomic.Pointer[string]
 
+	tracesContext bool
+
 	pendingSlot bool
 	unordered   atomic.Bool
 	requests    chan struct{}
@@ -375,25 +377,33 @@ func (c *Conn) receiveRequest(m *Message) {
 	}
 
 	if code != 0 {
-		c.send(c.Answer(m, code))
+		c.reject(m, code)
 		return
 	}
 
 	select {
 	case c.requests <- struct{}{}:
 	default:
-		c.send(c.Answer(m, UnavailableResult(m)))
+		c.reject(m, UnavailableResult(m))
 		return
 	}
 
 	if code := c.n.admit(m); code != 0 {
 		<-c.requests
-		c.send(c.Answer(m, code))
+		c.reject(m, code)
 
 		return
 	}
 
 	go c.serve(m)
+}
+
+func (c *Conn) reject(req *Message, resultCode uint32) {
+	_, span := c.startServerSpan(req)
+	ans := c.Answer(req, resultCode)
+
+	c.send(ans)
+	endServerSpan(span, ans)
 }
 
 func (c *Conn) receiveMalformed(m *Message, err error) {
@@ -531,6 +541,7 @@ func (c *Conn) handleCER(req *Message) {
 
 	c.peerHost = host.UTF8String()
 	c.peerRealm = realm.UTF8String()
+	c.tracesContext = advertisesTraceContext(req.AVPs)
 
 	d := c.n.acceptCER(c, c.peerHost, req)
 
@@ -605,6 +616,7 @@ func (c *Conn) handleCEA(ans *Message) {
 
 	c.peerHost = host.UTF8String()
 	c.peerRealm = realm.UTF8String()
+	c.tracesContext = advertisesTraceContext(ans.AVPs)
 
 	displaced, ok := c.n.acceptCEA(c, c.peerHost, common)
 
@@ -674,19 +686,27 @@ func (c *Conn) serve(req *Message) {
 	}
 
 	after := &afterAnswer{}
+	ctx, span := c.startServerSpan(req)
 
-	b, err := c.handle(req, after).Marshal()
+	ans := c.handle(ctx, req, after)
+
+	b, err := ans.Marshal()
 	if err != nil {
 		c.logger().Error("failed to encode Diameter answer", slog.Any("error", err))
 
-		b, _ = c.Answer(req, ResultUnableToComply).Marshal()
+		ans = c.Answer(req, ResultUnableToComply)
+		b, _ = ans.Marshal()
 	}
 
 	c.n.duplicates.finish(entry, b)
-	after.run(c, c.writeRaw(b))
+
+	err = c.writeRaw(b)
+
+	endServerSpan(span, ans)
+	after.run(c, err)
 }
 
-func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
+func (c *Conn) handle(ctx context.Context, req *Message, after *afterAnswer) (ans *Message) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger().Error("panic handling Diameter request",
@@ -696,7 +716,7 @@ func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
 		}
 	}()
 
-	ctx := context.WithValue(c.ctx, afterAnswerKey{}, after)
+	ctx = context.WithValue(ctx, afterAnswerKey{}, after)
 
 	if c.n.cfg.HandlerTimeout > 0 {
 		var cancel context.CancelFunc
@@ -716,6 +736,7 @@ func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
 func (c *Conn) exchange(ctx context.Context, req *Message, failover bool) (*Message, error) {
 	m := *req
 	m.HopByHopID = c.hopByHop.Add(1)
+	c.traceRequest(ctx, &m)
 
 	ch := make(chan *Message, 1)
 
@@ -827,12 +848,12 @@ func (c *Conn) capabilityAVPs() []AVP {
 
 	seenVendors := make(map[uint32]bool)
 
-	vendors := make([]uint32, 0, len(c.localApps)+len(c.localVendors))
+	vendors := make([]uint32, 0, len(c.localApps)+len(c.localVendors)+1)
 	for _, app := range c.localApps {
 		vendors = append(vendors, app.VendorID)
 	}
 
-	for _, vendor := range append(vendors, c.localVendors...) {
+	for _, vendor := range append(append(vendors, c.localVendors...), EllaVendorID) {
 		if vendor != 0 && !seenVendors[vendor] {
 			seenVendors[vendor] = true
 			avps = append(avps, Unsigned32(AVPSupportedVendorID, AVPFlagMandatory, 0, vendor))

@@ -4,6 +4,7 @@
 package diameter
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -15,7 +16,10 @@ var (
 	ErrNotProxiable = errors.New("diameter: request not proxiable")
 )
 
-func (n *Node) Relay(ctx context.Context, req *Message, from, host, realm string, opts ...RequestOption) (*Message, error) {
+func (n *Node) Relay(ctx context.Context, req *Message, from, host, realm string, opts ...RequestOption) (relayed *Message, err error) {
+	ctx, span := n.startClientSpan(ctx, req, cmp.Or(host, realm))
+	defer func() { endClientSpan(span, relayed, err) }()
+
 	if req.Flags&FlagProxiable == 0 {
 		return nil, ErrNotProxiable
 	}

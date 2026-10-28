@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/binary"
 	"net/netip"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -697,8 +698,8 @@ func TestCEAAdvertisesThePeerSupportedVendors(t *testing.T) {
 				got = append(got, v)
 			}
 
-			if len(got) != 2 || got[0] != sgdApp.VendorID || got[1] != 13019 {
-				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019]", got, sgdApp.VendorID)
+			if !slices.Equal(got, []uint32{sgdApp.VendorID, 13019, EllaVendorID}) {
+				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019 %d]", got, sgdApp.VendorID, EllaVendorID)
 			}
 		})
 	}
@@ -732,8 +733,8 @@ func TestCEAAdvertisesTheUnknownPeerSupportedVendors(t *testing.T) {
 				got = append(got, v)
 			}
 
-			if len(got) != 2 || got[0] != otherApp.VendorID || got[1] != 13019 {
-				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019]", got, otherApp.VendorID)
+			if !slices.Equal(got, []uint32{otherApp.VendorID, 13019, EllaVendorID}) {
+				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019 %d]", got, otherApp.VendorID, EllaVendorID)
 			}
 		})
 	}
