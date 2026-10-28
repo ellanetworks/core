@@ -36,7 +36,7 @@ export const imsServicePresets: IMSServicePreset[] = [
     name: "mcptt",
     label: "MCPTT",
     description:
-      "MCPTT server: third-party registration and originating MCPTT sessions",
+      "For the MCPTT registration set. MCPTT server: third-party registration and originating MCPTT sessions",
     suggestServer: (servers, homeDomain) =>
       servers.find(
         (s) => !!homeDomain && s.server_name === `sip:mcptt.${homeDomain}`,
@@ -69,6 +69,47 @@ export const imsServicePresets: IMSServicePreset[] = [
           ],
         },
         default_handling: "SESSION_TERMINATED",
+      },
+    ],
+  },
+  {
+    name: "sms-over-ip",
+    label: "SMS over IP",
+    description:
+      "For the MMTel registration set. IP-SM-GW: third-party registration and originating short messages",
+    suggestServer: (servers, homeDomain) =>
+      servers.find(
+        (s) => !!homeDomain && s.server_name === `sip:ipsmgw.${homeDomain}`,
+      ) ?? servers.find((s) => s.name === "ip-sm-gw"),
+    initial_filter_criteria: [
+      {
+        trigger: {
+          conditions_match: "all",
+          groups: [{ conditions: [{ method: "REGISTER" }] }],
+        },
+        default_handling: "SESSION_CONTINUED",
+        include_register_request: true,
+        include_register_response: true,
+      },
+      {
+        trigger: {
+          conditions_match: "all",
+          groups: [
+            {
+              conditions: [
+                { method: "MESSAGE" },
+                { session_case: "ORIGINATING_REGISTERED" },
+                {
+                  sip_header: {
+                    header: "^Content-Type$",
+                    content: "^application/vnd\\.3gpp\\.sms$",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        default_handling: "SESSION_CONTINUED",
       },
     ],
   },

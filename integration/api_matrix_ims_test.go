@@ -13,8 +13,9 @@ import (
 )
 
 type imsState struct {
-	ApplicationServers    []client.IMSApplicationServer
-	InitialFilterCriteria []client.IMSInitialFilterCriterion
+	ApplicationServers []client.IMSApplicationServer
+	ServiceProfiles    []client.IMSServiceProfile
+	Assigned           client.ProfileIMSServiceProfiles
 }
 
 func readIMSState(ctx context.Context, t *testing.T, c *client.Client, profile string) imsState {
@@ -25,12 +26,17 @@ func readIMSState(ctx context.Context, t *testing.T, c *client.Client, profile s
 		t.Fatalf("list IMS application servers: %v", err)
 	}
 
-	ifcs, err := c.GetProfileIMSFilterCriteria(ctx, profile)
+	serviceProfiles, err := c.ListIMSServiceProfiles(ctx)
 	if err != nil {
-		t.Fatalf("get the initial filter criteria of profile %s: %v", profile, err)
+		t.Fatalf("list IMS service profiles: %v", err)
 	}
 
-	state := imsState{ApplicationServers: []client.IMSApplicationServer{}, InitialFilterCriteria: ifcs.InitialFilterCriteria}
+	assigned, err := c.GetProfileIMSServiceProfiles(ctx, profile)
+	if err != nil {
+		t.Fatalf("get the IMS service profiles of profile %s: %v", profile, err)
+	}
+
+	state := imsState{ApplicationServers: []client.IMSApplicationServer{}, ServiceProfiles: []client.IMSServiceProfile{}, Assigned: *assigned}
 
 	for _, as := range servers.Items {
 		if strings.HasPrefix(as.Name, apiMatrixName("")) {
@@ -38,16 +44,32 @@ func readIMSState(ctx context.Context, t *testing.T, c *client.Client, profile s
 		}
 	}
 
+	for _, sp := range serviceProfiles.Items {
+		if strings.HasPrefix(sp.Name, apiMatrixName("")) {
+			state.ServiceProfiles = append(state.ServiceProfiles, sp)
+		}
+	}
+
 	return state
 }
 
 func cleanupIMS(ctx context.Context, t *testing.T, c *client.Client, profile string) {
-	if err := c.SetProfileIMSFilterCriteria(ctx, profile, nil); err != nil {
-		t.Logf("cleanup: clear the initial filter criteria of profile %s: %v", profile, err)
+	if err := c.SetProfileIMSServiceProfiles(ctx, profile, &client.ProfileIMSServiceProfiles{}); err != nil {
+		t.Logf("cleanup: clear the IMS service profiles of profile %s: %v", profile, err)
 	}
 
 	if err := c.DeleteProfile(ctx, &client.DeleteProfileOptions{Name: profile}); err != nil {
 		t.Logf("cleanup: delete profile %s: %v", profile, err)
+	}
+
+	if serviceProfiles, err := c.ListIMSServiceProfiles(ctx); err == nil {
+		for _, sp := range serviceProfiles.Items {
+			if strings.HasPrefix(sp.Name, apiMatrixName("")) {
+				if err := c.DeleteIMSServiceProfile(ctx, sp.Name); err != nil {
+					t.Logf("cleanup: delete IMS service profile %s: %v", sp.Name, err)
+				}
+			}
+		}
 	}
 
 	if servers, err := c.ListIMSApplicationServers(ctx); err == nil {
@@ -111,6 +133,7 @@ type imsMatrixStep struct {
 func imsMatrixSteps(ctx context.Context, profile string) []imsMatrixStep {
 	mcpttAS := apiMatrixName("ims-as-mcptt")
 	confAS := apiMatrixName("ims-as-conf")
+	sp := apiMatrixName("ims-sp-mcptt")
 
 	asMCPTT := client.IMSApplicationServer{Name: mcpttAS, ServerName: "sip:mcptt.ims.example.org", PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.example.org"}}
 	asConf := client.IMSApplicationServer{Name: confAS, ServerName: "sip:conf.ims.example.org", PublicServiceIdentities: []string{}}
@@ -122,7 +145,13 @@ func imsMatrixSteps(ctx context.Context, profile string) []imsMatrixStep {
 	mcptt := imsMatrixMCPTTCriteria(mcpttAS)
 	conf := imsMatrixConferenceCriterion(confAS, "^sip:conference@.*$")
 	confUpdated := imsMatrixConferenceCriterion(confAS, "^sip:conf@.*$")
-	none := []client.IMSInitialFilterCriterion{}
+	none := []client.IMSServiceProfile{}
+	unassigned := client.ProfileIMSServiceProfiles{}
+	assigned := client.ProfileIMSServiceProfiles{MCPTT: &sp}
+
+	serviceProfile := func(ifcs ...client.IMSInitialFilterCriterion) []client.IMSServiceProfile {
+		return []client.IMSServiceProfile{{Name: sp, InitialFilterCriteria: prioritized(ifcs...)}}
+	}
 
 	return []imsMatrixStep{
 		{
@@ -137,7 +166,7 @@ func imsMatrixSteps(ctx context.Context, profile string) []imsMatrixStep {
 
 				return err
 			},
-			want: imsState{ApplicationServers: servers, InitialFilterCriteria: none},
+			want: imsState{ApplicationServers: servers, ServiceProfiles: none, Assigned: unassigned},
 		},
 		{
 			name:   "update_application_server",
@@ -145,39 +174,49 @@ func imsMatrixSteps(ctx context.Context, profile string) []imsMatrixStep {
 			apply: func(c *client.Client) error {
 				return c.UpdateIMSApplicationServer(ctx, confAS, &client.UpdateIMSApplicationServerOptions{ServerName: asConfUpdated.ServerName, PublicServiceIdentities: asConfUpdated.PublicServiceIdentities})
 			},
-			want: imsState{ApplicationServers: serversUpdated, InitialFilterCriteria: none},
+			want: imsState{ApplicationServers: serversUpdated, ServiceProfiles: none, Assigned: unassigned},
 		},
 		{
-			name:   "set_filter_criteria",
+			name:   "create_service_profile",
 			writer: 2,
 			apply: func(c *client.Client) error {
-				return c.SetProfileIMSFilterCriteria(ctx, profile, append(append([]client.IMSInitialFilterCriterion{}, mcptt...), conf))
+				_, err := c.CreateIMSServiceProfile(ctx, &client.CreateIMSServiceProfileOptions{Name: sp, InitialFilterCriteria: append(append([]client.IMSInitialFilterCriterion{}, mcptt...), conf)})
+
+				return err
 			},
-			want: imsState{ApplicationServers: serversUpdated, InitialFilterCriteria: prioritized(append(append([]client.IMSInitialFilterCriterion{}, mcptt...), conf)...)},
+			want: imsState{ApplicationServers: serversUpdated, ServiceProfiles: serviceProfile(append(append([]client.IMSInitialFilterCriterion{}, mcptt...), conf)...), Assigned: unassigned},
+		},
+		{
+			name:   "assign_service_profile",
+			writer: 0,
+			apply: func(c *client.Client) error {
+				return c.SetProfileIMSServiceProfiles(ctx, profile, &assigned)
+			},
+			want: imsState{ApplicationServers: serversUpdated, ServiceProfiles: serviceProfile(append(append([]client.IMSInitialFilterCriterion{}, mcptt...), conf)...), Assigned: assigned},
 		},
 		{
 			name:   "reorder_and_change_filter_criteria",
-			writer: 0,
+			writer: 1,
 			apply: func(c *client.Client) error {
-				return c.SetProfileIMSFilterCriteria(ctx, profile, append([]client.IMSInitialFilterCriterion{confUpdated}, mcptt...))
+				return c.UpdateIMSServiceProfile(ctx, sp, &client.UpdateIMSServiceProfileOptions{InitialFilterCriteria: append([]client.IMSInitialFilterCriterion{confUpdated}, mcptt...)})
 			},
-			want: imsState{ApplicationServers: serversUpdated, InitialFilterCriteria: prioritized(append([]client.IMSInitialFilterCriterion{confUpdated}, mcptt...)...)},
+			want: imsState{ApplicationServers: serversUpdated, ServiceProfiles: serviceProfile(append([]client.IMSInitialFilterCriterion{confUpdated}, mcptt...)...), Assigned: assigned},
 		},
 		{
 			name:   "drop_a_filter_criterion",
-			writer: 1,
+			writer: 2,
 			apply: func(c *client.Client) error {
-				return c.SetProfileIMSFilterCriteria(ctx, profile, mcptt)
+				return c.UpdateIMSServiceProfile(ctx, sp, &client.UpdateIMSServiceProfileOptions{InitialFilterCriteria: mcptt})
 			},
-			want: imsState{ApplicationServers: serversUpdated, InitialFilterCriteria: prioritized(mcptt...)},
+			want: imsState{ApplicationServers: serversUpdated, ServiceProfiles: serviceProfile(mcptt...), Assigned: assigned},
 		},
 		{
 			name:   "delete_application_server",
-			writer: 2,
+			writer: 0,
 			apply: func(c *client.Client) error {
 				return c.DeleteIMSApplicationServer(ctx, confAS)
 			},
-			want: imsState{ApplicationServers: []client.IMSApplicationServer{asMCPTT}, InitialFilterCriteria: prioritized(mcptt...)},
+			want: imsState{ApplicationServers: []client.IMSApplicationServer{asMCPTT}, ServiceProfiles: serviceProfile(mcptt...), Assigned: assigned},
 		},
 	}
 }
@@ -219,11 +258,20 @@ func runIMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 
 		if err := c.DeleteIMSApplicationServer(ctx, mcpttAS); err == nil {
-			t.Fatal("an application server a profile uses was deleted")
+			t.Fatal("an application server a service profile uses was deleted")
 		}
 
-		if err := c.SetProfileIMSFilterCriteria(ctx, profile, []client.IMSInitialFilterCriterion{{ApplicationServerName: apiMatrixName("ims-as-missing")}}); err == nil {
-			t.Fatal("a profile was given an initial filter criterion towards an unknown application server")
+		if err := c.DeleteIMSServiceProfile(ctx, apiMatrixName("ims-sp-mcptt")); err == nil {
+			t.Fatal("a service profile a profile uses was deleted")
+		}
+
+		if err := c.UpdateIMSServiceProfile(ctx, apiMatrixName("ims-sp-mcptt"), &client.UpdateIMSServiceProfileOptions{InitialFilterCriteria: []client.IMSInitialFilterCriterion{{ApplicationServerName: apiMatrixName("ims-as-missing")}}}); err == nil {
+			t.Fatal("a service profile was given an initial filter criterion towards an unknown application server")
+		}
+
+		missing := apiMatrixName("ims-sp-missing")
+		if err := c.SetProfileIMSServiceProfiles(ctx, profile, &client.ProfileIMSServiceProfiles{MMTel: &missing}); err == nil {
+			t.Fatal("a profile was given an unknown service profile")
 		}
 
 		_, err := c.GetIMSApplicationServer(ctx, apiMatrixName("ims-as-missing"))

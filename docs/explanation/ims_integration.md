@@ -47,16 +47,19 @@ An IMS data network carries the phones' SIP signalling and call media. Any data 
 
 ## IMS identities
 
-Ella Core derives each subscriber's IMS identities from its existing data. No IMS-specific provisioning is needed.
+Ella Core derives each subscriber's IMS identities from its existing data.
 
-| Identity | Format | Example |
-| -------- | ------ | ------- |
-| Private identity (IMPI) | `<imsi>@<IMS home domain>` | `001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
-| Public identity (IMPU), default | `sip:+<msisdn>@<IMS home domain>` | `sip:+15551230001@ims.mnc001.mcc001.3gppnetwork.org` |
-| Public identity (IMPU) | `tel:+<msisdn>` | `tel:+15551230001` |
-| Public identity (IMPU), barred | `sip:<private identity>` | `sip:001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
+| Identity | Registration set | Format | Example |
+| -------- | ---------------- | ------ | ------- |
+| Private identity (IMPI) | | `<imsi>@<IMS home domain>` | `001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
+| Public identity (IMPU), default | MMTel | `sip:+<msisdn>@<IMS home domain>` | `sip:+15551230001@ims.mnc001.mcc001.3gppnetwork.org` |
+| Public identity (IMPU) | MMTel | `tel:+<msisdn>` | `tel:+15551230001` |
+| Public identity (IMPU), barred | MMTel | `sip:<private identity>` | `sip:001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
+| Public identity (IMPU) | MCPTT | `sip:mcptt-<msisdn>@<IMS home domain>` | `sip:mcptt-15551230001@ims.mnc001.mcc001.3gppnetwork.org` |
 
 The IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, built from the operator's PLMN ID.
+
+The phone's IMS client registers the MMTel identities, for voice and SMS. An MCPTT client registers the MCPTT identity, from the same SIM. Both stay registered only if the phone's IMS client registers with a `reg-id`.
 
 A subscriber without an MSISDN has no usable public identity and cannot make or receive calls.
 
@@ -75,20 +78,22 @@ A policy on another IMS data network, such as one for mission critical services,
 
 On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
 
-## Application servers and filter criteria
+## Application servers and service profiles
 
 Services such as MCPTT run on application servers: SIP servers that the S-CSCF sends some of a subscriber's requests to. Each application server has:
 
 - A **server name**: the SIP URI the S-CSCF sends requests to.
 - **Public Service Identities (PSIs)**: the SIP or tel URIs the server hosts, either distinct or wildcarded to cover a range of identities. Requests addressed to a PSI go straight to its application server.
 
-Each profile has an ordered list of **IMS initial filter criteria**. A filter criterion sends the requests of the profile's subscribers that match its trigger, such as a SIP method or header, to an application server. The S-CSCF evaluates them in the profile's order.
+An **IMS service profile** is an ordered list of **initial filter criteria**. A filter criterion sends the requests that match its trigger, such as a SIP method or header, to an application server.
 
-Changes to a profile's filter criteria, an application server's server name, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
+A profile gives its subscribers one service profile for their MMTel identities and one for their MCPTT identity. Without an MCPTT service profile, MCPTT is off.
 
-### MCPTT filter criteria
+Changes to service profiles, application servers, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
 
-MCPTT needs two filter criteria, both to the MCPTT server:
+### MCPTT service profile
+
+The MCPTT service profile has two filter criteria, both to the MCPTT server:
 
 1. **Registration**: tells the MCPTT server when a subscriber registers or de-registers. If the MCPTT server can't be reached, the IMS registration still succeeds.
 2. **Originating MCPTT sessions**: sends the subscriber's MCPTT calls to the MCPTT server. If the MCPTT server can't be reached, the call fails.
@@ -137,7 +142,7 @@ Each node of a [High Availability](high_availability.md) cluster is a separate D
 - [Integrate with an IMS](../how_to/integrate_with_ims.md) — step-by-step guide to connect Ella Core to an IMS.
 - [Enable Voice](../how_to/enable_voice.md) — step-by-step guide to enable voice and video calls.
 - [Enable MCPTT](../how_to/enable_mcptt.md) — step-by-step guide to serve MCPTT.
-- [Operator API reference](../reference/api/operator.md) — P-CSCF addresses, voice status, and IMS application servers.
-- [Profiles API reference](../reference/api/profiles.md) — IMS initial filter criteria.
+- [Operator API reference](../reference/api/operator.md) — P-CSCF addresses, voice status, IMS application servers, and IMS service profiles.
+- [Profiles API reference](../reference/api/profiles.md) — IMS service profiles of each registration set.
 - [Subscribers API reference](../reference/api/subscribers.md) — IMS identities and registration state.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported Cx and Rx procedures.

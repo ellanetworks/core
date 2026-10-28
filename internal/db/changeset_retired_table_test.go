@@ -178,7 +178,7 @@ func TestApplyChangeset_UnfilteredRetiredTableWouldConflict(t *testing.T) {
 func TestApplyForwardedOperation_RejectsRetiredOps(t *testing.T) {
 	database := newAtomicTestDB(t)
 
-	for _, opName := range []string{"InsertAuditLog", "DeleteOldAuditLogs"} {
+	for _, opName := range []string{"InsertAuditLog", "DeleteOldAuditLogs", "CompareAndSwapIMSRegistration"} {
 		t.Run(opName, func(t *testing.T) {
 			_, err := database.ApplyForwardedOperation(t.Context(), opName, []byte(`{}`))
 			if err == nil {

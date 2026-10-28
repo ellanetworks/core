@@ -514,7 +514,7 @@ This path creates an IMS application server.
 
 - `name` (string): The name of the application server.
 - `server_name` (string): The SIP URI of the application server.
-- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be a subscriber's tel URI, or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`).
+- `public_service_identities` (optional array of strings): The SIP or tel URIs the application server hosts. A wildcarded identity uses the `!regex!` syntax, for example `sip:!.*!@mcptt.ims.example.org`. Identities are stored in canonical form: lowercase scheme and host, no URI parameters, and tel numbers without visual separators. An identity can't be hosted by, or overlap one of, another application server, be or cover a subscriber's public identity (`sip:+<msisdn>@<IMS home domain>`, `tel:+<msisdn>` or `sip:mcptt-<msisdn>@<IMS home domain>`), or take the form of a subscriber identity (`sip:<IMSI>@<IMS home domain>`).
 
 ### Sample Request
 
@@ -562,7 +562,7 @@ Same as [Create an IMS Application Server](#create-an-ims-application-server), w
 
 ## Delete an IMS Application Server
 
-This path deletes an IMS application server. An application server used by a profile's initial filter criteria can't be deleted.
+This path deletes an IMS application server. An application server used by the initial filter criteria of a service profile can't be deleted.
 
 | Method | Path                                                |
 | ------ | --------------------------------------------------- |
@@ -578,6 +578,166 @@ None
 {
     "result": {
         "message": "Application server deleted successfully"
+    }
+}
+```
+
+## List IMS Service Profiles
+
+This path returns the IMS service profiles, sorted by name.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| GET    | `/api/v1/operator/ims/service-profiles` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "name": "mcptt",
+                "initial_filter_criteria": [
+                    {
+                        "priority": 0,
+                        "application_server_name": "mcptt",
+                        "trigger": {
+                            "conditions_match": "all",
+                            "groups": [{"conditions": [{"method": "REGISTER"}]}]
+                        },
+                        "default_handling": "SESSION_CONTINUED",
+                        "include_register_request": true,
+                        "include_register_response": true
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+## Get an IMS Service Profile
+
+This path returns an IMS service profile.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| GET    | `/api/v1/operator/ims/service-profiles/{name}` |
+
+### Parameters
+
+None
+
+## Create an IMS Service Profile
+
+This path creates an IMS service profile.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| POST   | `/api/v1/operator/ims/service-profiles` |
+
+### Parameters
+
+- `name` (string): The name of the service profile.
+- `initial_filter_criteria` (optional array): In priority order ([TS 29.228 Annex B.2.2](https://www.3gpp.org/DynaReport/29228.htm)). Each criterion has:
+    - `application_server_name` (string): The name of the [IMS application server](#create-an-ims-application-server) matching requests are sent to.
+    - `trigger` (optional object): Without it, the criterion matches every request.
+        - `conditions_match` (string): `all` if a group matches when all of its conditions match, and the trigger matches when any group matches. `any` if a group matches when any of its conditions matches, and the trigger matches when every group matches.
+        - `groups` (array): Groups of `conditions`. Each condition has an optional `negated` (boolean) and exactly one of `request_uri` (string), `method` (string), `sip_header` (`{header, content}`), `session_case` (`ORIGINATING_REGISTERED`, `TERMINATING_REGISTERED`, `TERMINATING_UNREGISTERED`, `ORIGINATING_UNREGISTERED` or `ORIGINATING_CDIV`) and `session_description` (`{line, content}`). With the `REGISTER` method, `registration_types` lists up to two of `INITIAL_REGISTRATION`, `RE-REGISTRATION` and `DE-REGISTRATION`. Request URIs, headers, lines and contents are extended regular expressions.
+    - `profile_part` (optional string): `REGISTERED` or `UNREGISTERED`, the part of the user profile the criterion belongs to. Omitted for both.
+    - `default_handling` (optional string): `SESSION_CONTINUED` or `SESSION_TERMINATED`, what the S-CSCF does when the application server can't be reached.
+    - `service_info` (optional string): Passed transparently to the application server.
+    - `include_register_request` (optional boolean)
+    - `include_register_response` (optional boolean)
+
+The `priority` of a criterion is its position in the list. It is returned on reads and ignored on writes.
+
+### Sample Request
+
+```json
+{
+    "name": "conference",
+    "initial_filter_criteria": [
+        {
+            "application_server_name": "conference",
+            "trigger": {
+                "conditions_match": "all",
+                "groups": [{"conditions": [{"request_uri": "^sip:conference@.*$"}]}]
+            },
+            "default_handling": "SESSION_TERMINATED"
+        }
+    ]
+}
+```
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "name": "conference",
+        "initial_filter_criteria": [
+            {
+                "priority": 0,
+                "application_server_name": "conference",
+                "trigger": {
+                    "conditions_match": "all",
+                    "groups": [{"conditions": [{"request_uri": "^sip:conference@.*$"}]}]
+                },
+                "default_handling": "SESSION_TERMINATED",
+                "include_register_request": false,
+                "include_register_response": false
+            }
+        ]
+    }
+}
+```
+
+## Update an IMS Service Profile
+
+This path replaces the initial filter criteria of an IMS service profile. Registered subscribers whose profile assigns it get the new user profile.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| PUT    | `/api/v1/operator/ims/service-profiles/{name}` |
+
+### Parameters
+
+- `initial_filter_criteria` (array): In priority order, as in [Create an IMS Service Profile](#create-an-ims-service-profile). An empty list removes all of them.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Service profile updated successfully"
+    }
+}
+```
+
+## Delete an IMS Service Profile
+
+This path deletes an IMS service profile. A service profile a profile assigns can't be deleted.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| DELETE | `/api/v1/operator/ims/service-profiles/{name}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Service profile deleted successfully"
     }
 }
 ```

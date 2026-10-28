@@ -103,9 +103,10 @@ type IMSSubscription struct {
 }
 
 type PublicIdentity struct {
-	Identity  string `json:"identity"`
-	Barred    bool   `json:"barred"`
-	UserState string `json:"user_state"`
+	Identity        string `json:"identity"`
+	Barred          bool   `json:"barred"`
+	RegistrationSet string `json:"registration_set"`
+	UserState       string `json:"user_state"`
 }
 
 type SubscriberCredentials struct {
@@ -998,7 +999,7 @@ func imsSubscriptionFrom(s *hss.IMSSubscription) *IMSSubscription {
 	out := &IMSSubscription{PrivateIdentity: s.PrivateIdentity, SCSCFName: s.SCSCFName, PublicIdentities: make([]PublicIdentity, 0, len(s.PublicIdentities))}
 
 	for _, p := range s.PublicIdentities {
-		out.PublicIdentities = append(out.PublicIdentities, PublicIdentity{Identity: p.Identity, Barred: p.Barred, UserState: string(p.UserState)})
+		out.PublicIdentities = append(out.PublicIdentities, PublicIdentity{Identity: p.Identity, Barred: p.Barred, RegistrationSet: string(p.RegistrationSet), UserState: string(p.UserState)})
 	}
 
 	return out

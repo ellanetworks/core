@@ -148,7 +148,7 @@ func runIMSRegistrationWithService(ctx context.Context, env scenarios.Env) error
 
 	defer as.Close()
 
-	cleanup, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.IMSProfileName, as.URI())
+	cleanup, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.IMSProfileName, scenarios.MMTelSet, as.URI())
 	if err != nil {
 		return err
 	}

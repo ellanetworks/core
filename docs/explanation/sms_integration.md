@@ -22,7 +22,7 @@ Ella Core connects to each SMSC over Diameter (SCTP), and plays two roles:
 | MME (4G) / SMSF (5G) | SGd | Carrying messages between the phones and the SMSC. |
 | HSS | S6c | Telling the SMSC where to deliver messages, and when a phone can receive them again. |
 
-Messages travel between the phone and Ella Core inside NAS signalling (SMS over NAS).
+Messages travel between the phone and Ella Core inside NAS signalling (SMS over NAS), or between the phone and the IMS's IP-SM-GW over SIP (SMS over IP).
 
 ## Who can use SMS
 
@@ -36,8 +36,8 @@ On 5G, the phone asks for SMS when it registers. On 4G, the phone asks with a co
 
 ## Delivery
 
-- **Sending**: Ella Core forwards the phone's message over SGd to the SMSC that serves the SMSC number stored on the phone's SIM.
-- **Receiving**: The SMSC asks Ella Core over S6c where the recipient is served, then sends the message over SGd. Ella Core pages the phone if it is idle and delivers the message.
+- **Sending**: Ella Core forwards the phone's message over SGd to the SMSC that serves the SMSC number stored on the phone's SIM. Ella Core rejects a message whose SMSC number is not an international E.164 number.
+- **Receiving**: The SMSC asks Ella Core over S6c where the recipient is served, then sends the message over SGd. Ella Core pages the phone if it is idle and delivers the message. While an IP-SM-GW is registered for the recipient, Ella Core passes the SMSC's request to the IP-SM-GW, which delivers the message over the IMS.
 - **Undelivered messages**: When the phone is unreachable or its memory is full, Ella Core records that a message is waiting, and alerts the SMSC over S6c once the phone can receive it.
 
 ## In an HA cluster

@@ -81,8 +81,12 @@ func TestDataNetworksAndPoliciesBeforeV25(t *testing.T) {
 		t.Fatalf("list application servers = %d, err %v; want empty", len(servers), err)
 	}
 
-	if ifcs, err := d.ListProfileIMSFilterCriteria(ctx, policy.ProfileID); err != nil || len(ifcs) != 0 {
-		t.Fatalf("list profile iFCs = %d, err %v; want empty", len(ifcs), err)
+	if profiles, err := d.ListIMSServiceProfiles(ctx); err != nil || len(profiles) != 0 {
+		t.Fatalf("list service profiles = %d, err %v; want empty", len(profiles), err)
+	}
+
+	if assigned, err := d.GetProfileIMSServiceProfiles(ctx, policy.ProfileID); err != nil || len(assigned) != 0 {
+		t.Fatalf("profile service profiles = %v, err %v; want none", assigned, err)
 	}
 
 	as := &IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.example.org"}
@@ -90,7 +94,11 @@ func TestDataNetworksAndPoliciesBeforeV25(t *testing.T) {
 		t.Fatalf("create application server: err = %v, want ErrMigrationPending", err)
 	}
 
-	if err := d.SetProfileIMSFilterCriteria(ctx, policy.ProfileID, nil); !errors.Is(err, ErrMigrationPending) {
-		t.Fatalf("set profile iFCs: err = %v, want ErrMigrationPending", err)
+	if err := d.CreateIMSServiceProfile(ctx, &IMSServiceProfile{Name: "volte"}); !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("create service profile: err = %v, want ErrMigrationPending", err)
+	}
+
+	if err := d.SetProfileIMSServiceProfiles(ctx, policy.ProfileID, map[IMSRegistrationSet]string{IMSRegistrationSetMMTel: "volte"}); !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("set profile service profiles: err = %v, want ErrMigrationPending", err)
 	}
 }

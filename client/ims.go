@@ -71,11 +71,34 @@ type IMSInitialFilterCriterion struct {
 	IncludeRegisterResponse bool        `json:"include_register_response"`
 }
 
-type ProfileIMSFilterCriteria struct {
+type IMSServiceProfile struct {
+	Name                  string                      `json:"name"`
 	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
 }
 
-const imsApplicationServersPath = "api/v1/operator/ims/application-servers"
+type ListIMSServiceProfilesResponse struct {
+	Items []IMSServiceProfile `json:"items"`
+}
+
+type CreateIMSServiceProfileOptions struct {
+	Name                  string                      `json:"name"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+}
+
+type UpdateIMSServiceProfileOptions struct {
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+}
+
+// ProfileIMSServiceProfiles names the IMS service profile of each implicit registration set of a profile's subscribers.
+type ProfileIMSServiceProfiles struct {
+	MMTel *string `json:"mmtel"`
+	MCPTT *string `json:"mcptt"`
+}
+
+const (
+	imsApplicationServersPath = "api/v1/operator/ims/application-servers"
+	imsServiceProfilesPath    = "api/v1/operator/ims/service-profiles"
+)
 
 func (c *Client) imsRequest(ctx context.Context, method, path string, payload any, result any) error {
 	opts := &RequestOptions{
@@ -154,21 +177,64 @@ func (c *Client) DeleteIMSApplicationServer(ctx context.Context, name string) er
 	return c.imsRequest(ctx, "DELETE", imsApplicationServersPath+"/"+url.PathEscape(name), nil, nil)
 }
 
-func (c *Client) GetProfileIMSFilterCriteria(ctx context.Context, profileName string) (*ProfileIMSFilterCriteria, error) {
-	var ifcs ProfileIMSFilterCriteria
+func (c *Client) ListIMSServiceProfiles(ctx context.Context) (*ListIMSServiceProfilesResponse, error) {
+	var list ListIMSServiceProfilesResponse
 
-	if err := c.imsRequest(ctx, "GET", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-filter-criteria", nil, &ifcs); err != nil {
+	if err := c.imsRequest(ctx, "GET", imsServiceProfilesPath, nil, &list); err != nil {
 		return nil, err
 	}
 
-	return &ifcs, nil
+	return &list, nil
 }
 
-func (c *Client) SetProfileIMSFilterCriteria(ctx context.Context, profileName string, ifcs []IMSInitialFilterCriterion) error {
-	payload := ProfileIMSFilterCriteria{InitialFilterCriteria: ifcs}
+func (c *Client) GetIMSServiceProfile(ctx context.Context, name string) (*IMSServiceProfile, error) {
+	var sp IMSServiceProfile
+
+	if err := c.imsRequest(ctx, "GET", imsServiceProfilesPath+"/"+url.PathEscape(name), nil, &sp); err != nil {
+		return nil, err
+	}
+
+	return &sp, nil
+}
+
+func (c *Client) CreateIMSServiceProfile(ctx context.Context, opts *CreateIMSServiceProfileOptions) (*IMSServiceProfile, error) {
+	payload := *opts
 	if payload.InitialFilterCriteria == nil {
 		payload.InitialFilterCriteria = []IMSInitialFilterCriterion{}
 	}
 
-	return c.imsRequest(ctx, "PUT", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-filter-criteria", payload, nil)
+	var sp IMSServiceProfile
+
+	if err := c.imsRequest(ctx, "POST", imsServiceProfilesPath, payload, &sp); err != nil {
+		return nil, err
+	}
+
+	return &sp, nil
+}
+
+func (c *Client) UpdateIMSServiceProfile(ctx context.Context, name string, opts *UpdateIMSServiceProfileOptions) error {
+	payload := *opts
+	if payload.InitialFilterCriteria == nil {
+		payload.InitialFilterCriteria = []IMSInitialFilterCriterion{}
+	}
+
+	return c.imsRequest(ctx, "PUT", imsServiceProfilesPath+"/"+url.PathEscape(name), payload, nil)
+}
+
+func (c *Client) DeleteIMSServiceProfile(ctx context.Context, name string) error {
+	return c.imsRequest(ctx, "DELETE", imsServiceProfilesPath+"/"+url.PathEscape(name), nil, nil)
+}
+
+func (c *Client) GetProfileIMSServiceProfiles(ctx context.Context, profileName string) (*ProfileIMSServiceProfiles, error) {
+	var assigned ProfileIMSServiceProfiles
+
+	if err := c.imsRequest(ctx, "GET", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-service-profiles", nil, &assigned); err != nil {
+		return nil, err
+	}
+
+	return &assigned, nil
+}
+
+func (c *Client) SetProfileIMSServiceProfiles(ctx context.Context, profileName string, assigned *ProfileIMSServiceProfiles) error {
+	return c.imsRequest(ctx, "PUT", "api/v1/profiles/"+url.PathEscape(profileName)+"/ims-service-profiles", assigned, nil)
 }

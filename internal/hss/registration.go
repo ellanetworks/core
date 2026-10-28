@@ -6,6 +6,7 @@ package hss
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -17,13 +18,24 @@ const (
 	Unregistered
 )
 
+type RegistrationSet string
+
+const (
+	MMTel RegistrationSet = "mmtel"
+	MCPTT RegistrationSet = "mcptt"
+)
+
 type Registration struct {
-	State           State
 	ServerName      string
-	AuthPending     bool
 	OriginHost      string
 	OriginRealm     string
 	PrivateIdentity string
+	Sets            map[RegistrationSet]SetRegistration
+}
+
+type SetRegistration struct {
+	State           State
+	AuthPending     bool
 	DefaultIdentity string
 	ProfileDigest   string
 	Emergency       bool
@@ -44,7 +56,90 @@ func sameRegistration(a, b *Registration) bool {
 		return a == nil && b == nil
 	}
 
-	return *a == *b
+	return sameAssignment(a, b) && maps.Equal(a.Sets, b.Sets)
+}
+
+func sameAssignment(a, b *Registration) bool {
+	return a.ServerName == b.ServerName && a.OriginHost == b.OriginHost && a.OriginRealm == b.OriginRealm && a.PrivateIdentity == b.PrivateIdentity
+}
+
+func (r *Registration) set(name RegistrationSet) (SetRegistration, bool) {
+	if r == nil {
+		return SetRegistration{}, false
+	}
+
+	s, ok := r.Sets[name]
+
+	return s, ok
+}
+
+func (r *Registration) registered() bool {
+	if r == nil {
+		return false
+	}
+
+	for _, s := range r.Sets {
+		if s.State != NotRegistered {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *Registration) clone() *Registration {
+	next := *r
+	next.Sets = maps.Clone(r.Sets)
+
+	if next.Sets == nil {
+		next.Sets = make(map[RegistrationSet]SetRegistration)
+	}
+
+	return &next
+}
+
+func (r *Registration) with(name RegistrationSet, s SetRegistration) *Registration {
+	next := r.clone()
+	next.Sets[name] = s
+
+	return next
+}
+
+func (r *Registration) unregistered(names []RegistrationSet) *Registration {
+	next := r.clone()
+
+	for _, name := range names {
+		s, ok := next.Sets[name]
+
+		switch {
+		case !ok:
+		case s.State == NotRegistered:
+			delete(next.Sets, name)
+		default:
+			s.State, s.AuthPending = Unregistered, false
+			next.Sets[name] = s
+		}
+	}
+
+	return next
+}
+
+func (r *Registration) without(names []RegistrationSet) *Registration {
+	if r == nil || len(names) == 0 {
+		return nil
+	}
+
+	next := r.clone()
+
+	for _, name := range names {
+		delete(next.Sets, name)
+	}
+
+	if len(next.Sets) == 0 {
+		return nil
+	}
+
+	return next
 }
 
 func (h *HSS) updateRegistration(ctx context.Context, imsi string, next func(current *Registration) (*Registration, error)) error {

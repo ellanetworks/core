@@ -18,7 +18,7 @@ interfaces:
     address: "10.3.0.2"
 ```
 
-In a [high availability cluster](deploy_ha_cluster.md), use the same `port` on every node.
+In a [high availability cluster](deploy_ha_cluster.md), use the same `interfaces.diameter.port` on every node.
 
 Restart Ella Core.
 

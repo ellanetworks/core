@@ -6,6 +6,8 @@ package hss
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
@@ -37,28 +39,44 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 
 	af := tgpp.ParseEnvelope(req).Origin
 
+	set := sub.requestedSet()
+
+	var moved *Registration
+
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
+		moved = nil
+
 		if r.Resync != nil && (current == nil || current.ServerName != r.ServerName) {
 			return nil, errResyncFromAnotherServer
 		}
 
-		if current != nil && current.State == Registered && current.ServerName == r.ServerName {
+		previous, known := current.set(set)
+
+		if known && previous.State == Registered && current.ServerName == r.ServerName {
 			return current, nil
 		}
 
-		next := Registration{State: NotRegistered, ServerName: r.ServerName, AuthPending: true, OriginHost: af.OriginHost, OriginRealm: af.OriginRealm}
+		pending := SetRegistration{State: NotRegistered, AuthPending: true}
 
-		if current != nil && current.ServerName == r.ServerName {
-			next.State, next.Emergency = current.State, current.Emergency
-			next.PrivateIdentity, next.DefaultIdentity, next.ProfileDigest = current.PrivateIdentity, current.DefaultIdentity, current.ProfileDigest
+		if current == nil || current.ServerName != r.ServerName {
+			if current.registered() {
+				moved = current
+			}
+
+			next := &Registration{ServerName: r.ServerName, OriginHost: af.OriginHost, OriginRealm: af.OriginRealm}
+
+			return next.with(set, pending), nil
 		}
 
-		if current != nil && current.State != NotRegistered && current.ServerName != r.ServerName {
-			h.log.Info("IMS subscriber moved to another S-CSCF; the previous S-CSCF is not notified",
-				zap.String("imsi", sub.IMSI), zap.String("previous", current.ServerName), zap.String("serverName", r.ServerName))
+		if known {
+			pending.State, pending.Emergency = previous.State, previous.Emergency
+			pending.DefaultIdentity, pending.ProfileDigest = previous.DefaultIdentity, previous.ProfileDigest
 		}
 
-		return &next, nil
+		next := current.with(set, pending)
+		next.OriginHost, next.OriginRealm = af.OriginHost, af.OriginRealm
+
+		return next, nil
 	})
 	if errors.Is(err, errResyncFromAnotherServer) {
 		h.log.Info("IMS AKA resynchronisation from an S-CSCF other than the assigned one", zap.String("imsi", sub.IMSI), zap.String("serverName", r.ServerName))
@@ -68,6 +86,13 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 
 	if err != nil {
 		return h.errorAnswer(req, id, "multimedia auth", err)
+	}
+
+	if moved != nil {
+		h.log.Info("IMS subscriber moved to another S-CSCF; de-registering it at the previous one",
+			zap.String("imsi", sub.IMSI), zap.String("previous", moved.ServerName), zap.String("serverName", r.ServerName))
+
+		go h.newServerAssigned(context.WithoutCancel(ctx), sub.IMSI, moved)
 	}
 
 	var resync *udm.IMSResync
@@ -101,4 +126,21 @@ func (h *HSS) MultimediaAuth(ctx context.Context, id diameter.Identity, req *dia
 	}
 
 	return ans
+}
+
+func (h *HSS) newServerAssigned(ctx context.Context, imsi string, previous *Registration) {
+	var sets []RegistrationSet
+
+	for _, set := range slices.Sorted(maps.Keys(previous.Sets)) {
+		if previous.Sets[set].State != NotRegistered {
+			sets = append(sets, set)
+		}
+	}
+
+	t := termination(imsi, previous, cx.ReasonNewServerAssigned, sets)
+	if len(t.PublicIdentities) == 0 {
+		return
+	}
+
+	_ = h.Terminate(ctx, t)
 }

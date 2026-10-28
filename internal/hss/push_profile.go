@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,17 +44,17 @@ func (c change) String() string {
 	}
 }
 
-func decide(reg *Registration, sub *subject, p *profile) change {
-	terminated := !sub.entitled() || p.privateIdentity != reg.PrivateIdentity
+func decide(reg *Registration, s SetRegistration, p *profile) change {
+	terminated := p == nil || p.privateIdentity != reg.PrivateIdentity
 
 	switch {
-	case terminated && reg.Emergency:
+	case terminated && s.Emergency:
 		return changeNone
 	case terminated:
 		return changePermanentTermination
-	case p.defaultIdentity != reg.DefaultIdentity && reg.State == Registered:
+	case p.defaultIdentity != s.DefaultIdentity && s.State == Registered:
 		return changeServerChange
-	case p.digest != reg.ProfileDigest || p.defaultIdentity != reg.DefaultIdentity:
+	case p.digest != s.ProfileDigest || p.defaultIdentity != s.DefaultIdentity:
 		return changePush
 	default:
 		return changeNone
@@ -65,7 +67,7 @@ func (h *HSS) Reconcile(ctx context.Context, imsi string) error {
 		return err
 	}
 
-	if reg == nil || reg.State == NotRegistered || reg.ServerName == "" || reg.OriginHost == "" {
+	if !reg.registered() || reg.ServerName == "" || reg.OriginHost == "" {
 		return nil
 	}
 
@@ -85,32 +87,48 @@ func (h *HSS) Reconcile(ctx context.Context, imsi string) error {
 
 	s := &subject{Subscriber: *sub, domain: strings.ToLower(domain)}
 
-	p, err := h.profileOf(ctx, s)
-	if err != nil {
-		return err
+	var errs []error
+
+	for _, set := range slices.Sorted(maps.Keys(reg.Sets)) {
+		if reg.Sets[set].State != NotRegistered {
+			errs = append(errs, h.reconcileSet(ctx, imsi, reg, s, set))
+		}
 	}
 
-	c := decide(reg, s, p)
+	return errors.Join(errs...)
+}
+
+func (h *HSS) reconcileSet(ctx context.Context, imsi string, reg *Registration, s *subject, set RegistrationSet) error {
+	var p *profile
+
+	if s.entitled(set) {
+		var err error
+		if p, err = h.profileOf(ctx, s, set); err != nil {
+			return err
+		}
+	}
+
+	c := decide(reg, reg.Sets[set], p)
 
 	switch c {
 	case changeNone:
 		return nil
 	case changePush:
-		return h.pushProfile(ctx, imsi, reg, p)
+		return h.pushProfile(ctx, imsi, reg, set, p)
 	default:
 		reason := cx.ReasonPermanentTermination
 		if c == changeServerChange {
 			reason = cx.ReasonServerChange
 		}
 
-		h.log.Info("IMS subscription changed; de-registering the user", zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost),
-			zap.Stringer("change", c))
+		h.log.Info("IMS subscription changed; de-registering the user", zap.String("imsi", imsi), zap.String("registrationSet", string(set)),
+			zap.String("serverHost", reg.OriginHost), zap.Stringer("change", c))
 
-		return h.Terminate(ctx, termination(imsi, reg, reason))
+		return h.Terminate(ctx, termination(imsi, reg, reason, []RegistrationSet{set}))
 	}
 }
 
-func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, p *profile) error {
+func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, set RegistrationSet, p *profile) error {
 	pushCtx, cancel := context.WithTimeout(ctx, pushProfileTimeout)
 	defer cancel()
 
@@ -143,17 +161,15 @@ func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, p
 	switch {
 	case r.Success():
 		pushes.WithLabelValues(pushDelivered).Inc()
-		h.log.Info("IMS user profile pushed", zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
+		h.log.Info("IMS user profile pushed", zap.String("imsi", imsi), zap.String("registrationSet", string(set)), zap.String("serverHost", reg.OriginHost))
 
 		return h.updateRegistration(context.WithoutCancel(ctx), imsi, func(current *Registration) (*Registration, error) {
-			if !sameAssignment(current, reg) {
+			s, ok := current.set(set)
+			if !ok || !sameSet(current, reg, set) {
 				return current, nil
 			}
 
-			next := *current
-			next.DefaultIdentity, next.ProfileDigest = p.defaultIdentity, p.digest
-
-			return &next, nil
+			return current.with(set, delivered(s, p)), nil
 		})
 	case r.Code == diameter.ResultCommandUnsupported:
 		pushes.WithLabelValues(pushUnsupported).Inc()
@@ -166,14 +182,14 @@ func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, p
 		h.log.Warn("the S-CSCF rejected the IMS user profile; de-registering the user so that another S-CSCF is assigned",
 			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost), zap.Stringer("result", r))
 
-		return h.Terminate(context.WithoutCancel(ctx), termination(imsi, reg, cx.ReasonServerChange))
+		return h.Terminate(context.WithoutCancel(ctx), termination(imsi, reg, cx.ReasonServerChange, nil))
 	case r.IsExperimental(tgpp.ResultErrorUserUnknown):
 		pushes.WithLabelValues(pushUserUnknown).Inc()
 		h.log.Warn("the S-CSCF does not know the user; marking it not registered",
 			zap.String("imsi", imsi), zap.String("serverHost", reg.OriginHost))
 
 		return h.updateRegistration(context.WithoutCancel(ctx), imsi, func(current *Registration) (*Registration, error) {
-			if !sameAssignment(current, reg) {
+			if !sameSet(current, reg, set) {
 				return current, nil
 			}
 
@@ -191,8 +207,15 @@ func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, p
 	}
 }
 
-func sameAssignment(current, reg *Registration) bool {
-	return current != nil && *current == *reg
+func sameSet(current, reg *Registration, set RegistrationSet) bool {
+	if current == nil || !sameAssignment(current, reg) {
+		return false
+	}
+
+	c, ok := current.set(set)
+	r, expected := reg.set(set)
+
+	return ok == expected && c == r
 }
 
 func (h *HSS) send(ctx context.Context, reg *Registration, p *profile) (tgpp.Result, error) {

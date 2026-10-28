@@ -36,7 +36,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditProfileModal from "@/components/EditProfileModal";
-import ProfileIMSFilterCriteriaCard from "@/components/ProfileIMSFilterCriteriaCard";
+import ProfileIMSServiceProfilesCard from "@/components/ProfileIMSServiceProfilesCard";
 import CreatePolicyModal from "@/components/CreatePolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
@@ -351,9 +351,12 @@ const ProfileDetail: React.FC = () => {
               </CardContent>
             </Card>
 
-            <ProfileIMSFilterCriteriaCard
+            <ProfileIMSServiceProfilesCard
               profileName={profile.name}
               canEdit={canEdit}
+              policyDataNetworks={policiesQuery.data?.items?.map(
+                (p) => p.data_network_name,
+              )}
             />
 
             {isEditModalOpen && (

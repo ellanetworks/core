@@ -71,8 +71,13 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("get profile: %s", err)
 	}
 
-	if err := database.SetProfileIMSFilterCriteria(ctx, profile.ID, append([]db.IMSInitialFilterCriterion{other}, mcpttIFCs(mcpttAS.ID)...)); err != nil {
-		t.Fatalf("set profile iFCs: %s", err)
+	sp := &db.IMSServiceProfile{Name: "mc", InitialFilterCriteria: append([]db.IMSInitialFilterCriterion{other}, mcpttIFCs(mcpttAS.ID)...)}
+	if err := database.CreateIMSServiceProfile(ctx, sp); err != nil {
+		t.Fatalf("create service profile: %s", err)
+	}
+
+	if err := database.SetProfileIMSServiceProfiles(ctx, profile.ID, map[db.IMSRegistrationSet]string{db.IMSRegistrationSetMMTel: sp.ID}); err != nil {
+		t.Fatalf("assign service profile: %s", err)
 	}
 
 	subscriber := &db.Subscriber{
@@ -83,7 +88,7 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("create subscriber: %s", err)
 	}
 
-	ifcs, err := database.ListSubscriberIMSFilterCriteria(ctx, subscriber.Imsi)
+	ifcs, err := database.ListSubscriberIMSFilterCriteria(ctx, subscriber.Imsi, db.IMSRegistrationSetMMTel)
 	if err != nil {
 		t.Fatalf("ListSubscriberIMSFilterCriteria: %s", err)
 	}
@@ -101,7 +106,7 @@ func TestSubscriberFilterCriteriaKeepTheirOrder_TS29228_B22(t *testing.T) {
 		t.Fatalf("iFC priorities %v, servers %v; want the other server's iFC first, then the two MCPTT iFCs", priorities, servers)
 	}
 
-	none, err := database.ListSubscriberIMSFilterCriteria(ctx, "001010000000002")
+	none, err := database.ListSubscriberIMSFilterCriteria(ctx, "001010000000002", db.IMSRegistrationSetMMTel)
 	if err != nil || len(none) != 0 {
 		t.Fatalf("iFCs of an unknown subscriber = %v, %v", none, err)
 	}
@@ -157,8 +162,8 @@ func imsNotifierDatabase(t *testing.T, registrations map[string]string) *db.Data
 		}
 
 		reg := &db.IMSRegistration{
-			IMSI: imsi, State: db.IMSRegistered, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org",
-			PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest",
+			IMSI: imsi, ServerName: "sip:" + host, OriginHost: host, OriginRealm: "ims.example.org", PrivateIdentity: imsi + "@ims.example.org",
+			Sets: map[db.IMSRegistrationSet]db.IMSSetRegistration{db.IMSRegistrationSetMMTel: {State: db.IMSRegistered, ProfileDigest: "digest"}},
 		}
 		if _, swapped, err := database.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err != nil || !swapped {
 			t.Fatalf("store the IMS registration of %s: swapped %t, %v", imsi, swapped, err)
@@ -199,6 +204,60 @@ func TestIMSProfileNotifierReconcilesEachSubscriberOnce(t *testing.T) {
 
 	if got := reconciler.seen()[2:]; !slices.Equal(got, []string{"001010000000002", "001010000000001"}) {
 		t.Fatalf("reconciled %v after the next changes, want each registered subscriber once more", got)
+	}
+}
+
+func TestIMSProfileNotifierFollowsServiceProfiles(t *testing.T) {
+	ctx := context.Background()
+	database := imsNotifierDatabase(t, map[string]string{
+		"001010000000001": "scscf.example.org",
+		"001010000000002": "",
+	})
+
+	as := &db.IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.example.org"}
+	if err := database.CreateIMSApplicationServer(ctx, as); err != nil {
+		t.Fatalf("create application server: %s", err)
+	}
+
+	sp := &db.IMSServiceProfile{Name: "mcptt", InitialFilterCriteria: mcpttIFCs(as.ID)}
+	if err := database.CreateIMSServiceProfile(ctx, sp); err != nil {
+		t.Fatalf("create service profile: %s", err)
+	}
+
+	reconciler := &recordingReconciler{}
+	n := newIMSProfileNotifier(database, reconciler)
+
+	n.ServiceProfileChanged(ctx, sp.ID)
+	n.ApplicationServerChanged(ctx, as.ID)
+
+	for n.step(ctx) {
+	}
+
+	if got := reconciler.seen(); len(got) != 0 {
+		t.Fatalf("reconciled %v for a service profile no profile uses", got)
+	}
+
+	profile, err := database.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get profile: %s", err)
+	}
+
+	if err := database.SetProfileIMSServiceProfiles(ctx, profile.ID, map[db.IMSRegistrationSet]string{db.IMSRegistrationSetMCPTT: sp.ID}); err != nil {
+		t.Fatalf("assign service profile: %s", err)
+	}
+
+	n.ServiceProfileChanged(ctx, sp.ID)
+
+	for n.step(ctx) {
+	}
+
+	n.ApplicationServerChanged(ctx, as.ID)
+
+	for n.step(ctx) {
+	}
+
+	if got := reconciler.seen(); !slices.Equal(got, []string{"001010000000001", "001010000000001"}) {
+		t.Fatalf("reconciled %v, want the registered subscriber after each change", got)
 	}
 }
 

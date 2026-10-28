@@ -12,9 +12,11 @@ const api = setupApiServer();
 
 const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
 const AS_PATH = "/api/v1/operator/ims/application-servers";
+const SP_PATH = "/api/v1/operator/ims/service-profiles";
 
 beforeEach(() => {
   api.get(AS_PATH, () => ({ items: [] }));
+  api.get(SP_PATH, () => ({ items: [] }));
 });
 
 const operator = (
@@ -418,7 +420,7 @@ describe("Operator IMS application servers", () => {
     const user = userEvent.setup();
     api.get(AS_PATH, () => ({ items: [mcpttAS] }));
     api.delete(`${AS_PATH}/mcptt`, () =>
-      httpError(409, "Application server is used by a profile"),
+      httpError(409, "Application server is used by a service profile"),
     );
     renderIMS();
 
@@ -431,9 +433,100 @@ describe("Operator IMS application servers", () => {
 
     expect(
       await screen.findByText(
-        "Failed to delete application server: Application server is used by a profile",
+        "Failed to delete application server: Application server is used by a service profile",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+const mcpttSP = {
+  name: "mcptt",
+  initial_filter_criteria: [
+    {
+      priority: 1,
+      application_server_name: "mcptt",
+      default_handling: "SESSION_TERMINATED",
+    },
+    {
+      priority: 0,
+      application_server_name: "ip-sm-gw",
+      default_handling: "SESSION_CONTINUED",
+    },
+    {
+      priority: 2,
+      application_server_name: "mcptt",
+      default_handling: "SESSION_CONTINUED",
+    },
+  ],
+};
+
+describe("Operator IMS service profiles", () => {
+  it("lists each service profile with its application servers", async () => {
+    api.get(SP_PATH, () => ({
+      items: [mcpttSP, { name: "empty", initial_filter_criteria: [] }],
+    }));
+    renderIMS();
+
+    const mcpttRow = (await screen.findByText("ip-sm-gw, mcptt")).closest(
+      "tr",
+    )!;
+    expect(mcpttRow).toHaveTextContent("mcptt");
+    expect(screen.getByText("empty").closest("tr")!).toHaveTextContent("None");
+  });
+
+  it("adds a service profile", async () => {
+    const user = userEvent.setup();
+    api.post(SP_PATH, () => ({}));
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add service profile" }),
+    );
+    const dialog = within(
+      await screen.findByRole("dialog", { name: "Add Service Profile" }),
+    );
+    await user.type(dialog.getByRole("textbox", { name: "Name" }), "volte");
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+
+    await screen.findByText("Service profile added successfully.");
+    expect(
+      api.requests(SP_PATH).find((r) => r.method === "POST")?.body,
+    ).toEqual({ name: "volte", initial_filter_criteria: [] });
+  });
+
+  it("reports a service profile still assigned", async () => {
+    const user = userEvent.setup();
+    api.get(SP_PATH, () => ({ items: [mcpttSP] }));
+    api.delete(`${SP_PATH}/mcptt`, () =>
+      httpError(409, "Service profile is assigned to a profile"),
+    );
+    renderIMS();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete service profile mcptt",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(
+      await screen.findByText(
+        "Failed to delete service profile: Service profile is assigned to a profile",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides service profile writes from a read-only user", async () => {
+    api.get(SP_PATH, () => ({ items: [mcpttSP] }));
+    renderIMS("Read Only");
+
+    expect(await screen.findByText("ip-sm-gw, mcptt")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add service profile" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Edit service profile/ }),
+    ).not.toBeInTheDocument();
   });
 });
 

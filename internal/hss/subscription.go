@@ -18,9 +18,10 @@ const (
 )
 
 type PublicIdentity struct {
-	Identity  string
-	Barred    bool
-	UserState UserState
+	Identity        string
+	Barred          bool
+	RegistrationSet RegistrationSet
+	UserState       UserState
 }
 
 type IMSSubscription struct {
@@ -50,30 +51,35 @@ func (h *HSS) Subscription(ctx context.Context, imsi string) (*IMSSubscription, 
 	}
 
 	s := subject{Subscriber: *sub, domain: strings.ToLower(domain)}
-	state := userState(reg)
 
 	out := &IMSSubscription{PrivateIdentity: s.privateIdentity()}
 
-	if reg != nil && state != UserNotRegistered {
-		out.SCSCFName = reg.ServerName
-	}
+	for _, set := range s.sets() {
+		state := userState(reg, set)
 
-	for _, identity := range s.publicIdentities() {
-		out.PublicIdentities = append(out.PublicIdentities, PublicIdentity{Identity: identity.Identity, Barred: identity.Barred, UserState: state})
+		if state != UserNotRegistered {
+			out.SCSCFName = reg.ServerName
+		}
+
+		for _, identity := range s.publicIdentities(set) {
+			out.PublicIdentities = append(out.PublicIdentities, PublicIdentity{Identity: identity.Identity, Barred: identity.Barred, RegistrationSet: set, UserState: state})
+		}
 	}
 
 	return out, nil
 }
 
-func userState(reg *Registration) UserState {
+func userState(reg *Registration, set RegistrationSet) UserState {
+	s, ok := reg.set(set)
+
 	switch {
-	case reg == nil:
+	case !ok:
 		return UserNotRegistered
-	case reg.State == Registered:
+	case s.State == Registered:
 		return UserRegistered
-	case reg.State == Unregistered:
+	case s.State == Unregistered:
 		return UserRegisteredUnregServices
-	case reg.AuthPending:
+	case s.AuthPending:
 		return UserAuthenticationPending
 	default:
 		return UserNotRegistered

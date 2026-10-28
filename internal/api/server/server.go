@@ -146,8 +146,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateProfile, UpdateProfile(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadProfile, GetProfile(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteProfile, DeleteProfile(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/profiles/{name}/ims-filter-criteria", Authenticate(jwtSecret, dbInstance, Authorize(PermReadProfile, GetProfileIMSFilterCriteria(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/profiles/{name}/ims-filter-criteria", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateProfile, UpdateProfileIMSFilterCriteria(dbInstance, cfg.IMSProfiles))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/profiles/{name}/ims-service-profiles", Authenticate(jwtSecret, dbInstance, Authorize(PermReadProfile, GetProfileIMSServiceProfiles(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/profiles/{name}/ims-service-profiles", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateProfile, UpdateProfileIMSServiceProfiles(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 
 	// Slices (Authenticated)
 	mux.HandleFunc("GET /api/v1/slices", Authenticate(jwtSecret, dbInstance, Authorize(PermListSlices, ListSlices(dbInstance))).ServeHTTP)
@@ -178,6 +178,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/operator/ims/application-servers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, CreateIMSApplicationServer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/ims/application-servers/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateIMSApplicationServer(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/ims/application-servers/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, DeleteIMSApplicationServer(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/ims/service-profiles", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, ListIMSServiceProfiles(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/ims/service-profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetIMSServiceProfile(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/operator/ims/service-profiles", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, CreateIMSServiceProfile(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/ims/service-profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateIMSServiceProfile(dbInstance, cfg.IMSProfiles))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/operator/ims/service-profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, DeleteIMSServiceProfile(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)
