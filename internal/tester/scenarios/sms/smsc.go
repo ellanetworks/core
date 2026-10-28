@@ -21,8 +21,9 @@ const (
 )
 
 type smscClient struct {
-	base string
-	http *http.Client
+	base  string
+	token string
+	http  *http.Client
 }
 
 type smscMessage struct {
@@ -47,7 +48,7 @@ func newSMSC(p *params) (*smscClient, error) {
 		return nil, fmt.Errorf("--smsc-api-address is required")
 	}
 
-	return &smscClient{base: strings.TrimSuffix(p.SMSCAPI, "/"), http: &http.Client{Timeout: 10 * time.Second}}, nil
+	return &smscClient{base: strings.TrimSuffix(p.SMSCAPI, "/"), token: p.SMSCAPIToken, http: &http.Client{Timeout: 10 * time.Second}}, nil
 }
 
 func (c *smscClient) do(ctx context.Context, method, path string, body any, out any) error {
@@ -68,6 +69,10 @@ func (c *smscClient) do(ctx context.Context, method, path string, body any, out 
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
