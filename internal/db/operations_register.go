@@ -50,7 +50,8 @@ var (
 
 var (
 	retiredChangesetOps = map[string]struct{}{
-		"InsertAuditLog": {},
+		"InsertAuditLog":                {},
+		"CompareAndSwapIMSRegistration": {},
 	}
 
 	retiredIntentOps = map[string]struct{}{
@@ -191,15 +192,21 @@ var (
 
 var opReplacePCSCFAddresses = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
 
-var opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistration", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(23))
+var (
+	_                               = registerChangesetOp("CompareAndSwapIMSRegistration", (*Database).applyRetiredCompareAndSwapIMSRegistration, RequireSchema(23))
+	opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistrationSets", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(25))
+)
 
 var (
-	opCreateIMSApplicationServer  = registerChangesetOp("CreateIMSApplicationServer", (*Database).applyCreateIMSApplicationServer, RequireSchema(25))
-	opUpdateIMSApplicationServer  = registerChangesetOp("UpdateIMSApplicationServer", (*Database).applyUpdateIMSApplicationServer, RequireSchema(25))
-	opDeleteIMSApplicationServer  = registerChangesetOp("DeleteIMSApplicationServer", (*Database).applyDeleteIMSApplicationServer, RequireSchema(25))
-	opSetProfileIMSFilterCriteria = registerChangesetOp("SetProfileIMSFilterCriteria", (*Database).applySetProfileIMSFilterCriteria, RequireSchema(25))
-	opPutIPSMGWRegistration       = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration, RequireSchema(25))
-	opDeleteIPSMGWRegistration    = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration, RequireSchema(25))
+	opCreateIMSApplicationServer   = registerChangesetOp("CreateIMSApplicationServer", (*Database).applyCreateIMSApplicationServer, RequireSchema(25))
+	opUpdateIMSApplicationServer   = registerChangesetOp("UpdateIMSApplicationServer", (*Database).applyUpdateIMSApplicationServer, RequireSchema(25))
+	opDeleteIMSApplicationServer   = registerChangesetOp("DeleteIMSApplicationServer", (*Database).applyDeleteIMSApplicationServer, RequireSchema(25))
+	opCreateIMSServiceProfile      = registerChangesetOp("CreateIMSServiceProfile", (*Database).applyCreateIMSServiceProfile, RequireSchema(25))
+	opUpdateIMSServiceProfile      = registerChangesetOp("UpdateIMSServiceProfile", (*Database).applyUpdateIMSServiceProfile, RequireSchema(25))
+	opDeleteIMSServiceProfile      = registerChangesetOp("DeleteIMSServiceProfile", (*Database).applyDeleteIMSServiceProfile, RequireSchema(25))
+	opSetProfileIMSServiceProfiles = registerChangesetOp("SetProfileIMSServiceProfiles", (*Database).applySetProfileIMSServiceProfiles, RequireSchema(25))
+	opPutIPSMGWRegistration        = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration, RequireSchema(25))
+	opDeleteIPSMGWRegistration     = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration, RequireSchema(25))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

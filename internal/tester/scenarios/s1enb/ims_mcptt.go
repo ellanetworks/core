@@ -355,7 +355,7 @@ func startMCPTTSession(ctx context.Context, env scenarios.Env, sub scenarios.Sub
 	cleanups = append(cleanups, as.Close)
 	s.as = as
 
-	unprovision, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.MCProfileName, as.URI())
+	unprovision, err := scenarios.ProvisionMCPTTService(ctx, env, scenarios.MCProfileName, scenarios.MCPTTSet, as.URI())
 	if err != nil {
 		return fail(err)
 	}

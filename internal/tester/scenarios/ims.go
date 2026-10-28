@@ -1301,7 +1301,47 @@ func MCFixture(env Env, imsi string) FixtureSpec {
 	}
 }
 
-const MCPTTApplicationServer = "mcptt-as"
+const (
+	MCPTTApplicationServer = "mcptt-as"
+	MCPTTServiceProfile    = "mcptt"
+)
+
+type RegistrationSet string
+
+const (
+	MMTelSet RegistrationSet = "mmtel"
+	MCPTTSet RegistrationSet = "mcptt"
+)
+
+func provisionServiceProfile(ctx context.Context, cl *client.Client, profile string, set RegistrationSet, name string, ifcs []client.IMSInitialFilterCriterion) (func(), error) {
+	previous, err := cl.GetProfileIMSServiceProfiles(ctx, profile)
+	if err != nil {
+		return nil, fmt.Errorf("get the IMS service profiles of profile %s: %w", profile, err)
+	}
+
+	if _, err := cl.CreateIMSServiceProfile(ctx, &client.CreateIMSServiceProfileOptions{Name: name, InitialFilterCriteria: ifcs}); err != nil {
+		return nil, fmt.Errorf("create IMS service profile %s: %w", name, err)
+	}
+
+	cleanup := func() {
+		_ = cl.SetProfileIMSServiceProfiles(context.Background(), profile, previous)
+		_ = cl.DeleteIMSServiceProfile(context.Background(), name)
+	}
+
+	assigned := *previous
+	if set == MCPTTSet {
+		assigned.MCPTT = &name
+	} else {
+		assigned.MMTel = &name
+	}
+
+	if err := cl.SetProfileIMSServiceProfiles(ctx, profile, &assigned); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("give profile %s IMS service profile %s: %w", profile, name, err)
+	}
+
+	return cleanup, nil
+}
 
 func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
 	register, originating := "REGISTER", "ORIGINATING_REGISTERED"
@@ -1326,7 +1366,7 @@ func MCPTTFilterCriteria() []client.IMSInitialFilterCriterion {
 	}
 }
 
-func ProvisionMCPTTService(ctx context.Context, env Env, profile, serverName string) (func(), error) {
+func ProvisionMCPTTService(ctx context.Context, env Env, profile string, set RegistrationSet, serverName string) (func(), error) {
 	cl, err := coreClient(env)
 	if err != nil {
 		return nil, err
@@ -1340,17 +1380,18 @@ func ProvisionMCPTTService(ctx context.Context, env Env, profile, serverName str
 		return nil, fmt.Errorf("create the MCPTT application server: %w", err)
 	}
 
-	cleanup := func() {
-		_ = cl.SetProfileIMSFilterCriteria(context.Background(), profile, nil)
+	unassign, err := provisionServiceProfile(ctx, cl, profile, set, MCPTTServiceProfile, MCPTTFilterCriteria())
+	if err != nil {
 		_ = cl.DeleteIMSApplicationServer(context.Background(), MCPTTApplicationServer)
+
+		return nil, err
 	}
 
-	if err := cl.SetProfileIMSFilterCriteria(ctx, profile, MCPTTFilterCriteria()); err != nil {
-		cleanup()
-		return nil, fmt.Errorf("give profile %s the MCPTT initial filter criteria: %w", profile, err)
-	}
+	return func() {
+		unassign()
 
-	return cleanup, nil
+		_ = cl.DeleteIMSApplicationServer(context.Background(), MCPTTApplicationServer)
+	}, nil
 }
 
 func RequireIMSRegistrationAcrossProfilePushes(ctx context.Context, env Env, sub SubscriberSpec, profile string, pcscf, local netip.Addr, transport sip.Transport) error {
@@ -1374,8 +1415,8 @@ func RequireIMSRegistrationAcrossProfilePushes(ctx context.Context, env Env, sub
 	}
 
 	for _, ifcs := range [][]client.IMSInitialFilterCriterion{nil, MCPTTFilterCriteria()} {
-		if err := cl.SetProfileIMSFilterCriteria(ctx, profile, ifcs); err != nil {
-			return fmt.Errorf("set the %d initial filter criteria of profile %s: %w", len(ifcs), profile, err)
+		if err := cl.UpdateIMSServiceProfile(ctx, MCPTTServiceProfile, &client.UpdateIMSServiceProfileOptions{InitialFilterCriteria: ifcs}); err != nil {
+			return fmt.Errorf("set the %d initial filter criteria of IMS service profile %s: %w", len(ifcs), MCPTTServiceProfile, err)
 		}
 
 		time.Sleep(time.Second)

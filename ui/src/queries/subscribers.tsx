@@ -63,6 +63,7 @@ export type IMSUserState =
 export type IMSPublicIdentity = {
   identity: string;
   barred: boolean;
+  registration_set: "mmtel" | "mcptt";
   user_state: IMSUserState;
 };
 

@@ -49,6 +49,17 @@ func (n *imsProfileNotifier) ProfileChanged(_ context.Context, profileID string)
 	})
 }
 
+func (n *imsProfileNotifier) ServiceProfileChanged(_ context.Context, serviceProfileID string) {
+	n.enqueue(func(ctx context.Context) ([]string, error) {
+		profileIDs, err := n.db.ProfilesUsingIMSServiceProfile(ctx, serviceProfileID)
+		if err != nil {
+			return nil, fmt.Errorf("list the profiles using service profile %s: %w", serviceProfileID, err)
+		}
+
+		return n.db.IMSRegisteredSubscribersOfProfiles(ctx, profileIDs)
+	})
+}
+
 func (n *imsProfileNotifier) SubscriberChanged(_ context.Context, imsi string) {
 	n.enqueue(func(context.Context) ([]string, error) {
 		return []string{imsi}, nil
@@ -65,8 +76,11 @@ func (n *imsProfileNotifier) AllSubscribersChanged(_ context.Context) {
 		imsis := make([]string, 0, len(regs))
 
 		for _, r := range regs {
-			if r.State != db.IMSNotRegistered {
-				imsis = append(imsis, r.IMSI)
+			for _, set := range r.Sets {
+				if set.State != db.IMSNotRegistered {
+					imsis = append(imsis, r.IMSI)
+					break
+				}
 			}
 		}
 

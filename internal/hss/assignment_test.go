@@ -54,8 +54,14 @@ func requireRegistration(t *testing.T, store *fakeIMSStore, want *hss.Registrati
 		return
 	case !ok:
 		t.Fatalf("no registration, want %+v", *want)
-	case got.State != want.State || got.ServerName != want.ServerName || got.AuthPending != want.AuthPending:
+	case got.ServerName != want.ServerName || len(got.Sets) != len(want.Sets):
 		t.Fatalf("registration = %+v, want %+v", got, *want)
+	}
+
+	for set, w := range want.Sets {
+		if g, ok := got.Sets[set]; !ok || g.State != w.State || g.AuthPending != w.AuthPending {
+			t.Fatalf("registration = %+v, want %+v", got, *want)
+		}
 	}
 }
 
@@ -77,7 +83,7 @@ func TestRegistrationAndDeregistration(t *testing.T) {
 	requireResult(t, userAuthorization(t, store, uar), tgpp.Experimental(tgpp.ResultFirstRegistration))
 
 	challenge(t, store, testSCSCF)
-	requireRegistration(t, store, &hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.NotRegistered, AuthPending: true}}})
 
 	if got := store.registrations[testIMSI]; got.OriginHost != cscfIdentity.OriginHost || got.OriginRealm != cscfIdentity.OriginRealm {
 		t.Fatalf("stored origin %q %q", got.OriginHost, got.OriginRealm)
@@ -92,7 +98,7 @@ func TestRegistrationAndDeregistration(t *testing.T) {
 
 	ans = serverAssignment(t, store, register(testIMSI, cx.AssignmentRegistration))
 	requireResult(t, ans, tgpp.Result{Code: diameter.ResultSuccess})
-	requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: testSCSCF})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}})
 
 	sa, err := cx.ParseServerAssignmentAnswer(ans)
 	if err != nil {
@@ -169,7 +175,7 @@ func TestServerAssignmentFromAnotherSCSCFIsRefused(t *testing.T) {
 		}
 	}
 
-	requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: testSCSCF})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}})
 }
 
 func TestChallengeFromAnotherSCSCFMovesTheAssignment(t *testing.T) {
@@ -179,7 +185,7 @@ func TestChallengeFromAnotherSCSCFMovesTheAssignment(t *testing.T) {
 	requireResult(t, serverAssignment(t, store, register(testIMSI, cx.AssignmentRegistration)), tgpp.Result{Code: diameter.ResultSuccess})
 
 	challenge(t, store, otherSCSCF)
-	requireRegistration(t, store, &hss.Registration{State: hss.NotRegistered, ServerName: otherSCSCF, AuthPending: true})
+	requireRegistration(t, store, &hss.Registration{ServerName: otherSCSCF, Sets: sets{hss.MMTel: {State: hss.NotRegistered, AuthPending: true}}})
 
 	stale := register(testIMSI, cx.AssignmentTimeoutDeregistration)
 	requireResult(t, serverAssignment(t, store, stale), tgpp.Experimental(tgpp.ResultErrorIdentityAlreadyRegistered))
@@ -188,7 +194,7 @@ func TestChallengeFromAnotherSCSCFMovesTheAssignment(t *testing.T) {
 	moved.ServerName = otherSCSCF
 
 	requireResult(t, serverAssignment(t, store, moved), tgpp.Result{Code: diameter.ResultSuccess})
-	requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: otherSCSCF})
+	requireRegistration(t, store, &hss.Registration{ServerName: otherSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}})
 }
 
 func TestChallengeOfARegisteredUserKeepsTheRegistration(t *testing.T) {
@@ -198,7 +204,7 @@ func TestChallengeOfARegisteredUserKeepsTheRegistration(t *testing.T) {
 	requireResult(t, serverAssignment(t, store, register(testIMSI, cx.AssignmentRegistration)), tgpp.Result{Code: diameter.ResultSuccess})
 
 	challenge(t, store, testSCSCF)
-	requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: testSCSCF})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}})
 }
 
 func TestAuthenticationFailure(t *testing.T) {
@@ -223,9 +229,9 @@ func TestAuthenticationFailure(t *testing.T) {
 			assigned(t, store, testIMSI, cx.AssignmentUnregisteredUser)
 			challenge(t, store, testSCSCF)
 			requireResult(t, serverAssignment(t, store, register(testIMSI, typ)), tgpp.Result{Code: diameter.ResultSuccess})
-			requireRegistration(t, store, &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF})
+			requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Unregistered}}})
 
-			if reg, _ := registration(t, store, testIMSI); reg.PrivateIdentity != impiOf(testIMSI) || reg.ProfileDigest == "" {
+			if reg, _ := registration(t, store, testIMSI); reg.PrivateIdentity != impiOf(testIMSI) || reg.Sets[hss.MMTel].ProfileDigest == "" {
 				t.Fatalf("registration = %+v, want the identities the S-CSCF knows", reg)
 			}
 		})
@@ -267,7 +273,7 @@ func TestNoAssignment(t *testing.T) {
 		t.Fatalf("NO_ASSIGNMENT answer without User-Data: %v", err)
 	}
 
-	requireRegistration(t, store, &hss.Registration{State: hss.Registered, ServerName: testSCSCF})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}})
 }
 
 func TestUnregisteredUser(t *testing.T) {
@@ -281,7 +287,7 @@ func TestUnregisteredUser(t *testing.T) {
 		t.Fatalf("UNREGISTERED_USER answer %+v, %v", sa, err)
 	}
 
-	requireRegistration(t, store, &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF})
+	requireRegistration(t, store, &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Unregistered}}})
 
 	ans = userAuthorization(t, store, cx.UserAuthorizationRequest{PrivateIdentity: impiOf(testIMSI), PublicIdentity: "tel:+" + testMSISDN})
 	requireResult(t, ans, tgpp.Experimental(tgpp.ResultSubsequentRegistration))

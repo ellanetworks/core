@@ -67,7 +67,7 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **IMS voice and video.** VoLTE on 4G and VoNR on 5G, with an external IMS. EPS fallback from 5G to 4G.
 - **MCPTT.** On-network MCPTT on 4G and 5G, with an external IMS and MCPTT server. QCI/5QI 69 for signalling, 65 for calls, and the Rx MCPTT priority feature.
 - **HSS for the IMS.** User authorization, server assignment, location info, multimedia authentication, registration termination, and push profile over Cx.
-- **User profile.** Initial filter criteria per profile, and distinct and wildcarded Public Service Identities per application server.
+- **User profile.** Two implicit registration sets per subscriber with an MSISDN (MMTel and MCPTT), a service profile with initial filter criteria per set, and distinct and wildcarded Public Service Identities per application server.
 - **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice, video, and MCPTT.
 
 ### Location (beta)

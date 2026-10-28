@@ -85,6 +85,7 @@ func TestProfileUpdateRegistersTheIPSMGW(t *testing.T) {
 		"MSISDN":     {MSISDN: testMSISDN},
 		"tel URI":    {PublicIdentity: "tel:+" + testMSISDN},
 		"SIP of tel": {PublicIdentity: "sip:+" + testMSISDN + "@" + testIMSDomain},
+		"MCPTT":      {PublicIdentity: "sip:mcptt-" + testMSISDN + "@" + testIMSDomain},
 	} {
 		t.Run(name, func(t *testing.T) {
 			store := newFakeIMSStore()

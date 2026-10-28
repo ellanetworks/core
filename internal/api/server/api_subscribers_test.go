@@ -88,9 +88,10 @@ type IMSSubscription struct {
 }
 
 type PublicIdentity struct {
-	Identity  string `json:"identity"`
-	Barred    bool   `json:"barred"`
-	UserState string `json:"user_state"`
+	Identity        string `json:"identity"`
+	Barred          bool   `json:"barred"`
+	RegistrationSet string `json:"registration_set"`
+	UserState       string `json:"user_state"`
 }
 
 type Slice struct {

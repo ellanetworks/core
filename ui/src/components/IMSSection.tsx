@@ -26,11 +26,15 @@ import {
 import type { OperatorIMS } from "@/queries/operator";
 import {
   deleteIMSApplicationServer,
+  deleteIMSServiceProfile,
   listIMSApplicationServers,
+  listIMSServiceProfiles,
   type IMSApplicationServer,
+  type IMSServiceProfile,
 } from "@/queries/ims";
 import EditOperatorIMSModal from "@/components/EditOperatorIMSModal";
 import IMSApplicationServerModal from "@/components/IMSApplicationServerModal";
+import IMSServiceProfileModal from "@/components/IMSServiceProfileModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -63,7 +67,17 @@ const IMSSection: React.FC<IMSSectionProps> = ({
     null,
   );
 
-  const anyModalOpen = editOpen || asModal !== null || asToDelete !== null;
+  const [spModal, setSPModal] = useState<{
+    serviceProfile?: IMSServiceProfile;
+  } | null>(null);
+  const [spToDelete, setSPToDelete] = useState<IMSServiceProfile | null>(null);
+
+  const anyModalOpen =
+    editOpen ||
+    asModal !== null ||
+    asToDelete !== null ||
+    spModal !== null ||
+    spToDelete !== null;
 
   useEffect(() => {
     onModalOpenChange(anyModalOpen);
@@ -80,10 +94,38 @@ const IMSSection: React.FC<IMSSectionProps> = ({
   const servers = serversQuery.data ?? [];
   const serversLoading = serversQuery.isLoading && !serversQuery.data;
 
+  const serviceProfilesQuery = useQuery<IMSServiceProfile[]>({
+    queryKey: ["ims-service-profiles"],
+    enabled: authReady && !!accessToken && !anyModalOpen,
+    refetchInterval: 5000,
+    queryFn: () => listIMSServiceProfiles(accessToken!),
+    placeholderData: (prev) => prev,
+  });
+
+  const serviceProfiles = serviceProfilesQuery.data ?? [];
+  const serviceProfilesLoading =
+    serviceProfilesQuery.isLoading && !serviceProfilesQuery.data;
+
   const addresses = ims?.pcscfAddresses ?? [];
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["ims-application-servers"] });
+  };
+
+  const handleDeleteSP = async () => {
+    if (!spToDelete || !accessToken) return;
+    try {
+      await deleteIMSServiceProfile(accessToken, spToDelete.name);
+      queryClient.invalidateQueries({ queryKey: ["ims-service-profiles"] });
+      showSnackbar("Service profile deleted successfully.", "success");
+    } catch (error) {
+      showSnackbar(
+        `Failed to delete service profile: ${errorMessage(error)}`,
+        "error",
+      );
+    } finally {
+      setSPToDelete(null);
+    }
   };
 
   const handleDeleteAS = async () => {
@@ -158,8 +200,8 @@ const IMSSection: React.FC<IMSSectionProps> = ({
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          SIP servers that receive requests matching a profile's IMS filter
-          criteria.
+          SIP servers that receive requests matching the filter criteria of a
+          service profile.
         </Typography>
         {canEdit && (
           <Button
@@ -245,6 +287,103 @@ const IMSSection: React.FC<IMSSectionProps> = ({
         </Table>
       </TableContainer>
 
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, mt: 4, mb: 2 }}>
+        Service Profiles
+      </Typography>
+      <Stack
+        direction="row"
+        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
+      >
+        <Typography variant="body2" color="textSecondary">
+          Ordered initial filter criteria. Assign one to a profile's MMTel or
+          MCPTT identities on the Profiles page.
+        </Typography>
+        {canEdit && (
+          <Button
+            variant="contained"
+            color="success"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setSPModal({})}
+            aria-label="Add service profile"
+            sx={{ ml: 2, flexShrink: 0 }}
+          >
+            Add Service Profile
+          </Button>
+        )}
+      </Stack>
+      <TableContainer sx={TABLE_CONTAINER_SX}>
+        <Table sx={{ tableLayout: "fixed" }}>
+          <TableBody sx={headerRowSx}>
+            <TableRow>
+              <TableCell sx={{ width: "20%" }}>Name</TableCell>
+              <TableCell>Filter Criteria</TableCell>
+              <TableCell align="right" sx={{ width: 100 }}>
+                Actions
+              </TableCell>
+            </TableRow>
+            {serviceProfilesLoading && (
+              <TableRow>
+                <TableCell colSpan={3}>
+                  <Skeleton variant="text" width={240} />
+                </TableCell>
+              </TableRow>
+            )}
+            {!serviceProfilesLoading && serviceProfiles.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={3}>
+                  <Typography variant="body2" color="textSecondary">
+                    No service profiles yet.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
+            {serviceProfiles.map((sp) => (
+              <TableRow key={sp.name}>
+                <TableCell sx={{ wordBreak: "break-word" }}>
+                  {sp.name}
+                </TableCell>
+                <TableCell sx={{ wordBreak: "break-word" }}>
+                  {sp.initial_filter_criteria.length === 0
+                    ? "None"
+                    : [
+                        ...new Set(
+                          [...sp.initial_filter_criteria]
+                            .sort((a, b) => a.priority - b.priority)
+                            .map((ifc) => ifc.application_server_name),
+                        ),
+                      ].join(", ")}
+                </TableCell>
+                <TableCell align="right">
+                  {canEdit && (
+                    <>
+                      <Tooltip title="Edit service profile" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => setSPModal({ serviceProfile: sp })}
+                          aria-label={`Edit service profile ${sp.name}`}
+                        >
+                          <EditIcon fontSize="small" color="primary" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete service profile" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => setSPToDelete(sp)}
+                          aria-label={`Delete service profile ${sp.name}`}
+                        >
+                          <DeleteIcon fontSize="small" color="primary" />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
       {editOpen && (
         <EditOperatorIMSModal
           open
@@ -271,6 +410,33 @@ const IMSSection: React.FC<IMSSectionProps> = ({
           }}
           applicationServer={asModal.applicationServer}
           homeDomain={ims?.homeDomain}
+        />
+      )}
+      {spModal && (
+        <IMSServiceProfileModal
+          open
+          onClose={() => setSPModal(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({
+              queryKey: ["ims-service-profiles"],
+            });
+            showSnackbar(
+              spModal.serviceProfile
+                ? "Service profile updated successfully."
+                : "Service profile added successfully.",
+              "success",
+            );
+          }}
+          serviceProfile={spModal.serviceProfile}
+        />
+      )}
+      {spToDelete && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setSPToDelete(null)}
+          onConfirm={handleDeleteSP}
+          title="Delete Service Profile"
+          description={`Delete the service profile ${spToDelete.name}?`}
         />
       )}
       {asToDelete && (

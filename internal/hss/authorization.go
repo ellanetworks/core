@@ -26,11 +26,13 @@ func (h *HSS) UserAuthorization(ctx context.Context, id diameter.Identity, req *
 		return h.errorAnswer(req, id, "user authorization", err)
 	}
 
-	if !sub.authorized() && !r.EmergencyRegistration {
+	set := sub.requestedSet()
+
+	if !sub.authorized(set) && !r.EmergencyRegistration {
 		return cx.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultAuthorizationRejected}, 0)
 	}
 
-	if r.AuthorizationType != cx.AuthorizationDeregistration && !r.EmergencyRegistration && !sub.entitled() {
+	if r.AuthorizationType != cx.AuthorizationDeregistration && !r.EmergencyRegistration && !sub.entitled(set) {
 		return cx.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultAuthorizationRejected}, 0)
 	}
 
@@ -46,7 +48,7 @@ func (h *HSS) UserAuthorization(ctx context.Context, id diameter.Identity, req *
 	assigned := reg != nil && reg.ServerName != ""
 
 	if r.AuthorizationType == cx.AuthorizationDeregistration {
-		if !assigned || (reg.State == NotRegistered && !reg.AuthPending) {
+		if s, ok := reg.set(set); !assigned || !ok || (s.State == NotRegistered && !s.AuthPending) {
 			return experimentalAnswer(req, id, tgpp.ResultErrorIdentityNotRegistered)
 		}
 

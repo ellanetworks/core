@@ -14,11 +14,12 @@ import (
 
 func TestSubscription(t *testing.T) {
 	impi := impiOf(testIMSI)
-	identities := func(state hss.UserState) []hss.PublicIdentity {
+	identities := func(mmtel, mcptt hss.UserState) []hss.PublicIdentity {
 		return []hss.PublicIdentity{
-			{Identity: "sip:+" + testMSISDN + "@" + testIMSDomain, UserState: state},
-			{Identity: "tel:+" + testMSISDN, UserState: state},
-			{Identity: "sip:" + impi, Barred: true, UserState: state},
+			{Identity: "sip:+" + testMSISDN + "@" + testIMSDomain, RegistrationSet: hss.MMTel, UserState: mmtel},
+			{Identity: "tel:+" + testMSISDN, RegistrationSet: hss.MMTel, UserState: mmtel},
+			{Identity: "sip:" + impi, Barred: true, RegistrationSet: hss.MMTel, UserState: mmtel},
+			{Identity: "sip:mcptt-" + testMSISDN + "@" + testIMSDomain, RegistrationSet: hss.MCPTT, UserState: mcptt},
 		}
 	}
 
@@ -27,21 +28,31 @@ func TestSubscription(t *testing.T) {
 		reg  *hss.Registration
 		want *hss.IMSSubscription
 	}{
-		{name: "not registered", want: &hss.IMSSubscription{PrivateIdentity: impi, PublicIdentities: identities(hss.UserNotRegistered)}},
+		{name: "not registered", want: &hss.IMSSubscription{PrivateIdentity: impi, PublicIdentities: identities(hss.UserNotRegistered, hss.UserNotRegistered)}},
 		{
 			name: "registered",
-			reg:  &hss.Registration{State: hss.Registered, ServerName: testSCSCF},
-			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserRegistered)},
+			reg:  &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}},
+			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserRegistered, hss.UserNotRegistered)},
 		},
 		{
 			name: "registered for unregistered services",
-			reg:  &hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, AuthPending: true},
-			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserRegisteredUnregServices)},
+			reg:  &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Unregistered, AuthPending: true}}},
+			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserRegisteredUnregServices, hss.UserNotRegistered)},
 		},
 		{
 			name: "authentication pending",
-			reg:  &hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true},
-			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserAuthenticationPending)},
+			reg:  &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.NotRegistered, AuthPending: true}}},
+			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserAuthenticationPending, hss.UserNotRegistered)},
+		},
+		{
+			name: "mcptt registered alone",
+			reg:  &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MCPTT: {State: hss.Registered}}},
+			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserNotRegistered, hss.UserRegistered)},
+		},
+		{
+			name: "both registered",
+			reg:  &hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}, hss.MCPTT: {State: hss.NotRegistered, AuthPending: true}}},
+			want: &hss.IMSSubscription{PrivateIdentity: impi, SCSCFName: testSCSCF, PublicIdentities: identities(hss.UserRegistered, hss.UserAuthenticationPending)},
 		},
 	}
 
@@ -70,7 +81,7 @@ func TestSubscriptionWithoutAnMSISDNHasOnlyTheBarredIdentity(t *testing.T) {
 		t.Fatalf("Subscription: %v", err)
 	}
 
-	want := []hss.PublicIdentity{{Identity: "sip:" + impiOf(testNoMSISDN), Barred: true, UserState: hss.UserNotRegistered}}
+	want := []hss.PublicIdentity{{Identity: "sip:" + impiOf(testNoMSISDN), Barred: true, RegistrationSet: hss.MMTel, UserState: hss.UserNotRegistered}}
 	if got == nil || !reflect.DeepEqual(got.PublicIdentities, want) {
 		t.Fatalf("Subscription = %+v, want public identities %+v", got, want)
 	}
@@ -89,7 +100,7 @@ func TestSubscriptionOfASubscriberWithoutIMS(t *testing.T) {
 
 func TestSubscriptionStaysVisibleWhileRegistered(t *testing.T) {
 	store := newFakeIMSStore()
-	store.registrations[testNoIMS] = hss.Registration{State: hss.Registered, ServerName: testSCSCF}
+	store.registrations[testNoIMS] = hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}}
 
 	got, err := newHSS(store).Subscription(context.Background(), testNoIMS)
 	if err != nil || got == nil || got.SCSCFName != testSCSCF || got.PublicIdentities[0].UserState != hss.UserRegistered {

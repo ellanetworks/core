@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -30,14 +31,19 @@ func createIMSSubscriber(t *testing.T, dbInstance *db.Database, imsi string) {
 	}
 }
 
+type sets = map[db.IMSRegistrationSet]db.IMSSetRegistration
+
 func pendingRegistration(server string) *db.IMSRegistration {
 	return &db.IMSRegistration{
-		State:       db.IMSNotRegistered,
 		ServerName:  server,
-		AuthPending: true,
 		OriginHost:  "scscf.ims.mnc001.mcc001.3gppnetwork.org",
 		OriginRealm: "ims.mnc001.mcc001.3gppnetwork.org",
+		Sets:        sets{db.IMSRegistrationSetMMTel: {State: db.IMSNotRegistered, AuthPending: true}},
 	}
+}
+
+func registeredSet(defaultIdentity string) db.IMSSetRegistration {
+	return db.IMSSetRegistration{State: db.IMSRegistered, DefaultIdentity: defaultIdentity, ProfileDigest: "digest-" + defaultIdentity}
 }
 
 func TestIMSRegistrationCompareAndSwap(t *testing.T) {
@@ -76,10 +82,8 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 	}
 
 	registered := *pending
-	registered.State = db.IMSRegistered
-	registered.AuthPending = false
 	registered.PrivateIdentity = imsi + "@ims.mnc001.mcc001.3gppnetwork.org"
-	registered.ProfileDigest = "digest"
+	registered.Sets = sets{db.IMSRegistrationSetMMTel: registeredSet("sip:+15550001@ims.example.org")}
 
 	if _, swapped, err = dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, pending, &registered); err != nil || !swapped {
 		t.Fatalf("register: swapped=%v err=%v", swapped, err)
@@ -90,9 +94,9 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 		t.Fatalf("get: %v", err)
 	}
 
-	if got.State != db.IMSRegistered || got.AuthPending || got.ServerName != pending.ServerName || got.OriginHost != pending.OriginHost ||
-		got.PrivateIdentity != registered.PrivateIdentity || got.ProfileDigest != registered.ProfileDigest {
-		t.Fatalf("stored registration = %+v", got)
+	registered.IMSI = imsi
+	if !reflect.DeepEqual(got, &registered) {
+		t.Fatalf("stored registration = %+v, want %+v", got, registered)
 	}
 
 	if _, swapped, err = dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, &registered, &registered); err != nil || !swapped {
@@ -109,6 +113,69 @@ func TestIMSRegistrationCompareAndSwap(t *testing.T) {
 	}
 }
 
+func TestIMSRegistrationSetsAreIndependent(t *testing.T) {
+	dbInstance := setupTestDB(t)
+	ctx := context.Background()
+
+	const imsi = "001010000000055"
+
+	createIMSSubscriber(t, dbInstance, imsi)
+
+	mmtel := &db.IMSRegistration{
+		ServerName: "sip:scscf.example.org", OriginHost: "scscf.example.org", OriginRealm: "example.org", PrivateIdentity: imsi + "@ims.example.org",
+		Sets: sets{db.IMSRegistrationSetMMTel: registeredSet("sip:+15550001@ims.example.org")},
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, mmtel); err != nil || !swapped {
+		t.Fatalf("register mmtel: swapped=%v err=%v", swapped, err)
+	}
+
+	pendingMCPTT := *mmtel
+	pendingMCPTT.Sets = sets{
+		db.IMSRegistrationSetMMTel: mmtel.Sets[db.IMSRegistrationSetMMTel],
+		db.IMSRegistrationSetMCPTT: {State: db.IMSNotRegistered, AuthPending: true},
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, mmtel, &pendingMCPTT); err != nil || !swapped {
+		t.Fatalf("authenticate mcptt: swapped=%v err=%v", swapped, err)
+	}
+
+	both := pendingMCPTT
+	both.Sets = sets{
+		db.IMSRegistrationSetMMTel: mmtel.Sets[db.IMSRegistrationSetMMTel],
+		db.IMSRegistrationSetMCPTT: registeredSet("sip:mcptt-15550001@ims.example.org"),
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, &pendingMCPTT, &both); err != nil || !swapped {
+		t.Fatalf("register mcptt: swapped=%v err=%v", swapped, err)
+	}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, mmtel, mmtel); err != nil || swapped {
+		t.Fatalf("swap expecting mmtel alone: swapped=%v err=%v, want refused", swapped, err)
+	}
+
+	got, err := dbInstance.GetIMSRegistration(ctx, imsi)
+	if err != nil || got == nil || !reflect.DeepEqual(got.Sets, both.Sets) {
+		t.Fatalf("stored registration = %+v, %v; want both sets", got, err)
+	}
+
+	mcpttOnly := both
+	mcpttOnly.Sets = sets{db.IMSRegistrationSetMCPTT: both.Sets[db.IMSRegistrationSetMCPTT]}
+
+	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, &both, &mcpttOnly); err != nil || !swapped {
+		t.Fatalf("deregister mmtel: swapped=%v err=%v", swapped, err)
+	}
+
+	got, err = dbInstance.GetIMSRegistration(ctx, imsi)
+	if err != nil || got == nil || !reflect.DeepEqual(got.Sets, mcpttOnly.Sets) || got.ServerName != mmtel.ServerName {
+		t.Fatalf("stored registration = %+v, %v; want the mcptt set at the same S-CSCF", got, err)
+	}
+
+	if n, err := dbInstance.CountIMSRegistrations(ctx, db.IMSRegistered); err != nil || n != 1 {
+		t.Fatalf("CountIMSRegistrations = %d, %v; want 1", n, err)
+	}
+}
+
 func TestIMSRegistrationCarriesTheIdentitiesTheSCSCFKnows(t *testing.T) {
 	dbInstance := setupTestDB(t)
 	ctx := context.Background()
@@ -118,27 +185,34 @@ func TestIMSRegistrationCarriesTheIdentitiesTheSCSCFKnows(t *testing.T) {
 	createIMSSubscriber(t, dbInstance, imsi)
 
 	for name, reg := range map[string]db.IMSRegistration{
-		"registered without a private identity":  {State: db.IMSRegistered, ProfileDigest: "digest"},
-		"unregistered without a profile digest":  {State: db.IMSUnregistered, PrivateIdentity: imsi + "@ims.example.org"},
-		"registered with an emergency only flag": {State: db.IMSRegistered, PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest", Emergency: true},
+		"without a registration set":             {PrivateIdentity: imsi + "@ims.example.org"},
+		"of an unknown registration set":         {PrivateIdentity: imsi + "@ims.example.org", Sets: sets{"rcs": registeredSet("sip:+15550001@ims.example.org")}},
+		"registered without a private identity":  {Sets: sets{db.IMSRegistrationSetMCPTT: registeredSet("sip:+15550001@ims.example.org")}},
+		"unregistered without a profile digest":  {PrivateIdentity: imsi + "@ims.example.org", Sets: sets{db.IMSRegistrationSetMMTel: {State: db.IMSUnregistered}}},
+		"registered with an emergency only flag": {PrivateIdentity: imsi + "@ims.example.org", Sets: sets{db.IMSRegistrationSetMMTel: {State: db.IMSRegistered, ProfileDigest: "digest", Emergency: true}}},
+		"not registered nor authenticating":      {PrivateIdentity: imsi + "@ims.example.org", Sets: sets{db.IMSRegistrationSetMMTel: {State: db.IMSNotRegistered}}},
 	} {
 		reg.ServerName, reg.OriginHost, reg.OriginRealm = "sip:scscf.example.org", "scscf.example.org", "example.org"
 
 		if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, &reg); err == nil || swapped {
 			t.Fatalf("%s: swapped=%v err=%v, want refused", name, swapped, err)
 		}
+
+		if got, err := dbInstance.GetIMSRegistration(ctx, imsi); err != nil || got != nil {
+			t.Fatalf("%s: registration = %+v, %v; want none", name, got, err)
+		}
 	}
 
 	emergency := &db.IMSRegistration{
-		State: db.IMSUnregistered, ServerName: "sip:scscf.example.org", OriginHost: "scscf.example.org", OriginRealm: "example.org",
-		PrivateIdentity: imsi + "@ims.example.org", ProfileDigest: "digest", Emergency: true,
+		ServerName: "sip:scscf.example.org", OriginHost: "scscf.example.org", OriginRealm: "example.org", PrivateIdentity: imsi + "@ims.example.org",
+		Sets: sets{db.IMSRegistrationSetMMTel: {State: db.IMSUnregistered, ProfileDigest: "digest", Emergency: true}},
 	}
 
 	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, emergency); err != nil || !swapped {
 		t.Fatalf("insert: swapped=%v err=%v", swapped, err)
 	}
 
-	if got, err := dbInstance.GetIMSRegistration(ctx, imsi); err != nil || got == nil || !got.Emergency {
+	if got, err := dbInstance.GetIMSRegistration(ctx, imsi); err != nil || got == nil || !got.Sets[db.IMSRegistrationSetMMTel].Emergency {
 		t.Fatalf("stored registration = %+v, %v; want the emergency registration", got, err)
 	}
 }
@@ -172,6 +246,10 @@ func TestIMSRegistrationIsDeletedWithTheSubscriber(t *testing.T) {
 	if err != nil || got != nil {
 		t.Fatalf("after subscriber delete = %+v, %v; want none", got, err)
 	}
+
+	if n, err := dbInstance.CountIMSRegistrations(ctx, db.IMSNotRegistered); err != nil || n != 0 {
+		t.Fatalf("registration sets left after subscriber delete = %d, %v; want none", n, err)
+	}
 }
 
 func TestCountIMSRegistrations(t *testing.T) {
@@ -194,10 +272,13 @@ func TestCountIMSRegistrations(t *testing.T) {
 		}
 
 		reg := pendingRegistration("sip:scscf.example.org")
-		reg.State = state
 
 		if state != db.IMSNotRegistered {
-			reg.AuthPending, reg.PrivateIdentity, reg.ProfileDigest = false, imsi+"@ims.example.org", "digest"
+			reg.PrivateIdentity = imsi + "@ims.example.org"
+			reg.Sets = sets{
+				db.IMSRegistrationSetMMTel: {State: state, ProfileDigest: "digest"},
+				db.IMSRegistrationSetMCPTT: {State: state, ProfileDigest: "digest"},
+			}
 		}
 
 		if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, reg); err != nil || !swapped {
@@ -233,12 +314,14 @@ func TestRestoreKeepsIMSRegistrations(t *testing.T) {
 	createIMSSubscriber(t, dbInstance, imsi)
 
 	registered := &db.IMSRegistration{
-		State:           db.IMSRegistered,
 		ServerName:      "sip:scscf.example.org",
 		OriginHost:      "scscf.ims.mnc001.mcc001.3gppnetwork.org",
 		OriginRealm:     "ims.mnc001.mcc001.3gppnetwork.org",
 		PrivateIdentity: imsi + "@ims.mnc001.mcc001.3gppnetwork.org",
-		ProfileDigest:   "digest",
+		Sets: sets{
+			db.IMSRegistrationSetMMTel: registeredSet("sip:+15550001@ims.example.org"),
+			db.IMSRegistrationSetMCPTT: registeredSet("sip:mcptt-15550001@ims.example.org"),
+		},
 	}
 
 	if _, swapped, err := dbInstance.CompareAndSwapIMSRegistration(ctx, imsi, nil, registered); err != nil || !swapped {
@@ -274,7 +357,7 @@ func TestRestoreKeepsIMSRegistrations(t *testing.T) {
 	}
 
 	registered.IMSI = imsi
-	if *got != *registered {
+	if !reflect.DeepEqual(got, registered) {
 		t.Fatalf("restored registration = %+v, want %+v", *got, *registered)
 	}
 }

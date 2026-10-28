@@ -30,7 +30,11 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 		)`, IMSPublicServiceIdentitiesTableName, IMSApplicationServersTableName),
 		fmt.Sprintf("CREATE INDEX idx_ims_public_service_identities_as ON %s(applicationServerID)", IMSPublicServiceIdentitiesTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
-			profileID               TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			id   TEXT PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE CHECK (name != '')
+		)`, IMSServiceProfilesTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			serviceProfileID        TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			position                INTEGER NOT NULL CHECK (position >= 0),
 			applicationServerID     TEXT    NOT NULL REFERENCES %s(id),
 			triggerPoint            TEXT    CHECK (triggerPoint IS NULL OR json_valid(triggerPoint)),
@@ -39,14 +43,36 @@ func migrateV25(ctx context.Context, tx *sql.Tx) error {
 			serviceInfo             TEXT,
 			includeRegisterRequest  BOOLEAN NOT NULL CHECK (includeRegisterRequest IN (0, 1)),
 			includeRegisterResponse BOOLEAN NOT NULL CHECK (includeRegisterResponse IN (0, 1)),
-			PRIMARY KEY (profileID, position)
-		)`, IMSInitialFilterCriteriaTableName, ProfilesTableName, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
+			PRIMARY KEY (serviceProfileID, position)
+		)`, IMSInitialFilterCriteriaTableName, IMSServiceProfilesTableName, IMSApplicationServersTableName, IMSProfilePartRegistered, IMSProfilePartUnregistered,
 			IMSDefaultHandlingSessionContinued, IMSDefaultHandlingSessionTerminated),
+		fmt.Sprintf(`CREATE TABLE %s (
+			profileID        TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			registrationSet  TEXT NOT NULL CHECK (registrationSet IN ('%s', '%s')),
+			serviceProfileID TEXT NOT NULL REFERENCES %s(id),
+			PRIMARY KEY (profileID, registrationSet)
+		)`, IMSServiceProfileAssignmentsTableName, ProfilesTableName, IMSRegistrationSetMMTel, IMSRegistrationSetMCPTT, IMSServiceProfilesTableName),
+		fmt.Sprintf("CREATE INDEX idx_ims_service_profile_assignments_sp ON %s(serviceProfileID)", IMSServiceProfileAssignmentsTableName),
 		fmt.Sprintf("CREATE INDEX idx_ims_initial_filter_criteria_as ON %s(applicationServerID)", IMSInitialFilterCriteriaTableName),
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN privateIdentity TEXT NOT NULL DEFAULT '' CHECK (state = 0 OR privateIdentity != '')", IMSRegistrationsTableName),
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN defaultIdentity TEXT NOT NULL DEFAULT ''", IMSRegistrationsTableName),
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN profileDigest TEXT NOT NULL DEFAULT '' CHECK (state = 0 OR profileDigest != '')", IMSRegistrationsTableName),
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN emergency BOOLEAN NOT NULL DEFAULT FALSE CHECK (emergency IN (0, 1) AND (emergency = 0 OR state = 2))", IMSRegistrationsTableName),
+		fmt.Sprintf("DROP TABLE %s", IMSRegistrationsTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			imsi            TEXT PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,
+			serverName      TEXT NOT NULL CHECK (serverName != ''),
+			originHost      TEXT NOT NULL CHECK (originHost != ''),
+			originRealm     TEXT NOT NULL CHECK (originRealm != ''),
+			privateIdentity TEXT NOT NULL
+		)`, IMSRegistrationsTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			imsi            TEXT    NOT NULL REFERENCES %s(imsi) ON DELETE CASCADE,
+			registrationSet TEXT    NOT NULL CHECK (registrationSet IN ('%s', '%s')),
+			state           INTEGER NOT NULL CHECK (state IN (0, 1, 2)),
+			authPending     BOOLEAN NOT NULL CHECK (authPending IN (0, 1)),
+			defaultIdentity TEXT    NOT NULL,
+			profileDigest   TEXT    NOT NULL CHECK (state = 0 OR profileDigest != ''),
+			emergency       BOOLEAN NOT NULL CHECK (emergency IN (0, 1) AND (emergency = 0 OR state = 2)),
+			CHECK (state != 0 OR authPending = 1),
+			PRIMARY KEY (imsi, registrationSet)
+		)`, IMSRegistrationSetsTableName, IMSRegistrationsTableName, IMSRegistrationSetMMTel, IMSRegistrationSetMCPTT),
 		fmt.Sprintf(`CREATE TABLE %s (
 			imsi          TEXT PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,
 			number        TEXT NOT NULL CHECK (number != ''),

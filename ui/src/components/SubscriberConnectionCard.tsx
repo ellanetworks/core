@@ -200,7 +200,19 @@ export const voiceState = (
     };
   }
 
-  const state = ims.public_identities[0]?.user_state ?? "not_registered";
+  const state =
+    ims.public_identities.find((i) => i.registration_set === "mmtel")
+      ?.user_state ?? "not_registered";
+
+  return imsUserStates[state] ?? { label: state, color: "default" };
+};
+
+export const mcpttState = (ims?: IMSSubscription): VoiceState | undefined => {
+  const state = ims?.public_identities.find(
+    (i) => i.registration_set === "mcptt",
+  )?.user_state;
+
+  if (!state) return undefined;
 
   return imsUserStates[state] ?? { label: state, color: "default" };
 };
@@ -252,6 +264,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
 }) => {
   const systems = status.systems ?? [];
   const voice = voiceState(status, ims, network);
+  const mcptt = mcpttState(ims);
 
   return (
     <Card
@@ -272,6 +285,9 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
         />
         {voice && (
           <InfoRow label="Voice" value={<VoiceValue state={voice} />} />
+        )}
+        {mcptt && (
+          <InfoRow label="MCPTT" value={<VoiceValue state={mcptt} />} />
         )}
         {systems.length > 0 && (
           <InfoRow

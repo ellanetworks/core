@@ -313,7 +313,7 @@ func RequireThirdPartyRegister(ctx context.Context, s *MCPTTServer, sub Subscrib
 		}
 
 		to, err := req.Header.To()
-		if err != nil || !strings.Contains(to.URI.String(), sub.MSISDN) && !strings.Contains(to.URI.String(), sub.IMSI) || req.Header.Get("Expires") == "0" {
+		if err != nil || !strings.Contains(to.URI.String(), strings.TrimPrefix(sub.MSISDN, "+")) && !strings.Contains(to.URI.String(), sub.IMSI) || req.Header.Get("Expires") == "0" {
 			continue
 		}
 

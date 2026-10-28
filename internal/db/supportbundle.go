@@ -6,6 +6,8 @@ package db
 import (
 	"context"
 	"io"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -403,13 +405,23 @@ func (db *Database) collectSupportRegistrations(ctx context.Context, out support
 	} else {
 		entries := make([]any, 0, len(imsRegs))
 		for _, r := range imsRegs {
+			sets := make([]any, 0, len(r.Sets))
+
+			for _, set := range slices.Sorted(maps.Keys(r.Sets)) {
+				sets = append(sets, map[string]any{
+					"registration_set": set,
+					"state":            r.Sets[set].State,
+					"auth_pending":     r.Sets[set].AuthPending,
+					"emergency":        r.Sets[set].Emergency,
+				})
+			}
+
 			entries = append(entries, map[string]any{
-				"imsi":         r.IMSI,
-				"state":        r.State,
-				"server_name":  r.ServerName,
-				"auth_pending": r.AuthPending,
-				"origin_host":  r.OriginHost,
-				"origin_realm": r.OriginRealm,
+				"imsi":              r.IMSI,
+				"server_name":       r.ServerName,
+				"origin_host":       r.OriginHost,
+				"origin_realm":      r.OriginRealm,
+				"registration_sets": sets,
 			})
 		}
 
@@ -566,7 +578,8 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	servers, err := db.ListIMSApplicationServers(ctx)
 	if err != nil {
 		failure("ims_application_servers", err)
-		failure("ims_filter_criteria", err)
+		failure("ims_service_profiles", err)
+		failure("ims_service_profile_assignments", err)
 
 		return
 	}
@@ -586,18 +599,24 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 	out["ims_application_servers"] = serverEntries
 	sections["ims_application_servers"] = sections["ims_application_servers"].WithCount(len(serverEntries))
 
-	criteriaEntries := []any{}
+	serviceProfiles, err := db.ListIMSServiceProfiles(ctx)
+	if err != nil {
+		failure("ims_service_profiles", err)
+		failure("ims_service_profile_assignments", err)
 
-	for _, p := range profiles {
-		ifcs, err := db.ListProfileIMSFilterCriteria(ctx, p.ID)
-		if err != nil {
-			failure("ims_filter_criteria", err)
-			continue
-		}
+		return
+	}
 
-		for i, ifc := range ifcs {
-			criteriaEntries = append(criteriaEntries, map[string]any{
-				"profile":                   p.Name,
+	serviceProfileEntries := make([]any, 0, len(serviceProfiles))
+	serviceProfileNames := make(map[string]string, len(serviceProfiles))
+
+	for _, sp := range serviceProfiles {
+		serviceProfileNames[sp.ID] = sp.Name
+
+		criteria := make([]any, 0, len(sp.InitialFilterCriteria))
+
+		for i, ifc := range sp.InitialFilterCriteria {
+			criteria = append(criteria, map[string]any{
 				"priority":                  i,
 				"application_server_name":   serverNames[ifc.ApplicationServerID],
 				"trigger":                   ifc.Trigger,
@@ -608,8 +627,37 @@ func (db *Database) collectSupportIMSServices(ctx context.Context, out supportbu
 				"include_register_response": ifc.IncludeRegisterResponse,
 			})
 		}
+
+		serviceProfileEntries = append(serviceProfileEntries, map[string]any{"name": sp.Name, "initial_filter_criteria": criteria})
 	}
 
-	out["ims_filter_criteria"] = criteriaEntries
-	sections["ims_filter_criteria"] = sections["ims_filter_criteria"].WithCount(len(criteriaEntries))
+	out["ims_service_profiles"] = serviceProfileEntries
+	sections["ims_service_profiles"] = sections["ims_service_profiles"].WithCount(len(serviceProfileEntries))
+
+	assignments, err := db.ListIMSServiceProfileAssignments(ctx)
+	if err != nil {
+		failure("ims_service_profile_assignments", err)
+
+		return
+	}
+
+	profileNames := make(map[string]string, len(profiles))
+	for _, p := range profiles {
+		profileNames[p.ID] = p.Name
+	}
+
+	assignmentEntries := []any{}
+
+	for _, a := range assignments {
+		for _, set := range slices.Sorted(maps.Keys(a.ServiceProfiles)) {
+			assignmentEntries = append(assignmentEntries, map[string]any{
+				"profile":          profileNames[a.ProfileID],
+				"registration_set": set,
+				"service_profile":  serviceProfileNames[a.ServiceProfiles[set]],
+			})
+		}
+	}
+
+	out["ims_service_profile_assignments"] = assignmentEntries
+	sections["ims_service_profile_assignments"] = sections["ims_service_profile_assignments"].WithCount(len(assignmentEntries))
 }

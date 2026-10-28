@@ -81,8 +81,9 @@ func TestGetSubscriberShowsTheIMSSubscription(t *testing.T) {
 		PrivateIdentity: Imsi + "@ims.mnc001.mcc001.3gppnetwork.org",
 		SCSCFName:       "sip:scscf.ims.mnc001.mcc001.3gppnetwork.org:5080",
 		PublicIdentities: []hss.PublicIdentity{
-			{Identity: "tel:+15551230001", UserState: hss.UserRegistered},
-			{Identity: "sip:" + Imsi + "@ims.mnc001.mcc001.3gppnetwork.org", Barred: true, UserState: hss.UserRegistered},
+			{Identity: "tel:+15551230001", RegistrationSet: hss.MMTel, UserState: hss.UserRegistered},
+			{Identity: "sip:" + Imsi + "@ims.mnc001.mcc001.3gppnetwork.org", Barred: true, RegistrationSet: hss.MMTel, UserState: hss.UserRegistered},
+			{Identity: "sip:mcptt-15551230001@ims.mnc001.mcc001.3gppnetwork.org", RegistrationSet: hss.MCPTT, UserState: hss.UserNotRegistered},
 		},
 	}}
 
@@ -97,8 +98,9 @@ func TestGetSubscriberShowsTheIMSSubscription(t *testing.T) {
 		PrivateIdentity: Imsi + "@ims.mnc001.mcc001.3gppnetwork.org",
 		SCSCFName:       "sip:scscf.ims.mnc001.mcc001.3gppnetwork.org:5080",
 		PublicIdentities: []PublicIdentity{
-			{Identity: "tel:+15551230001", UserState: "registered"},
-			{Identity: "sip:" + Imsi + "@ims.mnc001.mcc001.3gppnetwork.org", Barred: true, UserState: "registered"},
+			{Identity: "tel:+15551230001", RegistrationSet: "mmtel", UserState: "registered"},
+			{Identity: "sip:" + Imsi + "@ims.mnc001.mcc001.3gppnetwork.org", Barred: true, RegistrationSet: "mmtel", UserState: "registered"},
+			{Identity: "sip:mcptt-15551230001@ims.mnc001.mcc001.3gppnetwork.org", RegistrationSet: "mcptt", UserState: "not_registered"},
 		},
 	}
 

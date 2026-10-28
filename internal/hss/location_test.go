@@ -25,10 +25,10 @@ func locationInfo(t *testing.T, store *fakeIMSStore, r cx.LocationInfoRequest) *
 }
 
 func TestLocationInfo(t *testing.T) {
-	registered := hss.Registration{State: hss.Registered, ServerName: testSCSCF}
-	unregistered := hss.Registration{State: hss.Unregistered, ServerName: testSCSCF}
-	authenticating := hss.Registration{State: hss.NotRegistered, ServerName: testSCSCF, AuthPending: true}
-	emergency := hss.Registration{State: hss.Unregistered, ServerName: testSCSCF, Emergency: true}
+	registered := hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Registered}}}
+	unregistered := hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Unregistered}}}
+	authenticating := hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.NotRegistered, AuthPending: true}}}
+	emergency := hss.Registration{ServerName: testSCSCF, Sets: sets{hss.MMTel: {State: hss.Unregistered, Emergency: true}}}
 
 	cases := []struct {
 		name                 string

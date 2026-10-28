@@ -25,5 +25,5 @@ func (h *HSS) VoiceSupported(ctx context.Context, imsi string) (bool, error) {
 
 	s := subject{Subscriber: *sub}
 
-	return s.IMSVoice && s.entitled(), nil
+	return s.IMSVoice && s.entitled(MMTel), nil
 }

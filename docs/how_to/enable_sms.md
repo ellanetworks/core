@@ -18,6 +18,8 @@ Example: `epc.mnc001.mcc001.3gppnetwork.org`
 
 In the Ella Core UI, go to the Operator page and scroll to the **SMS** section.
 
+Click the edit icon next to **SMS Number**, enter Ella Core's E.164 number for SMS, e.g. `+15550001111`, and click **Update**.
+
 Click **Add Service Center** and configure the following settings:
 
 - **Address**: your SMSC's Diameter IP address.
@@ -37,7 +39,7 @@ For each subscriber that should send or receive SMS:
 
 ## 4. Set the SMSC number on the phones
 
-On each phone's SIM, set the SMSC number to one of your SMSCs' service centre numbers, e.g. `+15550000000`.
+On each phone's SIM, set the SMSC number to one of your SMSCs' service centre numbers, in international format, e.g. `+15550000000`.
 
 ## 5. Send a test SMS
 

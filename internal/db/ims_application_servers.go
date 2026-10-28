@@ -42,6 +42,8 @@ const (
 	deleteIMSPSIsByASStmt          = "DELETE FROM %s WHERE applicationServerID==$imsPSIRow.applicationServerID"
 )
 
+const imsMCPTTUserPrefix = "mcptt-"
+
 var ErrPSIConflict = errors.New("public service identity conflict")
 
 type IMSApplicationServer struct {
@@ -351,7 +353,10 @@ func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity, ims
 	if !psi.Wildcarded(identity) {
 		msisdn, ok := strings.CutPrefix(identity, "tel:+")
 		if inIMSDomain {
-			msisdn, ok = strings.CutPrefix(psi.User(identity), "+")
+			user := psi.User(identity)
+			if msisdn, ok = strings.CutPrefix(user, "+"); !ok {
+				msisdn, ok = strings.CutPrefix(user, imsMCPTTUserPrefix)
+			}
 		}
 
 		if !ok || strings.ContainsRune(msisdn, ';') {
@@ -479,7 +484,7 @@ func collidesWithSubscriberIdentity(identity, imsDomain string) bool {
 func msisdnIdentities(msisdn, imsDomain string) []string {
 	identities := []string{"tel:+" + msisdn}
 	if imsDomain != "" {
-		identities = append(identities, "sip:+"+msisdn+"@"+imsDomain)
+		identities = append(identities, "sip:+"+msisdn+"@"+imsDomain, "sip:"+imsMCPTTUserPrefix+msisdn+"@"+imsDomain)
 	}
 
 	return identities
