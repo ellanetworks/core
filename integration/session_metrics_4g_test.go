@@ -9,8 +9,8 @@ import (
 	"github.com/ellanetworks/core/integration/suites"
 )
 
-func TestIntegration4GTrafficClassMetrics(t *testing.T) {
+func TestIntegration4GSessionMetrics(t *testing.T) {
 	suites.Require(t, suites.Datapath4G)
 
-	runTrafficClassMetrics(t, "s1enb")
+	runSessionMetrics(t, "s1enb")
 }

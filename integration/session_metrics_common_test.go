@@ -16,9 +16,9 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-const trafficClassProbeSourcePortBase = 23000
+const sessionMetricsProbeSourcePortBase = 23000
 
-func trafficClassSeries(t *testing.T, ctx context.Context, c *client.Client, metric string, labels ...string) float64 {
+func sessionMetricSeries(t *testing.T, ctx context.Context, c *client.Client, metric string, labels ...string) float64 {
 	t.Helper()
 
 	all, err := c.GetMetrics(ctx)
@@ -50,7 +50,7 @@ func trafficClassSeries(t *testing.T, ctx context.Context, c *client.Client, met
 	return sum
 }
 
-func runTrafficClassMetrics(t *testing.T, ranPrefix string) {
+func runSessionMetrics(t *testing.T, ranPrefix string) {
 	t.Helper()
 
 	fp := familyParams(DetectIPFamily(), ranPrefix)
@@ -88,7 +88,7 @@ func runTrafficClassMetrics(t *testing.T, ranPrefix string) {
 		fixture.New(t, ctx, env.Client).Apply(spec)
 
 		tr := globalReporter.Start(scenario + "/icmp")
-		env.RunScenario(ctx, t, scenario, tr, scenarioRunArgs(scenario, spec, pp, trafficClassProbeSourcePortBase)...)
+		env.RunScenario(ctx, t, scenario, tr, scenarioRunArgs(scenario, spec, pp, sessionMetricsProbeSourcePortBase)...)
 		finishScenarioTest(t, tr)
 
 		return len(spec.Subscribers)
@@ -100,8 +100,8 @@ func runTrafficClassMetrics(t *testing.T, ranPrefix string) {
 		for _, dir := range []string{"uplink", "downlink"} {
 			labels := append([]string{fmt.Sprintf(`direction=%q`, dir)}, class...)
 			before[dir] = [2]float64{
-				trafficClassSeries(t, ctx, env.Client, "app_upf_traffic_class_packets_total", labels...),
-				trafficClassSeries(t, ctx, env.Client, "app_upf_traffic_class_bytes_total", labels...),
+				sessionMetricSeries(t, ctx, env.Client, "app_upf_session_forwarded_packets_total", labels...),
+				sessionMetricSeries(t, ctx, env.Client, "app_upf_session_forwarded_bytes_total", labels...),
 			}
 		}
 
@@ -109,8 +109,8 @@ func runTrafficClassMetrics(t *testing.T, ranPrefix string) {
 
 		for _, dir := range []string{"uplink", "downlink"} {
 			labels := append([]string{fmt.Sprintf(`direction=%q`, dir)}, class...)
-			packets := trafficClassSeries(t, ctx, env.Client, "app_upf_traffic_class_packets_total", labels...) - before[dir][0]
-			bytes := trafficClassSeries(t, ctx, env.Client, "app_upf_traffic_class_bytes_total", labels...) - before[dir][1]
+			packets := sessionMetricSeries(t, ctx, env.Client, "app_upf_session_forwarded_packets_total", labels...) - before[dir][0]
+			bytes := sessionMetricSeries(t, ctx, env.Client, "app_upf_session_forwarded_bytes_total", labels...) - before[dir][1]
 
 			if packets < ues*minPackets {
 				t.Errorf("%s packets for the default class grew by %v, want at least %v", dir, packets, ues*minPackets)
@@ -141,11 +141,11 @@ func runTrafficClassMetrics(t *testing.T, ranPrefix string) {
 		time.Sleep(rulePropagationDelay)
 
 		labels := append([]string{`direction="uplink"`, `reason="sdf_filter"`}, class...)
-		before := trafficClassSeries(t, ctx, env.Client, "app_upf_traffic_class_drop_total", labels...)
+		before := sessionMetricSeries(t, ctx, env.Client, "app_upf_session_dropped_packets_total", labels...)
 
 		ues := float64(run(t, fp.scenarioBlocked))
 
-		dropped := trafficClassSeries(t, ctx, env.Client, "app_upf_traffic_class_drop_total", labels...) - before
+		dropped := sessionMetricSeries(t, ctx, env.Client, "app_upf_session_dropped_packets_total", labels...) - before
 		if dropped < ues {
 			t.Errorf("uplink sdf_filter drops for the default class grew by %v, want at least %v", dropped, ues)
 		}

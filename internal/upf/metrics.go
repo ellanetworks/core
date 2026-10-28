@@ -202,7 +202,7 @@ func RegisterMetrics(classes *engine.TrafficClasses) {
 		}
 	}))
 
-	registerTrafficClassMetrics(classes)
+	registerSessionMetrics(classes)
 
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
@@ -294,26 +294,26 @@ func RegisterMetrics(classes *engine.TrafficClasses) {
 	}))
 }
 
-func registerTrafficClassMetrics(classes *engine.TrafficClasses) {
+func registerSessionMetrics(classes *engine.TrafficClasses) {
 	classLabels := []string{"direction", "sst", "sd", "dnn", "fiveqi"}
 
 	packetsDesc := prometheus.NewDesc(
-		"app_upf_traffic_class_packets_total",
-		"Packets the data plane forwarded for subscribers, by direction and traffic class (slice, data network and 5QI of the QoS flow).",
+		"app_upf_session_forwarded_packets_total",
+		"Packets the data plane forwarded for sessions, by direction, slice, data network and 5QI of the QoS flow.",
 		classLabels,
 		nil,
 	)
 
 	bytesDesc := prometheus.NewDesc(
-		"app_upf_traffic_class_bytes_total",
-		"Bytes the data plane forwarded for subscribers, by direction and traffic class (slice, data network and 5QI of the QoS flow). Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does.",
+		"app_upf_session_forwarded_bytes_total",
+		"Bytes the data plane forwarded for sessions, by direction, slice, data network and 5QI of the QoS flow. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does.",
 		classLabels,
 		nil,
 	)
 
 	dropDesc := prometheus.NewDesc(
-		"app_upf_traffic_class_drop_total",
-		"Subscriber packets the data plane dropped after matching them to a session, by direction, traffic class and reason. A reason appears once it has occurred for the class.",
+		"app_upf_session_dropped_packets_total",
+		"Packets the data plane dropped after matching them to a session, by direction, slice, data network, 5QI of the QoS flow and reason. A reason appears once it has occurred for that combination.",
 		append(slices.Clone(classLabels), "reason"),
 		nil,
 	)

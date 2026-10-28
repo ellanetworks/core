@@ -39,9 +39,9 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_datapath_drop_total | Packets the data plane did not forward, labeled by `direction` and reason. | Counter |
 | app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane labeled by `direction` and `result`. | Counter |
 | app_upf_bytes_total | Total number of bytes transmitted through the data plane, labeled by `direction`. This value includes the Ethernet header. | Counter |
-| app_upf_traffic_class_packets_total | Subscriber packets the data plane forwarded, labeled by `direction`, `sst`, `sd`, `dnn`, and `fiveqi` (the 5QI of the packet's QoS flow; the QCI of its bearer for 4G sessions). | Counter |
-| app_upf_traffic_class_bytes_total | Subscriber bytes the data plane forwarded, labeled by `direction`, `sst`, `sd`, `dnn`, and `fiveqi`. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does. | Counter |
-| app_upf_traffic_class_drop_total | Subscriber packets the data plane dropped after matching them to a session, labeled by `direction`, `sst`, `sd`, `dnn`, `fiveqi`, and `reason`. A reason appears once it has occurred for that traffic class. | Counter |
+| app_upf_session_forwarded_packets_total | Packets the data plane forwarded for sessions, labeled by `direction`, `sst`, `sd`, `dnn`, and `fiveqi` (the 5QI of the packet's QoS flow; the QCI of its bearer for 4G sessions). | Counter |
+| app_upf_session_forwarded_bytes_total | Bytes the data plane forwarded for sessions, labeled by `direction`, `sst`, `sd`, `dnn`, and `fiveqi`. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does. | Counter |
+| app_upf_session_dropped_packets_total | Packets the data plane dropped after matching them to a session, labeled by `direction`, `sst`, `sd`, `dnn`, `fiveqi`, and `reason`. A reason appears once it has occurred for that combination. The drop ratio is `dropped / (forwarded + dropped)`. | Counter |
 | app_upf_bpf_map_entries | Entries currently installed in a data plane BPF map, labeled by `map`. Divide by `app_upf_bpf_map_max_entries` for a fill ratio. | Gauge |
 | app_upf_bpf_map_max_entries | Capacity of a data plane BPF map, labeled by `map`. | Gauge |
 | app_upf_bpf_map_memory_bytes | Kernel memory locked by a data plane BPF map, labeled by `map`. | Gauge |
