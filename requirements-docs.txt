@@ -76,7 +76,7 @@ mkdocs==1.6.1
     #   mkdocs-redirects
 mkdocs-get-deps==0.2.2
     # via mkdocs
-mkdocs-glightbox==0.5.2
+mkdocs-glightbox==0.5.3
     # via -r requirements-docs.in
 mkdocs-llmstxt==0.5.1
     # via -r requirements-docs.in
