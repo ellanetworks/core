@@ -651,6 +651,8 @@ func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...Requ
 	ctx, span := n.startClientSpan(ctx, req, requestTarget(req))
 	defer func() { endClientSpan(span, ans, err) }()
 
+	span.SetAttributes(peerIDKey.String(peerID))
+
 	n.mu.Lock()
 	p, ok := n.byID[peerID]
 	n.mu.Unlock()

@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/tracing"
 	"go.uber.org/zap"
 )
 
@@ -53,7 +54,10 @@ func termination(imsi string, reg *Registration, reason cx.ReasonCode) *Terminat
 	}
 }
 
-func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
+func (h *HSS) Terminate(ctx context.Context, t *Termination) (err error) {
+	ctx, span := tracer.Start(ctx, "hss/registration-termination")
+	defer func() { tracing.End(span, err) }()
+
 	if t.Reason == cx.ReasonServerChange {
 		if err := h.clearRegistration(ctx, t); err != nil {
 			return err

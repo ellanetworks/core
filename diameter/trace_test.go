@@ -6,6 +6,7 @@ package diameter
 import (
 	"context"
 	"net/netip"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -20,11 +21,13 @@ const (
 	testMethod        = "SGd/Test-Request"
 	staleTraceparent  = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 	remoteTraceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	remoteTraceID     = "4bf92f3577b34da6a3ce929d0e0e4736"
+	remoteSpanID      = "00f067aa0ba902b7"
 )
 
 func init() {
 	RegisterMethod(testAppID, 8388647, testMethod)
-	RegisterMethod(testAppID, 8388645, testMethod)
+	RegisterMethod(testAppID, 8388645, "SGd/MO-Forward-Short-Message")
 }
 
 func recording(t *testing.T) (*tracetest.SpanRecorder, trace.TracerProvider) {
@@ -42,23 +45,29 @@ func withTracing(tp trace.TracerProvider) func(*Config) {
 	return func(cfg *Config) { cfg.TracerProvider = tp }
 }
 
+func spansOfKind(rec *tracetest.SpanRecorder, kind trace.SpanKind) []sdktrace.ReadOnlySpan {
+	var out []sdktrace.ReadOnlySpan
+
+	for _, s := range rec.Ended() {
+		if s.SpanKind() == kind {
+			out = append(out, s)
+		}
+	}
+
+	return out
+}
+
 func spanOfKind(t *testing.T, rec *tracetest.SpanRecorder, kind trace.SpanKind) sdktrace.ReadOnlySpan {
 	t.Helper()
 
-	var found sdktrace.ReadOnlySpan
+	var found []sdktrace.ReadOnlySpan
 
 	eventually(t, "a "+kind.String()+" span", func() bool {
-		for _, s := range rec.Ended() {
-			if s.SpanKind() == kind {
-				found = s
-				return true
-			}
-		}
-
-		return false
+		found = spansOfKind(rec, kind)
+		return len(found) > 0
 	})
 
-	return found
+	return found[0]
 }
 
 func attr(s sdktrace.ReadOnlySpan, key string) (attribute.Value, bool) {
@@ -88,6 +97,26 @@ func noAttr(t *testing.T, s sdktrace.ReadOnlySpan, key string) {
 	}
 }
 
+func wantFailure(t *testing.T, s sdktrace.ReadOnlySpan, failure string) {
+	t.Helper()
+
+	if failure == "" {
+		if s.Status().Code != codes.Unset {
+			t.Errorf("%s span status = %v, want unset", s.SpanKind(), s.Status())
+		}
+
+		noAttr(t, s, "error.type")
+
+		return
+	}
+
+	if s.Status().Code != codes.Error {
+		t.Errorf("%s span status = %v, want error", s.SpanKind(), s.Status())
+	}
+
+	wantAttr(t, s, "error.type", failure)
+}
+
 func traceAVPs(m *Message) []AVP {
 	var out []AVP
 
@@ -100,12 +129,81 @@ func traceAVPs(m *Message) []AVP {
 	return out
 }
 
-func advertisingElla() AVP {
-	return Unsigned32(AVPSupportedVendorID, AVPFlagMandatory, 0, EllaVendorID)
-}
-
 func answerFrom(req *Message, resultCode uint32) *Message {
 	return NewAnswer(req, Identity{OriginHost: "smsc.example.org", OriginRealm: "example.org"}, resultCode)
+}
+
+func configuredSMSC() Peer {
+	return Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}
+}
+
+func unknownPeers(cfg *Config) {
+	cfg.AcceptUnknownPeers = true
+	cfg.UnknownPeerApplications = []Application{sgdApp}
+}
+
+func openUnknown(t *testing.T, kind Transport, opts ...func(*Config)) (*Node, *rawPeer) {
+	t.Helper()
+
+	cfg := testConfig("ella.example.org")
+	unknownPeers(&cfg)
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	n := newTestNode(t, cfg)
+	p := dialRaw(t, kind, loopback2, serveOn(t, n, kind, loopback1))
+	openRaw(t, p, "unknown.example.org", appAVP(sgdApp))
+
+	return n, p
+}
+
+func exchangeWith(t *testing.T, p *rawPeer, send func(ctx context.Context) error, answer func(req *Message) *Message) *Message {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	done := make(chan error, 1)
+
+	go func() { done <- send(ctx) }()
+
+	got := p.recv()
+	p.send(answer(got))
+
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	return got
+}
+
+func wantFreshTraceparent(t *testing.T, m *Message) {
+	t.Helper()
+
+	avps := traceAVPs(m)
+
+	if len(avps) != 1 || avps[0].Code != AVPTraceparent {
+		t.Fatalf("sent Ella AVPs %+v, want only a Traceparent", avps)
+	}
+
+	if avps[0].Flags != AVPFlagVendor {
+		t.Errorf("Traceparent flags = %#x, want only the V bit", avps[0].Flags)
+	}
+
+	if v := avps[0].UTF8String(); v == staleTraceparent || len(v) != 55 {
+		t.Errorf("Traceparent = %q, want the client span's", v)
+	}
+}
+
+func withStaleTraceContext(m *Message) *Message {
+	m.AVPs = append(m.AVPs,
+		UTF8String(AVPTraceparent, AVPFlagVendor, EllaVendorID, staleTraceparent),
+		UTF8String(AVPTracestate, AVPFlagVendor, EllaVendorID, "stale=1"),
+	)
+
+	return m
 }
 
 func TestTraceContinuesAcrossNodes(t *testing.T) {
@@ -165,106 +263,83 @@ func TestTraceContinuesAcrossNodes(t *testing.T) {
 					t.Errorf("%s span name = %q, want %q", s.SpanKind(), s.Name(), testMethod)
 				}
 
-				if s.Status().Code != codes.Unset {
-					t.Errorf("%s span status = %v, want unset", s.SpanKind(), s.Status())
-				}
-
 				wantAttr(t, s, "rpc.system.name", "diameter")
 				wantAttr(t, s, "rpc.method", testMethod)
 				wantAttr(t, s, "rpc.response.status_code", "2001")
 				wantAttr(t, s, "network.transport", kind.String())
-				noAttr(t, s, "error.type")
+				wantFailure(t, s, "")
+
+				if port, ok := attr(s, "network.peer.port"); !ok || port.AsInt64() == 0 {
+					t.Errorf("%s span network.peer.port = %v (set %t), want the peer's port", s.SpanKind(), port.AsInt64(), ok)
+				}
 			}
 
 			wantAttr(t, client, "server.address", "example.org")
+			wantAttr(t, client, "ella.diameter.peer.id", "hss")
 			wantAttr(t, client, "network.peer.address", addr.Addr().String())
+			wantAttr(t, client, "network.peer.port", strconv.Itoa(int(addr.Port())))
 			wantAttr(t, server, "network.peer.address", loopback2.String())
 		})
 	}
 }
 
-func TestTraceContextIsSentOnlyToPeersAdvertisingElla(t *testing.T) {
-	tests := []struct {
-		name      string
-		advertise bool
-	}{
-		{"advertising", true},
-		{"not advertising", false},
-	}
-
+func TestTraceContextIsSentToConfiguredPeers(t *testing.T) {
 	for _, kind := range transports {
-		for _, tc := range tests {
-			t.Run(kind.String()+"/"+tc.name, func(t *testing.T) {
-				_, tp := recording(t)
+		t.Run(kind.String(), func(t *testing.T) {
+			_, tp := recording(t)
 
-				n, p := ellaWithSMSC(t, kind, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}, withTracing(tp))
+			n, p := ellaWithSMSC(t, kind, configuredSMSC(), withTracing(tp))
+			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
 
-				extra := []AVP{appAVP(sgdApp)}
-				if tc.advertise {
-					extra = append(extra, advertisingElla())
-				}
+			ctx, span := tp.Tracer("test").Start(context.Background(), "deliver")
+			defer span.End()
 
-				openRaw(t, p, "smsc.example.org", extra...)
+			got := exchangeWith(t, p, func(context.Context) error {
+				_, err := n.Do(ctx, "smsc", withStaleTraceContext(request()))
+				return err
+			}, func(req *Message) *Message { return answerFrom(req, ResultSuccess) })
 
-				ctx, span := tp.Tracer("test").Start(context.Background(), "deliver")
-				defer span.End()
+			wantFreshTraceparent(t, got)
 
-				ctx, cancel := context.WithTimeout(ctx, testTimeout)
-				defer cancel()
-
-				req := request()
-				req.AVPs = append(req.AVPs,
-					UTF8String(AVPTraceparent, AVPFlagVendor, EllaVendorID, staleTraceparent),
-					UTF8String(AVPTracestate, AVPFlagVendor, EllaVendorID, "stale=1"),
-				)
-
-				done := make(chan error, 1)
-
-				go func() {
-					_, err := n.Do(ctx, "smsc", req)
-					done <- err
-				}()
-
-				got := p.recv()
-				p.send(answerFrom(got, ResultSuccess))
-
-				if err := <-done; err != nil {
-					t.Fatal(err)
-				}
-
-				avps := traceAVPs(got)
-
-				if !tc.advertise {
-					if len(avps) != 0 {
-						t.Fatalf("sent %d Ella AVPs to a peer that does not advertise Ella, want none", len(avps))
-					}
-
-					return
-				}
-
-				if len(avps) != 1 || avps[0].Code != AVPTraceparent {
-					t.Fatalf("sent Ella AVPs %+v, want only a Traceparent", avps)
-				}
-
-				if avps[0].Flags != AVPFlagVendor {
-					t.Errorf("Traceparent flags = %#x, want only the V bit", avps[0].Flags)
-				}
-
-				if v := avps[0].UTF8String(); v == staleTraceparent || len(v) != 55 {
-					t.Errorf("Traceparent = %q, want the client span's", v)
-				}
-			})
-		}
+			if want := span.SpanContext().TraceID().String(); traceAVPs(got)[0].UTF8String()[3:35] != want {
+				t.Errorf("Traceparent %q is not in the caller's trace %s", traceAVPs(got)[0].UTF8String(), want)
+			}
+		})
 	}
 }
 
-func TestIncomingTraceContextIsParentOnlyFromPeersAdvertisingElla(t *testing.T) {
+func TestOnlyConfiguredPeersAreTrusted(t *testing.T) {
 	tests := []struct {
-		name      string
-		advertise bool
+		name    string
+		peer    *Peer
+		dynamic bool
+		trusts  bool
 	}{
-		{"advertising", true},
-		{"not advertising", false},
+		{"configured", &Peer{ID: "hss"}, false, true},
+		{"redirect target", &Peer{ID: "hss"}, true, false},
+		{"unknown", nil, false, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &peer{cfg: tc.peer, dynamic: tc.dynamic}
+
+			if got := p.configured(); got != tc.trusts {
+				t.Fatalf("configured() = %t, want %t", got, tc.trusts)
+			}
+		})
+	}
+}
+
+func TestIncomingTraceContextIsParentOnlyFromConfiguredPeers(t *testing.T) {
+	tests := []struct {
+		name        string
+		traceparent string
+		configured  bool
+	}{
+		{"configured", remoteTraceparent, true},
+		{"unknown", remoteTraceparent, false},
+		{"unknown, not sampled", "00-" + remoteTraceID + "-" + remoteSpanID + "-00", false},
 	}
 
 	for _, kind := range transports {
@@ -272,39 +347,36 @@ func TestIncomingTraceContextIsParentOnlyFromPeersAdvertisingElla(t *testing.T) 
 			t.Run(kind.String()+"/"+tc.name, func(t *testing.T) {
 				rec, tp := recording(t)
 
-				_, p := ellaWithSMSC(t, kind, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}, withTracing(tp))
-
-				extra := []AVP{appAVP(sgdApp)}
-				if tc.advertise {
-					extra = append(extra, advertisingElla())
+				var p *rawPeer
+				if tc.configured {
+					_, p = ellaWithSMSC(t, kind, configuredSMSC(), withTracing(tp))
+					openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+				} else {
+					_, p = openUnknown(t, kind, withTracing(tp))
 				}
 
-				openRaw(t, p, "smsc.example.org", extra...)
-
-				p.send(appRequest(7, 7, "smsc.example.org",
-					UTF8String(AVPTraceparent, AVPFlagVendor, EllaVendorID, remoteTraceparent)))
+				p.send(appRequest(7, 7, "smsc.example.org", UTF8String(AVPTraceparent, AVPFlagVendor, EllaVendorID, tc.traceparent)))
 
 				if ans := p.recv(); resultCode(t, ans) != ResultSuccess {
 					t.Fatalf("answer = %d", resultCode(t, ans))
 				}
 
 				server := spanOfKind(t, rec, trace.SpanKindServer)
-				remoteTrace := "4bf92f3577b34da6a3ce929d0e0e4736"
 
-				if tc.advertise {
-					if server.SpanContext().TraceID().String() != remoteTrace || server.Parent().SpanID().String() != "00f067aa0ba902b7" {
+				if tc.configured {
+					if server.SpanContext().TraceID().String() != remoteTraceID || server.Parent().SpanID().String() != remoteSpanID {
 						t.Fatalf("server span %s parented by %s, want a child of the remote span", server.SpanContext().TraceID(), server.Parent().SpanID())
 					}
 
 					return
 				}
 
-				if server.Parent().IsValid() || server.SpanContext().TraceID().String() == remoteTrace {
+				if server.Parent().IsValid() || server.SpanContext().TraceID().String() == remoteTraceID {
 					t.Fatalf("server span continues the untrusted trace (parent %s)", server.Parent().SpanID())
 				}
 
 				links := server.Links()
-				if len(links) != 1 || links[0].SpanContext.TraceID().String() != remoteTrace {
+				if len(links) != 1 || links[0].SpanContext.TraceID().String() != remoteTraceID {
 					t.Fatalf("server span links = %+v, want one link to the remote span", links)
 				}
 			})
@@ -312,75 +384,229 @@ func TestIncomingTraceContextIsParentOnlyFromPeersAdvertisingElla(t *testing.T) 
 	}
 }
 
-func TestServerSpanMarksOnlyServerFailures(t *testing.T) {
+func TestTraceContextPassesThroughWithTracingOff(t *testing.T) {
+	var n *Node
+
+	n, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), func(cfg *Config) {
+		cfg.Handler = HandlerFunc(func(ctx context.Context, c *Conn, req *Message) *Message {
+			if _, err := n.Do(ctx, "smsc", request()); err != nil {
+				return c.Answer(req, ResultUnableToComply)
+			}
+
+			return c.Answer(req, ResultSuccess)
+		})
+	})
+	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+	p.send(appRequest(7, 7, "smsc.example.org", UTF8String(AVPTraceparent, AVPFlagVendor, EllaVendorID, remoteTraceparent)))
+
+	forwarded := p.recv()
+	p.send(answerFrom(forwarded, ResultSuccess))
+
+	if ans := p.recv(); resultCode(t, ans) != ResultSuccess {
+		t.Fatalf("answer = %d", resultCode(t, ans))
+	}
+
+	avps := traceAVPs(forwarded)
+	if len(avps) != 1 || avps[0].UTF8String() != remoteTraceparent {
+		t.Fatalf("forwarded Ella AVPs %+v, want the incoming Traceparent unchanged", avps)
+	}
+}
+
+func TestNoTraceContextWithoutTracing(t *testing.T) {
+	n, p := ellaWithSMSC(t, TransportTCP, configuredSMSC())
+	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+	got := exchangeWith(t, p, func(ctx context.Context) error {
+		_, err := n.Do(ctx, "smsc", withStaleTraceContext(request()))
+		return err
+	}, func(req *Message) *Message { return answerFrom(req, ResultSuccess) })
+
+	if avps := traceAVPs(got); len(avps) != 0 {
+		t.Fatalf("sent %d Ella AVPs without tracing, want none", len(avps))
+	}
+}
+
+func TestSendAndRelaySpans(t *testing.T) {
+	t.Run("send", func(t *testing.T) {
+		rec, tp := recording(t)
+
+		n, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp))
+		openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+		req := request()
+		req.AVPs = append(req.AVPs, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "smsc.example.org"))
+
+		got := exchangeWith(t, p, func(ctx context.Context) error {
+			_, err := n.Send(ctx, req)
+			return err
+		}, func(req *Message) *Message { return answerFrom(req, ResultSuccess) })
+
+		wantFreshTraceparent(t, got)
+
+		client := spanOfKind(t, rec, trace.SpanKindClient)
+		wantAttr(t, client, "rpc.method", testMethod)
+		wantAttr(t, client, "server.address", "smsc.example.org")
+		wantAttr(t, client, "rpc.response.status_code", "2001")
+		wantFailure(t, client, "")
+	})
+
+	t.Run("relay", func(t *testing.T) {
+		rec, tp := recording(t)
+
+		n, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp))
+		openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+		req := withStaleTraceContext(request())
+		req.Flags = FlagRequest | FlagProxiable
+
+		got := exchangeWith(t, p, func(ctx context.Context) error {
+			_, err := n.Relay(ctx, req, "mme.example.org", "smsc.example.org", "example.org")
+			return err
+		}, func(req *Message) *Message { return answerFrom(req, ResultUnableToComply) })
+
+		wantFreshTraceparent(t, got)
+
+		if rr, ok := got.Find(AVPRouteRecord, 0); !ok || rr.UTF8String() != "mme.example.org" {
+			t.Errorf("relayed request without the Route-Record")
+		}
+
+		client := spanOfKind(t, rec, trace.SpanKindClient)
+		wantAttr(t, client, "server.address", "smsc.example.org")
+		wantAttr(t, client, "rpc.response.status_code", "5012")
+		wantFailure(t, client, "5012")
+	})
+}
+
+func TestServerSpanClassifiesFailuresByCause(t *testing.T) {
 	tests := []struct {
-		result uint32
-		failed bool
+		result  uint32
+		failure string
 	}{
-		{ResultSuccess, false},
-		{ResultInvalidAVPValue, false},
-		{ResultCommandUnsupported, false},
-		{ResultUnableToComply, true},
-		{ResultTooBusy, true},
+		{ResultSuccess, ""},
+		{ResultInvalidAVPValue, ""},
+		{ResultMissingAVP, ""},
+		{ResultCommandUnsupported, "3001"},
+		{ResultUnableToDeliver, "3002"},
+		{ResultTooBusy, "3004"},
+		{ResultUnableToComply, "5012"},
 	}
 
 	for _, tc := range tests {
 		t.Run(ResultName(tc.result), func(t *testing.T) {
 			rec, tp := recording(t)
 
-			_, p := ellaWithSMSC(t, TransportTCP, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}},
-				withTracing(tp), func(cfg *Config) {
-					cfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
-						return c.Answer(req, tc.result)
-					})
+			_, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp), func(cfg *Config) {
+				cfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
+					return c.Answer(req, tc.result)
 				})
+			})
 
 			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
 			p.send(appRequest(7, 7, "smsc.example.org"))
 			p.recv()
 
 			server := spanOfKind(t, rec, trace.SpanKindServer)
-			status := strconv.FormatUint(uint64(tc.result), 10)
 
-			wantAttr(t, server, "rpc.response.status_code", status)
-
-			if !tc.failed {
-				if server.Status().Code != codes.Unset {
-					t.Errorf("status = %v, want unset", server.Status())
-				}
-
-				noAttr(t, server, "error.type")
-
-				return
-			}
-
-			if server.Status().Code != codes.Error {
-				t.Errorf("status = %v, want error", server.Status())
-			}
-
-			wantAttr(t, server, "error.type", status)
+			wantAttr(t, server, "rpc.response.status_code", strconv.FormatUint(uint64(tc.result), 10))
+			wantFailure(t, server, tc.failure)
 		})
 	}
 }
 
-func TestServerSpanCoversRejectedRequests(t *testing.T) {
+func TestServerSpanClassifiesRejectionsByCause(t *testing.T) {
+	tests := []struct {
+		name    string
+		request func() *Message
+		result  uint32
+		failure string
+	}{
+		{"misrouted", func() *Message {
+			return appRequest(7, 7, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "elsewhere.example.org"))
+		}, ResultUnableToDeliver, ""},
+		{"application not negotiated", func() *Message {
+			m := appRequest(7, 7, "smsc.example.org")
+			m.ApplicationID = otherAppID
+
+			return m
+		}, ResultApplicationUnsupported, ""},
+		{"base command", func() *Message {
+			m := appRequest(7, 7, "smsc.example.org")
+			m.ApplicationID = 0
+
+			return m
+		}, ResultCommandUnsupported, "3001"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec, tp := recording(t)
+
+			_, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp))
+			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+			p.send(tc.request())
+
+			if ans := p.recv(); resultCode(t, ans) != tc.result {
+				t.Fatalf("answer = %d, want %d", resultCode(t, ans), tc.result)
+			}
+
+			server := spanOfKind(t, rec, trace.SpanKindServer)
+
+			wantAttr(t, server, "rpc.response.status_code", strconv.FormatUint(uint64(tc.result), 10))
+			wantFailure(t, server, tc.failure)
+		})
+	}
+}
+
+func TestServerSpanMarksOverload(t *testing.T) {
 	rec, tp := recording(t)
 
-	_, p := ellaWithSMSC(t, TransportTCP, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}, withTracing(tp))
+	release := make(chan struct{})
+
+	t.Cleanup(func() { close(release) })
+
+	_, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp), func(cfg *Config) {
+		cfg.MaxConcurrentRequests = 1
+		cfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
+			<-release
+			return c.Answer(req, ResultSuccess)
+		})
+	})
 
 	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
-	p.send(appRequest(7, 7, "smsc.example.org", UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "elsewhere.example.org")))
+	p.send(appRequest(7, 7, "smsc.example.org"))
+	p.send(appRequest(8, 8, "smsc.example.org"))
 
-	if ans := p.recv(); resultCode(t, ans) != ResultUnableToDeliver {
-		t.Fatalf("answer = %d, want %d", resultCode(t, ans), ResultUnableToDeliver)
+	if ans := p.recv(); ans.HopByHopID != 8 || resultCode(t, ans) != ResultUnableToDeliver {
+		t.Fatalf("answer to %d = %d, want the overloaded request answered %d", ans.HopByHopID, resultCode(t, ans), ResultUnableToDeliver)
 	}
 
 	server := spanOfKind(t, rec, trace.SpanKindServer)
 
 	wantAttr(t, server, "rpc.response.status_code", "3002")
+	wantFailure(t, server, failureOverloaded)
+}
 
-	if server.Status().Code != codes.Unset {
-		t.Errorf("status = %v, want unset for a request the client misrouted", server.Status())
+func TestDuplicateRequestHasNoSpanOfItsOwn(t *testing.T) {
+	rec, tp := recording(t)
+
+	_, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp))
+	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+	p.send(appRequest(7, 7, "smsc.example.org"))
+	p.recv()
+
+	retransmitted := appRequest(8, 7, "smsc.example.org")
+	retransmitted.Flags |= FlagRetransmit
+	p.send(retransmitted)
+
+	if ans := p.recv(); ans.HopByHopID != 8 || resultCode(t, ans) != ResultSuccess {
+		t.Fatalf("answer to the retransmission = %+v", ans)
+	}
+
+	if spans := spansOfKind(rec, trace.SpanKindServer); len(spans) != 1 {
+		t.Fatalf("server spans = %d, want 1 for the request and its retransmission", len(spans))
 	}
 }
 
@@ -395,11 +621,11 @@ func TestClientSpanRecordsFailures(t *testing.T) {
 
 		client := spanOfKind(t, rec, trace.SpanKindClient)
 
-		wantAttr(t, client, "error.type", "unknown_peer")
+		wantFailure(t, client, "unknown_peer")
 		noAttr(t, client, "rpc.response.status_code")
 
-		if client.Status().Code != codes.Error || client.Status().Description == "" {
-			t.Errorf("status = %v, want an error with its message", client.Status())
+		if client.Status().Description == "" {
+			t.Errorf("status = %v, want the error's message", client.Status())
 		}
 	})
 
@@ -418,33 +644,18 @@ func TestClientSpanRecordsFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rec, tp := recording(t)
 
-			n, p := ellaWithSMSC(t, TransportTCP, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}, withTracing(tp))
+			n, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp))
 			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
 
-			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
-			defer cancel()
-
-			done := make(chan error, 1)
-
-			go func() {
+			exchangeWith(t, p, func(ctx context.Context) error {
 				_, err := n.Do(ctx, "smsc", request())
-				done <- err
-			}()
-
-			p.send(tc.answer(p.recv()))
-
-			if err := <-done; err != nil {
-				t.Fatal(err)
-			}
+				return err
+			}, tc.answer)
 
 			client := spanOfKind(t, rec, trace.SpanKindClient)
 
 			wantAttr(t, client, "rpc.response.status_code", tc.status)
-			wantAttr(t, client, "error.type", tc.status)
-
-			if client.Status().Code != codes.Error {
-				t.Errorf("status = %v, want error", client.Status())
-			}
+			wantFailure(t, client, tc.status)
 		})
 	}
 }
@@ -452,7 +663,7 @@ func TestClientSpanRecordsFailures(t *testing.T) {
 func TestUnknownCommandIsOther(t *testing.T) {
 	rec, tp := recording(t)
 
-	_, p := ellaWithSMSC(t, TransportTCP, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}, withTracing(tp))
+	_, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), withTracing(tp))
 
 	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
 
@@ -469,33 +680,6 @@ func TestUnknownCommandIsOther(t *testing.T) {
 
 	wantAttr(t, server, "rpc.method", "_OTHER")
 	wantAttr(t, server, "rpc.method_original", "16777313/1234")
-}
-
-func TestTracingIsOffWithoutAProvider(t *testing.T) {
-	n, p := ellaWithSMSC(t, TransportTCP, Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}})
-
-	openRaw(t, p, "smsc.example.org", appAVP(sgdApp), advertisingElla())
-
-	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
-	defer cancel()
-
-	done := make(chan error, 1)
-
-	go func() {
-		_, err := n.Do(ctx, "smsc", request())
-		done <- err
-	}()
-
-	got := p.recv()
-	p.send(answerFrom(got, ResultSuccess))
-
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-
-	if avps := traceAVPs(got); len(avps) != 0 {
-		t.Fatalf("sent %d Ella AVPs without tracing, want none", len(avps))
-	}
 }
 
 func TestRerouteIsASpanEvent(t *testing.T) {
@@ -517,16 +701,37 @@ func TestRerouteIsASpanEvent(t *testing.T) {
 		t.Fatalf("event = %q", e.Name)
 	}
 
-	for _, kv := range e.Attributes {
-		switch kv.Key {
-		case "ella.diameter.reroute.reason":
-			if kv.Value.AsString() != "too_busy" {
-				t.Errorf("reason = %q", kv.Value.AsString())
-			}
-		case "ella.diameter.reroute.from":
-			if kv.Value.AsString() != "hss1" {
-				t.Errorf("from = %q", kv.Value.AsString())
-			}
+	want := []attribute.KeyValue{
+		attribute.String("ella.diameter.reroute.reason", "too_busy"),
+		attribute.String("ella.diameter.reroute.from", "hss1"),
+	}
+
+	if !slices.Equal(e.Attributes, want) {
+		t.Fatalf("event attributes = %v, want %v", e.Attributes, want)
+	}
+}
+
+func TestEllaIsNotItsOwnSupportedVendor(t *testing.T) {
+	_, p := ellaWithSMSC(t, TransportTCP, configuredSMSC(), func(cfg *Config) { cfg.Identity.VendorID = EllaVendorID })
+
+	cea := openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+	for _, a := range FindAll(cea.AVPs, AVPSupportedVendorID, 0) {
+		if v, _ := a.Unsigned32(); v == EllaVendorID {
+			t.Fatal("CEA lists the device vendor as a Supported-Vendor-Id")
 		}
 	}
+}
+
+func TestRegisterMethodRejectsConflicts(t *testing.T) {
+	RegisterMethod(testAppID, 1, "SGd/Conflict")
+	RegisterMethod(testAppID, 1, "SGd/Conflict")
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("registering another name for a command did not panic")
+		}
+	}()
+
+	RegisterMethod(testAppID, 1, "SGd/Other")
 }

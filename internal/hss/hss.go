@@ -13,8 +13,11 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/udm"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/hss")
 
 var (
 	ErrSubscriberUnknown = errors.New("subscriber unknown")

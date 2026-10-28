@@ -12,8 +12,11 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/smf"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/pcf")
 
 var _ smf.PCF = (*PCF)(nil)
 

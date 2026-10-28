@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -363,13 +364,14 @@ func (c *Conn) receive(m *Message) {
 }
 
 func (c *Conn) receiveRequest(m *Message) {
-	code := uint32(0)
+	code, failure := uint32(0), ""
 
 	switch {
 	case connState(c.state.Load()) == stateClosing:
-		code = UnavailableResult(m)
+		code, failure = UnavailableResult(m), failureShuttingDown
 	case m.ApplicationID == 0:
 		code = ResultCommandUnsupported
+		failure = strconv.FormatUint(uint64(code), 10)
 	case !c.common[m.ApplicationID]:
 		code = ResultApplicationUnsupported
 	default:
@@ -377,20 +379,20 @@ func (c *Conn) receiveRequest(m *Message) {
 	}
 
 	if code != 0 {
-		c.reject(m, code)
+		c.reject(m, code, failure)
 		return
 	}
 
 	select {
 	case c.requests <- struct{}{}:
 	default:
-		c.reject(m, UnavailableResult(m))
+		c.reject(m, UnavailableResult(m), failureOverloaded)
 		return
 	}
 
 	if code := c.n.admit(m); code != 0 {
 		<-c.requests
-		c.reject(m, code)
+		c.reject(m, code, failureShuttingDown)
 
 		return
 	}
@@ -398,12 +400,12 @@ func (c *Conn) receiveRequest(m *Message) {
 	go c.serve(m)
 }
 
-func (c *Conn) reject(req *Message, resultCode uint32) {
+func (c *Conn) reject(req *Message, resultCode uint32, failure string) {
 	_, span := c.startServerSpan(req)
 	ans := c.Answer(req, resultCode)
 
 	c.send(ans)
-	endServerSpan(span, ans)
+	endServerSpan(span, ans, failure)
 }
 
 func (c *Conn) receiveMalformed(m *Message, err error) {
@@ -541,7 +543,6 @@ func (c *Conn) handleCER(req *Message) {
 
 	c.peerHost = host.UTF8String()
 	c.peerRealm = realm.UTF8String()
-	c.tracesContext = advertisesTraceContext(req.AVPs)
 
 	d := c.n.acceptCER(c, c.peerHost, req)
 
@@ -616,7 +617,6 @@ func (c *Conn) handleCEA(ans *Message) {
 
 	c.peerHost = host.UTF8String()
 	c.peerRealm = realm.UTF8String()
-	c.tracesContext = advertisesTraceContext(ans.AVPs)
 
 	displaced, ok := c.n.acceptCEA(c, c.peerHost, common)
 
@@ -702,7 +702,7 @@ func (c *Conn) serve(req *Message) {
 
 	err = c.writeRaw(b)
 
-	endServerSpan(span, ans)
+	endServerSpan(span, ans, handlerFailure(ans))
 	after.run(c, err)
 }
 
@@ -853,7 +853,12 @@ func (c *Conn) capabilityAVPs() []AVP {
 		vendors = append(vendors, app.VendorID)
 	}
 
-	for _, vendor := range append(append(vendors, c.localVendors...), EllaVendorID) {
+	vendors = append(vendors, c.localVendors...)
+	if id.VendorID != EllaVendorID {
+		vendors = append(vendors, EllaVendorID)
+	}
+
+	for _, vendor := range vendors {
 		if vendor != 0 && !seenVendors[vendor] {
 			seenVendors[vendor] = true
 			avps = append(avps, Unsigned32(AVPSupportedVendorID, AVPFlagMandatory, 0, vendor))

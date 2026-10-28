@@ -59,6 +59,7 @@ func (l *sctpListener) accept() (transport, error) {
 type sctpTransport struct {
 	sc        *sctp.SCTPConn
 	remote    netip.Addr
+	port      uint16
 	unordered atomic.Bool
 	closed    atomic.Bool
 }
@@ -71,7 +72,12 @@ func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
 		return nil, err
 	}
 
-	return &sctpTransport{sc: sc, remote: remote}, nil
+	t := &sctpTransport{sc: sc, remote: remote}
+	if a, ok := sc.RemoteAddr().(*sctp.SCTPAddr); ok && a.Port > 0 && a.Port <= 0xffff {
+		t.port = uint16(a.Port)
+	}
+
+	return t, nil
 }
 
 func dialSCTP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port uint16, logger *slog.Logger) (transport, error) {
@@ -102,6 +108,8 @@ func ipAddrs(addrs []netip.Addr) []net.IPAddr {
 func (t *sctpTransport) kind() Transport { return TransportSCTP }
 
 func (t *sctpTransport) remoteAddr() netip.Addr { return t.remote }
+
+func (t *sctpTransport) remotePort() uint16 { return t.port }
 
 func (t *sctpTransport) localAddrs() []netip.Addr {
 	a, ok := t.sc.LocalAddr().(*sctp.SCTPAddr)

@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/tracing"
 	"go.uber.org/zap"
 )
 
@@ -108,9 +109,12 @@ func (h *HSS) Reconcile(ctx context.Context, imsi string) error {
 	}
 }
 
-func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, p *profile) error {
+func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, p *profile) (err error) {
 	pushCtx, cancel := context.WithTimeout(ctx, pushProfileTimeout)
 	defer cancel()
+
+	pushCtx, span := tracer.Start(pushCtx, "hss/push-profile")
+	defer func() { tracing.End(span, err) }()
 
 	r, err := h.send(pushCtx, reg, p)
 	if err != nil {

@@ -97,6 +97,10 @@ func newConfiguredPeer(cfg Peer) *peer {
 	}
 }
 
+func (p *peer) configured() bool {
+	return p.cfg != nil && !p.dynamic
+}
+
 func (p *peer) name() string {
 	if p.id != "" {
 		return p.id
@@ -153,7 +157,7 @@ func (p *peer) statusLocked() PeerStatus {
 		State:      p.state(),
 		Since:      p.since,
 		LastError:  p.lastError,
-		Configured: p.cfg != nil && !p.dynamic,
+		Configured: p.configured(),
 		Dynamic:    p.dynamic,
 	}
 
@@ -490,6 +494,7 @@ func (n *Node) acceptCEA(c *Conn, host string, common map[uint32]bool) ([]*Conn,
 
 func (n *Node) openLocked(p *peer, c *Conn) {
 	c.reopen = p.everOpen && p.cfg != nil
+	c.tracesContext = p.configured()
 	p.everOpen = true
 	p.open = c
 	p.suppress = false

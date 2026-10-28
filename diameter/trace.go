@@ -6,6 +6,7 @@ package diameter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"sync"
@@ -31,7 +32,18 @@ const (
 	rerouteEvent     = "ella.diameter.reroute"
 	rerouteReasonKey = attribute.Key("ella.diameter.reroute.reason")
 	rerouteFromKey   = attribute.Key("ella.diameter.reroute.from")
+	peerIDKey        = attribute.Key("ella.diameter.peer.id")
+
+	failureOverloaded   = "overloaded"
+	failureShuttingDown = "shutting_down"
 )
+
+var handlerFailures = map[uint32]bool{
+	ResultCommandUnsupported: true,
+	ResultUnableToDeliver:    true,
+	ResultTooBusy:            true,
+	ResultUnableToComply:     true,
+}
 
 var traceContext = propagation.TraceContext{}
 
@@ -43,7 +55,9 @@ type methodKey struct {
 var methods sync.Map
 
 func RegisterMethod(applicationID, commandCode uint32, name string) {
-	methods.Store(methodKey{applicationID, commandCode}, name)
+	if prev, loaded := methods.LoadOrStore(methodKey{applicationID, commandCode}, name); loaded && prev != name {
+		panic(fmt.Sprintf("diameter: command %d of application %d registered as both %q and %q", commandCode, applicationID, prev, name))
+	}
 }
 
 func Method(applicationID, commandCode uint32) (string, bool) {
@@ -78,6 +92,7 @@ func methodAttributes(m *Message) (string, []attribute.KeyValue) {
 func transportAttributes(c *Conn) []attribute.KeyValue {
 	return []attribute.KeyValue{
 		semconv.NetworkPeerAddress(c.RemoteAddr().String()),
+		semconv.NetworkPeerPort(int(c.t.remotePort())),
 		semconv.NetworkTransportKey.String(c.Transport().String()),
 	}
 }
@@ -102,19 +117,28 @@ func (c *Conn) startServerSpan(m *Message) (context.Context, trace.Span) {
 	return c.n.tracer.Start(ctx, name, append(opts, trace.WithAttributes(attrs...))...)
 }
 
-func endServerSpan(span trace.Span, ans *Message) {
+func handlerFailure(ans *Message) string {
+	code, ok := resultOf(ans)
+	if !ok || !handlerFailures[code] {
+		return ""
+	}
+
+	return strconv.FormatUint(uint64(code), 10)
+}
+
+func endServerSpan(span trace.Span, ans *Message, failure string) {
 	defer span.End()
 
-	code, ok := resultOf(ans)
-	if !ok {
+	if !span.IsRecording() {
 		return
 	}
 
-	status := strconv.FormatUint(uint64(code), 10)
-	span.SetAttributes(semconv.RPCResponseStatusCode(status))
+	if code, ok := resultOf(ans); ok {
+		span.SetAttributes(semconv.RPCResponseStatusCode(strconv.FormatUint(uint64(code), 10)))
+	}
 
-	if code == ResultTooBusy || code == ResultUnableToComply {
-		span.SetAttributes(semconv.ErrorTypeKey.String(status))
+	if failure != "" {
+		span.SetAttributes(semconv.ErrorTypeKey.String(failure))
 		span.SetStatus(codes.Error, "")
 	}
 }
@@ -139,6 +163,10 @@ func (n *Node) startClientSpan(ctx context.Context, req *Message, target string)
 
 func endClientSpan(span trace.Span, ans *Message, err error) {
 	defer span.End()
+
+	if !span.IsRecording() {
+		return
+	}
 
 	if err != nil {
 		span.SetAttributes(semconv.ErrorTypeKey.String(errorType(err)))
@@ -218,11 +246,18 @@ func errorType(err error) string {
 
 func (c *Conn) traceRequest(ctx context.Context, req *Message) {
 	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(transportAttributes(c)...)
+	if span.IsRecording() {
+		span.SetAttributes(transportAttributes(c)...)
+	}
+
+	inject := c.tracesContext && span.SpanContext().IsValid()
+	if !inject && !slices.ContainsFunc(req.AVPs, isTraceContext) {
+		return
+	}
 
 	req.AVPs = slices.DeleteFunc(slices.Clone(req.AVPs), isTraceContext)
 
-	if c.tracesContext && span.SpanContext().IsValid() {
+	if inject {
 		traceContext.Inject(ctx, avpCarrier{avps: &req.AVPs})
 	}
 }
@@ -236,16 +271,6 @@ func reroutedEvent(ctx context.Context, reason RerouteReason, from string) {
 
 func isTraceContext(a AVP) bool {
 	return a.VendorID == EllaVendorID && (a.Code == AVPTraceparent || a.Code == AVPTracestate)
-}
-
-func advertisesTraceContext(avps []AVP) bool {
-	for _, a := range FindAll(avps, AVPSupportedVendorID, 0) {
-		if v, err := a.Unsigned32(); err == nil && v == EllaVendorID {
-			return true
-		}
-	}
-
-	return false
 }
 
 type avpCarrier struct {
