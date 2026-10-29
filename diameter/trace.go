@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	EllaVendorID uint32 = 4294967295
+	EllaVendorID uint32 = 67433
 
 	AVPTraceparent uint32 = 1
 	AVPTracestate  uint32 = 2
