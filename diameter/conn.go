@@ -71,8 +71,6 @@ type Conn struct {
 	parkedCER    *Message
 	lastError    atomic.Pointer[string]
 
-	tracesContext bool
-
 	pendingSlot bool
 	unordered   atomic.Bool
 	requests    chan struct{}
