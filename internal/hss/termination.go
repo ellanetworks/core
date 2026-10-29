@@ -13,8 +13,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/ellanetworks/core/internal/tracing"
 	"go.uber.org/zap"
 )
 
@@ -74,7 +73,10 @@ func termination(imsi string, reg *Registration, reason cx.ReasonCode, sets []Re
 	return t
 }
 
-func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
+func (h *HSS) Terminate(ctx context.Context, t *Termination) (err error) {
+	ctx, span := tracer.Start(ctx, "hss/registration-termination")
+	defer func() { tracing.End(span, err) }()
+
 	if t.Reason == cx.ReasonServerChange {
 		if err := h.clearRegistration(ctx, t); err != nil {
 			return err
@@ -84,19 +86,8 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) error {
 	ctx, cancel := context.WithTimeout(ctx, terminationTimeout)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "cx/registration-termination",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("network.protocol.name", "diameter"),
-			attribute.Int64("diameter.application_id", int64(cx.ApplicationID)),
-			attribute.Int64("diameter.command_code", int64(cx.CommandRegistrationTermination)),
-		),
-	)
-	defer span.End()
-
 	emergency, err := h.terminate(ctx, t)
 	if err != nil {
-		span.RecordError(err)
 		h.log.Warn("Cx registration termination failed", zap.String("imsi", t.IMSI), zap.String("serverHost", t.ServerHost), zap.Error(err))
 
 		return err

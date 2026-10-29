@@ -24,6 +24,17 @@ const (
 	CommandNotify                    uint32 = 323
 )
 
+func init() {
+	diameter.RegisterMethod(ApplicationID, CommandUpdateLocation, "S6a/Update-Location")
+	diameter.RegisterMethod(ApplicationID, CommandCancelLocation, "S6a/Cancel-Location")
+	diameter.RegisterMethod(ApplicationID, CommandAuthenticationInformation, "S6a/Authentication-Information")
+	diameter.RegisterMethod(ApplicationID, CommandInsertSubscriberData, "S6a/Insert-Subscriber-Data")
+	diameter.RegisterMethod(ApplicationID, CommandDeleteSubscriberData, "S6a/Delete-Subscriber-Data")
+	diameter.RegisterMethod(ApplicationID, CommandPurgeUE, "S6a/Purge-UE")
+	diameter.RegisterMethod(ApplicationID, CommandReset, "S6a/Reset")
+	diameter.RegisterMethod(ApplicationID, CommandNotify, "S6a/Notify")
+}
+
 const (
 	AVPServedPartyIPAddress                      uint32 = 848
 	AVPSubscriptionData                          uint32 = 1400

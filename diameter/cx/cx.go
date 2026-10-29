@@ -23,6 +23,15 @@ const (
 	CommandPushProfile             uint32 = 305
 )
 
+func init() {
+	diameter.RegisterMethod(ApplicationID, CommandUserAuthorization, "Cx/User-Authorization")
+	diameter.RegisterMethod(ApplicationID, CommandServerAssignment, "Cx/Server-Assignment")
+	diameter.RegisterMethod(ApplicationID, CommandLocationInfo, "Cx/Location-Info")
+	diameter.RegisterMethod(ApplicationID, CommandMultimediaAuth, "Cx/Multimedia-Auth")
+	diameter.RegisterMethod(ApplicationID, CommandRegistrationTermination, "Cx/Registration-Termination")
+	diameter.RegisterMethod(ApplicationID, CommandPushProfile, "Cx/Push-Profile")
+}
+
 const (
 	AVPPublicIdentity                          uint32 = 601
 	AVPServerName                              uint32 = 602

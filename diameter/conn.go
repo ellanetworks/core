@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,6 +70,8 @@ type Conn struct {
 	common       map[uint32]bool
 	parkedCER    *Message
 	lastError    atomic.Pointer[string]
+
+	tracesContext bool
 
 	pendingSlot bool
 	unordered   atomic.Bool
@@ -361,13 +364,14 @@ func (c *Conn) receive(m *Message) {
 }
 
 func (c *Conn) receiveRequest(m *Message) {
-	code := uint32(0)
+	code, failure := uint32(0), ""
 
 	switch {
 	case connState(c.state.Load()) == stateClosing:
-		code = UnavailableResult(m)
+		code, failure = UnavailableResult(m), failureShuttingDown
 	case m.ApplicationID == 0:
 		code = ResultCommandUnsupported
+		failure = strconv.FormatUint(uint64(code), 10)
 	case !c.common[m.ApplicationID]:
 		code = ResultApplicationUnsupported
 	default:
@@ -375,25 +379,33 @@ func (c *Conn) receiveRequest(m *Message) {
 	}
 
 	if code != 0 {
-		c.send(c.Answer(m, code))
+		c.reject(m, code, failure)
 		return
 	}
 
 	select {
 	case c.requests <- struct{}{}:
 	default:
-		c.send(c.Answer(m, UnavailableResult(m)))
+		c.reject(m, UnavailableResult(m), failureOverloaded)
 		return
 	}
 
 	if code := c.n.admit(m); code != 0 {
 		<-c.requests
-		c.send(c.Answer(m, code))
+		c.reject(m, code, failureShuttingDown)
 
 		return
 	}
 
 	go c.serve(m)
+}
+
+func (c *Conn) reject(req *Message, resultCode uint32, failure string) {
+	_, span := c.startServerSpan(req)
+	ans := c.Answer(req, resultCode)
+
+	c.send(ans)
+	endServerSpan(span, ans, failure)
 }
 
 func (c *Conn) receiveMalformed(m *Message, err error) {
@@ -674,19 +686,27 @@ func (c *Conn) serve(req *Message) {
 	}
 
 	after := &afterAnswer{}
+	ctx, span := c.startServerSpan(req)
 
-	b, err := c.handle(req, after).Marshal()
+	ans := c.handle(ctx, req, after)
+
+	b, err := ans.Marshal()
 	if err != nil {
 		c.logger().Error("failed to encode Diameter answer", slog.Any("error", err))
 
-		b, _ = c.Answer(req, ResultUnableToComply).Marshal()
+		ans = c.Answer(req, ResultUnableToComply)
+		b, _ = ans.Marshal()
 	}
 
 	c.n.duplicates.finish(entry, b)
-	after.run(c, c.writeRaw(b))
+
+	err = c.writeRaw(b)
+
+	endServerSpan(span, ans, handlerFailure(ans))
+	after.run(c, err)
 }
 
-func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
+func (c *Conn) handle(ctx context.Context, req *Message, after *afterAnswer) (ans *Message) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger().Error("panic handling Diameter request",
@@ -696,7 +716,7 @@ func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
 		}
 	}()
 
-	ctx := context.WithValue(c.ctx, afterAnswerKey{}, after)
+	ctx = context.WithValue(ctx, afterAnswerKey{}, after)
 
 	if c.n.cfg.HandlerTimeout > 0 {
 		var cancel context.CancelFunc
@@ -716,6 +736,7 @@ func (c *Conn) handle(req *Message, after *afterAnswer) (ans *Message) {
 func (c *Conn) exchange(ctx context.Context, req *Message, failover bool) (*Message, error) {
 	m := *req
 	m.HopByHopID = c.hopByHop.Add(1)
+	c.traceRequest(ctx, &m)
 
 	ch := make(chan *Message, 1)
 
@@ -827,12 +848,17 @@ func (c *Conn) capabilityAVPs() []AVP {
 
 	seenVendors := make(map[uint32]bool)
 
-	vendors := make([]uint32, 0, len(c.localApps)+len(c.localVendors))
+	vendors := make([]uint32, 0, len(c.localApps)+len(c.localVendors)+1)
 	for _, app := range c.localApps {
 		vendors = append(vendors, app.VendorID)
 	}
 
-	for _, vendor := range append(vendors, c.localVendors...) {
+	vendors = append(vendors, c.localVendors...)
+	if id.VendorID != EllaVendorID {
+		vendors = append(vendors, EllaVendorID)
+	}
+
+	for _, vendor := range vendors {
 		if vendor != 0 && !seenVendors[vendor] {
 			seenVendors[vendor] = true
 			avps = append(avps, Unsigned32(AVPSupportedVendorID, AVPFlagMandatory, 0, vendor))

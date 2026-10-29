@@ -69,7 +69,10 @@ type following struct {
 	next int
 }
 
-func (n *Node) Send(ctx context.Context, req *Message, opts ...RequestOption) (*Message, error) {
+func (n *Node) Send(ctx context.Context, req *Message, opts ...RequestOption) (ans *Message, err error) {
+	ctx, span := n.startClientSpan(ctx, req, requestTarget(req))
+	defer func() { endClientSpan(span, ans, err) }()
+
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 
@@ -116,7 +119,7 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 			}
 
 			s.m.Flags |= FlagRetransmit
-			s.reroute(RerouteFailover, cand.peer)
+			s.reroute(ctx, RerouteFailover, cand.peer)
 
 			continue
 		case err != nil:
@@ -148,7 +151,7 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 			s.tried[cand.peer] = true
 			s.last = ans
 			s.m.Flags |= FlagRetransmit
-			s.reroute(reason, cand.peer)
+			s.reroute(ctx, reason, cand.peer)
 		default:
 			return ans, nil
 		}
@@ -326,7 +329,7 @@ func (s *sending) follow(ctx context.Context, from *peer, ans *Message) error {
 	}
 
 	s.m.Flags |= FlagRetransmit
-	s.reroute(RerouteRedirect, from)
+	s.reroute(ctx, RerouteRedirect, from)
 
 	return nil
 }
@@ -474,7 +477,9 @@ func (s *sending) release() {
 	}
 }
 
-func (s *sending) reroute(reason RerouteReason, from *peer) {
+func (s *sending) reroute(ctx context.Context, reason RerouteReason, from *peer) {
+	reroutedEvent(ctx, reason, from.name())
+
 	if s.n.cfg.OnReroute == nil {
 		return
 	}

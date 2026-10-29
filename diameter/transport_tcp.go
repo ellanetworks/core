@@ -50,6 +50,7 @@ type tcpTransport struct {
 	conn   *net.TCPConn
 	r      *bufio.Reader
 	remote netip.Addr
+	port   uint16
 	closed atomic.Bool
 
 	writeMu      sync.Mutex
@@ -58,9 +59,14 @@ type tcpTransport struct {
 }
 
 func newTCPTransport(tc *net.TCPConn) *tcpTransport {
-	var remote netip.Addr
+	var (
+		remote netip.Addr
+		port   uint16
+	)
+
 	if a, ok := tc.RemoteAddr().(*net.TCPAddr); ok {
 		remote = a.AddrPort().Addr().Unmap()
+		port = a.AddrPort().Port()
 	}
 
 	_ = tc.SetNoDelay(false)
@@ -69,6 +75,7 @@ func newTCPTransport(tc *net.TCPConn) *tcpTransport {
 		conn:         tc,
 		r:            bufio.NewReaderSize(tc, tcpReadBufferSize),
 		remote:       remote,
+		port:         port,
 		writeTimeout: 2 * DefaultWatchdogInterval,
 		linger:       tcpLingerTimeout,
 	}
@@ -126,6 +133,8 @@ func sameFamily(addrs []netip.Addr, to netip.Addr) (netip.Addr, bool) {
 func (t *tcpTransport) kind() Transport { return TransportTCP }
 
 func (t *tcpTransport) remoteAddr() netip.Addr { return t.remote }
+
+func (t *tcpTransport) remotePort() uint16 { return t.port }
 
 func (t *tcpTransport) localAddrs() []netip.Addr {
 	a, ok := t.conn.LocalAddr().(*net.TCPAddr)

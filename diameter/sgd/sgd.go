@@ -19,6 +19,11 @@ const (
 	CommandMTForwardShortMessage uint32 = 8388646
 )
 
+func init() {
+	diameter.RegisterMethod(ApplicationID, CommandMOForwardShortMessage, "SGd/MO-Forward-Short-Message")
+	diameter.RegisterMethod(ApplicationID, CommandMTForwardShortMessage, "SGd/MT-Forward-Short-Message")
+}
+
 const (
 	AVPEPSLocationInformation           uint32 = 1496
 	AVPMPSPriority                      uint32 = 1616

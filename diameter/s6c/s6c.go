@@ -19,6 +19,12 @@ const (
 	CommandReportSMDeliveryStatus uint32 = 8388649
 )
 
+func init() {
+	diameter.RegisterMethod(ApplicationID, CommandSendRoutingInfoForSM, "S6c/Send-Routing-Info-for-SM")
+	diameter.RegisterMethod(ApplicationID, CommandAlertServiceCentre, "S6c/Alert-Service-Centre")
+	diameter.RegisterMethod(ApplicationID, CommandReportSMDeliveryStatus, "S6c/Report-SM-Delivery-Status")
+}
+
 const (
 	AVPLMSI                              uint32 = 2400
 	AVPServingNode                       uint32 = 2401
