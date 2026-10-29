@@ -17,6 +17,7 @@ func TestRadioInfoNamesEachRadioOnce(t *testing.T) {
 			{ID: "eNB:001-01:MacroeNB-00002", Name: ""},
 			{ID: "gNB:001-01:000001@22", Name: "hall"},
 			{ID: "", Name: "not set up"},
+			{ID: "gNB:001-01:000009@22"},
 		}
 	}))
 
@@ -44,7 +45,7 @@ func TestRadioInfoNamesEachRadioOnce(t *testing.T) {
 		got[labels["radio_id"]] = labels["radio"]
 	}
 
-	want := map[string]string{"gNB:001-01:000001@22": "hall", "eNB:001-01:MacroeNB-00002": ""}
+	want := map[string]string{"gNB:001-01:000001@22": "hall", "eNB:001-01:MacroeNB-00002": "", "gNB:001-01:000009@22": ""}
 	if len(got) != len(want) {
 		t.Fatalf("radios = %v, want %v", got, want)
 	}

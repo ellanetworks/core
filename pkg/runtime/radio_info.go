@@ -14,7 +14,7 @@ type radioIdentity struct {
 	Name string
 }
 
-func knownRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) func() []radioIdentity {
+func knownRadios(amfInstance *amf.AMF, mmeInstance *mme.MME, counted func() map[uint16]string) func() []radioIdentity {
 	return func() []radioIdentity {
 		var out []radioIdentity
 
@@ -26,6 +26,10 @@ func knownRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) func() []radioIdent
 			out = append(out, radioIdentity{ID: r.Ref, Name: r.Name})
 		}
 
+		for _, id := range counted() {
+			out = append(out, radioIdentity{ID: id})
+		}
+
 		return out
 	}
 }
@@ -33,7 +37,7 @@ func knownRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) func() []radioIdent
 func radioInfoCollector(radios func() []radioIdentity) prometheus.Collector {
 	desc := prometheus.NewDesc(
 		"app_radio_info",
-		"Radios (gNBs and eNBs) known to this node, always 1. radio_id is the radio's global RAN node ID, as in the radios API; radio is its name. Join on radio_id to name the series of app_upf_radio_* metrics.",
+		"Radios (gNBs and eNBs) known to this node or counted by its data plane, always 1. radio_id is the radio's global RAN node ID, as in the radios API; radio is its name, empty once the radio is no longer registered. Join on radio_id to name the series of app_upf_radio_* metrics.",
 		[]string{"radio_id", "radio"},
 		nil,
 	)
