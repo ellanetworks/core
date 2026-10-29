@@ -50,7 +50,7 @@ type N3N6EntrypointClassifierQuery struct {
 			Remoteip              N3N6EntrypointIn6Addr
 			Localip               N3N6EntrypointIn6Addr
 			TransportLevelMarking uint16
-			_                     [2]byte
+			RadioId               uint16
 		}
 		_   [4]byte
 		Qer struct {
@@ -62,6 +62,8 @@ type N3N6EntrypointClassifierQuery struct {
 			AveragingWindowMs uint32
 			UlMaximumBitrate  uint64
 			DlMaximumBitrate  uint64
+			ClassId           uint16
+			Pad2              [6]uint8
 		}
 	}
 }
@@ -209,7 +211,7 @@ type N3N6EntrypointPdrInfo struct {
 		Remoteip              N3N6EntrypointIn6Addr
 		Localip               N3N6EntrypointIn6Addr
 		TransportLevelMarking uint16
-		_                     [2]byte
+		RadioId               uint16
 	}
 	_   [4]byte
 	Qer struct {
@@ -221,11 +223,14 @@ type N3N6EntrypointPdrInfo struct {
 		AveragingWindowMs uint32
 		UlMaximumBitrate  uint64
 		DlMaximumBitrate  uint64
+		ClassId           uint16
+		Pad2              [6]uint8
 	}
 	FilterMapIndex uint32
 	UeIpv4         N3N6EntrypointIn6Addr
 	UeIpv6         N3N6EntrypointIn6Addr
-	_              [4]byte
+	RadioId        uint16
+	_              [2]byte
 }
 
 type N3N6EntrypointQerKey struct {
@@ -239,6 +244,13 @@ type N3N6EntrypointQerWindow struct {
 	_       structs.HostLayout
 	UlStart uint64
 	DlStart uint64
+}
+
+type N3N6EntrypointRadioDropKey struct {
+	_         structs.HostLayout
+	RadioId   uint16
+	Direction uint8
+	Reason    uint8
 }
 
 type N3N6EntrypointRouteStat struct {
@@ -306,7 +318,7 @@ type N3N6EntrypointSdfClassifier struct {
 			Remoteip              N3N6EntrypointIn6Addr
 			Localip               N3N6EntrypointIn6Addr
 			TransportLevelMarking uint16
-			_                     [2]byte
+			RadioId               uint16
 		}
 		_   [4]byte
 		Qer struct {
@@ -318,6 +330,8 @@ type N3N6EntrypointSdfClassifier struct {
 			AveragingWindowMs uint32
 			UlMaximumBitrate  uint64
 			DlMaximumBitrate  uint64
+			ClassId           uint16
+			Pad2              [6]uint8
 		}
 	}
 }
@@ -338,6 +352,29 @@ type N3N6EntrypointSdfFilterList struct {
 		Pad       [7]uint8
 		_         [1]byte
 	}
+}
+
+type N3N6EntrypointTrafficClassCounters struct {
+	_       structs.HostLayout
+	Packets uint64
+	Bytes   uint64
+}
+
+type N3N6EntrypointTrafficClassDropKey struct {
+	_         structs.HostLayout
+	ClassId   uint16
+	Direction uint8
+	Reason    uint8
+}
+
+type N3N6EntrypointTrafficClassMark struct {
+	_            structs.HostLayout
+	ForwardedKey uint32
+	RadioKey     uint32
+	ClassId      uint16
+	RadioId      uint16
+	Direction    uint8
+	Pad          [3]uint8
 }
 
 type N3N6EntrypointUpfStatistic struct {
@@ -388,56 +425,61 @@ type N3N6EntrypointVethTunnelInfo struct {
 //
 // Used for safe lookups in a Collection or CollectionSpec.
 const (
-	N3N6EntrypointMapClassifierScratch   = "classifier_scratch"
-	N3N6EntrypointMapCsumScratch         = "csum_scratch"
-	N3N6EntrypointMapDlBufferCountersMap = "dl_buffer_counters_map"
-	N3N6EntrypointMapDlBufferMap         = "dl_buffer_map"
-	N3N6EntrypointMapDlBufferScratch     = "dl_buffer_scratch"
-	N3N6EntrypointMapDownlinkRouteStats  = "downlink_route_stats"
-	N3N6EntrypointMapDownlinkStatistics  = "downlink_statistics"
-	N3N6EntrypointMapErrorIndMap         = "error_ind_map"
-	N3N6EntrypointMapFlowScratch         = "flow_scratch"
-	N3N6EntrypointMapFlowStats           = "flow_stats"
-	N3N6EntrypointMapFragNatIdSeq        = "frag_nat_id_seq"
-	N3N6EntrypointMapFragPortsIp4        = "frag_ports_ip4"
-	N3N6EntrypointMapFragPortsIp6        = "frag_ports_ip6"
-	N3N6EntrypointMapFramedDownlinkIp4   = "framed_downlink_ip4"
-	N3N6EntrypointMapFramedDownlinkIp6   = "framed_downlink_ip6"
-	N3N6EntrypointMapLocalSwitchUlPdr    = "local_switch_ul_pdr"
-	N3N6EntrypointMapNatCt               = "nat_ct"
-	N3N6EntrypointMapNoNeighMap          = "no_neigh_map"
-	N3N6EntrypointMapNocpMap             = "nocp_map"
-	N3N6EntrypointMapPdrsDownlinkIp4     = "pdrs_downlink_ip4"
-	N3N6EntrypointMapPdrsDownlinkIp6     = "pdrs_downlink_ip6"
-	N3N6EntrypointMapPdrsUplink          = "pdrs_uplink"
-	N3N6EntrypointMapQerWindows          = "qer_windows"
-	N3N6EntrypointMapRingbufLost         = "ringbuf_lost"
-	N3N6EntrypointMapRsEventMap          = "rs_event_map"
-	N3N6EntrypointMapSdfClassifiers      = "sdf_classifiers"
-	N3N6EntrypointMapSdfFilters          = "sdf_filters"
-	N3N6EntrypointMapUpfCalls            = "upf_calls"
-	N3N6EntrypointMapUplinkRouteStats    = "uplink_route_stats"
-	N3N6EntrypointMapUplinkStatistics    = "uplink_statistics"
-	N3N6EntrypointMapUrrMap              = "urr_map"
-	N3N6EntrypointMapVethTunnels         = "veth_tunnels"
-	N3N6EntrypointProgUpfDownlinkFunc    = "upf_downlink_func"
-	N3N6EntrypointProgUpfEntryFunc       = "upf_entry_func"
-	N3N6EntrypointProgUpfGtpuControlFunc = "upf_gtpu_control_func"
-	N3N6EntrypointProgUpfLocalSwitchFunc = "upf_local_switch_func"
-	N3N6EntrypointProgUpfUplinkFunc      = "upf_uplink_func"
-	N3N6EntrypointProgVethXdpFunc        = "veth_xdp_func"
-	N3N6EntrypointVarBufferVethIfindex   = "buffer_veth_ifindex"
-	N3N6EntrypointVarFlowact             = "flowact"
-	N3N6EntrypointVarLocalSwitch         = "local_switch"
-	N3N6EntrypointVarMasquerade          = "masquerade"
-	N3N6EntrypointVarN3Ifindex           = "n3_ifindex"
-	N3N6EntrypointVarN3RoutingIfindex    = "n3_routing_ifindex"
-	N3N6EntrypointVarN3Vlan              = "n3_vlan"
-	N3N6EntrypointVarN6Ifindex           = "n6_ifindex"
-	N3N6EntrypointVarN6RoutingIfindex    = "n6_routing_ifindex"
-	N3N6EntrypointVarN6Vlan              = "n6_vlan"
-	N3N6EntrypointVarNatPortMax          = "nat_port_max"
-	N3N6EntrypointVarNatPortMin          = "nat_port_min"
+	N3N6EntrypointMapClassifierScratch     = "classifier_scratch"
+	N3N6EntrypointMapCsumScratch           = "csum_scratch"
+	N3N6EntrypointMapDlBufferCountersMap   = "dl_buffer_counters_map"
+	N3N6EntrypointMapDlBufferMap           = "dl_buffer_map"
+	N3N6EntrypointMapDlBufferScratch       = "dl_buffer_scratch"
+	N3N6EntrypointMapDownlinkRouteStats    = "downlink_route_stats"
+	N3N6EntrypointMapDownlinkStatistics    = "downlink_statistics"
+	N3N6EntrypointMapErrorIndMap           = "error_ind_map"
+	N3N6EntrypointMapFlowScratch           = "flow_scratch"
+	N3N6EntrypointMapFlowStats             = "flow_stats"
+	N3N6EntrypointMapFragNatIdSeq          = "frag_nat_id_seq"
+	N3N6EntrypointMapFragPortsIp4          = "frag_ports_ip4"
+	N3N6EntrypointMapFragPortsIp6          = "frag_ports_ip6"
+	N3N6EntrypointMapFramedDownlinkIp4     = "framed_downlink_ip4"
+	N3N6EntrypointMapFramedDownlinkIp6     = "framed_downlink_ip6"
+	N3N6EntrypointMapLocalSwitchUlPdr      = "local_switch_ul_pdr"
+	N3N6EntrypointMapNatCt                 = "nat_ct"
+	N3N6EntrypointMapNoNeighMap            = "no_neigh_map"
+	N3N6EntrypointMapNocpMap               = "nocp_map"
+	N3N6EntrypointMapPdrsDownlinkIp4       = "pdrs_downlink_ip4"
+	N3N6EntrypointMapPdrsDownlinkIp6       = "pdrs_downlink_ip6"
+	N3N6EntrypointMapPdrsUplink            = "pdrs_uplink"
+	N3N6EntrypointMapQerWindows            = "qer_windows"
+	N3N6EntrypointMapRadioDrops            = "radio_drops"
+	N3N6EntrypointMapRadioForwarded        = "radio_forwarded"
+	N3N6EntrypointMapRingbufLost           = "ringbuf_lost"
+	N3N6EntrypointMapRsEventMap            = "rs_event_map"
+	N3N6EntrypointMapSdfClassifiers        = "sdf_classifiers"
+	N3N6EntrypointMapSdfFilters            = "sdf_filters"
+	N3N6EntrypointMapTrafficClassDrops     = "traffic_class_drops"
+	N3N6EntrypointMapTrafficClassForwarded = "traffic_class_forwarded"
+	N3N6EntrypointMapTrafficClassMarks     = "traffic_class_marks"
+	N3N6EntrypointMapUpfCalls              = "upf_calls"
+	N3N6EntrypointMapUplinkRouteStats      = "uplink_route_stats"
+	N3N6EntrypointMapUplinkStatistics      = "uplink_statistics"
+	N3N6EntrypointMapUrrMap                = "urr_map"
+	N3N6EntrypointMapVethTunnels           = "veth_tunnels"
+	N3N6EntrypointProgUpfDownlinkFunc      = "upf_downlink_func"
+	N3N6EntrypointProgUpfEntryFunc         = "upf_entry_func"
+	N3N6EntrypointProgUpfGtpuControlFunc   = "upf_gtpu_control_func"
+	N3N6EntrypointProgUpfLocalSwitchFunc   = "upf_local_switch_func"
+	N3N6EntrypointProgUpfUplinkFunc        = "upf_uplink_func"
+	N3N6EntrypointProgVethXdpFunc          = "veth_xdp_func"
+	N3N6EntrypointVarBufferVethIfindex     = "buffer_veth_ifindex"
+	N3N6EntrypointVarFlowact               = "flowact"
+	N3N6EntrypointVarLocalSwitch           = "local_switch"
+	N3N6EntrypointVarMasquerade            = "masquerade"
+	N3N6EntrypointVarN3Ifindex             = "n3_ifindex"
+	N3N6EntrypointVarN3RoutingIfindex      = "n3_routing_ifindex"
+	N3N6EntrypointVarN3Vlan                = "n3_vlan"
+	N3N6EntrypointVarN6Ifindex             = "n6_ifindex"
+	N3N6EntrypointVarN6RoutingIfindex      = "n6_routing_ifindex"
+	N3N6EntrypointVarN6Vlan                = "n6_vlan"
+	N3N6EntrypointVarNatPortMax            = "nat_port_max"
+	N3N6EntrypointVarNatPortMin            = "nat_port_min"
 )
 
 // LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
@@ -494,38 +536,43 @@ type N3N6EntrypointProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointMapSpecs struct {
-	ClassifierScratch   *ebpf.MapSpec `ebpf:"classifier_scratch"`
-	CsumScratch         *ebpf.MapSpec `ebpf:"csum_scratch"`
-	DlBufferCountersMap *ebpf.MapSpec `ebpf:"dl_buffer_counters_map"`
-	DlBufferMap         *ebpf.MapSpec `ebpf:"dl_buffer_map"`
-	DlBufferScratch     *ebpf.MapSpec `ebpf:"dl_buffer_scratch"`
-	DownlinkRouteStats  *ebpf.MapSpec `ebpf:"downlink_route_stats"`
-	DownlinkStatistics  *ebpf.MapSpec `ebpf:"downlink_statistics"`
-	ErrorIndMap         *ebpf.MapSpec `ebpf:"error_ind_map"`
-	FlowScratch         *ebpf.MapSpec `ebpf:"flow_scratch"`
-	FlowStats           *ebpf.MapSpec `ebpf:"flow_stats"`
-	FragNatIdSeq        *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
-	FragPortsIp4        *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
-	FragPortsIp6        *ebpf.MapSpec `ebpf:"frag_ports_ip6"`
-	FramedDownlinkIp4   *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
-	FramedDownlinkIp6   *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
-	LocalSwitchUlPdr    *ebpf.MapSpec `ebpf:"local_switch_ul_pdr"`
-	NatCt               *ebpf.MapSpec `ebpf:"nat_ct"`
-	NoNeighMap          *ebpf.MapSpec `ebpf:"no_neigh_map"`
-	NocpMap             *ebpf.MapSpec `ebpf:"nocp_map"`
-	PdrsDownlinkIp4     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
-	PdrsDownlinkIp6     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
-	PdrsUplink          *ebpf.MapSpec `ebpf:"pdrs_uplink"`
-	QerWindows          *ebpf.MapSpec `ebpf:"qer_windows"`
-	RingbufLost         *ebpf.MapSpec `ebpf:"ringbuf_lost"`
-	RsEventMap          *ebpf.MapSpec `ebpf:"rs_event_map"`
-	SdfClassifiers      *ebpf.MapSpec `ebpf:"sdf_classifiers"`
-	SdfFilters          *ebpf.MapSpec `ebpf:"sdf_filters"`
-	UpfCalls            *ebpf.MapSpec `ebpf:"upf_calls"`
-	UplinkRouteStats    *ebpf.MapSpec `ebpf:"uplink_route_stats"`
-	UplinkStatistics    *ebpf.MapSpec `ebpf:"uplink_statistics"`
-	UrrMap              *ebpf.MapSpec `ebpf:"urr_map"`
-	VethTunnels         *ebpf.MapSpec `ebpf:"veth_tunnels"`
+	ClassifierScratch     *ebpf.MapSpec `ebpf:"classifier_scratch"`
+	CsumScratch           *ebpf.MapSpec `ebpf:"csum_scratch"`
+	DlBufferCountersMap   *ebpf.MapSpec `ebpf:"dl_buffer_counters_map"`
+	DlBufferMap           *ebpf.MapSpec `ebpf:"dl_buffer_map"`
+	DlBufferScratch       *ebpf.MapSpec `ebpf:"dl_buffer_scratch"`
+	DownlinkRouteStats    *ebpf.MapSpec `ebpf:"downlink_route_stats"`
+	DownlinkStatistics    *ebpf.MapSpec `ebpf:"downlink_statistics"`
+	ErrorIndMap           *ebpf.MapSpec `ebpf:"error_ind_map"`
+	FlowScratch           *ebpf.MapSpec `ebpf:"flow_scratch"`
+	FlowStats             *ebpf.MapSpec `ebpf:"flow_stats"`
+	FragNatIdSeq          *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
+	FragPortsIp4          *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
+	FragPortsIp6          *ebpf.MapSpec `ebpf:"frag_ports_ip6"`
+	FramedDownlinkIp4     *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
+	FramedDownlinkIp6     *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
+	LocalSwitchUlPdr      *ebpf.MapSpec `ebpf:"local_switch_ul_pdr"`
+	NatCt                 *ebpf.MapSpec `ebpf:"nat_ct"`
+	NoNeighMap            *ebpf.MapSpec `ebpf:"no_neigh_map"`
+	NocpMap               *ebpf.MapSpec `ebpf:"nocp_map"`
+	PdrsDownlinkIp4       *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
+	PdrsDownlinkIp6       *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
+	PdrsUplink            *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	QerWindows            *ebpf.MapSpec `ebpf:"qer_windows"`
+	RadioDrops            *ebpf.MapSpec `ebpf:"radio_drops"`
+	RadioForwarded        *ebpf.MapSpec `ebpf:"radio_forwarded"`
+	RingbufLost           *ebpf.MapSpec `ebpf:"ringbuf_lost"`
+	RsEventMap            *ebpf.MapSpec `ebpf:"rs_event_map"`
+	SdfClassifiers        *ebpf.MapSpec `ebpf:"sdf_classifiers"`
+	SdfFilters            *ebpf.MapSpec `ebpf:"sdf_filters"`
+	TrafficClassDrops     *ebpf.MapSpec `ebpf:"traffic_class_drops"`
+	TrafficClassForwarded *ebpf.MapSpec `ebpf:"traffic_class_forwarded"`
+	TrafficClassMarks     *ebpf.MapSpec `ebpf:"traffic_class_marks"`
+	UpfCalls              *ebpf.MapSpec `ebpf:"upf_calls"`
+	UplinkRouteStats      *ebpf.MapSpec `ebpf:"uplink_route_stats"`
+	UplinkStatistics      *ebpf.MapSpec `ebpf:"uplink_statistics"`
+	UrrMap                *ebpf.MapSpec `ebpf:"urr_map"`
+	VethTunnels           *ebpf.MapSpec `ebpf:"veth_tunnels"`
 }
 
 // N3N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -566,38 +613,43 @@ func (o *N3N6EntrypointObjects) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointMaps struct {
-	ClassifierScratch   *ebpf.Map `ebpf:"classifier_scratch"`
-	CsumScratch         *ebpf.Map `ebpf:"csum_scratch"`
-	DlBufferCountersMap *ebpf.Map `ebpf:"dl_buffer_counters_map"`
-	DlBufferMap         *ebpf.Map `ebpf:"dl_buffer_map"`
-	DlBufferScratch     *ebpf.Map `ebpf:"dl_buffer_scratch"`
-	DownlinkRouteStats  *ebpf.Map `ebpf:"downlink_route_stats"`
-	DownlinkStatistics  *ebpf.Map `ebpf:"downlink_statistics"`
-	ErrorIndMap         *ebpf.Map `ebpf:"error_ind_map"`
-	FlowScratch         *ebpf.Map `ebpf:"flow_scratch"`
-	FlowStats           *ebpf.Map `ebpf:"flow_stats"`
-	FragNatIdSeq        *ebpf.Map `ebpf:"frag_nat_id_seq"`
-	FragPortsIp4        *ebpf.Map `ebpf:"frag_ports_ip4"`
-	FragPortsIp6        *ebpf.Map `ebpf:"frag_ports_ip6"`
-	FramedDownlinkIp4   *ebpf.Map `ebpf:"framed_downlink_ip4"`
-	FramedDownlinkIp6   *ebpf.Map `ebpf:"framed_downlink_ip6"`
-	LocalSwitchUlPdr    *ebpf.Map `ebpf:"local_switch_ul_pdr"`
-	NatCt               *ebpf.Map `ebpf:"nat_ct"`
-	NoNeighMap          *ebpf.Map `ebpf:"no_neigh_map"`
-	NocpMap             *ebpf.Map `ebpf:"nocp_map"`
-	PdrsDownlinkIp4     *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
-	PdrsDownlinkIp6     *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
-	PdrsUplink          *ebpf.Map `ebpf:"pdrs_uplink"`
-	QerWindows          *ebpf.Map `ebpf:"qer_windows"`
-	RingbufLost         *ebpf.Map `ebpf:"ringbuf_lost"`
-	RsEventMap          *ebpf.Map `ebpf:"rs_event_map"`
-	SdfClassifiers      *ebpf.Map `ebpf:"sdf_classifiers"`
-	SdfFilters          *ebpf.Map `ebpf:"sdf_filters"`
-	UpfCalls            *ebpf.Map `ebpf:"upf_calls"`
-	UplinkRouteStats    *ebpf.Map `ebpf:"uplink_route_stats"`
-	UplinkStatistics    *ebpf.Map `ebpf:"uplink_statistics"`
-	UrrMap              *ebpf.Map `ebpf:"urr_map"`
-	VethTunnels         *ebpf.Map `ebpf:"veth_tunnels"`
+	ClassifierScratch     *ebpf.Map `ebpf:"classifier_scratch"`
+	CsumScratch           *ebpf.Map `ebpf:"csum_scratch"`
+	DlBufferCountersMap   *ebpf.Map `ebpf:"dl_buffer_counters_map"`
+	DlBufferMap           *ebpf.Map `ebpf:"dl_buffer_map"`
+	DlBufferScratch       *ebpf.Map `ebpf:"dl_buffer_scratch"`
+	DownlinkRouteStats    *ebpf.Map `ebpf:"downlink_route_stats"`
+	DownlinkStatistics    *ebpf.Map `ebpf:"downlink_statistics"`
+	ErrorIndMap           *ebpf.Map `ebpf:"error_ind_map"`
+	FlowScratch           *ebpf.Map `ebpf:"flow_scratch"`
+	FlowStats             *ebpf.Map `ebpf:"flow_stats"`
+	FragNatIdSeq          *ebpf.Map `ebpf:"frag_nat_id_seq"`
+	FragPortsIp4          *ebpf.Map `ebpf:"frag_ports_ip4"`
+	FragPortsIp6          *ebpf.Map `ebpf:"frag_ports_ip6"`
+	FramedDownlinkIp4     *ebpf.Map `ebpf:"framed_downlink_ip4"`
+	FramedDownlinkIp6     *ebpf.Map `ebpf:"framed_downlink_ip6"`
+	LocalSwitchUlPdr      *ebpf.Map `ebpf:"local_switch_ul_pdr"`
+	NatCt                 *ebpf.Map `ebpf:"nat_ct"`
+	NoNeighMap            *ebpf.Map `ebpf:"no_neigh_map"`
+	NocpMap               *ebpf.Map `ebpf:"nocp_map"`
+	PdrsDownlinkIp4       *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
+	PdrsDownlinkIp6       *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
+	PdrsUplink            *ebpf.Map `ebpf:"pdrs_uplink"`
+	QerWindows            *ebpf.Map `ebpf:"qer_windows"`
+	RadioDrops            *ebpf.Map `ebpf:"radio_drops"`
+	RadioForwarded        *ebpf.Map `ebpf:"radio_forwarded"`
+	RingbufLost           *ebpf.Map `ebpf:"ringbuf_lost"`
+	RsEventMap            *ebpf.Map `ebpf:"rs_event_map"`
+	SdfClassifiers        *ebpf.Map `ebpf:"sdf_classifiers"`
+	SdfFilters            *ebpf.Map `ebpf:"sdf_filters"`
+	TrafficClassDrops     *ebpf.Map `ebpf:"traffic_class_drops"`
+	TrafficClassForwarded *ebpf.Map `ebpf:"traffic_class_forwarded"`
+	TrafficClassMarks     *ebpf.Map `ebpf:"traffic_class_marks"`
+	UpfCalls              *ebpf.Map `ebpf:"upf_calls"`
+	UplinkRouteStats      *ebpf.Map `ebpf:"uplink_route_stats"`
+	UplinkStatistics      *ebpf.Map `ebpf:"uplink_statistics"`
+	UrrMap                *ebpf.Map `ebpf:"urr_map"`
+	VethTunnels           *ebpf.Map `ebpf:"veth_tunnels"`
 }
 
 func (m *N3N6EntrypointMaps) Close() error {
@@ -625,10 +677,15 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
 		m.QerWindows,
+		m.RadioDrops,
+		m.RadioForwarded,
 		m.RingbufLost,
 		m.RsEventMap,
 		m.SdfClassifiers,
 		m.SdfFilters,
+		m.TrafficClassDrops,
+		m.TrafficClassForwarded,
+		m.TrafficClassMarks,
 		m.UpfCalls,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,

@@ -207,6 +207,45 @@ func TestRules_QERCarriesTheEnforcedQoS(t *testing.T) {
 	}
 }
 
+func TestRules_QERsCarryTheirQoSFlow5QI(t *testing.T) {
+	dp := dataPlane{
+		UEIPv4:       netip.MustParseAddr("10.0.0.1"),
+		Access:       Access5G,
+		Downlink:     DownlinkForwarding,
+		QFI:          models.DefaultQFI,
+		FiveQI:       9,
+		Bearers:      []bearerLeg{{Slot: 0, QFI: 2, FiveQI: 2, Admitted: true, Rules: []ruleLeg{{Index: 0}}}},
+		DefaultRules: []ruleLeg{{Index: 0}},
+	}
+
+	want := map[uint32]uint8{
+		qerIDDefault:                  9,
+		qerIDRule(0, 0):               2,
+		qerIDRule(defaultRuleSlot, 0): 9,
+	}
+
+	for _, q := range qersOf(dp) {
+		if q.FiveQI != want[q.QERID] {
+			t.Errorf("QER %d 5QI = %d, want %d", q.QERID, q.FiveQI, want[q.QERID])
+		}
+
+		delete(want, q.QERID)
+	}
+
+	if len(want) != 0 {
+		t.Errorf("QERs %v were not built", want)
+	}
+}
+
+func TestEstablishRequestNamesTheSessionsSliceAndDataNetwork(t *testing.T) {
+	snssai := &models.Snssai{Sst: 1, Sd: "102030"}
+
+	req := dataPlane{}.establishRequest(1, "001010000000001", "", snssai, "cctv", nil, false)
+	if req.Snssai != snssai || req.DNN != "cctv" {
+		t.Errorf("establish request slice %+v, DNN %q; want %+v, %q", req.Snssai, req.DNN, snssai, "cctv")
+	}
+}
+
 func TestModifyRequest_CarriesTheWholeRuleSet(t *testing.T) {
 	dp := dataPlane{UEIPv4: netip.MustParseAddr("10.0.0.1"), Downlink: DownlinkForwarding}
 
@@ -372,7 +411,7 @@ func TestVoiceAndVideoWithASecondCallFitWhileMovingAccess(t *testing.T) {
 
 func TestIMSSessionsAreLocallySwitchedAndExemptFromNAT(t *testing.T) {
 	for _, ims := range []bool{false, true} {
-		req := dataPlane{}.establishRequest(1, "001010000000001", "", nil, ims)
+		req := dataPlane{}.establishRequest(1, "001010000000001", "", nil, "", nil, ims)
 		if req.LocalSwitch != ims || req.NATExempt != ims {
 			t.Fatalf("ims=%v: establish request local switch %v, NAT exempt %v", ims, req.LocalSwitch, req.NATExempt)
 		}

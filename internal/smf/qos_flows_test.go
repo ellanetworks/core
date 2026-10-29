@@ -282,6 +282,34 @@ func TestVoiceRuleCreatesAGBRQoSFlow(t *testing.T) {
 	requireOneFlowModification(t, amfCb)
 }
 
+func TestUserPlaneLearnsEachQoSFlows5QI(t *testing.T) {
+	s, _, upf, amfCb, ref := fiveGVoiceFixture(t)
+
+	pushRules(t, s, ref, voiceRule())
+	waitFlowModifications(t, amfCb, 1)
+	ueAnswers(t, s, ref, true)
+	ranAnswers(t, s, ref, []uint8{voiceQFI}, nil)
+
+	upf.mu.Lock()
+	est := upf.lastEstablish
+	upf.mu.Unlock()
+
+	if est == nil || est.DNN != testDNN || est.Snssai == nil || !est.Snssai.Equal(*testSnssai) {
+		t.Fatalf("establish request %+v, want the session's DNN %q and slice %+v", est, testDNN, testSnssai)
+	}
+
+	m := lastModify(t, upf)
+
+	def := slices.IndexFunc(m.UpdateQERs, func(q models.QER) bool { return q.QERID == 1 })
+	if def < 0 || m.UpdateQERs[def].FiveQI != 9 {
+		t.Fatalf("UPF QERs %+v, want the default flow's QER at the policy's 5QI 9", m.UpdateQERs)
+	}
+
+	if !slices.ContainsFunc(m.UpdateQERs, func(q models.QER) bool { return q.QFI == voiceQFI && q.FiveQI == 1 }) {
+		t.Fatalf("UPF QERs %+v, want the voice flow's QER at 5QI 1", m.UpdateQERs)
+	}
+}
+
 func TestSecondCallAddsAQoSRuleToTheFlow(t *testing.T) {
 	s, _, _, amfCb, ref := activeFiveGVoice(t)
 	first := flowCommand(t, amfCb.modifications()[0]).QoSRules[0]

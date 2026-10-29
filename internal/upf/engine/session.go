@@ -21,6 +21,7 @@ type Session struct {
 	SEID         uint64
 	imsi         string
 	policyID     string
+	class        TrafficClass
 	pdrs         map[uint32]SPDRInfo
 	fars         map[uint32]ebpf.FarInfo
 	qers         map[uint32]ebpf.QerInfo
@@ -154,6 +155,32 @@ func (s *Session) SetIMSI(imsi string) {
 	defer s.mu.Unlock()
 
 	s.imsi = imsi
+}
+
+func (s *Session) SetTrafficClass(snssai *models.Snssai, dnn string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.class = TrafficClass{DNN: dnn}
+
+	if snssai != nil {
+		s.class.SST = uint8(snssai.Sst)
+		s.class.SD = snssai.Sd
+	}
+}
+
+func (s *Session) trafficClass(fiveQI uint8) (TrafficClass, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.class.DNN == "" {
+		return TrafficClass{}, false
+	}
+
+	c := s.class
+	c.FiveQI = fiveQI
+
+	return c, true
 }
 
 func (s *Session) PutFar(id uint32, farInfo ebpf.FarInfo) {
@@ -345,6 +372,28 @@ func (s *Session) SetUEAddresses(v4, v6 netip.Addr) {
 
 	s.ueIPv4 = v4
 	s.ueIPv6 = v6
+}
+
+func (s *Session) accessRadio() uint16 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var (
+		radio  uint16
+		lowest uint32
+	)
+
+	for id, p := range s.pdrs {
+		if !p.UEIP.IsValid() || p.PdrInfo.Far.RadioID == 0 {
+			continue
+		}
+
+		if radio == 0 || id < lowest {
+			radio, lowest = p.PdrInfo.Far.RadioID, id
+		}
+	}
+
+	return radio
 }
 
 func (s *Session) UEAddresses() (netip.Addr, netip.Addr) {

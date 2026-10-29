@@ -189,6 +189,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 	}
 
+	traffic_class_mark(pdr->qer.class_id, pdr->far.radio_id,
+			   TRAFFIC_CLASS_DOWNLINK);
+
 	if (masquerade && !translated && !(pdr->flags & PDR_F_NAT_EXEMPT) &&
 	    !frame_is_reinjected(ctx->ctx_buff)) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4",
@@ -209,6 +212,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		select_downlink(ctx, pdr, local_port);
 	if (!sel)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
+
+	traffic_class_mark(sel->target.qer.class_id, sel->target.far.radio_id,
+			   TRAFFIC_CLASS_DOWNLINK);
 
 	PROFILE_START(PROF_N6_MTU_CHECK);
 	__u32 mtu_len = 0;
@@ -231,6 +237,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		mtu_len -= encap_size;
 		/* The error must quote the packet as the sender sent it for the
 		 * sender to match it to a socket (RFC 792). */
+		traffic_class_settle(UPF_DROP_MTU_EXCEEDED);
 		return frag_needed(ctx, mtu_len);
 	}
 
@@ -356,6 +363,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
 				 billed_bytes, bpf_ktime_get_boot_ns(),
 				 URR_DOWNLINK);
+		traffic_class_bill(billed_bytes);
 	}
 
 	return tunnel_ret;
@@ -396,9 +404,15 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		}
 	}
 
+	traffic_class_mark(pdr->qer.class_id, pdr->far.radio_id,
+			   TRAFFIC_CLASS_DOWNLINK);
+
 	const struct classifier_query *sel = select_downlink(ctx, pdr, 0);
 	if (!sel)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
+
+	traffic_class_mark(sel->target.qer.class_id, sel->target.far.radio_id,
+			   TRAFFIC_CLASS_DOWNLINK);
 
 	int encap_size =
 		(sel->target.far.outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
@@ -417,6 +431,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (ret > 0) {
 		upf_printk("upf: n6 ipv6 packet too large");
 		mtu_len -= encap_size;
+		traffic_class_settle(UPF_DROP_MTU_EXCEEDED);
 		return frag_needed(ctx, mtu_len);
 	}
 
@@ -527,6 +542,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		update_urr_bytes(ctx, sel->seid, sel->target.urr_id,
 				 billed_bytes, bpf_ktime_get_boot_ns(),
 				 URR_DOWNLINK);
+		traffic_class_bill(billed_bytes);
 	}
 
 	return tunnel_ret;

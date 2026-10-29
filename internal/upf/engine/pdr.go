@@ -39,6 +39,7 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 
 	entry.PdrInfo.Flags = sess.pdrFlags(entry)
 	entry.PdrInfo.UEIPv4, entry.PdrInfo.UEIPv6Prefix = v4, v6
+	entry.PdrInfo.RadioID = sess.accessRadio()
 
 	if err := bpfObjects.PutPdrUplink(entry.TeID, entry.PdrInfo); err != nil {
 		return fmt.Errorf("can't apply GTP PDR: %w", err)

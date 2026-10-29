@@ -194,7 +194,7 @@ func (sc *SMContext) movingFlowsLocked(to AccessType, prepared bool) movingFlows
 
 		v := b.ueView()
 
-		leg := bearerLeg{Slot: b.slot, Rules: sc.legRulesLocked(b, ruleSet{b.tftOn(v.tft, to), v.rules})}
+		leg := bearerLeg{Slot: b.slot, FiveQI: v.binding.QCI, Rules: sc.legRulesLocked(b, ruleSet{b.tftOn(v.tft, to), v.rules})}
 		if to == Access5G {
 			leg.QFI = b.qfi
 		}

@@ -43,13 +43,6 @@ type UrrFirstPacketUrrKey struct {
 const (
 	UrrFirstPacketMapUrrMap              = "urr_map"
 	UrrFirstPacketProgUrrFirstPacketFunc = "urr_first_packet_func"
-	UrrFirstPacketVarLocalSwitch         = "local_switch"
-	UrrFirstPacketVarN3Ifindex           = "n3_ifindex"
-	UrrFirstPacketVarN3RoutingIfindex    = "n3_routing_ifindex"
-	UrrFirstPacketVarN3Vlan              = "n3_vlan"
-	UrrFirstPacketVarN6Ifindex           = "n6_ifindex"
-	UrrFirstPacketVarN6RoutingIfindex    = "n6_routing_ifindex"
-	UrrFirstPacketVarN6Vlan              = "n6_vlan"
 )
 
 // LoadUrrFirstPacket returns the embedded CollectionSpec for UrrFirstPacket.
@@ -108,13 +101,6 @@ type UrrFirstPacketMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type UrrFirstPacketVariableSpecs struct {
-	LocalSwitch      *ebpf.VariableSpec `ebpf:"local_switch"`
-	N3Ifindex        *ebpf.VariableSpec `ebpf:"n3_ifindex"`
-	N3RoutingIfindex *ebpf.VariableSpec `ebpf:"n3_routing_ifindex"`
-	N3Vlan           *ebpf.VariableSpec `ebpf:"n3_vlan"`
-	N6Ifindex        *ebpf.VariableSpec `ebpf:"n6_ifindex"`
-	N6RoutingIfindex *ebpf.VariableSpec `ebpf:"n6_routing_ifindex"`
-	N6Vlan           *ebpf.VariableSpec `ebpf:"n6_vlan"`
 }
 
 // UrrFirstPacketObjects contains all objects after they have been loaded into the kernel.
@@ -150,13 +136,6 @@ func (m *UrrFirstPacketMaps) Close() error {
 //
 // It can be passed to LoadUrrFirstPacketObjects or ebpf.CollectionSpec.LoadAndAssign.
 type UrrFirstPacketVariables struct {
-	LocalSwitch      *ebpf.Variable `ebpf:"local_switch"`
-	N3Ifindex        *ebpf.Variable `ebpf:"n3_ifindex"`
-	N3RoutingIfindex *ebpf.Variable `ebpf:"n3_routing_ifindex"`
-	N3Vlan           *ebpf.Variable `ebpf:"n3_vlan"`
-	N6Ifindex        *ebpf.Variable `ebpf:"n6_ifindex"`
-	N6RoutingIfindex *ebpf.Variable `ebpf:"n6_routing_ifindex"`
-	N6Vlan           *ebpf.Variable `ebpf:"n6_vlan"`
 }
 
 // UrrFirstPacketPrograms contains all programs after they have been loaded into the kernel.

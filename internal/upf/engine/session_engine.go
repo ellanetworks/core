@@ -43,9 +43,49 @@ type SessionEngine struct {
 	filterMu     sync.RWMutex
 	filtersByKey map[string]uint32
 
+	classes *TrafficClasses
+	radios  *Radios
+
 	endMarkers endMarkerSockets
 
 	programs ebpf.ProgramWaiter
+}
+
+func (conn *SessionEngine) TrafficClasses() *TrafficClasses {
+	if conn == nil {
+		return nil
+	}
+
+	return conn.classes
+}
+
+func (conn *SessionEngine) Radios() *Radios {
+	if conn == nil {
+		return nil
+	}
+
+	return conn.radios
+}
+
+func (conn *SessionEngine) radioID(far models.FAR, existing uint16) uint16 {
+	if conn.radios == nil || far.ForwardingParameters == nil || far.ForwardingParameters.OuterHeaderCreation == nil {
+		return existing
+	}
+
+	return conn.radios.ID(far.ForwardingParameters.OuterHeaderCreation.RadioID)
+}
+
+func (conn *SessionEngine) trafficClassID(sess *Session, fiveQI uint8) uint16 {
+	if conn.classes == nil {
+		return 0
+	}
+
+	c, ok := sess.trafficClass(fiveQI)
+	if !ok {
+		return 0
+	}
+
+	return conn.classes.ID(c)
 }
 
 func (conn *SessionEngine) Close() error {
@@ -258,6 +298,8 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		FteIDResourceManager:    resourceManager,
 		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),
 		filtersByKey:            make(map[string]uint32),
+		classes:                 NewTrafficClasses(),
+		radios:                  NewRadios(),
 	}
 
 	return conn, nil

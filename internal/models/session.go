@@ -34,6 +34,8 @@ type EstablishRequest struct {
 	SEID         uint64
 	IMSI         string
 	PolicyID     string
+	Snssai       *Snssai
+	DNN          string
 	PDRs         []PDR
 	FARs         []FAR
 	QERs         []QER
@@ -184,6 +186,8 @@ type OuterHeaderCreation struct {
 	// datapath emits a plain G-PDU when set. Default (false) keeps the 5G N3
 	// behaviour unchanged.
 	S1U bool
+
+	RadioID string
 }
 
 // PFCP outer header constants.
@@ -199,6 +203,7 @@ const (
 type QER struct {
 	QERID           uint32
 	QFI             uint8
+	FiveQI          uint8
 	GateStatus      *GateStatus
 	MBR             *MBR
 	AveragingWindow *time.Duration

@@ -4,8 +4,12 @@
 package upf
 
 import (
+	"slices"
+	"strconv"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/engine"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -31,7 +35,7 @@ const (
 	dlBufferEvictReinjectFailed = "reinject_failed"
 )
 
-func RegisterMetrics() {
+func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
 	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
 
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
@@ -198,6 +202,8 @@ func RegisterMetrics() {
 		}
 	}))
 
+	registerSessionMetrics(classes, radios)
+
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for dir, stats := range ebpf.GetRouteStats(bpfObjects) {
@@ -284,6 +290,129 @@ func RegisterMetrics() {
 			ch <- prometheus.MustNewConstMetric(profilingNsDesc, prometheus.CounterValue, float64(entry.TotalNs)/1e9, info.direction, info.stage)
 
 			ch <- prometheus.MustNewConstMetric(profilingCallsDesc, prometheus.CounterValue, float64(entry.Count), info.direction, info.stage)
+		}
+	}))
+}
+
+func registerSessionMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
+	classLabels := []string{"direction", "sst", "sd", "dnn", "fiveqi"}
+	radioLabels := []string{"direction", "radio_id"}
+
+	packetsDesc := prometheus.NewDesc(
+		"app_upf_session_forwarded_packets_total",
+		"Packets the data plane forwarded for sessions, by direction, slice, data network and 5QI of the QoS flow.",
+		classLabels,
+		nil,
+	)
+
+	bytesDesc := prometheus.NewDesc(
+		"app_upf_session_forwarded_bytes_total",
+		"Bytes the data plane forwarded for sessions, by direction, slice, data network and 5QI of the QoS flow. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does.",
+		classLabels,
+		nil,
+	)
+
+	dropDesc := prometheus.NewDesc(
+		"app_upf_session_dropped_packets_total",
+		"Packets the data plane dropped after matching them to a session, by direction, slice, data network, 5QI of the QoS flow and reason. A reason appears once it has occurred for that combination.",
+		append(slices.Clone(classLabels), "reason"),
+		nil,
+	)
+
+	radioPacketsDesc := prometheus.NewDesc(
+		"app_upf_radio_forwarded_packets_total",
+		"Packets the data plane forwarded for sessions, by direction and the radio (gNB or eNB) serving the session, identified by its global RAN node ID. Join with app_radio_info on radio_id for the radio's name.",
+		radioLabels,
+		nil,
+	)
+
+	radioBytesDesc := prometheus.NewDesc(
+		"app_upf_radio_forwarded_bytes_total",
+		"Bytes the data plane forwarded for sessions, by direction and the radio (gNB or eNB) serving the session. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does.",
+		radioLabels,
+		nil,
+	)
+
+	radioDropDesc := prometheus.NewDesc(
+		"app_upf_radio_dropped_packets_total",
+		"Packets the data plane dropped after matching them to a session, by direction, the radio (gNB or eNB) serving the session and reason. A reason appears once it has occurred for that radio.",
+		append(slices.Clone(radioLabels), "reason"),
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		if classes == nil || radios == nil || bpfObjects == nil {
+			return
+		}
+
+		allClasses := classes.All()
+
+		classLabelValues := func(c engine.TrafficClass, dir ebpf.Direction) []string {
+			return []string{string(dir), strconv.Itoa(int(c.SST)), c.SD, c.DNN, strconv.Itoa(int(c.FiveQI))}
+		}
+
+		for id, c := range allClasses {
+			for _, dir := range []ebpf.Direction{ebpf.Uplink, ebpf.Downlink} {
+				counters, err := bpfObjects.ReadTrafficClassForwarded(id, dir)
+				if err != nil {
+					logger.UpfLog.Warn("failed to fetch UPF traffic class counters", zap.Error(err))
+					continue
+				}
+
+				ch <- prometheus.MustNewConstMetric(packetsDesc, prometheus.CounterValue,
+					float64(counters.Packets), classLabelValues(c, dir)...)
+
+				ch <- prometheus.MustNewConstMetric(bytesDesc, prometheus.CounterValue,
+					float64(counters.Bytes), classLabelValues(c, dir)...)
+			}
+		}
+
+		if drops, err := bpfObjects.ReadTrafficClassDrops(); err != nil {
+			logger.UpfLog.Warn("failed to fetch UPF traffic class drop counters", zap.Error(err))
+		} else {
+			for d, count := range drops {
+				c, ok := allClasses[d.ClassID]
+				if !ok {
+					continue
+				}
+
+				ch <- prometheus.MustNewConstMetric(dropDesc, prometheus.CounterValue,
+					float64(count), append(classLabelValues(c, d.Direction), d.Reason)...)
+			}
+		}
+
+		allRadios := radios.All()
+
+		for id, radio := range allRadios {
+			for _, dir := range []ebpf.Direction{ebpf.Uplink, ebpf.Downlink} {
+				counters, err := bpfObjects.ReadRadioForwarded(id, dir)
+				if err != nil {
+					logger.UpfLog.Warn("failed to fetch UPF radio counters", zap.Error(err))
+					continue
+				}
+
+				ch <- prometheus.MustNewConstMetric(radioPacketsDesc, prometheus.CounterValue,
+					float64(counters.Packets), string(dir), radio)
+
+				ch <- prometheus.MustNewConstMetric(radioBytesDesc, prometheus.CounterValue,
+					float64(counters.Bytes), string(dir), radio)
+			}
+		}
+
+		drops, err := bpfObjects.ReadRadioDrops()
+		if err != nil {
+			logger.UpfLog.Warn("failed to fetch UPF radio drop counters", zap.Error(err))
+			return
+		}
+
+		for d, count := range drops {
+			radio, ok := allRadios[d.RadioID]
+			if !ok {
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(radioDropDesc, prometheus.CounterValue,
+				float64(count), string(d.Direction), radio, d.Reason)
 		}
 	}))
 }

@@ -66,6 +66,7 @@ type PdrInfo struct {
 	// Authorized uplink source; zero = family absent; UEIPv6Prefix is the /64 base.
 	UEIPv4       netip.Addr
 	UEIPv6Prefix netip.Addr
+	RadioID      uint16
 }
 
 type PortRange struct {
@@ -214,6 +215,7 @@ type FarInfo struct {
 	RemoteIP              [16]byte // struct in6_addr equivalent
 	LocalIP               [16]byte // struct in6_addr equivalent
 	TransportLevelMarking uint16
+	RadioID               uint16
 }
 
 // IPToIn6Addr converts a netip.Addr to a [16]byte in6_addr.
@@ -241,6 +243,7 @@ type QerInfo struct {
 	AveragingWindowMs uint32
 	MaxBitrateUL      uint64
 	MaxBitrateDL      uint64
+	ClassID           uint16
 }
 
 // SdfRule mirrors struct sdf_rule in pdr.h.
@@ -347,6 +350,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 	fillFarQer(&pdrToStore, defaultPdr.Far, defaultPdr.Qer)
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
+	pdrToStore.RadioId = defaultPdr.RadioID
 
 	if defaultPdr.UEIPv4.Is4() {
 		pdrToStore.UeIpv4.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv4)
@@ -366,6 +370,7 @@ func fillFarQer(dst *N3N6EntrypointPdrInfo, far FarInfo, qer QerInfo) {
 	dst.Far.Remoteip.In6U.U6Addr8 = far.RemoteIP
 	dst.Far.Localip.In6U.U6Addr8 = far.LocalIP
 	dst.Far.TransportLevelMarking = far.TransportLevelMarking
+	dst.Far.RadioId = far.RadioID
 
 	dst.Qer.UlGateStatus = qer.GateStatusUL
 	dst.Qer.DlGateStatus = qer.GateStatusDL
@@ -373,6 +378,7 @@ func fillFarQer(dst *N3N6EntrypointPdrInfo, far FarInfo, qer QerInfo) {
 	dst.Qer.AveragingWindowMs = qer.AveragingWindowMs
 	dst.Qer.UlMaximumBitrate = qer.MaxBitrateUL
 	dst.Qer.DlMaximumBitrate = qer.MaxBitrateDL
+	dst.Qer.ClassId = qer.ClassID
 }
 
 // PutSdfFilterList writes a filter list into the sdf_filters BPF array.

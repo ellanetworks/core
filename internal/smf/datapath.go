@@ -5,6 +5,7 @@ package smf
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/radioctx"
 )
 
 type DownlinkState uint8
@@ -29,6 +31,7 @@ type dataPlane struct {
 	Access   AccessType
 	Downlink DownlinkState
 	QFI      uint8
+	FiveQI   uint8
 	AMBR     models.Ambr
 
 	RatingGroup uint32
@@ -44,6 +47,7 @@ type dataPlane struct {
 type bearerLeg struct {
 	Slot         uint8
 	QFI          uint8
+	FiveQI       uint8
 	Admitted     bool
 	TargetUplink bool
 	Rules        []ruleLeg
@@ -261,6 +265,7 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 		qers = append(qers, models.QER{
 			QERID:           qerID,
 			QFI:             qfi,
+			FiveQI:          b.FiveQI,
 			GateStatus:      new(r.policedGate()),
 			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
 			AveragingWindow: new(averagingWindow),
@@ -361,6 +366,7 @@ func (d dataPlane) defaultBearerRules() (pdrs []models.PDR, qers []models.QER) {
 		qers = append(qers, models.QER{
 			QERID:           qerID,
 			QFI:             d.QFI,
+			FiveQI:          d.FiveQI,
 			GateStatus:      new(r.policedGate()),
 			MBR:             &models.MBR{ULMBR: r.MBR.Uplink.Kbps(), DLMBR: r.MBR.Downlink.Kbps()},
 			AveragingWindow: new(averagingWindow),
@@ -497,8 +503,9 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 	}
 
 	qers = []models.QER{{
-		QERID: qerIDDefault,
-		QFI:   d.QFI,
+		QERID:  qerIDDefault,
+		QFI:    d.QFI,
+		FiveQI: d.FiveQI,
 		GateStatus: &models.GateStatus{
 			ULGate: models.GateOpen,
 			DLGate: models.GateOpen,
@@ -600,6 +607,38 @@ func (s DownlinkState) applyAction() models.ApplyAction {
 	}
 }
 
+func (an AnchorBinding) withServingRadio(ctx context.Context, prev AnchorBinding) AnchorBinding {
+	switch {
+	case !an.bound():
+		an.RadioID = ""
+	case an.equal(prev):
+		if an.RadioID == "" {
+			an.RadioID = prev.RadioID
+		}
+	default:
+		an.RadioID, _ = radioctx.From(ctx)
+	}
+
+	return an
+}
+
+func (d dataPlane) withServingRadios(ctx context.Context, prev dataPlane) dataPlane {
+	d.AN = d.AN.withServingRadio(ctx, prev.AN)
+	d.Bearers = slices.Clone(d.Bearers)
+
+	for i, b := range d.Bearers {
+		var before AnchorBinding
+
+		if j := slices.IndexFunc(prev.Bearers, func(p bearerLeg) bool { return p.Slot == b.Slot }); j >= 0 {
+			before = prev.Bearers[j].AN
+		}
+
+		d.Bearers[i].AN = b.AN.withServingRadio(ctx, before)
+	}
+
+	return d
+}
+
 func (d dataPlane) forwardingParameters() *models.ForwardingParameters {
 	return accessForwardingParameters(d.AN, d.Access)
 }
@@ -616,6 +655,7 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 			TEID:        an.TEID,
 			IPv6Address: an.IPv6,
 			S1U:         s1u,
+			RadioID:     an.RadioID,
 		}
 	case an.IPv4 != nil:
 		params.OuterHeaderCreation = &models.OuterHeaderCreation{
@@ -623,19 +663,22 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 			TEID:        an.TEID,
 			IPv4Address: an.IPv4.To4(),
 			S1U:         s1u,
+			RadioID:     an.RadioID,
 		}
 	}
 
 	return params
 }
 
-func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRoutes []netip.Prefix, ims bool) *models.EstablishRequest {
+func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, snssai *models.Snssai, dnn string, framedRoutes []netip.Prefix, ims bool) *models.EstablishRequest {
 	pdrs, fars, qers, urrs := d.rules()
 
 	return &models.EstablishRequest{
 		SEID:         seid,
 		IMSI:         imsi,
 		PolicyID:     policyID,
+		Snssai:       snssai,
+		DNN:          dnn,
 		PDRs:         pdrs,
 		FARs:         fars,
 		QERs:         qers,
