@@ -33,11 +33,10 @@ struct traffic_class_drop_key {
 };
 
 struct traffic_class_mark {
-	__u64 bytes;
+	__u32 forwarded_key;
 	__u16 class_id;
 	__u8 direction;
-	__u8 bounce_reason;
-	__u8 pad[4];
+	__u8 pad;
 };
 
 struct {
@@ -103,66 +102,65 @@ static __always_inline void traffic_class_drop(__u16 class_id, __u8 direction,
 		*packets += 1;
 }
 
-static __always_inline void traffic_class_mark(__u16 class_id, __u8 direction)
+static __always_inline struct traffic_class_mark *traffic_class_current(void)
 {
 	const __u32 zero = 0;
-	struct traffic_class_mark *m =
-		bpf_map_lookup_elem(&traffic_class_marks, &zero);
+
+	return bpf_map_lookup_elem(&traffic_class_marks, &zero);
+}
+
+static __always_inline void traffic_class_mark(__u16 class_id, __u8 direction)
+{
+	struct traffic_class_mark *m = traffic_class_current();
 	if (!m)
 		return;
 
 	m->class_id = class_id;
 	m->direction = direction;
-	m->bounce_reason = UPF_DROP_UNSPEC;
-	m->bytes = 0;
+	m->forwarded_key = ((__u32)(class_id & TRAFFIC_CLASS_MASK) << 1) |
+			   (direction & 1);
 }
 
 static __always_inline __u16 traffic_class_marked(void)
 {
-	const __u32 zero = 0;
-	struct traffic_class_mark *m =
-		bpf_map_lookup_elem(&traffic_class_marks, &zero);
+	struct traffic_class_mark *m = traffic_class_current();
 
 	return m ? m->class_id : 0;
 }
 
-static __always_inline void traffic_class_bounce(enum upf_drop_reason reason)
-{
-	const __u32 zero = 0;
-	struct traffic_class_mark *m =
-		bpf_map_lookup_elem(&traffic_class_marks, &zero);
-	if (m)
-		m->bounce_reason = reason;
-}
-
 static __always_inline void traffic_class_bill(__u64 bytes)
 {
-	const __u32 zero = 0;
-	struct traffic_class_mark *m =
-		bpf_map_lookup_elem(&traffic_class_marks, &zero);
-	if (m)
-		m->bytes = bytes;
+	struct traffic_class_mark *m = traffic_class_current();
+	if (!m || !m->class_id)
+		return;
+
+	struct traffic_class_counters *c = bpf_map_lookup_elem(
+		&traffic_class_forwarded, &m->forwarded_key);
+	if (c) {
+		c->packets++;
+		c->bytes += bytes;
+	}
+
+	m->class_id = 0;
 }
 
-__noinline __weak int traffic_class_settle(bool forwarded,
-					   enum upf_drop_reason reason)
+static __always_inline void traffic_class_release(void)
 {
-	const __u32 zero = 0;
-	struct traffic_class_mark *m =
-		bpf_map_lookup_elem(&traffic_class_marks, &zero);
+	struct traffic_class_mark *m = traffic_class_current();
+	if (m)
+		m->class_id = 0;
+}
+
+__noinline __weak int traffic_class_settle(enum upf_drop_reason reason)
+{
+	struct traffic_class_mark *m = traffic_class_current();
 	if (!m || !m->class_id)
 		return 0;
 
-	if (!forwarded && reason != UPF_DROP_NOCP_BUFFER)
+	if (reason != UPF_DROP_NOCP_BUFFER)
 		traffic_class_drop(m->class_id, m->direction, reason);
-	else if (forwarded && m->bytes)
-		traffic_class_forward(m->class_id, m->direction, m->bytes);
-	else if (forwarded && m->bounce_reason != UPF_DROP_UNSPEC)
-		traffic_class_drop(m->class_id, m->direction, m->bounce_reason);
 
 	m->class_id = 0;
-	m->bounce_reason = UPF_DROP_UNSPEC;
-	m->bytes = 0;
 
 	return 0;
 }

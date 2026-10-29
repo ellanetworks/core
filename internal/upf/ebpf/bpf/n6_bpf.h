@@ -235,7 +235,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		mtu_len -= encap_size;
 		/* The error must quote the packet as the sender sent it for the
 		 * sender to match it to a socket (RFC 792). */
-		traffic_class_bounce(UPF_DROP_MTU_EXCEEDED);
+		traffic_class_settle(UPF_DROP_MTU_EXCEEDED);
 		return frag_needed(ctx, mtu_len);
 	}
 
@@ -427,7 +427,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (ret > 0) {
 		upf_printk("upf: n6 ipv6 packet too large");
 		mtu_len -= encap_size;
-		traffic_class_bounce(UPF_DROP_MTU_EXCEEDED);
+		traffic_class_settle(UPF_DROP_MTU_EXCEEDED);
 		return frag_needed(ctx, mtu_len);
 	}
 
