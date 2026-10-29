@@ -189,7 +189,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 	}
 
-	traffic_class_mark(pdr->qer.class_id, pdr->far.peer_id,
+	traffic_class_mark(pdr->qer.class_id, pdr->far.radio_id,
 			   TRAFFIC_CLASS_DOWNLINK);
 
 	if (masquerade && !translated && !(pdr->flags & PDR_F_NAT_EXEMPT) &&
@@ -213,7 +213,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (!sel)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
-	traffic_class_mark(sel->target.qer.class_id, sel->target.far.peer_id,
+	traffic_class_mark(sel->target.qer.class_id, sel->target.far.radio_id,
 			   TRAFFIC_CLASS_DOWNLINK);
 
 	PROFILE_START(PROF_N6_MTU_CHECK);
@@ -404,14 +404,14 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		}
 	}
 
-	traffic_class_mark(pdr->qer.class_id, pdr->far.peer_id,
+	traffic_class_mark(pdr->qer.class_id, pdr->far.radio_id,
 			   TRAFFIC_CLASS_DOWNLINK);
 
 	const struct classifier_query *sel = select_downlink(ctx, pdr, 0);
 	if (!sel)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
-	traffic_class_mark(sel->target.qer.class_id, sel->target.far.peer_id,
+	traffic_class_mark(sel->target.qer.class_id, sel->target.far.radio_id,
 			   TRAFFIC_CLASS_DOWNLINK);
 
 	int encap_size =

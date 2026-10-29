@@ -4,7 +4,6 @@
 package engine
 
 import (
-	"net/netip"
 	"strconv"
 	"testing"
 
@@ -71,26 +70,25 @@ func TestSessionWithoutDataNetworkIsUnclassified(t *testing.T) {
 	}
 }
 
-func TestPeerIDsAreStablePerAddress(t *testing.T) {
-	peers := NewPeers()
+func TestRadioIDsAreStablePerRadio(t *testing.T) {
+	radios := NewRadios()
 
-	a := peers.ID(netip.MustParseAddr("10.3.0.11"))
-	mapped := peers.ID(netip.MustParseAddr("::ffff:10.3.0.11"))
-	b := peers.ID(netip.MustParseAddr("2001:db8:3::11"))
+	a := radios.ID("gnb:001-01:000001@22")
+	b := radios.ID("enb:001-01:000002")
 
 	if a == 0 || b == 0 || a == b {
 		t.Fatalf("IDs = %d, %d; want two distinct non-zero IDs", a, b)
 	}
 
-	if mapped != a {
-		t.Errorf("IPv4-mapped address got ID %d, want the IPv4 address's %d", mapped, a)
+	if again := radios.ID("gnb:001-01:000001@22"); again != a {
+		t.Errorf("ID changed from %d to %d for the same radio", a, again)
 	}
 
-	if id := peers.ID(netip.Addr{}); id != 0 {
-		t.Errorf("invalid address got ID %d, want 0", id)
+	if id := radios.ID(""); id != 0 {
+		t.Errorf("a missing radio got ID %d, want 0", id)
 	}
 
-	if got := peers.All(); len(got) != 2 || got[a] != netip.MustParseAddr("10.3.0.11") {
+	if got := radios.All(); len(got) != 2 || got[a] != "gnb:001-01:000001@22" {
 		t.Errorf("All() = %v", got)
 	}
 }

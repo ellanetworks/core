@@ -51,9 +51,12 @@ func sessionMetricSeries(t *testing.T, ctx context.Context, c *client.Client, me
 	return sum
 }
 
-var radioLabelsPattern = regexp.MustCompile(`radio="([^"]*)",radio_id="([^"]*)"`)
+var (
+	radioIDPattern   = regexp.MustCompile(`radio_id="([^"]*)"`)
+	radioNamePattern = regexp.MustCompile(`radio="([^"]*)"`)
+)
 
-func radioMetricSeries(t *testing.T, ctx context.Context, c *client.Client, metric, direction string) map[[2]string]float64 {
+func radioInfo(t *testing.T, ctx context.Context, c *client.Client) map[string]string {
 	t.Helper()
 
 	all, err := c.GetMetrics(ctx)
@@ -61,19 +64,45 @@ func radioMetricSeries(t *testing.T, ctx context.Context, c *client.Client, metr
 		t.Fatalf("get metrics: %v", err)
 	}
 
-	out := make(map[[2]string]float64)
+	out := make(map[string]string)
+
+	for series := range all {
+		if !strings.HasPrefix(series, "app_radio_info{") {
+			continue
+		}
+
+		id, name := radioIDPattern.FindStringSubmatch(series), radioNamePattern.FindStringSubmatch(series)
+		if id == nil || name == nil {
+			t.Fatalf("series %s has no radio labels", series)
+		}
+
+		out[id[1]] = name[1]
+	}
+
+	return out
+}
+
+func radioMetricSeries(t *testing.T, ctx context.Context, c *client.Client, metric, direction string) map[string]float64 {
+	t.Helper()
+
+	all, err := c.GetMetrics(ctx)
+	if err != nil {
+		t.Fatalf("get metrics: %v", err)
+	}
+
+	out := make(map[string]float64)
 
 	for series, v := range all {
 		if !strings.HasPrefix(series, metric+"{") || !strings.Contains(series, fmt.Sprintf(`direction=%q`, direction)) {
 			continue
 		}
 
-		m := radioLabelsPattern.FindStringSubmatch(series)
+		m := radioIDPattern.FindStringSubmatch(series)
 		if m == nil {
-			t.Fatalf("series %s has no radio labels", series)
+			t.Fatalf("series %s has no radio_id label", series)
 		}
 
-		out[[2]string{m[2], m[1]}] += v
+		out[m[1]] += v
 	}
 
 	return out
@@ -125,7 +154,7 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 
 	t.Run("forwarded", func(t *testing.T) {
 		before := map[string][2]float64{}
-		radiosBefore := map[string]map[[2]string]float64{}
+		radiosBefore := map[string]map[string]float64{}
 
 		for _, dir := range []string{"uplink", "downlink"} {
 			labels := append([]string{fmt.Sprintf(`direction=%q`, dir)}, class...)
@@ -147,6 +176,8 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 		for _, r := range radios.Items {
 			names[r.Ref] = r.Name
 		}
+
+		info := radioInfo(t, ctx, env.Client)
 
 		for _, dir := range []string{"uplink", "downlink"} {
 			labels := append([]string{fmt.Sprintf(`direction=%q`, dir)}, class...)
@@ -171,20 +202,16 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 					continue
 				}
 
-				id, name := radio[0], radio[1]
-				if id == "unknown" {
-					t.Errorf("%s: %v packets were counted under an unidentified radio", dir, grew)
-					continue
-				}
+				want, listed := names[radio]
+				name, described := info[radio]
 
-				want, ok := names[id]
-				if !ok || want != name {
-					t.Errorf("%s: radio_id=%q radio=%q, want a radio the API lists under that ref (name %q)", dir, id, name, want)
+				if !listed || !described || name != want {
+					t.Errorf("%s: radio_id=%q named %q by app_radio_info, want a radio the API lists under that ref (name %q)", dir, radio, name, want)
 				}
 
 				identified += grew
 
-				t.Logf("%s: radio %s (%s) +%v packets", dir, id, name, grew)
+				t.Logf("%s: radio %s (%s) +%v packets", dir, radio, name, grew)
 			}
 
 			if identified < ues*minPackets {
@@ -225,10 +252,6 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 		radioDropped := sessionMetricSeries(t, ctx, env.Client, "app_upf_radio_dropped_packets_total", `direction="uplink"`, `reason="sdf_filter"`) - radioBefore
 		if radioDropped != dropped {
 			t.Errorf("uplink sdf_filter drops counted per radio grew by %v, want the same %v as per class", radioDropped, dropped)
-		}
-
-		if unknown := sessionMetricSeries(t, ctx, env.Client, "app_upf_radio_dropped_packets_total", `radio_id="unknown"`); unknown != 0 {
-			t.Errorf("%v drops were counted under an unidentified radio", unknown)
 		}
 	})
 }

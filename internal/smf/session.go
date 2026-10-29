@@ -253,9 +253,10 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 // eNB S1-U endpoint (4G, via the MME) or the gNB N3 endpoint (5G, from an N2
 // transfer). Exactly one of IPv4/IPv6 is set.
 type AnchorBinding struct {
-	TEID uint32
-	IPv4 net.IP
-	IPv6 net.IP
+	TEID    uint32
+	IPv4    net.IP
+	IPv6    net.IP
+	RadioID string
 }
 
 func (a AnchorBinding) bound() bool {
@@ -347,6 +348,8 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 		return fmt.Errorf("session %q: %w", sc.Ref, err)
 	}
 
+	next = next.withServingRadios(ctx, sc.Tunnel.dataPlane)
+
 	req := next.modifyRequest(sc.Tunnel.dataPlane, sc.PFCPContext.SEID, policyID)
 	req.SendEndMarkers = next.accessSwitchedFrom(sc.Tunnel.dataPlane)
 
@@ -357,8 +360,6 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 
 	prev := sc.Tunnel.dataPlane
 	sc.Tunnel.dataPlane = next
-
-	s.radios.recordSwitched(ctx, prev, next)
 
 	if resp != nil {
 		sc.Tunnel.ChosenTEIDs = resp.ChosenTEIDs

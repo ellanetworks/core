@@ -111,7 +111,7 @@ struct far_info {
 		localip; /* IPv6 native or IPv4 stored as ::ffff:x.x.x.x */
 	/* first octet DSCP value in the Type-of-Service, second octet shall contain the ToS/Traffic Class mask field, which shall be set to "0xFC". */
 	__u16 transport_level_marking;
-	__u16 peer_id;
+	__u16 radio_id;
 };
 
 enum gate_status {
@@ -152,5 +152,5 @@ struct pdr_info {
 	 * (low 64 zero); all-zero = family absent (fail closed). Uplink PDR only. */
 	struct in6_addr ue_ipv4;
 	struct in6_addr ue_ipv6;
-	__u16 peer_id;
+	__u16 radio_id;
 };

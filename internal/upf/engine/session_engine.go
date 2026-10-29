@@ -44,7 +44,7 @@ type SessionEngine struct {
 	filtersByKey map[string]uint32
 
 	classes *TrafficClasses
-	peers   *Peers
+	radios  *Radios
 
 	endMarkers endMarkerSockets
 
@@ -59,20 +59,20 @@ func (conn *SessionEngine) TrafficClasses() *TrafficClasses {
 	return conn.classes
 }
 
-func (conn *SessionEngine) Peers() *Peers {
+func (conn *SessionEngine) Radios() *Radios {
 	if conn == nil {
 		return nil
 	}
 
-	return conn.peers
+	return conn.radios
 }
 
-func (conn *SessionEngine) peerID(far ebpf.FarInfo) uint16 {
-	if conn.peers == nil || far.OuterHeaderCreation&ohcGtpUMask == 0 {
-		return 0
+func (conn *SessionEngine) radioID(far models.FAR, existing uint16) uint16 {
+	if conn.radios == nil || far.ForwardingParameters == nil || far.ForwardingParameters.OuterHeaderCreation == nil {
+		return existing
 	}
 
-	return conn.peers.ID(ebpf.In6AddrToIP(far.RemoteIP))
+	return conn.radios.ID(far.ForwardingParameters.OuterHeaderCreation.RadioID)
 }
 
 func (conn *SessionEngine) trafficClassID(sess *Session, fiveQI uint8) uint16 {
@@ -299,7 +299,7 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),
 		filtersByKey:            make(map[string]uint32),
 		classes:                 NewTrafficClasses(),
-		peers:                   NewPeers(),
+		radios:                  NewRadios(),
 	}
 
 	return conn, nil

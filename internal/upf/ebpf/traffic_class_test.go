@@ -22,12 +22,12 @@ func trafficClassForwarded(t *testing.T, obj *BpfObjects, classID uint16, dir Di
 	return c
 }
 
-func peerForwarded(t *testing.T, obj *BpfObjects, peerID uint16, dir Direction) TrafficClassCounters {
+func radioForwarded(t *testing.T, obj *BpfObjects, radioID uint16, dir Direction) TrafficClassCounters {
 	t.Helper()
 
-	c, err := obj.ReadPeerForwarded(peerID, dir)
+	c, err := obj.ReadRadioForwarded(radioID, dir)
 	if err != nil {
-		t.Fatalf("read peer %d %s: %v", peerID, dir, err)
+		t.Fatalf("read radio %d %s: %v", radioID, dir, err)
 	}
 
 	return c
@@ -128,8 +128,8 @@ func TestTrafficClassCountsDropsByReason(t *testing.T) {
 	const (
 		downlinkClass = 9
 		uplinkClass   = 11
-		downlinkPeer  = 4
-		uplinkPeer    = 6
+		downlinkRadio = 4
+		uplinkRadio   = 6
 		teid          = 0x54434c31
 	)
 
@@ -137,7 +137,7 @@ func TestTrafficClassCountsDropsByReason(t *testing.T) {
 
 	dl := classifiedDownlinkPDR(downlinkClass)
 	dl.Qer.GateStatusDL = 1
-	dl.Far.PeerID = downlinkPeer
+	dl.Far.RadioID = downlinkRadio
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(classifierUE), dl); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
@@ -149,7 +149,7 @@ func TestTrafficClassCountsDropsByReason(t *testing.T) {
 		Qer:          QerInfo{GateStatusUL: 1, ClassID: uplinkClass},
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
-		PeerID:       uplinkPeer,
+		RadioID:      uplinkRadio,
 	}
 	if err := obj.PutPdrUplink(teid, ul); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
@@ -164,8 +164,8 @@ func TestTrafficClassCountsDropsByReason(t *testing.T) {
 	drops := trafficClassDrops(t, obj)
 
 	want := map[TrafficClassDrop]uint64{
-		{ClassID: downlinkClass, PeerID: downlinkPeer, Direction: Downlink, Reason: "qer_gate_closed"}: 3,
-		{ClassID: uplinkClass, PeerID: uplinkPeer, Direction: Uplink, Reason: "qer_gate_closed"}:       1,
+		{ClassID: downlinkClass, Direction: Downlink, Reason: "qer_gate_closed"}: 3,
+		{ClassID: uplinkClass, Direction: Uplink, Reason: "qer_gate_closed"}:     1,
 	}
 
 	if len(drops) != len(want) {
@@ -175,6 +175,26 @@ func TestTrafficClassCountsDropsByReason(t *testing.T) {
 	for k, v := range want {
 		if drops[k] != v {
 			t.Errorf("drops[%+v] = %d, want %d", k, drops[k], v)
+		}
+	}
+
+	radioDrops, err := obj.ReadRadioDrops()
+	if err != nil {
+		t.Fatalf("read radio drops: %v", err)
+	}
+
+	wantRadio := map[RadioDrop]uint64{
+		{RadioID: downlinkRadio, Direction: Downlink, Reason: "qer_gate_closed"}: 3,
+		{RadioID: uplinkRadio, Direction: Uplink, Reason: "qer_gate_closed"}:     1,
+	}
+
+	if len(radioDrops) != len(wantRadio) {
+		t.Fatalf("radio drops = %v, want %v", radioDrops, wantRadio)
+	}
+
+	for k, v := range wantRadio {
+		if radioDrops[k] != v {
+			t.Errorf("radio drops[%+v] = %d, want %d", k, radioDrops[k], v)
 		}
 	}
 }
@@ -289,19 +309,19 @@ func TestTrafficClassCountsBothLegsOfALocalSwitch(t *testing.T) {
 		senderClass = 21
 		recvClass   = 22
 		bearerClass = 23
-		senderPeer  = 41
-		recvPeer    = 42
-		bearerPeer  = 43
+		senderRadio = 41
+		recvRadio   = 42
+		bearerRadio = 43
 	)
 
 	tests := []struct {
 		name       string
 		classified bool
 		wantClass  uint16
-		wantPeer   uint16
+		wantRadio  uint16
 	}{
-		{"default flow", false, recvClass, recvPeer},
-		{"receiver's bearer selected", true, bearerClass, bearerPeer},
+		{"default flow", false, recvClass, recvRadio},
+		{"receiver's bearer selected", true, bearerClass, bearerRadio},
 	}
 
 	for _, tc := range tests {
@@ -315,7 +335,7 @@ func TestTrafficClassCountsBothLegsOfALocalSwitch(t *testing.T) {
 				Qer:          QerInfo{ClassID: senderClass},
 				UEIPv4:       netip.AddrFrom4(classifierRemote),
 				UEIPv6Prefix: canonicalUEv6Prefix,
-				PeerID:       senderPeer,
+				RadioID:      senderRadio,
 			}
 			if err := obj.PutPdrUplink(senderTEID, ul); err != nil {
 				t.Fatalf("install the sender's uplink PDR: %v", err)
@@ -324,14 +344,14 @@ func TestTrafficClassCountsBothLegsOfALocalSwitch(t *testing.T) {
 			dl := classifiedDownlinkPDR(recvClass)
 			dl.Flags = PdrFlagLocalSwitch
 			dl.SEID = 9
-			dl.Far.PeerID = recvPeer
+			dl.Far.RadioID = recvRadio
 
 			if tc.classified {
 				dl.Flags |= PdrFlagSDF
 
 				target := voiceTarget()
 				target.Qer.ClassID = bearerClass
-				target.Far.PeerID = bearerPeer
+				target.Far.RadioID = bearerRadio
 
 				c := Classifier{Rules: []ClassifierRule{voiceRule(ClassifierDownlink, 0)}, Targets: []ClassifierTarget{target}}
 				if err := obj.PutClassifier(9, c); err != nil {
@@ -359,11 +379,11 @@ func TestTrafficClassCountsBothLegsOfALocalSwitch(t *testing.T) {
 				t.Errorf("receiver downlink = %+v, want %+v", got, want)
 			}
 
-			if got := peerForwarded(t, obj, senderPeer, Uplink); got != want {
+			if got := radioForwarded(t, obj, senderRadio, Uplink); got != want {
 				t.Errorf("sender's radio uplink = %+v, want %+v", got, want)
 			}
 
-			if got := peerForwarded(t, obj, tc.wantPeer, Downlink); got != want {
+			if got := radioForwarded(t, obj, tc.wantRadio, Downlink); got != want {
 				t.Errorf("receiver's radio downlink = %+v, want %+v", got, want)
 			}
 		})
@@ -376,17 +396,17 @@ func TestTrafficClassCountsUplinkForwards(t *testing.T) {
 	const (
 		teid    = 0x54434c33
 		classID = 31
-		peerID  = 9
+		radioID = 9
 	)
 
 	f := setupT2(t, false)
 
 	pdr := PdrInfo{
-		IMSI:   "001010000000001",
-		Far:    FarInfo{Action: 0x02},
-		Qer:    QerInfo{ClassID: classID},
-		UEIPv4: netip.AddrFrom4(ueIP),
-		PeerID: peerID,
+		IMSI:    "001010000000001",
+		Far:     FarInfo{Action: 0x02},
+		Qer:     QerInfo{ClassID: classID},
+		UEIPv4:  netip.AddrFrom4(ueIP),
+		RadioID: radioID,
 	}
 	if err := f.obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
@@ -408,20 +428,20 @@ func TestTrafficClassCountsUplinkForwards(t *testing.T) {
 		t.Errorf("uplink counters = %+v, want %+v", got, want)
 	}
 
-	if got := peerForwarded(t, f.obj, peerID, Uplink); got != want {
+	if got := radioForwarded(t, f.obj, radioID, Uplink); got != want {
 		t.Errorf("radio uplink counters = %+v, want %+v", got, want)
 	}
 }
 
-func TestPeerIsCountedWithoutATrafficClass(t *testing.T) {
+func TestRadioIsCountedWithoutATrafficClass(t *testing.T) {
 	requireProgTestRun(t)
 
-	const peerID = 5
+	const radioID = 5
 
 	obj := loadProgram(t, 1, 0)
 
 	dl := classifiedDownlinkPDR(0)
-	dl.Far.PeerID = peerID
+	dl.Far.RadioID = radioID
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(classifierUE), dl); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
@@ -431,7 +451,7 @@ func TestPeerIsCountedWithoutATrafficClass(t *testing.T) {
 	runXDP(t, obj.UpfEntryFunc, frame)
 
 	want := TrafficClassCounters{Packets: 1, Bytes: uint64(len(frame) - ethHdrLen)}
-	if got := peerForwarded(t, obj, peerID, Downlink); got != want {
+	if got := radioForwarded(t, obj, radioID, Downlink); got != want {
 		t.Errorf("radio downlink counters = %+v, want %+v", got, want)
 	}
 }
@@ -446,7 +466,7 @@ func TestTrafficClassMapsMatchTheGoConstant(t *testing.T) {
 		t.Errorf("traffic_class_forwarded max_entries = %d, want %d", got, want)
 	}
 
-	if got, want := spec.Maps["peer_forwarded"].MaxEntries, uint32(2*MaxPeers); got != want {
-		t.Errorf("peer_forwarded max_entries = %d, want %d", got, want)
+	if got, want := spec.Maps["radio_forwarded"].MaxEntries, uint32(2*MaxRadios); got != want {
+		t.Errorf("radio_forwarded max_entries = %d, want %d", got, want)
 	}
 }

@@ -186,6 +186,8 @@ type OuterHeaderCreation struct {
 	// datapath emits a plain G-PDU when set. Default (false) keeps the 5G N3
 	// behaviour unchanged.
 	S1U bool
+
+	RadioID string
 }
 
 // PFCP outer header constants.

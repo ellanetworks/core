@@ -42,9 +42,10 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_session_forwarded_packets_total | Packets the data plane forwarded for sessions, labeled by `direction`, `sst`, `sd`, `dnn`, and `fiveqi` (the 5QI of the packet's QoS flow; the QCI of its bearer for 4G sessions). | Counter |
 | app_upf_session_forwarded_bytes_total | Bytes the data plane forwarded for sessions, labeled by `direction`, `sst`, `sd`, `dnn`, and `fiveqi`. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does. | Counter |
 | app_upf_session_dropped_packets_total | Packets the data plane dropped after matching them to a session, labeled by `direction`, `sst`, `sd`, `dnn`, `fiveqi`, and `reason`. A reason appears once it has occurred for that combination. The drop ratio is `dropped / (forwarded + dropped)`. | Counter |
-| app_upf_radio_forwarded_packets_total | Packets the data plane forwarded for sessions, labeled by `direction`, `radio_id` (the radio's global RAN node ID, as `ref` in the radios API), and `radio` (its name). Traffic from a radio not yet identified is counted under `radio_id="unknown"`. | Counter |
-| app_upf_radio_forwarded_bytes_total | Bytes the data plane forwarded for sessions, labeled by `direction`, `radio_id`, and `radio`. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does. | Counter |
-| app_upf_radio_dropped_packets_total | Packets the data plane dropped after matching them to a session, labeled by `direction`, `radio_id`, `radio`, and `reason`. A reason appears once it has occurred for that radio. | Counter |
+| app_upf_radio_forwarded_packets_total | Packets the data plane forwarded for sessions, labeled by `direction` and `radio_id`, the global RAN node ID of the radio (gNB or eNB) serving the session, as `ref` in the radios API. | Counter |
+| app_upf_radio_forwarded_bytes_total | Bytes the data plane forwarded for sessions, labeled by `direction` and `radio_id`. Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does. | Counter |
+| app_upf_radio_dropped_packets_total | Packets the data plane dropped after matching them to a session, labeled by `direction`, `radio_id`, and `reason`. A reason appears once it has occurred for that radio. | Counter |
+| app_radio_info | Radios known to this node, always 1, labeled by `radio_id` and `radio` (its name). Join it with the `app_upf_radio_*` metrics on `radio_id` to name their series. | Gauge |
 | app_upf_bpf_map_entries | Entries currently installed in a data plane BPF map, labeled by `map`. Divide by `app_upf_bpf_map_max_entries` for a fill ratio. | Gauge |
 | app_upf_bpf_map_max_entries | Capacity of a data plane BPF map, labeled by `map`. | Gauge |
 | app_upf_bpf_map_memory_bytes | Kernel memory locked by a data plane BPF map, labeled by `map`. | Gauge |
@@ -61,6 +62,11 @@ These metrics are used to monitor the health of the system and the performance o
 | app_database_query_duration_seconds | Duration of database queries | Histogram |
 | app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
 | app_radio_events_dropped_total | Radio events not written to the database because the write buffer was full. | Counter |
+
+!!! note
+    The `app_upf_session_*` and `app_upf_radio_*` metrics are two views of the same subscriber traffic, by traffic class and by radio. Their totals can differ slightly, so compare them rather than add them: a session's uplink before its radio is known counts only per class, and traffic of a class or radio past the table capacity of 1023 counts only in the other view.
+
+    To show radio names, join on `radio_id`, for example `sum by (radio) (rate(app_upf_radio_forwarded_bytes_total[1m]) * on (radio_id) group_left (radio) app_radio_info)`.
 
 !!! note
     When clustering is enabled, Ella Core also exports the full [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`).

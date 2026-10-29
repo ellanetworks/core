@@ -5,11 +5,13 @@ package ebpf
 
 import (
 	"fmt"
+
+	"github.com/cilium/ebpf"
 )
 
 const (
 	MaxTrafficClasses = 1024
-	MaxPeers          = 1024
+	MaxRadios         = 1024
 )
 
 type TrafficClassCounters struct {
@@ -19,7 +21,12 @@ type TrafficClassCounters struct {
 
 type TrafficClassDrop struct {
 	ClassID   uint16
-	PeerID    uint16
+	Direction Direction
+	Reason    string
+}
+
+type RadioDrop struct {
+	RadioID   uint16
 	Direction Direction
 	Reason    string
 }
@@ -33,14 +40,14 @@ func counterKey(id uint16, capacity int, dir Direction) uint32 {
 	return key
 }
 
-func (bpfObjects *BpfObjects) ReadTrafficClassForwarded(classID uint16, dir Direction) (TrafficClassCounters, error) {
+func readForwarded(m *ebpf.Map, key uint32) (TrafficClassCounters, error) {
 	var (
 		perCPU []N3N6EntrypointTrafficClassCounters
 		total  TrafficClassCounters
 	)
 
-	if err := bpfObjects.TrafficClassForwarded.Lookup(counterKey(classID, MaxTrafficClasses, dir), &perCPU); err != nil {
-		return total, fmt.Errorf("read traffic class %d %s counters: %w", classID, dir, err)
+	if err := m.Lookup(key, &perCPU); err != nil {
+		return total, err
 	}
 
 	for _, c := range perCPU {
@@ -51,22 +58,48 @@ func (bpfObjects *BpfObjects) ReadTrafficClassForwarded(classID uint16, dir Dire
 	return total, nil
 }
 
-func (bpfObjects *BpfObjects) ReadPeerForwarded(peerID uint16, dir Direction) (TrafficClassCounters, error) {
-	var (
-		perCPU []N3N6EntrypointTrafficClassCounters
-		total  TrafficClassCounters
-	)
-
-	if err := bpfObjects.PeerForwarded.Lookup(counterKey(peerID, MaxPeers, dir), &perCPU); err != nil {
-		return total, fmt.Errorf("read peer %d %s counters: %w", peerID, dir, err)
+func (bpfObjects *BpfObjects) ReadTrafficClassForwarded(classID uint16, dir Direction) (TrafficClassCounters, error) {
+	c, err := readForwarded(bpfObjects.TrafficClassForwarded, counterKey(classID, MaxTrafficClasses, dir))
+	if err != nil {
+		return c, fmt.Errorf("read traffic class %d %s counters: %w", classID, dir, err)
 	}
 
-	for _, c := range perCPU {
-		total.Packets += c.Packets
-		total.Bytes += c.Bytes
+	return c, nil
+}
+
+func (bpfObjects *BpfObjects) ReadRadioForwarded(radioID uint16, dir Direction) (TrafficClassCounters, error) {
+	c, err := readForwarded(bpfObjects.RadioForwarded, counterKey(radioID, MaxRadios, dir))
+	if err != nil {
+		return c, fmt.Errorf("read radio %d %s counters: %w", radioID, dir, err)
 	}
 
-	return total, nil
+	return c, nil
+}
+
+func dropDirection(d uint8) Direction {
+	if d == 1 {
+		return Downlink
+	}
+
+	return Uplink
+}
+
+func dropReason(r uint8) string {
+	names := DropReasonNames()
+	if int(r) < len(names) {
+		return names[r]
+	}
+
+	return "unknown"
+}
+
+func sumPerCPU(perCPU []uint64) uint64 {
+	var sum uint64
+	for _, v := range perCPU {
+		sum += v
+	}
+
+	return sum
 }
 
 func (bpfObjects *BpfObjects) ReadTrafficClassDrops() (map[TrafficClassDrop]uint64, error) {
@@ -75,30 +108,13 @@ func (bpfObjects *BpfObjects) ReadTrafficClassDrops() (map[TrafficClassDrop]uint
 		perCPU []uint64
 	)
 
-	names := DropReasonNames()
 	out := make(map[TrafficClassDrop]uint64)
 	entries := 0
 
 	it := bpfObjects.TrafficClassDrops.Iterate()
 	for it.Next(&key, &perCPU) {
 		entries++
-
-		dir := Uplink
-		if key.Direction == 1 {
-			dir = Downlink
-		}
-
-		reason := "unknown"
-		if int(key.Reason) < len(names) {
-			reason = names[key.Reason]
-		}
-
-		var sum uint64
-		for _, v := range perCPU {
-			sum += v
-		}
-
-		out[TrafficClassDrop{ClassID: key.ClassId, PeerID: key.PeerId, Direction: dir, Reason: reason}] += sum
+		out[TrafficClassDrop{ClassID: key.ClassId, Direction: dropDirection(key.Direction), Reason: dropReason(key.Reason)}] += sumPerCPU(perCPU)
 	}
 
 	if err := it.Err(); err != nil {
@@ -106,6 +122,30 @@ func (bpfObjects *BpfObjects) ReadTrafficClassDrops() (map[TrafficClassDrop]uint
 	}
 
 	bpfObjects.SetOccupancy(MapTrafficClassDrops, entries)
+
+	return out, nil
+}
+
+func (bpfObjects *BpfObjects) ReadRadioDrops() (map[RadioDrop]uint64, error) {
+	var (
+		key    N3N6EntrypointRadioDropKey
+		perCPU []uint64
+	)
+
+	out := make(map[RadioDrop]uint64)
+	entries := 0
+
+	it := bpfObjects.RadioDrops.Iterate()
+	for it.Next(&key, &perCPU) {
+		entries++
+		out[RadioDrop{RadioID: key.RadioId, Direction: dropDirection(key.Direction), Reason: dropReason(key.Reason)}] += sumPerCPU(perCPU)
+	}
+
+	if err := it.Err(); err != nil {
+		return nil, fmt.Errorf("iterate radio drops: %w", err)
+	}
+
+	bpfObjects.SetOccupancy(MapRadioDrops, entries)
 
 	return out, nil
 }

@@ -20,6 +20,7 @@ const (
 	MapURR               = "urr_map"
 	MapSdfClassifiers    = "sdf_classifiers"
 	MapTrafficClassDrops = "traffic_class_drops"
+	MapRadioDrops        = "radio_drops"
 )
 
 var TrackedMaps = []string{
@@ -33,6 +34,7 @@ var TrackedMaps = []string{
 	MapURR,
 	MapSdfClassifiers,
 	MapTrafficClassDrops,
+	MapRadioDrops,
 }
 
 func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
@@ -57,6 +59,8 @@ func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
 		return bpfObjects.SdfClassifiers
 	case MapTrafficClassDrops:
 		return bpfObjects.TrafficClassDrops
+	case MapRadioDrops:
+		return bpfObjects.RadioDrops
 	}
 
 	return nil

@@ -153,8 +153,6 @@ type Policy struct {
 
 // SMF implements the Session Management Function.
 type SMF struct {
-	radios radioAddresses
-
 	mu     sync.RWMutex
 	pool   map[string]*SMContext // key: SMContext.Ref (unique per session instance)
 	byKey  map[string]*SMContext

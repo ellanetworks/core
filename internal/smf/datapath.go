@@ -5,6 +5,7 @@ package smf
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/radioctx"
 )
 
 type DownlinkState uint8
@@ -605,6 +607,38 @@ func (s DownlinkState) applyAction() models.ApplyAction {
 	}
 }
 
+func (an AnchorBinding) withServingRadio(ctx context.Context, prev AnchorBinding) AnchorBinding {
+	switch {
+	case !an.bound():
+		an.RadioID = ""
+	case an.equal(prev):
+		if an.RadioID == "" {
+			an.RadioID = prev.RadioID
+		}
+	default:
+		an.RadioID, _ = radioctx.From(ctx)
+	}
+
+	return an
+}
+
+func (d dataPlane) withServingRadios(ctx context.Context, prev dataPlane) dataPlane {
+	d.AN = d.AN.withServingRadio(ctx, prev.AN)
+	d.Bearers = slices.Clone(d.Bearers)
+
+	for i, b := range d.Bearers {
+		var before AnchorBinding
+
+		if j := slices.IndexFunc(prev.Bearers, func(p bearerLeg) bool { return p.Slot == b.Slot }); j >= 0 {
+			before = prev.Bearers[j].AN
+		}
+
+		d.Bearers[i].AN = b.AN.withServingRadio(ctx, before)
+	}
+
+	return d
+}
+
 func (d dataPlane) forwardingParameters() *models.ForwardingParameters {
 	return accessForwardingParameters(d.AN, d.Access)
 }
@@ -621,6 +655,7 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 			TEID:        an.TEID,
 			IPv6Address: an.IPv6,
 			S1U:         s1u,
+			RadioID:     an.RadioID,
 		}
 	case an.IPv4 != nil:
 		params.OuterHeaderCreation = &models.OuterHeaderCreation{
@@ -628,6 +663,7 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 			TEID:        an.TEID,
 			IPv4Address: an.IPv4.To4(),
 			S1U:         s1u,
+			RadioID:     an.RadioID,
 		}
 	}
 

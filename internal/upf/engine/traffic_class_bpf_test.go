@@ -158,7 +158,7 @@ func TestUplinkPDRFollowsTheServingRadio(t *testing.T) {
 
 	const seid = uint64(42)
 
-	toRadio := func(addr string) models.FAR {
+	toRadio := func(addr, radio string) models.FAR {
 		return models.FAR{
 			FARID:       2,
 			ApplyAction: models.ApplyAction{Forw: true},
@@ -168,6 +168,7 @@ func TestUplinkPDRFollowsTheServingRadio(t *testing.T) {
 					Description: models.OuterHeaderCreationGtpUUdpIpv4,
 					TEID:        7,
 					IPv4Address: net.ParseIP(addr).To4(),
+					RadioID:     radio,
 				},
 			},
 		}
@@ -180,7 +181,7 @@ func TestUplinkPDRFollowsTheServingRadio(t *testing.T) {
 		URRs: []models.URR{{URRID: 1}},
 		FARs: []models.FAR{
 			{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{DestinationInterface: models.InterfaceCore}},
-			toRadio("10.3.0.11"),
+			toRadio("10.3.0.11", "gnb:001-01:000001@22"),
 		},
 		PDRs: []models.PDR{
 			{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{SourceInterface: models.InterfaceAccess, LocalFTEID: &models.FTEID{}}},
@@ -193,7 +194,7 @@ func TestUplinkPDRFollowsTheServingRadio(t *testing.T) {
 	session := conn.GetSession(seid)
 	teid := session.GetPDR(1).TeID
 
-	uplinkPeer := func() uint16 {
+	uplinkRadio := func() uint16 {
 		t.Helper()
 
 		var stored upfebpf.N3N6EntrypointPdrInfo
@@ -201,33 +202,33 @@ func TestUplinkPDRFollowsTheServingRadio(t *testing.T) {
 			t.Fatalf("look up uplink PDR: %v", err)
 		}
 
-		return stored.PeerId
+		return stored.RadioId
 	}
 
-	peers := conn.Peers()
-	first := peers.ID(netip.MustParseAddr("10.3.0.11"))
+	radios := conn.Radios()
+	first := radios.ID("gnb:001-01:000001@22")
 
-	if got := session.GetPDR(2).PdrInfo.Far.PeerID; got != first {
-		t.Fatalf("downlink FAR peer = %d, want %d", got, first)
+	if got := session.GetPDR(2).PdrInfo.Far.RadioID; got != first {
+		t.Fatalf("downlink FAR radio = %d, want %d", got, first)
 	}
 
-	if got := uplinkPeer(); got != first {
-		t.Fatalf("uplink PDR peer = %d, want the serving radio %d", got, first)
+	if got := uplinkRadio(); got != first {
+		t.Fatalf("uplink PDR radio = %d, want the serving radio %d", got, first)
 	}
 
 	if _, err := conn.ModifySession(ctx, &models.ModifyRequest{
 		SEID:       seid,
-		UpdateFARs: []models.FAR{toRadio("10.3.0.12")},
+		UpdateFARs: []models.FAR{toRadio("10.3.0.12", "gnb:001-01:000002@22")},
 	}); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 
-	second := peers.ID(netip.MustParseAddr("10.3.0.12"))
+	second := radios.ID("gnb:001-01:000002@22")
 	if second == first {
-		t.Fatal("two radios share a peer ID")
+		t.Fatal("two radios share an ID")
 	}
 
-	if got := uplinkPeer(); got != second {
-		t.Errorf("uplink PDR peer after the handover = %d, want the new radio %d", got, second)
+	if got := uplinkRadio(); got != second {
+		t.Errorf("uplink PDR radio after the handover = %d, want the new radio %d", got, second)
 	}
 }
