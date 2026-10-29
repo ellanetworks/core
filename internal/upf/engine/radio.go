@@ -64,6 +64,10 @@ func (r *Radios) ID(radio string) uint16 {
 }
 
 func (r *Radios) All() map[uint16]string {
+	if r == nil {
+		return nil
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

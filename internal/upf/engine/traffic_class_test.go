@@ -92,3 +92,11 @@ func TestRadioIDsAreStablePerRadio(t *testing.T) {
 		t.Errorf("All() = %v", got)
 	}
 }
+
+func TestNilRadiosListNoRadios(t *testing.T) {
+	var radios *Radios
+
+	if got := radios.All(); len(got) != 0 {
+		t.Errorf("All() on a nil registry = %v, want none", got)
+	}
+}
