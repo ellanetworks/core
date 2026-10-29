@@ -25,6 +25,7 @@ import (
 
 const (
 	benchClassID = 7
+	benchPeerID  = 3
 
 	benchIterations = 3000
 	benchWarmup     = 500
@@ -339,6 +340,7 @@ func installBenchPDRs(t *testing.T, m benchMaps) {
 		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0, ClassID: benchClassID},
 		UEIPv4:             canonicalUEv4,
 		UEIPv6Prefix:       canonicalUEv6Prefix,
+		PeerID:             benchPeerID,
 	}, "uplink")
 
 	s1u := func(p PdrInfo) PdrInfo {
@@ -350,6 +352,7 @@ func installBenchPDRs(t *testing.T, m benchMaps) {
 	dl := func(qfi uint8) PdrInfo {
 		p := ipv4OuterDownlinkPDR(benchTEID, benchUPFN3IP, benchGNBIP, qfi)
 		p.Qer.ClassID = benchClassID
+		p.Far.PeerID = benchPeerID
 
 		return p
 	}

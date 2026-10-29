@@ -7,7 +7,10 @@ import (
 	"fmt"
 )
 
-const MaxTrafficClasses = 1024
+const (
+	MaxTrafficClasses = 1024
+	MaxPeers          = 1024
+)
 
 type TrafficClassCounters struct {
 	Packets uint64
@@ -16,12 +19,13 @@ type TrafficClassCounters struct {
 
 type TrafficClassDrop struct {
 	ClassID   uint16
+	PeerID    uint16
 	Direction Direction
 	Reason    string
 }
 
-func trafficClassKey(classID uint16, dir Direction) uint32 {
-	key := uint32(classID%MaxTrafficClasses) << 1
+func counterKey(id uint16, capacity int, dir Direction) uint32 {
+	key := uint32(int(id)%capacity) << 1
 	if dir == Downlink {
 		key |= 1
 	}
@@ -35,8 +39,26 @@ func (bpfObjects *BpfObjects) ReadTrafficClassForwarded(classID uint16, dir Dire
 		total  TrafficClassCounters
 	)
 
-	if err := bpfObjects.TrafficClassForwarded.Lookup(trafficClassKey(classID, dir), &perCPU); err != nil {
+	if err := bpfObjects.TrafficClassForwarded.Lookup(counterKey(classID, MaxTrafficClasses, dir), &perCPU); err != nil {
 		return total, fmt.Errorf("read traffic class %d %s counters: %w", classID, dir, err)
+	}
+
+	for _, c := range perCPU {
+		total.Packets += c.Packets
+		total.Bytes += c.Bytes
+	}
+
+	return total, nil
+}
+
+func (bpfObjects *BpfObjects) ReadPeerForwarded(peerID uint16, dir Direction) (TrafficClassCounters, error) {
+	var (
+		perCPU []N3N6EntrypointTrafficClassCounters
+		total  TrafficClassCounters
+	)
+
+	if err := bpfObjects.PeerForwarded.Lookup(counterKey(peerID, MaxPeers, dir), &perCPU); err != nil {
+		return total, fmt.Errorf("read peer %d %s counters: %w", peerID, dir, err)
 	}
 
 	for _, c := range perCPU {
@@ -76,7 +98,7 @@ func (bpfObjects *BpfObjects) ReadTrafficClassDrops() (map[TrafficClassDrop]uint
 			sum += v
 		}
 
-		out[TrafficClassDrop{ClassID: key.ClassId, Direction: dir, Reason: reason}] += sum
+		out[TrafficClassDrop{ClassID: key.ClassId, PeerID: key.PeerId, Direction: dir, Reason: reason}] += sum
 	}
 
 	if err := it.Err(); err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/radioctx"
 	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/sctp"
 	"go.opentelemetry.io/otel/attribute"
@@ -65,6 +66,10 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	radio := m.RadioForConn(conn)
 	if radio != nil {
 		radio.TouchLastSeen()
+
+		if id, ok := radio.IDKey(); ok {
+			ctx = radioctx.With(ctx, id)
+		}
 	}
 
 	m.LogNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, msg)

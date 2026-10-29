@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,34 @@ func sessionMetricSeries(t *testing.T, ctx context.Context, c *client.Client, me
 	}
 
 	return sum
+}
+
+var radioLabelsPattern = regexp.MustCompile(`radio="([^"]*)",radio_id="([^"]*)"`)
+
+func radioMetricSeries(t *testing.T, ctx context.Context, c *client.Client, metric, direction string) map[[2]string]float64 {
+	t.Helper()
+
+	all, err := c.GetMetrics(ctx)
+	if err != nil {
+		t.Fatalf("get metrics: %v", err)
+	}
+
+	out := make(map[[2]string]float64)
+
+	for series, v := range all {
+		if !strings.HasPrefix(series, metric+"{") || !strings.Contains(series, fmt.Sprintf(`direction=%q`, direction)) {
+			continue
+		}
+
+		m := radioLabelsPattern.FindStringSubmatch(series)
+		if m == nil {
+			t.Fatalf("series %s has no radio labels", series)
+		}
+
+		out[[2]string{m[2], m[1]}] += v
+	}
+
+	return out
 }
 
 func runSessionMetrics(t *testing.T, ranPrefix string) {
@@ -96,6 +125,7 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 
 	t.Run("forwarded", func(t *testing.T) {
 		before := map[string][2]float64{}
+		radiosBefore := map[string]map[[2]string]float64{}
 
 		for _, dir := range []string{"uplink", "downlink"} {
 			labels := append([]string{fmt.Sprintf(`direction=%q`, dir)}, class...)
@@ -103,9 +133,20 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 				sessionMetricSeries(t, ctx, env.Client, "app_upf_session_forwarded_packets_total", labels...),
 				sessionMetricSeries(t, ctx, env.Client, "app_upf_session_forwarded_bytes_total", labels...),
 			}
+			radiosBefore[dir] = radioMetricSeries(t, ctx, env.Client, "app_upf_radio_forwarded_packets_total", dir)
 		}
 
 		ues := float64(run(t, fp.scenarioAllowed))
+
+		radios, err := env.Client.ListRadios(ctx, &client.ListParams{Page: 1, PerPage: 100})
+		if err != nil {
+			t.Fatalf("list radios: %v", err)
+		}
+
+		names := make(map[string]string, len(radios.Items))
+		for _, r := range radios.Items {
+			names[r.Ref] = r.Name
+		}
 
 		for _, dir := range []string{"uplink", "downlink"} {
 			labels := append([]string{fmt.Sprintf(`direction=%q`, dir)}, class...)
@@ -121,6 +162,34 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 			}
 
 			t.Logf("%s: +%v packets, +%v bytes", dir, packets, bytes)
+
+			var identified float64
+
+			for radio, v := range radioMetricSeries(t, ctx, env.Client, "app_upf_radio_forwarded_packets_total", dir) {
+				grew := v - radiosBefore[dir][radio]
+				if grew == 0 {
+					continue
+				}
+
+				id, name := radio[0], radio[1]
+				if id == "unknown" {
+					t.Errorf("%s: %v packets were counted under an unidentified radio", dir, grew)
+					continue
+				}
+
+				want, ok := names[id]
+				if !ok || want != name {
+					t.Errorf("%s: radio_id=%q radio=%q, want a radio the API lists under that ref (name %q)", dir, id, name, want)
+				}
+
+				identified += grew
+
+				t.Logf("%s: radio %s (%s) +%v packets", dir, id, name, grew)
+			}
+
+			if identified < ues*minPackets {
+				t.Errorf("%s packets counted per radio grew by %v, want at least %v", dir, identified, ues*minPackets)
+			}
 		}
 	})
 
@@ -142,6 +211,7 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 
 		labels := append([]string{`direction="uplink"`, `reason="sdf_filter"`}, class...)
 		before := sessionMetricSeries(t, ctx, env.Client, "app_upf_session_dropped_packets_total", labels...)
+		radioBefore := sessionMetricSeries(t, ctx, env.Client, "app_upf_radio_dropped_packets_total", `direction="uplink"`, `reason="sdf_filter"`)
 
 		ues := float64(run(t, fp.scenarioBlocked))
 
@@ -151,5 +221,14 @@ func runSessionMetrics(t *testing.T, ranPrefix string) {
 		}
 
 		t.Logf("uplink sdf_filter drops: +%v", dropped)
+
+		radioDropped := sessionMetricSeries(t, ctx, env.Client, "app_upf_radio_dropped_packets_total", `direction="uplink"`, `reason="sdf_filter"`) - radioBefore
+		if radioDropped != dropped {
+			t.Errorf("uplink sdf_filter drops counted per radio grew by %v, want the same %v as per class", radioDropped, dropped)
+		}
+
+		if unknown := sessionMetricSeries(t, ctx, env.Client, "app_upf_radio_dropped_packets_total", `radio_id="unknown"`); unknown != 0 {
+			t.Errorf("%v drops were counted under an unidentified radio", unknown)
+		}
 	})
 }

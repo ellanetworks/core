@@ -7,6 +7,7 @@ package engine
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"os"
 	"testing"
@@ -119,5 +120,114 @@ func TestSessionQERsCarryTheirTrafficClass(t *testing.T) {
 		if got := session.GetPDR(pdrID).PdrInfo.Qer.ClassID; got != newID {
 			t.Errorf("PDR %d class after the 5QI change = %d, want %d", pdrID, got, newID)
 		}
+	}
+}
+
+func TestUplinkPDRFollowsTheServingRadio(t *testing.T) {
+	if os.Geteuid() != 0 {
+		const msg = "loading eBPF maps requires root/CAP_BPF"
+		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
+			t.Fatal(msg)
+		}
+
+		t.Skip(msg + "; skipping")
+	}
+
+	if err := rlimit.RemoveMemlock(); err != nil {
+		t.Fatalf("cannot remove memlock rlimit: %v", err)
+	}
+
+	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
+	if err := obj.Load(); err != nil {
+		t.Fatalf("load eBPF objects: %v", err)
+	}
+
+	t.Cleanup(func() { _ = obj.Close() })
+
+	rm, err := NewFteIDResourceManager(1024)
+	if err != nil {
+		t.Fatalf("new fteid resource manager: %v", err)
+	}
+
+	conn, err := NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
+	if err != nil {
+		t.Fatalf("new session engine: %v", err)
+	}
+
+	ctx := context.Background()
+
+	const seid = uint64(42)
+
+	toRadio := func(addr string) models.FAR {
+		return models.FAR{
+			FARID:       2,
+			ApplyAction: models.ApplyAction{Forw: true},
+			ForwardingParameters: &models.ForwardingParameters{
+				DestinationInterface: models.InterfaceAccess,
+				OuterHeaderCreation: &models.OuterHeaderCreation{
+					Description: models.OuterHeaderCreationGtpUUdpIpv4,
+					TEID:        7,
+					IPv4Address: net.ParseIP(addr).To4(),
+				},
+			},
+		}
+	}
+
+	if _, err := conn.EstablishSession(ctx, &models.EstablishRequest{
+		SEID: seid,
+		IMSI: "001010000000042",
+		DNN:  "internet",
+		URRs: []models.URR{{URRID: 1}},
+		FARs: []models.FAR{
+			{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{DestinationInterface: models.InterfaceCore}},
+			toRadio("10.3.0.11"),
+		},
+		PDRs: []models.PDR{
+			{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{SourceInterface: models.InterfaceAccess, LocalFTEID: &models.FTEID{}}},
+			{PDRID: 2, FARID: 2, URRID: 1, PDI: models.PDI{SourceInterface: models.InterfaceCore, UEIPAddress: netip.MustParseAddr("10.0.0.42")}},
+		},
+	}); err != nil {
+		t.Fatalf("establish: %v", err)
+	}
+
+	session := conn.GetSession(seid)
+	teid := session.GetPDR(1).TeID
+
+	uplinkPeer := func() uint16 {
+		t.Helper()
+
+		var stored upfebpf.N3N6EntrypointPdrInfo
+		if err := obj.PdrsUplink.Lookup(teid, &stored); err != nil {
+			t.Fatalf("look up uplink PDR: %v", err)
+		}
+
+		return stored.PeerId
+	}
+
+	peers := conn.Peers()
+	first := peers.ID(netip.MustParseAddr("10.3.0.11"))
+
+	if got := session.GetPDR(2).PdrInfo.Far.PeerID; got != first {
+		t.Fatalf("downlink FAR peer = %d, want %d", got, first)
+	}
+
+	if got := uplinkPeer(); got != first {
+		t.Fatalf("uplink PDR peer = %d, want the serving radio %d", got, first)
+	}
+
+	if _, err := conn.ModifySession(ctx, &models.ModifyRequest{
+		SEID:       seid,
+		UpdateFARs: []models.FAR{toRadio("10.3.0.12")},
+	}); err != nil {
+		t.Fatalf("modify: %v", err)
+	}
+
+	second := peers.ID(netip.MustParseAddr("10.3.0.12"))
+	if second == first {
+		t.Fatal("two radios share a peer ID")
+	}
+
+	if got := uplinkPeer(); got != second {
+		t.Errorf("uplink PDR peer after the handover = %d, want the new radio %d", got, second)
 	}
 }

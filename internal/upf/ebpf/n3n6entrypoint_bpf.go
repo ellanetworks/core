@@ -50,7 +50,7 @@ type N3N6EntrypointClassifierQuery struct {
 			Remoteip              N3N6EntrypointIn6Addr
 			Localip               N3N6EntrypointIn6Addr
 			TransportLevelMarking uint16
-			_                     [2]byte
+			PeerId                uint16
 		}
 		_   [4]byte
 		Qer struct {
@@ -211,7 +211,7 @@ type N3N6EntrypointPdrInfo struct {
 		Remoteip              N3N6EntrypointIn6Addr
 		Localip               N3N6EntrypointIn6Addr
 		TransportLevelMarking uint16
-		_                     [2]byte
+		PeerId                uint16
 	}
 	_   [4]byte
 	Qer struct {
@@ -229,7 +229,8 @@ type N3N6EntrypointPdrInfo struct {
 	FilterMapIndex uint32
 	UeIpv4         N3N6EntrypointIn6Addr
 	UeIpv6         N3N6EntrypointIn6Addr
-	_              [4]byte
+	PeerId         uint16
+	_              [2]byte
 }
 
 type N3N6EntrypointQerKey struct {
@@ -310,7 +311,7 @@ type N3N6EntrypointSdfClassifier struct {
 			Remoteip              N3N6EntrypointIn6Addr
 			Localip               N3N6EntrypointIn6Addr
 			TransportLevelMarking uint16
-			_                     [2]byte
+			PeerId                uint16
 		}
 		_   [4]byte
 		Qer struct {
@@ -355,16 +356,20 @@ type N3N6EntrypointTrafficClassCounters struct {
 type N3N6EntrypointTrafficClassDropKey struct {
 	_         structs.HostLayout
 	ClassId   uint16
+	PeerId    uint16
 	Direction uint8
 	Reason    uint8
+	Pad       [2]uint8
 }
 
 type N3N6EntrypointTrafficClassMark struct {
 	_            structs.HostLayout
 	ForwardedKey uint32
+	PeerKey      uint32
 	ClassId      uint16
+	PeerId       uint16
 	Direction    uint8
-	Pad          uint8
+	Pad          [3]uint8
 }
 
 type N3N6EntrypointUpfStatistic struct {
@@ -437,6 +442,7 @@ const (
 	N3N6EntrypointMapPdrsDownlinkIp4       = "pdrs_downlink_ip4"
 	N3N6EntrypointMapPdrsDownlinkIp6       = "pdrs_downlink_ip6"
 	N3N6EntrypointMapPdrsUplink            = "pdrs_uplink"
+	N3N6EntrypointMapPeerForwarded         = "peer_forwarded"
 	N3N6EntrypointMapQerWindows            = "qer_windows"
 	N3N6EntrypointMapRingbufLost           = "ringbuf_lost"
 	N3N6EntrypointMapRsEventMap            = "rs_event_map"
@@ -546,6 +552,7 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsDownlinkIp4       *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6       *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink            *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	PeerForwarded         *ebpf.MapSpec `ebpf:"peer_forwarded"`
 	QerWindows            *ebpf.MapSpec `ebpf:"qer_windows"`
 	RingbufLost           *ebpf.MapSpec `ebpf:"ringbuf_lost"`
 	RsEventMap            *ebpf.MapSpec `ebpf:"rs_event_map"`
@@ -621,6 +628,7 @@ type N3N6EntrypointMaps struct {
 	PdrsDownlinkIp4       *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6       *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink            *ebpf.Map `ebpf:"pdrs_uplink"`
+	PeerForwarded         *ebpf.Map `ebpf:"peer_forwarded"`
 	QerWindows            *ebpf.Map `ebpf:"qer_windows"`
 	RingbufLost           *ebpf.Map `ebpf:"ringbuf_lost"`
 	RsEventMap            *ebpf.Map `ebpf:"rs_event_map"`
@@ -660,6 +668,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
+		m.PeerForwarded,
 		m.QerWindows,
 		m.RingbufLost,
 		m.RsEventMap,

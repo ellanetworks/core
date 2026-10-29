@@ -109,10 +109,13 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	var endMarkers []endMarkerTarget
 
+	accessPeer := session.accessPeer()
+
 	for _, far := range req.UpdateFARs {
 		oldFarInfo := session.GetFar(far.FARID)
 
 		sFarInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, oldFarInfo)
+		sFarInfo.PeerID = conn.peerID(sFarInfo)
 
 		if req.SendEndMarkers {
 			if target, ok := endMarkerTargetFor(oldFarInfo, sFarInfo); ok {
@@ -197,6 +200,11 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 	}
 
 	supersededTEIDs := make(map[uint32]struct{})
+
+	if session.accessPeer() != accessPeer {
+		restampReferencingPDRs(session, touched, func(p SPDRInfo) bool { return !p.UEIP.IsValid() && p.TeID != 0 },
+			func(*SPDRInfo) {})
+	}
 
 	for _, pdrID := range slices.Sorted(maps.Keys(touched)) {
 		spdrInfo := session.GetPDR(pdrID)

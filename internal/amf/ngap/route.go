@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/radioctx"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -83,6 +84,10 @@ func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte
 // dispatchDecoded routes a decoded PDU and reports whether it consumed it. A
 // false return means the PDU named a procedure this AMF does not implement.
 func dispatchDecoded(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, pdu ngap.PDU, span trace.Span) bool {
+	if id, ok := ran.IDKey(); ok {
+		ctx = radioctx.With(ctx, id)
+	}
+
 	switch p := pdu.(type) {
 	case *ngap.InitiatingMessage:
 		return routeInitiating(ctx, amfInstance, ran, msg, p, span)

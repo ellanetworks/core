@@ -374,6 +374,28 @@ func (s *Session) SetUEAddresses(v4, v6 netip.Addr) {
 	s.ueIPv6 = v6
 }
 
+func (s *Session) accessPeer() uint16 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var (
+		peer   uint16
+		lowest uint32
+	)
+
+	for id, p := range s.pdrs {
+		if !p.UEIP.IsValid() || p.PdrInfo.Far.PeerID == 0 {
+			continue
+		}
+
+		if peer == 0 || id < lowest {
+			peer, lowest = p.PdrInfo.Far.PeerID, id
+		}
+	}
+
+	return peer
+}
+
 func (s *Session) UEAddresses() (netip.Addr, netip.Addr) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -507,7 +507,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	smf.RegisterMetrics(smfInstance)
-	upf.RegisterMetrics(eng.TrafficClasses())
+	upf.RegisterMetrics(eng.TrafficClasses(), eng.Peers(), newRadioResolver(smfInstance, cp.amf, cp.mme))
 
 	ausfStore, amfInstance, mmeInstance := cp.ausfStore, cp.amf, cp.mme
 

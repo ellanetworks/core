@@ -358,6 +358,8 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 	prev := sc.Tunnel.dataPlane
 	sc.Tunnel.dataPlane = next
 
+	s.radios.recordSwitched(ctx, prev, next)
+
 	if resp != nil {
 		sc.Tunnel.ChosenTEIDs = resp.ChosenTEIDs
 		s.deliverUsage(ctx, sc, prev.chargedUsage(resp.Usage))

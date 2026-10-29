@@ -66,6 +66,7 @@ type PdrInfo struct {
 	// Authorized uplink source; zero = family absent; UEIPv6Prefix is the /64 base.
 	UEIPv4       netip.Addr
 	UEIPv6Prefix netip.Addr
+	PeerID       uint16
 }
 
 type PortRange struct {
@@ -214,6 +215,7 @@ type FarInfo struct {
 	RemoteIP              [16]byte // struct in6_addr equivalent
 	LocalIP               [16]byte // struct in6_addr equivalent
 	TransportLevelMarking uint16
+	PeerID                uint16
 }
 
 // IPToIn6Addr converts a netip.Addr to a [16]byte in6_addr.
@@ -348,6 +350,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 	fillFarQer(&pdrToStore, defaultPdr.Far, defaultPdr.Qer)
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
+	pdrToStore.PeerId = defaultPdr.PeerID
 
 	if defaultPdr.UEIPv4.Is4() {
 		pdrToStore.UeIpv4.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv4)
@@ -367,6 +370,7 @@ func fillFarQer(dst *N3N6EntrypointPdrInfo, far FarInfo, qer QerInfo) {
 	dst.Far.Remoteip.In6U.U6Addr8 = far.RemoteIP
 	dst.Far.Localip.In6U.U6Addr8 = far.LocalIP
 	dst.Far.TransportLevelMarking = far.TransportLevelMarking
+	dst.Far.PeerId = far.PeerID
 
 	dst.Qer.UlGateStatus = qer.GateStatusUL
 	dst.Qer.DlGateStatus = qer.GateStatusDL

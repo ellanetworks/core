@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"net/netip"
 	"strconv"
 	"testing"
 
@@ -67,5 +68,29 @@ func TestSessionWithoutDataNetworkIsUnclassified(t *testing.T) {
 	c, ok := sess.trafficClass(9)
 	if !ok || c != (TrafficClass{DNN: "internet", FiveQI: 9}) {
 		t.Errorf("trafficClass = %+v, %v; want the data network with no slice", c, ok)
+	}
+}
+
+func TestPeerIDsAreStablePerAddress(t *testing.T) {
+	peers := NewPeers()
+
+	a := peers.ID(netip.MustParseAddr("10.3.0.11"))
+	mapped := peers.ID(netip.MustParseAddr("::ffff:10.3.0.11"))
+	b := peers.ID(netip.MustParseAddr("2001:db8:3::11"))
+
+	if a == 0 || b == 0 || a == b {
+		t.Fatalf("IDs = %d, %d; want two distinct non-zero IDs", a, b)
+	}
+
+	if mapped != a {
+		t.Errorf("IPv4-mapped address got ID %d, want the IPv4 address's %d", mapped, a)
+	}
+
+	if id := peers.ID(netip.Addr{}); id != 0 {
+		t.Errorf("invalid address got ID %d, want 0", id)
+	}
+
+	if got := peers.All(); len(got) != 2 || got[a] != netip.MustParseAddr("10.3.0.11") {
+		t.Errorf("All() = %v", got)
 	}
 }

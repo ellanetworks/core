@@ -4,6 +4,7 @@
 package upf
 
 import (
+	"net/netip"
 	"slices"
 	"strconv"
 
@@ -35,7 +36,7 @@ const (
 	dlBufferEvictReinjectFailed = "reinject_failed"
 )
 
-func RegisterMetrics(classes *engine.TrafficClasses) {
+func RegisterMetrics(classes *engine.TrafficClasses, peers *engine.Peers, radios RadioResolver) {
 	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
 
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
@@ -202,7 +203,7 @@ func RegisterMetrics(classes *engine.TrafficClasses) {
 		}
 	}))
 
-	registerSessionMetrics(classes)
+	registerSessionMetrics(classes, peers, radios)
 
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
@@ -294,8 +295,62 @@ func RegisterMetrics(classes *engine.TrafficClasses) {
 	}))
 }
 
-func registerSessionMetrics(classes *engine.TrafficClasses) {
+type Radio struct {
+	ID   string
+	Name string
+}
+
+type RadioResolver interface {
+	RadiosByAddress() map[netip.Addr]Radio
+}
+
+var unknownRadio = Radio{ID: "unknown"}
+
+type radioKey struct {
+	radio Radio
+	dir   ebpf.Direction
+}
+
+type sessionDropKey struct {
+	classID uint16
+	dir     ebpf.Direction
+	reason  string
+}
+
+type radioDropKey struct {
+	radio  Radio
+	dir    ebpf.Direction
+	reason string
+}
+
+func radioOf(peer netip.Addr, radios map[netip.Addr]Radio) Radio {
+	if r, ok := radios[peer]; ok && r.ID != "" {
+		return r
+	}
+
+	return unknownRadio
+}
+
+func aggregateDrops(drops map[ebpf.TrafficClassDrop]uint64, peers map[uint16]netip.Addr, radios map[netip.Addr]Radio) (map[sessionDropKey]uint64, map[radioDropKey]uint64) {
+	bySession := make(map[sessionDropKey]uint64)
+	byRadio := make(map[radioDropKey]uint64)
+
+	for d, count := range drops {
+		if d.ClassID != 0 {
+			bySession[sessionDropKey{d.ClassID, d.Direction, d.Reason}] += count
+		}
+
+		if addr, ok := peers[d.PeerID]; ok {
+			byRadio[radioDropKey{radioOf(addr, radios), d.Direction, d.Reason}] += count
+		}
+	}
+
+	return bySession, byRadio
+}
+
+func registerSessionMetrics(classes *engine.TrafficClasses, peers *engine.Peers, radios RadioResolver) {
 	classLabels := []string{"direction", "sst", "sd", "dnn", "fiveqi"}
+	radioLabels := []string{"direction", "radio_id", "radio"}
 
 	packetsDesc := prometheus.NewDesc(
 		"app_upf_session_forwarded_packets_total",
@@ -318,18 +373,49 @@ func registerSessionMetrics(classes *engine.TrafficClasses) {
 		nil,
 	)
 
+	radioPacketsDesc := prometheus.NewDesc(
+		"app_upf_radio_forwarded_packets_total",
+		"Packets the data plane forwarded for sessions, by direction and radio (gNB or eNB). radio_id is the radio's global RAN node ID; traffic from a radio not yet identified is counted under radio_id=\"unknown\".",
+		radioLabels,
+		nil,
+	)
+
+	radioBytesDesc := prometheus.NewDesc(
+		"app_upf_radio_forwarded_bytes_total",
+		"Bytes the data plane forwarded for sessions, by direction and radio (gNB or eNB). Counts the subscriber's IP packet, without tunnel or Ethernet headers, as usage reporting does.",
+		radioLabels,
+		nil,
+	)
+
+	radioDropDesc := prometheus.NewDesc(
+		"app_upf_radio_dropped_packets_total",
+		"Packets the data plane dropped after matching them to a session, by direction, radio (gNB or eNB) and reason. A reason appears once it has occurred for that radio.",
+		append(slices.Clone(radioLabels), "reason"),
+		nil,
+	)
+
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		if classes == nil || bpfObjects == nil {
+		if classes == nil || peers == nil || bpfObjects == nil {
 			return
 		}
 
-		all := classes.All()
+		allClasses := classes.All()
+		allPeers := peers.All()
 
-		labels := func(c engine.TrafficClass, dir ebpf.Direction) []string {
+		var byAddress map[netip.Addr]Radio
+		if radios != nil {
+			byAddress = radios.RadiosByAddress()
+		}
+
+		classLabelValues := func(c engine.TrafficClass, dir ebpf.Direction) []string {
 			return []string{string(dir), strconv.Itoa(int(c.SST)), c.SD, c.DNN, strconv.Itoa(int(c.FiveQI))}
 		}
 
-		for id, c := range all {
+		radioLabelValues := func(r Radio, dir ebpf.Direction) []string {
+			return []string{string(dir), r.ID, r.Name}
+		}
+
+		for id, c := range allClasses {
 			for _, dir := range []ebpf.Direction{ebpf.Uplink, ebpf.Downlink} {
 				counters, err := bpfObjects.ReadTrafficClassForwarded(id, dir)
 				if err != nil {
@@ -338,27 +424,62 @@ func registerSessionMetrics(classes *engine.TrafficClasses) {
 				}
 
 				ch <- prometheus.MustNewConstMetric(packetsDesc, prometheus.CounterValue,
-					float64(counters.Packets), labels(c, dir)...)
+					float64(counters.Packets), classLabelValues(c, dir)...)
 
 				ch <- prometheus.MustNewConstMetric(bytesDesc, prometheus.CounterValue,
-					float64(counters.Bytes), labels(c, dir)...)
+					float64(counters.Bytes), classLabelValues(c, dir)...)
 			}
+		}
+
+		perRadio := make(map[radioKey]ebpf.TrafficClassCounters)
+
+		for id, addr := range allPeers {
+			r := radioOf(addr, byAddress)
+
+			for _, dir := range []ebpf.Direction{ebpf.Uplink, ebpf.Downlink} {
+				counters, err := bpfObjects.ReadPeerForwarded(id, dir)
+				if err != nil {
+					logger.UpfLog.Warn("failed to fetch UPF radio counters", zap.Error(err))
+					continue
+				}
+
+				k := radioKey{r, dir}
+				total := perRadio[k]
+				total.Packets += counters.Packets
+				total.Bytes += counters.Bytes
+				perRadio[k] = total
+			}
+		}
+
+		for k, counters := range perRadio {
+			ch <- prometheus.MustNewConstMetric(radioPacketsDesc, prometheus.CounterValue,
+				float64(counters.Packets), radioLabelValues(k.radio, k.dir)...)
+
+			ch <- prometheus.MustNewConstMetric(radioBytesDesc, prometheus.CounterValue,
+				float64(counters.Bytes), radioLabelValues(k.radio, k.dir)...)
 		}
 
 		drops, err := bpfObjects.ReadTrafficClassDrops()
 		if err != nil {
-			logger.UpfLog.Warn("failed to fetch UPF traffic class drop counters", zap.Error(err))
+			logger.UpfLog.Warn("failed to fetch UPF drop counters", zap.Error(err))
 			return
 		}
 
-		for d, count := range drops {
-			c, ok := all[d.ClassID]
+		bySession, byRadio := aggregateDrops(drops, allPeers, byAddress)
+
+		for k, count := range bySession {
+			c, ok := allClasses[k.classID]
 			if !ok {
 				continue
 			}
 
 			ch <- prometheus.MustNewConstMetric(dropDesc, prometheus.CounterValue,
-				float64(count), append(labels(c, d.Direction), d.Reason)...)
+				float64(count), append(classLabelValues(c, k.dir), k.reason)...)
+		}
+
+		for k, count := range byRadio {
+			ch <- prometheus.MustNewConstMetric(radioDropDesc, prometheus.CounterValue,
+				float64(count), append(radioLabelValues(k.radio, k.dir), k.reason)...)
 		}
 	}))
 }

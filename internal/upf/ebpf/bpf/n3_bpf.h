@@ -203,7 +203,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	if (!sel)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
-	traffic_class_mark(sel->target.qer.class_id, TRAFFIC_CLASS_DOWNLINK);
+	traffic_class_mark(sel->target.qer.class_id, sel->target.far.peer_id,
+			   TRAFFIC_CLASS_DOWNLINK);
 
 	ctx->interface = INTERFACE_N6;
 
@@ -300,6 +301,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		traffic_class_bill(billed_bytes);
 		traffic_class_forward(ul_pdr->qer.class_id,
 				      TRAFFIC_CLASS_UPLINK, billed_bytes);
+		peer_forward(ul_pdr->peer_id, TRAFFIC_CLASS_UPLINK,
+			     billed_bytes);
 	}
 
 	return tunnel_ret;
@@ -599,7 +602,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	__u32 urr_id = pdr->urr_id;
 	__u8 outer_header_removal = pdr->outer_header_removal;
 
-	traffic_class_mark(pdr->qer.class_id, TRAFFIC_CLASS_UPLINK);
+	traffic_class_mark(pdr->qer.class_id, pdr->peer_id,
+			   TRAFFIC_CLASS_UPLINK);
 
 	struct far_info *far = &pdr->far;
 	__u32 qer_id = pdr->qer_id;
@@ -786,8 +790,7 @@ handle_gtp_packet(struct packet_context *ctx)
 				rule_pdr_id = sel->target.pdr_id;
 				qer_id = sel->target.qer_id;
 				urr_id = sel->target.urr_id;
-				traffic_class_mark(sel->target.qer.class_id,
-						   TRAFFIC_CLASS_UPLINK);
+				traffic_class_reclass(sel->target.qer.class_id);
 
 				enum ctx_action qer_verdict = enforce_uplink_qer(
 					ctx, pdr->local_seid, qer_id,
