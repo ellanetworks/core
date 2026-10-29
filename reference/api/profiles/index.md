@@ -1,0 +1,195 @@
+# Profiles
+
+Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR) and the IMS service profiles of its registration sets. Ella Core signals the UE-AMBR to the radio, which enforces it. A profile groups the policies of its subscribers.
+
+## List Profiles
+
+This path returns the list of profiles.
+
+| Method | Path               |
+| ------ | ------------------ |
+| GET    | `/api/v1/profiles` |
+
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description               |
+| ---------- | ----- | ---- | ------- | ------- | ------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.       |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page. |
+
+### Sample Response
+
+```
+{
+    "result": {
+        "items": [
+            {
+                "name": "enterprise",
+                "ue_ambr_uplink": "1 Gbps",
+                "ue_ambr_downlink": "1 Gbps",
+                "allow_4g": true,
+                "allow_5g": true
+            }
+        ],
+        "page": 1,
+        "per_page": 10,
+        "total_count": 1
+    }
+}
+```
+
+## Create a Profile
+
+This path creates a new profile.
+
+| Method | Path               |
+| ------ | ------------------ |
+| POST   | `/api/v1/profiles` |
+
+### Parameters
+
+- `name` (string): The name of the profile.
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Kbps, Mbps, Gbps.
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Kbps, Mbps, Gbps.
+- `allow_4g` (boolean, optional): Whether subscribers using this profile may attach over 4G (EPC). Defaults to `true`.
+- `allow_5g` (boolean, optional): Whether subscribers using this profile may register over 5G (5GC). Defaults to `true`.
+
+### Sample Response
+
+```
+{
+    "result": {
+        "message": "Profile created successfully"
+    }
+}
+```
+
+## Get a Profile
+
+This path returns the details of a specific profile.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| GET    | `/api/v1/profiles/{name}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```
+{
+    "result": {
+        "name": "enterprise",
+        "ue_ambr_uplink": "1 Gbps",
+        "ue_ambr_downlink": "1 Gbps",
+        "allow_4g": true,
+        "allow_5g": true
+    }
+}
+```
+
+## Update a Profile
+
+This path updates an existing profile.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| PUT    | `/api/v1/profiles/{name}` |
+
+### Parameters
+
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the profile permits: 10 Gbps when 4G is allowed (S1AP `BitRate`, TS 36.413), otherwise 4 Tbps (NGAP `BitRate`, TS 38.413).
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the profile permits: 10 Gbps when 4G is allowed (S1AP `BitRate`, TS 36.413), otherwise 4 Tbps (NGAP `BitRate`, TS 38.413).
+- `allow_4g` (boolean, optional): Whether subscribers using this profile may attach over 4G (EPC). Defaults to `true`.
+- `allow_5g` (boolean, optional): Whether subscribers using this profile may register over 5G (5GC). Defaults to `true`.
+
+### Sample Response
+
+```
+{
+    "result": {
+        "message": "Profile updated successfully"
+    }
+}
+```
+
+## Delete a Profile
+
+This path deletes a profile from Ella Core. A profile cannot be deleted if it is referenced by any policy.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| DELETE | `/api/v1/profiles/{name}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```
+{
+    "result": {
+        "message": "Profile deleted successfully"
+    }
+}
+```
+
+## Get a Profile's IMS Service Profiles
+
+This path returns the [IMS service profile](https://docs.ellanetworks.com/core/reference/api/operator/#create-an-ims-service-profile) of each registration set of the profile. A set without one is `null`.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| GET    | `/api/v1/profiles/{name}/ims-service-profiles` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```
+{
+    "result": {
+        "mmtel": "volte",
+        "mcptt": "mcptt"
+    }
+}
+```
+
+## Update a Profile's IMS Service Profiles
+
+This path replaces the IMS service profiles of a profile. Registered subscribers of the profile get the new user profile.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| PUT    | `/api/v1/profiles/{name}/ims-service-profiles` |
+
+### Parameters
+
+- `mmtel` (optional string): The service profile of the MMTel registration set.
+- `mcptt` (optional string): The service profile of the MCPTT registration set.
+
+A set left out, `null` or `""` has no service profile.
+
+### Sample Request
+
+```
+{
+    "mmtel": "volte",
+    "mcptt": "mcptt"
+}
+```
+
+### Sample Response
+
+```
+{
+    "result": {
+        "message": "Profile service profiles updated successfully"
+    }
+}
+```
