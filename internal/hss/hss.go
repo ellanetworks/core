@@ -69,11 +69,11 @@ func New(store Store, credentials Credentials, peers Peers, sms SMS, log *zap.Lo
 }
 
 func (h *HSS) Register(r Registrar) {
-	r.Handle(cx.ApplicationID, cx.CommandUserAuthorization, diameternode.Traced(tracer, "cx/user-authorization", h.UserAuthorization))
-	r.Handle(cx.ApplicationID, cx.CommandMultimediaAuth, diameternode.Traced(tracer, "cx/multimedia-auth", h.MultimediaAuth))
-	r.Handle(cx.ApplicationID, cx.CommandServerAssignment, diameternode.Traced(tracer, "cx/server-assignment", h.ServerAssignment))
-	r.Handle(cx.ApplicationID, cx.CommandLocationInfo, diameternode.Traced(tracer, "cx/location-info", h.LocationInfo))
-	r.Handle(sh.ApplicationID, sh.CommandProfileUpdate, diameternode.Traced(tracer, "sh/profile-update", h.ProfileUpdate))
+	r.Handle(cx.ApplicationID, cx.CommandUserAuthorization, diameternode.Handler(h.UserAuthorization))
+	r.Handle(cx.ApplicationID, cx.CommandMultimediaAuth, diameternode.Handler(h.MultimediaAuth))
+	r.Handle(cx.ApplicationID, cx.CommandServerAssignment, diameternode.Handler(h.ServerAssignment))
+	r.Handle(cx.ApplicationID, cx.CommandLocationInfo, diameternode.Handler(h.LocationInfo))
+	r.Handle(sh.ApplicationID, sh.CommandProfileUpdate, diameternode.Handler(h.ProfileUpdate))
 }
 
 func (h *HSS) errorAnswer(req *diameter.Message, id diameter.Identity, procedure string, err error) *diameter.Message {

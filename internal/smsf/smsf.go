@@ -19,9 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -178,9 +175,9 @@ func (s *SMSF) smscFor(ctx context.Context, serviceCentre string) (string, error
 }
 
 func (s *SMSF) Register(r Registrar) {
-	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameternode.TracedFrom(tracer, "s6c/send-routing-info-for-sm", s.SendRoutingInfoForSM))
-	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, diameternode.Traced(tracer, "s6c/report-sm-delivery-status", s.ReportSMDeliveryStatus))
-	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, diameternode.Traced(tracer, "sgd/mt-forward-short-message", s.MTForwardShortMessage))
+	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameternode.HandlerFrom(s.SendRoutingInfoForSM))
+	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, diameternode.Handler(s.ReportSMDeliveryStatus))
+	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, diameternode.Handler(s.MTForwardShortMessage))
 }
 
 func (s *SMSF) AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error) {
@@ -252,30 +249,7 @@ func (c nodePeers) Do(ctx context.Context, peer string, req *diameter.Message) (
 		return nil, ErrSMSCUnavailable
 	}
 
-	ctx, span := tracer.Start(ctx, "diameter/request",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("network.protocol.name", "diameter"),
-			attribute.String("diameter.peer", peer),
-			attribute.Int64("diameter.application_id", int64(req.ApplicationID)),
-			attribute.Int64("diameter.command_code", int64(req.CommandCode)),
-		),
-	)
-	defer span.End()
-
-	ans, err := node.Do(ctx, peer, req)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-
-		return nil, err
-	}
-
-	if r, err := tgpp.ParseResult(ans); err == nil {
-		span.SetAttributes(attribute.Int64("diameter.result_code", int64(r.Code)))
-	}
-
-	return ans, nil
+	return node.Do(ctx, peer, req)
 }
 
 func (c nodePeers) Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error) {

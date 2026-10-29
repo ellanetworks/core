@@ -16,6 +16,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -84,6 +86,7 @@ type Config struct {
 	SourceAddress               func(remote netip.Addr) (netip.Addr, error)
 	Resolver                    Resolver
 	Logger                      *slog.Logger
+	TracerProvider              trace.TracerProvider
 
 	watchdogJitter    time.Duration
 	allowFastWatchdog bool
@@ -112,6 +115,7 @@ type Dial struct {
 type Node struct {
 	cfg        Config
 	logger     *slog.Logger
+	tracer     trace.Tracer
 	baseCtx    context.Context
 	baseCancel context.CancelFunc
 
@@ -148,6 +152,7 @@ func New(cfg Config) (*Node, error) {
 	n := &Node{
 		cfg:          cfg,
 		logger:       cfg.Logger,
+		tracer:       newTracer(cfg.TracerProvider),
 		baseCtx:      ctx,
 		baseCancel:   cancel,
 		byID:         make(map[string]*peer),
@@ -642,7 +647,12 @@ func (n *Node) newRequest(req *Message) Message {
 	return m
 }
 
-func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...RequestOption) (*Message, error) {
+func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...RequestOption) (ans *Message, err error) {
+	ctx, span := n.startClientSpan(ctx, req, requestTarget(req))
+	defer func() { endClientSpan(span, ans, err) }()
+
+	span.SetAttributes(peerIDKey.String(peerID))
+
 	n.mu.Lock()
 	p, ok := n.byID[peerID]
 	n.mu.Unlock()

@@ -21,6 +21,13 @@ const (
 	CommandPushNotification       uint32 = 309
 )
 
+func init() {
+	diameter.RegisterMethod(ApplicationID, CommandUserData, "Sh/User-Data")
+	diameter.RegisterMethod(ApplicationID, CommandProfileUpdate, "Sh/Profile-Update")
+	diameter.RegisterMethod(ApplicationID, CommandSubscribeNotifications, "Sh/Subscribe-Notifications")
+	diameter.RegisterMethod(ApplicationID, CommandPushNotification, "Sh/Push-Notification")
+}
+
 const (
 	AVPPublicIdentity           uint32 = 601
 	AVPServerName               uint32 = 602

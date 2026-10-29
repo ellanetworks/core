@@ -15,8 +15,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/tgpp"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/ellanetworks/core/internal/tracing"
 	"go.uber.org/zap"
 )
 
@@ -128,24 +127,15 @@ func (h *HSS) reconcileSet(ctx context.Context, imsi string, reg *Registration, 
 	}
 }
 
-func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, set RegistrationSet, p *profile) error {
+func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, set RegistrationSet, p *profile) (err error) {
 	pushCtx, cancel := context.WithTimeout(ctx, pushProfileTimeout)
 	defer cancel()
 
-	pushCtx, span := tracer.Start(pushCtx, "cx/push-profile",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("network.protocol.name", "diameter"),
-			attribute.Int64("diameter.application_id", int64(cx.ApplicationID)),
-			attribute.Int64("diameter.command_code", int64(cx.CommandPushProfile)),
-		),
-	)
-	defer span.End()
+	pushCtx, span := tracer.Start(pushCtx, "hss/push-profile")
+	defer func() { tracing.End(span, err) }()
 
 	r, err := h.send(pushCtx, reg, p)
 	if err != nil {
-		span.RecordError(err)
-
 		outcome := pushFailed
 		if errors.Is(err, diameter.ErrNotConnected) || errors.Is(err, diameter.ErrUnableToDeliver) {
 			outcome = pushNotConnected
@@ -199,7 +189,6 @@ func (h *HSS) pushProfile(ctx context.Context, imsi string, reg *Registration, s
 		pushes.WithLabelValues(pushFailed).Inc()
 
 		err := fmt.Errorf("the S-CSCF answered %s", r)
-		span.RecordError(err)
 		h.log.Warn("Cx profile push failed; the S-CSCF gets the profile at its next server assignment", zap.String("imsi", imsi),
 			zap.String("serverHost", reg.OriginHost), zap.Error(err))
 

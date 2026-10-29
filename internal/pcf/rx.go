@@ -17,8 +17,7 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/smf"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/ellanetworks/core/internal/tracing"
 	"go.uber.org/zap"
 )
 
@@ -46,8 +45,8 @@ type rxSession struct {
 }
 
 func (p *PCF) registerRx(d Diameter) {
-	d.Handle(rx.ApplicationID, rx.CommandAA, diameternode.Traced(tracer, "rx/aa", p.AA))
-	d.Handle(rx.ApplicationID, rx.CommandSessionTermination, diameternode.Traced(tracer, "rx/session-termination", p.SessionTermination))
+	d.Handle(rx.ApplicationID, rx.CommandAA, diameternode.Handler(p.AA))
+	d.Handle(rx.ApplicationID, rx.CommandSessionTermination, diameternode.Handler(p.SessionTermination))
 }
 
 func (p *PCF) AA(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
@@ -325,21 +324,14 @@ func (p *PCF) abort(s *rxSession, cause rx.AbortCause) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.abortTimeout)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "rx/abort-session",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("network.protocol.name", "diameter"),
-			attribute.Int64("diameter.application_id", int64(rx.ApplicationID)),
-			attribute.Int64("diameter.command_code", int64(rx.CommandAbortSession)),
-		),
-	)
-	defer span.End()
+	ctx, span := tracer.Start(ctx, "pcf/abort-session")
 
 	err := p.send(ctx, s, func(env tgpp.Envelope) (*diameter.Message, error) {
 		return rx.NewAbortSessionRequest(env, rx.AbortSessionRequest{Cause: cause})
 	})
+	tracing.End(span, err)
+
 	if err != nil {
-		span.RecordError(err)
 		p.log.Warn("Rx session abort failed", zap.String("session", s.id), zap.String("af", s.host), zap.Error(err))
 		p.forgetRx(s)
 
@@ -353,15 +345,7 @@ func (p *PCF) reportFailedFlows(s *rxSession, action rx.SpecificAction, flows []
 	ctx, cancel := context.WithTimeout(context.Background(), p.abortTimeout)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "rx/re-auth",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("network.protocol.name", "diameter"),
-			attribute.Int64("diameter.application_id", int64(rx.ApplicationID)),
-			attribute.Int64("diameter.command_code", int64(rx.CommandReAuth)),
-		),
-	)
-	defer span.End()
+	ctx, span := tracer.Start(ctx, "pcf/re-auth")
 
 	err := p.send(ctx, s, func(env tgpp.Envelope) (*diameter.Message, error) {
 		return rx.NewReAuthRequest(env, rx.ReAuthRequest{
@@ -369,8 +353,9 @@ func (p *PCF) reportFailedFlows(s *rxSession, action rx.SpecificAction, flows []
 			Flows:           flows,
 		})
 	})
+	tracing.End(span, err)
+
 	if err != nil {
-		span.RecordError(err)
 		p.log.Warn("Rx failed resources report not delivered", zap.String("session", s.id), zap.String("af", s.host), zap.Error(err))
 	}
 }
