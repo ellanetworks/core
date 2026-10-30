@@ -7,6 +7,7 @@ package ebpf
 
 import (
 	"encoding/binary"
+	"errors"
 	"net/netip"
 	"slices"
 	"sort"
@@ -17,6 +18,18 @@ import (
 )
 
 const qerWindow = 5 * time.Millisecond
+
+func provisionTestQER(t testing.TB, obj *BpfObjects, pdr PdrInfo) {
+	t.Helper()
+
+	if pdr.Qer.MaxBitrateUL == 0 && pdr.Qer.MaxBitrateDL == 0 {
+		return
+	}
+
+	if err := obj.CreateQerMeter(pdr.SEID, pdr.QerID); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+		t.Fatalf("provision QER meter: %v", err)
+	}
+}
 
 func TestQERUplinkRateLimitDeliversConfiguredRate(t *testing.T) {
 	requireProgTestRun(t)
@@ -100,6 +113,8 @@ func putRateLimitedUplinkPDR(t *testing.T, obj *BpfObjects, teid uint32, rateBps
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
+	provisionTestQER(t, obj, pdr)
+
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
@@ -186,6 +201,8 @@ func TestQERDownlinkWindowSharedAcrossFamilies(t *testing.T) {
 	pdr.Qer.MaxBitrateDL = rateBps
 	pdr.Qer.AveragingWindowMs = uint32(qerWindow / time.Millisecond)
 
+	provisionTestQER(t, obj, pdr)
+
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
 		t.Fatalf("install IPv4 downlink PDR: %v", err)
 	}
@@ -263,6 +280,8 @@ func TestQERMalformedPacketSpendsNoBudget(t *testing.T) {
 		pdr.QerID = 8
 		pdr.Qer.MaxBitrateDL = rateBps
 		pdr.Qer.AveragingWindowMs = uint32(qerWindow / time.Millisecond)
+
+		provisionTestQER(t, obj, pdr)
 
 		if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
 			t.Fatalf("install IPv4 downlink PDR: %v", err)

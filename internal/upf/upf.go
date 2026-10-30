@@ -78,6 +78,9 @@ type UPF struct {
 	fcScanDone chan struct{} // closed when collectExpiredFlows exits
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 
+	reaperCancel context.CancelFunc
+	reaperDone   chan struct{}
+
 	// Differs from the configured mode when config.DatapathChain falls back.
 	// Written once in Start, before this struct is returned.
 	attachedMode string
@@ -257,6 +260,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		upf.startFlowCollection(ctx)
 	}
 
+	upf.startCleanupReaper(ctx)
+
 	return upf, nil
 }
 
@@ -297,6 +302,7 @@ func (u *UPF) StopDatapath() error {
 func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
+	u.stopCleanupReaper()
 
 	// Resource cleanup: BPF detach, object close, perf reader close.
 	// These are kernel-level operations that are normally fast, but run

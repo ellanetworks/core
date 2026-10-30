@@ -159,6 +159,8 @@ type SMF struct {
 	bySEID map[uint64]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
+	orphanedLeases map[uint64]orphanedLease
+
 	pcf PCF
 
 	dedicatedAwaitLimit time.Duration
@@ -212,6 +214,8 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		amf:    amf,
 		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
+
+		orphanedLeases: make(map[uint64]orphanedLease),
 
 		usageFlush: make(chan struct{}, 1),
 

@@ -320,22 +320,14 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		   sel->target.qer.dl_gate_status,
 		   sel->target.qer.dl_maximum_bitrate);
 
-	/* Shared with this session's other downlink PDR. */
-	if (sel->target.qer.dl_maximum_bitrate != 0) {
-		struct qer_window *window =
-			qer_window_for(sel->seid, sel->target.qer_id);
-
-		if (window &&
-		    CTX_ACT_DROP ==
-			    limit_rate_sliding_window(
-				    billed_bytes, &window->dl_start,
-				    sel->target.qer.dl_maximum_bitrate,
-				    sel->target.qer.averaging_window_ms)) {
-			PROFILE_END(PROF_N6_QER_RATELIMIT);
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
+	enum qer_result result = limit_qer_rate(
+		sel->seid, sel->target.qer_id, &sel->target.qer, billed_bytes,
+		QER_DOWNLINK);
 	PROFILE_END(PROF_N6_QER_RATELIMIT);
+	if (result == QER_METER_MISSING)
+		return drop_with(ctx, UPF_DROP_QER_METER_MISSING);
+	if (result == QER_RATE_LIMITED)
+		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr,
@@ -495,20 +487,13 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		   sel->target.qer.dl_gate_status,
 		   sel->target.qer.dl_maximum_bitrate);
 
-	/* Shared with this session's IPv4 downlink PDR: see the IPv4 path. */
-	if (sel->target.qer.dl_maximum_bitrate != 0) {
-		struct qer_window *window =
-			qer_window_for(sel->seid, sel->target.qer_id);
-
-		if (window &&
-		    CTX_ACT_DROP ==
-			    limit_rate_sliding_window(
-				    billed_bytes, &window->dl_start,
-				    sel->target.qer.dl_maximum_bitrate,
-				    sel->target.qer.averaging_window_ms)) {
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
+	enum qer_result result = limit_qer_rate(
+		sel->seid, sel->target.qer_id, &sel->target.qer, billed_bytes,
+		QER_DOWNLINK);
+	if (result == QER_METER_MISSING)
+		return drop_with(ctx, UPF_DROP_QER_METER_MISSING);
+	if (result == QER_RATE_LIMITED)
+		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 

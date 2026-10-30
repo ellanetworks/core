@@ -4,9 +4,12 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 
+	cebpf "github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
@@ -24,16 +27,47 @@ func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManag
 }
 
 func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
-	switch {
-	case sdfDownlink(spdrInfo):
-	case spdrInfo.UEIP.IsValid():
-		if err := bpfObjects.DeletePdrDownlink(spdrInfo.UEIP); err != nil {
-			return fmt.Errorf("can't delete downlink PDR: %s", err.Error())
-		}
-	case spdrInfo.TeID != 0:
-		if err := unapplyPDR(spdrInfo, pdrContext.Session, bpfObjects); err != nil {
-			return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
-		}
+	if err := unapplyPDR(spdrInfo, pdrContext.Session, bpfObjects); err != nil {
+		return fmt.Errorf("can't delete PDR %d: %w", spdrInfo.PdrID, err)
+	}
+
+	return nil
+}
+
+func (pdrContext *PDRCreationContext) withdrawPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
+	if bpfObjects == nil || !keyedDownlink(spdrInfo) {
+		return pdrContext.deletePDR(spdrInfo, bpfObjects)
+	}
+
+	if err := bpfObjects.DeletePdrDownlinkOwned(spdrInfo.UEIP, pdrContext.Session.SEID); err != nil && !errors.Is(err, cebpf.ErrKeyNotExist) {
+		return fmt.Errorf("can't delete PDR %d: %w", spdrInfo.PdrID, err)
+	}
+
+	return nil
+}
+
+func withdrawFramedRoute(bpfObjects *ebpf.BpfObjects, session *Session, prefix netip.Prefix) error {
+	if bpfObjects == nil {
+		return nil
+	}
+
+	ueV4, ueV6 := session.UEAddresses()
+
+	ue := ueV6
+	if prefix.Addr().Is4() {
+		ue = ueV4.Unmap()
+	}
+
+	var err error
+
+	if ue.IsValid() && ue.Is4() == prefix.Addr().Is4() {
+		err = bpfObjects.DeleteFramedDownlinkOwned(prefix, ue)
+	} else {
+		err = bpfObjects.DeleteFramedDownlink(prefix)
+	}
+
+	if err != nil && !errors.Is(err, cebpf.ErrKeyNotExist) {
+		return fmt.Errorf("can't delete framed route %s: %w", prefix, err)
 	}
 
 	return nil

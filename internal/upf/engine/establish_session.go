@@ -50,8 +50,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	if conn.GetSession(seid) != nil {
 		resp, err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
 		if err != nil {
-			logger.From(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
-				logger.SEID(seid), zap.Error(err))
+			return nil, fmt.Errorf("could not tear down existing session before re-establish: %w", err)
 		}
 
 		if resp != nil {
@@ -64,6 +63,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	sess := NewSession(seid)
+	sess.unpublished = true
 	sess.SetIMSI(req.IMSI)
 	sess.SetLocalSwitch(req.LocalSwitch)
 	sess.SetNATExempt(req.NATExempt)
@@ -80,7 +80,55 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	bpfObjects := conn.BpfObjects
 
-	var txn sessionTxn
+	var (
+		txn           sessionTxn
+		createdURRs   []uint32
+		createdMeters []uint32
+		attemptedPDRs []SPDRInfo
+	)
+
+	fail := func(err error) (*models.EstablishResponse, error) {
+		sess.clearPDRs()
+
+		refErr := txn.rollback(ctx)
+
+		cleanupErr := refErr
+		if cleanupErr == nil && !sess.unpublished {
+			cleanupErr = conn.waitForPrograms(sess)
+		}
+
+		if cleanupErr == nil {
+			cleanupErr = conn.deleteQERMeters(sess, createdMeters)
+
+			for _, id := range createdURRs {
+				if bpfObjects != nil {
+					if err := bpfObjects.DeleteUrr(seid, id); err != nil {
+						cleanupErr = errors.Join(cleanupErr, err)
+						continue
+					}
+				}
+
+				sess.usage.untrack(id)
+			}
+		}
+
+		if cleanupErr != nil {
+			if refErr != nil {
+				sess.addCleanupPDRs(attemptedPDRs...)
+			}
+
+			sess.deleted = true
+			conn.AddSession(seid, sess)
+
+			err = errors.Join(err, fmt.Errorf("establishment cleanup incomplete: %w", cleanupErr))
+		} else {
+			conn.ReleaseResources(seid)
+		}
+
+		span.RecordError(err)
+
+		return nil, err
+	}
 
 	for _, far := range req.FARs {
 		farInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, ebpf.FarInfo{})
@@ -104,39 +152,19 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			logger.QERID(qer.QERID), zap.Any("qer_info", qerInfo))
 	}
 
-	var (
-		createdURRs []uint32
-		pdrsWritten bool
-	)
-
-	txn.onRollback(func() error {
-		var errs []error
-
-		if pdrsWritten {
-			if err := conn.waitForPrograms(sess); err != nil {
-				errs = append(errs, fmt.Errorf("wait for running datapath programs: %w", err))
-			}
-		}
-
-		for _, id := range createdURRs {
-			errs = append(errs, bpfObjects.DeleteUrr(seid, id))
-		}
-
-		return errors.Join(errs...)
-	})
+	if err := checkSessionQERCount(sess); err != nil {
+		return fail(err)
+	}
 
 	if err := checkURRReferences(req.PDRs, req.URRs); err != nil {
-		span.RecordError(err)
-
-		return nil, err
+		return fail(err)
 	}
 
 	for _, urr := range req.URRs {
-		if err := bpfObjects.NewUrr(seid, urr.URRID); err != nil {
-			txn.rollback(ctx)
-			span.RecordError(err)
-
-			return nil, fmt.Errorf("can't put URR: %w", err)
+		if bpfObjects != nil {
+			if err := bpfObjects.NewUrr(seid, urr.URRID); err != nil {
+				return fail(fmt.Errorf("can't put URR: %w", err))
+			}
 		}
 
 		createdURRs = append(createdURRs, urr.URRID)
@@ -189,19 +217,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			},
 		}
 
-		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, destinations, qerMap)
+		_, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, destinations, qerMap)
 		if err != nil {
-			txn.rollback(ctx)
-			span.RecordError(err)
-
-			return nil, fmt.Errorf("couldn't extract PDR info: %w", err)
-		}
-
-		if allocated {
-			txn.onRollback(func() error {
-				pdrContext.FteIDResourceManager.ReleaseTEID(sess.SEID, spdrInfo.TeID)
-				return nil
-			})
+			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
 		}
 
 		if req.PolicyID != "" {
@@ -212,29 +230,43 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		extracted = append(extracted, spdrInfo)
 	}
 
-	txn.onRollback(func() error { return bpfObjects.DeleteClassifier(seid) })
+	if err := checkSessionQERReferences(sess); err != nil {
+		return fail(err)
+	}
+
+	var err error
+
+	createdMeters, err = conn.createQERMeters(sess, nil)
+	if err != nil {
+		return fail(fmt.Errorf("couldn't provision QER meters: %w", err))
+	}
+
+	if len(extracted) > 0 {
+		sess.unpublished = false
+
+		txn.onRollback(func() error {
+			if bpfObjects == nil {
+				return nil
+			}
+
+			return bpfObjects.DeleteClassifier(seid)
+		})
+	}
 
 	if err := conn.writeClassifier(sess, false); err != nil {
-		txn.rollback(ctx)
-		span.RecordError(err)
-
-		return nil, err
+		return fail(err)
 	}
 
 	for _, spdrInfo := range extracted {
-		pdrsWritten = true
-
-		if err := applyPDR(spdrInfo, sess, bpfObjects); err != nil {
-			txn.rollback(ctx)
-			span.RecordError(err)
-
-			return nil, fmt.Errorf("couldn't apply PDR: %w", err)
-		}
+		attemptedPDRs = append(attemptedPDRs, spdrInfo)
 
 		txn.onRollback(func() error {
-			sess.clearPDRs()
 			return unapplyPDR(spdrInfo, sess, bpfObjects)
 		})
+
+		if err := applyPDR(spdrInfo, sess, bpfObjects); err != nil {
+			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
+		}
 
 		logger.From(ctx, logger.UpfLog).Debug("Applied packet detection rule",
 			logger.PDRID(spdrInfo.PdrID))
@@ -269,18 +301,14 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			}
 
 			if err := bpfObjects.PutFramedDownlink(fr, ueAddr); err != nil {
-				txn.rollback(ctx)
-				span.RecordError(err)
-
-				return nil, fmt.Errorf("couldn't apply framed route %s: %w", fr, err)
+				return fail(fmt.Errorf("couldn't apply framed route %s: %w", fr, err))
 			}
 
 			txn.onRollback(func() error { return bpfObjects.DeleteFramedDownlink(fr) })
 
 			installed = append(installed, fr)
+			sess.SetFramedRoutes(installed)
 		}
-
-		sess.SetFramedRoutes(installed)
 
 		logger.From(ctx, logger.UpfLog).Info("Applied framed routes",
 			logger.SEID(seid), zap.Int("count", len(installed)))

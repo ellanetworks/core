@@ -23,14 +23,11 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-#include "bpf/ctx/ctx.h"
 #include "bpf/utils/pdr.h"
+#include "bpf/utils/sdf_classifier.h"
 
-/* Per QER: a dual-stack session has two downlink PDRs sharing one AMBR.
- *
- * LRU because the window is derived state: no ordering against session setup,
- * no leak, and an eviction costs at most one window of burst. */
-#define QER_WINDOW_MAP_SIZE (4 * MAX_PDU_SESSIONS)
+#define MAX_SESSION_QERS (1 + MAX_CLASSIFIER_TARGETS)
+#define QER_WINDOW_MAP_SIZE (MAX_PDU_SESSIONS * MAX_SESSION_QERS)
 
 struct qer_key {
 	__u64 seid;
@@ -39,69 +36,89 @@ struct qer_key {
 };
 
 struct qer_window {
-	volatile __u64 ul_start;
-	volatile __u64 dl_start;
+	struct bpf_spin_lock lock;
+	__u32 _pad;
+	__u64 ul_start;
+	__u64 dl_start;
 };
 
 struct {
-	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, struct qer_key);
 	__type(value, struct qer_window);
 	__uint(max_entries, QER_WINDOW_MAP_SIZE);
 } qer_windows SEC(".maps");
 
-/* NULL when the map is full, which leaves the packet unlimited. */
-static __always_inline struct qer_window *qer_window_for(__u64 seid,
-							 __u32 qer_id)
+enum qer_direction {
+	QER_UPLINK,
+	QER_DOWNLINK,
+};
+
+enum qer_result {
+	QER_ALLOWED,
+	QER_RATE_LIMITED,
+	QER_METER_MISSING,
+};
+
+static __always_inline __u64 qer_rate(const struct qer_info *qer,
+				      enum qer_direction direction)
 {
-	struct qer_key key = { .seid = seid, .qer_id = qer_id, ._pad = 0 };
-
-	struct qer_window *window = bpf_map_lookup_elem(&qer_windows, &key);
-	if (window)
-		return window;
-
-	struct qer_window fresh = {};
-
-	bpf_map_update_elem(&qer_windows, &key, &fresh, BPF_NOEXIST);
-
-	return bpf_map_lookup_elem(&qer_windows, &key);
+	return direction == QER_UPLINK ? qer->ul_maximum_bitrate :
+					 qer->dl_maximum_bitrate;
 }
 
-static __always_inline enum ctx_action
-limit_rate_sliding_window(const __u64 packet_size,
-			  volatile __u64 *windows_start, const __u64 rate,
-			  const __u32 averaging_window_ms)
+static __noinline enum qer_result
+limit_qer_rate_slow(__u64 seid, __u32 qer_id, const struct qer_info *qer,
+		    __u64 packet_size, enum qer_direction direction)
 {
 	static const __u64 NSEC_PER_SEC = 1000000000ULL;
 	static const __u64 NSEC_PER_MSEC = 1000000ULL;
 	static const __u64 MAX_BURST_NSEC = 500 * NSEC_PER_MSEC;
-	const __u64 window = averaging_window_ms * NSEC_PER_MSEC;
+	const __u64 rate = qer_rate(qer, direction);
+
+	if (rate == 0)
+		return QER_ALLOWED;
+
+	struct qer_key key = { .seid = seid, .qer_id = qer_id, ._pad = 0 };
+	struct qer_window *meter = bpf_map_lookup_elem(&qer_windows, &key);
+	if (!meter)
+		return QER_METER_MISSING;
+
+	const __u64 window = qer->averaging_window_ms * NSEC_PER_MSEC;
 	const __u64 window_size =
 		window && window < MAX_BURST_NSEC ? window : MAX_BURST_NSEC;
 
-	/* Currently 0 rate means that traffic rate is not limited */
-	if (rate == 0)
-		return CTX_ACT_OK;
+	const __u64 bit_nsec = packet_size * 8 * NSEC_PER_SEC;
+	const __u64 tx_time = bit_nsec / rate + (bit_nsec % rate != 0);
+	const __u64 now = bpf_ktime_get_ns();
+	__u64 *windows_start = direction == QER_UPLINK ?
+					&meter->ul_start : &meter->dl_start;
+	enum qer_result result = QER_RATE_LIMITED;
 
-	__u64 tx_time = packet_size * 8 * NSEC_PER_SEC / rate;
-	__u64 now = bpf_ktime_get_ns();
+	bpf_spin_lock(&meter->lock);
 
-	/* When the link finishes transmitting what it has been charged for. */
-	__u64 start = *(volatile __u64 *)windows_start;
+	__u64 start = *windows_start;
 
-	/* Cap accrued credit at one window, bounding a burst after silence. Also
-	 * recovers a start a PFCP re-put zeroed. */
 	__u64 window_floor = now > window_size ? now - window_size : 0;
 	if (start < window_floor)
 		start = window_floor;
 
-	/* Charged once, below: charging here too under-delivers the rate once
-	 * tx_time exceeds the window. */
-	if (start > now)
-		return CTX_ACT_DROP;
+	if (start <= now) {
+		__u64 next = start + tx_time;
+		*windows_start = next < start ? ~0ULL : next;
+		result = QER_ALLOWED;
+	}
 
-	/* A backlogged sender is admitted every tx_time. */
-	*(volatile __u64 *)windows_start = start + tx_time;
+	bpf_spin_unlock(&meter->lock);
+	return result;
+}
 
-	return CTX_ACT_OK;
+static __always_inline enum qer_result
+limit_qer_rate(__u64 seid, __u32 qer_id, const struct qer_info *qer,
+	       __u64 packet_size, enum qer_direction direction)
+{
+	if (qer_rate(qer, direction) == 0)
+		return QER_ALLOWED;
+
+	return limit_qer_rate_slow(seid, qer_id, qer, packet_size, direction);
 }

@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -71,10 +72,15 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 // session.opMu.
 func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, []endMarkerTarget, *models.ModifyResponse, error) {
 	if session.deleted {
-		err := fmt.Errorf("session %d is being deleted", req.SEID)
+		err := fmt.Errorf("session %d is being deleted: %w", req.SEID, models.ErrSessionUnrecoverable)
 		span.RecordError(err)
 
 		return false, nil, nil, err
+	}
+
+	if err := conn.retireQERMeters(session); err != nil {
+		span.RecordError(err)
+		return false, nil, nil, fmt.Errorf("could not retire QER meters awaiting cleanup: %w", err)
 	}
 
 	bpfObjects := conn.BpfObjects
@@ -83,15 +89,46 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	snapPDRs, snapFARs, snapQERs := session.snapshot()
 
-	var txn sessionTxn
+	var (
+		txn, stateTxn  sessionTxn
+		createdMeters  []uint32
+		allocatedTEIDs []uint32
+		published      bool
+	)
 
 	fail := func(err error) (bool, []endMarkerTarget, *models.ModifyResponse, error) {
+		attemptedPDRs := session.ListPDRs()
 		session.restore(snapPDRs, snapFARs, snapQERs)
-		txn.rollback(ctx)
 
-		if syncErr := conn.syncClassifier(session); syncErr != nil {
-			logger.From(ctx, logger.UpfLog).Warn("could not restore the session's SDF filters after a failed modification",
-				logger.SEID(req.SEID), zap.Error(syncErr))
+		refErr := txn.rollback(ctx)
+
+		if published {
+			if syncErr := conn.syncClassifier(session); syncErr != nil {
+				refErr = errors.Join(refErr, syncErr)
+			}
+		}
+
+		cleanupErr := refErr
+		if cleanupErr == nil && published && (len(createdMeters) > 0 || len(stateTxn.undo) > 0) {
+			cleanupErr = conn.waitForPrograms(session)
+		}
+
+		if cleanupErr == nil {
+			cleanupErr = errors.Join(conn.deleteQERMeters(session, createdMeters), stateTxn.rollback(ctx))
+			for _, teid := range allocatedTEIDs {
+				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID, teid)
+			}
+		}
+
+		if refErr != nil {
+			session.deleted = true
+			session.addCleanupPDRs(slices.Collect(maps.Values(attemptedPDRs))...)
+
+			err = fmt.Errorf("%w: %w", models.ErrSessionUnrecoverable, err)
+		}
+
+		if cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("modification cleanup incomplete: %w", cleanupErr))
 		}
 
 		span.RecordError(err)
@@ -99,7 +136,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		return false, nil, nil, err
 	}
 
-	if err := conn.createURRsLocked(ctx, &txn, session, req.UpdateURRs); err != nil {
+	if err := conn.createURRsLocked(ctx, &stateTxn, session, req.UpdateURRs); err != nil {
 		return fail(err)
 	}
 
@@ -170,10 +207,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 
 		if allocated {
-			txn.onRollback(func() error {
-				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID, spdrInfo.TeID)
-				return nil
-			})
+			allocatedTEIDs = append(allocatedTEIDs, spdrInfo.TeID)
 		}
 
 		if hadOld && old.TeID != 0 && !old.UEIP.IsValid() && old.TeID != spdrInfo.TeID {
@@ -189,6 +223,75 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		touched[uint32(pdr.PDRID)] = struct{}{}
 	}
 
+	var removedPDRs []SPDRInfo
+
+	for _, pdrID := range req.RemovePDRs {
+		removed, ok := session.RemovePDR(uint32(pdrID))
+		if !ok {
+			continue
+		}
+
+		delete(touched, uint32(pdrID))
+
+		if removed.TeID != 0 && !removed.UEIP.IsValid() {
+			releasable = append(releasable, removed.TeID)
+		}
+
+		if old, ok := snapPDRs[uint32(pdrID)]; ok {
+			removedPDRs = append(removedPDRs, old)
+			if old.TeID != 0 && !old.UEIP.IsValid() {
+				releasable = append(releasable, old.TeID)
+			}
+		}
+	}
+
+	for _, qerID := range req.RemoveQERs {
+		if _, installed := session.ListQERs()[qerID]; installed {
+			for _, pdr := range session.ListPDRs() {
+				if pdr.PdrInfo.QerID == qerID {
+					return fail(fmt.Errorf("PDR %d still references removed QER %d", pdr.PdrID, qerID))
+				}
+			}
+		}
+
+		session.RemoveQer(qerID)
+	}
+
+	if err := checkSessionQERReferences(session); err != nil {
+		return fail(err)
+	}
+
+	if err := checkSessionURRReferences(session, req.RemoveURRs); err != nil {
+		return fail(err)
+	}
+
+	var err error
+
+	createdMeters, err = conn.createQERMeters(session, snapQERs)
+	if err != nil {
+		return fail(fmt.Errorf("couldn't provision QER meters: %w", err))
+	}
+
+	for _, pdrID := range slices.Sorted(maps.Keys(touched)) {
+		spdrInfo := session.GetPDR(pdrID)
+		old, hadOld := snapPDRs[pdrID]
+
+		txn.onRollback(func() error {
+			if err := unapplyPDR(spdrInfo, session, bpfObjects); err != nil {
+				return err
+			}
+
+			if hadOld {
+				return applyPDR(old, session, bpfObjects)
+			}
+
+			return nil
+		})
+	}
+
+	published = len(session.ListPDRs()) > 0 || len(snapPDRs) > 0
+
+	session.unpublished = session.unpublished && !published
 	if err := conn.syncClassifier(session); err != nil {
 		return fail(err)
 	}
@@ -202,18 +305,6 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		if err := applyPDR(spdrInfo, session, bpfObjects); err != nil {
 			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
-
-		txn.onRollback(func() error {
-			if err := unapplyPDR(spdrInfo, session, bpfObjects); err != nil {
-				return err
-			}
-
-			if hadOld {
-				return applyPDR(old, session, bpfObjects)
-			}
-
-			return nil
-		})
 
 		if hadOld && pdrKeyChanged(old, spdrInfo) {
 			_, removed := supersededTEIDs[old.TeID]
@@ -238,37 +329,18 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 	}
 
-	for _, pdrID := range req.RemovePDRs {
-		removed, ok := session.RemovePDR(uint32(pdrID))
-		if !ok {
-			continue
-		}
-
-		if removed.TeID != 0 && !removed.UEIP.IsValid() {
-			releasable = append(releasable, removed.TeID)
-		}
-
-		if err := pdrContext.deletePDR(removed, bpfObjects); err != nil {
-			return fail(fmt.Errorf("couldn't remove PDR %d: %w", pdrID, err))
-		}
-
+	for _, removed := range removedPDRs {
 		txn.onRollback(func() error {
-			session.PutPDR(uint32(pdrID), removed)
-
 			return applyPDR(removed, session, bpfObjects)
 		})
-	}
 
-	if err := checkSessionURRReferences(session, req.RemoveURRs); err != nil {
-		return fail(err)
+		if err := pdrContext.deletePDR(removed, bpfObjects); err != nil {
+			return fail(fmt.Errorf("couldn't remove PDR %d: %w", removed.PdrID, err))
+		}
 	}
 
 	for _, farID := range req.RemoveFARs {
 		session.RemoveFar(farID)
-	}
-
-	for _, qerID := range req.RemoveQERs {
-		session.RemoveQer(qerID)
 	}
 
 	if err := conn.syncClassifier(session); err != nil {
@@ -291,7 +363,26 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 	}
 
-	usage := conn.removeURRsLocked(ctx, session, req.RemoveURRs)
+	retired := retiredQERMeters(session)
+
+	var barrierErr error
+	if len(req.RemoveURRs) > 0 || (len(retired) > 0 && !session.unpublished) {
+		barrierErr = conn.waitForPrograms(session)
+	}
+
+	usage := conn.removeURRsLocked(ctx, session, req.RemoveURRs, barrierErr)
+
+	if len(retired) > 0 {
+		retireErr := barrierErr
+		if retireErr == nil {
+			retireErr = conn.deleteQERMeters(session, retired)
+		}
+
+		if retireErr != nil {
+			logger.From(ctx, logger.UpfLog).Warn("could not retire QER meters after session modification",
+				logger.SEID(session.SEID), zap.Error(retireErr))
+		}
+	}
 
 	logger.From(ctx, logger.UpfLog).Debug("Session modification successful")
 
@@ -320,10 +411,6 @@ func (conn *SessionEngine) createURRsLocked(ctx context.Context, txn *sessionTxn
 		created = append(created, urr.URRID)
 
 		txn.onRollback(func() error {
-			if err := conn.waitForPrograms(session); err != nil {
-				return fmt.Errorf("wait for running datapath programs: %w", err)
-			}
-
 			reports, err := conn.removeURRs(ctx, session, []uint32{urr.URRID})
 			if uplink, downlink := models.UsageVolume(reports); uplink+downlink > 0 {
 				logger.From(ctx, logger.UpfLog).Error("usage bytes lost: a failed modification removed a URR that had measured traffic",
@@ -354,14 +441,14 @@ func checkSessionURRReferences(session *Session, removing []uint32) error {
 	return nil
 }
 
-func (conn *SessionEngine) removeURRsLocked(ctx context.Context, session *Session, ids []uint32) []models.UsageReport {
+func (conn *SessionEngine) removeURRsLocked(ctx context.Context, session *Session, ids []uint32, barrierErr error) []models.UsageReport {
 	if len(ids) == 0 {
 		return nil
 	}
 
-	if err := conn.waitForPrograms(session); err != nil {
+	if barrierErr != nil {
 		logger.From(ctx, logger.UpfLog).Error("usage bytes lost: could not wait for running datapath programs before the final reading",
-			logger.SEID(session.SEID), zap.Error(err))
+			logger.SEID(session.SEID), zap.Error(barrierErr))
 	}
 
 	reports, err := conn.removeURRs(ctx, session, ids)

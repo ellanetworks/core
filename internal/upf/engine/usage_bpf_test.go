@@ -466,6 +466,65 @@ func TestEstablishRollbackAfterAPDRWaitsBeforeDeletingURRs(t *testing.T) {
 	}
 }
 
+func TestEstablishCleanupKeepsOnlyUndeletedURRsTracked(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+
+	const seid = 41
+
+	urrMap := obj.UrrMap
+
+	closed, err := urrMap.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := closed.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { obj.UrrMap = urrMap })
+
+	conn.programs = qerWaitFunc(func() error {
+		obj.UrrMap = closed
+		return nil
+	})
+
+	_, err = conn.EstablishSession(context.Background(), &models.EstablishRequest{
+		SEID:         seid,
+		IMSI:         usageIMSI,
+		URRs:         []models.URR{{URRID: usageUplinkURR}, {URRID: usageDownlinkURR}},
+		FARs:         []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}, ForwardingParameters: &models.ForwardingParameters{}}},
+		QERs:         []models.QER{{QERID: 1}},
+		PDRs:         []models.PDR{{PDRID: 2, FARID: 1, QERID: 1, URRID: usageDownlinkURR, PDI: models.PDI{UEIPAddress: usageUEIP}}},
+		FramedRoutes: []netip.Prefix{netip.PrefixFrom(netip.MustParseAddr("192.0.2.0"), 33)},
+	})
+	if err == nil {
+		t.Fatal("establish succeeded with an invalid framed route")
+	}
+
+	obj.UrrMap = urrMap
+	conn.programs = qerWaitFunc(func() error { return nil })
+
+	session := conn.GetSession(seid)
+	if session == nil || !session.deleted {
+		t.Fatal("failed URR cleanup did not retain a retryable session")
+	}
+
+	if got := session.usage.trackedIDs(); len(got) != 2 {
+		t.Fatalf("tracked URRs = %v, want both undeleted URRs", got)
+	}
+
+	if _, err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, id := range []uint32{usageUplinkURR, usageDownlinkURR} {
+		if urrExists(t, obj, seid, id) {
+			t.Errorf("URR %d left behind after the delete retry", id)
+		}
+	}
+}
+
 func bootNanos(t *testing.T) uint64 {
 	t.Helper()
 

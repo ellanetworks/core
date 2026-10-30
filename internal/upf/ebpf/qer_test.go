@@ -18,9 +18,11 @@ func TestQERGateUplinkClosed(t *testing.T) {
 	obj := loadN3N6Program(t)
 
 	pdr := PdrInfo{
-		IMSI: "001010000000001",
-		Far:  FarInfo{Action: 0x02},
-		Qer:  QerInfo{GateStatusUL: 1, MaxBitrateUL: 0},
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 1, MaxBitrateUL: 0},
+		UEIPv4:       canonicalUEv4,
+		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
@@ -30,6 +32,10 @@ func TestQERGateUplinkClosed(t *testing.T) {
 
 	if action != ActionDrop {
 		t.Fatalf("closed uplink gate: got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
+	}
+
+	if got := DropCount(obj, Uplink, "qer_gate_closed"); got != 1 {
+		t.Fatalf("closed uplink gate: qer_gate_closed drops = %d, want 1", got)
 	}
 }
 

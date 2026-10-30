@@ -28,6 +28,8 @@ var ErrUsageOutcomeUnknown = errors.New("usage report outcome unknown")
 
 var ErrUnknownAPN = errors.New("APN not in subscriber profile")
 
+var ErrSessionUnrecoverable = errors.New("upf session state unrecoverable; release required")
+
 // EstablishRequest asks the UPF to create a new session with the
 // given packet detection, forwarding, QoS, and usage reporting rules.
 type EstablishRequest struct {
@@ -55,6 +57,7 @@ const (
 	MaxSessionSDFRules = 32
 	MaxSessionSDFPDRs  = 32
 	MaxSessionURRs     = 8
+	MaxSessionQERs     = 1 + MaxSessionSDFPDRs
 )
 
 // PDR describes a Packet Detection Rule for the UPF session API.
