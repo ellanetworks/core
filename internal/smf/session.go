@@ -351,6 +351,10 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 
 	resp, err := s.upf.ModifySession(ctx, req)
 	if err != nil {
+		if errors.Is(err, models.ErrSessionUnrecoverable) {
+			s.scheduleUnrecoverableReleaseLocked(ctx, sc)
+		}
+
 		return fmt.Errorf("failed to send PFCP session modification request: %w", err)
 	}
 

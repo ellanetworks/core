@@ -96,6 +96,22 @@ message (Type 2, Code 0) and sends it back via `XDP_TX`. The ICMPv6 checksum
 is computed with `icmpv6_ptb_csum()` in `csum.h` using the standard IPv6
 pseudo-header.
 
+QER rate enforcement
+====================
+
+Both XDP and TC police rates using shared `qer_windows` entries keyed by
+`(SEID, QER ID)`. Uplink and downlink have independent virtual transmission
+times; PDRs sharing a QER, including IPv4 and IPv6 PDRs, share its allowance.
+A BPF spin lock serializes each meter's read/check/update across CPUs.
+
+The session engine creates meters before publishing references and retires
+them only after references are withdrawn and running datapath programs have
+finished.
+
+A zero directional rate remains unlimited. A nonzero rate with missing meter
+state drops with `qer_meter_missing`, distinct from `qer_rate_limit`. This is
+unexpected to happen in production, and should be considered a bug.
+
 Inspecting UPF state
 ====================
 

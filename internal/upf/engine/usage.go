@@ -65,6 +65,13 @@ func (l *usageLedger) trackLocked(urrID uint32, now time.Time) {
 	}
 }
 
+func (l *usageLedger) untrack(urrID uint32) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	delete(l.urrs, urrID)
+}
+
 func (l *usageLedger) tracks(urrID uint32) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -307,6 +314,10 @@ func (conn *SessionEngine) finalReportsLocked(ctx context.Context, session *Sess
 		if conn.BpfObjects != nil {
 			if err := conn.BpfObjects.DeleteUrr(session.SEID, id); err != nil {
 				errs = append(errs, fmt.Errorf("remove URR %d: %w", id, err))
+				now, bootNow := usageClock()
+				reports = append(reports, m.report(id, models.UsageTriggerTermination, now, bootNow))
+
+				continue
 			}
 		}
 
@@ -339,11 +350,14 @@ func (conn *SessionEngine) closeUsage(ctx context.Context, session *Session) ([]
 	defer l.mu.Unlock()
 
 	reports, err := conn.finalReportsLocked(ctx, session, slices.Sorted(maps.Keys(l.urrs)))
+	if err != nil {
+		return reports, err
+	}
 
 	l.closed = true
 	l.urrs = nil
 
-	return reports, err
+	return reports, nil
 }
 
 func (conn *SessionEngine) programWaiter() ebpf.ProgramWaiter {
@@ -369,7 +383,7 @@ func (conn *SessionEngine) WaitForDatapath() error {
 
 func (conn *SessionEngine) waitForPrograms(session *Session) error {
 	programs := conn.programWaiter()
-	if programs == nil || !session.usage.tracksURRs() {
+	if programs == nil || !session.usage.tracksURRs() && len(session.qerMeters) == 0 {
 		return nil
 	}
 

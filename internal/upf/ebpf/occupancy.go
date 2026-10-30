@@ -19,6 +19,7 @@ const (
 	MapFramedDownlinkIP6 = "framed_downlink_ip6"
 	MapURR               = "urr_map"
 	MapSdfClassifiers    = "sdf_classifiers"
+	MapQerWindows        = "qer_windows"
 )
 
 var TrackedMaps = []string{
@@ -31,6 +32,7 @@ var TrackedMaps = []string{
 	MapFramedDownlinkIP6,
 	MapURR,
 	MapSdfClassifiers,
+	MapQerWindows,
 }
 
 func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
@@ -53,6 +55,8 @@ func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
 		return bpfObjects.UrrMap
 	case MapSdfClassifiers:
 		return bpfObjects.SdfClassifiers
+	case MapQerWindows:
+		return bpfObjects.QerWindows
 	}
 
 	return nil
@@ -121,13 +125,18 @@ func (bpfObjects *BpfObjects) MapUsage() map[string]MapUsage {
 	return out
 }
 
-func (bpfObjects *BpfObjects) putTracked(m *ebpf.Map, name string, key, value any) error {
-	err := m.Update(key, value, ebpf.UpdateNoExist)
-	if err == nil {
-		bpfObjects.addOccupancy(name, 1)
-		return nil
+func (bpfObjects *BpfObjects) insertTracked(m *ebpf.Map, name string, key, value any) error {
+	if err := m.Update(key, value, ebpf.UpdateNoExist); err != nil {
+		return err
 	}
 
+	bpfObjects.addOccupancy(name, 1)
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) putTracked(m *ebpf.Map, name string, key, value any) error {
+	err := bpfObjects.insertTracked(m, name, key, value)
 	if !errors.Is(err, ebpf.ErrKeyExist) {
 		return err
 	}

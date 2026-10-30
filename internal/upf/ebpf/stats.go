@@ -314,6 +314,7 @@ var dropReasonNames = [...]string{
 	"reinject_unowned",
 	"fragmented_transport",
 	"bearer_binding",
+	"qer_meter_missing",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.
