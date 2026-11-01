@@ -59,8 +59,8 @@ func envelopeSMSPPDownload(serviceCentre *sms.Address, deliver []byte) ([]byte, 
 
 	if serviceCentre != nil {
 		// The RP-Originating-Address value, TON and NPI then the BCD digits (TS 24.011 clause 8.2.5.1), is coded as
-		// the address object's value is: TON and NPI as for EF.ADN, then the dialling number string (TS 102 223
-		// clause 8.1).
+		// the address object's value is: TON and NPI as for the EF of abbreviated dialling numbers, then the dialling
+		// number string (TS 102 223 clause 8.1).
 		rpoa, err := serviceCentre.AppendBinary(nil)
 		if err != nil {
 			return nil, fmt.Errorf("smsue: service centre address: %w", err)

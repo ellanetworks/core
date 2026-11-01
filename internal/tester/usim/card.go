@@ -63,12 +63,15 @@ type Config struct {
 	IMSI string
 	// OPLMNwAcTEntries is the number of entries of EF.OPLMNwAcT, all unused at first; 0 is the fewest, 8.
 	OPLMNwAcTEntries int
+	// OnDownload, when set, is told what the card did with each (U)SIM data download.
+	OnDownload func(Download)
 }
 
 // Card is a USIM. It is safe for concurrent use.
 type Card struct {
-	tar     [3]byte
-	keysets map[uint8]Keyset
+	tar        [3]byte
+	keysets    map[uint8]Keyset
+	onDownload func(Download)
 
 	mu sync.Mutex
 	// counters are the counters of the key sets, by their versions: the last one each accepted.
@@ -114,7 +117,7 @@ func New(cfg Config) (*Card, error) {
 	oplmn := bytes.Repeat(unusedPLMNEntry, entries)
 
 	return &Card{
-		tar: cfg.TAR, keysets: keysets, counters: map[uint8]uint64{},
+		tar: cfg.TAR, keysets: keysets, onDownload: cfg.OnDownload, counters: map[uint8]uint64{},
 		files: newFileSystem(
 			// SFIs of TS 31.102 clauses 4.2.2 and 4.2.53.
 			&ef{fid: FileIMSI, sfi: 0x07, data: imsi},
@@ -274,6 +277,16 @@ type Download struct {
 // command asks. A Response Packet too large for the SMS-DELIVER-REPORT has the status of a response sent by
 // SMS-SUBMIT, without additional data (TS 31.115 clause 4.1); the card does not send that SMS-SUBMIT.
 func (c *Card) DataDownload(d tpdu.Deliver) ([]byte, Download) {
+	por, dl := c.dataDownload(d)
+
+	if c.onDownload != nil {
+		c.onDownload(dl)
+	}
+
+	return por, dl
+}
+
+func (c *Card) dataDownload(d tpdu.Deliver) ([]byte, Download) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

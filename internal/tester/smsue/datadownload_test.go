@@ -4,9 +4,9 @@
 package smsue
 
 import (
-	"bytes"
 	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
@@ -35,13 +35,14 @@ func mustHex(t *testing.T, s string) []byte {
 	return b
 }
 
-// deliverRP has the stack take an MT RP-DATA of tpdu from the service centre +15550000000, and returns the RP message
-// that the stack answers it with.
-func deliverRP(t *testing.T, s *Stack, sent *[][]byte, tpdu []byte) sms.RPMessage {
+// deliverRP has the stack take an MT RP-DATA of tpdu, of RP reference ref, from the service centre +15550000000, and
+// returns the RP message that the stack answers it with. A message of the reference of the one before is its
+// retransmission.
+func deliverRP(t *testing.T, s *Stack, sent *[][]byte, ref uint8, tpdu []byte) sms.RPMessage {
 	t.Helper()
 
 	rp, err := (&sms.RPData{
-		Direction: nas.DirectionDownlink, Reference: 7, Originator: sms.E164Address("15550000000"), UserData: tpdu,
+		Direction: nas.DirectionDownlink, Reference: ref, Originator: sms.E164Address("15550000000"), UserData: tpdu,
 	}).AppendBinary(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -114,11 +115,11 @@ func TestDataDownload(t *testing.T) {
 			uicc := &fakeUICC{response: por, sw: tc.sw}
 			s.SetUICC(uicc)
 
-			answer := deliverRP(t, s, &sent, mustHex(t, dataDownloadTPDU))
+			answer := deliverRP(t, s, &sent, 7, mustHex(t, dataDownloadTPDU))
 
 			// D1, then the device identities from the network to the UICC, the service centre's address and the
 			// SMS-DELIVER (TS 31.111 clause 7.1.1.2).
-			wantEnvelope := "d121" + "82028381" + "0607915155000000f0" + "8b16" + dataDownloadTPDU
+			wantEnvelope := "d128" + "82028381" + "0607915155000000f0" + "8b19" + dataDownloadTPDU
 			if len(uicc.got) != 1 || hex.EncodeToString(uicc.got[0]) != wantEnvelope {
 				t.Fatalf("ENVELOPE %x, want %s", uicc.got, wantEnvelope)
 			}
@@ -162,21 +163,39 @@ func TestDataDownloadWithoutUICC(t *testing.T) {
 
 	s := New(func(cp []byte) error { sent = append(sent, cp); return nil })
 
-	answer := deliverRP(t, s, &sent, mustHex(t, dataDownloadTPDU))
+	// Without a UICC, a (U)SIM data download is a short message as others, kept by the ME (TS 31.111 clause 7.1.1.1).
+	answer := deliverRP(t, s, &sent, 1, mustHex(t, dataDownloadTPDU))
 	if ack, ok := answer.(*sms.RPAck); !ok || ack.UserData != nil {
 		t.Fatalf("answer %+v, want a plain RP-ACK", answer)
+	}
+
+	if m := received(t, s); m.From != "+15550001000" {
+		t.Fatalf("inbox %+v", m)
 	}
 
 	uicc := &fakeUICC{sw: 0x9000}
 	s.SetUICC(uicc)
 
 	// An 8-bit text of class 1, TP-PID '00'.
-	answer = deliverRP(t, s, &sent, mustHex(t, "040b915155210300f1000462909251341100076865"+"6c6c6f2042"))
+	answer = deliverRP(t, s, &sent, 2, mustHex(t, "040b915155210300f1000462909251341100076865"+"6c6c6f2042"))
 	if ack, ok := answer.(*sms.RPAck); !ok || ack.UserData != nil || len(uicc.got) != 0 {
 		t.Fatalf("answer %+v, ENVELOPEs %d, want a plain RP-ACK and none", answer, len(uicc.got))
 	}
 
-	if m := <-s.inbox; m.Text != "hello B" || !bytes.Equal([]byte(m.From), []byte("+15551230001")) {
+	if m := received(t, s); m.Text != "hello B" || m.From != "+15551230001" {
 		t.Fatalf("inbox %+v", m)
+	}
+}
+
+// received is the next message of the stack's inbox, which must come within a second.
+func received(t *testing.T, s *Stack) Message {
+	t.Helper()
+
+	select {
+	case m := <-s.inbox:
+		return m
+	case <-time.After(time.Second):
+		t.Fatal("no message received")
+		return Message{}
 	}
 }
