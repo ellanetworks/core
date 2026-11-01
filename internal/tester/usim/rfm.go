@@ -118,8 +118,7 @@ type session struct {
 // it (TS 102 226 clause 4).
 func (fs *fileSystem) run(commands []byte) result {
 	s := &session{fs: fs}
-
-	var r result
+	r := result{statusWord: swOK}
 
 	for len(commands) > 0 {
 		// CLA, INS, P1, P2, P3.

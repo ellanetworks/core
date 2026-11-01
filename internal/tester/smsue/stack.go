@@ -37,6 +37,8 @@ type Stack struct {
 	rejected   chan struct{}
 	// uicc, when set, takes the (U)SIM data downloads.
 	uicc UICC
+
+	proactive sync.Mutex
 }
 
 func New(send func(cp []byte) error) *Stack {
@@ -217,12 +219,16 @@ func (s *Stack) terminate(data *sms.CPData) error {
 	// A (U)SIM data download goes to the UICC, which answers it, and is neither stored nor shown (TS 31.111 clause
 	// 7.1.1.1).
 	if deliverErr == nil && uicc != nil && isDataDownload(deliver) {
-		report, err := dataDownload(uicc, rpData, deliver)
-		if err != nil {
+		report, proactive, downloadErr := dataDownload(uicc, rpData, deliver)
+		if err := s.report(data, report); err != nil {
 			return err
 		}
 
-		return s.report(data, report)
+		if proactive {
+			go s.runProactive(uicc)
+		}
+
+		return downloadErr
 	}
 
 	var report sms.RPMessage = &sms.RPAck{Direction: nas.DirectionUplink, Reference: rpData.Reference}

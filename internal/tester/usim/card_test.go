@@ -23,6 +23,12 @@ var rfmTAR = [3]byte{0xb0, 0x00, 0x01}
 func seal(t *testing.T, k Keyset, spi uint16, tar [3]byte, counter uint64, data []byte) []byte {
 	t.Helper()
 
+	return sealWith(t, k, k, spi, tar, counter, data)
+}
+
+func sealWith(t *testing.T, kc, k Keyset, spi uint16, tar [3]byte, counter uint64, data []byte) []byte {
+	t.Helper()
+
 	ccLen := 0
 	if spi&spiIntegrity == spiIntegrityCC {
 		ccLen = k.ccLength()
@@ -31,7 +37,7 @@ func seal(t *testing.T, k Keyset, spi uint16, tar [3]byte, counter uint64, data 
 	padding := 0
 
 	if spi&spiCiphering != 0 {
-		b, err := k.block(k.KIc)
+		b, err := kc.block(kc.KIc)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,7 +51,7 @@ func seal(t *testing.T, k Keyset, spi uint16, tar [3]byte, counter uint64, data 
 	chl := 13 + ccLen
 	cpl := 1 + chl + len(data)
 
-	keyID := func(used bool) byte {
+	keyID := func(k Keyset, used bool) byte {
 		if !used {
 			return 0
 		}
@@ -54,8 +60,8 @@ func seal(t *testing.T, k Keyset, spi uint16, tar [3]byte, counter uint64, data 
 	}
 
 	header := []byte{
-		byte(cpl >> 8), byte(cpl), byte(chl), byte(spi >> 8), byte(spi), keyID(spi&spiCiphering != 0),
-		keyID(ccLen > 0), tar[0], tar[1], tar[2],
+		byte(cpl >> 8), byte(cpl), byte(chl), byte(spi >> 8), byte(spi), keyID(kc, spi&spiCiphering != 0),
+		keyID(k, ccLen > 0), tar[0], tar[1], tar[2],
 	}
 
 	cntr := []byte{byte(counter >> 32), byte(counter >> 24), byte(counter >> 16), byte(counter >> 8), byte(counter), byte(padding)}
@@ -76,7 +82,7 @@ func seal(t *testing.T, k Keyset, spi uint16, tar [3]byte, counter uint64, data 
 	if spi&spiCiphering != 0 {
 		var err error
 
-		secured, err = k.crypt(secured, true)
+		secured, err = kc.crypt(secured, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,14 +112,16 @@ func newCard(t *testing.T, entries int) *Card {
 
 // download is the SMS-DELIVER of a (U)SIM data download of user data ud.
 func download(ud []byte) tpdu.Deliver {
-	return tpdu.Deliver{UDHI: true, OriginatingAddress: "+15550001000", PID: tpdu.PIDSIMDataDownload, DCS: 0xf6, UDL: len(ud), UD: ud}
+	return tpdu.Deliver{
+		UDHI: true, OriginatingAddress: "+15550001000", RawOriginatingAddress: []byte{0x0b, 0x91, 0x51, 0x55, 0x00, 0x10, 0x00, 0xf0}, PID: tpdu.PIDSIMDataDownload, DCS: 0xf6, UDL: len(ud), UD: ud,
+	}
 }
 
 // por is the PoR the card answers a command of SPI spiOTA with.
 func por(t *testing.T, k Keyset, counter uint64, status Status, data []byte) []byte {
 	t.Helper()
 
-	p, err := response{tar: rfmTAR, counter: counter, status: status, data: data}.pack(command{spi: spiOTA, keyset: k})
+	p, err := response{tar: rfmTAR, counter: counter, status: status, data: data}.pack(command{spi: spiOTA, cipher: &k, verified: &k})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +222,7 @@ func TestSecurityErrors(t *testing.T) {
 
 		got, dl := c.DataDownload(download(seal(t, k, spiOTA, other, 1, mustHex(t, "00a4000c026f61"))))
 
-		want, err := response{tar: other, counter: 1, status: StatusTARUnknown}.pack(command{spi: spiOTA, keyset: k})
+		want, err := response{tar: other, counter: 1, status: StatusTARUnknown}.pack(command{spi: spiOTA, cipher: &k, verified: &k})
 		if err != nil {
 			t.Fatal(err)
 		}

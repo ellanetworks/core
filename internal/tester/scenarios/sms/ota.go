@@ -20,6 +20,7 @@ import (
 // otaParams are the flags of the OTA card scenarios: the card's ADF RFM application and key set.
 type otaParams struct {
 	TAR       string
+	MSL       string
 	KVN       uint8
 	Algorithm string
 	KIc, KID  string
@@ -31,8 +32,9 @@ type otaParams struct {
 func bindOTAFlags(fs *pflag.FlagSet) any {
 	p := &otaParams{}
 	fs.StringVar(&p.TAR, "ota-tar", "b00001", "TAR of the card's ADF RFM application, in hexadecimal")
+	fs.StringVar(&p.MSL, "ota-msl", "16", "minimum SPI1 of the card's ADF RFM application, in hexadecimal; 00 is no check")
 	fs.Uint8Var(&p.KVN, "ota-kvn", 1, "version of the card's key set")
-	fs.StringVar(&p.Algorithm, "ota-algorithm", "3des", "algorithm of the key set: 3des or aes")
+	fs.StringVar(&p.Algorithm, "ota-algorithm", "aes", "algorithm of the key set: 3des or aes")
 	fs.StringVar(&p.KIc, "ota-kic", "", "ciphering key of the key set, in hexadecimal")
 	fs.StringVar(&p.KID, "ota-kid", "", "integrity key of the key set, in hexadecimal")
 	fs.IntVar(&p.CCLength, "ota-cc-length", 0, "length of the AES key set's checksums, 4 or 8; 0 is 8")
@@ -46,6 +48,11 @@ func (p *otaParams) card(imsi string) (*usim.Card, error) {
 	tar, err := hex.DecodeString(p.TAR)
 	if err != nil || len(tar) != 3 {
 		return nil, fmt.Errorf("--ota-tar %q is not 3 octets in hexadecimal", p.TAR)
+	}
+
+	msl, err := hex.DecodeString(p.MSL)
+	if err != nil || len(msl) != 1 {
+		return nil, fmt.Errorf("--ota-msl %q is not 1 octet in hexadecimal", p.MSL)
 	}
 
 	kic, err := hex.DecodeString(p.KIc)
@@ -70,7 +77,7 @@ func (p *otaParams) card(imsi string) (*usim.Card, error) {
 	}
 
 	return usim.New(usim.Config{
-		TAR: [3]byte(tar), Keysets: []usim.Keyset{k}, IMSI: imsi, OPLMNwAcTEntries: p.Entries,
+		TAR: [3]byte(tar), MinimumSecurityLevel: msl[0], Keysets: []usim.Keyset{k}, IMSI: imsi, OPLMNwAcTEntries: p.Entries,
 		OnDownload: logDownload,
 	})
 }
@@ -80,7 +87,7 @@ func logDownload(d usim.Download) {
 	fields := []zap.Field{
 		zap.String("tar", hex.EncodeToString(d.TAR[:])), zap.Uint64("counter", d.Counter), zap.Bool("por", d.PoR),
 		zap.String("status", fmt.Sprintf("%02x", byte(d.Status))), zap.Int("executed", d.Executed),
-		zap.String("status_word", fmt.Sprintf("%04x", d.StatusWord)),
+		zap.String("status_word", fmt.Sprintf("%04x", d.StatusWord)), zap.Int("submits", d.Submits),
 	}
 
 	if d.Err != nil {

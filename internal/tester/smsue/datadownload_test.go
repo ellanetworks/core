@@ -24,6 +24,14 @@ func (u *fakeUICC) Envelope(data []byte) ([]byte, uint16) {
 	return u.response, u.sw
 }
 
+func (u *fakeUICC) Fetch() ([]byte, uint16) {
+	return nil, 0x6f00
+}
+
+func (u *fakeUICC) TerminalResponse([]byte) uint16 {
+	return 0x6f00
+}
+
 func mustHex(t *testing.T, s string) []byte {
 	t.Helper()
 

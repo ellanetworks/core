@@ -51,6 +51,7 @@ const (
 	spiPoROnError     = 0x0002
 	spiPoRIntegrity   = 0x000c
 	spiPoRCiphering   = 0x0010
+	spiPoRSubmit      = 0x0020
 )
 
 // Status is the Response Status Code of a Response Packet (TS 102 225 table 5, TS 31.115 clause 7).
@@ -61,7 +62,9 @@ const (
 	StatusCNTRLow          Status = 0x02
 	StatusCNTRHigh         Status = 0x03
 	StatusCNTRBlocked      Status = 0x04
+	StatusUnidentified     Status = 0x06
 	StatusTARUnknown       Status = 0x09
+	StatusInsufficient     Status = 0x0a
 	StatusResponseInSubmit Status = 0x0b
 )
 
@@ -233,10 +236,42 @@ type command struct {
 	kic, kid byte
 	tar      [3]byte
 	counter  uint64
-	// keyset is that of the KID, with which the card authenticated the Sending Entity, or of the KIc without a
-	// cryptographic checksum.
-	keyset Keyset
-	data   []byte
+	cipher   *Keyset
+	verified *Keyset
+	data     []byte
+}
+
+func (c command) authenticated() bool {
+	return c.verified != nil
+}
+
+func (c command) keyVersion() uint8 {
+	switch {
+	case c.verified != nil:
+		return c.verified.Version
+	case c.cipher != nil:
+		return c.cipher.Version
+	default:
+		return 0
+	}
+}
+
+func (c command) keyVersionsDiffer() bool {
+	return c.kic>>4 != 0 && c.kid>>4 != 0 && c.kic>>4 != c.kid>>4
+}
+
+func (c command) usesAES() bool {
+	return c.cipher != nil && c.cipher.Algorithm == AES || c.verified != nil && c.verified.Algorithm == AES
+}
+
+func (c command) sufficient(msl byte) bool {
+	spi1 := byte(c.spi >> 8)
+
+	if spi1&0x03 < msl&0x03 || spi1&0x04 < msl&0x04 || spi1&0x18 < msl&0x18 {
+		return false
+	}
+
+	return !c.usesAES() || c.spi&spiCounter >= spiCounterHigher
 }
 
 // errUnauthenticated is a Command Packet whose Sending Entity the card cannot authenticate: of a key set or algorithm
@@ -314,7 +349,7 @@ func unpack(ud []byte, keysets map[uint8]Keyset) (command, error) {
 			return command{}, fmt.Errorf("%w: %w", errUnauthenticated, err)
 		}
 
-		secured, c.keyset = plain, k
+		secured, c.cipher = plain, &k
 	}
 
 	if len(secured) < counterLength+1+ccLen {
@@ -339,7 +374,7 @@ func unpack(ud []byte, keysets map[uint8]Keyset) (command, error) {
 			return command{}, fmt.Errorf("%w: cryptographic checksum mismatch", errUnauthenticated)
 		}
 
-		c.keyset = *cc
+		c.verified = cc
 	}
 
 	if padding > len(data) {
@@ -405,13 +440,17 @@ type response struct {
 func (r response) pack(c command) ([]byte, error) {
 	ciphered, checksummed := c.spi&spiPoRCiphering != 0, c.spi&spiPoRIntegrity>>2 == spiIntegrityCC>>8
 
+	if ciphered && c.cipher == nil || checksummed && c.verified == nil {
+		return nil, errors.New("usim: a secured PoR to a command not authenticated or not ciphered")
+	}
+
 	ccLen, blockSize := 0, 1
 	if checksummed {
-		ccLen = c.keyset.ccLength()
+		ccLen = c.verified.ccLength()
 	}
 
 	if ciphered {
-		b, err := c.keyset.block(c.keyset.KIc)
+		b, err := c.cipher.block(c.cipher.KIc)
 		if err != nil {
 			return nil, err
 		}
@@ -446,7 +485,7 @@ func (r response) pack(c command) ([]byte, error) {
 		var err error
 
 		// The UDHL, the RPI and its length, RPL and RHL are part of the checksum (TS 31.115 clause 4.4).
-		cc, err = c.keyset.checksum(concat(responseUDH, header, counter, data))
+		cc, err = c.verified.checksum(concat(responseUDH, header, counter, data))
 		if err != nil {
 			return nil, err
 		}
@@ -457,7 +496,7 @@ func (r response) pack(c command) ([]byte, error) {
 	if ciphered {
 		var err error
 
-		secured, err = c.keyset.crypt(secured, true)
+		secured, err = c.cipher.crypt(secured, true)
 		if err != nil {
 			return nil, err
 		}

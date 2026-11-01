@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/tester/cat"
 	"github.com/ellanetworks/core/internal/tester/tpdu"
 	"github.com/ellanetworks/core/nas"
 )
@@ -32,23 +33,9 @@ const minOPLMNwAcTEntries = 8
 // access technology selected (TS 31.102 clause 4.2.5).
 var unusedPLMNEntry = []byte{0xff, 0xff, 0xff, 0x00, 0x00}
 
-// The tags of the ENVELOPE (SMS-PP DOWNLOAD) (TS 31.111 clause 7.1.1.2, TS 101 220 clause 7.2). The card reads the
-// COMPREHENSION-TLV tags whatever their comprehension required flag, bit 8 (TS 102 223 clause 6.10).
-const (
-	tagSMSPPDownload    = 0xd1
-	tagDeviceIdentities = 0x02
-	tagSMSTPDU          = 0x0b
-)
-
-// The device identities of the ENVELOPE (SMS-PP DOWNLOAD): from the network to the UICC (TS 102 223 clause 8.7).
-const (
-	deviceUICC    = 0x81
-	deviceNetwork = 0x83
-)
-
 // The status words of the ENVELOPE (TS 102 221 clause 10.2.1).
 const (
-	swOK                  = 0x9000
+	swOK                  = cat.SWOK
 	swIncorrectData       = 0x6a80
 	swInstructionNotFound = 0x6d00
 )
@@ -57,8 +44,9 @@ const (
 type Config struct {
 	// TAR is that of the card's ADF RFM application linked to the USIM, of the compact data format: 'B0 00 01' or
 	// 'B0 00 20' to 'B0 01 1F' (TS 101 220 annex D).
-	TAR     [3]byte
-	Keysets []Keyset
+	TAR                  [3]byte
+	MinimumSecurityLevel byte
+	Keysets              []Keyset
 	// IMSI is the IMSI of EF.IMSI.
 	IMSI string
 	// OPLMNwAcTEntries is the number of entries of EF.OPLMNwAcT, all unused at first; 0 is the fewest, 8.
@@ -70,6 +58,7 @@ type Config struct {
 // Card is a USIM. It is safe for concurrent use.
 type Card struct {
 	tar        [3]byte
+	msl        byte
 	keysets    map[uint8]Keyset
 	onDownload func(Download)
 
@@ -77,12 +66,28 @@ type Card struct {
 	// counters are the counters of the key sets, by their versions: the last one each accepted.
 	counters map[uint8]uint64
 	files    *fileSystem
+
+	proactive   []proactiveCommand
+	outstanding *proactiveCommand
+	number      byte
+	series      int
+	concatRef   byte
+}
+
+type proactiveCommand struct {
+	details cat.CommandDetails
+	series  int
+	data    []byte
 }
 
 // New makes a card.
 func New(cfg Config) (*Card, error) {
 	if !adfRFMCompact(cfg.TAR) {
 		return nil, fmt.Errorf("usim: TAR %x is not of an ADF RFM application of the compact data format", cfg.TAR)
+	}
+
+	if cfg.MinimumSecurityLevel&^0x1f != 0 || cfg.MinimumSecurityLevel&0x03 == 0x03 {
+		return nil, fmt.Errorf("usim: minimum SPI1 %#02x", cfg.MinimumSecurityLevel)
 	}
 
 	if len(cfg.Keysets) == 0 {
@@ -117,7 +122,7 @@ func New(cfg Config) (*Card, error) {
 	oplmn := bytes.Repeat(unusedPLMNEntry, entries)
 
 	return &Card{
-		tar: cfg.TAR, keysets: keysets, onDownload: cfg.OnDownload, counters: map[uint8]uint64{},
+		tar: cfg.TAR, msl: cfg.MinimumSecurityLevel, keysets: keysets, onDownload: cfg.OnDownload, counters: map[uint8]uint64{},
 		files: newFileSystem(
 			// SFIs of TS 31.102 clauses 4.2.2 and 4.2.53.
 			&ef{fid: FileIMSI, sfi: 0x07, data: imsi},
@@ -166,92 +171,117 @@ func (c *Card) File(fid uint16) []byte {
 // Envelope runs the ENVELOPE command with data and returns its response data and status word (TS 102 221 clause 11.2,
 // TS 31.111 clause 7). The card takes the SMS-PP DOWNLOAD only.
 func (c *Card) Envelope(data []byte) ([]byte, uint16) {
-	tag, value, _, err := readTLV(data)
+	tag, value, _, err := cat.ReadTLV(data)
 	if err != nil {
 		return nil, swIncorrectData
 	}
 
-	if tag != tagSMSPPDownload {
+	if tag != cat.TagSMSPPDownload {
 		return nil, swInstructionNotFound
 	}
 
-	deliver, err := smsPPDownload(value)
+	deliver, serviceCentre, err := smsPPDownload(value)
 	if err != nil {
 		return nil, swIncorrectData
 	}
 
-	por, _ := c.DataDownload(deliver)
+	por, _ := c.download(deliver, serviceCentre)
 
-	return por, swOK
+	return por, c.status()
 }
 
 // smsPPDownload is the SMS-DELIVER of the value of an ENVELOPE (SMS-PP DOWNLOAD), from the network to the UICC (TS
 // 31.111 clause 7.1.1.2).
-func smsPPDownload(value []byte) (tpdu.Deliver, error) {
-	var (
-		identities, smsTPDU []byte
-		seen                = map[byte]bool{}
-	)
-
-	for len(value) > 0 {
-		tag, v, rest, err := readTLV(value)
-		if err != nil {
-			return tpdu.Deliver{}, err
-		}
-
-		value = rest
-
-		// The first instance of a tag is the one read (TS 102 223 clause 6.10.5).
-		if seen[tag&0x7f] {
-			continue
-		}
-
-		seen[tag&0x7f] = true
-
-		switch tag & 0x7f {
-		case tagDeviceIdentities:
-			identities = v
-		case tagSMSTPDU:
-			smsTPDU = v
-		}
+func smsPPDownload(value []byte) (tpdu.Deliver, []byte, error) {
+	objects, err := cat.ReadObjects(value)
+	if err != nil {
+		return tpdu.Deliver{}, nil, err
 	}
 
-	if !bytes.Equal(identities, []byte{deviceNetwork, deviceUICC}) {
-		return tpdu.Deliver{}, fmt.Errorf("device identities %x, want from the network to the UICC", identities)
+	if identities, _ := objects.Get(cat.TagDeviceIdentities); !bytes.Equal(identities, []byte{cat.DeviceNetwork, cat.DeviceUICC}) {
+		return tpdu.Deliver{}, nil, fmt.Errorf("device identities %x, want from the network to the UICC", identities)
 	}
 
-	if smsTPDU == nil {
-		return tpdu.Deliver{}, errors.New("no SMS TPDU")
+	smsTPDU, ok := objects.Get(cat.TagSMSTPDU)
+	if !ok {
+		return tpdu.Deliver{}, nil, errors.New("no SMS TPDU")
 	}
 
-	return tpdu.DecodeDeliver(smsTPDU)
+	deliver, err := tpdu.DecodeDeliver(smsTPDU)
+	if err != nil {
+		return tpdu.Deliver{}, nil, err
+	}
+
+	serviceCentre, _ := objects.Get(cat.TagAddress)
+
+	return deliver, serviceCentre, nil
 }
 
-// readTLV reads the data object that starts b, of a one-octet tag and a length coded as TS 101 220 clause 7.1.2 does,
-// and returns its tag, its value and what follows it.
-func readTLV(b []byte) (tag byte, value, rest []byte, err error) {
-	if len(b) < 2 {
-		return 0, nil, nil, errors.New("truncated data object")
+func (c *Card) Fetch() ([]byte, uint16) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.outstanding != nil || len(c.proactive) == 0 {
+		return nil, swTechnicalProblem
 	}
 
-	tag, n, i := b[0], int(b[1]), 2
+	next := c.proactive[0]
+	c.proactive, c.outstanding = c.proactive[1:], &next
 
-	switch {
-	case n == 0x81:
-		if len(b) < 3 || b[2] < 0x80 {
-			return 0, nil, nil, errors.New("invalid length")
+	return next.data, swOK
+}
+
+func (c *Card) TerminalResponse(data []byte) uint16 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.outstanding == nil {
+		return swTechnicalProblem
+	}
+
+	objects, err := cat.ReadObjects(data)
+	if err != nil {
+		return swIncorrectData
+	}
+
+	raw, _ := objects.Get(cat.TagCommandDetails)
+	result, _ := objects.Get(cat.TagResult)
+
+	details, err := cat.ParseCommandDetails(raw)
+	if err != nil || details != c.outstanding.details || len(result) == 0 {
+		return swIncorrectData
+	}
+
+	if result[0] > 0x1f {
+		kept := c.proactive[:0]
+
+		for _, p := range c.proactive {
+			if p.series != c.outstanding.series {
+				kept = append(kept, p)
+			}
 		}
 
-		n, i = int(b[2]), 3
-	case n > 0x7f:
-		return 0, nil, nil, fmt.Errorf("length coding %#02x", n)
+		c.proactive = kept
 	}
 
-	if len(b) < i+n {
-		return 0, nil, nil, errors.New("truncated data object")
+	c.outstanding = nil
+
+	return c.statusLocked()
+}
+
+func (c *Card) status() uint16 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.statusLocked()
+}
+
+func (c *Card) statusLocked() uint16 {
+	if c.outstanding != nil || len(c.proactive) == 0 {
+		return swOK
 	}
 
-	return tag, b[i : i+n], b[i+n:], nil
+	return uint16(cat.SWProactive)<<8 | uint16(len(c.proactive[0].data))
 }
 
 // Download is what the card did with a (U)SIM data download.
@@ -264,6 +294,7 @@ type Download struct {
 	// Executed is the number of commands of the command string that ran, and StatusWord the status word of the last.
 	Executed   int
 	StatusWord uint16
+	Submits    int
 	// Err is why the card discarded the message, if it did.
 	Err error
 }
@@ -275,9 +306,13 @@ type Download struct {
 // Entity it cannot authenticate, without answering, as TS 31.111 clause 7.1.1.1 has a UICC do over SMS-PP; it answers
 // a security error after authenticating the Sending Entity with a Response Packet of its status, secured as the
 // command asks. A Response Packet too large for the SMS-DELIVER-REPORT has the status of a response sent by
-// SMS-SUBMIT, without additional data (TS 31.115 clause 4.1); the card does not send that SMS-SUBMIT.
+// SMS-SUBMIT, without additional data (TS 31.115 clause 4.1).
 func (c *Card) DataDownload(d tpdu.Deliver) ([]byte, Download) {
-	por, dl := c.dataDownload(d)
+	return c.download(d, nil)
+}
+
+func (c *Card) download(d tpdu.Deliver, serviceCentre []byte) ([]byte, Download) {
+	por, dl := c.dataDownload(d, serviceCentre)
 
 	if c.onDownload != nil {
 		c.onDownload(dl)
@@ -286,7 +321,7 @@ func (c *Card) DataDownload(d tpdu.Deliver) ([]byte, Download) {
 	return por, dl
 }
 
-func (c *Card) dataDownload(d tpdu.Deliver) ([]byte, Download) {
+func (c *Card) dataDownload(d tpdu.Deliver, serviceCentre []byte) ([]byte, Download) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -318,12 +353,6 @@ func (c *Card) dataDownload(d tpdu.Deliver) ([]byte, Download) {
 		r := response{tar: cmd.tar, counter: cmd.counter, status: status, data: data}
 
 		por, err := r.pack(cmd)
-		if err == nil && len(por) > tpdu.MaxDeliverReportUserData {
-			r.status, r.data = StatusResponseInSubmit, nil
-			dl.Status = r.status
-			por, err = r.pack(cmd)
-		}
-
 		if err != nil {
 			dl.Err = err
 			return nil, dl
@@ -331,16 +360,56 @@ func (c *Card) dataDownload(d tpdu.Deliver) ([]byte, Download) {
 
 		dl.PoR = true
 
-		return por, dl
+		if cmd.spi&spiPoRSubmit != 0 {
+			dl.Submits, dl.Err = c.submit(por, d, serviceCentre)
+			return nil, dl
+		}
+
+		if len(por) <= tpdu.MaxDeliverReportUserData {
+			return por, dl
+		}
+
+		r.status, r.data = StatusResponseInSubmit, nil
+		dl.Status = r.status
+
+		report, err := r.pack(cmd)
+		if err != nil {
+			dl.Err = err
+			return nil, dl
+		}
+
+		dl.Submits, dl.Err = c.submit(por, d, serviceCentre)
+
+		return report, dl
+	}
+
+	if cmd.keyVersionsDiffer() {
+		if !cmd.authenticated() {
+			dl.Err = fmt.Errorf("%w: KIc %#02x and KID %#02x of different key versions", errUnauthenticated, cmd.kic, cmd.kid)
+			return nil, dl
+		}
+
+		cmd.spi &^= spiPoRIntegrity | spiPoRCiphering
+
+		return answer(StatusUnidentified, nil)
+	}
+
+	if !cmd.sufficient(c.msl) {
+		if !cmd.authenticated() {
+			dl.Err = fmt.Errorf("%w: SPI %04x below the minimum security level", errUnauthenticated, cmd.spi)
+			return nil, dl
+		}
+
+		return answer(StatusInsufficient, nil)
 	}
 
 	// The counter is updated once the command is authenticated and its counter checked (TS 102 225 clause 5.1.4).
-	counter, status, ok := checkCounter(cmd, c.counters[cmd.keyset.Version])
+	counter, status, ok := checkCounter(cmd, c.counters[cmd.keyVersion()])
 	if !ok {
 		return answer(status, nil)
 	}
 
-	c.counters[cmd.keyset.Version] = counter
+	c.counters[cmd.keyVersion()] = counter
 
 	if cmd.tar != c.tar {
 		return answer(StatusTARUnknown, nil)
@@ -350,4 +419,73 @@ func (c *Card) dataDownload(d tpdu.Deliver) ([]byte, Download) {
 	dl.Executed, dl.StatusWord = result.executed, result.statusWord
 
 	return answer(StatusPoROK, result.compact())
+}
+
+func (c *Card) submit(por []byte, d tpdu.Deliver, serviceCentre []byte) (int, error) {
+	parts := [][]byte{por}
+
+	if len(por) > tpdu.MaxSubmitUserData {
+		parts = concatenate(por[len(responseUDH):], c.concatRef)
+		c.concatRef++
+	}
+
+	submits := make([][]byte, 0, len(parts))
+
+	for _, ud := range parts {
+		submit, err := tpdu.Submit{UDHI: true, Destination: d.RawOriginatingAddress, PID: d.PID, DCS: d.DCS, UD: ud}.AppendBinary(nil)
+		if err != nil {
+			return 0, fmt.Errorf("usim: SMS-SUBMIT of the PoR: %w", err)
+		}
+
+		submits = append(submits, submit)
+	}
+
+	c.series++
+
+	for _, submit := range submits {
+		c.number = c.number%0xfe + 1
+		details := cat.CommandDetails{Number: c.number, Type: cat.TypeSendShortMessage}
+
+		objects := cat.AppendTLV(nil, cat.TagCommandDetails|cat.ComprehensionRequired, details.Value())
+		objects = cat.AppendTLV(objects, cat.TagDeviceIdentities|cat.ComprehensionRequired, []byte{cat.DeviceUICC, cat.DeviceNetwork})
+
+		if serviceCentre != nil {
+			objects = cat.AppendTLV(objects, cat.TagAddress, serviceCentre)
+		}
+
+		objects = cat.AppendTLV(objects, cat.TagSMSTPDU|cat.ComprehensionRequired, submit)
+
+		c.proactive = append(c.proactive, proactiveCommand{
+			details: details, series: c.series, data: cat.AppendTLV(nil, cat.TagProactiveCommand, objects),
+		})
+	}
+
+	return len(submits), nil
+}
+
+func concatenate(packet []byte, ref byte) [][]byte {
+	const (
+		first = tpdu.MaxSubmitUserData - 8
+		next  = tpdu.MaxSubmitUserData - 6
+	)
+
+	total := 1
+	if len(packet) > first {
+		total += (len(packet) - first + next - 1) / next
+	}
+
+	parts := make([][]byte, 0, total)
+
+	for i := range total {
+		size, udh := next, []byte{0x05, 0x00, 0x03, ref, byte(total), byte(i + 1)}
+		if i == 0 {
+			size, udh = first, []byte{0x07, 0x00, 0x03, ref, byte(total), 0x01, 0x71, 0x00}
+		}
+
+		size = min(size, len(packet))
+		parts = append(parts, concat(udh, packet[:size]))
+		packet = packet[size:]
+	}
+
+	return parts
 }

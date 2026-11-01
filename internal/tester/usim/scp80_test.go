@@ -97,8 +97,8 @@ func TestUnpack(t *testing.T) {
 			}
 
 			if hex.EncodeToString(c.tar[:]) != tc.tar || c.counter != tc.counter || hex.EncodeToString(c.data) != tc.data ||
-				c.keyset.Version != tc.keyset.Version {
-				t.Fatalf("command TAR %x counter %d data %x key set %d", c.tar, c.counter, c.data, c.keyset.Version)
+				c.keyVersion() != tc.keyset.Version {
+				t.Fatalf("command TAR %x counter %d data %x key set %d", c.tar, c.counter, c.data, c.keyVersion())
 			}
 		})
 	}
@@ -166,7 +166,7 @@ func TestPack(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c := command{spi: tc.spi, tar: tc.tar, keyset: tc.keyset}
+			c := command{spi: tc.spi, tar: tc.tar, cipher: &tc.keyset, verified: &tc.keyset}
 
 			got, err := response{tar: tc.tar, status: StatusPoROK, data: mustHex(t, tc.data)}.pack(c)
 			if err != nil {

@@ -219,9 +219,10 @@ type Deliver struct {
 	// UDHI is TP-UDHI: the TP-UD starts with a user data header.
 	UDHI bool
 	// OriginatingAddress is TP-OA, with a leading "+" when international.
-	OriginatingAddress string
-	PID                byte
-	DCS                byte
+	OriginatingAddress    string
+	RawOriginatingAddress []byte
+	PID                   byte
+	DCS                   byte
 	// SCTS is TP-SCTS, as received.
 	SCTS [7]byte
 	// UDL is TP-UDL: septets in the GSM 7 bit default alphabet, octets otherwise (TS 23.040 clause 9.2.3.16).
@@ -243,7 +244,7 @@ func DecodeDeliver(b []byte) (Deliver, error) {
 		return Deliver{}, err
 	}
 
-	d.OriginatingAddress = from
+	d.OriginatingAddress, d.RawOriginatingAddress = from, b[1:1+size]
 
 	// TP-PID 1, TP-DCS 1, TP-SCTS 7, TP-UDL 1.
 	i := 1 + size
@@ -285,6 +286,10 @@ func (d Deliver) Text() (string, error) {
 	case CharsetGSM7:
 		fill := (7 - headerOctets*8%7) % 7
 		skip := (headerOctets*8 + fill) / 7
+
+		if d.UDL < skip {
+			return "", fmt.Errorf("tpdu: TP-UDL %d septets within a user data header of %d", d.UDL, skip)
+		}
 
 		septets := unpackSeptets(d.UD[headerOctets:], d.UDL-skip, fill)
 		alphabet := []rune(gsm7Basic)
@@ -375,4 +380,39 @@ func (r DeliverReportAck) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+const MaxSubmitUserData = 140
+
+type Submit struct {
+	UDHI        bool
+	Reference   byte
+	Destination []byte
+	PID, DCS    byte
+	UD          []byte
+}
+
+func (m Submit) AppendBinary(b []byte) ([]byte, error) {
+	if len(m.UD) > MaxSubmitUserData {
+		return nil, fmt.Errorf("tpdu: %d octets of TP-UD exceed %d", len(m.UD), MaxSubmitUserData)
+	}
+
+	if CharsetOf(m.DCS) == CharsetGSM7 {
+		return nil, fmt.Errorf("tpdu: user data in the GSM 7 bit default alphabet is not supported")
+	}
+
+	if _, size, err := decodeAddress(m.Destination); err != nil || size != len(m.Destination) {
+		return nil, fmt.Errorf("tpdu: invalid TP-DA %x", m.Destination)
+	}
+
+	first := byte(0x01)
+	if m.UDHI {
+		first |= 0x40
+	}
+
+	b = append(b, first, m.Reference)
+	b = append(b, m.Destination...)
+	b = append(b, m.PID, m.DCS, byte(len(m.UD)))
+
+	return append(b, m.UD...), nil
 }

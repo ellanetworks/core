@@ -76,3 +76,57 @@ func TestGSM7RoundTrip(t *testing.T) {
 		t.Fatalf("round trip = %v, want %v", got, septets)
 	}
 }
+
+func TestTextUserDataHeaderBeyondUDL(t *testing.T) {
+	d, err := DecodeDeliver(mustHex(t, "440b915155001000f00000"+"62909251341100"+"01"+"00"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := d.Text(); err == nil {
+		t.Fatal("no error")
+	}
+}
+
+func TestDecodeDeliverRawOriginatingAddress(t *testing.T) {
+	d, err := DecodeDeliver(mustHex(t, "440b915155001000f07ff6"+"62909251341100"+"03"+"027000"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if hex.EncodeToString(d.RawOriginatingAddress) != "0b915155001000f0" {
+		t.Fatalf("TP-OA %x", d.RawOriginatingAddress)
+	}
+}
+
+func TestSubmitAppendBinary(t *testing.T) {
+	got, err := Submit{UDHI: true, Reference: 3, Destination: mustHex(t, "0b915155001000f0"), PID: 0x7f, DCS: 0xf6, UD: mustHex(t, "027100")}.AppendBinary(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := "41030b915155001000f07ff603027100"; hex.EncodeToString(got) != want {
+		t.Fatalf("SMS-SUBMIT %x, want %s", got, want)
+	}
+
+	for name, m := range map[string]Submit{
+		"too long":     {Destination: mustHex(t, "0b915155001000f0"), DCS: 0xf6, UD: make([]byte, MaxSubmitUserData+1)},
+		"GSM 7 bit":    {Destination: mustHex(t, "0b915155001000f0"), DCS: 0x00},
+		"truncated DA": {Destination: mustHex(t, "0b9151"), DCS: 0xf6},
+	} {
+		if _, err := m.AppendBinary(nil); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func mustHex(t *testing.T, s string) []byte {
+	t.Helper()
+
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
+}
