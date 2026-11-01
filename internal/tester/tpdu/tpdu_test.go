@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package smsue
+package tpdu
 
 import (
 	"bytes"
@@ -51,7 +51,14 @@ func TestDecodeDeliver(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			from, text, err := DecodeDeliver(b)
+			d, err := DecodeDeliver(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			from := d.OriginatingAddress
+
+			text, err := d.Text()
 			if err != nil || from != tc.from || text != tc.text {
 				t.Fatalf("from %q text %q err %v, want %q %q", from, text, err, tc.from, tc.text)
 			}
