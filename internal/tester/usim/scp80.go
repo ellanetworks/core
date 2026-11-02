@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/des"
+	"crypto/des" // #nosec G502 -- TS 102 225 clause 5.1.3.1 defines two-key triple DES for SCP80
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -123,7 +123,7 @@ func (k Keyset) block(key []byte) (cipher.Block, error) {
 	}
 
 	// Two-key triple DES is K1, K2, K1.
-	return des.NewTripleDESCipher(append(append([]byte{}, key...), key[:8]...))
+	return des.NewTripleDESCipher(append(append([]byte{}, key...), key[:8]...)) // #nosec G405 -- TS 102 225 clause 5.1.3.1
 }
 
 // crypt ciphers or deciphers data, of whole blocks, in CBC mode with a zero initial chaining value (TS 102 225 clauses
@@ -142,7 +142,7 @@ func (k Keyset) crypt(data []byte, encrypt bool) ([]byte, error) {
 	iv := make([]byte, b.BlockSize())
 
 	if encrypt {
-		cipher.NewCBCEncrypter(b, iv).CryptBlocks(out, data)
+		cipher.NewCBCEncrypter(b, iv).CryptBlocks(out, data) // #nosec G407 -- TS 102 225 clauses 5.1.2 and 5.1.3.1 mandate a zero ICV
 	} else {
 		cipher.NewCBCDecrypter(b, iv).CryptBlocks(out, data)
 	}
@@ -168,7 +168,7 @@ func (k Keyset) checksum(data []byte) ([]byte, error) {
 	}
 
 	out := make([]byte, len(data))
-	cipher.NewCBCEncrypter(b, make([]byte, b.BlockSize())).CryptBlocks(out, data)
+	cipher.NewCBCEncrypter(b, make([]byte, b.BlockSize())).CryptBlocks(out, data) // #nosec G407 -- TS 102 225 clause 5.1.3.1 mandates a zero ICV
 
 	return out[len(out)-b.BlockSize():], nil
 }
