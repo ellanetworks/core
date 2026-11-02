@@ -282,6 +282,8 @@ func TestQERAveragingWindowAdmitsABurst(t *testing.T) {
 			pdr.Qer.MaxBitrateDL = rateBps
 			pdr.Qer.AveragingWindowMs = tc.windowMs
 
+			provisionTestQER(t, obj, pdr)
+
 			if err := obj.PutPdrDownlink(netip.AddrFrom4(classifierUE), pdr); err != nil {
 				t.Fatalf("install the downlink PDR: %v", err)
 			}
@@ -315,6 +317,8 @@ func putBoundUplinkBearer(t *testing.T, obj *BpfObjects, pdrID uint16, qer QerIn
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
+	provisionTestQER(t, obj, pdr)
+
 	if err := obj.PutPdrUplink(bearerTEID, pdr); err != nil {
 		t.Fatalf("install the bearer uplink PDR: %v", err)
 	}

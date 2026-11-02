@@ -97,6 +97,7 @@ type SMContext struct {
 	pendingPolicy *Policy
 
 	releasing                bool // guarded by Mutex
+	unrecoverableRelease     bool
 	release                  *models.SessionReleaseRequest
 	activating               bool
 	userPlaneStale           bool

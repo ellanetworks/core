@@ -765,3 +765,49 @@ groups:
           runbook_url: https://docs.ellanetworks.com/core/reference/observability/#flow-reports-being-dropped
           summary: Flow reports are being dropped.
           description: "{{ $values.A.Value | printf \"%.0f\" }} flow reports were dropped in the last 5 minutes. Data usage reporting is incomplete while this persists. Shorten the flow report retention policy, or report this if it continues at normal traffic levels."
+
+      - uid: ella-upf-sessions-pending-cleanup
+        title: Data Plane Sessions Awaiting Cleanup
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                max by (instance) (app_upf_sessions_pending_cleanup)
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        noDataState: OK
+        execErrState: OK
+        for: 15m
+        labels:
+          severity: warning
+          component: data-plane
+        annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#data-plane-sessions-awaiting-cleanup
+          summary: Data plane sessions are stuck awaiting teardown.
+          description: "{{ $values.A.Value | printf \"%.0f\" }} data plane sessions have awaited teardown for 15 minutes. A failed session operation left them holding data plane resources. Check the logs for `session cleanup retry failed`, and report the error if it persists."

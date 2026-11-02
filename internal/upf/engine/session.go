@@ -14,8 +14,11 @@ import (
 )
 
 type Session struct {
-	opMu    sync.Mutex
-	deleted bool // guarded by opMu
+	opMu        sync.Mutex
+	deleted     bool // guarded by opMu
+	qerMeters   map[uint32]struct{}
+	cleanupPDRs []SPDRInfo
+	unpublished bool
 
 	mu           sync.RWMutex
 	SEID         uint64
@@ -42,6 +45,35 @@ func NewSession(seid uint64) *Session {
 		pdrs: map[uint32]SPDRInfo{},
 		fars: map[uint32]ebpf.FarInfo{},
 		qers: map[uint32]ebpf.QerInfo{},
+	}
+}
+
+type cleanupKey struct {
+	pdrID uint32
+	teid  uint32
+	ueIP  netip.Addr
+	sdf   bool
+}
+
+func cleanupKeyOf(p SPDRInfo) cleanupKey {
+	return cleanupKey{pdrID: p.PdrID, teid: p.TeID, ueIP: p.UEIP, sdf: sdfDownlink(p)}
+}
+
+func (s *Session) addCleanupPDRs(pdrs ...SPDRInfo) {
+	queued := make(map[cleanupKey]struct{}, len(s.cleanupPDRs))
+	for _, p := range s.cleanupPDRs {
+		queued[cleanupKeyOf(p)] = struct{}{}
+	}
+
+	for _, p := range pdrs {
+		k := cleanupKeyOf(p)
+		if _, ok := queued[k]; ok {
+			continue
+		}
+
+		queued[k] = struct{}{}
+
+		s.cleanupPDRs = append(s.cleanupPDRs, p)
 	}
 }
 

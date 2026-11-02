@@ -175,7 +175,10 @@ func (d dataPlane) checkSDFCapacity() error {
 
 	var rules, pdrs int
 
+	qers := 1
+
 	for _, b := range append(slices.Clone(d.Bearers), bearerLeg{Slot: defaultRuleSlot, Rules: d.DefaultRules}) {
+		qers += len(b.Rules)
 		for _, r := range b.Rules {
 			uplink := directionFilters(r.Filters, models.FilterUplink)
 			rules += len(uplink)
@@ -203,6 +206,10 @@ func (d dataPlane) checkSDFCapacity() error {
 
 	if rules > models.MaxSessionSDFRules || pdrs > models.MaxSessionSDFPDRs {
 		return fmt.Errorf("the session's bearers need %d SDF filters in %d PDRs, the user plane holds %d in %d", rules, pdrs, models.MaxSessionSDFRules, models.MaxSessionSDFPDRs)
+	}
+
+	if qers > models.MaxSessionQERs {
+		return fmt.Errorf("the session's bearers need %d QERs, the user plane holds %d", qers, models.MaxSessionQERs)
 	}
 
 	return nil

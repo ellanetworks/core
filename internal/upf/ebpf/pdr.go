@@ -28,6 +28,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -153,6 +154,53 @@ func (bpfObjects *BpfObjects) DeleteFramedDownlink(prefix netip.Prefix) error {
 	return bpfObjects.deleteTracked(bpfObjects.FramedDownlinkIp6, MapFramedDownlinkIP6, key)
 }
 
+func (bpfObjects *BpfObjects) DeleteFramedDownlinkOwned(prefix netip.Prefix, ueAddr netip.Addr) error {
+	prefix = prefix.Masked()
+
+	var (
+		m      = bpfObjects.FramedDownlinkIp6
+		name   = MapFramedDownlinkIP6
+		key    any
+		owned  bool
+		lookup error
+	)
+
+	if prefix.Addr().Is4() {
+		m, name = bpfObjects.FramedDownlinkIp4, MapFramedDownlinkIP4
+		key = framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
+
+		var val [4]byte
+
+		lookup = m.Lookup(key, &val)
+		owned = val == ueAddr.As4()
+	} else {
+		key = framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
+
+		var val [16]byte
+
+		lookup = m.Lookup(key, &val)
+		owned = val == ueAddr.As16()
+	}
+
+	if errors.Is(lookup, ebpf.ErrKeyNotExist) {
+		return nil
+	}
+
+	if lookup != nil {
+		return fmt.Errorf("look up framed route %s: %w", prefix, lookup)
+	}
+
+	if !owned {
+		logger.UpfLog.Debug("Keep framed route owned by another UE", logger.IPAddress(prefix.String()))
+
+		return nil
+	}
+
+	logger.UpfLog.Debug("Delete owned framed route", logger.IPAddress(prefix.String()))
+
+	return bpfObjects.deleteTracked(m, name, key)
+}
+
 // HasFramedDownlink reports whether a downlink lookup of the prefix resolves to
 // a framed route. The map is an LPM trie, so a covering shorter prefix also
 // matches; this is not an exact-key test.
@@ -202,6 +250,37 @@ func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
 	key := addr.As16()
 
 	return bpfObjects.deleteTracked(bpfObjects.PdrsDownlinkIp6, MapPdrsDownlinkIP6, key)
+}
+
+func (bpfObjects *BpfObjects) DeletePdrDownlinkOwned(addr netip.Addr, seid uint64) error {
+	m, name := bpfObjects.PdrsDownlinkIp6, MapPdrsDownlinkIP6
+
+	var key any = addr.As16()
+
+	if addr.Is4() {
+		m, name, key = bpfObjects.PdrsDownlinkIp4, MapPdrsDownlinkIP4, addr.As4()
+	}
+
+	var current N3N6EntrypointPdrInfo
+
+	if err := m.Lookup(key, &current); err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			return nil
+		}
+
+		return fmt.Errorf("look up downlink PDR for %s: %w", addr, err)
+	}
+
+	if current.LocalSeid != seid {
+		logger.UpfLog.Debug("Keep downlink PDR owned by another session",
+			logger.IPAddress(addr.String()), logger.SEID(seid), zap.Uint64("owner_seid", current.LocalSeid))
+
+		return nil
+	}
+
+	logger.UpfLog.Debug("Delete owned PDR Downlink", logger.IPAddress(addr.String()), logger.SEID(seid))
+
+	return bpfObjects.deleteTracked(m, name, key)
 }
 
 // FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.
