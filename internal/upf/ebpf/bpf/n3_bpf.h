@@ -180,16 +180,11 @@ enforce_uplink_qer(struct packet_context *ctx, __u64 seid, __u32 qer_id,
 	if (qer->ul_gate_status != GATE_STATUS_OPEN)
 		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 
-	/* An unlimited QER costs no lookup. */
-	if (qer->ul_maximum_bitrate == 0)
-		return CTX_ACT_OK;
-
-	struct qer_window *window = qer_window_for(seid, qer_id);
-	if (window &&
-	    CTX_ACT_DROP == limit_rate_sliding_window(
-				    size, &window->ul_start,
-				    qer->ul_maximum_bitrate,
-				    qer->averaging_window_ms))
+	enum qer_result result =
+		limit_qer_rate(seid, qer_id, qer, size, QER_UPLINK);
+	if (result == QER_METER_MISSING)
+		return drop_with(ctx, UPF_DROP_QER_METER_MISSING);
+	if (result == QER_RATE_LIMITED)
 		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
 	return CTX_ACT_OK;
@@ -266,18 +261,13 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		}
 	}
 
-	if (sel->target.qer.dl_maximum_bitrate != 0) {
-		struct qer_window *window =
-			qer_window_for(sel->seid, sel->target.qer_id);
-		if (window &&
-		    CTX_ACT_DROP ==
-			    limit_rate_sliding_window(
-				    billed_bytes, &window->dl_start,
-				    sel->target.qer.dl_maximum_bitrate,
-				    sel->target.qer.averaging_window_ms)) {
-			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
-		}
-	}
+	enum qer_result result = limit_qer_rate(
+		sel->seid, sel->target.qer_id, &sel->target.qer, billed_bytes,
+		QER_DOWNLINK);
+	if (result == QER_METER_MISSING)
+		return drop_with(ctx, UPF_DROP_QER_METER_MISSING);
+	if (result == QER_RATE_LIMITED)
+		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
 	__u8 tos = sel->target.far.transport_level_marking >> 8;
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);

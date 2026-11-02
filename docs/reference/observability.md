@@ -47,6 +47,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_dl_buffer_evictions_total | Buffered downlink packets discarded before re-injection, labeled by `reason`. | Counter |
 | app_upf_ringbuf_events_lost_total | Events the data plane raised but could not place in a ring buffer, labeled by `map`. | Counter |
 | app_upf_usage_dropped_bytes_total | Subscriber usage bytes the data plane measured but never recorded, labeled by `reason` (`outcome_unknown`, `shutdown`, `stale_session`, `no_imsi`). | Counter |
+| app_upf_sessions_pending_cleanup | Data plane sessions a failed operation left awaiting teardown, as of the last cleanup retry. | Gauge |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |
@@ -149,6 +150,12 @@ An `internal_` reason means Ella Core's data plane failed rather than dropping t
 Warning. Any flow report dropped in the last 5 minutes.
 
 Data usage reporting is incomplete while this persists. Shorten the flow report retention policy, or report this if it continues at normal traffic levels.
+
+#### Data Plane Sessions Awaiting Cleanup
+
+Warning. Data plane sessions have awaited teardown for 15 minutes.
+
+A failed session operation left these sessions holding data plane resources, and Ella Core retries their teardown in the background. Check the logs for `session cleanup retry failed`, and report the error if it persists. Each one reduces the capacity left for new sessions.
 
 ### API Health
 

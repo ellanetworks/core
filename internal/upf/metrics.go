@@ -20,6 +20,11 @@ var dlBufferEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Buffered downlink packets discarded before re-injection, by the limit that discarded them.",
 }, []string{"reason"})
 
+var sessionsPendingCleanup = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "app_upf_sessions_pending_cleanup",
+	Help: "UPF sessions a failed operation left awaiting teardown, as of the last cleanup retry. They hold data plane map entries and QER meters until a retry succeeds.",
+})
+
 const (
 	flowReportDropChannelFull = "channel_full"
 
@@ -32,7 +37,7 @@ const (
 )
 
 func RegisterMetrics() {
-	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
+	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted, sessionsPendingCleanup)
 
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
 

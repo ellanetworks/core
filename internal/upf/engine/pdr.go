@@ -3,8 +3,10 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 
+	cebpf "github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -72,21 +74,35 @@ func pdrKeyChanged(old, updated SPDRInfo) bool {
 
 // unapplyPDR removes the eBPF map entry applyPDR installed for spdrInfo.
 func unapplyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) error {
-	if sdfDownlink(spdrInfo) {
+	if bpfObjects == nil || sdfDownlink(spdrInfo) {
 		return nil
 	}
+
+	var err error
 
 	if spdrInfo.UEIP.IsValid() {
-		return bpfObjects.DeletePdrDownlink(spdrInfo.UEIP)
+		for _, entry := range sess.ListPDRs() {
+			if keyedDownlink(entry) && entry.UEIP == spdrInfo.UEIP && entry.PdrID != spdrInfo.PdrID {
+				return applyPDR(entry, sess, bpfObjects)
+			}
+		}
+
+		err = bpfObjects.DeletePdrDownlink(spdrInfo.UEIP)
+	} else {
+		if spdrInfo.TeID == 0 {
+			return nil
+		}
+
+		if entry, ok := sess.tunnelEntry(spdrInfo.TeID); ok && entry.PdrID != spdrInfo.PdrID {
+			return applyPDR(entry, sess, bpfObjects)
+		}
+
+		err = bpfObjects.DeletePdrUplink(spdrInfo.TeID)
 	}
 
-	if spdrInfo.TeID == 0 {
+	if errors.Is(err, cebpf.ErrKeyNotExist) {
 		return nil
 	}
 
-	if entry, ok := sess.tunnelEntry(spdrInfo.TeID); ok && entry.PdrID != spdrInfo.PdrID {
-		return applyPDR(entry, sess, bpfObjects)
-	}
-
-	return bpfObjects.DeletePdrUplink(spdrInfo.TeID)
+	return err
 }

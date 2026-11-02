@@ -236,7 +236,12 @@ type N3N6EntrypointQerKey struct {
 }
 
 type N3N6EntrypointQerWindow struct {
-	_       structs.HostLayout
+	_    structs.HostLayout
+	Lock struct {
+		_   structs.HostLayout
+		Val uint32
+	}
+	Pad     uint32
 	UlStart uint64
 	DlStart uint64
 }
