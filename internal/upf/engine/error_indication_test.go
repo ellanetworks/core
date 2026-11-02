@@ -30,6 +30,8 @@ func (r *recordingReportHandler) SendFlowReports(context.Context, []*models.Flow
 	return nil
 }
 
+func (r *recordingReportHandler) UserPlaneSessionCleaned(context.Context, uint64) {}
+
 func addSessionWithFAR(eng *SessionEngine, seid uint64, farID uint32, far ebpf.FarInfo) {
 	sess := NewSession(seid)
 	sess.PutFar(farID, far)

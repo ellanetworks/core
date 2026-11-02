@@ -4,11 +4,8 @@
 package integration_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -329,42 +326,4 @@ func waitForHAIMSLinks(ctx context.Context, nodes []*client.Client) error {
 
 		time.Sleep(time.Second)
 	}
-}
-
-func callIMS(ctx context.Context, method, path string, body, out any) error {
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, imsAPIAddress()+path, bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	payload, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, payload)
-	}
-
-	if out == nil {
-		return nil
-	}
-
-	return json.Unmarshal(payload, &struct {
-		Result any `json:"result"`
-	}{Result: out})
 }

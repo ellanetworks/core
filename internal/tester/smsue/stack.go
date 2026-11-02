@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/tester/tpdu"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
 )
@@ -34,6 +35,10 @@ type Stack struct {
 	answered   map[uint8][]byte
 	inbox      chan Message
 	rejected   chan struct{}
+	// uicc, when set, takes the (U)SIM data downloads.
+	uicc UICC
+
+	proactive sync.Mutex
 }
 
 func New(send func(cp []byte) error) *Stack {
@@ -48,6 +53,15 @@ func New(send func(cp []byte) error) *Stack {
 
 var memoryFullDeliverReport = []byte{0x00, 0xd3, 0x00}
 
+// SetUICC makes uicc the card that takes the (U)SIM data downloads, as an ME whose USIM has the service "data
+// download via SMS Point-to-point" (TS 31.111 clause 7.1.1.1). Without one, they are received as other messages.
+func (s *Stack) SetUICC(uicc UICC) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.uicc = uicc
+}
+
 func (s *Stack) SetMemoryFull(full bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -61,12 +75,12 @@ func (s *Stack) Submit(ctx context.Context, serviceCentre, to, text string) (sms
 	s.nextRef++
 	s.mu.Unlock()
 
-	tpdu, err := EncodeSubmit(ref, to, text)
+	submit, err := tpdu.EncodeSubmit(ref, to, text)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.originate(ctx, &sms.RPData{Direction: nas.DirectionUplink, Reference: ref, Destination: sms.E164Address(strings.TrimPrefix(serviceCentre, "+")), UserData: tpdu})
+	return s.originate(ctx, &sms.RPData{Direction: nas.DirectionUplink, Reference: ref, Destination: sms.E164Address(strings.TrimPrefix(serviceCentre, "+")), UserData: submit})
 }
 
 func (s *Stack) MemoryAvailable(ctx context.Context) (sms.RPMessage, error) {
@@ -193,11 +207,28 @@ func (s *Stack) terminate(data *sms.CPData) error {
 
 	s.mu.Lock()
 	previous, duplicate := s.answered[data.TransactionIdentifier.Value]
-	full := s.memoryFull
+	full, uicc := s.memoryFull, s.uicc
 	s.mu.Unlock()
 
 	if duplicate && previous != nil && previous[1] == rpData.Reference {
 		return s.sendCP(&sms.CPData{TransactionIdentifier: peer, UserData: previous})
+	}
+
+	deliver, deliverErr := tpdu.DecodeDeliver(rpData.UserData)
+
+	// A (U)SIM data download goes to the UICC, which answers it, and is neither stored nor shown (TS 31.111 clause
+	// 7.1.1.1).
+	if deliverErr == nil && uicc != nil && isDataDownload(deliver) {
+		report, proactive, downloadErr := dataDownload(uicc, rpData, deliver)
+		if err := s.report(data, report); err != nil {
+			return err
+		}
+
+		if proactive {
+			go s.runProactive(uicc)
+		}
+
+		return downloadErr
 	}
 
 	var report sms.RPMessage = &sms.RPAck{Direction: nas.DirectionUplink, Reference: rpData.Reference}
@@ -205,6 +236,31 @@ func (s *Stack) terminate(data *sms.CPData) error {
 		report = &sms.RPError{Direction: nas.DirectionUplink, Reference: rpData.Reference, Cause: sms.RPCauseMemoryCapacityExceeded, UserData: memoryFullDeliverReport}
 	}
 
+	if err := s.report(data, report); err != nil {
+		return err
+	}
+
+	if full {
+		s.rejected <- struct{}{}
+		return nil
+	}
+
+	if deliverErr != nil {
+		return deliverErr
+	}
+
+	text, err := deliver.Text()
+	if err != nil {
+		return err
+	}
+
+	s.inbox <- Message{From: deliver.OriginatingAddress, Text: text}
+
+	return nil
+}
+
+// report answers the RP-DATA in data with the RP report, which it keeps to answer a retransmission of it with.
+func (s *Stack) report(data *sms.CPData, report sms.RPMessage) error {
 	payload, err := report.AppendBinary(nil)
 	if err != nil {
 		return fmt.Errorf("encode RP report: %w", err)
@@ -214,23 +270,7 @@ func (s *Stack) terminate(data *sms.CPData) error {
 	s.answered[data.TransactionIdentifier.Value] = payload
 	s.mu.Unlock()
 
-	if err := s.sendCP(&sms.CPData{TransactionIdentifier: peer, UserData: payload}); err != nil {
-		return err
-	}
-
-	if full {
-		s.rejected <- struct{}{}
-		return nil
-	}
-
-	from, text, err := DecodeDeliver(rpData.UserData)
-	if err != nil {
-		return err
-	}
-
-	s.inbox <- Message{From: from, Text: text}
-
-	return nil
+	return s.sendCP(&sms.CPData{TransactionIdentifier: data.TransactionIdentifier.Peer(), UserData: payload})
 }
 
 func (s *Stack) sendCP(m sms.CPMessage) error {

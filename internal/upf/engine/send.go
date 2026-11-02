@@ -17,6 +17,7 @@ type SMFReportHandler interface {
 	HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error
 	HandleErrorIndicationReport(context.Context, *models.ErrorIndicationReport) error
 	SendFlowReports(context.Context, []*models.FlowReportRequest) error
+	UserPlaneSessionCleaned(ctx context.Context, seid uint64)
 }
 
 func (conn *SessionEngine) SendDownlinkDataReport(ctx context.Context, smf SMFReportHandler, localSeid uint64, pdrid uint16, qfi uint8) error {

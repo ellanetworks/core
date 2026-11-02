@@ -7,13 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"net/netip"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 // DeleteSession deletes an existing UPF session by SEID.
@@ -39,7 +41,7 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	session.opMu.Lock()
 	defer session.opMu.Unlock()
 
-	if session.deleted {
+	if session.deleted && conn.GetSession(req.SEID) != session {
 		return &models.DeleteResponse{}, nil
 	}
 
@@ -50,40 +52,62 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	bpfObjects := conn.BpfObjects
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
-	// An already-removed PDR map key is a benign no-op; the session must still be fully
-	// removed so a torn-down session is not orphaned in the engine (reporting usage and
-	// leaking forwarding state to a later session that reuses the UE IP).
 	var pdrErr error
 
-	for id, pdrInfo := range session.ListPDRs() {
-		session.RemovePDR(id)
+	session.addCleanupPDRs(slices.Collect(maps.Values(session.ListPDRs()))...)
+	session.clearPDRs()
 
-		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
+	var remaining []SPDRInfo
+
+	for _, pdrInfo := range session.cleanupPDRs {
+		if err := pdrContext.withdrawPDR(pdrInfo, bpfObjects); err != nil {
 			pdrErr = errors.Join(pdrErr, err)
+
+			remaining = append(remaining, pdrInfo)
 		}
 	}
 
-	if bpfObjects != nil {
+	session.cleanupPDRs = remaining
+
+	if bpfObjects != nil && !session.unpublished {
 		if err := bpfObjects.DeleteClassifier(req.SEID); err != nil {
 			pdrErr = errors.Join(pdrErr, err)
 		}
 	}
 
-	// Remove the session's framed-route LPM entries alongside its PDRs.
+	var remainingRoutes []netip.Prefix
+
 	for _, fr := range session.FramedRoutes() {
-		if err := bpfObjects.DeleteFramedDownlink(fr); err != nil {
+		if err := withdrawFramedRoute(bpfObjects, session, fr); err != nil {
 			pdrErr = errors.Join(pdrErr, err)
+
+			remainingRoutes = append(remainingRoutes, fr)
 		}
 	}
 
-	if err := conn.waitForPrograms(session); err != nil {
-		logger.From(ctx, logger.UpfLog).Error("usage bytes lost: could not wait for running datapath programs before the final reading",
-			logger.SEID(req.SEID), zap.Error(err))
+	session.SetFramedRoutes(remainingRoutes)
+
+	if pdrErr != nil {
+		span.RecordError(pdrErr)
+		return nil, fmt.Errorf("could not withdraw session references: %w", pdrErr)
+	}
+
+	if !session.unpublished {
+		if err := conn.waitForPrograms(session); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("wait for running datapath programs: %w", err)
+		}
+	}
+
+	if err := conn.deleteQERMeters(session, slices.Sorted(maps.Keys(session.qerMeters))); err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("could not remove session QER meters: %w", err)
 	}
 
 	usage, err := conn.closeUsage(ctx, session)
 	if err != nil {
-		pdrErr = errors.Join(pdrErr, err)
+		span.RecordError(err)
+		return &models.DeleteResponse{Usage: usage}, fmt.Errorf("could not remove session URRs: %w", err)
 	}
 
 	if bpfObjects != nil {
@@ -105,12 +129,6 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	conn.mu.Unlock()
 
 	conn.ReleaseResources(req.SEID)
-
-	if pdrErr != nil {
-		span.RecordError(pdrErr)
-		logger.From(ctx, logger.UpfLog).Warn("deleted session with residual PDR-delete errors",
-			logger.SEID(req.SEID), zap.Error(pdrErr))
-	}
 
 	logger.From(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))
 

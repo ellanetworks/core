@@ -689,6 +689,7 @@ type fakeMME struct {
 	dedicatedMod        []models.DedicatedBearerModification
 	pagedEBIs           []uint8
 	activateErr         error
+	reactivateErr       error
 	deactivateErr       error
 	modifyErr           error
 	dedicatedErr        error
@@ -778,7 +779,7 @@ func (f *fakeMME) ReactivateEPSBearer(_ context.Context, _ string, ebi uint8, re
 	f.reactivated = append(f.reactivated, ebi)
 	f.reactivationReasons = append(f.reactivationReasons, reason)
 
-	return nil
+	return f.reactivateErr
 }
 
 func (f *fakeMME) modifications() []models.EPSBearerModification {

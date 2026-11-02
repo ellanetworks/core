@@ -5,6 +5,7 @@ package smf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -120,13 +121,23 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		return nil
 	}
 
-	usage, err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID)
+	seid := smContext.PFCPContext.SEID
+
+	usage, err := s.upf.DeleteSession(ctx, seid)
 	s.deliverUsage(ctx, smContext, smContext.dataPlane().chargedUsage(usage))
 	s.requestUsageFlush()
 
-	if err != nil {
+	switch {
+	case errors.Is(err, models.ErrSessionNotFound):
+		logger.From(ctx, logger.SmfLog).Info("PFCP session already gone on the UPF",
+			logger.SUPI(smContext.Supi.String()), logger.SEID(seid))
+	case err != nil:
+		s.recordOrphanedLease(smContext)
+
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}
+
+	s.forgetOrphanedLease(seid)
 
 	smContext.Tunnel = nil
 	smContext.PFCPContext = nil
