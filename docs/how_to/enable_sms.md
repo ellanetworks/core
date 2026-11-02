@@ -4,9 +4,7 @@ description: Step-by-step instructions to enable SMS in Ella Core.
 
 # Enable SMS
 
-Ella Core can be integrated with one or more external Short Message Service Centers (SMSC) to allow subscribers in your private mobile network to communicate via SMS.
-
-This guide uses [Ella SMSC](https://github.com/ellanetworks/smsc) to enable SMS, but any 3GPP-compliant SMSC can be used.
+This guide connects Ella Core to an SMSC, such as [Ella SMSC](https://docs.ellanetworks.com/smsc/), so subscribers can send and receive SMS.
 
 ## 1. Configure the SMSC
 
@@ -49,3 +47,5 @@ Send a test SMS message from a phone to another in your private mobile network. 
   ![Ella Core and SMS](../images/sms.png){ width="200" }
   <figcaption>Enable SMS in Ella Core</figcaption>
 </figure>
+
+To also deliver SMS over IP through an IMS, see Ella IMS's [Enable SMS over IP](https://docs.ellanetworks.com/ims/how_to/enable_sms_over_ip/).
