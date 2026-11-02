@@ -65,6 +65,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/buffered_downlink":                "requires local switch enabled; covered by TestIntegration4GBufferedDownlink",
 	"gnb/error_indication":                   "requires local switch enabled; covered by TestIntegration5GErrorIndication",
 	"s1enb/error_indication":                 "requires local switch enabled; covered by TestIntegration4GErrorIndication",
+	"sms/4g_ota_card":                        "manual tool; waits for an external OTA platform",
+	"sms/5g_ota_card":                        "manual tool; waits for an external OTA platform",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP

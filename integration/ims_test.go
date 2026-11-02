@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,29 +151,121 @@ func postIMS(ctx context.Context, path string, body any) error {
 }
 
 func sendIMS(ctx context.Context, method, path string, body any) error {
-	raw, err := json.Marshal(body)
+	return callIMS(ctx, method, path, body, nil)
+}
+
+// imsAdmin is the admin of Ella IMS that the tests initialize it with.
+var imsAdmin = map[string]string{"email": "admin@ellanetworks.com", "password": "integration-test"}
+
+// imsToken is the access token of the IMS API, set by the first call; empty to log in again.
+var imsToken struct {
+	sync.Mutex
+	token string
+}
+
+// callIMS sends body, if any, to the IMS API, and decodes the result of the response into out, if not nil. It logs
+// in on the first call, initializing Ella IMS if no user exists, and again when its token is no longer accepted: it
+// lasts 15 minutes, and each test starts a new Ella IMS.
+func callIMS(ctx context.Context, method, path string, body, out any) error {
+	token, err := imsLogin(ctx, false)
 	if err != nil {
 		return err
+	}
+
+	status, payload, err := doIMS(ctx, method, path, token, body)
+	if err == nil && status == http.StatusUnauthorized {
+		if token, err = imsLogin(ctx, true); err != nil {
+			return err
+		}
+
+		status, payload, err = doIMS(ctx, method, path, token, body)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if status != http.StatusOK && status != http.StatusCreated {
+		return fmt.Errorf("%s %s: %s: %s", method, path, http.StatusText(status), payload)
+	}
+
+	if out == nil {
+		return nil
+	}
+
+	return json.Unmarshal(payload, &struct {
+		Result any `json:"result"`
+	}{Result: out})
+}
+
+// imsLogin returns the access token of the IMS API, logging in if there is none or renew is set.
+func imsLogin(ctx context.Context, renew bool) (string, error) {
+	imsToken.Lock()
+	defer imsToken.Unlock()
+
+	if imsToken.token != "" && !renew {
+		return imsToken.token, nil
+	}
+
+	imsToken.token = ""
+
+	status, payload, err := doIMS(ctx, http.MethodPost, "/api/v1/init", "", imsAdmin)
+	if err == nil && status == http.StatusForbidden {
+		status, payload, err = doIMS(ctx, http.MethodPost, "/api/v1/auth/login", "", imsAdmin)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("log in to Ella IMS: %w", err)
+	}
+
+	if status != http.StatusOK && status != http.StatusCreated {
+		return "", fmt.Errorf("log in to Ella IMS: %s: %s", http.StatusText(status), payload)
+	}
+
+	var res struct {
+		Result struct {
+			Token string `json:"token"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(payload, &res); err != nil || res.Result.Token == "" {
+		return "", fmt.Errorf("log in to Ella IMS: no token in %s", payload)
+	}
+
+	imsToken.token = res.Result.Token
+
+	return imsToken.token, nil
+}
+
+// doIMS sends body, if any, to the IMS API with token, if any, and returns the status and the body of the response.
+func doIMS(ctx context.Context, method, path, token string, body any) (int, []byte, error) {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return 0, nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, imsAPIAddress()+path, bytes.NewReader(raw))
 	if err != nil {
-		return err
+		return 0, nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return 0, nil, err
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		msg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, msg)
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, nil, err
 	}
 
-	return nil
+	return resp.StatusCode, payload, nil
 }
