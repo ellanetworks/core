@@ -5,9 +5,11 @@ package diameter
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -283,55 +285,49 @@ func TestTraceContinuesAcrossNodes(t *testing.T) {
 	}
 }
 
-func TestTraceContextIsSentToConfiguredPeers(t *testing.T) {
+func TestTraceContextIsSentToEveryPeer(t *testing.T) {
 	for _, kind := range transports {
-		t.Run(kind.String(), func(t *testing.T) {
-			_, tp := recording(t)
+		for _, configured := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/configured=%t", kind, configured), func(t *testing.T) {
+				_, tp := recording(t)
 
-			n, p := ellaWithSMSC(t, kind, configuredSMSC(), withTracing(tp))
-			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+				var (
+					n    *Node
+					p    *rawPeer
+					host = "smsc.example.org"
+				)
 
-			ctx, span := tp.Tracer("test").Start(context.Background(), "deliver")
-			defer span.End()
+				if configured {
+					n, p = ellaWithSMSC(t, kind, configuredSMSC(), withTracing(tp))
+					openRaw(t, p, host, appAVP(sgdApp))
+				} else {
+					host = "unknown.example.org"
+					n, p = openUnknown(t, kind, withTracing(tp))
+				}
 
-			got := exchangeWith(t, p, func(context.Context) error {
-				_, err := n.Do(ctx, "smsc", withStaleTraceContext(request()))
-				return err
-			}, func(req *Message) *Message { return answerFrom(req, ResultSuccess) })
+				ctx, span := tp.Tracer("test").Start(context.Background(), "deliver")
+				defer span.End()
 
-			wantFreshTraceparent(t, got)
+				req := withStaleTraceContext(request())
+				req.ApplicationID = sgdApp.ID
+				req.AVPs = append(req.AVPs, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, host))
 
-			if want := span.SpanContext().TraceID().String(); traceAVPs(got)[0].UTF8String()[3:35] != want {
-				t.Errorf("Traceparent %q is not in the caller's trace %s", traceAVPs(got)[0].UTF8String(), want)
-			}
-		})
+				got := exchangeWith(t, p, func(context.Context) error {
+					_, err := n.Send(ctx, req)
+					return err
+				}, func(req *Message) *Message { return answerFrom(req, ResultSuccess) })
+
+				wantFreshTraceparent(t, got)
+
+				if want := span.SpanContext().TraceID().String(); traceAVPs(got)[0].UTF8String()[3:35] != want {
+					t.Errorf("Traceparent %q is not in the caller's trace %s", traceAVPs(got)[0].UTF8String(), want)
+				}
+			})
+		}
 	}
 }
 
-func TestOnlyConfiguredPeersAreTrusted(t *testing.T) {
-	tests := []struct {
-		name    string
-		peer    *Peer
-		dynamic bool
-		trusts  bool
-	}{
-		{"configured", &Peer{ID: "hss"}, false, true},
-		{"redirect target", &Peer{ID: "hss"}, true, false},
-		{"unknown", nil, false, false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			p := &peer{cfg: tc.peer, dynamic: tc.dynamic}
-
-			if got := p.configured(); got != tc.trusts {
-				t.Fatalf("configured() = %t, want %t", got, tc.trusts)
-			}
-		})
-	}
-}
-
-func TestIncomingTraceContextIsParentOnlyFromConfiguredPeers(t *testing.T) {
+func TestIncomingTraceContextIsParentFromEveryPeer(t *testing.T) {
 	tests := []struct {
 		name        string
 		traceparent string
@@ -361,23 +357,19 @@ func TestIncomingTraceContextIsParentOnlyFromConfiguredPeers(t *testing.T) {
 					t.Fatalf("answer = %d", resultCode(t, ans))
 				}
 
-				server := spanOfKind(t, rec, trace.SpanKindServer)
-
-				if tc.configured {
-					if server.SpanContext().TraceID().String() != remoteTraceID || server.Parent().SpanID().String() != remoteSpanID {
-						t.Fatalf("server span %s parented by %s, want a child of the remote span", server.SpanContext().TraceID(), server.Parent().SpanID())
+				if strings.HasSuffix(tc.traceparent, "-00") {
+					if spans := rec.Ended(); len(spans) != 0 {
+						t.Fatalf("recorded %d spans of a trace its caller did not sample", len(spans))
 					}
 
 					return
 				}
 
-				if server.Parent().IsValid() || server.SpanContext().TraceID().String() == remoteTraceID {
-					t.Fatalf("server span continues the untrusted trace (parent %s)", server.Parent().SpanID())
-				}
-
-				links := server.Links()
-				if len(links) != 1 || links[0].SpanContext.TraceID().String() != remoteTraceID {
-					t.Fatalf("server span links = %+v, want one link to the remote span", links)
+				server := spanOfKind(t, rec, trace.SpanKindServer)
+				if server.SpanContext().TraceID().String() != remoteTraceID || server.Parent().SpanID().String() != remoteSpanID ||
+					len(server.Links()) != 0 {
+					t.Fatalf("server span %s parented by %s, links %+v; want a child of the remote span",
+						server.SpanContext().TraceID(), server.Parent().SpanID(), server.Links())
 				}
 			})
 		}

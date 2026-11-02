@@ -494,7 +494,6 @@ func (n *Node) acceptCEA(c *Conn, host string, common map[uint32]bool) ([]*Conn,
 
 func (n *Node) openLocked(p *peer, c *Conn) {
 	c.reopen = p.everOpen && p.cfg != nil
-	c.tracesContext = p.configured()
 	p.everOpen = true
 	p.open = c
 	p.suppress = false

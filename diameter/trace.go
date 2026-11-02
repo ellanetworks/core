@@ -101,20 +101,12 @@ func (c *Conn) startServerSpan(m *Message) (context.Context, trace.Span) {
 	name, attrs := methodAttributes(m)
 	attrs = append(attrs, transportAttributes(c)...)
 
-	opts := []trace.SpanStartOption{trace.WithSpanKind(trace.SpanKindServer)}
 	ctx := c.ctx
-
-	remote := trace.SpanContextFromContext(traceContext.Extract(context.Background(), avpCarrier{avps: &m.AVPs}))
-
-	switch {
-	case !remote.IsValid():
-	case c.tracesContext:
+	if remote := trace.SpanContextFromContext(traceContext.Extract(context.Background(), avpCarrier{avps: &m.AVPs})); remote.IsValid() {
 		ctx = trace.ContextWithRemoteSpanContext(ctx, remote)
-	default:
-		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: remote}))
 	}
 
-	return c.n.tracer.Start(ctx, name, append(opts, trace.WithAttributes(attrs...))...)
+	return c.n.tracer.Start(ctx, name, trace.WithSpanKind(trace.SpanKindServer), trace.WithAttributes(attrs...))
 }
 
 func handlerFailure(ans *Message) string {
@@ -250,7 +242,7 @@ func (c *Conn) traceRequest(ctx context.Context, req *Message) {
 		span.SetAttributes(transportAttributes(c)...)
 	}
 
-	inject := c.tracesContext && span.SpanContext().IsValid()
+	inject := span.SpanContext().IsValid()
 	if !inject && !slices.ContainsFunc(req.AVPs, isTraceContext) {
 		return
 	}
