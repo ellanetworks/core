@@ -125,6 +125,22 @@ func TestVoiceRuleActivatesADedicatedBearer(t *testing.T) {
 	}
 }
 
+func TestDedicatedBearerQERCarriesItsQCI(t *testing.T) {
+	s, _, upf, _, ref := epsReconcileFixture(t, 0)
+
+	pushRules(t, s, ref, voiceRule())
+
+	m := lastModify(t, upf)
+
+	if !slices.ContainsFunc(m.UpdateQERs, func(q models.QER) bool { return q.QERID >= 256 && q.FiveQI == 1 }) {
+		t.Fatalf("UPF QERs %+v, want the dedicated bearer's QER at QCI 1", m.UpdateQERs)
+	}
+
+	if i := slices.IndexFunc(m.UpdateQERs, func(q models.QER) bool { return q.QERID == 1 }); i < 0 || m.UpdateQERs[i].FiveQI != 9 {
+		t.Fatalf("UPF QERs %+v, want the default bearer's QER at QCI 9", m.UpdateQERs)
+	}
+}
+
 func TestFailedDedicatedBearerReportsItsRules(t *testing.T) {
 	s, pcf, upf, _, ref := epsReconcileFixture(t, 0)
 

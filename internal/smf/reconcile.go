@@ -637,10 +637,10 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 // updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
 // plane (TS 29.244).
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
-	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
+	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
 }
 
-func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {
+func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi, fiveQI uint8, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return fmt.Errorf("PFCP session not established")
 	}
@@ -651,6 +651,7 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 
 	next := smContext.Tunnel.dataPlane
 	next.QFI = qfi
+	next.FiveQI = fiveQI
 	next.AMBR = models.Ambr{Uplink: ambrUplink, Downlink: ambrDownlink}
 	next.RatingGroup = ratingGroup
 
