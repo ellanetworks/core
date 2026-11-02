@@ -4,41 +4,41 @@ description: Explanation of how SMS functionality works in Ella Core.
 
 # SMS Integration
 
-Ella Core lets subscribers send and receive SMS over 4G and 5G. Messages are stored and forwarded by an external Short Message Service Center (SMSC), and Ella Core carries them between the phones and the SMSC.
+Ella Core lets subscribers send and receive SMS over 4G and 5G. Messages are stored and forwarded by an external Short Message Service Center (SMSC), such as [Ella SMSC](https://docs.ellanetworks.com/smsc/). Ella Core works with any 3GPP-compliant SMSC.
 
-Ella Core works with any 3GPP-compliant SMSC, for example [Ella SMSC](https://github.com/ellanetworks/smsc).
+A phone exchanges SMS in one of two ways: over NAS, through Ella Core, or over IP, through an IMS.
+
+## SMS over NAS
 
 <figure markdown="span">
-  ![Ella Core and the SMSC](../images/sms_diagram.svg){ width="700" }
-  <figcaption>Ella Core and the SMSC</figcaption>
+  ![SMS over NAS](../images/sms_over_nas.svg){ width="700" }
+  <figcaption>SMS over NAS</figcaption>
 </figure>
 
-## The role of Ella Core
+The message travels inside the signalling between the phone and Ella Core. Ella Core carries it to and from the SMSC, as the MME on 4G or the SMSF on 5G.
 
-Ella Core connects to each SMSC over Diameter (SCTP), and plays two roles:
+As the HSS, Ella Core tells the SMSC where each recipient is served. When a phone that missed messages is reachable again, Ella Core alerts the SMSC.
 
-| Role | Interface | Used for |
-| ---- | --------- | -------- |
-| MME (4G) / SMSF (5G) | SGd | Carrying messages between the phones and the SMSC. |
-| HSS | S6c | Telling the SMSC where to deliver messages, and when a phone can receive them again. |
+## SMS over IP
 
-Messages travel between the phone and Ella Core inside NAS signalling (SMS over NAS), or between the phone and the IMS's IP-SM-GW over SIP (SMS over IP).
+<figure markdown="span">
+  ![SMS over IP](../images/sms_over_ip.svg){ width="700" }
+  <figcaption>SMS over IP</figcaption>
+</figure>
+
+The message travels as SIP through the IMS, whose IP-SM-GW carries it to and from the SMSC. Ella Core carries the SIP in the user plane, like any other IMS traffic.
+
+As the HSS, Ella Core sends the SMSC's routing requests to the IP-SM-GW while the phone is registered for SMS over IP. If the IMS cannot deliver a message, the IP-SM-GW sends it through Ella Core over NAS.
 
 ## Who can use SMS
 
-Ella Core allows SMS when all of the following hold:
+Ella Core allows SMS when:
 
 - At least one SMSC is configured.
-- Ella Core's SMS number is set on the Operator page.
+- Ella Core's SMS number is set. This is the number Ella Core gives the SMSC for itself, as the node serving the phone.
 - The subscriber has an MSISDN.
 
 On 5G, the phone asks for SMS when it registers. On 4G, the phone asks with a combined attach, and Ella Core accepts it for SMS only.
-
-## Delivery
-
-- **Sending**: Ella Core forwards the phone's message over SGd to the SMSC that serves the SMSC number stored on the phone's SIM. Ella Core rejects a message whose SMSC number is not an international E.164 number.
-- **Receiving**: The SMSC asks Ella Core over S6c where the recipient is served, then sends the message over SGd. Ella Core pages the phone if it is idle and delivers the message. While an IP-SM-GW is registered for the recipient, Ella Core passes the SMSC's request to the IP-SM-GW, which delivers the message over the IMS.
-- **Undelivered messages**: When the phone is unreachable or its memory is full, Ella Core records that a message is waiting, and alerts the SMSC over S6c once the phone can receive it.
 
 ## In an HA cluster
 
@@ -52,3 +52,4 @@ Each node of a [High Availability](high_availability.md) cluster connects to eve
 - [Enable SMS](../how_to/enable_sms.md) — step-by-step guide to enable SMS.
 - [Operator API reference](../reference/api/operator.md) — SMS number and SMSC peers.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported SGd and S6c procedures.
+- [Enable SMS over IP](https://docs.ellanetworks.com/ims/how_to/enable_sms_over_ip/) — SMS over IP with Ella IMS.
