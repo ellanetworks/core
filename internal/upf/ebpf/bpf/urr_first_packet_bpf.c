@@ -4,7 +4,7 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-#include "bpf/utils/urr.h"
+#include "bpf/utils/urr_map.h"
 
 struct urr_first_packet_args {
 	__u64 seid;

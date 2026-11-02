@@ -75,6 +75,14 @@ func TestIntegrationSMS(t *testing.T) {
 			continue
 		}
 
+		if reason, skip := scenariosSkipped[name]; skip {
+			tr := registerScenarioTest(name)
+			t.Run(name, func(t *testing.T) { t.Skipf("%s: %s", name, reason) })
+			skipScenarioTest(tr, reason)
+
+			continue
+		}
+
 		sc, ok := scenarios.Get(name)
 		Assert(t, ok, fmt.Sprintf("scenario %q not registered", name))
 

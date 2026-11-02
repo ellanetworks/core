@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
-	"github.com/ellanetworks/core/internal/tester/smsue"
+	"github.com/ellanetworks/core/internal/tester/tpdu"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
 	"github.com/ellanetworks/ims/sip"
@@ -108,7 +108,7 @@ func RequireIMSSMS(ctx context.Context, sender, receiver IMSEndpoint, transport 
 	sc := strings.TrimPrefix(serviceCentre, "+")
 	text := "sms over ip " + string(transport)
 
-	submit, err := smsue.EncodeSubmit(1, receiver.Subscriber.MSISDN, text)
+	submit, err := tpdu.EncodeSubmit(1, receiver.Subscriber.MSISDN, text)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,14 @@ func RequireIMSSMS(ctx context.Context, sender, receiver IMSEndpoint, transport 
 		return fmt.Errorf("short message %+v, want an RP-DATA", rp)
 	}
 
-	from, got, err := smsue.DecodeDeliver(deliver.UserData)
+	d, err := tpdu.DecodeDeliver(deliver.UserData)
+	if err != nil {
+		return fmt.Errorf("SMS-DELIVER %x: %w", deliver.UserData, err)
+	}
+
+	from := d.OriginatingAddress
+
+	got, err := d.Text()
 	if err != nil {
 		return fmt.Errorf("SMS-DELIVER %x: %w", deliver.UserData, err)
 	}

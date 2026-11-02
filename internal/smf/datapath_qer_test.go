@@ -117,7 +117,7 @@ func TestDataPlaneTransitionsKeepUPFQERInvariants(t *testing.T) {
 				}
 
 				if i == 0 {
-					req := step.dp.establishRequest(1, "001010000000001", "", nil, false)
+					req := step.dp.establishRequest(1, "001010000000001", "", nil, "", nil, false)
 					checkUPFQERInvariants(t, step.name, req.PDRs, req.QERs, nil)
 				} else {
 					req := step.dp.modifyRequest(prev, 1, "")

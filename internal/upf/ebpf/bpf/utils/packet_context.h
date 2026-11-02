@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <bpf/bpf_helpers.h>
 #include "bpf/utils/statistics.h"
+#include "bpf/utils/traffic_class.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -225,12 +226,15 @@ egress_vlan_reflected(const struct packet_context *ctx)
 static __always_inline int record_action(struct packet_context *ctx,
 					 enum ctx_action action)
 {
-	if (!ctx_action_forwards(action))
+	if (!ctx_action_forwards(action)) {
 		ctx->statistics->drop_reasons[ctx->drop_reason &
 					      UPF_DROP_REASON_MASK] += 1;
-	else
+		traffic_class_settle(ctx->drop_reason);
+	} else {
 		ctx->statistics->forwarded_actions[action & UPF_ACTION_MASK] +=
 			1;
+		traffic_class_release();
+	}
 
 	return ctx_verdict(action);
 }
