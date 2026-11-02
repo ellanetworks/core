@@ -150,6 +150,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		UEIPv6:      addrs.IPv6Prefix,
 		Access:      req.Access,
 		QFI:         req.Policy.QosData.QFI,
+		FiveQI:      uint8(req.Policy.QosData.Var5qi),
 		AMBR:        req.Policy.Ambr,
 		RatingGroup: req.Policy.RatingGroup,
 	}}
@@ -252,9 +253,10 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 // eNB S1-U endpoint (4G, via the MME) or the gNB N3 endpoint (5G, from an N2
 // transfer). Exactly one of IPv4/IPv6 is set.
 type AnchorBinding struct {
-	TEID uint32
-	IPv4 net.IP
-	IPv6 net.IP
+	TEID    uint32
+	IPv4    net.IP
+	IPv6    net.IP
+	RadioID string
 }
 
 func (a AnchorBinding) bound() bool {
@@ -303,7 +305,7 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return err
 	}
 
-	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes, smContext.PolicyData.IMS)
+	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.Snssai, smContext.Dnn, smContext.FramedRoutes, smContext.PolicyData.IMS)
 
 	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {
@@ -345,6 +347,8 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 	if err := next.assignURRs(sc.Tunnel.dataPlane); err != nil {
 		return fmt.Errorf("session %q: %w", sc.Ref, err)
 	}
+
+	next = next.withServingRadios(ctx, sc.Tunnel.dataPlane)
 
 	req := next.modifyRequest(sc.Tunnel.dataPlane, sc.PFCPContext.SEID, policyID)
 	req.SendEndMarkers = next.accessSwitchedFrom(sc.Tunnel.dataPlane)

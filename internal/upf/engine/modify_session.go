@@ -146,10 +146,13 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	var endMarkers []endMarkerTarget
 
+	accessRadio := session.accessRadio()
+
 	for _, far := range req.UpdateFARs {
 		oldFarInfo := session.GetFar(far.FARID)
 
 		sFarInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, oldFarInfo)
+		sFarInfo.RadioID = conn.radioID(far, oldFarInfo.RadioID)
 
 		if req.SendEndMarkers {
 			if target, ok := endMarkerTargetFor(oldFarInfo, sFarInfo); ok {
@@ -170,6 +173,9 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	for _, qer := range req.UpdateQERs {
 		qerInfo := qerInfoFromMerge(qer, session.GetQer(qer.QERID))
+		if qer.FiveQI != 0 {
+			qerInfo.ClassID = conn.trafficClassID(session, qer.FiveQI)
+		}
 
 		session.PutQer(qer.QERID, qerInfo)
 
@@ -297,6 +303,11 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 	}
 
 	supersededTEIDs := make(map[uint32]struct{})
+
+	if session.accessRadio() != accessRadio {
+		restampReferencingPDRs(session, touched, func(p SPDRInfo) bool { return !p.UEIP.IsValid() && p.TeID != 0 },
+			func(*SPDRInfo) {})
+	}
 
 	for _, pdrID := range slices.Sorted(maps.Keys(touched)) {
 		spdrInfo := session.GetPDR(pdrID)

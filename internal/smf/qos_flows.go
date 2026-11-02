@@ -440,7 +440,7 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 	b := &dedicatedBearer{slot: slot, qfi: qfi, pending: &bearerConfig{binding: binding}}
 
 	next := sc.Tunnel.dataPlane
-	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, QFI: qfi})
+	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, QFI: qfi, FiveQI: binding.QCI})
 
 	if err := s.applyDataPlane(ctx, sc, next, sc.policyID()); err != nil {
 		return nil, fmt.Errorf("add the QoS flow's user plane: %w", err)

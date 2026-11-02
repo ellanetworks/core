@@ -385,7 +385,7 @@ func (s *SMF) addDedicatedLocked(ctx context.Context, sc *SMContext, binding bea
 	b := &dedicatedBearer{slot: slot, pending: &bearerConfig{binding: binding, rules: rules}}
 
 	next := sc.Tunnel.dataPlane
-	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, Rules: sc.legRulesLocked(b, ruleSet{tft, rules})})
+	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, FiveQI: binding.QCI, Rules: sc.legRulesLocked(b, ruleSet{tft, rules})})
 
 	if err := next.checkSDFCapacity(); err != nil {
 		return nil, err

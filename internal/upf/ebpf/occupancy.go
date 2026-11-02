@@ -19,6 +19,8 @@ const (
 	MapFramedDownlinkIP6 = "framed_downlink_ip6"
 	MapURR               = "urr_map"
 	MapSdfClassifiers    = "sdf_classifiers"
+	MapTrafficClassDrops = "traffic_class_drops"
+	MapRadioDrops        = "radio_drops"
 	MapQerWindows        = "qer_windows"
 )
 
@@ -32,6 +34,8 @@ var TrackedMaps = []string{
 	MapFramedDownlinkIP6,
 	MapURR,
 	MapSdfClassifiers,
+	MapTrafficClassDrops,
+	MapRadioDrops,
 	MapQerWindows,
 }
 
@@ -55,6 +59,10 @@ func (bpfObjects *BpfObjects) mapByName(name string) *ebpf.Map {
 		return bpfObjects.UrrMap
 	case MapSdfClassifiers:
 		return bpfObjects.SdfClassifiers
+	case MapTrafficClassDrops:
+		return bpfObjects.TrafficClassDrops
+	case MapRadioDrops:
+		return bpfObjects.RadioDrops
 	case MapQerWindows:
 		return bpfObjects.QerWindows
 	}

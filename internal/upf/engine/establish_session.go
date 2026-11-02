@@ -65,6 +65,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	sess := NewSession(seid)
 	sess.unpublished = true
 	sess.SetIMSI(req.IMSI)
+	sess.SetTrafficClass(req.Snssai, req.DNN)
 	sess.SetLocalSwitch(req.LocalSwitch)
 	sess.SetNATExempt(req.NATExempt)
 	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
@@ -132,6 +133,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	for _, far := range req.FARs {
 		farInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, ebpf.FarInfo{})
+		farInfo.RadioID = conn.radioID(far, 0)
 
 		go conn.addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
@@ -144,6 +146,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	for _, qer := range req.QERs {
 		qerInfo := qerInfoFromMerge(qer, ebpf.QerInfo{})
+		qerInfo.ClassID = conn.trafficClassID(sess, qer.FiveQI)
 
 		sess.PutQer(qer.QERID, qerInfo)
 		qerMap[qer.QERID] = qerInfo
