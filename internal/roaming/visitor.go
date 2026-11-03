@@ -4,6 +4,8 @@
 package roaming
 
 import (
+	"time"
+
 	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
@@ -18,6 +20,7 @@ type Visitor struct {
 	Subscription *s6a.SubscriptionData
 	Registered   bool
 	Confirmed    bool
+	Since        time.Time
 }
 
 func NewVisitor(partner db.RoamingPartner, plmn db.RoamingPLMN) (Visitor, error) {
@@ -29,7 +32,8 @@ func NewVisitor(partner db.RoamingPartner, plmn db.RoamingPLMN) (Visitor, error)
 	return Visitor{
 		PartnerID:   partner.ID,
 		PartnerName: partner.Name,
+		Since:       time.Now(),
 		HomePLMN:    plmnOf(plmn),
-		Home:        Home{Realm: realm},
+		Home:        Home{Realm: realm, Partner: partner.Name},
 	}, nil
 }

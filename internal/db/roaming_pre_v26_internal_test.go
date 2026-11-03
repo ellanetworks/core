@@ -100,6 +100,14 @@ func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("GetUsagePerSubscriber at schema 25: %v", err)
 	}
 
+	if err := d.IncrementDailyUsage(ctx, DailyUsage{EpochDay: DaysSinceEpoch(time.Now()), IMSI: imsi, BytesUplink: 1, BytesDownlink: 2}); err != nil {
+		t.Fatalf("IncrementDailyUsage at schema 25: %v", err)
+	}
+
+	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now())); err != nil || len(perDay) != 1 || perDay[0].BytesUplink != 1 {
+		t.Fatalf("GetUsagePerDay at schema 25 = %+v, %v", perDay, err)
+	}
+
 	if _, err := d.ListSubscriberIMSFilterCriteria(ctx, imsi, IMSRegistrationSetMMTel); err != nil {
 		t.Fatalf("ListSubscriberIMSFilterCriteria at schema 25: %v", err)
 	}

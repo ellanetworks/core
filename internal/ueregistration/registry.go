@@ -33,6 +33,7 @@ const (
 	SubscriberDeleted Withdrawal = iota
 	RoamingWithdrawn
 	RoamingAgreementWithdrawn
+	RoamerDeregistered
 )
 
 type Holder interface {
@@ -330,7 +331,10 @@ func (b *Binding) roamingOutcome(ctx context.Context, imsi string) (outcome, Wit
 		return outcomeKept, 0
 	}
 
-	if w.AgreementOnly() {
+	switch {
+	case w.RoamerOnly():
+		return outcomeWithdrawn, RoamerDeregistered
+	case w.AgreementOnly():
 		return outcomeWithdrawn, RoamingAgreementWithdrawn
 	}
 

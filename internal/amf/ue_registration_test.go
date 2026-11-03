@@ -50,6 +50,10 @@ func (f *fakeRegistrar) Register(_ context.Context, imsi string) (int64, error) 
 	return f.next, nil
 }
 
+func (f *fakeRegistrar) RegisterVisitor(ctx context.Context, imsi, _ string) (int64, error) {
+	return f.Register(ctx, imsi)
+}
+
 func (f *fakeRegistrar) Confirmed(_ context.Context, imsi string, _ int64) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()

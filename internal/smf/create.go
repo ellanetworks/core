@@ -135,6 +135,28 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	s.supersedeIdentityHolders(ctx, supi, SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity}, Access5G)
 
+	home, err := s.openHomeSession(ctx, supi, pduSessionID, snssai, dnn)
+	if err != nil {
+		establishmentResult = metrics.ResultReject
+
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, homeRejectCause(err))
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("home network refused the session: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("home network refused the session: %w", err)
+	}
+
+	homeBound := false
+
+	if home != nil {
+		defer func() {
+			if !homeBound {
+				home.Close()
+			}
+		}()
+	}
+
 	inputs, err := s.prepareSession(ctx, supi, snssai, dnn)
 	if err != nil {
 		establishmentResult = metrics.ResultReject
@@ -154,11 +176,16 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		requestedType = fgs.PDUSessionType(normalisePDUSessionType(uint8(*req.PDUSessionType)))
 	}
 
-	negotiatedType, err := s.negotiatePDUSessionType(ctx, uint8(requestedType), policy)
+	typePolicy := policy
+	if home != nil {
+		typePolicy = restrictToHome(policy, uint8(requestedType), home.Rules())
+	}
+
+	negotiatedType, err := s.negotiatePDUSessionType(ctx, uint8(requestedType), typePolicy)
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, pduSessionTypeRejectCause(uint8(requestedType), policy))
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, pduSessionTypeRejectCause(uint8(requestedType), typePolicy))
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("PDU session type negotiation failed: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -189,9 +216,12 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		DN:         inputs.dn,
 		Subscribed: inputs.subscribed,
 		HomePLMN:   inputs.homePLMN,
+		Home:       home,
 
 		MaxPacketFilters: requestedMaxPacketFilters(req),
 	})
+	homeBound = home != nil && sc != nil
+
 	if err != nil {
 		establishmentResult = metrics.ResultReject
 
@@ -351,7 +381,13 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	smContext.establishmentOutstanding = true
 	smContext.Mutex.Unlock()
 
-	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.PCSCF, policy.MTU, cause, addrs, alwaysOn, epsBearerIdentity)
+	var mapped *models.Snssai
+
+	if h := smContext.homeSession(); h != nil {
+		mapped = new(h.Rules().HomeSnssai)
+	}
+
+	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, mapped, smContext.Dnn, pco, policy.DNS, policy.PCSCF, policy.MTU, cause, addrs, alwaysOn, epsBearerIdentity)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")

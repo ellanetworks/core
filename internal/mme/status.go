@@ -158,7 +158,7 @@ func (m *MME) CountRegisteredSubscribers() int {
 	count := 0
 
 	for _, ue := range m.UEs {
-		if ue.EMMState() == EMMRegistered && ue.imsiOrEmpty() != "" {
+		if ue.EMMState() == EMMRegistered && ue.imsiOrEmpty() != "" && !ue.IsVisitor() {
 			count++
 		}
 	}

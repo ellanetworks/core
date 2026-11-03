@@ -17,7 +17,6 @@ import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
 import { diameterIdentityRegex } from "@/components/SMSCPeerModal";
 import { isHostAddress } from "@/utils/ip";
-import { PRODUCT } from "@/utils/product";
 
 interface RoamingDiameterPeerModalProps {
   open: boolean;
@@ -91,15 +90,16 @@ const RoamingDiameterPeerModal: React.FC<RoamingDiameterPeerModalProps> = ({
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
-      title={peer ? "Edit Diameter Peer" : "Add Diameter Peer"}
-      description={`${PRODUCT.name} connects to this peer over Diameter (S6a) to reach the home HSS of 4G roamers: the partner's HSS itself or a Diameter Edge Agent.`}
+      title={peer ? "Edit Diameter Peer" : "Create Diameter Peer"}
       form={form}
       onSubmit={submit}
       errorPrefix={
-        peer ? "Failed to update Diameter peer" : "Failed to add Diameter peer"
+        peer
+          ? "Failed to update Diameter peer"
+          : "Failed to create Diameter peer"
       }
-      submitLabel={peer ? "Update" : "Add"}
-      submittingLabel={peer ? "Updating..." : "Adding..."}
+      submitLabel={peer ? "Update" : "Create"}
+      submittingLabel={peer ? "Updating..." : "Creating..."}
       fullWidth={false}
     >
       <TextControl<FormValues>

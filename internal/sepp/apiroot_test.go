@@ -180,8 +180,19 @@ func TestCallback(t *testing.T) {
 		t.Fatalf("SMF URI = %q, %v", uri, err)
 	}
 
+	smfDereg := Callback{NF: CallbackSMF, SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg}
+
+	uri, err = smfDereg.URI(op)
+	if err != nil || uri != "https://smf1.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg" {
+		t.Fatalf("SMF deregistration URI = %q, %v", uri, err)
+	}
+
+	if back, err := ParseCallback(http.MethodPost, "smf1.5gc.mnc070.mcc999.3gppnetwork.org", smfDereg.Path(), op); err != nil || back != smfDereg {
+		t.Fatalf("ParseCallback(SMF deregistration) = %+v, %v", back, err)
+	}
+
 	for _, bad := range []Callback{
-		{NF: CallbackSMF, SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg},
+		{NF: CallbackSMF, SEPPID: 1, Supi: "imsi-001010000000001", Kind: "uecm-purge"},
 		{NF: "pcf", SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
 		{NF: CallbackAMF, SEPPID: 0, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
 		{NF: CallbackAMF, SEPPID: 64, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
@@ -208,7 +219,7 @@ func TestCallback(t *testing.T) {
 		{http.MethodPost, "amf+3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
 		{http.MethodPost, "pcf3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/sdm-change"},
 		{http.MethodPost, host, "/roaming-callbacks/v2/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, "smf3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "smf3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-purge"},
 		{http.MethodPost, "amf3.5gc.mnc001.mcc001.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/sdm-change"},
 		{http.MethodPost, host, "/roaming-callbacks/v1/suci-0-001-01-0-0-0-1/sdm-change"},
 		{http.MethodPost, host, "/roaming-callbacks/v1//sdm-change"},

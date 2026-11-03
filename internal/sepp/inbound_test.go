@@ -94,7 +94,7 @@ func TestInboundChecks(t *testing.T) {
 		"wrong originating network":  {http.MethodPost, deregURI, withONI(target(ownAMF), "999-70"), 403, wire.CauseOriginatingNetworkIDMismatch},
 		"malformed originating id":   {http.MethodPost, deregURI, withONI(target(ownAMF), "x"), 400, wire.CauseMandatoryIEIncorrect},
 		"path not allowed":           {http.MethodPost, "/nudm-sdm/v2/imsi-001010000000001", target(ownAMF), 404, wire.CauseResourceURIStructureNotFound},
-		"SMF dereg not allowed":      {http.MethodPost, deregURI, target("https://smf1.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseResourceURIStructureNotFound},
+		"SMF dereg, no handler":      {http.MethodPost, deregURI, target("https://smf1.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseContextNotFound},
 		"method not allowed":         {http.MethodPut, deregURI, target(ownAMF), 404, wire.CauseResourceURIStructureNotFound},
 		"SUPI of another PLMN":       {http.MethodPost, "/roaming-callbacks/v1/imsi-999700000000001/uecm-dereg", target(ownAMF), 404, wire.CauseContextNotFound},
 		"own node, no handler":       {http.MethodPost, deregURI, withONI(target(ownAMF), "001-01"), 404, wire.CauseContextNotFound},
@@ -153,6 +153,16 @@ func TestInboundDispatchToCallbacks(t *testing.T) {
 
 	if c.target != "" || c.host != strings.TrimPrefix(ownAMF, "https://") || c.body != `{"deregReason":"UE_INITIAL_REGISTRATION"}` {
 		t.Fatalf("dispatched request: %+v", c)
+	}
+
+	got = p.send(t, x, http.MethodPost, deregURI, target("https://smf1.5gc.mnc070.mcc999.3gppnetwork.org"), []byte(`{"deregReason":"DUPLICATE_PDU_SESSION","pduSessionId":5}`))
+	if got.status != http.StatusNoContent {
+		t.Fatalf("SMF callback: %d %s", got.status, got.body)
+	}
+
+	c = <-calls
+	if !c.ok || c.peer.Callback != (Callback{NF: CallbackSMF, SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg}) || c.host != "smf1.5gc.mnc070.mcc999.3gppnetwork.org" {
+		t.Fatalf("SMF callback dispatch: %+v", c)
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
@@ -132,6 +133,8 @@ type UeContext struct {
 	nrppaRoutingIDs map[int64]struct{}
 
 	paging pagingProc
+
+	visitor *roaming.Visitor5G
 }
 
 func NewUeContext() *UeContext {

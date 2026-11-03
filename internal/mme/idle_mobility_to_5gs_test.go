@@ -295,9 +295,9 @@ func TestMMContextRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
 		{
 			name:    "roaming visitor",
 			store:   lookupBearerStore{sub: &db.Subscriber{Imsi: "001010000000001", ProfileID: "test-profile", RoamingPartnerID: &partner}},
-			wantErr: interworking.ErrNotHomeSubscriber,
+			wantErr: interworking.ErrN26NotAllowed,
 		},
-		{name: "subscriber row gone", store: lookupBearerStore{err: db.ErrNotFound}, wantErr: interworking.ErrNotHomeSubscriber},
+		{name: "subscriber row gone", store: lookupBearerStore{err: db.ErrNotFound}, wantErr: interworking.ErrN26NotAllowed},
 		{name: "lookup failure", store: lookupBearerStore{err: failure}, wantErr: failure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

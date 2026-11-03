@@ -209,8 +209,8 @@ func TestEPSContextRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
 		lookupErr error
 		wantErr   error
 	}{
-		{name: "roaming visitor", visitor: true, wantErr: interworking.ErrNotHomeSubscriber},
-		{name: "subscriber row gone", lookupErr: db.ErrNotFound, wantErr: interworking.ErrNotHomeSubscriber},
+		{name: "roaming visitor", visitor: true, wantErr: interworking.ErrN26NotAllowed},
+		{name: "subscriber row gone", lookupErr: db.ErrNotFound, wantErr: interworking.ErrN26NotAllowed},
 		{name: "lookup failure", lookupErr: failure, wantErr: failure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

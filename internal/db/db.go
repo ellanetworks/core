@@ -107,7 +107,10 @@ type Database struct {
 	listWithdrawalsOfPartnerStmt       *sqlair.Statement
 	insertRoamingWithdrawalStmt        *sqlair.Statement
 	deleteWithdrawalsOfPartnerStmt     *sqlair.Statement
+	deleteRoamerWithdrawalStmt         *sqlair.Statement
 	listVisitorRegistrationsOfNodeStmt *sqlair.Statement
+	listVisitorRegistrationsStmt       *sqlair.Statement
+	listRoamingUsageOfDayStmt          *sqlair.Statement
 
 	listDiameterPeersStmt         *sqlair.Statement
 	getDiameterPeerStmt           *sqlair.Statement
@@ -177,6 +180,7 @@ type Database struct {
 	// Daily Usage statements
 	incrementDailyUsageStmt         *sqlair.Statement
 	getUsagePerDayStmt              *sqlair.Statement
+	getUsagePerDayPreV26Stmt        *sqlair.Statement
 	getUsagePerSubscriberStmt       *sqlair.Statement
 	getUsagePerSubscriberPreV26Stmt *sqlair.Statement
 	deleteAllDailyUsageStmt         *sqlair.Statement
@@ -450,6 +454,8 @@ type Database struct {
 	listFlowReportsBySubscriberStmt     *sqlair.Statement
 	flowReportProtocolCountsStmt        *sqlair.Statement
 	flowReportTopDestinationsUplinkStmt *sqlair.Statement
+	homeFlowReportProtocolCountsStmt    *sqlair.Statement
+	homeFlowReportTopDestinationsStmt   *sqlair.Statement
 
 	// Session statements
 	createSessionStmt            *sqlair.Statement
@@ -1896,7 +1902,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.listWithdrawalsOfPartnerStmt, fmt.Sprintf(listWithdrawalsOfPartnerStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
 		{&db.insertRoamingWithdrawalStmt, fmt.Sprintf(insertRoamingWithdrawalStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
 		{&db.deleteWithdrawalsOfPartnerStmt, fmt.Sprintf(deleteWithdrawalsOfPartnerStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
+		{&db.deleteRoamerWithdrawalStmt, fmt.Sprintf(deleteRoamerWithdrawalStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
 		{&db.listVisitorRegistrationsOfNodeStmt, fmt.Sprintf(listVisitorRegistrationsOfNodeStmt, UERegistrationsTableName, SubscribersTableName), []any{UERegistration{}}},
+		{&db.listVisitorRegistrationsStmt, fmt.Sprintf(listVisitorRegistrationsStmt, UERegistrationsTableName, SubscribersTableName), []any{UERegistration{}}},
+		{&db.listRoamingUsageOfDayStmt, fmt.Sprintf(listRoamingUsageOfDayStmt, RoamingDailyUsageTableName), []any{RoamingDailyUsage{}, roamingUsageFilters{}}},
 
 		{&db.listDiameterPeersStmt, fmt.Sprintf(listDiameterPeersStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
 		{&db.getDiameterPeerStmt, fmt.Sprintf(getDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
@@ -1965,7 +1974,8 @@ func (db *Database) PrepareStatements() error {
 
 		// Daily Usage
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
-		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
+		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerDay{}}},
+		{&db.getUsagePerDayPreV26Stmt, fmt.Sprintf(getUsagePerDayPreV26Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.getUsagePerSubscriberPreV26Stmt, fmt.Sprintf(getUsagePerSubscriberPreV26Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
@@ -2229,6 +2239,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.listFlowReportsBySubscriberStmt, fmt.Sprintf(listFlowReportsFilteredBySubscriberStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 		{&db.flowReportProtocolCountsStmt, fmt.Sprintf(flowReportProtocolCountsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportProtocolCount{}}},
 		{&db.flowReportTopDestinationsUplinkStmt, fmt.Sprintf(flowReportTopDestinationsUplinkStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
+		{&db.homeFlowReportProtocolCountsStmt, homeFlowReportStatsStmt(flowReportProtocolCountsStmt), []any{FlowReportFilters{}, FlowReportProtocolCount{}}},
+		{&db.homeFlowReportTopDestinationsStmt, homeFlowReportStatsStmt(flowReportTopDestinationsUplinkStmt), []any{FlowReportFilters{}, FlowReportIPCount{}}},
 
 		// Sessions
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},

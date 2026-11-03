@@ -246,6 +246,10 @@ func withdrawnRejection(partner db.RoamingPartner, imsi string) *Rejection {
 		return nil
 	}
 
+	if w.RoamerOnly() {
+		return &Rejection{Cause: eps.EMMCauseCongestion, Reason: "the operator is deregistering the visitor"}
+	}
+
 	if w.AgreementOnly() {
 		return eutranNotAllowed("the 4G agreement of the roaming partner is being withdrawn")
 	}
@@ -351,7 +355,7 @@ func (m *MME) RequestUpdateLocation(ctx context.Context, ue *UeContext, conn *Ue
 	var err error
 
 	m.awaitHome(ctx, ue, conn, "Update-Location", func(ctx context.Context) {
-		err = m.updateLocation(ctx, ue, serving, true)
+		err = m.updateLocation(ctx, ue, serving, ULRInitialAttach)
 	}, func(ctx context.Context) {
 		done(ctx, err)
 	})
@@ -375,7 +379,7 @@ func (m *MME) awaitHome(ctx context.Context, ue *UeContext, conn *UeConn, proced
 	})
 }
 
-func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.PlmnID, initial bool) error {
+func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.PlmnID, kind ULRKind) error {
 	v, ok := ue.Visitor()
 	if !ok {
 		return nil
@@ -386,11 +390,9 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 	}
 
 	home := v.Home
-	flags := s6a.ULRFlagS6aS6dIndicator
+	flags := kind.flags()
 
-	if initial {
-		flags |= s6a.ULRFlagInitialAttachIndicator
-	} else {
+	if kind == ULRRestoration {
 		home.HSS = ""
 	}
 
@@ -423,7 +425,7 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 		return ErrNoSubscriptionData
 	}
 
-	if initial {
+	if kind != ULRRestoration {
 		if err := subscriptionRestriction(*ula.Subscription); err != nil {
 			return err
 		}

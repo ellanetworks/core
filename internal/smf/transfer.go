@@ -42,13 +42,13 @@ type droppedSource struct {
 }
 
 func (s *SMF) findTransferable(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
-	home, err := s.subscriptions.IsHomeSubscriber(ctx, supi.IMSI())
+	allowed, err := s.subscriptions.N26Allowed(ctx, supi.IMSI())
 	if err != nil {
 		return nil, fmt.Errorf("resolve the subscriber: %w", err)
 	}
 
-	if !home {
-		return nil, fmt.Errorf("%w: %s is not a home subscriber", ErrSessionNotTransferable, supi)
+	if !allowed {
+		return nil, fmt.Errorf("%w: %s may not move between EPS and 5GS", ErrSessionNotTransferable, supi)
 	}
 
 	if pduSessionID == 0 {

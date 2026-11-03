@@ -25,10 +25,10 @@ type DiameterRegistrar interface {
 }
 
 func (m *MME) RegisterHomeNetworkHandlers(r DiameterRegistrar) {
-	r.Handle(s6a.ApplicationID, s6a.CommandCancelLocation, diameternode.Handler(m.CancelLocation))
-	r.Handle(s6a.ApplicationID, s6a.CommandInsertSubscriberData, diameternode.Handler(m.InsertSubscriberData))
-	r.Handle(s6a.ApplicationID, s6a.CommandDeleteSubscriberData, diameternode.Handler(m.DeleteSubscriberData))
-	r.Handle(s6a.ApplicationID, s6a.CommandReset, diameternode.Handler(m.Reset))
+	r.Handle(s6a.ApplicationID, s6a.CommandCancelLocation, m.countedHomeHandler(s6a.CommandCancelLocation, m.CancelLocation))
+	r.Handle(s6a.ApplicationID, s6a.CommandInsertSubscriberData, m.countedHomeHandler(s6a.CommandInsertSubscriberData, m.InsertSubscriberData))
+	r.Handle(s6a.ApplicationID, s6a.CommandDeleteSubscriberData, m.countedHomeHandler(s6a.CommandDeleteSubscriberData, m.DeleteSubscriberData))
+	r.Handle(s6a.ApplicationID, s6a.CommandReset, m.countedHomeHandler(s6a.CommandReset, m.Reset))
 }
 
 func userUnknown(req *diameter.Message, id diameter.Identity) *diameter.Message {
@@ -112,18 +112,33 @@ func (m *MME) CancelLocation(ctx context.Context, id diameter.Identity, req *dia
 
 		log.Info("home HSS cancelled the visitor's subscription; detaching it")
 		m.home.Go(clr.IMSI, func() {
-			m.cancelVisitor(context.WithoutCancel(ctx), ue, true, detachType, nil, "subscription withdrawn by the home HSS")
+			m.cancelVisitor(context.WithoutCancel(ctx), ue, true, detachType, "subscription withdrawn by the home HSS")
 		})
 	case s6a.CancellationSGSNUpdateProcedure:
 		log.Info("ignoring an SGSN cancellation")
+	case s6a.CancellationMMEUpdateProcedure:
+		if m.movingTo5GS(ue) || !visitorRegistered(ue) {
+			ue.setHomeRegistered(false)
+			log.Info("home HSS cancelled the location of a visitor that moves to 5GS; the move removes its context")
+
+			return ans
+		}
+
+		fallthrough
 	default:
 		log.Info("home HSS cancelled the visitor's location; removing its context")
 		m.home.Go(clr.IMSI, func() {
-			m.cancelVisitor(context.WithoutCancel(ctx), ue, false, 0, nil, "location cancelled by the home HSS")
+			m.cancelVisitor(context.WithoutCancel(ctx), ue, false, 0, "location cancelled by the home HSS")
 		})
 	}
 
 	return ans
+}
+
+func visitorRegistered(ue *UeContext) bool {
+	v, ok := ue.Visitor()
+
+	return ok && v.Registered
 }
 
 func (m *MME) InsertSubscriberData(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {

@@ -44,6 +44,7 @@ type SessionRequest struct {
 	DN         DNNStore
 	Subscribed SubscribedQoS
 	HomePLMN   models.PlmnID
+	Home       HomeSession
 
 	MaxPacketFilters uint16
 }
@@ -83,6 +84,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
 	sc.roamingHome = req.HomePLMN
+
+	if req.Home != nil {
+		sc.home.Store(&homeBinding{session: req.Home})
+	}
 
 	addrs, err := s.allocateUEAddresses(ctx, dn, sc)
 	if err != nil {

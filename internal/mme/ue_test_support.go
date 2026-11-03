@@ -335,12 +335,16 @@ func (ue *UeContext) SetVisitorForTest(v roaming.Visitor) {
 
 func (c *UeConn) SettleForTest() {
 	if c != nil {
-		c.lane.settle()
+		c.lane.Settle()
 	}
 }
 
-func (m *MME) SettleHomeNetworkForTest() { m.home.settle() }
+func (m *MME) SettleHomeNetworkForTest() { m.home.Settle() }
 
 func (m *MME) SetMTMSIFreezeTimeForTest(d time.Duration) { m.mtmsiFreezeTime = d }
 
 func (m *MME) MTMSIAllocatedForTest(t etsi.TMSI) bool { return m.tmsi.IsAllocated(t) }
+
+func (ue *UeContext) MarkArrivedByHandoverFrom5GSForTest() {
+	ue.arrivedByHandoverFrom5GS.Store(true)
+}

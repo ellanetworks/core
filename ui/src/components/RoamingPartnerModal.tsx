@@ -7,7 +7,6 @@ import {
   Button,
   Collapse,
   FormControlLabel,
-  FormHelperText,
   IconButton,
   Switch,
   Tooltip,
@@ -45,12 +44,11 @@ import PemControl from "@/components/form/PemControl";
 import ProfileSelectField, {
   useProfileNames,
 } from "@/components/ProfileSelectField";
-import { PRODUCT } from "@/utils/product";
 
 interface RoamingPartnerModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (partner: RoamingPartnerInput) => void;
+  onSuccess: () => void;
   partner?: RoamingPartner;
   diameterPeers: RoamingDiameterPeer[];
 }
@@ -92,11 +90,10 @@ export const plmnsConflict = (a: PLMNID, b: PLMNID) =>
   a.mcc === b.mcc &&
   (samePLMN(a, b) || a.mnc.startsWith(b.mnc) || b.mnc.startsWith(a.mnc));
 
-const PLMNS_CONFLICT =
-  "Two PLMNs are the same or ambiguous (same MCC, one MNC a prefix of the other)";
+const PLMNS_CONFLICT = "PLMNs must not overlap";
 
 const SEPP_FQDN_FORMAT =
-  "SEPP FQDN must be <host>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org or <host>.5gc.mnc<MNC>.mcc<MCC>.<IPX>.ipxnetwork.org, for example sepp1.5gc.mnc001.mcc001.3gppnetwork.org";
+  "SEPP FQDN must be <host>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org";
 
 export const schema = yup.object({
   name: yup
@@ -140,7 +137,7 @@ export const schema = yup.object({
     )
     .test(
       "well-known",
-      "SEPP FQDN must not be the well-known sepp.5gc… name: use the partner SEPP's own name, for example sepp1.5gc…",
+      "SEPP FQDN must not use the host name sepp",
       when5G((v) => {
         const parts = v ? parseSEPPFQDN(v) : null;
         return !parts || !isWellKnownSEPPHost(parts.host);
@@ -163,7 +160,7 @@ export const schema = yup.object({
     .test("required", "N32-c URI is required", when5G(Boolean))
     .test(
       "uri",
-      "N32-c URI must be an https URI with no query, for example https://sepp.example.org:443",
+      "N32-c URI must be an https URI with no query",
       when5G((v) => !v || isAPIRoot(v, ["https"])),
     ),
   n32fURI: yup
@@ -244,27 +241,23 @@ const SectionSwitch = ({
   control,
   name,
   label,
-  helperText,
 }: {
   control: Control<FormValues>;
   name: Path<FormValues>;
   label: string;
-  helperText: string;
 }) => {
   const { field } = useController({ control, name });
   return (
-    <Box sx={{ mt: 2 }}>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={!!field.value}
-            onChange={(_, on) => field.onChange(on)}
-          />
-        }
-        label={label}
-      />
-      <FormHelperText sx={{ mt: 0 }}>{helperText}</FormHelperText>
-    </Box>
+    <FormControlLabel
+      sx={{ mt: 2 }}
+      control={
+        <Switch
+          checked={!!field.value}
+          onChange={(_, on) => field.onChange(on)}
+        />
+      }
+      label={label}
+    />
   );
 };
 
@@ -330,18 +323,17 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
     <FormDialog
       open={open}
       onClose={onClose}
-      onSuccess={() => onSuccess(toPartnerInput(form.getValues()))}
-      title={partner ? "Edit Roaming Partner" : "Add Roaming Partner"}
-      description="A roaming agreement with a home network whose subscribers may attach here. The profile sets the local policy applied to its roamers."
+      onSuccess={onSuccess}
+      title={partner ? "Edit Roaming Partner" : "Create Roaming Partner"}
       form={form}
       onSubmit={submit}
       errorPrefix={
         partner
           ? "Failed to update roaming partner"
-          : "Failed to add roaming partner"
+          : "Failed to create roaming partner"
       }
-      submitLabel={partner ? "Update" : "Add"}
-      submittingLabel={partner ? "Updating..." : "Adding..."}
+      submitLabel={partner ? "Update" : "Create"}
+      submittingLabel={partner ? "Updating..." : "Creating..."}
       maxWidth="md"
     >
       <TextControl<FormValues>
@@ -352,11 +344,6 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
       />
       <Typography variant="subtitle2" sx={{ mt: 2 }}>
         PLMNs
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        The partner&apos;s PLMN IDs. Roamers are the IMSIs that start with one
-        of them: the MNC length matters. A PLMN that still has roamers cannot be
-        removed.
       </Typography>
       {fields.map((field, index) => (
         <Box
@@ -407,61 +394,40 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
         name="profileName"
         profiles={profiles}
       />
-      <FormHelperText>
-        The profile applied to this partner&apos;s roamers: its policies set
-        which slices and data networks they may use.
-      </FormHelperText>
 
-      <SectionSwitch
-        control={form.control}
-        name="has5G"
-        label="5G roaming"
-        helperText="The partner's SEPP, reached over N32."
-      />
+      <SectionSwitch control={form.control} name="has5G" label="5G Roaming" />
       <Collapse in={!!has5G} unmountOnExit>
         <TextControl<FormValues>
           name="seppFQDN"
           label="SEPP FQDN"
           placeholder="sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
-          helperText="The name the partner SEPP's certificate carries, under the domain of one of its PLMNs."
         />
         <TextControl<FormValues>
           name="n32cURI"
           label="N32-c URI"
           placeholder="https://sepp1.example.org:443"
-          helperText="Where the partner SEPP accepts the N32 handshake."
         />
         <TextControl<FormValues>
           name="n32fURI"
           label="N32-f URI"
           placeholder="Same as N32-c"
-          helperText="Optional. Only if the partner SEPP forwards messages at a different address."
+          helperText="Optional."
         />
         <PemControl<FormValues>
           name="trustAnchorPEM"
           label="Trust Anchor"
-          helperText="PEM certificates the partner SEPP's certificate chains to, from the partner. A self-signed partner certificate may be its own trust anchor."
+          helperText="The partner's CA certificates, in PEM format."
           accept=".pem,.crt,.cer"
         />
         <TextControl<FormValues>
           name="nrfAPIRoot"
           label="NRF API Root"
           placeholder={nrfPlaceholder}
-          helperText="Optional. The partner's NRF, used to find its AUSF and UDM. Leave empty for the default."
+          helperText="Optional."
         />
-        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-          Give the partner {PRODUCT.name}&apos;s trust anchors from the{" "}
-          <Link to="/roaming/sepp">SEPP</Link> tab. Each node with
-          interfaces.n32 is its own SEPP with its own certificate.
-        </Typography>
       </Collapse>
 
-      <SectionSwitch
-        control={form.control}
-        name="has4G"
-        label="4G roaming"
-        helperText="The partner's HSS, reached over S6a through a Diameter peer."
-      />
+      <SectionSwitch control={form.control} name="has4G" label="4G Roaming" />
       <Collapse in={!!has4G} unmountOnExit>
         {peerOptions.length > 0 ? (
           <SelectControl<FormValues, string>
@@ -471,8 +437,8 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
           />
         ) : (
           <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-            No roaming Diameter peers yet. Add one in the{" "}
-            <Link to="/roaming/diameter-peers">Diameter Peers</Link> tab first.
+            No Diameter peers yet. Create one in the{" "}
+            <Link to="/roaming/diameter-peers">Diameter Peers</Link> tab.
           </Typography>
         )}
       </Collapse>

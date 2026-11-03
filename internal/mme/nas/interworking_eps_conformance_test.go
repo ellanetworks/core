@@ -145,7 +145,7 @@ func TestEPSProtocolConfigurationContainerDirections(t *testing.T) {
 
 // TS 23.501 §5.15.7.1
 func TestEPSSNSSAIContainerFormat(t *testing.T) {
-	container, err := snssaiPCOContainer(models.Snssai{Sst: 1, Sd: "000001"}, models.PlmnID{Mcc: "001", Mnc: "01"})
+	container, err := snssaiPCOContainer(models.Snssai{Sst: 1, Sd: "000001"}, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("build the S-NSSAI container: %v", err)
 	}

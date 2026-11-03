@@ -48,6 +48,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	pduSessionID uint8,
 	pti uint8,
 	snssai *models.Snssai,
+	mapped *models.Snssai,
 	dnn string,
 	pco *ProtocolConfigurationOptions,
 	dns net.IP,
@@ -68,7 +69,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
 
-	sd, err := parseSD(snssai.Sd)
+	snssaiIE, err := sessionSNSSAI(snssai, mapped)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		QoSRules:            fgs.QoSRules{fgs.DefaultQoSRule(DefaultQosRuleID, qosData.QFI)},
 		SessionAMBR:         sessAMBR,
 		Cause:               cause,
-		SNSSAI:              &fgs.SNSSAI{SST: uint8(snssai.Sst), SD: sd},
+		SNSSAI:              snssaiIE,
 		QoSFlowDescriptions: fgs.QoSFlowDescriptions{flow},
 		AlwaysOn:            alwaysOn,
 		DNN:                 dnnIE,
@@ -204,6 +205,29 @@ func sessionAMBRFields(r models.BitRate) (uint16, fgs.SessionAMBRUnit, error) {
 	}
 
 	return uint16(value), unit, nil
+}
+
+func sessionSNSSAI(snssai, mapped *models.Snssai) (*fgs.SNSSAI, error) {
+	sd, err := parseSD(snssai.Sd)
+	if err != nil {
+		return nil, err
+	}
+
+	ie := &fgs.SNSSAI{SST: uint8(snssai.Sst), SD: sd}
+
+	if mapped == nil {
+		return ie, nil
+	}
+
+	mappedSD, err := parseSD(mapped.Sd)
+	if err != nil {
+		return nil, err
+	}
+
+	ie.MappedHPLMNSST = new(uint8(mapped.Sst))
+	ie.MappedHPLMNSD = mappedSD
+
+	return ie, nil
 }
 
 func parseSD(sd string) (*[3]byte, error) {

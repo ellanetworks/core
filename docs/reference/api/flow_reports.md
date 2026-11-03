@@ -155,7 +155,7 @@ This path returns a paginated list of flow reports with optional filtering.
 
 ## Get Flow Report Stats
 
-This path returns aggregated statistics for flow reports, including protocol breakdown and top uplink destinations.
+This path returns aggregated statistics for flow reports, including protocol breakdown and top uplink destinations. Flows of roamers are not counted.
 
 | Method | Path                         |
 | ------ | ---------------------------- |

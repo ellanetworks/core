@@ -519,6 +519,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 	metrics.RegisterRadioEventDrops(bufferedWriter.Dropped)
+	registerRoamers(prometheus.DefaultRegisterer, amfInstance, mmeInstance)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 	lmfInstance.Start(ctx)
@@ -562,6 +563,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	seppManager := newSEPP(dbInstance, cfg.Interfaces.N32)
+	cp.vsmf.SetN32(seppManager)
+	cp.vsmf.SetVisitors(amfSessionVisitors{amf: amfInstance})
+	seppManager.SetCallbacks(seppCallbacks{amf: wireAMFRoaming(amfInstance, seppManager), smf: cp.vsmf})
 
 	wg.Go(func() {
 		runSEPP(ctx, dbInstance, seppManager)
@@ -1635,6 +1639,7 @@ type controlPlane struct {
 	db            *db.Database
 	pcf           *pcf.PCF
 	smf           *smf.SMF
+	vsmf          *roaming.VSMF
 	subscriptions *udm.Subscriptions
 	ausfStore     *ausfDBAdapter
 	ausf          *ausf.AUSF
@@ -1650,9 +1655,11 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	smfAMF := &smfAMFAdapter{}
 	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
 	sessionSubscriptions := roaming.NewSubscriptions(subscriptions, nil)
+	vsmf := roaming.NewVSMF(subscriptions, logger.SmfLog)
 
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(sessionSubscriptions))
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(vsmf.Subscriptions(sessionSubscriptions)), smf.WithHomeNetwork(vsmf))
 	pcfInstance.SetEnforcer(smfInstance)
+	vsmf.SetSessions(smfInstance)
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
@@ -1668,11 +1675,18 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
 	amfInstance.NAS = &nasAdapter{amf: amfInstance}
+	amfInstance.Roaming = dbInstance
 	smfAMF.amf = amfInstance
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
 	mmeInstance.Roaming = dbInstance
 	sessionSubscriptions.SetHomeSubscriptions(mmeInstance)
+
+	n26 := roaming.NewN26(dbInstance)
+	amfInstance.N26 = n26
+	mmeInstance.N26 = n26
+	sessionSubscriptions.SetN26(n26)
+
 	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance
 	mmeInstance.FiveGS = amfInstance
@@ -1684,6 +1698,7 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 		db:            dbInstance,
 		pcf:           pcfInstance,
 		smf:           smfInstance,
+		vsmf:          vsmf,
 		subscriptions: subscriptions,
 		ausfStore:     ausfStore,
 		ausf:          ausfInstance,

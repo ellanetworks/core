@@ -47,7 +47,7 @@ func (amf *AMF) GrantSMSOverNAS(ctx context.Context, ue *UeContext, requested bo
 
 func (amf *AMF) evaluateSMS(ctx context.Context, ue *UeContext) (bool, error) {
 	supi := ue.Supi()
-	if !ue.smsRequested.Load() || amf.SMS == nil || !supi.IsIMSI() {
+	if !ue.smsRequested.Load() || amf.SMS == nil || !supi.IsIMSI() || ue.IsVisitor() {
 		return false, nil
 	}
 

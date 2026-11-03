@@ -947,7 +947,7 @@ paths:
       operationId: getSubscriberUsage
       tags: [Subscriber Usage]
       summary: Get subscriber usage data
-      description: Returns subscriber data usage, grouped by day or subscriber.
+      description: Returns the data usage of home subscribers, grouped by day or subscriber. Roamer usage is under /roaming/usage.
       parameters:
         - name: group_by
           in: query
@@ -2997,7 +2997,7 @@ paths:
       operationId: getFlowReportStats
       tags: [Flow Reports]
       summary: Get flow report statistics
-      description: Returns top protocols and top uplink destinations.
+      description: Returns top protocols and top uplink destinations, counting the flows of home subscribers only (roamer flows are excluded).
       parameters:
         - name: subscriber_id
           in: query
@@ -3484,6 +3484,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The roamer's home network does not allow location by an O&M client of the visited network (TS 23.271 clause 9.5.3.4).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -3515,6 +3521,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The roamer's home network does not allow location by an O&M client of the visited network (TS 23.271 clause 9.5.3.4).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -4188,6 +4200,75 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /api/v1/roaming/roamers:
+    get:
+      operationId: listRoamers
+      tags: [Roaming]
+      summary: List roamers
+      description: Returns the roamers (visitors of every roaming partner) registered in the cluster. Registrations come from the replicated registry; each node is asked over cluster mTLS (2 s per node) for the live state of the roamers it serves. A registration on a node that does not answer has reachable false, and the node is listed in unreachableNodes. usageToday (UTC day) is present only when the caller also has the subscriber_usage:get permission, like per-subscriber usage. Roamers are not listed under subscribers and are not counted in the dashboard totals.
+      responses:
+        "200":
+          description: The roamers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRoamersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/roaming/roamers/{imsi}:
+    parameters:
+      - name: imsi
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^[0-9]{6,15}$"
+    get:
+      operationId: getRoamer
+      tags: [Roaming]
+      summary: Get a roamer
+      description: Returns one roamer, with the same live view as the list.
+      responses:
+        "200":
+          description: The roamer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deregisterRoamer
+      tags: [Roaming]
+      summary: Force the deregistration of a roamer
+      description: Deregisters the roamer on the node that serves it, network-initiated with "re-registration not required" and no cause (TS 24.501 clause 5.5.2.3, TS 24.301 clause 5.5.2.3), and purges it at its home network (Nudm_UECM deregistration, S6a PUR). Meanwhile a new registration of the roamer is rejected with cause #22 (congestion). The roamer may register again once it is gone; to bar it, remove its PLMN ID from the partner. Answers once the roamer is deregistered, within a minute.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The roamer was still registered after a minute (for example, the node that holds it is unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/roaming/usage:
     get:
@@ -7891,7 +7972,7 @@ components:
           description: TS 29.572 TerminationCause.
         termination_reason:
           type: string
-          enum: [ue_deregistered, ue_mobility, positioning_failed, node_restart, node_shutdown]
+          enum: [ue_deregistered, ue_mobility, positioning_failed, node_restart, node_shutdown, privacy]
         event_report_counter:
           type: integer
           format: int64
@@ -8460,6 +8541,125 @@ components:
         total_bytes:
           type: integer
           format: int64
+
+    RoamerRegistration:
+      type: object
+      required: [rat, reachable, registered]
+      properties:
+        rat:
+          type: string
+          enum: ["4G", "5G"]
+        nodeID:
+          type: string
+          description: The cluster node that holds the registration.
+        reachable:
+          type: boolean
+          description: Whether that node answered. The other fields are absent when it did not.
+        registered:
+          type: boolean
+        connectionState:
+          type: string
+          enum: [connected, idle]
+        since:
+          type: string
+          format: date-time
+          description: When the node admitted the roamer.
+        lastSeenAt:
+          type: string
+          format: date-time
+        radio:
+          type: string
+
+    RoamerSession:
+      type: object
+      required: [rat, id]
+      properties:
+        rat:
+          type: string
+          enum: ["4G", "5G"]
+        nodeID:
+          type: string
+        id:
+          type: integer
+          description: PDU session ID (5G) or default EPS bearer ID (4G).
+        dataNetwork:
+          type: string
+        ipv4Address:
+          type: string
+        ipv6Prefix:
+          type: string
+
+    RoamerUsage:
+      type: object
+      required: [uplinkBytes, downlinkBytes, totalBytes]
+      properties:
+        uplinkBytes:
+          type: integer
+          format: int64
+        downlinkBytes:
+          type: integer
+          format: int64
+        totalBytes:
+          type: integer
+          format: int64
+
+    Roamer:
+      type: object
+      required: [imsi, partnerID, partnerName, homePLMN, registrations, sessions]
+      properties:
+        imsi:
+          type: string
+        partnerID:
+          type: string
+          format: uuid
+        partnerName:
+          type: string
+        homePLMN:
+          $ref: "#/components/schemas/RoamingPLMN"
+        registrations:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoamerRegistration"
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoamerSession"
+        usageToday:
+          $ref: "#/components/schemas/RoamerUsage"
+
+    UnreachableNode:
+      type: object
+      required: [nodeID, error]
+      properties:
+        nodeID:
+          type: string
+        error:
+          type: string
+
+    ListRoamersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Roamer"
+        unreachableNodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnreachableNode"
+
+    ListRoamersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListRoamersResponse"
+
+    RoamerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Roamer"
 
     RoamingUsageResponseEnvelope:
       type: object

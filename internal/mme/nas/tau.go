@@ -86,6 +86,18 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
+	if m.HomeRegistrationDue(ue) {
+		registerArrivingVisitor(ctx, m, ue, ueConn, func(ctx context.Context) {
+			acceptTrackingAreaUpdate(ctx, m, ue, ueConn, req, plain, operator)
+		})
+
+		return nasreply.Handled()
+	}
+
+	return acceptTrackingAreaUpdate(ctx, m, ue, ueConn, req, plain, operator)
+}
+
+func acceptTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.TrackingAreaUpdateRequest, plain []byte, operator mme.OperatorConfig) nasreply.Disposition {
 	if err := m.ConfirmRegistration(ctx, ue); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to register the UE on Tracking Area Update", zap.Error(err))
 	}

@@ -131,7 +131,7 @@ func continueDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
-		PDUSessionID:      interworkingPDUSessionID(ue, ueConn.ESMRequest.PDUSessionID),
+		PDUSessionID:      interworkingPDUSessionID(m, ue, apn, ueConn.ESMRequest.PDUSessionID),
 		APN:               apn,
 		RequestedPDNType:  ueConn.ESMRequest.PDNType,
 		RequestType:       ueConn.ESMRequest.Type,
@@ -540,7 +540,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
 	if snssai := p.Snssai; snssai != nil && p.PDUSessionID != 0 {
-		container, err := snssaiPCOContainer(*snssai, plmn)
+		container, err := snssaiPCOContainer(*snssai, p.HomeSnssai, plmn)
 		if err != nil {
 			return nil, err
 		}

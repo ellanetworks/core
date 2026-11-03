@@ -18,6 +18,10 @@ func (failingRegistrar) Register(context.Context, string) (int64, error) {
 	return 0, errors.New("no leader")
 }
 
+func (failingRegistrar) RegisterVisitor(context.Context, string, string) (int64, error) {
+	return 0, errors.New("no leader")
+}
+
 func (failingRegistrar) Confirmed(context.Context, string, int64) bool { return false }
 
 func (failingRegistrar) Purge(string) {}

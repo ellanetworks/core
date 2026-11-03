@@ -47,13 +47,13 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 			interworking.ErrUnknownUEContext, presented.String())
 	}
 
-	home, err := a.IsHomeSubscriber(ctx, ue.Supi())
+	allowed, err := a.N26Allowed(ctx, ue.Supi())
 	if err != nil {
 		return none, fmt.Errorf("amf: resolve the subscriber: %w", err)
 	}
 
-	if !home {
-		return none, fmt.Errorf("%w: 5G-GUTI %s", interworking.ErrNotHomeSubscriber, presented.String())
+	if !allowed {
+		return none, fmt.Errorf("%w: 5G-GUTI %s", interworking.ErrN26NotAllowed, presented.String())
 	}
 
 	ambrUplink, ambrDownlink, ok := ue.AmbrRates()
@@ -112,6 +112,7 @@ func (a *AMF) EPSContextAck(ctx context.Context, supi etsi.SUPI, transferred []u
 		ue.DeleteSmContext(pduSessionID)
 	}
 
+	a.handVisitorToEPS(ctx, ue)
 	a.releaseToEPS(ctx, ue, nil, deregisterToEPS)
 
 	logger.From(ctx, logger.AmfLog).Info("UE moved to EPS in idle mode; keeping its 5G security context for a return",

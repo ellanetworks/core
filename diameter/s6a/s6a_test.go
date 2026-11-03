@@ -255,6 +255,7 @@ func testSubscription() SubscriptionData {
 		SubscribedPeriodicRAUTAUTimer:            testRAUTimer,
 		UEUsageType:                              ptr(UEUsageType(0)),
 		SubscribedVSRVCC:                         true,
+		CoreNetworkRestrictions:                  ptr(CNR5GCNotAllowed),
 	}
 }
 

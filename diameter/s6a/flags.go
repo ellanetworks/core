@@ -329,6 +329,22 @@ func (d AccessRestrictionData) String() string { return tgpp.BitNames(uint32(d),
 
 func (d AccessRestrictionData) Known() bool { return d&^ardDefined == 0 }
 
+type CoreNetworkRestrictions uint32
+
+const (
+	CNRReserved            CoreNetworkRestrictions = 1 << 0
+	CNR5GCNotAllowed       CoreNetworkRestrictions = 1 << 1
+	coreNetworkRestDefined CoreNetworkRestrictions = 1<<2 - 1
+)
+
+var coreNetworkRestrictionNames = []string{"RESERVED", "5GC_NOT_ALLOWED"}
+
+func (r CoreNetworkRestrictions) String() string {
+	return tgpp.BitNames(uint32(r), coreNetworkRestrictionNames...)
+}
+
+func (r CoreNetworkRestrictions) Known() bool { return r&^coreNetworkRestDefined == 0 }
+
 type FeatureList1 uint32
 
 const (

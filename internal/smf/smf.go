@@ -89,7 +89,7 @@ type SubscriptionData interface {
 	FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error)
 	StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error)
 	SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error)
-	IsHomeSubscriber(ctx context.Context, imsi string) (bool, error)
+	N26Allowed(ctx context.Context, imsi string) (bool, error)
 }
 
 // SessionStore is the minimal DB surface the SMF needs for session-level
@@ -172,6 +172,7 @@ type SMF struct {
 	mme                 MMECallback // set after construction
 
 	subscriptions SubscriptionData
+	home          atomic.Pointer[homeNetwork]
 
 	seidCounter uint64 // atomic; local SEID allocation
 
@@ -372,6 +373,10 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 	if s.pcf != nil {
 		s.pcf.TerminateAssociation(sc.Ref)
 	}
+
+	if h := sc.homeSession(); h != nil {
+		h.Close()
+	}
 }
 
 func (s *SMF) removeLocked(sc *SMContext) {
@@ -460,6 +465,10 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 	s.mu.RUnlock()
 
 	for _, sc := range sessions {
+		if sc.visiting() {
+			continue
+		}
+
 		if sc.onEPS() {
 			fourG++
 		} else {

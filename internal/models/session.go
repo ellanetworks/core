@@ -141,6 +141,7 @@ type EPSBearer struct {
 	ESMCause        eps.ESMCause
 	PDUSessionID    uint8
 	Snssai          *Snssai
+	HomeSnssai      *Snssai
 	QoS             EPSBearerQoS
 	MTU             uint16
 	MappedFiveGSQoS []nas.PCOContainer

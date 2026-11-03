@@ -40,7 +40,7 @@ func TestResolveAccessOffersFiveGSInterworkingToHomeSubscribersOnly(t *testing.T
 	}{
 		{name: "home subscriber", store: lookupBearerStore{sub: &db.Subscriber{Imsi: imsi, ProfileID: "test-profile"}}, want: true},
 		{name: "roaming visitor", store: lookupBearerStore{sub: &db.Subscriber{Imsi: imsi, ProfileID: "test-profile", RoamingPartnerID: &partner}}, visitor: true},
-		{name: "roaming visitor without a home subscription", store: lookupBearerStore{sub: &db.Subscriber{Imsi: imsi, ProfileID: "test-profile", RoamingPartnerID: &partner}}, wantErr: roaming.ErrNoHomeSubscription},
+		{name: "roaming visitor without a home subscription", store: lookupBearerStore{sub: &db.Subscriber{Imsi: imsi, ProfileID: "test-profile", RoamingPartnerID: &partner}}},
 		{name: "subscriber row gone", store: lookupBearerStore{err: db.ErrNotFound}, wantErr: udm.ErrSubscriberUnknown},
 		{name: "lookup failure", store: lookupBearerStore{err: failure}, wantErr: failure},
 	} {

@@ -177,7 +177,7 @@ export default function DiameterPeersTab() {
       <ListPageHeader
         title="Diameter Peers"
         count={peersQuery.data?.length}
-        description="The Diameter peers that reach the home HSS of 4G roamers: a partner's HSS or a Diameter Edge Agent shared by several partners. A peer in use by a partner cannot be deleted."
+        description="Manage the Diameter peers that connect your network to the HSS of 4G roaming partners."
         variant="section"
         action={
           canEdit && (
@@ -186,7 +186,7 @@ export default function DiameterPeersTab() {
               color="success"
               onClick={() => setModal({})}
             >
-              Add Peer
+              Create
             </Button>
           )
         }
@@ -201,8 +201,8 @@ export default function DiameterPeersTab() {
             primaryText="No Diameter peers yet"
             secondaryText={
               canEdit
-                ? "Add a Diameter peer, then select it in a partner's 4G roaming settings."
-                : "Ask an administrator to add a Diameter peer."
+                ? "Create a Diameter peer to enable 4G roaming with a partner."
+                : "Ask an administrator to create a Diameter peer."
             }
           />
         }
@@ -227,7 +227,7 @@ export default function DiameterPeersTab() {
             showSnackbar(
               modal.peer
                 ? "Diameter peer updated successfully."
-                : "Diameter peer added successfully.",
+                : "Diameter peer created successfully.",
               "success",
             );
           }}
@@ -239,8 +239,8 @@ export default function DiameterPeersTab() {
           open
           onClose={() => setPeerToDelete(null)}
           onConfirm={handleDelete}
-          title="Delete Diameter Peer"
-          description={`Delete the Diameter peer ${formatEndpoint(peerToDelete.address, peerToDelete.port)}? This cannot be undone.`}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the Diameter peer "${formatEndpoint(peerToDelete.address, peerToDelete.port)}"? This action cannot be undone.`}
         />
       )}
     </Box>

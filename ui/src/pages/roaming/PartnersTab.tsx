@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Box, Button, Tooltip, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
   Delete as DeleteIcon,
@@ -35,7 +35,6 @@ import {
   rehandshakeRoamingPartner,
   type RoamingDiameterPeer,
   type RoamingPartner,
-  type RoamingPartnerInput,
   type RoamingPartnerN32,
 } from "@/queries/roaming";
 import { useRoamingContext } from "./types";
@@ -54,14 +53,6 @@ const Muted = () => (
 );
 
 const plmnList = (p: RoamingPartner) => p.plmns.map(formatPLMN).join(", ");
-
-const handshakeSummary = (n32: RoamingPartnerN32[]) =>
-  n32
-    .map(
-      (entry) =>
-        `${n32NodeLabel(entry)} ${entry.state}${entry.lastError ? ` (${entry.lastError})` : ""}`,
-    )
-    .join(", ");
 
 export default function PartnersTab() {
   const { accessToken, canEdit, showSnackbar } = useRoamingContext();
@@ -98,13 +89,10 @@ export default function PartnersTab() {
     [peers],
   );
 
-  const handleSaved = (input: RoamingPartnerInput) => {
-    const added = !modal?.partner;
+  const handleSaved = () => {
     queryClient.invalidateQueries({ queryKey: ["roaming-partners"] });
     showSnackbar(
-      added && input.sepp
-        ? "Roaming partner added. Give the partner the SEPP trust anchors from the SEPP tab."
-        : `Roaming partner ${added ? "added" : "updated"} successfully.`,
+      `Roaming partner ${modal?.partner ? "updated" : "created"} successfully.`,
       "success",
     );
   };
@@ -140,15 +128,12 @@ export default function PartnersTab() {
   >({
     mutationFn: (partner: RoamingPartner) =>
       rehandshakeRoamingPartner(accessToken || "", partner.id),
-    onSuccess: (n32, partner) =>
-      showSnackbar(
-        `N32-c handshake with "${partner.name}" started: ${handshakeSummary(n32)}.`,
-        n32.some((entry) => entry.state === "unknown") ? "warning" : "success",
-      ),
+    onSuccess: (_n32, partner) =>
+      showSnackbar(`N32 handshake with "${partner.name}" started.`, "success"),
     onError: (error: unknown) => {
       const msg =
         error instanceof Error ? error.message : "Unknown error occurred.";
-      showSnackbar(`Failed to start the N32-c handshake: ${msg}`, "error");
+      showSnackbar(`Failed to start the N32 handshake: ${msg}`, "error");
     },
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["roaming-partners"] }),
@@ -191,18 +176,16 @@ export default function PartnersTab() {
       },
       {
         field: "sepp",
-        headerName: "5G (SEPP)",
+        headerName: "SEPP",
         flex: 1.3,
         minWidth: 200,
         valueGetter: (_v, row) => row.sepp?.fqdn ?? "",
         renderCell: (params: GridRenderCellParams<RoamingPartner>) => (
           <Box sx={cellSx}>
             {params.row.sepp ? (
-              <Tooltip title={`N32-c ${params.row.sepp.n32cURI}`} arrow>
-                <Typography variant="body2" noWrap>
-                  {params.row.sepp.fqdn}
-                </Typography>
-              </Tooltip>
+              <Typography variant="body2" noWrap>
+                {params.row.sepp.fqdn}
+              </Typography>
             ) : (
               <Muted />
             )}
@@ -235,7 +218,7 @@ export default function PartnersTab() {
       },
       {
         field: "diameterPeerID",
-        headerName: "4G (Diameter Peer)",
+        headerName: "Diameter Peer",
         flex: 1.3,
         minWidth: 200,
         renderCell: (params: GridRenderCellParams<RoamingPartner>) => {
@@ -271,7 +254,7 @@ export default function PartnersTab() {
                 <GridActionsCellItem
                   key="handshake"
                   icon={<SyncIcon color="primary" />}
-                  label={`Re-run N32 handshake with ${p.row.name}`}
+                  label={`Restart N32 handshake with ${p.row.name}`}
                   onClick={() => handshake(p.row)}
                 />,
               ]
@@ -303,7 +286,7 @@ export default function PartnersTab() {
       <ListPageHeader
         title="Partners"
         count={partnersQuery.data?.length}
-        description="Each partner is a roaming agreement with one home network, which may have several PLMN IDs. Its subscribers may attach over 5G through its SEPP, over 4G through a Diameter peer, or both."
+        description="Manage the networks whose subscribers can roam on your network."
         variant="section"
         action={
           canEdit && (
@@ -312,7 +295,7 @@ export default function PartnersTab() {
               color="success"
               onClick={() => setModal({})}
             >
-              Add Partner
+              Create
             </Button>
           )
         }
@@ -327,8 +310,8 @@ export default function PartnersTab() {
             primaryText="No roaming partners yet"
             secondaryText={
               canEdit
-                ? "Add a partner to let its subscribers attach to this network."
-                : "Ask an administrator to add a roaming partner."
+                ? "Create a roaming partner to let its subscribers use your network."
+                : "Ask an administrator to create a roaming partner."
             }
           />
         }
@@ -364,8 +347,8 @@ export default function PartnersTab() {
           open
           onClose={() => setPartnerToDelete(null)}
           onConfirm={handleDelete}
-          title="Delete Roaming Partner"
-          description={`Delete the roaming partner "${partnerToDelete.name}" (PLMN ${plmnList(partnerToDelete)})? Its roamers are detached first and purged at their home network. Its roaming usage is kept. This cannot be undone.`}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the roaming partner "${partnerToDelete.name}"? Its roamers will be deregistered.`}
         />
       )}
     </Box>

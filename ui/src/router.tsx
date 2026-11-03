@@ -30,6 +30,7 @@ import DataNetworkDetail from "./pages/DataNetworkDetail";
 import Operator from "./pages/Operator";
 import Roaming from "./pages/Roaming";
 import PartnersTab from "./pages/roaming/PartnersTab";
+import RoamersTab from "./pages/roaming/RoamersTab";
 import DiameterPeersTab from "./pages/roaming/DiameterPeersTab";
 import UsageTab from "./pages/roaming/UsageTab";
 import SEPPTab from "./pages/roaming/SEPPTab";
@@ -92,6 +93,7 @@ export default function AppRouter() {
         <Route path="roaming" element={<Roaming />}>
           <Route index element={<Navigate to="partners" replace />} />
           <Route path="partners" element={<PartnersTab />} />
+          <Route path="roamers" element={<RoamersTab />} />
           <Route path="diameter-peers" element={<DiameterPeersTab />} />
           <Route path="usage" element={<UsageTab />} />
           <Route path="sepp" element={<SEPPTab />} />

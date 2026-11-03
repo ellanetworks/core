@@ -530,8 +530,8 @@ func TestForwardRelocationRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
 		wantErr     error
 		wantRefusal bool
 	}{
-		{name: "roaming visitor", db: &fakeDBInstance{Operator: arrivingOperator(), Visitor: true}, wantErr: interworking.ErrNotHomeSubscriber, wantRefusal: true},
-		{name: "subscriber row gone", db: &fakeDBInstance{Operator: arrivingOperator(), LookupErr: db.ErrNotFound}, wantErr: interworking.ErrNotHomeSubscriber, wantRefusal: true},
+		{name: "roaming visitor", db: &fakeDBInstance{Operator: arrivingOperator(), Visitor: true}, wantErr: interworking.ErrN26NotAllowed, wantRefusal: true},
+		{name: "subscriber row gone", db: &fakeDBInstance{Operator: arrivingOperator(), LookupErr: db.ErrNotFound}, wantErr: interworking.ErrN26NotAllowed, wantRefusal: true},
 		{name: "lookup failure", db: &fakeDBInstance{Operator: arrivingOperator(), LookupErr: failure}, wantErr: failure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

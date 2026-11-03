@@ -130,6 +130,7 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 			logger.SUPI(supi.String()), zap.Uint64("relocation", uint64(id)))
 	}
 
+	a.handVisitorToEPS(ctx, ue)
 	a.releaseToEPS(ctx, ue, source,
 		ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 

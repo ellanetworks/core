@@ -48,5 +48,13 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	// resolveUE guarantees the UE is connected on this association, so ueConn is
 	// the connection the message arrived on.
-	amfInstance.NAS.HandleNAS(ctx, ueConn, []byte(msg.NASPDU))
+	pdu := []byte(msg.NASPDU)
+
+	ueConn.Serialize(func() {
+		if ueConn.UeContext() == nil {
+			return
+		}
+
+		amfInstance.NAS.HandleNAS(ctx, ueConn, pdu)
+	})
 }

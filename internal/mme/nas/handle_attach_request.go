@@ -244,6 +244,8 @@ func sendAttachRejection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		logger.Cause(r.Cause.String()))
 	ueConn.StopNASGuard(ctx)
 
+	m.RecordRoamerReject(ctx, ue, r.Cause)
+
 	reject := &eps.AttachReject{Cause: r.Cause, ESMMessageContainer: esm, ExtendedEMMCause: r.Extended}
 
 	if timer, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff); err == nil {

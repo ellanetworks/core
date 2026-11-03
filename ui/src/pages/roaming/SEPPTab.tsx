@@ -8,7 +8,7 @@ import {
   Button,
   Chip,
   IconButton,
-  Stack,
+  Link as MuiLink,
   Table,
   TableBody,
   TableCell,
@@ -22,6 +22,7 @@ import {
   Autorenew as GenerateIcon,
   ContentCopy as CopyIcon,
   Download as DownloadIcon,
+  OpenInNew as OpenInNewIcon,
   Upload as ImportIcon,
 } from "@mui/icons-material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -126,8 +127,7 @@ const nodeStatus = (
     return {
       label: "No node",
       color: "warning",
-      tooltip:
-        "No cluster node has this SEPP ID: the certificate is stored but no SEPP uses it.",
+      tooltip: "No node has this SEPP ID.",
     };
   }
   if (!node.reachable) {
@@ -137,8 +137,7 @@ const nodeStatus = (
     return {
       label: "Not configured",
       color: "default",
-      tooltip:
-        "interfaces.n32 is not set in this node's configuration file: its SEPP is off.",
+      tooltip: "interfaces.n32 is not set.",
     };
   }
   if (!node.listening) {
@@ -220,12 +219,7 @@ export default function SEPPTab() {
     setDialog(null);
     void queryClient.invalidateQueries({ queryKey: ["sepp-status"] });
     setWarnings(result.warnings ?? []);
-    showSnackbar(
-      result.reissued.length > 0
-        ? `SEPP CA regenerated. Reissued the certificates of ${result.reissued.map((id) => `SEPP ${id}`).join(", ")}.`
-        : "SEPP CA regenerated. No generated certificate needed reissuing.",
-      "success",
-    );
+    showSnackbar("SEPP CA regenerated successfully.", "success");
   };
 
   const downloadChain = async (seppID: number) => {
@@ -244,39 +238,21 @@ export default function SEPPTab() {
   };
 
   const nodeAlerts = (status: SEPPStatus) =>
-    status.nodes.flatMap((node) => {
-      const name = node.seppID ? `SEPP ${node.seppID}` : "The SEPP";
-      const alerts = [];
-      if (domain && node.fqdn && !node.fqdn.endsWith(`.${domain}`)) {
-        alerts.push(
-          <Alert key={`${nodeKey(node)}-plmn`} severity="error" sx={{ mb: 2 }}>
-            The FQDN of {name}, {node.fqdn}, is not under {domain}, the domain
-            of the operator PLMN. Partners will reject it: generate or import a
-            certificate for this PLMN.
-          </Alert>,
-        );
-      }
-      const notAfter = node.certificate?.notAfter;
-      if (notAfter && now > 0 && new Date(notAfter).getTime() < now) {
-        alerts.push(
-          <Alert
-            key={`${nodeKey(node)}-expired`}
-            severity="error"
-            sx={{ mb: 2 }}
-          >
-            The certificate of {name} expired on {formatDateTime(notAfter)}.
-            Partners reject it: generate or import a new one.
-          </Alert>,
-        );
-      }
-      return alerts;
-    });
+    status.nodes
+      .filter(
+        (node) => domain && node.fqdn && !node.fqdn.endsWith(`.${domain}`),
+      )
+      .map((node) => (
+        <Alert key={nodeKey(node)} severity="error" sx={{ mb: 2 }}>
+          {`The FQDN of SEPP ${node.seppID ?? ""} is not under ${domain}. Generate or import a new certificate.`}
+        </Alert>
+      ));
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
       <ListPageHeader
         title="SEPP"
-        description={`Each node with interfaces.n32 is its own SEPP, named by its SEPP ID, for N32 with the SEPPs of 5G roaming partners. Give partners the trust anchors.`}
+        description="Manage the certificates your SEPPs use with 5G roaming partners."
         variant="section"
         action={
           canEdit &&
@@ -314,7 +290,22 @@ export default function SEPPTab() {
         empty={
           <EmptyState
             primaryText="No SEPP yet"
-            secondaryText={`Set interfaces.n32 in a node's configuration file: ${PRODUCT.name} generates its SEPP certificate.`}
+            secondaryText={
+              <>
+                Set interfaces.n32 in a node&apos;s configuration file to enable
+                its SEPP.{" "}
+                <MuiLink
+                  href={PRODUCT.roamingDocsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  underline="hover"
+                  sx={{ display: "inline-flex", alignItems: "center" }}
+                >
+                  Learn more
+                  <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
+                </MuiLink>
+              </>
+            }
           />
         }
       >
@@ -326,9 +317,7 @@ export default function SEPPTab() {
               Trust Anchors
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              The CA certificates partners configure to trust the SEPPs: the
-              cluster SEPP CA, which signs generated certificates, and the CA
-              ending each imported chain.
+              Give these CA certificates to your roaming partners.
             </Typography>
             {status.trustAnchors.length === 0 ? (
               <Typography variant="body2" color="textSecondary">
@@ -344,7 +333,9 @@ export default function SEPPTab() {
                       <TableCell sx={headCellSx}>Fingerprint</TableCell>
                       <TableCell sx={headCellSx}>Expires</TableCell>
                       <TableCell sx={headCellSx}>Used By</TableCell>
-                      <TableCell sx={headCellSx}>Certificate</TableCell>
+                      <TableCell sx={headCellSx} align="right">
+                        Actions
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -396,27 +387,27 @@ export default function SEPPTab() {
                             <Muted />
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Stack direction="row" spacing={1}>
-                            <Button
+                        <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                          <Tooltip title="Download trust anchor" arrow>
+                            <IconButton
                               size="small"
-                              startIcon={<DownloadIcon />}
                               onClick={() =>
                                 downloadText(anchorFilename(anchor), anchor.pem)
                               }
                               aria-label={`Download trust anchor ${anchor.subject}`}
                             >
-                              Download
-                            </Button>
-                            <Button
+                              <DownloadIcon fontSize="small" color="primary" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Copy trust anchor" arrow>
+                            <IconButton
                               size="small"
-                              startIcon={<CopyIcon />}
                               onClick={() => copy(anchor.pem, "Trust anchor")}
                               aria-label={`Copy trust anchor ${anchor.subject}`}
                             >
-                              Copy
-                            </Button>
-                          </Stack>
+                              <CopyIcon fontSize="small" color="primary" />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -429,13 +420,11 @@ export default function SEPPTab() {
               Nodes
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Each node with interfaces.n32 in its configuration file serves N32
-              for partner SEPPs with its own certificate. Partners must reach
-              and allow every node.
+              Partners must be able to reach every node.
             </Typography>
             {status.nodes.length === 0 ? (
               <Typography variant="body2" color="textSecondary">
-                The cluster has not reported its members yet.
+                No nodes yet.
               </Typography>
             ) : (
               <TableContainer sx={TABLE_CONTAINER_SX}>
@@ -449,7 +438,6 @@ export default function SEPPTab() {
                       <TableCell sx={headCellSx}>N32</TableCell>
                       <TableCell sx={headCellSx}>Address</TableCell>
                       <TableCell sx={headCellSx}>Certificate Expires</TableCell>
-                      <TableCell sx={headCellSx}>Error</TableCell>
                       <TableCell sx={headCellSx} align="right">
                         Actions
                       </TableCell>
@@ -485,15 +473,6 @@ export default function SEPPTab() {
                                 notAfter={node.certificate.notAfter}
                                 now={now}
                               />
-                            ) : (
-                              <Muted />
-                            )}
-                          </TableCell>
-                          <TableCell sx={{ wordBreak: "break-word" }}>
-                            {node.error ? (
-                              <Typography variant="body2" color="error">
-                                {node.error}
-                              </Typography>
                             ) : (
                               <Muted />
                             )}

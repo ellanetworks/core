@@ -275,7 +275,7 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 	return smf.DataNetworkConfig{DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, PCSCF: f.policy.PCSCF}
 }
 
-func (f *fakeStore) IsHomeSubscriber(_ context.Context, _ string) (bool, error) {
+func (f *fakeStore) N26Allowed(_ context.Context, _ string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

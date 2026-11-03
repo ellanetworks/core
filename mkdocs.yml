@@ -84,6 +84,7 @@ nav:
     - Enable SMS: how_to/enable_sms.md
     - Enable Voice: how_to/enable_voice.md
     - Enable MCPTT: how_to/enable_mcptt.md
+    - Configure Roaming: how_to/configure_roaming.md
   - Reference:
     - reference/index.md
     - API:
@@ -102,6 +103,7 @@ nav:
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
+      - Roaming: reference/api/roaming.md
       - Slices: reference/api/slices.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
@@ -154,6 +156,7 @@ nav:
     - Ella Core and VRFs: explanation/vrf.md
     - IMS Integration: explanation/ims_integration.md
     - SMS Integration: explanation/sms_integration.md
+    - Roaming: explanation/roaming.md
 plugins:
   - search
   - glightbox

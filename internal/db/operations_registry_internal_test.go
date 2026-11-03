@@ -118,6 +118,8 @@ var pinnedChangesetOps = map[string]int{
 	"DeleteVisitorIfUnregistered":       26,
 	"WithdrawRoamers":                   26,
 	"ClearRoamingWithdrawals":           26,
+	"WithdrawRoamer":                    26,
+	"ClearRoamerWithdrawal":             26,
 	"DeleteUnregisteredVisitors":        26,
 }
 

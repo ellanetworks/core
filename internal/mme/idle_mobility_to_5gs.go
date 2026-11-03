@@ -53,13 +53,13 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 			interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
 	}
 
-	home, err := IsHomeSubscriber(ctx, m, ue.IMSI())
+	allowed, err := m.N26Allowed(ctx, ue.IMSI())
 	if err != nil {
 		return none, fmt.Errorf("mme: resolve the subscriber: %w", err)
 	}
 
-	if !home {
-		return none, fmt.Errorf("%w: M-TMSI %x", interworking.ErrNotHomeSubscriber, req.MappedEPSGUTI.TMSI)
+	if !allowed {
+		return none, fmt.Errorf("%w: M-TMSI %x", interworking.ErrN26NotAllowed, req.MappedEPSGUTI.TMSI)
 	}
 
 	if _, err := ue.AcceptUplink(req.EPSNAS, func(plain []byte) error {
@@ -103,6 +103,7 @@ func (m *MME) MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []ui
 	}
 
 	ue.EndIdleMobilityTo5GS()
+	m.handVisitorTo5GS(ctx, ue)
 
 	for _, p := range m.SnapshotPDNs(ue) {
 		if slices.Contains(transferred, p.PDUSessionID) {

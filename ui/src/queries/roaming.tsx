@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { ApiError, apiFetch, apiFetchVoid } from "@/queries/utils";
+import { formatDateTime } from "@/utils/formatters";
 
 export const DEFAULT_ROAMING_DIAMETER_PORT = 3868;
 
@@ -38,6 +39,13 @@ export type RoamingPartnerN32 = {
   nftlst: boolean;
   peer?: string;
   lastError?: string;
+  otherPeers?: RoamingPartnerN32Peer[];
+};
+
+export type RoamingPartnerN32Peer = {
+  peer: string;
+  since: string;
+  nftlst: boolean;
 };
 
 export type RoamingPartner = RoamingPartnerInput & {
@@ -122,9 +130,58 @@ export type RoamingUsage = {
   total_bytes: number;
 };
 
+export type RoamerRAT = "4G" | "5G";
+
+export type RoamerRegistration = {
+  rat: RoamerRAT;
+  nodeID: string;
+  reachable: boolean;
+  registered?: boolean;
+  connectionState?: "connected" | "idle";
+  since?: string;
+  lastSeenAt?: string;
+  radio?: string;
+};
+
+export type RoamerSession = {
+  rat: RoamerRAT;
+  nodeID: string;
+  id: number;
+  dataNetwork: string;
+  ipv4Address?: string;
+  ipv6Prefix?: string;
+};
+
+export type RoamerUsage = {
+  uplinkBytes: number;
+  downlinkBytes: number;
+  totalBytes: number;
+};
+
+export type Roamer = {
+  imsi: string;
+  partnerID: string;
+  partnerName: string;
+  homePLMN: PLMNID;
+  registrations: RoamerRegistration[];
+  sessions: RoamerSession[];
+  usageToday?: RoamerUsage;
+};
+
+export type UnreachableNode = {
+  nodeID: string;
+  error: string;
+};
+
+export type RoamersList = {
+  items: Roamer[];
+  unreachableNodes?: UnreachableNode[];
+};
+
 const PARTNERS_PATH = "/api/v1/roaming/partners";
 const PEERS_PATH = "/api/v1/roaming/diameter-peers";
 const SEPP_PATH = "/api/v1/roaming/sepp";
+const ROAMERS_PATH = "/api/v1/roaming/roamers";
 
 const seppCertificatePath = (seppID: number) =>
   `${SEPP_PATH}/nodes/${seppID}/certificate`;
@@ -285,6 +342,31 @@ export const getRoamingUsage = async (
   return res ?? [];
 };
 
+export const listRoamers = async (authToken: string): Promise<RoamersList> => {
+  const res = await apiFetch<RoamersList>(ROAMERS_PATH, { authToken });
+  return {
+    items: res?.items ?? [],
+    unreachableNodes: res?.unreachableNodes ?? [],
+  };
+};
+
+export const getRoamer = async (
+  authToken: string,
+  imsi: string,
+): Promise<Roamer> =>
+  apiFetch<Roamer>(`${ROAMERS_PATH}/${encodeURIComponent(imsi)}`, {
+    authToken,
+  });
+
+export const deregisterRoamer = async (
+  authToken: string,
+  imsi: string,
+): Promise<void> =>
+  apiFetchVoid(`${ROAMERS_PATH}/${encodeURIComponent(imsi)}`, {
+    method: "DELETE",
+    authToken,
+  });
+
 const paddedMNC = (mnc: string) => (mnc.length === 2 ? `0${mnc}` : mnc);
 
 export const plmnDomain = (mcc: string, mnc: string) =>
@@ -301,6 +383,9 @@ export const n32NodeLabel = (n32: { nodeID?: string; seppID?: number }) => {
   if (n32.nodeID) return `Node ${n32.nodeID}`;
   return "SEPP";
 };
+
+export const otherPeerLabel = (peer: RoamingPartnerN32Peer) =>
+  peer.since ? `${peer.peer} since ${formatDateTime(peer.since)}` : peer.peer;
 
 export const formatPLMN = (plmn: PLMNID) => `${plmn.mcc}-${plmn.mnc}`;
 

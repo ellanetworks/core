@@ -89,6 +89,7 @@ func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBe
 		PDNType:      pdnType,
 		PDUSessionID: sc.PDUSessionID,
 		Snssai:       sc.Snssai,
+		HomeSnssai:   sc.homeSnssaiLocked(),
 		SGW:          models.FTEID{TEID: sc.Tunnel.N3TEID, Addr: sc.Tunnel.N3IPv4},
 		SGWN3IPv6:    sc.Tunnel.N3IPv6,
 		IPv6IID:      sc.IPv6IID,

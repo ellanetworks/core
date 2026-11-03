@@ -14,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/serial"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
@@ -93,6 +95,7 @@ type MME struct {
 
 	HomeNetwork HomeNetwork
 	Roaming     RoamingStore
+	N26         roaming.N26Policy
 
 	Session epsSessionManager
 	NAS     NASHandler
@@ -100,7 +103,7 @@ type MME struct {
 
 	Registrations Registrar
 
-	home            keyedQueue
+	home            serial.KeyedQueue
 	mtmsiFreezeTime time.Duration
 
 	LPPHandler LPPHandler

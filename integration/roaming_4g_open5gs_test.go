@@ -156,8 +156,8 @@ LoadExtension = "/usr/lib/x86_64-linux-gnu/freeDiameter/dict_dcca.fdx";
 LoadExtension = "/usr/lib/x86_64-linux-gnu/freeDiameter/dict_dcca_3gpp.fdx";
 `, r4gHSSIdentity, r4gHSSRealm, r4gHSSAddress)
 
-	for _, h := range hosts {
-		fmt.Fprintf(&b, "ConnectPeer = %q { No_TLS; };\n", h)
+	for i, h := range hosts {
+		fmt.Fprintf(&b, "ConnectPeer = %q { ConnectTo = %q; No_TLS; };\n", h, r4gNodeIP(i+1))
 	}
 
 	certPEM, keyPEM, err := r4gSelfSigned(r4gHSSIdentity)
@@ -574,7 +574,7 @@ func (s *r4gStack) waitHSSRecord(imsi, what string, ok func(r4gHSSRecord) bool) 
 }
 
 func (s *r4gStack) registeredEPS(node int) float64 {
-	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_registered_subscribers", `rat="4g"`)
+	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_roaming_visitors", `rat="4g"`)
 }
 
 func (s *r4gStack) waitRegisteredEPS(node int, want float64, what string) {
@@ -582,7 +582,7 @@ func (s *r4gStack) waitRegisteredEPS(node int, want float64, what string) {
 
 	err := r4gPoll(s.ctx, 30*time.Second, func() error {
 		if got := s.registeredEPS(node); got != want {
-			return fmt.Errorf("node %d has %v registered EPS subscribers, want %v", node, got, want)
+			return fmt.Errorf("node %d has %v registered EPS roamers, want %v", node, got, want)
 		}
 
 		return nil

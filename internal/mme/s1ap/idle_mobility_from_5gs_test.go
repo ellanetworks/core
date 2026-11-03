@@ -56,7 +56,7 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 		{name: "the operator configured no 5GS peer", noPeer: true, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
 		{
 			name:      "the 5GS peer offers N26 to home subscribers only",
-			err:       fmt.Errorf("%w: 5G-GUTI 001-01-cafe0001", interworking.ErrNotHomeSubscriber),
+			err:       fmt.Errorf("%w: 5G-GUTI 001-01-cafe0001", interworking.ErrN26NotAllowed),
 			wantCause: eps.EMMCauseUEIdentityCannotBeDerived,
 		},
 		{

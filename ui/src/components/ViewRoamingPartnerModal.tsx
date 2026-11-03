@@ -18,6 +18,7 @@ import {
   diameterPeerLabel,
   formatPLMN,
   n32NodeLabel,
+  otherPeerLabel,
   parseSEPPFQDN,
   type RoamingDiameterPeer,
   type RoamingPartner,
@@ -78,7 +79,7 @@ const ViewRoamingPartnerModal: React.FC<ViewRoamingPartnerModalProps> = ({
           <Row label="Profile" value={partner.profileName} />
 
           <Divider />
-          <Typography variant="subtitle2">5G roaming</Typography>
+          <Typography variant="subtitle2">5G Roaming</Typography>
           {sepp ? (
             <>
               <Row label="SEPP FQDN" value={sepp.fqdn} />
@@ -113,10 +114,10 @@ const ViewRoamingPartnerModal: React.FC<ViewRoamingPartnerModalProps> = ({
                 {sepp.trustAnchorPEM.trim()}
               </Box>
               <Typography variant="body2" color="textSecondary">
-                N32-c
+                N32 Status
               </Typography>
               {partner.n32?.length ? (
-                <Stack spacing={1} aria-label="N32-c status">
+                <Stack spacing={1} aria-label="N32 status">
                   {partner.n32.map((entry) => (
                     <Row
                       key={entry.seppID ?? entry.nodeID ?? "local"}
@@ -133,6 +134,15 @@ const ViewRoamingPartnerModal: React.FC<ViewRoamingPartnerModalProps> = ({
                               {entry.lastError}
                             </Typography>
                           )}
+                          {entry.otherPeers?.map((other) => (
+                            <Typography
+                              key={other.peer}
+                              variant="caption"
+                              color="textSecondary"
+                            >
+                              Also established with {otherPeerLabel(other)}
+                            </Typography>
+                          ))}
                         </Stack>
                       }
                     />
@@ -140,18 +150,18 @@ const ViewRoamingPartnerModal: React.FC<ViewRoamingPartnerModalProps> = ({
                 </Stack>
               ) : (
                 <Typography variant="body2" color="textSecondary">
-                  No node has interfaces.n32.
+                  No SEPP configured
                 </Typography>
               )}
             </>
           ) : (
             <Typography variant="body2" color="textSecondary">
-              No 5G roaming agreement.
+              Disabled
             </Typography>
           )}
 
           <Divider />
-          <Typography variant="subtitle2">4G roaming</Typography>
+          <Typography variant="subtitle2">4G Roaming</Typography>
           {partner.diameterPeerID ? (
             <Row
               label="Diameter Peer"
@@ -159,7 +169,7 @@ const ViewRoamingPartnerModal: React.FC<ViewRoamingPartnerModalProps> = ({
             />
           ) : (
             <Typography variant="body2" color="textSecondary">
-              No 4G roaming agreement.
+              Disabled
             </Typography>
           )}
         </Stack>

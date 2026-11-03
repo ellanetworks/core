@@ -8,7 +8,6 @@ import {
   type N32State,
   type RoamingPartnerN32,
 } from "@/queries/roaming";
-import { formatDateTime } from "@/utils/formatters";
 
 const stateLabels: Record<
   N32State,
@@ -22,15 +21,6 @@ const stateLabels: Record<
   unknown: { label: "Unknown", color: "default" },
 };
 
-const tooltipOf = (n32: RoamingPartnerN32) => {
-  if (n32.state === "established") {
-    const by = n32.initiator === "peer" ? "the partner" : "this SEPP";
-    const since = n32.since ? ` since ${formatDateTime(n32.since)}` : "";
-    return `N32-c context established by ${by}${since}.`;
-  }
-  return n32.lastError ?? "";
-};
-
 const N32StatusChip: React.FC<{
   n32: RoamingPartnerN32;
   withNode?: boolean;
@@ -41,7 +31,7 @@ const N32StatusChip: React.FC<{
   };
 
   return (
-    <Tooltip title={tooltipOf(n32)} arrow>
+    <Tooltip title={n32.lastError ?? ""} arrow>
       <Chip
         label={withNode ? `${n32NodeLabel(n32)}: ${label}` : label}
         color={color}

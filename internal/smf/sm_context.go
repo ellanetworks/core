@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -59,6 +60,7 @@ type SMContext struct {
 	PolicyData    *Policy
 
 	roamingHome models.PlmnID
+	home        atomic.Pointer[homeBinding]
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS

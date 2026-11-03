@@ -54,6 +54,18 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 	ue := mme.NewUeContext()
 	ue.SetSupi(resp.SUPI)
 
+	if err := m.AdmitArrivingVisitor(ctx, ue); err != nil {
+		logger.From(ctx, logger.MmeLog).Info("the roaming visitor moving from 5GS is not admitted; the update is rejected", zap.Error(err))
+
+		var r *mme.Rejection
+		if errors.As(err, &r) {
+			cause := r.Cause
+			conn.TauRejectCause = &cause
+		}
+
+		return nil, nil
+	}
+
 	if err := ue.InstallRelocatedSecurityContext(resp.Security, mme.MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to install the EPS context mapped from 5GS", zap.Error(err))
 

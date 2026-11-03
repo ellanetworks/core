@@ -1120,3 +1120,5 @@ None
 ```
 
 A peer that is not connected also has an `error`: the reason its last connection failed.
+
+`role` is `smsc` for an SMSC, `ims` for an IMS node, or `roaming` for a [roaming Diameter peer](roaming.md#list-roaming-diameter-peers).

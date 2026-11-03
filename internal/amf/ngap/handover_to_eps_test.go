@@ -18,6 +18,8 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -346,7 +348,7 @@ func TestHandoverRequiredToEPSRelaysATargetNotAllowedRefusal(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"a subscriber who is not a home subscriber", interworking.RefuseNonHomeRelocation()},
+		{"a subscriber who is not a home subscriber", interworking.RefuseN26Relocation()},
 		{"a subscriber barred from 4G", interworking.TargetRefusal{Cause: s1ap.Cause{
 			Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
 		}}},
@@ -377,6 +379,7 @@ func TestHandoverRequiredToEPSOfARoamingVisitorIsRefusedAtTheSource(t *testing.T
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
 	amfInstance.DBInstance = &fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}, Visitor: true}
+	amfInstance.HoldVisitorForTest(amfUe.Supi(), roaming.Visitor5G{Subscription: &wire.SubscriptionDataSets{AmData: &wire.AccessAndMobilitySubscriptionData{}}})
 
 	profile, err := amfInstance.SubscriberProfile(context.Background(), amfUe.Supi())
 	if err != nil {

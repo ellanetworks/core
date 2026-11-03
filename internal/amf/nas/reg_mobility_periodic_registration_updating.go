@@ -47,6 +47,31 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
+	if v, ok := ue.Visitor(); !ok || (v.Registered && v.Subscription != nil) {
+		continueMobilityRegistration(ctx, amfInstance, ue, ueConn, conn, operatorInfo)
+		return
+	}
+
+	amfInstance.RequestHomeRegistration(ctx, ue, conn, false, func(ctx context.Context, err error) {
+		if ue.RegStep() != amf.RegStepContextSetup {
+			logger.From(ctx, logger.AmfLog).Info("registration moved on while registering at the home network; dropping the answer")
+			return
+		}
+
+		if err == nil {
+			err = amfInstance.RegisterUE(ctx, ue)
+		}
+
+		if err != nil {
+			rejectOrRelease(ctx, amfInstance, ue, "register the visitor", err, amf.HomeRegistrationRejection)
+			return
+		}
+
+		continueMobilityRegistration(ctx, amfInstance, ue, ueConn, conn, operatorInfo)
+	})
+}
+
+func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn, conn *amf.UeConn, operatorInfo *amf.OperatorInfo) {
 	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
 		abortRegistration(ctx, amfInstance, ue, "get subscriber profile", err)
@@ -95,6 +120,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if !adoptArrivingSessions(ctx, amfInstance, ue, conn) {
 		return
 	}
+
+	amfInstance.BindHomeSessions(ctx, ue)
 
 	if err := amfInstance.ConfirmRegistration(ctx, ue); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to register the UE on registration update", zap.Error(err))

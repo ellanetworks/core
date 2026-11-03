@@ -29,7 +29,7 @@ const (
 )
 
 const (
-	getUsagePerDayStmt = `
+	usagePerDaySelect = `
 SELECT
     epoch_day AS &UsagePerDay.epoch_day,
     SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
@@ -38,9 +38,14 @@ FROM %s
 WHERE
     ($UsageFilters.imsi IS NULL OR imsi == $UsageFilters.imsi)
     AND epoch_day >= $UsageFilters.start_date
-    AND epoch_day <= $UsageFilters.end_date
+    AND epoch_day <= $UsageFilters.end_date`
+
+	usagePerDayOrder = `
 GROUP BY epoch_day
 ORDER BY epoch_day ASC`
+
+	getUsagePerDayStmt       = usagePerDaySelect + " AND imsi IN (SELECT imsi FROM %s WHERE roamingPartnerID IS NULL)" + usagePerDayOrder
+	getUsagePerDayPreV26Stmt = usagePerDaySelect + usagePerDayOrder
 )
 
 const (
@@ -262,7 +267,12 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 
 	var dailyUsage []UsagePerDay
 
-	err := db.conn().Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	stmt := db.getUsagePerDayStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.getUsagePerDayPreV26Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

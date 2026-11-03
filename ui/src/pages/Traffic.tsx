@@ -16,6 +16,7 @@ import {
   Tab,
   Tabs,
   Tooltip,
+  Chip,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
@@ -56,6 +57,7 @@ import {
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
 import { listAllSubscriberImsis } from "@/queries/subscribers";
+import { listRoamers, type RoamersList } from "@/queries/roaming";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
@@ -508,6 +510,21 @@ const Traffic: React.FC = () => {
     [protocolOptionsData, theme],
   );
 
+  const { data: roamersData } = useQuery<RoamersList>({
+    queryKey: ["trafficRoamers"],
+    queryFn: () => listRoamers(accessToken || ""),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 30000,
+  });
+
+  const roamerPartners = useMemo(
+    () =>
+      new Map(
+        (roamersData?.items ?? []).map((r) => [r.imsi, r.partnerName ?? ""]),
+      ),
+    [roamersData],
+  );
+
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
       {
@@ -547,7 +564,42 @@ const Traffic: React.FC = () => {
         headerName: "Subscriber",
         flex: 1,
         minWidth: 120,
-        renderCell: renderSubscriberLink,
+        renderCell: (params) => {
+          const partner = roamerPartners.get(params.value as string);
+          if (partner === undefined) return renderSubscriberLink(params);
+          return (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Link
+                to="/roaming/roamers"
+                style={{ textDecoration: "none" }}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: (t) => t.palette.link,
+                    textDecoration: "underline",
+                  }}
+                >
+                  {params.value as string}
+                </Typography>
+              </Link>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={partner ? `Roamer · ${partner}` : "Roamer"}
+              />
+            </Box>
+          );
+        },
       },
       {
         field: "direction",
@@ -728,7 +780,7 @@ const Traffic: React.FC = () => {
         },
       },
     ],
-    [protocolColorMap, theme],
+    [protocolColorMap, theme, roamerPartners],
   );
 
   const protocolPieData = useMemo(() => {

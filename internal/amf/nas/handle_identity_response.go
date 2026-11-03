@@ -105,6 +105,12 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 	pass, err := authenticationProcedure(ctx, amfInstance, ue)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error in authentication procedure", zap.Error(err))
+
+		if r, ok := roamingRejection(ue, err, amf.AuthenticationRejection); ok {
+			rejectRoaming(ctx, amfInstance, ue, r)
+			return nasreply.Handled()
+		}
+
 		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return nasreply.Handled()

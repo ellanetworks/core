@@ -38,6 +38,7 @@ type Seed = {
   usagePerDay?: UsageResult;
   imsis?: string[];
   stats?: (params: URLSearchParams) => FlowReportStatsResponse;
+  roamers?: { imsi: string; partnerName: string }[];
 };
 
 const seedApi = ({
@@ -47,6 +48,7 @@ const seedApi = ({
   usagePerDay = usageBySubscriber({ "2026-08-01": 4_000 }),
   imsis = [IMSI_A, IMSI_B],
   stats,
+  roamers = [],
 }: Seed = {}) => {
   api.get(USAGE_PATH, ({ params }) =>
     params.get("group_by") === "day" ? usagePerDay : usageBySub,
@@ -60,6 +62,7 @@ const seedApi = ({
     stats ? stats(params) : flowStats(),
   );
   api.get("/api/v1/networking/flow-accounting", () => ({ enabled: true }));
+  api.get("/api/v1/roaming/roamers", () => ({ items: roamers }));
   api.get("/api/v1/subscribers", () => ({
     items: imsis.map((imsi) => ({
       imsi,
@@ -741,5 +744,25 @@ describe("Traffic pie chart selection", () => {
 
     await waitFor(() => expect(destinationArcs()).toHaveLength(1));
     expect(destinationArcs()[0]).toHaveAttribute("fill", selected);
+  });
+});
+
+describe("Traffic flow log roamers", () => {
+  it("marks the flows of a roamer with its partner", async () => {
+    seedApi({
+      flows: [
+        flowReport(1),
+        flowReport(2, { subscriber_id: "208930000000001" }),
+      ],
+      roamers: [{ imsi: "208930000000001", partnerName: "Partner A" }],
+    });
+
+    await renderTraffic();
+
+    expect(await screen.findByText("Roamer · Partner A")).toBeInTheDocument();
+    expect(screen.getByText("208930000000001").closest("a")).toHaveAttribute(
+      "href",
+      "/roaming/roamers",
+    );
   });
 });

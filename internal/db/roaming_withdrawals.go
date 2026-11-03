@@ -18,10 +18,11 @@ import (
 const RoamingWithdrawalsTableName = "roaming_withdrawals"
 
 const (
-	listRoamingWithdrawalsStmt         = "SELECT &RoamingWithdrawal.* FROM %s ORDER BY partnerID, mcc, mnc, type"
-	listWithdrawalsOfPartnerStmt       = "SELECT &RoamingWithdrawal.* FROM %s WHERE partnerID==$RoamingWithdrawal.partnerID ORDER BY mcc, mnc, type"
-	insertRoamingWithdrawalStmt        = "INSERT INTO %s (partnerID, mcc, mnc, type, expiresAt) VALUES ($RoamingWithdrawal.partnerID, $RoamingWithdrawal.mcc, $RoamingWithdrawal.mnc, $RoamingWithdrawal.type, $RoamingWithdrawal.expiresAt)"
-	deleteWithdrawalsOfPartnerStmt     = "DELETE FROM %s WHERE partnerID==$RoamingWithdrawal.partnerID"
+	listRoamingWithdrawalsStmt         = "SELECT &RoamingWithdrawal.* FROM %s ORDER BY partnerID, mcc, mnc, type, imsi"
+	listWithdrawalsOfPartnerStmt       = "SELECT &RoamingWithdrawal.* FROM %s WHERE partnerID==$RoamingWithdrawal.partnerID ORDER BY mcc, mnc, type, imsi"
+	insertRoamingWithdrawalStmt        = "INSERT INTO %s (partnerID, mcc, mnc, type, imsi, expiresAt) VALUES ($RoamingWithdrawal.partnerID, $RoamingWithdrawal.mcc, $RoamingWithdrawal.mnc, $RoamingWithdrawal.type, $RoamingWithdrawal.imsi, $RoamingWithdrawal.expiresAt) ON CONFLICT(partnerID, mcc, mnc, type, imsi) DO UPDATE SET expiresAt = excluded.expiresAt"
+	deleteWithdrawalsOfPartnerStmt     = "DELETE FROM %s WHERE partnerID==$RoamingWithdrawal.partnerID AND imsi == ''"
+	deleteRoamerWithdrawalStmt         = "DELETE FROM %s WHERE imsi==$RoamingWithdrawal.imsi"
 	listVisitorRegistrationsOfNodeStmt = "SELECT &UERegistration.* FROM %s WHERE nodeID==$UERegistration.nodeID AND purged==0 AND imsi IN (SELECT imsi FROM %s WHERE roamingPartnerID IS NOT NULL) ORDER BY imsi, type"
 )
 
@@ -35,11 +36,16 @@ type RoamingWithdrawal struct {
 	Mcc       string `db:"mcc" json:"mcc"`
 	Mnc       string `db:"mnc" json:"mnc"`
 	Type      string `db:"type" json:"type"`
+	IMSI      string `db:"imsi" json:"imsi,omitempty"`
 	ExpiresAt int64  `db:"expiresAt" json:"expiresAt"`
 }
 
 func (w RoamingWithdrawal) Covers(imsi, regType string, now time.Time) bool {
 	if now.Unix() >= w.ExpiresAt {
+		return false
+	}
+
+	if w.IMSI != "" && w.IMSI != imsi {
 		return false
 	}
 
@@ -52,6 +58,10 @@ func (w RoamingWithdrawal) Covers(imsi, regType string, now time.Time) bool {
 
 func (w RoamingWithdrawal) AgreementOnly() bool {
 	return w.Type != "" && w.Mcc == ""
+}
+
+func (w RoamingWithdrawal) RoamerOnly() bool {
+	return w.IMSI != ""
 }
 
 func (p RoamingPartner) Withdrawal(imsi, regType string, now time.Time) (RoamingWithdrawal, bool) {
@@ -98,6 +108,8 @@ type roamingWithdrawalWrite struct {
 var (
 	opWithdrawRoamers         = registerChangesetOp("WithdrawRoamers", (*Database).applyWithdrawRoamers, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
 	opClearRoamingWithdrawals = registerChangesetOp("ClearRoamingWithdrawals", (*Database).applyClearRoamingWithdrawals, RequireSchema(26), AffectsTopic(TopicRoaming))
+	opWithdrawRoamer          = registerChangesetOp("WithdrawRoamer", (*Database).applyWithdrawRoamer, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
+	opClearRoamerWithdrawal   = registerChangesetOp("ClearRoamerWithdrawal", (*Database).applyClearRoamerWithdrawal, RequireSchema(26), AffectsTopic(TopicRoaming))
 )
 
 func (db *Database) WithdrawRoamers(ctx context.Context, partnerID string, withdrawals []RoamingWithdrawal) error {
@@ -162,6 +174,10 @@ func (db *Database) CountWithdrawnRoamers(ctx context.Context, partnerID string)
 	total := 0
 
 	for _, w := range withdrawals {
+		if w.RoamerOnly() {
+			continue
+		}
+
 		n, err := db.countWithdrawn(ctx, w)
 		if err != nil {
 			recordSpanError(span, err)
@@ -271,6 +287,8 @@ func (db *Database) applyWithdrawRoamers(ctx context.Context, w *roamingWithdraw
 
 	for _, row := range w.Withdrawals {
 		switch {
+		case row.IMSI != "":
+			return nil, fmt.Errorf("withdrawal of roaming partner %s names an IMSI", existing.Name)
 		case row.Mcc != "" && !existing.HasPLMN(RoamingPLMN{Mcc: row.Mcc, Mnc: row.Mnc}):
 			return nil, fmt.Errorf("%w: PLMN %s-%s is not a PLMN of roaming partner %s", ErrRoamingConflict, row.Mcc, row.Mnc, existing.Name)
 		case row.Type != "" && !slices.Contains([]string{UERegistrationTypeMME, UERegistrationTypeAMF3GPPAccess}, row.Type):
@@ -316,4 +334,70 @@ func (db *Database) refuseWithdrawnVisitor(ctx context.Context, imsi, partnerID,
 	}
 
 	return nil
+}
+
+func (db *Database) WithdrawRoamer(ctx context.Context, imsi string, expiresAt time.Time) error {
+	ctx, span := startRoamingPartnersSpan(ctx, "WITHDRAW ROAMER")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoamingWithdrawalsTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoamingWithdrawalsTableName, "insert").Inc()
+
+	if _, err := opWithdrawRoamer.Invoke(ctx, db, &RoamingWithdrawal{IMSI: imsi, ExpiresAt: expiresAt.Unix()}); err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+
+	return nil
+}
+
+func (db *Database) ClearRoamerWithdrawal(ctx context.Context, imsi string) error {
+	ctx, span := startRoamingPartnersSpan(ctx, "CLEAR ROAMER WITHDRAWAL")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoamingWithdrawalsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoamingWithdrawalsTableName, "delete").Inc()
+
+	if _, err := opClearRoamerWithdrawal.Invoke(ctx, db, &stringPayload{Value: imsi}); err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+
+	return nil
+}
+
+func (db *Database) applyWithdrawRoamer(ctx context.Context, w *RoamingWithdrawal) (any, error) {
+	visitor := Subscriber{Imsi: w.IMSI}
+
+	if err := db.runner(ctx).Query(ctx, db.getSubscriberOrVisitorStmt, visitor).Get(&visitor); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if visitor.RoamingPartnerID == nil {
+		return nil, ErrNotFound
+	}
+
+	row := RoamingWithdrawal{PartnerID: *visitor.RoamingPartnerID, IMSI: w.IMSI, ExpiresAt: w.ExpiresAt}
+
+	if err := db.runner(ctx).Query(ctx, db.insertRoamingWithdrawalStmt, row).Run(); err != nil {
+		return nil, fmt.Errorf("insert roamer withdrawal: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyClearRoamerWithdrawal(ctx context.Context, p *stringPayload) (any, error) {
+	if err := db.runner(ctx).Query(ctx, db.deleteRoamerWithdrawalStmt, RoamingWithdrawal{IMSI: p.Value}).Run(); err != nil {
+		return nil, fmt.Errorf("delete roamer withdrawal: %w", err)
+	}
+
+	return nil, nil
 }

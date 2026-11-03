@@ -9,6 +9,7 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 import { httpError, setupApiServer } from "@/test/apiServer";
 import Roaming from "./Roaming";
 import PartnersTab from "./roaming/PartnersTab";
+import RoamersTab from "./roaming/RoamersTab";
 import DiameterPeersTab from "./roaming/DiameterPeersTab";
 import UsageTab from "./roaming/UsageTab";
 import SEPPTab from "./roaming/SEPPTab";
@@ -22,6 +23,7 @@ const SEPP_CA_PATH = `${SEPP_STATUS_PATH}/ca/regenerate`;
 const seppCertPath = (seppID: number | string) =>
   `${SEPP_STATUS_PATH}/nodes/${seppID}/certificate`;
 const USAGE_PATH = "/api/v1/roaming/usage";
+const ROAMERS_PATH = "/api/v1/roaming/roamers";
 
 const PEM =
   "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIUQ==\n-----END CERTIFICATE-----";
@@ -200,6 +202,7 @@ const renderRoaming = (path: string, role = "Admin") =>
       <Route path="/roaming" element={<Roaming />}>
         <Route index element={<Navigate to="partners" replace />} />
         <Route path="partners" element={<PartnersTab />} />
+        <Route path="roamers" element={<RoamersTab />} />
         <Route path="diameter-peers" element={<DiameterPeersTab />} />
         <Route path="usage" element={<UsageTab />} />
         <Route path="sepp" element={<SEPPTab />} />
@@ -310,7 +313,7 @@ describe("Roaming partners", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "Re-run N32 handshake with Orange",
+        name: "Restart N32 handshake with Orange",
       }),
     );
 
@@ -322,13 +325,11 @@ describe("Roaming partners", () => {
       ).toHaveLength(1),
     );
     expect(
-      await screen.findByText(
-        'N32-c handshake with "Orange" started: SEPP 1 establishing, SEPP 2 unknown (node unreachable).',
-      ),
+      await screen.findByText('N32 handshake with "Orange" started.'),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
-        name: "Re-run N32 handshake with SFR",
+        name: "Restart N32 handshake with SFR",
       }),
     ).not.toBeInTheDocument();
   });
@@ -342,13 +343,13 @@ describe("Roaming partners", () => {
 
     await user.click(
       await screen.findByRole("button", {
-        name: "Re-run N32 handshake with Orange",
+        name: "Restart N32 handshake with Orange",
       }),
     );
 
     expect(
       await screen.findByText(
-        /Failed to start the N32-c handshake: The SEPP leader is not available/,
+        /Failed to start the N32 handshake: The SEPP leader is not available/,
       ),
     ).toBeInTheDocument();
   });
@@ -358,7 +359,7 @@ describe("Roaming partners", () => {
 
     await screen.findByText("Orange");
     expect(
-      screen.queryByRole("button", { name: "Add Partner" }),
+      screen.queryByRole("button", { name: "Create" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: /Delete roaming partner/ }),
@@ -370,8 +371,42 @@ describe("Roaming partners", () => {
       screen.queryByRole("button", { name: /Edit roaming partner/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Re-run N32 handshake/ }),
+      screen.queryByRole("button", { name: /Restart N32 handshake/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the other N32 contexts of a SEPP with the partner", async () => {
+    const user = userEvent.setup();
+    const withOthers = {
+      ...orange,
+      n32: [
+        {
+          ...orange.n32[0],
+          otherPeers: [
+            {
+              peer: "sepp2.5gc.mnc001.mcc208.3gppnetwork.org",
+              since: "2026-11-03T11:00:00Z",
+              nftlst: true,
+            },
+          ],
+        },
+        orange.n32[1],
+      ],
+    };
+    api.get(PARTNERS_PATH, () => ({ items: [withOthers, sfr] }));
+    renderRoaming("/roaming/partners", "Read Only");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "View roaming partner Orange",
+      }),
+    );
+    const n32 = within(dialog()).getByLabelText("N32 status");
+    expect(
+      within(n32).getByText(
+        /Also established with sepp2\.5gc\.mnc001\.mcc208\.3gppnetwork\.org since/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("lets read-only users view a partner's full configuration", async () => {
@@ -398,15 +433,13 @@ describe("Roaming partners", () => {
     expect(within(view).getByLabelText("Trust anchor")).toHaveTextContent(
       "BEGIN CERTIFICATE",
     );
-    const n32 = within(view).getByLabelText("N32-c status");
+    const n32 = within(view).getByLabelText("N32 status");
     expect(within(n32).getByText("SEPP 1 (node-a)")).toBeInTheDocument();
     expect(within(n32).getByText("Established")).toBeInTheDocument();
     expect(within(n32).getByText("SEPP 2 (node-b)")).toBeInTheDocument();
     expect(within(n32).getByText("Unknown")).toBeInTheDocument();
     expect(within(n32).getByText("dial timeout")).toBeInTheDocument();
-    expect(
-      within(view).getByText("No 4G roaming agreement."),
-    ).toBeInTheDocument();
+    expect(within(view).getByText("Disabled")).toBeInTheDocument();
     expect(
       within(view).queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
@@ -427,7 +460,7 @@ describe("Roaming partners", () => {
 
     expect(
       within(dialog()).getByText(
-        'Delete the roaming partner "Orange" (PLMN 208-01, 208-02)? Its roamers are detached first and purged at their home network. Its roaming usage is kept. This cannot be undone.',
+        'Are you sure you want to delete the roaming partner "Orange"? Its roamers will be deregistered.',
       ),
     ).toBeInTheDocument();
 
@@ -443,14 +476,12 @@ describe("Roaming partners", () => {
     ).toBeInTheDocument();
   });
 
-  it("adds a partner with 5G and 4G roaming", async () => {
+  it("creates a partner with 5G and 4G roaming", async () => {
     const user = userEvent.setup();
     api.post(PARTNERS_PATH, () => ({ ...orange, id: "new" }));
     renderRoaming("/roaming/partners");
 
-    await user.click(
-      await screen.findByRole("button", { name: "Add Partner" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Create" }));
     await setText(user, /^Name/, "Vodafone");
     await setText(user, /^MCC 1/, "262");
     await setText(user, /^MNC 1/, "02");
@@ -466,7 +497,7 @@ describe("Roaming partners", () => {
     await user.click(await screen.findByRole("option", { name: "roamers" }));
 
     await user.click(
-      within(dialog()).getByRole("switch", { name: "5G roaming" }),
+      within(dialog()).getByRole("switch", { name: "5G Roaming" }),
     );
     expect(within(dialog()).getByLabelText(/^NRF API Root/)).toHaveAttribute(
       "placeholder",
@@ -493,7 +524,7 @@ describe("Roaming partners", () => {
     );
 
     await user.click(
-      within(dialog()).getByRole("switch", { name: "4G roaming" }),
+      within(dialog()).getByRole("switch", { name: "4G Roaming" }),
     );
     await user.click(
       within(dialog()).getByRole("combobox", { name: "Diameter Peer" }),
@@ -502,9 +533,9 @@ describe("Roaming partners", () => {
       await screen.findByRole("option", { name: "[2001:db8::30]:3869" }),
     );
 
-    const add = within(dialog()).getByRole("button", { name: "Add" });
-    await waitFor(() => expect(add).toBeEnabled());
-    await user.click(add);
+    const create = within(dialog()).getByRole("button", { name: "Create" });
+    await waitFor(() => expect(create).toBeEnabled());
+    await user.click(create);
 
     await waitFor(() =>
       expect(sent(PARTNERS_PATH, "POST")).toEqual({
@@ -528,11 +559,9 @@ describe("Roaming partners", () => {
     const user = userEvent.setup();
     renderRoaming("/roaming/partners");
 
+    await user.click(await screen.findByRole("button", { name: "Create" }));
     await user.click(
-      await screen.findByRole("button", { name: "Add Partner" }),
-    );
-    await user.click(
-      within(dialog()).getByRole("switch", { name: "5G roaming" }),
+      within(dialog()).getByRole("switch", { name: "5G Roaming" }),
     );
     await setText(user, /^N32-c URI/, "http://sepp.example.org");
 
@@ -545,9 +574,7 @@ describe("Roaming partners", () => {
     const user = userEvent.setup();
     renderRoaming("/roaming/partners");
 
-    await user.click(
-      await screen.findByRole("button", { name: "Add Partner" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Create" }));
     await setText(user, /^MCC 1/, "262");
     await setText(user, /^MNC 1/, "02");
     await user.click(
@@ -556,7 +583,7 @@ describe("Roaming partners", () => {
     await setText(user, /^MCC 2/, "262");
     await setText(user, /^MNC 2/, "002");
     await user.click(
-      within(dialog()).getByRole("switch", { name: "5G roaming" }),
+      within(dialog()).getByRole("switch", { name: "5G Roaming" }),
     );
     await setText(
       user,
@@ -572,14 +599,16 @@ describe("Roaming partners", () => {
 
     await setText(user, /^SEPP FQDN/, "sepp.5gc.mnc002.mcc262.3gppnetwork.org");
     expect(
-      await within(dialog()).findByText(/must not be the well-known/),
+      await within(dialog()).findByText(
+        "SEPP FQDN must not use the host name sepp",
+      ),
     ).toBeInTheDocument();
 
     expect(
-      within(dialog()).getByRole("button", { name: "Add" }),
+      within(dialog()).getByRole("button", { name: "Create" }),
     ).toBeDisabled();
     expect(
-      await within(dialog()).findByText(/Two PLMNs are the same or ambiguous/),
+      await within(dialog()).findByText("PLMNs must not overlap"),
     ).toBeInTheDocument();
   });
 
@@ -610,7 +639,7 @@ describe("Roaming partners", () => {
     await setText(user, /^MNC 2/, "05");
 
     await user.click(
-      within(dialog()).getByRole("switch", { name: "5G roaming" }),
+      within(dialog()).getByRole("switch", { name: "5G Roaming" }),
     );
     await user.click(within(dialog()).getByRole("button", { name: "Update" }));
 
@@ -646,6 +675,198 @@ describe("Roaming partners", () => {
   });
 });
 
+const roamer5G = {
+  imsi: "208019000000001",
+  partnerID: orange.id,
+  partnerName: "Orange",
+  homePLMN: { mcc: "208", mnc: "01" },
+  registrations: [
+    {
+      rat: "5G",
+      nodeID: "node-a",
+      reachable: true,
+      registered: true,
+      connectionState: "connected",
+      since: "2026-11-03T10:00:00Z",
+      lastSeenAt: "2026-11-03T10:05:00Z",
+      radio: "gnb-1",
+    },
+  ],
+  sessions: [
+    {
+      rat: "5G",
+      nodeID: "node-a",
+      id: 1,
+      dataNetwork: "internet",
+      ipv4Address: "10.45.0.2",
+      ipv6Prefix: "2001:db8::/64",
+    },
+  ],
+  usageToday: { uplinkBytes: 1000, downlinkBytes: 2000, totalBytes: 3000 },
+};
+
+const roamer4G = {
+  imsi: "208109000000002",
+  partnerID: sfr.id,
+  partnerName: "SFR",
+  homePLMN: { mcc: "208", mnc: "10" },
+  registrations: [
+    {
+      rat: "4G",
+      nodeID: "node-b",
+      reachable: true,
+      registered: true,
+      connectionState: "idle",
+      since: "2026-11-03T09:00:00Z",
+    },
+  ],
+  sessions: [],
+  usageToday: { uplinkBytes: 0, downlinkBytes: 0, totalBytes: 0 },
+};
+
+describe("Roamers", () => {
+  it("lists the roamers with their partner, status, RAT and sessions", async () => {
+    api.get(ROAMERS_PATH, () => ({ items: [roamer5G, roamer4G] }));
+    renderRoaming("/roaming/roamers");
+
+    expect(await screen.findByText("208019000000001")).toBeInTheDocument();
+    expect(screen.getByText("208109000000002")).toBeInTheDocument();
+    expect(screen.getByText("Orange")).toBeInTheDocument();
+    expect(screen.getByText("SFR")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText("Idle")).toBeInTheDocument();
+    expect(screen.getByText("5G")).toBeInTheDocument();
+    expect(screen.getByText("4G")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state without roamers", async () => {
+    api.get(ROAMERS_PATH, () => ({ items: [] }));
+    renderRoaming("/roaming/roamers");
+
+    expect(await screen.findByText("No roamers")).toBeInTheDocument();
+  });
+
+  it("warns that the list is partial when a node does not answer", async () => {
+    api.get(ROAMERS_PATH, () => ({
+      items: [
+        {
+          ...roamer5G,
+          registrations: [{ rat: "5G", nodeID: "node-c", reachable: false }],
+          sessions: [],
+        },
+      ],
+      unreachableNodes: [{ nodeID: "node-c", error: "unreachable: timeout" }],
+    }));
+    renderRoaming("/roaming/roamers");
+
+    expect(
+      await screen.findByText(
+        "Some nodes did not answer, so this list may be incomplete: node-c.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+  });
+
+  it("shows a roamer's registrations and sessions", async () => {
+    const user = userEvent.setup();
+    api.get(ROAMERS_PATH, () => ({ items: [roamer5G] }));
+    api.get(`${ROAMERS_PATH}/:imsi`, () => roamer5G);
+    renderRoaming("/roaming/roamers", "Read Only");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "View roamer 208019000000001",
+      }),
+    );
+
+    const view = dialog();
+    const registrations = within(view).getByRole("table", {
+      name: "Registrations",
+    });
+    expect(within(registrations).getByText("gnb-1")).toBeInTheDocument();
+    expect(within(registrations).getByText("Connected")).toBeInTheDocument();
+    const sessions = within(view).getByRole("table", { name: "Sessions" });
+    expect(within(sessions).getByText("internet")).toBeInTheDocument();
+    expect(within(sessions).getByText("2001:db8::/64")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.requests(`${ROAMERS_PATH}/${roamer5G.imsi}`)).not.toHaveLength(
+        0,
+      ),
+    );
+  });
+
+  it("confirms a deregistration and sends it", async () => {
+    const user = userEvent.setup();
+    api.get(ROAMERS_PATH, () => ({ items: [roamer5G] }));
+    api.delete(`${ROAMERS_PATH}/:imsi`, () => ({
+      message: "Roamer deregistered successfully",
+    }));
+    renderRoaming("/roaming/roamers");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Deregister roamer 208019000000001",
+      }),
+    );
+
+    expect(
+      within(dialog()).getByText(
+        'Are you sure you want to deregister the roamer "208019000000001"?',
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(dialog()).getByRole("button", { name: "Deregister" }),
+    );
+
+    await waitFor(() =>
+      expect(api.lastRequest(`${ROAMERS_PATH}/${roamer5G.imsi}`)?.method).toBe(
+        "DELETE",
+      ),
+    );
+    expect(
+      await screen.findByText(
+        'Roamer "208019000000001" deregistered successfully.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows why a deregistration was refused", async () => {
+    const user = userEvent.setup();
+    api.get(ROAMERS_PATH, () => ({ items: [roamer5G] }));
+    api.delete(`${ROAMERS_PATH}/:imsi`, () =>
+      httpError(409, "node node-a holding the roamer is unreachable"),
+    );
+    renderRoaming("/roaming/roamers");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Deregister roamer 208019000000001",
+      }),
+    );
+    await user.click(
+      within(dialog()).getByRole("button", { name: "Deregister" }),
+    );
+
+    expect(
+      await within(dialog()).findByText(
+        "node node-a holding the roamer is unreachable",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the deregistration from read-only users", async () => {
+    api.get(ROAMERS_PATH, () => ({ items: [roamer5G] }));
+    renderRoaming("/roaming/roamers", "Read Only");
+
+    await screen.findByText("208019000000001");
+    expect(
+      screen.queryByRole("button", { name: /Deregister roamer/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("Roaming Diameter peers", () => {
   it("lists peers with the partners that use them and blocks deleting one in use", async () => {
     renderRoaming("/roaming/diameter-peers");
@@ -665,18 +886,18 @@ describe("Roaming Diameter peers", () => {
     ).toBeEnabled();
   });
 
-  it("adds a peer", async () => {
+  it("creates a peer", async () => {
     const user = userEvent.setup();
     api.post(PEERS_PATH, () => ({ ...hss, id: "new" }));
     renderRoaming("/roaming/diameter-peers");
 
-    await user.click(await screen.findByRole("button", { name: "Add Peer" }));
+    await user.click(await screen.findByRole("button", { name: "Create" }));
     await setText(user, /^Address/, "198.51.100.7");
     await setText(user, /^Diameter Identity/, "dea.example.org");
 
-    const add = within(dialog()).getByRole("button", { name: "Add" });
-    await waitFor(() => expect(add).toBeEnabled());
-    await user.click(add);
+    const create = within(dialog()).getByRole("button", { name: "Create" });
+    await waitFor(() => expect(create).toBeEnabled());
+    await user.click(create);
 
     await waitFor(() =>
       expect(sent(PEERS_PATH, "POST")).toEqual({
@@ -739,7 +960,6 @@ describe("Roaming SEPP", () => {
     expect(within(b).getByText("Not configured")).toBeInTheDocument();
 
     const c = await nodeRow("3");
-    expect(within(c).getByText("unknown: dial timeout")).toBeInTheDocument();
     await user.hover(within(c).getByText("Unknown"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
       "unknown: dial timeout",
@@ -747,9 +967,6 @@ describe("Roaming SEPP", () => {
 
     const orphan = await nodeRow("9");
     expect(within(orphan).getByText("No node")).toBeInTheDocument();
-    expect(
-      within(orphan).getByText("no cluster node has this SEPP ID"),
-    ).toBeInTheDocument();
   });
 
   it("warns when a node certificate expires soon", async () => {
@@ -766,9 +983,6 @@ describe("Roaming SEPP", () => {
 
     const a = await nodeRow("1");
     expect(within(a).getByText("Expired")).toBeInTheDocument();
-    expect(
-      screen.getByText(/The certificate of SEPP 1 expired on/),
-    ).toBeInTheDocument();
   });
 
   it("flags a node FQDN outside the operator PLMN", async () => {
@@ -779,7 +993,7 @@ describe("Roaming SEPP", () => {
 
     expect(
       await screen.findByText(
-        /The FQDN of SEPP 1, sepp1\.5gc\.mnc001\.mcc208\.3gppnetwork\.org, is not under 5gc\.mnc001\.mcc001\.3gppnetwork\.org/,
+        "The FQDN of SEPP 1 is not under 5gc.mnc001.mcc001.3gppnetwork.org. Generate or import a new certificate.",
       ),
     ).toBeInTheDocument();
   });
@@ -871,7 +1085,9 @@ describe("Roaming SEPP", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      within(dialog()).getByText(/The current certificate is imported/),
+      within(dialog()).getByText(
+        /Partners must then trust the cluster SEPP CA/,
+      ),
     ).toBeInTheDocument();
     await user.click(
       within(dialog()).getByRole("button", { name: "Generate" }),
@@ -903,18 +1119,14 @@ describe("Roaming SEPP", () => {
       await screen.findByRole("button", { name: "Regenerate CA" }),
     );
     expect(
-      within(dialog()).getByText(
-        /every roaming partner must import the new one/,
-      ),
+      within(dialog()).getByText(/Partners must then trust the new CA/),
     ).toBeInTheDocument();
     await user.click(
       within(dialog()).getByRole("button", { name: "Regenerate" }),
     );
 
     expect(
-      await screen.findByText(
-        "SEPP CA regenerated. Reissued the certificates of SEPP 1, SEPP 9.",
-      ),
+      await screen.findByText("SEPP CA regenerated successfully."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Every partner must import the new trust anchor"),
@@ -963,7 +1175,7 @@ describe("Roaming SEPP", () => {
 });
 
 describe("Roaming usage", () => {
-  it("shows usage per PLMN and day with partner names and filters by IMSI", async () => {
+  it("shows usage per PLMN with partner names and filters by IMSI", async () => {
     const user = userEvent.setup();
     api.get(USAGE_PATH, () => [
       {
@@ -986,10 +1198,11 @@ describe("Roaming usage", () => {
     ]);
     renderRoaming("/roaming/usage");
 
-    expect(await screen.findByText("Orange")).toBeInTheDocument();
-    expect(screen.getByText("208-01")).toBeInTheDocument();
-    expect(screen.getAllByText("310-410")).toHaveLength(2);
-    expect(screen.getAllByText("2026-11-02").length).toBeGreaterThan(0);
+    const table = await screen.findByRole("grid", { name: "Usage per PLMN" });
+    expect(await within(table).findByText("Orange")).toBeInTheDocument();
+    expect(within(table).getByText("208-01")).toBeInTheDocument();
+    expect(within(table).getByText("310-410")).toBeInTheDocument();
+    expect(within(table).getByText("Former partner")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("IMSI"), "208010000000001");
 

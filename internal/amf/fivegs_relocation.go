@@ -102,18 +102,21 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 			req.Target.SelectedTAI.PlmnID, req.Target.SelectedTAI.TAC)
 	}
 
-	home, err := a.IsHomeSubscriber(ctx, req.SUPI)
+	allowed, err := a.N26Allowed(ctx, req.SUPI)
 	if err != nil {
 		return none, fmt.Errorf("amf: resolve the subscriber: %w", err)
 	}
 
-	if !home {
-		return none, interworking.RefuseNonHomeRelocation()
+	if !allowed {
+		return none, interworking.RefuseN26Relocation()
 	}
 
-	subscriberProfile, err := a.SubscriberProfile(ctx, req.SUPI)
+	ue := NewUeContext()
+	ue.SetSupi(req.SUPI)
+
+	subscriberProfile, err := a.arrivingProfile(ctx, ue, models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink})
 	if err != nil {
-		return none, fmt.Errorf("amf: resolve the subscriber profile: %w", err)
+		return none, err
 	}
 
 	if !subscriberProfile.Allow5G {
@@ -138,8 +141,6 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, err
 	}
 
-	ue := NewUeContext()
-	ue.SetSupi(req.SUPI)
 	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllowedNssai(snssaiList)
 	ue.SetAllow4G(subscriberProfile.EPSInterworking)
@@ -164,6 +165,37 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 	}
 
 	return resp, nil
+}
+
+func (a *AMF) arrivingProfile(ctx context.Context, ue *UeContext, transferred models.Ambr) (*SubscriberProfile, error) {
+	if err := a.AdmitVisitor(ctx, ue); err != nil {
+		var r *Rejection
+		if errors.As(err, &r) {
+			return nil, fmt.Errorf("%w: %w", r, interworking.TargetRefusal{Cause: s1ap.Cause{
+				Group: s1ap.CauseGroupRadioNetwork,
+				Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
+			}})
+		}
+
+		return nil, fmt.Errorf("amf: admit the roaming visitor: %w", err)
+	}
+
+	var (
+		profile *SubscriberProfile
+		err     error
+	)
+
+	if ue.IsVisitor() {
+		profile, err = a.ArrivingVisitorProfile(ctx, ue.Supi(), transferred)
+	} else {
+		profile, err = a.SubscriberProfile(ctx, ue.Supi())
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("amf: resolve the subscriber profile: %w", err)
+	}
+
+	return profile, nil
 }
 
 func (a *AMF) relocateFromEPS(

@@ -12,6 +12,8 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/udm"
 )
 
@@ -380,7 +382,12 @@ func TestSubscriberProfileOffersEPSInterworkingToHomeSubscribersOnly(t *testing.
 		{name: "lookup failure", db: &configTestDB{subscriber: home, lookupErr: failure, allow4G: true}, wantErr: failure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			profile, err := amf.New(tc.db, nil, nil).SubscriberProfile(context.Background(), mustSUPI(t))
+			amfInstance := amf.New(tc.db, nil, nil)
+			if tc.db.lookup != nil && tc.db.lookup.RoamingPartnerID != nil {
+				amfInstance.HoldVisitorForTest(mustSUPI(t), roaming.Visitor5G{Subscription: &wire.SubscriptionDataSets{AmData: &wire.AccessAndMobilitySubscriptionData{}}})
+			}
+
+			profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tc.wantErr)
 			}

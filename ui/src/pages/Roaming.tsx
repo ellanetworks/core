@@ -9,7 +9,13 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 
-const TAB_SEGMENTS = ["partners", "diameter-peers", "usage", "sepp"] as const;
+const TAB_SEGMENTS = [
+  "partners",
+  "roamers",
+  "diameter-peers",
+  "usage",
+  "sepp",
+] as const;
 
 type TabKey = (typeof TAB_SEGMENTS)[number];
 
@@ -38,8 +44,7 @@ export default function RoamingPage() {
     >
       <PageTitle title="Roaming" sx={{ mb: 1 }} />
       <Typography variant="body1" color="textSecondary" sx={{ mb: 2 }}>
-        Let subscribers of partner networks attach to this network, with their
-        traffic broken out locally.
+        Manage roaming partners and the roamers using your network.
       </Typography>
 
       <Tabs
@@ -49,6 +54,7 @@ export default function RoamingPage() {
         sx={{ borderBottom: 1, borderColor: "divider" }}
       >
         <Tab value="partners" label="Partners" />
+        <Tab value="roamers" label="Roamers" />
         <Tab value="diameter-peers" label="Diameter Peers" />
         <Tab value="usage" label="Usage" />
         <Tab value="sepp" label="SEPP" />

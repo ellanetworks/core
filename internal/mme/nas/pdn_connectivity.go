@@ -164,7 +164,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.Ebi,
-		PDUSessionID:      interworkingPDUSessionID(ue, ueConn.ESMRequest.PDUSessionID),
+		PDUSessionID:      interworkingPDUSessionID(m, ue, apn, ueConn.ESMRequest.PDUSessionID),
 		APN:               apn,
 		RequestedPDNType:  uint8(pdnType),
 		RequestType:       ueConn.ESMRequest.Type,

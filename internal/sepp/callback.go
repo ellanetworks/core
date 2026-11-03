@@ -58,10 +58,8 @@ type Callback struct {
 
 func callbackAllowed(nf CallbackNF, kind CallbackKind) bool {
 	switch nf {
-	case CallbackAMF:
+	case CallbackAMF, CallbackSMF:
 		return kind == CallbackUECMDereg || kind == CallbackSDMChange
-	case CallbackSMF:
-		return kind == CallbackSDMChange
 	default:
 		return false
 	}

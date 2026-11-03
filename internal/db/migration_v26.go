@@ -49,9 +49,11 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 			mcc       TEXT    NOT NULL DEFAULT '' CHECK (mcc = '' OR mcc GLOB '[0-9][0-9][0-9]'),
 			mnc       TEXT    NOT NULL DEFAULT '' CHECK (mnc = '' OR mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
 			type      TEXT    NOT NULL DEFAULT '' CHECK (type IN ('', '%s', '%s')),
+			imsi      TEXT    NOT NULL DEFAULT '' CHECK (imsi = '' OR (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*')),
 			expiresAt INTEGER NOT NULL,
-			PRIMARY KEY (partnerID, mcc, mnc, type),
-			CHECK ((mcc = '') = (mnc = ''))
+			PRIMARY KEY (partnerID, mcc, mnc, type, imsi),
+			CHECK ((mcc = '') = (mnc = '')),
+			CHECK (imsi = '' OR (mcc = '' AND type = ''))
 		)`, RoamingWithdrawalsTableName, RoamingPartnersTableName, UERegistrationTypeMME, UERegistrationTypeAMF3GPPAccess),
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			id               TEXT PRIMARY KEY,
@@ -103,5 +105,5 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	return nil
+	return migrateV26DeferredLocationPrivacy(ctx, tx)
 }

@@ -111,6 +111,10 @@ func (l *LMF) fixUntilSuccess(ctx context.Context, run *deferredRun, schedule *p
 			return nil, reason, false
 		}
 
+		if err := l.checkPrivacy(ctx, run.supi); err != nil {
+			return nil, TerminationReasonPrivacy, false
+		}
+
 		fixCtx, cancel := context.WithDeadline(ctx, schedule.end)
 		result, err := l.deferredFix(fixCtx, run)
 

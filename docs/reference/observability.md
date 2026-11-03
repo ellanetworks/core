@@ -24,9 +24,9 @@ These metrics are used to monitor the health of the system and the performance o
 | ------------------- | --------- | --------- |
 | app_connected_radios            | Number of radios currently connected to Ella Core, labeled by `rat`.                  | Gauge   |
 | app_signaling_messages_total | Total radio signaling messages, labeled by `rat`, `direction`, and `type`. | Counter |
-| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat`.            | Gauge   |
+| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat`. Excludes roamers. | Gauge   |
 | app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, and `result`. | Counter |
-| app_sessions | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
+| app_sessions | Number of active sessions currently in Ella Core, labeled by `rat`. Excludes roamers. | Gauge |
 | app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` and `result`. | Counter |
 | app_session_releases_total | Total session releases, labeled by `rat` and `reason`. | Counter |
 | app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
@@ -39,6 +39,11 @@ These metrics are used to monitor the health of the system and the performance o
 | app_sepp_n32f_requests_total | N32-f requests this node handled, labeled by `partner`, `direction` (`inbound`, `outbound`), `service`, and `status`. | Counter |
 | app_sepp_n32f_request_duration_seconds | Duration of outbound N32-f requests, labeled by `partner` and `service`. | Histogram |
 | app_sepp_n32f_rejected_total | Inbound N32-f requests this node rejected, labeled by `partner` and `reason`. | Counter |
+| app_roaming_visitors | Number of roamers registered on this node, labeled by `partner` and `rat`. | Gauge |
+| app_roaming_sessions | Number of active sessions of roamers on this node, labeled by `partner` and `rat`. | Gauge |
+| app_roaming_s6a_requests_total | S6a requests this node sent to or received from roaming partners, labeled by `partner`, `command`, and `result` (the Diameter result code, `timeout`, or `error`). | Counter |
+| app_roaming_home_sbi_requests_total | Requests this node sent to the 5G core of roaming partners, labeled by `partner`, `service`, and `result` (the HTTP status code, or `error`). | Counter |
+| app_roaming_rejects_total | Roamer registrations and attaches this node rejected, labeled by `partner`, `rat`, and `cause`. | Counter |
 | app_ims_registered_subscribers | Number of subscribers currently registered in IMS, across the cluster. | Gauge |
 | app_ip_addresses_allocated | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses | The total number of IP addresses available for subscribers. | Gauge |

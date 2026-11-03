@@ -111,6 +111,7 @@ func TestSubscriptionDataMerge(t *testing.T) {
 		RATFrequencySelectionPriorityID: 3,
 		SubscribedPeriodicRAUTAUTimer:   testRAUTimer * 2,
 		UEUsageType:                     ptr(UEUsageType(200)),
+		CoreNetworkRestrictions:         ptr(CoreNetworkRestrictions(0)),
 		APNConfigurationProfile: &APNConfigurationProfile{
 			ContextIdentifier: 1, Included: ModifiedAddedAPNConfigurationsIncluded,
 			Configurations: []APNConfiguration{{ContextIdentifier: 7, PDNType: PDNTypeIPv4, ServiceSelection: "seven"}},

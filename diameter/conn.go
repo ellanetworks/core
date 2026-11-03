@@ -35,6 +35,7 @@ const (
 	stateParked
 	stateOpen
 	stateClosing
+	stateRetired
 )
 
 type watchdogStatus int32
@@ -83,6 +84,7 @@ type Conn struct {
 	activity    chan struct{}
 	watchdogDWA chan struct{}
 	opened      chan struct{}
+	retired     chan struct{}
 	done        chan struct{}
 	openOnce    sync.Once
 	doneOnce    sync.Once
@@ -109,6 +111,7 @@ func newConn(n *Node, t transport, p *peer) *Conn {
 		activity:     make(chan struct{}, 1),
 		watchdogDWA:  make(chan struct{}, 1),
 		opened:       make(chan struct{}),
+		retired:      make(chan struct{}),
 		done:         make(chan struct{}),
 	}
 
@@ -218,6 +221,9 @@ func (c *Conn) start() {
 		switch connState(c.state.Load()) {
 		case stateWaitCER, stateWaitCEA, stateParked:
 			c.fail("capabilities exchange timed out")
+		case stateRetired:
+			c.logger().Debug("closing the initiator connection that lost the election")
+			_ = c.t.close()
 		}
 	})
 
@@ -329,6 +335,11 @@ func (c *Conn) receive(m *Message) {
 		c.fail(fmt.Sprintf("command %d received before our CEA", m.CommandCode))
 
 		return
+	case stateRetired:
+		c.logger().Debug("closing the initiator connection that lost the election", slog.Uint64("command_code", uint64(m.CommandCode)))
+		_ = c.t.close()
+
+		return
 	}
 
 	if !c.initiator && c.unordered.CompareAndSwap(false, true) {
@@ -408,7 +419,7 @@ func (c *Conn) reject(req *Message, resultCode uint32, failure string) {
 
 func (c *Conn) receiveMalformed(m *Message, err error) {
 	state := connState(c.state.Load())
-	if m == nil || !m.IsRequest() || state == stateWaitCER || state == stateWaitCEA || state == stateParked {
+	if m == nil || !m.IsRequest() || state == stateWaitCER || state == stateWaitCEA || state == stateParked || state == stateRetired {
 		c.fail(fmt.Sprintf("unparsable message: %v", err))
 		return
 	}
@@ -553,7 +564,8 @@ func (c *Conn) handleCER(req *Message) {
 		c.logger().Info("rejecting Diameter peer", slog.Uint64("result_code", uint64(d.result)))
 		c.rejectCER(req, d.result)
 	case cerDisconnect:
-		c.abort("peer already connected")
+		c.logger().Debug("closing a second connection from a peer already connected or in an election")
+		_ = c.t.close()
 	case cerParked:
 		c.parkedCER = req
 		c.state.Store(int32(stateParked))
@@ -575,6 +587,24 @@ func (c *Conn) completeParked() {
 	c.stopTimer()
 	c.open(c.capabilitiesAnswer(c.parkedCER, ResultSuccess))
 	c.parkedCER = nil
+}
+
+func (c *Conn) retire() {
+	if c.state.CompareAndSwap(int32(stateWaitCEA), int32(stateRetired)) {
+		close(c.retired)
+	}
+}
+
+func (c *Conn) release(reason string) {
+	c.logger().Debug("closing Diameter connection", slog.String("reason", reason))
+
+	c.n.goroutines.Add(1)
+
+	go func() {
+		defer c.n.goroutines.Done()
+
+		_ = c.t.close()
+	}()
 }
 
 func (c *Conn) rejectCER(req *Message, result uint32, failed ...AVP) {
@@ -616,10 +646,14 @@ func (c *Conn) handleCEA(ans *Message) {
 	c.peerHost = host.UTF8String()
 	c.peerRealm = realm.UTF8String()
 
-	displaced, ok := c.n.acceptCEA(c, c.peerHost, common)
+	displaced, lost, ok := c.n.acceptCEA(c, c.peerHost, common)
 
 	for _, other := range displaced {
 		other.abort("superseded by our connection to the same peer")
+	}
+
+	if lost != nil {
+		lost.release("the peer won the election")
 	}
 
 	if !ok {

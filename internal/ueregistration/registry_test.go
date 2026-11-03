@@ -677,6 +677,8 @@ func TestReconcileWithdrawnRoamer(t *testing.T) {
 		{name: "other RAT", withdrawal: db.RoamingWithdrawal{Type: mmeType, ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "kept"},
 		{name: "other PLMN", withdrawal: db.RoamingWithdrawal{Mcc: "001", Mnc: "02", ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "kept"},
 		{name: "expired", withdrawal: db.RoamingWithdrawal{ExpiresAt: time.Now().Add(-time.Second).Unix()}, want: "kept"},
+		{name: "roamer", withdrawal: db.RoamingWithdrawal{IMSI: imsi, ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "roamer"},
+		{name: "other roamer", withdrawal: db.RoamingWithdrawal{IMSI: "999700000000999", ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "kept"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeStore()
@@ -696,6 +698,8 @@ func TestReconcileWithdrawnRoamer(t *testing.T) {
 						got = "roaming"
 					case ueregistration.RoamingAgreementWithdrawn:
 						got = "agreement"
+					case ueregistration.RoamerDeregistered:
+						got = "roamer"
 					default:
 						got = "subscriber"
 					}

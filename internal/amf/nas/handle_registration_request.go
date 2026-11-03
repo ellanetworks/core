@@ -279,38 +279,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
 		if err != nil {
-			cause, permanent := registrationRejectCauseForAuthFailure(err)
-
-			var regType fgs.RegistrationType
-			if conn := ue.Conn(); conn != nil {
-				regType = conn.RegistrationType5GS
-			}
-
-			logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(regType), logger.RegistrationRejected)
-
-			if !permanent {
-				logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
-
-				if conn := ue.Conn(); conn != nil && conn.RegisteredBeforeRegistration {
-					amfInstance.AbortRegistrationRetainingContext(ctx, ue)
-				} else {
-					abortRegistration(ctx, amfInstance, ue, "transient authentication failure", err)
-				}
-
-				return nasreply.Handled()
-			}
-
-			logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed, rejecting registration", zap.Error(err))
-
-			defer ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure))
-
-			ueConn := ue.Conn()
-			if ueConn == nil {
-				logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-				return nasreply.Handled()
-			}
-
-			amf.SendRegistrationReject(ctx, ueConn, cause)
+			rejectAuthentication(ctx, amfInstance, ue, err)
 
 			return nasreply.Handled()
 		}

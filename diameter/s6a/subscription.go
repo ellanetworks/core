@@ -42,6 +42,12 @@ type SubscriptionData struct {
 	SubscribedPeriodicRAUTAUTimer            time.Duration
 	UEUsageType                              *UEUsageType
 	SubscribedVSRVCC                         bool
+	CoreNetworkRestrictions                  *CoreNetworkRestrictions
+	LCSInfo                                  *LCSInfo
+}
+
+func (s SubscriptionData) FiveGCNotAllowed() bool {
+	return s.CoreNetworkRestrictions != nil && *s.CoreNetworkRestrictions&CNR5GCNotAllowed != 0
 }
 
 type APNConfigurationProfile struct {
@@ -228,6 +234,14 @@ func (s SubscriptionData) Merge(update SubscriptionData) SubscriptionData {
 
 	merged.SubscribedVSRVCC = s.SubscribedVSRVCC || update.SubscribedVSRVCC
 
+	if update.CoreNetworkRestrictions != nil {
+		merged.CoreNetworkRestrictions = update.CoreNetworkRestrictions
+	}
+
+	if update.LCSInfo != nil {
+		merged.LCSInfo = update.LCSInfo
+	}
+
 	return merged
 }
 
@@ -271,6 +285,15 @@ func (s SubscriptionData) Withdraw(d SubscriptionDataDeletion) (SubscriptionData
 		if d.Flags&w.flag != 0 {
 			w.clear()
 		}
+	}
+
+	if d.Flags&(DSRFlagGMLCListWithdrawal|DSRFlagLCSWithdrawal) != 0 {
+		var codes [][]byte
+		if d.Flags&DSRFlagLCSWithdrawal != 0 {
+			codes = d.SSCodes
+		}
+
+		out.LCSInfo = s.LCSInfo.withdraw(d.Flags&DSRFlagGMLCListWithdrawal != 0, codes)
 	}
 
 	return out, nil
@@ -472,6 +495,21 @@ func (s SubscriptionData) avp() (diameter.AVP, error) {
 		inner = append(inner, s.UEUsageType.avp())
 	}
 
+	if s.CoreNetworkRestrictions != nil {
+		if inner, err = appendPresentFlags(inner, AVPCoreNetworkRestrictions, "Core-Network-Restrictions", *s.CoreNetworkRestrictions); err != nil {
+			return diameter.AVP{}, err
+		}
+	}
+
+	if s.LCSInfo != nil {
+		lcs, err := s.LCSInfo.avp()
+		if err != nil {
+			return diameter.AVP{}, err
+		}
+
+		inner = append(inner, lcs)
+	}
+
 	return groupedAVP(AVPSubscriptionData, inner...), nil
 }
 
@@ -607,6 +645,14 @@ func (d decoder) subscriptionDataFields(inner []diameter.AVP) (*SubscriptionData
 		}
 
 		s.UEUsageType = &u
+	}
+
+	if s.CoreNetworkRestrictions, err = optionalBits[CoreNetworkRestrictions](inner, AVPCoreNetworkRestrictions); err != nil {
+		return nil, err
+	}
+
+	if lcs, ok := diameter.Find(inner, AVPLCSInfo, tgpp.VendorID); ok {
+		s.LCSInfo = parseLCSInfo(lcs)
 	}
 
 	return &s, nil

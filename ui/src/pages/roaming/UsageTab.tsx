@@ -33,12 +33,21 @@ import { useRoamingContext } from "./types";
 
 const IMSI_RE = /^\d{6,15}$/;
 
-type UsageRow = RoamingUsage & { id: string; plmn: string; partner: string };
+const FORMER_PARTNER = "Former partner";
+
+type TotalRow = {
+  id: string;
+  plmn: string;
+  partner: string;
+  uplink_bytes: number;
+  downlink_bytes: number;
+  total_bytes: number;
+};
 
 const bytesColumn = (
-  field: keyof UsageRow,
+  field: keyof TotalRow & string,
   headerName: string,
-): GridColDef<UsageRow> => ({
+): GridColDef<TotalRow> => ({
   field,
   headerName,
   flex: 1,
@@ -48,8 +57,7 @@ const bytesColumn = (
     value == null ? "" : formatBytesAutoUnit(Number(value)),
 });
 
-const columns: GridColDef<UsageRow>[] = [
-  { field: "date", headerName: "Day (UTC)", flex: 1, minWidth: 120 },
+const totalColumns: GridColDef<TotalRow>[] = [
   { field: "partner", headerName: "Partner", flex: 1.3, minWidth: 160 },
   { field: "plmn", headerName: "PLMN", flex: 0.8, minWidth: 100 },
   bytesColumn("downlink_bytes", "Downlink"),
@@ -84,24 +92,26 @@ export default function UsageTab() {
     placeholderData: (prev) => prev,
   });
 
-  const rows: UsageRow[] = useMemo(
-    () =>
-      (usageQuery.data ?? [])
-        .map((u) => {
-          const plmn = formatPLMN(u);
-          return {
-            ...u,
-            id: `${u.date}-${plmn}`,
-            plmn,
-            partner: u.partner_name ?? plmn,
-          };
-        })
-        .sort(
-          (a, b) =>
-            b.date.localeCompare(a.date) || b.total_bytes - a.total_bytes,
-        ),
-    [usageQuery.data],
-  );
+  const totals: TotalRow[] = useMemo(() => {
+    const byPLMN = new Map<string, TotalRow>();
+    for (const usage of usageQuery.data ?? []) {
+      const plmn = formatPLMN(usage);
+      const total = byPLMN.get(plmn) ?? {
+        id: plmn,
+        plmn,
+        partner: FORMER_PARTNER,
+        uplink_bytes: 0,
+        downlink_bytes: 0,
+        total_bytes: 0,
+      };
+      if (usage.partner_name) total.partner = usage.partner_name;
+      total.uplink_bytes += usage.uplink_bytes;
+      total.downlink_bytes += usage.downlink_bytes;
+      total.total_bytes += usage.total_bytes;
+      byPLMN.set(plmn, total);
+    }
+    return [...byPLMN.values()].sort((a, b) => b.total_bytes - a.total_bytes);
+  }, [usageQuery.data]);
 
   const daily = useMemo(() => {
     const byDate = new Map<string, { uplink: number; downlink: number }>();
@@ -138,7 +148,7 @@ export default function UsageTab() {
     <Box sx={{ width: "100%", mt: 2 }}>
       <ListPageHeader
         title="Usage"
-        description="Data used by roamers per home PLMN and day, with the partner's name when the PLMN belongs to a current partner. Usage is kept for the subscriber usage retention period, also after its partner is deleted."
+        description="Data used by roamers, per partner network."
         variant="section"
         filters={
           <>
@@ -214,10 +224,11 @@ export default function UsageTab() {
                 }}
               />
             </Box>
-            <EntityGrid<UsageRow>
-              rows={rows}
-              columns={columns}
+            <EntityGrid<TotalRow>
+              rows={totals}
+              columns={totalColumns}
               getRowId={(row) => row.id}
+              aria-label="Usage per PLMN"
             />
           </Box>
         )}

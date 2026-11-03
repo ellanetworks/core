@@ -187,9 +187,18 @@ type homes struct {
 	HomeSubscriptions
 }
 
+type N26Policy interface {
+	Allowed(ctx context.Context, imsi string) (bool, error)
+}
+
+type n26 struct {
+	N26Policy
+}
+
 type Subscriptions struct {
 	local Local
 	homes atomic.Pointer[homes]
+	n26   atomic.Pointer[n26]
 }
 
 func NewSubscriptions(local Local, h HomeSubscriptions) *Subscriptions {
@@ -228,7 +237,24 @@ func (s *Subscriptions) home(imsi string) (*s6a.SubscriptionData, bool) {
 	return d.Subscription, ok
 }
 
+func (s *Subscriptions) SetN26(p N26Policy) {
+	if p == nil {
+		s.n26.Store(nil)
+		return
+	}
+
+	s.n26.Store(&n26{p})
+}
+
 func (s *Subscriptions) IsHomeSubscriber(ctx context.Context, imsi string) (bool, error) {
+	return s.local.IsHomeSubscriber(ctx, imsi)
+}
+
+func (s *Subscriptions) N26Allowed(ctx context.Context, imsi string) (bool, error) {
+	if p := s.n26.Load(); p != nil {
+		return p.Allowed(ctx, imsi)
+	}
+
 	return s.local.IsHomeSubscriber(ctx, imsi)
 }
 

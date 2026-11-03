@@ -193,6 +193,12 @@ func tryDialRaw(t *testing.T, kind Transport, local netip.Addr, to netip.AddrPor
 		return nil, err
 	}
 
+	return wrapRaw(t, tr), nil
+}
+
+func wrapRaw(t *testing.T, tr transport) *rawPeer {
+	t.Helper()
+
 	p := &rawPeer{t: t, tr: tr, events: make(chan peerEvent, 64)}
 
 	go func() {
@@ -216,7 +222,7 @@ func tryDialRaw(t *testing.T, kind Transport, local netip.Addr, to netip.AddrPor
 
 	t.Cleanup(func() { _ = tr.abort() })
 
-	return p, nil
+	return p
 }
 
 func (p *rawPeer) send(m *Message) {

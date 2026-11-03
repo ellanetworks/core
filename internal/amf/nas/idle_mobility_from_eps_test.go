@@ -760,7 +760,7 @@ func TestRegistrationCompleteDropsAnEPSRegistrationTheContextTransferLeftBehind(
 	ue.ForceStateForTest(amf.RegistrationInitiated)
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
-	handleRegistrationComplete(context.Background(), amfInstance, ue)
+	handleRegistrationComplete(context.Background(), amfInstance, ue, nil)
 
 	if ue.State() != amf.Registered {
 		t.Fatalf("5GMM state = %s, want Registered", ue.State())
@@ -777,7 +777,7 @@ func TestIdleArrivalOfARoamingVisitorFallsBackToIdentification(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"the MME offers N26 to home subscribers only", fmt.Errorf("%w: M-TMSI cafe0001", interworking.ErrNotHomeSubscriber)},
+		{"the MME offers no N26 to the subscriber", fmt.Errorf("%w: M-TMSI cafe0001", interworking.ErrN26NotAllowed)},
 		{"the MME could not resolve the subscriber", errors.New("mme: resolve the subscriber: database unavailable")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

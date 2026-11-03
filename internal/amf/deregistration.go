@@ -15,22 +15,26 @@ import (
 
 // buildDeregistrationRequest assembles a network-initiated (UE-terminated)
 // DEREGISTRATION REQUEST (TS 24.501) over 3GPP access, integrity
-// protected and ciphered with the UE's security context. Re-registration is not
-// requested: the subscriber was removed, so the UE stays deregistered.
-func buildDeregistrationRequest() ([]byte, error) {
-	return (&fgs.DeregistrationRequestUETerminated{AccessType: fgs.AccessType3GPP}).MarshalBinary()
+// protected and ciphered with the UE's security context.
+func buildDeregistrationRequest(d NetworkDeregistration) ([]byte, error) {
+	return (&fgs.DeregistrationRequestUETerminated{AccessType: fgs.AccessType3GPP, ReRegistrationRequired: d.ReRegistration, Cause: d.Cause}).MarshalBinary()
+}
+
+type NetworkDeregistration struct {
+	ReRegistration bool
+	Cause          *fgs.GMMCause
 }
 
 // sendNetworkInitiatedDeregistration sends a UE-terminated DEREGISTRATION
 // REQUEST and arms T3522 (TS 24.501): an unanswered request is
 // retransmitted, and on exhaustion the UE context is removed regardless.
-func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext, release models.SessionReleaseRequest) error {
+func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeContext, release models.SessionReleaseRequest, d NetworkDeregistration) error {
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		return fmt.Errorf("ueConn is nil")
 	}
 
-	plain, err := buildDeregistrationRequest()
+	plain, err := buildDeregistrationRequest(d)
 	if err != nil {
 		return fmt.Errorf("build deregistration request: %w", err)
 	}
@@ -76,4 +80,18 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 	})
 
 	return nil
+}
+
+func (amf *AMF) DeregisterUE(ctx context.Context, ue *UeContext, release models.SessionReleaseRequest, d NetworkDeregistration) {
+	if ue.Conn() != nil && ue.secured {
+		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue, release, d); err != nil {
+			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
+				zap.Error(err), logger.SUPI(ue.Supi().String()))
+			amf.DeregisterAndRemoveUeContext(ctx, ue, release)
+		}
+
+		return
+	}
+
+	amf.DeregisterAndRemoveUeContext(ctx, ue, release)
 }

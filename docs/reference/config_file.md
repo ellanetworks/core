@@ -43,7 +43,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided).
         - `address` (string): The IP address to listen on (optional: either name or address must be provided).
         - `port` (int, optional): The port to listen on. Default `3868`.
-    - `n32` (object, optional): The configuration for the N32 interface. A node with `n32` is its own SEPP, named `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` after its AMF Pointer, which serves and reaches the SEPPs of 5G roaming partners over mutual TLS. Absent turns the SEPP off on this node, which then serves no 5G roamers. Outbound N32 connections leave from the same interface.
+    - `n32` (object, optional): The configuration for the N32 interface, towards the SEPPs of roaming partners. Without it, the node serves no 5G roamers.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided).
         - `address` (string): The IP address to listen on (optional: either name or address must be provided).
         - `port` (int, optional): The port to listen on. Default `443`.

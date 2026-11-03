@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/raft"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
@@ -78,6 +79,7 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 	mux.Handle("GET "+sepp.ClusterStatusPath, removedNodeFence(dbInstance, seppEndpoint()))
 	mux.Handle("POST "+sepp.ClusterHandshakePath, removedNodeFence(dbInstance, seppEndpoint()))
+	mux.Handle("GET "+roaming.ClusterRoamersPath, removedNodeFence(dbInstance, clusterRoamersEndpoint()))
 
 	// PKI register endpoint on the cluster HTTP ALPN. The issuer
 	// service becomes available after the first leader election;

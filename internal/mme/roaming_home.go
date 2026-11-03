@@ -156,7 +156,7 @@ func (m *MME) NotifyEquipmentChange(ctx context.Context, ue *UeContext) {
 			logger.From(ctx, logger.MmeLog).Info("notified the home HSS of the new equipment identity", logger.SUPIFromIMSI(imsi))
 		case errors.As(err, &re) && re.IsExperimental(tgpp.ResultErrorUserUnknown):
 			logger.From(ctx, logger.MmeLog).Info("the home HSS no longer knows the visitor; detaching it", logger.SUPIFromIMSI(imsi))
-			m.cancelVisitor(ctx, ue, true, eps.DetachTypeReattachNotRequired, nil, "unknown user at the home HSS")
+			m.cancelVisitor(ctx, ue, true, eps.DetachTypeReattachNotRequired, "unknown user at the home HSS")
 		case errors.As(err, &re) && re.IsExperimental(tgpp.ResultErrorUnknownServingNode):
 			logger.From(ctx, logger.MmeLog).Info("the home HSS does not hold this MME as serving node; restoring at the next contact", logger.SUPIFromIMSI(imsi))
 			ue.unconfirmHomeLocation()
@@ -190,7 +190,7 @@ func (m *MME) ConfirmHomeLocation(ctx context.Context, ue *UeContext) {
 			return
 		}
 
-		if err := m.updateLocation(ctx, ue, serving, false); err != nil {
+		if err := m.updateLocation(ctx, ue, serving, ULRRestoration); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to restore the visitor at its home HSS; retrying at the next contact",
 				logger.SUPIFromIMSI(imsi), zap.Error(err))
 
@@ -234,7 +234,7 @@ func (m *MME) applyHomeSubscription(ctx context.Context, ue *UeContext) {
 	m.ReconcileUE(ctx, ue)
 }
 
-func (m *MME) cancelVisitor(ctx context.Context, ue *UeContext, detach bool, detachType eps.DetachTypeNetwork, cause *eps.EMMCause, reason string) {
+func (m *MME) cancelVisitor(ctx context.Context, ue *UeContext, detach bool, detachType eps.DetachTypeNetwork, reason string) {
 	if held, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok || held != ue {
 		return
 	}
@@ -242,7 +242,7 @@ func (m *MME) cancelVisitor(ctx context.Context, ue *UeContext, detach bool, det
 	ue.setHomeRegistered(false)
 
 	if detach {
-		m.detachUE(ctx, ue, detachType, cause, models.ReleaseFor(models.ReleaseSubscriptionWithdrawn), reason)
+		m.detachUE(ctx, ue, detachType, nil, models.ReleaseFor(models.ReleaseSubscriptionWithdrawn), reason)
 		return
 	}
 
@@ -255,6 +255,13 @@ func (m *MME) cancelVisitor(ctx context.Context, ue *UeContext, detach bool, det
 
 func (m *MME) withdrawRoamer(ctx context.Context, ue *UeContext, why ueregistration.Withdrawal) {
 	if held, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok || held != ue || !ue.IsVisitor() {
+		return
+	}
+
+	if why == ueregistration.RoamerDeregistered {
+		logger.From(ctx, logger.MmeLog).Info("the operator deregistered the visitor; detaching it", logger.SUPI(ue.Supi().String()))
+		m.detachUE(ctx, ue, eps.DetachTypeReattachNotRequired, nil, models.ReleaseFor(models.ReleaseDeregistration), "operator deregistration of the visitor")
+
 		return
 	}
 

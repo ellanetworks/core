@@ -30,8 +30,9 @@ type DiameterNode interface {
 }
 
 type Home struct {
-	Realm string
-	HSS   string
+	Realm   string
+	HSS     string
+	Partner string
 }
 
 type S6a struct {
@@ -126,6 +127,9 @@ func (c *S6a) send(ctx context.Context, home Home, build func(tgpp.Envelope) (*d
 	defer cancel()
 
 	ans, err := node.Send(ctx, req)
+
+	RecordS6aAnswer(home.Partner, req.CommandCode, ans, err)
+
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrHSSUnreachable, err)
 	}
