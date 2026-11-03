@@ -77,6 +77,10 @@ var replicatedChangesetTables = []string{
 	IMSServiceProfilesTableName,
 	IMSInitialFilterCriteriaTableName,
 	IMSServiceProfileAssignmentsTableName,
+	RoamingPartnersTableName,
+	RoamingPartnerPLMNsTableName,
+	RoamingDailyUsageTableName,
+	SEPPIdentityTableName,
 	"schema_version",
 }
 

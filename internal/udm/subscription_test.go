@@ -252,3 +252,41 @@ func TestSessionManagementCarriesIMSAndTheFullARP(t *testing.T) {
 		t.Fatalf("internet configuration = %+v, %t; want not IMS and not pre-empting", internet, ok)
 	}
 }
+
+type visitorLookupStore struct {
+	udm.SubscriptionStore
+	sub *db.Subscriber
+	err error
+}
+
+func (s visitorLookupStore) GetSubscriberOrVisitor(context.Context, string) (*db.Subscriber, error) {
+	return s.sub, s.err
+}
+
+func TestIsHomeSubscriber(t *testing.T) {
+	partner := "partner"
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name    string
+		store   visitorLookupStore
+		want    bool
+		wantErr error
+	}{
+		{name: "home subscriber", store: visitorLookupStore{sub: &db.Subscriber{Imsi: subscriptionIMSI}}, want: true},
+		{name: "visitor", store: visitorLookupStore{sub: &db.Subscriber{Imsi: subscriptionIMSI, RoamingPartnerID: &partner}}},
+		{name: "unknown", store: visitorLookupStore{err: db.ErrNotFound}},
+		{name: "lookup failure", store: visitorLookupStore{err: failure}, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := udm.NewSubscriptions(tc.store, nil).IsHomeSubscriber(context.Background(), subscriptionIMSI)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			if got != tc.want {
+				t.Fatalf("IsHomeSubscriber = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

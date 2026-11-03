@@ -218,6 +218,10 @@ func (fakeBearerStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscr
 	return &db.Subscriber{Imsi: imsi, ProfileID: "test-profile"}, nil
 }
 
+func (f fakeBearerStore) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	return f.GetSubscriber(ctx, imsi)
+}
+
 func (fakeBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, UeAmbrDownlink: "1 Gbps", UeAmbrUplink: "1 Gbps", Allow4G: true, Allow5G: true}, nil
 }

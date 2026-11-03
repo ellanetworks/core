@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -25,6 +26,14 @@ func pduSessionIDFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) uint8 {
 	}
 
 	return 0
+}
+
+func interworkingPDUSessionID(ue *mme.UeContext, id uint8) uint8 {
+	if !ue.FiveGSInterworkingAllowed() {
+		return 0
+	}
+
+	return id
 }
 
 func protocolOptionsFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) ([]nas.PCOContainer, bool) {

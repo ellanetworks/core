@@ -69,17 +69,25 @@ func IsValidUERegistrationType(t string) bool {
 	return false
 }
 
-func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error) {
+func validateRegisterUE(regType, nodeID, cancel string) error {
 	if !IsValidUERegistrationType(regType) {
-		return 0, fmt.Errorf("invalid UE registration type %q", regType)
+		return fmt.Errorf("invalid UE registration type %q", regType)
 	}
 
 	if cancel != "" && (!IsValidUERegistrationType(cancel) || cancel == regType) {
-		return 0, fmt.Errorf("invalid UE registration type to cancel %q", cancel)
+		return fmt.Errorf("invalid UE registration type to cancel %q", cancel)
 	}
 
 	if nodeID == "" {
-		return 0, fmt.Errorf("node ID is required")
+		return fmt.Errorf("node ID is required")
+	}
+
+	return nil
+}
+
+func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error) {
+	if err := validateRegisterUE(regType, nodeID, cancel); err != nil {
+		return 0, err
 	}
 
 	ctx, span := startUERegistrationsSpan(ctx, "UPSERT")

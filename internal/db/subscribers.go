@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -32,23 +33,29 @@ const subscriberDescriptionSchema = 18
 const subscriberMSISDNSchema = 22
 
 const (
-	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description, $Subscriber.msisdn)"
-	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi"
-	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
-	casSubscriberSeqNumStmt   = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
-	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	countSubscribersStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	createSubscriberStmt            = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description, $Subscriber.msisdn)"
+	editSubscriberProfileStmt       = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi AND roamingPartnerID IS NULL"
+	editSubscriberProfilePreV26Stmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi"
+	editSubscriberSeqNumStmt        = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
+	casSubscriberSeqNumStmt         = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
+	deleteSubscriberStmt            = "DELETE FROM %s WHERE imsi==$Subscriber.imsi AND roamingPartnerID IS NULL"
+	deleteSubscriberPreV26Stmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
+	countSubscribersStmt            = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE roamingPartnerID IS NULL"
+	countAllSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 const subscriberColumnsPreV18 = "&Subscriber.id, &Subscriber.imsi, &Subscriber.sequenceNumber, &Subscriber.permanentKey, &Subscriber.opc, &Subscriber.profileID"
 
 const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", &Subscriber.description"
 
+const subscriberColumnsPreV26 = subscriberColumnsPreV22 + ", &Subscriber.msisdn"
+
 const (
-	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi AND roamingPartnerID IS NULL"
+	getSubscriberPreV26Stmt   = "SELECT " + subscriberColumnsPreV26 + " from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberPreV22Stmt   = "SELECT " + subscriberColumnsPreV22 + " from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
-	getSubscriberByMSISDNStmt = "SELECT &Subscriber.* from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
+	getSubscriberByMSISDNStmt = "SELECT " + subscriberColumnsPreV26 + " from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
 	listIMSIsWithMSISDNStmt   = "SELECT &subscriberIMSI.imsi FROM %s WHERE msisdn!='' AND imsi IN ($SliceIDs[:])"
 	listSubscriberMSISDNsStmt = "SELECT &Subscriber.imsi, &Subscriber.msisdn FROM %s WHERE msisdn!=''"
 )
@@ -73,9 +80,18 @@ const (
          OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))`
 )
 
+const homeSubscriberClause = " roamingPartnerID IS NULL AND"
+
 const (
 	listSubscribersFilteredStmt = `
   SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count
+  FROM %s
+  WHERE` + homeSubscriberClause + subscriberSearchClause + subscriberDataNetworkClause + `
+  ORDER BY imsi
+  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+
+	listSubscribersFilteredPreV26Stmt = `
+  SELECT ` + subscriberColumnsPreV26 + `, COUNT(*) OVER() AS &NumItems.count
   FROM %s
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
@@ -98,6 +114,11 @@ const (
 	countSubscribersFilteredStmt = `
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
+  WHERE` + homeSubscriberClause + subscriberSearchClause + subscriberDataNetworkClause
+
+	countSubscribersFilteredPreV26Stmt = `
+  SELECT COUNT(*) AS &NumItems.count
+  FROM %s
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause
 
 	countSubscribersFilteredPreV22Stmt = `
@@ -112,14 +133,15 @@ const (
 )
 
 type Subscriber struct {
-	ID             string `db:"id"` // UUIDv7
-	Imsi           string `db:"imsi"`
-	SequenceNumber string `db:"sequenceNumber"`
-	PermanentKey   string `db:"permanentKey"`
-	Opc            string `db:"opc"`
-	ProfileID      string `db:"profileID"`
-	Description    string `db:"description"`
-	Msisdn         string `db:"msisdn"`
+	ID               string  `db:"id"` // UUIDv7
+	Imsi             string  `db:"imsi"`
+	SequenceNumber   string  `db:"sequenceNumber"`
+	PermanentKey     string  `db:"permanentKey"`
+	Opc              string  `db:"opc"`
+	ProfileID        string  `db:"profileID"`
+	Description      string  `db:"description"`
+	Msisdn           string  `db:"msisdn"`
+	RoamingPartnerID *string `db:"roamingPartnerID"`
 }
 
 type SubscriberFilters struct {
@@ -188,6 +210,8 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		stmt = db.listSubscribersPreV18Stmt
 	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
 		stmt = db.listSubscribersPreV22Stmt
+	} else if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.listSubscribersPreV26Stmt
 	}
 
 	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
@@ -242,6 +266,8 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 		stmt = db.countSubscribersFilteredPreV18Stmt
 	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
 		stmt = db.countSubscribersFilteredPreV22Stmt
+	} else if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.countSubscribersFilteredPreV26Stmt
 	}
 
 	if err := db.conn().Query(ctx, stmt, filterArgs).Get(&result); err != nil {
@@ -276,14 +302,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	row := Subscriber{Imsi: imsi}
 
-	stmt := db.getSubscriberStmt
-	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
-		stmt = db.getSubscriberPreV18Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-		stmt = db.getSubscriberPreV22Stmt
-	}
-
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.homeSubscriberStmt(ctx), row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -295,6 +314,19 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	}
 
 	return &row, nil
+}
+
+func (db *Database) homeSubscriberStmt(ctx context.Context) *sqlair.Statement {
+	switch {
+	case !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema):
+		return db.getSubscriberPreV18Stmt
+	case !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema):
+		return db.getSubscriberPreV22Stmt
+	case !db.appliedSchemaAtLeast(ctx, roamingSchema):
+		return db.getSubscriberPreV26Stmt
+	default:
+		return db.getSubscriberStmt
+	}
 }
 
 const maxIMSIsPerQuery = 500
@@ -548,10 +580,47 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
+	stmt := db.countSubscribersStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.countAllSubscribersStmt
+	}
+
 	var result NumItems
 
-	err := db.conn().Query(ctx, db.countSubscribersStmt).Get(&result)
+	err := db.conn().Query(ctx, stmt).Get(&result)
 	if err != nil {
+		recordSpanError(span, err)
+
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	return result.Count, nil
+}
+
+func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (with visitors)", "SELECT", SubscribersTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			semconv.DBCollectionName(SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	var result NumItems
+
+	if err := db.conn().Query(ctx, db.countAllSubscribersStmt).Get(&result); err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)

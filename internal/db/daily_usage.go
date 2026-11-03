@@ -44,7 +44,7 @@ ORDER BY epoch_day ASC`
 )
 
 const (
-	getUsagePerSubscriberStmt = `
+	usagePerSubscriberSelect = `
 SELECT
     s.imsi AS &UsagePerSub.imsi,
     COALESCE(SUM(u.bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
@@ -54,10 +54,15 @@ LEFT JOIN %s AS u
     ON u.imsi = s.imsi
     AND u.epoch_day >= $UsageFilters.start_date
     AND u.epoch_day <= $UsageFilters.end_date
-WHERE ($UsageFilters.imsi IS NULL OR s.imsi = $UsageFilters.imsi)
+WHERE ($UsageFilters.imsi IS NULL OR s.imsi = $UsageFilters.imsi)`
+
+	usagePerSubscriberOrder = `
 GROUP BY s.imsi
 ORDER BY COALESCE(SUM(u.bytes_uplink), 0) + COALESCE(SUM(u.bytes_downlink), 0) DESC, s.imsi ASC
 LIMIT $UsageFilters.limit`
+
+	getUsagePerSubscriberStmt       = usagePerSubscriberSelect + " AND s.roamingPartnerID IS NULL" + usagePerSubscriberOrder
+	getUsagePerSubscriberPreV26Stmt = usagePerSubscriberSelect + usagePerSubscriberOrder
 )
 
 type UsagePerDay struct {
@@ -304,7 +309,12 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 
 	var dailyUsage []UsagePerSub
 
-	err := db.conn().Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	stmt := db.getUsagePerSubscriberStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.getUsagePerSubscriberPreV26Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

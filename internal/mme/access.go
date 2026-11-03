@@ -9,8 +9,8 @@ import (
 )
 
 type Access struct {
-	Allow4G bool
-	Allow5G bool
+	Allow4G            bool
+	FiveGSInterworking bool
 }
 
 func ResolveAccess(ctx context.Context, m *MME, imsi string) (Access, error) {
@@ -19,14 +19,23 @@ func ResolveAccess(ctx context.Context, m *MME, imsi string) (Access, error) {
 		return Access{}, fmt.Errorf("get access and mobility subscription: %w", err)
 	}
 
-	return Access{Allow4G: am.Allow4G, Allow5G: am.Allow5G}, nil
+	home, err := IsHomeSubscriber(ctx, m, imsi)
+	if err != nil {
+		return Access{}, err
+	}
+
+	return Access{Allow4G: am.Allow4G, FiveGSInterworking: am.Allow5G && home}, nil
+}
+
+func IsHomeSubscriber(ctx context.Context, m *MME, imsi string) (bool, error) {
+	return m.subscriptions().IsHomeSubscriber(ctx, imsi)
 }
 
 func (ue *UeContext) SetAccess(a Access) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.allow5G = a.Allow5G
+	ue.allow5G = a.FiveGSInterworking
 }
 
 func (ue *UeContext) FiveGSInterworkingAllowed() bool {

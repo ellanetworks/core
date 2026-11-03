@@ -44,7 +44,7 @@ func (s *SMF) transferTo5GS(
 
 	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
-	sc, err := s.findTransferable(supi, pduSessionID, move)
+	sc, err := s.findTransferable(ctx, supi, pduSessionID, move)
 	if err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, transferRejectCause(err)),
 			fmt.Errorf("no session to move onto 5GS: %w", err)
@@ -106,7 +106,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 
 	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
-	sc, err := s.findTransferable(supi, pduSessionID, move)
+	sc, err := s.findTransferable(ctx, supi, pduSessionID, move)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
 	}

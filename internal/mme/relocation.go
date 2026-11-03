@@ -63,6 +63,15 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 			req.Target.SelectedEPSTAI.PlmnID, req.Target.SelectedEPSTAI.TAC)
 	}
 
+	home, err := IsHomeSubscriber(ctx, m, req.SUPI.IMSI())
+	if err != nil {
+		return none, fmt.Errorf("mme: resolve the subscriber: %w", err)
+	}
+
+	if !home {
+		return none, interworking.RefuseNonHomeRelocation()
+	}
+
 	access, err := ResolveAccess(ctx, m, req.SUPI.IMSI())
 	if err != nil {
 		return none, fmt.Errorf("mme: resolve the subscriber's access: %w", err)

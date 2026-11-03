@@ -53,6 +53,15 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 			interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
 	}
 
+	home, err := IsHomeSubscriber(ctx, m, ue.IMSI())
+	if err != nil {
+		return none, fmt.Errorf("mme: resolve the subscriber: %w", err)
+	}
+
+	if !home {
+		return none, fmt.Errorf("%w: M-TMSI %x", interworking.ErrNotHomeSubscriber, req.MappedEPSGUTI.TMSI)
+	}
+
 	if _, err := ue.AcceptUplink(req.EPSNAS, func(plain []byte) error {
 		if mt, err := eps.PeekMessageType(plain); err != nil || mt != eps.MsgTrackingAreaUpdateRequest {
 			return errors.New("the container holds no TRACKING AREA UPDATE REQUEST")

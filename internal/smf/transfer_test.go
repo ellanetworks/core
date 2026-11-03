@@ -526,6 +526,117 @@ func TestTransferRefusals(t *testing.T) {
 	})
 }
 
+func TestTransferRefusesARoamingVisitor(t *testing.T) {
+	becomeVisitor := func(store *fakeStore) {
+		store.mu.Lock()
+		store.visitor = true
+		store.mu.Unlock()
+	}
+
+	t.Run("to EPS", func(t *testing.T) {
+		pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+		s := newTestSMF(pcf, store, upf, amfCb)
+		s.SetMME(mmeCb)
+
+		sc := establish5GS(t, s)
+
+		becomeVisitor(store)
+
+		if err := mustFail(t, s, epsMove(movedPDUSessionID)); !isNotTransferable(err) {
+			t.Errorf("error = %v, want it to report the session does not exist", err)
+		}
+
+		if _, err := s.TransferIdleToEPS(context.Background(), testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai); !isNotTransferable(err) {
+			t.Errorf("idle move error = %v, want it to report the session does not exist", err)
+		}
+
+		sc.Mutex.Lock()
+		access := sc.Access
+		sc.Mutex.Unlock()
+
+		if access != smf.Access5G {
+			t.Error("the refused move took the session off 5GS")
+		}
+	})
+
+	t.Run("to 5GS", func(t *testing.T) {
+		pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+		s := newTestSMF(pcf, store, upf, amfCb)
+		s.SetMME(mmeCb)
+
+		req := epsRequest(1)
+		req.APN = testDNN
+		req.PDUSessionID = movedPDUSessionID
+		req.Snssai = testSnssai
+
+		bearer, err := s.CreateEPSSession(context.Background(), req)
+		if err != nil {
+			t.Fatalf("CreateEPSSession: %v", err)
+		}
+
+		becomeVisitor(store)
+
+		_, reject, err := s.CreateSmContext(context.Background(), testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0)
+		if !isNotTransferable(err) {
+			t.Errorf("error = %v, want it to report the session does not exist", err)
+		}
+
+		assertGSMCause(t, reject, fgs.GSMCausePDUSessionDoesNotExist)
+
+		if _, _, _, err := s.PrepareSmContextFromEPS(context.Background(), testSUPI(), movedPDUSessionID, req.EPSBearerIdentity, testDNN, testSnssai); !isNotTransferable(err) {
+			t.Errorf("handover error = %v, want it to report the session does not exist", err)
+		}
+
+		if _, _, err := s.TransferIdleTo5GS(context.Background(), testSUPI(), movedPDUSessionID, req.EPSBearerIdentity, testDNN, testSnssai); !isNotTransferable(err) {
+			t.Errorf("idle move error = %v, want it to report the session does not exist", err)
+		}
+
+		sc := s.GetSession(bearer.Ref)
+		if sc == nil {
+			t.Fatal("the refused move released the session")
+		}
+
+		sc.Mutex.Lock()
+		access := sc.Access
+		sc.Mutex.Unlock()
+
+		if access != smf.Access4G {
+			t.Error("the refused move took the session off EPS")
+		}
+	})
+}
+
+func TestTransferFailsClosedWhenTheSubscriberCannotBeResolved(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	sc := establish5GS(t, s)
+
+	failure := errors.New("database unavailable")
+
+	store.mu.Lock()
+	store.homeErr = failure
+	store.mu.Unlock()
+
+	if err := mustFail(t, s, epsMove(movedPDUSessionID)); !errors.Is(err, failure) {
+		t.Errorf("error = %v, want the lookup failure", err)
+	}
+
+	if _, err := s.TransferIdleToEPS(context.Background(), testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai); !errors.Is(err, failure) {
+		t.Errorf("idle move error = %v, want the lookup failure", err)
+	}
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	sc.Mutex.Unlock()
+
+	if access != smf.Access5G {
+		t.Error("a move the SMF could not authorise took the session off 5GS")
+	}
+}
+
 func TestTransferTo5GSChecksTheSlice(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

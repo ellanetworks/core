@@ -104,7 +104,15 @@ var (
 	ErrUnknownTarget     = errors.New("interworking: the target is not connected")
 	ErrTargetRefused     = errors.New("interworking: the target refused the handover")
 	ErrRelocationTooLate = errors.New("interworking: the UE has already reached the target, too late to cancel")
+	ErrNotHomeSubscriber = errors.New("interworking: N26 mobility is offered to home subscribers only, a roaming visitor re-attaches instead")
 )
+
+func RefuseNonHomeRelocation() error {
+	return fmt.Errorf("%w: %w", ErrNotHomeSubscriber, TargetRefusal{Cause: s1ap.Cause{
+		Group: s1ap.CauseGroupRadioNetwork,
+		Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
+	}})
+}
 
 type EPSPeer interface {
 	ForwardRelocation(ctx context.Context, req ForwardRelocationRequest) (ForwardRelocationResponse, error)

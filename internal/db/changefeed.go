@@ -36,6 +36,8 @@ const (
 	TopicSMSSettings            Topic = "sms_settings"
 	TopicOperatorIdentity       Topic = "operator_identity"
 	TopicJWTSecret              Topic = "jwt_secret"
+	TopicRoaming                Topic = "roaming"
+	TopicSEPPIdentity           Topic = "sepp_identity"
 )
 
 // Changefeed is an in-process publish/subscribe broker. One per

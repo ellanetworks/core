@@ -61,7 +61,7 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 	for range maxSQNCASAttempts {
 		row := Subscriber{Imsi: payload.IMSI}
 
-		if err := db.runner(ctx).Query(ctx, db.getSubscriberStmt, row).Get(&row); err != nil {
+		if err := db.runner(ctx).Query(ctx, db.homeSubscriberStmt(ctx), row).Get(&row); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, ErrNotFound
 			}

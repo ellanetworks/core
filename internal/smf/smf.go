@@ -89,6 +89,7 @@ type SubscriptionData interface {
 	FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error)
 	StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error)
 	SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error)
+	IsHomeSubscriber(ctx context.Context, imsi string) (bool, error)
 }
 
 // SessionStore is the minimal DB surface the SMF needs for session-level

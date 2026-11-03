@@ -41,7 +41,16 @@ type droppedSource struct {
 	upActive bool
 }
 
-func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
+func (s *SMF) findTransferable(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
+	home, err := s.subscriptions.IsHomeSubscriber(ctx, supi.IMSI())
+	if err != nil {
+		return nil, fmt.Errorf("resolve the subscriber: %w", err)
+	}
+
+	if !home {
+		return nil, fmt.Errorf("%w: %s is not a home subscriber", ErrSessionNotTransferable, supi)
+	}
+
 	if pduSessionID == 0 {
 		return nil, fmt.Errorf("%w: the UE named no PDU session identity", ErrSessionNotTransferable)
 	}

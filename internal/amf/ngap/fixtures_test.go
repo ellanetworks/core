@@ -31,6 +31,8 @@ func operatorPlmnID() *models.PlmnID {
 
 type fakeDBInstance struct {
 	BarFrom5G   bool
+	Visitor     bool
+	LookupErr   error
 	Operator    *db.Operator
 	OperatorErr error
 	Slices      []db.NetworkSlice
@@ -267,6 +269,20 @@ func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 	return &db.Subscriber{
 		Imsi: imsi,
 	}, nil
+}
+
+func (fdb *fakeDBInstance) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	if fdb.LookupErr != nil {
+		return nil, fdb.LookupErr
+	}
+
+	if !fdb.Visitor {
+		return fdb.GetSubscriber(ctx, imsi)
+	}
+
+	partner := "partner"
+
+	return &db.Subscriber{Imsi: imsi, RoamingPartnerID: &partner}, nil
 }
 
 func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {

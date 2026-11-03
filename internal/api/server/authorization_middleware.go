@@ -45,6 +45,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadDeferredLocation,
 		PermListCellPositions, PermReadCellPosition,
 		PermReadClusterHealth,
+		PermReadRoaming,
 	},
 
 	RoleNetworkManager: {
@@ -73,6 +74,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadDeferredLocation, PermCreateDeferredLocation, PermDeleteDeferredLocation,
 		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
 		PermReadClusterHealth,
+		PermReadRoaming, PermUpdateRoaming,
 	},
 }
 
@@ -238,6 +240,9 @@ const (
 	PermReadDeferredLocation   = "location:deferred:read"
 	PermCreateDeferredLocation = "location:deferred:create"
 	PermDeleteDeferredLocation = "location:deferred:delete"
+
+	PermReadRoaming   = "roaming:read"
+	PermUpdateRoaming = "roaming:update"
 
 	// Cell position permissions
 	PermListCellPositions  = "cell_position:list"

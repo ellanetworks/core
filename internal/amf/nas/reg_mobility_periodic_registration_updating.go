@@ -90,7 +90,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	ue.SetAmbr(subscriberProfile.Ambr)
-	ue.SetAllow4G(subscriberProfile.Allow4G)
+	ue.SetAllow4G(subscriberProfile.EPSInterworking)
 
 	if !adoptArrivingSessions(ctx, amfInstance, ue, conn) {
 		return

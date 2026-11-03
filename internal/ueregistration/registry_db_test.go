@@ -187,3 +187,53 @@ func TestRegistry_SubscriberDeletionWithdrawsRegistrationOnEveryNode(t *testing.
 		t.Fatalf("node-b's EPS context: outcome = %s, want withdrawn", got)
 	}
 }
+
+func TestRegistry_VisitorIsNotTreatedAsDeleted(t *testing.T) {
+	database := newRaftTestDatabase(t)
+	ctx := context.Background()
+
+	home, err := database.GetSubscriber(ctx, imsi)
+	if err != nil {
+		t.Fatalf("GetSubscriber: %s", err)
+	}
+
+	partner := &db.RoamingPartner{ID: "partner", Name: "partner", PLMNs: []db.RoamingPLMN{{Mcc: "208", Mnc: "93"}}, ProfileID: home.ProfileID}
+	if err := database.CreateRoamingPartner(ctx, partner); err != nil {
+		t.Fatalf("CreateRoamingPartner: %s", err)
+	}
+
+	const visitor = "208930000000001"
+
+	held, err := database.RegisterVisitorUE(ctx, visitor, partner.ID, amfType, "node-a", mmeType)
+	if err != nil {
+		t.Fatalf("RegisterVisitorUE: %s", err)
+	}
+
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+
+	outcome := func() string {
+		got := "kept"
+
+		amfA.Reconcile(ctx, visitor, func() int64 { return held },
+			func(context.Context) { got = "released" },
+			func(context.Context) { got = "withdrawn" })
+
+		return got
+	}
+
+	if got := outcome(); got != "kept" {
+		t.Fatalf("registered visitor: outcome = %s, want kept", got)
+	}
+
+	if err := database.PurgeUERegistration(ctx, visitor, amfType, "node-a"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
+
+	if deleted, err := database.DeleteVisitorIfUnregistered(ctx, visitor); err != nil || !deleted {
+		t.Fatalf("DeleteVisitorIfUnregistered = %v, %v", deleted, err)
+	}
+
+	if got := outcome(); got != "withdrawn" {
+		t.Fatalf("deleted visitor: outcome = %s, want withdrawn", got)
+	}
+}

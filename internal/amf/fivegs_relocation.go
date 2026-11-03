@@ -102,6 +102,15 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 			req.Target.SelectedTAI.PlmnID, req.Target.SelectedTAI.TAC)
 	}
 
+	home, err := a.IsHomeSubscriber(ctx, req.SUPI)
+	if err != nil {
+		return none, fmt.Errorf("amf: resolve the subscriber: %w", err)
+	}
+
+	if !home {
+		return none, interworking.RefuseNonHomeRelocation()
+	}
+
 	subscriberProfile, err := a.SubscriberProfile(ctx, req.SUPI)
 	if err != nil {
 		return none, fmt.Errorf("amf: resolve the subscriber profile: %w", err)
@@ -133,7 +142,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 	ue.SetSupi(req.SUPI)
 	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllowedNssai(snssaiList)
-	ue.SetAllow4G(subscriberProfile.Allow4G)
+	ue.SetAllow4G(subscriberProfile.EPSInterworking)
 	ue.AttestS1Mode()
 	ue.smf = a.Session
 

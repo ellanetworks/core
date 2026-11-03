@@ -1054,3 +1054,53 @@ func TestForwardRelocationKeepsTheUEsNetworkCapability(t *testing.T) {
 			req.SecurityContext.UESecurityCapability.EEA, req.SecurityContext.UESecurityCapability.EIA)
 	}
 }
+
+func TestForwardRelocationRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
+	partner := "partner"
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name        string
+		store       lookupBearerStore
+		wantErr     error
+		wantRefusal bool
+	}{
+		{
+			name:        "roaming visitor",
+			store:       lookupBearerStore{sub: &db.Subscriber{Imsi: "001010000000001", ProfileID: "test-profile", RoamingPartnerID: &partner}},
+			wantErr:     interworking.ErrNotHomeSubscriber,
+			wantRefusal: true,
+		},
+		{name: "subscriber row gone", store: lookupBearerStore{err: db.ErrNotFound}, wantErr: interworking.ErrNotHomeSubscriber, wantRefusal: true},
+		{name: "lookup failure", store: lookupBearerStore{err: failure}, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sessions := &fakeSessionManager{}
+			m := New(udm.New(newFakeCredStore(), noopKeyResolver), tc.store, sessions)
+			target := newRelocationTarget(t, m)
+			req := relocationRequest()
+
+			_, err := m.ForwardRelocation(context.Background(), req)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			var refusal interworking.TargetRefusal
+			if got := errors.As(err, &refusal); got != tc.wantRefusal {
+				t.Fatalf("error = %v, TargetRefusal = %v, want %v", err, got, tc.wantRefusal)
+			}
+
+			if tc.wantRefusal && refusal.Cause.Value != s1ap.CauseRadioNetworkHOTargetNotAllowed {
+				t.Fatalf("refusal cause = %+v, want handover target not allowed", refusal.Cause)
+			}
+
+			if len(target.handoverRequests(t)) != 0 {
+				t.Error("the target eNB was asked to admit the UE")
+			}
+
+			if _, ok := m.LookupUeBySupi(req.SUPI); ok {
+				t.Error("the refusal left a UE context behind")
+			}
+		})
+	}
+}

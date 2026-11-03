@@ -48,6 +48,8 @@ type fakeStore struct {
 	staticIPErr     error
 	opLog           []string
 	allocSessionLog []uint8
+	visitor         bool
+	homeErr         error
 }
 
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
@@ -270,6 +272,17 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 	}
 
 	return smf.DataNetworkConfig{DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, PCSCF: f.policy.PCSCF}
+}
+
+func (f *fakeStore) IsHomeSubscriber(_ context.Context, _ string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.homeErr != nil {
+		return false, f.homeErr
+	}
+
+	return !f.visitor, nil
 }
 
 func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.SessionManagementSubscription, error) {

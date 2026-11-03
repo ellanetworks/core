@@ -109,7 +109,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
-		PDUSessionID:      ueConn.ESMRequest.PDUSessionID,
+		PDUSessionID:      interworkingPDUSessionID(ue, ueConn.ESMRequest.PDUSessionID),
 		APN:               apn,
 		RequestedPDNType:  ueConn.ESMRequest.PDNType,
 		RequestType:       ueConn.ESMRequest.Type,

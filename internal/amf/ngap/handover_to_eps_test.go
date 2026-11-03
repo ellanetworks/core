@@ -341,6 +341,75 @@ func TestHandoverRequiredToEPSPeerRefuses(t *testing.T) {
 	}
 }
 
+func TestHandoverRequiredToEPSRelaysATargetNotAllowedRefusal(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"a subscriber who is not a home subscriber", interworking.RefuseNonHomeRelocation()},
+		{"a subscriber barred from 4G", interworking.TargetRefusal{Cause: s1ap.Cause{
+			Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
+		}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			peer := &epsPeerStub{err: tc.err}
+			amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)
+
+			before := sender.count()
+
+			HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+			settleHandoverToEPS(t, amfInstance, sender, before+1)
+
+			if len(sender.SentHandoverPreparationFailures) != 1 {
+				t.Fatalf("got %d Handover Preparation Failures, want 1", len(sender.SentHandoverPreparationFailures))
+			}
+
+			got := sender.SentHandoverPreparationFailures[0].Cause
+			if got == nil || *got != causeHOTargetNotAllowed {
+				t.Errorf("cause = %+v, want ho-target-not-allowed", got)
+			}
+		})
+	}
+}
+
+func TestHandoverRequiredToEPSOfARoamingVisitorIsRefusedAtTheSource(t *testing.T) {
+	peer := &epsPeerStub{accepted: []uint8{1}}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	amfInstance.DBInstance = &fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}, Visitor: true}
+
+	profile, err := amfInstance.SubscriberProfile(context.Background(), amfUe.Supi())
+	if err != nil {
+		t.Fatalf("SubscriberProfile: %v", err)
+	}
+
+	amfUe.SetAllow4G(profile.EPSInterworking)
+
+	before := amfUe.DLCountForTest()
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+
+	if len(sender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("got %d Handover Preparation Failures, want 1", len(sender.SentHandoverPreparationFailures))
+	}
+
+	if got := sender.SentHandoverPreparationFailures[0].Cause; got == nil || *got != causeHOTargetNotAllowed {
+		t.Errorf("cause = %+v, want ho-target-not-allowed", got)
+	}
+
+	if peer.forwarded() != nil {
+		t.Error("the MME was asked to prepare a handover for a roaming visitor")
+	}
+
+	if after := amfUe.DLCountForTest(); after != before {
+		t.Errorf("downlink NAS COUNT = %d, want %d: the refused handover consumed a COUNT for a mapped context", after, before)
+	}
+
+	if amfInstance.HandoverInProgress(amfUe) {
+		t.Error("the refused handover was left staged")
+	}
+}
+
 func TestHandoverRequiredToEPSWithARANNodeTarget(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)

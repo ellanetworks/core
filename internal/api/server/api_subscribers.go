@@ -745,7 +745,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numSubscribers, err := dbInstance.CountSubscribers(r.Context())
+		numSubscribers, err := dbInstance.CountSubscribersAndVisitors(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count subscribers", err, logger.APILog)
 			return

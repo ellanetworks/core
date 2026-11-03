@@ -18,6 +18,7 @@ var ErrDNNNotSubscribed = errors.New("DNN not subscribed")
 
 type SubscriptionStore interface {
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
+	GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error)
 	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]db.NetworkSlice, error)
@@ -57,6 +58,19 @@ type Subscriptions struct {
 
 func NewSubscriptions(store SubscriptionStore, sessions SessionSubscriptionStore) *Subscriptions {
 	return &Subscriptions{store: store, sessions: sessions}
+}
+
+func (s *Subscriptions) IsHomeSubscriber(ctx context.Context, imsi string) (bool, error) {
+	sub, err := s.store.GetSubscriberOrVisitor(ctx, imsi)
+	if errors.Is(err, db.ErrNotFound) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("get subscriber or visitor %s: %w", imsi, err)
+	}
+
+	return sub.RoamingPartnerID == nil, nil
 }
 
 func (s *Subscriptions) AccessAndMobility(ctx context.Context, imsi string) (*AccessAndMobilitySubscription, error) {

@@ -73,6 +73,10 @@ func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber,
 	return nil, nil
 }
 
+func (f *fakeDBInstance) GetSubscriberOrVisitor(context.Context, string) (*db.Subscriber, error) {
+	return &db.Subscriber{}, nil
+}
+
 func (f *fakeDBInstance) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
 	return nil, nil
 }

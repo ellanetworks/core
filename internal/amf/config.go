@@ -150,10 +150,10 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 // SubscriberProfile holds the per-subscriber session configuration
 // derived from the subscriber's profile: allowed network slices and bitrate.
 type SubscriberProfile struct {
-	AllowedNssai []models.Snssai
-	Ambr         *models.Ambr
-	Allow5G      bool
-	Allow4G      bool
+	AllowedNssai    []models.Snssai
+	Ambr            *models.Ambr
+	Allow5G         bool
+	EPSInterworking bool
 }
 
 func (amf *AMF) subscriptions() *udm.Subscriptions {
@@ -173,14 +173,23 @@ func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subscri
 		return nil, err
 	}
 
+	home, err := amf.IsHomeSubscriber(ctx, supi)
+	if err != nil {
+		return nil, err
+	}
+
 	ambr := am.UEAMBR
 
 	return &SubscriberProfile{
-		AllowedNssai: am.SubscribedSNSSAIs,
-		Ambr:         &ambr,
-		Allow5G:      am.Allow5G,
-		Allow4G:      am.Allow4G,
+		AllowedNssai:    am.SubscribedSNSSAIs,
+		Ambr:            &ambr,
+		Allow5G:         am.Allow5G,
+		EPSInterworking: am.Allow4G && home,
 	}, nil
+}
+
+func (amf *AMF) IsHomeSubscriber(ctx context.Context, supi etsi.SUPI) (bool, error) {
+	return amf.subscriptions().IsHomeSubscriber(ctx, supi.IMSI())
 }
 
 func (amf *AMF) SubscribedUEAMBR(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {

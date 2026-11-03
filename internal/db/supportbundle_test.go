@@ -102,7 +102,7 @@ func TestExportSupportData_Default(t *testing.T) {
 		"operator", "home_network_keys", "policies", "networking", "subscribers", "ip_leases",
 		"profiles", "network_slices", "network_rules", "cell_positions", "cluster_members", "routes",
 		"nat_settings", "n3_settings", "flow_accounting_settings", "local_switch_settings", "sms_settings",
-		"diameter_peers", "pcscf_addresses", "retention_policies", "bgp_settings", "bgp_peers", "bgp_import_prefixes",
+		"diameter_peers", "roaming_partners", "roaming_diameter_peers", "sepp_identity", "pcscf_addresses", "retention_policies", "bgp_settings", "bgp_peers", "bgp_import_prefixes",
 		"ims_application_servers", "ims_service_profiles", "ims_service_profile_assignments",
 		"ue_registrations", "ims_registrations", "sms_message_waiting", "subscriber_framed_routes",
 		"usage_per_day", "usage_per_subscriber", "audit_logs", "radio_logs",

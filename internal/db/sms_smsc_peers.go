@@ -103,6 +103,10 @@ func (p SMSCPeer) Validate() error {
 	return nil
 }
 
+func (p SMSCPeer) row() diameterPeerRow {
+	return diameterPeerRow{ID: p.ID, Role: DiameterPeerRoleSMSC, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
+}
+
 func (p SMSCPeer) Serves(serviceCentre string) bool {
 	return slices.Contains(p.ServiceCentres, serviceCentre)
 }
@@ -286,6 +290,10 @@ func (db *Database) applyCreateSMSCPeer(ctx context.Context, p *SMSCPeer) (any, 
 		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
 	}
 
+	if err := db.checkDiameterPeerEndpoint(ctx, p.row()); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
+	}
+
 	row := smscPeerRow{ID: p.ID, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
 
 	if err := db.runner(ctx).Query(ctx, db.insertSMSCPeerStmt, row).Run(); err != nil {
@@ -313,6 +321,10 @@ func (db *Database) applyUpdateSMSCPeer(ctx context.Context, p *SMSCPeer) (any, 
 	peers[i] = *p
 
 	if err := ValidateSMSCPeers(peers); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
+	}
+
+	if err := db.checkDiameterPeerEndpoint(ctx, p.row()); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSMSCPeerConflict, err)
 	}
 

@@ -5,6 +5,8 @@ package nas
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -767,5 +769,60 @@ func TestRegistrationCompleteDropsAnEPSRegistrationTheContextTransferLeftBehind(
 	if len(peer.Cancelled) != 1 {
 		t.Errorf("cancelled %v, want the EPS registration dropped: the subscriber holds an MM state in both the MME and the AMF, and the MME goes on paging it on E-UTRAN",
 			peer.Cancelled)
+	}
+}
+
+func TestIdleArrivalOfARoamingVisitorFallsBackToIdentification(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"the MME offers N26 to home subscribers only", fmt.Errorf("%w: M-TMSI cafe0001", interworking.ErrNotHomeSubscriber)},
+		{"the MME could not resolve the subscriber", errors.New("mme: resolve the subscriber: database unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			amfInstance := amf.New(&fakeDBInstance{
+				Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"},
+			}, nil, nil)
+
+			peer := &fakeEPSPeer{MMContextErr: tc.err}
+			amfInstance.EPS = peer
+
+			ue, ngapSender, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not create UE and radio: %v", err)
+			}
+
+			req := idleArrivalRequest()
+
+			plain, err := req.MarshalBinary()
+			if err != nil {
+				t.Fatalf("encode the registration request: %v", err)
+			}
+
+			handleRegistrationRequest(context.Background(), amfInstance, ue, mustParseRegistrationRequest(t, plain), plain, false, true)
+
+			if len(peer.MMContextRequests) != 1 {
+				t.Fatalf("the MME was asked %d times for the context, want once", len(peer.MMContextRequests))
+			}
+
+			if peer.Acked {
+				t.Error("the MME context was acknowledged though the MME refused it")
+			}
+
+			if ue.SecurityContextIsValid() {
+				t.Error("a security context was installed though the MME returned none")
+			}
+
+			if ue.Conn().EPSArrival != nil {
+				t.Error("the connection holds an arriving context the MME never returned")
+			}
+
+			if len(ngapSender.SentDownlinkNASTransport) != 1 {
+				t.Fatalf("sent %d Downlink NAS Transport messages, want the IDENTITY REQUEST", len(ngapSender.SentDownlinkNASTransport))
+			}
+
+			assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgIdentityRequest))
+		})
 	}
 }

@@ -143,7 +143,7 @@ var (
 var (
 	opInitializeOperator               = registerChangesetOp("InitializeOperator", (*Database).applyInitializeOperator)
 	opUpdateOperatorTracking           = registerChangesetOp("UpdateOperatorTracking", (*Database).applyUpdateOperatorTracking)
-	opUpdateOperatorID                 = registerChangesetOp("UpdateOperatorID", (*Database).applyUpdateOperatorID, AffectsTopic(TopicOperatorIdentity))
+	opUpdateOperatorID                 = registerChangesetOpReturning[Operator, bool]("UpdateOperatorID", (*Database).applyUpdateOperatorID, AffectsTopic(TopicOperatorIdentity), AffectsTopic(TopicSEPPIdentity))
 	opUpdateOperatorCode               = registerChangesetOp("UpdateOperatorCode", (*Database).applyUpdateOperatorCode)
 	opUpdateOperatorSecurityAlgorithms = registerChangesetOp("UpdateOperatorSecurityAlgorithms", (*Database).applyUpdateOperatorSecurityAlgorithms)
 	opUpdateOperatorSPN                = registerChangesetOp("UpdateOperatorSPN", (*Database).applyUpdateOperatorSPN)
@@ -207,6 +207,20 @@ var (
 	opSetProfileIMSServiceProfiles = registerChangesetOp("SetProfileIMSServiceProfiles", (*Database).applySetProfileIMSServiceProfiles, RequireSchema(25))
 	opPutIPSMGWRegistration        = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration, RequireSchema(25))
 	opDeleteIPSMGWRegistration     = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration, RequireSchema(25))
+)
+
+var (
+	opCreateRoamingPartner            = registerChangesetOpReturning[roamingPartnerWrite, bool]("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicSEPPIdentity))
+	opUpdateRoamingPartner            = registerChangesetOpReturning[roamingPartnerWrite, bool]("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile), AffectsTopic(TopicSEPPIdentity))
+	opDeleteRoamingPartner            = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming))
+	opCreateRoamingDiameterPeer       = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
+	opUpdateRoamingDiameterPeer       = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
+	opDeleteRoamingDiameterPeer       = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
+	opPutSEPPIdentity                 = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
+	opIncrementRoamingDailyUsageBatch = registerChangesetOp("IncrementRoamingDailyUsageBatch", (*Database).applyIncrementRoamingDailyUsageBatch, RequireSchema(26))
+	opRegisterVisitorUE               = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, RequireSchema(26), AffectsTopic(TopicUERegistrations))
+	opDeleteVisitorIfUnregistered     = registerChangesetOpReturning[stringPayload, int64]("DeleteVisitorIfUnregistered", (*Database).applyDeleteVisitorIfUnregistered, RequireSchema(26), AffectsTopic(TopicUERegistrations))
+	opDeleteUnregisteredVisitors      = registerChangesetOpReturning[emptyPayload, int64]("DeleteUnregisteredVisitors", (*Database).applyDeleteUnregisteredVisitors, RequireSchema(26), AffectsTopic(TopicUERegistrations))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

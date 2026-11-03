@@ -94,7 +94,7 @@ func (f *fakeStore) GetUERegistration(_ context.Context, imsi, regType string) (
 	return &row, nil
 }
 
-func (f *fakeStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
+func (f *fakeStore) GetSubscriberOrVisitor(_ context.Context, imsi string) (*db.Subscriber, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

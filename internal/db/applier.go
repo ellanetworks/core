@@ -354,7 +354,12 @@ func (db *Database) applyUpdateSubscriberProfile(ctx context.Context, s *Subscri
 
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.updateSubscriberProfileStmt, s).Get(&outcome)
+	stmt := db.updateSubscriberProfileStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.updateSubscriberProfilePreV26Stmt
+	}
+
+	err := db.runner(ctx).Query(ctx, stmt, s).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -394,7 +399,12 @@ func (db *Database) applyEditSubscriberSeqNum(ctx context.Context, s *Subscriber
 func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: p.Value}).Get(&outcome)
+	stmt := db.deleteSubscriberStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.deleteSubscriberPreV26Stmt
+	}
+
+	err := db.runner(ctx).Query(ctx, stmt, Subscriber{Imsi: p.Value}).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -458,7 +468,7 @@ func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payloa
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil
+	return db.applyDeleteOldRoamingDailyUsage(ctx, p.Value)
 }
 
 func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, error) {
@@ -978,6 +988,10 @@ func (db *Database) applyDeleteProfile(ctx context.Context, p *stringPayload) (a
 
 	err := db.runner(ctx).Query(ctx, db.deleteProfileStmt, Profile{Name: p.Value}).Get(&outcome)
 	if err != nil {
+		if isForeignKeyRestrictError(err) {
+			return nil, ErrInUse
+		}
+
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -1495,6 +1509,11 @@ func (db *Database) applyUpdateOperatorTracking(ctx context.Context, op *Operato
 }
 
 func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (any, error) {
+	seppIdentityDeleted, err := db.prepareHomePLMNChange(ctx, op)
+	if err != nil {
+		return nil, err
+	}
+
 	from, err := db.imsDomain(ctx)
 	if err != nil {
 		return nil, err
@@ -1510,7 +1529,11 @@ func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (an
 		return nil, err
 	}
 
-	return nil, db.rehomeIMSApplicationServers(ctx, from, to)
+	if err := db.rehomeIMSApplicationServers(ctx, from, to); err != nil {
+		return nil, err
+	}
+
+	return seppIdentityDeleted, nil
 }
 
 func (db *Database) applyUpdateOperatorCode(ctx context.Context, op *Operator) (any, error) {

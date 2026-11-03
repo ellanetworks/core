@@ -139,6 +139,8 @@ func S1APHandoverFailureCause(cause ngap.Cause) s1ap.Cause {
 			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
 		case ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported:
 			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported}
+		case ngap.CauseRadioNetworkHoTargetNotAllowed:
+			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
 		}
 	case ngap.CauseGroupMisc:
 		if cause.Value == ngap.CauseMiscOMIntervention {
@@ -161,6 +163,8 @@ func NGAPHandoverFailureCause(cause s1ap.Cause) ngap.Cause {
 			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell}
 		case s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported:
 			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported}
+		case s1ap.CauseRadioNetworkHOTargetNotAllowed:
+			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}
 		}
 	case s1ap.CauseGroupMisc:
 		if cause.Value == s1ap.CauseMiscOMIntervention {

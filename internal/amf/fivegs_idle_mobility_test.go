@@ -200,6 +200,60 @@ func TestEPSContextRefusesASubscriberBarredFromEPS(t *testing.T) {
 	}
 }
 
+func TestEPSContextRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name      string
+		visitor   bool
+		lookupErr error
+		wantErr   error
+	}{
+		{name: "roaming visitor", visitor: true, wantErr: interworking.ErrNotHomeSubscriber},
+		{name: "subscriber row gone", lookupErr: db.ErrNotFound, wantErr: interworking.ErrNotHomeSubscriber},
+		{name: "lookup failure", lookupErr: failure, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := idleMobilityAMF()
+			guti := idleMobilityGUTI(t)
+			ue := leavingUE(t, a, guti)
+
+			store, ok := a.DBInstance.(operatorOnlyDB)
+			if !ok {
+				t.Fatalf("DBInstance = %T, want operatorOnlyDB", a.DBInstance)
+			}
+
+			store.visitor = tc.visitor
+			store.lookupErr = tc.lookupErr
+			a.DBInstance = store
+
+			count, err := ue.ulCount.Estimate(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			before := ue.dl.Next()
+
+			_, err = a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count))
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			if errors.Is(err, interworking.ErrNoTransferableSessions) {
+				t.Fatal("the refusal must leave the MME on its default TAU reject so the UE re-attaches")
+			}
+
+			if ue.State() != Registered {
+				t.Error("the refusal disturbed the UE's 5GS registration")
+			}
+
+			if ue.dl.Next() != before {
+				t.Error("the refusal consumed a downlink NAS COUNT for a mapped context")
+			}
+		})
+	}
+}
+
 // TS 33.501 §8.5.2 step 1
 func TestEPSContextCommitsTheCountItVerifiedAt(t *testing.T) {
 	a := idleMobilityAMF()

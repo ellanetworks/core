@@ -5,6 +5,8 @@ package s1ap
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -52,6 +54,16 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 		{name: "the 5GS peer could not verify the update", err: interworking.ErrIntegrityCheckFailed, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
 		{name: "the update carries no integrity protection", err: interworking.ErrIntegrityCheckFailed, unprotected: true, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
 		{name: "the operator configured no 5GS peer", noPeer: true, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
+		{
+			name:      "the 5GS peer offers N26 to home subscribers only",
+			err:       fmt.Errorf("%w: 5G-GUTI 001-01-cafe0001", interworking.ErrNotHomeSubscriber),
+			wantCause: eps.EMMCauseUEIdentityCannotBeDerived,
+		},
+		{
+			name:      "the 5GS peer could not resolve the subscriber",
+			err:       errors.New("amf: resolve the subscriber: database unavailable"),
+			wantCause: eps.EMMCauseUEIdentityCannotBeDerived,
+		},
 		{
 			name:      "the 5GS peer holds no session EPS can adopt",
 			err:       interworking.ErrNoTransferableSessions,

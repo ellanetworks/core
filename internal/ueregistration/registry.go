@@ -20,7 +20,7 @@ type Store interface {
 	RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error)
 	PurgeUERegistration(ctx context.Context, imsi, regType, nodeID string) error
 	GetUERegistration(ctx context.Context, imsi, regType string) (*db.UERegistration, error)
-	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
+	GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error)
 }
 
 type Holder interface {
@@ -238,7 +238,7 @@ func (b *Binding) outcome(ctx context.Context, imsi string, held int64) outcome 
 }
 
 func (b *Binding) subscriberDeleted(ctx context.Context, imsi string) bool {
-	_, err := b.r.store.GetSubscriber(ctx, imsi)
+	_, err := b.r.store.GetSubscriberOrVisitor(ctx, imsi)
 
 	return errors.Is(err, db.ErrNotFound)
 }

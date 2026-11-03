@@ -25,7 +25,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		Snssai: req.Snssai,
 	}
 
-	sc, err := s.findTransferable(supi, req.PDUSessionID, move)
+	sc, err := s.findTransferable(ctx, supi, req.PDUSessionID, move)
 	if err != nil {
 		return models.EPSBearer{}, err
 	}

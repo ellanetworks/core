@@ -87,6 +87,10 @@ func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 	}, nil
 }
 
+func (fdb *fakeDBInstance) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	return fdb.GetSubscriber(ctx, imsi)
+}
+
 func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: !fdb.BarFrom5G, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }

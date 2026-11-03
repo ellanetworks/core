@@ -69,7 +69,7 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 
 	move := transferRequest{Access: access, EBI: ebi, Dnn: dnn, Snssai: snssai}
 
-	sc, err := s.findTransferable(supi, pduSessionID, move)
+	sc, err := s.findTransferable(ctx, supi, pduSessionID, move)
 	if err != nil {
 		return "", fmt.Errorf("no session to move to %s in idle mode: %w", access, err)
 	}

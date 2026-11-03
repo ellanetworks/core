@@ -5,6 +5,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
 	"slices"
@@ -41,7 +42,7 @@ func (db *Database) ExportSupportData(ctx context.Context, options supportbundle
 	if options.IncludeSubscriberUsage {
 		db.collectSupportUsage(ctx, out, sections, failure)
 	} else {
-		for _, section := range []string{"usage_per_day", "usage_per_subscriber"} {
+		for _, section := range []string{"usage_per_day", "usage_per_subscriber", "roaming_usage_per_day"} {
 			sections[section] = supportbundle.SectionStatus{Status: "omitted", Reason: "permission restricted"}
 		}
 	}
@@ -302,6 +303,8 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["diameter_peers"] = sections["diameter_peers"].WithCount(len(smscPeers))
 	}
 
+	db.collectSupportRoaming(ctx, out, sections, failure)
+
 	if pcscfAddrs, err := db.ListPCSCFAddresses(ctx); err != nil {
 		failure("pcscf_addresses", err)
 	} else {
@@ -379,6 +382,40 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["bgp_peers"] = sections["bgp_peers"].WithCount(len(peerEntries))
 		sections["bgp_import_prefixes"] = sections["bgp_import_prefixes"].WithCount(len(prefixEntries))
 	}
+}
+
+func (db *Database) collectSupportRoaming(ctx context.Context, out supportbundle.SanitizedData, sections map[string]supportbundle.SectionStatus, failure func(string, error)) {
+	if partners, err := db.ListRoamingPartners(ctx); err != nil {
+		failure("roaming_partners", err)
+	} else {
+		out["roaming_partners"] = append([]RoamingPartner{}, partners...)
+		sections["roaming_partners"] = sections["roaming_partners"].WithCount(len(partners))
+	}
+
+	if peers, err := db.ListRoamingDiameterPeers(ctx); err != nil {
+		failure("roaming_diameter_peers", err)
+	} else {
+		out["roaming_diameter_peers"] = append([]RoamingDiameterPeer{}, peers...)
+		sections["roaming_diameter_peers"] = sections["roaming_diameter_peers"].WithCount(len(peers))
+	}
+
+	identity, err := db.GetSEPPIdentity(ctx)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		failure("sepp_identity", err)
+		return
+	}
+
+	redacted := []map[string]any{}
+	if identity != nil {
+		redacted = append(redacted, map[string]any{
+			"FQDN":         identity.FQDN,
+			"CertChainPEM": identity.CertChainPEM,
+			"KeyPEM":       "*",
+		})
+	}
+
+	out["sepp_identity"] = redacted
+	sections["sepp_identity"] = sections["sepp_identity"].WithCount(len(redacted))
 }
 
 func (db *Database) collectSupportRegistrations(ctx context.Context, out supportbundle.SanitizedData, sections map[string]supportbundle.SectionStatus, failure func(string, error)) {
@@ -514,6 +551,24 @@ func (db *Database) collectSupportUsage(ctx context.Context, out supportbundle.S
 
 		out["usage_per_subscriber"] = entries
 		sections["usage_per_subscriber"] = sections["usage_per_subscriber"].WithCount(len(entries))
+	}
+
+	if roamingUsage, err := db.ListRoamingUsage(ctx, "", usageDays); err != nil {
+		failure("roaming_usage_per_day", err)
+	} else {
+		entries := make([]any, 0, len(roamingUsage))
+		for _, u := range roamingUsage {
+			entries = append(entries, map[string]any{
+				"day":            u.EpochDay,
+				"mcc":            u.Mcc,
+				"mnc":            u.Mnc,
+				"bytes_uplink":   u.BytesUplink,
+				"bytes_downlink": u.BytesDownlink,
+			})
+		}
+
+		out["roaming_usage_per_day"] = entries
+		sections["roaming_usage_per_day"] = sections["roaming_usage_per_day"].WithCount(len(entries))
 	}
 }
 
