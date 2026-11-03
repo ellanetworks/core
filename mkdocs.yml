@@ -117,6 +117,30 @@ nav:
     - System Requirements: reference/system_reqs.md
     - Supported Mobile Equipment: reference/supported_mobile_equipment.md
     - 3GPP Compliance: reference/3gpp_compliance.md
+    - Releases:
+      - reference/releases/index.md
+      - v1.21: reference/releases/v1.21.md
+      - v1.20: reference/releases/v1.20.md
+      - v1.19: reference/releases/v1.19.md
+      - v1.18: reference/releases/v1.18.md
+      - v1.17: reference/releases/v1.17.md
+      - v1.16: reference/releases/v1.16.md
+      - v1.15: reference/releases/v1.15.md
+      - v1.14: reference/releases/v1.14.md
+      - v1.13: reference/releases/v1.13.md
+      - v1.12: reference/releases/v1.12.md
+      - v1.11: reference/releases/v1.11.md
+      - v1.10: reference/releases/v1.10.md
+      - v1.9: reference/releases/v1.9.md
+      - v1.8: reference/releases/v1.8.md
+      - v1.7: reference/releases/v1.7.md
+      - v1.6: reference/releases/v1.6.md
+      - v1.5: reference/releases/v1.5.md
+      - v1.4: reference/releases/v1.4.md
+      - v1.3: reference/releases/v1.3.md
+      - v1.2: reference/releases/v1.2.md
+      - v1.1: reference/releases/v1.1.md
+      - v1.0: reference/releases/v1.0.md
   - Explanation:
     - explanation/index.md
     - Architecture: explanation/architecture.md
@@ -154,5 +178,6 @@ plugins:
         Reference:
           - reference/*.md
           - reference/api/*.md
+          - reference/releases/*.md
         Explanation:
           - explanation/*.md
