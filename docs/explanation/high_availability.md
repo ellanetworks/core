@@ -66,6 +66,20 @@ Useful for site- or tenant-partitioned deployments. Network-wide state still rep
   <figcaption>Radios pinned to specific nodes</figcaption>
 </figure>
 
+## 5G roaming
+
+Every node with `interfaces.n32` in its configuration file is its own SEPP (Security Edge Protection Proxy), the node's endpoint towards the SEPPs of 5G roaming partners. Its SEPP ID is the node's AMF Pointer, and its name is `sepp<SEPP ID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`. There is no leader SEPP and no relay between nodes. A node without `interfaces.n32` runs no SEPP and does not serve 5G roamers.
+
+| Replicates | Per node |
+| ---------- | -------- |
+| Roaming partners, the cluster SEPP CA, each node's SEPP certificate and key | N32 handshakes (contexts), N32 connections, SEPP metrics |
+
+- **Certificates.** A node that has `interfaces.n32` and no certificate gets one signed by the cluster SEPP CA, without operator action, including a node that joins later. Regenerating the CA reissues every generated certificate. A certificate imported for one node replaces that node's certificate only.
+- **Handshakes.** Each node handshakes with each partner on its own. A node that fails takes only its own contexts with it, and the partner keeps using the other Ella Core SEPPs. The partner status in the API and the UI shows one entry per SEPP node, and `unknown` for a node that does not answer.
+- **Partner SEPPs.** Every node accepts any SEPP of the partner whose certificate chains to the partner's trust anchor and names only the partner's PLMN IDs (TS 33.501 clause 13.1.2), whether it is the SEPP configured for the partner, the SEPP a handshake was redirected to, or another SEPP of the partner that starts its own handshake. Each node sends its own traffic to the configured SEPP, or to the SEPP its handshake was redirected to.
+- **Removing a node.** Removing a node deletes its generated certificate: a node that later joins with the same SEPP ID gets a new key under the same name and the same CA, so partners need no change. An imported certificate is kept for the next node with that SEPP ID. Import a new one if the removed host is no longer trusted.
+- **Notifications for roamers.** The home network may send its notifications for a roamer (deregistration, subscription data change) to any Ella Core SEPP. A node delivers only the notifications for the UEs it serves. It refuses a notification for a UE of another node with `404`, and the change then applies at the UE's next registration or when its registration expires. Clusters with a single node with `interfaces.n32` are not affected.
+
 ## Draining a node
 
 Draining prepares a node for removal without disrupting traffic on its peers. A draining node signals connected radios so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors.

@@ -79,6 +79,7 @@ type UeConn struct {
 	icsGuard                  guard.Guard
 	releasing                 bool
 	ranUEAMBR                 atomic.Pointer[models.Ambr]
+	lane                      lane
 }
 
 type ESMRequest struct {

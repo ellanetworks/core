@@ -201,6 +201,17 @@ func TestRespondChecks(t *testing.T) {
 	}{
 		"sender mismatch":   {func(r *SecNegotiateReqData, _ *Negotiation) { r.Sender = "sepp.other.org" }, CauseNegotiationNotAllowed},
 		"sender not in SAN": {func(_ *SecNegotiateReqData, n *Negotiation) { n.PeerCertDNSNames = []string{"x.org"} }, CauseNegotiationNotAllowed},
+		"another SEPP of the partner, not in SAN": {func(r *SecNegotiateReqData, _ *Negotiation) {
+			r.Sender = "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
+		}, CauseNegotiationNotAllowed},
+		"SEPP of another PLMN in SAN": {func(r *SecNegotiateReqData, n *Negotiation) {
+			r.Sender = "sepp1.5gc.mnc002.mcc001.3gppnetwork.org"
+			n.PeerCertDNSNames = append(n.PeerCertDNSNames, r.Sender)
+		}, CauseNegotiationNotAllowed},
+		"well-known SEPP FQDN of the partner in SAN": {func(r *SecNegotiateReqData, n *Negotiation) {
+			n.PeerFQDN = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
+			n.PeerCertDNSNames = append(n.PeerCertDNSNames, r.Sender)
+		}, CauseNegotiationNotAllowed},
 		"PRINS only": {func(r *SecNegotiateReqData, _ *Negotiation) {
 			r.SupportedSecCapabilityList = []SecurityCapability{SecurityPRINS}
 		}, CauseNegotiationNotAllowed},
@@ -242,6 +253,23 @@ func TestRespondChecks(t *testing.T) {
 
 	if _, outcome, err := negotiation().Respond(req); err != nil || outcome != OutcomeEstablish {
 		t.Fatalf("absent PLMN IEs: %v, %v", outcome, err)
+	}
+
+	req = baseRequest()
+	req.Sender = "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
+	n := negotiation()
+	n.PeerPlmnIDs = []wire.PlmnID{peerPLMN, {Mcc: "001", Mnc: "02"}}
+	n.PeerCertDNSNames = []string{req.Sender}
+
+	if _, outcome, err := n.Respond(req); err != nil || outcome != OutcomeEstablish {
+		t.Fatalf("another SEPP of the partner: %v, %v", outcome, err)
+	}
+
+	req.Sender = "sepp3.5gc.mnc002.mcc001.3gppnetwork.org"
+	n.PeerCertDNSNames = []string{req.Sender}
+
+	if _, outcome, err := n.Respond(req); err != nil || outcome != OutcomeEstablish {
+		t.Fatalf("a SEPP of the partner's second PLMN: %v, %v", outcome, err)
 	}
 
 	req = baseRequest()

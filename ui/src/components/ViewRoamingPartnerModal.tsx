@@ -17,10 +17,12 @@ import {
   defaultNRFAPIRoot,
   diameterPeerLabel,
   formatPLMN,
+  n32NodeLabel,
   parseSEPPFQDN,
   type RoamingDiameterPeer,
   type RoamingPartner,
 } from "@/queries/roaming";
+import N32StatusChip from "@/components/N32StatusChip";
 
 interface ViewRoamingPartnerModalProps {
   open: boolean;
@@ -110,6 +112,37 @@ const ViewRoamingPartnerModal: React.FC<ViewRoamingPartnerModalProps> = ({
               >
                 {sepp.trustAnchorPEM.trim()}
               </Box>
+              <Typography variant="body2" color="textSecondary">
+                N32-c
+              </Typography>
+              {partner.n32?.length ? (
+                <Stack spacing={1} aria-label="N32-c status">
+                  {partner.n32.map((entry) => (
+                    <Row
+                      key={entry.seppID ?? entry.nodeID ?? "local"}
+                      label={
+                        entry.seppID && entry.nodeID
+                          ? `${n32NodeLabel(entry)} (${entry.nodeID})`
+                          : n32NodeLabel(entry)
+                      }
+                      value={
+                        <Stack spacing={0.5} sx={{ alignItems: "flex-end" }}>
+                          <N32StatusChip n32={entry} withNode={false} />
+                          {entry.lastError && (
+                            <Typography variant="caption" color="textSecondary">
+                              {entry.lastError}
+                            </Typography>
+                          )}
+                        </Stack>
+                      }
+                    />
+                  ))}
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  No node has interfaces.n32.
+                </Typography>
+              )}
             </>
           ) : (
             <Typography variant="body2" color="textSecondary">

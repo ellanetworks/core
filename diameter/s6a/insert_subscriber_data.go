@@ -24,6 +24,8 @@ type InsertSubscriberData struct {
 	LastUEActivityTime      time.Time
 	RATType                 *tgpp.RATType
 	Flags                   IDAFlags
+	UserState               *UserState
+	Location                *EPSLocationInformation
 	LocalTimeZone           *LocalTimeZone
 }
 
@@ -172,6 +174,24 @@ func NewInsertSubscriberDataAnswer(req *diameter.Message, id diameter.Identity, 
 		return nil, err
 	}
 
+	if a.UserState != nil {
+		state, err := userStateAVP(*a.UserState)
+		if err != nil {
+			return nil, err
+		}
+
+		ans.AVPs = append(ans.AVPs, state)
+	}
+
+	if a.Location != nil {
+		loc, err := a.Location.avp()
+		if err != nil {
+			return nil, err
+		}
+
+		ans.AVPs = append(ans.AVPs, loc)
+	}
+
 	if a.LocalTimeZone != nil {
 		tz, err := a.LocalTimeZone.avp()
 		if err != nil {
@@ -211,6 +231,18 @@ func ParseInsertSubscriberDataAnswer(ans *diameter.Message) (InsertSubscriberDat
 
 	if a.Flags, err = answerFlags[IDAFlags](ans.AVPs, AVPIDAFlags); err != nil {
 		return InsertSubscriberData{}, malformed(err)
+	}
+
+	if state, ok := ans.Find(AVPEPSUserState, tgpp.VendorID); ok {
+		if a.UserState, err = answerDecoder.userState(state); err != nil {
+			return InsertSubscriberData{}, malformed(err)
+		}
+	}
+
+	if loc, ok := ans.Find(AVPEPSLocationInformation, tgpp.VendorID); ok {
+		if a.Location, err = answerDecoder.epsLocationInformation(loc); err != nil {
+			return InsertSubscriberData{}, malformed(err)
+		}
 	}
 
 	if tz, ok := ans.Find(AVPLocalTimeZone, tgpp.VendorID); ok {

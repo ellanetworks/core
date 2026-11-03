@@ -44,6 +44,15 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 			PRIMARY KEY (mcc, mnc)
 		)`, RoamingPartnerPLMNsTableName, RoamingPartnersTableName),
 		fmt.Sprintf("CREATE INDEX idx_roaming_partner_plmns_partner ON %s(partnerID)", RoamingPartnerPLMNsTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			partnerID TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			mcc       TEXT    NOT NULL DEFAULT '' CHECK (mcc = '' OR mcc GLOB '[0-9][0-9][0-9]'),
+			mnc       TEXT    NOT NULL DEFAULT '' CHECK (mnc = '' OR mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
+			type      TEXT    NOT NULL DEFAULT '' CHECK (type IN ('', '%s', '%s')),
+			expiresAt INTEGER NOT NULL,
+			PRIMARY KEY (partnerID, mcc, mnc, type),
+			CHECK ((mcc = '') = (mnc = ''))
+		)`, RoamingWithdrawalsTableName, RoamingPartnersTableName, UERegistrationTypeMME, UERegistrationTypeAMF3GPPAccess),
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			id               TEXT PRIMARY KEY,
 			imsi             TEXT NOT NULL UNIQUE CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
@@ -75,11 +84,17 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		)`, RoamingDailyUsageTableName),
 		fmt.Sprintf("CREATE INDEX idx_roaming_daily_usage_plmn ON %s(mcc, mnc)", RoamingDailyUsageTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
-			singleton    BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-			fqdn         TEXT    NOT NULL CHECK (fqdn != '' AND fqdn = lower(fqdn)),
+			singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+			certPEM   TEXT    NOT NULL CHECK (certPEM != ''),
+			keyPEM    TEXT    NOT NULL CHECK (keyPEM != '')
+		)`, SEPPCATableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			seppID       INTEGER PRIMARY KEY CHECK (seppID BETWEEN 1 AND 63),
+			fqdn         TEXT    NOT NULL UNIQUE CHECK (fqdn != '' AND fqdn = lower(fqdn)),
+			source       TEXT    NOT NULL CHECK (source IN ('%s', '%s')),
 			certChainPEM TEXT    NOT NULL CHECK (certChainPEM != ''),
 			keyPEM       TEXT    NOT NULL CHECK (keyPEM != '')
-		)`, SEPPIdentityTableName),
+		)`, SEPPIdentitiesTableName, SEPPIdentityGenerated, SEPPIdentityImported),
 	}
 
 	for _, stmt := range stmts {

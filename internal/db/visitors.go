@@ -158,6 +158,10 @@ func (db *Database) DeleteUnregisteredVisitors(ctx context.Context) (int64, erro
 }
 
 func (db *Database) applyRegisterVisitorUE(ctx context.Context, p *registerVisitorUEPayload) (any, error) {
+	if err := db.refuseWithdrawnVisitor(ctx, p.Imsi, p.PartnerID, p.Type); err != nil {
+		return nil, err
+	}
+
 	if err := db.insertVisitorIfAbsent(ctx, p.Imsi, p.PartnerID); err != nil {
 		return nil, err
 	}

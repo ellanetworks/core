@@ -32,6 +32,7 @@ type fakeStore struct {
 	releasedIP      netip.Addr
 	releasedIPv6    netip.Addr
 	usageLog        []usageEntry
+	roamingUsageLog []models.SubscriberUsage
 	batchCalls      int
 	usageErr        error
 	usageFailures   int
@@ -351,6 +352,19 @@ func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.
 		if f.usageErr == nil {
 			f.usageLog = append(f.usageLog, usageEntry{u.EpochDay, u.IMSI, u.UplinkVolume, u.DownlinkVolume})
 		}
+	}
+
+	return f.usageErr
+}
+
+func (f *fakeStore) IncrementRoamingDailyUsageBatch(_ context.Context, usages []models.SubscriberUsage) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.batchCalls++
+
+	if f.usageErr == nil {
+		f.roamingUsageLog = append(f.roamingUsageLog, usages...)
 	}
 
 	return f.usageErr

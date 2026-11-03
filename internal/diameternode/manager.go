@@ -50,6 +50,7 @@ type PeerConfig struct {
 	Host         string
 	Address      netip.AddrPort
 	Applications []diameter.Application
+	Routes       []diameter.Route
 }
 
 type PeerStatus struct {
@@ -284,6 +285,7 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 			Transports:   []diameter.Transport{diameter.TransportSCTP},
 			Dial:         &diameter.Dial{Port: p.Address.Port()},
 			Applications: p.Applications,
+			Routes:       p.Routes,
 		})
 	}
 
@@ -296,7 +298,8 @@ func sameIdentity(a, b diameter.Identity) bool {
 
 func samePeers(a, b []PeerConfig) bool {
 	return slices.EqualFunc(a, b, func(x, y PeerConfig) bool {
-		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && slices.Equal(x.Applications, y.Applications)
+		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address &&
+			slices.Equal(x.Applications, y.Applications) && slices.Equal(x.Routes, y.Routes)
 	})
 }
 

@@ -56,17 +56,17 @@ func TestRoamingWrites(t *testing.T) {
 		},
 		{"delete peer", func(c *client.Client) error { return c.DeleteRoamingDiameterPeer(context.Background(), "abc") }, "DELETE", "api/v1/roaming/diameter-peers/abc", nil},
 		{"import certificate", func(c *client.Client) error {
-			_, err := c.ImportSEPPCertificate(context.Background(), cert)
+			_, err := c.ImportSEPPCertificate(context.Background(), 2, cert)
 			return err
-		}, "PUT", "api/v1/roaming/sepp/certificate", map[string]any{"certificateChainPEM": "chain", "privateKeyPEM": "key"}},
+		}, "PUT", "api/v1/roaming/sepp/nodes/2/certificate", map[string]any{"certificateChainPEM": "chain", "privateKeyPEM": "key"}},
 		{"generate certificate", func(c *client.Client) error {
-			_, err := c.GenerateSEPPCertificate(context.Background(), nil)
+			_, err := c.GenerateSEPPCertificate(context.Background(), 3)
 			return err
-		}, "POST", "api/v1/roaming/sepp/certificate/generate", map[string]any{}},
-		{"generate certificate with an FQDN", func(c *client.Client) error {
-			_, err := c.GenerateSEPPCertificate(context.Background(), &client.GenerateSEPPCertificateOptions{FQDN: "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"})
+		}, "POST", "api/v1/roaming/sepp/nodes/3/certificate/generate", nil},
+		{"regenerate CA", func(c *client.Client) error {
+			_, err := c.RegenerateSEPPCA(context.Background())
 			return err
-		}, "POST", "api/v1/roaming/sepp/certificate/generate", map[string]any{"fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"}},
+		}, "POST", "api/v1/roaming/sepp/ca/regenerate", nil},
 	}
 
 	for _, tc := range cases {
@@ -140,10 +140,10 @@ func TestRoamingReads(t *testing.T) {
 		t.Fatalf("GetRoamingDiameterPeer = %+v, %v", peer, err)
 	}
 
-	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org", "certificateChainPEM": "chain", "trustAnchorPEM": "ca", "fingerprint": "sha256:00", "notAfter": "2029-01-01T00:00:00Z"}`)}}
+	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"seppID": 1, "source": "generated", "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org", "certificateChainPEM": "chain", "trustAnchorPEM": "ca", "fingerprint": "sha256:00", "notAfter": "2029-01-01T00:00:00Z"}`)}}
 
-	cert, err := (&client.Client{Requester: fake}).GetSEPPCertificate(context.Background())
-	if err != nil || cert.FQDN != "sepp1.5gc.mnc001.mcc001.3gppnetwork.org" || cert.TrustAnchorPEM != "ca" || cert.Fingerprint != "sha256:00" || fake.lastOpts.Path != "api/v1/roaming/sepp/certificate" {
+	cert, err := (&client.Client{Requester: fake}).GetSEPPCertificate(context.Background(), 1)
+	if err != nil || cert.SEPPID != 1 || cert.Source != "generated" || cert.FQDN != "sepp1.5gc.mnc001.mcc001.3gppnetwork.org" || cert.TrustAnchorPEM != "ca" || cert.Fingerprint != "sha256:00" || fake.lastOpts.Path != "api/v1/roaming/sepp/nodes/1/certificate" {
 		t.Fatalf("GetSEPPCertificate = %+v, %v", cert, err)
 	}
 
@@ -159,10 +159,48 @@ func TestRoamingReads(t *testing.T) {
 	}
 }
 
+func TestRoamingSEPPRuntime(t *testing.T) {
+	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 202, Headers: http.Header{}, Result: []byte(`{"n32": [{"nodeID": "n1", "seppID": 1, "state": "establishing", "since": "2026-11-03T10:00:00Z", "nftlst": false}]}`)}}
+
+	st, err := (&client.Client{Requester: fake}).RehandshakeRoamingPartner(context.Background(), "abc")
+	if err != nil || len(st.N32) != 1 || st.N32[0].State != "establishing" || st.N32[0].SEPPID != 1 || fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/roaming/partners/abc/handshake" || fake.lastOpts.Body != nil {
+		t.Fatalf("RehandshakeRoamingPartner = %+v, %v", st, err)
+	}
+
+	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{
+		"trustAnchors": [{"source": "generated", "subject": "CN=ca", "fingerprint": "sha256:ca", "notAfter": "c", "pem": "pem", "seppIDs": [1]}],
+		"nodes": [{"nodeID": "n1", "seppID": 1, "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org", "source": "generated", "reachable": true, "n32Configured": true, "address": "192.0.2.1", "port": 443, "listening": true,
+			"certificate": {"subject": "CN=x", "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"], "issuer": "CN=ca", "notBefore": "a", "notAfter": "b", "fingerprint": "sha256:00", "trustAnchorFingerprint": "sha256:ca"}}]}`)}}
+
+	status, err := (&client.Client{Requester: fake}).GetSEPPStatus(context.Background())
+	if err != nil || len(status.TrustAnchors) != 1 || status.TrustAnchors[0].SEPPIDs[0] != 1 || len(status.Nodes) != 1 || fake.lastOpts.Path != "api/v1/roaming/sepp" {
+		t.Fatalf("GetSEPPStatus = %+v, %v", status, err)
+	}
+
+	n := status.Nodes[0]
+	if n.SEPPID != 1 || n.FQDN != "sepp1.5gc.mnc001.mcc001.3gppnetwork.org" || !n.Listening || n.Certificate == nil || n.Certificate.TrustAnchorFingerprint != "sha256:ca" {
+		t.Fatalf("node = %+v", n)
+	}
+
+	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"id": "abc", "name": "p", "plmns": [], "profileName": "x",
+		"n32": [{"nodeID": "n1", "seppID": 1, "state": "established", "since": "2026-11-03T10:00:00Z", "initiator": "local", "nftlst": true,
+		"otherPeers": [{"peer": "sepp2.5gc.mnc001.mcc001.3gppnetwork.org", "since": "2026-11-03T10:01:00Z", "nftlst": true}]}]}`)}}
+
+	partner, err := (&client.Client{Requester: fake}).GetRoamingPartner(context.Background(), "abc")
+	want := client.RoamingPartnerN32{
+		NodeID: "n1", SEPPID: 1, State: "established", Since: "2026-11-03T10:00:00Z", Initiator: "local", NFTLST: true,
+		OtherPeers: []client.RoamingPartnerN32Peer{{Peer: "sepp2.5gc.mnc001.mcc001.3gppnetwork.org", Since: "2026-11-03T10:01:00Z", NFTLST: true}},
+	}
+
+	if err != nil || len(partner.N32) != 1 || !reflect.DeepEqual(partner.N32[0], want) {
+		t.Fatalf("partner n32 = %+v, %v", partner, err)
+	}
+}
+
 func TestRoamingRequestError(t *testing.T) {
 	fake := &fakeRequester{err: errors.New("boom")}
 
-	if _, err := (&client.Client{Requester: fake}).GetSEPPCertificate(context.Background()); err == nil {
+	if _, err := (&client.Client{Requester: fake}).GetSEPPCertificate(context.Background(), 1); err == nil {
 		t.Fatal("expected an error")
 	}
 }

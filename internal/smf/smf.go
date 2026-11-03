@@ -97,6 +97,7 @@ type SubscriptionData interface {
 type SessionStore interface {
 	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
 	IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error
+	IncrementRoamingDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error
 	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 

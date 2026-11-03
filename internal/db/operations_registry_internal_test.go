@@ -110,9 +110,14 @@ var pinnedChangesetOps = map[string]int{
 	"UpdateRoamingDiameterPeer":         26,
 	"DeleteRoamingDiameterPeer":         26,
 	"PutSEPPIdentity":                   26,
+	"InsertSEPPIdentityIfAbsent":        26,
+	"InitSEPPCA":                        26,
+	"ReplaceSEPPCA":                     26,
 	"IncrementRoamingDailyUsageBatch":   26,
 	"RegisterVisitorUE":                 26,
 	"DeleteVisitorIfUnregistered":       26,
+	"WithdrawRoamers":                   26,
+	"ClearRoamingWithdrawals":           26,
 	"DeleteUnregisteredVisitors":        26,
 }
 

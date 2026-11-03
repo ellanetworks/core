@@ -133,6 +133,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		Policy:     policy,
 		DN:         inputs.dn,
 		Subscribed: inputs.subscribed,
+		HomePLMN:   inputs.homePLMN,
 	})
 	if err != nil {
 		return models.EPSBearer{}, err

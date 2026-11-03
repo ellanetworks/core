@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 )
 
@@ -284,6 +285,7 @@ type Negotiation struct {
 	LocalPlmnID       wire.PlmnID
 	PeerFQDN          string
 	PeerPlmnID        wire.PlmnID
+	PeerPlmnIDs       []wire.PlmnID
 	PeerCertDNSNames  []string
 	SupportedFeatures wire.SupportedFeatures
 }
@@ -325,7 +327,43 @@ func sameFQDN(a, b string) bool {
 }
 
 func (n Negotiation) senderMatches(sender string) bool {
-	return sameFQDN(sender, n.PeerFQDN) && slices.ContainsFunc(n.PeerCertDNSNames, func(name string) bool { return sameFQDN(name, sender) })
+	return sameFQDN(sender, n.PeerFQDN) && n.inPeerCert(sender)
+}
+
+func (n Negotiation) inPeerCert(sender string) bool {
+	return slices.ContainsFunc(n.PeerCertDNSNames, func(name string) bool { return sameFQDN(name, sender) })
+}
+
+func (n Negotiation) peerSEPP(sender string) bool {
+	if !n.inPeerCert(sender) {
+		return false
+	}
+
+	if sameFQDN(sender, n.PeerFQDN) {
+		return true
+	}
+
+	plmns := make([]pki.PLMN, 0, len(n.PeerPlmnIDs)+1)
+	for _, p := range append([]wire.PlmnID{n.PeerPlmnID}, n.PeerPlmnIDs...) {
+		plmns = append(plmns, pki.PLMN{MCC: p.Mcc, MNC: p.Mnc})
+	}
+
+	return pki.ValidatePeerSEPPFQDN(strings.ToLower(strings.TrimSuffix(sender, ".")), plmns) == nil
+}
+
+func (n Negotiation) peerPLMNsOnly(list []wire.PlmnID) bool {
+	allowed := n.PeerPlmnIDs
+	if len(allowed) == 0 {
+		allowed = []wire.PlmnID{n.PeerPlmnID}
+	}
+
+	for _, p := range list {
+		if !slices.Contains(allowed, p) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func LocalPrecedes(local, peer string) bool {
@@ -333,8 +371,8 @@ func LocalPrecedes(local, peer string) bool {
 }
 
 func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outcome, error) {
-	if !n.senderMatches(req.Sender) {
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "sender does not match the partner SEPP")
+	if !n.peerSEPP(req.Sender) {
+		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "sender is not a SEPP of the partner named in the client certificate")
 	}
 
 	if req.Teardown() {
@@ -348,8 +386,8 @@ func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outc
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "3gpp-Sbi-Target-apiRoot support is required")
 	case len(req.SnpnIDList) > 0 || req.TargetSnpnID != nil:
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "SNPN interconnect is not supported")
-	case len(req.PlmnIDList) > 0 && !slices.Contains(req.PlmnIDList, n.PeerPlmnID):
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "plmnIdList does not contain the partner PLMN")
+	case !n.peerPLMNsOnly(req.PlmnIDList):
+		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "plmnIdList names a PLMN that is not the partner's")
 	case req.TargetPlmnID != nil && *req.TargetPlmnID != n.LocalPlmnID:
 		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "targetPlmnId is not the local PLMN")
 	}
@@ -401,8 +439,8 @@ func (n Negotiation) CheckResponse(rsp SecNegotiateRspData) (Established, error)
 		return fail("selected security capability " + strconv.Quote(string(rsp.SelectedSecCapability)))
 	case !rsp.TargetAPIRootSupported:
 		return fail("peer does not support 3gpp-Sbi-Target-apiRoot")
-	case len(rsp.PlmnIDList) > 0 && !slices.Contains(rsp.PlmnIDList, n.PeerPlmnID):
-		return fail("plmnIdList does not contain the partner PLMN " + n.PeerPlmnID.String())
+	case !n.peerPLMNsOnly(rsp.PlmnIDList):
+		return fail("plmnIdList names a PLMN that is not the partner's")
 	case len(rsp.SnpnIDList) > 0:
 		return fail("peer answered with SNPN IDs")
 	case hasPurpose(rsp.RejectedUsagePurpose, PurposeRoaming),

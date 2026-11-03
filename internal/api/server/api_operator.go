@@ -420,8 +420,8 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 		audit := "User updated operator with Id: " + params.Mcc + params.Mnc
 
 		if seppIdentityDeleted {
-			message += ". The SEPP certificate of the previous PLMN was deleted: generate or import one for the new PLMN"
-			audit += ", deleting the SEPP certificate of the previous PLMN"
+			message += ". The SEPP certificates and the cluster SEPP CA of the previous PLMN were deleted: nodes with interfaces.n32 generate new SEPP certificates, or import one per node"
+			audit += ", deleting the SEPP certificates and the cluster SEPP CA of the previous PLMN"
 		}
 
 		resp := SuccessResponse{Message: message}

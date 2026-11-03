@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/udm"
 )
 
 type configTestDB struct {
@@ -375,7 +376,7 @@ func TestSubscriberProfileOffersEPSInterworkingToHomeSubscribersOnly(t *testing.
 		{name: "home subscriber allowed on 4G", db: &configTestDB{subscriber: home, allow4G: true}, want: true},
 		{name: "home subscriber barred from 4G", db: &configTestDB{subscriber: home}},
 		{name: "roaming visitor allowed on 4G", db: &configTestDB{subscriber: home, lookup: visitor, allow4G: true}},
-		{name: "subscriber row gone", db: &configTestDB{subscriber: home, lookupErr: db.ErrNotFound, allow4G: true}},
+		{name: "subscriber row gone", db: &configTestDB{subscriber: home, lookupErr: db.ErrNotFound, allow4G: true}, wantErr: udm.ErrSubscriberUnknown},
 		{name: "lookup failure", db: &configTestDB{subscriber: home, lookupErr: failure, allow4G: true}, wantErr: failure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

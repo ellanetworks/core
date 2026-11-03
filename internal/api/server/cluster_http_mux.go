@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/raft"
+	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
 )
@@ -34,6 +35,24 @@ func SetPKIIssuer(svc *pkiissuer.Service) {
 
 func loadPKIIssuer() *pkiissuer.Service {
 	return pkiIssuerService.Load()
+}
+
+var seppClusterHandler atomic.Pointer[http.Handler]
+
+func SetSEPPClusterHandler(h http.Handler) {
+	seppClusterHandler.Store(&h)
+}
+
+func seppEndpoint() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := seppClusterHandler.Load()
+		if h == nil {
+			writeError(r.Context(), w, http.StatusServiceUnavailable, "SEPP not yet ready", nil, logger.APILog)
+			return
+		}
+
+		(*h).ServeHTTP(w, r)
+	})
 }
 
 // maxClusterJoinBodyBytes caps the self-registration POST body. The real
@@ -57,6 +76,8 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("POST /cluster/members", LeaderOnly(dbInstance, selfRegistrationGuard(AddClusterMember(dbInstance))))
 	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, LeaderOnly(dbInstance, ClusterAutopilotState(dbInstance))))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
+	mux.Handle("GET "+sepp.ClusterStatusPath, removedNodeFence(dbInstance, seppEndpoint()))
+	mux.Handle("POST "+sepp.ClusterHandshakePath, removedNodeFence(dbInstance, seppEndpoint()))
 
 	// PKI register endpoint on the cluster HTTP ALPN. The issuer
 	// service becomes available after the first leader election;

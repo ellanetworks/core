@@ -188,6 +188,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		Policy:     policy,
 		DN:         inputs.dn,
 		Subscribed: inputs.subscribed,
+		HomePLMN:   inputs.homePLMN,
 
 		MaxPacketFilters: requestedMaxPacketFilters(req),
 	})

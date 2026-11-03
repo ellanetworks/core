@@ -47,7 +47,7 @@ var migrations = []migration{
 	{23, "add pcscf_addresses and ims_registrations tables: P-CSCF addresses given to phones and IMS S-CSCF assignments", migrateV23},
 	{24, "replace positioning_sessions with deferred_location_requests and location_reports for periodic location", migrateV24},
 	{25, "add IMS services: data_networks.ims, policies pre-emption capability and vulnerability, IMS application server, PSI, service profile, iFC and service profile assignment tables, IMS registrations per implicit registration set", migrateV25},
-	{26, "add local-breakout roaming: roaming_partners and their roaming_partner_plmns, visitor subscribers (subscribers.roamingPartnerID), roaming diameter peers, roaming_daily_usage, sepp_identity", migrateV26},
+	{26, "add local-breakout roaming: roaming_partners and their roaming_partner_plmns, visitor subscribers (subscribers.roamingPartnerID), roaming diameter peers, roaming_daily_usage, sepp_ca and per-node sepp_identities", migrateV26},
 }
 
 // baselineVersion is the highest migration that runs locally during

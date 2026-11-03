@@ -399,23 +399,40 @@ func (db *Database) collectSupportRoaming(ctx context.Context, out supportbundle
 		sections["roaming_diameter_peers"] = sections["roaming_diameter_peers"].WithCount(len(peers))
 	}
 
-	identity, err := db.GetSEPPIdentity(ctx)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		failure("sepp_identity", err)
+	cas := []map[string]any{}
+
+	ca, err := db.GetSEPPCA(ctx)
+
+	switch {
+	case err == nil:
+		cas = append(cas, map[string]any{"CertPEM": ca.CertPEM, "KeyPEM": "*"})
+	case !errors.Is(err, ErrNotFound):
+		failure("sepp_ca", err)
 		return
 	}
 
-	redacted := []map[string]any{}
-	if identity != nil {
+	out["sepp_ca"] = cas
+	sections["sepp_ca"] = sections["sepp_ca"].WithCount(len(cas))
+
+	identities, err := db.ListSEPPIdentities(ctx)
+	if err != nil {
+		failure("sepp_identities", err)
+		return
+	}
+
+	redacted := make([]map[string]any, 0, len(identities))
+	for _, identity := range identities {
 		redacted = append(redacted, map[string]any{
+			"SEPPID":       identity.SEPPID,
 			"FQDN":         identity.FQDN,
+			"Source":       identity.Source,
 			"CertChainPEM": identity.CertChainPEM,
 			"KeyPEM":       "*",
 		})
 	}
 
-	out["sepp_identity"] = redacted
-	sections["sepp_identity"] = sections["sepp_identity"].WithCount(len(redacted))
+	out["sepp_identities"] = redacted
+	sections["sepp_identities"] = sections["sepp_identities"].WithCount(len(redacted))
 }
 
 func (db *Database) collectSupportRegistrations(ctx context.Context, out supportbundle.SanitizedData, sections map[string]supportbundle.SectionStatus, failure func(string, error)) {

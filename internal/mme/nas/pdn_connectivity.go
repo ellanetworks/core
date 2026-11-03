@@ -108,6 +108,14 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	subscribed, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), apn)
 	if err != nil {
+		if cause, ok := roamingAPNRejectCause(err); ok {
+			logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: the APN cannot be broken out locally", zap.String("apn", apn),
+				logger.ESMCause(cause.String()), zap.Error(err))
+			rejectPDNConnectivity(ctx, ueConn, uint8(pti), cause)
+
+			return nasreply.Handled()
+		}
+
 		if errors.Is(err, mme.ErrUnknownAPN) {
 			logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN not in subscriber profile", zap.String("apn", apn))
 			rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)

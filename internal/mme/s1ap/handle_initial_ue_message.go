@@ -73,7 +73,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		}
 	}
 
-	m.NAS.HandleNAS(ctx, c, nas)
+	c.Serialize(func() { m.NAS.HandleNAS(ctx, c, nas) })
 
 	if c.UeContext() != nil {
 		return

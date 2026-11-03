@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -190,6 +191,9 @@ type UeContext struct {
 
 	allow5G bool
 
+	visitor       *roaming.Visitor
+	homeRestoring atomic.Bool
+
 	localBearerDeactivation bool
 
 	regStep RegStep
@@ -312,15 +316,20 @@ func (ue *UeContext) Connected() bool {
 }
 
 // MarkSecured records the IMEI (when reported) and flags the NAS security context established.
-func (ue *UeContext) MarkSecured(imei etsi.IMEI) {
+func (ue *UeContext) MarkSecured(imei etsi.IMEI) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
+	changed := false
+
 	if imei.IsSet() {
+		changed = ue.Imei.IsSet() && ue.Imei.String() != imei.String()
 		ue.Imei = imei
 	}
 
 	ue.secured = true
+
+	return changed
 }
 
 // UESnapshot is a read-only, point-in-time copy of a UE's identity and NAS
@@ -821,14 +830,20 @@ func (m *MME) removeContextLocked(ue *UeContext) bearerLosses {
 
 	m.stopIdleTimersLocked(ue)
 	ue.clearPaging()
-	m.releaseMTMSIsLocked(ue)
+	tmsis := m.unindexMTMSIsLocked(ue)
 	losses := m.freeUeConnLocked(ue)
 	m.endRelocationLocked(ue.supi, ue)
+
+	purging := false
 
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
 		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
-		m.purgeRegistration(supi)
+		purging = m.purgeRegistration(ue, supi, tmsis)
+	}
+
+	if !purging {
+		m.releaseMTMSIs(tmsis, false)
 	}
 
 	return losses

@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -96,7 +97,7 @@ func (f *roamingFixture) newPartner(id, name string, pairs ...string) *db.Roamin
 	return &db.RoamingPartner{ID: id, Name: name, PLMNs: plmns(pairs...), ProfileID: f.profileID}
 }
 
-func seppIdentity(t *testing.T, plmn pki.PLMN, fqdn string) db.SEPPIdentity {
+func seppIdentity(t *testing.T, plmn pki.PLMN, fqdn string, seppID ...int) db.SEPPIdentity {
 	t.Helper()
 
 	leaf, key, ca, err := pki.GenerateSEPPCert(fqdn, plmn)
@@ -109,7 +110,12 @@ func seppIdentity(t *testing.T, plmn pki.PLMN, fqdn string) db.SEPPIdentity {
 		t.Fatalf("EncodePrivateKeyPEM: %s", err)
 	}
 
-	return db.SEPPIdentity{FQDN: fqdn, CertChainPEM: string(pki.EncodeCertPEM(leaf)) + string(pki.EncodeCertPEM(ca)), KeyPEM: string(keyPEM)}
+	id := 1
+	if len(seppID) > 0 {
+		id = seppID[0]
+	}
+
+	return db.SEPPIdentity{SEPPID: id, FQDN: fqdn, Source: db.SEPPIdentityImported, CertChainPEM: string(pki.EncodeCertPEM(leaf)) + string(pki.EncodeCertPEM(ca)), KeyPEM: string(keyPEM)}
 }
 
 func homeSEPPIdentity(t *testing.T, id string) db.SEPPIdentity {
@@ -117,7 +123,12 @@ func homeSEPPIdentity(t *testing.T, id string) db.SEPPIdentity {
 
 	home := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
 
-	return seppIdentity(t, home, "sepp"+id+"."+home.Domain())
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		t.Fatalf("SEPP ID %q: %s", id, err)
+	}
+
+	return seppIdentity(t, home, "sepp"+id+"."+home.Domain(), n)
 }
 
 func (f *roamingFixture) with5G(p *db.RoamingPartner, fqdn string) *db.RoamingPartner {
@@ -408,7 +419,7 @@ func TestRoamingPartnerConflicts(t *testing.T) {
 		t.Fatalf("operator PLMN changed without partners = %v, %v; want the SEPP identity deleted", deleted, err)
 	}
 
-	if _, err := f.db.GetSEPPIdentity(ctx); !errors.Is(err, db.ErrNotFound) {
+	if _, err := f.db.GetSEPPIdentity(ctx, 1); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("SEPP identity after a PLMN change: err = %v, want ErrNotFound", err)
 	}
 
@@ -537,7 +548,7 @@ func TestSEPPIdentity(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 
-	if _, err := f.db.GetSEPPIdentity(ctx); !errors.Is(err, db.ErrNotFound) {
+	if _, err := f.db.GetSEPPIdentity(ctx, 1); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("GetSEPPIdentity on a fresh database: err = %v, want ErrNotFound", err)
 	}
 
@@ -545,12 +556,15 @@ func TestSEPPIdentity(t *testing.T) {
 	other := homeSEPPIdentity(t, "2")
 
 	invalid := map[string]db.SEPPIdentity{
-		"no key":          {FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM},
-		"garbage chain":   {FQDN: valid.FQDN, CertChainPEM: "chain", KeyPEM: valid.KeyPEM},
-		"mismatched key":  {FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: other.KeyPEM},
-		"FQDN not in SAN": {FQDN: other.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
-		"no FQDN":         {CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
-		"uppercase FQDN":  {FQDN: strings.ToUpper(valid.FQDN), CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
+		"no key":          {SEPPID: 1, Source: db.SEPPIdentityImported, FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM},
+		"garbage chain":   {SEPPID: 1, Source: db.SEPPIdentityImported, FQDN: valid.FQDN, CertChainPEM: "chain", KeyPEM: valid.KeyPEM},
+		"mismatched key":  {SEPPID: 1, Source: db.SEPPIdentityImported, FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: other.KeyPEM},
+		"FQDN not in SAN": {SEPPID: 1, Source: db.SEPPIdentityImported, FQDN: other.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
+		"no FQDN":         {SEPPID: 1, Source: db.SEPPIdentityImported, CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
+		"uppercase FQDN":  {SEPPID: 1, Source: db.SEPPIdentityImported, FQDN: strings.ToUpper(valid.FQDN), CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
+		"SEPP ID 0":       {SEPPID: 0, Source: db.SEPPIdentityImported, FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
+		"SEPP ID 64":      {SEPPID: 64, Source: db.SEPPIdentityImported, FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
+		"no source":       {SEPPID: 1, FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM, KeyPEM: valid.KeyPEM},
 	}
 
 	for name, identity := range invalid {
@@ -564,71 +578,114 @@ func TestSEPPIdentity(t *testing.T) {
 		t.Fatalf("identity of another PLMN: err = %v, want ErrRoamingConflict", err)
 	}
 
+	generatedWithoutCA := valid
+	generatedWithoutCA.Source = db.SEPPIdentityGenerated
+
+	if err := f.db.PutSEPPIdentity(ctx, &generatedWithoutCA); !errors.Is(err, db.ErrRoamingConflict) {
+		t.Fatalf("generated identity without a CA: err = %v, want ErrRoamingConflict", err)
+	}
+
 	for _, want := range []db.SEPPIdentity{valid, other} {
 		if err := f.db.PutSEPPIdentity(ctx, &want); err != nil {
 			t.Fatalf("PutSEPPIdentity: %s", err)
 		}
 
-		got, err := f.db.GetSEPPIdentity(ctx)
+		got, err := f.db.GetSEPPIdentity(ctx, want.SEPPID)
 		if err != nil || *got != want {
 			t.Fatalf("GetSEPPIdentity = %+v, %v; want %+v", got, err, want)
 		}
 	}
-}
 
-func TestRoamingPartnerWithSEPPIdentity(t *testing.T) {
-	ctx := context.Background()
-	f := newRoamingFixture(t)
+	sameFQDN := homeSEPPIdentity(t, "1")
+	sameFQDN.SEPPID = 3
 
-	first := homeSEPPIdentity(t, "1")
-
-	created, err := f.db.CreateRoamingPartnerWithSEPPIdentity(ctx, f.partner(), &first)
-	if err != nil || !created {
-		t.Fatalf("CreateRoamingPartnerWithSEPPIdentity = %v, %v; want true, nil", created, err)
+	if err := f.db.PutSEPPIdentity(ctx, &sameFQDN); !errors.Is(err, db.ErrRoamingConflict) {
+		t.Fatalf("FQDN of another node: err = %v, want ErrRoamingConflict", err)
 	}
 
-	second := f.newPartner("p2", "p2", "310", "410")
-	secondIdentity := homeSEPPIdentity(t, "2")
-
-	created, err = f.db.CreateRoamingPartnerWithSEPPIdentity(ctx, second, &secondIdentity)
-	if err != nil || created {
-		t.Fatalf("CreateRoamingPartnerWithSEPPIdentity with an identity present = %v, %v; want false, nil", created, err)
-	}
-
-	second.Name = "p2-renamed"
-
-	created, err = f.db.UpdateRoamingPartnerWithSEPPIdentity(ctx, second, &secondIdentity)
-	if err != nil || created {
-		t.Fatalf("UpdateRoamingPartnerWithSEPPIdentity with an identity present = %v, %v; want false, nil", created, err)
-	}
-
-	if got, err := f.db.GetSEPPIdentity(ctx); err != nil || *got != first {
-		t.Fatalf("GetSEPPIdentity = %+v, %v; want %+v", got, err, first)
-	}
-
-	if _, err := f.db.CreateRoamingPartnerWithSEPPIdentity(ctx, f.newPartner("p3", "p2-renamed", "310", "260"), &first); !errors.Is(err, db.ErrAlreadyExists) {
-		t.Fatalf("duplicate name: err = %v, want ErrAlreadyExists", err)
+	all, err := f.db.ListSEPPIdentities(ctx)
+	if err != nil || len(all) != 2 || all[0].SEPPID != 1 || all[1].SEPPID != 2 {
+		t.Fatalf("ListSEPPIdentities = %+v, %v", all, err)
 	}
 }
 
-func TestRoamingPartnerWriteRollsBackSEPPIdentity(t *testing.T) {
+func TestSEPPIdentityProvisioning(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
-	f.createPartner(t)
+	home := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
 
-	identity := homeSEPPIdentity(t, "1")
-
-	if _, err := f.db.CreateRoamingPartnerWithSEPPIdentity(ctx, f.newPartner("p2", "partner", "310", "410"), &identity); !errors.Is(err, db.ErrAlreadyExists) {
-		t.Fatalf("duplicate name: err = %v, want ErrAlreadyExists", err)
-	}
-
-	if _, err := f.db.GetSEPPIdentity(ctx); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("GetSEPPIdentity after a failed partner write: err = %v, want ErrNotFound", err)
-	}
-
-	created, err := f.db.UpdateRoamingPartnerWithSEPPIdentity(ctx, f.partner(), &identity)
+	created, err := f.db.EnsureSEPPIdentity(ctx, 2)
 	if err != nil || !created {
-		t.Fatalf("UpdateRoamingPartnerWithSEPPIdentity = %v, %v; want true, nil", created, err)
+		t.Fatalf("EnsureSEPPIdentity = %v, %v; want true, nil", created, err)
+	}
+
+	created, err = f.db.EnsureSEPPIdentity(ctx, 2)
+	if err != nil || created {
+		t.Fatalf("EnsureSEPPIdentity again = %v, %v; want false, nil", created, err)
+	}
+
+	ca, err := f.db.GetSEPPCA(ctx)
+	if err != nil {
+		t.Fatalf("GetSEPPCA: %s", err)
+	}
+
+	caCert, err := ca.Certificate()
+	if err != nil {
+		t.Fatalf("CA certificate: %s", err)
+	}
+
+	two, err := f.db.GetSEPPIdentity(ctx, 2)
+	if err != nil || two.Source != db.SEPPIdentityGenerated || two.FQDN != home.SEPPFQDN(2) {
+		t.Fatalf("generated identity = %+v, %v", two, err)
+	}
+
+	cert, err := pki.ParseSEPPCertificate([]byte(two.CertChainPEM), two.FQDN)
+	if err != nil || !cert.TrustAnchor().Equal(caCert) {
+		t.Fatalf("generated chain does not end with the cluster SEPP CA: %v", err)
+	}
+
+	if _, err := f.db.GenerateSEPPIdentity(ctx, 3); err != nil {
+		t.Fatalf("GenerateSEPPIdentity: %s", err)
+	}
+
+	imported := homeSEPPIdentity(t, "1")
+	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
+		t.Fatalf("PutSEPPIdentity: %s", err)
+	}
+
+	stale := *two
+
+	if _, err := f.db.RegenerateSEPPCA(ctx); err != nil {
+		t.Fatalf("RegenerateSEPPCA: %s", err)
+	}
+
+	all, err := f.db.ListSEPPIdentities(ctx)
+	if err != nil || len(all) != 1 || all[0] != imported {
+		t.Fatalf("identities after a CA regeneration = %+v, %v; want only the imported one", all, err)
+	}
+
+	if err := f.db.PutSEPPIdentity(ctx, &stale); !errors.Is(err, db.ErrRoamingConflict) {
+		t.Fatalf("leaf of the previous CA: err = %v, want ErrRoamingConflict", err)
+	}
+
+	if _, err := f.db.GenerateSEPPIdentity(ctx, 1); err != nil {
+		t.Fatalf("GenerateSEPPIdentity over an imported one: %s", err)
+	}
+
+	if got, err := f.db.GetSEPPIdentity(ctx, 1); err != nil || got.Source != db.SEPPIdentityGenerated {
+		t.Fatalf("identity 1 = %+v, %v; want generated", got, err)
+	}
+
+	if _, err := f.db.EnsureSEPPIdentity(ctx, 0); err == nil {
+		t.Fatal("EnsureSEPPIdentity accepted SEPP ID 0")
+	}
+
+	if deleted, err := f.db.ChangeOperatorID(ctx, "208", "99"); err != nil || !deleted {
+		t.Fatalf("operator PLMN change = %v, %v; want the identities deleted", deleted, err)
+	}
+
+	if _, err := f.db.GetSEPPCA(ctx); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("SEPP CA after a PLMN change: err = %v, want ErrNotFound", err)
 	}
 }
 
@@ -1002,14 +1059,23 @@ func TestSupportBundleRedactsSEPPKey(t *testing.T) {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}
 
+	if _, err := f.db.GenerateSEPPIdentity(ctx, 2); err != nil {
+		t.Fatalf("GenerateSEPPIdentity: %s", err)
+	}
+
 	out, err := f.db.ExportSupportData(ctx, supportbundle.ExportOptions{})
 	if err != nil {
 		t.Fatalf("ExportSupportData: %s", err)
 	}
 
-	identity, ok := out["sepp_identity"].([]map[string]any)
-	if !ok || len(identity) != 1 || identity[0]["KeyPEM"] != "*" || identity[0]["CertChainPEM"] != stored.CertChainPEM || identity[0]["FQDN"] != stored.FQDN {
-		t.Fatalf("sepp_identity = %#v", out["sepp_identity"])
+	identity, ok := out["sepp_identities"].([]map[string]any)
+	if !ok || len(identity) != 2 || identity[0]["KeyPEM"] != "*" || identity[1]["KeyPEM"] != "*" || identity[0]["CertChainPEM"] != stored.CertChainPEM || identity[0]["FQDN"] != stored.FQDN {
+		t.Fatalf("sepp_identities = %#v", out["sepp_identities"])
+	}
+
+	ca, ok := out["sepp_ca"].([]map[string]any)
+	if !ok || len(ca) != 1 || ca[0]["KeyPEM"] != "*" || ca[0]["CertPEM"] == "" {
+		t.Fatalf("sepp_ca = %#v", out["sepp_ca"])
 	}
 
 	if partners, ok := out["roaming_partners"].([]db.RoamingPartner); !ok || len(partners) != 1 {
@@ -1077,5 +1143,78 @@ func TestRoamingWritesReplicate(t *testing.T) {
 
 	if _, err := database.GetSubscriberOrVisitor(ctx, visitorIMSI); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("visitor after partner delete: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
+	ctx := context.Background()
+	f := newRoamingFixture(t)
+
+	for _, nodeID := range []string{"node-1", "node-2", "node-3"} {
+		if err := f.db.UpsertClusterMember(ctx, &db.ClusterMember{NodeID: nodeID, APIAddress: "10.0.0.1:8443"}); err != nil {
+			t.Fatalf("UpsertClusterMember: %s", err)
+		}
+	}
+
+	members, err := f.db.ListClusterMembers(ctx)
+	if err != nil || len(members) != 3 {
+		t.Fatalf("ListClusterMembers = %+v, %v", members, err)
+	}
+
+	pointers := map[string]int{}
+	for _, m := range members {
+		pointers[m.NodeID] = m.AMFPointer
+	}
+
+	for _, nodeID := range []string{"node-1", "node-2"} {
+		if _, err := f.db.EnsureSEPPIdentity(ctx, pointers[nodeID]); err != nil {
+			t.Fatalf("EnsureSEPPIdentity: %s", err)
+		}
+	}
+
+	imported := homeSEPPIdentity(t, strconv.Itoa(pointers["node-3"]))
+	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
+		t.Fatalf("PutSEPPIdentity: %s", err)
+	}
+
+	before, err := f.db.GetSEPPCA(ctx)
+	if err != nil {
+		t.Fatalf("GetSEPPCA: %s", err)
+	}
+
+	for _, nodeID := range []string{"node-2", "node-3"} {
+		if err := f.db.DeleteClusterMember(ctx, nodeID); err != nil {
+			t.Fatalf("DeleteClusterMember: %s", err)
+		}
+	}
+
+	if _, err := f.db.GetSEPPIdentity(ctx, pointers["node-2"]); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("generated identity of the removed node: %v, want it deleted", err)
+	}
+
+	if got, err := f.db.GetSEPPIdentity(ctx, pointers["node-3"]); err != nil || got.Source != db.SEPPIdentityImported {
+		t.Fatalf("imported identity of the removed node = %+v, %v; want it kept", got, err)
+	}
+
+	if _, err := f.db.GetSEPPIdentity(ctx, pointers["node-1"]); err != nil {
+		t.Fatalf("identity of the remaining node: %v", err)
+	}
+
+	if after, err := f.db.GetSEPPCA(ctx); err != nil || after.CertPEM != before.CertPEM {
+		t.Fatalf("the SEPP CA changed with the member removal: %v", err)
+	}
+
+	if err := f.db.UpsertClusterMember(ctx, &db.ClusterMember{NodeID: "node-4", APIAddress: "10.0.0.1:8443"}); err != nil {
+		t.Fatalf("UpsertClusterMember: %s", err)
+	}
+
+	joined, err := f.db.GetClusterMember(ctx, "node-4")
+	if err != nil || joined.AMFPointer != pointers["node-2"] {
+		t.Fatalf("the new member = %+v, %v; want the released AMF Pointer %d", joined, err, pointers["node-2"])
+	}
+
+	created, err := f.db.EnsureSEPPIdentity(ctx, joined.AMFPointer)
+	if err != nil || !created {
+		t.Fatalf("EnsureSEPPIdentity for the new member = %v, %v", created, err)
 	}
 }

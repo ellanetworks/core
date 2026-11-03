@@ -192,9 +192,14 @@ func TestMigrationV26EnforcesRoamingConstraints(t *testing.T) {
 
 	mustExec(t, conn, "DELETE FROM diameter_peers WHERE id = 'hss'")
 
-	mustFail(t, conn, `INSERT INTO sepp_identity (fqdn, certChainPEM, keyPEM) VALUES ('SEPP1.example.org', 'chain', 'key')`)
-	mustFail(t, conn, `INSERT INTO sepp_identity (certChainPEM, keyPEM) VALUES ('chain', 'key')`)
-	mustExec(t, conn, `INSERT INTO sepp_identity (fqdn, certChainPEM, keyPEM) VALUES ('sepp1.example.org', 'chain', 'key')`)
-	mustFail(t, conn, `INSERT INTO sepp_identity (fqdn, certChainPEM, keyPEM) VALUES ('sepp2.example.org', 'chain2', 'key2')`)
-	mustFail(t, conn, `INSERT INTO sepp_identity (singleton, fqdn, certChainPEM, keyPEM) VALUES (FALSE, 'sepp2.example.org', 'chain2', 'key2')`)
+	mustFail(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (1, 'SEPP1.example.org', 'generated', 'chain', 'key')`)
+	mustFail(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (0, 'sepp0.example.org', 'generated', 'chain', 'key')`)
+	mustFail(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (64, 'sepp64.example.org', 'generated', 'chain', 'key')`)
+	mustFail(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (1, 'sepp1.example.org', 'other', 'chain', 'key')`)
+	mustExec(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (1, 'sepp1.example.org', 'generated', 'chain', 'key')`)
+	mustExec(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (2, 'sepp2.example.org', 'imported', 'chain', 'key')`)
+	mustFail(t, conn, `INSERT INTO sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (3, 'sepp1.example.org', 'imported', 'chain', 'key')`)
+	mustFail(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('', 'key')`)
+	mustExec(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('cert', 'key')`)
+	mustFail(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('cert2', 'key2')`)
 }

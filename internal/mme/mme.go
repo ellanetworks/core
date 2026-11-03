@@ -55,8 +55,9 @@ type credentialProvider interface {
 }
 
 // Concurrency model. A UE's state is touched by the eNB dispatch loop (serial per
-// SCTP association), the reconcile backstop, the status/detach API, and timer
-// callbacks. Three locks, acquired in this order and never reversed:
+// SCTP association), the connection's NAS lane when it resumes after a home HSS
+// answer, the HSS-initiated S6a handlers, the reconcile backstop, the status/detach
+// API, and timer callbacks. Three locks, acquired in this order and never reversed:
 //
 //		DownlinkSender  →  MME.mu  →  UeContext.mu
 //
@@ -90,12 +91,17 @@ type MME struct {
 	Cred   credentialProvider
 	Bearer bearerStore
 
-	Subscriptions *udm.Subscriptions
-	Session       epsSessionManager
-	NAS           NASHandler
-	FiveGS        interworking.FiveGSPeer
+	HomeNetwork HomeNetwork
+	Roaming     RoamingStore
+
+	Session epsSessionManager
+	NAS     NASHandler
+	FiveGS  interworking.FiveGSPeer
 
 	Registrations Registrar
+
+	home            keyedQueue
+	mtmsiFreezeTime time.Duration
 
 	LPPHandler LPPHandler
 
@@ -219,6 +225,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		icsGuardCfg: guard.TimerValue{Enable: true, ExpireTime: defaultICSGuardTimeout},
 
 		handoverGuardTimeout: defaultHandoverGuardTimeout,
+		mtmsiFreezeTime:      DefaultMTMSIFreezeTime,
 	}
 
 	m.relativeCapacity.Store(uint32(DefaultRelativeCapacity))

@@ -94,17 +94,27 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		}
 	}
 
-	if _, err := expectDownlink[*eps.AuthenticationRequest](downlink); err != nil {
-		return nil, fmt.Errorf("await Authentication Request: %w", err)
-	}
+	for {
+		if _, err := expectDownlink[*eps.AuthenticationRequest](downlink); err != nil {
+			return nil, fmt.Errorf("await Authentication Request: %w", err)
+		}
 
-	authResp, err := ue.handleAuthenticationRequest(downlink)
-	if err != nil {
-		return nil, err
-	}
+		authResp, err := ue.handleAuthenticationRequest(downlink)
+		if err != nil {
+			return nil, err
+		}
 
-	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, authResp); err != nil {
-		return nil, err
+		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, authResp); err != nil {
+			return nil, err
+		}
+
+		if !ue.resyncPending {
+			break
+		}
+
+		if downlink, _, err = e.WaitForDownlinkNAS(enbUEID, timeout); err != nil {
+			return nil, fmt.Errorf("await Authentication Request after the synch failure: %w", err)
+		}
 	}
 
 	smcWire, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)

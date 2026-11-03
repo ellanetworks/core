@@ -43,6 +43,7 @@ type HandlerConfig struct {
 	ClusterListener     *listener.Listener
 	LMF                 *lmf.LMF
 	Diameter            DiameterNode
+	SEPP                SEPPRuntime
 	DatapathAttachMode  func() string
 	Context             context.Context
 }
@@ -184,9 +185,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/operator/ims/service-profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, UpdateIMSServiceProfile(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/ims/service-profiles/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorIMS, DeleteIMSServiceProfile(dbInstance))).ServeHTTP)
 
-	mux.HandleFunc("GET /api/v1/roaming/partners", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, ListRoamingPartners(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/roaming/partners", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, ListRoamingPartners(dbInstance, cfg.SEPP, cfg.ClusterListener))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/roaming/partners", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, CreateRoamingPartner(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/roaming/partners/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetRoamingPartner(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/roaming/partners/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetRoamingPartner(dbInstance, cfg.SEPP, cfg.ClusterListener))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/roaming/partners/{id}/handshake", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, RehandshakeRoamingPartner(dbInstance, cfg.SEPP, cfg.ClusterListener))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/roaming/partners/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, UpdateRoamingPartner(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/roaming/partners/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, DeleteRoamingPartner(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/roaming/diameter-peers", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, ListRoamingDiameterPeers(dbInstance))).ServeHTTP)
@@ -194,9 +196,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/roaming/diameter-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetRoamingDiameterPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/roaming/diameter-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, UpdateRoamingDiameterPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/roaming/diameter-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, DeleteRoamingDiameterPeer(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/roaming/sepp/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetSEPPCertificate(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/roaming/sepp/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, ImportSEPPCertificate(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/roaming/sepp/certificate/generate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, GenerateSEPPCertificate(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/roaming/sepp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetSEPPStatus(dbInstance, cfg.SEPP, cfg.ClusterListener))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/roaming/sepp/nodes/{seppID}/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetSEPPCertificate(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/roaming/sepp/nodes/{seppID}/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, ImportSEPPCertificate(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/roaming/sepp/nodes/{seppID}/certificate/generate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, GenerateSEPPCertificate(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/roaming/sepp/ca/regenerate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateRoaming, RegenerateSEPPCA(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/roaming/usage", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoaming, GetRoamingUsage(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)

@@ -27,7 +27,7 @@ func generatedSEPPIdentity(t *testing.T) *SEPPIdentity {
 		t.Fatalf("EncodePrivateKeyPEM: %v", err)
 	}
 
-	return &SEPPIdentity{FQDN: plmn.DefaultSEPPFQDN(), CertChainPEM: string(pki.EncodeCertPEM(leaf)) + string(pki.EncodeCertPEM(ca)), KeyPEM: string(keyPEM)}
+	return &SEPPIdentity{SEPPID: 1, Source: SEPPIdentityImported, FQDN: plmn.DefaultSEPPFQDN(), CertChainPEM: string(pki.EncodeCertPEM(leaf)) + string(pki.EncodeCertPEM(ca)), KeyPEM: string(keyPEM)}
 }
 
 func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
@@ -154,7 +154,7 @@ func TestRoamingReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("ListRoamingUsage at schema 25 = %v, %v", usage, err)
 	}
 
-	if _, err := d.GetSEPPIdentity(ctx); !errors.Is(err, ErrNotFound) {
+	if _, err := d.GetSEPPIdentity(ctx, 1); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("GetSEPPIdentity at schema 25: err = %v, want ErrNotFound", err)
 	}
 

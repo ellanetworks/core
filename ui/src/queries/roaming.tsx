@@ -26,8 +26,23 @@ export type RoamingPartnerInput = {
   diameterPeerID?: string;
 };
 
+export type N32State =
+  "idle" | "establishing" | "established" | "failed" | "terminated" | "unknown";
+
+export type RoamingPartnerN32 = {
+  nodeID?: string;
+  seppID?: number;
+  state: N32State;
+  since?: string;
+  initiator?: "local" | "peer";
+  nftlst: boolean;
+  peer?: string;
+  lastError?: string;
+};
+
 export type RoamingPartner = RoamingPartnerInput & {
   id: string;
+  n32?: RoamingPartnerN32[];
 };
 
 export type RoamingDiameterPeerInput = {
@@ -40,12 +55,60 @@ export type RoamingDiameterPeer = RoamingDiameterPeerInput & {
   id: string;
 };
 
+export type SEPPSource = "generated" | "imported";
+
 export type SEPPCertificate = {
+  seppID: number;
   fqdn: string;
+  source: SEPPSource;
   certificateChainPEM: string;
   trustAnchorPEM: string;
   fingerprint: string;
   notAfter: string;
+  warnings?: string[];
+};
+
+export type SEPPTrustAnchor = {
+  source: SEPPSource;
+  subject: string;
+  fingerprint: string;
+  notAfter: string;
+  pem: string;
+  seppIDs: number[];
+};
+
+export type SEPPCertificateSummary = {
+  subject: string;
+  sans: string[];
+  issuer: string;
+  notBefore: string;
+  notAfter: string;
+  fingerprint: string;
+  trustAnchorFingerprint: string;
+};
+
+export type SEPPNodeStatus = {
+  nodeID?: string;
+  seppID?: number;
+  fqdn?: string;
+  source?: SEPPSource;
+  reachable: boolean;
+  n32Configured: boolean;
+  address?: string;
+  port?: number;
+  listening: boolean;
+  certificate?: SEPPCertificateSummary;
+  error?: string;
+};
+
+export type SEPPStatus = {
+  trustAnchors: SEPPTrustAnchor[];
+  nodes: SEPPNodeStatus[];
+};
+
+export type SEPPCARegenerated = {
+  trustAnchor: SEPPTrustAnchor;
+  reissued: number[];
   warnings?: string[];
 };
 
@@ -61,7 +124,10 @@ export type RoamingUsage = {
 
 const PARTNERS_PATH = "/api/v1/roaming/partners";
 const PEERS_PATH = "/api/v1/roaming/diameter-peers";
-const SEPP_CERTIFICATE_PATH = "/api/v1/roaming/sepp/certificate";
+const SEPP_PATH = "/api/v1/roaming/sepp";
+
+const seppCertificatePath = (seppID: number) =>
+  `${SEPP_PATH}/nodes/${seppID}/certificate`;
 
 export const listRoamingPartners = async (
   authToken: string,
@@ -101,6 +167,20 @@ export const deleteRoamingPartner = async (
     method: "DELETE",
     authToken,
   });
+
+export const rehandshakeRoamingPartner = async (
+  authToken: string,
+  id: string,
+): Promise<RoamingPartnerN32[]> => {
+  const res = await apiFetch<{ n32: RoamingPartnerN32[] }>(
+    `${PARTNERS_PATH}/${encodeURIComponent(id)}/handshake`,
+    { method: "POST", authToken },
+  );
+  return res?.n32 ?? [];
+};
+
+export const getSEPPStatus = async (authToken: string): Promise<SEPPStatus> =>
+  apiFetch<SEPPStatus>(SEPP_PATH, { authToken });
 
 export const listRoamingDiameterPeers = async (
   authToken: string,
@@ -143,9 +223,10 @@ export const deleteRoamingDiameterPeer = async (
 
 export const getSEPPCertificate = async (
   authToken: string,
+  seppID: number,
 ): Promise<SEPPCertificate | null> => {
   try {
-    return await apiFetch<SEPPCertificate>(SEPP_CERTIFICATE_PATH, {
+    return await apiFetch<SEPPCertificate>(seppCertificatePath(seppID), {
       authToken,
     });
   } catch (error) {
@@ -156,11 +237,12 @@ export const getSEPPCertificate = async (
 
 export const importSEPPCertificate = async (
   authToken: string,
+  seppID: number,
   certificateChainPEM: string,
   privateKeyPEM: string,
   fqdn?: string,
 ): Promise<SEPPCertificate> =>
-  apiFetch<SEPPCertificate>(SEPP_CERTIFICATE_PATH, {
+  apiFetch<SEPPCertificate>(seppCertificatePath(seppID), {
     method: "PUT",
     authToken,
     body: fqdn
@@ -170,12 +252,19 @@ export const importSEPPCertificate = async (
 
 export const generateSEPPCertificate = async (
   authToken: string,
-  fqdn?: string,
+  seppID: number,
 ): Promise<SEPPCertificate> =>
-  apiFetch<SEPPCertificate>(`${SEPP_CERTIFICATE_PATH}/generate`, {
+  apiFetch<SEPPCertificate>(`${seppCertificatePath(seppID)}/generate`, {
     method: "POST",
     authToken,
-    body: fqdn ? { fqdn } : {},
+  });
+
+export const regenerateSEPPCA = async (
+  authToken: string,
+): Promise<SEPPCARegenerated> =>
+  apiFetch<SEPPCARegenerated>(`${SEPP_PATH}/ca/regenerate`, {
+    method: "POST",
+    authToken,
   });
 
 export const getRoamingUsage = async (
@@ -204,8 +293,14 @@ export const plmnDomain = (mcc: string, mnc: string) =>
 export const defaultNRFAPIRoot = (mcc: string, mnc: string) =>
   `https://nrf.${plmnDomain(mcc, mnc)}`;
 
-export const defaultSEPPFQDN = (mcc: string, mnc: string) =>
-  `sepp1.${plmnDomain(mcc, mnc)}`;
+export const seppFQDN = (mcc: string, mnc: string, seppID: number) =>
+  `sepp${seppID}.${plmnDomain(mcc, mnc)}`;
+
+export const n32NodeLabel = (n32: { nodeID?: string; seppID?: number }) => {
+  if (n32.seppID) return `SEPP ${n32.seppID}`;
+  if (n32.nodeID) return `Node ${n32.nodeID}`;
+  return "SEPP";
+};
 
 export const formatPLMN = (plmn: PLMNID) => `${plmn.mcc}-${plmn.mnc}`;
 
@@ -243,9 +338,6 @@ export const parseSEPPFQDN = (fqdn: string): SEPPFQDNParts | null => {
 };
 
 export const isWellKnownSEPPHost = (host: string) => host === "sepp";
-
-export const isGeneratedSEPPHost = (host: string) =>
-  /^sepp[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(host);
 
 export const formatEndpoint = (address: string, port: number) =>
   address.includes(":") ? `[${address}]:${port}` : `${address}:${port}`;

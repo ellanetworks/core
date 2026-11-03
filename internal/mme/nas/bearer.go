@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -50,6 +51,17 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	if !ue.IsVisitor() {
+		continueDefaultBearer(ctx, m, ue, ueConn, false)
+		return
+	}
+
+	updateLocation(ctx, m, ue, ueConn, func(ctx context.Context) {
+		continueDefaultBearer(ctx, m, ue, ueConn, true)
+	})
+}
+
+func continueDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, visitor bool) {
 	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the subscriber's access", zap.Error(err))
@@ -67,14 +79,24 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	ue.SetAccess(access)
 
-	if err := m.RegisterUE(ctx, ue); err != nil {
-		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+	if !visitor {
+		if err := m.RegisterUE(ctx, ue); err != nil {
+			logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))
+			rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+
+			return
+		}
+	}
+
+	apn, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), ueConn.ESMRequest.APN)
+	if cause, ok := roamingAPNRejectCause(err); ok {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: the APN cannot be broken out locally", zap.String("apn", ueConn.ESMRequest.APN),
+			logger.ESMCause(cause.String()), zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), cause)
 
 		return
 	}
 
-	apn, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), ueConn.ESMRequest.APN)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
@@ -176,6 +198,56 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
 	ueConn.ArmNASGuard(ctx, "Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
+}
+
+func updateLocation(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, accepted func(context.Context)) {
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the serving PLMN", zap.Error(err))
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+
+		return
+	}
+
+	m.RequestUpdateLocation(ctx, ue, ueConn, plmn, func(ctx context.Context, err error) {
+		if err != nil {
+			r := mme.HomeNetworkRejection(err)
+			logger.From(ctx, logger.MmeLog).Info("attach rejected: update location with the home HSS failed", logger.Cause(r.Reason), zap.Error(err))
+			sendAttachRejection(ctx, m, ue, ueConn, r, nil)
+
+			return
+		}
+
+		if err := m.RegisterUE(ctx, ue); err != nil {
+			var r *mme.Rejection
+			if errors.As(err, &r) {
+				logger.From(ctx, logger.MmeLog).Info("attach rejected: the visitor cannot be registered", logger.Cause(r.Reason))
+				sendAttachRejection(ctx, m, ue, ueConn, r, nil)
+
+				return
+			}
+
+			logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the visitor", zap.Error(err))
+			rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+
+			return
+		}
+
+		accepted(ctx)
+	})
+}
+
+func roamingAPNRejectCause(err error) (eps.ESMCause, bool) {
+	switch {
+	case err == nil:
+		return 0, false
+	case errors.Is(err, roaming.ErrBarred):
+		return eps.ESMCauseOperatorDeterminedBarring, true
+	case errors.Is(err, roaming.ErrAPNNotSubscribed), errors.Is(err, roaming.ErrHomeRouted), errors.Is(err, roaming.ErrIMSAPN):
+		return eps.ESMCauseServiceOptionNotSubscribed, true
+	default:
+		return 0, false
+	}
 }
 
 func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, _ *mme.UeConn, ueAmbr models.Ambr) (*s1ap.InitialContextSetupRequest, uint8, bool) {

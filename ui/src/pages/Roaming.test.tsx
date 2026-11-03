@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { beforeEach, describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Navigate, Route, Routes } from "react-router-dom";
@@ -17,7 +17,10 @@ const api = setupApiServer();
 
 const PARTNERS_PATH = "/api/v1/roaming/partners";
 const PEERS_PATH = "/api/v1/roaming/diameter-peers";
-const SEPP_PATH = "/api/v1/roaming/sepp/certificate";
+const SEPP_STATUS_PATH = "/api/v1/roaming/sepp";
+const SEPP_CA_PATH = `${SEPP_STATUS_PATH}/ca/regenerate`;
+const seppCertPath = (seppID: number | string) =>
+  `${SEPP_STATUS_PATH}/nodes/${seppID}/certificate`;
 const USAGE_PATH = "/api/v1/roaming/usage";
 
 const PEM =
@@ -50,6 +53,23 @@ const orange = {
     n32cURI: "https://sepp.orange.example:443",
     trustAnchorPEM: PEM,
   },
+  n32: [
+    {
+      nodeID: "node-a",
+      seppID: 1,
+      state: "established",
+      since: "2026-11-03T10:00:00Z",
+      initiator: "peer",
+      nftlst: true,
+    },
+    {
+      nodeID: "node-b",
+      seppID: 2,
+      state: "unknown",
+      nftlst: false,
+      lastError: "dial timeout",
+    },
+  ],
 };
 
 const sfr = {
@@ -73,12 +93,89 @@ const operator = {
 const days = (n: number) =>
   new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
 
-const certificate = (notAfter = days(1000)) => ({
-  fqdn: "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+const HOME_DOMAIN = "5gc.mnc001.mcc001.3gppnetwork.org";
+
+const summary = (notAfter = days(1000)) => ({
+  subject: "CN=sepp",
+  sans: [],
+  issuer: "CN=Ella Core SEPP CA",
+  notBefore: days(-1),
+  notAfter,
+  fingerprint: "sha256:ab12cd34",
+  trustAnchorFingerprint: "sha256:ca11",
+});
+
+const certificate = (seppID: number) => ({
+  seppID,
+  fqdn: `sepp${seppID}.${HOME_DOMAIN}`,
+  source: "generated",
   certificateChainPEM: `${PEM}\n${PEM}\n`,
   trustAnchorPEM: `${PEM}\n`,
   fingerprint: "sha256:ab12cd34",
-  notAfter,
+  notAfter: days(1000),
+});
+
+const seppStatus = (notAfter = days(1000), fqdn1 = `sepp1.${HOME_DOMAIN}`) => ({
+  trustAnchors: [
+    {
+      source: "generated",
+      subject: "CN=Ella Core SEPP CA",
+      fingerprint: "sha256:ca11",
+      notAfter: days(3000),
+      pem: `${PEM}\n`,
+      seppIDs: [1, 9],
+    },
+    {
+      source: "imported",
+      subject: "CN=Operator Root CA",
+      fingerprint: "sha256:ca22",
+      notAfter: days(3000),
+      pem: `${PEM}\n`,
+      seppIDs: [2],
+    },
+  ],
+  nodes: [
+    {
+      nodeID: "node-a",
+      seppID: 1,
+      fqdn: fqdn1,
+      source: "generated",
+      reachable: true,
+      n32Configured: true,
+      address: "192.0.2.5",
+      port: 443,
+      listening: true,
+      certificate: summary(notAfter),
+    },
+    {
+      nodeID: "node-b",
+      seppID: 2,
+      fqdn: `sepp2.${HOME_DOMAIN}`,
+      source: "imported",
+      reachable: true,
+      n32Configured: false,
+      listening: false,
+      certificate: { ...summary(), trustAnchorFingerprint: "sha256:ca22" },
+    },
+    {
+      nodeID: "node-c",
+      seppID: 3,
+      reachable: false,
+      n32Configured: false,
+      listening: false,
+      error: "unknown: dial timeout",
+    },
+    {
+      seppID: 9,
+      fqdn: `sepp9.${HOME_DOMAIN}`,
+      source: "generated",
+      reachable: false,
+      n32Configured: false,
+      listening: false,
+      certificate: summary(),
+      error: "no cluster node has this SEPP ID",
+    },
+  ],
 });
 
 beforeEach(() => {
@@ -90,7 +187,10 @@ beforeEach(() => {
     per_page: 100,
     total_count: 2,
   }));
-  api.get(SEPP_PATH, () => certificate());
+  api.get(SEPP_STATUS_PATH, () => seppStatus());
+  api.get(seppCertPath(":seppID"), (req) =>
+    certificate(Number(req.url.pathname.split("/").at(-2))),
+  );
   api.get("/api/v1/operator", () => operator);
 });
 
@@ -144,6 +244,115 @@ describe("Roaming partners", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the live N32 status of partners with a 5G agreement", async () => {
+    const user = userEvent.setup();
+    api.get(PARTNERS_PATH, () => ({
+      items: [
+        orange,
+        sfr,
+        {
+          ...orange,
+          id: "0190a000-0000-7000-8000-0000000000a3",
+          name: "Bouygues",
+          plmns: [{ mcc: "208", mnc: "20" }],
+          sepp: {
+            ...orange.sepp,
+            fqdn: "sepp1.5gc.mnc020.mcc208.3gppnetwork.org",
+          },
+          n32: [
+            {
+              nodeID: "node-a",
+              seppID: 1,
+              state: "failed",
+              since: "2026-11-03T10:00:00Z",
+              nftlst: false,
+              lastError: "the partner SEPP refused the exchange-capability",
+            },
+          ],
+        },
+      ],
+    }));
+    renderRoaming("/roaming/partners");
+
+    expect(await screen.findByText("SEPP 1: Established")).toBeInTheDocument();
+    expect(screen.getByText("SEPP 2: Unknown")).toBeInTheDocument();
+    const failed = screen.getByText("SEPP 1: Failed");
+    await user.hover(failed);
+    expect(
+      await screen.findByText(
+        "the partner SEPP refused the exchange-capability",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/^SEPP \d+: /)).toHaveLength(3);
+  });
+
+  it("re-runs the N32 handshake with a partner", async () => {
+    const user = userEvent.setup();
+    api.post(`${PARTNERS_PATH}/:id/handshake`, () => ({
+      n32: [
+        {
+          nodeID: "node-a",
+          seppID: 1,
+          state: "establishing",
+          since: "2026-11-03T10:00:00Z",
+          nftlst: false,
+        },
+        {
+          nodeID: "node-b",
+          seppID: 2,
+          state: "unknown",
+          nftlst: false,
+          lastError: "node unreachable",
+        },
+      ],
+    }));
+    renderRoaming("/roaming/partners");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Re-run N32 handshake with Orange",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        api
+          .requests(`${PARTNERS_PATH}/${orange.id}/handshake`)
+          .filter((r) => r.method === "POST"),
+      ).toHaveLength(1),
+    );
+    expect(
+      await screen.findByText(
+        'N32-c handshake with "Orange" started: SEPP 1 establishing, SEPP 2 unknown (node unreachable).',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Re-run N32 handshake with SFR",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the handshake refusal", async () => {
+    const user = userEvent.setup();
+    api.post(`${PARTNERS_PATH}/:id/handshake`, () =>
+      httpError(503, "The SEPP leader is not available, retry shortly"),
+    );
+    renderRoaming("/roaming/partners");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Re-run N32 handshake with Orange",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        /Failed to start the N32-c handshake: The SEPP leader is not available/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("hides write actions from read-only users", async () => {
     renderRoaming("/roaming/partners", "Read Only");
 
@@ -159,6 +368,9 @@ describe("Roaming partners", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Edit roaming partner/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Re-run N32 handshake/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -186,6 +398,12 @@ describe("Roaming partners", () => {
     expect(within(view).getByLabelText("Trust anchor")).toHaveTextContent(
       "BEGIN CERTIFICATE",
     );
+    const n32 = within(view).getByLabelText("N32-c status");
+    expect(within(n32).getByText("SEPP 1 (node-a)")).toBeInTheDocument();
+    expect(within(n32).getByText("Established")).toBeInTheDocument();
+    expect(within(n32).getByText("SEPP 2 (node-b)")).toBeInTheDocument();
+    expect(within(n32).getByText("Unknown")).toBeInTheDocument();
+    expect(within(n32).getByText("dial timeout")).toBeInTheDocument();
     expect(
       within(view).getByText("No 4G roaming agreement."),
     ).toBeInTheDocument();
@@ -209,7 +427,7 @@ describe("Roaming partners", () => {
 
     expect(
       within(dialog()).getByText(
-        'Delete the roaming partner "Orange" (PLMN 208-01, 208-02)? A partner with registered roamers cannot be deleted. Its roaming usage is kept. This cannot be undone.',
+        'Delete the roaming partner "Orange" (PLMN 208-01, 208-02)? Its roamers are detached first and purged at their home network. Its roaming usage is kept. This cannot be undone.',
       ),
     ).toBeInTheDocument();
 
@@ -471,113 +689,152 @@ describe("Roaming Diameter peers", () => {
 });
 
 describe("Roaming SEPP", () => {
-  it("shows the certificate", async () => {
-    renderRoaming("/roaming/sepp");
+  const nodesTable = () => screen.findByRole("table", { name: "SEPP nodes" });
+  const nodeRow = async (seppID: string) => {
+    const table = await nodesTable();
+    const cell = await within(table).findByRole("cell", { name: seppID });
+    return cell.closest("tr") as HTMLElement;
+  };
 
-    expect(
-      await screen.findByText("sepp1.5gc.mnc001.mcc001.3gppnetwork.org"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("sha256:ab12cd34")).toBeInTheDocument();
-    expect(screen.queryByText(/Expires in/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled();
-  });
-
-  it("shows the certificate's profile warnings", async () => {
-    api.get(SEPP_PATH, () => ({
-      ...certificate(),
-      warnings: ["The certificate has no CRL distribution point"],
-    }));
+  it("lists the trust anchors and the SEPPs using them", async () => {
     renderRoaming("/roaming/sepp", "Read Only");
 
+    const table = await screen.findByRole("table", { name: "Trust anchors" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText("Cluster SEPP CA")).toBeInTheDocument();
     expect(
-      await screen.findByText("The certificate has no CRL distribution point"),
+      within(rows[0]).getByText("CN=Ella Core SEPP CA"),
     ).toBeInTheDocument();
-  });
-
-  it("warns when the certificate expires soon", async () => {
-    api.get(SEPP_PATH, () => certificate(days(10.5)));
-    renderRoaming("/roaming/sepp");
-
-    expect(await screen.findByText("Expires in 10 days")).toBeInTheDocument();
-  });
-
-  it("flags an expired certificate", async () => {
-    api.get(SEPP_PATH, () => certificate(days(-2)));
-    renderRoaming("/roaming/sepp");
-
-    expect(await screen.findByText("Expired")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("sha256:ca11")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("SEPP 1, SEPP 9")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Imported CA")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("SEPP 2")).toBeInTheDocument();
     expect(
-      screen.getByText(/The SEPP certificate expired on/),
-    ).toBeInTheDocument();
+      within(rows[1]).getByRole("button", {
+        name: "Download trust anchor CN=Operator Root CA",
+      }),
+    ).toBeEnabled();
+    expect(
+      within(rows[1]).getByRole("button", {
+        name: "Copy trust anchor CN=Operator Root CA",
+      }),
+    ).toBeEnabled();
   });
 
-  it("shows an empty state and generates the first certificate", async () => {
+  it("shows the SEPP identity, certificate and N32 listener of every node", async () => {
     const user = userEvent.setup();
-    api.get(SEPP_PATH, () => httpError(404, "SEPP certificate not found"));
-    api.post(`${SEPP_PATH}/generate`, () => ({
-      ...certificate(),
-      warnings: ["The trust anchor changed"],
-    }));
+    renderRoaming("/roaming/sepp", "Read Only");
+
+    const a = await nodeRow("1");
+    expect(within(a).getByText("node-a")).toBeInTheDocument();
+    expect(within(a).getByText(`sepp1.${HOME_DOMAIN}`)).toBeInTheDocument();
+    expect(within(a).getByText("Generated")).toBeInTheDocument();
+    expect(within(a).getByText("192.0.2.5:443")).toBeInTheDocument();
+    expect(within(a).getByText("Listening")).toBeInTheDocument();
+    expect(within(a).queryByText(/Expires in/)).not.toBeInTheDocument();
+
+    const b = await nodeRow("2");
+    expect(within(b).getByText("Imported")).toBeInTheDocument();
+    expect(within(b).getByText("Not configured")).toBeInTheDocument();
+
+    const c = await nodeRow("3");
+    expect(within(c).getByText("unknown: dial timeout")).toBeInTheDocument();
+    await user.hover(within(c).getByText("Unknown"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "unknown: dial timeout",
+    );
+
+    const orphan = await nodeRow("9");
+    expect(within(orphan).getByText("No node")).toBeInTheDocument();
+    expect(
+      within(orphan).getByText("no cluster node has this SEPP ID"),
+    ).toBeInTheDocument();
+  });
+
+  it("warns when a node certificate expires soon", async () => {
+    api.get(SEPP_STATUS_PATH, () => seppStatus(days(10.5)));
+    renderRoaming("/roaming/sepp");
+
+    const a = await nodeRow("1");
+    expect(within(a).getByText("Expires in 10 days")).toBeInTheDocument();
+  });
+
+  it("flags an expired node certificate", async () => {
+    api.get(SEPP_STATUS_PATH, () => seppStatus(days(-2)));
+    renderRoaming("/roaming/sepp");
+
+    const a = await nodeRow("1");
+    expect(within(a).getByText("Expired")).toBeInTheDocument();
+    expect(
+      screen.getByText(/The certificate of SEPP 1 expired on/),
+    ).toBeInTheDocument();
+  });
+
+  it("flags a node FQDN outside the operator PLMN", async () => {
+    api.get(SEPP_STATUS_PATH, () =>
+      seppStatus(days(1000), "sepp1.5gc.mnc001.mcc208.3gppnetwork.org"),
+    );
     renderRoaming("/roaming/sepp");
 
     expect(
-      await screen.findByText("No SEPP certificate yet"),
+      await screen.findByText(
+        /The FQDN of SEPP 1, sepp1\.5gc\.mnc001\.mcc208\.3gppnetwork\.org, is not under 5gc\.mnc001\.mcc001\.3gppnetwork\.org/,
+      ),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Generate" }));
-    expect(within(dialog()).getByLabelText(/^FQDN/)).toHaveAttribute(
-      "placeholder",
-      "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
-    );
+  });
+
+  it("downloads a node certificate chain", async () => {
+    const user = userEvent.setup();
+    const click = vi.fn();
+    window.URL.createObjectURL = vi.fn(() => "blob:chain");
+    window.URL.revokeObjectURL = vi.fn();
+    const realCreate = document.createElement.bind(document);
+    const spy = vi
+      .spyOn(document, "createElement")
+      .mockImplementation((tag: string) => {
+        const el = realCreate(tag);
+        if (tag === "a") el.click = click;
+        return el;
+      });
+    renderRoaming("/roaming/sepp", "Read Only");
+
     await user.click(
-      within(dialog()).getByRole("button", { name: "Generate" }),
+      within(await nodeRow("2")).getByRole("button", {
+        name: "Download certificate chain of SEPP 2",
+      }),
     );
 
-    expect(
-      await screen.findByText("The trust anchor changed"),
-    ).toBeInTheDocument();
-    expect(sent(`${SEPP_PATH}/generate`, "POST")).toEqual({});
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    expect(api.lastRequest(seppCertPath(2))?.method).toBe("GET");
+    spy.mockRestore();
   });
 
-  it("asks for confirmation before regenerating and rejects a foreign FQDN", async () => {
+  it("imports a node certificate and shows the API warnings", async () => {
     const user = userEvent.setup();
-    renderRoaming("/roaming/sepp");
-
-    await user.click(await screen.findByRole("button", { name: "Regenerate" }));
-    expect(
-      within(dialog()).getByText(
-        /every roaming partner must import the new one/,
-      ),
-    ).toBeInTheDocument();
-
-    await setText(user, /^FQDN/, "sepp.example.org");
-    expect(
-      await within(dialog()).findByText(
-        "FQDN must be under 5gc.mnc001.mcc001.3gppnetwork.org",
-      ),
-    ).toBeInTheDocument();
-
-    await setText(user, /^FQDN/, "sepp.5gc.mnc001.mcc001.3gppnetwork.org");
-    expect(
-      await within(dialog()).findByText(/the well-known sepp\./),
-    ).toBeInTheDocument();
-  });
-
-  it("imports a certificate and shows the API warnings", async () => {
-    const user = userEvent.setup();
-    api.put(SEPP_PATH, () => ({
-      ...certificate(),
+    api.put(seppCertPath(":seppID"), () => ({
+      ...certificate(2),
+      source: "imported",
       warnings: ["The certificate is valid for more than 3 years"],
     }));
     renderRoaming("/roaming/sepp");
 
-    await user.click(await screen.findByRole("button", { name: "Import" }));
+    await user.click(
+      within(await nodeRow("2")).getByRole("button", {
+        name: "Import certificate for SEPP 2",
+      }),
+    );
+    expect(within(dialog()).getByLabelText(/^FQDN/)).toHaveAttribute(
+      "placeholder",
+      `sepp2.${HOME_DOMAIN}`,
+    );
     await setText(user, /^Certificate Chain/, PEM);
     await setText(
       user,
       /^Private Key/,
       "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
     );
-    await setText(user, /^FQDN/, "sepp2.5gc.mnc001.mcc001.3gppnetwork.org");
+    await setText(user, /^FQDN/, `sepp2.${HOME_DOMAIN}`);
     const importButton = within(dialog()).getByRole("button", {
       name: "Import",
     });
@@ -587,24 +844,121 @@ describe("Roaming SEPP", () => {
     expect(
       await screen.findByText("The certificate is valid for more than 3 years"),
     ).toBeInTheDocument();
-    expect(sent(SEPP_PATH, "PUT")).toEqual({
+    expect(sent(seppCertPath(2), "PUT")).toEqual({
       certificateChainPEM: PEM,
       privateKeyPEM:
         "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
-      fqdn: "sepp2.5gc.mnc001.mcc001.3gppnetwork.org",
+      fqdn: `sepp2.${HOME_DOMAIN}`,
     });
   });
 
-  it("hides import and regenerate from read-only users", async () => {
+  it("asks for confirmation and generates a node certificate", async () => {
+    const user = userEvent.setup();
+    api.post(`${seppCertPath(":seppID")}/generate`, () => ({
+      ...certificate(2),
+      warnings: ["The trust anchor changed"],
+    }));
+    renderRoaming("/roaming/sepp");
+
+    await user.click(
+      within(await nodeRow("2")).getByRole("button", {
+        name: "Generate certificate for SEPP 2",
+      }),
+    );
+    expect(
+      within(dialog()).getByText(
+        /for sepp2\.5gc\.mnc001\.mcc001\.3gppnetwork\.org, signed by the cluster SEPP CA/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog()).getByText(/The current certificate is imported/),
+    ).toBeInTheDocument();
+    await user.click(
+      within(dialog()).getByRole("button", { name: "Generate" }),
+    );
+
+    expect(
+      await screen.findByText("The trust anchor changed"),
+    ).toBeInTheDocument();
+    expect(
+      api
+        .requests(`${seppCertPath(2)}/generate`)
+        .filter((r) => r.method === "POST"),
+    ).toHaveLength(1);
+    expect(
+      await screen.findByText("SEPP 2 certificate generated successfully."),
+    ).toBeInTheDocument();
+  });
+
+  it("asks for confirmation and regenerates the SEPP CA", async () => {
+    const user = userEvent.setup();
+    api.post(SEPP_CA_PATH, () => ({
+      trustAnchor: seppStatus().trustAnchors[0],
+      reissued: [1, 9],
+      warnings: ["Every partner must import the new trust anchor"],
+    }));
+    renderRoaming("/roaming/sepp");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Regenerate CA" }),
+    );
+    expect(
+      within(dialog()).getByText(
+        /every roaming partner must import the new one/,
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      within(dialog()).getByRole("button", { name: "Regenerate" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "SEPP CA regenerated. Reissued the certificates of SEPP 1, SEPP 9.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Every partner must import the new trust anchor"),
+    ).toBeInTheDocument();
+    expect(
+      api.requests(SEPP_CA_PATH).filter((r) => r.method === "POST"),
+    ).toHaveLength(1);
+  });
+
+  it("offers no import or generation for a SEPP ID without a node", async () => {
+    renderRoaming("/roaming/sepp");
+
+    const orphan = await nodeRow("9");
+    expect(
+      within(orphan).getByRole("button", {
+        name: "Download certificate chain of SEPP 9",
+      }),
+    ).toBeEnabled();
+    expect(
+      within(orphan).queryByRole("button", { name: /Import certificate/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(orphan).queryByRole("button", { name: /Generate certificate/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides write actions from read-only users", async () => {
     renderRoaming("/roaming/sepp", "Read Only");
 
-    await screen.findByText("sha256:ab12cd34");
+    await nodeRow("1");
     expect(
-      screen.queryByRole("button", { name: "Regenerate" }),
+      screen.queryByRole("button", { name: "Regenerate CA" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Import" }),
+      screen.queryByRole("button", { name: /Import certificate/ }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Generate certificate/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Download certificate chain of SEPP 1",
+      }),
+    ).toBeEnabled();
   });
 });
 

@@ -450,9 +450,9 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
           helperText="Optional. The partner's NRF, used to find its AUSF and UDM. Leave empty for the default."
         />
         <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-          Give the partner {PRODUCT.name}&apos;s trust anchor from the{" "}
-          <Link to="/roaming/sepp">SEPP</Link> tab. {PRODUCT.name} generates its
-          SEPP certificate with the first 5G partner.
+          Give the partner {PRODUCT.name}&apos;s trust anchors from the{" "}
+          <Link to="/roaming/sepp">SEPP</Link> tab. Each node with
+          interfaces.n32 is its own SEPP with its own certificate.
         </Typography>
       </Collapse>
 

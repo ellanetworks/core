@@ -1,22 +1,23 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useRef } from "react";
+import React, { useRef } from "react";
 import { Alert } from "@mui/material";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import {
-  defaultSEPPFQDN,
   generateSEPPCertificate,
   importSEPPCertificate,
-  isGeneratedSEPPHost,
-  isWellKnownSEPPHost,
   plmnDomain,
+  regenerateSEPPCA,
+  seppFQDN,
+  type SEPPCARegenerated,
   type SEPPCertificate,
 } from "@/queries/roaming";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
+import ConfirmDialog from "@/components/form/ConfirmDialog";
 import TextControl from "@/components/form/TextControl";
 import PemControl from "@/components/form/PemControl";
 import { diameterIdentityRegex } from "@/components/SMSCPeerModal";
@@ -60,13 +61,14 @@ interface ImportSEPPCertificateModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (cert: SEPPCertificate) => void;
+  seppID: number;
   mcc?: string;
   mnc?: string;
 }
 
 export const ImportSEPPCertificateModal: React.FC<
   ImportSEPPCertificateModalProps
-> = ({ open, onClose, onSuccess, mcc, mnc }) => {
+> = ({ open, onClose, onSuccess, seppID, mcc, mnc }) => {
   const { accessToken } = useAuth();
   const form = useForm<ImportValues>({
     mode: "onTouched",
@@ -80,6 +82,7 @@ export const ImportSEPPCertificateModal: React.FC<
     if (!accessToken) return false;
     imported.current = await importSEPPCertificate(
       accessToken,
+      seppID,
       values.certificateChainPEM,
       values.privateKeyPEM,
       values.fqdn.trim().toLowerCase() || undefined,
@@ -95,8 +98,8 @@ export const ImportSEPPCertificateModal: React.FC<
       onSuccess={() => {
         if (imported.current) onSuccess(imported.current);
       }}
-      title="Import SEPP Certificate"
-      description={`Replace ${PRODUCT.name}'s SEPP certificate with one issued outside ${PRODUCT.name}, for example by your CA. Its subjectAltName DNS name${domain ? ` under ${domain}` : ""} becomes the SEPP FQDN. The chain must end with the root or sub-CA certificate that partners import as the trust anchor.`}
+      title={`Import SEPP ${seppID} Certificate`}
+      description={`Replace the certificate of SEPP ${seppID} with one issued outside ${PRODUCT.name}, for example by your CA. Its subjectAltName DNS name${domain ? ` under ${domain}` : ""} becomes the FQDN of SEPP ${seppID}. The chain must end with the root or sub-CA certificate that partners import as the trust anchor.`}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to import SEPP certificate"
@@ -120,122 +123,95 @@ export const ImportSEPPCertificateModal: React.FC<
       <TextControl<ImportValues>
         name="fqdn"
         label="FQDN"
-        placeholder={domain ? `sepp1.${domain}` : ""}
-        helperText="Optional. Only needed when the certificate has several DNS names under the home domain and its Common Name is not one of them: the name partners know this SEPP by."
+        placeholder={mcc && mnc ? seppFQDN(mcc, mnc, seppID) : ""}
+        helperText="Optional. Only needed when the certificate has several DNS names under the home domain and its Common Name is not one of them: the name partners know this SEPP by. No two nodes may have the same FQDN."
       />
       <Alert severity="warning" sx={{ mt: 2 }}>
         If the new trust anchor differs from the current one, every roaming
-        partner must import it before N32 with them works again.
+        partner must import it before N32 with this SEPP works again.
       </Alert>
     </FormDialog>
   );
 };
 
-const generateSchema = (domain: string) =>
-  yup.object({
-    fqdn: yup
-      .string()
-      .default("")
-      .test(
-        "fqdn",
-        "FQDN must be a fully qualified domain name",
-        (v) => !v?.trim() || diameterIdentityRegex.test(v.trim()),
-      )
-      .test(
-        "domain",
-        `FQDN must be under ${domain}`,
-        (v) =>
-          !v?.trim() ||
-          !domain ||
-          v.trim().toLowerCase().endsWith(`.${domain}`),
-      )
-      .test(
-        "host",
-        `FQDN must be sepp<ID>.${domain || "<domain>"}, for example sepp1.${domain || "<domain>"}: the well-known sepp.${domain || "<domain>"} cannot name a SEPP`,
-        (v) => {
-          const fqdn = v?.trim().toLowerCase() ?? "";
-          if (!fqdn || !domain || !fqdn.endsWith(`.${domain}`)) return true;
-          const host = fqdn.slice(0, -domain.length - 1);
-          return isGeneratedSEPPHost(host) && !isWellKnownSEPPHost(host);
-        },
-      ),
-  });
-
-type GenerateValues = yup.InferType<ReturnType<typeof generateSchema>>;
-
 interface GenerateSEPPCertificateModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (cert: SEPPCertificate) => void;
-  current?: SEPPCertificate | null;
+  seppID: number;
+  imported: boolean;
   mcc?: string;
   mnc?: string;
 }
 
 export const GenerateSEPPCertificateModal: React.FC<
   GenerateSEPPCertificateModalProps
-> = ({ open, onClose, onSuccess, current, mcc, mnc }) => {
+> = ({ open, onClose, onSuccess, seppID, imported, mcc, mnc }) => {
   const { accessToken } = useAuth();
-  const domain = mcc && mnc ? plmnDomain(mcc, mnc) : "";
-  const currentInDomain =
-    !!current &&
-    !!domain &&
-    current.fqdn.endsWith(`.${domain}`) &&
-    isGeneratedSEPPHost(current.fqdn.slice(0, -domain.length - 1));
-  const placeholder = currentInDomain
-    ? current!.fqdn
-    : mcc && mnc
-      ? defaultSEPPFQDN(mcc, mnc)
-      : "";
+  const fqdn = mcc && mnc ? seppFQDN(mcc, mnc, seppID) : `sepp${seppID}`;
 
-  const schema = useMemo(() => generateSchema(domain), [domain]);
-
-  const form = useForm<GenerateValues>({
-    mode: "onTouched",
-    resolver: yupResolver(schema),
-    defaultValues: { fqdn: "" },
-  });
-
-  const generated = useRef<SEPPCertificate | null>(null);
-
-  const submit = async (values: GenerateValues) => {
-    if (!accessToken) return false;
-    generated.current = await generateSEPPCertificate(
-      accessToken,
-      values.fqdn.trim() || undefined,
-    );
+  const confirm = async () => {
+    if (!accessToken) return;
+    onSuccess(await generateSEPPCertificate(accessToken, seppID));
   };
 
-  const verb = current ? "Regenerate" : "Generate";
-
   return (
-    <FormDialog
+    <ConfirmDialog
       open={open}
       onClose={onClose}
-      onSuccess={() => {
-        if (generated.current) onSuccess(generated.current);
-      }}
-      title={`${verb} SEPP Certificate`}
-      description={`${PRODUCT.name} creates a new SEPP certificate signed by a new one-off CA. That CA is the new trust anchor to give partners. Generated certificates suit labs and bilateral pinning: they have no CRL distribution point and are not issued by an operator CA (TS 33.310 clause 6.1.3c.3).`}
-      form={form}
-      onSubmit={submit}
-      errorPrefix="Failed to generate SEPP certificate"
-      submitLabel={verb}
-      submittingLabel="Generating..."
-    >
-      <TextControl<GenerateValues>
-        name="fqdn"
-        label="FQDN"
-        placeholder={placeholder}
-        helperText={`Optional. ${PRODUCT.name}'s SEPP FQDN, sepp<ID>${domain ? `.${domain}` : " under the home domain"}. Leave empty for ${placeholder || "the default"}.`}
-        autoFocus
-      />
-      {current && (
+      onConfirm={confirm}
+      title={`Generate SEPP ${seppID} Certificate`}
+      description={`${PRODUCT.name} replaces the certificate of SEPP ${seppID} with a new one for ${fqdn}, signed by the cluster SEPP CA. Generated certificates suit labs and bilateral agreements: they have no CRL distribution point and are not issued by an operator CA (TS 33.310 clause 6.1.3c.3).`}
+      extra={
+        imported && (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            The current certificate is imported: the trust anchor of SEPP{" "}
+            {seppID} becomes the cluster SEPP CA, which every roaming partner
+            must import before N32 with this SEPP works again.
+          </Alert>
+        )
+      }
+      confirmLabel="Generate"
+      confirmingLabel="Generating..."
+      confirmColor="primary"
+    />
+  );
+};
+
+interface RegenerateSEPPCAModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: (result: SEPPCARegenerated) => void;
+}
+
+export const RegenerateSEPPCAModal: React.FC<RegenerateSEPPCAModalProps> = ({
+  open,
+  onClose,
+  onSuccess,
+}) => {
+  const { accessToken } = useAuth();
+
+  const confirm = async () => {
+    if (!accessToken) return;
+    onSuccess(await regenerateSEPPCA(accessToken));
+  };
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onClose={onClose}
+      onConfirm={confirm}
+      title="Regenerate SEPP CA"
+      description={`${PRODUCT.name} replaces the cluster SEPP CA and reissues every generated SEPP certificate with the new CA. Imported certificates are kept.`}
+      extra={
         <Alert severity="warning" sx={{ mt: 2 }}>
-          The trust anchor changes: every roaming partner must import the new
-          one before N32 with them works again.
+          The trust anchor of every SEPP with a generated certificate changes:
+          every roaming partner must import the new one before N32 with them
+          works again.
         </Alert>
-      )}
-    </FormDialog>
+      }
+      confirmLabel="Regenerate"
+      confirmingLabel="Regenerating..."
+    />
   );
 };

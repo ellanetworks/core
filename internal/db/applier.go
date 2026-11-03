@@ -1770,6 +1770,19 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 }
 
 func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPayload) (any, error) {
+	seppID := 0
+
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		var member ClusterMember
+
+		err := db.runner(ctx).Query(ctx, db.getClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&member)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+
+		seppID = member.AMFPointer
+	}
+
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&outcome)
@@ -1788,6 +1801,18 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 
 	if err := db.purgeUERegistrationsByNode(ctx, string(p.Value)); err != nil {
 		return nil, err
+	}
+
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		if _, err := db.applyDeleteUnregisteredVisitors(ctx, &emptyPayload{}); err != nil {
+			return nil, err
+		}
+
+		if ValidSEPPID(seppID) {
+			if err := db.deleteGeneratedSEPPIdentity(ctx, seppID); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return nil, nil

@@ -58,6 +58,8 @@ type SMContext struct {
 	Tunnel        *UPTunnel
 	PolicyData    *Policy
 
+	roamingHome models.PlmnID
+
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS
 	policyDecision *PolicyDecision

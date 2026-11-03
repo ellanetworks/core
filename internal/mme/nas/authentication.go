@@ -6,7 +6,6 @@ package nas
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -30,6 +29,12 @@ func authenticateOrReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 }
 
 func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, servingPLMN models.PlmnID) {
+	if err := m.AdmitVisitor(ctx, ue, servingPLMN); err != nil {
+		failAuthentication(ctx, m, ue, ueConn, err)
+
+		return
+	}
+
 	// resyncTried scopes to one authentication exchange's consecutive synch
 	// failures, so a fresh procedure starts with a full budget (TS 24.301 §5.4.2.7).
 	ueConn.SetResyncTried(false)
@@ -38,9 +43,9 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
 	ueConn.AuthEksi = nas.KeySetIdentifier{Value: mme.SelectEksi(citedEksi(ueConn), ue.StoredEksi())}
 
-	if err := sendAuthRequest(ctx, m, ue, ueConn, servingPLMN, "", ""); err != nil {
+	sendAuthRequest(ctx, m, ue, ueConn, servingPLMN, nil, func(ctx context.Context, err error) {
 		failAuthentication(ctx, m, ue, ueConn, err)
-	}
+	})
 }
 
 func citedEksi(ueConn *mme.UeConn) uint8 {
@@ -57,6 +62,13 @@ func citedEksi(ueConn *mme.UeConn) uint8 {
 }
 
 func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, err error) {
+	if r, ok := roamingRejection(ue, err); ok {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: roaming", logger.Cause(r.Reason), zap.Error(err))
+		sendAttachRejection(ctx, m, ue, ueConn, r, nil)
+
+		return
+	}
+
 	cause, permanent := attachRejectCauseForAuthFailure(err)
 	if !permanent {
 		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
@@ -72,6 +84,19 @@ func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 	rejectAttach(ctx, m, ue, ueConn, cause)
 }
 
+func roamingRejection(ue *mme.UeContext, err error) (*mme.Rejection, bool) {
+	var r *mme.Rejection
+	if errors.As(err, &r) {
+		return r, true
+	}
+
+	if !ue.IsVisitor() {
+		return nil, false
+	}
+
+	return mme.HomeNetworkRejection(err), true
+}
+
 func attachRejectCauseForAuthFailure(err error) (eps.EMMCause, bool) {
 	if errors.Is(err, udm.ErrSubscriberUnknown) {
 		return eps.EMMCauseIllegalUE, true
@@ -82,22 +107,17 @@ func attachRejectCauseForAuthFailure(err error) (eps.EMMCause, bool) {
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an
 // AUTS re-synchronisation.
-func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, servingPLMN models.PlmnID, resyncAuts, resyncRand string) error {
-	plmn, err := mme.EncodePLMN(servingPLMN)
-	if err != nil {
-		return fmt.Errorf("encode serving PLMN: %w", err)
-	}
+func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, servingPLMN models.PlmnID, resync *mme.Resync, fail func(context.Context, error)) {
+	m.RequestAuthenticationVector(ctx, ue, ueConn, servingPLMN, resync, func(ctx context.Context, vec *udm.EPSAV, err error) {
+		if err != nil {
+			fail(ctx, err)
+			return
+		}
 
-	vec, err := m.Cred.GenerateEPSVector(ctx, ue.IMSI(), plmn[:], resyncAuts, resyncRand)
-	if err != nil {
-		return err
-	}
+		c := ueConn
+		c.AuthVector = vec
 
-	c := ueConn
-	c.AuthVector = vec
-
-	logger.From(ctx, logger.MmeLog).Info("Authentication Request")
-	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: c.AuthEksi, RAND: vec.RAND, AUTN: vec.AUTN})
-
-	return nil
+		logger.From(ctx, logger.MmeLog).Info("Authentication Request")
+		c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: c.AuthEksi, RAND: vec.RAND, AUTN: vec.AUTN})
+	})
 }

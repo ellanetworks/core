@@ -93,7 +93,7 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, r
 
 	if !ue.BearerReleaseOnly(p) {
 		ueConn.Log(ctx).Info("policy/data-network changed on the last PDN connection; detaching for re-attach", zap.String("apn", p.Apn))
-		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, models.ReleaseFor(reason))
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, nil, models.ReleaseFor(reason))
 
 		return nil
 	}

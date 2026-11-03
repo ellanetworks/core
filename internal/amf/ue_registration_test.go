@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/ueregistration"
 )
 
 type fakeRegistrar struct {
@@ -63,7 +64,7 @@ func (f *fakeRegistrar) Purge(imsi string) {
 	f.purged = append(f.purged, imsi)
 }
 
-func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context)) {
+func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal)) {
 	f.mu.Lock()
 	f.held[imsi] = held()
 	supersede := f.superseded[imsi]
@@ -72,7 +73,7 @@ func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() 
 
 	switch {
 	case withdrawn:
-		withdraw(ctx)
+		withdraw(ctx, ueregistration.SubscriberDeleted)
 	case supersede:
 		release(ctx)
 	}

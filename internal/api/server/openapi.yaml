@@ -3774,7 +3774,7 @@ paths:
       operationId: createRoamingPartner
       tags: [Roaming]
       summary: Create a roaming partner
-      description: Creates a roaming partner. When the partner is the first one with a 5G agreement and Ella Core has no SEPP certificate yet, Ella Core generates one in the same operation (see `POST /api/v1/roaming/sepp/certificate/generate`).
+      description: Creates a roaming partner. Every node with interfaces.n32 then runs its own N32-c handshake with the partner's SEPP.
       requestBody:
         required: true
         content:
@@ -3837,7 +3837,7 @@ paths:
       operationId: updateRoamingPartner
       tags: [Roaming]
       summary: Update a roaming partner
-      description: Replaces a roaming partner's configuration. PLMN IDs can be added; one can be removed only while none of the partner's roamers belongs to it. The 5G (`sepp`) or 4G (`diameterPeerID`) agreement can be removed only while no roamer of the partner is attached over that RAT. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
+      description: Replaces a roaming partner's configuration. PLMN IDs can be added. Removing a PLMN ID, or the 5G (`sepp`) or 4G (`diameterPeerID`) agreement, first deregisters the partner's roamers it affects (the roamers of that PLMN ID, or the roamers attached over that RAT) on every node, with a purge towards their home network, and refuses new ones meanwhile; the change is applied once they are gone. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
       requestBody:
         required: true
         content:
@@ -3856,7 +3856,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: The name is taken, a PLMN ID conflicts (see create), or the change removes a PLMN ID or a RAT agreement that attached roamers still use.
+          description: The name is taken, a PLMN ID conflicts (see create), or the roamers that the change affects could not all be deregistered within a minute (for example, a node that holds them is unreachable). The configuration is left unchanged.
           content:
             application/json:
               schema:
@@ -3865,7 +3865,7 @@ paths:
       operationId: deleteRoamingPartner
       tags: [Roaming]
       summary: Delete a roaming partner
-      description: Deletes a roaming partner that has no attached roamers. Its roaming usage is kept, keyed by PLMN ID, until the subscriber usage retention removes it.
+      description: Deletes a roaming partner. Its roamers are first deregistered on every node (EMM cause #11, PLMN not allowed) and purged at their home network, while the partner configuration still exists to reach it; new roamers of the partner are refused meanwhile. Its roaming usage is kept, keyed by PLMN ID, until the subscriber usage retention removes it.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -3876,7 +3876,43 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Roamers of the partner are attached.
+          description: The partner's roamers could not all be deregistered within a minute (for example, a node that holds them is unreachable). The partner is left in place.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/roaming/partners/{id}/handshake:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: rehandshakeRoamingPartner
+      tags: [Roaming]
+      summary: Re-run the N32-c handshake with a roaming partner
+      description: Starts a new N32-c security capability negotiation (TS 29.573 clause 5.2.2) with the partner's SEPP on every node with interfaces.n32, each node being its own SEPP with its own context. The request reaches the other nodes over the cluster's mutual TLS (2 seconds per node). The answer has one entry per node with the context state right after the start, normally `establishing`, or `unknown` with the error for a node that could not start it; poll the partner for the outcome.
+      responses:
+        "202":
+          description: The handshake started on the nodes listed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/RoamingPartnerHandshake"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The partner has no 5G agreement, or no node has interfaces.n32.
           content:
             application/json:
               schema:
@@ -4008,12 +4044,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /api/v1/roaming/sepp/certificate:
+  /api/v1/roaming/sepp:
+    get:
+      operationId: getSEPPStatus
+      tags: [Roaming]
+      summary: Get the SEPP status
+      description: |
+        Every node with interfaces.n32 is its own SEPP (TS 33.501 clause 13.2.2.4.2), identified by its SEPP ID, the node's AMF Pointer, and named `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1).
+        Returns the trust anchors to give roaming partners (the cluster SEPP CA, which signs generated certificates, and the CA ending each imported chain) and, per node, its SEPP identity, certificate summary and N32 listener status, gathered over the cluster's mutual TLS (2 seconds per node; an unreachable node has `reachable` false). Certificates whose SEPP ID belongs to no cluster node are listed with an error.
+      responses:
+        "200":
+          description: SEPP status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/SEPPStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/roaming/sepp/nodes/{seppID}/certificate:
+    parameters:
+      - name: seppID
+        in: path
+        required: true
+        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 63
     get:
       operationId: getSEPPCertificate
       tags: [Roaming]
-      summary: Get the SEPP certificate
-      description: Returns Ella Core's SEPP certificate chain, its FQDN and the trust anchor to give roaming partners, with warnings for every way the certificate departs from the TS 33.310 clause 6.1.3c.3 profile. The private key is never returned.
+      summary: Get a node's SEPP certificate
+      description: Returns the SEPP certificate chain of the node, its FQDN, whether Ella Core generated or the operator imported it, and the trust anchor to give roaming partners, with warnings for every way the certificate departs from the TS 33.310 clause 6.1.3c.3 profile. The private key is never returned.
       responses:
         "200":
           description: SEPP certificate.
@@ -4021,12 +4089,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
-          description: Ella Core has no SEPP certificate.
+          description: The node has no SEPP certificate.
           content:
             application/json:
               schema:
@@ -4034,15 +4104,15 @@ paths:
     put:
       operationId: importSEPPCertificate
       tags: [Roaming]
-      summary: Import a SEPP certificate
+      summary: Import a node's SEPP certificate
       description: |
-        Replaces Ella Core's SEPP certificate with one issued outside Ella Core, for example by the operator's CA (TS 33.310 clause 6.1.3c). The certificate:
+        Replaces the node's SEPP certificate with one issued outside Ella Core, for example by the operator's CA (TS 33.310 clause 6.1.3c). The certificate:
         - matches the private key, an ECDSA P-256 or P-384 key or an RSA key of at least 2048 bits with a public exponent of at least 65537;
         - is an end-entity certificate with keyUsage digitalSignature, and extendedKeyUsage serverAuth and clientAuth or none;
         - is valid now;
-        - has a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of the home PLMN, names no other PLMN, and does not carry the well-known SEPP FQDN `sepp.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1). Ella Core's SEPP FQDN is that name; with several, `fqdn` selects one, else the subject CN if it is one of them.
+        - has a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of the home PLMN, names no other PLMN, and does not carry the well-known SEPP FQDN `sepp.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1). The node's SEPP FQDN is that name; with several, `fqdn` selects one, else the subject CN if it is one of them. No two nodes may have the same FQDN.
 
-        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or nfTypes, a CN not in the subjectAltName, a host label other than `sepp<SEPPID>`, no cRLDistributionPoints or a validity over 3 years are accepted with a warning.
+        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or nfTypes, a CN not in the subjectAltName, an FQDN other than `sepp<SEPPID>`, no cRLDistributionPoints or a validity over 3 years are accepted with a warning.
       requestBody:
         required: true
         content:
@@ -4057,7 +4127,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
         "409":
-          description: The home PLMN changed while the certificate was being imported.
+          description: Another node has this FQDN, or the home PLMN changed while the certificate was being imported.
           content:
             application/json:
               schema:
@@ -4069,27 +4139,51 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /api/v1/roaming/sepp/certificate/generate:
+  /api/v1/roaming/sepp/nodes/{seppID}/certificate/generate:
+    parameters:
+      - name: seppID
+        in: path
+        required: true
+        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 63
     post:
       operationId: generateSEPPCertificate
       tags: [Roaming]
-      summary: Generate a SEPP certificate
-      description: Replaces Ella Core's SEPP certificate with a new one signed by a new one-off CA, whose key is discarded. The CA is the new trust anchor, which every roaming partner must import. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral pinning, not the production profile of TS 33.310 clause 6.1.3c.3.
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GenerateSEPPCertificateParams"
+      summary: Generate a node's SEPP certificate
+      description: Replaces the node's SEPP certificate with a new one for `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, signed by the cluster SEPP CA (created when absent). A node with interfaces.n32 and no certificate generates one the same way on its own; this endpoint returns a node to a generated certificate after an import. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral agreements, not the production profile of TS 33.310 clause 6.1.3c.3.
       responses:
         "201":
-          description: The generated SEPP certificate, with a warning that partners must import the new trust anchor.
+          description: The generated SEPP certificate, with warnings.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/roaming/sepp/ca/regenerate:
+    post:
+      operationId: regenerateSEPPCA
+      tags: [Roaming]
+      summary: Regenerate the cluster SEPP CA
+      description: Replaces the cluster SEPP CA and reissues every generated node certificate with the new CA in the same request. Imported certificates are kept. The new CA is the trust anchor every roaming partner must import for the nodes with generated certificates.
+      responses:
+        "201":
+          description: The new CA and the SEPP IDs whose certificates were reissued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/SEPPCARegenerated"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -8026,6 +8120,70 @@ components:
           type: string
           format: uuid
           description: "The roaming Diameter peer that reaches the partner's HSS. Present when the partner has a 4G roaming agreement."
+        n32:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoamingPartnerN32"
+          description: "The N32-c context of each node with interfaces.n32 with the partner's SEPP. Present when the partner has a 5G agreement."
+
+    RoamingPartnerHandshake:
+      type: object
+      required: [n32]
+      properties:
+        n32:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoamingPartnerN32"
+
+    RoamingPartnerN32:
+      type: object
+      description: "Live N32-c context of one node's SEPP with the partner's SEPP (TS 29.573 clause 5.2.2)."
+      required: [state, nftlst]
+      properties:
+        nodeID:
+          type: string
+          description: "The cluster node ID. Absent on a node outside a cluster."
+        seppID:
+          type: integer
+          description: "The node's SEPP ID, its AMF Pointer."
+        since:
+          type: string
+          format: date-time
+          description: "When the context entered the state. Absent when the state is unknown."
+        state:
+          type: string
+          enum: [idle, establishing, established, failed, terminated, unknown]
+          description: "idle: no usable configuration on the node; unknown: the node did not answer; establishing: the node's exchange-capability is in flight; established: TLS security selected and 3gpp-Sbi-Target-apiRoot supported both ways; failed: the last handshake failed and is retried with backoff; terminated: the partner tore the context down."
+        initiator:
+          type: string
+          enum: [local, peer]
+          description: "Which SEPP initiated the established context."
+        nftlst:
+          type: boolean
+          description: "Whether both SEPPs support NFTLST (TS 29.573 Table 6.1.7-1), so the context can be torn down with exchange-capability NONE."
+        peer:
+          type: string
+          description: "The FQDN of the partner SEPP the context is with, when the configured SEPP redirected the handshake to it (TS 29.573 clause 6.1.8.1). Absent when the context is with the configured SEPP."
+        lastError:
+          type: string
+        otherPeers:
+          type: array
+          description: "Contexts that other SEPPs of the partner established with this node (TS 33.501 clause 13.1.2: any SEPP whose certificate chains to the partner's trust anchor and names only the partner's PLMN IDs). They carry the partner's N32-f towards this node; this node sends its own N32-f to the configured SEPP only."
+          items:
+            $ref: "#/components/schemas/RoamingPartnerN32Peer"
+
+    RoamingPartnerN32Peer:
+      type: object
+      required: [peer, since, nftlst]
+      properties:
+        peer:
+          type: string
+          description: "The FQDN of the partner SEPP, the sender of its exchange-capability."
+        since:
+          type: string
+          format: date-time
+        nftlst:
+          type: boolean
 
     RoamingPartnerParams:
       type: object
@@ -8115,11 +8273,16 @@ components:
 
     SEPPCertificate:
       type: object
-      required: [fqdn, certificateChainPEM, trustAnchorPEM, fingerprint, notAfter]
+      required: [seppID, fqdn, source, certificateChainPEM, trustAnchorPEM, fingerprint, notAfter]
       properties:
+        seppID:
+          type: integer
         fqdn:
           type: string
-          description: "Ella Core's SEPP FQDN: the subjectAltName DNS name of the certificate selected at import or generation."
+          description: "The node's SEPP FQDN: the subjectAltName DNS name of the certificate selected at import or generation."
+        source:
+          type: string
+          enum: [generated, imported]
         certificateChainPEM:
           type: string
           description: "The certificate followed by its chain, PEM."
@@ -8152,18 +8315,122 @@ components:
           type: string
           description: "Ella Core's SEPP FQDN, one of the certificate's subjectAltName DNS names under the home domain. Needed only when it has several and its subject CN is not one of them."
 
-    GenerateSEPPCertificateParams:
-      type: object
-      properties:
-        fqdn:
-          type: string
-          description: "Ella Core's SEPP FQDN, sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org of the home PLMN (GSMA FS.34 clause 5.1.1). Absent keeps the current FQDN if it has that form, else sepp1.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org."
-
     SEPPCertificateResponseEnvelope:
       type: object
       properties:
         result:
           $ref: "#/components/schemas/SEPPCertificate"
+
+    SEPPStatus:
+      type: object
+      required: [trustAnchors, nodes]
+      properties:
+        trustAnchors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SEPPTrustAnchor"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SEPPNodeStatus"
+
+    SEPPTrustAnchor:
+      type: object
+      required: [source, subject, fingerprint, notAfter, pem, seppIDs]
+      properties:
+        source:
+          type: string
+          enum: [generated, imported]
+          description: "generated: the cluster SEPP CA; imported: the CA that ends an imported chain."
+        subject:
+          type: string
+        fingerprint:
+          type: string
+          description: "SHA-256 fingerprint, sha256:<hex>."
+        notAfter:
+          type: string
+          format: date-time
+        pem:
+          type: string
+          description: "The certificate to give roaming partners, PEM."
+        seppIDs:
+          type: array
+          items:
+            type: integer
+          description: "The SEPP IDs whose certificates chain to this anchor."
+
+    SEPPCARegenerated:
+      type: object
+      required: [trustAnchor, reissued]
+      properties:
+        trustAnchor:
+          $ref: "#/components/schemas/SEPPTrustAnchor"
+        reissued:
+          type: array
+          items:
+            type: integer
+          description: "The SEPP IDs whose generated certificates were reissued with the new CA."
+        warnings:
+          type: array
+          items:
+            type: string
+
+    SEPPCertificateSummary:
+      type: object
+      required: [subject, sans, issuer, notBefore, notAfter, fingerprint, trustAnchorFingerprint]
+      properties:
+        subject:
+          type: string
+        sans:
+          type: array
+          items:
+            type: string
+        issuer:
+          type: string
+        notBefore:
+          type: string
+          format: date-time
+        notAfter:
+          type: string
+          format: date-time
+        fingerprint:
+          type: string
+        trustAnchorFingerprint:
+          type: string
+
+    SEPPNodeStatus:
+      type: object
+      required: [reachable, n32Configured, listening]
+      properties:
+        nodeID:
+          type: string
+          description: "The cluster node ID. Absent outside a cluster, and for a certificate whose SEPP ID belongs to no node."
+        seppID:
+          type: integer
+          description: "The node's SEPP ID, its AMF Pointer."
+        fqdn:
+          type: string
+          description: "The node's SEPP FQDN, from its certificate."
+        source:
+          type: string
+          enum: [generated, imported]
+        reachable:
+          type: boolean
+          description: "False when the node did not answer over the cluster's mutual TLS; the listener fields are then unknown."
+        n32Configured:
+          type: boolean
+          description: "Whether the node's configuration file sets interfaces.n32. A node without it runs no SEPP."
+        address:
+          type: string
+          description: "The interfaces.n32 address or interface name."
+        port:
+          type: integer
+        listening:
+          type: boolean
+        certificate:
+          $ref: "#/components/schemas/SEPPCertificateSummary"
+        error:
+          type: string
 
     RoamingUsage:
       type: object

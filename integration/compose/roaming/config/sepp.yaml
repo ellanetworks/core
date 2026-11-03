@@ -1,0 +1,53 @@
+logger:
+  level: debug
+global:
+  max:
+    ue: 64
+sepp:
+  serving:
+    - plmn_id:
+        mcc: 001
+        mnc: 01
+  sbi:
+    server:
+      - address: sepp1.5gc.mnc001.mcc001.3gppnetwork.org
+        port: 80
+    client:
+      nrf:
+        - uri: http://nrf.5gc.mnc001.mcc001.3gppnetwork.org
+  n32:
+    server:
+      - sender: sepp1.5gc.mnc001.mcc001.3gppnetwork.org
+        scheme: https
+        address: 0.0.0.0
+        port: 7777
+        private_key: /certs/open5gs-sepp.key
+        cert: /certs/open5gs-sepp.crt
+        verify_client: true
+        verify_client_cacert: /certs/ella-ca.crt
+    client:
+      sepp:
+        - receiver: sepp1.5gc.mnc070.mcc999.3gppnetwork.org
+          uri: https://sepp1.5gc.mnc070.mcc999.3gppnetwork.org:7443
+          target_plmn_id:
+            mcc: 999
+            mnc: 70
+          cacert: /certs/ella-ca.crt
+          client_cert: /certs/open5gs-sepp.crt
+          client_private_key: /certs/open5gs-sepp.key
+        - receiver: sepp2.5gc.mnc070.mcc999.3gppnetwork.org
+          uri: https://sepp2.5gc.mnc070.mcc999.3gppnetwork.org:7444
+          target_plmn_id:
+            mcc: 999
+            mnc: 70
+          cacert: /certs/ella-ca.crt
+          client_cert: /certs/open5gs-sepp.crt
+          client_private_key: /certs/open5gs-sepp.key
+        - receiver: sepp3.5gc.mnc070.mcc999.3gppnetwork.org
+          uri: https://sepp3.5gc.mnc070.mcc999.3gppnetwork.org:7445
+          target_plmn_id:
+            mcc: 999
+            mnc: 70
+          cacert: /certs/ella-ca.crt
+          client_cert: /certs/open5gs-sepp.crt
+          client_private_key: /certs/open5gs-sepp.key

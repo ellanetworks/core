@@ -17,7 +17,6 @@ import (
 var ErrDNNNotSubscribed = errors.New("DNN not subscribed")
 
 type SubscriptionStore interface {
-	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
 	GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error)
 	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
@@ -35,6 +34,7 @@ type AccessAndMobilitySubscription struct {
 	UEAMBR            models.Ambr
 	Allow4G           bool
 	Allow5G           bool
+	Visitor           bool
 }
 
 type DNNConfiguration struct {
@@ -48,7 +48,9 @@ type DNNConfiguration struct {
 }
 
 type SessionManagementSubscription struct {
-	DNNs []DNNConfiguration
+	DNNs     []DNNConfiguration
+	Visitor  bool
+	HomePLMN models.PlmnID
 }
 
 type Subscriptions struct {
@@ -74,7 +76,7 @@ func (s *Subscriptions) IsHomeSubscriber(ctx context.Context, imsi string) (bool
 }
 
 func (s *Subscriptions) AccessAndMobility(ctx context.Context, imsi string) (*AccessAndMobilitySubscription, error) {
-	profile, err := s.profile(ctx, imsi)
+	sub, profile, err := s.profile(ctx, imsi)
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +115,12 @@ func (s *Subscriptions) AccessAndMobility(ctx context.Context, imsi string) (*Ac
 		UEAMBR:            ambr,
 		Allow4G:           profile.Allow4G,
 		Allow5G:           profile.Allow5G,
+		Visitor:           sub.RoamingPartnerID != nil,
 	}, nil
 }
 
 func (s *Subscriptions) UEAMBR(ctx context.Context, imsi string) (models.Ambr, error) {
-	profile, err := s.profile(ctx, imsi)
+	_, profile, err := s.profile(ctx, imsi)
 	if err != nil {
 		return models.Ambr{}, err
 	}
@@ -153,7 +156,7 @@ func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*Se
 		byID[subscribed[i].ID] = snssaiOf(&subscribed[i])
 	}
 
-	sm := &SessionManagementSubscription{DNNs: make([]DNNConfiguration, 0, len(policies))}
+	sm := &SessionManagementSubscription{DNNs: make([]DNNConfiguration, 0, len(policies)), Visitor: sub.RoamingPartnerID != nil}
 
 	for _, p := range policies {
 		snssai, ok := byID[p.SliceID]
@@ -265,28 +268,28 @@ func (sm *SessionManagementSubscription) ForAPN(apn string) (DNNConfiguration, b
 	return chosen, found
 }
 
-func (s *Subscriptions) profile(ctx context.Context, imsi string) (*db.Profile, error) {
+func (s *Subscriptions) profile(ctx context.Context, imsi string) (*db.Subscriber, *db.Profile, error) {
 	sub, err := s.subscriber(ctx, imsi)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	profile, err := s.store.GetProfileByID(ctx, sub.ProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("get profile %s: %w", sub.ProfileID, err)
+		return nil, nil, fmt.Errorf("get profile %s: %w", sub.ProfileID, err)
 	}
 
-	return profile, nil
+	return sub, profile, nil
 }
 
 func (s *Subscriptions) subscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
-	sub, err := s.store.GetSubscriber(ctx, imsi)
+	sub, err := s.store.GetSubscriberOrVisitor(ctx, imsi)
 	if errors.Is(err, db.ErrNotFound) {
 		return nil, fmt.Errorf("%w: %s", ErrSubscriberUnknown, imsi)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("get subscriber %s: %w", imsi, err)
+		return nil, fmt.Errorf("get subscriber or visitor %s: %w", imsi, err)
 	}
 
 	return sub, nil

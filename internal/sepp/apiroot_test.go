@@ -155,10 +155,10 @@ func TestTargetURL(t *testing.T) {
 
 func TestCallback(t *testing.T) {
 	op := wire.PlmnID{Mcc: "999", Mnc: "70"}
-	c := Callback{NF: CallbackAMF, AMFPointer: 3, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg}
+	c := Callback{NF: CallbackAMF, SEPPID: 3, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg}
 
 	uri, err := c.URI(op)
-	if err != nil || uri != "https://amf.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/3/amf/imsi-001010000000001/uecm-dereg" {
+	if err != nil || uri != "https://amf3.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg" {
 		t.Fatalf("URI = %q, %v", uri, err)
 	}
 
@@ -169,25 +169,25 @@ func TestCallback(t *testing.T) {
 		t.Fatalf("ParseCallback = %+v, %v", back, err)
 	}
 
-	if back, err := ParseCallback(http.MethodPost, "AMF.5gc.mnc070.mcc999.3gppnetwork.org.:443", u.EscapedPath(), op); err != nil || back != c {
+	if back, err := ParseCallback(http.MethodPost, "AMF3.5gc.mnc070.mcc999.3gppnetwork.org.:443", u.EscapedPath(), op); err != nil || back != c {
 		t.Fatalf("ParseCallback with port = %+v, %v", back, err)
 	}
 
-	smf := Callback{NF: CallbackSMF, AMFPointer: MaxAMFPointer, Supi: "imsi-001010000000001", Kind: CallbackSDMChange}
+	smf := Callback{NF: CallbackSMF, SEPPID: MaxSEPPID, Supi: "imsi-001010000000001", Kind: CallbackSDMChange}
 
 	uri, err = smf.URI(op)
-	if err != nil || uri != "https://smf.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/63/smf/imsi-001010000000001/sdm-change" {
+	if err != nil || uri != "https://smf63.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/imsi-001010000000001/sdm-change" {
 		t.Fatalf("SMF URI = %q, %v", uri, err)
 	}
 
 	for _, bad := range []Callback{
-		{NF: CallbackSMF, AMFPointer: 1, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg},
-		{NF: "pcf", AMFPointer: 1, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
-		{NF: CallbackAMF, AMFPointer: 0, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
-		{NF: CallbackAMF, AMFPointer: 64, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
-		{NF: CallbackAMF, AMFPointer: -1, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
-		{NF: CallbackAMF, AMFPointer: 1, Supi: "nai-x@y", Kind: CallbackSDMChange},
-		{NF: CallbackAMF, AMFPointer: 1, Supi: "imsi-001010000000001/../x", Kind: CallbackSDMChange},
+		{NF: CallbackSMF, SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg},
+		{NF: "pcf", SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
+		{NF: CallbackAMF, SEPPID: 0, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
+		{NF: CallbackAMF, SEPPID: 64, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
+		{NF: CallbackAMF, SEPPID: -1, Supi: "imsi-001010000000001", Kind: CallbackSDMChange},
+		{NF: CallbackAMF, SEPPID: 1, Supi: "nai-x@y", Kind: CallbackSDMChange},
+		{NF: CallbackAMF, SEPPID: 1, Supi: "imsi-001010000000001/../x", Kind: CallbackSDMChange},
 	} {
 		if _, err := bad.URI(op); !errors.Is(err, ErrCallbackURI) {
 			t.Errorf("URI(%+v) = %v", bad, err)
@@ -198,24 +198,24 @@ func TestCallback(t *testing.T) {
 		t.Fatal("invalid operator PLMN accepted")
 	}
 
-	host := "amf.5gc.mnc070.mcc999.3gppnetwork.org"
+	host := "amf3.5gc.mnc070.mcc999.3gppnetwork.org"
 	for _, tc := range []struct{ method, host, path string }{
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/amf/imsi-001010000000001/uecm-dereg/x"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/03/amf/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/+3/amf/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/0/amf/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/64/amf/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, host, "/roaming-callbacks/v2/3/amf/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/smf/imsi-001010000000001/uecm-dereg"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/smf/imsi-001010000000001/sdm-change"},
-		{http.MethodPost, "smf.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/3/amf/imsi-001010000000001/sdm-change"},
-		{http.MethodPost, "amf.5gc.mnc001.mcc001.3gppnetwork.org", "/roaming-callbacks/v1/3/amf/imsi-001010000000001/sdm-change"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/amf/suci-0-001-01-0-0-0-1/sdm-change"},
-		{http.MethodPost, host, "/roaming-callbacks/v1//amf/imsi-001010000000001/sdm-change"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/amf/imsi-001010000000001%2Fx/sdm-change"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/amf/../amf/imsi-001010000000001/sdm-change"},
-		{http.MethodPost, host, "/roaming-callbacks/v1/3/amf/./imsi-001010000000001/sdm-change"},
-		{http.MethodPut, host, "/roaming-callbacks/v1/3/amf/imsi-001010000000001/sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg/x"},
+		{http.MethodPost, "amf.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "amf03.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "amf0.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "amf64.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "amf+3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "pcf3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v2/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "smf3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg"},
+		{http.MethodPost, "amf3.5gc.mnc001.mcc001.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v1/suci-0-001-01-0-0-0-1/sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v1//sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v1/imsi-001010000000001%2Fx/sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v1/../imsi-001010000000001/sdm-change"},
+		{http.MethodPost, host, "/roaming-callbacks/v1/./imsi-001010000000001/sdm-change"},
+		{http.MethodPut, host, "/roaming-callbacks/v1/imsi-001010000000001/sdm-change"},
 	} {
 		if _, err := ParseCallback(tc.method, tc.host, tc.path, op); !errors.Is(err, ErrCallbackURI) {
 			t.Errorf("ParseCallback(%s %q, %q) = %v", tc.method, tc.host, tc.path, err)
@@ -244,7 +244,7 @@ func FuzzCallbackURI(f *testing.F) {
 	f.Add("smf", 63, "imsi-00101", "sdm-change", "001", "001")
 
 	f.Fuzz(func(t *testing.T, nf string, ptr int, supi, kind, mcc, mnc string) {
-		c := Callback{NF: CallbackNF(nf), AMFPointer: ptr, Supi: supi, Kind: CallbackKind(kind)}
+		c := Callback{NF: CallbackNF(nf), SEPPID: ptr, Supi: supi, Kind: CallbackKind(kind)}
 		op := wire.PlmnID{Mcc: mcc, Mnc: mnc}
 
 		uri, err := c.URI(op)
@@ -265,7 +265,7 @@ func FuzzCallbackURI(f *testing.F) {
 }
 
 func FuzzParseCallback(f *testing.F) {
-	f.Add("amf.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/3/amf/imsi-001010000000001/uecm-dereg")
+	f.Add("amf3.5gc.mnc070.mcc999.3gppnetwork.org", "/roaming-callbacks/v1/imsi-001010000000001/uecm-dereg")
 
 	op := wire.PlmnID{Mcc: "999", Mnc: "70"}
 
@@ -275,8 +275,8 @@ func FuzzParseCallback(f *testing.F) {
 			return
 		}
 
-		if c.Path() != path || c.AMFPointer < MinAMFPointer || c.AMFPointer > MaxAMFPointer {
-			t.Fatalf("%q -> %+v (%q)", path, c, strconv.Itoa(c.AMFPointer))
+		if c.Path() != path || c.SEPPID < MinSEPPID || c.SEPPID > MaxSEPPID {
+			t.Fatalf("%q -> %+v (%q)", path, c, strconv.Itoa(c.SEPPID))
 		}
 	})
 }

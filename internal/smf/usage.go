@@ -28,6 +28,7 @@ const (
 type usageKey struct {
 	epochDay int64
 	imsi     string
+	home     models.PlmnID
 }
 
 type usageVolume struct {
@@ -68,7 +69,8 @@ func (l *usageLedger) take() []models.SubscriberUsage {
 	l.mu.Unlock()
 
 	keys := slices.SortedFunc(maps.Keys(pending), func(a, b usageKey) int {
-		return cmp.Or(cmp.Compare(a.epochDay, b.epochDay), strings.Compare(a.imsi, b.imsi))
+		return cmp.Or(cmp.Compare(a.epochDay, b.epochDay), strings.Compare(a.imsi, b.imsi),
+			strings.Compare(a.home.Mcc, b.home.Mcc), strings.Compare(a.home.Mnc, b.home.Mnc))
 	})
 
 	rows := make([]models.SubscriberUsage, 0, len(keys))
@@ -78,6 +80,7 @@ func (l *usageLedger) take() []models.SubscriberUsage {
 		rows = append(rows, models.SubscriberUsage{
 			EpochDay:       k.epochDay,
 			IMSI:           k.imsi,
+			HomePLMN:       k.home,
 			UplinkVolume:   v.uplink,
 			DownlinkVolume: v.downlink,
 		})
@@ -90,7 +93,7 @@ func (l *usageLedger) restore(rows []models.SubscriberUsage) []models.Subscriber
 	var refused []models.SubscriberUsage
 
 	for _, r := range rows {
-		if !l.add(usageKey{epochDay: r.EpochDay, imsi: r.IMSI}, r.UplinkVolume, r.DownlinkVolume) {
+		if !l.add(usageKey{epochDay: r.EpochDay, imsi: r.IMSI, home: r.HomePLMN}, r.UplinkVolume, r.DownlinkVolume) {
 			refused = append(refused, r)
 		}
 	}
@@ -306,7 +309,7 @@ func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []
 			continue
 		}
 
-		if !s.usage.add(usageKey{epochDay: epochDay(usageTime(u.UsageReport)), imsi: imsi}, u.UplinkVolume, u.DownlinkVolume) {
+		if !s.usage.add(usageKey{epochDay: epochDay(usageTime(u.UsageReport)), imsi: imsi, home: sc.roamingHome}, u.UplinkVolume, u.DownlinkVolume) {
 			logger.From(ctx, logger.SmfLog).Error("usage bytes lost: usage taken after the final shutdown flush",
 				logger.SEID(sc.seid()), logger.SUPIFromIMSI(imsi), logger.URRID(u.URRID),
 				logger.UplinkVolume(u.UplinkVolume), logger.DownlinkVolume(u.DownlinkVolume))
@@ -333,8 +336,23 @@ func (s *SMF) requestUsageFlush() {
 func (s *SMF) flushUsage(ctx context.Context) {
 	rows := s.usage.take()
 
+	var home, visitors []models.SubscriberUsage
+
+	for _, r := range rows {
+		if r.Roaming() {
+			visitors = append(visitors, r)
+		} else {
+			home = append(home, r)
+		}
+	}
+
+	s.writeUsage(ctx, home, s.store.IncrementDailyUsageBatch)
+	s.writeUsage(ctx, visitors, s.store.IncrementRoamingDailyUsageBatch)
+}
+
+func (s *SMF) writeUsage(ctx context.Context, rows []models.SubscriberUsage, write func(context.Context, []models.SubscriberUsage) error) {
 	for batch := range slices.Chunk(rows, usageFlushBatchSize) {
-		err := s.store.IncrementDailyUsageBatch(ctx, batch)
+		err := write(ctx, batch)
 		if err == nil {
 			continue
 		}

@@ -103,6 +103,12 @@ type Database struct {
 	countAttachedVisitorsOfRATStmt *sqlair.Statement
 	countRoamingPartnersStmt       *sqlair.Statement
 
+	listRoamingWithdrawalsStmt         *sqlair.Statement
+	listWithdrawalsOfPartnerStmt       *sqlair.Statement
+	insertRoamingWithdrawalStmt        *sqlair.Statement
+	deleteWithdrawalsOfPartnerStmt     *sqlair.Statement
+	listVisitorRegistrationsOfNodeStmt *sqlair.Statement
+
 	listDiameterPeersStmt         *sqlair.Statement
 	getDiameterPeerStmt           *sqlair.Statement
 	insertRoamingDiameterPeerStmt *sqlair.Statement
@@ -113,9 +119,17 @@ type Database struct {
 	deleteOldRoamingDailyUsageStmt *sqlair.Statement
 	listRoamingUsageStmt           *sqlair.Statement
 
+	getSEPPCAStmt                  *sqlair.Statement
+	insertSEPPCAIfAbsentStmt       *sqlair.Statement
+	upsertSEPPCAStmt               *sqlair.Statement
+	deleteSEPPCAStmt               *sqlair.Statement
 	getSEPPIdentityStmt            *sqlair.Statement
+	getSEPPIdentityByFQDNStmt      *sqlair.Statement
+	listSEPPIdentitiesStmt         *sqlair.Statement
 	upsertSEPPIdentityStmt         *sqlair.Statement
-	deleteSEPPIdentityStmt         *sqlair.Statement
+	deleteSEPPIdentitiesStmt       *sqlair.Statement
+	deleteGeneratedSEPPIdentsStmt  *sqlair.Statement
+	deleteGeneratedSEPPIdentStmt   *sqlair.Statement
 	insertSEPPIdentityIfAbsentStmt *sqlair.Statement
 
 	// IP Lease statements
@@ -1878,6 +1892,11 @@ func (db *Database) PrepareStatements() error {
 		{&db.countVisitorsOfPartnerStmt, fmt.Sprintf(countVisitorsOfPartnerStmt, SubscribersTableName), []any{NumItems{}, visitorFilter{}}},
 		{&db.countAttachedVisitorsOfRATStmt, fmt.Sprintf(countAttachedVisitorsOfRATStmt, SubscribersTableName, UERegistrationsTableName), []any{NumItems{}, visitorFilter{}}},
 		{&db.countRoamingPartnersStmt, fmt.Sprintf(countRoamingPartnersStmt, RoamingPartnersTableName), []any{NumItems{}}},
+		{&db.listRoamingWithdrawalsStmt, fmt.Sprintf(listRoamingWithdrawalsStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
+		{&db.listWithdrawalsOfPartnerStmt, fmt.Sprintf(listWithdrawalsOfPartnerStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
+		{&db.insertRoamingWithdrawalStmt, fmt.Sprintf(insertRoamingWithdrawalStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
+		{&db.deleteWithdrawalsOfPartnerStmt, fmt.Sprintf(deleteWithdrawalsOfPartnerStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
+		{&db.listVisitorRegistrationsOfNodeStmt, fmt.Sprintf(listVisitorRegistrationsOfNodeStmt, UERegistrationsTableName, SubscribersTableName), []any{UERegistration{}}},
 
 		{&db.listDiameterPeersStmt, fmt.Sprintf(listDiameterPeersStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
 		{&db.getDiameterPeerStmt, fmt.Sprintf(getDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
@@ -1889,10 +1908,18 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteOldRoamingDailyUsageStmt, fmt.Sprintf(deleteOldRoamingDailyUsageStmt, RoamingDailyUsageTableName), []any{cutoffDaysArgs{}}},
 		{&db.listRoamingUsageStmt, fmt.Sprintf(listRoamingUsageStmt, RoamingDailyUsageTableName), []any{RoamingUsage{}, roamingUsageFilters{}}},
 
-		{&db.getSEPPIdentityStmt, fmt.Sprintf(getSEPPIdentityStmt, SEPPIdentityTableName), []any{SEPPIdentity{}}},
-		{&db.upsertSEPPIdentityStmt, fmt.Sprintf(upsertSEPPIdentityStmt, SEPPIdentityTableName), []any{SEPPIdentity{}}},
-		{&db.deleteSEPPIdentityStmt, fmt.Sprintf(deleteSEPPIdentityStmt, SEPPIdentityTableName), nil},
-		{&db.insertSEPPIdentityIfAbsentStmt, fmt.Sprintf(insertSEPPIdentityIfAbsentStmt, SEPPIdentityTableName), []any{SEPPIdentity{}}},
+		{&db.getSEPPCAStmt, fmt.Sprintf(getSEPPCAStmt, SEPPCATableName), []any{SEPPCA{}}},
+		{&db.insertSEPPCAIfAbsentStmt, fmt.Sprintf(insertSEPPCAIfAbsentStmt, SEPPCATableName), []any{SEPPCA{}}},
+		{&db.upsertSEPPCAStmt, fmt.Sprintf(upsertSEPPCAStmt, SEPPCATableName), []any{SEPPCA{}}},
+		{&db.deleteSEPPCAStmt, fmt.Sprintf(deleteSEPPCAStmt, SEPPCATableName), nil},
+		{&db.getSEPPIdentityStmt, fmt.Sprintf(getSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.getSEPPIdentityByFQDNStmt, fmt.Sprintf(getSEPPIdentityByFQDNStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.listSEPPIdentitiesStmt, fmt.Sprintf(listSEPPIdentitiesStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.upsertSEPPIdentityStmt, fmt.Sprintf(upsertSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.deleteSEPPIdentitiesStmt, fmt.Sprintf(deleteSEPPIdentitiesStmt, SEPPIdentitiesTableName), nil},
+		{&db.deleteGeneratedSEPPIdentsStmt, fmt.Sprintf(deleteGeneratedSEPPIdentsStmt, SEPPIdentitiesTableName), nil},
+		{&db.deleteGeneratedSEPPIdentStmt, fmt.Sprintf(deleteGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.insertSEPPIdentityIfAbsentStmt, fmt.Sprintf(insertSEPPIdentityIfAbsentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},

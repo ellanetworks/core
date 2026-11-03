@@ -4,12 +4,14 @@
 package s1enb
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/tester/smsue"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -71,6 +73,9 @@ type UE struct {
 	nasMu                     sync.Mutex
 	mmeUEID                   atomic.Int64
 	enbUEID                   atomic.Int64
+	sqn                       []byte
+	resyncs                   int
+	resyncPending             bool
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
@@ -116,6 +121,10 @@ func (ue *UE) protectUplink(plain []byte) ([]byte, error) {
 // RequestPDNType sets the PDN type the UE requests in its Attach Request
 // (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
 func (ue *UE) RequestPDNType(t uint8) { ue.pdnType = eps.PDNType(t) }
+
+func (ue *UE) TrackSequenceNumber(sqn [6]byte) { ue.sqn = append([]byte(nil), sqn[:]...) }
+
+func (ue *UE) Resynchronisations() int { return ue.resyncs }
 
 // RequestAPN sets the APN the UE requests in its Attach Request's PDN Connectivity
 // Request (TS 24.301 §6.5.1.2); empty selects the subscriber's default APN.
@@ -259,6 +268,29 @@ func (ue *UE) handleAuthenticationRequest(plain []byte) ([]byte, error) {
 
 	if len(req.AUTN) < 6 {
 		return nil, fmt.Errorf("AUTN too short: %d", len(req.AUTN))
+	}
+
+	ue.resyncPending = false
+
+	if ue.sqn != nil {
+		sqnHN, _, _, _, _, err := milenage.GenerateKeysWithAUTN(ue.OPc[:], ue.K[:], req.RAND[:], req.AUTN[:])
+		if err != nil {
+			return nil, fmt.Errorf("verify AUTN: %w", err)
+		}
+
+		if bytes.Compare(sqnHN, ue.sqn) <= 0 {
+			auts, err := milenage.GenerateAUTS(ue.OPc[:], ue.K[:], req.RAND[:], ue.sqn)
+			if err != nil {
+				return nil, fmt.Errorf("generate AUTS: %w", err)
+			}
+
+			ue.resyncs++
+			ue.resyncPending = true
+
+			return (&eps.AuthenticationFailure{Cause: eps.EMMCauseSynchFailure, AUTS: auts}).MarshalBinary()
+		}
+
+		ue.sqn = sqnHN
 	}
 
 	res := make([]byte, 8)

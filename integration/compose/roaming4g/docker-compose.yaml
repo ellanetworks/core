@@ -1,0 +1,156 @@
+name: ella-roaming4g
+
+x-ella: &ella
+  image: ${ELLA_IMAGE:-ella-core:latest}
+  restart: unless-stopped
+  entrypoint: /bin/core --config /cfg/core.yaml
+  privileged: true
+
+services:
+  mongodb:
+    image: ${MONGO_IMAGE:-mongo:7.0}
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]}).ok }"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    networks:
+      core:
+        ipv4_address: 10.130.0.31
+
+  provision:
+    image: ${MONGO_IMAGE:-mongo:7.0}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./provision.js:/provision.js:ro
+    entrypoint: ["mongosh", "--quiet", "mongodb://mongodb/open5gs?replicaSet=rs0", "/provision.js"]
+    restart: "no"
+    networks: [core]
+
+  hss:
+    image: ${OPEN5GS_IMAGE:-ella-ims-e2e/open5gs:latest}
+    restart: unless-stopped
+    entrypoint: ["open5gs-hssd", "-c", "/config/hss.yaml"]
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/config:ro
+      - ./cfg/hss:/cfg:ro
+    networks:
+      core:
+        ipv4_address: 10.130.0.30
+
+  ella-core-1:
+    <<: *ella
+    volumes:
+      - ./cfg/node1:/cfg:ro
+      - data1:/data
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.130.0.11
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.133.0.11
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.136.0.11
+
+  ella-core-2:
+    <<: *ella
+    volumes:
+      - ./cfg/node2:/cfg:ro
+      - data2:/data
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.130.0.12
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.133.0.12
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.136.0.12
+
+  ella-core-3:
+    <<: *ella
+    volumes:
+      - ./cfg/node3:/cfg:ro
+      - data3:/data
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.130.0.13
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.133.0.13
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.136.0.13
+
+  ella-core-tester:
+    image: ${TESTER_IMAGE:-ella-core-tester:latest}
+    entrypoint: ["/bin/sh", "-c", "sleep infinity"]
+    restart: unless-stopped
+    privileged: true
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.130.0.20
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.133.0.20
+
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ethtool -K n6 tx off;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.136.0.3
+
+volumes:
+  data1:
+  data2:
+  data3:
+
+networks:
+  core:
+    ipam:
+      config:
+        - subnet: 10.130.0.0/24
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.133.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.136.0.0/24

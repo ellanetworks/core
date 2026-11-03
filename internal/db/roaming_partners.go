@@ -47,8 +47,7 @@ const (
 var ErrRoamingConflict = errors.New("roaming configuration conflict")
 
 type roamingPartnerWrite struct {
-	Partner      RoamingPartner `json:"partner"`
-	SEPPIdentity *SEPPIdentity  `json:"seppIdentity,omitempty"`
+	Partner RoamingPartner `json:"partner"`
 }
 
 type RoamingPLMN struct {
@@ -103,6 +102,7 @@ type RoamingPartner struct {
 	NRFAPIRoot         *string `db:"nrfAPIRoot"`
 	DiameterPeerID     *string `db:"diameterPeerID"`
 	PLMNs              []RoamingPLMN
+	Withdrawals        []RoamingWithdrawal
 }
 
 func (p RoamingPartner) HasPLMN(plmn RoamingPLMN) bool {
@@ -324,32 +324,16 @@ func (db *Database) GetRoamingPartner(ctx context.Context, id string) (*RoamingP
 }
 
 func (db *Database) CreateRoamingPartner(ctx context.Context, partner *RoamingPartner) error {
-	_, err := db.writeRoamingPartner(ctx, "INSERT", opCreateRoamingPartner, partner, nil)
-	return err
+	return db.writeRoamingPartner(ctx, "INSERT", opCreateRoamingPartner, partner)
 }
 
 func (db *Database) UpdateRoamingPartner(ctx context.Context, partner *RoamingPartner) error {
-	_, err := db.writeRoamingPartner(ctx, "UPDATE", opUpdateRoamingPartner, partner, nil)
-	return err
+	return db.writeRoamingPartner(ctx, "UPDATE", opUpdateRoamingPartner, partner)
 }
 
-func (db *Database) CreateRoamingPartnerWithSEPPIdentity(ctx context.Context, partner *RoamingPartner, identity *SEPPIdentity) (bool, error) {
-	return db.writeRoamingPartner(ctx, "INSERT", opCreateRoamingPartner, partner, identity)
-}
-
-func (db *Database) UpdateRoamingPartnerWithSEPPIdentity(ctx context.Context, partner *RoamingPartner, identity *SEPPIdentity) (bool, error) {
-	return db.writeRoamingPartner(ctx, "UPDATE", opUpdateRoamingPartner, partner, identity)
-}
-
-func (db *Database) writeRoamingPartner(ctx context.Context, operation string, op *ChangesetOp[roamingPartnerWrite, bool], partner *RoamingPartner, identity *SEPPIdentity) (bool, error) {
+func (db *Database) writeRoamingPartner(ctx context.Context, operation string, op *ChangesetOp[roamingPartnerWrite, struct{}], partner *RoamingPartner) error {
 	if err := partner.Validate(); err != nil {
-		return false, err
-	}
-
-	if identity != nil {
-		if err := identity.Validate(); err != nil {
-			return false, err
-		}
+		return err
 	}
 
 	ctx, span := startRoamingPartnersSpan(ctx, operation)
@@ -360,13 +344,12 @@ func (db *Database) writeRoamingPartner(ctx context.Context, operation string, o
 
 	DBQueriesTotal.WithLabelValues(RoamingPartnersTableName, strings.ToLower(operation)).Inc()
 
-	created, err := op.Invoke(ctx, db, &roamingPartnerWrite{Partner: *partner, SEPPIdentity: identity})
-	if err != nil {
+	if _, err := op.Invoke(ctx, db, &roamingPartnerWrite{Partner: *partner}); err != nil {
 		recordSpanError(span, err)
-		return false, err
+		return err
 	}
 
-	return created, nil
+	return nil
 }
 
 func (db *Database) DeleteRoamingPartner(ctx context.Context, id string) error {
@@ -408,6 +391,10 @@ func (db *Database) listRoamingPartners(ctx context.Context, runner *sqlair.DB) 
 		partners[i].PLMNs = byPartner[partners[i].ID]
 	}
 
+	if err := db.attachWithdrawals(ctx, partners); err != nil {
+		return nil, err
+	}
+
 	return partners, nil
 }
 
@@ -431,6 +418,13 @@ func (db *Database) getRoamingPartner(ctx context.Context, runner *sqlair.DB, id
 	for _, r := range rows {
 		row.PLMNs = append(row.PLMNs, RoamingPLMN{Mcc: r.Mcc, Mnc: r.Mnc})
 	}
+
+	withdrawals, err := db.listWithdrawalsOfPartner(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	row.Withdrawals = withdrawals
 
 	return &row, nil
 }
@@ -462,7 +456,7 @@ func (db *Database) prepareHomePLMNChange(ctx context.Context, op *Operator) (bo
 		return false, fmt.Errorf("%w: the home PLMN cannot change while roaming partners exist", ErrRoamingConflict)
 	}
 
-	return db.deleteSEPPIdentity(ctx)
+	return db.deleteSEPPIdentities(ctx)
 }
 
 func (db *Database) countVisitors(ctx context.Context, stmt *sqlair.Statement, filter visitorFilter) (int, error) {
@@ -582,7 +576,7 @@ func (db *Database) applyCreateRoamingPartner(ctx context.Context, w *roamingPar
 		return nil, err
 	}
 
-	return db.insertSEPPIdentityIfAbsent(ctx, w.SEPPIdentity)
+	return nil, nil
 }
 
 func (db *Database) checkRemovedAgreements(ctx context.Context, existing, p *RoamingPartner) error {
@@ -597,7 +591,7 @@ func (db *Database) checkRemovedAgreements(ctx context.Context, existing, p *Roa
 		}
 
 		if n > 0 {
-			return fmt.Errorf("%w: PLMN %s cannot be removed while %d of its roamers are attached", ErrRoamingConflict, plmn, n)
+			return fmt.Errorf("%w: PLMN %s cannot be removed while %d of its roamers are attached", ErrRoamersAttached, plmn, n)
 		}
 	}
 
@@ -621,7 +615,7 @@ func (db *Database) checkRemovedAgreements(ctx context.Context, existing, p *Roa
 		}
 
 		if n > 0 {
-			return fmt.Errorf("%w: the %s agreement cannot be removed while %d roamers are attached over %s", ErrRoamingConflict, rat.name, n, rat.name)
+			return fmt.Errorf("%w: the %s agreement cannot be removed while %d roamers are attached over %s", ErrRoamersAttached, rat.name, n, rat.name)
 		}
 	}
 
@@ -641,6 +635,10 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 	}
 
 	if err := db.checkRemovedAgreements(ctx, existing, p); err != nil {
+		return nil, err
+	}
+
+	if err := db.deleteWithdrawals(ctx, p.ID); err != nil {
 		return nil, err
 	}
 
@@ -677,7 +675,7 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 		}
 	}
 
-	return db.insertSEPPIdentityIfAbsent(ctx, w.SEPPIdentity)
+	return nil, nil
 }
 
 func (db *Database) applyDeleteRoamingPartner(ctx context.Context, p *stringPayload) (any, error) {
@@ -687,7 +685,11 @@ func (db *Database) applyDeleteRoamingPartner(ctx context.Context, p *stringPayl
 	}
 
 	if n > 0 {
-		return nil, fmt.Errorf("%w: the roaming partner cannot be deleted while %d of its roamers are attached", ErrRoamingConflict, n)
+		return nil, fmt.Errorf("%w: the roaming partner cannot be deleted while %d of its roamers are attached", ErrRoamersAttached, n)
+	}
+
+	if err := db.deleteWithdrawals(ctx, p.Value); err != nil {
+		return nil, err
 	}
 
 	var outcome sqlair.Outcome

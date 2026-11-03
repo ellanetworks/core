@@ -106,6 +106,7 @@ const (
 	APIMatrixHA    Name = "api-matrix-ha"
 	SMS            Name = "sms"
 	HASMS          Name = "ha-sms"
+	HASEPP         Name = "ha-sepp"
 	IMS            Name = "ims"
 	HAIMS          Name = "ha-ims"
 	IMSSMS         Name = "ims-sms"
@@ -150,6 +151,7 @@ var Definitions = map[Name]Definition{
 	APIMatrixHA:    {Profile: ProfileMinimal, Timeout: "15m"},
 	SMS:            {Profile: ProfileFamilies, Timeout: "20m", NeedsTester: true, NeedsSMSC: true},
 	HASMS:          {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true, NeedsSMSC: true},
+	HASEPP:         {Profile: ProfileMinimal, Timeout: "20m"},
 	IMS:            {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
 	HAIMS:          {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
 	IMSSMS:         {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true, NeedsSMSC: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},

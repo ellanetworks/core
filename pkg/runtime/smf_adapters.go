@@ -224,6 +224,22 @@ func (a *smfDBAdapter) IncrementDailyUsageBatch(ctx context.Context, usages []mo
 	return usageStoreErr(a.db.IncrementDailyUsageBatch(ctx, rows))
 }
 
+func (a *smfDBAdapter) IncrementRoamingDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error {
+	rows := make([]db.RoamingDailyUsage, len(usages))
+	for i, usage := range usages {
+		rows[i] = db.RoamingDailyUsage{
+			EpochDay:      usage.EpochDay,
+			IMSI:          usage.IMSI,
+			Mcc:           usage.HomePLMN.Mcc,
+			Mnc:           usage.HomePLMN.Mnc,
+			BytesUplink:   int64(usage.UplinkVolume),
+			BytesDownlink: int64(usage.DownlinkVolume),
+		}
+	}
+
+	return usageStoreErr(a.db.IncrementRoamingDailyUsageBatch(ctx, rows))
+}
+
 func usageStoreErr(err error) error {
 	if errors.Is(err, db.ErrOutcomeUnknown) {
 		return fmt.Errorf("%w: %w", models.ErrUsageOutcomeUnknown, err)

@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -18,7 +19,7 @@ type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context))
+	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal))
 }
 
 func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -84,7 +85,7 @@ func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 
 	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
 		amf.releaseSuperseded(ctx, ue)
-	}, func(ctx context.Context) {
+	}, func(ctx context.Context, _ ueregistration.Withdrawal) {
 		amf.withdrawSubscription(ctx, ue)
 	})
 }

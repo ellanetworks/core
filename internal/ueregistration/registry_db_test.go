@@ -80,7 +80,7 @@ func reconcile(b *ueregistration.Binding, held int64) string {
 
 	b.Reconcile(context.Background(), imsi, func() int64 { return held },
 		func(context.Context) { outcome = "released" },
-		func(context.Context) { outcome = "withdrawn" })
+		func(context.Context, ueregistration.Withdrawal) { outcome = "withdrawn" })
 
 	return outcome
 }
@@ -216,7 +216,7 @@ func TestRegistry_VisitorIsNotTreatedAsDeleted(t *testing.T) {
 
 		amfA.Reconcile(ctx, visitor, func() int64 { return held },
 			func(context.Context) { got = "released" },
-			func(context.Context) { got = "withdrawn" })
+			func(context.Context, ueregistration.Withdrawal) { got = "withdrawn" })
 
 		return got
 	}

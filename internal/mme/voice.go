@@ -21,7 +21,7 @@ func (ue *UeContext) IMSVoPS() bool {
 func (m *MME) DecideIMSVoPS(ctx context.Context, ue *UeContext) bool {
 	supported := false
 
-	if imsi := ue.imsiOrEmpty(); m.IMSVoice != nil && imsi != "" {
+	if imsi := ue.imsiOrEmpty(); m.IMSVoice != nil && imsi != "" && !ue.IsVisitor() {
 		var err error
 
 		supported, err = m.IMSVoice.VoiceSupported(ctx, imsi)

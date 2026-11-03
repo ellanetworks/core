@@ -168,7 +168,7 @@ var (
 // Cluster members. cluster_members table introduced in v9.
 var (
 	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9), AffectsTopic(TopicClusterMembers))
-	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9), AffectsTopic(TopicUERegistrations))
+	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9), AffectsTopic(TopicUERegistrations), AffectsTopic(TopicSEPPIdentity))
 	opSetDrainState       = registerChangesetOpReturning[ClusterMember, string]("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, RequireSchema(20), AffectsTopic(TopicClusterMembers))
 )
@@ -210,13 +210,16 @@ var (
 )
 
 var (
-	opCreateRoamingPartner            = registerChangesetOpReturning[roamingPartnerWrite, bool]("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicSEPPIdentity))
-	opUpdateRoamingPartner            = registerChangesetOpReturning[roamingPartnerWrite, bool]("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile), AffectsTopic(TopicSEPPIdentity))
+	opCreateRoamingPartner            = registerChangesetOp("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming))
+	opUpdateRoamingPartner            = registerChangesetOp("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile))
 	opDeleteRoamingPartner            = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming))
 	opCreateRoamingDiameterPeer       = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
 	opUpdateRoamingDiameterPeer       = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
 	opDeleteRoamingDiameterPeer       = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
 	opPutSEPPIdentity                 = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
+	opInsertSEPPIdentityIfAbsent      = registerChangesetOpReturning[SEPPIdentity, bool]("InsertSEPPIdentityIfAbsent", (*Database).applyInsertSEPPIdentityIfAbsent, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
+	opInitSEPPCA                      = registerChangesetOpReturning[SEPPCA, bool]("InitSEPPCA", (*Database).applyInitSEPPCA, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
+	opReplaceSEPPCA                   = registerChangesetOp("ReplaceSEPPCA", (*Database).applyReplaceSEPPCA, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
 	opIncrementRoamingDailyUsageBatch = registerChangesetOp("IncrementRoamingDailyUsageBatch", (*Database).applyIncrementRoamingDailyUsageBatch, RequireSchema(26))
 	opRegisterVisitorUE               = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, RequireSchema(26), AffectsTopic(TopicUERegistrations))
 	opDeleteVisitorIfUnregistered     = registerChangesetOpReturning[stringPayload, int64]("DeleteVisitorIfUnregistered", (*Database).applyDeleteVisitorIfUnregistered, RequireSchema(26), AffectsTopic(TopicUERegistrations))

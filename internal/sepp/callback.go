@@ -17,8 +17,8 @@ import (
 const CallbackPathRoot = "/roaming-callbacks/v1"
 
 const (
-	MinAMFPointer = 1
-	MaxAMFPointer = 63
+	MinSEPPID = 1
+	MaxSEPPID = 63
 )
 
 type CallbackNF string
@@ -50,10 +50,10 @@ func (k CallbackKind) NotFound(detail string) wire.ProblemDetails {
 var ErrCallbackURI = errors.New("sepp: not a roaming callback URI")
 
 type Callback struct {
-	NF         CallbackNF
-	AMFPointer int
-	Supi       string
-	Kind       CallbackKind
+	NF     CallbackNF
+	SEPPID int
+	Supi   string
+	Kind   CallbackKind
 }
 
 func callbackAllowed(nf CallbackNF, kind CallbackKind) bool {
@@ -72,8 +72,8 @@ func (c Callback) validate() error {
 		return fmt.Errorf("%w: %s %s is not on the allow-list", ErrCallbackURI, c.NF, c.Kind)
 	}
 
-	if c.AMFPointer < MinAMFPointer || c.AMFPointer > MaxAMFPointer {
-		return fmt.Errorf("%w: AMF pointer %d is outside [%d, %d]", ErrCallbackURI, c.AMFPointer, MinAMFPointer, MaxAMFPointer)
+	if c.SEPPID < MinSEPPID || c.SEPPID > MaxSEPPID {
+		return fmt.Errorf("%w: node %d is outside [%d, %d]", ErrCallbackURI, c.SEPPID, MinSEPPID, MaxSEPPID)
 	}
 
 	if _, ok := wire.IMSIFromSupi(c.Supi); !ok {
@@ -84,7 +84,7 @@ func (c Callback) validate() error {
 }
 
 func (c Callback) Path() string {
-	return CallbackPathRoot + "/" + strconv.Itoa(c.AMFPointer) + "/" + string(c.NF) + "/" + c.Supi + "/" + string(c.Kind)
+	return CallbackPathRoot + "/" + c.Supi + "/" + string(c.Kind)
 }
 
 func (c Callback) URI(op wire.PlmnID) (string, error) {
@@ -96,47 +96,66 @@ func (c Callback) URI(op wire.PlmnID) (string, error) {
 		return "", fmt.Errorf("%w: operator PLMN %s", ErrCallbackURI, op)
 	}
 
-	u := url.URL{Scheme: "https", Host: CallbackHost(c.NF, op), Path: c.Path()}
+	u := url.URL{Scheme: "https", Host: CallbackHost(c.NF, c.SEPPID, op), Path: c.Path()}
 
 	return u.String(), nil
 }
 
-func CallbackHost(nf CallbackNF, op wire.PlmnID) string {
-	return op.NFFQDN(string(nf))
+func CallbackHost(nf CallbackNF, seppID int, op wire.PlmnID) string {
+	return op.NFFQDN(string(nf) + strconv.Itoa(seppID))
+}
+
+func ParseCallbackHost(host string, op wire.PlmnID) (CallbackNF, int, error) {
+	h := host
+	if u, err := url.Parse("https://" + host); err == nil && u.Port() != "" {
+		h = u.Hostname()
+	}
+
+	name, ok := wire.ParseNetworkFQDN(h)
+	if !ok || !name.InPLMN(op) {
+		return "", 0, fmt.Errorf("%w: host %q is not in the network of %s", ErrCallbackURI, host, op)
+	}
+
+	for _, nf := range []CallbackNF{CallbackAMF, CallbackSMF} {
+		digits, ok := strings.CutPrefix(name.Label, string(nf))
+		if !ok {
+			continue
+		}
+
+		id, err := strconv.Atoi(digits)
+		if err != nil || strconv.Itoa(id) != digits || id < MinSEPPID || id > MaxSEPPID {
+			break
+		}
+
+		return nf, id, nil
+	}
+
+	return "", 0, fmt.Errorf("%w: host %q is not an AMF or SMF callback host", ErrCallbackURI, host)
 }
 
 func ParseCallback(method, host, escapedPath string, op wire.PlmnID) (Callback, error) {
+	nf, id, err := ParseCallbackHost(host, op)
+	if err != nil {
+		return Callback{}, err
+	}
+
 	rest, ok := strings.CutPrefix(escapedPath, CallbackPathRoot+"/")
 	if !ok || strings.Contains(escapedPath, "%") || hasDotSegment(escapedPath) {
 		return Callback{}, fmt.Errorf("%w: path %q", ErrCallbackURI, escapedPath)
 	}
 
 	parts := strings.Split(rest, "/")
-	if len(parts) != 4 {
+	if len(parts) != 2 {
 		return Callback{}, fmt.Errorf("%w: path %q", ErrCallbackURI, escapedPath)
 	}
 
-	ptr, err := strconv.Atoi(parts[0])
-	if err != nil || strconv.Itoa(ptr) != parts[0] {
-		return Callback{}, fmt.Errorf("%w: AMF pointer %q", ErrCallbackURI, parts[0])
-	}
-
-	c := Callback{NF: CallbackNF(parts[1]), AMFPointer: ptr, Supi: parts[2], Kind: CallbackKind(parts[3])}
+	c := Callback{NF: nf, SEPPID: id, Supi: parts[0], Kind: CallbackKind(parts[1])}
 	if err := c.validate(); err != nil {
 		return Callback{}, err
 	}
 
 	if method != c.Kind.Method() {
 		return Callback{}, fmt.Errorf("%w: method %s", ErrCallbackURI, method)
-	}
-
-	h := host
-	if u, err := url.Parse("https://" + host); err == nil && u.Port() != "" {
-		h = u.Hostname()
-	}
-
-	if !strings.EqualFold(strings.TrimSuffix(h, "."), CallbackHost(c.NF, op)) {
-		return Callback{}, fmt.Errorf("%w: host %q does not serve %s callbacks of %s", ErrCallbackURI, host, c.NF, op)
 	}
 
 	return c, nil

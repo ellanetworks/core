@@ -5,7 +5,6 @@ package nas
 
 import (
 	"context"
-	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -64,10 +63,15 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 			return nasreply.Handled()
 		}
 
-		if err := sendAuthRequest(ctx, m, ue, ueConn, plmn, hex.EncodeToString(fail.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
+		sendAuthRequest(ctx, m, ue, ueConn, plmn, &mme.Resync{AUTS: fail.AUTS, RAND: c.AuthVector.RAND[:]}, func(ctx context.Context, err error) {
 			logger.From(ctx, logger.MmeLog).Warn("SQN re-synchronisation failed", zap.Error(err))
-			rejectAuthentication(ctx, m, ue, ueConn)
-		}
+
+			if ue.IsVisitor() {
+				failAuthentication(ctx, m, ue, ueConn, err)
+			} else {
+				rejectAuthentication(ctx, m, ue, ueConn)
+			}
+		})
 
 		return nasreply.Handled()
 	}

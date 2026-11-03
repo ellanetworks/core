@@ -32,6 +32,13 @@ These metrics are used to monitor the health of the system and the performance o
 | app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
 | app_connected_service_centers | Number of SMS service centers (SMSCs) connected to this node. | Gauge |
 | app_connected_ims_nodes | Number of IMS nodes connected to this node, which use it as their HSS or PCRF. | Gauge |
+| app_sepp_n32c_state | N32-c context state of this node's SEPP per roaming partner, labeled by `partner`: 0 idle, 1 establishing, 2 established, 3 failed, 4 terminated. | Gauge |
+| app_sepp_n32c_handshakes_total | N32-c exchange-capability procedures, labeled by `partner`, `role` (`initiator`, `responder`), and `result`. | Counter |
+| app_sepp_tls_handshake_failures_total | N32 TLS handshakes this node rejected, labeled by `reason`. | Counter |
+| app_sepp_certificate_expiry_timestamp_seconds | Expiry of this node's SEPP certificate, as a Unix timestamp. | Gauge |
+| app_sepp_n32f_requests_total | N32-f requests this node handled, labeled by `partner`, `direction` (`inbound`, `outbound`), `service`, and `status`. | Counter |
+| app_sepp_n32f_request_duration_seconds | Duration of outbound N32-f requests, labeled by `partner` and `service`. | Histogram |
+| app_sepp_n32f_rejected_total | Inbound N32-f requests this node rejected, labeled by `partner` and `reason`. | Counter |
 | app_ims_registered_subscribers | Number of subscribers currently registered in IMS, across the cluster. | Gauge |
 | app_ip_addresses_allocated | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses | The total number of IP addresses available for subscribers. | Gauge |

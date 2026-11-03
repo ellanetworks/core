@@ -5,11 +5,9 @@ package server
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -18,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
@@ -31,13 +30,6 @@ const (
 	CreateRoamingDiameterPeerAction = "create_roaming_diameter_peer"
 	UpdateRoamingDiameterPeerAction = "update_roaming_diameter_peer"
 	DeleteRoamingDiameterPeerAction = "delete_roaming_diameter_peer"
-	GenerateSEPPCertificateAction   = "generate_sepp_certificate"
-	ImportSEPPCertificateAction     = "import_sepp_certificate"
-)
-
-const (
-	seppTrustAnchorChangedWarning = "The trust anchor changed: every roaming partner must import the new trust anchor before N32 with them works again"
-	seppGeneratedWarning          = "Ella Core generated this certificate with a one-off CA whose key is discarded: it suits labs and bilateral pinning, not production, where TS 33.310 clause 6.1.3c.3 requires a certificate issued by the operator's CA"
 )
 
 type RoamingPartnerSEPP struct {
@@ -60,6 +52,7 @@ type RoamingPartner struct {
 	ProfileName    string              `json:"profileName"`
 	SEPP           *RoamingPartnerSEPP `json:"sepp,omitempty"`
 	DiameterPeerID string              `json:"diameterPeerID,omitempty"`
+	N32            []RoamingPartnerN32 `json:"n32,omitempty"`
 }
 
 type RoamingPartnerParams struct {
@@ -89,25 +82,6 @@ type RoamingDiameterPeerParams struct {
 
 type ListRoamingDiameterPeersResponse struct {
 	Items []RoamingDiameterPeer `json:"items"`
-}
-
-type SEPPCertificate struct {
-	FQDN                string   `json:"fqdn"`
-	CertificateChainPEM string   `json:"certificateChainPEM"`
-	TrustAnchorPEM      string   `json:"trustAnchorPEM"`
-	Fingerprint         string   `json:"fingerprint"`
-	NotAfter            string   `json:"notAfter"`
-	Warnings            []string `json:"warnings,omitempty"`
-}
-
-type ImportSEPPCertificateParams struct {
-	CertificateChainPEM string `json:"certificateChainPEM"`
-	PrivateKeyPEM       string `json:"privateKeyPEM"`
-	FQDN                string `json:"fqdn,omitempty"`
-}
-
-type GenerateSEPPCertificateParams struct {
-	FQDN string `json:"fqdn,omitempty"`
 }
 
 type RoamingUsage struct {
@@ -273,44 +247,6 @@ func roamingPartnerFromParams(ctx context.Context, dbInstance *db.Database, id s
 	return partner, 0, ""
 }
 
-func newSEPPIdentity(fqdn string, plmn pki.PLMN) (*db.SEPPIdentity, pki.SEPPCertificate, error) {
-	leaf, key, ca, err := pki.GenerateSEPPCert(fqdn, plmn)
-	if err != nil {
-		return nil, pki.SEPPCertificate{}, err
-	}
-
-	keyPEM, err := pki.EncodePrivateKeyPEM(key)
-	if err != nil {
-		return nil, pki.SEPPCertificate{}, err
-	}
-
-	cert := pki.SEPPCertificate{Chain: []*x509.Certificate{leaf, ca}, FQDN: fqdn}
-
-	return &db.SEPPIdentity{FQDN: fqdn, CertChainPEM: cert.ChainPEM(), KeyPEM: string(keyPEM)}, cert, nil
-}
-
-func seppIdentityForPartner(ctx context.Context, dbInstance *db.Database, partner db.RoamingPartner) (*db.SEPPIdentity, string, error) {
-	if partner.SEPPFQDN == nil {
-		return nil, "", nil
-	}
-
-	if _, err := dbInstance.GetSEPPIdentity(ctx); !errors.Is(err, db.ErrNotFound) {
-		return nil, "", err
-	}
-
-	plmn, err := operatorPLMN(ctx, dbInstance)
-	if err != nil {
-		return nil, "", err
-	}
-
-	identity, cert, err := newSEPPIdentity(plmn.DefaultSEPPFQDN(), plmn)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return identity, cert.FQDN, nil
-}
-
 func roamingPLMNList(p db.RoamingPartner) string {
 	plmns := make([]string, 0, len(p.PLMNs))
 	for _, plmn := range p.PLMNs {
@@ -334,7 +270,7 @@ func roamingPartnerSummary(p db.RoamingPartner, profileName string) string {
 	return strings.Join(parts, ", ")
 }
 
-func ListRoamingPartners(dbInstance *db.Database) http.Handler {
+func ListRoamingPartners(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		partners, err := dbInstance.ListRoamingPartners(r.Context())
 		if err != nil {
@@ -345,6 +281,8 @@ func ListRoamingPartners(dbInstance *db.Database) http.Handler {
 		names := &profileNames{dbInstance: dbInstance, byID: map[string]string{}}
 		resp := ListRoamingPartnersResponse{Items: make([]RoamingPartner, 0, len(partners))}
 
+		var views []seppNodeView
+
 		for _, p := range partners {
 			name, err := names.name(r.Context(), p.ProfileID)
 			if err != nil {
@@ -352,14 +290,18 @@ func ListRoamingPartners(dbInstance *db.Database) http.Handler {
 				return
 			}
 
-			resp.Items = append(resp.Items, roamingPartnerResponse(p, name))
+			if views == nil && p.SEPPFQDN != nil {
+				views = gatherSEPPNodes(r.Context(), dbInstance, seppRuntime, ln)
+			}
+
+			resp.Items = append(resp.Items, withN32(roamingPartnerResponse(p, name), p, views))
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
-func GetRoamingPartner(dbInstance *db.Database) http.Handler {
+func GetRoamingPartner(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		partner, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id"))
 		if err != nil {
@@ -373,7 +315,12 @@ func GetRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponse(r.Context(), w, roamingPartnerResponse(*partner, profile.Name), http.StatusOK, logger.APILog)
+		var views []seppNodeView
+		if partner.SEPPFQDN != nil {
+			views = gatherSEPPNodes(r.Context(), dbInstance, seppRuntime, ln)
+		}
+
+		writeResponse(r.Context(), w, withN32(roamingPartnerResponse(*partner, profile.Name), *partner, views), http.StatusOK, logger.APILog)
 	})
 }
 
@@ -399,14 +346,7 @@ func CreateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		identity, seppFQDN, err := seppIdentityForPartner(r.Context(), dbInstance, partner)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate the SEPP certificate", err, logger.APILog)
-			return
-		}
-
-		generated, err := dbInstance.CreateRoamingPartnerWithSEPPIdentity(r.Context(), &partner, identity)
-		if err != nil {
+		if err := dbInstance.CreateRoamingPartner(r.Context(), &partner); err != nil {
 			writeRoamingError(w, r, "roaming partner", "create", err)
 			return
 		}
@@ -414,10 +354,6 @@ func CreateRoamingPartner(dbInstance *db.Database) http.Handler {
 		writeResponse(r.Context(), w, roamingPartnerResponse(partner, params.ProfileName), http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreateRoamingPartnerAction, email, getClientIP(r), "Created roaming partner "+partner.ID+" ("+roamingPartnerSummary(partner, params.ProfileName)+")")
-
-		if generated {
-			logger.LogAuditEvent(r.Context(), GenerateSEPPCertificateAction, email, getClientIP(r), "Generated SEPP certificate for "+seppFQDN+" with the first 5G roaming partner")
-		}
 	})
 }
 
@@ -431,7 +367,8 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id")); err != nil {
+		existing, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id"))
+		if err != nil {
 			writeRoamingError(w, r, "roaming partner", "update", err)
 			return
 		}
@@ -442,14 +379,9 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		identity, seppFQDN, err := seppIdentityForPartner(r.Context(), dbInstance, partner)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate the SEPP certificate", err, logger.APILog)
-			return
-		}
-
-		generated, err := dbInstance.UpdateRoamingPartnerWithSEPPIdentity(r.Context(), &partner, identity)
-		if err != nil {
+		if err := applyWithdrawingRoamers(r.Context(), dbInstance, *existing, &partner, func(ctx context.Context) error {
+			return dbInstance.UpdateRoamingPartner(ctx, &partner)
+		}); err != nil {
 			writeRoamingError(w, r, "roaming partner", "update", err)
 			return
 		}
@@ -457,10 +389,6 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Roaming partner updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateRoamingPartnerAction, email, getClientIP(r), "Updated roaming partner "+partner.ID+" ("+roamingPartnerSummary(partner, params.ProfileName)+")")
-
-		if generated {
-			logger.LogAuditEvent(r.Context(), GenerateSEPPCertificateAction, email, getClientIP(r), "Generated SEPP certificate for "+seppFQDN+" with the first 5G roaming partner")
-		}
 	})
 }
 
@@ -475,7 +403,9 @@ func DeleteRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.DeleteRoamingPartner(r.Context(), id); err != nil {
+		if err := applyWithdrawingRoamers(r.Context(), dbInstance, *partner, nil, func(ctx context.Context) error {
+			return dbInstance.DeleteRoamingPartner(ctx, id)
+		}); err != nil {
 			writeRoamingError(w, r, "roaming partner", "delete", err)
 			return
 		}
@@ -637,160 +567,6 @@ func DeleteRoamingDiameterPeer(dbInstance *db.Database) http.Handler {
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Roaming Diameter peer deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteRoamingDiameterPeerAction, email, getClientIP(r), "Deleted roaming Diameter peer "+id+" ("+roamingDiameterPeerSummary(*peer)+")")
-	})
-}
-
-func seppCertificateResponse(cert pki.SEPPCertificate, warnings ...string) SEPPCertificate {
-	return SEPPCertificate{
-		FQDN:                cert.FQDN,
-		CertificateChainPEM: cert.ChainPEM(),
-		TrustAnchorPEM:      string(pki.EncodeCertPEM(cert.TrustAnchor())),
-		Fingerprint:         pki.Fingerprint(cert.Leaf()),
-		NotAfter:            cert.Leaf().NotAfter.UTC().Format(time.RFC3339),
-		Warnings:            append(warnings, cert.ProfileWarnings()...),
-	}
-}
-
-func currentSEPPCertificate(ctx context.Context, dbInstance *db.Database) (*pki.SEPPCertificate, error) {
-	identity, err := dbInstance.GetSEPPIdentity(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	cert, err := pki.ParseSEPPCertificate([]byte(identity.CertChainPEM), identity.FQDN)
-	if err != nil {
-		return nil, fmt.Errorf("parse the stored SEPP certificate: %w", err)
-	}
-
-	return &cert, nil
-}
-
-func GetSEPPCertificate(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cert, err := currentSEPPCertificate(r.Context(), dbInstance)
-		if err != nil {
-			writeRoamingError(w, r, "SEPP certificate", "get", err)
-			return
-		}
-
-		writeResponse(r.Context(), w, seppCertificateResponse(*cert), http.StatusOK, logger.APILog)
-	})
-}
-
-func previousTrustAnchorDiffers(ctx context.Context, dbInstance *db.Database, next pki.SEPPCertificate) (bool, error) {
-	previous, err := currentSEPPCertificate(ctx, dbInstance)
-	if errors.Is(err, db.ErrNotFound) {
-		return false, nil
-	}
-
-	if err != nil {
-		return false, err
-	}
-
-	return !previous.TrustAnchor().Equal(next.TrustAnchor()), nil
-}
-
-func ImportSEPPCertificate(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email := getEmailFromContext(r)
-
-		var params ImportSEPPCertificateParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		plmn, err := operatorPLMN(r.Context(), dbInstance)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get the operator PLMN", err, logger.APILog)
-			return
-		}
-
-		cert, err := pki.ValidateSEPPCertificate([]byte(params.CertificateChainPEM), []byte(params.PrivateKeyPEM), strings.TrimSpace(params.FQDN), plmn, time.Now())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SEPP certificate: "+err.Error(), nil, logger.APILog)
-			return
-		}
-
-		var warnings []string
-
-		changed, err := previousTrustAnchorDiffers(r.Context(), dbInstance, cert)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to read the current SEPP certificate", err, logger.APILog)
-			return
-		}
-
-		if changed {
-			warnings = append(warnings, seppTrustAnchorChangedWarning)
-		}
-
-		identity := &db.SEPPIdentity{FQDN: cert.FQDN, CertChainPEM: cert.ChainPEM(), KeyPEM: params.PrivateKeyPEM}
-		if err := dbInstance.PutSEPPIdentity(r.Context(), identity); err != nil {
-			writeRoamingError(w, r, "SEPP certificate", "import", err)
-			return
-		}
-
-		resp := seppCertificateResponse(cert, warnings...)
-
-		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(r.Context(), ImportSEPPCertificateAction, email, getClientIP(r), "Imported SEPP certificate for "+cert.FQDN+" ("+resp.Fingerprint+", expires "+resp.NotAfter+")")
-	})
-}
-
-func GenerateSEPPCertificate(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email := getEmailFromContext(r)
-
-		var params GenerateSEPPCertificateParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil && !errors.Is(err, io.EOF) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		plmn, err := operatorPLMN(r.Context(), dbInstance)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get the operator PLMN", err, logger.APILog)
-			return
-		}
-
-		fqdn := strings.TrimSpace(params.FQDN)
-
-		if fqdn == "" {
-			fqdn = plmn.DefaultSEPPFQDN()
-
-			current, err := currentSEPPCertificate(r.Context(), dbInstance)
-			if err != nil && !errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to read the current SEPP certificate", err, logger.APILog)
-				return
-			}
-
-			if current != nil && pki.ValidateSEPPFQDN(current.FQDN, plmn) == nil {
-				fqdn = current.FQDN
-			}
-		}
-
-		if err := pki.ValidateSEPPFQDN(fqdn, plmn); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid fqdn: "+err.Error(), nil, logger.APILog)
-			return
-		}
-
-		identity, cert, err := newSEPPIdentity(fqdn, plmn)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate the SEPP certificate", err, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.PutSEPPIdentity(r.Context(), identity); err != nil {
-			writeRoamingError(w, r, "SEPP certificate", "store", err)
-			return
-		}
-
-		resp := seppCertificateResponse(cert, seppTrustAnchorChangedWarning, seppGeneratedWarning)
-
-		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
-
-		logger.LogAuditEvent(r.Context(), GenerateSEPPCertificateAction, email, getClientIP(r), "Generated SEPP certificate for "+cert.FQDN+" ("+resp.Fingerprint+", expires "+resp.NotAfter+")")
 	})
 }
 

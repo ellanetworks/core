@@ -53,6 +53,7 @@ import (
 	"github.com/ellanetworks/core/internal/pcf"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/reconciler"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/sctplisten"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
@@ -312,6 +313,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	dbInstance.OnLeadership(server.LeadershipAudit(dbInstance.RaftID()))
+	dbInstance.OnLeadership(reconcileVisitors(dbInstance))
 
 	if pki != nil {
 		dbInstance.OnLeadership(newPKILeader(pki, dbInstance, raftID, ver.Version, restoredFromBundle).run)
@@ -529,6 +531,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	diameternode.RegisterMetrics(diameterNode)
 	smsf.RegisterMetrics()
 
+	mmeInstance.HomeNetwork = roaming.NewS6a(func() roaming.DiameterNode {
+		if node := diameterNode.Node(); node != nil {
+			return node
+		}
+
+		return nil
+	})
+	mmeInstance.RegisterHomeNetworkHandlers(diameterNode)
+
 	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.PeersOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
 	amfInstance.SMS = smsfInstance
@@ -542,12 +553,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	pcfInstance.Attach(diameterNode, &rxOwners{db: dbInstance, directory: &diameterDirectory{db: dbInstance, node: diameterNode}, port: diameterPort(cfg)})
 
-	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity)
+	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity, db.TopicRoaming)
 
 	wg.Go(func() {
 		defer stopDiameterWakeup()
 
 		diameterNode.Run(ctx, diameterWakeup)
+	})
+
+	seppManager := newSEPP(dbInstance, cfg.Interfaces.N32)
+
+	wg.Go(func() {
+		runSEPP(ctx, dbInstance, seppManager)
 	})
 
 	smsGrantsWakeup, stopSMSGrantsWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicSessionReconcile)
@@ -611,6 +628,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
+		SEPP:                seppManager,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
@@ -1417,7 +1435,36 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 			peers = append(peers, peer)
 		}
 
-		return peers, nil
+		roamingPeers, err := dbInstance.ListRoamingDiameterPeers(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		partners, err := dbInstance.ListRoamingPartners(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		roamingConfigs, err := roaming.DiameterPeers(roamingPeers, partners)
+		if err != nil {
+			return nil, err
+		}
+
+		return append(peers, roamingConfigs...), nil
+	}
+}
+
+func reconcileVisitors(dbInstance *db.Database) ellaraft.LeaderHook {
+	return func(ctx context.Context) {
+		deleted, err := dbInstance.DeleteUnregisteredVisitors(ctx)
+
+		switch {
+		case errors.Is(err, db.ErrMigrationPending):
+		case err != nil:
+			logger.EllaLog.Warn("failed to remove the visitors without a UE registration", zap.Error(err))
+		case deleted > 0:
+			logger.EllaLog.Info("removed the visitors without a UE registration", zap.Int64("count", deleted))
+		}
 	}
 }
 
@@ -1602,8 +1649,9 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
 	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
+	sessionSubscriptions := roaming.NewSubscriptions(subscriptions, nil)
 
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(subscriptions))
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(sessionSubscriptions))
 	pcfInstance.SetEnforcer(smfInstance)
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
@@ -1623,6 +1671,8 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	smfAMF.amf = amfInstance
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
+	mmeInstance.Roaming = dbInstance
+	sessionSubscriptions.SetHomeSubscriptions(mmeInstance)
 	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance
 	mmeInstance.FiveGS = amfInstance

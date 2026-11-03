@@ -160,7 +160,7 @@ const (
 )
 
 const (
-	MaxNumSubscribers    = 1000
+	MaxNumSubscribers    = db.MaxNumSubscribers
 	MaxSessions          = 26
 	MaxSearchLength      = 254
 	MaxDescriptionLength = 64

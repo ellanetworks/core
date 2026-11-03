@@ -43,7 +43,7 @@ func (m *MME) DecideSMS(ctx context.Context, ue *UeContext, requested bool) SMSD
 
 func (m *MME) evaluateSMS(ctx context.Context, ue *UeContext, requested bool) SMSDecision {
 	imsi := ue.imsiOrEmpty()
-	if !requested || m.SMS == nil || imsi == "" {
+	if !requested || m.SMS == nil || imsi == "" || ue.IsVisitor() {
 		return SMSDenied
 	}
 

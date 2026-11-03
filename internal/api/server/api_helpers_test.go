@@ -123,7 +123,7 @@ func buildTestEnvWithHSS(testdb *db.Database, hssInstance server.IMSSubscribers)
 	return buildTestEnvWith(testdb, hssInstance, nil)
 }
 
-func buildTestEnvWith(testdb *db.Database, hssInstance server.IMSSubscribers, imsProfiles server.IMSProfileNotifier) (testEnv, error) {
+func buildTestEnvWith(testdb *db.Database, hssInstance server.IMSSubscribers, imsProfiles server.IMSProfileNotifier, options ...func(*server.HandlerConfig)) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
@@ -157,7 +157,7 @@ func buildTestEnvWith(testdb *db.Database, hssInstance server.IMSSubscribers, im
 
 	amfInstance := amf.New(testdb, nil, smfInstance)
 	lmfInstance := lmf.New(amfInstance, nil, nil)
-	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
+	handlerCfg := server.HandlerConfig{
 		DB:           testdb,
 		Config:       cfg,
 		JWTSecret:    jwtSecret,
@@ -169,7 +169,13 @@ func buildTestEnvWith(testdb *db.Database, hssInstance server.IMSSubscribers, im
 		HSS:          hssInstance,
 		IMSProfiles:  imsProfiles,
 		BcryptCost:   bcrypt.MinCost,
-	}))
+	}
+
+	for _, o := range options {
+		o(&handlerCfg)
+	}
+
+	ts := httptest.NewTLSServer(server.NewHandler(handlerCfg))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil
@@ -299,6 +305,10 @@ func (f *fakeSessionStore) ReleaseIPv6(_ context.Context, _ string, _ uint8) (ne
 }
 
 func (f *fakeSessionStore) IncrementDailyUsageBatch(_ context.Context, _ []models.SubscriberUsage) error {
+	return nil
+}
+
+func (f *fakeSessionStore) IncrementRoamingDailyUsageBatch(_ context.Context, _ []models.SubscriberUsage) error {
 	return nil
 }
 

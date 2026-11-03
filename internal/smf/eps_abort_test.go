@@ -106,6 +106,10 @@ func (f *abortFakeStore) IncrementDailyUsageBatch(_ context.Context, _ []models.
 	return nil
 }
 
+func (f *abortFakeStore) IncrementRoamingDailyUsageBatch(_ context.Context, _ []models.SubscriberUsage) error {
+	return nil
+}
+
 func (f *abortFakeStore) InsertFlowReports(_ context.Context, _ []*models.FlowReportRequest) error {
 	return nil
 }

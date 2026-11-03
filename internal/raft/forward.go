@@ -87,6 +87,8 @@ const (
 	ForwardCodeMigrationPend   = "migration_pending"
 	ForwardCodeSMSCConflict    = "smsc_peer_conflict"
 	ForwardCodeRoamingConflict = "roaming_conflict"
+	ForwardCodeRoamersAttached = "roamers_attached"
+	ForwardCodeRoamingRefused  = "roaming_refused"
 	ForwardCodeInUse           = "in_use"
 	ForwardCodeTokenConsumed   = "join_token_consumed"      // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenExpired    = "join_token_expired"       // #nosec G101 -- response code, not a credential

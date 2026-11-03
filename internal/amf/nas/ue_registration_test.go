@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -21,7 +22,7 @@ func (failingRegistrar) Confirmed(context.Context, string, int64) bool { return 
 
 func (failingRegistrar) Purge(string) {}
 
-func (failingRegistrar) Reconcile(context.Context, string, func() int64, func(context.Context), func(context.Context)) {
+func (failingRegistrar) Reconcile(context.Context, string, func() int64, func(context.Context), func(context.Context, ueregistration.Withdrawal)) {
 }
 
 func TestMobilityReg_AcceptedWhenRegistrationFails(t *testing.T) {

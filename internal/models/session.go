@@ -343,8 +343,13 @@ func UsageVolume(reports []UsageReport) (uplink, downlink uint64) {
 type SubscriberUsage struct {
 	EpochDay       int64
 	IMSI           string
+	HomePLMN       PlmnID
 	UplinkVolume   uint64
 	DownlinkVolume uint64
+}
+
+func (u SubscriberUsage) Roaming() bool {
+	return u.HomePLMN != PlmnID{}
 }
 
 // FlowReportRequest is sent by UPF to SMF with flow statistics.

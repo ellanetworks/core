@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/udm"
 )
 
@@ -16,30 +17,17 @@ import (
 // authorised (TS 24.301 ESM cause #27).
 var ErrUnknownAPN = models.ErrUnknownAPN
 
-func (m *MME) subscriptions() *udm.Subscriptions {
-	return udm.NewSubscriptions(m.Bearer, nil)
+func (m *MME) subscriptions() *roaming.Subscriptions {
+	return roaming.NewSubscriptions(udm.NewSubscriptions(m.Bearer, nil), m)
 }
 
 func SubscribedAPN(ctx context.Context, m *MME, imsi, requested string) (string, error) {
-	sm, err := m.subscriptions().SessionManagement(ctx, imsi)
+	apn, err := m.subscriptions().SelectAPN(ctx, imsi, requested)
 	if err != nil {
-		return "", fmt.Errorf("get session management subscription: %w", err)
+		return "", fmt.Errorf("select the APN: %w", err)
 	}
 
-	if requested == "" {
-		c, ok := sm.DefaultAPN()
-		if !ok {
-			return "", fmt.Errorf("subscriber %s has no default APN", imsi)
-		}
-
-		return c.DNN, nil
-	}
-
-	if _, ok := sm.ForAPN(requested); !ok {
-		return "", ErrUnknownAPN
-	}
-
-	return requested, nil
+	return apn, nil
 }
 
 func SubscribedUEAMBR(ctx context.Context, m *MME, imsi string) (models.Ambr, error) {

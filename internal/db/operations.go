@@ -571,6 +571,8 @@ var forwardCodes = []struct {
 	{ellaraft.ForwardCodeAlreadyExists, ErrAlreadyExists},
 	{ellaraft.ForwardCodeNotFound, ErrNotFound},
 	{ellaraft.ForwardCodeSMSCConflict, ErrSMSCPeerConflict},
+	{ellaraft.ForwardCodeRoamersAttached, ErrRoamersAttached},
+	{ellaraft.ForwardCodeRoamingRefused, ErrRoamingRefused},
 	{ellaraft.ForwardCodeRoamingConflict, ErrRoamingConflict},
 	{ellaraft.ForwardCodeInUse, ErrInUse},
 }

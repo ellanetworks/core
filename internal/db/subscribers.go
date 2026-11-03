@@ -23,6 +23,8 @@ import (
 
 const SubscribersTableName = "subscribers"
 
+const MaxNumSubscribers = 1000
+
 // subscriberDescriptionSchema is the migration that adds subscribers.description.
 // It is post-baseline, so a cluster node reaches it through Raft some time after
 // the new binary starts; until then the column is absent and every statement

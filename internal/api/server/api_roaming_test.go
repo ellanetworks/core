@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/pki"
 )
@@ -77,6 +78,8 @@ type roamingDiameterPeersEnvelope struct {
 }
 
 type seppCertificateBody struct {
+	SEPPID              int      `json:"seppID"`
+	Source              string   `json:"source"`
 	FQDN                string   `json:"fqdn"`
 	CertificateChainPEM string   `json:"certificateChainPEM"`
 	TrustAnchorPEM      string   `json:"trustAnchorPEM"`
@@ -115,7 +118,7 @@ type roamingMessageEnvelope struct {
 const (
 	roamingPartnersPath      = "/api/v1/roaming/partners"
 	roamingDiameterPeersPath = "/api/v1/roaming/diameter-peers"
-	seppCertificatePath      = "/api/v1/roaming/sepp/certificate"
+	seppCertificatePath      = "/api/v1/roaming/sepp/nodes/1/certificate"
 )
 
 func selfSignedPEM(t *testing.T, notAfter time.Time) string {
@@ -212,23 +215,14 @@ func TestRoamingPartners(t *testing.T) {
 		t.Fatalf("created 5G partner = %+v, want %+v", created5G.Result, fiveG)
 	}
 
-	code, cert, err := apiDo[seppCertificateEnvelope](client, "GET", url+seppCertificatePath, token, nil)
-	if err != nil || code != http.StatusOK {
-		t.Fatalf("GET SEPP certificate after the first 5G partner: code=%d err=%v (%q)", code, err, cert.Error)
-	}
-
-	if cert.Result.FQDN != homeSEPPFQDN || cert.Result.Fingerprint == "" || cert.Result.TrustAnchorPEM == "" {
-		t.Fatalf("generated SEPP certificate = %+v", cert.Result)
+	if code, _, _ := apiDo[seppCertificateEnvelope](client, "GET", url+seppCertificatePath, token, nil); code != http.StatusNotFound {
+		t.Fatalf("a 5G partner generated a SEPP certificate: code=%d", code)
 	}
 
 	second := roamingPartnerBody{Name: "partner-5g-2", PLMNs: plmnList("234", "15"), ProfileName: "default", SEPP: partnerSEPP(t, "234", "15")}
 
 	if code, resp, err := apiDo[roamingPartnerEnvelope](client, "POST", url+roamingPartnersPath, token, second); err != nil || code != http.StatusCreated {
 		t.Fatalf("create second 5G partner: code=%d err=%v (%q)", code, err, resp.Error)
-	}
-
-	if _, again, _ := apiDo[seppCertificateEnvelope](client, "GET", url+seppCertificatePath, token, nil); again.Result.Fingerprint != cert.Result.Fingerprint {
-		t.Fatal("a second 5G partner replaced the SEPP certificate")
 	}
 
 	code, list, err := apiDo[roamingPartnersEnvelope](client, "GET", url+roamingPartnersPath, token, nil)
@@ -261,6 +255,8 @@ func TestRoamingPartners(t *testing.T) {
 	ctx := context.Background()
 	roamer := "208940000000001"
 
+	server.SetRoamerWithdrawalTimeoutForTest(t, 50*time.Millisecond)
+
 	if _, err := env.DB.RegisterVisitorUE(ctx, roamer, fiveG.ID, db.UERegistrationTypeAMF3GPPAccess, "node-1", ""); err != nil {
 		t.Fatalf("RegisterVisitorUE: %s", err)
 	}
@@ -279,6 +275,10 @@ func TestRoamingPartners(t *testing.T) {
 
 	if code, resp, _ := apiDo[roamingMessageEnvelope](client, "DELETE", url+roamingPartnersPath+"/"+fiveG.ID, token, nil); code != http.StatusConflict || !strings.Contains(resp.Error, "roamers") {
 		t.Fatalf("delete a partner with an attached roamer: code=%d (%q), want 409", code, resp.Error)
+	}
+
+	if p, err := env.DB.GetRoamingPartner(ctx, fiveG.ID); err != nil || len(p.Withdrawals) != 0 {
+		t.Fatalf("withdrawals after a timed-out deletion = %+v, %v, want them cleared", p, err)
 	}
 
 	if err := env.DB.PurgeUERegistration(ctx, roamer, db.UERegistrationTypeAMF3GPPAccess, "node-1"); err != nil {
@@ -320,7 +320,6 @@ func TestRoamingPartners(t *testing.T) {
 	want := map[string]int{
 		"create_roaming_diameter_peer": 1,
 		"create_roaming_partner":       3,
-		"generate_sepp_certificate":    1,
 		"update_roaming_partner":       1,
 		"delete_roaming_partner":       1,
 	}
@@ -499,7 +498,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("generate: code=%d err=%v (%q)", code, err, generated.Error)
 	}
 
-	if generated.Result.FQDN != homeSEPPFQDN || !slices.Contains(generated.Result.Warnings, pki.SEPPWarningNoCRLDistributor) || len(generated.Result.Warnings) != 3 {
+	if generated.Result.FQDN != homeSEPPFQDN || generated.Result.SEPPID != 1 || generated.Result.Source != "generated" || !slices.Contains(generated.Result.Warnings, pki.SEPPWarningNoCRLDistributor) || len(generated.Result.Warnings) != 2 {
 		t.Fatalf("generated = %+v", generated.Result)
 	}
 
@@ -517,19 +516,34 @@ func TestSEPPCertificate(t *testing.T) {
 	}
 
 	custom := "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
+	sepp2Path := "/api/v1/roaming/sepp/nodes/2/certificate"
 
-	if code, resp, err := apiDo[seppCertificateEnvelope](client, "POST", url+seppCertificatePath+"/generate", token, map[string]string{"fqdn": custom}); err != nil || code != http.StatusCreated || resp.Result.FQDN != custom {
-		t.Fatalf("generate with an FQDN: code=%d err=%v (%q) fqdn=%q", code, err, resp.Error, resp.Result.FQDN)
+	code, second, err := apiDo[seppCertificateEnvelope](client, "POST", url+sepp2Path+"/generate", token, nil)
+	if err != nil || code != http.StatusCreated || second.Result.FQDN != custom || second.Result.TrustAnchorPEM != generated.Result.TrustAnchorPEM {
+		t.Fatalf("generate for SEPP 2: code=%d err=%v (%q) result=%+v", code, err, second.Error, second.Result)
 	}
 
-	if code, resp, err := apiDo[seppCertificateEnvelope](client, "POST", url+seppCertificatePath+"/generate", token, map[string]string{}); err != nil || code != http.StatusCreated || resp.Result.FQDN != custom {
-		t.Fatalf("regenerate keeps the FQDN: code=%d err=%v (%q) fqdn=%q", code, err, resp.Error, resp.Result.FQDN)
-	}
-
-	for _, fqdn := range []string{"sepp1.5gc.mnc093.mcc208.3gppnetwork.org", "sepp.example.org", "*.5gc.mnc001.mcc001.3gppnetwork.org", "sepp.5gc.mnc001.mcc001.3gppnetwork.org", "edge.5gc.mnc001.mcc001.3gppnetwork.org"} {
-		if code, resp, _ := apiDo[seppCertificateEnvelope](client, "POST", url+seppCertificatePath+"/generate", token, map[string]string{"fqdn": fqdn}); code != http.StatusBadRequest {
-			t.Fatalf("generate with %q: code=%d (%q), want 400", fqdn, code, resp.Error)
+	for _, path := range []string{"/api/v1/roaming/sepp/nodes/0/certificate", "/api/v1/roaming/sepp/nodes/64/certificate", "/api/v1/roaming/sepp/nodes/x/certificate"} {
+		if code, _, _ := apiDo[seppCertificateEnvelope](client, "POST", url+path+"/generate", token, nil); code != http.StatusBadRequest {
+			t.Fatalf("generate for %s: code=%d, want 400", path, code)
 		}
+	}
+
+	code, regenerated, err := apiDo[struct {
+		Result struct {
+			TrustAnchor struct {
+				PEM     string `json:"pem"`
+				SEPPIDs []int  `json:"seppIDs"`
+			} `json:"trustAnchor"`
+			Reissued []int `json:"reissued"`
+		} `json:"result"`
+	}](client, "POST", url+"/api/v1/roaming/sepp/ca/regenerate", token, nil)
+	if err != nil || code != http.StatusCreated || !slices.Equal(regenerated.Result.Reissued, []int{1, 2}) || regenerated.Result.TrustAnchor.PEM == generated.Result.TrustAnchorPEM {
+		t.Fatalf("regenerate the CA: code=%d err=%v result=%+v", code, err, regenerated.Result)
+	}
+
+	if code, got, _ := apiDo[seppCertificateEnvelope](client, "GET", url+sepp2Path, token, nil); code != http.StatusOK || got.Result.TrustAnchorPEM != regenerated.Result.TrustAnchor.PEM {
+		t.Fatalf("SEPP 2 after a CA regeneration: code=%d result=%+v", code, got.Result)
 	}
 
 	leaf, key, ca, err := pki.GenerateSEPPCert(homeSEPPFQDN, home)
@@ -552,7 +566,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("import: code=%d err=%v (%q)", code, err, imported.Error)
 	}
 
-	if imported.Result.FQDN != homeSEPPFQDN || imported.Result.Fingerprint != pki.Fingerprint(leaf) || imported.Result.TrustAnchorPEM != string(pki.EncodeCertPEM(ca)) || !slices.Equal(imported.Result.Warnings, []string{"The trust anchor changed: every roaming partner must import the new trust anchor before N32 with them works again", pki.SEPPWarningNoCRLDistributor}) {
+	if imported.Result.FQDN != homeSEPPFQDN || imported.Result.Fingerprint != pki.Fingerprint(leaf) || imported.Result.TrustAnchorPEM != string(pki.EncodeCertPEM(ca)) || imported.Result.Source != "imported" || !slices.Equal(imported.Result.Warnings, []string{pki.SEPPWarningNoCRLDistributor, "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again"}) {
 		t.Fatalf("imported = %+v", imported.Result)
 	}
 
@@ -560,7 +574,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("re-import of the same trust anchor: code=%d warnings=%v", code, again.Result.Warnings)
 	}
 
-	stored, err := env.DB.GetSEPPIdentity(context.Background())
+	stored, err := env.DB.GetSEPPIdentity(context.Background(), 1)
 	if err != nil || stored.KeyPEM != string(keyPEM) || stored.FQDN != homeSEPPFQDN {
 		t.Fatalf("stored identity does not hold the imported key: %v", err)
 	}
@@ -674,7 +688,15 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("import a certificate with two SEPP names and no fqdn: code=%d (%q), want 400", code, resp.Error)
 	}
 
-	code, long, err := apiDo[seppCertificateEnvelope](client, "PUT", url+seppCertificatePath, token, map[string]string{
+	if code, resp, _ := apiDo[seppCertificateEnvelope](client, "PUT", url+seppCertificatePath, token, map[string]string{
+		"certificateChainPEM": issuedChain,
+		"privateKeyPEM":       string(longKeyPEM),
+		"fqdn":                custom,
+	}); code != http.StatusConflict {
+		t.Fatalf("import the FQDN of SEPP 2 for SEPP 1: code=%d (%q), want 409", code, resp.Error)
+	}
+
+	code, long, err := apiDo[seppCertificateEnvelope](client, "PUT", url+sepp2Path, token, map[string]string{
 		"certificateChainPEM": issuedChain,
 		"privateKeyPEM":       string(longKeyPEM),
 		"fqdn":                custom,
@@ -687,7 +709,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatal("the trust anchor is not the operator CA")
 	}
 
-	if code, got, _ := apiDo[seppCertificateEnvelope](client, "GET", url+seppCertificatePath, token, nil); code != http.StatusOK || got.Result.FQDN != custom || !slices.Contains(got.Result.Warnings, pki.SEPPWarningLongValidity) {
+	if code, got, _ := apiDo[seppCertificateEnvelope](client, "GET", url+sepp2Path, token, nil); code != http.StatusOK || got.Result.FQDN != custom || got.Result.Source != "imported" || !slices.Contains(got.Result.Warnings, pki.SEPPWarningLongValidity) {
 		t.Fatalf("GET after import keeps the selected FQDN and the profile warnings: code=%d result=%+v", code, got.Result)
 	}
 

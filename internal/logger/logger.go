@@ -42,6 +42,7 @@ var (
 	SmsfLog     *zap.Logger
 	HssLog      *zap.Logger
 	PcfLog      *zap.Logger
+	SeppLog     *zap.Logger
 
 	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 
@@ -100,6 +101,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	SmsfLog = Scope("SMSF")
 	HssLog = Scope("HSS")
 	PcfLog = Scope("PCF")
+	SeppLog = Scope("SEPP")
 
 	zap.RedirectStdLog(EllaLog)
 
@@ -221,6 +223,7 @@ func namedScopes() []namedScope {
 		{&BgpLog, "BGP"},
 		{&DiameterLog, "Diameter"},
 		{&SmsfLog, "SMSF"},
+		{&SeppLog, "SEPP"},
 	}
 }
 

@@ -1,0 +1,11 @@
+db_uri: mongodb://mongodb/open5gs?replicaSet=rs0
+logger:
+  level: info
+
+global:
+  max:
+    ue: 1024
+
+hss:
+  freeDiameter: /cfg/hss.conf
+  use_mongodb_change_stream: true

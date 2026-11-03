@@ -13,13 +13,16 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableHead,
   TableRow,
   Tooltip,
   Typography,
 } from "@mui/material";
 import {
+  Autorenew as GenerateIcon,
   ContentCopy as CopyIcon,
   Download as DownloadIcon,
+  Upload as ImportIcon,
 } from "@mui/icons-material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import EmptyState from "@/components/EmptyState";
@@ -28,11 +31,19 @@ import ListPageHeader from "@/components/ListPageHeader";
 import {
   GenerateSEPPCertificateModal,
   ImportSEPPCertificateModal,
+  RegenerateSEPPCAModal,
 } from "@/components/SEPPCertificateModals";
 import {
+  formatEndpoint,
   getSEPPCertificate,
+  getSEPPStatus,
   plmnDomain,
+  type SEPPCARegenerated,
   type SEPPCertificate,
+  type SEPPNodeStatus,
+  type SEPPSource,
+  type SEPPStatus,
+  type SEPPTrustAnchor,
 } from "@/queries/roaming";
 import { getOperator, type OperatorData } from "@/queries/operator";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
@@ -58,7 +69,23 @@ const downloadText = (filename: string, text: string) => {
   window.URL.revokeObjectURL(url);
 };
 
-const settingCellSx = { fontWeight: 600, width: "30%" } as const;
+const headCellSx = { fontWeight: 600 } as const;
+
+const sourceLabels: Record<SEPPSource, string> = {
+  generated: "Generated",
+  imported: "Imported",
+};
+
+const anchorSourceLabels: Record<SEPPSource, string> = {
+  generated: "Cluster SEPP CA",
+  imported: "Imported CA",
+};
+
+const Muted = () => (
+  <Typography variant="body2" color="textSecondary" component="span">
+    —
+  </Typography>
+);
 
 const ExpiryChip = ({ notAfter, now }: { notAfter: string; now: number }) => {
   const daysLeft = Math.floor((new Date(notAfter).getTime() - now) / DAY_MS);
@@ -79,20 +106,94 @@ const ExpiryChip = ({ notAfter, now }: { notAfter: string; now: number }) => {
   return null;
 };
 
+const Expiry = ({ notAfter, now }: { notAfter: string; now: number }) => (
+  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+    <span>{formatDateTime(notAfter)}</span>
+    {now > 0 && <ExpiryChip notAfter={notAfter} now={now} />}
+  </Box>
+);
+
+const isOrphan = (node: SEPPNodeStatus) => !node.nodeID && !node.reachable;
+
+const nodeStatus = (
+  node: SEPPNodeStatus,
+): {
+  label: string;
+  color: "success" | "warning" | "error" | "default";
+  tooltip: string;
+} => {
+  if (isOrphan(node)) {
+    return {
+      label: "No node",
+      color: "warning",
+      tooltip:
+        "No cluster node has this SEPP ID: the certificate is stored but no SEPP uses it.",
+    };
+  }
+  if (!node.reachable) {
+    return { label: "Unknown", color: "default", tooltip: node.error ?? "" };
+  }
+  if (!node.n32Configured) {
+    return {
+      label: "Not configured",
+      color: "default",
+      tooltip:
+        "interfaces.n32 is not set in this node's configuration file: its SEPP is off.",
+    };
+  }
+  if (!node.listening) {
+    return {
+      label: "Not listening",
+      color: "error",
+      tooltip: node.error ?? "",
+    };
+  }
+  if (node.error) {
+    return { label: "Listening", color: "warning", tooltip: node.error };
+  }
+  return { label: "Listening", color: "success", tooltip: "" };
+};
+
+const NodeStatusChip = ({ node }: { node: SEPPNodeStatus }) => {
+  const { label, color, tooltip } = nodeStatus(node);
+  return (
+    <Tooltip title={tooltip} arrow>
+      <Chip label={label} color={color} size="small" variant="outlined" />
+    </Tooltip>
+  );
+};
+
+const nodeEndpoint = (node: SEPPNodeStatus) => {
+  if (!node.address) return "—";
+  return node.port ? formatEndpoint(node.address, node.port) : node.address;
+};
+
+const nodeKey = (node: SEPPNodeStatus) =>
+  node.seppID ? `sepp-${node.seppID}` : `node-${node.nodeID ?? "local"}`;
+
+const anchorFilename = (anchor: SEPPTrustAnchor) =>
+  `sepp-trust-anchor-${anchor.fingerprint.replace(/^sha256:/, "").slice(0, 12)}.pem`;
+
+type SEPPDialog =
+  | { kind: "import"; seppID: number }
+  | { kind: "generate"; seppID: number; imported: boolean }
+  | { kind: "regenerate-ca" };
+
 export default function SEPPTab() {
   const { accessToken, canEdit, showSnackbar } = useRoamingContext();
   const queryClient = useQueryClient();
   const copy = useCopyToClipboard();
   const now = useNow(60_000);
 
-  const [dialog, setDialog] = useState<"import" | "generate" | null>(null);
+  const [dialog, setDialog] = useState<SEPPDialog | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
 
-  const certQuery = useQuery<SEPPCertificate | null>({
-    queryKey: ["sepp-certificate"],
-    queryFn: () => getSEPPCertificate(accessToken || ""),
+  const statusQuery = useQuery<SEPPStatus>({
+    queryKey: ["sepp-status"],
+    queryFn: () => getSEPPStatus(accessToken || ""),
     enabled: !!accessToken,
     refetchOnWindowFocus: true,
+    refetchInterval: 10_000,
   });
 
   const operatorQuery = useQuery<OperatorData>({
@@ -106,248 +207,389 @@ export default function SEPPTab() {
   const domain = mcc && mnc ? plmnDomain(mcc, mnc) : "";
 
   const handleReplaced = (cert: SEPPCertificate, action: string) => {
-    queryClient.setQueryData(["sepp-certificate"], cert);
-    void queryClient.invalidateQueries({ queryKey: ["sepp-certificate"] });
+    setDialog(null);
+    void queryClient.invalidateQueries({ queryKey: ["sepp-status"] });
     setWarnings(cert.warnings ?? []);
-    showSnackbar(`SEPP certificate ${action} successfully.`, "success");
+    showSnackbar(
+      `SEPP ${cert.seppID} certificate ${action} successfully.`,
+      "success",
+    );
   };
 
-  const actions = (current: SEPPCertificate | null) =>
-    canEdit && (
-      <Stack direction="row" spacing={1}>
-        <Button variant="outlined" onClick={() => setDialog("import")}>
-          Import
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={() => setDialog("generate")}
-        >
-          {current ? "Regenerate" : "Generate"}
-        </Button>
-      </Stack>
+  const handleCARegenerated = (result: SEPPCARegenerated) => {
+    setDialog(null);
+    void queryClient.invalidateQueries({ queryKey: ["sepp-status"] });
+    setWarnings(result.warnings ?? []);
+    showSnackbar(
+      result.reissued.length > 0
+        ? `SEPP CA regenerated. Reissued the certificates of ${result.reissued.map((id) => `SEPP ${id}`).join(", ")}.`
+        : "SEPP CA regenerated. No generated certificate needed reissuing.",
+      "success",
     );
+  };
+
+  const downloadChain = async (seppID: number) => {
+    try {
+      const cert = await getSEPPCertificate(accessToken || "", seppID);
+      if (!cert) {
+        showSnackbar(`SEPP ${seppID} has no certificate.`, "error");
+        return;
+      }
+      downloadText(`${cert.fqdn}-chain.pem`, cert.certificateChainPEM);
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Unknown error occurred.";
+      showSnackbar(`Failed to download the certificate chain: ${msg}`, "error");
+    }
+  };
+
+  const nodeAlerts = (status: SEPPStatus) =>
+    status.nodes.flatMap((node) => {
+      const name = node.seppID ? `SEPP ${node.seppID}` : "The SEPP";
+      const alerts = [];
+      if (domain && node.fqdn && !node.fqdn.endsWith(`.${domain}`)) {
+        alerts.push(
+          <Alert key={`${nodeKey(node)}-plmn`} severity="error" sx={{ mb: 2 }}>
+            The FQDN of {name}, {node.fqdn}, is not under {domain}, the domain
+            of the operator PLMN. Partners will reject it: generate or import a
+            certificate for this PLMN.
+          </Alert>,
+        );
+      }
+      const notAfter = node.certificate?.notAfter;
+      if (notAfter && now > 0 && new Date(notAfter).getTime() < now) {
+        alerts.push(
+          <Alert
+            key={`${nodeKey(node)}-expired`}
+            severity="error"
+            sx={{ mb: 2 }}
+          >
+            The certificate of {name} expired on {formatDateTime(notAfter)}.
+            Partners reject it: generate or import a new one.
+          </Alert>,
+        );
+      }
+      return alerts;
+    });
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
       <ListPageHeader
         title="SEPP"
-        description={`${PRODUCT.name}'s SEPP certificate, used for N32 with the SEPPs of 5G roaming partners. Give partners its trust anchor.`}
+        description={`Each node with interfaces.n32 is its own SEPP, named by its SEPP ID, for N32 with the SEPPs of 5G roaming partners. Give partners the trust anchors.`}
         variant="section"
-        action={certQuery.data !== undefined && actions(certQuery.data)}
+        action={
+          canEdit &&
+          statusQuery.data !== undefined && (
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => setDialog({ kind: "regenerate-ca" })}
+            >
+              Regenerate CA
+            </Button>
+          )
+        }
       />
 
-      {warnings
-        .filter(
-          (warning) => !(certQuery.data?.warnings ?? []).includes(warning),
-        )
-        .map((warning) => (
-          <Alert
-            key={warning}
-            severity="warning"
-            sx={{ mb: 2 }}
-            onClose={() =>
-              setWarnings((prev) => prev.filter((w) => w !== warning))
-            }
-          >
-            {warning}
-          </Alert>
-        ))}
+      {warnings.map((warning) => (
+        <Alert
+          key={warning}
+          severity="warning"
+          sx={{ mb: 2 }}
+          onClose={() =>
+            setWarnings((prev) => prev.filter((w) => w !== warning))
+          }
+        >
+          {warning}
+        </Alert>
+      ))}
 
       <QueryState
-        query={certQuery}
-        resource="SEPP certificate"
-        isEmpty={(data) => data === null}
+        query={statusQuery}
+        resource="SEPP status"
+        isEmpty={(data) =>
+          data.nodes.length === 0 && data.trustAnchors.length === 0
+        }
         empty={
           <EmptyState
-            primaryText="No SEPP certificate yet"
-            secondaryText={
-              canEdit
-                ? `${PRODUCT.name} generates one when you add the first partner with 5G roaming. You can also generate or import one now.`
-                : `${PRODUCT.name} generates one when the first partner with 5G roaming is added.`
-            }
+            primaryText="No SEPP yet"
+            secondaryText={`Set interfaces.n32 in a node's configuration file: ${PRODUCT.name} generates its SEPP certificate.`}
           />
         }
       >
-        {(cert) =>
-          cert && (
-            <>
-              {domain && !cert.fqdn.endsWith(`.${domain}`) && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  The SEPP FQDN {cert.fqdn} is not under {domain}, the domain of
-                  the operator PLMN. Partners will reject it: generate or import
-                  a certificate for this PLMN.
-                </Alert>
-              )}
-              {(cert.warnings ?? []).map((warning) => (
-                <Alert key={warning} severity="warning" sx={{ mb: 2 }}>
-                  {warning}
-                </Alert>
-              ))}
-              {now > 0 && new Date(cert.notAfter).getTime() < now && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  The SEPP certificate expired on{" "}
-                  {formatDateTime(cert.notAfter)}. Partners reject it: generate
-                  or import a new one.
-                </Alert>
-              )}
+        {(status) => (
+          <>
+            {nodeAlerts(status)}
+
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Trust Anchors
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+              The CA certificates partners configure to trust the SEPPs: the
+              cluster SEPP CA, which signs generated certificates, and the CA
+              ending each imported chain.
+            </Typography>
+            {status.trustAnchors.length === 0 ? (
+              <Typography variant="body2" color="textSecondary">
+                No trust anchor yet.
+              </Typography>
+            ) : (
               <TableContainer sx={TABLE_CONTAINER_SX}>
-                <Table>
-                  <TableBody>
+                <Table aria-label="Trust anchors">
+                  <TableHead>
                     <TableRow>
-                      <TableCell sx={settingCellSx}>
-                        <Tooltip
-                          title="The certificate's subjectAltName DNS name, the name partners know this SEPP by"
-                          arrow
-                        >
-                          <span>FQDN</span>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell sx={{ wordBreak: "break-all" }}>
-                        {cert.fqdn}
-                      </TableCell>
+                      <TableCell sx={headCellSx}>Source</TableCell>
+                      <TableCell sx={headCellSx}>Subject</TableCell>
+                      <TableCell sx={headCellSx}>Fingerprint</TableCell>
+                      <TableCell sx={headCellSx}>Expires</TableCell>
+                      <TableCell sx={headCellSx}>Used By</TableCell>
+                      <TableCell sx={headCellSx}>Certificate</TableCell>
                     </TableRow>
-                    <TableRow>
-                      <TableCell sx={settingCellSx}>
-                        <Tooltip
-                          title="SHA-256 fingerprint of the certificate"
-                          arrow
-                        >
-                          <span>Fingerprint</span>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                          }}
-                        >
-                          <Typography
-                            variant="body2"
+                  </TableHead>
+                  <TableBody>
+                    {status.trustAnchors.map((anchor) => (
+                      <TableRow key={anchor.fingerprint}>
+                        <TableCell>
+                          {anchorSourceLabels[anchor.source]}
+                        </TableCell>
+                        <TableCell sx={{ wordBreak: "break-all" }}>
+                          {anchor.subject}
+                        </TableCell>
+                        <TableCell>
+                          <Box
                             sx={{
-                              fontFamily: "monospace",
-                              wordBreak: "break-all",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
                             }}
                           >
-                            {cert.fingerprint}
-                          </Typography>
-                          <Tooltip title="Copy fingerprint" arrow>
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                copy(cert.fingerprint, "Fingerprint")
-                              }
-                              aria-label="Copy fingerprint"
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontFamily: "monospace",
+                                wordBreak: "break-all",
+                              }}
                             >
-                              <CopyIcon fontSize="small" color="primary" />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={settingCellSx}>Expires</TableCell>
-                      <TableCell>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                          }}
-                        >
-                          <span>{formatDateTime(cert.notAfter)}</span>
-                          {now > 0 && (
-                            <ExpiryChip notAfter={cert.notAfter} now={now} />
+                              {anchor.fingerprint}
+                            </Typography>
+                            <Tooltip title="Copy fingerprint" arrow>
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  copy(anchor.fingerprint, "Fingerprint")
+                                }
+                                aria-label={`Copy fingerprint of ${anchor.subject}`}
+                              >
+                                <CopyIcon fontSize="small" color="primary" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Expiry notAfter={anchor.notAfter} now={now} />
+                        </TableCell>
+                        <TableCell>
+                          {anchor.seppIDs.length > 0 ? (
+                            anchor.seppIDs.map((id) => `SEPP ${id}`).join(", ")
+                          ) : (
+                            <Muted />
                           )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={settingCellSx}>
-                        <Tooltip
-                          title="The root or sub-CA certificate partners configure to trust this SEPP"
-                          arrow
-                        >
-                          <span>Trust Anchor</span>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            size="small"
-                            startIcon={<DownloadIcon />}
-                            onClick={() =>
-                              downloadText(
-                                `${cert.fqdn}-trust-anchor.pem`,
-                                cert.trustAnchorPEM,
-                              )
-                            }
-                          >
-                            Download
-                          </Button>
-                          <Button
-                            size="small"
-                            startIcon={<CopyIcon />}
-                            onClick={() =>
-                              copy(cert.trustAnchorPEM, "Trust anchor")
-                            }
-                          >
-                            Copy
-                          </Button>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={settingCellSx}>
-                        <Tooltip
-                          title="The SEPP certificate followed by its chain"
-                          arrow
-                        >
-                          <span>Certificate Chain</span>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="small"
-                          startIcon={<DownloadIcon />}
-                          onClick={() =>
-                            downloadText(
-                              `${cert.fqdn}-chain.pem`,
-                              cert.certificateChainPEM,
-                            )
-                          }
-                        >
-                          Download
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              size="small"
+                              startIcon={<DownloadIcon />}
+                              onClick={() =>
+                                downloadText(anchorFilename(anchor), anchor.pem)
+                              }
+                              aria-label={`Download trust anchor ${anchor.subject}`}
+                            >
+                              Download
+                            </Button>
+                            <Button
+                              size="small"
+                              startIcon={<CopyIcon />}
+                              onClick={() => copy(anchor.pem, "Trust anchor")}
+                              aria-label={`Copy trust anchor ${anchor.subject}`}
+                            >
+                              Copy
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-            </>
-          )
-        }
+            )}
+
+            <Typography variant="h6" sx={{ mt: 4, mb: 1 }}>
+              Nodes
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+              Each node with interfaces.n32 in its configuration file serves N32
+              for partner SEPPs with its own certificate. Partners must reach
+              and allow every node.
+            </Typography>
+            {status.nodes.length === 0 ? (
+              <Typography variant="body2" color="textSecondary">
+                The cluster has not reported its members yet.
+              </Typography>
+            ) : (
+              <TableContainer sx={TABLE_CONTAINER_SX}>
+                <Table aria-label="SEPP nodes">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={headCellSx}>SEPP ID</TableCell>
+                      <TableCell sx={headCellSx}>Node</TableCell>
+                      <TableCell sx={headCellSx}>FQDN</TableCell>
+                      <TableCell sx={headCellSx}>Source</TableCell>
+                      <TableCell sx={headCellSx}>N32</TableCell>
+                      <TableCell sx={headCellSx}>Address</TableCell>
+                      <TableCell sx={headCellSx}>Certificate Expires</TableCell>
+                      <TableCell sx={headCellSx}>Error</TableCell>
+                      <TableCell sx={headCellSx} align="right">
+                        Actions
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {status.nodes.map((node) => {
+                      const seppID = node.seppID;
+                      const orphan = isOrphan(node);
+                      return (
+                        <TableRow key={nodeKey(node)}>
+                          <TableCell>{seppID ?? <Muted />}</TableCell>
+                          <TableCell sx={{ wordBreak: "break-all" }}>
+                            {node.nodeID || (orphan ? <Muted /> : "This node")}
+                          </TableCell>
+                          <TableCell sx={{ wordBreak: "break-all" }}>
+                            {node.fqdn || <Muted />}
+                          </TableCell>
+                          <TableCell>
+                            {node.source ? (
+                              sourceLabels[node.source]
+                            ) : (
+                              <Muted />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <NodeStatusChip node={node} />
+                          </TableCell>
+                          <TableCell>{nodeEndpoint(node)}</TableCell>
+                          <TableCell>
+                            {node.certificate ? (
+                              <Expiry
+                                notAfter={node.certificate.notAfter}
+                                now={now}
+                              />
+                            ) : (
+                              <Muted />
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ wordBreak: "break-word" }}>
+                            {node.error ? (
+                              <Typography variant="body2" color="error">
+                                {node.error}
+                              </Typography>
+                            ) : (
+                              <Muted />
+                            )}
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{ whiteSpace: "nowrap" }}
+                          >
+                            {seppID !== undefined && node.certificate && (
+                              <Tooltip title="Download certificate chain" arrow>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => void downloadChain(seppID)}
+                                  aria-label={`Download certificate chain of SEPP ${seppID}`}
+                                >
+                                  <DownloadIcon
+                                    fontSize="small"
+                                    color="primary"
+                                  />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canEdit && seppID !== undefined && !orphan && (
+                              <>
+                                <Tooltip title="Import certificate" arrow>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setDialog({ kind: "import", seppID })
+                                    }
+                                    aria-label={`Import certificate for SEPP ${seppID}`}
+                                  >
+                                    <ImportIcon
+                                      fontSize="small"
+                                      color="primary"
+                                    />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Generate certificate" arrow>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setDialog({
+                                        kind: "generate",
+                                        seppID,
+                                        imported: node.source === "imported",
+                                      })
+                                    }
+                                    aria-label={`Generate certificate for SEPP ${seppID}`}
+                                  >
+                                    <GenerateIcon
+                                      fontSize="small"
+                                      color="primary"
+                                    />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </>
+        )}
       </QueryState>
 
-      {dialog === "import" && (
+      {dialog?.kind === "import" && (
         <ImportSEPPCertificateModal
           open
           onClose={() => setDialog(null)}
           onSuccess={(cert) => handleReplaced(cert, "imported")}
+          seppID={dialog.seppID}
           mcc={mcc}
           mnc={mnc}
         />
       )}
-      {dialog === "generate" && (
+      {dialog?.kind === "generate" && (
         <GenerateSEPPCertificateModal
           open
           onClose={() => setDialog(null)}
           onSuccess={(cert) => handleReplaced(cert, "generated")}
-          current={certQuery.data}
+          seppID={dialog.seppID}
+          imported={dialog.imported}
           mcc={mcc}
           mnc={mnc}
+        />
+      )}
+      {dialog?.kind === "regenerate-ca" && (
+        <RegenerateSEPPCAModal
+          open
+          onClose={() => setDialog(null)}
+          onSuccess={handleCARegenerated}
         />
       )}
     </Box>

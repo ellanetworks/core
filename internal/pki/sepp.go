@@ -20,12 +20,14 @@ import (
 	"fmt"
 	"math/big"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
 	SEPPCertValidityYears = 3
+	SEPPCAValidityYears   = 10
 	DefaultSEPPID         = "1"
 	wellKnownSEPPHost     = "sepp"
 	minRSAExponent        = 65537
@@ -70,6 +72,10 @@ func (p PLMN) Domain() string {
 
 func (p PLMN) DefaultSEPPFQDN() string {
 	return wellKnownSEPPHost + DefaultSEPPID + "." + p.Domain()
+}
+
+func (p PLMN) SEPPFQDN(seppID int) string {
+	return wellKnownSEPPHost + strconv.Itoa(seppID) + "." + p.Domain()
 }
 
 func (p PLMN) Validate() error {
@@ -241,34 +247,46 @@ func utf8Subject(organization, commonName string) pkix.Name {
 }
 
 func GenerateSEPPCert(fqdn string, plmn PLMN) (*x509.Certificate, crypto.Signer, *x509.Certificate, error) {
-	if err := ValidateSEPPFQDN(fqdn, plmn); err != nil {
+	ca, caKey, err := GenerateSEPPCA(plmn)
+	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	domain := plmn.Domain()
+	leaf, key, err := IssueSEPPCert(fqdn, plmn, ca, caKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return leaf, key, ca, nil
+}
+
+func GenerateSEPPCA(plmn PLMN) (*x509.Certificate, crypto.Signer, error) {
+	if err := plmn.Validate(); err != nil {
+		return nil, nil, err
+	}
+
 	notBefore := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
-	notAfter := notBefore.AddDate(SEPPCertValidityYears, 0, 0)
 
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("generate SEPP CA key: %w", err)
+		return nil, nil, fmt.Errorf("generate SEPP CA key: %w", err)
 	}
 
 	caSerial, err := seppSerial()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	caSKID, err := rfc5280KeyID(&caKey.PublicKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	caTmpl := &x509.Certificate{
 		SerialNumber:          caSerial,
-		Subject:               utf8Subject(domain, "SEPP CA"),
+		Subject:               utf8Subject(plmn.Domain(), "SEPP CA"),
 		NotBefore:             notBefore,
-		NotAfter:              notAfter,
+		NotAfter:              notBefore.AddDate(SEPPCAValidityYears, 0, 0),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -279,42 +297,61 @@ func GenerateSEPPCert(fqdn string, plmn PLMN) (*x509.Certificate, crypto.Signer,
 
 	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create SEPP CA certificate: %w", err)
+		return nil, nil, fmt.Errorf("create SEPP CA certificate: %w", err)
 	}
 
 	ca, err := x509.ParseCertificate(caDER)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse SEPP CA certificate: %w", err)
+		return nil, nil, fmt.Errorf("parse SEPP CA certificate: %w", err)
+	}
+
+	return ca, caKey, nil
+}
+
+func IssueSEPPCert(fqdn string, plmn PLMN, ca *x509.Certificate, caKey crypto.Signer) (*x509.Certificate, crypto.Signer, error) {
+	if err := ValidateSEPPFQDN(fqdn, plmn); err != nil {
+		return nil, nil, err
+	}
+
+	if ca == nil || caKey == nil || !ca.IsCA {
+		return nil, nil, errors.New("the SEPP CA is missing or not a CA")
+	}
+
+	notBefore := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
+
+	notAfter := notBefore.AddDate(SEPPCertValidityYears, 0, 0)
+	if notAfter.After(ca.NotAfter) {
+		notAfter = ca.NotAfter
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("generate SEPP key: %w", err)
+		return nil, nil, fmt.Errorf("generate SEPP key: %w", err)
 	}
 
 	serial, err := seppSerial()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	skid, err := rfc5280KeyID(&key.PublicKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	san, err := asn1.Marshal([]asn1.RawValue{{Class: asn1.ClassContextSpecific, Tag: 2, Bytes: []byte(fqdn)}})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode subjectAltName: %w", err)
+		return nil, nil, fmt.Errorf("encode subjectAltName: %w", err)
 	}
 
 	nfTypes, err := asn1.Marshal([]asn1.RawValue{{Class: asn1.ClassUniversal, Tag: asn1.TagIA5String, Bytes: []byte("SEPP")}})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encode nfTypes: %w", err)
+		return nil, nil, fmt.Errorf("encode nfTypes: %w", err)
 	}
 
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      utf8Subject(domain, fqdn),
+		Subject:      utf8Subject(plmn.Domain(), fqdn),
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -328,15 +365,42 @@ func GenerateSEPPCert(fqdn string, plmn PLMN) (*x509.Certificate, crypto.Signer,
 
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca, &key.PublicKey, caKey)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create SEPP certificate: %w", err)
+		return nil, nil, fmt.Errorf("create SEPP certificate: %w", err)
 	}
 
 	leaf, err := x509.ParseCertificate(der)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse SEPP certificate: %w", err)
+		return nil, nil, fmt.Errorf("parse SEPP certificate: %w", err)
 	}
 
-	return leaf, key, ca, nil
+	return leaf, key, nil
+}
+
+func ValidateSEPPCA(certPEM, keyPEM []byte) (*x509.Certificate, crypto.Signer, error) {
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("SEPP CA certificate and key do not form a key pair: %w", err)
+	}
+
+	if len(pair.Certificate) != 1 {
+		return nil, nil, errors.New("SEPP CA must be a single certificate")
+	}
+
+	ca, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse SEPP CA certificate: %w", err)
+	}
+
+	if !isCACert(ca) {
+		return nil, nil, errors.New("SEPP CA certificate is not a CA with keyCertSign")
+	}
+
+	signer, ok := pair.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, nil, errors.New("SEPP CA key cannot sign")
+	}
+
+	return ca, signer, nil
 }
 
 func seppSerial() (*big.Int, error) {
