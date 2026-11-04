@@ -271,7 +271,7 @@ None
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |
 | `data_network` | DNN (5G) or APN (4G). |
 | `slice` | S-NSSAI. 5G only. |
-| `established_at` | When the session's user plane was established (RFC 3339). |
+| `established_at` | When the session was installed in the data plane (RFC 3339). |
 | `traffic` | Traffic the session has carried since `established_at`, including that of released bearers. See [Traffic](#traffic). |
 | `bearers` | The session's QoS flows (5G) or EPS bearers (4G), the default one first. Omitted when the core holds no session context. |
 
@@ -288,15 +288,15 @@ None
 | `mbr_uplink`, `mbr_downlink` | Maximum bitrate. Present on GBR QoS flows and bearers. |
 | `gbr_uplink`, `gbr_downlink` | Guaranteed bitrate. Present on GBR QoS flows and bearers. |
 | `rules` | IDs of the PCC rules the QoS flow or bearer carries, such as those of an IMS call. |
-| `traffic` | Traffic the QoS flow or bearer has carried since it was established. See [Traffic](#traffic). |
+| `traffic` | Traffic the QoS flow or bearer has carried since it was installed in the data plane. See [Traffic](#traffic). |
 
 ### Traffic
 
-Omitted when the user plane counters cannot be read.
+Omitted when the data plane counters cannot be read.
 
 | Field | Description |
 | ----- | ----------- |
-| `read_at` | When the counters were read from the user plane (RFC 3339). |
+| `read_at` | When the counters were read from the data plane (RFC 3339). |
 | `uplink_bytes`, `downlink_bytes` | Bytes of the subscriber's IP packets, without tunnel or Ethernet headers. |
 | `uplink_packets`, `downlink_packets` | Packets forwarded. |
 | `last_packet_at` | When the last packet was forwarded (RFC 3339). Absent before the first packet. |

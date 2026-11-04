@@ -4506,7 +4506,7 @@ components:
         established_at:
           type: string
           format: date-time
-          description: "When the session's user plane was established."
+          description: "When the session was installed in the data plane."
         traffic:
           $ref: "#/components/schemas/Traffic"
         bearers:
@@ -4563,12 +4563,12 @@ components:
 
     Traffic:
       type: object
-      description: "Traffic carried since the session or bearer was established, read from the user plane. A session's counters include those of its released bearers. Bytes count the subscriber's IP packets, without tunnel or Ethernet headers. Absent when the user plane counters cannot be read."
+      description: "Traffic carried since the session or bearer was installed in the data plane, read from the data plane. A session's counters include those of its released bearers. Bytes count the subscriber's IP packets, without tunnel or Ethernet headers. Absent when the data plane counters cannot be read."
       properties:
         read_at:
           type: string
           format: date-time
-          description: "When the counters were read from the user plane."
+          description: "When the counters were read from the data plane."
         uplink_bytes:
           type: integer
           format: int64
