@@ -191,12 +191,7 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("reopen database: %w", err)
 	}
 
-	maxVersion := 0
-	if db.ClusterEnabled() {
-		// In cluster mode, restore/reopen must track the snapshot baseline.
-		// Post-baseline shared migrations are proposed by the leader via Raft.
-		maxVersion = baselineVersion
-	}
+	maxVersion := db.migrationCeiling
 
 	if err := runMigrations(ctx, sqlConn, maxVersion); err != nil {
 		_ = sqlConn.Close()
@@ -225,6 +220,8 @@ func (db *Database) Reopen(ctx context.Context) error {
 	if db.changefeed != nil {
 		db.changefeed.PublishAll()
 	}
+
+	db.signalMigrationCheck()
 
 	return nil
 }

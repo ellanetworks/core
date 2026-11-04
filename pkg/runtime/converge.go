@@ -32,6 +32,11 @@ func awaitInitialSettings(ctx context.Context, dbInstance *db.Database, pki *pki
 		return
 	}
 
+	if err := dbInstance.WaitForStandaloneSchema(ctx); err != nil {
+		logger.EllaLog.Info("Stopped waiting for schema migrations", zap.Error(err))
+		return
+	}
+
 	logger.EllaLog.Info("Initial settings available")
 
 	releaseStaleLeases(ctx, dbInstance)

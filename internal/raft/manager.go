@@ -148,6 +148,12 @@ type Manager struct {
 
 	discoveryPending atomic.Bool
 
+	existingState bool
+
+	checkpointDone atomic.Bool
+
+	admissionPending atomic.Bool
+
 	leaderMu       sync.Mutex
 	hooks          []LeaderHook
 	term           *leaderTerm
@@ -247,6 +253,8 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 
 	cleanSnapshotStaging(dataDir, raftDir)
 
+	snapshotStore = newestSnapshotStore{SnapshotStore: snapshotStore}
+
 	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
 	if err != nil {
 		_ = boltStore.Close()
@@ -310,17 +318,14 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
-	if !singleServer && hasState && !recovered {
-		realigned, err := maybeRealignSelfAddress(raftDir, raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
-		if err != nil {
+	if !recovered {
+		if err := guardSnapshotRestoreOnStart(raftConfig, fsm, logCache, snapshotStore); err != nil {
 			closeTransport(transport)
 
 			_ = boltStore.Close()
 
 			return nil, err
 		}
-
-		recovered = recovered || realigned
 	}
 
 	// Timeouts depend on (hasState || recovered) — only apply once both are
@@ -386,6 +391,10 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	}
 
 	m.discoveryPending.Store(!singleServer && !hasState && !recovered)
+
+	m.existingState = hasState && !recovered
+
+	m.admissionPending.Store(m.existingState)
 
 	m.relaxSoleVoterTimeouts()
 
@@ -734,6 +743,10 @@ func (m *Manager) countServers() int {
 // leader can add nodes. The nodeID and address identify the new server; if the
 // node already exists with a different address, it is updated.
 func (m *Manager) AddVoter(nodeID string, address string) error {
+	if err := m.awaitAdmitted(); err != nil {
+		return err
+	}
+
 	serverID := raft.ServerID(nodeID)
 	serverAddr := raft.ServerAddress(address)
 
@@ -947,6 +960,10 @@ func (m *Manager) WaitForLeader(ctx context.Context) error {
 // Non-voters receive log replication but do not participate in elections
 // or commit quorum. Used during rolling upgrades for catch-up before promotion.
 func (m *Manager) AddNonvoter(nodeID string, address string) error {
+	if err := m.awaitAdmitted(); err != nil {
+		return err
+	}
+
 	serverID := raft.ServerID(nodeID)
 	serverAddr := raft.ServerAddress(address)
 
