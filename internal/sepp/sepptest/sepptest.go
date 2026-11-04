@@ -209,7 +209,7 @@ func (p *Partner) Notify(ctx context.Context, ellaN32 string, target string, bod
 		MinVersion:         tls.VersionTLS12,
 		NextProtos:         []string{"h2"},
 		Certificates:       []tls.Certificate{p.cert},
-		InsecureSkipVerify: true, //nolint:gosec
+		InsecureSkipVerify: true, // #nosec G402 -- test client for a self-signed test SEPP
 	}}}
 
 	return client.Do(req)

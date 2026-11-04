@@ -10,7 +10,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- RFC 5280 method 1 key identifier, not a security use
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -38,7 +38,7 @@ const (
 	SEPPWarningNoEKU            = "The certificate has no extendedKeyUsage; TS 33.310 clause 6.1.3c.3 requires serverAuth and clientAuth"
 	SEPPWarningNoNFTypes        = "The certificate has no nfTypes extension naming SEPP (RFC 9310), which TS 33.310 clause 6.1.3c.3 requires"
 	SEPPWarningCNNotInSAN       = "The certificate's subject CN is not one of its subjectAltName DNS names (GSMA FS.34 clause 5)"
-	SEPPWarningHostNotSEPPID    = "The SEPP FQDN does not start with sepp<SEPPID>, the GSMA FS.34 clause 5.1.1 naming"
+	SEPPWarningHostNotSEPPID    = "The SEPP FQDN does not start with sepp<SEPPID>, the GSMA FS.34 clause 5.1.1 naming" // #nosec G101 -- warning message, not a credential
 	SEPPWarningNoCRLDistributor = "The certificate has no cRLDistributionPoints, which TS 33.310 clause 6.1.3c.3 requires: partners can only pin it"
 )
 
@@ -430,7 +430,7 @@ func rfc5280KeyID(pub crypto.PublicKey) ([]byte, error) {
 		return nil, fmt.Errorf("parse public key: %w", err)
 	}
 
-	sum := sha1.Sum(spki.PublicKey.Bytes)
+	sum := sha1.Sum(spki.PublicKey.Bytes) // #nosec G401 -- RFC 5280 method 1 key identifier, not a security use
 
 	return sum[:], nil
 }
