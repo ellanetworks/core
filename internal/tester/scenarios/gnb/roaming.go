@@ -5,6 +5,8 @@ package gnb
 
 import (
 	"context"
+	"crypto/ecdh"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -50,6 +52,15 @@ type roamingParams struct {
 	AwaitNetworkDereg    bool
 	ExpectDeregCause     int
 	ExpectReregistration bool
+	SD                   string
+	PDUSessionType       string
+	ExpectPDUSessionType string
+	ExpectGSMCause       int
+	SUCIPublicKey        string
+	SUCIPublicKeyID      string
+	NoS1Mode             bool
+	ExpectSMCs           int
+	Hold                 time.Duration
 }
 
 func init() {
@@ -75,6 +86,15 @@ func init() {
 			fs.BoolVar(&p.AwaitNetworkDereg, "await-network-deregistration", false, "after the marker, await a network-initiated deregistration")
 			fs.IntVar(&p.ExpectDeregCause, "expect-dereg-cause", 0, "5GMM cause the network-initiated deregistration must carry (0: any)")
 			fs.BoolVar(&p.ExpectReregistration, "expect-reregistration", false, "the network-initiated deregistration must ask the UE to register again")
+			fs.StringVar(&p.SD, "sd", scenarios.DefaultSD, "SD of the slice the gNB supports and the UE requests (empty: no SD)")
+			fs.StringVar(&p.PDUSessionType, "pdu-session-type", "ipv4", "PDU session type requested: ipv4, ipv6 or ipv4v6")
+			fs.StringVar(&p.ExpectPDUSessionType, "expect-pdu-session-type", "", "PDU session type the session must be accepted with (empty: any)")
+			fs.IntVar(&p.ExpectGSMCause, "expect-gsm-cause", -1, "5GSM cause the PDU Session Establishment Accept must carry (0: none, -1: any)")
+			fs.StringVar(&p.SUCIPublicKey, "suci-public-key", "", "X25519 home network public key (hex); when set the SUCI is concealed with Profile A")
+			fs.StringVar(&p.SUCIPublicKeyID, "suci-public-key-id", "1", "home network public key identifier of the Profile A SUCI")
+			fs.BoolVar(&p.NoS1Mode, "no-s1-mode", false, "register as a UE without S1 mode: no S1 mode in the 5GMM capability and no S1 UE network capability")
+			fs.IntVar(&p.ExpectSMCs, "expect-security-mode-commands", 0, "number of Security Mode Commands the registration must take (0: any)")
+			fs.DurationVar(&p.Hold, "hold", 0, "stay registered this long after the marker before deregistering")
 
 			return p
 		},
@@ -84,37 +104,73 @@ func init() {
 	})
 }
 
+var roamerPDUSessionTypes = map[string]fgs.PDUSessionType{
+	"ipv4":   fgs.PDUSessionTypeIPv4,
+	"ipv6":   fgs.PDUSessionTypeIPv6,
+	"ipv4v6": fgs.PDUSessionTypeIPv4v6,
+}
+
+func roamerSUCIKey(p *roamingParams) (sidf.HomeNetworkPublicKey, error) {
+	if p.SUCIPublicKey == "" {
+		return sidf.HomeNetworkPublicKey{ProtectionScheme: sidf.NullScheme, PublicKeyID: "0"}, nil
+	}
+
+	raw, err := hex.DecodeString(p.SUCIPublicKey)
+	if err != nil {
+		return sidf.HomeNetworkPublicKey{}, fmt.Errorf("--suci-public-key: %w", err)
+	}
+
+	key, err := ecdh.X25519().NewPublicKey(raw)
+	if err != nil {
+		return sidf.HomeNetworkPublicKey{}, fmt.Errorf("--suci-public-key: %w", err)
+	}
+
+	return sidf.HomeNetworkPublicKey{ProtectionScheme: sidf.ProfileAScheme, PublicKey: key, PublicKeyID: p.SUCIPublicKeyID}, nil
+}
+
 func roamingUE(gNodeB *gnb.GnodeB, p *roamingParams) (*ue.UE, error) {
 	prefix := p.HomeMCC + p.HomeMNC
 	if !strings.HasPrefix(p.IMSI, prefix) {
 		return nil, fmt.Errorf("--imsi %s is not in the home PLMN %s-%s", p.IMSI, p.HomeMCC, p.HomeMNC)
 	}
 
+	sessionType, ok := roamerPDUSessionTypes[p.PDUSessionType]
+	if !ok {
+		return nil, fmt.Errorf("--pdu-session-type %q is not ipv4, ipv6 or ipv4v6", p.PDUSessionType)
+	}
+
+	if _, ok := roamerPDUSessionTypes[p.ExpectPDUSessionType]; p.ExpectPDUSessionType != "" && !ok {
+		return nil, fmt.Errorf("--expect-pdu-session-type %q is not ipv4, ipv6 or ipv4v6", p.ExpectPDUSessionType)
+	}
+
+	suciKey, err := roamerSUCIKey(p)
+	if err != nil {
+		return nil, err
+	}
+
 	u, err := ue.NewUE(&ue.UEOpts{
-		GnodeB:           gNodeB,
-		PDUSessionID:     scenarios.DefaultPDUSessionID,
-		PDUSessionType:   fgs.PDUSessionTypeIPv4,
-		Msin:             p.IMSI[len(prefix):],
-		K:                p.Key,
-		OpC:              p.OPc,
-		Amf:              scenarios.DefaultAMF,
-		Sqn:              p.SQN,
-		Mcc:              p.HomeMCC,
-		Mnc:              p.HomeMNC,
-		NoAutoPDUSession: !p.Session,
-		HomeNetworkPublicKey: sidf.HomeNetworkPublicKey{
-			ProtectionScheme: sidf.NullScheme,
-			PublicKeyID:      "0",
-		},
-		RoutingIndicator: scenarios.DefaultRoutingIndicator,
-		DNN:              scenarios.DefaultDNN,
-		Sst:              scenarios.DefaultSST,
-		Sd:               scenarios.DefaultSD,
-		IMEISV:           scenarios.DefaultIMEISV,
+		GnodeB:               gNodeB,
+		PDUSessionID:         scenarios.DefaultPDUSessionID,
+		PDUSessionType:       sessionType,
+		Msin:                 p.IMSI[len(prefix):],
+		K:                    p.Key,
+		OpC:                  p.OPc,
+		Amf:                  scenarios.DefaultAMF,
+		Sqn:                  p.SQN,
+		Mcc:                  p.HomeMCC,
+		Mnc:                  p.HomeMNC,
+		NoAutoPDUSession:     !p.Session,
+		HomeNetworkPublicKey: suciKey,
+		RoutingIndicator:     scenarios.DefaultRoutingIndicator,
+		DNN:                  scenarios.DefaultDNN,
+		Sst:                  scenarios.DefaultSST,
+		Sd:                   p.SD,
+		IMEISV:               scenarios.DefaultIMEISV,
 		UeSecurityCapability: testutil.GetUESecurityCapability(&testutil.UeSecurityCapability{
 			Integrity: testutil.IntegrityAlgorithms{Nia2: true},
 			Ciphering: testutil.CipheringAlgorithms{Nea0: true, Nea2: true},
 		}),
+		NoS1Mode: p.NoS1Mode,
 	})
 	if err != nil {
 		return nil, err
@@ -137,7 +193,7 @@ func runRoamingRegistration(ctx context.Context, env scenarios.Env, p *roamingPa
 		MCC:             p.MCC,
 		MNC:             p.MNC,
 		SST:             scenarios.DefaultSST,
-		SD:              scenarios.DefaultSD,
+		SD:              p.SD,
 		DNN:             scenarios.DefaultDNN,
 		TAC:             scenarios.DefaultTAC,
 		Name:            fmt.Sprintf("Ella-Core-Tester-roaming-%d", p.GNBIndex),
@@ -176,6 +232,16 @@ func runRoamingRegistration(ctx context.Context, env scenarios.Env, p *roamingPa
 		return err
 	}
 
+	if err := checkRoamerSecurityMode(u, p); err != nil {
+		return err
+	}
+
+	if p.Session {
+		if err := checkRoamerSession(session, p); err != nil {
+			return err
+		}
+	}
+
 	logger.Logger.Info("roamer registered", zap.String("imsi", p.IMSI), zap.String("ue_ipv4", session.UEIPv4))
 
 	if p.Session && p.Ping {
@@ -187,6 +253,14 @@ func runRoamingRegistration(ctx context.Context, env scenarios.Env, p *roamingPa
 	fmt.Println(roamerRegisteredMarker)
 
 	_ = os.Stdout.Sync()
+
+	if p.Hold > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(p.Hold):
+		}
+	}
 
 	if p.AwaitNetworkDereg {
 		return awaitRoamerDeregistration(u, p)
@@ -289,6 +363,46 @@ func checkRoamingAccept(accept *fgs.RegistrationAccept, p *roamingParams) error 
 
 	if accept.NetworkFeatureSupport != nil && accept.NetworkFeatureSupport.IMSVoPS3GPP {
 		return fmt.Errorf("IMS voice over PS indicated for a roamer")
+	}
+
+	return nil
+}
+
+func checkRoamerSecurityMode(u *ue.UE, p *roamingParams) error {
+	smcs := u.ReceivedNASGMMCount(uint8(fgs.MsgSecurityModeCommand))
+
+	logger.Logger.Info("roamer security mode", zap.Int("security_mode_commands", smcs), zap.Bool("eps_nas_algorithms", u.UeSecurity.EPSNASAlgorithms != nil))
+
+	if p.ExpectSMCs != 0 && smcs != p.ExpectSMCs {
+		return fmt.Errorf("the registration took %d Security Mode Commands, want %d", smcs, p.ExpectSMCs)
+	}
+
+	if p.NoS1Mode && u.UeSecurity.EPSNASAlgorithms != nil {
+		return fmt.Errorf("EPS NAS security algorithms selected for a UE without S1 mode")
+	}
+
+	return nil
+}
+
+func checkRoamerSession(session gnb.PDUSessionResult, p *roamingParams) error {
+	accept, err := fgs.ParsePDUSessionEstablishmentAccept(session.Accept)
+	if err != nil {
+		return fmt.Errorf("parse PDU Session Establishment Accept: %w", err)
+	}
+
+	logger.Logger.Info("roamer PDU session",
+		zap.Stringer("pdu_session_type", accept.PDUSessionType), zap.Any("gsm_cause", accept.Cause),
+		zap.String("ue_ipv4", session.UEIPv4), zap.String("ue_ipv6", session.UEIPv6))
+
+	if want, ok := roamerPDUSessionTypes[p.ExpectPDUSessionType]; ok && accept.PDUSessionType != want {
+		return fmt.Errorf("PDU session type = %s, want %s", accept.PDUSessionType, want)
+	}
+
+	switch {
+	case p.ExpectGSMCause == 0 && accept.Cause != nil:
+		return fmt.Errorf("PDU session accepted with 5GSM cause %d, want none", *accept.Cause)
+	case p.ExpectGSMCause > 0 && (accept.Cause == nil || int(*accept.Cause) != p.ExpectGSMCause):
+		return fmt.Errorf("PDU session 5GSM cause = %v, want #%d", accept.Cause, p.ExpectGSMCause)
 	}
 
 	return nil

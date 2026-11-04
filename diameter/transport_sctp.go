@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/sctp"
@@ -80,8 +81,8 @@ func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
 	return t, nil
 }
 
-func dialSCTP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port uint16, logger *slog.Logger) (transport, error) {
-	d := sctp.Dialer{InitMsg: sctpInit, Logger: logger}
+func dialSCTP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port uint16, control func(network, address string, c syscall.RawConn) error, logger *slog.Logger) (transport, error) {
+	d := sctp.Dialer{InitMsg: sctpInit, Logger: logger, Control: control}
 
 	if len(local) > 0 {
 		d.LocalAddr = &sctp.SCTPAddr{IPAddrs: ipAddrs(local)}

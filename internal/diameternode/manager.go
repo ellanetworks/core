@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/internal/netutil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 )
@@ -76,6 +77,7 @@ type Manager struct {
 	logger      *zap.Logger
 	slog        *slog.Logger
 	localAddr   func(remote netip.Addr) (netip.Addr, error)
+	vrfDevice   func(interfaceName, address string) (string, error)
 
 	mu        sync.Mutex
 	node      *diameter.Node
@@ -95,6 +97,7 @@ func New(nodeSource NodeSource, peersSource PeersSource, listen ListenConfig, lo
 		logger:      logger,
 		slog:        slog.New(zapslog.NewHandler(logger.Core(), zapslog.WithName("Diameter"), zapslog.WithCaller(true))),
 		localAddr:   routeSource,
+		vrfDevice:   netutil.VRFBindDevice,
 		since:       time.Now(),
 	}
 }
@@ -304,6 +307,11 @@ func samePeers(a, b []PeerConfig) bool {
 }
 
 func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedRealms []string, peers []diameter.Peer) error {
+	device, err := m.dialDevice()
+	if err != nil {
+		return fmt.Errorf("resolve Diameter VRF: %w", err)
+	}
+
 	cfg := diameter.Config{
 		Identity:          identity,
 		ServedRealms:      servedRealms,
@@ -318,6 +326,10 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 		cfg.AcceptUnknownPeers = true
 		cfg.UnknownPeerApplications = imsApplications
 		cfg.UnknownPeerSupportedVendors = imsSupportedVendors
+	}
+
+	if device != "" {
+		cfg.DialControl = netutil.BindToDeviceControl(device)
 	}
 
 	node, err := diameter.New(cfg)
@@ -352,6 +364,7 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 		zap.String("origin_host", identity.OriginHost),
 		zap.String("origin_realm", identity.OriginRealm),
 		zap.Stringers("host_ip_addresses", identity.HostIPAddresses),
+		zap.String("vrf", device),
 	)
 
 	return nil

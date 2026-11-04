@@ -30,6 +30,7 @@ type AttachResult struct {
 	SMSOnly             bool
 	IdentityRequested   bool
 	PDNType             eps.PDNType
+	ESMCause            *eps.ESMCause
 	QCI                 byte
 	ARP                 byte
 	PreemptCap          s1ap.PreemptionCapability
@@ -131,8 +132,42 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, err
 	}
 
+	return e.finishAttach(ue, enbUEID, identityRequested, timeout)
+}
+
+func (e *ENB) ReattachWithGUTI(ue *UE, guti *eps.EPSMobileIdentity, staleENBUEID int64, timeout time.Duration) (*AttachResult, error) {
+	if guti == nil {
+		return nil, fmt.Errorf("s1enb: a GUTI re-attach needs the GUTI of an earlier attach")
+	}
+
+	attachReq, err := ue.buildProtectedGUTIAttachRequest(guti)
+	if err != nil {
+		return nil, err
+	}
+
+	enbUEID := e.AllocateENBUEID()
+
+	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
+		return nil, err
+	}
+
+	res, err := e.finishAttach(ue, enbUEID, false, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	if staleENBUEID != 0 {
+		if err := e.completeContextRelease(staleENBUEID, timeout); err != nil {
+			return nil, fmt.Errorf("release of the stale S1 connection: %w", err)
+		}
+	}
+
+	return res, nil
+}
+
+func (e *ENB) finishAttach(ue *UE, enbUEID int64, identityRequested bool, timeout time.Duration) (*AttachResult, error) {
 	if ue.deferESMInfo {
-		esmReq, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
+		esmReq, id, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("await ESM Information Request: %w", err)
 		}
@@ -142,7 +177,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 			return nil, err
 		}
 
-		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, esmResp); err != nil {
+		if err := e.SendUplinkNASTransport(id, enbUEID, esmResp); err != nil {
 			return nil, err
 		}
 	}
@@ -162,6 +197,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	erab := ics.ERABToBeSetup[0]
+	mmeUEID := int64(ics.MMEUES1APID)
 
 	upf, err := e.selectUpfAddr(erab.TransportLayerAddress)
 	if err != nil {
@@ -232,6 +268,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
 		res.QCI = act.EPSQoS.QCI
+		res.ESMCause = act.Cause
 
 		res.APN = string(act.AccessPointName)
 

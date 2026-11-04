@@ -7,12 +7,14 @@ package integration_test
 
 import (
 	"bytes"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -27,12 +29,15 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
 const (
 	r5gUDM       = "10.150.0.34"
 	r5gHPLMNSEPP = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
 	r5gN32Port   = 7443
+	r5gNoSDSlice = "no-sd"
 )
 
 var roaming5G = roamingRAT{
@@ -52,6 +57,8 @@ type r5gStack struct {
 }
 
 func r5gRoamer(i int) string { return fmt.Sprintf("00101000000020%d", i) }
+
+func r5gNoSDRoamer(i int) string { return fmt.Sprintf("00101000000021%d", i) }
 
 func r5gEllaSEPP(n int) string { return fmt.Sprintf("sepp%d.5gc.mnc070.mcc999.3gppnetwork.org", n) }
 
@@ -180,6 +187,14 @@ func r5gBringUp(t *testing.T, nodes int) *r5gStack {
 	t.Helper()
 
 	s := &r5gStack{roamingStack: roamingBringUp(t, roaming5G, nodes)}
+
+	fx := fixture.New(t, s.ctx, s.api)
+	fx.Slice(fixture.SliceSpec{Name: r5gNoSDSlice, SST: scenarios.DefaultSST})
+	fx.Policy(fixture.PolicySpec{
+		Name: "roamers-internet-no-sd", ProfileName: roamingProfile, SliceName: r5gNoSDSlice,
+		DataNetworkName: scenarios.DefaultDNN, SessionAmbrUplink: "200 Mbps", SessionAmbrDownlink: "200 Mbps",
+		Var5qi: 9, Arp: 15,
+	})
 
 	s.writeHPLMNSEPP(s.ellaTrustAnchor(nodes), nodes)
 
@@ -383,6 +398,37 @@ func (s *r5gStack) notify(ownerNode int, imsi, kind string, body any) (int, stri
 	return resp.StatusCode, string(out)
 }
 
+func (s *r5gStack) udmProfileAKey() string {
+	s.t.Helper()
+
+	container, err := s.dc.ResolveComposeContainer(s.ctx, s.rat.project(), "udm")
+	if err != nil {
+		s.t.Fatalf("resolve UDM container: %v", err)
+	}
+
+	out, err := s.dc.Exec(s.ctx, container, []string{"openssl", "pkey", "-in", "/etc/open5gs/hnet/curve25519-1.key", "-pubout"}, false, 30*time.Second, nil)
+	if err != nil {
+		s.t.Fatalf("read the home network public key: %v", err)
+	}
+
+	block, _ := pem.Decode([]byte(out[max(strings.Index(out, "-----BEGIN"), 0):]))
+	if block == nil {
+		s.t.Fatalf("no PEM public key in %q", out)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		s.t.Fatalf("parse the home network public key: %v", err)
+	}
+
+	key, ok := pub.(*ecdh.PublicKey)
+	if !ok {
+		s.t.Fatalf("home network key %T is not X25519", pub)
+	}
+
+	return hex.EncodeToString(key.Bytes())
+}
+
 func (s *r5gStack) sessionFlags() []string {
 	if os.Getenv("ROAMING5G_NO_SESSION") != "" {
 		return []string{"--session=false", "--ping=false"}
@@ -471,6 +517,26 @@ func TestRoaming5GOpen5GS(t *testing.T) {
 		if reg, _, err := s.udmRegistration(imsi); err != nil || reg.PurgeFlag {
 			t.Fatalf("the AMF purged a registration the home UDM had withdrawn: %+v %v", reg, err)
 		}
+	})
+
+	t.Run("SST 1 without SD on both sides, with the GPSI from the home UDM as MSISDN", func(t *testing.T) {
+		imsi := r5gNoSDRoamer(1)
+		run := s.tester(1, imsi, append([]string{"--sd=", "--hold", "10s"}, s.sessionFlags()...)...)
+		run.reached(t, "roamer registration")
+		s.waitRoamerMSISDN(imsi, "+15550200011")
+		run.wait(t, "roamer registration")
+	})
+
+	t.Run("IPv4v6 PDU session request with an IPv4-only home subscription is answered IPv4 with #50", func(t *testing.T) {
+		s.tester(1, r5gNoSDRoamer(2), "--sd=", "--pdu-session-type", "ipv4v6", "--expect-pdu-session-type", "ipv4", "--expect-gsm-cause", "50").wait(t, "IPv4v6 session")
+	})
+
+	t.Run("Profile A SUCI de-concealed by the home UDM over N32", func(t *testing.T) {
+		s.tester(1, r5gRoamer(7), append([]string{"--suci-public-key", s.udmProfileAKey(), "--suci-public-key-id", "1"}, s.sessionFlags()...)...).wait(t, "Profile A registration")
+	})
+
+	t.Run("UE without S1 mode registers with a single Security Mode Command", func(t *testing.T) {
+		s.tester(1, r5gRoamer(8), append([]string{"--no-s1-mode", "--expect-security-mode-commands", "1"}, s.sessionFlags()...)...).wait(t, "registration without S1 mode")
 	})
 
 	t.Run("deleting the partner deregisters its roamers with #11", func(t *testing.T) {

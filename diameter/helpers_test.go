@@ -182,9 +182,9 @@ func tryDialRaw(t *testing.T, kind Transport, local netip.Addr, to netip.AddrPor
 	case TransportSCTP:
 		requireSCTP(t)
 
-		tr, err = dialSCTP(ctx, []netip.Addr{local}, []netip.Addr{to.Addr()}, to.Port(), nil)
+		tr, err = dialSCTP(ctx, []netip.Addr{local}, []netip.Addr{to.Addr()}, to.Port(), nil, nil)
 	case TransportTCP:
-		tr, err = dialTCP(ctx, []netip.Addr{local}, []netip.Addr{to.Addr()}, to.Port())
+		tr, err = dialTCP(ctx, []netip.Addr{local}, []netip.Addr{to.Addr()}, to.Port(), nil)
 	default:
 		t.Fatalf("unsupported transport %s", kind)
 	}

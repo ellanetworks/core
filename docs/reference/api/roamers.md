@@ -129,7 +129,7 @@ None
 
 ## Deregister a Roamer
 
-This path deregisters a roamer on the node that serves it and purges it at its home network. The UE may register again.
+This path deregisters a roamer on the node that serves it and purges it at its home network.
 
 | Method | Path                     |
 | ------ | ------------------------ |

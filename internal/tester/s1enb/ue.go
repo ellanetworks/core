@@ -46,6 +46,7 @@ type UE struct {
 	attachGUTI                *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 	n1Mode                    bool                   // gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4)
 	deferESMInfo              bool
+	detachGUTI                *eps.EPSMobileIdentity
 	attachType                eps.AttachType
 	requestType               eps.RequestType
 	pduSessionID              uint8 // sent in the PCO; 0 sends none
@@ -136,6 +137,8 @@ func (ue *UE) RequestPCSCFAddresses() { ue.requestPCSCF = true }
 
 func (ue *UE) RequestCombinedAttach() { ue.attachType = eps.AttachTypeCombined }
 
+func (ue *UE) DetachWithGUTI(guti *eps.EPSMobileIdentity) { ue.detachGUTI = guti }
+
 // UseUnknownGUTI makes the Attach Request present a GUTI the MME cannot resolve,
 // so the MME must obtain the IMSI with an IDENTITY REQUEST (TS 24.301 §5.4.4).
 func (ue *UE) UseUnknownGUTI() {
@@ -166,6 +169,43 @@ func (ue *UE) AnnounceN1Mode(pduSessionID uint8) {
 }
 
 func (ue *UE) buildAttachRequest() ([]byte, error) {
+	attach, err := ue.attachRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	return attach.MarshalBinary()
+}
+
+func (ue *UE) buildProtectedGUTIAttachRequest(guti *eps.EPSMobileIdentity) ([]byte, error) {
+	if ue.sc == nil {
+		return nil, fmt.Errorf("s1enb: a GUTI re-attach needs the EPS security context of an earlier attach")
+	}
+
+	attach, err := ue.attachRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	attach.EPSMobileIdentity = *guti
+	attach.NASKeySetIdentifier = nas.KeySetIdentifier{Value: ue.eksi}
+
+	plain, err := attach.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := eps.Protect(plain, eps.SHTIntegrityProtected, nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
+	if err != nil {
+		return nil, fmt.Errorf("protect Attach Request: %w", err)
+	}
+
+	ue.ulCount++
+
+	return out, nil
+}
+
+func (ue *UE) attachRequest() (*eps.AttachRequest, error) {
 	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: ue.requestType, PDNType: ue.pdnType}
 
 	if ue.deferESMInfo {
@@ -223,7 +263,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		attach.AdditionalUpdateType = &eps.AdditionalUpdateType{AUTV: true}
 	}
 
-	return attach.MarshalBinary()
+	return attach, nil
 }
 
 func (ue *UE) handleESMInformationRequest(wire []byte) ([]byte, error) {
@@ -514,6 +554,11 @@ func (ue *UE) buildDetachRequestWith(switchOff bool) ([]byte, error) {
 		TypeOfDetach:        eps.DetachTypeEPS,
 		NASKeySetIdentifier: nas.KeySetIdentifier{},
 		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(ue.IMSI)),
+	}
+
+	if ue.detachGUTI != nil {
+		req.EPSMobileIdentity = *ue.detachGUTI
+		req.NASKeySetIdentifier = nas.KeySetIdentifier{Value: ue.eksi}
 	}
 
 	plain, err := req.MarshalBinary()

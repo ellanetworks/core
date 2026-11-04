@@ -48,6 +48,14 @@ func (m *Manager) listenAddrs() ([]netip.Addr, error) {
 	return []netip.Addr{addr.Unmap()}, nil
 }
 
+func (m *Manager) dialDevice() (string, error) {
+	if !m.listen.enabled() {
+		return "", nil
+	}
+
+	return m.vrfDevice(m.listen.Name, m.listen.Address)
+}
+
 func (m *Manager) openListeners(ctx context.Context) ([]diameter.Listener, error) {
 	sl, err := sctplisten.Listen(ctx, m.logger, m.listen.Address, m.listen.Port, m.listen.Name)
 	if err != nil {

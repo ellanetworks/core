@@ -753,17 +753,17 @@ func (n *Node) connectOver(kind Transport, local, remote []netip.Addr, port uint
 
 	switch kind {
 	case TransportSCTP:
-		return dialSCTP(ctx, local, remote, port, n.logger)
+		return dialSCTP(ctx, local, remote, port, n.cfg.DialControl, n.logger)
 	case TransportTCP:
-		return dialTCP(ctx, local, remote, port)
+		return dialTCP(ctx, local, remote, port, n.cfg.DialControl)
 	default:
 		return nil, fmt.Errorf("diameter: unsupported transport %s", kind)
 	}
 }
 
 func (n *Node) localAddresses(remote []netip.Addr) ([]netip.Addr, error) {
-	if n.cfg.SourceAddress == nil {
-		return n.identityAddresses(remote), nil
+	if local := n.identityAddresses(remote); len(local) > 0 || n.cfg.SourceAddress == nil {
+		return local, nil
 	}
 
 	var (

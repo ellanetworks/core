@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
@@ -27,6 +28,7 @@ const (
 	r4gHSSIdentity = "hss.epc.mnc001.mcc001.3gppnetwork.org"
 	r4gHSSRealm    = "epc.mnc001.mcc001.3gppnetwork.org"
 	r4gHSSAddress  = "10.130.0.30"
+	r4gCorporate   = "corporate"
 )
 
 var roaming4G = roamingRAT{
@@ -46,7 +48,9 @@ type r4gStack struct {
 	moverRun *roamingTesterRun
 }
 
-func r4gRoamer(i int) string { return fmt.Sprintf("00101000000010%d", i) }
+func r4gRoamer(i int) string { return fmt.Sprintf("0010100000001%02d", i) }
+
+func r4gMSISDN(i int) string { return fmt.Sprintf("+155501000%02d", i) }
 
 func r4gWriteHSSConfig(hosts []string) error {
 	var b strings.Builder
@@ -119,6 +123,15 @@ func r4gBringUp(t *testing.T, nodes int) *r4gStack {
 	t.Helper()
 
 	s := &r4gStack{roamingStack: roamingBringUp(t, roaming4G, nodes)}
+
+	fx := fixture.New(t, s.ctx, s.api)
+	fx.DataNetwork(fixture.DataNetworkSpec{Name: r4gCorporate, IPv4Pool: "10.46.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU})
+	fx.Policy(fixture.PolicySpec{
+		Name: "roamers-corporate", ProfileName: roamingProfile, SliceName: scenarios.DefaultSliceName,
+		DataNetworkName: r4gCorporate, SessionAmbrUplink: "200 Mbps", SessionAmbrDownlink: "200 Mbps",
+		Var5qi: 9, Arp: 15,
+	})
+
 	s.startTester()
 	s.createPartner()
 	s.startHSS()
@@ -218,6 +231,7 @@ type r4gHSSRecord struct {
 	MMEHost   string `json:"mme_host"`
 	MMERealm  string `json:"mme_realm"`
 	PurgeFlag bool   `json:"purge_flag"`
+	SQN       int64  `json:"sqn"`
 }
 
 func (s *r4gStack) mongo(js string) string {
@@ -239,7 +253,7 @@ func (s *r4gStack) mongo(js string) string {
 func (s *r4gStack) hssRecord(imsi string) r4gHSSRecord {
 	s.t.Helper()
 
-	out := s.mongo(fmt.Sprintf(`const d = db.subscribers.findOne({imsi: %q}); print(JSON.stringify({mme_host: typeof d.mme_host === "string" ? d.mme_host : "", mme_realm: typeof d.mme_realm === "string" ? d.mme_realm : "", purge_flag: d.purge_flag === true}))`, imsi))
+	out := s.mongo(fmt.Sprintf(`const d = db.subscribers.findOne({imsi: %q}); print(JSON.stringify({mme_host: typeof d.mme_host === "string" ? d.mme_host : "", mme_realm: typeof d.mme_realm === "string" ? d.mme_realm : "", purge_flag: d.purge_flag === true, sqn: Number(d.security.sqn)}))`, imsi))
 
 	var rec r4gHSSRecord
 	if err := json.Unmarshal([]byte(out[strings.LastIndex(out, "{"):]), &rec); err != nil {
@@ -279,7 +293,10 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 	t.Run("attach, LBO data and detach with purge", func(t *testing.T) {
 		imsi := r4gRoamer(1)
 
-		s.tester(1, imsi, "--expect-apn", scenarios.DefaultDNN).wait(t, "roamer attach")
+		run := s.tester(1, imsi, "--expect-apn", scenarios.DefaultDNN, "--hold", "10s")
+		run.reached(t, "roamer attach")
+		s.waitRoamerMSISDN(imsi, r4gMSISDN(1))
+		run.wait(t, "roamer attach")
 
 		rec := s.waitHSSRecord(imsi, "PUR after the detach", func(r r4gHSSRecord) bool { return r.PurgeFlag })
 		if rec.MMEHost != s.hosts[0] {
@@ -352,6 +369,41 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 		s.waitHSSRecord(imsi, "PUR after the final detach", func(r r4gHSSRecord) bool { return r.PurgeFlag })
 	})
 
+	t.Run("combined attach with deferred ESM information is answered EPS only with #18", func(t *testing.T) {
+		imsi := r4gRoamer(10)
+
+		s.tester(1, imsi, "--combined", "--defer-esm-info", "--apn", scenarios.DefaultDNN, "--expect-apn", scenarios.DefaultDNN).wait(t, "combined attach")
+		s.waitHSSRecord(imsi, "PUR after the detach", func(r r4gHSSRecord) bool { return r.PurgeFlag })
+	})
+
+	t.Run("integrity-protected GUTI re-attach skips authentication, then a switch-off detach by GUTI", func(t *testing.T) {
+		imsi := r4gRoamer(11)
+		sqn := s.hssRecord(imsi).SQN
+		requests := s.s6aSuccesses()
+
+		s.tester(1, imsi, "--defer-esm-info", "--apn", scenarios.DefaultDNN, "--expect-apn", scenarios.DefaultDNN,
+			"--reattach-with-guti", "--switch-off").wait(t, "GUTI re-attach")
+
+		rec := s.waitHSSRecord(imsi, "PUR after the switch-off detach", func(r r4gHSSRecord) bool { return r.PurgeFlag })
+		if rec.SQN != sqn+32 {
+			t.Fatalf("HSS SQN went from %d to %d: the attach and the GUTI re-attach took %d AIRs, want 1", sqn, rec.SQN, (rec.SQN-sqn)/32)
+		}
+
+		if got := s.s6aSuccesses() - requests; got != 4 {
+			t.Fatalf("%v S6a requests, want 4: AIR and ULR for the attach, ULR for the re-attach, PUR for the detach", got)
+		}
+	})
+
+	t.Run("IPv4v6 request on an IPv4-only data network is answered IPv4 with #50", func(t *testing.T) {
+		s.tester(1, r4gRoamer(13), "--ping=false", "--apn", r4gCorporate, "--expect-apn", r4gCorporate,
+			"--pdn-type", "ipv4v6", "--expect-pdn-type", "ipv4", "--expect-esm-cause", "50").wait(t, "IPv4v6 attach")
+	})
+
+	t.Run("IPv4v6 request with an IPv4_OR_IPv6 home subscription is answered IPv4 with #52", func(t *testing.T) {
+		s.tester(1, r4gRoamer(12), "--expect-apn", scenarios.DefaultDNN,
+			"--pdn-type", "ipv4v6", "--expect-pdn-type", "ipv4", "--expect-esm-cause", "52").wait(t, "IPv4v6 attach")
+	})
+
 	t.Run("roaming metrics", func(t *testing.T) {
 		m, err := s.api.GetMetrics(s.ctx)
 		if err != nil {
@@ -377,6 +429,17 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 			}
 		}
 	})
+}
+
+func (s *r4gStack) s6aSuccesses() float64 {
+	s.t.Helper()
+
+	m, err := s.api.GetMetrics(s.ctx)
+	if err != nil {
+		s.t.Fatalf("get metrics: %v", err)
+	}
+
+	return r4gMetricSum(m, "app_peer_requests_total", `interface="s6a"`, `result="success"`)
 }
 
 func r4gMetricSum(m map[string]float64, name string, labels ...string) float64 {

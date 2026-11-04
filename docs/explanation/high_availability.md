@@ -68,7 +68,7 @@ Useful for site- or tenant-partitioned deployments. Network-wide state still rep
 
 ## Roaming
 
-Ella Core replicates roaming partner information accross the cluster. Each node connects to each roaming partner on its own and serves the roamers it registers, so the partner must accept every node.
+Ella Core replicates roaming partner information across the cluster. Each node connects to each roaming partner on its own and serves the roamers it registers, so the partner must accept every node.
 
 ## Draining a node
 

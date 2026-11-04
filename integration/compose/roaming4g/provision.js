@@ -2,10 +2,10 @@ const k = "465B5CE8B199B49FAA5F0A2EE238A6BC";
 const opc = "E8ED289DEBA952E4283B54E88E6183CA";
 const gbps = { value: NumberInt(1), unit: NumberInt(3) };
 
-function apn(name, lbo) {
+function apn(name, lbo, type) {
   return {
     name: name,
-    type: NumberInt(0),
+    type: NumberInt(type),
     lbo_roaming_allowed: lbo,
     qos: {
       index: NumberInt(9),
@@ -21,11 +21,11 @@ function apn(name, lbo) {
   };
 }
 
-function subscriber(imsi) {
+function subscriber(imsi, msisdn, internetType) {
   return {
     schema_version: NumberInt(1),
     imsi: imsi,
-    msisdn: [],
+    msisdn: [msisdn],
     imeisv: [],
     mme_host: [],
     mm_realm: [],
@@ -34,7 +34,7 @@ function subscriber(imsi) {
       {
         sst: NumberInt(1),
         default_indicator: true,
-        session: [apn("internet", true), apn("corporate", true)],
+        session: [apn("internet", true, internetType), apn("corporate", true, 3)],
         _id: new ObjectId(),
       },
     ],
@@ -50,8 +50,14 @@ function subscriber(imsi) {
 }
 
 db = db.getSiblingDB("open5gs");
-for (let i = 1; i <= 9; i++) {
-  const imsi = "00101000000010" + i;
-  db.subscribers.replaceOne({ imsi: imsi }, subscriber(imsi), { upsert: true });
+const ipv4OrIPv6 = { "001010000000112": 4 };
+for (let i = 1; i <= 19; i++) {
+  const n = String(i).padStart(2, "0");
+  const imsi = "0010100000001" + n;
+  db.subscribers.replaceOne(
+    { imsi: imsi },
+    subscriber(imsi, "155501000" + n, ipv4OrIPv6[imsi] || 3),
+    { upsert: true },
+  );
 }
 print("provisioned " + db.subscribers.countDocuments({}) + " subscribers");

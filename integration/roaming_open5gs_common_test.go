@@ -291,6 +291,26 @@ func (s *roamingStack) startTester() {
 	}
 }
 
+func (s *roamingStack) waitRoamerMSISDN(imsi, want string) {
+	s.t.Helper()
+
+	err := roamingPoll(s.ctx, 10*time.Second, func() error {
+		r, err := s.api.GetRoamer(s.ctx, imsi)
+		if err != nil {
+			return err
+		}
+
+		if r.Msisdn != want {
+			return fmt.Errorf("roamer MSISDN %q, want %q", r.Msisdn, want)
+		}
+
+		return nil
+	})
+	if err != nil {
+		s.t.Fatalf("MSISDN of roamer %s: %v", imsi, err)
+	}
+}
+
 func roamingPoll(ctx context.Context, timeout time.Duration, f func() error) error {
 	deadline := time.Now().Add(timeout)
 

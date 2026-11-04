@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -45,6 +46,14 @@ type roamingParams struct {
 	AwaitUEAMBRULMbps  uint64
 	AwaitNetworkDetach bool
 	ExpectDetachCause  int
+	Combined           bool
+	DeferESMInfo       bool
+	PDNType            string
+	ExpectPDNType      string
+	ExpectESMCause     int
+	ReattachWithGUTI   bool
+	SwitchOff          bool
+	Hold               time.Duration
 }
 
 func init() {
@@ -70,6 +79,14 @@ func init() {
 			fs.Uint64Var(&p.AwaitUEAMBRULMbps, "await-ue-ambr-ul", 0, "after the marker, await a UE Context Modification with this uplink UE-AMBR (Mbps)")
 			fs.BoolVar(&p.AwaitNetworkDetach, "await-network-detach", false, "after the marker, await a network-initiated detach")
 			fs.IntVar(&p.ExpectDetachCause, "expect-detach-cause", 0, "EMM cause the network-initiated detach must carry (0: any)")
+			fs.BoolVar(&p.Combined, "combined", false, "request a combined EPS/IMSI attach and expect it answered EPS only with EMM cause #18")
+			fs.BoolVar(&p.DeferESMInfo, "defer-esm-info", false, "set the ESM information transfer flag and send the APN in the ESM Information Response")
+			fs.StringVar(&p.PDNType, "pdn-type", "ipv4", "PDN type requested in the attach: ipv4, ipv6 or ipv4v6")
+			fs.StringVar(&p.ExpectPDNType, "expect-pdn-type", "", "PDN type the default bearer must be activated with (empty: any)")
+			fs.IntVar(&p.ExpectESMCause, "expect-esm-cause", -1, "ESM cause the default bearer activation must carry (0: none, -1: any)")
+			fs.BoolVar(&p.ReattachWithGUTI, "reattach-with-guti", false, "after the attach, re-attach on a new S1 connection with an integrity-protected GUTI Attach Request that skips authentication")
+			fs.BoolVar(&p.SwitchOff, "switch-off", false, "detach with a switch-off Detach Request identified by the GUTI")
+			fs.DurationVar(&p.Hold, "hold", 0, "stay attached this long after the marker before detaching")
 
 			return p
 		},
@@ -137,17 +154,8 @@ func runRoamingAttach(ctx context.Context, env scenarios.Env, p *roamingParams) 
 
 	ue := e.NewUE(p.IMSI, k, opc)
 
-	if p.APN != "" {
-		ue.RequestAPN(p.APN)
-	}
-
-	if p.SQN != "" {
-		b, err := hex.DecodeString(p.SQN)
-		if err != nil || len(b) != 6 {
-			return fmt.Errorf("--sqn must be 6 octets of hex")
-		}
-
-		ue.TrackSequenceNumber([6]byte(b))
+	if err := configureRoamer(ue, p); err != nil {
+		return err
 	}
 
 	if p.ExpectReject != 0 {
@@ -165,51 +173,27 @@ func runRoamingAttach(ctx context.Context, env scenarios.Env, p *roamingParams) 
 		return nil
 	}
 
-	res, err := e.Attach(ue, attachTimeout)
+	res, err := attachRoamer(ctx, e, ue, p)
 	if err != nil {
-		return fmt.Errorf("attach: %w", err)
-	}
-
-	logger.Logger.Info("roamer attached",
-		zap.String("imsi", p.IMSI), zap.String("apn", res.APN), zap.String("ue_ipv4", res.UEIPv4),
-		zap.Uint64("ue_ambr_dl", res.UEAmbrDownlinkBps), zap.Uint64("ue_ambr_ul", res.UEAmbrUplinkBps),
-		zap.Uint64("apn_ambr_dl", res.SessAmbrDownlinkBps), zap.Uint64("apn_ambr_ul", res.SessAmbrUplinkBps),
-		zap.Int("resynchronisations", ue.Resynchronisations()))
-
-	if p.ExpectResyncs >= 0 && ue.Resynchronisations() != p.ExpectResyncs {
-		return fmt.Errorf("the attach took %d resynchronisations, want %d", ue.Resynchronisations(), p.ExpectResyncs)
-	}
-
-	if p.ExpectAPN != "" && res.APN != p.ExpectAPN {
-		return fmt.Errorf("default bearer APN = %q, want %q", res.APN, p.ExpectAPN)
-	}
-
-	if p.Ping {
-		if err := roamerPing(ctx, e, res, p.PingDestination); err != nil {
-			return err
-		}
+		return err
 	}
 
 	fmt.Println(roamerAttachedMarker)
 
 	_ = os.Stdout.Sync()
 
+	if p.Hold > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(p.Hold):
+		}
+	}
+
 	if p.AwaitUEAMBRDLMbps != 0 || p.AwaitUEAMBRULMbps != 0 {
-		req, err := e.AcceptUEContextModification(res.ENBUES1APID, roamingModificationTimeout)
-		if err != nil {
+		if err := awaitRoamerUEAMBR(e, res, p); err != nil {
 			return err
 		}
-
-		ambr := req.UEAggregateMaximumBitRate
-		if ambr == nil {
-			return fmt.Errorf("UE Context Modification Request without a UE-AMBR")
-		}
-
-		if uint64(ambr.DL) != p.AwaitUEAMBRDLMbps*mbpsToBps || uint64(ambr.UL) != p.AwaitUEAMBRULMbps*mbpsToBps {
-			return fmt.Errorf("UE-AMBR = %d/%d bit/s (DL/UL), want %d/%d Mbps", ambr.DL, ambr.UL, p.AwaitUEAMBRDLMbps, p.AwaitUEAMBRULMbps)
-		}
-
-		logger.Logger.Info("roamer UE-AMBR modified", zap.Int64("dl", int64(ambr.DL)), zap.Int64("ul", int64(ambr.UL)))
 	}
 
 	if p.AwaitNetworkDetach {
@@ -231,7 +215,160 @@ func runRoamingAttach(ctx context.Context, env scenarios.Env, p *roamingParams) 
 		return nil
 	}
 
+	if p.SwitchOff {
+		ue.DetachWithGUTI(res.GUTI)
+
+		return e.SwitchOff(ue, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout)
+	}
+
 	return e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout)
+}
+
+var roamerPDNTypes = map[string]eps.PDNType{
+	"ipv4":   eps.PDNTypeIPv4,
+	"ipv6":   eps.PDNTypeIPv6,
+	"ipv4v6": eps.PDNTypeIPv4v6,
+}
+
+func configureRoamer(ue *s1enb.UE, p *roamingParams) error {
+	if p.APN != "" {
+		ue.RequestAPN(p.APN)
+	}
+
+	if p.SQN != "" {
+		b, err := hex.DecodeString(p.SQN)
+		if err != nil || len(b) != 6 {
+			return fmt.Errorf("--sqn must be 6 octets of hex")
+		}
+
+		ue.TrackSequenceNumber([6]byte(b))
+	}
+
+	pdnType, ok := roamerPDNTypes[p.PDNType]
+	if !ok {
+		return fmt.Errorf("--pdn-type %q is not ipv4, ipv6 or ipv4v6", p.PDNType)
+	}
+
+	if _, ok := roamerPDNTypes[p.ExpectPDNType]; p.ExpectPDNType != "" && !ok {
+		return fmt.Errorf("--expect-pdn-type %q is not ipv4, ipv6 or ipv4v6", p.ExpectPDNType)
+	}
+
+	ue.RequestPDNType(uint8(pdnType))
+
+	if p.Combined {
+		ue.RequestCombinedAttach()
+	}
+
+	if p.DeferESMInfo {
+		ue.DeferESMInformation()
+	}
+
+	return nil
+}
+
+func attachRoamer(ctx context.Context, e *s1enb.ENB, ue *s1enb.UE, p *roamingParams) (*s1enb.AttachResult, error) {
+	res, err := e.Attach(ue, attachTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("attach: %w", err)
+	}
+
+	logger.Logger.Info("roamer attached",
+		zap.String("imsi", p.IMSI), zap.String("apn", res.APN), zap.String("ue_ipv4", res.UEIPv4),
+		zap.Stringer("pdn_type", res.PDNType), zap.Any("esm_cause", res.ESMCause), zap.Any("emm_cause", res.EMMCause),
+		zap.Uint64("ue_ambr_dl", res.UEAmbrDownlinkBps), zap.Uint64("ue_ambr_ul", res.UEAmbrUplinkBps),
+		zap.Uint64("apn_ambr_dl", res.SessAmbrDownlinkBps), zap.Uint64("apn_ambr_ul", res.SessAmbrUplinkBps),
+		zap.Int("resynchronisations", ue.Resynchronisations()))
+
+	if p.ExpectResyncs >= 0 && ue.Resynchronisations() != p.ExpectResyncs {
+		return nil, fmt.Errorf("the attach took %d resynchronisations, want %d", ue.Resynchronisations(), p.ExpectResyncs)
+	}
+
+	if err := checkRoamerAttach(res, p); err != nil {
+		return nil, err
+	}
+
+	if p.Ping {
+		if err := roamerPing(ctx, e, res, p.PingDestination); err != nil {
+			return nil, err
+		}
+	}
+
+	if !p.ReattachWithGUTI {
+		return res, nil
+	}
+
+	again, err := e.ReattachWithGUTI(ue, res.GUTI, res.ENBUES1APID, attachTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("integrity-protected GUTI re-attach: %w", err)
+	}
+
+	if again.GUTI == nil {
+		again.GUTI = res.GUTI
+	}
+
+	logger.Logger.Info("roamer re-attached with its GUTI without authentication",
+		zap.String("imsi", p.IMSI), zap.String("apn", again.APN), zap.String("ue_ipv4", again.UEIPv4))
+
+	if err := checkRoamerAttach(again, p); err != nil {
+		return nil, fmt.Errorf("re-attach: %w", err)
+	}
+
+	if p.Ping {
+		if err := roamerPing(ctx, e, again, p.PingDestination); err != nil {
+			return nil, fmt.Errorf("re-attach: %w", err)
+		}
+	}
+
+	return again, nil
+}
+
+func checkRoamerAttach(res *s1enb.AttachResult, p *roamingParams) error {
+	if p.ExpectAPN != "" && res.APN != p.ExpectAPN {
+		return fmt.Errorf("default bearer APN = %q, want %q", res.APN, p.ExpectAPN)
+	}
+
+	if p.Combined {
+		if res.AttachResultValue != eps.AttachResultEPS {
+			return fmt.Errorf("combined attach result = %d, want EPS only (%d)", res.AttachResultValue, eps.AttachResultEPS)
+		}
+
+		if res.EMMCause == nil || *res.EMMCause != eps.EMMCauseCSDomainNotAvailable {
+			return fmt.Errorf("combined attach EMM cause = %v, want %s", res.EMMCause, eps.EMMCauseCSDomainNotAvailable)
+		}
+	}
+
+	if want, ok := roamerPDNTypes[p.ExpectPDNType]; ok && res.PDNType != want {
+		return fmt.Errorf("default bearer PDN type = %s, want %s", res.PDNType, want)
+	}
+
+	switch {
+	case p.ExpectESMCause == 0 && res.ESMCause != nil:
+		return fmt.Errorf("default bearer activated with %s, want no ESM cause", *res.ESMCause)
+	case p.ExpectESMCause > 0 && (res.ESMCause == nil || int(*res.ESMCause) != p.ExpectESMCause):
+		return fmt.Errorf("default bearer ESM cause = %v, want #%d", res.ESMCause, p.ExpectESMCause)
+	}
+
+	return nil
+}
+
+func awaitRoamerUEAMBR(e *s1enb.ENB, res *s1enb.AttachResult, p *roamingParams) error {
+	req, err := e.AcceptUEContextModification(res.ENBUES1APID, roamingModificationTimeout)
+	if err != nil {
+		return err
+	}
+
+	ambr := req.UEAggregateMaximumBitRate
+	if ambr == nil {
+		return fmt.Errorf("UE Context Modification Request without a UE-AMBR")
+	}
+
+	if uint64(ambr.DL) != p.AwaitUEAMBRDLMbps*mbpsToBps || uint64(ambr.UL) != p.AwaitUEAMBRULMbps*mbpsToBps {
+		return fmt.Errorf("UE-AMBR = %d/%d bit/s (DL/UL), want %d/%d Mbps", ambr.DL, ambr.UL, p.AwaitUEAMBRDLMbps, p.AwaitUEAMBRULMbps)
+	}
+
+	logger.Logger.Info("roamer UE-AMBR modified", zap.Int64("dl", int64(ambr.DL)), zap.Int64("ul", int64(ambr.UL)))
+
+	return nil
 }
 
 func roamerPing(ctx context.Context, e *s1enb.ENB, res *s1enb.AttachResult, destination string) error {

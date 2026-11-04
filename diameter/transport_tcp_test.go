@@ -147,7 +147,7 @@ func tcpPair(t *testing.T) (*tcpTransport, *net.TCPConn) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
-	tr, err := dialTCP(ctx, nil, []netip.Addr{loopback1}, ln.Addr().(*net.TCPAddr).AddrPort().Port())
+	tr, err := dialTCP(ctx, nil, []netip.Addr{loopback1}, ln.Addr().(*net.TCPAddr).AddrPort().Port(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestTCPDialFallsBackToTheNextAddress(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
-	tr, err := dialTCP(ctx, []netip.Addr{loopback1}, []netip.Addr{loopback2, addr.Addr()}, addr.Port())
+	tr, err := dialTCP(ctx, []netip.Addr{loopback1}, []netip.Addr{loopback2, addr.Addr()}, addr.Port(), nil)
 	if err != nil {
 		t.Fatalf("dial = %v", err)
 	}
@@ -192,7 +192,7 @@ func TestTCPDialFallsBackToTheNextAddress(t *testing.T) {
 		t.Fatalf("connected to %v over %s", tr.remoteAddr(), tr.kind())
 	}
 
-	if _, err := dialTCP(ctx, nil, []netip.Addr{loopback2}, addr.Port()); err == nil {
+	if _, err := dialTCP(ctx, nil, []netip.Addr{loopback2}, addr.Port(), nil); err == nil {
 		t.Fatal("dial to an address without a listener succeeded")
 	}
 }

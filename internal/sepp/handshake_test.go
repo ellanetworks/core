@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"slices"
 	"strings"
 	"sync"
@@ -908,5 +910,58 @@ func TestConnectedPartners(t *testing.T) {
 
 	if got := x.m.ConnectedPartners(); got != 1 {
 		t.Fatalf("connected partners = %d, want 1", got)
+	}
+}
+
+func TestDialContextBindsTheN32Address(t *testing.T) {
+	tests := []struct {
+		address string
+		want    netip.Addr
+	}{
+		{"127.0.0.20", netip.MustParseAddr("127.0.0.20")},
+		{"0.0.0.0", netip.MustParseAddr("127.0.0.1")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			t.Cleanup(func() { _ = ln.Close() })
+
+			accepted := make(chan net.Addr, 1)
+
+			go func() {
+				c, err := ln.Accept()
+				if err != nil {
+					accepted <- nil
+					return
+				}
+
+				accepted <- c.RemoteAddr()
+
+				_ = c.Close()
+			}()
+
+			m := New(Config{N32: config.N32Interface{Enabled: true, Address: tt.address}}, zap.NewNop())
+
+			c, err := m.dialContext(context.Background(), "tcp", ln.Addr().String())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_ = c.Close()
+
+			remote, ok := (<-accepted).(*net.TCPAddr)
+			if !ok {
+				t.Fatal("no connection accepted")
+			}
+
+			if got := remote.AddrPort().Addr().Unmap(); got != tt.want {
+				t.Fatalf("peer saw the SEPP at %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

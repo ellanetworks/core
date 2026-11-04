@@ -44,6 +44,7 @@ func newElectionRig(t *testing.T, kind Transport, peerHost string, hold bool) *e
 	cfg.HandshakeTimeout = 2 * time.Second
 	cfg.ReconnectInterval = time.Minute
 	cfg.MaxReconnectInterval = time.Minute
+	cfg.Identity.HostIPAddresses = nil
 
 	var held atomic.Bool
 
@@ -380,6 +381,7 @@ func TestSimultaneousOpenWhileConnecting(t *testing.T) {
 					release := make(chan struct{})
 
 					aCfg := testConfig(aHost)
+					aCfg.Identity.HostIPAddresses = nil
 					aCfg.SourceAddress = func(netip.Addr) (netip.Addr, error) {
 						signal(entered)
 						<-release
