@@ -334,20 +334,7 @@ func (s *SMF) requestUsageFlush() {
 }
 
 func (s *SMF) flushUsage(ctx context.Context) {
-	rows := s.usage.take()
-
-	var home, visitors []models.SubscriberUsage
-
-	for _, r := range rows {
-		if r.Roaming() {
-			visitors = append(visitors, r)
-		} else {
-			home = append(home, r)
-		}
-	}
-
-	s.writeUsage(ctx, home, s.store.IncrementDailyUsageBatch)
-	s.writeUsage(ctx, visitors, s.store.IncrementRoamingDailyUsageBatch)
+	s.writeUsage(ctx, s.usage.take(), s.store.IncrementDailyUsageBatch)
 }
 
 func (s *SMF) writeUsage(ctx context.Context, rows []models.SubscriberUsage, write func(context.Context, []models.SubscriberUsage) error) {

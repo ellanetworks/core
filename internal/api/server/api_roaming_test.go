@@ -93,21 +93,6 @@ type seppCertificateEnvelope struct {
 	Error  string              `json:"error,omitempty"`
 }
 
-type roamingUsageBody struct {
-	Date          string `json:"date"`
-	Mcc           string `json:"mcc"`
-	Mnc           string `json:"mnc"`
-	PartnerName   string `json:"partner_name,omitempty"`
-	UplinkBytes   int64  `json:"uplink_bytes"`
-	DownlinkBytes int64  `json:"downlink_bytes"`
-	TotalBytes    int64  `json:"total_bytes"`
-}
-
-type roamingUsageEnvelope struct {
-	Result []roamingUsageBody `json:"result"`
-	Error  string             `json:"error,omitempty"`
-}
-
 type roamingMessageEnvelope struct {
 	Result struct {
 		Message string `json:"message"`
@@ -116,9 +101,9 @@ type roamingMessageEnvelope struct {
 }
 
 const (
-	roamingPartnersPath      = "/api/v1/roaming/partners"
-	roamingDiameterPeersPath = "/api/v1/roaming/diameter-peers"
-	seppCertificatePath      = "/api/v1/roaming/sepp/nodes/1/certificate"
+	roamingPartnersPath      = "/api/v1/operator/roaming/partners"
+	roamingDiameterPeersPath = "/api/v1/operator/roaming/diameter-peers"
+	seppCertificatePath      = "/api/v1/operator/roaming/sepp/nodes/1/certificate"
 )
 
 func selfSignedPEM(t *testing.T, notAfter time.Time) string {
@@ -516,14 +501,14 @@ func TestSEPPCertificate(t *testing.T) {
 	}
 
 	custom := "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
-	sepp2Path := "/api/v1/roaming/sepp/nodes/2/certificate"
+	sepp2Path := "/api/v1/operator/roaming/sepp/nodes/2/certificate"
 
 	code, second, err := apiDo[seppCertificateEnvelope](client, "POST", url+sepp2Path+"/generate", token, nil)
 	if err != nil || code != http.StatusCreated || second.Result.FQDN != custom || second.Result.TrustAnchorPEM != generated.Result.TrustAnchorPEM {
 		t.Fatalf("generate for SEPP 2: code=%d err=%v (%q) result=%+v", code, err, second.Error, second.Result)
 	}
 
-	for _, path := range []string{"/api/v1/roaming/sepp/nodes/0/certificate", "/api/v1/roaming/sepp/nodes/64/certificate", "/api/v1/roaming/sepp/nodes/x/certificate"} {
+	for _, path := range []string{"/api/v1/operator/roaming/sepp/nodes/0/certificate", "/api/v1/operator/roaming/sepp/nodes/64/certificate", "/api/v1/operator/roaming/sepp/nodes/x/certificate"} {
 		if code, _, _ := apiDo[seppCertificateEnvelope](client, "POST", url+path+"/generate", token, nil); code != http.StatusBadRequest {
 			t.Fatalf("generate for %s: code=%d, want 400", path, code)
 		}
@@ -537,7 +522,7 @@ func TestSEPPCertificate(t *testing.T) {
 			} `json:"trustAnchor"`
 			Reissued []int `json:"reissued"`
 		} `json:"result"`
-	}](client, "POST", url+"/api/v1/roaming/sepp/ca/regenerate", token, nil)
+	}](client, "POST", url+"/api/v1/operator/roaming/sepp/ca/regenerate", token, nil)
 	if err != nil || code != http.StatusCreated || !slices.Equal(regenerated.Result.Reissued, []int{1, 2}) || regenerated.Result.TrustAnchor.PEM == generated.Result.TrustAnchorPEM {
 		t.Fatalf("regenerate the CA: code=%d err=%v result=%+v", code, err, regenerated.Result)
 	}
@@ -734,71 +719,6 @@ func mustP256(t *testing.T) *ecdsa.PrivateKey {
 	return key
 }
 
-func TestRoamingUsage(t *testing.T) {
-	env, client, token := newAuthedTestEnv(t)
-	url := env.Server.URL
-	ctx := context.Background()
-
-	code, partner, err := apiDo[roamingPartnerEnvelope](client, "POST", url+roamingPartnersPath, token, partner5G(t, "partner"))
-	if err != nil || code != http.StatusCreated {
-		t.Fatalf("create partner: code=%d err=%v (%q)", code, err, partner.Error)
-	}
-
-	today := db.DaysSinceEpoch(time.Now())
-
-	if err := env.DB.IncrementRoamingDailyUsageBatch(ctx, []db.RoamingDailyUsage{
-		{EpochDay: today, IMSI: "208930000000001", Mcc: "208", Mnc: "93", BytesUplink: 10, BytesDownlink: 100},
-		{EpochDay: today, IMSI: "208930000000002", Mcc: "208", Mnc: "93", BytesUplink: 1, BytesDownlink: 2},
-		{EpochDay: today - 1, IMSI: "208930000000001", Mcc: "208", Mnc: "93", BytesUplink: 5, BytesDownlink: 5},
-		{EpochDay: today, IMSI: "999990000000001", Mcc: "999", Mnc: "99", BytesUplink: 1, BytesDownlink: 1},
-	}); err != nil {
-		t.Fatalf("IncrementRoamingDailyUsageBatch: %s", err)
-	}
-
-	date := func(day int64) string {
-		return time.Unix(day*86400, 0).UTC().Format("2006-01-02")
-	}
-
-	code, all, err := apiDo[roamingUsageEnvelope](client, "GET", url+"/api/v1/roaming/usage", token, nil)
-	if err != nil || code != http.StatusOK {
-		t.Fatalf("usage: code=%d err=%v (%q)", code, err, all.Error)
-	}
-
-	want := []roamingUsageBody{
-		{Date: date(today - 1), Mcc: "208", Mnc: "93", PartnerName: "partner", UplinkBytes: 5, DownlinkBytes: 5, TotalBytes: 10},
-		{Date: date(today), Mcc: "208", Mnc: "93", PartnerName: "partner", UplinkBytes: 11, DownlinkBytes: 102, TotalBytes: 113},
-		{Date: date(today), Mcc: "999", Mnc: "99", UplinkBytes: 1, DownlinkBytes: 1, TotalBytes: 2},
-	}
-
-	if !slices.Equal(all.Result, want) {
-		t.Fatalf("usage = %+v, want %+v", all.Result, want)
-	}
-
-	code, one, err := apiDo[roamingUsageEnvelope](client, "GET", url+"/api/v1/roaming/usage?imsi=208930000000002", token, nil)
-	if err != nil || code != http.StatusOK {
-		t.Fatalf("usage of one IMSI: code=%d err=%v (%q)", code, err, one.Error)
-	}
-
-	if !slices.Equal(one.Result, []roamingUsageBody{{Date: date(today), Mcc: "208", Mnc: "93", PartnerName: "partner", UplinkBytes: 1, DownlinkBytes: 2, TotalBytes: 3}}) {
-		t.Fatalf("usage of one IMSI = %+v", one.Result)
-	}
-
-	for _, query := range []string{"?imsi=abc", "?start=yesterday", "?start=2030-01-02T00:00:00Z&end=2030-01-01T00:00:00Z", "?start=1900-01-01T00:00:00Z"} {
-		if code, resp, _ := apiDo[roamingUsageEnvelope](client, "GET", url+"/api/v1/roaming/usage"+query, token, nil); code != http.StatusBadRequest {
-			t.Fatalf("usage%s: code=%d (%q), want 400", query, code, resp.Error)
-		}
-	}
-
-	if code, resp, err := apiDo[roamingMessageEnvelope](client, "DELETE", url+roamingPartnersPath+"/"+partner.Result.ID, token, nil); err != nil || code != http.StatusOK {
-		t.Fatalf("delete partner: code=%d err=%v (%q)", code, err, resp.Error)
-	}
-
-	code, kept, err := apiDo[roamingUsageEnvelope](client, "GET", url+"/api/v1/roaming/usage", token, nil)
-	if err != nil || code != http.StatusOK || len(kept.Result) != 3 || kept.Result[0].PartnerName != "" || kept.Result[0].Mcc != "208" {
-		t.Fatalf("usage after partner delete: code=%d err=%v result=%+v", code, err, kept.Result)
-	}
-}
-
 func TestRoamingPermissions(t *testing.T) {
 	env, admin, adminToken := newAuthedTestEnv(t)
 	url := env.Server.URL
@@ -821,7 +741,7 @@ func TestRoamingPermissions(t *testing.T) {
 		t.Fatalf("admin create Diameter peer: code=%d err=%v", code, err)
 	}
 
-	for _, path := range []string{roamingPartnersPath, roamingDiameterPeersPath, "/api/v1/roaming/usage"} {
+	for _, path := range []string{roamingPartnersPath, roamingDiameterPeersPath, "/api/v1/operator/roaming/sepp"} {
 		if code, _, err := apiDo[map[string]any](readOnly, "GET", url+path, readOnlyToken, nil); err != nil || code != http.StatusOK {
 			t.Fatalf("read-only GET %s: code=%d err=%v", path, code, err)
 		}
@@ -862,19 +782,5 @@ func TestRoamingPermissions(t *testing.T) {
 
 	if code, _, err := apiDo[map[string]any](readOnly, "GET", url+seppCertificatePath, readOnlyToken, nil); err != nil || code != http.StatusOK {
 		t.Fatalf("read-only GET SEPP certificate: code=%d err=%v", code, err)
-	}
-
-	byIMSI := url + "/api/v1/roaming/usage?imsi=208930000000001"
-
-	if code, _, err := apiDo[map[string]any](readOnly, "GET", byIMSI, readOnlyToken, nil); err != nil || code != http.StatusOK {
-		t.Fatalf("read-only roaming usage by IMSI: code=%d err=%v", code, err)
-	}
-
-	if code, _, err := apiDo[map[string]any](manager, "GET", byIMSI, managerToken, nil); err != nil || code != http.StatusForbidden {
-		t.Fatalf("network manager roaming usage by IMSI: code=%d err=%v, want 403", code, err)
-	}
-
-	if code, _, err := apiDo[map[string]any](manager, "GET", url+"/api/v1/roaming/usage", managerToken, nil); err != nil || code != http.StatusOK {
-		t.Fatalf("network manager roaming usage per partner: code=%d err=%v", code, err)
 	}
 }

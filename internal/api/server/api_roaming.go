@@ -13,10 +13,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
@@ -52,7 +49,7 @@ type RoamingPartner struct {
 	ProfileName    string              `json:"profileName"`
 	SEPP           *RoamingPartnerSEPP `json:"sepp,omitempty"`
 	DiameterPeerID string              `json:"diameterPeerID,omitempty"`
-	N32            []RoamingPartnerN32 `json:"n32,omitempty"`
+	N32            *RoamingPartnerN32  `json:"n32,omitempty"`
 }
 
 type RoamingPartnerParams struct {
@@ -82,16 +79,6 @@ type RoamingDiameterPeerParams struct {
 
 type ListRoamingDiameterPeersResponse struct {
 	Items []RoamingDiameterPeer `json:"items"`
-}
-
-type RoamingUsage struct {
-	Date          string `json:"date"`
-	Mcc           string `json:"mcc"`
-	Mnc           string `json:"mnc"`
-	PartnerName   string `json:"partner_name,omitempty"`
-	UplinkBytes   int64  `json:"uplink_bytes"`
-	DownlinkBytes int64  `json:"downlink_bytes"`
-	TotalBytes    int64  `json:"total_bytes"`
 }
 
 func writeRoamingError(w http.ResponseWriter, r *http.Request, resource, action string, err error) {
@@ -270,7 +257,7 @@ func roamingPartnerSummary(p db.RoamingPartner, profileName string) string {
 	return strings.Join(parts, ", ")
 }
 
-func ListRoamingPartners(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *listener.Listener) http.Handler {
+func ListRoamingPartners(dbInstance *db.Database, seppRuntime SEPPRuntime) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		partners, err := dbInstance.ListRoamingPartners(r.Context())
 		if err != nil {
@@ -281,7 +268,7 @@ func ListRoamingPartners(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *l
 		names := &profileNames{dbInstance: dbInstance, byID: map[string]string{}}
 		resp := ListRoamingPartnersResponse{Items: make([]RoamingPartner, 0, len(partners))}
 
-		var views []seppNodeView
+		st := localSEPPStatus(seppRuntime)
 
 		for _, p := range partners {
 			name, err := names.name(r.Context(), p.ProfileID)
@@ -290,18 +277,14 @@ func ListRoamingPartners(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *l
 				return
 			}
 
-			if views == nil && p.SEPPFQDN != nil {
-				views = gatherSEPPNodes(r.Context(), dbInstance, seppRuntime, ln)
-			}
-
-			resp.Items = append(resp.Items, withN32(roamingPartnerResponse(p, name), p, views))
+			resp.Items = append(resp.Items, withN32(roamingPartnerResponse(p, name), p, st))
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
-func GetRoamingPartner(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *listener.Listener) http.Handler {
+func GetRoamingPartner(dbInstance *db.Database, seppRuntime SEPPRuntime) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		partner, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id"))
 		if err != nil {
@@ -315,12 +298,7 @@ func GetRoamingPartner(dbInstance *db.Database, seppRuntime SEPPRuntime, ln *lis
 			return
 		}
 
-		var views []seppNodeView
-		if partner.SEPPFQDN != nil {
-			views = gatherSEPPNodes(r.Context(), dbInstance, seppRuntime, ln)
-		}
-
-		writeResponse(r.Context(), w, withN32(roamingPartnerResponse(*partner, profile.Name), *partner, views), http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, withN32(roamingPartnerResponse(*partner, profile.Name), *partner, localSEPPStatus(seppRuntime)), http.StatusOK, logger.APILog)
 	})
 }
 
@@ -567,86 +545,5 @@ func DeleteRoamingDiameterPeer(dbInstance *db.Database) http.Handler {
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Roaming Diameter peer deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteRoamingDiameterPeerAction, email, getClientIP(r), "Deleted roaming Diameter peer "+id+" ("+roamingDiameterPeerSummary(*peer)+")")
-	})
-}
-
-func roamingPartnerNamesByPLMN(ctx context.Context, dbInstance *db.Database) (map[db.RoamingPLMN]string, error) {
-	partners, err := dbInstance.ListRoamingPartners(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	names := map[db.RoamingPLMN]string{}
-
-	for _, p := range partners {
-		for _, plmn := range p.PLMNs {
-			names[plmn] = p.Name
-		}
-	}
-
-	return names, nil
-}
-
-func GetRoamingUsage(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		now := time.Now()
-
-		startDate, endDate, err := parseTimeRange(q, now.AddDate(0, 0, -7), now)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
-			return
-		}
-
-		days := db.NewDayRange(startDate, endDate)
-		if today := db.DaysSinceEpoch(now); days.Last > today {
-			days.Last = today
-		}
-
-		if days.Len() > MaxUsageDays {
-			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("exceeded maximum of %d days per query: narrow the time range", MaxUsageDays), nil, logger.APILog)
-			return
-		}
-
-		imsi := q.Get("imsi")
-		if imsi != "" {
-			if roleID, ok := r.Context().Value(contextKeyRoleID).(RoleID); !ok || !roleHasPermission(roleID, PermGetSubscriberUsage) {
-				writeError(r.Context(), w, http.StatusForbidden, "Forbidden", errors.New("filtering roaming usage by IMSI needs "+PermGetSubscriberUsage), logger.APILog)
-				return
-			}
-
-			if _, err := etsi.NewSUPIFromIMSI(imsi); err != nil {
-				writeError(r.Context(), w, http.StatusBadRequest, "invalid imsi: must be a valid IMSI of 6 to 15 digits", nil, logger.APILog)
-				return
-			}
-		}
-
-		usage, err := dbInstance.ListRoamingUsage(r.Context(), imsi, days)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve roaming usage", err, logger.APILog)
-			return
-		}
-
-		names, err := roamingPartnerNamesByPLMN(r.Context(), dbInstance)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve roaming usage", err, logger.APILog)
-			return
-		}
-
-		resp := make([]RoamingUsage, 0, len(usage))
-
-		for _, u := range usage {
-			resp = append(resp, RoamingUsage{
-				Date:          days.Day(u.EpochDay - days.First).Format("2006-01-02"),
-				Mcc:           u.Mcc,
-				Mnc:           u.Mnc,
-				PartnerName:   names[db.RoamingPLMN{Mcc: u.Mcc, Mnc: u.Mnc}],
-				UplinkBytes:   u.BytesUplink,
-				DownlinkBytes: u.BytesDownlink,
-				TotalBytes:    u.BytesUplink + u.BytesDownlink,
-			})
-		}
-
-		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }

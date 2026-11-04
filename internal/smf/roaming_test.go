@@ -106,7 +106,7 @@ func TestVisitorEPSSessionForAnAPNTheHomeNetworkDoesNotSubscribeIsRefused(t *tes
 	}
 }
 
-func TestVisitorUsageIsRecordedAsRoamingUsageOfTheHomePLMN(t *testing.T) {
+func TestVisitorUsageIsRecordedWithItsHomePLMN(t *testing.T) {
 	home := fakehss.Subscription(1, fakehss.APN(1, "internet"))
 	store, upf := epsTestSMF()
 	pcf := &fakePCF{policy: epsPolicy()}
@@ -118,35 +118,40 @@ func TestVisitorUsageIsRecordedAsRoamingUsageOfTheHomePLMN(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if fourG, fiveG := s.SessionCountByRAT(); fourG != (smf.SessionCount{Roaming: 1}) || fiveG != (smf.SessionCount{}) {
+		t.Fatalf("session counts = 4G %+v, 5G %+v; want one 4G roaming session", fourG, fiveG)
+	}
+
 	upf.count(s.GetSession(bearer.Ref).PFCPContext.SEID, 700, 900)
 	s.CollectUsageForTest(context.Background())
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	if len(store.usageLog) != 0 {
-		t.Fatalf("subscriber usage = %+v, want none for a visitor", store.usageLog)
-	}
-
 	want := models.SubscriberUsage{EpochDay: today(), IMSI: "001010000000001", HomePLMN: visitorHomePLMN, UplinkVolume: 700, DownlinkVolume: 900}
-	if len(store.roamingUsageLog) != 1 || store.roamingUsageLog[0] != want {
-		t.Fatalf("roaming usage = %+v, want [%+v]", store.roamingUsageLog, want)
+	if len(store.usageRows) != 1 || store.usageRows[0] != want {
+		t.Fatalf("usage = %+v, want [%+v]", store.usageRows, want)
 	}
 }
 
-func TestHomeAndVisitorUsageGoToSeparateStores(t *testing.T) {
+func TestHomeUsageIsRecordedWithoutAHomePLMN(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	sc, _ := setupSessionWithTunnel(t, s)
+
+	if fourG, fiveG := s.SessionCountByRAT(); fourG != (smf.SessionCount{}) || fiveG != (smf.SessionCount{Home: 1}) {
+		t.Fatalf("session counts = 4G %+v, 5G %+v; want one 5G home session", fourG, fiveG)
+	}
+
 	upf.count(sc.PFCPContext.SEID, 1, 2)
 	s.CollectUsageForTest(ctx)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	if len(store.usageLog) != 1 || len(store.roamingUsageLog) != 0 {
-		t.Fatalf("usage = %+v, roaming usage = %+v, want the home session in subscriber usage only", store.usageLog, store.roamingUsageLog)
+	if len(store.usageRows) != 1 || store.usageRows[0].Roaming() {
+		t.Fatalf("usage = %+v, want one home usage row", store.usageRows)
 	}
 }

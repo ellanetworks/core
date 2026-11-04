@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 )
 
 type CreateSubscriberOptions struct {
@@ -47,11 +48,12 @@ type SubscriberStatus struct {
 
 // Subscriber is the summary form returned by ListSubscribers.
 type Subscriber struct {
-	Imsi        string           `json:"imsi"`
-	ProfileName string           `json:"profile_name"`
-	Description string           `json:"description,omitempty"`
-	Msisdn      string           `json:"msisdn,omitempty"`
-	Status      SubscriberStatus `json:"status"`
+	Imsi           string           `json:"imsi"`
+	ProfileName    string           `json:"profile_name"`
+	Description    string           `json:"description,omitempty"`
+	Msisdn         string           `json:"msisdn,omitempty"`
+	RoamingPartner string           `json:"roaming_partner,omitempty"`
+	Status         SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersParams struct {
@@ -59,6 +61,7 @@ type ListSubscribersParams struct {
 	PerPage int    `json:"per_page"`
 	Radio   string `json:"radio,omitempty"`
 	Search  string `json:"search,omitempty"`
+	Roaming *bool  `json:"roaming,omitempty"`
 }
 
 type ListSubscribersResponse struct {
@@ -103,13 +106,14 @@ type IMSSubscription struct {
 
 // SubscriberDetail is the full form returned by GetSubscriber.
 type SubscriberDetail struct {
-	Imsi          string           `json:"imsi"`
-	ProfileName   string           `json:"profile_name"`
-	Description   string           `json:"description,omitempty"`
-	Msisdn        string           `json:"msisdn,omitempty"`
-	Registrations []Registration   `json:"registrations"`
-	Sessions      []Session        `json:"sessions"`
-	IMS           *IMSSubscription `json:"ims,omitempty"`
+	Imsi           string           `json:"imsi"`
+	ProfileName    string           `json:"profile_name"`
+	Description    string           `json:"description,omitempty"`
+	Msisdn         string           `json:"msisdn,omitempty"`
+	RoamingPartner string           `json:"roaming_partner,omitempty"`
+	Registrations  []Registration   `json:"registrations"`
+	Sessions       []Session        `json:"sessions"`
+	IMS            *IMSSubscription `json:"ims,omitempty"`
 }
 
 // SessionSlice is the 5G network slice identifier (S-NSSAI) of a session;
@@ -262,6 +266,16 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
+func (c *Client) DeregisterSubscriber(ctx context.Context, imsi string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/subscribers/" + imsi + "/deregister",
+	})
+
+	return err
+}
+
 func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) (*ListSubscribersResponse, error) {
 	query := url.Values{
 		"page":     {fmt.Sprintf("%d", p.Page)},
@@ -274,6 +288,10 @@ func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) 
 
 	if p.Search != "" {
 		query.Set("search", p.Search)
+	}
+
+	if p.Roaming != nil {
+		query.Set("roaming", strconv.FormatBool(*p.Roaming))
 	}
 
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

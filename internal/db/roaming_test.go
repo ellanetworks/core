@@ -697,66 +697,66 @@ func TestRoamingDailyUsage(t *testing.T) {
 	today := db.DaysSinceEpoch(time.Now())
 	old := db.DaysSinceEpoch(time.Now().AddDate(0, 0, -10))
 
-	rows := []db.RoamingDailyUsage{
-		{EpochDay: today, IMSI: visitorIMSI, Mcc: "208", Mnc: "93", BytesUplink: 1, BytesDownlink: 2},
-		{EpochDay: today, IMSI: visitorIMSI, Mcc: "208", Mnc: "93", BytesUplink: 10, BytesDownlink: 20},
-		{EpochDay: today, IMSI: "208930000000002", Mcc: "208", Mnc: "93", BytesUplink: 100, BytesDownlink: 200},
-		{EpochDay: today, IMSI: "310410000000001", Mcc: "310", Mnc: "410", BytesUplink: 5, BytesDownlink: 5},
-		{EpochDay: old, IMSI: visitorIMSI, Mcc: "208", Mnc: "93", BytesUplink: 7, BytesDownlink: 7},
+	roamer := func(day int64, imsi, mcc, mnc string, up, down int64) db.DailyUsage {
+		return db.DailyUsage{EpochDay: day, IMSI: imsi, Mcc: &mcc, Mnc: &mnc, BytesUplink: up, BytesDownlink: down}
 	}
 
-	if err := f.db.IncrementRoamingDailyUsageBatch(ctx, rows); err != nil {
-		t.Fatalf("IncrementRoamingDailyUsageBatch: %s", err)
+	rows := []db.DailyUsage{
+		roamer(today, visitorIMSI, "208", "93", 1, 2),
+		roamer(today, visitorIMSI, "208", "93", 10, 20),
+		roamer(today, "208930000000002", "208", "93", 100, 200),
+		roamer(today, "310410000000001", "310", "410", 5, 5),
+		roamer(old, visitorIMSI, "208", "93", 7, 7),
 	}
 
-	for name, bad := range map[string]db.RoamingDailyUsage{
-		"IMSI outside the PLMN": {EpochDay: today, IMSI: "310410000000001", Mcc: "208", Mnc: "93"},
-		"bad MNC":               {EpochDay: today, IMSI: "208930000000001", Mcc: "208", Mnc: "9"},
-		"negative bytes":        {EpochDay: today, IMSI: "208930000000001", Mcc: "208", Mnc: "93", BytesUplink: -1},
-	} {
-		if err := f.db.IncrementRoamingDailyUsageBatch(ctx, []db.RoamingDailyUsage{bad}); err == nil {
-			t.Errorf("%s: accepted", name)
-		}
+	if err := f.db.IncrementDailyUsageBatch(ctx, rows); err != nil {
+		t.Fatalf("IncrementDailyUsageBatch: %s", err)
 	}
 
 	all := db.NewDayRange(time.Now().AddDate(0, 0, -30), time.Now().AddDate(0, 0, 1))
+	roamers := true
 
-	usage, err := f.db.ListRoamingUsage(ctx, "", all)
+	usage, err := f.db.GetUsagePerSubscriber(ctx, "", all, &roamers, db.NoUsageLimit)
 	if err != nil {
-		t.Fatalf("ListRoamingUsage: %s", err)
+		t.Fatalf("GetUsagePerSubscriber: %s", err)
 	}
 
-	want := []db.RoamingUsage{
-		{EpochDay: old, Mcc: "208", Mnc: "93", BytesUplink: 7, BytesDownlink: 7},
-		{EpochDay: today, Mcc: "208", Mnc: "93", BytesUplink: 111, BytesDownlink: 222},
-		{EpochDay: today, Mcc: "310", Mnc: "410", BytesUplink: 5, BytesDownlink: 5},
+	type plmnUsage struct {
+		imsi, mcc, mnc string
+		up, down       int64
 	}
 
-	if !slices.Equal(usage, want) {
-		t.Fatalf("usage = %+v, want %+v", usage, want)
+	got := make([]plmnUsage, 0, len(usage))
+	for _, u := range usage {
+		got = append(got, plmnUsage{u.IMSI, *u.Mcc, *u.Mnc, u.BytesUplink, u.BytesDownlink})
 	}
 
-	usage, err = f.db.ListRoamingUsage(ctx, visitorIMSI, db.NewDayRange(time.Now(), time.Now().AddDate(0, 0, 1)))
-	if err != nil || len(usage) != 1 || usage[0].BytesUplink != 11 || usage[0].BytesDownlink != 22 {
-		t.Fatalf("ListRoamingUsage for one IMSI today = %+v, %v", usage, err)
+	want := []plmnUsage{
+		{"208930000000002", "208", "93", 100, 200},
+		{visitorIMSI, "208", "93", 18, 29},
+		{"310410000000001", "310", "410", 5, 5},
+	}
+
+	if !slices.Equal(got, want) {
+		t.Fatalf("usage = %+v, want %+v", got, want)
 	}
 
 	if err := f.db.DeleteOldDailyUsage(ctx, 5); err != nil {
 		t.Fatalf("DeleteOldDailyUsage: %s", err)
 	}
 
-	usage, err = f.db.ListRoamingUsage(ctx, "", all)
-	if err != nil || len(usage) != 2 {
-		t.Fatalf("ListRoamingUsage after retention = %+v, %v", usage, err)
+	perDay, err := f.db.GetUsagePerDay(ctx, "", all, &roamers)
+	if err != nil || len(perDay) != 1 || perDay[0].BytesUplink != 116 {
+		t.Fatalf("GetUsagePerDay after retention = %+v, %v", perDay, err)
 	}
 
 	if err := f.db.DeleteRoamingPartner(ctx, roamingPartnerID); err != nil {
 		t.Fatalf("DeleteRoamingPartner: %s", err)
 	}
 
-	usage, err = f.db.ListRoamingUsage(ctx, "", all)
-	if err != nil || len(usage) != 2 {
-		t.Fatalf("ListRoamingUsage after partner delete = %+v, %v; want the usage kept", usage, err)
+	perDay, err = f.db.GetUsagePerDay(ctx, "", all, &roamers)
+	if err != nil || len(perDay) != 1 || perDay[0].BytesUplink != 116 {
+		t.Fatalf("GetUsagePerDay after partner delete = %+v, %v; want the usage kept", perDay, err)
 	}
 }
 
@@ -980,7 +980,7 @@ func TestRoamingPartnerProfileChangeAndDeleteRestrict(t *testing.T) {
 	}
 }
 
-func TestHomeSubscriberReadsExcludeVisitors(t *testing.T) {
+func TestSubscriberReadsWithVisitors(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 	f.createPartner(t)
@@ -996,14 +996,24 @@ func TestHomeSubscriberReadsExcludeVisitors(t *testing.T) {
 	}
 
 	subs, total, err := f.db.ListSubscribersPage(ctx, nil, 1, 10)
-	if err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != "001010000000001" {
+	if err != nil || total != 2 || len(subs) != 2 || subs[0].Imsi != "001010000000001" || subs[1].Imsi != visitorIMSI {
 		t.Fatalf("ListSubscribersPage = %+v, %d, %v", subs, total, err)
+	}
+
+	home, roaming := false, true
+
+	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Roaming: &home}, 1, 10); err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != "001010000000001" {
+		t.Fatalf("ListSubscribersPage of home subscribers = %+v, %d, %v", subs, total, err)
 	}
 
 	search := "20893"
 
-	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
+	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search, Roaming: &roaming}, 1, 10); err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != visitorIMSI {
 		t.Fatalf("ListSubscribersPage searching a visitor = %+v, %d, %v", subs, total, err)
+	}
+
+	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search, Roaming: &home}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
+		t.Fatalf("ListSubscribersPage searching a visitor among home subscribers = %+v, %d, %v", subs, total, err)
 	}
 
 	if n, err := f.db.CountSubscribers(ctx); err != nil || n != 1 {
@@ -1018,7 +1028,7 @@ func TestHomeSubscriberReadsExcludeVisitors(t *testing.T) {
 		t.Fatalf("CountSubscribersInProfile = %d, %v; want 1", n, err)
 	}
 
-	usage, err := f.db.GetUsagePerSubscriber(ctx, "", db.NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), db.NoUsageLimit)
+	usage, err := f.db.GetUsagePerSubscriber(ctx, "", db.NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), nil, db.NoUsageLimit)
 	if err != nil || len(usage) != 1 || usage[0].IMSI != "001010000000001" {
 		t.Fatalf("GetUsagePerSubscriber = %+v, %v", usage, err)
 	}

@@ -14,6 +14,11 @@ const (
 	RAT5G = "5g"
 )
 
+const (
+	RoamingFalse = "false"
+	RoamingTrue  = "true"
+)
+
 // Result label values for attempt-style counters.
 const (
 	ResultAccept = "accept"
@@ -68,7 +73,7 @@ func RegisterRadioEventDrops(dropped func() uint64) {
 	}, func() float64 { return float64(dropped()) }))
 }
 
-func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func() int) {
+func RegisterRadioGauges(radios5G func() int, subscribers5G func() (home, roamers int), radios4G func() int, subscribers4G func() (home, roamers int)) {
 	radiosDesc := prometheus.NewDesc(
 		"app_connected_radios",
 		"Number of radios currently connected to Ella Core, by RAT (5G gNBs, 4G eNBs).",
@@ -78,8 +83,8 @@ func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func()
 
 	subscribersDesc := prometheus.NewDesc(
 		"app_registered_subscribers",
-		"Number of subscribers currently registered in Ella Core, by RAT (5GS, EPS).",
-		[]string{"rat"},
+		"Number of subscribers currently registered in Ella Core, by RAT (5GS, EPS) and whether the subscriber is a roamer.",
+		[]string{"rat", "roaming"},
 		nil,
 	)
 
@@ -88,10 +93,22 @@ func RegisterRadioGauges(radios5G, subscribers5G, radios4G, subscribers4G func()
 
 		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(radios4G)), RAT4G)
 
-		ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(countOrZero(subscribers5G)), RAT5G)
+		for rat, count := range map[string]func() (int, int){RAT5G: subscribers5G, RAT4G: subscribers4G} {
+			home, roamers := splitOrZero(count)
 
-		ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(countOrZero(subscribers4G)), RAT4G)
+			ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(home), rat, RoamingFalse)
+
+			ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(roamers), rat, RoamingTrue)
+		}
 	}))
+}
+
+func splitOrZero(f func() (int, int)) (int, int) {
+	if f == nil {
+		return 0, 0
+	}
+
+	return f()
 }
 
 func countOrZero(f func() int) int {

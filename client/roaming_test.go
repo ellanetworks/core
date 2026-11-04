@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"reflect"
 	"testing"
 
@@ -33,7 +32,7 @@ func TestRoamingWrites(t *testing.T) {
 		{"create partner", func(c *client.Client) error {
 			_, err := c.CreateRoamingPartner(context.Background(), partner)
 			return err
-		}, "POST", "api/v1/roaming/partners", map[string]any{
+		}, "POST", "api/v1/operator/roaming/partners", map[string]any{
 			"name": "partner", "plmns": []any{map[string]any{"mcc": "208", "mnc": "93"}}, "profileName": "roamers", "diameterPeerID": "peer",
 			"sepp": map[string]any{"fqdn": "sepp1.5gc.mnc093.mcc208.3gppnetwork.org", "n32cURI": "https://sepp.example.org", "trustAnchorPEM": "pem"},
 		}},
@@ -41,32 +40,32 @@ func TestRoamingWrites(t *testing.T) {
 			"update partner", func(c *client.Client) error {
 				return c.UpdateRoamingPartner(context.Background(), "abc", &client.RoamingPartnerOptions{Name: "p", PLMNs: []client.RoamingPLMN{{Mcc: "208", Mnc: "93"}}, ProfileName: "roamers"})
 			},
-			"PUT", "api/v1/roaming/partners/abc",
+			"PUT", "api/v1/operator/roaming/partners/abc",
 			map[string]any{"name": "p", "plmns": []any{map[string]any{"mcc": "208", "mnc": "93"}}, "profileName": "roamers"},
 		},
-		{"delete partner", func(c *client.Client) error { return c.DeleteRoamingPartner(context.Background(), "abc") }, "DELETE", "api/v1/roaming/partners/abc", nil},
+		{"delete partner", func(c *client.Client) error { return c.DeleteRoamingPartner(context.Background(), "abc") }, "DELETE", "api/v1/operator/roaming/partners/abc", nil},
 		{"create peer", func(c *client.Client) error {
 			_, err := c.CreateRoamingDiameterPeer(context.Background(), peer)
 			return err
-		}, "POST", "api/v1/roaming/diameter-peers", map[string]any{"diameterIdentity": "hss.example.org", "address": "192.0.2.1", "port": float64(3869)}},
+		}, "POST", "api/v1/operator/roaming/diameter-peers", map[string]any{"diameterIdentity": "hss.example.org", "address": "192.0.2.1", "port": float64(3869)}},
 		{
 			"update peer", func(c *client.Client) error { return c.UpdateRoamingDiameterPeer(context.Background(), "abc", peer) },
-			"PUT", "api/v1/roaming/diameter-peers/abc",
+			"PUT", "api/v1/operator/roaming/diameter-peers/abc",
 			map[string]any{"diameterIdentity": "hss.example.org", "address": "192.0.2.1", "port": float64(3869)},
 		},
-		{"delete peer", func(c *client.Client) error { return c.DeleteRoamingDiameterPeer(context.Background(), "abc") }, "DELETE", "api/v1/roaming/diameter-peers/abc", nil},
+		{"delete peer", func(c *client.Client) error { return c.DeleteRoamingDiameterPeer(context.Background(), "abc") }, "DELETE", "api/v1/operator/roaming/diameter-peers/abc", nil},
 		{"import certificate", func(c *client.Client) error {
 			_, err := c.ImportSEPPCertificate(context.Background(), 2, cert)
 			return err
-		}, "PUT", "api/v1/roaming/sepp/nodes/2/certificate", map[string]any{"certificateChainPEM": "chain", "privateKeyPEM": "key"}},
+		}, "PUT", "api/v1/operator/roaming/sepp/nodes/2/certificate", map[string]any{"certificateChainPEM": "chain", "privateKeyPEM": "key"}},
 		{"generate certificate", func(c *client.Client) error {
 			_, err := c.GenerateSEPPCertificate(context.Background(), 3)
 			return err
-		}, "POST", "api/v1/roaming/sepp/nodes/3/certificate/generate", nil},
+		}, "POST", "api/v1/operator/roaming/sepp/nodes/3/certificate/generate", nil},
 		{"regenerate CA", func(c *client.Client) error {
 			_, err := c.RegenerateSEPPCA(context.Background())
 			return err
-		}, "POST", "api/v1/roaming/sepp/ca/regenerate", nil},
+		}, "POST", "api/v1/operator/roaming/sepp/ca/regenerate", nil},
 	}
 
 	for _, tc := range cases {
@@ -112,14 +111,14 @@ func TestRoamingReads(t *testing.T) {
 	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"items": [` + partnerJSON + `]}`)}}
 
 	partners, err := (&client.Client{Requester: fake}).ListRoamingPartners(context.Background())
-	if err != nil || len(partners.Items) != 1 || !reflect.DeepEqual(partners.Items[0], wantPartner) || fake.lastOpts.Path != "api/v1/roaming/partners" {
+	if err != nil || len(partners.Items) != 1 || !reflect.DeepEqual(partners.Items[0], wantPartner) || fake.lastOpts.Path != "api/v1/operator/roaming/partners" {
 		t.Fatalf("ListRoamingPartners = %+v, %v", partners, err)
 	}
 
 	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(partnerJSON)}}
 
 	partner, err := (&client.Client{Requester: fake}).GetRoamingPartner(context.Background(), "abc")
-	if err != nil || !reflect.DeepEqual(*partner, wantPartner) || fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/roaming/partners/abc" {
+	if err != nil || !reflect.DeepEqual(*partner, wantPartner) || fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/roaming/partners/abc" {
 		t.Fatalf("GetRoamingPartner = %+v, %v", partner, err)
 	}
 
@@ -129,70 +128,60 @@ func TestRoamingReads(t *testing.T) {
 	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"items": [` + peerJSON + `]}`)}}
 
 	peers, err := (&client.Client{Requester: fake}).ListRoamingDiameterPeers(context.Background())
-	if err != nil || len(peers.Items) != 1 || peers.Items[0] != wantPeer || fake.lastOpts.Path != "api/v1/roaming/diameter-peers" {
+	if err != nil || len(peers.Items) != 1 || peers.Items[0] != wantPeer || fake.lastOpts.Path != "api/v1/operator/roaming/diameter-peers" {
 		t.Fatalf("ListRoamingDiameterPeers = %+v, %v", peers, err)
 	}
 
 	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(peerJSON)}}
 
 	peer, err := (&client.Client{Requester: fake}).GetRoamingDiameterPeer(context.Background(), "abc")
-	if err != nil || *peer != wantPeer || fake.lastOpts.Path != "api/v1/roaming/diameter-peers/abc" {
+	if err != nil || *peer != wantPeer || fake.lastOpts.Path != "api/v1/operator/roaming/diameter-peers/abc" {
 		t.Fatalf("GetRoamingDiameterPeer = %+v, %v", peer, err)
 	}
 
 	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"seppID": 1, "source": "generated", "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org", "certificateChainPEM": "chain", "trustAnchorPEM": "ca", "fingerprint": "sha256:00", "notAfter": "2029-01-01T00:00:00Z"}`)}}
 
 	cert, err := (&client.Client{Requester: fake}).GetSEPPCertificate(context.Background(), 1)
-	if err != nil || cert.SEPPID != 1 || cert.Source != "generated" || cert.FQDN != "sepp1.5gc.mnc001.mcc001.3gppnetwork.org" || cert.TrustAnchorPEM != "ca" || cert.Fingerprint != "sha256:00" || fake.lastOpts.Path != "api/v1/roaming/sepp/nodes/1/certificate" {
+	if err != nil || cert.SEPPID != 1 || cert.Source != "generated" || cert.FQDN != "sepp1.5gc.mnc001.mcc001.3gppnetwork.org" || cert.TrustAnchorPEM != "ca" || cert.Fingerprint != "sha256:00" || fake.lastOpts.Path != "api/v1/operator/roaming/sepp/nodes/1/certificate" {
 		t.Fatalf("GetSEPPCertificate = %+v, %v", cert, err)
-	}
-
-	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`[{"date": "2026-11-03", "mcc": "208", "mnc": "93", "partner_name": "partner", "uplink_bytes": 1, "downlink_bytes": 2, "total_bytes": 3}]`)}}
-
-	usage, err := (&client.Client{Requester: fake}).ListRoamingUsage(context.Background(), &client.ListRoamingUsageParams{Start: "2026-11-01T00:00:00Z", IMSI: "208930000000001"})
-	if err != nil || len(usage) != 1 || usage[0] != (client.RoamingUsage{Date: "2026-11-03", Mcc: "208", Mnc: "93", PartnerName: "partner", UplinkBytes: 1, DownlinkBytes: 2, TotalBytes: 3}) {
-		t.Fatalf("ListRoamingUsage = %+v, %v", usage, err)
-	}
-
-	if fake.lastOpts.Path != "api/v1/roaming/usage" || !reflect.DeepEqual(fake.lastOpts.Query, url.Values{"start": {"2026-11-01T00:00:00Z"}, "imsi": {"208930000000001"}}) {
-		t.Fatalf("unexpected usage request %s %v", fake.lastOpts.Path, fake.lastOpts.Query)
 	}
 }
 
 func TestRoamingSEPPRuntime(t *testing.T) {
-	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 202, Headers: http.Header{}, Result: []byte(`{"n32": [{"nodeID": "n1", "seppID": 1, "state": "establishing", "since": "2026-11-03T10:00:00Z", "nftlst": false}]}`)}}
+	fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 202, Headers: http.Header{}, Result: []byte(`{"n32": {"state": "establishing", "since": "2026-11-03T10:00:00Z", "nftlst": false}}`)}}
 
 	st, err := (&client.Client{Requester: fake}).RehandshakeRoamingPartner(context.Background(), "abc")
-	if err != nil || len(st.N32) != 1 || st.N32[0].State != "establishing" || st.N32[0].SEPPID != 1 || fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/roaming/partners/abc/handshake" || fake.lastOpts.Body != nil {
+	if err != nil || st.N32.State != "establishing" || st.N32.Since != "2026-11-03T10:00:00Z" || fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/operator/roaming/partners/abc/handshake" || fake.lastOpts.Body != nil {
 		t.Fatalf("RehandshakeRoamingPartner = %+v, %v", st, err)
 	}
 
 	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{
 		"trustAnchors": [{"source": "generated", "subject": "CN=ca", "fingerprint": "sha256:ca", "notAfter": "c", "pem": "pem", "seppIDs": [1]}],
-		"nodes": [{"nodeID": "n1", "seppID": 1, "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org", "source": "generated", "reachable": true, "n32Configured": true, "address": "192.0.2.1", "port": 443, "listening": true,
-			"certificate": {"subject": "CN=x", "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"], "issuer": "CN=ca", "notBefore": "a", "notAfter": "b", "fingerprint": "sha256:00", "trustAnchorFingerprint": "sha256:ca"}}]}`)}}
+		"node": {"seppID": 1, "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org", "source": "generated", "n32Configured": true, "address": "192.0.2.1", "port": 443, "listening": true,
+			"certificate": {"subject": "CN=x", "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"], "issuer": "CN=ca", "notBefore": "a", "notAfter": "b", "fingerprint": "sha256:00", "trustAnchorFingerprint": "sha256:ca"}},
+		"certificates": [{"seppID": 2, "fqdn": "sepp2.5gc.mnc001.mcc001.3gppnetwork.org", "source": "imported"}]}`)}}
 
 	status, err := (&client.Client{Requester: fake}).GetSEPPStatus(context.Background())
-	if err != nil || len(status.TrustAnchors) != 1 || status.TrustAnchors[0].SEPPIDs[0] != 1 || len(status.Nodes) != 1 || fake.lastOpts.Path != "api/v1/roaming/sepp" {
+	if err != nil || len(status.TrustAnchors) != 1 || status.TrustAnchors[0].SEPPIDs[0] != 1 || len(status.Certificates) != 1 || status.Certificates[0].SEPPID != 2 || fake.lastOpts.Path != "api/v1/operator/roaming/sepp" {
 		t.Fatalf("GetSEPPStatus = %+v, %v", status, err)
 	}
 
-	n := status.Nodes[0]
+	n := status.Node
 	if n.SEPPID != 1 || n.FQDN != "sepp1.5gc.mnc001.mcc001.3gppnetwork.org" || !n.Listening || n.Certificate == nil || n.Certificate.TrustAnchorFingerprint != "sha256:ca" {
 		t.Fatalf("node = %+v", n)
 	}
 
 	fake = &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"id": "abc", "name": "p", "plmns": [], "profileName": "x",
-		"n32": [{"nodeID": "n1", "seppID": 1, "state": "established", "since": "2026-11-03T10:00:00Z", "initiator": "local", "nftlst": true,
-		"otherPeers": [{"peer": "sepp2.5gc.mnc001.mcc001.3gppnetwork.org", "since": "2026-11-03T10:01:00Z", "nftlst": true}]}]}`)}}
+		"n32": {"state": "established", "since": "2026-11-03T10:00:00Z", "initiator": "local", "nftlst": true,
+		"otherPeers": [{"peer": "sepp2.5gc.mnc001.mcc001.3gppnetwork.org", "since": "2026-11-03T10:01:00Z", "nftlst": true}]}}`)}}
 
 	partner, err := (&client.Client{Requester: fake}).GetRoamingPartner(context.Background(), "abc")
 	want := client.RoamingPartnerN32{
-		NodeID: "n1", SEPPID: 1, State: "established", Since: "2026-11-03T10:00:00Z", Initiator: "local", NFTLST: true,
+		State: "established", Since: "2026-11-03T10:00:00Z", Initiator: "local", NFTLST: true,
 		OtherPeers: []client.RoamingPartnerN32Peer{{Peer: "sepp2.5gc.mnc001.mcc001.3gppnetwork.org", Since: "2026-11-03T10:01:00Z", NFTLST: true}},
 	}
 
-	if err != nil || len(partner.N32) != 1 || !reflect.DeepEqual(partner.N32[0], want) {
+	if err != nil || partner.N32 == nil || !reflect.DeepEqual(*partner.N32, want) {
 		t.Fatalf("partner n32 = %+v, %v", partner, err)
 	}
 }

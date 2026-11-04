@@ -42,7 +42,7 @@ A roaming partner is an agreement with another operator. It has:
 
 A roamer is a subscriber from a partner network who is currently roaming in Ella Core's network.
 
-- Roamers are listed on the **Roamers** tab of the **Roaming** page.
+- Roamers are listed with the subscribers, with their roaming partner.
 - It appears when it registers and disappears when it leaves.
 - Roamers count toward the maximum number of subscribers.
 - Roamers get data only: no SMS and no voice.
@@ -55,5 +55,6 @@ Each node of a [High Availability](high_availability.md) cluster connects to the
 ## Further reading
 
 - [Configure Roaming](../how_to/configure_roaming.md) — step-by-step guide to add a roaming partner.
-- [Roaming API reference](../reference/api/roaming.md) — partners, Diameter peers, SEPP, roamers, and usage.
+- [Operator API reference](../reference/api/operator.md#list-roaming-partners) — partners, Diameter peers, and SEPP.
+- [Subscribers API reference](../reference/api/subscribers.md) — roamers.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported roaming procedures.

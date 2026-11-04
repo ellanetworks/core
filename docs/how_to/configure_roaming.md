@@ -32,7 +32,7 @@ Restart Ella Core.
 
 ## 3. Exchange information with the partner
 
-On the **Roaming** page, open the **SEPP** tab. Each node appears with its SEPP FQDN and N32 address.
+On the **Operator** page of each node, go to the **Roaming** section. Its **Certificate** row shows the node's SEPP FQDN. The **N32 (SEPP)** card of the **Networking** page's **Interfaces** tab shows the node's N32 address.
 
 Give the partner:
 
@@ -40,7 +40,7 @@ Give the partner:
 | ---- | ------- |
 | Your PLMN ID | `001/01` |
 | Each node's SEPP FQDN and N32 address | `sepp1.5gc.mnc001.mcc001.3gppnetwork.org`, `192.0.2.11:443` |
-| The trust anchors, downloaded from the **SEPP** tab | `sepp-ca.pem` |
+| The trust anchors, downloaded from the **Trust anchor** row | `sepp-ca.pem` |
 | Each node's Diameter identity, from its [Diameter status](../reference/api/networking.md#get-diameter-status) | `mmec01.mmegi0001.mme.epc.mnc001.mcc001.3gppnetwork.org` |
 
 Get from the partner:
@@ -55,7 +55,7 @@ Get from the partner:
 
 ## 4. Add the Diameter peer
 
-On the **Roaming** page, open the **Diameter Peers** tab and click **Create**:
+On the **Operator** page, in the **Roaming** section, open **Diameter peers** and click **Create**:
 
 - **Address**: the partner's HSS or Diameter Edge Agent, e.g. `198.51.100.5`.
 - **Port**: e.g. `3868`.
@@ -64,7 +64,7 @@ Click **Create**.
 
 ## 5. Add the partner
 
-Open the **Partners** tab and click **Create**:
+Open **Partners** and click **Create**:
 
 - **Name**: e.g. `Partner Telecom`.
 - **MCC** and **MNC**: the partner's PLMN ID, e.g. `999` and `70`. Click **Add PLMN** for each other PLMN ID of the partner.
@@ -76,9 +76,9 @@ Click **Create**.
 
 ## 6. Verify
 
-On the **Partners** tab, the **N32** column shows **Established** for each node.
+In **Partners** on each node, the **N32** column shows **Established**.
 
-Attach a UE with a SIM of the partner's network. Open the **Roamers** tab: the roamer appears.
+Attach a UE with a SIM of the partner's network. Open the **Subscribers** page of the node that serves it: the roamer appears, with its roaming partner.
 
 !!! note
-    All steps in this guide can also be performed via the REST API. See the [Roaming API reference](../reference/api/roaming.md) for details.
+    All steps in this guide can also be performed via the REST API. See the [Operator API reference](../reference/api/operator.md#list-roaming-partners) for details. Generating a node's SEPP certificate again and regenerating the SEPP CA are also available through the API: see [Generate a SEPP Certificate](../reference/api/operator.md#generate-a-sepp-certificate) and [Regenerate the SEPP CA](../reference/api/operator.md#regenerate-the-sepp-ca).

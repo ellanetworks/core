@@ -23,7 +23,7 @@ var sessionReleases *prometheus.CounterVec
 
 // sessionCounter reports active session counts split by RAT.
 type sessionCounter interface {
-	SessionCountByRAT() (fourG, fiveG int)
+	SessionCountByRAT() (fourG, fiveG SessionCount)
 }
 
 // RegisterMetrics registers the SMF metrics. The sessions gauge reads per-RAT
@@ -39,8 +39,8 @@ func RegisterMetrics(sessions sessionCounter) {
 
 	sessionsDesc := prometheus.NewDesc(
 		"app_sessions",
-		"Number of active sessions by RAT (5G PDU sessions, 4G EPS sessions).",
-		[]string{"rat"},
+		"Number of active sessions by RAT (5G PDU sessions, 4G EPS sessions) and whether the subscriber is a roamer.",
+		[]string{"rat", "roaming"},
 		nil,
 	)
 
@@ -61,14 +61,19 @@ func RegisterMetrics(sessions sessionCounter) {
 	}
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		var fourG, fiveG int
+		var fourG, fiveG SessionCount
 		if sessions != nil {
 			fourG, fiveG = sessions.SessionCountByRAT()
 		}
 
-		ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(fiveG), "5g")
+		for _, c := range []struct {
+			rat   string
+			count SessionCount
+		}{{metrics.RAT5G, fiveG}, {metrics.RAT4G, fourG}} {
+			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Home), c.rat, metrics.RoamingFalse)
 
-		ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(fourG), "4g")
+			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Roaming), c.rat, metrics.RoamingTrue)
+		}
 	}))
 }
 

@@ -113,7 +113,6 @@ var pinnedChangesetOps = map[string]int{
 	"InsertSEPPIdentityIfAbsent":        26,
 	"InitSEPPCA":                        26,
 	"ReplaceSEPPCA":                     26,
-	"IncrementRoamingDailyUsageBatch":   26,
 	"RegisterVisitorUE":                 26,
 	"DeleteVisitorIfUnregistered":       26,
 	"WithdrawRoamers":                   26,

@@ -74,17 +74,21 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", SubscribersTableName, SubscribersTableName),
 		fmt.Sprintf("CREATE UNIQUE INDEX idx_subscribers_msisdn ON %s(msisdn) WHERE msisdn != ''", SubscribersTableName),
 		fmt.Sprintf("CREATE INDEX idx_subscribers_roaming_partner ON %s(roamingPartnerID) WHERE roamingPartnerID IS NOT NULL", SubscribersTableName),
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE %s_new (
 			epochDay      INTEGER NOT NULL,
 			imsi          TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
-			mcc           TEXT    NOT NULL CHECK (mcc GLOB '[0-9][0-9][0-9]'),
-			mnc           TEXT    NOT NULL CHECK (mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
+			mcc           TEXT    CHECK (mcc GLOB '[0-9][0-9][0-9]'),
+			mnc           TEXT    CHECK (mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
 			bytesUplink   INTEGER NOT NULL DEFAULT 0 CHECK (bytesUplink >= 0),
 			bytesDownlink INTEGER NOT NULL DEFAULT 0 CHECK (bytesDownlink >= 0),
 			PRIMARY KEY (epochDay, imsi),
-			CHECK (substr(imsi, 1, length(mcc) + length(mnc)) = mcc || mnc)
-		)`, RoamingDailyUsageTableName),
-		fmt.Sprintf("CREATE INDEX idx_roaming_daily_usage_plmn ON %s(mcc, mnc)", RoamingDailyUsageTableName),
+			CHECK ((mcc IS NULL) = (mnc IS NULL)),
+			CHECK (mcc IS NULL OR substr(imsi, 1, length(mcc) + length(mnc)) = mcc || mnc)
+		)`, DailyUsageTableName),
+		fmt.Sprintf(`INSERT INTO %s_new (epochDay, imsi, bytesUplink, bytesDownlink)
+			SELECT epoch_day, imsi, bytes_uplink, bytes_downlink FROM %s`, DailyUsageTableName, DailyUsageTableName),
+		fmt.Sprintf("DROP TABLE %s", DailyUsageTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", DailyUsageTableName, DailyUsageTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
 			certPEM   TEXT    NOT NULL CHECK (certPEM != ''),

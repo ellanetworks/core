@@ -68,10 +68,10 @@ func TestSharedMetricsByRAT(t *testing.T) {
 
 func TestRadioGaugesByRAT(t *testing.T) {
 	RegisterRadioGauges(
-		func() int { return 2 }, // radios5G
-		func() int { return 3 }, // subscribers5G
-		nil,                     // radios4G absent → zero
-		func() int { return 5 }, // subscribers4G
+		func() int { return 2 },
+		func() (int, int) { return 3, 1 },
+		nil,
+		func() (int, int) { return 5, 0 },
 	)
 
 	families, err := prometheus.DefaultGatherer.Gather()
@@ -79,36 +79,38 @@ func TestRadioGaugesByRAT(t *testing.T) {
 		t.Fatalf("gather: %v", err)
 	}
 
-	want := map[string]map[string]float64{
-		"app_connected_radios":       {RAT5G: 2, RAT4G: 0},
-		"app_registered_subscribers": {RAT5G: 3, RAT4G: 5},
+	want := map[string]float64{
+		"app_connected_radios{rat=5g}":                     2,
+		"app_connected_radios{rat=4g}":                     0,
+		"app_registered_subscribers{rat=5g,roaming=false}": 3,
+		"app_registered_subscribers{rat=5g,roaming=true}":  1,
+		"app_registered_subscribers{rat=4g,roaming=false}": 5,
+		"app_registered_subscribers{rat=4g,roaming=true}":  0,
 	}
 
 	for _, fam := range families {
-		byRAT, ok := want[fam.GetName()]
-		if !ok {
-			continue
-		}
-
 		for _, m := range fam.GetMetric() {
-			rat := labelValue(m.GetLabel(), "rat")
+			key := fam.GetName() + "{rat=" + labelValue(m.GetLabel(), "rat")
+			if roaming := labelValue(m.GetLabel(), "roaming"); roaming != "" {
+				key += ",roaming=" + roaming
+			}
 
-			exp, ok := byRAT[rat]
+			key += "}"
+
+			exp, ok := want[key]
 			if !ok {
 				continue
 			}
 
 			if got := m.GetGauge().GetValue(); got != exp {
-				t.Errorf("%s{rat=%q} = %v, want %v", fam.GetName(), rat, got, exp)
+				t.Errorf("%s = %v, want %v", key, got, exp)
 			}
 
-			delete(byRAT, rat)
+			delete(want, key)
 		}
 	}
 
-	for name, byRAT := range want {
-		for rat := range byRAT {
-			t.Errorf("%s: missing series for rat=%q", name, rat)
-		}
+	for key := range want {
+		t.Errorf("missing series %s", key)
 	}
 }

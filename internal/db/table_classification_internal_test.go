@@ -37,7 +37,6 @@ var (
 		"policies",
 		"profiles",
 		"retention_policies",
-		"roaming_daily_usage",
 		"roaming_partner_plmns",
 		"roaming_partners",
 		"roaming_withdrawals",

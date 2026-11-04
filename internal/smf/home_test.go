@@ -403,7 +403,7 @@ func TestHomeDeregistrationReleasesTheSession(t *testing.T) {
 	}
 }
 
-func TestVisitorFiveGUsageIsRoamingUsageOfTheHomePLMN(t *testing.T) {
+func TestVisitorFiveGUsageIsRecordedWithItsHomePLMN(t *testing.T) {
 	home := &fakeHomeNetwork{rules: homeRules()}
 	f := homeSMF(home)
 	s, store, upf := f.s, f.store, f.upf
@@ -421,8 +421,8 @@ func TestVisitorFiveGUsageIsRoamingUsageOfTheHomePLMN(t *testing.T) {
 	defer store.mu.Unlock()
 
 	want := models.SubscriberUsage{EpochDay: today(), IMSI: testIMSI, HomePLMN: visitorHome, UplinkVolume: 300, DownlinkVolume: 400}
-	if len(store.usageLog) != 0 || len(store.roamingUsageLog) != 1 || store.roamingUsageLog[0] != want {
-		t.Fatalf("usage = %+v, roaming usage = %+v, want [%+v] as roaming usage only", store.usageLog, store.roamingUsageLog, want)
+	if len(store.usageRows) != 1 || store.usageRows[0] != want {
+		t.Fatalf("usage = %+v, want [%+v]", store.usageRows, want)
 	}
 }
 

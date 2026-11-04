@@ -6,17 +6,13 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import {
-  generateSEPPCertificate,
   importSEPPCertificate,
   plmnDomain,
-  regenerateSEPPCA,
   seppFQDN,
-  type SEPPCARegenerated,
   type SEPPCertificate,
 } from "@/queries/roaming";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
-import ConfirmDialog from "@/components/form/ConfirmDialog";
 import TextControl from "@/components/form/TextControl";
 import PemControl from "@/components/form/PemControl";
 import { diameterIdentityRegex } from "@/components/SMSCPeerModal";
@@ -64,9 +60,14 @@ interface ImportSEPPCertificateModalProps {
   mnc?: string;
 }
 
-export const ImportSEPPCertificateModal: React.FC<
-  ImportSEPPCertificateModalProps
-> = ({ open, onClose, onSuccess, seppID, mcc, mnc }) => {
+const ImportSEPPCertificateModal: React.FC<ImportSEPPCertificateModalProps> = ({
+  open,
+  onClose,
+  onSuccess,
+  seppID,
+  mcc,
+  mnc,
+}) => {
   const { accessToken } = useAuth();
   const form = useForm<ImportValues>({
     mode: "onTouched",
@@ -128,68 +129,4 @@ export const ImportSEPPCertificateModal: React.FC<
   );
 };
 
-interface GenerateSEPPCertificateModalProps {
-  open: boolean;
-  onClose: () => void;
-  onSuccess: (cert: SEPPCertificate) => void;
-  seppID: number;
-  imported: boolean;
-  mcc?: string;
-  mnc?: string;
-}
-
-export const GenerateSEPPCertificateModal: React.FC<
-  GenerateSEPPCertificateModalProps
-> = ({ open, onClose, onSuccess, seppID, imported, mcc, mnc }) => {
-  const { accessToken } = useAuth();
-  const fqdn = mcc && mnc ? seppFQDN(mcc, mnc, seppID) : `sepp${seppID}`;
-
-  const confirm = async () => {
-    if (!accessToken) return;
-    onSuccess(await generateSEPPCertificate(accessToken, seppID));
-  };
-
-  return (
-    <ConfirmDialog
-      open={open}
-      onClose={onClose}
-      onConfirm={confirm}
-      title={`Generate SEPP ${seppID} Certificate`}
-      description={`Replace the certificate of SEPP ${seppID} with a new one for ${fqdn}, signed by the cluster SEPP CA?${imported ? " Partners must then trust the cluster SEPP CA." : ""}`}
-      confirmLabel="Generate"
-      confirmingLabel="Generating..."
-      confirmColor="primary"
-    />
-  );
-};
-
-interface RegenerateSEPPCAModalProps {
-  open: boolean;
-  onClose: () => void;
-  onSuccess: (result: SEPPCARegenerated) => void;
-}
-
-export const RegenerateSEPPCAModal: React.FC<RegenerateSEPPCAModalProps> = ({
-  open,
-  onClose,
-  onSuccess,
-}) => {
-  const { accessToken } = useAuth();
-
-  const confirm = async () => {
-    if (!accessToken) return;
-    onSuccess(await regenerateSEPPCA(accessToken));
-  };
-
-  return (
-    <ConfirmDialog
-      open={open}
-      onClose={onClose}
-      onConfirm={confirm}
-      title="Regenerate SEPP CA"
-      description="Replace the cluster SEPP CA and reissue every generated SEPP certificate? Partners must then trust the new CA."
-      confirmLabel="Regenerate"
-      confirmingLabel="Regenerating..."
-    />
-  );
-};
+export default ImportSEPPCertificateModal;

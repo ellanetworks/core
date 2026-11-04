@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/url"
 	"strconv"
 )
 
@@ -31,12 +30,10 @@ type RoamingPartner struct {
 	ProfileName    string              `json:"profileName"`
 	SEPP           *RoamingPartnerSEPP `json:"sepp,omitempty"`
 	DiameterPeerID string              `json:"diameterPeerID,omitempty"`
-	N32            []RoamingPartnerN32 `json:"n32,omitempty"`
+	N32            *RoamingPartnerN32  `json:"n32,omitempty"`
 }
 
 type RoamingPartnerN32 struct {
-	NodeID     string                  `json:"nodeID,omitempty"`
-	SEPPID     int                     `json:"seppID,omitempty"`
 	State      string                  `json:"state"`
 	Since      string                  `json:"since,omitempty"`
 	Initiator  string                  `json:"initiator,omitempty"`
@@ -53,7 +50,7 @@ type RoamingPartnerN32Peer struct {
 }
 
 type RoamingPartnerHandshake struct {
-	N32 []RoamingPartnerN32 `json:"n32"`
+	N32 RoamingPartnerN32 `json:"n32"`
 }
 
 type SEPPCertificateSummary struct {
@@ -76,11 +73,9 @@ type SEPPTrustAnchor struct {
 }
 
 type SEPPNodeStatus struct {
-	NodeID        string                  `json:"nodeID,omitempty"`
 	SEPPID        int                     `json:"seppID,omitempty"`
 	FQDN          string                  `json:"fqdn,omitempty"`
 	Source        string                  `json:"source,omitempty"`
-	Reachable     bool                    `json:"reachable"`
 	N32Configured bool                    `json:"n32Configured"`
 	Address       string                  `json:"address,omitempty"`
 	Port          int                     `json:"port,omitempty"`
@@ -89,9 +84,17 @@ type SEPPNodeStatus struct {
 	Error         string                  `json:"error,omitempty"`
 }
 
+type SEPPStoredCertificate struct {
+	SEPPID      int                     `json:"seppID"`
+	FQDN        string                  `json:"fqdn"`
+	Source      string                  `json:"source"`
+	Certificate *SEPPCertificateSummary `json:"certificate,omitempty"`
+}
+
 type SEPPStatus struct {
-	TrustAnchors []SEPPTrustAnchor `json:"trustAnchors"`
-	Nodes        []SEPPNodeStatus  `json:"nodes"`
+	Node         SEPPNodeStatus          `json:"node"`
+	TrustAnchors []SEPPTrustAnchor       `json:"trustAnchors"`
+	Certificates []SEPPStoredCertificate `json:"certificates"`
 }
 
 type SEPPCARegenerated struct {
@@ -146,28 +149,11 @@ type ImportSEPPCertificateOptions struct {
 	FQDN                string `json:"fqdn,omitempty"`
 }
 
-type RoamingUsage struct {
-	Date          string `json:"date"`
-	Mcc           string `json:"mcc"`
-	Mnc           string `json:"mnc"`
-	PartnerName   string `json:"partner_name,omitempty"`
-	UplinkBytes   int64  `json:"uplink_bytes"`
-	DownlinkBytes int64  `json:"downlink_bytes"`
-	TotalBytes    int64  `json:"total_bytes"`
-}
-
-type ListRoamingUsageParams struct {
-	Start string
-	End   string
-	IMSI  string
-}
-
-func (c *Client) roamingDo(ctx context.Context, method, path string, query url.Values, payload any, out any) error {
+func (c *Client) roamingDo(ctx context.Context, method, path string, payload any, out any) error {
 	opts := &RequestOptions{
 		Type:   SyncRequest,
 		Method: method,
 		Path:   path,
-		Query:  query,
 	}
 
 	if payload != nil {
@@ -195,7 +181,7 @@ func (c *Client) roamingDo(ctx context.Context, method, path string, query url.V
 func (c *Client) ListRoamingPartners(ctx context.Context) (*ListRoamingPartnersResponse, error) {
 	var partners ListRoamingPartnersResponse
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/roaming/partners", nil, nil, &partners); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/partners", nil, &partners); err != nil {
 		return nil, err
 	}
 
@@ -205,7 +191,7 @@ func (c *Client) ListRoamingPartners(ctx context.Context) (*ListRoamingPartnersR
 func (c *Client) GetRoamingPartner(ctx context.Context, id string) (*RoamingPartner, error) {
 	var partner RoamingPartner
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/roaming/partners/"+id, nil, nil, &partner); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/partners/"+id, nil, &partner); err != nil {
 		return nil, err
 	}
 
@@ -215,7 +201,7 @@ func (c *Client) GetRoamingPartner(ctx context.Context, id string) (*RoamingPart
 func (c *Client) CreateRoamingPartner(ctx context.Context, opts *RoamingPartnerOptions) (*RoamingPartner, error) {
 	var partner RoamingPartner
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/roaming/partners", nil, opts, &partner); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/partners", opts, &partner); err != nil {
 		return nil, err
 	}
 
@@ -223,17 +209,17 @@ func (c *Client) CreateRoamingPartner(ctx context.Context, opts *RoamingPartnerO
 }
 
 func (c *Client) UpdateRoamingPartner(ctx context.Context, id string, opts *RoamingPartnerOptions) error {
-	return c.roamingDo(ctx, "PUT", "api/v1/roaming/partners/"+id, nil, opts, nil)
+	return c.roamingDo(ctx, "PUT", "api/v1/operator/roaming/partners/"+id, opts, nil)
 }
 
 func (c *Client) DeleteRoamingPartner(ctx context.Context, id string) error {
-	return c.roamingDo(ctx, "DELETE", "api/v1/roaming/partners/"+id, nil, nil, nil)
+	return c.roamingDo(ctx, "DELETE", "api/v1/operator/roaming/partners/"+id, nil, nil)
 }
 
 func (c *Client) RehandshakeRoamingPartner(ctx context.Context, id string) (*RoamingPartnerHandshake, error) {
 	var st RoamingPartnerHandshake
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/roaming/partners/"+id+"/handshake", nil, nil, &st); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/partners/"+id+"/handshake", nil, &st); err != nil {
 		return nil, err
 	}
 
@@ -243,7 +229,7 @@ func (c *Client) RehandshakeRoamingPartner(ctx context.Context, id string) (*Roa
 func (c *Client) GetSEPPStatus(ctx context.Context) (*SEPPStatus, error) {
 	var st SEPPStatus
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/roaming/sepp", nil, nil, &st); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/sepp", nil, &st); err != nil {
 		return nil, err
 	}
 
@@ -253,7 +239,7 @@ func (c *Client) GetSEPPStatus(ctx context.Context) (*SEPPStatus, error) {
 func (c *Client) ListRoamingDiameterPeers(ctx context.Context) (*ListRoamingDiameterPeersResponse, error) {
 	var peers ListRoamingDiameterPeersResponse
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/roaming/diameter-peers", nil, nil, &peers); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/diameter-peers", nil, &peers); err != nil {
 		return nil, err
 	}
 
@@ -263,7 +249,7 @@ func (c *Client) ListRoamingDiameterPeers(ctx context.Context) (*ListRoamingDiam
 func (c *Client) GetRoamingDiameterPeer(ctx context.Context, id string) (*RoamingDiameterPeer, error) {
 	var peer RoamingDiameterPeer
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/roaming/diameter-peers/"+id, nil, nil, &peer); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/diameter-peers/"+id, nil, &peer); err != nil {
 		return nil, err
 	}
 
@@ -273,7 +259,7 @@ func (c *Client) GetRoamingDiameterPeer(ctx context.Context, id string) (*Roamin
 func (c *Client) CreateRoamingDiameterPeer(ctx context.Context, opts *RoamingDiameterPeerOptions) (*RoamingDiameterPeer, error) {
 	var peer RoamingDiameterPeer
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/roaming/diameter-peers", nil, opts, &peer); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/diameter-peers", opts, &peer); err != nil {
 		return nil, err
 	}
 
@@ -281,21 +267,21 @@ func (c *Client) CreateRoamingDiameterPeer(ctx context.Context, opts *RoamingDia
 }
 
 func (c *Client) UpdateRoamingDiameterPeer(ctx context.Context, id string, opts *RoamingDiameterPeerOptions) error {
-	return c.roamingDo(ctx, "PUT", "api/v1/roaming/diameter-peers/"+id, nil, opts, nil)
+	return c.roamingDo(ctx, "PUT", "api/v1/operator/roaming/diameter-peers/"+id, opts, nil)
 }
 
 func (c *Client) DeleteRoamingDiameterPeer(ctx context.Context, id string) error {
-	return c.roamingDo(ctx, "DELETE", "api/v1/roaming/diameter-peers/"+id, nil, nil, nil)
+	return c.roamingDo(ctx, "DELETE", "api/v1/operator/roaming/diameter-peers/"+id, nil, nil)
 }
 
 func seppCertificatePath(seppID int) string {
-	return "api/v1/roaming/sepp/nodes/" + strconv.Itoa(seppID) + "/certificate"
+	return "api/v1/operator/roaming/sepp/nodes/" + strconv.Itoa(seppID) + "/certificate"
 }
 
 func (c *Client) GetSEPPCertificate(ctx context.Context, seppID int) (*SEPPCertificate, error) {
 	var cert SEPPCertificate
 
-	if err := c.roamingDo(ctx, "GET", seppCertificatePath(seppID), nil, nil, &cert); err != nil {
+	if err := c.roamingDo(ctx, "GET", seppCertificatePath(seppID), nil, &cert); err != nil {
 		return nil, err
 	}
 
@@ -305,7 +291,7 @@ func (c *Client) GetSEPPCertificate(ctx context.Context, seppID int) (*SEPPCerti
 func (c *Client) ImportSEPPCertificate(ctx context.Context, seppID int, opts *ImportSEPPCertificateOptions) (*SEPPCertificate, error) {
 	var cert SEPPCertificate
 
-	if err := c.roamingDo(ctx, "PUT", seppCertificatePath(seppID), nil, opts, &cert); err != nil {
+	if err := c.roamingDo(ctx, "PUT", seppCertificatePath(seppID), opts, &cert); err != nil {
 		return nil, err
 	}
 
@@ -315,7 +301,7 @@ func (c *Client) ImportSEPPCertificate(ctx context.Context, seppID int, opts *Im
 func (c *Client) GenerateSEPPCertificate(ctx context.Context, seppID int) (*SEPPCertificate, error) {
 	var cert SEPPCertificate
 
-	if err := c.roamingDo(ctx, "POST", seppCertificatePath(seppID)+"/generate", nil, nil, &cert); err != nil {
+	if err := c.roamingDo(ctx, "POST", seppCertificatePath(seppID)+"/generate", nil, &cert); err != nil {
 		return nil, err
 	}
 
@@ -325,29 +311,9 @@ func (c *Client) GenerateSEPPCertificate(ctx context.Context, seppID int) (*SEPP
 func (c *Client) RegenerateSEPPCA(ctx context.Context) (*SEPPCARegenerated, error) {
 	var out SEPPCARegenerated
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/roaming/sepp/ca/regenerate", nil, nil, &out); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/sepp/ca/regenerate", nil, &out); err != nil {
 		return nil, err
 	}
 
 	return &out, nil
-}
-
-func (c *Client) ListRoamingUsage(ctx context.Context, p *ListRoamingUsageParams) ([]RoamingUsage, error) {
-	query := url.Values{}
-
-	if p != nil {
-		for key, value := range map[string]string{"start": p.Start, "end": p.End, "imsi": p.IMSI} {
-			if value != "" {
-				query.Set(key, value)
-			}
-		}
-	}
-
-	var usage []RoamingUsage
-
-	if err := c.roamingDo(ctx, "GET", "api/v1/roaming/usage", query, nil, &usage); err != nil {
-		return nil, err
-	}
-
-	return usage, nil
 }

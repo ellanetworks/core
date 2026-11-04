@@ -125,12 +125,28 @@ func TestMigrationV26PreservesExistingData(t *testing.T) {
 		t.Errorf("service centres after SMSC peer delete = %d, want 0", got)
 	}
 
+	var epochDay, uplink, downlink int64
+
+	var mcc, mnc sql.NullString
+
+	if err := conn.QueryRowContext(ctx, "SELECT epochDay, mcc, mnc, bytesUplink, bytesDownlink FROM daily_usage WHERE imsi = '001010000000001'").Scan(&epochDay, &mcc, &mnc, &uplink, &downlink); err != nil {
+		t.Fatalf("read daily usage: %v", err)
+	}
+
+	if epochDay != 20000 || mcc.Valid || mnc.Valid || uplink != 10 || downlink != 20 {
+		t.Fatalf("daily usage after v26 = %d/%v/%v/%d/%d", epochDay, mcc, mnc, uplink, downlink)
+	}
+
 	mustExec(t, conn, "DELETE FROM subscribers WHERE id = 's1'")
 
-	for _, table := range []string{"daily_usage", "ue_registrations", "ip_leases"} {
+	for _, table := range []string{"ue_registrations", "ip_leases"} {
 		if got := countRows(t, conn, "SELECT COUNT(*) FROM "+table); got != 0 {
 			t.Errorf("%s after subscriber delete = %d, want 0", table, got)
 		}
+	}
+
+	if got := countRows(t, conn, "SELECT COUNT(*) FROM daily_usage"); got != 1 {
+		t.Errorf("daily_usage after subscriber delete = %d, want 1", got)
 	}
 }
 
@@ -166,10 +182,14 @@ func TestMigrationV26EnforcesRoamingConstraints(t *testing.T) {
 	mustFail(t, conn, `INSERT INTO subscribers (id, imsi, sequenceNumber, permanentKey, opc, profileID, roamingPartnerID) VALUES ('v4', '208930000000004', '', '', '', 'pr', 'missing')`)
 
 	mustExec(t, conn, `INSERT INTO ue_registrations (imsi, type, nodeID, purged, version) VALUES ('208930000000001', 'mme', 'node-1', 0, 2)`)
-	mustExec(t, conn, `INSERT INTO roaming_daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20000, '208930000000001', '208', '93', 1, 2)`)
-	mustExec(t, conn, `INSERT INTO roaming_daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20000, '999990000000001', '999', '99', 1, 2)`)
-	mustFail(t, conn, `INSERT INTO roaming_daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20000, '208930000000002', '310', '410', 1, 2)`)
-	mustFail(t, conn, `INSERT INTO roaming_daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20001, '208930000000001', '208', '93', -1, 2)`)
+	mustExec(t, conn, `INSERT INTO daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20000, '208930000000001', '208', '93', 1, 2)`)
+	mustExec(t, conn, `INSERT INTO daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20000, '999990000000001', '999', '99', 1, 2)`)
+	mustExec(t, conn, `INSERT INTO daily_usage (epochDay, imsi, bytesUplink, bytesDownlink) VALUES (20000, '001019999999999', 1, 2)`)
+	mustFail(t, conn, `INSERT INTO daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20000, '208930000000002', '310', '410', 1, 2)`)
+	mustFail(t, conn, `INSERT INTO daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20001, '208930000000001', '208', '93', -1, 2)`)
+	mustFail(t, conn, `INSERT INTO daily_usage (epochDay, imsi, mcc, bytesUplink, bytesDownlink) VALUES (20001, '208930000000001', '208', 1, 2)`)
+	mustFail(t, conn, `INSERT INTO daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (20001, '208930000000001', '208', '9', 1, 2)`)
+	mustFail(t, conn, `INSERT INTO daily_usage (epochDay, imsi, bytesUplink, bytesDownlink) VALUES (20001, '12345', 1, 2)`)
 
 	mustFail(t, conn, "DELETE FROM diameter_peers WHERE id = 'hss'")
 	mustFail(t, conn, "DELETE FROM profiles WHERE id = 'pr'")
@@ -183,7 +203,7 @@ func TestMigrationV26EnforcesRoamingConstraints(t *testing.T) {
 		"SELECT COUNT(*) FROM subscribers":                                     2,
 		"SELECT COUNT(*) FROM ue_registrations WHERE imsi = '208930000000001'": 0,
 		"SELECT COUNT(*) FROM roaming_partner_plmns WHERE partnerID = 'rp'":    0,
-		"SELECT COUNT(*) FROM roaming_daily_usage":                             2,
+		"SELECT COUNT(*) FROM daily_usage":                                     4,
 	} {
 		if got := countRows(t, conn, query); got != want {
 			t.Errorf("%s = %d, want %d", query, got, want)

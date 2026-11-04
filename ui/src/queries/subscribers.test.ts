@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { listAllSubscriberImsis, listSubscribers } from "./subscribers";
+import {
+  listAllSubscriberImsis,
+  listRoamerPartners,
+  listSubscribers,
+} from "./subscribers";
 
 const PER_PAGE = 100;
 
@@ -18,7 +22,10 @@ const stubRoster = (total: number) => {
       const start = (page - 1) * PER_PAGE;
       const items = Array.from(
         { length: Math.max(0, Math.min(PER_PAGE, total - start)) },
-        (_v, i) => ({ imsi: String(900_000 + start + i) }),
+        (_v, i) => ({
+          imsi: String(900_000 + start + i),
+          roaming_partner: "Partner A",
+        }),
       );
 
       return {
@@ -201,6 +208,14 @@ describe("listSubscribers", () => {
     expect(requested().searchParams.get("search")).toBe("0748");
   });
 
+  it("sends the roaming filter when it is given", async () => {
+    const requested = stubOk();
+
+    await listSubscribers("t0k", 1, 25, "", false);
+
+    expect(requested().searchParams.get("roaming")).toBe("false");
+  });
+
   it("encodes a search that would otherwise break the query string", async () => {
     const requested = stubOk();
 
@@ -209,5 +224,31 @@ describe("listSubscribers", () => {
     const url = requested();
     expect(url.searchParams.get("search")).toBe("a b&per_page=1");
     expect(url.searchParams.get("per_page")).toBe("25");
+  });
+});
+
+describe("listRoamerPartners", () => {
+  it("maps every roamer to its partner", async () => {
+    const pages = stubRoster(150);
+
+    const partners = await listRoamerPartners("t0k");
+
+    expect(Object.keys(partners)).toHaveLength(150);
+    expect(partners["900000"]).toBe("Partner A");
+    expect(pages).toEqual([1, 2]);
+    const url = new URL(
+      vi.mocked(fetch).mock.calls[0][0] as string,
+      "http://x",
+    );
+    expect(url.searchParams.get("roaming")).toBe("true");
+  });
+
+  it("stops at 1000 roamers", async () => {
+    const pages = stubRoster(1500);
+
+    const partners = await listRoamerPartners("t0k");
+
+    expect(Object.keys(partners)).toHaveLength(1000);
+    expect(pages).toHaveLength(10);
   });
 });

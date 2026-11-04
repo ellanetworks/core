@@ -421,8 +421,16 @@ func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload)
 	return nil, nil
 }
 
+func (db *Database) incrementDailyUsageStatement(ctx context.Context) *sqlair.Statement {
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return db.incrementDailyUsagePreV26Stmt
+	}
+
+	return db.incrementDailyUsageStmt
+}
+
 func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStmt, du).Run()
+	err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStatement(ctx), du).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -433,8 +441,10 @@ func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage
 func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *DailyUsageBatch) (any, error) {
 	var dropped droppedDailyUsage
 
+	stmt := db.incrementDailyUsageStatement(ctx)
+
 	for i := range batch.Rows {
-		err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStmt, &batch.Rows[i]).Run()
+		err := db.runner(ctx).Query(ctx, stmt, &batch.Rows[i]).Run()
 		if err == nil {
 			continue
 		}
@@ -463,12 +473,17 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) error {
-	err := db.runner(ctx).Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
+	stmt := db.deleteOldDailyUsageStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.deleteOldDailyUsagePreV26Stmt
+	}
+
+	err := db.runner(ctx).Query(ctx, stmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return db.applyDeleteOldRoamingDailyUsage(ctx, p.Value)
+	return nil
 }
 
 func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, error) {

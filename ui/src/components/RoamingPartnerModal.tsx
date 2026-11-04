@@ -21,7 +21,6 @@ import {
 } from "react-hook-form";
 import type { Control, Path } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { Link } from "react-router-dom";
 import * as yup from "yup";
 import {
   createRoamingPartner,
@@ -348,7 +347,7 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
       {fields.map((field, index) => (
         <Box
           key={field.id}
-          sx={{ display: "flex", gap: 2, alignItems: "center" }}
+          sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}
         >
           <TextControl<FormValues>
             name={`plmns.${index}.mcc`}
@@ -361,7 +360,7 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
             placeholder="01"
           />
           <Tooltip title="Remove PLMN" arrow>
-            <span>
+            <Box component="span" sx={{ mt: 3 }}>
               <IconButton
                 aria-label={`Remove PLMN ${index + 1}`}
                 onClick={() => remove(index)}
@@ -372,7 +371,7 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
                   color={fields.length === 1 ? "disabled" : "primary"}
                 />
               </IconButton>
-            </span>
+            </Box>
           </Tooltip>
         </Box>
       ))}
@@ -437,8 +436,7 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
           />
         ) : (
           <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-            No Diameter peers yet. Create one in the{" "}
-            <Link to="/roaming/diameter-peers">Diameter Peers</Link> tab.
+            No Diameter peers yet. Add one under Diameter Peers first.
           </Typography>
         )}
       </Collapse>

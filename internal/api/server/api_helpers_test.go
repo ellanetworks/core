@@ -308,10 +308,6 @@ func (f *fakeSessionStore) IncrementDailyUsageBatch(_ context.Context, _ []model
 	return nil
 }
 
-func (f *fakeSessionStore) IncrementRoamingDailyUsageBatch(_ context.Context, _ []models.SubscriberUsage) error {
-	return nil
-}
-
 func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*models.FlowReportRequest) error {
 	return nil
 }

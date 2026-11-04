@@ -45,13 +45,12 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadDeferredLocation,
 		PermListCellPositions, PermReadCellPosition,
 		PermReadClusterHealth,
-		PermReadRoaming,
 	},
 
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS, PermUpdateOperatorIMS,
+		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS, PermUpdateOperatorIMS, PermUpdateOperatorRoaming,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListDataNetworkStaticIPs, PermCreateDataNetworkStaticIP, PermUpdateDataNetworkStaticIP, PermDeleteDataNetworkStaticIP,
 		PermListDataNetworkFramedRoutes, PermCreateDataNetworkFramedRoute, PermUpdateDataNetworkFramedRoute, PermDeleteDataNetworkFramedRoute,
@@ -74,7 +73,6 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadDeferredLocation, PermCreateDeferredLocation, PermDeleteDeferredLocation,
 		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
 		PermReadClusterHealth,
-		PermReadRoaming, PermUpdateRoaming,
 	},
 }
 
@@ -128,6 +126,7 @@ const (
 	PermUpdateOperatorSPN         = "operator:update_spn"
 	PermUpdateOperatorSMS         = "operator:update_sms"
 	PermUpdateOperatorIMS         = "operator:update_ims"
+	PermUpdateOperatorRoaming     = "operator:update_roaming"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"
@@ -240,9 +239,6 @@ const (
 	PermReadDeferredLocation   = "location:deferred:read"
 	PermCreateDeferredLocation = "location:deferred:create"
 	PermDeleteDeferredLocation = "location:deferred:delete"
-
-	PermReadRoaming   = "roaming:read"
-	PermUpdateRoaming = "roaming:update"
 
 	// Cell position permissions
 	PermListCellPositions  = "cell_position:list"

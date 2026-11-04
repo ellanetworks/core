@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func generatedSEPPIdentity(t *testing.T) *SEPPIdentity {
@@ -80,6 +83,12 @@ func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("ListSubscribersPage at schema 25 = %v, %d, %v", subs, total, err)
 	}
 
+	roaming := true
+
+	if subs, total, err := d.ListSubscribersPage(ctx, &SubscriberFilters{Roaming: &roaming}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
+		t.Fatalf("ListSubscribersPage of roamers at schema 25 = %v, %d, %v", subs, total, err)
+	}
+
 	if n, err := d.CountSubscribers(ctx); err != nil || n != 1 {
 		t.Fatalf("CountSubscribers at schema 25 = %d, %v", n, err)
 	}
@@ -96,7 +105,7 @@ func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("AdvanceSubscriberSQN at schema 25: %v", err)
 	}
 
-	if _, err := d.GetUsagePerSubscriber(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), NoUsageLimit); err != nil {
+	if _, err := d.GetUsagePerSubscriber(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), nil, NoUsageLimit); err != nil {
 		t.Fatalf("GetUsagePerSubscriber at schema 25: %v", err)
 	}
 
@@ -104,8 +113,22 @@ func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("IncrementDailyUsage at schema 25: %v", err)
 	}
 
-	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now())); err != nil || len(perDay) != 1 || perDay[0].BytesUplink != 1 {
+	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), nil); err != nil || len(perDay) != 1 || perDay[0].BytesUplink != 1 {
 		t.Fatalf("GetUsagePerDay at schema 25 = %+v, %v", perDay, err)
+	}
+
+	home, roamers := false, true
+
+	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), &home); err != nil || len(perDay) != 1 {
+		t.Fatalf("GetUsagePerDay of home subscribers at schema 25 = %+v, %v", perDay, err)
+	}
+
+	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), &roamers); err != nil || len(perDay) != 0 {
+		t.Fatalf("GetUsagePerDay of roamers at schema 25 = %+v, %v", perDay, err)
+	}
+
+	if perSub, err := d.GetUsagePerSubscriber(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), &roamers, NoUsageLimit); err != nil || len(perSub) != 0 {
+		t.Fatalf("GetUsagePerSubscriber of roamers at schema 25 = %+v, %v", perSub, err)
 	}
 
 	if _, err := d.ListSubscriberIMSFilterCriteria(ctx, imsi, IMSRegistrationSetMMTel); err != nil {
@@ -158,10 +181,6 @@ func TestRoamingReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("ListVisitors at schema 25 = %v, %v", visitors, err)
 	}
 
-	if usage, err := d.ListRoamingUsage(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now())); err != nil || len(usage) != 0 {
-		t.Fatalf("ListRoamingUsage at schema 25 = %v, %v", usage, err)
-	}
-
 	if _, err := d.GetSEPPIdentity(ctx, 1); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("GetSEPPIdentity at schema 25: err = %v, want ErrNotFound", err)
 	}
@@ -184,14 +203,69 @@ func TestRoamingReadsAndWritesBeforeV26(t *testing.T) {
 			_, err := d.DeleteUnregisteredVisitors(ctx)
 			return err
 		},
-		"IncrementRoamingDailyUsageBatch": func() error {
-			return d.IncrementRoamingDailyUsageBatch(ctx, []RoamingDailyUsage{{EpochDay: 1, IMSI: "208930000000001", Mcc: "208", Mnc: "93"}})
-		},
 	}
 
 	for name, write := range writes {
 		if err := write(); !errors.Is(err, ErrMigrationPending) {
 			t.Errorf("%s at schema 25: err = %v, want ErrMigrationPending", name, err)
 		}
+	}
+}
+
+func TestIncrementDailyUsageBatchBeforeV26ReportsTheUsageItCouldNotCharge(t *testing.T) {
+	ctx := context.Background()
+	d := newDatabaseAtVersion(t, 25)
+
+	if err := d.InitializeLocalSettings(ctx); err != nil {
+		t.Fatalf("initialize local settings: %v", err)
+	}
+
+	if err := d.Initialize(ctx); err != nil {
+		t.Fatalf("Initialize at schema 25: %v", err)
+	}
+
+	profile, err := d.GetProfile(ctx, InitialProfileName)
+	if err != nil {
+		t.Fatalf("get default profile: %v", err)
+	}
+
+	if err := d.CreateSubscriber(ctx, &Subscriber{
+		Imsi:           "001010000000001",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "00112233445566778899aabbccddeeff",
+		Opc:            "00112233445566778899aabbccddeeff",
+		ProfileID:      profile.ID,
+	}); err != nil {
+		t.Fatalf("CreateSubscriber at schema 25: %v", err)
+	}
+
+	day := DaysSinceEpoch(time.Now())
+
+	rows := []DailyUsage{
+		{EpochDay: day, IMSI: "001019999999998", BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: day, IMSI: "001019999999999", BytesUplink: 70, BytesDownlink: 20},
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: 500, BytesDownlink: 300},
+	}
+
+	core, logs := observer.New(zapcore.ErrorLevel)
+	t.Cleanup(logger.SwapSystemCore(core))
+
+	if err := d.IncrementDailyUsageBatch(ctx, rows); err != nil {
+		t.Fatalf("IncrementDailyUsageBatch at schema 25: %v", err)
+	}
+
+	entries := logs.FilterMessage("usage bytes lost: no subscriber row to charge").All()
+	if len(entries) != 1 {
+		t.Fatalf("got %d loss reports, want 1", len(entries))
+	}
+
+	fields := entries[0].ContextMap()
+	if fields["rows"] != int64(2) || fields["uplink_volume"] != uint64(170) || fields["downlink_volume"] != uint64(220) {
+		t.Errorf("loss report = %v, want 2 rows, 170 up, 220 down", fields)
+	}
+
+	perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now(), time.Now().Add(time.Hour)), nil)
+	if err != nil || len(perDay) != 1 || perDay[0].BytesUplink != 500 {
+		t.Fatalf("GetUsagePerDay at schema 25 = %+v, %v", perDay, err)
 	}
 }

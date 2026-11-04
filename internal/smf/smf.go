@@ -97,7 +97,6 @@ type SubscriptionData interface {
 type SessionStore interface {
 	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
 	IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error
-	IncrementRoamingDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error
 	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 
@@ -454,7 +453,20 @@ func (s *SMF) SessionCount() int {
 	return len(s.pool)
 }
 
-func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
+type SessionCount struct {
+	Home    int
+	Roaming int
+}
+
+func (c *SessionCount) add(roaming bool) {
+	if roaming {
+		c.Roaming++
+	} else {
+		c.Home++
+	}
+}
+
+func (s *SMF) SessionCountByRAT() (fourG, fiveG SessionCount) {
 	s.mu.RLock()
 	sessions := make([]*SMContext, 0, len(s.pool))
 
@@ -465,14 +477,10 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 	s.mu.RUnlock()
 
 	for _, sc := range sessions {
-		if sc.visiting() {
-			continue
-		}
-
 		if sc.onEPS() {
-			fourG++
+			fourG.add(sc.visiting())
 		} else {
-			fiveG++
+			fiveG.add(sc.visiting())
 		}
 	}
 

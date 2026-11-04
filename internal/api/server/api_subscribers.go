@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,11 +53,12 @@ type SubscriberStatus struct {
 }
 
 type Subscriber struct {
-	Imsi        string           `json:"imsi"`
-	ProfileName string           `json:"profile_name"`
-	Description string           `json:"description,omitempty"`
-	Msisdn      string           `json:"msisdn,omitempty"`
-	Status      SubscriberStatus `json:"status"`
+	Imsi           string           `json:"imsi"`
+	ProfileName    string           `json:"profile_name"`
+	Description    string           `json:"description,omitempty"`
+	Msisdn         string           `json:"msisdn,omitempty"`
+	RoamingPartner string           `json:"roaming_partner,omitempty"`
+	Status         SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {
@@ -87,13 +89,14 @@ type Registration struct {
 }
 
 type SubscriberDetail struct {
-	Imsi          string           `json:"imsi"`
-	ProfileName   string           `json:"profile_name"`
-	Description   string           `json:"description,omitempty"`
-	Msisdn        string           `json:"msisdn,omitempty"`
-	Registrations []Registration   `json:"registrations"`
-	Sessions      []Session        `json:"sessions"`
-	IMS           *IMSSubscription `json:"ims,omitempty"`
+	Imsi           string           `json:"imsi"`
+	ProfileName    string           `json:"profile_name"`
+	Description    string           `json:"description,omitempty"`
+	Msisdn         string           `json:"msisdn,omitempty"`
+	RoamingPartner string           `json:"roaming_partner,omitempty"`
+	Registrations  []Registration   `json:"registrations"`
+	Sessions       []Session        `json:"sessions"`
+	IMS            *IMSSubscription `json:"ims,omitempty"`
 }
 
 type IMSSubscription struct {
@@ -331,6 +334,12 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		dataNetworkFilter := q.Get("data_network")
 		searchFilter := strings.TrimSpace(q.Get("search"))
 
+		roamingFilter, ok := parseRoamingFilter(q.Get("roaming"))
+		if !ok {
+			writeError(r.Context(), w, http.StatusBadRequest, "roaming must be true or false", nil, logger.APILog)
+			return
+		}
+
 		if page < 1 {
 			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
 			return
@@ -396,7 +405,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			dbPerPage = MaxNumSubscribers
 		}
 
-		filters := &db.SubscriberFilters{}
+		filters := &db.SubscriberFilters{Roaming: roamingFilter}
 
 		if searchFilter != "" {
 			filters.Search = &searchFilter
@@ -429,6 +438,12 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		profileByID := make(map[string]*db.Profile, len(allProfiles))
 		for i := range allProfiles {
 			profileByID[allProfiles[i].ID] = &allProfiles[i]
+		}
+
+		partnerNames, err := roamingPartnerNames(ctx, dbInstance, dbSubscribers)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list roaming partners", err, logger.APILog)
+			return
 		}
 
 		for _, dbSubscriber := range dbSubscribers {
@@ -478,11 +493,12 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			}
 
 			items = append(items, Subscriber{
-				Imsi:        dbSubscriber.Imsi,
-				ProfileName: profile.Name,
-				Description: dbSubscriber.Description,
-				Msisdn:      formatE164(dbSubscriber.Msisdn),
-				Status:      subscriberStatus,
+				Imsi:           dbSubscriber.Imsi,
+				ProfileName:    profile.Name,
+				Description:    dbSubscriber.Description,
+				Msisdn:         formatE164(dbSubscriber.Msisdn),
+				RoamingPartner: partnerNames[partnerIDOf(dbSubscriber)],
+				Status:         subscriberStatus,
 			})
 		}
 
@@ -527,7 +543,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		dbSubscriber, err := dbInstance.GetSubscriber(r.Context(), imsi)
+		dbSubscriber, err := dbInstance.GetSubscriberOrVisitor(r.Context(), imsi)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
@@ -603,7 +619,17 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			Sessions:      sessions,
 		}
 
-		if hssInstance != nil {
+		if dbSubscriber.RoamingPartnerID != nil {
+			partner, err := dbInstance.GetRoamingPartner(r.Context(), *dbSubscriber.RoamingPartnerID)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve the roaming partner", err, logger.APILog)
+				return
+			}
+
+			subscriber.RoamingPartner = partner.Name
+		}
+
+		if hssInstance != nil && dbSubscriber.RoamingPartnerID == nil {
 			ims, err := hssInstance.Subscription(r.Context(), imsi)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve the IMS subscription", err, logger.APILog)
@@ -807,6 +833,10 @@ func UpdateSubscriber(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			return
 		}
 
+		if !rejectRoamer(w, r, dbInstance, imsi) {
+			return
+		}
+
 		var params UpdateSubscriberParams
 
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
@@ -928,6 +958,10 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			return
 		}
 
+		if !rejectRoamer(w, r, dbInstance, imsi) {
+			return
+		}
+
 		if _, err := dbInstance.GetSubscriber(r.Context(), imsi); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
@@ -980,6 +1014,62 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 
 		logger.LogAuditEvent(r.Context(), DeleteSubscriberAction, email, getClientIP(r), "User deleted subscriber: "+imsi)
 	})
+}
+
+func parseRoamingFilter(value string) (*bool, bool) {
+	switch value {
+	case "":
+		return nil, true
+	case "true", "false":
+		roaming := value == "true"
+		return &roaming, true
+	default:
+		return nil, false
+	}
+}
+
+func partnerIDOf(s db.Subscriber) string {
+	if s.RoamingPartnerID == nil {
+		return ""
+	}
+
+	return *s.RoamingPartnerID
+}
+
+func roamingPartnerNames(ctx context.Context, dbInstance *db.Database, subscribers []db.Subscriber) (map[string]string, error) {
+	names := map[string]string{}
+
+	if !slices.ContainsFunc(subscribers, func(s db.Subscriber) bool { return s.RoamingPartnerID != nil }) {
+		return names, nil
+	}
+
+	partners, err := dbInstance.ListRoamingPartners(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range partners {
+		names[p.ID] = p.Name
+	}
+
+	return names, nil
+}
+
+func rejectRoamer(w http.ResponseWriter, r *http.Request, dbInstance *db.Database, imsi string) bool {
+	subscriber, err := dbInstance.GetSubscriberOrVisitor(r.Context(), imsi)
+
+	switch {
+	case errors.Is(err, db.ErrNotFound):
+		return true
+	case err != nil:
+		writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
+		return false
+	case subscriber.RoamingPartnerID != nil:
+		writeError(r.Context(), w, http.StatusConflict, "Roamers cannot be updated or deleted; deregister them instead", nil, logger.APILog)
+		return false
+	default:
+		return true
+	}
 }
 
 func connectionStatePtr(connected bool) *string {

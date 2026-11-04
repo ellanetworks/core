@@ -91,8 +91,6 @@ tags:
     description: "Beta: Periodic location requests and their reports."
   - name: Cell Positions
     description: "Beta: Cell antenna positions."
-  - name: Roaming
-    description: Roaming partners, their Diameter peers, Ella Core's SEPP certificate, and roaming usage.
 
 paths:
   # -- Status --------------------------------------------------------------
@@ -807,7 +805,7 @@ paths:
       operationId: listSubscribers
       tags: [Subscribers]
       summary: List subscribers
-      description: Lists subscribers, ordered by IMSI.
+      description: Lists subscribers, ordered by IMSI. Roamers (visitors of a roaming partner) are listed with their roaming partner; their status is what the node serving the request knows.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -827,6 +825,12 @@ paths:
             type: string
             maxLength: 254
           description: Substring match on IMSI or description, ASCII case-insensitive.
+        - name: roaming
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: "true lists only roamers, false only home subscribers. Absent lists both."
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -866,7 +870,7 @@ paths:
       operationId: getSubscriber
       tags: [Subscribers]
       summary: Get subscriber details
-      description: Returns a subscriber with its registrations and sessions.
+      description: Returns a subscriber with its registrations and sessions. For a roamer, the registrations and sessions are those on the node serving the request.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -884,7 +888,7 @@ paths:
       operationId: updateSubscriber
       tags: [Subscribers]
       summary: Update a subscriber
-      description: Updates a subscriber.
+      description: Updates a subscriber. Roamers cannot be updated.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       requestBody:
@@ -903,12 +907,16 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          $ref: "#/components/responses/Conflict"
+          description: The profile has no policy, the MSISDN is in use, or the subscriber is a roamer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: deleteSubscriber
       tags: [Subscribers]
       summary: Delete a subscriber
-      description: Deletes a subscriber.
+      description: Deletes a subscriber. Roamers cannot be deleted; deregister them instead.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -918,6 +926,38 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The subscriber is a roamer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/subscribers/{imsi}/deregister:
+    post:
+      operationId: deregisterSubscriber
+      tags: [Subscribers]
+      summary: Deregister a roamer
+      description: Deregisters a roamer on the node that serves it, network-initiated with "re-registration not required" and no cause (TS 24.501 clause 5.5.2.3, TS 24.301 clause 5.5.2.3), and purges it at its home network (Nudm_UECM deregistration, S6a PUR). Meanwhile a new registration of the roamer is rejected with cause #22 (congestion). The roamer may register again once it is gone; to bar it, remove its PLMN ID from the roaming partner. Answers once the roamer is deregistered, within a minute.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The subscriber is not a roamer, or the roamer was still registered after a minute (for example, the node that holds it is unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/subscribers/{imsi}/credentials:
     get:
@@ -947,7 +987,7 @@ paths:
       operationId: getSubscriberUsage
       tags: [Subscriber Usage]
       summary: Get subscriber usage data
-      description: Returns the data usage of home subscribers, grouped by day or subscriber. Roamer usage is under /roaming/usage.
+      description: Returns the data usage of home subscribers and roamers, grouped by day or subscriber.
       parameters:
         - name: group_by
           in: query
@@ -973,6 +1013,12 @@ paths:
           schema:
             type: string
           description: Filter by IMSI.
+        - name: roaming
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: "true returns only roamer usage, false only home subscriber usage. Absent returns both."
       responses:
         "200":
           description: Usage data grouped by the requested dimension.
@@ -1934,6 +1980,445 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/roaming/partners:
+    get:
+      operationId: listRoamingPartners
+      tags: [Operator]
+      summary: List roaming partners
+      description: Lists the roaming partners. A partner is a roaming agreement with one home network operator, identified by one or more PLMN IDs, whose subscribers may attach to Ella Core.
+      responses:
+        "200":
+          description: Roaming partners.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/ListRoamingPartnersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createRoamingPartner
+      tags: [Operator]
+      summary: Create a roaming partner
+      description: Creates a roaming partner. Every node with interfaces.n32 then runs its own N32-c handshake with the partner's SEPP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingPartnerParams"
+      responses:
+        "201":
+          description: The created roaming partner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingPartnerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: The profile or the roaming Diameter peer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "The name is taken, or a PLMN ID conflicts with the home PLMN or another partner's: under one MCC, the same MNC once zero-padded to 3 digits (TS 23.003 clause 19.2), or one MNC a prefix of the other."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/partners/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getRoamingPartner
+      tags: [Operator]
+      summary: Get a roaming partner
+      description: Returns a roaming partner.
+      responses:
+        "200":
+          description: Roaming partner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingPartnerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateRoamingPartner
+      tags: [Operator]
+      summary: Update a roaming partner
+      description: Replaces a roaming partner's configuration. PLMN IDs can be added. Removing a PLMN ID, or the 5G (`sepp`) or 4G (`diameterPeerID`) agreement, first deregisters the partner's roamers it affects (the roamers of that PLMN ID, or the roamers attached over that RAT) on every node, with a purge towards their home network, and refuses new ones meanwhile; the change is applied once they are gone. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingPartnerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The name is taken, a PLMN ID conflicts (see create), or the roamers that the change affects could not all be deregistered within a minute (for example, a node that holds them is unreachable). The configuration is left unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRoamingPartner
+      tags: [Operator]
+      summary: Delete a roaming partner
+      description: Deletes a roaming partner. Its roamers are first deregistered on every node (EMM cause #11, PLMN not allowed) and purged at their home network, while the partner configuration still exists to reach it; new roamers of the partner are refused meanwhile. Its roaming usage is kept, keyed by PLMN ID, until the subscriber usage retention removes it.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The partner's roamers could not all be deregistered within a minute (for example, a node that holds them is unreachable). The partner is left in place.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/partners/{id}/handshake:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: rehandshakeRoamingPartner
+      tags: [Operator]
+      summary: Re-run the N32-c handshake with a roaming partner
+      description: Starts a new N32-c security capability negotiation (TS 29.573 clause 5.2.2) with the partner's SEPP on the node that serves the request, each node with interfaces.n32 being its own SEPP with its own context. The answer has the context state right after the start, normally `establishing`, or `unknown` with the error when the node could not start it; poll the partner for the outcome.
+      responses:
+        "202":
+          description: The handshake started on this node.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/RoamingPartnerHandshake"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The partner has no 5G agreement, or this node has no interfaces.n32.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/diameter-peers:
+    get:
+      operationId: listRoamingDiameterPeers
+      tags: [Operator]
+      summary: List roaming Diameter peers
+      description: Lists the Diameter peers (home HSS or Diameter Edge Agent) that roaming partners reach over S6a.
+      responses:
+        "200":
+          description: Roaming Diameter peers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/ListRoamingDiameterPeersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createRoamingDiameterPeer
+      tags: [Operator]
+      summary: Create a roaming Diameter peer
+      description: Creates a roaming Diameter peer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingDiameterPeerParams"
+      responses:
+        "201":
+          description: The created roaming Diameter peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingDiameterPeerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Another Diameter peer has the Diameter identity or the address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/diameter-peers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getRoamingDiameterPeer
+      tags: [Operator]
+      summary: Get a roaming Diameter peer
+      description: Returns a roaming Diameter peer.
+      responses:
+        "200":
+          description: Roaming Diameter peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingDiameterPeerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateRoamingDiameterPeer
+      tags: [Operator]
+      summary: Update a roaming Diameter peer
+      description: Updates a roaming Diameter peer. All fields are replaced; port is required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingDiameterPeerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another Diameter peer has the Diameter identity or the address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRoamingDiameterPeer
+      tags: [Operator]
+      summary: Delete a roaming Diameter peer
+      description: Deletes a roaming Diameter peer that no roaming partner uses.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A roaming partner uses the peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/sepp:
+    get:
+      operationId: getSEPPStatus
+      tags: [Operator]
+      summary: Get the SEPP status
+      description: |
+        Every node with interfaces.n32 is its own SEPP (TS 33.501 clause 13.2.2.4.2), identified by its SEPP ID, the node's AMF Pointer, and named `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1).
+        Returns the SEPP identity, certificate summary and N32 listener status of the node that serves the request, the trust anchors to give roaming partners (the cluster SEPP CA, which signs generated certificates, and the CA ending each imported chain), and the stored certificate of every SEPP ID.
+      responses:
+        "200":
+          description: SEPP status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/SEPPStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate:
+    parameters:
+      - name: seppID
+        in: path
+        required: true
+        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 63
+    get:
+      operationId: getSEPPCertificate
+      tags: [Operator]
+      summary: Get a node's SEPP certificate
+      description: Returns the SEPP certificate chain of the node, its FQDN, whether Ella Core generated or the operator imported it, and the trust anchor to give roaming partners, with warnings for every way the certificate departs from the TS 33.310 clause 6.1.3c.3 profile. The private key is never returned.
+      responses:
+        "200":
+          description: SEPP certificate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: The node has no SEPP certificate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: importSEPPCertificate
+      tags: [Operator]
+      summary: Import a node's SEPP certificate
+      description: |
+        Replaces the node's SEPP certificate with one issued outside Ella Core, for example by the operator's CA (TS 33.310 clause 6.1.3c). The certificate:
+        - matches the private key, an ECDSA P-256 or P-384 key or an RSA key of at least 2048 bits with a public exponent of at least 65537;
+        - is an end-entity certificate with keyUsage digitalSignature, and extendedKeyUsage serverAuth and clientAuth or none;
+        - is valid now;
+        - has a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of the home PLMN, names no other PLMN, and does not carry the well-known SEPP FQDN `sepp.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1). The node's SEPP FQDN is that name; with several, `fqdn` selects one, else the subject CN if it is one of them. No two nodes may have the same FQDN.
+
+        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or nfTypes, a CN not in the subjectAltName, an FQDN other than `sepp<SEPPID>`, no cRLDistributionPoints or a validity over 3 years are accepted with a warning.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportSEPPCertificateParams"
+      responses:
+        "200":
+          description: The imported SEPP certificate, with warnings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
+        "409":
+          description: Another node has this FQDN, or the home PLMN changed while the certificate was being imported.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate/generate:
+    parameters:
+      - name: seppID
+        in: path
+        required: true
+        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 63
+    post:
+      operationId: generateSEPPCertificate
+      tags: [Operator]
+      summary: Generate a node's SEPP certificate
+      description: Replaces the node's SEPP certificate with a new one for `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, signed by the cluster SEPP CA (created when absent). A node with interfaces.n32 and no certificate generates one the same way on its own; this endpoint returns a node to a generated certificate after an import. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral agreements, not the production profile of TS 33.310 clause 6.1.3c.3.
+      responses:
+        "201":
+          description: The generated SEPP certificate, with warnings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/operator/roaming/sepp/ca/regenerate:
+    post:
+      operationId: regenerateSEPPCA
+      tags: [Operator]
+      summary: Regenerate the cluster SEPP CA
+      description: Replaces the cluster SEPP CA and reissues every generated node certificate with the new CA in the same request. Imported certificates are kept. The new CA is the trust anchor every roaming partner must import for the nodes with generated certificates.
+      responses:
+        "201":
+          description: The new CA and the SEPP IDs whose certificates were reissued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/SEPPCARegenerated"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
@@ -2997,7 +3482,7 @@ paths:
       operationId: getFlowReportStats
       tags: [Flow Reports]
       summary: Get flow report statistics
-      description: Returns top protocols and top uplink destinations, counting the flows of home subscribers only (roamer flows are excluded).
+      description: Returns top protocols and top uplink destinations.
       parameters:
         - name: subscriber_id
           in: query
@@ -3761,553 +4246,6 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # -- Roaming -------------------------------------------------------------
-  /api/v1/roaming/partners:
-    get:
-      operationId: listRoamingPartners
-      tags: [Roaming]
-      summary: List roaming partners
-      description: Lists the roaming partners. A partner is a roaming agreement with one home network operator, identified by one or more PLMN IDs, whose subscribers may attach to Ella Core.
-      responses:
-        "200":
-          description: Roaming partners.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    $ref: "#/components/schemas/ListRoamingPartnersResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-    post:
-      operationId: createRoamingPartner
-      tags: [Roaming]
-      summary: Create a roaming partner
-      description: Creates a roaming partner. Every node with interfaces.n32 then runs its own N32-c handshake with the partner's SEPP.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RoamingPartnerParams"
-      responses:
-        "201":
-          description: The created roaming partner.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoamingPartnerResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          description: The profile or the roaming Diameter peer does not exist.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: "The name is taken, or a PLMN ID conflicts with the home PLMN or another partner's: under one MCC, the same MNC once zero-padded to 3 digits (TS 23.003 clause 19.2), or one MNC a prefix of the other."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/roaming/partners/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    get:
-      operationId: getRoamingPartner
-      tags: [Roaming]
-      summary: Get a roaming partner
-      description: Returns a roaming partner.
-      responses:
-        "200":
-          description: Roaming partner.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoamingPartnerResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    put:
-      operationId: updateRoamingPartner
-      tags: [Roaming]
-      summary: Update a roaming partner
-      description: Replaces a roaming partner's configuration. PLMN IDs can be added. Removing a PLMN ID, or the 5G (`sepp`) or 4G (`diameterPeerID`) agreement, first deregisters the partner's roamers it affects (the roamers of that PLMN ID, or the roamers attached over that RAT) on every node, with a purge towards their home network, and refuses new ones meanwhile; the change is applied once they are gone. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RoamingPartnerParams"
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: The name is taken, a PLMN ID conflicts (see create), or the roamers that the change affects could not all be deregistered within a minute (for example, a node that holds them is unreachable). The configuration is left unchanged.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    delete:
-      operationId: deleteRoamingPartner
-      tags: [Roaming]
-      summary: Delete a roaming partner
-      description: Deletes a roaming partner. Its roamers are first deregistered on every node (EMM cause #11, PLMN not allowed) and purged at their home network, while the partner configuration still exists to reach it; new roamers of the partner are refused meanwhile. Its roaming usage is kept, keyed by PLMN ID, until the subscriber usage retention removes it.
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: The partner's roamers could not all be deregistered within a minute (for example, a node that holds them is unreachable). The partner is left in place.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/roaming/partners/{id}/handshake:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    post:
-      operationId: rehandshakeRoamingPartner
-      tags: [Roaming]
-      summary: Re-run the N32-c handshake with a roaming partner
-      description: Starts a new N32-c security capability negotiation (TS 29.573 clause 5.2.2) with the partner's SEPP on every node with interfaces.n32, each node being its own SEPP with its own context. The request reaches the other nodes over the cluster's mutual TLS (2 seconds per node). The answer has one entry per node with the context state right after the start, normally `establishing`, or `unknown` with the error for a node that could not start it; poll the partner for the outcome.
-      responses:
-        "202":
-          description: The handshake started on the nodes listed.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    $ref: "#/components/schemas/RoamingPartnerHandshake"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: The partner has no 5G agreement, or no node has interfaces.n32.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/roaming/diameter-peers:
-    get:
-      operationId: listRoamingDiameterPeers
-      tags: [Roaming]
-      summary: List roaming Diameter peers
-      description: Lists the Diameter peers (home HSS or Diameter Edge Agent) that roaming partners reach over S6a.
-      responses:
-        "200":
-          description: Roaming Diameter peers.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    $ref: "#/components/schemas/ListRoamingDiameterPeersResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-    post:
-      operationId: createRoamingDiameterPeer
-      tags: [Roaming]
-      summary: Create a roaming Diameter peer
-      description: Creates a roaming Diameter peer.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RoamingDiameterPeerParams"
-      responses:
-        "201":
-          description: The created roaming Diameter peer.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoamingDiameterPeerResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          description: Another Diameter peer has the Diameter identity or the address.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/roaming/diameter-peers/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    get:
-      operationId: getRoamingDiameterPeer
-      tags: [Roaming]
-      summary: Get a roaming Diameter peer
-      description: Returns a roaming Diameter peer.
-      responses:
-        "200":
-          description: Roaming Diameter peer.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoamingDiameterPeerResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    put:
-      operationId: updateRoamingDiameterPeer
-      tags: [Roaming]
-      summary: Update a roaming Diameter peer
-      description: Updates a roaming Diameter peer. All fields are replaced; port is required.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RoamingDiameterPeerParams"
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: Another Diameter peer has the Diameter identity or the address.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    delete:
-      operationId: deleteRoamingDiameterPeer
-      tags: [Roaming]
-      summary: Delete a roaming Diameter peer
-      description: Deletes a roaming Diameter peer that no roaming partner uses.
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: A roaming partner uses the peer.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/roaming/sepp:
-    get:
-      operationId: getSEPPStatus
-      tags: [Roaming]
-      summary: Get the SEPP status
-      description: |
-        Every node with interfaces.n32 is its own SEPP (TS 33.501 clause 13.2.2.4.2), identified by its SEPP ID, the node's AMF Pointer, and named `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1).
-        Returns the trust anchors to give roaming partners (the cluster SEPP CA, which signs generated certificates, and the CA ending each imported chain) and, per node, its SEPP identity, certificate summary and N32 listener status, gathered over the cluster's mutual TLS (2 seconds per node; an unreachable node has `reachable` false). Certificates whose SEPP ID belongs to no cluster node are listed with an error.
-      responses:
-        "200":
-          description: SEPP status.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    $ref: "#/components/schemas/SEPPStatus"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/v1/roaming/sepp/nodes/{seppID}/certificate:
-    parameters:
-      - name: seppID
-        in: path
-        required: true
-        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 63
-    get:
-      operationId: getSEPPCertificate
-      tags: [Roaming]
-      summary: Get a node's SEPP certificate
-      description: Returns the SEPP certificate chain of the node, its FQDN, whether Ella Core generated or the operator imported it, and the trust anchor to give roaming partners, with warnings for every way the certificate departs from the TS 33.310 clause 6.1.3c.3 profile. The private key is never returned.
-      responses:
-        "200":
-          description: SEPP certificate.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          description: The node has no SEPP certificate.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    put:
-      operationId: importSEPPCertificate
-      tags: [Roaming]
-      summary: Import a node's SEPP certificate
-      description: |
-        Replaces the node's SEPP certificate with one issued outside Ella Core, for example by the operator's CA (TS 33.310 clause 6.1.3c). The certificate:
-        - matches the private key, an ECDSA P-256 or P-384 key or an RSA key of at least 2048 bits with a public exponent of at least 65537;
-        - is an end-entity certificate with keyUsage digitalSignature, and extendedKeyUsage serverAuth and clientAuth or none;
-        - is valid now;
-        - has a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of the home PLMN, names no other PLMN, and does not carry the well-known SEPP FQDN `sepp.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1). The node's SEPP FQDN is that name; with several, `fqdn` selects one, else the subject CN if it is one of them. No two nodes may have the same FQDN.
-
-        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or nfTypes, a CN not in the subjectAltName, an FQDN other than `sepp<SEPPID>`, no cRLDistributionPoints or a validity over 3 years are accepted with a warning.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ImportSEPPCertificateParams"
-      responses:
-        "200":
-          description: The imported SEPP certificate, with warnings.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
-        "409":
-          description: Another node has this FQDN, or the home PLMN changed while the certificate was being imported.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/v1/roaming/sepp/nodes/{seppID}/certificate/generate:
-    parameters:
-      - name: seppID
-        in: path
-        required: true
-        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 63
-    post:
-      operationId: generateSEPPCertificate
-      tags: [Roaming]
-      summary: Generate a node's SEPP certificate
-      description: Replaces the node's SEPP certificate with a new one for `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, signed by the cluster SEPP CA (created when absent). A node with interfaces.n32 and no certificate generates one the same way on its own; this endpoint returns a node to a generated certificate after an import. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral agreements, not the production profile of TS 33.310 clause 6.1.3c.3.
-      responses:
-        "201":
-          description: The generated SEPP certificate, with warnings.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/v1/roaming/sepp/ca/regenerate:
-    post:
-      operationId: regenerateSEPPCA
-      tags: [Roaming]
-      summary: Regenerate the cluster SEPP CA
-      description: Replaces the cluster SEPP CA and reissues every generated node certificate with the new CA in the same request. Imported certificates are kept. The new CA is the trust anchor every roaming partner must import for the nodes with generated certificates.
-      responses:
-        "201":
-          description: The new CA and the SEPP IDs whose certificates were reissued.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    $ref: "#/components/schemas/SEPPCARegenerated"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/v1/roaming/roamers:
-    get:
-      operationId: listRoamers
-      tags: [Roaming]
-      summary: List roamers
-      description: Returns the roamers (visitors of every roaming partner) registered in the cluster. Registrations come from the replicated registry; each node is asked over cluster mTLS (2 s per node) for the live state of the roamers it serves. A registration on a node that does not answer has reachable false, and the node is listed in unreachableNodes. usageToday (UTC day) is present only when the caller also has the subscriber_usage:get permission, like per-subscriber usage. Roamers are not listed under subscribers and are not counted in the dashboard totals.
-      responses:
-        "200":
-          description: The roamers.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ListRoamersResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/v1/roaming/roamers/{imsi}:
-    parameters:
-      - name: imsi
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: "^[0-9]{6,15}$"
-    get:
-      operationId: getRoamer
-      tags: [Roaming]
-      summary: Get a roamer
-      description: Returns one roamer, with the same live view as the list.
-      responses:
-        "200":
-          description: The roamer.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoamerResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      operationId: deregisterRoamer
-      tags: [Roaming]
-      summary: Force the deregistration of a roamer
-      description: Deregisters the roamer on the node that serves it, network-initiated with "re-registration not required" and no cause (TS 24.501 clause 5.5.2.3, TS 24.301 clause 5.5.2.3), and purges it at its home network (Nudm_UECM deregistration, S6a PUR). Meanwhile a new registration of the roamer is rejected with cause #22 (congestion). The roamer may register again once it is gone; to bar it, remove its PLMN ID from the partner. Answers once the roamer is deregistered, within a minute.
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: The roamer was still registered after a minute (for example, the node that holds it is unreachable).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/roaming/usage:
-    get:
-      operationId: getRoamingUsage
-      tags: [Roaming]
-      summary: Get roaming usage
-      description: Returns the data usage of roamers per home PLMN ID and day, with the name of the roaming partner that holds the PLMN ID today. Usage outlives the partner and is removed by the subscriber usage retention. Days without usage are omitted.
-      parameters:
-        - name: start
-          in: query
-          schema:
-            type: string
-            format: date-time
-          description: Inclusive lower bound (RFC 3339). Defaults to 7 days ago.
-        - name: end
-          in: query
-          schema:
-            type: string
-            format: date-time
-          description: Exclusive upper bound (RFC 3339). Defaults to now.
-        - name: imsi
-          in: query
-          schema:
-            type: string
-          description: Filter by the IMSI of a roamer. Needs the subscriber_usage:get permission, like per-subscriber usage.
-      responses:
-        "200":
-          description: Roaming usage per PLMN ID and day.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoamingUsageResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
 components:
   securitySchemes:
     BearerAuth:
@@ -4847,6 +4785,9 @@ components:
           type: string
           pattern: "^\\+[1-9][0-9]{0,14}$"
           description: "MSISDN in E.164 format, for example +15551230001. Absent when unset."
+        roaming_partner:
+          type: string
+          description: Name of the roaming partner of a roamer. Absent for home subscribers.
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, profile_name, status]
@@ -4948,6 +4889,9 @@ components:
           type: string
           pattern: "^\\+[1-9][0-9]{0,14}$"
           description: "MSISDN in E.164 format, for example +15551230001. Absent when unset."
+        roaming_partner:
+          type: string
+          description: Name of the roaming partner of a roamer. Absent for home subscribers.
         registrations:
           type: array
           description: "Mobility-management contexts, 5G first."
@@ -5191,6 +5135,12 @@ components:
       properties:
         imsi:
           type: string
+        home_plmn:
+          $ref: "#/components/schemas/RoamingPLMN"
+          description: Home PLMN of a roamer. Absent for home subscribers.
+        roaming_partner:
+          type: string
+          description: Name of the roaming partner serving the home PLMN. Absent for home subscribers and for roamers of no configured partner.
         uplink_bytes:
           type: integer
           format: int64
@@ -6924,6 +6874,19 @@ components:
           type: string
       required: [addresses, port]
 
+    N32Interface:
+      type: object
+      properties:
+        addresses:
+          type: array
+          items:
+            type: string
+        port:
+          type: integer
+        interface:
+          type: string
+      required: [addresses, port]
+
     NetworkInterfaces:
       type: object
       properties:
@@ -6937,6 +6900,8 @@ components:
           $ref: "#/components/schemas/APIInterface"
         diameter:
           $ref: "#/components/schemas/DiameterInterface"
+        n32:
+          $ref: "#/components/schemas/N32Interface"
 
     NetworkInterfacesResponseEnvelope:
       type: object
@@ -8202,31 +8167,20 @@ components:
           format: uuid
           description: "The roaming Diameter peer that reaches the partner's HSS. Present when the partner has a 4G roaming agreement."
         n32:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoamingPartnerN32"
-          description: "The N32-c context of each node with interfaces.n32 with the partner's SEPP. Present when the partner has a 5G agreement."
+          $ref: "#/components/schemas/RoamingPartnerN32"
 
     RoamingPartnerHandshake:
       type: object
       required: [n32]
       properties:
         n32:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoamingPartnerN32"
+          $ref: "#/components/schemas/RoamingPartnerN32"
 
     RoamingPartnerN32:
       type: object
-      description: "Live N32-c context of one node's SEPP with the partner's SEPP (TS 29.573 clause 5.2.2)."
+      description: "Live N32-c context of this node's SEPP with the partner's SEPP (TS 29.573 clause 5.2.2). Present when the partner has a 5G agreement and this node has interfaces.n32."
       required: [state, nftlst]
       properties:
-        nodeID:
-          type: string
-          description: "The cluster node ID. Absent on a node outside a cluster."
-        seppID:
-          type: integer
-          description: "The node's SEPP ID, its AMF Pointer."
         since:
           type: string
           format: date-time
@@ -8234,7 +8188,7 @@ components:
         state:
           type: string
           enum: [idle, establishing, established, failed, terminated, unknown]
-          description: "idle: no usable configuration on the node; unknown: the node did not answer; establishing: the node's exchange-capability is in flight; established: TLS security selected and 3gpp-Sbi-Target-apiRoot supported both ways; failed: the last handshake failed and is retried with backoff; terminated: the partner tore the context down."
+          description: "idle: no usable configuration on the node; unknown: the node could not start the handshake; establishing: the node's exchange-capability is in flight; established: TLS security selected and 3gpp-Sbi-Target-apiRoot supported both ways; failed: the last handshake failed and is retried with backoff; terminated: the partner tore the context down."
         initiator:
           type: string
           enum: [local, peer]
@@ -8404,16 +8358,18 @@ components:
 
     SEPPStatus:
       type: object
-      required: [trustAnchors, nodes]
+      required: [node, trustAnchors, certificates]
       properties:
+        node:
+          $ref: "#/components/schemas/SEPPNodeStatus"
         trustAnchors:
           type: array
           items:
             $ref: "#/components/schemas/SEPPTrustAnchor"
-        nodes:
+        certificates:
           type: array
           items:
-            $ref: "#/components/schemas/SEPPNodeStatus"
+            $ref: "#/components/schemas/SEPPStoredCertificate"
 
     SEPPTrustAnchor:
       type: object
@@ -8479,13 +8435,25 @@ components:
         trustAnchorFingerprint:
           type: string
 
+    SEPPStoredCertificate:
+      type: object
+      required: [seppID, fqdn, source]
+      properties:
+        seppID:
+          type: integer
+        fqdn:
+          type: string
+        source:
+          type: string
+          enum: [generated, imported]
+        certificate:
+          $ref: "#/components/schemas/SEPPCertificateSummary"
+
     SEPPNodeStatus:
       type: object
-      required: [reachable, n32Configured, listening]
+      description: "The SEPP of the node that serves the request."
+      required: [n32Configured, listening]
       properties:
-        nodeID:
-          type: string
-          description: "The cluster node ID. Absent outside a cluster, and for a certificate whose SEPP ID belongs to no node."
         seppID:
           type: integer
           description: "The node's SEPP ID, its AMF Pointer."
@@ -8495,9 +8463,6 @@ components:
         source:
           type: string
           enum: [generated, imported]
-        reachable:
-          type: boolean
-          description: "False when the node did not answer over the cluster's mutual TLS; the listener fields are then unknown."
         n32Configured:
           type: boolean
           description: "Whether the node's configuration file sets interfaces.n32. A node without it runs no SEPP."
@@ -8513,158 +8478,3 @@ components:
         error:
           type: string
 
-    RoamingUsage:
-      type: object
-      required: [date, mcc, mnc, uplink_bytes, downlink_bytes, total_bytes]
-      properties:
-        date:
-          type: string
-          format: date
-          description: UTC day, YYYY-MM-DD.
-        mcc:
-          type: string
-          pattern: "^[0-9]{3}$"
-          description: MCC of the roamers' home PLMN ID.
-        mnc:
-          type: string
-          pattern: "^[0-9]{2,3}$"
-          description: MNC of the roamers' home PLMN ID.
-        partner_name:
-          type: string
-          description: The roaming partner that holds the PLMN ID today. Absent once no partner does.
-        uplink_bytes:
-          type: integer
-          format: int64
-        downlink_bytes:
-          type: integer
-          format: int64
-        total_bytes:
-          type: integer
-          format: int64
-
-    RoamerRegistration:
-      type: object
-      required: [rat, reachable, registered]
-      properties:
-        rat:
-          type: string
-          enum: ["4G", "5G"]
-        nodeID:
-          type: string
-          description: The cluster node that holds the registration.
-        reachable:
-          type: boolean
-          description: Whether that node answered. The other fields are absent when it did not.
-        registered:
-          type: boolean
-        connectionState:
-          type: string
-          enum: [connected, idle]
-        since:
-          type: string
-          format: date-time
-          description: When the node admitted the roamer.
-        lastSeenAt:
-          type: string
-          format: date-time
-        radio:
-          type: string
-
-    RoamerSession:
-      type: object
-      required: [rat, id]
-      properties:
-        rat:
-          type: string
-          enum: ["4G", "5G"]
-        nodeID:
-          type: string
-        id:
-          type: integer
-          description: PDU session ID (5G) or default EPS bearer ID (4G).
-        dataNetwork:
-          type: string
-        ipv4Address:
-          type: string
-        ipv6Prefix:
-          type: string
-
-    RoamerUsage:
-      type: object
-      required: [uplinkBytes, downlinkBytes, totalBytes]
-      properties:
-        uplinkBytes:
-          type: integer
-          format: int64
-        downlinkBytes:
-          type: integer
-          format: int64
-        totalBytes:
-          type: integer
-          format: int64
-
-    Roamer:
-      type: object
-      required: [imsi, partnerID, partnerName, homePLMN, registrations, sessions]
-      properties:
-        imsi:
-          type: string
-        partnerID:
-          type: string
-          format: uuid
-        partnerName:
-          type: string
-        homePLMN:
-          $ref: "#/components/schemas/RoamingPLMN"
-        registrations:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoamerRegistration"
-        sessions:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoamerSession"
-        usageToday:
-          $ref: "#/components/schemas/RoamerUsage"
-
-    UnreachableNode:
-      type: object
-      required: [nodeID, error]
-      properties:
-        nodeID:
-          type: string
-        error:
-          type: string
-
-    ListRoamersResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Roamer"
-        unreachableNodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/UnreachableNode"
-
-    ListRoamersResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/ListRoamersResponse"
-
-    RoamerResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/Roamer"
-
-    RoamingUsageResponseEnvelope:
-      type: object
-      properties:
-        result:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoamingUsage"

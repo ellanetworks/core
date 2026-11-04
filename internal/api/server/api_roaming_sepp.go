@@ -4,22 +4,16 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
@@ -32,8 +26,6 @@ const (
 	ImportSEPPCertificateAction     = "import_sepp_certificate"
 	RegenerateSEPPCAAction          = "regenerate_sepp_ca"
 
-	seppNodeStatusTimeout = 2 * time.Second
-
 	seppTrustAnchorChangedWarning = "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again"
 	seppGeneratedWarning          = "Ella Core issued this certificate with the cluster SEPP CA, which has no CRL distribution point: it suits labs and bilateral agreements, while TS 33.310 clause 6.1.3c.3 expects production certificates from the operator's CA (import one per node)"
 	seppCARegeneratedWarning      = "The cluster SEPP CA changed: every roaming partner must import the new trust anchor before N32 with the nodes that use generated certificates works again"
@@ -45,8 +37,6 @@ type SEPPRuntime interface {
 }
 
 type RoamingPartnerN32 struct {
-	NodeID     string                  `json:"nodeID,omitempty"`
-	SEPPID     int                     `json:"seppID,omitempty"`
 	State      string                  `json:"state"`
 	Since      string                  `json:"since,omitempty"`
 	Initiator  string                  `json:"initiator,omitempty"`
@@ -63,7 +53,7 @@ type RoamingPartnerN32Peer struct {
 }
 
 type RoamingPartnerHandshake struct {
-	N32 []RoamingPartnerN32 `json:"n32"`
+	N32 RoamingPartnerN32 `json:"n32"`
 }
 
 type SEPPCertificateSummary struct {
@@ -86,11 +76,9 @@ type SEPPTrustAnchor struct {
 }
 
 type SEPPNodeStatus struct {
-	NodeID        string                  `json:"nodeID,omitempty"`
 	SEPPID        int                     `json:"seppID,omitempty"`
 	FQDN          string                  `json:"fqdn,omitempty"`
 	Source        string                  `json:"source,omitempty"`
-	Reachable     bool                    `json:"reachable"`
 	N32Configured bool                    `json:"n32Configured"`
 	Address       string                  `json:"address,omitempty"`
 	Port          int                     `json:"port,omitempty"`
@@ -99,9 +87,17 @@ type SEPPNodeStatus struct {
 	Error         string                  `json:"error,omitempty"`
 }
 
+type SEPPStoredCertificate struct {
+	SEPPID      int                     `json:"seppID"`
+	FQDN        string                  `json:"fqdn"`
+	Source      string                  `json:"source"`
+	Certificate *SEPPCertificateSummary `json:"certificate,omitempty"`
+}
+
 type SEPPStatus struct {
-	TrustAnchors []SEPPTrustAnchor `json:"trustAnchors"`
-	Nodes        []SEPPNodeStatus  `json:"nodes"`
+	Node         SEPPNodeStatus          `json:"node"`
+	TrustAnchors []SEPPTrustAnchor       `json:"trustAnchors"`
+	Certificates []SEPPStoredCertificate `json:"certificates"`
 }
 
 type SEPPCertificate struct {
@@ -127,23 +123,8 @@ type SEPPCARegenerated struct {
 	Warnings    []string        `json:"warnings,omitempty"`
 }
 
-type seppNode struct {
-	nodeID  string
-	seppID  int
-	address string
-	self    bool
-}
-
-type seppNodeView struct {
-	seppNode
-	status *sepp.NodeStatus
-	err    error
-}
-
-func roamingPartnerN32(v seppNodeView, st sepp.ContextStatus) RoamingPartnerN32 {
+func roamingPartnerN32(st sepp.ContextStatus) RoamingPartnerN32 {
 	out := RoamingPartnerN32{
-		NodeID:    v.nodeID,
-		SEPPID:    v.seppID,
 		State:     string(st.State),
 		Initiator: string(st.Initiator),
 		NFTLST:    st.NFTLST,
@@ -162,171 +143,33 @@ func roamingPartnerN32(v seppNodeView, st sepp.ContextStatus) RoamingPartnerN32 
 	return out
 }
 
-func partnerN32(views []seppNodeView, partnerID string) []RoamingPartnerN32 {
-	out := make([]RoamingPartnerN32, 0, len(views))
-
-	for _, v := range views {
-		switch {
-		case v.err != nil:
-			out = append(out, RoamingPartnerN32{NodeID: v.nodeID, SEPPID: v.seppID, State: "unknown", LastError: v.err.Error()})
-		case !v.status.Listener.Configured:
-			continue
-		default:
-			st, ok := v.status.Contexts[partnerID]
-			if !ok {
-				st = sepp.ContextStatus{State: sepp.StateIdle}
-			}
-
-			out = append(out, roamingPartnerN32(v, st))
-		}
+func localSEPPStatus(rt SEPPRuntime) *sepp.NodeStatus {
+	if rt == nil {
+		return nil
 	}
 
-	return out
+	st := rt.Status()
+
+	return &st
 }
 
-func withN32(resp RoamingPartner, p db.RoamingPartner, views []seppNodeView) RoamingPartner {
-	if p.SEPPFQDN != nil && views != nil {
-		resp.N32 = partnerN32(views, p.ID)
+func withN32(resp RoamingPartner, p db.RoamingPartner, st *sepp.NodeStatus) RoamingPartner {
+	if p.SEPPFQDN == nil || st == nil || !st.Listener.Configured {
+		return resp
 	}
+
+	ctx, ok := st.Contexts[p.ID]
+	if !ok {
+		ctx = sepp.ContextStatus{State: sepp.StateIdle}
+	}
+
+	n32 := roamingPartnerN32(ctx)
+	resp.N32 = &n32
 
 	return resp
 }
 
-func seppNodes(ctx context.Context, dbInstance *db.Database) []seppNode {
-	self := seppNode{nodeID: dbInstance.RaftID(), seppID: dbInstance.AMFPointer(), self: true}
-
-	if !dbInstance.ClusterEnabled() {
-		return []seppNode{self}
-	}
-
-	members, err := dbInstance.ListClusterMembers(ctx)
-	if err != nil || len(members) == 0 {
-		return []seppNode{self}
-	}
-
-	out := make([]seppNode, 0, len(members))
-
-	for _, m := range members {
-		n := seppNode{nodeID: m.NodeID, seppID: m.AMFPointer, self: m.NodeID == self.nodeID}
-		if srv := dbInstance.RaftServer(m.NodeID); srv != nil {
-			n.address = srv.Address
-		}
-
-		out = append(out, n)
-	}
-
-	slices.SortFunc(out, func(a, b seppNode) int { return a.seppID - b.seppID })
-
-	return out
-}
-
-func gatherSEPPNodes(ctx context.Context, dbInstance *db.Database, rt SEPPRuntime, ln *listener.Listener) []seppNodeView {
-	nodes := seppNodes(ctx, dbInstance)
-	out := make([]seppNodeView, len(nodes))
-
-	var wg sync.WaitGroup
-
-	for i, n := range nodes {
-		out[i].seppNode = n
-
-		if n.self {
-			if rt == nil {
-				out[i].err = errors.New("the SEPP is not running")
-				continue
-			}
-
-			st := rt.Status()
-			out[i].status = &st
-
-			continue
-		}
-
-		wg.Go(func() {
-			status, body, err := clusterNodeDo(ctx, ln, n.nodeID, n.address, http.MethodGet, sepp.ClusterStatusPath, nil)
-
-			switch {
-			case err != nil:
-				out[i].err = fmt.Errorf("unreachable: %w", err)
-			case status != http.StatusOK:
-				out[i].err = fmt.Errorf("the node answered %d", status)
-			default:
-				st, err := sepp.DecodeNodeStatus(body)
-				if err != nil {
-					out[i].err = err
-				} else {
-					out[i].status = &st
-				}
-			}
-		})
-	}
-
-	wg.Wait()
-
-	return out
-}
-
-func clusterNodeDo(ctx context.Context, ln *listener.Listener, nodeID, addr, method, path string, payload []byte) (int, []byte, error) {
-	if ln == nil {
-		return 0, nil, errors.New("no cluster listener")
-	}
-
-	if addr == "" {
-		return 0, nil, errors.New("no cluster address")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, seppNodeStatusTimeout)
-	defer cancel()
-
-	conn, err := ln.Dial(ctx, addr, nodeID, listener.ALPNHTTP, seppNodeStatusTimeout)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	var once sync.Once
-
-	tr := &http.Transport{
-		DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
-			var c net.Conn
-
-			once.Do(func() { c = conn })
-
-			if c == nil {
-				return nil, errors.New("cluster connection already used")
-			}
-
-			return c, nil
-		},
-		DisableKeepAlives: true,
-	}
-	defer tr.CloseIdleConnections()
-
-	req, err := http.NewRequestWithContext(ctx, method, "https://"+addr+path, bytes.NewReader(payload))
-	if err != nil {
-		_ = conn.Close()
-		return 0, nil, err
-	}
-
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := (&http.Client{Transport: tr}).Do(req)
-	if err != nil {
-		_ = conn.Close()
-		return 0, nil, err
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 256<<10))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return resp.StatusCode, body, nil
-}
-
-func RehandshakeRoamingPartner(dbInstance *db.Database, rt SEPPRuntime, ln *listener.Listener) http.Handler {
+func RehandshakeRoamingPartner(dbInstance *db.Database, rt SEPPRuntime) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 		id := r.PathValue("id")
@@ -342,82 +185,24 @@ func RehandshakeRoamingPartner(dbInstance *db.Database, rt SEPPRuntime, ln *list
 			return
 		}
 
-		views := gatherSEPPNodes(r.Context(), dbInstance, rt, ln)
-		resp := RoamingPartnerHandshake{N32: []RoamingPartnerN32{}}
+		if st := localSEPPStatus(rt); st == nil || !st.Listener.Configured {
+			writeError(r.Context(), w, http.StatusConflict, "This node has no interfaces.n32 configured", nil, logger.APILog)
+			return
+		}
 
-		payload, err := json.Marshal(sepp.HandshakeRequest{PartnerID: id})
+		var resp RoamingPartnerHandshake
+
+		st, err := rt.Rehandshake(id)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to encode the handshake request", err, logger.APILog)
-			return
-		}
-
-		var mu sync.Mutex
-
-		var wg sync.WaitGroup
-
-		for _, v := range views {
-			if v.err == nil && !v.status.Listener.Configured {
-				continue
-			}
-
-			wg.Go(func() {
-				out := rehandshakeOnNode(r.Context(), rt, ln, v, id, payload)
-
-				mu.Lock()
-
-				resp.N32 = append(resp.N32, out)
-				mu.Unlock()
-			})
-		}
-
-		wg.Wait()
-
-		slices.SortFunc(resp.N32, func(a, b RoamingPartnerN32) int { return a.SEPPID - b.SEPPID })
-
-		if len(resp.N32) == 0 {
-			writeError(r.Context(), w, http.StatusConflict, "No node has interfaces.n32 configured", nil, logger.APILog)
-			return
+			resp.N32 = RoamingPartnerN32{State: "unknown", LastError: err.Error()}
+		} else {
+			resp.N32 = roamingPartnerN32(st)
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusAccepted, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), RehandshakeRoamingPartnerAction, email, getClientIP(r), "Requested an N32-c handshake with roaming partner "+id+" ("+partner.Name+") on every SEPP node")
+		logger.LogAuditEvent(r.Context(), RehandshakeRoamingPartnerAction, email, getClientIP(r), "Requested an N32-c handshake with roaming partner "+id+" ("+partner.Name+")")
 	})
-}
-
-func rehandshakeOnNode(ctx context.Context, rt SEPPRuntime, ln *listener.Listener, v seppNodeView, partnerID string, payload []byte) RoamingPartnerN32 {
-	failed := func(err error) RoamingPartnerN32 {
-		return RoamingPartnerN32{NodeID: v.nodeID, SEPPID: v.seppID, State: "unknown", LastError: err.Error()}
-	}
-
-	if v.self {
-		if rt == nil {
-			return failed(errors.New("the SEPP is not running"))
-		}
-
-		st, err := rt.Rehandshake(partnerID)
-		if err != nil {
-			return failed(err)
-		}
-
-		return roamingPartnerN32(v, st)
-	}
-
-	status, body, err := clusterNodeDo(ctx, ln, v.nodeID, v.address, http.MethodPost, sepp.ClusterHandshakePath, payload)
-	if err != nil {
-		return failed(fmt.Errorf("unreachable: %w", err))
-	}
-
-	if status != http.StatusOK {
-		return failed(fmt.Errorf("the node answered %d: %s", status, strings.TrimSpace(string(body))))
-	}
-
-	st, err := sepp.DecodeContextStatus(body)
-	if err != nil {
-		return failed(err)
-	}
-
-	return roamingPartnerN32(v, st)
 }
 
 func certificateSummary(cert pki.SEPPCertificate) *SEPPCertificateSummary {
@@ -445,7 +230,7 @@ func trustAnchorOf(source string, anchor *x509.Certificate) SEPPTrustAnchor {
 	}
 }
 
-func GetSEPPStatus(dbInstance *db.Database, rt SEPPRuntime, ln *listener.Listener) http.Handler {
+func GetSEPPStatus(dbInstance *db.Database, rt SEPPRuntime) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		identities, err := dbInstance.ListSEPPIdentities(r.Context())
 		if err != nil {
@@ -453,7 +238,7 @@ func GetSEPPStatus(dbInstance *db.Database, rt SEPPRuntime, ln *listener.Listene
 			return
 		}
 
-		resp := SEPPStatus{TrustAnchors: []SEPPTrustAnchor{}, Nodes: []SEPPNodeStatus{}}
+		resp := SEPPStatus{TrustAnchors: []SEPPTrustAnchor{}, Certificates: []SEPPStoredCertificate{}}
 		anchors := map[string]int{}
 
 		addAnchor := func(source string, anchor *x509.Certificate, seppID int) {
@@ -484,61 +269,31 @@ func GetSEPPStatus(dbInstance *db.Database, rt SEPPRuntime, ln *listener.Listene
 			}
 		}
 
-		byID := map[int]db.SEPPIdentity{}
-		certs := map[int]pki.SEPPCertificate{}
+		resp.Node.SEPPID = dbInstance.AMFPointer()
 
 		for _, identity := range identities {
-			byID[identity.SEPPID] = identity
+			stored := SEPPStoredCertificate{SEPPID: identity.SEPPID, FQDN: identity.FQDN, Source: identity.Source}
 
-			cert, err := pki.ParseSEPPCertificate([]byte(identity.CertChainPEM), identity.FQDN)
-			if err != nil {
-				continue
+			if cert, err := pki.ParseSEPPCertificate([]byte(identity.CertChainPEM), identity.FQDN); err == nil {
+				stored.Certificate = certificateSummary(cert)
+				addAnchor(identity.Source, cert.TrustAnchor(), identity.SEPPID)
 			}
 
-			certs[identity.SEPPID] = cert
-			addAnchor(identity.Source, cert.TrustAnchor(), identity.SEPPID)
+			if identity.SEPPID == resp.Node.SEPPID {
+				resp.Node.FQDN, resp.Node.Source, resp.Node.Certificate = stored.FQDN, stored.Source, stored.Certificate
+			}
+
+			resp.Certificates = append(resp.Certificates, stored)
 		}
 
-		seen := map[int]bool{}
-
-		for _, v := range gatherSEPPNodes(r.Context(), dbInstance, rt, ln) {
-			node := SEPPNodeStatus{NodeID: v.nodeID, SEPPID: v.seppID}
-
-			if identity, ok := byID[v.seppID]; ok {
-				node.FQDN, node.Source = identity.FQDN, identity.Source
-			}
-
-			if cert, ok := certs[v.seppID]; ok {
-				node.Certificate = certificateSummary(cert)
-			}
-
-			if v.err != nil {
-				node.Error = v.err.Error()
-			} else {
-				node.Reachable = true
-				node.N32Configured = v.status.Listener.Configured
-				node.Address = v.status.Listener.Address
-				node.Port = v.status.Listener.Port
-				node.Listening = v.status.Listener.Listening
-				node.Error = v.status.Listener.Error
-			}
-
-			seen[v.seppID] = true
-
-			resp.Nodes = append(resp.Nodes, node)
-		}
-
-		for _, identity := range identities {
-			if seen[identity.SEPPID] {
-				continue
-			}
-
-			node := SEPPNodeStatus{SEPPID: identity.SEPPID, FQDN: identity.FQDN, Source: identity.Source, Error: "no cluster node has this SEPP ID"}
-			if cert, ok := certs[identity.SEPPID]; ok {
-				node.Certificate = certificateSummary(cert)
-			}
-
-			resp.Nodes = append(resp.Nodes, node)
+		if st := localSEPPStatus(rt); st == nil {
+			resp.Node.Error = "the SEPP is not running"
+		} else {
+			resp.Node.N32Configured = st.Listener.Configured
+			resp.Node.Address = st.Listener.Address
+			resp.Node.Port = st.Listener.Port
+			resp.Node.Listening = st.Listener.Listening
+			resp.Node.Error = st.Listener.Error
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)

@@ -78,6 +78,13 @@ func roamingPartnerWithRoamers(t *testing.T, held []heldRoamer) (testEnv, *http.
 	t.Helper()
 
 	env, client, token := newAuthedTestEnv(t)
+
+	return env, client, token, createPartnerWithRoamers(t, env, client, token, held)
+}
+
+func createPartnerWithRoamers(t *testing.T, env testEnv, client *http.Client, token string, held []heldRoamer) roamingPartnerBody {
+	t.Helper()
+
 	url := env.Server.URL
 
 	code, peer, err := apiDo[roamingDiameterPeerEnvelope](client, "POST", url+roamingDiameterPeersPath, token, roamingDiameterPeerBody{DiameterIdentity: "dea.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.10"})
@@ -102,7 +109,7 @@ func roamingPartnerWithRoamers(t *testing.T, held []heldRoamer) (testEnv, *http.
 		}
 	}
 
-	return env, client, token, body
+	return body
 }
 
 func startFakeNodes(t *testing.T, env testEnv, partnerID string, held []heldRoamer) *fakeNodes {

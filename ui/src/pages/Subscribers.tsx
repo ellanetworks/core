@@ -14,9 +14,14 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
+import { Logout as DeregisterIcon } from "@mui/icons-material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
-import { GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import {
+  GridActionsCellItem,
+  GridColDef,
+  GridRenderCellParams,
+} from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import { Link } from "react-router-dom";
 import {
@@ -26,6 +31,10 @@ import {
   type SubscriberListStatus,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
+import DeregisterRoamerModal from "@/components/DeregisterRoamerModal";
+import RoamingFilterField, {
+  roamingParam,
+} from "@/components/RoamingFilterField";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
 import AccessChip from "@/components/AccessChip";
@@ -33,6 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedState } from "@/hooks/useDebouncedState";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import { useSearchParamState } from "@/hooks/useSearchParamState";
 import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -52,7 +62,10 @@ const subscriberStatus = (
   return { label: "Deregistered", color: "default", rank: 0 };
 };
 
-type SubscribersPage = ListSubscribersResponse & { search: string };
+type SubscribersPage = ListSubscribersResponse & {
+  search: string;
+  roaming?: boolean;
+};
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -61,27 +74,35 @@ const SubscriberPage: React.FC = () => {
 
   const [searchInput, debouncedSearch, setSearchInput] = useDebouncedState();
   const appliedSearch = debouncedSearch.trim();
+  const [roamingFilter, setRoamingFilter] = useSearchParamState("roaming");
+  const roaming = roamingParam(roamingFilter);
 
   const [paginationModel, setPaginationModel] = useFilteredPagination({
     search: appliedSearch,
+    roaming,
   });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [roamerToDeregister, setRoamerToDeregister] = useState<string | null>(
+    null,
+  );
   const { showSnackbar } = useSnackbar();
 
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
   const subscribersQuery = useQuery({
-    queryKey: ["subscribers", pageOneBased, perPage, appliedSearch],
+    queryKey: ["subscribers", pageOneBased, perPage, appliedSearch, roaming],
     queryFn: async (): Promise<SubscribersPage> => ({
       ...(await listSubscribers(
         accessToken || "",
         pageOneBased,
         perPage,
         appliedSearch,
+        roaming,
       )),
       search: appliedSearch,
+      roaming,
     }),
     enabled: authReady && !!accessToken,
     refetchInterval: 5000,
@@ -175,6 +196,14 @@ const SubscriberPage: React.FC = () => {
         minWidth: 100,
       },
       {
+        field: "roaming_partner",
+        headerName: "Partner",
+        flex: 0.8,
+        minWidth: 110,
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row.roaming_partner || "—",
+      },
+      {
         field: "last_seen_radio",
         headerName: "Last Radio",
         flex: 0.8,
@@ -258,8 +287,32 @@ const SubscriberPage: React.FC = () => {
       },
     ];
 
+    if (canEdit && roaming !== false) {
+      base.push({
+        field: "actions",
+        headerName: "Actions",
+        type: "actions",
+        width: 80,
+        getActions: (params) =>
+          params.row.roaming_partner
+            ? [
+                <GridActionsCellItem
+                  key="deregister"
+                  icon={
+                    <Tooltip title="Deregister" arrow>
+                      <DeregisterIcon color="primary" />
+                    </Tooltip>
+                  }
+                  label={`Deregister roamer ${params.row.imsi}`}
+                  onClick={() => setRoamerToDeregister(params.row.imsi)}
+                />,
+              ]
+            : [],
+      });
+    }
+
     return base;
-  }, [theme.palette.link]);
+  }, [theme.palette.link, canEdit, roaming]);
 
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
@@ -269,7 +322,8 @@ const SubscriberPage: React.FC = () => {
   const [hasSubscribers, setHasSubscribers] = useState(false);
 
   const unfilteredHasRows =
-    subscribersQuery.data?.search === ""
+    subscribersQuery.data?.search === "" &&
+    subscribersQuery.data.roaming === undefined
       ? (subscribersQuery.data.total_count ?? 0) > 0
       : null;
 
@@ -277,7 +331,19 @@ const SubscriberPage: React.FC = () => {
     setHasSubscribers(unfilteredHasRows);
   }
 
-  const showSearch = appliedSearch !== "" || hasSubscribers;
+  const filtered = appliedSearch !== "" || roaming !== undefined;
+  const showFilters = filtered || hasSubscribers;
+
+  const emptyState = (
+    <EmptyState
+      primaryText="No subscribers yet"
+      secondaryText={
+        canEdit
+          ? "Create a subscriber to get started."
+          : "Ask an administrator to create a subscriber."
+      }
+    />
+  );
 
   return (
     <Box
@@ -288,43 +354,49 @@ const SubscriberPage: React.FC = () => {
         count={knownCount}
         description={descriptionText}
         filters={
-          showSearch && (
-            <TextField
-              label="Search"
-              type="search"
-              placeholder="IMSI, MSISDN or description"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              size="small"
-              sx={{
-                minWidth: 260,
-                '& input[type="search"]::-webkit-search-cancel-button': {
-                  display: "none",
-                },
-              }}
-              slotProps={{
-                htmlInput: { maxLength: MAX_SEARCH_LENGTH },
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: searchInput ? (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="Clear search"
-                        size="small"
-                        edge="end"
-                        onClick={() => setSearchInput("")}
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ) : null,
-                },
-              }}
-            />
+          showFilters && (
+            <>
+              <TextField
+                label="Search"
+                type="search"
+                placeholder="IMSI, MSISDN or description"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                size="small"
+                sx={{
+                  minWidth: 260,
+                  '& input[type="search"]::-webkit-search-cancel-button': {
+                    display: "none",
+                  },
+                }}
+                slotProps={{
+                  htmlInput: { maxLength: MAX_SEARCH_LENGTH },
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchInput ? (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="Clear search"
+                          size="small"
+                          edge="end"
+                          onClick={() => setSearchInput("")}
+                        >
+                          <ClearIcon fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : null,
+                  },
+                }}
+              />
+              <RoamingFilterField
+                value={roamingFilter}
+                onChange={setRoamingFilter}
+              />
+            </>
           )
         }
         action={
@@ -344,23 +416,23 @@ const SubscriberPage: React.FC = () => {
         query={subscribersQuery}
         resource="subscribers"
         isEmpty={(data) => (data.total_count ?? 0) === 0}
-        filtered={appliedSearch !== ""}
+        filtered={filtered}
         noResults={
-          <EmptyState
-            primaryText="No subscribers match your search"
-            secondaryText="Check the IMSI, or clear the search to see every subscriber."
-          />
+          appliedSearch !== "" ? (
+            <EmptyState
+              primaryText="No subscribers match your search"
+              secondaryText="Check the IMSI, or clear the search to see every subscriber."
+            />
+          ) : roaming ? (
+            <EmptyState
+              primaryText="No roamers"
+              secondaryText="No subscriber of a roaming partner is registered."
+            />
+          ) : (
+            emptyState
+          )
         }
-        empty={
-          <EmptyState
-            primaryText="No subscribers yet"
-            secondaryText={
-              canEdit
-                ? "Create a subscriber to get started."
-                : "Ask an administrator to create a subscriber."
-            }
-          />
-        }
+        empty={emptyState}
       >
         {(data) => (
           <EntityGrid<APISubscriberSummary>
@@ -383,6 +455,20 @@ const SubscriberPage: React.FC = () => {
             void subscribersQuery.refetch();
             showSnackbar("Subscriber created successfully.", "success");
           }}
+        />
+      )}
+      {roamerToDeregister && (
+        <DeregisterRoamerModal
+          open
+          onClose={() => setRoamerToDeregister(null)}
+          onSuccess={() => {
+            void subscribersQuery.refetch();
+            showSnackbar(
+              `Roamer "${roamerToDeregister}" deregistered successfully.`,
+              "success",
+            );
+          }}
+          imsi={roamerToDeregister}
         />
       )}
     </Box>

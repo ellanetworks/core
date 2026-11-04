@@ -211,12 +211,31 @@ func TestDeleteSubscriber_Success(t *testing.T) {
 	}
 }
 
+func TestDeregisterSubscriber_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Roamer deregistered successfully"}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	if err := clientObj.DeregisterSubscriber(context.Background(), "208930000000001"); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/subscribers/208930000000001/deregister" {
+		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+}
+
 func TestListSubscribers_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": true, "connection_state": "idle", "num_sessions": 1, "last_seen_at": "2025-01-01T00:00:00Z", "last_seen_radio": "gnb-01"}}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"imsi": "001010100000022", "profile_name": "default", "roaming_partner": "partner", "status": {"registered": true, "connection_state": "idle", "num_sessions": 1, "last_seen_at": "2025-01-01T00:00:00Z", "last_seen_radio": "gnb-01"}}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -241,6 +260,10 @@ func TestListSubscribers_Success(t *testing.T) {
 	}
 
 	sub := resp.Items[0]
+	if sub.RoamingPartner != "partner" {
+		t.Fatalf("expected roaming_partner %q, got %q", "partner", sub.RoamingPartner)
+	}
+
 	if sub.Status.LastSeenRadio != "gnb-01" {
 		t.Fatalf("expected last_seen_radio %q, got %q", "gnb-01", sub.Status.LastSeenRadio)
 	}
@@ -259,6 +282,8 @@ func TestListSubscribers_Success(t *testing.T) {
 }
 
 func TestListSubscribers_Query(t *testing.T) {
+	roaming, home := true, false
+
 	for _, tc := range []struct {
 		name   string
 		params client.ListSubscribersParams
@@ -268,6 +293,8 @@ func TestListSubscribers_Query(t *testing.T) {
 		{"search", client.ListSubscribersParams{Page: 1, PerPage: 10, Search: "0748"}, "page=1&per_page=10&search=0748"},
 		{"radio and search", client.ListSubscribersParams{Page: 2, PerPage: 25, Radio: "gnb-01", Search: "0748"}, "page=2&per_page=25&radio=gnb-01&search=0748"},
 		{"search needing escaping", client.ListSubscribersParams{Page: 1, PerPage: 10, Search: "a b&c"}, "page=1&per_page=10&search=a+b%26c"},
+		{"roamers", client.ListSubscribersParams{Page: 1, PerPage: 10, Roaming: &roaming}, "page=1&per_page=10&roaming=true"},
+		{"home subscribers", client.ListSubscribersParams{Page: 1, PerPage: 10, Roaming: &home}, "page=1&per_page=10&roaming=false"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeRequester{

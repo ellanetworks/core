@@ -475,9 +475,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	var protocols []FlowReportProtocolCount
 
-	protocolStmt, destinationsStmt := db.flowReportStatsStmts(ctx)
-
-	err := db.conn().Query(ctx, protocolStmt, filters).GetAll(&protocols)
+	err := db.conn().Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 
@@ -486,7 +484,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	var destinationsUplink []FlowReportIPCount
 
-	err = db.conn().Query(ctx, destinationsStmt, filters).GetAll(&destinationsUplink)
+	err = db.conn().Query(ctx, db.flowReportTopDestinationsUplinkStmt, filters).GetAll(&destinationsUplink)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 

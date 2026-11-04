@@ -517,9 +517,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	cp.start(ctx, &wg)
 
 	metrics.RegisterMetrics()
-	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
+	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribersByRoaming, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribersByRoaming)
 	metrics.RegisterRadioEventDrops(bufferedWriter.Dropped)
-	registerRoamers(prometheus.DefaultRegisterer, amfInstance, mmeInstance)
+	roaming.RegisterMetrics(prometheus.DefaultRegisterer)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 	lmfInstance.Start(ctx)

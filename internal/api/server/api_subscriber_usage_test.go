@@ -22,11 +22,18 @@ type DailySubscriberUsage struct {
 	TotalBytes    int64  `json:"total_bytes"`
 }
 
+type usagePLMN struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
 type PerSubscriberUsage struct {
-	IMSI          string `json:"imsi"`
-	UplinkBytes   int64  `json:"uplink_bytes"`
-	DownlinkBytes int64  `json:"downlink_bytes"`
-	TotalBytes    int64  `json:"total_bytes"`
+	IMSI           string     `json:"imsi"`
+	HomePLMN       *usagePLMN `json:"home_plmn,omitempty"`
+	RoamingPartner string     `json:"roaming_partner,omitempty"`
+	UplinkBytes    int64      `json:"uplink_bytes"`
+	DownlinkBytes  int64      `json:"downlink_bytes"`
+	TotalBytes     int64      `json:"total_bytes"`
 }
 
 type GetUsagePerDayResponse struct {
@@ -569,4 +576,124 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestAPISubscriberUsageRoamers(t *testing.T) {
+	env, err := setupServer(filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+	ctx := context.Background()
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	if err := createDataNetworkAndPolicy(env.Server.URL, client, token); err != nil {
+		t.Fatalf("couldn't create data network and policy: %s", err)
+	}
+
+	homeIMSI := "001010100007487"
+
+	if _, _, err := createSubscriber(env.Server.URL, client, token, &CreateSubscriberParams{
+		Imsi:           homeIMSI,
+		Key:            Key,
+		Opc:            Opc,
+		SequenceNumber: SequenceNumber,
+		ProfileName:    TestProfileName,
+	}); err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+
+	profile, err := env.DB.GetProfile(ctx, TestProfileName)
+	if err != nil {
+		t.Fatalf("couldn't get profile: %s", err)
+	}
+
+	if err := env.DB.CreateRoamingPartner(ctx, &db.RoamingPartner{ID: "rp", Name: "partner-a", PLMNs: []db.RoamingPLMN{{Mcc: "208", Mnc: "93"}}, ProfileID: profile.ID}); err != nil {
+		t.Fatalf("couldn't create roaming partner: %s", err)
+	}
+
+	day, err := time.Parse("2006-01-02", "2025-11-14")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	roamer := func(imsi, mcc, mnc string, up, down int64) db.DailyUsage {
+		return db.DailyUsage{EpochDay: db.DaysSinceEpoch(day), IMSI: imsi, Mcc: &mcc, Mnc: &mnc, BytesUplink: up, BytesDownlink: down}
+	}
+
+	if err := env.DB.IncrementDailyUsageBatch(ctx, []db.DailyUsage{
+		{EpochDay: db.DaysSinceEpoch(day), IMSI: homeIMSI, BytesUplink: 100, BytesDownlink: 200},
+		roamer("208930000000001", "208", "93", 1000, 2000),
+		roamer("310410000000001", "310", "410", 1, 1),
+	}); err != nil {
+		t.Fatalf("couldn't increment daily usage: %s", err)
+	}
+
+	start, end := "2025-11-14T00:00:00Z", "2025-11-15T00:00:00Z"
+	partnerRoamer := PerSubscriberUsage{IMSI: "208930000000001", HomePLMN: &usagePLMN{Mcc: "208", Mnc: "93"}, RoamingPartner: "partner-a", UplinkBytes: 1000, DownlinkBytes: 2000, TotalBytes: 3000}
+	unknownRoamer := PerSubscriberUsage{IMSI: "310410000000001", HomePLMN: &usagePLMN{Mcc: "310", Mnc: "410"}, UplinkBytes: 1, DownlinkBytes: 1, TotalBytes: 2}
+	home := PerSubscriberUsage{IMSI: homeIMSI, UplinkBytes: 100, DownlinkBytes: 200, TotalBytes: 300}
+
+	for _, tc := range []struct {
+		filter string
+		perSub []PerSubscriberUsage
+		perDay int64
+	}{
+		{"", []PerSubscriberUsage{partnerRoamer, home, unknownRoamer}, 3302},
+		{"&roaming=true", []PerSubscriberUsage{partnerRoamer, unknownRoamer}, 3002},
+		{"&roaming=false", []PerSubscriberUsage{home}, 300},
+	} {
+		t.Run("roaming filter "+tc.filter, func(t *testing.T) {
+			status, perSub, err := apiDo[GetUsagePerSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s%s", env.Server.URL, usageQuery(start, end, "", GroupBySubscriber), tc.filter), token, nil)
+			if err != nil || status != http.StatusOK {
+				t.Fatalf("per-subscriber usage: %d, %v", status, err)
+			}
+
+			if len(perSub.Result) != len(tc.perSub) {
+				t.Fatalf("per-subscriber usage = %+v, want %+v", perSub.Result, tc.perSub)
+			}
+
+			for i, want := range tc.perSub {
+				got := perSub.Result[i]
+				if got.IMSI != want.IMSI || got.RoamingPartner != want.RoamingPartner || got.TotalBytes != want.TotalBytes || (got.HomePLMN == nil) != (want.HomePLMN == nil) || (got.HomePLMN != nil && *got.HomePLMN != *want.HomePLMN) {
+					t.Errorf("entry %d = %+v (home PLMN %v), want %+v (home PLMN %v)", i, got, got.HomePLMN, want, want.HomePLMN)
+				}
+			}
+
+			status, perDay, err := apiDo[GetUsagePerDayResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s%s", env.Server.URL, usageQuery(start, end, "", GroupByDay), tc.filter), token, nil)
+			if err != nil || status != http.StatusOK {
+				t.Fatalf("per-day usage: %d, %v", status, err)
+			}
+
+			if len(perDay.Result) != 1 || perDay.Result[0].TotalBytes != tc.perDay {
+				t.Fatalf("per-day usage = %+v, want %d bytes", perDay.Result, tc.perDay)
+			}
+		})
+	}
+
+	for _, groupBy := range []GroupBy{GroupByDay, GroupBySubscriber} {
+		status, resp, err := apiDo[GetUsagePerDayResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s&roaming=yes", env.Server.URL, usageQuery(start, end, "", groupBy)), token, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if status != http.StatusBadRequest || resp.Error != "roaming must be true or false" {
+			t.Errorf("group_by=%s&roaming=yes = %d %q, want 400", groupBy, status, resp.Error)
+		}
+	}
+
+	if err := env.DB.DeleteRoamingPartner(ctx, "rp"); err != nil {
+		t.Fatalf("couldn't delete roaming partner: %s", err)
+	}
+
+	status, perSub, err := apiDo[GetUsagePerSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s&roaming=true", env.Server.URL, usageQuery(start, end, "", GroupBySubscriber)), token, nil)
+	if err != nil || status != http.StatusOK || len(perSub.Result) != 2 || perSub.Result[0].RoamingPartner != "" || perSub.Result[0].HomePLMN == nil {
+		t.Fatalf("roamer usage after partner delete = %d %+v, %v; want it kept without a partner name", status, perSub, err)
+	}
 }

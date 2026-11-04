@@ -40,7 +40,6 @@ import {
   Lan as LanIcon,
   HelpCenter as SupportIcon,
   OpenInNew as OpenInNewIcon,
-  Public as PublicIcon,
 } from "@mui/icons-material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
@@ -348,13 +347,6 @@ export default function DrawerLayout({
               to="/networking"
               label="Networking"
               icon={<LanIcon color="primary" />}
-              pathname={pathname}
-              onNavigate={handleNavClick}
-            />
-            <NavItem
-              to="/roaming"
-              label="Roaming"
-              icon={<PublicIcon color="primary" />}
               pathname={pathname}
               onNavigate={handleNavClick}
             />

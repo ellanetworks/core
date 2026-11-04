@@ -82,13 +82,14 @@ const (
          OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))`
 )
 
-const homeSubscriberClause = " roamingPartnerID IS NULL AND"
+const subscriberRoamingClause = `
+    ($subscriberFilterArgs.roaming IS NULL OR (roamingPartnerID IS NOT NULL) = $subscriberFilterArgs.roaming) AND`
 
 const (
 	listSubscribersFilteredStmt = `
   SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count
   FROM %s
-  WHERE` + homeSubscriberClause + subscriberSearchClause + subscriberDataNetworkClause + `
+  WHERE` + subscriberRoamingClause + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 
@@ -116,7 +117,7 @@ const (
 	countSubscribersFilteredStmt = `
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
-  WHERE` + homeSubscriberClause + subscriberSearchClause + subscriberDataNetworkClause
+  WHERE` + subscriberRoamingClause + subscriberSearchClause + subscriberDataNetworkClause
 
 	countSubscribersFilteredPreV26Stmt = `
   SELECT COUNT(*) AS &NumItems.count
@@ -149,11 +150,13 @@ type Subscriber struct {
 type SubscriberFilters struct {
 	Search        *string
 	DataNetworkID *string
+	Roaming       *bool
 }
 
 type subscriberFilterArgs struct {
 	Search        *string `db:"search"`
 	DataNetworkID *string `db:"data_network_id"`
+	Roaming       *bool   `db:"roaming"`
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
@@ -163,7 +166,7 @@ func (f *SubscriberFilters) args() subscriberFilterArgs {
 		return subscriberFilterArgs{}
 	}
 
-	args := subscriberFilterArgs{DataNetworkID: f.DataNetworkID}
+	args := subscriberFilterArgs{DataNetworkID: f.DataNetworkID, Roaming: f.Roaming}
 
 	if f.Search != nil {
 		pattern := "%" + likeEscaper.Replace(*f.Search) + "%"
@@ -206,6 +209,10 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 	}
 
 	filterArgs := filters.args()
+
+	if filterArgs.Roaming != nil && *filterArgs.Roaming && !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return nil, 0, nil
+	}
 
 	stmt := db.listSubscribersStmt
 	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {

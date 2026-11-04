@@ -80,7 +80,6 @@ var replicatedChangesetTables = []string{
 	RoamingPartnersTableName,
 	RoamingPartnerPLMNsTableName,
 	RoamingWithdrawalsTableName,
-	RoamingDailyUsageTableName,
 	SEPPCATableName,
 	SEPPIdentitiesTableName,
 	"schema_version",

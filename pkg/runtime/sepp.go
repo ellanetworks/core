@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -27,7 +26,6 @@ func newSEPP(dbInstance *db.Database, n32 config.N32Interface) *sepp.Manager {
 	}, logger.SeppLog)
 
 	sepp.RegisterMetrics(prometheus.DefaultRegisterer, m)
-	server.SetSEPPClusterHandler(m.ClusterHandler())
 
 	return m
 }

@@ -50,8 +50,6 @@ func (f *fakeSEPP) Rehandshake(id string) (sepp.ContextStatus, error) {
 }
 
 type roamingPartnerN32Body struct {
-	NodeID    string `json:"nodeID"`
-	SEPPID    int    `json:"seppID"`
 	State     string `json:"state"`
 	Since     string `json:"since"`
 	Initiator string `json:"initiator"`
@@ -60,8 +58,8 @@ type roamingPartnerN32Body struct {
 }
 
 type partnerWithN32 struct {
-	ID  string                  `json:"id"`
-	N32 []roamingPartnerN32Body `json:"n32"`
+	ID  string                 `json:"id"`
+	N32 *roamingPartnerN32Body `json:"n32"`
 }
 
 type seppStatusBody struct {
@@ -71,12 +69,10 @@ type seppStatusBody struct {
 		PEM         string `json:"pem"`
 		SEPPIDs     []int  `json:"seppIDs"`
 	} `json:"trustAnchors"`
-	Nodes []struct {
-		NodeID        string `json:"nodeID"`
+	Node struct {
 		SEPPID        int    `json:"seppID"`
 		FQDN          string `json:"fqdn"`
 		Source        string `json:"source"`
-		Reachable     bool   `json:"reachable"`
 		N32Configured bool   `json:"n32Configured"`
 		Address       string `json:"address"`
 		Port          int    `json:"port"`
@@ -88,7 +84,15 @@ type seppStatusBody struct {
 			TrustAnchorFingerprint string   `json:"trustAnchorFingerprint"`
 			NotAfter               string   `json:"notAfter"`
 		} `json:"certificate"`
-	} `json:"nodes"`
+	} `json:"node"`
+	Certificates []struct {
+		SEPPID      int    `json:"seppID"`
+		FQDN        string `json:"fqdn"`
+		Source      string `json:"source"`
+		Certificate *struct {
+			Fingerprint string `json:"fingerprint"`
+		} `json:"certificate"`
+	} `json:"certificates"`
 }
 
 func newSEPPTestEnv(t *testing.T, f *fakeSEPP) (testEnv, *http.Client, string) {
@@ -147,12 +151,12 @@ func TestRoamingPartnerN32Status(t *testing.T) {
 	code, got, err := apiDo[struct {
 		Result partnerWithN32 `json:"result"`
 	}](client, "GET", url+roamingPartnersPath+"/"+id, token, nil)
-	if err != nil || code != http.StatusOK || len(got.Result.N32) != 1 {
+	if err != nil || code != http.StatusOK || got.Result.N32 == nil {
 		t.Fatalf("get: %d %v %+v", code, err, got)
 	}
 
-	if want := (roamingPartnerN32Body{SEPPID: 1, State: "established", Since: "2026-11-03T10:00:00Z", Initiator: "peer", NFTLST: true}); got.Result.N32[0] != want {
-		t.Fatalf("n32 = %+v, want %+v", got.Result.N32[0], want)
+	if want := (roamingPartnerN32Body{State: "established", Since: "2026-11-03T10:00:00Z", Initiator: "peer", NFTLST: true}); *got.Result.N32 != want {
+		t.Fatalf("n32 = %+v, want %+v", *got.Result.N32, want)
 	}
 
 	code, list, err := apiDo[struct {
@@ -165,17 +169,17 @@ func TestRoamingPartnerN32Status(t *testing.T) {
 	}
 
 	for _, item := range list.Result.Items {
-		if (item.ID == id) != (len(item.N32) == 1) {
+		if (item.ID == id) != (item.N32 != nil) {
 			t.Fatalf("listed partner %s n32 = %+v", item.ID, item.N32)
 		}
 	}
 
 	code, hs, err := apiDo[struct {
 		Result struct {
-			N32 []roamingPartnerN32Body `json:"n32"`
+			N32 roamingPartnerN32Body `json:"n32"`
 		} `json:"result"`
 	}](client, "POST", url+roamingPartnersPath+"/"+id+"/handshake", token, nil)
-	if err != nil || code != http.StatusAccepted || len(hs.Result.N32) != 1 || hs.Result.N32[0].State != "establishing" || hs.Result.N32[0].SEPPID != 1 || len(f.rehandshake) != 1 || f.rehandshake[0] != id {
+	if err != nil || code != http.StatusAccepted || hs.Result.N32.State != "establishing" || len(f.rehandshake) != 1 || f.rehandshake[0] != id {
 		t.Fatalf("handshake: %d %v %+v %v", code, err, hs, f.rehandshake)
 	}
 
@@ -193,10 +197,10 @@ func TestRoamingPartnerN32Status(t *testing.T) {
 
 	code, failed, _ := apiDo[struct {
 		Result struct {
-			N32 []roamingPartnerN32Body `json:"n32"`
+			N32 roamingPartnerN32Body `json:"n32"`
 		} `json:"result"`
 	}](client, "POST", url+roamingPartnersPath+"/"+id+"/handshake", token, nil)
-	if code != http.StatusAccepted || len(failed.Result.N32) != 1 || failed.Result.N32[0].State != "unknown" || failed.Result.N32[0].LastError == "" {
+	if code != http.StatusAccepted || failed.Result.N32.State != "unknown" || failed.Result.N32.LastError == "" {
 		t.Fatalf("handshake on a stopped SEPP: %d %+v", code, failed.Result)
 	}
 
@@ -219,11 +223,11 @@ func TestRoamingPartnerN32Status(t *testing.T) {
 		t.Fatalf("read-only handshake: %d", code)
 	}
 
-	if code, _, _ := apiDo[map[string]any](readOnly, "GET", url+"/api/v1/roaming/sepp", roToken, nil); code != http.StatusOK {
+	if code, _, _ := apiDo[map[string]any](readOnly, "GET", url+"/api/v1/operator/roaming/sepp", roToken, nil); code != http.StatusOK {
 		t.Fatalf("read-only SEPP status: %d", code)
 	}
 
-	if code, _, _ := apiDo[map[string]any](readOnly, "POST", url+"/api/v1/roaming/sepp/ca/regenerate", roToken, nil); code != http.StatusForbidden {
+	if code, _, _ := apiDo[map[string]any](readOnly, "POST", url+"/api/v1/operator/roaming/sepp/ca/regenerate", roToken, nil); code != http.StatusForbidden {
 		t.Fatalf("read-only CA regeneration: %d", code)
 	}
 }
@@ -235,8 +239,8 @@ func TestSEPPStatus(t *testing.T) {
 
 	code, st, err := apiDo[struct {
 		Result seppStatusBody `json:"result"`
-	}](client, "GET", url+"/api/v1/roaming/sepp", token, nil)
-	if err != nil || code != http.StatusOK || len(st.Result.TrustAnchors) != 0 || len(st.Result.Nodes) != 1 || st.Result.Nodes[0].Certificate != nil {
+	}](client, "GET", url+"/api/v1/operator/roaming/sepp", token, nil)
+	if err != nil || code != http.StatusOK || len(st.Result.TrustAnchors) != 0 || len(st.Result.Certificates) != 0 || st.Result.Node.SEPPID != 1 || st.Result.Node.Certificate != nil {
 		t.Fatalf("before identity: %d %v %+v", code, err, st)
 	}
 
@@ -244,13 +248,13 @@ func TestSEPPStatus(t *testing.T) {
 		t.Fatalf("generate: %d %v", code, err)
 	}
 
-	if code, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/roaming/sepp/nodes/5/certificate/generate", token, nil); err != nil || code != http.StatusCreated {
+	if code, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/operator/roaming/sepp/nodes/5/certificate/generate", token, nil); err != nil || code != http.StatusCreated {
 		t.Fatalf("generate for an absent node: %d %v", code, err)
 	}
 
 	code, st, err = apiDo[struct {
 		Result seppStatusBody `json:"result"`
-	}](client, "GET", url+"/api/v1/roaming/sepp", token, nil)
+	}](client, "GET", url+"/api/v1/operator/roaming/sepp", token, nil)
 	if err != nil || code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, err)
 	}
@@ -260,17 +264,13 @@ func TestSEPPStatus(t *testing.T) {
 		t.Fatalf("trust anchors = %+v", r.TrustAnchors)
 	}
 
-	if len(r.Nodes) != 2 {
-		t.Fatalf("nodes = %+v", r.Nodes)
-	}
-
-	n := r.Nodes[0]
-	if n.SEPPID != 1 || n.FQDN != homeSEPPFQDN || n.Source != "generated" || !n.Reachable || !n.N32Configured || n.Address != "192.0.2.5" || n.Port != 443 || !n.Listening || n.Certificate == nil ||
+	n := r.Node
+	if n.SEPPID != 1 || n.FQDN != homeSEPPFQDN || n.Source != "generated" || !n.N32Configured || n.Address != "192.0.2.5" || n.Port != 443 || !n.Listening || n.Certificate == nil ||
 		n.Certificate.SANs[0] != homeSEPPFQDN || n.Certificate.TrustAnchorFingerprint != r.TrustAnchors[0].Fingerprint || n.Certificate.Fingerprint == n.Certificate.TrustAnchorFingerprint {
 		t.Fatalf("node = %+v", n)
 	}
 
-	if orphan := r.Nodes[1]; orphan.SEPPID != 5 || orphan.Reachable || orphan.Error == "" {
-		t.Fatalf("identity without a node = %+v", orphan)
+	if len(r.Certificates) != 2 || r.Certificates[0].SEPPID != 1 || r.Certificates[0].Certificate == nil || r.Certificates[0].Certificate.Fingerprint != n.Certificate.Fingerprint || r.Certificates[1].SEPPID != 5 || r.Certificates[1].Source != "generated" || r.Certificates[1].Certificate == nil {
+		t.Fatalf("certificates = %+v", r.Certificates)
 	}
 }

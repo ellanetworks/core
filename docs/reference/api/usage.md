@@ -20,6 +20,7 @@ This path retrieves usage data for network subscribers.
 | `end`        | query | string  | `now`    |         | Exclusive upper bound, RFC3339. |
 | `group_by`   | query | string  | _required_ | `day`, `subscriber` | Grouping method for usage data. |
 | `subscriber` | query | string  | ``     |          | Filter usage data for a specific subscriber.     |
+| `roaming`    | query | string  | ``     | `true`, `false` | `true` returns only roamer usage, `false` only home subscriber usage. Absent returns both. |
 
 ### Sample Response
 
@@ -34,6 +35,29 @@ This path retrieves usage data for network subscribers.
     },
     {
       "date": "2025-02-23",
+      "uplink_bytes": 524288,
+      "downlink_bytes": 1048576,
+      "total_bytes": 1572864
+    }
+  ]
+}
+```
+
+With `group_by=subscriber`, roamer entries include `home_plmn` and, when a configured roaming partner serves that PLMN, `roaming_partner`:
+
+```json
+{
+  "result": [
+    {
+      "imsi": "208930000000001",
+      "home_plmn": { "mcc": "208", "mnc": "93" },
+      "roaming_partner": "partner-a",
+      "uplink_bytes": 1048576,
+      "downlink_bytes": 2097152,
+      "total_bytes": 3145728
+    },
+    {
+      "imsi": "001010000000001",
       "uplink_bytes": 524288,
       "downlink_bytes": 1048576,
       "total_bytes": 1572864

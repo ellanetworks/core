@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { ApiError, apiFetch, apiFetchVoid } from "@/queries/utils";
-import { formatDateTime } from "@/utils/formatters";
+import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export const DEFAULT_ROAMING_DIAMETER_PORT = 3868;
 
@@ -31,8 +30,6 @@ export type N32State =
   "idle" | "establishing" | "established" | "failed" | "terminated" | "unknown";
 
 export type RoamingPartnerN32 = {
-  nodeID?: string;
-  seppID?: number;
   state: N32State;
   since?: string;
   initiator?: "local" | "peer";
@@ -50,7 +47,7 @@ export type RoamingPartnerN32Peer = {
 
 export type RoamingPartner = RoamingPartnerInput & {
   id: string;
-  n32?: RoamingPartnerN32[];
+  n32?: RoamingPartnerN32;
 };
 
 export type RoamingDiameterPeerInput = {
@@ -85,6 +82,12 @@ export type SEPPTrustAnchor = {
   seppIDs: number[];
 };
 
+export type SEPPCARegenerated = {
+  trustAnchor: SEPPTrustAnchor;
+  reissued: number[];
+  warnings?: string[];
+};
+
 export type SEPPCertificateSummary = {
   subject: string;
   sans: string[];
@@ -96,11 +99,9 @@ export type SEPPCertificateSummary = {
 };
 
 export type SEPPNodeStatus = {
-  nodeID?: string;
   seppID?: number;
   fqdn?: string;
   source?: SEPPSource;
-  reachable: boolean;
   n32Configured: boolean;
   address?: string;
   port?: number;
@@ -109,79 +110,23 @@ export type SEPPNodeStatus = {
   error?: string;
 };
 
+export type SEPPStoredCertificate = {
+  seppID: number;
+  fqdn: string;
+  source: SEPPSource;
+  certificate?: SEPPCertificateSummary;
+};
+
 export type SEPPStatus = {
+  node: SEPPNodeStatus;
   trustAnchors: SEPPTrustAnchor[];
-  nodes: SEPPNodeStatus[];
+  certificates: SEPPStoredCertificate[];
 };
 
-export type SEPPCARegenerated = {
-  trustAnchor: SEPPTrustAnchor;
-  reissued: number[];
-  warnings?: string[];
-};
-
-export type RoamingUsage = {
-  date: string;
-  mcc: string;
-  mnc: string;
-  partner_name?: string;
-  uplink_bytes: number;
-  downlink_bytes: number;
-  total_bytes: number;
-};
-
-export type RoamerRAT = "4G" | "5G";
-
-export type RoamerRegistration = {
-  rat: RoamerRAT;
-  nodeID: string;
-  reachable: boolean;
-  registered?: boolean;
-  connectionState?: "connected" | "idle";
-  since?: string;
-  lastSeenAt?: string;
-  radio?: string;
-};
-
-export type RoamerSession = {
-  rat: RoamerRAT;
-  nodeID: string;
-  id: number;
-  dataNetwork: string;
-  ipv4Address?: string;
-  ipv6Prefix?: string;
-};
-
-export type RoamerUsage = {
-  uplinkBytes: number;
-  downlinkBytes: number;
-  totalBytes: number;
-};
-
-export type Roamer = {
-  imsi: string;
-  partnerID: string;
-  partnerName: string;
-  homePLMN: PLMNID;
-  registrations: RoamerRegistration[];
-  sessions: RoamerSession[];
-  usageToday?: RoamerUsage;
-};
-
-export type UnreachableNode = {
-  nodeID: string;
-  error: string;
-};
-
-export type RoamersList = {
-  items: Roamer[];
-  unreachableNodes?: UnreachableNode[];
-};
-
-const PARTNERS_PATH = "/api/v1/roaming/partners";
-const PEERS_PATH = "/api/v1/roaming/diameter-peers";
-const SEPP_PATH = "/api/v1/roaming/sepp";
-const ROAMERS_PATH = "/api/v1/roaming/roamers";
+const ROAMING_PATH = "/api/v1/operator/roaming";
+const PARTNERS_PATH = `${ROAMING_PATH}/partners`;
+const PEERS_PATH = `${ROAMING_PATH}/diameter-peers`;
+const SEPP_PATH = `${ROAMING_PATH}/sepp`;
 
 const seppCertificatePath = (seppID: number) =>
   `${SEPP_PATH}/nodes/${seppID}/certificate`;
@@ -228,12 +173,12 @@ export const deleteRoamingPartner = async (
 export const rehandshakeRoamingPartner = async (
   authToken: string,
   id: string,
-): Promise<RoamingPartnerN32[]> => {
-  const res = await apiFetch<{ n32: RoamingPartnerN32[] }>(
+): Promise<RoamingPartnerN32 | undefined> => {
+  const res = await apiFetch<{ n32: RoamingPartnerN32 }>(
     `${PARTNERS_PATH}/${encodeURIComponent(id)}/handshake`,
     { method: "POST", authToken },
   );
-  return res?.n32 ?? [];
+  return res?.n32;
 };
 
 export const getSEPPStatus = async (authToken: string): Promise<SEPPStatus> =>
@@ -278,20 +223,6 @@ export const deleteRoamingDiameterPeer = async (
     authToken,
   });
 
-export const getSEPPCertificate = async (
-  authToken: string,
-  seppID: number,
-): Promise<SEPPCertificate | null> => {
-  try {
-    return await apiFetch<SEPPCertificate>(seppCertificatePath(seppID), {
-      authToken,
-    });
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-};
-
 export const importSEPPCertificate = async (
   authToken: string,
   seppID: number,
@@ -324,49 +255,6 @@ export const regenerateSEPPCA = async (
     authToken,
   });
 
-export const getRoamingUsage = async (
-  authToken: string,
-  start: string,
-  end: string,
-  imsi: string,
-): Promise<RoamingUsage[]> => {
-  const params = new URLSearchParams();
-  if (start) params.set("start", start);
-  if (end) params.set("end", end);
-  if (imsi) params.set("imsi", imsi);
-  const query = params.toString();
-  const res = await apiFetch<RoamingUsage[]>(
-    `/api/v1/roaming/usage${query ? `?${query}` : ""}`,
-    { authToken },
-  );
-  return res ?? [];
-};
-
-export const listRoamers = async (authToken: string): Promise<RoamersList> => {
-  const res = await apiFetch<RoamersList>(ROAMERS_PATH, { authToken });
-  return {
-    items: res?.items ?? [],
-    unreachableNodes: res?.unreachableNodes ?? [],
-  };
-};
-
-export const getRoamer = async (
-  authToken: string,
-  imsi: string,
-): Promise<Roamer> =>
-  apiFetch<Roamer>(`${ROAMERS_PATH}/${encodeURIComponent(imsi)}`, {
-    authToken,
-  });
-
-export const deregisterRoamer = async (
-  authToken: string,
-  imsi: string,
-): Promise<void> =>
-  apiFetchVoid(`${ROAMERS_PATH}/${encodeURIComponent(imsi)}`, {
-    method: "DELETE",
-    authToken,
-  });
-
 const paddedMNC = (mnc: string) => (mnc.length === 2 ? `0${mnc}` : mnc);
 
 export const plmnDomain = (mcc: string, mnc: string) =>
@@ -377,15 +265,6 @@ export const defaultNRFAPIRoot = (mcc: string, mnc: string) =>
 
 export const seppFQDN = (mcc: string, mnc: string, seppID: number) =>
   `sepp${seppID}.${plmnDomain(mcc, mnc)}`;
-
-export const n32NodeLabel = (n32: { nodeID?: string; seppID?: number }) => {
-  if (n32.seppID) return `SEPP ${n32.seppID}`;
-  if (n32.nodeID) return `Node ${n32.nodeID}`;
-  return "SEPP";
-};
-
-export const otherPeerLabel = (peer: RoamingPartnerN32Peer) =>
-  peer.since ? `${peer.peer} since ${formatDateTime(peer.since)}` : peer.peer;
 
 export const formatPLMN = (plmn: PLMNID) => `${plmn.mcc}-${plmn.mnc}`;
 

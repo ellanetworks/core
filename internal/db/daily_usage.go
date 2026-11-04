@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -23,13 +24,29 @@ import (
 const DailyUsageTableName = "daily_usage"
 
 const (
-	incrementDailyUsageStmt = "INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + $DailyUsage.bytes_uplink, bytes_downlink = bytes_downlink + $DailyUsage.bytes_downlink"
-	deleteOldDailyUsageStmt = "DELETE FROM %s WHERE epoch_day < $cutoffDaysArgs.cutoff_days"
-	deleteAllDailyUsageStmt = "DELETE FROM %s"
+	incrementDailyUsageStmt       = "INSERT INTO %s (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.mcc, $DailyUsage.mnc, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
+	incrementDailyUsagePreV26Stmt = "INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + $DailyUsage.bytes_uplink, bytes_downlink = bytes_downlink + $DailyUsage.bytes_downlink"
+	deleteOldDailyUsageStmt       = "DELETE FROM %s WHERE epochDay < $cutoffDaysArgs.cutoff_days"
+	deleteOldDailyUsagePreV26Stmt = "DELETE FROM %s WHERE epoch_day < $cutoffDaysArgs.cutoff_days"
+	deleteAllDailyUsageStmt       = "DELETE FROM %s"
 )
 
 const (
-	usagePerDaySelect = `
+	getUsagePerDayStmt = `
+SELECT
+    epochDay           AS &UsagePerDay.epoch_day,
+    SUM(bytesUplink)   AS &UsagePerDay.bytes_uplink,
+    SUM(bytesDownlink) AS &UsagePerDay.bytes_downlink
+FROM %s
+WHERE
+    ($UsageFilters.imsi IS NULL OR imsi == $UsageFilters.imsi)
+    AND ($UsageFilters.roaming IS NULL OR (mcc IS NOT NULL) == $UsageFilters.roaming)
+    AND epochDay >= $UsageFilters.start_date
+    AND epochDay <= $UsageFilters.end_date
+GROUP BY epochDay
+ORDER BY epochDay ASC`
+
+	getUsagePerDayPreV26Stmt = `
 SELECT
     epoch_day AS &UsagePerDay.epoch_day,
     SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
@@ -38,18 +55,36 @@ FROM %s
 WHERE
     ($UsageFilters.imsi IS NULL OR imsi == $UsageFilters.imsi)
     AND epoch_day >= $UsageFilters.start_date
-    AND epoch_day <= $UsageFilters.end_date`
-
-	usagePerDayOrder = `
+    AND epoch_day <= $UsageFilters.end_date
 GROUP BY epoch_day
 ORDER BY epoch_day ASC`
-
-	getUsagePerDayStmt       = usagePerDaySelect + " AND imsi IN (SELECT imsi FROM %s WHERE roamingPartnerID IS NULL)" + usagePerDayOrder
-	getUsagePerDayPreV26Stmt = usagePerDaySelect + usagePerDayOrder
 )
 
 const (
-	usagePerSubscriberSelect = `
+	getUsagePerSubscriberStmt = `
+SELECT
+    u.imsi                  AS &UsagePerSub.imsi,
+    MAX(u.mcc)              AS &UsagePerSub.mcc,
+    MAX(u.mnc)              AS &UsagePerSub.mnc,
+    SUM(u.bytesUplink)      AS &UsagePerSub.bytes_uplink,
+    SUM(u.bytesDownlink)    AS &UsagePerSub.bytes_downlink
+FROM (
+    SELECT imsi, mcc, mnc, bytesUplink, bytesDownlink
+    FROM %s
+    WHERE epochDay >= $UsageFilters.start_date AND epochDay <= $UsageFilters.end_date
+    UNION ALL
+    SELECT imsi, NULL, NULL, 0, 0
+    FROM %s
+    WHERE roamingPartnerID IS NULL
+) AS u
+WHERE
+    ($UsageFilters.imsi IS NULL OR u.imsi = $UsageFilters.imsi)
+    AND ($UsageFilters.roaming IS NULL OR (u.mcc IS NOT NULL) == $UsageFilters.roaming)
+GROUP BY u.imsi
+ORDER BY SUM(u.bytesUplink) + SUM(u.bytesDownlink) DESC, u.imsi ASC
+LIMIT $UsageFilters.limit`
+
+	getUsagePerSubscriberPreV26Stmt = `
 SELECT
     s.imsi AS &UsagePerSub.imsi,
     COALESCE(SUM(u.bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
@@ -59,15 +94,10 @@ LEFT JOIN %s AS u
     ON u.imsi = s.imsi
     AND u.epoch_day >= $UsageFilters.start_date
     AND u.epoch_day <= $UsageFilters.end_date
-WHERE ($UsageFilters.imsi IS NULL OR s.imsi = $UsageFilters.imsi)`
-
-	usagePerSubscriberOrder = `
+WHERE ($UsageFilters.imsi IS NULL OR s.imsi = $UsageFilters.imsi)
 GROUP BY s.imsi
 ORDER BY COALESCE(SUM(u.bytes_uplink), 0) + COALESCE(SUM(u.bytes_downlink), 0) DESC, s.imsi ASC
 LIMIT $UsageFilters.limit`
-
-	getUsagePerSubscriberStmt       = usagePerSubscriberSelect + " AND s.roamingPartnerID IS NULL" + usagePerSubscriberOrder
-	getUsagePerSubscriberPreV26Stmt = usagePerSubscriberSelect + usagePerSubscriberOrder
 )
 
 type UsagePerDay struct {
@@ -77,20 +107,41 @@ type UsagePerDay struct {
 }
 
 type UsagePerSub struct {
-	IMSI          string `db:"imsi"`
-	BytesUplink   int64  `db:"bytes_uplink"`
-	BytesDownlink int64  `db:"bytes_downlink"`
+	IMSI          string  `db:"imsi"`
+	Mcc           *string `db:"mcc"`
+	Mnc           *string `db:"mnc"`
+	BytesUplink   int64   `db:"bytes_uplink"`
+	BytesDownlink int64   `db:"bytes_downlink"`
 }
 
 type DailyUsage struct {
-	EpochDay      int64  `db:"epoch_day"`
-	IMSI          string `db:"imsi"`
-	BytesUplink   int64  `db:"bytes_uplink"`
-	BytesDownlink int64  `db:"bytes_downlink"`
+	EpochDay      int64   `db:"epoch_day"`
+	IMSI          string  `db:"imsi"`
+	Mcc           *string `db:"mcc"`
+	Mnc           *string `db:"mnc"`
+	BytesUplink   int64   `db:"bytes_uplink"`
+	BytesDownlink int64   `db:"bytes_downlink"`
+}
+
+func (u DailyUsage) Validate() error {
+	if u.Mcc == nil && u.Mnc == nil {
+		return nil
+	}
+
+	if u.Mcc == nil || u.Mnc == nil || !isDigits(*u.Mcc, 3, 3) || !isDigits(*u.Mnc, 2, 3) {
+		return fmt.Errorf("usage of IMSI %s has an invalid home PLMN", u.IMSI)
+	}
+
+	if !isDigits(u.IMSI, 6, 15) || !strings.HasPrefix(u.IMSI, *u.Mcc+*u.Mnc) {
+		return fmt.Errorf("usage IMSI %q is not in home PLMN %s", u.IMSI, RoamingPLMN{Mcc: *u.Mcc, Mnc: *u.Mnc})
+	}
+
+	return nil
 }
 
 type UsageFilters struct {
 	IMSI      *string `db:"imsi"` // exact match
+	Roaming   *bool   `db:"roaming"`
 	StartDate int64   `db:"start_date"`
 	EndDate   int64   `db:"end_date"`
 	Limit     int64   `db:"limit"` // SQLite treats a negative limit as unbounded
@@ -187,6 +238,12 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 		return nil
 	}
 
+	for _, u := range usages {
+		if err := u.Validate(); err != nil {
+			return err
+		}
+	}
+
 	operation := "INSERT"
 
 	var batchAttrs []attribute.KeyValue
@@ -234,7 +291,7 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 	return nil
 }
 
-func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange) ([]UsagePerDay, error) {
+func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange, roaming *bool) ([]UsagePerDay, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
 
 	ctx, span := tracer.Start(
@@ -256,6 +313,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
+		Roaming:   roaming,
 		StartDate: days.First,
 		EndDate:   days.Last,
 		Limit:     NoUsageLimit,
@@ -269,6 +327,10 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 
 	stmt := db.getUsagePerDayStmt
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		if roaming != nil && *roaming {
+			return nil, nil
+		}
+
 		stmt = db.getUsagePerDayPreV26Stmt
 	}
 
@@ -286,7 +348,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 	return dailyUsage, nil
 }
 
-func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, limit int64) ([]UsagePerSub, error) {
+func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, roaming *bool, limit int64) ([]UsagePerSub, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
 
 	ctx, span := tracer.Start(
@@ -308,6 +370,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
+		Roaming:   roaming,
 		StartDate: days.First,
 		EndDate:   days.Last,
 		Limit:     limit,
@@ -321,6 +384,10 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 
 	stmt := db.getUsagePerSubscriberStmt
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		if roaming != nil && *roaming {
+			return nil, nil
+		}
+
 		stmt = db.getUsagePerSubscriberPreV26Stmt
 	}
 

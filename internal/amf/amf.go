@@ -628,18 +628,28 @@ func (amf *AMF) CountRadios() int {
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
+	home, roamers := amf.CountRegisteredSubscribersByRoaming()
+
+	return home + roamers
+}
+
+func (amf *AMF) CountRegisteredSubscribersByRoaming() (home, roamers int) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	count := 0
-
 	for _, ue := range amf.UEs {
-		if ue.State() == Registered && !ue.IsVisitor() {
-			count++
+		if ue.State() != Registered {
+			continue
+		}
+
+		if ue.IsVisitor() {
+			roamers++
+		} else {
+			home++
 		}
 	}
 
-	return count
+	return home, roamers
 }
 
 func (amf *AMF) DisconnectRadioOnConnLoss(ran *Radio) {

@@ -129,7 +129,9 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   const { role, accessToken, authReady } = useAuth();
   const [credentialsVisible, setCredentialsVisible] = useState(false);
 
-  const canViewCredentials = role === "Admin" || role === "Network Manager";
+  const roamer = subscriber.roaming_partner !== undefined;
+  const canViewCredentials =
+    !roamer && (role === "Admin" || role === "Network Manager");
 
   const [credentialsRequested, setCredentialsRequested] = useState(false);
 
@@ -182,23 +184,29 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             retrying={credentialsQuery.isFetching}
           />
         )}
-        <FieldRow
-          label="Description"
-          value={subscriber.description ?? ""}
-          wrapProse
-          actionIcon={
-            onEditDescription
-              ? editIcon("Edit description", onEditDescription)
-              : undefined
-          }
-        />
-        <FieldRow
-          label="MSISDN"
-          value={subscriber.msisdn ?? ""}
-          actionIcon={
-            onEditMSISDN ? editIcon("Edit MSISDN", onEditMSISDN) : undefined
-          }
-        />
+        {roamer ? (
+          <FieldRow label="Partner" value={subscriber.roaming_partner ?? ""} />
+        ) : (
+          <>
+            <FieldRow
+              label="Description"
+              value={subscriber.description ?? ""}
+              wrapProse
+              actionIcon={
+                onEditDescription
+                  ? editIcon("Edit description", onEditDescription)
+                  : undefined
+              }
+            />
+            <FieldRow
+              label="MSISDN"
+              value={subscriber.msisdn ?? ""}
+              actionIcon={
+                onEditMSISDN ? editIcon("Edit MSISDN", onEditMSISDN) : undefined
+              }
+            />
+          </>
+        )}
         <FieldRow
           label="Profile"
           value={subscriber.profile_name || "—"}
@@ -207,37 +215,41 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             onEditProfile ? editIcon("Edit profile", onEditProfile) : undefined
           }
         />
-        <FieldRow
-          label="Key"
-          value={credentials?.key ?? ""}
-          copyable={
-            canViewCredentials && credentialsVisible && !!credentials?.key
-          }
-          onCopy={() => copy(credentials?.key ?? "", "Key")}
-          obfuscated={!credentialsVisible}
-        />
-        <FieldRow
-          label="OPc"
-          value={credentials?.opc ?? ""}
-          copyable={
-            canViewCredentials && credentialsVisible && !!credentials?.opc
-          }
-          onCopy={() => copy(credentials?.opc ?? "", "OPc")}
-          obfuscated={!credentialsVisible}
-        />
-        <FieldRow
-          label="Sequence Number"
-          value={credentials?.sequenceNumber ?? ""}
-          copyable={
-            canViewCredentials &&
-            credentialsVisible &&
-            !!credentials?.sequenceNumber
-          }
-          onCopy={() =>
-            copy(credentials?.sequenceNumber ?? "", "Sequence Number")
-          }
-          obfuscated={!credentialsVisible}
-        />
+        {!roamer && (
+          <>
+            <FieldRow
+              label="Key"
+              value={credentials?.key ?? ""}
+              copyable={
+                canViewCredentials && credentialsVisible && !!credentials?.key
+              }
+              onCopy={() => copy(credentials?.key ?? "", "Key")}
+              obfuscated={!credentialsVisible}
+            />
+            <FieldRow
+              label="OPc"
+              value={credentials?.opc ?? ""}
+              copyable={
+                canViewCredentials && credentialsVisible && !!credentials?.opc
+              }
+              onCopy={() => copy(credentials?.opc ?? "", "OPc")}
+              obfuscated={!credentialsVisible}
+            />
+            <FieldRow
+              label="Sequence Number"
+              value={credentials?.sequenceNumber ?? ""}
+              copyable={
+                canViewCredentials &&
+                credentialsVisible &&
+                !!credentials?.sequenceNumber
+              }
+              onCopy={() =>
+                copy(credentials?.sequenceNumber ?? "", "Sequence Number")
+              }
+              obfuscated={!credentialsVisible}
+            />
+          </>
+        )}
       </CardContent>
     </Card>
   );

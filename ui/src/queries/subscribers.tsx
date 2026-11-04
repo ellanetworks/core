@@ -22,6 +22,7 @@ export type APISubscriberSummary = {
   profile_name: string;
   description?: string;
   msisdn?: string;
+  roaming_partner?: string;
   status: SubscriberListStatus;
 };
 
@@ -141,6 +142,7 @@ export type APISubscriber = {
   registrations: Registration[];
   sessions: SessionInfo[];
   ims?: IMSSubscription;
+  roaming_partner?: string;
 };
 
 export type SubscriberCredentials = {
@@ -154,6 +156,7 @@ export async function listSubscribers(
   page: number,
   perPage: number,
   search?: string,
+  roaming?: boolean,
 ): Promise<ListSubscribersResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -161,6 +164,7 @@ export async function listSubscribers(
   });
 
   if (search) params.set("search", search);
+  if (roaming !== undefined) params.set("roaming", String(roaming));
 
   return apiFetch<ListSubscribersResponse>(
     `/api/v1/subscribers?${params.toString()}`,
@@ -174,6 +178,30 @@ export async function listSubscribers(
 // and an async autocomplete instead.
 const ROSTER_PER_PAGE = 100;
 
+const ROAMER_ROSTER_CAP = 1000;
+
+async function listSubscriberRoster(
+  authToken: string,
+  roaming?: boolean,
+  cap = Infinity,
+): Promise<APISubscriberSummary[]> {
+  const list = (page: number) =>
+    listSubscribers(authToken, page, ROSTER_PER_PAGE, undefined, roaming);
+  const first = await list(1);
+  const items = first.items ?? [];
+  const totalCount = Math.min(first.total_count ?? items.length, cap);
+
+  const pageCount = Math.ceil(totalCount / ROSTER_PER_PAGE);
+  const rest =
+    pageCount > 1
+      ? await Promise.all(
+          Array.from({ length: pageCount - 1 }, (_, i) => list(i + 2)),
+        )
+      : [];
+
+  return items.concat(...rest.map((r) => r.items ?? [])).slice(0, cap);
+}
+
 /**
  * Every subscriber's IMSI, for filters that must offer subscribers a filtered
  * query cannot see — one whose traffic is entirely dropped has flow reports and
@@ -182,24 +210,22 @@ const ROSTER_PER_PAGE = 100;
 export async function listAllSubscriberImsis(
   authToken: string,
 ): Promise<string[]> {
-  const first = await listSubscribers(authToken, 1, ROSTER_PER_PAGE);
-  const items = first.items ?? [];
-  const totalCount = first.total_count ?? items.length;
-
-  const pageCount = Math.ceil(totalCount / ROSTER_PER_PAGE);
-  const rest =
-    pageCount > 1
-      ? await Promise.all(
-          Array.from({ length: pageCount - 1 }, (_, i) =>
-            listSubscribers(authToken, i + 2, ROSTER_PER_PAGE),
-          ),
-        )
-      : [];
-
-  return items
-    .concat(...rest.map((r) => r.items ?? []))
+  return (await listSubscriberRoster(authToken))
     .map((s) => s.imsi)
     .sort((a, b) => a.localeCompare(b));
+}
+
+export async function listRoamerPartners(
+  authToken: string,
+): Promise<Record<string, string>> {
+  const roamers = await listSubscriberRoster(
+    authToken,
+    true,
+    ROAMER_ROSTER_CAP,
+  );
+  return Object.fromEntries(
+    roamers.map((r) => [r.imsi, r.roaming_partner ?? ""]),
+  );
 }
 
 export async function listSubscribersByRadio(
@@ -276,6 +302,16 @@ export const deleteSubscriber = async (
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers/${name}`, {
     method: "DELETE",
+    authToken,
+  });
+};
+
+export const deregisterSubscriber = async (
+  authToken: string,
+  imsi: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/subscribers/${imsi}/deregister`, {
+    method: "POST",
     authToken,
   });
 };

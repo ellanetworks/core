@@ -42,7 +42,7 @@ func (db *Database) ExportSupportData(ctx context.Context, options supportbundle
 	if options.IncludeSubscriberUsage {
 		db.collectSupportUsage(ctx, out, sections, failure)
 	} else {
-		for _, section := range []string{"usage_per_day", "usage_per_subscriber", "roaming_usage_per_day"} {
+		for _, section := range []string{"usage_per_day", "usage_per_subscriber"} {
 			sections[section] = supportbundle.SectionStatus{Status: "omitted", Reason: "permission restricted"}
 		}
 	}
@@ -143,9 +143,10 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 	sections["networking"] = sections["networking"].WithCount(len(dataNetworksList))
 
 	subscribersList := []any{}
+	homeSubscribers := false
 
 	for page := 1; ; page++ {
-		subs, total, err := db.ListSubscribersPage(ctx, nil, page, perPage)
+		subs, total, err := db.ListSubscribersPage(ctx, &SubscriberFilters{Roaming: &homeSubscribers}, page, perPage)
 		if err != nil {
 			failure("subscribers", err)
 			break
@@ -538,7 +539,7 @@ func (db *Database) collectSupportUsage(ctx context.Context, out supportbundle.S
 	now := time.Now().UTC()
 	usageDays := NewDayRange(now.AddDate(0, 0, -29), now)
 
-	if usagePerDay, err := db.GetUsagePerDay(ctx, "", usageDays); err != nil {
+	if usagePerDay, err := db.GetUsagePerDay(ctx, "", usageDays, nil); err != nil {
 		failure("usage_per_day", err)
 	} else {
 		entries := make([]any, 0, len(usagePerDay))
@@ -554,38 +555,27 @@ func (db *Database) collectSupportUsage(ctx context.Context, out supportbundle.S
 		sections["usage_per_day"] = sections["usage_per_day"].WithCount(len(entries))
 	}
 
-	if usagePerSub, err := db.GetUsagePerSubscriber(ctx, "", usageDays, NoUsageLimit); err != nil {
+	if usagePerSub, err := db.GetUsagePerSubscriber(ctx, "", usageDays, nil, NoUsageLimit); err != nil {
 		failure("usage_per_subscriber", err)
 	} else {
 		entries := make([]any, 0, len(usagePerSub))
 		for _, u := range usagePerSub {
-			entries = append(entries, map[string]any{
+			entry := map[string]any{
 				"imsi":           u.IMSI,
 				"bytes_uplink":   u.BytesUplink,
 				"bytes_downlink": u.BytesDownlink,
-			})
+			}
+
+			if u.Mcc != nil && u.Mnc != nil {
+				entry["mcc"] = *u.Mcc
+				entry["mnc"] = *u.Mnc
+			}
+
+			entries = append(entries, entry)
 		}
 
 		out["usage_per_subscriber"] = entries
 		sections["usage_per_subscriber"] = sections["usage_per_subscriber"].WithCount(len(entries))
-	}
-
-	if roamingUsage, err := db.ListRoamingUsage(ctx, "", usageDays); err != nil {
-		failure("roaming_usage_per_day", err)
-	} else {
-		entries := make([]any, 0, len(roamingUsage))
-		for _, u := range roamingUsage {
-			entries = append(entries, map[string]any{
-				"day":            u.EpochDay,
-				"mcc":            u.Mcc,
-				"mnc":            u.Mnc,
-				"bytes_uplink":   u.BytesUplink,
-				"bytes_downlink": u.BytesDownlink,
-			})
-		}
-
-		out["roaming_usage_per_day"] = entries
-		sections["roaming_usage_per_day"] = sections["roaming_usage_per_day"].WithCount(len(entries))
 	}
 }
 

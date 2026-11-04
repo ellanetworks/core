@@ -426,24 +426,18 @@ func (s *r5gStack) ellaTrustAnchor(nodes int) string {
 	var anchor string
 
 	err := r4gPoll(s.ctx, 2*time.Minute, func() error {
-		st, err := s.api.GetSEPPStatus(s.ctx)
-		if err != nil {
-			return err
-		}
-
-		listening := 0
-
-		for _, n := range st.Nodes {
-			if n.Listening && n.Certificate != nil {
-				listening++
+		for i, c := range s.nodes[:nodes] {
+			st, err := c.GetSEPPStatus(s.ctx)
+			if err != nil {
+				return err
 			}
-		}
 
-		if len(st.TrustAnchors) != 1 || listening != nodes {
-			return fmt.Errorf("SEPP status: %d trust anchors, %d of %d nodes listening", len(st.TrustAnchors), listening, nodes)
-		}
+			if len(st.TrustAnchors) != 1 || !st.Node.Listening || st.Node.Certificate == nil {
+				return fmt.Errorf("SEPP status of node %d: %d trust anchors, listening %t, certificate %t", i+1, len(st.TrustAnchors), st.Node.Listening, st.Node.Certificate != nil)
+			}
 
-		anchor = st.TrustAnchors[0].PEM
+			anchor = st.TrustAnchors[0].PEM
+		}
 
 		return nil
 	})
@@ -488,13 +482,11 @@ func (s *r5gStack) waitN32(node int) {
 			return err
 		}
 
-		for _, n := range p.N32 {
-			if n.SEPPID == node && n.State == "established" {
-				return nil
-			}
+		if p.N32 != nil && p.N32.State == "established" {
+			return nil
 		}
 
-		return fmt.Errorf("N32 contexts %+v", p.N32)
+		return fmt.Errorf("N32 context %+v", p.N32)
 	})
 	if err != nil {
 		s.t.Fatalf("node %d N32 context: %v", node, err)
@@ -668,7 +660,7 @@ func (s *r5gStack) notify(ownerNode int, imsi, kind string, body any) (int, stri
 }
 
 func (s *r5gStack) registered(node int) float64 {
-	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_roaming_visitors", `rat="5g"`)
+	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_registered_subscribers", `rat="5g"`, `roaming="true"`)
 }
 
 func (s *r5gStack) waitRegistered(node int, want float64, what string) {

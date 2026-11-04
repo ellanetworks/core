@@ -16,15 +16,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type fakeRoamerSource struct {
-	load    map[string]roaming.PartnerLoad
-	roamers []roaming.LiveRoamer
-}
-
-func (f fakeRoamerSource) RoamerLoad() map[string]roaming.PartnerLoad { return f.load }
-
-func (f fakeRoamerSource) Roamers() []roaming.LiveRoamer { return f.roamers }
-
 type failingTransport struct{}
 
 func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
@@ -40,10 +31,7 @@ func (fakeN32) NRFAPIRoot(string) (string, error) { return "", errors.New("no nr
 func (fakeN32) PartnerName(string) string { return "partner-a" }
 
 func TestRoamingMetricsExposedOnMetricsEndpoint(t *testing.T) {
-	registerRoamers(prometheus.DefaultRegisterer,
-		fakeRoamerSource{load: map[string]roaming.PartnerLoad{"partner-a": {Roamers: 2, Sessions: 3}}},
-		fakeRoamerSource{load: map[string]roaming.PartnerLoad{"partner-b": {Roamers: 1, Sessions: 1}}},
-	)
+	roaming.RegisterMetrics(prometheus.DefaultRegisterer)
 
 	roaming.RecordReject5G("partner-a", "PLMN not allowed")
 	roaming.RecordS6aAnswer("partner-b", s6a.CommandUpdateLocation, nil, errors.New("no peer"))
@@ -63,10 +51,6 @@ func TestRoamingMetricsExposedOnMetricsEndpoint(t *testing.T) {
 	body := rr.Body.String()
 
 	for _, want := range []string{
-		`app_roaming_visitors{partner="partner-a",rat="5g"} 2`,
-		`app_roaming_visitors{partner="partner-b",rat="4g"} 1`,
-		`app_roaming_sessions{partner="partner-a",rat="5g"} 3`,
-		`app_roaming_sessions{partner="partner-b",rat="4g"} 1`,
 		`app_roaming_rejects_total{cause="PLMN not allowed",partner="partner-a",rat="5g"} 1`,
 		`app_roaming_s6a_requests_total{command="ULR",partner="partner-b",result="error"} 1`,
 		`app_roaming_home_sbi_requests_total{partner="partner-a",result="error",service="nudm-sdm"} 1`,

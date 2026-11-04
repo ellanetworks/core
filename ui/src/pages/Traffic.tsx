@@ -27,7 +27,11 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, alpha } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { type GridColDef, type GridRowParams } from "@mui/x-data-grid";
+import {
+  type GridColDef,
+  type GridRenderCellParams,
+  type GridRowParams,
+} from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PieChart, pieClasses } from "@mui/x-charts/PieChart";
@@ -56,8 +60,14 @@ import {
   type FlowAccountingInfo,
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
-import { listAllSubscriberImsis } from "@/queries/subscribers";
-import { listRoamers, type RoamersList } from "@/queries/roaming";
+import {
+  listAllSubscriberImsis,
+  listRoamerPartners,
+} from "@/queries/subscribers";
+import { formatPLMN } from "@/queries/roaming";
+import RoamingFilterField, {
+  roamingParam,
+} from "@/components/RoamingFilterField";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
@@ -137,9 +147,51 @@ const renderSubscriberLink = (params: any) => {
   );
 };
 
+const RoamerSubscriber: React.FC<{
+  imsi: string;
+  partner: string;
+  linked: boolean;
+}> = ({ imsi, partner, linked }) => (
+  <Box
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      gap: 1,
+      width: "100%",
+      height: "100%",
+    }}
+  >
+    {linked ? (
+      <Link
+        to={`/subscribers/${imsi}`}
+        style={{ textDecoration: "none" }}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            color: (t) => t.palette.link,
+            textDecoration: "underline",
+          }}
+        >
+          {imsi}
+        </Typography>
+      </Link>
+    ) : (
+      <Typography variant="body2">{imsi}</Typography>
+    )}
+    <Chip
+      size="small"
+      variant="outlined"
+      label={partner ? `Roamer · ${partner}` : "Roamer"}
+    />
+  </Box>
+);
+
 type UsageRow = {
   id: string;
   subscriber: string;
+  partner?: string;
   uplink_bytes: number;
   downlink_bytes: number;
   total_bytes: number;
@@ -200,10 +252,12 @@ const Traffic: React.FC = () => {
   );
   const [selectedSubscriber, setSelectedSubscriber] =
     useSearchParamState("subscriber_id");
+  const [roamingFilter, setRoamingFilter] = useSearchParamState("roaming");
+  const roaming = roamingParam(roamingFilter);
   const { showSnackbar } = useSnackbar();
 
   const [usagePaginationModel, setUsagePaginationModel] = useFilteredPagination(
-    { timeFilter, selectedSubscriber },
+    { timeFilter, selectedSubscriber, roaming },
   );
   const [isEditUsageRetentionOpen, setEditUsageRetentionOpen] = useState(false);
   const [isUsageClearModalOpen, setUsageClearModalOpen] = useState(false);
@@ -233,7 +287,7 @@ const Traffic: React.FC = () => {
     isLoading: isUsagePerSubLoading,
     refetch: refetchUsagePerSub,
   } = useQuery<UsageResult>({
-    queryKey: ["usagePerSubscriber", timeFilter, selectedSubscriber],
+    queryKey: ["usagePerSubscriber", timeFilter, selectedSubscriber, roaming],
     queryFn: () => {
       const { start = "", end = "" } = usageRange();
 
@@ -243,6 +297,8 @@ const Traffic: React.FC = () => {
         end,
         selectedSubscriber,
         "subscriber",
+        undefined,
+        roaming,
       );
     },
     enabled: !!accessToken,
@@ -254,11 +310,19 @@ const Traffic: React.FC = () => {
     isLoading: isUsagePerDayLoading,
     refetch: refetchUsagePerDay,
   } = useQuery<UsageResult>({
-    queryKey: ["usagePerDay", timeFilter, selectedSubscriber],
+    queryKey: ["usagePerDay", timeFilter, selectedSubscriber, roaming],
     queryFn: () => {
       const { start = "", end = "" } = usageRange();
 
-      return getUsage(accessToken || "", start, end, selectedSubscriber, "day");
+      return getUsage(
+        accessToken || "",
+        start,
+        end,
+        selectedSubscriber,
+        "day",
+        undefined,
+        roaming,
+      );
     },
     enabled: !!accessToken,
     placeholderData: (prev) => prev,
@@ -393,6 +457,9 @@ const Traffic: React.FC = () => {
       items.push({
         id: usage.imsi,
         subscriber: usage.imsi,
+        partner: usage.home_plmn
+          ? usage.roaming_partner || formatPLMN(usage.home_plmn)
+          : undefined,
         uplink_bytes: usage.uplink_bytes,
         downlink_bytes: usage.downlink_bytes,
         total_bytes: usage.total_bytes,
@@ -445,6 +512,13 @@ const Traffic: React.FC = () => {
     [maxBytesAcrossData],
   );
 
+  const usageScope =
+    roaming === undefined
+      ? "all subscribers"
+      : roaming
+        ? "roamers"
+        : "home subscribers";
+
   const chartDataset = useMemo(
     () =>
       dailyRows.map((row) => {
@@ -465,7 +539,16 @@ const Traffic: React.FC = () => {
         headerName: "Subscriber",
         flex: 1,
         minWidth: 140,
-        renderCell: renderSubscriberLink,
+        renderCell: (params: GridRenderCellParams<UsageRow>) =>
+          params.row.partner === undefined ? (
+            renderSubscriberLink(params)
+          ) : (
+            <RoamerSubscriber
+              imsi={params.row.subscriber}
+              partner={params.row.partner}
+              linked={false}
+            />
+          ),
       },
       {
         field: "downlink_bytes",
@@ -510,20 +593,12 @@ const Traffic: React.FC = () => {
     [protocolOptionsData, theme],
   );
 
-  const { data: roamersData } = useQuery<RoamersList>({
-    queryKey: ["trafficRoamers"],
-    queryFn: () => listRoamers(accessToken || ""),
+  const { data: roamerPartners } = useQuery<Record<string, string>>({
+    queryKey: ["trafficRoamerPartners"],
+    queryFn: () => listRoamerPartners(accessToken || ""),
     enabled: authReady && !!accessToken,
     refetchInterval: 30000,
   });
-
-  const roamerPartners = useMemo(
-    () =>
-      new Map(
-        (roamersData?.items ?? []).map((r) => [r.imsi, r.partnerName ?? ""]),
-      ),
-    [roamersData],
-  );
 
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
@@ -565,40 +640,10 @@ const Traffic: React.FC = () => {
         flex: 1,
         minWidth: 120,
         renderCell: (params) => {
-          const partner = roamerPartners.get(params.value as string);
+          const imsi = params.value as string;
+          const partner = roamerPartners?.[imsi];
           if (partner === undefined) return renderSubscriberLink(params);
-          return (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                width: "100%",
-                height: "100%",
-              }}
-            >
-              <Link
-                to="/roaming/roamers"
-                style={{ textDecoration: "none" }}
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: (t) => t.palette.link,
-                    textDecoration: "underline",
-                  }}
-                >
-                  {params.value as string}
-                </Typography>
-              </Link>
-              <Chip
-                size="small"
-                variant="outlined"
-                label={partner ? `Roamer · ${partner}` : "Roamer"}
-              />
-            </Box>
-          );
+          return <RoamerSubscriber imsi={imsi} partner={partner} linked />;
         },
       },
       {
@@ -949,6 +994,10 @@ const Traffic: React.FC = () => {
                     ranges={tabRanges}
                     allowAnyTime={false}
                   />
+                  <RoamingFilterField
+                    value={roamingFilter}
+                    onChange={setRoamingFilter}
+                  />
                   <Autocomplete
                     options={subscriberOptions}
                     value={selectedSubscriber || null}
@@ -1004,8 +1053,8 @@ const Traffic: React.FC = () => {
 
               <Box>
                 <Typography variant="h6" sx={{ mb: 2 }}>
-                  Daily data usage ({selectedSubscriber || "all subscribers"})
-                  in {unit}
+                  Daily data usage ({selectedSubscriber || usageScope}) in{" "}
+                  {unit}
                 </Typography>
                 <BarChart
                   dataset={chartDataset}

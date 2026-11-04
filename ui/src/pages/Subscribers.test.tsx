@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { setupApiServer } from "@/test/apiServer";
+import { httpError, setupApiServer } from "@/test/apiServer";
 import Subscribers from "./Subscribers";
 
 const api = setupApiServer();
@@ -436,5 +436,155 @@ describe("Subscribers MSISDN column", () => {
 
     expect(await msisdnCell(IMSIS[0])).toHaveTextContent("+15551230001");
     expect(await msisdnCell(IMSIS[1])).toHaveTextContent("—");
+  });
+});
+
+describe("Subscribers roamers", () => {
+  const ROAMER = "208930000000001";
+
+  const seedMixed = () =>
+    api.get(SUBSCRIBERS_PATH, ({ params }) => {
+      const home = [subscriber(IMSIS[0])];
+      const roamers = [
+        {
+          imsi: ROAMER,
+          profile_name: "roamers",
+          roaming_partner: "Partner A",
+          status: { registered: true, connection_state: "idle" },
+        },
+      ];
+      const roaming = params.get("roaming");
+      const items =
+        roaming === "true"
+          ? roamers
+          : roaming === "false"
+            ? home
+            : [...home, ...roamers];
+      return { items, page: 1, per_page: 25, total_count: items.length };
+    });
+
+  const rowOf = async (imsi: string) =>
+    within(
+      (await screen.findByText(imsi)).closest('[role="row"]') as HTMLElement,
+    );
+
+  it("lists roamers with their partner, counted in the header", async () => {
+    seedMixed();
+    await renderSubscribers();
+
+    const roamer = await rowOf(ROAMER);
+    expect(roamer.getByText("Partner A")).toBeInTheDocument();
+    expect(roamer.getByText("Idle")).toBeInTheDocument();
+    expect(
+      roamer.getByRole("button", { name: `Deregister roamer ${ROAMER}` }),
+    ).toBeInTheDocument();
+    expect(
+      (await rowOf(IMSIS[0])).queryByRole("button", { name: /Deregister/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /^Subscribers/ }),
+    ).toHaveTextContent("2");
+  });
+
+  it("filters subscribers and roamers", async () => {
+    const user = userEvent.setup();
+    seedMixed();
+    await renderSubscribers();
+    await screen.findByText(ROAMER);
+    expect(lastParams().has("roaming")).toBe(false);
+
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(await screen.findByRole("option", { name: "Roamers" }));
+    await waitFor(() => expect(lastParams().get("roaming")).toBe("true"));
+    await waitFor(() =>
+      expect(screen.queryByText(IMSIS[0])).not.toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(
+      await screen.findByRole("option", { name: "Subscribers" }),
+    );
+    await waitFor(() => expect(lastParams().get("roaming")).toBe("false"));
+    await waitFor(() =>
+      expect(screen.queryByText(ROAMER)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("says so when no roamer is registered", async () => {
+    const user = userEvent.setup();
+    seedApi();
+    api.get(SUBSCRIBERS_PATH, ({ params }) => {
+      const items =
+        params.get("roaming") === "true" ? [] : IMSIS.map(subscriber);
+      return { items, page: 1, per_page: 25, total_count: items.length };
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(await screen.findByRole("option", { name: "Roamers" }));
+
+    expect(await screen.findByText("No roamers")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Type" })).toBeInTheDocument();
+  });
+
+  it("deregisters a roamer after confirmation", async () => {
+    const user = userEvent.setup();
+    seedMixed();
+    api.post(`${SUBSCRIBERS_PATH}/:imsi/deregister`, () => ({
+      message: "Roamer deregistered",
+    }));
+    await renderSubscribers();
+
+    await user.click(
+      (await rowOf(ROAMER)).getByRole("button", {
+        name: `Deregister roamer ${ROAMER}`,
+      }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Deregister",
+      }),
+    );
+
+    expect(
+      await screen.findByText(`Roamer "${ROAMER}" deregistered successfully.`),
+    ).toBeInTheDocument();
+    expect(
+      api.lastRequest(`${SUBSCRIBERS_PATH}/${ROAMER}/deregister`)?.method,
+    ).toBe("POST");
+  });
+
+  it("shows why a deregistration was refused", async () => {
+    const user = userEvent.setup();
+    seedMixed();
+    api.post(`${SUBSCRIBERS_PATH}/:imsi/deregister`, () =>
+      httpError(409, "Roamer is still registered"),
+    );
+    await renderSubscribers();
+
+    await user.click(
+      (await rowOf(ROAMER)).getByRole("button", {
+        name: `Deregister roamer ${ROAMER}`,
+      }),
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Deregister" }),
+    );
+
+    expect(
+      await within(dialog).findByText("Roamer is still registered"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the deregistration from read-only users", async () => {
+    seedMixed();
+    renderWithProviders(<Subscribers />, { auth: { role: "Read Only" } });
+
+    await screen.findByText(ROAMER);
+    expect(
+      screen.queryByRole("button", { name: /Deregister/ }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -434,7 +434,7 @@ None
 
 ## Get Network Interfaces Config
 
-This path returns the network interfaces.
+This path returns the network interfaces. `diameter` and `n32` are present only when the node that serves the request configures them.
 
 | Method | Path                      |
 | ------ | ------------------------- |
@@ -470,6 +470,11 @@ None
         "diameter": {
             "addresses": ["10.0.0.10"],
             "port": 3868
+        },
+        "n32": {
+            "addresses": ["10.0.0.20"],
+            "port": 443,
+            "interface": "ens5"
         }
     }
 }
@@ -1121,4 +1126,4 @@ None
 
 A peer that is not connected also has an `error`: the reason its last connection failed.
 
-`role` is `smsc` for an SMSC, `ims` for an IMS node, or `roaming` for a [roaming Diameter peer](roaming.md#list-roaming-diameter-peers).
+`role` is `smsc` for an SMSC, `ims` for an IMS node, or `roaming` for a [roaming Diameter peer](operator.md#list-roaming-diameter-peers).

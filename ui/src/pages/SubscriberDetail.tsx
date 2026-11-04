@@ -25,6 +25,7 @@ import EditSubscriberProfileModal from "@/components/EditSubscriberProfileModal"
 import EditSubscriberDescriptionModal from "@/components/EditSubscriberDescriptionModal";
 import EditSubscriberMSISDNModal from "@/components/EditSubscriberMSISDNModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import DeregisterRoamerModal from "@/components/DeregisterRoamerModal";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberSessionsCard from "@/components/SubscriberSessionsCard";
@@ -46,6 +47,7 @@ const SubscriberDetail: React.FC = () => {
     useState(false);
   const [isEditMSISDNModalOpen, setEditMSISDNModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeregisterConfirmOpen, setDeregisterConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
@@ -65,6 +67,9 @@ const SubscriberDetail: React.FC = () => {
     refetchInterval: 5000,
     retry: false,
   });
+
+  const isRoamer = !!subscriberQuery.data?.roaming_partner;
+  const canEditSubscriber = canEdit && !isRoamer;
 
   const handleDeleteConfirm = async () => {
     if (!imsi || !accessToken) return;
@@ -119,15 +124,25 @@ const SubscriberDetail: React.FC = () => {
             />
           </Box>
         </Box>
-        {canEdit && (
+        {canEdit && !subscriberQuery.isPending && (
           <Box sx={{ display: "flex", gap: 1 }}>
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              Delete
-            </Button>
+            {isRoamer ? (
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => setDeregisterConfirmOpen(true)}
+              >
+                Deregister
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                Delete
+              </Button>
+            )}
           </Box>
         )}
       </Box>
@@ -157,15 +172,19 @@ const SubscriberDetail: React.FC = () => {
                 <SubscriberProvisioningCard
                   subscriber={subscriber}
                   onEditProfile={
-                    canEdit ? () => setEditProfileModalOpen(true) : undefined
+                    canEditSubscriber
+                      ? () => setEditProfileModalOpen(true)
+                      : undefined
                   }
                   onEditDescription={
-                    canEdit
+                    canEditSubscriber
                       ? () => setEditDescriptionModalOpen(true)
                       : undefined
                   }
                   onEditMSISDN={
-                    canEdit ? () => setEditMSISDNModalOpen(true) : undefined
+                    canEditSubscriber
+                      ? () => setEditMSISDNModalOpen(true)
+                      : undefined
                   }
                 />
               </Box>
@@ -180,7 +199,7 @@ const SubscriberDetail: React.FC = () => {
                 <SubscriberConnectionCard
                   status={mergeRegistrations(subscriber.registrations)}
                   ims={subscriber.ims}
-                  network={operatorQuery.data?.ims}
+                  network={isRoamer ? undefined : operatorQuery.data?.ims}
                 />
               </Box>
             </Box>
@@ -289,6 +308,20 @@ const SubscriberDetail: React.FC = () => {
           onConfirm={handleDeleteConfirm}
           title="Confirm Deletion"
           description={`Are you sure you want to delete the subscriber "${imsi}"? This action cannot be undone.`}
+        />
+      )}
+      {isDeregisterConfirmOpen && imsi && (
+        <DeregisterRoamerModal
+          open
+          onClose={() => setDeregisterConfirmOpen(false)}
+          onSuccess={() => {
+            void subscriberQuery.refetch();
+            showSnackbar(
+              `Roamer "${imsi}" deregistered successfully.`,
+              "success",
+            );
+          }}
+          imsi={imsi}
         />
       )}
     </Box>

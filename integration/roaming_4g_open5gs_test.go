@@ -574,7 +574,7 @@ func (s *r4gStack) waitHSSRecord(imsi, what string, ok func(r4gHSSRecord) bool) 
 }
 
 func (s *r4gStack) registeredEPS(node int) float64 {
-	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_roaming_visitors", `rat="4g"`)
+	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_registered_subscribers", `rat="4g"`, `roaming="true"`)
 }
 
 func (s *r4gStack) waitRegisteredEPS(node int, want float64, what string) {
@@ -609,14 +609,16 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 			t.Fatalf("HSS registered MME %q, want Ella's %q", rec.MMEHost, s.hosts[0])
 		}
 
+		roaming, notRoaming := true, false
+
 		err := r4gPoll(s.ctx, 75*time.Second, func() error {
-			usage, err := s.api.ListRoamingUsage(s.ctx, &client.ListRoamingUsageParams{IMSI: imsi})
+			usage, err := s.api.ListUsagePerSubscriber(s.ctx, &client.ListUsageParams{Subscriber: imsi, Roaming: &roaming})
 			if err != nil {
 				return err
 			}
 
 			for _, u := range usage {
-				if u.Mcc == "001" && u.Mnc == "01" && u.PartnerName == r4gPartner && u.UplinkBytes > 0 && u.DownlinkBytes > 0 {
+				if u.HomePLMN != nil && *u.HomePLMN == (client.RoamingPLMN{Mcc: "001", Mnc: "01"}) && u.RoamingPartner == r4gPartner && u.UplinkBytes > 0 && u.DownlinkBytes > 0 {
 					return nil
 				}
 			}
@@ -627,7 +629,7 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 			t.Fatalf("roaming usage of the roamer: %v", err)
 		}
 
-		home, err := s.api.ListUsagePerSubscriber(s.ctx, &client.ListUsageParams{Subscriber: imsi})
+		home, err := s.api.ListUsagePerSubscriber(s.ctx, &client.ListUsageParams{Subscriber: imsi, Roaming: &notRoaming})
 		if err != nil {
 			t.Fatalf("subscriber usage: %v", err)
 		}

@@ -103,7 +103,6 @@ nav:
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
-      - Roaming: reference/api/roaming.md
       - Slices: reference/api/slices.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md

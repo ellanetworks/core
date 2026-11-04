@@ -3,11 +3,7 @@
 
 import React from "react";
 import { Chip, Tooltip } from "@mui/material";
-import {
-  n32NodeLabel,
-  type N32State,
-  type RoamingPartnerN32,
-} from "@/queries/roaming";
+import type { N32State, RoamingPartnerN32 } from "@/queries/roaming";
 
 const stateLabels: Record<
   N32State,
@@ -21,10 +17,7 @@ const stateLabels: Record<
   unknown: { label: "Unknown", color: "default" },
 };
 
-const N32StatusChip: React.FC<{
-  n32: RoamingPartnerN32;
-  withNode?: boolean;
-}> = ({ n32, withNode = true }) => {
+const N32StatusChip: React.FC<{ n32: RoamingPartnerN32 }> = ({ n32 }) => {
   const { label, color } = stateLabels[n32.state] ?? {
     label: n32.state,
     color: "default",
@@ -32,12 +25,7 @@ const N32StatusChip: React.FC<{
 
   return (
     <Tooltip title={n32.lastError ?? ""} arrow>
-      <Chip
-        label={withNode ? `${n32NodeLabel(n32)}: ${label}` : label}
-        color={color}
-        size="small"
-        variant="outlined"
-      />
+      <Chip label={label} color={color} size="small" variant="outlined" />
     </Tooltip>
   );
 };
