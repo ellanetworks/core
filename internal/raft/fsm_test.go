@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,7 @@ import (
 // table so that multi-node tests can compare SQLite state across nodes.
 type testApplier struct {
 	mu         sync.Mutex
+	dbMu       sync.RWMutex
 	dbPath     string
 	db         *sql.DB
 	commands   []*Command
@@ -50,17 +52,8 @@ func newTestApplier(t *testing.T) *testApplier {
 		t.Fatalf("create table: %v", err)
 	}
 
-	if _, err := a.db.ExecContext(context.Background(), `
-		CREATE TABLE IF NOT EXISTS fsm_state (
-			id INTEGER PRIMARY KEY CHECK(id = 1),
-			lastApplied INTEGER NOT NULL DEFAULT 0
-		)`); err != nil {
+	if err := EnsureFSMStateSchema(context.Background(), a.db); err != nil {
 		t.Fatalf("create fsm_state: %v", err)
-	}
-
-	if _, err := a.db.ExecContext(context.Background(),
-		"INSERT OR IGNORE INTO fsm_state (id, lastApplied) VALUES (1, 0)"); err != nil {
-		t.Fatalf("seed fsm_state: %v", err)
 	}
 
 	return a
@@ -79,12 +72,14 @@ func (a *testApplier) open() error {
 		return err
 	}
 
+	a.dbMu.Lock()
 	a.db = db
+	a.dbMu.Unlock()
 
 	return nil
 }
 
-func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command, _ uint64) (any, error) {
+func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command, _, _ uint64) (any, error) {
 	a.mu.Lock()
 	a.commands = append(a.commands, cmd)
 	a.mu.Unlock()
@@ -105,8 +100,14 @@ func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command, _ uint64) 
 	return nil, nil
 }
 
-func (a *testApplier) PlainDB() *sql.DB { return a.db }
-func (a *testApplier) Path() string     { return a.dbPath }
+func (a *testApplier) PlainDB() *sql.DB {
+	a.dbMu.RLock()
+	defer a.dbMu.RUnlock()
+
+	return a.db
+}
+
+func (a *testApplier) Path() string { return a.dbPath }
 
 func (a *testApplier) Reopen(_ context.Context) error {
 	if a.db != nil {
@@ -228,8 +229,8 @@ func TestFSM_Apply_PanicsOnApplierError(t *testing.T) {
 	fsm.Apply(&hraft.Log{Index: 5, Data: data})
 }
 
-// TestFSM_SnapshotRestoreRoundTrip writes rows to the source DB, takes a
-// Snapshot, Persists it to a buffer, then Restores into a different applier
+// TestFSM_SnapshotRestoreRoundTrip writes rows to the source DB, streams it
+// through the snapshot store, then Restores into a different applier
 // pointing at a fresh DB file and verifies the rows arrive.
 func TestFSM_SnapshotRestoreRoundTrip(t *testing.T) {
 	src := newTestApplier(t)
@@ -242,30 +243,16 @@ func TestFSM_SnapshotRestoreRoundTrip(t *testing.T) {
 
 	srcFSM := NewFSM(src, t.TempDir())
 
-	snap, err := srcFSM.Snapshot()
-	if err != nil {
-		t.Fatalf("snapshot: %v", err)
+	if err := srcFSM.writeLastApplied(3); err != nil {
+		t.Fatalf("seed lastApplied: %v", err)
 	}
 
-	sink := &memSink{}
+	payload := persistSnapshot(t, srcFSM)
 
-	if err := snap.Persist(sink); err != nil {
-		t.Fatalf("persist: %v", err)
-	}
-
-	snap.Release()
-
-	if sink.buf.Len() == 0 {
-		t.Fatal("snapshot bytes are empty")
-	}
-
-	// Destination applier starts with its own empty schema. Restore must
-	// replace it with the source contents.
 	dst := newTestApplier(t)
 	dstFSM := NewFSM(dst, t.TempDir())
 
-	rc := newReadCloser(sink.buf.Bytes())
-	if err := dstFSM.Restore(rc); err != nil {
+	if err := dstFSM.Restore(newReadCloser(payload)); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 
@@ -320,29 +307,30 @@ func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
 func persistSnapshot(t *testing.T, fsm *FSM) []byte {
 	t.Helper()
 
-	snap, err := fsm.Snapshot()
+	store, err := newDatabaseSnapshotStore(fsm, t.TempDir())
 	if err != nil {
-		t.Fatalf("snapshot: %v", err)
+		t.Fatalf("snapshot store: %v", err)
 	}
 
-	sink := &memSink{}
-	if err := snap.Persist(sink); err != nil {
-		snap.Release()
-
-		t.Fatalf("persist: %v", err)
+	_, rc, err := store.Open(databaseSnapshotID)
+	if err != nil {
+		t.Fatalf("open database snapshot: %v", err)
 	}
 
-	snap.Release()
+	defer func() { _ = rc.Close() }()
 
-	if sink.buf.Len() == 0 {
+	raw, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read database snapshot: %v", err)
+	}
+
+	if len(raw) == 0 {
 		t.Fatal("snapshot bytes are empty")
 	}
 
-	return sink.buf.Bytes()
+	return raw
 }
 
-// TestFSM_Snapshot_ProducesValidSQLite verifies the snapshot bytes can be
-// opened as a SQLite database independently of the applier round-trip.
 func TestFSM_Snapshot_ProducesValidSQLite(t *testing.T) {
 	a := newTestApplier(t)
 
@@ -352,24 +340,17 @@ func TestFSM_Snapshot_ProducesValidSQLite(t *testing.T) {
 
 	fsm := NewFSM(a, t.TempDir())
 
-	snap, err := fsm.Snapshot()
-	if err != nil {
-		t.Fatalf("snapshot: %v", err)
+	if err := fsm.writeLastApplied(1); err != nil {
+		t.Fatalf("seed lastApplied: %v", err)
 	}
 
-	sink := &memSink{}
-	if err := snap.Persist(sink); err != nil {
-		t.Fatalf("persist: %v", err)
-	}
+	raw := persistSnapshot(t, fsm)
 
-	snap.Release()
-
-	tmp := filepath.Join(t.TempDir(), "out.db")
-
-	raw := sink.buf.Bytes()
 	if len(raw) < snapshotHeaderSize || !bytes.Equal(raw[:4], []byte(snapshotMagic)) {
 		t.Fatalf("snapshot missing ELSN header: %q", raw[:min(16, len(raw))])
 	}
+
+	tmp := filepath.Join(t.TempDir(), "out.db")
 
 	if err := os.WriteFile(tmp, raw[snapshotHeaderSize:], 0o600); err != nil {
 		t.Fatalf("write snapshot: %v", err)
@@ -977,7 +958,7 @@ func TestFSM_ApplyBatch_PanicsOnReadLastAppliedError(t *testing.T) {
 	fsm.ApplyBatch(logs)
 }
 
-func TestFSM_Snapshot_PinsStateAtSnapshotTime(t *testing.T) {
+func TestFSM_Snapshot_PinsStateAtOpenTime(t *testing.T) {
 	a := newTestApplier(t)
 	ctx := context.Background()
 
@@ -987,24 +968,39 @@ func TestFSM_Snapshot_PinsStateAtSnapshotTime(t *testing.T) {
 
 	fsm := NewFSM(a, t.TempDir())
 
-	snap, err := fsm.Snapshot()
-	if err != nil {
-		t.Fatalf("snapshot: %v", err)
+	if err := fsm.writeLastApplied(1); err != nil {
+		t.Fatalf("seed lastApplied: %v", err)
 	}
 
-	defer snap.Release()
+	store, err := newDatabaseSnapshotStore(fsm, t.TempDir())
+	if err != nil {
+		t.Fatalf("snapshot store: %v", err)
+	}
+
+	_, rc, err := store.Open(databaseSnapshotID)
+	if err != nil {
+		t.Fatalf("open database snapshot: %v", err)
+	}
+
+	defer func() { _ = rc.Close() }()
+
+	if !fsm.mu.TryLock() {
+		t.Fatal("the pinned read transaction must be released once Open has copied the database")
+	}
+
+	fsm.mu.Unlock()
 
 	if _, err := a.db.ExecContext(ctx, `INSERT INTO t(id, v) VALUES (2, 'after')`); err != nil {
-		t.Fatalf("insert after snapshot: %v", err)
+		t.Fatalf("insert after open: %v", err)
 	}
 
-	sink := &memSink{}
-	if err := snap.Persist(sink); err != nil {
-		t.Fatalf("persist: %v", err)
+	raw, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read snapshot: %v", err)
 	}
 
 	tmp := filepath.Join(t.TempDir(), "out.db")
-	if err := os.WriteFile(tmp, sink.buf.Bytes()[snapshotHeaderSize:], 0o600); err != nil {
+	if err := os.WriteFile(tmp, raw[snapshotHeaderSize:], 0o600); err != nil {
 		t.Fatalf("write snapshot: %v", err)
 	}
 
@@ -1021,11 +1017,11 @@ func TestFSM_Snapshot_PinsStateAtSnapshotTime(t *testing.T) {
 	}
 
 	if n != 1 {
-		t.Fatalf("snapshot must contain only rows committed before Snapshot(); got %d rows", n)
+		t.Fatalf("snapshot must contain only rows committed before Open(); got %d rows", n)
 	}
 }
 
-func TestFSM_Snapshot_DefersCopyToPersist(t *testing.T) {
+func TestFSM_Snapshot_CopiesNothing(t *testing.T) {
 	a := newTestApplier(t)
 	dataDir := t.TempDir()
 
@@ -1038,71 +1034,17 @@ func TestFSM_Snapshot_DefersCopyToPersist(t *testing.T) {
 
 	defer snap.Release()
 
-	tmpDir := snapshotStagingDir(dataDir)
-	if entries, err := os.ReadDir(tmpDir); err == nil && len(entries) != 0 {
+	sink := &memSink{}
+	if err := snap.Persist(sink); err != nil {
+		t.Fatalf("persist: %v", err)
+	}
+
+	if sink.buf.Len() != 0 || !sink.closed {
+		t.Fatalf("Persist must only close the sink; wrote %d bytes, closed=%v", sink.buf.Len(), sink.closed)
+	}
+
+	if entries, err := os.ReadDir(snapshotStagingDir(dataDir)); err == nil && len(entries) != 0 {
 		t.Fatalf("Snapshot() must not copy the database; found %d temp files", len(entries))
-	}
-
-	if err := snap.Persist(&memSink{}); err != nil {
-		t.Fatalf("persist: %v", err)
-	}
-
-	entries, err := os.ReadDir(tmpDir)
-	if err != nil || len(entries) == 0 {
-		t.Fatalf("Persist() must produce the copy; ReadDir=%v err=%v", entries, err)
-	}
-}
-
-type blockingSink struct {
-	memSink
-
-	entered chan struct{}
-	release chan struct{}
-	once    sync.Once
-}
-
-func (s *blockingSink) Write(p []byte) (int, error) {
-	s.once.Do(func() {
-		close(s.entered)
-		<-s.release
-	})
-
-	return s.memSink.Write(p)
-}
-
-func TestFSM_Snapshot_ExcludesRestoreUntilCopyCompletes(t *testing.T) {
-	a := newTestApplier(t)
-	fsm := NewFSM(a, t.TempDir())
-
-	snap, err := fsm.Snapshot()
-	if err != nil {
-		t.Fatalf("snapshot: %v", err)
-	}
-
-	defer snap.Release()
-
-	if fsm.mu.TryLock() {
-		fsm.mu.Unlock()
-		t.Fatal("Restore must be excluded while a snapshot read transaction is pinned")
-	}
-
-	sink := &blockingSink{entered: make(chan struct{}), release: make(chan struct{})}
-	done := make(chan error, 1)
-
-	go func() { done <- snap.Persist(sink) }()
-
-	<-sink.entered
-
-	if !fsm.mu.TryLock() {
-		close(sink.release)
-		t.Fatal("the pinned read transaction must be released once the page copy completes")
-	}
-
-	fsm.mu.Unlock()
-	close(sink.release)
-
-	if err := <-done; err != nil {
-		t.Fatalf("persist: %v", err)
 	}
 }
 

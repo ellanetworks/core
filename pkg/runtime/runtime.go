@@ -594,6 +594,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't wait for the state machine to catch up: %w", err)
 	}
 
+	if err := dbInstance.WaitForStandaloneSchema(ctx); err != nil {
+		return fmt.Errorf("couldn't wait for schema migrations: %w", err)
+	}
+
 	if err := dbInstance.WaitForInitialization(ctx, 0); err != nil {
 		return fmt.Errorf("couldn't wait for initial settings: %w", err)
 	}

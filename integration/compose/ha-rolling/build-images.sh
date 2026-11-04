@@ -54,6 +54,14 @@ docker pull -q "${ROLLING_BASELINE_IMAGE}"
 echo "==> Tagging as ella-core:rolling-baseline"
 docker tag "${ROLLING_BASELINE_IMAGE}" ella-core:rolling-baseline
 
+if [ "${LEGACY_CHAIN:-}" = "1" ]; then
+    for tag in v1.19.0 v1.20.0 v1.21.0; do
+        echo "==> Pulling legacy ${ROLLING_IMAGE_REPO}:${tag}"
+        docker pull -q "${ROLLING_IMAGE_REPO}:${tag}"
+        docker tag "${ROLLING_IMAGE_REPO}:${tag}" "ella-core:legacy-${tag}"
+    done
+fi
+
 echo "==> Done."
 echo "    ella-core:rolling-baseline  ($(docker image inspect -f '{{.Size}}' ella-core:rolling-baseline | numfmt --to=iec))"
 echo "    ella-core:latest            ($(docker image inspect -f '{{.Size}}' ella-core:latest | numfmt --to=iec))"

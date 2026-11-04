@@ -33,7 +33,7 @@ func FuzzApplyChangeset(f *testing.F) {
 			_, _ = fuzzDB.applyChangeset(ctx, &bytesPayload{
 				Value:     changeset,
 				Operation: "FuzzApplyChangeset",
-			}, 1)
+			}, 1, 1)
 		}()
 
 		select {

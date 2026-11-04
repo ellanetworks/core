@@ -20,12 +20,12 @@ type gatedApplier struct {
 	gate <-chan struct{}
 }
 
-func (a *gatedApplier) ApplyCommand(ctx context.Context, cmd *Command, idx uint64) (any, error) {
+func (a *gatedApplier) ApplyCommand(ctx context.Context, cmd *Command, idx, term uint64) (any, error) {
 	if a.gate != nil {
 		<-a.gate
 	}
 
-	return a.testApplier.ApplyCommand(ctx, cmd, idx)
+	return a.testApplier.ApplyCommand(ctx, cmd, idx, term)
 }
 
 func newGatedCluster(t *testing.T) (*TestCluster, []*gatedApplier, func()) {
