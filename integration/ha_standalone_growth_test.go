@@ -14,7 +14,9 @@ import (
 	"github.com/ellanetworks/core/integration/suites"
 )
 
-func writeStandaloneNodeConfig(composeDir string, nodeID int) error {
+func writeStandaloneNodeConfig(composeDir string) error {
+	const nodeID = 1
+
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -78,7 +80,7 @@ func TestIntegrationHAStandaloneGrowsIntoCluster(t *testing.T) {
 
 	composeFile := ComposeFile()
 
-	if err := writeStandaloneNodeConfig(haComposeDir, 1); err != nil {
+	if err := writeStandaloneNodeConfig(haComposeDir); err != nil {
 		t.Fatalf("write standalone config: %v", err)
 	}
 
@@ -253,7 +255,7 @@ func TestIntegrationStandaloneDisasterRecovery(t *testing.T) {
 		dockerClient.ComposeDownWithFile(ctx, haComposeDir, composeFile)
 	})
 
-	if err := writeStandaloneNodeConfig(haComposeDir, 1); err != nil {
+	if err := writeStandaloneNodeConfig(haComposeDir); err != nil {
 		t.Fatalf("write standalone config: %v", err)
 	}
 
@@ -318,7 +320,7 @@ func TestIntegrationStandaloneDisasterRecovery(t *testing.T) {
 	// standalone instance and ensures the restore starts from an empty /data.
 	dockerClient.ComposeDownWithFile(ctx, haComposeDir, composeFile)
 
-	if err := writeStandaloneNodeConfig(haComposeDir, 1); err != nil {
+	if err := writeStandaloneNodeConfig(haComposeDir); err != nil {
 		t.Fatalf("write restored standalone config: %v", err)
 	}
 

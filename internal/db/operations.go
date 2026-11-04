@@ -382,7 +382,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 func (db *Database) applyIntentStandalone(ctx context.Context, operation string, cmd *ellaraft.Command) (any, error) {
 	check := intentOps[operation].leaderCheck
 	if check == nil {
-		return db.ApplyCommand(ctx, cmd, 0)
+		return db.ApplyCommand(ctx, cmd, 0, 0)
 	}
 
 	return db.applyLocalTx(ctx, operation, func(ctx context.Context) (any, error) {
@@ -390,7 +390,7 @@ func (db *Database) applyIntentStandalone(ctx context.Context, operation string,
 			return nil, err
 		}
 
-		return db.ApplyCommand(ctx, cmd, 0)
+		return db.ApplyCommand(ctx, cmd, 0, 0)
 	})
 }
 

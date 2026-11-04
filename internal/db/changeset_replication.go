@@ -222,7 +222,7 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 // construction, and applyMigrateShared self-checks
 // current >= TargetVersion. Any future non-idempotent op must go
 // through this path (or replicate the same atomicity).
-func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, logIndex uint64) (any, error) {
+func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, logIndex, logTerm uint64) (any, error) {
 	conn, err := db.conn().PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for apply: %w", err)
@@ -262,8 +262,8 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 		}
 
 		if _, err := sqliteConn.ExecContext(ctx,
-			"UPDATE fsm_state SET lastApplied = ? WHERE id = 1",
-			[]driver.NamedValue{{Ordinal: 1, Value: int64(logIndex)}},
+			"UPDATE fsm_state SET lastApplied = ?, lastAppliedTerm = ? WHERE id = 1",
+			[]driver.NamedValue{{Ordinal: 1, Value: int64(logIndex)}, {Ordinal: 2, Value: int64(logTerm)}},
 		); err != nil {
 			rollback()
 			return fmt.Errorf("update fsm_state.lastApplied: %w", err)

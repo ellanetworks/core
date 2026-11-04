@@ -117,9 +117,24 @@ func (m *Manager) endTerm() {
 func (m *Manager) runTerm(t *leaderTerm) {
 	defer close(t.done)
 
-	if !m.barrierForTerm(t.ctx, t.raftTerm) {
+	if !m.barrierForTerm(t.ctx) {
 		return
 	}
+
+	if m.existingState && !m.checkpointDone.Load() {
+		m.admissionPending.Store(true)
+
+		if err := m.retrySoleNodeCheckpoint(t.ctx); err != nil {
+			logger.RaftLog.Error("Raft: sole-server checkpoint did not complete; this node stays unready and admits no peers",
+				zap.Uint64("term", t.raftTerm),
+				zap.String("node_id", m.raftID),
+				zap.Error(err))
+
+			return
+		}
+	}
+
+	m.publishBarrieredTerm(t.raftTerm)
 
 	if m.followerTracker != nil {
 		stopTracker := m.followerTracker.start(raft.ServerID(m.raftID))
@@ -146,16 +161,10 @@ func (m *Manager) runTerm(t *leaderTerm) {
 	t.hooks.Wait()
 }
 
-func (m *Manager) barrierForTerm(ctx context.Context, raftTerm uint64) bool {
+func (m *Manager) barrierForTerm(ctx context.Context) bool {
 	for {
 		err := m.raft.Barrier(0).Error()
 		if err == nil {
-			m.barrierMu.Lock()
-			m.barrieredTerm = raftTerm
-			m.barrierMu.Unlock()
-
-			m.notifyLeaderChange()
-
 			return true
 		}
 
@@ -172,6 +181,14 @@ func (m *Manager) barrierForTerm(ctx context.Context, raftTerm uint64) bool {
 		case <-time.After(leaderBarrierRetryInterval):
 		}
 	}
+}
+
+func (m *Manager) publishBarrieredTerm(raftTerm uint64) {
+	m.barrierMu.Lock()
+	m.barrieredTerm = raftTerm
+	m.barrierMu.Unlock()
+
+	m.notifyLeaderChange()
 }
 
 func (m *Manager) notifyLeaderChange() {

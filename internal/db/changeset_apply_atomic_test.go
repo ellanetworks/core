@@ -114,7 +114,7 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 	if _, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
 		Operation: "CreateNetworkSlice",
-	}, 42); err != nil {
+	}, 42, 1); err != nil {
 		t.Fatalf("first applyChangeset: %v", err)
 	}
 
@@ -132,7 +132,7 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 	_, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
 		Operation: "CreateNetworkSlice",
-	}, 43)
+	}, 43, 1)
 	if err == nil {
 		t.Fatalf("second applyChangeset: want conflict error, got nil")
 	}
@@ -178,14 +178,14 @@ func TestApplyChangeset_StalePreImageConflicts(t *testing.T) {
 	if _, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     pending,
 		Operation: "UpdateOperatorSPN",
-	}, 100); err != nil {
+	}, 100, 1); err != nil {
 		t.Fatalf("apply pending entry: %v", err)
 	}
 
 	_, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     stale,
 		Operation: "UpdateOperatorSPN",
-	}, 101)
+	}, 101, 1)
 	if err == nil {
 		t.Fatalf("apply changeset with stale pre-image: want a conflict error, got nil")
 	}

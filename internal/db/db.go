@@ -40,6 +40,9 @@ type Database struct {
 	dbPath         string
 	dataDir        string
 	clusterEnabled bool
+
+	migrationCeiling int
+
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
 	raftManager    *ellaraft.Manager
@@ -1125,7 +1128,7 @@ func (db *Database) assertCapturedSchema(ctx context.Context, captured int, labe
 // up to the minimum SchemaVersion across cluster members. Nonvoters bind the
 // floor too: they run the same FSM over the same committed entries.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
-	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
+	if db.raftManager == nil {
 		return nil
 	}
 
@@ -1694,16 +1697,9 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	if raftCfg.Enabled {
-		if err := runMigrations(ctx, sqlConn, baselineVersion); err != nil {
-			_ = sqlConn.Close()
-			return nil, fmt.Errorf("schema migration failed: %w", err)
-		}
-	} else {
-		if err := runMigrations(ctx, sqlConn, 0); err != nil {
-			_ = sqlConn.Close()
-			return nil, fmt.Errorf("schema migration failed: %w", err)
-		}
+	if err := runMigrations(ctx, sqlConn, baselineVersion); err != nil {
+		_ = sqlConn.Close()
+		return nil, fmt.Errorf("schema migration failed: %w", err)
 	}
 
 	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
@@ -1716,6 +1712,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.dbPath = dbPath
 	db.dataDir = dataDir
 	db.clusterEnabled = raftCfg.Enabled
+	db.migrationCeiling = baselineVersion
 	db.changefeed = NewChangefeed()
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
@@ -1743,7 +1740,11 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.migrationCheckCh = make(chan struct{}, 1)
 
-	raftMgr.OnLeadership(db.runClusterCoordinator)
+	if raftCfg.Enabled {
+		raftMgr.OnLeadership(db.runClusterCoordinator)
+	} else {
+		raftMgr.OnLeadership(db.runStandaloneInitializer)
+	}
 
 	RegisterMetrics(db)
 
@@ -1755,14 +1756,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	if err := db.InitializeLocalSettings(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("seed local-only settings: %w", err)
-	}
-
-	// Replicated singleton rows (JWT secret, operator, admin user) are
-	// seeded on leadership, not here: Initialize proposes through Raft and
-	// no node is leader this early. HA mode seeds through runLeaderInit in
-	// pkg/runtime; standalone seeds through the hook registered below.
-	if !raftCfg.Enabled {
-		raftMgr.OnLeadership(db.runStandaloneInitializer)
 	}
 
 	logger.From(ctx, logger.DBLog).Debug("Database Initialized")
@@ -1797,6 +1790,7 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath
 	db.dataDir = dataDir
+	db.migrationCeiling = 0
 	db.changefeed = NewChangefeed()
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
