@@ -241,7 +241,7 @@ func TestReplicatedWritesApplyOnDivergedNode(t *testing.T) {
 			t.Fatalf("NewCommand(%s): %v", cmdType, err)
 		}
 
-		if _, err := database.ApplyCommand(ctx, cmd, 0); err != nil {
+		if _, err := database.ApplyCommand(ctx, cmd, 0, 0); err != nil {
 			t.Fatalf("apply %s on a diverged node: %v", cmdType, err)
 		}
 	}

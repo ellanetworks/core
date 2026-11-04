@@ -116,14 +116,7 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 		t.Fatalf("followers did not converge: %v", err)
 	}
 
-	leaderContainer, err := dockerClient.ResolveComposeContainer(ctx, "ha-scaleup", "ella-core-1")
-	if err != nil {
-		t.Fatalf("resolve leader container: %v", err)
-	}
-
-	hostTmp := t.TempDir()
-
-	if err := waitForSnapshotFile(ctx, leaderContainer, hostTmp, 30*time.Second); err != nil {
+	if err := waitForSnapshotLog(ctx, dockerClient, composeDir, "ella-core-1", 30*time.Second); err != nil {
 		t.Fatalf("leader did not take a snapshot: %v", err)
 	}
 
@@ -162,12 +155,7 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 		t.Fatalf("node 4 did not converge to index %d: %v", preJoinIdx, err)
 	}
 
-	node4Container, err := dockerClient.ResolveComposeContainer(ctx, "ha-scaleup", "ella-core-4")
-	if err != nil {
-		t.Fatalf("resolve node 4 container: %v", err)
-	}
-
-	if err := assertSnapshotInstalled(ctx, dockerClient, composeDir, "ella-core-4", node4Container, hostTmp); err != nil {
+	if err := assertSnapshotInstalled(ctx, dockerClient, composeDir, "ella-core-4"); err != nil {
 		t.Fatalf("InstallSnapshot did not fire on node 4: %v", err)
 	}
 
@@ -410,7 +398,7 @@ func waitForSnapshotFile(ctx context.Context, container, hostTmp string, timeout
 
 const installedRemoteSnapshotLog = "Installed remote snapshot"
 
-func assertSnapshotInstalled(ctx context.Context, dc *DockerClient, composeDir, service, container, hostTmp string) error {
+func assertSnapshotInstalled(ctx context.Context, dc *DockerClient, composeDir, service string) error {
 	logs, err := dc.ComposeLogs(ctx, composeDir, service)
 	if err != nil {
 		return fmt.Errorf("read %s logs: %w", service, err)
@@ -421,17 +409,30 @@ func assertSnapshotInstalled(ctx context.Context, dc *DockerClient, composeDir, 
 			installedRemoteSnapshotLog, service)
 	}
 
-	out, err := listSnapshotDir(ctx, container, hostTmp)
-	if err != nil {
-		return fmt.Errorf("list /data/raft/snapshots on %s: %w (out=%q)", container, err, out)
-	}
-
-	if !hasSnapshotEntry(out) {
-		return fmt.Errorf("%s logged %q but persisted no snapshot in /data/raft/snapshots; out=%q",
-			service, installedRemoteSnapshotLog, out)
-	}
-
 	return nil
+}
+
+const takenSnapshotLog = "snapshot complete up to"
+
+func waitForSnapshotLog(ctx context.Context, dc *DockerClient, composeDir, service string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	for {
+		logs, err := dc.ComposeLogs(ctx, composeDir, service)
+		if err == nil && strings.Contains(logs, takenSnapshotLog) {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%q absent from %s logs after %s (last error: %v)", takenSnapshotLog, service, timeout, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 // listSnapshotDir enumerates /data/raft/snapshots inside a container.

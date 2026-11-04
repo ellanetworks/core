@@ -239,7 +239,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 
 		var ssErr error
 
-		snapshotStore, ssErr = raft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
+		snapshotStore, ssErr = newDatabaseSnapshotStore(fsm, raftDir)
 		if ssErr != nil {
 			_ = boltStore.Close()
 			return fmt.Errorf("create snapshot store: %w", ssErr)
@@ -252,8 +252,6 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	}
 
 	cleanSnapshotStaging(dataDir, raftDir)
-
-	snapshotStore = newestSnapshotStore{SnapshotStore: snapshotStore}
 
 	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
 	if err != nil {
@@ -274,6 +272,15 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
+	migrated, err := migrateLegacySnapshots(raftDir, raftConfig, fsm, logCache)
+	if err != nil {
+		closeTransport(transport)
+
+		_ = boltStore.Close()
+
+		return nil, err
+	}
+
 	// HasExistingState must run before NewRaft, which may write an initial
 	// term. Bootstrap detection (below) keys off this pre-state.
 	hasState, err := raft.HasExistingState(logCache, boltStore, snapshotStore)
@@ -285,7 +292,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, fmt.Errorf("check existing raft state: %w", err)
 	}
 
-	if err := assertFSMNotAheadOfRaftStore(fsm, boltStore, snapshotStore, raftDir); err != nil {
+	if err := assertFSMNotBehindRaftLog(fsm, logCache, raftDir); err != nil {
 		closeTransport(transport)
 
 		_ = boltStore.Close()
@@ -293,13 +300,17 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
-	if err := configureSnapshotRestoreOnStart(raftConfig, fsm, snapshotStore); err != nil {
-		closeTransport(transport)
+	if !migrated {
+		if err := assertFSMNotAheadOfRaftStore(fsm, boltStore, raftDir); err != nil {
+			closeTransport(transport)
 
-		_ = boltStore.Close()
+			_ = boltStore.Close()
 
-		return nil, err
+			return nil, err
+		}
 	}
+
+	raftConfig.NoSnapshotRestoreOnStart = true
 
 	if err := fsm.syncAppliedIndex(); err != nil {
 		closeTransport(transport)
@@ -316,16 +327,6 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		_ = boltStore.Close()
 
 		return nil, err
-	}
-
-	if !recovered {
-		if err := guardSnapshotRestoreOnStart(raftConfig, fsm, logCache, snapshotStore); err != nil {
-			closeTransport(transport)
-
-			_ = boltStore.Close()
-
-			return nil, err
-		}
 	}
 
 	// Timeouts depend on (hasState || recovered) — only apply once both are
@@ -1017,27 +1018,6 @@ func cleanSnapshotStaging(dataDir, raftDir string) {
 	}
 }
 
-func configureSnapshotRestoreOnStart(raftConfig *raft.Config, fsm *FSM, snaps raft.SnapshotStore) error {
-	lastApplied, err := fsm.readLastApplied()
-	if err != nil {
-		return fmt.Errorf("read fsm_state.lastApplied: %w", err)
-	}
-
-	snapLast, err := newestSnapshotIndex(snaps)
-	if err != nil {
-		return err
-	}
-
-	raftConfig.NoSnapshotRestoreOnStart = lastApplied >= snapLast
-
-	logger.RaftLog.Info("Raft: snapshot restore on start",
-		zap.Bool("skipped", raftConfig.NoSnapshotRestoreOnStart),
-		zap.Uint64("fsm_last_applied", lastApplied),
-		zap.Uint64("newest_snapshot_index", snapLast))
-
-	return nil
-}
-
 func newestSnapshotIndex(snaps raft.SnapshotStore) (uint64, error) {
 	snapList, err := snaps.List()
 	if err != nil {
@@ -1055,33 +1035,48 @@ func newestSnapshotIndex(snaps raft.SnapshotStore) (uint64, error) {
 	return snapLast, nil
 }
 
-func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.SnapshotStore, raftDir string) error {
-	lastApplied, err := fsm.readLastApplied()
-	if err != nil {
-		return fmt.Errorf("read fsm_state.lastApplied: %w", err)
-	}
-
-	if lastApplied == 0 {
-		return nil
-	}
-
-	logLast, err := logs.LastIndex()
-	if err != nil {
-		return fmt.Errorf("read raft log last index: %w", err)
-	}
-
-	snapLast, err := newestSnapshotIndex(snaps)
+func assertFSMNotAheadOfRaftStore(fsm *FSM, stable raft.StableStore, raftDir string) error {
+	state, err := readAppliedState(context.Background(), fsm.applier.PlainDB())
 	if err != nil {
 		return err
 	}
 
-	durable := max(logLast, snapLast)
-	if lastApplied <= durable {
+	if state.Index == 0 {
+		return nil
+	}
+
+	currentTerm, err := stable.GetUint64(raftCurrentTermKey)
+	if err != nil && !errors.Is(err, raftboltdb.ErrKeyNotFound) {
+		return fmt.Errorf("read raft current term: %w", err)
+	}
+
+	if currentTerm > 0 && currentTerm >= state.Term {
 		return nil
 	}
 
 	return fmt.Errorf(
-		"database is ahead of the raft store: fsm_state.lastApplied=%d but %s only reaches index %d "+
-			"(log=%d, snapshot=%d)",
-		lastApplied, raftDir, durable, logLast, snapLast)
+		"database is ahead of the raft store: fsm_state.lastApplied=%d at term %d but %s is at term %d",
+		state.Index, state.Term, raftDir, currentTerm)
+}
+
+var raftCurrentTermKey = []byte("CurrentTerm")
+
+func assertFSMNotBehindRaftLog(fsm *FSM, logs raft.LogStore, raftDir string) error {
+	state, err := readAppliedState(context.Background(), fsm.applier.PlainDB())
+	if err != nil {
+		return err
+	}
+
+	first, err := logs.FirstIndex()
+	if err != nil {
+		return fmt.Errorf("read raft log first index: %w", err)
+	}
+
+	if first == 0 || first <= state.Index+1 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"database is behind the raft log: fsm_state.lastApplied=%d but %s starts at log index %d, so entries %d-%d can no longer be replayed",
+		state.Index, raftDir, first, state.Index+1, first-1)
 }

@@ -180,13 +180,13 @@ type blockingApplier struct {
 	once    sync.Once
 }
 
-func (a *blockingApplier) ApplyCommand(ctx context.Context, cmd *Command, index uint64) (any, error) {
+func (a *blockingApplier) ApplyCommand(ctx context.Context, cmd *Command, index, term uint64) (any, error) {
 	a.once.Do(func() {
 		close(a.entered)
 		<-a.release
 	})
 
-	return a.Applier.ApplyCommand(ctx, cmd, index)
+	return a.Applier.ApplyCommand(ctx, cmd, index, term)
 }
 
 func TestAdmissionWaitsForSoleServerCheckpoint(t *testing.T) {
@@ -207,6 +207,11 @@ func TestAdmissionWaitsForSoleServerCheckpoint(t *testing.T) {
 	}
 
 	proposeSome(t, first, 1)
+
+	legacyLast, err := first.logStore.LastIndex()
+	if err != nil {
+		t.Fatalf("read first boot last index: %v", err)
+	}
 
 	if err := first.Shutdown(); err != nil {
 		t.Fatalf("shutdown first boot: %v", err)
@@ -271,13 +276,13 @@ func TestAdmissionWaitsForSoleServerCheckpoint(t *testing.T) {
 		t.Fatal("join completed without the checkpoint")
 	}
 
-	snaps, err := second.snaps.List()
+	firstAfter, err := second.logStore.FirstIndex()
 	if err != nil {
-		t.Fatalf("list snapshots: %v", err)
+		t.Fatalf("read first index after join: %v", err)
 	}
 
-	if len(snaps) == 0 || len(snaps[0].Configuration.Servers) != 1 {
-		t.Fatalf("the checkpoint snapshot must predate the peer (snapshots %d)", len(snaps))
+	if firstAfter != 0 && firstAfter <= legacyLast {
+		t.Fatalf("the peer was admitted before the checkpoint retired the first boot's log (first index %d, first boot last index %d)", firstAfter, legacyLast)
 	}
 }
 
@@ -436,5 +441,101 @@ func TestSoleNodeCheckpointRetiresLegacyLogTail(t *testing.T) {
 
 	if firstAfter != 0 && firstAfter <= legacyLast {
 		t.Fatalf("legacy log tail survived the checkpoint: first index %d, legacy last index %d", firstAfter, legacyLast)
+	}
+}
+
+func TestStandaloneToHACheckpointPersistsRealignedConfiguration(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	dataDir := t.TempDir()
+	a, restores := countingApplier(t)
+
+	standalone, err := NewManager(ctx, FastTestConfig(), a, dataDir)
+	if err != nil {
+		t.Fatalf("NewManager standalone: %v", err)
+	}
+
+	if err := standalone.WaitForLeaderBarrier(ctx); err != nil {
+		t.Fatalf("standalone barrier: %v", err)
+	}
+
+	proposeSome(t, standalone, 3)
+
+	if err := standalone.Shutdown(); err != nil {
+		t.Fatalf("shutdown standalone: %v", err)
+	}
+
+	advertise := fmt.Sprintf("127.0.0.1:%d", freePort(t))
+
+	haCfg := FastTestConfig()
+	haCfg.Enabled = true
+	haCfg.BindAddress = advertise
+	haCfg.AdvertiseAddress = advertise
+
+	for boot := 1; boot <= 2; boot++ {
+		ha, err := NewManager(ctx, haCfg, a, dataDir)
+		if err != nil {
+			t.Fatalf("boot %d NewManager HA: %v", boot, err)
+		}
+
+		if err := ha.WaitForLeaderBarrier(ctx); err != nil {
+			_ = ha.Shutdown()
+
+			t.Fatalf("boot %d barrier: %v", boot, err)
+		}
+
+		for !ha.checkpointDone.Load() {
+			if ctx.Err() != nil {
+				_ = ha.Shutdown()
+
+				t.Fatalf("boot %d: checkpoint never completed", boot)
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		if got := soleServer(t, ha).Address; string(got) != advertise {
+			_ = ha.Shutdown()
+
+			t.Fatalf("boot %d: sole server address %q, want %q", boot, got, advertise)
+		}
+
+		state := appliedState(t, a)
+		servers := raft.DecodeConfiguration(state.Configuration).Servers
+
+		if len(servers) != 1 || string(servers[0].Address) != advertise {
+			_ = ha.Shutdown()
+
+			t.Fatalf("boot %d: fsm_state.configuration = %+v, want the realigned address %q", boot, servers, advertise)
+		}
+
+		first, err := ha.logStore.FirstIndex()
+		if err != nil {
+			_ = ha.Shutdown()
+
+			t.Fatalf("boot %d: read first log index: %v", boot, err)
+		}
+
+		if first != 0 && first <= state.ConfigurationIndex {
+			_ = ha.Shutdown()
+
+			t.Fatalf("boot %d: the realigned configuration entry %d is still in the log (first index %d); the test no longer proves it is read from fsm_state",
+				boot, state.ConfigurationIndex, first)
+		}
+
+		if err := ha.Shutdown(); err != nil {
+			t.Fatalf("boot %d shutdown: %v", boot, err)
+		}
+	}
+
+	if n := restores.Load(); n != 0 {
+		t.Fatalf("conversion restored the database %d times", n)
+	}
+
+	if n := rowCount(t, a); n != 3 {
+		t.Fatalf("converted database has %d rows, want 3", n)
 	}
 }

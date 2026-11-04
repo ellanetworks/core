@@ -4,10 +4,9 @@
 package db
 
 import (
-	"bytes"
 	"context"
+	"database/sql"
 	"encoding/binary"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -403,35 +402,34 @@ func TestClusterConversionOfLegacyStandaloneStore(t *testing.T) {
 		t.Fatalf("close converted database: %v", err)
 	}
 
-	snaps, err := raft.NewFileSnapshotStore(filepath.Join(dataDir, "raft"), 3, os.Stderr)
+	if _, err := os.Stat(filepath.Join(dataDir, "raft", "snapshots")); !os.IsNotExist(err) {
+		t.Fatalf("legacy snapshot directory must be removed after conversion: %v", err)
+	}
+
+	stateConn, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		t.Fatalf("open snapshot store: %v", err)
+		t.Fatalf("open converted database: %v", err)
 	}
 
-	metas, err := snaps.List()
-	if err != nil || len(metas) == 0 {
-		t.Fatalf("list snapshots: %d, %v", len(metas), err)
-	}
+	var (
+		position      uint64
+		configuration []byte
+	)
 
-	if metas[0].Index <= tailIndex {
-		t.Fatalf("checkpoint snapshot index %d must cover the legacy tail (%d)", metas[0].Index, tailIndex)
-	}
+	err = stateConn.QueryRowContext(ctx,
+		"SELECT lastApplied, configuration FROM fsm_state WHERE id = 1").Scan(&position, &configuration)
+	_ = stateConn.Close()
 
-	_, rc, err := snaps.Open(metas[0].ID)
 	if err != nil {
-		t.Fatalf("open checkpoint snapshot: %v", err)
+		t.Fatalf("read converted fsm_state: %v", err)
 	}
 
-	header := make([]byte, 16)
-	_, err = io.ReadFull(rc, header)
-	_ = rc.Close()
-
-	if err != nil || !bytes.Equal(header[:4], []byte("ELSN")) {
-		t.Fatalf("checkpoint snapshot header: %q, %v", header, err)
+	if position <= tailIndex {
+		t.Fatalf("checkpoint position %d must cover the legacy tail (%d)", position, tailIndex)
 	}
 
-	if schema := int(binary.BigEndian.Uint32(header[8:12])); schema < liveSchema {
-		t.Fatalf("checkpoint snapshot schema %d, want >= live schema %d", schema, liveSchema)
+	if len(configuration) == 0 {
+		t.Fatal("converted fsm_state must carry the raft configuration")
 	}
 
 	logs, err := raftboltdb.NewBoltStore(boltPath)

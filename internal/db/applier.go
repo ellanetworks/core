@@ -53,7 +53,7 @@ var _ ellaraft.Applier = (*Database)(nil)
 // is defensive — Raft applies in log order and the leader proposes
 // CmdMigrateShared(N) before any v=N op, so it only fires on leader
 // misbehavior or skip-version upgrades (already a non-goal).
-func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, logIndex uint64) (any, error) {
+func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, logIndex, logTerm uint64) (any, error) {
 	switch cmd.Type {
 	case ellaraft.CmdChangeset:
 		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
@@ -69,7 +69,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
-		result, applyErr := db.applyChangeset(ctx, payload, logIndex)
+		result, applyErr := db.applyChangeset(ctx, payload, logIndex, logTerm)
 		if applyErr == nil {
 			if payload.Operation == "UpsertClusterMember" {
 				db.signalMigrationCheck()

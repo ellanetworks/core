@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -284,8 +285,14 @@ func resetFSMStateInRestoredDB(dbPath string) error {
 
 	defer func() { _ = conn.Close() }()
 
-	if _, err := conn.ExecContext(context.Background(),
-		"UPDATE fsm_state SET lastApplied = 0 WHERE id = 1"); err != nil {
+	ctx := context.Background()
+
+	if err := ellaraft.EnsureFSMStateSchema(ctx, conn); err != nil {
+		return err
+	}
+
+	if _, err := conn.ExecContext(ctx,
+		"UPDATE fsm_state SET lastApplied = 0, lastAppliedTerm = 0, configuration = NULL, configurationIndex = 0 WHERE id = 1"); err != nil {
 		return fmt.Errorf("reset fsm_state.lastApplied: %w", err)
 	}
 
