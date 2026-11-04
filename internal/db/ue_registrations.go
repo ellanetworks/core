@@ -226,9 +226,18 @@ func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error
 }
 
 func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (any, error) {
+	known, err := db.imsiKnown(ctx, p.Imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	if !known {
+		return nil, ErrNotFound
+	}
+
 	existing := UERegistration{Imsi: p.Imsi, Type: p.Type}
 
-	err := db.runner(ctx).Query(ctx, db.getUERegistrationStmt, existing).Get(&existing)
+	err = db.runner(ctx).Query(ctx, db.getUERegistrationStmt, existing).Get(&existing)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

@@ -349,8 +349,8 @@ func writeDeferredLocationError(r *http.Request, w http.ResponseWriter, err erro
 	ctx := r.Context()
 
 	switch {
-	case errors.Is(err, lmf.ErrPrivacyRefused):
-		writeError(ctx, w, http.StatusForbidden, locationPrivacyRefusedMessage, err, logger.APILog)
+	case errors.Is(err, lmf.ErrRoamer):
+		writeError(ctx, w, http.StatusForbidden, locationRoamerRefusedMessage, err, logger.APILog)
 	case errors.Is(err, db.ErrNotFound):
 		writeError(ctx, w, http.StatusNotFound, "Deferred location request not found", err, logger.APILog)
 	case errors.Is(err, lmf.ErrNotFound):

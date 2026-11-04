@@ -15,10 +15,8 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/internal/udm"
 	"go.uber.org/zap"
 )
 
@@ -71,17 +69,7 @@ func (r *vsmfRecordingN32) status(t *testing.T, method, suffix string) int {
 	return 0
 }
 
-type vsmfOpen5GSLocal struct{}
-
-func (vsmfOpen5GSLocal) SessionManagement(context.Context, string) (*udm.SessionManagementSubscription, error) {
-	gbps := models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
-
-	return &udm.SessionManagementSubscription{Visitor: true, DNNs: []udm.DNNConfiguration{
-		{Snssai: models.Snssai{Sst: 1}, DNN: "internet", Default: true, Var5qi: 9, Arp: models.Arp{PriorityLevel: 1}, SessionAMBR: gbps},
-	}}, nil
-}
-
-func TestOpen5GSHomeUDMForVisitorSessions(t *testing.T) {
+func TestOpen5GSHPLMNUDMForVisitorSessions(t *testing.T) {
 	ctx := context.Background()
 	partner := open5GSPartner(t)
 
@@ -89,32 +77,23 @@ func TestOpen5GSHomeUDMForVisitorSessions(t *testing.T) {
 	waitEstablished(t, m, partner.ID)
 
 	n32 := &vsmfRecordingN32{Manager: m}
-	selection := &wire.SmfSelectionSubscriptionData{SubscribedSnssaiInfos: map[string]wire.SnssaiInfo{
-		"1": {DnnInfos: []wire.DnnInfo{{Dnn: "internet", DefaultDnnIndicator: true, LboRoamingAllowed: true}}},
-	}}
 
-	v := NewVSMF(vsmfOpen5GSLocal{}, zap.NewExample())
+	v := NewVSMF(zap.NewExample())
 	v.SetN32(n32)
-	v.SetVisitors(vsmfVisitors{"001010000000001": {PartnerID: partner.ID, HomePLMN: e2eHome, ServingPLMN: e2eOperator, SMFSelection: selection}})
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h, err := v.OpenSession(ctx, smf.HomeSessionRequest{Supi: supi, PDUSessionID: 5, Snssai: models.Snssai{Sst: 1}, Dnn: "internet"})
+	target := smf.HPLMNTarget{PartnerID: partner.ID, HPLMN: e2eHPLMN.Model(), ServingNetwork: e2eOperator.Model(), HPLMNSnssai: models.Snssai{Sst: 1}, LBO: true}
+
+	h, err := v.OpenSubscription(ctx, smf.HPLMNSubscriptionRequest{Supi: supi, PDUSessionID: 5, Dnn: "internet", Target: target})
 	if err != nil || h == nil {
-		t.Fatalf("OpenSession through Open5GS = %v, %v", h, err)
+		t.Fatalf("OpenSubscription through Open5GS = %v, %v", h, err)
 	}
 
 	t.Logf("home session rules: %+v", h.Rules())
-
-	sm, err := v.Subscriptions(vsmfFallback{}).SessionManagement(ctx, "001010000000001")
-	if err != nil || len(sm.DNNs) != 1 || sm.HomePLMN != e2eHome.Model() {
-		t.Fatalf("merged subscription = %+v, %v", sm, err)
-	}
-
-	t.Logf("merged DNN configuration: %+v", sm.DNNs[0])
 
 	if err := h.Register(ctx); err != nil {
 		t.Fatalf("UECM SMF registration at Open5GS: %v", err)

@@ -46,7 +46,7 @@ const (
 	r5gVisitedMNC      = "70"
 	r5gProfile         = "roamers"
 	r5gPartner         = "open5gs"
-	r5gHomeSEPP        = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
+	r5gHPLMNSEPP       = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
 	r5gMarker          = "ROAMER_REGISTERED"
 	r5gN32Port         = 7443
 	r5gTesterTimeout   = 8 * time.Minute
@@ -153,7 +153,7 @@ func r5gIssue(template, parent *x509.Certificate, pub any, signer *ecdsa.Private
 	return x509.ParseCertificate(der)
 }
 
-func (s *r5gStack) writeHomeSEPP(ellaCA string, nodes int) {
+func (s *r5gStack) writeHPLMNSEPP(ellaCA string, nodes int) {
 	t := s.t
 	t.Helper()
 
@@ -185,8 +185,8 @@ func (s *r5gStack) writeHomeSEPP(ellaCA string, nodes int) {
 
 	leaf, err := r5gIssue(&x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano() + 1),
-		Subject:      pkix.Name{Organization: []string{"Open5GS"}, CommonName: r5gHomeSEPP},
-		DNSNames:     []string{r5gHomeSEPP},
+		Subject:      pkix.Name{Organization: []string{"Open5GS"}, CommonName: r5gHPLMNSEPP},
+		DNSNames:     []string{r5gHPLMNSEPP},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -250,7 +250,7 @@ sepp:
         verify_client_cacert: /sepp/ella-ca.crt
     client:
       sepp:
-%[2]s`, r5gHomeSEPP, clients.String())
+%[2]s`, r5gHPLMNSEPP, clients.String())
 
 	for name, body := range map[string]string{
 		"cfg/sepp/open5gs-sepp.crt": string(certPEM),
@@ -371,7 +371,7 @@ func r5gBringUp(t *testing.T, nodes int) *r5gStack {
 	s.provision()
 
 	ellaCA := s.ellaTrustAnchor(nodes)
-	s.writeHomeSEPP(ellaCA, nodes)
+	s.writeHPLMNSEPP(ellaCA, nodes)
 
 	if err := r5gCompose(ctx, "up", "-d", "mongodb", "provision", "nrf", "udr", "udm", "ausf", "sepp"); err != nil {
 		t.Fatal(err)
@@ -458,12 +458,11 @@ func (s *r5gStack) createPartner() {
 	}
 
 	partner, err := s.api.CreateRoamingPartner(s.ctx, &client.RoamingPartnerOptions{
-		Name: r5gPartner, PLMNs: []client.RoamingPLMN{{Mcc: "001", Mnc: "01"}}, ProfileName: r5gProfile,
+		Name: r5gPartner, PLMNs: []client.RoamingPLMN{{Mcc: "001", Mnc: "01", NRFAPIRoot: "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org"}}, ProfileName: r5gProfile,
 		SEPP: &client.RoamingPartnerSEPP{
-			FQDN:           r5gHomeSEPP,
-			N32cURI:        "https://" + r5gHomeSEPP + ":7777",
+			FQDN:           r5gHPLMNSEPP,
+			N32cURI:        "https://" + r5gHPLMNSEPP + ":7777",
 			TrustAnchorPEM: string(caPEM),
-			NRFAPIRoot:     "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org",
 		},
 	})
 	if err != nil {
@@ -726,7 +725,7 @@ func TestRoaming5GOpen5GS(t *testing.T) {
 
 		_, err := s.api.GetLocation(s.ctx, &client.GetLocationOptions{SUPI: "imsi-" + imsi, Method: "cell_id"})
 		if err == nil || !strings.Contains(err.Error(), "server error 403") {
-			t.Fatalf("locating the roamer: %v, want 403: Open5GS has no LCS privacy profile", err)
+			t.Fatalf("locating the roamer: %v, want 403: roamers cannot be located", err)
 		}
 
 		status, body := s.notify(1, imsi, "uecm-dereg", map[string]string{"deregReason": "SUBSCRIPTION_WITHDRAWN", "accessType": "3GPP_ACCESS"})

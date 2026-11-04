@@ -120,6 +120,9 @@ var pinnedChangesetOps = map[string]int{
 	"WithdrawRoamer":                    26,
 	"ClearRoamerWithdrawal":             26,
 	"DeleteUnregisteredVisitors":        26,
+	"SetVisitorMSISDN":                  26,
+	"RenewGeneratedSEPPIdentity":        26,
+	"DeleteExpiredRoamingWithdrawals":   26,
 }
 
 var pinnedIntentOps = map[string]int{

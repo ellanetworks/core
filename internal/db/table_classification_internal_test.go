@@ -52,6 +52,7 @@ var (
 		"subscribers",
 		"ue_registrations",
 		"users",
+		"visitors",
 	}
 
 	pinnedLocalOnlyTables = []string{

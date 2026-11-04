@@ -314,6 +314,8 @@ func BuildRegistrationAccept(
 		m.SORTransparentContainer = sor
 	}
 
+	amfInstance.reregistrationFulfilled(ue)
+
 	if nfs := amfInstance.NetworkFeatureSupport(); nfs.Enable {
 		m.NetworkFeatureSupport = &fgs.NetworkFeatureSupport{
 			IMSVoPS3GPP: ue.IMSVoPS(),

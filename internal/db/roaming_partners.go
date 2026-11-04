@@ -31,16 +31,16 @@ const roamingSchema = 26
 const (
 	listRoamingPartnersStmt        = "SELECT &RoamingPartner.* FROM %s ORDER BY name"
 	getRoamingPartnerStmt          = "SELECT &RoamingPartner.* FROM %s WHERE id==$RoamingPartner.id"
-	insertRoamingPartnerStmt       = "INSERT INTO %s (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, nrfAPIRoot, diameterPeerID) VALUES ($RoamingPartner.id, $RoamingPartner.name, $RoamingPartner.profileID, $RoamingPartner.seppFQDN, $RoamingPartner.seppN32cURI, $RoamingPartner.seppN32fURI, $RoamingPartner.seppTrustAnchorPEM, $RoamingPartner.nrfAPIRoot, $RoamingPartner.diameterPeerID)"
-	updateRoamingPartnerStmt       = "UPDATE %s SET name=$RoamingPartner.name, profileID=$RoamingPartner.profileID, seppFQDN=$RoamingPartner.seppFQDN, seppN32cURI=$RoamingPartner.seppN32cURI, seppN32fURI=$RoamingPartner.seppN32fURI, seppTrustAnchorPEM=$RoamingPartner.seppTrustAnchorPEM, nrfAPIRoot=$RoamingPartner.nrfAPIRoot, diameterPeerID=$RoamingPartner.diameterPeerID WHERE id==$RoamingPartner.id"
+	insertRoamingPartnerStmt       = "INSERT INTO %s (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID) VALUES ($RoamingPartner.id, $RoamingPartner.name, $RoamingPartner.profileID, $RoamingPartner.seppFQDN, $RoamingPartner.seppN32cURI, $RoamingPartner.seppN32fURI, $RoamingPartner.seppTrustAnchorPEM, $RoamingPartner.diameterPeerID)"
+	updateRoamingPartnerStmt       = "UPDATE %s SET name=$RoamingPartner.name, profileID=$RoamingPartner.profileID, seppFQDN=$RoamingPartner.seppFQDN, seppN32cURI=$RoamingPartner.seppN32cURI, seppN32fURI=$RoamingPartner.seppN32fURI, seppTrustAnchorPEM=$RoamingPartner.seppTrustAnchorPEM, diameterPeerID=$RoamingPartner.diameterPeerID WHERE id==$RoamingPartner.id"
 	deleteRoamingPartnerStmt       = "DELETE FROM %s WHERE id==$RoamingPartner.id"
-	updateVisitorsProfileStmt      = "UPDATE %s SET profileID=$RoamingPartner.profileID WHERE roamingPartnerID==$RoamingPartner.id"
 	listRoamingPartnerPLMNsStmt    = "SELECT &roamingPartnerPLMNRow.* FROM %s ORDER BY mcc, mnc"
 	listPLMNsOfRoamingPartnerStmt  = "SELECT &roamingPartnerPLMNRow.* FROM %s WHERE partnerID==$roamingPartnerPLMNRow.partnerID ORDER BY mcc, mnc"
-	insertRoamingPartnerPLMNStmt   = "INSERT INTO %s (partnerID, mcc, mnc) VALUES ($roamingPartnerPLMNRow.partnerID, $roamingPartnerPLMNRow.mcc, $roamingPartnerPLMNRow.mnc)"
+	insertRoamingPartnerPLMNStmt   = "INSERT INTO %s (partnerID, mcc, mnc, nrfAPIRoot) VALUES ($roamingPartnerPLMNRow.partnerID, $roamingPartnerPLMNRow.mcc, $roamingPartnerPLMNRow.mnc, $roamingPartnerPLMNRow.nrfAPIRoot)"
+	updateRoamingPartnerPLMNStmt   = "UPDATE %s SET nrfAPIRoot=$roamingPartnerPLMNRow.nrfAPIRoot WHERE partnerID==$roamingPartnerPLMNRow.partnerID AND mcc==$roamingPartnerPLMNRow.mcc AND mnc==$roamingPartnerPLMNRow.mnc"
 	deleteRoamingPartnerPLMNStmt   = "DELETE FROM %s WHERE partnerID==$roamingPartnerPLMNRow.partnerID AND mcc==$roamingPartnerPLMNRow.mcc AND mnc==$roamingPartnerPLMNRow.mnc"
-	countVisitorsOfPartnerStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE roamingPartnerID==$visitorFilter.partnerID AND imsi GLOB $visitorFilter.imsiGlob"
-	countAttachedVisitorsOfRATStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE s.roamingPartnerID==$visitorFilter.partnerID AND r.type==$visitorFilter.regType AND r.purged = 0"
+	countVisitorsOfPartnerStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE partnerID==$visitorFilter.partnerID AND imsi GLOB $visitorFilter.imsiGlob"
+	countAttachedVisitorsOfRATStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s AS v JOIN %s AS r ON r.imsi = v.imsi WHERE v.partnerID==$visitorFilter.partnerID AND r.type==$visitorFilter.regType AND r.purged = 0"
 	countRoamingPartnersStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
@@ -79,10 +79,16 @@ func (p RoamingPLMN) imsiGlob() string {
 	return p.Mcc + p.Mnc + "*"
 }
 
+type RoamingNRFAPIRoot struct {
+	RoamingPLMN
+	APIRoot string `json:"apiRoot"`
+}
+
 type roamingPartnerPLMNRow struct {
-	PartnerID string `db:"partnerID"`
-	Mcc       string `db:"mcc"`
-	Mnc       string `db:"mnc"`
+	PartnerID  string  `db:"partnerID"`
+	Mcc        string  `db:"mcc"`
+	Mnc        string  `db:"mnc"`
+	NRFAPIRoot *string `db:"nrfAPIRoot"`
 }
 
 type visitorFilter struct {
@@ -99,14 +105,24 @@ type RoamingPartner struct {
 	SEPPN32cURI        *string `db:"seppN32cURI"`
 	SEPPN32fURI        *string `db:"seppN32fURI"`
 	SEPPTrustAnchorPEM *string `db:"seppTrustAnchorPEM"`
-	NRFAPIRoot         *string `db:"nrfAPIRoot"`
 	DiameterPeerID     *string `db:"diameterPeerID"`
 	PLMNs              []RoamingPLMN
+	NRFAPIRoots        []RoamingNRFAPIRoot
 	Withdrawals        []RoamingWithdrawal
 }
 
 func (p RoamingPartner) HasPLMN(plmn RoamingPLMN) bool {
 	return slices.Contains(p.PLMNs, plmn)
+}
+
+func (p RoamingPartner) NRFAPIRootOf(plmn RoamingPLMN) *string {
+	for _, r := range p.NRFAPIRoots {
+		if r.RoamingPLMN == plmn {
+			return &r.APIRoot
+		}
+	}
+
+	return nil
 }
 
 func (p RoamingPartner) PLMNOfIMSI(imsi string) (RoamingPLMN, bool) {
@@ -183,7 +199,7 @@ func (p RoamingPartner) validate5G() error {
 	}
 
 	if set == 0 {
-		if p.SEPPN32fURI != nil || p.NRFAPIRoot != nil {
+		if p.SEPPN32fURI != nil || len(p.NRFAPIRoots) > 0 {
 			return errors.New("roaming partner N32-f URI and NRF API root need a SEPP FQDN, N32-c URI and trust anchor")
 		}
 
@@ -213,9 +229,17 @@ func (p RoamingPartner) validate5G() error {
 		}
 	}
 
-	if p.NRFAPIRoot != nil {
-		if err := validateAPIRoot(*p.NRFAPIRoot, "http", "https"); err != nil {
-			return fmt.Errorf("roaming partner NRF API root: %w", err)
+	for i, r := range p.NRFAPIRoots {
+		if !p.HasPLMN(r.RoamingPLMN) {
+			return fmt.Errorf("roaming partner NRF API root is for PLMN %s, which is not a PLMN of the partner", r.RoamingPLMN)
+		}
+
+		if slices.ContainsFunc(p.NRFAPIRoots[:i], func(o RoamingNRFAPIRoot) bool { return o.RoamingPLMN == r.RoamingPLMN }) {
+			return fmt.Errorf("roaming partner has more than one NRF API root for PLMN %s", r.RoamingPLMN)
+		}
+
+		if err := validateAPIRoot(r.APIRoot, "http", "https"); err != nil {
+			return fmt.Errorf("roaming partner NRF API root of PLMN %s: %w", r.RoamingPLMN, err)
 		}
 	}
 
@@ -382,13 +406,13 @@ func (db *Database) listRoamingPartners(ctx context.Context, runner *sqlair.DB) 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	byPartner := map[string][]RoamingPLMN{}
+	byPartner := map[string][]roamingPartnerPLMNRow{}
 	for _, r := range rows {
-		byPartner[r.PartnerID] = append(byPartner[r.PartnerID], RoamingPLMN{Mcc: r.Mcc, Mnc: r.Mnc})
+		byPartner[r.PartnerID] = append(byPartner[r.PartnerID], r)
 	}
 
 	for i := range partners {
-		partners[i].PLMNs = byPartner[partners[i].ID]
+		partners[i].setPLMNs(byPartner[partners[i].ID])
 	}
 
 	if err := db.attachWithdrawals(ctx, partners); err != nil {
@@ -415,9 +439,7 @@ func (db *Database) getRoamingPartner(ctx context.Context, runner *sqlair.DB, id
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	for _, r := range rows {
-		row.PLMNs = append(row.PLMNs, RoamingPLMN{Mcc: r.Mcc, Mnc: r.Mnc})
-	}
+	row.setPLMNs(rows)
 
 	withdrawals, err := db.listWithdrawalsOfPartner(ctx, id)
 	if err != nil {
@@ -427,6 +449,17 @@ func (db *Database) getRoamingPartner(ctx context.Context, runner *sqlair.DB, id
 	row.Withdrawals = withdrawals
 
 	return &row, nil
+}
+
+func (p *RoamingPartner) setPLMNs(rows []roamingPartnerPLMNRow) {
+	for _, r := range rows {
+		plmn := RoamingPLMN{Mcc: r.Mcc, Mnc: r.Mnc}
+		p.PLMNs = append(p.PLMNs, plmn)
+
+		if r.NRFAPIRoot != nil {
+			p.NRFAPIRoots = append(p.NRFAPIRoots, RoamingNRFAPIRoot{RoamingPLMN: plmn, APIRoot: *r.NRFAPIRoot})
+		}
+	}
 }
 
 func (db *Database) prepareHomePLMNChange(ctx context.Context, op *Operator) (bool, error) {
@@ -478,11 +511,11 @@ func (db *Database) checkRoamingPartner(ctx context.Context, p *RoamingPartner) 
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	home := RoamingPLMN{Mcc: op.Mcc, Mnc: op.Mnc}
+	own := RoamingPLMN{Mcc: op.Mcc, Mnc: op.Mnc}
 
 	for _, plmn := range p.PLMNs {
-		if plmn.conflicts(home) {
-			return fmt.Errorf("%w: PLMN %s is or is ambiguous with the home PLMN %s", ErrRoamingConflict, plmn, home)
+		if plmn.conflicts(own) {
+			return fmt.Errorf("%w: PLMN %s is or is ambiguous with the home PLMN %s", ErrRoamingConflict, plmn, own)
 		}
 	}
 
@@ -532,9 +565,9 @@ func (db *Database) checkRoamingPartner(ctx context.Context, p *RoamingPartner) 
 	return nil
 }
 
-func (db *Database) insertRoamingPartnerPLMNs(ctx context.Context, partnerID string, plmns []RoamingPLMN) error {
+func (db *Database) insertRoamingPartnerPLMNs(ctx context.Context, p *RoamingPartner, plmns []RoamingPLMN) error {
 	for _, plmn := range plmns {
-		row := roamingPartnerPLMNRow{PartnerID: partnerID, Mcc: plmn.Mcc, Mnc: plmn.Mnc}
+		row := roamingPartnerPLMNRow{PartnerID: p.ID, Mcc: plmn.Mcc, Mnc: plmn.Mnc, NRFAPIRoot: p.NRFAPIRootOf(plmn)}
 
 		if err := db.runner(ctx).Query(ctx, db.insertRoamingPartnerPLMNStmt, row).Run(); err != nil {
 			if isPrimaryKeyError(err) || isUniqueNameError(err) {
@@ -572,7 +605,7 @@ func (db *Database) applyCreateRoamingPartner(ctx context.Context, w *roamingPar
 		return nil, err
 	}
 
-	if err := db.insertRoamingPartnerPLMNs(ctx, p.ID, p.PLMNs); err != nil {
+	if err := db.insertRoamingPartnerPLMNs(ctx, p, p.PLMNs); err != nil {
 		return nil, err
 	}
 
@@ -662,17 +695,17 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 	for _, plmn := range p.PLMNs {
 		if !existing.HasPLMN(plmn) {
 			added = append(added, plmn)
+			continue
+		}
+
+		row := roamingPartnerPLMNRow{PartnerID: p.ID, Mcc: plmn.Mcc, Mnc: plmn.Mnc, NRFAPIRoot: p.NRFAPIRootOf(plmn)}
+		if err := db.runner(ctx).Query(ctx, db.updateRoamingPartnerPLMNStmt, row).Run(); err != nil {
+			return nil, fmt.Errorf("update roaming partner PLMN: %w", err)
 		}
 	}
 
-	if err := db.insertRoamingPartnerPLMNs(ctx, p.ID, added); err != nil {
+	if err := db.insertRoamingPartnerPLMNs(ctx, p, added); err != nil {
 		return nil, err
-	}
-
-	if existing.ProfileID != p.ProfileID {
-		if err := db.runner(ctx).Query(ctx, db.updateVisitorsProfileStmt, p).Run(); err != nil {
-			return nil, fmt.Errorf("update visitors profile: %w", err)
-		}
 	}
 
 	return nil, nil

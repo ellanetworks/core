@@ -32,7 +32,7 @@ func newHSS(t *testing.T) (*fakehss.Node, *roaming.S6a) {
 	t.Helper()
 
 	hss := fakehss.New(ellaID, hssID)
-	hss.Provision(visitorIMSI, fakehss.Subscriber{K: testKey, OPc: testOPc, SQN: firstSQN, Subscription: *homeSubscription()})
+	hss.Provision(visitorIMSI, fakehss.Subscriber{K: testKey, OPc: testOPc, SQN: firstSQN, Subscription: *hplmnSubscription()})
 
 	return hss, roaming.NewS6a(func() roaming.DiameterNode { return hss })
 }
@@ -40,7 +40,7 @@ func newHSS(t *testing.T) (*fakehss.Node, *roaming.S6a) {
 func TestAuthenticationInformationRoutesToTheHomeRealm(t *testing.T) {
 	hss, client := newHSS(t)
 
-	vec, host, err := client.AuthenticationInformation(t.Context(), roaming.Home{Realm: homeRealm}, visitorIMSI, visited, nil)
+	vec, host, err := client.AuthenticationInformation(t.Context(), roaming.HPLMNPeer{Realm: homeRealm}, visitorIMSI, visited, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestAuthenticationInformationSendsTheResynchronisationInfo(t *testing.T) {
 	hss, client := newHSS(t)
 
 	resync := &s6a.Resync{RAND: make([]byte, 16), AUTS: make([]byte, 14)}
-	if _, _, err := client.AuthenticationInformation(t.Context(), roaming.Home{Realm: homeRealm, HSS: hssHost}, visitorIMSI, visited, resync); err == nil {
+	if _, _, err := client.AuthenticationInformation(t.Context(), roaming.HPLMNPeer{Realm: homeRealm, HSS: hssHost}, visitorIMSI, visited, resync); err == nil {
 		t.Fatal("a resynchronisation with a zero AUTS succeeded")
 	}
 
@@ -94,7 +94,7 @@ func TestAuthenticationInformationReportsTheHomeResult(t *testing.T) {
 	hss, client := newHSS(t)
 	hss.FailAIR(&s6a.ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUserUnknown)})
 
-	_, _, err := client.AuthenticationInformation(t.Context(), roaming.Home{Realm: homeRealm}, visitorIMSI, visited, nil)
+	_, _, err := client.AuthenticationInformation(t.Context(), roaming.HPLMNPeer{Realm: homeRealm}, visitorIMSI, visited, nil)
 
 	var re *s6a.ResultError
 	if !errors.As(err, &re) || !re.IsExperimental(tgpp.ResultErrorUserUnknown) {
@@ -106,13 +106,13 @@ func TestUnreachableHomeHSS(t *testing.T) {
 	hss, client := newHSS(t)
 	hss.SetDown(true)
 
-	if _, _, err := client.AuthenticationInformation(t.Context(), roaming.Home{Realm: homeRealm}, visitorIMSI, visited, nil); !errors.Is(err, roaming.ErrHSSUnreachable) {
+	if _, _, err := client.AuthenticationInformation(t.Context(), roaming.HPLMNPeer{Realm: homeRealm}, visitorIMSI, visited, nil); !errors.Is(err, roaming.ErrHSSUnreachable) {
 		t.Fatalf("error = %v, want %v", err, roaming.ErrHSSUnreachable)
 	}
 
 	stopped := roaming.NewS6a(func() roaming.DiameterNode { return nil })
 
-	if _, err := stopped.UpdateLocation(t.Context(), roaming.Home{Realm: homeRealm}, s6a.UpdateLocationRequest{IMSI: visitorIMSI}); !errors.Is(err, roaming.ErrHSSUnreachable) {
+	if _, err := stopped.UpdateLocation(t.Context(), roaming.HPLMNPeer{Realm: homeRealm}, s6a.UpdateLocationRequest{IMSI: visitorIMSI}); !errors.Is(err, roaming.ErrHSSUnreachable) {
 		t.Fatalf("error = %v, want %v", err, roaming.ErrHSSUnreachable)
 	}
 }
@@ -120,7 +120,7 @@ func TestUnreachableHomeHSS(t *testing.T) {
 func TestUpdateLocationReturnsTheSubscription(t *testing.T) {
 	hss, client := newHSS(t)
 
-	ula, err := client.UpdateLocation(t.Context(), roaming.Home{Realm: homeRealm, HSS: hssHost}, s6a.UpdateLocationRequest{
+	ula, err := client.UpdateLocation(t.Context(), roaming.HPLMNPeer{Realm: homeRealm, HSS: hssHost}, s6a.UpdateLocationRequest{
 		IMSI:        visitorIMSI,
 		Features:    roaming.ULRFeatures,
 		RATType:     tgpp.RATEUTRAN,

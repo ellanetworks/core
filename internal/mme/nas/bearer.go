@@ -128,6 +128,14 @@ func continueDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	subscription, err := m.APNSubscription(ue, apn)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the home APN subscription", zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
+
+		return
+	}
+
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
@@ -135,6 +143,7 @@ func continueDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		APN:               apn,
 		RequestedPDNType:  ueConn.ESMRequest.PDNType,
 		RequestType:       ueConn.ESMRequest.Type,
+		Subscription:      subscription,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed", zap.Error(err))
@@ -211,7 +220,7 @@ func updateLocation(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *
 
 	m.RequestUpdateLocation(ctx, ue, ueConn, plmn, func(ctx context.Context, err error) {
 		if err != nil {
-			r := mme.HomeNetworkRejection(err)
+			r := mme.HPLMNRejection(err)
 			logger.From(ctx, logger.MmeLog).Info("attach rejected: update location with the home HSS failed", logger.Cause(r.Reason), zap.Error(err))
 			sendAttachRejection(ctx, m, ue, ueConn, r, nil)
 
@@ -540,7 +549,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
 	if snssai := p.Snssai; snssai != nil && p.PDUSessionID != 0 {
-		container, err := snssaiPCOContainer(*snssai, p.HomeSnssai, plmn)
+		container, err := snssaiPCOContainer(*snssai, p.HPLMNSnssai, plmn)
 		if err != nil {
 			return nil, err
 		}

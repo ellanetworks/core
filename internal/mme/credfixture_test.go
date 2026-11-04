@@ -72,6 +72,7 @@ type fakeSessionManager struct {
 	releaseCauses     []models.SessionReleaseRequest
 	deactivated       bool
 	reconciled        []string
+	apnSubscriptions  map[string]*models.APNSubscription
 
 	outcomeMu   sync.Mutex
 	concluded   []bearerModificationOutcome
@@ -122,6 +123,14 @@ func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI
 		PDUSessionID: pduSessionID,
 		Snssai:       snssai,
 	}, nil
+}
+
+func (f *fakeSessionManager) UpdateAPNSubscription(_ context.Context, ref string, sub *models.APNSubscription) {
+	if f.apnSubscriptions == nil {
+		f.apnSubscriptions = map[string]*models.APNSubscription{}
+	}
+
+	f.apnSubscriptions[ref] = sub
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {

@@ -145,6 +145,9 @@ func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, _ etsi.SUPI, p
 	}, nil
 }
 
+func (f *fakeSessionManager) UpdateAPNSubscription(context.Context, string, *models.APNSubscription) {
+}
+
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
 	f.lastRequest = req
 

@@ -62,7 +62,6 @@ type LMF struct {
 
 	fixOverride          func(context.Context, etsi.SUPI, LocationRequest) (*lmfmodels.LocationResult, error)
 	availabilityOverride func(etsi.SUPI) TerminationReason
-	privacyOverride      func(context.Context, etsi.SUPI) error
 }
 
 // defaultMaxLocationAge is the default maximum age (in seconds) for the AMF's

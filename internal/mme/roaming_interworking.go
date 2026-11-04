@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
@@ -38,6 +40,10 @@ func (k ULRKind) flags() s6a.ULRFlags {
 	return flags
 }
 
+func (k ULRKind) carriesPDNConnections() bool {
+	return k == ULRInterSystem || k == ULRInterSystemHandover
+}
+
 func (m *MME) admitArrivingVisitor(ctx context.Context, ue *UeContext) error {
 	err := m.AdmitArrivingVisitor(ctx, ue)
 
@@ -61,7 +67,7 @@ func (m *MME) AdmitArrivingVisitor(ctx context.Context, ue *UeContext) error {
 	return m.AdmitVisitor(ctx, ue, plmn)
 }
 
-func (m *MME) HomeRegistrationDue(ue *UeContext) bool {
+func (m *MME) HPLMNRegistrationDue(ue *UeContext) bool {
 	v, ok := ue.Visitor()
 
 	return ok && !v.Registered
@@ -75,7 +81,7 @@ func (m *MME) RequestInterSystemUpdateLocation(ctx context.Context, ue *UeContex
 
 	var err error
 
-	m.awaitHome(ctx, ue, conn, "Update-Location", func(ctx context.Context) {
+	m.awaitHPLMN(ctx, ue, conn, "Update-Location", func(ctx context.Context) {
 		err = m.updateLocation(ctx, ue, serving, kind)
 	}, func(ctx context.Context) {
 		if err == nil {
@@ -87,15 +93,53 @@ func (m *MME) RequestInterSystemUpdateLocation(ctx context.Context, ue *UeContex
 }
 
 func (m *MME) handVisitorTo5GS(ctx context.Context, ue *UeContext) {
-	v, ok := ue.Visitor()
-	if !ok {
+	ue.mu.Lock()
+
+	if ue.visitor == nil {
+		ue.mu.Unlock()
 		return
 	}
 
-	ue.setHomeRegistered(false)
+	v := *ue.visitor
+	ue.visitor.Registered = false
+	loc := ue.Location
 
-	logger.From(ctx, logger.MmeLog).Info("visitor moved to 5GS; its home registration passes to the AMF, no purge",
-		logger.SUPI(ue.Supi().String()), zap.String("roaming_partner", v.PartnerName))
+	ue.mu.Unlock()
+
+	log := logger.From(ctx, logger.MmeLog).With(logger.SUPI(ue.Supi().String()), zap.String("roaming_partner", v.PartnerName))
+
+	if !v.Registered || m.HPLMN == nil {
+		log.Info("visitor moved to 5GS; the home network already cancelled its registration in this MME")
+		return
+	}
+
+	log.Info("visitor moved to 5GS; its home registration passes to the AMF, purging only if the home network does not cancel it")
+
+	imsi := ue.IMSI()
+	location := epsLocation(loc, time.Now())
+
+	m.crossCancel.Arm(imsi, v.PartnerID, func() {
+		m.home.Go(imsi, func() {
+			if m.HoldsUE(imsi) {
+				return
+			}
+
+			logger.MmeLog.Info("the home network did not cancel the registration of a visitor that moved to 5GS; purging it",
+				logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", v.PartnerName))
+			m.purgeAtHPLMN(imsi, v.Peer, location)
+		})
+	})
+}
+
+func (m *MME) hplmnCancelledMove(ctx context.Context, imsi string, origin diameter.Identity, ingress string) {
+	partnerID, ok := m.crossCancel.Partner(imsi)
+	if !ok || !m.fromPartner(ctx, partnerID, origin, ingress) {
+		return
+	}
+
+	if m.crossCancel.Disarm(imsi) {
+		logger.From(ctx, logger.MmeLog).Info("the home network cancelled the registration of a visitor that moved to 5GS", logger.SUPIFromIMSI(imsi))
+	}
 }
 
 func (m *MME) movingTo5GS(ue *UeContext) bool {

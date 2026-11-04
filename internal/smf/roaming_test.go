@@ -8,7 +8,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/roaming/fakehss"
@@ -31,42 +30,44 @@ func (v visitorSubscriptions) SessionManagement(ctx context.Context, imsi string
 	return sm, nil
 }
 
-func (visitorSubscriptions) IsHomeSubscriber(context.Context, string) (bool, error) {
-	return false, nil
-}
-
-func (visitorSubscriptions) AccessAndMobility(context.Context, string) (*udm.AccessAndMobilitySubscription, error) {
-	return &udm.AccessAndMobilitySubscription{Allow4G: true, Visitor: true}, nil
-}
-
-func (visitorSubscriptions) UEAMBR(context.Context, string) (models.Ambr, error) {
-	return models.Ambr{}, nil
-}
-
-type homeSubscriptions map[string]*s6a.SubscriptionData
-
 var visitorHomePLMN = models.PlmnID{Mcc: "001", Mnc: "01"}
 
-func (h homeSubscriptions) VisitorHome(imsi string) (roaming.HomeData, bool) {
-	s, ok := h[imsi]
-	return roaming.HomeData{PLMN: visitorHomePLMN, Subscription: s}, ok
+type visitorFixture struct {
+	s     *smf.SMF
+	pcf   *fakePCF
+	store *fakeStore
+	upf   *fakeUPF
 }
 
-func visitorSMF(homes homeSubscriptions) (*smf.SMF, *fakePCF) {
+func visitorSMF() visitorFixture {
 	store, upf := epsTestSMF()
 	pcf := &fakePCF{policy: epsPolicy()}
 	store.pcf = pcf
 
-	subs := roaming.NewSubscriptions(visitorSubscriptions{store}, homes)
-
-	return smf.New(pcf, store, upf, &fakeAMF{}, smf.WithSubscriptions(subs)), pcf
+	return visitorFixture{s: smf.New(pcf, store, upf, &fakeAMF{}, smf.WithSubscriptions(visitorSubscriptions{store})), pcf: pcf, store: store, upf: upf}
 }
 
-func TestVisitorEPSSessionUsesTheMergedSubscription(t *testing.T) {
-	home := fakehss.Subscription(1, fakehss.APN(1, "internet"))
-	s, pcf := visitorSMF(homeSubscriptions{"001010000000001": &home})
+func visitorEPSRequest(t *testing.T, apn string) models.EPSBearerRequest {
+	t.Helper()
 
-	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	home := fakehss.Subscription(1, fakehss.APN(1, "internet"))
+
+	sub, err := roaming.APNSubscription(visitorHomePLMN, &home, apn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := epsRequest(1)
+	req.Subscription = sub
+
+	return req
+}
+
+func TestVisitorEPSSessionUsesTheHomeAPNSubscription(t *testing.T) {
+	f := visitorSMF()
+	s, pcf := f.s, f.pcf
+
+	bearer, err := s.CreateEPSSession(context.Background(), visitorEPSRequest(t, "internet"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,31 +90,19 @@ func TestVisitorEPSSessionUsesTheMergedSubscription(t *testing.T) {
 }
 
 func TestVisitorEPSSessionWithoutAHomeSubscriptionIsRefused(t *testing.T) {
-	s, _ := visitorSMF(homeSubscriptions{})
+	s := visitorSMF().s
 
 	_, err := s.CreateEPSSession(context.Background(), epsRequest(1))
-	if !errors.Is(err, roaming.ErrNoHomeSubscription) {
-		t.Fatalf("error = %v, want %v", err, roaming.ErrNoHomeSubscription)
-	}
-}
-
-func TestVisitorEPSSessionForAnAPNTheHomeNetworkDoesNotSubscribeIsRefused(t *testing.T) {
-	home := fakehss.Subscription(1, fakehss.APN(1, "corporate"))
-	s, _ := visitorSMF(homeSubscriptions{"001010000000001": &home})
-
-	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err == nil {
-		t.Fatal("the SMF opened a visitor session the home subscription does not allow")
+	if !errors.Is(err, smf.ErrHPLMNTargetMissing) {
+		t.Fatalf("error = %v, want %v", err, smf.ErrHPLMNTargetMissing)
 	}
 }
 
 func TestVisitorUsageIsRecordedWithItsHomePLMN(t *testing.T) {
-	home := fakehss.Subscription(1, fakehss.APN(1, "internet"))
-	store, upf := epsTestSMF()
-	pcf := &fakePCF{policy: epsPolicy()}
-	store.pcf = pcf
-	s := smf.New(pcf, store, upf, &fakeAMF{}, smf.WithSubscriptions(roaming.NewSubscriptions(visitorSubscriptions{store}, homeSubscriptions{"001010000000001": &home})))
+	f := visitorSMF()
+	s, store, upf := f.s, f.store, f.upf
 
-	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	bearer, err := s.CreateEPSSession(context.Background(), visitorEPSRequest(t, "internet"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,14 +123,14 @@ func TestVisitorUsageIsRecordedWithItsHomePLMN(t *testing.T) {
 	}
 }
 
-func TestHomeUsageIsRecordedWithoutAHomePLMN(t *testing.T) {
+func TestOwnSubscriberUsageIsRecordedWithoutAHomePLMN(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	sc, _ := setupSessionWithTunnel(t, s)
 
-	if fourG, fiveG := s.SessionCountByRAT(); fourG != (smf.SessionCount{}) || fiveG != (smf.SessionCount{Home: 1}) {
+	if fourG, fiveG := s.SessionCountByRAT(); fourG != (smf.SessionCount{}) || fiveG != (smf.SessionCount{Own: 1}) {
 		t.Fatalf("session counts = 4G %+v, 5G %+v; want one 5G home session", fourG, fiveG)
 	}
 

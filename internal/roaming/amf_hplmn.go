@@ -28,21 +28,21 @@ type SDMSubscription struct {
 	Expires wire.DateTime
 }
 
-type AMFHome struct {
-	sbi *HomeSBI
+type AMFHPLMN struct {
+	sbi *HPLMNSBI
 }
 
-func NewAMFHome(sbi *HomeSBI) *AMFHome {
-	return &AMFHome{sbi: sbi}
+func NewAMFHPLMN(sbi *HPLMNSBI) *AMFHPLMN {
+	return &AMFHPLMN{sbi: sbi}
 }
 
-func (h *AMFHome) Authenticate(ctx context.Context, t HomeTarget, supiOrSuci string, resync *wire.ResynchronizationInfo) (Challenge, error) {
+func (h *AMFHPLMN) Authenticate(ctx context.Context, t HPLMNTarget, supiOrSuci string, resync *wire.ResynchronizationInfo) (Challenge, error) {
 	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeAUSF, wire.NFTypeAMF, wire.ServiceNausfAuth)
 	if err != nil {
 		return Challenge{}, err
 	}
 
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method: http.MethodPost,
 		URL:    JoinAPIRoot(c.APIRoot, wire.UEAuthenticationsPath()),
 		Body: wire.AuthenticationInfo{
@@ -72,14 +72,14 @@ func (h *AMFHome) Authenticate(ctx context.Context, t HomeTarget, supiOrSuci str
 
 	rand, hxres, autn, err := authCtx.AuthData.Av5gAka.Vector()
 	if err != nil {
-		return Challenge{}, fmt.Errorf("%w: %w", ErrHomeAnswer, err)
+		return Challenge{}, fmt.Errorf("%w: %w", ErrHPLMNAnswer, err)
 	}
 
 	return Challenge{RAND: rand, AUTN: autn, HXRESStar: hxres, ConfirmURI: href}, nil
 }
 
-func (h *AMFHome) Confirm(ctx context.Context, t HomeTarget, confirmURI, supiOrSuci string, resStar [16]byte) (string, [32]byte, error) {
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+func (h *AMFHPLMN) Confirm(ctx context.Context, t HPLMNTarget, confirmURI, supiOrSuci string, resStar [16]byte) (string, [32]byte, error) {
+	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       confirmURI,
 		Body:      wire.ConfirmationWithResStar(resStar),
@@ -98,8 +98,8 @@ func (h *AMFHome) Confirm(ctx context.Context, t HomeTarget, confirmURI, supiOrS
 	return resp.Success(supiOrSuci)
 }
 
-func (h *AMFHome) Unconfirmed(ctx context.Context, t HomeTarget, confirmURI string) error {
-	_, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+func (h *AMFHPLMN) Unconfirmed(ctx context.Context, t HPLMNTarget, confirmURI string) error {
+	_, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       confirmURI,
 		Body:      wire.ConfirmationData{},
@@ -110,8 +110,8 @@ func (h *AMFHome) Unconfirmed(ctx context.Context, t HomeTarget, confirmURI stri
 	return err
 }
 
-func (h *AMFHome) RemoveAuthentication(ctx context.Context, t HomeTarget, confirmURI string) error {
-	_, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+func (h *AMFHPLMN) RemoveAuthentication(ctx context.Context, t HPLMNTarget, confirmURI string) error {
+	_, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodDelete,
 		URL:       confirmURI,
 		Requester: wire.NFTypeAMF,
@@ -121,31 +121,43 @@ func (h *AMFHome) RemoveAuthentication(ctx context.Context, t HomeTarget, confir
 	return err
 }
 
-func (h *AMFHome) Register(ctx context.Context, t HomeTarget, supi string, reg wire.Amf3GppAccessRegistration) error {
+type UDMBinding struct {
+	InstanceID string
+	GroupID    string
+}
+
+func (h *AMFHPLMN) Register(ctx context.Context, t HPLMNTarget, supi string, reg wire.Amf3GppAccessRegistration) (UDMBinding, error) {
+	t.Supi = supi
+
 	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeUDM, wire.NFTypeAMF, wire.ServiceNudmUECM)
 	if err != nil {
-		return err
+		return UDMBinding{}, err
 	}
 
-	_, err = h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+	_, err = h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       JoinAPIRoot(c.APIRoot, wire.UECMAmf3GppAccessPath(supi)),
 		Body:      reg,
 		Requester: wire.NFTypeAMF,
 		Accept:    []int{http.StatusCreated, http.StatusOK, http.StatusNoContent},
 	})
-	h.forgetOnTransportError(t.PartnerID, c, err)
+	if err != nil {
+		h.forgetOnFailure(t.PartnerID, c, err)
+		return UDMBinding{}, err
+	}
 
-	return err
+	return UDMBinding{InstanceID: c.NfInstanceID, GroupID: c.Scope.GroupID}, nil
 }
 
-func (h *AMFHome) Deregister(ctx context.Context, t HomeTarget, supi string, guami wire.Guami) error {
+func (h *AMFHPLMN) Deregister(ctx context.Context, t HPLMNTarget, supi string, guami wire.Guami) error {
+	t.Supi = supi
+
 	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeUDM, wire.NFTypeAMF, wire.ServiceNudmUECM)
 	if err != nil {
 		return err
 	}
 
-	_, err = h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+	_, err = h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:      http.MethodPatch,
 		URL:         JoinAPIRoot(c.APIRoot, wire.UECMAmf3GppAccessPath(supi)),
 		Body:        wire.PurgeModification(guami),
@@ -158,7 +170,9 @@ func (h *AMFHome) Deregister(ctx context.Context, t HomeTarget, supi string, gua
 	return err
 }
 
-func (h *AMFHome) SubscriptionData(ctx context.Context, t HomeTarget, supi string) (wire.SubscriptionDataSets, error) {
+func (h *AMFHPLMN) SubscriptionData(ctx context.Context, t HPLMNTarget, supi string) (wire.SubscriptionDataSets, error) {
+	t.Supi = supi
+
 	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeUDM, wire.NFTypeAMF, wire.ServiceNudmSDM)
 	if err != nil {
 		return wire.SubscriptionDataSets{}, err
@@ -171,7 +185,7 @@ func (h *AMFHome) SubscriptionData(ctx context.Context, t HomeTarget, supi strin
 		return wire.SubscriptionDataSets{}, err
 	}
 
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodGet,
 		URL:       JoinAPIRoot(c.APIRoot, wire.SDMDataSetsPath(supi)) + "?" + values.Encode(),
 		Requester: wire.NFTypeAMF,
@@ -185,13 +199,15 @@ func (h *AMFHome) SubscriptionData(ctx context.Context, t HomeTarget, supi strin
 	return DecodeAnswer[wire.SubscriptionDataSets](answer)
 }
 
-func (h *AMFHome) Subscribe(ctx context.Context, t HomeTarget, supi string, sub wire.SdmSubscription) (SDMSubscription, error) {
+func (h *AMFHPLMN) Subscribe(ctx context.Context, t HPLMNTarget, supi string, sub wire.SdmSubscription) (SDMSubscription, error) {
+	t.Supi = supi
+
 	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeUDM, wire.NFTypeAMF, wire.ServiceNudmSDM)
 	if err != nil {
 		return SDMSubscription{}, err
 	}
 
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodPost,
 		URL:       JoinAPIRoot(c.APIRoot, wire.SDMSubscriptionsPath(supi)),
 		Body:      sub,
@@ -215,7 +231,7 @@ func (h *AMFHome) Subscribe(ctx context.Context, t HomeTarget, supi string, sub 
 	}
 
 	if out.URI == "" {
-		return SDMSubscription{}, fmt.Errorf("%w: the SDM subscription has neither a Location nor a subscriptionId", ErrHomeAnswer)
+		return SDMSubscription{}, fmt.Errorf("%w: the SDM subscription has neither a Location nor a subscriptionId", ErrHPLMNAnswer)
 	}
 
 	if out.ID == "" {
@@ -225,8 +241,8 @@ func (h *AMFHome) Subscribe(ctx context.Context, t HomeTarget, supi string, sub 
 	return out, nil
 }
 
-func (h *AMFHome) Unsubscribe(ctx context.Context, t HomeTarget, uri string) error {
-	_, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+func (h *AMFHPLMN) Unsubscribe(ctx context.Context, t HPLMNTarget, uri string) error {
+	_, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodDelete,
 		URL:       uri,
 		Requester: wire.NFTypeAMF,
@@ -236,8 +252,8 @@ func (h *AMFHome) Unsubscribe(ctx context.Context, t HomeTarget, uri string) err
 	return err
 }
 
-func (h *AMFHome) Renew(ctx context.Context, t HomeTarget, uri string, expires wire.DateTime) (wire.DateTime, error) {
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+func (h *AMFHPLMN) Renew(ctx context.Context, t HPLMNTarget, uri string, expires wire.DateTime) (wire.DateTime, error) {
+	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:      http.MethodPatch,
 		URL:         uri,
 		Body:        wire.SdmSubsModification{Expires: expires},
@@ -265,13 +281,15 @@ func (h *AMFHome) Renew(ctx context.Context, t HomeTarget, uri string, expires w
 	return expires, nil
 }
 
-func (h *AMFHome) AcknowledgeSoR(ctx context.Context, t HomeTarget, supi string, ack wire.AcknowledgeInfo) error {
+func (h *AMFHPLMN) AcknowledgeSoR(ctx context.Context, t HPLMNTarget, supi string, ack wire.AcknowledgeInfo) error {
+	t.Supi = supi
+
 	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeUDM, wire.NFTypeAMF, wire.ServiceNudmSDM)
 	if err != nil {
 		return err
 	}
 
-	_, err = h.sbi.Do(ctx, t.PartnerID, HomeRequest{
+	_, err = h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       JoinAPIRoot(c.APIRoot, wire.SDMSorAckPath(supi)),
 		Body:      ack,
@@ -282,10 +300,19 @@ func (h *AMFHome) AcknowledgeSoR(ctx context.Context, t HomeTarget, supi string,
 	return err
 }
 
-func (h *AMFHome) forgetOnTransportError(partnerID string, c wire.Candidate, err error) {
-	if err != nil && errors.Is(err, ErrHomeUnreachable) && c.NfInstanceID != "" {
+func (h *AMFHPLMN) forgetOnTransportError(partnerID string, c wire.Candidate, err error) {
+	if err != nil && errors.Is(err, ErrHPLMNUnreachable) && c.NfInstanceID != "" {
 		h.sbi.Forget(partnerID, c.NfInstanceID)
 	}
+}
+
+func (h *AMFHPLMN) forgetOnFailure(partnerID string, c wire.Candidate, err error) {
+	if pd, ok := ProblemOf(err); ok && pd.Status == http.StatusNotFound && pd.Cause == wire.CauseUserNotFound && c.NfInstanceID != "" {
+		h.sbi.Forget(partnerID, c.NfInstanceID)
+		return
+	}
+
+	h.forgetOnTransportError(partnerID, c, err)
 }
 
 func lastSegment(uri string) string {

@@ -28,7 +28,7 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, req Locatio
 		return nil, err
 	}
 
-	if err := l.checkPrivacy(ctx, supi); err != nil {
+	if err := l.refuseRoamer(supi); err != nil {
 		return nil, err
 	}
 

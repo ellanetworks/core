@@ -73,7 +73,7 @@ func RegisterRadioEventDrops(dropped func() uint64) {
 	}, func() float64 { return float64(dropped()) }))
 }
 
-func RegisterRadioGauges(radios5G func() int, subscribers5G func() (home, roamers int), radios4G func() int, subscribers4G func() (home, roamers int)) {
+func RegisterRadioGauges(radios5G func() int, subscribers5G func() (own, roamers int), radios4G func() int, subscribers4G func() (own, roamers int)) {
 	radiosDesc := prometheus.NewDesc(
 		"app_connected_radios",
 		"Number of radios currently connected to Ella Core, by RAT (5G gNBs, 4G eNBs).",
@@ -94,9 +94,9 @@ func RegisterRadioGauges(radios5G func() int, subscribers5G func() (home, roamer
 		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(radios4G)), RAT4G)
 
 		for rat, count := range map[string]func() (int, int){RAT5G: subscribers5G, RAT4G: subscribers4G} {
-			home, roamers := splitOrZero(count)
+			own, roamers := splitOrZero(count)
 
-			ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(home), rat, RoamingFalse)
+			ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(own), rat, RoamingFalse)
 
 			ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(roamers), rat, RoamingTrue)
 		}

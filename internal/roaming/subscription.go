@@ -7,24 +7,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/netip"
 	"strings"
-	"sync/atomic"
 
 	"github.com/ellanetworks/core/diameter/s6a"
+	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 const IMSAPN = "ims"
 
 var (
-	ErrAPNNotSubscribed   = errors.New("APN not subscribed by the home network")
-	ErrHomeRouted         = errors.New("APN subscribed for home-routed roaming only")
-	ErrIMSAPN             = errors.New("the IMS APN is home-routed for roamers")
-	ErrBarred             = errors.New("APN barred by operator determined barring")
-	ErrNotLocal           = fmt.Errorf("%w: not a local data network of the roaming partner", models.ErrUnknownAPN)
-	ErrNoHomeSubscription = errors.New("no home subscription for the visitor on this node")
+	ErrAPNNotSubscribed    = errors.New("APN not subscribed by the home network")
+	ErrHomeRouted          = errors.New("APN subscribed for home-routed roaming only")
+	ErrIMSAPN              = errors.New("the IMS APN is home-routed for roamers")
+	ErrBarred              = errors.New("APN barred by operator determined barring")
+	ErrNotLocal            = fmt.Errorf("%w: not a local data network of the roaming partner", models.ErrUnknownAPN)
+	ErrNoHPLMNSubscription = errors.New("no home subscription for the visitor on this node")
 )
 
 func Breakout(home *s6a.SubscriptionData, apn string) (string, s6a.APNConfiguration, error) {
@@ -51,7 +51,7 @@ func Breakout(home *s6a.SubscriptionData, apn string) (string, s6a.APNConfigurat
 		return "", s6a.APNConfiguration{}, ErrIMSAPN
 	case !ok:
 		return "", s6a.APNConfiguration{}, ErrAPNNotSubscribed
-	case barred(home):
+	case home.BarsVisitedPLMNAccessPoints():
 		return "", s6a.APNConfiguration{}, ErrBarred
 	case !localBreakoutAllowed(c):
 		return "", s6a.APNConfiguration{}, ErrHomeRouted
@@ -71,14 +71,6 @@ func DefaultAPN(home *s6a.SubscriptionData) string {
 	}
 
 	return strings.ToLower(c.ServiceSelection)
-}
-
-func barred(home *s6a.SubscriptionData) bool {
-	if home.SubscriberStatus == nil || *home.SubscriberStatus != s6a.SubscriberStatusOperatorDeterminedBarring || home.OperatorDeterminedBarring == nil {
-		return false
-	}
-
-	return *home.OperatorDeterminedBarring&(s6a.ODBAllPacketOrientedServices|s6a.ODBRoamerAccessVPLMNAP) != 0
 }
 
 func localBreakoutAllowed(c s6a.APNConfiguration) bool {
@@ -166,112 +158,43 @@ func ambrOf(a s6a.AMBR) models.Ambr {
 }
 
 type Local interface {
-	IsHomeSubscriber(ctx context.Context, imsi string) (bool, error)
-	AccessAndMobility(ctx context.Context, imsi string) (*udm.AccessAndMobilitySubscription, error)
 	UEAMBR(ctx context.Context, imsi string) (models.Ambr, error)
 	SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error)
-	FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error)
-	StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error)
 }
 
-type HomeData struct {
+type HPLMNData struct {
 	PLMN         models.PlmnID
 	Subscription *s6a.SubscriptionData
 }
 
-type HomeSubscriptions interface {
-	VisitorHome(imsi string) (HomeData, bool)
-}
-
-type homes struct {
-	HomeSubscriptions
+type HPLMNDataSource interface {
+	VisitorHPLMN(imsi string) (HPLMNData, bool)
 }
 
 type N26Policy interface {
 	Allowed(ctx context.Context, imsi string) (bool, error)
 }
 
-type n26 struct {
-	N26Policy
-}
-
 type Subscriptions struct {
-	local Local
-	homes atomic.Pointer[homes]
-	n26   atomic.Pointer[n26]
+	local  Local
+	hplmns HPLMNDataSource
 }
 
-func NewSubscriptions(local Local, h HomeSubscriptions) *Subscriptions {
-	s := &Subscriptions{local: local}
-	s.SetHomeSubscriptions(h)
-
-	return s
+func NewSubscriptions(local Local, h HPLMNDataSource) *Subscriptions {
+	return &Subscriptions{local: local, hplmns: h}
 }
 
-func (s *Subscriptions) SetHomeSubscriptions(h HomeSubscriptions) {
-	if h == nil {
-		s.homes.Store(nil)
-		return
+func (s *Subscriptions) hplmn(imsi string) (*s6a.SubscriptionData, bool) {
+	if s.hplmns == nil {
+		return nil, false
 	}
 
-	s.homes.Store(&homes{h})
-}
-
-func (s *Subscriptions) visitorHome(imsi string) (HomeData, bool) {
-	h := s.homes.Load()
-	if h == nil {
-		return HomeData{}, false
-	}
-
-	d, ok := h.VisitorHome(imsi)
+	d, ok := s.hplmns.VisitorHPLMN(imsi)
 	if !ok || d.Subscription == nil {
-		return HomeData{}, false
+		return nil, false
 	}
 
-	return d, true
-}
-
-func (s *Subscriptions) home(imsi string) (*s6a.SubscriptionData, bool) {
-	d, ok := s.visitorHome(imsi)
-
-	return d.Subscription, ok
-}
-
-func (s *Subscriptions) SetN26(p N26Policy) {
-	if p == nil {
-		s.n26.Store(nil)
-		return
-	}
-
-	s.n26.Store(&n26{p})
-}
-
-func (s *Subscriptions) IsHomeSubscriber(ctx context.Context, imsi string) (bool, error) {
-	return s.local.IsHomeSubscriber(ctx, imsi)
-}
-
-func (s *Subscriptions) N26Allowed(ctx context.Context, imsi string) (bool, error) {
-	if p := s.n26.Load(); p != nil {
-		return p.Allowed(ctx, imsi)
-	}
-
-	return s.local.IsHomeSubscriber(ctx, imsi)
-}
-
-func (s *Subscriptions) AccessAndMobility(ctx context.Context, imsi string) (*udm.AccessAndMobilitySubscription, error) {
-	am, err := s.local.AccessAndMobility(ctx, imsi)
-	if err != nil || !am.Visitor {
-		return am, err
-	}
-
-	home, ok := s.home(imsi)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrNoHomeSubscription, imsi)
-	}
-
-	am.UEAMBR = UEAMBR(am.UEAMBR, home)
-
-	return am, nil
+	return d.Subscription, true
 }
 
 func (s *Subscriptions) UEAMBR(ctx context.Context, imsi string) (models.Ambr, error) {
@@ -280,26 +203,9 @@ func (s *Subscriptions) UEAMBR(ctx context.Context, imsi string) (models.Ambr, e
 		return models.Ambr{}, err
 	}
 
-	home, _ := s.home(imsi)
+	home, _ := s.hplmn(imsi)
 
 	return UEAMBR(ambr, home), nil
-}
-
-func (s *Subscriptions) SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error) {
-	sm, err := s.local.SessionManagement(ctx, imsi)
-	if err != nil || !sm.Visitor {
-		return sm, err
-	}
-
-	home, ok := s.visitorHome(imsi)
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrNoHomeSubscription, imsi)
-	}
-
-	merged := mergeSessionManagement(sm, home.Subscription)
-	merged.HomePLMN = home.PLMN
-
-	return merged, nil
 }
 
 func (s *Subscriptions) SelectAPN(ctx context.Context, imsi, requested string) (string, error) {
@@ -309,18 +215,18 @@ func (s *Subscriptions) SelectAPN(ctx context.Context, imsi, requested string) (
 	}
 
 	if !sm.Visitor {
-		return selectHomeAPN(sm, imsi, requested)
+		return selectOwnAPN(sm, imsi, requested)
 	}
 
-	home, ok := s.home(imsi)
+	home, ok := s.hplmn(imsi)
 	if !ok {
-		return "", fmt.Errorf("%w: %s", ErrNoHomeSubscription, imsi)
+		return "", fmt.Errorf("%w: %s", ErrNoHPLMNSubscription, imsi)
 	}
 
 	return SelectAPN(home, sm, requested)
 }
 
-func selectHomeAPN(sm *udm.SessionManagementSubscription, imsi, requested string) (string, error) {
+func selectOwnAPN(sm *udm.SessionManagementSubscription, imsi, requested string) (string, error) {
 	if requested == "" {
 		c, ok := sm.DefaultAPN()
 		if !ok {
@@ -330,17 +236,70 @@ func selectHomeAPN(sm *udm.SessionManagementSubscription, imsi, requested string
 		return c.DNN, nil
 	}
 
-	if _, ok := sm.ForAPN(requested); !ok {
+	c, ok := sm.ForAPN(requested)
+	if !ok {
 		return "", models.ErrUnknownAPN
 	}
 
-	return requested, nil
+	return c.DNN, nil
 }
 
-func (s *Subscriptions) FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error) {
-	return s.local.FramedRoutes(ctx, imsi, dnn)
+func APNSubscription(hplmn models.PlmnID, home *s6a.SubscriptionData, apn string) (*models.APNSubscription, error) {
+	_, c, err := Breakout(home, apn)
+	if err != nil {
+		return nil, err
+	}
+
+	sub := &models.APNSubscription{
+		HPLMN:                   hplmn,
+		PDNTypes:                pdnTypes(c.PDNType),
+		ChargingCharacteristics: home.ChargingCharacteristics,
+		MSISDN:                  home.MSISDN,
+	}
+
+	if c.ChargingCharacteristics != "" {
+		sub.ChargingCharacteristics = c.ChargingCharacteristics
+	}
+
+	if c.AMBR != nil {
+		sub.APNAMBR = new(ambrOf(*c.AMBR))
+	}
+
+	if c.QoS != nil {
+		sub.QCI = uint8(min(c.QoS.QCI, 255))
+		sub.ARP = arpOf(c.QoS.ARP)
+	}
+
+	return sub, nil
 }
 
-func (s *Subscriptions) StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error) {
-	return s.local.StaticIP(ctx, imsi, dnn, ipv6)
+func pdnTypes(t s6a.PDNType) []eps.PDNType {
+	switch t {
+	case s6a.PDNTypeIPv4:
+		return []eps.PDNType{eps.PDNTypeIPv4}
+	case s6a.PDNTypeIPv6:
+		return []eps.PDNType{eps.PDNTypeIPv6}
+	case s6a.PDNTypeIPv4OrIPv6:
+		return []eps.PDNType{eps.PDNTypeIPv4, eps.PDNTypeIPv6}
+	default:
+		return []eps.PDNType{eps.PDNTypeIPv4v6}
+	}
+}
+
+func arpOf(a tgpp.AllocationRetentionPriority) models.Arp {
+	arp := models.Arp{
+		PriorityLevel: int32(min(a.PriorityLevel, 15)),
+		PreemptCap:    models.PreemptionCapabilityNotPreempt,
+		PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
+	}
+
+	if a.PreemptionCapability == tgpp.PreemptionCapabilityEnabled {
+		arp.PreemptCap = models.PreemptionCapabilityMayPreempt
+	}
+
+	if a.PreemptionVulnerability == tgpp.PreemptionVulnerabilityEnabled {
+		arp.PreemptVuln = models.PreemptionVulnerabilityPreemptable
+	}
+
+	return arp
 }

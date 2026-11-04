@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -29,23 +28,23 @@ const (
 )
 
 var (
-	ErrNoHomeNetwork    = errors.New("amf: this node cannot reach home networks")
-	ErrNotVisitor       = errors.New("amf: no visitor context for the SUPI")
-	ErrHomeSUPIMismatch = errors.New("amf: the home network authenticated a SUPI outside the partner's PLMN")
-	ErrReauthenticate   = errors.New("amf: the home network requires re-authentication")
+	ErrNoHPLMNClient     = errors.New("amf: this node cannot reach home networks")
+	ErrNotVisitor        = errors.New("amf: no visitor context for the SUPI")
+	ErrHPLMNSUPIMismatch = errors.New("amf: the home network authenticated a SUPI outside the partner's PLMN")
+	ErrReauthenticate    = errors.New("amf: the home network requires re-authentication")
 )
 
-type HomeNetwork interface {
-	Authenticate(ctx context.Context, t roaming.HomeTarget, supiOrSuci string, resync *wire.ResynchronizationInfo) (roaming.Challenge, error)
-	Confirm(ctx context.Context, t roaming.HomeTarget, confirmURI, supiOrSuci string, resStar [16]byte) (string, [32]byte, error)
-	Unconfirmed(ctx context.Context, t roaming.HomeTarget, confirmURI string) error
-	RemoveAuthentication(ctx context.Context, t roaming.HomeTarget, confirmURI string) error
-	Register(ctx context.Context, t roaming.HomeTarget, supi string, reg wire.Amf3GppAccessRegistration) error
-	Deregister(ctx context.Context, t roaming.HomeTarget, supi string, guami wire.Guami) error
-	SubscriptionData(ctx context.Context, t roaming.HomeTarget, supi string) (wire.SubscriptionDataSets, error)
-	Subscribe(ctx context.Context, t roaming.HomeTarget, supi string, sub wire.SdmSubscription) (roaming.SDMSubscription, error)
-	Unsubscribe(ctx context.Context, t roaming.HomeTarget, uri string) error
-	AcknowledgeSoR(ctx context.Context, t roaming.HomeTarget, supi string, ack wire.AcknowledgeInfo) error
+type HPLMNClient interface {
+	Authenticate(ctx context.Context, t roaming.HPLMNTarget, supiOrSuci string, resync *wire.ResynchronizationInfo) (roaming.Challenge, error)
+	Confirm(ctx context.Context, t roaming.HPLMNTarget, confirmURI, supiOrSuci string, resStar [16]byte) (string, [32]byte, error)
+	Unconfirmed(ctx context.Context, t roaming.HPLMNTarget, confirmURI string) error
+	RemoveAuthentication(ctx context.Context, t roaming.HPLMNTarget, confirmURI string) error
+	Register(ctx context.Context, t roaming.HPLMNTarget, supi string, reg wire.Amf3GppAccessRegistration) (roaming.UDMBinding, error)
+	Deregister(ctx context.Context, t roaming.HPLMNTarget, supi string, guami wire.Guami) error
+	SubscriptionData(ctx context.Context, t roaming.HPLMNTarget, supi string) (wire.SubscriptionDataSets, error)
+	Subscribe(ctx context.Context, t roaming.HPLMNTarget, supi string, sub wire.SdmSubscription) (roaming.SDMSubscription, error)
+	Unsubscribe(ctx context.Context, t roaming.HPLMNTarget, uri string) error
+	AcknowledgeSoR(ctx context.Context, t roaming.HPLMNTarget, supi string, ack wire.AcknowledgeInfo) error
 }
 
 type N32Gate interface {
@@ -55,6 +54,10 @@ type N32Gate interface {
 type RoamingStore interface {
 	ListRoamingPartners(ctx context.Context) ([]db.RoamingPartner, error)
 	CountSubscribersAndVisitors(ctx context.Context) (int, error)
+}
+
+type VisitorMSISDNStore interface {
+	SetVisitorMSISDN(ctx context.Context, imsi, msisdn string) error
 }
 
 type Rejection struct {
@@ -110,7 +113,7 @@ func (ue *UeContext) updateVisitor(f func(v *roaming.Visitor5G)) {
 	}
 }
 
-func (amf *AMF) VisitorHome(imsi string) (roaming.Visitor5G, bool) {
+func (amf *AMF) VisitorHPLMN(imsi string) (roaming.Visitor5G, bool) {
 	ue, ok := amf.lookupUeByIMSI(imsi)
 	if !ok {
 		return roaming.Visitor5G{}, false
@@ -119,7 +122,7 @@ func (amf *AMF) VisitorHome(imsi string) (roaming.Visitor5G, bool) {
 	return ue.Visitor()
 }
 
-func homeOfUE(ue *UeContext) (string, string, bool) {
+func hplmnOfUE(ue *UeContext) (string, string, bool) {
 	if suci := ue.Suci(); suci != "" {
 		s, err := wire.ParseSuci(suci)
 		if err != nil {
@@ -141,7 +144,7 @@ func (amf *AMF) AdmitVisitor(ctx context.Context, ue *UeContext) error {
 		return nil
 	}
 
-	prefix, routingIndicator, ok := homeOfUE(ue)
+	prefix, routingIndicator, ok := hplmnOfUE(ue)
 	if !ok {
 		ue.setVisitor(nil)
 		return nil
@@ -189,19 +192,29 @@ func (amf *AMF) AdmitVisitor(ctx context.Context, ue *UeContext) error {
 
 	visitor := roaming.NewVisitor5G(partner, plmn, op, routingIndicator)
 
-	if current, ok := ue.Visitor(); ok && current.PartnerID == visitor.PartnerID && current.Home.PLMN == visitor.Home.PLMN {
-		if visitor.Home.RoutingIndicator == "" {
-			visitor.Home.RoutingIndicator = current.Home.RoutingIndicator
+	if supi := ue.Supi(); supi.IsIMSI() {
+		visitor.HPLMN.Supi = "imsi-" + supi.IMSI()
+	}
+
+	if current, ok := ue.Visitor(); ok && current.PartnerID == visitor.PartnerID && current.HPLMN.PLMN == visitor.HPLMN.PLMN {
+		if visitor.HPLMN.RoutingIndicator == "" {
+			visitor.HPLMN.RoutingIndicator = current.HPLMN.RoutingIndicator
 		}
 
-		current.Home = visitor.Home
+		if visitor.HPLMN.Supi == "" || visitor.HPLMN.Supi == current.HPLMN.Supi {
+			visitor.HPLMN.Supi = current.HPLMN.Supi
+			visitor.HPLMN.UDMGroupID = current.HPLMN.UDMGroupID
+			visitor.HPLMN.UDMInstanceID = current.HPLMN.UDMInstanceID
+		}
+
+		current.HPLMN = visitor.HPLMN
 		current.ConfirmURI = ""
 		visitor = current
 	}
 
 	ue.setVisitor(&visitor)
 
-	logger.From(ctx, logger.AmfLog).Info("inbound roamer", zap.String("roaming_partner", partner.Name), zap.String("home_plmn", visitor.Home.PLMN.String()))
+	logger.From(ctx, logger.AmfLog).Info("inbound roamer", zap.String("roaming_partner", partner.Name), zap.String("home_plmn", visitor.HPLMN.PLMN.String()))
 
 	return nil
 }
@@ -251,7 +264,7 @@ func (amf *AMF) checkVisitorCapacity(ctx context.Context, imsi string) error {
 	return nil
 }
 
-func (amf *AMF) awaitHome(ctx context.Context, ue *UeContext, conn *UeConn, key, procedure string, job, resume func(context.Context)) {
+func (amf *AMF) awaitHPLMN(ctx context.Context, ue *UeContext, conn *UeConn, key, procedure string, job, resume func(context.Context)) {
 	ctx = context.WithoutCancel(ctx)
 
 	conn.Await(func() {
@@ -285,12 +298,12 @@ func authKey(ue *UeContext) string {
 }
 
 func (amf *AMF) waitN32(ctx context.Context, v roaming.Visitor5G) error {
-	if amf.N32 == nil || amf.HomeNetwork == nil {
-		return fmt.Errorf("%w: %w", roaming.ErrHomeUnreachable, ErrNoHomeNetwork)
+	if amf.N32 == nil || amf.HPLMN == nil {
+		return fmt.Errorf("%w: %w", roaming.ErrHPLMNUnreachable, ErrNoHPLMNClient)
 	}
 
 	if err := amf.N32.WaitEstablished(ctx, v.PartnerID, N32Wait); err != nil {
-		return fmt.Errorf("%w: %w", roaming.ErrHomeUnreachable, err)
+		return fmt.Errorf("%w: %w", roaming.ErrHPLMNUnreachable, err)
 	}
 
 	return nil
@@ -313,7 +326,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 	var resyncInfo *wire.ResynchronizationInfo
 
 	if resync != nil {
-		r, err := homeResync(conn, resync)
+		r, err := hplmnResync(conn, resync)
 		if err != nil {
 			done(ctx, nil, err)
 			return
@@ -329,7 +342,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 		err    error
 	)
 
-	amf.awaitHome(ctx, ue, conn, authKey(ue), "Nausf_UEAuthentication_Authenticate", func(ctx context.Context) {
+	amf.awaitHPLMN(ctx, ue, conn, authKey(ue), "Nausf_UEAuthentication_Authenticate", func(ctx context.Context) {
 		if err = amf.waitN32(ctx, v); err != nil {
 			return
 		}
@@ -340,7 +353,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 
 		var c roaming.Challenge
 
-		c, err = amf.HomeNetwork.Authenticate(ctx, v.Home, id, resyncInfo)
+		c, err = amf.HPLMN.Authenticate(ctx, v.HPLMN, id, resyncInfo)
 		if err != nil {
 			return
 		}
@@ -352,11 +365,12 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 
 		result = &ausf.AuthResult{Rand: hex.EncodeToString(c.RAND[:]), Autn: hex.EncodeToString(c.AUTN[:]), HxresStar: hex.EncodeToString(c.HXRESStar[:])}
 	}, func(ctx context.Context) {
+		amf.noteHPLMNFailure(ctx, v, HPLMNAuthenticate, err, AuthenticationRejection)
 		done(ctx, result, err)
 	})
 }
 
-func homeResync(conn *UeConn, resync *ausf.ResyncInfo) (*wire.ResynchronizationInfo, error) {
+func hplmnResync(conn *UeConn, resync *ausf.ResyncInfo) (*wire.ResynchronizationInfo, error) {
 	if conn.AuthenticationCtx == nil {
 		return nil, errors.New("amf: re-synchronisation without a previous challenge")
 	}
@@ -396,20 +410,20 @@ func (amf *AMF) RequestConfirmation(ctx context.Context, ue *UeContext, conn *Ue
 		err   error
 	)
 
-	amf.awaitHome(ctx, ue, conn, authKey(ue), "Nausf_UEAuthentication_Authenticate (confirmation)", func(ctx context.Context) {
+	amf.awaitHPLMN(ctx, ue, conn, authKey(ue), "Nausf_UEAuthentication_Authenticate (confirmation)", func(ctx context.Context) {
 		var (
 			s string
 			k [32]byte
 		)
 
-		s, k, err = amf.HomeNetwork.Confirm(ctx, v.Home, v.ConfirmURI, id, resStar)
+		s, k, err = amf.HPLMN.Confirm(ctx, v.HPLMN, v.ConfirmURI, id, resStar)
 		if err != nil {
 			return
 		}
 
 		imsi, ok := wire.IMSIFromSupi(s)
-		if !ok || !strings.HasPrefix(imsi, v.Home.PLMN.Mcc+v.Home.PLMN.Mnc) {
-			err = fmt.Errorf("%w: %s", ErrHomeSUPIMismatch, s)
+		if !ok || !strings.HasPrefix(imsi, v.HPLMN.PLMN.Mcc+v.HPLMN.PLMN.Mnc) {
+			err = fmt.Errorf("%w: %s", ErrHPLMNSUPIMismatch, s)
 			return
 		}
 
@@ -424,15 +438,22 @@ func (amf *AMF) RequestConfirmation(ctx context.Context, ue *UeContext, conn *Ue
 			if cur.ConfirmURI == v.ConfirmURI {
 				cur.Confirmed = true
 			}
+
+			if cur.HPLMN.Supi != s {
+				cur.HPLMN.Supi = s
+				cur.HPLMN.UDMGroupID = ""
+				cur.HPLMN.UDMInstanceID = ""
+			}
 		})
 	}, func(ctx context.Context) {
+		amf.noteHPLMNFailure(ctx, v, HPLMNConfirm, err, ConfirmationRejection)
 		done(ctx, supi, kseaf, err)
 	})
 }
 
 func (amf *AMF) AuthenticationFailed(ctx context.Context, ue *UeContext) {
 	v, ok := ue.Visitor()
-	if !ok || v.ConfirmURI == "" || amf.HomeNetwork == nil {
+	if !ok || v.ConfirmURI == "" || amf.HPLMN == nil {
 		return
 	}
 
@@ -444,12 +465,12 @@ func (amf *AMF) AuthenticationFailed(ctx context.Context, ue *UeContext) {
 }
 
 func (amf *AMF) unconfirm(ctx context.Context, v roaming.Visitor5G) {
-	if err := amf.HomeNetwork.Unconfirmed(ctx, v.Home, v.ConfirmURI); err != nil {
+	if err := amf.HPLMN.Unconfirmed(ctx, v.HPLMN, v.ConfirmURI); err != nil {
 		logger.From(ctx, logger.AmfLog).Info("the home AUSF did not take the failed authentication", zap.String("roaming_partner", v.PartnerName), zap.Error(err))
 	}
 }
 
-func (amf *AMF) homeIdentity(ctx context.Context, imsi string, kind sepp.CallbackKind) (string, string, wire.Guami, error) {
+func (amf *AMF) hplmnIdentity(ctx context.Context, imsi string, kind sepp.CallbackKind) (string, string, wire.Guami, error) {
 	info, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		return "", "", wire.Guami{}, err
@@ -471,7 +492,7 @@ func (amf *AMF) homeIdentity(ctx context.Context, imsi string, kind sepp.Callbac
 	return roaming.NFInstanceID(sepp.CallbackHost(sepp.CallbackAMF, seppID, op)), callback, guami, nil
 }
 
-func (amf *AMF) RequestHomeRegistration(ctx context.Context, ue *UeContext, conn *UeConn, initial bool, done func(context.Context, error)) {
+func (amf *AMF) RequestHPLMNRegistration(ctx context.Context, ue *UeContext, conn *UeConn, initial bool, done func(context.Context, error)) {
 	v, visitor := ue.Visitor()
 	if !visitor || (v.Registered && v.Subscription != nil) {
 		done(ctx, nil)
@@ -489,14 +510,15 @@ func (amf *AMF) RequestHomeRegistration(ctx context.Context, ue *UeContext, conn
 
 	var err error
 
-	amf.awaitHome(ctx, ue, conn, imsi, "Nudm_UECM_Registration", func(ctx context.Context) {
-		err = amf.registerAtHome(ctx, ue, imsi, pei, initial)
+	amf.awaitHPLMN(ctx, ue, conn, imsi, "Nudm_UECM_Registration", func(ctx context.Context) {
+		err = amf.registerAtHPLMN(ctx, ue, imsi, pei, initial)
 	}, func(ctx context.Context) {
+		amf.noteHPLMNFailure(ctx, v, HPLMNRegister, err, HPLMNRegistrationRejection)
 		done(ctx, err)
 	})
 }
 
-func (amf *AMF) registerAtHome(ctx context.Context, ue *UeContext, imsi, pei string, initial bool) error {
+func (amf *AMF) registerAtHPLMN(ctx context.Context, ue *UeContext, imsi, pei string, initial bool) error {
 	if err := amf.checkVisitorCapacity(ctx, imsi); err != nil {
 		return err
 	}
@@ -510,12 +532,12 @@ func (amf *AMF) registerAtHome(ctx context.Context, ue *UeContext, imsi, pei str
 		return err
 	}
 
-	instanceID, deregCallback, guami, err := amf.homeIdentity(ctx, imsi, sepp.CallbackUECMDereg)
+	instanceID, deregCallback, guami, err := amf.hplmnIdentity(ctx, imsi, sepp.CallbackUECMDereg)
 	if err != nil {
 		return err
 	}
 
-	_, changeCallback, _, err := amf.homeIdentity(ctx, imsi, sepp.CallbackSDMChange)
+	_, changeCallback, _, err := amf.hplmnIdentity(ctx, imsi, sepp.CallbackSDMChange)
 	if err != nil {
 		return err
 	}
@@ -545,27 +567,37 @@ func (amf *AMF) registerAtHome(ctx context.Context, ue *UeContext, imsi, pei str
 			cur.Guami = &guami
 		})
 
-		if err := amf.HomeNetwork.Register(ctx, v.Home, supi, reg); err != nil {
+		v.HPLMN.Supi = supi
+
+		binding, err := amf.HPLMN.Register(ctx, v.HPLMN, supi, reg)
+		if err != nil {
 			if _, refused := roaming.ProblemOf(err); refused {
 				ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.Registered = false })
 			}
 
-			return err
+			return hplmnFailure(HPLMNRegister, err)
 		}
 
-		log.Info("registered the visitor at its home UDM")
+		v.HPLMN.UDMInstanceID, v.HPLMN.UDMGroupID = binding.InstanceID, binding.GroupID
+
+		ue.updateVisitor(func(cur *roaming.Visitor5G) {
+			cur.HPLMN.Supi = supi
+			cur.HPLMN.UDMInstanceID, cur.HPLMN.UDMGroupID = binding.InstanceID, binding.GroupID
+		})
+
+		log.Info("registered the visitor at its home UDM", zap.String("udm_instance", binding.InstanceID), zap.String("udm_group", binding.GroupID))
 	}
 
-	data, err := amf.HomeNetwork.SubscriptionData(ctx, v.Home, supi)
+	data, err := amf.HPLMN.SubscriptionData(ctx, v.HPLMN, supi)
 	if err != nil {
-		return err
+		return hplmnFailure(HPLMNSubscriptionData, err)
 	}
 
-	if r := homeSubscriptionRestriction(data.AmData); r != nil {
+	if r := hplmnSubscriptionRestriction(data.AmData); r != nil {
 		return r
 	}
 
-	sor, sorErr := roaming.SoRFromHome(sorInfoOf(data.AmData))
+	sor, sorErr := roaming.SoRFromHPLMN(sorInfoOf(data.AmData))
 	if sorErr != nil {
 		log.Warn("ignoring the steering of roaming information of the home network", zap.Error(sorErr))
 	}
@@ -576,21 +608,21 @@ func (amf *AMF) registerAtHome(ctx context.Context, ue *UeContext, imsi, pei str
 	})
 
 	if v.SDM == nil {
-		amf.subscribeAtHome(ctx, ue, v, supi, instanceID, changeCallback)
+		amf.subscribeAtHPLMN(ctx, ue, v, supi, instanceID, changeCallback)
 	}
 
 	return nil
 }
 
-func (amf *AMF) subscribeAtHome(ctx context.Context, ue *UeContext, v roaming.Visitor5G, supi, instanceID, callback string) {
-	serving := v.Home.Serving
+func (amf *AMF) subscribeAtHPLMN(ctx context.Context, ue *UeContext, v roaming.Visitor5G, supi, instanceID, callback string) {
+	serving := v.HPLMN.Serving
 	implicit := true
 
-	sub, err := amf.HomeNetwork.Subscribe(ctx, v.Home, supi, wire.SdmSubscription{
+	sub, err := amf.HPLMN.Subscribe(ctx, v.HPLMN, supi, wire.SdmSubscription{
 		NfInstanceID:          instanceID,
 		ImplicitUnsubscribe:   implicit,
 		CallbackReference:     callback,
-		MonitoredResourceUris: []string{supi + "/am-data", supi + "/smf-select-data"},
+		MonitoredResourceUris: []string{wire.SDMAmDataPath(supi), wire.SDMSmfSelectDataPath(supi)},
 		PlmnID:                &serving,
 	})
 	if err != nil {
@@ -603,6 +635,22 @@ func (amf *AMF) subscribeAtHome(ctx context.Context, ue *UeContext, v roaming.Vi
 	ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.SDM = &sub })
 }
 
+func (amf *AMF) syncVisitorMSISDN(ctx context.Context, ue *UeContext) {
+	v, ok := ue.Visitor()
+	supi := ue.Supi()
+
+	store, isStore := amf.Roaming.(VisitorMSISDNStore)
+	if !ok || !isStore || !supi.IsIMSI() || v.AccessAndMobility() == nil {
+		return
+	}
+
+	msisdn, _ := v.AccessAndMobility().MSISDN()
+
+	if err := store.SetVisitorMSISDN(ctx, supi.IMSI(), msisdn); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to store the visitor's MSISDN from its home subscription", logger.SUPI(supi.String()), zap.Error(err))
+	}
+}
+
 func sorInfoOf(am *wire.AccessAndMobilitySubscriptionData) *wire.SorInfo {
 	if am == nil {
 		return nil
@@ -611,7 +659,7 @@ func sorInfoOf(am *wire.AccessAndMobilitySubscriptionData) *wire.SorInfo {
 	return am.SorInfo
 }
 
-func homeSubscriptionRestriction(am *wire.AccessAndMobilitySubscriptionData) *Rejection {
+func hplmnSubscriptionRestriction(am *wire.AccessAndMobilitySubscriptionData) *Rejection {
 	switch {
 	case am == nil:
 		return reject(fgs.GMMCauseN1ModeNotAllowed, "the home network returned no access and mobility subscription")
@@ -626,93 +674,9 @@ func homeSubscriptionRestriction(am *wire.AccessAndMobilitySubscriptionData) *Re
 	return nil
 }
 
-func AuthenticationRejection(err error) (*Rejection, bool) {
-	var r *Rejection
-	if errors.As(err, &r) {
-		return r, true
-	}
-
-	if errors.Is(err, roaming.ErrUnsupportedAuthType) {
-		return reject(fgs.GMMCauseN1ModeNotAllowed, err.Error()), true
-	}
-
-	if errors.Is(err, ErrHomeSUPIMismatch) {
-		return &Rejection{AuthReject: true, Reason: err.Error()}, true
-	}
-
-	pd, ok := roaming.ProblemOf(err)
-	if !ok {
-		return nil, false
-	}
-
-	switch {
-	case pd.Status == http.StatusForbidden && (pd.Cause == wire.CauseServingNetworkNotAuthorized || pd.Cause == ""):
-		return reject(fgs.GMMCausePLMNNotAllowed, pd.Error()), true
-	case pd.Status == http.StatusForbidden, pd.Status == http.StatusNotFound, pd.Status == http.StatusNotImplemented,
-		pd.Status == http.StatusBadRequest && (pd.Cause == wire.CauseInvalidSchemeOutput || pd.Cause == wire.CauseInvalidHNPublicKeyIdentifier):
-		return &Rejection{AuthReject: true, Reason: pd.Error()}, true
-	}
-
-	return nil, false
-}
-
-func ConfirmationRejection(err error) (*Rejection, bool) {
-	if errors.Is(err, wire.ErrAuthenticationFailed) {
-		return reject(fgs.GMMCauseIllegalUE, "the home AUSF did not authenticate the UE"), true
-	}
-
-	return AuthenticationRejection(err)
-}
-
-func HomeRegistrationRejection(err error) (*Rejection, bool) {
-	var r *Rejection
-	if errors.As(err, &r) {
-		return r, true
-	}
-
-	pd, ok := roaming.ProblemOf(err)
-	if !ok {
-		return nil, false
-	}
-
-	switch pd.Status {
-	case http.StatusForbidden:
-		switch pd.Cause {
-		case wire.CauseUnknown5GSSubscription:
-			return reject(fgs.GMMCauseN1ModeNotAllowed, pd.Error()), true
-		case wire.CauseAccessNotAllowed, wire.CauseRATNotAllowed:
-			return reject(fgs.GMMCauseNoSuitableCellsInTrackingArea, pd.Error()), true
-		case wire.CauseNoPSSubscription:
-			return reject(fgs.GMMCauseServicesNotAllowed, pd.Error()), true
-		case wire.CauseReauthenticationRequired:
-			return nil, false
-		default:
-			return reject(fgs.GMMCausePLMNNotAllowed, pd.Error()), true
-		}
-	case http.StatusNotFound:
-		switch pd.Cause {
-		case wire.CauseContextNotFound:
-			return reject(fgs.GMMCauseUEIdentityCannotBeDerived, pd.Error()), true
-		case wire.CauseUserNotFound:
-			return reject(fgs.GMMCauseIllegalUE, pd.Error()), true
-		default:
-			return reject(fgs.GMMCauseN1ModeNotAllowed, pd.Error()), true
-		}
-	case http.StatusUnprocessableEntity:
-		return reject(fgs.GMMCauseProtocolErrorUnspecified, pd.Error()), true
-	}
-
-	return nil, false
-}
-
-func IsReauthenticationRequired(err error) bool {
-	pd, ok := roaming.ProblemOf(err)
-	return ok && pd.Status == http.StatusForbidden && pd.Cause == wire.CauseReauthenticationRequired
-}
-
 func (amf *AMF) SoRContainer(ue *UeContext) []byte {
 	v, ok := ue.Visitor()
-	if !ok || v.SoR == nil {
+	if !ok || v.SoR == nil || v.SoR.Delivered {
 		return nil
 	}
 
@@ -721,20 +685,33 @@ func (amf *AMF) SoRContainer(ue *UeContext) []byte {
 
 func (amf *AMF) AcknowledgeSoR(ctx context.Context, ue *UeContext, container []byte) {
 	v, ok := ue.Visitor()
-	if !ok || v.SoR == nil || !v.SoR.AckRequested || amf.HomeNetwork == nil {
+	if !ok || v.SoR == nil || v.SoR.Delivered {
 		return
 	}
 
-	supi := ue.Supi()
+	sor := *v.SoR
 
 	ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.SoR = nil })
 
-	if len(container) == 0 || !supi.IsIMSI() {
+	if !sor.AckRequested {
+		return
+	}
+
+	if len(container) == 0 {
 		logger.From(ctx, logger.AmfLog).Info("the UE did not acknowledge the steering of roaming information")
 		return
 	}
 
-	ack, err := roaming.SoRAcknowledgement(container, v.SoR.ProvisioningTime)
+	amf.relaySoRAck(ctx, ue, v, sor, container)
+}
+
+func (amf *AMF) relaySoRAck(ctx context.Context, ue *UeContext, v roaming.Visitor5G, sor roaming.SoR, container []byte) {
+	supi := ue.Supi()
+	if !supi.IsIMSI() || amf.HPLMN == nil {
+		return
+	}
+
+	ack, err := roaming.SoRAcknowledgement(container, sor.ProvisioningTime)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("malformed steering of roaming acknowledgement", zap.Error(err))
 		return
@@ -744,14 +721,14 @@ func (amf *AMF) AcknowledgeSoR(ctx context.Context, ue *UeContext, container []b
 	imsi := supi.IMSI()
 
 	amf.home.Go(imsi, func() {
-		if err := amf.HomeNetwork.AcknowledgeSoR(ctx, v.Home, "imsi-"+imsi, ack); err != nil {
+		if err := amf.HPLMN.AcknowledgeSoR(ctx, v.HPLMN, "imsi-"+imsi, ack); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to relay the steering of roaming acknowledgement to the home UDM", logger.SUPIFromIMSI(imsi), zap.Error(err))
 		}
 	})
 }
 
 func (amf *AMF) purgeVisitor(ue *UeContext, supi etsi.SUPI) bool {
-	if !supi.IsIMSI() || amf.HomeNetwork == nil {
+	if !supi.IsIMSI() || amf.HPLMN == nil {
 		return false
 	}
 
@@ -767,18 +744,18 @@ func (amf *AMF) purgeVisitor(ue *UeContext, supi etsi.SUPI) bool {
 	imsi := supi.IMSI()
 
 	amf.home.Go(imsi, func() {
-		amf.purgeAtHome(context.Background(), imsi, snapshot)
+		amf.purgeAtHPLMN(context.Background(), imsi, snapshot)
 		amf.purgeRegistration(supi)
 	})
 
 	return true
 }
 
-func (amf *AMF) purgeAtHome(ctx context.Context, imsi string, v roaming.Visitor5G) {
+func (amf *AMF) purgeAtHPLMN(ctx context.Context, imsi string, v roaming.Visitor5G) {
 	log := logger.AmfLog.With(logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", v.PartnerName))
 
 	if v.SDM != nil {
-		if err := amf.HomeNetwork.Unsubscribe(ctx, v.Home, v.SDM.URI); err != nil {
+		if err := amf.HPLMN.Unsubscribe(ctx, v.HPLMN, v.SDM.URI); err != nil {
 			log.Info("failed to unsubscribe from the visitor's home subscription data", zap.Error(err))
 		}
 	}
@@ -788,7 +765,7 @@ func (amf *AMF) purgeAtHome(ctx context.Context, imsi string, v roaming.Visitor5
 	}
 
 	if v.Registered && v.Guami != nil {
-		if err := amf.HomeNetwork.Deregister(ctx, v.Home, "imsi-"+imsi, *v.Guami); err != nil {
+		if err := amf.HPLMN.Deregister(ctx, v.HPLMN, "imsi-"+imsi, *v.Guami); err != nil {
 			log.Warn("failed to purge the visitor at its home UDM", zap.Error(err))
 			return
 		}
@@ -799,7 +776,7 @@ func (amf *AMF) purgeAtHome(ctx context.Context, imsi string, v roaming.Visitor5
 	switch {
 	case v.ConfirmURI == "":
 	case v.Confirmed:
-		if err := amf.HomeNetwork.RemoveAuthentication(ctx, v.Home, v.ConfirmURI); err != nil {
+		if err := amf.HPLMN.RemoveAuthentication(ctx, v.HPLMN, v.ConfirmURI); err != nil {
 			log.Info("failed to remove the authentication result at the home AUSF", zap.Error(err))
 		}
 	default:
@@ -807,6 +784,6 @@ func (amf *AMF) purgeAtHome(ctx context.Context, imsi string, v roaming.Visitor5
 	}
 }
 
-func (amf *AMF) SettleHomeNetwork() {
+func (amf *AMF) SettleHPLMN() {
 	amf.home.Settle()
 }

@@ -30,8 +30,8 @@ var (
 		Help: "S6a requests exchanged with the HSS of a roaming partner, by partner, command (AIR, ULR, PUR, NOR sent; CLR, IDR, DSR, RSR received) and result (Diameter result code, timeout or error).",
 	}, []string{"partner", "command", "result"})
 
-	homeSBIRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "app_roaming_home_sbi_requests_total",
+	hplmnSBIRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "app_roaming_hplmn_sbi_requests_total",
 		Help: "5G requests sent to the home network of a roaming partner, by partner, service and result (HTTP status or error).",
 	}, []string{"partner", "service", "result"})
 
@@ -39,10 +39,19 @@ var (
 		Name: "app_roaming_rejects_total",
 		Help: "Registrations (5G) and attaches (4G) of roamers rejected, by partner, RAT and NAS cause.",
 	}, []string{"partner", "rat", "cause"})
+
+	hplmnTransient = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "app_roaming_hplmn_transient_failures_total",
+		Help: "5G home network failures that carried no subscriber verdict and were treated as transient, by partner, operation, HTTP status and cause.",
+	}, []string{"partner", "operation", "status", "cause"})
 )
 
 func RegisterMetrics(reg prometheus.Registerer) {
-	reg.MustRegister(s6aRequests, homeSBIRequests, rejects)
+	reg.MustRegister(s6aRequests, hplmnSBIRequests, rejects, hplmnTransient)
+}
+
+func RecordHPLMNTransient(partner, operation, status, cause string) {
+	hplmnTransient.WithLabelValues(partnerLabel(partner), operation, status, cause).Inc()
 }
 
 func partnerLabel(name string) string {
@@ -65,13 +74,13 @@ func RecordS6aAnswer(partner string, command uint32, ans *diameter.Message, err 
 	s6aRequests.WithLabelValues(partnerLabel(partner), S6aCommandName(command), diameterResult(ans, err)).Inc()
 }
 
-func recordHomeSBI(partner string, service string, status int, err error) {
+func recordHPLMNSBI(partner string, service string, status int, err error) {
 	result := strconv.Itoa(status)
 	if err != nil || status == 0 {
 		result = resultError
 	}
 
-	homeSBIRequests.WithLabelValues(partnerLabel(partner), service, result).Inc()
+	hplmnSBIRequests.WithLabelValues(partnerLabel(partner), service, result).Inc()
 }
 
 func diameterResult(ans *diameter.Message, err error) string {

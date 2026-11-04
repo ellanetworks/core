@@ -6,6 +6,7 @@ package nas
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/roaming/fakehss"
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/nas"
@@ -33,19 +35,27 @@ func (f *roamingMME) registeredRoamer(t *testing.T) *roamerAttach {
 	return a
 }
 
-func (f *roamingMME) answer(t *testing.T, handler func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message, req *diameter.Message, err error) *diameter.Message {
+type hplmnHandler func(context.Context, diameter.Identity, string, *diameter.Message) *diameter.Message
+
+func (f *roamingMME) answer(t *testing.T, handler hplmnHandler, req *diameter.Message, err error) *diameter.Message {
+	t.Helper()
+
+	return f.answerFrom(t, roaming.DiameterPeerID(*roamerPartner().DiameterPeerID), handler, req, err)
+}
+
+func (f *roamingMME) answerFrom(t *testing.T, ingress string, handler hplmnHandler, req *diameter.Message, err error) *diameter.Message {
 	t.Helper()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ans, err := fakehss.Answer(handler(context.Background(), f.hss.Local, req))
+	ans, err := fakehss.Answer(handler(context.Background(), f.hss.Local, ingress, req))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	return ans
 }
@@ -92,14 +102,14 @@ func TestVisitorPurgeAtRemoval(t *testing.T) {
 			a.ue.Conn().UpdateLocation(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x1234567}, s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0x0102})
 
 			f.m.RemoveUe(context.Background(), a.ue)
-			f.m.SettleHomeNetworkForTest()
+			f.m.SettleHPLMNForTest()
 
 			purs := s6aRequests(t, f.hss, s6a.CommandPurgeUE)
 			if len(purs) != 1 {
 				t.Fatalf("PURs = %d, want 1", len(purs))
 			}
 
-			if env := tgpp.ParseEnvelope(purs[0]); env.DestinationHost != roamerHSSHost || env.DestinationRealm != roamerHomeRealm {
+			if env := tgpp.ParseEnvelope(purs[0]); env.DestinationHost != roamerHSSHost || env.DestinationRealm != roamerHPLMNRealm {
 				t.Fatalf("PUR envelope %+v, want the learnt HSS %s", env, roamerHSSHost)
 			}
 
@@ -131,7 +141,7 @@ func TestVisitorPurgeFailureStillPurgesLocally(t *testing.T) {
 	f.hss.SetDown(true)
 
 	f.m.RemoveUe(context.Background(), a.ue)
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	if got := f.reg.purges(); len(got) != 1 {
 		t.Fatalf("purged = %v, want the local registration purged although the HSS is down", got)
@@ -145,7 +155,7 @@ func TestNoPurgeWithoutAHomeRegistration(t *testing.T) {
 	a := f.attach(t, eps.AttachTypeEPS, "")
 	a.reject(t, true)
 	f.m.RemoveUe(context.Background(), a.ue)
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	if purs := s6aRequests(t, f.hss, s6a.CommandPurgeUE); len(purs) != 0 {
 		t.Fatalf("PURs = %d after a refused ULR, want none", len(purs))
@@ -243,13 +253,13 @@ func TestSlowHomeHSSDoesNotStallOtherUEs(t *testing.T) {
 
 func TestCancelLocation(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		typ       s6a.CancellationType
-		flags     s6a.CLRFlags
-		detach    bool
-		reattach  bool
-		removed   bool
-		purgeHome bool
+		name       string
+		typ        s6a.CancellationType
+		flags      s6a.CLRFlags
+		detach     bool
+		reattach   bool
+		removed    bool
+		purgeHPLMN bool
 	}{
 		{name: "subscription withdrawal", typ: s6a.CancellationSubscriptionWithdrawal, detach: true},
 		{name: "subscription withdrawal with re-attach", typ: s6a.CancellationSubscriptionWithdrawal, flags: s6a.CLRFlagReattachRequired, detach: true, reattach: true},
@@ -275,13 +285,13 @@ func TestCancelLocation(t *testing.T) {
 				}
 
 				f.m.RemoveUe(context.Background(), a.ue)
-				f.m.SettleHomeNetworkForTest()
+				f.m.SettleHPLMNForTest()
 			}
 
 			if tc.removed {
 				parseUEContextReleaseCommand(t, a.last(t))
 				f.m.RemoveUe(context.Background(), a.ue)
-				f.m.SettleHomeNetworkForTest()
+				f.m.SettleHPLMNForTest()
 			}
 
 			if purs := s6aRequests(t, f.hss, s6a.CommandPurgeUE); len(purs) != 0 {
@@ -317,8 +327,44 @@ func TestCancelLocationIgnoresUnknownAndForeignRequests(t *testing.T) {
 		t.Fatalf("CLA for a home subscriber %+v, want DIAMETER_SUCCESS", r)
 	}
 
+	for _, ingress := range []string{roaming.DiameterPeerID("other-partner-peer"), ""} {
+		req, err = f.hss.CancelLocationRequest(s6a.CancelLocationRequest{IMSI: roamerIMSI, Type: s6a.CancellationSubscriptionWithdrawal})
+		if r := resultOf(t, f.answerFrom(t, ingress, f.m.CancelLocation, req, err)); r.Code != diameter.ResultSuccess {
+			t.Fatalf("CLA through peer %q %+v, want DIAMETER_SUCCESS", ingress, r)
+		}
+	}
+
 	if a.cc.count() != sent {
 		t.Fatal("a Cancel Location from outside the roamer's home network detached it")
+	}
+}
+
+func TestInsertSubscriberDataThroughAnotherPeerIsRefused(t *testing.T) {
+	f := newRoamingMME(t)
+	f.registeredRoamer(t)
+
+	barred := s6a.SubscriberStatusOperatorDeterminedBarring
+	odb := s6a.ODBAllPacketOrientedServices
+
+	req, err := f.hss.InsertSubscriberDataRequest(s6a.InsertSubscriberDataRequest{IMSI: roamerIMSI, Subscription: s6a.SubscriptionData{SubscriberStatus: &barred, OperatorDeterminedBarring: &odb}})
+	if got := resultOf(t, f.answerFrom(t, roaming.DiameterPeerID("other-partner-peer"), f.m.InsertSubscriberData, req, err)); got != tgpp.Experimental(tgpp.ResultErrorUserUnknown) {
+		t.Fatalf("IDA result %+v, want DIAMETER_ERROR_USER_UNKNOWN", got)
+	}
+
+	if sub, _ := f.m.HPLMNSubscription(roamerIMSI); sub.OperatorDeterminedBarring != nil {
+		t.Fatal("an IDR through another partner's peer changed the visitor's subscription")
+	}
+}
+
+func TestResetThroughAnotherPeerIsIgnored(t *testing.T) {
+	f := newRoamingMME(t)
+	f.registeredRoamer(t)
+
+	req, err := f.hss.ResetRequest(s6a.ResetRequest{})
+	f.answerFrom(t, roaming.DiameterPeerID("other-partner-peer"), f.m.Reset, req, err)
+
+	if v := mustVisitor(t, f); !v.Confirmed {
+		t.Fatal("a reset through another partner's peer unconfirmed the visitor")
 	}
 }
 
@@ -350,7 +396,7 @@ func TestInsertSubscriberData(t *testing.T) {
 		t.Fatalf("IDA %+v, want the T-ADS data, the user state and the location", ida)
 	}
 
-	sub, ok := f.m.HomeSubscription(roamerIMSI)
+	sub, ok := f.m.HPLMNSubscription(roamerIMSI)
 	if !ok || sub.AMBR.UL != ambr.UL {
 		t.Fatalf("home subscription %+v, want the new AMBR", sub)
 	}
@@ -419,20 +465,89 @@ type visitorView struct {
 	Registered bool
 }
 
-func TestInsertSubscriberDataBarringDetaches(t *testing.T) {
-	f := newRoamingMME(t)
-	a := f.registeredRoamer(t)
+func TestInsertSubscriberDataBarring(t *testing.T) {
+	for name, tc := range map[string]struct {
+		odb    s6a.OperatorDeterminedBarring
+		detach bool
+	}{
+		"all packet oriented services":     {odb: s6a.ODBAllPacketOrientedServices, detach: true},
+		"roamer access to VPLMN-AP":        {odb: s6a.ODBRoamerAccessVPLMNAP, detach: true},
+		"roamer access to HPLMN-AP":        {odb: s6a.ODBRoamerAccessHPLMNAP},
+		"outgoing calls, no packet effect": {odb: s6a.ODBAllOutgoingCalls},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newRoamingMME(t)
+			a := f.registeredRoamer(t)
+			sent := a.cc.count()
 
-	barred := s6a.SubscriberStatusOperatorDeterminedBarring
-	odb := s6a.ODBRoamerAccessVPLMNAP
+			barred := s6a.SubscriberStatusOperatorDeterminedBarring
 
-	req, err := f.hss.InsertSubscriberDataRequest(s6a.InsertSubscriberDataRequest{IMSI: roamerIMSI, Subscription: s6a.SubscriptionData{SubscriberStatus: &barred, OperatorDeterminedBarring: &odb}})
-	if r := resultOf(t, f.answer(t, f.m.InsertSubscriberData, req, err)); r.Code != diameter.ResultSuccess {
-		t.Fatalf("IDA result %+v", r)
+			req, err := f.hss.InsertSubscriberDataRequest(s6a.InsertSubscriberDataRequest{IMSI: roamerIMSI, Subscription: s6a.SubscriptionData{SubscriberStatus: &barred, OperatorDeterminedBarring: &tc.odb}})
+			if r := resultOf(t, f.answer(t, f.m.InsertSubscriberData, req, err)); r.Code != diameter.ResultSuccess {
+				t.Fatalf("IDA result %+v", r)
+			}
+
+			if !tc.detach {
+				if a.cc.count() != sent || a.ue.EMMState() != mme.EMMRegistered {
+					t.Fatal("a barring that spares locally broken out PDN connections touched the visitor")
+				}
+
+				return
+			}
+
+			d := a.networkDetach(t)
+			if d.TypeOfDetach != eps.DetachTypeReattachNotRequired || d.Cause != nil {
+				t.Fatalf("Detach Request %+v, want re-attach not required without an EMM cause", d)
+			}
+		})
 	}
+}
 
-	if d := a.networkDetach(t); d.Cause == nil || *d.Cause != eps.EMMCauseNoSuitableCellsInTrackingArea {
-		t.Fatalf("Detach Request %+v, want EMM cause #15 for operator determined barring", d)
+func TestFailedRestorationDetachesOnAPermanentRefusal(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		cause  eps.EMMCause
+		detach bool
+	}{
+		{name: "user unknown", err: &s6a.ResultError{Result: tgpp.Experimental(tgpp.ResultErrorUserUnknown)}, cause: eps.EMMCauseEPSAndNonEPSServicesNotAllowed, detach: true},
+		{name: "roaming not allowed", err: &s6a.ResultError{Result: tgpp.Experimental(tgpp.ResultErrorRoamingNotAllowed)}, cause: eps.EMMCausePLMNNotAllowed, detach: true},
+		{name: "unable to comply", err: &s6a.ResultError{Result: tgpp.Result{Code: diameter.ResultUnableToComply}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newRoamingMME(t)
+			a := f.registeredRoamer(t)
+
+			req, err := f.hss.ResetRequest(s6a.ResetRequest{})
+			f.answer(t, f.m.Reset, req, err)
+
+			f.hss.FailULR(tc.err)
+
+			sent := a.cc.count()
+
+			if err := f.m.ConfirmRegistration(context.Background(), a.ue); err != nil {
+				t.Fatal(err)
+			}
+
+			f.m.SettleHPLMNForTest()
+
+			if !tc.detach {
+				if a.cc.count() != sent {
+					t.Fatal("a transient restoration failure detached the visitor")
+				}
+
+				if v := mustVisitor(t, f); v.Confirmed {
+					t.Fatal("a failed restoration confirmed the visitor")
+				}
+
+				return
+			}
+
+			d := a.networkDetach(t)
+			if d.TypeOfDetach != eps.DetachTypeReattachNotRequired || d.Cause == nil || *d.Cause != tc.cause {
+				t.Fatalf("Detach Request %+v, want re-attach not required with cause %s", d, tc.cause)
+			}
+		})
 	}
 }
 
@@ -458,7 +573,7 @@ func TestDeleteSubscriberData(t *testing.T) {
 				t.Fatalf("DSA result %+v, want %+v", got, tc.want)
 			}
 
-			sub, _ := f.m.HomeSubscription(roamerIMSI)
+			sub, _ := f.m.HPLMNSubscription(roamerIMSI)
 
 			_, kept := sub.APNConfigurationProfile.Configuration(2)
 			if kept == (tc.removed == 2) {
@@ -472,7 +587,7 @@ func TestResetMarksVisitorsForRestoration(t *testing.T) {
 	f := newRoamingMME(t)
 	a := f.registeredRoamer(t)
 
-	other := fakehss.New(f.hss.Local, diameter.Identity{OriginHost: "hss2." + roamerHomeRealm, OriginRealm: roamerHomeRealm})
+	other := fakehss.New(f.hss.Local, diameter.Identity{OriginHost: "hss2." + roamerHPLMNRealm, OriginRealm: roamerHPLMNRealm})
 
 	req, err := other.ResetRequest(s6a.ResetRequest{})
 	f.answer(t, f.m.Reset, req, err)
@@ -503,14 +618,14 @@ func TestResetMarksVisitorsForRestoration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	ulrs := s6aRequests(t, f.hss, s6a.CommandUpdateLocation)
 	if len(ulrs) != before+1 {
 		t.Fatalf("ULRs = %d, want a restoration ULR at the next authenticated contact", len(ulrs)-before)
 	}
 
-	if env := tgpp.ParseEnvelope(ulrs[len(ulrs)-1]); env.DestinationHost != "" || env.DestinationRealm != roamerHomeRealm {
+	if env := tgpp.ParseEnvelope(ulrs[len(ulrs)-1]); env.DestinationHost != "" || env.DestinationRealm != roamerHPLMNRealm {
 		t.Fatalf("restoration ULR envelope %+v, want the home realm without Destination-Host", env)
 	}
 
@@ -551,7 +666,7 @@ func TestNotifyOnEquipmentChange(t *testing.T) {
 			}
 
 			f.m.NotifyEquipmentChange(context.Background(), a.ue)
-			f.m.SettleHomeNetworkForTest()
+			f.m.SettleHPLMNForTest()
 
 			nors := s6aRequests(t, f.hss, s6a.CommandNotify)
 			if len(nors) != 1 {
@@ -613,7 +728,7 @@ func TestRoamingWithdrawalDetachesTheVisitor(t *testing.T) {
 			}
 
 			f.m.RemoveUe(context.Background(), a.ue)
-			f.m.SettleHomeNetworkForTest()
+			f.m.SettleHPLMNForTest()
 
 			if purs := s6aRequests(t, f.hss, s6a.CommandPurgeUE); len(purs) != 1 {
 				t.Fatalf("PURs = %d, want the withdrawn visitor purged at its home HSS", len(purs))
@@ -673,7 +788,7 @@ func TestRegistrationRefusedDuringWithdrawal(t *testing.T) {
 	}
 
 	f.m.RemoveUe(context.Background(), a.ue)
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	if purs := s6aRequests(t, f.hss, s6a.CommandPurgeUE); len(purs) != 1 {
 		t.Fatalf("PURs = %d, want the HSS registration made by the ULR purged", len(purs))
@@ -720,7 +835,7 @@ func TestVisitorDetachPurges(t *testing.T) {
 	parseUEContextReleaseCommand(t, a.last(t))
 
 	f.m.ReleaseUEContextLocally(context.Background(), a.ue, "UE Context Release Complete", models.ReleaseFor(models.ReleaseDeregistration))
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	if _, held := f.m.LookupUeByIMSI(roamerIMSI); held {
 		t.Fatal("the detached visitor's context is still held")
@@ -728,5 +843,34 @@ func TestVisitorDetachPurges(t *testing.T) {
 
 	if purs := s6aRequests(t, f.hss, s6a.CommandPurgeUE); len(purs) != 1 {
 		t.Fatalf("PURs = %d after the visitor detached, want 1", len(purs))
+	}
+}
+
+func TestVisitorMSISDNFollowsTheHomeSubscription(t *testing.T) {
+	f := newRoamingMME(t)
+	f.hss.RewriteULA(func(u s6a.UpdateLocation) s6a.UpdateLocation {
+		u.Subscription.MSISDN = "33612345678"
+		return u
+	})
+
+	f.registeredRoamer(t)
+
+	if got := f.partners.storedMSISDNs(roamerIMSI); !slices.Equal(got, []string{"33612345678"}) {
+		t.Fatalf("stored MSISDNs = %v after the attach, want the ULA MSISDN", got)
+	}
+
+	ambr := s6a.AMBR{UL: 10_000_000, DL: 20_000_000}
+
+	req, err := f.hss.InsertSubscriberDataRequest(s6a.InsertSubscriberDataRequest{IMSI: roamerIMSI, Subscription: s6a.SubscriptionData{AMBR: &ambr}})
+	f.answer(t, f.m.InsertSubscriberData, req, err)
+
+	req, err = f.hss.InsertSubscriberDataRequest(s6a.InsertSubscriberDataRequest{IMSI: roamerIMSI, Subscription: s6a.SubscriptionData{MSISDN: "33699999999"}})
+	f.answer(t, f.m.InsertSubscriberData, req, err)
+
+	dsr, err := f.hss.DeleteSubscriberDataRequest(s6a.DeleteSubscriberDataRequest{IMSI: roamerIMSI, SubscriptionDataDeletion: s6a.SubscriptionDataDeletion{Flags: s6a.DSRFlagMSISDNWithdrawal}})
+	f.answer(t, f.m.DeleteSubscriberData, dsr, err)
+
+	if got := f.partners.storedMSISDNs(roamerIMSI); !slices.Equal(got, []string{"33612345678", "33699999999", ""}) {
+		t.Fatalf("stored MSISDNs = %v, want one write per MSISDN change", got)
 	}
 }

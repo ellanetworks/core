@@ -118,17 +118,17 @@ func seppIdentity(t *testing.T, plmn pki.PLMN, fqdn string, seppID ...int) db.SE
 	return db.SEPPIdentity{SEPPID: id, FQDN: fqdn, Source: db.SEPPIdentityImported, CertChainPEM: string(pki.EncodeCertPEM(leaf)) + string(pki.EncodeCertPEM(ca)), KeyPEM: string(keyPEM)}
 }
 
-func homeSEPPIdentity(t *testing.T, id string) db.SEPPIdentity {
+func ownSEPPIdentity(t *testing.T, id string) db.SEPPIdentity {
 	t.Helper()
 
-	home := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
+	own := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
 
 	n, err := strconv.Atoi(id)
 	if err != nil {
 		t.Fatalf("SEPP ID %q: %s", id, err)
 	}
 
-	return seppIdentity(t, home, "sepp"+id+"."+home.Domain(), n)
+	return seppIdentity(t, own, "sepp"+id+"."+own.Domain(), n)
 }
 
 func (f *roamingFixture) with5G(p *db.RoamingPartner, fqdn string) *db.RoamingPartner {
@@ -156,7 +156,7 @@ func (f *roamingFixture) registerVisitor(t *testing.T, imsi string) {
 	}
 }
 
-func (f *roamingFixture) createHomeSubscriber(t *testing.T, imsi string) {
+func (f *roamingFixture) createOwnSubscriber(t *testing.T, imsi string) {
 	t.Helper()
 
 	sub := &db.Subscriber{
@@ -205,7 +205,7 @@ func TestRoamingPartnerRoundTrip(t *testing.T) {
 	f.createPeer(t)
 
 	p := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "94", "208", "93"), partnerSEPPFQDN)
-	p.NRFAPIRoot = ptr("http://nrf.5gc.mnc093.mcc208.3gppnetwork.org")
+	p.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: db.RoamingPLMN{Mcc: "208", Mnc: "93"}, APIRoot: "http://nrf.5gc.mnc093.mcc208.3gppnetwork.org"}}
 	p.DiameterPeerID = ptr(roamingPeerID)
 
 	if err := f.db.CreateRoamingPartner(ctx, p); err != nil {
@@ -217,13 +217,28 @@ func TestRoamingPartnerRoundTrip(t *testing.T) {
 		t.Fatalf("GetRoamingPartner: %s", err)
 	}
 
-	if got.Name != "partner" || !slices.Equal(got.PLMNs, plmns("208", "93", "208", "94")) || *got.SEPPFQDN != *p.SEPPFQDN || got.SEPPN32fURI != nil || *got.DiameterPeerID != roamingPeerID {
+	if got.Name != "partner" || !slices.Equal(got.PLMNs, plmns("208", "93", "208", "94")) || *got.SEPPFQDN != *p.SEPPFQDN || got.SEPPN32fURI != nil || *got.DiameterPeerID != roamingPeerID || !slices.Equal(got.NRFAPIRoots, p.NRFAPIRoots) {
 		t.Fatalf("partner = %+v", got)
+	}
+
+	got.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: db.RoamingPLMN{Mcc: "208", Mnc: "94"}, APIRoot: "https://nrf.example.org"}}
+
+	if err := f.db.UpdateRoamingPartner(ctx, got); err != nil {
+		t.Fatalf("UpdateRoamingPartner of the NRF API roots: %s", err)
+	}
+
+	moved, err := f.db.GetRoamingPartner(ctx, roamingPartnerID)
+	if err != nil {
+		t.Fatalf("GetRoamingPartner: %s", err)
+	}
+
+	if !slices.Equal(moved.NRFAPIRoots, got.NRFAPIRoots) || moved.NRFAPIRootOf(db.RoamingPLMN{Mcc: "208", Mnc: "93"}) != nil {
+		t.Fatalf("NRF API roots = %+v, want %+v", moved.NRFAPIRoots, got.NRFAPIRoots)
 	}
 
 	got.Name = "renamed"
 	got.PLMNs = plmns("208", "93", "209", "01")
-	got.SEPPFQDN, got.SEPPN32cURI, got.SEPPTrustAnchorPEM, got.NRFAPIRoot = nil, nil, nil, nil
+	got.SEPPFQDN, got.SEPPN32cURI, got.SEPPTrustAnchorPEM, got.NRFAPIRoots = nil, nil, nil, nil
 
 	if err := f.db.UpdateRoamingPartner(ctx, got); err != nil {
 		t.Fatalf("UpdateRoamingPartner: %s", err)
@@ -306,7 +321,8 @@ func TestRoamingPartnerValidate(t *testing.T) {
 			p.SEPPFQDN, p.SEPPN32cURI, p.SEPPTrustAnchorPEM, p.SEPPN32fURI = nil, nil, nil, ptr("https://f.example.org")
 		},
 		"nrf without 5G": func(p *db.RoamingPartner) {
-			p.SEPPFQDN, p.SEPPN32cURI, p.SEPPTrustAnchorPEM, p.NRFAPIRoot = nil, nil, nil, ptr("http://nrf.example.org")
+			p.SEPPFQDN, p.SEPPN32cURI, p.SEPPTrustAnchorPEM = nil, nil, nil
+			p.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: p.PLMNs[0], APIRoot: "http://nrf.example.org"}}
 		},
 		"bad fqdn":           func(p *db.RoamingPartner) { p.SEPPFQDN = ptr("sepp") },
 		"non-3GPP fqdn":      func(p *db.RoamingPartner) { p.SEPPFQDN = ptr("sepp.example.org") },
@@ -319,9 +335,17 @@ func TestRoamingPartnerValidate(t *testing.T) {
 		"n32c with bad port": func(p *db.RoamingPartner) { p.SEPPN32cURI = ptr("https://sepp.example.org:99999") },
 		"n32c with no port":  func(p *db.RoamingPartner) { p.SEPPN32cURI = ptr("https://sepp.example.org:") },
 		"n32c ending with /": func(p *db.RoamingPartner) { p.SEPPN32cURI = ptr("https://sepp.example.org/") },
-		"ftp nrf":            func(p *db.RoamingPartner) { p.NRFAPIRoot = ptr("ftp://nrf.example.org") },
-		"garbage anchor":     func(p *db.RoamingPartner) { p.SEPPTrustAnchorPEM = ptr("not a certificate") },
-		"empty peer id":      func(p *db.RoamingPartner) { p.DiameterPeerID = ptr("") },
+		"ftp nrf": func(p *db.RoamingPartner) {
+			p.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: p.PLMNs[0], APIRoot: "ftp://nrf.example.org"}}
+		},
+		"nrf of other PLMN": func(p *db.RoamingPartner) {
+			p.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: db.RoamingPLMN{Mcc: "208", Mnc: "95"}, APIRoot: "http://nrf.example.org"}}
+		},
+		"duplicate nrf": func(p *db.RoamingPartner) {
+			p.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: p.PLMNs[0], APIRoot: "http://a.example.org"}, {RoamingPLMN: p.PLMNs[0], APIRoot: "http://b.example.org"}}
+		},
+		"garbage anchor": func(p *db.RoamingPartner) { p.SEPPTrustAnchorPEM = ptr("not a certificate") },
+		"empty peer id":  func(p *db.RoamingPartner) { p.DiameterPeerID = ptr("") },
 	}
 
 	for name, mutate := range cases {
@@ -406,7 +430,7 @@ func TestRoamingPartnerConflicts(t *testing.T) {
 		}
 	}
 
-	identity := homeSEPPIdentity(t, "1")
+	identity := ownSEPPIdentity(t, "1")
 	if err := f.db.PutSEPPIdentity(ctx, &identity); err != nil {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}
@@ -552,8 +576,8 @@ func TestSEPPIdentity(t *testing.T) {
 		t.Fatalf("GetSEPPIdentity on a fresh database: err = %v, want ErrNotFound", err)
 	}
 
-	valid := homeSEPPIdentity(t, "1")
-	other := homeSEPPIdentity(t, "2")
+	valid := ownSEPPIdentity(t, "1")
+	other := ownSEPPIdentity(t, "2")
 
 	invalid := map[string]db.SEPPIdentity{
 		"no key":          {SEPPID: 1, Source: db.SEPPIdentityImported, FQDN: valid.FQDN, CertChainPEM: valid.CertChainPEM},
@@ -596,7 +620,7 @@ func TestSEPPIdentity(t *testing.T) {
 		}
 	}
 
-	sameFQDN := homeSEPPIdentity(t, "1")
+	sameFQDN := ownSEPPIdentity(t, "1")
 	sameFQDN.SEPPID = 3
 
 	if err := f.db.PutSEPPIdentity(ctx, &sameFQDN); !errors.Is(err, db.ErrRoamingConflict) {
@@ -612,7 +636,7 @@ func TestSEPPIdentity(t *testing.T) {
 func TestSEPPIdentityProvisioning(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
-	home := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
+	own := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
 
 	created, err := f.db.EnsureSEPPIdentity(ctx, 2)
 	if err != nil || !created {
@@ -635,7 +659,7 @@ func TestSEPPIdentityProvisioning(t *testing.T) {
 	}
 
 	two, err := f.db.GetSEPPIdentity(ctx, 2)
-	if err != nil || two.Source != db.SEPPIdentityGenerated || two.FQDN != home.SEPPFQDN(2) {
+	if err != nil || two.Source != db.SEPPIdentityGenerated || two.FQDN != own.SEPPFQDN(2) {
 		t.Fatalf("generated identity = %+v, %v", two, err)
 	}
 
@@ -648,7 +672,7 @@ func TestSEPPIdentityProvisioning(t *testing.T) {
 		t.Fatalf("GenerateSEPPIdentity: %s", err)
 	}
 
-	imported := homeSEPPIdentity(t, "1")
+	imported := ownSEPPIdentity(t, "1")
 	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}
@@ -787,7 +811,7 @@ func TestRegisterVisitorUE(t *testing.T) {
 	}
 
 	if visitor.RoamingPartnerID == nil || *visitor.RoamingPartnerID != roamingPartnerID || visitor.ProfileID != f.profileID ||
-		visitor.PermanentKey != "" || visitor.Opc != "" || visitor.SequenceNumber != "" || visitor.Msisdn != "" || visitor.ID == "" {
+		visitor.PermanentKey != "" || visitor.Opc != "" || visitor.SequenceNumber != "" || visitor.Msisdn != "" || visitor.ID != "" {
 		t.Fatalf("visitor = %+v", visitor)
 	}
 
@@ -809,9 +833,38 @@ func TestRegisterVisitorUE(t *testing.T) {
 		t.Fatalf("cancelled MME registration = %+v, %v", reg, err)
 	}
 
-	again2, err := f.db.GetSubscriberOrVisitor(ctx, visitorIMSI)
-	if err != nil || again2.ID != visitor.ID {
+	row, err := f.db.GetVisitor(ctx, visitorIMSI)
+	if err != nil || row.PartnerID != roamingPartnerID || row.ProfileID != f.profileID || row.Since == 0 {
+		t.Fatalf("GetVisitor = %+v, %v", row, err)
+	}
+
+	if err := f.db.SetVisitorMSISDN(ctx, visitorIMSI, "33612345678"); err != nil {
+		t.Fatalf("SetVisitorMSISDN: %s", err)
+	}
+
+	if err := f.db.SetVisitorMSISDN(ctx, visitorIMSI, "+33612345678"); err == nil {
+		t.Fatal("non-digit visitor MSISDN accepted")
+	}
+
+	if err := f.db.SetVisitorMSISDN(ctx, "208930000000099", "33612345678"); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("SetVisitorMSISDN of an unknown visitor: err = %v, want ErrNotFound", err)
+	}
+
+	if v, err := f.db.GetSubscriberOrVisitor(ctx, visitorIMSI); err != nil || v.Msisdn != "33612345678" {
+		t.Fatalf("visitor MSISDN = %+v, %v", v, err)
+	}
+
+	if _, err := f.db.RegisterVisitorUE(ctx, visitorIMSI, roamingPartnerID, db.UERegistrationTypeMME, "node-1", db.UERegistrationTypeAMF3GPPAccess); err != nil {
+		t.Fatalf("RegisterVisitorUE again: %s", err)
+	}
+
+	if again2, err := f.db.GetVisitor(ctx, visitorIMSI); err != nil || again2.Since != row.Since || again2.Msisdn != "33612345678" {
 		t.Fatalf("visitor row replaced: %+v, %v", again2, err)
+	}
+
+	err = f.db.CreateSubscriber(ctx, &db.Subscriber{Imsi: visitorIMSI, SequenceNumber: "000000000001", PermanentKey: "00112233445566778899aabbccddeeff", Opc: "00112233445566778899aabbccddeeff", ProfileID: f.profileID})
+	if !errors.Is(err, db.ErrAlreadyExists) {
+		t.Fatalf("home subscriber over a visitor: err = %v, want ErrAlreadyExists", err)
 	}
 
 	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000009", "missing", db.UERegistrationTypeMME, "node-1", ""); !errors.Is(err, db.ErrNotFound) {
@@ -822,14 +875,14 @@ func TestRegisterVisitorUE(t *testing.T) {
 		t.Fatalf("visitor outside the partner PLMN: err = %v, want ErrRoamingConflict", err)
 	}
 
-	f.createHomeSubscriber(t, "208930000000005")
+	f.createOwnSubscriber(t, "208930000000005")
 
 	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000005", roamingPartnerID, db.UERegistrationTypeMME, "node-1", ""); !errors.Is(err, db.ErrAlreadyExists) {
 		t.Fatalf("visitor over a home subscriber: err = %v, want ErrAlreadyExists", err)
 	}
 
-	if home, err := f.db.GetSubscriber(ctx, "208930000000005"); err != nil || home.PermanentKey == "" {
-		t.Fatalf("home subscriber touched: %+v, %v", home, err)
+	if own, err := f.db.GetSubscriber(ctx, "208930000000005"); err != nil || own.PermanentKey == "" {
+		t.Fatalf("home subscriber touched: %+v, %v", own, err)
 	}
 
 	if _, err := f.db.RegisterVisitorUE(ctx, visitorIMSI, roamingPartnerID, "bogus", "node-1", ""); err == nil {
@@ -870,7 +923,7 @@ func TestVisitorDeletion(t *testing.T) {
 		t.Fatalf("visitor registration after delete: err = %v, want ErrNotFound", err)
 	}
 
-	f.createHomeSubscriber(t, "001010000000001")
+	f.createOwnSubscriber(t, "001010000000001")
 
 	if deleted, err := f.db.DeleteVisitorIfUnregistered(ctx, "001010000000001"); err != nil || deleted {
 		t.Fatalf("DeleteVisitorIfUnregistered of a home subscriber = %v, %v", deleted, err)
@@ -910,7 +963,7 @@ func TestRoamingPartnerProfileChangeAndDeleteRestrict(t *testing.T) {
 	}
 
 	f.registerVisitor(t, visitorIMSI)
-	f.createHomeSubscriber(t, "001010000000001")
+	f.createOwnSubscriber(t, "001010000000001")
 
 	p.ProfileID = f.otherID
 	if err := f.db.UpdateRoamingPartner(ctx, p); err != nil {
@@ -921,8 +974,8 @@ func TestRoamingPartnerProfileChangeAndDeleteRestrict(t *testing.T) {
 		t.Fatalf("visitor after partner profile change = %+v, %v", visitor, err)
 	}
 
-	if home, err := f.db.GetSubscriber(ctx, "001010000000001"); err != nil || home.ProfileID != f.profileID {
-		t.Fatalf("home subscriber after partner profile change = %+v, %v", home, err)
+	if own, err := f.db.GetSubscriber(ctx, "001010000000001"); err != nil || own.ProfileID != f.profileID {
+		t.Fatalf("home subscriber after partner profile change = %+v, %v", own, err)
 	}
 
 	if err := f.db.DeleteProfile(ctx, "roamers"); !errors.Is(err, db.ErrInUse) {
@@ -984,15 +1037,15 @@ func TestSubscriberReadsWithVisitors(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 	f.createPartner(t)
-	f.createHomeSubscriber(t, "001010000000001")
+	f.createOwnSubscriber(t, "001010000000001")
 	f.registerVisitor(t, visitorIMSI)
 
 	if _, err := f.db.GetSubscriber(ctx, visitorIMSI); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("GetSubscriber of a visitor: err = %v, want ErrNotFound", err)
 	}
 
-	if home, err := f.db.GetSubscriberOrVisitor(ctx, "001010000000001"); err != nil || home.RoamingPartnerID != nil {
-		t.Fatalf("GetSubscriberOrVisitor of a home subscriber = %+v, %v", home, err)
+	if own, err := f.db.GetSubscriberOrVisitor(ctx, "001010000000001"); err != nil || own.RoamingPartnerID != nil {
+		t.Fatalf("GetSubscriberOrVisitor of a home subscriber = %+v, %v", own, err)
 	}
 
 	subs, total, err := f.db.ListSubscribersPage(ctx, nil, 1, 10)
@@ -1000,9 +1053,9 @@ func TestSubscriberReadsWithVisitors(t *testing.T) {
 		t.Fatalf("ListSubscribersPage = %+v, %d, %v", subs, total, err)
 	}
 
-	home, roaming := false, true
+	own, roaming := false, true
 
-	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Roaming: &home}, 1, 10); err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != "001010000000001" {
+	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Roaming: &own}, 1, 10); err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != "001010000000001" {
 		t.Fatalf("ListSubscribersPage of home subscribers = %+v, %d, %v", subs, total, err)
 	}
 
@@ -1012,7 +1065,7 @@ func TestSubscriberReadsWithVisitors(t *testing.T) {
 		t.Fatalf("ListSubscribersPage searching a visitor = %+v, %d, %v", subs, total, err)
 	}
 
-	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search, Roaming: &home}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
+	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search, Roaming: &own}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
 		t.Fatalf("ListSubscribersPage searching a visitor among home subscribers = %+v, %d, %v", subs, total, err)
 	}
 
@@ -1064,7 +1117,7 @@ func TestSupportBundleRedactsSEPPKey(t *testing.T) {
 	f.createPartner(t)
 	f.createPeer(t)
 
-	stored := homeSEPPIdentity(t, "1")
+	stored := ownSEPPIdentity(t, "1")
 	if err := f.db.PutSEPPIdentity(ctx, &stored); err != nil {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}
@@ -1103,7 +1156,7 @@ func TestRoamingWritesReplicate(t *testing.T) {
 
 	createSubscriber(t, database, "001010000000001")
 
-	home, err := database.GetSubscriber(ctx, "001010000000001")
+	own, err := database.GetSubscriber(ctx, "001010000000001")
 	if err != nil {
 		t.Fatalf("GetSubscriber: %s", err)
 	}
@@ -1114,7 +1167,7 @@ func TestRoamingWritesReplicate(t *testing.T) {
 	registrations, stopRegistrations := database.Changefeed().Wakeup(db.TopicUERegistrations)
 	defer stopRegistrations()
 
-	partner := &db.RoamingPartner{ID: roamingPartnerID, Name: "partner", PLMNs: plmns("208", "93"), ProfileID: home.ProfileID}
+	partner := &db.RoamingPartner{ID: roamingPartnerID, Name: "partner", PLMNs: plmns("208", "93"), ProfileID: own.ProfileID}
 
 	expectOneRaftEntry(t, database, "CreateRoamingPartner", func() error { return database.CreateRoamingPartner(ctx, partner) })
 	awaitWakeup(t, roaming, "CreateRoamingPartner")
@@ -1129,7 +1182,7 @@ func TestRoamingWritesReplicate(t *testing.T) {
 		t.Fatalf("visitor = %+v, %v", visitor, err)
 	}
 
-	identity := homeSEPPIdentity(t, "1")
+	identity := ownSEPPIdentity(t, "1")
 
 	expectOneRaftEntry(t, database, "SEPP identity", func() error {
 		return database.PutSEPPIdentity(ctx, &identity)
@@ -1182,7 +1235,7 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 		}
 	}
 
-	imported := homeSEPPIdentity(t, strconv.Itoa(pointers["node-3"]))
+	imported := ownSEPPIdentity(t, strconv.Itoa(pointers["node-3"]))
 	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}

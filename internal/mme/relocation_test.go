@@ -1055,7 +1055,7 @@ func TestForwardRelocationKeepsTheUEsNetworkCapability(t *testing.T) {
 	}
 }
 
-func TestForwardRelocationRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
+func TestForwardRelocationRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
 	partner := "partner"
 	failure := errors.New("database unavailable")
 

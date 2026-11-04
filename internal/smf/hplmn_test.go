@@ -26,46 +26,51 @@ func (e causeError) Error() string { return "home network refusal" }
 
 func (e causeError) GSMCause() fgs.GSMCause { return e.cause }
 
-type fakeHomeSession struct {
+type fakeHPLMNSubscription struct {
 	mu          sync.Mutex
-	rules       smf.HomeSessionRules
+	rules       smf.HPLMNRules
 	registerErr error
 	registered  chan struct{}
 	closed      int
 }
 
-func (h *fakeHomeSession) Rules() smf.HomeSessionRules { return h.rules }
+func (h *fakeHPLMNSubscription) Rules() smf.HPLMNRules {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-func (h *fakeHomeSession) Register(context.Context) error {
+	return h.rules
+}
+
+func (h *fakeHPLMNSubscription) Register(context.Context) error {
 	defer close(h.registered)
 
 	return h.registerErr
 }
 
-func (h *fakeHomeSession) Close() {
+func (h *fakeHPLMNSubscription) Close() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.closed++
 }
 
-func (h *fakeHomeSession) closes() int {
+func (h *fakeHPLMNSubscription) closes() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	return h.closed
 }
 
-type fakeHomeNetwork struct {
+type fakeHPLMNClient struct {
 	mu          sync.Mutex
 	err         error
-	rules       smf.HomeSessionRules
+	rules       smf.HPLMNRules
 	registerErr error
-	requests    []smf.HomeSessionRequest
-	sessions    []*fakeHomeSession
+	requests    []smf.HPLMNSubscriptionRequest
+	sessions    []*fakeHPLMNSubscription
 }
 
-func (f *fakeHomeNetwork) OpenSession(_ context.Context, req smf.HomeSessionRequest) (smf.HomeSession, error) {
+func (f *fakeHPLMNClient) OpenSubscription(_ context.Context, req smf.HPLMNSubscriptionRequest) (smf.HPLMNSubscription, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -75,13 +80,13 @@ func (f *fakeHomeNetwork) OpenSession(_ context.Context, req smf.HomeSessionRequ
 		return nil, f.err
 	}
 
-	h := &fakeHomeSession{rules: f.rules, registerErr: f.registerErr, registered: make(chan struct{})}
+	h := &fakeHPLMNSubscription{rules: f.rules, registerErr: f.registerErr, registered: make(chan struct{})}
 	f.sessions = append(f.sessions, h)
 
 	return h, nil
 }
 
-func (f *fakeHomeNetwork) session(t *testing.T) *fakeHomeSession {
+func (f *fakeHPLMNClient) session(t *testing.T) *fakeHPLMNSubscription {
 	t.Helper()
 
 	f.mu.Lock()
@@ -94,7 +99,7 @@ func (f *fakeHomeNetwork) session(t *testing.T) *fakeHomeSession {
 	return f.sessions[0]
 }
 
-var visitorHome = models.PlmnID{Mcc: "001", Mnc: "01"}
+var visitorHPLMN = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 type roamingSubscriptions struct {
 	*fakeStore
@@ -106,12 +111,12 @@ func (r roamingSubscriptions) SessionManagement(ctx context.Context, imsi string
 		return nil, err
 	}
 
-	sm.Visitor, sm.HomePLMN = true, visitorHome
+	sm.Visitor, sm.HomePLMN = true, visitorHPLMN
 
 	return sm, nil
 }
 
-type homeFixture struct {
+type hplmnFixture struct {
 	s     *smf.SMF
 	pcf   *fakePCF
 	store *fakeStore
@@ -119,19 +124,23 @@ type homeFixture struct {
 	amf   *fakeAMF
 }
 
-func homeSMF(home *fakeHomeNetwork) homeFixture {
+func hplmnSMF(home *fakeHPLMNClient) hplmnFixture {
 	pcf, store, upf, amfCb := defaultFakes()
 	store.pcf = pcf
-	s := smf.New(pcf, store, upf, amfCb, smf.WithSubscriptions(roamingSubscriptions{store}), smf.WithHomeNetwork(home))
+	s := smf.New(pcf, store, upf, amfCb, smf.WithSubscriptions(roamingSubscriptions{store}), smf.WithHPLMNClient(home))
 
-	return homeFixture{s: s, pcf: pcf, store: store, upf: upf, amf: amfCb}
+	return hplmnFixture{s: s, pcf: pcf, store: store, upf: upf, amf: amfCb}
 }
 
-func homeRules() smf.HomeSessionRules {
-	return smf.HomeSessionRules{HomeSnssai: *testSnssai, PDUSessionTypes: []fgs.PDUSessionType{fgs.PDUSessionTypeIPv4, fgs.PDUSessionTypeIPv4v6}}
+func hplmnRules() smf.HPLMNRules {
+	return smf.HPLMNRules{HPLMNSnssai: testSnssai, PDUSessionTypes: []fgs.PDUSessionType{fgs.PDUSessionTypeIPv4, fgs.PDUSessionTypeIPv4v6}}
 }
 
-func waitRegistered(t *testing.T, h *fakeHomeSession) {
+func testTarget() *smf.HPLMNTarget {
+	return &smf.HPLMNTarget{PartnerID: "p", HPLMN: visitorHPLMN, ServingNetwork: models.PlmnID{Mcc: "999", Mnc: "70"}, HPLMNSnssai: *testSnssai, LBO: true}
+}
+
+func waitRegistered(t *testing.T, h *fakeHPLMNSubscription) {
 	t.Helper()
 
 	select {
@@ -142,12 +151,12 @@ func waitRegistered(t *testing.T, h *fakeHomeSession) {
 }
 
 func TestVisitorSessionIsOpenedRegisteredAndClosedAtTheHomeNetwork(t *testing.T) {
-	home := &fakeHomeNetwork{rules: homeRules()}
-	f := homeSMF(home)
+	home := &fakeHPLMNClient{rules: hplmnRules()}
+	f := hplmnSMF(home)
 	s, amfCb := f.s, f.amf
 	ctx := context.Background()
 
-	ref, rsp, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+	ref, rsp, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
 	if err != nil || rsp != nil {
 		t.Fatalf("CreateSmContext = %v, %d-byte reject", err, len(rsp))
 	}
@@ -156,7 +165,7 @@ func TestVisitorSessionIsOpenedRegisteredAndClosedAtTheHomeNetwork(t *testing.T)
 	req := home.requests[0]
 	home.mu.Unlock()
 
-	if req.Supi != testSUPI() || req.PDUSessionID != 1 || req.Dnn != testDNN || req.Snssai != *testSnssai {
+	if req.Supi != testSUPI() || req.PDUSessionID != 1 || req.Dnn != testDNN || req.Target != *testTarget() {
 		t.Fatalf("home session request = %+v", req)
 	}
 
@@ -201,7 +210,7 @@ func TestVisitorSessionIsOpenedRegisteredAndClosedAtTheHomeNetwork(t *testing.T)
 	}
 }
 
-func TestHomeNetworkRefusalIsTheEstablishmentRejectCause(t *testing.T) {
+func TestHPLMNRefusalIsTheEstablishmentRejectCause(t *testing.T) {
 	for name, tc := range map[string]struct {
 		err  error
 		want fgs.GSMCause
@@ -213,10 +222,10 @@ func TestHomeNetworkRefusalIsTheEstablishmentRejectCause(t *testing.T) {
 		"without a 5GSM code": {errors.New("boom"), fgs.GSMCauseRequestRejectedUnspecified},
 	} {
 		t.Run(name, func(t *testing.T) {
-			f := homeSMF(&fakeHomeNetwork{err: tc.err})
+			f := hplmnSMF(&fakeHPLMNClient{err: tc.err})
 			s, store, upf := f.s, f.store, f.upf
 
-			_, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+			_, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
 			if err == nil || rsp == nil {
 				t.Fatalf("CreateSmContext = %v, reject %v", err, rsp)
 			}
@@ -240,9 +249,9 @@ func TestHomeNetworkRefusalIsTheEstablishmentRejectCause(t *testing.T) {
 	}
 }
 
-func TestHomePDUSessionTypesNarrowTheSession(t *testing.T) {
-	home := &fakeHomeNetwork{rules: smf.HomeSessionRules{HomeSnssai: *testSnssai, PDUSessionTypes: []fgs.PDUSessionType{fgs.PDUSessionTypeIPv4}}}
-	f := homeSMF(home)
+func TestHPLMNPDUSessionTypesNarrowTheSession(t *testing.T) {
+	home := &fakeHPLMNClient{rules: smf.HPLMNRules{HPLMNSnssai: testSnssai, PDUSessionTypes: []fgs.PDUSessionType{fgs.PDUSessionTypeIPv4}}}
+	f := hplmnSMF(home)
 	s, pcf, store, amfCb := f.s, f.pcf, f.store, f.amf
 	store.allocatedIPv6 = netip.MustParseAddr("2001:db8::")
 	pcf.policy.IPv6Pool = "2001:db8::/48"
@@ -255,7 +264,7 @@ func TestHomePDUSessionTypesNarrowTheSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1, 0)
+	ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1, 0, testTarget())
 	if err != nil || rsp != nil {
 		t.Fatalf("CreateSmContext = %v, %d-byte reject", err, len(rsp))
 	}
@@ -282,13 +291,13 @@ func TestHomePDUSessionTypesNarrowTheSession(t *testing.T) {
 	}
 }
 
-func TestFailedEstablishmentClosesTheHomeSession(t *testing.T) {
-	home := &fakeHomeNetwork{rules: homeRules()}
-	f := homeSMF(home)
+func TestFailedEstablishmentClosesTheHPLMNSubscription(t *testing.T) {
+	home := &fakeHPLMNClient{rules: hplmnRules()}
+	f := hplmnSMF(home)
 	s, upf := f.s, f.upf
 	upf.err = errors.New("UPF down")
 
-	_, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+	_, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
 	if err == nil || rsp == nil {
 		t.Fatalf("CreateSmContext = %v, reject %v", err, rsp)
 	}
@@ -298,13 +307,13 @@ func TestFailedEstablishmentClosesTheHomeSession(t *testing.T) {
 	}
 }
 
-func TestHomeRegistrationRefusalReleasesTheSession(t *testing.T) {
-	home := &fakeHomeNetwork{rules: homeRules(), registerErr: causeError{fgs.GSMCauseUserAuthenticationOrAuthorizationFailed}}
-	f := homeSMF(home)
+func TestHPLMNRegistrationRefusalReleasesTheSession(t *testing.T) {
+	home := &fakeHPLMNClient{rules: hplmnRules(), registerErr: causeError{fgs.GSMCauseUserAuthenticationOrAuthorizationFailed}}
+	f := hplmnSMF(home)
 	s, amfCb := f.s, f.amf
 	ctx := context.Background()
 
-	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,41 +348,41 @@ func TestHomeRegistrationRefusalReleasesTheSession(t *testing.T) {
 	}
 }
 
-func TestHomeDeregistrationReleasesTheSession(t *testing.T) {
+func TestHPLMNDeregistrationReleasesTheSession(t *testing.T) {
 	for name, tc := range map[string]struct {
-		how      smf.HomeRelease
+		how      smf.HPLMNRelease
 		signal   fgs.GSMCause
 		dropped  int
 		inPool   bool
 		releases int
 	}{
-		"duplicate":           {how: smf.HomeReleaseDuplicate},
-		"duplicate via ePDG":  {how: smf.HomeReleaseDuplicateNotify, dropped: 1},
-		"reactivation":        {how: smf.HomeReleaseReactivate, signal: fgs.GSMCauseReactivationRequested, inPool: true, releases: 1},
-		"other home decision": {how: smf.HomeReleaseDeactivate, signal: fgs.GSMCauseRegularDeactivation, inPool: true, releases: 1},
+		"duplicate":           {how: smf.HPLMNReleaseDuplicate},
+		"duplicate via ePDG":  {how: smf.HPLMNReleaseDuplicateNotify, dropped: 1},
+		"reactivation":        {how: smf.HPLMNReleaseReactivate, signal: fgs.GSMCauseReactivationRequested, inPool: true, releases: 1},
+		"other home decision": {how: smf.HPLMNReleaseDeactivate, signal: fgs.GSMCauseRegularDeactivation, inPool: true, releases: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
-			home := &fakeHomeNetwork{rules: homeRules()}
-			f := homeSMF(home)
+			home := &fakeHPLMNClient{rules: hplmnRules()}
+			f := hplmnSMF(home)
 			s, amfCb := f.s, f.amf
 			ctx := context.Background()
 
-			ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+			ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			h := home.session(t)
 
-			if s.ReleaseHomeSession(ctx, testSUPI(), 2, h, tc.how) {
+			if s.ReleaseHPLMNBoundSession(ctx, testSUPI(), 2, h, tc.how) {
 				t.Fatal("released a PDU session the home session does not belong to")
 			}
 
-			if s.ReleaseHomeSession(ctx, testSUPI(), 1, &fakeHomeSession{}, tc.how) {
+			if s.ReleaseHPLMNBoundSession(ctx, testSUPI(), 1, &fakeHPLMNSubscription{}, tc.how) {
 				t.Fatal("released a PDU session of another home session")
 			}
 
-			if !s.ReleaseHomeSession(ctx, testSUPI(), 1, h, tc.how) {
+			if !s.ReleaseHPLMNBoundSession(ctx, testSUPI(), 1, h, tc.how) {
 				t.Fatal("the session was not found")
 			}
 
@@ -404,12 +413,12 @@ func TestHomeDeregistrationReleasesTheSession(t *testing.T) {
 }
 
 func TestVisitorFiveGUsageIsRecordedWithItsHomePLMN(t *testing.T) {
-	home := &fakeHomeNetwork{rules: homeRules()}
-	f := homeSMF(home)
+	home := &fakeHPLMNClient{rules: hplmnRules()}
+	f := hplmnSMF(home)
 	s, store, upf := f.s, f.store, f.upf
 	ctx := context.Background()
 
-	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,19 +429,19 @@ func TestVisitorFiveGUsageIsRecordedWithItsHomePLMN(t *testing.T) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	want := models.SubscriberUsage{EpochDay: today(), IMSI: testIMSI, HomePLMN: visitorHome, UplinkVolume: 300, DownlinkVolume: 400}
+	want := models.SubscriberUsage{EpochDay: today(), IMSI: testIMSI, HomePLMN: visitorHPLMN, UplinkVolume: 300, DownlinkVolume: 400}
 	if len(store.usageRows) != 1 || store.usageRows[0] != want {
 		t.Fatalf("usage = %+v, want [%+v]", store.usageRows, want)
 	}
 }
 
-func TestReconcileHomeSessionsReleasesAWithdrawnSession(t *testing.T) {
-	home := &fakeHomeNetwork{rules: homeRules()}
-	f := homeSMF(home)
+func TestReconcileHPLMNBoundSessionsReleasesAWithdrawnSession(t *testing.T) {
+	home := &fakeHPLMNClient{rules: hplmnRules()}
+	f := hplmnSMF(home)
 	s, pcf, amfCb := f.s, f.pcf, f.amf
 	ctx := context.Background()
 
-	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0); err != nil {
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -440,12 +449,95 @@ func TestReconcileHomeSessionsReleasesAWithdrawnSession(t *testing.T) {
 	pcf.policy = nil
 	pcf.mu.Unlock()
 
-	s.ReconcileHomeSessions(ctx, testSUPI())
+	s.ReconcileHPLMNBoundSessions(ctx, testSUPI())
 
 	amfCb.mu.Lock()
 	defer amfCb.mu.Unlock()
 
 	if len(amfCb.releaseCalls) != 1 {
 		t.Fatalf("release commands = %d, want 1 for a session the home network no longer subscribes", len(amfCb.releaseCalls))
+	}
+}
+
+func TestRoamerSessionsNeedTheAMFHPLMNTarget(t *testing.T) {
+	notLBO := testTarget()
+	notLBO.LBO = false
+
+	for name, tc := range map[string]struct {
+		target *smf.HPLMNTarget
+		dnn    string
+		want   fgs.GSMCause
+	}{
+		"no home target":   {dnn: testDNN, want: fgs.GSMCauseRequestRejectedUnspecified},
+		"home routed only": {target: notLBO, dnn: testDNN, want: fgs.GSMCauseRequestedServiceOptionNotSubscribed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := &fakeHPLMNClient{rules: hplmnRules()}
+			f := hplmnSMF(home)
+
+			_, rsp, err := f.s.CreateSmContext(context.Background(), testSUPI(), 1, tc.dnn, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, tc.target)
+			if err == nil || rsp == nil {
+				t.Fatalf("CreateSmContext = %v, reject %v", err, rsp)
+			}
+
+			if got := fgs.GSMCause(rejectCauseCode(t, rsp)); got != tc.want {
+				t.Fatalf("reject cause = %d, want %d", got, tc.want)
+			}
+
+			home.mu.Lock()
+			opened := len(home.requests)
+			home.mu.Unlock()
+
+			if opened != 0 || f.s.SessionCount() != 0 {
+				t.Fatal("a roamer's session went ahead without a usable home target")
+			}
+		})
+	}
+}
+
+func TestHPLMNSessionAMBRCapsTheSubscribedQoS(t *testing.T) {
+	rules := hplmnRules()
+	rules.SessionAMBR = &models.Ambr{Uplink: models.MustParseBitRate("5 Mbps"), Downlink: models.MustParseBitRate("7 Mbps")}
+
+	f := hplmnSMF(&fakeHPLMNClient{rules: rules})
+
+	if _, _, err := f.s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget()); err != nil {
+		t.Fatal(err)
+	}
+
+	f.pcf.mu.Lock()
+
+	var got smf.SubscribedQoS
+	for _, c := range f.pcf.associations {
+		got = c.Subscribed
+	}
+	f.pcf.mu.Unlock()
+
+	if got.SessionAMBR.Uplink.Bps() != 5_000_000 || got.SessionAMBR.Downlink.Bps() != 7_000_000 {
+		t.Fatalf("subscribed Session-AMBR = %+v, want the home 5/7 Mbps cap", got.SessionAMBR)
+	}
+}
+
+func TestReconcileReleasesASessionTheHomeNetworkWithdrew(t *testing.T) {
+	home := &fakeHPLMNClient{rules: hplmnRules()}
+	f := hplmnSMF(home)
+	ctx := context.Background()
+
+	if _, _, err := f.s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget()); err != nil {
+		t.Fatal(err)
+	}
+
+	h := home.session(t)
+	h.mu.Lock()
+	h.rules.Withdrawn = true
+	h.mu.Unlock()
+
+	f.s.ReconcileHPLMNBoundSessions(ctx, testSUPI())
+
+	f.amf.mu.Lock()
+	defer f.amf.mu.Unlock()
+
+	if len(f.amf.releaseCalls) != 1 {
+		t.Fatalf("release commands = %d, want 1 for a session the home network withdrew", len(f.amf.releaseCalls))
 	}
 }

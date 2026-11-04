@@ -75,7 +75,6 @@ FROM (
     UNION ALL
     SELECT imsi, NULL, NULL, 0, 0
     FROM %s
-    WHERE roamingPartnerID IS NULL
 ) AS u
 WHERE
     ($UsageFilters.imsi IS NULL OR u.imsi = $UsageFilters.imsi)

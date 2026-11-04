@@ -29,9 +29,10 @@ type SoR struct {
 	Container        []byte
 	AckRequested     bool
 	ProvisioningTime wire.DateTime
+	Delivered        bool
 }
 
-func SoRFromHome(info *wire.SorInfo) (*SoR, error) {
+func SoRFromHPLMN(info *wire.SorInfo) (*SoR, error) {
 	if info == nil {
 		return nil, nil
 	}

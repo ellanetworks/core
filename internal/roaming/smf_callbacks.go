@@ -92,7 +92,7 @@ func (v *VSMF) serveDataChange(ctx context.Context, w http.ResponseWriter, peer 
 		v.refresh(ctx, supi)
 
 		if sessions := v.deps.Load().sessions; sessions != nil {
-			go sessions.ReconcileHomeSessions(ctx, supi)
+			go sessions.ReconcileHPLMNBoundSessions(ctx, supi)
 		}
 	})
 }
@@ -102,7 +102,7 @@ func (v *VSMF) subscribedTo(partnerID string, supi etsi.SUPI, subscriptionID str
 	defer v.mu.Unlock()
 
 	ue := v.ues[supi.IMSI()]
-	if ue == nil || ue.visitor.PartnerID != partnerID {
+	if ue == nil || ue.target.PartnerID != partnerID {
 		return false
 	}
 
@@ -137,7 +137,7 @@ func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, p
 
 	var s *vsmfSession
 
-	if ue := v.ues[supi.IMSI()]; ue != nil && ue.visitor.PartnerID == peer.PartnerID && *d.PduSessionID >= 1 && *d.PduSessionID <= 15 {
+	if ue := v.ues[supi.IMSI()]; ue != nil && ue.target.PartnerID == peer.PartnerID && *d.PduSessionID >= 1 && *d.PduSessionID <= 15 {
 		s = ue.sessions[uint8(*d.PduSessionID)]
 	}
 
@@ -148,7 +148,7 @@ func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, p
 		return
 	}
 
-	s.released = how != smf.HomeReleaseReactivate
+	s.released = how != smf.HPLMNReleaseReactivate
 	v.mu.Unlock()
 
 	w.WriteHeader(http.StatusNoContent)
@@ -164,7 +164,7 @@ func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, p
 	ctx = context.WithoutCancel(ctx)
 
 	go func() {
-		if !sessions.ReleaseHomeSession(ctx, supi, s.psi, s, how) {
+		if !sessions.ReleaseHPLMNBoundSession(ctx, supi, s.psi, s, how) {
 			s.Close()
 		}
 	}()
@@ -174,15 +174,15 @@ func vsmfSMDataResource(supi string) string {
 	return supi + "/sm-data"
 }
 
-func deregistrationRelease(reason wire.DeregistrationReason) smf.HomeRelease {
+func deregistrationRelease(reason wire.DeregistrationReason) smf.HPLMNRelease {
 	switch reason {
 	case wire.DeregPDUSessionReactivationRequired:
-		return smf.HomeReleaseReactivate
+		return smf.HPLMNReleaseReactivate
 	case wire.DeregDuplicatePDUSession, wire.DeregSMFContextTransferred:
-		return smf.HomeReleaseDuplicate
+		return smf.HPLMNReleaseDuplicate
 	case wire.DeregDuplicatePDUSessionEPDG:
-		return smf.HomeReleaseDuplicateNotify
+		return smf.HPLMNReleaseDuplicateNotify
 	default:
-		return smf.HomeReleaseDeactivate
+		return smf.HPLMNReleaseDeactivate
 	}
 }

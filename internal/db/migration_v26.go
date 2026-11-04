@@ -31,16 +31,16 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 			seppN32cURI        TEXT CHECK (seppN32cURI != ''),
 			seppN32fURI        TEXT CHECK (seppN32fURI != ''),
 			seppTrustAnchorPEM TEXT CHECK (seppTrustAnchorPEM != ''),
-			nrfAPIRoot         TEXT CHECK (nrfAPIRoot != ''),
 			diameterPeerID     TEXT REFERENCES %s(id) ON DELETE RESTRICT,
 			CHECK ((seppFQDN IS NULL) = (seppN32cURI IS NULL) AND (seppFQDN IS NULL) = (seppTrustAnchorPEM IS NULL)),
-			CHECK (seppFQDN IS NOT NULL OR (seppN32fURI IS NULL AND nrfAPIRoot IS NULL))
+			CHECK (seppFQDN IS NOT NULL OR seppN32fURI IS NULL)
 		)`, RoamingPartnersTableName, ProfilesTableName, DiameterPeersTableName),
 		fmt.Sprintf("CREATE UNIQUE INDEX idx_roaming_partners_sepp_fqdn ON %s(seppFQDN) WHERE seppFQDN IS NOT NULL", RoamingPartnersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
-			partnerID TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
-			mcc       TEXT NOT NULL CHECK (mcc GLOB '[0-9][0-9][0-9]'),
-			mnc       TEXT NOT NULL CHECK (mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
+			partnerID  TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			mcc        TEXT NOT NULL CHECK (mcc GLOB '[0-9][0-9][0-9]'),
+			mnc        TEXT NOT NULL CHECK (mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
+			nrfAPIRoot TEXT CHECK (nrfAPIRoot != ''),
 			PRIMARY KEY (mcc, mnc)
 		)`, RoamingPartnerPLMNsTableName, RoamingPartnersTableName),
 		fmt.Sprintf("CREATE INDEX idx_roaming_partner_plmns_partner ON %s(partnerID)", RoamingPartnerPLMNsTableName),
@@ -55,25 +55,70 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 			CHECK ((mcc = '') = (mnc = '')),
 			CHECK (imsi = '' OR (mcc = '' AND type = ''))
 		)`, RoamingWithdrawalsTableName, RoamingPartnersTableName, UERegistrationTypeMME, UERegistrationTypeAMF3GPPAccess),
+		fmt.Sprintf(`CREATE TABLE %s (
+			imsi      TEXT    PRIMARY KEY CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
+			partnerID TEXT    NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
+			msisdn    TEXT    NOT NULL DEFAULT '' CHECK (msisdn = '' OR (length(msisdn) BETWEEN 1 AND 15 AND msisdn NOT GLOB '*[^0-9]*')),
+			since     INTEGER NOT NULL
+		)`, VisitorsTableName, RoamingPartnersTableName),
+		fmt.Sprintf("CREATE INDEX idx_visitors_partner ON %s(partnerID)", VisitorsTableName),
 		fmt.Sprintf(`CREATE TABLE %s_new (
-			id               TEXT PRIMARY KEY,
-			imsi             TEXT NOT NULL UNIQUE CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
-			sequenceNumber   TEXT NOT NULL,
-			permanentKey     TEXT NOT NULL,
-			opc              TEXT NOT NULL,
-			profileID        TEXT NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
-			description      TEXT NOT NULL DEFAULT '',
-			msisdn           TEXT NOT NULL DEFAULT '',
-			roamingPartnerID TEXT REFERENCES %s(id) ON DELETE RESTRICT,
-			CHECK ((roamingPartnerID IS NULL AND length(sequenceNumber) = 12 AND length(permanentKey) = 32 AND length(opc) = 32)
-				OR (roamingPartnerID IS NOT NULL AND sequenceNumber = '' AND permanentKey = '' AND opc = '' AND msisdn = ''))
-		)`, SubscribersTableName, ProfilesTableName, RoamingPartnersTableName),
-		fmt.Sprintf(`INSERT INTO %s_new (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn)
-			SELECT id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn FROM %s`, SubscribersTableName, SubscribersTableName),
-		fmt.Sprintf("DROP TABLE %s", SubscribersTableName),
-		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", SubscribersTableName, SubscribersTableName),
-		fmt.Sprintf("CREATE UNIQUE INDEX idx_subscribers_msisdn ON %s(msisdn) WHERE msisdn != ''", SubscribersTableName),
-		fmt.Sprintf("CREATE INDEX idx_subscribers_roaming_partner ON %s(roamingPartnerID) WHERE roamingPartnerID IS NOT NULL", SubscribersTableName),
+			imsi    TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
+			type    TEXT    NOT NULL,
+			nodeID  TEXT    NOT NULL,
+			purged  INTEGER NOT NULL DEFAULT 0,
+			version INTEGER NOT NULL,
+			PRIMARY KEY (imsi, type)
+		)`, UERegistrationsTableName),
+		fmt.Sprintf(`INSERT INTO %s_new (imsi, type, nodeID, purged, version)
+			SELECT imsi, type, nodeID, purged, version FROM %s`, UERegistrationsTableName, UERegistrationsTableName),
+		fmt.Sprintf("DROP TABLE %s", UERegistrationsTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", UERegistrationsTableName, UERegistrationsTableName),
+		fmt.Sprintf("CREATE INDEX idx_ue_registrations_node ON %s(nodeID)", UERegistrationsTableName),
+		fmt.Sprintf(`CREATE TABLE %s_new (
+			id         TEXT    PRIMARY KEY,
+			poolID     TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			addressBin BLOB    NOT NULL,
+			imsi       TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
+			sessionID  INTEGER,
+			type       TEXT    NOT NULL DEFAULT 'dynamic',
+			createdAt  INTEGER NOT NULL,
+			nodeID     TEXT    NOT NULL DEFAULT '',
+			poolType   TEXT    NOT NULL DEFAULT 'ipv4',
+			UNIQUE(poolID, addressBin)
+		)`, IPLeasesTableName, DataNetworksTableName),
+		fmt.Sprintf(`INSERT INTO %s_new (id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType)
+			SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM %s`, IPLeasesTableName, IPLeasesTableName),
+		fmt.Sprintf("DROP TABLE %s", IPLeasesTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", IPLeasesTableName, IPLeasesTableName),
+		fmt.Sprintf("CREATE INDEX idx_leases_pool ON %s(poolID)", IPLeasesTableName),
+		fmt.Sprintf("CREATE INDEX idx_leases_imsi ON %s(imsi)", IPLeasesTableName),
+		fmt.Sprintf("CREATE INDEX idx_leases_session ON %s(sessionID)", IPLeasesTableName),
+		fmt.Sprintf("CREATE INDEX idx_leases_node ON %s(nodeID)", IPLeasesTableName),
+		fmt.Sprintf(`CREATE TABLE %s_new (
+			id               INTEGER PRIMARY KEY AUTOINCREMENT,
+			subscriber_id    TEXT    NOT NULL,
+			source_ip        TEXT    NOT NULL,
+			destination_ip   TEXT    NOT NULL,
+			source_port      INTEGER NOT NULL DEFAULT 0,
+			destination_port INTEGER NOT NULL DEFAULT 0,
+			protocol         INTEGER NOT NULL,
+			packets          INTEGER NOT NULL,
+			bytes            INTEGER NOT NULL,
+			start_time       INTEGER NOT NULL,
+			end_time         INTEGER NOT NULL,
+			direction        TEXT    NOT NULL,
+			action           INT     NOT NULL DEFAULT 0
+		)`, FlowReportsTableName),
+		fmt.Sprintf(`INSERT INTO %s_new (id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action)
+			SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action FROM %s`, FlowReportsTableName, FlowReportsTableName),
+		fmt.Sprintf("DROP TABLE %s", FlowReportsTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", FlowReportsTableName, FlowReportsTableName),
+		fmt.Sprintf("CREATE INDEX idx_flow_reports_subscriber_id ON %s (subscriber_id)", FlowReportsTableName),
+		fmt.Sprintf("CREATE INDEX idx_flow_reports_end_time ON %s (end_time, start_time)", FlowReportsTableName),
+		fmt.Sprintf("CREATE INDEX idx_flow_reports_protocol ON %s (protocol)", FlowReportsTableName),
+		fmt.Sprintf("CREATE INDEX idx_flow_reports_source_ip ON %s (source_ip)", FlowReportsTableName),
+		fmt.Sprintf("CREATE INDEX idx_flow_reports_destination_ip ON %s (destination_ip)", FlowReportsTableName),
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			epochDay      INTEGER NOT NULL,
 			imsi          TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
@@ -109,5 +154,5 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	return migrateV26DeferredLocationPrivacy(ctx, tx)
+	return nil
 }

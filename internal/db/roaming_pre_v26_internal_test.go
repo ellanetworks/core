@@ -117,9 +117,9 @@ func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("GetUsagePerDay at schema 25 = %+v, %v", perDay, err)
 	}
 
-	home, roamers := false, true
+	own, roamers := false, true
 
-	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), &home); err != nil || len(perDay) != 1 {
+	if perDay, err := d.GetUsagePerDay(ctx, "", NewDayRange(time.Now().AddDate(0, 0, -1), time.Now()), &own); err != nil || len(perDay) != 1 {
 		t.Fatalf("GetUsagePerDay of home subscribers at schema 25 = %+v, %v", perDay, err)
 	}
 

@@ -31,7 +31,7 @@ This path returns a subscriber's current location.
 | Status | Condition                                 |
 | ------ | ----------------------------------------- |
 | `200`  | Returns a location estimate.              |
-| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers) whose home network does not allow location. |
+| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers): roamers can't be located. |
 | `404`  | Subscriber not registered, or no estimate. |
 | `504`  | Location request timed out.               |
 
@@ -163,7 +163,7 @@ This path starts periodic location reporting for a subscriber (TS 23.273 deferre
 | ------ | ---------------------------------------------------------- |
 | `201`  | Returns the deferred location request.                     |
 | `400`  | Invalid parameters.                                        |
-| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers) whose home network does not allow location. |
+| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers): roamers can't be located. |
 | `404`  | Subscriber not registered on this node.                    |
 | `409`  | The subscriber already has an active deferred location request. |
 | `501`  | `ldr_type` is not supported.                               |
@@ -235,7 +235,7 @@ This path returns a paginated list of deferred location requests, newest first.
 | `measurement_quantities` | object  | E-CID measurement quantities.                                                    |
 | `status`                 | string  | `ACTIVE` or `TERMINATED`.                                                        |
 | `termination_cause`      | string  | `NORMAL_TERMINATION`, `TERMINATION_BY_UE`, or `TERMINATION_BY_NETWORK` (TS 29.572). |
-| `termination_reason`     | string  | `ue_deregistered`, `ue_mobility`, `positioning_failed`, `node_restart`, `node_shutdown`, or `privacy`. |
+| `termination_reason`     | string  | `ue_deregistered`, `ue_mobility`, `positioning_failed`, `node_restart`, or `node_shutdown`. |
 | `event_report_counter`   | integer | Number of reports produced (TS 29.572). Absent before the first report.          |
 | `created_at`             | string  | Creation time.                                                                   |
 | `terminated_at`          | string  | Termination time.                                                                |

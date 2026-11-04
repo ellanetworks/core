@@ -47,7 +47,6 @@ const (
 	TerminationReasonPositioning    TerminationReason = "positioning_failed"
 	TerminationReasonNodeRestart    TerminationReason = "node_restart"
 	TerminationReasonNodeShutdown   TerminationReason = "node_shutdown"
-	TerminationReasonPrivacy        TerminationReason = "privacy"
 )
 
 var (
@@ -248,7 +247,7 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 		return nil, fmt.Errorf("UE not registered: %w", ErrNotFound)
 	}
 
-	if err := l.checkPrivacy(ctx, params.SUPI); err != nil {
+	if err := l.refuseRoamer(params.SUPI); err != nil {
 		return nil, err
 	}
 

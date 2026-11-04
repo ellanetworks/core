@@ -29,7 +29,7 @@ type DiameterNode interface {
 	NewSessionID() string
 }
 
-type Home struct {
+type HPLMNPeer struct {
 	Realm   string
 	HSS     string
 	Partner string
@@ -44,7 +44,7 @@ func NewS6a(node func() DiameterNode) *S6a {
 	return &S6a{node: node, timeout: s6aRequestTimeout}
 }
 
-func (c *S6a) AuthenticationInformation(ctx context.Context, home Home, imsi string, visited tgpp.PLMN, resync *s6a.Resync) (s6a.EUTRANVector, string, error) {
+func (c *S6a) AuthenticationInformation(ctx context.Context, home HPLMNPeer, imsi string, visited tgpp.PLMN, resync *s6a.Resync) (s6a.EUTRANVector, string, error) {
 	ans, err := c.send(ctx, home, func(env tgpp.Envelope) (*diameter.Message, error) {
 		return s6a.NewAuthenticationInformationRequest(env, s6a.AuthenticationInformationRequest{
 			IMSI: imsi,
@@ -72,7 +72,7 @@ func (c *S6a) AuthenticationInformation(ctx context.Context, home Home, imsi str
 	return info.EUTRAN[0], info.HSS.OriginHost, nil
 }
 
-func (c *S6a) UpdateLocation(ctx context.Context, home Home, req s6a.UpdateLocationRequest) (s6a.UpdateLocation, error) {
+func (c *S6a) UpdateLocation(ctx context.Context, home HPLMNPeer, req s6a.UpdateLocationRequest) (s6a.UpdateLocation, error) {
 	ans, err := c.send(ctx, home, func(env tgpp.Envelope) (*diameter.Message, error) {
 		return s6a.NewUpdateLocationRequest(env, req)
 	})
@@ -83,7 +83,7 @@ func (c *S6a) UpdateLocation(ctx context.Context, home Home, req s6a.UpdateLocat
 	return s6a.ParseUpdateLocationAnswer(ans)
 }
 
-func (c *S6a) PurgeUE(ctx context.Context, home Home, req s6a.PurgeUERequest) (s6a.PurgeUE, error) {
+func (c *S6a) PurgeUE(ctx context.Context, home HPLMNPeer, req s6a.PurgeUERequest) (s6a.PurgeUE, error) {
 	ans, err := c.send(ctx, home, func(env tgpp.Envelope) (*diameter.Message, error) {
 		return s6a.NewPurgeUERequest(env, req)
 	})
@@ -94,7 +94,7 @@ func (c *S6a) PurgeUE(ctx context.Context, home Home, req s6a.PurgeUERequest) (s
 	return s6a.ParsePurgeUEAnswer(ans)
 }
 
-func (c *S6a) Notify(ctx context.Context, home Home, req s6a.NotifyRequest) error {
+func (c *S6a) Notify(ctx context.Context, home HPLMNPeer, req s6a.NotifyRequest) error {
 	ans, err := c.send(ctx, home, func(env tgpp.Envelope) (*diameter.Message, error) {
 		return s6a.NewNotifyRequest(env, req)
 	})
@@ -107,7 +107,7 @@ func (c *S6a) Notify(ctx context.Context, home Home, req s6a.NotifyRequest) erro
 	return err
 }
 
-func (c *S6a) send(ctx context.Context, home Home, build func(tgpp.Envelope) (*diameter.Message, error)) (*diameter.Message, error) {
+func (c *S6a) send(ctx context.Context, home HPLMNPeer, build func(tgpp.Envelope) (*diameter.Message, error)) (*diameter.Message, error) {
 	node := c.node()
 	if node == nil {
 		return nil, fmt.Errorf("%w: the Diameter node is not running", ErrHSSUnreachable)

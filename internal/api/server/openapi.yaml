@@ -8126,9 +8126,6 @@ components:
         trustAnchorPEM:
           type: string
           description: "PEM bundle of the certificates that the partner SEPP's certificate must chain to (TS 33.501 clause 13.1.2): root or sub-CA certificates (GSMA FS.34 clause 3.3), or a self-signed partner certificate pinned as its own trust anchor. Only CERTIFICATE blocks, each valid now, with an ECDSA key or an RSA key of at least 2048 bits."
-        nrfAPIRoot:
-          type: string
-          description: "apiRoot (http or https) of the partner's NRF. Absent means https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org of the PLMN ID that fqdn names (TS 23.003 clause 28.3.2.3)."
 
     RoamingPLMN:
       type: object
@@ -8141,6 +8138,15 @@ components:
           type: string
           pattern: "^[0-9]{2,3}$"
           description: "Its length is significant (TS 23.003 clause 2.2): roamers are the IMSIs that start with the MCC and MNC."
+
+    RoamingPartnerPLMN:
+      allOf:
+        - $ref: "#/components/schemas/RoamingPLMN"
+        - type: object
+          properties:
+            nrfAPIRoot:
+              type: string
+              description: "apiRoot (http or https) of the NRF of this PLMN, for its roamers. Absent means https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org of this PLMN (TS 23.003 clause 28.3.2.3). Needs a sepp. A trailing / is removed."
 
     RoamingPartner:
       type: object
@@ -8155,7 +8161,7 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/RoamingPLMN"
+            $ref: "#/components/schemas/RoamingPartnerPLMN"
           description: "The PLMN IDs of the partner's network (TS 29.573 plmnIdList, GSMA FS.34 clause 5.1.1), sorted. Each belongs to one partner only."
         profileName:
           type: string
@@ -8230,7 +8236,7 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/RoamingPLMN"
+            $ref: "#/components/schemas/RoamingPartnerPLMN"
           description: "The partner's PLMN IDs. Under one MCC, no two may have the same MNC once zero-padded to 3 digits, nor may one MNC be a prefix of another; the same holds against the home PLMN and every other partner's PLMN IDs."
         profileName:
           type: string

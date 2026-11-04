@@ -33,3 +33,16 @@ func SubscribedAPN(ctx context.Context, m *MME, imsi, requested string) (string,
 func SubscribedUEAMBR(ctx context.Context, m *MME, imsi string) (models.Ambr, error) {
 	return m.subscriptions().UEAMBR(ctx, imsi)
 }
+
+func (m *MME) APNSubscription(ue *UeContext, apn string) (*models.APNSubscription, error) {
+	v, ok := ue.Visitor()
+	if !ok {
+		return nil, nil
+	}
+
+	if v.Subscription == nil {
+		return nil, fmt.Errorf("%w: %s", roaming.ErrNoHPLMNSubscription, ue.IMSI())
+	}
+
+	return roaming.APNSubscription(models.PlmnID{Mcc: v.HomePLMN.MCC, Mnc: v.HomePLMN.MNC}, v.Subscription, apn)
+}

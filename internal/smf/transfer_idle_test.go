@@ -18,12 +18,19 @@ import (
 func establishEPSOnENB(t *testing.T, s *smf.SMF) *smf.SMContext {
 	t.Helper()
 
+	return establishEPSOnENBWith(t, s, nil)
+}
+
+func establishEPSOnENBWith(t *testing.T, s *smf.SMF, sub *models.APNSubscription) *smf.SMContext {
+	t.Helper()
+
 	ctx := context.Background()
 
 	req := epsRequest(3)
 	req.APN = testDNN
 	req.PDUSessionID = movedPDUSessionID
 	req.Snssai = testSnssai
+	req.Subscription = sub
 
 	bearer, err := s.CreateEPSSession(ctx, req)
 	if err != nil {

@@ -153,6 +153,14 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
+	subscription, err := m.APNSubscription(ue, apn)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to resolve the home APN subscription for additional PDN", zap.String("apn", apn), zap.Error(err))
+		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
+
+		return nasreply.Handled()
+	}
+
 	p := m.AddPDN(ue)
 	if p == nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: no free EPS bearer identity")
@@ -168,6 +176,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		APN:               apn,
 		RequestedPDNType:  uint8(pdnType),
 		RequestType:       ueConn.ESMRequest.Type,
+		Subscription:      subscription,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: session setup failed", zap.String("apn", apn), zap.Error(err))

@@ -268,6 +268,7 @@ func (a AcknowledgeInfo) Check(p Policy) error {
 
 type AccessAndMobilitySubscriptionData struct {
 	SupportedFeatures           SupportedFeatures    `json:"supportedFeatures,omitempty"`
+	Gpsis                       []string             `json:"gpsis,omitempty"`
 	SubscribedUeAmbr            *Ambr                `json:"subscribedUeAmbr,omitempty"`
 	Nssai                       *Nssai               `json:"nssai,omitempty"`
 	RatRestrictions             []RatType            `json:"ratRestrictions,omitempty"`
@@ -291,6 +292,16 @@ func (a AccessAndMobilitySubscriptionData) Check(p Policy) error {
 	}
 
 	return Nest("/supportedFeatures", a.SupportedFeatures.Check(p))
+}
+
+func (a AccessAndMobilitySubscriptionData) MSISDN() (string, bool) {
+	for _, g := range a.Gpsis {
+		if digits, ok := MSISDNFromGpsi(g); ok {
+			return digits, true
+		}
+	}
+
+	return "", false
 }
 
 func (a AccessAndMobilitySubscriptionData) RATRestricted(r RatType) bool {
@@ -533,6 +544,7 @@ type SessionManagementSubscriptionData struct {
 	SingleNssai               *Snssai                     `json:"singleNssai"`
 	DnnConfigurations         map[string]DnnConfiguration `json:"dnnConfigurations,omitempty"`
 	SharedDnnConfigurationsID string                      `json:"sharedDnnConfigurationsId,omitempty"`
+	OdbPacketServices         OdbPacketServices           `json:"odbPacketServices,omitempty"`
 	SupportedFeatures         SupportedFeatures           `json:"supportedFeatures,omitempty"`
 }
 
@@ -575,6 +587,7 @@ func (s SessionManagementSubscriptionData) Check(p Policy) error {
 	return firstError(
 		Nest("/supportedFeatures", s.SupportedFeatures.Check(p)),
 		checkPattern("/sharedDnnConfigurationsId", s.SharedDnnConfigurationsID, sharedDataIDPattern, true),
+		CheckEnum("/odbPacketServices", s.OdbPacketServices, p, true),
 	)
 }
 
@@ -714,6 +727,10 @@ func (s SdmSubscription) Check(p Policy) error {
 	for i, u := range s.MonitoredResourceUris {
 		if u == "" {
 			return NestIndex("/monitoredResourceUris", i, Missing(""))
+		}
+
+		if !AbsoluteURIOrPath(u) {
+			return NestIndex("/monitoredResourceUris", i, Incorrect("", false, "%q is neither an absolute URI nor an absolute-path reference", u))
 		}
 	}
 

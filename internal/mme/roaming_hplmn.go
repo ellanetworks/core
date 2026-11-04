@@ -32,17 +32,17 @@ func (m *MME) purgeRegistration(ue *UeContext, supi etsi.SUPI, tmsis []etsi.TMSI
 	imsi := supi.IMSI()
 
 	ue.mu.Lock()
-	v, registered := ue.homeRegistrationLocked()
+	v, registered := ue.hplmnRegistrationLocked()
 	loc := ue.Location
 	ue.mu.Unlock()
 
-	if !registered || m.HomeNetwork == nil {
+	if !registered || m.HPLMN == nil {
 		m.purgeLocalRegistration(imsi)
 		return false
 	}
 
 	m.home.Go(imsi, func() {
-		freeze := m.purgeAtHome(imsi, v.Home, epsLocation(loc, time.Now()))
+		freeze := m.purgeAtHPLMN(imsi, v.Peer, epsLocation(loc, time.Now()))
 		m.releaseMTMSIs(tmsis, freeze)
 		m.purgeLocalRegistration(imsi)
 	})
@@ -56,14 +56,14 @@ func (m *MME) purgeLocalRegistration(imsi string) {
 	}
 }
 
-func (m *MME) purgeAtHome(imsi string, home roaming.Home, loc *s6a.EPSLocationInformation) bool {
+func (m *MME) purgeAtHPLMN(imsi string, home roaming.HPLMNPeer, loc *s6a.EPSLocationInformation) bool {
 	if m.HoldsUE(imsi) {
 		return false
 	}
 
 	log := logger.MmeLog.With(logger.SUPIFromIMSI(imsi), zap.String("home_realm", home.Realm))
 
-	pua, err := m.HomeNetwork.PurgeUE(context.Background(), home, s6a.PurgeUERequest{IMSI: imsi, Location: loc})
+	pua, err := m.HPLMN.PurgeUE(context.Background(), home, s6a.PurgeUERequest{IMSI: imsi, Location: loc})
 	if err != nil {
 		log.Warn("failed to purge the visitor at its home HSS", zap.Error(err))
 		return false
@@ -134,7 +134,7 @@ func epsLocation(loc models.UserLocation, now time.Time) *s6a.EPSLocationInforma
 
 func (m *MME) NotifyEquipmentChange(ctx context.Context, ue *UeContext) {
 	v, ok := ue.Visitor()
-	if !ok || !v.Registered || v.Subscription == nil || m.HomeNetwork == nil {
+	if !ok || !v.Registered || v.Subscription == nil || m.HPLMN == nil {
 		return
 	}
 
@@ -147,7 +147,7 @@ func (m *MME) NotifyEquipmentChange(ctx context.Context, ue *UeContext) {
 	ctx = context.WithoutCancel(ctx)
 
 	m.home.Go(imsi, func() {
-		err := m.HomeNetwork.Notify(ctx, v.Home, s6a.NotifyRequest{IMSI: imsi, Terminal: terminal})
+		err := m.HPLMN.Notify(ctx, v.Peer, s6a.NotifyRequest{IMSI: imsi, Terminal: terminal})
 
 		var re *s6a.ResultError
 
@@ -159,22 +159,22 @@ func (m *MME) NotifyEquipmentChange(ctx context.Context, ue *UeContext) {
 			m.cancelVisitor(ctx, ue, true, eps.DetachTypeReattachNotRequired, "unknown user at the home HSS")
 		case errors.As(err, &re) && re.IsExperimental(tgpp.ResultErrorUnknownServingNode):
 			logger.From(ctx, logger.MmeLog).Info("the home HSS does not hold this MME as serving node; restoring at the next contact", logger.SUPIFromIMSI(imsi))
-			ue.unconfirmHomeLocation()
+			ue.unconfirmHPLMNLocation()
 		default:
 			logger.From(ctx, logger.MmeLog).Warn("failed to notify the home HSS of the new equipment identity", logger.SUPIFromIMSI(imsi), zap.Error(err))
 		}
 	})
 }
 
-func (m *MME) ConfirmHomeLocation(ctx context.Context, ue *UeContext) {
+func (m *MME) ConfirmHPLMNLocation(ctx context.Context, ue *UeContext) {
 	v, ok := ue.Visitor()
-	if !ok || !v.Registered || v.Confirmed || m.HomeNetwork == nil || !ue.homeRestoring.CompareAndSwap(false, true) {
+	if !ok || !v.Registered || v.Confirmed || m.HPLMN == nil || !ue.hplmnRestoring.CompareAndSwap(false, true) {
 		return
 	}
 
 	serving, err := m.OperatorPLMN(ctx)
 	if err != nil {
-		ue.homeRestoring.Store(false)
+		ue.hplmnRestoring.Store(false)
 		logger.From(ctx, logger.MmeLog).Warn("cannot restore the visitor at its home HSS: no serving PLMN", zap.Error(err))
 
 		return
@@ -184,13 +184,21 @@ func (m *MME) ConfirmHomeLocation(ctx context.Context, ue *UeContext) {
 	ctx = context.WithoutCancel(ctx)
 
 	m.home.Go(imsi, func() {
-		defer ue.homeRestoring.Store(false)
+		defer ue.hplmnRestoring.Store(false)
 
 		if held, ok := m.LookupUeByIMSI(imsi); !ok || held != ue {
 			return
 		}
 
 		if err := m.updateLocation(ctx, ue, serving, ULRRestoration); err != nil {
+			if r, permanent := restorationRefusal(err); permanent {
+				logger.From(ctx, logger.MmeLog).Info("the home HSS refused to restore the visitor; detaching it",
+					logger.SUPIFromIMSI(imsi), logger.Cause(r.Cause.String()), zap.Error(err))
+				m.detachRefusedVisitor(ctx, ue, r)
+
+				return
+			}
+
 			logger.From(ctx, logger.MmeLog).Warn("failed to restore the visitor at its home HSS; retrying at the next contact",
 				logger.SUPIFromIMSI(imsi), zap.Error(err))
 
@@ -198,11 +206,11 @@ func (m *MME) ConfirmHomeLocation(ctx context.Context, ue *UeContext) {
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("restored the visitor at its home HSS", logger.SUPIFromIMSI(imsi))
-		m.applyHomeSubscription(ctx, ue)
+		m.applyHPLMNSubscription(ctx, ue)
 	})
 }
 
-func (m *MME) applyHomeSubscription(ctx context.Context, ue *UeContext) {
+func (m *MME) applyHPLMNSubscription(ctx context.Context, ue *UeContext) {
 	if held, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok || held != ue || ue.EMMState() != EMMRegistered {
 		return
 	}
@@ -227,6 +235,12 @@ func (m *MME) applyHomeSubscription(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	if m.detachBarredVisitor(ctx, ue, *v.Subscription) {
+		return
+	}
+
+	m.recordVisitorMSISDN(ctx, ue)
+
 	if subscribed, err := SubscribedUEAMBR(ctx, m, ue.IMSI()); err == nil {
 		ue.SetSubscribedUEAMBR(subscribed)
 	}
@@ -234,12 +248,52 @@ func (m *MME) applyHomeSubscription(ctx context.Context, ue *UeContext) {
 	m.ReconcileUE(ctx, ue)
 }
 
+func restorationRefusal(err error) (*Rejection, bool) {
+	var re *s6a.ResultError
+	if !errors.As(err, &re) {
+		return nil, false
+	}
+
+	switch {
+	case re.IsExperimental(tgpp.ResultErrorUserUnknown),
+		re.IsExperimental(tgpp.ResultErrorRoamingNotAllowed),
+		re.IsExperimental(tgpp.ResultErrorUnknownEPSSubscription),
+		re.IsExperimental(tgpp.ResultErrorRATNotAllowed):
+		return HPLMNRejection(err), true
+	default:
+		return nil, false
+	}
+}
+
+func (m *MME) detachRefusedVisitor(ctx context.Context, ue *UeContext, r *Rejection) {
+	if held, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok || held != ue {
+		return
+	}
+
+	ue.setHPLMNRegistered(false)
+
+	cause := r.Cause
+	m.detachUE(ctx, ue, eps.DetachTypeReattachNotRequired, &cause, models.ReleaseFor(models.ReleaseSubscriptionWithdrawn), "home HSS refused the restoration")
+}
+
+func (m *MME) detachBarredVisitor(ctx context.Context, ue *UeContext, sub s6a.SubscriptionData) bool {
+	if !sub.BarsVisitedPLMNAccessPoints() {
+		return false
+	}
+
+	logger.From(ctx, logger.MmeLog).Info("operator determined barring bars every locally broken out PDN connection of the visitor; detaching it",
+		logger.SUPI(ue.Supi().String()))
+	m.detachUE(ctx, ue, eps.DetachTypeReattachNotRequired, nil, models.ReleaseFor(models.ReleaseSubscriptionChanged), "operator determined barring")
+
+	return true
+}
+
 func (m *MME) cancelVisitor(ctx context.Context, ue *UeContext, detach bool, detachType eps.DetachTypeNetwork, reason string) {
 	if held, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok || held != ue {
 		return
 	}
 
-	ue.setHomeRegistered(false)
+	ue.setHPLMNRegistered(false)
 
 	if detach {
 		m.detachUE(ctx, ue, detachType, nil, models.ReleaseFor(models.ReleaseSubscriptionWithdrawn), reason)

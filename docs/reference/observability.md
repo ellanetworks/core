@@ -40,7 +40,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_sepp_n32f_request_duration_seconds | Duration of outbound N32-f requests, labeled by `partner` and `service`. | Histogram |
 | app_sepp_n32f_rejected_total | Inbound N32-f requests this node rejected, labeled by `partner` and `reason`. | Counter |
 | app_roaming_s6a_requests_total | S6a requests this node sent to or received from roaming partners, labeled by `partner`, `command`, and `result` (the Diameter result code, `timeout`, or `error`). | Counter |
-| app_roaming_home_sbi_requests_total | Requests this node sent to the 5G core of roaming partners, labeled by `partner`, `service`, and `result` (the HTTP status code, or `error`). | Counter |
+| app_roaming_hplmn_sbi_requests_total | Requests this node sent to the 5G core of roaming partners, labeled by `partner`, `service`, and `result` (the HTTP status code, or `error`). | Counter |
 | app_roaming_rejects_total | Roamer registrations and attaches this node rejected, labeled by `partner`, `rat`, and `cause`. | Counter |
 | app_ims_registered_subscribers | Number of subscribers currently registered in IMS, across the cluster. | Gauge |
 | app_ip_addresses_allocated | The total number of IP addresses currently allocated to subscribers. | Gauge |

@@ -56,7 +56,7 @@ func open5GSSEPPAddr() string {
 
 var (
 	e2eOperator = wire.PlmnID{Mcc: "999", Mnc: "70"}
-	e2eHome     = wire.PlmnID{Mcc: "001", Mnc: "01"}
+	e2eHPLMN    = wire.PlmnID{Mcc: "001", Mnc: "01"}
 )
 
 func open5GSPartner(t *testing.T) sepp.PartnerConfig {
@@ -65,11 +65,11 @@ func open5GSPartner(t *testing.T) sepp.PartnerConfig {
 	return sepp.PartnerConfig{
 		ID:             "open5gs",
 		Name:           "open5gs",
-		PLMNs:          []wire.PlmnID{e2eHome},
+		PLMNs:          []wire.PlmnID{e2eHPLMN},
 		FQDN:           "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
 		N32cURI:        "https://sepp1.5gc.mnc001.mcc001.3gppnetwork.org:7777",
 		TrustAnchorPEM: readCert(t, "open5gs-ca.crt"),
-		NRFAPIRoot:     "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org",
+		NRFAPIRoots:    map[wire.PlmnID]string{e2eHPLMN: "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org"},
 	}
 }
 
@@ -154,7 +154,7 @@ func authenticateThroughOpen5GS(t *testing.T, ctx context.Context, m *sepp.Manag
 
 	discovery := NewDiscovery(m)
 
-	ausf, err := discovery.Discover(ctx, DiscoveryRequest{PartnerID: partnerID, HomePLMN: e2eHome, ServingPLMN: e2eOperator, Target: wire.NFTypeAUSF, Requester: wire.NFTypeAMF, Service: wire.ServiceNausfAuth})
+	ausf, err := discovery.Discover(ctx, DiscoveryRequest{PartnerID: partnerID, HomePLMN: e2eHPLMN, ServingPLMN: e2eOperator, Target: wire.NFTypeAUSF, Requester: wire.NFTypeAMF, Service: wire.ServiceNausfAuth})
 	if err != nil {
 		t.Fatalf("%s: H-NRF discovery: %v", m.LocalFQDN(), err)
 	}
@@ -200,7 +200,7 @@ func authenticateThroughOpen5GS(t *testing.T, ctx context.Context, m *sepp.Manag
 	t.Logf("%s: AUSF answered 201 (Location %s, 5g-aka %s)", m.LocalFQDN(), resp.Header.Get("Location"), href)
 }
 
-func TestOpen5GSHomeNetwork(t *testing.T) {
+func TestOpen5GSHPLMN(t *testing.T) {
 	ctx := context.Background()
 	partner := open5GSPartner(t)
 
@@ -222,7 +222,7 @@ func TestOpen5GSHomeNetwork(t *testing.T) {
 	t.Logf("Open5GS-initiated handshake accepted: %+v", m.Context(partner.ID))
 }
 
-func TestOpen5GSHomeNetworkWithOneSEPPPerNode(t *testing.T) {
+func TestOpen5GSHPLMNWithOneSEPPPerNode(t *testing.T) {
 	ctx := context.Background()
 	partner := open5GSPartner(t)
 

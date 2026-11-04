@@ -78,7 +78,7 @@ type PdnConnection struct {
 	Dns           netip.Addr // data-network DNS server, advertised to the UE via PCO
 	PDUSessionID  uint8
 	Snssai        *models.Snssai
-	HomeSnssai    *models.Snssai
+	HPLMNSnssai   *models.Snssai
 	SessAmbrDLBps uint64
 	SessAmbrULBps uint64
 	Qci           uint8
@@ -192,8 +192,9 @@ type UeContext struct {
 
 	allow5G bool
 
-	visitor       *roaming.Visitor
-	homeRestoring atomic.Bool
+	visitor        *roaming.Visitor
+	visitorMSISDN  *string
+	hplmnRestoring atomic.Bool
 
 	arrivedByHandoverFrom5GS atomic.Bool
 
@@ -445,7 +446,7 @@ func fillBearerLocked(p *PdnConnection, apn string, bearer models.EPSBearer) {
 	p.SgwN3IPv6 = bearer.SGWN3IPv6
 	p.PDUSessionID = bearer.PDUSessionID
 	p.Snssai = bearer.Snssai
-	p.HomeSnssai = bearer.HomeSnssai
+	p.HPLMNSnssai = bearer.HPLMNSnssai
 }
 
 // InstallDefaultBearer publishes the UE-AMBR and the default PDN connection's

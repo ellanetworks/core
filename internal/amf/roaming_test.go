@@ -18,7 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/roaming"
-	"github.com/ellanetworks/core/internal/roaming/fakehome"
+	"github.com/ellanetworks/core/internal/roaming/fakehplmn"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -106,6 +106,20 @@ func (d *roamingTestDB) ListRoamingPartners(context.Context) ([]db.RoamingPartne
 	return append([]db.RoamingPartner(nil), d.partners...), nil
 }
 
+func (d *roamingTestDB) SetVisitorMSISDN(_ context.Context, imsi, msisdn string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	s, ok := d.visitors[imsi]
+	if !ok {
+		return db.ErrNotFound
+	}
+
+	s.Msisdn = msisdn
+
+	return nil
+}
+
 func (d *roamingTestDB) CountSubscribersAndVisitors(context.Context) (int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -130,8 +144,8 @@ func (d directN32) Client(string) *http.Client {
 	})}
 }
 
-func (d directN32) NRFAPIRoot(string) (string, error) {
-	return "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org", nil
+func (d directN32) HPLMNNRF(_ string, home wire.PlmnID) (string, error) {
+	return "http://" + home.NFFQDN(wire.FQDNLabelNRF), nil
 }
 
 type openN32 struct{ err error }
@@ -141,15 +155,15 @@ func (o openN32) WaitEstablished(context.Context, string, time.Duration) error {
 type roamingFixture struct {
 	amf  *AMF
 	db   *roamingTestDB
-	home *fakehome.Home
+	home *fakehplmn.HPLMN
 	reg  *fakeRegistrar
 }
 
 func newRoamingFixture(t *testing.T) *roamingFixture {
 	t.Helper()
 
-	f := &roamingFixture{db: newRoamingTestDB(), home: fakehome.New(wire.PlmnID{Mcc: "001", Mnc: "01"})}
-	f.home.Provision(roamerIMSI, fakehome.Subscriber{
+	f := &roamingFixture{db: newRoamingTestDB(), home: fakehplmn.New(wire.PlmnID{Mcc: "001", Mnc: "01"})}
+	f.home.Provision(roamerIMSI, fakehplmn.Subscriber{
 		K: roamerK, OPc: roamerOPc, SQN: "000000000020",
 		AM: wire.AccessAndMobilitySubscriptionData{
 			SubscribedUeAmbr: &wire.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
@@ -163,7 +177,7 @@ func newRoamingFixture(t *testing.T) *roamingFixture {
 	f.amf = New(f.db, nil, nil)
 	f.amf.Roaming = f.db
 	f.amf.N32 = openN32{}
-	f.amf.HomeNetwork = roaming.NewAMFHome(roaming.NewHomeSBI(directN32{h: f.home}, roaming.NewDiscovery(directN32{h: f.home})))
+	f.amf.HPLMN = roaming.NewAMFHPLMN(roaming.NewHPLMNSBI(directN32{h: f.home}, roaming.NewDiscovery(directN32{h: f.home})))
 	f.reg = newFakeRegistrar()
 	f.amf.Registrations = f.reg
 
@@ -202,7 +216,7 @@ func waitDone[T any](t *testing.T, ch <-chan T) T {
 	return zero
 }
 
-func homeRESStar(t *testing.T, result *ausf.AuthResult) [16]byte {
+func hplmnRESStar(t *testing.T, result *ausf.AuthResult) [16]byte {
 	t.Helper()
 
 	k, _ := hex.DecodeString(roamerK)
@@ -246,7 +260,7 @@ func (f *roamingFixture) authenticate(t *testing.T, ue *UeContext, conn *UeConn)
 
 	confirmed := make(chan confirmation, 1)
 
-	f.amf.RequestConfirmation(t.Context(), ue, conn, homeRESStar(t, challenge), func(_ context.Context, supi etsi.SUPI, kseaf []byte, err error) {
+	f.amf.RequestConfirmation(t.Context(), ue, conn, hplmnRESStar(t, challenge), func(_ context.Context, supi etsi.SUPI, kseaf []byte, err error) {
 		confirmed <- confirmation{supi, kseaf, err}
 	})
 
@@ -262,15 +276,15 @@ func (f *roamingFixture) authenticate(t *testing.T, ue *UeContext, conn *UeConn)
 	}
 }
 
-func (f *roamingFixture) registerAtHome(t *testing.T, ue *UeContext, conn *UeConn) {
+func (f *roamingFixture) registerAtHPLMN(t *testing.T, ue *UeContext, conn *UeConn) {
 	t.Helper()
 
 	done := make(chan error, 1)
 
-	f.amf.RequestHomeRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
+	f.amf.RequestHPLMNRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
 
 	if err := waitDone(t, done); err != nil {
-		t.Fatalf("RequestHomeRegistration: %v", err)
+		t.Fatalf("RequestHPLMNRegistration: %v", err)
 	}
 
 	partner := "partner-1"
@@ -341,7 +355,7 @@ func TestVisitorAuthenticatesRegistersAndIsPurgedAtItsHome(t *testing.T) {
 	ue, conn := f.visitorUE(t)
 
 	f.authenticate(t, ue, conn)
-	f.registerAtHome(t, ue, conn)
+	f.registerAtHPLMN(t, ue, conn)
 
 	supi := "imsi-" + roamerIMSI
 
@@ -378,7 +392,7 @@ func TestVisitorAuthenticatesRegistersAndIsPurgedAtItsHome(t *testing.T) {
 	}
 
 	f.amf.DeregisterAndRemoveUeContext(t.Context(), ue, models.ReleaseFor(models.ReleaseDeregistration))
-	f.amf.SettleHomeNetwork()
+	f.amf.SettleHPLMN()
 
 	if !f.home.Purged(supi) {
 		t.Fatal("the visitor was not purged at the home UDM")
@@ -403,7 +417,7 @@ func TestVisitorFailedAuthenticationSendsANullRESStar(t *testing.T) {
 	waitDone(t, challenges)
 
 	f.amf.AuthenticationFailed(t.Context(), ue)
-	f.amf.SettleHomeNetwork()
+	f.amf.SettleHPLMN()
 
 	got := f.home.Confirmations()
 	if len(got) != 1 || got[0] != nil {
@@ -440,8 +454,8 @@ func TestVisitorWithoutN32IsTransient(t *testing.T) {
 	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, _ *ausf.AuthResult, err error) { done <- err })
 
 	err := waitDone(t, done)
-	if !errors.Is(err, roaming.ErrHomeUnreachable) {
-		t.Fatalf("error %v, want ErrHomeUnreachable", err)
+	if !errors.Is(err, roaming.ErrHPLMNUnreachable) {
+		t.Fatalf("error %v, want ErrHPLMNUnreachable", err)
 	}
 
 	if r, ok := AuthenticationRejection(err); ok {
@@ -449,7 +463,7 @@ func TestVisitorWithoutN32IsTransient(t *testing.T) {
 	}
 }
 
-func TestHomeRegistrationRejectionsFollowTS29524(t *testing.T) {
+func TestHPLMNRegistrationRejectionsFollowTS29524(t *testing.T) {
 	cases := []struct {
 		status int
 		cause  wire.Cause
@@ -460,27 +474,45 @@ func TestHomeRegistrationRejectionsFollowTS29524(t *testing.T) {
 		{http.StatusForbidden, wire.CauseAccessNotAllowed, fgs.GMMCauseNoSuitableCellsInTrackingArea},
 		{http.StatusForbidden, wire.CauseRoamingNotAllowed, fgs.GMMCausePLMNNotAllowed},
 		{http.StatusForbidden, wire.CauseNoPSSubscription, fgs.GMMCauseServicesNotAllowed},
-		{http.StatusForbidden, "", fgs.GMMCausePLMNNotAllowed},
 		{http.StatusNotFound, wire.CauseUserNotFound, fgs.GMMCauseIllegalUE},
 		{http.StatusNotFound, wire.CauseContextNotFound, fgs.GMMCauseUEIdentityCannotBeDerived},
-		{http.StatusNotFound, wire.CauseDataNotFound, fgs.GMMCauseN1ModeNotAllowed},
-		{http.StatusNotFound, "", fgs.GMMCauseN1ModeNotAllowed},
-		{http.StatusUnprocessableEntity, "UNPROCESSABLE_REQUEST", fgs.GMMCauseProtocolErrorUnspecified},
+		{http.StatusUnprocessableEntity, wire.CauseUnprocessableRequest, fgs.GMMCauseProtocolErrorUnspecified},
 	}
 
 	for _, tc := range cases {
-		r, ok := HomeRegistrationRejection(wire.NewProblem(tc.status, tc.cause, ""))
+		r, ok := HPLMNRegistrationRejection(&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(tc.status, tc.cause, "")})
 		if !ok || r.Cause != tc.want {
 			t.Errorf("%d %s: %+v, want %s", tc.status, tc.cause, r, tc.want)
+		}
+	}
+
+	for _, tc := range []struct {
+		cause wire.Cause
+		want  fgs.GMMCause
+	}{
+		{wire.CauseUserNotFound, fgs.GMMCauseIllegalUE},
+		{wire.CauseDataNotFound, fgs.GMMCauseN1ModeNotAllowed},
+	} {
+		r, ok := HPLMNRegistrationRejection(&HPLMNFailure{Op: HPLMNSubscriptionData, Err: wire.NewProblem(http.StatusNotFound, tc.cause, "")})
+		if !ok || r.Cause != tc.want {
+			t.Errorf("SDM 404 %s: %+v, want %s", tc.cause, r, tc.want)
 		}
 	}
 
 	for _, err := range []error{
 		wire.NewProblem(http.StatusGatewayTimeout, wire.CauseNetworkFailure, ""),
 		wire.NewProblem(http.StatusForbidden, wire.CauseReauthenticationRequired, ""),
-		roaming.ErrHomeUnreachable,
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusForbidden, "", "")},
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusForbidden, wire.CauseOriginatingNetworkIDMismatch, "")},
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusNotFound, "", "")},
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusNotFound, wire.CauseDataNotFound, "")},
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusUnprocessableEntity, "", "")},
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusUnauthorized, "", "")},
+		&HPLMNFailure{Op: HPLMNSubscriptionData, Err: wire.NewProblem(http.StatusForbidden, wire.CauseUnknown5GSSubscription, "")},
+		roaming.ErrHPLMNUnreachable,
+		roaming.ErrHPLMNUnauthorized,
 	} {
-		if r, ok := HomeRegistrationRejection(err); ok {
+		if r, ok := HPLMNRegistrationRejection(err); ok {
 			t.Errorf("%v: %+v, want a transient release", err, r)
 		}
 	}
@@ -496,7 +528,8 @@ func TestAuthenticationRejectionsFollowTS29524(t *testing.T) {
 		{wire.NewProblem(http.StatusForbidden, wire.CauseAuthenticationRejected, ""), true, 0},
 		{wire.NewProblem(http.StatusNotFound, wire.CauseUserNotFound, ""), true, 0},
 		{wire.NewProblem(http.StatusNotImplemented, wire.CauseUnsupportedProtectionScheme, ""), true, 0},
-		{wire.NewProblem(http.StatusBadRequest, wire.CauseInvalidSchemeOutput, ""), true, 0},
+		{wire.NewProblem(http.StatusForbidden, wire.CauseInvalidSchemeOutput, ""), true, 0},
+		{wire.NewProblem(http.StatusForbidden, wire.CauseInvalidHNPublicKeyIdentifier, ""), true, 0},
 		{roaming.ErrUnsupportedAuthType, false, fgs.GMMCauseN1ModeNotAllowed},
 	}
 
@@ -510,7 +543,15 @@ func TestAuthenticationRejectionsFollowTS29524(t *testing.T) {
 	for _, err := range []error{
 		wire.NewProblem(http.StatusGatewayTimeout, wire.CauseUpstreamServerError, ""),
 		wire.NewProblem(http.StatusInternalServerError, wire.CauseAVGenerationProblem, ""),
-		roaming.ErrHomeUnreachable,
+		wire.NewProblem(http.StatusForbidden, "", ""),
+		wire.NewProblem(http.StatusForbidden, wire.CauseOriginatingNetworkIDMismatch, ""),
+		wire.NewProblem(http.StatusNotFound, "", ""),
+		wire.NewProblem(http.StatusNotFound, wire.CauseResourceURIStructureNotFound, ""),
+		wire.NewProblem(http.StatusNotImplemented, "", ""),
+		wire.NewProblem(http.StatusBadRequest, wire.CauseInvalidSchemeOutput, ""),
+		wire.NewProblem(http.StatusUnauthorized, "", ""),
+		roaming.ErrHPLMNUnreachable,
+		roaming.ErrHPLMNUnauthorized,
 	} {
 		if r, ok := AuthenticationRejection(err); ok {
 			t.Errorf("%v: %+v, want a transient release", err, r)
@@ -518,7 +559,7 @@ func TestAuthenticationRejectionsFollowTS29524(t *testing.T) {
 	}
 }
 
-func TestHomeRegistrationRefusalIsMappedAndNotPurged(t *testing.T) {
+func TestHPLMNRegistrationRefusalIsMappedAndNotPurged(t *testing.T) {
 	f := newRoamingFixture(t)
 	ue, conn := f.visitorUE(t)
 
@@ -527,9 +568,9 @@ func TestHomeRegistrationRefusalIsMappedAndNotPurged(t *testing.T) {
 
 	done := make(chan error, 1)
 
-	f.amf.RequestHomeRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
+	f.amf.RequestHPLMNRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
 
-	r, ok := HomeRegistrationRejection(waitDone(t, done))
+	r, ok := HPLMNRegistrationRejection(waitDone(t, done))
 	if !ok || r.Cause != fgs.GMMCauseNoSuitableCellsInTrackingArea {
 		t.Fatalf("rejection %+v", r)
 	}
@@ -539,24 +580,24 @@ func TestHomeRegistrationRefusalIsMappedAndNotPurged(t *testing.T) {
 	}
 }
 
-func TestHomeRestrictionsRejectTheVisitor(t *testing.T) {
+func TestHPLMNRestrictionsRejectTheVisitor(t *testing.T) {
 	f := newRoamingFixture(t)
-	f.home.Update(roamerIMSI, func(s *fakehome.Subscriber) { s.AM.RatRestrictions = []wire.RatType{wire.RatNR} })
+	f.home.Update(roamerIMSI, func(s *fakehplmn.Subscriber) { s.AM.RatRestrictions = []wire.RatType{wire.RatNR} })
 
 	ue, conn := f.visitorUE(t)
 	f.authenticate(t, ue, conn)
 
 	done := make(chan error, 1)
 
-	f.amf.RequestHomeRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
+	f.amf.RequestHPLMNRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
 
-	r, ok := HomeRegistrationRejection(waitDone(t, done))
+	r, ok := HPLMNRegistrationRejection(waitDone(t, done))
 	if !ok || r.Cause != fgs.GMMCauseNoSuitableCellsInTrackingArea {
 		t.Fatalf("rejection %+v", r)
 	}
 }
 
-func TestHomeDeregistrationNotification(t *testing.T) {
+func TestHPLMNDeregistrationNotification(t *testing.T) {
 	cases := []struct {
 		reason    wire.DeregistrationReason
 		wantPurge bool
@@ -571,23 +612,23 @@ func TestHomeDeregistrationNotification(t *testing.T) {
 			ue, conn := f.visitorUE(t)
 
 			f.authenticate(t, ue, conn)
-			f.registerAtHome(t, ue, conn)
+			f.registerAtHPLMN(t, ue, conn)
 
 			v, _ := ue.Visitor()
 
-			if err := f.amf.HomeDeregistration(t.Context(), "other-partner", roamerIMSI, wire.DeregistrationData{DeregReason: tc.reason}); !errors.Is(err, roaming.ErrNoVisitorContext) {
+			if err := f.amf.HPLMNDeregistration(t.Context(), "other-partner", roamerIMSI, wire.DeregistrationData{DeregReason: tc.reason}); !errors.Is(err, roaming.ErrNoVisitorContext) {
 				t.Fatalf("notification from another partner: %v", err)
 			}
 
-			if err := f.amf.HomeDeregistration(t.Context(), v.PartnerID, roamerIMSI, wire.DeregistrationData{DeregReason: tc.reason, AccessType: wire.Access3GPP}); err != nil {
-				t.Fatalf("HomeDeregistration: %v", err)
+			if err := f.amf.HPLMNDeregistration(t.Context(), v.PartnerID, roamerIMSI, wire.DeregistrationData{DeregReason: tc.reason, AccessType: wire.Access3GPP}); err != nil {
+				t.Fatalf("HPLMNDeregistration: %v", err)
 			}
 
-			f.amf.SettleHomeNetwork()
+			f.amf.SettleHPLMN()
 
 			if f.amf.HoldsUE(roamerIMSI) {
 				f.amf.DeregisterAndRemoveUeContext(t.Context(), ue, models.ReleaseFor(models.ReleaseDeregistration))
-				f.amf.SettleHomeNetwork()
+				f.amf.SettleHPLMN()
 			}
 
 			if f.home.Purged("imsi-"+roamerIMSI) != tc.wantPurge {
@@ -601,30 +642,30 @@ func TestHomeDeregistrationNotification(t *testing.T) {
 	}
 }
 
-func TestHomeSubscriptionChangeAppliesTheNewUEAMBR(t *testing.T) {
+func TestHPLMNSubscriptionChangeAppliesTheNewUEAMBR(t *testing.T) {
 	f := newRoamingFixture(t)
 	ue, conn := f.visitorUE(t)
 
 	f.authenticate(t, ue, conn)
-	f.registerAtHome(t, ue, conn)
+	f.registerAtHPLMN(t, ue, conn)
 	ue.ForceStateForTest(Registered)
 	ue.SetAllowedNssai([]models.Snssai{{Sst: 1}})
 
-	f.home.Update(roamerIMSI, func(s *fakehome.Subscriber) {
+	f.home.Update(roamerIMSI, func(s *fakehplmn.Subscriber) {
 		s.AM.SubscribedUeAmbr = &wire.Ambr{Uplink: "10 Mbps", Downlink: "20 Mbps"}
 	})
 
 	v, _ := ue.Visitor()
 
-	if err := f.amf.HomeSubscriptionChanged(t.Context(), v.PartnerID, roamerIMSI, wire.ModificationNotification{SubscriptionID: v.SDM.ID}); err != nil {
-		t.Fatalf("HomeSubscriptionChanged: %v", err)
+	if err := f.amf.HPLMNSubscriptionChanged(t.Context(), v.PartnerID, roamerIMSI, wire.ModificationNotification{SubscriptionID: v.SDM.ID}); err != nil {
+		t.Fatalf("HPLMNSubscriptionChanged: %v", err)
 	}
 
-	if err := f.amf.HomeSubscriptionChanged(t.Context(), v.PartnerID, roamerIMSI, wire.ModificationNotification{SubscriptionID: "other"}); !errors.Is(err, roaming.ErrNoVisitorContext) {
+	if err := f.amf.HPLMNSubscriptionChanged(t.Context(), v.PartnerID, roamerIMSI, wire.ModificationNotification{SubscriptionID: "other"}); !errors.Is(err, roaming.ErrNoVisitorContext) {
 		t.Fatalf("notification for another subscription: %v", err)
 	}
 
-	f.amf.SettleHomeNetwork()
+	f.amf.SettleHPLMN()
 
 	want := models.Ambr{Uplink: models.BitRateFromBps(10_000_000), Downlink: models.BitRateFromBps(20_000_000)}
 	if got := ue.Ambr(); got == nil || *got != want {
@@ -636,13 +677,13 @@ func TestSoRIsRelayedAndAcknowledged(t *testing.T) {
 	f := newRoamingFixture(t)
 	ack := true
 
-	f.home.Update(roamerIMSI, func(s *fakehome.Subscriber) {
+	f.home.Update(roamerIMSI, func(s *fakehplmn.Subscriber) {
 		s.AM.SorInfo = &wire.SorInfo{AckInd: &ack, SorMacIausf: "00112233445566778899aabbccddeeff", Countersor: "0001", ProvisioningTime: "2026-11-03T10:00:00Z"}
 	})
 
 	ue, conn := f.visitorUE(t)
 	f.authenticate(t, ue, conn)
-	f.registerAtHome(t, ue, conn)
+	f.registerAtHPLMN(t, ue, conn)
 
 	sor := f.amf.SoRContainer(ue)
 	if len(sor) != 19 || sor[0] != 0x0c {
@@ -653,7 +694,7 @@ func TestSoRIsRelayedAndAcknowledged(t *testing.T) {
 	ackContainer[1] = 0xab
 
 	f.amf.AcknowledgeSoR(t.Context(), ue, ackContainer)
-	f.amf.SettleHomeNetwork()
+	f.amf.SettleHPLMN()
 
 	got, ok := f.home.SoRAck("imsi-" + roamerIMSI)
 	if !ok || got.SorMacIue != "ab000000000000000000000000000000" || got.ProvisioningTime != "2026-11-03T10:00:00Z" {

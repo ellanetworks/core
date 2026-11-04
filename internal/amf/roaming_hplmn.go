@@ -22,8 +22,8 @@ const (
 	sdmRenewBefore = 5 * time.Minute
 )
 
-type HomeRenewer interface {
-	Renew(ctx context.Context, t roaming.HomeTarget, uri string, expires wire.DateTime) (wire.DateTime, error)
+type HPLMNRenewer interface {
+	Renew(ctx context.Context, t roaming.HPLMNTarget, uri string, expires wire.DateTime) (wire.DateTime, error)
 }
 
 func (amf *AMF) withdrawRoamer(ctx context.Context, ue *UeContext, why ueregistration.Withdrawal) {
@@ -63,9 +63,9 @@ func (amf *AMF) heldVisitor(partnerID, imsi string) (*UeContext, roaming.Visitor
 	return ue, v, true
 }
 
-func (amf *AMF) HomeDeregistration(ctx context.Context, partnerID, imsi string, data wire.DeregistrationData) error {
+func (amf *AMF) HPLMNDeregistration(ctx context.Context, partnerID, imsi string, data wire.DeregistrationData) error {
 	if data.DeregReason == wire.Dereg5GSToEPSMobility {
-		if handled, err := amf.homeMovedToEPS(ctx, partnerID, imsi, data); handled {
+		if handled, err := amf.hplmnMovedToEPS(ctx, partnerID, imsi, data); handled {
 			return err
 		}
 	}
@@ -128,42 +128,54 @@ func (amf *AMF) dropVisitorContext(ctx context.Context, ue *UeContext) {
 	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseDeregistration))
 }
 
-func (amf *AMF) HomeSubscriptionChanged(ctx context.Context, partnerID, imsi string, n wire.ModificationNotification) error {
+func (amf *AMF) HPLMNSubscriptionChanged(ctx context.Context, partnerID, imsi string, n wire.ModificationNotification) error {
 	ue, v, ok := amf.heldVisitor(partnerID, imsi)
 	if !ok || v.SDM == nil || (n.SubscriptionID != "" && v.SDM.ID != "" && n.SubscriptionID != v.SDM.ID) {
 		return roaming.ErrNoVisitorContext
 	}
 
-	ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.LCSPrivacy = nil })
-
+	change := roaming.ClassifySDMChange("imsi-"+imsi, n)
 	ctx = context.WithoutCancel(ctx)
+	log := logger.From(ctx, logger.AmfLog).With(logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", v.PartnerName))
 
 	amf.home.Go(imsi, func() {
 		if held, ok := amf.lookupUeByIMSI(imsi); !ok || held != ue {
 			return
 		}
 
-		amf.refreshHomeSubscription(ctx, ue, imsi)
+		if change.SoR != nil {
+			amf.steerAfterRegistration(ctx, ue, change.SoR)
+		} else if change.SoRPartial {
+			log.Warn("the home UDM sent a partial steering of roaming change that cannot be rebuilt; ignoring it")
+		}
+
+		if change.UPU {
+			log.Warn("the home UDM sent a UE parameters update; this AMF cannot deliver it")
+		}
+
+		if change.Refresh {
+			amf.refreshHPLMNSubscription(ctx, ue, imsi)
+		}
 	})
 
 	return nil
 }
 
-func (amf *AMF) refreshHomeSubscription(ctx context.Context, ue *UeContext, imsi string) {
+func (amf *AMF) refreshHPLMNSubscription(ctx context.Context, ue *UeContext, imsi string) {
 	log := logger.From(ctx, logger.AmfLog).With(logger.SUPIFromIMSI(imsi))
 
 	v, ok := ue.Visitor()
-	if !ok || amf.HomeNetwork == nil {
+	if !ok || amf.HPLMN == nil {
 		return
 	}
 
-	data, err := amf.HomeNetwork.SubscriptionData(ctx, v.Home, "imsi-"+imsi)
+	data, err := amf.HPLMN.SubscriptionData(ctx, v.HPLMN, "imsi-"+imsi)
 	if err != nil {
 		log.Warn("failed to read the changed home subscription; keeping the cached one", zap.Error(err))
 		return
 	}
 
-	if r := homeSubscriptionRestriction(data.AmData); r != nil {
+	if r := hplmnSubscriptionRestriction(data.AmData); r != nil {
 		cause := r.Cause
 
 		log.Info("the home subscription no longer allows service in this network; deregistering the visitor", logger.Cause(r.Reason))
@@ -176,6 +188,10 @@ func (amf *AMF) refreshHomeSubscription(ctx context.Context, ue *UeContext, imsi
 
 	ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.Subscription = &data })
 
+	amf.releaseBarredSessions(ctx, ue, data.AmData)
+
+	amf.syncVisitorMSISDN(ctx, ue)
+
 	if ue.State() != Registered {
 		return
 	}
@@ -186,17 +202,32 @@ func (amf *AMF) refreshHomeSubscription(ctx context.Context, ue *UeContext, imsi
 		return
 	}
 
+	ue.SetAmbr(profile.Ambr)
+	amf.SyncUEAMBR(ctx, ue)
+
 	if !sameSnssais(before, profile.AllowedNssai) {
-		log.Info("the visitor's subscribed slices changed; asking it to register again")
-		amf.DeregisterUE(ctx, ue, models.ReleaseFor(models.ReleaseSubscriptionChanged), NetworkDeregistration{ReRegistration: true})
+		log.Info("the visitor's subscribed slices changed; asking it to register again with a UE configuration update")
+		amf.requestReregistration(ctx, ue)
 
 		return
 	}
 
-	ue.SetAmbr(profile.Ambr)
-	amf.SyncUEAMBR(ctx, ue)
-
 	log.Info("applied the changed home subscription")
+}
+
+func (amf *AMF) releaseBarredSessions(ctx context.Context, ue *UeContext, am *wire.AccessAndMobilitySubscriptionData) {
+	if am == nil || !am.OdbPacketServices.BarsLocalBreakout() {
+		return
+	}
+
+	for _, ref := range ue.SmContextRefs() {
+		logger.From(ctx, logger.AmfLog).Info("operator determined barring bars the visitor's locally broken out PDU session; releasing it",
+			logger.SUPI(ue.Supi().String()), logger.PDUSessionID(ref.PduSessionID), zap.String("odb", string(am.OdbPacketServices)))
+
+		if err := amf.Session.ReleaseBarredSession(ctx, ref.Ref); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to release a barred PDU session", logger.PDUSessionID(ref.PduSessionID), zap.Error(err))
+		}
+	}
 }
 
 func sameSnssais(a, b []models.Snssai) bool {
@@ -213,8 +244,8 @@ func sameSnssais(a, b []models.Snssai) bool {
 	return true
 }
 
-func (amf *AMF) renewHomeSubscriptions(ctx context.Context) {
-	renewer, ok := amf.HomeNetwork.(HomeRenewer)
+func (amf *AMF) renewHPLMNSubscriptions(ctx context.Context) {
+	renewer, ok := amf.HPLMN.(HPLMNRenewer)
 	if !ok {
 		return
 	}
@@ -240,7 +271,7 @@ func (amf *AMF) renewHomeSubscriptions(ctx context.Context) {
 		imsi, uri := supi.IMSI(), v.SDM.URI
 
 		amf.home.Go(imsi, func() {
-			next, err := renewer.Renew(ctx, v.Home, uri, wire.DateTimeOf(time.Now().Add(sdmLifetime)))
+			next, err := renewer.Renew(ctx, v.HPLMN, uri, wire.DateTimeOf(time.Now().Add(sdmLifetime)))
 			if err != nil {
 				logger.From(ctx, logger.AmfLog).Warn("failed to renew the visitor's home subscription", logger.SUPIFromIMSI(imsi), zap.Error(err))
 				return

@@ -803,6 +803,11 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 				return
 			}
 
+			if errors.Is(err, db.ErrSubscriberLimit) {
+				writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of subscribers reached ("+strconv.Itoa(MaxNumSubscribers)+")", nil, logger.APILog)
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create subscriber", err, logger.APILog)
 
 			return

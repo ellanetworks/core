@@ -29,7 +29,7 @@ func (amf *AMF) roamerPartnerName(ctx context.Context, ue *UeContext) string {
 		return ""
 	}
 
-	prefix, _, ok := homeOfUE(ue)
+	prefix, _, ok := hplmnOfUE(ue)
 	if !ok {
 		return ""
 	}

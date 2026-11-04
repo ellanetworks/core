@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/diameter"
-	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -33,17 +32,17 @@ func (m *MME) RecordRoamerReject(ctx context.Context, ue *UeContext, cause eps.E
 	}
 }
 
-func (m *MME) countedHomeHandler(command uint32, h func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message) diameter.Handler {
-	return diameternode.Handler(func(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
-		partner := m.partnerOfHomeRequest(req)
-		ans := h(ctx, id, req)
+func (m *MME) countedHPLMNHandler(command uint32, h func(context.Context, diameter.Identity, string, *diameter.Message) *diameter.Message) diameter.Handler {
+	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
+		partner := m.partnerOfHPLMNRequest(req)
+		ans := h(ctx, c.LocalIdentity(), c.PeerID(), req)
 		roaming.RecordS6aAnswer(partner, command, ans, nil)
 
 		return ans
 	})
 }
 
-func (m *MME) partnerOfHomeRequest(req *diameter.Message) string {
+func (m *MME) partnerOfHPLMNRequest(req *diameter.Message) string {
 	if a, ok := req.Find(diameter.AVPUserName, 0); ok {
 		if ue, ok := m.LookupUeByIMSI(a.UTF8String()); ok {
 			if v, ok := ue.Visitor(); ok {

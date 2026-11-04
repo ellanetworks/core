@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/roaming"
-	"github.com/ellanetworks/core/internal/roaming/fakehome"
+	"github.com/ellanetworks/core/internal/roaming/fakehplmn"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/internal/sepp/sepptest"
@@ -30,23 +30,23 @@ const (
 )
 
 var (
-	amfVisited = wire.PlmnID{Mcc: "999", Mnc: "70"}
-	amfHomeNet = wire.PlmnID{Mcc: "001", Mnc: "01"}
+	amfVisited  = wire.PlmnID{Mcc: "999", Mnc: "70"}
+	amfHPLMNNet = wire.PlmnID{Mcc: "001", Mnc: "01"}
 )
 
 type n32Fixture struct {
-	home    *fakehome.Home
+	home    *fakehplmn.HPLMN
 	partner *sepptest.Partner
 	ella    *sepptest.Ella
-	amf     *roaming.AMFHome
-	target  roaming.HomeTarget
+	amf     *roaming.AMFHPLMN
+	target  roaming.HPLMNTarget
 }
 
 func newN32Fixture(t *testing.T) *n32Fixture {
 	t.Helper()
 
-	f := &n32Fixture{home: fakehome.New(amfHomeNet)}
-	f.home.Provision(amfTestIMSI, fakehome.Subscriber{
+	f := &n32Fixture{home: fakehplmn.New(amfHPLMNNet)}
+	f.home.Provision(amfTestIMSI, fakehplmn.Subscriber{
 		K:   amfTestK,
 		OPc: amfTestOPc,
 		SQN: "000000000020",
@@ -59,10 +59,10 @@ func newN32Fixture(t *testing.T) *n32Fixture {
 		}},
 	})
 
-	f.partner = sepptest.NewPartner(t, amfHomeNet, f.home)
+	f.partner = sepptest.NewPartner(t, amfHPLMNNet, f.home)
 	f.ella = sepptest.NewElla(t, amfVisited, 1, f.partner.Config("p"))
-	f.amf = roaming.NewAMFHome(roaming.NewHomeSBI(f.ella.Manager, roaming.NewDiscovery(f.ella.Manager)))
-	f.target = roaming.HomeTarget{PartnerID: "p", PLMN: amfHomeNet, Serving: amfVisited, RoutingIndicator: "0000"}
+	f.amf = roaming.NewAMFHPLMN(roaming.NewHPLMNSBI(f.ella.Manager, roaming.NewDiscovery(f.ella.Manager)))
+	f.target = roaming.HPLMNTarget{PartnerID: "p", PLMN: amfHPLMNNet, Serving: amfVisited, RoutingIndicator: "0000"}
 
 	return f
 }
@@ -86,7 +86,7 @@ func resStar(t *testing.T, c roaming.Challenge, servingNetwork string) [16]byte 
 	return [16]byte(out)
 }
 
-func TestAMFHomeAuthenticatesThroughTheSEPP(t *testing.T) {
+func TestAMFHPLMNAuthenticatesThroughTheSEPP(t *testing.T) {
 	f := newN32Fixture(t)
 	ctx := context.Background()
 
@@ -124,7 +124,7 @@ func TestAMFHomeAuthenticatesThroughTheSEPP(t *testing.T) {
 	}
 }
 
-func TestAMFHomeReportsAFailedConfirmationAndANullRESStar(t *testing.T) {
+func TestAMFHPLMNReportsAFailedConfirmationAndANullRESStar(t *testing.T) {
 	f := newN32Fixture(t)
 	ctx := context.Background()
 
@@ -152,7 +152,7 @@ func TestAMFHomeReportsAFailedConfirmationAndANullRESStar(t *testing.T) {
 	}
 }
 
-func TestAMFHomeRegistersSubscribesAndPurges(t *testing.T) {
+func TestAMFHPLMNRegistersSubscribesAndPurges(t *testing.T) {
 	f := newN32Fixture(t)
 	ctx := context.Background()
 	supi := "imsi-" + amfTestIMSI
@@ -163,7 +163,7 @@ func TestAMFHomeRegistersSubscribesAndPurges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := f.amf.Register(ctx, f.target, supi, wire.Amf3GppAccessRegistration{
+	if _, err := f.amf.Register(ctx, f.target, supi, wire.Amf3GppAccessRegistration{
 		AmfInstanceID: roaming.NFInstanceID("amf1.5gc.mnc070.mcc999.3gppnetwork.org"), DeregCallbackURI: callback, Guami: &guami, RatType: wire.RatNR,
 	}); err != nil {
 		t.Fatalf("Register: %v", err)
@@ -183,7 +183,7 @@ func TestAMFHomeRegistersSubscribesAndPurges(t *testing.T) {
 		t.Fatalf("subscription data %+v", data)
 	}
 
-	sub, err := f.amf.Subscribe(ctx, f.target, supi, wire.SdmSubscription{NfInstanceID: reg.AmfInstanceID, CallbackReference: callback, MonitoredResourceUris: []string{supi + "/am-data"}})
+	sub, err := f.amf.Subscribe(ctx, f.target, supi, wire.SdmSubscription{NfInstanceID: reg.AmfInstanceID, CallbackReference: callback, MonitoredResourceUris: []string{wire.SDMAmDataPath(supi)}})
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
@@ -212,11 +212,11 @@ func TestAMFHomeRegistersSubscribesAndPurges(t *testing.T) {
 	}
 }
 
-func TestAMFHomeReturnsTheHomeProblem(t *testing.T) {
+func TestAMFHPLMNReturnsTheHPLMNProblem(t *testing.T) {
 	f := newN32Fixture(t)
 	f.home.Fail(http.MethodPut, "amf-3gpp-access", wire.NewProblem(http.StatusForbidden, wire.CauseRoamingNotAllowed, ""))
 
-	err := f.amf.Register(context.Background(), f.target, "imsi-"+amfTestIMSI, wire.Amf3GppAccessRegistration{
+	_, err := f.amf.Register(context.Background(), f.target, "imsi-"+amfTestIMSI, wire.Amf3GppAccessRegistration{
 		AmfInstanceID: roaming.NFInstanceID("amf1"), DeregCallbackURI: "https://amf1.5gc.mnc070.mcc999.3gppnetwork.org/x", Guami: &wire.Guami{PlmnID: &wire.PlmnIDNid{Mcc: "999", Mnc: "70"}, AmfID: "cafe01"}, RatType: wire.RatNR,
 	})
 
@@ -226,14 +226,14 @@ func TestAMFHomeReturnsTheHomeProblem(t *testing.T) {
 	}
 }
 
-func TestAMFHomeWithoutAnN32ContextIsUnreachable(t *testing.T) {
+func TestAMFHPLMNWithoutAnN32ContextIsUnreachable(t *testing.T) {
 	f := newN32Fixture(t)
 
 	target := f.target
 	target.PartnerID = "unknown"
 
-	if _, err := f.amf.Authenticate(context.Background(), target, amfTestSUCI, nil); !errors.Is(err, roaming.ErrHomeUnreachable) {
-		t.Fatalf("error %v, want ErrHomeUnreachable", err)
+	if _, err := f.amf.Authenticate(context.Background(), target, amfTestSUCI, nil); !errors.Is(err, roaming.ErrHPLMNUnreachable) {
+		t.Fatalf("error %v, want ErrHPLMNUnreachable", err)
 	}
 }
 
@@ -244,7 +244,7 @@ type recordedEvents struct {
 	changes []wire.ModificationNotification
 }
 
-func (e *recordedEvents) HomeDeregistration(_ context.Context, partnerID, imsi string, data wire.DeregistrationData) error {
+func (e *recordedEvents) HPLMNDeregistration(_ context.Context, partnerID, imsi string, data wire.DeregistrationData) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -257,7 +257,7 @@ func (e *recordedEvents) HomeDeregistration(_ context.Context, partnerID, imsi s
 	return nil
 }
 
-func (e *recordedEvents) HomeSubscriptionChanged(_ context.Context, partnerID, imsi string, n wire.ModificationNotification) error {
+func (e *recordedEvents) HPLMNSubscriptionChanged(_ context.Context, partnerID, imsi string, n wire.ModificationNotification) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

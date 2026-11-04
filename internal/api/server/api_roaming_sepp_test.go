@@ -33,7 +33,7 @@ func (f *fakeSEPP) Status() sepp.NodeStatus {
 		contexts[k] = v
 	}
 
-	return sepp.NodeStatus{SEPPID: 1, FQDN: homeSEPPFQDN, Listener: f.listener, Contexts: contexts}
+	return sepp.NodeStatus{SEPPID: 1, FQDN: ownSEPPFQDN, Listener: f.listener, Contexts: contexts}
 }
 
 func (f *fakeSEPP) Rehandshake(id string) (sepp.ContextStatus, error) {
@@ -265,8 +265,8 @@ func TestSEPPStatus(t *testing.T) {
 	}
 
 	n := r.Node
-	if n.SEPPID != 1 || n.FQDN != homeSEPPFQDN || n.Source != "generated" || !n.N32Configured || n.Address != "192.0.2.5" || n.Port != 443 || !n.Listening || n.Certificate == nil ||
-		n.Certificate.SANs[0] != homeSEPPFQDN || n.Certificate.TrustAnchorFingerprint != r.TrustAnchors[0].Fingerprint || n.Certificate.Fingerprint == n.Certificate.TrustAnchorFingerprint {
+	if n.SEPPID != 1 || n.FQDN != ownSEPPFQDN || n.Source != "generated" || !n.N32Configured || n.Address != "192.0.2.5" || n.Port != 443 || !n.Listening || n.Certificate == nil ||
+		n.Certificate.SANs[0] != ownSEPPFQDN || n.Certificate.TrustAnchorFingerprint != r.TrustAnchors[0].Fingerprint || n.Certificate.Fingerprint == n.Certificate.TrustAnchorFingerprint {
 		t.Fatalf("node = %+v", n)
 	}
 

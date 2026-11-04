@@ -83,13 +83,13 @@ func snssaiPCOContainer(snssai models.Snssai, home *models.Snssai, plmn models.P
 	ie := fgs.SNSSAI{SST: uint8(snssai.Sst), SD: sd}
 
 	if home != nil {
-		homeSD, err := pcoSD(home.Sd)
+		hplmnSD, err := pcoSD(home.Sd)
 		if err != nil {
 			return nas.PCOContainer{}, err
 		}
 
 		ie.MappedHPLMNSST = new(uint8(home.Sst))
-		ie.MappedHPLMNSD = homeSD
+		ie.MappedHPLMNSD = hplmnSD
 	}
 
 	value, err := ie.MarshalBinary()

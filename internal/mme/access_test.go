@@ -25,7 +25,7 @@ func (s lookupBearerStore) GetSubscriberOrVisitor(context.Context, string) (*db.
 	return s.sub, s.err
 }
 
-func TestResolveAccessOffersFiveGSInterworkingToHomeSubscribersOnly(t *testing.T) {
+func TestResolveAccessOffersFiveGSInterworkingToOwnSubscribersOnly(t *testing.T) {
 	const imsi = "001010000000001"
 
 	partner := "partner"

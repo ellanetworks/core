@@ -208,6 +208,8 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 	accepted := make(map[uint8]uint8, len(conns))
 
 	for _, c := range conns {
+		subscription, _ := m.APNSubscription(ue, c.APN)
+
 		bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 			IMSI:              ue.IMSI(),
 			EPSBearerIdentity: c.EPSBearerIdentity,
@@ -215,6 +217,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 			Snssai:            &c.Snssai,
 			APN:               c.APN,
 			RequestType:       eps.RequestTypeHandover,
+			Subscription:      subscription,
 		})
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to take over a PDU session as a PDN connection; leaving it behind",

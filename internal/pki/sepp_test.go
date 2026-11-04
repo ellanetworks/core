@@ -14,6 +14,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"errors"
 	"math/big"
 	"slices"
 	"strings"
@@ -793,5 +794,63 @@ func TestParseSEPPCertificate(t *testing.T) {
 
 	if _, err := pki.ParseSEPPCertificate(chainPEM(leaf, ca), "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"); err == nil {
 		t.Error("ParseSEPPCertificate accepted an FQDN that is not in the SAN")
+	}
+}
+
+func TestGenerateSEPPCA_NameConstraints(t *testing.T) {
+	leaf, _, ca, err := pki.GenerateSEPPCert(testPLMN.DefaultSEPPFQDN(), testPLMN)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !slices.Equal(ca.PermittedDNSDomains, []string{testPLMN.Domain()}) || !ca.PermittedDNSDomainsCritical {
+		t.Fatalf("CA name constraints = %v (critical %v), want critical %s", ca.PermittedDNSDomains, ca.PermittedDNSDomainsCritical, testPLMN.Domain())
+	}
+
+	roots := x509.NewCertPool()
+	roots.AddCert(ca)
+
+	if _, err := leaf.Verify(x509.VerifyOptions{Roots: roots, DNSName: testPLMN.DefaultSEPPFQDN(), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
+		t.Fatalf("a generated SEPP certificate does not verify under the constrained CA: %v", err)
+	}
+
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	constrained, signer, err := pki.GenerateSEPPCA(testPLMN)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{"sepp1.5gc.mnc002.mcc001.3gppnetwork.org", "sepp1.example.com"} {
+		tmpl := &x509.Certificate{
+			SerialNumber: big.NewInt(1),
+			Subject:      pkix.Name{CommonName: name},
+			NotBefore:    time.Now().Add(-time.Hour),
+			NotAfter:     time.Now().Add(time.Hour),
+			KeyUsage:     x509.KeyUsageDigitalSignature,
+			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			DNSNames:     []string{name},
+		}
+
+		der, err := x509.CreateCertificate(rand.Reader, tmpl, constrained, &caKey.PublicKey, signer)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		outside, err := x509.ParseCertificate(der)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pool := x509.NewCertPool()
+		pool.AddCert(constrained)
+
+		var invalid x509.CertificateInvalidError
+		if _, err := outside.Verify(x509.VerifyOptions{Roots: pool, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); !errors.As(err, &invalid) || invalid.Reason != x509.CANotAuthorizedForThisName {
+			t.Errorf("%s: verify = %v, want CANotAuthorizedForThisName", name, err)
+		}
 	}
 }

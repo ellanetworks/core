@@ -34,17 +34,18 @@ var (
 // SessionRequest is the RAT-agnostic input to establishSession, common to the
 // 5G and 4G paths.
 type SessionRequest struct {
-	Supi       etsi.SUPI
-	Identity   SessionIdentity
-	Dnn        string
-	Snssai     *models.Snssai
-	Access     AccessType
-	PDUType    uint8 // the negotiated PDU/PDN type
-	Policy     *Policy
-	DN         DNNStore
-	Subscribed SubscribedQoS
-	HomePLMN   models.PlmnID
-	Home       HomeSession
+	Supi              etsi.SUPI
+	Identity          SessionIdentity
+	Dnn               string
+	Snssai            *models.Snssai
+	Access            AccessType
+	PDUType           uint8 // the negotiated PDU/PDN type
+	Policy            *Policy
+	DN                DNNStore
+	Subscribed        SubscribedQoS
+	HomePLMN          models.PlmnID
+	HPLMNSubscription HPLMNSubscription
+	APN               *models.APNSubscription
 
 	MaxPacketFilters uint16
 }
@@ -83,10 +84,11 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.Mutex.Lock()
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
-	sc.roamingHome = req.HomePLMN
+	sc.roamingHPLMN = req.HomePLMN
+	sc.apnSubscription = req.APN
 
-	if req.Home != nil {
-		sc.home.Store(&homeBinding{session: req.Home})
+	if req.HPLMNSubscription != nil {
+		sc.hplmn.Store(&hplmnBinding{session: req.HPLMNSubscription})
 	}
 
 	addrs, err := s.allocateUEAddresses(ctx, dn, sc)

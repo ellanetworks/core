@@ -21,15 +21,17 @@ type IdentityConfig struct {
 	FQDN         string
 	CertChainPEM string
 	KeyPEM       string
+	Generated    bool
 }
 
 type localIdentity struct {
-	seppID int
-	fqdn   string
-	cert   *tls.Certificate
-	leaf   *x509.Certificate
-	anchor *x509.Certificate
-	key    [sha256.Size]byte
+	seppID    int
+	fqdn      string
+	cert      *tls.Certificate
+	leaf      *x509.Certificate
+	anchor    *x509.Certificate
+	generated bool
+	key       [sha256.Size]byte
 }
 
 var ErrNoIdentity = errors.New("sepp: no SEPP identity")
@@ -50,15 +52,16 @@ func newLocalIdentity(cfg IdentityConfig, op wire.PlmnID) (*localIdentity, error
 	}
 
 	return &localIdentity{
-		seppID: cfg.SEPPID,
-		fqdn:   strings.ToLower(cfg.FQDN),
-		cert:   &cert,
-		leaf:   parsed.Leaf(),
-		anchor: parsed.TrustAnchor(),
-		key:    identityKey(cfg),
+		seppID:    cfg.SEPPID,
+		fqdn:      strings.ToLower(cfg.FQDN),
+		cert:      &cert,
+		leaf:      parsed.Leaf(),
+		anchor:    parsed.TrustAnchor(),
+		generated: cfg.Generated,
+		key:       identityKey(cfg),
 	}, nil
 }
 
 func identityKey(cfg IdentityConfig) [sha256.Size]byte {
-	return sha256.Sum256([]byte(strconv.Itoa(cfg.SEPPID) + "\x00" + cfg.FQDN + "\x00" + cfg.CertChainPEM + "\x00" + cfg.KeyPEM))
+	return sha256.Sum256([]byte(strconv.Itoa(cfg.SEPPID) + "\x00" + strconv.FormatBool(cfg.Generated) + "\x00" + cfg.FQDN + "\x00" + cfg.CertChainPEM + "\x00" + cfg.KeyPEM))
 }

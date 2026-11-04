@@ -48,11 +48,17 @@ func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
 		return reject(fgs.GMMCausePLMNNotAllowed, "the roaming agreement is being withdrawn")
 	}
 
+	if errors.Is(err, db.ErrSubscriberLimit) {
+		return &Rejection{Cause: fgs.GMMCauseCongestion, BackOff: T3346CapacityBackoff, Reason: "maximum number of subscribers reached"}
+	}
+
 	if err != nil {
 		return err
 	}
 
 	ue.registrationVersion.Store(version)
+
+	amf.syncVisitorMSISDN(ctx, ue)
 
 	return nil
 }
@@ -115,7 +121,7 @@ func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 }
 
 func (amf *AMF) ReconcileRegistrations(ctx context.Context) {
-	amf.renewHomeSubscriptions(ctx)
+	amf.renewHPLMNSubscriptions(ctx)
 
 	for _, ue := range amf.registeredUEs() {
 		if supi := ue.Supi(); supi.IsIMSI() {

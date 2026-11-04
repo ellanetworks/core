@@ -290,7 +290,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID, *snssai, dnn)
 	defer ue.ReleaseEPSBearerReservation(pduSessionID)
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity, ue.SessionHPLMNTarget(*snssai, dnn, epsBearerIdentity != 0))
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).
@@ -379,7 +379,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			logger.From(ctx, logger.AmfLog).Error("LPP handler not configured")
 		}
 	case fgs.PayloadContainerTypeSOR:
-		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
+		amfInstance.AcknowledgeSoRTransport(ctx, ue, msg.PayloadContainer)
 	case fgs.PayloadContainerTypeUEPolicy:
 		logger.From(ctx, logger.AmfLog).Info("amf.AMF Transfer UEPolicy To PCF")
 	case fgs.PayloadContainerTypeUEParameterUpdate:

@@ -43,6 +43,7 @@ const (
 	deleteGeneratedSEPPIdentsStmt  = "DELETE FROM %s WHERE source='" + SEPPIdentityGenerated + "'"
 	deleteGeneratedSEPPIdentStmt   = "DELETE FROM %s WHERE seppID==$SEPPIdentity.seppID AND source='" + SEPPIdentityGenerated + "'"
 	getSEPPIdentityByFQDNStmt      = "SELECT &SEPPIdentity.* FROM %s WHERE fqdn==$SEPPIdentity.fqdn"
+	renewGeneratedSEPPIdentStmt    = "UPDATE %s SET fqdn=$SEPPIdentity.fqdn, certChainPEM=$SEPPIdentity.certChainPEM, keyPEM=$SEPPIdentity.keyPEM WHERE seppID==$SEPPIdentity.seppID AND source='" + SEPPIdentityGenerated + "' AND certChainPEM==$seppExpectedChain.expected"
 	insertSEPPIdentityIfAbsentStmt = "INSERT INTO %s (seppID, fqdn, source, certChainPEM, keyPEM) VALUES ($SEPPIdentity.seppID, $SEPPIdentity.fqdn, $SEPPIdentity.source, $SEPPIdentity.certChainPEM, $SEPPIdentity.keyPEM) ON CONFLICT(seppID) DO NOTHING"
 )
 
@@ -103,7 +104,7 @@ func (s SEPPIdentity) Validate() error {
 	return nil
 }
 
-func (db *Database) homePLMN(ctx context.Context) (pki.PLMN, error) {
+func (db *Database) ownPLMN(ctx context.Context) (pki.PLMN, error) {
 	var op Operator
 
 	if err := db.runner(ctx).Query(ctx, db.getOperatorStmt).Get(&op); err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -114,7 +115,7 @@ func (db *Database) homePLMN(ctx context.Context) (pki.PLMN, error) {
 }
 
 func (db *Database) checkSEPPIdentity(ctx context.Context, s *SEPPIdentity) error {
-	plmn, err := db.homePLMN(ctx)
+	plmn, err := db.ownPLMN(ctx)
 	if err != nil {
 		return err
 	}
@@ -353,7 +354,7 @@ func (db *Database) deleteSEPPIdentities(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) newSEPPCA(ctx context.Context) (*SEPPCA, error) {
-	plmn, err := db.homePLMN(ctx)
+	plmn, err := db.ownPLMN(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +418,7 @@ func (db *Database) issueSEPPIdentity(ctx context.Context, seppID int) (*SEPPIde
 		return nil, fmt.Errorf("stored SEPP CA: %w", err)
 	}
 
-	plmn, err := db.homePLMN(ctx)
+	plmn, err := db.ownPLMN(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -459,6 +460,72 @@ func (db *Database) GenerateSEPPIdentity(ctx context.Context, seppID int) (*SEPP
 	}
 
 	return nil, lastErr
+}
+
+var ErrSEPPIdentityChanged = errors.New("the SEPP certificate was changed concurrently")
+
+type seppExpectedChain struct {
+	Expected string `db:"expected"`
+}
+
+type renewSEPPIdentityPayload struct {
+	Identity             SEPPIdentity `json:"identity"`
+	ExpectedCertChainPEM string       `json:"expectedCertChainPEM"`
+}
+
+var opRenewGeneratedSEPPIdentity = registerChangesetOp("RenewGeneratedSEPPIdentity", (*Database).applyRenewGeneratedSEPPIdentity, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
+
+func (db *Database) RenewGeneratedSEPPIdentity(ctx context.Context, seppID int, expectedCertChainPEM string) (*SEPPIdentity, error) {
+	var lastErr error
+
+	for range 2 {
+		identity, err := db.issueSEPPIdentity(ctx, seppID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := identity.Validate(); err != nil {
+			return nil, err
+		}
+
+		_, lastErr = opRenewGeneratedSEPPIdentity.Invoke(ctx, db, &renewSEPPIdentityPayload{Identity: *identity, ExpectedCertChainPEM: expectedCertChainPEM})
+		if lastErr == nil {
+			return identity, nil
+		}
+
+		if !errors.Is(lastErr, ErrRoamingConflict) {
+			return nil, lastErr
+		}
+	}
+
+	return nil, lastErr
+}
+
+func (db *Database) applyRenewGeneratedSEPPIdentity(ctx context.Context, p *renewSEPPIdentityPayload) (any, error) {
+	if p.Identity.Source != SEPPIdentityGenerated {
+		return nil, fmt.Errorf("a renewed SEPP certificate must be generated, got %q", p.Identity.Source)
+	}
+
+	if err := db.checkSEPPIdentity(ctx, &p.Identity); err != nil {
+		return nil, err
+	}
+
+	var outcome sqlair.Outcome
+
+	if err := db.runner(ctx).Query(ctx, db.renewGeneratedSEPPIdentStmt, p.Identity, seppExpectedChain{Expected: p.ExpectedCertChainPEM}).Get(&outcome); err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	n, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if n == 0 {
+		return nil, fmt.Errorf("%w: SEPP ID %d is no longer the generated certificate being renewed", ErrSEPPIdentityChanged, p.Identity.SEPPID)
+	}
+
+	return nil, nil
 }
 
 func (db *Database) EnsureSEPPIdentity(ctx context.Context, seppID int) (bool, error) {

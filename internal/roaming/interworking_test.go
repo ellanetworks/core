@@ -6,7 +6,6 @@ package roaming
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"testing"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/roaming/fakehss"
 	"github.com/ellanetworks/core/internal/roaming/wire"
-	"github.com/ellanetworks/core/internal/udm"
 )
 
 type n26Store struct {
@@ -54,7 +52,7 @@ func n26Partner() *db.RoamingPartner {
 	}
 }
 
-func TestN26IsOfferedToHomeSubscribersAndToVisitorsOfPartnersWithBothAgreements(t *testing.T) {
+func TestN26IsOfferedToOwnSubscribersAndToVisitorsOfPartnersWithBothAgreements(t *testing.T) {
 	const imsi = "999700000000001"
 
 	partnerID := "p"
@@ -181,89 +179,5 @@ func TestFiveGSInterworkingFollowsTheHomeAPNIndicator(t *testing.T) {
 				t.Fatalf("FiveGSInterworkingSubscribed = %v, want %v", got, tc.want)
 			}
 		})
-	}
-}
-
-type epsHomeFallback struct {
-	sm *udm.SessionManagementSubscription
-}
-
-func (f epsHomeFallback) SessionManagement(context.Context, string) (*udm.SessionManagementSubscription, error) {
-	return f.sm, nil
-}
-
-func (epsHomeFallback) FramedRoutes(context.Context, string, string) ([]netip.Prefix, error) {
-	return nil, nil
-}
-
-func (epsHomeFallback) StaticIP(context.Context, string, string, bool) (netip.Addr, bool, error) {
-	return netip.Addr{}, false, nil
-}
-
-func (epsHomeFallback) N26Allowed(context.Context, string) (bool, error) {
-	return true, nil
-}
-
-func TestSessionsOfAVisitorBackInEPSKeepTheEPSHomeAPNs(t *testing.T) {
-	f := newVSMFFixture(t)
-	f.mustOpen(t, 5)
-
-	eps := &udm.SessionManagementSubscription{Visitor: true, HomePLMN: vsmfHome.Model(), DNNs: []udm.DNNConfiguration{
-		{Snssai: vsmfSnssai, DNN: "internet", Var5qi: 7},
-		{Snssai: vsmfSnssai, DNN: "corporate", Var5qi: 8},
-	}}
-
-	sm, err := f.v.Subscriptions(epsHomeFallback{sm: eps}).SessionManagement(context.Background(), vsmfIMSI)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	internet, ok := sm.ForDNN(vsmfSnssai, "internet")
-	if !ok || internet.Var5qi != 9 {
-		t.Fatalf("internet = %+v, %v, want the 5G home data the session is bound to", internet, ok)
-	}
-
-	if _, ok := sm.ForDNN(vsmfSnssai, "corporate"); !ok {
-		t.Fatalf("DNNs = %+v, want the EPS home APN that has no 5G session", sm.DNNs)
-	}
-}
-
-type visitorLocal struct{}
-
-func (visitorLocal) IsHomeSubscriber(context.Context, string) (bool, error) { return false, nil }
-
-func (visitorLocal) AccessAndMobility(context.Context, string) (*udm.AccessAndMobilitySubscription, error) {
-	return &udm.AccessAndMobilitySubscription{Visitor: true}, nil
-}
-
-func (visitorLocal) UEAMBR(context.Context, string) (models.Ambr, error) { return models.Ambr{}, nil }
-
-func (visitorLocal) SessionManagement(context.Context, string) (*udm.SessionManagementSubscription, error) {
-	return &udm.SessionManagementSubscription{Visitor: true}, nil
-}
-
-func (visitorLocal) FramedRoutes(context.Context, string, string) ([]netip.Prefix, error) {
-	return nil, nil
-}
-
-func (visitorLocal) StaticIP(context.Context, string, string, bool) (netip.Addr, bool, error) {
-	return netip.Addr{}, false, nil
-}
-
-type allowAll struct{}
-
-func (allowAll) Allowed(context.Context, string) (bool, error) { return true, nil }
-
-func TestSubscriptionsAskTheN26PolicyOnceSet(t *testing.T) {
-	s := NewSubscriptions(visitorLocal{}, nil)
-
-	if ok, err := s.N26Allowed(context.Background(), "999700000000001"); err != nil || ok {
-		t.Fatalf("N26Allowed without a policy = %v, %v, want the home-only fallback", ok, err)
-	}
-
-	s.SetN26(allowAll{})
-
-	if ok, err := s.N26Allowed(context.Background(), "999700000000001"); err != nil || !ok {
-		t.Fatalf("N26Allowed with a policy = %v, %v", ok, err)
 	}
 }

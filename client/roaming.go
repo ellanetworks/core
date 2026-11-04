@@ -15,12 +15,12 @@ type RoamingPartnerSEPP struct {
 	N32cURI        string `json:"n32cURI"`
 	N32fURI        string `json:"n32fURI,omitempty"`
 	TrustAnchorPEM string `json:"trustAnchorPEM"`
-	NRFAPIRoot     string `json:"nrfAPIRoot,omitempty"`
 }
 
 type RoamingPLMN struct {
-	Mcc string `json:"mcc"`
-	Mnc string `json:"mnc"`
+	Mcc        string `json:"mcc"`
+	Mnc        string `json:"mnc"`
+	NRFAPIRoot string `json:"nrfAPIRoot,omitempty"`
 }
 
 type RoamingPartner struct {

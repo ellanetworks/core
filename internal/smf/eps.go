@@ -104,6 +104,22 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w", req.APN, err)
 	}
 
+	var (
+		rules    *HPLMNRules
+		homePLMN models.PlmnID
+		apn      *models.APNSubscription
+	)
+
+	if inputs.visitor {
+		if req.Subscription == nil {
+			return models.EPSBearer{}, fmt.Errorf("%w: APN %q", ErrHPLMNTargetMissing, req.APN)
+		}
+
+		r := apnRules(req.Subscription)
+		rules, homePLMN, apn = &r, req.Subscription.HPLMN, req.Subscription
+		inputs.subscribed = rules.capQoS(inputs.subscribed)
+	}
+
 	policy := inputs.policy
 
 	// §5.5.1.2.7 f)
@@ -114,9 +130,11 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, &models.PDNTypeError{Cause: allowedPDNTypeCause(policy)}
 	}
 
-	pduType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
+	typePolicy := restrictToHPLMN(policy, requestedType, rules)
+
+	pduType, err := s.negotiatePDUSessionType(ctx, requestedType, typePolicy)
 	if err != nil {
-		return models.EPSBearer{}, &models.PDNTypeError{Cause: pdnTypeRejectCause(requestedType, policy)}
+		return models.EPSBearer{}, &models.PDNTypeError{Cause: pdnTypeRejectCause(requestedType, typePolicy)}
 	}
 
 	if _, err := pdnTypeFor(pduType); err != nil {
@@ -133,7 +151,8 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		Policy:     policy,
 		DN:         inputs.dn,
 		Subscribed: inputs.subscribed,
-		HomePLMN:   inputs.homePLMN,
+		HomePLMN:   homePLMN,
+		APN:        apn,
 	})
 	if err != nil {
 		return models.EPSBearer{}, err

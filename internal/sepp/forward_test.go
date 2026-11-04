@@ -130,7 +130,7 @@ func (p *n32fPeer) last() (*http.Request, []byte) {
 }
 
 func (p *n32fPeer) partnerConfig() PartnerConfig {
-	return PartnerConfig{ID: "p", Name: "p", PLMNs: []wire.PlmnID{yPLMN}, FQDN: p.fqdn, N32cURI: p.srv.URL, TrustAnchorPEM: p.ca.pem(), NRFAPIRoot: "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org"}
+	return PartnerConfig{ID: "p", Name: "p", PLMNs: []wire.PlmnID{yPLMN}, FQDN: p.fqdn, N32cURI: p.srv.URL, TrustAnchorPEM: p.ca.pem(), NRFAPIRoots: map[wire.PlmnID]string{yPLMN: "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org"}}
 }
 
 func n32fFixture(t *testing.T, tuning Tuning) (*node, *n32fPeer) {

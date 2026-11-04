@@ -30,7 +30,7 @@ func deregisterPath(imsi string) string {
 	return subscribersPath + "/" + imsi + "/deregister"
 }
 
-func createHomeSubscriber(t *testing.T, env testEnv, client *http.Client, token string) {
+func createOwnSubscriber(t *testing.T, env testEnv, client *http.Client, token string) {
 	t.Helper()
 
 	code, resp, err := createSubscriber(env.Server.URL, client, token, &CreateSubscriberParams{Imsi: Imsi, Key: Key, Opc: Opc, SequenceNumber: SequenceNumber, ProfileName: "default"})
@@ -53,7 +53,7 @@ func TestListSubscribersFiltersRoamers(t *testing.T) {
 		{imsi: "208930000000001", regType: db.UERegistrationTypeAMF3GPPAccess, node: "node-1"},
 		{imsi: "208940000000002", regType: db.UERegistrationTypeMME, node: "node-2"},
 	})
-	createHomeSubscriber(t, env, client, token)
+	createOwnSubscriber(t, env, client, token)
 
 	url := env.Server.URL + subscribersPath
 
@@ -117,11 +117,11 @@ func TestListSubscribersFiltersRoamers(t *testing.T) {
 	}
 }
 
-func TestRoamerDetailAndHomeOnlyOperations(t *testing.T) {
+func TestRoamerDetailAndOwnSubscriberOnlyOperations(t *testing.T) {
 	const roamer = "208930000000001"
 
 	env, client, token, partner := roamingPartnerWithRoamers(t, []heldRoamer{{imsi: roamer, regType: db.UERegistrationTypeMME, node: "node-1"}})
-	createHomeSubscriber(t, env, client, token)
+	createOwnSubscriber(t, env, client, token)
 
 	url := env.Server.URL + subscribersPath
 
@@ -134,9 +134,9 @@ func TestRoamerDetailAndHomeOnlyOperations(t *testing.T) {
 		t.Fatalf("roamer detail = %+v", detail.Result)
 	}
 
-	code, home, err := apiDo[subscriberDetailEnvelope](client, "GET", url+"/"+Imsi, token, nil)
-	if err != nil || code != http.StatusOK || home.Result.RoamingPartner != "" {
-		t.Fatalf("GET home subscriber: code=%d err=%v resp=%+v", code, err, home)
+	code, own, err := apiDo[subscriberDetailEnvelope](client, "GET", url+"/"+Imsi, token, nil)
+	if err != nil || code != http.StatusOK || own.Result.RoamingPartner != "" {
+		t.Fatalf("GET home subscriber: code=%d err=%v resp=%+v", code, err, own)
 	}
 
 	for _, method := range []string{"PUT", "DELETE"} {
@@ -157,7 +157,7 @@ func TestRoamerDetailAndHomeOnlyOperations(t *testing.T) {
 
 func TestDeregisterSubscriberAnswers(t *testing.T) {
 	env, client, token, _ := roamingPartnerWithRoamers(t, nil)
-	createHomeSubscriber(t, env, client, token)
+	createOwnSubscriber(t, env, client, token)
 
 	cases := []struct {
 		imsi    string

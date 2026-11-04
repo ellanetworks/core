@@ -532,14 +532,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	diameternode.RegisterMetrics(diameterNode)
 	smsf.RegisterMetrics()
 
-	mmeInstance.HomeNetwork = roaming.NewS6a(func() roaming.DiameterNode {
+	mmeInstance.HPLMN = roaming.NewS6a(func() roaming.DiameterNode {
 		if node := diameterNode.Node(); node != nil {
 			return node
 		}
 
 		return nil
 	})
-	mmeInstance.RegisterHomeNetworkHandlers(diameterNode)
+	mmeInstance.RegisterHPLMNHandlers(diameterNode)
 
 	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.PeersOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
@@ -564,7 +564,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	seppManager := newSEPP(dbInstance, cfg.Interfaces.N32)
 	cp.vsmf.SetN32(seppManager)
-	cp.vsmf.SetVisitors(amfSessionVisitors{amf: amfInstance})
 	seppManager.SetCallbacks(seppCallbacks{amf: wireAMFRoaming(amfInstance, seppManager), smf: cp.vsmf})
 
 	wg.Go(func() {
@@ -1469,6 +1468,16 @@ func reconcileVisitors(dbInstance *db.Database) ellaraft.LeaderHook {
 		case deleted > 0:
 			logger.EllaLog.Info("removed the visitors without a UE registration", zap.Int64("count", deleted))
 		}
+
+		expired, err := dbInstance.DeleteExpiredRoamingWithdrawals(ctx)
+
+		switch {
+		case errors.Is(err, db.ErrMigrationPending):
+		case err != nil:
+			logger.EllaLog.Warn("failed to remove the expired roaming withdrawals", zap.Error(err))
+		case expired > 0:
+			logger.EllaLog.Info("removed the expired roaming withdrawals", zap.Int64("count", expired))
+		}
 	}
 }
 
@@ -1654,10 +1663,10 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
 	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
-	sessionSubscriptions := roaming.NewSubscriptions(subscriptions, nil)
-	vsmf := roaming.NewVSMF(subscriptions, logger.SmfLog)
+	n26 := roaming.NewN26(dbInstance)
+	vsmf := roaming.NewVSMF(logger.SmfLog)
 
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(vsmf.Subscriptions(sessionSubscriptions)), smf.WithHomeNetwork(vsmf))
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(smfSubscriptions{Subscriptions: subscriptions, n26: n26}), smf.WithHPLMNClient(vsmf))
 	pcfInstance.SetEnforcer(smfInstance)
 	vsmf.SetSessions(smfInstance)
 
@@ -1680,12 +1689,9 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
 	mmeInstance.Roaming = dbInstance
-	sessionSubscriptions.SetHomeSubscriptions(mmeInstance)
 
-	n26 := roaming.NewN26(dbInstance)
 	amfInstance.N26 = n26
 	mmeInstance.N26 = n26
-	sessionSubscriptions.SetN26(n26)
 
 	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance

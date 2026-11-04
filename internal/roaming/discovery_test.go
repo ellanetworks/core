@@ -38,8 +38,8 @@ func (f *fakeN32) Client(partnerID string) *http.Client {
 	})}
 }
 
-func (f *fakeN32) NRFAPIRoot(string) (string, error) {
-	return "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org", nil
+func (f *fakeN32) HPLMNNRF(_ string, home wire.PlmnID) (string, error) {
+	return "http://" + home.NFFQDN(wire.FQDNLabelNRF), nil
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -138,13 +138,13 @@ func TestDiscoveryQueryAndRanking(t *testing.T) {
 	other := ausfRequest()
 	other.RoutingIndicator = "0001"
 
-	if _, err := d.Discover(context.Background(), other); err != nil || f.calls.Load() != 4 {
-		t.Fatalf("another routing indicator: %v, %d calls", err, f.calls.Load())
+	if _, err := d.Discover(context.Background(), other); err != nil || f.calls.Load() != 3 {
+		t.Fatalf("instances without ausfInfo serve every routing indicator: %v, %d calls", err, f.calls.Load())
 	}
 
 	d.Forget("p")
 
-	if _, err := d.Discover(context.Background(), ausfRequest()); err != nil || f.calls.Load() != 5 {
+	if _, err := d.Discover(context.Background(), ausfRequest()); err != nil || f.calls.Load() != 4 {
 		t.Fatalf("after Forget: %v, %d calls", err, f.calls.Load())
 	}
 }

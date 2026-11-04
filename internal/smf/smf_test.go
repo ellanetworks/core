@@ -50,7 +50,7 @@ type fakeStore struct {
 	opLog           []string
 	allocSessionLog []uint8
 	visitor         bool
-	homeErr         error
+	n26Err          error
 }
 
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
@@ -279,8 +279,8 @@ func (f *fakeStore) N26Allowed(_ context.Context, _ string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.homeErr != nil {
-		return false, f.homeErr
+	if f.n26Err != nil {
+		return false, f.n26Err
 	}
 
 	return !f.visitor, nil

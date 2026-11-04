@@ -90,6 +90,8 @@ const (
 	ForwardCodeRoamersAttached = "roamers_attached"
 	ForwardCodeRoamingRefused  = "roaming_refused"
 	ForwardCodeInUse           = "in_use"
+	ForwardCodeSubscriberLimit = "subscriber_limit"
+	ForwardCodeSEPPChanged     = "sepp_identity_changed"
 	ForwardCodeTokenConsumed   = "join_token_consumed"      // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenExpired    = "join_token_expired"       // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenNodeMism   = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential

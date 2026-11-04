@@ -70,7 +70,7 @@ func RegisterMetrics(sessions sessionCounter) {
 			rat   string
 			count SessionCount
 		}{{metrics.RAT5G, fiveG}, {metrics.RAT4G, fourG}} {
-			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Home), c.rat, metrics.RoamingFalse)
+			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Own), c.rat, metrics.RoamingFalse)
 
 			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Roaming), c.rat, metrics.RoamingTrue)
 		}

@@ -94,7 +94,7 @@ func roamingRejection(ue *mme.UeContext, err error) (*mme.Rejection, bool) {
 		return nil, false
 	}
 
-	return mme.HomeNetworkRejection(err), true
+	return mme.HPLMNRejection(err), true
 }
 
 func attachRejectCauseForAuthFailure(err error) (eps.EMMCause, bool) {

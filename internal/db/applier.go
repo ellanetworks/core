@@ -335,6 +335,18 @@ func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (a
 		return nil, err
 	}
 
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		if _, err := db.getVisitor(ctx, db.runner(ctx), s.Imsi); err == nil {
+			return nil, fmt.Errorf("%w: IMSI %s is a visitor", ErrAlreadyExists, s.Imsi)
+		} else if !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+	}
+
+	if err := db.checkSubscriberCapacity(ctx); err != nil {
+		return nil, err
+	}
+
 	err := db.runner(ctx).Query(ctx, db.createSubscriberStmt, s).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -354,12 +366,7 @@ func (db *Database) applyUpdateSubscriberProfile(ctx context.Context, s *Subscri
 
 	var outcome sqlair.Outcome
 
-	stmt := db.updateSubscriberProfileStmt
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.updateSubscriberProfilePreV26Stmt
-	}
-
-	err := db.runner(ctx).Query(ctx, stmt, s).Get(&outcome)
+	err := db.runner(ctx).Query(ctx, db.updateSubscriberProfileStmt, s).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -399,12 +406,7 @@ func (db *Database) applyEditSubscriberSeqNum(ctx context.Context, s *Subscriber
 func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 
-	stmt := db.deleteSubscriberStmt
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.deleteSubscriberPreV26Stmt
-	}
-
-	err := db.runner(ctx).Query(ctx, stmt, Subscriber{Imsi: p.Value}).Get(&outcome)
+	err := db.runner(ctx).Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: p.Value}).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -418,7 +420,28 @@ func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload)
 		return nil, ErrNotFound
 	}
 
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return nil, nil
+	}
+
+	if err := db.deleteIMSIState(ctx, p.Value); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
+}
+
+func (db *Database) requireKnownIMSI(ctx context.Context, imsi string) error {
+	known, err := db.imsiKnown(ctx, imsi)
+	if err != nil {
+		return err
+	}
+
+	if !known {
+		return fmt.Errorf("%w: IMSI %s is neither a subscriber nor a visitor", ErrNotFound, imsi)
+	}
+
+	return nil
 }
 
 func (db *Database) incrementDailyUsageStatement(ctx context.Context) *sqlair.Statement {
@@ -487,6 +510,10 @@ func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payloa
 }
 
 func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, error) {
+	if err := db.requireKnownIMSI(ctx, lease.IMSI); err != nil {
+		return nil, err
+	}
+
 	if lease.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
@@ -558,6 +585,14 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 // family) check is race-free; a duplicate address is caught by
 // UNIQUE(poolID, addressBin).
 func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) (any, error) {
+	if err := db.runner(ctx).Query(ctx, db.ownSubscriberStmt(ctx), Subscriber{Imsi: lease.IMSI}).Get(&Subscriber{}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
 	existing := IPLease{PoolID: lease.PoolID, PoolType: lease.PoolType, IMSI: lease.IMSI}
 
 	err := db.runner(ctx).Query(ctx, db.getStaticLeaseStmt, existing).Get(&existing)
@@ -736,6 +771,10 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		if err != nil {
 			return nil, fmt.Errorf("parse pool %q: %w", dn.IPv4Pool, err)
 		}
+	}
+
+	if err := db.requireKnownIMSI(ctx, p.IMSI); err != nil {
+		return nil, err
 	}
 
 	sessionID := p.SessionID

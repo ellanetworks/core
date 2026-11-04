@@ -60,9 +60,9 @@ func TestSoRContainerFromTheHomeSorInfo(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			sor, err := SoRFromHome(&tc.info)
+			sor, err := SoRFromHPLMN(&tc.info)
 			if err != nil {
-				t.Fatalf("SoRFromHome: %v", err)
+				t.Fatalf("SoRFromHPLMN: %v", err)
 			}
 
 			if !bytes.Equal(sor.Container, tc.want) || sor.AckRequested != tc.ack {
@@ -82,7 +82,7 @@ func TestSoRContainerRejectsMalformedHomeInformation(t *testing.T) {
 		{AckInd: &no, SorTransparentContainer: []byte{0x73, 0x00, 0x05, 0x00}},
 		{AckInd: &no, SorTransparentContainer: []byte{0x73, 0x00, 0x01, 0x01}},
 	} {
-		if _, err := SoRFromHome(&info); !errors.Is(err, ErrSoRContainer) {
+		if _, err := SoRFromHPLMN(&info); !errors.Is(err, ErrSoRContainer) {
 			t.Errorf("%+v: error %v, want ErrSoRContainer", info, err)
 		}
 	}
@@ -113,7 +113,7 @@ func TestMergeAccessAndMobility5G(t *testing.T) {
 		Nssai:            &wire.Nssai{DefaultSingleNssais: []wire.Snssai{wire.NewSnssai(1, "")}, SingleNssais: []wire.Snssai{wire.NewSnssai(3, "")}},
 	}
 
-	merged, err := MergeAccessAndMobility5G(local, home)
+	merged, err := MergeAccessAndMobility5G(local, home, func(s models.Snssai) models.Snssai { return s })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,12 +163,12 @@ func TestBreakoutDNN5G(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		if err := BreakoutDNN5G(home, local, snssai, tc.dnn); !errors.Is(err, tc.want) {
+		if err := BreakoutDNN5G(home, local, snssai, snssai, tc.dnn); !errors.Is(err, tc.want) {
 			t.Errorf("%s: %v, want %v", tc.dnn, err, tc.want)
 		}
 	}
 
-	if err := BreakoutDNN5G(home, local, models.Snssai{Sst: 2}, "internet"); !errors.Is(err, ErrDNNNotSubscribed5G) {
+	if err := BreakoutDNN5G(home, local, models.Snssai{Sst: 2}, models.Snssai{Sst: 2}, "internet"); !errors.Is(err, ErrDNNNotSubscribed5G) {
 		t.Errorf("unsubscribed slice: %v", err)
 	}
 }

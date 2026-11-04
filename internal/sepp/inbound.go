@@ -106,7 +106,7 @@ func (m *Manager) serveN32f(w http.ResponseWriter, r *http.Request, partnerID st
 	}
 
 	if cb.SEPPID != snap.identity.seppID {
-		m.serveOtherNode(w, p, cb)
+		m.serveOtherNode(w, snap, p, cb)
 		return
 	}
 
@@ -142,8 +142,14 @@ func (m *Manager) correlated(partnerID string, dnsNames []string) bool {
 	return ok && c.correlates(dnsNames)
 }
 
-func (m *Manager) serveOtherNode(w http.ResponseWriter, p *partner, cb Callback) {
-	m.reject(w, p, RejectOtherNode, cb.Kind.NotFound("the target NF is on another Ella Core node"))
+func (m *Manager) serveOtherNode(w http.ResponseWriter, snap *snapshot, p *partner, cb Callback) {
+	if _, ok := snap.clusterSEPPIDs[cb.SEPPID]; !ok {
+		m.reject(w, p, RejectOtherNode, cb.Kind.NotFound("the target NF is not on any Ella Core node"))
+		return
+	}
+
+	w.Header().Set("Retry-After", strconv.Itoa(otherNodeRetryAfterS))
+	m.reject(w, p, RejectOtherNode, wire.NewProblem(http.StatusServiceUnavailable, wire.CauseNFCongestion, "the target NF is on another Ella Core SEPP node: retry so that it reaches that node"))
 }
 
 type statusRecorder struct {

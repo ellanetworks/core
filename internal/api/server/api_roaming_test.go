@@ -22,19 +22,19 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-const homeSEPPFQDN = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
+const ownSEPPFQDN = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
 
 type roamingPartnerSEPPBody struct {
 	FQDN           string `json:"fqdn"`
 	N32cURI        string `json:"n32cURI"`
 	N32fURI        string `json:"n32fURI,omitempty"`
 	TrustAnchorPEM string `json:"trustAnchorPEM"`
-	NRFAPIRoot     string `json:"nrfAPIRoot,omitempty"`
 }
 
 type roamingPLMNBody struct {
-	Mcc string `json:"mcc"`
-	Mnc string `json:"mnc"`
+	Mcc        string `json:"mcc"`
+	Mnc        string `json:"mnc"`
+	NRFAPIRoot string `json:"nrfAPIRoot,omitempty"`
 }
 
 type roamingPartnerBody struct {
@@ -221,7 +221,7 @@ func TestRoamingPartners(t *testing.T) {
 
 	fiveG.Name = "partner-5g-renamed"
 	fiveG.PLMNs = plmnList("208", "93", "208", "94")
-	fiveG.SEPP.NRFAPIRoot = "http://nrf.5gc.mnc093.mcc208.3gppnetwork.org/"
+	fiveG.PLMNs[0].NRFAPIRoot = "http://nrf.5gc.mnc093.mcc208.3gppnetwork.org/"
 	fiveG.DiameterPeerID = peer.Result.ID
 
 	if code, resp, err := apiDo[roamingMessageEnvelope](client, "PUT", url+roamingPartnersPath+"/"+fiveG.ID, token, fiveG); err != nil || code != http.StatusOK {
@@ -233,7 +233,9 @@ func TestRoamingPartners(t *testing.T) {
 		t.Fatalf("get partner: code=%d err=%v (%q)", code, err, got.Error)
 	}
 
-	if got.Result.Name != fiveG.Name || got.Result.SEPP.NRFAPIRoot != "http://nrf.5gc.mnc093.mcc208.3gppnetwork.org" || got.Result.DiameterPeerID != peer.Result.ID || !slices.Equal(got.Result.PLMNs, fiveG.PLMNs) {
+	fiveG.PLMNs[0].NRFAPIRoot = "http://nrf.5gc.mnc093.mcc208.3gppnetwork.org"
+
+	if got.Result.Name != fiveG.Name || got.Result.DiameterPeerID != peer.Result.ID || !slices.Equal(got.Result.PLMNs, fiveG.PLMNs) {
 		t.Fatalf("updated partner = %+v", got.Result)
 	}
 
@@ -248,6 +250,7 @@ func TestRoamingPartners(t *testing.T) {
 
 	without5G := fiveG
 	without5G.SEPP = nil
+	without5G.PLMNs = plmnList("208", "93", "208", "94")
 
 	withoutPLMN := fiveG
 	withoutPLMN.PLMNs = plmnList("208", "93")
@@ -338,6 +341,12 @@ func TestRoamingPartnerValidation(t *testing.T) {
 		{"bad MCC", func(p *roamingPartnerBody) { p.PLMNs[0].Mcc = "20" }, http.StatusBadRequest},
 		{"bad MNC", func(p *roamingPartnerBody) { p.PLMNs[0].Mnc = "9a" }, http.StatusBadRequest},
 		{"PLMN listed twice", func(p *roamingPartnerBody) { p.PLMNs = plmnList("208", "93", "208", "093") }, http.StatusBadRequest},
+		{"NRF API root over ftp", func(p *roamingPartnerBody) { p.PLMNs[0].NRFAPIRoot = "ftp://nrf.example.org" }, http.StatusBadRequest},
+		{"NRF API root with a query", func(p *roamingPartnerBody) { p.PLMNs[0].NRFAPIRoot = "http://nrf.example.org?a=b" }, http.StatusBadRequest},
+		{"NRF API root without SEPP", func(p *roamingPartnerBody) {
+			p.Name, p.PLMNs, p.SEPP = "other", plmnList("310", "410"), nil
+			p.PLMNs[0].NRFAPIRoot = "http://nrf.example.org"
+		}, http.StatusBadRequest},
 		{"well-known SEPP FQDN", func(p *roamingPartnerBody) { p.SEPP.FQDN = "sepp.5gc.mnc093.mcc208.3gppnetwork.org" }, http.StatusBadRequest},
 		{"SEPP FQDN of another PLMN", func(p *roamingPartnerBody) { p.SEPP.FQDN = "sepp1.5gc.mnc095.mcc208.3gppnetwork.org" }, http.StatusBadRequest},
 		{"non-3GPP SEPP FQDN", func(p *roamingPartnerBody) { p.SEPP.FQDN = "sepp.example.org" }, http.StatusBadRequest},
@@ -476,14 +485,14 @@ func TestRoamingDiameterPeers(t *testing.T) {
 func TestSEPPCertificate(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 	url := env.Server.URL
-	home := pki.PLMN{MCC: "001", MNC: "01"}
+	own := pki.PLMN{MCC: "001", MNC: "01"}
 
 	code, generated, err := apiDo[seppCertificateEnvelope](client, "POST", url+seppCertificatePath+"/generate", token, nil)
 	if err != nil || code != http.StatusCreated {
 		t.Fatalf("generate: code=%d err=%v (%q)", code, err, generated.Error)
 	}
 
-	if generated.Result.FQDN != homeSEPPFQDN || generated.Result.SEPPID != 1 || generated.Result.Source != "generated" || !slices.Contains(generated.Result.Warnings, pki.SEPPWarningNoCRLDistributor) || len(generated.Result.Warnings) != 2 {
+	if generated.Result.FQDN != ownSEPPFQDN || generated.Result.SEPPID != 1 || generated.Result.Source != "generated" || !slices.Contains(generated.Result.Warnings, pki.SEPPWarningNoCRLDistributor) || len(generated.Result.Warnings) != 2 {
 		t.Fatalf("generated = %+v", generated.Result)
 	}
 
@@ -531,7 +540,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("SEPP 2 after a CA regeneration: code=%d result=%+v", code, got.Result)
 	}
 
-	leaf, key, ca, err := pki.GenerateSEPPCert(homeSEPPFQDN, home)
+	leaf, key, ca, err := pki.GenerateSEPPCert(ownSEPPFQDN, own)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +560,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("import: code=%d err=%v (%q)", code, err, imported.Error)
 	}
 
-	if imported.Result.FQDN != homeSEPPFQDN || imported.Result.Fingerprint != pki.Fingerprint(leaf) || imported.Result.TrustAnchorPEM != string(pki.EncodeCertPEM(ca)) || imported.Result.Source != "imported" || !slices.Equal(imported.Result.Warnings, []string{pki.SEPPWarningNoCRLDistributor, "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again"}) {
+	if imported.Result.FQDN != ownSEPPFQDN || imported.Result.Fingerprint != pki.Fingerprint(leaf) || imported.Result.TrustAnchorPEM != string(pki.EncodeCertPEM(ca)) || imported.Result.Source != "imported" || !slices.Equal(imported.Result.Warnings, []string{pki.SEPPWarningNoCRLDistributor, "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again"}) {
 		t.Fatalf("imported = %+v", imported.Result)
 	}
 
@@ -560,7 +569,7 @@ func TestSEPPCertificate(t *testing.T) {
 	}
 
 	stored, err := env.DB.GetSEPPIdentity(context.Background(), 1)
-	if err != nil || stored.KeyPEM != string(keyPEM) || stored.FQDN != homeSEPPFQDN {
+	if err != nil || stored.KeyPEM != string(keyPEM) || stored.FQDN != ownSEPPFQDN {
 		t.Fatalf("stored identity does not hold the imported key: %v", err)
 	}
 
@@ -611,8 +620,8 @@ func TestSEPPCertificate(t *testing.T) {
 	longKey := mustP256(t)
 	longTmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(7),
-		Subject:      pkix.Name{CommonName: homeSEPPFQDN},
-		DNSNames:     []string{homeSEPPFQDN},
+		Subject:      pkix.Name{CommonName: ownSEPPFQDN},
+		DNSNames:     []string{ownSEPPFQDN},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().AddDate(10, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -656,7 +665,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	longTmpl.DNSNames = []string{homeSEPPFQDN, custom}
+	longTmpl.DNSNames = []string{ownSEPPFQDN, custom}
 	longTmpl.Subject.CommonName = ""
 
 	issuedDER, err := x509.CreateCertificate(rand.Reader, longTmpl, operatorCA, &longKey.PublicKey, caKey)

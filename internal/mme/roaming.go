@@ -30,16 +30,17 @@ var (
 	ErrMalformedVector    = errors.New("the home HSS returned a malformed E-UTRAN vector")
 )
 
-type HomeNetwork interface {
-	AuthenticationInformation(ctx context.Context, home roaming.Home, imsi string, visited tgpp.PLMN, resync *s6a.Resync) (s6a.EUTRANVector, string, error)
-	UpdateLocation(ctx context.Context, home roaming.Home, req s6a.UpdateLocationRequest) (s6a.UpdateLocation, error)
-	PurgeUE(ctx context.Context, home roaming.Home, req s6a.PurgeUERequest) (s6a.PurgeUE, error)
-	Notify(ctx context.Context, home roaming.Home, req s6a.NotifyRequest) error
+type HPLMNClient interface {
+	AuthenticationInformation(ctx context.Context, home roaming.HPLMNPeer, imsi string, visited tgpp.PLMN, resync *s6a.Resync) (s6a.EUTRANVector, string, error)
+	UpdateLocation(ctx context.Context, home roaming.HPLMNPeer, req s6a.UpdateLocationRequest) (s6a.UpdateLocation, error)
+	PurgeUE(ctx context.Context, home roaming.HPLMNPeer, req s6a.PurgeUERequest) (s6a.PurgeUE, error)
+	Notify(ctx context.Context, home roaming.HPLMNPeer, req s6a.NotifyRequest) error
 }
 
 type RoamingStore interface {
 	ListRoamingPartners(ctx context.Context) ([]db.RoamingPartner, error)
 	CountSubscribersAndVisitors(ctx context.Context) (int, error)
+	SetVisitorMSISDN(ctx context.Context, imsi, msisdn string) error
 }
 
 type Rejection struct {
@@ -85,6 +86,7 @@ func (ue *UeContext) setVisitor(v *roaming.Visitor) {
 	defer ue.mu.Unlock()
 
 	ue.visitor = v
+	ue.visitorMSISDN = nil
 }
 
 func (ue *UeContext) learnHSS(host string) {
@@ -92,11 +94,11 @@ func (ue *UeContext) learnHSS(host string) {
 	defer ue.mu.Unlock()
 
 	if ue.visitor != nil && host != "" {
-		ue.visitor.Home.HSS = host
+		ue.visitor.Peer.HSS = host
 	}
 }
 
-func (ue *UeContext) setHomeSubscription(sub *s6a.SubscriptionData) {
+func (ue *UeContext) setHPLMNSubscription(sub *s6a.SubscriptionData) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -106,12 +108,12 @@ func (ue *UeContext) setHomeSubscription(sub *s6a.SubscriptionData) {
 	}
 }
 
-func (ue *UeContext) updateHomeSubscription(update func(s6a.SubscriptionData) (s6a.SubscriptionData, error)) error {
+func (ue *UeContext) updateHPLMNSubscription(update func(s6a.SubscriptionData) (s6a.SubscriptionData, error)) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	if ue.visitor == nil {
-		return roaming.ErrNoHomeSubscription
+		return roaming.ErrNoHPLMNSubscription
 	}
 
 	var current s6a.SubscriptionData
@@ -129,7 +131,7 @@ func (ue *UeContext) updateHomeSubscription(update func(s6a.SubscriptionData) (s
 	return nil
 }
 
-func (ue *UeContext) setHomeRegistered(registered bool) {
+func (ue *UeContext) setHPLMNRegistered(registered bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -138,7 +140,7 @@ func (ue *UeContext) setHomeRegistered(registered bool) {
 	}
 }
 
-func (ue *UeContext) unconfirmHomeLocation() {
+func (ue *UeContext) unconfirmHPLMNLocation() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -147,7 +149,7 @@ func (ue *UeContext) unconfirmHomeLocation() {
 	}
 }
 
-func (ue *UeContext) homeRegistrationLocked() (roaming.Visitor, bool) {
+func (ue *UeContext) hplmnRegistrationLocked() (roaming.Visitor, bool) {
 	if ue.visitor == nil || !ue.visitor.Registered {
 		return roaming.Visitor{}, false
 	}
@@ -155,7 +157,7 @@ func (ue *UeContext) homeRegistrationLocked() (roaming.Visitor, bool) {
 	return *ue.visitor, true
 }
 
-func (m *MME) HomeSubscription(imsi string) (*s6a.SubscriptionData, bool) {
+func (m *MME) HPLMNSubscription(imsi string) (*s6a.SubscriptionData, bool) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return nil, false
@@ -169,24 +171,24 @@ func (m *MME) HomeSubscription(imsi string) (*s6a.SubscriptionData, bool) {
 	return v.Subscription, true
 }
 
-func (m *MME) VisitorHome(imsi string) (roaming.HomeData, bool) {
+func (m *MME) VisitorHPLMN(imsi string) (roaming.HPLMNData, bool) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
-		return roaming.HomeData{}, false
+		return roaming.HPLMNData{}, false
 	}
 
 	v, ok := ue.Visitor()
 	if !ok || v.Subscription == nil {
-		return roaming.HomeData{}, false
+		return roaming.HPLMNData{}, false
 	}
 
-	return roaming.HomeData{PLMN: models.PlmnID{Mcc: v.HomePLMN.MCC, Mnc: v.HomePLMN.MNC}, Subscription: v.Subscription}, true
+	return roaming.HPLMNData{PLMN: models.PlmnID{Mcc: v.HomePLMN.MCC, Mnc: v.HomePLMN.MNC}, Subscription: v.Subscription}, true
 }
 
-func (m *MME) AdmitVisitor(ctx context.Context, ue *UeContext, home models.PlmnID) error {
+func (m *MME) AdmitVisitor(ctx context.Context, ue *UeContext, serving models.PlmnID) error {
 	imsi := ue.IMSI()
 
-	if m.Roaming == nil || strings.HasPrefix(imsi, home.Mcc+home.Mnc) {
+	if m.Roaming == nil || strings.HasPrefix(imsi, serving.Mcc+serving.Mnc) {
 		ue.setVisitor(nil)
 		return nil
 	}
@@ -229,13 +231,13 @@ func (m *MME) AdmitVisitor(ctx context.Context, ue *UeContext, home models.PlmnI
 
 	if held, ok := m.LookupUeByIMSI(imsi); ok && held != ue {
 		if v, ok := held.Visitor(); ok && v.PartnerID == visitor.PartnerID {
-			visitor.Home.HSS = v.Home.HSS
+			visitor.Peer.HSS = v.Peer.HSS
 		}
 	}
 
 	ue.setVisitor(&visitor)
 
-	logger.From(ctx, logger.MmeLog).Info("inbound roamer", zap.String("roaming_partner", partner.Name), zap.String("home_realm", visitor.Home.Realm))
+	logger.From(ctx, logger.MmeLog).Info("inbound roamer", zap.String("roaming_partner", partner.Name), zap.String("home_realm", visitor.Peer.Realm))
 
 	return nil
 }
@@ -295,7 +297,7 @@ func (m *MME) AuthenticationVector(ctx context.Context, ue *UeContext, serving m
 		return m.Cred.GenerateEPSVector(ctx, ue.IMSI(), plmn[:], auts, rand)
 	}
 
-	if m.HomeNetwork == nil {
+	if m.HPLMN == nil {
 		return nil, roaming.ErrHSSUnreachable
 	}
 
@@ -304,7 +306,7 @@ func (m *MME) AuthenticationVector(ctx context.Context, ue *UeContext, serving m
 		s6aResync = &s6a.Resync{RAND: resync.RAND, AUTS: resync.AUTS}
 	}
 
-	vec, hss, err := m.HomeNetwork.AuthenticationInformation(ctx, v.Home, ue.IMSI(), tgpp.PLMN{MCC: serving.Mcc, MNC: serving.Mnc}, s6aResync)
+	vec, hss, err := m.HPLMN.AuthenticationInformation(ctx, v.Peer, ue.IMSI(), tgpp.PLMN{MCC: serving.Mcc, MNC: serving.Mnc}, s6aResync)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +341,7 @@ func (m *MME) RequestAuthenticationVector(ctx context.Context, ue *UeContext, co
 		err error
 	)
 
-	m.awaitHome(ctx, ue, conn, "Authentication-Information", func(ctx context.Context) {
+	m.awaitHPLMN(ctx, ue, conn, "Authentication-Information", func(ctx context.Context) {
 		vec, err = m.AuthenticationVector(ctx, ue, serving, resync)
 	}, func(ctx context.Context) {
 		done(ctx, vec, err)
@@ -354,14 +356,14 @@ func (m *MME) RequestUpdateLocation(ctx context.Context, ue *UeContext, conn *Ue
 
 	var err error
 
-	m.awaitHome(ctx, ue, conn, "Update-Location", func(ctx context.Context) {
+	m.awaitHPLMN(ctx, ue, conn, "Update-Location", func(ctx context.Context) {
 		err = m.updateLocation(ctx, ue, serving, ULRInitialAttach)
 	}, func(ctx context.Context) {
 		done(ctx, err)
 	})
 }
 
-func (m *MME) awaitHome(ctx context.Context, ue *UeContext, conn *UeConn, procedure string, job, resume func(context.Context)) {
+func (m *MME) awaitHPLMN(ctx context.Context, ue *UeContext, conn *UeConn, procedure string, job, resume func(context.Context)) {
 	ctx = context.WithoutCancel(ctx)
 	imsi := ue.IMSI()
 
@@ -385,11 +387,11 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 		return nil
 	}
 
-	if m.HomeNetwork == nil {
+	if m.HPLMN == nil {
 		return roaming.ErrHSSUnreachable
 	}
 
-	home := v.Home
+	home := v.Peer
 	flags := kind.flags()
 
 	if kind == ULRRestoration {
@@ -398,9 +400,9 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 
 	homogeneous := s6a.IMSVoiceOverPSNotSupported
 
-	ue.setHomeRegistered(true)
+	ue.setHPLMNRegistered(true)
 
-	ula, err := m.HomeNetwork.UpdateLocation(ctx, home, s6a.UpdateLocationRequest{
+	ula, err := m.HPLMN.UpdateLocation(ctx, home, s6a.UpdateLocationRequest{
 		IMSI:                      ue.IMSI(),
 		Features:                  roaming.ULRFeatures,
 		Terminal:                  terminalInformation(ue),
@@ -412,7 +414,7 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 
 	var refused *s6a.ResultError
 	if errors.As(err, &refused) {
-		ue.setHomeRegistered(false)
+		ue.setHPLMNRegistered(false)
 	}
 
 	if err != nil {
@@ -431,9 +433,45 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 		}
 	}
 
-	ue.setHomeSubscription(ula.Subscription)
+	if kind.carriesPDNConnections() && ula.Subscription.BarsVisitedPLMNAccessPoints() {
+		return &Rejection{Cause: eps.EMMCauseNoEPSBearerContextActivated, Reason: "operator determined barring bars every PDN connection of the visitor"}
+	}
+
+	m.crossCancel.Disarm(ue.IMSI())
+	ue.setHPLMNSubscription(ula.Subscription)
 
 	return nil
+}
+
+func (m *MME) recordVisitorMSISDN(ctx context.Context, ue *UeContext) {
+	if m.Roaming == nil {
+		return
+	}
+
+	ue.mu.Lock()
+
+	if ue.visitor == nil || ue.visitor.Subscription == nil {
+		ue.mu.Unlock()
+		return
+	}
+
+	msisdn := ue.visitor.Subscription.MSISDN
+	unchanged := ue.visitorMSISDN != nil && *ue.visitorMSISDN == msisdn
+
+	ue.mu.Unlock()
+
+	if unchanged {
+		return
+	}
+
+	if err := m.Roaming.SetVisitorMSISDN(ctx, ue.IMSI(), msisdn); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to store the visitor's MSISDN", logger.SUPI(ue.Supi().String()), zap.Error(err))
+		return
+	}
+
+	ue.mu.Lock()
+	ue.visitorMSISDN = &msisdn
+	ue.mu.Unlock()
 }
 
 func terminalInformation(ue *UeContext) *s6a.TerminalInformation {
@@ -450,8 +488,6 @@ func terminalInformation(ue *UeContext) *s6a.TerminalInformation {
 
 func subscriptionRestriction(sub s6a.SubscriptionData) error {
 	switch {
-	case sub.SubscriberStatus != nil && *sub.SubscriberStatus == s6a.SubscriberStatusOperatorDeterminedBarring:
-		return &Rejection{Cause: eps.EMMCauseNoSuitableCellsInTrackingArea, Reason: "operator determined barring"}
 	case sub.RoamingRestrictedDueToUnsupportedFeature:
 		return &Rejection{Cause: eps.EMMCauseEPSServicesNotAllowedInThisPLMN, Reason: "roaming restricted due to an unsupported feature"}
 	case sub.AccessRestrictionData != nil && *sub.AccessRestrictionData&(s6a.ARDWBEUTRANNotAllowed|s6a.ARDWBEUTRANExceptLTEMNotAllowed) != 0:
@@ -461,7 +497,7 @@ func subscriptionRestriction(sub s6a.SubscriptionData) error {
 	return nil
 }
 
-func HomeNetworkRejection(err error) *Rejection {
+func HPLMNRejection(err error) *Rejection {
 	var r *Rejection
 	if errors.As(err, &r) {
 		return r

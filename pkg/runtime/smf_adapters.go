@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
@@ -17,8 +18,10 @@ import (
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
 	upfengine "github.com/ellanetworks/core/internal/upf/engine"
 	"go.opentelemetry.io/otel"
@@ -58,7 +61,7 @@ func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore
 	)
 	defer span.End()
 
-	dn, err := a.db.GetDataNetwork(ctx, dnn)
+	dn, err := a.db.GetDataNetwork(ctx, strings.ToLower(dnn))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "get data network failed")
@@ -539,4 +542,13 @@ func (a *sessionSubscriptionAdapter) StaticIP(ctx context.Context, imsi, dnn str
 	}
 
 	return lease.Address(), true, nil
+}
+
+type smfSubscriptions struct {
+	*udm.Subscriptions
+	n26 *roaming.N26
+}
+
+func (s smfSubscriptions) N26Allowed(ctx context.Context, imsi string) (bool, error) {
+	return s.n26.Allowed(ctx, imsi)
 }

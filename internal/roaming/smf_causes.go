@@ -13,14 +13,13 @@ import (
 )
 
 var (
-	ErrSessionHomeRouted      = errors.New("the home network allows no local breakout for this DNN")
-	ErrSessionNotSubscribed   = errors.New("S-NSSAI and DNN not subscribed by the home network")
-	ErrSessionNotLocalDN      = errors.New("not a local data network of the roaming partner")
-	ErrSessionSSCMode         = errors.New("the home network allows no SSC mode 1 for this DNN")
-	ErrSessionNotIP           = errors.New("the home network allows no IP PDU session type for this DNN")
-	ErrSessionHomeUnreachable = errors.New("the home UDM cannot be reached")
-	ErrSessionHomeRefused     = errors.New("the home UDM refused the request")
-	ErrSessionHomeData        = errors.New("the home UDM returned unusable subscription data")
+	ErrSessionNotSubscribed    = errors.New("S-NSSAI and DNN not subscribed by the home network")
+	ErrSessionSSCMode          = errors.New("the home network allows no SSC mode 1 for this DNN")
+	ErrSessionNotIP            = errors.New("the home network allows no IP PDU session type for this DNN")
+	ErrSessionHPLMNUnreachable = errors.New("the home UDM cannot be reached")
+	ErrSessionHPLMNRefused     = errors.New("the home UDM refused the request")
+	ErrSessionHPLMNData        = errors.New("the home UDM returned unusable subscription data")
+	ErrSessionBarred           = errors.New("operator determined barring bars packet services in the visited network")
 )
 
 type SessionError struct {
@@ -43,28 +42,28 @@ func newSessionError(cause fgs.GSMCause, err error) error {
 func vsmfSDMError(pd wire.ProblemDetails) error {
 	switch {
 	case pd.Status == http.StatusNotFound && pd.Cause == wire.CauseUserNotFound:
-		return newSessionError(fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, fmt.Errorf("%w: %w", ErrSessionHomeRefused, pd))
+		return newSessionError(fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, fmt.Errorf("%w: %w", ErrSessionHPLMNRefused, pd))
 	case pd.Status == http.StatusNotFound:
 		return newSessionError(fgs.GSMCauseRequestedServiceOptionNotSubscribed, fmt.Errorf("%w: %w", ErrSessionNotSubscribed, pd))
 	case pd.Status == http.StatusForbidden:
-		return newSessionError(fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, fmt.Errorf("%w: %w", ErrSessionHomeRefused, pd))
+		return newSessionError(fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, fmt.Errorf("%w: %w", ErrSessionHPLMNRefused, pd))
 	case vsmfTransient(pd.Status):
-		return newSessionError(fgs.GSMCauseNetworkFailure, fmt.Errorf("%w: %w", ErrSessionHomeUnreachable, pd))
+		return newSessionError(fgs.GSMCauseNetworkFailure, fmt.Errorf("%w: %w", ErrSessionHPLMNUnreachable, pd))
 	default:
-		return newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%w: %w", ErrSessionHomeRefused, pd))
+		return newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%w: %w", ErrSessionHPLMNRefused, pd))
 	}
 }
 
 func vsmfUECMError(pd wire.ProblemDetails) error {
 	switch {
 	case pd.Status == http.StatusForbidden && pd.Cause == wire.CauseDNNNotAllowed:
-		return newSessionError(fgs.GSMCauseMissingOrUnknownDNN, fmt.Errorf("%w: %w", ErrSessionHomeRefused, pd))
+		return newSessionError(fgs.GSMCauseMissingOrUnknownDNN, fmt.Errorf("%w: %w", ErrSessionHPLMNRefused, pd))
 	case pd.Status == http.StatusForbidden, pd.Status == http.StatusNotFound:
-		return newSessionError(fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, fmt.Errorf("%w: %w", ErrSessionHomeRefused, pd))
+		return newSessionError(fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, fmt.Errorf("%w: %w", ErrSessionHPLMNRefused, pd))
 	case vsmfTransient(pd.Status):
-		return fmt.Errorf("%w: %w", ErrSessionHomeUnreachable, pd)
+		return fmt.Errorf("%w: %w", ErrSessionHPLMNUnreachable, pd)
 	default:
-		return newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%w: %w", ErrSessionHomeRefused, pd))
+		return newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%w: %w", ErrSessionHPLMNRefused, pd))
 	}
 }
 
@@ -73,5 +72,5 @@ func vsmfTransient(status int) bool {
 }
 
 func vsmfUnreachable(err error) error {
-	return newSessionError(fgs.GSMCauseNetworkFailure, fmt.Errorf("%w: %w", ErrSessionHomeUnreachable, err))
+	return newSessionError(fgs.GSMCauseNetworkFailure, fmt.Errorf("%w: %w", ErrSessionHPLMNUnreachable, err))
 }

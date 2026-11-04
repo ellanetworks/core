@@ -145,7 +145,7 @@ func (p *Partner) Config(id string) sepp.PartnerConfig {
 		FQDN:           p.FQDN,
 		N32cURI:        p.srv.URL,
 		TrustAnchorPEM: p.CA.PEM(),
-		NRFAPIRoot:     "http://" + p.PLMN.NFFQDN("nrf"),
+		NRFAPIRoots:    map[wire.PlmnID]string{p.PLMN: "http://" + p.PLMN.NFFQDN("nrf")},
 	}
 }
 

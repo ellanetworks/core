@@ -808,13 +808,13 @@ This path creates a new roaming partner.
 - `plmns` (array): The partner's PLMN IDs, at least one. Two PLMN IDs conflict when they have the same MCC and their MNCs are equal once zero-padded to 3 digits, or one is a prefix of the other. A PLMN ID must not conflict with another of the partner, with your own PLMN ID, or with another partner's.
     - `mcc` (string): 3 digits.
     - `mnc` (string): 2 or 3 digits.
+    - `nrfAPIRoot` (string, optional): The apiRoot (`http` or `https`) of the NRF of this PLMN, for its roamers. Defaults to `https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of this PLMN ID. Needs `sepp`.
 - `profileName` (string): The name of the profile applied to the partner's roamers.
 - `sepp` (object, optional): The 5G agreement. Absent means no 5G roaming.
     - `fqdn` (string): The partner SEPP's FQDN, as in its certificate: `<host>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, or `<host>.5gc.mnc<MNC>.mcc<MCC>.<IPX ID>.ipxnetwork.org`, for one of the partner's PLMN IDs. Must not be the well-known `sepp.5gc…` FQDN. Must be unique across partners.
     - `n32cURI` (string): The apiRoot of the partner SEPP's N32-c endpoint: `https`, host, optional port and optional path prefix.
     - `n32fURI` (string, optional): The apiRoot of the partner SEPP's N32-f endpoint. Defaults to `n32cURI`.
     - `trustAnchorPEM` (string): The CA certificates that the partner SEPP's certificate chains to, or the partner's self-signed certificate, in PEM. Each certificate must be valid, with an ECDSA key or an RSA key of at least 2048 bits.
-    - `nrfAPIRoot` (string, optional): The apiRoot (`http` or `https`) of the partner's NRF. Defaults to `https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, for the PLMN ID of `fqdn`.
 - `diameterPeerID` (string, optional): The ID of the [roaming Diameter peer](#create-a-roaming-diameter-peer) of the 4G agreement. Absent means no 4G roaming.
 
 ### Sample Request

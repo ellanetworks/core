@@ -575,6 +575,8 @@ var forwardCodes = []struct {
 	{ellaraft.ForwardCodeRoamingRefused, ErrRoamingRefused},
 	{ellaraft.ForwardCodeRoamingConflict, ErrRoamingConflict},
 	{ellaraft.ForwardCodeInUse, ErrInUse},
+	{ellaraft.ForwardCodeSubscriberLimit, ErrSubscriberLimit},
+	{ellaraft.ForwardCodeSEPPChanged, ErrSEPPIdentityChanged},
 }
 
 func sentinelForForwardCode(code string) error {

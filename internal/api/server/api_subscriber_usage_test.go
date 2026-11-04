@@ -597,10 +597,10 @@ func TestAPISubscriberUsageRoamers(t *testing.T) {
 		t.Fatalf("couldn't create data network and policy: %s", err)
 	}
 
-	homeIMSI := "001010100007487"
+	ownIMSI := "001010100007487"
 
 	if _, _, err := createSubscriber(env.Server.URL, client, token, &CreateSubscriberParams{
-		Imsi:           homeIMSI,
+		Imsi:           ownIMSI,
 		Key:            Key,
 		Opc:            Opc,
 		SequenceNumber: SequenceNumber,
@@ -628,7 +628,7 @@ func TestAPISubscriberUsageRoamers(t *testing.T) {
 	}
 
 	if err := env.DB.IncrementDailyUsageBatch(ctx, []db.DailyUsage{
-		{EpochDay: db.DaysSinceEpoch(day), IMSI: homeIMSI, BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: db.DaysSinceEpoch(day), IMSI: ownIMSI, BytesUplink: 100, BytesDownlink: 200},
 		roamer("208930000000001", "208", "93", 1000, 2000),
 		roamer("310410000000001", "310", "410", 1, 1),
 	}); err != nil {
@@ -638,16 +638,16 @@ func TestAPISubscriberUsageRoamers(t *testing.T) {
 	start, end := "2025-11-14T00:00:00Z", "2025-11-15T00:00:00Z"
 	partnerRoamer := PerSubscriberUsage{IMSI: "208930000000001", HomePLMN: &usagePLMN{Mcc: "208", Mnc: "93"}, RoamingPartner: "partner-a", UplinkBytes: 1000, DownlinkBytes: 2000, TotalBytes: 3000}
 	unknownRoamer := PerSubscriberUsage{IMSI: "310410000000001", HomePLMN: &usagePLMN{Mcc: "310", Mnc: "410"}, UplinkBytes: 1, DownlinkBytes: 1, TotalBytes: 2}
-	home := PerSubscriberUsage{IMSI: homeIMSI, UplinkBytes: 100, DownlinkBytes: 200, TotalBytes: 300}
+	own := PerSubscriberUsage{IMSI: ownIMSI, UplinkBytes: 100, DownlinkBytes: 200, TotalBytes: 300}
 
 	for _, tc := range []struct {
 		filter string
 		perSub []PerSubscriberUsage
 		perDay int64
 	}{
-		{"", []PerSubscriberUsage{partnerRoamer, home, unknownRoamer}, 3302},
+		{"", []PerSubscriberUsage{partnerRoamer, own, unknownRoamer}, 3302},
 		{"&roaming=true", []PerSubscriberUsage{partnerRoamer, unknownRoamer}, 3002},
-		{"&roaming=false", []PerSubscriberUsage{home}, 300},
+		{"&roaming=false", []PerSubscriberUsage{own}, 300},
 	} {
 		t.Run("roaming filter "+tc.filter, func(t *testing.T) {
 			status, perSub, err := apiDo[GetUsagePerSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s%s", env.Server.URL, usageQuery(start, end, "", GroupBySubscriber), tc.filter), token, nil)

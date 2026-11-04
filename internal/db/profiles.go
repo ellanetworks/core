@@ -27,9 +27,7 @@ const (
 	editProfileStmt               = "UPDATE %s SET ueAmbrUplink=$Profile.ueAmbrUplink, ueAmbrDownlink=$Profile.ueAmbrDownlink, allow4G=$Profile.allow4G, allow5G=$Profile.allow5G WHERE name==$Profile.name"
 	deleteProfileStmt             = "DELETE FROM %s WHERE name==$Profile.name"
 	countProfilesStmt             = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	countSubscribersInProfileStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Subscriber.profileID AND roamingPartnerID IS NULL"
-
-	countSubscribersInProfilePreV26Stmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Subscriber.profileID"
+	countSubscribersInProfileStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Subscriber.profileID"
 )
 
 type Profile struct {
@@ -334,12 +332,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 
 	subscriber := Subscriber{ProfileID: profileID}
 
-	stmt := db.countSubscribersByProfileStmt
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.countSubscribersByProfilePreV26Stmt
-	}
-
-	err := db.conn().Query(ctx, stmt, subscriber).Get(&result)
+	err := db.conn().Query(ctx, db.countSubscribersByProfileStmt, subscriber).Get(&result)
 	if err != nil {
 		recordSpanError(span, err)
 

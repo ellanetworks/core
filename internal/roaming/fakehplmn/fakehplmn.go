@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package fakehome
+package fakehplmn
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,10 +29,10 @@ type Subscriber struct {
 	SQN    string
 	AM     wire.AccessAndMobilitySubscriptionData
 	SMFSel *wire.SmfSelectionSubscriptionData
-	LCS    *wire.LcsPrivacyData
 }
 
 type Request struct {
+	Host   string
 	Method string
 	Path   string
 	Query  string
@@ -48,10 +50,19 @@ type failure struct {
 	pd     wire.ProblemDetails
 }
 
-type Home struct {
+type udmGroup struct {
+	id     string
+	ranges bool
+	imsis  map[string]bool
+}
+
+type HPLMN struct {
 	PLMN wire.PlmnID
 
 	mu            sync.Mutex
+	oauth2        bool
+	tokens        map[string]string
+	groups        []*udmGroup
 	subscribers   map[string]*Subscriber
 	ausf          *ausf.AUSF
 	auths         map[string]*authContext
@@ -65,8 +76,8 @@ type Home struct {
 	confirmations []*string
 }
 
-func New(plmn wire.PlmnID) *Home {
-	h := &Home{
+func New(plmn wire.PlmnID) *HPLMN {
+	h := &HPLMN{
 		PLMN:          plmn,
 		subscribers:   map[string]*Subscriber{},
 		auths:         map[string]*authContext{},
@@ -74,6 +85,7 @@ func New(plmn wire.PlmnID) *Home {
 		purged:        map[string]bool{},
 		subscriptions: map[string]wire.SdmSubscription{},
 		sorAcks:       map[string]wire.AcknowledgeInfo{},
+		tokens:        map[string]string{},
 	}
 
 	h.ausf = ausf.New(credentials{h: h}, func(string, int) (string, error) {
@@ -83,14 +95,14 @@ func New(plmn wire.PlmnID) *Home {
 	return h
 }
 
-func (h *Home) Provision(imsi string, s Subscriber) {
+func (h *HPLMN) Provision(imsi string, s Subscriber) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.subscribers[imsi] = &s
 }
 
-func (h *Home) Update(imsi string, f func(*Subscriber)) {
+func (h *HPLMN) Update(imsi string, f func(*Subscriber)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -99,28 +111,58 @@ func (h *Home) Update(imsi string, f func(*Subscriber)) {
 	}
 }
 
-func (h *Home) Fail(method, pathContains string, pd wire.ProblemDetails) {
+func (h *HPLMN) RequireOAuth2() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.oauth2 = true
+}
+
+func (h *HPLMN) RevokeTokens() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.tokens = map[string]string{}
+}
+
+func (h *HPLMN) UDMGroup(id string, ranges bool, imsis ...string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	g := &udmGroup{id: id, ranges: ranges, imsis: map[string]bool{}}
+	for _, imsi := range imsis {
+		g.imsis[imsi] = true
+	}
+
+	h.groups = append(h.groups, g)
+}
+
+func (h *HPLMN) UDMHost(group string) string {
+	return h.PLMN.NFFQDN("udm-" + group)
+}
+
+func (h *HPLMN) Fail(method, pathContains string, pd wire.ProblemDetails) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.failures = append(h.failures, failure{method: method, path: pathContains, pd: pd})
 }
 
-func (h *Home) Heal() {
+func (h *HPLMN) Heal() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.failures = nil
 }
 
-func (h *Home) Requests() []Request {
+func (h *HPLMN) Requests() []Request {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	return append([]Request(nil), h.requests...)
 }
 
-func (h *Home) Registration(supi string) (wire.Amf3GppAccessRegistration, bool) {
+func (h *HPLMN) Registration(supi string) (wire.Amf3GppAccessRegistration, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -129,14 +171,14 @@ func (h *Home) Registration(supi string) (wire.Amf3GppAccessRegistration, bool) 
 	return r, ok
 }
 
-func (h *Home) Purged(supi string) bool {
+func (h *HPLMN) Purged(supi string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	return h.purged[supi]
 }
 
-func (h *Home) Subscriptions() map[string]wire.SdmSubscription {
+func (h *HPLMN) Subscriptions() map[string]wire.SdmSubscription {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -148,14 +190,14 @@ func (h *Home) Subscriptions() map[string]wire.SdmSubscription {
 	return out
 }
 
-func (h *Home) Confirmations() []*string {
+func (h *HPLMN) Confirmations() []*string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	return append([]*string(nil), h.confirmations...)
 }
 
-func (h *Home) SoRAck(supi string) (wire.AcknowledgeInfo, bool) {
+func (h *HPLMN) SoRAck(supi string) (wire.AcknowledgeInfo, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -164,14 +206,14 @@ func (h *Home) SoRAck(supi string) (wire.AcknowledgeInfo, bool) {
 	return a, ok
 }
 
-func (h *Home) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *HPLMN) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	if r.Body != nil {
 		body, _ = io.ReadAll(r.Body)
 	}
 
 	h.mu.Lock()
-	h.requests = append(h.requests, Request{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: body})
+	h.requests = append(h.requests, Request{Host: r.Host, Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: body})
 
 	for _, f := range h.failures {
 		if f.method == r.Method && strings.Contains(r.URL.Path, f.path) {
@@ -189,6 +231,22 @@ func (h *Home) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if segments[0] == "oauth2" {
+		h.issueToken(w, r, body)
+		return
+	}
+
+	if segments[0] != "nnrf-disc" && !h.authorized(w, r, segments[0]) {
+		return
+	}
+
+	if segments[0] == "nudm-uecm" || segments[0] == "nudm-sdm" {
+		if len(segments) > 2 && !h.servesHost(r.Host, segments[2]) {
+			writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseUserNotFound, "not in this UDM group"))
+			return
+		}
+	}
+
 	switch segments[0] {
 	case "nnrf-disc":
 		h.discover(w, r)
@@ -203,12 +261,13 @@ func (h *Home) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Home) host(nf string) string {
+func (h *HPLMN) host(nf string) string {
 	return "http://" + h.PLMN.NFFQDN(nf)
 }
 
-func (h *Home) discover(w http.ResponseWriter, r *http.Request) {
-	target := strings.ToLower(r.URL.Query().Get("target-nf-type"))
+func (h *HPLMN) discover(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	target := strings.ToLower(q.Get("target-nf-type"))
 	services := map[string][]string{"ausf": {"nausf-auth"}, "udm": {"nudm-uecm", "nudm-sdm"}}
 
 	names, ok := services[target]
@@ -217,6 +276,51 @@ func (h *Home) discover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.mu.Lock()
+	oauth2 := h.oauth2
+	groups := append([]*udmGroup(nil), h.groups...)
+	h.mu.Unlock()
+
+	if target != "udm" || len(groups) == 0 {
+		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, map[string]any{"validityPeriod": 60, "nfInstances": []any{
+			h.profile(target, "00000000-0000-0000-0000-00000000000"+strconv.Itoa(len(target)), h.PLMN.NFFQDN(target), names, oauth2, nil),
+		}})
+
+		return
+	}
+
+	supi := q.Get("supi")
+	wanted := strings.Split(q.Get("group-id-list"), ",")
+
+	var profiles []any
+
+	for i, g := range groups {
+		imsi := strings.TrimPrefix(supi, "imsi-")
+		if supi != "" && !g.imsis[imsi] {
+			continue
+		}
+
+		if q.Get("group-id-list") != "" && !slices.Contains(wanted, g.id) {
+			continue
+		}
+
+		info := map[string]any{"groupId": g.id}
+		if g.ranges {
+			var ranges []wire.SupiRange
+			for imsi := range g.imsis {
+				ranges = append(ranges, wire.SupiRange{Start: imsi, End: imsi})
+			}
+
+			info["supiRanges"] = ranges
+		}
+
+		profiles = append(profiles, h.profile(target, fmt.Sprintf("00000000-0000-0000-0001-%012d", i), h.UDMHost(g.id), names, oauth2, info))
+	}
+
+	writeJSON(w, http.StatusOK, wire.ContentTypeJSON, map[string]any{"validityPeriod": 60, "nfInstances": profiles})
+}
+
+func (h *HPLMN) profile(target, id, fqdn string, names []string, oauth2 bool, udmInfo map[string]any) map[string]any {
 	var svcs []map[string]any
 
 	for i, n := range names {
@@ -235,18 +339,104 @@ func (h *Home) discover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile := map[string]any{
-		"nfInstanceId": "00000000-0000-0000-0000-00000000000" + strconv.Itoa(len(target)),
+		"nfInstanceId": id,
 		"nfType":       strings.ToUpper(target),
 		"nfStatus":     "REGISTERED",
 		"plmnList":     []wire.PlmnID{h.PLMN},
-		"fqdn":         h.PLMN.NFFQDN(target),
+		"fqdn":         fqdn,
 		"nfServices":   svcs,
 	}
 
-	writeJSON(w, http.StatusOK, wire.ContentTypeJSON, map[string]any{"validityPeriod": 60, "nfInstances": []any{profile}})
+	if oauth2 {
+		profile["oauth2Required"] = true
+	}
+
+	if udmInfo != nil {
+		profile["udmInfo"] = udmInfo
+	}
+
+	return profile
 }
 
-func (h *Home) authenticate(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
+func (h *HPLMN) servesHost(host, supi string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if len(h.groups) == 0 {
+		return true
+	}
+
+	host = strings.Split(host, ":")[0]
+	imsi := strings.TrimPrefix(supi, "imsi-")
+
+	for _, g := range h.groups {
+		if host == h.PLMN.NFFQDN("udm-"+g.id) {
+			return g.imsis[imsi]
+		}
+	}
+
+	return false
+}
+
+func (h *HPLMN) issueToken(w http.ResponseWriter, r *http.Request, body []byte) {
+	form, err := url.ParseQuery(string(body))
+	if r.Method != http.MethodPost || err != nil || r.Header.Get("Content-Type") != wire.ContentTypeForm {
+		writeJSON(w, http.StatusBadRequest, wire.ContentTypeJSON, wire.AccessTokenErr{Error: "invalid_request"})
+		return
+	}
+
+	scope := form.Get("scope")
+	if form.Get("grant_type") != wire.GrantTypeClientCreds || form.Get("nfInstanceId") == "" || scope == "" ||
+		form.Get("requesterPlmn") == "" || form.Get("targetPlmn") == "" || form.Get("targetNfType") == "" {
+		writeJSON(w, http.StatusBadRequest, wire.ContentTypeJSON, wire.AccessTokenErr{Error: "invalid_request"})
+		return
+	}
+
+	h.mu.Lock()
+	h.nextID++
+	token := "token-" + strconv.Itoa(h.nextID)
+	h.tokens[token] = scope
+	h.mu.Unlock()
+
+	expires := 3600
+
+	writeJSON(w, http.StatusOK, wire.ContentTypeJSON, wire.AccessTokenRsp{AccessToken: token, TokenType: wire.TokenTypeBearer, ExpiresIn: &expires})
+}
+
+func (h *HPLMN) authorized(w http.ResponseWriter, r *http.Request, service string) bool {
+	h.mu.Lock()
+	required := h.oauth2
+	header := r.Header.Get("Authorization")
+	token, hasBearer := strings.CutPrefix(header, wire.TokenTypeBearer+" ")
+	scope, valid := h.tokens[token]
+	h.mu.Unlock()
+
+	if !required {
+		return true
+	}
+
+	challenge := `Bearer realm="` + service + `"`
+
+	switch {
+	case !hasBearer:
+	case !valid:
+		challenge += `, error="invalid_token"`
+	case !slices.Contains(strings.Fields(scope), service):
+		w.Header().Set("WWW-Authenticate", challenge+`, error="insufficient_scope", scope="`+service+`"`)
+		writeJSON(w, http.StatusForbidden, wire.ContentTypeProblem, wire.NewProblem(http.StatusForbidden, "", "insufficient scope"))
+
+		return false
+	default:
+		return true
+	}
+
+	w.Header().Set("WWW-Authenticate", challenge)
+	writeJSON(w, http.StatusUnauthorized, wire.ContentTypeProblem, wire.NewProblem(http.StatusUnauthorized, "", ""))
+
+	return false
+}
+
+func (h *HPLMN) authenticate(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
 	switch {
 	case r.Method == http.MethodPost && len(rest) == 1 && rest[0] == "ue-authentications":
 		h.startAuthentication(w, r, body)
@@ -264,7 +454,7 @@ func (h *Home) authenticate(w http.ResponseWriter, r *http.Request, rest []strin
 	}
 }
 
-func (h *Home) startAuthentication(w http.ResponseWriter, r *http.Request, body []byte) {
+func (h *HPLMN) startAuthentication(w http.ResponseWriter, r *http.Request, body []byte) {
 	info, err := wire.Decode[wire.AuthenticationInfo](body)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, wire.ContentTypeProblem, wire.ProblemFromError(err))
@@ -304,7 +494,7 @@ func (h *Home) startAuthentication(w http.ResponseWriter, r *http.Request, body 
 	})
 }
 
-func (h *Home) confirm(w http.ResponseWriter, r *http.Request, id string, body []byte) {
+func (h *HPLMN) confirm(w http.ResponseWriter, r *http.Request, id string, body []byte) {
 	data, err := wire.Decode[wire.ConfirmationData](body)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, wire.ContentTypeProblem, wire.ProblemFromError(err))
@@ -335,7 +525,7 @@ func (h *Home) confirm(w http.ResponseWriter, r *http.Request, id string, body [
 	writeJSON(w, http.StatusOK, wire.ContentTypeJSON, wire.ConfirmationDataResponse{AuthResult: wire.AuthResultSuccess, Supi: supi.String(), Kseaf: hex.EncodeToString(kseaf)})
 }
 
-func (h *Home) uecm(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
+func (h *HPLMN) uecm(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
 	if len(rest) != 3 || rest[1] != "registrations" || rest[2] != "amf-3gpp-access" {
 		http.NotFound(w, r)
 		return
@@ -393,7 +583,7 @@ func (h *Home) uecm(w http.ResponseWriter, r *http.Request, rest []string, body 
 	}
 }
 
-func (h *Home) sdm(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
+func (h *HPLMN) sdm(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
 	if len(rest) == 0 {
 		http.NotFound(w, r)
 		return
@@ -418,18 +608,18 @@ func (h *Home) sdm(w http.ResponseWriter, r *http.Request, rest []string, body [
 	switch {
 	case len(rest) == 1 && r.Method == http.MethodGet:
 		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, map[string]any{"amData": snapshot.AM, "smfSelData": snapshot.SMFSel})
-	case len(rest) == 2 && rest[1] == "lcs-privacy-data" && r.Method == http.MethodGet:
-		if snapshot.LCS == nil {
-			writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseDataNotFound, ""))
-			return
-		}
-
-		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, snapshot.LCS)
 	case len(rest) == 2 && rest[1] == "sdm-subscriptions" && r.Method == http.MethodPost:
 		s, err := wire.Decode[wire.SdmSubscription](body)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, wire.ContentTypeProblem, wire.ProblemFromError(err))
 			return
+		}
+
+		for _, u := range s.MonitoredResourceUris {
+			if !wire.AbsoluteURIOrPath(u) {
+				writeJSON(w, http.StatusBadRequest, wire.ContentTypeProblem, wire.NewProblem(http.StatusBadRequest, wire.CauseMandatoryIEIncorrect, "monitoredResourceUris must be absolute URIs or absolute-path references"))
+				return
+			}
 		}
 
 		h.mu.Lock()
@@ -439,7 +629,7 @@ func (h *Home) sdm(w http.ResponseWriter, r *http.Request, rest []string, body [
 		h.subscriptions[id] = s
 		h.mu.Unlock()
 
-		w.Header().Set("Location", h.host("udm")+wire.SDMSubscriptionPath(supi, id))
+		w.Header().Set("Location", "http://"+r.Host+wire.SDMSubscriptionPath(supi, id))
 		writeJSON(w, http.StatusCreated, wire.ContentTypeJSON, s)
 	case len(rest) == 3 && rest[1] == "sdm-subscriptions" && r.Method == http.MethodDelete:
 		h.mu.Lock()
@@ -477,7 +667,7 @@ func writeJSON(w http.ResponseWriter, status int, contentType string, v any) {
 }
 
 type credentials struct {
-	h *Home
+	h *HPLMN
 }
 
 func (c credentials) AdvanceSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {

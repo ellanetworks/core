@@ -212,3 +212,29 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 		t.Fatalf("ARD with bit 31 = %v", *got.AccessRestrictionData)
 	}
 }
+
+func TestSubscriptionDataBarsVisitedPLMNAccessPoints(t *testing.T) {
+	barred := SubscriberStatusOperatorDeterminedBarring
+	granted := SubscriberStatusServiceGranted
+
+	odb := func(status *SubscriberStatus, b OperatorDeterminedBarring) SubscriptionData {
+		return SubscriptionData{SubscriberStatus: status, OperatorDeterminedBarring: &b}
+	}
+
+	for name, tc := range map[string]struct {
+		sub  SubscriptionData
+		want bool
+	}{
+		"no barring":                    {SubscriptionData{}, false},
+		"all packet services":           {odb(&barred, ODBAllPacketOrientedServices), true},
+		"roamer access to VPLMN-AP":     {odb(&barred, ODBRoamerAccessVPLMNAP), true},
+		"roamer access to HPLMN-AP":     {odb(&barred, ODBRoamerAccessHPLMNAP), false},
+		"outgoing calls only":           {odb(&barred, ODBAllOutgoingCalls), false},
+		"service granted, stale bits":   {odb(&granted, ODBRoamerAccessVPLMNAP), false},
+		"barring status without a mask": {SubscriptionData{SubscriberStatus: &barred}, false},
+	} {
+		if got := tc.sub.BarsVisitedPLMNAccessPoints(); got != tc.want {
+			t.Errorf("%s: BarsVisitedPLMNAccessPoints = %v, want %v", name, got, tc.want)
+		}
+	}
+}

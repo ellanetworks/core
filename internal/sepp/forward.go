@@ -202,19 +202,6 @@ func (m *Manager) contextLost(partnerID string) {
 	}
 }
 
-func (m *Manager) NRFAPIRoot(partnerID string) (string, error) {
-	_, p, err := m.partner(partnerID)
-	if err != nil {
-		return "", err
-	}
-
-	if !p.usable() {
-		return "", errors.New(p.problem)
-	}
-
-	return p.nrf.String(), nil
-}
-
 func (m *Manager) Client(partnerID string) *http.Client {
 	return &http.Client{
 		Transport:     &forwarder{m: m, partnerID: partnerID},

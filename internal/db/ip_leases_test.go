@@ -614,7 +614,7 @@ func TestOnDeleteCascade_Subscriber(t *testing.T) {
 }
 
 // A static reservation is cleaned up with its subscriber via the
-// ip_leases.imsi ON DELETE CASCADE, so a deleted subscriber leaves no
+// DeleteSubscriber apply, so a deleted subscriber leaves no
 // orphaned pin holding an address.
 func TestOnDeleteCascade_Subscriber_Static(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)

@@ -33,6 +33,8 @@ func (p interworkingPartners) ListRoamingPartners(context.Context) ([]db.Roaming
 
 func (interworkingPartners) CountSubscribersAndVisitors(context.Context) (int, error) { return 1, nil }
 
+func (interworkingPartners) SetVisitorMSISDN(context.Context, string, string) error { return nil }
+
 func interworkingVisitorMME(t *testing.T, allowed bool) *MME {
 	t.Helper()
 
@@ -101,7 +103,7 @@ func TestForwardRelocationAdmitsAVisitorOfAPartnerWithBothAgreements(t *testing.
 		t.Errorf("registrations = %v, want the visitor registered on the MME", reg.registered)
 	}
 
-	if !m.HomeRegistrationDue(ue) || !ue.arrivedByHandoverFrom5GS.Load() {
+	if !m.HPLMNRegistrationDue(ue) || !ue.arrivedByHandoverFrom5GS.Load() {
 		t.Error("the visitor that arrived by handover is not due to register at its home HSS at its TAU")
 	}
 }

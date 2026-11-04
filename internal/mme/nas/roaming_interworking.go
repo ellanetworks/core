@@ -27,7 +27,7 @@ func registerArrivingVisitor(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 
 	m.RequestInterSystemUpdateLocation(ctx, ue, ueConn, plmn, func(ctx context.Context, err error) {
 		if err != nil {
-			r := mme.HomeNetworkRejection(err)
+			r := mme.HPLMNRejection(err)
 			logger.From(ctx, logger.MmeLog).Info("tracking area update rejected: update location with the home HSS failed",
 				logger.Cause(r.Reason), zap.Error(err))
 			rejectArrivingVisitor(ctx, m, ue, ueConn, r)

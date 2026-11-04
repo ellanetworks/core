@@ -3,23 +3,10 @@
 
 package mme
 
-import (
-	"context"
+import "github.com/ellanetworks/core/etsi"
 
-	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/roaming"
-)
-
-func (m *MME) LocationPrivacy(_ context.Context, supi etsi.SUPI) error {
+func (m *MME) ServesRoamer(supi etsi.SUPI) bool {
 	ue, ok := m.LookupUeBySupi(supi)
-	if !ok {
-		return nil
-	}
 
-	v, ok := ue.Visitor()
-	if !ok {
-		return nil
-	}
-
-	return roaming.CheckLCSPrivacy4G(v.Subscription)
+	return ok && ue.IsVisitor()
 }

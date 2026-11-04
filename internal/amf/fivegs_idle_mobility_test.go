@@ -200,7 +200,7 @@ func TestEPSContextRefusesASubscriberBarredFromEPS(t *testing.T) {
 	}
 }
 
-func TestEPSContextRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
+func TestEPSContextRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
 	failure := errors.New("database unavailable")
 
 	for _, tc := range []struct {

@@ -73,6 +73,7 @@ func target(root string) http.Header {
 
 func TestInboundChecks(t *testing.T) {
 	x, p := n32fFixture(t, fastTuning())
+	x.setCluster(1, 2)
 
 	withONI := func(h http.Header, v string) http.Header {
 		h.Set(HeaderOriginatingNetworkID, v)
@@ -99,13 +100,19 @@ func TestInboundChecks(t *testing.T) {
 		"SUPI of another PLMN":       {http.MethodPost, "/roaming-callbacks/v1/imsi-999700000000001/uecm-dereg", target(ownAMF), 404, wire.CauseContextNotFound},
 		"own node, no handler":       {http.MethodPost, deregURI, withONI(target(ownAMF), "001-01"), 404, wire.CauseContextNotFound},
 		"own node, SDM change":       {http.MethodPost, "/roaming-callbacks/v1/imsi-001010000000001/sdm-change", target("https://smf1.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseSubscriptionNotFound},
-		"another node's AMF":         {http.MethodPost, deregURI, target("https://amf2.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseContextNotFound},
-		"another node's SMF":         {http.MethodPost, "/roaming-callbacks/v1/imsi-001010000000001/sdm-change", target("https://smf2.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseSubscriptionNotFound},
+		"unknown node's AMF":         {http.MethodPost, deregURI, target("https://amf3.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseContextNotFound},
+		"unknown node's SMF":         {http.MethodPost, "/roaming-callbacks/v1/imsi-001010000000001/sdm-change", target("https://smf3.5gc.mnc070.mcc999.3gppnetwork.org"), 404, wire.CauseSubscriptionNotFound},
+		"another node's AMF":         {http.MethodPost, deregURI, target("https://amf2.5gc.mnc070.mcc999.3gppnetwork.org"), 503, wire.CauseNFCongestion},
+		"another node's SMF":         {http.MethodPost, "/roaming-callbacks/v1/imsi-001010000000001/sdm-change", target("https://smf2.5gc.mnc070.mcc999.3gppnetwork.org"), 503, wire.CauseNFCongestion},
 	} {
 		got := p.send(t, x, tc.method, tc.path, tc.header, []byte(`{}`))
 
 		if got.status != tc.status || wire.ParseProblem(got.status, got.body).Cause != tc.cause {
 			t.Errorf("%s: %d %s, want %d %s", name, got.status, got.body, tc.status, tc.cause)
+		}
+
+		if wantRetry := tc.status == http.StatusServiceUnavailable; (got.header.Get("Retry-After") == "2") != wantRetry {
+			t.Errorf("%s: Retry-After = %q", name, got.header.Get("Retry-After"))
 		}
 
 		if got.header.Get(HeaderServer) != SEPPServer(xFQDN) {

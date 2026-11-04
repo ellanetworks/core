@@ -25,6 +25,8 @@ const SubscribersTableName = "subscribers"
 
 const MaxNumSubscribers = 1000
 
+var ErrSubscriberLimit = errors.New("maximum number of subscribers reached")
+
 // subscriberDescriptionSchema is the migration that adds subscribers.description.
 // It is post-baseline, so a cluster node reaches it through Raft some time after
 // the new binary starts; until then the column is absent and every statement
@@ -35,29 +37,23 @@ const subscriberDescriptionSchema = 18
 const subscriberMSISDNSchema = 22
 
 const (
-	createSubscriberStmt            = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description, $Subscriber.msisdn)"
-	editSubscriberProfileStmt       = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi AND roamingPartnerID IS NULL"
-	editSubscriberProfilePreV26Stmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi"
-	editSubscriberSeqNumStmt        = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
-	casSubscriberSeqNumStmt         = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
-	deleteSubscriberStmt            = "DELETE FROM %s WHERE imsi==$Subscriber.imsi AND roamingPartnerID IS NULL"
-	deleteSubscriberPreV26Stmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	countSubscribersStmt            = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE roamingPartnerID IS NULL"
-	countAllSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description, $Subscriber.msisdn)"
+	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi"
+	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
+	casSubscriberSeqNumStmt   = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
+	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
+	countSubscribersStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 const subscriberColumnsPreV18 = "&Subscriber.id, &Subscriber.imsi, &Subscriber.sequenceNumber, &Subscriber.permanentKey, &Subscriber.opc, &Subscriber.profileID"
 
 const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", &Subscriber.description"
 
-const subscriberColumnsPreV26 = subscriberColumnsPreV22 + ", &Subscriber.msisdn"
-
 const (
-	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi AND roamingPartnerID IS NULL"
-	getSubscriberPreV26Stmt   = "SELECT " + subscriberColumnsPreV26 + " from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberPreV22Stmt   = "SELECT " + subscriberColumnsPreV22 + " from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
-	getSubscriberByMSISDNStmt = "SELECT " + subscriberColumnsPreV26 + " from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
+	getSubscriberByMSISDNStmt = "SELECT &Subscriber.* from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
 	listIMSIsWithMSISDNStmt   = "SELECT &subscriberIMSI.imsi FROM %s WHERE msisdn!='' AND imsi IN ($SliceIDs[:])"
 	listSubscriberMSISDNsStmt = "SELECT &Subscriber.imsi, &Subscriber.msisdn FROM %s WHERE msisdn!=''"
 )
@@ -82,19 +78,9 @@ const (
          OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))`
 )
 
-const subscriberRoamingClause = `
-    ($subscriberFilterArgs.roaming IS NULL OR (roamingPartnerID IS NOT NULL) = $subscriberFilterArgs.roaming) AND`
-
 const (
 	listSubscribersFilteredStmt = `
   SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count
-  FROM %s
-  WHERE` + subscriberRoamingClause + subscriberSearchClause + subscriberDataNetworkClause + `
-  ORDER BY imsi
-  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
-
-	listSubscribersFilteredPreV26Stmt = `
-  SELECT ` + subscriberColumnsPreV26 + `, COUNT(*) OVER() AS &NumItems.count
   FROM %s
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
@@ -117,11 +103,6 @@ const (
 	countSubscribersFilteredStmt = `
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
-  WHERE` + subscriberRoamingClause + subscriberSearchClause + subscriberDataNetworkClause
-
-	countSubscribersFilteredPreV26Stmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause
 
 	countSubscribersFilteredPreV22Stmt = `
@@ -135,16 +116,38 @@ const (
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
 )
 
+const subscribersAndVisitorsSource = `
+  FROM (
+    SELECT id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn, NULL AS partnerID FROM %s
+    UNION ALL
+    SELECT '' AS id, v.imsi AS imsi, '' AS sequenceNumber, '' AS permanentKey, '' AS opc, p.profileID AS profileID, '' AS description, v.msisdn AS msisdn, v.partnerID AS partnerID
+    FROM %s AS v JOIN %s AS p ON p.id = v.partnerID
+  )
+  WHERE ($subscriberFilterArgs.roaming IS NULL OR (partnerID IS NOT NULL) = $subscriberFilterArgs.roaming) AND`
+
+const (
+	listSubscribersAndVisitorsFilteredStmt = `
+  SELECT &Subscriber.*, &visitorPartner.partnerID, COUNT(*) OVER() AS &NumItems.count` + subscribersAndVisitorsSource + subscriberSearchClause + subscriberDataNetworkClause + `
+  ORDER BY imsi
+  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+
+	countSubscribersAndVisitorsFilteredStmt = `
+  SELECT COUNT(*) AS &NumItems.count` + subscribersAndVisitorsSource + subscriberSearchClause + subscriberDataNetworkClause
+
+	countSubscribersAndVisitorsStmt = "SELECT COUNT(*) AS &NumItems.count FROM (SELECT imsi FROM %s UNION ALL SELECT imsi FROM %s)"
+)
+
 type Subscriber struct {
-	ID               string  `db:"id"` // UUIDv7
-	Imsi             string  `db:"imsi"`
-	SequenceNumber   string  `db:"sequenceNumber"`
-	PermanentKey     string  `db:"permanentKey"`
-	Opc              string  `db:"opc"`
-	ProfileID        string  `db:"profileID"`
-	Description      string  `db:"description"`
-	Msisdn           string  `db:"msisdn"`
-	RoamingPartnerID *string `db:"roamingPartnerID"`
+	ID             string `db:"id"` // UUIDv7
+	Imsi           string `db:"imsi"`
+	SequenceNumber string `db:"sequenceNumber"`
+	PermanentKey   string `db:"permanentKey"`
+	Opc            string `db:"opc"`
+	ProfileID      string `db:"profileID"`
+	Description    string `db:"description"`
+	Msisdn         string `db:"msisdn"`
+
+	RoamingPartnerID *string
 }
 
 type SubscriberFilters struct {
@@ -157,6 +160,10 @@ type subscriberFilterArgs struct {
 	Search        *string `db:"search"`
 	DataNetworkID *string `db:"data_network_id"`
 	Roaming       *bool   `db:"roaming"`
+}
+
+type visitorPartner struct {
+	PartnerID *string `db:"partnerID"`
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
@@ -210,20 +217,30 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 
 	filterArgs := filters.args()
 
-	if filterArgs.Roaming != nil && *filterArgs.Roaming && !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, 0, nil
+	var err error
+
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		var partners []visitorPartner
+
+		err = db.conn().Query(ctx, db.listSubscribersAndVisitorsStmt, args, filterArgs).GetAll(&subs, &partners, &counts)
+		for i := range partners {
+			subs[i].RoamingPartnerID = partners[i].PartnerID
+		}
+	} else {
+		if filterArgs.Roaming != nil && *filterArgs.Roaming {
+			return nil, 0, nil
+		}
+
+		stmt := db.listSubscribersStmt
+		if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+			stmt = db.listSubscribersPreV18Stmt
+		} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+			stmt = db.listSubscribersPreV22Stmt
+		}
+
+		err = db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
 	}
 
-	stmt := db.listSubscribersStmt
-	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
-		stmt = db.listSubscribersPreV18Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-		stmt = db.listSubscribersPreV22Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.listSubscribersPreV26Stmt
-	}
-
-	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			fallbackCount, countErr := db.countSubscribersFiltered(ctx, filterArgs)
@@ -271,12 +288,12 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	var result NumItems
 
 	stmt := db.countSubscribersFilteredStmt
-	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.countSubscribersAndVisitorsFilteredStmt
+	} else if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.countSubscribersFilteredPreV18Stmt
 	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
 		stmt = db.countSubscribersFilteredPreV22Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.countSubscribersFilteredPreV26Stmt
 	}
 
 	if err := db.conn().Query(ctx, stmt, filterArgs).Get(&result); err != nil {
@@ -311,7 +328,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	row := Subscriber{Imsi: imsi}
 
-	err := db.conn().Query(ctx, db.homeSubscriberStmt(ctx), row).Get(&row)
+	err := db.conn().Query(ctx, db.ownSubscriberStmt(ctx), row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -325,14 +342,12 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	return &row, nil
 }
 
-func (db *Database) homeSubscriberStmt(ctx context.Context) *sqlair.Statement {
+func (db *Database) ownSubscriberStmt(ctx context.Context) *sqlair.Statement {
 	switch {
 	case !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema):
 		return db.getSubscriberPreV18Stmt
 	case !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema):
 		return db.getSubscriberPreV22Stmt
-	case !db.appliedSchemaAtLeast(ctx, roamingSchema):
-		return db.getSubscriberPreV26Stmt
 	default:
 		return db.getSubscriberStmt
 	}
@@ -589,14 +604,9 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
-	stmt := db.countSubscribersStmt
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.countAllSubscribersStmt
-	}
-
 	var result NumItems
 
-	err := db.conn().Query(ctx, stmt).Get(&result)
+	err := db.conn().Query(ctx, db.countSubscribersStmt).Get(&result)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -607,7 +617,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 }
 
 func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (with visitors)", "SELECT", SubscribersTableName)
+	querySummary := fmt.Sprintf("%s %s (with %s)", "SELECT", SubscribersTableName, VisitorsTableName)
 
 	ctx, span := tracer.Start(
 		ctx,
@@ -627,13 +637,47 @@ func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
+	n, err := db.countSubscribersAndVisitors(ctx, db.conn())
+	if err != nil {
+		recordSpanError(span, err)
+		return 0, err
+	}
+
+	return n, nil
+}
+
+func (db *Database) countSubscribersAndVisitors(ctx context.Context, runner *sqlair.DB) (int, error) {
+	stmt := db.countSubscribersStmt
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.countSubscribersAndVisitorsStmt
+	}
+
 	var result NumItems
 
-	if err := db.conn().Query(ctx, db.countAllSubscribersStmt).Get(&result); err != nil {
-		recordSpanError(span, err)
-
+	if err := runner.Query(ctx, stmt).Get(&result); err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return result.Count, nil
+}
+
+func (db *Database) checkSubscriberCapacity(ctx context.Context) error {
+	n, err := db.countSubscribersAndVisitors(ctx, db.runner(ctx))
+	if err != nil {
+		return err
+	}
+
+	if n >= db.subscriberCap() {
+		return fmt.Errorf("%w (%d)", ErrSubscriberLimit, db.subscriberCap())
+	}
+
+	return nil
+}
+
+func (db *Database) subscriberCap() int {
+	if db.maxSubscribers > 0 {
+		return db.maxSubscribers
+	}
+
+	return MaxNumSubscribers
 }

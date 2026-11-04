@@ -283,7 +283,7 @@ func TestHandoverToFiveGSRefusesASubscriberBarredFrom5G(t *testing.T) {
 	}
 }
 
-func TestMMContextRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
+func TestMMContextRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
 	partner := "partner"
 	failure := errors.New("database unavailable")
 

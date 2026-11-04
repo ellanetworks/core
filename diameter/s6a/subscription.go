@@ -50,6 +50,14 @@ func (s SubscriptionData) FiveGCNotAllowed() bool {
 	return s.CoreNetworkRestrictions != nil && *s.CoreNetworkRestrictions&CNR5GCNotAllowed != 0
 }
 
+func (s SubscriptionData) BarsVisitedPLMNAccessPoints() bool {
+	if s.SubscriberStatus == nil || *s.SubscriberStatus != SubscriberStatusOperatorDeterminedBarring || s.OperatorDeterminedBarring == nil {
+		return false
+	}
+
+	return *s.OperatorDeterminedBarring&(ODBAllPacketOrientedServices|ODBRoamerAccessVPLMNAP) != 0
+}
+
 type APNConfigurationProfile struct {
 	ContextIdentifier           uint32
 	AdditionalContextIdentifier uint32

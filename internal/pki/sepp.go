@@ -293,6 +293,9 @@ func GenerateSEPPCA(plmn PLMN) (*x509.Certificate, crypto.Signer, error) {
 		MaxPathLen:            0,
 		MaxPathLenZero:        true,
 		SubjectKeyId:          caSKID,
+
+		PermittedDNSDomainsCritical: true,
+		PermittedDNSDomains:         []string{plmn.Domain()},
 	}
 
 	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)

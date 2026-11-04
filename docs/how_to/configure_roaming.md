@@ -8,7 +8,7 @@ This guide adds a roaming partner, so the partner's subscribers can attach to El
 
 ## Prerequisites
 
-- **Data networks and slices**: a data network named after each DNN or APN that the partner's subscribers use, e.g. `internet`, and slices with the S-NSSAI values of their subscriptions.
+- **Data networks and slices**: a data network named after each DNN or APN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case), and slices with the S-NSSAI values of their subscriptions. Ella Core does not map S-NSSAIs between networks, so the partner must use standard S-NSSAIs that match a local slice.
 - **Partner subscriptions**: the partner allows local breakout for these data networks in its subscriptions.
 
 ## 1. Create a profile for roamers

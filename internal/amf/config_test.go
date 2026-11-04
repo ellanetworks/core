@@ -363,7 +363,7 @@ func TestGetOperatorInfo_AmfID(t *testing.T) {
 	}
 }
 
-func TestSubscriberProfileOffersEPSInterworkingToHomeSubscribersOnly(t *testing.T) {
+func TestSubscriberProfileOffersEPSInterworkingToOwnSubscribersOnly(t *testing.T) {
 	partner := "partner"
 	home := &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"}
 	visitor := &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10", RoamingPartnerID: &partner}

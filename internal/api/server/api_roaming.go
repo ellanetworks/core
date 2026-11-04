@@ -34,7 +34,6 @@ type RoamingPartnerSEPP struct {
 	N32cURI        string `json:"n32cURI"`
 	N32fURI        string `json:"n32fURI,omitempty"`
 	TrustAnchorPEM string `json:"trustAnchorPEM"`
-	NRFAPIRoot     string `json:"nrfAPIRoot,omitempty"`
 }
 
 type RoamingPLMN struct {
@@ -42,22 +41,28 @@ type RoamingPLMN struct {
 	Mnc string `json:"mnc"`
 }
 
+type RoamingPartnerPLMN struct {
+	Mcc        string `json:"mcc"`
+	Mnc        string `json:"mnc"`
+	NRFAPIRoot string `json:"nrfAPIRoot,omitempty"`
+}
+
 type RoamingPartner struct {
-	ID             string              `json:"id"`
-	Name           string              `json:"name"`
-	PLMNs          []RoamingPLMN       `json:"plmns"`
-	ProfileName    string              `json:"profileName"`
-	SEPP           *RoamingPartnerSEPP `json:"sepp,omitempty"`
-	DiameterPeerID string              `json:"diameterPeerID,omitempty"`
-	N32            *RoamingPartnerN32  `json:"n32,omitempty"`
+	ID             string               `json:"id"`
+	Name           string               `json:"name"`
+	PLMNs          []RoamingPartnerPLMN `json:"plmns"`
+	ProfileName    string               `json:"profileName"`
+	SEPP           *RoamingPartnerSEPP  `json:"sepp,omitempty"`
+	DiameterPeerID string               `json:"diameterPeerID,omitempty"`
+	N32            *RoamingPartnerN32   `json:"n32,omitempty"`
 }
 
 type RoamingPartnerParams struct {
-	Name           string              `json:"name"`
-	PLMNs          []RoamingPLMN       `json:"plmns"`
-	ProfileName    string              `json:"profileName"`
-	SEPP           *RoamingPartnerSEPP `json:"sepp,omitempty"`
-	DiameterPeerID string              `json:"diameterPeerID,omitempty"`
+	Name           string               `json:"name"`
+	PLMNs          []RoamingPartnerPLMN `json:"plmns"`
+	ProfileName    string               `json:"profileName"`
+	SEPP           *RoamingPartnerSEPP  `json:"sepp,omitempty"`
+	DiameterPeerID string               `json:"diameterPeerID,omitempty"`
 }
 
 type ListRoamingPartnersResponse struct {
@@ -122,12 +127,12 @@ func roamingPartnerResponse(p db.RoamingPartner, profileName string) RoamingPart
 	out := RoamingPartner{
 		ID:          p.ID,
 		Name:        p.Name,
-		PLMNs:       make([]RoamingPLMN, 0, len(p.PLMNs)),
+		PLMNs:       make([]RoamingPartnerPLMN, 0, len(p.PLMNs)),
 		ProfileName: profileName,
 	}
 
 	for _, plmn := range p.PLMNs {
-		out.PLMNs = append(out.PLMNs, RoamingPLMN{Mcc: plmn.Mcc, Mnc: plmn.Mnc})
+		out.PLMNs = append(out.PLMNs, RoamingPartnerPLMN{Mcc: plmn.Mcc, Mnc: plmn.Mnc, NRFAPIRoot: derefString(p.NRFAPIRootOf(plmn))})
 	}
 
 	if p.SEPPFQDN != nil {
@@ -136,7 +141,6 @@ func roamingPartnerResponse(p db.RoamingPartner, profileName string) RoamingPart
 			N32cURI:        derefString(p.SEPPN32cURI),
 			N32fURI:        derefString(p.SEPPN32fURI),
 			TrustAnchorPEM: derefString(p.SEPPTrustAnchorPEM),
-			NRFAPIRoot:     derefString(p.NRFAPIRoot),
 		}
 	}
 
@@ -196,14 +200,18 @@ func roamingPartnerFromParams(ctx context.Context, dbInstance *db.Database, id s
 	}
 
 	for _, plmn := range params.PLMNs {
-		partner.PLMNs = append(partner.PLMNs, db.RoamingPLMN{Mcc: strings.TrimSpace(plmn.Mcc), Mnc: strings.TrimSpace(plmn.Mnc)})
+		id := db.RoamingPLMN{Mcc: strings.TrimSpace(plmn.Mcc), Mnc: strings.TrimSpace(plmn.Mnc)}
+		partner.PLMNs = append(partner.PLMNs, id)
+
+		if root := optionalString(db.NormalizeAPIRoot(plmn.NRFAPIRoot)); root != nil {
+			partner.NRFAPIRoots = append(partner.NRFAPIRoots, db.RoamingNRFAPIRoot{RoamingPLMN: id, APIRoot: *root})
+		}
 	}
 
 	if params.SEPP != nil {
 		partner.SEPPFQDN = optionalString(strings.ToLower(params.SEPP.FQDN))
 		partner.SEPPN32cURI = optionalString(db.NormalizeAPIRoot(params.SEPP.N32cURI))
 		partner.SEPPN32fURI = optionalString(db.NormalizeAPIRoot(params.SEPP.N32fURI))
-		partner.NRFAPIRoot = optionalString(db.NormalizeAPIRoot(params.SEPP.NRFAPIRoot))
 
 		if strings.TrimSpace(params.SEPP.TrustAnchorPEM) != "" {
 			partner.SEPPTrustAnchorPEM = &params.SEPP.TrustAnchorPEM

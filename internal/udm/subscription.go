@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -62,7 +63,7 @@ func NewSubscriptions(store SubscriptionStore, sessions SessionSubscriptionStore
 	return &Subscriptions{store: store, sessions: sessions}
 }
 
-func (s *Subscriptions) IsHomeSubscriber(ctx context.Context, imsi string) (bool, error) {
+func (s *Subscriptions) IsOwnSubscriber(ctx context.Context, imsi string) (bool, error) {
 	sub, err := s.store.GetSubscriberOrVisitor(ctx, imsi)
 	if errors.Is(err, db.ErrNotFound) {
 		return false, nil
@@ -223,7 +224,7 @@ func (sm *SessionManagementSubscription) DefaultDNN(snssai models.Snssai) (strin
 
 func (sm *SessionManagementSubscription) ForDNN(snssai models.Snssai, dnn string) (DNNConfiguration, bool) {
 	for _, c := range sm.DNNs {
-		if c.DNN == dnn && sameSnssai(c.Snssai, snssai) {
+		if strings.EqualFold(c.DNN, dnn) && sameSnssai(c.Snssai, snssai) {
 			return c, true
 		}
 	}
@@ -252,7 +253,7 @@ func (sm *SessionManagementSubscription) ForAPN(apn string) (DNNConfiguration, b
 	)
 
 	for _, c := range sm.DNNs {
-		if c.DNN != apn {
+		if !strings.EqualFold(c.DNN, apn) {
 			continue
 		}
 

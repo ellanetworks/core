@@ -79,12 +79,12 @@ func N26Agreed(partner db.RoamingPartner, profile db.Profile, imsi string, now t
 	return true
 }
 
-func EPSInterworkingSubscribed(sel *wire.SmfSelectionSubscriptionData, serving models.Snssai, dnn string) bool {
+func EPSInterworkingSubscribed(sel *wire.SmfSelectionSubscriptionData, hplmn models.Snssai, dnn string) bool {
 	if sel == nil {
 		return false
 	}
 
-	info, ok := sel.SnssaiInfo(wire.SnssaiFromModel(HomeSnssai(serving)))
+	info, ok := sel.SnssaiInfo(wire.SnssaiFromModel(hplmn))
 	if !ok {
 		return false
 	}

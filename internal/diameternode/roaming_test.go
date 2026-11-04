@@ -30,7 +30,7 @@ const (
 	roamerIMSI   = "999700000000001"
 )
 
-type fakeHomeNetwork struct {
+type fakeHPLMNPeer struct {
 	node *diameter.Node
 	ln   *sctp.Listener
 	addr netip.AddrPort
@@ -39,10 +39,10 @@ type fakeHomeNetwork struct {
 	received []tgpp.Envelope
 }
 
-func startFakeHomeNetwork(t *testing.T, host string, apps []diameter.Application) *fakeHomeNetwork {
+func startFakeHPLMN(t *testing.T, host string, apps []diameter.Application) *fakeHPLMNPeer {
 	t.Helper()
 
-	h := &fakeHomeNetwork{}
+	h := &fakeHPLMNPeer{}
 	hss := diameter.Identity{OriginHost: partnerHSS, OriginRealm: partnerRealm}
 
 	node, err := diameter.New(diameter.Config{
@@ -104,7 +104,7 @@ func startFakeHomeNetwork(t *testing.T, host string, apps []diameter.Application
 	return h
 }
 
-func (h *fakeHomeNetwork) envelopes() []tgpp.Envelope {
+func (h *fakeHPLMNPeer) envelopes() []tgpp.Envelope {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -133,7 +133,7 @@ func (s *roamingSource) setPartners(partners []db.RoamingPartner) {
 	s.partners = partners
 }
 
-func startRoamingManager(t *testing.T, home *fakeHomeNetwork, identity string) (*diameternode.Manager, *roamingSource, chan struct{}) {
+func startRoamingManager(t *testing.T, home *fakeHPLMNPeer, identity string) (*diameternode.Manager, *roamingSource, chan struct{}) {
 	t.Helper()
 
 	peerID := "dea"
@@ -171,10 +171,10 @@ func s6aClient(link *diameternode.Manager) *roaming.S6a {
 func TestRoamingHSSPeerNegotiatesS6aAndAnswersByRealm(t *testing.T) {
 	requireSCTP(t)
 
-	home := startFakeHomeNetwork(t, partnerHSS, []diameter.Application{{ID: s6a.ApplicationID, VendorID: tgpp.VendorID}})
+	home := startFakeHPLMN(t, partnerHSS, []diameter.Application{{ID: s6a.ApplicationID, VendorID: tgpp.VendorID}})
 	link, _, _ := startRoamingManager(t, home, partnerHSS)
 
-	_, host, err := s6aClient(link).AuthenticationInformation(context.Background(), roaming.Home{Realm: partnerRealm}, roamerIMSI, tgpp.PLMN{MCC: "001", MNC: "01"}, nil)
+	_, host, err := s6aClient(link).AuthenticationInformation(context.Background(), roaming.HPLMNPeer{Realm: partnerRealm}, roamerIMSI, tgpp.PLMN{MCC: "001", MNC: "01"}, nil)
 	if err != nil {
 		t.Fatalf("AIR: %v", err)
 	}
@@ -192,17 +192,17 @@ func TestRoamingHSSPeerNegotiatesS6aAndAnswersByRealm(t *testing.T) {
 func TestRoamingRelayAgentCarriesRequestsForAnHSSBehindIt(t *testing.T) {
 	requireSCTP(t)
 
-	dea := startFakeHomeNetwork(t, partnerDEA, []diameter.Application{{ID: diameter.RelayApplicationID}, {ID: s6a.ApplicationID, VendorID: tgpp.VendorID}})
+	dea := startFakeHPLMN(t, partnerDEA, []diameter.Application{{ID: diameter.RelayApplicationID}, {ID: s6a.ApplicationID, VendorID: tgpp.VendorID}})
 	link, _, _ := startRoamingManager(t, dea, "")
 
 	client := s6aClient(link)
 	visited := tgpp.PLMN{MCC: "001", MNC: "01"}
 
-	if _, _, err := client.AuthenticationInformation(context.Background(), roaming.Home{Realm: partnerRealm}, roamerIMSI, visited, nil); err != nil {
+	if _, _, err := client.AuthenticationInformation(context.Background(), roaming.HPLMNPeer{Realm: partnerRealm}, roamerIMSI, visited, nil); err != nil {
 		t.Fatalf("first AIR: %v", err)
 	}
 
-	_, _, err := client.AuthenticationInformation(context.Background(), roaming.Home{Realm: partnerRealm, HSS: partnerHSS}, roamerIMSI, visited, nil)
+	_, _, err := client.AuthenticationInformation(context.Background(), roaming.HPLMNPeer{Realm: partnerRealm, HSS: partnerHSS}, roamerIMSI, visited, nil)
 
 	var re *s6a.ResultError
 	if !errors.As(err, &re) || re.Code != diameter.ResultUnableToDeliver || errors.Is(err, roaming.ErrHSSUnreachable) {
@@ -217,7 +217,7 @@ func TestRoamingRelayAgentCarriesRequestsForAnHSSBehindIt(t *testing.T) {
 func TestRoamingRoutesFollowThePartnerPLMNs(t *testing.T) {
 	requireSCTP(t)
 
-	home := startFakeHomeNetwork(t, partnerHSS, []diameter.Application{{ID: s6a.ApplicationID, VendorID: tgpp.VendorID}})
+	home := startFakeHPLMN(t, partnerHSS, []diameter.Application{{ID: s6a.ApplicationID, VendorID: tgpp.VendorID}})
 	link, source, wakeup := startRoamingManager(t, home, partnerHSS)
 
 	peer := "dea"

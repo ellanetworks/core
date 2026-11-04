@@ -236,7 +236,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	}
 
 	if err == nil {
-		s.registerHomeSession(ctx, smContext)
+		s.registerHPLMNSubscription(ctx, smContext)
 	}
 
 	if err != nil {

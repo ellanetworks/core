@@ -92,7 +92,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted")
 
-	m.ConfirmHomeLocation(ctx, ue)
+	m.ConfirmHPLMNLocation(ctx, ue)
 
 	ueAmbr, err := mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
 	if err != nil {

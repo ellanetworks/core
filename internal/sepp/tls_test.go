@@ -23,10 +23,10 @@ import (
 const (
 	partnerAFQDN = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
 	partnerBFQDN = "sepp1.5gc.mnc010.mcc002.3gppnetwork.org"
-	homeFQDN     = "sepp1.5gc.mnc070.mcc999.3gppnetwork.org"
+	ownFQDN      = "sepp1.5gc.mnc070.mcc999.3gppnetwork.org"
 )
 
-var homePLMN = wire.PlmnID{Mcc: "999", Mnc: "70"}
+var ownPLMN = wire.PlmnID{Mcc: "999", Mnc: "70"}
 
 func mustTrusted(t *testing.T, id, fqdn string, anchors string, plmns ...pki.PLMN) *trustedPartner {
 	t.Helper()
@@ -116,7 +116,7 @@ func newTLSFixture(t *testing.T) *tlsFixture {
 	t.Helper()
 
 	f := &tlsFixture{ellaCA: newTestCA(t, "ella"), partnerCA: newTestCA(t, "partner")}
-	identity := identityFor(t, f.ellaCA, homeFQDN)
+	identity := identityFor(t, f.ellaCA, ownFQDN)
 
 	f.m = New(
 		Config{
@@ -127,7 +127,7 @@ func newTLSFixture(t *testing.T) *tlsFixture {
 				}}, nil
 			},
 			Identity: func(context.Context) (*IdentityConfig, error) { return &identity, nil },
-			Operator: func(context.Context) (wire.PlmnID, error) { return homePLMN, nil },
+			Operator: func(context.Context) (wire.PlmnID, error) { return ownPLMN, nil },
 			N32:      config.N32Interface{Enabled: true, Address: "127.0.0.1"},
 		},
 		zap.NewNop(),
@@ -164,7 +164,7 @@ func (f *tlsFixture) request(t *testing.T, cfg *tls.Config) (int, error) {
 	}
 
 	if cfg.ServerName == "" {
-		cfg.ServerName = homeFQDN
+		cfg.ServerName = ownFQDN
 	}
 
 	protocols := new(http.Protocols)
@@ -321,14 +321,14 @@ func TestListenerHotReloadsIdentity(t *testing.T) {
 
 func TestOutboundTLSVerification(t *testing.T) {
 	ellaCA, partnerCA := newTestCA(t, "ella"), newTestCA(t, "partner")
-	identity := identityFor(t, ellaCA, homeFQDN)
+	identity := identityFor(t, ellaCA, ownFQDN)
 
 	m := New(Config{
 		Partners: func(context.Context) ([]PartnerConfig, error) {
 			return []PartnerConfig{{ID: "a", Name: "A", PLMNs: []wire.PlmnID{{Mcc: "001", Mnc: "01"}}, FQDN: partnerAFQDN, N32cURI: "https://127.0.0.1:1", TrustAnchorPEM: partnerCA.pem()}}, nil
 		},
 		Identity: func(context.Context) (*IdentityConfig, error) { return &identity, nil },
-		Operator: func(context.Context) (wire.PlmnID, error) { return homePLMN, nil },
+		Operator: func(context.Context) (wire.PlmnID, error) { return ownPLMN, nil },
 		N32:      config.N32Interface{Enabled: true, Address: "127.0.0.1"},
 	}, zap.NewNop())
 	m.Reconcile(context.Background())
@@ -391,7 +391,7 @@ func TestOutboundTLSVerification(t *testing.T) {
 	}
 
 	st := <-states
-	if st.ServerName != partnerAFQDN || len(st.PeerCertificates) == 0 || st.PeerCertificates[0].DNSNames[0] != homeFQDN {
+	if st.ServerName != partnerAFQDN || len(st.PeerCertificates) == 0 || st.PeerCertificates[0].DNSNames[0] != ownFQDN {
 		t.Fatalf("SNI %q, client cert %v", st.ServerName, st.PeerCertificates)
 	}
 

@@ -59,8 +59,10 @@ type SMContext struct {
 	Tunnel        *UPTunnel
 	PolicyData    *Policy
 
-	roamingHome models.PlmnID
-	home        atomic.Pointer[homeBinding]
+	roamingHPLMN    models.PlmnID
+	hplmn           atomic.Pointer[hplmnBinding]
+	apnSubscription *models.APNSubscription
+	apnWithdrawn    bool
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS

@@ -72,7 +72,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
-	amfInstance.RequestHomeRegistration(ctx, ue, conn, true, func(ctx context.Context, err error) {
+	amfInstance.RequestHPLMNRegistration(ctx, ue, conn, true, func(ctx context.Context, err error) {
 		if ue.RegStep() != amf.RegStepContextSetup {
 			logger.From(ctx, logger.AmfLog).Info("registration moved on while registering at the home network; dropping the answer")
 			return
@@ -83,7 +83,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		}
 
 		if err != nil {
-			rejectOrRelease(ctx, amfInstance, ue, "register the visitor", err, amf.HomeRegistrationRejection)
+			rejectOrRelease(ctx, amfInstance, ue, "register the visitor", err, amf.HPLMNRegistrationRejection)
 			return
 		}
 

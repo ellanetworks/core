@@ -14,6 +14,7 @@ const (
 	FQDNLabelAMF  = "amf"
 	FQDNLabelSMF  = "smf"
 	FQDNLabelSEPP = "sepp"
+	FQDNLabelPGW  = "pgw"
 )
 
 func (p PlmnID) HomeNetworkDomain() string {
@@ -22,6 +23,10 @@ func (p PlmnID) HomeNetworkDomain() string {
 
 func (p PlmnID) NFFQDN(label string) string {
 	return label + "." + p.HomeNetworkDomain()
+}
+
+func (p PlmnID) EPCNodeFQDN(label string) string {
+	return label + ".epc.mnc" + p.mnc3() + ".mcc" + p.Mcc + ".3gppnetwork.org"
 }
 
 type NetworkFQDN struct {

@@ -30,7 +30,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		return models.EPSBearer{}, err
 	}
 
-	if err := s.checkSubscribed(ctx, supi, sc.Snssai, req.APN); err != nil {
+	if _, err := s.checkSubscribed(ctx, supi, sc.Snssai, req.APN); err != nil {
 		if permanentPolicyFailure(err) {
 			return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w: %w", req.APN, models.ErrUnknownAPN, err)
 		}
@@ -47,6 +47,10 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 	}
 
 	sc.Mutex.Lock()
+	if req.Subscription != nil {
+		sc.apnSubscription, sc.apnWithdrawn = req.Subscription, false
+	}
+
 	retained := sc.PolicyData
 	err = s.prepareFlowsLocked(ctx, sc, Access4G)
 	sc.Mutex.Unlock()
@@ -89,7 +93,7 @@ func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBe
 		PDNType:      pdnType,
 		PDUSessionID: sc.PDUSessionID,
 		Snssai:       sc.Snssai,
-		HomeSnssai:   sc.homeSnssaiLocked(),
+		HPLMNSnssai:  sc.hplmnSnssaiLocked(),
 		SGW:          models.FTEID{TEID: sc.Tunnel.N3TEID, Addr: sc.Tunnel.N3IPv4},
 		SGWN3IPv6:    sc.Tunnel.N3IPv6,
 		IPv6IID:      sc.IPv6IID,

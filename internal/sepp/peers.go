@@ -5,6 +5,7 @@ package sepp
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -22,7 +23,7 @@ type PartnerConfig struct {
 	N32cURI        string
 	N32fURI        string
 	TrustAnchorPEM string
-	NRFAPIRoot     string
+	NRFAPIRoots    map[wire.PlmnID]string
 }
 
 type partner struct {
@@ -33,7 +34,7 @@ type partner struct {
 	main    wire.PlmnID
 	n32c    APIRoot
 	n32f    APIRoot
-	nrf     APIRoot
+	nrfs    map[wire.PlmnID]APIRoot
 	trust   *trustedPartner
 	key     [sha256.Size]byte
 	problem string
@@ -93,11 +94,15 @@ func (p *partner) build(cfg PartnerConfig) error {
 		}
 	}
 
-	p.nrf = APIRoot{Scheme: "https", Authority: p.main.NFFQDN(wire.FQDNLabelNRF)}
+	p.nrfs = make(map[wire.PlmnID]APIRoot, len(cfg.NRFAPIRoots))
 
-	if cfg.NRFAPIRoot != "" {
-		if p.nrf, err = ParseAPIRoot(cfg.NRFAPIRoot); err != nil {
-			return fmt.Errorf("NRF apiRoot %q: %w", cfg.NRFAPIRoot, err)
+	for plmn, raw := range cfg.NRFAPIRoots {
+		if !slices.Contains(p.plmns, plmn) {
+			return fmt.Errorf("NRF apiRoot %q is for PLMN %s, which is not a PLMN of the partner", raw, plmn)
+		}
+
+		if p.nrfs[plmn], err = ParseAPIRoot(raw); err != nil {
+			return fmt.Errorf("NRF apiRoot %q of PLMN %s: %w", raw, plmn, err)
 		}
 	}
 
@@ -106,6 +111,37 @@ func (p *partner) build(cfg PartnerConfig) error {
 	}
 
 	return nil
+}
+
+func (p *partner) hplmnNRF(home wire.PlmnID) (APIRoot, error) {
+	if root, ok := p.nrfs[home]; ok {
+		return root, nil
+	}
+
+	host := home.NFFQDN(wire.FQDNLabelNRF)
+	if !p.inNetwork(host) {
+		return APIRoot{}, fmt.Errorf("PLMN %s is not a PLMN of partner %s", home, p.name)
+	}
+
+	return APIRoot{Scheme: "https", Authority: host}, nil
+}
+
+func (m *Manager) HPLMNNRF(partnerID string, home wire.PlmnID) (string, error) {
+	_, p, err := m.partner(partnerID)
+	if err != nil {
+		return "", err
+	}
+
+	if !p.usable() {
+		return "", errors.New(p.problem)
+	}
+
+	root, err := p.hplmnNRF(home)
+	if err != nil {
+		return "", err
+	}
+
+	return root.String(), nil
 }
 
 type seppPeer struct {
@@ -162,8 +198,14 @@ func (p *partner) allowsTarget(target *url.URL) error {
 	}
 
 	host := strings.ToLower(strings.TrimSuffix(target.Hostname(), "."))
-	if host == p.nrf.Hostname() || p.inNetwork(host) {
+	if p.inNetwork(host) {
 		return nil
+	}
+
+	for _, root := range p.nrfs {
+		if host == root.Hostname() {
+			return nil
+		}
 	}
 
 	return fmt.Errorf("%w: %s is outside the network of partner %s", ErrTargetNotAllowed, host, p.name)
@@ -176,7 +218,18 @@ func partnerKey(cfg PartnerConfig) [sha256.Size]byte {
 		h.Write([]byte(plmn.String() + "\x00"))
 	}
 
-	for _, v := range []string{strings.ToLower(cfg.FQDN), cfg.N32cURI, cfg.N32fURI, cfg.TrustAnchorPEM, cfg.NRFAPIRoot} {
+	for _, v := range []string{strings.ToLower(cfg.FQDN), cfg.N32cURI, cfg.N32fURI, cfg.TrustAnchorPEM} {
+		h.Write([]byte(v + "\x00"))
+	}
+
+	nrfs := make([]string, 0, len(cfg.NRFAPIRoots))
+	for plmn, root := range cfg.NRFAPIRoots {
+		nrfs = append(nrfs, plmn.String()+"="+root)
+	}
+
+	slices.Sort(nrfs)
+
+	for _, v := range nrfs {
 		h.Write([]byte(v + "\x00"))
 	}
 

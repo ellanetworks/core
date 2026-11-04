@@ -27,6 +27,12 @@ type testCA struct {
 func newTestCA(t *testing.T, name string) testCA {
 	t.Helper()
 
+	return newTestCAUntil(t, name, time.Now().Add(24*time.Hour))
+}
+
+func newTestCAUntil(t *testing.T, name string, notAfter time.Time) testCA {
+	t.Helper()
+
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +42,7 @@ func newTestCA(t *testing.T, name string) testCA {
 		SerialNumber:          big.NewInt(time.Now().UnixNano()),
 		Subject:               pkix.Name{CommonName: name},
 		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(24 * time.Hour),
+		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -105,10 +111,10 @@ func (ca testCA) pem() string {
 	return string(pki.EncodeCertPEM(ca.cert))
 }
 
-func identityFor(t *testing.T, ca testCA, fqdn string) IdentityConfig {
+func identityFor(t *testing.T, ca testCA, fqdn string, opts ...leafOpts) IdentityConfig {
 	t.Helper()
 
-	leaf, key := ca.issue(t, []string{fqdn})
+	leaf, key := ca.issue(t, []string{fqdn}, opts...)
 
 	keyPEM, err := pki.EncodePrivateKeyPEM(key)
 	if err != nil {

@@ -66,7 +66,7 @@ func DeregisterSubscriber(dbInstance *db.Database) http.Handler {
 func deregisterRoamer(ctx context.Context, dbInstance *db.Database, imsi string) error {
 	timing := roamerWithdrawalTiming
 
-	if err := dbInstance.WithdrawRoamer(ctx, imsi, time.Now().Add(timing.timeout+timing.margin)); err != nil {
+	if err := dbInstance.WithdrawRoamer(ctx, imsi, timing.timeout+timing.margin); err != nil {
 		return err
 	}
 

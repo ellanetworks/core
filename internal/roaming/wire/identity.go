@@ -203,3 +203,25 @@ func checkString(param string, s string, valid func(string) bool, optional bool)
 func equalDnn(a, b string) bool {
 	return strings.EqualFold(a, b)
 }
+
+func AbsoluteURIOrPath(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+
+	if u.IsAbs() {
+		return u.Host != ""
+	}
+
+	return u.Host == "" && strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(s, "//")
+}
+
+func MSISDNFromGpsi(gpsi string) (string, bool) {
+	digits, ok := strings.CutPrefix(gpsi, "msisdn-")
+	if !ok || len(digits) < 5 || len(digits) > 15 || strings.Trim(digits, "0123456789") != "" {
+		return "", false
+	}
+
+	return digits, true
+}

@@ -14,11 +14,12 @@ import (
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/roaming/fakehss"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 func ptr[T any](v T) *T { return &v }
 
-func homeSubscription() *s6a.SubscriptionData {
+func hplmnSubscription() *s6a.SubscriptionData {
 	sub := fakehss.Subscription(1, fakehss.APN(1, "internet"), fakehss.APN(2, "iot"), fakehss.APN(3, "ims"))
 
 	return &sub
@@ -71,7 +72,7 @@ func TestBreakoutRules(t *testing.T) {
 		{name: "roamer access to HPLMN APs barred", modify: odb(s6a.ODBRoamerAccessHPLMNAP), want: "internet"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sub := homeSubscription()
+			sub := hplmnSubscription()
 			if tc.modify != nil {
 				tc.modify(sub)
 			}
@@ -113,18 +114,6 @@ func localDNN(dnn string, def, ims bool) udm.DNNConfiguration {
 	}
 }
 
-func (l localSubscriptions) IsHomeSubscriber(context.Context, string) (bool, error) {
-	return !l.visitor, nil
-}
-
-func (l localSubscriptions) AccessAndMobility(context.Context, string) (*udm.AccessAndMobilitySubscription, error) {
-	return &udm.AccessAndMobilitySubscription{
-		UEAMBR:  models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("100 Mbps")},
-		Allow4G: true,
-		Visitor: l.visitor,
-	}, l.err
-}
-
 func (l localSubscriptions) UEAMBR(context.Context, string) (models.Ambr, error) {
 	return models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("100 Mbps")}, l.err
 }
@@ -145,103 +134,70 @@ func (l localSubscriptions) SessionManagement(context.Context, string) (*udm.Ses
 	}, nil
 }
 
-func (localSubscriptions) FramedRoutes(context.Context, string, string) ([]netip.Prefix, error) {
-	return nil, nil
-}
+type hplmnSubscriptions map[string]*s6a.SubscriptionData
 
-func (localSubscriptions) StaticIP(context.Context, string, string, bool) (netip.Addr, bool, error) {
-	return netip.Addr{}, false, nil
-}
-
-type homes map[string]*s6a.SubscriptionData
-
-func (h homes) VisitorHome(imsi string) (roaming.HomeData, bool) {
+func (h hplmnSubscriptions) VisitorHPLMN(imsi string) (roaming.HPLMNData, bool) {
 	s, ok := h[imsi]
-	return roaming.HomeData{PLMN: models.PlmnID{Mcc: "999", Mnc: "70"}, Subscription: s}, ok
+	return roaming.HPLMNData{PLMN: models.PlmnID{Mcc: "999", Mnc: "70"}, Subscription: s}, ok
 }
 
 const visitorIMSI = "999700000000001"
 
-func TestSessionManagementOfAVisitorMergesHomeAndLocalPolicy(t *testing.T) {
-	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, homes{visitorIMSI: homeSubscription()})
+func TestAPNSubscriptionCarriesTheHomeAPNConfiguration(t *testing.T) {
+	sub := hplmnSubscription()
+	sub.MSISDN = "15551234"
+	sub.ChargingCharacteristics = "0800"
+	sub.APNConfigurationProfile.Configurations[1].PDNType = s6a.PDNTypeIPv4OrIPv6
+	sub.APNConfigurationProfile.Configurations[1].ChargingCharacteristics = "0400"
 
-	sm, err := subs.SessionManagement(t.Context(), visitorIMSI)
+	home := models.PlmnID{Mcc: "999", Mnc: "70"}
+
+	got, err := roaming.APNSubscription(home, sub, "iot")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(sm.DNNs) != 2 {
-		t.Fatalf("DNNs = %+v, want internet and iot only (no IMS, no local-only DNN)", sm.DNNs)
+	if got.HPLMN != home || got.MSISDN != "15551234" || got.ChargingCharacteristics != "0400" || got.QCI != 9 || got.ARP.PriorityLevel != 8 {
+		t.Fatalf("APN subscription = %+v", got)
 	}
 
-	if sm.HomePLMN != (models.PlmnID{Mcc: "999", Mnc: "70"}) {
-		t.Fatalf("home PLMN = %+v, want 999/70", sm.HomePLMN)
+	if len(got.PDNTypes) != 2 || got.PDNTypes[0] != eps.PDNTypeIPv4 || got.PDNTypes[1] != eps.PDNTypeIPv6 {
+		t.Fatalf("PDN types = %v, want IPv4 or IPv6", got.PDNTypes)
 	}
 
-	def, ok := sm.DefaultAPN()
-	if !ok || def.DNN != "internet" {
-		t.Fatalf("default APN = %+v, want the home default APN internet", def)
+	if got.APNAMBR == nil || got.APNAMBR.Uplink.Bps() != 50_000_000 || got.APNAMBR.Downlink.Bps() != 150_000_000 {
+		t.Fatalf("APN-AMBR = %+v", got.APNAMBR)
 	}
 
-	c, ok := sm.ForAPN("iot")
-	if !ok || c.Default {
-		t.Fatalf("iot = %+v, want a non-default configuration", c)
+	def, err := roaming.APNSubscription(home, sub, "internet")
+	if err != nil || def.ChargingCharacteristics != "0800" || len(def.PDNTypes) != 1 || def.PDNTypes[0] != eps.PDNTypeIPv4 {
+		t.Fatalf("APN subscription = %+v, %v, want the subscription-level charging characteristics and IPv4 only", def, err)
 	}
 
-	if c.Var5qi != 7 || c.Arp.PriorityLevel != 3 {
-		t.Fatalf("5QI/ARP = %d/%d, want the local 7/3", c.Var5qi, c.Arp.PriorityLevel)
-	}
-
-	if c.SessionAMBR.Uplink.Bps() != 50_000_000 || c.SessionAMBR.Downlink.Bps() != 100_000_000 {
-		t.Fatalf("Session-AMBR = %v, want min(home 50/150 Mbps, local 100/100 Mbps)", c.SessionAMBR)
+	if _, err := roaming.APNSubscription(home, sub, "corporate"); !errors.Is(err, roaming.ErrAPNNotSubscribed) {
+		t.Fatalf("error = %v, want %v", err, roaming.ErrAPNNotSubscribed)
 	}
 }
 
 func TestUEAMBROfAVisitorIsTheMinimumOfHomeAndLocal(t *testing.T) {
-	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, homes{visitorIMSI: homeSubscription()})
-
-	am, err := subs.AccessAndMobility(t.Context(), visitorIMSI)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if am.UEAMBR.Uplink.Bps() != 80_000_000 || am.UEAMBR.Downlink.Bps() != 100_000_000 {
-		t.Fatalf("UE-AMBR = %v, want min(home 80/300 Mbps, local 1000/100 Mbps)", am.UEAMBR)
-	}
+	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, hplmnSubscriptions{visitorIMSI: hplmnSubscription()})
 
 	ambr, err := subs.UEAMBR(t.Context(), visitorIMSI)
-	if err != nil || !ambr.Equal(am.UEAMBR) {
-		t.Fatalf("UEAMBR = %v, %v, want %v", ambr, err, am.UEAMBR)
+	if err != nil || ambr.Uplink.Bps() != 80_000_000 || ambr.Downlink.Bps() != 100_000_000 {
+		t.Fatalf("UE-AMBR = %v, %v, want min(home 80/300 Mbps, local 1000/100 Mbps)", ambr, err)
 	}
 }
 
 func TestVisitorWithoutAHomeSubscriptionFailsClosed(t *testing.T) {
-	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, homes{})
+	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, hplmnSubscriptions{})
 
-	if _, err := subs.SessionManagement(t.Context(), visitorIMSI); !errors.Is(err, roaming.ErrNoHomeSubscription) {
-		t.Fatalf("SessionManagement error = %v, want %v", err, roaming.ErrNoHomeSubscription)
-	}
-
-	if _, err := subs.AccessAndMobility(t.Context(), visitorIMSI); !errors.Is(err, roaming.ErrNoHomeSubscription) {
-		t.Fatalf("AccessAndMobility error = %v, want %v", err, roaming.ErrNoHomeSubscription)
-	}
-
-	if _, err := subs.SelectAPN(t.Context(), visitorIMSI, ""); !errors.Is(err, roaming.ErrNoHomeSubscription) {
-		t.Fatalf("SelectAPN error = %v, want %v", err, roaming.ErrNoHomeSubscription)
+	if _, err := subs.SelectAPN(t.Context(), visitorIMSI, ""); !errors.Is(err, roaming.ErrNoHPLMNSubscription) {
+		t.Fatalf("SelectAPN error = %v, want %v", err, roaming.ErrNoHPLMNSubscription)
 	}
 }
 
-func TestHomeSubscribersKeepTheLocalSubscription(t *testing.T) {
-	subs := roaming.NewSubscriptions(localSubscriptions{}, homes{visitorIMSI: homeSubscription()})
-
-	sm, err := subs.SessionManagement(t.Context(), visitorIMSI)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(sm.DNNs) != 4 {
-		t.Fatalf("DNNs = %+v, want the four local DNNs", sm.DNNs)
-	}
+func TestOwnSubscribersKeepTheLocalSubscription(t *testing.T) {
+	subs := roaming.NewSubscriptions(localSubscriptions{}, hplmnSubscriptions{visitorIMSI: hplmnSubscription()})
 
 	apn, err := subs.SelectAPN(t.Context(), visitorIMSI, "")
 	if err != nil || apn != "iot" {
@@ -266,7 +222,7 @@ func TestSelectAPNForAVisitor(t *testing.T) {
 		{name: "IMS", requested: "ims", wantErr: roaming.ErrIMSAPN},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, homes{visitorIMSI: homeSubscription()})
+			subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, hplmnSubscriptions{visitorIMSI: hplmnSubscription()})
 
 			got, err := subs.SelectAPN(t.Context(), visitorIMSI, tc.requested)
 			if !errors.Is(err, tc.wantErr) || got != tc.want {
@@ -278,7 +234,7 @@ func TestSelectAPNForAVisitor(t *testing.T) {
 
 func TestSelectAPNRefusesASubscribedAPNThatIsNotLocal(t *testing.T) {
 	sub := fakehss.Subscription(1, fakehss.APN(1, "internet"), fakehss.APN(2, "corporate"))
-	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, homes{visitorIMSI: &sub})
+	subs := roaming.NewSubscriptions(localSubscriptions{visitor: true}, hplmnSubscriptions{visitorIMSI: &sub})
 
 	_, err := subs.SelectAPN(t.Context(), visitorIMSI, "corporate")
 	if !errors.Is(err, roaming.ErrNotLocal) || !errors.Is(err, models.ErrUnknownAPN) {

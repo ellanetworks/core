@@ -244,9 +244,9 @@ func TestRoamersCannotRegisterDuringAWithdrawal(t *testing.T) {
 	env, _, _, partner := roamingPartnerWithRoamers(t, nil)
 	ctx := context.Background()
 
-	withdrawals := []db.RoamingWithdrawal{{PartnerID: partner.ID, Mcc: "208", Mnc: "94", ExpiresAt: time.Now().Add(time.Minute).Unix()}}
+	withdrawals := []db.RoamingWithdrawal{{PartnerID: partner.ID, Mcc: "208", Mnc: "94"}}
 
-	if err := env.DB.WithdrawRoamers(ctx, partner.ID, withdrawals); err != nil {
+	if err := env.DB.WithdrawRoamers(ctx, partner.ID, withdrawals, time.Minute); err != nil {
 		t.Fatalf("WithdrawRoamers: %s", err)
 	}
 
@@ -266,11 +266,11 @@ func TestRoamersCannotRegisterDuringAWithdrawal(t *testing.T) {
 		t.Fatalf("RegisterVisitorUE after the withdrawal was cleared: %v", err)
 	}
 
-	expired := []db.RoamingWithdrawal{{PartnerID: partner.ID, ExpiresAt: time.Now().Add(-time.Second).Unix()}}
-
-	if err := env.DB.WithdrawRoamers(ctx, partner.ID, expired); err != nil {
+	if err := env.DB.WithdrawRoamers(ctx, partner.ID, []db.RoamingWithdrawal{{PartnerID: partner.ID}}, time.Second); err != nil {
 		t.Fatalf("WithdrawRoamers: %s", err)
 	}
+
+	time.Sleep(2100 * time.Millisecond)
 
 	if _, err := env.DB.RegisterVisitorUE(ctx, "208940000000002", partner.ID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
 		t.Fatalf("RegisterVisitorUE under an expired withdrawal: %v", err)

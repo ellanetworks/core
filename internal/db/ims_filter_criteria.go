@@ -22,15 +22,13 @@ import (
 const IMSInitialFilterCriteriaTableName = "ims_initial_filter_criteria"
 
 const (
-	listServiceProfileIMSIFCsStmt         = "SELECT &imsIFCRow.* FROM %s WHERE serviceProfileID==$imsIFCRow.serviceProfileID ORDER BY position"
-	listAllIMSIFCsStmt                    = "SELECT &imsIFCRow.* FROM %s ORDER BY serviceProfileID, position"
-	insertIMSIFCStmt                      = "INSERT INTO %s (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.serviceProfileID, $imsIFCRow.position, $imsIFCRow.applicationServerID, $imsIFCRow.triggerPoint, $imsIFCRow.profilePart, $imsIFCRow.defaultHandling, $imsIFCRow.serviceInfo, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
-	deleteServiceProfileIMSIFCsStmt       = "DELETE FROM %s WHERE serviceProfileID==$imsIFCRow.serviceProfileID"
-	listProfilesOfIMSASStmt               = "SELECT DISTINCT x.profileID AS &imsServiceProfileAssignmentRow.profileID FROM %s AS x JOIN %s AS f ON f.serviceProfileID = x.serviceProfileID WHERE f.applicationServerID==$imsIFCRow.applicationServerID"
-	listIMSRegisteredOfProfilesStmt       = "SELECT DISTINCT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state != $imsRegistrationSetRow.state AND s.profileID IN ($SliceIDs[:]) AND s.roamingPartnerID IS NULL ORDER BY s.imsi"
-	listIMSRegisteredOfProfilesPreV26Stmt = "SELECT DISTINCT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state != $imsRegistrationSetRow.state AND s.profileID IN ($SliceIDs[:]) ORDER BY s.imsi"
-	listSubscriberIMSIFCsStmt             = "SELECT f.* AS &imsIFCRow.*, a.serverName AS &imsApplicationServerRow.serverName FROM %s AS f JOIN %s AS x ON x.serviceProfileID = f.serviceProfileID JOIN %s AS s ON s.profileID = x.profileID JOIN %s AS a ON a.id = f.applicationServerID WHERE s.imsi = $subscriberIMSI.imsi AND s.roamingPartnerID IS NULL AND x.registrationSet = $imsServiceProfileAssignmentRow.registrationSet ORDER BY f.position"
-	listSubscriberIMSIFCsPreV26Stmt       = "SELECT f.* AS &imsIFCRow.*, a.serverName AS &imsApplicationServerRow.serverName FROM %s AS f JOIN %s AS x ON x.serviceProfileID = f.serviceProfileID JOIN %s AS s ON s.profileID = x.profileID JOIN %s AS a ON a.id = f.applicationServerID WHERE s.imsi = $subscriberIMSI.imsi AND x.registrationSet = $imsServiceProfileAssignmentRow.registrationSet ORDER BY f.position"
+	listServiceProfileIMSIFCsStmt   = "SELECT &imsIFCRow.* FROM %s WHERE serviceProfileID==$imsIFCRow.serviceProfileID ORDER BY position"
+	listAllIMSIFCsStmt              = "SELECT &imsIFCRow.* FROM %s ORDER BY serviceProfileID, position"
+	insertIMSIFCStmt                = "INSERT INTO %s (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.serviceProfileID, $imsIFCRow.position, $imsIFCRow.applicationServerID, $imsIFCRow.triggerPoint, $imsIFCRow.profilePart, $imsIFCRow.defaultHandling, $imsIFCRow.serviceInfo, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
+	deleteServiceProfileIMSIFCsStmt = "DELETE FROM %s WHERE serviceProfileID==$imsIFCRow.serviceProfileID"
+	listProfilesOfIMSASStmt         = "SELECT DISTINCT x.profileID AS &imsServiceProfileAssignmentRow.profileID FROM %s AS x JOIN %s AS f ON f.serviceProfileID = x.serviceProfileID WHERE f.applicationServerID==$imsIFCRow.applicationServerID"
+	listIMSRegisteredOfProfilesStmt = "SELECT DISTINCT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state != $imsRegistrationSetRow.state AND s.profileID IN ($SliceIDs[:]) ORDER BY s.imsi"
+	listSubscriberIMSIFCsStmt       = "SELECT f.* AS &imsIFCRow.*, a.serverName AS &imsApplicationServerRow.serverName FROM %s AS f JOIN %s AS x ON x.serviceProfileID = f.serviceProfileID JOIN %s AS s ON s.profileID = x.profileID JOIN %s AS a ON a.id = f.applicationServerID WHERE s.imsi = $subscriberIMSI.imsi AND x.registrationSet = $imsServiceProfileAssignmentRow.registrationSet ORDER BY f.position"
 )
 
 type IMSProfilePart string
@@ -383,12 +381,7 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 		servers []imsApplicationServerRow
 	)
 
-	stmt := db.listSubscriberIMSIFCsStmt
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.listSubscriberIMSIFCsPreV26Stmt
-	}
-
-	if err := db.conn().Query(ctx, stmt, subscriberIMSI{Imsi: imsi}, imsServiceProfileAssignmentRow{RegistrationSet: string(set)}).GetAll(&rows, &servers); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.conn().Query(ctx, db.listSubscriberIMSIFCsStmt, subscriberIMSI{Imsi: imsi}, imsServiceProfileAssignmentRow{RegistrationSet: string(set)}).GetAll(&rows, &servers); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -512,12 +505,7 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 
 	var rows []subscriberIMSI
 
-	stmt := db.listIMSRegisteredOfProfilesStmt
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.listIMSRegisteredOfProfilesPreV26Stmt
-	}
-
-	if err := db.conn().Query(ctx, stmt, imsRegistrationSetRow{State: int(IMSNotRegistered)}, SliceIDs(profileIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.conn().Query(ctx, db.listIMSRegisteredOfProfilesStmt, imsRegistrationSetRow{State: int(IMSNotRegistered)}, SliceIDs(profileIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

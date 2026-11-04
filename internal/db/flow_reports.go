@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,9 +23,10 @@ import (
 const FlowReportsTableName = "flow_reports"
 
 const (
-	insertFlowReportStmt     = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action)"
-	deleteOldFlowReportsStmt = "DELETE FROM %s WHERE end_time < $cutoffArgs.cutoff"
-	deleteAllFlowReportsStmt = "DELETE FROM %s"
+	insertFlowReportStmt            = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action)"
+	insertFlowReportOfKnownIMSIStmt = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) SELECT $FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action WHERE EXISTS (SELECT 1 FROM %s WHERE imsi = $FlowReport.subscriber_id) OR EXISTS (SELECT 1 FROM %s WHERE imsi = $FlowReport.subscriber_id)"
+	deleteOldFlowReportsStmt        = "DELETE FROM %s WHERE end_time < $cutoffArgs.cutoff"
+	deleteAllFlowReportsStmt        = "DELETE FROM %s"
 )
 
 const listFlowReportsPagedFilteredStmt = `
@@ -203,7 +205,26 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	orphaned := 0
 
+	knownIMSIOnly := db.appliedSchemaAtLeast(ctx, roamingSchema)
+
 	for _, fr := range flowReports {
+		if knownIMSIOnly {
+			inserted, err := insertFlowReportOfKnownIMSI(ctx, tx, db.insertFlowReportOfKnownIMSIStmt, fr)
+			if err != nil {
+				_ = tx.Rollback()
+
+				recordSpanError(span, err)
+
+				return fmt.Errorf("insert failed: %w", err)
+			}
+
+			if !inserted {
+				orphaned++
+			}
+
+			continue
+		}
+
 		if err := tx.Query(ctx, db.insertFlowReportStmt, fr).Run(); err != nil {
 			if isForeignKeyError(err) {
 				orphaned++
@@ -492,4 +513,19 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 	}
 
 	return protocols, destinationsUplink, nil
+}
+
+func insertFlowReportOfKnownIMSI(ctx context.Context, tx *sqlair.TX, stmt *sqlair.Statement, fr *dbwriter.FlowReport) (bool, error) {
+	var outcome sqlair.Outcome
+
+	if err := tx.Query(ctx, stmt, fr).Get(&outcome); err != nil {
+		return false, err
+	}
+
+	n, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return n > 0, nil
 }

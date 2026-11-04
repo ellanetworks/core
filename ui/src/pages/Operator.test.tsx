@@ -899,10 +899,13 @@ describe("Operator roaming section", () => {
         /^SEPP FQDN/,
         "sepp1.5gc.mnc009.mcc262.3gppnetwork.org",
       );
-      expect(within(dialog()).getByLabelText(/^NRF API Root/)).toHaveAttribute(
+      expect(
+        within(dialog()).getByLabelText(/^NRF API Root 2/),
+      ).toHaveAttribute(
         "placeholder",
         "https://nrf.5gc.mnc009.mcc262.3gppnetwork.org",
       );
+      await setText(user, /^NRF API Root 1/, "http://nrf.vodafone.example");
       await setText(user, /^N32-c URI/, "https://sepp.vodafone.example");
       await user.upload(
         within(dialog()).getByLabelText("Trust Anchor file"),
@@ -932,7 +935,11 @@ describe("Operator roaming section", () => {
         expect(sent(PARTNERS_PATH, "POST")).toEqual({
           name: "Vodafone",
           plmns: [
-            { mcc: "262", mnc: "02" },
+            {
+              mcc: "262",
+              mnc: "02",
+              nrfAPIRoot: "http://nrf.vodafone.example",
+            },
             { mcc: "262", mnc: "09" },
           ],
           profileName: "roamers",
@@ -972,7 +979,11 @@ describe("Operator roaming section", () => {
         "sepp1.5gc.mnc001.mcc262.3gppnetwork.org",
       );
       await setText(user, /^N32-c URI/, "http://sepp.example.org");
+      await setText(user, /^NRF API Root 1/, "ftp://nrf.example.org");
 
+      expect(
+        await within(dialog()).findByText(/NRF API root must be an http/),
+      ).toBeInTheDocument();
       expect(
         await within(dialog()).findByText(
           "SEPP FQDN must name one of the partner's PLMNs",

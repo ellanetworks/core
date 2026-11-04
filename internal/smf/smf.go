@@ -171,7 +171,7 @@ type SMF struct {
 	mme                 MMECallback // set after construction
 
 	subscriptions SubscriptionData
-	home          atomic.Pointer[homeNetwork]
+	hplmn         atomic.Pointer[hplmnClient]
 
 	seidCounter uint64 // atomic; local SEID allocation
 
@@ -373,7 +373,7 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 		s.pcf.TerminateAssociation(sc.Ref)
 	}
 
-	if h := sc.homeSession(); h != nil {
+	if h := sc.hplmnSubscription(); h != nil {
 		h.Close()
 	}
 }
@@ -454,7 +454,7 @@ func (s *SMF) SessionCount() int {
 }
 
 type SessionCount struct {
-	Home    int
+	Own     int
 	Roaming int
 }
 
@@ -462,7 +462,7 @@ func (c *SessionCount) add(roaming bool) {
 	if roaming {
 		c.Roaming++
 	} else {
-		c.Home++
+		c.Own++
 	}
 }
 

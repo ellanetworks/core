@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -26,7 +27,7 @@ type fakeN32 struct{}
 
 func (fakeN32) Client(string) *http.Client { return &http.Client{Transport: failingTransport{}} }
 
-func (fakeN32) NRFAPIRoot(string) (string, error) { return "", errors.New("no nrf") }
+func (fakeN32) HPLMNNRF(string, wire.PlmnID) (string, error) { return "", errors.New("no nrf") }
 
 func (fakeN32) PartnerName(string) string { return "partner-a" }
 
@@ -36,7 +37,7 @@ func TestRoamingMetricsExposedOnMetricsEndpoint(t *testing.T) {
 	roaming.RecordReject5G("partner-a", "PLMN not allowed")
 	roaming.RecordS6aAnswer("partner-b", s6a.CommandUpdateLocation, nil, errors.New("no peer"))
 
-	_, _ = roaming.NewHomeSBI(fakeN32{}, nil).Do(t.Context(), "id-a", roaming.HomeRequest{
+	_, _ = roaming.NewHPLMNSBI(fakeN32{}, nil).Do(t.Context(), "id-a", roaming.HPLMNRequest{
 		Method: http.MethodGet,
 		URL:    "https://home.example/nudm-sdm/v2/imsi-001010000000001/am-data",
 	})
@@ -53,7 +54,7 @@ func TestRoamingMetricsExposedOnMetricsEndpoint(t *testing.T) {
 	for _, want := range []string{
 		`app_roaming_rejects_total{cause="PLMN not allowed",partner="partner-a",rat="5g"} 1`,
 		`app_roaming_s6a_requests_total{command="ULR",partner="partner-b",result="error"} 1`,
-		`app_roaming_home_sbi_requests_total{partner="partner-a",result="error",service="nudm-sdm"} 1`,
+		`app_roaming_hplmn_sbi_requests_total{partner="partner-a",result="error",service="nudm-sdm"} 1`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/metrics is missing %s", want)

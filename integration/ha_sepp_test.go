@@ -160,25 +160,31 @@ func (p *partnerSEPP) other(fqdn string) (sepp.PeerContext, bool) {
 }
 
 func (p *partnerSEPP) sendCallback(ctx context.Context, seppID int) (int, wire.ProblemDetails, error) {
+	status, pd, _, err := p.sendCallbackHeader(ctx, seppID)
+
+	return status, pd, err
+}
+
+func (p *partnerSEPP) sendCallbackHeader(ctx context.Context, seppID int) (int, wire.ProblemDetails, http.Header, error) {
 	url := "https://amf" + strconv.Itoa(seppID) + "." + seppEllaDomain + "/roaming-callbacks/v1/" + seppPartnerSUPI + "/uecm-dereg"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader([]byte(`{"deregReason":"SUBSCRIPTION_WITHDRAWN"}`)))
 	if err != nil {
-		return 0, wire.ProblemDetails{}, err
+		return 0, wire.ProblemDetails{}, nil, err
 	}
 
 	req.Header.Set("Content-Type", wire.ContentTypeJSON)
 
 	resp, err := p.m.Client("ella").Do(req)
 	if err != nil {
-		return 0, wire.ProblemDetails{}, err
+		return 0, wire.ProblemDetails{}, nil, err
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 
-	return resp.StatusCode, wire.ParseProblem(resp.StatusCode, body), nil
+	return resp.StatusCode, wire.ParseProblem(resp.StatusCode, body), resp.Header, nil
 }
 
 func waitUntil(ctx context.Context, timeout time.Duration, check func() error) error {
@@ -502,19 +508,24 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatalf("partner side: %v", err)
 	}
 
-	HALog(t, "a callback for node 3's AMF sent to node 1 gets 404 and counts as other_node")
+	HALog(t, "a callback for node 3's AMF sent to node 1 gets 503 with Retry-After and counts as other_node; an unknown node's gets 404")
 
 	before, err := otherNodeRejections(1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	status, pd, err := partner.sendCallback(ctx, 3)
-	if err != nil || status != http.StatusNotFound || pd.Cause != wire.CauseContextNotFound {
-		t.Fatalf("callback for another node = %d %+v, %v", status, pd, err)
+	status, pd, header, err := partner.sendCallbackHeader(ctx, 3)
+	if err != nil || status != http.StatusServiceUnavailable || pd.Cause != wire.CauseNFCongestion || header.Get("Retry-After") == "" {
+		t.Fatalf("callback for another node = %d %+v (Retry-After %q), %v", status, pd, header.Get("Retry-After"), err)
 	}
 
-	if after, err := otherNodeRejections(1); err != nil || after != before+1 {
+	status, pd, err = partner.sendCallback(ctx, 9)
+	if err != nil || status != http.StatusNotFound || pd.Cause != wire.CauseContextNotFound {
+		t.Fatalf("callback for an unknown node = %d %+v, %v", status, pd, err)
+	}
+
+	if after, err := otherNodeRejections(1); err != nil || after != before+2 {
 		t.Fatalf("other_node rejections on node 1 = %d (was %d), %v", after, before, err)
 	}
 

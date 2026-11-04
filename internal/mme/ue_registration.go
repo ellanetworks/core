@@ -42,17 +42,22 @@ func (m *MME) RegisterUE(ctx context.Context, ue *UeContext) error {
 		return &Rejection{Cause: eps.EMMCausePLMNNotAllowed, Reason: "the roaming agreement is being withdrawn"}
 	}
 
+	if errors.Is(err, db.ErrSubscriberLimit) {
+		return &Rejection{Cause: eps.EMMCauseCongestion, BackOff: T3346CapacityBackoff, Reason: "maximum number of subscribers reached"}
+	}
+
 	if err != nil {
 		return err
 	}
 
 	ue.registrationVersion.Store(version)
+	m.recordVisitorMSISDN(ctx, ue)
 
 	return nil
 }
 
 func (m *MME) ConfirmRegistration(ctx context.Context, ue *UeContext) error {
-	m.ConfirmHomeLocation(ctx, ue)
+	m.ConfirmHPLMNLocation(ctx, ue)
 
 	if m.Registrations == nil {
 		return nil
@@ -137,7 +142,7 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	ue.setHomeRegistered(false)
+	ue.setHPLMNRegistered(false)
 
 	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)

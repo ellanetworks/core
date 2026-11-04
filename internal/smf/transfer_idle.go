@@ -16,8 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, []uint8, error) {
-	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, target *HPLMNTarget) (string, []uint8, error) {
+	ref, err := s.transferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G, target)
 	if err != nil {
 		return "", nil, err
 	}
@@ -56,6 +56,10 @@ func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionI
 }
 
 func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {
+	return s.transferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, access, nil)
+}
+
+func (s *SMF) transferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType, target *HPLMNTarget) (string, error) {
 	ctx, span := tracer.Start(ctx, "smf/transfer_idle",
 		trace.WithAttributes(
 			attrs.SUPI(supi.String()),
@@ -74,19 +78,37 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 		return "", fmt.Errorf("no session to move to %s in idle mode: %w", access, err)
 	}
 
-	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+	visitor, err := s.checkSubscribed(ctx, supi, snssai, dnn)
+	if err != nil {
 		return "", fmt.Errorf("no subscription for a session moving to %s in idle mode: %w", access, err)
 	}
 
+	var hplmnSub HPLMNSubscription
+
+	if access == Access5G {
+		hplmnSub, err = s.hplmnSubscriptionForTransfer(ctx, sc, visitor, target)
+		if err != nil {
+			return "", fmt.Errorf("home network refused a session moving to 5GS in idle mode: %w", err)
+		}
+	}
+
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
+		closeHPLMNSubscription(hplmnSub)
+
 		return "", fmt.Errorf("failed to prepare a session move to %s in idle mode: %w", access, err)
 	}
+
+	s.adoptHPLMNSubscription(ctx, sc, hplmnSub)
 
 	dropped, err := s.commitIdleTransfer(ctx, sc, access)
 	if err != nil {
 		s.abandonTransfer(ctx, sc, access)
 
 		return "", err
+	}
+
+	if access == Access5G {
+		s.registerHPLMNSubscription(ctx, sc)
 	}
 
 	logger.From(ctx, logger.SmfLog).Info("moved a session between systems in idle mode",

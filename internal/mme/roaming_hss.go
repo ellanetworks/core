@@ -24,11 +24,11 @@ type DiameterRegistrar interface {
 	Handle(applicationID, commandCode uint32, h diameter.Handler)
 }
 
-func (m *MME) RegisterHomeNetworkHandlers(r DiameterRegistrar) {
-	r.Handle(s6a.ApplicationID, s6a.CommandCancelLocation, m.countedHomeHandler(s6a.CommandCancelLocation, m.CancelLocation))
-	r.Handle(s6a.ApplicationID, s6a.CommandInsertSubscriberData, m.countedHomeHandler(s6a.CommandInsertSubscriberData, m.InsertSubscriberData))
-	r.Handle(s6a.ApplicationID, s6a.CommandDeleteSubscriberData, m.countedHomeHandler(s6a.CommandDeleteSubscriberData, m.DeleteSubscriberData))
-	r.Handle(s6a.ApplicationID, s6a.CommandReset, m.countedHomeHandler(s6a.CommandReset, m.Reset))
+func (m *MME) RegisterHPLMNHandlers(r DiameterRegistrar) {
+	r.Handle(s6a.ApplicationID, s6a.CommandCancelLocation, m.countedHPLMNHandler(s6a.CommandCancelLocation, m.CancelLocation))
+	r.Handle(s6a.ApplicationID, s6a.CommandInsertSubscriberData, m.countedHPLMNHandler(s6a.CommandInsertSubscriberData, m.InsertSubscriberData))
+	r.Handle(s6a.ApplicationID, s6a.CommandDeleteSubscriberData, m.countedHPLMNHandler(s6a.CommandDeleteSubscriberData, m.DeleteSubscriberData))
+	r.Handle(s6a.ApplicationID, s6a.CommandReset, m.countedHPLMNHandler(s6a.CommandReset, m.Reset))
 }
 
 func userUnknown(req *diameter.Message, id diameter.Identity) *diameter.Message {
@@ -39,7 +39,7 @@ func unableToComply(req *diameter.Message, id diameter.Identity) *diameter.Messa
 	return s6a.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply}, s6a.Features{})
 }
 
-func (m *MME) homeVisitor(ctx context.Context, imsi string, req *diameter.Message) (*UeContext, bool) {
+func (m *MME) hplmnVisitor(ctx context.Context, imsi string, req *diameter.Message, ingress string) (*UeContext, bool) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return nil, false
@@ -52,9 +52,10 @@ func (m *MME) homeVisitor(ctx context.Context, imsi string, req *diameter.Messag
 
 	origin := tgpp.ParseEnvelope(req).Origin
 
-	if !m.fromHomeNetwork(ctx, v, origin) {
+	if !m.fromPartner(ctx, v.PartnerID, origin, ingress) {
 		logger.From(ctx, logger.MmeLog).Warn("S6a request for a visitor from outside its home network",
-			logger.SUPIFromIMSI(imsi), zap.String("origin_host", origin.OriginHost), zap.String("origin_realm", origin.OriginRealm))
+			logger.SUPIFromIMSI(imsi), zap.String("origin_host", origin.OriginHost), zap.String("origin_realm", origin.OriginRealm),
+			zap.String("ingress_peer", ingress))
 
 		return nil, false
 	}
@@ -62,12 +63,8 @@ func (m *MME) homeVisitor(ctx context.Context, imsi string, req *diameter.Messag
 	return ue, true
 }
 
-func (m *MME) fromHomeNetwork(ctx context.Context, v roaming.Visitor, origin diameter.Identity) bool {
-	if strings.EqualFold(origin.OriginRealm, v.Home.Realm) {
-		return true
-	}
-
-	if m.Roaming == nil {
+func (m *MME) fromPartner(ctx context.Context, partnerID string, origin diameter.Identity, ingress string) bool {
+	if m.Roaming == nil || ingress == "" {
 		return false
 	}
 
@@ -77,8 +74,8 @@ func (m *MME) fromHomeNetwork(ctx context.Context, v roaming.Visitor, origin dia
 		return false
 	}
 
-	i := slices.IndexFunc(partners, func(p db.RoamingPartner) bool { return p.ID == v.PartnerID })
-	if i < 0 {
+	i := slices.IndexFunc(partners, func(p db.RoamingPartner) bool { return p.ID == partnerID })
+	if i < 0 || partners[i].DiameterPeerID == nil || ingress != roaming.DiameterPeerID(*partners[i].DiameterPeerID) {
 		return false
 	}
 
@@ -88,7 +85,7 @@ func (m *MME) fromHomeNetwork(ctx context.Context, v roaming.Visitor, origin dia
 	})
 }
 
-func (m *MME) CancelLocation(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+func (m *MME) CancelLocation(ctx context.Context, id diameter.Identity, ingress string, req *diameter.Message) *diameter.Message {
 	clr, err := s6a.ParseCancelLocationRequest(req)
 	if err != nil {
 		return s6a.NewErrorAnswer(req, id, err, s6a.Features{})
@@ -96,7 +93,9 @@ func (m *MME) CancelLocation(ctx context.Context, id diameter.Identity, req *dia
 
 	ans, _ := s6a.NewCancelLocationAnswer(req, id, s6a.CancelLocation{})
 
-	ue, ok := m.homeVisitor(ctx, clr.IMSI, req)
+	m.hplmnCancelledMove(ctx, clr.IMSI, tgpp.ParseEnvelope(req).Origin, ingress)
+
+	ue, ok := m.hplmnVisitor(ctx, clr.IMSI, req, ingress)
 	if !ok {
 		return ans
 	}
@@ -118,7 +117,7 @@ func (m *MME) CancelLocation(ctx context.Context, id diameter.Identity, req *dia
 		log.Info("ignoring an SGSN cancellation")
 	case s6a.CancellationMMEUpdateProcedure:
 		if m.movingTo5GS(ue) || !visitorRegistered(ue) {
-			ue.setHomeRegistered(false)
+			ue.setHPLMNRegistered(false)
 			log.Info("home HSS cancelled the location of a visitor that moves to 5GS; the move removes its context")
 
 			return ans
@@ -141,18 +140,18 @@ func visitorRegistered(ue *UeContext) bool {
 	return ok && v.Registered
 }
 
-func (m *MME) InsertSubscriberData(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+func (m *MME) InsertSubscriberData(ctx context.Context, id diameter.Identity, ingress string, req *diameter.Message) *diameter.Message {
 	idr, err := s6a.ParseInsertSubscriberDataRequest(req)
 	if err != nil {
 		return s6a.NewErrorAnswer(req, id, err, s6a.Features{})
 	}
 
-	ue, ok := m.homeVisitor(ctx, idr.IMSI, req)
+	ue, ok := m.hplmnVisitor(ctx, idr.IMSI, req, ingress)
 	if !ok {
 		return userUnknown(req, id)
 	}
 
-	if err := ue.updateHomeSubscription(func(s s6a.SubscriptionData) (s6a.SubscriptionData, error) {
+	if err := ue.updateHPLMNSubscription(func(s s6a.SubscriptionData) (s6a.SubscriptionData, error) {
 		return s.Merge(idr.Subscription), nil
 	}); err != nil {
 		return unableToComply(req, id)
@@ -161,10 +160,10 @@ func (m *MME) InsertSubscriberData(ctx context.Context, id diameter.Identity, re
 	ida, comply := m.insertSubscriberDataAnswer(ue, idr.Flags)
 
 	if !comply {
-		ue.unconfirmHomeLocation()
+		ue.unconfirmHPLMNLocation()
 	}
 
-	m.home.Go(idr.IMSI, func() { m.applyHomeSubscription(context.WithoutCancel(ctx), ue) })
+	m.home.Go(idr.IMSI, func() { m.applyHPLMNSubscription(context.WithoutCancel(ctx), ue) })
 
 	logger.From(ctx, logger.MmeLog).Info("home HSS updated the visitor's subscription",
 		logger.SUPIFromIMSI(idr.IMSI), zap.Stringer("idr_flags", idr.Flags), zap.Bool("complied", comply))
@@ -227,18 +226,18 @@ func userState(ue *UeContext) s6a.UserState {
 	return s6a.UserStateConnectedReachableForPaging
 }
 
-func (m *MME) DeleteSubscriberData(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+func (m *MME) DeleteSubscriberData(ctx context.Context, id diameter.Identity, ingress string, req *diameter.Message) *diameter.Message {
 	dsr, err := s6a.ParseDeleteSubscriberDataRequest(req)
 	if err != nil {
 		return s6a.NewErrorAnswer(req, id, err, s6a.Features{})
 	}
 
-	ue, ok := m.homeVisitor(ctx, dsr.IMSI, req)
+	ue, ok := m.hplmnVisitor(ctx, dsr.IMSI, req, ingress)
 	if !ok {
 		return userUnknown(req, id)
 	}
 
-	if err := ue.updateHomeSubscription(func(s s6a.SubscriptionData) (s6a.SubscriptionData, error) {
+	if err := ue.updateHPLMNSubscription(func(s s6a.SubscriptionData) (s6a.SubscriptionData, error) {
 		return s.Withdraw(dsr.SubscriptionDataDeletion)
 	}); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("refused a deletion of the visitor's subscription data",
@@ -247,7 +246,7 @@ func (m *MME) DeleteSubscriberData(ctx context.Context, id diameter.Identity, re
 		return s6a.NewErrorAnswer(req, id, err, s6a.Features{})
 	}
 
-	m.home.Go(dsr.IMSI, func() { m.applyHomeSubscription(context.WithoutCancel(ctx), ue) })
+	m.home.Go(dsr.IMSI, func() { m.applyHPLMNSubscription(context.WithoutCancel(ctx), ue) })
 
 	logger.From(ctx, logger.MmeLog).Info("home HSS deleted part of the visitor's subscription",
 		logger.SUPIFromIMSI(dsr.IMSI), zap.Stringer("dsr_flags", dsr.Flags))
@@ -260,14 +259,16 @@ func (m *MME) DeleteSubscriberData(ctx context.Context, id diameter.Identity, re
 	return ans
 }
 
-func (m *MME) Reset(ctx context.Context, id diameter.Identity, req *diameter.Message) *diameter.Message {
+func (m *MME) Reset(ctx context.Context, id diameter.Identity, ingress string, req *diameter.Message) *diameter.Message {
 	rsr, err := s6a.ParseResetRequest(req)
 	if err != nil {
 		return s6a.NewErrorAnswer(req, id, err, s6a.Features{})
 	}
 
-	hss := tgpp.ParseEnvelope(req).Origin.OriginHost
+	origin := tgpp.ParseEnvelope(req).Origin
+	hss := origin.OriginHost
 	marked := 0
+	trusted := map[string]bool{}
 
 	for _, ue := range m.visitorsServedBy(hss) {
 		imsi := ue.imsiOrEmpty()
@@ -276,7 +277,22 @@ func (m *MME) Reset(ctx context.Context, id diameter.Identity, req *diameter.Mes
 			continue
 		}
 
-		ue.unconfirmHomeLocation()
+		v, ok := ue.Visitor()
+		if !ok {
+			continue
+		}
+
+		allowed, checked := trusted[v.PartnerID]
+		if !checked {
+			allowed = m.fromPartner(ctx, v.PartnerID, origin, ingress)
+			trusted[v.PartnerID] = allowed
+		}
+
+		if !allowed {
+			continue
+		}
+
+		ue.unconfirmHPLMNLocation()
 
 		marked++
 	}
@@ -305,7 +321,7 @@ func (m *MME) visitorsServedBy(hss string) []*UeContext {
 	out := ues[:0]
 
 	for _, ue := range ues {
-		if v, ok := ue.Visitor(); ok && v.Registered && strings.EqualFold(v.Home.HSS, hss) {
+		if v, ok := ue.Visitor(); ok && v.Registered && strings.EqualFold(v.Peer.HSS, hss) {
 			out = append(out, ue)
 		}
 	}

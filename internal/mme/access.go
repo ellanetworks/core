@@ -30,15 +30,15 @@ func ResolveAccess(ctx context.Context, m *MME, imsi string) (Access, error) {
 	fiveGS := am.Allow5G && n26
 
 	if am.Visitor {
-		home, ok := m.HomeSubscription(imsi)
+		home, ok := m.HPLMNSubscription(imsi)
 		fiveGS = fiveGS && (!ok || !home.FiveGCNotAllowed())
 	}
 
 	return Access{Allow4G: am.Allow4G, FiveGSInterworking: fiveGS}, nil
 }
 
-func IsHomeSubscriber(ctx context.Context, m *MME, imsi string) (bool, error) {
-	return m.subscriptions().IsHomeSubscriber(ctx, imsi)
+func IsOwnSubscriber(ctx context.Context, m *MME, imsi string) (bool, error) {
+	return udm.NewSubscriptions(m.Bearer, nil).IsOwnSubscriber(ctx, imsi)
 }
 
 func (m *MME) N26Allowed(ctx context.Context, imsi string) (bool, error) {
@@ -46,7 +46,7 @@ func (m *MME) N26Allowed(ctx context.Context, imsi string) (bool, error) {
 		return m.N26.Allowed(ctx, imsi)
 	}
 
-	return IsHomeSubscriber(ctx, m, imsi)
+	return IsOwnSubscriber(ctx, m, imsi)
 }
 
 func (m *MME) FiveGSInterworkingSubscribed(ue *UeContext, apn string) bool {
@@ -54,7 +54,7 @@ func (m *MME) FiveGSInterworkingSubscribed(ue *UeContext, apn string) bool {
 		return true
 	}
 
-	home, _ := m.HomeSubscription(ue.IMSI())
+	home, _ := m.HPLMNSubscription(ue.IMSI())
 
 	return roaming.FiveGSInterworkingSubscribed(home, apn)
 }

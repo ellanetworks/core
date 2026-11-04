@@ -29,13 +29,13 @@ func applyWithdrawingRoamers(ctx context.Context, dbInstance *db.Database, exist
 	}
 
 	timing := roamerWithdrawalTiming
-	withdrawals := db.RoamingWithdrawalsFor(existing, updated, time.Now().Add(timing.timeout+timing.margin))
+	withdrawals := db.RoamingWithdrawalsFor(existing, updated)
 
 	if len(withdrawals) == 0 {
 		return err
 	}
 
-	if err := dbInstance.WithdrawRoamers(ctx, existing.ID, withdrawals); err != nil {
+	if err := dbInstance.WithdrawRoamers(ctx, existing.ID, withdrawals, timing.timeout+timing.margin); err != nil {
 		return fmt.Errorf("withdraw the roamers of roaming partner %s: %w", existing.Name, err)
 	}
 

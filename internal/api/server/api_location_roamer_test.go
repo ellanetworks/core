@@ -18,25 +18,25 @@ import (
 	"github.com/ellanetworks/core/internal/roaming"
 )
 
-func TestLocationPrivacyRefusalIsForbidden(t *testing.T) {
-	err := fmt.Errorf("%w: %w", lmf.ErrPrivacyRefused, fmt.Errorf("fetch: %w", context.DeadlineExceeded))
+func TestLocationRoamerRefusalIsForbidden(t *testing.T) {
+	err := fmt.Errorf("%w: imsi-001010000000001", lmf.ErrRoamer)
 
 	rec := httptest.NewRecorder()
 	writeLocationError(context.Background(), rec, err)
 
-	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "TS 23.271 clause 9.5.3.4") {
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), locationRoamerRefusedMessage) {
 		t.Fatalf("immediate: %d %s", rec.Code, rec.Body.String())
 	}
 
 	rec = httptest.NewRecorder()
 	writeDeferredLocationError(httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil), rec, err)
 
-	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "TS 23.271 clause 9.5.3.4") {
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), locationRoamerRefusedMessage) {
 		t.Fatalf("deferred: %d %s", rec.Code, rec.Body.String())
 	}
 }
 
-func TestLocatingARoamerTheHomeDoesNotAllowIsForbidden(t *testing.T) {
+func TestLocatingARoamerIsForbidden(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
@@ -68,8 +68,8 @@ func TestLocatingARoamerTheHomeDoesNotAllowIsForbidden(t *testing.T) {
 
 		_ = json.Unmarshal(rec.Body.Bytes(), &body)
 
-		if rec.Code != http.StatusForbidden || body.Error != locationPrivacyRefusedMessage {
-			t.Errorf("%s: %d %s, want 403 %q", tc.path, rec.Code, rec.Body.String(), locationPrivacyRefusedMessage)
+		if rec.Code != http.StatusForbidden || body.Error != locationRoamerRefusedMessage {
+			t.Errorf("%s: %d %s, want 403 %q", tc.path, rec.Code, rec.Body.String(), locationRoamerRefusedMessage)
 		}
 	}
 }

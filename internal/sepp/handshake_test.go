@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -62,6 +63,7 @@ type node struct {
 	mu       sync.Mutex
 	identity IdentityConfig
 	partners []PartnerConfig
+	cluster  []int
 	run      context.CancelFunc
 }
 
@@ -91,7 +93,13 @@ func newNode(t *testing.T, fqdn string, op wire.PlmnID, tuning Tuning) *node {
 				return &id, nil
 			},
 			Operator: func(context.Context) (wire.PlmnID, error) { return op, nil },
-			N32:      config.N32Interface{Enabled: true, Address: "127.0.0.1"},
+			Cluster: func(context.Context) ([]int, error) {
+				n.mu.Lock()
+				defer n.mu.Unlock()
+
+				return slices.Clone(n.cluster), nil
+			},
+			N32: config.N32Interface{Enabled: true, Address: "127.0.0.1"},
 		},
 		zap.NewNop(),
 		WithTuning(tuning),
@@ -122,6 +130,14 @@ func (n *node) partnerConfig(id string) PartnerConfig {
 func (n *node) setPartners(ps ...PartnerConfig) {
 	n.mu.Lock()
 	n.partners = ps
+	n.mu.Unlock()
+
+	n.m.Reconcile(n.ctx)
+}
+
+func (n *node) setCluster(ids ...int) {
+	n.mu.Lock()
+	n.cluster = ids
 	n.mu.Unlock()
 
 	n.m.Reconcile(n.ctx)

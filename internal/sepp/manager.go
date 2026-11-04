@@ -25,11 +25,15 @@ type IdentitySource func(ctx context.Context) (*IdentityConfig, error)
 
 type OperatorSource func(ctx context.Context) (wire.PlmnID, error)
 
+type ClusterSource func(ctx context.Context) ([]int, error)
+
 type Config struct {
 	Partners  PartnersSource
 	Identity  IdentitySource
 	Operator  OperatorSource
 	Provision func(ctx context.Context) error
+	Renew     func(ctx context.Context, seppID int) error
+	Cluster   ClusterSource
 	N32       config.N32Interface
 }
 
@@ -40,6 +44,8 @@ type Tuning struct {
 	BackoffMin       time.Duration
 	BackoffMax       time.Duration
 	ExpiryWarning    time.Duration
+	RenewBefore      time.Duration
+	RenewRetry       time.Duration
 	RequestTimeout   time.Duration
 	PingIdle         time.Duration
 	PingTimeout      time.Duration
@@ -57,6 +63,8 @@ func DefaultTuning() Tuning {
 		BackoffMin:       2 * time.Second,
 		BackoffMax:       60 * time.Second,
 		ExpiryWarning:    30 * 24 * time.Hour,
+		RenewBefore:      90 * 24 * time.Hour,
+		RenewRetry:       time.Hour,
 		RequestTimeout:   4 * time.Second,
 		PingIdle:         30 * time.Second,
 		PingTimeout:      10 * time.Second,
@@ -83,11 +91,12 @@ type NodeStatus struct {
 }
 
 type snapshot struct {
-	op       wire.PlmnID
-	identity *localIdentity
-	problem  string
-	partners map[string]*partner
-	trusted  []*trustedPartner
+	op             wire.PlmnID
+	identity       *localIdentity
+	problem        string
+	partners       map[string]*partner
+	trusted        []*trustedPartner
+	clusterSEPPIDs map[int]struct{}
 }
 
 func (s *snapshot) usable() bool {
@@ -118,9 +127,10 @@ type Manager struct {
 
 	callbacks atomic.Pointer[http.Handler]
 
-	n32cLimit rateLimiter
-	n32fLimit rateLimiter
-	expiryLog time.Time
+	n32cLimit    rateLimiter
+	n32fLimit    rateLimiter
+	expiryLog    time.Time
+	renewAttempt time.Time
 }
 
 type Option func(*Manager)
@@ -217,6 +227,12 @@ func (m *Manager) reconcile(ctx context.Context) {
 		}
 	}
 
+	if m.renew(ctx, next) {
+		if again, err := m.load(ctx); err == nil {
+			next = again
+		}
+	}
+
 	prev := m.snap.Swap(next)
 
 	if prev.problem != next.problem && next.problem != "" {
@@ -242,7 +258,7 @@ func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 		return nil, fmt.Errorf("read roaming partners: %w", err)
 	}
 
-	snap := &snapshot{partners: make(map[string]*partner, len(configs))}
+	snap := &snapshot{partners: make(map[string]*partner, len(configs)), clusterSEPPIDs: m.loadCluster(ctx)}
 
 	for _, cfg := range configs {
 		p := newPartner(cfg)
@@ -295,6 +311,58 @@ func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	snap.identity = identity
 
 	return snap, nil
+}
+
+func (m *Manager) loadCluster(ctx context.Context) map[int]struct{} {
+	if m.cfg.Cluster == nil {
+		return nil
+	}
+
+	ids, err := m.cfg.Cluster(ctx)
+	if err != nil {
+		m.logger.Warn("Could not read the SEPP IDs of the cluster nodes", zap.Error(err))
+
+		if prev := m.snap.Load(); prev != nil {
+			return prev.clusterSEPPIDs
+		}
+
+		return nil
+	}
+
+	set := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+
+	return set
+}
+
+func (m *Manager) renew(ctx context.Context, snap *snapshot) bool {
+	id := snap.identity
+	if id == nil || !id.generated || m.cfg.Renew == nil {
+		return false
+	}
+
+	now := m.now()
+
+	if id.leaf.NotAfter.Sub(now) > m.tuning.RenewBefore || now.Sub(m.renewAttempt) < m.tuning.RenewRetry {
+		return false
+	}
+
+	if id.anchor.NotAfter.Sub(now) <= m.tuning.RenewBefore {
+		return false
+	}
+
+	m.renewAttempt = now
+
+	if err := m.cfg.Renew(ctx, id.seppID); err != nil {
+		m.logger.Warn("Could not renew this node's generated SEPP certificate", zap.Int("sepp_id", id.seppID), zap.Time("not_after", id.leaf.NotAfter), zap.Error(err))
+		return false
+	}
+
+	m.logger.Info("Renewed this node's generated SEPP certificate with the cluster SEPP CA", zap.Int("sepp_id", id.seppID), zap.Time("previous_not_after", id.leaf.NotAfter))
+
+	return true
 }
 
 func (m *Manager) checkExpiry(snap *snapshot) {

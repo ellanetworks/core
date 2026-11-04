@@ -44,6 +44,7 @@ type epsSessionManager interface {
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
 	ReleaseEPSSession(ctx context.Context, ref string, cause models.SessionReleaseRequest) error
 	ReconcileSession(ctx context.Context, ref string) error
+	UpdateAPNSubscription(ctx context.Context, ref string, sub *models.APNSubscription)
 	CommitEPSBearerModification(ctx context.Context, ref string, accepted bool)
 	DedicatedBearerActivated(ctx context.Context, ref string, sgwTEID uint32, ebi uint8, enb models.FTEID) error
 	DedicatedBearerMoved(ctx context.Context, ref string, sgwTEID uint32, enb models.FTEID) error
@@ -93,9 +94,9 @@ type MME struct {
 	Cred   credentialProvider
 	Bearer bearerStore
 
-	HomeNetwork HomeNetwork
-	Roaming     RoamingStore
-	N26         roaming.N26Policy
+	HPLMN   HPLMNClient
+	Roaming RoamingStore
+	N26     roaming.N26Policy
 
 	Session epsSessionManager
 	NAS     NASHandler
@@ -105,6 +106,7 @@ type MME struct {
 
 	home            serial.KeyedQueue
 	mtmsiFreezeTime time.Duration
+	crossCancel     roaming.CrossCancelGuard
 
 	LPPHandler LPPHandler
 

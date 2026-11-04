@@ -110,6 +110,17 @@ type EPSBearerRequest struct {
 	APN               string
 	RequestedPDNType  uint8
 	RequestType       eps.RequestType
+	Subscription      *APNSubscription
+}
+
+type APNSubscription struct {
+	HPLMN                   PlmnID
+	PDNTypes                []eps.PDNType
+	APNAMBR                 *Ambr
+	QCI                     uint8
+	ARP                     Arp
+	ChargingCharacteristics string
+	MSISDN                  string
 }
 
 type EPSBearerQoS struct {
@@ -141,7 +152,7 @@ type EPSBearer struct {
 	ESMCause        eps.ESMCause
 	PDUSessionID    uint8
 	Snssai          *Snssai
-	HomeSnssai      *Snssai
+	HPLMNSnssai     *Snssai
 	QoS             EPSBearerQoS
 	MTU             uint16
 	MappedFiveGSQoS []nas.PCOContainer

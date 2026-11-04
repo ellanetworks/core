@@ -10,7 +10,6 @@ export type RoamingPartnerSEPP = {
   n32cURI: string;
   n32fURI?: string;
   trustAnchorPEM: string;
-  nrfAPIRoot?: string;
 };
 
 export type PLMNID = {
@@ -18,9 +17,13 @@ export type PLMNID = {
   mnc: string;
 };
 
+export type RoamingPartnerPLMN = PLMNID & {
+  nrfAPIRoot?: string;
+};
+
 export type RoamingPartnerInput = {
   name: string;
-  plmns: PLMNID[];
+  plmns: RoamingPartnerPLMN[];
   profileName: string;
   sepp?: RoamingPartnerSEPP;
   diameterPeerID?: string;

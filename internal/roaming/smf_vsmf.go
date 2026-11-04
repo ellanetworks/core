@@ -19,7 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/internal/serial"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -37,36 +36,18 @@ type VSMFN32 interface {
 	SEPPID() int
 }
 
-type SessionVisitor struct {
-	PartnerID        string
-	HomePLMN         wire.PlmnID
-	ServingPLMN      wire.PlmnID
-	RoutingIndicator string
-	SMFSelection     *wire.SmfSelectionSubscriptionData
-}
-
-type SessionVisitors interface {
-	SessionVisitor(imsi string) (SessionVisitor, bool)
-}
-
-type HomeSessionControl interface {
-	ReleaseHomeSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, h smf.HomeSession, how smf.HomeRelease) bool
-	ReconcileHomeSessions(ctx context.Context, supi etsi.SUPI)
-}
-
-type LocalSessions interface {
-	SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error)
+type HPLMNBoundSessions interface {
+	ReleaseHPLMNBoundSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, h smf.HPLMNSubscription, how smf.HPLMNRelease) bool
+	ReconcileHPLMNBoundSessions(ctx context.Context, supi etsi.SUPI)
 }
 
 type vsmfDeps struct {
 	n32      VSMFN32
-	home     *HomeSBI
-	visitors SessionVisitors
-	sessions HomeSessionControl
+	home     *HPLMNSBI
+	sessions HPLMNBoundSessions
 }
 
 type VSMF struct {
-	local  LocalSessions
 	logger *zap.Logger
 	now    func() time.Time
 	peer   func(context.Context) (sepp.Peer, bool)
@@ -88,17 +69,22 @@ type smKey struct {
 	dnn string
 }
 
+func (k smKey) snssai() models.Snssai {
+	return models.Snssai{Sst: k.sst, Sd: k.sd}
+}
+
 func smKeyOf(snssai models.Snssai, dnn string) smKey {
 	return smKey{sst: snssai.Sst, sd: models.NormalizeSD(snssai.Sd), dnn: strings.ToLower(dnn)}
 }
 
 type smData struct {
-	visitor      SessionVisitor
+	target       HPLMNTarget
 	snssai       models.Snssai
 	dnn          string
-	sessionAMBR  *models.Ambr
-	rules        smf.HomeSessionRules
+	rules        smf.HPLMNRules
 	subscribed   bool
+	barred       bool
+	subscribing  bool
 	instance     string
 	subscription string
 	expires      time.Time
@@ -108,29 +94,30 @@ type smData struct {
 
 type vsmfUE struct {
 	supi     etsi.SUPI
-	visitor  SessionVisitor
+	target   HPLMNTarget
 	data     map[smKey]*smData
 	sessions map[uint8]*vsmfSession
 }
 
 type vsmfSession struct {
-	v       *VSMF
-	supi    etsi.SUPI
-	psi     uint8
-	key     smKey
-	dnn     string
-	visitor SessionVisitor
-	rules   smf.HomeSessionRules
+	v      *VSMF
+	supi   etsi.SUPI
+	psi    uint8
+	key    smKey
+	dnn    string
+	target HPLMNTarget
+	iwk    bool
+	rules  smf.HPLMNRules
 
 	closed     bool
 	registered bool
 	uecmRoot   string
+	instanceID string
 	released   bool
 }
 
-func NewVSMF(local LocalSessions, logger *zap.Logger) *VSMF {
+func NewVSMF(logger *zap.Logger) *VSMF {
 	v := &VSMF{
-		local:           local,
 		logger:          logger,
 		now:             time.Now,
 		peer:            sepp.PeerFrom,
@@ -157,16 +144,12 @@ func (v *VSMF) SetN32(n32 VSMFN32) {
 		d.home = nil
 
 		if n32 != nil {
-			d.home = NewHomeSBI(n32, NewDiscovery(n32))
+			d.home = NewHPLMNSBI(n32, NewDiscovery(n32))
 		}
 	})
 }
 
-func (v *VSMF) SetVisitors(visitors SessionVisitors) {
-	v.update(func(d *vsmfDeps) { d.visitors = visitors })
-}
-
-func (v *VSMF) SetSessions(sessions HomeSessionControl) {
+func (v *VSMF) SetSessions(sessions HPLMNBoundSessions) {
 	v.update(func(d *vsmfDeps) { d.sessions = sessions })
 }
 
@@ -174,32 +157,31 @@ func (v *VSMF) Settle() {
 	v.queue.Settle()
 }
 
-func HomeSnssai(serving models.Snssai) models.Snssai {
-	return models.Snssai{Sst: serving.Sst, Sd: models.NormalizeSD(serving.Sd)}
+func hplmnTargetOf(supi etsi.SUPI, t smf.HPLMNTarget) HPLMNTarget {
+	return HPLMNTarget{
+		PartnerID:        t.PartnerID,
+		PLMN:             wire.PlmnIDFromModel(t.HPLMN),
+		Serving:          wire.PlmnIDFromModel(t.ServingNetwork),
+		RoutingIndicator: t.RoutingIndicator,
+		Supi:             supi.String(),
+		UDMGroupID:       t.UDMGroupID,
+	}
 }
 
-func (v *VSMF) OpenSession(ctx context.Context, req smf.HomeSessionRequest) (smf.HomeSession, error) {
+func (v *VSMF) OpenSubscription(ctx context.Context, req smf.HPLMNSubscriptionRequest) (smf.HPLMNSubscription, error) {
 	imsi := req.Supi.IMSI()
 	if imsi == "" {
-		return nil, nil
+		return nil, newSessionError(fgs.GSMCauseRequestRejectedUnspecified, errors.New("a visitor's SUPI is not an IMSI"))
 	}
 
 	deps := v.deps.Load()
-	if deps.visitors == nil {
-		return nil, nil
-	}
-
-	visitor, ok := deps.visitors.SessionVisitor(imsi)
-	if !ok {
-		return nil, nil
-	}
 
 	var (
 		s   *vsmfSession
 		err error
 	)
 
-	v.queue.Do(imsi, func() { s, err = v.open(ctx, deps, req, visitor) })
+	v.queue.Do(imsi, func() { s, err = v.open(ctx, deps, req) })
 
 	if err != nil || s == nil {
 		return nil, err
@@ -208,18 +190,10 @@ func (v *VSMF) OpenSession(ctx context.Context, req smf.HomeSessionRequest) (smf
 	return s, nil
 }
 
-func (v *VSMF) open(ctx context.Context, deps *vsmfDeps, req smf.HomeSessionRequest, visitor SessionVisitor) (*vsmfSession, error) {
+func (v *VSMF) open(ctx context.Context, deps *vsmfDeps, req smf.HPLMNSubscriptionRequest) (*vsmfSession, error) {
 	imsi := req.Supi.IMSI()
-
-	if err := v.checkLocal(ctx, imsi, req.Snssai, req.Dnn); err != nil {
-		return nil, err
-	}
-
-	home := HomeSnssai(req.Snssai)
-
-	if err := vsmfLocalBreakout(visitor.SMFSelection, home, req.Dnn); err != nil {
-		return nil, err
-	}
+	home := req.Target.HPLMNSnssai
+	target := hplmnTargetOf(req.Supi, req.Target)
 
 	if deps.home == nil {
 		return nil, vsmfUnreachable(errors.New("this node has no N32 interface"))
@@ -228,28 +202,48 @@ func (v *VSMF) open(ctx context.Context, deps *vsmfDeps, req smf.HomeSessionRequ
 	key := smKeyOf(home, req.Dnn)
 
 	v.mu.Lock()
-	ue := v.ueLocked(req.Supi, visitor)
+	ue := v.ueLocked(req.Supi, target)
 
 	if d := ue.data[key]; d != nil && d.subscribed {
+		if d.barred {
+			v.mu.Unlock()
+			return nil, vsmfBarred(home, req.Dnn)
+		}
+
 		d.refs++
-		s := v.newSessionLocked(ue, req.PDUSessionID, key, req.Dnn, d.rules)
+		retry := d.subscription == "" && !d.subscribing
+		d.subscribing = d.subscribing || retry
+		s := v.newSessionLocked(ue, req, key, d.rules, d.target)
 		v.mu.Unlock()
+
+		if retry {
+			ctx = context.WithoutCancel(ctx)
+
+			v.queue.Go(imsi, func() { v.subscribe(ctx, deps, req.Supi, d) })
+		}
 
 		return s, nil
 	}
 	v.mu.Unlock()
 
-	cfg, instance, err := v.fetchSMData(ctx, deps, req.Supi, visitor, home, req.Dnn)
+	answer, err := v.fetchSMData(ctx, deps, req.Supi, target, home, req.Dnn)
 	if err != nil {
 		v.dropIfUnused(imsi)
 		return nil, err
 	}
 
-	ambr, rules, err := vsmfRules(cfg, home)
+	if answer.barred {
+		v.dropIfUnused(imsi)
+		return nil, vsmfBarred(home, req.Dnn)
+	}
+
+	rules, err := vsmfRules(answer.cfg, home)
 	if err != nil {
 		v.dropIfUnused(imsi)
 		return nil, err
 	}
+
+	target.UDMInstanceID = answer.instance
 
 	v.mu.Lock()
 
@@ -259,10 +253,11 @@ func (v *VSMF) open(ctx context.Context, deps *vsmfDeps, req smf.HomeSessionRequ
 		ue.data[key] = d
 	}
 
-	d.visitor, d.sessionAMBR, d.rules, d.subscribed, d.instance = visitor, ambr, rules, true, instance
+	d.target, d.rules, d.subscribed, d.barred, d.instance = target, rules, true, false, answer.instance
 	d.refs++
-	subscribe := d.subscription == ""
-	s := v.newSessionLocked(ue, req.PDUSessionID, key, req.Dnn, rules)
+	subscribe := d.subscription == "" && !d.subscribing
+	d.subscribing = d.subscribing || subscribe
+	s := v.newSessionLocked(ue, req, key, rules, target)
 	v.mu.Unlock()
 
 	if subscribe {
@@ -274,27 +269,33 @@ func (v *VSMF) open(ctx context.Context, deps *vsmfDeps, req smf.HomeSessionRequ
 	return s, nil
 }
 
-func (v *VSMF) newSessionLocked(ue *vsmfUE, psi uint8, key smKey, dnn string, rules smf.HomeSessionRules) *vsmfSession {
+func vsmfBarred(snssai models.Snssai, dnn string) error {
+	return newSessionError(fgs.GSMCauseOperatorDeterminedBarring, fmt.Errorf("%w: %s %q", ErrSessionBarred, wire.SnssaiFromModel(snssai), dnn))
+}
+
+func (v *VSMF) newSessionLocked(ue *vsmfUE, req smf.HPLMNSubscriptionRequest, key smKey, rules smf.HPLMNRules, target HPLMNTarget) *vsmfSession {
+	psi := req.PDUSessionID
+
 	if old := ue.sessions[psi]; old != nil && !old.closed {
 		old.closed = true
 
 		v.queue.Go(ue.supi.IMSI(), func() { v.close(old) })
 	}
 
-	s := &vsmfSession{v: v, supi: ue.supi, psi: psi, key: key, dnn: dnn, visitor: ue.visitor, rules: rules}
+	s := &vsmfSession{v: v, supi: ue.supi, psi: psi, key: key, dnn: req.Dnn, target: target, iwk: req.Target.EPSInterworking, rules: rules}
 	ue.sessions[psi] = s
 
 	return s
 }
 
-func (v *VSMF) ueLocked(supi etsi.SUPI, visitor SessionVisitor) *vsmfUE {
+func (v *VSMF) ueLocked(supi etsi.SUPI, target HPLMNTarget) *vsmfUE {
 	ue := v.ues[supi.IMSI()]
 	if ue == nil {
 		ue = &vsmfUE{supi: supi, data: map[smKey]*smData{}, sessions: map[uint8]*vsmfSession{}}
 		v.ues[supi.IMSI()] = ue
 	}
 
-	ue.visitor = visitor
+	ue.target = target
 
 	return ue
 }
@@ -308,61 +309,17 @@ func (v *VSMF) dropIfUnused(imsi string) {
 	}
 }
 
-func (v *VSMF) checkLocal(ctx context.Context, imsi string, snssai models.Snssai, dnn string) error {
-	sm, err := v.local.SessionManagement(ctx, imsi)
-	if err != nil {
-		return newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("local subscription of the visitor: %w", err))
-	}
-
-	if !sm.Visitor {
-		return newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%s is not a visitor", imsi))
-	}
-
-	c, ok := sm.ForDNN(snssai, dnn)
-
-	switch {
-	case ok && !c.IMS:
-		return nil
-	case ok || !sm.Subscribes(snssai):
-		return newSessionError(fgs.GSMCauseMissingOrUnknownDNN, fmt.Errorf("%w: %q", ErrSessionNotLocalDN, dnn))
-	default:
-		return newSessionError(fgs.GSMCauseMissingOrUnknownDNNInASlice, fmt.Errorf("%w: %q on sst=%d sd=%q", ErrSessionNotLocalDN, dnn, snssai.Sst, snssai.Sd))
-	}
-}
-
-func vsmfLocalBreakout(sel *wire.SmfSelectionSubscriptionData, home models.Snssai, dnn string) error {
-	if sel == nil {
-		return newSessionError(fgs.GSMCauseRequestedServiceOptionNotSubscribed, fmt.Errorf("%w: no SMF selection subscription data for the visitor", ErrSessionHomeRouted))
-	}
-
-	info, ok := sel.SnssaiInfo(wire.SnssaiFromModel(home))
-	if !ok {
-		return newSessionError(fgs.GSMCauseRequestedServiceOptionNotSubscribed, fmt.Errorf("%w: S-NSSAI %s", ErrSessionNotSubscribed, wire.SnssaiFromModel(home)))
-	}
-
-	d, ok := info.Dnn(dnn)
-
-	switch {
-	case !ok || d.DnnBarred:
-		return newSessionError(fgs.GSMCauseRequestedServiceOptionNotSubscribed, fmt.Errorf("%w: DNN %q", ErrSessionNotSubscribed, dnn))
-	case !d.LboRoamingAllowed:
-		return newSessionError(fgs.GSMCauseRequestedServiceOptionNotSubscribed, fmt.Errorf("%w: DNN %q", ErrSessionHomeRouted, dnn))
-	default:
-		return nil
-	}
-}
-
 var vsmfPDUSessionTypes = map[wire.PduSessionType]fgs.PDUSessionType{
 	wire.PduSessionIPv4:   fgs.PDUSessionTypeIPv4,
 	wire.PduSessionIPv6:   fgs.PDUSessionTypeIPv6,
 	wire.PduSessionIPv4v6: fgs.PDUSessionTypeIPv4v6,
 }
 
-func vsmfRules(cfg wire.DnnConfiguration, home models.Snssai) (*models.Ambr, smf.HomeSessionRules, error) {
-	rules := smf.HomeSessionRules{HomeSnssai: home}
+func vsmfRules(cfg wire.DnnConfiguration, home models.Snssai) (smf.HPLMNRules, error) {
+	rules := smf.HPLMNRules{HPLMNSnssai: &home}
 
 	if !vsmfSSCMode1(cfg.SscModes) {
-		return nil, rules, newSessionError(fgs.GSMCauseNotSupportedSSCMode, ErrSessionSSCMode)
+		return rules, newSessionError(fgs.GSMCauseNotSupportedSSCMode, ErrSessionSSCMode)
 	}
 
 	if cfg.PduSessionTypes != nil {
@@ -375,27 +332,43 @@ func vsmfRules(cfg wire.DnnConfiguration, home models.Snssai) (*models.Ambr, smf
 		}
 
 		if len(rules.PDUSessionTypes) == 0 {
-			return nil, rules, newSessionError(fgs.GSMCauseUnknownPDUSessionType, ErrSessionNotIP)
+			return rules, newSessionError(fgs.GSMCauseUnknownPDUSessionType, ErrSessionNotIP)
 		}
 	}
 
 	if cfg.SessionAmbr == nil {
-		return nil, rules, nil
+		return rules, nil
 	}
 
 	ambr, err := cfg.SessionAmbr.Model()
 	if err != nil {
-		return nil, rules, newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%w: Session-AMBR: %w", ErrSessionHomeData, err))
+		return rules, newSessionError(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("%w: Session-AMBR: %w", ErrSessionHPLMNData, err))
 	}
 
-	return &ambr, rules, nil
+	rules.SessionAMBR = &ambr
+
+	return rules, nil
 }
 
 func vsmfSSCMode1(m *wire.SscModes) bool {
 	return m == nil || m.DefaultSscMode == wire.SscMode1 || slices.Contains(m.AllowedSscModes, wire.SscMode1)
 }
 
-func (s *vsmfSession) Rules() smf.HomeSessionRules {
+func (s *vsmfSession) Rules() smf.HPLMNRules {
+	v := s.v
+
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	if ue := v.ues[s.supi.IMSI()]; ue != nil {
+		if d := ue.data[s.key]; d != nil {
+			rules := d.rules
+			rules.Withdrawn = !d.subscribed
+
+			return rules
+		}
+	}
+
 	return s.rules
 }
 

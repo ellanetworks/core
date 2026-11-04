@@ -979,7 +979,7 @@ func TestUsage_RoamingFilter(t *testing.T) {
 	}
 
 	days := db.NewDayRange(time.Now().AddDate(0, 0, -1), time.Now().Add(time.Hour))
-	home, roamers := false, true
+	own, roamers := false, true
 
 	for _, tc := range []struct {
 		name     string
@@ -989,7 +989,7 @@ func TestUsage_RoamingFilter(t *testing.T) {
 		roamerAt int
 	}{
 		{"all", nil, 3033, []string{"208930000000001", "001010000000001", "001010000000002"}, 0},
-		{"home", &home, 30, []string{"001010000000001", "001010000000002"}, -1},
+		{"home", &own, 30, []string{"001010000000001", "001010000000002"}, -1},
 		{"roamers", &roamers, 3003, []string{"208930000000001"}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -309,7 +309,7 @@ func (s *SMF) recordSubscriberUsage(ctx context.Context, sc *SMContext, usage []
 			continue
 		}
 
-		if !s.usage.add(usageKey{epochDay: epochDay(usageTime(u.UsageReport)), imsi: imsi, home: sc.roamingHome}, u.UplinkVolume, u.DownlinkVolume) {
+		if !s.usage.add(usageKey{epochDay: epochDay(usageTime(u.UsageReport)), imsi: imsi, home: sc.roamingHPLMN}, u.UplinkVolume, u.DownlinkVolume) {
 			logger.From(ctx, logger.SmfLog).Error("usage bytes lost: usage taken after the final shutdown flush",
 				logger.SEID(sc.seid()), logger.SUPIFromIMSI(imsi), logger.URRID(u.URRID),
 				logger.UplinkVolume(u.UplinkVolume), logger.DownlinkVolume(u.DownlinkVolume))

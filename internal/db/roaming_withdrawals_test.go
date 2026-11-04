@@ -15,10 +15,10 @@ import (
 func TestRoamingWithdrawalsFor(t *testing.T) {
 	peer := "peer"
 	fqdn := "sepp.5gc.mnc093.mcc208.3gppnetwork.org"
-	existing := db.RoamingPartner{ID: "p", PLMNs: plmns("208", "93", "208", "94"), DiameterPeerID: &peer, SEPPFQDN: &fqdn}
-	at := time.Unix(1000, 0)
 
-	if got := db.RoamingWithdrawalsFor(existing, nil, at); len(got) != 1 || got[0] != (db.RoamingWithdrawal{PartnerID: "p", ExpiresAt: 1000}) {
+	existing := db.RoamingPartner{ID: "p", PLMNs: plmns("208", "93", "208", "94"), DiameterPeerID: &peer, SEPPFQDN: &fqdn}
+
+	if got := db.RoamingWithdrawalsFor(existing, nil); len(got) != 1 || got[0] != (db.RoamingWithdrawal{PartnerID: "p"}) {
 		t.Fatalf("delete withdrawals = %+v, want the whole partner", got)
 	}
 
@@ -28,12 +28,12 @@ func TestRoamingWithdrawalsFor(t *testing.T) {
 	updated.SEPPFQDN = nil
 
 	want := []db.RoamingWithdrawal{
-		{PartnerID: "p", Mcc: "208", Mnc: "94", ExpiresAt: 1000},
-		{PartnerID: "p", Type: db.UERegistrationTypeAMF3GPPAccess, ExpiresAt: 1000},
-		{PartnerID: "p", Type: db.UERegistrationTypeMME, ExpiresAt: 1000},
+		{PartnerID: "p", Mcc: "208", Mnc: "94"},
+		{PartnerID: "p", Type: db.UERegistrationTypeAMF3GPPAccess},
+		{PartnerID: "p", Type: db.UERegistrationTypeMME},
 	}
 
-	got := db.RoamingWithdrawalsFor(existing, &updated, at)
+	got := db.RoamingWithdrawalsFor(existing, &updated)
 	if len(got) != len(want) {
 		t.Fatalf("update withdrawals = %+v, want %+v", got, want)
 	}
@@ -44,7 +44,7 @@ func TestRoamingWithdrawalsFor(t *testing.T) {
 		}
 	}
 
-	if got := db.RoamingWithdrawalsFor(existing, &existing, at); len(got) != 0 {
+	if got := db.RoamingWithdrawalsFor(existing, &existing); len(got) != 0 {
 		t.Fatalf("withdrawals of an unchanged partner = %+v, want none", got)
 	}
 }
@@ -81,17 +81,16 @@ func TestWithdrawRoamers(t *testing.T) {
 	f.registerVisitor(t, visitorIMSI)
 
 	ctx := context.Background()
-	live := time.Now().Add(time.Minute).Unix()
 
-	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, Mcc: "208", Mnc: "95", ExpiresAt: live}}); !errors.Is(err, db.ErrRoamingConflict) {
+	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, Mcc: "208", Mnc: "95"}}, time.Minute); !errors.Is(err, db.ErrRoamingConflict) {
 		t.Fatalf("withdraw a PLMN the partner does not hold: %v, want %v", err, db.ErrRoamingConflict)
 	}
 
-	if err := f.db.WithdrawRoamers(ctx, "unknown", nil); !errors.Is(err, db.ErrNotFound) {
+	if err := f.db.WithdrawRoamers(ctx, "unknown", nil, time.Minute); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("withdraw the roamers of an unknown partner: %v, want %v", err, db.ErrNotFound)
 	}
 
-	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, Type: db.UERegistrationTypeMME, ExpiresAt: live}}); err != nil {
+	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, Type: db.UERegistrationTypeMME}}, time.Minute); err != nil {
 		t.Fatalf("WithdrawRoamers: %s", err)
 	}
 
@@ -107,7 +106,7 @@ func TestWithdrawRoamers(t *testing.T) {
 		t.Fatalf("RoamingWithdrawalOf over 5G: %v, want not found", err)
 	}
 
-	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, ExpiresAt: live}}); err != nil {
+	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID}}, time.Minute); err != nil {
 		t.Fatalf("WithdrawRoamers: %s", err)
 	}
 
@@ -140,7 +139,7 @@ func TestWithdrawRoamers(t *testing.T) {
 func TestVisitorRegistrationsOfNode(t *testing.T) {
 	f := newRoamingFixture(t)
 	f.createPartner(t)
-	f.createHomeSubscriber(t, "001010000000001")
+	f.createOwnSubscriber(t, "001010000000001")
 
 	ctx := context.Background()
 

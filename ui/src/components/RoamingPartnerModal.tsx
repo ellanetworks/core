@@ -82,6 +82,14 @@ const when5G = (
     return test((value ?? "").trim());
   };
 
+const in5G = (
+  test: (value: string) => boolean,
+): yup.TestFunction<string | undefined> =>
+  function (value) {
+    if (!this.from?.[1]?.value?.has5G) return true;
+    return test((value ?? "").trim());
+  };
+
 const isPLMN = (p: { mcc?: string; mnc?: string }): p is PLMNID =>
   /^\d{3}$/.test(p.mcc ?? "") && /^\d{2,3}$/.test(p.mnc ?? "");
 
@@ -113,6 +121,14 @@ export const schema = yup.object({
           .default("")
           .matches(/^\d{2,3}$/, "MNC must be 2 or 3 digits")
           .required("MNC is required"),
+        nrfAPIRoot: yup
+          .string()
+          .default("")
+          .test(
+            "uri",
+            "NRF API root must be an http or https URI with no query",
+            in5G((v) => !v || isAPIRoot(v, ["http", "https"])),
+          ),
       }),
     )
     .default([])
@@ -179,14 +195,6 @@ export const schema = yup.object({
       "Trust anchor must be one or more PEM certificates",
       when5G((v) => !v || PEM_CERTIFICATE_RE.test(v)),
     ),
-  nrfAPIRoot: yup
-    .string()
-    .default("")
-    .test(
-      "uri",
-      "NRF API root must be an http or https URI with no query",
-      when5G((v) => !v || isAPIRoot(v, ["http", "https"])),
-    ),
   has4G: yup.boolean().default(false),
   diameterPeerID: yup
     .string()
@@ -200,16 +208,17 @@ type FormValues = yup.InferType<typeof schema>;
 
 const toFormValues = (partner?: RoamingPartner): FormValues => ({
   name: partner?.name ?? "",
-  plmns: partner?.plmns.map(({ mcc, mnc }) => ({ mcc, mnc })) ?? [
-    { mcc: "", mnc: "" },
-  ],
+  plmns: partner?.plmns.map(({ mcc, mnc, nrfAPIRoot }) => ({
+    mcc,
+    mnc,
+    nrfAPIRoot: nrfAPIRoot ?? "",
+  })) ?? [{ mcc: "", mnc: "", nrfAPIRoot: "" }],
   profileName: partner?.profileName ?? "",
   has5G: !!partner?.sepp,
   seppFQDN: partner?.sepp?.fqdn ?? "",
   n32cURI: partner?.sepp?.n32cURI ?? "",
   n32fURI: partner?.sepp?.n32fURI ?? "",
   trustAnchorPEM: partner?.sepp?.trustAnchorPEM ?? "",
-  nrfAPIRoot: partner?.sepp?.nrfAPIRoot ?? "",
   has4G: !!partner?.diameterPeerID,
   diameterPeerID: partner?.diameterPeerID ?? "",
 });
@@ -217,7 +226,11 @@ const toFormValues = (partner?: RoamingPartner): FormValues => ({
 export const toPartnerInput = (values: FormValues): RoamingPartnerInput => {
   const input: RoamingPartnerInput = {
     name: values.name.trim(),
-    plmns: values.plmns.map(({ mcc, mnc }) => ({ mcc, mnc })),
+    plmns: values.plmns.map(({ mcc, mnc, nrfAPIRoot }) =>
+      values.has5G && nrfAPIRoot.trim()
+        ? { mcc, mnc, nrfAPIRoot: nrfAPIRoot.trim() }
+        : { mcc, mnc },
+    ),
     profileName: values.profileName,
   };
   if (values.has5G) {
@@ -227,7 +240,6 @@ export const toPartnerInput = (values: FormValues): RoamingPartnerInput => {
       trustAnchorPEM: values.trustAnchorPEM.trim() + "\n",
     };
     if (values.n32fURI.trim()) sepp.n32fURI = values.n32fURI.trim();
-    if (values.nrfAPIRoot.trim()) sepp.nrfAPIRoot = values.nrfAPIRoot.trim();
     input.sepp = sepp;
   }
   if (values.has4G && values.diameterPeerID) {
@@ -285,16 +297,17 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
     name: "plmns",
   });
 
-  const [has5G, has4G, plmns, seppFQDN] = useWatch({
+  const [has5G, has4G, plmns] = useWatch({
     control: form.control,
-    name: ["has5G", "has4G", "plmns", "seppFQDN"],
+    name: ["has5G", "has4G", "plmns"],
   });
 
-  const nrfPLMN =
-    parseSEPPFQDN((seppFQDN ?? "").trim())?.plmn ?? (plmns ?? []).find(isPLMN);
-  const nrfPlaceholder = nrfPLMN
-    ? defaultNRFAPIRoot(nrfPLMN.mcc, nrfPLMN.mnc)
-    : "https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org";
+  const nrfPlaceholder = (index: number) => {
+    const plmn = plmns?.[index];
+    return plmn && isPLMN(plmn)
+      ? defaultNRFAPIRoot(plmn.mcc, plmn.mnc)
+      : "https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org";
+  };
 
   const validPLMNs = (plmns ?? []).filter(isPLMN);
   const plmnsError = validPLMNs.some((a, i) =>
@@ -359,6 +372,14 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
             label={`MNC ${index + 1}`}
             placeholder="01"
           />
+          {has5G && (
+            <TextControl<FormValues>
+              name={`plmns.${index}.nrfAPIRoot`}
+              label={`NRF API Root ${index + 1}`}
+              placeholder={nrfPlaceholder(index)}
+              helperText="Optional."
+            />
+          )}
           <Tooltip title="Remove PLMN" arrow>
             <Box component="span" sx={{ mt: 3 }}>
               <IconButton
@@ -383,7 +404,7 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
       <Button
         size="small"
         startIcon={<AddIcon />}
-        onClick={() => append({ mcc: "", mnc: "" })}
+        onClick={() => append({ mcc: "", mnc: "", nrfAPIRoot: "" })}
         sx={{ mt: 1, mb: 1 }}
       >
         Add PLMN
@@ -417,12 +438,6 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
           label="Trust Anchor"
           helperText="The partner's CA certificates, in PEM format."
           accept=".pem,.crt,.cer"
-        />
-        <TextControl<FormValues>
-          name="nrfAPIRoot"
-          label="NRF API Root"
-          placeholder={nrfPlaceholder}
-          helperText="Optional."
         />
       </Collapse>
 

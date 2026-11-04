@@ -186,7 +186,7 @@ func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subscri
 		AllowedNssai:    am.SubscribedSNSSAIs,
 		Ambr:            &ambr,
 		Allow5G:         am.Allow5G,
-		EPSInterworking: am.Allow4G && n26 && !amf.homeRestrictsEPC(supi),
+		EPSInterworking: am.Allow4G && n26 && !amf.hplmnRestrictsEPC(supi),
 	}, nil
 }
 
@@ -211,8 +211,8 @@ func (amf *AMF) ArrivingVisitorProfile(ctx context.Context, supi etsi.SUPI, tran
 	}, nil
 }
 
-func (amf *AMF) homeRestrictsEPC(supi etsi.SUPI) bool {
-	v, ok := amf.VisitorHome(supi.IMSI())
+func (amf *AMF) hplmnRestrictsEPC(supi etsi.SUPI) bool {
+	v, ok := amf.VisitorHPLMN(supi.IMSI())
 	if !ok {
 		return false
 	}
@@ -228,16 +228,16 @@ func (amf *AMF) accessAndMobility(ctx context.Context, supi etsi.SUPI) (*udm.Acc
 		return am, err
 	}
 
-	v, ok := amf.VisitorHome(supi.IMSI())
+	v, ok := amf.VisitorHPLMN(supi.IMSI())
 	if !ok || v.Subscription == nil {
-		return nil, fmt.Errorf("%w: %s", roaming.ErrNoHomeSubscription, supi)
+		return nil, fmt.Errorf("%w: %s", roaming.ErrNoHPLMNSubscription, supi)
 	}
 
-	return roaming.MergeAccessAndMobility5G(am, v.AccessAndMobility())
+	return roaming.MergeAccessAndMobility5G(am, v.AccessAndMobility(), HPLMNSnssai)
 }
 
-func (amf *AMF) IsHomeSubscriber(ctx context.Context, supi etsi.SUPI) (bool, error) {
-	return amf.subscriptions().IsHomeSubscriber(ctx, supi.IMSI())
+func (amf *AMF) IsOwnSubscriber(ctx context.Context, supi etsi.SUPI) (bool, error) {
+	return amf.subscriptions().IsOwnSubscriber(ctx, supi.IMSI())
 }
 
 func (amf *AMF) N26Allowed(ctx context.Context, supi etsi.SUPI) (bool, error) {
@@ -245,11 +245,11 @@ func (amf *AMF) N26Allowed(ctx context.Context, supi etsi.SUPI) (bool, error) {
 		return amf.N26.Allowed(ctx, supi.IMSI())
 	}
 
-	return amf.IsHomeSubscriber(ctx, supi)
+	return amf.IsOwnSubscriber(ctx, supi)
 }
 
 func (amf *AMF) SubscribedUEAMBR(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {
-	if _, ok := amf.VisitorHome(supi.IMSI()); ok {
+	if _, ok := amf.VisitorHPLMN(supi.IMSI()); ok {
 		am, err := amf.accessAndMobility(ctx, supi)
 		if err != nil {
 			return nil, err
@@ -357,17 +357,17 @@ func (amf *AMF) SecurityAlgorithms(ctx context.Context) ([]nas.IntegrityAlgorith
 }
 
 func (amf *AMF) visitorDefaultDNN(supi etsi.SUPI, sm *udm.SessionManagementSubscription, snssai models.Snssai) (string, error) {
-	v, ok := amf.VisitorHome(supi.IMSI())
+	v, ok := amf.VisitorHPLMN(supi.IMSI())
 	if !ok || v.Subscription == nil {
-		return "", fmt.Errorf("%w: %s", roaming.ErrNoHomeSubscription, supi)
+		return "", fmt.Errorf("%w: %s", roaming.ErrNoHPLMNSubscription, supi)
 	}
 
-	dnn, ok := roaming.DefaultDNN5G(v.SmfSelection(), snssai)
+	dnn, ok := roaming.DefaultDNN5G(v.SmfSelection(), HPLMNSnssai(snssai))
 	if !ok {
 		return "", fmt.Errorf("%w: no default DNN on sst=%d sd=%q", roaming.ErrDNNNotSubscribed5G, snssai.Sst, snssai.Sd)
 	}
 
-	if err := roaming.BreakoutDNN5G(v.SmfSelection(), sm, snssai, dnn); err != nil {
+	if err := roaming.BreakoutDNN5G(v.SmfSelection(), sm, snssai, HPLMNSnssai(snssai), dnn); err != nil {
 		return "", err
 	}
 
@@ -379,7 +379,7 @@ func (amf *AMF) VisitorDNN(ctx context.Context, supi etsi.SUPI, snssai models.Sn
 		return nil
 	}
 
-	v, ok := amf.VisitorHome(supi.IMSI())
+	v, ok := amf.VisitorHPLMN(supi.IMSI())
 	if !ok {
 		return nil
 	}
@@ -389,5 +389,5 @@ func (amf *AMF) VisitorDNN(ctx context.Context, supi etsi.SUPI, snssai models.Sn
 		return err
 	}
 
-	return roaming.BreakoutDNN5G(v.SmfSelection(), sm, snssai, dnn)
+	return roaming.BreakoutDNN5G(v.SmfSelection(), sm, snssai, HPLMNSnssai(snssai), dnn)
 }

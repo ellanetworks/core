@@ -28,7 +28,7 @@ const (
 	roamerPartnerID  = "partner-1"
 	roamerProfileID  = "partner-profile"
 	roamerHSSHost    = "hss.epc.mnc070.mcc999.3gppnetwork.org"
-	roamerHomeRealm  = "epc.mnc070.mcc999.3gppnetwork.org"
+	roamerHPLMNRealm = "epc.mnc070.mcc999.3gppnetwork.org"
 	roamerIMEISV     = "3506382143658701"
 	roamerTACAndSNR  = "35063821436587"
 	roamerSoftwareSV = "01"
@@ -37,6 +37,29 @@ const (
 type roamingPartners struct {
 	partners []db.RoamingPartner
 	count    int
+
+	mu      sync.Mutex
+	msisdns map[string][]string
+}
+
+func (r *roamingPartners) SetVisitorMSISDN(_ context.Context, imsi, msisdn string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.msisdns == nil {
+		r.msisdns = map[string][]string{}
+	}
+
+	r.msisdns[imsi] = append(r.msisdns[imsi], msisdn)
+
+	return nil
+}
+
+func (r *roamingPartners) storedMSISDNs(imsi string) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]string(nil), r.msisdns[imsi]...)
 }
 
 func (r *roamingPartners) ListRoamingPartners(context.Context) ([]db.RoamingPartner, error) {
@@ -90,17 +113,17 @@ func (s *visitorBearerStore) visitor(imsi string) (string, bool) {
 type visitorRegistrar struct {
 	store *visitorBearerStore
 
-	mu       sync.Mutex
-	homes    []string
-	purged   []string
-	withdraw *ueregistration.Withdrawal
+	mu               sync.Mutex
+	ownRegistrations []string
+	purged           []string
+	withdraw         *ueregistration.Withdrawal
 }
 
 func (r *visitorRegistrar) Register(_ context.Context, imsi string) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.homes = append(r.homes, imsi)
+	r.ownRegistrations = append(r.ownRegistrations, imsi)
 
 	return 1, nil
 }
@@ -166,7 +189,7 @@ func newRoamingMME(t *testing.T) *roamingMME {
 	sessions := &fakeSessionManager{}
 	hss := fakehss.New(
 		diameter.Identity{OriginHost: "mmec01.mmegi8001.mme.epc.mnc001.mcc001.3gppnetwork.org", OriginRealm: "epc.mnc001.mcc001.3gppnetwork.org"},
-		diameter.Identity{OriginHost: roamerHSSHost, OriginRealm: roamerHomeRealm},
+		diameter.Identity{OriginHost: roamerHSSHost, OriginRealm: roamerHPLMNRealm},
 	)
 	hss.Provision(roamerIMSI, fakehss.Subscriber{
 		K:            "465b5ce8b199b49faa5f0a2ee238a6bc",
@@ -179,7 +202,7 @@ func newRoamingMME(t *testing.T) *roamingMME {
 	m.NAS = &nasHandler{m: m}
 	partners := &roamingPartners{partners: []db.RoamingPartner{roamerPartner()}}
 	m.Roaming = partners
-	m.HomeNetwork = roaming.NewS6a(func() roaming.DiameterNode { return hss })
+	m.HPLMN = roaming.NewS6a(func() roaming.DiameterNode { return hss })
 	m.IMSVoice = fakeIMSVoice(true)
 	m.SMS = &fakeSMSHandler{allowed: true}
 
@@ -255,7 +278,7 @@ func (f *roamingMME) handle(conn *mme.UeConn, pdu []byte) {
 
 func (f *roamingMME) settle(conn *mme.UeConn) {
 	conn.SettleForTest()
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 }
 
 func (f *roamingMME) startAttach(t *testing.T, imsi string, attachType eps.AttachType, apn string) *roamerAttach {
@@ -409,15 +432,15 @@ func TestVisitorAttachBreaksOutLocally(t *testing.T) {
 		t.Fatalf("visitor row = %q, %v, want one for %s", partner, ok, roamerPartnerID)
 	}
 
-	if len(f.reg.homes) != 0 {
-		t.Fatalf("a roamer was registered as a home subscriber: %v", f.reg.homes)
+	if len(f.reg.ownRegistrations) != 0 {
+		t.Fatalf("a roamer was registered as a home subscriber: %v", f.reg.ownRegistrations)
 	}
 
 	if a.ue.FiveGSInterworkingAllowed() {
 		t.Fatal("a roamer was offered 5GS interworking")
 	}
 
-	if sub, ok := f.m.HomeSubscription(roamerIMSI); !ok || sub.APNConfigurationProfile == nil {
+	if sub, ok := f.m.HPLMNSubscription(roamerIMSI); !ok || sub.APNConfigurationProfile == nil {
 		t.Fatal("the home subscription is not cached on the UE context")
 	}
 
@@ -426,7 +449,7 @@ func TestVisitorAttachBreaksOutLocally(t *testing.T) {
 		t.Fatalf("AIRs = %d, want 1", len(airs))
 	}
 
-	if env := tgpp.ParseEnvelope(airs[0]); env.DestinationRealm != roamerHomeRealm || env.DestinationHost != "" {
+	if env := tgpp.ParseEnvelope(airs[0]); env.DestinationRealm != roamerHPLMNRealm || env.DestinationHost != "" {
 		t.Fatalf("AIR envelope %+v, want the home realm and no Destination-Host", env)
 	}
 
@@ -435,7 +458,7 @@ func TestVisitorAttachBreaksOutLocally(t *testing.T) {
 		t.Fatalf("ULRs = %d, want 1", len(ulrs))
 	}
 
-	if env := tgpp.ParseEnvelope(ulrs[0]); env.DestinationRealm != roamerHomeRealm || env.DestinationHost != roamerHSSHost {
+	if env := tgpp.ParseEnvelope(ulrs[0]); env.DestinationRealm != roamerHPLMNRealm || env.DestinationHost != roamerHSSHost {
 		t.Fatalf("ULR envelope %+v, want the HSS learned from the AIA", env)
 	}
 
@@ -496,11 +519,19 @@ func TestVisitorDefaultPDNRules(t *testing.T) {
 		}, want: eps.ESMCauseServiceOptionNotSubscribed},
 		{name: "static PGW", modify: func(s *s6a.SubscriptionData) {
 			c := &s.APNConfigurationProfile.Configurations[0]
-			c.PDNGateway = &s6a.MIP6AgentInfo{HomeAgentHost: "pgw.epc.mnc070.mcc999.3gppnetwork.org", HomeAgentRealm: roamerHomeRealm}
+			c.PDNGateway = &s6a.MIP6AgentInfo{HomeAgentHost: "pgw.epc.mnc070.mcc999.3gppnetwork.org", HomeAgentRealm: roamerHPLMNRealm}
 		}, want: eps.ESMCauseServiceOptionNotSubscribed},
 		{name: "home APN that is not a local data network", modify: func(s *s6a.SubscriptionData) {
 			s.APNConfigurationProfile.Configurations[0].ServiceSelection = "corporate"
 		}, want: eps.ESMCauseMissingOrUnknownAPN},
+		{name: "all packet oriented services barred", modify: func(s *s6a.SubscriptionData) {
+			s.SubscriberStatus = new(s6a.SubscriberStatusOperatorDeterminedBarring)
+			s.OperatorDeterminedBarring = new(s6a.ODBAllPacketOrientedServices)
+		}, want: eps.ESMCauseOperatorDeterminedBarring},
+		{name: "roamer access to VPLMN-AP barred", modify: func(s *s6a.SubscriptionData) {
+			s.SubscriberStatus = new(s6a.SubscriberStatusOperatorDeterminedBarring)
+			s.OperatorDeterminedBarring = new(s6a.ODBRoamerAccessVPLMNAP)
+		}, want: eps.ESMCauseOperatorDeterminedBarring},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newRoamingMME(t)
@@ -531,6 +562,25 @@ func TestVisitorDefaultPDNRules(t *testing.T) {
 			if f.sessions.lastRequest.IMSI != "" {
 				t.Fatal("a session was requested for an APN that cannot be broken out")
 			}
+		})
+	}
+}
+
+func TestVisitorAttachIgnoresBarringThatSparesLocalBreakout(t *testing.T) {
+	for name, odb := range map[string]s6a.OperatorDeterminedBarring{
+		"roamer access to HPLMN-AP barred": s6a.ODBRoamerAccessHPLMNAP,
+		"outgoing calls barred":            s6a.ODBAllOutgoingCalls,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newRoamingMME(t)
+			f.hss.RewriteULA(func(u s6a.UpdateLocation) s6a.UpdateLocation {
+				u.Subscription.SubscriberStatus = new(s6a.SubscriberStatusOperatorDeterminedBarring)
+				u.Subscription.OperatorDeterminedBarring = &odb
+
+				return u
+			})
+
+			f.attach(t, eps.AttachTypeEPS, "").accept(t)
 		})
 	}
 }
@@ -591,12 +641,6 @@ func TestVisitorUpdateLocationResultMapping(t *testing.T) {
 			u.Subscription = nil
 			return u
 		}, want: eps.EMMCauseNetworkFailure},
-		{name: "operator determined barring", modify: func(u s6a.UpdateLocation) s6a.UpdateLocation {
-			u.Subscription.SubscriberStatus = new(s6a.SubscriberStatusOperatorDeterminedBarring)
-			u.Subscription.OperatorDeterminedBarring = new(s6a.ODBAllPacketOrientedServices)
-
-			return u
-		}, want: eps.EMMCauseNoSuitableCellsInTrackingArea},
 		{name: "roaming restricted due to unsupported feature", modify: func(u s6a.UpdateLocation) s6a.UpdateLocation {
 			u.Subscription.RoamingRestrictedDueToUnsupportedFeature = true
 			return u
@@ -780,7 +824,7 @@ func TestVisitorAlreadyHoldingARowIsNotCountedAgain(t *testing.T) {
 	a.accept(t)
 }
 
-func TestHomeSubscriberAttachIgnoresRoaming(t *testing.T) {
+func TestOwnSubscriberAttachIgnoresRoaming(t *testing.T) {
 	f := newRoamingMME(t)
 	a := f.startAttach(t, testSubscriber.IMSI, eps.AttachTypeEPS, "")
 
@@ -803,7 +847,7 @@ func TestVisitorRemovalPurgesTheRegistration(t *testing.T) {
 	a.accept(t)
 
 	f.m.RemoveUe(context.Background(), a.ue)
-	f.m.SettleHomeNetworkForTest()
+	f.m.SettleHPLMNForTest()
 
 	f.reg.mu.Lock()
 	defer f.reg.mu.Unlock()

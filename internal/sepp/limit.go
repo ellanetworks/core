@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	n32cRateRetryAfterS = 60
-	n32fRateRetryAfterS = 1
+	n32cRateRetryAfterS  = 60
+	n32fRateRetryAfterS  = 1
+	otherNodeRetryAfterS = 2
 )
 
 type rateLimiter struct {

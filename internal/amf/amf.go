@@ -74,10 +74,11 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8, target *smf.HPLMNTarget) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
 	ReleaseSmContext(ctx context.Context, smContextRef string, release models.SessionReleaseRequest) error
+	ReleaseBarredSession(ctx context.Context, smContextRef string) error
 	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
 	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
@@ -86,8 +87,8 @@ type SmfSbi interface {
 	UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoNotify(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
-	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, []uint8, error)
-	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []uint8, error)
+	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, target *smf.HPLMNTarget) (string, []byte, []uint8, error)
+	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, target *smf.HPLMNTarget) (string, []uint8, error)
 	HandoverAdmittedFlowEBIs(smContextRef string) []uint8
 	ReleaseInactiveEPSBearers(ctx context.Context, smContextRef string, ebis []uint8)
 	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
@@ -183,12 +184,13 @@ type AMF struct {
 	SMS                      smsf.Handler
 	IMSVoice                 IMSVoice
 	EPS                      interworking.EPSPeer
-	HomeNetwork              HomeNetwork
+	HPLMN                    HPLMNClient
 	Roaming                  RoamingStore
 	N32                      N32Gate
 	N26                      roaming.N26Policy
 
-	home serial.KeyedQueue
+	home        serial.KeyedQueue
+	crossCancel roaming.CrossCancelGuard
 
 	handoversToEPS interworking.HandoverGroup
 	smsDecisionMu  sync.RWMutex
@@ -628,12 +630,12 @@ func (amf *AMF) CountRadios() int {
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
-	home, roamers := amf.CountRegisteredSubscribersByRoaming()
+	own, roamers := amf.CountRegisteredSubscribersByRoaming()
 
-	return home + roamers
+	return own + roamers
 }
 
-func (amf *AMF) CountRegisteredSubscribersByRoaming() (home, roamers int) {
+func (amf *AMF) CountRegisteredSubscribersByRoaming() (own, roamers int) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
@@ -645,11 +647,11 @@ func (amf *AMF) CountRegisteredSubscribersByRoaming() (home, roamers int) {
 		if ue.IsVisitor() {
 			roamers++
 		} else {
-			home++
+			own++
 		}
 	}
 
-	return home, roamers
+	return own, roamers
 }
 
 func (amf *AMF) DisconnectRadioOnConnLoss(ran *Radio) {

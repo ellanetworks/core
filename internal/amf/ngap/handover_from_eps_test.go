@@ -521,7 +521,7 @@ func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
 	}
 }
 
-func TestForwardRelocationRefusesAUEThatIsNotAHomeSubscriber(t *testing.T) {
+func TestForwardRelocationRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
 	failure := errors.New("database unavailable")
 
 	for _, tc := range []struct {

@@ -16,7 +16,7 @@ type Visitor struct {
 	PartnerID    string
 	PartnerName  string
 	HomePLMN     tgpp.PLMN
-	Home         Home
+	Peer         HPLMNPeer
 	Subscription *s6a.SubscriptionData
 	Registered   bool
 	Confirmed    bool
@@ -34,6 +34,6 @@ func NewVisitor(partner db.RoamingPartner, plmn db.RoamingPLMN) (Visitor, error)
 		PartnerName: partner.Name,
 		Since:       time.Now(),
 		HomePLMN:    plmnOf(plmn),
-		Home:        Home{Realm: realm, Partner: partner.Name},
+		Peer:        HPLMNPeer{Realm: realm, Partner: partner.Name},
 	}, nil
 }

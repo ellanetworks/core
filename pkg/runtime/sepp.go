@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -22,6 +23,8 @@ func newSEPP(dbInstance *db.Database, n32 config.N32Interface) *sepp.Manager {
 		Identity:  seppIdentitySource(dbInstance),
 		Operator:  seppOperatorSource(dbInstance),
 		Provision: seppProvision(dbInstance),
+		Renew:     seppRenew(dbInstance),
+		Cluster:   seppClusterSource(dbInstance),
 		N32:       n32,
 	}, logger.SeppLog)
 
@@ -58,11 +61,17 @@ func seppPartnersSource(dbInstance *db.Database) sepp.PartnersSource {
 				N32cURI:        deref(p.SEPPN32cURI),
 				N32fURI:        deref(p.SEPPN32fURI),
 				TrustAnchorPEM: deref(p.SEPPTrustAnchorPEM),
-				NRFAPIRoot:     deref(p.NRFAPIRoot),
 			}
 
 			for _, plmn := range p.PLMNs {
 				cfg.PLMNs = append(cfg.PLMNs, wire.PlmnID{Mcc: plmn.Mcc, Mnc: plmn.Mnc})
+			}
+
+			if len(p.NRFAPIRoots) > 0 {
+				cfg.NRFAPIRoots = make(map[wire.PlmnID]string, len(p.NRFAPIRoots))
+				for _, r := range p.NRFAPIRoots {
+					cfg.NRFAPIRoots[wire.PlmnID{Mcc: r.Mcc, Mnc: r.Mnc}] = r.APIRoot
+				}
 			}
 
 			out = append(out, cfg)
@@ -96,7 +105,7 @@ func seppIdentitySource(dbInstance *db.Database) sepp.IdentitySource {
 			return nil, err
 		}
 
-		return &sepp.IdentityConfig{SEPPID: identity.SEPPID, FQDN: identity.FQDN, CertChainPEM: identity.CertChainPEM, KeyPEM: identity.KeyPEM}, nil
+		return &sepp.IdentityConfig{SEPPID: identity.SEPPID, FQDN: identity.FQDN, CertChainPEM: identity.CertChainPEM, KeyPEM: identity.KeyPEM, Generated: identity.Source == db.SEPPIdentityGenerated}, nil
 	}
 }
 
@@ -121,6 +130,47 @@ func seppProvision(dbInstance *db.Database) func(ctx context.Context) error {
 		}
 
 		return nil
+	}
+}
+
+func seppRenew(dbInstance *db.Database) func(ctx context.Context, seppID int) error {
+	return func(ctx context.Context, seppID int) error {
+		identity, err := dbInstance.GetSEPPIdentity(ctx, seppID)
+		if err != nil {
+			return err
+		}
+
+		if identity.Source != db.SEPPIdentityGenerated {
+			return errors.New("the SEPP certificate is imported: only the operator can replace it")
+		}
+
+		_, err = dbInstance.RenewGeneratedSEPPIdentity(ctx, seppID, identity.CertChainPEM)
+
+		return err
+	}
+}
+
+func seppClusterSource(dbInstance *db.Database) sepp.ClusterSource {
+	return func(ctx context.Context) ([]int, error) {
+		members, err := dbInstance.ListClusterMembers(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		identities, err := dbInstance.ListSEPPIdentities(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		ids := make([]int, 0, len(members))
+
+		for _, member := range members {
+			if slices.ContainsFunc(identities, func(i db.SEPPIdentity) bool { return i.SEPPID == member.AMFPointer }) {
+				ids = append(ids, member.AMFPointer)
+			}
+		}
+
+		return ids, nil
 	}
 }
 

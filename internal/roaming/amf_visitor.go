@@ -23,18 +23,19 @@ var (
 )
 
 type Visitor5G struct {
-	PartnerID    string
-	PartnerName  string
-	Home         HomeTarget
-	ConfirmURI   string
-	Confirmed    bool
-	Registered   bool
-	Guami        *wire.Guami
-	Subscription *wire.SubscriptionDataSets
-	SDM          *SDMSubscription
-	SoR          *SoR
-	Since        time.Time
-	LCSPrivacy   *LCSPrivacy
+	PartnerID      string
+	PartnerName    string
+	HPLMN          HPLMNTarget
+	ConfirmURI     string
+	Confirmed      bool
+	Registered     bool
+	Guami          *wire.Guami
+	Subscription   *wire.SubscriptionDataSets
+	SDM            *SDMSubscription
+	SoR            *SoR
+	Since          time.Time
+	Reregister     bool
+	ReregisterSent bool
 }
 
 func NewVisitor5G(partner db.RoamingPartner, plmn db.RoamingPLMN, serving models.PlmnID, routingIndicator string) Visitor5G {
@@ -42,7 +43,7 @@ func NewVisitor5G(partner db.RoamingPartner, plmn db.RoamingPLMN, serving models
 		PartnerID:   partner.ID,
 		PartnerName: partner.Name,
 		Since:       time.Now(),
-		Home: HomeTarget{
+		HPLMN: HPLMNTarget{
 			PartnerID:        partner.ID,
 			PLMN:             wire.PlmnID{Mcc: plmn.Mcc, Mnc: plmn.Mnc},
 			Serving:          wire.PlmnIDFromModel(serving),
@@ -68,10 +69,10 @@ func (v Visitor5G) SmfSelection() *wire.SmfSelectionSubscriptionData {
 }
 
 func (v Visitor5G) HomePLMN() models.PlmnID {
-	return v.Home.PLMN.Model()
+	return v.HPLMN.PLMN.Model()
 }
 
-func MergeAccessAndMobility5G(local *udm.AccessAndMobilitySubscription, home *wire.AccessAndMobilitySubscriptionData) (*udm.AccessAndMobilitySubscription, error) {
+func MergeAccessAndMobility5G(local *udm.AccessAndMobilitySubscription, home *wire.AccessAndMobilitySubscriptionData, toHPLMN func(models.Snssai) models.Snssai) (*udm.AccessAndMobilitySubscription, error) {
 	out := *local
 
 	if home == nil {
@@ -91,19 +92,19 @@ func MergeAccessAndMobility5G(local *udm.AccessAndMobilitySubscription, home *wi
 		subscribed := slices.Concat(home.Nssai.DefaultSingleNssais, home.Nssai.SingleNssais)
 
 		out.SubscribedSNSSAIs = slices.DeleteFunc(slices.Clone(local.SubscribedSNSSAIs), func(s models.Snssai) bool {
-			return !slices.ContainsFunc(subscribed, func(h wire.Snssai) bool { return h.Equal(wire.SnssaiFromModel(s)) })
+			return !slices.ContainsFunc(subscribed, func(h wire.Snssai) bool { return h.Equal(wire.SnssaiFromModel(toHPLMN(s))) })
 		})
 	}
 
 	return &out, nil
 }
 
-func DefaultDNN5G(home *wire.SmfSelectionSubscriptionData, snssai models.Snssai) (string, bool) {
+func DefaultDNN5G(home *wire.SmfSelectionSubscriptionData, hplmn models.Snssai) (string, bool) {
 	if home == nil {
 		return "", false
 	}
 
-	info, ok := home.SnssaiInfo(wire.SnssaiFromModel(snssai))
+	info, ok := home.SnssaiInfo(wire.SnssaiFromModel(hplmn))
 	if !ok {
 		return "", false
 	}
@@ -116,14 +117,14 @@ func DefaultDNN5G(home *wire.SmfSelectionSubscriptionData, snssai models.Snssai)
 	return strings.ToLower(d.Dnn), true
 }
 
-func BreakoutDNN5G(home *wire.SmfSelectionSubscriptionData, local *udm.SessionManagementSubscription, snssai models.Snssai, dnn string) error {
+func BreakoutDNN5G(home *wire.SmfSelectionSubscriptionData, local *udm.SessionManagementSubscription, snssai, hplmn models.Snssai, dnn string) error {
 	if home == nil {
 		return ErrDNNNotSubscribed5G
 	}
 
-	info, ok := home.SnssaiInfo(wire.SnssaiFromModel(snssai))
+	info, ok := home.SnssaiInfo(wire.SnssaiFromModel(hplmn))
 	if !ok {
-		return fmt.Errorf("%w: S-NSSAI %s", ErrDNNNotSubscribed5G, wire.SnssaiFromModel(snssai))
+		return fmt.Errorf("%w: S-NSSAI %s", ErrDNNNotSubscribed5G, wire.SnssaiFromModel(hplmn))
 	}
 
 	d, ok := info.Dnn(dnn)
@@ -141,6 +142,21 @@ func BreakoutDNN5G(home *wire.SmfSelectionSubscriptionData, local *udm.SessionMa
 	}
 
 	return nil
+}
+
+func LocalBreakoutAllowed5G(home *wire.SmfSelectionSubscriptionData, hplmn models.Snssai, dnn string) bool {
+	if home == nil {
+		return false
+	}
+
+	info, ok := home.SnssaiInfo(wire.SnssaiFromModel(hplmn))
+	if !ok {
+		return false
+	}
+
+	d, ok := info.Dnn(dnn)
+
+	return ok && !d.DnnBarred && d.LboRoamingAllowed
 }
 
 var ErrNoVisitorContext = errors.New("roaming: no visitor context for the callback")

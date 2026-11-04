@@ -6,6 +6,7 @@ package sepp
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -122,7 +123,7 @@ func TestOtherSEPPsOfThePartner(t *testing.T) {
 	}
 
 	cfg := p.partnerConfig()
-	cfg.NRFAPIRoot = "http://nrf2.5gc.mnc001.mcc001.3gppnetwork.org"
+	cfg.NRFAPIRoots = map[wire.PlmnID]string{cfg.PLMNs[0]: "http://nrf2.5gc.mnc001.mcc001.3gppnetwork.org"}
 	x.setPartners(cfg)
 
 	if st := x.waitState("p", StateEstablished); len(st.OtherPeers) != 0 {
@@ -177,5 +178,41 @@ func TestRedirectedSEPPIsAcceptedInbound(t *testing.T) {
 
 	if st := x.state("p"); st.State != StateTerminated && st.State != StateEstablishing && st.State != StateEstablished {
 		t.Fatalf("after the redirect target's teardown: %+v", st)
+	}
+}
+
+func TestHPLMNNRFIsPerPLMN(t *testing.T) {
+	other := wire.PlmnID{Mcc: "001", Mnc: "02"}
+	cfg := PartnerConfig{
+		ID: "p", Name: "p", PLMNs: []wire.PlmnID{yPLMN, other}, FQDN: yFQDN, N32cURI: "https://" + yFQDN, TrustAnchorPEM: newTestCA(t, "partner").pem(),
+		NRFAPIRoots: map[wire.PlmnID]string{other: "http://nrf.example.org:8080"},
+	}
+
+	p := newPartner(cfg)
+	if !p.usable() {
+		t.Fatalf("partner unusable: %s", p.problem)
+	}
+
+	for home, want := range map[wire.PlmnID]string{yPLMN: "https://nrf.5gc.mnc001.mcc001.3gppnetwork.org", other: "http://nrf.example.org:8080"} {
+		if root, err := p.hplmnNRF(home); err != nil || root.String() != want {
+			t.Errorf("home NRF of %s = %v, %v, want %s", home, root, err, want)
+		}
+	}
+
+	if _, err := p.hplmnNRF(wire.PlmnID{Mcc: "999", Mnc: "99"}); err == nil {
+		t.Error("home NRF of a PLMN of no partner: no error")
+	}
+
+	if err := p.allowsTarget(&url.URL{Scheme: "http", Host: "nrf.example.org:8080"}); err != nil {
+		t.Errorf("target at the overridden NRF: %s", err)
+	}
+
+	cfg.NRFAPIRoots = map[wire.PlmnID]string{{Mcc: "999", Mnc: "99"}: "http://nrf.example.org"}
+	if newPartner(cfg).usable() {
+		t.Error("NRF apiRoot of a PLMN not of the partner accepted")
+	}
+
+	if partnerKey(cfg) == p.key {
+		t.Error("partner key ignores the NRF apiRoots")
 	}
 }

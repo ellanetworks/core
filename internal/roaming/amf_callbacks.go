@@ -18,18 +18,18 @@ import (
 
 const maxAMFCallbackBody = 64 << 10
 
-type AMFHomeEvents interface {
-	HomeDeregistration(ctx context.Context, partnerID, imsi string, data wire.DeregistrationData) error
-	HomeSubscriptionChanged(ctx context.Context, partnerID, imsi string, n wire.ModificationNotification) error
+type AMFHPLMNEvents interface {
+	HPLMNDeregistration(ctx context.Context, partnerID, imsi string, data wire.DeregistrationData) error
+	HPLMNSubscriptionChanged(ctx context.Context, partnerID, imsi string, n wire.ModificationNotification) error
 }
 
 type AMFCallbacks struct {
-	events AMFHomeEvents
+	events AMFHPLMNEvents
 	logger *zap.Logger
 	peer   func(context.Context) (sepp.Peer, bool)
 }
 
-func NewAMFCallbacks(events AMFHomeEvents, logger *zap.Logger) *AMFCallbacks {
+func NewAMFCallbacks(events AMFHPLMNEvents, logger *zap.Logger) *AMFCallbacks {
 	return &AMFCallbacks{events: events, logger: logger, peer: sepp.PeerFrom}
 }
 
@@ -62,7 +62,7 @@ func (c *AMFCallbacks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = c.events.HomeDeregistration(r.Context(), peer.PartnerID, imsi, data)
+		err = c.events.HPLMNDeregistration(r.Context(), peer.PartnerID, imsi, data)
 		c.answer(w, kind, imsi, err)
 	case sepp.CallbackSDMChange:
 		n, err := wire.Decode[wire.ModificationNotification](body)
@@ -71,7 +71,7 @@ func (c *AMFCallbacks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = c.events.HomeSubscriptionChanged(r.Context(), peer.PartnerID, imsi, n)
+		err = c.events.HPLMNSubscriptionChanged(r.Context(), peer.PartnerID, imsi, n)
 		c.answer(w, kind, imsi, err)
 	default:
 		writeAMFProblem(w, wire.NewProblem(http.StatusNotFound, wire.CauseResourceURIStructureNotFound, "not an AMF callback"))

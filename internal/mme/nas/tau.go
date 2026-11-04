@@ -86,7 +86,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	if m.HomeRegistrationDue(ue) {
+	if m.HPLMNRegistrationDue(ue) {
 		registerArrivingVisitor(ctx, m, ue, ueConn, func(ctx context.Context) {
 			acceptTrackingAreaUpdate(ctx, m, ue, ueConn, req, plain, operator)
 		})
