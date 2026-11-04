@@ -115,6 +115,10 @@ func (f *fakeSmf) deactivated() []string {
 func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
 func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
 func (f *fakeSmf) SessionCount() int                     { return 0 }
+func (f *fakeSmf) SessionView(context.Context, string) (smf.SessionView, bool) {
+	return smf.SessionView{}, false
+}
+
 func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
 	return "", nil, nil
 }

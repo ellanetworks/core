@@ -320,6 +320,10 @@ func (u *benchUPF) QueryUsage(_ context.Context, _ uint64, _ models.UsageReportT
 	return nil, nil
 }
 
+func (u *benchUPF) PeekUsage(_ context.Context, _ uint64) ([]models.UsageReport, error) {
+	return nil, nil
+}
+
 func (u *benchUPF) DeleteSession(_ context.Context, _ uint64) ([]models.UsageReport, error) {
 	return nil, nil
 }

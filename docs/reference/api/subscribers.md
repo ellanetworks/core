@@ -166,7 +166,35 @@ None
           "sd": "000001"
         },
         "ambr_uplink": "100 Mbps",
-        "ambr_downlink": "200 Mbps"
+        "ambr_downlink": "200 Mbps",
+        "established_at": "2026-03-16T12:01:44Z",
+        "traffic": {
+          "read_at": "2026-03-16T12:30:11.412Z",
+          "uplink_bytes": 81234567,
+          "downlink_bytes": 1923456789,
+          "uplink_packets": 90211,
+          "downlink_packets": 1402331,
+          "last_packet_at": "2026-03-16T12:30:11.398Z"
+        },
+        "bearers": [
+          {
+            "id": 1,
+            "default": true,
+            "var5qi": 9,
+            "arp": 15,
+            "preemption_capability": "not_preempt",
+            "preemption_vulnerability": "preemptable",
+            "rules": [],
+            "traffic": {
+              "read_at": "2026-03-16T12:30:11.412Z",
+              "uplink_bytes": 81234567,
+              "downlink_bytes": 1923456789,
+              "uplink_packets": 90211,
+              "downlink_packets": 1402331,
+              "last_packet_at": "2026-03-16T12:30:11.398Z"
+            }
+          }
+        ]
       }
     ],
     "ims": {
@@ -243,6 +271,8 @@ None
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |
 | `data_network` | DNN (5G) or APN (4G). |
 | `slice` | S-NSSAI. 5G only. |
+| `established_at` | When the session's user plane was established (RFC 3339). `traffic` counts from this point; a new value means a new session whose counters restarted. |
+| `traffic` | Data the session has carried, read live from the user plane. Includes bearers since released. See [Traffic](#traffic). |
 | `bearers` | The session's QoS flows (5G) or EPS bearers (4G), the default one first. Omitted when the core holds no session context. |
 
 ### Bearers
@@ -258,6 +288,18 @@ None
 | `mbr_uplink`, `mbr_downlink` | Maximum bitrate. Present on GBR QoS flows and bearers. |
 | `gbr_uplink`, `gbr_downlink` | Guaranteed bitrate. Present on GBR QoS flows and bearers. |
 | `rules` | IDs of the PCC rules the QoS flow or bearer carries, such as those of an IMS call. |
+| `traffic` | Data the QoS flow or bearer has carried since it was established. See [Traffic](#traffic). |
+
+### Traffic
+
+Counters are read from the user plane on each request, so polling this endpoint gives live per-subscriber throughput: difference two readings and divide by the difference of their `read_at`. Counters never decrease while the session lives. Reading them has no effect on [subscriber usage](usage.md), which counts the same bytes. `traffic` is omitted when the counters cannot be read exactly.
+
+| Field | Description |
+| ----- | ----------- |
+| `read_at` | When the counters were read (RFC 3339). Use it, not the client's clock, to compute rates. |
+| `uplink_bytes`, `downlink_bytes` | Bytes of the subscriber's IP packets, without tunnel or Ethernet headers. |
+| `uplink_packets`, `downlink_packets` | Packets forwarded. |
+| `last_packet_at` | When the last packet was forwarded (RFC 3339). Absent before the first packet. |
 
 ### IMS
 

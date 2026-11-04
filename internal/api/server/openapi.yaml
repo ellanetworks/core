@@ -4503,6 +4503,12 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
+        established_at:
+          type: string
+          format: date-time
+          description: "When the session's user plane was established. The traffic counters start from zero then; a different value means a new session whose counters restarted."
+        traffic:
+          $ref: "#/components/schemas/Traffic"
         bearers:
           type: array
           description: "EPS bearers (4G) or QoS flows (5G) enforcing the session's QoS, the default one first. Absent when the session has no default QoS yet."
@@ -4551,7 +4557,35 @@ components:
           description: "Identifiers of the PCC rules bound to it."
           items:
             type: string
+        traffic:
+          $ref: "#/components/schemas/Traffic"
       required: [id, default, var5qi, arp, preemption_capability, preemption_vulnerability, rules]
+
+    Traffic:
+      type: object
+      description: "Data carried since the session or bearer was established, read live from the user plane on each request. The counters never decrease while the session lives: a session's counters include the bearers it has since released, and a bearer's start from zero when it is established. Poll and difference two readings, using read_at, to compute a rate. Counts the subscriber's IP packets, without tunnel or Ethernet headers, as subscriber usage does. Absent when the user plane counters cannot be read exactly."
+      properties:
+        read_at:
+          type: string
+          format: date-time
+          description: "When the counters were read."
+        uplink_bytes:
+          type: integer
+          format: int64
+        downlink_bytes:
+          type: integer
+          format: int64
+        uplink_packets:
+          type: integer
+          format: int64
+        downlink_packets:
+          type: integer
+          format: int64
+        last_packet_at:
+          type: string
+          format: date-time
+          description: "When the last packet was forwarded. Absent before the first packet."
+      required: [read_at, uplink_bytes, downlink_bytes, uplink_packets, downlink_packets]
 
     CreateSubscriberParams:
       type: object

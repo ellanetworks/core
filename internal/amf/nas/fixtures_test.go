@@ -419,6 +419,10 @@ func (s *fakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
 
 func (s *fakeSmf) SessionCount() int { return 0 }
 
+func (s *fakeSmf) SessionView(context.Context, string) (smf.SessionView, bool) {
+	return smf.SessionView{}, false
+}
+
 func (s *fakeSmf) ReconcileSession(context.Context, string) error {
 	return nil
 }
