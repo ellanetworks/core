@@ -4,6 +4,7 @@
 package raft
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ const peersFileName = "peers.json"
 func maybeRecoverCluster(
 	raftDir string,
 	cfg *raft.Config,
-	fsm raft.FSM,
+	fsm *FSM,
 	logs raft.LogStore,
 	stable raft.StableStore,
 	snaps raft.SnapshotStore,
@@ -65,6 +66,14 @@ func maybeRecoverCluster(
 
 	if err := raft.RecoverCluster(cfg, fsm, logs, stable, snaps, transport, recoveryConfig); err != nil {
 		return false, fmt.Errorf("recover cluster from peers.json: %w", err)
+	}
+
+	ctx := context.Background()
+
+	if err := durably(ctx, fsm.applier.PlainDB(), func(db sqlExecer) error {
+		return setConfiguration(ctx, db, raft.EncodeConfiguration(recoveryConfig), 1)
+	}); err != nil {
+		return false, fmt.Errorf("record recovered configuration: %w", err)
 	}
 
 	if err := os.Remove(peersPath); err != nil {

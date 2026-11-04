@@ -78,7 +78,7 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 
 		var ssErr error
 
-		snapshots, ssErr = raft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
+		snapshots, ssErr = newDatabaseSnapshotStore(fsm, raftDir)
 		if ssErr != nil {
 			_ = boltStore.Close()
 			return fmt.Errorf("create snapshot store: %w", ssErr)
@@ -97,6 +97,8 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 	}
 
 	addr, transport := raft.NewInmemTransport("")
+
+	cfg.NoSnapshotRestoreOnStart = true
 
 	r, err := raft.NewRaft(cfg, fsm, logCache, boltStore, snapshots, transport)
 	if err != nil {

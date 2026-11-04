@@ -17,6 +17,12 @@ import (
 func buildBaselineSnapshotPayload(t *testing.T) []byte {
 	t.Helper()
 
+	return buildSnapshotPayloadAtVersion(t, baselineVersion)
+}
+
+func buildSnapshotPayloadAtVersion(t *testing.T, version int) []byte {
+	t.Helper()
+
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "snapshot-source.db")
 
@@ -25,10 +31,10 @@ func buildBaselineSnapshotPayload(t *testing.T) []byte {
 		t.Fatalf("open snapshot source: %v", err)
 	}
 
-	if err := runMigrations(ctx, conn, baselineVersion); err != nil {
+	if err := runMigrations(ctx, conn, version); err != nil {
 		_ = conn.Close()
 
-		t.Fatalf("migrate snapshot source to baseline: %v", err)
+		t.Fatalf("migrate snapshot source to %d: %v", version, err)
 	}
 
 	if err := ensureFsmStateTable(ctx, conn); err != nil {

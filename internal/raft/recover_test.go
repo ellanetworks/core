@@ -113,7 +113,7 @@ func TestMaybeRecoverCluster_ValidRecovery(t *testing.T) {
 		t.Fatalf("create bolt store: %v", err)
 	}
 
-	snaps, err := hraft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
+	snaps, err := newDatabaseSnapshotStore(fsm, raftDir)
 	if err != nil {
 		_ = boltStore.Close()
 
@@ -221,7 +221,7 @@ func TestMaybeRecoverCluster_ValidRecovery(t *testing.T) {
 
 	defer func() { _ = boltStore2.Close() }()
 
-	snaps2, err := hraft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
+	snaps2, err := newDatabaseSnapshotStore(fsm, raftDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,6 +245,15 @@ func TestMaybeRecoverCluster_ValidRecovery(t *testing.T) {
 	// peers.json should have been removed.
 	if _, err := os.Stat(peersPath); !os.IsNotExist(err) {
 		t.Fatalf("peers.json should have been removed after recovery, stat error: %v", err)
+	}
+
+	metas, err := snaps2.List()
+	if err != nil || len(metas) != 1 {
+		t.Fatalf("list snapshots after recovery: %d, %v", len(metas), err)
+	}
+
+	if servers := metas[0].Configuration.Servers; len(servers) != 1 || servers[0].Address != addr {
+		t.Fatalf("recovered configuration = %+v, want the peers.json server", servers)
 	}
 }
 
