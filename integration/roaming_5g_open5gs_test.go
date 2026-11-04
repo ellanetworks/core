@@ -188,6 +188,13 @@ func r5gBringUp(t *testing.T, nodes int) *r5gStack {
 
 	s := &r5gStack{roamingStack: roamingBringUp(t, roaming5G, nodes)}
 
+	allow4G := false
+	if err := s.api.UpdateProfile(s.ctx, roamingProfile, &client.UpdateProfileOptions{
+		UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps", Allow4G: &allow4G,
+	}); err != nil {
+		t.Fatalf("make the roamer profile 5G only: %v", err)
+	}
+
 	fx := fixture.New(t, s.ctx, s.api)
 	fx.Slice(fixture.SliceSpec{Name: r5gNoSDSlice, SST: scenarios.DefaultSST})
 	fx.Policy(fixture.PolicySpec{
@@ -563,7 +570,7 @@ func TestRoaming5GOpen5GSHA(t *testing.T) {
 
 	imsi := r5gRoamer(5)
 
-	t.Run("a callback for another node's AMF is refused", func(t *testing.T) {
+	t.Run("a callback for another node's AMF is answered 503", func(t *testing.T) {
 		run := s.tester(2, imsi, "--session=false", "--ping=false", "--deregister=false")
 		run.wait(t, "roamer registration on node 2")
 
@@ -576,7 +583,7 @@ func TestRoaming5GOpen5GSHA(t *testing.T) {
 		}
 
 		status, body := s.notify(2, imsi, "uecm-dereg", map[string]string{"deregReason": "SUBSCRIPTION_WITHDRAWN"})
-		if status != http.StatusNotFound || !strings.Contains(body, "CONTEXT_NOT_FOUND") {
+		if status != http.StatusServiceUnavailable || !strings.Contains(body, "NF_CONGESTION") {
 			t.Fatalf("callback for node 2 sent to node 1: %d %s", status, body)
 		}
 	})
