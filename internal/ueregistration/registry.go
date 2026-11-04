@@ -109,7 +109,7 @@ func (r *Registry) Bind(regType, otherType string, h Holder) *Binding {
 	return &Binding{r: r, regType: regType, otherType: otherType}
 }
 
-func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}) {
+func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}, onTick ...func(context.Context)) {
 	tick := time.NewTicker(r.interval)
 	defer tick.Stop()
 
@@ -127,6 +127,10 @@ func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}) {
 			r.purgeLeftovers(ctx)
 			r.flushPurges(ctx)
 			r.reconcileAll(ctx)
+
+			for _, f := range onTick {
+				f(ctx)
+			}
 		}
 	}
 }

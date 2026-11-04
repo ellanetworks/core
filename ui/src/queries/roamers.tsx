@@ -56,6 +56,40 @@ export async function listRoamers(
   });
 }
 
+const listRoamersBy = (
+  authToken: string,
+  filter: "radio" | "data_network",
+  value: string,
+  page: number,
+  perPage: number,
+): Promise<ListRoamersResponse> => {
+  const params = new URLSearchParams({
+    [filter]: value,
+    page: String(page),
+    per_page: String(perPage),
+  });
+
+  return apiFetch<ListRoamersResponse>(`/api/v1/roamers?${params.toString()}`, {
+    authToken,
+  });
+};
+
+export const listRoamersByRadio = (
+  authToken: string,
+  radioName: string,
+  page: number,
+  perPage: number,
+): Promise<ListRoamersResponse> =>
+  listRoamersBy(authToken, "radio", radioName, page, perPage);
+
+export const listRoamersByDataNetwork = (
+  authToken: string,
+  dataNetwork: string,
+  page: number,
+  perPage: number,
+): Promise<ListRoamersResponse> =>
+  listRoamersBy(authToken, "data_network", dataNetwork, page, perPage);
+
 const ROSTER_PER_PAGE = 100;
 
 const ROAMER_ROSTER_CAP = 1000;

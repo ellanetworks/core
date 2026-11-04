@@ -160,3 +160,32 @@ func TestDeletingAClusterMemberRemovesItsVisitors(t *testing.T) {
 		t.Fatalf("visitor of another node: %v, want it kept", err)
 	}
 }
+
+func TestRegisteringOverARATWithoutAgreementIsRefused(t *testing.T) {
+	f := newRoamingFixture(t)
+	f.createPartner(t)
+	f.registerVisitor(t, visitorIMSI)
+
+	ctx := context.Background()
+
+	p, err := f.db.GetRoamingPartner(ctx, roamingPartnerID)
+	if err != nil {
+		t.Fatalf("GetRoamingPartner: %s", err)
+	}
+
+	p.SEPPFQDN, p.SEPPN32cURI, p.SEPPTrustAnchorPEM = nil, nil, nil
+
+	if err := f.db.UpdateRoamingPartner(ctx, p); err != nil {
+		t.Fatalf("remove the 5G agreement: %s", err)
+	}
+
+	for _, imsi := range []string{visitorIMSI, "208930000000002"} {
+		if _, err := f.db.RegisterVisitorUE(ctx, imsi, roamingPartnerID, db.UERegistrationTypeAMF3GPPAccess, "node-1", ""); !errors.Is(err, db.ErrRoamingRefused) {
+			t.Fatalf("register %s over 5G without the agreement: %v, want %v", imsi, err, db.ErrRoamingRefused)
+		}
+	}
+
+	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000002", roamingPartnerID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
+		t.Fatalf("register over 4G: %s", err)
+	}
+}

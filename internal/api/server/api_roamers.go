@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -145,6 +146,24 @@ func (s liveStatus) of(imsi string) SubscriberStatus {
 	return status
 }
 
+func (s liveStatus) onRadio(radio string) map[string]struct{} {
+	imsis := map[string]struct{}{}
+
+	for imsi := range s.amf5G {
+		if s.amf5GLastSeen[imsi].RadioName == radio {
+			imsis[imsi] = struct{}{}
+		}
+	}
+
+	for imsi := range s.mme4G {
+		if s.mmeLastSeen[imsi].RadioName == radio {
+			imsis[imsi] = struct{}{}
+		}
+	}
+
+	return imsis
+}
+
 func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -153,6 +172,8 @@ func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme
 		perPage := atoiDefault(q.Get("per_page"), 25)
 		partnerFilter := q.Get("partner")
 		searchFilter := strings.TrimSpace(q.Get("search"))
+		radioFilter := q.Get("radio")
+		dataNetworkFilter := q.Get("data_network")
 
 		if page < 1 {
 			writeError(ctx, w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
@@ -191,13 +212,47 @@ func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme
 			filters.Search = &searchFilter
 		}
 
-		visitors, total, err := dbInstance.ListVisitorsPage(ctx, filters, page, perPage)
+		if dataNetworkFilter != "" {
+			dn, err := dbInstance.GetDataNetwork(ctx, dataNetworkFilter)
+			if err != nil {
+				writeError(ctx, w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+				return
+			}
+
+			filters.DataNetworkID = &dn.ID
+		}
+
+		live := snapshotLiveStatus(amfInstance, mmeInstance)
+
+		var onRadio map[string]struct{}
+
+		dbPage, dbPerPage := page, perPage
+
+		if radioFilter != "" {
+			if !radioIsKnown(amfInstance, mmeInstance, radioFilter) {
+				writeError(ctx, w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
+				return
+			}
+
+			onRadio = live.onRadio(radioFilter)
+			dbPage, dbPerPage = 1, MaxNumSubscribers
+		}
+
+		visitors, total, err := dbInstance.ListVisitorsPage(ctx, filters, dbPage, dbPerPage)
 		if err != nil {
 			writeError(ctx, w, http.StatusInternalServerError, "Failed to list roamers", err, logger.APILog)
 			return
 		}
 
-		live := snapshotLiveStatus(amfInstance, mmeInstance)
+		if onRadio != nil {
+			visitors = slices.DeleteFunc(visitors, func(v db.Visitor) bool {
+				_, ok := onRadio[v.Imsi]
+				return !ok
+			})
+			total = len(visitors)
+			visitors = visitors[min((page-1)*perPage, total):min(page*perPage, total)]
+		}
+
 		items := make([]Roamer, 0, len(visitors))
 
 		for _, v := range visitors {
@@ -352,6 +407,8 @@ func DeregisterRoamer(dbInstance *db.Database) http.Handler {
 }
 
 func deregisterRoamer(ctx context.Context, dbInstance *db.Database, imsi string) error {
+	ctx = context.WithoutCancel(ctx)
+
 	mark := func(ctx context.Context, until time.Time) error {
 		return dbInstance.SetVisitorDeregistering(ctx, imsi, until)
 	}

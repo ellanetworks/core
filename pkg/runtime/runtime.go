@@ -602,7 +602,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}(), smfInstance.Reconcile, cp.vsmf.RenewSubscriptions, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
+	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
 
 	// --- Phase B: upgrade the API server to serve all routes once the
@@ -1699,7 +1699,7 @@ func (cp *controlPlane) start(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Go(func() {
 		defer stopRegistrationsWakeup()
 
-		cp.registrations.Run(ctx, registrationsWakeup)
+		cp.registrations.Run(ctx, registrationsWakeup, cp.vsmf.RenewSubscriptions)
 	})
 }
 

@@ -175,8 +175,8 @@ func TestRoamingReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("ListRoamingDiameterPeers at schema 25 = %v, %v", peers, err)
 	}
 
-	if visitors, err := d.ListVisitors(ctx); err != nil || len(visitors) != 0 {
-		t.Fatalf("ListVisitors at schema 25 = %v, %v", visitors, err)
+	if visitors, total, err := d.ListVisitorsPage(ctx, nil, 1, 10); err != nil || len(visitors) != 0 || total != 0 {
+		t.Fatalf("ListVisitorsPage at schema 25 = %v, %d, %v", visitors, total, err)
 	}
 
 	if _, err := d.GetSEPPIdentity(ctx, 1); !errors.Is(err, ErrNotFound) {

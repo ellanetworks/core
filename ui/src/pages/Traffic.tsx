@@ -148,8 +148,7 @@ const renderSubscriberLink = (params: any) => {
 const RoamerSubscriber: React.FC<{
   imsi: string;
   partner: string;
-  linked: boolean;
-}> = ({ imsi, partner, linked }) => (
+}> = ({ imsi, partner }) => (
   <Box
     sx={{
       display: "flex",
@@ -159,25 +158,21 @@ const RoamerSubscriber: React.FC<{
       height: "100%",
     }}
   >
-    {linked ? (
-      <Link
-        to={`/subscribers/roamers/${imsi}`}
-        style={{ textDecoration: "none" }}
-        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+    <Link
+      to={`/subscribers/roamers/${imsi}`}
+      style={{ textDecoration: "none" }}
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+    >
+      <Typography
+        variant="body2"
+        sx={{
+          color: (t) => t.palette.link,
+          textDecoration: "underline",
+        }}
       >
-        <Typography
-          variant="body2"
-          sx={{
-            color: (t) => t.palette.link,
-            textDecoration: "underline",
-          }}
-        >
-          {imsi}
-        </Typography>
-      </Link>
-    ) : (
-      <Typography variant="body2">{imsi}</Typography>
-    )}
+        {imsi}
+      </Typography>
+    </Link>
     <Chip
       size="small"
       variant="outlined"
@@ -544,7 +539,6 @@ const Traffic: React.FC = () => {
             <RoamerSubscriber
               imsi={params.row.subscriber}
               partner={params.row.partner}
-              linked={false}
             />
           ),
       },
@@ -592,7 +586,7 @@ const Traffic: React.FC = () => {
   );
 
   const { data: roamerPartners } = useQuery<Record<string, string>>({
-    queryKey: ["trafficRoamerPartners"],
+    queryKey: ["roamerPartners"],
     queryFn: () => listRoamerPartners(accessToken || ""),
     enabled: authReady && !!accessToken,
     refetchInterval: 30000,
@@ -641,7 +635,7 @@ const Traffic: React.FC = () => {
           const imsi = params.value as string;
           const partner = roamerPartners?.[imsi];
           if (partner === undefined) return renderSubscriberLink(params);
-          return <RoamerSubscriber imsi={imsi} partner={partner} linked />;
+          return <RoamerSubscriber imsi={imsi} partner={partner} />;
         },
       },
       {

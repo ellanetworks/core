@@ -251,6 +251,7 @@ func (v *VSMF) unsubscribe(ctx context.Context, s *vsmfSession, uri string) {
 func (v *VSMF) register(ctx context.Context, s *vsmfSession) error {
 	v.mu.Lock()
 	done := s.closed || s.registered
+	s.tried = true
 	v.mu.Unlock()
 
 	if done {
@@ -299,6 +300,8 @@ func (v *VSMF) register(ctx context.Context, s *vsmfSession) error {
 	v.mu.Lock()
 	s.registered, s.uecmRoot, s.instanceID = true, c.APIRoot, instanceID
 	v.mu.Unlock()
+
+	v.queue.Go(s.supi.IMSI(), func() { v.subscribe(context.WithoutCancel(ctx), s) })
 
 	return nil
 }

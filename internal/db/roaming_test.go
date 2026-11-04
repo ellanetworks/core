@@ -131,10 +131,10 @@ func ownSEPPIdentity(t *testing.T, id string) db.SEPPIdentity {
 	return seppIdentity(t, own, "sepp"+id+"."+own.Domain(), n)
 }
 
-func (f *roamingFixture) with5G(p *db.RoamingPartner, fqdn string) *db.RoamingPartner {
+func (f *roamingFixture) with5G(p *db.RoamingPartner) *db.RoamingPartner {
 	anchor := selfSignedPEM(f.t)
-	p.SEPPFQDN = ptr(fqdn)
-	p.SEPPN32cURI = ptr("https://" + fqdn + ":443")
+	p.SEPPFQDN = ptr(partnerSEPPFQDN)
+	p.SEPPN32cURI = ptr("https://" + partnerSEPPFQDN + ":443")
 	p.SEPPTrustAnchorPEM = &anchor
 
 	return p
@@ -143,7 +143,12 @@ func (f *roamingFixture) with5G(p *db.RoamingPartner, fqdn string) *db.RoamingPa
 func (f *roamingFixture) createPartner(t *testing.T) {
 	t.Helper()
 
-	if err := f.db.CreateRoamingPartner(context.Background(), f.partner()); err != nil {
+	f.createPeer(t)
+
+	p := f.with5G(f.partner())
+	p.DiameterPeerID = ptr(roamingPeerID)
+
+	if err := f.db.CreateRoamingPartner(context.Background(), p); err != nil {
 		t.Fatalf("CreateRoamingPartner: %s", err)
 	}
 }
@@ -204,7 +209,7 @@ func TestRoamingPartnerRoundTrip(t *testing.T) {
 	f := newRoamingFixture(t)
 	f.createPeer(t)
 
-	p := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "94", "208", "93"), partnerSEPPFQDN)
+	p := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "94", "208", "93"))
 	p.NRFAPIRoots = []db.RoamingNRFAPIRoot{{RoamingPLMN: db.RoamingPLMN{Mcc: "208", Mnc: "93"}, APIRoot: "http://nrf.5gc.mnc093.mcc208.3gppnetwork.org"}}
 	p.DiameterPeerID = ptr(roamingPeerID)
 
@@ -366,7 +371,7 @@ func TestRoamingPartnerConflicts(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 
-	first := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "93", "208", "94"), partnerSEPPFQDN)
+	first := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "93", "208", "94"))
 	if err := f.db.CreateRoamingPartner(ctx, first); err != nil {
 		t.Fatalf("CreateRoamingPartner: %s", err)
 	}
@@ -805,8 +810,12 @@ func TestRoamingDailyUsage(t *testing.T) {
 func TestRegisterVisitorUE(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
+	f.createPeer(t)
 
-	if err := f.db.CreateRoamingPartner(ctx, f.newPartner(roamingPartnerID, "partner", "208", "93", "208", "940")); err != nil {
+	p := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "93", "208", "940"))
+	p.DiameterPeerID = ptr(roamingPeerID)
+
+	if err := f.db.CreateRoamingPartner(ctx, p); err != nil {
 		t.Fatalf("CreateRoamingPartner: %s", err)
 	}
 
@@ -962,7 +971,7 @@ func TestRoamingPartnerProfileChangeAndDeleteRestrict(t *testing.T) {
 	f := newRoamingFixture(t)
 	f.createPeer(t)
 
-	p := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "93", "208", "94"), partnerSEPPFQDN)
+	p := f.with5G(f.newPartner(roamingPartnerID, "partner", "208", "93", "208", "94"))
 	p.DiameterPeerID = ptr(roamingPeerID)
 
 	if err := f.db.CreateRoamingPartner(ctx, p); err != nil {
@@ -1075,6 +1084,19 @@ func TestSubscriberReadsWithVisitors(t *testing.T) {
 		t.Fatalf("ListVisitorsPage past the end = %+v, %d, %v", visitors, total, err)
 	}
 
+	dn, err := f.db.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	if err != nil {
+		t.Fatalf("GetDataNetwork: %s", err)
+	}
+
+	if visitors, total, err := f.db.ListVisitorsPage(ctx, &db.VisitorFilters{DataNetworkID: &dn.ID}, 1, 10); err != nil || total != 1 || len(visitors) != 1 {
+		t.Fatalf("ListVisitorsPage on the partner profile's data network = %+v, %d, %v", visitors, total, err)
+	}
+
+	if visitors, total, err := f.db.ListVisitorsPage(ctx, &db.VisitorFilters{DataNetworkID: &other}, 1, 10); err != nil || total != 0 || len(visitors) != 0 {
+		t.Fatalf("ListVisitorsPage on another data network = %+v, %d, %v", visitors, total, err)
+	}
+
 	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
 		t.Fatalf("ListSubscribersPage searching a visitor = %+v, %d, %v", subs, total, err)
 	}
@@ -1112,8 +1134,8 @@ func TestSubscriberReadsWithVisitors(t *testing.T) {
 		t.Fatalf("IMSRegisteredSubscribersOfProfiles = %v, %v", imsis, err)
 	}
 
-	if visitors, err := f.db.ListVisitors(ctx); err != nil || len(visitors) != 1 || visitors[0].Imsi != visitorIMSI {
-		t.Fatalf("ListVisitors = %+v, %v", visitors, err)
+	if visitors, total, err := f.db.ListVisitorsPage(ctx, nil, 1, 10); err != nil || total != 1 || len(visitors) != 1 || visitors[0].Imsi != visitorIMSI {
+		t.Fatalf("ListVisitorsPage = %+v, %d, %v", visitors, total, err)
 	}
 
 	if _, err := f.db.GetSessionPolicy(ctx, visitorIMSI, db.InitialSliceSst, "", db.InitialDataNetworkName); err != nil {
@@ -1125,7 +1147,6 @@ func TestSupportBundleRedactsSEPPKey(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 	f.createPartner(t)
-	f.createPeer(t)
 
 	stored := ownSEPPIdentity(t, "1")
 	if err := f.db.PutSEPPIdentity(ctx, &stored); err != nil {
@@ -1177,7 +1198,8 @@ func TestRoamingWritesReplicate(t *testing.T) {
 	registrations, stopRegistrations := database.Changefeed().Wakeup(db.TopicUERegistrations)
 	defer stopRegistrations()
 
-	partner := &db.RoamingPartner{ID: roamingPartnerID, Name: "partner", PLMNs: plmns("208", "93"), ProfileID: own.ProfileID}
+	anchor := selfSignedPEM(t)
+	partner := &db.RoamingPartner{ID: roamingPartnerID, Name: "partner", PLMNs: plmns("208", "93"), ProfileID: own.ProfileID, SEPPFQDN: ptr(partnerSEPPFQDN), SEPPN32cURI: ptr("https://" + partnerSEPPFQDN + ":443"), SEPPTrustAnchorPEM: &anchor}
 
 	expectOneRaftEntry(t, database, "CreateRoamingPartner", func() error { return database.CreateRoamingPartner(ctx, partner) })
 	awaitWakeup(t, roaming, "CreateRoamingPartner")

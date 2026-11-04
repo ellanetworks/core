@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -49,6 +50,8 @@ func TestListRoamers_Query(t *testing.T) {
 		{"page only", client.ListRoamersParams{Page: 1, PerPage: 10}, "page=1&per_page=10"},
 		{"partner", client.ListRoamersParams{Page: 1, PerPage: 10, Partner: "partner a"}, "page=1&partner=partner+a&per_page=10"},
 		{"search", client.ListRoamersParams{Page: 2, PerPage: 25, Search: "+336"}, "page=2&per_page=25&search=%2B336"},
+		{"radio", client.ListRoamersParams{Page: 1, PerPage: 10, Radio: "gnb-1"}, "page=1&per_page=10&radio=gnb-1"},
+		{"data network", client.ListRoamersParams{Page: 1, PerPage: 10, DataNetwork: "internet"}, "data_network=internet&page=1&per_page=10"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeRequester{
@@ -107,5 +110,9 @@ func TestDeregisterRoamer_Success(t *testing.T) {
 
 	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/roamers/208930000000001" {
 		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+
+	if fake.lastOpts.Timeout <= time.Minute {
+		t.Fatalf("timeout = %s, want more than the server's one-minute wait", fake.lastOpts.Timeout)
 	}
 }

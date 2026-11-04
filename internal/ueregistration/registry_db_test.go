@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/pki"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"go.uber.org/zap"
@@ -197,7 +198,16 @@ func TestRegistry_VisitorIsNotTreatedAsDeleted(t *testing.T) {
 		t.Fatalf("GetSubscriber: %s", err)
 	}
 
-	partner := &db.RoamingPartner{ID: "partner", Name: "partner", PLMNs: []db.RoamingPLMN{{Mcc: "208", Mnc: "93"}}, ProfileID: home.ProfileID}
+	const seppFQDN = "sepp1.5gc.mnc093.mcc208.3gppnetwork.org"
+
+	_, _, ca, err := pki.GenerateSEPPCert(seppFQDN, pki.PLMN{MCC: "208", MNC: "93"})
+	if err != nil {
+		t.Fatalf("GenerateSEPPCert: %s", err)
+	}
+
+	fqdn, n32c, anchor := seppFQDN, "https://"+seppFQDN, string(pki.EncodeCertPEM(ca))
+
+	partner := &db.RoamingPartner{ID: "partner", Name: "partner", PLMNs: []db.RoamingPLMN{{Mcc: "208", Mnc: "93"}}, ProfileID: home.ProfileID, SEPPFQDN: &fqdn, SEPPN32cURI: &n32c, SEPPTrustAnchorPEM: &anchor}
 	if err := database.CreateRoamingPartner(ctx, partner); err != nil {
 		t.Fatalf("CreateRoamingPartner: %s", err)
 	}

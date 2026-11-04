@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { deregisterRoamer, listRoamerPartners, listRoamers } from "./roamers";
+import {
+  deregisterRoamer,
+  listRoamerPartners,
+  listRoamers,
+  listRoamersByDataNetwork,
+  listRoamersByRadio,
+} from "./roamers";
 
 const PER_PAGE = 100;
 
@@ -59,6 +65,33 @@ describe("listRoamers", () => {
     const filtered = requestedURL(1);
     expect(filtered.searchParams.get("search")).toBe("2089");
     expect(filtered.searchParams.get("partner")).toBe("Partner A");
+  });
+});
+
+describe("listRoamersByRadio", () => {
+  it("filters by radio", async () => {
+    stubRoster(0);
+
+    await listRoamersByRadio("t0k", "gnb 01", 2, 10);
+
+    const url = requestedURL();
+    expect(url.pathname).toBe("/api/v1/roamers");
+    expect(url.searchParams.get("radio")).toBe("gnb 01");
+    expect(url.searchParams.get("page")).toBe("2");
+    expect(url.searchParams.get("per_page")).toBe("10");
+  });
+});
+
+describe("listRoamersByDataNetwork", () => {
+  it("filters by data network", async () => {
+    stubRoster(0);
+
+    await listRoamersByDataNetwork("t0k", "internet", 1, 10);
+
+    const url = requestedURL();
+    expect(url.pathname).toBe("/api/v1/roamers");
+    expect(url.searchParams.get("data_network")).toBe("internet");
+    expect(url.searchParams.has("radio")).toBe(false);
   });
 });
 

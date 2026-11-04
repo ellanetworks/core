@@ -42,16 +42,12 @@ func withdrawRoamers(ctx context.Context, mark func(context.Context, time.Time) 
 			return errRoamersStillRegistered
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(timing.poll):
-		}
+		time.Sleep(timing.poll)
 	}
 }
 
 func clearWithdrawal(ctx context.Context, mark func(context.Context, time.Time) error, what string) {
-	if err := mark(context.WithoutCancel(ctx), time.Time{}); err != nil && !errors.Is(err, db.ErrNotFound) {
+	if err := mark(ctx, time.Time{}); err != nil && !errors.Is(err, db.ErrNotFound) {
 		logger.APILog.Warn("failed to clear a roaming withdrawal; it expires on its own", zap.String("of", what), zap.Error(err))
 	}
 }

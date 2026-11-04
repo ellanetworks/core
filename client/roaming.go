@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"time"
 )
 
 type RoamingPartnerSEPP struct {
@@ -122,10 +123,15 @@ type ImportSEPPCertificateOptions struct {
 }
 
 func (c *Client) roamingDo(ctx context.Context, method, path string, payload any, out any) error {
+	return c.roamingDoWithin(ctx, method, path, payload, out, 0)
+}
+
+func (c *Client) roamingDoWithin(ctx context.Context, method, path string, payload any, out any, timeout time.Duration) error {
 	opts := &RequestOptions{
-		Type:   SyncRequest,
-		Method: method,
-		Path:   path,
+		Type:    SyncRequest,
+		Method:  method,
+		Path:    path,
+		Timeout: timeout,
 	}
 
 	if payload != nil {
@@ -181,11 +187,11 @@ func (c *Client) CreateRoamingPartner(ctx context.Context, opts *RoamingPartnerO
 }
 
 func (c *Client) UpdateRoamingPartner(ctx context.Context, id string, opts *RoamingPartnerOptions) error {
-	return c.roamingDo(ctx, "PUT", "api/v1/operator/roaming/partners/"+id, opts, nil)
+	return c.roamingDoWithin(ctx, "PUT", "api/v1/operator/roaming/partners/"+id, opts, nil, withdrawalTimeout)
 }
 
 func (c *Client) DeleteRoamingPartner(ctx context.Context, id string) error {
-	return c.roamingDo(ctx, "DELETE", "api/v1/operator/roaming/partners/"+id, nil, nil)
+	return c.roamingDoWithin(ctx, "DELETE", "api/v1/operator/roaming/partners/"+id, nil, nil, withdrawalTimeout)
 }
 
 func (c *Client) RehandshakeRoamingPartner(ctx context.Context, id string) (*RoamingPartnerHandshake, error) {

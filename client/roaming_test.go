@@ -9,7 +9,9 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -77,6 +79,11 @@ func TestRoamingWrites(t *testing.T) {
 
 			if fake.lastOpts.Method != tc.method || fake.lastOpts.Path != tc.path {
 				t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+			}
+
+			withdraws := strings.HasPrefix(tc.path, "api/v1/operator/roaming/partners/") && (tc.method == "PUT" || tc.method == "DELETE")
+			if withdraws != (fake.lastOpts.Timeout > time.Minute) {
+				t.Fatalf("timeout = %s for %s %s", fake.lastOpts.Timeout, tc.method, tc.path)
 			}
 
 			if tc.body == nil {

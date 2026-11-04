@@ -21,7 +21,6 @@ const VisitorsTableName = "visitors"
 const (
 	visitorColumns                     = "v.imsi AS &Visitor.imsi, v.partnerID AS &Visitor.partnerID, v.msisdn AS &Visitor.msisdn, v.since AS &Visitor.since, v.deregisterUntil AS &Visitor.deregisterUntil, p.profileID AS &Visitor.profileID, p.withdrawingUntil AS &Visitor.withdrawingUntil FROM %s AS v JOIN %s AS p ON p.id = v.partnerID"
 	getVisitorStmt                     = "SELECT " + visitorColumns + " WHERE v.imsi = $Visitor.imsi"
-	listVisitorsStmt                   = "SELECT " + visitorColumns + " ORDER BY v.imsi"
 	insertVisitorStmt                  = "INSERT INTO %s (imsi, partnerID, msisdn, since) VALUES ($Visitor.imsi, $Visitor.partnerID, $Visitor.msisdn, $Visitor.since)"
 	updateVisitorMSISDNStmt            = "UPDATE %s SET msisdn=$Visitor.msisdn WHERE imsi==$Visitor.imsi"
 	deleteVisitorIfUnregisteredStmt    = "DELETE FROM %s WHERE imsi==$Visitor.imsi AND NOT EXISTS (SELECT 1 FROM %s AS r WHERE r.imsi = %s.imsi AND r.purged = 0)"
@@ -36,7 +35,9 @@ const (
 	visitorPageFilterClause = ` WHERE ($visitorPageFilterArgs.partner_id IS NULL OR v.partnerID = $visitorPageFilterArgs.partner_id)
     AND ($visitorPageFilterArgs.search IS NULL
          OR v.imsi LIKE $visitorPageFilterArgs.search ESCAPE '\'
-         OR (v.msisdn != '' AND '+' || v.msisdn LIKE $visitorPageFilterArgs.search ESCAPE '\'))`
+         OR (v.msisdn != '' AND '+' || v.msisdn LIKE $visitorPageFilterArgs.search ESCAPE '\'))
+    AND ($visitorPageFilterArgs.data_network_id IS NULL
+         OR v.partnerID IN (SELECT id FROM %s WHERE profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $visitorPageFilterArgs.data_network_id)))`
 	listVisitorsPageStmt  = "SELECT COUNT(*) OVER() AS &NumItems.count, " + visitorColumns + visitorPageFilterClause + " ORDER BY v.imsi LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	countVisitorsPageStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s AS v" + visitorPageFilterClause
 )
@@ -78,13 +79,15 @@ func (v Visitor) subscriber() Subscriber {
 }
 
 type VisitorFilters struct {
-	PartnerID *string
-	Search    *string
+	PartnerID     *string
+	Search        *string
+	DataNetworkID *string
 }
 
 type visitorPageFilterArgs struct {
-	PartnerID *string `db:"partner_id"`
-	Search    *string `db:"search"`
+	PartnerID     *string `db:"partner_id"`
+	Search        *string `db:"search"`
+	DataNetworkID *string `db:"data_network_id"`
 }
 
 func (f *VisitorFilters) args() visitorPageFilterArgs {
@@ -92,7 +95,7 @@ func (f *VisitorFilters) args() visitorPageFilterArgs {
 		return visitorPageFilterArgs{}
 	}
 
-	args := visitorPageFilterArgs{PartnerID: f.PartnerID}
+	args := visitorPageFilterArgs{PartnerID: f.PartnerID, DataNetworkID: f.DataNetworkID}
 
 	if f.Search != nil {
 		pattern := "%" + likeEscaper.Replace(*f.Search) + "%"
@@ -175,35 +178,6 @@ func (db *Database) GetVisitor(ctx context.Context, imsi string) (*Visitor, erro
 	}
 
 	return visitor, err
-}
-
-func (db *Database) ListVisitors(ctx context.Context) ([]Subscriber, error) {
-	ctx, span := startVisitorsSpan(ctx, "SELECT", "visitors")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(VisitorsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(VisitorsTableName, "select").Inc()
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
-
-	var rows []Visitor
-
-	if err := db.conn().Query(ctx, db.listVisitorsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		recordSpanError(span, err)
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	visitors := make([]Subscriber, 0, len(rows))
-	for _, v := range rows {
-		visitors = append(visitors, v.subscriber())
-	}
-
-	return visitors, nil
 }
 
 func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilters, page int, perPage int) ([]Visitor, int, error) {
@@ -362,14 +336,23 @@ func (db *Database) imsiKnown(ctx context.Context, imsi string) (bool, error) {
 }
 
 func (db *Database) applyRegisterVisitorUE(ctx context.Context, p *registerVisitorUEPayload) (any, error) {
-	if err := db.insertVisitorIfAbsent(ctx, p.Imsi, p.PartnerID); err != nil {
+	partner, err := db.getRoamingPartner(ctx, db.runner(ctx), p.PartnerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !partner.hasAgreement(p.Type) {
+		return nil, fmt.Errorf("%w: IMSI %s: roaming partner %s has no agreement for %s", ErrRoamingRefused, p.Imsi, partner.Name, p.Type)
+	}
+
+	if err := db.insertVisitorIfAbsent(ctx, p.Imsi, partner); err != nil {
 		return nil, err
 	}
 
 	return db.applyRegisterUE(ctx, &registerUEPayload{Imsi: p.Imsi, Type: p.Type, NodeID: p.NodeID, Cancel: p.Cancel})
 }
 
-func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi, partnerID string) error {
+func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, partner *RoamingPartner) error {
 	runner := db.runner(ctx)
 
 	now := time.Now()
@@ -377,7 +360,7 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi, partnerID s
 	existing, err := db.getVisitor(ctx, runner, imsi)
 
 	switch {
-	case err == nil && existing.PartnerID == partnerID:
+	case err == nil && existing.PartnerID == partner.ID:
 		return existing.refusal(now)
 	case err == nil:
 		return fmt.Errorf("%w: IMSI %s is a visitor of another roaming partner", ErrAlreadyExists, imsi)
@@ -392,11 +375,6 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi, partnerID s
 		return fmt.Errorf("%w: IMSI %s is a home subscriber", ErrAlreadyExists, imsi)
 	case !errors.Is(err, sql.ErrNoRows):
 		return fmt.Errorf("query failed: %w", err)
-	}
-
-	partner, err := db.getRoamingPartner(ctx, runner, partnerID)
-	if err != nil {
-		return err
 	}
 
 	if partner.Withdrawing(now) {

@@ -99,25 +99,6 @@ func RegisterMetrics() {
 	}
 }
 
-// RegisterRadioGauges registers the connected-radio and registered-subscriber
-// gauges, each broken down by RAT. The callbacks tally the live counts from the
-// AMF (5G) and MME (4G); a nil callback contributes zero, so a single-RAT
-// deployment can omit the absent side.
-func RegisterRoamingPartnerGauge(n32, s6a func() int) {
-	desc := prometheus.NewDesc(
-		"app_connected_roaming_partners",
-		"Number of roaming partners connected to this node, by interface (n32: N32-c context established, s6a: Diameter peer open).",
-		[]string{"interface"},
-		nil,
-	)
-
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(countOrZero(n32)), PeerN32)
-
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(countOrZero(s6a)), PeerS6a)
-	}))
-}
-
 func RegisterRadioEventDrops(dropped func() uint64) {
 	prometheus.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_radio_events_dropped_total",
@@ -125,6 +106,10 @@ func RegisterRadioEventDrops(dropped func() uint64) {
 	}, func() float64 { return float64(dropped()) }))
 }
 
+// RegisterRadioGauges registers the connected-radio and registered-subscriber
+// gauges, each broken down by RAT. The callbacks tally the live counts from the
+// AMF (5G) and MME (4G); a nil callback contributes zero, so a single-RAT
+// deployment can omit the absent side.
 func RegisterRadioGauges(radios5G func() int, subscribers5G func() (own, roamers int), radios4G func() int, subscribers4G func() (own, roamers int)) {
 	radiosDesc := prometheus.NewDesc(
 		"app_connected_radios",
@@ -152,6 +137,21 @@ func RegisterRadioGauges(radios5G func() int, subscribers5G func() (own, roamers
 
 			ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(roamers), rat, RoamingTrue)
 		}
+	}))
+}
+
+func RegisterRoamingPartnerGauge(n32, s6a func() int) {
+	desc := prometheus.NewDesc(
+		"app_connected_roaming_partners",
+		"Number of roaming partners connected to this node, by interface (n32: N32-c context established, s6a: Diameter peer open).",
+		[]string{"interface"},
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(countOrZero(n32)), PeerN32)
+
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(countOrZero(s6a)), PeerS6a)
 	}))
 }
 

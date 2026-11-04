@@ -956,6 +956,16 @@ paths:
           schema:
             type: string
           description: Filter by roaming partner name.
+        - name: radio
+          in: query
+          schema:
+            type: string
+          description: Filter by last-seen radio.
+        - name: data_network
+          in: query
+          schema:
+            type: string
+          description: Filter by data network reachable through the roaming partner's profile.
         - name: search
           in: query
           schema:
@@ -2109,7 +2119,7 @@ paths:
       operationId: updateRoamingPartner
       tags: [Operator]
       summary: Update a roaming partner
-      description: Replaces a roaming partner's configuration. PLMN IDs can be added. A PLMN ID, or the 5G (`sepp`) or 4G (`diameterPeerID`) agreement, can be removed only while none of the partner's roamers of that PLMN ID, or attached over that RAT, remain; deregister them first. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
+      description: Replaces a roaming partner's configuration. PLMN IDs can be added. When a removed PLMN ID, or a removed 5G (`sepp`) or 4G (`diameterPeerID`) agreement, still has roamers, all the partner's roamers are first deregistered on every node (EMM cause #11, PLMN not allowed) and purged at their home network; new roamers of the partner are refused meanwhile. Answers within a minute. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
       requestBody:
         required: true
         content:
@@ -2128,7 +2138,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: The name is taken, a PLMN ID conflicts (see create), or roamers are attached to a removed PLMN ID or agreement. The configuration is left unchanged.
+          description: The name is taken, a PLMN ID conflicts (see create), or the partner's roamers could not all be deregistered within a minute (for example, a node that holds them is unreachable). The configuration is left unchanged.
           content:
             application/json:
               schema:

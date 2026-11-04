@@ -7,7 +7,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 )
+
+const withdrawalTimeout = 90 * time.Second
 
 // Roamer is the summary form returned by ListRoamers.
 type Roamer struct {
@@ -20,10 +23,12 @@ type Roamer struct {
 }
 
 type ListRoamersParams struct {
-	Page    int    `json:"page"`
-	PerPage int    `json:"per_page"`
-	Partner string `json:"partner,omitempty"`
-	Search  string `json:"search,omitempty"`
+	Page        int    `json:"page"`
+	PerPage     int    `json:"per_page"`
+	Partner     string `json:"partner,omitempty"`
+	Search      string `json:"search,omitempty"`
+	Radio       string `json:"radio,omitempty"`
+	DataNetwork string `json:"data_network,omitempty"`
 }
 
 type ListRoamersResponse struct {
@@ -56,6 +61,14 @@ func (c *Client) ListRoamers(ctx context.Context, p *ListRoamersParams) (*ListRo
 
 	if p.Search != "" {
 		query.Set("search", p.Search)
+	}
+
+	if p.Radio != "" {
+		query.Set("radio", p.Radio)
+	}
+
+	if p.DataNetwork != "" {
+		query.Set("data_network", p.DataNetwork)
 	}
 
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
@@ -99,9 +112,10 @@ func (c *Client) GetRoamer(ctx context.Context, imsi string) (*RoamerDetail, err
 // DeregisterRoamer deregisters a roamer and answers once it is gone, within a minute.
 func (c *Client) DeregisterRoamer(ctx context.Context, imsi string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "DELETE",
-		Path:   "api/v1/roamers/" + imsi,
+		Type:    SyncRequest,
+		Method:  "DELETE",
+		Path:    "api/v1/roamers/" + imsi,
+		Timeout: withdrawalTimeout,
 	})
 
 	return err

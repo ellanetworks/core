@@ -159,6 +159,17 @@ func (f *vsmfFixture) mustOpen(t *testing.T, psi uint8) *vsmfSession {
 	return h.(*vsmfSession)
 }
 
+func (f *vsmfFixture) mustRegister(t *testing.T, psi uint8) *vsmfSession {
+	t.Helper()
+
+	h := f.mustOpen(t, psi)
+	if err := h.Register(context.Background()); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	return h
+}
+
 func (f *vsmfFixture) setSMData(body string) {
 	f.home.Update(vsmfIMSI, func(s *fakehplmn.Subscriber) { s.SMData = json.RawMessage(body) })
 }
@@ -250,6 +261,16 @@ func TestVSMFOpenGetsSubscribesAndMergesTheHomeSubscription(t *testing.T) {
 		t.Fatalf("discovery = %v", dq)
 	}
 
+	f.v.RenewSubscriptions(context.Background())
+
+	if n := len(vsmfRequests(f.home, http.MethodPost, "/sdm-subscriptions")); n != 0 {
+		t.Fatalf("SDM subscriptions before the UECM registration = %d, want none", n)
+	}
+
+	if err := h.Register(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
 	subs := vsmfAwait(t, f.home, http.MethodPost, "/nudm-sdm/v2/"+vsmfSupi+"/sdm-subscriptions", 1)
 
 	sub := vsmfJSON(t, subs[0].Body)
@@ -264,7 +285,7 @@ func TestVSMFOpenGetsSubscribesAndMergesTheHomeSubscription(t *testing.T) {
 		t.Fatalf("SDM subscription = %s, want no proposed expiry", subs[0].Body)
 	}
 
-	f.mustOpen(t, 6)
+	f.mustRegister(t, 6)
 
 	if n := len(vsmfRequests(f.home, http.MethodGet, "/sm-data")); n != 2 {
 		t.Fatalf("sm-data GETs after a second session on the same DNN = %d, want one per session", n)
@@ -306,7 +327,11 @@ func TestVSMFRegisterThenCloseDeregistersAndUnsubscribes(t *testing.T) {
 		t.Fatalf("singleNssai = %v", s)
 	}
 
-	vsmfEventually(t, "both sessions subscribed", func() bool { return first.subscribed() && second.subscribed() })
+	vsmfEventually(t, "the registered session is subscribed", first.subscribed)
+
+	if second.subscribed() {
+		t.Fatal("subscribed for a session that never registered")
+	}
 
 	first.Close()
 	first.Close()
@@ -322,13 +347,12 @@ func TestVSMFRegisterThenCloseDeregistersAndUnsubscribes(t *testing.T) {
 		t.Fatal("the home UDM kept the closed session's registration")
 	}
 
-	if n := len(f.home.Subscriptions()); n != 1 {
-		t.Fatalf("SDM subscriptions after closing one session = %d, want the other session's", n)
+	if n := len(f.home.Subscriptions()); n != 0 {
+		t.Fatalf("SDM subscriptions after closing the registered session = %d, want none", n)
 	}
 
 	second.Close()
 
-	vsmfAwait(t, f.home, http.MethodDelete, "/sdm-subscriptions/", 2)
 	vsmfEventually(t, "the visitor is forgotten", func() bool { return !f.v.holdsUE(vsmfIMSI) })
 
 	if n := len(vsmfRequests(f.home, http.MethodDelete, "/smf-registrations/6")); n != 0 {
@@ -433,7 +457,7 @@ func vsmfCallback(t *testing.T, v *VSMF, partnerID string, kind sepp.CallbackKin
 
 func TestVSMFDataChangeRefreshesAndReconciles(t *testing.T) {
 	f := newVSMFFixture(t)
-	h := f.mustOpen(t, 5)
+	h := f.mustRegister(t, 5)
 	vsmfEventually(t, "the session is subscribed", h.subscribed)
 
 	change := `{"notifyItems": [{"resourceId": "` + vsmfUDMRoot + `/nudm-sdm/v2/` + vsmfSupi + `/sm-data", "changes": [{"op": "REPLACE", "path": "/0/dnnConfigurations/internet/sessionAmbr"}]}]}`
@@ -578,13 +602,13 @@ func TestVSMFDeregistrationOfAGoneSessionClosesIt(t *testing.T) {
 
 func TestVSMFRenewsOnlyAnExpiryTheUDMImposes(t *testing.T) {
 	f := newVSMFFixture(t)
-	h := f.mustOpen(t, 5)
+	h := f.mustRegister(t, 5)
 	vsmfEventually(t, "the session is subscribed", h.subscribed)
 
 	f.v.RenewSubscriptions(context.Background())
 
 	f.home.ImposeSDMExpiry(time.Minute)
-	g := f.mustOpen(t, 6)
+	g := f.mustRegister(t, 6)
 	vsmfEventually(t, "the second session is subscribed", g.subscribed)
 
 	f.v.RenewSubscriptions(context.Background())
@@ -611,7 +635,7 @@ func TestVSMFSubscribesAgainAtTheNextReconcile(t *testing.T) {
 	f := newVSMFFixture(t)
 	f.home.Fail(http.MethodPost, "/sdm-subscriptions", wire.NewProblem(http.StatusServiceUnavailable, wire.CauseNFCongestion, ""))
 
-	h := f.mustOpen(t, 5)
+	h := f.mustRegister(t, 5)
 	vsmfAwait(t, f.home, http.MethodPost, "/sdm-subscriptions", 1)
 
 	f.home.Heal()
@@ -620,12 +644,60 @@ func TestVSMFSubscribesAgainAtTheNextReconcile(t *testing.T) {
 	vsmfEventually(t, "the session subscribes", h.subscribed)
 
 	f.v.RenewSubscriptions(context.Background())
-	f.mustOpen(t, 6)
+	f.mustRegister(t, 6)
 	vsmfAwait(t, f.home, http.MethodPost, "/sdm-subscriptions", 3)
 
 	posts := len(vsmfRequests(f.home, http.MethodPost, "/sdm-subscriptions"))
 	if posts != 3 {
 		t.Fatalf("SDM subscription attempts = %d, want no retry once subscribed", posts)
+	}
+}
+
+func TestVSMFRegistersAgainAtTheNextReconcile(t *testing.T) {
+	f := newVSMFFixture(t)
+	f.home.Fail(http.MethodPut, "/smf-registrations/", wire.NewProblem(http.StatusServiceUnavailable, wire.CauseNFCongestion, ""))
+
+	unopened := f.mustOpen(t, 6)
+	h := f.mustOpen(t, 5)
+
+	if err := h.Register(context.Background()); err == nil {
+		t.Fatal("Register succeeded while the home UDM is unavailable")
+	}
+
+	f.home.Heal()
+	f.v.RenewSubscriptions(context.Background())
+
+	vsmfEventually(t, "the session registers and subscribes", h.subscribed)
+
+	if n := len(vsmfRequests(f.home, http.MethodPut, "/smf-registrations/5")); n != 2 {
+		t.Fatalf("UECM registrations = %d, want the failed one and its retry", n)
+	}
+
+	if n := len(vsmfRequests(f.home, http.MethodPut, "/smf-registrations/6")); n != 0 || unopened.subscribed() {
+		t.Fatal("registered a session the SMF never asked to register")
+	}
+}
+
+func TestVSMFReleasesASessionTheHomeUDMRefusesOnRetry(t *testing.T) {
+	f := newVSMFFixture(t)
+	f.home.Fail(http.MethodPut, "/smf-registrations/", wire.NewProblem(http.StatusServiceUnavailable, wire.CauseNFCongestion, ""))
+
+	h := f.mustOpen(t, 5)
+	if err := h.Register(context.Background()); err == nil {
+		t.Fatal("Register succeeded while the home UDM is unavailable")
+	}
+
+	f.home.Heal()
+	f.home.Fail(http.MethodPut, "/smf-registrations/", wire.NewProblem(http.StatusForbidden, "", ""))
+	f.v.RenewSubscriptions(context.Background())
+
+	select {
+	case r := <-f.control.releases:
+		if r.psi != 5 || r.how != smf.HPLMNReleaseRejected {
+			t.Fatalf("release = %+v, want session 5 rejected", r)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the refused session was not released")
 	}
 }
 

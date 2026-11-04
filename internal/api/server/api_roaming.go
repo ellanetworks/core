@@ -355,7 +355,8 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id")); err != nil {
+		existing, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id"))
+		if err != nil {
 			writeRoamingError(w, r, "roaming partner", "update", err)
 			return
 		}
@@ -366,7 +367,10 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateRoamingPartner(r.Context(), &partner); err != nil {
+		err = withdrawingPartner(r.Context(), dbInstance, *existing, func(ctx context.Context) error {
+			return dbInstance.UpdateRoamingPartner(ctx, &partner)
+		})
+		if err != nil {
 			writeRoamingError(w, r, "roaming partner", "update", err)
 			return
 		}
@@ -388,7 +392,10 @@ func DeleteRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := deleteRoamingPartner(r.Context(), dbInstance, *partner); err != nil {
+		err = withdrawingPartner(r.Context(), dbInstance, *partner, func(ctx context.Context) error {
+			return dbInstance.DeleteRoamingPartner(ctx, partner.ID)
+		})
+		if err != nil {
 			writeRoamingError(w, r, "roaming partner", "delete", err)
 			return
 		}
@@ -399,8 +406,10 @@ func DeleteRoamingPartner(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func deleteRoamingPartner(ctx context.Context, dbInstance *db.Database, partner db.RoamingPartner) error {
-	err := dbInstance.DeleteRoamingPartner(ctx, partner.ID)
+func withdrawingPartner(ctx context.Context, dbInstance *db.Database, partner db.RoamingPartner, op func(context.Context) error) error {
+	ctx = context.WithoutCancel(ctx)
+
+	err := op(ctx)
 	if !errors.Is(err, db.ErrRoamersAttached) {
 		return err
 	}
@@ -409,17 +418,13 @@ func deleteRoamingPartner(ctx context.Context, dbInstance *db.Database, partner 
 		return dbInstance.SetRoamingPartnerWithdrawing(ctx, partner.ID, until)
 	}
 
-	logger.APILog.Info("deregistering the roamers of a roaming partner before deleting it", zap.String("roaming_partner", partner.Name))
+	logger.APILog.Info("deregistering the roamers of a roaming partner", zap.String("roaming_partner", partner.Name))
 
 	err = withdrawRoamers(ctx, mark, func(ctx context.Context) (int, error) {
 		return dbInstance.CountVisitorsOfPartner(ctx, partner.ID)
 	})
 	if err == nil {
-		err = dbInstance.DeleteRoamingPartner(ctx, partner.ID)
-	}
-
-	if err == nil {
-		return nil
+		err = op(ctx)
 	}
 
 	clearWithdrawal(ctx, mark, partner.Name)

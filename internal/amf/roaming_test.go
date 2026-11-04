@@ -755,6 +755,30 @@ func TestReinitialRegistrationOnARetainedContextUpdatesSoR(t *testing.T) {
 	}
 }
 
+func TestReinitialRegistrationDropsAStaleSoRContainer(t *testing.T) {
+	f := newRoamingFixture(t)
+	ack := true
+
+	f.home.Update(roamerIMSI, func(s *fakehplmn.Subscriber) {
+		s.AM.SorInfo = &wire.SorInfo{AckInd: &ack, SorMacIausf: "00112233445566778899aabbccddeeff", Countersor: "0001", ProvisioningTime: "2026-11-03T10:00:00Z"}
+	})
+
+	ue, conn := f.visitorUE(t)
+	f.authenticate(t, ue, conn)
+	f.registerAtHPLMN(t, ue, conn)
+
+	if f.amf.SoRContainer(ue) == nil {
+		t.Fatal("no SoR container after the first registration")
+	}
+
+	conn.RegistrationType5GS = fgs.RegistrationTypeInitial
+	f.registerAtHPLMN(t, ue, conn)
+
+	if sor := f.amf.SoRContainer(ue); sor != nil {
+		t.Fatalf("a retained context re-sent the stale SoR container %x", sor)
+	}
+}
+
 func TestUECMTimeoutRegistersAgain(t *testing.T) {
 	f := newRoamingFixture(t)
 

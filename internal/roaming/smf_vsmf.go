@@ -58,6 +58,7 @@ type vsmfSession struct {
 
 	rules        smf.HPLMNRules
 	closed       bool
+	tried        bool
 	registered   bool
 	released     bool
 	uecmRoot     string
@@ -147,10 +148,6 @@ func (v *VSMF) OpenSubscription(ctx context.Context, req smf.HPLMNSubscriptionRe
 	if old != nil {
 		v.queue.Go(imsi, func() { v.close(old) })
 	}
-
-	ctx = context.WithoutCancel(ctx)
-
-	v.queue.Go(imsi, func() { v.subscribe(ctx, s) })
 
 	return s, nil
 }
@@ -266,11 +263,15 @@ func (v *VSMF) RenewSubscriptions(ctx context.Context) {
 
 	v.mu.Lock()
 
-	var due []*vsmfSession
+	var unregistered, due []*vsmfSession
 
 	for _, ue := range v.ues {
 		for _, s := range ue {
-			if !s.closed && (s.subscription == "" || renewDue(s.expires, now)) {
+			switch {
+			case s.closed:
+			case !s.registered && s.tried:
+				unregistered = append(unregistered, s)
+			case s.registered && (s.subscription == "" || renewDue(s.expires, now)):
 				due = append(due, s)
 			}
 		}
@@ -279,8 +280,33 @@ func (v *VSMF) RenewSubscriptions(ctx context.Context) {
 
 	ctx = context.WithoutCancel(ctx)
 
+	for _, s := range unregistered {
+		v.queue.Go(s.supi.IMSI(), func() { v.reregister(ctx, s) })
+	}
+
 	for _, s := range due {
 		v.queue.Go(s.supi.IMSI(), func() { v.resubscribe(ctx, s) })
+	}
+}
+
+func (v *VSMF) reregister(ctx context.Context, s *vsmfSession) {
+	err := v.register(ctx, s)
+	if err == nil {
+		return
+	}
+
+	log := v.logger.With(zap.String("supi", s.supi.String()), zap.Uint8("pduSessionID", s.psi), zap.Error(err))
+
+	var c smf.GSMCauser
+	if !errors.As(err, &c) {
+		log.Warn("Could not register the visitor's PDU session at the home UDM; retrying at the next reconcile")
+		return
+	}
+
+	log.Warn("The home UDM refused the visitor's PDU session registration; releasing the session")
+
+	if v.sessions != nil {
+		go v.sessions.ReleaseHPLMNBoundSession(ctx, s.supi, s.psi, s, smf.HPLMNReleaseRejected)
 	}
 }
 

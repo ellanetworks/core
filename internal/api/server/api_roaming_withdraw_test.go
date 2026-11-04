@@ -171,29 +171,57 @@ func TestDeletingARoamingPartnerWithAnUnreachableRoamerAnswersConflict(t *testin
 	}
 }
 
-func TestRemovingAnAgreementWithAttachedRoamersAnswersConflict(t *testing.T) {
+func TestRemovingAnAgreementWithAttachedRoamersWithdrawsThem(t *testing.T) {
 	held := []heldRoamer{
 		{imsi: "208930000000001", regType: db.UERegistrationTypeMME, node: "node-1"},
 		{imsi: "208940000000002", regType: db.UERegistrationTypeAMF3GPPAccess, node: "node-1"},
 	}
 
-	env, client, token, partner := roamingPartnerWithRoamers(t, held)
-
 	for name, mutate := range map[string]func(*roamingPartnerBody){
 		"PLMN":         func(b *roamingPartnerBody) { b.PLMNs = plmnList("208", "93") },
 		"4G agreement": func(b *roamingPartnerBody) { b.DiameterPeerID = "" },
 	} {
-		body := partner
-		mutate(&body)
+		t.Run(name, func(t *testing.T) {
+			env, client, token, partner := roamingPartnerWithRoamers(t, held)
+			server.SetRoamerWithdrawalTimeoutForTest(t, 10*time.Second)
 
-		if code, _, err := apiDo[roamingMessageEnvelope](client, "PUT", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, body); err != nil || code != http.StatusConflict {
-			t.Fatalf("remove the %s with attached roamers: code=%d err=%v, want 409", name, code, err)
-		}
+			nodes := startFakeNodes(t, env, held)
+
+			body := partner
+			mutate(&body)
+
+			if code, resp, err := apiDo[roamingMessageEnvelope](client, "PUT", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, body); err != nil || code != http.StatusOK {
+				t.Fatalf("remove the %s with attached roamers: code=%d err=%v (%q), want 200", name, code, err, resp.Error)
+			}
+
+			if withdrawn := nodes.deregistered(); len(withdrawn) != len(held) {
+				t.Fatalf("deregistered = %v, want every roamer of the partner", withdrawn)
+			}
+
+			got, err := env.DB.GetRoamingPartner(context.Background(), partner.ID)
+			if err != nil || got.Withdrawing(time.Now()) || (len(got.PLMNs) != 2) == (got.DiameterPeerID == nil) {
+				t.Fatalf("partner after the update = %+v, %v, want the %s removed and no longer withdrawing", got, err, name)
+			}
+		})
+	}
+}
+
+func TestRemovingAnAgreementWithAnUnreachableRoamerAnswersConflict(t *testing.T) {
+	held := []heldRoamer{{imsi: "208940000000001", regType: db.UERegistrationTypeMME, node: "node-1"}}
+
+	env, client, token, partner := roamingPartnerWithRoamers(t, held)
+	server.SetRoamerWithdrawalTimeoutForTest(t, 50*time.Millisecond)
+
+	body := partner
+	body.PLMNs = plmnList("208", "93")
+
+	if code, _, err := apiDo[roamingMessageEnvelope](client, "PUT", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, body); err != nil || code != http.StatusConflict {
+		t.Fatalf("remove a PLMN with an unreachable roamer: code=%d err=%v, want 409", code, err)
 	}
 
 	got, err := env.DB.GetRoamingPartner(context.Background(), partner.ID)
-	if err != nil || len(got.PLMNs) != 2 || got.DiameterPeerID == nil {
-		t.Fatalf("partner after refused updates = %+v, %v, want it unchanged", got, err)
+	if err != nil || len(got.PLMNs) != 2 || got.Withdrawing(time.Now()) {
+		t.Fatalf("partner after a failed update = %+v, %v, want it unchanged and no longer withdrawing", got, err)
 	}
 }
 

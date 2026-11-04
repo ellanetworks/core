@@ -79,7 +79,6 @@ type Database struct {
 
 	countSubscribersAndVisitorsStmt *sqlair.Statement
 	getVisitorStmt                  *sqlair.Statement
-	listVisitorsStmt                *sqlair.Statement
 	listVisitorsPageStmt            *sqlair.Statement
 	countVisitorsPageStmt           *sqlair.Statement
 	insertVisitorStmt               *sqlair.Statement
@@ -1866,9 +1865,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.countSubscribersAndVisitorsStmt, fmt.Sprintf(countSubscribersAndVisitorsStmt, SubscribersTableName, VisitorsTableName), []any{NumItems{}}},
 		{&db.getVisitorStmt, fmt.Sprintf(getVisitorStmt, VisitorsTableName, RoamingPartnersTableName), []any{Visitor{}}},
-		{&db.listVisitorsStmt, fmt.Sprintf(listVisitorsStmt, VisitorsTableName, RoamingPartnersTableName), []any{Visitor{}}},
-		{&db.listVisitorsPageStmt, fmt.Sprintf(listVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName), []any{ListArgs{}, Visitor{}, NumItems{}, visitorPageFilterArgs{}}},
-		{&db.countVisitorsPageStmt, fmt.Sprintf(countVisitorsPageStmt, VisitorsTableName), []any{NumItems{}, visitorPageFilterArgs{}}},
+		{&db.listVisitorsPageStmt, fmt.Sprintf(listVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName, RoamingPartnersTableName, PoliciesTableName), []any{ListArgs{}, Visitor{}, NumItems{}, visitorPageFilterArgs{}}},
+		{&db.countVisitorsPageStmt, fmt.Sprintf(countVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName, PoliciesTableName), []any{NumItems{}, visitorPageFilterArgs{}}},
 		{&db.insertVisitorStmt, fmt.Sprintf(insertVisitorStmt, VisitorsTableName), []any{Visitor{}}},
 		{&db.updateVisitorMSISDNStmt, fmt.Sprintf(updateVisitorMSISDNStmt, VisitorsTableName), []any{Visitor{}}},
 		{&db.deleteVisitorIfUnregisteredStmt, fmt.Sprintf(deleteVisitorIfUnregisteredStmt, VisitorsTableName, UERegistrationsTableName, VisitorsTableName), []any{Visitor{}}},

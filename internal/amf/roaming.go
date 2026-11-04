@@ -471,6 +471,10 @@ func (amf *AMF) RequestHPLMNRegistration(ctx context.Context, ue *UeContext, con
 		return
 	}
 
+	if initial {
+		ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.SoR = nil })
+	}
+
 	retained := v.Registered && v.HPLMN.UDMInstanceID != "" && v.Subscription != nil
 	if retained && (!initial || !sorUpdateRequested(v.AccessAndMobility(), conn.RegistrationType5GS)) {
 		done(ctx, nil)

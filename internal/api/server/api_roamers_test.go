@@ -84,6 +84,12 @@ func TestListRoamers(t *testing.T) {
 		t.Fatalf("SetVisitorMSISDN: %s", err)
 	}
 
+	connectAPIRadio(env.AMF, "gnb-1")
+
+	if code, resp, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{Name: "other-dn", IPv4Pool: "10.99.0.0/24", DNS: "8.8.8.8", MTU: 1400}); err != nil || code != http.StatusCreated {
+		t.Fatalf("create data network: code=%d err=%v (%+v)", code, err, resp)
+	}
+
 	url := env.Server.URL + roamersPath
 
 	cases := map[string]struct {
@@ -98,6 +104,9 @@ func TestListRoamers(t *testing.T) {
 		"?page=3&per_page=1":           {imsis: []string{}, total: 2},
 		"?partner=" + partner.Name:     {imsis: []string{"208930000000001", "208940000000002"}, total: 2},
 		"?partner=partner&search=2089": {imsis: []string{"208930000000001", "208940000000002"}, total: 2},
+		"?data_network=internet":       {imsis: []string{"208930000000001", "208940000000002"}, total: 2},
+		"?data_network=other-dn":       {imsis: []string{}, total: 0},
+		"?radio=gnb-1":                 {imsis: []string{}, total: 0},
 	}
 
 	for query, want := range cases {
@@ -141,9 +150,11 @@ func TestListRoamers(t *testing.T) {
 		code    int
 		message string
 	}{
-		"?partner=unknown": {http.StatusNotFound, "Roaming partner not found"},
-		"?page=0":          {http.StatusBadRequest, "page must be >= 1"},
-		"?per_page=101":    {http.StatusBadRequest, "per_page must be between 1 and 100"},
+		"?partner=unknown":      {http.StatusNotFound, "Roaming partner not found"},
+		"?radio=unknown":        {http.StatusNotFound, "Radio not found"},
+		"?data_network=unknown": {http.StatusNotFound, "Data Network not found"},
+		"?page=0":               {http.StatusBadRequest, "page must be >= 1"},
+		"?per_page=101":         {http.StatusBadRequest, "per_page must be between 1 and 100"},
 	}
 
 	for query, want := range errorCases {
@@ -299,5 +310,44 @@ func TestDeregisteringAnUnreachableRoamerAnswersConflict(t *testing.T) {
 
 	if v, err := env.DB.GetVisitor(ctx, imsi); err != nil || v.Deregistering(time.Now()) {
 		t.Fatalf("roamer after the timeout = %+v, %v, want it kept and no longer deregistering", v, err)
+	}
+}
+
+func TestDeregisteringARoamerOutlivesTheClient(t *testing.T) {
+	const imsi = "208930000000001"
+
+	held := []heldRoamer{{imsi: imsi, regType: db.UERegistrationTypeMME, node: "node-1"}}
+
+	env, client, token, _ := roamingPartnerWithRoamers(t, held)
+	server.SetRoamerWithdrawalTimeoutForTest(t, 10*time.Second)
+
+	impatient := *client
+	impatient.Timeout = 100 * time.Millisecond
+
+	if _, _, err := apiDo[roamingMessageEnvelope](&impatient, "DELETE", env.Server.URL+roamerPath(imsi), token, nil); err == nil {
+		t.Fatal("the request finished before any node released the roamer")
+	}
+
+	ctx := context.Background()
+
+	if v, err := env.DB.GetVisitor(ctx, imsi); err != nil || !v.Deregistering(time.Now()) {
+		t.Fatalf("roamer after the client gave up = %+v, %v, want it still deregistering", v, err)
+	}
+
+	startFakeNodes(t, env, held)
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		_, err := env.DB.GetVisitor(ctx, imsi)
+		if errors.Is(err, db.ErrNotFound) {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("roamer still present after its node released it: %v", err)
+		}
+
+		time.Sleep(10 * time.Millisecond)
 	}
 }

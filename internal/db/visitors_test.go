@@ -118,7 +118,11 @@ func TestVisitorWritesReplicate(t *testing.T) {
 		t.Fatalf("GetSubscriber: %s", err)
 	}
 
-	partner := &db.RoamingPartner{ID: roamingPartnerID, Name: "partner", PLMNs: plmns("208", "93"), ProfileID: own.ProfileID}
+	if err := database.CreateRoamingDiameterPeer(ctx, &db.RoamingDiameterPeer{ID: roamingPeerID, DiameterIdentity: "dea.example.org", Address: "10.0.0.7", Port: 3868}); err != nil {
+		t.Fatalf("CreateRoamingDiameterPeer: %s", err)
+	}
+
+	partner := &db.RoamingPartner{ID: roamingPartnerID, Name: "partner", PLMNs: plmns("208", "93"), ProfileID: own.ProfileID, DiameterPeerID: ptr(roamingPeerID)}
 	if err := database.CreateRoamingPartner(ctx, partner); err != nil {
 		t.Fatalf("CreateRoamingPartner: %s", err)
 	}

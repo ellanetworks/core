@@ -131,6 +131,17 @@ func (p RoamingPartner) Withdrawing(now time.Time) bool {
 	return now.Unix() < p.WithdrawingUntil
 }
 
+func (p RoamingPartner) hasAgreement(regType string) bool {
+	switch regType {
+	case UERegistrationTypeAMF3GPPAccess:
+		return p.SEPPFQDN != nil
+	case UERegistrationTypeMME:
+		return p.DiameterPeerID != nil
+	}
+
+	return false
+}
+
 func (p RoamingPartner) HasPLMN(plmn RoamingPLMN) bool {
 	return slices.Contains(p.PLMNs, plmn)
 }

@@ -47,6 +47,10 @@ import {
   type APIIPAllocation,
 } from "@/queries/data_networks";
 import { getNATInfo, type NatInfo } from "@/queries/nat";
+import {
+  listRoamerPartners,
+  listRoamersByDataNetwork,
+} from "@/queries/roamers";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
@@ -55,6 +59,7 @@ import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
+import RoamersSection from "@/components/RoamersSection";
 import {
   MAX_WIDTH,
   PAGE_PADDING_X,
@@ -183,6 +188,13 @@ const DataNetworkDetail: React.FC = () => {
     enabled: authReady && !!accessToken,
   });
   const isNATEnabled = !!natInfo?.enabled;
+
+  const { data: roamerPartners } = useQuery<Record<string, string>>({
+    queryKey: ["roamerPartners"],
+    queryFn: () => listRoamerPartners(accessToken || ""),
+    enabled: authReady && !!accessToken,
+    refetchInterval: 30000,
+  });
 
   const invalidateFramed = () => {
     queryClient.invalidateQueries({ queryKey: ["framed-routes", name] });
@@ -328,7 +340,7 @@ const DataNetworkDetail: React.FC = () => {
             }}
           >
             <RouterLink
-              to={`/subscribers/${params.row.imsi}`}
+              to={`/subscribers/${roamerPartners?.[params.row.imsi] === undefined ? "" : "roamers/"}${params.row.imsi}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
@@ -400,7 +412,7 @@ const DataNetworkDetail: React.FC = () => {
     }
 
     return cols;
-  }, [theme, canEdit, staticActionsColumn]);
+  }, [theme, canEdit, staticActionsColumn, roamerPartners]);
 
   const ipv6AllocationColumns: GridColDef<APIIPAllocation>[] = useMemo(() => {
     const cols: GridColDef<APIIPAllocation>[] = [
@@ -441,7 +453,7 @@ const DataNetworkDetail: React.FC = () => {
             }}
           >
             <RouterLink
-              to={`/subscribers/${params.row.imsi}`}
+              to={`/subscribers/${roamerPartners?.[params.row.imsi] === undefined ? "" : "roamers/"}${params.row.imsi}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
@@ -513,7 +525,7 @@ const DataNetworkDetail: React.FC = () => {
     }
 
     return cols;
-  }, [theme, canEdit, staticActionsColumn]);
+  }, [theme, canEdit, staticActionsColumn, roamerPartners]);
 
   const allocationRowCount = allocationsQuery.data?.total_count;
   const ipv6AllocationRowCount = ipv6AllocationsQuery.data?.total_count;
@@ -894,6 +906,15 @@ const DataNetworkDetail: React.FC = () => {
                   </Box>
                 </Box>
               )}
+
+              <RoamersSection
+                title="Roamers"
+                queryKey={["roamers-by-data-network", name]}
+                fetchPage={(page, perPage) =>
+                  listRoamersByDataNetwork(accessToken!, name!, page, perPage)
+                }
+                enabled={authReady && !!accessToken && !!name}
+              />
 
               {isEditModalOpen && (
                 <EditDataNetworkModal

@@ -791,7 +791,7 @@ describe("Traffic usage roamers", () => {
     ).toBeInTheDocument();
   });
 
-  it("names the partner of a roamer instead of linking to it", async () => {
+  it("links a roamer to its roamer page with its partner", async () => {
     seedApi({
       usageBySub: [
         ...(usageBySubscriber({ [IMSI_A]: 4_000 }) as object[]),
@@ -817,8 +817,11 @@ describe("Traffic usage roamers", () => {
     expect(await screen.findByText("Roamer · Partner A")).toBeInTheDocument();
     expect(screen.getByText("Roamer · 310-260")).toBeInTheDocument();
     expect(
-      screen.getByText("208930000000001").closest("a"),
-    ).not.toBeInTheDocument();
+      screen.getByRole("link", { name: "208930000000001" }),
+    ).toHaveAttribute("href", "/subscribers/roamers/208930000000001");
+    expect(
+      screen.getByRole("link", { name: "310260000000001" }),
+    ).toHaveAttribute("href", "/subscribers/roamers/310260000000001");
     expect(screen.getByRole("link", { name: IMSI_A })).toHaveAttribute(
       "href",
       `/subscribers/${IMSI_A}`,

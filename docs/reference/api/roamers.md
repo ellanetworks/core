@@ -16,12 +16,14 @@ This path returns the list of roamers, ordered by IMSI.
 
 ### Query Parameters
 
-| Name       | In    | Type | Default | Allowed     | Description                         |
-| ---------- | ----- | ---- | ------- | ----------- | ----------------------------------- |
-| `page`     | query | int  | `1`     | `>= 1`      | 1-based page index.                 |
-| `per_page` | query | int  | `25`    | `1…100`     | Number of items per page.           |
-| `partner`  | query | str  |         |             | Filter by roaming partner name.     |
-| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or MSISDN substring. |
+| Name           | In    | Type | Default | Allowed     | Description                                                          |
+| -------------- | ----- | ---- | ------- | ----------- | -------------------------------------------------------------------- |
+| `page`         | query | int  | `1`     | `>= 1`      | 1-based page index.                                                  |
+| `per_page`     | query | int  | `25`    | `1…100`     | Number of items per page.                                            |
+| `partner`      | query | str  |         |             | Filter by roaming partner name.                                      |
+| `radio`        | query | str  |         |             | Filter by radio name.                                                |
+| `data_network` | query | str  |         |             | Filter by data network name, through the roaming partner's profile. |
+| `search`       | query | str  |         | ≤ 254 chars | Filter by IMSI or MSISDN substring.                                  |
 
 ### Responses
 
@@ -29,7 +31,7 @@ This path returns the list of roamers, ordered by IMSI.
 | ------ | --------- |
 | `200`  | Returns the roamers. |
 | `400`  | Invalid parameters. |
-| `404`  | The roaming partner does not exist. |
+| `404`  | The roaming partner, radio or data network does not exist. |
 
 ### Sample Response
 

@@ -871,7 +871,7 @@ None
 
 ## Update a Roaming Partner
 
-This path updates an existing roaming partner. A PLMN ID or an agreement can be removed only while none of its roamers are attached; deregister them first with the [Roamers API](roamers.md).
+This path updates an existing roaming partner. When a removed PLMN ID or agreement still has roamers, all the partner's roamers are first deregistered on every node, and purged at their home network.
 
 | Method | Path                                     |
 | ------ | ---------------------------------------- |
@@ -888,7 +888,7 @@ The parameters of [Create a Roaming Partner](#create-a-roaming-partner).
 | `200`  | The partner is updated. |
 | `400`  | Invalid parameters. |
 | `404`  | The partner, the profile or the roaming Diameter peer does not exist. |
-| `409`  | The name is taken, a PLMN ID conflicts, or roamers are attached to a removed PLMN ID or agreement. Nothing is changed. |
+| `409`  | The name is taken, a PLMN ID conflicts, or the roamers were not all deregistered within one minute. Nothing is changed. |
 
 ### Sample Response
 
