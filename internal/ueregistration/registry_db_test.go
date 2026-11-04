@@ -78,7 +78,7 @@ func register(t *testing.T, b *ueregistration.Binding) int64 {
 func reconcile(b *ueregistration.Binding, held int64) string {
 	outcome := "kept"
 
-	b.Reconcile(context.Background(), imsi, func() int64 { return held },
+	b.Reconcile(context.Background(), imsi, false, func() int64 { return held },
 		func(context.Context) { outcome = "released" },
 		func(context.Context, ueregistration.Withdrawal) { outcome = "withdrawn" })
 
@@ -214,7 +214,7 @@ func TestRegistry_VisitorIsNotTreatedAsDeleted(t *testing.T) {
 	outcome := func() string {
 		got := "kept"
 
-		amfA.Reconcile(ctx, visitor, func() int64 { return held },
+		amfA.Reconcile(ctx, visitor, true, func() int64 { return held },
 			func(context.Context) { got = "released" },
 			func(context.Context, ueregistration.Withdrawal) { got = "withdrawn" })
 
@@ -227,10 +227,6 @@ func TestRegistry_VisitorIsNotTreatedAsDeleted(t *testing.T) {
 
 	if err := database.PurgeUERegistration(ctx, visitor, amfType, "node-a"); err != nil {
 		t.Fatalf("PurgeUERegistration: %s", err)
-	}
-
-	if deleted, err := database.DeleteVisitorIfUnregistered(ctx, visitor); err != nil || !deleted {
-		t.Fatalf("DeleteVisitorIfUnregistered = %v, %v", deleted, err)
 	}
 
 	if got := outcome(); got != "withdrawn" {

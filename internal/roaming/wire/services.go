@@ -57,6 +57,10 @@ func SDMAmDataPath(supi string) string {
 	return ServiceNudmSDM.path(supi, "am-data")
 }
 
+func SDMUpdateSorPath(supi string) string {
+	return ServiceNudmSDM.path(supi, "am-data", "update-sor")
+}
+
 func SDMSorAckPath(supi string) string {
 	return ServiceNudmSDM.path(supi, "am-data", "sor-ack")
 }

@@ -144,7 +144,7 @@ func TestRenewRetriesAfterFailure(t *testing.T) {
 		t.Fatalf("renewals before the retry interval = %v, want one", got)
 	}
 
-	f.advance(DefaultTuning().RenewRetry)
+	f.advance(renewRetry)
 	f.m.Reconcile(context.Background())
 
 	if got := f.renewals(); len(got) != 2 {

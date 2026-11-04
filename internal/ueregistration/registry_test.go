@@ -6,7 +6,6 @@ package ueregistration_test
 import (
 	"context"
 	"errors"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -31,24 +30,26 @@ type fakeStore struct {
 	purges      int
 	subErr      error
 	visitors    map[string]string
-	deleted     []string
-	withdrawals map[string]db.RoamingWithdrawal
+	withdrawals map[string]db.Visitor
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{rows: map[string]db.UERegistration{}, version: 100, visitors: map[string]string{}, withdrawals: map[string]db.RoamingWithdrawal{}}
+	return &fakeStore{rows: map[string]db.UERegistration{}, version: 100, visitors: map[string]string{}, withdrawals: map[string]db.Visitor{}}
 }
 
-func (f *fakeStore) RoamingWithdrawalOf(_ context.Context, imsi, regType string) (*db.RoamingWithdrawal, error) {
+func (f *fakeStore) GetVisitor(_ context.Context, imsi string) (*db.Visitor, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	w, ok := f.withdrawals[imsi]
-	if !ok || !w.Covers(imsi, regType, time.Now()) {
+	partnerID, ok := f.visitors[imsi]
+	if !ok {
 		return nil, db.ErrNotFound
 	}
 
-	return &w, nil
+	v := f.withdrawals[imsi]
+	v.Imsi, v.PartnerID = imsi, partnerID
+
+	return &v, nil
 }
 
 func (f *fakeStore) ListVisitorRegistrationsOfNode(_ context.Context, nodeID string) ([]db.UERegistration, error) {
@@ -74,26 +75,6 @@ func (f *fakeStore) RegisterVisitorUE(ctx context.Context, imsi, partnerID, regT
 	f.mu.Unlock()
 
 	return f.RegisterUE(ctx, imsi, regType, nodeID, cancel)
-}
-
-func (f *fakeStore) DeleteVisitorIfUnregistered(_ context.Context, imsi string) (bool, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if _, ok := f.visitors[imsi]; !ok {
-		return false, nil
-	}
-
-	for _, row := range f.rows {
-		if row.Imsi == imsi && !row.Purged {
-			return false, nil
-		}
-	}
-
-	delete(f.visitors, imsi)
-	f.deleted = append(f.deleted, imsi)
-
-	return true, nil
 }
 
 func rowKey(imsi, regType string) string { return imsi + "/" + regType }
@@ -345,7 +326,7 @@ func TestReconcile(t *testing.T) {
 
 			got := "kept"
 
-			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held },
+			b.Reconcile(context.Background(), imsi, false, func() int64 { return tc.held },
 				func(context.Context) { got = "released" },
 				func(context.Context, ueregistration.Withdrawal) { got = "withdrawn" })
 
@@ -371,7 +352,7 @@ func TestReconcile_SerializesWithRegister(t *testing.T) {
 	reconciled := make(chan struct{})
 
 	go func() {
-		b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) {
+		b.Reconcile(context.Background(), imsi, false, func() int64 { return 10 }, func(context.Context) {
 			close(inRelease)
 			<-unblock
 		}, func(context.Context, ueregistration.Withdrawal) {})
@@ -607,97 +588,39 @@ func TestRegisterVisitor_MigrationPending(t *testing.T) {
 	}
 }
 
-func TestRun_PurgeDeletesTheUnregisteredVisitor(t *testing.T) {
-	store := newFakeStore()
-
-	r, b, _ := newAMFBinding(store)
-	r.SetIntervalForTest(time.Hour)
-
-	if _, err := b.RegisterVisitor(context.Background(), imsi, "partner-1"); err != nil {
-		t.Fatalf("RegisterVisitor: %s", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go r.Run(ctx, nil)
-
-	b.Purge(imsi)
-
-	waitFor(t, func() bool {
-		store.mu.Lock()
-		defer store.mu.Unlock()
-
-		return len(store.deleted) == 1
-	})
-}
-
-func TestRun_PurgeKeepsAVisitorRegisteredElsewhere(t *testing.T) {
-	store := newFakeStore()
-
-	r, b, _ := newAMFBinding(store)
-
-	if _, err := b.RegisterVisitor(context.Background(), imsi, "partner-1"); err != nil {
-		t.Fatalf("RegisterVisitor: %s", err)
-	}
-
-	store.set(mmeType, "node-b", false, 500)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go r.Run(ctx, nil)
-
-	b.Purge(imsi)
-
-	waitFor(t, func() bool {
-		row, _ := store.get(amfType)
-		return row.Purged
-	})
-
-	time.Sleep(50 * time.Millisecond)
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if len(store.deleted) != 0 || store.visitors[imsi] == "" {
-		t.Fatal("a visitor still registered on another node must keep its row")
-	}
-}
-
 func TestReconcileWithdrawnRoamer(t *testing.T) {
+	live := time.Now().Add(time.Minute).Unix()
+	expired := time.Now().Add(-time.Second).Unix()
+
 	for _, tc := range []struct {
-		name       string
-		withdrawal db.RoamingWithdrawal
-		want       string
+		name    string
+		visitor bool
+		w       db.Visitor
+		want    string
 	}{
-		{name: "partner", withdrawal: db.RoamingWithdrawal{ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "roaming"},
-		{name: "PLMN", withdrawal: db.RoamingWithdrawal{Mcc: "001", Mnc: "01", ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "roaming"},
-		{name: "agreement", withdrawal: db.RoamingWithdrawal{Type: amfType, ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "agreement"},
-		{name: "other RAT", withdrawal: db.RoamingWithdrawal{Type: mmeType, ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "kept"},
-		{name: "other PLMN", withdrawal: db.RoamingWithdrawal{Mcc: "001", Mnc: "02", ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "kept"},
-		{name: "expired", withdrawal: db.RoamingWithdrawal{ExpiresAt: time.Now().Add(-time.Second).Unix()}, want: "kept"},
-		{name: "roamer", withdrawal: db.RoamingWithdrawal{IMSI: imsi, ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "roamer"},
-		{name: "other roamer", withdrawal: db.RoamingWithdrawal{IMSI: "999700000000999", ExpiresAt: time.Now().Add(time.Minute).Unix()}, want: "kept"},
+		{name: "partner", visitor: true, w: db.Visitor{WithdrawingUntil: live}, want: "roaming"},
+		{name: "roamer", visitor: true, w: db.Visitor{DeregisterUntil: live}, want: "roamer"},
+		{name: "roamer of a withdrawn partner", visitor: true, w: db.Visitor{DeregisterUntil: live, WithdrawingUntil: live}, want: "roamer"},
+		{name: "expired", visitor: true, w: db.Visitor{DeregisterUntil: expired, WithdrawingUntil: expired}, want: "kept"},
+		{name: "none", visitor: true, want: "kept"},
+		{name: "home subscriber", w: db.Visitor{WithdrawingUntil: live}, want: "kept"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeStore()
 			store.set(amfType, "node-a", false, 5)
 			store.visitors[imsi] = "partner"
-			store.withdrawals[imsi] = tc.withdrawal
+			store.withdrawals[imsi] = tc.w
 
 			_, b, _ := newAMFBinding(store)
 
 			got := "kept"
 
-			b.Reconcile(context.Background(), imsi, func() int64 { return 5 },
+			b.Reconcile(context.Background(), imsi, tc.visitor, func() int64 { return 5 },
 				func(context.Context) { got = "released" },
 				func(_ context.Context, why ueregistration.Withdrawal) {
 					switch why {
 					case ueregistration.RoamingWithdrawn:
 						got = "roaming"
-					case ueregistration.RoamingAgreementWithdrawn:
-						got = "agreement"
 					case ueregistration.RoamerDeregistered:
 						got = "roamer"
 					default:
@@ -747,15 +670,11 @@ func TestLeftoverVisitorRegistrationsArePurgedAtStart(t *testing.T) {
 		store.mu.Lock()
 		defer store.mu.Unlock()
 
-		return slices.Contains(store.deleted, leftover)
+		return store.rows[rowKey(leftover, mmeType)].Purged
 	})
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
-
-	if !store.rows[rowKey(leftover, mmeType)].Purged {
-		t.Fatal("the leftover visitor registration was not purged")
-	}
 
 	if store.rows[rowKey(held, mmeType)].Purged || store.rows[rowKey(other, mmeType)].Purged {
 		t.Fatal("a held or another node's visitor registration was purged")

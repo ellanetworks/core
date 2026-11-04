@@ -8,17 +8,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming/fakehplmn"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/internal/sepp/sepptest"
@@ -31,7 +30,6 @@ const (
 	vsmfIMSI        = "001010000000001"
 	vsmfSupi        = "imsi-" + vsmfIMSI
 	vsmfUDMRoot     = "http://udm.5gc.mnc001.mcc001.3gppnetwork.org"
-	vsmfUDMSearch   = `{"validityPeriod": 30, "nfInstances": [{"nfInstanceId": "00000000-0000-0000-0000-0000000000d1", "nfType": "UDM", "nfStatus": "REGISTERED", "fqdn": "udm.5gc.mnc001.mcc001.3gppnetwork.org", "nfServices": [{"serviceInstanceId": "sdm", "serviceName": "nudm-sdm", "versions": [{"apiVersionInUri": "v2", "apiFullVersion": "2.0.0"}], "scheme": "http", "nfServiceStatus": "REGISTERED"}, {"serviceInstanceId": "uecm", "serviceName": "nudm-uecm", "versions": [{"apiVersionInUri": "v1", "apiFullVersion": "1.0.0"}], "scheme": "http", "nfServiceStatus": "REGISTERED"}]}]}`
 	vsmfSMDataBody  = `[{"singleNssai": {"sst": 1, "sd": "010203"}, "dnnConfigurations": {"internet": {"pduSessionTypes": {"defaultSessionType": "IPV4", "allowedSessionTypes": ["IPV4V6"]}, "sscModes": {"defaultSscMode": "SSC_MODE_1"}, "5gQosProfile": {"5qi": 7, "arp": {"priorityLevel": 8, "preemptCap": "NOT_PREEMPT", "preemptVuln": "PREEMPTABLE"}}, "sessionAmbr": {"uplink": "50 Mbps", "downlink": "150 Mbps"}}}}]`
 	vsmfSMDataLower = `[{"singleNssai": {"sst": 1, "sd": "010203"}, "dnnConfigurations": {"internet": {"pduSessionTypes": {"defaultSessionType": "IPV4"}, "sscModes": {"defaultSscMode": "SSC_MODE_1"}, "sessionAmbr": {"uplink": "10 Mbps", "downlink": "20 Mbps"}}}}]`
 	vsmfSMDataOther = `[{"singleNssai": {"sst": 1, "sd": "010203"}, "dnnConfigurations": {"corporate": {"pduSessionTypes": {"defaultSessionType": "IPV4"}, "sscModes": {"defaultSscMode": "SSC_MODE_1"}}}}]`
@@ -43,130 +41,14 @@ var (
 	vsmfOP     = wire.PlmnID{Mcc: "999", Mnc: "70"}
 )
 
-type vsmfRequest struct {
-	method string
-	path   string
-	query  url.Values
-	header http.Header
-	body   string
-}
-
-type vsmfFakeReply struct {
-	status int
-	body   string
-}
-
-type vsmfFakeUDM struct {
-	mu            sync.Mutex
-	requests      []vsmfRequest
-	smData        []vsmfFakeReply
-	uecm          []vsmfFakeReply
-	expires       string
-	subscriptions int
-	refuseSubs    int
-}
-
-func (f *vsmfFakeUDM) next(list *[]vsmfFakeReply, fallback vsmfFakeReply) vsmfFakeReply {
-	if len(*list) == 0 {
-		return fallback
-	}
-
-	r := (*list)[0]
-	if len(*list) > 1 {
-		*list = (*list)[1:]
-	}
-
-	return r
-}
-
-func (f *vsmfFakeUDM) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var body []byte
-	if r.Body != nil {
-		body, _ = io.ReadAll(r.Body)
-	}
-
-	f.mu.Lock()
-	f.requests = append(f.requests, vsmfRequest{method: r.Method, path: r.URL.Path, query: r.URL.Query(), header: r.Header.Clone(), body: string(body)})
-
-	var rep vsmfFakeReply
-
-	p := r.URL.Path
-
-	switch {
-	case p == "/nnrf-disc/v1/nf-instances":
-		rep = vsmfFakeReply{http.StatusOK, vsmfUDMSearch}
-	case strings.HasSuffix(p, "/sm-data") && r.Method == http.MethodGet:
-		rep = f.next(&f.smData, vsmfFakeReply{http.StatusOK, vsmfSMDataBody})
-	case strings.HasSuffix(p, "/sdm-subscriptions") && r.Method == http.MethodPost && f.refuseSubs > 0:
-		f.refuseSubs--
-		rep = vsmfFakeReply{http.StatusServiceUnavailable, `{"cause":"NF_CONGESTION"}`}
-	case strings.HasSuffix(p, "/sdm-subscriptions") && r.Method == http.MethodPost:
-		f.subscriptions++
-		w.Header().Set("Location", vsmfUDMRoot+p+"/sub-"+string(rune('0'+f.subscriptions)))
-		rep = vsmfFakeReply{http.StatusCreated, strings.TrimSuffix(string(body), "}") + `,"expires":"` + f.expires + `"}`}
-
-		if f.expires == "" {
-			rep.body = string(body)
-		}
-	case strings.Contains(p, "/sdm-subscriptions/") && r.Method == http.MethodDelete:
-		rep = vsmfFakeReply{http.StatusNoContent, ""}
-	case strings.Contains(p, "/sdm-subscriptions/") && r.Method == http.MethodPatch:
-		rep = vsmfFakeReply{http.StatusNoContent, ""}
-	case strings.Contains(p, "/smf-registrations/") && r.Method == http.MethodPut:
-		rep = f.next(&f.uecm, vsmfFakeReply{http.StatusCreated, string(body)})
-	case strings.Contains(p, "/smf-registrations/") && r.Method == http.MethodDelete:
-		rep = vsmfFakeReply{http.StatusNoContent, ""}
-	default:
-		rep = vsmfFakeReply{http.StatusNotFound, `{"cause":"RESOURCE_URI_STRUCTURE_NOT_FOUND"}`}
-	}
-	f.mu.Unlock()
-
-	if rep.status >= 400 {
-		w.Header().Set("Content-Type", wire.ContentTypeProblem)
-	} else if rep.body != "" {
-		w.Header().Set("Content-Type", wire.ContentTypeJSON)
-	}
-
-	w.WriteHeader(rep.status)
-	_, _ = w.Write([]byte(rep.body))
-}
-
-func (f *vsmfFakeUDM) find(method, suffix string) []vsmfRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	var out []vsmfRequest
-
-	for _, r := range f.requests {
-		if r.method == method && strings.HasSuffix(r.path, suffix) {
-			out = append(out, r)
-		}
-	}
-
-	return out
-}
-
-func (f *vsmfFakeUDM) count(method, contains string) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	n := 0
-
-	for _, r := range f.requests {
-		if r.method == method && strings.Contains(r.path, contains) {
-			n++
-		}
-	}
-
-	return n
-}
-
 type vsmfN32 struct {
 	*fakeN32
 	down bool
 }
 
 func (n *vsmfN32) SEPPID() int { return 1 }
+
+func (n *vsmfN32) WaitEstablished(context.Context, string, time.Duration) error { return nil }
 
 func (n *vsmfN32) Client(partnerID string) *http.Client {
 	if n.down {
@@ -199,7 +81,7 @@ func (f *vsmfControl) ReconcileHPLMNBoundSessions(_ context.Context, supi etsi.S
 
 type vsmfFixture struct {
 	v       *VSMF
-	home    *vsmfFakeUDM
+	home    *fakehplmn.HPLMN
 	n32     *vsmfN32
 	control *vsmfControl
 	target  smf.HPLMNTarget
@@ -218,18 +100,33 @@ func (v *VSMF) holdsUE(imsi string) bool {
 	return ok
 }
 
+func (s *vsmfSession) subscribed() bool {
+	s.v.mu.Lock()
+	defer s.v.mu.Unlock()
+
+	return s.subscription != ""
+}
+
+func newVSMFHome() *fakehplmn.HPLMN {
+	home := fakehplmn.New(vsmfHPLMN)
+	home.Provision(vsmfIMSI, fakehplmn.Subscriber{SMData: json.RawMessage(vsmfSMDataBody)})
+
+	return home
+}
+
+func newVSMFControl() *vsmfControl {
+	return &vsmfControl{releases: make(chan vsmfReleased, 4), reconciles: make(chan etsi.SUPI, 4), found: true}
+}
+
 func newVSMFFixture(t *testing.T) *vsmfFixture {
 	t.Helper()
 
-	home := &vsmfFakeUDM{}
+	home := newVSMFHome()
 	n32 := &vsmfN32{fakeN32: &fakeN32{handler: home}}
-	control := &vsmfControl{releases: make(chan vsmfReleased, 4), reconciles: make(chan etsi.SUPI, 4), found: true}
+	control := newVSMFControl()
 	v := NewVSMF(zap.NewNop())
-	v.registerBackoff = time.Millisecond
 	v.SetN32(n32)
 	v.SetSessions(control)
-
-	t.Cleanup(v.Settle)
 
 	return &vsmfFixture{v: v, home: home, n32: n32, control: control, target: vsmfTarget()}
 }
@@ -251,7 +148,7 @@ func (f *vsmfFixture) open(t *testing.T, psi uint8, dnn string) (smf.HPLMNSubscr
 	return f.v.OpenSubscription(context.Background(), smf.HPLMNSubscriptionRequest{Supi: vsmfSUPI(t), PDUSessionID: psi, Dnn: dnn, Target: f.target})
 }
 
-func (f *vsmfFixture) mustOpen(t *testing.T, psi uint8) smf.HPLMNSubscription {
+func (f *vsmfFixture) mustOpen(t *testing.T, psi uint8) *vsmfSession {
 	t.Helper()
 
 	h, err := f.open(t, psi, "internet")
@@ -259,15 +156,58 @@ func (f *vsmfFixture) mustOpen(t *testing.T, psi uint8) smf.HPLMNSubscription {
 		t.Fatalf("OpenSubscription = %v, %v", h, err)
 	}
 
-	return h
+	return h.(*vsmfSession)
 }
 
-func vsmfJSON(t *testing.T, s string) map[string]any {
+func (f *vsmfFixture) setSMData(body string) {
+	f.home.Update(vsmfIMSI, func(s *fakehplmn.Subscriber) { s.SMData = json.RawMessage(body) })
+}
+
+func vsmfRequests(home *fakehplmn.HPLMN, method, contains string) []fakehplmn.Request {
+	var out []fakehplmn.Request
+
+	for _, r := range home.Requests() {
+		if r.Method == method && strings.Contains(r.Path, contains) {
+			out = append(out, r)
+		}
+	}
+
+	return out
+}
+
+func vsmfEventually(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(3 * time.Second)
+
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting until %s", what)
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func vsmfAwait(t *testing.T, home *fakehplmn.HPLMN, method, contains string, n int) []fakehplmn.Request {
+	t.Helper()
+
+	var got []fakehplmn.Request
+
+	vsmfEventually(t, method+" "+contains, func() bool {
+		got = vsmfRequests(home, method, contains)
+		return len(got) >= n
+	})
+
+	return got
+}
+
+func vsmfJSON(t *testing.T, b []byte) map[string]any {
 	t.Helper()
 
 	var out map[string]any
-	if err := json.Unmarshal([]byte(s), &out); err != nil {
-		t.Fatalf("decode %q: %v", s, err)
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("decode %q: %v", b, err)
 	}
 
 	return out
@@ -283,12 +223,12 @@ func TestVSMFOpenGetsSubscribesAndMergesTheHomeSubscription(t *testing.T) {
 		t.Fatalf("rules = %+v", rules)
 	}
 
-	gets := f.home.find(http.MethodGet, "/nudm-sdm/v2/"+vsmfSupi+"/sm-data")
+	gets := vsmfRequests(f.home, http.MethodGet, "/nudm-sdm/v2/"+vsmfSupi+"/sm-data")
 	if len(gets) != 1 {
 		t.Fatalf("sm-data GETs = %d", len(gets))
 	}
 
-	q := gets[0].query
+	q, _ := url.ParseQuery(gets[0].Query)
 	if q.Get("single-nssai") != `{"sst":1,"sd":"010203"}` || q.Get("dnn") != "internet" || q.Get("plmn-id") != `{"mcc":"999","mnc":"70"}` {
 		t.Fatalf("sm-data query = %v", q)
 	}
@@ -297,39 +237,40 @@ func TestVSMFOpenGetsSubscribesAndMergesTheHomeSubscription(t *testing.T) {
 		t.Fatalf("Session-AMBR = %+v, want the home 50/150 Mbps", rules.SessionAMBR)
 	}
 
-	if gets[0].header.Get("User-Agent") != "SMF" {
-		t.Fatalf("User-Agent = %q", gets[0].header.Get("User-Agent"))
+	if gets[0].Header.Get("User-Agent") != "SMF" {
+		t.Fatalf("User-Agent = %q", gets[0].Header.Get("User-Agent"))
 	}
 
-	nrf := f.home.find(http.MethodGet, "/nnrf-disc/v1/nf-instances")
-	if len(nrf) == 0 || nrf[0].query.Get("requester-nf-type") != "SMF" || nrf[0].query.Get("target-nf-type") != "UDM" || nrf[0].query.Get("service-names") != "nudm-sdm" {
-		t.Fatalf("discovery = %+v", nrf)
+	nrf := vsmfRequests(f.home, http.MethodGet, "/nnrf-disc/v1/nf-instances")
+	if len(nrf) == 0 {
+		t.Fatal("no discovery")
 	}
 
-	f.v.Settle()
-
-	subs := f.home.find(http.MethodPost, "/nudm-sdm/v2/"+vsmfSupi+"/sdm-subscriptions")
-	if len(subs) != 1 {
-		t.Fatalf("SDM subscriptions = %d", len(subs))
+	if dq, _ := url.ParseQuery(nrf[0].Query); dq.Get("requester-nf-type") != "SMF" || dq.Get("target-nf-type") != "UDM" || dq.Get("service-names") != "nudm-sdm" {
+		t.Fatalf("discovery = %v", dq)
 	}
 
-	sub := vsmfJSON(t, subs[0].body)
+	subs := vsmfAwait(t, f.home, http.MethodPost, "/nudm-sdm/v2/"+vsmfSupi+"/sdm-subscriptions", 1)
+
+	sub := vsmfJSON(t, subs[0].Body)
 	if sub["callbackReference"] != "https://smf1.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/"+vsmfSupi+"/sdm-change" ||
 		sub["dnn"] != "internet" || sub["implicitUnsubscribe"] != true ||
 		sub["monitoredResourceUris"].([]any)[0] != "/nudm-sdm/v2/"+vsmfSupi+"/sm-data" ||
-		sub["nfInstanceId"] != f.v.instanceID(vsmfOP, 1) {
-		t.Fatalf("SDM subscription = %s", subs[0].body)
+		sub["nfInstanceId"] != f.v.instanceID(vsmfOP) {
+		t.Fatalf("SDM subscription = %s", subs[0].Body)
 	}
 
-	if sub["expires"] == nil || sub["expires"] == "" {
-		t.Fatalf("SDM subscription = %s, want a proposed expiry", subs[0].body)
+	if _, ok := sub["expires"]; ok {
+		t.Fatalf("SDM subscription = %s, want no proposed expiry", subs[0].Body)
 	}
 
 	f.mustOpen(t, 6)
 
-	if n := len(f.home.find(http.MethodGet, "/sm-data")); n != 1 {
-		t.Fatalf("sm-data GETs after a second session on the same DNN = %d, want the cached data", n)
+	if n := len(vsmfRequests(f.home, http.MethodGet, "/sm-data")); n != 2 {
+		t.Fatalf("sm-data GETs after a second session on the same DNN = %d, want one per session", n)
 	}
+
+	vsmfAwait(t, f.home, http.MethodPost, "/sdm-subscriptions", 2)
 }
 
 func TestVSMFRegisterThenCloseDeregistersAndUnsubscribes(t *testing.T) {
@@ -346,15 +287,15 @@ func TestVSMFRegisterThenCloseDeregistersAndUnsubscribes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	puts := f.home.find(http.MethodPut, "/nudm-uecm/v1/"+vsmfSupi+"/registrations/smf-registrations/5")
+	puts := vsmfRequests(f.home, http.MethodPut, "/nudm-uecm/v1/"+vsmfSupi+"/registrations/smf-registrations/5")
 	if len(puts) != 1 {
 		t.Fatalf("UECM registrations = %d, want 1", len(puts))
 	}
 
-	reg := vsmfJSON(t, puts[0].body)
-	if reg["smfInstanceId"] != f.v.instanceID(vsmfOP, 1) || reg["pduSessionId"] != float64(5) || reg["dnn"] != "internet" ||
+	reg := vsmfJSON(t, puts[0].Body)
+	if reg["smfInstanceId"] != f.v.instanceID(vsmfOP) || reg["pduSessionId"] != float64(5) || reg["dnn"] != "internet" ||
 		reg["deregCallbackUri"] != "https://smf1.5gc.mnc070.mcc999.3gppnetwork.org/roaming-callbacks/v1/"+vsmfSupi+"/uecm-dereg" {
-		t.Fatalf("SMF registration = %s", puts[0].body)
+		t.Fatalf("SMF registration = %s", puts[0].Body)
 	}
 
 	if p := reg["plmnId"].(map[string]any); p["mcc"] != "999" || p["mnc"] != "70" {
@@ -365,62 +306,65 @@ func TestVSMFRegisterThenCloseDeregistersAndUnsubscribes(t *testing.T) {
 		t.Fatalf("singleNssai = %v", s)
 	}
 
+	vsmfEventually(t, "both sessions subscribed", func() bool { return first.subscribed() && second.subscribed() })
+
 	first.Close()
 	first.Close()
-	f.v.Settle()
 
-	dels := f.home.find(http.MethodDelete, "/smf-registrations/5")
-	if len(dels) != 1 {
-		t.Fatalf("UECM deregistrations = %d, want 1", len(dels))
+	dels := vsmfAwait(t, f.home, http.MethodDelete, "/smf-registrations/5", 1)
+	if q, _ := url.ParseQuery(dels[0].Query); q.Get("smf-instance-id") != f.v.instanceID(vsmfOP) {
+		t.Fatalf("smf-instance-id = %q, want this SMF's instance", q.Get("smf-instance-id"))
 	}
 
-	if got := dels[0].query.Get("smf-instance-id"); got != f.v.instanceID(vsmfOP, 1) {
-		t.Fatalf("smf-instance-id = %q, want this SMF's instance", got)
+	vsmfAwait(t, f.home, http.MethodDelete, "/sdm-subscriptions/", 1)
+
+	if _, ok := f.home.SMFRegistration(vsmfSupi, "5"); ok {
+		t.Fatal("the home UDM kept the closed session's registration")
 	}
 
-	if n := f.home.count(http.MethodDelete, "/sdm-subscriptions/"); n != 0 {
-		t.Fatal("unsubscribed while another session uses the data")
+	if n := len(f.home.Subscriptions()); n != 1 {
+		t.Fatalf("SDM subscriptions after closing one session = %d, want the other session's", n)
 	}
 
 	second.Close()
-	f.v.Settle()
 
-	if n := f.home.count(http.MethodDelete, "/smf-registrations/6"); n != 0 {
+	vsmfAwait(t, f.home, http.MethodDelete, "/sdm-subscriptions/", 2)
+	vsmfEventually(t, "the visitor is forgotten", func() bool { return !f.v.holdsUE(vsmfIMSI) })
+
+	if n := len(vsmfRequests(f.home, http.MethodDelete, "/smf-registrations/6")); n != 0 {
 		t.Fatal("deregistered a session that never registered")
-	}
-
-	if del := f.home.find(http.MethodDelete, "/sdm-subscriptions/sub-1"); len(del) != 1 {
-		t.Fatalf("unsubscriptions = %d, want 1", len(del))
-	}
-
-	if f.v.holdsUE(vsmfIMSI) {
-		t.Fatal("the visitor's home data outlived its sessions")
 	}
 }
 
 func TestVSMFRefusals(t *testing.T) {
+	fail := func(status int, cause wire.Cause) func(f *vsmfFixture) {
+		return func(f *vsmfFixture) { f.home.Fail(http.MethodGet, "/sm-data", wire.NewProblem(status, cause, "")) }
+	}
+
+	data := func(body string) func(f *vsmfFixture) {
+		return func(f *vsmfFixture) { f.setSMData(body) }
+	}
+
 	for name, tc := range map[string]struct {
 		dnn     string
 		setup   func(f *vsmfFixture)
 		want    fgs.GSMCause
 		wantErr error
 	}{
-		"packet services barred":   {dnn: "internet", setup: vsmfSMData(http.StatusOK, strings.Replace(vsmfSMDataBody, `"dnnConfigurations"`, `"odbPacketServices": "ALL_PACKET_SERVICES", "dnnConfigurations"`, 1)), want: fgs.GSMCauseOperatorDeterminedBarring, wantErr: ErrSessionBarred},
-		"VPLMN APs barred":         {dnn: "internet", setup: vsmfSMData(http.StatusOK, strings.Replace(vsmfSMDataBody, `"dnnConfigurations"`, `"odbPacketServices": "ROAMER_ACCESS_VPLMN_AP", "dnnConfigurations"`, 1)), want: fgs.GSMCauseOperatorDeterminedBarring, wantErr: ErrSessionBarred},
-		"user unknown":             {dnn: "internet", setup: vsmfSMData404(`{"cause":"USER_NOT_FOUND"}`), want: fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, wantErr: ErrSessionHPLMNRefused},
-		"data not found":           {dnn: "internet", setup: vsmfSMData404(`{"cause":"DATA_NOT_FOUND"}`), want: fgs.GSMCauseRequestedServiceOptionNotSubscribed, wantErr: ErrSessionNotSubscribed},
-		"DNN not in sm-data":       {dnn: "internet", setup: vsmfSMData(http.StatusOK, vsmfSMDataOther), want: fgs.GSMCauseRequestedServiceOptionNotSubscribed, wantErr: ErrSessionNotSubscribed},
-		"home UDM overloaded":      {dnn: "internet", setup: vsmfSMData(http.StatusServiceUnavailable, `{"cause":"NF_CONGESTION"}`), want: fgs.GSMCauseNetworkFailure, wantErr: ErrSessionHPLMNUnreachable},
+		"packet services barred":   {dnn: "internet", setup: data(strings.Replace(vsmfSMDataBody, `"dnnConfigurations"`, `"odbPacketServices": "ALL_PACKET_SERVICES", "dnnConfigurations"`, 1)), want: fgs.GSMCauseOperatorDeterminedBarring, wantErr: ErrSessionBarred},
+		"VPLMN APs barred":         {dnn: "internet", setup: data(strings.Replace(vsmfSMDataBody, `"dnnConfigurations"`, `"odbPacketServices": "ROAMER_ACCESS_VPLMN_AP", "dnnConfigurations"`, 1)), want: fgs.GSMCauseOperatorDeterminedBarring, wantErr: ErrSessionBarred},
+		"user unknown":             {dnn: "internet", setup: fail(http.StatusNotFound, wire.CauseUserNotFound), want: fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, wantErr: ErrSessionHPLMNRefused},
+		"data not found":           {dnn: "internet", setup: fail(http.StatusNotFound, wire.CauseDataNotFound), want: fgs.GSMCauseRequestedServiceOptionNotSubscribed, wantErr: ErrSessionNotSubscribed},
+		"DNN not in sm-data":       {dnn: "internet", setup: data(vsmfSMDataOther), want: fgs.GSMCauseRequestedServiceOptionNotSubscribed, wantErr: ErrSessionNotSubscribed},
+		"home UDM overloaded":      {dnn: "internet", setup: fail(http.StatusServiceUnavailable, wire.CauseNFCongestion), want: fgs.GSMCauseNetworkFailure, wantErr: ErrSessionHPLMNUnreachable},
 		"N32 down":                 {dnn: "internet", setup: func(f *vsmfFixture) { f.n32.down = true }, want: fgs.GSMCauseNetworkFailure, wantErr: ErrSessionHPLMNUnreachable},
-		"SSC mode 1 not allowed":   {dnn: "internet", setup: vsmfSMData(http.StatusOK, strings.Replace(vsmfSMDataBody, "SSC_MODE_1", "SSC_MODE_2", 1)), want: fgs.GSMCauseNotSupportedSSCMode, wantErr: ErrSessionSSCMode},
-		"no IP PDU session type":   {dnn: "internet", setup: vsmfSMData(http.StatusOK, strings.NewReplacer(`"IPV4"`, `"ETHERNET"`, `["IPV4V6"]`, `["UNSTRUCTURED"]`).Replace(vsmfSMDataBody)), want: fgs.GSMCauseUnknownPDUSessionType, wantErr: ErrSessionNotIP},
-		"shared data not resolved": {dnn: "internet", setup: vsmfSMData(http.StatusOK, `{"sharedSmSubsDataIds": ["001-01-1"]}`), want: fgs.GSMCauseRequestRejectedUnspecified, wantErr: ErrSessionHPLMNData},
+		"SSC mode 1 not allowed":   {dnn: "internet", setup: data(strings.Replace(vsmfSMDataBody, "SSC_MODE_1", "SSC_MODE_2", 1)), want: fgs.GSMCauseNotSupportedSSCMode, wantErr: ErrSessionSSCMode},
+		"no IP PDU session type":   {dnn: "internet", setup: data(strings.NewReplacer(`"IPV4"`, `"ETHERNET"`, `["IPV4V6"]`, `["UNSTRUCTURED"]`).Replace(vsmfSMDataBody)), want: fgs.GSMCauseUnknownPDUSessionType, wantErr: ErrSessionNotIP},
+		"shared data not resolved": {dnn: "internet", setup: data(`{"sharedSmSubsDataIds": ["001-01-1"]}`), want: fgs.GSMCauseRequestRejectedUnspecified, wantErr: ErrSessionHPLMNData},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newVSMFFixture(t)
-			if tc.setup != nil {
-				tc.setup(f)
-			}
+			tc.setup(f)
 
 			h, err := f.open(t, 5, tc.dnn)
 
@@ -429,7 +373,7 @@ func TestVSMFRefusals(t *testing.T) {
 				t.Fatalf("OpenSubscription = %v, %v; want cause %d and %v", h, err, tc.want, tc.wantErr)
 			}
 
-			if n := f.home.count(http.MethodPost, "/sdm-subscriptions"); n != 0 {
+			if n := len(vsmfRequests(f.home, http.MethodPost, "/sdm-subscriptions")); n != 0 {
 				t.Fatal("subscribed for a refused session")
 			}
 
@@ -440,46 +384,35 @@ func TestVSMFRefusals(t *testing.T) {
 	}
 }
 
-func vsmfSMData(status int, body string) func(f *vsmfFixture) {
-	return func(f *vsmfFixture) { f.home.smData = []vsmfFakeReply{{status, body}} }
-}
-
-func vsmfSMData404(body string) func(f *vsmfFixture) {
-	return vsmfSMData(http.StatusNotFound, body)
-}
-
 func TestVSMFRegistrationErrors(t *testing.T) {
 	for name, tc := range map[string]struct {
-		replies []vsmfFakeReply
-		cause   fgs.GSMCause
-		puts    int
+		pd    wire.ProblemDetails
+		cause fgs.GSMCause
 	}{
-		"roaming not allowed": {[]vsmfFakeReply{{http.StatusForbidden, `{"cause":"ROAMING_NOT_ALLOWED"}`}}, fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, 1},
-		"DNN not allowed":     {[]vsmfFakeReply{{http.StatusForbidden, `{"cause":"DNN_NOT_ALLOWED"}`}}, fgs.GSMCauseMissingOrUnknownDNN, 1},
-		"user not found":      {[]vsmfFakeReply{{http.StatusNotFound, `{"cause":"USER_NOT_FOUND"}`}}, fgs.GSMCauseUserAuthenticationOrAuthorizationFailed, 1},
-		"home UDM failing":    {[]vsmfFakeReply{{http.StatusInternalServerError, `{}`}}, 0, vsmfRegisterAttempts},
-		"recovers":            {[]vsmfFakeReply{{http.StatusServiceUnavailable, `{}`}, {http.StatusCreated, `{}`}}, 0, 2},
+		"roaming not allowed": {wire.NewProblem(http.StatusForbidden, wire.CauseRoamingNotAllowed, ""), fgs.GSMCauseUserAuthenticationOrAuthorizationFailed},
+		"DNN not allowed":     {wire.NewProblem(http.StatusForbidden, wire.CauseDNNNotAllowed, ""), fgs.GSMCauseMissingOrUnknownDNN},
+		"user not found":      {wire.NewProblem(http.StatusNotFound, wire.CauseUserNotFound, ""), fgs.GSMCauseUserAuthenticationOrAuthorizationFailed},
+		"home UDM failing":    {wire.NewProblem(http.StatusInternalServerError, "", ""), 0},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newVSMFFixture(t)
-			f.home.uecm = tc.replies
+			f.home.Fail(http.MethodPut, "/smf-registrations/5", tc.pd)
 
-			h := f.mustOpen(t, 5)
-			err := h.Register(context.Background())
+			err := f.mustOpen(t, 5).Register(context.Background())
 
 			var se *SessionError
 
 			switch {
+			case err == nil:
+				t.Fatal("Register succeeded")
 			case tc.cause != 0 && (!errors.As(err, &se) || se.GSMCause() != tc.cause):
 				t.Fatalf("Register = %v, want cause %d", err, tc.cause)
 			case tc.cause == 0 && errors.As(err, &se):
 				t.Fatalf("Register = %v, want no 5GSM cause for a transient failure", err)
-			case name == "recovers" && err != nil:
-				t.Fatalf("Register = %v", err)
 			}
 
-			if n := f.home.count(http.MethodPut, "/smf-registrations/5"); n != tc.puts {
-				t.Fatalf("UECM PUTs = %d, want %d", n, tc.puts)
+			if n := len(vsmfRequests(f.home, http.MethodPut, "/smf-registrations/5")); n != 1 {
+				t.Fatalf("UECM PUTs = %d, want one attempt", n)
 			}
 		})
 	}
@@ -501,7 +434,7 @@ func vsmfCallback(t *testing.T, v *VSMF, partnerID string, kind sepp.CallbackKin
 func TestVSMFDataChangeRefreshesAndReconciles(t *testing.T) {
 	f := newVSMFFixture(t)
 	h := f.mustOpen(t, 5)
-	f.v.Settle()
+	vsmfEventually(t, "the session is subscribed", h.subscribed)
 
 	change := `{"notifyItems": [{"resourceId": "` + vsmfUDMRoot + `/nudm-sdm/v2/` + vsmfSupi + `/sm-data", "changes": [{"op": "REPLACE", "path": "/0/dnnConfigurations/internet/sessionAmbr"}]}]}`
 
@@ -513,9 +446,7 @@ func TestVSMFDataChangeRefreshesAndReconciles(t *testing.T) {
 		t.Fatalf("empty notification: %d %s", rec.Code, rec.Body)
 	}
 
-	f.home.mu.Lock()
-	f.home.smData = []vsmfFakeReply{{http.StatusOK, vsmfSMDataLower}}
-	f.home.mu.Unlock()
+	f.setSMData(vsmfSMDataLower)
 
 	if rec := vsmfCallback(t, f.v, "p", sepp.CallbackSDMChange, change); rec.Code != http.StatusNoContent {
 		t.Fatalf("notification: %d %s", rec.Code, rec.Body)
@@ -534,11 +465,15 @@ func TestVSMFDataChangeRefreshesAndReconciles(t *testing.T) {
 		t.Fatalf("rules after the change = %+v", r)
 	}
 
-	f.home.mu.Lock()
-	f.home.smData = []vsmfFakeReply{{http.StatusOK, vsmfSMDataOther}}
-	f.home.mu.Unlock()
+	f.setSMData(vsmfSMDataOther)
+
+	var id string
+	for k := range f.home.Subscriptions() {
+		id = k
+	}
 
 	relative := strings.Replace(change, vsmfUDMRoot+"/nudm-sdm/v2/", "", 1)
+	relative = strings.Replace(relative, `"notifyItems"`, `"subscriptionId": "`+id+`", "notifyItems"`, 1)
 
 	if rec := vsmfCallback(t, f.v, "p", sepp.CallbackSDMChange, relative); rec.Code != http.StatusNoContent {
 		t.Fatalf("notification: %d %s", rec.Code, rec.Body)
@@ -550,7 +485,7 @@ func TestVSMFDataChangeRefreshesAndReconciles(t *testing.T) {
 		t.Fatalf("rules after a withdrawal = %+v, want withdrawn", r)
 	}
 
-	if rec := vsmfCallback(t, f.v, "p", sepp.CallbackSDMChange, strings.Replace(change, `"notifyItems"`, `"subscriptionId": "sub-7", "notifyItems"`, 1)); rec.Code != http.StatusNotFound {
+	if rec := vsmfCallback(t, f.v, "p", sepp.CallbackSDMChange, strings.Replace(change, `"notifyItems"`, `"subscriptionId": "not-`+id+`", "notifyItems"`, 1)); rec.Code != http.StatusNotFound {
 		t.Fatalf("notification for another subscription: %d %s", rec.Code, rec.Body)
 	}
 }
@@ -606,10 +541,13 @@ func TestVSMFDeregistrationNotification(t *testing.T) {
 				t.Fatal("the SMF was not asked to release the session")
 			}
 
-			h.Close()
-			f.v.Settle()
+			vsmfEventually(t, "the session is subscribed", h.subscribed)
 
-			if n := f.home.count(http.MethodDelete, "/smf-registrations/5"); n != tc.deregister {
+			h.Close()
+
+			vsmfAwait(t, f.home, http.MethodDelete, "/sdm-subscriptions/", 1)
+
+			if n := len(vsmfRequests(f.home, http.MethodDelete, "/smf-registrations/5")); n != tc.deregister {
 				t.Fatalf("UECM deregistrations = %d, want %d", n, tc.deregister)
 			}
 		})
@@ -631,49 +569,64 @@ func TestVSMFDeregistrationOfAGoneSessionClosesIt(t *testing.T) {
 
 	<-f.control.releases
 
-	deadline := time.Now().Add(2 * time.Second)
+	vsmfEventually(t, "the home session is dropped", func() bool { return !f.v.holdsUE(vsmfIMSI) })
 
-	for {
-		f.v.Settle()
-
-		if !f.v.holdsUE(vsmfIMSI) {
-			break
-		}
-
-		if time.Now().After(deadline) {
-			t.Fatal("the home session was kept after the SMF reported no such session")
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if n := f.home.count(http.MethodDelete, "/smf-registrations/5"); n != 0 {
+	if n := len(vsmfRequests(f.home, http.MethodDelete, "/smf-registrations/5")); n != 0 {
 		t.Fatal("deregistered a registration the home UDM moved to another SMF")
 	}
 }
 
-func TestVSMFRenewsAnExpiringSDMSubscription(t *testing.T) {
+func TestVSMFRenewsOnlyAnExpiryTheUDMImposes(t *testing.T) {
 	f := newVSMFFixture(t)
-	f.home.expires = time.Now().Add(300 * time.Millisecond).UTC().Format(time.RFC3339Nano)
+	h := f.mustOpen(t, 5)
+	vsmfEventually(t, "the session is subscribed", h.subscribed)
+
+	f.v.RenewSubscriptions(context.Background())
+
+	f.home.ImposeSDMExpiry(time.Minute)
+	g := f.mustOpen(t, 6)
+	vsmfEventually(t, "the second session is subscribed", g.subscribed)
+
+	f.v.RenewSubscriptions(context.Background())
+
+	patches := vsmfAwait(t, f.home, http.MethodPatch, "/sdm-subscriptions/", 1)
+	if len(patches) != 1 || patches[0].Header.Get("Content-Type") != wire.ContentTypeMergePatch || !bytes.Contains(patches[0].Body, []byte(`"expires"`)) {
+		t.Fatalf("renewals = %+v, want one for the subscription with an imposed expiry", patches)
+	}
+
+	f.home.Fail(http.MethodPatch, "/sdm-subscriptions/", wire.NewProblem(http.StatusNotFound, wire.CauseSubscriptionNotFound, ""))
+	f.v.now = func() time.Time { return time.Now().Add(24 * time.Hour) }
+	f.v.RenewSubscriptions(context.Background())
+
+	vsmfEventually(t, "the failed renewal clears the subscription", func() bool { return !g.subscribed() })
+
+	f.home.Heal()
+	f.v.RenewSubscriptions(context.Background())
+
+	vsmfAwait(t, f.home, http.MethodPost, "/sdm-subscriptions", 3)
+	vsmfEventually(t, "the session subscribes again", g.subscribed)
+}
+
+func TestVSMFSubscribesAgainAtTheNextReconcile(t *testing.T) {
+	f := newVSMFFixture(t)
+	f.home.Fail(http.MethodPost, "/sdm-subscriptions", wire.NewProblem(http.StatusServiceUnavailable, wire.CauseNFCongestion, ""))
 
 	h := f.mustOpen(t, 5)
+	vsmfAwait(t, f.home, http.MethodPost, "/sdm-subscriptions", 1)
 
-	deadline := time.Now().Add(3 * time.Second)
-	for f.home.count(http.MethodPatch, "/sdm-subscriptions/sub-1") == 0 {
-		if time.Now().After(deadline) {
-			t.Fatal("the SDM subscription was not renewed before it expired")
-		}
+	f.home.Heal()
+	f.v.RenewSubscriptions(context.Background())
 
-		time.Sleep(20 * time.Millisecond)
+	vsmfEventually(t, "the session subscribes", h.subscribed)
+
+	f.v.RenewSubscriptions(context.Background())
+	f.mustOpen(t, 6)
+	vsmfAwait(t, f.home, http.MethodPost, "/sdm-subscriptions", 3)
+
+	posts := len(vsmfRequests(f.home, http.MethodPost, "/sdm-subscriptions"))
+	if posts != 3 {
+		t.Fatalf("SDM subscription attempts = %d, want no retry once subscribed", posts)
 	}
-
-	patch := f.home.find(http.MethodPatch, "/sdm-subscriptions/sub-1")[0]
-	if patch.header.Get("Content-Type") != wire.ContentTypeMergePatch || !strings.Contains(patch.body, `"expires"`) {
-		t.Fatalf("renewal = %+v", patch)
-	}
-
-	h.Close()
-	f.v.Settle()
 }
 
 func TestVSMFCallbacksForAnotherNF(t *testing.T) {
@@ -686,44 +639,38 @@ func TestVSMFCallbacksForAnotherNF(t *testing.T) {
 	f.v.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil))
 
 	if rec.Code != http.StatusNotFound {
-		t.Fatalf("AMF vsmfCallback served by the V-SMF: %d", rec.Code)
+		t.Fatalf("AMF callback served by the V-SMF: %d", rec.Code)
 	}
 }
 
 func TestVSMFThroughTheSEPP(t *testing.T) {
-	home := &vsmfFakeUDM{}
+	home := newVSMFHome()
 	partner := sepptest.NewPartner(t, vsmfHPLMN, home)
 	ella := sepptest.NewElla(t, vsmfOP, 1, partner.Config("p"))
-	control := &vsmfControl{releases: make(chan vsmfReleased, 4), reconciles: make(chan etsi.SUPI, 4), found: true}
+	control := newVSMFControl()
 
 	v := NewVSMF(zap.NewNop())
 	v.SetN32(ella.Manager)
 	v.SetSessions(control)
 	ella.Manager.SetCallbacks(v)
 
-	t.Cleanup(v.Settle)
-
 	ctx := context.Background()
 
-	h, err := v.OpenSubscription(ctx, smf.HPLMNSubscriptionRequest{Supi: vsmfSUPI(t), PDUSessionID: 5, Dnn: "internet", Target: vsmfTarget()})
-	if err != nil || h == nil {
-		t.Fatalf("OpenSubscription over N32 = %v, %v", h, err)
+	opened, err := v.OpenSubscription(ctx, smf.HPLMNSubscriptionRequest{Supi: vsmfSUPI(t), PDUSessionID: 5, Dnn: "internet", Target: vsmfTarget()})
+	if err != nil || opened == nil {
+		t.Fatalf("OpenSubscription over N32 = %v, %v", opened, err)
 	}
+
+	h := opened.(*vsmfSession)
 
 	if err := h.Register(ctx); err != nil {
 		t.Fatalf("Register over N32: %v", err)
 	}
 
-	v.Settle()
+	vsmfEventually(t, "the session is subscribed over N32", h.subscribed)
 
-	for _, path := range []string{"/sm-data", "/sdm-subscriptions"} {
-		if len(home.find(http.MethodGet, path))+len(home.find(http.MethodPost, path)) != 1 {
-			t.Fatalf("the home UDM did not receive %s over N32", path)
-		}
-	}
-
-	puts := home.find(http.MethodPut, "/smf-registrations/5")
-	if len(puts) != 1 || puts[0].header.Get(sepp.HeaderOriginatingNetworkID) != "999-70" {
+	puts := vsmfRequests(home, http.MethodPut, "/smf-registrations/5")
+	if len(puts) != 1 || puts[0].Header.Get(sepp.HeaderOriginatingNetworkID) != "999-70" {
 		t.Fatalf("UECM registration over N32 = %+v", puts)
 	}
 
@@ -760,40 +707,12 @@ func TestVSMFThroughTheSEPP(t *testing.T) {
 	}
 
 	h.Close()
-	v.Settle()
 
-	if home.count(http.MethodDelete, "/smf-registrations/5") != 0 || home.count(http.MethodDelete, "/sdm-subscriptions/") != 1 {
+	vsmfAwait(t, home, http.MethodDelete, "/sdm-subscriptions/", 1)
+
+	if len(vsmfRequests(home, http.MethodDelete, "/smf-registrations/5")) != 0 {
 		t.Fatal("after a duplicate the V-SMF must keep the new SMF's registration and drop only its own subscription")
 	}
-}
-
-func TestVSMFRetriesAFailedSDMSubscriptionAtTheNextSession(t *testing.T) {
-	f := newVSMFFixture(t)
-	f.home.refuseSubs = 1
-
-	first := f.mustOpen(t, 5)
-	f.v.Settle()
-
-	if n := f.home.subscriptions; n != 0 {
-		t.Fatalf("SDM subscriptions = %d, want the first one refused", n)
-	}
-
-	second := f.mustOpen(t, 6)
-	f.v.Settle()
-
-	if n := f.home.count(http.MethodPost, "/sdm-subscriptions"); n != 2 || f.home.subscriptions != 1 {
-		t.Fatalf("SDM subscription attempts = %d (%d accepted), want a retry at the second session", n, f.home.subscriptions)
-	}
-
-	f.mustOpen(t, 7)
-	f.v.Settle()
-
-	if n := f.home.count(http.MethodPost, "/sdm-subscriptions"); n != 2 {
-		t.Fatalf("SDM subscription attempts = %d, want no retry once subscribed", n)
-	}
-
-	first.Close()
-	second.Close()
 }
 
 func TestVSMFRegistrationNamesThePGWForEPSInterworking(t *testing.T) {
@@ -805,15 +724,18 @@ func TestVSMFRegistrationNamesThePGWForEPSInterworking(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		reg := vsmfJSON(t, f.home.find(http.MethodPut, "/smf-registrations/5")[0].body)
+		reg, ok := f.home.SMFRegistration(vsmfSupi, "5")
+		if !ok {
+			t.Fatal("no SMF registration")
+		}
 
 		want := ""
 		if iwk {
-			want = "pgw1.epc.mnc070.mcc999.3gppnetwork.org"
+			want = "pgw1.node.epc.mnc070.mcc999.3gppnetwork.org"
 		}
 
-		if got, _ := reg["pgwFqdn"].(string); got != want {
-			t.Fatalf("EPS interworking %v: pgwFqdn = %q, want %q", iwk, got, want)
+		if reg.PgwFqdn != want {
+			t.Fatalf("EPS interworking %v: pgwFqdn = %q, want %q", iwk, reg.PgwFqdn, want)
 		}
 	}
 }
@@ -821,13 +743,10 @@ func TestVSMFRegistrationNamesThePGWForEPSInterworking(t *testing.T) {
 func TestVSMFRefusesNewSessionsOnceBarredButKeepsTheSession(t *testing.T) {
 	f := newVSMFFixture(t)
 	h := f.mustOpen(t, 5)
-	f.v.Settle()
 
-	f.home.mu.Lock()
-	f.home.smData = []vsmfFakeReply{{http.StatusOK, strings.Replace(vsmfSMDataBody, `"dnnConfigurations"`, `"odbPacketServices": "ROAMER_ACCESS_VPLMN_AP", "dnnConfigurations"`, 1)}}
-	f.home.mu.Unlock()
+	f.setSMData(strings.Replace(vsmfSMDataBody, `"dnnConfigurations"`, `"odbPacketServices": "ROAMER_ACCESS_VPLMN_AP", "dnnConfigurations"`, 1))
 
-	f.v.refresh(context.Background(), vsmfSUPI(t))
+	f.v.refresh(context.Background(), h)
 
 	if r := h.Rules(); r.Withdrawn {
 		t.Fatal("a change of barring released the existing session; only the AMF acts on existing sessions (TS 29.503 NOTE 2)")
@@ -839,6 +758,4 @@ func TestVSMFRefusesNewSessionsOnceBarredButKeepsTheSession(t *testing.T) {
 	if !errors.As(err, &se) || se.GSMCause() != fgs.GSMCauseOperatorDeterminedBarring {
 		t.Fatalf("OpenSubscription after barring = %v, want cause #8", err)
 	}
-
-	h.Close()
 }

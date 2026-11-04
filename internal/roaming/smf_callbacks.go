@@ -69,7 +69,8 @@ func (v *VSMF) serveDataChange(ctx context.Context, w http.ResponseWriter, peer 
 		return
 	}
 
-	if !v.subscribedTo(peer.PartnerID, supi, n.SubscriptionID) {
+	matched := v.subscribedSessions(peer.PartnerID, supi, n.SubscriptionID)
+	if len(matched) == 0 {
 		writeSMFProblem(w, sepp.CallbackSDMChange.NotFound("no SDM subscription for this UE"))
 		return
 	}
@@ -89,34 +90,33 @@ func (v *VSMF) serveDataChange(ctx context.Context, w http.ResponseWriter, peer 
 	ctx = context.WithoutCancel(ctx)
 
 	v.queue.Go(supi.IMSI(), func() {
-		v.refresh(ctx, supi)
+		for _, s := range matched {
+			v.refresh(ctx, s)
+		}
 
-		if sessions := v.deps.Load().sessions; sessions != nil {
-			go sessions.ReconcileHPLMNBoundSessions(ctx, supi)
+		if v.sessions != nil {
+			go v.sessions.ReconcileHPLMNBoundSessions(ctx, supi)
 		}
 	})
 }
 
-func (v *VSMF) subscribedTo(partnerID string, supi etsi.SUPI, subscriptionID string) bool {
+func (v *VSMF) subscribedSessions(partnerID string, supi etsi.SUPI, subscriptionID string) []*vsmfSession {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	ue := v.ues[supi.IMSI()]
-	if ue == nil || ue.target.PartnerID != partnerID {
-		return false
-	}
+	var matched []*vsmfSession
 
-	for _, d := range ue.data {
-		if d.subscription == "" {
+	for _, s := range v.ues[supi.IMSI()] {
+		if s.closed || s.subscription == "" || s.target.PartnerID != partnerID {
 			continue
 		}
 
-		if subscriptionID == "" || path.Base(d.subscription) == subscriptionID {
-			return true
+		if subscriptionID == "" || path.Base(s.subscription) == subscriptionID {
+			matched = append(matched, s)
 		}
 	}
 
-	return false
+	return matched
 }
 
 func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, peer sepp.Peer, supi etsi.SUPI, body []byte) {
@@ -137,11 +137,11 @@ func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, p
 
 	var s *vsmfSession
 
-	if ue := v.ues[supi.IMSI()]; ue != nil && ue.target.PartnerID == peer.PartnerID && *d.PduSessionID >= 1 && *d.PduSessionID <= 15 {
-		s = ue.sessions[uint8(*d.PduSessionID)]
+	if *d.PduSessionID >= 1 && *d.PduSessionID <= 15 {
+		s = v.ues[supi.IMSI()][uint8(*d.PduSessionID)]
 	}
 
-	if s == nil || s.closed || !s.registered {
+	if s == nil || s.closed || !s.registered || s.target.PartnerID != peer.PartnerID {
 		v.mu.Unlock()
 		writeSMFProblem(w, sepp.CallbackUECMDereg.NotFound("no SMF registration for this PDU session"))
 
@@ -155,8 +155,7 @@ func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, p
 
 	v.logger.Info("The home UDM deregistered the visitor's PDU session", zap.String("supi", supi.String()), zap.Uint8("pduSessionID", s.psi), zap.String("reason", string(d.DeregReason)))
 
-	sessions := v.deps.Load().sessions
-	if sessions == nil {
+	if v.sessions == nil {
 		s.Close()
 		return
 	}
@@ -164,7 +163,7 @@ func (v *VSMF) serveDeregistration(ctx context.Context, w http.ResponseWriter, p
 	ctx = context.WithoutCancel(ctx)
 
 	go func() {
-		if !sessions.ReleaseHPLMNBoundSession(ctx, supi, s.psi, s, how) {
+		if !v.sessions.ReleaseHPLMNBoundSession(ctx, supi, s.psi, s, how) {
 			s.Close()
 		}
 	}()

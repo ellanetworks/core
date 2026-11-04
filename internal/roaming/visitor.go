@@ -34,6 +34,6 @@ func NewVisitor(partner db.RoamingPartner, plmn db.RoamingPLMN) (Visitor, error)
 		PartnerName: partner.Name,
 		Since:       time.Now(),
 		HomePLMN:    plmnOf(plmn),
-		Peer:        HPLMNPeer{Realm: realm, Partner: partner.Name},
+		Peer:        HPLMNPeer{Realm: realm},
 	}, nil
 }

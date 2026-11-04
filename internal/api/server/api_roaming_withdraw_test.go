@@ -26,12 +26,11 @@ type fakeNodes struct {
 	database *db.Database
 	held     []heldRoamer
 
-	mu         sync.Mutex
-	withdrawn  []string
-	withdrawal []db.RoamingWithdrawal
+	mu        sync.Mutex
+	withdrawn []string
 }
 
-func (n *fakeNodes) run(ctx context.Context, partnerID string) {
+func (n *fakeNodes) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -39,22 +38,13 @@ func (n *fakeNodes) run(ctx context.Context, partnerID string) {
 		case <-time.After(5 * time.Millisecond):
 		}
 
-		if p, err := n.database.GetRoamingPartner(ctx, partnerID); err == nil && len(p.Withdrawals) > 0 {
-			n.mu.Lock()
-			n.withdrawal = p.Withdrawals
-			n.mu.Unlock()
-		}
-
 		for _, r := range n.held {
-			if _, err := n.database.RoamingWithdrawalOf(ctx, r.imsi, r.regType); err != nil {
+			v, err := n.database.GetVisitor(ctx, r.imsi)
+			if err != nil || (!v.Withdrawing(time.Now()) && !v.Deregistering(time.Now())) {
 				continue
 			}
 
 			if err := n.database.PurgeUERegistration(ctx, r.imsi, r.regType, r.node); err != nil {
-				continue
-			}
-
-			if _, err := n.database.DeleteVisitorIfUnregistered(ctx, r.imsi); err != nil {
 				continue
 			}
 
@@ -67,11 +57,11 @@ func (n *fakeNodes) run(ctx context.Context, partnerID string) {
 	}
 }
 
-func (n *fakeNodes) deregistered() ([]string, []db.RoamingWithdrawal) {
+func (n *fakeNodes) deregistered() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	return append([]string(nil), n.withdrawn...), append([]db.RoamingWithdrawal(nil), n.withdrawal...)
+	return append([]string(nil), n.withdrawn...)
 }
 
 func roamingPartnerWithRoamers(t *testing.T, held []heldRoamer) (testEnv, *http.Client, string, roamingPartnerBody) {
@@ -112,7 +102,7 @@ func createPartnerWithRoamers(t *testing.T, env testEnv, client *http.Client, to
 	return body
 }
 
-func startFakeNodes(t *testing.T, env testEnv, partnerID string, held []heldRoamer) *fakeNodes {
+func startFakeNodes(t *testing.T, env testEnv, held []heldRoamer) *fakeNodes {
 	t.Helper()
 
 	nodes := &fakeNodes{database: env.DB, held: held}
@@ -120,7 +110,7 @@ func startFakeNodes(t *testing.T, env testEnv, partnerID string, held []heldRoam
 
 	var wg sync.WaitGroup
 
-	wg.Go(func() { nodes.run(ctx, partnerID) })
+	wg.Go(func() { nodes.run(ctx) })
 
 	t.Cleanup(func() {
 		cancel()
@@ -140,19 +130,14 @@ func TestDeletingARoamingPartnerDeregistersItsRoamersOnEveryNode(t *testing.T) {
 	env, client, token, partner := roamingPartnerWithRoamers(t, held)
 	server.SetRoamerWithdrawalTimeoutForTest(t, 10*time.Second)
 
-	nodes := startFakeNodes(t, env, partner.ID, held)
+	nodes := startFakeNodes(t, env, held)
 
 	if code, resp, err := apiDo[roamingMessageEnvelope](client, "DELETE", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, nil); err != nil || code != http.StatusOK {
 		t.Fatalf("delete a partner with roamers: code=%d err=%v (%q), want 200", code, err, resp.Error)
 	}
 
-	withdrawn, scopes := nodes.deregistered()
-	if len(withdrawn) != len(held) {
+	if withdrawn := nodes.deregistered(); len(withdrawn) != len(held) {
 		t.Fatalf("deregistered = %v, want every roamer of the partner", withdrawn)
-	}
-
-	if len(scopes) != 1 || scopes[0].Mcc != "" || scopes[0].Type != "" {
-		t.Fatalf("withdrawal = %+v, want the whole partner", scopes)
 	}
 
 	if _, err := env.DB.GetRoamingPartner(context.Background(), partner.ID); !errors.Is(err, db.ErrNotFound) {
@@ -166,60 +151,49 @@ func TestDeletingARoamingPartnerDeregistersItsRoamersOnEveryNode(t *testing.T) {
 	}
 }
 
-func TestRemovingAPLMNDeregistersOnlyItsRoamers(t *testing.T) {
-	held := []heldRoamer{
-		{imsi: "208930000000001", regType: db.UERegistrationTypeMME, node: "node-1"},
-		{imsi: "208940000000002", regType: db.UERegistrationTypeMME, node: "node-2"},
-	}
+func TestDeletingARoamingPartnerWithAnUnreachableRoamerAnswersConflict(t *testing.T) {
+	held := []heldRoamer{{imsi: "208930000000001", regType: db.UERegistrationTypeMME, node: "node-1"}}
 
 	env, client, token, partner := roamingPartnerWithRoamers(t, held)
-	server.SetRoamerWithdrawalTimeoutForTest(t, 10*time.Second)
+	server.SetRoamerWithdrawalTimeoutForTest(t, 50*time.Millisecond)
 
-	nodes := startFakeNodes(t, env, partner.ID, held)
-
-	partner.PLMNs = plmnList("208", "93")
-
-	if code, resp, err := apiDo[roamingMessageEnvelope](client, "PUT", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, partner); err != nil || code != http.StatusOK {
-		t.Fatalf("remove a PLMN with roamers: code=%d err=%v (%q), want 200", code, err, resp.Error)
-	}
-
-	if withdrawn, scopes := nodes.deregistered(); !slices.Equal(withdrawn, []string{"208940000000002"}) || len(scopes) != 1 || scopes[0].Mcc != "208" || scopes[0].Mnc != "94" {
-		t.Fatalf("deregistered %v with %+v, want only the roamer of PLMN 208-94", withdrawn, scopes)
+	if code, _, err := apiDo[roamingMessageEnvelope](client, "DELETE", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, nil); err != nil || code != http.StatusConflict {
+		t.Fatalf("delete a partner with an unreachable roamer: code=%d err=%v, want 409", code, err)
 	}
 
 	got, err := env.DB.GetRoamingPartner(context.Background(), partner.ID)
-	if err != nil || len(got.PLMNs) != 1 || len(got.Withdrawals) != 0 {
-		t.Fatalf("partner after update = %+v, %v, want one PLMN and no withdrawal left", got, err)
+	if err != nil || got.Withdrawing(time.Now()) {
+		t.Fatalf("partner after a failed delete = %+v, %v, want it kept and no longer withdrawing", got, err)
 	}
 
-	if _, err := env.DB.GetSubscriberOrVisitor(context.Background(), "208930000000001"); err != nil {
-		t.Fatalf("the roamer of the kept PLMN was removed: %v", err)
+	if _, err := env.DB.RegisterVisitorUE(context.Background(), "208930000000002", partner.ID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
+		t.Fatalf("register a roamer after a failed delete: %v", err)
 	}
 }
 
-func TestRemovingThe4GAgreementDeregistersOnly4GRoamers(t *testing.T) {
+func TestRemovingAnAgreementWithAttachedRoamersAnswersConflict(t *testing.T) {
 	held := []heldRoamer{
 		{imsi: "208930000000001", regType: db.UERegistrationTypeMME, node: "node-1"},
 		{imsi: "208940000000002", regType: db.UERegistrationTypeAMF3GPPAccess, node: "node-1"},
 	}
 
 	env, client, token, partner := roamingPartnerWithRoamers(t, held)
-	server.SetRoamerWithdrawalTimeoutForTest(t, 10*time.Second)
 
-	nodes := startFakeNodes(t, env, partner.ID, held)
+	for name, mutate := range map[string]func(*roamingPartnerBody){
+		"PLMN":         func(b *roamingPartnerBody) { b.PLMNs = plmnList("208", "93") },
+		"4G agreement": func(b *roamingPartnerBody) { b.DiameterPeerID = "" },
+	} {
+		body := partner
+		mutate(&body)
 
-	partner.DiameterPeerID = ""
-
-	if code, resp, err := apiDo[roamingMessageEnvelope](client, "PUT", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, partner); err != nil || code != http.StatusOK {
-		t.Fatalf("remove the 4G agreement with roamers: code=%d err=%v (%q), want 200", code, err, resp.Error)
+		if code, _, err := apiDo[roamingMessageEnvelope](client, "PUT", env.Server.URL+roamingPartnersPath+"/"+partner.ID, token, body); err != nil || code != http.StatusConflict {
+			t.Fatalf("remove the %s with attached roamers: code=%d err=%v, want 409", name, code, err)
+		}
 	}
 
-	if withdrawn, scopes := nodes.deregistered(); !slices.Equal(withdrawn, []string{"208930000000001"}) || len(scopes) != 1 || scopes[0].Type != db.UERegistrationTypeMME {
-		t.Fatalf("deregistered %v with %+v, want only the 4G roamer", withdrawn, scopes)
-	}
-
-	if got, err := env.DB.GetRoamingPartner(context.Background(), partner.ID); err != nil || got.DiameterPeerID != nil {
-		t.Fatalf("partner after update = %+v, %v, want no 4G agreement", got, err)
+	got, err := env.DB.GetRoamingPartner(context.Background(), partner.ID)
+	if err != nil || len(got.PLMNs) != 2 || got.DiameterPeerID == nil {
+		t.Fatalf("partner after refused updates = %+v, %v, want it unchanged", got, err)
 	}
 }
 
@@ -237,42 +211,5 @@ func TestPartnerChangeWithoutAffectedRoamersSkipsTheWithdrawal(t *testing.T) {
 
 	if _, err := env.DB.GetSubscriberOrVisitor(context.Background(), "208930000000001"); err != nil {
 		t.Fatalf("a roamer outside the change was removed: %v", err)
-	}
-}
-
-func TestRoamersCannotRegisterDuringAWithdrawal(t *testing.T) {
-	env, _, _, partner := roamingPartnerWithRoamers(t, nil)
-	ctx := context.Background()
-
-	withdrawals := []db.RoamingWithdrawal{{PartnerID: partner.ID, Mcc: "208", Mnc: "94"}}
-
-	if err := env.DB.WithdrawRoamers(ctx, partner.ID, withdrawals, time.Minute); err != nil {
-		t.Fatalf("WithdrawRoamers: %s", err)
-	}
-
-	if _, err := env.DB.RegisterVisitorUE(ctx, "208940000000001", partner.ID, db.UERegistrationTypeMME, "node-1", ""); !errors.Is(err, db.ErrRoamingRefused) {
-		t.Fatalf("RegisterVisitorUE in a withdrawn PLMN: %v, want %v", err, db.ErrRoamingRefused)
-	}
-
-	if _, err := env.DB.RegisterVisitorUE(ctx, "208930000000001", partner.ID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
-		t.Fatalf("RegisterVisitorUE in a kept PLMN: %v", err)
-	}
-
-	if err := env.DB.ClearRoamingWithdrawals(ctx, partner.ID); err != nil {
-		t.Fatalf("ClearRoamingWithdrawals: %s", err)
-	}
-
-	if _, err := env.DB.RegisterVisitorUE(ctx, "208940000000001", partner.ID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
-		t.Fatalf("RegisterVisitorUE after the withdrawal was cleared: %v", err)
-	}
-
-	if err := env.DB.WithdrawRoamers(ctx, partner.ID, []db.RoamingWithdrawal{{PartnerID: partner.ID}}, time.Second); err != nil {
-		t.Fatalf("WithdrawRoamers: %s", err)
-	}
-
-	time.Sleep(2100 * time.Millisecond)
-
-	if _, err := env.DB.RegisterVisitorUE(ctx, "208940000000002", partner.ID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
-		t.Fatalf("RegisterVisitorUE under an expired withdrawal: %v", err)
 	}
 }

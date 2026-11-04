@@ -12,128 +12,99 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestRoamingWithdrawalsFor(t *testing.T) {
-	peer := "peer"
-	fqdn := "sepp.5gc.mnc093.mcc208.3gppnetwork.org"
-
-	existing := db.RoamingPartner{ID: "p", PLMNs: plmns("208", "93", "208", "94"), DiameterPeerID: &peer, SEPPFQDN: &fqdn}
-
-	if got := db.RoamingWithdrawalsFor(existing, nil); len(got) != 1 || got[0] != (db.RoamingWithdrawal{PartnerID: "p"}) {
-		t.Fatalf("delete withdrawals = %+v, want the whole partner", got)
-	}
-
-	updated := existing
-	updated.PLMNs = plmns("208", "93")
-	updated.DiameterPeerID = nil
-	updated.SEPPFQDN = nil
-
-	want := []db.RoamingWithdrawal{
-		{PartnerID: "p", Mcc: "208", Mnc: "94"},
-		{PartnerID: "p", Type: db.UERegistrationTypeAMF3GPPAccess},
-		{PartnerID: "p", Type: db.UERegistrationTypeMME},
-	}
-
-	got := db.RoamingWithdrawalsFor(existing, &updated)
-	if len(got) != len(want) {
-		t.Fatalf("update withdrawals = %+v, want %+v", got, want)
-	}
-
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("update withdrawals = %+v, want %+v", got, want)
-		}
-	}
-
-	if got := db.RoamingWithdrawalsFor(existing, &existing); len(got) != 0 {
-		t.Fatalf("withdrawals of an unchanged partner = %+v, want none", got)
-	}
-}
-
-func TestRoamingWithdrawalCovers(t *testing.T) {
-	now := time.Now()
-	live := now.Add(time.Minute).Unix()
-
-	for _, tc := range []struct {
-		name string
-		w    db.RoamingWithdrawal
-		imsi string
-		typ  string
-		want bool
-	}{
-		{name: "partner", w: db.RoamingWithdrawal{ExpiresAt: live}, imsi: "208930000000001", typ: db.UERegistrationTypeMME, want: true},
-		{name: "PLMN", w: db.RoamingWithdrawal{Mcc: "208", Mnc: "93", ExpiresAt: live}, imsi: "208930000000001", typ: db.UERegistrationTypeMME, want: true},
-		{name: "other PLMN", w: db.RoamingWithdrawal{Mcc: "208", Mnc: "94", ExpiresAt: live}, imsi: "208930000000001", typ: db.UERegistrationTypeMME},
-		{name: "RAT", w: db.RoamingWithdrawal{Type: db.UERegistrationTypeMME, ExpiresAt: live}, imsi: "208930000000001", typ: db.UERegistrationTypeMME, want: true},
-		{name: "other RAT", w: db.RoamingWithdrawal{Type: db.UERegistrationTypeAMF3GPPAccess, ExpiresAt: live}, imsi: "208930000000001", typ: db.UERegistrationTypeMME},
-		{name: "expired", w: db.RoamingWithdrawal{ExpiresAt: now.Unix()}, imsi: "208930000000001", typ: db.UERegistrationTypeMME},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.w.Covers(tc.imsi, tc.typ, now); got != tc.want {
-				t.Fatalf("Covers = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestWithdrawRoamers(t *testing.T) {
+func TestWithdrawingAPartnerRefusesItsRoamers(t *testing.T) {
 	f := newRoamingFixture(t)
 	f.createPartner(t)
 	f.registerVisitor(t, visitorIMSI)
 
 	ctx := context.Background()
 
-	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, Mcc: "208", Mnc: "95"}}, time.Minute); !errors.Is(err, db.ErrRoamingConflict) {
-		t.Fatalf("withdraw a PLMN the partner does not hold: %v, want %v", err, db.ErrRoamingConflict)
+	if err := f.db.SetRoamingPartnerWithdrawing(ctx, "unknown", time.Now().Add(time.Minute)); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("withdraw an unknown partner: %v, want %v", err, db.ErrNotFound)
 	}
 
-	if err := f.db.WithdrawRoamers(ctx, "unknown", nil, time.Minute); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("withdraw the roamers of an unknown partner: %v, want %v", err, db.ErrNotFound)
+	if err := f.db.SetRoamingPartnerWithdrawing(ctx, roamingPartnerID, time.Now().Add(time.Minute)); err != nil {
+		t.Fatalf("SetRoamingPartnerWithdrawing: %s", err)
 	}
 
-	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID, Type: db.UERegistrationTypeMME}}, time.Minute); err != nil {
-		t.Fatalf("WithdrawRoamers: %s", err)
+	if p, err := f.db.GetRoamingPartner(ctx, roamingPartnerID); err != nil || !p.Withdrawing(time.Now()) {
+		t.Fatalf("partner = %+v, %v, want it withdrawing", p, err)
 	}
 
-	if n, err := f.db.CountWithdrawnRoamers(ctx, roamingPartnerID); err != nil || n != 1 {
-		t.Fatalf("CountWithdrawnRoamers = %d, %v, want the attached 4G roamer", n, err)
+	if v, err := f.db.GetVisitor(ctx, visitorIMSI); err != nil || !v.Withdrawing(time.Now()) || v.Deregistering(time.Now()) {
+		t.Fatalf("visitor = %+v, %v, want its partner withdrawing", v, err)
 	}
 
-	if w, err := f.db.RoamingWithdrawalOf(ctx, visitorIMSI, db.UERegistrationTypeMME); err != nil || !w.AgreementOnly() {
-		t.Fatalf("RoamingWithdrawalOf = %+v, %v, want the 4G agreement withdrawal", w, err)
+	for _, imsi := range []string{visitorIMSI, "208930000000002"} {
+		if _, err := f.db.RegisterVisitorUE(ctx, imsi, roamingPartnerID, db.UERegistrationTypeAMF3GPPAccess, "node-1", ""); !errors.Is(err, db.ErrRoamingRefused) {
+			t.Fatalf("register %s during the withdrawal: %v, want %v", imsi, err, db.ErrRoamingRefused)
+		}
 	}
 
-	if _, err := f.db.RoamingWithdrawalOf(ctx, visitorIMSI, db.UERegistrationTypeAMF3GPPAccess); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("RoamingWithdrawalOf over 5G: %v, want not found", err)
-	}
-
-	if err := f.db.WithdrawRoamers(ctx, roamingPartnerID, []db.RoamingWithdrawal{{PartnerID: roamingPartnerID}}, time.Minute); err != nil {
-		t.Fatalf("WithdrawRoamers: %s", err)
-	}
-
-	p, err := f.db.GetRoamingPartner(ctx, roamingPartnerID)
-	if err != nil || len(p.Withdrawals) != 1 || p.Withdrawals[0].Type != "" {
-		t.Fatalf("withdrawals = %+v, %v, want the last withdrawal to replace the previous one", p, err)
+	if n, err := f.db.CountVisitorsOfPartner(ctx, roamingPartnerID); err != nil || n != 1 {
+		t.Fatalf("CountVisitorsOfPartner = %d, %v, want the attached roamer", n, err)
 	}
 
 	if err := f.db.PurgeUERegistration(ctx, visitorIMSI, db.UERegistrationTypeMME, "node-1"); err != nil {
 		t.Fatalf("PurgeUERegistration: %s", err)
 	}
 
-	if n, err := f.db.CountWithdrawnRoamers(ctx, roamingPartnerID); err != nil || n != 1 {
-		t.Fatalf("CountWithdrawnRoamers = %d, %v, want the visitor row counted until it is deleted", n, err)
+	if n, err := f.db.CountVisitorsOfPartner(ctx, roamingPartnerID); err != nil || n != 0 {
+		t.Fatalf("CountVisitorsOfPartner = %d, %v, want none left", n, err)
 	}
 
-	if _, err := f.db.DeleteVisitorIfUnregistered(ctx, visitorIMSI); err != nil {
-		t.Fatalf("DeleteVisitorIfUnregistered: %s", err)
+	if err := f.db.SetRoamingPartnerWithdrawing(ctx, roamingPartnerID, time.Time{}); err != nil {
+		t.Fatalf("clear the withdrawal: %s", err)
 	}
 
-	if n, err := f.db.CountWithdrawnRoamers(ctx, roamingPartnerID); err != nil || n != 0 {
-		t.Fatalf("CountWithdrawnRoamers = %d, %v, want none left", n, err)
+	f.registerVisitor(t, visitorIMSI)
+
+	if err := f.db.SetRoamingPartnerWithdrawing(ctx, roamingPartnerID, time.Now().Add(-time.Second)); err != nil {
+		t.Fatalf("SetRoamingPartnerWithdrawing in the past: %s", err)
 	}
 
-	if err := f.db.DeleteRoamingPartner(ctx, roamingPartnerID); err != nil {
-		t.Fatalf("DeleteRoamingPartner: %s", err)
+	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000002", roamingPartnerID, db.UERegistrationTypeMME, "node-1", ""); err != nil {
+		t.Fatalf("register after the withdrawal expired: %s", err)
 	}
+}
+
+func TestDeregisteringARoamerRefusesOnlyThatRoamer(t *testing.T) {
+	f := newRoamingFixture(t)
+	f.createPartner(t)
+	f.registerVisitor(t, visitorIMSI)
+	f.registerVisitor(t, "208930000000002")
+
+	ctx := context.Background()
+
+	if err := f.db.SetVisitorDeregistering(ctx, "208930000000003", time.Now().Add(time.Minute)); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("deregister an unknown roamer: %v, want %v", err, db.ErrNotFound)
+	}
+
+	if err := f.db.SetVisitorDeregistering(ctx, visitorIMSI, time.Now().Add(time.Minute)); err != nil {
+		t.Fatalf("SetVisitorDeregistering: %s", err)
+	}
+
+	if v, err := f.db.GetVisitor(ctx, visitorIMSI); err != nil || !v.Deregistering(time.Now()) || v.Withdrawing(time.Now()) {
+		t.Fatalf("visitor = %+v, %v, want it deregistering", v, err)
+	}
+
+	if _, err := f.db.RegisterVisitorUE(ctx, visitorIMSI, roamingPartnerID, db.UERegistrationTypeAMF3GPPAccess, "node-1", ""); !errors.Is(err, db.ErrRoamerDeregistering) {
+		t.Fatalf("register the deregistering roamer: %v, want %v", err, db.ErrRoamerDeregistering)
+	}
+
+	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000002", roamingPartnerID, db.UERegistrationTypeAMF3GPPAccess, "node-1", ""); err != nil {
+		t.Fatalf("register another roamer: %s", err)
+	}
+
+	if err := f.db.PurgeUERegistration(ctx, visitorIMSI, db.UERegistrationTypeMME, "node-1"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
+
+	if _, err := f.db.GetVisitor(ctx, visitorIMSI); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("deregistered roamer: %v, want it deleted", err)
+	}
+
+	f.registerVisitor(t, visitorIMSI)
 }
 
 func TestVisitorRegistrationsOfNode(t *testing.T) {

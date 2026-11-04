@@ -38,7 +38,7 @@ type Seed = {
   usagePerDay?: UsageResult;
   imsis?: string[];
   stats?: (params: URLSearchParams) => FlowReportStatsResponse;
-  roamers?: { imsi: string; roaming_partner: string }[];
+  roamers?: { imsi: string; partner: string }[];
 };
 
 const seedApi = ({
@@ -62,11 +62,16 @@ const seedApi = ({
     stats ? stats(params) : flowStats(),
   );
   api.get("/api/v1/networking/flow-accounting", () => ({ enabled: true }));
-  api.get("/api/v1/subscribers", ({ params }) => {
-    const items =
-      params.get("roaming") === "true"
-        ? roamers.map((r) => ({ ...r, profile_name: "roamers", status: {} }))
-        : imsis.map((imsi) => ({ imsi, profile_name: "default", status: {} }));
+  api.get("/api/v1/subscribers", () => {
+    const items = imsis.map((imsi) => ({
+      imsi,
+      profile_name: "default",
+      status: {},
+    }));
+    return { items, page: 1, per_page: 100, total_count: items.length };
+  });
+  api.get("/api/v1/roamers", () => {
+    const items = roamers.map((r) => ({ ...r, status: {} }));
     return { items, page: 1, per_page: 100, total_count: items.length };
   });
 };
@@ -750,7 +755,7 @@ describe("Traffic flow log roamers", () => {
         flowReport(1),
         flowReport(2, { subscriber_id: "208930000000001" }),
       ],
-      roamers: [{ imsi: "208930000000001", roaming_partner: "Partner A" }],
+      roamers: [{ imsi: "208930000000001", partner: "Partner A" }],
     });
 
     await renderTraffic();
@@ -758,9 +763,9 @@ describe("Traffic flow log roamers", () => {
     expect(await screen.findByText("Roamer · Partner A")).toBeInTheDocument();
     expect(screen.getByText("208930000000001").closest("a")).toHaveAttribute(
       "href",
-      "/subscribers/208930000000001",
+      "/subscribers/roamers/208930000000001",
     );
-    expect(api.lastRequest("/api/v1/subscribers")?.params.get("per_page")).toBe(
+    expect(api.lastRequest("/api/v1/roamers")?.params.get("per_page")).toBe(
       "100",
     );
   });

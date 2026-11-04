@@ -68,3 +68,23 @@ func TestPartnerOfIMSI(t *testing.T) {
 		t.Fatal("an IMSI outside every partner PLMN matched a partner")
 	}
 }
+
+func TestConnectedS6aPartnersCountsPartnersOfOpenPeers(t *testing.T) {
+	dea, spare, down := "dea", "spare", "down"
+	partners := []db.RoamingPartner{
+		{ID: "p1", DiameterPeerID: &dea},
+		{ID: "p2", DiameterPeerID: &dea},
+		{ID: "p3", DiameterPeerID: &down},
+		{ID: "p4"},
+		{ID: "p5", DiameterPeerID: &spare},
+	}
+	peers := []diameternode.PeerStatus{
+		{ID: roaming.DiameterPeerID(dea), Role: diameternode.PeerRoleRoaming, State: diameter.PeerOpen},
+		{ID: roaming.DiameterPeerID(down), Role: diameternode.PeerRoleRoaming, State: diameter.PeerDown},
+		{ID: roaming.DiameterPeerID(spare), Role: diameternode.PeerRoleSMSC, State: diameter.PeerOpen},
+	}
+
+	if got := roaming.ConnectedS6aPartners(partners, peers); got != 2 {
+		t.Fatalf("connected partners = %d, want 2", got)
+	}
+}

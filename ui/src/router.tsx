@@ -10,6 +10,7 @@ import Initialize from "./pages/Initialize";
 import Dashboard from "./pages/Dashboard";
 import Subscribers from "./pages/Subscribers";
 import SubscriberDetail from "./pages/SubscriberDetail";
+import RoamerDetail from "./pages/RoamerDetail";
 import RadiosList from "./pages/radios/RadiosList";
 import RadioEvents from "./pages/radios/RadioEvents";
 import RadioDetail from "./pages/RadioDetail";
@@ -52,6 +53,8 @@ export default function AppRouter() {
       <Route element={<CoreLayout />}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
+        <Route path="subscribers/roamers" element={<Subscribers />} />
+        <Route path="subscribers/roamers/:imsi" element={<RoamerDetail />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<RadiosList />} />
         <Route path="radios/events" element={<RadioEvents />} />

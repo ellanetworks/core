@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/diameter/tgpp"
+	"github.com/ellanetworks/core/internal/metrics"
 )
 
 const s6aRequestTimeout = 5 * time.Second
@@ -30,9 +31,8 @@ type DiameterNode interface {
 }
 
 type HPLMNPeer struct {
-	Realm   string
-	HSS     string
-	Partner string
+	Realm string
+	HSS   string
 }
 
 type S6a struct {
@@ -126,9 +126,10 @@ func (c *S6a) send(ctx context.Context, home HPLMNPeer, build func(tgpp.Envelope
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
+	start := time.Now()
 	ans, err := node.Send(ctx, req)
 
-	RecordS6aAnswer(home.Partner, req.CommandCode, ans, err)
+	metrics.PeerRequest(metrics.PeerS6a, s6aResult(ans, err), time.Since(start))
 
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrHSSUnreachable, err)

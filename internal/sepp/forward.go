@@ -6,17 +6,15 @@ package sepp
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
-	"strings"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 	"go.uber.org/zap"
 )
@@ -29,9 +27,6 @@ var (
 )
 
 const (
-	directionInbound  = "inbound"
-	directionOutbound = "outbound"
-
 	causeSEPPRedirectionWithDiscovery = "SEPP_REDIRECTION_WITH_DISCOVERY"
 	maxN32cRedirects                  = 1
 )
@@ -39,7 +34,7 @@ const (
 var strippedHeaders = []string{"Traceparent", "Tracestate", HeaderTargetAPIRoot, HeaderOriginatingNetworkID, HeaderN32HandshakeID}
 
 type n32fTransport struct {
-	key      [sha256.Size]byte
+	partner  *partner
 	peer     seppPeer
 	identity *localIdentity
 	tr       *http.Transport
@@ -93,7 +88,7 @@ func (c *trackedConn) Close() error {
 }
 
 func (m *Manager) newN32fTransport(p *partner, identity *localIdentity, peer seppPeer) *n32fTransport {
-	t := &n32fTransport{key: p.key, peer: peer, identity: identity, conns: map[net.Conn]struct{}{}}
+	t := &n32fTransport{partner: p, peer: peer, identity: identity, conns: map[net.Conn]struct{}{}}
 
 	protocols := new(http.Protocols)
 	protocols.SetHTTP2(true)
@@ -117,8 +112,8 @@ func (m *Manager) newN32fTransport(p *partner, identity *localIdentity, peer sep
 		MaxResponseHeaderBytes: maxHeaderBytes,
 		Protocols:              protocols,
 		HTTP2: &http.HTTP2Config{
-			SendPingTimeout: m.tuning.PingIdle,
-			PingTimeout:     m.tuning.PingTimeout,
+			SendPingTimeout: pingIdle,
+			PingTimeout:     pingTimeout,
 		},
 	}
 
@@ -129,7 +124,7 @@ func (m *Manager) transportFor(snap *snapshot, p *partner, peer seppPeer) *n32fT
 	m.transportsMu.Lock()
 	defer m.transportsMu.Unlock()
 
-	if t, ok := m.transports[p.id]; ok && t.key == p.key && t.identity == snap.identity && t.peer == peer {
+	if t, ok := m.transports[p.id]; ok && t.partner.sameN32(p) && t.identity.sameSession(snap.identity) && t.peer == peer {
 		return t
 	}
 
@@ -149,7 +144,7 @@ func (m *Manager) syncTransports(prev, next *snapshot) {
 
 	for id, t := range m.transports {
 		p, ok := next.partners[id]
-		if ok && t.key == p.key && t.identity == next.identity {
+		if ok && t.partner.sameN32(p) && t.identity.sameSession(next.identity) {
 			continue
 		}
 
@@ -158,7 +153,7 @@ func (m *Manager) syncTransports(prev, next *snapshot) {
 		delete(m.transports, id)
 	}
 
-	if prev != nil && prev.identity != next.identity {
+	if prev != nil && !prev.identity.sameSession(next.identity) {
 		for _, p := range next.partners {
 			go m.closeInbound(p.id, classN32f)
 		}
@@ -187,17 +182,9 @@ func (m *Manager) contextLost(partnerID string) {
 		return
 	}
 
-	now := m.now()
-	if !c.lostAt.IsZero() && now.Sub(c.lostAt) < m.tuning.ContextLostDelay {
-		return
-	}
-
-	c.lostAt = now
-
 	m.logger.Warn("The partner SEPP answered CONTEXT_NOT_FOUND: re-handshaking", zap.String("partner", c.partner.name))
 
-	snap := m.snap.Load()
-	if snap.usable() && c.partner.usable() {
+	if snap := m.snap.Load(); snap.usable() {
 		m.startLocked(partnerID, c, snap)
 	}
 }
@@ -214,16 +201,32 @@ type forwarder struct {
 	partnerID string
 }
 
-func serviceOf(path string) string {
-	seg, _, _ := strings.Cut(strings.TrimPrefix(path, "/"), "/")
-	if seg == "" || len(seg) > 32 {
-		return "other"
-	}
+func (f *forwarder) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	start := f.m.now()
 
-	return seg
+	defer func() {
+		metrics.PeerRequest(metrics.PeerN32, n32Result(resp, err), f.m.now().Sub(start))
+	}()
+
+	return f.roundTrip(req)
 }
 
-func (f *forwarder) RoundTrip(req *http.Request) (*http.Response, error) {
+func n32Result(resp *http.Response, err error) string {
+	var netErr net.Error
+
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return metrics.PeerTimeout
+	case err != nil:
+		return metrics.PeerError
+	case resp.StatusCode >= http.StatusBadRequest:
+		return metrics.PeerFailure
+	default:
+		return metrics.PeerSuccess
+	}
+}
+
+func (f *forwarder) roundTrip(req *http.Request) (*http.Response, error) {
 	m := f.m
 
 	snap, p, err := m.partner(f.partnerID)
@@ -276,16 +279,9 @@ func (f *forwarder) RoundTrip(req *http.Request) (*http.Response, error) {
 	outReq.Header.Set(HeaderOriginatingNetworkID, snap.op.String())
 	outReq.Header.Add(HeaderVia, SEPPVia(snap.identity.fqdn))
 
-	service := serviceOf(req.URL.Path)
-	start := m.now()
-
 	resp, err := m.send(outReq, body, m.transportFor(snap, p, peer).tr)
-
-	n32fDuration.WithLabelValues(p.name, service).Observe(m.now().Sub(start).Seconds())
-
 	if err != nil {
 		cancel()
-		n32fRequests.WithLabelValues(p.name, directionOutbound, service, "error").Inc()
 
 		if errors.Is(err, ErrTargetNotAllowed) {
 			return nil, err
@@ -293,8 +289,6 @@ func (f *forwarder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		return nil, fmt.Errorf("%w %s: %w", ErrUnreachable, p.name, err)
 	}
-
-	n32fRequests.WithLabelValues(p.name, directionOutbound, service, strconv.Itoa(resp.StatusCode)).Inc()
 
 	if resp.StatusCode == http.StatusForbidden {
 		m.checkContextNotFound(p.id, resp)

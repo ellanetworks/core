@@ -186,6 +186,23 @@ func TestVisitorPDNConnectionAppliesTheHomeAPNSubscription(t *testing.T) {
 		t.Fatalf("PDN type = %v, cause %v; want IPv4 only, as the home APN subscribes", bearer.PDNType, bearer.ESMCause)
 	}
 
+	single := epsRequest(3)
+	single.APN = testDNN
+	single.PDUSessionID = movedPDUSessionID + 1
+	single.EPSBearerIdentity = epsTestEBI + 1
+	single.Snssai = testSnssai
+	single.Subscription = visitorAPN()
+	single.Subscription.PDNTypes = []eps.PDNType{eps.PDNTypeIPv4, eps.PDNTypeIPv6}
+
+	bearer2, err := s.CreateEPSSession(context.Background(), single)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if bearer2.PDNType != eps.PDNTypeIPv4 || bearer2.ESMCause != eps.ESMCauseSingleAddressBearersOnly {
+		t.Fatalf("PDN type = %v, cause %v; want IPv4 with #52, as the home APN subscribes IPv4_OR_IPv6", bearer2.PDNType, bearer2.ESMCause)
+	}
+
 	if bearer.HPLMNSnssai != nil {
 		t.Errorf("home S-NSSAI = %+v, want none: under LBO the PCO names the VPLMN S-NSSAI (TS 23.501 §5.15.7.1)", bearer.HPLMNSnssai)
 	}

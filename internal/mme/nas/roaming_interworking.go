@@ -68,7 +68,7 @@ func registerArrivingVisitor(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 }
 
 func rejectArrivingVisitor(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, r *mme.Rejection) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", logger.RegistrationRejected,
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", m.IsRoamer(ctx, ue), logger.RegistrationRejected,
 		logger.Cause(r.Cause.String()))
 	ueConn.StopNASGuard(ctx)
 

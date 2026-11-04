@@ -77,18 +77,18 @@ type Database struct {
 	casSubscriberSqnNumStmt            *sqlair.Statement
 	deleteSubscriberStmt               *sqlair.Statement
 
-	countSubscribersAndVisitorsStmt         *sqlair.Statement
-	listSubscribersAndVisitorsStmt          *sqlair.Statement
-	countSubscribersAndVisitorsFilteredStmt *sqlair.Statement
-	getVisitorStmt                          *sqlair.Statement
-	listVisitorsStmt                        *sqlair.Statement
-	insertVisitorStmt                       *sqlair.Statement
-	updateVisitorMSISDNStmt                 *sqlair.Statement
-	deleteVisitorIfUnregisteredStmt         *sqlair.Statement
-	listUnregisteredVisitorsStmt            *sqlair.Statement
-	deleteUERegistrationsOfIMSIStmt         *sqlair.Statement
-	deleteLeasesOfIMSIStmt                  *sqlair.Statement
-	insertFlowReportOfKnownIMSIStmt         *sqlair.Statement
+	countSubscribersAndVisitorsStmt *sqlair.Statement
+	getVisitorStmt                  *sqlair.Statement
+	listVisitorsStmt                *sqlair.Statement
+	listVisitorsPageStmt            *sqlair.Statement
+	countVisitorsPageStmt           *sqlair.Statement
+	insertVisitorStmt               *sqlair.Statement
+	updateVisitorMSISDNStmt         *sqlair.Statement
+	deleteVisitorIfUnregisteredStmt *sqlair.Statement
+	listUnregisteredVisitorsStmt    *sqlair.Statement
+	deleteUERegistrationsOfIMSIStmt *sqlair.Statement
+	deleteLeasesOfIMSIStmt          *sqlair.Statement
+	insertFlowReportOfKnownIMSIStmt *sqlair.Statement
 
 	listRoamingPartnersStmt  *sqlair.Statement
 	getRoamingPartnerStmt    *sqlair.Statement
@@ -105,12 +105,8 @@ type Database struct {
 	countAttachedVisitorsOfRATStmt *sqlair.Statement
 	countRoamingPartnersStmt       *sqlair.Statement
 
-	listRoamingWithdrawalsStmt         *sqlair.Statement
-	listWithdrawalsOfPartnerStmt       *sqlair.Statement
-	insertRoamingWithdrawalStmt        *sqlair.Statement
-	deleteWithdrawalsOfPartnerStmt     *sqlair.Statement
-	deleteRoamerWithdrawalStmt         *sqlair.Statement
-	deleteExpiredWithdrawalsStmt       *sqlair.Statement
+	setRoamingPartnerWithdrawingStmt   *sqlair.Statement
+	setVisitorDeregisteringStmt        *sqlair.Statement
 	listVisitorRegistrationsOfNodeStmt *sqlair.Statement
 
 	listDiameterPeersStmt         *sqlair.Statement
@@ -119,19 +115,19 @@ type Database struct {
 	updateRoamingDiameterPeerStmt *sqlair.Statement
 	deleteRoamingDiameterPeerStmt *sqlair.Statement
 
-	getSEPPCAStmt                  *sqlair.Statement
-	insertSEPPCAIfAbsentStmt       *sqlair.Statement
-	upsertSEPPCAStmt               *sqlair.Statement
-	deleteSEPPCAStmt               *sqlair.Statement
-	getSEPPIdentityStmt            *sqlair.Statement
-	getSEPPIdentityByFQDNStmt      *sqlair.Statement
-	listSEPPIdentitiesStmt         *sqlair.Statement
-	upsertSEPPIdentityStmt         *sqlair.Statement
-	deleteSEPPIdentitiesStmt       *sqlair.Statement
-	deleteGeneratedSEPPIdentsStmt  *sqlair.Statement
-	deleteGeneratedSEPPIdentStmt   *sqlair.Statement
-	insertSEPPIdentityIfAbsentStmt *sqlair.Statement
-	renewGeneratedSEPPIdentStmt    *sqlair.Statement
+	getSEPPCAStmt                 *sqlair.Statement
+	insertSEPPCAIfAbsentStmt      *sqlair.Statement
+	upsertSEPPCAStmt              *sqlair.Statement
+	deleteSEPPCAStmt              *sqlair.Statement
+	getSEPPIdentityStmt           *sqlair.Statement
+	getSEPPIdentityByFQDNStmt     *sqlair.Statement
+	listSEPPIdentitiesStmt        *sqlair.Statement
+	upsertSEPPIdentityStmt        *sqlair.Statement
+	deleteSEPPIdentitiesStmt      *sqlair.Statement
+	deleteGeneratedSEPPIdentsStmt *sqlair.Statement
+	deleteGeneratedSEPPIdentStmt  *sqlair.Statement
+	upsertGeneratedSEPPIdentStmt  *sqlair.Statement
+	deleteSEPPIdentityStmt        *sqlair.Statement
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
@@ -1869,10 +1865,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.casSubscriberSqnNumStmt, fmt.Sprintf(casSubscriberSeqNumStmt, SubscribersTableName), []any{sqnCAS{}}},
 		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.countSubscribersAndVisitorsStmt, fmt.Sprintf(countSubscribersAndVisitorsStmt, SubscribersTableName, VisitorsTableName), []any{NumItems{}}},
-		{&db.listSubscribersAndVisitorsStmt, fmt.Sprintf(listSubscribersAndVisitorsFilteredStmt, SubscribersTableName, VisitorsTableName, RoamingPartnersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, visitorPartner{}, NumItems{}, subscriberFilterArgs{}}},
-		{&db.countSubscribersAndVisitorsFilteredStmt, fmt.Sprintf(countSubscribersAndVisitorsFilteredStmt, SubscribersTableName, VisitorsTableName, RoamingPartnersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getVisitorStmt, fmt.Sprintf(getVisitorStmt, VisitorsTableName, RoamingPartnersTableName), []any{Visitor{}}},
 		{&db.listVisitorsStmt, fmt.Sprintf(listVisitorsStmt, VisitorsTableName, RoamingPartnersTableName), []any{Visitor{}}},
+		{&db.listVisitorsPageStmt, fmt.Sprintf(listVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName), []any{ListArgs{}, Visitor{}, NumItems{}, visitorPageFilterArgs{}}},
+		{&db.countVisitorsPageStmt, fmt.Sprintf(countVisitorsPageStmt, VisitorsTableName), []any{NumItems{}, visitorPageFilterArgs{}}},
 		{&db.insertVisitorStmt, fmt.Sprintf(insertVisitorStmt, VisitorsTableName), []any{Visitor{}}},
 		{&db.updateVisitorMSISDNStmt, fmt.Sprintf(updateVisitorMSISDNStmt, VisitorsTableName), []any{Visitor{}}},
 		{&db.deleteVisitorIfUnregisteredStmt, fmt.Sprintf(deleteVisitorIfUnregisteredStmt, VisitorsTableName, UERegistrationsTableName, VisitorsTableName), []any{Visitor{}}},
@@ -1894,12 +1890,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.countVisitorsOfPartnerStmt, fmt.Sprintf(countVisitorsOfPartnerStmt, VisitorsTableName), []any{NumItems{}, visitorFilter{}}},
 		{&db.countAttachedVisitorsOfRATStmt, fmt.Sprintf(countAttachedVisitorsOfRATStmt, VisitorsTableName, UERegistrationsTableName), []any{NumItems{}, visitorFilter{}}},
 		{&db.countRoamingPartnersStmt, fmt.Sprintf(countRoamingPartnersStmt, RoamingPartnersTableName), []any{NumItems{}}},
-		{&db.listRoamingWithdrawalsStmt, fmt.Sprintf(listRoamingWithdrawalsStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
-		{&db.listWithdrawalsOfPartnerStmt, fmt.Sprintf(listWithdrawalsOfPartnerStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
-		{&db.insertRoamingWithdrawalStmt, fmt.Sprintf(insertRoamingWithdrawalStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
-		{&db.deleteWithdrawalsOfPartnerStmt, fmt.Sprintf(deleteWithdrawalsOfPartnerStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
-		{&db.deleteRoamerWithdrawalStmt, fmt.Sprintf(deleteRoamerWithdrawalStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
-		{&db.deleteExpiredWithdrawalsStmt, fmt.Sprintf(deleteExpiredWithdrawalsStmt, RoamingWithdrawalsTableName), []any{RoamingWithdrawal{}}},
+		{&db.setRoamingPartnerWithdrawingStmt, fmt.Sprintf(setRoamingPartnerWithdrawingStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.setVisitorDeregisteringStmt, fmt.Sprintf(setVisitorDeregisteringStmt, VisitorsTableName), []any{Visitor{}}},
 		{&db.listVisitorRegistrationsOfNodeStmt, fmt.Sprintf(listVisitorRegistrationsOfNodeStmt, UERegistrationsTableName, VisitorsTableName), []any{UERegistration{}}},
 
 		{&db.listDiameterPeersStmt, fmt.Sprintf(listDiameterPeersStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
@@ -1919,8 +1911,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteSEPPIdentitiesStmt, fmt.Sprintf(deleteSEPPIdentitiesStmt, SEPPIdentitiesTableName), nil},
 		{&db.deleteGeneratedSEPPIdentsStmt, fmt.Sprintf(deleteGeneratedSEPPIdentsStmt, SEPPIdentitiesTableName), nil},
 		{&db.deleteGeneratedSEPPIdentStmt, fmt.Sprintf(deleteGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.insertSEPPIdentityIfAbsentStmt, fmt.Sprintf(insertSEPPIdentityIfAbsentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.renewGeneratedSEPPIdentStmt, fmt.Sprintf(renewGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}, seppExpectedChain{}}},
+		{&db.upsertGeneratedSEPPIdentStmt, fmt.Sprintf(upsertGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.deleteSEPPIdentityStmt, fmt.Sprintf(deleteSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},

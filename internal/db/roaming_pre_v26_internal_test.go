@@ -83,10 +83,8 @@ func TestSubscriberReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("ListSubscribersPage at schema 25 = %v, %d, %v", subs, total, err)
 	}
 
-	roaming := true
-
-	if subs, total, err := d.ListSubscribersPage(ctx, &SubscriberFilters{Roaming: &roaming}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
-		t.Fatalf("ListSubscribersPage of roamers at schema 25 = %v, %d, %v", subs, total, err)
+	if visitors, total, err := d.ListVisitorsPage(ctx, nil, 1, 10); err != nil || total != 0 || len(visitors) != 0 {
+		t.Fatalf("ListVisitorsPage at schema 25 = %v, %d, %v", visitors, total, err)
 	}
 
 	if n, err := d.CountSubscribers(ctx); err != nil || n != 1 {
@@ -199,9 +197,8 @@ func TestRoamingReadsAndWritesBeforeV26(t *testing.T) {
 			_, err := d.RegisterVisitorUE(ctx, "208930000000001", "rp", UERegistrationTypeMME, "node-1", "")
 			return err
 		},
-		"DeleteUnregisteredVisitors": func() error {
-			_, err := d.DeleteUnregisteredVisitors(ctx)
-			return err
+		"SetVisitorDeregistering": func() error {
+			return d.SetVisitorDeregistering(ctx, "208930000000001", time.Now())
 		},
 	}
 

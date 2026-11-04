@@ -9,7 +9,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -128,7 +130,9 @@ func (d *roamingTestDB) CountSubscribersAndVisitors(context.Context) (int, error
 }
 
 type directN32 struct {
-	h http.Handler
+	h    http.Handler
+	wait error
+	drop func(*http.Request) bool
 }
 
 type roundTrip func(*http.Request) (*http.Response, error)
@@ -137,6 +141,10 @@ func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f
 
 func (d directN32) Client(string) *http.Client {
 	return &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+		if d.drop != nil && d.drop(r) {
+			return nil, errors.New("N32 connection lost")
+		}
+
 		rec := httptest.NewRecorder()
 		d.h.ServeHTTP(rec, r)
 
@@ -148,9 +156,13 @@ func (d directN32) HPLMNNRF(_ string, home wire.PlmnID) (string, error) {
 	return "http://" + home.NFFQDN(wire.FQDNLabelNRF), nil
 }
 
-type openN32 struct{ err error }
+func (d directN32) SEPPID() int { return 1 }
 
-func (o openN32) WaitEstablished(context.Context, string, time.Duration) error { return o.err }
+func (d directN32) WaitEstablished(context.Context, string, time.Duration) error { return d.wait }
+
+func hplmnClient(n32 directN32) *roaming.AMFHPLMN {
+	return roaming.NewAMFHPLMN(roaming.NewHPLMNSBI(n32, roaming.NewDiscovery(n32)))
+}
 
 type roamingFixture struct {
 	amf  *AMF
@@ -176,8 +188,7 @@ func newRoamingFixture(t *testing.T) *roamingFixture {
 
 	f.amf = New(f.db, nil, nil)
 	f.amf.Roaming = f.db
-	f.amf.N32 = openN32{}
-	f.amf.HPLMN = roaming.NewAMFHPLMN(roaming.NewHPLMNSBI(directN32{h: f.home}, roaming.NewDiscovery(directN32{h: f.home})))
+	f.amf.HPLMN = hplmnClient(directN32{h: f.home})
 	f.reg = newFakeRegistrar()
 	f.amf.Registrations = f.reg
 
@@ -309,11 +320,8 @@ func TestAdmitVisitorGatesOnThePartner(t *testing.T) {
 		{name: "no 5G agreement", suci: roamerSUCI, setup: func(d *roamingTestDB) { d.partners[0].SEPPFQDN = nil }, cause: fgs.GMMCauseN1ModeNotAllowed},
 		{name: "5G not allowed by the partner profile", suci: roamerSUCI, setup: func(d *roamingTestDB) { d.allow5G = false }, cause: fgs.GMMCauseN1ModeNotAllowed},
 		{name: "agreement withdrawn", suci: roamerSUCI, setup: func(d *roamingTestDB) {
-			d.partners[0].Withdrawals = []db.RoamingWithdrawal{{PartnerID: "partner-1", ExpiresAt: time.Now().Add(time.Hour).Unix()}}
+			d.partners[0].WithdrawingUntil = time.Now().Add(time.Hour).Unix()
 		}, cause: fgs.GMMCausePLMNNotAllowed},
-		{name: "5G agreement withdrawn", suci: roamerSUCI, setup: func(d *roamingTestDB) {
-			d.partners[0].Withdrawals = []db.RoamingWithdrawal{{PartnerID: "partner-1", Type: db.UERegistrationTypeAMF3GPPAccess, ExpiresAt: time.Now().Add(time.Hour).Unix()}}
-		}, cause: fgs.GMMCauseN1ModeNotAllowed},
 		{name: "subscriber cap", suci: "", setup: func(d *roamingTestDB) { d.count = db.MaxNumSubscribers }, cause: fgs.GMMCauseCongestion, backoff: T3346CapacityBackoff},
 	}
 
@@ -446,7 +454,7 @@ func TestVisitorWrongRESStarIsIllegalUE(t *testing.T) {
 
 func TestVisitorWithoutN32IsTransient(t *testing.T) {
 	f := newRoamingFixture(t)
-	f.amf.N32 = openN32{err: errors.New("no N32 context")}
+	f.amf.HPLMN = hplmnClient(directN32{h: f.home, wait: errors.New("no N32 context")})
 	ue, conn := f.visitorUE(t)
 
 	done := make(chan error, 1)
@@ -474,7 +482,6 @@ func TestHPLMNRegistrationRejectionsFollowTS29524(t *testing.T) {
 		{http.StatusForbidden, wire.CauseAccessNotAllowed, fgs.GMMCauseNoSuitableCellsInTrackingArea},
 		{http.StatusForbidden, wire.CauseRoamingNotAllowed, fgs.GMMCausePLMNNotAllowed},
 		{http.StatusForbidden, wire.CauseNoPSSubscription, fgs.GMMCauseServicesNotAllowed},
-		{http.StatusNotFound, wire.CauseUserNotFound, fgs.GMMCauseIllegalUE},
 		{http.StatusNotFound, wire.CauseContextNotFound, fgs.GMMCauseUEIdentityCannotBeDerived},
 		{http.StatusUnprocessableEntity, wire.CauseUnprocessableRequest, fgs.GMMCauseProtocolErrorUnspecified},
 	}
@@ -490,7 +497,6 @@ func TestHPLMNRegistrationRejectionsFollowTS29524(t *testing.T) {
 		cause wire.Cause
 		want  fgs.GMMCause
 	}{
-		{wire.CauseUserNotFound, fgs.GMMCauseIllegalUE},
 		{wire.CauseDataNotFound, fgs.GMMCauseN1ModeNotAllowed},
 	} {
 		r, ok := HPLMNRegistrationRejection(&HPLMNFailure{Op: HPLMNSubscriptionData, Err: wire.NewProblem(http.StatusNotFound, tc.cause, "")})
@@ -505,6 +511,8 @@ func TestHPLMNRegistrationRejectionsFollowTS29524(t *testing.T) {
 		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusForbidden, "", "")},
 		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusForbidden, wire.CauseOriginatingNetworkIDMismatch, "")},
 		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusNotFound, "", "")},
+		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusNotFound, wire.CauseUserNotFound, "")},
+		&HPLMNFailure{Op: HPLMNSubscriptionData, Err: wire.NewProblem(http.StatusNotFound, wire.CauseUserNotFound, "")},
 		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusNotFound, wire.CauseDataNotFound, "")},
 		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusUnprocessableEntity, "", "")},
 		&HPLMNFailure{Op: HPLMNRegister, Err: wire.NewProblem(http.StatusUnauthorized, "", "")},
@@ -703,5 +711,80 @@ func TestSoRIsRelayedAndAcknowledged(t *testing.T) {
 
 	if f.amf.SoRContainer(ue) != nil {
 		t.Fatal("the SoR information is still pending after the acknowledgement")
+	}
+}
+
+func TestReinitialRegistrationOnARetainedContextUpdatesSoR(t *testing.T) {
+	for _, indicated := range []bool{false, true} {
+		f := newRoamingFixture(t)
+		ack := false
+
+		f.home.Update(roamerIMSI, func(s *fakehplmn.Subscriber) {
+			s.AM.SorInfo = &wire.SorInfo{AckInd: &ack, SorMacIausf: "00112233445566778899aabbccddeeff", Countersor: "0001", ProvisioningTime: "2026-11-03T10:00:00Z"}
+			if indicated {
+				s.AM.SorUpdateIndicatorList = []wire.SorUpdateIndicator{wire.SorUpdateInitialRegistration}
+			}
+		})
+
+		ue, conn := f.visitorUE(t)
+		f.authenticate(t, ue, conn)
+		f.registerAtHPLMN(t, ue, conn)
+		f.amf.AcknowledgeSoR(t.Context(), ue, nil)
+
+		conn.RegistrationType5GS = fgs.RegistrationTypeInitial
+		f.registerAtHPLMN(t, ue, conn)
+
+		updates, puts := 0, 0
+
+		for _, r := range f.home.Requests() {
+			switch {
+			case r.Method == http.MethodPost && strings.HasSuffix(r.Path, "/am-data/update-sor"):
+				updates++
+			case r.Method == http.MethodPut && strings.HasSuffix(r.Path, "/amf-3gpp-access"):
+				puts++
+			}
+		}
+
+		if puts != 1 {
+			t.Fatalf("indicated=%v: %d UECM registrations, want the retained one only", indicated, puts)
+		}
+
+		if indicated != (updates == 1) || indicated != (f.amf.SoRContainer(ue) != nil) {
+			t.Fatalf("indicated=%v: %d update-sor requests, SoR container %x", indicated, updates, f.amf.SoRContainer(ue))
+		}
+	}
+}
+
+func TestUECMTimeoutRegistersAgain(t *testing.T) {
+	f := newRoamingFixture(t)
+
+	var dropping atomic.Bool
+
+	f.amf.HPLMN = hplmnClient(directN32{h: f.home, drop: func(r *http.Request) bool {
+		return dropping.Load() && r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/amf-3gpp-access")
+	}})
+
+	ue, conn := f.visitorUE(t)
+	f.authenticate(t, ue, conn)
+
+	dropping.Store(true)
+
+	done := make(chan error, 1)
+
+	f.amf.RequestHPLMNRegistration(t.Context(), ue, conn, true, func(_ context.Context, err error) { done <- err })
+
+	if err := waitDone(t, done); !errors.Is(err, roaming.ErrHPLMNUnreachable) {
+		t.Fatalf("err = %v, want unreachable", err)
+	}
+
+	if v, _ := ue.Visitor(); !v.Registered || v.HPLMN.UDMInstanceID != "" {
+		t.Fatalf("after a lost UECM PUT: registered %v, UDM instance %q", v.Registered, v.HPLMN.UDMInstanceID)
+	}
+
+	dropping.Store(false)
+	f.registerAtHPLMN(t, ue, conn)
+
+	if _, ok := f.home.Registration("imsi-" + roamerIMSI); !ok {
+		t.Fatal("the retry did not register the visitor at its home UDM")
 	}
 }

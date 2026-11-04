@@ -127,7 +127,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance, sessions, hssInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}/credentials", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriberCredentials, GetSubscriberCredentials(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/subscribers/{imsi}/deregister", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, DeregisterSubscriber(dbInstance))).ServeHTTP)
+
+	mux.HandleFunc("GET /api/v1/roamers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListRoamers(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/roamers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetRoamer(dbInstance, amfInstance, mmeInstance, sessions))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/roamers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, DeregisterRoamer(dbInstance))).ServeHTTP)
 
 	// Subscriber Usage (Authenticated)
 	mux.HandleFunc("GET /api/v1/subscriber-usage/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetSubscriberUsageRetentionPolicy, GetSubscriberUsageRetentionPolicy(dbInstance))).ServeHTTP)
@@ -198,9 +201,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/operator/roaming/diameter-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorRoaming, UpdateRoamingDiameterPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/operator/roaming/diameter-peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorRoaming, DeleteRoamingDiameterPeer(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/operator/roaming/sepp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetSEPPStatus(dbInstance, cfg.SEPP))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetSEPPCertificate(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorRoaming, ImportSEPPCertificate(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate/generate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorRoaming, GenerateSEPPCertificate(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorRoaming, DeleteSEPPCertificate(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/operator/roaming/sepp/ca/regenerate", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOperatorRoaming, RegenerateSEPPCA(dbInstance))).ServeHTTP)
 
 	// Data Networks (Authenticated)

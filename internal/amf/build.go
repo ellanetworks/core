@@ -304,7 +304,10 @@ func BuildRegistrationAccept(
 		}
 
 		if visitor {
-			snssai = withMappedHPLMN(snssai)
+			snssai, err = withMappedHPLMN(snssai, HPLMNSnssai(s))
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert the mapped HPLMN SNSSAI to NAS: %s", err)
+			}
 		}
 
 		m.AllowedNSSAI = append(m.AllowedNSSAI, snssai)
@@ -409,14 +412,14 @@ func BuildStatus5GMM(cause fgs.GMMCause) ([]byte, error) {
 	return (&fgs.GMMStatus{Cause: cause}).MarshalBinary()
 }
 
-func withMappedHPLMN(s fgs.SNSSAI) fgs.SNSSAI {
-	sst := s.SST
-	s.MappedHPLMNSST = &sst
-
-	if s.SD != nil {
-		sd := *s.SD
-		s.MappedHPLMNSD = &sd
+func withMappedHPLMN(s fgs.SNSSAI, hplmn models.Snssai) (fgs.SNSSAI, error) {
+	mapped, err := util.SnssaiToNas(hplmn)
+	if err != nil {
+		return fgs.SNSSAI{}, err
 	}
 
-	return s
+	s.MappedHPLMNSST = &mapped.SST
+	s.MappedHPLMNSD = mapped.SD
+
+	return s, nil
 }

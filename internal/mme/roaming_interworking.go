@@ -7,9 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
@@ -102,7 +100,6 @@ func (m *MME) handVisitorTo5GS(ctx context.Context, ue *UeContext) {
 
 	v := *ue.visitor
 	ue.visitor.Registered = false
-	loc := ue.Location
 
 	ue.mu.Unlock()
 
@@ -113,33 +110,7 @@ func (m *MME) handVisitorTo5GS(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	log.Info("visitor moved to 5GS; its home registration passes to the AMF, purging only if the home network does not cancel it")
-
-	imsi := ue.IMSI()
-	location := epsLocation(loc, time.Now())
-
-	m.crossCancel.Arm(imsi, v.PartnerID, func() {
-		m.home.Go(imsi, func() {
-			if m.HoldsUE(imsi) {
-				return
-			}
-
-			logger.MmeLog.Info("the home network did not cancel the registration of a visitor that moved to 5GS; purging it",
-				logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", v.PartnerName))
-			m.purgeAtHPLMN(imsi, v.Peer, location)
-		})
-	})
-}
-
-func (m *MME) hplmnCancelledMove(ctx context.Context, imsi string, origin diameter.Identity, ingress string) {
-	partnerID, ok := m.crossCancel.Partner(imsi)
-	if !ok || !m.fromPartner(ctx, partnerID, origin, ingress) {
-		return
-	}
-
-	if m.crossCancel.Disarm(imsi) {
-		logger.From(ctx, logger.MmeLog).Info("the home network cancelled the registration of a visitor that moved to 5GS", logger.SUPIFromIMSI(imsi))
-	}
+	log.Info("visitor moved to 5GS; its home registration passes to the AMF, and the home network cancels it in this MME")
 }
 
 func (m *MME) movingTo5GS(ue *UeContext) bool {

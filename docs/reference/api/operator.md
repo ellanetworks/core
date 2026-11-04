@@ -774,10 +774,7 @@ None
                 },
                 "diameterPeerID": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b",
                 "n32": {
-                    "state": "established",
-                    "since": "2026-11-03T09:12:44Z",
-                    "initiator": "local",
-                    "nftlst": true
+                    "state": "established"
                 }
             }
         ]
@@ -785,14 +782,11 @@ None
 }
 ```
 
-| N32 field    | Description |
-| ------------ | ----------- |
-| `state`      | `idle`, `establishing`, `established`, `failed`, `terminated`, or `unknown` (the handshake could not start). |
-| `initiator`  | `local` or `peer`. |
-| `nftlst`     | Whether both SEPPs can tear the context down. |
-| `peer`       | The partner SEPP the context is with, when the handshake was redirected. |
-| `lastError`  | The reason of the last failure. |
-| `otherPeers` | Contexts that other SEPPs of the partner established with the node. |
+| N32 field   | Description |
+| ----------- | ----------- |
+| `state`     | `idle`, `establishing`, `established`, `failed` (retried about every 10 seconds), or `unknown` (the handshake could not start). |
+| `peer`      | The partner SEPP the context is with, when the handshake was redirected. |
+| `lastError` | The reason of the last failure. |
 
 ## Create a Roaming Partner
 
@@ -805,17 +799,17 @@ This path creates a new roaming partner.
 ### Parameters
 
 - `name` (string): The name of the partner. Must be unique.
-- `plmns` (array): The partner's PLMN IDs, at least one. Two PLMN IDs conflict when they have the same MCC and their MNCs are equal once zero-padded to 3 digits, or one is a prefix of the other. A PLMN ID must not conflict with another of the partner, with your own PLMN ID, or with another partner's.
+- `plmns` (array): The partner's PLMN IDs, at least one.
     - `mcc` (string): 3 digits.
     - `mnc` (string): 2 or 3 digits.
     - `nrfAPIRoot` (string, optional): The apiRoot (`http` or `https`) of the NRF of this PLMN, for its roamers. Defaults to `https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of this PLMN ID. Needs `sepp`.
 - `profileName` (string): The name of the profile applied to the partner's roamers.
-- `sepp` (object, optional): The 5G agreement. Absent means no 5G roaming.
-    - `fqdn` (string): The partner SEPP's FQDN, as in its certificate: `<host>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, or `<host>.5gc.mnc<MNC>.mcc<MCC>.<IPX ID>.ipxnetwork.org`, for one of the partner's PLMN IDs. Must not be the well-known `sepp.5gc…` FQDN. Must be unique across partners.
+- `sepp` (object, optional): The 5G agreement.
+    - `fqdn` (string): The partner SEPP's FQDN, as in its certificate: `<host>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, or `<host>.5gc.mnc<MNC>.mcc<MCC>.<IPX ID>.ipxnetwork.org`, for one of the partner's PLMN IDs.
     - `n32cURI` (string): The apiRoot of the partner SEPP's N32-c endpoint: `https`, host, optional port and optional path prefix.
     - `n32fURI` (string, optional): The apiRoot of the partner SEPP's N32-f endpoint. Defaults to `n32cURI`.
     - `trustAnchorPEM` (string): The CA certificates that the partner SEPP's certificate chains to, or the partner's self-signed certificate, in PEM. Each certificate must be valid, with an ECDSA key or an RSA key of at least 2048 bits.
-- `diameterPeerID` (string, optional): The ID of the [roaming Diameter peer](#create-a-roaming-diameter-peer) of the 4G agreement. Absent means no 4G roaming.
+- `diameterPeerID` (string, optional): The ID of the [roaming Diameter peer](#create-a-roaming-diameter-peer) of the 4G agreement.
 
 ### Sample Request
 
@@ -837,7 +831,7 @@ This path creates a new roaming partner.
 
 | Status | Condition |
 | ------ | --------- |
-| `201`  | Returns the created partner, without `n32`. |
+| `201`  | Returns the created partner. |
 | `400`  | Invalid parameters. |
 | `404`  | The profile or the roaming Diameter peer does not exist. |
 | `409`  | The name is taken, or a PLMN ID conflicts. |
@@ -877,7 +871,7 @@ None
 
 ## Update a Roaming Partner
 
-This path updates an existing roaming partner. Removing a PLMN ID or an agreement first deregisters the affected roamers on every node, and purges them at their home network.
+This path updates an existing roaming partner. A PLMN ID or an agreement can be removed only while none of its roamers are attached; deregister them first with the [Roamers API](roamers.md).
 
 | Method | Path                                     |
 | ------ | ---------------------------------------- |
@@ -894,7 +888,7 @@ The parameters of [Create a Roaming Partner](#create-a-roaming-partner).
 | `200`  | The partner is updated. |
 | `400`  | Invalid parameters. |
 | `404`  | The partner, the profile or the roaming Diameter peer does not exist. |
-| `409`  | The name is taken, a PLMN ID conflicts, or the affected roamers were not all deregistered within one minute. Nothing is changed. |
+| `409`  | The name is taken, a PLMN ID conflicts, or roamers are attached to a removed PLMN ID or agreement. Nothing is changed. |
 
 ### Sample Response
 
@@ -962,9 +956,7 @@ None
 {
     "result": {
         "n32": {
-            "state": "establishing",
-            "since": "2026-11-03T10:02:17Z",
-            "nftlst": false
+            "state": "establishing"
         }
     }
 }
@@ -1085,7 +1077,7 @@ This path updates an existing roaming Diameter peer.
 
 ## Delete a Roaming Diameter Peer
 
-This path deletes a roaming Diameter peer. A peer used by a roaming partner cannot be deleted.
+This path deletes a roaming Diameter peer.
 
 | Method | Path                                           |
 | ------ | ---------------------------------------------- |
@@ -1107,7 +1099,7 @@ None
 
 ## Get the SEPP Status
 
-This path returns the SEPP identity, certificate and N32 listener of this node, the trust anchors to give roaming partners, and the stored certificate of each SEPP ID.
+This path returns the N32 listener and SEPP ID of this node, the stored certificate of each SEPP ID, and the trust anchors to give roaming partners.
 
 | Method | Path                            |
 | ------ | ------------------------------- |
@@ -1122,15 +1114,18 @@ None
 ```json
 {
     "result": {
-        "node": {
+        "listener": {
             "seppID": 1,
-            "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
-            "source": "generated",
-            "n32Configured": true,
+            "configured": true,
             "address": "192.0.2.11",
             "port": 443,
-            "listening": true,
-            "certificate": {
+            "listening": true
+        },
+        "certificates": [
+            {
+                "seppID": 1,
+                "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+                "source": "generated",
                 "subject": "CN=sepp1.5gc.mnc001.mcc001.3gppnetwork.org,O=5gc.mnc001.mcc001.3gppnetwork.org",
                 "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"],
                 "issuer": "CN=SEPP CA,O=5gc.mnc001.mcc001.3gppnetwork.org",
@@ -1139,7 +1134,7 @@ None
                 "fingerprint": "sha256:a1b2...7e",
                 "trustAnchorFingerprint": "sha256:5f0c...9a"
             }
-        },
+        ],
         "trustAnchors": [
             {
                 "source": "generated",
@@ -1149,22 +1144,6 @@ None
                 "pem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
                 "seppIDs": [1, 2]
             }
-        ],
-        "certificates": [
-            {
-                "seppID": 1,
-                "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
-                "source": "generated",
-                "certificate": {
-                    "subject": "CN=sepp1.5gc.mnc001.mcc001.3gppnetwork.org,O=5gc.mnc001.mcc001.3gppnetwork.org",
-                    "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"],
-                    "issuer": "CN=SEPP CA,O=5gc.mnc001.mcc001.3gppnetwork.org",
-                    "notBefore": "2026-10-01T08:00:00Z",
-                    "notAfter": "2029-10-01T08:00:00Z",
-                    "fingerprint": "sha256:a1b2...7e",
-                    "trustAnchorFingerprint": "sha256:5f0c...9a"
-                }
-            }
         ]
     }
 }
@@ -1172,48 +1151,9 @@ None
 
 `seppIDs` lists the nodes that use each trust anchor.
 
-## Get a SEPP Certificate
-
-This path returns a node's SEPP certificate chain and trust anchor, with a warning for each departure from the TS 33.310 SEPP certificate profile.
-
-| Method | Path                                                       |
-| ------ | ---------------------------------------------------------- |
-| GET    | `/api/v1/operator/roaming/sepp/nodes/{seppID}/certificate` |
-
-### Parameters
-
-None
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | Returns the certificate. |
-| `400`  | `seppID` is not between 1 and 63. |
-| `404`  | The node has no SEPP certificate. |
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "seppID": 1,
-        "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
-        "source": "generated",
-        "certificateChainPEM": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
-        "trustAnchorPEM": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
-        "fingerprint": "sha256:a1b2...7e",
-        "notAfter": "2029-10-01T08:00:00Z",
-        "warnings": [
-            "The certificate has no cRLDistributionPoints, which TS 33.310 clause 6.1.3c.3 requires: partners can only pin it"
-        ]
-    }
-}
-```
-
 ## Import a SEPP Certificate
 
-This path replaces a node's SEPP certificate with one issued by your CA. The node runs the N32 handshake again with every partner.
+This path replaces a node's SEPP certificate with one issued by your CA. When the FQDN or the trust anchor changes, the node runs the N32 handshake again with every partner.
 
 | Method | Path                                                       |
 | ------ | ---------------------------------------------------------- |
@@ -1229,17 +1169,39 @@ This path replaces a node's SEPP certificate with one issued by your CA. The nod
 
 | Status | Condition |
 | ------ | --------- |
-| `200`  | Returns the imported certificate, as in [Get a SEPP Certificate](#get-a-sepp-certificate). |
+| `200`  | Returns the imported certificate, as listed in [Get the SEPP Status](#get-the-sepp-status), with `warnings`: a missing extendedKeyUsage, a validity over 3 years, or a trust anchor that partners must import. |
 | `400`  | Invalid certificate or key. |
 | `409`  | Another node has this FQDN. |
 
-## Generate a SEPP Certificate
+### Sample Response
 
-This path replaces a node's SEPP certificate with a new one signed by the cluster SEPP CA.
+```json
+{
+    "result": {
+        "seppID": 1,
+        "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+        "source": "imported",
+        "subject": "CN=sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+        "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"],
+        "issuer": "CN=Operator Root CA",
+        "notBefore": "2026-10-01T08:00:00Z",
+        "notAfter": "2028-10-01T08:00:00Z",
+        "fingerprint": "sha256:d4e5...01",
+        "trustAnchorFingerprint": "sha256:77aa...3c",
+        "warnings": [
+            "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again"
+        ]
+    }
+}
+```
 
-| Method | Path                                                                |
-| ------ | ------------------------------------------------------------------- |
-| POST   | `/api/v1/operator/roaming/sepp/nodes/{seppID}/certificate/generate` |
+## Delete a SEPP Certificate
+
+This path deletes a node's SEPP certificate, generated or imported. The node then generates a new one signed by the cluster SEPP CA. Use it to return to a generated certificate after an import.
+
+| Method | Path                                                       |
+| ------ | ---------------------------------------------------------- |
+| DELETE | `/api/v1/operator/roaming/sepp/nodes/{seppID}/certificate` |
 
 ### Parameters
 
@@ -1249,12 +1211,13 @@ None
 
 | Status | Condition |
 | ------ | --------- |
-| `201`  | Returns the generated certificate, as in [Get a SEPP Certificate](#get-a-sepp-certificate). |
+| `200`  | The certificate was deleted. |
 | `400`  | `seppID` is not between 1 and 63. |
+| `404`  | The node has no SEPP certificate. |
 
 ## Regenerate the SEPP CA
 
-This path replaces the cluster SEPP CA and reissues every generated SEPP certificate. Imported certificates are kept.
+This path replaces the cluster SEPP CA and deletes every generated SEPP certificate; each node then generates a new one with the new CA. Imported certificates are kept.
 
 | Method | Path                                          |
 | ------ | --------------------------------------------- |
@@ -1277,7 +1240,6 @@ None
             "pem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
             "seppIDs": []
         },
-        "reissued": [1, 2],
         "warnings": [
             "The cluster SEPP CA changed: every roaming partner must import the new trust anchor before N32 with the nodes that use generated certificates works again"
         ]

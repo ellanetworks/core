@@ -37,8 +37,8 @@ import {
   deleteRoamingPartner,
   diameterPeerLabel,
   formatEndpoint,
+  deleteSEPPCertificate,
   formatPLMN,
-  generateSEPPCertificate,
   getSEPPStatus,
   listRoamingDiameterPeers,
   listRoamingPartners,
@@ -73,6 +73,9 @@ import { PRODUCT } from "@/utils/product";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXPIRY_WARNING_DAYS = 30;
+
+const TRUST_ANCHOR_CHANGED_WARNING =
+  "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unknown error occurred.";
@@ -253,6 +256,10 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
   const partnersLoading = partnersQuery.isLoading && !partnersQuery.data;
   const peersLoading = peersQuery.isLoading && !peersQuery.data;
   const sepp = seppQuery.data;
+  const listener = sepp?.listener;
+  const ownCertificate = sepp?.certificates.find(
+    (cert) => cert.seppID === listener?.seppID,
+  );
 
   const peersByID = useMemo(
     () => new Map(peers.map((peer) => [peer.id, peer])),
@@ -327,12 +334,18 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
 
   const handleRegenerate = async () => {
     if (!regenerate || !accessToken) return;
-    const result =
-      regenerate.kind === "certificate"
-        ? await generateSEPPCertificate(accessToken, regenerate.seppID)
-        : await regenerateSEPPCA(accessToken);
+    if (regenerate.kind === "certificate") {
+      await deleteSEPPCertificate(accessToken, regenerate.seppID);
+      setWarnings(
+        ownCertificate?.source === "imported"
+          ? [TRUST_ANCHOR_CHANGED_WARNING]
+          : [],
+      );
+    } else {
+      const result = await regenerateSEPPCA(accessToken);
+      setWarnings(result?.warnings ?? []);
+    }
     void queryClient.invalidateQueries({ queryKey: ["sepp-status"] });
-    setWarnings(result?.warnings ?? []);
     showSnackbar(
       regenerate.kind === "certificate"
         ? "SEPP certificate regenerated successfully."
@@ -349,14 +362,13 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
     },
   };
 
-  const node = sepp?.node;
   const anchors = sepp?.trustAnchors ?? [];
-  const seppEnabled = !!node?.n32Configured;
+  const seppEnabled = !!listener?.configured;
   const fqdnOutsideDomain =
     seppEnabled &&
     !!domain &&
-    !!node?.fqdn &&
-    !node.fqdn.endsWith(`.${domain}`);
+    !!ownCertificate?.fqdn &&
+    !ownCertificate.fqdn.endsWith(`.${domain}`);
 
   return (
     <Box sx={{ mt: 4 }}>
@@ -389,11 +401,11 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
       <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 4 }}>
         <Table aria-label="SEPP">
           <TableBody>
-            {!node || !seppEnabled ? (
+            {!listener || !seppEnabled ? (
               <TableRow>
                 <TableCell sx={SETTING_CELL_SX}>SEPP</TableCell>
                 <TableCell sx={VALUE_CELL_SX}>
-                  {!node ? (
+                  {!listener ? (
                     <Skeleton variant="text" width={240} />
                   ) : (
                     <>
@@ -418,20 +430,20 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
                 <TableRow>
                   <TableCell sx={SETTING_CELL_SX}>Certificate</TableCell>
                   <TableCell sx={{ ...VALUE_CELL_SX, wordBreak: "break-word" }}>
-                    {node.certificate ? (
+                    {ownCertificate?.notAfter ? (
                       <InlineValue>
                         <span>
                           {[
-                            node.fqdn,
-                            sourceLabels[node.source ?? "generated"],
-                            `Expires ${formatDateTime(node.certificate.notAfter)}`,
+                            ownCertificate.fqdn,
+                            sourceLabels[ownCertificate.source],
+                            `Expires ${formatDateTime(ownCertificate.notAfter)}`,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
                         </span>
                         {now > 0 && (
                           <ExpiryChip
-                            notAfter={node.certificate.notAfter}
+                            notAfter={ownCertificate.notAfter}
                             now={now}
                           />
                         )}
@@ -441,7 +453,7 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
                     )}
                   </TableCell>
                   <TableCell sx={{ ...ACTION_CELL_SX, whiteSpace: "nowrap" }}>
-                    {canEdit && node.seppID !== undefined && (
+                    {canEdit && listener.seppID !== undefined && (
                       <>
                         <Tooltip title="Regenerate certificate" arrow>
                           <IconButton
@@ -449,7 +461,7 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
                             onClick={() =>
                               setRegenerate({
                                 kind: "certificate",
-                                seppID: node.seppID!,
+                                seppID: listener.seppID!,
                               })
                             }
                             aria-label="Regenerate certificate"
@@ -460,7 +472,7 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
                         <Tooltip title="Import certificate" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => setImportSEPPID(node.seppID!)}
+                            onClick={() => setImportSEPPID(listener.seppID!)}
                             aria-label="Import certificate"
                           >
                             <ImportIcon fontSize="small" color="primary" />

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/ellanetworks/core/internal/roaming/wire"
 )
@@ -42,7 +43,7 @@ func (h *AMFHPLMN) Authenticate(ctx context.Context, t HPLMNTarget, supiOrSuci s
 		return Challenge{}, err
 	}
 
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	answer, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method: http.MethodPost,
 		URL:    JoinAPIRoot(c.APIRoot, wire.UEAuthenticationsPath()),
 		Body: wire.AuthenticationInfo{
@@ -52,6 +53,9 @@ func (h *AMFHPLMN) Authenticate(ctx context.Context, t HPLMNTarget, supiOrSuci s
 			RoutingIndicator:      t.RoutingIndicator,
 		},
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeAUSF,
+		Service:   wire.ServiceNausfAuth,
+		OAuth2:    c.OAuth2Required,
 		Accept:    []int{http.StatusCreated},
 	})
 	if err != nil {
@@ -79,11 +83,13 @@ func (h *AMFHPLMN) Authenticate(ctx context.Context, t HPLMNTarget, supiOrSuci s
 }
 
 func (h *AMFHPLMN) Confirm(ctx context.Context, t HPLMNTarget, confirmURI, supiOrSuci string, resStar [16]byte) (string, [32]byte, error) {
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	answer, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       confirmURI,
 		Body:      wire.ConfirmationWithResStar(resStar),
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeAUSF,
+		Service:   wire.ServiceNausfAuth,
 		Accept:    []int{http.StatusOK},
 	})
 	if err != nil {
@@ -99,11 +105,13 @@ func (h *AMFHPLMN) Confirm(ctx context.Context, t HPLMNTarget, confirmURI, supiO
 }
 
 func (h *AMFHPLMN) Unconfirmed(ctx context.Context, t HPLMNTarget, confirmURI string) error {
-	_, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	_, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       confirmURI,
 		Body:      wire.ConfirmationData{},
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeAUSF,
+		Service:   wire.ServiceNausfAuth,
 		Accept:    []int{http.StatusOK},
 	})
 
@@ -111,10 +119,12 @@ func (h *AMFHPLMN) Unconfirmed(ctx context.Context, t HPLMNTarget, confirmURI st
 }
 
 func (h *AMFHPLMN) RemoveAuthentication(ctx context.Context, t HPLMNTarget, confirmURI string) error {
-	_, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	_, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodDelete,
 		URL:       confirmURI,
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeAUSF,
+		Service:   wire.ServiceNausfAuth,
 		Accept:    []int{http.StatusNoContent, http.StatusOK},
 	})
 
@@ -134,11 +144,14 @@ func (h *AMFHPLMN) Register(ctx context.Context, t HPLMNTarget, supi string, reg
 		return UDMBinding{}, err
 	}
 
-	_, err = h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	_, err = h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       JoinAPIRoot(c.APIRoot, wire.UECMAmf3GppAccessPath(supi)),
 		Body:      reg,
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeUDM,
+		Service:   wire.ServiceNudmUECM,
+		OAuth2:    c.OAuth2Required,
 		Accept:    []int{http.StatusCreated, http.StatusOK, http.StatusNoContent},
 	})
 	if err != nil {
@@ -146,7 +159,7 @@ func (h *AMFHPLMN) Register(ctx context.Context, t HPLMNTarget, supi string, reg
 		return UDMBinding{}, err
 	}
 
-	return UDMBinding{InstanceID: c.NfInstanceID, GroupID: c.Scope.GroupID}, nil
+	return UDMBinding{InstanceID: c.NfInstanceID, GroupID: c.GroupID}, nil
 }
 
 func (h *AMFHPLMN) Deregister(ctx context.Context, t HPLMNTarget, supi string, guami wire.Guami) error {
@@ -157,12 +170,15 @@ func (h *AMFHPLMN) Deregister(ctx context.Context, t HPLMNTarget, supi string, g
 		return err
 	}
 
-	_, err = h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	_, err = h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:      http.MethodPatch,
 		URL:         JoinAPIRoot(c.APIRoot, wire.UECMAmf3GppAccessPath(supi)),
 		Body:        wire.PurgeModification(guami),
 		ContentType: wire.ContentTypeMergePatch,
 		Requester:   wire.NFTypeAMF,
+		Producer:    wire.NFTypeUDM,
+		Service:     wire.ServiceNudmUECM,
+		OAuth2:      c.OAuth2Required,
 		Accept:      []int{http.StatusNoContent, http.StatusOK},
 	})
 	h.forgetOnTransportError(t.PartnerID, c, err)
@@ -185,14 +201,17 @@ func (h *AMFHPLMN) SubscriptionData(ctx context.Context, t HPLMNTarget, supi str
 		return wire.SubscriptionDataSets{}, err
 	}
 
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	answer, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodGet,
 		URL:       JoinAPIRoot(c.APIRoot, wire.SDMDataSetsPath(supi)) + "?" + values.Encode(),
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeUDM,
+		Service:   wire.ServiceNudmSDM,
+		OAuth2:    c.OAuth2Required,
 		Accept:    []int{http.StatusOK},
 	})
 	if err != nil {
-		h.forgetOnTransportError(t.PartnerID, c, err)
+		h.forgetOnFailure(t.PartnerID, c, err)
 		return wire.SubscriptionDataSets{}, err
 	}
 
@@ -207,11 +226,14 @@ func (h *AMFHPLMN) Subscribe(ctx context.Context, t HPLMNTarget, supi string, su
 		return SDMSubscription{}, err
 	}
 
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	answer, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodPost,
 		URL:       JoinAPIRoot(c.APIRoot, wire.SDMSubscriptionsPath(supi)),
 		Body:      sub,
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeUDM,
+		Service:   wire.ServiceNudmSDM,
+		OAuth2:    c.OAuth2Required,
 		Accept:    []int{http.StatusCreated},
 	})
 	if err != nil {
@@ -242,10 +264,12 @@ func (h *AMFHPLMN) Subscribe(ctx context.Context, t HPLMNTarget, supi string, su
 }
 
 func (h *AMFHPLMN) Unsubscribe(ctx context.Context, t HPLMNTarget, uri string) error {
-	_, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	_, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodDelete,
 		URL:       uri,
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeUDM,
+		Service:   wire.ServiceNudmSDM,
 		Accept:    []int{http.StatusNoContent, http.StatusOK},
 	})
 
@@ -253,12 +277,14 @@ func (h *AMFHPLMN) Unsubscribe(ctx context.Context, t HPLMNTarget, uri string) e
 }
 
 func (h *AMFHPLMN) Renew(ctx context.Context, t HPLMNTarget, uri string, expires wire.DateTime) (wire.DateTime, error) {
-	answer, err := h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	answer, err := h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:      http.MethodPatch,
 		URL:         uri,
 		Body:        wire.SdmSubsModification{Expires: expires},
 		ContentType: wire.ContentTypeMergePatch,
 		Requester:   wire.NFTypeAMF,
+		Producer:    wire.NFTypeUDM,
+		Service:     wire.ServiceNudmSDM,
 		Accept:      []int{http.StatusOK, http.StatusNoContent},
 	})
 	if err != nil {
@@ -289,15 +315,48 @@ func (h *AMFHPLMN) AcknowledgeSoR(ctx context.Context, t HPLMNTarget, supi strin
 		return err
 	}
 
-	_, err = h.sbi.Do(ctx, t.PartnerID, HPLMNRequest{
+	_, err = h.sbi.Do(ctx, t, HPLMNRequest{
 		Method:    http.MethodPut,
 		URL:       JoinAPIRoot(c.APIRoot, wire.SDMSorAckPath(supi)),
 		Body:      ack,
 		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeUDM,
+		Service:   wire.ServiceNudmSDM,
+		OAuth2:    c.OAuth2Required,
 		Accept:    []int{http.StatusNoContent, http.StatusOK},
 	})
 
 	return err
+}
+
+func (h *AMFHPLMN) UpdateSoR(ctx context.Context, t HPLMNTarget, supi string) (wire.SorInfo, error) {
+	t.Supi = supi
+
+	c, err := h.sbi.APIRoot(ctx, t, wire.NFTypeUDM, wire.NFTypeAMF, wire.ServiceNudmSDM)
+	if err != nil {
+		return wire.SorInfo{}, err
+	}
+
+	answer, err := h.sbi.Do(ctx, t, HPLMNRequest{
+		Method:    http.MethodPost,
+		URL:       JoinAPIRoot(c.APIRoot, wire.SDMUpdateSorPath(supi)),
+		Body:      wire.SorUpdateInfo{VplmnID: t.Serving},
+		Requester: wire.NFTypeAMF,
+		Producer:  wire.NFTypeUDM,
+		Service:   wire.ServiceNudmSDM,
+		OAuth2:    c.OAuth2Required,
+		Accept:    []int{http.StatusOK},
+	})
+	if err != nil {
+		h.forgetOnTransportError(t.PartnerID, c, err)
+		return wire.SorInfo{}, err
+	}
+
+	return DecodeAnswer[wire.SorInfo](answer)
+}
+
+func (h *AMFHPLMN) WaitN32(ctx context.Context, partnerID string, timeout time.Duration) error {
+	return h.sbi.WaitEstablished(ctx, partnerID, timeout)
 }
 
 func (h *AMFHPLMN) forgetOnTransportError(partnerID string, c wire.Candidate, err error) {

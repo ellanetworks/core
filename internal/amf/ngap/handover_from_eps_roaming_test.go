@@ -33,6 +33,8 @@ func (arrivalPartners) ListRoamingPartners(context.Context) ([]db.RoamingPartner
 
 func (arrivalPartners) CountSubscribersAndVisitors(context.Context) (int, error) { return 1, nil }
 
+func (arrivalPartners) SetVisitorMSISDN(context.Context, string, string) error { return nil }
+
 func arrivingVisitor(t *testing.T, allowed bool) (*amf.AMF, *amf.Radio, *arrivalSender, interworking.FiveGSRelocationRequest) {
 	t.Helper()
 

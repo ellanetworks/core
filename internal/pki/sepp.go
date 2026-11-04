@@ -34,12 +34,8 @@ const (
 )
 
 const (
-	SEPPWarningLongValidity     = "The certificate is valid for more than 3 years, the maximum of the TS 33.310 clause 6.1.3c.3 profile"
-	SEPPWarningNoEKU            = "The certificate has no extendedKeyUsage; TS 33.310 clause 6.1.3c.3 requires serverAuth and clientAuth"
-	SEPPWarningNoNFTypes        = "The certificate has no nfTypes extension naming SEPP (RFC 9310), which TS 33.310 clause 6.1.3c.3 requires"
-	SEPPWarningCNNotInSAN       = "The certificate's subject CN is not one of its subjectAltName DNS names (GSMA FS.34 clause 5)"
-	SEPPWarningHostNotSEPPID    = "The SEPP FQDN does not start with sepp<SEPPID>, the GSMA FS.34 clause 5.1.1 naming" // #nosec G101 -- warning message, not a credential
-	SEPPWarningNoCRLDistributor = "The certificate has no cRLDistributionPoints, which TS 33.310 clause 6.1.3c.3 requires: partners can only pin it"
+	SEPPWarningLongValidity = "The certificate is valid for more than 3 years, the maximum of the TS 33.310 clause 6.1.3c.3 profile"
+	SEPPWarningNoEKU        = "The certificate has no extendedKeyUsage; TS 33.310 clause 6.1.3c.3 requires serverAuth and clientAuth"
 )
 
 var (
@@ -474,47 +470,7 @@ func (c SEPPCertificate) ProfileWarnings() []string {
 		warnings = append(warnings, SEPPWarningNoEKU)
 	}
 
-	if !slices.Contains(nfTypesOf(leaf), "SEPP") {
-		warnings = append(warnings, SEPPWarningNoNFTypes)
-	}
-
-	if cn := leaf.Subject.CommonName; cn != "" && !slices.ContainsFunc(leaf.DNSNames, func(n string) bool { return strings.EqualFold(n, cn) }) {
-		warnings = append(warnings, SEPPWarningCNNotInSAN)
-	}
-
-	if name, err := ParseSEPPName(c.FQDN); err == nil && !name.HasSEPPID() {
-		warnings = append(warnings, SEPPWarningHostNotSEPPID)
-	}
-
-	if len(leaf.CRLDistributionPoints) == 0 {
-		warnings = append(warnings, SEPPWarningNoCRLDistributor)
-	}
-
 	return warnings
-}
-
-func nfTypesOf(cert *x509.Certificate) []string {
-	for _, ext := range cert.Extensions {
-		if !ext.Id.Equal(OIDExtensionNFTypes) {
-			continue
-		}
-
-		var raw []asn1.RawValue
-		if rest, err := asn1.Unmarshal(ext.Value, &raw); err != nil || len(rest) != 0 {
-			return nil
-		}
-
-		types := make([]string, 0, len(raw))
-		for _, v := range raw {
-			if v.Class == asn1.ClassUniversal && v.Tag == asn1.TagIA5String {
-				types = append(types, string(v.Bytes))
-			}
-		}
-
-		return types
-	}
-
-	return nil
 }
 
 func ParseCertChainPEM(data []byte) ([]*x509.Certificate, error) {

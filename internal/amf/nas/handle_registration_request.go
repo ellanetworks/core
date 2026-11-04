@@ -81,7 +81,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		} else {
 			inner, err := fgs.ParseRegistrationRequest(contents)
 			if !decoded(ctx, "RegistrationRequest", err) {
-				logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
+				logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 				amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseInvalidMandatoryInformation)
 
@@ -155,7 +155,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	ue.SetLocation(loc, tai)
 
 	if !amf.InTaiList(tai, operatorInfo.Tais) {
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseTrackingAreaNotAllowed)
 
@@ -166,7 +166,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// unless it performs a periodic registration updating procedure.
 	if req.UESecurityCapability == nil &&
 		conn.RegistrationType5GS != fgs.RegistrationTypePeriodicUpdating {
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
 

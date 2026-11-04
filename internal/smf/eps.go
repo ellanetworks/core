@@ -70,7 +70,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
 
 	defer func() {
-		recordSessionEstablishment(ctx, metrics.RAT4G, err, logger.DNN(req.APN))
+		recordSessionEstablishment(ctx, metrics.RAT4G, req.Subscription != nil, err, logger.DNN(req.APN))
 	}()
 
 	if err != nil {
@@ -130,7 +130,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, &models.PDNTypeError{Cause: allowedPDNTypeCause(policy)}
 	}
 
-	typePolicy := restrictToHPLMN(policy, requestedType, rules)
+	typePolicy, singleAddress := restrictToHPLMN(policy, requestedType, rules)
 
 	pduType, err := s.negotiatePDUSessionType(ctx, requestedType, typePolicy)
 	if err != nil {
@@ -166,6 +166,9 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	switch narrowPDUType(requestedType, pduType) {
 	case narrowIPv4Only:
 		bearer.ESMCause = eps.ESMCausePDNTypeIPv4OnlyAllowed
+		if singleAddress {
+			bearer.ESMCause = eps.ESMCauseSingleAddressBearersOnly
+		}
 	case narrowIPv6Only:
 		bearer.ESMCause = eps.ESMCausePDNTypeIPv6OnlyAllowed
 	}

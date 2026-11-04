@@ -8,54 +8,6 @@ import (
 	"time"
 )
 
-func TestSupiRangeContains(t *testing.T) {
-	r := SupiRange{Start: "001010000000100", End: "001010000000199"}
-
-	for supi, want := range map[string]bool{
-		"imsi-001010000000100": true,
-		"imsi-001010000000199": true,
-		"imsi-001010000000200": false,
-		"imsi-00101000000150":  false,
-		"nai-x@example.org":    false,
-	} {
-		if got := r.Contains(supi); got != want {
-			t.Errorf("%s: %v, want %v", supi, got, want)
-		}
-	}
-
-	p := SupiRange{Pattern: "imsi-00101[0-9]{10}"}
-	if !p.Contains("imsi-001010000000001") || p.Contains("imsi-001020000000001") || (SupiRange{Pattern: "("}).Contains("imsi-001010000000001") {
-		t.Fatal("pattern ranges")
-	}
-}
-
-func TestScopeProvesOnlyWithEvidence(t *testing.T) {
-	group := Scope{GroupID: "g"}
-	ranged := Scope{GroupID: "g", SupiRanges: []SupiRange{{Start: "001010000000000", End: "001010000000099"}}}
-	rid := Scope{RoutingIndicators: []string{"12"}}
-
-	cases := []struct {
-		s    Scope
-		sub  Subject
-		want bool
-	}{
-		{Scope{}, Subject{Supi: "imsi-001010000000001"}, true},
-		{group, Subject{Supi: "imsi-001010000000001"}, false},
-		{group, Subject{Supi: "imsi-001010000000001", GroupID: "g"}, true},
-		{group, Subject{RoutingIndicator: "0000"}, true},
-		{ranged, Subject{Supi: "imsi-001010000000001"}, true},
-		{ranged, Subject{Supi: "imsi-001010000000100"}, false},
-		{rid, Subject{RoutingIndicator: "12"}, true},
-		{rid, Subject{RoutingIndicator: "13"}, false},
-	}
-
-	for i, tc := range cases {
-		if got := tc.s.Proves(tc.sub); got != tc.want {
-			t.Errorf("case %d: %v, want %v", i, got, tc.want)
-		}
-	}
-}
-
 func TestOAuth2RequirementPrecedence(t *testing.T) {
 	yes, no := true, false
 	requester := PlmnID{Mcc: "999", Mnc: "70"}
@@ -82,14 +34,6 @@ func TestAccessTokenWire(t *testing.T) {
 	in := 120
 	if d, ok := (AccessTokenRsp{AccessToken: "a", TokenType: "Bearer", ExpiresIn: &in}).Lifetime(time.Now()); !ok || d != 2*time.Minute {
 		t.Fatalf("lifetime %v", d)
-	}
-
-	if e, ok := BearerChallenge([]string{`Bearer realm="nudm-sdm", error="invalid_token"`}); !ok || e != "invalid_token" {
-		t.Fatalf("challenge %q %v", e, ok)
-	}
-
-	if _, ok := BearerChallenge([]string{`Basic realm="x"`}); ok {
-		t.Fatal("a Basic challenge is not Bearer")
 	}
 }
 

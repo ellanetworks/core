@@ -6,7 +6,6 @@
 package integration_test
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -16,127 +15,38 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
-	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
 const (
-	r4gDir             = "compose/roaming4g"
-	r4gFile            = "docker-compose.yaml"
-	r4gProject         = "ella-roaming4g"
-	r4gHSSIdentity     = "hss.epc.mnc001.mcc001.3gppnetwork.org"
-	r4gHSSRealm        = "epc.mnc001.mcc001.3gppnetwork.org"
-	r4gHSSAddress      = "10.130.0.30"
-	r4gTesterN2        = "10.130.0.20"
-	r4gTesterN3        = "10.133.0.20"
-	r4gPingDestination = "10.136.0.3"
-	r4gKey             = "465B5CE8B199B49FAA5F0A2EE238A6BC"
-	r4gOPc             = "E8ED289DEBA952E4283B54E88E6183CA"
-	r4gVisitedMCC      = "999"
-	r4gVisitedMNC      = "70"
-	r4gProfile         = "roamers"
-	r4gPartner         = "open5gs"
-	r4gMarker          = "ROAMER_ATTACHED"
-	r4gTesterTimeout   = 8 * time.Minute
+	r4gHSSIdentity = "hss.epc.mnc001.mcc001.3gppnetwork.org"
+	r4gHSSRealm    = "epc.mnc001.mcc001.3gppnetwork.org"
+	r4gHSSAddress  = "10.130.0.30"
 )
 
-type r4gStack struct {
-	t        *testing.T
-	ctx      context.Context
-	dc       *DockerClient
-	nodes    []*client.Client
-	api      *client.Client
-	hosts    []string
-	partner  string
-	moverRun *r4gTesterRun
+var roaming4G = roamingRAT{
+	name:        "4g",
+	octet:       130,
+	scenario:    "s1enb/roaming/attach",
+	marker:      "ROAMER_ATTACHED",
+	milestone:   "attach",
+	logServices: []string{"hss"},
+	interfaces:  "  diameter:\n    address: %q\n",
+	bringUp:     20 * time.Minute,
 }
 
-func r4gNodeIP(n int) string { return fmt.Sprintf("10.130.0.%d", 10+n) }
+type r4gStack struct {
+	*roamingStack
+	hosts    []string
+	moverRun *roamingTesterRun
+}
 
 func r4gRoamer(i int) string { return fmt.Sprintf("00101000000010%d", i) }
-
-func r4gCompose(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", r4gFile}, args...)...)
-	cmd.Dir = r4gDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker compose %s: %w", strings.Join(args, " "), err)
-	}
-
-	return nil
-}
-
-func r4gWriteFile(rel string, body string) error {
-	path, err := filepath.Abs(filepath.Join(r4gDir, rel))
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Dir(path)
-
-	if err := os.MkdirAll(dir, 0o777); err != nil {
-		return err
-	}
-
-	if err := os.Chmod(dir, 0o777); err != nil {
-		return err
-	}
-
-	return os.WriteFile(path, []byte(body), 0o644)
-}
-
-func r4gWriteNodeConfig(n int, cluster bool, joinToken string) error {
-	ip := r4gNodeIP(n)
-
-	var clusterYAML strings.Builder
-
-	if cluster {
-		fmt.Fprintf(&clusterYAML, "cluster:\n  bind-address: \"%s:7000\"\n  peers:\n", ip)
-
-		for i := 1; i <= 3; i++ {
-			fmt.Fprintf(&clusterYAML, "    - \"%s:7000\"\n", r4gNodeIP(i))
-		}
-
-		if joinToken != "" {
-			fmt.Fprintf(&clusterYAML, "  join-token: %q\n", joinToken)
-		}
-	}
-
-	return r4gWriteFile(fmt.Sprintf("cfg/node%d/core.yaml", n), fmt.Sprintf(`logging:
-  system:
-    level: "debug"
-    output: "stdout"
-  audit:
-    output: "stdout"
-db:
-  path: "/data/ella.db"
-interfaces:
-  n2:
-    address: %[1]q
-    port: 38412
-  n3:
-    address: "10.133.0.%[2]d"
-  n6:
-    name: "n6"
-  api:
-    address: %[1]q
-    port: 5002
-  diameter:
-    address: %[1]q
-datapath:
-  attach-mode: "xdp-generic"
-%[3]s`, ip, 10+n, clusterYAML.String()))
-}
 
 func r4gWriteHSSConfig(hosts []string) error {
 	var b strings.Builder
@@ -157,7 +67,7 @@ LoadExtension = "/usr/lib/x86_64-linux-gnu/freeDiameter/dict_dcca_3gpp.fdx";
 `, r4gHSSIdentity, r4gHSSRealm, r4gHSSAddress)
 
 	for i, h := range hosts {
-		fmt.Fprintf(&b, "ConnectPeer = %q { ConnectTo = %q; No_TLS; };\n", h, r4gNodeIP(i+1))
+		fmt.Fprintf(&b, "ConnectPeer = %q { ConnectTo = %q; No_TLS; };\n", h, roaming4G.nodeIP(i+1))
 	}
 
 	certPEM, keyPEM, err := r4gSelfSigned(r4gHSSIdentity)
@@ -165,15 +75,15 @@ LoadExtension = "/usr/lib/x86_64-linux-gnu/freeDiameter/dict_dcca_3gpp.fdx";
 		return err
 	}
 
-	if err := r4gWriteFile("cfg/hss/hss.crt", certPEM); err != nil {
+	if err := roaming4G.writeFile("cfg/hss/hss.crt", certPEM); err != nil {
 		return err
 	}
 
-	if err := r4gWriteFile("cfg/hss/hss.key", keyPEM); err != nil {
+	if err := roaming4G.writeFile("cfg/hss/hss.key", keyPEM); err != nil {
 		return err
 	}
 
-	return r4gWriteFile("cfg/hss/hss.conf", b.String())
+	return roaming4G.writeFile("cfg/hss/hss.conf", b.String())
 }
 
 func r4gSelfSigned(cn string) (string, string, error) {
@@ -208,155 +118,17 @@ func r4gSelfSigned(cn string) (string, string, error) {
 func r4gBringUp(t *testing.T, nodes int) *r4gStack {
 	t.Helper()
 
-	if DetectIPFamily() != IPv4Only {
-		t.Skip("the 4G roaming e2e runs in IPv4 mode only")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	t.Cleanup(cancel)
-
-	dc, err := NewDockerClient()
-	if err != nil {
-		t.Fatalf("docker client: %v", err)
-	}
-
-	t.Cleanup(func() { _ = dc.Close() })
-
-	_ = r4gCompose(ctx, "down", "-v", "--remove-orphans")
-
-	s := &r4gStack{t: t, ctx: ctx, dc: dc}
-
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cleanupCancel()
-
-		if t.Failed() || os.Getenv("ROAMING4G_LOGS") != "" {
-			services := []string{"hss"}
-			for i := 1; i <= nodes; i++ {
-				services = append(services, fmt.Sprintf("ella-core-%d", i))
-			}
-
-			for _, svc := range services {
-				logs, err := dc.ComposeLogs(cleanupCtx, r4gDir, svc)
-				if err != nil {
-					t.Logf("=== %s logs: %v ===", svc, err)
-					continue
-				}
-
-				t.Logf("=== %s logs ===\n%s", svc, logs)
-			}
-		}
-
-		if os.Getenv("ROAMING4G_KEEP") == "" {
-			_ = r4gCompose(cleanupCtx, "down", "-v", "--remove-orphans")
-		}
-	})
-
-	if err := r4gWriteNodeConfig(1, nodes > 1, ""); err != nil {
-		t.Fatalf("write node 1 config: %v", err)
-	}
-
-	if err := r4gCompose(ctx, "up", "-d", "ella-core-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	node1, err := client.New(&client.Config{BaseURL: "http://" + r4gNodeIP(1) + ":5002"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	token, err := initializeAndGetAdminToken(ctx, node1)
-	if err != nil {
-		t.Fatalf("initialize node 1: %v", err)
-	}
-
-	node1.SetToken(token)
-	s.nodes = []*client.Client{node1}
-
-	for n := 2; n <= nodes; n++ {
-		tok, err := node1.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{TTLSeconds: 600})
-		if err != nil {
-			t.Fatalf("mint join token for node %d: %v", n, err)
-		}
-
-		if err := r4gWriteNodeConfig(n, true, tok.Token); err != nil {
-			t.Fatalf("write node %d config: %v", n, err)
-		}
-
-		if err := r4gCompose(ctx, "up", "-d", fmt.Sprintf("ella-core-%d", n)); err != nil {
-			t.Fatal(err)
-		}
-
-		c, err := client.New(&client.Config{BaseURL: fmt.Sprintf("http://%s:5002", r4gNodeIP(n))})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		c.SetToken(token)
-		s.nodes = append(s.nodes, c)
-	}
-
-	if nodes > 1 {
-		if err := waitForClusterReady(ctx, s.nodes); err != nil {
-			t.Fatalf("cluster not ready: %v", err)
-		}
-
-		if err := waitForAllNodesReady(ctx, s.nodes); err != nil {
-			t.Fatalf("nodes not ready: %v", err)
-		}
-
-		urls := make([]string, 0, nodes)
-		for n := 1; n <= nodes; n++ {
-			urls = append(urls, fmt.Sprintf("http://%s:5002", r4gNodeIP(n)))
-		}
-
-		s.api, err = client.New(&client.Config{BaseURLs: urls})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		s.api.SetToken(token)
-	} else {
-		s.api = node1
-	}
-
-	if err := r4gCompose(ctx, "up", "-d", "ella-core-tester", "router"); err != nil {
-		t.Fatal(err)
-	}
-
-	s.provision()
+	s := &r4gStack{roamingStack: roamingBringUp(t, roaming4G, nodes)}
+	s.startTester()
+	s.createPartner()
 	s.startHSS()
 
 	return s
 }
 
-func (s *r4gStack) provision() {
+func (s *r4gStack) createPartner() {
 	t := s.t
 	t.Helper()
-
-	if err := s.api.UpdateOperatorID(s.ctx, &client.UpdateOperatorIDOptions{Mcc: r4gVisitedMCC, Mnc: r4gVisitedMNC}); err != nil {
-		t.Fatalf("update operator ID: %v", err)
-	}
-
-	if err := s.api.UpdateOperatorTracking(s.ctx, &client.UpdateOperatorTrackingOptions{SupportedTacs: []string{scenarios.DefaultTAC}}); err != nil {
-		t.Fatalf("update operator tracking: %v", err)
-	}
-
-	for i, c := range s.nodes {
-		if err := c.UpdateNATInfo(s.ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
-			t.Fatalf("enable NAT on node %d: %v", i+1, err)
-		}
-	}
-
-	fx := fixture.New(t, s.ctx, s.api)
-	fx.Slice(fixture.DefaultSliceSpec())
-	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
-	fx.Profile(fixture.ProfileSpec{Name: r4gProfile, UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"})
-	fx.Policy(fixture.PolicySpec{
-		Name: "roamers-internet", ProfileName: r4gProfile, SliceName: scenarios.DefaultSliceName,
-		DataNetworkName: scenarios.DefaultDNN, SessionAmbrUplink: "200 Mbps", SessionAmbrDownlink: "200 Mbps",
-		Var5qi: 9, Arp: 15,
-	})
 
 	peer, err := s.api.CreateRoamingDiameterPeer(s.ctx, &client.RoamingDiameterPeerOptions{
 		DiameterIdentity: r4gHSSIdentity, Address: r4gHSSAddress, Port: 3868,
@@ -366,7 +138,7 @@ func (s *r4gStack) provision() {
 	}
 
 	partner, err := s.api.CreateRoamingPartner(s.ctx, &client.RoamingPartnerOptions{
-		Name: r4gPartner, PLMNs: []client.RoamingPLMN{{Mcc: "001", Mnc: "01"}}, ProfileName: r4gProfile, DiameterPeerID: peer.ID,
+		Name: roamingPartner, PLMNs: []client.RoamingPLMN{{Mcc: "001", Mnc: "01"}}, ProfileName: roamingProfile, DiameterPeerID: peer.ID,
 	})
 	if err != nil {
 		t.Fatalf("create roaming partner: %v", err)
@@ -382,7 +154,7 @@ func (s *r4gStack) startHSS() {
 	s.hosts = make([]string, len(s.nodes))
 
 	for i, c := range s.nodes {
-		err := r4gPoll(s.ctx, time.Minute, func() error {
+		err := roamingPoll(s.ctx, time.Minute, func() error {
 			st, err := c.GetDiameterStatus(s.ctx)
 			if err != nil {
 				return err
@@ -407,7 +179,7 @@ func (s *r4gStack) startHSS() {
 		t.Fatalf("write HSS config: %v", err)
 	}
 
-	if err := r4gCompose(s.ctx, "up", "-d", "hss"); err != nil {
+	if err := s.rat.compose(s.ctx, "up", "-d", "hss"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -419,7 +191,7 @@ func (s *r4gStack) startHSS() {
 func (s *r4gStack) waitHSSPeer(n int) {
 	s.t.Helper()
 
-	err := r4gPoll(s.ctx, 2*time.Minute, func() error {
+	err := roamingPoll(s.ctx, 2*time.Minute, func() error {
 		st, err := s.nodes[n-1].GetDiameterStatus(s.ctx)
 		if err != nil {
 			return err
@@ -442,82 +214,6 @@ func (s *r4gStack) waitHSSPeer(n int) {
 	}
 }
 
-func r4gPoll(ctx context.Context, timeout time.Duration, f func() error) error {
-	deadline := time.Now().Add(timeout)
-
-	for {
-		err := f()
-		if err == nil {
-			return nil
-		}
-
-		if time.Now().After(deadline) {
-			return err
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second):
-		}
-	}
-}
-
-type r4gTesterRun struct {
-	done   chan error
-	marker chan struct{}
-}
-
-func (s *r4gStack) tester(node int, imsi string, args ...string) *r4gTesterRun {
-	s.t.Helper()
-
-	container, err := s.dc.ResolveComposeContainer(s.ctx, r4gProject, "ella-core-tester")
-	if err != nil {
-		s.t.Fatalf("resolve tester container: %v", err)
-	}
-
-	argv := []string{
-		"core-tester", "run", "s1enb/roaming/attach",
-		"--ella-core-n2-address", r4gNodeIP(node) + ":38412",
-		"--gnb", fmt.Sprintf("gnb1,n2=%s,n3=%s", r4gTesterN2, r4gTesterN3),
-		"--imsi", imsi, "--key", r4gKey, "--opc", r4gOPc,
-		"--mcc", r4gVisitedMCC, "--mnc", r4gVisitedMNC,
-		"--ping-destination", r4gPingDestination,
-		"--verbose",
-	}
-	argv = append(argv, args...)
-
-	run := &r4gTesterRun{done: make(chan error, 1), marker: make(chan struct{})}
-	writer := newMarkerWriter(s.t, r4gMarker, run.marker)
-
-	go func() {
-		_, err := s.dc.Exec(s.ctx, container, argv, false, r4gTesterTimeout, writer)
-		run.done <- err
-	}()
-
-	return run
-}
-
-func (r *r4gTesterRun) wait(t *testing.T, what string) {
-	t.Helper()
-
-	if err := <-r.done; err != nil {
-		t.Fatalf("%s: %v", what, err)
-	}
-}
-
-func (r *r4gTesterRun) attached(t *testing.T, what string) {
-	t.Helper()
-
-	select {
-	case <-r.marker:
-	case err := <-r.done:
-		t.Fatalf("%s ended before the attach: %v", what, err)
-	case <-time.After(2 * time.Minute):
-		t.Fatalf("%s: no attach within 2 minutes", what)
-	}
-}
-
 type r4gHSSRecord struct {
 	MMEHost   string `json:"mme_host"`
 	MMERealm  string `json:"mme_realm"`
@@ -527,7 +223,7 @@ type r4gHSSRecord struct {
 func (s *r4gStack) mongo(js string) string {
 	s.t.Helper()
 
-	container, err := s.dc.ResolveComposeContainer(s.ctx, r4gProject, "mongodb")
+	container, err := s.dc.ResolveComposeContainer(s.ctx, s.rat.project(), "mongodb")
 	if err != nil {
 		s.t.Fatalf("resolve mongodb container: %v", err)
 	}
@@ -558,7 +254,7 @@ func (s *r4gStack) waitHSSRecord(imsi, what string, ok func(r4gHSSRecord) bool) 
 
 	var rec r4gHSSRecord
 
-	err := r4gPoll(s.ctx, 30*time.Second, func() error {
+	err := roamingPoll(s.ctx, 30*time.Second, func() error {
 		rec = s.hssRecord(imsi)
 		if ok(rec) {
 			return nil
@@ -571,25 +267,6 @@ func (s *r4gStack) waitHSSRecord(imsi, what string, ok func(r4gHSSRecord) bool) 
 	}
 
 	return rec
-}
-
-func (s *r4gStack) registeredEPS(node int) float64 {
-	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_registered_subscribers", `rat="4g"`, `roaming="true"`)
-}
-
-func (s *r4gStack) waitRegisteredEPS(node int, want float64, what string) {
-	s.t.Helper()
-
-	err := r4gPoll(s.ctx, 30*time.Second, func() error {
-		if got := s.registeredEPS(node); got != want {
-			return fmt.Errorf("node %d has %v registered EPS roamers, want %v", node, got, want)
-		}
-
-		return nil
-	})
-	if err != nil {
-		s.t.Fatalf("%s: %v", what, err)
-	}
 }
 
 func TestRoaming4GOpen5GS(t *testing.T) {
@@ -611,14 +288,14 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 
 		roaming, notRoaming := true, false
 
-		err := r4gPoll(s.ctx, 75*time.Second, func() error {
+		err := roamingPoll(s.ctx, 75*time.Second, func() error {
 			usage, err := s.api.ListUsagePerSubscriber(s.ctx, &client.ListUsageParams{Subscriber: imsi, Roaming: &roaming})
 			if err != nil {
 				return err
 			}
 
 			for _, u := range usage {
-				if u.HomePLMN != nil && *u.HomePLMN == (client.RoamingPLMN{Mcc: "001", Mnc: "01"}) && u.RoamingPartner == r4gPartner && u.UplinkBytes > 0 && u.DownlinkBytes > 0 {
+				if u.HomePLMN != nil && *u.HomePLMN == (client.RoamingPLMN{Mcc: "001", Mnc: "01"}) && u.RoamingPartner == roamingPartner && u.UplinkBytes > 0 && u.DownlinkBytes > 0 {
 					return nil
 				}
 			}
@@ -648,7 +325,7 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 	t.Run("HSS-initiated IDR updates the UE-AMBR", func(t *testing.T) {
 		imsi := r4gRoamer(3)
 		run := s.tester(1, imsi, "--ping=false", "--await-ue-ambr-dl", "100", "--await-ue-ambr-ul", "50")
-		run.attached(t, "IDR roamer")
+		run.reached(t, "IDR roamer")
 
 		s.mongo(fmt.Sprintf(`db.subscribers.updateOne({imsi: %q}, {$set: {ambr: {downlink: {value: NumberInt(100), unit: NumberInt(2)}, uplink: {value: NumberInt(50), unit: NumberInt(2)}}}})`, imsi))
 
@@ -658,7 +335,7 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 	t.Run("HSS-initiated IDR barring E-UTRAN detaches the roamer", func(t *testing.T) {
 		imsi := r4gRoamer(8)
 		run := s.tester(1, imsi, "--ping=false", "--await-network-detach", "--expect-detach-cause", "15")
-		run.attached(t, "ARD roamer")
+		run.reached(t, "ARD roamer")
 
 		s.mongo(fmt.Sprintf(`db.subscribers.updateOne({imsi: %q}, {$set: {access_restriction_data: NumberInt(48)}})`, imsi))
 
@@ -674,6 +351,57 @@ func TestRoaming4GOpen5GS(t *testing.T) {
 
 		s.waitHSSRecord(imsi, "PUR after the final detach", func(r r4gHSSRecord) bool { return r.PurgeFlag })
 	})
+
+	t.Run("roaming metrics", func(t *testing.T) {
+		m, err := s.api.GetMetrics(s.ctx)
+		if err != nil {
+			t.Fatalf("get metrics: %v", err)
+		}
+
+		if v := m[`app_connected_roaming_partners{interface="s6a"}`]; v != 1 {
+			t.Errorf("connected s6a roaming partners = %v, want 1", v)
+		}
+
+		for _, want := range []struct {
+			name   string
+			labels []string
+		}{
+			{"app_peer_requests_total", []string{`interface="s6a"`, `result="success"`}},
+			{"app_peer_request_duration_seconds_count", []string{`interface="s6a"`}},
+			{"app_registration_attempts_total", []string{`rat="4g"`, `result="accept"`, `roaming="true"`}},
+			{"app_registration_attempts_total", []string{`rat="4g"`, `result="reject"`, `roaming="false"`}},
+			{"app_session_establishment_attempts_total", []string{`rat="4g"`, `result="accept"`, `roaming="true"`}},
+		} {
+			if v := r4gMetricSum(m, want.name, want.labels...); v == 0 {
+				t.Errorf("%s%v = 0, want > 0", want.name, want.labels)
+			}
+		}
+	})
+}
+
+func r4gMetricSum(m map[string]float64, name string, labels ...string) float64 {
+	var sum float64
+
+	for series, v := range m {
+		if !strings.HasPrefix(series, name+"{") {
+			continue
+		}
+
+		matches := true
+
+		for _, l := range labels {
+			if !strings.Contains(series, l) {
+				matches = false
+				break
+			}
+		}
+
+		if matches {
+			sum += v
+		}
+	}
+
+	return sum
 }
 
 func TestRoaming4GOpen5GSHA(t *testing.T) {
@@ -683,19 +411,19 @@ func TestRoaming4GOpen5GSHA(t *testing.T) {
 
 	t.Run("a roamer moving to another node is cancelled on the old one", func(t *testing.T) {
 		s.tester(1, mover, "--detach=false").wait(t, "attach on node 1")
-		s.waitRegisteredEPS(1, 1, "roamer registered on node 1")
+		s.waitRegistered(1, 1, "roamer registered on node 1")
 
 		run := s.tester(2, mover, "--await-network-detach", "--expect-detach-cause", "11")
-		run.attached(t, "attach on node 2")
+		run.reached(t, "attach on node 2")
 
 		rec := s.waitHSSRecord(mover, "the HSS registers node 2", func(r r4gHSSRecord) bool { return r.MMEHost == s.hosts[1] && !r.PurgeFlag })
 		t.Logf("HSS record after the move: %+v", rec)
 
-		s.waitRegisteredEPS(1, 0, "CLR MME_UPDATE drops the context on node 1")
+		s.waitRegistered(1, 0, "CLR MME_UPDATE drops the context on node 1")
 
 		time.Sleep(15 * time.Second)
 
-		if got := s.registeredEPS(2); got != 1 {
+		if got := s.registered(2); got != 1 {
 			t.Fatalf("node 2 has %v registered EPS subscribers after the CLR on node 1, want 1", got)
 		}
 
@@ -711,11 +439,11 @@ func TestRoaming4GOpen5GSHA(t *testing.T) {
 	t.Run("a restarted node drops its crash leftovers", func(t *testing.T) {
 		s.tester(3, crashed, "--ping=false", "--detach=false").wait(t, "attach on node 3")
 
-		if err := composeKill(s.ctx, r4gDir, r4gFile, "ella-core-3"); err != nil {
+		if err := composeKill(s.ctx, s.rat.dir(), roamingFile, "ella-core-3"); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := r4gCompose(s.ctx, "up", "-d", "ella-core-3"); err != nil {
+		if err := s.rat.compose(s.ctx, "up", "-d", "ella-core-3"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -724,7 +452,7 @@ func TestRoaming4GOpen5GSHA(t *testing.T) {
 		}
 
 		s.waitHSSPeer(3)
-		s.waitRegisteredEPS(3, 0, "node 3 holds no context after the restart")
+		s.waitRegistered(3, 0, "node 3 holds no context after the restart")
 
 		if rec := s.hssRecord(crashed); rec.PurgeFlag {
 			t.Fatalf("the restarted node sent a PUR for its crash leftover: %+v", rec)
@@ -738,7 +466,7 @@ func TestRoaming4GOpen5GSHA(t *testing.T) {
 
 		other := r4gRoamer(7)
 		run := s.tester(3, other, "--ping=false", "--enb-index", "1", "--await-network-detach", "--expect-detach-cause", "11")
-		run.attached(t, "attach on node 3")
+		run.reached(t, "attach on node 3")
 
 		start := time.Now()
 
@@ -756,7 +484,7 @@ func TestRoaming4GOpen5GSHA(t *testing.T) {
 		}
 
 		for n := 1; n <= 3; n++ {
-			s.waitRegisteredEPS(n, 0, fmt.Sprintf("node %d holds no roamer", n))
+			s.waitRegistered(n, 0, fmt.Sprintf("node %d holds no roamer", n))
 		}
 	})
 }

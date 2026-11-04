@@ -82,10 +82,6 @@ func TestVisitorStateFollowsTheVisitor(t *testing.T) {
 		t.Fatalf("PurgeUERegistration: %s", err)
 	}
 
-	if deleted, err := f.db.DeleteVisitorIfUnregistered(ctx, visitorIMSI); err != nil || !deleted {
-		t.Fatalf("DeleteVisitorIfUnregistered = %v, %v", deleted, err)
-	}
-
 	if n, err := f.db.CountLeasesByIMSI(ctx, visitorIMSI); err != nil || n != 0 {
 		t.Fatalf("leases of a deleted visitor = %d, %v", n, err)
 	}
@@ -111,76 +107,6 @@ func TestVisitorStateFollowsTheVisitor(t *testing.T) {
 	}
 }
 
-func TestExpiredRoamingWithdrawalsAreSwept(t *testing.T) {
-	ctx := context.Background()
-	f := newRoamingFixture(t)
-	f.createPartner(t)
-	f.registerVisitor(t, visitorIMSI)
-
-	if err := f.db.WithdrawRoamer(ctx, visitorIMSI, 0); err == nil {
-		t.Fatal("withdrawal without a lifetime accepted")
-	}
-
-	if err := f.db.WithdrawRoamer(ctx, visitorIMSI, time.Second); err != nil {
-		t.Fatalf("WithdrawRoamer: %s", err)
-	}
-
-	p, err := f.db.GetRoamingPartner(ctx, roamingPartnerID)
-	if err != nil || len(p.Withdrawals) != 1 || p.Withdrawals[0].ExpiresAt <= time.Now().Unix()-1 {
-		t.Fatalf("withdrawals = %+v, %v", p, err)
-	}
-
-	if n, err := f.db.DeleteExpiredRoamingWithdrawals(ctx); err != nil || n != 0 {
-		t.Fatalf("DeleteExpiredRoamingWithdrawals of a live withdrawal = %d, %v", n, err)
-	}
-
-	time.Sleep(2100 * time.Millisecond)
-
-	if n, err := f.db.DeleteExpiredRoamingWithdrawals(ctx); err != nil || n != 1 {
-		t.Fatalf("DeleteExpiredRoamingWithdrawals = %d, %v; want the expired roamer withdrawal", n, err)
-	}
-
-	if p, err := f.db.GetRoamingPartner(ctx, roamingPartnerID); err != nil || len(p.Withdrawals) != 0 {
-		t.Fatalf("withdrawals after the sweep = %+v, %v", p, err)
-	}
-}
-
-func TestRenewGeneratedSEPPIdentityIsConditional(t *testing.T) {
-	ctx := context.Background()
-	f := newRoamingFixture(t)
-
-	if _, err := f.db.EnsureSEPPIdentity(ctx, 1); err != nil {
-		t.Fatalf("EnsureSEPPIdentity: %s", err)
-	}
-
-	original, err := f.db.GetSEPPIdentity(ctx, 1)
-	if err != nil {
-		t.Fatalf("GetSEPPIdentity: %s", err)
-	}
-
-	renewed, err := f.db.RenewGeneratedSEPPIdentity(ctx, 1, original.CertChainPEM)
-	if err != nil || renewed.CertChainPEM == original.CertChainPEM {
-		t.Fatalf("RenewGeneratedSEPPIdentity = %v", err)
-	}
-
-	if _, err := f.db.RenewGeneratedSEPPIdentity(ctx, 1, original.CertChainPEM); !errors.Is(err, db.ErrSEPPIdentityChanged) {
-		t.Fatalf("renew from a stale chain: err = %v, want ErrSEPPIdentityChanged", err)
-	}
-
-	imported := ownSEPPIdentity(t, "1")
-	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
-		t.Fatalf("PutSEPPIdentity: %s", err)
-	}
-
-	if _, err := f.db.RenewGeneratedSEPPIdentity(ctx, 1, renewed.CertChainPEM); !errors.Is(err, db.ErrSEPPIdentityChanged) {
-		t.Fatalf("renew over an import: err = %v, want ErrSEPPIdentityChanged", err)
-	}
-
-	if got, err := f.db.GetSEPPIdentity(ctx, 1); err != nil || got.Source != db.SEPPIdentityImported || got.CertChainPEM != imported.CertChainPEM {
-		t.Fatalf("imported identity overwritten: %+v, %v", got, err)
-	}
-}
-
 func TestVisitorWritesReplicate(t *testing.T) {
 	ctx := context.Background()
 	database := setupRaftTestDB(t)
@@ -202,11 +128,9 @@ func TestVisitorWritesReplicate(t *testing.T) {
 	}
 
 	expectOneRaftEntry(t, database, "SetVisitorMSISDN", func() error { return database.SetVisitorMSISDN(ctx, visitorIMSI, "33612345678") })
-	expectOneRaftEntry(t, database, "WithdrawRoamer", func() error { return database.WithdrawRoamer(ctx, visitorIMSI, time.Minute) })
-
-	if n, err := database.DeleteExpiredRoamingWithdrawals(ctx); err != nil || n != 0 {
-		t.Fatalf("DeleteExpiredRoamingWithdrawals = %d, %v; want the live withdrawal kept", n, err)
-	}
+	expectOneRaftEntry(t, database, "SetVisitorDeregistering", func() error {
+		return database.SetVisitorDeregistering(ctx, visitorIMSI, time.Now().Add(time.Minute))
+	})
 
 	report := &dbwriter.FlowReport{SubscriberID: "001010000000001", SourceIP: "10.45.0.1", DestinationIP: "8.8.8.8", Protocol: 17, Packets: 1, Bytes: 80, StartTime: 1, EndTime: 2, Direction: "uplink"}
 	if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{report}); err != nil {
@@ -225,8 +149,8 @@ func TestVisitorWritesReplicate(t *testing.T) {
 		t.Fatalf("PurgeUERegistration: %s", err)
 	}
 
-	if n, err := database.DeleteUnregisteredVisitors(ctx); err != nil || n != 1 {
-		t.Fatalf("DeleteUnregisteredVisitors = %d, %v", n, err)
+	if _, err := database.GetVisitor(ctx, visitorIMSI); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("visitor after its purge: err = %v, want ErrNotFound", err)
 	}
 
 	if _, err := database.GetUERegistration(ctx, visitorIMSI, db.UERegistrationTypeMME); !errors.Is(err, db.ErrNotFound) {

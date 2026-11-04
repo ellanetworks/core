@@ -5,7 +5,6 @@ package amf
 
 import (
 	"context"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -77,7 +76,7 @@ func (amf *AMF) handVisitorToEPS(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	sdm, home, partnerID, partner, registered, guami := v.SDM, v.HPLMN, v.PartnerID, v.PartnerName, v.Registered, v.Guami
+	sdm, home, partner, registered := v.SDM, v.HPLMN, v.PartnerName, v.Registered
 	v.Registered = false
 	v.Guami = nil
 	v.Subscription = nil
@@ -97,9 +96,8 @@ func (amf *AMF) handVisitorToEPS(ctx context.Context, ue *UeContext) {
 	imsi := supi.IMSI()
 	ctx = context.WithoutCancel(ctx)
 
-	if registered && guami != nil {
-		log.Info("visitor moved to EPS; its home registration passes to the MME, purging only if the home network does not cancel it")
-		amf.guardCrossCancel(imsi, partnerID, home, *guami)
+	if registered {
+		log.Info("visitor moved to EPS; its home registration passes to the MME, and the home network cancels it in this AMF")
 	} else {
 		log.Info("visitor moved to EPS; the home network already cancelled its registration in this AMF")
 	}
@@ -116,34 +114,7 @@ func (amf *AMF) handVisitorToEPS(ctx context.Context, ue *UeContext) {
 	})
 }
 
-func (amf *AMF) guardCrossCancel(imsi, partnerID string, home roaming.HPLMNTarget, guami wire.Guami) {
-	amf.crossCancel.Arm(imsi, partnerID, func() {
-		amf.home.Go(imsi, func() {
-			if amf.HoldsUE(imsi) {
-				return
-			}
-
-			log := logger.AmfLog.With(logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", partnerID))
-
-			if err := amf.HPLMN.Deregister(context.Background(), home, "imsi-"+imsi, guami); err != nil {
-				log.Warn("the home network did not cancel the registration of a visitor that moved to EPS, and purging it failed", zap.Error(err))
-				return
-			}
-
-			log.Info("the home network did not cancel the registration of a visitor that moved to EPS; purged it")
-		})
-	})
-}
-
-func (amf *AMF) SetCrossCancelWait(d time.Duration) {
-	amf.crossCancel.SetWait(d)
-}
-
 func (amf *AMF) hplmnMovedToEPS(ctx context.Context, partnerID, imsi string, data wire.DeregistrationData) (bool, error) {
-	if pending, ok := amf.crossCancel.Partner(imsi); ok && pending == partnerID && amf.crossCancel.Disarm(imsi) {
-		logger.From(ctx, logger.AmfLog).Info("the home network cancelled the registration of a visitor that moved to EPS", logger.SUPIFromIMSI(imsi))
-	}
-
 	ue, ok := amf.lookupUeByIMSI(imsi)
 	if !ok {
 		return true, roaming.ErrNoVisitorContext

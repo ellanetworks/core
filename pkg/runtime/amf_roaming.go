@@ -12,7 +12,6 @@ import (
 
 func wireAMFRoaming(amfInstance *amf.AMF, m *sepp.Manager) *roaming.AMFCallbacks {
 	amfInstance.HPLMN = roaming.NewAMFHPLMN(roaming.NewHPLMNSBI(m, roaming.NewDiscovery(m)))
-	amfInstance.N32 = m
 
 	return roaming.NewAMFCallbacks(amfInstance, logger.AmfLog)
 }

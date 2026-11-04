@@ -8,7 +8,7 @@ This section describes the RESTful API for managing network subscribers. Network
 
 ## List Subscribers
 
-This path returns the list of network subscribers, ordered by IMSI. The list includes [roamers](../../explanation/roaming.md#roamers), with `roaming_partner` set to the name of their roaming partner.
+This path returns the list of network subscribers, ordered by IMSI.
 
 | Method | Path                  |
 | ------ | --------------------- |
@@ -23,7 +23,6 @@ This path returns the list of network subscribers, ordered by IMSI. The list inc
 | `radio`    | query | str  |         |         | Filter by radio name. |
 | `data_network` | query | str |     |         | Filter by data network name.|
 | `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI, MSISDN or description substring. |
-| `roaming`  | query | str  |         | `true`, `false` | `true` lists only roamers, `false` only home subscribers. Absent lists both. |
 
 ### Sample Response
 
@@ -53,7 +52,7 @@ This path returns the list of network subscribers, ordered by IMSI. The list inc
 }
 ```
 
-`description` and `msisdn` are omitted from an item when unset. `roaming_partner` is omitted for home subscribers.
+`description` and `msisdn` are omitted from an item when unset.
 
 ## Create a Subscriber
 
@@ -85,7 +84,7 @@ This path creates a new network subscriber.
 
 ## Update a Subscriber
 
-This path updates an existing network subscriber. Roamers cannot be updated (`409`).
+This path updates an existing network subscriber.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -109,7 +108,7 @@ This path updates an existing network subscriber. Roamers cannot be updated (`40
 
 ## Get a Subscriber
 
-This path returns the details of a specific network subscriber or roamer. For a roamer, `roaming_partner` is the name of its roaming partner, and `registrations` and `sessions` are those of the node serving the request.
+This path returns the details of a specific network subscriber.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -204,7 +203,7 @@ None
 }
 ```
 
-`description` and `msisdn` are omitted when unset. `roaming_partner` is omitted for home subscribers. `ims` is omitted for roamers, and when the subscriber's profile has no policy on an IMS data network and the subscriber has no IMS registration.
+`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on an IMS data network and the subscriber has no IMS registration.
 
 ### Registrations
 
@@ -298,7 +297,7 @@ None
 
 ## Delete a Subscriber
 
-This path deletes a subscriber from Ella Core. Roamers cannot be deleted (`409`): [deregister](#deregister-a-roamer) them instead.
+This path deletes a subscriber from Ella Core.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -314,36 +313,6 @@ None
 {
     "result": {
         "message": "Subscriber deleted successfully"
-    }
-}
-```
-
-## Deregister a Roamer
-
-This path deregisters a roamer on the node that serves it and purges it at its home network. The UE may register again.
-
-| Method | Path                                    |
-| ------ | --------------------------------------- |
-| POST   | `/api/v1/subscribers/{imsi}/deregister` |
-
-### Parameters
-
-None
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | The roamer is deregistered. |
-| `404`  | The subscriber does not exist. |
-| `409`  | The subscriber is not a roamer, or the roamer was not deregistered within one minute. |
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Roamer deregistered successfully"
     }
 }
 ```

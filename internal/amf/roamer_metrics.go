@@ -9,39 +9,26 @@ import (
 	"github.com/ellanetworks/core/internal/roaming"
 )
 
-func (amf *AMF) RecordRoamerReject(ctx context.Context, ue *UeContext, r *Rejection) {
-	cause := r.Cause.String()
-	if r.AuthReject {
-		cause = "Authentication reject"
-	}
-
-	if partner := amf.roamerPartnerName(ctx, ue); partner != "" {
-		roaming.RecordReject5G(partner, cause)
-	}
-}
-
-func (amf *AMF) roamerPartnerName(ctx context.Context, ue *UeContext) string {
-	if v, ok := ue.Visitor(); ok {
-		return v.PartnerName
+func (amf *AMF) IsRoamer(ctx context.Context, ue *UeContext) bool {
+	if ue.IsVisitor() {
+		return true
 	}
 
 	if amf.Roaming == nil {
-		return ""
+		return false
 	}
 
 	prefix, _, ok := hplmnOfUE(ue)
 	if !ok {
-		return ""
+		return false
 	}
 
 	partners, err := amf.Roaming.ListRoamingPartners(ctx)
 	if err != nil {
-		return ""
+		return false
 	}
 
-	if p, _, ok := roaming.PartnerOfIMSI(partners, prefix); ok {
-		return p.Name
-	}
+	_, _, ok = roaming.PartnerOfIMSI(partners, prefix)
 
-	return ""
+	return ok
 }

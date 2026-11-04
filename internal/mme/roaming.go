@@ -207,7 +207,7 @@ func (m *MME) AdmitVisitor(ctx context.Context, ue *UeContext, serving models.Pl
 		return eutranNotAllowed("the roaming partner has no 4G agreement")
 	}
 
-	if r := withdrawnRejection(partner, imsi); r != nil {
+	if r := withdrawnRejection(partner); r != nil {
 		return r
 	}
 
@@ -242,18 +242,9 @@ func (m *MME) AdmitVisitor(ctx context.Context, ue *UeContext, serving models.Pl
 	return nil
 }
 
-func withdrawnRejection(partner db.RoamingPartner, imsi string) *Rejection {
-	w, ok := partner.Withdrawal(imsi, db.UERegistrationTypeMME, time.Now())
-	if !ok {
+func withdrawnRejection(partner db.RoamingPartner) *Rejection {
+	if !partner.Withdrawing(time.Now()) {
 		return nil
-	}
-
-	if w.RoamerOnly() {
-		return &Rejection{Cause: eps.EMMCauseCongestion, Reason: "the operator is deregistering the visitor"}
-	}
-
-	if w.AgreementOnly() {
-		return eutranNotAllowed("the 4G agreement of the roaming partner is being withdrawn")
 	}
 
 	return &Rejection{Cause: eps.EMMCausePLMNNotAllowed, Reason: "the roaming agreement is being withdrawn"}
@@ -437,7 +428,6 @@ func (m *MME) updateLocation(ctx context.Context, ue *UeContext, serving models.
 		return &Rejection{Cause: eps.EMMCauseNoEPSBearerContextActivated, Reason: "operator determined barring bars every PDN connection of the visitor"}
 	}
 
-	m.crossCancel.Disarm(ue.IMSI())
 	ue.setHPLMNSubscription(ula.Subscription)
 
 	return nil

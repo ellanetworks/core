@@ -143,10 +143,9 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 	sections["networking"] = sections["networking"].WithCount(len(dataNetworksList))
 
 	subscribersList := []any{}
-	ownSubscribers := false
 
 	for page := 1; ; page++ {
-		subs, total, err := db.ListSubscribersPage(ctx, &SubscriberFilters{Roaming: &ownSubscribers}, page, perPage)
+		subs, total, err := db.ListSubscribersPage(ctx, nil, page, perPage)
 		if err != nil {
 			failure("subscribers", err)
 			break

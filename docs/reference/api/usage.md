@@ -43,29 +43,6 @@ This path retrieves usage data for network subscribers.
 }
 ```
 
-With `group_by=subscriber`, roamer entries include `home_plmn` and, when a configured roaming partner serves that PLMN, `roaming_partner`:
-
-```json
-{
-  "result": [
-    {
-      "imsi": "208930000000001",
-      "home_plmn": { "mcc": "208", "mnc": "93" },
-      "roaming_partner": "partner-a",
-      "uplink_bytes": 1048576,
-      "downlink_bytes": 2097152,
-      "total_bytes": 3145728
-    },
-    {
-      "imsi": "001010000000001",
-      "uplink_bytes": 524288,
-      "downlink_bytes": 1048576,
-      "total_bytes": 1572864
-    }
-  ]
-}
-```
-
 ## Clear Subscriber Usage
 
 This path clears usage data for all network subscribers.

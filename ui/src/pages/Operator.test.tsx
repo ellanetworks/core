@@ -26,7 +26,7 @@ beforeEach(() => {
   api.get(PARTNERS_PATH, () => ({ items: [] }));
   api.get(DIAMETER_PEERS_PATH, () => ({ items: [] }));
   api.get(SEPP_PATH, () => ({
-    node: { n32Configured: false, listening: false },
+    listener: { configured: false, listening: false },
     trustAnchors: [],
     certificates: [],
   }));
@@ -614,9 +614,6 @@ const orange = {
   },
   n32: {
     state: "established",
-    since: "2026-11-03T10:00:00Z",
-    initiator: "peer",
-    nftlst: true,
   },
 };
 
@@ -645,22 +642,16 @@ const certificate = (seppID: number) => ({
   seppID,
   fqdn: `sepp${seppID}.${HOME_DOMAIN}`,
   source: "generated",
-  certificateChainPEM: `${PEM}\n${PEM}\n`,
-  trustAnchorPEM: `${PEM}\n`,
-  fingerprint: "sha256:ab12cd34",
-  notAfter: days(1000),
+  ...summary(),
 });
 
 const seppStatus = (notAfter = days(1000), fqdn1 = `sepp1.${HOME_DOMAIN}`) => ({
-  node: {
+  listener: {
     seppID: 1,
-    fqdn: fqdn1,
-    source: "generated",
-    n32Configured: true,
+    configured: true,
     address: "192.0.2.5",
     port: 443,
     listening: true,
-    certificate: summary(notAfter),
   },
   trustAnchors: [
     {
@@ -685,19 +676,20 @@ const seppStatus = (notAfter = days(1000), fqdn1 = `sepp1.${HOME_DOMAIN}`) => ({
       seppID: 1,
       fqdn: fqdn1,
       source: "generated",
-      certificate: summary(notAfter),
+      ...summary(notAfter),
     },
     {
       seppID: 2,
       fqdn: `sepp2.${HOME_DOMAIN}`,
       source: "imported",
-      certificate: { ...summary(), trustAnchorFingerprint: "sha256:ca22" },
+      ...summary(),
+      trustAnchorFingerprint: "sha256:ca22",
     },
     {
       seppID: 9,
       fqdn: `sepp9.${HOME_DOMAIN}`,
       source: "generated",
-      certificate: summary(),
+      ...summary(),
     },
   ],
 });
@@ -773,8 +765,6 @@ describe("Operator roaming section", () => {
             ...orange,
             n32: {
               state: "failed",
-              since: "2026-11-03T10:00:00Z",
-              nftlst: false,
               lastError: "the partner SEPP refused the exchange-capability",
             },
           },
@@ -793,7 +783,7 @@ describe("Operator roaming section", () => {
     it("restarts the N32 handshake with a 5G partner only", async () => {
       const user = userEvent.setup();
       api.post(`${PARTNERS_PATH}/:id/handshake`, () => ({
-        n32: { state: "establishing", nftlst: false },
+        n32: { state: "establishing" },
       }));
       renderOperator();
 
@@ -1139,7 +1129,7 @@ describe("Operator roaming section", () => {
     it("shows the SEPP as disabled when this node has no N32 interface", async () => {
       api.get(SEPP_PATH, () => ({
         ...seppStatus(),
-        node: { n32Configured: false, listening: false },
+        listener: { configured: false, listening: false },
       }));
       renderOperator();
 
@@ -1202,7 +1192,7 @@ describe("Operator roaming section", () => {
             seppID: 4,
             fqdn: "sepp4.5gc.mnc001.mcc208.3gppnetwork.org",
             source: "imported",
-            certificate: summary(),
+            ...summary(),
           },
         ],
       }));
@@ -1292,12 +1282,9 @@ describe("Operator roaming section", () => {
       });
     });
 
-    it("regenerates this node's certificate and shows the API warnings", async () => {
+    it("regenerates this node's certificate by deleting it", async () => {
       const user = userEvent.setup();
-      api.post(`${seppCertPath(":seppID")}/generate`, () => ({
-        ...certificate(1),
-        warnings: ["The certificate is not issued by the operator's CA"],
-      }));
+      api.delete(seppCertPath(":seppID"), () => ({ message: "deleted" }));
       renderOperator();
 
       await user.click(
@@ -1310,24 +1297,41 @@ describe("Operator roaming section", () => {
       );
 
       expect(
-        await screen.findByText(
-          "The certificate is not issued by the operator's CA",
-        ),
-      ).toBeInTheDocument();
-      expect(
         await screen.findByText("SEPP certificate regenerated successfully."),
       ).toBeInTheDocument();
-      expect(api.lastRequest(`${seppCertPath(1)}/generate`)?.method).toBe(
-        "POST",
+      expect(api.lastRequest(seppCertPath(1))?.method).toBe("DELETE");
+      expect(
+        screen.queryByText(/trust anchor of this node changed/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("warns that the trust anchor changes when an imported certificate is replaced", async () => {
+      const user = userEvent.setup();
+      api.get(SEPP_PATH, () => ({
+        ...seppStatus(),
+        certificates: [{ ...seppStatus().certificates[0], source: "imported" }],
+      }));
+      api.delete(seppCertPath(":seppID"), () => ({ message: "deleted" }));
+      renderOperator();
+
+      await user.click(
+        (await tableRow("SEPP", "Certificate")).getByRole("button", {
+          name: "Regenerate certificate",
+        }),
       );
-      expect(sent(`${seppCertPath(1)}/generate`, "POST")).toBeUndefined();
+      await user.click(
+        within(dialog()).getByRole("button", { name: "Regenerate" }),
+      );
+
+      expect(
+        await screen.findByText(/The trust anchor of this node changed/),
+      ).toBeInTheDocument();
     });
 
     it("regenerates the trust anchor and shows the API warnings", async () => {
       const user = userEvent.setup();
       api.post(`${SEPP_PATH}/ca/regenerate`, () => ({
         trustAnchor: seppStatus().trustAnchors[0],
-        reissued: [1, 9],
         warnings: ["Every roaming partner must import the new trust anchor"],
       }));
       renderOperator();
@@ -1378,7 +1382,7 @@ describe("Operator roaming section", () => {
         );
       }
 
-      expect(api.requests(`${seppCertPath(1)}/generate`)).toHaveLength(0);
+      expect(api.requests(seppCertPath(1))).toHaveLength(0);
       expect(api.requests(`${SEPP_PATH}/ca/regenerate`)).toHaveLength(0);
     });
   });

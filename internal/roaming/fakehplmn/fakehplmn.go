@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
@@ -29,6 +31,7 @@ type Subscriber struct {
 	SQN    string
 	AM     wire.AccessAndMobilitySubscriptionData
 	SMFSel *wire.SmfSelectionSubscriptionData
+	SMData json.RawMessage
 }
 
 type Request struct {
@@ -36,6 +39,7 @@ type Request struct {
 	Method string
 	Path   string
 	Query  string
+	Header http.Header
 	Body   []byte
 }
 
@@ -70,6 +74,8 @@ type HPLMN struct {
 	registrations map[string]wire.Amf3GppAccessRegistration
 	purged        map[string]bool
 	subscriptions map[string]wire.SdmSubscription
+	sdmExpiry     time.Duration
+	smfRegs       map[string]wire.SmfRegistration
 	sorAcks       map[string]wire.AcknowledgeInfo
 	requests      []Request
 	failures      []failure
@@ -84,6 +90,7 @@ func New(plmn wire.PlmnID) *HPLMN {
 		registrations: map[string]wire.Amf3GppAccessRegistration{},
 		purged:        map[string]bool{},
 		subscriptions: map[string]wire.SdmSubscription{},
+		smfRegs:       map[string]wire.SmfRegistration{},
 		sorAcks:       map[string]wire.AcknowledgeInfo{},
 		tokens:        map[string]string{},
 	}
@@ -190,6 +197,22 @@ func (h *HPLMN) Subscriptions() map[string]wire.SdmSubscription {
 	return out
 }
 
+func (h *HPLMN) ImposeSDMExpiry(d time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.sdmExpiry = d
+}
+
+func (h *HPLMN) SMFRegistration(supi, pduSessionID string) (wire.SmfRegistration, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	r, ok := h.smfRegs[supi+"/"+pduSessionID]
+
+	return r, ok
+}
+
 func (h *HPLMN) Confirmations() []*string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -213,7 +236,7 @@ func (h *HPLMN) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.mu.Lock()
-	h.requests = append(h.requests, Request{Host: r.Host, Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: body})
+	h.requests = append(h.requests, Request{Host: r.Host, Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Header: r.Header.Clone(), Body: body})
 
 	for _, f := range h.failures {
 		if f.method == r.Method && strings.Contains(r.URL.Path, f.path) {
@@ -306,9 +329,9 @@ func (h *HPLMN) discover(w http.ResponseWriter, r *http.Request) {
 
 		info := map[string]any{"groupId": g.id}
 		if g.ranges {
-			var ranges []wire.SupiRange
+			var ranges []map[string]string
 			for imsi := range g.imsis {
-				ranges = append(ranges, wire.SupiRange{Start: imsi, End: imsi})
+				ranges = append(ranges, map[string]string{"start": imsi, "end": imsi})
 			}
 
 			info["supiRanges"] = ranges
@@ -473,8 +496,13 @@ func (h *HPLMN) startAuthentication(w http.ResponseWriter, r *http.Request, body
 	}
 
 	result, err := h.ausf.Authenticate(r.Context(), info.SupiOrSuci, models.PlmnID{Mcc: sn.Mcc, Mnc: sn.Mnc}, resync)
-	if err != nil {
+	if errors.Is(err, udm.ErrSubscriberUnknown) {
 		writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseUserNotFound, err.Error()))
+		return
+	}
+
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, wire.ContentTypeProblem, wire.NewProblem(http.StatusInternalServerError, wire.CauseSystemFailure, err.Error()))
 		return
 	}
 
@@ -526,6 +554,11 @@ func (h *HPLMN) confirm(w http.ResponseWriter, r *http.Request, id string, body 
 }
 
 func (h *HPLMN) uecm(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
+	if len(rest) == 4 && rest[1] == "registrations" && rest[2] == "smf-registrations" {
+		h.smfRegistration(w, r, rest[0]+"/"+rest[3], body)
+		return
+	}
+
 	if len(rest) != 3 || rest[1] != "registrations" || rest[2] != "amf-3gpp-access" {
 		http.NotFound(w, r)
 		return
@@ -583,6 +616,41 @@ func (h *HPLMN) uecm(w http.ResponseWriter, r *http.Request, rest []string, body
 	}
 }
 
+func (h *HPLMN) smfRegistration(w http.ResponseWriter, r *http.Request, key string, body []byte) {
+	switch r.Method {
+	case http.MethodPut:
+		reg, err := wire.Decode[wire.SmfRegistration](body)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, wire.ContentTypeProblem, wire.ProblemFromError(err))
+			return
+		}
+
+		h.mu.Lock()
+		h.smfRegs[key] = reg
+		h.mu.Unlock()
+
+		writeJSON(w, http.StatusCreated, wire.ContentTypeJSON, reg)
+	case http.MethodDelete:
+		h.mu.Lock()
+		reg, ok := h.smfRegs[key]
+		ok = ok && reg.SmfInstanceID == r.URL.Query().Get("smf-instance-id")
+
+		if ok {
+			delete(h.smfRegs, key)
+		}
+		h.mu.Unlock()
+
+		if !ok {
+			writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseContextNotFound, ""))
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
 func (h *HPLMN) sdm(w http.ResponseWriter, r *http.Request, rest []string, body []byte) {
 	if len(rest) == 0 {
 		http.NotFound(w, r)
@@ -608,6 +676,13 @@ func (h *HPLMN) sdm(w http.ResponseWriter, r *http.Request, rest []string, body 
 	switch {
 	case len(rest) == 1 && r.Method == http.MethodGet:
 		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, map[string]any{"amData": snapshot.AM, "smfSelData": snapshot.SMFSel})
+	case len(rest) == 2 && rest[1] == "sm-data" && r.Method == http.MethodGet:
+		if snapshot.SMData == nil {
+			writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseDataNotFound, ""))
+			return
+		}
+
+		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, snapshot.SMData)
 	case len(rest) == 2 && rest[1] == "sdm-subscriptions" && r.Method == http.MethodPost:
 		s, err := wire.Decode[wire.SdmSubscription](body)
 		if err != nil {
@@ -626,11 +701,27 @@ func (h *HPLMN) sdm(w http.ResponseWriter, r *http.Request, rest []string, body 
 		h.nextID++
 		id := strconv.Itoa(h.nextID)
 		s.SubscriptionID = id
+
+		if h.sdmExpiry > 0 {
+			s.Expires = wire.DateTimeOf(time.Now().Add(h.sdmExpiry))
+		}
+
 		h.subscriptions[id] = s
 		h.mu.Unlock()
 
 		w.Header().Set("Location", "http://"+r.Host+wire.SDMSubscriptionPath(supi, id))
 		writeJSON(w, http.StatusCreated, wire.ContentTypeJSON, s)
+	case len(rest) == 3 && rest[1] == "sdm-subscriptions" && r.Method == http.MethodPatch:
+		h.mu.Lock()
+		_, ok := h.subscriptions[rest[2]]
+		h.mu.Unlock()
+
+		if !ok {
+			writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseSubscriptionNotFound, ""))
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	case len(rest) == 3 && rest[1] == "sdm-subscriptions" && r.Method == http.MethodDelete:
 		h.mu.Lock()
 		_, ok := h.subscriptions[rest[2]]
@@ -643,6 +734,18 @@ func (h *HPLMN) sdm(w http.ResponseWriter, r *http.Request, rest []string, body 
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	case len(rest) == 3 && rest[1] == "am-data" && rest[2] == "update-sor" && r.Method == http.MethodPost:
+		if _, err := wire.Decode[wire.SorUpdateInfo](body); err != nil {
+			writeJSON(w, http.StatusBadRequest, wire.ContentTypeProblem, wire.ProblemFromError(err))
+			return
+		}
+
+		if snapshot.AM.SorInfo == nil {
+			writeJSON(w, http.StatusNotFound, wire.ContentTypeProblem, wire.NewProblem(http.StatusNotFound, wire.CauseDataNotFound, ""))
+			return
+		}
+
+		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, snapshot.AM.SorInfo)
 	case len(rest) == 3 && rest[1] == "am-data" && rest[2] == "sor-ack" && r.Method == http.MethodPut:
 		ack, err := wire.Decode[wire.AcknowledgeInfo](body)
 		if err != nil {

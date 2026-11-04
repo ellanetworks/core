@@ -24,7 +24,7 @@ type Registrar interface {
 	RegisterVisitor(ctx context.Context, imsi, partnerID string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal))
+	Reconcile(ctx context.Context, imsi string, visitor bool, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal))
 }
 
 func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -46,6 +46,10 @@ func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
 
 	if errors.Is(err, db.ErrRoamingRefused) {
 		return reject(fgs.GMMCausePLMNNotAllowed, "the roaming agreement is being withdrawn")
+	}
+
+	if errors.Is(err, db.ErrRoamerDeregistering) {
+		return reject(fgs.GMMCauseCongestion, "the operator is deregistering the visitor")
 	}
 
 	if errors.Is(err, db.ErrSubscriberLimit) {
@@ -108,7 +112,7 @@ func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 		return
 	}
 
-	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
+	amf.Registrations.Reconcile(ctx, imsi, ue.IsVisitor(), ue.registrationVersion.Load, func(ctx context.Context) {
 		amf.releaseSuperseded(ctx, ue)
 	}, func(ctx context.Context, why ueregistration.Withdrawal) {
 		if why == ueregistration.SubscriberDeleted {

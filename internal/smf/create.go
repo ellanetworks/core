@@ -118,7 +118,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	var establishmentResult string
 
 	defer func() {
-		recordSessionEstablishmentResult(ctx, metrics.RAT5G, establishmentResult,
+		recordSessionEstablishmentResult(ctx, metrics.RAT5G, target != nil, establishmentResult,
 			logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()
 
@@ -185,7 +185,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		requestedType = fgs.PDUSessionType(normalisePDUSessionType(uint8(*req.PDUSessionType)))
 	}
 
-	typePolicy := restrictToHPLMN(policy, uint8(requestedType), rules)
+	typePolicy, singleAddress := restrictToHPLMN(policy, uint8(requestedType), rules)
 
 	negotiatedType, err := s.negotiatePDUSessionType(ctx, uint8(requestedType), typePolicy)
 	if err != nil {
@@ -257,7 +257,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	switch narrowPDUType(uint8(requestedType), sc.PDUSessionType) {
 	case narrowIPv4Only:
-		cause = new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
+		if !singleAddress {
+			cause = new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
+		}
 	case narrowIPv6Only:
 		cause = new(fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed)
 	}

@@ -105,7 +105,7 @@ func continueInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *
 			return
 		}
 
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 		logger.From(ctx, logger.AmfLog).Info("registration rejected: 5G not allowed for subscriber")
 
@@ -123,7 +123,7 @@ func continueInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *
 			return
 		}
 
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected, logger.Cause("no subscribed S-NSSAI can be allowed"))
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected, logger.Cause("no subscribed S-NSSAI can be allowed"))
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 
@@ -175,7 +175,7 @@ func continueInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *
 
 	pduSessionStatus := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
 
-	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
 
 	initialContextSetup := false
 	if ueConn := ue.Conn(); ueConn != nil {

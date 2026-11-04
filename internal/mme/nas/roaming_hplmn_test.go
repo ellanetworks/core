@@ -713,7 +713,6 @@ func TestRoamingWithdrawalDetachesTheVisitor(t *testing.T) {
 		want eps.EMMCause
 	}{
 		{name: "partner withdrawn", why: ueregistration.RoamingWithdrawn, want: eps.EMMCausePLMNNotAllowed},
-		{name: "4G agreement withdrawn", why: ueregistration.RoamingAgreementWithdrawn, want: eps.EMMCauseNoSuitableCellsInTrackingArea},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newRoamingMME(t)
@@ -738,40 +737,19 @@ func TestRoamingWithdrawalDetachesTheVisitor(t *testing.T) {
 }
 
 func TestWithdrawnPartnerGate(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		withdrawal db.RoamingWithdrawal
-		want       eps.EMMCause
-		extended   bool
-	}{
-		{name: "partner", withdrawal: db.RoamingWithdrawal{}, want: eps.EMMCausePLMNNotAllowed},
-		{name: "PLMN", withdrawal: db.RoamingWithdrawal{Mcc: "999", Mnc: "70"}, want: eps.EMMCausePLMNNotAllowed},
-		{name: "4G agreement", withdrawal: db.RoamingWithdrawal{Type: db.UERegistrationTypeMME}, want: eps.EMMCauseNoSuitableCellsInTrackingArea, extended: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newRoamingMME(t)
-			w := tc.withdrawal
-			w.PartnerID = roamerPartnerID
-			w.ExpiresAt = time.Now().Add(time.Minute).Unix()
-			f.partners.partners[0].Withdrawals = []db.RoamingWithdrawal{w}
+	f := newRoamingMME(t)
+	f.partners.partners[0].WithdrawingUntil = time.Now().Add(time.Minute).Unix()
 
-			a := f.startAttach(t, roamerIMSI, eps.AttachTypeEPS, "")
+	a := f.startAttach(t, roamerIMSI, eps.AttachTypeEPS, "")
 
-			reject := a.reject(t, false)
-			if reject.Cause != tc.want || (reject.ExtendedEMMCause != nil && reject.ExtendedEMMCause.EUTRANNotAllowed) != tc.extended {
-				t.Fatalf("Attach Reject %+v, want cause %s", reject, tc.want)
-			}
-		})
+	if reject := a.reject(t, false); reject.Cause != eps.EMMCausePLMNNotAllowed {
+		t.Fatalf("Attach Reject %+v, want cause %s", reject, eps.EMMCausePLMNNotAllowed)
 	}
 }
 
-func TestExpiredOrForeignWithdrawalDoesNotGate(t *testing.T) {
+func TestExpiredWithdrawalDoesNotGate(t *testing.T) {
 	f := newRoamingMME(t)
-	f.partners.partners[0].Withdrawals = []db.RoamingWithdrawal{
-		{PartnerID: roamerPartnerID, ExpiresAt: time.Now().Add(-time.Second).Unix()},
-		{PartnerID: roamerPartnerID, Mcc: "999", Mnc: "71", ExpiresAt: time.Now().Add(time.Minute).Unix()},
-		{PartnerID: roamerPartnerID, Type: db.UERegistrationTypeAMF3GPPAccess, ExpiresAt: time.Now().Add(time.Minute).Unix()},
-	}
+	f.partners.partners[0].WithdrawingUntil = time.Now().Add(-time.Second).Unix()
 
 	a := f.attach(t, eps.AttachTypeEPS, "")
 	a.accept(t)

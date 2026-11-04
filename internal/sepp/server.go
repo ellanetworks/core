@@ -104,7 +104,6 @@ func (m *Manager) configForClient(hello *tls.ClientHelloInfo) (*tls.Config, erro
 	cfg.VerifyConnection = func(st tls.ConnectionState) error {
 		p, err := m.verifyClient(st)
 		if err != nil {
-			tlsFailures.WithLabelValues(TLSFailureReason(err)).Inc()
 			m.logger.Warn("Rejected an N32 TLS connection", zap.String("remote", hello.Conn.RemoteAddr().String()), zap.String("reason", TLSFailureReason(err)), zap.Error(err))
 
 			return err
@@ -321,13 +320,6 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Connection", "close")
-
-	if !m.n32cLimit.allow(partnerID, m.now(), m.tuning.N32cRequestsPerMinute) {
-		w.Header().Set("Retry-After", strconv.Itoa(n32cRateRetryAfterS))
-		m.writeProblem(w, wire.NewProblem(http.StatusTooManyRequests, wire.CauseNFCongestionRisk, "too many N32-c requests"))
-
-		return
-	}
 
 	body, ok := m.readBody(w, r)
 	if !ok {

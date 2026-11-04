@@ -291,7 +291,11 @@ func (db *Database) applyPurgeUERegistration(ctx context.Context, p *purgeUERegi
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return nil, nil
+	}
+
+	return nil, db.deleteVisitorIfUnregistered(ctx, p.Imsi)
 }
 
 func (db *Database) purgeUERegistrationsByNode(ctx context.Context, nodeID string) error {

@@ -320,9 +320,6 @@ func (m *MME) withdrawRoamer(ctx context.Context, ue *UeContext, why ueregistrat
 	}
 
 	cause := eps.EMMCausePLMNNotAllowed
-	if why == ueregistration.RoamingAgreementWithdrawn {
-		cause = eps.EMMCauseNoSuitableCellsInTrackingArea
-	}
 
 	logger.From(ctx, logger.MmeLog).Info("roaming agreement withdrawn; detaching the visitor",
 		logger.SUPI(ue.Supi().String()), logger.Cause(cause.String()))

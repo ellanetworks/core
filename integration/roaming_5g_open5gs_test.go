@@ -7,7 +7,6 @@ package integration_test
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -21,128 +20,40 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
-	"github.com/ellanetworks/core/integration/fixture"
-	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
 const (
-	r5gDir             = "compose/roaming5g"
-	r5gFile            = "docker-compose.yaml"
-	r5gProject         = "ella-roaming5g"
-	r5gTesterN2        = "10.150.0.20"
-	r5gTesterN3        = "10.153.0.20"
-	r5gUDM             = "10.150.0.34"
-	r5gPingDestination = "10.156.0.3"
-	r5gKey             = "465B5CE8B199B49FAA5F0A2EE238A6BC"
-	r5gOPc             = "E8ED289DEBA952E4283B54E88E6183CA"
-	r5gVisitedMCC      = "999"
-	r5gVisitedMNC      = "70"
-	r5gProfile         = "roamers"
-	r5gPartner         = "open5gs"
-	r5gHPLMNSEPP       = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
-	r5gMarker          = "ROAMER_REGISTERED"
-	r5gN32Port         = 7443
-	r5gTesterTimeout   = 8 * time.Minute
+	r5gUDM       = "10.150.0.34"
+	r5gHPLMNSEPP = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
+	r5gN32Port   = 7443
 )
 
-type r5gStack struct {
-	t       *testing.T
-	ctx     context.Context
-	dc      *DockerClient
-	nodes   []*client.Client
-	api     *client.Client
-	partner string
-	home    tls.Certificate
+var roaming5G = roamingRAT{
+	name:        "5g",
+	octet:       150,
+	scenario:    "gnb/roaming/register",
+	marker:      "ROAMER_REGISTERED",
+	milestone:   "registration",
+	logServices: []string{"sepp", "udm", "ausf"},
+	interfaces:  "  n32:\n    address: %q\n    port: " + fmt.Sprint(r5gN32Port) + "\n",
+	bringUp:     30 * time.Minute,
 }
 
-func r5gNodeIP(n int) string { return fmt.Sprintf("10.150.0.%d", 10+n) }
+type r5gStack struct {
+	*roamingStack
+	home tls.Certificate
+}
 
 func r5gRoamer(i int) string { return fmt.Sprintf("00101000000020%d", i) }
 
 func r5gEllaSEPP(n int) string { return fmt.Sprintf("sepp%d.5gc.mnc070.mcc999.3gppnetwork.org", n) }
-
-func r5gCompose(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", r5gFile}, args...)...)
-	cmd.Dir = r5gDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker compose %s: %w", strings.Join(args, " "), err)
-	}
-
-	return nil
-}
-
-func r5gWriteFile(rel string, body string) error {
-	path, err := filepath.Abs(filepath.Join(r5gDir, rel))
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Dir(path)
-
-	if err := os.MkdirAll(dir, 0o777); err != nil {
-		return err
-	}
-
-	if err := os.Chmod(dir, 0o777); err != nil {
-		return err
-	}
-
-	return os.WriteFile(path, []byte(body), 0o644)
-}
-
-func r5gWriteNodeConfig(n, nodes int, joinToken string) error {
-	ip := r5gNodeIP(n)
-
-	var clusterYAML strings.Builder
-
-	if nodes > 1 {
-		fmt.Fprintf(&clusterYAML, "cluster:\n  bind-address: \"%s:7000\"\n  peers:\n", ip)
-
-		for i := 1; i <= nodes; i++ {
-			fmt.Fprintf(&clusterYAML, "    - \"%s:7000\"\n", r5gNodeIP(i))
-		}
-
-		if joinToken != "" {
-			fmt.Fprintf(&clusterYAML, "  join-token: %q\n", joinToken)
-		}
-	}
-
-	return r5gWriteFile(fmt.Sprintf("cfg/node%d/core.yaml", n), fmt.Sprintf(`logging:
-  system:
-    level: "debug"
-    output: "stdout"
-  audit:
-    output: "stdout"
-db:
-  path: "/data/ella.db"
-interfaces:
-  n2:
-    address: %[1]q
-    port: 38412
-  n3:
-    address: "10.153.0.%[2]d"
-  n6:
-    name: "n6"
-  n32:
-    address: %[1]q
-    port: %[4]d
-  api:
-    address: %[1]q
-    port: 5002
-datapath:
-  attach-mode: "xdp-generic"
-%[3]s`, ip, 10+n, clusterYAML.String(), r5gN32Port))
-}
 
 func r5gIssue(template, parent *x509.Certificate, pub any, signer *ecdsa.PrivateKey) (*x509.Certificate, error) {
 	der, err := x509.CreateCertificate(rand.Reader, template, parent, pub, signer)
@@ -259,7 +170,7 @@ sepp:
 		"cfg/sepp/ella-ca.crt":      ellaCA,
 		"cfg/sepp/sepp.yaml":        config,
 	} {
-		if err := r5gWriteFile(name, body); err != nil {
+		if err := roaming5G.writeFile(name, body); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
@@ -268,112 +179,11 @@ sepp:
 func r5gBringUp(t *testing.T, nodes int) *r5gStack {
 	t.Helper()
 
-	if DetectIPFamily() != IPv4Only {
-		t.Skip("the 5G roaming e2e runs in IPv4 mode only")
-	}
+	s := &r5gStack{roamingStack: roamingBringUp(t, roaming5G, nodes)}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	t.Cleanup(cancel)
+	s.writeHPLMNSEPP(s.ellaTrustAnchor(nodes), nodes)
 
-	dc, err := NewDockerClient()
-	if err != nil {
-		t.Fatalf("docker client: %v", err)
-	}
-
-	t.Cleanup(func() { _ = dc.Close() })
-
-	_ = r5gCompose(ctx, "down", "-v", "--remove-orphans")
-
-	s := &r5gStack{t: t, ctx: ctx, dc: dc}
-
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cleanupCancel()
-
-		if t.Failed() || os.Getenv("ROAMING5G_LOGS") != "" {
-			services := []string{"sepp", "udm", "ausf"}
-			for i := 1; i <= nodes; i++ {
-				services = append(services, fmt.Sprintf("ella-core-%d", i))
-			}
-
-			for _, svc := range services {
-				logs, err := dc.ComposeLogs(cleanupCtx, r5gDir, svc)
-				if err != nil {
-					t.Logf("=== %s logs: %v ===", svc, err)
-					continue
-				}
-
-				t.Logf("=== %s logs ===\n%s", svc, logs)
-			}
-		}
-
-		if os.Getenv("ROAMING5G_KEEP") == "" {
-			_ = r5gCompose(cleanupCtx, "down", "-v", "--remove-orphans")
-		}
-	})
-
-	if err := r5gWriteNodeConfig(1, nodes, ""); err != nil {
-		t.Fatalf("write node 1 config: %v", err)
-	}
-
-	if err := r5gCompose(ctx, "up", "-d", "ella-core-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	node1, err := client.New(&client.Config{BaseURL: "http://" + r5gNodeIP(1) + ":5002"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	token, err := initializeAndGetAdminToken(ctx, node1)
-	if err != nil {
-		t.Fatalf("initialize node 1: %v", err)
-	}
-
-	node1.SetToken(token)
-	s.nodes = []*client.Client{node1}
-
-	for n := 2; n <= nodes; n++ {
-		tok, err := node1.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{TTLSeconds: 600})
-		if err != nil {
-			t.Fatalf("mint join token for node %d: %v", n, err)
-		}
-
-		if err := r5gWriteNodeConfig(n, nodes, tok.Token); err != nil {
-			t.Fatalf("write node %d config: %v", n, err)
-		}
-
-		if err := r5gCompose(ctx, "up", "-d", fmt.Sprintf("ella-core-%d", n)); err != nil {
-			t.Fatal(err)
-		}
-
-		c, err := client.New(&client.Config{BaseURL: fmt.Sprintf("http://%s:5002", r5gNodeIP(n))})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		c.SetToken(token)
-		s.nodes = append(s.nodes, c)
-	}
-
-	s.api = node1
-
-	if nodes > 1 {
-		if err := waitForClusterReady(ctx, s.nodes); err != nil {
-			t.Fatalf("cluster not ready: %v", err)
-		}
-
-		if err := waitForAllNodesReady(ctx, s.nodes); err != nil {
-			t.Fatalf("nodes not ready: %v", err)
-		}
-	}
-
-	s.provision()
-
-	ellaCA := s.ellaTrustAnchor(nodes)
-	s.writeHPLMNSEPP(ellaCA, nodes)
-
-	if err := r5gCompose(ctx, "up", "-d", "mongodb", "provision", "nrf", "udr", "udm", "ausf", "sepp"); err != nil {
+	if err := roaming5G.compose(s.ctx, "up", "-d", "mongodb", "provision", "nrf", "udr", "udm", "ausf", "sepp"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -383,40 +193,9 @@ func r5gBringUp(t *testing.T, nodes int) *r5gStack {
 		s.waitN32(n)
 	}
 
-	if err := r5gCompose(ctx, "up", "-d", "ella-core-tester", "router"); err != nil {
-		t.Fatal(err)
-	}
+	s.startTester()
 
 	return s
-}
-
-func (s *r5gStack) provision() {
-	t := s.t
-	t.Helper()
-
-	if err := s.api.UpdateOperatorID(s.ctx, &client.UpdateOperatorIDOptions{Mcc: r5gVisitedMCC, Mnc: r5gVisitedMNC}); err != nil {
-		t.Fatalf("update operator ID: %v", err)
-	}
-
-	if err := s.api.UpdateOperatorTracking(s.ctx, &client.UpdateOperatorTrackingOptions{SupportedTacs: []string{scenarios.DefaultTAC}}); err != nil {
-		t.Fatalf("update operator tracking: %v", err)
-	}
-
-	for i, c := range s.nodes {
-		if err := c.UpdateNATInfo(s.ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
-			t.Fatalf("enable NAT on node %d: %v", i+1, err)
-		}
-	}
-
-	fx := fixture.New(t, s.ctx, s.api)
-	fx.Slice(fixture.DefaultSliceSpec())
-	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
-	fx.Profile(fixture.ProfileSpec{Name: r5gProfile, UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"})
-	fx.Policy(fixture.PolicySpec{
-		Name: "roamers-internet", ProfileName: r5gProfile, SliceName: scenarios.DefaultSliceName,
-		DataNetworkName: scenarios.DefaultDNN, SessionAmbrUplink: "200 Mbps", SessionAmbrDownlink: "200 Mbps",
-		Var5qi: 9, Arp: 15,
-	})
 }
 
 func (s *r5gStack) ellaTrustAnchor(nodes int) string {
@@ -425,15 +204,16 @@ func (s *r5gStack) ellaTrustAnchor(nodes int) string {
 
 	var anchor string
 
-	err := r4gPoll(s.ctx, 2*time.Minute, func() error {
+	err := roamingPoll(s.ctx, 2*time.Minute, func() error {
 		for i, c := range s.nodes[:nodes] {
 			st, err := c.GetSEPPStatus(s.ctx)
 			if err != nil {
 				return err
 			}
 
-			if len(st.TrustAnchors) != 1 || !st.Node.Listening || st.Node.Certificate == nil {
-				return fmt.Errorf("SEPP status of node %d: %d trust anchors, listening %t, certificate %t", i+1, len(st.TrustAnchors), st.Node.Listening, st.Node.Certificate != nil)
+			own := slices.ContainsFunc(st.Certificates, func(c client.SEPPCertificate) bool { return c.SEPPID == st.Listener.SEPPID && c.Fingerprint != "" })
+			if len(st.TrustAnchors) != 1 || !st.Listener.Listening || !own {
+				return fmt.Errorf("SEPP status of node %d: %d trust anchors, listening %t, certificate %t", i+1, len(st.TrustAnchors), st.Listener.Listening, own)
 			}
 
 			anchor = st.TrustAnchors[0].PEM
@@ -452,13 +232,13 @@ func (s *r5gStack) createPartner() {
 	t := s.t
 	t.Helper()
 
-	caPEM, err := os.ReadFile(filepath.Join(r5gDir, "cfg/sepp/open5gs-ca.crt"))
+	caPEM, err := os.ReadFile(filepath.Join(roaming5G.dir(), "cfg/sepp/open5gs-ca.crt"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	partner, err := s.api.CreateRoamingPartner(s.ctx, &client.RoamingPartnerOptions{
-		Name: r5gPartner, PLMNs: []client.RoamingPLMN{{Mcc: "001", Mnc: "01", NRFAPIRoot: "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org"}}, ProfileName: r5gProfile,
+		Name: roamingPartner, PLMNs: []client.RoamingPLMN{{Mcc: "001", Mnc: "01", NRFAPIRoot: "http://nrf.5gc.mnc001.mcc001.3gppnetwork.org"}}, ProfileName: roamingProfile,
 		SEPP: &client.RoamingPartnerSEPP{
 			FQDN:           r5gHPLMNSEPP,
 			N32cURI:        "https://" + r5gHPLMNSEPP + ":7777",
@@ -475,7 +255,7 @@ func (s *r5gStack) createPartner() {
 func (s *r5gStack) waitN32(node int) {
 	s.t.Helper()
 
-	err := r4gPoll(s.ctx, 3*time.Minute, func() error {
+	err := roamingPoll(s.ctx, 3*time.Minute, func() error {
 		p, err := s.nodes[node-1].GetRoamingPartner(s.ctx, s.partner)
 		if err != nil {
 			return err
@@ -489,61 +269,6 @@ func (s *r5gStack) waitN32(node int) {
 	})
 	if err != nil {
 		s.t.Fatalf("node %d N32 context: %v", node, err)
-	}
-}
-
-type r5gTesterRun struct {
-	done   chan error
-	marker chan struct{}
-}
-
-func (s *r5gStack) tester(node int, imsi string, args ...string) *r5gTesterRun {
-	s.t.Helper()
-
-	container, err := s.dc.ResolveComposeContainer(s.ctx, r5gProject, "ella-core-tester")
-	if err != nil {
-		s.t.Fatalf("resolve tester container: %v", err)
-	}
-
-	argv := []string{
-		"core-tester", "run", "gnb/roaming/register",
-		"--ella-core-n2-address", r5gNodeIP(node) + ":38412",
-		"--gnb", fmt.Sprintf("gnb1,n2=%s,n3=%s", r5gTesterN2, r5gTesterN3),
-		"--imsi", imsi, "--key", r5gKey, "--opc", r5gOPc,
-		"--mcc", r5gVisitedMCC, "--mnc", r5gVisitedMNC,
-		"--ping-destination", r5gPingDestination,
-		"--verbose",
-	}
-	argv = append(argv, args...)
-
-	run := &r5gTesterRun{done: make(chan error, 1), marker: make(chan struct{})}
-	writer := newMarkerWriter(s.t, r5gMarker, run.marker)
-
-	go func() {
-		_, err := s.dc.Exec(s.ctx, container, argv, false, r5gTesterTimeout, writer)
-		run.done <- err
-	}()
-
-	return run
-}
-
-func (r *r5gTesterRun) wait(t *testing.T, what string) {
-	t.Helper()
-
-	if err := <-r.done; err != nil {
-		t.Fatalf("%s: %v", what, err)
-	}
-}
-
-func (r *r5gTesterRun) registered(t *testing.T, what string) {
-	t.Helper()
-
-	select {
-	case <-r.marker:
-	case err := <-r.done:
-		t.Fatalf("%s ended before the registration: %v", what, err)
-	case <-time.After(2 * time.Minute):
-		t.Fatalf("%s: no registration within 2 minutes", what)
 	}
 }
 
@@ -597,7 +322,7 @@ func (s *r5gStack) waitUDM(imsi, what string, ok func(r5gUDMRegistration, int) b
 
 	var reg r5gUDMRegistration
 
-	err := r4gPoll(s.ctx, 30*time.Second, func() error {
+	err := roamingPoll(s.ctx, 30*time.Second, func() error {
 		r, status, err := s.udmRegistration(imsi)
 		if err != nil {
 			return err
@@ -628,7 +353,7 @@ func (s *r5gStack) notify(ownerNode int, imsi, kind string, body any) (int, stri
 		s.t.Fatal(err)
 	}
 
-	url := fmt.Sprintf("https://%s:%d/roaming-callbacks/v1/imsi-%s/%s", r5gNodeIP(node), r5gN32Port, imsi, kind)
+	url := fmt.Sprintf("https://%s:%d/roaming-callbacks/v1/imsi-%s/%s", roaming5G.nodeIP(node), r5gN32Port, imsi, kind)
 
 	req, err := http.NewRequestWithContext(s.ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
@@ -658,25 +383,6 @@ func (s *r5gStack) notify(ownerNode int, imsi, kind string, body any) (int, stri
 	return resp.StatusCode, string(out)
 }
 
-func (s *r5gStack) registered(node int) float64 {
-	return sessionMetricSeries(s.t, s.ctx, s.nodes[node-1], "app_registered_subscribers", `rat="5g"`, `roaming="true"`)
-}
-
-func (s *r5gStack) waitRegistered(node int, want float64, what string) {
-	s.t.Helper()
-
-	err := r4gPoll(s.ctx, 45*time.Second, func() error {
-		if got := s.registered(node); got != want {
-			return fmt.Errorf("node %d has %v registered 5G roamers, want %v", node, got, want)
-		}
-
-		return nil
-	})
-	if err != nil {
-		s.t.Fatalf("%s: %v", what, err)
-	}
-}
-
 func (s *r5gStack) sessionFlags() []string {
 	if os.Getenv("ROAMING5G_NO_SESSION") != "" {
 		return []string{"--session=false", "--ping=false"}
@@ -695,7 +401,7 @@ func TestRoaming5GOpen5GS(t *testing.T) {
 	t.Run("registration through the home AUSF and UDM, LBO data, deregistration with purge", func(t *testing.T) {
 		imsi := r5gRoamer(1)
 		run := s.tester(1, imsi, s.sessionFlags()...)
-		run.registered(t, "roamer registration")
+		run.reached(t, "roamer registration")
 
 		reg := s.waitUDM(imsi, "UECM registration at the home UDM", func(r r5gUDMRegistration, status int) bool {
 			return status == http.StatusOK && !r.PurgeFlag
@@ -719,7 +425,7 @@ func TestRoaming5GOpen5GS(t *testing.T) {
 	t.Run("UDM-initiated deregistration (SUBSCRIPTION_WITHDRAWN) of a connected roamer over N32", func(t *testing.T) {
 		imsi := r5gRoamer(3)
 		run := s.tester(1, imsi, "--ping=false", "--await-network-deregistration")
-		run.registered(t, "roamer registration")
+		run.reached(t, "roamer registration")
 
 		s.waitUDM(imsi, "UECM registration", func(r r5gUDMRegistration, status int) bool { return status == http.StatusOK && !r.PurgeFlag })
 
@@ -770,7 +476,7 @@ func TestRoaming5GOpen5GS(t *testing.T) {
 	t.Run("deleting the partner deregisters its roamers with #11", func(t *testing.T) {
 		imsi := r5gRoamer(4)
 		run := s.tester(1, imsi, "--ping=false", "--await-network-deregistration", "--expect-dereg-cause", "11")
-		run.registered(t, "roamer registration")
+		run.reached(t, "roamer registration")
 
 		if err := s.api.DeleteRoamingPartner(s.ctx, s.partner); err != nil {
 			t.Fatalf("delete the partner with a roamer: %v", err)

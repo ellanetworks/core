@@ -86,15 +86,9 @@ func TestN26IsOfferedToOwnSubscribersAndToVisitorsOfPartnersWithBothAgreements(t
 		}(), profile: both}},
 		{name: "partner profile without 4G", store: n26Store{sub: visitor, partner: n26Partner(), profile: &db.Profile{Allow5G: true}}},
 		{name: "partner profile without 5G", store: n26Store{sub: visitor, partner: n26Partner(), profile: &db.Profile{Allow4G: true}}},
-		{name: "5G agreement being withdrawn", store: n26Store{sub: visitor, partner: func() *db.RoamingPartner {
+		{name: "partner being withdrawn", store: n26Store{sub: visitor, partner: func() *db.RoamingPartner {
 			p := n26Partner()
-			p.Withdrawals = []db.RoamingWithdrawal{{PartnerID: "p", Type: db.UERegistrationTypeAMF3GPPAccess, ExpiresAt: now.Add(time.Hour).Unix()}}
-
-			return p
-		}(), profile: both}},
-		{name: "roamer being withdrawn", store: n26Store{sub: visitor, partner: func() *db.RoamingPartner {
-			p := n26Partner()
-			p.Withdrawals = []db.RoamingWithdrawal{{PartnerID: "p", IMSI: imsi, ExpiresAt: now.Add(time.Hour).Unix()}}
+			p.WithdrawingUntil = now.Add(time.Hour).Unix()
 
 			return p
 		}(), profile: both}},

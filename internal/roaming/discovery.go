@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -22,7 +23,6 @@ const (
 	maxDiscoveryBody     = 1 << 20
 	maxDiscoveryValidity = 24 * time.Hour
 	noPriority           = 65536
-	discoverySweepAt     = 4096
 )
 
 var ErrNoCandidate = errors.New("roaming: the home NRF returned no usable NF instance")
@@ -30,6 +30,8 @@ var ErrNoCandidate = errors.New("roaming: the home NRF returned no usable NF ins
 type N32 interface {
 	Client(partnerID string) *http.Client
 	HPLMNNRF(partnerID string, home wire.PlmnID) (string, error)
+	SEPPID() int
+	WaitEstablished(ctx context.Context, partnerID string, timeout time.Duration) error
 }
 
 type DiscoveryRequest struct {
@@ -45,37 +47,33 @@ type DiscoveryRequest struct {
 	Pinned           string
 }
 
-func (r DiscoveryRequest) subject() wire.Subject {
-	return wire.Subject{Supi: r.Supi, RoutingIndicator: r.RoutingIndicator, GroupID: r.GroupID}
+type discoveryKey struct {
+	partnerID        string
+	home             wire.PlmnID
+	target           wire.NFType
+	requester        wire.NFType
+	service          wire.ServiceName
+	routingIndicator string
+	supi             string
+	groupID          string
 }
 
-func (r DiscoveryRequest) selector() string {
-	switch {
-	case r.GroupID != "":
-		return "group:" + r.GroupID
-	case r.Supi != "":
-		return "supi:" + r.Supi
-	default:
-		return "ri:" + r.RoutingIndicator
+func (r DiscoveryRequest) key() discoveryKey {
+	return discoveryKey{
+		partnerID:        r.PartnerID,
+		home:             r.HomePLMN,
+		target:           r.Target,
+		requester:        r.Requester,
+		service:          r.Service,
+		routingIndicator: r.RoutingIndicator,
+		supi:             r.Supi,
+		groupID:          r.GroupID,
 	}
 }
 
-type discoveryKey struct {
-	partnerID string
-	home      wire.PlmnID
-	target    wire.NFType
-	requester wire.NFType
-	service   wire.ServiceName
-	selector  string
-}
-
-func (r DiscoveryRequest) key(selector string) discoveryKey {
-	return discoveryKey{partnerID: r.PartnerID, home: r.HomePLMN, target: r.Target, requester: r.Requester, service: r.Service, selector: selector}
-}
-
-type cachedCandidate struct {
-	c       wire.Candidate
-	expires time.Time
+type discoveryResult struct {
+	candidates []wire.Candidate
+	expires    time.Time
 }
 
 type Discovery struct {
@@ -83,11 +81,11 @@ type Discovery struct {
 	now func() time.Time
 
 	mu    sync.Mutex
-	cache map[discoveryKey][]cachedCandidate
+	cache map[discoveryKey]discoveryResult
 }
 
 func NewDiscovery(n32 N32) *Discovery {
-	return &Discovery{n32: n32, now: time.Now, cache: map[discoveryKey][]cachedCandidate{}}
+	return &Discovery{n32: n32, now: time.Now, cache: map[discoveryKey]discoveryResult{}}
 }
 
 func (d *Discovery) NRF(partnerID string, home wire.PlmnID) (string, error) {
@@ -104,142 +102,42 @@ func (d *Discovery) Discover(ctx context.Context, req DiscoveryRequest) (wire.Ca
 		return wire.Candidate{}, err
 	}
 
-	sub := req.subject()
-	serving := slices.DeleteFunc(slices.Clone(candidates), func(c wire.Candidate) bool { return !c.Scope.Serves(sub) })
-
-	if validity > 0 {
-		d.store(req, serving, candidates, d.now().Add(validity))
+	if validity > 0 && len(candidates) > 0 {
+		d.store(req.key(), discoveryResult{candidates: candidates, expires: d.now().Add(validity)})
 	}
 
-	if len(serving) == 0 {
+	if len(candidates) == 0 {
 		return wire.Candidate{}, fmt.Errorf("%w: no %s instance offers %s", ErrNoCandidate, req.Target, req.Service)
 	}
-
-	candidates = serving
 
 	return pick(candidates, req.Pinned), nil
 }
 
 func (d *Discovery) cached(req DiscoveryRequest) (wire.Candidate, bool) {
-	sub := req.subject()
-	now := d.now()
-
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	exact := d.live(req.key(req.selector()), now, func(c wire.Candidate) bool { return c.Scope.Serves(sub) })
-	shared := d.live(req.key(""), now, func(c wire.Candidate) bool { return c.Scope.Proves(sub) })
-
-	for _, set := range [][]wire.Candidate{exact, shared} {
-		if len(set) == 0 {
-			continue
-		}
-
-		if req.Pinned != "" && !slices.ContainsFunc(set, func(c wire.Candidate) bool { return c.NfInstanceID == req.Pinned }) {
-			continue
-		}
-
-		return pick(set, req.Pinned), true
+	r, ok := d.cache[req.key()]
+	if !ok || !d.now().Before(r.expires) {
+		return wire.Candidate{}, false
 	}
 
-	return wire.Candidate{}, false
+	if req.Pinned != "" && !slices.ContainsFunc(r.candidates, func(c wire.Candidate) bool { return c.NfInstanceID == req.Pinned }) {
+		return wire.Candidate{}, false
+	}
+
+	return pick(r.candidates, req.Pinned), true
 }
 
-func (d *Discovery) live(key discoveryKey, now time.Time, keep func(wire.Candidate) bool) []wire.Candidate {
-	entries := d.cache[key]
-
-	var out []wire.Candidate
-
-	fresh := entries[:0]
-
-	for _, e := range entries {
-		if !now.Before(e.expires) {
-			continue
-		}
-
-		fresh = append(fresh, e)
-
-		if keep(e.c) {
-			out = append(out, e.c)
-		}
-	}
-
-	if len(fresh) == 0 {
-		delete(d.cache, key)
-	} else {
-		d.cache[key] = fresh
-	}
-
-	return out
-}
-
-func (d *Discovery) store(req DiscoveryRequest, candidates, all []wire.Candidate, expires time.Time) {
+func (d *Discovery) store(k discoveryKey, r discoveryResult) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if len(d.cache) >= discoverySweepAt {
-		d.sweep()
-	}
-
-	entries := make([]cachedCandidate, 0, len(candidates))
-	for _, c := range candidates {
-		entries = append(entries, cachedCandidate{c: c, expires: expires})
-	}
-
-	if len(entries) > 0 {
-		d.cache[req.key(req.selector())] = entries
-
-		if group := commonGroup(candidates); group != "" && req.GroupID == "" {
-			d.cache[req.key("group:"+group)] = slices.Clone(entries)
-		}
-	}
-
-	shared := req.key("")
-
-	for _, c := range all {
-		if !c.Scope.SelfDescribing() {
-			continue
-		}
-
-		e := cachedCandidate{c: c, expires: expires}
-
-		merged := slices.DeleteFunc(d.cache[shared], func(o cachedCandidate) bool { return o.c.NfInstanceID == e.c.NfInstanceID })
-		d.cache[shared] = append(merged, e)
-	}
-
-	if s := d.cache[shared]; len(s) > 0 {
-		slices.SortStableFunc(s, func(a, b cachedCandidate) int { return cmp.Compare(priorityOf(a.c), priorityOf(b.c)) })
-	}
-}
-
-func (d *Discovery) sweep() {
 	now := d.now()
 
-	for k, entries := range d.cache {
-		entries = slices.DeleteFunc(entries, func(e cachedCandidate) bool { return !now.Before(e.expires) })
-		if len(entries) == 0 {
-			delete(d.cache, k)
-		} else {
-			d.cache[k] = entries
-		}
-	}
-}
+	maps.DeleteFunc(d.cache, func(_ discoveryKey, e discoveryResult) bool { return !now.Before(e.expires) })
 
-func commonGroup(candidates []wire.Candidate) string {
-	group := ""
-
-	for _, c := range candidates {
-		switch {
-		case c.Scope.GroupID == "":
-			return ""
-		case group == "":
-			group = c.Scope.GroupID
-		case group != c.Scope.GroupID:
-			return ""
-		}
-	}
-
-	return group
+	d.cache[k] = r
 }
 
 func pick(candidates []wire.Candidate, pinned string) wire.Candidate {
@@ -252,31 +150,20 @@ func pick(candidates []wire.Candidate, pinned string) wire.Candidate {
 	return candidates[0]
 }
 
-func (d *Discovery) Drop(partnerID, nfInstanceID string) {
+func (d *Discovery) Forget(partnerID, nfInstanceID string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	for k, entries := range d.cache {
+	for k, r := range d.cache {
 		if k.partnerID != partnerID {
 			continue
 		}
 
-		entries = slices.DeleteFunc(entries, func(e cachedCandidate) bool { return e.c.NfInstanceID == nfInstanceID })
-		if len(entries) == 0 {
+		r.candidates = slices.DeleteFunc(slices.Clone(r.candidates), func(c wire.Candidate) bool { return c.NfInstanceID == nfInstanceID })
+		if len(r.candidates) == 0 {
 			delete(d.cache, k)
 		} else {
-			d.cache[k] = entries
-		}
-	}
-}
-
-func (d *Discovery) Forget(partnerID string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for k := range d.cache {
-		if k.partnerID == partnerID {
-			delete(d.cache, k)
+			d.cache[k] = r
 		}
 	}
 }

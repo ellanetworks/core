@@ -29,22 +29,38 @@ const (
 const roamingSchema = 26
 
 const (
-	listRoamingPartnersStmt        = "SELECT &RoamingPartner.* FROM %s ORDER BY name"
-	getRoamingPartnerStmt          = "SELECT &RoamingPartner.* FROM %s WHERE id==$RoamingPartner.id"
-	insertRoamingPartnerStmt       = "INSERT INTO %s (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID) VALUES ($RoamingPartner.id, $RoamingPartner.name, $RoamingPartner.profileID, $RoamingPartner.seppFQDN, $RoamingPartner.seppN32cURI, $RoamingPartner.seppN32fURI, $RoamingPartner.seppTrustAnchorPEM, $RoamingPartner.diameterPeerID)"
-	updateRoamingPartnerStmt       = "UPDATE %s SET name=$RoamingPartner.name, profileID=$RoamingPartner.profileID, seppFQDN=$RoamingPartner.seppFQDN, seppN32cURI=$RoamingPartner.seppN32cURI, seppN32fURI=$RoamingPartner.seppN32fURI, seppTrustAnchorPEM=$RoamingPartner.seppTrustAnchorPEM, diameterPeerID=$RoamingPartner.diameterPeerID WHERE id==$RoamingPartner.id"
-	deleteRoamingPartnerStmt       = "DELETE FROM %s WHERE id==$RoamingPartner.id"
-	listRoamingPartnerPLMNsStmt    = "SELECT &roamingPartnerPLMNRow.* FROM %s ORDER BY mcc, mnc"
-	listPLMNsOfRoamingPartnerStmt  = "SELECT &roamingPartnerPLMNRow.* FROM %s WHERE partnerID==$roamingPartnerPLMNRow.partnerID ORDER BY mcc, mnc"
-	insertRoamingPartnerPLMNStmt   = "INSERT INTO %s (partnerID, mcc, mnc, nrfAPIRoot) VALUES ($roamingPartnerPLMNRow.partnerID, $roamingPartnerPLMNRow.mcc, $roamingPartnerPLMNRow.mnc, $roamingPartnerPLMNRow.nrfAPIRoot)"
-	updateRoamingPartnerPLMNStmt   = "UPDATE %s SET nrfAPIRoot=$roamingPartnerPLMNRow.nrfAPIRoot WHERE partnerID==$roamingPartnerPLMNRow.partnerID AND mcc==$roamingPartnerPLMNRow.mcc AND mnc==$roamingPartnerPLMNRow.mnc"
-	deleteRoamingPartnerPLMNStmt   = "DELETE FROM %s WHERE partnerID==$roamingPartnerPLMNRow.partnerID AND mcc==$roamingPartnerPLMNRow.mcc AND mnc==$roamingPartnerPLMNRow.mnc"
-	countVisitorsOfPartnerStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE partnerID==$visitorFilter.partnerID AND imsi GLOB $visitorFilter.imsiGlob"
-	countAttachedVisitorsOfRATStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s AS v JOIN %s AS r ON r.imsi = v.imsi WHERE v.partnerID==$visitorFilter.partnerID AND r.type==$visitorFilter.regType AND r.purged = 0"
-	countRoamingPartnersStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listRoamingPartnersStmt          = "SELECT &RoamingPartner.* FROM %s ORDER BY name"
+	getRoamingPartnerStmt            = "SELECT &RoamingPartner.* FROM %s WHERE id==$RoamingPartner.id"
+	insertRoamingPartnerStmt         = "INSERT INTO %s (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID) VALUES ($RoamingPartner.id, $RoamingPartner.name, $RoamingPartner.profileID, $RoamingPartner.seppFQDN, $RoamingPartner.seppN32cURI, $RoamingPartner.seppN32fURI, $RoamingPartner.seppTrustAnchorPEM, $RoamingPartner.diameterPeerID)"
+	updateRoamingPartnerStmt         = "UPDATE %s SET name=$RoamingPartner.name, profileID=$RoamingPartner.profileID, seppFQDN=$RoamingPartner.seppFQDN, seppN32cURI=$RoamingPartner.seppN32cURI, seppN32fURI=$RoamingPartner.seppN32fURI, seppTrustAnchorPEM=$RoamingPartner.seppTrustAnchorPEM, diameterPeerID=$RoamingPartner.diameterPeerID WHERE id==$RoamingPartner.id"
+	deleteRoamingPartnerStmt         = "DELETE FROM %s WHERE id==$RoamingPartner.id"
+	listRoamingPartnerPLMNsStmt      = "SELECT &roamingPartnerPLMNRow.* FROM %s ORDER BY mcc, mnc"
+	listPLMNsOfRoamingPartnerStmt    = "SELECT &roamingPartnerPLMNRow.* FROM %s WHERE partnerID==$roamingPartnerPLMNRow.partnerID ORDER BY mcc, mnc"
+	insertRoamingPartnerPLMNStmt     = "INSERT INTO %s (partnerID, mcc, mnc, nrfAPIRoot) VALUES ($roamingPartnerPLMNRow.partnerID, $roamingPartnerPLMNRow.mcc, $roamingPartnerPLMNRow.mnc, $roamingPartnerPLMNRow.nrfAPIRoot)"
+	updateRoamingPartnerPLMNStmt     = "UPDATE %s SET nrfAPIRoot=$roamingPartnerPLMNRow.nrfAPIRoot WHERE partnerID==$roamingPartnerPLMNRow.partnerID AND mcc==$roamingPartnerPLMNRow.mcc AND mnc==$roamingPartnerPLMNRow.mnc"
+	deleteRoamingPartnerPLMNStmt     = "DELETE FROM %s WHERE partnerID==$roamingPartnerPLMNRow.partnerID AND mcc==$roamingPartnerPLMNRow.mcc AND mnc==$roamingPartnerPLMNRow.mnc"
+	countVisitorsOfPartnerStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE partnerID==$visitorFilter.partnerID AND imsi GLOB $visitorFilter.imsiGlob"
+	countAttachedVisitorsOfRATStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s AS v JOIN %s AS r ON r.imsi = v.imsi WHERE v.partnerID==$visitorFilter.partnerID AND r.type==$visitorFilter.regType AND r.purged = 0"
+	countRoamingPartnersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	setRoamingPartnerWithdrawingStmt = "UPDATE %s SET withdrawingUntil=$RoamingPartner.withdrawingUntil WHERE id==$RoamingPartner.id"
 )
 
-var ErrRoamingConflict = errors.New("roaming configuration conflict")
+var (
+	ErrRoamingConflict     = errors.New("roaming configuration conflict")
+	ErrRoamersAttached     = fmt.Errorf("%w: roamers are attached", ErrRoamingConflict)
+	ErrRoamingRefused      = errors.New("the roaming agreement is being withdrawn")
+	ErrRoamerDeregistering = errors.New("the operator is deregistering the roamer")
+)
+
+type withdrawingPayload struct {
+	Key   string `json:"key"`
+	Until int64  `json:"until"`
+}
+
+var (
+	opSetRoamingPartnerWithdrawing = registerChangesetOp("SetRoamingPartnerWithdrawing", (*Database).applySetRoamingPartnerWithdrawing, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
+	opSetVisitorDeregistering      = registerChangesetOp("SetVisitorDeregistering", (*Database).applySetVisitorDeregistering, RequireSchema(26), AffectsTopic(TopicUERegistrations))
+)
 
 type roamingPartnerWrite struct {
 	Partner RoamingPartner `json:"partner"`
@@ -107,8 +123,12 @@ type RoamingPartner struct {
 	SEPPTrustAnchorPEM *string `db:"seppTrustAnchorPEM"`
 	DiameterPeerID     *string `db:"diameterPeerID"`
 	PLMNs              []RoamingPLMN
+	WithdrawingUntil   int64 `db:"withdrawingUntil"`
 	NRFAPIRoots        []RoamingNRFAPIRoot
-	Withdrawals        []RoamingWithdrawal
+}
+
+func (p RoamingPartner) Withdrawing(now time.Time) bool {
+	return now.Unix() < p.WithdrawingUntil
 }
 
 func (p RoamingPartner) HasPLMN(plmn RoamingPLMN) bool {
@@ -415,10 +435,6 @@ func (db *Database) listRoamingPartners(ctx context.Context, runner *sqlair.DB) 
 		partners[i].setPLMNs(byPartner[partners[i].ID])
 	}
 
-	if err := db.attachWithdrawals(ctx, partners); err != nil {
-		return nil, err
-	}
-
 	return partners, nil
 }
 
@@ -440,13 +456,6 @@ func (db *Database) getRoamingPartner(ctx context.Context, runner *sqlair.DB, id
 	}
 
 	row.setPLMNs(rows)
-
-	withdrawals, err := db.listWithdrawalsOfPartner(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	row.Withdrawals = withdrawals
 
 	return &row, nil
 }
@@ -671,10 +680,6 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 		return nil, err
 	}
 
-	if err := db.deleteWithdrawals(ctx, p.ID); err != nil {
-		return nil, err
-	}
-
 	if err := db.insertRoamingPartnerRow(ctx, db.updateRoamingPartnerStmt, p); err != nil {
 		return nil, err
 	}
@@ -721,10 +726,6 @@ func (db *Database) applyDeleteRoamingPartner(ctx context.Context, p *stringPayl
 		return nil, fmt.Errorf("%w: the roaming partner cannot be deleted while %d of its roamers are attached", ErrRoamersAttached, n)
 	}
 
-	if err := db.deleteWithdrawals(ctx, p.Value); err != nil {
-		return nil, err
-	}
-
 	var outcome sqlair.Outcome
 
 	if err := db.runner(ctx).Query(ctx, db.deleteRoamingPartnerStmt, RoamingPartner{ID: p.Value}).Get(&outcome); err != nil {
@@ -745,6 +746,71 @@ func (db *Database) applyDeleteRoamingPartner(ctx context.Context, p *stringPayl
 	}
 
 	return nil, nil
+}
+
+func (db *Database) SetRoamingPartnerWithdrawing(ctx context.Context, id string, until time.Time) error {
+	return db.setWithdrawing(ctx, opSetRoamingPartnerWithdrawing, RoamingPartnersTableName, id, until)
+}
+
+func (db *Database) SetVisitorDeregistering(ctx context.Context, imsi string, until time.Time) error {
+	return db.setWithdrawing(ctx, opSetVisitorDeregistering, VisitorsTableName, imsi, until)
+}
+
+func (db *Database) setWithdrawing(ctx context.Context, op *ChangesetOp[withdrawingPayload, struct{}], table, key string, until time.Time) error {
+	ctx, span := startRoamingPartnersSpan(ctx, "WITHDRAW")
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(table, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(table, "update").Inc()
+
+	payload := &withdrawingPayload{Key: key}
+	if !until.IsZero() {
+		payload.Until = until.Unix()
+	}
+
+	if _, err := op.Invoke(ctx, db, payload); err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+
+	return nil
+}
+
+func (db *Database) CountVisitorsOfPartner(ctx context.Context, partnerID string) (int, error) {
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return 0, nil
+	}
+
+	return db.countVisitors(ctx, db.countVisitorsOfPartnerStmt, visitorFilter{PartnerID: partnerID, IMSIGlob: "*"})
+}
+
+func (db *Database) applySetRoamingPartnerWithdrawing(ctx context.Context, p *withdrawingPayload) (any, error) {
+	return nil, db.updateOne(ctx, db.setRoamingPartnerWithdrawingStmt, RoamingPartner{ID: p.Key, WithdrawingUntil: p.Until})
+}
+
+func (db *Database) applySetVisitorDeregistering(ctx context.Context, p *withdrawingPayload) (any, error) {
+	return nil, db.updateOne(ctx, db.setVisitorDeregisteringStmt, Visitor{Imsi: p.Key, DeregisterUntil: p.Until})
+}
+
+func (db *Database) updateOne(ctx context.Context, stmt *sqlair.Statement, arg any) error {
+	var outcome sqlair.Outcome
+
+	if err := db.runner(ctx).Query(ctx, stmt, arg).Get(&outcome); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	n, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func startRoamingPartnersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {

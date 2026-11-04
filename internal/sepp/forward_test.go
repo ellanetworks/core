@@ -17,7 +17,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/internal/roaming/wire"
 )
@@ -79,16 +78,12 @@ func (p *n32fPeer) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req, err := wire.Decode[SecNegotiateReqData](body)
-		if err != nil || !p.accept.Load() {
+		if _, err := wire.Decode[SecNegotiateReqData](body); err != nil || !p.accept.Load() {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 
-		rsp := SecNegotiateRspData{Sender: p.fqdn, SelectedSecCapability: SecurityTLS, TargetAPIRootSupported: true, PlmnIDList: []wire.PlmnID{yPLMN}, SupportedFeatures: "1"}
-		if req.Teardown() {
-			rsp = SecNegotiateRspData{Sender: p.fqdn, SelectedSecCapability: SecurityNone}
-		}
+		rsp := SecNegotiateRspData{Sender: p.fqdn, SelectedSecCapability: SecurityTLS, TargetAPIRootSupported: true, PlmnIDList: []wire.PlmnID{yPLMN}}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(rsp)
@@ -317,16 +312,7 @@ func TestContextNotFoundTriggersRehandshake(t *testing.T) {
 	x.waitState("p", StateEstablished)
 
 	forward()
-	time.Sleep(100 * time.Millisecond)
-
-	if got := p.handshakes.Load(); got != before+1 {
-		t.Fatalf("%d re-handshakes within the debounce delay, want 1", got-before)
-	}
-
-	time.Sleep(200 * time.Millisecond)
-
-	forward()
-	eventually(t, "re-handshake after the debounce delay", func() bool { return p.handshakes.Load() == before+2 })
+	eventually(t, "another re-handshake", func() bool { return p.handshakes.Load() == before+2 })
 	x.waitState("p", StateEstablished)
 }
 

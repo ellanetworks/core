@@ -71,7 +71,7 @@ func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 
 	cause, permanent := attachRejectCauseForAuthFailure(err)
 	if !permanent {
-		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
+		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), m.IsRoamer(ctx, ue), logger.RegistrationRejected,
 			logger.Cause("transient authentication failure; UE retries when T3411 expires"), zap.Error(err))
 		ueConn.StopNASGuard(ctx)
 

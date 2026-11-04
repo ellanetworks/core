@@ -22,18 +22,13 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/roaming/wire"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 func fastTuning() Tuning {
 	t := DefaultTuning()
+	t.Reconcile = time.Minute
 	t.HandshakeTimeout = 2 * time.Second
-	t.OngoingWait = 300 * time.Millisecond
-	t.BackoffMin = 100 * time.Millisecond
-	t.BackoffMax = 400 * time.Millisecond
-	t.ContextLostDelay = 200 * time.Millisecond
-	t.N32cRequestsPerMinute = 1000
 
 	return t
 }
@@ -215,10 +210,6 @@ func TestHandshakeBetweenTwoSEPPs(t *testing.T) {
 	xs := x.waitState("y", StateEstablished)
 	ys := y.waitState("x", StateEstablished)
 
-	if !xs.NFTLST || !ys.NFTLST {
-		t.Fatalf("NFTLST not agreed: %+v %+v", xs, ys)
-	}
-
 	if xs.Initiator == ys.Initiator {
 		t.Fatalf("both sides report initiator %s", xs.Initiator)
 	}
@@ -251,11 +242,8 @@ func TestHandshakeBetweenTwoSEPPs(t *testing.T) {
 	}
 }
 
-func TestTeardownOnPartnerRemoval(t *testing.T) {
-	slow := fastTuning()
-	slow.BackoffMin, slow.BackoffMax = time.Minute, time.Minute
-
-	x, y := pair(t, fastTuning(), slow)
+func TestPartnerRemovalDropsTheContext(t *testing.T) {
+	x, y := pair(t, fastTuning(), fastTuning())
 
 	x.start()
 	y.start()
@@ -265,13 +253,61 @@ func TestTeardownOnPartnerRemoval(t *testing.T) {
 
 	x.setPartners()
 
-	st := y.waitState("x", StateTerminated)
-	if !strings.Contains(st.LastError, "terminated") {
-		t.Fatalf("lastError = %q", st.LastError)
-	}
-
 	if _, ok := x.m.Contexts()["y"]; ok {
 		t.Fatal("removed partner still has a context")
+	}
+
+	if _, err := x.m.Rehandshake("y"); !errors.Is(err, ErrUnknownPartner) {
+		t.Fatalf("rehandshake with the removed partner: %v", err)
+	}
+}
+
+func TestFailedContextRestartsOnReconcile(t *testing.T) {
+	x, p := peerFixture(t, yFQDN, fastTuning())
+
+	var refuse atomic.Bool
+	refuse.Store(true)
+
+	p.answer(func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
+		if refuse.Load() {
+			p.reply(w, 403, wire.NewProblem(403, CauseNegotiationNotAllowed, "not yet"))
+			return
+		}
+
+		p.reply(w, 200, p.accept(req))
+	})
+
+	idle := func() bool {
+		x.m.mu.Lock()
+		defer x.m.mu.Unlock()
+
+		return !x.m.contexts["p"].inflight
+	}
+
+	x.start()
+	<-p.got
+	x.waitState("p", StateFailed)
+	eventually(t, "the first handshake done", idle)
+
+	x.m.Reconcile(x.ctx)
+	<-p.got
+	eventually(t, "the restarted handshake done", idle)
+
+	if st := x.state("p"); st.State != StateFailed || !strings.Contains(st.LastError, "not yet") {
+		t.Fatalf("failed context = %+v", st)
+	}
+
+	refuse.Store(false)
+	x.m.Reconcile(x.ctx)
+	<-p.got
+	x.waitState("p", StateEstablished)
+
+	x.m.Reconcile(x.ctx)
+
+	select {
+	case req := <-p.got:
+		t.Fatalf("a reconcile restarted an established context: %+v", req)
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 
@@ -309,18 +345,10 @@ func TestNodesOfOneClusterHaveIndependentContexts(t *testing.T) {
 		x.waitState("y", StateEstablished)
 	}
 
-	var ys ContextStatus
-
 	eventually(t, "the partner has a context with every Ella SEPP", func() bool {
-		ys = y.state("x")
-		_, ok2 := otherPeer(ys, x2.fqdn)
-		_, ok3 := otherPeer(ys, x3.fqdn)
-
-		return ys.State == StateEstablished && ok2 && ok3
+		ys := y.state("x")
+		return ys.State == StateEstablished && otherPeer(ys, x2.fqdn) && otherPeer(ys, x3.fqdn)
 	})
-
-	before2, _ := otherPeer(ys, x2.fqdn)
-	before3, _ := otherPeer(ys, x3.fqdn)
 
 	if _, err := x1.m.Rehandshake("y"); err != nil {
 		t.Fatal(err)
@@ -330,12 +358,8 @@ func TestNodesOfOneClusterHaveIndependentContexts(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	after := y.state("x")
-	after2, _ := otherPeer(after, x2.fqdn)
-	after3, _ := otherPeer(after, x3.fqdn)
-
-	if !after2.Since.Equal(before2.Since) || !after3.Since.Equal(before3.Since) {
-		t.Fatalf("a handshake of node 1 changed the contexts of nodes 2 and 3: %+v, was %+v", after.OtherPeers, ys.OtherPeers)
+	if after := y.state("x"); after.State != StateEstablished || !otherPeer(after, x2.fqdn) || !otherPeer(after, x3.fqdn) {
+		t.Fatalf("a handshake of node 1 changed the contexts of nodes 2 and 3: %+v", after)
 	}
 
 	x2.run()
@@ -345,17 +369,6 @@ func TestNodesOfOneClusterHaveIndependentContexts(t *testing.T) {
 
 	if st := x1.state("y"); st.State != StateEstablished {
 		t.Fatalf("stopping node 2 changed node 1's context: %+v", st)
-	}
-
-	x3.setPartners()
-
-	eventually(t, "node 3's teardown", func() bool {
-		_, ok := otherPeer(y.state("x"), x3.fqdn)
-		return !ok
-	})
-
-	if st := y.state("x"); st.State != StateEstablished {
-		t.Fatalf("node 3's teardown ended the context with node 1: %+v", st)
 	}
 
 	if x1.m.LocalFQDN() != xFQDN || x2.m.LocalFQDN() != x2.fqdn || x3.m.LocalFQDN() != x3.fqdn {
@@ -410,6 +423,39 @@ func TestRotationRehandshakes(t *testing.T) {
 		ys, xs := y.state("x"), x.state("y")
 		return ys.State == StateEstablished && ys.Since.After(before) && xs.State == StateEstablished
 	})
+}
+
+func TestLeafRenewalKeepsContexts(t *testing.T) {
+	x, y := pair(t, fastTuning(), fastTuning())
+
+	x.start()
+	y.start()
+
+	xBefore := x.waitState("y", StateEstablished)
+	yBefore := y.waitState("x", StateEstablished)
+
+	x.mu.Lock()
+	x.identity = identityFor(t, x.ca, xFQDN)
+	renewed := x.identity
+	x.mu.Unlock()
+	x.m.Reconcile(x.ctx)
+
+	cert, err := x.m.localCertificate()
+	if err != nil || string(cert.Certificate[0]) == "" || x.m.snap.Load().identity.cfg != renewed {
+		t.Fatalf("the renewed certificate is not served: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if xs, ys := x.state("y"), y.state("x"); !xs.Since.Equal(xBefore.Since) || !ys.Since.Equal(yBefore.Since) || xs.State != StateEstablished || ys.State != StateEstablished {
+		t.Fatalf("a leaf renewal restarted the contexts: %+v %+v", xs, ys)
+	}
+
+	if _, err := x.m.Rehandshake("y"); err != nil {
+		t.Fatal(err)
+	}
+
+	x.waitState("y", StateEstablished)
 }
 
 func TestIdentityProblemsMakeContextsIdle(t *testing.T) {
@@ -476,7 +522,7 @@ func newTestPeer(t *testing.T, fqdn string) *testPeer {
 	t.Cleanup(p.srv.Close)
 
 	p.answer(func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
-		p.reply(w, http.StatusOK, p.accept(req, "1"))
+		p.reply(w, http.StatusOK, p.accept(req))
 	})
 
 	return p
@@ -486,12 +532,8 @@ func (p *testPeer) answer(h func(http.ResponseWriter, *http.Request, SecNegotiat
 	p.handler.Store(&h)
 }
 
-func (p *testPeer) accept(req SecNegotiateReqData, features wire.SupportedFeatures) SecNegotiateRspData {
-	if req.Teardown() {
-		return SecNegotiateRspData{Sender: p.fqdn, SelectedSecCapability: SecurityNone}
-	}
-
-	return SecNegotiateRspData{Sender: p.fqdn, SelectedSecCapability: SecurityTLS, TargetAPIRootSupported: true, PlmnIDList: []wire.PlmnID{yPLMN}, SupportedFeatures: features}
+func (p *testPeer) accept(SecNegotiateReqData) SecNegotiateRspData {
+	return SecNegotiateRspData{Sender: p.fqdn, SelectedSecCapability: SecurityTLS, TargetAPIRootSupported: true, PlmnIDList: []wire.PlmnID{yPLMN}}
 }
 
 func (p *testPeer) reply(w http.ResponseWriter, status int, v any) {
@@ -566,7 +608,6 @@ func baseReq(sender string) SecNegotiateReqData {
 		TargetAPIRootSupported:     true,
 		PlmnIDList:                 []wire.PlmnID{yPLMN},
 		TargetPlmnID:               &target,
-		SupportedFeatures:          "1",
 	}
 }
 
@@ -585,21 +626,21 @@ func TestInitiatorOutcomes(t *testing.T) {
 		handler   func(p *testPeer) func(http.ResponseWriter, *http.Request, SecNegotiateReqData)
 		state     State
 		lastError string
-		nftlst    bool
-		teardown  bool
 	}{
-		"established with NFTLST": {
+		"established": {
 			handler: func(p *testPeer) func(http.ResponseWriter, *http.Request, SecNegotiateReqData) {
 				return func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
-					p.reply(w, 200, p.accept(req, "1"))
+					p.reply(w, 200, p.accept(req))
 				}
 			},
-			state: StateEstablished, nftlst: true,
+			state: StateEstablished,
 		},
 		"open5gs on-the-fly node answers features 0": {
 			handler: func(p *testPeer) func(http.ResponseWriter, *http.Request, SecNegotiateReqData) {
 				return func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
-					p.reply(w, 200, p.accept(req, "0"))
+					rsp := p.accept(req)
+					rsp.SupportedFeatures = "0"
+					p.reply(w, 200, rsp)
 				}
 			},
 			state: StateEstablished,
@@ -630,23 +671,20 @@ func TestInitiatorOutcomes(t *testing.T) {
 			},
 			state: StateFailed, lastError: "answered 308",
 		},
-		"wrong sender with NFTLST sends NONE first": {
+		"wrong sender": {
 			handler: func(p *testPeer) func(http.ResponseWriter, *http.Request, SecNegotiateReqData) {
 				return func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
-					rsp := p.accept(req, "1")
-					if !req.Teardown() {
-						rsp.Sender = "sepp7.5gc.mnc001.mcc001.3gppnetwork.org"
-					}
-
+					rsp := p.accept(req)
+					rsp.Sender = "sepp7.5gc.mnc001.mcc001.3gppnetwork.org"
 					p.reply(w, 200, rsp)
 				}
 			},
-			state: StateFailed, lastError: "sender", teardown: true,
+			state: StateFailed, lastError: "sender",
 		},
 		"PRINS selected": {
 			handler: func(p *testPeer) func(http.ResponseWriter, *http.Request, SecNegotiateReqData) {
 				return func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
-					rsp := p.accept(req, "1")
+					rsp := p.accept(req)
 					rsp.SelectedSecCapability = SecurityPRINS
 					p.reply(w, 200, rsp)
 				}
@@ -665,13 +703,12 @@ func TestInitiatorOutcomes(t *testing.T) {
 					p.reply(w, 409, wire.NewProblem(409, CauseN32cExchangeCapabilityOngoing, ""))
 				}
 			},
-			state: StateFailed, lastError: "sent no exchange-capability",
+			state: StateEstablishing, lastError: "N32C_EXCHANGE_CAPABILITY_ONGOING",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tuning := fastTuning()
 			tuning.HandshakeTimeout = 500 * time.Millisecond
-			tuning.BackoffMin, tuning.BackoffMax = time.Minute, time.Minute
 
 			p := newTestPeer(t, yFQDN)
 			p.answer(tc.handler(p))
@@ -681,28 +718,19 @@ func TestInitiatorOutcomes(t *testing.T) {
 			x.start()
 
 			req := <-p.got
-			if b, _ := wire.Encode(req); !strings.Contains(string(b), `"supportedSecCapabilityList":["TLS"],"3GppSbiTargetApiRootSupported":true,"plmnIdList":[{"mcc":"999","mnc":"70"}],"targetPlmnId":{"mcc":"001","mnc":"01"},"supportedFeatures":"1"`) {
+			if b, _ := wire.Encode(req); !strings.Contains(string(b), `"supportedSecCapabilityList":["TLS"],"3GppSbiTargetApiRootSupported":true,"plmnIdList":[{"mcc":"999","mnc":"70"}],"targetPlmnId":{"mcc":"001","mnc":"01"}}`) {
 				t.Fatalf("request = %s", b)
 			}
 
-			st := x.waitState("p", tc.state)
-			if !strings.Contains(st.LastError, tc.lastError) || st.NFTLST != tc.nftlst {
-				t.Fatalf("status = %+v", st)
-			}
+			var st ContextStatus
+
+			eventually(t, string(tc.state)+" with "+tc.lastError, func() bool {
+				st = x.state("p")
+				return st.State == tc.state && strings.Contains(st.LastError, tc.lastError)
+			})
 
 			if tc.state == StateEstablished && st.Initiator != InitiatorLocal {
 				t.Fatalf("initiator = %s", st.Initiator)
-			}
-
-			if tc.teardown {
-				select {
-				case td := <-p.got:
-					if !td.Teardown() {
-						t.Fatalf("second request is not a teardown: %+v", td)
-					}
-				case <-time.After(2 * time.Second):
-					t.Fatal("no teardown sent")
-				}
 			}
 		})
 	}
@@ -725,11 +753,6 @@ func TestCollision(t *testing.T) {
 			release := make(chan struct{})
 
 			p.answer(func(w http.ResponseWriter, _ *http.Request, req SecNegotiateReqData) {
-				if req.Teardown() {
-					p.reply(w, 200, p.accept(req, "1"))
-					return
-				}
-
 				body := baseReq(strings.ToUpper(p.fqdn))
 				status, _ := p.post(x, body)
 				inbound.Store(int32(status))
@@ -737,7 +760,7 @@ func TestCollision(t *testing.T) {
 				if status == http.StatusOK {
 					p.reply(w, 409, wire.NewProblem(409, CauseN32cExchangeCapabilityOngoing, ""))
 				} else {
-					rsp := p.accept(req, "1")
+					rsp := p.accept(req)
 					rsp.Sender = p.fqdn
 					p.reply(w, 200, rsp)
 				}
@@ -763,26 +786,12 @@ func TestCollision(t *testing.T) {
 }
 
 func TestResponderChecks(t *testing.T) {
-	tuning := fastTuning()
-	tuning.BackoffMin, tuning.BackoffMax = time.Minute, time.Minute
-
-	x, p := peerFixture(t, yFQDN, tuning)
+	x, p := peerFixture(t, yFQDN, fastTuning())
 	p.answer(func(w http.ResponseWriter, _ *http.Request, _ SecNegotiateReqData) {
 		p.reply(w, 403, wire.NewProblem(403, CauseNegotiationNotAllowed, "responder only"))
 	})
 	x.start()
 	x.waitState("p", StateFailed)
-
-	none := baseReq(yFQDN)
-	none.SupportedSecCapabilityList = []SecurityCapability{SecurityNone}
-
-	if status, body := p.post(x, none); status != 200 || !strings.Contains(string(body), `"selectedSecCapability":"NONE"`) {
-		t.Fatalf("NONE while failed: %d %s", status, body)
-	}
-
-	if st := x.state("p"); st.State != StateFailed {
-		t.Fatalf("NONE changed a failed context: %+v", st)
-	}
 
 	for name, tc := range map[string]struct {
 		mutate func(*SecNegotiateReqData)
@@ -794,6 +803,7 @@ func TestResponderChecks(t *testing.T) {
 		"sender missing":       {raw: `{"supportedSecCapabilityList":["TLS"]}`, status: 400, cause: wire.CauseMandatoryIEMissing},
 		"sender not partner":   {mutate: func(r *SecNegotiateReqData) { r.Sender = "sepp2.5gc.mnc001.mcc001.3gppnetwork.org" }, status: 403, cause: CauseNegotiationNotAllowed},
 		"PRINS only":           {mutate: func(r *SecNegotiateReqData) { r.SupportedSecCapabilityList = []SecurityCapability{SecurityPRINS} }, status: 403, cause: CauseNegotiationNotAllowed},
+		"NONE":                 {mutate: func(r *SecNegotiateReqData) { r.SupportedSecCapabilityList = []SecurityCapability{SecurityNone} }, status: 403, cause: CauseNegotiationNotAllowed},
 		"no target apiRoot":    {mutate: func(r *SecNegotiateReqData) { r.TargetAPIRootSupported = false }, status: 403, cause: CauseNegotiationNotAllowed},
 		"another PLMN in list": {mutate: func(r *SecNegotiateReqData) { r.PlmnIDList = append(r.PlmnIDList, wire.PlmnID{Mcc: "002", Mnc: "10"}) }, status: 403, cause: CauseNegotiationNotAllowed},
 		"target not home":      {mutate: func(r *SecNegotiateReqData) { r.TargetPlmnID = &yPLMN }, status: 403, cause: CauseNegotiationNotAllowed},
@@ -832,43 +842,33 @@ func TestResponderChecks(t *testing.T) {
 
 	rsp, err := wire.Decode[SecNegotiateRspData](body)
 	if status != 200 || err != nil || rsp.Sender != xFQDN || rsp.SelectedSecCapability != SecurityTLS || !rsp.TargetAPIRootSupported ||
-		rsp.SupportedFeatures != "1" || rsp.N32HandshakeID != "" || len(rsp.PlmnIDList) != 1 || rsp.PlmnIDList[0] != xPLMN ||
+		rsp.SupportedFeatures != "" || rsp.N32HandshakeID != "" || len(rsp.PlmnIDList) != 1 || rsp.PlmnIDList[0] != xPLMN ||
 		len(rsp.AllowedUsagePurpose) != 1 || len(rsp.RejectedUsagePurpose) != 1 {
 		t.Fatalf("accept: %d %s", status, body)
 	}
 
 	first := x.waitState("p", StateEstablished)
-	if first.Initiator != InitiatorPeer || !first.NFTLST {
+	if first.Initiator != InitiatorPeer {
 		t.Fatalf("established by peer: %+v", first)
 	}
 
 	time.Sleep(10 * time.Millisecond)
 
 	req = baseReq(yFQDN)
-	req.SupportedFeatures = ""
+	req.SupportedFeatures = "1"
 
-	if status, _ := p.post(x, req); status != 200 {
-		t.Fatalf("replacement: %d", status)
+	status, body = p.post(x, req)
+	if status != 200 || strings.Contains(string(body), "supportedFeatures") {
+		t.Fatalf("replacement: %d %s", status, body)
 	}
 
-	if st := x.state("p"); st.State != StateEstablished || st.NFTLST || !st.Since.After(first.Since) {
+	if st := x.state("p"); st.State != StateEstablished || !st.Since.After(first.Since) {
 		t.Fatalf("replacement while established: %+v", st)
-	}
-
-	if status, body := p.post(x, none); status != 200 || !strings.Contains(string(body), `"NONE"`) {
-		t.Fatalf("NONE while established: %d %s", status, body)
-	}
-
-	if st := x.state("p"); st.State != StateTerminated {
-		t.Fatalf("after NONE: %+v", st)
 	}
 }
 
 func TestListenerRouting(t *testing.T) {
-	tuning := fastTuning()
-	tuning.N32cRequestsPerMinute = 1
-
-	x, p := peerFixture(t, yFQDN, tuning)
+	x, p := peerFixture(t, yFQDN, fastTuning())
 
 	tr := p.transport(x)
 	defer tr.CloseIdleConnections()
@@ -892,56 +892,21 @@ func TestListenerRouting(t *testing.T) {
 	if status, _ := p.do(x, http.MethodPost, N32cExchangeCapabilityPath, bytes.Repeat([]byte("x"), maxBodyBytes+1), nil); status != http.StatusRequestEntityTooLarge {
 		t.Fatalf("large body: %d", status)
 	}
-
-	status, body := p.post(x, baseReq(yFQDN))
-	if status != http.StatusTooManyRequests || wire.ParseProblem(status, body).Cause != wire.CauseNFCongestionRisk {
-		t.Fatalf("rate limit: %d %s", status, body)
-	}
 }
 
-func TestMetrics(t *testing.T) {
+func TestConnectedPartners(t *testing.T) {
 	x, y := pair(t, fastTuning(), fastTuning())
+
+	if got := x.m.ConnectedPartners(); got != 0 {
+		t.Fatalf("connected partners before start = %d, want 0", got)
+	}
 
 	x.start()
 	y.start()
 
 	x.waitState("y", StateEstablished)
 
-	reg := prometheus.NewRegistry()
-	RegisterMetrics(reg, x.m)
-
-	families, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got := map[string]float64{}
-
-	for _, f := range families {
-		for _, m := range f.GetMetric() {
-			key := f.GetName()
-			for _, l := range m.GetLabel() {
-				key += "," + l.GetName() + "=" + l.GetValue()
-			}
-
-			switch {
-			case m.GetGauge() != nil:
-				got[key] = m.GetGauge().GetValue()
-			case m.GetCounter() != nil:
-				got[key] = m.GetCounter().GetValue()
-			}
-		}
-	}
-
-	if got["app_sepp_n32c_state,partner=y"] != 2 {
-		t.Fatalf("state gauge: %v", got)
-	}
-
-	if got["app_sepp_certificate_expiry_timestamp_seconds"] < float64(time.Now().Unix()) {
-		t.Fatalf("expiry gauge: %v", got)
-	}
-
-	if got["app_sepp_n32c_handshakes_total,partner=y,result=established,role=initiator"]+got["app_sepp_n32c_handshakes_total,partner=y,result=established,role=responder"] == 0 {
-		t.Fatalf("handshake counters: %v", got)
+	if got := x.m.ConnectedPartners(); got != 1 {
+		t.Fatalf("connected partners = %d, want 1", got)
 	}
 }

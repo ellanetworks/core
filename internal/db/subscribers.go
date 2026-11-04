@@ -116,26 +116,7 @@ const (
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
 )
 
-const subscribersAndVisitorsSource = `
-  FROM (
-    SELECT id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn, NULL AS partnerID FROM %s
-    UNION ALL
-    SELECT '' AS id, v.imsi AS imsi, '' AS sequenceNumber, '' AS permanentKey, '' AS opc, p.profileID AS profileID, '' AS description, v.msisdn AS msisdn, v.partnerID AS partnerID
-    FROM %s AS v JOIN %s AS p ON p.id = v.partnerID
-  )
-  WHERE ($subscriberFilterArgs.roaming IS NULL OR (partnerID IS NOT NULL) = $subscriberFilterArgs.roaming) AND`
-
-const (
-	listSubscribersAndVisitorsFilteredStmt = `
-  SELECT &Subscriber.*, &visitorPartner.partnerID, COUNT(*) OVER() AS &NumItems.count` + subscribersAndVisitorsSource + subscriberSearchClause + subscriberDataNetworkClause + `
-  ORDER BY imsi
-  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
-
-	countSubscribersAndVisitorsFilteredStmt = `
-  SELECT COUNT(*) AS &NumItems.count` + subscribersAndVisitorsSource + subscriberSearchClause + subscriberDataNetworkClause
-
-	countSubscribersAndVisitorsStmt = "SELECT COUNT(*) AS &NumItems.count FROM (SELECT imsi FROM %s UNION ALL SELECT imsi FROM %s)"
-)
+const countSubscribersAndVisitorsStmt = "SELECT COUNT(*) AS &NumItems.count FROM (SELECT imsi FROM %s UNION ALL SELECT imsi FROM %s)"
 
 type Subscriber struct {
 	ID             string `db:"id"` // UUIDv7
@@ -153,17 +134,11 @@ type Subscriber struct {
 type SubscriberFilters struct {
 	Search        *string
 	DataNetworkID *string
-	Roaming       *bool
 }
 
 type subscriberFilterArgs struct {
 	Search        *string `db:"search"`
 	DataNetworkID *string `db:"data_network_id"`
-	Roaming       *bool   `db:"roaming"`
-}
-
-type visitorPartner struct {
-	PartnerID *string `db:"partnerID"`
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
@@ -173,7 +148,7 @@ func (f *SubscriberFilters) args() subscriberFilterArgs {
 		return subscriberFilterArgs{}
 	}
 
-	args := subscriberFilterArgs{DataNetworkID: f.DataNetworkID, Roaming: f.Roaming}
+	args := subscriberFilterArgs{DataNetworkID: f.DataNetworkID}
 
 	if f.Search != nil {
 		pattern := "%" + likeEscaper.Replace(*f.Search) + "%"
@@ -217,30 +192,14 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 
 	filterArgs := filters.args()
 
-	var err error
-
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		var partners []visitorPartner
-
-		err = db.conn().Query(ctx, db.listSubscribersAndVisitorsStmt, args, filterArgs).GetAll(&subs, &partners, &counts)
-		for i := range partners {
-			subs[i].RoamingPartnerID = partners[i].PartnerID
-		}
-	} else {
-		if filterArgs.Roaming != nil && *filterArgs.Roaming {
-			return nil, 0, nil
-		}
-
-		stmt := db.listSubscribersStmt
-		if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
-			stmt = db.listSubscribersPreV18Stmt
-		} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-			stmt = db.listSubscribersPreV22Stmt
-		}
-
-		err = db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
+	stmt := db.listSubscribersStmt
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+		stmt = db.listSubscribersPreV18Stmt
+	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+		stmt = db.listSubscribersPreV22Stmt
 	}
 
+	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			fallbackCount, countErr := db.countSubscribersFiltered(ctx, filterArgs)
@@ -288,9 +247,7 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	var result NumItems
 
 	stmt := db.countSubscribersFilteredStmt
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.countSubscribersAndVisitorsFilteredStmt
-	} else if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.countSubscribersFilteredPreV18Stmt
 	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
 		stmt = db.countSubscribersFilteredPreV22Stmt

@@ -70,13 +70,7 @@ func N26Agreed(partner db.RoamingPartner, profile db.Profile, imsi string, now t
 		return false
 	}
 
-	for _, regType := range []string{db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess} {
-		if _, withdrawn := partner.Withdrawal(imsi, regType, now); withdrawn {
-			return false
-		}
-	}
-
-	return true
+	return !partner.Withdrawing(now)
 }
 
 func EPSInterworkingSubscribed(sel *wire.SmfSelectionSubscriptionData, hplmn models.Snssai, dnn string) bool {

@@ -4,7 +4,7 @@
 import React from "react";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { deregisterSubscriber } from "@/queries/subscribers";
+import { deregisterRoamer } from "@/queries/roamers";
 
 interface DeregisterRoamerModalProps {
   open: boolean;
@@ -23,7 +23,7 @@ const DeregisterRoamerModal: React.FC<DeregisterRoamerModalProps> = ({
 
   const confirm = async () => {
     if (!accessToken) return;
-    await deregisterSubscriber(accessToken, imsi);
+    await deregisterRoamer(accessToken, imsi);
     onClose();
     onSuccess();
   };

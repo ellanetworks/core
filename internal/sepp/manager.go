@@ -40,38 +40,23 @@ type Config struct {
 type Tuning struct {
 	Reconcile        time.Duration
 	HandshakeTimeout time.Duration
-	OngoingWait      time.Duration
-	BackoffMin       time.Duration
-	BackoffMax       time.Duration
-	ExpiryWarning    time.Duration
 	RenewBefore      time.Duration
-	RenewRetry       time.Duration
 	RequestTimeout   time.Duration
-	PingIdle         time.Duration
-	PingTimeout      time.Duration
-	ContextLostDelay time.Duration
-
-	N32cRequestsPerMinute int
-	N32fRequestsPerSecond int
 }
+
+const (
+	expiryWarning = 30 * 24 * time.Hour
+	renewRetry    = time.Hour
+	pingIdle      = 30 * time.Second
+	pingTimeout   = 10 * time.Second
+)
 
 func DefaultTuning() Tuning {
 	return Tuning{
-		Reconcile:        30 * time.Second,
+		Reconcile:        10 * time.Second,
 		HandshakeTimeout: 5 * time.Second,
-		OngoingWait:      10 * time.Second,
-		BackoffMin:       2 * time.Second,
-		BackoffMax:       60 * time.Second,
-		ExpiryWarning:    30 * 24 * time.Hour,
 		RenewBefore:      90 * 24 * time.Hour,
-		RenewRetry:       time.Hour,
 		RequestTimeout:   4 * time.Second,
-		PingIdle:         30 * time.Second,
-		PingTimeout:      10 * time.Second,
-		ContextLostDelay: 10 * time.Second,
-
-		N32cRequestsPerMinute: 5,
-		N32fRequestsPerSecond: 200,
 	}
 }
 
@@ -127,8 +112,8 @@ type Manager struct {
 
 	callbacks atomic.Pointer[http.Handler]
 
-	n32cLimit    rateLimiter
-	n32fLimit    rateLimiter
+	reconcileMu  sync.Mutex
+	rejected     map[string]string
 	expiryLog    time.Time
 	renewAttempt time.Time
 }
@@ -137,10 +122,6 @@ type Option func(*Manager)
 
 func WithTuning(t Tuning) Option {
 	return func(m *Manager) { m.tuning = t }
-}
-
-func WithDialer(dial func(ctx context.Context, network, addr string) (net.Conn, error)) Option {
-	return func(m *Manager) { m.dial = dial }
 }
 
 func WithClock(now func() time.Time) Option {
@@ -155,6 +136,7 @@ func New(cfg Config, logger *zap.Logger, opts ...Option) *Manager {
 		now:        time.Now,
 		contexts:   map[string]*n32cContext{},
 		transports: map[string]*n32fTransport{},
+		rejected:   map[string]string{},
 	}
 
 	for _, o := range opts {
@@ -162,8 +144,6 @@ func New(cfg Config, logger *zap.Logger, opts ...Option) *Manager {
 	}
 
 	m.snap.Store(&snapshot{problem: "not reconciled yet", partners: map[string]*partner{}})
-	m.n32cLimit.init(time.Minute)
-	m.n32fLimit.init(time.Second)
 
 	return m
 }
@@ -213,6 +193,9 @@ func (m *Manager) shutdown() {
 }
 
 func (m *Manager) reconcile(ctx context.Context) {
+	m.reconcileMu.Lock()
+	defer m.reconcileMu.Unlock()
+
 	next, err := m.load(ctx)
 	if err != nil {
 		m.logger.Warn("SEPP reconcile failed", zap.Error(err))
@@ -259,19 +242,25 @@ func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	}
 
 	snap := &snapshot{partners: make(map[string]*partner, len(configs)), clusterSEPPIDs: m.loadCluster(ctx)}
+	rejected := map[string]string{}
 
 	for _, cfg := range configs {
-		p := newPartner(cfg)
+		p, err := newPartner(cfg)
+		if err != nil {
+			rejected[cfg.ID] = err.Error()
+
+			if m.rejected[cfg.ID] != err.Error() {
+				m.logger.Warn("Ignoring a roaming partner with an unusable SEPP configuration", zap.String("partner", cfg.Name), zap.Error(err))
+			}
+
+			continue
+		}
+
 		snap.partners[p.id] = p
-
-		if p.trust != nil {
-			snap.trusted = append(snap.trusted, p.trust)
-		}
-
-		if p.problem != "" {
-			m.logger.Warn("Roaming partner SEPP configuration is unusable", zap.String("partner", p.name), zap.String("reason", p.problem))
-		}
+		snap.trusted = append(snap.trusted, p.trust)
 	}
+
+	m.rejected = rejected
 
 	if !m.cfg.N32.Enabled {
 		snap.problem = "interfaces.n32 is not configured on this node"
@@ -297,7 +286,7 @@ func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	}
 
 	prev := m.snap.Load()
-	if prev != nil && prev.identity != nil && prev.op == op && prev.identity.key == identityKey(*idCfg) {
+	if prev != nil && prev.identity != nil && prev.op == op && prev.identity.cfg == *idCfg {
 		snap.identity = prev.identity
 		return snap, nil
 	}
@@ -345,7 +334,7 @@ func (m *Manager) renew(ctx context.Context, snap *snapshot) bool {
 
 	now := m.now()
 
-	if id.leaf.NotAfter.Sub(now) > m.tuning.RenewBefore || now.Sub(m.renewAttempt) < m.tuning.RenewRetry {
+	if id.leaf.NotAfter.Sub(now) > m.tuning.RenewBefore || now.Sub(m.renewAttempt) < renewRetry {
 		return false
 	}
 
@@ -373,7 +362,7 @@ func (m *Manager) checkExpiry(snap *snapshot) {
 	now := m.now()
 	notAfter := snap.identity.leaf.NotAfter
 
-	if notAfter.Sub(now) > m.tuning.ExpiryWarning || now.Sub(m.expiryLog) < 24*time.Hour {
+	if notAfter.Sub(now) > expiryWarning || now.Sub(m.expiryLog) < 24*time.Hour {
 		return
 	}
 
@@ -398,7 +387,6 @@ func (m *Manager) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certif
 func (m *Manager) localCertificate() (*tls.Certificate, error) {
 	snap := m.snap.Load()
 	if snap.identity == nil {
-		tlsFailures.WithLabelValues(TLSReasonNoLocalIdentity).Inc()
 		return nil, ErrNoIdentity
 	}
 

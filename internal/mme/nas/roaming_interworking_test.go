@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/roaming/fakehss"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -323,56 +322,5 @@ func TestEPSSNSSAIContainerOfAVisitorCarriesTheHomeSlice(t *testing.T) {
 
 	if got.MappedHPLMNSST == nil || *got.MappedHPLMNSST != 1 || got.MappedHPLMNSD == nil || *got.MappedHPLMNSD != [3]byte{0, 0, 1} {
 		t.Errorf("S-NSSAI = %+v, want the mapped HPLMN S-NSSAI", got)
-	}
-}
-
-func TestVisitorMovedTo5GSIsPurgedOnlyWithoutAHomeCancellation(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		ingress string
-		cancel  bool
-		purge   bool
-	}{
-		{name: "no cancellation", purge: true},
-		{name: "cancellation by the home HSS", cancel: true, ingress: roaming.DiameterPeerID(*roamerPartner().DiameterPeerID)},
-		{name: "cancellation through another peer", cancel: true, ingress: roaming.DiameterPeerID("other-partner-peer"), purge: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newRoamingMME(t)
-			f.m.SetCrossCancelWaitForTest(20 * time.Millisecond)
-			a := f.registeredRoamer(t)
-
-			var transferred []uint8
-			for _, p := range f.m.SnapshotPDNs(a.ue) {
-				transferred = append(transferred, p.PDUSessionID)
-			}
-
-			a.ue.BeginIdleMobilityTo5GS(time.Minute)
-
-			if err := f.m.MMContextAck(context.Background(), a.ue.Supi(), transferred); err != nil {
-				t.Fatal(err)
-			}
-
-			f.m.RemoveUe(context.Background(), a.ue)
-			f.m.SettleHPLMNForTest()
-
-			if tc.cancel {
-				req, err := f.hss.CancelLocationRequest(s6a.CancelLocationRequest{IMSI: roamerIMSI, Type: s6a.CancellationMMEUpdateProcedure})
-				f.answerFrom(t, tc.ingress, f.m.CancelLocation, req, err)
-			}
-
-			deadline := time.Now().Add(time.Second)
-			for len(s6aRequests(t, f.hss, s6a.CommandPurgeUE)) == 0 && time.Now().Before(deadline) {
-				time.Sleep(10 * time.Millisecond)
-				f.m.SettleHPLMNForTest()
-			}
-
-			time.Sleep(50 * time.Millisecond)
-			f.m.SettleHPLMNForTest()
-
-			if purged := len(s6aRequests(t, f.hss, s6a.CommandPurgeUE)) == 1; purged != tc.purge {
-				t.Fatalf("purged = %v, want %v", purged, tc.purge)
-			}
-		})
 	}
 }

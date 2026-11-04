@@ -111,7 +111,7 @@ func TestInboundChecks(t *testing.T) {
 			t.Errorf("%s: %d %s, want %d %s", name, got.status, got.body, tc.status, tc.cause)
 		}
 
-		if wantRetry := tc.status == http.StatusServiceUnavailable; (got.header.Get("Retry-After") == "2") != wantRetry {
+		if got.header.Get("Retry-After") != "" {
 			t.Errorf("%s: Retry-After = %q", name, got.header.Get("Retry-After"))
 		}
 
@@ -170,21 +170,5 @@ func TestInboundDispatchToCallbacks(t *testing.T) {
 	c = <-calls
 	if !c.ok || c.peer.Callback != (Callback{NF: CallbackSMF, SEPPID: 1, Supi: "imsi-001010000000001", Kind: CallbackUECMDereg}) || c.host != "smf1.5gc.mnc070.mcc999.3gppnetwork.org" {
 		t.Fatalf("SMF callback dispatch: %+v", c)
-	}
-}
-
-func TestInboundRateLimit(t *testing.T) {
-	tuning := fastTuning()
-	tuning.N32fRequestsPerSecond = 2
-
-	x, p := n32fFixture(t, tuning)
-
-	statuses := []int{}
-	for range 3 {
-		statuses = append(statuses, p.send(t, x, http.MethodPost, deregURI, target(ownAMF), nil).status)
-	}
-
-	if statuses[0] != 404 || statuses[1] != 404 || statuses[2] != http.StatusTooManyRequests {
-		t.Fatalf("statuses = %v", statuses)
 	}
 }

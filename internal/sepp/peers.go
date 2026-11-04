@@ -4,9 +4,8 @@
 package sepp
 
 import (
-	"crypto/sha256"
-	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -27,43 +26,37 @@ type PartnerConfig struct {
 }
 
 type partner struct {
-	id      string
-	name    string
-	fqdn    string
-	plmns   []wire.PlmnID
-	main    wire.PlmnID
-	n32c    APIRoot
-	n32f    APIRoot
-	nrfs    map[wire.PlmnID]APIRoot
-	trust   *trustedPartner
-	key     [sha256.Size]byte
-	problem string
+	cfg   PartnerConfig
+	id    string
+	name  string
+	fqdn  string
+	plmns []wire.PlmnID
+	main  wire.PlmnID
+	n32c  APIRoot
+	n32f  APIRoot
+	nrfs  map[wire.PlmnID]APIRoot
+	trust *trustedPartner
 }
 
-func (p *partner) usable() bool {
-	return p.problem == ""
+func (p *partner) sameN32(o *partner) bool {
+	a, b := p.cfg, o.cfg
+
+	return strings.EqualFold(a.FQDN, b.FQDN) && a.N32cURI == b.N32cURI && a.N32fURI == b.N32fURI && a.TrustAnchorPEM == b.TrustAnchorPEM &&
+		slices.Equal(a.PLMNs, b.PLMNs) && maps.Equal(a.NRFAPIRoots, b.NRFAPIRoots)
 }
 
-func newPartner(cfg PartnerConfig) *partner {
+func newPartner(cfg PartnerConfig) (*partner, error) {
 	p := &partner{
+		cfg:   cfg,
 		id:    cfg.ID,
 		name:  cfg.Name,
 		fqdn:  strings.ToLower(cfg.FQDN),
 		plmns: slices.Clone(cfg.PLMNs),
-		key:   partnerKey(cfg),
 	}
 
-	if err := p.build(cfg); err != nil {
-		p.problem = err.Error()
-	}
-
-	return p
-}
-
-func (p *partner) build(cfg PartnerConfig) error {
 	name, err := pki.ParseSEPPName(p.fqdn)
 	if err != nil {
-		return fmt.Errorf("SEPP FQDN: %w", err)
+		return nil, fmt.Errorf("SEPP FQDN: %w", err)
 	}
 
 	plmns := make([]pki.PLMN, 0, len(p.plmns))
@@ -79,18 +72,18 @@ func (p *partner) build(cfg PartnerConfig) error {
 	}
 
 	if !found {
-		return fmt.Errorf("SEPP FQDN %s names none of the partner's PLMN IDs", p.fqdn)
+		return nil, fmt.Errorf("SEPP FQDN %s names none of the partner's PLMN IDs", p.fqdn)
 	}
 
 	if p.n32c, err = ParseAPIRoot(cfg.N32cURI); err != nil || p.n32c.Scheme != "https" {
-		return fmt.Errorf("N32-c URI %q is not an https apiRoot", cfg.N32cURI)
+		return nil, fmt.Errorf("N32-c URI %q is not an https apiRoot", cfg.N32cURI)
 	}
 
 	p.n32f = p.n32c
 
 	if cfg.N32fURI != "" {
 		if p.n32f, err = ParseAPIRoot(cfg.N32fURI); err != nil || p.n32f.Scheme != "https" {
-			return fmt.Errorf("N32-f URI %q is not an https apiRoot", cfg.N32fURI)
+			return nil, fmt.Errorf("N32-f URI %q is not an https apiRoot", cfg.N32fURI)
 		}
 	}
 
@@ -98,19 +91,19 @@ func (p *partner) build(cfg PartnerConfig) error {
 
 	for plmn, raw := range cfg.NRFAPIRoots {
 		if !slices.Contains(p.plmns, plmn) {
-			return fmt.Errorf("NRF apiRoot %q is for PLMN %s, which is not a PLMN of the partner", raw, plmn)
+			return nil, fmt.Errorf("NRF apiRoot %q is for PLMN %s, which is not a PLMN of the partner", raw, plmn)
 		}
 
 		if p.nrfs[plmn], err = ParseAPIRoot(raw); err != nil {
-			return fmt.Errorf("NRF apiRoot %q of PLMN %s: %w", raw, plmn, err)
+			return nil, fmt.Errorf("NRF apiRoot %q of PLMN %s: %w", raw, plmn, err)
 		}
 	}
 
 	if p.trust, err = newTrustedPartner(p.id, p.fqdn, plmns, cfg.TrustAnchorPEM); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return p, nil
 }
 
 func (p *partner) hplmnNRF(home wire.PlmnID) (APIRoot, error) {
@@ -130,10 +123,6 @@ func (m *Manager) HPLMNNRF(partnerID string, home wire.PlmnID) (string, error) {
 	_, p, err := m.partner(partnerID)
 	if err != nil {
 		return "", err
-	}
-
-	if !p.usable() {
-		return "", errors.New(p.problem)
 	}
 
 	root, err := p.hplmnNRF(home)
@@ -209,33 +198,4 @@ func (p *partner) allowsTarget(target *url.URL) error {
 	}
 
 	return fmt.Errorf("%w: %s is outside the network of partner %s", ErrTargetNotAllowed, host, p.name)
-}
-
-func partnerKey(cfg PartnerConfig) [sha256.Size]byte {
-	h := sha256.New()
-
-	for _, plmn := range cfg.PLMNs {
-		h.Write([]byte(plmn.String() + "\x00"))
-	}
-
-	for _, v := range []string{strings.ToLower(cfg.FQDN), cfg.N32cURI, cfg.N32fURI, cfg.TrustAnchorPEM} {
-		h.Write([]byte(v + "\x00"))
-	}
-
-	nrfs := make([]string, 0, len(cfg.NRFAPIRoots))
-	for plmn, root := range cfg.NRFAPIRoots {
-		nrfs = append(nrfs, plmn.String()+"="+root)
-	}
-
-	slices.Sort(nrfs)
-
-	for _, v := range nrfs {
-		h.Write([]byte(v + "\x00"))
-	}
-
-	var out [sha256.Size]byte
-
-	copy(out[:], h.Sum(nil))
-
-	return out
 }

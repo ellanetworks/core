@@ -260,3 +260,15 @@ func ClearSubscriberUsage(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(r.Context(), "clear_subscriber_usage", email, getClientIP(r), "User cleared all subscriber usage")
 	})
 }
+
+func parseRoamingFilter(value string) (*bool, bool) {
+	switch value {
+	case "":
+		return nil, true
+	case "true", "false":
+		roaming := value == "true"
+		return &roaming, true
+	default:
+		return nil, false
+	}
+}

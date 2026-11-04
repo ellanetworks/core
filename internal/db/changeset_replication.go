@@ -79,7 +79,6 @@ var replicatedChangesetTables = []string{
 	IMSServiceProfileAssignmentsTableName,
 	RoamingPartnersTableName,
 	RoamingPartnerPLMNsTableName,
-	RoamingWithdrawalsTableName,
 	VisitorsTableName,
 	SEPPCATableName,
 	SEPPIdentitiesTableName,

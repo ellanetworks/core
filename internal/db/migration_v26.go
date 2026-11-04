@@ -32,6 +32,7 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 			seppN32fURI        TEXT CHECK (seppN32fURI != ''),
 			seppTrustAnchorPEM TEXT CHECK (seppTrustAnchorPEM != ''),
 			diameterPeerID     TEXT REFERENCES %s(id) ON DELETE RESTRICT,
+			withdrawingUntil   INTEGER NOT NULL DEFAULT 0,
 			CHECK ((seppFQDN IS NULL) = (seppN32cURI IS NULL) AND (seppFQDN IS NULL) = (seppTrustAnchorPEM IS NULL)),
 			CHECK (seppFQDN IS NOT NULL OR seppN32fURI IS NULL)
 		)`, RoamingPartnersTableName, ProfilesTableName, DiameterPeersTableName),
@@ -45,25 +46,15 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		)`, RoamingPartnerPLMNsTableName, RoamingPartnersTableName),
 		fmt.Sprintf("CREATE INDEX idx_roaming_partner_plmns_partner ON %s(partnerID)", RoamingPartnerPLMNsTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
-			partnerID TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
-			mcc       TEXT    NOT NULL DEFAULT '' CHECK (mcc = '' OR mcc GLOB '[0-9][0-9][0-9]'),
-			mnc       TEXT    NOT NULL DEFAULT '' CHECK (mnc = '' OR mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
-			type      TEXT    NOT NULL DEFAULT '' CHECK (type IN ('', '%s', '%s')),
-			imsi      TEXT    NOT NULL DEFAULT '' CHECK (imsi = '' OR (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*')),
-			expiresAt INTEGER NOT NULL,
-			PRIMARY KEY (partnerID, mcc, mnc, type, imsi),
-			CHECK ((mcc = '') = (mnc = '')),
-			CHECK (imsi = '' OR (mcc = '' AND type = ''))
-		)`, RoamingWithdrawalsTableName, RoamingPartnersTableName, UERegistrationTypeMME, UERegistrationTypeAMF3GPPAccess),
-		fmt.Sprintf(`CREATE TABLE %s (
-			imsi      TEXT    PRIMARY KEY CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
-			partnerID TEXT    NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
-			msisdn    TEXT    NOT NULL DEFAULT '' CHECK (msisdn = '' OR (length(msisdn) BETWEEN 1 AND 15 AND msisdn NOT GLOB '*[^0-9]*')),
-			since     INTEGER NOT NULL
+			imsi            TEXT    PRIMARY KEY CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi NOT GLOB '*[^0-9]*'),
+			partnerID       TEXT    NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
+			msisdn          TEXT    NOT NULL DEFAULT '' CHECK (msisdn = '' OR (length(msisdn) BETWEEN 1 AND 15 AND msisdn NOT GLOB '*[^0-9]*')),
+			since           INTEGER NOT NULL,
+			deregisterUntil INTEGER NOT NULL DEFAULT 0
 		)`, VisitorsTableName, RoamingPartnersTableName),
 		fmt.Sprintf("CREATE INDEX idx_visitors_partner ON %s(partnerID)", VisitorsTableName),
 		fmt.Sprintf(`CREATE TABLE %s_new (
-			imsi    TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
+			imsi    TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi NOT GLOB '*[^0-9]*'),
 			type    TEXT    NOT NULL,
 			nodeID  TEXT    NOT NULL,
 			purged  INTEGER NOT NULL DEFAULT 0,
@@ -79,7 +70,7 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 			id         TEXT    PRIMARY KEY,
 			poolID     TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			addressBin BLOB    NOT NULL,
-			imsi       TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
+			imsi       TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi NOT GLOB '*[^0-9]*'),
 			sessionID  INTEGER,
 			type       TEXT    NOT NULL DEFAULT 'dynamic',
 			createdAt  INTEGER NOT NULL,
@@ -121,7 +112,7 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("CREATE INDEX idx_flow_reports_destination_ip ON %s (destination_ip)", FlowReportsTableName),
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			epochDay      INTEGER NOT NULL,
-			imsi          TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
+			imsi          TEXT    NOT NULL CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi NOT GLOB '*[^0-9]*'),
 			mcc           TEXT    CHECK (mcc GLOB '[0-9][0-9][0-9]'),
 			mnc           TEXT    CHECK (mnc GLOB '[0-9][0-9]' OR mnc GLOB '[0-9][0-9][0-9]'),
 			bytesUplink   INTEGER NOT NULL DEFAULT 0 CHECK (bytesUplink >= 0),

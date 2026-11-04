@@ -103,7 +103,7 @@ func (s *SMF) transferTo5GS(
 
 func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, target *HPLMNTarget) (ref string, n2 []byte, flowEBIs []uint8, err error) {
 	defer func() {
-		recordSessionEstablishment(ctx, metrics.RAT5G, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
+		recordSessionEstablishment(ctx, metrics.RAT5G, target != nil, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()
 
 	ctx, span := tracer.Start(ctx, "smf/prepare_sm_context_from_eps",

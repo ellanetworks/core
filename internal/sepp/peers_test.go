@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -34,24 +35,14 @@ func (p *n32fPeer) exchange(t *testing.T, x *node, req SecNegotiateReqData) (int
 	return got.status, rsp
 }
 
-func teardownReq(sender string) SecNegotiateReqData {
-	return SecNegotiateReqData{Sender: sender, SupportedSecCapabilityList: []SecurityCapability{SecurityNone}}
-}
-
 func (p *n32fPeer) callback(t *testing.T, x *node) inboundResult {
 	t.Helper()
 
 	return p.send(t, x, http.MethodPost, deregURI, target(ownAMF), []byte(`{}`))
 }
 
-func otherPeer(st ContextStatus, fqdn string) (PeerContext, bool) {
-	for _, pc := range st.OtherPeers {
-		if pc.Peer == fqdn {
-			return pc, true
-		}
-	}
-
-	return PeerContext{}, false
+func otherPeer(st ContextStatus, fqdn string) bool {
+	return slices.ContainsFunc(st.OtherPeers, func(pc PeerContext) bool { return pc.Peer == fqdn })
 }
 
 func TestOtherSEPPsOfThePartner(t *testing.T) {
@@ -77,8 +68,7 @@ func TestOtherSEPPsOfThePartner(t *testing.T) {
 
 	st := x.state("p")
 
-	pc, ok := otherPeer(st, sepp3.fqdn)
-	if !ok || !pc.NFTLST || pc.Since.IsZero() {
+	if !otherPeer(st, sepp3.fqdn) {
 		t.Fatalf("other peers = %+v", st.OtherPeers)
 	}
 
@@ -102,24 +92,12 @@ func TestOtherSEPPsOfThePartner(t *testing.T) {
 		t.Fatalf("a repeated handshake: %d", status)
 	}
 
-	if again, ok := otherPeer(x.state("p"), sepp3.fqdn); !ok || again.Since.Before(pc.Since) {
-		t.Fatalf("replaced context = %+v", again)
+	if st := x.state("p"); !otherPeer(st, sepp3.fqdn) || len(st.OtherPeers) != 1 {
+		t.Fatalf("replaced context = %+v", st)
 	}
 
-	if status, rsp := sepp3.exchange(t, x, teardownReq(sepp3.fqdn)); status != http.StatusOK || rsp.SelectedSecCapability != SecurityNone {
-		t.Fatalf("teardown from the other SEPP: %d %+v", status, rsp)
-	}
-
-	if st := x.state("p"); len(st.OtherPeers) != 0 || st.State != StateEstablished || !st.Since.Equal(primary.Since) {
-		t.Fatalf("after the other SEPP's teardown: %+v", st)
-	}
-
-	if got := sepp3.callback(t, x); got.status != http.StatusForbidden {
-		t.Fatalf("N32-f from the other SEPP after its teardown: %d %s", got.status, got.body)
-	}
-
-	if status, _ := sepp3.exchange(t, x, baseReq(sepp3.fqdn)); status != http.StatusOK {
-		t.Fatalf("handshake again: %d", status)
+	if status, rsp := sepp3.exchange(t, x, SecNegotiateReqData{Sender: sepp3.fqdn, SupportedSecCapabilityList: []SecurityCapability{SecurityNone}}); status != http.StatusForbidden {
+		t.Fatalf("NONE from the other SEPP: %d %+v", status, rsp)
 	}
 
 	cfg := p.partnerConfig()
@@ -171,14 +149,6 @@ func TestRedirectedSEPPIsAcceptedInbound(t *testing.T) {
 	if r, _ := p2.last(); r.URL.Path != "/nudm-sdm/v2/imsi-001010000000001" {
 		t.Fatalf("N32-f went to %s", r.URL.Path)
 	}
-
-	if status, _ := p2.exchange(t, x, teardownReq(p2.fqdn)); status != http.StatusOK {
-		t.Fatalf("teardown from the redirect target: %d", status)
-	}
-
-	if st := x.state("p"); st.State != StateTerminated && st.State != StateEstablishing && st.State != StateEstablished {
-		t.Fatalf("after the redirect target's teardown: %+v", st)
-	}
 }
 
 func TestHPLMNNRFIsPerPLMN(t *testing.T) {
@@ -188,9 +158,9 @@ func TestHPLMNNRFIsPerPLMN(t *testing.T) {
 		NRFAPIRoots: map[wire.PlmnID]string{other: "http://nrf.example.org:8080"},
 	}
 
-	p := newPartner(cfg)
-	if !p.usable() {
-		t.Fatalf("partner unusable: %s", p.problem)
+	p, err := newPartner(cfg)
+	if err != nil {
+		t.Fatalf("partner unusable: %s", err)
 	}
 
 	for home, want := range map[wire.PlmnID]string{yPLMN: "https://nrf.5gc.mnc001.mcc001.3gppnetwork.org", other: "http://nrf.example.org:8080"} {
@@ -208,11 +178,12 @@ func TestHPLMNNRFIsPerPLMN(t *testing.T) {
 	}
 
 	cfg.NRFAPIRoots = map[wire.PlmnID]string{{Mcc: "999", Mnc: "99"}: "http://nrf.example.org"}
-	if newPartner(cfg).usable() {
+	if _, err := newPartner(cfg); err == nil {
 		t.Error("NRF apiRoot of a PLMN not of the partner accepted")
 	}
 
-	if partnerKey(cfg) == p.key {
-		t.Error("partner key ignores the NRF apiRoots")
+	cfg.NRFAPIRoots = map[wire.PlmnID]string{other: "http://nrf2.example.org:8080"}
+	if changed, err := newPartner(cfg); err != nil || p.sameN32(changed) {
+		t.Errorf("a changed NRF apiRoot is the same N32 configuration: %v", err)
 	}
 }

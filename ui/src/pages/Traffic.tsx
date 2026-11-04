@@ -60,10 +60,8 @@ import {
   type FlowAccountingInfo,
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  listAllSubscriberImsis,
-  listRoamerPartners,
-} from "@/queries/subscribers";
+import { listAllSubscriberImsis } from "@/queries/subscribers";
+import { listRoamerPartners } from "@/queries/roamers";
 import { formatPLMN } from "@/queries/roaming";
 import RoamingFilterField, {
   roamingParam,
@@ -163,7 +161,7 @@ const RoamerSubscriber: React.FC<{
   >
     {linked ? (
       <Link
-        to={`/subscribers/${imsi}`}
+        to={`/subscribers/roamers/${imsi}`}
         style={{ textDecoration: "none" }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >

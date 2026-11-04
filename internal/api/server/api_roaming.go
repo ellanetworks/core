@@ -13,11 +13,13 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const (
@@ -353,8 +355,7 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		existing, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id"))
-		if err != nil {
+		if _, err := dbInstance.GetRoamingPartner(r.Context(), r.PathValue("id")); err != nil {
 			writeRoamingError(w, r, "roaming partner", "update", err)
 			return
 		}
@@ -365,9 +366,7 @@ func UpdateRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := applyWithdrawingRoamers(r.Context(), dbInstance, *existing, &partner, func(ctx context.Context) error {
-			return dbInstance.UpdateRoamingPartner(ctx, &partner)
-		}); err != nil {
+		if err := dbInstance.UpdateRoamingPartner(r.Context(), &partner); err != nil {
 			writeRoamingError(w, r, "roaming partner", "update", err)
 			return
 		}
@@ -389,9 +388,7 @@ func DeleteRoamingPartner(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := applyWithdrawingRoamers(r.Context(), dbInstance, *partner, nil, func(ctx context.Context) error {
-			return dbInstance.DeleteRoamingPartner(ctx, id)
-		}); err != nil {
+		if err := deleteRoamingPartner(r.Context(), dbInstance, *partner); err != nil {
 			writeRoamingError(w, r, "roaming partner", "delete", err)
 			return
 		}
@@ -400,6 +397,38 @@ func DeleteRoamingPartner(dbInstance *db.Database) http.Handler {
 
 		logger.LogAuditEvent(r.Context(), DeleteRoamingPartnerAction, email, getClientIP(r), "Deleted roaming partner "+id+" ("+partner.Name+", PLMNs "+roamingPLMNList(*partner)+")")
 	})
+}
+
+func deleteRoamingPartner(ctx context.Context, dbInstance *db.Database, partner db.RoamingPartner) error {
+	err := dbInstance.DeleteRoamingPartner(ctx, partner.ID)
+	if !errors.Is(err, db.ErrRoamersAttached) {
+		return err
+	}
+
+	mark := func(ctx context.Context, until time.Time) error {
+		return dbInstance.SetRoamingPartnerWithdrawing(ctx, partner.ID, until)
+	}
+
+	logger.APILog.Info("deregistering the roamers of a roaming partner before deleting it", zap.String("roaming_partner", partner.Name))
+
+	err = withdrawRoamers(ctx, mark, func(ctx context.Context) (int, error) {
+		return dbInstance.CountVisitorsOfPartner(ctx, partner.ID)
+	})
+	if err == nil {
+		err = dbInstance.DeleteRoamingPartner(ctx, partner.ID)
+	}
+
+	if err == nil {
+		return nil
+	}
+
+	clearWithdrawal(ctx, mark, partner.Name)
+
+	if errors.Is(err, errRoamersStillRegistered) {
+		return fmt.Errorf("%w: roamers are still registered after one minute (a node that holds them may be unreachable); retry later", db.ErrRoamersAttached)
+	}
+
+	return err
 }
 
 func roamingDiameterPeerResponse(p db.RoamingDiameterPeer) RoamingDiameterPeer {

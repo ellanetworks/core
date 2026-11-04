@@ -38,6 +38,8 @@ func (p arrivingPartners) ListRoamingPartners(context.Context) ([]db.RoamingPart
 
 func (arrivingPartners) CountSubscribersAndVisitors(context.Context) (int, error) { return 1, nil }
 
+func (arrivingPartners) SetVisitorMSISDN(context.Context, string, string) error { return nil }
+
 func bothAgreements() []db.RoamingPartner {
 	sepp, peer := "sepp.5gc.mnc070.mcc999.3gppnetwork.org", "dea"
 

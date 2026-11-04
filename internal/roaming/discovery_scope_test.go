@@ -5,37 +5,35 @@ package roaming
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/roaming/wire"
 )
 
-const groupedUDMs = `{
-  "validityPeriod": 60,
-  "nfInstances": [
-    {"nfInstanceId": "00000000-0000-0000-0000-0000000000a1", "nfType": "UDM", "nfStatus": "REGISTERED", "fqdn": "udm-a.5gc.mnc001.mcc001.3gppnetwork.org",
-     "udmInfo": {"groupId": "a", "supiRanges": [{"start": "001010000000000", "end": "001010000000499"}]},
-     "nfServices": [{"serviceInstanceId": "u", "serviceName": "nudm-uecm", "versions": [{"apiVersionInUri": "v1", "apiFullVersion": "1.0.0"}], "scheme": "http", "nfServiceStatus": "REGISTERED"}]},
-    {"nfInstanceId": "00000000-0000-0000-0000-0000000000b1", "nfType": "UDM", "nfStatus": "REGISTERED", "fqdn": "udm-b.5gc.mnc001.mcc001.3gppnetwork.org",
-     "udmInfo": {"groupId": "b", "supiRanges": [{"start": "001010000000500", "end": "001010000000999"}]},
-     "nfServices": [{"serviceInstanceId": "u", "serviceName": "nudm-uecm", "versions": [{"apiVersionInUri": "v1", "apiFullVersion": "1.0.0"}], "scheme": "http", "nfServiceStatus": "REGISTERED"}]}
-  ]
-}`
+const udmProfile = `{"nfInstanceId": "00000000-0000-0000-0000-0000000000%s1", "nfType": "UDM", "nfStatus": "REGISTERED", "fqdn": "udm-%s.5gc.mnc001.mcc001.3gppnetwork.org",
+  "udmInfo": {"groupId": "%s"},
+  "nfServices": [{"serviceInstanceId": "u", "serviceName": "nudm-uecm", "versions": [{"apiVersionInUri": "v1", "apiFullVersion": "1.0.0"}], "scheme": "http", "nfServiceStatus": "REGISTERED"}]}`
 
 func udmRequest(supi string) DiscoveryRequest {
 	return DiscoveryRequest{PartnerID: "p", HomePLMN: home, ServingPLMN: serving, Target: wire.NFTypeUDM, Requester: wire.NFTypeAMF, Service: wire.ServiceNudmUECM, RoutingIndicator: "0001", Supi: supi}
 }
 
-func TestDiscoveryFiltersAndCachesBySupiRange(t *testing.T) {
-	f := &fakeN32{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(groupedUDMs))
+func TestDiscoveryTrustsTheNRFFilteringAndCachesPerQuery(t *testing.T) {
+	f := &fakeN32{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		group := "a"
+		if r.URL.Query().Get("supi") == "imsi-001010000000600" || r.URL.Query().Get("group-id-list") == "b" {
+			group = "b"
+		}
+
+		_, _ = fmt.Fprintf(w, `{"validityPeriod": 60, "nfInstances": [`+udmProfile+`]}`, group, group, group)
 	})}
 
 	d := NewDiscovery(f)
 
 	c, err := d.Discover(context.Background(), udmRequest("imsi-001010000000600"))
-	if err != nil || c.Scope.GroupID != "b" {
+	if err != nil || c.GroupID != "b" {
 		t.Fatalf("candidate %+v, %v", c, err)
 	}
 
@@ -44,46 +42,26 @@ func TestDiscoveryFiltersAndCachesBySupiRange(t *testing.T) {
 	}
 
 	c, err = d.Discover(context.Background(), udmRequest("imsi-001010000000007"))
-	if err != nil || c.Scope.GroupID != "a" || f.calls.Load() != 1 {
-		t.Fatalf("another range: %+v, %v, %d calls", c, err, f.calls.Load())
+	if err != nil || c.GroupID != "a" || f.calls.Load() != 2 {
+		t.Fatalf("another SUPI: %+v, %v, %d calls", c, err, f.calls.Load())
 	}
 
 	pinned := udmRequest("imsi-001010000000600")
 	pinned.Pinned = "00000000-0000-0000-0000-0000000000b1"
 
-	if c, err = d.Discover(context.Background(), pinned); err != nil || c.NfInstanceID != pinned.Pinned || f.calls.Load() != 1 {
+	if c, err = d.Discover(context.Background(), pinned); err != nil || c.NfInstanceID != pinned.Pinned || f.calls.Load() != 2 {
 		t.Fatalf("pinned: %+v, %v, %d calls", c, err, f.calls.Load())
 	}
 
-	if _, err := d.Discover(context.Background(), udmRequest("imsi-001010000001000")); err == nil {
-		t.Fatal("a SUPI outside every range found a UDM")
-	}
-}
+	grouped := udmRequest("imsi-001010000000600")
+	grouped.GroupID = "b"
 
-func TestDiscoveryUsesTheGroupLearnt(t *testing.T) {
-	body := `{"validityPeriod": 60, "nfInstances": [{"nfInstanceId": "00000000-0000-0000-0000-0000000000c1", "nfType": "UDM", "nfStatus": "REGISTERED", "fqdn": "udm-c.5gc.mnc001.mcc001.3gppnetwork.org",
-	  "udmInfo": {"groupId": "c"},
-	  "nfServices": [{"serviceInstanceId": "u", "serviceName": "nudm-uecm", "versions": [{"apiVersionInUri": "v1", "apiFullVersion": "1.0.0"}], "scheme": "http", "nfServiceStatus": "REGISTERED"}]}]}`
-
-	f := &fakeN32{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(body))
-	})}
-
-	d := NewDiscovery(f)
-
-	if _, err := d.Discover(context.Background(), udmRequest("imsi-001010000000001")); err != nil {
-		t.Fatal(err)
+	if _, err := d.Discover(context.Background(), grouped); err != nil || f.calls.Load() != 3 {
+		t.Fatalf("grouped: %v, %d calls", err, f.calls.Load())
 	}
 
-	if _, err := d.Discover(context.Background(), udmRequest("imsi-001010000000002")); err != nil || f.calls.Load() != 2 {
-		t.Fatalf("a group without ranges proves nothing about another SUPI: %v, %d calls", err, f.calls.Load())
-	}
-
-	grouped := udmRequest("imsi-001010000000003")
-	grouped.GroupID = "c"
-
-	if _, err := d.Discover(context.Background(), grouped); err != nil || f.calls.Load() != 2 {
-		t.Fatalf("the learnt group was not reused: %v, %d calls", err, f.calls.Load())
+	if got := f.last.Load().URL.Query().Get("group-id-list"); got != "b" {
+		t.Fatalf("discovery without the group: %q", got)
 	}
 }
 

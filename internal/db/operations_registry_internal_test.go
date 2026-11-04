@@ -110,19 +110,14 @@ var pinnedChangesetOps = map[string]int{
 	"UpdateRoamingDiameterPeer":         26,
 	"DeleteRoamingDiameterPeer":         26,
 	"PutSEPPIdentity":                   26,
-	"InsertSEPPIdentityIfAbsent":        26,
 	"InitSEPPCA":                        26,
 	"ReplaceSEPPCA":                     26,
 	"RegisterVisitorUE":                 26,
-	"DeleteVisitorIfUnregistered":       26,
-	"WithdrawRoamers":                   26,
-	"ClearRoamingWithdrawals":           26,
-	"WithdrawRoamer":                    26,
-	"ClearRoamerWithdrawal":             26,
-	"DeleteUnregisteredVisitors":        26,
 	"SetVisitorMSISDN":                  26,
-	"RenewGeneratedSEPPIdentity":        26,
-	"DeleteExpiredRoamingWithdrawals":   26,
+	"SetRoamingPartnerWithdrawing":      26,
+	"SetVisitorDeregistering":           26,
+	"PutGeneratedSEPPIdentity":          26,
+	"DeleteSEPPIdentity":                26,
 }
 
 var pinnedIntentOps = map[string]int{

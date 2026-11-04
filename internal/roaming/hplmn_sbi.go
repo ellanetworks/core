@@ -42,11 +42,11 @@ type HPLMNSBI struct {
 	n32       N32
 	discovery *Discovery
 	timeout   time.Duration
-	auth      *hplmnAuthorization
+	tokens    *tokenCache
 }
 
 func NewHPLMNSBI(n32 N32, discovery *Discovery) *HPLMNSBI {
-	return &HPLMNSBI{n32: n32, discovery: discovery, timeout: hplmnRequestTimeout, auth: newHPLMNAuthorization()}
+	return &HPLMNSBI{n32: n32, discovery: discovery, timeout: hplmnRequestTimeout, tokens: newTokenCache()}
 }
 
 type HPLMNRequest struct {
@@ -55,6 +55,9 @@ type HPLMNRequest struct {
 	Body        wire.Checker
 	ContentType string
 	Requester   wire.NFType
+	Producer    wire.NFType
+	Service     wire.ServiceName
+	OAuth2      bool
 	Accept      []int
 }
 
@@ -62,7 +65,6 @@ type HPLMNAnswer struct {
 	Status   int
 	Location string
 	Body     []byte
-	Bearer   bool
 }
 
 func (h *HPLMNSBI) APIRoot(ctx context.Context, t HPLMNTarget, target, requester wire.NFType, service wire.ServiceName) (wire.Candidate, error) {
@@ -87,40 +89,60 @@ func (h *HPLMNSBI) APIRoot(ctx context.Context, t HPLMNTarget, target, requester
 		return wire.Candidate{}, hplmnTransportError(fmt.Errorf("discover the home %s: %w", target, err))
 	}
 
-	h.auth.remember(c, t, requester)
-
 	return c, nil
 }
 
 func (h *HPLMNSBI) Forget(partnerID, nfInstanceID string) {
-	h.discovery.Drop(partnerID, nfInstanceID)
+	h.discovery.Forget(partnerID, nfInstanceID)
 }
 
-func (h *HPLMNSBI) Do(ctx context.Context, partnerID string, req HPLMNRequest) (HPLMNAnswer, error) {
+func (h *HPLMNSBI) WaitEstablished(ctx context.Context, partnerID string, timeout time.Duration) error {
+	return h.n32.WaitEstablished(ctx, partnerID, timeout)
+}
+
+func (h *HPLMNSBI) Do(ctx context.Context, t HPLMNTarget, req HPLMNRequest) (HPLMNAnswer, error) {
 	ctx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
 
+	key := tokenKey{partnerID: t.PartnerID, home: t.PLMN, serving: t.Serving, requester: req.Requester, producer: req.Producer, service: req.Service}
+	scoped := req.Producer != "" && req.Service != ""
+
+	token := ""
+
+	if scoped {
+		cached, ok := h.tokens.get(key)
+
+		switch {
+		case ok:
+			token = cached
+		case req.OAuth2:
+			fetched, err := h.fetchToken(ctx, key)
+			if err != nil {
+				return HPLMNAnswer{}, err
+			}
+
+			token = fetched
+		}
+	}
+
 	target := req.URL
-	redirected, retried, refresh := false, false, false
+	redirected, retried := false, false
 
 	for {
-		token, err := h.authorize(ctx, partnerID, target, req.Requester, refresh)
+		answer, err := h.send(ctx, t.PartnerID, target, token, req)
 		if err != nil {
 			return HPLMNAnswer{}, err
 		}
 
-		refresh = false
+		if answer.Status == http.StatusUnauthorized && scoped && !retried {
+			retried = true
 
-		answer, err := h.send(ctx, partnerID, target, token, req)
+			h.tokens.drop(key)
 
-		h.record(partnerID, target, answer.Status, err)
-
-		if err != nil {
-			return HPLMNAnswer{}, err
-		}
-
-		if answer.Status == http.StatusUnauthorized && answer.Bearer && !retried && h.auth.known(target) {
-			retried, refresh = true, true
+			token, err = h.fetchToken(ctx, key)
+			if err != nil {
+				return HPLMNAnswer{}, err
+			}
 
 			continue
 		}
@@ -192,9 +214,7 @@ func (h *HPLMNSBI) send(ctx context.Context, partnerID, target, token string, re
 		return HPLMNAnswer{}, hplmnTransportError(fmt.Errorf("read the answer: %w", err))
 	}
 
-	_, bearer := wire.BearerChallenge(resp.Header.Values("WWW-Authenticate"))
-
-	return HPLMNAnswer{Status: resp.StatusCode, Location: resp.Header.Get("Location"), Body: data, Bearer: bearer}, nil
+	return HPLMNAnswer{Status: resp.StatusCode, Location: resp.Header.Get("Location"), Body: data}, nil
 }
 
 func hplmnTransportError(err error) error {

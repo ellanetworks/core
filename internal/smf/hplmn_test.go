@@ -250,44 +250,54 @@ func TestHPLMNRefusalIsTheEstablishmentRejectCause(t *testing.T) {
 }
 
 func TestHPLMNPDUSessionTypesNarrowTheSession(t *testing.T) {
-	home := &fakeHPLMNClient{rules: smf.HPLMNRules{HPLMNSnssai: testSnssai, PDUSessionTypes: []fgs.PDUSessionType{fgs.PDUSessionTypeIPv4}}}
-	f := hplmnSMF(home)
-	s, pcf, store, amfCb := f.s, f.pcf, f.store, f.amf
-	store.allocatedIPv6 = netip.MustParseAddr("2001:db8::")
-	pcf.policy.IPv6Pool = "2001:db8::/48"
+	for name, tc := range map[string]struct {
+		allowed []fgs.PDUSessionType
+		cause   *fgs.GSMCause
+	}{
+		"IPv4 only":           {[]fgs.PDUSessionType{fgs.PDUSessionTypeIPv4}, new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)},
+		"IPv4 or IPv6 single": {[]fgs.PDUSessionType{fgs.PDUSessionTypeIPv4, fgs.PDUSessionTypeIPv6}, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := &fakeHPLMNClient{rules: smf.HPLMNRules{HPLMNSnssai: testSnssai, PDUSessionTypes: tc.allowed}}
+			f := hplmnSMF(home)
+			s, pcf, store, amfCb := f.s, f.pcf, f.store, f.amf
+			store.allocatedIPv6 = netip.MustParseAddr("2001:db8::")
+			pcf.policy.IPv6Pool = "2001:db8::/48"
 
-	dual := fgs.PDUSessionTypeIPv4v6
-	req := &fgs.PDUSessionEstablishmentRequest{PDUSessionID: 1, PTI: 10, IntegrityProtMaxDataRate: [2]byte{0xff, 0xff}, PDUSessionType: &dual}
+			dual := fgs.PDUSessionTypeIPv4v6
+			req := &fgs.PDUSessionEstablishmentRequest{PDUSessionID: 1, PTI: 10, IntegrityProtMaxDataRate: [2]byte{0xff, 0xff}, PDUSessionType: &dual}
 
-	n1, err := req.MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
+			n1, err := req.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1, 0, testTarget())
-	if err != nil || rsp != nil {
-		t.Fatalf("CreateSmContext = %v, %d-byte reject", err, len(rsp))
-	}
+			ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1, 0, testTarget())
+			if err != nil || rsp != nil {
+				t.Fatalf("CreateSmContext = %v, %d-byte reject", err, len(rsp))
+			}
 
-	if got := s.GetSession(ref).PDUSessionType; got != uint8(fgs.PDUSessionTypeIPv4) {
-		t.Fatalf("PDU session type = %d, want IPv4 only (home allows IPV4)", got)
-	}
+			if got := s.GetSession(ref).PDUSessionType; got != uint8(fgs.PDUSessionTypeIPv4) {
+				t.Fatalf("PDU session type = %d, want IPv4", got)
+			}
 
-	amfCb.mu.Lock()
-	n1Accept := amfCb.n1n2Calls[0].n1Msg
-	amfCb.mu.Unlock()
+			amfCb.mu.Lock()
+			n1Accept := amfCb.n1n2Calls[0].n1Msg
+			amfCb.mu.Unlock()
 
-	acc, err := fgs.ParsePDUSessionEstablishmentAccept(n1Accept)
-	if err != nil {
-		t.Fatal(err)
-	}
+			acc, err := fgs.ParsePDUSessionEstablishmentAccept(n1Accept)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	if acc.Cause == nil || *acc.Cause != fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed {
-		t.Fatalf("accept cause = %v, want #50", acc.Cause)
-	}
+			if (acc.Cause == nil) != (tc.cause == nil) || acc.Cause != nil && *acc.Cause != *tc.cause {
+				t.Fatalf("accept cause = %v, want %v", acc.Cause, tc.cause)
+			}
 
-	if s.GetSession(ref).PolicyData.IPv6Pool == "" {
-		t.Fatal("the session policy lost its IPv6 pool, so a reconcile would see a pool change")
+			if s.GetSession(ref).PolicyData.IPv6Pool == "" {
+				t.Fatal("the session policy lost its IPv6 pool, so a reconcile would see a pool change")
+			}
+		})
 	}
 }
 

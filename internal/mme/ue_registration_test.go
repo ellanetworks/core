@@ -66,7 +66,7 @@ func (f *fakeRegistrar) Purge(imsi string) {
 	f.purged = append(f.purged, imsi)
 }
 
-func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal)) {
+func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, _ bool, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal)) {
 	f.mu.Lock()
 	f.held[imsi] = held()
 	supersede := f.superseded[imsi]

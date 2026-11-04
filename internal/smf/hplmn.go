@@ -76,20 +76,7 @@ type hplmnBinding struct {
 	session HPLMNSubscription
 }
 
-func WithHPLMNClient(h HPLMNClient) Option { return func(s *SMF) { s.SetHPLMNClient(h) } }
-
-func (s *SMF) SetHPLMNClient(h HPLMNClient) {
-	if h == nil {
-		s.hplmn.Store(nil)
-		return
-	}
-
-	s.hplmn.Store(&hplmnClient{h})
-}
-
-type hplmnClient struct {
-	HPLMNClient
-}
+func WithHPLMNClient(h HPLMNClient) Option { return func(s *SMF) { s.hplmn = h } }
 
 type hplmnRefusal struct {
 	cause fgs.GSMCause
@@ -112,12 +99,11 @@ func (s *SMF) openHPLMNSubscription(ctx context.Context, supi etsi.SUPI, pduSess
 		return nil, &hplmnRefusal{cause: fgs.GSMCauseRequestedServiceOptionNotSubscribed, err: ErrHomeRoutedSession}
 	}
 
-	h := s.hplmn.Load()
-	if h == nil {
+	if s.hplmn == nil {
 		return nil, &hplmnRefusal{cause: fgs.GSMCauseNetworkFailure, err: ErrNoHPLMNClient}
 	}
 
-	return h.OpenSubscription(ctx, HPLMNSubscriptionRequest{Supi: supi, PDUSessionID: pduSessionID, Dnn: dnn, Target: *target})
+	return s.hplmn.OpenSubscription(ctx, HPLMNSubscriptionRequest{Supi: supi, PDUSessionID: pduSessionID, Dnn: dnn, Target: *target})
 }
 
 func (r *HPLMNRules) capQoS(q SubscribedQoS) SubscribedQoS {
@@ -257,9 +243,9 @@ func hplmnRejectCause(err error) fgs.GSMCause {
 	return fgs.GSMCauseRequestRejectedUnspecified
 }
 
-func restrictToHPLMN(policy *Policy, requested uint8, rules *HPLMNRules) *Policy {
+func restrictToHPLMN(policy *Policy, requested uint8, rules *HPLMNRules) (*Policy, bool) {
 	if rules == nil || len(rules.PDUSessionTypes) == 0 {
-		return policy
+		return policy, false
 	}
 
 	allows := func(t fgs.PDUSessionType) bool { return slices.Contains(rules.PDUSessionTypes, t) }
@@ -276,9 +262,10 @@ func restrictToHPLMN(policy *Policy, requested uint8, rules *HPLMNRules) *Policy
 
 	if requested == uint8(fgs.PDUSessionTypeIPv4v6) && !dual && restricted.IPv4Pool != "" && restricted.IPv6Pool != "" {
 		restricted.IPv6Pool = ""
+		return &restricted, true
 	}
 
-	return &restricted
+	return &restricted, false
 }
 
 func (sc *SMContext) hplmnSubscription() HPLMNSubscription {

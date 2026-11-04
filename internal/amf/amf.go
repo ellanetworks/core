@@ -184,13 +184,11 @@ type AMF struct {
 	SMS                      smsf.Handler
 	IMSVoice                 IMSVoice
 	EPS                      interworking.EPSPeer
-	HPLMN                    HPLMNClient
+	HPLMN                    *roaming.AMFHPLMN
 	Roaming                  RoamingStore
-	N32                      N32Gate
 	N26                      roaming.N26Policy
 
-	home        serial.KeyedQueue
-	crossCancel roaming.CrossCancelGuard
+	home serial.KeyedQueue
 
 	handoversToEPS interworking.HandoverGroup
 	smsDecisionMu  sync.RWMutex

@@ -338,8 +338,8 @@ var (
 	RegistrationFailed       = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.ErrorLevel, failed: true}
 )
 
-func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType string, outcome RegistrationOutcome, fields ...zap.Field) {
-	metrics.RegistrationAttempt(rat, regType, outcome.result)
+func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType string, roaming bool, outcome RegistrationOutcome, fields ...zap.Field) {
+	metrics.RegistrationAttempt(rat, regType, outcome.result, roaming)
 
 	msg := "UE registration accepted"
 	if outcome.result != metrics.ResultAccept {

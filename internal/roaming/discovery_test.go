@@ -42,6 +42,10 @@ func (f *fakeN32) HPLMNNRF(_ string, home wire.PlmnID) (string, error) {
 	return "http://" + home.NFFQDN(wire.FQDNLabelNRF), nil
 }
 
+func (f *fakeN32) SEPPID() int { return 0 }
+
+func (f *fakeN32) WaitEstablished(context.Context, string, time.Duration) error { return nil }
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -115,14 +119,14 @@ func TestDiscoveryQueryAndRanking(t *testing.T) {
 		t.Fatalf("cached discovery: %v, %d calls", err, f.calls.Load())
 	}
 
-	d.Drop("p", "00000000-0000-0000-0000-000000000002")
+	d.Forget("p", "00000000-0000-0000-0000-000000000002")
 
 	c, err = d.Discover(context.Background(), ausfRequest())
 	if err != nil || c.NfInstanceID != "00000000-0000-0000-0000-000000000001" || c.APIRoot != "http://ausf1.5gc.mnc001.mcc001.3gppnetwork.org" || f.calls.Load() != 1 {
 		t.Fatalf("after a drop: %+v, %v, %d calls", c, err, f.calls.Load())
 	}
 
-	d.Drop("p", "00000000-0000-0000-0000-000000000001")
+	d.Forget("p", "00000000-0000-0000-0000-000000000001")
 
 	if _, err := d.Discover(context.Background(), ausfRequest()); err != nil || f.calls.Load() != 2 {
 		t.Fatalf("every candidate dropped: %v, %d calls", err, f.calls.Load())
@@ -138,14 +142,8 @@ func TestDiscoveryQueryAndRanking(t *testing.T) {
 	other := ausfRequest()
 	other.RoutingIndicator = "0001"
 
-	if _, err := d.Discover(context.Background(), other); err != nil || f.calls.Load() != 3 {
-		t.Fatalf("instances without ausfInfo serve every routing indicator: %v, %d calls", err, f.calls.Load())
-	}
-
-	d.Forget("p")
-
-	if _, err := d.Discover(context.Background(), ausfRequest()); err != nil || f.calls.Load() != 4 {
-		t.Fatalf("after Forget: %v, %d calls", err, f.calls.Load())
+	if _, err := d.Discover(context.Background(), other); err != nil || f.calls.Load() != 4 {
+		t.Fatalf("another routing indicator is another query: %v, %d calls", err, f.calls.Load())
 	}
 }
 

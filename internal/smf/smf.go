@@ -171,7 +171,7 @@ type SMF struct {
 	mme                 MMECallback // set after construction
 
 	subscriptions SubscriptionData
-	hplmn         atomic.Pointer[hplmnClient]
+	hplmn         HPLMNClient
 
 	seidCounter uint64 // atomic; local SEID allocation
 

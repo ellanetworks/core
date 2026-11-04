@@ -12,7 +12,6 @@ const stateLabels: Record<
   established: { label: "Established", color: "success" },
   establishing: { label: "Establishing", color: "warning" },
   failed: { label: "Failed", color: "error" },
-  terminated: { label: "Terminated", color: "error" },
   idle: { label: "Idle", color: "default" },
   unknown: { label: "Unknown", color: "default" },
 };

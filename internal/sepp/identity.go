@@ -4,12 +4,10 @@
 package sepp
 
 import (
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/pki"
@@ -25,13 +23,13 @@ type IdentityConfig struct {
 }
 
 type localIdentity struct {
+	cfg       IdentityConfig
 	seppID    int
 	fqdn      string
 	cert      *tls.Certificate
 	leaf      *x509.Certificate
 	anchor    *x509.Certificate
 	generated bool
-	key       [sha256.Size]byte
 }
 
 var ErrNoIdentity = errors.New("sepp: no SEPP identity")
@@ -52,16 +50,20 @@ func newLocalIdentity(cfg IdentityConfig, op wire.PlmnID) (*localIdentity, error
 	}
 
 	return &localIdentity{
+		cfg:       cfg,
 		seppID:    cfg.SEPPID,
 		fqdn:      strings.ToLower(cfg.FQDN),
 		cert:      &cert,
 		leaf:      parsed.Leaf(),
 		anchor:    parsed.TrustAnchor(),
 		generated: cfg.Generated,
-		key:       identityKey(cfg),
 	}, nil
 }
 
-func identityKey(cfg IdentityConfig) [sha256.Size]byte {
-	return sha256.Sum256([]byte(strconv.Itoa(cfg.SEPPID) + "\x00" + strconv.FormatBool(cfg.Generated) + "\x00" + cfg.FQDN + "\x00" + cfg.CertChainPEM + "\x00" + cfg.KeyPEM))
+func (id *localIdentity) sameSession(o *localIdentity) bool {
+	if id == nil || o == nil {
+		return id == o
+	}
+
+	return id.seppID == o.seppID && id.fqdn == o.fqdn && id.anchor.Equal(o.anchor)
 }

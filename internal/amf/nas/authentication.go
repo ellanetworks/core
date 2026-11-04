@@ -142,7 +142,7 @@ func rejectAuthentication(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	cause, permanent := registrationRejectCauseForAuthFailure(err)
 
-	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(regType), logger.RegistrationRejected)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(regType), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 	if !permanent {
 		logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
@@ -188,9 +188,7 @@ func rejectRoaming(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext,
 		regType = conn.RegistrationType5GS
 	}
 
-	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(regType), logger.RegistrationRejected, logger.Cause(r.Reason))
-
-	amfInstance.RecordRoamerReject(ctx, ue, r)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(regType), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected, logger.Cause(r.Reason))
 
 	ueConn := ue.Conn()
 	if ueConn == nil {

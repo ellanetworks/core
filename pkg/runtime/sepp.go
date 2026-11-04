@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 	"github.com/ellanetworks/core/internal/sepp"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -27,8 +26,6 @@ func newSEPP(dbInstance *db.Database, n32 config.N32Interface) *sepp.Manager {
 		Cluster:   seppClusterSource(dbInstance),
 		N32:       n32,
 	}, logger.SeppLog)
-
-	sepp.RegisterMetrics(prometheus.DefaultRegisterer, m)
 
 	return m
 }
@@ -116,7 +113,7 @@ func seppProvision(dbInstance *db.Database) func(ctx context.Context) error {
 			return errors.New("this node has no SEPP ID yet: its cluster AMF Pointer is not allocated")
 		}
 
-		created, err := dbInstance.EnsureSEPPIdentity(ctx, seppID)
+		err := dbInstance.PutGeneratedSEPPIdentity(ctx, seppID)
 		if errors.Is(err, db.ErrMigrationPending) {
 			return nil
 		}
@@ -125,29 +122,14 @@ func seppProvision(dbInstance *db.Database) func(ctx context.Context) error {
 			return err
 		}
 
-		if created {
-			logger.SeppLog.Info("Generated this node's SEPP certificate with the cluster SEPP CA", zap.Int("sepp_id", seppID))
-		}
+		logger.SeppLog.Info("Generated this node's SEPP certificate with the cluster SEPP CA", zap.Int("sepp_id", seppID))
 
 		return nil
 	}
 }
 
 func seppRenew(dbInstance *db.Database) func(ctx context.Context, seppID int) error {
-	return func(ctx context.Context, seppID int) error {
-		identity, err := dbInstance.GetSEPPIdentity(ctx, seppID)
-		if err != nil {
-			return err
-		}
-
-		if identity.Source != db.SEPPIdentityGenerated {
-			return errors.New("the SEPP certificate is imported: only the operator can replace it")
-		}
-
-		_, err = dbInstance.RenewGeneratedSEPPIdentity(ctx, seppID, identity.CertChainPEM)
-
-		return err
-	}
+	return dbInstance.PutGeneratedSEPPIdentity
 }
 
 func seppClusterSource(dbInstance *db.Database) sepp.ClusterSource {
@@ -165,6 +147,10 @@ func seppClusterSource(dbInstance *db.Database) sepp.ClusterSource {
 		ids := make([]int, 0, len(members))
 
 		for _, member := range members {
+			if member.DrainState == db.DrainStateDrained {
+				continue
+			}
+
 			if slices.ContainsFunc(identities, func(i db.SEPPIdentity) bool { return i.SEPPID == member.AMFPointer }) {
 				ids = append(ids, member.AMFPointer)
 			}

@@ -26,7 +26,7 @@ func (p PlmnID) NFFQDN(label string) string {
 }
 
 func (p PlmnID) EPCNodeFQDN(label string) string {
-	return label + ".epc.mnc" + p.mnc3() + ".mcc" + p.Mcc + ".3gppnetwork.org"
+	return label + ".node.epc.mnc" + p.mnc3() + ".mcc" + p.Mcc + ".3gppnetwork.org"
 }
 
 type NetworkFQDN struct {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
@@ -68,54 +67,6 @@ func TestVisitorMovingToEPSPassesItsHomeRegistrationWithoutAPurge(t *testing.T) 
 
 	if f.home.Purged(supi) {
 		t.Error("the AMF purged a registration that passed to the MME")
-	}
-}
-
-func TestVisitorMovedToEPSIsPurgedOnlyWithoutAHomeCancellation(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		partner string
-		purge   bool
-	}{
-		{name: "no cancellation", purge: true},
-		{name: "cancellation by the home UDM", partner: "self"},
-		{name: "notification from another partner", partner: "other-partner", purge: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newRoamingFixture(t)
-			f.amf.SetCrossCancelWait(20 * time.Millisecond)
-			ue, _ := f.registeredVisitor(t)
-			v, _ := ue.Visitor()
-			supi := "imsi-" + roamerIMSI
-
-			if err := f.amf.EPSContextAck(t.Context(), ue.Supi(), nil); err != nil {
-				t.Fatalf("EPSContextAck: %v", err)
-			}
-
-			f.amf.DeregisterAndRemoveUeContext(t.Context(), ue, models.ReleaseFor(models.ReleaseDeregistration))
-			f.amf.SettleHPLMN()
-
-			switch tc.partner {
-			case "":
-			case "self":
-				_ = f.amf.HPLMNDeregistration(t.Context(), v.PartnerID, roamerIMSI, wire.DeregistrationData{DeregReason: wire.Dereg5GSToEPSMobility, AccessType: wire.Access3GPP})
-			default:
-				_ = f.amf.HPLMNDeregistration(t.Context(), tc.partner, roamerIMSI, wire.DeregistrationData{DeregReason: wire.Dereg5GSToEPSMobility, AccessType: wire.Access3GPP})
-			}
-
-			deadline := time.Now().Add(time.Second)
-			for !f.home.Purged(supi) && time.Now().Before(deadline) {
-				time.Sleep(10 * time.Millisecond)
-				f.amf.SettleHPLMN()
-			}
-
-			time.Sleep(50 * time.Millisecond)
-			f.amf.SettleHPLMN()
-
-			if purged := f.home.Purged(supi); purged != tc.purge {
-				t.Fatalf("purged at the home UDM = %v, want %v", purged, tc.purge)
-			}
-		})
 	}
 }
 

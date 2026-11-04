@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,29 +35,9 @@ var (
 	ErrReauthenticate    = errors.New("amf: the home network requires re-authentication")
 )
 
-type HPLMNClient interface {
-	Authenticate(ctx context.Context, t roaming.HPLMNTarget, supiOrSuci string, resync *wire.ResynchronizationInfo) (roaming.Challenge, error)
-	Confirm(ctx context.Context, t roaming.HPLMNTarget, confirmURI, supiOrSuci string, resStar [16]byte) (string, [32]byte, error)
-	Unconfirmed(ctx context.Context, t roaming.HPLMNTarget, confirmURI string) error
-	RemoveAuthentication(ctx context.Context, t roaming.HPLMNTarget, confirmURI string) error
-	Register(ctx context.Context, t roaming.HPLMNTarget, supi string, reg wire.Amf3GppAccessRegistration) (roaming.UDMBinding, error)
-	Deregister(ctx context.Context, t roaming.HPLMNTarget, supi string, guami wire.Guami) error
-	SubscriptionData(ctx context.Context, t roaming.HPLMNTarget, supi string) (wire.SubscriptionDataSets, error)
-	Subscribe(ctx context.Context, t roaming.HPLMNTarget, supi string, sub wire.SdmSubscription) (roaming.SDMSubscription, error)
-	Unsubscribe(ctx context.Context, t roaming.HPLMNTarget, uri string) error
-	AcknowledgeSoR(ctx context.Context, t roaming.HPLMNTarget, supi string, ack wire.AcknowledgeInfo) error
-}
-
-type N32Gate interface {
-	WaitEstablished(ctx context.Context, partnerID string, timeout time.Duration) error
-}
-
 type RoamingStore interface {
 	ListRoamingPartners(ctx context.Context) ([]db.RoamingPartner, error)
 	CountSubscribersAndVisitors(ctx context.Context) (int, error)
-}
-
-type VisitorMSISDNStore interface {
 	SetVisitorMSISDN(ctx context.Context, imsi, msisdn string) error
 }
 
@@ -171,7 +152,7 @@ func (amf *AMF) AdmitVisitor(ctx context.Context, ue *UeContext) error {
 		return reject(fgs.GMMCausePLMNNotAllowed, "no roaming partner for the home network")
 	}
 
-	if r := admissionRejection(partner, prefix); r != nil {
+	if r := admissionRejection(partner); r != nil {
 		return r
 	}
 
@@ -219,22 +200,13 @@ func (amf *AMF) AdmitVisitor(ctx context.Context, ue *UeContext) error {
 	return nil
 }
 
-func admissionRejection(partner db.RoamingPartner, imsi string) *Rejection {
+func admissionRejection(partner db.RoamingPartner) *Rejection {
 	if partner.SEPPFQDN == nil {
 		return reject(fgs.GMMCauseN1ModeNotAllowed, "the roaming partner has no 5G agreement")
 	}
 
-	w, ok := partner.Withdrawal(imsi, db.UERegistrationTypeAMF3GPPAccess, time.Now())
-	if !ok {
+	if !partner.Withdrawing(time.Now()) {
 		return nil
-	}
-
-	if w.RoamerOnly() {
-		return reject(fgs.GMMCauseCongestion, "the operator is deregistering the visitor")
-	}
-
-	if w.AgreementOnly() {
-		return reject(fgs.GMMCauseN1ModeNotAllowed, "the 5G agreement of the roaming partner is being withdrawn")
 	}
 
 	return reject(fgs.GMMCausePLMNNotAllowed, "the roaming agreement is being withdrawn")
@@ -298,11 +270,11 @@ func authKey(ue *UeContext) string {
 }
 
 func (amf *AMF) waitN32(ctx context.Context, v roaming.Visitor5G) error {
-	if amf.N32 == nil || amf.HPLMN == nil {
+	if amf.HPLMN == nil {
 		return fmt.Errorf("%w: %w", roaming.ErrHPLMNUnreachable, ErrNoHPLMNClient)
 	}
 
-	if err := amf.N32.WaitEstablished(ctx, v.PartnerID, N32Wait); err != nil {
+	if err := amf.HPLMN.WaitN32(ctx, v.PartnerID, N32Wait); err != nil {
 		return fmt.Errorf("%w: %w", roaming.ErrHPLMNUnreachable, err)
 	}
 
@@ -494,7 +466,13 @@ func (amf *AMF) hplmnIdentity(ctx context.Context, imsi string, kind sepp.Callba
 
 func (amf *AMF) RequestHPLMNRegistration(ctx context.Context, ue *UeContext, conn *UeConn, initial bool, done func(context.Context, error)) {
 	v, visitor := ue.Visitor()
-	if !visitor || (v.Registered && v.Subscription != nil) {
+	if !visitor {
+		done(ctx, nil)
+		return
+	}
+
+	retained := v.Registered && v.HPLMN.UDMInstanceID != "" && v.Subscription != nil
+	if retained && (!initial || !sorUpdateRequested(v.AccessAndMobility(), conn.RegistrationType5GS)) {
 		done(ctx, nil)
 		return
 	}
@@ -511,11 +489,49 @@ func (amf *AMF) RequestHPLMNRegistration(ctx context.Context, ue *UeContext, con
 	var err error
 
 	amf.awaitHPLMN(ctx, ue, conn, imsi, "Nudm_UECM_Registration", func(ctx context.Context) {
+		if retained {
+			amf.updateSoR(ctx, ue, v, imsi)
+			return
+		}
+
 		err = amf.registerAtHPLMN(ctx, ue, imsi, pei, initial)
 	}, func(ctx context.Context) {
 		amf.noteHPLMNFailure(ctx, v, HPLMNRegister, err, HPLMNRegistrationRejection)
 		done(ctx, err)
 	})
+}
+
+func sorUpdateRequested(am *wire.AccessAndMobilitySubscriptionData, regType fgs.RegistrationType) bool {
+	if am == nil {
+		return false
+	}
+
+	switch regType {
+	case fgs.RegistrationTypeInitial:
+		return slices.Contains(am.SorUpdateIndicatorList, wire.SorUpdateInitialRegistration)
+	case fgs.RegistrationTypeEmergency:
+		return slices.Contains(am.SorUpdateIndicatorList, wire.SorUpdateEmergencyRegistration)
+	}
+
+	return false
+}
+
+func (amf *AMF) updateSoR(ctx context.Context, ue *UeContext, v roaming.Visitor5G, imsi string) {
+	log := logger.From(ctx, logger.AmfLog).With(logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", v.PartnerName))
+
+	info, err := amf.HPLMN.UpdateSoR(ctx, v.HPLMN, "imsi-"+imsi)
+	if err != nil {
+		log.Warn("the home UDM did not update the steering of roaming information", zap.Error(err))
+		return
+	}
+
+	sor, err := roaming.SoRFromHPLMN(&info)
+	if err != nil {
+		log.Warn("ignoring the steering of roaming information of the home network", zap.Error(err))
+		return
+	}
+
+	ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.SoR = sor })
 }
 
 func (amf *AMF) registerAtHPLMN(ctx context.Context, ue *UeContext, imsi, pei string, initial bool) error {
@@ -545,7 +561,7 @@ func (amf *AMF) registerAtHPLMN(ctx context.Context, ue *UeContext, imsi, pei st
 	supi := "imsi-" + imsi
 	log := logger.From(ctx, logger.AmfLog).With(logger.SUPIFromIMSI(imsi), zap.String("roaming_partner", v.PartnerName))
 
-	if !v.Registered {
+	if !v.Registered || v.HPLMN.UDMInstanceID == "" {
 		reg := wire.Amf3GppAccessRegistration{
 			AmfInstanceID:    instanceID,
 			DeregCallbackURI: deregCallback,
@@ -571,9 +587,12 @@ func (amf *AMF) registerAtHPLMN(ctx context.Context, ue *UeContext, imsi, pei st
 
 		binding, err := amf.HPLMN.Register(ctx, v.HPLMN, supi, reg)
 		if err != nil {
-			if _, refused := roaming.ProblemOf(err); refused {
-				ue.updateVisitor(func(cur *roaming.Visitor5G) { cur.Registered = false })
-			}
+			_, refused := roaming.ProblemOf(err)
+
+			ue.updateVisitor(func(cur *roaming.Visitor5G) {
+				cur.HPLMN.UDMInstanceID = ""
+				cur.Registered = cur.Registered && !refused
+			})
 
 			return hplmnFailure(HPLMNRegister, err)
 		}
@@ -639,14 +658,13 @@ func (amf *AMF) syncVisitorMSISDN(ctx context.Context, ue *UeContext) {
 	v, ok := ue.Visitor()
 	supi := ue.Supi()
 
-	store, isStore := amf.Roaming.(VisitorMSISDNStore)
-	if !ok || !isStore || !supi.IsIMSI() || v.AccessAndMobility() == nil {
+	if !ok || !supi.IsIMSI() || v.AccessAndMobility() == nil {
 		return
 	}
 
 	msisdn, _ := v.AccessAndMobility().MSISDN()
 
-	if err := store.SetVisitorMSISDN(ctx, supi.IMSI(), msisdn); err != nil {
+	if err := amf.Roaming.SetVisitorMSISDN(ctx, supi.IMSI(), msisdn); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to store the visitor's MSISDN from its home subscription", logger.SUPI(supi.String()), zap.Error(err))
 	}
 }

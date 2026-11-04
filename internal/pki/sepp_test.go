@@ -322,8 +322,8 @@ func TestGenerateSEPPCert_Profile(t *testing.T) {
 		t.Errorf("validated certificate = %+v", cert)
 	}
 
-	if warnings := cert.ProfileWarnings(); !slices.Equal(warnings, []string{pki.SEPPWarningNoCRLDistributor}) {
-		t.Errorf("ProfileWarnings = %q, want only the missing CRL distribution point", warnings)
+	if warnings := cert.ProfileWarnings(); len(warnings) != 0 {
+		t.Errorf("ProfileWarnings = %q, want none", warnings)
 	}
 
 	if cert.ChainPEM() != chainPEM {
@@ -595,18 +595,18 @@ func TestValidateSEPPCertificate(t *testing.T) {
 		wantChain int
 		wantWarn  []string
 	}{
-		{name: "leaf and CA", chain: chainPEM(leaf(key, nil), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{pki.SEPPWarningNoNFTypes, pki.SEPPWarningNoCRLDistributor}},
+		{name: "leaf and CA", chain: chainPEM(leaf(key, nil), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{}},
 		{name: "leaf, sub-CA and root", chain: chainPEM(sub.issue(t, key, nil), sub.cert, ca.cert), key: keyPEM(t, key), wantChain: 3},
 		{name: "sub-CA anchor", chain: chainPEM(sub.issue(t, key, nil), sub.cert), key: keyPEM(t, key), wantChain: 2},
 		{name: "P-384", chain: chainPEM(leaf(p384, nil), ca.cert), key: keyPEM(t, p384), wantChain: 2},
 		{name: "RSA 2048", chain: chainPEM(leaf(rsa2048, nil), ca.cert), key: keyPEM(t, rsa2048), wantChain: 2},
-		{name: "no EKU warns", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.ExtKeyUsage = nil }), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{pki.SEPPWarningNoEKU, pki.SEPPWarningNoNFTypes, pki.SEPPWarningNoCRLDistributor}},
-		{name: "CN not in SAN warns", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.Subject.CommonName = "sepp" }), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{pki.SEPPWarningNoNFTypes, pki.SEPPWarningCNNotInSAN, pki.SEPPWarningNoCRLDistributor}},
-		{name: "host without SEPP ID warns", chain: chainPEM(leaf(key, func(c *x509.Certificate) {
+		{name: "no EKU warns", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.ExtKeyUsage = nil }), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{pki.SEPPWarningNoEKU}},
+		{name: "CN not in SAN", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.Subject.CommonName = "sepp" }), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{}},
+		{name: "host without SEPP ID", chain: chainPEM(leaf(key, func(c *x509.Certificate) {
 			c.Subject.CommonName = "edge.5gc.mnc001.mcc001.3gppnetwork.org"
 			c.DNSNames = []string{c.Subject.CommonName}
-		}), ca.cert), key: keyPEM(t, key), wantChain: 2, wantFQDN: "edge.5gc.mnc001.mcc001.3gppnetwork.org", wantWarn: []string{pki.SEPPWarningNoNFTypes, pki.SEPPWarningHostNotSEPPID, pki.SEPPWarningNoCRLDistributor}},
-		{name: "validity over 3 years warns", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.NotAfter = c.NotBefore.AddDate(5, 0, 0) }), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{pki.SEPPWarningLongValidity, pki.SEPPWarningNoNFTypes, pki.SEPPWarningNoCRLDistributor}},
+		}), ca.cert), key: keyPEM(t, key), wantChain: 2, wantFQDN: "edge.5gc.mnc001.mcc001.3gppnetwork.org", wantWarn: []string{}},
+		{name: "validity over 3 years warns", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.NotAfter = c.NotBefore.AddDate(5, 0, 0) }), ca.cert), key: keyPEM(t, key), wantChain: 2, wantWarn: []string{pki.SEPPWarningLongValidity}},
 		{name: "extra non-3GPP SAN", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.DNSNames = []string{fqdn, "sepp.example.org"} }), ca.cert), key: keyPEM(t, key), wantChain: 2},
 		{name: "uppercase SAN", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.DNSNames = []string{strings.ToUpper(fqdn)} }), ca.cert), key: keyPEM(t, key), wantChain: 2},
 		{name: "two SANs, CN selects", chain: chainPEM(leaf(key, func(c *x509.Certificate) { c.DNSNames = []string{sepp2, fqdn} }), ca.cert), key: keyPEM(t, key), wantChain: 2},

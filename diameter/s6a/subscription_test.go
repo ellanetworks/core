@@ -238,3 +238,54 @@ func TestSubscriptionDataBarsVisitedPLMNAccessPoints(t *testing.T) {
 		}
 	}
 }
+
+func TestSubscriptionDataAcceptsLCSInfo(t *testing.T) {
+	sub := testSubscription()
+	lcs := vendorGroup(AVPLCSInfo,
+		vendorOctets(1474, []byte{0x44, 0x77, 0x00, 0x09, 0x10, 0x32}),
+		vendorGroup(1475, vendorOctets(AVPSSCode, []byte{0xB4}), vendorOctets(1477, []byte{0x05}), vendorU32(1482, 2)),
+	)
+	a := must[diameter.AVP](t)(sub.avp())
+	inner := must[[]diameter.AVP](t)(a.Grouped())
+	withLCS := vendorGroup(AVPSubscriptionData, append(inner, lcs)...)
+
+	for name, d := range map[string]decoder{"strict": requestDecoder, "lenient": answerDecoder} {
+		got, err := d.subscriptionData(withLCS)
+		if err != nil || !reflect.DeepEqual(*got, sub) {
+			t.Fatalf("%s: Subscription-Data with LCS-Info = %+v, %v", name, got, err)
+		}
+	}
+
+	idr := must[*diameter.Message](t)(NewInsertSubscriberDataRequest(hssEnvelope, InsertSubscriberDataRequest{IMSI: testIMSI, Subscription: sub}))
+	if got, err := ParseInsertSubscriberDataRequest(roundTrip(t, replace(idr, withLCS))); err != nil || !reflect.DeepEqual(got.Subscription, sub) {
+		t.Fatalf("IDR with LCS-Info = %+v, %v", got, err)
+	}
+
+	ula := must[*diameter.Message](t)(NewUpdateLocationAnswer(must[*diameter.Message](t)(NewUpdateLocationRequest(mmeEnvelope, testULR())), hssIdentity,
+		UpdateLocation{HSS: hssIdentity, Flags: ULAFlagSeparationIndication, Subscription: &sub}))
+	if got, err := ParseUpdateLocationAnswer(roundTrip(t, replace(ula, withLCS))); err != nil || got.Subscription == nil || !reflect.DeepEqual(*got.Subscription, sub) {
+		t.Fatalf("ULA with LCS-Info = %+v, %v", got, err)
+	}
+}
+
+func TestSubscriptionDataWithdrawLCS(t *testing.T) {
+	stored := testSubscription()
+
+	for name, d := range map[string]SubscriptionDataDeletion{
+		"GMLC list":         {Flags: DSRFlagGMLCListWithdrawal},
+		"LCS":               {Flags: DSRFlagLCSWithdrawal, SSCodes: [][]byte{{0xB4}}},
+		"GMLC list and LCS": {Flags: DSRFlagGMLCListWithdrawal | DSRFlagLCSWithdrawal, SSCodes: [][]byte{{0xB0}}},
+	} {
+		req := must[*diameter.Message](t)(NewDeleteSubscriberDataRequest(hssEnvelope, DeleteSubscriberDataRequest{IMSI: testIMSI, SubscriptionDataDeletion: d}))
+
+		parsed, err := ParseDeleteSubscriberDataRequest(roundTrip(t, req))
+		if err != nil || !reflect.DeepEqual(parsed.SubscriptionDataDeletion, d) {
+			t.Fatalf("%s: DSR = %+v, %v", name, parsed, err)
+		}
+
+		got, err := stored.Withdraw(parsed.SubscriptionDataDeletion)
+		if err != nil || !reflect.DeepEqual(got, stored) {
+			t.Fatalf("%s: withdraw = %+v, %v", name, got, err)
+		}
+	}
+}

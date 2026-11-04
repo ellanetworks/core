@@ -581,7 +581,7 @@ func TestNetworkFQDN(t *testing.T) {
 		t.Fatal("NFFQDN")
 	}
 
-	if p.EPCNodeFQDN(FQDNLabelPGW+"2") != "pgw2.epc.mnc070.mcc999.3gppnetwork.org" {
+	if p.EPCNodeFQDN(FQDNLabelPGW+"2") != "pgw2.node.epc.mnc070.mcc999.3gppnetwork.org" {
 		t.Fatal("EPCNodeFQDN")
 	}
 

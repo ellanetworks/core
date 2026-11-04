@@ -25,10 +25,16 @@ type DiameterRegistrar interface {
 }
 
 func (m *MME) RegisterHPLMNHandlers(r DiameterRegistrar) {
-	r.Handle(s6a.ApplicationID, s6a.CommandCancelLocation, m.countedHPLMNHandler(s6a.CommandCancelLocation, m.CancelLocation))
-	r.Handle(s6a.ApplicationID, s6a.CommandInsertSubscriberData, m.countedHPLMNHandler(s6a.CommandInsertSubscriberData, m.InsertSubscriberData))
-	r.Handle(s6a.ApplicationID, s6a.CommandDeleteSubscriberData, m.countedHPLMNHandler(s6a.CommandDeleteSubscriberData, m.DeleteSubscriberData))
-	r.Handle(s6a.ApplicationID, s6a.CommandReset, m.countedHPLMNHandler(s6a.CommandReset, m.Reset))
+	r.Handle(s6a.ApplicationID, s6a.CommandCancelLocation, hplmnHandler(m.CancelLocation))
+	r.Handle(s6a.ApplicationID, s6a.CommandInsertSubscriberData, hplmnHandler(m.InsertSubscriberData))
+	r.Handle(s6a.ApplicationID, s6a.CommandDeleteSubscriberData, hplmnHandler(m.DeleteSubscriberData))
+	r.Handle(s6a.ApplicationID, s6a.CommandReset, hplmnHandler(m.Reset))
+}
+
+func hplmnHandler(h func(context.Context, diameter.Identity, string, *diameter.Message) *diameter.Message) diameter.Handler {
+	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
+		return h(ctx, c.LocalIdentity(), c.PeerID(), req)
+	})
 }
 
 func userUnknown(req *diameter.Message, id diameter.Identity) *diameter.Message {
@@ -92,8 +98,6 @@ func (m *MME) CancelLocation(ctx context.Context, id diameter.Identity, ingress 
 	}
 
 	ans, _ := s6a.NewCancelLocationAnswer(req, id, s6a.CancelLocation{})
-
-	m.hplmnCancelledMove(ctx, clr.IMSI, tgpp.ParseEnvelope(req).Origin, ingress)
 
 	ue, ok := m.hplmnVisitor(ctx, clr.IMSI, req, ingress)
 	if !ok {

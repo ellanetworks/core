@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")"
+usage() {
+  echo "usage: $0 {4g|5g} {images|test [go test -run regex]|down|logs [service]}" >&2
+  exit 1
+}
+
+case "${1:-}" in
+  4g) TEST=TestRoaming4GOpen5GS ;;
+  5g) TEST=TestRoaming5GOpen5GS ;;
+  *) usage ;;
+esac
+
+RAT="$1"
+shift
+
+cd "$(dirname "$0")/roaming$RAT"
 ROOT="$(cd ../../.. && pwd)"
 
-ELLA_IMAGE="${ELLA_IMAGE:-ella-core:roaming5g}"
-TESTER_IMAGE="${TESTER_IMAGE:-ella-core-tester:roaming5g}"
+ELLA_IMAGE="${ELLA_IMAGE:-ella-core:roaming$RAT}"
+TESTER_IMAGE="${TESTER_IMAGE:-ella-core-tester:roaming$RAT}"
 ELLA_BASE="${ELLA_BASE:-ella-core:latest}"
 TESTER_BASE="${TESTER_BASE:-ella-core-tester:latest}"
 
@@ -28,7 +42,7 @@ case "${1:-}" in
     images
     cd "$ROOT/integration"
     ELLA_IMAGE="$ELLA_IMAGE" TESTER_IMAGE="$TESTER_IMAGE" \
-      go test -tags open5gs -count=1 -v -timeout 45m -run "${2:-TestRoaming5GOpen5GS}" .
+      go test -tags open5gs -count=1 -v -timeout 45m -run "${2:-$TEST}" .
     ;;
   down)
     docker compose -f docker-compose.yaml down -v --remove-orphans
@@ -37,7 +51,6 @@ case "${1:-}" in
     docker compose -f docker-compose.yaml logs -f "${@:2}"
     ;;
   *)
-    echo "usage: $0 {images|test [go test -run regex]|down|logs [service]}" >&2
-    exit 1
+    usage
     ;;
 esac

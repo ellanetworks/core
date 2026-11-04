@@ -30,22 +30,12 @@ export type RoamingPartnerInput = {
 };
 
 export type N32State =
-  "idle" | "establishing" | "established" | "failed" | "terminated" | "unknown";
+  "idle" | "establishing" | "established" | "failed" | "unknown";
 
 export type RoamingPartnerN32 = {
   state: N32State;
-  since?: string;
-  initiator?: "local" | "peer";
-  nftlst: boolean;
   peer?: string;
   lastError?: string;
-  otherPeers?: RoamingPartnerN32Peer[];
-};
-
-export type RoamingPartnerN32Peer = {
-  peer: string;
-  since: string;
-  nftlst: boolean;
 };
 
 export type RoamingPartner = RoamingPartnerInput & {
@@ -69,10 +59,13 @@ export type SEPPCertificate = {
   seppID: number;
   fqdn: string;
   source: SEPPSource;
-  certificateChainPEM: string;
-  trustAnchorPEM: string;
-  fingerprint: string;
-  notAfter: string;
+  subject?: string;
+  sans?: string[];
+  issuer?: string;
+  notBefore?: string;
+  notAfter?: string;
+  fingerprint?: string;
+  trustAnchorFingerprint?: string;
   warnings?: string[];
 };
 
@@ -87,43 +80,22 @@ export type SEPPTrustAnchor = {
 
 export type SEPPCARegenerated = {
   trustAnchor: SEPPTrustAnchor;
-  reissued: number[];
   warnings?: string[];
 };
 
-export type SEPPCertificateSummary = {
-  subject: string;
-  sans: string[];
-  issuer: string;
-  notBefore: string;
-  notAfter: string;
-  fingerprint: string;
-  trustAnchorFingerprint: string;
-};
-
-export type SEPPNodeStatus = {
+export type SEPPListener = {
   seppID?: number;
-  fqdn?: string;
-  source?: SEPPSource;
-  n32Configured: boolean;
+  configured: boolean;
   address?: string;
   port?: number;
   listening: boolean;
-  certificate?: SEPPCertificateSummary;
   error?: string;
 };
 
-export type SEPPStoredCertificate = {
-  seppID: number;
-  fqdn: string;
-  source: SEPPSource;
-  certificate?: SEPPCertificateSummary;
-};
-
 export type SEPPStatus = {
-  node: SEPPNodeStatus;
+  listener: SEPPListener;
+  certificates: SEPPCertificate[];
   trustAnchors: SEPPTrustAnchor[];
-  certificates: SEPPStoredCertificate[];
 };
 
 const ROAMING_PATH = "/api/v1/operator/roaming";
@@ -241,12 +213,12 @@ export const importSEPPCertificate = async (
       : { certificateChainPEM, privateKeyPEM },
   });
 
-export const generateSEPPCertificate = async (
+export const deleteSEPPCertificate = async (
   authToken: string,
   seppID: number,
-): Promise<SEPPCertificate> =>
-  apiFetch<SEPPCertificate>(`${seppCertificatePath(seppID)}/generate`, {
-    method: "POST",
+): Promise<void> =>
+  apiFetchVoid(seppCertificatePath(seppID), {
+    method: "DELETE",
     authToken,
   });
 

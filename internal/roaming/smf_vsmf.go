@@ -8,9 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -24,27 +22,14 @@ import (
 )
 
 const (
-	vsmfRequestTimeout      = 4 * time.Second
-	vsmfRegisterAttempts    = 3
-	vsmfRegisterBackoff     = time.Second
-	sdmSubscriptionLifetime = 24 * time.Hour
-	sdmRenewMargin          = time.Minute
+	vsmfRequestTimeout = 4 * time.Second
+	sdmRenewBefore     = 10 * time.Minute
+	sdmRenewLifetime   = 24 * time.Hour
 )
-
-type VSMFN32 interface {
-	N32
-	SEPPID() int
-}
 
 type HPLMNBoundSessions interface {
 	ReleaseHPLMNBoundSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, h smf.HPLMNSubscription, how smf.HPLMNRelease) bool
 	ReconcileHPLMNBoundSessions(ctx context.Context, supi etsi.SUPI)
-}
-
-type vsmfDeps struct {
-	n32      VSMFN32
-	home     *HPLMNSBI
-	sessions HPLMNBoundSessions
 }
 
 type VSMF struct {
@@ -52,109 +37,51 @@ type VSMF struct {
 	now    func() time.Time
 	peer   func(context.Context) (sepp.Peer, bool)
 
-	registerBackoff time.Duration
-
-	depsMu sync.Mutex
-	deps   atomic.Pointer[vsmfDeps]
+	n32      N32
+	home     *HPLMNSBI
+	sessions HPLMNBoundSessions
 
 	queue serial.KeyedQueue
 
 	mu  sync.Mutex
-	ues map[string]*vsmfUE
-}
-
-type smKey struct {
-	sst int32
-	sd  string
-	dnn string
-}
-
-func (k smKey) snssai() models.Snssai {
-	return models.Snssai{Sst: k.sst, Sd: k.sd}
-}
-
-func smKeyOf(snssai models.Snssai, dnn string) smKey {
-	return smKey{sst: snssai.Sst, sd: models.NormalizeSD(snssai.Sd), dnn: strings.ToLower(dnn)}
-}
-
-type smData struct {
-	target       HPLMNTarget
-	snssai       models.Snssai
-	dnn          string
-	rules        smf.HPLMNRules
-	subscribed   bool
-	barred       bool
-	subscribing  bool
-	instance     string
-	subscription string
-	expires      time.Time
-	renewal      *time.Timer
-	refs         int
-}
-
-type vsmfUE struct {
-	supi     etsi.SUPI
-	target   HPLMNTarget
-	data     map[smKey]*smData
-	sessions map[uint8]*vsmfSession
+	ues map[string]map[uint8]*vsmfSession
 }
 
 type vsmfSession struct {
 	v      *VSMF
 	supi   etsi.SUPI
 	psi    uint8
-	key    smKey
+	snssai models.Snssai
 	dnn    string
 	target HPLMNTarget
 	iwk    bool
-	rules  smf.HPLMNRules
 
-	closed     bool
-	registered bool
-	uecmRoot   string
-	instanceID string
-	released   bool
+	rules        smf.HPLMNRules
+	closed       bool
+	registered   bool
+	released     bool
+	uecmRoot     string
+	instanceID   string
+	subscription string
+	expires      time.Time
 }
 
 func NewVSMF(logger *zap.Logger) *VSMF {
-	v := &VSMF{
-		logger:          logger,
-		now:             time.Now,
-		peer:            sepp.PeerFrom,
-		registerBackoff: vsmfRegisterBackoff,
-		ues:             map[string]*vsmfUE{},
+	return &VSMF{
+		logger: logger,
+		now:    time.Now,
+		peer:   sepp.PeerFrom,
+		ues:    map[string]map[uint8]*vsmfSession{},
 	}
-	v.deps.Store(&vsmfDeps{})
-
-	return v
 }
 
-func (v *VSMF) update(f func(d *vsmfDeps)) {
-	v.depsMu.Lock()
-	defer v.depsMu.Unlock()
-
-	next := *v.deps.Load()
-	f(&next)
-	v.deps.Store(&next)
-}
-
-func (v *VSMF) SetN32(n32 VSMFN32) {
-	v.update(func(d *vsmfDeps) {
-		d.n32 = n32
-		d.home = nil
-
-		if n32 != nil {
-			d.home = NewHPLMNSBI(n32, NewDiscovery(n32))
-		}
-	})
+func (v *VSMF) SetN32(n32 N32) {
+	v.n32 = n32
+	v.home = NewHPLMNSBI(n32, NewDiscovery(n32))
 }
 
 func (v *VSMF) SetSessions(sessions HPLMNBoundSessions) {
-	v.update(func(d *vsmfDeps) { d.sessions = sessions })
-}
-
-func (v *VSMF) Settle() {
-	v.queue.Settle()
+	v.sessions = sessions
 }
 
 func hplmnTargetOf(supi etsi.SUPI, t smf.HPLMNTarget) HPLMNTarget {
@@ -174,139 +101,62 @@ func (v *VSMF) OpenSubscription(ctx context.Context, req smf.HPLMNSubscriptionRe
 		return nil, newSessionError(fgs.GSMCauseRequestRejectedUnspecified, errors.New("a visitor's SUPI is not an IMSI"))
 	}
 
-	deps := v.deps.Load()
-
-	var (
-		s   *vsmfSession
-		err error
-	)
-
-	v.queue.Do(imsi, func() { s, err = v.open(ctx, deps, req) })
-
-	if err != nil || s == nil {
-		return nil, err
-	}
-
-	return s, nil
-}
-
-func (v *VSMF) open(ctx context.Context, deps *vsmfDeps, req smf.HPLMNSubscriptionRequest) (*vsmfSession, error) {
-	imsi := req.Supi.IMSI()
-	home := req.Target.HPLMNSnssai
-	target := hplmnTargetOf(req.Supi, req.Target)
-
-	if deps.home == nil {
+	if v.home == nil {
 		return nil, vsmfUnreachable(errors.New("this node has no N32 interface"))
 	}
 
-	key := smKeyOf(home, req.Dnn)
+	home := req.Target.HPLMNSnssai
+	target := hplmnTargetOf(req.Supi, req.Target)
 
-	v.mu.Lock()
-	ue := v.ueLocked(req.Supi, target)
-
-	if d := ue.data[key]; d != nil && d.subscribed {
-		if d.barred {
-			v.mu.Unlock()
-			return nil, vsmfBarred(home, req.Dnn)
-		}
-
-		d.refs++
-		retry := d.subscription == "" && !d.subscribing
-		d.subscribing = d.subscribing || retry
-		s := v.newSessionLocked(ue, req, key, d.rules, d.target)
-		v.mu.Unlock()
-
-		if retry {
-			ctx = context.WithoutCancel(ctx)
-
-			v.queue.Go(imsi, func() { v.subscribe(ctx, deps, req.Supi, d) })
-		}
-
-		return s, nil
-	}
-	v.mu.Unlock()
-
-	answer, err := v.fetchSMData(ctx, deps, req.Supi, target, home, req.Dnn)
+	answer, err := v.fetchSMData(ctx, req.Supi, target, home, req.Dnn)
 	if err != nil {
-		v.dropIfUnused(imsi)
 		return nil, err
 	}
 
 	if answer.barred {
-		v.dropIfUnused(imsi)
 		return nil, vsmfBarred(home, req.Dnn)
 	}
 
 	rules, err := vsmfRules(answer.cfg, home)
 	if err != nil {
-		v.dropIfUnused(imsi)
 		return nil, err
 	}
 
 	target.UDMInstanceID = answer.instance
 
+	s := &vsmfSession{v: v, supi: req.Supi, psi: req.PDUSessionID, snssai: home, dnn: req.Dnn, target: target, iwk: req.Target.EPSInterworking, rules: rules}
+
 	v.mu.Lock()
 
-	d := ue.data[key]
-	if d == nil {
-		d = &smData{snssai: home, dnn: req.Dnn}
-		ue.data[key] = d
+	ue := v.ues[imsi]
+	if ue == nil {
+		ue = map[uint8]*vsmfSession{}
+		v.ues[imsi] = ue
 	}
 
-	d.target, d.rules, d.subscribed, d.barred, d.instance = target, rules, true, false, answer.instance
-	d.refs++
-	subscribe := d.subscription == "" && !d.subscribing
-	d.subscribing = d.subscribing || subscribe
-	s := v.newSessionLocked(ue, req, key, rules, target)
+	old := ue[s.psi]
+	if old != nil && !old.closed {
+		old.closed = true
+	} else {
+		old = nil
+	}
+
+	ue[s.psi] = s
 	v.mu.Unlock()
 
-	if subscribe {
-		ctx = context.WithoutCancel(ctx)
-
-		v.queue.Go(imsi, func() { v.subscribe(ctx, deps, req.Supi, d) })
+	if old != nil {
+		v.queue.Go(imsi, func() { v.close(old) })
 	}
+
+	ctx = context.WithoutCancel(ctx)
+
+	v.queue.Go(imsi, func() { v.subscribe(ctx, s) })
 
 	return s, nil
 }
 
 func vsmfBarred(snssai models.Snssai, dnn string) error {
 	return newSessionError(fgs.GSMCauseOperatorDeterminedBarring, fmt.Errorf("%w: %s %q", ErrSessionBarred, wire.SnssaiFromModel(snssai), dnn))
-}
-
-func (v *VSMF) newSessionLocked(ue *vsmfUE, req smf.HPLMNSubscriptionRequest, key smKey, rules smf.HPLMNRules, target HPLMNTarget) *vsmfSession {
-	psi := req.PDUSessionID
-
-	if old := ue.sessions[psi]; old != nil && !old.closed {
-		old.closed = true
-
-		v.queue.Go(ue.supi.IMSI(), func() { v.close(old) })
-	}
-
-	s := &vsmfSession{v: v, supi: ue.supi, psi: psi, key: key, dnn: req.Dnn, target: target, iwk: req.Target.EPSInterworking, rules: rules}
-	ue.sessions[psi] = s
-
-	return s
-}
-
-func (v *VSMF) ueLocked(supi etsi.SUPI, target HPLMNTarget) *vsmfUE {
-	ue := v.ues[supi.IMSI()]
-	if ue == nil {
-		ue = &vsmfUE{supi: supi, data: map[smKey]*smData{}, sessions: map[uint8]*vsmfSession{}}
-		v.ues[supi.IMSI()] = ue
-	}
-
-	ue.target = target
-
-	return ue
-}
-
-func (v *VSMF) dropIfUnused(imsi string) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	if ue := v.ues[imsi]; ue != nil && len(ue.data) == 0 && len(ue.sessions) == 0 {
-		delete(v.ues, imsi)
-	}
 }
 
 var vsmfPDUSessionTypes = map[wire.PduSessionType]fgs.PDUSessionType{
@@ -355,19 +205,8 @@ func vsmfSSCMode1(m *wire.SscModes) bool {
 }
 
 func (s *vsmfSession) Rules() smf.HPLMNRules {
-	v := s.v
-
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	if ue := v.ues[s.supi.IMSI()]; ue != nil {
-		if d := ue.data[s.key]; d != nil {
-			rules := d.rules
-			rules.Withdrawn = !d.subscribed
-
-			return rules
-		}
-	}
+	s.v.mu.Lock()
+	defer s.v.mu.Unlock()
 
 	return s.rules
 }
@@ -389,93 +228,72 @@ func (s *vsmfSession) Close() {
 
 func (v *VSMF) close(s *vsmfSession) {
 	ctx := context.Background()
-	deps := v.deps.Load()
 	imsi := s.supi.IMSI()
 
 	v.mu.Lock()
 	deregister := s.registered && !s.released
-	s.registered = false
+	unsubscribe := s.subscription
+	s.registered, s.subscription = false, ""
+
+	if ue := v.ues[imsi]; ue != nil && ue[s.psi] == s {
+		delete(ue, s.psi)
+
+		if len(ue) == 0 {
+			delete(v.ues, imsi)
+		}
+	}
 	v.mu.Unlock()
 
 	if deregister {
-		v.deregister(ctx, deps, s)
+		v.deregister(ctx, s)
 	}
 
-	v.mu.Lock()
-
-	ue := v.ues[imsi]
-	if ue == nil {
-		v.mu.Unlock()
-		return
-	}
-
-	if ue.sessions[s.psi] == s {
-		delete(ue.sessions, s.psi)
-	}
-
-	var unsubscribe *smData
-
-	if d := ue.data[s.key]; d != nil {
-		d.refs--
-		if d.refs <= 0 {
-			delete(ue.data, s.key)
-
-			if d.renewal != nil {
-				d.renewal.Stop()
-			}
-
-			unsubscribe = d
-		}
-	}
-
-	if len(ue.data) == 0 && len(ue.sessions) == 0 {
-		delete(v.ues, imsi)
-	}
-	v.mu.Unlock()
-
-	if unsubscribe != nil && unsubscribe.subscription != "" {
-		v.unsubscribe(ctx, deps, unsubscribe)
+	if unsubscribe != "" {
+		v.unsubscribe(ctx, s, unsubscribe)
 	}
 }
 
 func (s *vsmfSession) Register(ctx context.Context) error {
-	v := s.v
-	imsi := s.supi.IMSI()
+	var err error
 
-	for attempt := 1; ; attempt++ {
-		v.mu.Lock()
-		done := s.closed || s.registered
-		v.mu.Unlock()
+	s.v.queue.Do(s.supi.IMSI(), func() { err = s.v.register(ctx, s) })
 
-		if done {
-			return nil
+	return err
+}
+
+func (v *VSMF) RenewSubscriptions(ctx context.Context) {
+	now := v.now()
+
+	v.mu.Lock()
+
+	var due []*vsmfSession
+
+	for _, ue := range v.ues {
+		for _, s := range ue {
+			if !s.closed && (s.subscription == "" || renewDue(s.expires, now)) {
+				due = append(due, s)
+			}
 		}
+	}
+	v.mu.Unlock()
 
-		var err error
+	ctx = context.WithoutCancel(ctx)
 
-		v.queue.Do(imsi, func() { err = v.register(ctx, s) })
-
-		var se *SessionError
-		if err == nil || errors.As(err, &se) || attempt >= vsmfRegisterAttempts {
-			return err
-		}
-
-		v.logger.Debug("Retrying the SMF registration at the home UDM", zap.String("imsi", imsi), zap.Uint8("pduSessionID", s.psi), zap.Error(err))
-
-		select {
-		case <-ctx.Done():
-			return err
-		case <-time.After(v.registerBackoff * time.Duration(attempt)):
-		}
+	for _, s := range due {
+		v.queue.Go(s.supi.IMSI(), func() { v.resubscribe(ctx, s) })
 	}
 }
 
-func (v *VSMF) instanceID(serving wire.PlmnID, seppID int) string {
-	return NFInstanceID(sepp.CallbackHost(sepp.CallbackSMF, seppID, serving))
+func renewDue(expires, now time.Time) bool {
+	return !expires.IsZero() && expires.Sub(now) < sdmRenewBefore
 }
 
-func (v *VSMF) callbackURI(n32 VSMFN32, supi etsi.SUPI, serving wire.PlmnID, kind sepp.CallbackKind) string {
-	uri, err := sepp.Callback{NF: sepp.CallbackSMF, SEPPID: n32.SEPPID(), Supi: supi.String(), Kind: kind}.URI(serving)
+func (v *VSMF) instanceID(serving wire.PlmnID) string {
+	return NFInstanceID(sepp.CallbackHost(sepp.CallbackSMF, v.n32.SEPPID(), serving))
+}
+
+func (v *VSMF) callbackURI(supi etsi.SUPI, serving wire.PlmnID, kind sepp.CallbackKind) string {
+	uri, err := sepp.Callback{NF: sepp.CallbackSMF, SEPPID: v.n32.SEPPID(), Supi: supi.String(), Kind: kind}.URI(serving)
 	if err != nil {
 		return ""
 	}

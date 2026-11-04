@@ -39,7 +39,6 @@ var (
 		"retention_policies",
 		"roaming_partner_plmns",
 		"roaming_partners",
-		"roaming_withdrawals",
 		"schema_version",
 		"sepp_ca",
 		"sepp_identities",

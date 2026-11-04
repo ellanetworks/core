@@ -638,14 +638,8 @@ func TestSEPPIdentityProvisioning(t *testing.T) {
 	f := newRoamingFixture(t)
 	own := pki.PLMN{MCC: db.InitialMcc, MNC: db.InitialMnc}
 
-	created, err := f.db.EnsureSEPPIdentity(ctx, 2)
-	if err != nil || !created {
-		t.Fatalf("EnsureSEPPIdentity = %v, %v; want true, nil", created, err)
-	}
-
-	created, err = f.db.EnsureSEPPIdentity(ctx, 2)
-	if err != nil || created {
-		t.Fatalf("EnsureSEPPIdentity again = %v, %v; want false, nil", created, err)
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 2); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity: %s", err)
 	}
 
 	ca, err := f.db.GetSEPPCA(ctx)
@@ -668,13 +662,29 @@ func TestSEPPIdentityProvisioning(t *testing.T) {
 		t.Fatalf("generated chain does not end with the cluster SEPP CA: %v", err)
 	}
 
-	if _, err := f.db.GenerateSEPPIdentity(ctx, 3); err != nil {
-		t.Fatalf("GenerateSEPPIdentity: %s", err)
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 2); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity again: %s", err)
+	}
+
+	if renewed, err := f.db.GetSEPPIdentity(ctx, 2); err != nil || renewed.CertChainPEM == two.CertChainPEM {
+		t.Fatalf("renewed identity = %+v, %v; want a new certificate", renewed, err)
+	}
+
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 3); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity: %s", err)
 	}
 
 	imported := ownSEPPIdentity(t, "1")
 	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
 		t.Fatalf("PutSEPPIdentity: %s", err)
+	}
+
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 1); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity over an imported one: %s", err)
+	}
+
+	if got, err := f.db.GetSEPPIdentity(ctx, 1); err != nil || *got != imported {
+		t.Fatalf("identity 1 = %+v, %v; want the import kept", got, err)
 	}
 
 	stale := *two
@@ -692,16 +702,24 @@ func TestSEPPIdentityProvisioning(t *testing.T) {
 		t.Fatalf("leaf of the previous CA: err = %v, want ErrRoamingConflict", err)
 	}
 
-	if _, err := f.db.GenerateSEPPIdentity(ctx, 1); err != nil {
-		t.Fatalf("GenerateSEPPIdentity over an imported one: %s", err)
+	if err := f.db.DeleteSEPPIdentity(ctx, 1); err != nil {
+		t.Fatalf("DeleteSEPPIdentity: %s", err)
+	}
+
+	if err := f.db.DeleteSEPPIdentity(ctx, 1); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("DeleteSEPPIdentity again: %v, want ErrNotFound", err)
+	}
+
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 1); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity after the delete: %s", err)
 	}
 
 	if got, err := f.db.GetSEPPIdentity(ctx, 1); err != nil || got.Source != db.SEPPIdentityGenerated {
 		t.Fatalf("identity 1 = %+v, %v; want generated", got, err)
 	}
 
-	if _, err := f.db.EnsureSEPPIdentity(ctx, 0); err == nil {
-		t.Fatal("EnsureSEPPIdentity accepted SEPP ID 0")
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 0); err == nil {
+		t.Fatal("PutGeneratedSEPPIdentity accepted SEPP ID 0")
 	}
 
 	if deleted, err := f.db.ChangeOperatorID(ctx, "208", "99"); err != nil || !deleted {
@@ -894,59 +912,48 @@ func TestRegisterVisitorUE(t *testing.T) {
 	}
 }
 
-func TestVisitorDeletion(t *testing.T) {
+func TestPurgingTheLastRegistrationDeletesTheVisitor(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 	f.createPartner(t)
 	f.registerVisitor(t, visitorIMSI)
-	f.registerVisitor(t, "208930000000002")
 
-	deleted, err := f.db.DeleteVisitorIfUnregistered(ctx, visitorIMSI)
-	if err != nil || deleted {
-		t.Fatalf("DeleteVisitorIfUnregistered while registered = %v, %v", deleted, err)
+	if _, err := f.db.RegisterVisitorUE(ctx, visitorIMSI, roamingPartnerID, db.UERegistrationTypeAMF3GPPAccess, "node-2", ""); err != nil {
+		t.Fatalf("RegisterVisitorUE over 5G: %s", err)
+	}
+
+	f.createOwnSubscriber(t, "001010000000001")
+
+	if _, err := f.db.RegisterUE(ctx, "001010000000001", db.UERegistrationTypeMME, "node-1", ""); err != nil {
+		t.Fatalf("RegisterUE: %s", err)
 	}
 
 	if err := f.db.PurgeUERegistration(ctx, visitorIMSI, db.UERegistrationTypeMME, "node-1"); err != nil {
-		t.Fatalf("PurgeUERegistration: %s", err)
+		t.Fatalf("PurgeUERegistration over 4G: %s", err)
 	}
 
-	deleted, err = f.db.DeleteVisitorIfUnregistered(ctx, visitorIMSI)
-	if err != nil || !deleted {
-		t.Fatalf("DeleteVisitorIfUnregistered after purge = %v, %v", deleted, err)
+	if _, err := f.db.GetVisitor(ctx, visitorIMSI); err != nil {
+		t.Fatalf("visitor still registered over 5G: %s", err)
+	}
+
+	if err := f.db.PurgeUERegistration(ctx, visitorIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-2"); err != nil {
+		t.Fatalf("PurgeUERegistration over 5G: %s", err)
 	}
 
 	if _, err := f.db.GetSubscriberOrVisitor(ctx, visitorIMSI); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("visitor after delete: err = %v, want ErrNotFound", err)
+		t.Fatalf("visitor after its last purge: err = %v, want ErrNotFound", err)
 	}
 
 	if _, err := f.db.GetUERegistration(ctx, visitorIMSI, db.UERegistrationTypeMME); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("visitor registration after delete: err = %v, want ErrNotFound", err)
 	}
 
-	f.createOwnSubscriber(t, "001010000000001")
-
-	if deleted, err := f.db.DeleteVisitorIfUnregistered(ctx, "001010000000001"); err != nil || deleted {
-		t.Fatalf("DeleteVisitorIfUnregistered of a home subscriber = %v, %v", deleted, err)
-	}
-
-	if n, err := f.db.DeleteUnregisteredVisitors(ctx); err != nil || n != 0 {
-		t.Fatalf("DeleteUnregisteredVisitors with a registered visitor = %d, %v", n, err)
-	}
-
-	if err := f.db.PurgeUERegistration(ctx, "208930000000002", db.UERegistrationTypeMME, "node-1"); err != nil {
-		t.Fatalf("PurgeUERegistration: %s", err)
-	}
-
-	if n, err := f.db.DeleteUnregisteredVisitors(ctx); err != nil || n != 1 {
-		t.Fatalf("DeleteUnregisteredVisitors = %d, %v; want 1", n, err)
-	}
-
-	if visitors, err := f.db.ListVisitors(ctx); err != nil || len(visitors) != 0 {
-		t.Fatalf("ListVisitors after reconcile = %+v, %v", visitors, err)
+	if err := f.db.PurgeUERegistration(ctx, "001010000000001", db.UERegistrationTypeMME, "node-1"); err != nil {
+		t.Fatalf("PurgeUERegistration of a home subscriber: %s", err)
 	}
 
 	if _, err := f.db.GetSubscriber(ctx, "001010000000001"); err != nil {
-		t.Fatalf("home subscriber after reconcile: %s", err)
+		t.Fatalf("home subscriber after its purge: %s", err)
 	}
 }
 
@@ -1020,10 +1027,6 @@ func TestRoamingPartnerProfileChangeAndDeleteRestrict(t *testing.T) {
 		t.Fatalf("PurgeUERegistration: %s", err)
 	}
 
-	if deleted, err := f.db.DeleteVisitorIfUnregistered(ctx, visitorIMSI); err != nil || !deleted {
-		t.Fatalf("DeleteVisitorIfUnregistered = %v, %v", deleted, err)
-	}
-
 	if err := f.db.DeleteRoamingPartner(ctx, roamingPartnerID); err != nil {
 		t.Fatalf("DeleteRoamingPartner without roamers: %s", err)
 	}
@@ -1049,24 +1052,31 @@ func TestSubscriberReadsWithVisitors(t *testing.T) {
 	}
 
 	subs, total, err := f.db.ListSubscribersPage(ctx, nil, 1, 10)
-	if err != nil || total != 2 || len(subs) != 2 || subs[0].Imsi != "001010000000001" || subs[1].Imsi != visitorIMSI {
+	if err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != "001010000000001" {
 		t.Fatalf("ListSubscribersPage = %+v, %d, %v", subs, total, err)
 	}
 
-	own, roaming := false, true
-
-	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Roaming: &own}, 1, 10); err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != "001010000000001" {
-		t.Fatalf("ListSubscribersPage of home subscribers = %+v, %d, %v", subs, total, err)
+	visitors, total, err := f.db.ListVisitorsPage(ctx, nil, 1, 10)
+	if err != nil || total != 1 || len(visitors) != 1 || visitors[0].Imsi != visitorIMSI || visitors[0].PartnerID != roamingPartnerID || visitors[0].ProfileID != f.profileID {
+		t.Fatalf("ListVisitorsPage = %+v, %d, %v", visitors, total, err)
 	}
 
-	search := "20893"
+	search, partnerID, other := "20893", roamingPartnerID, "other"
 
-	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search, Roaming: &roaming}, 1, 10); err != nil || total != 1 || len(subs) != 1 || subs[0].Imsi != visitorIMSI {
+	if visitors, total, err := f.db.ListVisitorsPage(ctx, &db.VisitorFilters{Search: &search, PartnerID: &partnerID}, 1, 10); err != nil || total != 1 || len(visitors) != 1 {
+		t.Fatalf("ListVisitorsPage searching a visitor = %+v, %d, %v", visitors, total, err)
+	}
+
+	if visitors, total, err := f.db.ListVisitorsPage(ctx, &db.VisitorFilters{PartnerID: &other}, 1, 10); err != nil || total != 0 || len(visitors) != 0 {
+		t.Fatalf("ListVisitorsPage of another partner = %+v, %d, %v", visitors, total, err)
+	}
+
+	if visitors, total, err := f.db.ListVisitorsPage(ctx, nil, 2, 10); err != nil || total != 1 || len(visitors) != 0 {
+		t.Fatalf("ListVisitorsPage past the end = %+v, %d, %v", visitors, total, err)
+	}
+
+	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
 		t.Fatalf("ListSubscribersPage searching a visitor = %+v, %d, %v", subs, total, err)
-	}
-
-	if subs, total, err := f.db.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &search, Roaming: &own}, 1, 10); err != nil || total != 0 || len(subs) != 0 {
-		t.Fatalf("ListSubscribersPage searching a visitor among home subscribers = %+v, %d, %v", subs, total, err)
 	}
 
 	if n, err := f.db.CountSubscribers(ctx); err != nil || n != 1 {
@@ -1122,8 +1132,8 @@ func TestSupportBundleRedactsSEPPKey(t *testing.T) {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}
 
-	if _, err := f.db.GenerateSEPPIdentity(ctx, 2); err != nil {
-		t.Fatalf("GenerateSEPPIdentity: %s", err)
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, 2); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity: %s", err)
 	}
 
 	out, err := f.db.ExportSupportData(ctx, supportbundle.ExportOptions{})
@@ -1192,13 +1202,17 @@ func TestRoamingWritesReplicate(t *testing.T) {
 		t.Fatalf("DeleteRoamingPartner with a roamer: err = %v, want ErrRoamingConflict", err)
 	}
 
-	if err := database.PurgeUERegistration(ctx, visitorIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-1"); err != nil {
-		t.Fatalf("PurgeUERegistration: %s", err)
-	}
+	expectOneRaftEntry(t, database, "SetRoamingPartnerWithdrawing", func() error {
+		return database.SetRoamingPartnerWithdrawing(ctx, roamingPartnerID, time.Now().Add(time.Minute))
+	})
+	awaitWakeup(t, roaming, "SetRoamingPartnerWithdrawing")
 
-	expectOneRaftEntry(t, database, "DeleteVisitorIfUnregistered", func() error {
-		_, err := database.DeleteVisitorIfUnregistered(ctx, visitorIMSI)
-		return err
+	expectOneRaftEntry(t, database, "SetVisitorDeregistering", func() error {
+		return database.SetVisitorDeregistering(ctx, visitorIMSI, time.Now().Add(time.Minute))
+	})
+
+	expectOneRaftEntry(t, database, "PurgeUERegistration", func() error {
+		return database.PurgeUERegistration(ctx, visitorIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-1")
 	})
 
 	expectOneRaftEntry(t, database, "DeleteRoamingPartner", func() error { return database.DeleteRoamingPartner(ctx, roamingPartnerID) })
@@ -1230,8 +1244,8 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 	}
 
 	for _, nodeID := range []string{"node-1", "node-2"} {
-		if _, err := f.db.EnsureSEPPIdentity(ctx, pointers[nodeID]); err != nil {
-			t.Fatalf("EnsureSEPPIdentity: %s", err)
+		if err := f.db.PutGeneratedSEPPIdentity(ctx, pointers[nodeID]); err != nil {
+			t.Fatalf("PutGeneratedSEPPIdentity: %s", err)
 		}
 	}
 
@@ -1276,8 +1290,7 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 		t.Fatalf("the new member = %+v, %v; want the released AMF Pointer %d", joined, err, pointers["node-2"])
 	}
 
-	created, err := f.db.EnsureSEPPIdentity(ctx, joined.AMFPointer)
-	if err != nil || !created {
-		t.Fatalf("EnsureSEPPIdentity for the new member = %v, %v", created, err)
+	if err := f.db.PutGeneratedSEPPIdentity(ctx, joined.AMFPointer); err != nil {
+		t.Fatalf("PutGeneratedSEPPIdentity for the new member: %v", err)
 	}
 }

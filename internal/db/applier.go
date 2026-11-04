@@ -1858,7 +1858,7 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 	}
 
 	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		if _, err := db.applyDeleteUnregisteredVisitors(ctx, &emptyPayload{}); err != nil {
+		if err := db.deleteUnregisteredVisitors(ctx); err != nil {
 			return nil, err
 		}
 

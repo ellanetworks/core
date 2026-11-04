@@ -146,7 +146,7 @@ func (r *visitorRegistrar) Purge(imsi string) {
 	r.purged = append(r.purged, imsi)
 }
 
-func (r *visitorRegistrar) Reconcile(ctx context.Context, _ string, _ func() int64, _ func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal)) {
+func (r *visitorRegistrar) Reconcile(ctx context.Context, _ string, _ bool, _ func() int64, _ func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal)) {
 	r.mu.Lock()
 	why := r.withdraw
 	r.mu.Unlock()

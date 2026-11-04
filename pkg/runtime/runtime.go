@@ -313,7 +313,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	dbInstance.OnLeadership(server.LeadershipAudit(dbInstance.RaftID()))
-	dbInstance.OnLeadership(reconcileVisitors(dbInstance))
 
 	if pki != nil {
 		dbInstance.OnLeadership(newPKILeader(pki, dbInstance, raftID, ver.Version, restoredFromBundle).run)
@@ -519,7 +518,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribersByRoaming, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribersByRoaming)
 	metrics.RegisterRadioEventDrops(bufferedWriter.Dropped)
-	roaming.RegisterMetrics(prometheus.DefaultRegisterer)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 	lmfInstance.Start(ctx)
@@ -563,6 +561,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	seppManager := newSEPP(dbInstance, cfg.Interfaces.N32)
+	metrics.RegisterRoamingPartnerGauge(seppManager.ConnectedPartners, connectedS6aPartners(dbInstance, diameterNode))
 	cp.vsmf.SetN32(seppManager)
 	seppManager.SetCallbacks(seppCallbacks{amf: wireAMFRoaming(amfInstance, seppManager), smf: cp.vsmf})
 
@@ -603,7 +602,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
+	}(), smfInstance.Reconcile, cp.vsmf.RenewSubscriptions, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
 
 	// --- Phase B: upgrade the API server to serve all routes once the
@@ -1457,30 +1456,6 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 	}
 }
 
-func reconcileVisitors(dbInstance *db.Database) ellaraft.LeaderHook {
-	return func(ctx context.Context) {
-		deleted, err := dbInstance.DeleteUnregisteredVisitors(ctx)
-
-		switch {
-		case errors.Is(err, db.ErrMigrationPending):
-		case err != nil:
-			logger.EllaLog.Warn("failed to remove the visitors without a UE registration", zap.Error(err))
-		case deleted > 0:
-			logger.EllaLog.Info("removed the visitors without a UE registration", zap.Int64("count", deleted))
-		}
-
-		expired, err := dbInstance.DeleteExpiredRoamingWithdrawals(ctx)
-
-		switch {
-		case errors.Is(err, db.ErrMigrationPending):
-		case err != nil:
-			logger.EllaLog.Warn("failed to remove the expired roaming withdrawals", zap.Error(err))
-		case expired > 0:
-			logger.EllaLog.Info("removed the expired roaming withdrawals", zap.Int64("count", expired))
-		}
-	}
-}
-
 func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
 	return func(ctx context.Context) (diameternode.NodeSettings, error) {
 		if dbInstance.ClusterEnabled() && !dbInstance.IsRaftConfigurationMember(dbInstance.RaftID()) {
@@ -1733,4 +1708,15 @@ func startRadioEventWriter(dbInstance *db.Database) *dbwriter.BufferedDBWriter {
 	logger.SetDb(writer)
 
 	return writer
+}
+
+func connectedS6aPartners(dbInstance *db.Database, node *diameternode.Manager) func() int {
+	return func() int {
+		partners, err := dbInstance.ListRoamingPartners(context.Background())
+		if err != nil {
+			return 0
+		}
+
+		return roaming.ConnectedS6aPartners(partners, node.Peers())
+	}
 }

@@ -154,23 +154,3 @@ func (e AccessTokenErr) String() string {
 
 	return fmt.Sprintf("%s: %s", e.Error, e.ErrorDescription)
 }
-
-func BearerChallenge(header []string) (string, bool) {
-	for _, h := range header {
-		scheme, params, _ := strings.Cut(strings.TrimSpace(h), " ")
-		if !strings.EqualFold(scheme, TokenTypeBearer) {
-			continue
-		}
-
-		for p := range strings.SplitSeq(params, ",") {
-			k, v, ok := strings.Cut(strings.TrimSpace(p), "=")
-			if ok && strings.EqualFold(k, "error") {
-				return strings.Trim(v, `"`), true
-			}
-		}
-
-		return "", true
-	}
-
-	return "", false
-}

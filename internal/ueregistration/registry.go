@@ -19,11 +19,10 @@ const defaultInterval = 10 * time.Second
 type Store interface {
 	RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error)
 	RegisterVisitorUE(ctx context.Context, imsi, partnerID, regType, nodeID, cancel string) (int64, error)
-	DeleteVisitorIfUnregistered(ctx context.Context, imsi string) (bool, error)
 	PurgeUERegistration(ctx context.Context, imsi, regType, nodeID string) error
 	GetUERegistration(ctx context.Context, imsi, regType string) (*db.UERegistration, error)
 	GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error)
-	RoamingWithdrawalOf(ctx context.Context, imsi, regType string) (*db.RoamingWithdrawal, error)
+	GetVisitor(ctx context.Context, imsi string) (*db.Visitor, error)
 	ListVisitorRegistrationsOfNode(ctx context.Context, nodeID string) ([]db.UERegistration, error)
 }
 
@@ -32,7 +31,6 @@ type Withdrawal int
 const (
 	SubscriberDeleted Withdrawal = iota
 	RoamingWithdrawn
-	RoamingAgreementWithdrawn
 	RoamerDeregistered
 )
 
@@ -203,28 +201,7 @@ func (r *Registry) purge(ctx context.Context, k purgeKey) error {
 		return nil
 	}
 
-	if err != nil {
-		return err
-	}
-
-	return r.deleteVisitor(ctx, k.imsi)
-}
-
-func (r *Registry) deleteVisitor(ctx context.Context, imsi string) error {
-	deleted, err := r.store.DeleteVisitorIfUnregistered(ctx, imsi)
-	if errors.Is(err, db.ErrMigrationPending) {
-		return nil
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if deleted {
-		r.log.Info("visitor deregistered; removed its subscriber row", logger.SUPIFromIMSI(imsi))
-	}
-
-	return nil
+	return err
 }
 
 type Binding struct {
@@ -272,10 +249,10 @@ func (b *Binding) Purge(imsi string) {
 	b.r.enqueuePurge(b.regType, imsi)
 }
 
-func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context, Withdrawal)) {
+func (b *Binding) Reconcile(ctx context.Context, imsi string, visitor bool, held func() int64, release func(context.Context), withdraw func(context.Context, Withdrawal)) {
 	defer b.r.locks.lock(imsi)()
 
-	switch o, why := b.outcome(ctx, imsi, held()); o {
+	switch o, why := b.outcome(ctx, imsi, visitor, held()); o {
 	case outcomeSuperseded:
 		release(ctx)
 	case outcomeWithdrawn:
@@ -291,7 +268,7 @@ const (
 	outcomeWithdrawn
 )
 
-func (b *Binding) outcome(ctx context.Context, imsi string, held int64) (outcome, Withdrawal) {
+func (b *Binding) outcome(ctx context.Context, imsi string, visitor bool, held int64) (outcome, Withdrawal) {
 	if held == 0 {
 		return outcomeKept, 0
 	}
@@ -314,6 +291,10 @@ func (b *Binding) outcome(ctx context.Context, imsi string, held int64) (outcome
 	}
 
 	if !own.Purged {
+		if !visitor {
+			return outcomeKept, 0
+		}
+
 		return b.roamingOutcome(ctx, imsi)
 	}
 
@@ -326,19 +307,21 @@ func (b *Binding) outcome(ctx context.Context, imsi string, held int64) (outcome
 }
 
 func (b *Binding) roamingOutcome(ctx context.Context, imsi string) (outcome, Withdrawal) {
-	w, err := b.r.store.RoamingWithdrawalOf(ctx, imsi, b.regType)
+	v, err := b.r.store.GetVisitor(ctx, imsi)
 	if err != nil {
 		return outcomeKept, 0
 	}
 
+	now := time.Now()
+
 	switch {
-	case w.RoamerOnly():
+	case v.Deregistering(now):
 		return outcomeWithdrawn, RoamerDeregistered
-	case w.AgreementOnly():
-		return outcomeWithdrawn, RoamingAgreementWithdrawn
+	case v.Withdrawing(now):
+		return outcomeWithdrawn, RoamingWithdrawn
 	}
 
-	return outcomeWithdrawn, RoamingWithdrawn
+	return outcomeKept, 0
 }
 
 func (b *Binding) subscriberDeleted(ctx context.Context, imsi string) bool {

@@ -434,7 +434,7 @@ None
 
 ## Get Network Interfaces Config
 
-This path returns the network interfaces. `diameter` and `n32` are present only when the node that serves the request configures them.
+This path returns the network interfaces.
 
 | Method | Path                      |
 | ------ | ------------------------- |

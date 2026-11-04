@@ -34,33 +34,13 @@ type RoamingPartner struct {
 }
 
 type RoamingPartnerN32 struct {
-	State      string                  `json:"state"`
-	Since      string                  `json:"since,omitempty"`
-	Initiator  string                  `json:"initiator,omitempty"`
-	NFTLST     bool                    `json:"nftlst"`
-	Peer       string                  `json:"peer,omitempty"`
-	LastError  string                  `json:"lastError,omitempty"`
-	OtherPeers []RoamingPartnerN32Peer `json:"otherPeers,omitempty"`
-}
-
-type RoamingPartnerN32Peer struct {
-	Peer   string `json:"peer"`
-	Since  string `json:"since"`
-	NFTLST bool   `json:"nftlst"`
+	State     string `json:"state"`
+	Peer      string `json:"peer,omitempty"`
+	LastError string `json:"lastError,omitempty"`
 }
 
 type RoamingPartnerHandshake struct {
 	N32 RoamingPartnerN32 `json:"n32"`
-}
-
-type SEPPCertificateSummary struct {
-	Subject                string   `json:"subject"`
-	SANs                   []string `json:"sans"`
-	Issuer                 string   `json:"issuer"`
-	NotBefore              string   `json:"notBefore"`
-	NotAfter               string   `json:"notAfter"`
-	Fingerprint            string   `json:"fingerprint"`
-	TrustAnchorFingerprint string   `json:"trustAnchorFingerprint"`
 }
 
 type SEPPTrustAnchor struct {
@@ -72,34 +52,23 @@ type SEPPTrustAnchor struct {
 	SEPPIDs     []int  `json:"seppIDs"`
 }
 
-type SEPPNodeStatus struct {
-	SEPPID        int                     `json:"seppID,omitempty"`
-	FQDN          string                  `json:"fqdn,omitempty"`
-	Source        string                  `json:"source,omitempty"`
-	N32Configured bool                    `json:"n32Configured"`
-	Address       string                  `json:"address,omitempty"`
-	Port          int                     `json:"port,omitempty"`
-	Listening     bool                    `json:"listening"`
-	Certificate   *SEPPCertificateSummary `json:"certificate,omitempty"`
-	Error         string                  `json:"error,omitempty"`
-}
-
-type SEPPStoredCertificate struct {
-	SEPPID      int                     `json:"seppID"`
-	FQDN        string                  `json:"fqdn"`
-	Source      string                  `json:"source"`
-	Certificate *SEPPCertificateSummary `json:"certificate,omitempty"`
+type SEPPListener struct {
+	SEPPID     int    `json:"seppID,omitempty"`
+	Configured bool   `json:"configured"`
+	Address    string `json:"address,omitempty"`
+	Port       int    `json:"port,omitempty"`
+	Listening  bool   `json:"listening"`
+	Error      string `json:"error,omitempty"`
 }
 
 type SEPPStatus struct {
-	Node         SEPPNodeStatus          `json:"node"`
-	TrustAnchors []SEPPTrustAnchor       `json:"trustAnchors"`
-	Certificates []SEPPStoredCertificate `json:"certificates"`
+	Listener     SEPPListener      `json:"listener"`
+	Certificates []SEPPCertificate `json:"certificates"`
+	TrustAnchors []SEPPTrustAnchor `json:"trustAnchors"`
 }
 
 type SEPPCARegenerated struct {
 	TrustAnchor SEPPTrustAnchor `json:"trustAnchor"`
-	Reissued    []int           `json:"reissued"`
 	Warnings    []string        `json:"warnings,omitempty"`
 }
 
@@ -133,14 +102,17 @@ type RoamingDiameterPeerOptions struct {
 }
 
 type SEPPCertificate struct {
-	SEPPID              int      `json:"seppID"`
-	Source              string   `json:"source"`
-	FQDN                string   `json:"fqdn"`
-	CertificateChainPEM string   `json:"certificateChainPEM"`
-	TrustAnchorPEM      string   `json:"trustAnchorPEM"`
-	Fingerprint         string   `json:"fingerprint"`
-	NotAfter            string   `json:"notAfter"`
-	Warnings            []string `json:"warnings,omitempty"`
+	SEPPID                 int      `json:"seppID"`
+	FQDN                   string   `json:"fqdn"`
+	Source                 string   `json:"source"`
+	Subject                string   `json:"subject,omitempty"`
+	SANs                   []string `json:"sans,omitempty"`
+	Issuer                 string   `json:"issuer,omitempty"`
+	NotBefore              string   `json:"notBefore,omitempty"`
+	NotAfter               string   `json:"notAfter,omitempty"`
+	Fingerprint            string   `json:"fingerprint,omitempty"`
+	TrustAnchorFingerprint string   `json:"trustAnchorFingerprint,omitempty"`
+	Warnings               []string `json:"warnings,omitempty"`
 }
 
 type ImportSEPPCertificateOptions struct {
@@ -278,16 +250,6 @@ func seppCertificatePath(seppID int) string {
 	return "api/v1/operator/roaming/sepp/nodes/" + strconv.Itoa(seppID) + "/certificate"
 }
 
-func (c *Client) GetSEPPCertificate(ctx context.Context, seppID int) (*SEPPCertificate, error) {
-	var cert SEPPCertificate
-
-	if err := c.roamingDo(ctx, "GET", seppCertificatePath(seppID), nil, &cert); err != nil {
-		return nil, err
-	}
-
-	return &cert, nil
-}
-
 func (c *Client) ImportSEPPCertificate(ctx context.Context, seppID int, opts *ImportSEPPCertificateOptions) (*SEPPCertificate, error) {
 	var cert SEPPCertificate
 
@@ -298,14 +260,8 @@ func (c *Client) ImportSEPPCertificate(ctx context.Context, seppID int, opts *Im
 	return &cert, nil
 }
 
-func (c *Client) GenerateSEPPCertificate(ctx context.Context, seppID int) (*SEPPCertificate, error) {
-	var cert SEPPCertificate
-
-	if err := c.roamingDo(ctx, "POST", seppCertificatePath(seppID)+"/generate", nil, &cert); err != nil {
-		return nil, err
-	}
-
-	return &cert, nil
+func (c *Client) DeleteSEPPCertificate(ctx context.Context, seppID int) error {
+	return c.roamingDo(ctx, "DELETE", seppCertificatePath(seppID), nil, nil)
 }
 
 func (c *Client) RegenerateSEPPCA(ctx context.Context) (*SEPPCARegenerated, error) {

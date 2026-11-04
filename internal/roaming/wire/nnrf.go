@@ -292,7 +292,7 @@ type Candidate struct {
 	Service        NFService
 	APIRoot        string
 	Priority       *int
-	Scope          Scope
+	GroupID        string
 	OAuth2Required bool
 }
 
@@ -332,7 +332,7 @@ func (n NFProfile) Candidate(sel Selector) (Candidate, bool) {
 			Service:        s,
 			APIRoot:        root,
 			Priority:       n.Priority,
-			Scope:          n.Scope(),
+			GroupID:        n.GroupID(),
 			OAuth2Required: n.oauth2Required(s, sel.Requester),
 		}, true
 	}

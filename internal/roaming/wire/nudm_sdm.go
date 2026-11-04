@@ -58,6 +58,17 @@ func (c CoreNetworkType) Known() bool {
 	return oneOf(c, CoreNetwork5GC, CoreNetworkEPC)
 }
 
+type SorUpdateIndicator string
+
+const (
+	SorUpdateInitialRegistration   SorUpdateIndicator = "INITIAL_REGISTRATION"
+	SorUpdateEmergencyRegistration SorUpdateIndicator = "EMERGENCY_REGISTRATION"
+)
+
+func (s SorUpdateIndicator) Known() bool {
+	return oneOf(s, SorUpdateInitialRegistration, SorUpdateEmergencyRegistration)
+}
+
 type PduSessionType string
 
 const (
@@ -249,6 +260,14 @@ func (s SorInfo) Check(p Policy) error {
 	return checkDateTime("/provisioningTime", s.ProvisioningTime, false)
 }
 
+type SorUpdateInfo struct {
+	VplmnID PlmnID `json:"vplmnId"`
+}
+
+func (s SorUpdateInfo) Check(p Policy) error {
+	return Nest("/vplmnId", s.VplmnID.Check(p))
+}
+
 type AcknowledgeInfo struct {
 	SorMacIue               string   `json:"sorMacIue,omitempty"`
 	ProvisioningTime        DateTime `json:"provisioningTime"`
@@ -275,6 +294,7 @@ type AccessAndMobilitySubscriptionData struct {
 	CoreNetworkTypeRestrictions []CoreNetworkType    `json:"coreNetworkTypeRestrictions,omitempty"`
 	SorInfo                     *SorInfo             `json:"sorInfo,omitempty"`
 	SorInfoExpectInd            bool                 `json:"sorInfoExpectInd,omitempty"`
+	SorUpdateIndicatorList      []SorUpdateIndicator `json:"sorUpdateIndicatorList,omitempty"`
 	OdbPacketServices           OdbPacketServices    `json:"odbPacketServices,omitempty"`
 	RoamingRestrictions         *RoamingRestrictions `json:"roamingRestrictions,omitempty"`
 }
@@ -286,6 +306,7 @@ func (a AccessAndMobilitySubscriptionData) Check(p Policy) error {
 		CheckEnums("/ratRestrictions", a.RatRestrictions, p),
 		CheckEnums("/coreNetworkTypeRestrictions", a.CoreNetworkTypeRestrictions, p),
 		CheckOptional("/sorInfo", a.SorInfo, p),
+		CheckEnums("/sorUpdateIndicatorList", a.SorUpdateIndicatorList, p),
 		CheckEnum("/odbPacketServices", a.OdbPacketServices, p, true),
 	); err != nil || p != Strict {
 		return err

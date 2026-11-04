@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"regexp"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/roaming"
@@ -78,11 +76,9 @@ var hplmnVerdicts = map[HPLMNOperation]map[problemKey]hplmnVerdict{
 		{http.StatusForbidden, wire.CauseNoPSSubscription}:               {cause: fgs.GMMCauseServicesNotAllowed},
 		{http.StatusForbidden, wire.CauseRoamingNotAllowed}:              {cause: fgs.GMMCausePLMNNotAllowed},
 		{http.StatusNotFound, wire.CauseContextNotFound}:                 {cause: fgs.GMMCauseUEIdentityCannotBeDerived},
-		{http.StatusNotFound, wire.CauseUserNotFound}:                    {cause: fgs.GMMCauseIllegalUE},
 		{http.StatusUnprocessableEntity, wire.CauseUnprocessableRequest}: {cause: fgs.GMMCauseProtocolErrorUnspecified},
 	},
 	HPLMNSubscriptionData: {
-		{http.StatusNotFound, wire.CauseUserNotFound}: {cause: fgs.GMMCauseIllegalUE},
 		{http.StatusNotFound, wire.CauseDataNotFound}: {cause: fgs.GMMCauseN1ModeNotAllowed},
 	},
 }
@@ -146,8 +142,6 @@ func IsReauthenticationRequired(err error) bool {
 	return ok && pd.Status == http.StatusForbidden && pd.Cause == wire.CauseReauthenticationRequired
 }
 
-var metricCause = regexp.MustCompile(`^[A-Z0-9_]{1,64}$`)
-
 func (amf *AMF) noteHPLMNFailure(ctx context.Context, v roaming.Visitor5G, op HPLMNOperation, err error, mapping func(error) (*Rejection, bool)) {
 	if err == nil {
 		return
@@ -156,26 +150,6 @@ func (amf *AMF) noteHPLMNFailure(ctx context.Context, v roaming.Visitor5G, op HP
 	if _, permanent := mapping(err); permanent || IsReauthenticationRequired(err) {
 		return
 	}
-
-	status, cause := "none", "error"
-
-	switch pd, ok := roaming.ProblemOf(err); {
-	case ok:
-		status, cause = strconv.Itoa(pd.Status), "none"
-		if metricCause.MatchString(string(pd.Cause)) {
-			cause = string(pd.Cause)
-		} else if pd.Cause != "" {
-			cause = "other"
-		}
-	case errors.Is(err, roaming.ErrHPLMNUnauthorized):
-		cause = "unauthorized"
-	case errors.Is(err, roaming.ErrHPLMNUnreachable):
-		cause = "unreachable"
-	case errors.Is(err, roaming.ErrHPLMNAnswer):
-		cause = "malformed_answer"
-	}
-
-	roaming.RecordHPLMNTransient(v.PartnerName, string(op), status, cause)
 
 	logger.From(ctx, logger.AmfLog).Warn("the home network failed without a subscriber verdict; treating it as transient",
 		zap.String("roaming_partner", v.PartnerName), zap.String("operation", string(op)), zap.Error(err))

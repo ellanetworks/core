@@ -49,6 +49,8 @@ tags:
     description: Manage user accounts and API tokens.
   - name: Subscribers
     description: Manage subscribers.
+  - name: Roamers
+    description: Subscribers of roaming partners registered on Ella Core.
   - name: Subscriber Usage
     description: Subscriber data usage.
   - name: Profiles
@@ -805,7 +807,7 @@ paths:
       operationId: listSubscribers
       tags: [Subscribers]
       summary: List subscribers
-      description: Lists subscribers, ordered by IMSI. Roamers (visitors of a roaming partner) are listed with their roaming partner; their status is what the node serving the request knows.
+      description: Lists subscribers, ordered by IMSI.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -825,12 +827,6 @@ paths:
             type: string
             maxLength: 254
           description: Substring match on IMSI or description, ASCII case-insensitive.
-        - name: roaming
-          in: query
-          schema:
-            type: string
-            enum: ["true", "false"]
-          description: "true lists only roamers, false only home subscribers. Absent lists both."
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -870,7 +866,7 @@ paths:
       operationId: getSubscriber
       tags: [Subscribers]
       summary: Get subscriber details
-      description: Returns a subscriber with its registrations and sessions. For a roamer, the registrations and sessions are those on the node serving the request.
+      description: Returns a subscriber with its registrations and sessions.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -888,7 +884,7 @@ paths:
       operationId: updateSubscriber
       tags: [Subscribers]
       summary: Update a subscriber
-      description: Updates a subscriber. Roamers cannot be updated.
+      description: Updates a subscriber.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       requestBody:
@@ -907,16 +903,12 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: The profile has no policy, the MSISDN is in use, or the subscriber is a roamer.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/Conflict"
     delete:
       operationId: deleteSubscriber
       tags: [Subscribers]
       summary: Delete a subscriber
-      description: Deletes a subscriber. Roamers cannot be deleted; deregister them instead.
+      description: Deletes a subscriber.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -926,38 +918,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "409":
-          description: The subscriber is a roamer.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/v1/subscribers/{imsi}/deregister:
-    post:
-      operationId: deregisterSubscriber
-      tags: [Subscribers]
-      summary: Deregister a roamer
-      description: Deregisters a roamer on the node that serves it, network-initiated with "re-registration not required" and no cause (TS 24.501 clause 5.5.2.3, TS 24.301 clause 5.5.2.3), and purges it at its home network (Nudm_UECM deregistration, S6a PUR). Meanwhile a new registration of the roamer is rejected with cause #22 (congestion). The roamer may register again once it is gone; to bar it, remove its PLMN ID from the roaming partner. Answers once the roamer is deregistered, within a minute.
-      parameters:
-        - $ref: "#/components/parameters/ImsiPath"
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: The subscriber is not a roamer, or the roamer was still registered after a minute (for example, the node that holds it is unreachable).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/subscribers/{imsi}/credentials:
     get:
@@ -980,6 +940,87 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  # -- Roamers -------------------------------------------------------------
+  /api/v1/roamers:
+    get:
+      operationId: listRoamers
+      tags: [Roamers]
+      summary: List roamers
+      description: Lists the roamers (subscribers of a roaming partner registered on Ella Core), ordered by IMSI. Their status is what the node serving the request knows.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: partner
+          in: query
+          schema:
+            type: string
+          description: Filter by roaming partner name.
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 254
+          description: Substring match on IMSI or E.164 MSISDN.
+      responses:
+        "200":
+          description: Paginated list of roamers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRoamersResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/roamers/{imsi}:
+    get:
+      operationId: getRoamer
+      tags: [Roamers]
+      summary: Get roamer details
+      description: Returns a roamer with its registrations and sessions on the node serving the request.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          description: Roamer details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamerDetailResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deregisterRoamer
+      tags: [Roamers]
+      summary: Deregister a roamer
+      description: Deregisters a roamer on the node that serves it, network-initiated with "re-registration not required" and no cause (TS 24.501 clause 5.5.2.3, TS 24.301 clause 5.5.2.3), and purges it at its home network (Nudm_UECM deregistration, S6a PUR). Meanwhile a new registration of the roamer is rejected with cause #22 (congestion). The roamer may register again once it is gone; to bar it, remove its PLMN ID from the roaming partner. Answers once the roamer is deregistered, within a minute.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The roamer was still registered after a minute (for example, the node that holds it is unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # -- Subscriber Usage ----------------------------------------------------
   /api/v1/subscriber-usage:
@@ -2068,7 +2109,7 @@ paths:
       operationId: updateRoamingPartner
       tags: [Operator]
       summary: Update a roaming partner
-      description: Replaces a roaming partner's configuration. PLMN IDs can be added. Removing a PLMN ID, or the 5G (`sepp`) or 4G (`diameterPeerID`) agreement, first deregisters the partner's roamers it affects (the roamers of that PLMN ID, or the roamers attached over that RAT) on every node, with a purge towards their home network, and refuses new ones meanwhile; the change is applied once they are gone. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
+      description: Replaces a roaming partner's configuration. PLMN IDs can be added. A PLMN ID, or the 5G (`sepp`) or 4G (`diameterPeerID`) agreement, can be removed only while none of the partner's roamers of that PLMN ID, or attached over that RAT, remain; deregister them first. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
       requestBody:
         required: true
         content:
@@ -2087,7 +2128,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: The name is taken, a PLMN ID conflicts (see create), or the roamers that the change affects could not all be deregistered within a minute (for example, a node that holds them is unreachable). The configuration is left unchanged.
+          description: The name is taken, a PLMN ID conflicts (see create), or roamers are attached to a removed PLMN ID or agreement. The configuration is left unchanged.
           content:
             application/json:
               schema:
@@ -2282,7 +2323,7 @@ paths:
       summary: Get the SEPP status
       description: |
         Every node with interfaces.n32 is its own SEPP (TS 33.501 clause 13.2.2.4.2), identified by its SEPP ID, the node's AMF Pointer, and named `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1).
-        Returns the SEPP identity, certificate summary and N32 listener status of the node that serves the request, the trust anchors to give roaming partners (the cluster SEPP CA, which signs generated certificates, and the CA ending each imported chain), and the stored certificate of every SEPP ID.
+        Returns the N32 listener status and SEPP ID of the node that serves the request, the stored certificate of every SEPP ID, and the trust anchors to give roaming partners (the cluster SEPP CA, which signs generated certificates, and the CA ending each imported chain).
       responses:
         "200":
           description: SEPP status.
@@ -2308,30 +2349,6 @@ paths:
           type: integer
           minimum: 1
           maximum: 63
-    get:
-      operationId: getSEPPCertificate
-      tags: [Operator]
-      summary: Get a node's SEPP certificate
-      description: Returns the SEPP certificate chain of the node, its FQDN, whether Ella Core generated or the operator imported it, and the trust anchor to give roaming partners, with warnings for every way the certificate departs from the TS 33.310 clause 6.1.3c.3 profile. The private key is never returned.
-      responses:
-        "200":
-          description: SEPP certificate.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          description: The node has no SEPP certificate.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
     put:
       operationId: importSEPPCertificate
       tags: [Operator]
@@ -2343,7 +2360,7 @@ paths:
         - is valid now;
         - has a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of the home PLMN, names no other PLMN, and does not carry the well-known SEPP FQDN `sepp.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1). The node's SEPP FQDN is that name; with several, `fqdn` selects one, else the subject CN if it is one of them. No two nodes may have the same FQDN.
 
-        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or nfTypes, a CN not in the subjectAltName, an FQDN other than `sepp<SEPPID>`, no cRLDistributionPoints or a validity over 3 years are accepted with a warning.
+        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or a validity over 3 years is accepted with a warning.
       requestBody:
         required: true
         content:
@@ -2369,45 +2386,32 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-
-  /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate/generate:
-    parameters:
-      - name: seppID
-        in: path
-        required: true
-        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 63
-    post:
-      operationId: generateSEPPCertificate
+    delete:
+      operationId: deleteSEPPCertificate
       tags: [Operator]
-      summary: Generate a node's SEPP certificate
-      description: Replaces the node's SEPP certificate with a new one for `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, signed by the cluster SEPP CA (created when absent). A node with interfaces.n32 and no certificate generates one the same way on its own; this endpoint returns a node to a generated certificate after an import. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral agreements, not the production profile of TS 33.310 clause 6.1.3c.3.
+      summary: Delete a node's SEPP certificate
+      description: Deletes the node's SEPP certificate, generated or imported. The node then generates a new one for `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, signed by the cluster SEPP CA (created when absent), as any node with interfaces.n32 and no certificate does. Use it to return a node to a generated certificate after an import, or to reissue a generated one. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral agreements, not the production profile of TS 33.310 clause 6.1.3c.3.
       responses:
-        "201":
-          description: The generated SEPP certificate, with warnings.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
+        "200":
+          $ref: "#/components/responses/Success"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/operator/roaming/sepp/ca/regenerate:
     post:
       operationId: regenerateSEPPCA
       tags: [Operator]
       summary: Regenerate the cluster SEPP CA
-      description: Replaces the cluster SEPP CA and reissues every generated node certificate with the new CA in the same request. Imported certificates are kept. The new CA is the trust anchor every roaming partner must import for the nodes with generated certificates.
+      description: Replaces the cluster SEPP CA and deletes every generated node certificate; each node with interfaces.n32 then generates a new one with the new CA. Imported certificates are kept. The new CA is the trust anchor every roaming partner must import for the nodes with generated certificates.
       responses:
         "201":
-          description: The new CA and the SEPP IDs whose certificates were reissued.
+          description: The new CA.
           content:
             application/json:
               schema:
@@ -4785,9 +4789,6 @@ components:
           type: string
           pattern: "^\\+[1-9][0-9]{0,14}$"
           description: "MSISDN in E.164 format, for example +15551230001. Absent when unset."
-        roaming_partner:
-          type: string
-          description: Name of the roaming partner of a roamer. Absent for home subscribers.
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, profile_name, status]
@@ -4889,9 +4890,6 @@ components:
           type: string
           pattern: "^\\+[1-9][0-9]{0,14}$"
           description: "MSISDN in E.164 format, for example +15551230001. Absent when unset."
-        roaming_partner:
-          type: string
-          description: Name of the roaming partner of a roamer. Absent for home subscribers.
         registrations:
           type: array
           description: "Mobility-management contexts, 5G first."
@@ -4966,6 +4964,86 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/SubscriberDetail"
+
+    Roamer:
+      type: object
+      properties:
+        imsi:
+          type: string
+          description: "IMSI, 6 to 15 digits."
+        partner:
+          type: string
+          description: Name of the roaming partner.
+        home_plmn:
+          $ref: "#/components/schemas/RoamingPLMN"
+          description: Home PLMN of the roamer. Absent when no PLMN ID of the partner matches the IMSI.
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, as given by the home network. Absent when unknown."
+        since:
+          type: string
+          description: "When the roamer first registered (RFC 3339)."
+        status:
+          $ref: "#/components/schemas/SubscriberStatus"
+      required: [imsi, partner, since, status]
+
+    ListRoamersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Roamer"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListRoamersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListRoamersResponse"
+
+    RoamerDetail:
+      type: object
+      properties:
+        imsi:
+          type: string
+        partner:
+          type: string
+          description: Name of the roaming partner.
+        home_plmn:
+          $ref: "#/components/schemas/RoamingPLMN"
+          description: Home PLMN of the roamer. Absent when no PLMN ID of the partner matches the IMSI.
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, as given by the home network. Absent when unknown."
+        since:
+          type: string
+          description: "When the roamer first registered (RFC 3339)."
+        registrations:
+          type: array
+          description: "Mobility-management contexts on the node serving the request, 5G first."
+          items:
+            $ref: "#/components/schemas/Registration"
+        sessions:
+          type: array
+          description: "Sessions on the node serving the request."
+          items:
+            $ref: "#/components/schemas/Session"
+      required: [imsi, partner, since, registrations, sessions]
+
+    RoamerDetailResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RoamerDetail"
 
     SNSSAI:
       type: object
@@ -8185,46 +8263,17 @@ components:
     RoamingPartnerN32:
       type: object
       description: "Live N32-c context of this node's SEPP with the partner's SEPP (TS 29.573 clause 5.2.2). Present when the partner has a 5G agreement and this node has interfaces.n32."
-      required: [state, nftlst]
+      required: [state]
       properties:
-        since:
-          type: string
-          format: date-time
-          description: "When the context entered the state. Absent when the state is unknown."
         state:
           type: string
-          enum: [idle, establishing, established, failed, terminated, unknown]
-          description: "idle: no usable configuration on the node; unknown: the node could not start the handshake; establishing: the node's exchange-capability is in flight; established: TLS security selected and 3gpp-Sbi-Target-apiRoot supported both ways; failed: the last handshake failed and is retried with backoff; terminated: the partner tore the context down."
-        initiator:
-          type: string
-          enum: [local, peer]
-          description: "Which SEPP initiated the established context."
-        nftlst:
-          type: boolean
-          description: "Whether both SEPPs support NFTLST (TS 29.573 Table 6.1.7-1), so the context can be torn down with exchange-capability NONE."
+          enum: [idle, establishing, established, failed, unknown]
+          description: "idle: no usable configuration on the node; unknown: the node could not start the handshake; establishing: the node's exchange-capability is in flight; established: TLS security selected and 3gpp-Sbi-Target-apiRoot supported both ways; failed: the last handshake failed and is retried about every 10 seconds."
         peer:
           type: string
           description: "The FQDN of the partner SEPP the context is with, when the configured SEPP redirected the handshake to it (TS 29.573 clause 6.1.8.1). Absent when the context is with the configured SEPP."
         lastError:
           type: string
-        otherPeers:
-          type: array
-          description: "Contexts that other SEPPs of the partner established with this node (TS 33.501 clause 13.1.2: any SEPP whose certificate chains to the partner's trust anchor and names only the partner's PLMN IDs). They carry the partner's N32-f towards this node; this node sends its own N32-f to the configured SEPP only."
-          items:
-            $ref: "#/components/schemas/RoamingPartnerN32Peer"
-
-    RoamingPartnerN32Peer:
-      type: object
-      required: [peer, since, nftlst]
-      properties:
-        peer:
-          type: string
-          description: "The FQDN of the partner SEPP, the sender of its exchange-capability."
-        since:
-          type: string
-          format: date-time
-        nftlst:
-          type: boolean
 
     RoamingPartnerParams:
       type: object
@@ -8314,7 +8363,7 @@ components:
 
     SEPPCertificate:
       type: object
-      required: [seppID, fqdn, source, certificateChainPEM, trustAnchorPEM, fingerprint, notAfter]
+      required: [seppID, fqdn, source]
       properties:
         seppID:
           type: integer
@@ -8324,23 +8373,31 @@ components:
         source:
           type: string
           enum: [generated, imported]
-        certificateChainPEM:
+        subject:
           type: string
-          description: "The certificate followed by its chain, PEM."
-        trustAnchorPEM:
+        sans:
+          type: array
+          items:
+            type: string
+        issuer:
           type: string
-          description: "The trust anchor to give roaming partners, PEM: the CA certificate that ends the chain."
-        fingerprint:
+        notBefore:
           type: string
-          description: "SHA-256 fingerprint of the certificate, sha256:<hex>."
+          format: date-time
         notAfter:
           type: string
           format: date-time
+        fingerprint:
+          type: string
+          description: "SHA-256 fingerprint of the certificate, sha256:<hex>."
+        trustAnchorFingerprint:
+          type: string
+          description: "SHA-256 fingerprint of the CA certificate that ends the chain, the trust anchor to give roaming partners."
         warnings:
           type: array
           items:
             type: string
-          description: "Departures from the TS 33.310 clause 6.1.3c.3 profile, and after a generation or an import, notices such as: the trust anchor changed and partners must import it."
+          description: "After an import: a missing extendedKeyUsage, a validity over 3 years (TS 33.310 clause 6.1.3c.3), or a changed trust anchor that partners must import."
 
     ImportSEPPCertificateParams:
       type: object
@@ -8364,18 +8421,18 @@ components:
 
     SEPPStatus:
       type: object
-      required: [node, trustAnchors, certificates]
+      required: [listener, certificates, trustAnchors]
       properties:
-        node:
-          $ref: "#/components/schemas/SEPPNodeStatus"
+        listener:
+          $ref: "#/components/schemas/SEPPListener"
+        certificates:
+          type: array
+          items:
+            $ref: "#/components/schemas/SEPPCertificate"
         trustAnchors:
           type: array
           items:
             $ref: "#/components/schemas/SEPPTrustAnchor"
-        certificates:
-          type: array
-          items:
-            $ref: "#/components/schemas/SEPPStoredCertificate"
 
     SEPPTrustAnchor:
       type: object
@@ -8404,72 +8461,24 @@ components:
 
     SEPPCARegenerated:
       type: object
-      required: [trustAnchor, reissued]
+      required: [trustAnchor]
       properties:
         trustAnchor:
           $ref: "#/components/schemas/SEPPTrustAnchor"
-        reissued:
-          type: array
-          items:
-            type: integer
-          description: "The SEPP IDs whose generated certificates were reissued with the new CA."
         warnings:
           type: array
           items:
             type: string
 
-    SEPPCertificateSummary:
+    SEPPListener:
       type: object
-      required: [subject, sans, issuer, notBefore, notAfter, fingerprint, trustAnchorFingerprint]
-      properties:
-        subject:
-          type: string
-        sans:
-          type: array
-          items:
-            type: string
-        issuer:
-          type: string
-        notBefore:
-          type: string
-          format: date-time
-        notAfter:
-          type: string
-          format: date-time
-        fingerprint:
-          type: string
-        trustAnchorFingerprint:
-          type: string
-
-    SEPPStoredCertificate:
-      type: object
-      required: [seppID, fqdn, source]
-      properties:
-        seppID:
-          type: integer
-        fqdn:
-          type: string
-        source:
-          type: string
-          enum: [generated, imported]
-        certificate:
-          $ref: "#/components/schemas/SEPPCertificateSummary"
-
-    SEPPNodeStatus:
-      type: object
-      description: "The SEPP of the node that serves the request."
-      required: [n32Configured, listening]
+      description: "The N32 listener of the node that serves the request."
+      required: [configured, listening]
       properties:
         seppID:
           type: integer
           description: "The node's SEPP ID, its AMF Pointer."
-        fqdn:
-          type: string
-          description: "The node's SEPP FQDN, from its certificate."
-        source:
-          type: string
-          enum: [generated, imported]
-        n32Configured:
+        configured:
           type: boolean
           description: "Whether the node's configuration file sets interfaces.n32. A node without it runs no SEPP."
         address:
@@ -8479,8 +8488,6 @@ components:
           type: integer
         listening:
           type: boolean
-        certificate:
-          $ref: "#/components/schemas/SEPPCertificateSummary"
         error:
           type: string
 

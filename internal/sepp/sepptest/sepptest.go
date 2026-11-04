@@ -153,16 +153,12 @@ func (p *Partner) serve(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 
 	if r.URL.Path == sepp.N32cExchangeCapabilityPath {
-		req, err := wire.Decode[sepp.SecNegotiateReqData](body)
-		if err != nil {
+		if _, err := wire.Decode[sepp.SecNegotiateReqData](body); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		rsp := sepp.SecNegotiateRspData{Sender: p.FQDN, SelectedSecCapability: sepp.SecurityTLS, TargetAPIRootSupported: true, PlmnIDList: []wire.PlmnID{p.PLMN}, SupportedFeatures: "1"}
-		if req.Teardown() {
-			rsp = sepp.SecNegotiateRspData{Sender: p.FQDN, SelectedSecCapability: sepp.SecurityNone}
-		}
+		rsp := sepp.SecNegotiateRspData{Sender: p.FQDN, SelectedSecCapability: sepp.SecurityTLS, TargetAPIRootSupported: true, PlmnIDList: []wire.PlmnID{p.PLMN}}
 
 		w.Header().Set("Content-Type", wire.ContentTypeJSON)
 		_ = json.NewEncoder(w).Encode(rsp)

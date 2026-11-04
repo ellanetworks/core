@@ -106,7 +106,6 @@ type MME struct {
 
 	home            serial.KeyedQueue
 	mtmsiFreezeTime time.Duration
-	crossCancel     roaming.CrossCancelGuard
 
 	LPPHandler LPPHandler
 

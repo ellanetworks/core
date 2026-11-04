@@ -240,11 +240,9 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 }
 
 func sendAttachRejection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, r *mme.Rejection, esm []byte) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), m.IsRoamer(ctx, ue), logger.RegistrationRejected,
 		logger.Cause(r.Cause.String()))
 	ueConn.StopNASGuard(ctx)
-
-	m.RecordRoamerReject(ctx, ue, r.Cause)
 
 	reject := &eps.AttachReject{Cause: r.Cause, ESMMessageContainer: esm, ExtendedEMMCause: r.Extended}
 

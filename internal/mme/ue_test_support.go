@@ -343,8 +343,6 @@ func (m *MME) SettleHPLMNForTest() { m.home.Settle() }
 
 func (m *MME) SetMTMSIFreezeTimeForTest(d time.Duration) { m.mtmsiFreezeTime = d }
 
-func (m *MME) SetCrossCancelWaitForTest(d time.Duration) { m.crossCancel.SetWait(d) }
-
 func (m *MME) MTMSIAllocatedForTest(t etsi.TMSI) bool { return m.tmsi.IsAllocated(t) }
 
 func (ue *UeContext) MarkArrivedByHandoverFrom5GSForTest() {

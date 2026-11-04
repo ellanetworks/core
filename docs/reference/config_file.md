@@ -43,7 +43,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided).
         - `address` (string): The IP address to listen on (optional: either name or address must be provided).
         - `port` (int, optional): The port to listen on. Default `3868`.
-    - `n32` (object, optional): The configuration for the N32 interface, towards the SEPPs of roaming partners. Without it, the node serves no 5G roamers.
+    - `n32` (object, optional): The configuration for the N32 interface, towards the SEPPs of roaming partners.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided).
         - `address` (string): The IP address to listen on (optional: either name or address must be provided).
         - `port` (int, optional): The port to listen on. Default `443`.

@@ -12,11 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
+	"maps"
 	"net"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/netutil"
@@ -31,23 +30,7 @@ const (
 	StateEstablishing State = "establishing"
 	StateEstablished  State = "established"
 	StateFailed       State = "failed"
-	StateTerminated   State = "terminated"
 )
-
-func (s State) Gauge() float64 {
-	switch s {
-	case StateEstablishing:
-		return 1
-	case StateEstablished:
-		return 2
-	case StateFailed:
-		return 3
-	case StateTerminated:
-		return 4
-	}
-
-	return 0
-}
 
 type Initiator string
 
@@ -57,31 +40,18 @@ const (
 )
 
 type ContextStatus struct {
-	State      State         `json:"state"`
-	Since      time.Time     `json:"since"`
-	Initiator  Initiator     `json:"initiator,omitempty"`
-	NFTLST     bool          `json:"nftlst"`
-	Peer       string        `json:"peer,omitempty"`
-	LastError  string        `json:"lastError,omitempty"`
-	OtherPeers []PeerContext `json:"otherPeers,omitempty"`
+	State      State
+	Since      time.Time
+	Initiator  Initiator
+	Peer       string
+	LastError  string
+	OtherPeers []PeerContext
 }
 
 type PeerContext struct {
-	Peer   string    `json:"peer"`
-	Since  time.Time `json:"since"`
-	NFTLST bool      `json:"nftlst"`
+	Peer  string
+	Since time.Time
 }
-
-const (
-	roleInitiator = "initiator"
-	roleResponder = "responder"
-
-	resultEstablished = "established"
-	resultRejected    = "rejected"
-	resultFailed      = "failed"
-	resultConflict    = "conflict"
-	resultTeardown    = "teardown"
-)
 
 var (
 	ErrNotReady = errors.New("sepp: the SEPP is not running on this node")
@@ -91,26 +61,20 @@ var (
 type n32cContext struct {
 	status   ContextStatus
 	partner  *partner
-	identity *localIdentity
 	gen      uint64
 	inflight bool
 	cancel   context.CancelFunc
-	timer    *time.Timer
-	backoff  time.Duration
-	lostAt   time.Time
 	peer     *seppPeer
-	others   map[string]PeerContext
+	others   map[string]time.Time
 }
 
 func (c *n32cContext) snapshot() ContextStatus {
 	st := c.status
 	st.OtherPeers = nil
 
-	for _, pc := range c.others {
-		st.OtherPeers = append(st.OtherPeers, pc)
+	for _, fqdn := range slices.Sorted(maps.Keys(c.others)) {
+		st.OtherPeers = append(st.OtherPeers, PeerContext{Peer: fqdn, Since: c.others[fqdn]})
 	}
-
-	slices.SortFunc(st.OtherPeers, func(a, b PeerContext) int { return strings.Compare(a.Peer, b.Peer) })
 
 	return st
 }
@@ -147,11 +111,6 @@ func (c *n32cContext) stop() {
 		c.cancel = nil
 	}
 
-	if c.timer != nil {
-		c.timer.Stop()
-		c.timer = nil
-	}
-
 	c.inflight = false
 }
 
@@ -171,15 +130,11 @@ func (m *Manager) setState(p *partner, c *n32cContext, state State, lastError st
 }
 
 func (m *Manager) syncContextsLocked(prev, next *snapshot) {
-	all := prev == nil || prev.identity != next.identity || prev.op != next.op
+	all := prev == nil || !prev.identity.sameSession(next.identity) || prev.op != next.op
 
 	for id, c := range m.contexts {
 		if _, ok := next.partners[id]; ok {
 			continue
-		}
-
-		if c.status.State == StateEstablished && c.status.NFTLST && c.identity != nil {
-			go m.teardown(c.partner, c.peerOf(), c.identity)
 		}
 
 		c.stop()
@@ -198,7 +153,7 @@ func (m *Manager) syncContextsLocked(prev, next *snapshot) {
 			m.contexts[id] = c
 		}
 
-		changed := !ok || c.partner.key != p.key
+		changed := !ok || !c.partner.sameN32(p)
 		c.partner = p
 
 		switch {
@@ -206,14 +161,10 @@ func (m *Manager) syncContextsLocked(prev, next *snapshot) {
 			c.stop()
 			m.dropOthersLocked(c)
 			m.setState(p, c, StateIdle, next.problem)
-		case !p.usable():
-			c.stop()
-			m.dropOthersLocked(c)
-			m.setState(p, c, StateIdle, p.problem)
 		case changed || all:
 			m.dropOthersLocked(c)
 			m.startLocked(id, c, next)
-		case c.status.State == StateIdle:
+		case !c.inflight && c.status.State != StateEstablished:
 			m.startLocked(id, c, next)
 		}
 	}
@@ -223,7 +174,10 @@ func (m *Manager) startLocked(id string, c *n32cContext, snap *snapshot) {
 	c.stop()
 	c.gen++
 
-	m.setState(c.partner, c, StateEstablishing, c.status.LastError)
+	if c.status.State != StateFailed {
+		m.setState(c.partner, c, StateEstablishing, c.status.LastError)
+	}
+
 	c.inflight = true
 
 	ctx, cancel := context.WithTimeout(m.root, m.tuning.HandshakeTimeout)
@@ -297,6 +251,21 @@ func (m *Manager) Contexts() map[string]ContextStatus {
 	return out
 }
 
+func (m *Manager) ConnectedPartners() int {
+	snap := m.snap.Load()
+	contexts := m.Contexts()
+
+	n := 0
+
+	for id := range snap.partners {
+		if contexts[id].State == StateEstablished {
+			n++
+		}
+	}
+
+	return n
+}
+
 func (m *Manager) Rehandshake(partnerID string) (ContextStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -312,13 +281,11 @@ func (m *Manager) Rehandshake(partnerID string) (ContextStatus, error) {
 
 	snap := m.snap.Load()
 
-	switch {
-	case !snap.usable():
-		m.setState(c.partner, c, StateIdle, snap.problem)
-	case !c.partner.usable():
-		m.setState(c.partner, c, StateIdle, c.partner.problem)
-	default:
+	if snap.usable() {
+		m.setState(c.partner, c, StateEstablishing, c.status.LastError)
 		m.startLocked(partnerID, c, snap)
+	} else {
+		m.setState(c.partner, c, StateIdle, snap.problem)
 	}
 
 	return c.snapshot(), nil
@@ -326,13 +293,12 @@ func (m *Manager) Rehandshake(partnerID string) (ContextStatus, error) {
 
 func (m *Manager) negotiation(p *partner, id *localIdentity, op wire.PlmnID, dnsNames []string) Negotiation {
 	return Negotiation{
-		LocalFQDN:         id.fqdn,
-		LocalPlmnID:       op,
-		PeerFQDN:          p.fqdn,
-		PeerPlmnID:        p.main,
-		PeerPlmnIDs:       p.plmns,
-		PeerCertDNSNames:  dnsNames,
-		SupportedFeatures: LocalFeatures,
+		LocalFQDN:        id.fqdn,
+		LocalPlmnID:      op,
+		PeerFQDN:         p.fqdn,
+		PeerPlmnID:       p.main,
+		PeerPlmnIDs:      p.plmns,
+		PeerCertDNSNames: dnsNames,
 	}
 }
 
@@ -344,7 +310,6 @@ func (m *Manager) initiate(ctx context.Context, id string, gen uint64, p *partne
 		rsp   SecNegotiateRspData
 		names []string
 		err   error
-		est   Established
 	)
 
 	for redirects := 0; ; redirects++ {
@@ -379,14 +344,7 @@ func (m *Manager) initiate(ctx context.Context, id string, gen uint64, p *partne
 
 	if err == nil {
 		neg.PeerCertDNSNames = names
-		est, err = neg.CheckResponse(rsp)
-
-		var ne *NegotiationError
-		if errors.As(err, &ne) && ne.TeardownAllowed {
-			tdCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.tuning.HandshakeTimeout)
-			m.sendTeardown(tdCtx, p, peer, ident)
-			cancel()
-		}
+		err = neg.CheckResponse(rsp)
 	}
 
 	m.mu.Lock()
@@ -406,45 +364,29 @@ func (m *Manager) initiate(ctx context.Context, id string, gen uint64, p *partne
 
 	switch {
 	case err == nil:
-		handshakes.WithLabelValues(p.name, roleInitiator, resultEstablished).Inc()
-
 		var redirected *seppPeer
 		if peer.fqdn != p.fqdn {
 			redirected = &peer
 		}
 
-		m.establishedLocked(c, InitiatorLocal, est.NFTLST, ident, redirected)
+		m.establishedLocked(c, InitiatorLocal, redirected)
 	case errors.Is(err, errOngoing):
-		handshakes.WithLabelValues(p.name, roleInitiator, resultConflict).Inc()
-
 		c.status.LastError = err.Error()
-		c.timer = time.AfterFunc(m.tuning.OngoingWait, func() {
-			m.mu.Lock()
-			defer m.mu.Unlock()
-
-			if c := m.current(id, gen); c != nil && c.status.State == StateEstablishing && !c.inflight {
-				m.failLocked(id, c, errors.New("the partner SEPP answered N32C_EXCHANGE_CAPABILITY_ONGOING but sent no exchange-capability"))
-			}
-		})
 	default:
-		result := resultFailed
-		if errors.Is(err, ErrNegotiation) {
-			result = resultRejected
+		if c.status.State != StateFailed || c.status.LastError != err.Error() {
+			m.logger.Warn("N32-c handshake failed", zap.String("partner", p.name), zap.Error(err))
 		}
 
-		handshakes.WithLabelValues(p.name, roleInitiator, result).Inc()
-		m.failLocked(id, c, err)
+		m.setState(p, c, StateFailed, err.Error())
 	}
 }
 
-func (m *Manager) establishedLocked(c *n32cContext, initiator Initiator, nftlst bool, ident *localIdentity, peer *seppPeer) {
+func (m *Manager) establishedLocked(c *n32cContext, initiator Initiator, peer *seppPeer) {
 	if c.status.State == StateEstablished {
 		go m.closeN32f(c.partner.id)
 	}
 
 	c.stop()
-	c.backoff = 0
-	c.identity = ident
 	c.peer = peer
 	c.status.Peer = ""
 
@@ -456,44 +398,7 @@ func (m *Manager) establishedLocked(c *n32cContext, initiator Initiator, nftlst 
 
 	m.setState(c.partner, c, StateEstablished, "")
 	c.status.Initiator = initiator
-	c.status.NFTLST = nftlst
 	c.status.Since = m.now()
-}
-
-func (m *Manager) failLocked(id string, c *n32cContext, err error) {
-	m.logger.Warn("N32-c handshake failed", zap.String("partner", c.partner.name), zap.Error(err))
-	m.setState(c.partner, c, StateFailed, err.Error())
-	m.retryLocked(id, c)
-}
-
-func (m *Manager) retryLocked(id string, c *n32cContext) {
-	c.stop()
-
-	if c.backoff == 0 {
-		c.backoff = m.tuning.BackoffMin
-	} else {
-		c.backoff = min(2*c.backoff, m.tuning.BackoffMax)
-	}
-
-	delay := time.Duration(float64(c.backoff) * (0.8 + 0.4*rand.Float64())) // #nosec G404 -- jitter, not a secret
-
-	gen := c.gen
-	c.timer = time.AfterFunc(delay, func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-
-		c := m.current(id, gen)
-		if c == nil || (c.status.State != StateFailed && c.status.State != StateTerminated) {
-			return
-		}
-
-		snap := m.snap.Load()
-		if !snap.usable() || !c.partner.usable() {
-			return
-		}
-
-		m.startLocked(id, c, snap)
-	})
 }
 
 type redirectError struct {
@@ -556,7 +461,7 @@ func (m *Manager) postExchange(ctx context.Context, p *partner, peer seppPeer, r
 		}
 
 		return rsp, names, nil
-	case resp.StatusCode == http.StatusTemporaryRedirect && !req.Teardown():
+	case resp.StatusCode == http.StatusTemporaryRedirect:
 		var rr redirectResponse
 
 		discovery := len(body) > 0 && json.Unmarshal(body, &rr) == nil && rr.Cause == causeSEPPRedirectionWithDiscovery
@@ -572,34 +477,6 @@ func (m *Manager) postExchange(ctx context.Context, p *partner, peer seppPeer, r
 	}
 
 	return SecNegotiateRspData{}, nil, fmt.Errorf("the partner SEPP refused the exchange-capability: %w", pd)
-}
-
-func (m *Manager) sendTeardown(ctx context.Context, p *partner, peer seppPeer, ident *localIdentity) {
-	neg := m.negotiation(p, ident, wire.PlmnID{}, nil)
-	neg.PeerFQDN = peer.fqdn
-
-	rsp, names, err := m.postExchange(ctx, p, peer, neg.TeardownRequest())
-	if err == nil {
-		neg.PeerCertDNSNames = names
-		err = neg.CheckTeardownResponse(rsp)
-	}
-
-	if err != nil {
-		handshakes.WithLabelValues(p.name, roleInitiator, resultFailed).Inc()
-		m.logger.Warn("N32-c teardown failed", zap.String("partner", p.name), zap.Error(err))
-
-		return
-	}
-
-	handshakes.WithLabelValues(p.name, roleInitiator, resultTeardown).Inc()
-	m.logger.Info("N32-c context torn down", zap.String("partner", p.name))
-}
-
-func (m *Manager) teardown(p *partner, peer seppPeer, ident *localIdentity) {
-	ctx, cancel := context.WithTimeout(context.Background(), m.tuning.HandshakeTimeout)
-	defer cancel()
-
-	m.sendTeardown(ctx, p, peer, ident)
 }
 
 func (m *Manager) transport(p *partner, peer seppPeer) *http.Transport {
@@ -621,10 +498,6 @@ func (m *Manager) ClientTLSConfig(partnerID, host string) (*tls.Config, error) {
 		return nil, err
 	}
 
-	if !p.usable() {
-		return nil, errors.New(p.problem)
-	}
-
 	return m.clientTLSConfig(p, host, p.fqdn), nil
 }
 
@@ -641,10 +514,6 @@ func (m *Manager) clientTLSConfig(p *partner, host, peerFQDN string) *tls.Config
 		err := checkALPN(st)
 		if err == nil {
 			err = trust.checkAs(st.PeerCertificates, m.now(), x509.ExtKeyUsageServerAuth, peerFQDN)
-		}
-
-		if err != nil {
-			tlsFailures.WithLabelValues(TLSFailureReason(err)).Inc()
 		}
 
 		return err

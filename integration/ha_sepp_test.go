@@ -6,7 +6,6 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -90,8 +89,7 @@ func startPartnerSEPP(t *testing.T, ellaAnchorPEM string) *partnerSEPP {
 	}
 
 	tuning := sepp.DefaultTuning()
-	tuning.BackoffMax = 5 * time.Second
-	tuning.N32cRequestsPerMinute = 600
+	tuning.Reconcile = 5 * time.Second
 
 	p.m = sepp.New(sepp.Config{
 		Partners: func(context.Context) ([]sepp.PartnerConfig, error) {
@@ -225,13 +223,9 @@ func partnerN32BySEPP(ctx context.Context, nodes map[int]*client.Client, id stri
 	return out, nil
 }
 
-func waitN32(ctx context.Context, nodes map[int]*client.Client, id string, want map[int]string) (map[int]client.RoamingPartnerN32, error) {
-	var got map[int]client.RoamingPartnerN32
-
-	err := waitUntil(ctx, seppWaitHandshake, func() error {
-		var err error
-
-		got, err = partnerN32BySEPP(ctx, nodes, id)
+func waitN32(ctx context.Context, nodes map[int]*client.Client, id string, want map[int]string) error {
+	return waitUntil(ctx, seppWaitHandshake, func() error {
+		got, err := partnerN32BySEPP(ctx, nodes, id)
 		if err != nil {
 			return err
 		}
@@ -248,8 +242,6 @@ func waitN32(ctx context.Context, nodes map[int]*client.Client, id string, want 
 
 		return nil
 	})
-
-	return got, err
 }
 
 func generatedAnchor(st *client.SEPPStatus) (client.SEPPTrustAnchor, bool) {
@@ -274,8 +266,8 @@ func waitSEPPStatus(ctx context.Context, nodes map[int]*client.Client, check fun
 				return fmt.Errorf("SEPP %d: %w", seppID, err)
 			}
 
-			if st.Node.SEPPID != seppID {
-				return fmt.Errorf("the node asked for SEPP %d has SEPP ID %d", seppID, st.Node.SEPPID)
+			if st.Listener.SEPPID != seppID {
+				return fmt.Errorf("the node asked for SEPP %d has SEPP ID %d", seppID, st.Listener.SEPPID)
 			}
 
 			out[seppID] = st
@@ -287,36 +279,14 @@ func waitSEPPStatus(ctx context.Context, nodes map[int]*client.Client, check fun
 	return out, err
 }
 
-func storedSEPPCertificate(st *client.SEPPStatus, seppID int) (client.SEPPStoredCertificate, bool) {
+func storedSEPPCertificate(st *client.SEPPStatus, seppID int) (client.SEPPCertificate, bool) {
 	for _, c := range st.Certificates {
 		if c.SEPPID == seppID {
 			return c, true
 		}
 	}
 
-	return client.SEPPStoredCertificate{}, false
-}
-
-func otherNodeRejections(node int) (int, error) {
-	body, err := scrapeMetrics(APIAddressForCluster(node))
-	if err != nil {
-		return 0, err
-	}
-
-	for line := range strings.SplitSeq(string(body), "\n") {
-		if strings.HasPrefix(line, "app_sepp_n32f_rejected_total{") && strings.Contains(line, `partner="`+seppPartnerName+`"`) && strings.Contains(line, `reason="other_node"`) {
-			fields := strings.Fields(line)
-
-			v, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-			if err != nil {
-				return 0, err
-			}
-
-			return int(v), nil
-		}
-	}
-
-	return 0, nil
+	return client.SEPPCertificate{}, false
 }
 
 func startSEPPNode(ctx context.Context, dc *DockerClient, leader *client.Client, nodeID int, peers []string) error {
@@ -454,15 +424,16 @@ func TestIntegrationHASEPP(t *testing.T) {
 		}
 
 		for seppID, n32 := range seppNodesWithN32 {
-			n := sts[seppID].Node
+			l := sts[seppID].Listener
+			c, stored := storedSEPPCertificate(sts[2], seppID)
 
 			switch {
-			case n.N32Configured != n32:
-				return fmt.Errorf("SEPP %d = %+v", seppID, n)
-			case n32 && (n.Source != "generated" || n.FQDN != ellaSEPPFQDN(seppID) || n.Certificate == nil || n.Certificate.TrustAnchorFingerprint != anchor.Fingerprint || !n.Listening || n.Error != ""):
-				return fmt.Errorf("SEPP %d = %+v", seppID, n)
-			case !n32 && (n.Certificate != nil || n.Source != ""):
-				return fmt.Errorf("SEPP %d has a certificate without interfaces.n32: %+v", seppID, n)
+			case l.Configured != n32:
+				return fmt.Errorf("SEPP %d = %+v", seppID, l)
+			case n32 && (!stored || c.Source != "generated" || c.FQDN != ellaSEPPFQDN(seppID) || c.TrustAnchorFingerprint != anchor.Fingerprint || !l.Listening || l.Error != ""):
+				return fmt.Errorf("SEPP %d = %+v, %+v", seppID, l, c)
+			case !n32 && stored:
+				return fmt.Errorf("SEPP %d has a certificate without interfaces.n32: %+v", seppID, c)
 			}
 		}
 
@@ -473,6 +444,8 @@ func TestIntegrationHASEPP(t *testing.T) {
 	}
 
 	clusterCA, _ := generatedAnchor(initial[1])
+	initial1, _ := storedSEPPCertificate(initial[2], 1)
+	initial3, _ := storedSEPPCertificate(initial[2], 3)
 
 	HALog(t, "every SEPP node handshakes with the partner on its own")
 
@@ -492,8 +465,7 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatalf("create roaming partner: %v", err)
 	}
 
-	established, err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"})
-	if err != nil {
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
 		t.Fatalf("partner N32 on each node: %v", err)
 	}
 
@@ -508,25 +480,18 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatalf("partner side: %v", err)
 	}
 
-	HALog(t, "a callback for node 3's AMF sent to node 1 gets 503 with Retry-After and counts as other_node; an unknown node's gets 404")
+	established := partner.context()
 
-	before, err := otherNodeRejections(1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	HALog(t, "a callback for node 3's AMF sent to node 1 gets 503 without Retry-After; an unknown node's gets 404")
 
 	status, pd, header, err := partner.sendCallbackHeader(ctx, 3)
-	if err != nil || status != http.StatusServiceUnavailable || pd.Cause != wire.CauseNFCongestion || header.Get("Retry-After") == "" {
+	if err != nil || status != http.StatusServiceUnavailable || pd.Cause != wire.CauseNFCongestion || header.Get("Retry-After") != "" {
 		t.Fatalf("callback for another node = %d %+v (Retry-After %q), %v", status, pd, header.Get("Retry-After"), err)
 	}
 
 	status, pd, err = partner.sendCallback(ctx, 9)
 	if err != nil || status != http.StatusNotFound || pd.Cause != wire.CauseContextNotFound {
 		t.Fatalf("callback for an unknown node = %d %+v, %v", status, pd, err)
-	}
-
-	if after, err := otherNodeRejections(1); err != nil || after != before+2 {
-		t.Fatalf("other_node rejections on node 1 = %d (was %d), %v", after, before, err)
 	}
 
 	HALog(t, "a node failure leaves the other node's context untouched")
@@ -537,12 +502,12 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := waitN32(ctx, withoutNode3, created.ID, map[int]string{1: "established"}); err != nil {
+	if err := waitN32(ctx, withoutNode3, created.ID, map[int]string{1: "established"}); err != nil {
 		t.Fatalf("partner N32 with node 3 down: %v", err)
 	}
 
 	if _, err := waitSEPPStatus(ctx, withoutNode3, func(sts map[int]*client.SEPPStatus) error {
-		if c, ok := storedSEPPCertificate(sts[2], 3); !ok || c.Certificate == nil || c.Certificate.Fingerprint != initial[3].Node.Certificate.Fingerprint {
+		if c, ok := storedSEPPCertificate(sts[2], 3); !ok || c.Fingerprint != initial3.Fingerprint {
 			return fmt.Errorf("certificates while node 3 is down = %+v", sts[2].Certificates)
 		}
 
@@ -551,12 +516,8 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, _ := partnerN32BySEPP(ctx, withoutNode3, created.ID); got[1].Since != established[1].Since {
-		t.Fatalf("node 3's failure changed node 1's context: %+v, was %+v", got[1], established[1])
-	}
-
-	if st := partner.context(); st.State != sepp.StateEstablished {
-		t.Fatalf("partner context with node 1 after node 3's failure = %+v", st)
+	if st := partner.context(); st.State != sepp.StateEstablished || !st.Since.Equal(established.Since) {
+		t.Fatalf("node 3's failure changed node 1's context: %+v, was %+v", st, established)
 	}
 
 	if err := dc.ComposeStartWithFile(ctx, haComposeDir, ComposeFile(), haNodeServices[2]); err != nil {
@@ -567,7 +528,7 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
 		t.Fatalf("node 3 after its restart: %v", err)
 	}
 
@@ -581,8 +542,8 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatalf("restarted node 3 did not handshake again: %v", err)
 	}
 
-	if got, _ := partnerN32BySEPP(ctx, all, created.ID); got[1].Since != established[1].Since {
-		t.Fatalf("node 3's restart changed node 1's context: %+v, was %+v", got[1], established[1])
+	if st := partner.context(); !st.Since.Equal(established.Since) {
+		t.Fatalf("node 3's restart changed node 1's context: %+v, was %+v", st, established)
 	}
 
 	home := pki.PLMN{MCC: "001", MNC: "01"}
@@ -594,25 +555,24 @@ func TestIntegrationHASEPP(t *testing.T) {
 
 	operatorCAPEM := string(pki.EncodeCertPEM(operatorCA))
 
-	HALog(t, "regenerating the cluster SEPP CA reissues every generated certificate; every node handshakes again once the partner trusts the new CA")
+	HALog(t, "regenerating the cluster SEPP CA makes every node with a generated certificate reissue it; every node handshakes again once the partner trusts the new CA")
 
 	regenerated, err := c2.RegenerateSEPPCA(ctx)
 	if err != nil {
 		t.Fatalf("regenerate the SEPP CA: %v", err)
 	}
 
-	if len(regenerated.Reissued) != 2 || regenerated.TrustAnchor.Fingerprint == clusterCA.Fingerprint {
+	if regenerated.TrustAnchor.Fingerprint == clusterCA.Fingerprint {
 		t.Fatalf("regenerate = %+v", regenerated)
 	}
 
-	if _, err := waitN32(ctx, all, created.ID, map[int]string{1: "failed", 3: "failed"}); err != nil {
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "failed", 3: "failed"}); err != nil {
 		t.Fatalf("handshakes with a CA the partner does not trust: %v", err)
 	}
 
 	partner.setEllaAnchor(regenerated.TrustAnchor.PEM + operatorCAPEM)
 
-	rotated, err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"})
-	if err != nil {
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
 		t.Fatalf("handshakes after the partner imported the new CA: %v", err)
 	}
 
@@ -621,10 +581,10 @@ func TestIntegrationHASEPP(t *testing.T) {
 			return fmt.Errorf("trust anchors = %+v", sts[1].TrustAnchors)
 		}
 
-		for _, seppID := range []int{1, 3} {
-			n := sts[seppID].Node
-			if n.Certificate == nil || n.Certificate.Fingerprint == initial[seppID].Node.Certificate.Fingerprint || n.Certificate.TrustAnchorFingerprint != regenerated.TrustAnchor.Fingerprint {
-				return fmt.Errorf("SEPP %d after the CA regeneration = %+v", seppID, n)
+		for seppID, before := range map[int]client.SEPPCertificate{1: initial1, 3: initial3} {
+			c, ok := storedSEPPCertificate(sts[1], seppID)
+			if !ok || c.Fingerprint == before.Fingerprint || c.TrustAnchorFingerprint != regenerated.TrustAnchor.Fingerprint {
+				return fmt.Errorf("SEPP %d after the CA regeneration = %+v", seppID, c)
 			}
 		}
 
@@ -632,6 +592,19 @@ func TestIntegrationHASEPP(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+
+	if err := waitUntil(ctx, seppWaitHandshake, func() error {
+		if _, ok := partner.other(ellaSEPPFQDN(3)); !ok || partner.context().State != sepp.StateEstablished {
+			return fmt.Errorf("partner context = %+v", partner.context())
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rotated := partner.context()
+	rotated3, _ := partner.other(ellaSEPPFQDN(3))
 
 	HALog(t, "a certificate imported on one node changes that node's identity only")
 
@@ -664,12 +637,12 @@ func TestIntegrationHASEPP(t *testing.T) {
 			return fmt.Errorf("trust anchors = %+v", sts[2].TrustAnchors)
 		}
 
-		if n := sts[3].Node; n.Source != "imported" || n.Certificate == nil || n.Certificate.Fingerprint != imported.Fingerprint {
-			return fmt.Errorf("SEPP 3 = %+v", n)
+		if c, _ := storedSEPPCertificate(sts[3], 3); c.Source != "imported" || c.Fingerprint != imported.Fingerprint {
+			return fmt.Errorf("SEPP 3 = %+v", c)
 		}
 
-		if n := sts[1].Node; n.Source != "generated" {
-			return fmt.Errorf("SEPP 1 = %+v", n)
+		if c, _ := storedSEPPCertificate(sts[1], 1); c.Source != "generated" {
+			return fmt.Errorf("SEPP 1 = %+v", c)
 		}
 
 		return nil
@@ -683,12 +656,12 @@ func TestIntegrationHASEPP(t *testing.T) {
 			return err
 		}
 
-		if got[3].State != "established" || got[3].Since == rotated[3].Since {
-			return fmt.Errorf("SEPP 3 = %+v", got[3])
+		if pc, ok := partner.other(ellaSEPPFQDN(3)); got[3].State != "established" || !ok || !pc.Since.After(rotated3.Since) {
+			return fmt.Errorf("SEPP 3 = %+v, partner side %+v", got[3], pc)
 		}
 
-		if got[1].Since != rotated[1].Since {
-			return fmt.Errorf("the import on node 3 changed node 1's context: %+v", got[1])
+		if st := partner.context(); !st.Since.Equal(rotated.Since) {
+			return fmt.Errorf("the import on node 3 changed node 1's context: %+v", st)
 		}
 
 		return nil
@@ -698,17 +671,25 @@ func TestIntegrationHASEPP(t *testing.T) {
 
 	HALog(t, "removing a member deletes its generated certificate; a node that joins with its SEPP ID gets a new one and handshakes without partner changes")
 
-	if _, err := c1.GenerateSEPPCertificate(ctx, 3); err != nil {
-		t.Fatalf("generate the certificate of SEPP 3: %v", err)
+	if err := c1.DeleteSEPPCertificate(ctx, 3); err != nil {
+		t.Fatalf("delete the certificate of SEPP 3: %v", err)
 	}
 
-	if _, err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
+	sts, err := waitSEPPStatus(ctx, all, func(sts map[int]*client.SEPPStatus) error {
+		if c, ok := storedSEPPCertificate(sts[1], 3); !ok || c.Source != "generated" {
+			return fmt.Errorf("SEPP 3 certificate = %+v", c)
+		}
+
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	generated3, err := c1.GetSEPPCertificate(ctx, 3)
-	if err != nil || generated3.Source != "generated" {
-		t.Fatalf("SEPP 3 certificate = %+v, %v", generated3, err)
+	generated3, _ := storedSEPPCertificate(sts[1], 3)
+
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
+		t.Fatal(err)
 	}
 
 	node3, err := nodeIDOf(ctx, c3)
@@ -738,11 +719,7 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := c1.GetSEPPCertificate(ctx, 3); err == nil {
-		t.Fatal("the generated certificate of the removed node is still stored")
-	}
-
-	if _, err := waitN32(ctx, withoutNode3, created.ID, map[int]string{1: "established"}); err != nil {
+	if err := waitN32(ctx, withoutNode3, created.ID, map[int]string{1: "established"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -768,9 +745,9 @@ func TestIntegrationHASEPP(t *testing.T) {
 	}
 
 	if _, err := waitSEPPStatus(ctx, all, func(sts map[int]*client.SEPPStatus) error {
-		n := sts[3].Node
-		if n.Source != "generated" || n.FQDN != ellaSEPPFQDN(3) || n.Certificate == nil || n.Certificate.Fingerprint == generated3.Fingerprint {
-			return fmt.Errorf("SEPP 3 after the new node joined = %+v", n)
+		c, ok := storedSEPPCertificate(sts[3], 3)
+		if !ok || c.Source != "generated" || c.FQDN != ellaSEPPFQDN(3) || c.Fingerprint == generated3.Fingerprint {
+			return fmt.Errorf("SEPP 3 after the new node joined = %+v", c)
 		}
 
 		return nil
@@ -780,7 +757,7 @@ func TestIntegrationHASEPP(t *testing.T) {
 
 	HALogf(t, "new node %s holds SEPP 3 with a new key", rejoinedID)
 
-	if _, err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
 		t.Fatalf("the new node 3 did not handshake: %v", err)
 	}
 
@@ -796,11 +773,11 @@ func TestIntegrationHASEPP(t *testing.T) {
 		}
 	}
 
-	if _, err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
+	if err := waitN32(ctx, all, created.ID, map[int]string{1: "established", 3: "established"}); err != nil {
 		t.Fatal(err)
 	}
 
-	HALog(t, "deleting the partner tears N32 down on every node")
+	HALog(t, "deleting the partner closes N32 on every node")
 
 	if err := waitUntil(ctx, seppWaitHandshake, func() error {
 		if _, ok := partner.other(ellaSEPPFQDN(3)); !ok || partner.context().State != sepp.StateEstablished {
@@ -816,22 +793,17 @@ func TestIntegrationHASEPP(t *testing.T) {
 		t.Fatalf("delete the partner: %v", err)
 	}
 
+	if _, err := c1.GetRoamingPartner(ctx, created.ID); err == nil {
+		t.Fatal("the partner still exists")
+	}
+
 	if err := waitUntil(ctx, 30*time.Second, func() error {
-		st := partner.context()
-		if st.State == sepp.StateEstablished || len(st.OtherPeers) != 0 {
-			return fmt.Errorf("partner context after the deletion = %+v", st)
+		if status, _, err := partner.sendCallback(ctx, 1); err == nil && status < http.StatusBadRequest {
+			return fmt.Errorf("N32-f after the deletion = %d", status)
 		}
 
 		return nil
 	}); err != nil {
 		t.Fatal(err)
-	}
-
-	if _, err := c1.GetRoamingPartner(ctx, created.ID); err == nil {
-		t.Fatal("the partner still exists")
-	}
-
-	if status, _, err := partner.sendCallback(ctx, 1); !errors.Is(err, sepp.ErrNoContext) {
-		t.Fatalf("N32-f after the deletion = %d, %v", status, err)
 	}
 }

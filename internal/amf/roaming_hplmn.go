@@ -5,6 +5,7 @@ package amf
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/roaming/wire"
+	"github.com/ellanetworks/core/internal/sepp"
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -21,10 +23,6 @@ const (
 	sdmLifetime    = 24 * time.Hour
 	sdmRenewBefore = 5 * time.Minute
 )
-
-type HPLMNRenewer interface {
-	Renew(ctx context.Context, t roaming.HPLMNTarget, uri string, expires wire.DateTime) (wire.DateTime, error)
-}
 
 func (amf *AMF) withdrawRoamer(ctx context.Context, ue *UeContext, why ueregistration.Withdrawal) {
 	if !amf.ServesUeContext(ue) || !ue.IsVisitor() {
@@ -39,9 +37,6 @@ func (amf *AMF) withdrawRoamer(ctx context.Context, ue *UeContext, why ueregistr
 	}
 
 	cause := fgs.GMMCausePLMNNotAllowed
-	if why == ueregistration.RoamingAgreementWithdrawn {
-		cause = fgs.GMMCauseN1ModeNotAllowed
-	}
 
 	logger.From(ctx, logger.AmfLog).Info("roaming agreement withdrawn; deregistering the visitor",
 		logger.SUPI(ue.Supi().String()), logger.Cause(cause.String()))
@@ -245,8 +240,7 @@ func sameSnssais(a, b []models.Snssai) bool {
 }
 
 func (amf *AMF) renewHPLMNSubscriptions(ctx context.Context) {
-	renewer, ok := amf.HPLMN.(HPLMNRenewer)
-	if !ok {
+	if amf.HPLMN == nil {
 		return
 	}
 
@@ -270,18 +264,40 @@ func (amf *AMF) renewHPLMNSubscriptions(ctx context.Context) {
 
 		imsi, uri := supi.IMSI(), v.SDM.URI
 
-		amf.home.Go(imsi, func() {
-			next, err := renewer.Renew(ctx, v.HPLMN, uri, wire.DateTimeOf(time.Now().Add(sdmLifetime)))
-			if err != nil {
-				logger.From(ctx, logger.AmfLog).Warn("failed to renew the visitor's home subscription", logger.SUPIFromIMSI(imsi), zap.Error(err))
-				return
-			}
-
-			ue.updateVisitor(func(cur *roaming.Visitor5G) {
-				if cur.SDM != nil && cur.SDM.URI == uri {
-					cur.SDM.Expires = next
-				}
-			})
-		})
+		amf.home.Go(imsi, func() { amf.renewHPLMNSubscription(ctx, ue, v, imsi, uri) })
 	}
+}
+
+func (amf *AMF) renewHPLMNSubscription(ctx context.Context, ue *UeContext, v roaming.Visitor5G, imsi, uri string) {
+	log := logger.From(ctx, logger.AmfLog).With(logger.SUPIFromIMSI(imsi))
+
+	next, err := amf.HPLMN.Renew(ctx, v.HPLMN, uri, wire.DateTimeOf(time.Now().Add(sdmLifetime)))
+	if err == nil {
+		ue.updateVisitor(func(cur *roaming.Visitor5G) {
+			if cur.SDM != nil && cur.SDM.URI == uri {
+				cur.SDM.Expires = next
+			}
+		})
+
+		return
+	}
+
+	if pd, ok := roaming.ProblemOf(err); !ok || pd.Status != http.StatusNotFound {
+		log.Warn("failed to renew the visitor's home subscription", zap.Error(err))
+		return
+	}
+
+	ue.updateVisitor(func(cur *roaming.Visitor5G) {
+		if cur.SDM != nil && cur.SDM.URI == uri {
+			cur.SDM = nil
+		}
+	})
+
+	instanceID, callback, _, err := amf.hplmnIdentity(ctx, imsi, sepp.CallbackSDMChange)
+	if err != nil {
+		log.Warn("failed to subscribe again to the visitor's home subscription data", zap.Error(err))
+		return
+	}
+
+	amf.subscribeAtHPLMN(ctx, ue, v, "imsi-"+imsi, instanceID, callback)
 }

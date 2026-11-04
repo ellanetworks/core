@@ -8,7 +8,7 @@ This guide adds a roaming partner, so the partner's subscribers can attach to El
 
 ## Prerequisites
 
-- **Data networks and slices**: a data network named after each DNN or APN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case), and slices with the S-NSSAI values of their subscriptions. Ella Core does not map S-NSSAIs between networks, so the partner must use standard S-NSSAIs that match a local slice.
+- **Data networks and slices**: a data network named after each DNN or APN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case), and slices with the S-NSSAI values of their subscriptions.
 - **Partner subscriptions**: the partner allows local breakout for these data networks in its subscriptions.
 
 ## 1. Create a profile for roamers
@@ -78,7 +78,7 @@ Click **Create**.
 
 In **Partners** on each node, the **N32** column shows **Established**.
 
-Attach a UE with a SIM of the partner's network. Open the **Subscribers** page of the node that serves it: the roamer appears, with its roaming partner.
+Attach a UE with a SIM of the partner's network. Open the **Roamers** tab of the **Subscribers** page of the node that serves it: the roamer appears, with its roaming partner.
 
 !!! note
-    All steps in this guide can also be performed via the REST API. See the [Operator API reference](../reference/api/operator.md#list-roaming-partners) for details. Generating a node's SEPP certificate again and regenerating the SEPP CA are also available through the API: see [Generate a SEPP Certificate](../reference/api/operator.md#generate-a-sepp-certificate) and [Regenerate the SEPP CA](../reference/api/operator.md#regenerate-the-sepp-ca).
+    All steps in this guide can also be performed via the REST API. See the [Operator API reference](../reference/api/operator.md#list-roaming-partners) for details.
