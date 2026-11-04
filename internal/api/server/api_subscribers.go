@@ -987,6 +987,10 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			}
 		}
 
+		if termination != nil {
+			_ = hssInstance.Terminate(context.WithoutCancel(r.Context()), termination)
+		}
+
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
 		amfInstance.ForgetSubscriber(imsi)
 
@@ -1004,10 +1008,6 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 
 			return
-		}
-
-		if termination != nil {
-			go func(ctx context.Context) { _ = hssInstance.Terminate(ctx, termination) }(context.WithoutCancel(r.Context()))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
