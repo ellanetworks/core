@@ -18,7 +18,7 @@ const (
 	GrantTypeClientCreds    = "client_credentials"
 	TokenTypeBearer         = "Bearer"
 	maxAccessTokenLength    = 16 << 10
-	accessTokenEndpointPath = "/oauth2/token"
+	accessTokenEndpointPath = "/oauth2/token" // #nosec G101 -- URL path of the NRF token endpoint, not a credential
 )
 
 var scopePattern = regexp.MustCompile(`^([a-zA-Z0-9_:-]+)( [a-zA-Z0-9_:-]+)*$`)

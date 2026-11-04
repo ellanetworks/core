@@ -78,7 +78,7 @@ func (m *Manager) serveN32f(w http.ResponseWriter, r *http.Request, partnerID st
 		}
 
 		if !slices.ContainsFunc(p.plmns, oni.Matches) {
-			m.reject(w, p, RejectOriginatingPLMN, wire.NewProblem(http.StatusForbidden, wire.CauseOriginatingNetworkIDMismatch, "3gpp-Sbi-Originating-Network-Id "+oni.String()+" is not a PLMN of this partner"))
+			m.reject(w, p, RejectOriginatingPLMN, wire.NewProblem(http.StatusForbidden, wire.CauseOriginatingNetworkIDMismatch, "3gpp-Sbi-Originating-Network-Id is not a PLMN of this partner"))
 			return
 		}
 	}
