@@ -136,9 +136,6 @@ type Session struct {
 	Bearers       []Bearer      `json:"bearers,omitempty"`
 }
 
-// Traffic is the data a session or bearer has carried since it was
-// established, read live from the user plane. Counters never decrease while
-// the session lives; a session's counters include bearers since released.
 type Traffic struct {
 	ReadAt          string `json:"read_at"`
 	UplinkBytes     uint64 `json:"uplink_bytes"`

@@ -4506,7 +4506,7 @@ components:
         established_at:
           type: string
           format: date-time
-          description: "When the session's user plane was established. The traffic counters start from zero then; a different value means a new session whose counters restarted."
+          description: "When the session's user plane was established."
         traffic:
           $ref: "#/components/schemas/Traffic"
         bearers:
@@ -4563,12 +4563,12 @@ components:
 
     Traffic:
       type: object
-      description: "Data carried since the session or bearer was established, read live from the user plane on each request. The counters never decrease while the session lives: a session's counters include the bearers it has since released, and a bearer's start from zero when it is established. Poll and difference two readings, using read_at, to compute a rate. Counts the subscriber's IP packets, without tunnel or Ethernet headers, as subscriber usage does. Absent when the user plane counters cannot be read exactly."
+      description: "Traffic carried since the session or bearer was established, read from the user plane. A session's counters include those of its released bearers. Bytes count the subscriber's IP packets, without tunnel or Ethernet headers. Absent when the user plane counters cannot be read."
       properties:
         read_at:
           type: string
           format: date-time
-          description: "When the counters were read."
+          description: "When the counters were read from the user plane."
         uplink_bytes:
           type: integer
           format: int64
