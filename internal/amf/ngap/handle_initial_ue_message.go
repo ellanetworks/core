@@ -39,6 +39,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	ueConn.UpdateLocation(ctx, msg.UserLocationInformation)
 
 	ueConn.UeContextRequest = msg.UEContextRequest != nil
+	ueConn.SetRRCEstablishmentCause(msg.RRCEstablishmentCause)
 
 	if amfInstance.NAS == nil {
 		ueConn.Log(ctx).Error("NAS handler not set")

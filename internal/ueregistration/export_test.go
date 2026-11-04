@@ -8,3 +8,7 @@ import "time"
 func (r *Registry) SetIntervalForTest(d time.Duration) {
 	r.interval = d
 }
+
+func (r *Registry) SetMinRunGapForTest(d time.Duration) {
+	r.minGap = d
+}

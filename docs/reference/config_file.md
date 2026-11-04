@@ -45,6 +45,9 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `port` (int, optional): The port to listen on. Default `3868`.
 - `datapath` (object): The datapath configuration (optional). When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
     - `attach-mode` (string): The kernel hook the datapath attaches to (optional): `xdp-native`, `tcx`, or `xdp-generic`. See [the eBPF attach mode explanation](../explanation/user_plane_packet_processing_with_ebpf.md).
+    - `max-sessions` (integer): The number of PDU sessions (5G) and PDN connections (4G) this node's datapath is sized for (optional). Defaults to `2000`, enough for 1,000 subscribers with two sessions each. Allowed values are `1000` to `200000`. Ella Core rejects new sessions beyond this limit with cause #26 *Insufficient resources* and a 60-second back-off timer. Memory reserved at startup grows with this value; see [system requirements](system_reqs.md).
+    - `nat-max-entries` (integer): The size of the NAT connection-tracking table (optional). Defaults to 200 entries per session, between 262,144 and 16,777,216. Each NAT'd connection uses two entries. Set it to override the default, between `65536` and `16777216`.
+    - `flow-max-entries` (integer): The size of the flow accounting table (optional). Defaults to 100 entries per session, between 131,072 and 8,388,608. Set it to override the default, between `65536` and `16777216`.
 - `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.
     - `attach-mode` (string): `native` is equivalent to `datapath.attach-mode: xdp-native`, `generic` to `xdp-generic`.
 - `telemetry` (object): The telemetry configuration.

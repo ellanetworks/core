@@ -116,7 +116,8 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed", zap.Error(err))
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), attachBearerRejectCause(ueConn.ESMRequest.Type, err))
+		rejectAttachESMWithBackoff(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), attachBearerRejectCause(ueConn.ESMRequest.Type, err),
+			capacityBackoff(ueConn, ueConn.ESMRequest.Type, err))
 
 		return
 	}

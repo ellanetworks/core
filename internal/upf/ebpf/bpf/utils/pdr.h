@@ -25,8 +25,7 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/ipv6.h>
 
-#define MAX_UES 1000
-#define MAX_PDU_SESSIONS (2 * MAX_UES)
+#define MAX_PDU_SESSIONS 2000
 #define PDR_MAP_UPLINK_SIZE MAX_PDU_SESSIONS
 #define PDR_MAP_DOWNLINK_IPV4_SIZE MAX_PDU_SESSIONS
 #define PDR_MAP_DOWNLINK_IPV6_SIZE MAX_PDU_SESSIONS

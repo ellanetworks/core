@@ -509,3 +509,99 @@ func TestRun_TickReconcilesHeldUEs(t *testing.T) {
 		t.Fatal("expected the periodic tick to reconcile the held UEs, retrying any skipped release")
 	}
 }
+
+type countingHolder struct {
+	mu   sync.Mutex
+	runs []time.Time
+}
+
+func (h *countingHolder) HoldsUE(string) bool { return false }
+
+func (h *countingHolder) ReconcileRegistrations(context.Context) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.runs = append(h.runs, time.Now())
+}
+
+func (h *countingHolder) snapshot() []time.Time {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return append([]time.Time(nil), h.runs...)
+}
+
+func TestRun_WakeupBurstCoalescesIntoOneTrailingRun(t *testing.T) {
+	const gap = 200 * time.Millisecond
+
+	r := ueregistration.New(newFakeStore(), "node-a", zap.NewNop())
+	r.SetIntervalForTest(time.Hour)
+	r.SetMinRunGapForTest(gap)
+
+	h := &countingHolder{}
+	r.Bind(amfType, mmeType, h)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wakeup := make(chan struct{}, 1)
+
+	go r.Run(ctx, wakeup)
+
+	wakeup <- struct{}{}
+
+	waitFor(t, func() bool { return len(h.snapshot()) == 1 })
+
+	first := h.snapshot()[0]
+
+	for range 20 {
+		wakeup <- struct{}{}
+	}
+
+	waitFor(t, func() bool { return len(h.snapshot()) == 2 })
+
+	time.Sleep(2 * gap)
+
+	runs := h.snapshot()
+	if len(runs) != 2 {
+		t.Fatalf("a burst of wakeups caused %d reconcile runs, want exactly one trailing run", len(runs)-1)
+	}
+
+	if since := runs[1].Sub(first); since < gap {
+		t.Fatalf("trailing run started %s after the previous one, want at least %s", since, gap)
+	}
+}
+
+func TestRun_WakeupAfterQuietPeriodRunsImmediately(t *testing.T) {
+	const gap = 50 * time.Millisecond
+
+	r := ueregistration.New(newFakeStore(), "node-a", zap.NewNop())
+	r.SetIntervalForTest(time.Hour)
+	r.SetMinRunGapForTest(gap)
+
+	h := &countingHolder{}
+	r.Bind(amfType, mmeType, h)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wakeup := make(chan struct{}, 1)
+
+	go r.Run(ctx, wakeup)
+
+	wakeup <- struct{}{}
+
+	waitFor(t, func() bool { return len(h.snapshot()) == 1 })
+
+	time.Sleep(2 * gap)
+
+	sent := time.Now()
+
+	wakeup <- struct{}{}
+
+	waitFor(t, func() bool { return len(h.snapshot()) == 2 })
+
+	if lag := h.snapshot()[1].Sub(sent); lag >= gap {
+		t.Fatalf("a wakeup after a quiet period waited %s, want an immediate run", lag)
+	}
+}

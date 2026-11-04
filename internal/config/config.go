@@ -139,7 +139,10 @@ type XDPYaml struct {
 }
 
 type DatapathYaml struct {
-	AttachMode string `yaml:"attach-mode"`
+	AttachMode     string `yaml:"attach-mode"`
+	MaxSessions    uint32 `yaml:"max-sessions"`
+	NATMaxEntries  uint32 `yaml:"nat-max-entries"`
+	FlowMaxEntries uint32 `yaml:"flow-max-entries"`
 }
 
 type SystemLoggingYaml struct {
@@ -232,7 +235,10 @@ type Interfaces struct {
 type Datapath struct {
 	// AttachMode is one of the Datapath* mechanisms, or DatapathChain when
 	// the operator did not pin one.
-	AttachMode string
+	AttachMode     string
+	MaxSessions    uint32
+	NATMaxEntries  uint32
+	FlowMaxEntries uint32
 }
 
 type AuditLogging struct {
@@ -425,6 +431,10 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	config.Datapath.AttachMode = attachMode
+
+	if err := resolveDatapathCapacity(c.Datapath, &config.Datapath); err != nil {
+		return Config{}, err
+	}
 
 	// Generic XDP attaches to the configured interface and lets the kernel
 	// tag; every other mechanism attaches to the VLAN master, since native
@@ -697,6 +707,46 @@ func resolveAttachMode(x XDPYaml, d DatapathYaml) (string, error) {
 	}
 
 	return "", errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
+}
+
+const (
+	DefaultMaxSessions    uint32 = 2000
+	MinMaxSessions        uint32 = 1000
+	MaxMaxSessions        uint32 = 200000
+	MinDatapathMapEntries uint32 = 64 << 10
+	MaxDatapathMapEntries uint32 = 16 << 20
+)
+
+func resolveDatapathCapacity(d DatapathYaml, out *Datapath) error {
+	out.MaxSessions = DefaultMaxSessions
+	if d.MaxSessions != 0 {
+		if d.MaxSessions < MinMaxSessions || d.MaxSessions > MaxMaxSessions {
+			return fmt.Errorf("datapath.max-sessions must be between %d and %d", MinMaxSessions, MaxMaxSessions)
+		}
+
+		out.MaxSessions = d.MaxSessions
+	}
+
+	for _, e := range []struct {
+		key   string
+		value uint32
+		dst   *uint32
+	}{
+		{"datapath.nat-max-entries", d.NATMaxEntries, &out.NATMaxEntries},
+		{"datapath.flow-max-entries", d.FlowMaxEntries, &out.FlowMaxEntries},
+	} {
+		if e.value == 0 {
+			continue
+		}
+
+		if e.value < MinDatapathMapEntries || e.value > MaxDatapathMapEntries {
+			return fmt.Errorf("%s must be 0 or between %d and %d", e.key, MinDatapathMapEntries, MaxDatapathMapEntries)
+		}
+
+		*e.dst = e.value
+	}
+
+	return nil
 }
 
 var VRFDeviceForInterfaceFunc = netutil.VRFDeviceForInterface

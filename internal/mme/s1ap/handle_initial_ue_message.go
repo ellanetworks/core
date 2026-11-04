@@ -49,6 +49,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	}
 
 	c.ServingTAI = msg.TAI
+	c.SetRRCEstablishmentCause(msg.RRCEstablishmentCause)
 
 	if msg.EUTRANCGI != nil {
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)

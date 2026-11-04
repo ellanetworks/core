@@ -47,7 +47,7 @@ func TestQerMeterMapSpec(t *testing.T) {
 				t.Errorf("QER meter value size = %d, want 24 for spinlock, padding, and two windows", meter.ValueSize)
 			}
 
-			if want := spec.Maps[MapSdfClassifiers].MaxEntries * MaxSessionQERs; meter.MaxEntries != want {
+			if want := spec.Maps[MapSdfClassifiers].MaxEntries * perSessionPoolFactor; meter.MaxEntries != want {
 				t.Errorf("QER meter capacity = %d, want %d", meter.MaxEntries, want)
 			}
 		})

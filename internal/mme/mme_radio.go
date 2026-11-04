@@ -314,10 +314,8 @@ func (r *Radio) refreshLogLocked() {
 		return
 	}
 
-	for _, c := range r.m.conns {
-		if c.Conn() == r.Conn {
-			c.bindLogFields(fields)
-		}
+	for c := range r.m.connIndex.onAssociation(r.Conn) {
+		c.bindLogFields(fields)
 	}
 }
 

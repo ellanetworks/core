@@ -83,6 +83,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	c.MarkCipheringStarted()
 
 	c.ServingTAI = msg.TAI
+	c.SetRRCEstablishmentCause(msg.RRCEstablishmentCause)
 
 	if msg.EUTRANCGI != nil {
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)

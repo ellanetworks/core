@@ -19,6 +19,8 @@ func TestDropStaleUe(t *testing.T) {
 	if got := len(m.conns); got != 0 {
 		t.Fatalf("DropStaleUe left %d connections, want 0", got)
 	}
+
+	assertConnIndexConsistent(t, m)
 }
 
 func TestBareConnectionIgnoredByLookups(t *testing.T) {

@@ -522,6 +522,93 @@ interfaces:
 	}
 }
 
+func TestDatapathCapacity(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
+	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+	config.VRFDeviceForInterfaceFunc = func(name string) (string, error) { return "", nil }
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) { return nil, nil }
+
+	const tmpl = `logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "test"
+interfaces:
+  n2:
+    address: "0.0.0.0"
+  n3:
+    address: "33.33.33.3"
+  n6:
+    name: "enp6s0"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+%s`
+
+	cases := []struct {
+		name         string
+		block        string
+		wantSessions uint32
+		wantNAT      uint32
+		wantFlow     uint32
+		wantErrParts string
+	}{
+		{"absent block keeps the default", "", config.DefaultMaxSessions, 0, 0, ""},
+		{"attach mode only keeps the default", "datapath:\n  attach-mode: \"tcx\"\n", config.DefaultMaxSessions, 0, 0, ""},
+		{"ceiling", "datapath:\n  max-sessions: 200000\n", 200000, 0, 0, ""},
+		{"floor", "datapath:\n  max-sessions: 1000\n", 1000, 0, 0, ""},
+		{"overrides", "datapath:\n  max-sessions: 20000\n  nat-max-entries: 1048576\n  flow-max-entries: 65536\n", 20000, 1 << 20, 64 << 10, ""},
+		{"above ceiling", "datapath:\n  max-sessions: 200001\n", 0, 0, 0, "datapath.max-sessions must be between"},
+		{"below floor", "datapath:\n  max-sessions: 999\n", 0, 0, 0, "datapath.max-sessions must be between"},
+		{"nat below floor", "datapath:\n  nat-max-entries: 1000\n", 0, 0, 0, "datapath.nat-max-entries must be 0 or between"},
+		{"flow above ceiling", "datapath:\n  flow-max-entries: 16777217\n", 0, 0, 0, "datapath.flow-max-entries must be 0 or between"},
+		{"negative", "datapath:\n  max-sessions: -1\n", 0, 0, 0, "cannot unmarshal"},
+		{"unknown key", "datapath:\n  max-session: 1000\n", 0, 0, 0, "max-session"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "core.yaml")
+			if err := os.WriteFile(path, []byte(fmt.Sprintf(tmpl, tc.block)), 0o600); err != nil {
+				t.Fatalf("write config: %s", err)
+			}
+
+			cfg, err := config.Validate(path)
+
+			if tc.wantErrParts != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got none", tc.wantErrParts)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErrParts) {
+					t.Fatalf("error = %q, want it to contain %q", err.Error(), tc.wantErrParts)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if cfg.Datapath.MaxSessions != tc.wantSessions {
+				t.Errorf("max sessions = %d, want %d", cfg.Datapath.MaxSessions, tc.wantSessions)
+			}
+
+			if cfg.Datapath.NATMaxEntries != tc.wantNAT {
+				t.Errorf("nat max entries = %d, want %d", cfg.Datapath.NATMaxEntries, tc.wantNAT)
+			}
+
+			if cfg.Datapath.FlowMaxEntries != tc.wantFlow {
+				t.Errorf("flow max entries = %d, want %d", cfg.Datapath.FlowMaxEntries, tc.wantFlow)
+			}
+		})
+	}
+}
+
 func TestUserPlaneVRFConsistency(t *testing.T) {
 	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
 	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }

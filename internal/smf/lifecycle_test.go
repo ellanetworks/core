@@ -334,6 +334,50 @@ func TestReleaseSmContext_HappyPath(t *testing.T) {
 	upf.mu.Unlock()
 }
 
+func TestReleaseSmContext_LeavesNoSEIDIndexEntries(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	seids := make(map[string]uint64)
+
+	for id := uint8(1); id <= 5; id++ {
+		ref, _, err := s.CreateSmContext(ctx, testSUPI(), id, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0)
+		if err != nil {
+			t.Fatalf("CreateSmContext %d failed: %v", id, err)
+		}
+
+		sc := s.GetSession(ref)
+		if sc == nil || sc.PFCPContext == nil {
+			t.Fatalf("session %d has no PFCP session", id)
+		}
+
+		if s.GetSessionBySEID(sc.PFCPContext.SEID) != sc {
+			t.Fatalf("session %d is not indexed by its SEID", id)
+		}
+
+		seids[ref] = sc.PFCPContext.SEID
+	}
+
+	if got := s.SEIDIndexLenForTest(); got != len(seids) {
+		t.Fatalf("SEID index holds %d entries, want %d", got, len(seids))
+	}
+
+	for ref, seid := range seids {
+		if err := s.ReleaseSmContext(ctx, ref, models.ReleaseFor(models.ReleaseUERequested)); err != nil {
+			t.Fatalf("ReleaseSmContext failed: %v", err)
+		}
+
+		if s.GetSessionBySEID(seid) != nil {
+			t.Fatalf("released session still found by SEID %d", seid)
+		}
+	}
+
+	if got := s.SEIDIndexLenForTest(); got != 0 {
+		t.Fatalf("SEID index holds %d stale entries after release", got)
+	}
+}
+
 func TestSessionLifecycleHoldsAPolicyAssociation(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

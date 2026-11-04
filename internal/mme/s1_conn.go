@@ -79,6 +79,18 @@ type UeConn struct {
 	icsGuard                  guard.Guard
 	releasing                 bool
 	ranUEAMBR                 atomic.Pointer[models.Ambr]
+	rrcCause                  atomic.Pointer[s1ap.RRCEstablishmentCause]
+	indexedAt                 *s1ConnKey
+}
+
+func (c *UeConn) SetRRCEstablishmentCause(cause *s1ap.RRCEstablishmentCause) {
+	c.rrcCause.Store(cause)
+}
+
+func (c *UeConn) MayBeHighPriorityAccess() bool {
+	cause := c.rrcCause.Load()
+
+	return cause == nil || *cause == s1ap.RRCCauseHighPriorityAccess || *cause == s1ap.RRCCauseEmergency
 }
 
 type ESMRequest struct {

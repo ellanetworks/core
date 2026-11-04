@@ -80,6 +80,7 @@ func (r *Radio) BindAMFForTest(a *AMF) {
 		if ueConn.Conn() == r.Conn {
 			moved[id] = ueConn
 			delete(old.conns, id)
+			old.unindexConnLocked(ueConn)
 		}
 	}
 
@@ -89,6 +90,7 @@ func (r *Radio) BindAMFForTest(a *AMF) {
 	for id, ueConn := range moved {
 		ueConn.amf = a
 		a.conns[id] = ueConn
+		a.indexConnLocked(ueConn)
 	}
 	a.mu.Unlock()
 }

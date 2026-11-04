@@ -26,8 +26,7 @@
 #include "bpf/utils/pdr.h"
 #include "bpf/utils/sdf_classifier.h"
 
-#define MAX_SESSION_QERS (1 + MAX_CLASSIFIER_TARGETS)
-#define QER_WINDOW_MAP_SIZE (MAX_PDU_SESSIONS * MAX_SESSION_QERS)
+#define QER_WINDOW_MAP_SIZE (MAX_PDU_SESSIONS * 8)
 
 struct qer_key {
 	__u64 seid;
@@ -47,6 +46,7 @@ struct {
 	__type(key, struct qer_key);
 	__type(value, struct qer_window);
 	__uint(max_entries, QER_WINDOW_MAP_SIZE);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
 } qer_windows SEC(".maps");
 
 enum qer_direction {

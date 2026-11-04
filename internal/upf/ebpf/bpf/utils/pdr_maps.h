@@ -14,6 +14,7 @@ struct {
 	__type(key, __u32);
 	__type(value, struct pdr_info);
 	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
 } pdrs_downlink_ip4 SEC(".maps");
 
 struct {
@@ -21,6 +22,7 @@ struct {
 	__type(key, struct in6_addr);
 	__type(value, struct pdr_info);
 	__uint(max_entries, PDR_MAP_DOWNLINK_IPV6_SIZE);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
 } pdrs_downlink_ip6 SEC(".maps");
 
 /* Framed-route LPM keys: prefixlen (in bits) followed by the address, per the

@@ -374,3 +374,36 @@ func TestPool6LowerBitsZero(t *testing.T) {
 		}
 	}
 }
+
+func TestPoolLastAddress(t *testing.T) {
+	tests := []struct {
+		cidr string
+		want string
+	}{
+		{"192.168.1.0/24", "192.168.1.255"},
+		{"10.45.0.0/22", "10.45.3.255"},
+		{"10.0.0.0/15", "10.1.255.255"},
+		{"10.0.0.0/29", "10.0.0.7"},
+		{"10.0.0.1/32", "10.0.0.1"},
+	}
+
+	for _, tt := range tests {
+		pool, err := NewPool("p", tt.cidr)
+		if err != nil {
+			t.Fatalf("NewPool(%s): %v", tt.cidr, err)
+		}
+
+		if got := pool.LastAddress(); got != netip.MustParseAddr(tt.want) {
+			t.Errorf("LastAddress(%s) = %s, want %s", tt.cidr, got, tt.want)
+		}
+	}
+
+	pool6, err := NewPool6("p6", "2001:db8:1::/48", 64)
+	if err != nil {
+		t.Fatalf("NewPool6: %v", err)
+	}
+
+	if got := pool6.LastAddress(); got != netip.MustParseAddr("2001:db8:1:ffff:ffff:ffff:ffff:ffff") {
+		t.Errorf("LastAddress(/48) = %s", got)
+	}
+}

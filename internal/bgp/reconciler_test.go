@@ -292,6 +292,45 @@ func TestReconciler_AdvertisesFramedRoutes(t *testing.T) {
 	}
 }
 
+func TestReconciler_SkipsLeaseStoreWhenNotAdvertising(t *testing.T) {
+	rib := newFakeRIB()
+	rib.disabled = true
+
+	store := &fakeLeaseStore{leases: []Lease{
+		{Address: netip.MustParseAddr("10.45.0.1"), IMSI: "imsi-1"},
+	}}
+
+	r := NewReconciler(rib, store, "1", nil)
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	store.mu.Lock()
+	calls := store.calls
+	store.mu.Unlock()
+
+	if calls != 0 {
+		t.Fatalf("lease store read %d times while not advertising, want 0", calls)
+	}
+
+	if paths := rib.Paths(); len(paths) != 0 {
+		t.Fatalf("expected no paths while not advertising, got %v", paths)
+	}
+
+	rib.mu.Lock()
+	rib.disabled = false
+	rib.mu.Unlock()
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := rib.Paths()["10.45.0.1/32"]; got != "imsi-1" {
+		t.Fatalf("after advertising resumed: 10.45.0.1 owner = %q, want imsi-1", got)
+	}
+}
+
 func TestReconciler_StartStopIsIdempotent(t *testing.T) {
 	svc := newTestBGPServiceAdvertising(t)
 	store := &fakeLeaseStore{}
@@ -305,8 +344,9 @@ func TestReconciler_StartStopIsIdempotent(t *testing.T) {
 
 // fakeRIB is an in-memory implementation of RIB for tests. Thread-safe.
 type fakeRIB struct {
-	mu    sync.Mutex
-	paths map[string]string
+	mu       sync.Mutex
+	paths    map[string]string
+	disabled bool
 }
 
 func newFakeRIB() *fakeRIB {
@@ -329,6 +369,13 @@ func (f *fakeRIB) Withdraw(prefix netip.Prefix) error {
 	delete(f.paths, prefix.Masked().String())
 
 	return nil
+}
+
+func (f *fakeRIB) IsAdvertising() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return !f.disabled
 }
 
 func (f *fakeRIB) Paths() map[string]string {

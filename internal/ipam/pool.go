@@ -149,6 +149,31 @@ func (p Pool) AddressAtOffset(offset int) netip.Addr {
 	return netip.AddrFrom16(b)
 }
 
+// LastAddress returns the highest address covered by the pool's prefix.
+func (p Pool) LastAddress() netip.Addr {
+	base := p.Prefix.Addr()
+	b := base.As16()
+	hostBits := base.BitLen() - p.Prefix.Bits()
+
+	for i := len(b) - 1; i >= 0 && hostBits > 0; i-- {
+		if hostBits >= 8 {
+			b[i] = 0xFF
+			hostBits -= 8
+
+			continue
+		}
+
+		b[i] |= byte(1<<hostBits - 1)
+		hostBits = 0
+	}
+
+	if base.Is4() {
+		return netip.AddrFrom4([4]byte(b[12:16]))
+	}
+
+	return netip.AddrFrom16(b)
+}
+
 // OffsetOf returns the offset of addr relative to the pool's base address.
 // Returns -1 if addr is not within the pool's prefix.
 //

@@ -7,6 +7,9 @@ import (
 	"bytes"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/ellanetworks/core/nas"
 )
 
 // TestPDNConnectivityRequestGolden walks the full real capture end to end:
@@ -134,6 +137,37 @@ func TestESMRoundTrips(t *testing.T) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
+}
+
+func TestPDNConnectivityRejectBackoffTimerRoundTrip(t *testing.T) {
+	in := &PDNConnectivityReject{
+		PTI:          0x15,
+		Cause:        ESMCauseInsufficientResources,
+		BackoffTimer: &nas.GPRSTimer3{Unit: nas.GPRSTimer3Unit1Minute, Value: 1},
+	}
+
+	b, err := in.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	want := []byte{0x02, 0x15, uint8(MsgPDNConnectivityReject), uint8(ESMCauseInsufficientResources), 0x37, 0x01, 0xA1}
+	if !bytes.Equal(b, want) {
+		t.Fatalf("wire bytes = % x, want % x", b, want)
+	}
+
+	out, err := ParsePDNConnectivityReject(b)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	if !reflect.DeepEqual(out, in) {
+		t.Fatalf("round-trip mismatch: got %+v, want %+v", out, in)
+	}
+
+	if d, ok := out.BackoffTimer.Duration(); !ok || d != time.Minute {
+		t.Fatalf("back-off duration = %v, %v; want 1m0s", d, ok)
+	}
 }
 
 func TestParseESMHeader(t *testing.T) {

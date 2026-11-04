@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/ipam"
 )
 
 // setupLeaseTestDB creates a new database with a data network, policy, and
@@ -1365,5 +1366,121 @@ func TestReleaseIPLease_MissingIsNoOp(t *testing.T) {
 
 	if released.IsValid() {
 		t.Errorf("released = %s, want the zero Addr", released)
+	}
+}
+
+func createSmallPool(t *testing.T, database *db.Database, cidr string) string {
+	t.Helper()
+
+	ctx := context.Background()
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "small-dnn", IPv4Pool: cidr, DNS: "8.8.8.8", MTU: 1400}); err != nil {
+		t.Fatalf("CreateDataNetwork: %s", err)
+	}
+
+	dn, err := database.GetDataNetwork(ctx, "small-dnn")
+	if err != nil {
+		t.Fatalf("GetDataNetwork: %s", err)
+	}
+
+	return dn.ID
+}
+
+func TestAllocateIPLease_NextFitDoesNotReuseReleasedAddressImmediately(t *testing.T) {
+	database, poolID, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+
+	for session := 1; session <= 2; session++ {
+		if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, session, "1"); err != nil {
+			t.Fatalf("AllocateIPLease(%d): %s", session, err)
+		}
+	}
+
+	if _, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 1, "1"); err != nil {
+		t.Fatalf("ReleaseIPLease: %s", err)
+	}
+
+	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 3, "1")
+	if err != nil {
+		t.Fatalf("AllocateIPLease(3): %s", err)
+	}
+
+	if got != addr("192.168.1.3") {
+		t.Fatalf("expected next-fit address 192.168.1.3, got %s", got)
+	}
+}
+
+func TestAllocateIPLease_WrapsAroundAndExhausts(t *testing.T) {
+	database, _, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+	poolID := createSmallPool(t, database, "10.9.0.0/29")
+
+	for session := 1; session <= 6; session++ {
+		got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, session, "1")
+		if err != nil {
+			t.Fatalf("AllocateIPLease(%d): %s", session, err)
+		}
+
+		if want := netip.AddrFrom4([4]byte{10, 9, 0, byte(session)}); got != want {
+			t.Fatalf("session %d: expected %s, got %s", session, want, got)
+		}
+	}
+
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "1"); !errors.Is(err, ipam.ErrPoolExhausted) {
+		t.Fatalf("expected ErrPoolExhausted on a full pool, got %v", err)
+	}
+
+	for _, session := range []int{3, 5} {
+		if _, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, session, "1"); err != nil {
+			t.Fatalf("ReleaseIPLease(%d): %s", session, err)
+		}
+	}
+
+	for session, want := range []string{"10.9.0.3", "10.9.0.5"} {
+		got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 10+session, "1")
+		if err != nil {
+			t.Fatalf("AllocateIPLease after wrap: %s", err)
+		}
+
+		if got != addr(want) {
+			t.Fatalf("expected %s after wrap, got %s", want, got)
+		}
+	}
+
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 20, "1"); !errors.Is(err, ipam.ErrPoolExhausted) {
+		t.Fatalf("expected ErrPoolExhausted after refilling, got %v", err)
+	}
+}
+
+func TestAllocateIPv6Lease_SequentialPrefixes(t *testing.T) {
+	database, _, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "v6-dnn", IPv4Pool: "10.10.0.0/24", IPv6Pool: "2001:db8:1::/62", DNS: "8.8.8.8", MTU: 1400}); err != nil {
+		t.Fatalf("CreateDataNetwork: %s", err)
+	}
+
+	dn, err := database.GetDataNetwork(ctx, "v6-dnn")
+	if err != nil {
+		t.Fatalf("GetDataNetwork: %s", err)
+	}
+
+	for session, want := range []string{"2001:db8:1::", "2001:db8:1:1::", "2001:db8:1:2::", "2001:db8:1:3::"} {
+		got, err := database.AllocateIPv6Lease(ctx, dn.ID, "ipv6", imsi, session+1, "1")
+		if err != nil {
+			t.Fatalf("AllocateIPv6Lease(%d): %s", session+1, err)
+		}
+
+		if got != addr(want) {
+			t.Fatalf("session %d: expected %s, got %s", session+1, want, got)
+		}
+	}
+
+	if _, err := database.AllocateIPv6Lease(ctx, dn.ID, "ipv6", imsi, 9, "1"); !errors.Is(err, ipam.ErrPoolExhausted) {
+		t.Fatalf("expected ErrPoolExhausted, got %v", err)
+	}
+
+	if _, err := database.AllocateIPLease(ctx, dn.ID, "ipv4", imsi, 1, "1"); err != nil {
+		t.Fatalf("AllocateIPLease on the same data network: %s", err)
 	}
 }

@@ -14,7 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultInterval = 10 * time.Second
+const (
+	defaultInterval  = 10 * time.Second
+	defaultMinRunGap = time.Second
+)
 
 type Store interface {
 	RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error)
@@ -39,6 +42,7 @@ type Registry struct {
 	log      *zap.Logger
 	locks    keyedMutex
 	interval time.Duration
+	minGap   time.Duration
 
 	mu      sync.Mutex
 	holders map[string]Holder
@@ -52,6 +56,7 @@ func New(store Store, nodeID string, log *zap.Logger) *Registry {
 		log:      log,
 		locks:    keyedMutex{entries: map[string]*keyedEntry{}},
 		interval: defaultInterval,
+		minGap:   defaultMinRunGap,
 		holders:  map[string]Holder{},
 		pending:  map[purgeKey]struct{}{},
 	}
@@ -69,15 +74,54 @@ func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}) {
 	tick := time.NewTicker(r.interval)
 	defer tick.Stop()
 
+	deferred := time.NewTimer(r.minGap)
+	deferred.Stop()
+
+	defer deferred.Stop()
+
+	var (
+		lastRun time.Time
+		pending bool
+	)
+
+	reconcile := func() {
+		r.reconcileAll(ctx)
+
+		lastRun = time.Now()
+	}
+
+	cancelPending := func() {
+		deferred.Stop()
+
+		pending = false
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-wakeup:
-			r.reconcileAll(ctx)
+			if pending {
+				continue
+			}
+
+			if wait := r.minGap - time.Since(lastRun); !lastRun.IsZero() && wait > 0 {
+				deferred.Reset(wait)
+
+				pending = true
+
+				continue
+			}
+
+			reconcile()
+		case <-deferred.C:
+			pending = false
+
+			reconcile()
 		case <-tick.C:
+			cancelPending()
 			r.flushPurges(ctx)
-			r.reconcileAll(ctx)
+			reconcile()
 		}
 	}
 }

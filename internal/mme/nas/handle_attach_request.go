@@ -225,7 +225,11 @@ func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mm
 }
 
 func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, pti uint8, esmCause eps.ESMCause) {
-	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
+	rejectAttachESMWithBackoff(ctx, m, ue, ueConn, pti, esmCause, nil)
+}
+
+func rejectAttachESMWithBackoff(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, pti uint8, esmCause eps.ESMCause, backoff *nas.GPRSTimer3) {
+	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause, BackoffTimer: backoff}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject", zap.Error(err))
 

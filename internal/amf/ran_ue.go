@@ -77,6 +77,7 @@ type UeConn struct {
 	releaseAction    atomic.Int64
 	releaseCause     atomic.Pointer[ngap.Cause]
 	UeContextRequest bool
+	rrcCause         atomic.Pointer[ngap.RRCEstablishmentCause]
 	// ics is the Initial Context Setup progress (an ICSState). It is read and written
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
@@ -878,15 +879,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 // releasing a.mu, since RemoveUeConn re-acquires it and may call the SMF.
 func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
 	a.mu.Lock()
-
-	var stale []*UeConn
-
-	for _, ueConn := range a.conns {
-		if ueConn.Conn() == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
-			stale = append(stale, ueConn)
-		}
-	}
-
+	stale := a.connsByRanLocked(radio.Conn, ranUeNgapID)
 	a.mu.Unlock()
 
 	for _, ueConn := range stale {
@@ -911,6 +904,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	a.mu.Lock()
 	delete(a.conns, int64(ueConn.AmfUeNgapID))
+	a.unindexConnLocked(ueConn)
 	a.mu.Unlock()
 
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
@@ -935,9 +929,11 @@ func (a *AMF) CommitPathSwitch(ctx context.Context, ue *UeContext, ueConn *UeCon
 		return false
 	}
 
+	a.unindexConnLocked(ueConn)
 	ueConn.setConn(ran.Conn)
 	ueConn.setRadio(radioIDOf(ran), ran.name)
 	ueConn.setRanUeNgapID(ranUeNgapID)
+	a.indexConnLocked(ueConn)
 
 	if supi := ue.Supi(); supi.IsIMSI() {
 		a.lastSeen.refresh(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
@@ -978,6 +974,8 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 	ueConn.setRadio(radioIDOf(radio), radio.name)
 
 	radio.amf.conns[int64(amfUeNgapID)] = ueConn
+	radio.amf.indexConnLocked(ueConn)
+
 	if radio.Conn != nil {
 		radio.amf.reg.Track(radio.Conn, radio)
 	}
@@ -995,4 +993,26 @@ func (ueConn *UeConn) preservesGBRFlows() bool {
 func preservesGBRFlows(cause ngap.Cause) bool {
 	return cause.Group == ngap.CauseGroupRadioNetwork && !cause.Extended &&
 		(cause.Value == ngap.CauseRadioNetworkUserInactivity || cause.Value == ngap.CauseRadioNetworkRedirection)
+}
+
+func (r *UeConn) SetRRCEstablishmentCause(c *ngap.RRCEstablishmentCause) {
+	r.rrcCause.Store(c)
+}
+
+func (r *UeConn) inheritRRCEstablishmentCause(from *UeConn) {
+	r.rrcCause.Store(from.rrcCause.Load())
+}
+
+func (r *UeConn) MayBeHighPriorityAccess() bool {
+	c := r.rrcCause.Load()
+	if c == nil {
+		return true
+	}
+
+	switch *c {
+	case ngap.RRCCauseHighPriorityAccess, ngap.RRCCauseMPSPriorityAccess, ngap.RRCCauseMCSPriorityAccess, ngap.RRCCauseEmergency:
+		return true
+	default:
+		return false
+	}
 }

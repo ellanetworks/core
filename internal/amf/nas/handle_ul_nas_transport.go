@@ -282,7 +282,9 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID)
 	defer ue.ReleaseEPSBearerReservation(pduSessionID)
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
+	smCtx := smf.WithHighPriorityAccess(ctx, ueConn.MayBeHighPriorityAccess())
+
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(smCtx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).

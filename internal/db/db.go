@@ -90,6 +90,8 @@ type Database struct {
 	listActiveLeasesByNodeStmt   *sqlair.Statement
 	listLeasesByPoolStmt         *sqlair.Statement
 	listLeaseAddressesByPoolStmt *sqlair.Statement
+	listLeaseAddressRangeStmt    *sqlair.Statement
+	getNewestLeaseInPoolStmt     *sqlair.Statement
 	countLeasesByPoolStmt        *sqlair.Statement
 	countIPv4LeasesByPoolStmt    *sqlair.Statement
 	countIPv6LeasesByPoolStmt    *sqlair.Statement
@@ -119,11 +121,13 @@ type Database struct {
 	getRadioEventByIDStmt    *sqlair.Statement
 
 	// Daily Usage statements
-	incrementDailyUsageStmt   *sqlair.Statement
-	getUsagePerDayStmt        *sqlair.Statement
-	getUsagePerSubscriberStmt *sqlair.Statement
-	deleteAllDailyUsageStmt   *sqlair.Statement
-	deleteOldDailyUsageStmt   *sqlair.Statement
+	incrementDailyUsageStmt         *sqlair.Statement
+	getUsagePerDayStmt              *sqlair.Statement
+	getUsagePerSubscriberStmt       *sqlair.Statement
+	getUsagePerDayByIMSIStmt        *sqlair.Statement
+	getUsagePerSubscriberByIMSIStmt *sqlair.Statement
+	deleteAllDailyUsageStmt         *sqlair.Statement
+	deleteOldDailyUsageStmt         *sqlair.Statement
 
 	// Data Network statements
 	listDataNetworksStmt    *sqlair.Statement
@@ -1789,14 +1793,14 @@ func (db *Database) PrepareStatements() error {
 
 	stmts := []stmtDef{
 		// Subscribers
-		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
-		{&db.listSubscribersPreV18Stmt, fmt.Sprintf(listSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
+		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, subscriberFilterArgs{}}},
+		{&db.listSubscribersPreV18Stmt, fmt.Sprintf(listSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, subscriberFilterArgs{}}},
 		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.countSubscribersFilteredStmt, fmt.Sprintf(countSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.countSubscribersFilteredPreV18Stmt, fmt.Sprintf(countSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.getSubscriberPreV18Stmt, fmt.Sprintf(getSubscriberPreV18Stmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.listSubscribersPreV22Stmt, fmt.Sprintf(listSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
+		{&db.listSubscribersPreV22Stmt, fmt.Sprintf(listSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, subscriberFilterArgs{}}},
 		{&db.countSubscribersFilteredPreV22Stmt, fmt.Sprintf(countSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getSubscriberPreV22Stmt, fmt.Sprintf(getSubscriberPreV22Stmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.getSubscriberByMSISDNStmt, fmt.Sprintf(getSubscriberByMSISDNStmt, SubscribersTableName), []any{Subscriber{}}},
@@ -1822,12 +1826,14 @@ func (db *Database) PrepareStatements() error {
 		{&db.listActiveLeasesByNodeStmt, fmt.Sprintf(listActiveLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listLeaseAddressRangeStmt, fmt.Sprintf(listLeaseAddressRangeStmt, IPLeasesTableName), []any{IPLease{}, leaseAddressRange{}}},
+		{&db.getNewestLeaseInPoolStmt, fmt.Sprintf(getNewestLeaseInPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.countIPv4LeasesByPoolStmt, fmt.Sprintf(countIPv4LeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.countIPv6LeasesByPoolStmt, fmt.Sprintf(countIPv6LeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.countActiveLeasesStmt, fmt.Sprintf(countActiveLeasesStmt, IPLeasesTableName), []any{NumItems{}}},
 		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
-		{&db.listLeasesByPoolPageStmt, fmt.Sprintf(listLeasesByPoolPageStmt, IPLeasesTableName), []any{ListArgs{}, IPLease{}, NumItems{}}},
+		{&db.listLeasesByPoolPageStmt, fmt.Sprintf(listLeasesByPoolPageStmt, IPLeasesTableName), []any{ListArgs{}, IPLease{}}},
 		{&db.listAllLeasesStmt, fmt.Sprintf(listAllLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listStaticLeasesByIMSIStmt, fmt.Sprintf(listStaticLeasesByIMSIStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -1854,6 +1860,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
 		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerDayByIMSIStmt, fmt.Sprintf(getUsagePerDayByIMSIStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
+		{&db.getUsagePerSubscriberByIMSIStmt, fmt.Sprintf(getUsagePerSubscriberByIMSIStmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
 		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
 
