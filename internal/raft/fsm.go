@@ -37,7 +37,7 @@ type Applier interface {
 	// MaxOpenConns(1) serialises access, so no explicit transaction
 	// wrapping is needed here — sqlair methods manage their own
 	// transactions as they do in standalone mode.
-	ApplyCommand(ctx context.Context, cmd *Command, logIndex uint64) (any, error)
+	ApplyCommand(ctx context.Context, cmd *Command, logIndex, logTerm uint64) (any, error)
 
 	// PlainDB returns the raw *sql.DB for the application database,
 	// needed for snapshot operations (VACUUM INTO) and ID counter seeding.
@@ -62,8 +62,7 @@ type Applier interface {
 // FSM implements raft.FSM for the application database.
 //
 // Each Apply call deserializes a Command and executes it via the Applier
-// interface. Snapshots use SQLite's VACUUM INTO for a consistent, WAL-free
-// copy. Restore replaces the database file atomically and reopens connections.
+// interface. Restore replaces the database file atomically and reopens connections.
 type FSM struct {
 	applier Applier
 
@@ -120,9 +119,28 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 	results := make([]interface{}, len(logs))
 	ctx := context.Background()
 
-	var highestApplied uint64
+	var highestApplied, highestTerm uint64
 
 	for i, l := range logs {
+		if l.Type == raft.LogConfiguration {
+			if l.Index <= lastApplied {
+				continue
+			}
+
+			if err := setConfiguration(ctx, f.applier.PlainDB(), l.Data, l.Index); err != nil {
+				logger.RaftLog.Error("FSM: failed to persist configuration in batch — halting node",
+					zap.Uint64("index", l.Index),
+					zap.Error(err))
+
+				panic(fmt.Sprintf("FSM.ApplyBatch: failed to persist configuration at index %d: %v", l.Index, err))
+			}
+
+			highestApplied, highestTerm = l.Index, l.Term
+			f.appliedIndex.Store(l.Index)
+
+			continue
+		}
+
 		if l.Type != raft.LogCommand {
 			continue
 		}
@@ -143,7 +161,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 			panic(fmt.Sprintf("FSM.ApplyBatch: failed to unmarshal command at index %d: %v", l.Index, err))
 		}
 
-		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index)
+		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index, l.Term)
 		if cmd.Type == CmdChangeset {
 			ObserveChangesetBytes(len(cmd.Payload))
 		}
@@ -158,12 +176,12 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 		}
 
 		results[i] = result
-		highestApplied = l.Index
+		highestApplied, highestTerm = l.Index, l.Term
 		f.appliedIndex.Store(l.Index)
 	}
 
 	if highestApplied > lastApplied {
-		if err := f.writeLastApplied(highestApplied); err != nil {
+		if err := advanceAppliedPosition(ctx, f.applier.PlainDB(), highestApplied, highestTerm); err != nil {
 			logger.RaftLog.Error("FSM: failed to persist lastApplied after batch — halting node",
 				zap.Uint64("highest_applied", highestApplied),
 				zap.Error(err))
@@ -268,12 +286,21 @@ func snapshotReadDSN(path string) string {
 	return "file:" + path + "?mode=ro&_busy_timeout=5000"
 }
 
-// Snapshot implements raft.FSM. It pins a read transaction over ella.db and
-// returns an FSMSnapshot that copies and streams it to the Raft snapshot sink.
-//
+func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
+	return positionSnapshot{}, nil
+}
+
+type positionSnapshot struct{}
+
+func (positionSnapshot) Persist(sink raft.SnapshotSink) error {
+	return sink.Close()
+}
+
+func (positionSnapshot) Release() {}
+
 // The RLock participates in Apply/Restore exclusion, and is held by the
 // snapshot until the copy completes so Restore cannot unlink the WAL under it.
-func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
+func (f *FSM) pinDatabase() (*fsmSnapshot, error) {
 	f.mu.RLock()
 
 	ctx := context.Background()
@@ -338,17 +365,22 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 // payload bytes, then reopens the database connection and re-prepares
 // statements. Two input shapes are accepted:
 //
-//  1. ELSN-prefixed snapshots produced by FSM.Snapshot and delivered
+//  1. ELSN-prefixed snapshots produced by the snapshot store and delivered
 //     via the standard raft snapshot pipeline.
 //  2. Raw SQLite files delivered via raft.UserRestore — the db.Restore
 //     path hands the ella.db bytes extracted from a backup archive
 //     directly to raft, which invokes FSM.Restore without the ELSN
 //     wrapper.
 func (f *FSM) Restore(rc io.ReadCloser) error {
+	defer func() { _ = rc.Close() }()
+
+	source, sourced := snapshotSourceOf(rc)
+	if sourced && source.self {
+		return nil
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
-
-	defer func() { _ = rc.Close() }()
 
 	var peek [snapshotHeaderSize]byte
 
@@ -417,6 +449,12 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		return fmt.Errorf("restore local-only tables into snapshot: %w", err)
 	}
 
+	if err := prepareStagedFSMState(ctx, tmpPath, source, sourced); err != nil {
+		_ = os.Remove(tmpPath)
+
+		return err
+	}
+
 	// Remove WAL/SHM sidecars before the rename.
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(dbPath + suffix)
@@ -459,61 +497,6 @@ type fsmSnapshot struct {
 
 	unpin     func()
 	unpinOnce sync.Once
-}
-
-const snapshotChunkSize = 64 * 1024
-
-// Persist copies the pinned snapshot into a temp file, then streams it and
-// the snapshot header to the Raft snapshot sink in 64 KiB chunks.
-func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
-	err := s.copyPinned()
-
-	s.releasePinned()
-
-	if err != nil {
-		_ = sink.Cancel()
-		return err
-	}
-
-	if _, err := sink.Write(s.header[:]); err != nil {
-		_ = sink.Cancel()
-		return fmt.Errorf("write snapshot header: %w", err)
-	}
-
-	f, err := os.Open(s.path) // #nosec: G304 — path is under our snapshot staging dir
-	if err != nil {
-		_ = sink.Cancel()
-		return fmt.Errorf("open snapshot file: %w", err)
-	}
-
-	defer func() { _ = f.Close() }()
-
-	buf := make([]byte, snapshotChunkSize)
-
-	for {
-		n, readErr := f.Read(buf)
-		if n > 0 {
-			if _, writeErr := sink.Write(buf[:n]); writeErr != nil {
-				_ = sink.Cancel()
-				return fmt.Errorf("write to snapshot sink: %w", writeErr)
-			}
-		}
-
-		if readErr == io.EOF {
-			break
-		}
-
-		if readErr != nil {
-			_ = sink.Cancel()
-			return fmt.Errorf("read snapshot file: %w", readErr)
-		}
-	}
-
-	if err := sink.Close(); err != nil {
-		return fmt.Errorf("close snapshot sink: %w", err)
-	}
-
-	return nil
 }
 
 func snapshotStagingDir(dataDir string) string {
@@ -612,4 +595,27 @@ func (s *fsmSnapshot) Release() {
 		_ = os.Remove(s.path)
 		s.path = ""
 	}
+}
+
+func prepareStagedFSMState(ctx context.Context, path string, source *snapshotSource, sourced bool) error {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return fmt.Errorf("open staged snapshot: %w", err)
+	}
+
+	defer func() { _ = db.Close() }()
+
+	if err := EnsureFSMStateSchema(ctx, db); err != nil {
+		return fmt.Errorf("prepare staged snapshot fsm_state: %w", err)
+	}
+
+	if !sourced {
+		return nil
+	}
+
+	if err := overwriteAppliedState(ctx, db, source.state); err != nil {
+		return fmt.Errorf("stamp staged snapshot position: %w", err)
+	}
+
+	return nil
 }

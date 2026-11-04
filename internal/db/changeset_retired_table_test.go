@@ -114,7 +114,7 @@ func TestApplyChangeset_SkipsRetiredReplicatedTable(t *testing.T) {
 
 	setLastApplied(t, database, 41)
 
-	if _, err := database.applyChangeset(ctx, &bytesPayload{Value: changeset}, 42); err != nil {
+	if _, err := database.applyChangeset(ctx, &bytesPayload{Value: changeset}, 42, 1); err != nil {
 		t.Fatalf("apply changeset carrying a retired table: %v", err)
 	}
 
