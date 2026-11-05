@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import PemControl from "@/components/form/PemControl";
-import { diameterIdentityRegex } from "@/components/SMSCPeerModal";
+import { diameterIdentityRegex } from "@/components/SMSCModal";
 
 const PEM_BLOCK_RE = (type: string) =>
   new RegExp(`-----BEGIN ${type}-----[\\s\\S]+?-----END ${type}-----`);

@@ -693,6 +693,33 @@ func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...Requ
 	}
 }
 
+func (n *Node) DoAny(ctx context.Context, peerIDs []string, req *Message, opts ...RequestOption) (ans *Message, err error) {
+	ctx, span := n.startClientSpan(ctx, req, requestTarget(req))
+	defer func() { endClientSpan(span, ans, err) }()
+
+	span.SetAttributes(peerIDKey.StringSlice(peerIDs))
+
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, n.cfg.RequestTimeout)
+		defer cancel()
+	}
+
+	s := &sending{
+		n:     n,
+		o:     applyOptions(opts),
+		m:     n.newRequest(req),
+		realm: strings.ToLower(avpString(req, AVPDestinationRealm)),
+		set:   peerIDs,
+		tried: make(map[*peer]bool),
+	}
+
+	defer s.release()
+
+	return s.run(ctx)
+}
+
 func (n *Node) waitAvailable(ctx context.Context, p *peer, failFast bool) (*Conn, error) {
 	for {
 		n.mu.Lock()

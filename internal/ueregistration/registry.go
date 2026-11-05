@@ -14,7 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultInterval = 10 * time.Second
+const (
+	defaultInterval  = 10 * time.Second
+	defaultMinRunGap = time.Second
+	purgeConcurrency = 16
+)
 
 type Store interface {
 	RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error)
@@ -50,6 +54,7 @@ type Registry struct {
 	log      *zap.Logger
 	locks    keyedMutex
 	interval time.Duration
+	minGap   time.Duration
 
 	kick chan struct{}
 
@@ -66,6 +71,7 @@ func New(store Store, nodeID string, log *zap.Logger) *Registry {
 		log:      log,
 		locks:    keyedMutex{entries: map[string]*keyedEntry{}},
 		interval: defaultInterval,
+		minGap:   defaultMinRunGap,
 		kick:     make(chan struct{}, 1),
 		holders:  map[string]Holder{},
 		pending:  map[purgeKey]struct{}{},
@@ -115,18 +121,57 @@ func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}, onTick ...fu
 
 	r.purgeLeftovers(ctx)
 
+	deferred := time.NewTimer(r.minGap)
+	deferred.Stop()
+
+	defer deferred.Stop()
+
+	var (
+		lastRun time.Time
+		pending bool
+	)
+
+	reconcile := func() {
+		r.reconcileAll(ctx)
+
+		lastRun = time.Now()
+	}
+
+	cancelPending := func() {
+		deferred.Stop()
+
+		pending = false
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-wakeup:
-			r.reconcileAll(ctx)
+			if pending {
+				continue
+			}
+
+			if wait := r.minGap - time.Since(lastRun); !lastRun.IsZero() && wait > 0 {
+				deferred.Reset(wait)
+
+				pending = true
+
+				continue
+			}
+
+			reconcile()
+		case <-deferred.C:
+			pending = false
+
+			reconcile()
 		case <-r.kick:
 			r.flushPurges(ctx)
 		case <-tick.C:
+			cancelPending()
 			r.purgeLeftovers(ctx)
 			r.flushPurges(ctx)
-			r.reconcileAll(ctx)
+			reconcile()
 
 			for _, f := range onTick {
 				f(ctx)
@@ -181,16 +226,56 @@ func (r *Registry) flushPurges(ctx context.Context) {
 	}
 	r.mu.Unlock()
 
-	for _, k := range keys {
-		if err := r.purge(ctx, k); err != nil {
-			r.log.Warn("failed to mark UE registration purged; will retry", logger.SUPIFromIMSI(k.imsi), zap.String("type", k.regType), zap.Error(err))
-			return
+	if len(keys) == 0 || !r.purgePending(ctx, keys[0]) {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	slots := make(chan struct{}, purgeConcurrency)
+
+	for _, k := range keys[1:] {
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
 		}
 
-		r.mu.Lock()
-		delete(r.pending, k)
-		r.mu.Unlock()
+		if ctx.Err() != nil {
+			break
+		}
+
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			defer func() { <-slots }()
+
+			if !r.purgePending(ctx, k) {
+				cancel()
+			}
+		}()
 	}
+
+	wg.Wait()
+}
+
+func (r *Registry) purgePending(ctx context.Context, k purgeKey) bool {
+	if err := r.purge(ctx, k); err != nil {
+		if ctx.Err() == nil {
+			r.log.Warn("failed to mark UE registration purged; will retry", logger.SUPIFromIMSI(k.imsi), zap.String("type", k.regType), zap.Error(err))
+		}
+
+		return false
+	}
+
+	r.mu.Lock()
+	delete(r.pending, k)
+	r.mu.Unlock()
+
+	return true
 }
 
 func (r *Registry) purge(ctx context.Context, k purgeKey) error {

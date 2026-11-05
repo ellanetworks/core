@@ -111,6 +111,7 @@ const (
 	IMS              Name = "ims"
 	HAIMS            Name = "ha-ims"
 	IMSSMS           Name = "ims-sms"
+	Scale            Name = "scale"
 )
 
 type Definition struct {
@@ -157,6 +158,7 @@ var Definitions = map[Name]Definition{
 	IMS:              {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
 	HAIMS:            {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
 	IMSSMS:           {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true, NeedsSMSC: true, NeedsIMS: true, Setup: "sudo modprobe -a esp4 esp6 xfrm_user"},
+	Scale:            {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true},
 }
 
 var Exempt = map[string]string{}

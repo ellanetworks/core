@@ -6,7 +6,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -127,5 +129,50 @@ func TestRegisterUE_RewritesRestoredRegistration(t *testing.T) {
 
 	if version == 0 || reg.Version != version {
 		t.Fatalf("restored registration kept version %d (returned %d), want a new version", reg.Version, version)
+	}
+}
+
+func TestNextUERegistrationVersion_UsesVersionIndex(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("NewDatabaseWithoutRaft: %s", err)
+	}
+
+	defer func() { _ = database.Close() }()
+
+	query := fmt.Sprintf(strings.ReplaceAll(maxUERegistrationVersionStmt, " AS &ueRegistrationVersion.version", ""), UERegistrationsTableName)
+
+	rows, err := database.conn().PlainDB().QueryContext(ctx, "EXPLAIN QUERY PLAN "+query)
+	if err != nil {
+		t.Fatalf("explain: %s", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var details []string
+
+	for rows.Next() {
+		var (
+			id, parent, notused int
+			detail              string
+		)
+
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatalf("scan: %s", err)
+		}
+
+		details = append(details, detail)
+	}
+
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %s", err)
+	}
+
+	plan := strings.Join(details, "; ")
+
+	if !strings.Contains(plan, "idx_ue_registrations_version") || strings.Contains(plan, "SCAN") {
+		t.Fatalf("next version query does not seek the version index: %s", plan)
 	}
 }

@@ -61,6 +61,10 @@ func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (f *fakeNGAPSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return f.WriteMsg(b, info)
+}
+
 type fakeDBInstance struct {
 	operator *db.Operator
 }

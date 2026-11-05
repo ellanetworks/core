@@ -27,6 +27,36 @@ func pair(ueKey, natKey ebpf.N3N6EntrypointFiveTuple, nowNs uint64, age time.Dur
 		ebpf.N3N6EntrypointNatEntry{Peer: ueKey, RefreshTs: ts}
 }
 
+func expireSnapshot(snapshot map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry, batch []ebpf.N3N6EntrypointFiveTuple, nowNs uint64) map[ebpf.N3N6EntrypointFiveTuple]bool {
+	if batch == nil {
+		for k := range snapshot {
+			batch = append(batch, k)
+		}
+	}
+
+	values := make([]ebpf.N3N6EntrypointNatEntry, len(batch))
+	for i, k := range batch {
+		values[i] = snapshot[k]
+	}
+
+	lookup := func(k ebpf.N3N6EntrypointFiveTuple) (ebpf.N3N6EntrypointNatEntry, bool) {
+		v, ok := snapshot[k]
+		return v, ok
+	}
+
+	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
+
+	for _, k := range natExpiredKeys(batch, values, lookup, nowNs) {
+		if got[k] {
+			panic("duplicate key in expired set")
+		}
+
+		got[k] = true
+	}
+
+	return got
+}
+
 func TestNatEntryTimeout(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -90,10 +120,7 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 		udpRepliedNATKey: udpRepliedNAT,
 	}
 
-	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
-	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
-		got[k] = true
-	}
+	got := expireSnapshot(snapshot, nil, nowNs)
 
 	want := map[ebpf.N3N6EntrypointFiveTuple]bool{
 		deadUEKey:      true,
@@ -117,43 +144,62 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 	}
 }
 
-func TestNatExpiredKeysPartialSnapshot(t *testing.T) {
+func TestNatExpiredKeysAcrossBatches(t *testing.T) {
 	nowNs := uint64(100 * time.Hour.Nanoseconds())
 
-	missedUEKey := natTuple(1, 1000, protoTCP)
-	orphanKey := natTuple(100, 1000, protoTCP)
-	orphan := ebpf.N3N6EntrypointNatEntry{Peer: missedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
+	liveUEKey := natTuple(1, 1000, protoTCP)
+	liveNATKey := natTuple(100, 1000, protoTCP)
+	liveUE, liveNAT := pair(liveUEKey, liveNATKey, nowNs, 2*time.Hour, natStateEstablished, 1, 0)
 
 	deadUEKey := natTuple(2, 2000, protoTCP)
 	deadNATKey := natTuple(100, 2000, protoTCP)
 	deadUE, deadNAT := pair(deadUEKey, deadNATKey, nowNs, 3*time.Hour, natStateEstablished, 1, 0)
 
 	snapshot := map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry{
-		orphanKey:  orphan,
+		liveUEKey:  liveUE,
+		liveNATKey: liveNAT,
 		deadUEKey:  deadUE,
 		deadNATKey: deadNAT,
 	}
 
-	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
-	for _, k := range natExpiredKeys(snapshot, nowNs, false) {
-		got[k] = true
-	}
+	got := expireSnapshot(snapshot, []ebpf.N3N6EntrypointFiveTuple{liveNATKey, deadUEKey}, nowNs)
 
-	if got[orphanKey] {
-		t.Error("orphan reaped from an incomplete snapshot")
+	if got[liveNATKey] {
+		t.Error("NAT-side entry reaped while its partner sits in another batch")
 	}
 
 	if !got[deadUEKey] || !got[deadNATKey] {
-		t.Error("expired pair not reaped from an incomplete snapshot")
+		t.Error("expired pair not reaped when the NAT side sits in another batch")
 	}
 
-	got = make(map[ebpf.N3N6EntrypointFiveTuple]bool)
-	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
-		got[k] = true
+	got = expireSnapshot(snapshot, []ebpf.N3N6EntrypointFiveTuple{deadNATKey}, nowNs)
+	if len(got) != 0 {
+		t.Errorf("NAT side of a still-linked pair reaped on its own: %v", got)
+	}
+}
+
+func TestNextNATGCInterval(t *testing.T) {
+	cases := []struct {
+		name  string
+		prev  time.Duration
+		ratio float64
+		want  time.Duration
+	}{
+		{"nothing deleted grows", 10 * time.Second, 0, 15 * time.Second},
+		{"few deletions grow", 60 * time.Second, 0.04, 90 * time.Second},
+		{"growth is capped", 4 * time.Minute, 0, natGCMaxInterval},
+		{"moderate ratio holds", 60 * time.Second, 0.1, 60 * time.Second},
+		{"high ratio shrinks", 100 * time.Second, 0.5, 50 * time.Second},
+		{"ratio is capped at 0.9", 200 * time.Second, 1, 20 * time.Second},
+		{"shrink is floored", 20 * time.Second, 0.9, natGCMinInterval},
 	}
 
-	if !got[orphanKey] {
-		t.Error("orphan not reaped from a complete snapshot")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := nextNATGCInterval(tc.prev, tc.ratio); got != tc.want {
+				t.Errorf("nextNATGCInterval(%v, %v) = %v, want %v", tc.prev, tc.ratio, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -183,10 +229,7 @@ func TestNatExpiredKeysOrphans(t *testing.T) {
 		remappedNATKey:  remappedNAT,
 	}
 
-	got := make(map[ebpf.N3N6EntrypointFiveTuple]bool)
-	for _, k := range natExpiredKeys(snapshot, nowNs, true) {
-		got[k] = true
-	}
+	got := expireSnapshot(snapshot, nil, nowNs)
 
 	if !got[staleOrphanKey] {
 		t.Error("stale orphan NAT-side entry not reaped")

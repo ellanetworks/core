@@ -2,13 +2,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Autocomplete, TextField } from "@mui/material";
-import { useQuery } from "@tanstack/react-query";
+import { TextField } from "@mui/material";
 import { useController } from "react-hook-form";
 import type { Control, FieldValues, Path } from "react-hook-form";
-import ErrorAlert from "@/components/ErrorAlert";
-import { useAuth } from "@/contexts/AuthContext";
-import { listEligibleSubscribers } from "@/queries/data_networks";
+import SubscriberSearchField from "@/components/SubscriberSearchField";
 
 interface SubscriberSelectFieldProps<T extends FieldValues> {
   control: Control<T>;
@@ -25,14 +22,7 @@ const SubscriberSelectField = <T extends FieldValues>({
   open,
   readOnly = false,
 }: SubscriberSelectFieldProps<T>) => {
-  const { accessToken, authReady } = useAuth();
   const { field } = useController({ control, name });
-
-  const subscribersQuery = useQuery({
-    queryKey: ["eligible-subscribers", dataNetwork],
-    queryFn: () => listEligibleSubscribers(accessToken!, dataNetwork),
-    enabled: open && !readOnly && authReady && !!accessToken,
-  });
 
   if (readOnly) {
     return (
@@ -47,25 +37,16 @@ const SubscriberSelectField = <T extends FieldValues>({
   }
 
   return (
-    <>
-      <Autocomplete
-        options={(subscribersQuery.data ?? []).map((s) => s.imsi)}
-        value={field.value || null}
-        onChange={(_event, value) => field.onChange(value ?? "")}
-        onBlur={field.onBlur}
-        renderInput={(params) => (
-          <TextField {...params} label="Subscriber" margin="normal" autoFocus />
-        )}
-      />
-      {subscribersQuery.isLoadingError && (
-        <ErrorAlert
-          resource="eligible subscribers"
-          error={subscribersQuery.error}
-          onRetry={() => void subscribersQuery.refetch()}
-          retrying={subscribersQuery.isFetching}
-        />
-      )}
-    </>
+    <SubscriberSearchField
+      value={field.value ?? ""}
+      onChange={field.onChange}
+      onBlur={field.onBlur}
+      dataNetwork={dataNetwork}
+      enabled={open}
+      margin="normal"
+      autoFocus
+      showError
+    />
   );
 };
 

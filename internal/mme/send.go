@@ -282,6 +282,7 @@ func ReportProtectFailure(ctx context.Context, c *UeConn, what string, err error
 	log.Error("downlink NAS COUNT exhausted, releasing the connection", zap.String("procedure", what), zap.Error(err))
 
 	if c != nil && c.m != nil {
+		c.releaseCommanded.Store(true)
 		SendUEContextRelease(ctx, c.m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, CauseNASNormalRelease)
 	}
 }

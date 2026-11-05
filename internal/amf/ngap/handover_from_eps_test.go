@@ -49,6 +49,10 @@ func (s *arrivalSender) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error) {
 	return n, err
 }
 
+func (s *arrivalSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return s.WriteMsg(b, info)
+}
+
 func newArrivalSender() *arrivalSender {
 	return &arrivalSender{fakeNGAPSender: &fakeNGAPSender{}, requested: make(chan struct{})}
 }

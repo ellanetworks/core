@@ -16,6 +16,8 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -70,6 +72,10 @@ func (p RoamingDiameterPeer) Validate() error {
 func validateDiameterPeerEndpoints(peers []diameterPeerRow) error {
 	for i, p := range peers {
 		for _, other := range peers[:i] {
+			if p.ID == other.ID {
+				return fmt.Errorf("another Diameter peer has the ID %s", p.ID)
+			}
+
 			if p.DiameterIdentity != "" && strings.EqualFold(p.DiameterIdentity, other.DiameterIdentity) {
 				return fmt.Errorf("another Diameter peer has the Diameter identity %s", p.DiameterIdentity)
 			}
@@ -108,8 +114,27 @@ func (db *Database) checkDiameterPeerEndpoint(ctx context.Context, candidate dia
 	return validateDiameterPeerEndpoints(append(peers, candidate))
 }
 
+func (db *Database) checkSMSCNodeEndpoints(ctx context.Context, s *SMSC) error {
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return nil
+	}
+
+	peers, err := db.listDiameterPeers(ctx, db.runner(ctx))
+	if err != nil {
+		return err
+	}
+
+	peers = slices.DeleteFunc(peers, func(p diameterPeerRow) bool { return p.Role == DiameterPeerRoleSMSC })
+
+	for _, n := range s.Nodes {
+		peers = append(peers, diameterPeerRow{ID: n.ID, Role: DiameterPeerRoleSMSC, DiameterIdentity: n.DiameterIdentity, Address: n.Address, Port: n.Port})
+	}
+
+	return validateDiameterPeerEndpoints(peers)
+}
+
 func (db *Database) ListRoamingDiameterPeers(ctx context.Context) ([]RoamingDiameterPeer, error) {
-	ctx, span := startSMSCPeersSpan(ctx, "SELECT")
+	ctx, span := startDiameterPeersSpan(ctx, "SELECT")
 	defer span.End()
 
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, "select"))
@@ -166,7 +191,7 @@ func (db *Database) writeRoamingDiameterPeer(ctx context.Context, operation stri
 		return err
 	}
 
-	ctx, span := startSMSCPeersSpan(ctx, operation)
+	ctx, span := startDiameterPeersSpan(ctx, operation)
 	defer span.End()
 
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, strings.ToLower(operation)))
@@ -183,7 +208,7 @@ func (db *Database) writeRoamingDiameterPeer(ctx context.Context, operation stri
 }
 
 func (db *Database) DeleteRoamingDiameterPeer(ctx context.Context, id string) error {
-	ctx, span := startSMSCPeersSpan(ctx, "DELETE")
+	ctx, span := startDiameterPeersSpan(ctx, "DELETE")
 	defer span.End()
 
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, "delete"))
@@ -270,4 +295,20 @@ func (db *Database) applyDeleteRoamingDiameterPeer(ctx context.Context, p *strin
 	}
 
 	return nil, nil
+}
+
+func startDiameterPeersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
+	querySummary := fmt.Sprintf("%s %s", operation, DiameterPeersTableName)
+
+	return tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName(operation),
+			semconv.DBCollectionName(DiameterPeersTableName),
+		),
+	)
 }

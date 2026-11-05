@@ -42,6 +42,10 @@ func (d *dlCounter) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (d *dlCounter) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return d.WriteMsg(b, info)
+}
+
 func (f *roamingFixture) capturingVisitorUE(t *testing.T) (*UeContext, *UeConn, *dlCounter) {
 	t.Helper()
 

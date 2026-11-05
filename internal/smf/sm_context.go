@@ -70,6 +70,8 @@ type SMContext struct {
 
 	PFCPContext *PFCPSessionContext
 
+	indexedSEIDs []uint64
+
 	SessionIdentity
 
 	FramedRoutes   []netip.Prefix

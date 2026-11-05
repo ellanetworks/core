@@ -111,7 +111,12 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
 	targetConn.holdUEAMBR(&ueAMBR)
-	m.conns[tid] = targetConn
+
+	if source := ue.Conn(); source != nil {
+		targetConn.SetRRCEstablishmentCause(source.rrcCause.Load())
+	}
+
+	m.registerConnLocked(tid, targetConn)
 
 	ho := &handoverContext{
 		state:            hoPreparing,
@@ -245,7 +250,7 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
 	targetConn.holdUEAMBR(&ueAMBR)
-	m.conns[tid] = targetConn
+	m.registerConnLocked(tid, targetConn)
 
 	delivery := make(chan relocationOutcome, 1)
 	ue.handover = &handoverContext{
@@ -305,7 +310,7 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 		return false
 	}
 
-	ho.target.setENBUES1APID(ackENBID)
+	m.setConnENBUES1APIDLocked(ho.target, ackENBID)
 	ho.target.refreshLog()
 
 	return true
@@ -403,18 +408,18 @@ func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID
 	return ho.admitted, true
 }
 
-func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, targetMMEID s1ap.MMEUES1APID, ok bool) {
+func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (source *UeConn, targetMMEID s1ap.MMEUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
 	if ho == nil || ho.state != hoCommitting || !ho.targetNotifiedBy(conn, notifyENBID) {
-		return nil, 0, 0, 0, false
+		return nil, 0, false
 	}
 
-	source := ho.source
+	source = ho.source
 	if source != nil && ue.Conn() == nil {
-		return nil, 0, 0, 0, false
+		return nil, 0, false
 	}
 
 	target := ho.target
@@ -427,13 +432,19 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	if source == nil {
 		m.clearHandoverLocked(ue)
 
-		return nil, 0, 0, target.MMEUES1APID, true
+		return nil, target.MMEUES1APID, true
 	}
 
 	source.ue.Store(nil) // its Release Complete removes the connection
+	source.releaseCommanded.Store(true)
 	m.clearHandoverLocked(ue)
 
-	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), target.MMEUES1APID, true
+	return source, target.MMEUES1APID, true
+}
+
+func (m *MME) ReleaseHandoverSource(ctx context.Context, source *UeConn) {
+	m.guardDetachedRelease(ctx, source)
+	SendUEContextRelease(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), true, CauseHandoverSuccess)
 }
 
 func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget, aborted bool) {
@@ -508,8 +519,7 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBU
 		return 0, false
 	}
 
-	ue.Conn().setConn(conn)
-	ue.Conn().setENBUES1APID(enbUEID)
+	m.rebindConnLocked(ue.Conn(), conn, enbUEID)
 	ue.Conn().bindLogFields(m.nodeLogFieldsLocked(conn))
 
 	m.refreshLastSeenLocked(ue, ue.Conn())
@@ -641,6 +651,19 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 	m.releaseConnIDLocked(uint32(mmeUEID))
 
 	m.mu.Unlock()
+
+	return true
+}
+
+func (m *MME) releaseDetachedConnIfHeld(c *UeConn) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if held, ok := m.conns[uint32(c.MMEUES1APID)]; !ok || held != c || c.ue.Load() != nil {
+		return false
+	}
+
+	m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 
 	return true
 }

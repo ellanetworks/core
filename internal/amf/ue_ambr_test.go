@@ -5,8 +5,12 @@ package amf_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
@@ -26,6 +30,10 @@ func (c *ueAMBRCapture) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	c.mu.Unlock()
 
 	return len(b), nil
+}
+
+func (c *ueAMBRCapture) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
 }
 
 func (c *ueAMBRCapture) modifications(t *testing.T) []*ngap.UEContextModificationRequest {
@@ -221,5 +229,99 @@ func TestAMFReconcileUEAMBRAppliesTheProfile(t *testing.T) {
 
 	if got := ue.Ambr(); got == nil || got.Uplink.Bps() != 20_000_000 || got.Downlink.Bps() != 40_000_000 {
 		t.Fatalf("UE-AMBR = %+v, want the profile's 20/40 Mbps", got)
+	}
+}
+
+var errBoundedQueueFull = errors.New("queue full; association aborted")
+
+type boundedQueueConn struct {
+	queue     chan struct{}
+	aborted   atomic.Bool
+	delivered atomic.Int64
+}
+
+func newBoundedQueueConn(t *testing.T, depth int) *boundedQueueConn {
+	t.Helper()
+
+	c := &boundedQueueConn{queue: make(chan struct{}, depth)}
+	done := make(chan struct{})
+
+	t.Cleanup(func() { close(done) })
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-c.queue:
+				time.Sleep(100 * time.Microsecond)
+				c.delivered.Add(1)
+			}
+		}
+	}()
+
+	return c
+}
+
+func (c *boundedQueueConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
+	select {
+	case c.queue <- struct{}{}:
+		return len(b), nil
+	default:
+		c.aborted.Store(true)
+		return 0, errBoundedQueueFull
+	}
+}
+
+func (c *boundedQueueConn) WriteMsgWait(ctx context.Context, b []byte, _ *sctp.SndRcvInfo) (int, error) {
+	select {
+	case c.queue <- struct{}{}:
+		return len(b), nil
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+func TestAMFReconcileUEAMBRPacesABulkUpdateToOneRadio(t *testing.T) {
+	const (
+		depth = 32
+		ues   = depth * 4
+	)
+
+	dbInstance := &ueAMBRDB{profile: db.Profile{ID: "p", UeAmbrUplink: "20 Mbps", UeAmbrDownlink: "40 Mbps"}}
+	amfInstance := amf.New(dbInstance, nil, &fakeSmf{})
+	conn := newBoundedQueueConn(t, depth)
+
+	radio := &amf.Radio{Conn: conn}
+	radio.BindAMFForTest(amfInstance)
+
+	for i := range ues {
+		ue := addUE(t, amfInstance, fmt.Sprintf("0010100001%05d", i), func(u *amf.UeContext) {
+			u.ForceStateForTest(amf.Registered)
+		})
+
+		ueConn := amf.NewUeConnForTest(radio, models.RanUeNgapID(i+1), models.AmfUeNgapID(i+1))
+		ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
+
+		if err := ue.CreateSmContext(1, fmt.Sprintf("ref-%d", i), &models.Snssai{Sst: 1}, "internet"); err != nil {
+			t.Fatal(err)
+		}
+
+		ueConn.MarkICSCompleted()
+	}
+
+	amfInstance.ReconcileUEAMBR(context.Background())
+
+	if conn.aborted.Load() {
+		t.Fatal("the bulk UE-AMBR reconcile overflowed the radio's send queue")
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for conn.delivered.Load() < ues && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	if got := conn.delivered.Load(); got != ues {
+		t.Fatalf("delivered %d UE Context Modification Requests, want %d", got, ues)
 	}
 }

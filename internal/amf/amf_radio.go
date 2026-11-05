@@ -286,13 +286,18 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) 
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	for _, ueConn := range a.conns {
-		if ueConn.Conn() == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
-			return ueConn
-		}
+	if matches := a.connsByRanLocked(radio.Conn, ranUeNgapID); len(matches) > 0 {
+		return matches[0]
 	}
 
 	return nil
+}
+
+func (a *AMF) ConnsByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) []*UeConn {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.connsByRanLocked(radio.Conn, ranUeNgapID)
 }
 
 // UpdateUERanNgapID records the RAN UE NGAP ID the target gNB assigned to a UE in
@@ -301,7 +306,9 @@ func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID models.RanUeNgapI
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	a.unindexConnLocked(ueConn)
 	ueConn.setRanUeNgapID(newRanUeNgapID)
+	a.indexConnLocked(ueConn)
 	ueConn.refreshLog()
 }
 

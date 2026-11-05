@@ -5,6 +5,7 @@
 package sctp
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net"
@@ -15,6 +16,8 @@ const (
 	// A healthy peer drains in microseconds; a backlog this deep means it has
 	// stopped reading.
 	writeQueueDepth = 256
+
+	pacedQueueShare = writeQueueDepth / 2
 )
 
 // Shortened by tests to exercise the deadline path.
@@ -30,14 +33,18 @@ var (
 // has been aborted.
 var errWriteQueueFull = errors.New("sctp: outbound queue full")
 
+var testHookBeforeEnqueue = func() {}
+
 type queuedWrite struct {
-	b    []byte
-	info *SndRcvInfo
+	b     []byte
+	info  *SndRcvInfo
+	paced bool
 }
 
 func (c *SCTPConn) startWriter(logger *slog.Logger) {
 	c.writeLogger = logger
-	c.writeCh = make(chan queuedWrite, writeQueueDepth)
+	c.writeCh = make(chan queuedWrite, writeQueueDepth+pacedQueueShare)
+	c.pacedSlots = make(chan struct{}, pacedQueueShare)
 	c.writerExited = make(chan struct{})
 
 	go c.writeLoop()
@@ -82,6 +89,9 @@ func (c *SCTPConn) writeLoop() {
 				return
 			}
 		case <-c.writerFlush:
+			c.enqueueMu.Lock()
+			c.enqueueMu.Unlock()
+
 			for {
 				select {
 				case qw := <-c.writeCh:
@@ -98,6 +108,10 @@ func (c *SCTPConn) writeLoop() {
 
 // sendQueued reports whether the writer may continue.
 func (c *SCTPConn) sendQueued(qw queuedWrite) bool {
+	if qw.paced {
+		<-c.pacedSlots
+	}
+
 	if err := c.setWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
 		c.failAssociation("set write deadline", err)
 		return false
@@ -118,17 +132,16 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 		return c.writeMsgSync(b, info)
 	}
 
+	qw := newQueuedWrite(b, info)
+
+	c.enqueueMu.RLock()
+	defer c.enqueueMu.RUnlock()
+
 	if c.closed.Load() {
 		return 0, net.ErrClosed
 	}
 
-	qw := queuedWrite{b: append([]byte(nil), b...)}
-
-	if info != nil {
-		// Copied so a caller reusing its struct cannot mutate a queued write.
-		cp := *info
-		qw.info = &cp
-	}
+	testHookBeforeEnqueue()
 
 	// Checked before the enqueue, not alongside it: a select with both cases
 	// ready picks at random and would report success on a closed association.
@@ -146,6 +159,73 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 
 		return 0, errWriteQueueFull
 	}
+}
+
+func (c *SCTPConn) WriteMsgWait(ctx context.Context, b []byte, info *SndRcvInfo) (int, error) {
+	if c.writeCh == nil {
+		return c.writeMsgSync(b, info)
+	}
+
+	if c.closed.Load() {
+		return 0, net.ErrClosed
+	}
+
+	qw := newQueuedWrite(b, info)
+	qw.paced = true
+
+	select {
+	case c.pacedSlots <- struct{}{}:
+	case <-c.writerDone:
+		return 0, net.ErrClosed
+	case <-c.writerExited:
+		return 0, net.ErrClosed
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+
+	c.enqueueMu.RLock()
+	defer c.enqueueMu.RUnlock()
+
+	if c.closed.Load() {
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	}
+
+	select {
+	case <-c.writerDone:
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	default:
+	}
+
+	select {
+	case c.writeCh <- qw:
+		return len(b), nil
+	case <-c.writerDone:
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	case <-c.writerFlush:
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	case <-c.writerExited:
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	case <-ctx.Done():
+		<-c.pacedSlots
+		return 0, ctx.Err()
+	}
+}
+
+func newQueuedWrite(b []byte, info *SndRcvInfo) queuedWrite {
+	qw := queuedWrite{b: append([]byte(nil), b...)}
+
+	if info != nil {
+		// Copied so a caller reusing its struct cannot mutate a queued write.
+		cp := *info
+		qw.info = &cp
+	}
+
+	return qw
 }
 
 // failAssociation aborts the conn, ending the read loop so the server runs its

@@ -4,22 +4,8 @@
 package mme
 
 import (
-	"context"
 	"testing"
 )
-
-func TestDropStaleUe(t *testing.T) {
-	m := newTestMME(t)
-
-	cc := &captureConn{}
-	m.NewUe(t.Context(), cc, 7)
-
-	m.DropStaleUe(context.Background(), cc, 7)
-
-	if got := len(m.conns); got != 0 {
-		t.Fatalf("DropStaleUe left %d connections, want 0", got)
-	}
-}
 
 func TestBareConnectionIgnoredByLookups(t *testing.T) {
 	m := newTestMME(t)

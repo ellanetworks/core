@@ -36,25 +36,42 @@ export const MAX_PCSCF_ADDRESSES_PER_FAMILY = 3;
 
 export const DEFAULT_SMSC_PORT = 3868;
 
-export interface SMSCPeerInput {
+export const MAX_SMSC_SERVICE_CENTRES = 16;
+
+export const MAX_SMSC_NODES = 8;
+
+export interface SMSCNodeInput {
   diameterIdentity: string;
   address: string;
   port: number;
-  serviceCentres: string[];
 }
 
-export type SMSCPeerState =
+export type SMSCNodeState =
   "down" | "connecting" | "open" | "suspect" | "reopen" | "closing";
 
-export interface SMSCPeer extends SMSCPeerInput {
-  id: string;
+export interface SMSCNode extends SMSCNodeInput {
   status?: {
-    state: SMSCPeerState;
+    state: SMSCNodeState;
     host?: string;
     realm?: string;
     since: string;
     error?: string;
   };
+}
+
+export interface SMSCUpdate {
+  serviceCentres: string[];
+  nodes: SMSCNodeInput[];
+}
+
+export interface SMSCInput extends SMSCUpdate {
+  name: string;
+}
+
+export interface SMSC {
+  name: string;
+  serviceCentres: string[];
+  nodes: SMSCNode[];
 }
 
 export interface OperatorSMS {
@@ -167,44 +184,44 @@ export const updateOperatorSMS = async (
   });
 };
 
-export const listSMSCPeers = async (authToken: string): Promise<SMSCPeer[]> => {
-  const res = await apiFetch<{ items: SMSCPeer[] }>(
-    `/api/v1/operator/sms/smsc-peers`,
-    { authToken },
-  );
+export const listSMSCs = async (authToken: string): Promise<SMSC[]> => {
+  const res = await apiFetch<{ items: SMSC[] }>(`/api/v1/operator/sms/smscs`, {
+    authToken,
+  });
   return res.items;
 };
 
-export const createSMSCPeer = async (
+export const createSMSC = async (
   authToken: string,
-  peer: SMSCPeerInput,
+  smsc: SMSCInput,
 ): Promise<void> => {
-  await apiFetchVoid(`/api/v1/operator/sms/smsc-peers`, {
+  await apiFetchVoid(`/api/v1/operator/sms/smscs`, {
     method: "POST",
     authToken,
-    body: peer,
+    body: smsc,
   });
 };
 
-export const updateSMSCPeer = async (
+export const updateSMSC = async (
   authToken: string,
-  id: string,
-  peer: SMSCPeerInput,
+  name: string,
+  smsc: SMSCUpdate,
 ): Promise<void> => {
-  await apiFetchVoid(
-    `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
-    { method: "PUT", authToken, body: peer },
-  );
+  await apiFetchVoid(`/api/v1/operator/sms/smscs/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    authToken,
+    body: smsc,
+  });
 };
 
-export const deleteSMSCPeer = async (
+export const deleteSMSC = async (
   authToken: string,
-  id: string,
+  name: string,
 ): Promise<void> => {
-  await apiFetchVoid(
-    `/api/v1/operator/sms/smsc-peers/${encodeURIComponent(id)}`,
-    { method: "DELETE", authToken },
-  );
+  await apiFetchVoid(`/api/v1/operator/sms/smscs/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+    authToken,
+  });
 };
 
 export const updateOperatorIMS = async (

@@ -94,7 +94,7 @@ func (c *Client) GetRoamer(ctx context.Context, imsi string) (*RoamerDetail, err
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/roamers/" + imsi,
+		Path:   "api/v1/roamers/" + url.PathEscape(imsi),
 	})
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (c *Client) DeregisterRoamer(ctx context.Context, imsi string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:    SyncRequest,
 		Method:  "DELETE",
-		Path:    "api/v1/roamers/" + imsi,
+		Path:    "api/v1/roamers/" + url.PathEscape(imsi),
 		Timeout: withdrawalTimeout,
 	})
 

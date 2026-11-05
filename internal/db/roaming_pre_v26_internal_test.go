@@ -167,7 +167,7 @@ func TestRoamingReadsAndWritesBeforeV26(t *testing.T) {
 		t.Fatalf("GetRoamingPartner at schema 25: err = %v, want ErrNotFound", err)
 	}
 
-	if err := d.CreateSMSCPeer(ctx, &SMSCPeer{ID: "smsc", Address: "10.0.0.5", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
+	if _, err := d.applyCreateSMSCPeer(ctx, &legacySMSCPeer{ID: "smsc", Address: "10.0.0.5", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
 		t.Fatalf("CreateSMSCPeer at schema 25: %v", err)
 	}
 

@@ -379,3 +379,35 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 func ptr[T any](v T) *T {
 	return &v
 }
+
+func TestInsertRadioEventsWritesTheWholeBatch(t *testing.T) {
+	database := setupTestDB(t)
+
+	events := make([]*dbwriter.RadioEvent, 50)
+	for i := range events {
+		events[i] = &dbwriter.RadioEvent{
+			Timestamp:   tsMillis("2024-10-01T12:00:00Z") + int64(i),
+			Protocol:    "NGAP",
+			MessageType: "UplinkNASTransport",
+			Direction:   "inbound",
+			Raw:         []byte{byte(i)},
+		}
+	}
+
+	if err := database.InsertRadioEvents(context.Background(), events); err != nil {
+		t.Fatalf("insert batch: %v", err)
+	}
+
+	if err := database.InsertRadioEvents(context.Background(), nil); err != nil {
+		t.Fatalf("insert empty batch: %v", err)
+	}
+
+	_, total, err := database.ListRadioEvents(context.Background(), 1, 100, nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+
+	if total != len(events) {
+		t.Fatalf("total = %d, want %d", total, len(events))
+	}
+}

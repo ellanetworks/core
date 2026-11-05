@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 type smsState struct {
 	SMS   client.GetOperatorSMSResponse
-	Peers []client.SMSCPeer
+	SMSCs []client.SMSC
 }
 
 func readSMSState(ctx context.Context, t *testing.T, c *client.Client) smsState {
@@ -25,20 +26,22 @@ func readSMSState(ctx context.Context, t *testing.T, c *client.Client) smsState 
 		t.Fatalf("get operator: %v", err)
 	}
 
-	list, err := c.ListSMSCPeers(ctx)
+	list, err := c.ListSMSCs(ctx)
 	if err != nil {
-		t.Fatalf("list SMSC peers: %v", err)
+		t.Fatalf("list SMSCs: %v", err)
 	}
 
-	peers := make([]client.SMSCPeer, 0, len(list.Items))
+	smscs := make([]client.SMSC, 0, len(list.Items))
 
-	for _, p := range list.Items {
-		p.ID = ""
-		p.Status = nil
-		peers = append(peers, p)
+	for _, s := range list.Items {
+		for i := range s.Nodes {
+			s.Nodes[i].Status = nil
+		}
+
+		smscs = append(smscs, s)
 	}
 
-	return smsState{SMS: op.SMS, Peers: peers}
+	return smsState{SMS: op.SMS, SMSCs: smscs}
 }
 
 func cleanupSMS(ctx context.Context, t *testing.T, c *client.Client) {
@@ -46,15 +49,15 @@ func cleanupSMS(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Logf("cleanup: restore the SMS number: %v", err)
 	}
 
-	list, err := c.ListSMSCPeers(ctx)
+	list, err := c.ListSMSCs(ctx)
 	if err != nil {
-		t.Logf("cleanup: list SMSC peers: %v", err)
+		t.Logf("cleanup: list SMSCs: %v", err)
 		return
 	}
 
-	for _, p := range list.Items {
-		if err := c.DeleteSMSCPeer(ctx, p.ID); err != nil {
-			t.Logf("cleanup: delete SMSC peer %s: %v", p.ID, err)
+	for _, s := range list.Items {
+		if err := c.DeleteSMSC(ctx, s.Name); err != nil {
+			t.Logf("cleanup: delete SMSC %s: %v", s.Name, err)
 		}
 	}
 }
@@ -62,10 +65,11 @@ func cleanupSMS(ctx context.Context, t *testing.T, c *client.Client) {
 func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	t.Cleanup(func() { cleanupSMS(ctx, t, c) })
 
-	var peerID string
-
-	first := []client.SMSCPeer{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{"+15550000000"}}}
-	updated := []client.SMSCPeer{{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000001"}}}
+	first := []client.SMSC{{Name: "main", ServiceCentres: []string{"+15550000000"}, Nodes: []client.SMSCNode{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868}}}}
+	updated := []client.SMSC{{Name: "main", ServiceCentres: []string{"+15550000001"}, Nodes: []client.SMSCNode{
+		{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869},
+		{DiameterIdentity: "smsc-2001-db8--11.example.org", Address: "2001:db8::11", Port: 3868},
+	}}}
 
 	cases := []struct {
 		name  string
@@ -77,33 +81,40 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			apply: func() error {
 				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: "+15550009999"})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, Peers: []client.SMSCPeer{}},
+			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: []client.SMSC{}},
 		},
 		{
 			name: "add_SMSC",
 			apply: func() error {
-				peer, err := c.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", ServiceCentres: []string{"+15550000000"}})
-				if err == nil {
-					peerID = peer.ID
-				}
+				_, err := c.CreateSMSC(ctx, &client.CreateSMSCOptions{
+					Name:           "main",
+					ServiceCentres: []string{"+15550000000"},
+					Nodes:          []client.SMSCNodeOptions{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10"}},
+				})
 
 				return err
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, Peers: first},
+			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: first},
 		},
 		{
 			name: "update_SMSC",
 			apply: func() error {
-				return c.UpdateSMSCPeer(ctx, peerID, &client.SMSCPeerOptions{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869, ServiceCentres: []string{"+15550000001"}})
+				return c.UpdateSMSC(ctx, "main", &client.UpdateSMSCOptions{
+					ServiceCentres: []string{"+15550000001"},
+					Nodes: []client.SMSCNodeOptions{
+						{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869},
+						{DiameterIdentity: "smsc-2001-db8--11.example.org", Address: "2001:db8::11"},
+					},
+				})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, Peers: updated},
+			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: updated},
 		},
 		{
 			name: "clear_number",
 			apply: func() error {
 				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{})
 			},
-			want: smsState{Peers: updated},
+			want: smsState{SMSCs: updated},
 		},
 	}
 
@@ -117,12 +128,12 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				t.Fatalf("sms: got %+v, want %+v", got, tc.want)
 			}
 
-			assertSMSCPeer(ctx, t, c, tc.want)
+			assertSMSCNodes(ctx, t, c, tc.want)
 		})
 	}
 }
 
-func assertSMSCPeer(ctx context.Context, t *testing.T, c *client.Client, want smsState) {
+func assertSMSCNodes(ctx context.Context, t *testing.T, c *client.Client, want smsState) {
 	t.Helper()
 
 	deadline := time.Now().Add(10 * time.Second)
@@ -137,11 +148,17 @@ func assertSMSCPeer(ctx context.Context, t *testing.T, c *client.Client, want sm
 			t.Fatalf("diameter identity missing: %+v", status)
 		}
 
-		matched := len(status.Peers) == 0 && len(want.Peers) == 0
+		var nodes []client.SMSCNode
+		for _, s := range want.SMSCs {
+			nodes = append(nodes, s.Nodes...)
+		}
 
-		if len(status.Peers) == 1 && len(want.Peers) == 1 {
-			p, w := status.Peers[0], want.Peers[0]
-			matched = p.Role == "smsc" && p.Address == w.Address && p.Port == w.Port && p.State != "open"
+		matched := len(status.Peers) == len(nodes)
+
+		for _, w := range nodes {
+			matched = matched && slices.ContainsFunc(status.Peers, func(p client.DiameterPeer) bool {
+				return p.Role == "smsc" && p.Address == w.Address && p.Port == w.Port && p.State != "open"
+			})
 		}
 
 		if matched {
@@ -149,7 +166,7 @@ func assertSMSCPeer(ctx context.Context, t *testing.T, c *client.Client, want sm
 		}
 
 		if time.Now().After(deadline) {
-			t.Fatalf("diameter peers = %+v, want the SMSC peers %+v", status.Peers, want.Peers)
+			t.Fatalf("diameter peers = %+v, want the SMSC nodes %+v", status.Peers, nodes)
 		}
 
 		time.Sleep(200 * time.Millisecond)

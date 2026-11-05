@@ -172,6 +172,8 @@ func (r *relocationTarget) admit(t *testing.T, req *s1ap.HandoverRequest, refuse
 		t.Fatal("the acknowledge did not match the preparation")
 	}
 
+	assertConnIndexConsistent(t, r.m)
+
 	prep, ok := r.m.MarkHandoverPrepared(ue, req.MMEUES1APID, r.conn, admitted)
 	if !ok {
 		t.Fatal("MarkHandoverPrepared refused the acknowledge")
@@ -517,7 +519,7 @@ func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 		t.Fatal("the Handover Notify did not match the prepared handover")
 	}
 
-	if _, _, _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
+	if _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
 		t.Fatal("the handover did not commit")
 	}
 
@@ -835,7 +837,7 @@ func TestRelocatedConnectionIsFullyEstablished(t *testing.T) {
 		t.Fatal("the Handover Notify did not match the prepared handover")
 	}
 
-	if _, _, _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
+	if _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
 		t.Fatal("the handover did not commit")
 	}
 

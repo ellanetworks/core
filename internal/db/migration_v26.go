@@ -10,19 +10,34 @@ import (
 )
 
 func migrateV26(ctx context.Context, tx *sql.Tx) error {
+	if err := addSMSCs(ctx, tx); err != nil {
+		return err
+	}
+
 	stmts := []string{
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			id               TEXT    PRIMARY KEY,
 			role             TEXT    NOT NULL CHECK (role IN ('%s', '%s')),
 			diameterIdentity TEXT    NOT NULL,
 			address          TEXT    NOT NULL,
-			port             INTEGER NOT NULL
-		)`, DiameterPeersTableName, DiameterPeerRoleSMSC, DiameterPeerRoleRoaming),
-		fmt.Sprintf(`INSERT INTO %s_new (id, role, diameterIdentity, address, port)
-			SELECT id, role, diameterIdentity, address, port FROM %s`, DiameterPeersTableName, DiameterPeersTableName),
+			port             INTEGER NOT NULL,
+			smscId           TEXT    REFERENCES %s(id) ON DELETE CASCADE,
+			CHECK ((role = '%s') = (smscId IS NOT NULL))
+		)`, DiameterPeersTableName, DiameterPeerRoleSMSC, DiameterPeerRoleRoaming, SMSCsTableName, DiameterPeerRoleSMSC),
+		fmt.Sprintf(`INSERT INTO %s_new (id, role, diameterIdentity, address, port, smscId)
+			SELECT id, role, diameterIdentity, address, port, CASE WHEN role = '%s' THEN id END FROM %s`, DiameterPeersTableName, DiameterPeerRoleSMSC, DiameterPeersTableName),
 		fmt.Sprintf("DROP TABLE %s", DiameterPeersTableName),
 		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", DiameterPeersTableName, DiameterPeersTableName),
 		fmt.Sprintf("CREATE UNIQUE INDEX idx_diameter_peers_identity ON %s(diameterIdentity COLLATE NOCASE) WHERE diameterIdentity != ''", DiameterPeersTableName),
+		fmt.Sprintf("CREATE INDEX idx_diameter_peers_smsc ON %s(smscId)", DiameterPeersTableName),
+		fmt.Sprintf(`CREATE TABLE %s_new (
+			serviceCentre TEXT PRIMARY KEY,
+			smscId        TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE
+		)`, SMSCServiceCentresTableName, SMSCsTableName),
+		fmt.Sprintf("INSERT INTO %s_new (serviceCentre, smscId) SELECT serviceCentre, peerId FROM %s", SMSCServiceCentresTableName, SMSCServiceCentresTableName),
+		fmt.Sprintf("DROP TABLE %s", SMSCServiceCentresTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", SMSCServiceCentresTableName, SMSCServiceCentresTableName),
+		fmt.Sprintf("CREATE INDEX idx_sms_smsc_service_centres_smsc ON %s(smscId)", SMSCServiceCentresTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			id                 TEXT PRIMARY KEY,
 			name               TEXT NOT NULL UNIQUE CHECK (name != ''),
@@ -66,6 +81,7 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("DROP TABLE %s", UERegistrationsTableName),
 		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", UERegistrationsTableName, UERegistrationsTableName),
 		fmt.Sprintf("CREATE INDEX idx_ue_registrations_node ON %s(nodeID)", UERegistrationsTableName),
+		fmt.Sprintf("CREATE INDEX idx_ue_registrations_version ON %s(version)", UERegistrationsTableName),
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			id         TEXT    PRIMARY KEY,
 			poolID     TEXT    NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
@@ -142,6 +158,62 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("add roaming schema: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func addSMSCs(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, fmt.Sprintf("SELECT id, diameterIdentity, address FROM %s WHERE role = 'smsc' ORDER BY id", DiameterPeersTableName))
+	if err != nil {
+		return fmt.Errorf("list SMSC peers: %w", err)
+	}
+
+	type peer struct{ id, identity, address string }
+
+	var peers []peer
+
+	for rows.Next() {
+		var p peer
+		if err := rows.Scan(&p.id, &p.identity, &p.address); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan SMSC peer: %w", err)
+		}
+
+		peers = append(peers, p)
+	}
+
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("list SMSC peers: %w", err)
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("list SMSC peers: %w", err)
+	}
+
+	stmts := []string{
+		fmt.Sprintf(`CREATE TABLE %s (
+			id   TEXT PRIMARY KEY,
+			name TEXT NOT NULL
+		)`, SMSCsTableName),
+		fmt.Sprintf("CREATE UNIQUE INDEX idx_sms_smscs_name ON %s(name COLLATE NOCASE)", SMSCsTableName),
+	}
+
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("add SMSCs: %w", err)
+		}
+	}
+
+	names := make([]string, 0, len(peers))
+
+	for _, p := range peers {
+		name := legacySMSCName(p.identity, p.address, names)
+		names = append(names, name)
+
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, name) VALUES (?, ?)", SMSCsTableName), p.id, name); err != nil {
+			return fmt.Errorf("add SMSC for peer %s: %w", p.id, err)
 		}
 	}
 

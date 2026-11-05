@@ -29,7 +29,6 @@ const (
 	smscAPIPort       = 5010
 	smsNumber         = "+15550000000"
 	smscServiceCentre = "+15550000000"
-	smscHost          = "smsc.node.epc.mnc001.mcc001.3gppnetwork.org"
 	smscAdminEmail    = "admin@ellanetworks.com"
 	smscAdminPassword = "integration-test-password"
 )
@@ -68,7 +67,7 @@ func TestIntegrationSMS(t *testing.T) {
 	baseline.Policy(fixture.DefaultPolicySpec())
 
 	smscToken := configureSMSC(ctx, t)
-	enableSMS(ctx, t, env.Client, smscAddress())
+	enableSMS(ctx, t, env.Client, smscAddress(), smscToken)
 
 	for _, name := range scenarios.List() {
 		if !strings.HasPrefix(name, smsScenarioPrefix) {
@@ -105,21 +104,42 @@ func TestIntegrationSMS(t *testing.T) {
 	printTesterSummary(t)
 }
 
-func enableSMS(ctx context.Context, t *testing.T, cl *client.Client, address string) {
+func enableSMS(ctx context.Context, t *testing.T, cl *client.Client, address, smscToken string) string {
 	t.Helper()
 
-	if _, err := cl.CreateSMSCPeer(ctx, &client.SMSCPeerOptions{
-		DiameterIdentity: smscHost,
-		Address:          address,
-		Port:             smscDiameterPort,
-		ServiceCentres:   []string{smscServiceCentre},
+	host := smscDiameterHost(ctx, t, smscToken)
+
+	if _, err := cl.CreateSMSC(ctx, &client.CreateSMSCOptions{
+		Name:           "ella-smsc",
+		ServiceCentres: []string{smscServiceCentre},
+		Nodes:          []client.SMSCNodeOptions{{DiameterIdentity: host, Address: address, Port: smscDiameterPort}},
 	}); err != nil {
-		t.Fatalf("add the SMSC peer: %v", err)
+		t.Fatalf("add the SMSC: %v", err)
 	}
 
 	if err := cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: smsNumber}); err != nil {
 		t.Fatalf("enable SMS: %v", err)
 	}
+
+	return host
+}
+
+func smscDiameterHost(ctx context.Context, t *testing.T, smscToken string) string {
+	t.Helper()
+
+	var diameter struct {
+		Host string `json:"host"`
+	}
+
+	if err := callSMSC(ctx, http.MethodGet, smscToken, "/api/v1/diameter", nil, &diameter); err != nil {
+		t.Fatalf("read the SMSC Diameter host: %v", err)
+	}
+
+	if diameter.Host == "" {
+		t.Fatal("the SMSC has no Diameter host")
+	}
+
+	return diameter.Host
 }
 
 func waitForSMSCLink(ctx context.Context, cl *client.Client, smscToken string) error {
@@ -213,6 +233,10 @@ func smscAPIToken(ctx context.Context) (string, error) {
 }
 
 func callSMSC(ctx context.Context, method, token, path string, body any, out any) error {
+	return callSMSCAt(ctx, smscAPIAddress(), method, token, path, body, out)
+}
+
+func callSMSCAt(ctx context.Context, base, method, token, path string, body any, out any) error {
 	var reader io.Reader
 
 	if body != nil {
@@ -224,7 +248,7 @@ func callSMSC(ctx context.Context, method, token, path string, body any, out any
 		reader = bytes.NewReader(raw)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, smscAPIAddress()+path, reader)
+	req, err := http.NewRequestWithContext(ctx, method, base+path, reader)
 	if err != nil {
 		return err
 	}

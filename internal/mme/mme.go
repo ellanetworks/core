@@ -127,6 +127,7 @@ type MME struct {
 	UEs       map[etsi.SUPI]*UeContext // persistent UE contexts keyed by SUPI; survives the connection across ECM-IDLE
 	uesByTmsi map[etsi.TMSI]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	connIDs   *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
+	connIndex s1ConnIndex
 
 	relocating map[etsi.SUPI]*relocation
 
@@ -213,6 +214,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		Name:                     "ella",
 		reg:                      radioreg.New[S1APWriter, string, *Radio](DefaultRadioOfflineTTL, DefaultMaxOfflineRadios, time.Now),
 		conns:                    make(map[uint32]*UeConn),
+		connIndex:                newS1ConnIndex(),
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
 		relocating:               make(map[etsi.SUPI]*relocation),

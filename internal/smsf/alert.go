@@ -32,8 +32,8 @@ func (s *SMSF) recordWaiting(ctx context.Context, u db.SMSWaitingUpdate) bool {
 
 	log := logger.From(ctx, s.logger, zap.String("imsi", u.IMSI), zap.String("service_centre", u.ServiceCentre))
 
-	if _, err := s.smscFor(ctx, u.ServiceCentre); errors.Is(err, ErrUnknownSCAddress) {
-		log.Info("Did not record message waiting data for a service centre no SMSC peer serves")
+	if _, err := s.smscServing(ctx, u.ServiceCentre); errors.Is(err, ErrUnknownSCAddress) {
+		log.Info("Did not record message waiting data for a service centre no SMSC serves")
 		return false
 	}
 
@@ -177,9 +177,9 @@ func (s *SMSF) alert(ctx context.Context, imsi string) {
 	for _, sc := range w.ServiceCentres {
 		log := log.With(zap.String("service_centre", sc))
 
-		peer, err := s.smscFor(ctx, sc)
+		peers, err := s.smscFor(ctx, sc)
 		if errors.Is(err, ErrUnknownSCAddress) {
-			log.Info("Dropped message waiting data for a service centre no SMSC peer serves")
+			log.Info("Dropped message waiting data for a service centre no SMSC serves")
 			s.removeWaitingCentre(ctx, log, imsi, sc)
 
 			continue
@@ -190,17 +190,17 @@ func (s *SMSF) alert(ctx context.Context, imsi string) {
 			return
 		}
 
-		envelope, err := s.peers.Envelope(peer)
+		envelope, err := s.envelope(peers)
 		if err != nil {
 			log.Info("Could not alert the SMSC; will retry when the UE is next reachable", zap.Error(err))
 			continue
 		}
 
-		s.alertServiceCentre(ctx, log, peer, envelope, imsi, sub.Msisdn, sc)
+		s.alertServiceCentre(ctx, log, peers, envelope, imsi, sub.Msisdn, sc)
 	}
 }
 
-func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, peer string, envelope tgpp.Envelope, imsi, msisdn, serviceCentre string) {
+func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, peers []string, envelope tgpp.Envelope, imsi, msisdn, serviceCentre string) {
 	req, err := s6c.NewHSSAlertServiceCentreRequest(envelope, s6c.Alert{
 		ServiceCentreAddress: serviceCentre,
 		User:                 tgpp.UserIdentifier{MSISDN: msisdn},
@@ -220,13 +220,15 @@ func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, peer str
 	ctx, cancel := context.WithTimeout(ctx, s.timers.AlertTimeout)
 	defer cancel()
 
-	ans, err := s.peers.Do(ctx, peer, req)
+	ans, err := s.peers.DoAny(ctx, peers, req)
 	if err == nil {
 		err = s6c.ParseAlertServiceCentreAnswer(ans)
 	}
 
 	if err != nil {
+		s.noteUnanswered(err)
 		log.Warn("SMSC alert failed; will retry when the UE is next reachable", zap.Error(err))
+
 		return
 	}
 

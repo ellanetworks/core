@@ -40,9 +40,13 @@ Ella Core allows SMS when:
 
 On 5G, the phone asks for SMS when it registers. On 4G, the phone asks with a combined attach, and Ella Core accepts it for SMS only.
 
+## SMSCs with several nodes
+
+An SMSC can have several Diameter nodes, ex. the members of an Ella SMSC cluster. Ella Core sends each message and alert to one open node, and to the next one if the connection to that node fails. A node that does not answer is avoided for one minute.
+
 ## In an HA cluster
 
-Each node of a [High Availability](high_availability.md) cluster connects to every SMSC.
+Each node of a [High Availability](high_availability.md) cluster connects to every SMSC node.
 
 - **Receiving**: Ella Core answers routing requests with the node that serves the recipient, so the SMSC delivers each message to the right node.
 - **Undelivered messages**: The record of waiting messages replicates across the cluster, so the node serving the phone when it becomes reachable can alert the SMSC.
@@ -50,6 +54,6 @@ Each node of a [High Availability](high_availability.md) cluster connects to eve
 ## Further reading
 
 - [Enable SMS](../how_to/enable_sms.md) — step-by-step guide to enable SMS.
-- [Operator API reference](../reference/api/operator.md) — SMS number and SMSC peers.
+- [Operator API reference](../reference/api/operator.md) — SMS number and SMSCs.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported SGd and S6c procedures.
 - [Enable SMS over IP](https://docs.ellanetworks.com/ims/how_to/enable_sms_over_ip/) — SMS over IP with Ella IMS.

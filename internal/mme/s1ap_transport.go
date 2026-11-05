@@ -35,15 +35,22 @@ const (
 // eNB. *sctp.SCTPConn satisfies it; tests substitute a capturing implementation.
 type S1APWriter interface {
 	WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error)
+	WriteMsgWait(ctx context.Context, b []byte, info *sctp.SndRcvInfo) (int, error)
 }
+
+type radioSend func(m *MME, ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) error
 
 // SendS1AP writes a complete S1AP PDU to the UE's eNB association.
 func (c *UeConn) SendS1AP(ctx context.Context, messageType S1APProcedure, b []byte) error {
+	return c.sendS1AP(ctx, messageType, b, (*MME).SendToRadio)
+}
+
+func (c *UeConn) sendS1AP(ctx context.Context, messageType S1APProcedure, b []byte, send radioSend) error {
 	if c == nil {
 		return fmt.Errorf("no S1 connection to send %s on", messageType)
 	}
 
-	return c.m.SendToRadio(ctx, c.Conn(), messageType, b)
+	return send(c.m, ctx, c.Conn(), messageType, b)
 }
 
 // s1apStreamForProcedure returns the SCTP stream for an S1AP procedure: the reserved
@@ -76,6 +83,14 @@ func s1apStreamForProcedure(p S1APProcedure) (uint16, error) {
 // SendToRadio writes a complete S1AP PDU to a specific eNB association — the single
 // traced+logged send chokepoint. The SCTP stream is derived from the procedure.
 func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) error {
+	return m.sendToRadio(ctx, conn, messageType, b, false)
+}
+
+func (m *MME) SendToRadioPaced(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) error {
+	return m.sendToRadio(ctx, conn, messageType, b, true)
+}
+
+func (m *MME) sendToRadio(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte, paced bool) error {
 	ctx, span := Tracer.Start(ctx, "s1ap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -101,7 +116,15 @@ func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1AP
 		return err
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: stream}); err != nil {
+	info := sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: stream}
+
+	if paced {
+		_, err = conn.WriteMsgWait(ctx, b, &info)
+	} else {
+		_, err = conn.WriteMsg(b, &info)
+	}
+
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.From(ctx, logger.MmeLog).Error("failed to send S1AP message", logger.MessageType(string(messageType)), zap.Error(err))

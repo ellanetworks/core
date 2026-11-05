@@ -155,7 +155,7 @@ func TestSendRetriesAnotherAcceptedPeerOnTooBusyAndUnableToDeliver(t *testing.T)
 			}
 
 			first, second := <-refusing.seen, <-good.seen
-			if first.EndToEndID != second.EndToEndID || first.Flags&FlagRetransmit != 0 || second.Flags&FlagRetransmit == 0 {
+			if first.EndToEndID != second.EndToEndID || first.Flags&FlagRetransmit != 0 || second.Flags&FlagRetransmit != 0 {
 				t.Fatalf("End-to-End %d then %d, flags %#x then %#x", first.EndToEndID, second.EndToEndID, first.Flags, second.Flags)
 			}
 		})
@@ -520,7 +520,7 @@ func TestSendFailsOverBetweenDefaultRoutes(t *testing.T) {
 	}
 
 	first, second := <-refusing.seen, <-good.seen
-	if first.EndToEndID != second.EndToEndID || second.Flags&FlagRetransmit == 0 {
+	if first.EndToEndID != second.EndToEndID || second.Flags&FlagRetransmit != 0 {
 		t.Fatalf("End-to-End %d then %d, flags %#x", first.EndToEndID, second.EndToEndID, second.Flags)
 	}
 }

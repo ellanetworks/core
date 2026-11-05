@@ -70,7 +70,7 @@ type RegistrationAccept struct {
 	PDUSessionStatus                []PDUSessionStatusPDU              `json:"pdu_session_status,omitempty"`
 	PDUSessionReactivationResult    []PDUSessionReactivateResultPDU    `json:"pdu_session_reactivation_result,omitempty"`
 	MICOIndication                  *MICOIndication                    `json:"mico_indication,omitempty"`
-	T3512Value                      *GPRSTimer3Value                   `json:"t3512_value,omitempty"`
+	T3512Value                      *nasie.GPRSTimer3Value             `json:"t3512_value,omitempty"`
 	Non3GppDeregistrationTimerValue *GPRSTimer2Value                   `json:"non_3gpp_deregistration_timer_value,omitempty"`
 	T3502Value                      *GPRSTimer2Value                   `json:"t3502_value,omitempty"`
 	SORTransparentContainer         *utils.RawOctets                   `json:"sor_transparent_container,omitempty"`
@@ -123,7 +123,7 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 	out.EPSBearerContextStatus = nasie.EPSBearerContextStatus(msg.EPSBearerContextStatus)
 	out.MICOIndication = micoIndication(msg.MICOIndication)
 	out.NegotiatedDRXParameters = drxParameter(msg.NegotiatedDRX)
-	out.T3512Value = gprsTimer3(msg.T3512)
+	out.T3512Value = nasie.GPRSTimer3(msg.T3512)
 	out.Non3GppDeregistrationTimerValue = gprsTimer2(msg.Non3GppDeregistrationTimer)
 	out.T3502Value = gprsTimer2(msg.T3502)
 	out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)

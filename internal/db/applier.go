@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/canonical/sqlair"
@@ -722,7 +721,7 @@ type allocateIPLeasePayload struct {
 // applyAllocateIPLease atomically resolves an IP for (poolID, IMSI,
 // sessionID, nodeID) and inserts the lease. Runs under
 // leaderCaptureAndPropose's proposeMu and inside captureChangeset's
-// pinned connection, so the merge-scan for a free address and the
+// pinned connection, so the scan for a free address and the
 // INSERT are serialised against every other replicated write — no
 // other allocation can race in between.
 //
@@ -777,8 +776,9 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	sessionID := p.SessionID
 
 	// Step 0: an admin-pinned static reservation takes precedence over
-	// dynamic allocation. The merge-scan below lists every lease in the
-	// pool, so a reserved static address is never handed out dynamically.
+	// dynamic allocation. The free-address scan below skips every leased
+	// address in the pool, so a reserved static address is never handed
+	// out dynamically.
 	static := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI}
 
 	err = runner.Query(ctx, db.getStaticLeaseStmt, static).Get(&static)
@@ -833,69 +833,100 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		return nil, fmt.Errorf("get dynamic lease: %w", err)
 	}
 
-	// Step 2: list every allocated address in this pool and convert
-	// to sorted offsets so the merge-scan can skip them in O(N).
-	var leases []IPLease
-
-	err = runner.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: p.PoolID, PoolType: p.PoolType}).GetAll(&leases)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("list lease addresses: %w", err)
+	offset, err := db.findFreeLeaseOffset(ctx, runner, pool, p.PoolType)
+	if err != nil {
+		return nil, err
 	}
 
-	allocated := make([]int, 0, len(leases))
+	addr := pool.AddressAtOffset(offset)
+	bin := addr.As16()
+	lease := &IPLease{
+		PoolID:     p.PoolID,
+		PoolType:   p.PoolType,
+		AddressBin: bin[:],
+		IMSI:       p.IMSI,
+		SessionID:  &sessionID,
+		Type:       "dynamic",
+		CreatedAt:  time.Now().Unix(),
+		NodeID:     string(p.NodeID),
+	}
 
-	for i := range leases {
-		offset := pool.OffsetOf(leases[i].Address())
-		if offset >= 0 {
-			allocated = append(allocated, offset)
+	if _, applyErr := db.applyCreateLease(ctx, lease); applyErr != nil {
+		return nil, fmt.Errorf("create lease: %w", applyErr)
+	}
+
+	return addr.String(), nil
+}
+
+func (db *Database) findFreeLeaseOffset(ctx context.Context, runner *sqlair.DB, pool ipam.Pool, poolType string) (int, error) {
+	first := pool.FirstUsable()
+	last := first + pool.Size() - 1
+	start := first
+
+	newest := IPLease{PoolID: pool.ID, PoolType: poolType}
+
+	err := runner.Query(ctx, db.getNewestLeaseInPoolStmt, newest).Get(&newest)
+	switch {
+	case err == nil:
+		if offset := pool.OffsetOf(newest.Address()); offset >= first && offset < last {
+			start = offset + 1
+		}
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return 0, fmt.Errorf("get newest lease: %w", err)
+	}
+
+	offset, found, err := db.firstFreeLeaseOffset(ctx, runner, pool, poolType, start, last)
+	if err != nil || found {
+		return offset, err
+	}
+
+	if start > first {
+		offset, found, err = db.firstFreeLeaseOffset(ctx, runner, pool, poolType, first, start-1)
+		if err != nil || found {
+			return offset, err
 		}
 	}
 
-	sort.Ints(allocated)
+	return 0, ipam.ErrPoolExhausted
+}
 
-	// Step 3: merge-scan. Under proposeMu the SELECT view is stable, so
-	// the first free offset we find is also free at INSERT time. The
-	// inner ErrAlreadyExists branch is defensive only — it should be
-	// unreachable while proposeMu is held.
-	poolSize := pool.Size()
-	firstUsable := pool.FirstUsable()
-	allocIdx := 0
-	now := time.Now().Unix()
+func (db *Database) firstFreeLeaseOffset(ctx context.Context, runner *sqlair.DB, pool ipam.Pool, poolType string, from, to int) (int, bool, error) {
+	low := pool.AddressAtOffset(from).As16()
+	high := pool.LastAddress().As16()
 
-	for offset := firstUsable; offset < firstUsable+poolSize; offset++ {
-		for allocIdx < len(allocated) && allocated[allocIdx] < offset {
-			allocIdx++
+	iter := runner.Query(ctx, db.listLeaseAddressRangeStmt, leaseAddressRange{
+		PoolID:   pool.ID,
+		PoolType: poolType,
+		Low:      low[:],
+		High:     high[:],
+	}).Iter()
+
+	next := from
+
+	for next <= to && iter.Next() {
+		var lease IPLease
+
+		if err := iter.Get(&lease); err != nil {
+			_ = iter.Close()
+			return 0, false, fmt.Errorf("scan lease address: %w", err)
 		}
 
-		if allocIdx < len(allocated) && allocated[allocIdx] == offset {
-			continue
+		offset := pool.OffsetOf(lease.Address())
+		if offset > next {
+			break
 		}
 
-		addr := pool.AddressAtOffset(offset)
-		bin := addr.As16()
-		lease := &IPLease{
-			PoolID:     p.PoolID,
-			PoolType:   p.PoolType,
-			AddressBin: bin[:],
-			IMSI:       p.IMSI,
-			SessionID:  &sessionID,
-			Type:       "dynamic",
-			CreatedAt:  now,
-			NodeID:     string(p.NodeID),
+		if offset == next {
+			next++
 		}
-
-		if _, applyErr := db.applyCreateLease(ctx, lease); applyErr != nil {
-			if errors.Is(applyErr, ErrAlreadyExists) {
-				continue
-			}
-
-			return nil, fmt.Errorf("create lease: %w", applyErr)
-		}
-
-		return addr.String(), nil
 	}
 
-	return nil, ipam.ErrPoolExhausted
+	if err := iter.Close(); err != nil {
+		return 0, false, fmt.Errorf("list lease addresses: %w", err)
+	}
+
+	return next, next <= to, nil
 }
 
 func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload) (any, error) {

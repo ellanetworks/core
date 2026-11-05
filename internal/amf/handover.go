@@ -269,6 +269,10 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn, candidates []
 	a.mu.Lock()
 	if target != nil {
 		target.ue.Store(ue)
+
+		if source != nil {
+			target.inheritRRCEstablishmentCause(source)
+		}
 	}
 
 	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target, candidates: candidates}

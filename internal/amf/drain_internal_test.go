@@ -30,6 +30,10 @@ func (c *drainCaptureConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (c *drainCaptureConn) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
+}
+
 func (c *drainCaptureConn) count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()

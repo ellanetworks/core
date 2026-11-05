@@ -588,7 +588,7 @@ func (m *MME) NewUeConn(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeConn {
 	c.setENBUES1APID(enbUEID)
 	c.setConn(conn)
 	c.bindLogFields(m.nodeLogFieldsLocked(conn))
-	m.conns[id] = c
+	m.registerConnLocked(id, c)
 
 	return c
 }
@@ -617,6 +617,7 @@ func (m *MME) releaseConnIDLocked(id uint32) {
 	// callbacks run without the guard's lock, so this cannot deadlock.
 	if c, ok := m.conns[id]; ok {
 		c.releaseGuard.Stop()
+		m.connIndex.remove(c)
 	}
 
 	delete(m.conns, id)
@@ -1017,12 +1018,15 @@ func (m *MME) ConnsOnConn(conn S1APWriter) []*UeConn {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var out []*UeConn
+	set := m.connIndex.onAssociation(conn)
+	if len(set) == 0 {
+		return nil
+	}
 
-	for _, c := range m.conns {
-		if c.Conn() == conn {
-			out = append(out, c)
-		}
+	out := make([]*UeConn, 0, len(set))
+
+	for c := range set {
+		out = append(out, c)
 	}
 
 	return out
@@ -1045,41 +1049,14 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 				out = append(out, c)
 			}
 		case it.ENBUES1APID != nil:
-			for _, c := range m.conns {
-				if c.Conn() == conn && c.ENBUES1APID() == *it.ENBUES1APID {
-					out = append(out, c)
-					break
-				}
+			for c := range m.connIndex.matching(conn, *it.ENBUES1APID) {
+				out = append(out, c)
+				break
 			}
 		}
 	}
 
 	return out
-}
-
-// DropStaleUe removes any context bound to the same eNB association and
-// ENB-UE-S1AP-ID, so a fresh Initial UE Message (e.g. a re-attach reusing the
-// eNB UE id) does not leak the previous context.
-func (m *MME) DropStaleUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
-	m.mu.Lock()
-
-	var stale []*UeContext
-
-	for _, c := range m.conns {
-		if ue := c.ue.Load(); ue != nil && ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
-			stale = append(stale, ue)
-		}
-	}
-
-	var losses bearerLosses
-
-	for _, ue := range stale {
-		losses.merge(m.removeContextLocked(ue))
-	}
-
-	m.mu.Unlock()
-
-	m.reportDedicatedLosses(ctx, losses)
 }
 
 // S1Identity snapshots the UE's S1 association — the eNB connection and the

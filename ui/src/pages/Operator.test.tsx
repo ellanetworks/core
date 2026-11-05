@@ -11,7 +11,7 @@ import Operator from "./Operator";
 
 const api = setupApiServer();
 
-const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
+const SMSCS_PATH = "/api/v1/operator/sms/smscs";
 const AS_PATH = "/api/v1/operator/ims/application-servers";
 const SP_PATH = "/api/v1/operator/ims/service-profiles";
 const PARTNERS_PATH = "/api/v1/operator/roaming/partners";
@@ -45,27 +45,35 @@ const operator = (
   ims: { pcscfAddresses, voiceStatus: "no_pcscf" },
 });
 
-const peerA = {
-  id: "0190a000-0000-7000-8000-00000000000a",
+const nodeA = {
   diameterIdentity: "smsc-a.example.org",
   address: "2001:db8::10",
   port: 3868,
-  serviceCentres: ["+15550000000"],
   status: {
     state: "open",
-    host: "smsc.example.org",
+    host: "smsc-a.example.org",
     realm: "example.org",
     since: "2026-09-29T16:00:00Z",
   },
 };
 
-const peerB = {
-  id: "0190a000-0000-7000-8000-00000000000b",
+const nodeB = {
   diameterIdentity: "smsc-b.example.org",
   address: "192.0.2.20",
   port: 3869,
-  serviceCentres: ["+15550000001", "+15550000002"],
   status: { state: "down", since: "2026-09-29T16:00:00Z" },
+};
+
+const main = {
+  name: "main",
+  serviceCentres: ["+15550000000"],
+  nodes: [nodeA],
+};
+
+const backup = {
+  name: "backup",
+  serviceCentres: ["+15550000001", "+15550000002"],
+  nodes: [{ ...nodeA, address: "2001:db8::11" }, nodeB],
 };
 
 const ready = { smsNumber: "+15550001111" };
@@ -81,130 +89,142 @@ const renderOperator = (role = "Admin") =>
     auth: { role },
   });
 
+const nodeStatus = async (endpoint: string) =>
+  (await screen.findByText(endpoint)).nextElementSibling as HTMLElement;
+
 describe("Operator SMS section", () => {
-  it("shows an unset SMS number and no service centers", async () => {
+  it("shows an unset SMS number and no SMSCs", async () => {
     api.get("/api/v1/operator", () => operator({ smsNumber: "" }));
-    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(SMSCS_PATH, () => ({ items: [] }));
     renderOperator();
 
     expect(
       await (await row("SMS Number")).findByText("N/A"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Service Centers")).toBeInTheDocument();
-    expect(
-      await screen.findByText("No service centers yet."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("SMSCs")).toBeInTheDocument();
+    expect(await screen.findByText("No SMSCs yet.")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Edit SMS number" }),
     ).toBeInTheDocument();
   });
 
-  it("lists each service center with its status", async () => {
+  it("lists each SMSC with the status of its nodes", async () => {
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [peerA, peerB] }));
+    api.get(SMSCS_PATH, () => ({
+      items: [main, backup],
+    }));
     renderOperator();
 
     expect(await screen.findByText("+15550001111")).toBeInTheDocument();
 
-    const a = await row("[2001:db8::10]:3868");
-    expect(a.getByText("Connected")).toBeInTheDocument();
+    const a = await row("main");
     expect(a.getByText("+15550000000")).toBeInTheDocument();
+    expect(await nodeStatus("[2001:db8::10]:3868")).toHaveTextContent(
+      "Connected",
+    );
 
-    const b = await row("192.0.2.20:3869");
-    expect(b.getByText("Disconnected")).toBeInTheDocument();
+    const b = await row("backup");
     expect(b.getByText("+15550000001, +15550000002")).toBeInTheDocument();
+    expect(await nodeStatus("[2001:db8::11]:3868")).toHaveTextContent(
+      "Connected",
+    );
+    expect(await nodeStatus("192.0.2.20:3869")).toHaveTextContent(
+      "Disconnected",
+    );
   });
 
-  it("shows why a service center is disconnected", async () => {
+  it("shows why a node is disconnected", async () => {
     const user = userEvent.setup();
     const error =
       "peer answered as smsc.example.org, expected smsc-b.example.org";
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({
-      items: [{ ...peerB, status: { ...peerB.status, error } }],
+    api.get(SMSCS_PATH, () => ({
+      items: [
+        { ...main, nodes: [{ ...nodeB, status: { ...nodeB.status, error } }] },
+      ],
     }));
     renderOperator();
 
-    await user.hover(
-      await (await row("192.0.2.20:3869")).findByText("Disconnected"),
-    );
+    await user.hover(await nodeStatus("192.0.2.20:3869"));
 
     expect(await screen.findByRole("tooltip")).toHaveTextContent(error);
   });
 
-  it("shows a peer this node has not reported as connecting", async () => {
+  it("shows a node this node has not reported as connecting", async () => {
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [{ ...peerA, status: undefined }] }));
+    api.get(SMSCS_PATH, () => ({
+      items: [{ ...main, nodes: [{ ...nodeA, status: undefined }] }],
+    }));
     renderOperator();
 
-    expect(
-      await (await row("[2001:db8::10]:3868")).findByText("Connecting"),
-    ).toBeInTheDocument();
+    expect(await nodeStatus("[2001:db8::10]:3868")).toHaveTextContent(
+      "Connecting",
+    );
   });
 
-  it("adds a service center", async () => {
+  it("adds an SMSC", async () => {
     const user = userEvent.setup();
-    let peers: unknown[] = [];
+    let smscs: unknown[] = [];
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: peers }));
-    api.post(PEERS_PATH, () => {
-      peers = [peerB];
-      return peerB;
+    api.get(SMSCS_PATH, () => ({ items: smscs }));
+    api.post(SMSCS_PATH, () => {
+      smscs = [{ ...main, nodes: [nodeB] }];
+      return {};
     });
     renderOperator();
 
-    await user.click(
-      await screen.findByRole("button", { name: "Add service center" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Add SMSC" }));
+    await user.type(await screen.findByLabelText(/^Name/), "main");
+    await user.type(screen.getByLabelText(/^Numbers/), "+15550000000");
+    await user.type(screen.getByLabelText(/^Node 1 address/), "192.0.2.20");
     await user.type(
-      await screen.findByLabelText(/Diameter Identity/),
+      screen.getByLabelText(/^Node 1 Diameter identity/),
       "smsc-b.example.org",
     );
-    await user.type(screen.getByLabelText(/^Address/), "192.0.2.20");
-    await user.type(screen.getByLabelText(/^Numbers/), "+15550000001");
     await user.click(screen.getByRole("button", { name: /^Add$/ }));
 
     expect(await screen.findByText("192.0.2.20:3869")).toBeInTheDocument();
     expect(
-      api.requests(PEERS_PATH).find((r) => r.method === "POST")?.body,
+      api.requests(SMSCS_PATH).find((r) => r.method === "POST")?.body,
     ).toEqual({
-      diameterIdentity: "smsc-b.example.org",
-      address: "192.0.2.20",
-      port: 3868,
-      serviceCentres: ["+15550000001"],
+      name: "main",
+      serviceCentres: ["+15550000000"],
+      nodes: [
+        {
+          diameterIdentity: "smsc-b.example.org",
+          address: "192.0.2.20",
+          port: 3868,
+        },
+      ],
     });
   });
 
-  it("warns before deleting the only service center", async () => {
+  it("warns before deleting the only SMSC", async () => {
     const user = userEvent.setup();
-    let peers: unknown[] = [peerA];
+    let smscs: unknown[] = [main];
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: peers }));
-    api.delete(`${PEERS_PATH}/${peerA.id}`, () => {
-      peers = [];
+    api.get(SMSCS_PATH, () => ({ items: smscs }));
+    api.delete(`${SMSCS_PATH}/main`, () => {
+      smscs = [];
       return {};
     });
     renderOperator();
 
     await user.click(
-      await screen.findByRole("button", {
-        name: "Delete service center [2001:db8::10]:3868",
-      }),
+      await screen.findByRole("button", { name: "Delete SMSC main" }),
     );
     expect(
       await screen.findByText(/subscribers lose SMS until you add another/),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(
-      await screen.findByText("No service centers yet."),
-    ).toBeInTheDocument();
-    expect(api.requests(`${PEERS_PATH}/${peerA.id}`)).toHaveLength(1);
+    expect(await screen.findByText("No SMSCs yet.")).toBeInTheDocument();
+    expect(api.requests(`${SMSCS_PATH}/main`)).toHaveLength(1);
   });
 
   it("lets a read-only user see but not change SMS", async () => {
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [peerA] }));
+    api.get(SMSCS_PATH, () => ({ items: [main] }));
     renderOperator("Read Only");
 
     expect(await screen.findByText("[2001:db8::10]:3868")).toBeInTheDocument();
@@ -212,10 +232,10 @@ describe("Operator SMS section", () => {
       screen.queryByRole("button", { name: "Edit SMS number" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Add service center" }),
+      screen.queryByRole("button", { name: "Add SMSC" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Delete service center/ }),
+      screen.queryByRole("button", { name: /Delete SMSC/ }),
     ).not.toBeInTheDocument();
   });
 });
@@ -225,7 +245,7 @@ describe("Operator IMS section", () => {
     api.get("/api/v1/operator", () =>
       operator(ready, ["10.6.0.5", "2001:db8::5"]),
     );
-    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(SMSCS_PATH, () => ({ items: [] }));
     renderOperator();
 
     expect(
@@ -236,7 +256,7 @@ describe("Operator IMS section", () => {
   it("updates the P-CSCF addresses", async () => {
     const user = userEvent.setup();
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(SMSCS_PATH, () => ({ items: [] }));
     api.put("/api/v1/operator/ims", () => ({}));
     renderOperator();
 
@@ -258,7 +278,7 @@ describe("Operator IMS section", () => {
   it("rejects malformed and duplicate P-CSCF addresses", async () => {
     const user = userEvent.setup();
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(SMSCS_PATH, () => ({ items: [] }));
     renderOperator();
 
     await user.click(
@@ -282,7 +302,7 @@ describe("Operator IMS section", () => {
 
   it("hides the P-CSCF edit from a read-only user", async () => {
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(SMSCS_PATH, () => ({ items: [] }));
     renderOperator("Read Only");
 
     expect(await screen.findByText("P-CSCF Addresses")).toBeInTheDocument();
@@ -300,7 +320,7 @@ const mcpttAS = {
 
 const renderIMS = (role = "Admin") => {
   api.get("/api/v1/operator", () => operator(ready));
-  api.get(PEERS_PATH, () => ({ items: [] }));
+  api.get(SMSCS_PATH, () => ({ items: [] }));
   renderOperator(role);
 };
 
@@ -724,7 +744,7 @@ const tableRow = async (name: string, text: string) => {
 describe("Operator roaming section", () => {
   beforeEach(() => {
     api.get("/api/v1/operator", () => operator(ready));
-    api.get(PEERS_PATH, () => ({ items: [] }));
+    api.get(SMSCS_PATH, () => ({ items: [] }));
     api.get(PARTNERS_PATH, () => ({ items: [orange, sfr] }));
     api.get(DIAMETER_PEERS_PATH, () => ({ items: [hss, dea] }));
     api.get("/api/v1/profiles", () => ({

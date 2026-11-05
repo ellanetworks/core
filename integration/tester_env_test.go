@@ -197,7 +197,7 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 // injecting --ella-core-n2-address, --gnb, --ella-api-address, and
 // --ella-api-token from the compose topology. Fails the subtest on
 // non-zero exit. stdout/stderr are captured for failure reporting.
-func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, tr *TestResult, extraArgs ...string) {
+func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, tr *TestResult, extraArgs ...string) string {
 	t.Helper()
 
 	argv := []string{"core-tester", "run", scenario}
@@ -222,8 +222,11 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 
 	QuietLogf(t, tr, "running: %s", strings.Join(argv, " "))
 
-	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr}); err != nil {
+	out, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr})
+	if err != nil {
 		setFailureReason(tr, fmt.Sprintf("scenario %q failed: %v", scenario, err))
 		t.Fatalf("scenario %q failed: %v", scenario, err)
 	}
+
+	return out
 }

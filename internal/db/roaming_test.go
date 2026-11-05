@@ -376,8 +376,8 @@ func TestRoamingPartnerConflicts(t *testing.T) {
 		t.Fatalf("CreateRoamingPartner: %s", err)
 	}
 
-	if err := f.db.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: "smsc", Address: "10.0.0.5", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
-		t.Fatalf("CreateSMSCPeer: %s", err)
+	if err := f.db.CreateSMSC(ctx, &db.SMSC{ID: "smsc-1", Name: "smsc", ServiceCentres: []string{"15550000000"}, Nodes: []db.SMSCNode{{ID: "smsc", Address: "10.0.0.5", Port: 3868}}}); err != nil {
+		t.Fatalf("CreateSMSC: %s", err)
 	}
 
 	cases := map[string]struct {
@@ -485,24 +485,21 @@ func TestRoamingDiameterPeers(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 
-	if err := f.db.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: "smsc", DiameterIdentity: "smsc.example.org", Address: "10.0.0.5", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
-		t.Fatalf("CreateSMSCPeer: %s", err)
+	smscGroup := db.SMSC{ID: "smsc-1", Name: "smsc", ServiceCentres: []string{"15550000000"}, Nodes: []db.SMSCNode{{ID: "smsc", DiameterIdentity: "smsc.example.org", Address: "10.0.0.5", Port: 3868}}}
+	if err := f.db.CreateSMSC(ctx, &smscGroup); err != nil {
+		t.Fatalf("CreateSMSC: %s", err)
 	}
 
 	f.createPeer(t)
 
-	smsc, err := f.db.ListSMSCPeers(ctx)
-	if err != nil || len(smsc) != 1 || smsc[0].ID != "smsc" {
-		t.Fatalf("ListSMSCPeers = %+v, %v", smsc, err)
+	smsc, err := f.db.ListSMSCs(ctx)
+	if err != nil || len(smsc) != 1 || len(smsc[0].Nodes) != 1 || smsc[0].Nodes[0].ID != "smsc" {
+		t.Fatalf("ListSMSCs = %+v, %v", smsc, err)
 	}
 
 	roaming, err := f.db.ListRoamingDiameterPeers(ctx)
 	if err != nil || len(roaming) != 1 || roaming[0].ID != roamingPeerID {
 		t.Fatalf("ListRoamingDiameterPeers = %+v, %v", roaming, err)
-	}
-
-	if _, err := f.db.GetSMSCPeer(ctx, roamingPeerID); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("GetSMSCPeer of a roaming peer: err = %v, want ErrNotFound", err)
 	}
 
 	if _, err := f.db.GetRoamingDiameterPeer(ctx, "smsc"); !errors.Is(err, db.ErrNotFound) {
@@ -517,8 +514,8 @@ func TestRoamingDiameterPeers(t *testing.T) {
 		t.Fatalf("DeleteRoamingDiameterPeer of an SMSC peer: err = %v, want ErrNotFound", err)
 	}
 
-	if err := f.db.DeleteSMSCPeer(ctx, roamingPeerID); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("DeleteSMSCPeer of a roaming peer: err = %v, want ErrNotFound", err)
+	if err := f.db.DeleteSMSC(ctx, roamingPeerID); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("DeleteSMSC of a roaming peer: err = %v, want ErrNotFound", err)
 	}
 
 	conflicts := map[string]db.RoamingDiameterPeer{
@@ -533,8 +530,23 @@ func TestRoamingDiameterPeers(t *testing.T) {
 		}
 	}
 
-	if err := f.db.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: "smsc2", DiameterIdentity: "dea.example.org", Address: "10.0.0.9", Port: 3868, ServiceCentres: []string{"15550000001"}}); !errors.Is(err, db.ErrSMSCPeerConflict) {
-		t.Fatalf("SMSC peer with a roaming peer's identity: err = %v, want ErrSMSCPeerConflict", err)
+	smscConflicts := map[string]db.SMSCNode{
+		"roaming identity": {ID: "smsc2", DiameterIdentity: "dea.example.org", Address: "10.0.0.9", Port: 3868},
+		"roaming address":  {ID: "smsc2", Address: "10.0.0.7", Port: 3868},
+		"roaming peer ID":  {ID: roamingPeerID, Address: "10.0.0.9", Port: 3868},
+	}
+
+	for name, node := range smscConflicts {
+		if err := f.db.CreateSMSC(ctx, &db.SMSC{ID: "smsc-2", Name: "smsc2", ServiceCentres: []string{"15550000001"}, Nodes: []db.SMSCNode{node}}); !errors.Is(err, db.ErrSMSCConflict) {
+			t.Errorf("new SMSC with a %s: err = %v, want ErrSMSCConflict", name, err)
+		}
+
+		updated := smscGroup
+		updated.Nodes = append(slices.Clone(smscGroup.Nodes), node)
+
+		if err := f.db.UpdateSMSC(ctx, &updated); !errors.Is(err, db.ErrSMSCConflict) {
+			t.Errorf("SMSC node added with a %s: err = %v, want ErrSMSCConflict", name, err)
+		}
 	}
 
 	if err := f.db.UpdateRoamingDiameterPeer(ctx, &db.RoamingDiameterPeer{ID: roamingPeerID, DiameterIdentity: "hss.example.org", Address: "10.0.0.7", Port: 3869}); err != nil {

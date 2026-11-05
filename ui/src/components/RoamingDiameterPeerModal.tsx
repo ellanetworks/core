@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
-import { diameterIdentityRegex } from "@/components/SMSCPeerModal";
+import { diameterIdentityRegex } from "@/components/SMSCModal";
 import { isHostAddress } from "@/utils/ip";
 
 interface RoamingDiameterPeerModalProps {

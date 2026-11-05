@@ -237,18 +237,18 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		cause := fgs.GSMCauseRequestRejectedUnspecified
 
 		switch {
-		case errors.Is(err, errUEAddressAllocation):
+		case errors.Is(err, ErrDatapathCapacity), errors.Is(err, errUEAddressAllocation):
 			cause = fgs.GSMCauseInsufficientResources
 		case errors.Is(err, errSessionIdentity):
 			cause = fgs.GSMCauseInvalidPDUSessionIdentity
 		}
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentRejectWithBackoff(fgs.PDUSessionID(pduSessionID), reqPTI, cause, capacityBackoff(ctx, err, requestType))
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("failed to create SM Context: %v (build reject failed: %v)", err, buildErr)
 		}
 
-		return "", rsp, fmt.Errorf("failed to create SM Context: %v", err)
+		return "", rsp, fmt.Errorf("failed to create SM Context: %w", err)
 	}
 
 	// IPv4v6 narrowed to a single family is signalled in the accept with 5GSM

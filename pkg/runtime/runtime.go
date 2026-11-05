@@ -64,6 +64,7 @@ import (
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
@@ -463,10 +464,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	cp := newControlPlane(ctx, dbInstance, raftID)
+	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.DefaultMaxSessions))
 	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
-	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
+	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
@@ -624,25 +625,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	imsProfiles := newIMSProfileNotifier(dbInstance, hssInstance)
 	go imsProfiles.run(ctx)
 
-	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
-		DB:                  dbInstance,
-		Sessions:            smfInstance,
-		AMF:                 amfInstance,
-		MME:                 mmeInstance,
-		HSS:                 hssInstance,
-		IMSProfiles:         imsProfiles,
-		BGP:                 bgpService,
-		LMF:                 lmfInstance,
-		Diameter:            diameterNode,
-		SEPP:                seppManager,
-		EmbedFS:             rc.EmbedFS,
-		RegisterExtraRoutes: rc.RegisterExtraRoutes,
-		ClusterListener:     clusterLn,
-		DatapathAttachMode:  upfInstance.DatapathAttachMode,
-	}); err != nil {
-		return fmt.Errorf("couldn't upgrade API: %w", err)
-	}
-
 	drainWakeup, stopDrainWakeup := dbInstance.Changefeed().Wakeup(db.TopicClusterMembers)
 	defer stopDrainWakeup()
 
@@ -676,6 +658,25 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	mmeServer.Serve(ctx, s1apListener)
+
+	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
+		DB:                  dbInstance,
+		Sessions:            smfInstance,
+		AMF:                 amfInstance,
+		MME:                 mmeInstance,
+		HSS:                 hssInstance,
+		IMSProfiles:         imsProfiles,
+		BGP:                 bgpService,
+		LMF:                 lmfInstance,
+		Diameter:            diameterNode,
+		SEPP:                seppManager,
+		EmbedFS:             rc.EmbedFS,
+		RegisterExtraRoutes: rc.RegisterExtraRoutes,
+		ClusterListener:     clusterLn,
+		DatapathAttachMode:  upfInstance.DatapathAttachMode,
+	}); err != nil {
+		return fmt.Errorf("couldn't upgrade API: %w", err)
+	}
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
 		return amfInstance.ExportUEs(ctx)
@@ -1323,6 +1324,36 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		return nil, err
 	}
 
+	if len(dbLeases) == 0 {
+		return []bgp.Lease{}, nil
+	}
+
+	framedRows, err := a.db.ListAllFramedRoutes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return bgpLeases(dbLeases, framedRows), nil
+}
+
+type framedRouteOwner struct {
+	imsi          string
+	dataNetworkID string
+}
+
+func bgpLeases(dbLeases []db.IPLease, framedRows []db.SubscriberFramedRoute) []bgp.Lease {
+	framedByOwner := make(map[framedRouteOwner][]netip.Prefix)
+
+	for i := range framedRows {
+		p, err := netip.ParsePrefix(framedRows[i].Prefix)
+		if err != nil {
+			continue
+		}
+
+		owner := framedRouteOwner{imsi: framedRows[i].Imsi, dataNetworkID: framedRows[i].DataNetworkID}
+		framedByOwner[owner] = append(framedByOwner[owner], p)
+	}
+
 	out := make([]bgp.Lease, 0, len(dbLeases))
 
 	for _, l := range dbLeases {
@@ -1333,17 +1364,14 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 
 		// The lease's poolID is the data network ID, so the subscriber's framed
 		// routes on that data network advertise from this anchor node (§6.4).
-		framedRows, err := a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, l.IMSI, l.PoolID)
-		if err != nil {
-			return nil, err
-		}
+		owned := framedByOwner[framedRouteOwner{imsi: l.IMSI, dataNetworkID: l.PoolID}]
 
 		// Same family only: the UPF installs a framed route only for a same-family
 		// session, so advertising the other family would blackhole it.
-		framed := make([]netip.Prefix, 0, len(framedRows))
+		framed := make([]netip.Prefix, 0, len(owned))
 
-		for i := range framedRows {
-			if p, perr := netip.ParsePrefix(framedRows[i].Prefix); perr == nil && p.Addr().Is4() == addr.Is4() {
+		for _, p := range owned {
+			if p.Addr().Is4() == addr.Is4() {
 				framed = append(framed, p)
 			}
 		}
@@ -1351,7 +1379,7 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		out = append(out, bgp.Lease{Address: addr, IMSI: l.IMSI, FramedRoutes: framed})
 	}
 
-	return out, nil
+	return out
 }
 
 func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 netip.Addr) {
@@ -1425,20 +1453,20 @@ func sctpLogger(log *zap.Logger, name string) *slog.Logger {
 
 func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 	return func(ctx context.Context) ([]diameternode.PeerConfig, error) {
-		smscPeers, err := dbInstance.ListSMSCPeers(ctx)
+		smscs, err := dbInstance.ListSMSCs(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		peers := make([]diameternode.PeerConfig, 0, len(smscPeers))
+		var peers []diameternode.PeerConfig
 
-		for _, p := range smscPeers {
-			peer, err := smsf.SMSCPeer(p)
+		for _, smsc := range smscs {
+			nodes, err := smsf.SMSCPeers(smsc)
 			if err != nil {
 				return nil, err
 			}
 
-			peers = append(peers, peer)
+			peers = append(peers, nodes...)
 		}
 
 		roamingPeers, err := dbInstance.ListRoamingDiameterPeers(ctx)
@@ -1636,7 +1664,7 @@ type controlPlane struct {
 	registrations *ueregistration.Registry
 }
 
-func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string) *controlPlane {
+func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string, smfOpts ...smf.Option) *controlPlane {
 	// Create SMF with dependency-injected adapters.
 	pcfInstance := pcf.New(dbInstance, logger.PcfLog)
 	smfStore := &smfDBAdapter{db: dbInstance}
@@ -1645,7 +1673,7 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	n26 := roaming.NewN26(dbInstance)
 	vsmf := roaming.NewVSMF(logger.SmfLog)
 
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(smfSubscriptions{Subscriptions: subscriptions, n26: n26}), smf.WithHPLMNClient(vsmf))
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, append([]smf.Option{smf.WithSubscriptions(smfSubscriptions{Subscriptions: subscriptions, n26: n26}), smf.WithHPLMNClient(vsmf)}, smfOpts...)...)
 	pcfInstance.SetEnforcer(smfInstance)
 	vsmf.SetSessions(smfInstance)
 

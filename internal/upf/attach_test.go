@@ -7,6 +7,7 @@ package upf
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -17,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"golang.org/x/sys/unix"
 )
 
 const tcxTestDev = "elltcx0"
@@ -144,4 +146,22 @@ func TestTCXAttachRefusesToStack(t *testing.T) {
 	}
 
 	warnMergedPacketSources(tcxTestDev)
+}
+
+func TestDriverRefusedXDP(t *testing.T) {
+	cases := []struct {
+		err  error
+		want bool
+	}{
+		{fmt.Errorf("create link: %w", unix.EOPNOTSUPP), true},
+		{fmt.Errorf("create link: %w", unix.EINVAL), true},
+		{fmt.Errorf("create link: %w", unix.EPERM), false},
+		{fmt.Errorf("create link: %w", unix.EBUSY), false},
+	}
+
+	for _, tc := range cases {
+		if got := driverRefusedXDP(tc.err); got != tc.want {
+			t.Errorf("driverRefusedXDP(%v) = %v, want %v", tc.err, got, tc.want)
+		}
+	}
 }

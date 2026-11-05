@@ -28,9 +28,10 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return nasreply.Silent(nasreply.ReasonIntegrityFail)
 	}
 
-	defer ue.Deregister(ctx, ue.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseDeregistration)))
-
 	ueConn := ue.Conn()
+
+	ue.Deregister(ctx, ue.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseDeregistration)))
+
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command")
 		return nasreply.Handled()

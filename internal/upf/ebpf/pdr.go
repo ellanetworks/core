@@ -24,11 +24,13 @@ import (
 	"fmt"
 	"net/netip"
 	"runtime"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -351,12 +353,35 @@ type SdfFilterList struct {
 func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 	zeroVals := make([]N3N6EntrypointUrrCounters, runtime.NumCPU())
 
-	err := bpfObjects.putTracked(bpfObjects.UrrMap, MapURR, N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, zeroVals)
+	err := retryTransientENOMEM(func() error {
+		return bpfObjects.putTracked(bpfObjects.UrrMap, MapURR, N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, zeroVals)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to put urr id %d: %w", id, err)
 	}
 
 	return nil
+}
+
+const (
+	transientENOMEMRetries = 3
+	transientENOMEMBackoff = 50 * time.Microsecond
+)
+
+func retryTransientENOMEM(put func() error) error {
+	err := put()
+
+	for range transientENOMEMRetries {
+		if !errors.Is(err, unix.ENOMEM) {
+			return err
+		}
+
+		time.Sleep(transientENOMEMBackoff)
+
+		err = put()
+	}
+
+	return err
 }
 
 func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {

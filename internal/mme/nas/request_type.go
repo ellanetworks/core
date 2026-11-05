@@ -6,7 +6,9 @@ package nas
 import (
 	"errors"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -37,6 +39,10 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 		return transferRejectCause(err)
 	}
 
+	if datapathCapacityExhausted(err) {
+		return eps.ESMCauseInsufficientResources
+	}
+
 	if pdnType, ok := errors.AsType[*models.PDNTypeError](err); ok {
 		return pdnType.Cause
 	}
@@ -46,4 +52,25 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 	}
 
 	return eps.ESMCauseRequestRejectedUnspecified
+}
+
+func datapathCapacityExhausted(err error) bool {
+	return errors.Is(err, models.ErrDatapathCapacity)
+}
+
+func capacityBackoff(ueConn *mme.UeConn, t eps.RequestType, err error) *nas.GPRSTimer3 {
+	if t == eps.RequestTypeHandover || !datapathCapacityExhausted(err) {
+		return nil
+	}
+
+	if t == eps.RequestTypeEmergency || t == eps.RequestTypeHandoverOfEmergencyBearerServices || ueConn.MayBeHighPriorityAccess() {
+		return nil
+	}
+
+	timer, tErr := nas.GPRSTimer3FromDuration(models.DatapathCapacityBackoff)
+	if tErr != nil {
+		return nil
+	}
+
+	return &timer
 }

@@ -24,6 +24,7 @@ const (
 	ieiNewEPSQoS              uint8 = 0x5B
 	ieiRequiredTrafficFlowQoS uint8 = 0x5B
 	ieiAPNAMBR                uint8 = 0x5E
+	ieiBackoffTimerValue      uint8 = 0x37
 )
 
 // These IE codecs produce/consume the *value part* of an information element

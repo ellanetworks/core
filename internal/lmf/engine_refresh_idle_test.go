@@ -26,6 +26,10 @@ func (c *countingNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error)
 	return len(b), nil
 }
 
+func (c *countingNGAPSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
+}
+
 // provisionOperator sets the PLMN, AMF identity and served TAC the AMF needs to build a
 // Paging message.
 func provisionOperator(t *testing.T, database *db.Database) {

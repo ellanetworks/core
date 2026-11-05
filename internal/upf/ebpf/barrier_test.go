@@ -40,3 +40,27 @@ func TestProgramBarrierFailsAfterClose(t *testing.T) {
 		t.Fatal("wait succeeded on a closed barrier")
 	}
 }
+
+func TestProgramBarrierSurvivesCloseAndReload(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := NewBpfObjects(true, true, false, 0, 1, 0, 0)
+	if err := obj.Load(); err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	if err := obj.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	obj.UseTCX = true
+	if err := obj.Load(); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+
+	t.Cleanup(func() { _ = obj.Close() })
+
+	if err := obj.Programs.Wait(); err != nil {
+		t.Fatalf("wait after reload: %v", err)
+	}
+}

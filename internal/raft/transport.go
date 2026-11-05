@@ -57,7 +57,17 @@ func clusterTransportFactory(ln *listener.Listener, cfg ClusterConfig) (hraft.Tr
 		return nil, err
 	}
 
-	return hraft.NewNetworkTransportWithLogger(sl, 3, 10*time.Second, newZapRaftSubLogger("transport")), nil
+	return hraft.NewNetworkTransportWithConfig(clusterTransportConfig(sl)), nil
+}
+
+func clusterTransportConfig(stream hraft.StreamLayer) *hraft.NetworkTransportConfig {
+	return &hraft.NetworkTransportConfig{
+		Stream:          stream,
+		MaxPool:         3,
+		MaxRPCsInFlight: 1,
+		Timeout:         10 * time.Second,
+		Logger:          newZapRaftSubLogger("transport"),
+	}
 }
 
 // ManagerOption configures optional behaviour of NewManager.

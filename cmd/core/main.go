@@ -9,14 +9,23 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	goruntime "runtime"
 	"syscall"
 
 	"github.com/ellanetworks/core/pkg/runtime"
 	"github.com/ellanetworks/core/ui"
 )
 
+const (
+	mutexProfileFraction = 100
+	blockProfileRateNs   = 1_000_000
+)
+
 func main() {
 	log.SetOutput(os.Stderr)
+
+	goruntime.SetMutexProfileFraction(mutexProfileFraction)
+	goruntime.SetBlockProfileRate(blockProfileRateNs)
 
 	configFilePtr := flag.String("config", "", "The config file to be provided to the server")
 

@@ -6,7 +6,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -135,20 +137,24 @@ func TestMigrationV26PreservesExistingData(t *testing.T) {
 	}
 
 	for query, want := range map[string]int{
-		"SELECT COUNT(*) FROM subscribers":                                                                 2,
-		"SELECT COUNT(*) FROM daily_usage":                                                                 1,
-		"SELECT COUNT(*) FROM ue_registrations":                                                            1,
-		"SELECT COUNT(*) FROM ip_leases":                                                                   1,
-		"SELECT COUNT(*) FROM flow_reports":                                                                1,
-		"SELECT COUNT(*) FROM diameter_peers WHERE role = 'smsc'":                                          1,
-		"SELECT COUNT(*) FROM sms_smsc_service_centres":                                                    1,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_subscribers_msisdn'":      1,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_diameter_peers_identity'": 1,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_leases_pool', 'idx_leases_imsi', 'idx_leases_session', 'idx_leases_node')": 4,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_ue_registrations_node'":                                                      1,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_flow_reports_%'":                                                          5,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_visitors_partner'":                                                           1,
-		"SELECT COUNT(*) FROM pragma_foreign_key_check":                                                                                                       0,
+		"SELECT COUNT(*) FROM subscribers":                                                 2,
+		"SELECT COUNT(*) FROM daily_usage":                                                 1,
+		"SELECT COUNT(*) FROM ue_registrations":                                            1,
+		"SELECT COUNT(*) FROM ip_leases":                                                   1,
+		"SELECT COUNT(*) FROM flow_reports":                                                1,
+		"SELECT COUNT(*) FROM diameter_peers WHERE role = 'smsc' AND smscId = 'smsc-1'":    1,
+		"SELECT COUNT(*) FROM sms_smscs WHERE id = 'smsc-1' AND name = 'smsc.example.org'": 1,
+		"SELECT COUNT(*) FROM sms_smsc_service_centres WHERE smscId = 'smsc-1'":            1,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_diameter_peers_smsc', 'idx_sms_smscs_name', 'idx_sms_smsc_service_centres_smsc')": 3,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_ue_registrations_version'":                                                          1,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_daily_usage_imsi'":                                                                  0,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_subscribers_msisdn'":                                                                1,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_diameter_peers_identity'":                                                           1,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('idx_leases_pool', 'idx_leases_imsi', 'idx_leases_session', 'idx_leases_node')":        4,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_ue_registrations_node'":                                                             1,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_flow_reports_%'":                                                                 5,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_visitors_partner'":                                                                  1,
+		"SELECT COUNT(*) FROM pragma_foreign_key_check":                                                                                                              0,
 	} {
 		if got := countRows(t, conn, query); got != want {
 			t.Errorf("%s = %d, want %d", query, got, want)
@@ -159,10 +165,23 @@ func TestMigrationV26PreservesExistingData(t *testing.T) {
 		VALUES ('s3', '001010000000003', '000000000003', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', 'pr', '15550001')`)
 	mustFail(t, conn, `INSERT INTO diameter_peers (id, role, diameterIdentity, address, port) VALUES ('dup', 'roaming', 'SMSC.example.org', '10.0.0.6', 3868)`)
 
-	mustExec(t, conn, "DELETE FROM diameter_peers WHERE id = 'smsc-1'")
+	mustFail(t, conn, `INSERT INTO diameter_peers (id, role, diameterIdentity, address, port) VALUES ('node-2', 'smsc', 'smsc2.example.org', '10.0.0.6', 3868)`)
+	mustFail(t, conn, `INSERT INTO diameter_peers (id, role, diameterIdentity, address, port, smscId) VALUES ('hss', 'roaming', 'hss.example.org', '10.0.0.7', 3868, 'smsc-1')`)
+	mustFail(t, conn, `INSERT INTO diameter_peers (id, role, diameterIdentity, address, port, smscId) VALUES ('node-3', 'smsc', 'smsc3.example.org', '10.0.0.8', 3868, 'missing')`)
+	mustExec(t, conn, `INSERT INTO diameter_peers (id, role, diameterIdentity, address, port, smscId) VALUES ('node-2', 'smsc', 'smsc2.example.org', '10.0.0.6', 3868, 'smsc-1')`)
+	mustExec(t, conn, `INSERT INTO diameter_peers (id, role, diameterIdentity, address, port) VALUES ('hss', 'roaming', 'hss.example.org', '10.0.0.7', 3868)`)
 
-	if got := countRows(t, conn, "SELECT COUNT(*) FROM sms_smsc_service_centres"); got != 0 {
-		t.Errorf("service centres after SMSC peer delete = %d, want 0", got)
+	mustExec(t, conn, "DELETE FROM sms_smscs WHERE id = 'smsc-1'")
+
+	for query, want := range map[string]int{
+		"SELECT COUNT(*) FROM sms_smsc_service_centres":           0,
+		"SELECT COUNT(*) FROM diameter_peers WHERE role = 'smsc'": 0,
+		"SELECT COUNT(*) FROM diameter_peers WHERE id = 'hss'":    1,
+		"SELECT COUNT(*) FROM pragma_foreign_key_check":           0,
+	} {
+		if got := countRows(t, conn, query); got != want {
+			t.Errorf("after SMSC delete: %s = %d, want %d", query, got, want)
+		}
 	}
 
 	var epochDay, uplink, downlink int64
@@ -273,4 +292,94 @@ func TestMigrationV26EnforcesRoamingConstraints(t *testing.T) {
 	mustFail(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('', 'key')`)
 	mustExec(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('cert', 'key')`)
 	mustFail(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('cert2', 'key2')`)
+}
+
+func TestMigrationV26MovesSMSCPeersToSMSCNodes(t *testing.T) {
+	ctx := context.Background()
+	d := newDatabaseAtVersion(t, 25)
+
+	peers := []legacySMSCPeer{
+		{ID: "01890000-0000-7000-8000-000000000001", DiameterIdentity: "10.0.0.1", Address: "192.0.2.9", Port: 3868, ServiceCentres: []string{"15550000000", "15550000001"}},
+		{ID: "01890000-0000-7000-8000-000000000002", Address: "10.0.0.1", Port: 3868, ServiceCentres: []string{"15550000002"}},
+		{ID: "01890000-0000-7000-8000-000000000003", DiameterIdentity: "smsc.example.org", Address: "10.0.0.1", Port: 3869, ServiceCentres: []string{"15550000003"}},
+	}
+
+	for _, p := range peers {
+		if _, err := d.applyCreateSMSCPeer(ctx, &p); err != nil {
+			t.Fatalf("create legacy SMSC peer %s: %v", p.ID, err)
+		}
+	}
+
+	want := []SMSC{
+		{ID: peers[0].ID, Name: "10.0.0.1", ServiceCentres: []string{"15550000000", "15550000001"}, Nodes: []SMSCNode{{ID: peers[0].ID, DiameterIdentity: "10.0.0.1", Address: "192.0.2.9", Port: 3868}}},
+		{ID: peers[1].ID, Name: "10.0.0.1 (2)", ServiceCentres: []string{"15550000002"}, Nodes: []SMSCNode{{ID: peers[1].ID, Address: "10.0.0.1", Port: 3868}}},
+		{ID: peers[2].ID, Name: "smsc.example.org", ServiceCentres: []string{"15550000003"}, Nodes: []SMSCNode{{ID: peers[2].ID, DiameterIdentity: "smsc.example.org", Address: "10.0.0.1", Port: 3869}}},
+	}
+
+	assertSMSCs(t, d, "at v25", want)
+
+	smsc := SMSC{ID: "01890000-0000-7000-8000-0000000000aa", Name: "new", ServiceCentres: []string{"15550000009"}, Nodes: []SMSCNode{{ID: "01890000-0000-7000-8000-0000000000ab", Address: "192.0.2.10", Port: 3868}}}
+	if err := d.CreateSMSC(ctx, &smsc); !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("CreateSMSC at v25 = %v, want ErrMigrationPending", err)
+	}
+
+	migrateTestDatabase(t, d, 26)
+
+	assertSMSCs(t, d, "at v26", want)
+
+	if roaming, err := d.ListRoamingDiameterPeers(ctx); err != nil || len(roaming) != 0 {
+		t.Fatalf("roaming Diameter peers after v26 = %+v, %v, want none: SMSC nodes are not roaming peers", roaming, err)
+	}
+
+	if _, err := d.applyCreateSMSCPeer(ctx, &legacySMSCPeer{ID: "01890000-0000-7000-8000-000000000004", Address: "192.0.2.4", Port: 3868, ServiceCentres: []string{"15550000004"}}); !errors.Is(err, ErrRetiredOperation) {
+		t.Fatalf("legacy CreateSMSCPeer at v26 = %v, want ErrRetiredOperation", err)
+	}
+
+	second := SMSCNode{ID: "01890000-0000-7000-8000-0000000000ac", DiameterIdentity: "smsc2.example.org", Address: "10.0.0.2", Port: 3869}
+	updated := want[2]
+	updated.Nodes = append(slices.Clone(updated.Nodes), second)
+
+	if _, err := d.applyUpdateSMSC(ctx, &updated); err != nil {
+		t.Fatalf("add a node to a migrated SMSC: %v", err)
+	}
+
+	if _, err := d.applyDeleteSMSC(ctx, &stringPayload{Value: peers[0].ID}); err != nil {
+		t.Fatalf("delete a migrated SMSC: %v", err)
+	}
+
+	assertSMSCs(t, d, "after edits", []SMSC{want[1], updated})
+
+	var orphans int
+	if err := d.PlainDB().QueryRowContext(ctx, "SELECT COUNT(*) FROM sms_smsc_service_centres WHERE smscId = ?", peers[0].ID).Scan(&orphans); err != nil || orphans != 0 {
+		t.Fatalf("service centres of the deleted SMSC = %d, %v, want none", orphans, err)
+	}
+}
+
+func assertSMSCs(t *testing.T, d *Database, label string, want []SMSC) {
+	t.Helper()
+
+	got, err := d.ListSMSCs(context.Background())
+	if err != nil {
+		t.Fatalf("ListSMSCs %s: %v", label, err)
+	}
+
+	if !slices.EqualFunc(got, want, func(x, y SMSC) bool {
+		return x.ID == y.ID && x.Name == y.Name && slices.Equal(x.ServiceCentres, y.ServiceCentres) && slices.Equal(x.Nodes, y.Nodes)
+	}) {
+		t.Fatalf("SMSCs %s = %+v, want %+v", label, got, want)
+	}
+}
+
+func migrateTestDatabase(t *testing.T, d *Database, version int) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	if err := runMigrations(ctx, d.PlainDB(), version); err != nil {
+		t.Fatalf("runMigrations(%d): %v", version, err)
+	}
+
+	if err := d.refreshAppliedSchema(ctx); err != nil {
+		t.Fatalf("refresh applied schema: %v", err)
+	}
 }

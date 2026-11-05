@@ -161,7 +161,15 @@ func (e ConnectionError) Unwrap() error {
 
 func (rq *defaultRequester) dispatch(ctx context.Context, opts *RequestOptions) (*http.Response, error) {
 	u := rq.baseURL
-	u.Path = path.Join(rq.baseURL.Path, opts.Path)
+
+	escaped := path.Join(rq.baseURL.EscapedPath(), opts.Path)
+
+	unescaped, err := url.PathUnescape(escaped)
+	if err != nil {
+		return nil, RequestError{err}
+	}
+
+	u.Path, u.RawPath = unescaped, escaped
 	u.RawQuery = opts.Query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, opts.Method, u.String(), opts.Body)

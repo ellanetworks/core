@@ -90,7 +90,7 @@ func (c *Client) GetProfile(ctx context.Context, opts *GetProfileOptions) (*Prof
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/profiles/" + opts.Name,
+		Path:   "api/v1/profiles/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (c *Client) UpdateProfile(ctx context.Context, name string, opts *UpdatePro
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/profiles/" + name,
+		Path:   "api/v1/profiles/" + url.PathEscape(name),
 		Body:   &body,
 	})
 	if err != nil {
@@ -133,7 +133,7 @@ func (c *Client) DeleteProfile(ctx context.Context, opts *DeleteProfileOptions) 
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/profiles/" + opts.Name,
+		Path:   "api/v1/profiles/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return err

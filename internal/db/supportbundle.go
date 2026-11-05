@@ -296,11 +296,11 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["sms_settings"] = sections["sms_settings"].WithCount(1)
 	}
 
-	if smscPeers, err := db.ListSMSCPeers(ctx); err != nil {
-		failure("diameter_peers", err)
+	if smscs, err := db.ListSMSCs(ctx); err != nil {
+		failure("smscs", err)
 	} else {
-		out["diameter_peers"] = smscPeers
-		sections["diameter_peers"] = sections["diameter_peers"].WithCount(len(smscPeers))
+		out["smscs"] = smscs
+		sections["smscs"] = sections["smscs"].WithCount(len(smscs))
 	}
 
 	db.collectSupportRoaming(ctx, out, sections, failure)

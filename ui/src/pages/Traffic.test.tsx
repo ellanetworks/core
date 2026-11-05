@@ -607,6 +607,51 @@ describe("Traffic usage query", () => {
   });
 });
 
+describe("Traffic per-subscriber usage cap", () => {
+  const capped = usageBySubscriber(
+    Object.fromEntries(
+      Array.from({ length: 1000 }, (_, i) => [
+        `00101${String(i + 1).padStart(10, "0")}`,
+        (1000 - i) * 1000,
+      ]),
+    ),
+  );
+
+  const notice = /subscribers with the\s+most usage/;
+
+  it("asks for a bounded number of subscribers", async () => {
+    await renderTraffic("/traffic/usage");
+    await waitFor(() =>
+      expect(
+        api
+          .requests(USAGE_PATH)
+          .some((r) => r.params.get("group_by") === "subscriber"),
+      ).toBe(true),
+    );
+
+    const bySubscriber = api
+      .requests(USAGE_PATH)
+      .filter((r) => r.params.get("group_by") === "subscriber");
+    expect(bySubscriber.map((r) => r.params.get("limit"))).not.toContain(null);
+  });
+
+  it("says the list is capped when the cap is reached", async () => {
+    seedApi({ usageBySub: capped });
+    await renderTraffic("/traffic/usage");
+
+    expect(await screen.findByText(notice)).toBeTruthy();
+  });
+
+  it("does not claim a cap below it", async () => {
+    await renderTraffic("/traffic/usage");
+    await waitFor(() =>
+      expect(screen.getAllByText(IMSI_A).length).toBeGreaterThan(0),
+    );
+
+    expect(screen.queryByText(notice)).toBeNull();
+  });
+});
+
 describe("Traffic usage pagination", () => {
   const manyUsage = usageBySubscriber(
     Object.fromEntries(

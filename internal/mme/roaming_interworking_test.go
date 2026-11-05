@@ -93,7 +93,7 @@ func TestForwardRelocationAdmitsAVisitorOfAPartnerWithBothAgreements(t *testing.
 		t.Fatal("the Handover Notify did not match the prepared handover")
 	}
 
-	if _, _, _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
+	if _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
 		t.Fatal("the handover did not commit")
 	}
 

@@ -4,7 +4,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from "react";
 import PageTitle from "@/components/PageTitle";
 import {
-  Autocomplete,
   Box,
   Button,
   Typography,
@@ -43,6 +42,7 @@ import {
   type UsageRetentionPolicy,
   type DailySubscriberUsage,
   type PerSubscriberUsage,
+  USAGE_SUBSCRIBER_LIMIT,
 } from "@/queries/usage";
 import {
   listFlowReports,
@@ -60,7 +60,7 @@ import {
   type FlowAccountingInfo,
 } from "@/queries/flow_accounting";
 import { useAuth } from "@/contexts/AuthContext";
-import { listAllSubscriberImsis } from "@/queries/subscribers";
+import SubscriberSearchField from "@/components/SubscriberSearchField";
 import { listRoamerPartners } from "@/queries/roamers";
 import { formatPLMN } from "@/queries/roaming";
 import RoamingFilterField, {
@@ -290,7 +290,7 @@ const Traffic: React.FC = () => {
         end,
         selectedSubscriber,
         "subscriber",
-        undefined,
+        USAGE_SUBSCRIBER_LIMIT,
         roaming,
       );
     },
@@ -461,15 +461,6 @@ const Traffic: React.FC = () => {
     items.sort((a, b) => b.total_bytes - a.total_bytes);
     return items;
   }, [usagePerSubscriberData]);
-
-  // usageRows is filtered by selectedSubscriber and cannot supply the full
-  // option list.
-  const { data: subscriberOptions = [] } = useQuery<string[]>({
-    queryKey: ["subscriberImsis"],
-    queryFn: () => listAllSubscriberImsis(accessToken || ""),
-    enabled: !!accessToken,
-    placeholderData: (prev) => prev,
-  });
 
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usagePerDayData) return [];
@@ -990,21 +981,12 @@ const Traffic: React.FC = () => {
                     value={roamingFilter}
                     onChange={setRoamingFilter}
                   />
-                  <Autocomplete
-                    options={subscriberOptions}
-                    value={selectedSubscriber || null}
-                    onChange={(_event, value) =>
-                      setSelectedSubscriber(value ?? "")
-                    }
+                  <SubscriberSearchField
+                    value={selectedSubscriber}
+                    onChange={setSelectedSubscriber}
+                    placeholder="All subscribers"
                     size="small"
                     sx={{ minWidth: 240 }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Subscriber"
-                        placeholder="All subscribers"
-                      />
-                    )}
                   />
                 </Box>
                 <Box
@@ -1079,6 +1061,13 @@ const Traffic: React.FC = () => {
                 />
               </Box>
 
+              {usageRows.length >= USAGE_SUBSCRIBER_LIMIT && (
+                <Alert severity="info">
+                  Showing the {USAGE_SUBSCRIBER_LIMIT} subscribers with the most
+                  usage. Select a subscriber to see one not listed.
+                </Alert>
+              )}
+
               <EntityGrid<UsageRow>
                 rows={usageRows}
                 columns={usageColumns}
@@ -1127,21 +1116,12 @@ const Traffic: React.FC = () => {
                     ranges={tabRanges}
                     allowAnyTime={false}
                   />
-                  <Autocomplete
-                    options={subscriberOptions}
-                    value={selectedSubscriber || null}
-                    onChange={(_event, value) =>
-                      setSelectedSubscriber(value ?? "")
-                    }
+                  <SubscriberSearchField
+                    value={selectedSubscriber}
+                    onChange={setSelectedSubscriber}
+                    placeholder="All subscribers"
                     size="small"
                     sx={{ minWidth: 240 }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Subscriber"
-                        placeholder="All subscribers"
-                      />
-                    )}
                   />
                 </Box>
                 <Box

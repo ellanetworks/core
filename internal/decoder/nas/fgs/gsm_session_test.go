@@ -6,6 +6,7 @@ package fgs
 import (
 	"testing"
 
+	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -17,10 +18,15 @@ func TestDecodeGsmSession(t *testing.T) {
 	}{
 		{
 			name: "PDUSessionEstablishmentReject",
-			msg:  &fgs.PDUSessionEstablishmentReject{PDUSessionID: 1, PTI: 1, Cause: fgs.GSMCauseInsufficientResources},
+			msg:  &fgs.PDUSessionEstablishmentReject{PDUSessionID: 1, PTI: 1, Cause: fgs.GSMCauseInsufficientResources, BackoffTimer: &naslib.GPRSTimer3{Unit: naslib.GPRSTimer3Unit1Minute, Value: 1}},
 			want: func(t *testing.T, m *GsmMessage) {
-				if m.PDUSessionEstablishmentReject == nil || m.PDUSessionEstablishmentReject.Cause5GSM.Label == "" {
-					t.Errorf("establishment reject = %+v", m.PDUSessionEstablishmentReject)
+				r := m.PDUSessionEstablishmentReject
+				if r == nil || r.Cause5GSM.Label == "" {
+					t.Fatalf("establishment reject = %+v", r)
+				}
+
+				if r.BackoffTimer == nil || r.BackoffTimer.Seconds == nil || *r.BackoffTimer.Seconds != 60 {
+					t.Errorf("backoff timer = %+v, want 60 s", r.BackoffTimer)
 				}
 			},
 		},

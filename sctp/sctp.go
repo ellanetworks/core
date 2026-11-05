@@ -407,7 +407,9 @@ type SCTPConn struct {
 	writerDone   chan struct{}
 	writerStop   sync.Once
 	writerFlush  chan struct{}
+	enqueueMu    sync.RWMutex
 	writeCh      chan queuedWrite
+	pacedSlots   chan struct{}
 	writerExited chan struct{}
 	writeLogger  *slog.Logger
 }

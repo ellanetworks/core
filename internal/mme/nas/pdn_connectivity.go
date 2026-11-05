@@ -181,7 +181,8 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: session setup failed", zap.String("apn", apn), zap.Error(err))
 		m.DropPDN(ue, p.Ebi)
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), attachBearerRejectCause(ueConn.ESMRequest.Type, err))
+		rejectPDNConnectivityWithBackoff(ctx, ueConn, uint8(pti), attachBearerRejectCause(ueConn.ESMRequest.Type, err),
+			capacityBackoff(ueConn, ueConn.ESMRequest.Type, err))
 
 		return nasreply.Handled()
 	}
@@ -348,8 +349,13 @@ func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.
 // rejectPDNConnectivity refuses a PDN CONNECTIVITY REQUEST with an ESM cause
 // (TS 24.301 §6.5.1.4).
 func rejectPDNConnectivity(ctx context.Context, ueConn *mme.UeConn, pti uint8, cause eps.ESMCause) {
+	rejectPDNConnectivityWithBackoff(ctx, ueConn, pti, cause, nil)
+}
+
+func rejectPDNConnectivityWithBackoff(ctx context.Context, ueConn *mme.UeConn, pti uint8, cause eps.ESMCause, backoff *nas.GPRSTimer3) {
 	ueConn.SendDownlinkProtected(ctx, &eps.PDNConnectivityReject{
-		PTI:   nas.ProcedureTransactionIdentity(pti),
-		Cause: cause,
+		PTI:          nas.ProcedureTransactionIdentity(pti),
+		Cause:        cause,
+		BackoffTimer: backoff,
 	})
 }

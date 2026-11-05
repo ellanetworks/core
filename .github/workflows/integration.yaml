@@ -32,6 +32,7 @@ jobs:
     needs: discover
     env:
       ELLA_IMS_IMAGE: ghcr.io/ellanetworks/ella-ims:sha-e0f260f6fa2c
+      ELLA_SMSC_IMAGE: ghcr.io/ellanetworks/ella-smsc:sha-28c84f24146f
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
@@ -64,7 +65,7 @@ jobs:
 
       - name: Pull Ella SMSC image
         if: ${{ matrix.needs_smsc }}
-        run: docker pull ghcr.io/ellanetworks/ella-smsc:latest
+        run: docker pull "$ELLA_SMSC_IMAGE"
 
       - name: Pull Ella IMS image
         if: ${{ matrix.needs_ims }}

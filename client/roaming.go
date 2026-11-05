@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -169,7 +170,7 @@ func (c *Client) ListRoamingPartners(ctx context.Context) (*ListRoamingPartnersR
 func (c *Client) GetRoamingPartner(ctx context.Context, id string) (*RoamingPartner, error) {
 	var partner RoamingPartner
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/partners/"+id, nil, &partner); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/partners/"+url.PathEscape(id), nil, &partner); err != nil {
 		return nil, err
 	}
 
@@ -187,17 +188,17 @@ func (c *Client) CreateRoamingPartner(ctx context.Context, opts *RoamingPartnerO
 }
 
 func (c *Client) UpdateRoamingPartner(ctx context.Context, id string, opts *RoamingPartnerOptions) error {
-	return c.roamingDoWithin(ctx, "PUT", "api/v1/operator/roaming/partners/"+id, opts, nil, withdrawalTimeout)
+	return c.roamingDoWithin(ctx, "PUT", "api/v1/operator/roaming/partners/"+url.PathEscape(id), opts, nil, withdrawalTimeout)
 }
 
 func (c *Client) DeleteRoamingPartner(ctx context.Context, id string) error {
-	return c.roamingDoWithin(ctx, "DELETE", "api/v1/operator/roaming/partners/"+id, nil, nil, withdrawalTimeout)
+	return c.roamingDoWithin(ctx, "DELETE", "api/v1/operator/roaming/partners/"+url.PathEscape(id), nil, nil, withdrawalTimeout)
 }
 
 func (c *Client) RehandshakeRoamingPartner(ctx context.Context, id string) (*RoamingPartnerHandshake, error) {
 	var st RoamingPartnerHandshake
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/partners/"+id+"/handshake", nil, &st); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/partners/"+url.PathEscape(id)+"/handshake", nil, &st); err != nil {
 		return nil, err
 	}
 
@@ -227,7 +228,7 @@ func (c *Client) ListRoamingDiameterPeers(ctx context.Context) (*ListRoamingDiam
 func (c *Client) GetRoamingDiameterPeer(ctx context.Context, id string) (*RoamingDiameterPeer, error) {
 	var peer RoamingDiameterPeer
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/diameter-peers/"+id, nil, &peer); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/diameter-peers/"+url.PathEscape(id), nil, &peer); err != nil {
 		return nil, err
 	}
 
@@ -245,11 +246,11 @@ func (c *Client) CreateRoamingDiameterPeer(ctx context.Context, opts *RoamingDia
 }
 
 func (c *Client) UpdateRoamingDiameterPeer(ctx context.Context, id string, opts *RoamingDiameterPeerOptions) error {
-	return c.roamingDo(ctx, "PUT", "api/v1/operator/roaming/diameter-peers/"+id, opts, nil)
+	return c.roamingDo(ctx, "PUT", "api/v1/operator/roaming/diameter-peers/"+url.PathEscape(id), opts, nil)
 }
 
 func (c *Client) DeleteRoamingDiameterPeer(ctx context.Context, id string) error {
-	return c.roamingDo(ctx, "DELETE", "api/v1/operator/roaming/diameter-peers/"+id, nil, nil)
+	return c.roamingDo(ctx, "DELETE", "api/v1/operator/roaming/diameter-peers/"+url.PathEscape(id), nil, nil)
 }
 
 func seppCertificatePath(seppID int) string {

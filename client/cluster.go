@@ -129,7 +129,7 @@ func (c *Client) DrainClusterMember(ctx context.Context, nodeID NodeID) (*DrainR
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%s/drain", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/drain", url.PathEscape(string(nodeID))),
 	})
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func (c *Client) ResumeClusterMember(ctx context.Context, nodeID NodeID) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%s/resume", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/resume", url.PathEscape(string(nodeID))),
 	})
 
 	return err
@@ -168,7 +168,7 @@ func (c *Client) SetClusterMemberDisplayName(ctx context.Context, nodeID NodeID,
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%s/display-name", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/display-name", url.PathEscape(string(nodeID))),
 		Body:   &body,
 	})
 	if err != nil {
@@ -182,7 +182,7 @@ func (c *Client) PromoteClusterMember(ctx context.Context, nodeID NodeID) error 
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%s/promote", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/promote", url.PathEscape(string(nodeID))),
 	})
 	if err != nil {
 		return err
@@ -206,7 +206,7 @@ func (c *Client) RemoveClusterMember(ctx context.Context, nodeID NodeID, force b
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%s", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s", url.PathEscape(string(nodeID))),
 		Query:  query,
 	})
 	if err != nil {

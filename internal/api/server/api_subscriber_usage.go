@@ -31,6 +31,8 @@ type UpdateSubscriberUsageRetentionPolicyParams struct {
 
 const MaxUsageDays = 11000
 
+const MaxUsageSubscriberLimit = 1000
+
 type DailySubscriberUsage struct {
 	Date          string `json:"date"`
 	UplinkBytes   int64  `json:"uplink_bytes"`
@@ -134,7 +136,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		limit := db.NoUsageLimit
+		limit := int64(MaxUsageSubscriberLimit)
 
 		if raw := q.Get("limit"); raw != "" {
 			if groupBy != "subscriber" {
@@ -143,8 +145,8 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 			}
 
 			parsed, err := strconv.ParseInt(raw, 10, 64)
-			if err != nil || parsed < 1 || parsed > MaxNumSubscribers {
-				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", MaxNumSubscribers), nil, logger.APILog)
+			if err != nil || parsed < 1 || parsed > MaxUsageSubscriberLimit {
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", MaxUsageSubscriberLimit), nil, logger.APILog)
 				return
 			}
 

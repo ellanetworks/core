@@ -67,6 +67,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	dn := req.DN
 
 	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
+	if errors.Is(err, ErrDatapathCapacity) {
+		return nil, err
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errSessionIdentity, err)
 	}
@@ -172,6 +176,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	s.indexSEID(sc, seid)
 
 	if err := s.establishPFCPSession(ctx, sc); err != nil {
+		if errors.Is(err, ErrDatapathCapacity) {
+			return nil, fmt.Errorf("%w: %w", errUPFSession, err)
+		}
+
 		return nil, fmt.Errorf("%w: %v", errUPFSession, err)
 	}
 
@@ -320,6 +328,10 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to establish PFCP session")
+
+		if datapathFull(err) {
+			return fmt.Errorf("%w: failed to send PFCP session establishment request: %w", ErrDatapathCapacity, err)
+		}
 
 		return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 	}

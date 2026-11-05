@@ -447,6 +447,7 @@ func (e *ENB) gtpReader() {
 		if t == nil {
 			if _, watched := e.watchedTEIDs[teid]; watched {
 				e.watchedTEIDs[teid]++
+				e.countDownlinkUDPLocked(teid, gtpInnerPacket(buf[:n]))
 			}
 		}
 		e.mu.Unlock()
@@ -499,5 +500,80 @@ func (e *ENB) gtpReader() {
 		if _, err := t.tunIF.Write(buf[start:n]); err != nil {
 			logger.GnbLogger.Error("s1enb: write to TUN failed", zap.Error(err))
 		}
+	}
+}
+
+func (e *ENB) DownlinkUDPCount(teid uint32, port uint16) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.downlinkUDP[teid][port]
+}
+
+func (e *ENB) countDownlinkUDPLocked(teid uint32, packet []byte) {
+	port, ok := udpDestinationPort(packet)
+	if !ok {
+		return
+	}
+
+	if e.downlinkUDP == nil {
+		e.downlinkUDP = make(map[uint32]map[uint16]int)
+	}
+
+	if e.downlinkUDP[teid] == nil {
+		e.downlinkUDP[teid] = make(map[uint16]int)
+	}
+
+	e.downlinkUDP[teid][port]++
+}
+
+func gtpInnerPacket(pdu []byte) []byte {
+	if len(pdu) < gtpHeaderLen {
+		return nil
+	}
+
+	if pdu[0]&0x07 == 0 {
+		return pdu[gtpHeaderLen:]
+	}
+
+	off := gtpHeaderLen + 4
+	if len(pdu) < off {
+		return nil
+	}
+
+	if pdu[0]&0x04 == 0 {
+		return pdu[off:]
+	}
+
+	for next := pdu[off-1]; next != 0; {
+		if off >= len(pdu) || pdu[off] == 0 {
+			return nil
+		}
+
+		extLen := int(pdu[off]) * 4
+		if off+extLen > len(pdu) {
+			return nil
+		}
+
+		next = pdu[off+extLen-1]
+		off += extLen
+	}
+
+	return pdu[off:]
+}
+
+func udpDestinationPort(packet []byte) (uint16, bool) {
+	switch {
+	case len(packet) >= 20 && packet[0]>>4 == 4 && packet[9] == 17:
+		ihl := int(packet[0]&0x0f) * 4
+		if len(packet) < ihl+4 {
+			return 0, false
+		}
+
+		return binary.BigEndian.Uint16(packet[ihl+2 : ihl+4]), true
+	case len(packet) >= 44 && packet[0]>>4 == 6 && packet[6] == 17:
+		return binary.BigEndian.Uint16(packet[42:44]), true
+	default:
+		return 0, false
 	}
 }

@@ -37,7 +37,6 @@ const (
 	PfcpNodeID          = "0.0.0.0"
 	FTEIDPool           = 65535
 	ConnTrackTimeout    = 10 * time.Minute
-	natGCInterval       = 10 * time.Second
 	natGCBatchSize      = 4096
 	flowScanBatchSize   = 1024
 	InactiveFlowTimeout = 30 * time.Second
@@ -95,11 +94,13 @@ func (u *UPF) DatapathAttachMode() string {
 	return u.attachedMode
 }
 
-func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool, localSwitch bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, n6Interface config.N6Interface, datapath config.Datapath, masquerade bool, flowact bool, localSwitch bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
 	)
+
+	attachMode := datapath.AttachMode
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		logger.UpfLog.Fatal("Can't increase resource limits", zap.Error(err))
@@ -142,6 +143,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, localSwitch, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
 	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
+	bpfObjects.Sizing = ebpf.NewMapSizing(ebpf.DefaultMaxSessions)
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -577,79 +579,109 @@ func (u *UPF) stopFlowCollection() {
 }
 
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
-	var (
-		ts     unix.Timespec
-		cursor bpf.MapBatchCursor
-		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natGCBatchSize)
-		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
-	)
+	interval := natGCMinInterval
 
-	// Sized from the previous sweep: a retained map keeps its buckets,
-	// pinning the high-water mark of one traffic peak.
-	snapshotSize := 0
-
-	ticker := time.NewTicker(natGCInterval)
-	defer ticker.Stop()
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		}
 
-		// refresh_ts is bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
-		// against any other clock ages entries by the suspend time.
-		if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
-			logger.UpfLog.Warn("Failed to query monotonic clock", zap.Error(err))
-			continue
-		}
-
-		nowNs := uint64(ts.Nano())
-
-		snapshot := make(map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry, snapshotSize)
-
-		cursor = bpf.MapBatchCursor{}
-		complete := false
-
-		for {
-			n, err := u.se.BpfObjects.NatCt.BatchLookup(&cursor, keys, values, nil)
-			for i := 0; i < n; i++ {
-				snapshot[keys[i]] = values[i]
+		scanned, deleted, ok := u.sweepNATConntrack()
+		if ok && scanned > 0 {
+			next := nextNATGCInterval(interval, float64(deleted)/float64(scanned))
+			if next != interval {
+				logger.UpfLog.Debug("NAT conntrack GC interval recalculated",
+					zap.Duration("interval", next), zap.Int("scanned", scanned), zap.Int("deleted", deleted))
 			}
 
-			if err != nil {
-				complete = errors.Is(err, bpf.ErrKeyNotExist)
-				if !complete {
-					logger.UpfLog.Warn("Conntrack scan failed", zap.Error(err))
-				}
-
-				break
-			}
+			interval = next
 		}
 
-		snapshotSize = len(snapshot)
-
-		expiredKeys := natExpiredKeys(snapshot, nowNs, complete)
-		if len(expiredKeys) == 0 {
-			if complete {
-				u.se.BpfObjects.SetOccupancy(ebpf.MapNatCt, snapshotSize)
-			}
-
-			continue
-		}
-
-		count, err := u.se.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
-		if err != nil {
-			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
-		}
-
-		if complete {
-			u.se.BpfObjects.SetOccupancy(ebpf.MapNatCt, snapshotSize-count)
-		}
-
-		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", count))
+		timer.Reset(interval)
 	}
+}
+
+func (u *UPF) sweepNATConntrack() (scanned, deleted int, ok bool) {
+	var ts unix.Timespec
+
+	// refresh_ts is bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
+	// against any other clock ages entries by the suspend time.
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		logger.UpfLog.Warn("Failed to query monotonic clock", zap.Error(err))
+		return 0, 0, false
+	}
+
+	return u.sweepNATConntrackAt(uint64(ts.Nano()))
+}
+
+func (u *UPF) sweepNATConntrackAt(nowNs uint64) (scanned, deleted int, ok bool) {
+	var (
+		cursor bpf.MapBatchCursor
+		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natGCBatchSize)
+		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
+	)
+
+	natCt := u.se.BpfObjects.NatCt
+
+	lookup := func(k ebpf.N3N6EntrypointFiveTuple) (ebpf.N3N6EntrypointNatEntry, bool) {
+		var v ebpf.N3N6EntrypointNatEntry
+		return v, natCt.Lookup(&k, &v) == nil
+	}
+
+	for {
+		n, err := natCt.BatchLookup(&cursor, keys, values, nil)
+		scanned += n
+
+		if expired := natExpiredKeys(keys[:n], values[:n], lookup, nowNs); len(expired) > 0 {
+			deleted += deleteNATKeys(natCt, expired)
+		}
+
+		if err != nil {
+			ok = errors.Is(err, bpf.ErrKeyNotExist)
+			if !ok {
+				logger.UpfLog.Warn("Conntrack scan failed", zap.Error(err))
+			}
+
+			break
+		}
+	}
+
+	if ok {
+		u.se.BpfObjects.SetOccupancy(ebpf.MapNatCt, max(scanned-deleted, 0))
+	}
+
+	if deleted > 0 {
+		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", deleted))
+	}
+
+	return scanned, deleted, ok
+}
+
+func deleteNATKeys(m *bpf.Map, keys []ebpf.N3N6EntrypointFiveTuple) int {
+	deleted := 0
+
+	for len(keys) > 0 {
+		n, err := m.BatchDelete(keys, &bpf.BatchOptions{})
+		deleted += n
+
+		if err == nil {
+			break
+		}
+
+		if !errors.Is(err, bpf.ErrKeyNotExist) {
+			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
+			break
+		}
+
+		keys = keys[min(n+1, len(keys)):]
+	}
+
+	return deleted
 }
 
 func (u *UPF) listenForTrafficNotifications() {

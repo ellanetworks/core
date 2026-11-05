@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
@@ -36,6 +36,15 @@ const sipURI = (required: string) =>
       (v) => !v?.trim() || isSIPURI(v),
     );
 
+const duplicateIdentityMessage = (
+  rows: { value?: string }[],
+): string | undefined => {
+  const values = rows.map((r) => (r.value ?? "").trim()).filter(Boolean);
+  return new Set(values).size === values.length
+    ? undefined
+    : "An identity is listed twice";
+};
+
 const schema = yup.object({
   name: yup
     .string()
@@ -46,9 +55,9 @@ const schema = yup.object({
     .array()
     .of(yup.object({ value: sipURI("Enter an identity or remove the row") }))
     .default([])
-    .test("unique", "An identity is listed twice", (rows) => {
-      const values = (rows ?? []).map((r) => r.value.trim());
-      return new Set(values).size === values.length;
+    .test("unique", (rows, ctx) => {
+      const message = duplicateIdentityMessage(rows ?? []);
+      return message ? ctx.createError({ message }) : true;
     }),
 });
 
@@ -78,9 +87,8 @@ const IMSApplicationServerModal: React.FC<IMSApplicationServerModalProps> = ({
     control: form.control,
     name: "psis",
   });
-  const psisError =
-    form.formState.errors.psis?.root?.message ??
-    form.formState.errors.psis?.message;
+  const psis = useWatch({ control: form.control, name: "psis" });
+  const psisError = duplicateIdentityMessage(psis ?? []);
 
   const fillEllaMCPTT = () => {
     const options = {

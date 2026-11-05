@@ -357,7 +357,7 @@ func TestSendRetriesAnotherPeerOnTooBusyAndUnableToDeliver(t *testing.T) {
 			}
 
 			first, second := <-refusing.seen, <-secondary.seen
-			if first.EndToEndID != second.EndToEndID || first.Flags&FlagRetransmit != 0 || second.Flags&FlagRetransmit == 0 {
+			if first.EndToEndID != second.EndToEndID || first.Flags&FlagRetransmit != 0 || second.Flags&FlagRetransmit != 0 {
 				t.Fatalf("End-to-End %d then %d, flags %#x then %#x", first.EndToEndID, second.EndToEndID, first.Flags, second.Flags)
 			}
 		})
