@@ -63,6 +63,7 @@ import (
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
@@ -462,7 +463,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(cfg.Datapath.MaxSessions))
+	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.DefaultMaxSessions))
 	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
 	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)

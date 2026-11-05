@@ -20,7 +20,7 @@ func TestLoadAtSessionCeiling(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			obj := NewBpfObjects(true, true, false, 0, 1, 0, 0)
 			obj.UseTCX = useTCX
-			obj.Sizing = NewMapSizing(200000, 0, 0)
+			obj.Sizing = NewMapSizing(200000)
 
 			if err := obj.Load(); err != nil {
 				var ve *ebpf.VerifierError

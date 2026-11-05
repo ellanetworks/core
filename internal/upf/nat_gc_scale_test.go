@@ -22,7 +22,7 @@ func TestNATSweepAtCeiling(t *testing.T) {
 	}
 
 	obj := ebpf.NewBpfObjects(false, true, false, 1, 0, 0, 0)
-	obj.Sizing = ebpf.NewMapSizing(200000, 0, 0)
+	obj.Sizing = ebpf.NewMapSizing(200000)
 
 	if err := obj.Load(); err != nil {
 		t.Fatalf("load: %v", err)

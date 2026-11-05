@@ -23,6 +23,21 @@ func gsmCauseOnly(c fgs.GSMCause, unrecognized []naslib.RawIE) *GSMCauseOnly {
 	return &GSMCauseOnly{Cause5GSM: cause5GSMToString(c), UnrecognizedIEs: utils.RawIEs(unrecognized)}
 }
 
+type PDUSessionEstablishmentReject struct {
+	Cause5GSM    utils.EnumField  `json:"cause_5g_s_m"`
+	BackoffTimer *GPRSTimer3Value `json:"backoff_timer,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
+}
+
+func buildPDUSessionEstablishmentReject(msg *fgs.PDUSessionEstablishmentReject) *PDUSessionEstablishmentReject {
+	return &PDUSessionEstablishmentReject{
+		Cause5GSM:       cause5GSMToString(msg.Cause),
+		BackoffTimer:    gprsTimer3(msg.BackoffTimer),
+		UnrecognizedIEs: utils.RawIEs(msg.Unrecognized),
+	}
+}
+
 // GSMOptionalCause is a 5GSM message whose cause the sender may omit.
 type GSMOptionalCause struct {
 	Cause5GSM *utils.EnumField `json:"cause_5g_s_m,omitempty"`

@@ -37,7 +37,7 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 
 	ue, ok := m.LookupUe(mmeUEID)
 	if !ok {
-		sendErrorIndication(ctx, m, radio.Conn, &mmeUEID, &enbUEID, causeUnknownMMEUES1APID)
+		rejectErroneousAPIDs(ctx, m, radio.Conn, mmeUEID, enbUEID, causeUnknownMMEUES1APID)
 		return
 	}
 

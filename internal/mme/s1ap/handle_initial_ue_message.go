@@ -25,6 +25,14 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		return
 	}
 
+	if m.ReleaseConnsWithAPIDs(ctx, radio.Conn, nil, &msg.ENBUES1APID, "Initial UE Message reusing an allocated eNB-UE-S1AP-ID") {
+		logger.From(ctx, logger.MmeLog).Warn("Initial UE Message with an eNB-UE-S1AP-ID already allocated to another connection",
+			logger.ENBUeS1apID(uint32(msg.ENBUES1APID)))
+		sendErrorIndication(ctx, m, radio.Conn, nil, &msg.ENBUES1APID, causeUnknownENBUES1APID)
+
+		return
+	}
+
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, s1ap.TriggeringInitiatingMessage, ueIDs{enb: &msg.ENBUES1APID}, msg.Diagnostics())
 
 	nas := []byte(msg.NASPDU)
@@ -32,12 +40,6 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		m.NAS.HandleServiceRequest(ctx, radio.Conn, msg)
 		return
 	}
-
-	// An eNB may reuse an eNB-UE-S1AP-ID before its prior UE Context Release
-	// completes; drop any stale conn first so a deferred UEContextReleaseComplete
-	// cannot remove the fresh context (TS 36.413). Dropping before the new
-	// connection exists keeps this independent of DropStaleUe's own guards.
-	m.DropStaleUe(ctx, radio.Conn, msg.ENBUES1APID)
 
 	// A bare UE-associated S1-connection tracks the message. The NAS layer binds a
 	// persistent context only for an ATTACH REQUEST; a recognised resume is bound

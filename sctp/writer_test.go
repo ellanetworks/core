@@ -261,3 +261,188 @@ func TestWriter_WriteDeadlineFailsAssociation(t *testing.T) {
 		t.Fatal("a send parked past the write deadline did not fail the association")
 	}
 }
+
+func TestWriter_WriteMsgWaitPacesSlowPeer(t *testing.T) {
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
+
+	const n = 10000
+
+	readErr := make(chan error, 1)
+
+	go func() {
+		buf := make([]byte, 2048)
+
+		for i := 0; i < n; i++ {
+			if i%1000 == 999 {
+				time.Sleep(20 * time.Millisecond)
+			}
+
+			if err := client.setDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				readErr <- err
+				return
+			}
+
+			for {
+				read, _, notification, err := client.readMsg(buf)
+				if err != nil {
+					readErr <- err
+					return
+				}
+
+				if notification != nil {
+					continue
+				}
+
+				if read != 1024 || int(buf[0])<<8|int(buf[1]) != i&0xffff {
+					readErr <- errors.New("message out of order")
+					return
+				}
+
+				break
+			}
+		}
+
+		readErr <- nil
+	}()
+
+	payload := make([]byte, 1024)
+	sawFullShare := false
+
+	for i := 0; i < n; i++ {
+		payload[0], payload[1] = byte(i>>8), byte(i)
+
+		if _, err := serverConn.WriteMsgWait(context.Background(), payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
+			t.Fatalf("WriteMsgWait %d: %v", i, err)
+		}
+
+		queued := len(serverConn.writeCh)
+		if queued > pacedQueueShare {
+			t.Fatalf("paced writes occupy %d queue slots; at most %d are theirs", queued, pacedQueueShare)
+		}
+
+		if queued == pacedQueueShare {
+			sawFullShare = true
+		}
+	}
+
+	select {
+	case err := <-readErr:
+		if err != nil {
+			t.Fatalf("client read: %v", err)
+		}
+	case <-time.After(60 * time.Second):
+		t.Fatal("client did not receive every paced message")
+	}
+
+	select {
+	case <-disconnected:
+		t.Fatal("paced writes failed the association")
+	default:
+	}
+
+	if !sawFullShare {
+		t.Fatal("paced writes never filled their share; the peer applied no backpressure")
+	}
+}
+
+func TestWriter_WriteMsgWaitReturnsOnContextDone(t *testing.T) {
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
+
+	_ = client.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
+	})
+	_ = serverConn.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	payload := make([]byte, 1024)
+
+	var err error
+
+	for i := 0; i < writeQueueDepth*8; i++ {
+		_, err = serverConn.WriteMsgWait(ctx, payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0})
+		if err != nil {
+			break
+		}
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WriteMsgWait error = %v, want the context's", err)
+	}
+
+	select {
+	case <-disconnected:
+		t.Fatal("a cancelled paced write failed the association")
+	default:
+	}
+
+	if _, err := serverConn.WriteMsg([]byte("fast"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
+		t.Fatalf("WriteMsg after paced writes filled their share: %v", err)
+	}
+}
+
+func TestWriter_WriteMsgWaitEndsWhenWedgedPeerFailsAssociation(t *testing.T) {
+	original := writeTimeout
+	writeTimeout = 250 * time.Millisecond
+
+	defer func() { writeTimeout = original }()
+
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
+
+	_ = client.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
+	})
+	_ = serverConn.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
+	})
+
+	payload := make([]byte, 1024)
+	start := time.Now()
+
+	var err error
+
+	for i := 0; i < writeQueueDepth*8; i++ {
+		_, err = serverConn.WriteMsgWait(context.Background(), payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0})
+		if err != nil {
+			break
+		}
+	}
+
+	if !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("WriteMsgWait error = %v, want net.ErrClosed", err)
+	}
+
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("WriteMsgWait waited %v on a wedged peer", elapsed)
+	}
+
+	select {
+	case <-disconnected:
+	case <-time.After(10 * time.Second):
+		t.Fatal("wedged peer did not fail the association")
+	}
+}

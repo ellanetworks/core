@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -23,6 +24,10 @@ func (c *captureConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	c.mu.Unlock()
 
 	return len(b), nil
+}
+
+func (c *captureConn) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
 }
 
 func (c *captureConn) count() int {

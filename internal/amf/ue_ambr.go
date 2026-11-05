@@ -52,6 +52,10 @@ func ueContextModificationBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, 
 }
 
 func (ueConn *UeConn) SendUEContextModification(ctx context.Context, ambr models.Ambr) error {
+	return ueConn.sendUEContextModification(ctx, ambr, (*AMF).SendToRadio)
+}
+
+func (ueConn *UeConn) sendUEContextModification(ctx context.Context, ambr models.Ambr, send radioSend) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
@@ -64,7 +68,7 @@ func (ueConn *UeConn) SendUEContextModification(ctx context.Context, ambr models
 
 	ueConn.holdUEAMBR(ambr.Uplink, ambr.Downlink)
 
-	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureUEContextModificationRequest, pkt)
+	return send(amfInstance, ctx, conn, NGAPProcedureUEContextModificationRequest, pkt)
 }
 
 func (amf *AMF) ueAMBRTarget(ue *UeContext) (*UeConn, bool) {
@@ -91,6 +95,10 @@ func (ue *UeContext) hasPDUSessions() bool {
 }
 
 func (amf *AMF) SyncUEAMBR(ctx context.Context, ue *UeContext) {
+	amf.syncUEAMBR(ctx, ue, (*AMF).SendToRadio)
+}
+
+func (amf *AMF) syncUEAMBR(ctx context.Context, ue *UeContext, send radioSend) {
 	ueConn, ok := amf.ueAMBRTarget(ue)
 	if !ok {
 		return
@@ -113,7 +121,7 @@ func (amf *AMF) SyncUEAMBR(ctx context.Context, ue *UeContext) {
 	ueConn.Log(ctx).Info("UE-AMBR changed; sending UE Context Modification Request",
 		zap.Stringer("ue_ambr_uplink", want.Uplink), zap.Stringer("ue_ambr_downlink", want.Downlink))
 
-	if err := ueConn.SendUEContextModification(ctx, *want); err != nil {
+	if err := ueConn.sendUEContextModification(ctx, *want, send); err != nil {
 		ueConn.Log(ctx).Warn("failed to send UE Context Modification Request", zap.Error(err))
 	}
 }
@@ -144,6 +152,6 @@ func (amf *AMF) ReconcileUEAMBR(ctx context.Context) {
 		}
 
 		ue.SetAmbr(subscribed)
-		amf.SyncUEAMBR(ctx, ue)
+		amf.syncUEAMBR(ctx, ue, (*AMF).SendToRadioPaced)
 	}
 }

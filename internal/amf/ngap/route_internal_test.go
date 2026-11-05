@@ -23,6 +23,10 @@ func (w *capturingWriter) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (w *capturingWriter) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return w.WriteMsg(b, info)
+}
+
 func newDecodeReportRadio(w amf.NGAPWriter) *amf.Radio {
 	ran := &amf.Radio{Conn: w}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))

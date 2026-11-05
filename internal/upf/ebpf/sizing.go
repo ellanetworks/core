@@ -15,11 +15,12 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf"
-	"github.com/ellanetworks/core/internal/config"
 	"golang.org/x/sys/unix"
 )
 
 const (
+	DefaultMaxSessions = 2000
+
 	natEntriesPerSession  = 200
 	flowEntriesPerSession = 100
 	natEntriesMin         = 256 << 10
@@ -41,26 +42,16 @@ type MapSizing struct {
 	FlowEntries uint32
 }
 
-func NewMapSizing(maxSessions, natOverride, flowOverride uint32) MapSizing {
+func NewMapSizing(maxSessions uint32) MapSizing {
 	if maxSessions == 0 {
-		maxSessions = config.DefaultMaxSessions
+		maxSessions = DefaultMaxSessions
 	}
 
-	s := MapSizing{
+	return MapSizing{
 		MaxSessions: maxSessions,
 		NATEntries:  clampEntries(uint64(maxSessions)*natEntriesPerSession, natEntriesMin, natEntriesMax),
 		FlowEntries: clampEntries(uint64(maxSessions)*flowEntriesPerSession, flowEntriesMin, flowEntriesMax),
 	}
-
-	if natOverride != 0 {
-		s.NATEntries = natOverride
-	}
-
-	if flowOverride != 0 {
-		s.FlowEntries = flowOverride
-	}
-
-	return s
 }
 
 func clampEntries(v uint64, lo, hi uint32) uint32 {
@@ -69,7 +60,7 @@ func clampEntries(v uint64, lo, hi uint32) uint32 {
 
 func (s MapSizing) orDefault() MapSizing {
 	if s.MaxSessions == 0 {
-		return NewMapSizing(0, s.NATEntries, s.FlowEntries)
+		return NewMapSizing(0)
 	}
 
 	return s
@@ -133,7 +124,7 @@ func (s MapSizing) wrapCreateError(err error) error {
 		return err
 	}
 
-	return fmt.Errorf("create datapath maps for %d sessions (nat_ct %d entries, flow_stats %d entries, about %d MiB): %w; lower datapath.max-sessions, datapath.nat-max-entries or datapath.flow-max-entries, or raise the memory limit",
+	return fmt.Errorf("create datapath maps for %d sessions (nat_ct %d entries, flow_stats %d entries, about %d MiB): %w; raise the memory limit",
 		s.MaxSessions, s.NATEntries, s.FlowEntries, s.ProjectedBytes()>>20, err)
 }
 

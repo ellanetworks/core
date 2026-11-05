@@ -42,6 +42,10 @@ func (c *captureConn) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (c *captureConn) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
+}
+
 func (c *captureConn) count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -417,6 +417,10 @@ func (s *SMF) indexSEID(sc *SMContext, seid uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.pool[sc.Ref] != sc {
+		return
+	}
+
 	s.bySEID[seid] = sc
 	sc.indexedSEIDs = append(sc.indexedSEIDs, seid)
 }

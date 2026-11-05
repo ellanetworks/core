@@ -21,6 +21,27 @@ type fakeDBWriter struct {
 	flowReports []*dbwriter.FlowReport
 	insertErr   error
 	insertDelay time.Duration
+	batchErr    error
+	batchSizes  []int
+}
+
+func (f *fakeDBWriter) InsertRadioEvents(ctx context.Context, events []*dbwriter.RadioEvent) error {
+	f.mu.Lock()
+	f.batchSizes = append(f.batchSizes, len(events))
+	batchErr := f.batchErr
+	f.mu.Unlock()
+
+	if batchErr != nil && len(events) > 1 {
+		return batchErr
+	}
+
+	for _, event := range events {
+		if err := f.InsertRadioEvent(ctx, event); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (f *fakeDBWriter) InsertRadioEvent(_ context.Context, event *dbwriter.RadioEvent) error {
@@ -190,5 +211,54 @@ func TestBufferedDBWriter_CountsDrops(t *testing.T) {
 
 	if buf.Pending() != 0 {
 		t.Fatalf("pending = %d after Stop, want 0", buf.Pending())
+	}
+}
+
+func TestBufferedDBWriter_BatchesQueuedEvents(t *testing.T) {
+	fake := &fakeDBWriter{insertDelay: time.Millisecond}
+	buf := dbwriter.NewBufferedDBWriter(fake, 1000, zap.NewNop())
+
+	const sent = 600
+
+	for range sent {
+		_ = buf.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{MessageType: "UplinkNASTransport"})
+	}
+
+	buf.Stop(context.Background())
+
+	if got := fake.radioEventCount(); got != sent {
+		t.Fatalf("written = %d, want %d", got, sent)
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+
+	largest := 0
+
+	for _, n := range fake.batchSizes {
+		if n > 256 {
+			t.Fatalf("batch of %d exceeds the 256-event cap", n)
+		}
+
+		largest = max(largest, n)
+	}
+
+	if largest < 2 || len(fake.batchSizes) >= sent {
+		t.Fatalf("batch sizes %v: queued events were not grouped", fake.batchSizes)
+	}
+}
+
+func TestBufferedDBWriter_FailedBatchFallsBackToSingleInserts(t *testing.T) {
+	fake := &fakeDBWriter{insertDelay: time.Millisecond, batchErr: errors.New("one bad row")}
+	buf := dbwriter.NewBufferedDBWriter(fake, 100, zap.NewNop())
+
+	for range 20 {
+		_ = buf.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{MessageType: "NGSetupRequest"})
+	}
+
+	buf.Stop(context.Background())
+
+	if got := fake.radioEventCount(); got != 20 {
+		t.Fatalf("written = %d after a failed batch, want every event inserted on its own", got)
 	}
 }

@@ -5,6 +5,8 @@ package amf_test
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -313,5 +315,28 @@ func TestReleaseUeConnServedBy_ReportsWhetherTheUEWentIdle(t *testing.T) {
 				t.Errorf("wentIdle = %v, want %v", got, tc.wantIdle)
 			}
 		})
+	}
+}
+
+func TestClaimReleaseCompletionIsOnceOnly(t *testing.T) {
+	ueConn := amf.NewUeConnForTest(newTestRadioForUeConn(), 1, 10)
+
+	var (
+		wg      sync.WaitGroup
+		claimed atomic.Int32
+	)
+
+	for range 32 {
+		wg.Go(func() {
+			if ueConn.ClaimReleaseCompletion() {
+				claimed.Add(1)
+			}
+		})
+	}
+
+	wg.Wait()
+
+	if n := claimed.Load(); n != 1 {
+		t.Fatalf("release completion claimed %d times, want exactly once", n)
 	}
 }

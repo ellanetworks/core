@@ -815,11 +815,6 @@ type bearerLosses struct {
 	lost, interrupted []dedicatedLoss
 }
 
-func (l *bearerLosses) merge(o bearerLosses) {
-	l.lost = append(l.lost, o.lost...)
-	l.interrupted = append(l.interrupted, o.interrupted...)
-}
-
 func (m *MME) reportDedicatedLosses(ctx context.Context, l bearerLosses) {
 	ctx = context.WithoutCancel(ctx)
 

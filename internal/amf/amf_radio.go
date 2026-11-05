@@ -293,6 +293,13 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) 
 	return nil
 }
 
+func (a *AMF) ConnsByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) []*UeConn {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.connsByRanLocked(radio.Conn, ranUeNgapID)
+}
+
 // UpdateUERanNgapID records the RAN UE NGAP ID the target gNB assigned to a UE in
 // HandoverRequestAcknowledge.
 func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID models.RanUeNgapID) {

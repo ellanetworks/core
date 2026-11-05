@@ -7,9 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -40,8 +38,9 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 
 	ue, ueConn, ok := resolveUEQuiet(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete for a connection the MME no longer holds",
+		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete for a connection the MME does not hold; releasing locally",
 			logger.MMEUeS1apID(uint32(mmeUEID)), logger.ENBUeS1apID(uint32(enbUEID)))
+		m.ReleaseConnsForUnknownPair(ctx, radio.Conn, mmeUEID, enbUEID, "UE Context Release Complete with erroneous S1AP IDs")
 
 		return
 	}
@@ -50,27 +49,5 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 
-	// Cancel the release-supervision guard so it does not also run the cleanup.
-	ueConn.StopReleaseGuard()
-
-	// A UE that is not EMM-REGISTERED (detached, or an aborted in-progress attach) is
-	// deleted; a still-registered UE is retained in ECM-IDLE (TS 23.401).
-	if ue.EMMState() != mme.EMMRegistered {
-		m.DropDeferredServiceRequest(ctx, ue)
-		m.ReleaseAllSessions(ctx, ue, ue.NetworkDetachOr(models.ReleaseFor(models.ReleaseRegistrationFailure)))
-		m.RemoveUe(ctx, ue)
-		ueConn.Log(ctx).Info("UE context removed", logger.RAT(metrics.RAT4G))
-
-		return
-	}
-
-	m.FreeUeConn(ctx, ue)
-
-	// Supervise the UE's reachability while idle: the mobile reachable timer is
-	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
-	m.StartMobileReachable(ue)
-
-	ueConn.Log(ctx).Info("UE idle", logger.RAT(metrics.RAT4G))
-
-	m.ResumeDeferredServiceRequest(ctx, ue)
+	m.CompleteUEContextRelease(ctx, ue, ueConn)
 }

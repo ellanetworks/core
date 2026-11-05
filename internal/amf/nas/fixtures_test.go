@@ -157,6 +157,10 @@ func (fng *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (fng *fakeNGAPSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return fng.WriteMsg(b, info)
+}
+
 type fakeAusf struct {
 	Supi    etsi.SUPI
 	Kseaf   []byte
@@ -210,6 +214,7 @@ type fakeSmf struct {
 	ActivateSmContextCalls    []SmfActivateSmContextCall
 	ReleaseSmContextError     error
 	ReleaseSmContextCalls     []SmfReleaseSmContextCall
+	OnReleaseSmContext        func()
 	UpdateN1MsgResponse       *smf.UpdateResult
 	UpdateN1MsgError          error
 	UpdateN1MsgCalls          []SmfUpdateN1MsgCall
@@ -272,6 +277,10 @@ func (s *fakeSmf) ReleaseSmContext(ctx context.Context, smContextRef string, cau
 		SmContextRef: smContextRef,
 		Cause:        cause,
 	})
+
+	if s.OnReleaseSmContext != nil {
+		s.OnReleaseSmContext()
+	}
 
 	if s.ReleaseSmContextError != nil {
 		return s.ReleaseSmContextError

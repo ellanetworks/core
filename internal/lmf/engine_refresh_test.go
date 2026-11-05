@@ -41,6 +41,10 @@ func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (f *fakeNGAPSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return f.WriteMsg(b, info)
+}
+
 // TestDetermineLocation_NR_StaleTriggersRefresh verifies that when the UE's NR
 // location is older than the configured maximum age, the LMF triggers the AMF to
 // send a LocationReportingControl(Direct) to the RAN (TS 23.273 §6.5.1 step 12).

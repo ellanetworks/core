@@ -8,9 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"slices"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -98,7 +95,7 @@ func runScale(ctx context.Context, env scenarios.Env, p *scaleParams) error {
 
 	start := time.Now()
 
-	err = forEachScaleUE(ctx, ues, p.Concurrency, "registered", func(s *scaleUE) error {
+	err = scenarios.ForEachConcurrently(ctx, ues, p.Concurrency, "registered", func(s *scaleUE) error {
 		t0 := time.Now()
 
 		res, err := s.gnb.Register(s.ue, s.ranID, scenarios.DefaultPDUSessionID, p.Timeout)
@@ -122,14 +119,10 @@ func runScale(ctx context.Context, env scenarios.Env, p *scaleParams) error {
 		latencies[i] = s.latency
 	}
 
-	slices.Sort(latencies)
-
-	pct := func(q float64) time.Duration { return latencies[min(int(float64(len(latencies))*q), len(latencies)-1)] }
-
-	logger.Logger.Info("registration complete",
+	logger.Logger.Info("registration complete", append([]zap.Field{
 		zap.Int("ues", p.UEs), zap.Int("gnbs", len(radios)), zap.Duration("elapsed", elapsed),
 		zap.Float64("per_second", float64(p.UEs)/elapsed.Seconds()),
-		zap.Duration("p50", pct(0.5)), zap.Duration("p95", pct(0.95)), zap.Duration("p99", pct(0.99)), zap.Duration("max", pct(1)))
+	}, scenarios.LatencyFields(latencies)...)...)
 
 	if p.ProbeEvery > 0 {
 		if err := probeScaleUEs(ctx, ues, p); err != nil {
@@ -168,7 +161,7 @@ func runScale(ctx context.Context, env scenarios.Env, p *scaleParams) error {
 
 	start = time.Now()
 
-	err = forEachScaleUE(ctx, ues, p.Concurrency, "deregistered", func(s *scaleUE) error {
+	err = scenarios.ForEachConcurrently(ctx, ues, p.Concurrency, "deregistered", func(s *scaleUE) error {
 		if err := s.gnb.Deregister(s.ue, s.ranID, p.Timeout); err != nil {
 			return fmt.Errorf("deregister %s: %w", s.ue.UeSecurity.Supi, err)
 		}
@@ -188,6 +181,11 @@ func startScaleGNBs(env scenarios.Env) ([]*gnb.GnodeB, error) {
 	radios := make([]*gnb.GnodeB, 0, len(env.GNBs))
 
 	for i, spec := range env.GNBs {
+		cores := env.CoreN2Addresses
+		if target, ok := env.GNBCoreTargets[spec.Name]; ok {
+			cores = []string{target}
+		}
+
 		g, err := gnb.Start(&gnb.StartOpts{
 			GnbID:           fmt.Sprintf("%06x", 0x100+i),
 			MCC:             scenarios.DefaultMCC,
@@ -197,7 +195,7 @@ func startScaleGNBs(env scenarios.Env) ([]*gnb.GnodeB, error) {
 			DNN:             scenarios.DefaultDNN,
 			TAC:             scenarios.DefaultTAC,
 			Name:            "scale-" + spec.Name,
-			CoreN2Addresses: env.CoreN2Addresses,
+			CoreN2Addresses: cores,
 			GnbN2Address:    spec.N2Address,
 			GnbN3Address:    spec.N3Address,
 		})
@@ -220,62 +218,6 @@ func startScaleGNBs(env scenarios.Env) ([]*gnb.GnodeB, error) {
 	}
 
 	return radios, nil
-}
-
-func forEachScaleUE(ctx context.Context, ues []*scaleUE, concurrency int, verb string, fn func(*scaleUE) error) error {
-	var (
-		wg       sync.WaitGroup
-		done     atomic.Int64
-		failed   atomic.Int64
-		firstErr atomic.Pointer[error]
-		sem      = make(chan struct{}, concurrency)
-		stop     = make(chan struct{})
-	)
-
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-stop:
-				return
-			case <-ticker.C:
-				logger.Logger.Info("progress", zap.String("phase", verb), zap.Int64("done", done.Load()), zap.Int("total", len(ues)), zap.Int64("failed", failed.Load()))
-			}
-		}
-	}()
-
-	defer close(stop)
-
-	for _, s := range ues {
-		if ctx.Err() != nil {
-			break
-		}
-
-		sem <- struct{}{}
-
-		wg.Go(func() {
-			defer func() { <-sem }()
-
-			if err := fn(s); err != nil {
-				failed.Add(1)
-				firstErr.CompareAndSwap(nil, &err)
-
-				return
-			}
-
-			done.Add(1)
-		})
-	}
-
-	wg.Wait()
-
-	if err := firstErr.Load(); err != nil {
-		return fmt.Errorf("%d of %d UEs not %s, first: %w", failed.Load(), len(ues), verb, *err)
-	}
-
-	return ctx.Err()
 }
 
 func probeScaleUEs(ctx context.Context, ues []*scaleUE, p *scaleParams) error {

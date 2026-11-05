@@ -19,6 +19,8 @@ import (
 // one stored against its MME-UE-S1AP-ID.
 var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
 
+var causeUnknownENBUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownENBUES1APID}
+
 func resolveUEQuiet(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {
@@ -38,7 +40,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message with unknown MME-UE-S1AP-ID",
 			logger.MMEUeS1apID(uint32(mmeID)), logger.ENBUeS1apID(uint32(enbID)))
-		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+		rejectErroneousAPIDs(ctx, m, conn, mmeID, enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
 	}
@@ -51,7 +53,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 	if ueConn == nil {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			logger.MMEUeS1apID(uint32(mmeID)), logger.ENBUeS1apID(uint32(enbID)))
-		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+		rejectErroneousAPIDs(ctx, m, conn, mmeID, enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
 	}
@@ -59,7 +61,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 	if ueConn.Conn() != conn {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
 			logger.MMEUeS1apID(uint32(mmeID)), logger.ENBUeS1apID(uint32(enbID)))
-		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+		rejectErroneousAPIDs(ctx, m, conn, mmeID, enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
 	}
@@ -69,12 +71,17 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 			logger.MMEUeS1apID(uint32(mmeID)),
 			zap.Uint32("stored_enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID())),
 			zap.Uint32("received_enb_ue_s1ap_id", uint32(enbID)))
-		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownPairUES1APID)
+		rejectErroneousAPIDs(ctx, m, conn, mmeID, enbID, causeUnknownPairUES1APID)
 
 		return nil, nil, false
 	}
 
 	return ue, ueConn, true
+}
+
+func rejectErroneousAPIDs(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, cause s1ap.Cause) {
+	sendErrorIndication(ctx, m, conn, &mmeID, &enbID, cause)
+	m.ReleaseConnsForUnknownPair(ctx, conn, mmeID, enbID, "erroneous S1AP IDs")
 }
 
 // causeMissingUES1APID answers a UE-associated message that omitted a UE S1AP
@@ -323,6 +330,12 @@ func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 
 	m.RadioLog(ctx, radio.Conn).Warn("Error Indication", fields...)
 
+	if reportsErroneousAPIDs(msg.Cause) {
+		m.ReleaseConnsWithAPIDs(ctx, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, "Error Indication for erroneous S1AP IDs")
+
+		return
+	}
+
 	if msg.MMEUES1APID == nil {
 		return
 	}
@@ -340,4 +353,17 @@ func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 	}
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+}
+
+func reportsErroneousAPIDs(cause *s1ap.Cause) bool {
+	if cause == nil {
+		return false
+	}
+
+	switch *cause {
+	case causeUnknownMMEUES1APID, causeUnknownENBUES1APID, causeUnknownPairUES1APID:
+		return true
+	default:
+		return false
+	}
 }

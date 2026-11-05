@@ -23,7 +23,8 @@
 #define NAT_READ_ONCE(x) (*(volatile typeof(x) *)&(x))
 #define NAT_WRITE_ONCE(x, v) (*(volatile typeof(x) *)&(x) = (v))
 
-#define NAT_CT_MAP_SIZE (256 << 10)
+#define PEAK_CONNECTION_PER_UE 100
+#define NAT_CT_MAP_SIZE (2 * PEAK_CONNECTION_PER_UE * MAX_PDU_SESSIONS)
 /* More-fragments bit and fragment offset. */
 #define IP4_FRAG_MASK 0x3FFF
 

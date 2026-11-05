@@ -468,6 +468,7 @@ func (bpfObjects *BpfObjects) Close() error {
 
 	if bpfObjects.Programs != nil {
 		err = errors.Join(err, bpfObjects.Programs.Close())
+		bpfObjects.Programs = nil
 	}
 
 	return err

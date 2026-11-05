@@ -52,6 +52,10 @@ func (c *UeConn) ForgetUEAMBR() {
 }
 
 func (c *UeConn) SendUEContextModification(ctx context.Context, ambr models.Ambr) error {
+	return c.sendUEContextModification(ctx, ambr, (*MME).SendToRadio)
+}
+
+func (c *UeConn) sendUEContextModification(ctx context.Context, ambr models.Ambr, send radioSend) error {
 	if c == nil {
 		return nil
 	}
@@ -69,7 +73,7 @@ func (c *UeConn) SendUEContextModification(ctx context.Context, ambr models.Ambr
 
 	c.holdUEAMBR(req.UEAggregateMaximumBitRate)
 
-	_ = c.SendS1AP(ctx, S1APProcedureUEContextModRequest, b)
+	_ = c.sendS1AP(ctx, S1APProcedureUEContextModRequest, b, send)
 
 	return nil
 }
@@ -91,6 +95,10 @@ func (m *MME) ueAMBRTarget(ue *UeContext) (*UeConn, bool) {
 }
 
 func (m *MME) SyncUEAMBR(ctx context.Context, ue *UeContext) {
+	m.syncUEAMBR(ctx, ue, (*MME).SendToRadio)
+}
+
+func (m *MME) syncUEAMBR(ctx context.Context, ue *UeContext, send radioSend) {
 	conn, ok := m.ueAMBRTarget(ue)
 	if !ok {
 		return
@@ -110,7 +118,7 @@ func (m *MME) SyncUEAMBR(ctx context.Context, ue *UeContext) {
 	conn.Log(ctx).Info("UE-AMBR changed; sending UE Context Modification Request",
 		zap.Stringer("ue_ambr_uplink", want.Uplink), zap.Stringer("ue_ambr_downlink", want.Downlink))
 
-	if err := conn.SendUEContextModification(ctx, want); err != nil {
+	if err := conn.sendUEContextModification(ctx, want, send); err != nil {
 		conn.Log(ctx).Error("failed to send UE Context Modification Request", zap.Error(err))
 	}
 }
@@ -138,6 +146,6 @@ func (m *MME) ReconcileUEAMBR(ctx context.Context) {
 		}
 
 		ue.SetSubscribedUEAMBR(subscribed)
-		m.SyncUEAMBR(ctx, ue)
+		m.syncUEAMBR(ctx, ue, (*MME).SendToRadioPaced)
 	}
 }

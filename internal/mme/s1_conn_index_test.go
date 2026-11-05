@@ -68,19 +68,24 @@ func TestConnIndexFollowsConnectionLifecycle(t *testing.T) {
 		t.Fatalf("ConnsOnConn: got %d connections, want 3", got)
 	}
 
-	m.DropStaleUe(ctx, source, 7)
+	enb7 := s1ap.ENBUES1APID(7)
+
+	if !m.ReleaseConnsWithAPIDs(ctx, source, nil, &enb7, "test") {
+		t.Fatal("ReleaseConnsWithAPIDs matched no connection")
+	}
+
 	assertConnIndexConsistent(t, m)
 
 	if _, ok := m.LookupUe(staleID); ok {
-		t.Fatal("DropStaleUe kept the stale UE")
+		t.Fatal("ReleaseConnsWithAPIDs kept the UE holding the eNB-UE-S1AP-ID")
 	}
 
-	if _, ok := m.conns[uint32(bare.MMEUES1APID)]; !ok {
-		t.Fatal("DropStaleUe removed a bare connection")
+	if _, ok := m.conns[uint32(bare.MMEUES1APID)]; ok {
+		t.Fatal("ReleaseConnsWithAPIDs kept a bare connection holding the eNB-UE-S1AP-ID")
 	}
 
 	if _, ok := m.LookupUe(other.Conn().MMEUES1APID); !ok {
-		t.Fatal("DropStaleUe removed a UE on another eNB-UE-S1AP-ID")
+		t.Fatal("ReleaseConnsWithAPIDs removed a UE on another eNB-UE-S1AP-ID")
 	}
 
 	if _, ok := m.CommitPathSwitch(other, target, 9, [32]byte{}, 0); !ok {
@@ -100,12 +105,11 @@ func TestConnIndexFollowsConnectionLifecycle(t *testing.T) {
 		t.Fatalf("reset on the new association did not resolve the switched connection: %v", got)
 	}
 
-	if got := len(m.ConnsOnConn(source)); got != 1 {
-		t.Fatalf("ConnsOnConn(source): got %d connections, want only the bare one", got)
+	if got := len(m.ConnsOnConn(source)); got != 0 {
+		t.Fatalf("ConnsOnConn(source): got %d connections, want none", got)
 	}
 
-	m.DropStaleUe(ctx, target, 9)
-	m.ReleaseBareConn(bare)
+	m.ReleaseConnsWithAPIDs(ctx, target, nil, &enb9, "test")
 	assertConnIndexConsistent(t, m)
 
 	if len(m.conns) != 0 || len(m.connIndex.byKey) != 0 || len(m.connIndex.byAssoc) != 0 {

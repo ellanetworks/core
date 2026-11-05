@@ -10,10 +10,15 @@ import (
 )
 
 func migrateV26(ctx context.Context, tx *sql.Tx) error {
-	stmt := fmt.Sprintf("CREATE INDEX idx_daily_usage_imsi ON %s (imsi)", DailyUsageTableName)
+	for _, idx := range []struct{ name, table, column string }{
+		{"idx_daily_usage_imsi", DailyUsageTableName, "imsi"},
+		{"idx_ue_registrations_version", UERegistrationsTableName, "version"},
+	} {
+		stmt := fmt.Sprintf("CREATE INDEX %s ON %s (%s)", idx.name, idx.table, idx.column)
 
-	if _, err := tx.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("create index on %s: %w", DailyUsageTableName, err)
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("create index on %s: %w", idx.table, err)
+		}
 	}
 
 	return nil

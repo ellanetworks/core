@@ -102,6 +102,7 @@ type ENB struct {
 	tunnels      map[uint32]*tunnel // keyed by eNB downlink TEID
 	endMarkers   map[uint32]int     // End Markers seen per downlink TEID
 	watchedTEIDs map[uint32]int     // G-PDUs seen per watched TEID that has no tunnel
+	downlinkUDP  map[uint32]map[uint16]int
 
 	mu             sync.Mutex
 	cond           *sync.Cond

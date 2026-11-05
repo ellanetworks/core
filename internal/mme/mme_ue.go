@@ -1039,31 +1039,6 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 	return out
 }
 
-// DropStaleUe removes any context bound to the same eNB association and
-// ENB-UE-S1AP-ID, so a fresh Initial UE Message (e.g. a re-attach reusing the
-// eNB UE id) does not leak the previous context.
-func (m *MME) DropStaleUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
-	m.mu.Lock()
-
-	var stale []*UeContext
-
-	for c := range m.connIndex.matching(conn, enbUEID) {
-		if ue := c.ue.Load(); ue != nil && ue.Conn() == c {
-			stale = append(stale, ue)
-		}
-	}
-
-	var losses bearerLosses
-
-	for _, ue := range stale {
-		losses.merge(m.removeContextLocked(ue))
-	}
-
-	m.mu.Unlock()
-
-	m.reportDedicatedLosses(ctx, losses)
-}
-
 // S1Identity snapshots the UE's S1 association — the eNB connection and the
 // MME/ENB-UE-S1AP-IDs — under m.mu, so an off-dispatch send reads a consistent
 // identity even while the UE rebinds it on an ECM-IDLE resume or a path switch

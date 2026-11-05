@@ -806,6 +806,10 @@ func (ueConn *UeConn) sendClaimedRelease(ctx context.Context, amfInstance *AMF, 
 	link := trace.SpanContextFromContext(ctx)
 
 	ueConn.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
+		if !ueConn.releaseCompleted.CompareAndSwap(false, true) {
+			return
+		}
+
 		guardCtx, span := guardSpan(link, "amf/release_guard_expire", "UE Context Release", 0)
 		defer span.End()
 

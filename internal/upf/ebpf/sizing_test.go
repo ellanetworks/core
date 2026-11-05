@@ -17,21 +17,20 @@ import (
 func TestNewMapSizing(t *testing.T) {
 	cases := []struct {
 		name                 string
-		sessions, nat, flow  uint32
+		sessions             uint32
 		wantSessions         uint32
 		wantNAT, wantFlow    uint32
 		wantPDR, wantPerPool uint32
 	}{
-		{"zero is the default", 0, 0, 0, 2000, 400000, 200000, 2000, 16000},
-		{"floor clamps to the minimums", 1000, 0, 0, 1000, 256 << 10, 128 << 10, 1000, 8000},
-		{"mid range scales", 20000, 0, 0, 20000, 4_000_000, 2_000_000, 20000, 160000},
-		{"ceiling clamps to the maximums", 200000, 0, 0, 200000, 16 << 20, 8 << 20, 200000, 1_600_000},
-		{"overrides win", 200000, 1 << 20, 64 << 10, 200000, 1 << 20, 64 << 10, 200000, 1_600_000},
+		{"zero is the default", 0, 2000, 400000, 200000, 2000, 16000},
+		{"floor clamps to the minimums", 1000, 1000, 256 << 10, 128 << 10, 1000, 8000},
+		{"mid range scales", 20000, 20000, 4_000_000, 2_000_000, 20000, 160000},
+		{"ceiling clamps to the maximums", 200000, 200000, 16 << 20, 8 << 20, 200000, 1_600_000},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s := NewMapSizing(tc.sessions, tc.nat, tc.flow)
+			s := NewMapSizing(tc.sessions)
 			if s.MaxSessions != tc.wantSessions || s.NATEntries != tc.wantNAT || s.FlowEntries != tc.wantFlow {
 				t.Fatalf("sizing = %+v, want sessions %d nat %d flow %d", s, tc.wantSessions, tc.wantNAT, tc.wantFlow)
 			}
@@ -53,7 +52,7 @@ func TestNewMapSizing(t *testing.T) {
 }
 
 func TestMapSizingApplyCoversBothBuilds(t *testing.T) {
-	sizing := NewMapSizing(200000, 0, 0)
+	sizing := NewMapSizing(200000)
 
 	for name, load := range map[string]func() (*ebpf.CollectionSpec, error){
 		"xdp": LoadN3N6Entrypoint,
@@ -91,12 +90,12 @@ func TestMapSizingApplyCoversBothBuilds(t *testing.T) {
 }
 
 func TestProjectedBytes(t *testing.T) {
-	def := NewMapSizing(0, 0, 0).ProjectedBytes()
+	def := NewMapSizing(0).ProjectedBytes()
 	if def < 60<<20 || def > 90<<20 {
 		t.Errorf("default projection %d MiB, want about 75 MiB", def>>20)
 	}
 
-	ceiling := NewMapSizing(200000, 0, 0).ProjectedBytes()
+	ceiling := NewMapSizing(200000).ProjectedBytes()
 	if ceiling < 3<<30 || ceiling > 4<<30 {
 		t.Errorf("ceiling projection %d MiB, want about 3.5 GiB", ceiling>>20)
 	}
@@ -129,7 +128,7 @@ func TestMemoryCheck(t *testing.T) {
 
 	src := MemorySources{Meminfo: meminfo, SelfCgroup: selfCgroup, CgroupRoot: root}
 
-	limit, warn := NewMapSizing(0, 0, 0).MemoryCheck(src)
+	limit, warn := NewMapSizing(0).MemoryCheck(src)
 	if limit != 8<<30 {
 		t.Fatalf("limit = %d, want the parent cgroup's 8 GiB", limit)
 	}
@@ -138,26 +137,26 @@ func TestMemoryCheck(t *testing.T) {
 		t.Error("default sizing warned on 8 GiB")
 	}
 
-	if _, warn := NewMapSizing(200000, 0, 0).MemoryCheck(src); !warn {
+	if _, warn := NewMapSizing(200000).MemoryCheck(src); !warn {
 		t.Error("ceiling sizing did not warn on 8 GiB")
 	}
 
 	write(filepath.Join(root, "system.slice", "memory.max"), "max\n")
 
-	if limit, _ := NewMapSizing(0, 0, 0).MemoryCheck(src); limit != 16384000<<10 {
+	if limit, _ := NewMapSizing(0).MemoryCheck(src); limit != 16384000<<10 {
 		t.Errorf("limit = %d, want MemTotal without a cgroup limit", limit)
 	}
 
-	if limit, warn := NewMapSizing(0, 0, 0).MemoryCheck(MemorySources{}); limit != 0 || warn {
+	if limit, warn := NewMapSizing(0).MemoryCheck(MemorySources{}); limit != 0 || warn {
 		t.Errorf("missing sources gave limit %d warn %v", limit, warn)
 	}
 }
 
 func TestWrapCreateError(t *testing.T) {
-	s := NewMapSizing(200000, 0, 0)
+	s := NewMapSizing(200000)
 
 	err := s.wrapCreateError(unix.ENOMEM)
-	if !errors.Is(err, unix.ENOMEM) || !strings.Contains(err.Error(), "datapath.max-sessions") {
+	if !errors.Is(err, unix.ENOMEM) || !strings.Contains(err.Error(), "raise the memory limit") {
 		t.Errorf("ENOMEM wrapped as %q", err)
 	}
 

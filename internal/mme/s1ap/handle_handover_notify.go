@@ -23,7 +23,7 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	ue, ok := m.LookupUe(notify.MMEUES1APID)
 	if !ok {
-		sendErrorIndication(ctx, m, radio.Conn, &notify.MMEUES1APID, &notify.ENBUES1APID, causeUnknownMMEUES1APID)
+		rejectErroneousAPIDs(ctx, m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID, causeUnknownMMEUES1APID)
 
 		return
 	}

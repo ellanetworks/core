@@ -160,7 +160,7 @@ const (
 )
 
 const (
-	MaxNumSubscribers    = 100000
+	MaxNumSubscribers    = 1000
 	MaxSessions          = 26
 	MaxSearchLength      = 254
 	MaxDescriptionLength = 64

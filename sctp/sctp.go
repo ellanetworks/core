@@ -408,6 +408,7 @@ type SCTPConn struct {
 	writerStop   sync.Once
 	writerFlush  chan struct{}
 	writeCh      chan queuedWrite
+	pacedSlots   chan struct{}
 	writerExited chan struct{}
 	writeLogger  *slog.Logger
 }

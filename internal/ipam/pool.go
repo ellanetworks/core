@@ -6,6 +6,7 @@ package ipam
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
 	"net/netip"
 )
 
@@ -97,7 +98,7 @@ func (p Pool) FirstUsable() int {
 func (p Pool) Size() int {
 	allocBits := p.PrefixLen - p.Prefix.Bits()
 
-	if allocBits >= 31 {
+	if allocBits >= bits.UintSize-1 {
 		// Very large pool — cap at max int to avoid overflow.
 		return int(^uint(0) >> 1)
 	}

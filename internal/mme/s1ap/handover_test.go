@@ -812,8 +812,12 @@ func TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 		t.Fatalf("Error Indication cause = %v, want unknown-mme-ue-s1ap-id", ind.Cause)
 	}
 
-	if !ue.HasHandoverForTest() {
-		t.Fatal("in-flight handover torn down by a Handover Notify with an unknown MME-UE-S1AP-ID")
+	if ue.HasHandoverForTest() {
+		t.Fatal("the target connection holding the received eNB-UE-S1AP-ID was not released locally")
+	}
+
+	if ue.Conn() == nil || ue.Conn().ConnForTest() != source {
+		t.Fatal("the UE's connection on the source S1 interface was released by a message from the target")
 	}
 }
 
@@ -855,8 +859,12 @@ func TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication(t *testing.T)
 		t.Fatalf("user plane switched for an inconsistent Handover Notify: %+v", fsm.modifiedENB)
 	}
 
-	if !ue.HasHandoverForTest() {
-		t.Fatal("in-flight handover committed by a Handover Notify with an inconsistent eNB-UE-S1AP-ID")
+	if ue.HasHandoverForTest() {
+		t.Fatal("the target connection holding the received MME-UE-S1AP-ID was not released locally")
+	}
+
+	if ue.Conn() == nil || ue.Conn().ConnForTest() != source {
+		t.Fatal("the UE's connection on the source S1 interface was released by a message from the target")
 	}
 }
 

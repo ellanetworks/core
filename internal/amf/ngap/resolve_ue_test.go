@@ -116,7 +116,7 @@ func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 }
 
 func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
-	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
+	legitimateRan, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
 	amfID := ngap.AMFUENGAPID(10)
@@ -126,8 +126,73 @@ func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 		RANUENGAPID: &ranID,
 	})
 
-	if len(attackerSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(attackerSender.SentErrorIndications))
+	if len(attackerSender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication for a last message (TS 38.413 §10.6), got %d", len(attackerSender.SentErrorIndications))
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(legitimateRan, 10) == nil {
+		t.Fatal("a Release Complete from another radio must not release the UE's connection")
+	}
+}
+
+func TestUEContextReleaseCompleteWithInconsistentRanIDReleasesLocally(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	target := amf.NewUeConnForTest(ran, 1, 10)
+	amf.NewUeConnForTest(ran, 2, 20)
+
+	amfID := ngap.AMFUENGAPID(10)
+	ranID := ngap.RANUENGAPID(2)
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, &ngap.UEContextReleaseComplete{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+	})
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication for a last message (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(ran, 20) != nil {
+		t.Error("the connection holding the erroneous RAN-UE-NGAP-ID must be released locally")
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(ran, 10) != target {
+		t.Error("the connection whose AMF-UE-NGAP-ID was addressed keeps its own release supervision")
+	}
+}
+
+func TestInconsistentRanIDSendsErrorIndicationAndReleasesLocally(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amf.NewUeConnForTest(ran, 1, 10)
+	amf.NewUeConnForTest(ran, 2, 20)
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 2,
+	})
+
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
+
+	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkInconsistentRemoteUEID}
+	if cause := sender.SentErrorIndications[0].Cause; cause == nil || *cause != want {
+		t.Errorf("cause = %v, want inconsistent-remote-UE-NGAP-ID", cause)
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(ran, 20) != nil {
+		t.Error("the connection holding the erroneous RAN-UE-NGAP-ID must be released locally (TS 38.413 §10.6)")
+	}
+
+	if amfInstance.FindUEByAmfUeNgapID(ran, 10) == nil {
+		t.Error("the addressed connection must not be released")
 	}
 }
 

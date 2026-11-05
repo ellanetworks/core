@@ -97,9 +97,10 @@ type UeConn struct {
 	releasing bool
 	// releaseGuard supervises a sent UE Context Release Command; if the Release Complete
 	// is lost it fires once (releaseGuardTimeout) and runs the action-keyed cleanup.
-	releaseGuard guard.Guard
-	icsGuard     guard.Guard
-	ranUEAMBR    atomic.Pointer[models.Ambr]
+	releaseGuard     guard.Guard
+	releaseCompleted atomic.Bool
+	icsGuard         guard.Guard
+	ranUEAMBR        atomic.Pointer[models.Ambr]
 
 	// nasGuard is the single supervision timer for the 5GMM common procedures. They are
 	// mutually exclusive, so one guard suffices.
@@ -665,6 +666,12 @@ func (ueConn *UeConn) setConn(w NGAPWriter) {
 // StopReleaseGuard cancels the Release-Complete supervision timer.
 func (ueConn *UeConn) StopReleaseGuard() {
 	ueConn.releaseGuard.Stop()
+}
+
+func (ueConn *UeConn) ClaimReleaseCompletion() bool {
+	ueConn.releaseGuard.Stop()
+
+	return ueConn.releaseCompleted.CompareAndSwap(false, true)
 }
 
 func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause ngap.Cause, reported []uint8) {

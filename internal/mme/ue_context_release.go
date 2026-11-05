@@ -122,6 +122,10 @@ func (m *MME) ReleaseAnsweredBareConn(ctx context.Context, c *UeConn, cause s1ap
 // SendUEContextReleaseCommand builds a UE Context Release Command for this
 // connection's S1AP identities and sends it to the eNB (TS 36.413 §8.3.1).
 func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cause) error {
+	return c.sendUEContextReleaseCommand(ctx, cause, (*MME).SendToRadio)
+}
+
+func (c *UeConn) sendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cause, send radioSend) error {
 	if c == nil {
 		return fmt.Errorf("no S1 connection to release")
 	}
@@ -139,10 +143,14 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 
 	c.Log(ctx).Debug("UE Context Release Command")
 
-	return c.SendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b)
+	return c.sendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b, send)
 }
 
 func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
+	m.releaseUEContext(ctx, ue, cause, (*MME).SendToRadio)
+}
+
+func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause, send radioSend) {
 	ue.Conn().cancelDeferredRelease()
 
 	// The idempotency claim is atomic: a NAS guard timeout and an eNB-initiated
@@ -169,7 +177,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 
 	conn.releaseCause.Store(&cause)
 
-	if err := conn.SendUEContextReleaseCommand(ctx, cause); err != nil {
+	if err := conn.sendUEContextReleaseCommand(ctx, cause, send); err != nil {
 		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return
@@ -185,6 +193,79 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 
 		m.releaseUEContextLocally(guardCtx, ue, conn, "release-command-timeout", models.ReleaseFor(models.ReleaseRegistrationFailure))
 	})
+}
+
+func (m *MME) CompleteUEContextRelease(ctx context.Context, ue *UeContext, c *UeConn) {
+	// Cancel the release-supervision guard so it does not also run the cleanup.
+	c.StopReleaseGuard()
+
+	released, registered, _, losses := m.releaseContextLockedPart(ue, c)
+	if !released {
+		return
+	}
+
+	m.reportDedicatedLosses(ctx, losses)
+	ue.settleDeliveryOnRelease(ctx)
+
+	// A UE that is not EMM-REGISTERED (detached, or an aborted in-progress attach) is
+	// deleted; a still-registered UE is retained in ECM-IDLE (TS 23.401).
+	if !registered {
+		m.DropDeferredServiceRequest(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue, ue.NetworkDetachOr(models.ReleaseFor(models.ReleaseRegistrationFailure)))
+		c.Log(ctx).Info("UE context removed", logger.RAT(metrics.RAT4G))
+
+		return
+	}
+
+	// Supervise the UE's reachability while idle: the mobile reachable timer is
+	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
+	m.StartMobileReachable(ue)
+	c.Log(ctx).Info("UE idle", logger.RAT(metrics.RAT4G))
+
+	m.ResumeDeferredServiceRequest(ctx, ue)
+}
+
+func (m *MME) ReleaseConnsForUnknownPair(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, trigger string) {
+	m.mu.RLock()
+	held, ok := m.conns[uint32(mmeUEID)]
+	known := ok && held.Conn() == conn && held.ENBUES1APID() == enbUEID
+
+	m.mu.RUnlock()
+
+	if known {
+		return
+	}
+
+	m.ReleaseConnsWithAPIDs(ctx, conn, &mmeUEID, &enbUEID, trigger)
+}
+
+func (m *MME) ReleaseConnsWithAPIDs(ctx context.Context, conn S1APWriter, mmeUEID *s1ap.MMEUES1APID, enbUEID *s1ap.ENBUES1APID, trigger string) bool {
+	m.mu.RLock()
+
+	matched := make(map[*UeConn]struct{})
+
+	if mmeUEID != nil {
+		if c, ok := m.conns[uint32(*mmeUEID)]; ok && c.Conn() == conn {
+			matched[c] = struct{}{}
+		}
+	}
+
+	if enbUEID != nil {
+		for c := range m.connIndex.matching(conn, *enbUEID) {
+			matched[c] = struct{}{}
+		}
+	}
+
+	m.mu.RUnlock()
+
+	conns := make([]*UeConn, 0, len(matched))
+	for c := range matched {
+		conns = append(conns, c)
+	}
+
+	m.ReclaimConns(ctx, conns, trigger)
+
+	return len(conns) > 0
 }
 
 // ReleaseUEContextLocally releases a UE without sending a UE Context Release Command,

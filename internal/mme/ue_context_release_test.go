@@ -79,6 +79,10 @@ func (failingConn) WriteMsg([]byte, *sctp.SndRcvInfo) (int, error) {
 	return 0, errors.New("association down")
 }
 
+func (c failingConn) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
+}
+
 func TestReleaseUEContextReleasesLocallyWhenTheCommandCannotBeSent(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -140,5 +144,30 @@ func TestFallbackLocalReleaseSparesAConnectionThatWasAlreadyReplaced(t *testing.
 
 	if ue.Conn() != current {
 		t.Fatal("the fallback release of a connection that was already replaced released the UE's current connection")
+	}
+}
+
+func TestReleaseCompleteAfterTheReleaseGuardCleanedUpLeavesTheNextConnection(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	m.ReleaseUEContext(t.Context(), ue, CauseNASNormalRelease)
+
+	released := ue.Conn()
+
+	m.releaseUEContextLocally(t.Context(), ue, released, "release-command-timeout", models.ReleaseFor(models.ReleaseRegistrationFailure))
+
+	next := m.NewUeConn(&captureConn{}, 8)
+	m.AttachUeConn(t.Context(), ue, next)
+
+	m.CompleteUEContextRelease(t.Context(), ue, released)
+
+	if ue.Conn() != next {
+		t.Fatal("a Release Complete for a connection the release guard already cleaned up released the UE's next connection")
+	}
+
+	if ue.MobileReachableArmedForTest() {
+		t.Fatal("a Release Complete for a connection the release guard already cleaned up re-ran the idle transition")
 	}
 }

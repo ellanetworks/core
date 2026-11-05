@@ -241,11 +241,13 @@ func TestPool6Size(t *testing.T) {
 		prefixLen int
 		wantSize  int
 	}{
-		{"slash60_prefix64", "2001:db8:abcd:1230::/60", 64, 16},                   // 1 << (64-60) = 16
-		{"slash56_prefix64", "2001:db8:abcd:1200::/56", 64, 256},                  // 1 << (64-56) = 256
-		{"slash48_prefix64", "2001:db8:abcd::/48", 64, 65536},                     // 1 << (64-48) = 65536
-		{"slash64_prefix64", "2001:db8:abcd:1234::/64", 64, 1},                    // 1 << (64-64) = 1
-		{"slash60_prefix128", "2001:db8:abcd:1230::/60", 128, int(^uint(0) >> 1)}, // allocBits=68 >= 31 → max int
+		{"slash60_prefix64", "2001:db8:abcd:1230::/60", 64, 16},  // 1 << (64-60) = 16
+		{"slash56_prefix64", "2001:db8:abcd:1200::/56", 64, 256}, // 1 << (64-56) = 256
+		{"slash48_prefix64", "2001:db8:abcd::/48", 64, 65536},    // 1 << (64-48) = 65536
+		{"slash64_prefix64", "2001:db8:abcd:1234::/64", 64, 1},   // 1 << (64-64) = 1
+		{"slash32_prefix64", "2001:db8::/32", 64, 1 << 32},
+		{"slash16_prefix64", "2400::/16", 64, 1 << 48},
+		{"slash60_prefix128", "2001:db8:abcd:1230::/60", 128, int(^uint(0) >> 1)}, // allocBits=68 >= 63 → max int
 	}
 
 	for _, tt := range tests {
@@ -303,6 +305,54 @@ func TestPool6AddressAtOffset_Slash48(t *testing.T) {
 		if got.String() != tt.want {
 			t.Fatalf("AddressAtOffset(%d): expected %s, got %s", tt.offset, tt.want, got.String())
 		}
+	}
+}
+
+func TestPool6AddressAtOffset_LargePools(t *testing.T) {
+	tests := []struct {
+		cidr      string
+		offsets   []int
+		wantAddrs []string
+	}{
+		{
+			cidr:      "2001:db8::/32",
+			offsets:   []int{0, 1, 1 << 16, 1<<32 - 1},
+			wantAddrs: []string{"2001:db8::", "2001:db8:0:1::", "2001:db8:1::", "2001:db8:ffff:ffff::"},
+		},
+		{
+			cidr:      "2400::/16",
+			offsets:   []int{0, 1, 1 << 32, 1<<48 - 1},
+			wantAddrs: []string{"2400::", "2400:0:0:1::", "2400:1::", "2400:ffff:ffff:ffff::"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.cidr, func(t *testing.T) {
+			pool, err := NewPool6("test-pool", tt.cidr, 64)
+			if err != nil {
+				t.Fatalf("NewPool6: %v", err)
+			}
+
+			for i, offset := range tt.offsets {
+				addr := pool.AddressAtOffset(offset)
+				if addr.String() != tt.wantAddrs[i] {
+					t.Fatalf("AddressAtOffset(%d): expected %s, got %s", offset, tt.wantAddrs[i], addr)
+				}
+
+				if got := pool.OffsetOf(addr); got != offset {
+					t.Fatalf("OffsetOf(%s): expected %d, got %d", addr, offset, got)
+				}
+			}
+
+			last := pool.AddressAtOffset(pool.FirstUsable() + pool.Size() - 1)
+			if netip.PrefixFrom(pool.LastAddress(), 64).Masked().Addr() != last {
+				t.Fatalf("last offset maps to %s, want the /64 holding %s", last, pool.LastAddress())
+			}
+
+			if pool.Prefix.Contains(pool.AddressAtOffset(pool.FirstUsable() + pool.Size())) {
+				t.Fatalf("offset Size() must fall outside %s", tt.cidr)
+			}
+		})
 	}
 }
 

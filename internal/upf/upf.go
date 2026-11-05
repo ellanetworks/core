@@ -143,7 +143,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, localSwitch, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
 	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
-	bpfObjects.Sizing = ebpf.NewMapSizing(datapath.MaxSessions, datapath.NATMaxEntries, datapath.FlowMaxEntries)
+	bpfObjects.Sizing = ebpf.NewMapSizing(ebpf.DefaultMaxSessions)
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -164,7 +164,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		warnMergedPacketSources(n3AttachmentInterface, n6AttachmentInterface)
 	}
 
-	resourceManager, err := engine.NewFteIDResourceManager(fteidPoolSize(bpfObjects.Sizing.MaxSessions))
+	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
@@ -576,10 +576,6 @@ func (u *UPF) stopFlowCollection() {
 	case <-time.After(30 * time.Second):
 		logger.UpfLog.Warn("Flow reporter drain timed out; some flows may be lost")
 	}
-}
-
-func fteidPoolSize(maxSessions uint32) uint32 {
-	return max(FTEIDPool, 2*maxSessions)
 }
 
 func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
