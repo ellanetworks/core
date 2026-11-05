@@ -646,12 +646,12 @@ func (c *Conn) open(cea *Message) {
 
 	c.state.Store(int32(stateOpen))
 
-	if cea != nil {
-		c.send(cea)
-	}
-
 	if !c.reopen {
 		c.available.Store(true)
+	}
+
+	if cea != nil {
+		c.send(cea)
 	}
 
 	c.logger().Debug("Diameter peer connected",
@@ -732,6 +732,14 @@ func (c *Conn) handle(ctx context.Context, req *Message, after *afterAnswer) (an
 }
 
 func (c *Conn) exchange(ctx context.Context, req *Message, failover bool) (*Message, error) {
+	select {
+	case <-c.opened:
+	case <-c.done:
+		return nil, errConnClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
 	m := *req
 	m.HopByHopID = c.hopByHop.Add(1)
 	c.traceRequest(ctx, &m)
