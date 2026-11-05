@@ -213,7 +213,7 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/subscribers/" + opts.ID,
+		Path:   "api/v1/subscribers/" + url.PathEscape(opts.ID),
 	})
 	if err != nil {
 		return nil, err
@@ -251,7 +251,7 @@ func (c *Client) UpdateSubscriber(ctx context.Context, imsi string, opts *Update
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/subscribers/" + imsi,
+		Path:   "api/v1/subscribers/" + url.PathEscape(imsi),
 		Body:   &body,
 	})
 	if err != nil {
@@ -265,7 +265,7 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/subscribers/" + opts.ID,
+		Path:   "api/v1/subscribers/" + url.PathEscape(opts.ID),
 	})
 	if err != nil {
 		return err
@@ -314,7 +314,7 @@ func (c *Client) GetSubscriberCredentials(ctx context.Context, opts *GetSubscrib
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/subscribers/" + opts.ID + "/credentials",
+		Path:   "api/v1/subscribers/" + url.PathEscape(opts.ID) + "/credentials",
 	})
 	if err != nil {
 		return nil, err

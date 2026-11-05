@@ -141,7 +141,7 @@ func (c *Client) GetUser(ctx context.Context, opts *GetUserOptions) (*User, erro
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/users/" + opts.Email,
+		Path:   "api/v1/users/" + url.PathEscape(opts.Email),
 	})
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserO
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/users/" + email,
+		Path:   "api/v1/users/" + url.PathEscape(email),
 		Body:   &body,
 	})
 	if err != nil {
@@ -190,7 +190,7 @@ func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error 
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/users/" + opts.Email,
+		Path:   "api/v1/users/" + url.PathEscape(opts.Email),
 	})
 	if err != nil {
 		return err
@@ -266,7 +266,7 @@ func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/users/me/api-tokens/" + tokenID,
+		Path:   "api/v1/users/me/api-tokens/" + url.PathEscape(tokenID),
 	})
 	if err != nil {
 		return err
@@ -280,7 +280,7 @@ func (c *Client) ListUserAPITokens(ctx context.Context, email string, p *ListPar
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/users/" + email + "/api-tokens",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/api-tokens",
 		Query: url.Values{
 			"page":     {fmt.Sprintf("%d", p.Page)},
 			"per_page": {fmt.Sprintf("%d", p.PerPage)},
@@ -320,7 +320,7 @@ func (c *Client) CreateUserAPIToken(ctx context.Context, email string, opts *Cre
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/users/" + email + "/api-tokens",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/api-tokens",
 		Body:   &body,
 	})
 	if err != nil {
@@ -342,7 +342,7 @@ func (c *Client) DeleteUserAPIToken(ctx context.Context, email string, tokenID s
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/users/" + email + "/api-tokens/" + tokenID,
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/api-tokens/" + url.PathEscape(tokenID),
 	})
 	if err != nil {
 		return err
@@ -404,7 +404,7 @@ func (c *Client) UpdateUserPassword(ctx context.Context, email string, opts *Upd
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/users/" + email + "/password",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/password",
 		Body:   &body,
 	})
 	if err != nil {

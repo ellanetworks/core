@@ -299,11 +299,21 @@ type Database struct {
 	getSMSSettingsStmt    *sqlair.Statement
 	upsertSMSSettingsStmt *sqlair.Statement
 
-	listSMSCPeersStmt            *sqlair.Statement
+	listLegacySMSCPeersStmt            *sqlair.Statement
+	listLegacySMSCServiceCentresStmt   *sqlair.Statement
+	insertLegacySMSCPeerStmt           *sqlair.Statement
+	updateLegacySMSCPeerStmt           *sqlair.Statement
+	deleteLegacySMSCPeerStmt           *sqlair.Statement
+	insertLegacySMSCServiceCentreStmt  *sqlair.Statement
+	deleteLegacySMSCServiceCentresStmt *sqlair.Statement
+
+	listSMSCsStmt                *sqlair.Statement
+	listSMSCNodesStmt            *sqlair.Statement
 	listSMSCServiceCentresStmt   *sqlair.Statement
-	insertSMSCPeerStmt           *sqlair.Statement
-	updateSMSCPeerStmt           *sqlair.Statement
-	deleteSMSCPeerStmt           *sqlair.Statement
+	insertSMSCStmt               *sqlair.Statement
+	deleteSMSCStmt               *sqlair.Statement
+	insertSMSCNodeStmt           *sqlair.Statement
+	deleteSMSCNodesStmt          *sqlair.Statement
 	insertSMSCServiceCentreStmt  *sqlair.Statement
 	deleteSMSCServiceCentresStmt *sqlair.Statement
 
@@ -2021,11 +2031,20 @@ func (db *Database) PrepareStatements() error {
 
 		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
 		{&db.upsertSMSSettingsStmt, fmt.Sprintf(upsertSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
-		{&db.listSMSCPeersStmt, fmt.Sprintf(listSMSCPeersStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
+		{&db.listLegacySMSCPeersStmt, fmt.Sprintf(listLegacySMSCPeersStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
+		{&db.listLegacySMSCServiceCentresStmt, fmt.Sprintf(listLegacySMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
+		{&db.insertLegacySMSCPeerStmt, fmt.Sprintf(insertLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
+		{&db.updateLegacySMSCPeerStmt, fmt.Sprintf(updateLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
+		{&db.deleteLegacySMSCPeerStmt, fmt.Sprintf(deleteLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
+		{&db.insertLegacySMSCServiceCentreStmt, fmt.Sprintf(insertLegacySMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
+		{&db.deleteLegacySMSCServiceCentresStmt, fmt.Sprintf(deleteLegacySMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
+		{&db.listSMSCsStmt, fmt.Sprintf(listSMSCsStmt, SMSCsTableName), []any{smscRow{}}},
+		{&db.listSMSCNodesStmt, fmt.Sprintf(listSMSCNodesStmt, DiameterPeersTableName), []any{smscNodeRow{}}},
 		{&db.listSMSCServiceCentresStmt, fmt.Sprintf(listSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
-		{&db.insertSMSCPeerStmt, fmt.Sprintf(insertSMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
-		{&db.updateSMSCPeerStmt, fmt.Sprintf(updateSMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
-		{&db.deleteSMSCPeerStmt, fmt.Sprintf(deleteSMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
+		{&db.insertSMSCStmt, fmt.Sprintf(insertSMSCStmt, SMSCsTableName), []any{smscRow{}}},
+		{&db.deleteSMSCStmt, fmt.Sprintf(deleteSMSCStmt, SMSCsTableName), []any{smscRow{}}},
+		{&db.insertSMSCNodeStmt, fmt.Sprintf(insertSMSCNodeStmt, DiameterPeersTableName), []any{smscNodeRow{}}},
+		{&db.deleteSMSCNodesStmt, fmt.Sprintf(deleteSMSCNodesStmt, DiameterPeersTableName), []any{smscNodeRow{}}},
 		{&db.insertSMSCServiceCentreStmt, fmt.Sprintf(insertSMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
 		{&db.deleteSMSCServiceCentresStmt, fmt.Sprintf(deleteSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
 		{&db.listPCSCFAddressesStmt, fmt.Sprintf(listPCSCFAddressesStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -152,16 +153,16 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		return reject(moUnknownSC, sms.RPCauseUnassignedNumber, nil, "the service centre address is not an international E.164 number", nil)
 	}
 
-	peer, err := s.smscFor(ctx, m.Destination.Digits)
+	peers, err := s.smscFor(ctx, m.Destination.Digits)
 	if errors.Is(err, ErrUnknownSCAddress) {
-		return reject(moUnknownSC, sms.RPCauseUnassignedNumber, nil, "no SMSC peer serves the service centre address", nil)
+		return reject(moUnknownSC, sms.RPCauseUnassignedNumber, nil, "no SMSC serves the service centre address", nil)
 	}
 
 	if err != nil {
-		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "SMSC peers unavailable", err)
+		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "SMSCs unavailable", err)
 	}
 
-	envelope, err := s.peers.Envelope(peer)
+	envelope, err := s.envelope(peers)
 	if err != nil {
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC not connected", err)
 	}
@@ -178,8 +179,13 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	ctx, cancel := context.WithTimeout(ctx, s.timers.TR2N)
 	defer cancel()
 
-	ans, err := s.peers.Do(ctx, peer, req)
+	ans, err := s.peers.DoAny(ctx, peers, req)
+	if errors.Is(err, diameter.ErrApplicationUnsupported) {
+		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "no SMSC node supports SGd", err)
+	}
+
 	if err != nil {
+		s.noteUnanswered(err)
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
 	}
 

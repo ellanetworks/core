@@ -25,14 +25,15 @@ import {
   Edit as EditIcon,
 } from "@mui/icons-material";
 import {
-  deleteSMSCPeer,
-  listSMSCPeers,
+  deleteSMSC,
+  listSMSCs,
   type OperatorSMS,
-  type SMSCPeer,
-  type SMSCPeerState,
+  type SMSC,
+  type SMSCNode,
+  type SMSCNodeState,
 } from "@/queries/operator";
 import EditOperatorSMSModal from "@/components/EditOperatorSMSModal";
-import SMSCPeerModal from "@/components/SMSCPeerModal";
+import SMSCModal from "@/components/SMSCModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -40,7 +41,7 @@ import { TABLE_CONTAINER_SX } from "@/utils/layout";
 import { formatDateTime } from "@/utils/formatters";
 
 const stateLabels: Record<
-  SMSCPeerState,
+  SMSCNodeState,
   { label: string; color: "success" | "warning" | "error" | "default" }
 > = {
   open: { label: "Connected", color: "success" },
@@ -54,8 +55,8 @@ const stateLabels: Record<
 const formatEndpoint = (address: string, port: number) =>
   address.includes(":") ? `[${address}]:${port}` : `${address}:${port}`;
 
-const SMSCStatus: React.FC<{ peer: SMSCPeer }> = ({ peer }) => {
-  const status = peer.status;
+const NodeStatus: React.FC<{ node: SMSCNode }> = ({ node }) => {
+  const status = node.status;
   const { label, color } = status
     ? (stateLabels[status.state] ?? { label: status.state, color: "default" })
     : stateLabels.connecting;
@@ -96,46 +97,46 @@ const SMSSection: React.FC<SMSSectionProps> = ({
   const queryClient = useQueryClient();
 
   const [numberModalOpen, setNumberModalOpen] = useState(false);
-  const [peerModal, setPeerModal] = useState<{ peer?: SMSCPeer } | null>(null);
-  const [peerToDelete, setPeerToDelete] = useState<SMSCPeer | null>(null);
+  const [smscModal, setSMSCModal] = useState<{ smsc?: SMSC } | null>(null);
+  const [smscToDelete, setSMSCToDelete] = useState<SMSC | null>(null);
 
   const anyModalOpen =
-    numberModalOpen || peerModal !== null || peerToDelete !== null;
+    numberModalOpen || smscModal !== null || smscToDelete !== null;
 
   useEffect(() => {
     onModalOpenChange(anyModalOpen);
   }, [anyModalOpen, onModalOpenChange]);
 
-  const peersQuery = useQuery<SMSCPeer[]>({
-    queryKey: ["smsc-peers"],
+  const smscsQuery = useQuery<SMSC[]>({
+    queryKey: ["smscs"],
     enabled: authReady && !!accessToken && !anyModalOpen,
     refetchInterval: 5000,
-    queryFn: () => listSMSCPeers(accessToken!),
+    queryFn: () => listSMSCs(accessToken!),
     placeholderData: (prev) => prev,
   });
 
-  const peers = peersQuery.data ?? [];
-  const peersLoading = peersQuery.isLoading && !peersQuery.data;
+  const smscs = smscsQuery.data ?? [];
+  const smscsLoading = smscsQuery.isLoading && !smscsQuery.data;
   const hasNumber = !!sms?.smsNumber;
-  const ready = peers.length > 0 && hasNumber;
+  const ready = smscs.length > 0 && hasNumber;
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
-    queryClient.invalidateQueries({ queryKey: ["smsc-peers"] });
+    queryClient.invalidateQueries({ queryKey: ["smscs"] });
   };
 
   const handleDelete = async () => {
-    if (!peerToDelete || !accessToken) return;
+    if (!smscToDelete || !accessToken) return;
     try {
-      await deleteSMSCPeer(accessToken, peerToDelete.id);
+      await deleteSMSC(accessToken, smscToDelete.name);
       refresh();
-      showSnackbar("Service center deleted successfully.", "success");
+      showSnackbar("SMSC deleted successfully.", "success");
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : "Unknown error occurred.";
-      showSnackbar(`Failed to delete service center: ${msg}`, "error");
+      showSnackbar(`Failed to delete SMSC: ${msg}`, "error");
     } finally {
-      setPeerToDelete(null);
+      setSMSCToDelete(null);
     }
   };
 
@@ -180,14 +181,15 @@ const SMSSection: React.FC<SMSSectionProps> = ({
       </TableContainer>
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-        Service Centers
+        SMSCs
       </Typography>
       <Stack
         direction="row"
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          SMSCs that store and deliver your subscribers&apos; messages.
+          Service centers that store and deliver your subscribers&apos;
+          messages.
         </Typography>
         {canEdit && (
           <Button
@@ -195,11 +197,11 @@ const SMSSection: React.FC<SMSSectionProps> = ({
             color="success"
             size="small"
             startIcon={<AddIcon />}
-            onClick={() => setPeerModal({})}
-            aria-label="Add service center"
+            onClick={() => setSMSCModal({})}
+            aria-label="Add SMSC"
             sx={{ ml: 2, flexShrink: 0 }}
           >
-            Add Service Center
+            Add SMSC
           </Button>
         )}
       </Stack>
@@ -214,64 +216,89 @@ const SMSSection: React.FC<SMSSectionProps> = ({
             }}
           >
             <TableRow>
-              <TableCell sx={{ width: "30%" }}>Address</TableCell>
-              <TableCell sx={{ width: "35%" }}>
+              <TableCell sx={{ width: "20%" }}>Name</TableCell>
+              <TableCell sx={{ width: "25%" }}>
                 <Tooltip
-                  title="The numbers phones use to reach this service center, set as the SMSC number on their SIM"
+                  title="The numbers phones use to reach this SMSC, set as the SMSC number on their SIM"
                   arrow
                 >
                   <span>Numbers</span>
                 </Tooltip>
               </TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell>Nodes</TableCell>
               <TableCell align="right" sx={{ width: 100 }}>
                 Actions
               </TableCell>
             </TableRow>
-            {peersLoading && (
+            {smscsLoading && (
               <TableRow>
                 <TableCell colSpan={4}>
                   <Skeleton variant="text" width={240} />
                 </TableCell>
               </TableRow>
             )}
-            {!peersLoading && peers.length === 0 && (
+            {!smscsLoading && smscs.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4}>
                   <Typography variant="body2" color="textSecondary">
-                    No service centers yet.
+                    No SMSCs yet.
                   </Typography>
                 </TableCell>
               </TableRow>
             )}
-            {peers.map((peer) => (
-              <TableRow key={peer.id}>
+            {smscs.map((smsc) => (
+              <TableRow key={smsc.name} sx={{ verticalAlign: "top" }}>
                 <TableCell sx={{ wordBreak: "break-word" }}>
-                  {formatEndpoint(peer.address, peer.port)}
+                  {smsc.name}
                 </TableCell>
                 <TableCell sx={{ wordBreak: "break-word" }}>
-                  {peer.serviceCentres.join(", ")}
+                  {smsc.serviceCentres.join(", ")}
                 </TableCell>
                 <TableCell>
-                  <SMSCStatus peer={peer} />
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "auto 1fr",
+                      columnGap: 1.5,
+                      rowGap: 1,
+                      alignItems: "center",
+                      justifyItems: "start",
+                    }}
+                  >
+                    {smsc.nodes.map((node) => (
+                      <React.Fragment
+                        key={formatEndpoint(node.address, node.port)}
+                      >
+                        <Tooltip title={node.diameterIdentity} arrow>
+                          <Typography
+                            variant="body2"
+                            sx={{ wordBreak: "break-word" }}
+                          >
+                            {formatEndpoint(node.address, node.port)}
+                          </Typography>
+                        </Tooltip>
+                        <NodeStatus node={node} />
+                      </React.Fragment>
+                    ))}
+                  </Box>
                 </TableCell>
                 <TableCell align="right">
                   {canEdit && (
                     <>
-                      <Tooltip title="Edit service center" arrow>
+                      <Tooltip title="Edit SMSC" arrow>
                         <IconButton
                           size="small"
-                          onClick={() => setPeerModal({ peer })}
-                          aria-label={`Edit service center ${formatEndpoint(peer.address, peer.port)}`}
+                          onClick={() => setSMSCModal({ smsc })}
+                          aria-label={`Edit SMSC ${smsc.name}`}
                         >
                           <EditIcon fontSize="small" color="primary" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete service center" arrow>
+                      <Tooltip title="Delete SMSC" arrow>
                         <IconButton
                           size="small"
-                          onClick={() => setPeerToDelete(peer)}
-                          aria-label={`Delete service center ${formatEndpoint(peer.address, peer.port)}`}
+                          onClick={() => setSMSCToDelete(smsc)}
+                          aria-label={`Delete SMSC ${smsc.name}`}
                         >
                           <DeleteIcon fontSize="small" color="primary" />
                         </IconButton>
@@ -296,32 +323,32 @@ const SMSSection: React.FC<SMSSectionProps> = ({
           initialData={{ smsNumber: sms?.smsNumber ?? "" }}
         />
       )}
-      {peerModal && (
-        <SMSCPeerModal
+      {smscModal && (
+        <SMSCModal
           open
-          onClose={() => setPeerModal(null)}
+          onClose={() => setSMSCModal(null)}
           onSuccess={() => {
             refresh();
             showSnackbar(
-              peerModal.peer
-                ? "Service center updated successfully."
-                : "Service center added successfully.",
+              smscModal.smsc
+                ? "SMSC updated successfully."
+                : "SMSC added successfully.",
               "success",
             );
           }}
-          peer={peerModal.peer}
+          smsc={smscModal.smsc}
         />
       )}
-      {peerToDelete && (
+      {smscToDelete && (
         <DeleteConfirmationModal
           open
-          onClose={() => setPeerToDelete(null)}
+          onClose={() => setSMSCToDelete(null)}
           onConfirm={handleDelete}
-          title="Delete Service Center"
+          title="Delete SMSC"
           description={
-            peers.length === 1 && ready
-              ? `Delete the service center ${formatEndpoint(peerToDelete.address, peerToDelete.port)}? It is your only one: subscribers lose SMS until you add another.`
-              : `Delete the service center ${formatEndpoint(peerToDelete.address, peerToDelete.port)}? Messages sent to ${peerToDelete.serviceCentres.join(", ")} will be rejected.`
+            smscs.length === 1 && ready
+              ? `Delete the SMSC ${smscToDelete.name}? It is your only one: subscribers lose SMS until you add another.`
+              : `Delete the SMSC ${smscToDelete.name}? Messages sent to ${smscToDelete.serviceCentres.join(", ")} will be rejected.`
           }
         />
       )}

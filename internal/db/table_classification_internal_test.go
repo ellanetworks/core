@@ -43,6 +43,7 @@ var (
 		"sms_message_waiting_centres",
 		"sms_settings",
 		"sms_smsc_service_centres",
+		"sms_smscs",
 		"subscriber_framed_routes",
 		"subscribers",
 		"ue_registrations",

@@ -10,7 +10,7 @@ import EditOperatorIdModal from "./EditOperatorIdModal";
 import EditOperatorCodeModal from "./EditOperatorCodeModal";
 import EditOperatorSPNModal from "./EditOperatorSPNModal";
 import EditOperatorSMSModal from "./EditOperatorSMSModal";
-import SMSCPeerModal from "./SMSCPeerModal";
+import SMSCModal from "./SMSCModal";
 import EditOperatorTrackingModal from "./EditOperatorTrackingModal";
 import IMSApplicationServerModal from "./IMSApplicationServerModal";
 
@@ -314,26 +314,26 @@ describe("EditOperatorSMSModal", () => {
   });
 });
 
-describe("SMSCPeerModal", () => {
-  const PEERS_PATH = "/api/v1/operator/sms/smsc-peers";
+describe("SMSCModal", () => {
+  const SMSCS_PATH = "/api/v1/operator/sms/smscs";
 
-  const peer = {
-    id: "0190a000-0000-7000-8000-000000000001",
-    diameterIdentity: "smsc.example.org",
-    address: "192.0.2.10",
-    port: 3868,
+  const smsc = {
+    name: "main",
     serviceCentres: ["+15550000000"],
+    nodes: [
+      {
+        diameterIdentity: "smsc1.example.org",
+        address: "192.0.2.10",
+        port: 3868,
+      },
+      { diameterIdentity: "", address: "192.0.2.11", port: 3868 },
+    ],
   };
 
-  const render = (existing?: typeof peer) => {
+  const render = (existing?: typeof smsc) => {
     const onClose = vi.fn();
     renderWithProviders(
-      <SMSCPeerModal
-        open
-        onClose={onClose}
-        onSuccess={vi.fn()}
-        peer={existing}
-      />,
+      <SMSCModal open onClose={onClose} onSuccess={vi.fn()} smsc={existing} />,
       { auth: {} },
     );
     return { onClose };
@@ -342,85 +342,112 @@ describe("SMSCPeerModal", () => {
   const addButton = () =>
     within(dialog()).getByRole("button", { name: /^Add$/ });
 
-  it("adds a peer", async () => {
+  it("adds an SMSC with two nodes", async () => {
     const user = userEvent.setup();
-    api.post(PEERS_PATH, () => ({}));
+    api.post(SMSCS_PATH, () => ({}));
     const { onClose } = render();
 
-    await retype(user, /Diameter Identity/, "smsc-b.example.org");
-    await retype(user, /^Address/, "2001:db8::10");
+    await retype(user, /^Name/, "main");
     await retype(user, /^Numbers/, "+15550000000, +15550000001");
+    await retype(user, /^Node 1 address/, "2001:db8::10");
+    await retype(user, /^Node 1 Diameter identity/, "smsc1.example.org");
+    await user.click(screen.getByRole("button", { name: "Add Node" }));
+    await retype(user, /^Node 2 address/, "192.0.2.11");
+    await retype(user, /^Node 2 port/, "3869");
     await waitFor(() => expect(addButton()).toBeEnabled());
     await user.click(addButton());
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(PEERS_PATH)?.body).toEqual({
-      diameterIdentity: "smsc-b.example.org",
-      address: "2001:db8::10",
-      port: 3868,
+    expect(api.lastRequest(SMSCS_PATH)?.body).toEqual({
+      name: "main",
       serviceCentres: ["+15550000000", "+15550000001"],
+      nodes: [
+        {
+          diameterIdentity: "smsc1.example.org",
+          address: "2001:db8::10",
+          port: 3868,
+        },
+        { diameterIdentity: "", address: "192.0.2.11", port: 3869 },
+      ],
     });
   });
 
-  it("updates a peer", async () => {
+  it("updates an SMSC without changing its name", async () => {
     const user = userEvent.setup();
-    api.put(`${PEERS_PATH}/${peer.id}`, () => ({}));
-    const { onClose } = render(peer);
+    api.put(`${SMSCS_PATH}/main`, () => ({}));
+    const { onClose } = render(smsc);
 
+    expect(field(/^Name/)).toBeDisabled();
     expect(field(/^Numbers/)).toHaveValue("+15550000000");
-    await retype(user, /^Port/, "3869");
+    expect(field(/^Node 2 address/)).toHaveValue("192.0.2.11");
+    await user.click(screen.getByRole("button", { name: "Remove node 1" }));
+    await retype(user, /^Node 1 port/, "3869");
     await waitFor(() => expect(updateButton()).toBeEnabled());
     await user.click(updateButton());
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(`${PEERS_PATH}/${peer.id}`)?.body).toEqual({
-      diameterIdentity: "smsc.example.org",
-      address: "192.0.2.10",
-      port: 3869,
+    expect(api.lastRequest(`${SMSCS_PATH}/main`)?.body).toEqual({
       serviceCentres: ["+15550000000"],
+      nodes: [{ diameterIdentity: "", address: "192.0.2.11", port: 3869 }],
     });
   });
 
-  it("adds a peer without a Diameter identity", async () => {
+  it("keeps at least one node", async () => {
     const user = userEvent.setup();
-    api.post(PEERS_PATH, () => ({}));
-    const { onClose } = render();
+    render(smsc);
 
-    await retype(user, /^Address/, "192.0.2.10");
-    await retype(user, /^Numbers/, "+15550000000");
-    await waitFor(() => expect(addButton()).toBeEnabled());
-    await user.click(addButton());
+    await user.click(screen.getByRole("button", { name: "Remove node 2" }));
 
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(PEERS_PATH)?.body).toMatchObject({
-      diameterIdentity: "",
-      address: "192.0.2.10",
-    });
+    expect(
+      screen.getByRole("button", { name: "Remove node 1" }),
+    ).toBeDisabled();
+  });
+
+  it("allows at most 8 nodes", async () => {
+    const user = userEvent.setup();
+    render(smsc);
+
+    for (let i = 0; i < 6; i++) {
+      await user.click(screen.getByRole("button", { name: "Add Node" }));
+    }
+
+    expect(screen.getByLabelText(/^Node 8 address/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Node" })).toBeDisabled();
   });
 
   it("rejects an address that is not an IP address", async () => {
     const user = userEvent.setup();
-    render(peer);
+    render(smsc);
 
-    await retype(user, /^Address/, "smsc.example.org");
+    await retype(user, /^Node 1 address/, "smsc.example.org");
 
-    await screen.findByText("Address must be an IPv4 or IPv6 address");
+    await screen.findByText("Must be an IPv4 or IPv6 address");
     expect(updateButton()).toBeDisabled();
   });
 
   it("rejects a Diameter identity that is not a domain name", async () => {
     const user = userEvent.setup();
-    render(peer);
+    render(smsc);
 
-    await retype(user, /Diameter Identity/, "smsc");
+    await retype(user, /^Node 1 Diameter identity/, "smsc");
 
-    await screen.findByText(/Diameter identity must be a fully qualified/);
+    await screen.findByText("Must be a fully qualified domain name");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("rejects two nodes with the same address and port", async () => {
+    const user = userEvent.setup();
+    render(smsc);
+
+    await retype(user, /^Node 2 address/, "192.0.2.10");
+
+    await screen.findByText("Two nodes have the same address and port");
     expect(updateButton()).toBeDisabled();
   });
 
   it("requires valid, distinct service centre numbers", async () => {
     const user = userEvent.setup();
-    render(peer);
+    render(smsc);
 
     await retype(user, /^Numbers/, "");
     await screen.findByText("At least one number is required");
@@ -435,22 +462,22 @@ describe("SMSCPeerModal", () => {
 
   it("shows the server's error", async () => {
     const user = userEvent.setup();
-    api.post(PEERS_PATH, () =>
+    api.post(SMSCS_PATH, () =>
       httpError(
         409,
-        "another SMSC peer serves the service centre number +15550000000",
+        "another SMSC serves the service centre number +15550000000",
       ),
     );
     render();
 
-    await retype(user, /Diameter Identity/, "smsc-c.example.org");
-    await retype(user, /^Address/, "192.0.2.11");
+    await retype(user, /^Name/, "backup");
     await retype(user, /^Numbers/, "+15550000000");
+    await retype(user, /^Node 1 address/, "192.0.2.12");
     await waitFor(() => expect(addButton()).toBeEnabled());
     await user.click(addButton());
 
     expect(
-      await screen.findByText(/another SMSC peer serves the service centre/),
+      await screen.findByText(/another SMSC serves the service centre/),
     ).toBeInTheDocument();
   });
 });
@@ -525,5 +552,30 @@ describe("IMSApplicationServerModal", () => {
   it("hides the fill without a home domain", () => {
     render({});
     expect(fillButton()).not.toBeInTheDocument();
+  });
+
+  it("rejects an identity listed twice", async () => {
+    const user = userEvent.setup();
+    api.post(AS_PATH, () => ({}));
+    const { onClose } = render({});
+
+    await retype(user, /^Name/, "conf");
+    await retype(user, /Server Name/, "sip:conf.example.org");
+    for (const n of [1, 2]) {
+      await user.click(
+        within(dialog()).getByRole("button", { name: "Add Identity" }),
+      );
+      await user.type(field(new RegExp(`Identity ${n}`)), "sip:a@example.org");
+    }
+    await user.tab();
+
+    expect(
+      within(dialog()).getByRole("button", { name: /^Add$/ }),
+    ).toBeDisabled();
+    expect(
+      await within(dialog()).findByText("An identity is listed twice"),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(api.lastRequest(AS_PATH)).toBeUndefined();
   });
 });

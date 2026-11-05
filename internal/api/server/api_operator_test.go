@@ -29,12 +29,16 @@ type GetOperatorSMSResponseResult struct {
 	SMSNumber string `json:"smsNumber"`
 }
 
-type SMSCPeerResultItem struct {
-	ID               string   `json:"id"`
-	DiameterIdentity string   `json:"diameterIdentity"`
-	Address          string   `json:"address"`
-	Port             int      `json:"port"`
-	ServiceCentres   []string `json:"serviceCentres"`
+type SMSCResultItem struct {
+	Name           string               `json:"name"`
+	ServiceCentres []string             `json:"serviceCentres"`
+	Nodes          []SMSCNodeResultItem `json:"nodes"`
+}
+
+type SMSCNodeResultItem struct {
+	DiameterIdentity string `json:"diameterIdentity"`
+	Address          string `json:"address"`
+	Port             int    `json:"port"`
 }
 
 type GetOperatorIMSResponseResult struct {

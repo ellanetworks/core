@@ -606,24 +606,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	imsProfiles := newIMSProfileNotifier(dbInstance, hssInstance)
 	go imsProfiles.run(ctx)
 
-	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
-		DB:                  dbInstance,
-		Sessions:            smfInstance,
-		AMF:                 amfInstance,
-		MME:                 mmeInstance,
-		HSS:                 hssInstance,
-		IMSProfiles:         imsProfiles,
-		BGP:                 bgpService,
-		LMF:                 lmfInstance,
-		Diameter:            diameterNode,
-		EmbedFS:             rc.EmbedFS,
-		RegisterExtraRoutes: rc.RegisterExtraRoutes,
-		ClusterListener:     clusterLn,
-		DatapathAttachMode:  upfInstance.DatapathAttachMode,
-	}); err != nil {
-		return fmt.Errorf("couldn't upgrade API: %w", err)
-	}
-
 	drainWakeup, stopDrainWakeup := dbInstance.Changefeed().Wakeup(db.TopicClusterMembers)
 	defer stopDrainWakeup()
 
@@ -657,6 +639,24 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	mmeServer.Serve(ctx, s1apListener)
+
+	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
+		DB:                  dbInstance,
+		Sessions:            smfInstance,
+		AMF:                 amfInstance,
+		MME:                 mmeInstance,
+		HSS:                 hssInstance,
+		IMSProfiles:         imsProfiles,
+		BGP:                 bgpService,
+		LMF:                 lmfInstance,
+		Diameter:            diameterNode,
+		EmbedFS:             rc.EmbedFS,
+		RegisterExtraRoutes: rc.RegisterExtraRoutes,
+		ClusterListener:     clusterLn,
+		DatapathAttachMode:  upfInstance.DatapathAttachMode,
+	}); err != nil {
+		return fmt.Errorf("couldn't upgrade API: %w", err)
+	}
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
 		return amfInstance.ExportUEs(ctx)
@@ -1433,20 +1433,20 @@ func sctpLogger(log *zap.Logger, name string) *slog.Logger {
 
 func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 	return func(ctx context.Context) ([]diameternode.PeerConfig, error) {
-		smscPeers, err := dbInstance.ListSMSCPeers(ctx)
+		smscs, err := dbInstance.ListSMSCs(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		peers := make([]diameternode.PeerConfig, 0, len(smscPeers))
+		var peers []diameternode.PeerConfig
 
-		for _, p := range smscPeers {
-			peer, err := smsf.SMSCPeer(p)
+		for _, smsc := range smscs {
+			nodes, err := smsf.SMSCPeers(smsc)
 			if err != nil {
 				return nil, err
 			}
 
-			peers = append(peers, peer)
+			peers = append(peers, nodes...)
 		}
 
 		return peers, nil
