@@ -6,6 +6,8 @@ package mme
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -52,6 +54,7 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
+	c.releaseCommanded.Store(true)
 	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
 	m.guardDetachedRelease(ctx, c)
 }
@@ -88,6 +91,7 @@ func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEI
 	}
 
 	if !c.releaseGuard.Active() {
+		c.releaseCommanded.Store(true)
 		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
 		m.guardDetachedRelease(ctx, c)
 	}
@@ -142,6 +146,8 @@ func (c *UeConn) sendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 	}
 
 	c.Log(ctx).Debug("UE Context Release Command")
+
+	c.releaseCommanded.Store(true)
 
 	return c.sendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b, send)
 }
@@ -225,6 +231,59 @@ func (m *MME) CompleteUEContextRelease(ctx context.Context, ue *UeContext, c *Ue
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }
 
+func (m *MME) ClaimENBUES1APID(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) bool {
+	m.mu.RLock()
+	holders := slices.Collect(maps.Keys(m.connIndex.matching(conn, enbUEID)))
+	m.mu.RUnlock()
+
+	var live []*UeConn
+
+	for _, c := range holders {
+		if !c.releaseCommanded.Load() {
+			live = append(live, c)
+
+			continue
+		}
+
+		c.Log(ctx).Info("eNB-UE-S1AP-ID reused before its UE Context Release Complete arrived; completing the release")
+		m.completeCommandedRelease(ctx, c)
+	}
+
+	if len(live) == 0 {
+		return true
+	}
+
+	m.ReclaimConns(ctx, live, "Initial UE Message reusing an allocated eNB-UE-S1AP-ID")
+
+	return false
+}
+
+func (m *MME) completeCommandedRelease(ctx context.Context, c *UeConn) {
+	if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
+		return
+	}
+
+	if ue := c.UeContext(); ue != nil && ue.Conn() == c {
+		m.CompleteUEContextRelease(ctx, ue, c)
+
+		return
+	}
+
+	m.ReclaimConns(ctx, []*UeConn{c}, "eNB-UE-S1AP-ID reused after a UE Context Release Command")
+}
+
+func (m *MME) ReleaseConnsForInconsistentPair(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, trigger string) {
+	m.mu.RLock()
+	held, ok := m.conns[uint32(mmeUEID)]
+	inconsistent := ok && held.Conn() == conn && held.ENBUES1APID() != enbUEID
+
+	m.mu.RUnlock()
+
+	if inconsistent {
+		m.ReleaseConnsWithAPIDs(ctx, conn, &mmeUEID, &enbUEID, trigger)
+	}
+}
+
 func (m *MME) ReleaseConnsForUnknownPair(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, trigger string) {
 	m.mu.RLock()
 	held, ok := m.conns[uint32(mmeUEID)]
@@ -258,14 +317,13 @@ func (m *MME) ReleaseConnsWithAPIDs(ctx context.Context, conn S1APWriter, mmeUEI
 
 	m.mu.RUnlock()
 
-	conns := make([]*UeConn, 0, len(matched))
-	for c := range matched {
-		conns = append(conns, c)
+	if len(matched) == 0 {
+		return false
 	}
 
-	m.ReclaimConns(ctx, conns, trigger)
+	m.ReclaimConns(ctx, slices.Collect(maps.Keys(matched)), trigger)
 
-	return len(conns) > 0
+	return true
 }
 
 // ReleaseUEContextLocally releases a UE without sending a UE Context Release Command,

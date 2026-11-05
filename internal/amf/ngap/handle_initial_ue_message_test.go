@@ -296,3 +296,38 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 }
+
+func TestInitialUEMessageReusingTheRanIDOfAConnectionBeingReleasedCompletesThatRelease(t *testing.T) {
+	amfInstance := newTestAMFWithNAS(&fakeNASHandler{})
+	ran := newTestRadio(amfInstance)
+	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.Registered)
+
+	released := amf.NewUeConnForTest(ran, 1, 10)
+	amfInstance.AttachUeConn(t.Context(), amfUe, released)
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+	})
+
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
+		RANUENGAPID: 1,
+		NASPDU:      ngap.NASPDU([]byte{0xAA}),
+	})
+
+	if amfInstance.FindUEByAmfUeNgapID(ran, 10) != nil {
+		t.Fatal("the connection whose RAN-UE-NGAP-ID was reused is still held")
+	}
+
+	if !amfUe.MobileReachableActiveForTest() {
+		t.Fatal("reusing the RAN-UE-NGAP-ID did not complete the release: the registered UE was not moved to CM-IDLE")
+	}
+
+	if released.ClaimReleaseCompletion() {
+		t.Fatal("the release guard can still run the release cleanup a second time")
+	}
+}

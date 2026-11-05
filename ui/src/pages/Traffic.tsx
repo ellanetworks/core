@@ -37,6 +37,7 @@ import {
   type UsageRetentionPolicy,
   type DailySubscriberUsage,
   type PerSubscriberUsage,
+  USAGE_SUBSCRIBER_LIMIT,
 } from "@/queries/usage";
 import {
   listFlowReports,
@@ -240,6 +241,7 @@ const Traffic: React.FC = () => {
         end,
         selectedSubscriber,
         "subscriber",
+        USAGE_SUBSCRIBER_LIMIT,
       );
     },
     enabled: !!accessToken,
@@ -966,6 +968,13 @@ const Traffic: React.FC = () => {
                   }}
                 />
               </Box>
+
+              {usageRows.length >= USAGE_SUBSCRIBER_LIMIT && (
+                <Alert severity="info">
+                  Showing the {USAGE_SUBSCRIBER_LIMIT} subscribers with the most
+                  usage. Select a subscriber to see one not listed.
+                </Alert>
+              )}
 
               <EntityGrid<UsageRow>
                 rows={usageRows}

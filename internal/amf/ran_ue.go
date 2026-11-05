@@ -663,11 +663,6 @@ func (ueConn *UeConn) setConn(w NGAPWriter) {
 	ueConn.conn.Store(&w)
 }
 
-// StopReleaseGuard cancels the Release-Complete supervision timer.
-func (ueConn *UeConn) StopReleaseGuard() {
-	ueConn.releaseGuard.Stop()
-}
-
 func (ueConn *UeConn) ClaimReleaseCompletion() bool {
 	ueConn.releaseGuard.Stop()
 
@@ -879,21 +874,10 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	}
 }
 
-// DropStaleUe removes any connection on radio still bound to ranUeNgapID, clearing the way
-// for a new InitialUEMessage to reuse that RAN-UE-NGAP-ID. A gNB may reuse the ID before its
-// prior UEContextRelease completes; dropping the stale conn keeps a deferred
-// UEContextReleaseComplete from removing the freshly created context. Torn down after
-// releasing a.mu, since RemoveUeConn re-acquires it and may call the SMF.
-func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
-	a.mu.Lock()
-	stale := a.connsByRanLocked(radio.Conn, ranUeNgapID)
-	a.mu.Unlock()
-
-	for _, ueConn := range stale {
-		ueConn.Log(ctx).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn")
-
-		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
+func (a *AMF) ReleaseConnsWithRanUeNgapID(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
+	for _, ueConn := range a.ConnsByRanUeNgapID(radio, ranUeNgapID) {
+		if ueConn.ClaimReleaseCompletion() {
+			a.ReleaseUeConn(ctx, ueConn)
 		}
 	}
 }

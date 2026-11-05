@@ -5,7 +5,6 @@ package eps
 
 import (
 	"encoding/hex"
-	"time"
 
 	nasie "github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
@@ -27,46 +26,18 @@ func esmCauseOnly(c eps.ESMCause, unrecognized []nas.RawIE) *ESMCauseOnly {
 }
 
 type PDNConnectivityReject struct {
-	ESMCause     utils.EnumField  `json:"esm_cause"`
-	BackoffTimer *GPRSTimer3Value `json:"backoff_timer,omitempty"`
+	ESMCause     utils.EnumField        `json:"esm_cause"`
+	BackoffTimer *nasie.GPRSTimer3Value `json:"backoff_timer,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type GPRSTimer3Value struct {
-	Unit        utils.EnumField `json:"unit"`
-	Value       uint8           `json:"value"`
-	Duration    string          `json:"duration"`
-	Seconds     *int64          `json:"seconds,omitempty"`
-	Deactivated bool            `json:"deactivated,omitempty"`
 }
 
 func buildPDNConnectivityReject(msg *eps.PDNConnectivityReject) *PDNConnectivityReject {
 	return &PDNConnectivityReject{
 		ESMCause:        esmCauseToEnum(msg.Cause),
-		BackoffTimer:    gprsTimer3(msg.BackoffTimer),
+		BackoffTimer:    nasie.GPRSTimer3(msg.BackoffTimer),
 		UnrecognizedIEs: utils.RawIEs(msg.Unrecognized),
 	}
-}
-
-func gprsTimer3(t *nas.GPRSTimer3) *GPRSTimer3Value {
-	if t == nil {
-		return nil
-	}
-
-	out := &GPRSTimer3Value{
-		Unit:        utils.NamedEnum(t.Unit, t.UnitName()),
-		Value:       t.Value,
-		Duration:    t.String(),
-		Deactivated: t.Deactivated(),
-	}
-
-	if d, ok := t.Duration(); ok {
-		secs := int64(d / time.Second)
-		out.Seconds = &secs
-	}
-
-	return out
 }
 
 type ModifyEPSBearerContextRequest struct {

@@ -68,7 +68,7 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 				zap.Uint32("stored_ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 				zap.Uint32("received_ran_ue_ngap_id", uint32(*ranID)))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
-			releaseConnsWithRanID(ctx, amfInstance, ran, models.RanUeNgapID(*ranID))
+			amfInstance.ReleaseConnsWithRanUeNgapID(ctx, ran, models.RanUeNgapID(*ranID))
 
 			return nil, false
 		}
@@ -94,14 +94,6 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 	}
 
 	return nil, false
-}
-
-func releaseConnsWithRanID(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID models.RanUeNgapID) {
-	for _, ueConn := range amfInstance.ConnsByRanUeNgapID(ran, ranID) {
-		if ueConn.ClaimReleaseCompletion() {
-			amfInstance.ReleaseUeConn(ctx, ueConn)
-		}
-	}
 }
 
 // causeUnknownLocalUEID is Cause Radio Network "unknown-local-UE-NGAP-ID"

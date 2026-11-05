@@ -38,9 +38,9 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 
 	ue, ueConn, ok := resolveUEQuiet(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete for a connection the MME does not hold; releasing locally",
+		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete for a connection the MME does not hold",
 			logger.MMEUeS1apID(uint32(mmeUEID)), logger.ENBUeS1apID(uint32(enbUEID)))
-		m.ReleaseConnsForUnknownPair(ctx, radio.Conn, mmeUEID, enbUEID, "UE Context Release Complete with erroneous S1AP IDs")
+		m.ReleaseConnsForInconsistentPair(ctx, radio.Conn, mmeUEID, enbUEID, "UE Context Release Complete with an inconsistent S1AP ID pair")
 
 		return
 	}

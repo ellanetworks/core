@@ -59,7 +59,7 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 		t.Fatal("new UeConn is not the UE's active connection after re-attach")
 	}
 
-	first.StopReleaseGuard()
+	first.ClaimReleaseCompletion()
 	amfInstance.ReleaseUeConn(context.Background(), first)
 
 	if amfInstance.LookupUeConn(10) != nil {

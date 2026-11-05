@@ -6,22 +6,14 @@ package smf
 import (
 	"context"
 	"errors"
-	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"golang.org/x/sys/unix"
 )
 
-type datapathCapacityError struct{}
-
-func (datapathCapacityError) Error() string { return "datapath session capacity reached" }
-
-func (datapathCapacityError) DatapathCapacity() bool { return true }
-
-var ErrDatapathCapacity error = datapathCapacityError{}
-
-const CapacityBackoff = 60 * time.Second
+var ErrDatapathCapacity = models.ErrDatapathCapacity
 
 func WithMaxSessions(n uint32) Option { return func(s *SMF) { s.maxSessions = n } }
 
@@ -54,7 +46,7 @@ func capacityBackoff(ctx context.Context, err error, requestType fgs.RequestType
 		return nil
 	}
 
-	timer, tErr := nas.GPRSTimer3FromDuration(CapacityBackoff)
+	timer, tErr := nas.GPRSTimer3FromDuration(models.DatapathCapacityBackoff)
 	if tErr != nil {
 		return nil
 	}

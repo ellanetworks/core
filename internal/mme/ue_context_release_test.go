@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -169,5 +170,34 @@ func TestReleaseCompleteAfterTheReleaseGuardCleanedUpLeavesTheNextConnection(t *
 
 	if ue.MobileReachableArmedForTest() {
 		t.Fatal("a Release Complete for a connection the release guard already cleaned up re-ran the idle transition")
+	}
+}
+
+func TestAPIDChecksThatMatchNothingTakeOnlyTheReadLock(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	enbID := s1ap.ENBUES1APID(7)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		if !m.ClaimENBUES1APID(context.Background(), cc, enbID) {
+			t.Error("a free eNB-UE-S1AP-ID was not claimable")
+		}
+
+		if m.ReleaseConnsWithAPIDs(context.Background(), cc, nil, &enbID, "test") {
+			t.Error("released connections where none held the AP ID")
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("an AP ID check that matched no connection waited for the MME write lock")
 	}
 }

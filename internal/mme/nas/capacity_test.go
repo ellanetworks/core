@@ -158,3 +158,18 @@ func TestAttachBearerRejectCauseMapsDatapathCapacity(t *testing.T) {
 		t.Fatalf("cause = %d, want #26", got)
 	}
 }
+
+func TestCapacityBackoffIsTheSharedDatapathBackoff(t *testing.T) {
+	m := newCapacityMME(t)
+	ue, _ := securedUE(t, m)
+	ue.Conn().SetRRCEstablishmentCause(rrcCause(s1ap.RRCCauseMOData))
+
+	got := capacityBackoff(ue.Conn(), eps.RequestTypeInitialRequest, fmt.Errorf("establish: %w", models.ErrDatapathCapacity))
+	if got == nil {
+		t.Fatal("no back-off for a datapath capacity failure")
+	}
+
+	if d, ok := got.Duration(); !ok || d != models.DatapathCapacityBackoff {
+		t.Fatalf("back-off = %v (%t), want the %v the SMF uses", d, ok, models.DatapathCapacityBackoff)
+	}
+}

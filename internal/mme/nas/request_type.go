@@ -54,15 +54,8 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 	return eps.ESMCauseRequestRejectedUnspecified
 }
 
-type datapathCapacity interface {
-	error
-	DatapathCapacity() bool
-}
-
 func datapathCapacityExhausted(err error) bool {
-	c, ok := errors.AsType[datapathCapacity](err)
-
-	return ok && c.DatapathCapacity()
+	return errors.Is(err, models.ErrDatapathCapacity)
 }
 
 func capacityBackoff(ueConn *mme.UeConn, t eps.RequestType, err error) *nas.GPRSTimer3 {
@@ -74,7 +67,7 @@ func capacityBackoff(ueConn *mme.UeConn, t eps.RequestType, err error) *nas.GPRS
 		return nil
 	}
 
-	timer, tErr := nas.GPRSTimer3FromDuration(mme.T3396CapacityBackoff)
+	timer, tErr := nas.GPRSTimer3FromDuration(models.DatapathCapacityBackoff)
 	if tErr != nil {
 		return nil
 	}

@@ -89,7 +89,6 @@ type Database struct {
 	listActiveLeasesStmt         *sqlair.Statement
 	listActiveLeasesByNodeStmt   *sqlair.Statement
 	listLeasesByPoolStmt         *sqlair.Statement
-	listLeaseAddressesByPoolStmt *sqlair.Statement
 	listLeaseAddressRangeStmt    *sqlair.Statement
 	getNewestLeaseInPoolStmt     *sqlair.Statement
 	countLeasesByPoolStmt        *sqlair.Statement
@@ -1825,7 +1824,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listActiveLeasesByNodeStmt, fmt.Sprintf(listActiveLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressRangeStmt, fmt.Sprintf(listLeaseAddressRangeStmt, IPLeasesTableName), []any{IPLease{}, leaseAddressRange{}}},
 		{&db.getNewestLeaseInPoolStmt, fmt.Sprintf(getNewestLeaseInPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},

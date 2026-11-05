@@ -42,7 +42,11 @@ func TestNewMapSizing(t *testing.T) {
 				}
 			}
 
-			for _, name := range []string{"qer_windows", "urr_map", "framed_downlink_ip4", "framed_downlink_ip6"} {
+			if want := tc.wantSessions * MaxSessionQERs; m["qer_windows"] != want {
+				t.Errorf("qer_windows = %d, want %d: every session can hold %d QERs", m["qer_windows"], want, MaxSessionQERs)
+			}
+
+			for _, name := range []string{"urr_map", "framed_downlink_ip4", "framed_downlink_ip6"} {
 				if m[name] != tc.wantPerPool {
 					t.Errorf("%s = %d, want %d", name, m[name], tc.wantPerPool)
 				}

@@ -35,7 +35,6 @@ const (
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listActiveLeasesByNodeStmt   = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL AND nodeID==$IPLease.nodeID"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
-	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin"
 	listLeaseAddressRangeStmt    = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$leaseAddressRange.poolID AND poolType==$leaseAddressRange.poolType AND addressBin >= $leaseAddressRange.low AND addressBin <= $leaseAddressRange.high ORDER BY addressBin"
 	getNewestLeaseInPoolStmt     = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY rowid DESC LIMIT 1"
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
@@ -707,50 +706,6 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 	}
 
 	return leases, count, nil
-}
-
-// ListLeaseAddressesByPool returns sorted addresses for all leases in a pool.
-func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolType string) ([]string, error) {
-	querySummary := fmt.Sprintf("%s %s (addresses by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
-		recordSpanError(span, err)
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	addresses := make([]string, 0, len(leases))
-
-	for i := range leases {
-		addresses = append(addresses, leases[i].Address().String())
-	}
-
-	return addresses, nil
 }
 
 // CountLeasesByPool returns the total number of leases in a pool.

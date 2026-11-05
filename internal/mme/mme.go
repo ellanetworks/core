@@ -155,8 +155,6 @@ const T3412PeriodicTAU = 54 * time.Minute
 
 const T3402Backoff = 12 * time.Minute
 
-const T3396CapacityBackoff = 60 * time.Second
-
 const (
 	mobileReachableMargin      = 4 * time.Minute
 	defaultMobileReachableTime = T3412PeriodicTAU + mobileReachableMargin

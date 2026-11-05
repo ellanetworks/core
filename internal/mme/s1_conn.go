@@ -78,6 +78,7 @@ type UeConn struct {
 	releaseGuard              guard.Guard
 	icsGuard                  guard.Guard
 	releasing                 bool
+	releaseCommanded          atomic.Bool
 	ranUEAMBR                 atomic.Pointer[models.Ambr]
 	rrcCause                  atomic.Pointer[s1ap.RRCEstablishmentCause]
 	indexedAt                 *s1ConnKey

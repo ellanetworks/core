@@ -24,8 +24,8 @@ func gsmCauseOnly(c fgs.GSMCause, unrecognized []naslib.RawIE) *GSMCauseOnly {
 }
 
 type PDUSessionEstablishmentReject struct {
-	Cause5GSM    utils.EnumField  `json:"cause_5g_s_m"`
-	BackoffTimer *GPRSTimer3Value `json:"backoff_timer,omitempty"`
+	Cause5GSM    utils.EnumField        `json:"cause_5g_s_m"`
+	BackoffTimer *nasie.GPRSTimer3Value `json:"backoff_timer,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -33,7 +33,7 @@ type PDUSessionEstablishmentReject struct {
 func buildPDUSessionEstablishmentReject(msg *fgs.PDUSessionEstablishmentReject) *PDUSessionEstablishmentReject {
 	return &PDUSessionEstablishmentReject{
 		Cause5GSM:       cause5GSMToString(msg.Cause),
-		BackoffTimer:    gprsTimer3(msg.BackoffTimer),
+		BackoffTimer:    nasie.GPRSTimer3(msg.BackoffTimer),
 		UnrecognizedIEs: utils.RawIEs(msg.Unrecognized),
 	}
 }
@@ -150,7 +150,7 @@ func buildPDUSessionModificationCommand(msg *fgs.PDUSessionModificationCommand) 
 // that tells the UE how long to wait (TS 24.501 §8.3.8).
 type PDUSessionModificationReject struct {
 	Cause5GSM                            utils.EnumField                     `json:"cause_5g_s_m"`
-	BackoffTimer                         *GPRSTimer3Value                    `json:"backoff_timer,omitempty"`
+	BackoffTimer                         *nasie.GPRSTimer3Value              `json:"backoff_timer,omitempty"`
 	ExtendedProtocolConfigurationOptions *nasie.ProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
@@ -159,7 +159,7 @@ type PDUSessionModificationReject struct {
 func buildPDUSessionModificationReject(msg *fgs.PDUSessionModificationReject) *PDUSessionModificationReject {
 	out := &PDUSessionModificationReject{
 		Cause5GSM:                            cause5GSMToString(msg.Cause),
-		BackoffTimer:                         gprsTimer3(msg.BackoffTimer),
+		BackoffTimer:                         nasie.GPRSTimer3(msg.BackoffTimer),
 		ExtendedProtocolConfigurationOptions: nasie.ExtendedPCO(msg.ExtendedPCO),
 	}
 

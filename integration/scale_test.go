@@ -65,8 +65,12 @@ func TestIntegrationScale1k(t *testing.T) {
 			out := env.RunScenario(ctx, t, tc.scenario, tr, args...)
 
 			for line := range strings.SplitSeq(out, "\n") {
-				if strings.Contains(line, " complete\t") {
-					t.Log(strings.TrimSpace(line[strings.Index(line, "INFO")+len("INFO"):]))
+				for _, summary := range []string{"deregistration complete\t", "registration complete\t", "user plane probes complete\t", "over capacity rejected\t"} {
+					if i := strings.Index(line, summary); i >= 0 {
+						t.Log(line[i:])
+
+						break
+					}
 				}
 			}
 		})

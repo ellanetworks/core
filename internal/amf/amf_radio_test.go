@@ -188,13 +188,13 @@ func TestRanUeNgapIDIndexFollowsTheConnection(t *testing.T) {
 		t.Errorf("FindUEByRanUeNgapID(radio, 8) = %v, want the reassigned connection", got)
 	}
 
-	amfInstance.DropStaleUe(t.Context(), radio, 8)
+	amfInstance.ReleaseConnsWithRanUeNgapID(t.Context(), radio, 8)
 
 	if got := amfInstance.FindUEByRanUeNgapID(radio, 8); got != nil {
-		t.Errorf("DropStaleUe left %v", got)
+		t.Errorf("ReleaseConnsWithRanUeNgapID left %v", got)
 	}
 
 	if got := amfInstance.FindUEByRanUeNgapID(other, 7); got == nil {
-		t.Error("DropStaleUe on one radio removed another radio's connection")
+		t.Error("ReleaseConnsWithRanUeNgapID on one radio removed another radio's connection")
 	}
 }

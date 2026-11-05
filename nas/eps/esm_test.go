@@ -170,6 +170,33 @@ func TestPDNConnectivityRejectBackoffTimerRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPDNConnectivityRejectKeepsPreservedIEsAroundTheBackoffTimer(t *testing.T) {
+	in := []byte{
+		0x02, 0x15, uint8(MsgPDNConnectivityReject), uint8(ESMCauseInsufficientResources),
+		0x27, 0x03, 0x80, 0x00, 0x00,
+		0x37, 0x01, 0xA1,
+		0x6B, 0x01, 0x01,
+	}
+
+	msg, err := ParsePDNConnectivityReject(in)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	if msg.BackoffTimer == nil {
+		t.Fatal("back-off timer not decoded")
+	}
+
+	out, err := msg.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	if !bytes.Equal(out, in) {
+		t.Fatalf("re-encoded % x, want % x", out, in)
+	}
+}
+
 func TestParseESMHeader(t *testing.T) {
 	// EBI 5, PTI 2, Activate Default EPS Bearer Context Accept (0xC2).
 	hdr, err := ParseESMHeader([]byte{0x52, 0x02, 0xC2})

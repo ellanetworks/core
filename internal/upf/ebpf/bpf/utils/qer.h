@@ -26,7 +26,8 @@
 #include "bpf/utils/pdr.h"
 #include "bpf/utils/sdf_classifier.h"
 
-#define QER_WINDOW_MAP_SIZE (MAX_PDU_SESSIONS * 8)
+#define MAX_SESSION_QERS (1 + MAX_CLASSIFIER_TARGETS)
+#define QER_WINDOW_MAP_SIZE (MAX_PDU_SESSIONS * MAX_SESSION_QERS)
 
 struct qer_key {
 	__u64 seid;

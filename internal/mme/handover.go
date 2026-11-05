@@ -436,6 +436,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	}
 
 	source.ue.Store(nil) // its Release Complete removes the connection
+	source.releaseCommanded.Store(true)
 	m.clearHandoverLocked(ue)
 
 	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), target.MMEUES1APID, true

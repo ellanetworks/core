@@ -84,7 +84,7 @@ func TestNonLastMessageFromAnotherENBReleasesNothingOnTheUEsInterface(t *testing
 }
 
 // TS 36.413 §10.6
-func TestReleaseCompleteWithUnknownMMEUES1APIDReleasesLocallyWithoutErrorIndication(t *testing.T) {
+func TestReleaseCompleteWithUnknownMMEUES1APIDLeavesTheConnectionHoldingItsENBUES1APID(t *testing.T) {
 	m := newTestMME(t)
 	ue, conn := securedUE(t, m)
 
@@ -94,7 +94,9 @@ func TestReleaseCompleteWithUnknownMMEUES1APIDReleasesLocallyWithoutErrorIndicat
 		t.Fatalf("sent %d messages in answer to the last message, want none", conn.count())
 	}
 
-	requireIdleAndRetained(t, m, ue)
+	if !ue.Connected() || ue.Conn().ConnForTest() != conn {
+		t.Fatal("a Release Complete naming an MME-UE-S1AP-ID the MME does not hold released the connection holding its eNB-UE-S1AP-ID")
+	}
 }
 
 // TS 36.413 §10.6
@@ -198,4 +200,94 @@ func TestErrorIndicationForErroneousS1APIDsReleasesLocally(t *testing.T) {
 	}
 
 	requireIdleAndRetained(t, m, ue)
+}
+
+func errorIndicationsSince(t *testing.T, c *captureConn, from int) int {
+	t.Helper()
+
+	n := 0
+
+	for _, pdu := range c.sent[from:] {
+		if isErrorIndication(t, pdu) {
+			n++
+		}
+	}
+
+	return n
+}
+
+func heldConn(m *mme.MME, conn mme.S1APWriter, c *mme.UeConn) bool {
+	for _, held := range m.ConnsOnConn(conn) {
+		if held == c {
+			return true
+		}
+	}
+
+	return false
+}
+
+func TestInitialUEMessageReusingTheENBUES1APIDOfAConnectionBeingReleasedCompletesThatRelease(t *testing.T) {
+	m := newTestMME(t)
+	ue, conn := securedUE(t, m)
+	enbID := ue.Conn().ENBUES1APID()
+
+	m.ReleaseUEContext(t.Context(), ue, mme.CauseNASNormalRelease)
+
+	before := conn.count()
+
+	HandleInitialUEMessage(t.Context(), m, mme.NewRadioForTest(conn), initiatingValue(t, initialUEMessagePDU(t, enbID, []byte{0x07, 0x60, 0x00})))
+
+	if n := errorIndicationsSince(t, conn, before); n != 0 {
+		t.Fatalf("sent %d Error Indications for an eNB-UE-S1AP-ID the eNB freed by completing its release, want none", n)
+	}
+
+	requireIdleAndRetained(t, m, ue)
+
+	if !ue.MobileReachableArmedForTest() {
+		t.Fatal("the implicitly completed release did not move the UE to ECM-IDLE")
+	}
+}
+
+func TestInitialUEMessageReusingTheENBUES1APIDOfASupersededConnectionCompletesItsRelease(t *testing.T) {
+	m := newTestMME(t)
+	ue, oldConn := securedUE(t, m)
+
+	_, oldENBID := resumeOntoNewConnection(t, m, ue)
+
+	before := oldConn.count()
+
+	HandleInitialUEMessage(t.Context(), m, mme.NewRadioForTest(oldConn), initiatingValue(t, initialUEMessagePDU(t, oldENBID, []byte{0x07, 0x60, 0x00})))
+
+	if n := errorIndicationsSince(t, oldConn, before); n != 0 {
+		t.Fatalf("sent %d Error Indications for the eNB-UE-S1AP-ID of a superseded connection the eNB released, want none", n)
+	}
+
+	if !ue.Connected() || ue.Conn().ENBUES1APID() != 1001 {
+		t.Fatal("completing the superseded connection's release disturbed the UE's current connection")
+	}
+}
+
+func TestLateReleaseCompleteLeavesTheConnectionThatReusedItsENBUES1APID(t *testing.T) {
+	m := newTestMME(t)
+	ue, conn := securedUE(t, m)
+	mmeID, enbID := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
+
+	m.ReleaseUEContext(t.Context(), ue, mme.CauseNASNormalRelease)
+
+	if !m.ClaimENBUES1APID(t.Context(), conn, enbID) {
+		t.Fatal("the eNB-UE-S1AP-ID of a connection being released was not freed for reuse")
+	}
+
+	next := m.NewUeConn(conn, enbID)
+	before := conn.count()
+
+	HandleUEContextReleaseComplete(t.Context(), m, mme.NewRadioForTest(conn), releaseCompleteValue(t, mmeID, enbID))
+
+	if conn.count() != before {
+		t.Fatalf("sent %d messages in answer to the last message, want none", conn.count()-before)
+	}
+
+	if !heldConn(m, conn, next) {
+		t.Fatal("a late Release Complete released the connection that reused its eNB-UE-S1AP-ID")
+	}
 }

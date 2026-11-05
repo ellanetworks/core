@@ -25,7 +25,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		return
 	}
 
-	if m.ReleaseConnsWithAPIDs(ctx, radio.Conn, nil, &msg.ENBUES1APID, "Initial UE Message reusing an allocated eNB-UE-S1AP-ID") {
+	if !m.ClaimENBUES1APID(ctx, radio.Conn, msg.ENBUES1APID) {
 		logger.From(ctx, logger.MmeLog).Warn("Initial UE Message with an eNB-UE-S1AP-ID already allocated to another connection",
 			logger.ENBUeS1apID(uint32(msg.ENBUES1APID)))
 		sendErrorIndication(ctx, m, radio.Conn, nil, &msg.ENBUES1APID, causeUnknownENBUES1APID)
