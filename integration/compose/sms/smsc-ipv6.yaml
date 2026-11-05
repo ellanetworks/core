@@ -14,7 +14,7 @@ configs:
 
 services:
   smsc:
-    image: ghcr.io/ellanetworks/ella-smsc:latest
+    image: ${ELLA_SMSC_IMAGE:-ghcr.io/ellanetworks/ella-smsc:latest}
     configs:
       - source: smsc_config
         target: /smsc.yaml

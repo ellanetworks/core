@@ -1,0 +1,75 @@
+configs:
+  smsc_1_config:
+    content: |
+      logging:
+        level: debug
+      db:
+        path: "/smsc.db"
+      api:
+        address: 10.3.0.15
+        port: 5010
+      diameter:
+        address: 10.3.0.15
+        port: 3868
+      cluster:
+        address: 10.3.0.15
+        port: 7000
+  smsc_2_config:
+    content: |
+      logging:
+        level: debug
+      db:
+        path: "/smsc.db"
+      api:
+        address: 10.3.0.16
+        port: 5010
+      diameter:
+        address: 10.3.0.16
+        port: 3868
+      cluster:
+        address: 10.3.0.16
+        port: 7000
+  smsc_3_config:
+    content: |
+      logging:
+        level: debug
+      db:
+        path: "/smsc.db"
+      api:
+        address: 10.3.0.17
+        port: 5010
+      diameter:
+        address: 10.3.0.17
+        port: 3868
+      cluster:
+        address: 10.3.0.17
+        port: 7000
+
+services:
+  smsc-1:
+    image: ${ELLA_SMSC_IMAGE:-ghcr.io/ellanetworks/ella-smsc:latest}
+    configs:
+      - source: smsc_1_config
+        target: /smsc.yaml
+    restart: unless-stopped
+    networks:
+      n3:
+        ipv4_address: 10.3.0.15
+  smsc-2:
+    image: ${ELLA_SMSC_IMAGE:-ghcr.io/ellanetworks/ella-smsc:latest}
+    configs:
+      - source: smsc_2_config
+        target: /smsc.yaml
+    restart: unless-stopped
+    networks:
+      n3:
+        ipv4_address: 10.3.0.16
+  smsc-3:
+    image: ${ELLA_SMSC_IMAGE:-ghcr.io/ellanetworks/ella-smsc:latest}
+    configs:
+      - source: smsc_3_config
+        target: /smsc.yaml
+    restart: unless-stopped
+    networks:
+      n3:
+        ipv4_address: 10.3.0.17

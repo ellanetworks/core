@@ -29,8 +29,8 @@ func TestTheSMSCIsUnavailableBeforeTheNodeStarts(t *testing.T) {
 		t.Fatalf("Envelope = %v, want the SMSC unavailable", err)
 	}
 
-	if _, err := c.Do(t.Context(), smsf.SMSCPeerID(smscPeerID), &diameter.Message{}); !errors.Is(err, smsf.ErrSMSCUnavailable) {
-		t.Fatalf("Do = %v, want the SMSC unavailable", err)
+	if _, err := c.DoAny(t.Context(), []string{smsf.SMSCPeerID(smscPeerID)}, &diameter.Message{}); !errors.Is(err, smsf.ErrSMSCUnavailable) {
+		t.Fatalf("DoAny = %v, want the SMSC unavailable", err)
 	}
 
 	if _, ok := c.LocalHost(); ok {
@@ -109,6 +109,16 @@ func TestTheSMSCEnvelopeTargetsTheNamedPeer(t *testing.T) {
 
 	if _, err := c.Envelope(smsf.SMSCPeerID("unknown")); !errors.Is(err, smsf.ErrSMSCUnavailable) {
 		t.Fatalf("Envelope of an unknown peer = %v, want the SMSC unavailable", err)
+	}
+
+	req := &diameter.Message{Flags: diameter.FlagProxiable, CommandCode: sgd.CommandMOForwardShortMessage, ApplicationID: sgd.ApplicationID, AVPs: env.AVPs()}
+
+	if ans, err := c.DoAny(t.Context(), []string{down, open}, req); err != nil || ans == nil {
+		t.Fatalf("DoAny past a peer that is not connected = %v, %v, want an answer from the open SMSC", ans, err)
+	}
+
+	if _, err := c.DoAny(t.Context(), []string{down}, req); !errors.Is(err, smsf.ErrSMSCUnavailable) {
+		t.Fatalf("DoAny with no open peer = %v, want the SMSC unavailable", err)
 	}
 
 	if host, ok := c.LocalHost(); !ok || host != localIdent.Host {

@@ -1433,20 +1433,20 @@ func sctpLogger(log *zap.Logger, name string) *slog.Logger {
 
 func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 	return func(ctx context.Context) ([]diameternode.PeerConfig, error) {
-		smscPeers, err := dbInstance.ListSMSCPeers(ctx)
+		smscs, err := dbInstance.ListSMSCs(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		peers := make([]diameternode.PeerConfig, 0, len(smscPeers))
+		var peers []diameternode.PeerConfig
 
-		for _, p := range smscPeers {
-			peer, err := smsf.SMSCPeer(p)
+		for _, smsc := range smscs {
+			nodes, err := smsf.SMSCPeers(smsc)
 			if err != nil {
 				return nil, err
 			}
 
-			peers = append(peers, peer)
+			peers = append(peers, nodes...)
 		}
 
 		return peers, nil

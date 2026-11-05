@@ -272,7 +272,7 @@ This path updates the network name (Service Provider Name) displayed on connecte
 
 ## Update the SMS Settings
 
-This path sets Ella Core's SMS number. SMS is available once the SMS number is set and at least one SMSC peer is configured.
+This path sets Ella Core's SMS number. SMS is available once the SMS number is set and at least one SMSC is configured.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -300,13 +300,13 @@ This path sets Ella Core's SMS number. SMS is available once the SMS number is s
 }
 ```
 
-## List SMSC Peers
+## List SMSCs
 
-This path returns the list of SMSC peers.
+This path returns the list of SMSCs.
 
-| Method | Path                                  |
-| ------ | ------------------------------------- |
-| GET    | `/api/v1/operator/sms/smsc-peers`     |
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/operator/sms/smscs`  |
 
 ### Parameters
 
@@ -319,58 +319,82 @@ None
     "result": {
         "items": [
             {
-                "id": "0199a1b2-3c4d-7e5f-8a6b-7c8d9e0f1a2b",
-                "diameterIdentity": "smsc.example.org",
-                "address": "192.0.2.10",
-                "port": 3868,
+                "name": "main",
                 "serviceCentres": ["+15550000000"],
-                "status": {
-                    "state": "open",
-                    "host": "smsc.example.org",
-                    "realm": "example.org",
-                    "since": "2026-09-29T13:44:09Z"
-                }
+                "nodes": [
+                    {
+                        "diameterIdentity": "smsc1.node.example.org",
+                        "address": "192.0.2.10",
+                        "port": 3868,
+                        "status": {
+                            "state": "open",
+                            "host": "smsc1.node.example.org",
+                            "realm": "example.org",
+                            "since": "2026-09-29T13:44:09Z"
+                        }
+                    },
+                    {
+                        "diameterIdentity": "smsc2.node.example.org",
+                        "address": "192.0.2.11",
+                        "port": 3868,
+                        "status": {
+                            "state": "down",
+                            "since": "2026-09-29T13:44:09Z",
+                            "error": "dial 192.0.2.11:3868: connection refused"
+                        }
+                    }
+                ]
             }
         ]
     }
 }
 ```
 
-## Get an SMSC Peer
+## Get an SMSC
 
-This path returns an SMSC peer.
+This path returns an SMSC.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| GET    | `/api/v1/operator/sms/smsc-peers/{id}`     |
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| GET    | `/api/v1/operator/sms/smscs/{name}`  |
 
 ### Parameters
 
 None
 
-## Create an SMSC Peer
+## Create an SMSC
 
-This path creates an SMSC peer.
+This path creates an SMSC.
 
-| Method | Path                                  |
-| ------ | ------------------------------------- |
-| POST   | `/api/v1/operator/sms/smsc-peers`     |
+| Method | Path                          |
+| ------ | ----------------------------- |
+| POST   | `/api/v1/operator/sms/smscs`  |
 
 ### Parameters
 
-- `diameterIdentity` (optional string): The SMSC's Diameter identity (Origin-Host).
-- `address` (string): The IPv4 or IPv6 address of the SMSC's Diameter endpoint.
-- `port` (optional integer): The SCTP port of the SMSC's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
+- `name` (string): The name of the SMSC.
 - `serviceCentres` (array of strings): The E.164 service centre numbers the SMSC serves, for example `+15550000000`.
+- `nodes` (array of objects): The SMSC's Diameter nodes.
+    - `diameterIdentity` (optional string): The node's Diameter identity (Origin-Host).
+    - `address` (string): The IPv4 or IPv6 address of the node's Diameter endpoint.
+    - `port` (optional integer): The SCTP port of the node's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
 
 ### Sample Request
 
 ```json
 {
-    "diameterIdentity": "smsc.example.org",
-    "address": "192.0.2.10",
-    "port": 3868,
-    "serviceCentres": ["+15550000000"]
+    "name": "main",
+    "serviceCentres": ["+15550000000"],
+    "nodes": [
+        {
+            "diameterIdentity": "smsc1.node.example.org",
+            "address": "192.0.2.10"
+        },
+        {
+            "diameterIdentity": "smsc2.node.example.org",
+            "address": "192.0.2.11"
+        }
+    ]
 }
 ```
 
@@ -379,44 +403,53 @@ This path creates an SMSC peer.
 ```json
 {
     "result": {
-        "id": "0199a1b2-3c4d-7e5f-8a6b-7c8d9e0f1a2b",
-        "diameterIdentity": "smsc.example.org",
-        "address": "192.0.2.10",
-        "port": 3868,
-        "serviceCentres": ["+15550000000"]
+        "name": "main",
+        "serviceCentres": ["+15550000000"],
+        "nodes": [
+            {
+                "diameterIdentity": "smsc1.node.example.org",
+                "address": "192.0.2.10",
+                "port": 3868
+            },
+            {
+                "diameterIdentity": "smsc2.node.example.org",
+                "address": "192.0.2.11",
+                "port": 3868
+            }
+        ]
     }
 }
 ```
 
-## Update an SMSC Peer
+## Update an SMSC
 
-This path updates an SMSC peer.
+This path updates an SMSC.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| PUT    | `/api/v1/operator/sms/smsc-peers/{id}`     |
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| PUT    | `/api/v1/operator/sms/smscs/{name}`  |
 
 ### Parameters
 
-Same as [Create an SMSC Peer](#create-an-smsc-peer), with `port` required.
+Same as [Create an SMSC](#create-an-smsc), without `name`.
 
 ### Sample Response
 
 ```json
 {
     "result": {
-        "message": "SMSC peer updated successfully"
+        "message": "SMSC updated successfully"
     }
 }
 ```
 
-## Delete an SMSC Peer
+## Delete an SMSC
 
-This path deletes an SMSC peer.
+This path deletes an SMSC.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| DELETE | `/api/v1/operator/sms/smsc-peers/{id}`     |
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| DELETE | `/api/v1/operator/sms/smscs/{name}`  |
 
 ### Parameters
 
@@ -427,7 +460,7 @@ None
 ```json
 {
     "result": {
-        "message": "SMSC peer deleted successfully"
+        "message": "SMSC deleted successfully"
     }
 }
 ```

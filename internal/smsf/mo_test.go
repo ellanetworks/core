@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
@@ -178,8 +177,8 @@ func TestMobileOriginatedSMSWithoutMSISDNIsRejected(t *testing.T) {
 func TestMobileOriginatedSMSGoesToThePeerServingTheServiceCentre(t *testing.T) {
 	e := newEnv(t)
 	e.store.setPeers(
-		db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
-		db.SMSCPeer{ID: "c", DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", Port: 3868, ServiceCentres: []string{"15550000008", serviceCentre}},
+		smscWithNodes("b", []string{otherServiceCentre}, "b"),
+		smscWithNodes("c", []string{"15550000008", serviceCentre}, "c"),
 	)
 
 	sendRPData(t, e, moTI(0), 1)
@@ -196,7 +195,7 @@ func TestMobileOriginatedSMSGoesToThePeerServingTheServiceCentre(t *testing.T) {
 
 func TestMobileOriginatedSMSToAServiceCentreNoPeerServesIsRejected(t *testing.T) {
 	e := newEnv(t)
-	e.store.setPeers(db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}})
+	e.store.setPeers(smscWithNodes("b", []string{otherServiceCentre}, "b"))
 
 	sendRPData(t, e, moTI(0), 1)
 	expectCPAck(t, e, moTI(0).Peer())
@@ -556,5 +555,60 @@ func TestANewSubmissionOnAReusedTransactionIdentifierIsRelayed(t *testing.T) {
 
 	if n := len(e.smsc.submitted()); n != 2 {
 		t.Fatalf("relayed %d submissions, want the retransmission dropped and the new message relayed", n)
+	}
+}
+
+func TestMobileOriginatedSMSSkipsANodeThatIsDown(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(smscWithNodes("main", []string{serviceCentre}, "x", "y"))
+	e.smsc.setPeerDown(smsf.SMSCPeerID("x"))
+
+	for i := range 2 {
+		sendRPData(t, e, moTI(uint8(i)), uint8(i+1))
+		expectCPAck(t, e, moTI(uint8(i)).Peer())
+
+		if _, ok := expectReport(t, e, moTI(uint8(i)).Peer()).(*sms.RPAck); !ok {
+			t.Fatalf("message %d: expected RP-ACK", i)
+		}
+	}
+
+	if got, want := e.smsc.sentTo(), []string{smsf.SMSCPeerID("y"), smsf.SMSCPeerID("y")}; !slices.Equal(got, want) {
+		t.Fatalf("OFRs sent to %v, want %v", got, want)
+	}
+}
+
+func TestMobileOriginatedSMSIsSpreadOverTheNodesOfAnSMSC(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(smscWithNodes("main", []string{serviceCentre}, "x", "y"))
+
+	for i := range 2 {
+		sendRPData(t, e, moTI(uint8(i)), uint8(i+1))
+		expectCPAck(t, e, moTI(uint8(i)).Peer())
+
+		if _, ok := expectReport(t, e, moTI(uint8(i)).Peer()).(*sms.RPAck); !ok {
+			t.Fatalf("message %d: expected RP-ACK", i)
+		}
+	}
+
+	got := e.smsc.sentTo()
+	slices.Sort(got)
+
+	if want := []string{smsf.SMSCPeerID("x"), smsf.SMSCPeerID("y")}; !slices.Equal(got, want) {
+		t.Fatalf("OFRs sent to %v, want one per node", got)
+	}
+}
+
+func TestMobileOriginatedSMSIsRejectedWhenEveryNodeIsDown(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(smscWithNodes("main", []string{serviceCentre}, "x", "y"))
+	e.smsc.setPeerDown(smsf.SMSCPeerID("x"))
+	e.smsc.setPeerDown(smsf.SMSCPeerID("y"))
+
+	sendRPData(t, e, moTI(0), 1)
+	expectCPAck(t, e, moTI(0).Peer())
+
+	rpErr, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPError)
+	if !ok || rpErr.Cause != sms.RPCauseNetworkOutOfOrder {
+		t.Fatalf("RP-ERROR = %+v, want cause 38", rpErr)
 	}
 }

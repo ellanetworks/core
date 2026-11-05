@@ -132,8 +132,13 @@ func TestSMSWritesAreGatedBeforeV22(t *testing.T) {
 		t.Fatalf("UpdateSMSSettings at schema 21: want ErrMigrationPending, got %v", err)
 	}
 
-	peer := SMSCPeer{ID: "01890000-0000-7000-8000-000000000010", DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: DefaultSMSCPort, ServiceCentres: []string{"15550000000"}}
-	if err := d.CreateSMSCPeer(ctx, &peer); !errors.Is(err, ErrMigrationPending) {
-		t.Fatalf("CreateSMSCPeer at schema 21: want ErrMigrationPending, got %v", err)
+	smsc := SMSC{
+		ID:             "01890000-0000-7000-8000-000000000010",
+		Name:           "main",
+		ServiceCentres: []string{"15550000000"},
+		Nodes:          []SMSCNode{{ID: "01890000-0000-7000-8000-000000000011", DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: DefaultSMSCPort}},
+	}
+	if err := d.CreateSMSC(ctx, &smsc); !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("CreateSMSC at schema 21: want ErrMigrationPending, got %v", err)
 	}
 }

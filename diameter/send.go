@@ -478,13 +478,33 @@ func (s *sending) release() {
 }
 
 func (s *sending) reroute(ctx context.Context, reason RerouteReason, from *peer) {
+	s.n.rerouted(ctx, reason, from, &s.m)
+}
+
+func (n *Node) rerouted(ctx context.Context, reason RerouteReason, from *peer, m *Message) {
 	reroutedEvent(ctx, reason, from.name())
 
-	if s.n.cfg.OnReroute == nil {
+	if n.cfg.OnReroute == nil {
 		return
 	}
 
-	s.n.cfg.OnReroute(Reroute{Reason: reason, From: from.name(), ApplicationID: s.m.ApplicationID, CommandCode: s.m.CommandCode})
+	n.cfg.OnReroute(Reroute{Reason: reason, From: from.name(), ApplicationID: m.ApplicationID, CommandCode: m.CommandCode})
+}
+
+func withDestination(avps []AVP, host, realm string) []AVP {
+	out := slices.Clone(avps)
+
+	for i, a := range out {
+		switch {
+		case a.VendorID != 0:
+		case a.Code == AVPDestinationHost && host != "":
+			out[i] = UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, host)
+		case a.Code == AVPDestinationRealm && realm != "":
+			out[i] = UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, realm)
+		}
+	}
+
+	return out
 }
 
 func applicationOf(p *peer, id uint32) (Application, bool) {

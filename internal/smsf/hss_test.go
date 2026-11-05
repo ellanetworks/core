@@ -25,7 +25,7 @@ func (idleSMSC) Envelope(string) (tgpp.Envelope, error) {
 	return tgpp.Envelope{}, smsf.ErrSMSCUnavailable
 }
 
-func (idleSMSC) Do(context.Context, string, *diameter.Message) (*diameter.Message, error) {
+func (idleSMSC) DoAny(context.Context, []string, *diameter.Message) (*diameter.Message, error) {
 	return nil, smsf.ErrSMSCUnavailable
 }
 
@@ -287,7 +287,7 @@ func TestAnAbsentRoutingAnswerForAnUnservedServiceCentreRecordsNoWaitingData(t *
 		t.Fatalf("SRA MWD status = %s, want the service centre added", re.MWDStatus)
 	}
 
-	store.setPeers(db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{"15550000009"}})
+	store.setPeers(smscWithNodes("b", []string{"15550000009"}, "b"))
 
 	if err := store.DeleteSMSWaiting(context.Background(), imsi); err != nil {
 		t.Fatal(err)

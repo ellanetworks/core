@@ -33,8 +33,8 @@ func TestWaitingDataRecordedByAnotherNodeAlerts(t *testing.T) {
 func TestEveryWaitingServiceCentreIsAlertedThroughItsPeer(t *testing.T) {
 	e := newEnv(t)
 	e.store.setPeers(
-		db.SMSCPeer{ID: "a", DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
-		db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+		smscWithNodes("a", []string{serviceCentre}, "a"),
+		smscWithNodes("b", []string{otherServiceCentre}, "b"),
 	)
 
 	for _, sc := range []string{serviceCentre, otherServiceCentre} {
@@ -90,10 +90,10 @@ func TestAWaitingServiceCentreNoPeerServesIsDropped(t *testing.T) {
 func TestAnUnreachablePeerDoesNotHoldBackAlertsThroughOthers(t *testing.T) {
 	e := newEnv(t)
 	e.store.setPeers(
-		db.SMSCPeer{ID: "a", DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868, ServiceCentres: []string{serviceCentre}},
-		db.SMSCPeer{ID: "b", DiameterIdentity: "smsc-192-0-2-11.example.org", Address: "192.0.2.11", Port: 3868, ServiceCentres: []string{otherServiceCentre}},
+		smscWithNodes("a", []string{serviceCentre}, "a"),
+		smscWithNodes("b", []string{otherServiceCentre}, "b"),
 	)
-	e.smsc.setPeerDown(smsf.SMSCPeerID("a"), true)
+	e.smsc.setPeerDown(smsf.SMSCPeerID("a"))
 
 	for _, sc := range []string{serviceCentre, otherServiceCentre} {
 		if err := e.store.RecordSMSWaiting(context.Background(), db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: sc}); err != nil {
@@ -193,5 +193,24 @@ func TestMemoryAvailableThatCannotBeRecordedIsRetriedByTheUE(t *testing.T) {
 
 	if w, err := e.store.GetSMSWaiting(context.Background(), imsi); err != nil || !w.MemoryFull {
 		t.Fatalf("waiting = %+v (%v), want the memory-full flag kept", w, err)
+	}
+}
+
+func TestAnAlertGoesThroughAnotherNodeOfTheSMSC(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(smscWithNodes("main", []string{serviceCentre}, "x", "y"))
+	e.smsc.setPeerDown(smsf.SMSCPeerID("x"))
+
+	if err := e.store.RecordSMSWaiting(context.Background(), db.SMSWaitingUpdate{IMSI: imsi, ServiceCentre: serviceCentre}); err != nil {
+		t.Fatal(err)
+	}
+
+	e.smsf.UEReachable(context.Background(), imsi)
+
+	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+	eventually(t, "the waiting data to clear", func() bool { return !e.smsf.Waiting(imsi) })
+
+	if got, want := e.smsc.sentTo(), []string{smsf.SMSCPeerID("y")}; !slices.Equal(got, want) {
+		t.Fatalf("alert sent to %v, want %v", got, want)
 	}
 }

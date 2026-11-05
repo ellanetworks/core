@@ -14,8 +14,13 @@ import (
 )
 
 const (
-	peerA = "01890000-0000-7000-8000-00000000000a"
-	peerB = "01890000-0000-7000-8000-00000000000b"
+	smscA  = "01890000-0000-7000-8000-00000000000a"
+	smscB  = "01890000-0000-7000-8000-00000000000b"
+	nodeA1 = "01890000-0000-7000-8000-0000000000a1"
+	nodeA2 = "01890000-0000-7000-8000-0000000000a2"
+	nodeA3 = "01890000-0000-7000-8000-0000000000a3"
+	nodeB1 = "01890000-0000-7000-8000-0000000000b1"
+	nodeB2 = "01890000-0000-7000-8000-0000000000b2"
 )
 
 func newSMSDatabase(t *testing.T) *db.Database {
@@ -52,8 +57,8 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-10-0-0-5.example.org", Address: "10.0.0.5", Port: 3869, ServiceCentres: []string{"15550000000"}}); err != nil {
-		t.Fatalf("CreateSMSCPeer: %s", err)
+	if err := database.CreateSMSC(ctx, smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc-10-0-0-5.example.org", "10.0.0.5", 3869))); err != nil {
+		t.Fatalf("CreateSMSC: %s", err)
 	}
 
 	want := db.SMSSettings{SMSNumber: "15550009999"}
@@ -87,119 +92,153 @@ func TestSMSSettingsRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLastSMSCPeerCanBeDeleted(t *testing.T) {
+func TestLastSMSCCanBeDeleted(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	if err := database.CreateSMSCPeer(ctx, &db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}); err != nil {
-		t.Fatalf("CreateSMSCPeer: %s", err)
+	if err := database.CreateSMSC(ctx, smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc-192-0-2-1.example.org", "192.0.2.1", 3868))); err != nil {
+		t.Fatalf("CreateSMSC: %s", err)
 	}
 
-	if err := database.DeleteSMSCPeer(ctx, peerA); err != nil {
-		t.Fatalf("DeleteSMSCPeer of the last peer: %s", err)
+	if err := database.DeleteSMSC(ctx, smscA); err != nil {
+		t.Fatalf("DeleteSMSC of the last SMSC: %s", err)
 	}
 
-	if err := database.DeleteSMSCPeer(ctx, peerA); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("DeleteSMSCPeer of a missing peer = %v, want ErrNotFound", err)
+	if err := database.DeleteSMSC(ctx, smscA); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("DeleteSMSC of a missing SMSC = %v, want ErrNotFound", err)
+	}
+
+	if err := database.CreateSMSC(ctx, smsc(smscB, "b", []string{"15550000000"}, node(nodeA1, "smsc-192-0-2-1.example.org", "192.0.2.1", 3868))); err != nil {
+		t.Fatalf("CreateSMSC reusing the deleted node and service centre: %s", err)
 	}
 }
 
-func TestSMSCPeersRoundTrip(t *testing.T) {
+func TestSMSCsRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	a := db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001", "15550000000"}}
-	b := db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-b.example.org", Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000002"}}
+	a := *smsc(smscA, "a", []string{"15550000001", "15550000000"},
+		node(nodeA1, "smsc1.node.example.org", "192.0.2.1", 3868),
+		node(nodeA2, "smsc2.node.example.org", "192.0.2.2", 3868),
+	)
+	b := *smsc(smscB, "b", []string{"15550000002"}, node(nodeB1, "smsc-b.example.org", "192.0.2.1", 3869))
 
-	for _, p := range []db.SMSCPeer{a, b} {
-		if err := database.CreateSMSCPeer(ctx, &p); err != nil {
-			t.Fatalf("CreateSMSCPeer: %s", err)
+	for _, s := range []db.SMSC{a, b} {
+		if err := database.CreateSMSC(ctx, &s); err != nil {
+			t.Fatalf("CreateSMSC: %s", err)
 		}
 	}
 
-	a.Port = 3870
 	a.ServiceCentres = []string{"15550000003"}
+	a.Nodes = []db.SMSCNode{a.Nodes[1], *node(nodeA3, "smsc3.node.example.org", "192.0.2.3", 3870)}
 
-	if err := database.UpdateSMSCPeer(ctx, &a); err != nil {
-		t.Fatalf("UpdateSMSCPeer: %s", err)
+	if err := database.UpdateSMSC(ctx, &a); err != nil {
+		t.Fatalf("UpdateSMSC: %s", err)
 	}
 
-	peers, err := database.ListSMSCPeers(ctx)
+	smscs, err := database.ListSMSCs(ctx)
 	if err != nil {
-		t.Fatalf("ListSMSCPeers: %s", err)
+		t.Fatalf("ListSMSCs: %s", err)
 	}
 
-	want := []db.SMSCPeer{a, b}
-	if !slices.EqualFunc(peers, want, func(x, y db.SMSCPeer) bool {
-		return x.ID == y.ID && x.DiameterIdentity == y.DiameterIdentity && x.Address == y.Address && x.Port == y.Port && slices.Equal(x.ServiceCentres, y.ServiceCentres)
-	}) {
-		t.Fatalf("peers = %+v, want %+v", peers, want)
+	want := []db.SMSC{a, b}
+	if !slices.EqualFunc(smscs, want, sameSMSC) {
+		t.Fatalf("SMSCs = %+v, want %+v", smscs, want)
 	}
 
-	got, err := database.GetSMSCPeer(ctx, peerB)
-	if err != nil || got.Port != 3869 {
-		t.Fatalf("GetSMSCPeer = %+v, %v, want peer B", got, err)
+	got, err := database.GetSMSC(ctx, "b")
+	if err != nil || !sameSMSC(*got, b) {
+		t.Fatalf("GetSMSC = %+v, %v, want SMSC b", got, err)
 	}
 
-	if _, err := database.GetSMSCPeer(ctx, "missing"); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("GetSMSCPeer of a missing peer = %v, want ErrNotFound", err)
+	if _, err := database.GetSMSC(ctx, "missing"); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("GetSMSC of a missing SMSC = %v, want ErrNotFound", err)
 	}
 
 	missing := b
 	missing.ID = "missing"
 
-	if err := database.UpdateSMSCPeer(ctx, &missing); !errors.Is(err, db.ErrNotFound) {
-		t.Fatalf("UpdateSMSCPeer of a missing peer = %v, want ErrNotFound", err)
+	if err := database.UpdateSMSC(ctx, &missing); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("UpdateSMSC of a missing SMSC = %v, want ErrNotFound", err)
+	}
+
+	renamed := b
+	renamed.Name = "renamed"
+
+	if err := database.UpdateSMSC(ctx, &renamed); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("UpdateSMSC renaming an SMSC = %v, want ErrNotFound", err)
 	}
 }
 
-func TestSMSCPeersWithoutIdentity(t *testing.T) {
+func TestSMSCNodesWithoutIdentity(t *testing.T) {
 	ctx := context.Background()
 	database := newSMSDatabase(t)
 
-	for _, p := range []db.SMSCPeer{
-		{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-		{ID: peerB, Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000001"}},
-		{ID: "01890000-0000-7000-8000-00000000000c", DiameterIdentity: "smsc.example.org", Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000002"}},
+	for _, s := range []*db.SMSC{
+		smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "", "192.0.2.1", 3868), node(nodeA2, "", "192.0.2.2", 3868)),
+		smsc(smscB, "b", []string{"15550000002"}, node(nodeB1, "smsc.example.org", "192.0.2.1", 3869)),
 	} {
-		if err := database.CreateSMSCPeer(ctx, &p); err != nil {
-			t.Fatalf("CreateSMSCPeer(%s): %s", p.ID, err)
+		if err := database.CreateSMSC(ctx, s); err != nil {
+			t.Fatalf("CreateSMSC(%s): %s", s.Name, err)
 		}
 	}
 
-	got, err := database.GetSMSCPeer(ctx, peerA)
-	if err != nil || got.DiameterIdentity != "" {
-		t.Fatalf("GetSMSCPeer = %+v, %v, want no identity", got, err)
+	got, err := database.GetSMSC(ctx, "a")
+	if err != nil || got.Nodes[0].DiameterIdentity != "" || got.Nodes[1].DiameterIdentity != "" {
+		t.Fatalf("GetSMSC = %+v, %v, want nodes without identity", got, err)
 	}
 }
 
-func TestSMSCPeerConflictsAreRejected(t *testing.T) {
+func TestSMSCConflictsAreRejected(t *testing.T) {
 	ctx := context.Background()
 
 	cases := []struct {
 		name  string
-		first db.SMSCPeer
-		next  db.SMSCPeer
+		first *db.SMSC
+		next  *db.SMSC
+		want  error
 	}{
 		{
 			"shared service centre",
-			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-192-0-2-2.example.org", Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000000"}},
+			smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc-192-0-2-1.example.org", "192.0.2.1", 3868)),
+			smsc(smscB, "b", []string{"15550000000"}, node(nodeB1, "smsc-192-0-2-2.example.org", "192.0.2.2", 3868)),
+			db.ErrSMSCConflict,
 		},
 		{
 			"shared identity",
-			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, DiameterIdentity: "SMSC.example.org", Address: "192.0.2.2", Port: 3868, ServiceCentres: []string{"15550000001"}},
+			smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc.example.org", "192.0.2.1", 3868)),
+			smsc(smscB, "b", []string{"15550000001"}, node(nodeB1, "SMSC.example.org", "192.0.2.2", 3868)),
+			db.ErrSMSCConflict,
 		},
 		{
 			"shared endpoint",
-			db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-a.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, DiameterIdentity: "smsc-b.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000001"}},
+			smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc-a.example.org", "192.0.2.1", 3868)),
+			smsc(smscB, "b", []string{"15550000001"}, node(nodeB1, "smsc-b.example.org", "192.0.2.1", 3868)),
+			db.ErrSMSCConflict,
 		},
 		{
 			"shared address without identities",
-			db.SMSCPeer{ID: peerA, Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}},
-			db.SMSCPeer{ID: peerB, Address: "192.0.2.1", Port: 3869, ServiceCentres: []string{"15550000001"}},
+			smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "", "192.0.2.1", 3868)),
+			smsc(smscB, "b", []string{"15550000001"}, node(nodeB1, "", "192.0.2.1", 3869)),
+			db.ErrSMSCConflict,
+		},
+		{
+			"shared node ID",
+			smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc-a.example.org", "192.0.2.1", 3868)),
+			smsc(smscB, "b", []string{"15550000001"}, node(nodeA1, "smsc-b.example.org", "192.0.2.2", 3868)),
+			db.ErrSMSCConflict,
+		},
+		{
+			"shared name",
+			smsc(smscA, "main", []string{"15550000000"}, node(nodeA1, "smsc-a.example.org", "192.0.2.1", 3868)),
+			smsc(smscB, "MAIN", []string{"15550000001"}, node(nodeB1, "smsc-b.example.org", "192.0.2.2", 3868)),
+			db.ErrAlreadyExists,
+		},
+		{
+			"two nodes of one SMSC on one endpoint",
+			smsc(smscA, "a", []string{"15550000000"}, node(nodeA1, "smsc-a.example.org", "192.0.2.1", 3868)),
+			smsc(smscB, "b", []string{"15550000001"}, node(nodeB1, "smsc-b1.example.org", "192.0.2.2", 3868), node(nodeB2, "smsc-b2.example.org", "192.0.2.2", 3868)),
+			db.ErrSMSCConflict,
 		},
 	}
 
@@ -207,17 +246,17 @@ func TestSMSCPeerConflictsAreRejected(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			database := newSMSDatabase(t)
 
-			if err := database.CreateSMSCPeer(ctx, &tc.first); err != nil {
-				t.Fatalf("CreateSMSCPeer: %s", err)
+			if err := database.CreateSMSC(ctx, tc.first); err != nil {
+				t.Fatalf("CreateSMSC: %s", err)
 			}
 
-			if err := database.CreateSMSCPeer(ctx, &tc.next); !errors.Is(err, db.ErrSMSCPeerConflict) {
-				t.Fatalf("CreateSMSCPeer = %v, want ErrSMSCPeerConflict", err)
+			if err := database.CreateSMSC(ctx, tc.next); !errors.Is(err, tc.want) {
+				t.Fatalf("CreateSMSC = %v, want %v", err, tc.want)
 			}
 
-			peers, err := database.ListSMSCPeers(ctx)
-			if err != nil || len(peers) != 1 {
-				t.Fatalf("ListSMSCPeers = %+v, %v, want only the first peer", peers, err)
+			smscs, err := database.ListSMSCs(ctx)
+			if err != nil || len(smscs) != 1 {
+				t.Fatalf("ListSMSCs = %+v, %v, want only the first SMSC", smscs, err)
 			}
 		})
 	}
@@ -246,41 +285,64 @@ func TestSMSSettingsValidate(t *testing.T) {
 	}
 }
 
-func TestSMSCPeerValidate(t *testing.T) {
-	valid := db.SMSCPeer{ID: peerA, DiameterIdentity: "smsc-192-0-2-1.example.org", Address: "192.0.2.1", Port: 3868, ServiceCentres: []string{"15550000000"}}
+func TestSMSCValidate(t *testing.T) {
+	valid := *smsc(smscA, "main", []string{"15550000000"}, node(nodeA1, "smsc-192-0-2-1.example.org", "192.0.2.1", 3868))
 
 	cases := []struct {
 		name  string
-		edit  func(p *db.SMSCPeer)
+		edit  func(s *db.SMSC)
 		valid bool
 	}{
-		{"ipv4", func(*db.SMSCPeer) {}, true},
-		{"ipv6", func(p *db.SMSCPeer) { p.Address = "2001:db8::1" }, true},
-		{"identity with an underscore", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc_1.example.org" }, true},
-		{"no identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "" }, true},
-		{"single label identity", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc" }, false},
-		{"identity with a space", func(p *db.SMSCPeer) { p.DiameterIdentity = "smsc .example.org" }, false},
-		{"non-canonical address", func(p *db.SMSCPeer) { p.Address = "2001:DB8::1" }, false},
-		{"hostname", func(p *db.SMSCPeer) { p.Address = "smsc.example.org" }, false},
-		{"unspecified", func(p *db.SMSCPeer) { p.Address = "0.0.0.0" }, false},
-		{"zone", func(p *db.SMSCPeer) { p.Address = "fe80::1%eth0" }, false},
-		{"port zero", func(p *db.SMSCPeer) { p.Port = 0 }, false},
-		{"port too high", func(p *db.SMSCPeer) { p.Port = 65536 }, false},
-		{"no service centre", func(p *db.SMSCPeer) { p.ServiceCentres = nil }, false},
-		{"invalid service centre", func(p *db.SMSCPeer) { p.ServiceCentres = []string{"+15550000000"} }, false},
-		{"duplicate service centre", func(p *db.SMSCPeer) { p.ServiceCentres = []string{"15550000000", "15550000000"} }, false},
-		{"no id", func(p *db.SMSCPeer) { p.ID = "" }, false},
+		{"ipv4", func(*db.SMSC) {}, true},
+		{"ipv6", func(s *db.SMSC) { s.Nodes[0].Address = "2001:db8::1" }, true},
+		{"identity with an underscore", func(s *db.SMSC) { s.Nodes[0].DiameterIdentity = "smsc_1.example.org" }, true},
+		{"no identity", func(s *db.SMSC) { s.Nodes[0].DiameterIdentity = "" }, true},
+		{"eight nodes", func(s *db.SMSC) { s.Nodes = slices.Repeat(s.Nodes, db.MaxSMSCNodes) }, true},
+		{"single label identity", func(s *db.SMSC) { s.Nodes[0].DiameterIdentity = "smsc" }, false},
+		{"identity with a space", func(s *db.SMSC) { s.Nodes[0].DiameterIdentity = "smsc .example.org" }, false},
+		{"non-canonical address", func(s *db.SMSC) { s.Nodes[0].Address = "2001:DB8::1" }, false},
+		{"hostname", func(s *db.SMSC) { s.Nodes[0].Address = "smsc.example.org" }, false},
+		{"unspecified", func(s *db.SMSC) { s.Nodes[0].Address = "0.0.0.0" }, false},
+		{"zone", func(s *db.SMSC) { s.Nodes[0].Address = "fe80::1%eth0" }, false},
+		{"port zero", func(s *db.SMSC) { s.Nodes[0].Port = 0 }, false},
+		{"port too high", func(s *db.SMSC) { s.Nodes[0].Port = 65536 }, false},
+		{"no node id", func(s *db.SMSC) { s.Nodes[0].ID = "" }, false},
+		{"no nodes", func(s *db.SMSC) { s.Nodes = nil }, false},
+		{"too many nodes", func(s *db.SMSC) { s.Nodes = slices.Repeat(s.Nodes, db.MaxSMSCNodes+1) }, false},
+		{"no service centre", func(s *db.SMSC) { s.ServiceCentres = nil }, false},
+		{"invalid service centre", func(s *db.SMSC) { s.ServiceCentres = []string{"+15550000000"} }, false},
+		{"duplicate service centre", func(s *db.SMSC) { s.ServiceCentres = []string{"15550000000", "15550000000"} }, false},
+		{"no id", func(s *db.SMSC) { s.ID = "" }, false},
+		{"no name", func(s *db.SMSC) { s.Name = "" }, false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := valid
-			p.ServiceCentres = slices.Clone(valid.ServiceCentres)
-			tc.edit(&p)
+			s := valid
+			s.ServiceCentres = slices.Clone(valid.ServiceCentres)
+			s.Nodes = slices.Clone(valid.Nodes)
+			tc.edit(&s)
 
-			if err := p.Validate(); (err == nil) != tc.valid {
-				t.Fatalf("Validate(%+v) = %v, want valid=%v", p, err, tc.valid)
+			if err := s.Validate(); (err == nil) != tc.valid {
+				t.Fatalf("Validate(%+v) = %v, want valid=%v", s, err, tc.valid)
 			}
 		})
 	}
+}
+
+func smsc(id, name string, centres []string, nodes ...*db.SMSCNode) *db.SMSC {
+	s := &db.SMSC{ID: id, Name: name, ServiceCentres: centres}
+	for _, n := range nodes {
+		s.Nodes = append(s.Nodes, *n)
+	}
+
+	return s
+}
+
+func node(id, identity, address string, port int) *db.SMSCNode {
+	return &db.SMSCNode{ID: id, DiameterIdentity: identity, Address: address, Port: port}
+}
+
+func sameSMSC(x, y db.SMSC) bool {
+	return x.ID == y.ID && x.Name == y.Name && slices.Equal(x.ServiceCentres, y.ServiceCentres) && slices.Equal(x.Nodes, y.Nodes)
 }

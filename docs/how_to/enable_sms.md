@@ -18,14 +18,15 @@ In the Ella Core UI, go to the Operator page and scroll to the **SMS** section.
 
 Click the edit icon next to **SMS Number**, enter Ella Core's E.164 number for SMS, e.g. `+15550001111`, and click **Update**.
 
-Click **Add Service Center** and configure the following settings:
+Click **Add SMSC** and configure the following settings:
 
-- **Address**: your SMSC's Diameter IP address.
+- **Name**: a name for your SMSC, e.g. `main`.
 - **Numbers**: the E.164 service centre addresses your SMSC serves, e.g. `+15550000000`.
+- **Nodes**: the **Address** of your SMSC's Diameter endpoint. If your SMSC has several Diameter nodes, click **Add Node** for each.
 
 Click **Add**.
 
-Validate that each service center's **Status** shows **Connected**.
+Validate that each node shows **Connected**.
 
 ## 3. Give subscribers an MSISDN
 
