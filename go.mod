@@ -3,7 +3,6 @@ module github.com/ellanetworks/core
 go 1.27.3
 
 require (
-	github.com/armon/go-metrics v0.4.1
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
 	github.com/ellanetworks/core/diameter v0.0.0-20261022122753-8d5c8bdaaf89
@@ -21,6 +20,7 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-hclog v1.6.3
+	github.com/hashicorp/go-metrics v0.7.0
 	github.com/hashicorp/raft v1.8.0
 	github.com/hashicorp/raft-autopilot v0.3.0
 	github.com/hashicorp/raft-boltdb/v2 v2.4.2
@@ -78,7 +78,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
-	github.com/hashicorp/go-metrics v0.7.0 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
