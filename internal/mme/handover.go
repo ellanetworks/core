@@ -655,6 +655,19 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 	return true
 }
 
+func (m *MME) releaseDetachedConnIfHeld(c *UeConn) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if held, ok := m.conns[uint32(c.MMEUES1APID)]; !ok || held != c || c.ue.Load() != nil {
+		return false
+	}
+
+	m.releaseConnIDLocked(uint32(c.MMEUES1APID))
+
+	return true
+}
+
 func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
 	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: s1ap.Ptr(mmeUEID), ENBUES1APID: s1ap.Ptr(enbUEID), Cause: s1ap.Ptr(cause)}
 

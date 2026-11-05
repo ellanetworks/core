@@ -55,8 +55,8 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
 	c.releaseCommanded.Store(true)
-	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
 	m.guardDetachedRelease(ctx, c)
+	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
 }
 
 // guardDetachedRelease supervises the Release Complete for a detached connection, so a
@@ -68,7 +68,7 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release (detached)", 0)
 		defer span.End()
 
-		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
+		if m.releaseDetachedConnIfHeld(c) {
 			c.Log(guardCtx).Info("reaped detached S1 connection after release timeout")
 		}
 	})
@@ -92,8 +92,8 @@ func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEI
 
 	if !c.releaseGuard.Active() {
 		c.releaseCommanded.Store(true)
-		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
 		m.guardDetachedRelease(ctx, c)
+		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
 	}
 
 	return true
@@ -114,13 +114,11 @@ func (m *MME) ReleaseAnsweredBareConn(ctx context.Context, c *UeConn, cause s1ap
 		return
 	}
 
+	m.guardDetachedRelease(ctx, c)
+
 	if err := c.SendUEContextReleaseCommand(ctx, cause); err != nil {
 		m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID())
-
-		return
 	}
-
-	m.guardDetachedRelease(ctx, c)
 }
 
 // SendUEContextReleaseCommand builds a UE Context Release Command for this

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -200,4 +201,39 @@ func TestAPIDChecksThatMatchNothingTakeOnlyTheReadLock(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("an AP ID check that matched no connection waited for the MME write lock")
 	}
+}
+
+func TestDetachedReleaseGuardReleasesOnlyTheConnectionItGuards(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := newTestMME(t)
+		cc := &captureConn{}
+
+		stale := m.NewUeConn(cc, 7)
+		id := uint32(stale.MMEUES1APID)
+
+		if !m.ReleaseDetachedConn(cc, stale.MMEUES1APID, 7) {
+			t.Fatal("could not release the first connection")
+		}
+
+		m.guardDetachedRelease(t.Context(), stale)
+
+		next := m.NewUeConn(cc, 7)
+
+		m.mu.Lock()
+		delete(m.conns, uint32(next.MMEUES1APID))
+		next.MMEUES1APID = stale.MMEUES1APID
+		m.conns[id] = next
+		m.mu.Unlock()
+
+		time.Sleep(time.Minute)
+		synctest.Wait()
+
+		m.mu.RLock()
+		held := m.conns[id]
+		m.mu.RUnlock()
+
+		if held != next {
+			t.Fatal("a release guard armed for a freed connection released a newer connection holding the same MME-UE-S1AP-ID and eNB-UE-S1AP-ID")
+		}
+	})
 }
