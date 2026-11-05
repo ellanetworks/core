@@ -58,6 +58,10 @@ func (c *downlinkOrderConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) 
 	return len(b), nil
 }
 
+func (c *downlinkOrderConn) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
+}
+
 func (c *downlinkOrderConn) awaitWrites(t *testing.T, n int) (seqs, shts []uint8) {
 	t.Helper()
 

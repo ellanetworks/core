@@ -39,6 +39,10 @@ func (s *releaseSignalSender) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, er
 	return n, err
 }
 
+func (s *releaseSignalSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return s.WriteMsg(b, info)
+}
+
 const handoverTargetGnbID = "000102"
 
 func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *ngap.HandoverRequired {

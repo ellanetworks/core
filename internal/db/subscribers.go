@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -70,26 +71,28 @@ const (
 
 	subscriberDataNetworkClause = `
     AND ($subscriberFilterArgs.data_network_id IS NULL
-         OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))`
+         OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))
+    AND ($subscriberFilterArgs.imsis IS NULL
+         OR imsi IN (SELECT value FROM json_each($subscriberFilterArgs.imsis)))`
 )
 
 const (
 	listSubscribersFilteredStmt = `
-  SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count
+  SELECT &Subscriber.*
   FROM %s
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 
 	listSubscribersFilteredPreV22Stmt = `
-  SELECT ` + subscriberColumnsPreV22 + `, COUNT(*) OVER() AS &NumItems.count
+  SELECT ` + subscriberColumnsPreV22 + `
   FROM %s
   WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 
 	listSubscribersFilteredPreV18Stmt = `
-  SELECT ` + subscriberColumnsPreV18 + `, COUNT(*) OVER() AS &NumItems.count
+  SELECT ` + subscriberColumnsPreV18 + `
   FROM %s
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause + `
   ORDER BY imsi
@@ -125,28 +128,40 @@ type Subscriber struct {
 type SubscriberFilters struct {
 	Search        *string
 	DataNetworkID *string
+	IMSIs         []string
 }
 
 type subscriberFilterArgs struct {
 	Search        *string `db:"search"`
 	DataNetworkID *string `db:"data_network_id"`
+	IMSIs         *string `db:"imsis"`
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 
-func (f *SubscriberFilters) args() subscriberFilterArgs {
+func (f *SubscriberFilters) args() (subscriberFilterArgs, error) {
 	if f == nil {
-		return subscriberFilterArgs{}
+		return subscriberFilterArgs{}, nil
 	}
 
 	args := subscriberFilterArgs{DataNetworkID: f.DataNetworkID}
+
+	if f.IMSIs != nil {
+		encoded, err := json.Marshal(f.IMSIs)
+		if err != nil {
+			return subscriberFilterArgs{}, fmt.Errorf("encode imsi filter: %w", err)
+		}
+
+		imsis := string(encoded)
+		args.IMSIs = &imsis
+	}
 
 	if f.Search != nil {
 		pattern := "%" + likeEscaper.Replace(*f.Search) + "%"
 		args.Search = &pattern
 	}
 
-	return args
+	return args, nil
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, filters *SubscriberFilters, page int, perPage int) ([]Subscriber, int, error) {
@@ -174,14 +189,17 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 
 	var subs []Subscriber
 
-	var counts []NumItems
-
 	args := ListArgs{
 		Limit:  perPage,
 		Offset: (page - 1) * perPage,
 	}
 
-	filterArgs := filters.args()
+	filterArgs, err := filters.args()
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, 0, err
+	}
 
 	stmt := db.listSubscribersStmt
 	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
@@ -190,25 +208,25 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		stmt = db.listSubscribersPreV22Stmt
 	}
 
-	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.countSubscribersFiltered(ctx, filterArgs)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
+	err = db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	var count int
+
+	if filterArgs == (subscriberFilterArgs{}) {
+		count, err = db.CountSubscribers(ctx)
+	} else {
+		count, err = db.countSubscribersFiltered(ctx, filterArgs)
+	}
+
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, 0, err
 	}
 
 	return subs, count, nil

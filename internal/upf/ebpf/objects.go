@@ -122,6 +122,8 @@ type BpfObjects struct {
 	urrFirstPacket UrrFirstPacketPrograms
 
 	Programs *ProgramBarrier
+
+	Sizing MapSizing
 }
 
 func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
@@ -208,10 +210,29 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
-	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
-		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
+	bpfObjects.Sizing = bpfObjects.Sizing.orDefault()
+
+	if err := bpfObjects.Sizing.apply(n3n6Spec); err != nil {
 		return err
 	}
+
+	if limit, warn := bpfObjects.Sizing.MemoryCheck(HostMemory); warn {
+		logger.UpfLog.Warn("datapath maps reserve more than a quarter of the memory available to Ella Core",
+			zap.Uint32("max_sessions", bpfObjects.Sizing.MaxSessions),
+			zap.Uint64("projected_bytes", bpfObjects.Sizing.ProjectedBytes()),
+			zap.Uint64("memory_limit_bytes", limit))
+	}
+
+	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
+		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
+		return bpfObjects.Sizing.wrapCreateError(err)
+	}
+
+	logger.UpfLog.Info("datapath maps sized",
+		zap.Uint32("max_sessions", bpfObjects.Sizing.MaxSessions),
+		zap.Uint32("nat_ct_entries", bpfObjects.Sizing.NATEntries),
+		zap.Uint32("flow_stats_entries", bpfObjects.Sizing.FlowEntries),
+		zap.Uint64("memlock_bytes", mapsMemlock(bpfObjects.N3N6EntrypointMaps)))
 
 	if err := populateTailCalls(&bpfObjects.N3N6EntrypointObjects); err != nil {
 		logger.UpfLog.Error("failed to populate tail-call program array", zap.Error(err))
@@ -246,6 +267,8 @@ func (bpfObjects *BpfObjects) loadUrrFirstPacket() error {
 	if err != nil {
 		return fmt.Errorf("load URR first packet spec: %w", err)
 	}
+
+	spec.Maps["urr_map"].MaxEntries = bpfObjects.UrrMap.MaxEntries()
 
 	opts := &ebpf.CollectionOptions{
 		MapReplacements: map[string]*ebpf.Map{"urr_map": bpfObjects.UrrMap},
@@ -390,6 +413,10 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
+	if err := bpfObjects.Sizing.orDefault().apply(spec); err != nil {
+		return err
+	}
+
 	opts := &ebpf.CollectionOptions{
 		MapReplacements: bpfObjects.preservedMaps(),
 	}
@@ -441,6 +468,7 @@ func (bpfObjects *BpfObjects) Close() error {
 
 	if bpfObjects.Programs != nil {
 		err = errors.Join(err, bpfObjects.Programs.Close())
+		bpfObjects.Programs = nil
 	}
 
 	return err

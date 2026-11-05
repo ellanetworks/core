@@ -41,10 +41,45 @@ WHERE
     AND epoch_day <= $UsageFilters.end_date
 GROUP BY epoch_day
 ORDER BY epoch_day ASC`
+
+	usageDaysInRange = `(
+    WITH RECURSIVE days(d) AS (
+        SELECT $UsageFilters.start_date WHERE $UsageFilters.start_date <= $UsageFilters.end_date
+        UNION ALL
+        SELECT d + 1 FROM days WHERE d < $UsageFilters.end_date
+    )
+    SELECT d FROM days)`
+
+	getUsagePerDayByIMSIStmt = `
+SELECT
+    epoch_day AS &UsagePerDay.epoch_day,
+    SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
+    SUM(bytes_downlink) AS &UsagePerDay.bytes_downlink
+FROM %s
+WHERE
+    imsi == $UsageFilters.imsi
+    AND epoch_day IN ` + usageDaysInRange + `
+GROUP BY epoch_day
+ORDER BY epoch_day ASC`
 )
 
 const (
 	getUsagePerSubscriberStmt = `
+SELECT
+    s.imsi AS &UsagePerSub.imsi,
+    COALESCE(u.bytes_uplink, 0)   AS &UsagePerSub.bytes_uplink,
+    COALESCE(u.bytes_downlink, 0) AS &UsagePerSub.bytes_downlink
+FROM %s AS s
+LEFT JOIN (
+    SELECT imsi, SUM(bytes_uplink) AS bytes_uplink, SUM(bytes_downlink) AS bytes_downlink
+    FROM %s
+    WHERE epoch_day >= $UsageFilters.start_date AND epoch_day <= $UsageFilters.end_date
+    GROUP BY imsi
+) AS u ON u.imsi = s.imsi
+ORDER BY COALESCE(u.bytes_uplink, 0) + COALESCE(u.bytes_downlink, 0) DESC, s.imsi ASC
+LIMIT $UsageFilters.limit`
+
+	getUsagePerSubscriberByIMSIStmt = `
 SELECT
     s.imsi AS &UsagePerSub.imsi,
     COALESCE(SUM(u.bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
@@ -52,11 +87,9 @@ SELECT
 FROM %s AS s
 LEFT JOIN %s AS u
     ON u.imsi = s.imsi
-    AND u.epoch_day >= $UsageFilters.start_date
-    AND u.epoch_day <= $UsageFilters.end_date
-WHERE ($UsageFilters.imsi IS NULL OR s.imsi = $UsageFilters.imsi)
+    AND u.epoch_day IN ` + usageDaysInRange + `
+WHERE s.imsi = $UsageFilters.imsi
 GROUP BY s.imsi
-ORDER BY COALESCE(SUM(u.bytes_uplink), 0) + COALESCE(SUM(u.bytes_downlink), 0) DESC, s.imsi ASC
 LIMIT $UsageFilters.limit`
 )
 
@@ -257,7 +290,12 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 
 	var dailyUsage []UsagePerDay
 
-	err := db.conn().Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	stmt := db.getUsagePerDayStmt
+	if imsi != "" {
+		stmt = db.getUsagePerDayByIMSIStmt
+	}
+
+	err := db.conn().Query(ctx, stmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -304,7 +342,12 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 
 	var dailyUsage []UsagePerSub
 
-	err := db.conn().Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	stmt := db.getUsagePerSubscriberStmt
+	if imsi != "" {
+		stmt = db.getUsagePerSubscriberByIMSIStmt
+	}
+
+	err := db.conn().Query(ctx, stmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

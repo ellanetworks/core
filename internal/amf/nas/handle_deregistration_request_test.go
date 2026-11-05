@@ -218,3 +218,32 @@ func buildDeregRequestUEOrig(accessType fgs.AccessType, switchOff bool) *fgs.Der
 		}),
 	}
 }
+
+// TS 23.502 §4.2.2.3.2
+func TestHandleDeregistrationRequest_ReleasesSessionsBeforeAcceptAndSignallingRelease(t *testing.T) {
+	ue, ngapSender, smfStub, _ := buildMobilityRegUeAndAMF(t)
+	ue.ForceStateForTest(amf.Registered)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("create SM context: %v", err)
+	}
+
+	accepts, releases := -1, -1
+	smfStub.OnReleaseSmContext = func() {
+		accepts, releases = len(ngapSender.SentDownlinkNASTransport), len(ngapSender.SentUEContextReleaseCommand)
+	}
+
+	handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, buildTestDeregistrationRequestUEOriginatingDeregistration(), true)
+
+	if len(smfStub.ReleaseSmContextCalls) != 1 {
+		t.Fatalf("release SM context calls = %d, want 1", len(smfStub.ReleaseSmContextCalls))
+	}
+
+	if accepts != 0 || releases != 0 {
+		t.Fatalf("at SM context release the AMF had sent %d Deregistration Accept and %d UE Context Release Command; both must follow the release (steps 2-4 before 7 and 8)", accepts, releases)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 || len(ngapSender.SentUEContextReleaseCommand) != 1 {
+		t.Fatalf("sent %d downlink NAS and %d UE Context Release Command, want 1 each", len(ngapSender.SentDownlinkNASTransport), len(ngapSender.SentUEContextReleaseCommand))
+	}
+}

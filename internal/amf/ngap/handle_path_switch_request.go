@@ -56,6 +56,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
+	amfInstance.ReleaseOtherConnsWithRanUeNgapID(ctx, ran, models.RanUeNgapID(msg.RANUENGAPID), ueConn)
+
 	ueConn.TouchLastSeen()
 	ueConn.Log(ctx).Debug("Handle Path Switch Request")
 

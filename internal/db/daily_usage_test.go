@@ -1142,3 +1142,64 @@ func TestNewDayRange(t *testing.T) {
 		})
 	}
 }
+
+func TestGetUsage_FilterByIMSI_RespectsDayBounds(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	imsi := "001010100007487"
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, imsi); err != nil {
+		t.Fatalf("createDataNetworkPolicyAndSubscriber: %s", err)
+	}
+
+	const base = int64(20000)
+
+	for d := int64(0); d < 5; d++ {
+		if err := database.IncrementDailyUsage(ctx, db.DailyUsage{EpochDay: base + d, IMSI: imsi, BytesUplink: 1 << d, BytesDownlink: 100 << d}); err != nil {
+			t.Fatalf("IncrementDailyUsage: %s", err)
+		}
+	}
+
+	window := db.DayRange{First: base + 1, Last: base + 3}
+
+	perSub, err := database.GetUsagePerSubscriber(ctx, imsi, window, db.NoUsageLimit)
+	if err != nil {
+		t.Fatalf("GetUsagePerSubscriber: %s", err)
+	}
+
+	if len(perSub) != 1 || perSub[0].BytesUplink != 2+4+8 || perSub[0].BytesDownlink != 200+400+800 {
+		t.Fatalf("per subscriber in window = %+v", perSub)
+	}
+
+	all, err := database.GetUsagePerSubscriber(ctx, "", window, db.NoUsageLimit)
+	if err != nil || len(all) != 1 || all[0] != perSub[0] {
+		t.Fatalf("unfiltered per subscriber = %+v, %v", all, err)
+	}
+
+	perDay, err := database.GetUsagePerDay(ctx, imsi, window)
+	if err != nil {
+		t.Fatalf("GetUsagePerDay: %s", err)
+	}
+
+	if len(perDay) != 3 || perDay[0].EpochDay != base+1 || perDay[2].EpochDay != base+3 || perDay[1].BytesUplink != 4 {
+		t.Fatalf("per day in window = %+v", perDay)
+	}
+
+	inverted := db.DayRange{First: base + 3, Last: base + 1}
+
+	perDay, err = database.GetUsagePerDay(ctx, imsi, inverted)
+	if err != nil || len(perDay) != 0 {
+		t.Fatalf("per day for an inverted range = %+v, %v", perDay, err)
+	}
+
+	perSub, err = database.GetUsagePerSubscriber(ctx, imsi, inverted, db.NoUsageLimit)
+	if err != nil || len(perSub) != 1 || perSub[0].BytesUplink != 0 || perSub[0].BytesDownlink != 0 {
+		t.Fatalf("per subscriber for an inverted range = %+v, %v", perSub, err)
+	}
+
+	missing, err := database.GetUsagePerSubscriber(ctx, "001019999999999", window, db.NoUsageLimit)
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("unknown subscriber = %+v, %v", missing, err)
+	}
+}

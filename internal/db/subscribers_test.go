@@ -631,3 +631,65 @@ func TestListSubscribersSearchMatchesDescription(t *testing.T) {
 		}
 	}
 }
+
+func TestListSubscribersFilterByIMSIs(t *testing.T) {
+	ctx := context.Background()
+	database := setupTestDB(t)
+
+	profileID, err := createDataNetworkAndPolicy(database)
+	if err != nil {
+		t.Fatalf("Couldn't create data network and policy: %s", err)
+	}
+
+	for _, imsi := range []string{"001010100000001", "001010100000002", "001010100000003", "001010100000004"} {
+		sub := &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profileID,
+		}
+		if err := database.CreateSubscriber(ctx, sub); err != nil {
+			t.Fatalf("CreateSubscriber: %s", err)
+		}
+	}
+
+	list := func(filters *db.SubscriberFilters, page, perPage int) ([]string, int) {
+		t.Helper()
+
+		subs, total, err := database.ListSubscribersPage(ctx, filters, page, perPage)
+		if err != nil {
+			t.Fatalf("ListSubscribersPage: %s", err)
+		}
+
+		imsis := make([]string, 0, len(subs))
+		for _, s := range subs {
+			imsis = append(imsis, s.Imsi)
+		}
+
+		return imsis, total
+	}
+
+	selected := []string{"001010100000004", "001010100000001", "001010100000003", "001019999999999"}
+
+	if got, total := list(&db.SubscriberFilters{IMSIs: selected}, 1, 2); total != 3 || len(got) != 2 || got[0] != "001010100000001" || got[1] != "001010100000003" {
+		t.Fatalf("page 1: got %v total %d", got, total)
+	}
+
+	if got, total := list(&db.SubscriberFilters{IMSIs: selected}, 2, 2); total != 3 || len(got) != 1 || got[0] != "001010100000004" {
+		t.Fatalf("page 2: got %v total %d", got, total)
+	}
+
+	if got, total := list(&db.SubscriberFilters{IMSIs: []string{}}, 1, 25); total != 0 || len(got) != 0 {
+		t.Fatalf("empty IMSI filter: got %v total %d", got, total)
+	}
+
+	search := "0003"
+	if got, total := list(&db.SubscriberFilters{IMSIs: selected, Search: &search}, 1, 25); total != 1 || len(got) != 1 || got[0] != "001010100000003" {
+		t.Fatalf("IMSI filter with search: got %v total %d", got, total)
+	}
+
+	if _, total := list(&db.SubscriberFilters{}, 1, 25); total != 4 {
+		t.Fatalf("no IMSI filter: total %d", total)
+	}
+}

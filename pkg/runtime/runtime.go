@@ -63,6 +63,7 @@ import (
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
@@ -462,10 +463,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	cp := newControlPlane(ctx, dbInstance, raftID)
+	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.DefaultMaxSessions))
 	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
-	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
+	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
@@ -1303,6 +1304,36 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		return nil, err
 	}
 
+	if len(dbLeases) == 0 {
+		return []bgp.Lease{}, nil
+	}
+
+	framedRows, err := a.db.ListAllFramedRoutes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return bgpLeases(dbLeases, framedRows), nil
+}
+
+type framedRouteOwner struct {
+	imsi          string
+	dataNetworkID string
+}
+
+func bgpLeases(dbLeases []db.IPLease, framedRows []db.SubscriberFramedRoute) []bgp.Lease {
+	framedByOwner := make(map[framedRouteOwner][]netip.Prefix)
+
+	for i := range framedRows {
+		p, err := netip.ParsePrefix(framedRows[i].Prefix)
+		if err != nil {
+			continue
+		}
+
+		owner := framedRouteOwner{imsi: framedRows[i].Imsi, dataNetworkID: framedRows[i].DataNetworkID}
+		framedByOwner[owner] = append(framedByOwner[owner], p)
+	}
+
 	out := make([]bgp.Lease, 0, len(dbLeases))
 
 	for _, l := range dbLeases {
@@ -1313,17 +1344,14 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 
 		// The lease's poolID is the data network ID, so the subscriber's framed
 		// routes on that data network advertise from this anchor node (§6.4).
-		framedRows, err := a.db.ListFramedRoutesBySubscriberDataNetwork(ctx, l.IMSI, l.PoolID)
-		if err != nil {
-			return nil, err
-		}
+		owned := framedByOwner[framedRouteOwner{imsi: l.IMSI, dataNetworkID: l.PoolID}]
 
 		// Same family only: the UPF installs a framed route only for a same-family
 		// session, so advertising the other family would blackhole it.
-		framed := make([]netip.Prefix, 0, len(framedRows))
+		framed := make([]netip.Prefix, 0, len(owned))
 
-		for i := range framedRows {
-			if p, perr := netip.ParsePrefix(framedRows[i].Prefix); perr == nil && p.Addr().Is4() == addr.Is4() {
+		for _, p := range owned {
+			if p.Addr().Is4() == addr.Is4() {
 				framed = append(framed, p)
 			}
 		}
@@ -1331,7 +1359,7 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		out = append(out, bgp.Lease{Address: addr, IMSI: l.IMSI, FramedRoutes: framed})
 	}
 
-	return out, nil
+	return out
 }
 
 func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 netip.Addr) {
@@ -1600,14 +1628,14 @@ type controlPlane struct {
 	registrations *ueregistration.Registry
 }
 
-func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string) *controlPlane {
+func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string, smfOpts ...smf.Option) *controlPlane {
 	// Create SMF with dependency-injected adapters.
 	pcfInstance := pcf.New(dbInstance, logger.PcfLog)
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
 	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
 
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, smf.WithSubscriptions(subscriptions))
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, append([]smf.Option{smf.WithSubscriptions(subscriptions)}, smfOpts...)...)
 	pcfInstance.SetEnforcer(smfInstance)
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}

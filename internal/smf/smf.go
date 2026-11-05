@@ -173,6 +173,8 @@ type SMF struct {
 
 	seidCounter uint64 // atomic; local SEID allocation
 
+	maxSessions uint32
+
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
 
@@ -262,6 +264,10 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		if held := s.byKey[canonicalName(supi, key)]; held != nil {
 			return nil, fmt.Errorf("session identity %s is already held by %q", id, held.Ref)
 		}
+	}
+
+	if s.atCapacityLocked() {
+		return nil, ErrDatapathCapacity
 	}
 
 	s.refSeq++
@@ -375,11 +381,13 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 func (s *SMF) removeLocked(sc *SMContext) {
 	delete(s.pool, sc.Ref)
 
-	for seid, held := range s.bySEID {
-		if held == sc {
+	for _, seid := range sc.indexedSEIDs {
+		if s.bySEID[seid] == sc {
 			delete(s.bySEID, seid)
 		}
 	}
+
+	sc.indexedSEIDs = nil
 
 	for _, k := range sc.sessionKeys() {
 		key := canonicalName(sc.Supi, k)
@@ -409,7 +417,12 @@ func (s *SMF) indexSEID(sc *SMContext, seid uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.pool[sc.Ref] != sc {
+		return
+	}
+
 	s.bySEID[seid] = sc
+	sc.indexedSEIDs = append(sc.indexedSEIDs, seid)
 }
 
 // RemoveSession tears down a session's user plane, releases its addresses, and

@@ -45,6 +45,7 @@ const (
 	CauseRadioNetworkUnknownTargetID                   = 11 // unknown-targetID
 	CauseRadioNetworkNoRadioResourcesInTargetCell      = 12 // no-radio-resources-available-in-target-cell
 	CauseRadioNetworkUnknownMMEUES1APID                = 13 // unknown-mme-ue-s1ap-id
+	CauseRadioNetworkUnknownENBUES1APID                = 14
 	CauseRadioNetworkUnknownPairUES1APID               = 15 // unknown-pair-ue-s1ap-id
 	CauseRadioNetworkHandoverDesirableForRadio         = 16 // handover-desirable-for-radio-reason
 	CauseRadioNetworkTimeCriticalHandover              = 17 // time-critical-handover

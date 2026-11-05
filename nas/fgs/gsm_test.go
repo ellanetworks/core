@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/nas"
 )
@@ -222,6 +223,38 @@ func TestPDUSessionEstablishmentRejectRoundTrip(t *testing.T) {
 
 	if out.PDUSessionID != 5 || out.PTI != 1 || out.Cause != 0x1b {
 		t.Fatalf("round-trip mismatch: got %+v", out)
+	}
+}
+
+func TestPDUSessionEstablishmentRejectBackoffTimerRoundTrip(t *testing.T) {
+	in := &PDUSessionEstablishmentReject{
+		PDUSessionID: 5,
+		PTI:          1,
+		Cause:        GSMCauseInsufficientResources,
+		BackoffTimer: &nas.GPRSTimer3{Unit: nas.GPRSTimer3Unit1Minute, Value: 1},
+	}
+
+	b, err := in.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	want := []byte{uint8(EPD5GSM), 5, 1, uint8(MsgPDUSessionEstablishmentReject), uint8(GSMCauseInsufficientResources), 0x37, 0x01, 0xA1}
+	if !bytes.Equal(b, want) {
+		t.Fatalf("wire bytes = % x, want % x", b, want)
+	}
+
+	out, err := ParsePDUSessionEstablishmentReject(b)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	if !reflect.DeepEqual(out, in) {
+		t.Fatalf("round-trip mismatch: got %+v, want %+v", out, in)
+	}
+
+	if d, ok := out.BackoffTimer.Duration(); !ok || d != time.Minute {
+		t.Fatalf("back-off duration = %v, %v; want 1m0s", d, ok)
 	}
 }
 

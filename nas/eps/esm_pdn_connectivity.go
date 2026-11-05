@@ -156,9 +156,15 @@ type PDNConnectivityReject struct {
 	PTI               nas.ProcedureTransactionIdentity
 	Cause             ESMCause
 
+	BackoffTimer *nas.GPRSTimer3
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
+}
+
+var pdnConnectivityRejectIEs = []nas.OptionalIE{
+	{IEI: ieiBackoffTimerValue, Format: nas.IETLV, Name: "Back-off timer value"},
 }
 
 // AppendBinary encodes the PDN CONNECTIVITY REJECT message.
@@ -170,6 +176,15 @@ func (m *PDNConnectivityReject) AppendBinary(b []byte) ([]byte, error) {
 
 	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgPDNConnectivityReject)
 	w.U8(uint8(m.Cause))
+
+	if m.BackoffTimer != nil {
+		raw, err := m.BackoffTimer.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiBackoffTimerValue, raw)
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -198,7 +213,20 @@ func ParsePDNConnectivityReject(b []byte) (*PDNConnectivityReject, error) {
 		EPSBearerIdentity: ebi, PTI: pti, Cause: ESMCause(cause),
 	}
 
-	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	_unrec, err := walkOptionalIEs(r, pdnConnectivityRejectIEs, func(iei uint8, value []byte) (bool, error) {
+		if iei != ieiBackoffTimerValue {
+			return false, nil
+		}
+
+		timer, err := nas.ParseGPRSTimer3(value)
+		if err != nil {
+			return false, err
+		}
+
+		out.BackoffTimer = &timer
+
+		return true, nil
+	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}

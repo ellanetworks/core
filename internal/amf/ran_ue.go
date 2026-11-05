@@ -77,6 +77,7 @@ type UeConn struct {
 	releaseAction    atomic.Int64
 	releaseCause     atomic.Pointer[ngap.Cause]
 	UeContextRequest bool
+	rrcCause         atomic.Pointer[ngap.RRCEstablishmentCause]
 	// ics is the Initial Context Setup progress (an ICSState). It is read and written
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
@@ -96,9 +97,10 @@ type UeConn struct {
 	releasing bool
 	// releaseGuard supervises a sent UE Context Release Command; if the Release Complete
 	// is lost it fires once (releaseGuardTimeout) and runs the action-keyed cleanup.
-	releaseGuard guard.Guard
-	icsGuard     guard.Guard
-	ranUEAMBR    atomic.Pointer[models.Ambr]
+	releaseGuard     guard.Guard
+	releaseCompleted atomic.Bool
+	icsGuard         guard.Guard
+	ranUEAMBR        atomic.Pointer[models.Ambr]
 
 	// nasGuard is the single supervision timer for the 5GMM common procedures. They are
 	// mutually exclusive, so one guard suffices.
@@ -661,9 +663,10 @@ func (ueConn *UeConn) setConn(w NGAPWriter) {
 	ueConn.conn.Store(&w)
 }
 
-// StopReleaseGuard cancels the Release-Complete supervision timer.
-func (ueConn *UeConn) StopReleaseGuard() {
+func (ueConn *UeConn) ClaimReleaseCompletion() bool {
 	ueConn.releaseGuard.Stop()
+
+	return ueConn.releaseCompleted.CompareAndSwap(false, true)
 }
 
 func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause ngap.Cause, reported []uint8) {
@@ -871,29 +874,14 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	}
 }
 
-// DropStaleUe removes any connection on radio still bound to ranUeNgapID, clearing the way
-// for a new InitialUEMessage to reuse that RAN-UE-NGAP-ID. A gNB may reuse the ID before its
-// prior UEContextRelease completes; dropping the stale conn keeps a deferred
-// UEContextReleaseComplete from removing the freshly created context. Torn down after
-// releasing a.mu, since RemoveUeConn re-acquires it and may call the SMF.
-func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
-	a.mu.Lock()
+func (a *AMF) ReleaseConnsWithRanUeNgapID(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
+	a.ReleaseOtherConnsWithRanUeNgapID(ctx, radio, ranUeNgapID, nil)
+}
 
-	var stale []*UeConn
-
-	for _, ueConn := range a.conns {
-		if ueConn.Conn() == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
-			stale = append(stale, ueConn)
-		}
-	}
-
-	a.mu.Unlock()
-
-	for _, ueConn := range stale {
-		ueConn.Log(ctx).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn")
-
-		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
+func (a *AMF) ReleaseOtherConnsWithRanUeNgapID(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID, keep *UeConn) {
+	for _, ueConn := range a.ConnsByRanUeNgapID(radio, ranUeNgapID) {
+		if ueConn != keep && ueConn.ClaimReleaseCompletion() {
+			a.ReleaseUeConn(ctx, ueConn)
 		}
 	}
 }
@@ -911,6 +899,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	a.mu.Lock()
 	delete(a.conns, int64(ueConn.AmfUeNgapID))
+	a.unindexConnLocked(ueConn)
 	a.mu.Unlock()
 
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
@@ -935,9 +924,11 @@ func (a *AMF) CommitPathSwitch(ctx context.Context, ue *UeContext, ueConn *UeCon
 		return false
 	}
 
+	a.unindexConnLocked(ueConn)
 	ueConn.setConn(ran.Conn)
 	ueConn.setRadio(radioIDOf(ran), ran.name)
 	ueConn.setRanUeNgapID(ranUeNgapID)
+	a.indexConnLocked(ueConn)
 
 	if supi := ue.Supi(); supi.IsIMSI() {
 		a.lastSeen.refresh(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
@@ -978,6 +969,8 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 	ueConn.setRadio(radioIDOf(radio), radio.name)
 
 	radio.amf.conns[int64(amfUeNgapID)] = ueConn
+	radio.amf.indexConnLocked(ueConn)
+
 	if radio.Conn != nil {
 		radio.amf.reg.Track(radio.Conn, radio)
 	}
@@ -995,4 +988,26 @@ func (ueConn *UeConn) preservesGBRFlows() bool {
 func preservesGBRFlows(cause ngap.Cause) bool {
 	return cause.Group == ngap.CauseGroupRadioNetwork && !cause.Extended &&
 		(cause.Value == ngap.CauseRadioNetworkUserInactivity || cause.Value == ngap.CauseRadioNetworkRedirection)
+}
+
+func (r *UeConn) SetRRCEstablishmentCause(c *ngap.RRCEstablishmentCause) {
+	r.rrcCause.Store(c)
+}
+
+func (r *UeConn) inheritRRCEstablishmentCause(from *UeConn) {
+	r.rrcCause.Store(from.rrcCause.Load())
+}
+
+func (r *UeConn) MayBeHighPriorityAccess() bool {
+	c := r.rrcCause.Load()
+	if c == nil {
+		return true
+	}
+
+	switch *c {
+	case ngap.RRCCauseHighPriorityAccess, ngap.RRCCauseMPSPriorityAccess, ngap.RRCCauseMCSPriorityAccess, ngap.RRCCauseEmergency:
+		return true
+	default:
+		return false
+	}
 }

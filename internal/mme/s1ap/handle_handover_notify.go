@@ -23,7 +23,7 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	ue, ok := m.LookupUe(notify.MMEUES1APID)
 	if !ok {
-		sendErrorIndication(ctx, m, radio.Conn, &notify.MMEUES1APID, &notify.ENBUES1APID, causeUnknownMMEUES1APID)
+		rejectErroneousAPIDs(ctx, m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID, causeUnknownMMEUES1APID)
 
 		return
 	}
@@ -53,7 +53,7 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	m.ScheduleForwardingRelease(ctx, ue)
 
-	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
+	source, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Notify: UE released during the user-plane switch",
 			zap.Uint32("target_mme_ue_s1ap_id", uint32(notify.MMEUES1APID)))
@@ -73,13 +73,13 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
 		zap.Uint32("target_enb_ue_s1ap_id", uint32(notify.ENBUES1APID)))
 
-	if sourceConn == nil {
+	if source == nil {
 		m.CompleteRelocation(ctx, ue)
 		m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 
 		return
 	}
 
-	mme.SendUEContextRelease(ctx, m, sourceConn, sourceMMEID, sourceENBID, true, mme.CauseHandoverSuccess)
+	m.ReleaseHandoverSource(ctx, source)
 	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 }

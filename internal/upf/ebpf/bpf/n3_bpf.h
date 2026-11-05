@@ -49,6 +49,7 @@ struct {
 	__type(key, __u32);
 	__type(value, struct pdr_info);
 	__uint(max_entries, PDR_MAP_UPLINK_SIZE);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
 } pdrs_uplink SEC(".maps");
 
 struct {

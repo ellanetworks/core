@@ -98,6 +98,10 @@ func (w *captureWriter) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (w *captureWriter) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return w.WriteMsg(b, info)
+}
+
 // stubDB serves only what NG Setup reads: the operator and its slices.
 type stubDB struct {
 	amf.DBer

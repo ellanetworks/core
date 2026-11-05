@@ -93,6 +93,61 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 	return nil
 }
 
+func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwriter.RadioEvent) error {
+	switch len(radioEvents) {
+	case 0:
+		return nil
+	case 1:
+		return db.InsertRadioEvent(ctx, radioEvents[0])
+	}
+
+	querySummary := fmt.Sprintf("%s %s", "BATCH INSERT", RadioEventsTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("BATCH INSERT"),
+			semconv.DBCollectionName(RadioEventsTableName),
+			semconv.DBOperationBatchSize(len(radioEvents)),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "batch_insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "batch_insert").Inc()
+
+	tx, err := db.conn().Begin(ctx, nil)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return fmt.Errorf("begin transaction failed: %w", err)
+	}
+
+	for _, radioEvent := range radioEvents {
+		if err := tx.Query(ctx, db.insertRadioEventStmt, radioEvent).Run(); err != nil {
+			_ = tx.Rollback()
+
+			recordSpanError(span, err)
+
+			return fmt.Errorf("query failed: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		recordSpanError(span, err)
+
+		return fmt.Errorf("commit failed: %w", err)
+	}
+
+	return nil
+}
+
 func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]dbwriter.RadioEvent, int, error) {
 	querySummary := fmt.Sprintf("%s %s (paged+filtered)", "SELECT", RadioEventsTableName)
 

@@ -31,6 +31,7 @@ type RIB interface {
 	Announce(prefix netip.Prefix, owner string) error
 	Withdraw(prefix netip.Prefix) error
 	Paths() map[string]string
+	IsAdvertising() bool
 }
 
 // Lease is the minimal per-lease record the reconciler consumes. Matches
@@ -141,6 +142,10 @@ func (r *Reconciler) Reconcile(ctx context.Context) (err error) {
 
 		span.End()
 	}()
+
+	if !r.rib.IsAdvertising() {
+		return nil
+	}
 
 	leases, err := r.store.ListActiveLeasesByNode(ctx, r.nodeID)
 	if err != nil {

@@ -6,6 +6,8 @@ package mme
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -52,8 +54,9 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
-	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
+	c.releaseCommanded.Store(true)
 	m.guardDetachedRelease(ctx, c)
+	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
 }
 
 // guardDetachedRelease supervises the Release Complete for a detached connection, so a
@@ -65,7 +68,7 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release (detached)", 0)
 		defer span.End()
 
-		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
+		if m.releaseDetachedConnIfHeld(c) {
 			c.Log(guardCtx).Info("reaped detached S1 connection after release timeout")
 		}
 	})
@@ -88,8 +91,9 @@ func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEI
 	}
 
 	if !c.releaseGuard.Active() {
-		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
+		c.releaseCommanded.Store(true)
 		m.guardDetachedRelease(ctx, c)
+		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
 	}
 
 	return true
@@ -110,18 +114,20 @@ func (m *MME) ReleaseAnsweredBareConn(ctx context.Context, c *UeConn, cause s1ap
 		return
 	}
 
+	m.guardDetachedRelease(ctx, c)
+
 	if err := c.SendUEContextReleaseCommand(ctx, cause); err != nil {
 		m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID())
-
-		return
 	}
-
-	m.guardDetachedRelease(ctx, c)
 }
 
 // SendUEContextReleaseCommand builds a UE Context Release Command for this
 // connection's S1AP identities and sends it to the eNB (TS 36.413 §8.3.1).
 func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cause) error {
+	return c.sendUEContextReleaseCommand(ctx, cause, (*MME).SendToRadio)
+}
+
+func (c *UeConn) sendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cause, send radioSend) error {
 	if c == nil {
 		return fmt.Errorf("no S1 connection to release")
 	}
@@ -139,10 +145,16 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 
 	c.Log(ctx).Debug("UE Context Release Command")
 
-	return c.SendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b)
+	c.releaseCommanded.Store(true)
+
+	return c.sendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b, send)
 }
 
 func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
+	m.releaseUEContext(ctx, ue, cause, (*MME).SendToRadio)
+}
+
+func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause, send radioSend) {
 	ue.Conn().cancelDeferredRelease()
 
 	// The idempotency claim is atomic: a NAS guard timeout and an eNB-initiated
@@ -169,7 +181,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 
 	conn.releaseCause.Store(&cause)
 
-	if err := conn.SendUEContextReleaseCommand(ctx, cause); err != nil {
+	if err := conn.sendUEContextReleaseCommand(ctx, cause, send); err != nil {
 		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return
@@ -185,6 +197,139 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 
 		m.releaseUEContextLocally(guardCtx, ue, conn, "release-command-timeout", models.ReleaseFor(models.ReleaseRegistrationFailure))
 	})
+}
+
+func (m *MME) CompleteUEContextRelease(ctx context.Context, ue *UeContext, c *UeConn) {
+	// Cancel the release-supervision guard so it does not also run the cleanup.
+	c.StopReleaseGuard()
+
+	released, registered, _, losses := m.releaseContextLockedPart(ue, c)
+	if !released {
+		return
+	}
+
+	m.reportDedicatedLosses(ctx, losses)
+	ue.settleDeliveryOnRelease(ctx)
+
+	// A UE that is not EMM-REGISTERED (detached, or an aborted in-progress attach) is
+	// deleted; a still-registered UE is retained in ECM-IDLE (TS 23.401).
+	if !registered {
+		m.DropDeferredServiceRequest(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue, ue.NetworkDetachOr(models.ReleaseFor(models.ReleaseRegistrationFailure)))
+		c.Log(ctx).Info("UE context removed", logger.RAT(metrics.RAT4G))
+
+		return
+	}
+
+	// Supervise the UE's reachability while idle: the mobile reachable timer is
+	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
+	m.StartMobileReachable(ue)
+	c.Log(ctx).Info("UE idle", logger.RAT(metrics.RAT4G))
+
+	m.ResumeDeferredServiceRequest(ctx, ue)
+}
+
+func (m *MME) ClaimENBUES1APID(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) bool {
+	return m.ClaimENBUES1APIDFor(ctx, conn, enbUEID, nil, "Initial UE Message reusing an allocated eNB-UE-S1AP-ID")
+}
+
+func (m *MME) ClaimENBUES1APIDFor(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID, owner *UeContext, trigger string) bool {
+	m.mu.RLock()
+	holders := slices.Collect(maps.Keys(m.connIndex.matching(conn, enbUEID)))
+	m.mu.RUnlock()
+
+	var live []*UeConn
+
+	for _, c := range holders {
+		if owner != nil && c.UeContext() == owner {
+			continue
+		}
+
+		if !c.releaseCommanded.Load() {
+			live = append(live, c)
+
+			continue
+		}
+
+		c.Log(ctx).Info("eNB-UE-S1AP-ID reused before its UE Context Release Complete arrived; completing the release")
+		m.completeCommandedRelease(ctx, c)
+	}
+
+	if len(live) == 0 {
+		return true
+	}
+
+	m.ReclaimConns(ctx, live, trigger)
+
+	return false
+}
+
+func (m *MME) completeCommandedRelease(ctx context.Context, c *UeConn) {
+	if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
+		return
+	}
+
+	if ue := c.UeContext(); ue != nil && ue.Conn() == c {
+		m.CompleteUEContextRelease(ctx, ue, c)
+
+		return
+	}
+
+	m.ReclaimConns(ctx, []*UeConn{c}, "eNB-UE-S1AP-ID reused after a UE Context Release Command")
+}
+
+func (m *MME) ReleaseConnsForInconsistentPair(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, trigger string) {
+	m.mu.RLock()
+	held, ok := m.conns[uint32(mmeUEID)]
+	inconsistent := ok && held.Conn() == conn && held.ENBUES1APID() != enbUEID
+
+	m.mu.RUnlock()
+
+	if inconsistent {
+		m.ReleaseConnsWithAPIDs(ctx, conn, &mmeUEID, &enbUEID, trigger)
+	}
+}
+
+func (m *MME) ReleaseConnsForUnknownPair(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, trigger string) {
+	m.mu.RLock()
+	held, ok := m.conns[uint32(mmeUEID)]
+	known := ok && held.Conn() == conn && held.ENBUES1APID() == enbUEID
+
+	m.mu.RUnlock()
+
+	if known {
+		return
+	}
+
+	m.ReleaseConnsWithAPIDs(ctx, conn, &mmeUEID, &enbUEID, trigger)
+}
+
+func (m *MME) ReleaseConnsWithAPIDs(ctx context.Context, conn S1APWriter, mmeUEID *s1ap.MMEUES1APID, enbUEID *s1ap.ENBUES1APID, trigger string) bool {
+	m.mu.RLock()
+
+	matched := make(map[*UeConn]struct{})
+
+	if mmeUEID != nil {
+		if c, ok := m.conns[uint32(*mmeUEID)]; ok && c.Conn() == conn {
+			matched[c] = struct{}{}
+		}
+	}
+
+	if enbUEID != nil {
+		for c := range m.connIndex.matching(conn, *enbUEID) {
+			matched[c] = struct{}{}
+		}
+	}
+
+	m.mu.RUnlock()
+
+	if len(matched) == 0 {
+		return false
+	}
+
+	m.ReclaimConns(ctx, slices.Collect(maps.Keys(matched)), trigger)
+
+	return true
 }
 
 // ReleaseUEContextLocally releases a UE without sending a UE Context Release Command,
