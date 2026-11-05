@@ -24,8 +24,8 @@ const IPLeasesTableName = "ip_leases"
 
 const (
 	createLeaseStmt              = "INSERT INTO %s (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.poolType, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
-	getDynamicLeaseBySessionStmt = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND sessionID==$IPLease.sessionID AND type='dynamic'"
-	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
+	getDynamicLeaseBySessionStmt = "SELECT &IPLease.* FROM %s WHERE +poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND +sessionID==$IPLease.sessionID AND type='dynamic'"
+	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE +poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND +sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	getActiveLeaseByAddressStmt  = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND addressBin==$IPLease.addressBin AND sessionID IS NOT NULL"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -35,13 +35,14 @@ const (
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listActiveLeasesByNodeStmt   = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL AND nodeID==$IPLease.nodeID"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
-	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin"
+	listLeaseAddressRangeStmt    = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$leaseAddressRange.poolID AND poolType==$leaseAddressRange.poolType AND addressBin >= $leaseAddressRange.low AND addressBin <= $leaseAddressRange.high ORDER BY addressBin"
+	getNewestLeaseInPoolStmt     = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY rowid DESC LIMIT 1"
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
 	countIPv4LeasesByPoolStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
 	countIPv6LeasesByPoolStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
-	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listLeasesByPoolPageStmt     = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='static'"
 	listStaticLeasesByDNStmt     = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND type='static' ORDER BY poolType, addressBin"
@@ -61,6 +62,13 @@ type IPLease struct {
 	CreatedAt  int64  `db:"createdAt"`
 	NodeID     string `db:"nodeID"`
 	PoolType   string `db:"poolType"`
+}
+
+type leaseAddressRange struct {
+	PoolID   string `db:"poolID"`
+	PoolType string `db:"poolType"`
+	Low      []byte `db:"low"`
+	High     []byte `db:"high"`
 }
 
 // Address returns the IP address derived from AddressBin.
@@ -678,82 +686,26 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 
 	var leases []IPLease
 
-	var counts []NumItems
-
 	args := ListArgs{
 		Limit:  perPage,
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn().Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases, &counts)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountLeasesByPool(ctx, poolID, poolType)
-			if countErr != nil {
-				recordSpanError(span, countErr)
-
-				return nil, 0, fmt.Errorf("count fallback failed: %w", countErr)
-			}
-
-			return nil, fallbackCount, nil
-		}
-
+	err := db.conn().Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	count, err := db.CountLeasesByPool(ctx, poolID, poolType)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, 0, fmt.Errorf("count failed: %w", err)
 	}
 
 	return leases, count, nil
-}
-
-// ListLeaseAddressesByPool returns sorted addresses for all leases in a pool.
-// Used by the allocator to find free offsets via merge-scan.
-func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolType string) ([]string, error) {
-	querySummary := fmt.Sprintf("%s %s (addresses by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
-		recordSpanError(span, err)
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	addresses := make([]string, 0, len(leases))
-
-	for i := range leases {
-		addresses = append(addresses, leases[i].Address().String())
-	}
-
-	return addresses, nil
 }
 
 // CountLeasesByPool returns the total number of leases in a pool.

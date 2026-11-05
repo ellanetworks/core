@@ -376,7 +376,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			mmeLastSeen = mmeInstance.LastSeenAll()
 		}
 
-		var radioIMSIs map[string]struct{}
+		filters := &db.SubscriberFilters{}
 
 		if radioFilter != "" {
 			found := radioIsKnown(amfInstance, mmeInstance, radioFilter)
@@ -385,7 +385,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			radioIMSIs = make(map[string]struct{})
+			radioIMSIs := make(map[string]struct{})
 
 			for imsi := range amf5GStatus {
 				if amf5GLastSeen[imsi].RadioName == radioFilter {
@@ -398,17 +398,12 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 					radioIMSIs[imsi] = struct{}{}
 				}
 			}
+
+			filters.IMSIs = make([]string, 0, len(radioIMSIs))
+			for imsi := range radioIMSIs {
+				filters.IMSIs = append(filters.IMSIs, imsi)
+			}
 		}
-
-		dbPage := page
-		dbPerPage := perPage
-
-		if radioIMSIs != nil {
-			dbPage = 1
-			dbPerPage = MaxNumSubscribers
-		}
-
-		filters := &db.SubscriberFilters{}
 
 		if searchFilter != "" {
 			filters.Search = &searchFilter
@@ -424,7 +419,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			filters.DataNetworkID = &dn.ID
 		}
 
-		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, filters, dbPage, dbPerPage)
+		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, filters, page, perPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
 			return
@@ -432,7 +427,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
 
-		allProfiles, _, err := dbInstance.ListProfilesPage(ctx, 1, 1000)
+		allProfiles, _, err := dbInstance.ListProfilesPage(ctx, 1, MaxNumProfiles)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list profiles", err, logger.APILog)
 			return
@@ -444,12 +439,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		}
 
 		for _, dbSubscriber := range dbSubscribers {
-			if radioIMSIs != nil {
-				if _, ok := radioIMSIs[dbSubscriber.Imsi]; !ok {
-					continue
-				}
-			}
-
 			profile, ok := profileByID[dbSubscriber.ProfileID]
 			if !ok {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve profile", fmt.Errorf("no profile for ID %s", dbSubscriber.ProfileID), logger.APILog)
@@ -496,22 +485,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				Msisdn:      formatE164(dbSubscriber.Msisdn),
 				Status:      subscriberStatus,
 			})
-		}
-
-		if radioIMSIs != nil {
-			total = len(items)
-			start := (page - 1) * perPage
-			end := start + perPage
-
-			if start > len(items) {
-				start = len(items)
-			}
-
-			if end > len(items) {
-				end = len(items)
-			}
-
-			items = items[start:end]
 		}
 
 		subscribers := ListSubscribersResponse{

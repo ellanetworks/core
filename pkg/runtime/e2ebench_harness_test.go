@@ -29,6 +29,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/sctplisten"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	testerlogger "github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
@@ -124,7 +125,7 @@ type benchCore struct {
 	workers   []*benchWorker
 }
 
-func newBenchCore(tb testing.TB) *benchCore {
+func newBenchCore(tb testing.TB, smfOpts ...smf.Option) *benchCore {
 	tb.Helper()
 
 	requireSCTP(tb)
@@ -149,7 +150,7 @@ func newBenchCore(tb testing.TB) *benchCore {
 		tb.Fatalf("refresh AMF pointer: %v", err)
 	}
 
-	cp := newControlPlane(ctx, dbInstance, cmp.Or(dbInstance.RaftID(), "1"))
+	cp := newControlPlane(ctx, dbInstance, cmp.Or(dbInstance.RaftID(), "1"), smfOpts...)
 	cp.smf.SetUPF(&benchUPF{})
 
 	var wg sync.WaitGroup

@@ -156,3 +156,45 @@ func TestRadioConcurrentHandoverTargetsCoexist(t *testing.T) {
 		t.Errorf("after RAN ID assignment, FindUEByAmfUeNgapID(500) = %v, want first target", got)
 	}
 }
+
+func TestRanUeNgapIDIndexFollowsTheConnection(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
+	other := &amf.Radio{Conn: &fakeNGAPSender{}}
+
+	radio.BindAMFForTest(amfInstance)
+	other.BindAMFForTest(amfInstance)
+
+	ueConn, err := amfInstance.NewUeConn(radio, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := amfInstance.NewUeConn(other, 7); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := amfInstance.FindUEByRanUeNgapID(radio, 7); got != ueConn {
+		t.Fatalf("FindUEByRanUeNgapID(radio, 7) = %v, want the radio's connection", got)
+	}
+
+	amfInstance.UpdateUERanNgapID(ueConn, 8)
+
+	if got := amfInstance.FindUEByRanUeNgapID(radio, 7); got != nil {
+		t.Errorf("old RAN UE NGAP ID still resolves to %v", got)
+	}
+
+	if got := amfInstance.FindUEByRanUeNgapID(radio, 8); got != ueConn {
+		t.Errorf("FindUEByRanUeNgapID(radio, 8) = %v, want the reassigned connection", got)
+	}
+
+	amfInstance.ReleaseConnsWithRanUeNgapID(t.Context(), radio, 8)
+
+	if got := amfInstance.FindUEByRanUeNgapID(radio, 8); got != nil {
+		t.Errorf("ReleaseConnsWithRanUeNgapID left %v", got)
+	}
+
+	if got := amfInstance.FindUEByRanUeNgapID(other, 7); got == nil {
+		t.Error("ReleaseConnsWithRanUeNgapID on one radio removed another radio's connection")
+	}
+}

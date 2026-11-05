@@ -13,3 +13,7 @@ import (
 func BuildGSMPDUSessionEstablishmentReject(pduSessionID fgs.PDUSessionID, pti nas.ProcedureTransactionIdentity, cause fgs.GSMCause) ([]byte, error) {
 	return (&fgs.PDUSessionEstablishmentReject{PDUSessionID: pduSessionID, PTI: pti, Cause: cause}).MarshalBinary()
 }
+
+func BuildGSMPDUSessionEstablishmentRejectWithBackoff(pduSessionID fgs.PDUSessionID, pti nas.ProcedureTransactionIdentity, cause fgs.GSMCause, backoff *nas.GPRSTimer3) ([]byte, error) {
+	return (&fgs.PDUSessionEstablishmentReject{PDUSessionID: pduSessionID, PTI: pti, Cause: cause, BackoffTimer: backoff}).MarshalBinary()
+}

@@ -19,7 +19,7 @@
  * on the datagram's reassembly identity and recovered by the rest.
  *
  * One entry per fragmented datagram in flight, not per connection. */
-#define FRAG_MAP_SIZE (2 * MAX_PDU_SESSIONS)
+#define FRAG_MAP_SIZE 8192
 
 struct frag_key4 {
 	__u32 saddr;

@@ -23,7 +23,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// A gNB may reuse a RAN-UE-NGAP-ID before its prior UEContextRelease completes; drop
 	// any stale conn first so a deferred UEContextReleaseComplete cannot remove the fresh
 	// context (TS 38.413).
-	amfInstance.DropStaleUe(ctx, ran, models.RanUeNgapID(msg.RANUENGAPID))
+	amfInstance.ReleaseConnsWithRanUeNgapID(ctx, ran, models.RanUeNgapID(msg.RANUENGAPID))
 
 	ueConn, err := amfInstance.NewUeConn(ran, models.RanUeNgapID(msg.RANUENGAPID))
 	if err != nil {
@@ -39,6 +39,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	ueConn.UpdateLocation(ctx, msg.UserLocationInformation)
 
 	ueConn.UeContextRequest = msg.UEContextRequest != nil
+	ueConn.SetRRCEstablishmentCause(msg.RRCEstablishmentCause)
 
 	if amfInstance.NAS == nil {
 		ueConn.Log(ctx).Error("NAS handler not set")

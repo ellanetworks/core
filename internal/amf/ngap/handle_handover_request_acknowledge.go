@@ -138,6 +138,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if msg.RANUENGAPID != nil {
+		amfInstance.ReleaseOtherConnsWithRanUeNgapID(ctx, ran, models.RanUeNgapID(*msg.RANUENGAPID), targetUe)
 		amfInstance.UpdateUERanNgapID(targetUe, models.RanUeNgapID(*msg.RANUENGAPID))
 	}
 

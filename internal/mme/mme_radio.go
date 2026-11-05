@@ -314,10 +314,8 @@ func (r *Radio) refreshLogLocked() {
 		return
 	}
 
-	for _, c := range r.m.conns {
-		if c.Conn() == r.Conn {
-			c.bindLogFields(fields)
-		}
+	for c := range r.m.connIndex.onAssociation(r.Conn) {
+		c.bindLogFields(fields)
 	}
 }
 
@@ -533,14 +531,23 @@ func (m *MME) reclaimUEsOnConnLoss(conn S1APWriter) {
 func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string) {
 	m.mu.Lock()
 
+	type orphan struct {
+		ue   *UeContext
+		conn *UeConn
+	}
+
 	var (
-		orphaned       []*UeContext
+		orphaned       []orphan
 		abandoned      []*UeContext
 		releaseTargets []s1Release
 		seen           = map[*UeContext]struct{}{}
 	)
 
 	for _, c := range conns {
+		if m.conns[uint32(c.MMEUES1APID)] != c {
+			continue
+		}
+
 		ue := c.ue.Load()
 		if ue == nil {
 			m.releaseConnIDLocked(uint32(c.MMEUES1APID))
@@ -564,14 +571,14 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 				releaseTargets = append(releaseTargets, s1Release{ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID(), ho.state == hoPrepared})
 			}
 
-			orphaned = append(orphaned, ue)
+			orphaned = append(orphaned, orphan{ue: ue, conn: c})
 		case ue.handover != nil && ue.handover.target == c:
 			relocating := ue.handover.source == nil
 
 			m.clearHandoverLocked(ue) // a handover target: abort, leaving the UE on its source
 
 			if relocating {
-				orphaned = append(orphaned, ue)
+				orphaned = append(orphaned, orphan{ue: ue, conn: ue.Conn()})
 			} else {
 				abandoned = append(abandoned, ue)
 			}
@@ -587,8 +594,8 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 		SendUEContextRelease(ctx, m, r.conn, r.mmeID, r.enbID, r.pair, causeHandoverEUTRANReason)
 	}
 
-	for _, ue := range orphaned {
-		m.ReleaseUEContextLocally(ctx, ue, trigger, models.ReleaseFor(models.ReleaseAccessReleased))
+	for _, o := range orphaned {
+		m.releaseUEContextLocally(ctx, o.ue, o.conn, trigger, models.ReleaseFor(models.ReleaseAccessReleased))
 	}
 
 	for _, ue := range abandoned {

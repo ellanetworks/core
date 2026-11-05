@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 // AttachExpectReject sends an Attach Request and expects an ATTACH REJECT without
@@ -85,4 +86,46 @@ func validateAuthenticationReject(pdu []byte) error {
 	_, err := expectDownlink[*eps.AuthenticationReject](pdu)
 
 	return err
+}
+
+func (e *ENB) AttachExpectESMReject(ue *UE, timeout time.Duration) (*eps.AttachReject, *eps.PDNConnectivityReject, error) {
+	enbUEID, _, _, err := e.attachUntilSecured(ue, timeout)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	frame, err := e.WaitForAnyMessage(enbUEID, Initiating, []s1ap.ProcedureCode{s1ap.ProcDownlinkNASTransport, s1ap.ProcInitialContextSetup}, timeout)
+	if err != nil {
+		return nil, nil, fmt.Errorf("await Attach Reject: %w", err)
+	}
+
+	if frame.ProcedureCode != s1ap.ProcDownlinkNASTransport {
+		return nil, nil, fmt.Errorf("attach accepted, want Attach Reject")
+	}
+
+	dl, err := s1ap.ParseDownlinkNASTransport(frame.Value)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse Downlink NAS Transport: %w", err)
+	}
+
+	plain, err := ue.unprotectDownlink([]byte(dl.NASPDU))
+	if err != nil {
+		return nil, nil, fmt.Errorf("unprotect Attach Reject: %w", err)
+	}
+
+	reject, err := expectDownlink[*eps.AttachReject](plain)
+	if err != nil {
+		return nil, nil, fmt.Errorf("await Attach Reject: %w", err)
+	}
+
+	esm, err := eps.ParsePDNConnectivityReject(reject.ESMMessageContainer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("attach reject with EMM cause %d carries no PDN Connectivity Reject: %w", reject.Cause, err)
+	}
+
+	if err := e.completeContextRelease(enbUEID, timeout); err != nil {
+		return nil, nil, err
+	}
+
+	return reject, esm, nil
 }

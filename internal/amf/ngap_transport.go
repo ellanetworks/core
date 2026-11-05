@@ -22,7 +22,10 @@ var ngapSendTracer = otel.Tracer("ella-core/amf/ngap/send")
 // gNB. *sctp.SCTPConn satisfies it; tests substitute a capturing implementation.
 type NGAPWriter interface {
 	WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error)
+	WriteMsgWait(ctx context.Context, b []byte, info *sctp.SndRcvInfo) (int, error)
 }
+
+type radioSend func(a *AMF, ctx context.Context, conn NGAPWriter, msgType NGAPProcedure, packet []byte) error
 
 // SendToRadio writes a complete NGAP PDU to this radio's gNB association. This is the
 // node-level, fire-and-forget path: a send failure is logged at the chokepoint and not
@@ -42,6 +45,14 @@ func (r *Radio) SendToRadio(ctx context.Context, msgType NGAPProcedure, packet [
 // stream from the procedure (TS 38.412). It takes the connection (the send target)
 // directly — a UE sends through ueConn.conn.
 func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType NGAPProcedure, packet []byte) error {
+	return a.sendToRadio(ctx, conn, msgType, packet, false)
+}
+
+func (a *AMF) SendToRadioPaced(ctx context.Context, conn NGAPWriter, msgType NGAPProcedure, packet []byte) error {
+	return a.sendToRadio(ctx, conn, msgType, packet, true)
+}
+
+func (a *AMF) sendToRadio(ctx context.Context, conn NGAPWriter, msgType NGAPProcedure, packet []byte, paced bool) error {
 	ctx, span := ngapSendTracer.Start(ctx, "ngap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -70,7 +81,14 @@ func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType NGAPProc
 		Stream: sid,
 		PPID:   sctp.PPIDWireOrder(NGAPPPID),
 	}
-	if _, err := conn.WriteMsg(packet, &info); err != nil {
+
+	if paced {
+		_, err = conn.WriteMsgWait(ctx, packet, &info)
+	} else {
+		_, err = conn.WriteMsg(packet, &info)
+	}
+
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send NGAP message")
 		logger.From(ctx, logger.AmfLog).Error("failed to send NGAP message", logger.MessageType(string(msgType)), zap.Error(err))

@@ -161,6 +161,7 @@ type AMF struct {
 	UEs                      map[etsi.SUPI]*UeContext
 	uesByTmsi                map[etsi.TMSI]*UeContext // 5G-TMSI (current and in-flight old) -> UE; the full GUTI is rebuilt from the constant GUAMI
 	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
+	connsByRan               map[ranConnKey]map[*UeConn]struct{}
 	reg                      *radioreg.Registry[NGAPWriter, string, *Radio]
 	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
 	lastSeen                 lastSeenStore
@@ -761,6 +762,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
 		conns:                    make(map[int64]*UeConn),
+		connsByRan:               make(map[ranConnKey]map[*UeConn]struct{}),
 		reg:                      radioreg.New[NGAPWriter, string, *Radio](DefaultRadioOfflineTTL, DefaultMaxOfflineRadios, time.Now),
 		relocatingFromEPS:        make(map[etsi.SUPI]*fromEPSRelocation),
 		DBInstance:               db,
@@ -824,6 +826,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 	a.mu.Lock()
 	ueConn.setRadio(radioIDOf(radio), radio.name)
 	a.conns[int64(amfUeNgapID)] = ueConn
+	a.indexConnLocked(ueConn)
 	a.mu.Unlock()
 
 	return ueConn, nil

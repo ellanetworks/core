@@ -132,7 +132,7 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 	}
 
 	// A veth accepts a native attach and then drops every redirected frame,
-	// so the EOPNOTSUPP fallback below never fires for it.
+	// so the driver-refusal fallback below never fires for it.
 	for _, iface := range []datapathIface{n3, n6} {
 		if nativeXDPBlackholes(iface.name) {
 			logger.UpfLog.Info("interface cannot forward redirected frames in native XDP, attaching at TCX",
@@ -147,14 +147,18 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 		return config.DatapathXDPNative, n3Link, n6Link, nil
 	}
 
-	if !errors.Is(err, unix.EOPNOTSUPP) {
+	if !driverRefusedXDP(err) {
 		return "", nil, nil, err
 	}
 
 	logger.UpfLog.Info("no driver-level XDP support on the datapath interfaces, attaching at TCX",
-		zap.String("n3", n3.name), zap.String("n6", n6.name))
+		zap.String("n3", n3.name), zap.String("n6", n6.name), zap.Error(err))
 
 	return attachChainTCX(objs, n3, n6)
+}
+
+func driverRefusedXDP(err error) bool {
+	return errors.Is(err, unix.EOPNOTSUPP) || errors.Is(err, unix.EINVAL)
 }
 
 // The chain's TCX leg reloads the objects as SCHED_CLS, so every map and

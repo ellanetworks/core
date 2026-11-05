@@ -142,3 +142,10 @@ func SessionReleasesForTest(rat string, reason models.SessionReleaseReason) floa
 
 	return m.GetCounter().GetValue()
 }
+
+func (s *SMF) SEIDIndexLenForTest() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return len(s.bySEID)
+}

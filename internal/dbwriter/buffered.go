@@ -16,6 +16,13 @@ import (
 
 var tracer = otel.Tracer("ella-core/dbwriter")
 
+const maxRadioEventBatch = 256
+
+type BatchDBWriter interface {
+	DBWriter
+	InsertRadioEvents(ctx context.Context, radioEvents []*RadioEvent) error
+}
+
 type queuedEvent struct {
 	event *RadioEvent
 	link  trace.SpanContext
@@ -28,7 +35,7 @@ type queuedEvent struct {
 // InsertAuditLog is passed through synchronously since audit log inserts
 // are infrequent (API mutations only) and not on the NGAP hot path.
 type BufferedDBWriter struct {
-	delegate DBWriter
+	delegate BatchDBWriter
 	logger   *zap.Logger
 	eventCh  chan queuedEvent
 	wg       sync.WaitGroup
@@ -38,7 +45,7 @@ type BufferedDBWriter struct {
 
 // NewBufferedDBWriter creates a BufferedDBWriter that queues radio events
 // in a channel of the given size and writes them in a background goroutine.
-func NewBufferedDBWriter(delegate DBWriter, bufferSize int, logger *zap.Logger) *BufferedDBWriter {
+func NewBufferedDBWriter(delegate BatchDBWriter, bufferSize int, logger *zap.Logger) *BufferedDBWriter {
 	b := &BufferedDBWriter{
 		delegate: delegate,
 		logger:   logger,
@@ -105,9 +112,27 @@ func (b *BufferedDBWriter) Stop(ctx context.Context) {
 func (b *BufferedDBWriter) drainLoop() {
 	defer b.wg.Done()
 
+	batch := make([]queuedEvent, 0, maxRadioEventBatch)
+
 	for queued := range b.eventCh {
-		b.write(queued)
-		b.pending.Add(-1)
+		batch = append(batch[:0], queued)
+
+	fill:
+		for len(batch) < maxRadioEventBatch {
+			select {
+			case next, ok := <-b.eventCh:
+				if !ok {
+					break fill
+				}
+
+				batch = append(batch, next)
+			default:
+				break fill
+			}
+		}
+
+		b.writeBatch(batch)
+		b.pending.Add(-int64(len(batch)))
 	}
 }
 
@@ -119,26 +144,58 @@ func (b *BufferedDBWriter) Dropped() uint64 {
 	return b.dropped.Load()
 }
 
-func (b *BufferedDBWriter) write(queued queuedEvent) {
+func (b *BufferedDBWriter) writeBatch(batch []queuedEvent) {
 	ctx := context.Background()
 	span := trace.SpanFromContext(ctx)
 
-	if queued.link.IsValid() {
+	var links []trace.Link
+
+	events := make([]*RadioEvent, len(batch))
+
+	for i, queued := range batch {
+		events[i] = queued.event
+
+		if queued.link.IsValid() {
+			links = append(links, trace.Link{SpanContext: queued.link})
+		}
+	}
+
+	if len(links) > 0 {
 		ctx, span = tracer.Start(ctx, "dbwriter/insert_radio_event",
 			trace.WithSpanKind(trace.SpanKindInternal),
-			trace.WithLinks(trace.Link{SpanContext: queued.link}),
+			trace.WithLinks(links...),
 		)
 		defer span.End()
 	}
 
-	err := b.delegate.InsertRadioEvent(ctx, queued.event)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to insert radio event")
-
-		b.logger.Warn("failed to insert buffered radio event",
-			zap.String("message_type", queued.event.MessageType),
-			zap.Error(err),
-		)
+	err := b.delegate.InsertRadioEvents(ctx, events)
+	if err == nil {
+		return
 	}
+
+	if len(events) > 1 {
+		for _, event := range events {
+			b.writeOne(ctx, span, event)
+		}
+
+		return
+	}
+
+	b.recordWriteError(span, events[0], err)
+}
+
+func (b *BufferedDBWriter) writeOne(ctx context.Context, span trace.Span, event *RadioEvent) {
+	if err := b.delegate.InsertRadioEvent(ctx, event); err != nil {
+		b.recordWriteError(span, event, err)
+	}
+}
+
+func (b *BufferedDBWriter) recordWriteError(span trace.Span, event *RadioEvent, err error) {
+	span.RecordError(err)
+	span.SetStatus(codes.Error, "failed to insert radio event")
+
+	b.logger.Warn("failed to insert buffered radio event",
+		zap.String("message_type", event.MessageType),
+		zap.Error(err),
+	)
 }

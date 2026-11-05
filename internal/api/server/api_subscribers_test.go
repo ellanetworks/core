@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api/server"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/smf"
 )
 
@@ -1094,34 +1095,27 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		t.Fatalf("unexpected error :%q", createPolicyResponse.Error)
 	}
 
-	baseImsi := Imsi[:len(Imsi)-4]
+	profile, err := env.DB.GetProfile(context.Background(), TestProfileName)
+	if err != nil {
+		t.Fatalf("couldn't get profile: %s", err)
+	}
 
-	for i := 0; i < 1000; i++ {
-		createSubscriberParams := &CreateSubscriberParams{
-			Imsi:           fmt.Sprintf("%s%04d", baseImsi, i),
-			Key:            Key,
-			Opc:            Opc,
+	baseImsi := Imsi[:len(Imsi)-6]
+
+	for i := 0; i < server.MaxNumSubscribers; i++ {
+		if err := env.DB.CreateSubscriber(context.Background(), &db.Subscriber{
+			Imsi:           fmt.Sprintf("%s%06d", baseImsi, i),
 			SequenceNumber: SequenceNumber,
-			ProfileName:    TestProfileName,
-		}
-		t.Log("Creating subscriber:", createSubscriberParams.Imsi)
-
-		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
-		if err != nil {
-			t.Fatalf("couldn't create subscriber: %s", err)
-		}
-
-		if statusCode != http.StatusCreated {
-			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-		}
-
-		if response.Error != "" {
-			t.Fatalf("unexpected error :%q", response.Error)
+			PermanentKey:   Key,
+			Opc:            Opc,
+			ProfileID:      profile.ID,
+		}); err != nil {
+			t.Fatalf("couldn't seed subscriber %d: %s", i, err)
 		}
 	}
 
 	createSubscriberParams := &CreateSubscriberParams{
-		Imsi:           fmt.Sprintf("%s%04d", baseImsi, 1000),
+		Imsi:           fmt.Sprintf("%s%06d", baseImsi, server.MaxNumSubscribers),
 		Key:            Key,
 		Opc:            Opc,
 		SequenceNumber: SequenceNumber,
@@ -1137,8 +1131,9 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 	}
 
-	if createSubscriberResponse.Error != "Maximum number of subscribers reached (1000)" {
-		t.Fatalf("expected error %q, got %q", "Maximum number of subscribers reached (1000)", createSubscriberResponse.Error)
+	want := fmt.Sprintf("Maximum number of subscribers reached (%d)", server.MaxNumSubscribers)
+	if createSubscriberResponse.Error != want {
+		t.Fatalf("expected error %q, got %q", want, createSubscriberResponse.Error)
 	}
 }
 

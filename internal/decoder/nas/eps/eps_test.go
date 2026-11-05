@@ -464,10 +464,15 @@ func TestDecodeESMMessages(t *testing.T) {
 	}{
 		{
 			name: "PDNConnectivityReject",
-			msg:  &eps.PDNConnectivityReject{EPSBearerIdentity: 5, PTI: 1, Cause: eps.ESMCauseInsufficientResources},
+			msg:  &eps.PDNConnectivityReject{EPSBearerIdentity: 5, PTI: 1, Cause: eps.ESMCauseInsufficientResources, BackoffTimer: &nas.GPRSTimer3{Unit: nas.GPRSTimer3Unit1Minute, Value: 1}},
 			want: func(t *testing.T, m *ESMMessage) {
-				if m.PDNConnectivityReject == nil || m.PDNConnectivityReject.ESMCause.Label == "" {
-					t.Errorf("pdn connectivity reject = %+v", m.PDNConnectivityReject)
+				r := m.PDNConnectivityReject
+				if r == nil || r.ESMCause.Label == "" {
+					t.Fatalf("pdn connectivity reject = %+v", r)
+				}
+
+				if r.BackoffTimer == nil || r.BackoffTimer.Seconds == nil || *r.BackoffTimer.Seconds != 60 {
+					t.Errorf("backoff timer = %+v, want 60 s", r.BackoffTimer)
 				}
 			},
 		},

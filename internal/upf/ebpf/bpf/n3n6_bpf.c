@@ -491,7 +491,8 @@ struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, struct in6_addr);
 	__type(value, struct veth_tunnel_info);
-	__uint(max_entries, 256);
+	__uint(max_entries, MAX_PDU_SESSIONS);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
 } veth_tunnels SEC(".maps");
 
 /* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects

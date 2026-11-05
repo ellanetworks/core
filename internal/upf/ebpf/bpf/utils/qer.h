@@ -47,6 +47,7 @@ struct {
 	__type(key, struct qer_key);
 	__type(value, struct qer_window);
 	__uint(max_entries, QER_WINDOW_MAP_SIZE);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
 } qer_windows SEC(".maps");
 
 enum qer_direction {

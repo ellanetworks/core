@@ -60,6 +60,14 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
+	if !m.ClaimENBUES1APIDFor(ctx, radio.Conn, req.ENBUES1APID, ue, "Path Switch Request reusing an allocated eNB-UE-S1AP-ID") {
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request with an eNB-UE-S1AP-ID already allocated to another connection",
+			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)), logger.ENBUeS1apID(uint32(req.ENBUES1APID)))
+		sendErrorIndication(ctx, m, radio.Conn, nil, &req.ENBUES1APID, causeUnknownENBUES1APID)
+
+		return
+	}
+
 	ue.TouchLastSeen()
 
 	// Nil in ECM-IDLE, and a concurrent detach can nil it at any point.

@@ -4,6 +4,7 @@
 package amf
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -13,6 +14,10 @@ import (
 type nopNGAPSender struct{}
 
 func (nopNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) { return len(b), nil }
+
+func (c nopNGAPSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return c.WriteMsg(b, info)
+}
 
 func TestExportUeContext_DetachedConnDoesNotPanic(t *testing.T) {
 	ue := NewUeContext()

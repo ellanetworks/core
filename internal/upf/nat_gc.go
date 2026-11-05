@@ -60,46 +60,67 @@ func natEntryTimeout(proto uint16, state, replied, closed uint8) time.Duration {
 	}
 }
 
-// natExpiredKeys returns the nat_ct keys to delete; a partial snapshot cannot
-// distinguish an orphan from a missed entry, so orphans are reaped only when
-// complete.
-func natExpiredKeys(snapshot map[ebpf.N3N6EntrypointFiveTuple]ebpf.N3N6EntrypointNatEntry, nowNs uint64, complete bool) []ebpf.N3N6EntrypointFiveTuple {
-	toDelete := make(map[ebpf.N3N6EntrypointFiveTuple]struct{})
+type natLookup func(ebpf.N3N6EntrypointFiveTuple) (ebpf.N3N6EntrypointNatEntry, bool)
+
+func natExpiredKeys(keys []ebpf.N3N6EntrypointFiveTuple, values []ebpf.N3N6EntrypointNatEntry, lookup natLookup, nowNs uint64) []ebpf.N3N6EntrypointFiveTuple {
+	var toDelete []ebpf.N3N6EntrypointFiveTuple
+
+	seen := make(map[ebpf.N3N6EntrypointFiveTuple]struct{})
+
+	add := func(k ebpf.N3N6EntrypointFiveTuple) {
+		if _, ok := seen[k]; ok {
+			return
+		}
+
+		seen[k] = struct{}{}
+		toDelete = append(toDelete, k)
+	}
 
 	expired := func(refreshTs uint64, timeout time.Duration) bool {
 		return refreshTs+uint64(timeout.Nanoseconds()) < nowNs
 	}
 
-	for key, entry := range snapshot {
+	for i, key := range keys {
+		entry := values[i]
+
 		if entry.UeSide != 0 {
 			if expired(entry.RefreshTs, natEntryTimeout(key.Proto, entry.State, entry.Replied, entry.Closed)) {
-				toDelete[key] = struct{}{}
+				add(key)
 
-				// The NAT tuple may have been re-reserved by
-				// another subscriber since; only the partner
-				// still pointing back belongs to this pair.
-				if partner, ok := snapshot[entry.Peer]; ok && partner.Peer == key {
-					toDelete[entry.Peer] = struct{}{}
+				if partner, ok := lookup(entry.Peer); ok && partner.Peer == key {
+					add(entry.Peer)
 				}
 			}
 
 			continue
 		}
 
-		if !complete {
+		if !expired(entry.RefreshTs, natOrphanGrace) {
 			continue
 		}
 
-		partner, ok := snapshot[entry.Peer]
-		if (!ok || partner.Peer != key) && expired(entry.RefreshTs, natOrphanGrace) {
-			toDelete[key] = struct{}{}
+		if partner, ok := lookup(entry.Peer); !ok || partner.Peer != key {
+			add(key)
 		}
 	}
 
-	keys := make([]ebpf.N3N6EntrypointFiveTuple, 0, len(toDelete))
-	for key := range toDelete {
-		keys = append(keys, key)
+	return toDelete
+}
+
+const (
+	natGCMinInterval      = 10 * time.Second
+	natGCMaxInterval      = 5 * time.Minute
+	natGCIntervalRounding = time.Second
+)
+
+func nextNATGCInterval(prev time.Duration, deleteRatio float64) time.Duration {
+	switch {
+	case deleteRatio > 0.25:
+		deleteRatio = min(deleteRatio, 0.9)
+		return max(time.Duration(float64(prev)*(1-deleteRatio)).Round(natGCIntervalRounding), natGCMinInterval)
+	case deleteRatio < 0.05:
+		return min(time.Duration(float64(prev)*1.5).Round(natGCIntervalRounding), natGCMaxInterval)
 	}
 
-	return keys
+	return prev
 }

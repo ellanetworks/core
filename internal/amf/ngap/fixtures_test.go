@@ -346,6 +346,10 @@ func (fng *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
+func (fng *fakeNGAPSender) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
+	return fng.WriteMsg(b, info)
+}
+
 func (fng *fakeNGAPSender) captureInitiating(m *ngap.InitiatingMessage) {
 	switch m.ProcedureCode {
 	case ngap.ProcErrorIndication:

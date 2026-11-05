@@ -25,6 +25,21 @@ func esmCauseOnly(c eps.ESMCause, unrecognized []nas.RawIE) *ESMCauseOnly {
 	return &ESMCauseOnly{ESMCause: esmCauseToEnum(c), UnrecognizedIEs: utils.RawIEs(unrecognized)}
 }
 
+type PDNConnectivityReject struct {
+	ESMCause     utils.EnumField        `json:"esm_cause"`
+	BackoffTimer *nasie.GPRSTimer3Value `json:"backoff_timer,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
+}
+
+func buildPDNConnectivityReject(msg *eps.PDNConnectivityReject) *PDNConnectivityReject {
+	return &PDNConnectivityReject{
+		ESMCause:        esmCauseToEnum(msg.Cause),
+		BackoffTimer:    nasie.GPRSTimer3(msg.BackoffTimer),
+		UnrecognizedIEs: utils.RawIEs(msg.Unrecognized),
+	}
+}
+
 type ModifyEPSBearerContextRequest struct {
 	NewEPSQoS                            *EPSQoS                             `json:"new_eps_qos,omitempty"`
 	TFT                                  *TFT                                `json:"tft,omitempty"`

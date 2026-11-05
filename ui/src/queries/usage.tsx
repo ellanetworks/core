@@ -19,6 +19,8 @@ export type PerSubscriberUsage = {
 
 export type UsageResult = DailySubscriberUsage[] | PerSubscriberUsage[];
 
+export const USAGE_SUBSCRIBER_LIMIT = 1000;
+
 export type UsageRetentionPolicy = {
   days: number;
 };
