@@ -52,7 +52,37 @@ func (db *Database) WaitUntilReady(ctx context.Context) error {
 		return fmt.Errorf("wait for the state machine to catch up: %w", err)
 	}
 
+	if err := db.WaitForStandaloneSchema(ctx); err != nil {
+		return fmt.Errorf("wait for schema migrations: %w", err)
+	}
+
 	return db.WaitForInitialization(ctx, 0)
+}
+
+func (db *Database) WaitForStandaloneSchema(ctx context.Context) error {
+	if db.raftManager == nil || db.raftManager.ClusterEnabled() {
+		return nil
+	}
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		applied, err := db.CurrentSchemaVersion(ctx)
+		if err != nil {
+			return fmt.Errorf("read schema version: %w", err)
+		}
+
+		if applied >= SchemaVersion() {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("standalone shared schema still at %d, want >= %d: %w", applied, SchemaVersion(), ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func (db *Database) holdForLeader(ctx context.Context) error {

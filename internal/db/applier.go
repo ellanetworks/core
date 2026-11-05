@@ -52,7 +52,7 @@ var _ ellaraft.Applier = (*Database)(nil)
 // is defensive — Raft applies in log order and the leader proposes
 // CmdMigrateShared(N) before any v=N op, so it only fires on leader
 // misbehavior or skip-version upgrades (already a non-goal).
-func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, logIndex uint64) (any, error) {
+func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, logIndex, logTerm uint64) (any, error) {
 	switch cmd.Type {
 	case ellaraft.CmdChangeset:
 		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
@@ -68,7 +68,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
-		result, applyErr := db.applyChangeset(ctx, payload, logIndex)
+		result, applyErr := db.applyChangeset(ctx, payload, logIndex, logTerm)
 		if applyErr == nil {
 			if payload.Operation == "UpsertClusterMember" {
 				db.signalMigrationCheck()
@@ -190,12 +190,7 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("reopen database: %w", err)
 	}
 
-	maxVersion := 0
-	if db.ClusterEnabled() {
-		// In cluster mode, restore/reopen must track the snapshot baseline.
-		// Post-baseline shared migrations are proposed by the leader via Raft.
-		maxVersion = baselineVersion
-	}
+	maxVersion := db.migrationCeiling
 
 	if err := runMigrations(ctx, sqlConn, maxVersion); err != nil {
 		_ = sqlConn.Close()
@@ -224,6 +219,8 @@ func (db *Database) Reopen(ctx context.Context) error {
 	if db.changefeed != nil {
 		db.changefeed.PublishAll()
 	}
+
+	db.signalMigrationCheck()
 
 	return nil
 }
