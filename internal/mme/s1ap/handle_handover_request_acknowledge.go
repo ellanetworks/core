@@ -50,6 +50,16 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 		return
 	}
 
+	if !m.ClaimENBUES1APIDFor(ctx, radio.Conn, enbUEID, ue, "Handover Request Acknowledge reusing an allocated eNB-UE-S1AP-ID") {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge with an eNB-UE-S1AP-ID already allocated to another connection",
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)), logger.ENBUeS1apID(uint32(enbUEID)))
+		sendErrorIndication(ctx, m, radio.Conn, &mmeUEID, &enbUEID, causeUnknownENBUES1APID)
+		m.FailHandoverToSource(ctx, ue, causeHOFailureInTarget)
+		m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+
+		return
+	}
+
 	admitted := make([]mme.AdmittedERAB, 0, len(ack.ERABAdmitted))
 
 	for _, it := range ack.ERABAdmitted {

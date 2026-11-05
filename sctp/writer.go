@@ -33,6 +33,8 @@ var (
 // has been aborted.
 var errWriteQueueFull = errors.New("sctp: outbound queue full")
 
+var testHookBeforeEnqueue = func() {}
+
 type queuedWrite struct {
 	b     []byte
 	info  *SndRcvInfo
@@ -41,7 +43,7 @@ type queuedWrite struct {
 
 func (c *SCTPConn) startWriter(logger *slog.Logger) {
 	c.writeLogger = logger
-	c.writeCh = make(chan queuedWrite, writeQueueDepth)
+	c.writeCh = make(chan queuedWrite, writeQueueDepth+pacedQueueShare)
 	c.pacedSlots = make(chan struct{}, pacedQueueShare)
 	c.writerExited = make(chan struct{})
 
@@ -87,6 +89,9 @@ func (c *SCTPConn) writeLoop() {
 				return
 			}
 		case <-c.writerFlush:
+			c.enqueueMu.Lock()
+			c.enqueueMu.Unlock()
+
 			for {
 				select {
 				case qw := <-c.writeCh:
@@ -127,11 +132,16 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 		return c.writeMsgSync(b, info)
 	}
 
+	qw := newQueuedWrite(b, info)
+
+	c.enqueueMu.RLock()
+	defer c.enqueueMu.RUnlock()
+
 	if c.closed.Load() {
 		return 0, net.ErrClosed
 	}
 
-	qw := newQueuedWrite(b, info)
+	testHookBeforeEnqueue()
 
 	// Checked before the enqueue, not alongside it: a select with both cases
 	// ready picks at random and would report success on a closed association.
@@ -173,6 +183,14 @@ func (c *SCTPConn) WriteMsgWait(ctx context.Context, b []byte, info *SndRcvInfo)
 		return 0, ctx.Err()
 	}
 
+	c.enqueueMu.RLock()
+	defer c.enqueueMu.RUnlock()
+
+	if c.closed.Load() {
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	}
+
 	select {
 	case <-c.writerDone:
 		<-c.pacedSlots
@@ -184,6 +202,9 @@ func (c *SCTPConn) WriteMsgWait(ctx context.Context, b []byte, info *SndRcvInfo)
 	case c.writeCh <- qw:
 		return len(b), nil
 	case <-c.writerDone:
+		<-c.pacedSlots
+		return 0, net.ErrClosed
+	case <-c.writerFlush:
 		<-c.pacedSlots
 		return 0, net.ErrClosed
 	case <-c.writerExited:

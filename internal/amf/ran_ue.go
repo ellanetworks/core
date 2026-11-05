@@ -875,8 +875,12 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 }
 
 func (a *AMF) ReleaseConnsWithRanUeNgapID(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID) {
+	a.ReleaseOtherConnsWithRanUeNgapID(ctx, radio, ranUeNgapID, nil)
+}
+
+func (a *AMF) ReleaseOtherConnsWithRanUeNgapID(ctx context.Context, radio *Radio, ranUeNgapID models.RanUeNgapID, keep *UeConn) {
 	for _, ueConn := range a.ConnsByRanUeNgapID(radio, ranUeNgapID) {
-		if ueConn.ClaimReleaseCompletion() {
+		if ueConn != keep && ueConn.ClaimReleaseCompletion() {
 			a.ReleaseUeConn(ctx, ueConn)
 		}
 	}

@@ -232,6 +232,10 @@ func (m *MME) CompleteUEContextRelease(ctx context.Context, ue *UeContext, c *Ue
 }
 
 func (m *MME) ClaimENBUES1APID(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) bool {
+	return m.ClaimENBUES1APIDFor(ctx, conn, enbUEID, nil, "Initial UE Message reusing an allocated eNB-UE-S1AP-ID")
+}
+
+func (m *MME) ClaimENBUES1APIDFor(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID, owner *UeContext, trigger string) bool {
 	m.mu.RLock()
 	holders := slices.Collect(maps.Keys(m.connIndex.matching(conn, enbUEID)))
 	m.mu.RUnlock()
@@ -239,6 +243,10 @@ func (m *MME) ClaimENBUES1APID(ctx context.Context, conn S1APWriter, enbUEID s1a
 	var live []*UeConn
 
 	for _, c := range holders {
+		if owner != nil && c.UeContext() == owner {
+			continue
+		}
+
 		if !c.releaseCommanded.Load() {
 			live = append(live, c)
 
@@ -253,7 +261,7 @@ func (m *MME) ClaimENBUES1APID(ctx context.Context, conn S1APWriter, enbUEID s1a
 		return true
 	}
 
-	m.ReclaimConns(ctx, live, "Initial UE Message reusing an allocated eNB-UE-S1AP-ID")
+	m.ReclaimConns(ctx, live, trigger)
 
 	return false
 }

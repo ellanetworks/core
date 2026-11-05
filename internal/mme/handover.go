@@ -408,18 +408,18 @@ func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID
 	return ho.admitted, true
 }
 
-func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, targetMMEID s1ap.MMEUES1APID, ok bool) {
+func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (source *UeConn, targetMMEID s1ap.MMEUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
 	if ho == nil || ho.state != hoCommitting || !ho.targetNotifiedBy(conn, notifyENBID) {
-		return nil, 0, 0, 0, false
+		return nil, 0, false
 	}
 
-	source := ho.source
+	source = ho.source
 	if source != nil && ue.Conn() == nil {
-		return nil, 0, 0, 0, false
+		return nil, 0, false
 	}
 
 	target := ho.target
@@ -432,14 +432,19 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	if source == nil {
 		m.clearHandoverLocked(ue)
 
-		return nil, 0, 0, target.MMEUES1APID, true
+		return nil, target.MMEUES1APID, true
 	}
 
 	source.ue.Store(nil) // its Release Complete removes the connection
 	source.releaseCommanded.Store(true)
 	m.clearHandoverLocked(ue)
 
-	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), target.MMEUES1APID, true
+	return source, target.MMEUES1APID, true
+}
+
+func (m *MME) ReleaseHandoverSource(ctx context.Context, source *UeConn) {
+	m.guardDetachedRelease(ctx, source)
+	SendUEContextRelease(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), true, CauseHandoverSuccess)
 }
 
 func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget, aborted bool) {
