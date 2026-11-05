@@ -42,23 +42,28 @@ func TestIntegrationScale1k(t *testing.T) {
 
 	radios := addScaleRadioAddresses(ctx, t, env)
 
-	t.Run("5g", func(t *testing.T) {
-		tr := registerScenarioTest("gnb/scale/1k")
+	for _, tc := range []struct{ name, scenario string }{
+		{"5g", "gnb/scale"},
+		{"4g", "s1enb/scale"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := registerScenarioTest(tc.scenario + "/1k")
 
-		args := []string{
-			"--ues", strconv.Itoa(scaleSubscribers),
-			"--start-imsi", scaleIMSI(0),
-			"--concurrency", strconv.Itoa(scaleConcurrency),
-			"--probe-every", "50",
-			"--timeout", "2m",
-		}
+			args := []string{
+				"--ues", strconv.Itoa(scaleSubscribers),
+				"--start-imsi", scaleIMSI(0),
+				"--concurrency", strconv.Itoa(scaleConcurrency),
+				"--probe-every", "50",
+				"--timeout", "2m",
+			}
 
-		for i, addr := range radios {
-			args = append(args, "--gnb", fmt.Sprintf("scale-g%d,n2=%s,n3=%s", i, addr, addr))
-		}
+			for i, addr := range radios {
+				args = append(args, "--gnb", fmt.Sprintf("scale-%s%d,n2=%s,n3=%s", tc.name, i, addr, addr))
+			}
 
-		env.RunScenario(ctx, t, "gnb/scale", tr, args...)
-	})
+			env.RunScenario(ctx, t, tc.scenario, tr, args...)
+		})
+	}
 }
 
 func scaleIMSI(i int) string {
