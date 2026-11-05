@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,7 +62,13 @@ func TestIntegrationScale1k(t *testing.T) {
 				args = append(args, "--gnb", fmt.Sprintf("scale-%s%d,n2=%s,n3=%s", tc.name, i, addr, addr))
 			}
 
-			env.RunScenario(ctx, t, tc.scenario, tr, args...)
+			out := env.RunScenario(ctx, t, tc.scenario, tr, args...)
+
+			for line := range strings.SplitSeq(out, "\n") {
+				if strings.Contains(line, " complete\t") {
+					t.Log(strings.TrimSpace(line[strings.Index(line, "INFO")+len("INFO"):]))
+				}
+			}
 		})
 	}
 }
