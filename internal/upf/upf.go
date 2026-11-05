@@ -607,12 +607,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 }
 
 func (u *UPF) sweepNATConntrack() (scanned, deleted int, ok bool) {
-	var (
-		ts     unix.Timespec
-		cursor bpf.MapBatchCursor
-		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natGCBatchSize)
-		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
-	)
+	var ts unix.Timespec
 
 	// refresh_ts is bpf_ktime_get_ns (CLOCK_MONOTONIC); comparing
 	// against any other clock ages entries by the suspend time.
@@ -621,7 +616,16 @@ func (u *UPF) sweepNATConntrack() (scanned, deleted int, ok bool) {
 		return 0, 0, false
 	}
 
-	nowNs := uint64(ts.Nano())
+	return u.sweepNATConntrackAt(uint64(ts.Nano()))
+}
+
+func (u *UPF) sweepNATConntrackAt(nowNs uint64) (scanned, deleted int, ok bool) {
+	var (
+		cursor bpf.MapBatchCursor
+		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natGCBatchSize)
+		values = make([]ebpf.N3N6EntrypointNatEntry, natGCBatchSize)
+	)
+
 	natCt := u.se.BpfObjects.NatCt
 
 	lookup := func(k ebpf.N3N6EntrypointFiveTuple) (ebpf.N3N6EntrypointNatEntry, bool) {

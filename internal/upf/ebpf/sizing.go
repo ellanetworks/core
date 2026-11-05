@@ -4,12 +4,12 @@
 package ebpf
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math/bits"
 	"os"
-	"path/filepath"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -128,20 +128,16 @@ func (s MapSizing) wrapCreateError(err error) error {
 		s.MaxSessions, s.NATEntries, s.FlowEntries, s.ProjectedBytes()>>20, err)
 }
 
-type MemorySources struct {
-	Meminfo    string
-	SelfCgroup string
-	CgroupRoot string
-}
+var HostMemory = os.DirFS("/")
 
-var HostMemorySources = MemorySources{
-	Meminfo:    "/proc/meminfo",
-	SelfCgroup: "/proc/self/cgroup",
-	CgroupRoot: "/sys/fs/cgroup",
-}
+const (
+	meminfoPath    = "proc/meminfo"
+	selfCgroupPath = "proc/self/cgroup"
+	cgroupRootPath = "sys/fs/cgroup"
+)
 
-func (s MapSizing) MemoryCheck(src MemorySources) (limit uint64, warn bool) {
-	limit = availableMemoryLimit(src)
+func (s MapSizing) MemoryCheck(host fs.FS) (limit uint64, warn bool) {
+	limit = availableMemoryLimit(host)
 	if limit == 0 {
 		return 0, false
 	}
@@ -149,27 +145,24 @@ func (s MapSizing) MemoryCheck(src MemorySources) (limit uint64, warn bool) {
 	return limit, s.ProjectedBytes()*100 > limit*memoryWarnRatioPercent
 }
 
-func availableMemoryLimit(src MemorySources) uint64 {
-	limit := memTotal(src.Meminfo)
+func availableMemoryLimit(host fs.FS) uint64 {
+	limit := memTotal(host)
 
-	if c := cgroupMemoryMax(src.SelfCgroup, src.CgroupRoot); c != 0 && (limit == 0 || c < limit) {
+	if c := cgroupMemoryMax(host); c != 0 && (limit == 0 || c < limit) {
 		limit = c
 	}
 
 	return limit
 }
 
-func memTotal(path string) uint64 {
-	f, err := os.Open(path)
+func memTotal(host fs.FS) uint64 {
+	raw, err := fs.ReadFile(host, meminfoPath)
 	if err != nil {
 		return 0
 	}
 
-	defer func() { _ = f.Close() }()
-
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		fields := strings.Fields(sc.Text())
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		fields := strings.Fields(line)
 		if len(fields) < 2 || fields[0] != "MemTotal:" {
 			continue
 		}
@@ -185,36 +178,32 @@ func memTotal(path string) uint64 {
 	return 0
 }
 
-func cgroupMemoryMax(selfCgroup, root string) uint64 {
-	rel, err := os.ReadFile(selfCgroup)
+func cgroupMemoryMax(host fs.FS) uint64 {
+	raw, err := fs.ReadFile(host, selfCgroupPath)
 	if err != nil {
 		return 0
 	}
 
-	var path string
-
-	for line := range strings.SplitSeq(strings.TrimSpace(string(rel)), "\n") {
-		if p, ok := strings.CutPrefix(line, "0::"); ok {
-			path = p
-			break
+	for line := range strings.SplitSeq(strings.TrimSpace(string(raw)), "\n") {
+		rel, ok := strings.CutPrefix(line, "0::")
+		if !ok {
+			continue
 		}
+
+		memoryMax, err := fs.ReadFile(host, path.Join(cgroupRootPath, rel, "memory.max"))
+		if err != nil {
+			return 0
+		}
+
+		n, err := strconv.ParseUint(strings.TrimSpace(string(memoryMax)), 10, 64)
+		if err != nil {
+			return 0
+		}
+
+		return n
 	}
 
-	limit := uint64(0)
-	root = filepath.Clean(root)
-
-	for dir := filepath.Join(root, path); ; dir = filepath.Dir(dir) {
-		raw, err := os.ReadFile(filepath.Join(dir, "memory.max"))
-		if err == nil {
-			if n, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64); err == nil && (limit == 0 || n < limit) {
-				limit = n
-			}
-		}
-
-		if dir == root || !strings.HasPrefix(dir, root) {
-			return limit
-		}
-	}
+	return 0
 }
 
 func mapsMemlock(maps N3N6EntrypointMaps) uint64 {

@@ -5,10 +5,9 @@ package ebpf
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -106,52 +105,40 @@ func TestProjectedBytes(t *testing.T) {
 }
 
 func TestMemoryCheck(t *testing.T) {
-	dir := t.TempDir()
-
-	meminfo := filepath.Join(dir, "meminfo")
-	selfCgroup := filepath.Join(dir, "cgroup")
-	root := filepath.Join(dir, "fs")
-	leaf := filepath.Join(root, "system.slice", "ella.service")
-
-	if err := os.MkdirAll(leaf, 0o755); err != nil {
-		t.Fatal(err)
+	host := fstest.MapFS{
+		"proc/meminfo":     {Data: []byte("MemTotal:       16384000 kB\nMemFree:  1 kB\n")},
+		"proc/self/cgroup": {Data: []byte("0::/system.slice/ella.service\n")},
+		"sys/fs/cgroup/system.slice/ella.service/memory.max": {Data: []byte("8589934592\n")},
 	}
 
-	write := func(path, content string) {
-		t.Helper()
-
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	write(meminfo, "MemTotal:       16384000 kB\nMemFree:  1 kB\n")
-	write(selfCgroup, "0::/system.slice/ella.service\n")
-	write(filepath.Join(leaf, "memory.max"), "max\n")
-	write(filepath.Join(root, "system.slice", "memory.max"), "8589934592\n")
-
-	src := MemorySources{Meminfo: meminfo, SelfCgroup: selfCgroup, CgroupRoot: root}
-
-	limit, warn := NewMapSizing(0).MemoryCheck(src)
+	limit, warn := NewMapSizing(0).MemoryCheck(host)
 	if limit != 8<<30 {
-		t.Fatalf("limit = %d, want the parent cgroup's 8 GiB", limit)
+		t.Fatalf("limit = %d, want the service cgroup's 8 GiB", limit)
 	}
 
 	if warn {
 		t.Error("default sizing warned on 8 GiB")
 	}
 
-	if _, warn := NewMapSizing(200000).MemoryCheck(src); !warn {
+	if _, warn := NewMapSizing(200000).MemoryCheck(host); !warn {
 		t.Error("ceiling sizing did not warn on 8 GiB")
 	}
 
-	write(filepath.Join(root, "system.slice", "memory.max"), "max\n")
+	host["sys/fs/cgroup/system.slice/ella.service/memory.max"] = &fstest.MapFile{Data: []byte("max\n")}
+	host["sys/fs/cgroup/system.slice/memory.max"] = &fstest.MapFile{Data: []byte("1073741824\n")}
 
-	if limit, _ := NewMapSizing(0).MemoryCheck(src); limit != 16384000<<10 {
-		t.Errorf("limit = %d, want MemTotal without a cgroup limit", limit)
+	if limit, _ := NewMapSizing(0).MemoryCheck(host); limit != 16384000<<10 {
+		t.Errorf("limit = %d, want MemTotal when the process's own cgroup is unlimited", limit)
 	}
 
-	if limit, warn := NewMapSizing(0).MemoryCheck(MemorySources{}); limit != 0 || warn {
+	host["proc/self/cgroup"] = &fstest.MapFile{Data: []byte("0::/\n")}
+	host["sys/fs/cgroup/memory.max"] = &fstest.MapFile{Data: []byte("2147483648\n")}
+
+	if limit, _ := NewMapSizing(0).MemoryCheck(host); limit != 2<<30 {
+		t.Errorf("limit = %d, want the namespaced cgroup root's 2 GiB", limit)
+	}
+
+	if limit, warn := NewMapSizing(0).MemoryCheck(fstest.MapFS{}); limit != 0 || warn {
 		t.Errorf("missing sources gave limit %d warn %v", limit, warn)
 	}
 }

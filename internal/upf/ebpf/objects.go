@@ -216,7 +216,7 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
-	if limit, warn := bpfObjects.Sizing.MemoryCheck(HostMemorySources); warn {
+	if limit, warn := bpfObjects.Sizing.MemoryCheck(HostMemory); warn {
 		logger.UpfLog.Warn("datapath maps reserve more than a quarter of the memory available to Ella Core",
 			zap.Uint32("max_sessions", bpfObjects.Sizing.MaxSessions),
 			zap.Uint64("projected_bytes", bpfObjects.Sizing.ProjectedBytes()),

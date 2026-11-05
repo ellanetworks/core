@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
-	"golang.org/x/sys/unix"
 )
 
 func TestNATSweepAtCeiling(t *testing.T) {
@@ -30,12 +29,7 @@ func TestNATSweepAtCeiling(t *testing.T) {
 
 	t.Cleanup(func() { _ = obj.Close() })
 
-	var ts unix.Timespec
-	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
-		t.Fatal(err)
-	}
-
-	nowNs := uint64(ts.Nano())
+	nowNs := uint64((10 * natUDPRepliedTimeout).Nanoseconds())
 	staleNs := nowNs - uint64((2 * natUDPRepliedTimeout).Nanoseconds())
 	idleNs := nowNs - uint64((2 * natOrphanGrace).Nanoseconds())
 
@@ -106,7 +100,7 @@ func TestNATSweepAtCeiling(t *testing.T) {
 	})
 
 	start := time.Now()
-	scanned, deleted, ok := u.sweepNATConntrack()
+	scanned, deleted, ok := u.sweepNATConntrackAt(nowNs)
 	elapsed := time.Since(start)
 
 	close(done)
