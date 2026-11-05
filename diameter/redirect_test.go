@@ -85,8 +85,8 @@ func TestSendFollowsARedirectToADynamicPeer(t *testing.T) {
 				t.Fatalf("the redirected request has Destination-Host %q", host.UTF8String())
 			}
 
-			if first.EndToEndID != redirected.EndToEndID || redirected.Flags&FlagRetransmit == 0 {
-				t.Fatal("the redirected request is not the original with the T flag")
+			if first.EndToEndID != redirected.EndToEndID || redirected.Flags&FlagRetransmit != 0 {
+				t.Fatal("the redirected request is not the original without the T flag")
 			}
 
 			if len(reasons) != 1 || reasons[0] != RerouteRedirect {
@@ -521,8 +521,8 @@ func TestSendTriesTheNextRedirectHost(t *testing.T) {
 				t.Fatalf("the request to the second host has Destination-Host %q", host.UTF8String())
 			}
 
-			if redirected.EndToEndID != original.EndToEndID || redirected.Flags&FlagRetransmit == 0 {
-				t.Fatal("the request to the second host is not the original with the T flag")
+			if redirected.EndToEndID != original.EndToEndID || (redirected.Flags&FlagRetransmit != 0) != (tc.reason == RerouteFailover) {
+				t.Fatalf("the request to the second host has End-to-End %d and flags %#x, want %d with the T flag only after a lost connection", redirected.EndToEndID, redirected.Flags, original.EndToEndID)
 			}
 
 			mu.Lock()

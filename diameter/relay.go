@@ -43,7 +43,7 @@ func (n *Node) Relay(ctx context.Context, req *Message, from, host, realm string
 	m.Flags = (m.Flags | FlagRequest) &^ FlagError
 	m.AVPs = withDestinationHost(slices.DeleteFunc(slices.Clone(req.AVPs), func(a AVP) bool {
 		return a.VendorID == 0 && a.Code == AVPDestinationRealm
-	}), host)
+	}), host, "")
 	m.AVPs = append(m.AVPs,
 		UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, realm),
 		UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, from),

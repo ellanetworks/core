@@ -4,12 +4,14 @@
 package smsf
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
@@ -36,7 +38,7 @@ var (
 	ErrUnreachable         = errors.New("smsf: UE did not become reachable")
 	ErrNotClusterMember    = errors.New("smsf: node is not a cluster member")
 	ErrSMSCUnavailable     = errors.New("smsf: SMSC not connected")
-	ErrUnknownSCAddress    = errors.New("smsf: no SMSC peer serves the service centre address")
+	ErrUnknownSCAddress    = errors.New("smsf: no SMSC serves the service centre address")
 )
 
 type Handler interface {
@@ -63,7 +65,7 @@ type Store interface {
 	ClearSMSMemoryFull(ctx context.Context, imsi string) error
 	RemoveSMSWaitingCentre(ctx context.Context, imsi, serviceCentre string) error
 	DeleteSMSWaiting(ctx context.Context, imsi string) error
-	ListSMSCPeers(ctx context.Context) ([]db.SMSCPeer, error)
+	ListSMSCs(ctx context.Context) ([]db.SMSC, error)
 	GetIPSMGWRegistration(ctx context.Context, imsi string) (*db.IPSMGWRegistration, error)
 	PutIPSMGWRegistration(ctx context.Context, r db.IPSMGWRegistration) error
 	DeleteIPSMGWRegistration(ctx context.Context, imsi string) error
@@ -75,7 +77,7 @@ type Directory interface {
 
 type Peers interface {
 	Envelope(peer string) (tgpp.Envelope, error)
-	Do(ctx context.Context, peer string, req *diameter.Message) (*diameter.Message, error)
+	DoAny(ctx context.Context, peers []string, req *diameter.Message) (*diameter.Message, error)
 	Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error)
 	LocalHost() (string, bool)
 }
@@ -96,6 +98,7 @@ type Timers struct {
 	TR1N               time.Duration
 	TR2N               time.Duration
 	AlertTimeout       time.Duration
+	NodeCooldown       time.Duration
 }
 
 func DefaultTimers() Timers {
@@ -107,6 +110,7 @@ func DefaultTimers() Timers {
 		TR1N:               25 * time.Second,
 		TR2N:               25 * time.Second,
 		AlertTimeout:       10 * time.Second,
+		NodeCooldown:       time.Minute,
 	}
 }
 
@@ -122,6 +126,9 @@ type SMSF struct {
 	mu       sync.Mutex
 	ues      map[string]*ueState
 	alerting map[string]bool
+
+	rotation atomic.Uint32
+	cooling  map[string]time.Time
 }
 
 func New(store Store, directory Directory, peers Peers, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
@@ -134,44 +141,113 @@ func New(store Store, directory Directory, peers Peers, transport Transport, log
 		timers:    timers,
 		ues:       make(map[string]*ueState),
 		alerting:  make(map[string]bool),
+		cooling:   make(map[string]time.Time),
 	}
 }
 
-func SMSCPeerID(id string) string {
-	return PeerRoleSMSC + "-" + id
+func SMSCPeerID(nodeID string) string {
+	return PeerRoleSMSC + "-" + nodeID
 }
 
-func SMSCPeer(peer db.SMSCPeer) (diameternode.PeerConfig, error) {
-	addr, err := netip.ParseAddr(peer.Address)
+func SMSCPeers(smsc db.SMSC) ([]diameternode.PeerConfig, error) {
+	peers := make([]diameternode.PeerConfig, 0, len(smsc.Nodes))
+
+	for _, n := range smsc.Nodes {
+		addr, err := netip.ParseAddr(n.Address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address %q of SMSC %s: %w", n.Address, smsc.Name, err)
+		}
+
+		if n.Port < 1 || n.Port > 65535 {
+			return nil, fmt.Errorf("invalid port %d of SMSC %s", n.Port, smsc.Name)
+		}
+
+		peers = append(peers, diameternode.PeerConfig{
+			ID:           SMSCPeerID(n.ID),
+			Role:         PeerRoleSMSC,
+			Host:         n.DiameterIdentity,
+			Address:      netip.AddrPortFrom(addr, uint16(n.Port)),
+			Applications: smscApplications,
+		})
+	}
+
+	return peers, nil
+}
+
+func (s *SMSF) smscServing(ctx context.Context, serviceCentre string) (*db.SMSC, error) {
+	smscs, err := s.store.ListSMSCs(ctx)
 	if err != nil {
-		return diameternode.PeerConfig{}, fmt.Errorf("invalid SMSC address %q: %w", peer.Address, err)
+		return nil, fmt.Errorf("list SMSCs: %w", err)
 	}
 
-	if peer.Port < 1 || peer.Port > 65535 {
-		return diameternode.PeerConfig{}, fmt.Errorf("invalid SMSC port %d", peer.Port)
+	i := slices.IndexFunc(smscs, func(smsc db.SMSC) bool { return smsc.Serves(serviceCentre) })
+	if i < 0 || len(smscs[i].Nodes) == 0 {
+		return nil, ErrUnknownSCAddress
 	}
 
-	return diameternode.PeerConfig{
-		ID:           SMSCPeerID(peer.ID),
-		Role:         PeerRoleSMSC,
-		Host:         peer.DiameterIdentity,
-		Address:      netip.AddrPortFrom(addr, uint16(peer.Port)),
-		Applications: smscApplications,
-	}, nil
+	return &smscs[i], nil
 }
 
-func (s *SMSF) smscFor(ctx context.Context, serviceCentre string) (string, error) {
-	peers, err := s.store.ListSMSCPeers(ctx)
+func (s *SMSF) smscFor(ctx context.Context, serviceCentre string) ([]string, error) {
+	smsc, err := s.smscServing(ctx, serviceCentre)
 	if err != nil {
-		return "", fmt.Errorf("list SMSC peers: %w", err)
+		return nil, err
 	}
 
-	i := slices.IndexFunc(peers, func(p db.SMSCPeer) bool { return p.Serves(serviceCentre) })
-	if i < 0 {
-		return "", ErrUnknownSCAddress
+	nodes := smsc.Nodes
+	start := int((s.rotation.Add(1) - 1) % uint32(len(nodes)))
+	peers := make([]string, 0, len(nodes))
+
+	for j := range nodes {
+		peers = append(peers, SMSCPeerID(nodes[(start+j)%len(nodes)].ID))
 	}
 
-	return SMSCPeerID(peers[i].ID), nil
+	s.mu.Lock()
+	now := time.Now()
+
+	slices.SortStableFunc(peers, func(a, b string) int {
+		return cmp.Compare(boolInt(now.Before(s.cooling[a])), boolInt(now.Before(s.cooling[b])))
+	})
+	s.mu.Unlock()
+
+	return peers, nil
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+
+	return 0
+}
+
+func (s *SMSF) noteUnanswered(err error) {
+	var unanswered *diameter.UnansweredError
+	if !errors.As(err, &unanswered) || !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	for peer, until := range s.cooling {
+		if !now.Before(until) {
+			delete(s.cooling, peer)
+		}
+	}
+
+	s.cooling[unanswered.Peer] = now.Add(s.timers.NodeCooldown)
+}
+
+func (s *SMSF) envelope(peers []string) (tgpp.Envelope, error) {
+	for _, peer := range peers {
+		if envelope, err := s.peers.Envelope(peer); err == nil {
+			return envelope, nil
+		}
+	}
+
+	return tgpp.Envelope{}, ErrSMSCUnavailable
 }
 
 func (s *SMSF) Register(r Registrar) {
@@ -208,12 +284,12 @@ func (s *SMSF) readySettings(ctx context.Context) (*db.SMSSettings, bool, error)
 		return settings, false, nil
 	}
 
-	peers, err := s.store.ListSMSCPeers(ctx)
+	smscs, err := s.store.ListSMSCs(ctx)
 	if err != nil {
-		return nil, false, fmt.Errorf("list SMSC peers: %w", err)
+		return nil, false, fmt.Errorf("list SMSCs: %w", err)
 	}
 
-	return settings, len(peers) > 0, nil
+	return settings, len(smscs) > 0, nil
 }
 
 func PeersOver(node DiameterNode) Peers {
@@ -243,13 +319,18 @@ func (c nodePeers) Envelope(peer string) (tgpp.Envelope, error) {
 	}, nil
 }
 
-func (c nodePeers) Do(ctx context.Context, peer string, req *diameter.Message) (*diameter.Message, error) {
+func (c nodePeers) DoAny(ctx context.Context, peers []string, req *diameter.Message) (*diameter.Message, error) {
 	node := c.node.Node()
 	if node == nil {
 		return nil, ErrSMSCUnavailable
 	}
 
-	return node.Do(ctx, peer, req)
+	ans, err := node.DoAny(ctx, peers, req)
+	if errors.Is(err, diameter.ErrNotConnected) {
+		return nil, fmt.Errorf("%w: %w", ErrSMSCUnavailable, err)
+	}
+
+	return ans, err
 }
 
 func (c nodePeers) Relay(ctx context.Context, req *diameter.Message, from, host, realm string) (*diameter.Message, error) {

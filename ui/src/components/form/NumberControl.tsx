@@ -33,6 +33,7 @@ const NumberControl = <
   max,
   helperText,
   showErrorWhileTyping = false,
+  slotProps,
   ...rest
 }: NumberControlProps<T, P>) => {
   const { field, fieldState } = useController<T, P>({ name });
@@ -57,7 +58,10 @@ const NumberControl = <
       margin="normal"
       error={showError}
       helperText={showError ? fieldState.error?.message : helperText}
-      slotProps={{ input: { inputProps: { min, max } } }}
+      slotProps={{
+        ...slotProps,
+        htmlInput: { min, max, ...(slotProps?.htmlInput as object) },
+      }}
     />
   );
 };

@@ -81,7 +81,7 @@ func TestIntegrationHASMS(t *testing.T) {
 	fx.Policy(fixture.DefaultPolicySpec())
 
 	smscToken := configureSMSC(ctx, t)
-	enableSMS(ctx, t, haClient, haSMSSMSCAddress)
+	enableSMS(ctx, t, haClient, haSMSSMSCAddress, smscToken)
 
 	hosts, err := waitForClusterSMSCLinks(ctx, nodeClients, smscToken)
 	if err != nil {

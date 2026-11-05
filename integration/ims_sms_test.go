@@ -37,9 +37,9 @@ func TestIntegrationIMSSMS(t *testing.T) {
 	baseline.Policy(fixture.DefaultPolicySpec())
 
 	smscToken := configureSMSC(ctx, t)
-	enableSMS(ctx, t, env.Client, smscAddress())
+	host := enableSMS(ctx, t, env.Client, smscAddress(), smscToken)
 	addIMSCorePeer(ctx, t, env.Client, "sh", "s6c", "sgd")
-	configureIPSMGW(ctx, t, env.Client)
+	configureIPSMGW(ctx, t, env.Client, host)
 
 	for _, name := range scenarios.List() {
 		if !strings.HasPrefix(name, imsSMSScenarioPrefix) {
@@ -72,7 +72,7 @@ func TestIntegrationIMSSMS(t *testing.T) {
 	printTesterSummary(t)
 }
 
-func configureIPSMGW(ctx context.Context, t *testing.T, cl *client.Client) {
+func configureIPSMGW(ctx context.Context, t *testing.T, cl *client.Client, smscHost string) {
 	t.Helper()
 
 	status, err := cl.GetDiameterStatus(ctx)

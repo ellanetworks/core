@@ -151,7 +151,7 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/policies/" + opts.Name,
+		Path:   "api/v1/policies/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePoli
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/policies/" + name,
+		Path:   "api/v1/policies/" + url.PathEscape(name),
 		Body:   &body,
 	})
 	if err != nil {
@@ -219,7 +219,7 @@ func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) er
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/policies/" + opts.Name,
+		Path:   "api/v1/policies/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return err

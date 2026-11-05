@@ -45,8 +45,9 @@ type Reroute struct {
 }
 
 type candidate struct {
-	peer *peer
-	host string
+	peer  *peer
+	host  string
+	realm string
 }
 
 type sending struct {
@@ -55,6 +56,7 @@ type sending struct {
 	m        Message
 	host     string
 	realm    string
+	set      []string
 	fixed    *candidate
 	tried    map[*peer]bool
 	held     []*peer
@@ -107,7 +109,7 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 
 		m := s.m
 		if cand.host != "" {
-			m.AVPs = withDestinationHost(s.m.AVPs, cand.host)
+			m.AVPs = withDestinationHost(s.m.AVPs, cand.host, cand.realm)
 		}
 
 		ans, err := c.exchange(ctx, &m, s.fixed == nil || s.redirect.remaining())
@@ -123,7 +125,7 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 
 			continue
 		case err != nil:
-			return nil, err
+			return nil, &UnansweredError{Peer: cand.peer.name(), Err: err}
 		}
 
 		code, _ := protocolResult(ans)
@@ -150,7 +152,6 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 
 			s.tried[cand.peer] = true
 			s.last = ans
-			s.m.Flags |= FlagRetransmit
 			s.reroute(ctx, reason, cand.peer)
 		default:
 			return ans, nil
@@ -159,6 +160,19 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 }
 
 var errExhausted = errors.New("diameter: every route candidate answered")
+
+type UnansweredError struct {
+	Peer string
+	Err  error
+}
+
+func (e *UnansweredError) Error() string {
+	return fmt.Sprintf("diameter: no answer from %s: %v", e.Peer, e.Err)
+}
+
+func (e *UnansweredError) Unwrap() error {
+	return e.Err
+}
 
 func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 	n := s.n
@@ -211,6 +225,10 @@ func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 
 			n.mu.Unlock()
 
+			if s.set != nil && s.fixed == nil {
+				cand.host, cand.realm = c.peerHost, c.peerRealm
+			}
+
 			return cand, c, nil
 		}
 
@@ -241,6 +259,10 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 		}
 
 		return []candidate{*s.fixed}, nil
+	}
+
+	if s.set != nil {
+		return s.setCandidatesLocked()
 	}
 
 	if s.host != "" {
@@ -305,6 +327,28 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 	return cands, nil
 }
 
+func (s *sending) setCandidatesLocked() ([]candidate, error) {
+	var cands []candidate
+
+	for _, id := range s.set {
+		p, ok := s.n.byID[id]
+		if !ok || p.removed || s.tried[p] || slices.ContainsFunc(cands, func(c candidate) bool { return c.peer == p }) {
+			continue
+		}
+
+		cands = append(cands, candidate{peer: p})
+	}
+
+	switch {
+	case len(cands) > 0:
+		return cands, nil
+	case s.last != nil:
+		return nil, errExhausted
+	default:
+		return nil, ErrNotConnected
+	}
+}
+
 func (s *sending) follow(ctx context.Context, from *peer, ans *Message) error {
 	r, err := ParseRedirect(ans)
 	if err != nil {
@@ -328,7 +372,6 @@ func (s *sending) follow(ctx context.Context, from *peer, ans *Message) error {
 		return err
 	}
 
-	s.m.Flags |= FlagRetransmit
 	s.reroute(ctx, RerouteRedirect, from)
 
 	return nil
@@ -478,13 +521,17 @@ func (s *sending) release() {
 }
 
 func (s *sending) reroute(ctx context.Context, reason RerouteReason, from *peer) {
+	s.n.rerouted(ctx, reason, from, &s.m)
+}
+
+func (n *Node) rerouted(ctx context.Context, reason RerouteReason, from *peer, m *Message) {
 	reroutedEvent(ctx, reason, from.name())
 
-	if s.n.cfg.OnReroute == nil {
+	if n.cfg.OnReroute == nil {
 		return
 	}
 
-	s.n.cfg.OnReroute(Reroute{Reason: reason, From: from.name(), ApplicationID: s.m.ApplicationID, CommandCode: s.m.CommandCode})
+	n.cfg.OnReroute(Reroute{Reason: reason, From: from.name(), ApplicationID: m.ApplicationID, CommandCode: m.CommandCode})
 }
 
 func applicationOf(p *peer, id uint32) (Application, bool) {
@@ -506,7 +553,7 @@ func applicationOf(p *peer, id uint32) (Application, bool) {
 	return Application{}, false
 }
 
-func withDestinationHost(avps []AVP, host string) []AVP {
+func withDestinationHost(avps []AVP, host, realm string) []AVP {
 	out := make([]AVP, 0, len(avps)+1)
 	set := false
 
@@ -520,9 +567,15 @@ func withDestinationHost(avps []AVP, host string) []AVP {
 			continue
 		}
 
-		if a.Code == AVPDestinationRealm && a.VendorID == 0 && !set {
-			out = append(out, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, host))
-			set = true
+		if a.Code == AVPDestinationRealm && a.VendorID == 0 {
+			if !set {
+				out = append(out, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, host))
+				set = true
+			}
+
+			if realm != "" {
+				a = UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, realm)
+			}
 		}
 
 		out = append(out, a)

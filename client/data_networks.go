@@ -149,7 +149,7 @@ func (c *Client) UpdateDataNetwork(ctx context.Context, opts *UpdateDataNetworkO
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/networking/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(opts.Name),
 		Body:   &body,
 	})
 	if err != nil {
@@ -164,7 +164,7 @@ func (c *Client) GetDataNetwork(ctx context.Context, opts *GetDataNetworkOptions
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func (c *Client) DeleteDataNetwork(ctx context.Context, opts *DeleteDataNetworkO
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/networking/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return err
@@ -245,7 +245,7 @@ func (c *Client) ListDataNetworkStaticIps(ctx context.Context, dataNetwork strin
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips",
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/static-ips",
 	})
 	if err != nil {
 		return nil, err
@@ -282,7 +282,7 @@ func (c *Client) CreateDataNetworkStaticIp(ctx context.Context, dataNetwork stri
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips",
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/static-ips",
 		Body:   &body,
 	})
 	if err != nil {
@@ -310,7 +310,7 @@ func (c *Client) UpdateDataNetworkStaticIp(ctx context.Context, dataNetwork, ims
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips/" + imsi + "/" + ipVersion,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/static-ips/" + url.PathEscape(imsi) + "/" + url.PathEscape(ipVersion),
 		Body:   &body,
 	})
 	if err != nil {
@@ -325,7 +325,7 @@ func (c *Client) DeleteDataNetworkStaticIp(ctx context.Context, dataNetwork, ims
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/static-ips/" + imsi + "/" + ipVersion,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/static-ips/" + url.PathEscape(imsi) + "/" + url.PathEscape(ipVersion),
 	})
 	if err != nil {
 		return err
@@ -359,7 +359,7 @@ func (c *Client) ListDataNetworkFramedRoutes(ctx context.Context, dataNetwork st
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes",
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/framed-routes",
 	})
 	if err != nil {
 		return nil, err
@@ -388,7 +388,7 @@ func (c *Client) CreateDataNetworkFramedRoute(ctx context.Context, dataNetwork s
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes",
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/framed-routes",
 		Body:   &body,
 	})
 	if err != nil {
@@ -419,7 +419,7 @@ func (c *Client) UpdateDataNetworkFramedRoute(ctx context.Context, dataNetwork, 
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes/" + imsi,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/framed-routes/" + url.PathEscape(imsi),
 		Body:   &body,
 	})
 	if err != nil {
@@ -435,7 +435,7 @@ func (c *Client) DeleteDataNetworkFramedRoute(ctx context.Context, dataNetwork, 
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/networking/data-networks/" + dataNetwork + "/framed-routes/" + imsi,
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(dataNetwork) + "/framed-routes/" + url.PathEscape(imsi),
 	})
 	if err != nil {
 		return err
@@ -449,7 +449,7 @@ func (c *Client) ListIPv4Allocations(ctx context.Context, opts *ListIPAllocation
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks/" + opts.DataNetworkName + "/ipv4-allocations",
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(opts.DataNetworkName) + "/ipv4-allocations",
 		Query: url.Values{
 			"page":     {fmt.Sprintf("%d", p.Page)},
 			"per_page": {fmt.Sprintf("%d", p.PerPage)},
@@ -473,7 +473,7 @@ func (c *Client) ListIPv6Allocations(ctx context.Context, opts *ListIPAllocation
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks/" + opts.DataNetworkName + "/ipv6-allocations",
+		Path:   "api/v1/networking/data-networks/" + url.PathEscape(opts.DataNetworkName) + "/ipv6-allocations",
 		Query: url.Values{
 			"page":     {fmt.Sprintf("%d", p.Page)},
 			"per_page": {fmt.Sprintf("%d", p.PerPage)},
