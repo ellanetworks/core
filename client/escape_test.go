@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -20,10 +21,17 @@ func TestNamesInPathsReachTheServerUnchanged(t *testing.T) {
 		got = append(got, r.PathValue("name"))
 		_, _ = w.Write([]byte(`{"result":{}}`))
 	})
-	mux.HandleFunc("GET /api/v1/operator/ims/application-servers/{name}", func(w http.ResponseWriter, r *http.Request) {
-		got = append(got, r.PathValue("name"))
-		_, _ = w.Write([]byte(`{"result":{}}`))
-	})
+
+	for _, route := range []string{
+		"GET /api/v1/operator/ims/application-servers/{name}",
+		"GET /api/v1/profiles/{name}",
+		"GET /api/v1/networking/data-networks/{name}",
+	} {
+		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
+			got = append(got, r.PathValue("name"))
+			_, _ = w.Write([]byte(`{"result":{}}`))
+		})
+	}
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -33,17 +41,27 @@ func TestNamesInPathsReachTheServerUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const name = "a/b?c #(2)"
+	for _, name := range []string{"a/b?c #(2)", "50%", "a%20b"} {
+		got = nil
 
-	if _, err := c.GetSMSC(context.Background(), name); err != nil {
-		t.Fatalf("GetSMSC: %v", err)
-	}
+		if _, err := c.GetSMSC(context.Background(), name); err != nil {
+			t.Fatalf("GetSMSC(%q): %v", name, err)
+		}
 
-	if _, err := c.GetIMSApplicationServer(context.Background(), name); err != nil {
-		t.Fatalf("GetIMSApplicationServer: %v", err)
-	}
+		if _, err := c.GetIMSApplicationServer(context.Background(), name); err != nil {
+			t.Fatalf("GetIMSApplicationServer(%q): %v", name, err)
+		}
 
-	if len(got) != 2 || got[0] != name || got[1] != name {
-		t.Fatalf("the server received %q, want %q twice", got, name)
+		if _, err := c.GetProfile(context.Background(), &client.GetProfileOptions{Name: name}); err != nil {
+			t.Fatalf("GetProfile(%q): %v", name, err)
+		}
+
+		if _, err := c.GetDataNetwork(context.Background(), &client.GetDataNetworkOptions{Name: name}); err != nil {
+			t.Fatalf("GetDataNetwork(%q): %v", name, err)
+		}
+
+		if want := []string{name, name, name, name}; !slices.Equal(got, want) {
+			t.Fatalf("the server received %q, want %q", got, want)
+		}
 	}
 }

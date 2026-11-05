@@ -80,7 +80,7 @@ func (c *Client) GetSlice(ctx context.Context, opts *GetSliceOptions) (*Slice, e
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/slices/" + opts.Name,
+		Path:   "api/v1/slices/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (c *Client) UpdateSlice(ctx context.Context, name string, opts *UpdateSlice
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/slices/" + name,
+		Path:   "api/v1/slices/" + url.PathEscape(name),
 		Body:   &body,
 	})
 	if err != nil {
@@ -131,7 +131,7 @@ func (c *Client) DeleteSlice(ctx context.Context, opts *DeleteSliceOptions) erro
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/slices/" + opts.Name,
+		Path:   "api/v1/slices/" + url.PathEscape(opts.Name),
 	})
 	if err != nil {
 		return err

@@ -282,7 +282,7 @@ func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/operator/home-network-keys/" + id,
+		Path:   "api/v1/operator/home-network-keys/" + url.PathEscape(id),
 	})
 	if err != nil {
 		return err
@@ -297,7 +297,7 @@ func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id string) (*H
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/operator/home-network-keys/" + id + "/private-key",
+		Path:   "api/v1/operator/home-network-keys/" + url.PathEscape(id) + "/private-key",
 	})
 	if err != nil {
 		return nil, err

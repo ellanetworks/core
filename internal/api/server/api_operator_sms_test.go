@@ -207,6 +207,7 @@ func TestSMSCs(t *testing.T) {
 	t.Run("invalid SMSCs are rejected", func(t *testing.T) {
 		cases := map[string]*SMSCParams{
 			"no name":                  oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 0, "+15550000002"),
+			"dot dot name":             named("..", oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 0, "+15550000002")),
 			"hostname":                 named("x", oneNode("smsc-x.example.org", "smsc.example.org", 0, "+15550000002")),
 			"unspecified":              named("x", oneNode("smsc-0-0-0-0.example.org", "0.0.0.0", 0, "+15550000002")),
 			"bad port":                 named("x", oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 70000, "+15550000002")),

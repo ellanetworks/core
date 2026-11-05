@@ -42,7 +42,7 @@ On 5G, the phone asks for SMS when it registers. On 4G, the phone asks with a co
 
 ## SMSCs with several nodes
 
-An SMSC can have several Diameter nodes, ex. the members of an Ella SMSC cluster. Ella Core sends each message and alert to one open node, and to the next one if that node fails.
+An SMSC can have several Diameter nodes, ex. the members of an Ella SMSC cluster. Ella Core sends each message and alert to one open node, and to the next one if the connection to that node fails. A node that does not answer is avoided for one minute.
 
 ## In an HA cluster
 

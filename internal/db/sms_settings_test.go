@@ -314,6 +314,9 @@ func TestSMSCValidate(t *testing.T) {
 		{"duplicate service centre", func(s *db.SMSC) { s.ServiceCentres = []string{"15550000000", "15550000000"} }, false},
 		{"no id", func(s *db.SMSC) { s.ID = "" }, false},
 		{"no name", func(s *db.SMSC) { s.Name = "" }, false},
+		{"dot name", func(s *db.SMSC) { s.Name = "." }, false},
+		{"dot dot name", func(s *db.SMSC) { s.Name = ".." }, false},
+		{"name with a slash", func(s *db.SMSC) { s.Name = "a/b" }, true},
 	}
 
 	for _, tc := range cases {

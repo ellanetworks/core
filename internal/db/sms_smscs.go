@@ -92,6 +92,10 @@ func (s SMSC) Validate() error {
 		return fmt.Errorf("SMSC name must be 1 to %d bytes", maxSMSCNameLength)
 	}
 
+	if s.Name == "." || s.Name == ".." {
+		return fmt.Errorf("SMSC name cannot be %q", s.Name)
+	}
+
 	if len(s.ServiceCentres) == 0 {
 		return errors.New("SMSC needs at least one service centre number")
 	}

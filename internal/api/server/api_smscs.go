@@ -276,6 +276,11 @@ func CreateSMSC(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if params.Name == "." || params.Name == ".." {
+			writeError(r.Context(), w, http.StatusBadRequest, "name cannot be . or ..", nil, logger.APILog)
+			return
+		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate SMSC id", err, logger.APILog)
