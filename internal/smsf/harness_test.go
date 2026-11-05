@@ -53,6 +53,7 @@ func fastTimers() smsf.Timers {
 		TR1N:               3 * time.Second,
 		TR2N:               3 * time.Second,
 		AlertTimeout:       2 * time.Second,
+		NodeCooldown:       time.Minute,
 	}
 }
 
@@ -500,6 +501,7 @@ type fakeSMSC struct {
 	smsf       *smsf.SMSF
 	down       bool
 	downPeers  map[string]bool
+	stuckPeers map[string]bool
 	targets    []string
 	sessions   int
 	ofrs       []sgd.MOForwardShortMessage
@@ -543,6 +545,10 @@ func (f *fakeSMSC) DoAny(_ context.Context, peers []string, req *diameter.Messag
 			f.targets = append(f.targets, peer)
 		}
 		f.mu.Unlock()
+
+		if !down && f.stuck(peer) {
+			return nil, &diameter.UnansweredError{Peer: peer, Err: context.DeadlineExceeded}
+		}
 
 		if !down {
 			return f.serve(req)
@@ -606,6 +612,24 @@ func (f *fakeSMSC) setDown(down bool) {
 	defer f.mu.Unlock()
 
 	f.down = down
+}
+
+func (f *fakeSMSC) stuck(peer string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.stuckPeers[peer]
+}
+
+func (f *fakeSMSC) setPeerStuck(peer string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.stuckPeers == nil {
+		f.stuckPeers = make(map[string]bool)
+	}
+
+	f.stuckPeers[peer] = true
 }
 
 func (f *fakeSMSC) setPeerDown(peer string) {

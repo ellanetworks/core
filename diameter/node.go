@@ -691,9 +691,11 @@ func (n *Node) Do(ctx context.Context, peerID string, req *Message, opts ...Requ
 	}
 }
 
-func (n *Node) DoAny(ctx context.Context, peerIDs []string, req *Message) (ans *Message, err error) {
+func (n *Node) DoAny(ctx context.Context, peerIDs []string, req *Message, opts ...RequestOption) (ans *Message, err error) {
 	ctx, span := n.startClientSpan(ctx, req, requestTarget(req))
 	defer func() { endClientSpan(span, ans, err) }()
+
+	span.SetAttributes(peerIDKey.StringSlice(peerIDs))
 
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
@@ -702,69 +704,18 @@ func (n *Node) DoAny(ctx context.Context, peerIDs []string, req *Message) (ans *
 		defer cancel()
 	}
 
-	m := n.newRequest(req)
-
-	var last *Message
-
-	for _, id := range peerIDs {
-		n.mu.Lock()
-		p, ok := n.byID[id]
-		n.mu.Unlock()
-
-		if !ok {
-			continue
-		}
-
-		c, err := n.waitAvailable(ctx, p, true)
-		if err != nil {
-			if errors.Is(err, ErrClosed) {
-				return nil, err
-			}
-
-			continue
-		}
-
-		if !c.supports(m.ApplicationID) {
-			continue
-		}
-
-		attempt := m
-		attempt.AVPs = withDestination(m.AVPs, c.peerHost, c.peerRealm)
-
-		ans, err := c.exchange(ctx, &attempt, true)
-
-		switch {
-		case errors.Is(err, errConnClosed), errors.Is(err, errConnSuspect):
-			m.Flags |= FlagRetransmit
-			n.rerouted(ctx, RerouteFailover, p, &m)
-
-			continue
-		case err != nil:
-			return nil, err
-		}
-
-		switch code, _ := protocolResult(ans); code {
-		case ResultTooBusy, ResultUnableToDeliver:
-			reason := RerouteTooBusy
-			if code == ResultUnableToDeliver {
-				reason = RerouteUnableToDeliver
-			}
-
-			last = ans
-			m.Flags |= FlagRetransmit
-			n.rerouted(ctx, reason, p, &m)
-
-			continue
-		}
-
-		return ans, nil
+	s := &sending{
+		n:     n,
+		o:     applyOptions(opts),
+		m:     n.newRequest(req),
+		realm: strings.ToLower(avpString(req, AVPDestinationRealm)),
+		set:   peerIDs,
+		tried: make(map[*peer]bool),
 	}
 
-	if last != nil {
-		return last, nil
-	}
+	defer s.release()
 
-	return nil, ErrNotConnected
+	return s.run(ctx)
 }
 
 func (n *Node) waitAvailable(ctx context.Context, p *peer, failFast bool) (*Conn, error) {

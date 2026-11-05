@@ -4,6 +4,7 @@
 package smsf
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -97,6 +98,7 @@ type Timers struct {
 	TR1N               time.Duration
 	TR2N               time.Duration
 	AlertTimeout       time.Duration
+	NodeCooldown       time.Duration
 }
 
 func DefaultTimers() Timers {
@@ -108,6 +110,7 @@ func DefaultTimers() Timers {
 		TR1N:               25 * time.Second,
 		TR2N:               25 * time.Second,
 		AlertTimeout:       10 * time.Second,
+		NodeCooldown:       time.Minute,
 	}
 }
 
@@ -125,6 +128,7 @@ type SMSF struct {
 	alerting map[string]bool
 
 	rotation atomic.Uint32
+	cooling  map[string]time.Time
 }
 
 func New(store Store, directory Directory, peers Peers, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
@@ -137,6 +141,7 @@ func New(store Store, directory Directory, peers Peers, transport Transport, log
 		timers:    timers,
 		ues:       make(map[string]*ueState),
 		alerting:  make(map[string]bool),
+		cooling:   make(map[string]time.Time),
 	}
 }
 
@@ -190,14 +195,49 @@ func (s *SMSF) smscFor(ctx context.Context, serviceCentre string) ([]string, err
 	}
 
 	nodes := smsc.Nodes
-	start := int(s.rotation.Add(1)-1) % len(nodes)
+	start := int((s.rotation.Add(1) - 1) % uint32(len(nodes)))
 	peers := make([]string, 0, len(nodes))
 
 	for j := range nodes {
 		peers = append(peers, SMSCPeerID(nodes[(start+j)%len(nodes)].ID))
 	}
 
+	s.mu.Lock()
+	now := time.Now()
+
+	slices.SortStableFunc(peers, func(a, b string) int {
+		return cmp.Compare(boolInt(now.Before(s.cooling[a])), boolInt(now.Before(s.cooling[b])))
+	})
+	s.mu.Unlock()
+
 	return peers, nil
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+
+	return 0
+}
+
+func (s *SMSF) noteUnanswered(err error) {
+	var unanswered *diameter.UnansweredError
+	if !errors.As(err, &unanswered) || !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	for peer, until := range s.cooling {
+		if !now.Before(until) {
+			delete(s.cooling, peer)
+		}
+	}
+
+	s.cooling[unanswered.Peer] = now.Add(s.timers.NodeCooldown)
 }
 
 func (s *SMSF) envelope(peers []string) (tgpp.Envelope, error) {

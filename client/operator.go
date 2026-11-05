@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
 )
 
 type GetOperatorIDResponse struct {
@@ -420,7 +421,7 @@ func (c *Client) GetSMSC(ctx context.Context, name string) (*SMSC, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/operator/sms/smscs/" + name,
+		Path:   "api/v1/operator/sms/smscs/" + url.PathEscape(name),
 	})
 	if err != nil {
 		return nil, err
@@ -469,7 +470,7 @@ func (c *Client) UpdateSMSC(ctx context.Context, name string, opts *UpdateSMSCOp
 		Nodes:          opts.Nodes,
 	}
 
-	_, err := c.writeSMSC(ctx, "PUT", "api/v1/operator/sms/smscs/"+name, payload)
+	_, err := c.writeSMSC(ctx, "PUT", "api/v1/operator/sms/smscs/"+url.PathEscape(name), payload)
 
 	return err
 }
@@ -493,7 +494,7 @@ func (c *Client) DeleteSMSC(ctx context.Context, name string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/operator/sms/smscs/" + name,
+		Path:   "api/v1/operator/sms/smscs/" + url.PathEscape(name),
 	})
 
 	return err

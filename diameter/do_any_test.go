@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -67,7 +68,7 @@ func TestDoAnySkipsPeersThatAreNotOpen(t *testing.T) {
 	}
 }
 
-func TestDoAnyFailsOverOnTooBusyWithTheTFlag(t *testing.T) {
+func TestDoAnyFailsOverOnTooBusyWithoutTheTFlag(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
 			first := newServer(t, kind, "smsc1.example.org", loopback2, busy)
@@ -82,8 +83,8 @@ func TestDoAnyFailsOverOnTooBusyWithTheTFlag(t *testing.T) {
 			}
 
 			original, retransmitted := received(t, first), received(t, second)
-			if retransmitted.Flags&FlagRetransmit == 0 || retransmitted.EndToEndID != original.EndToEndID {
-				t.Fatalf("retransmission flags %#x end-to-end %d, want T flag and %d", retransmitted.Flags, retransmitted.EndToEndID, original.EndToEndID)
+			if retransmitted.Flags&FlagRetransmit != 0 || retransmitted.EndToEndID != original.EndToEndID {
+				t.Fatalf("resent request flags %#x end-to-end %d, want no T flag and %d", retransmitted.Flags, retransmitted.EndToEndID, original.EndToEndID)
 			}
 		})
 	}
@@ -132,8 +133,11 @@ func TestDoAnyDoesNotRetryAfterATimeout(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
 
-			if _, err := client.DoAny(ctx, []string{first.host, second.host}, doAnyRequest(first.host)); !errors.Is(err, context.DeadlineExceeded) {
-				t.Fatalf("DoAny = %v, want a deadline error", err)
+			_, err := client.DoAny(ctx, []string{first.host, second.host}, doAnyRequest(first.host))
+
+			var unanswered *UnansweredError
+			if !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &unanswered) || unanswered.Peer != first.host {
+				t.Fatalf("DoAny = %v, want a deadline error naming %s", err, first.host)
 			}
 
 			if second.calls.Load() != 0 {
@@ -150,15 +154,100 @@ func TestDoAnyWithoutAnOpenPeer(t *testing.T) {
 			down := Peer{ID: "down", Addresses: []netip.Addr{loopback1}, Transports: []Transport{kind}, Dial: &Dial{Port: 1}, Applications: []Application{sgdApp}}
 			setPeers(t, client, down)
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 			defer cancel()
 
 			start := time.Now()
 
-			if _, err := client.DoAny(ctx, []string{"down", "missing"}, doAnyRequest("smsc.example.org")); !errors.Is(err, ErrNotConnected) || time.Since(start) > 100*time.Millisecond {
-				t.Fatalf("DoAny = %v after %s, want ErrNotConnected at once", err, time.Since(start))
+			if _, err := client.DoAny(ctx, []string{"down", "missing"}, doAnyRequest("smsc.example.org"), FailFast()); !errors.Is(err, ErrNotConnected) || time.Since(start) > 100*time.Millisecond {
+				t.Fatalf("fail-fast DoAny = %v after %s, want ErrNotConnected at once", err, time.Since(start))
+			}
+
+			if _, err := client.DoAny(ctx, []string{"down"}, doAnyRequest("smsc.example.org")); !errors.Is(err, ErrNotConnected) || !isTimeout(err) {
+				t.Fatalf("DoAny = %v, want ErrNotConnected at the deadline", err)
+			}
+
+			if _, err := client.DoAny(context.Background(), []string{"missing"}, doAnyRequest("smsc.example.org")); !errors.Is(err, ErrNotConnected) {
+				t.Fatalf("DoAny without a known peer = %v, want ErrNotConnected", err)
 			}
 		})
+	}
+}
+
+func TestDoAnyWaitsForThePeerToReconnect(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			var calls atomic.Int32
+
+			_, smsc, addr := pair(t, kind, func(cfg *Config) {
+				cfg.WatchdogInterval = 100 * time.Millisecond
+				cfg.allowFastWatchdog = true
+				cfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
+					if calls.Add(1) == 1 {
+						c.abort("test failover")
+					}
+
+					return c.Answer(req, ResultSuccess)
+				})
+			})
+
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			waitOpen(t, smsc, "hss")
+
+			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			defer cancel()
+
+			if ans, err := smsc.DoAny(ctx, []string{"hss"}, request()); err != nil || resultCode(t, ans) != ResultSuccess {
+				t.Fatalf("DoAny = %v, want success after the reconnect", err)
+			}
+
+			if calls.Load() != 1 {
+				t.Fatalf("handler ran %d times; the retransmission should have hit the duplicate cache", calls.Load())
+			}
+		})
+	}
+}
+
+func TestDoAnyWithoutAPeerSupportingTheApplication(t *testing.T) {
+	kind := TransportTCP
+	only := newServer(t, kind, "smsc1.example.org", loopback2, nil)
+	client := newClient(t)
+	setPeers(t, client, only.peer(kind, 1))
+	waitOpen(t, client, only.host)
+
+	req := doAnyRequest(only.host)
+	req.ApplicationID = testAppID + 1
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	if _, err := client.DoAny(ctx, []string{only.host}, req); !errors.Is(err, ErrApplicationUnsupported) {
+		t.Fatalf("DoAny = %v, want ErrApplicationUnsupported", err)
+	}
+}
+
+func TestDoAnyFollowsARedirect(t *testing.T) {
+	kind := TransportTCP
+	home := newServer(t, kind, "smsc7.example.org", loopback3, nil)
+	agent := newServer(t, kind, "dra.example.org", loopback2, redirectingTo(home, kind, DontCache, 0))
+
+	direct := home.peer(kind, 0)
+	direct.Routes = nil
+
+	client := newClient(t, func(cfg *Config) { cfg.Resolver = staticResolver{} })
+	setPeers(t, client, agent.peer(kind, 1), direct)
+	waitOpen(t, client, agent.host, home.host)
+
+	ans := doAny(t, client, []string{agent.host}, doAnyRequest(agent.host))
+	if answeredBy(t, ans) != home.host || resultCode(t, ans) != ResultSuccess {
+		t.Fatalf("answered by %s with %d, want %s", answeredBy(t, ans), resultCode(t, ans), home.host)
+	}
+
+	if got := avpString(received(t, home), AVPDestinationHost); got != home.host {
+		t.Fatalf("redirected Destination-Host = %q, want %q", got, home.host)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -179,7 +180,12 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	defer cancel()
 
 	ans, err := s.peers.DoAny(ctx, peers, req)
+	if errors.Is(err, diameter.ErrApplicationUnsupported) {
+		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "no SMSC node supports SGd", err)
+	}
+
 	if err != nil {
+		s.noteUnanswered(err)
 		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
 	}
 

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/sgd"
@@ -117,7 +118,10 @@ func TestTheSMSCEnvelopeTargetsTheNamedPeer(t *testing.T) {
 		t.Fatalf("DoAny past a peer that is not connected = %v, %v, want an answer from the open SMSC", ans, err)
 	}
 
-	if _, err := c.DoAny(t.Context(), []string{down}, req); !errors.Is(err, smsf.ErrSMSCUnavailable) {
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+
+	if _, err := c.DoAny(ctx, []string{down}, req); !errors.Is(err, smsf.ErrSMSCUnavailable) {
 		t.Fatalf("DoAny with no open peer = %v, want the SMSC unavailable", err)
 	}
 

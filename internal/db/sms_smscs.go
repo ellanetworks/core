@@ -249,7 +249,7 @@ func (db *Database) GetSMSC(ctx context.Context, name string) (*SMSC, error) {
 	}
 
 	for _, s := range smscs {
-		if s.Name == name {
+		if strings.EqualFold(s.Name, name) {
 			return &s, nil
 		}
 	}

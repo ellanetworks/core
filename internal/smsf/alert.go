@@ -226,7 +226,9 @@ func (s *SMSF) alertServiceCentre(ctx context.Context, log *zap.Logger, peers []
 	}
 
 	if err != nil {
+		s.noteUnanswered(err)
 		log.Warn("SMSC alert failed; will retry when the UE is next reachable", zap.Error(err))
+
 		return
 	}
 

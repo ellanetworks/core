@@ -193,6 +193,11 @@ func TestSMSCs(t *testing.T) {
 			t.Fatalf("get: code=%d err=%v (%+v)", code, err, one)
 		}
 
+		code, one, err = getSMSC(env.Server.URL, client, token, "A")
+		if err != nil || code != http.StatusOK || one.Result.Name != "a" {
+			t.Fatalf("get with another case: code=%d err=%v (%+v)", code, err, one)
+		}
+
 		code, one, err = getSMSC(env.Server.URL, client, token, "missing")
 		if err != nil || code != http.StatusNotFound {
 			t.Fatalf("get of a missing SMSC: code=%d err=%v (%+v)", code, err, one)

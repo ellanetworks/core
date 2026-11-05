@@ -419,6 +419,7 @@ func TestSMSCRequests(t *testing.T) {
 			return c.UpdateSMSC(context.Background(), "main", &client.UpdateSMSCOptions{ServiceCentres: []string{"+15550000000"}, Nodes: nodes})
 		}, "PUT", "api/v1/operator/sms/smscs/main", `{"serviceCentres":["+15550000000"],"nodes":[{"diameterIdentity":"smsc1.example.org","address":"192.0.2.10","port":3869},{"diameterIdentity":"","address":"192.0.2.11"}]}`},
 		{"delete", func(c *client.Client) error { return c.DeleteSMSC(context.Background(), "main") }, "DELETE", "api/v1/operator/sms/smscs/main", ""},
+		{"delete escapes the name", func(c *client.Client) error { return c.DeleteSMSC(context.Background(), "a/b?c (2)") }, "DELETE", "api/v1/operator/sms/smscs/a%2Fb%3Fc%20%282%29", ""},
 	}
 
 	for _, tc := range cases {

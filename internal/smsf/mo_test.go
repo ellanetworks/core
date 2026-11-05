@@ -612,3 +612,24 @@ func TestMobileOriginatedSMSIsRejectedWhenEveryNodeIsDown(t *testing.T) {
 		t.Fatalf("RP-ERROR = %+v, want cause 38", rpErr)
 	}
 }
+
+func TestANodeThatDoesNotAnswerIsTriedLast(t *testing.T) {
+	e := newEnv(t)
+	e.store.setPeers(smscWithNodes("main", []string{serviceCentre}, "x", "y"))
+	e.smsc.setPeerStuck(smsf.SMSCPeerID("x"))
+
+	var acks int
+
+	for i := range 3 {
+		sendRPData(t, e, moTI(uint8(i)), uint8(i+1))
+		expectCPAck(t, e, moTI(uint8(i)).Peer())
+
+		if _, ok := expectReport(t, e, moTI(uint8(i)).Peer()).(*sms.RPAck); ok {
+			acks++
+		}
+	}
+
+	if got, want := e.smsc.sentTo(), []string{smsf.SMSCPeerID("x"), smsf.SMSCPeerID("y"), smsf.SMSCPeerID("y")}; !slices.Equal(got, want) || acks != 2 {
+		t.Fatalf("OFRs sent to %v with %d acknowledged, want %v with 2", got, acks, want)
+	}
+}
