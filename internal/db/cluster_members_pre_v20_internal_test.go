@@ -33,7 +33,7 @@ func newClusterDatabaseAtV19(t *testing.T) *Database {
 	}
 
 	d := new(Database)
-	d.connPtr.Store(sqlair.NewDB(conn))
+	d.connection = sqlair.NewDB(conn)
 	d.dbPath = dbPath
 	d.dataDir = filepath.Dir(dbPath)
 	d.clusterEnabled = true

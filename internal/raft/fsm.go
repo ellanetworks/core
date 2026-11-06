@@ -46,9 +46,9 @@ type Applier interface {
 	// Path returns the filesystem path to the database file.
 	Path() string
 
-	// Reopen closes and reopens the database connection, re-prepares all
-	// sqlair statements. Called after FSM.Restore replaces the database
-	// file on disk.
+	// Reopen makes the database handle serve the new file without closing
+	// it, re-prepares all sqlair statements. Called after FSM.Restore
+	// replaces the database file on disk.
 	Reopen(ctx context.Context) error
 
 	// RestoreLocalTables replaces the local-only tables (radio_events,
