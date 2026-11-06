@@ -208,3 +208,89 @@ func TestIdleTimersNeverRunOnAConnectedUE(t *testing.T) {
 		t.Fatal("releasing the UE's own connection must arm the mobile reachable timer")
 	}
 }
+
+func TestImplicitDeregistrationDoesNotRemoveAConnectionAttachedMeanwhile(t *testing.T) {
+	a, ue := newRegisteredRaceUE(t, &deregisterTestSmf{})
+
+	a.StartMobileReachable(ue, nil)
+
+	a.mu.Lock()
+	gen := ue.idleGen
+	a.mu.Unlock()
+
+	connB := newRaceConn(t, a, "gnb-b", 2)
+
+	ue.connMu.Lock()
+
+	expired := make(chan struct{})
+
+	go func() {
+		defer close(expired)
+
+		a.onImplicitDeregistrationExpiry(ue, gen)
+	}()
+
+	select {
+	case <-expired:
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	a.mu.Lock()
+	a.attachUeConnLocked(t.Context(), ue, connB)
+	a.mu.Unlock()
+
+	ue.connMu.Unlock()
+	<-expired
+
+	if ue.Conn() != connB {
+		t.Fatal("implicit deregistration detached the connection the UE established meanwhile")
+	}
+
+	if a.FindUEByRanUeNgapID(connB.Radio(), connB.RanUeNgapID()) != connB {
+		t.Fatal("implicit deregistration removed the connection the UE established meanwhile")
+	}
+
+	if ue.State() != Registered {
+		t.Fatalf("implicit deregistration ran after the UE established a NAS signalling connection (TS 24.501 §5.3.7): state %v", ue.State())
+	}
+}
+
+func TestReleaseFollowsAConnectionMovedToAFreshContext(t *testing.T) {
+	a := New(nil, nil, &deregisterTestSmf{})
+
+	old := NewUeContext()
+	old.ForceStateForTest(Registered)
+
+	fresh := NewUeContext()
+	fresh.ForceStateForTest(RegistrationInitiated)
+
+	conn := newRaceConn(t, a, "gnb-a", 1)
+	a.AttachUeConn(t.Context(), old, conn)
+	conn.SetReleaseAction(UeContextReleaseAbortRegistration)
+
+	old.connMu.Lock()
+
+	released := make(chan struct{})
+
+	go func() {
+		defer close(released)
+
+		a.ReleaseUeConn(context.Background(), conn)
+	}()
+
+	select {
+	case <-released:
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	a.mu.Lock()
+	a.attachUeConnLocked(t.Context(), fresh, conn)
+	a.mu.Unlock()
+
+	old.connMu.Unlock()
+	<-released
+
+	if fresh.State() != Deregistered {
+		t.Fatalf("the release skipped the release action of the context the connection moved to: state %v", fresh.State())
+	}
+}

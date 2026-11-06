@@ -82,7 +82,7 @@ func TestSCTPBriefStallDoesNotAbortTheAssociation(t *testing.T) {
 	for range writers {
 		wg.Go(func() {
 			for range perWriter {
-				if err := tr.writeMessage(b); err != nil {
+				if err := tr.writeMessage(context.Background(), b); err != nil {
 					errs <- err
 					return
 				}
@@ -119,14 +119,68 @@ func TestSCTPStalledPeerAbortsAfterWriteTimeout(t *testing.T) {
 	var err error
 
 	for err == nil && time.Now().Before(deadline) {
-		err = tr.writeMessage(b)
+		err = tr.writeMessage(context.Background(), b)
 	}
 
 	if !errors.Is(err, net.ErrClosed) && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("write to a stalled peer = %v", err)
 	}
 
-	if err := tr.writeMessage(b); !errors.Is(err, net.ErrClosed) {
+	if err := tr.writeMessage(context.Background(), b); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("write after the timeout = %v", err)
+	}
+}
+
+func TestSCTPCallerDeadlineEndsWaitWithoutAborting(t *testing.T) {
+	tr, remote := sctpPair(t)
+	tr.setWriteTimeout(testTimeout)
+
+	b := marshalled(t, appRequest(1, 1, "ella.example.org", OctetString(AVPUserName, 0, 0, make([]byte, 16*1024))))
+
+	sent := 0
+	deadline := time.Now().Add(testTimeout)
+
+	var err error
+
+	for err == nil && time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		err = tr.writeMessage(ctx, b)
+
+		cancel()
+
+		if err == nil {
+			sent++
+		}
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("write with an expired caller deadline = %v", err)
+	}
+
+	if tr.closed.Load() {
+		t.Fatal("caller deadline aborted the association")
+	}
+
+	drained := make(chan error, 1)
+
+	go func() {
+		buf := make([]byte, maxMessageSize)
+
+		for range sent + 1 {
+			if _, _, err := remote.ReadMsg(buf); err != nil {
+				drained <- err
+				return
+			}
+		}
+
+		drained <- nil
+	}()
+
+	if err := tr.writeMessage(context.Background(), b); err != nil {
+		t.Fatalf("write after the peer resumed reading = %v", err)
+	}
+
+	if err := <-drained; err != nil {
+		t.Fatalf("read: %v", err)
 	}
 }

@@ -59,7 +59,13 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 		return
 	}
 
-	modified, released, result := modifyBearerDownlinks(ctx, m, ue, msg.ToBeModified)
+	modified, released, result := modifyBearerDownlinks(ctx, m, ue, ueConn, msg.ToBeModified)
+	if result.Stale {
+		logger.From(ctx, logger.MmeLog).Debug("ignoring an E-RAB Modification Indication for a superseded or released S1 connection",
+			logger.MMEUeS1apID(uint32(msg.MMEUES1APID)))
+
+		return
+	}
 
 	confirm := &s1ap.ERABModificationConfirm{
 		MMEUES1APID:   s1ap.Ptr(msg.MMEUES1APID),
@@ -85,7 +91,7 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 	m.DeactivatePendingDedicated(ctx, ue)
 }
 
-func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) ([]s1ap.ERABID, []s1ap.ERABItem, mme.RANBearerResult) {
+func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, items []s1ap.ERABToBeModifiedItemBearerModInd) ([]s1ap.ERABID, []s1ap.ERABItem, mme.RANBearerResult) {
 	present := make([]mme.RANBearer, 0, len(items))
 
 	var undecodable []uint8
@@ -107,7 +113,7 @@ func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, i
 		})
 	}
 
-	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{Present: present, ReleaseFailed: true, AfterCommit: true})
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{Present: present, ReleaseFailed: true, AfterCommit: true, Conn: ueConn})
 
 	modified := make([]s1ap.ERABID, 0, len(result.Applied))
 	for _, ebi := range result.Applied {

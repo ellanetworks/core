@@ -377,6 +377,9 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 		return
 	}
 
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
 
 	// A connected UE with a security context is told to deregister over the air,

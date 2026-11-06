@@ -209,6 +209,17 @@ func TestIntegrationSoakHA(t *testing.T) {
 	baseline := sampler.quiescent(ctx, t, series, "baseline", 3)
 	sampler.dumpProfiles(ctx, t, outDir, "baseline")
 
+	containers := make([]string, len(nodes))
+
+	for i, n := range nodes {
+		container, err := dc.ResolveComposeContainer(ctx, "ha-5g-multi-gnb", n.tester)
+		if err != nil {
+			t.Fatalf("resolve %s: %v", n.tester, err)
+		}
+
+		containers[i] = container
+	}
+
 	loadStart := time.Now()
 
 	samplerCtx, stopSampler := context.WithCancel(ctx)
@@ -248,11 +259,8 @@ func TestIntegrationSoakHA(t *testing.T) {
 		probes, probesLost, probesLate atomic.Int64
 	)
 
-	for _, n := range nodes {
-		container, err := dc.ResolveComposeContainer(ctx, "ha-5g-multi-gnb", n.tester)
-		if err != nil {
-			t.Fatalf("resolve %s: %v", n.tester, err)
-		}
+	for i, n := range nodes {
+		container := containers[i]
 
 		argv := []string{
 			"core-tester", "run", "gnb/soak",

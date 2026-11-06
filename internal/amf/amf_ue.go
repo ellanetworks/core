@@ -201,7 +201,10 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-func (a *AMF) servesUeLocked(ue *UeContext, ueConn *UeConn) bool {
+func (a *AMF) servesUe(ue *UeContext, ueConn *UeConn) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
 	if ueConn.ue.Load() != ue {
 		return false
 	}
@@ -211,11 +214,21 @@ func (a *AMF) servesUeLocked(ue *UeContext, ueConn *UeConn) bool {
 	return cur == nil || cur == ueConn
 }
 
-func (a *AMF) servesUe(ue *UeContext, ueConn *UeConn) bool {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+func lockConnOwner(ueConn *UeConn) *UeContext {
+	for {
+		ue := ueConn.UeContext()
+		if ue == nil {
+			return nil
+		}
 
-	return a.servesUeLocked(ue, ueConn)
+		ue.connMu.Lock()
+
+		if ueConn.UeContext() == ue {
+			return ue
+		}
+
+		ue.connMu.Unlock()
+	}
 }
 
 func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) *UeConn {

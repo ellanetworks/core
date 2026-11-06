@@ -259,3 +259,93 @@ func TestPDNFilledAfterTeardownIsNotRecreated(t *testing.T) {
 		t.Fatal("the torn-down UE holds a PDN connection again")
 	}
 }
+
+type deferringSessionManager struct {
+	*fakeSessionManager
+
+	onPagingFailure func()
+}
+
+func (d *deferringSessionManager) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8, cause models.EPSPagingFailureCause) error {
+	if d.onPagingFailure != nil {
+		d.onPagingFailure()
+	}
+
+	return d.fakeSessionManager.HandleEPSPagingFailure(ctx, imsi, ebi, cause)
+}
+
+func TestLocalReleaseOfADeliveringConnectionDoesNotResumeADeferredReleaseUnderConnMu(t *testing.T) {
+	d := &deferringSessionManager{fakeSessionManager: &fakeSessionManager{}}
+	m := New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, d)
+	ue := idleRegisteredUE(t, m)
+	ue.session = d
+
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
+		t.Fatalf("Page: %v", err)
+	}
+
+	c := m.NewUeConn(&captureConn{}, 9)
+	m.AttachUeConn(t.Context(), ue, c)
+	t.Cleanup(c.cancelDeferredRelease)
+
+	cause := CauseNASNormalRelease
+	d.onPagingFailure = func() { c.deferredCause.Store(&cause) }
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		m.releaseUEContextLocally(context.Background(), ue, c, "test", models.ReleaseFor(models.ReleaseRegistrationFailure))
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the local release deadlocked: a deferred release set during it was resumed while the UE's connMu was held")
+	}
+
+	if ue.Conn() != nil {
+		t.Fatal("the local release left the UE connected")
+	}
+}
+
+func TestReconcileAfterAReleaseWasCommandedDoesNotMoveTheDownlink(t *testing.T) {
+	m := newTestMME(t)
+	ue, a := connectedRegisteredUE(t, m)
+
+	m.ReleaseUEContext(t.Context(), ue, a, CauseNASNormalRelease)
+
+	fake := m.Session.(*fakeSessionManager)
+	fake.modifiedENB = models.FTEID{}
+
+	result := m.ReconcileBearersToRAN(t.Context(), ue, RANBearers{
+		Present: []RANBearer{{Ebi: DefaultERABID, EnbFTEID: models.FTEID{TEID: 7, Addr: netip.MustParseAddr("10.0.0.7")}}},
+		Conn:    a,
+	})
+
+	if !result.Stale {
+		t.Fatal("the reconciliation of a connection being released was not reported stale")
+	}
+
+	if fake.modifiedENB != (models.FTEID{}) {
+		t.Fatalf("the downlink was switched to %v after the user plane was deactivated for the release", fake.modifiedENB)
+	}
+}
+
+func TestPathSwitchCommitOfASupersededConnectionLeavesTheCurrentOneAlone(t *testing.T) {
+	m := newTestMME(t)
+	ue, a := connectedRegisteredUE(t, m)
+
+	cc := &captureConn{}
+	b := m.NewUeConn(cc, 9)
+	m.AttachUeConn(t.Context(), ue, b)
+
+	if _, ok := m.CommitPathSwitch(ue, a, &captureConn{}, 11, [32]byte{}, 0); ok {
+		t.Fatal("a path switch of a superseded connection committed")
+	}
+
+	if b.Conn() != cc || b.ENBUES1APID() != 9 {
+		t.Fatal("a path switch of a superseded connection rebound the UE's current connection")
+	}
+}

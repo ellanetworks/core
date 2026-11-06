@@ -4,6 +4,7 @@
 package diameter
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -44,7 +45,7 @@ type Listener interface {
 type transport interface {
 	kind() Transport
 	readMessage(buf []byte) (int, error)
-	writeMessage(b []byte) error
+	writeMessage(ctx context.Context, b []byte) error
 	setUnordered()
 	setWriteTimeout(d time.Duration)
 	remoteAddr() netip.Addr

@@ -199,7 +199,7 @@ func (m *MME) connActive(ue *UeContext, c *UeConn) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return ue.Conn() == c
+	return ue.Conn() == c && !c.releasing
 }
 
 func boolRank(b bool) int {

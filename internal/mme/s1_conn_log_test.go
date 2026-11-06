@@ -63,7 +63,7 @@ func TestCommitPathSwitchRebindsConnLoggerToTargetENB(t *testing.T) {
 
 	c.Log(t.Context()).Info("before")
 
-	if _, ok := m.CommitPathSwitch(ue, target, 7, [32]byte{}, 0); !ok {
+	if _, ok := m.CommitPathSwitch(ue, ue.Conn(), target, 7, [32]byte{}, 0); !ok {
 		t.Fatal("CommitPathSwitch did not commit")
 	}
 
@@ -103,7 +103,7 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 
 	for _, op := range []func(){
 		func() {
-			if _, ok := m.CommitPathSwitch(ue, target, 7, [32]byte{}, 0); ok {
+			if _, ok := m.CommitPathSwitch(ue, ue.Conn(), target, 7, [32]byte{}, 0); ok {
 				commits.Add(1)
 			}
 		},

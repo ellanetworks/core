@@ -49,7 +49,7 @@ func (l *sctpListener) accept() (transport, error) {
 		return nil, fmt.Errorf("%w: %w", errConnectionSetup, err)
 	}
 
-	t, err := newSCTPTransport(sc)
+	t, err := newSCTPTransport(sc, l.logger)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errConnectionSetup, err)
 	}
@@ -64,9 +64,10 @@ type sctpTransport struct {
 	unordered    atomic.Bool
 	closed       atomic.Bool
 	writeTimeout atomic.Int64
+	logger       *slog.Logger
 }
 
-func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
+func newSCTPTransport(sc *sctp.SCTPConn, logger *slog.Logger) (*sctpTransport, error) {
 	remote, err := sc.PrimaryPeerAddr()
 	if err != nil {
 		_ = sc.Abort()
@@ -74,7 +75,11 @@ func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
 		return nil, err
 	}
 
-	t := &sctpTransport{sc: sc, remote: remote}
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	t := &sctpTransport{sc: sc, remote: remote, logger: logger}
 	if a, ok := sc.RemoteAddr().(*sctp.SCTPAddr); ok && a.Port > 0 && a.Port <= 0xffff {
 		t.port = uint16(a.Port)
 	}
@@ -94,7 +99,7 @@ func dialSCTP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port
 		return nil, err
 	}
 
-	return newSCTPTransport(sc)
+	return newSCTPTransport(sc, logger)
 }
 
 func ipAddrs(addrs []netip.Addr) []net.IPAddr {
@@ -158,23 +163,27 @@ func (t *sctpTransport) readMessage(buf []byte) (int, error) {
 	}
 }
 
-func (t *sctpTransport) writeMessage(b []byte) error {
+func (t *sctpTransport) writeMessage(ctx context.Context, b []byte) error {
 	info := sctp.SndRcvInfo{PPID: sctp.PPIDWireOrder(PPID)}
 	if t.unordered.Load() {
 		info.Flags = sctp.SCTPUnordered
 	}
 
-	ctx := context.Background()
+	wctx := ctx
+	d := time.Duration(t.writeTimeout.Load())
 
-	if d := time.Duration(t.writeTimeout.Load()); d > 0 {
+	if d > 0 {
 		var cancel context.CancelFunc
 
-		ctx, cancel = context.WithTimeout(ctx, d)
+		wctx, cancel = context.WithTimeout(ctx, d)
 		defer cancel()
 	}
 
-	_, err := t.sc.WriteMsgWait(ctx, b, &info)
-	if errors.Is(err, context.DeadlineExceeded) {
+	_, err := t.sc.WriteMsgWait(wctx, b, &info)
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		t.logger.Warn("SCTP send queue did not drain; aborting Diameter association",
+			slog.String("remote", t.remote.String()), slog.Duration("timeout", d))
+
 		_ = t.abort()
 	}
 

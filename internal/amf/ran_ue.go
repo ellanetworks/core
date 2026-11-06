@@ -761,9 +761,8 @@ func (ueConn *UeConn) ReleaseAction() RelAction {
 }
 
 func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) (wentIdle bool) {
-	amfUe := ueConn.UeContext()
+	amfUe := lockConnOwner(ueConn)
 	if amfUe != nil {
-		amfUe.connMu.Lock()
 		defer amfUe.connMu.Unlock()
 
 		if !a.servesUe(amfUe, ueConn) {

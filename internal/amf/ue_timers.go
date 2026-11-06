@@ -89,6 +89,9 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 	ctx, span := guardSpan(trace.SpanContext{}, "amf/implicit_deregistration_expire", "implicit deregistration", 0)
 	defer span.End()
 
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	a.mu.Lock()
 
 	if ue.idleGen != gen || ue.active.Load() != nil {

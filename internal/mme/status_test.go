@@ -298,7 +298,7 @@ func TestLastSeenRadioFollowsAnX2PathSwitch(t *testing.T) {
 
 	ue.TouchLastSeen()
 
-	if _, ok := m.CommitPathSwitch(ue, target, 9, [32]byte{}, 0); !ok {
+	if _, ok := m.CommitPathSwitch(ue, ue.Conn(), target, 9, [32]byte{}, 0); !ok {
 		t.Fatal("CommitPathSwitch reported the UE released")
 	}
 
