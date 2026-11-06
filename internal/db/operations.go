@@ -48,12 +48,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 // OpOption configures an operation registration.
@@ -506,58 +504,7 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 
 	defer func() { endSpan(span, err) }()
 
-	db.lockPropose(ctx)
-	defer db.proposeMu.Unlock()
-
-	if err := db.tracedWriteBarrier(ctx); err != nil {
-		return nil, err
-	}
-
-	captureCtx, captureSpan := tracer.Start(ctx, "db/capture_changeset", trace.WithSpanKind(trace.SpanKindInternal))
-	changeset, applyResult, capturedSchema, err := db.captureChangeset(context.WithoutCancel(captureCtx), applyFn, operation)
-	endSpan(captureSpan, err)
-
-	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) ||
-			errors.Is(err, ErrNotFound) ||
-			errors.Is(err, ErrJoinTokenAlreadyConsumed) {
-			return nil, err
-		}
-
-		return nil, fmt.Errorf("capture changeset for %s: %w", operation, err)
-	}
-
-	if len(changeset) == 0 {
-		return &ellaraft.ProposeResult{Value: applyResult}, nil
-	}
-
-	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{
-		Value:          changeset,
-		Operation:      operation,
-		RequiredSchema: minSchema,
-		CapturedSchema: capturedSchema,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := changesetCmd.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("marshal changeset command: %w", err)
-	}
-
-	res, err := db.raftApply(ctx, data)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.From(ctx, logger.DBLog).Debug("proposed changeset",
-		zap.String("operation", operation),
-		zap.Int("required_schema", minSchema),
-		zap.Uint64("index", res.Index),
-		logger.Bytes(uint64(len(changeset))))
-
-	return &ellaraft.ProposeResult{Index: res.Index, Value: applyResult}, nil
+	return db.submitWrite(ctx, operation, minSchema, applyFn)
 }
 
 var forwardCodes = []struct {

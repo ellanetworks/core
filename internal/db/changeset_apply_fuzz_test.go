@@ -30,7 +30,7 @@ func FuzzApplyChangeset(f *testing.F) {
 		go func() {
 			defer close(done)
 
-			_, _ = fuzzDB.applyChangeset(ctx, &bytesPayload{
+			_ = fuzzDB.applyChangeset(ctx, &bytesPayload{
 				Value:     changeset,
 				Operation: "FuzzApplyChangeset",
 			}, 1, 1)
