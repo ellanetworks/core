@@ -96,6 +96,54 @@ func TestLocalSwitchIPv4(t *testing.T) {
 	}
 }
 
+// TS 29.244 §5.4.13
+func TestLocalSwitchMarksWithTheDestinationFAR(t *testing.T) {
+	requireProgTestRun(t)
+
+	const wantTOS = 0xB8
+
+	obj := loadProgramLocalSwitch(t)
+
+	var (
+		ueAIP = [4]byte{10, 0, 0, 9}
+		ueBIP = [4]byte{10, 0, 0, 10}
+		teidA = uint32(0x4C534D)
+		teidB = uint32(0x4C534E)
+	)
+
+	ulPdr := PdrInfo{
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02, TransportLevelMarking: 0xA0FC},
+		UEIPv4:       netip.AddrFrom4(ueAIP),
+		UEIPv6Prefix: canonicalUEv6Prefix,
+	}
+	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
+	dlPdr.Far.TransportLevelMarking = uint16(wantTOS|0x03)<<8 | 0xFC
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	inner := ipv4Packet(ueAIP, ueBIP, 17, udpDatagram(4000, 53, nil))
+
+	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
+	if action == ActionDrop || action == ActionAborted {
+		t.Fatalf("local-switched packet got XDP action %d, want a forwarding action", action)
+	}
+
+	if tos := out[ethHdrLen+1]; tos != wantTOS {
+		t.Errorf("outer IPv4 TOS = %#02x, want the DSCP bits of the destination's downlink FAR %#02x", tos, wantTOS)
+	}
+
+	if f := parseGTPv4Frame(t, out); !f.outerChecksumOK {
+		t.Error("outer IPv4 header checksum invalid after marking")
+	}
+}
+
 func TestLocalSwitchDisabled(t *testing.T) {
 	requireProgTestRun(t)
 

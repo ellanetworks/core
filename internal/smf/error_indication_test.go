@@ -6,8 +6,10 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -135,6 +137,49 @@ func TestErrorIndicationStillRepagesWhenTheUEIsUnreachable(t *testing.T) {
 
 	if len(amfCb.pageCalls) != 1 {
 		t.Errorf("AMF got %d pages, want 1", len(amfCb.pageCalls))
+	}
+}
+
+// TS 23.527 §5.3.2.1
+func TestErrorIndicationOnAQoSFlowFARIsHandledForTheWholeSession(t *testing.T) {
+	gnb := models.FTEID{TEID: 0x7001, Addr: netip.MustParseAddr("10.3.0.9")}
+
+	for _, farID := range []uint32{farIDDownlink, farIDQoSFlow} {
+		t.Run(fmt.Sprintf("FAR %d", farID), func(t *testing.T) {
+			s, _, _, amfCb, ref := activeFiveGVoice(t)
+
+			amfCb.mu.Lock()
+			amfCb.accessReleaseErr = smf.ErrUENotReachable
+			amfCb.mu.Unlock()
+
+			sc := s.GetSession(ref)
+
+			if err := s.HandleErrorIndicationReport(context.Background(), &models.ErrorIndicationReport{SEID: sc.PFCPContext.SEID, FARID: farID, RemoteFTEID: gnb}); err != nil {
+				t.Fatalf("HandleErrorIndicationReport: %v", err)
+			}
+
+			sc.Mutex.Lock()
+			downlink := sc.Tunnel.Downlink
+			sc.Mutex.Unlock()
+
+			if downlink != smf.DownlinkBuffering {
+				t.Errorf("downlink state = %v, want the whole session buffering", downlink)
+			}
+
+			amfCb.mu.Lock()
+			arps := slices.Clone(amfCb.pageARPs)
+			amfCb.mu.Unlock()
+
+			want := currentPolicy(s, ref).QosData.Arp
+
+			if len(arps) != 1 || arps[0] == nil {
+				t.Fatalf("paging ARPs %+v, want one page", arps)
+			}
+
+			if *arps[0] != *want {
+				t.Fatalf("paging ARP %+v, want the session's %+v whichever FAR on the N3 tunnel was reported", *arps[0], *want)
+			}
+		})
 	}
 }
 
