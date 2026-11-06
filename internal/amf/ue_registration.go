@@ -98,6 +98,9 @@ func (amf *AMF) ReconcileRegistrations(ctx context.Context) {
 }
 
 func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	supi := ue.Supi()
 
 	if !amf.ServesUeContext(ue) || ue.State() != Registered {

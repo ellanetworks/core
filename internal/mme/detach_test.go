@@ -83,7 +83,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	ue.downlink().Install(sc, nas.DownlinkCounter{})
 
 	ue.secured = true
-	ue.Conn().secureExchangeEstablished = true
+	ue.Conn().secureExchangeEstablished.Store(true)
 	ue.ForceStateForTest(EMMRegistered)
 	ue.SetAccess(Access{Allow4G: true, Allow5G: true})
 	registerTestUE(m, ue, testSubscriber.IMSI)
@@ -176,7 +176,7 @@ func TestReleaseUEContextIdleNoPanic(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	m.FreeUeConn(t.Context(), ue)
 
-	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	if cc.count() != 0 {
 		t.Fatalf("a UE with no connection cannot be sent a Release Command, got %d messages", cc.count())

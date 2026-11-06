@@ -112,7 +112,7 @@ func (c *SCTPConn) sendQueued(qw queuedWrite) bool {
 		<-c.pacedSlots
 	}
 
-	if err := c.setWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+	if err := c.setWriteDeadline(time.Now().Add(c.sendTimeout())); err != nil {
 		c.failAssociation("set write deadline", err)
 		return false
 	}
@@ -123,6 +123,18 @@ func (c *SCTPConn) sendQueued(qw queuedWrite) bool {
 	}
 
 	return true
+}
+
+func (c *SCTPConn) SetWriteTimeout(d time.Duration) {
+	c.writeTimeout.Store(int64(d))
+}
+
+func (c *SCTPConn) sendTimeout() time.Duration {
+	if d := time.Duration(c.writeTimeout.Load()); d > 0 {
+		return d
+	}
+
+	return writeTimeout
 }
 
 // WriteMsg queues b for the association's writer goroutine: a nil error means

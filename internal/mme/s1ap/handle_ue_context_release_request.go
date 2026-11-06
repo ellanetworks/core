@@ -81,5 +81,5 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 		return
 	}
 
-	m.ReleaseUEContext(ctx, ue, cause)
+	m.ReleaseUEContext(ctx, ue, ueConn, cause)
 }

@@ -302,6 +302,10 @@ type bringUpHA3GPPClusterOpts struct {
 	Overlays []string
 
 	Diameter bool
+
+	LogLevel string
+
+	OTLPEndpoint string
 }
 
 func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, opts bringUpHA3GPPClusterOpts) (string, []*client.Client, error) {
@@ -497,14 +501,24 @@ func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinTo
 		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
 	}
 
+	telemetryLines := ""
+	if opts.OTLPEndpoint != "" {
+		telemetryLines = fmt.Sprintf("telemetry:\n  enabled: true\n  otlp-endpoint: %q\n", opts.OTLPEndpoint)
+	}
+
 	diameterLines := ""
 	if opts.Diameter {
 		diameterLines = fmt.Sprintf("  diameter:\n    address: %q\n", n3Addr)
 	}
 
+	logLevel := "debug"
+	if opts.LogLevel != "" {
+		logLevel = opts.LogLevel
+	}
+
 	body := fmt.Sprintf(`logging:
   system:
-    level: "debug"
+    level: %q
     output: "stdout"
   audit:
     output: "stdout"
@@ -526,7 +540,7 @@ interfaces:
 cluster:
   bind-address: "%s:7000"
   peers:
-%s%s`, clusterAddr, n3Addr, clusterAddr, diameterLines, clusterBindHost, peersYAML.String(), joinTokenLine)
+%s%s%s`, logLevel, clusterAddr, n3Addr, clusterAddr, diameterLines, clusterBindHost, peersYAML.String(), joinTokenLine, telemetryLines)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

@@ -464,7 +464,7 @@ func TestIdleTimers_ArmedAndStoppedUnderRegistryLock(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	ue := addUE(t, amfInstance, "001010000000031", nil)
 
-	amfInstance.StartMobileReachable(ue)
+	amfInstance.StartMobileReachable(ue, nil)
 
 	if !ue.MobileReachableActiveForTest() {
 		t.Fatal("StartMobileReachable must arm the mobile reachable timer")

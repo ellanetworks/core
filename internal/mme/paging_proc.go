@@ -151,6 +151,14 @@ func (ue *UeContext) PagingFailed(ctx context.Context, cause models.EPSPagingFai
 		return nil
 	}
 
+	dropped := ue.failPaging(ctx, cause)
+
+	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
+
+	return dropped
+}
+
+func (ue *UeContext) failPaging(ctx context.Context, cause models.EPSPagingFailureCause) *MTRequest {
 	ue.paging.guard.Stop()
 
 	ue.paging.mu.Lock()
@@ -162,8 +170,6 @@ func (ue *UeContext) PagingFailed(ctx context.Context, cause models.EPSPagingFai
 	if dropped != nil {
 		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
 	}
-
-	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
 
 	return dropped
 }
@@ -204,7 +210,7 @@ func (ue *UeContext) PagingUnanswered(ctx context.Context, attempt uint64, cause
 
 func (ue *UeContext) settleDeliveryOnRelease(ctx context.Context) {
 	if ue.PagingState() == PagingDelivering {
-		ue.PagingFailed(ctx, models.EPSPagingUENotResponding)
+		ue.failPaging(ctx, models.EPSPagingUENotResponding)
 	}
 }
 

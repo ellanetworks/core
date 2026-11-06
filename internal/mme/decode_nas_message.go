@@ -60,6 +60,10 @@ type DecodeResult struct {
 // uplink NAS COUNT (committed only on a verified MAC) and the connection's
 // secure-exchange flag.
 func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
+	return DecodeNASMessageOn(ue, ue.Conn(), nas)
+}
+
+func DecodeNASMessageOn(ue *UeContext, conn *UeConn, nas []byte) (*DecodeResult, error) {
 	if len(nas) < 1 {
 		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is empty")
 	}
@@ -67,7 +71,6 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// Secure exchange is tracked per NAS signalling connection (TS 24.301
 	// §4.4.4.3); ue.secured is the separate per-UE "has a security context"
 	// notion used by handover/path-switch.
-	conn := ue.Conn()
 	connSecured := conn != nil && conn.SecureExchangeEstablished()
 
 	securityHeader, err := eps.PeekSecurityHeaderType(nas)

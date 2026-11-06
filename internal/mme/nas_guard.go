@@ -223,7 +223,7 @@ func (c *UeConn) expireNASGuard(link trace.SpanContext, ue *UeContext, name stri
 	}
 
 	c.Log(ctx).Info("NAS procedure timed out, releasing UE", zap.String("procedure", name))
-	m.ReleaseUEContext(ctx, ue, CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, c, CauseNASUnspecified)
 }
 
 func guardSpan(link trace.SpanContext, spanName string, timer string, attempt int32) (context.Context, trace.Span) {

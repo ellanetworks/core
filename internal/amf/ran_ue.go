@@ -116,6 +116,8 @@ type UeConn struct {
 	// integrity protected or fails the check.
 	secureExchangeEstablished bool
 
+	displaced atomic.Bool
+
 	cipheringStarted atomic.Bool
 
 	AuthenticationCtx *ausf.AuthResult
@@ -613,6 +615,10 @@ func (ueConn *UeConn) UeContext() *UeContext {
 	return ueConn.ue.Load()
 }
 
+func (ueConn *UeConn) Displaced() bool {
+	return ueConn.displaced.Load()
+}
+
 // TouchLastSeen propagates a last-seen timestamp to the associated UeContext.
 // Safe to call on nil receivers or when UeContext/Radio is nil.
 func (ueConn *UeConn) TouchLastSeen() {
@@ -755,7 +761,15 @@ func (ueConn *UeConn) ReleaseAction() RelAction {
 }
 
 func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) (wentIdle bool) {
-	amfUe := ueConn.UeContext()
+	amfUe := lockConnOwner(ueConn)
+	if amfUe != nil {
+		defer amfUe.connMu.Unlock()
+
+		if !a.servesUe(amfUe, ueConn) {
+			amfUe = nil
+		}
+	}
+
 	if amfUe == nil {
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
@@ -777,7 +791,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			}
 		}
 
-		a.StartMobileReachable(amfUe)
+		a.StartMobileReachable(amfUe, ueConn)
 	}
 
 	switch ueConn.ReleaseAction() {

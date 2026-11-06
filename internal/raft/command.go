@@ -30,6 +30,8 @@ const (
 	CmdDeleteCellPosition CommandType = 201
 
 	CmdMigrateShared CommandType = 220
+
+	CmdChangesetBatch CommandType = 230
 )
 
 var commandNames = map[CommandType]string{
@@ -42,6 +44,7 @@ var commandNames = map[CommandType]string{
 	CmdPutCellPosition:        "PutCellPosition",
 	CmdDeleteCellPosition:     "DeleteCellPosition",
 	CmdMigrateShared:          "MigrateShared",
+	CmdChangesetBatch:         "ChangesetBatch",
 }
 
 func (c CommandType) String() string {
@@ -90,6 +93,20 @@ func NewCommand(cmdType CommandType, payload any) (*Command, error) {
 
 func (c *Command) Label() string {
 	name := c.Type.String()
+	if c.Type == CmdChangesetBatch {
+		var meta struct {
+			Entries []struct {
+				Operation string `json:"operation"`
+			} `json:"entries"`
+		}
+
+		if err := json.Unmarshal(c.Payload, &meta); err == nil {
+			return fmt.Sprintf("%s(%d)", name, len(meta.Entries))
+		}
+
+		return name
+	}
+
 	if c.Type != CmdChangeset || len(c.Payload) == 0 {
 		return name
 	}

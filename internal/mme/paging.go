@@ -60,7 +60,7 @@ func (m *MME) releaseForErrorIndication(ctx context.Context, ue *UeContext, req 
 
 	ue.deferServiceRequest(req)
 
-	m.ReleaseUEContext(ctx, ue, causeErrorIndicationReceived)
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), causeErrorIndicationReceived)
 }
 
 func (m *MME) ResumeDeferredServiceRequest(ctx context.Context, ue *UeContext) {

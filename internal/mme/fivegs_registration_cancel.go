@@ -15,7 +15,7 @@ import (
 func (m *MME) releaseTo5GS(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
 	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseNotTransferred))
 	ue.TransitionTo(ctx, EMMDeregistered)
-	m.ReleaseUEContext(ctx, ue, cause)
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), cause)
 }
 
 func (m *MME) CancelRegistration(ctx context.Context, supi etsi.SUPI) {
