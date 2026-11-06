@@ -4,7 +4,6 @@
 package server
 
 import (
-	"net/netip"
 	"reflect"
 	"testing"
 	"time"
@@ -23,7 +22,8 @@ func TestSMSCResponseCarriesTheLinkStatusOfEachNode(t *testing.T) {
 			Role:    "smsc",
 			Host:    "smsc.example.org",
 			Realm:   "example.org",
-			Address: netip.MustParseAddrPort("192.0.2.10:3868"),
+			Address: "192.0.2.10",
+			Port:    3868,
 			State:   diameter.PeerOpen,
 			Since:   since,
 		},

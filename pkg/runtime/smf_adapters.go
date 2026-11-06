@@ -9,12 +9,15 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
@@ -25,16 +28,24 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/runtime")
+
+const pcscfLookupTimeout = 2 * time.Second
 
 // ---------------------------------------------------------------------------
 // smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
 // ---------------------------------------------------------------------------
 
 type smfDBAdapter struct {
-	db *db.Database
+	db       *db.Database
+	resolver pcscfResolver
+}
+
+type pcscfResolver interface {
+	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
 
 // smfDNNStore is smf.DNNStore bound to one data-network row. A pool derivation
@@ -484,12 +495,70 @@ func (a *smfDBAdapter) pcscfAddresses(ctx context.Context, dn *db.DataNetwork) (
 		return nil, nil
 	}
 
-	addrs, err := a.db.ListPCSCFAddresses(ctx)
+	entries, err := a.db.ListPCSCFAddresses(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list P-CSCF addresses: %w", err)
 	}
 
-	return addrs, nil
+	resolver := a.resolver
+	if resolver == nil {
+		resolver = net.DefaultResolver
+	}
+
+	return resolvePCSCFAddresses(ctx, resolver, entries), nil
+}
+
+func resolvePCSCFAddresses(ctx context.Context, resolver pcscfResolver, entries []string) []netip.Addr {
+	ctx, cancel := context.WithTimeout(ctx, pcscfLookupTimeout)
+	defer cancel()
+
+	var (
+		out        []netip.Addr
+		ipv4, ipv6 int
+	)
+
+	add := func(addr netip.Addr) {
+		addr = addr.Unmap()
+
+		if !db.IsPCSCFUnicast(addr) || slices.Contains(out, addr) {
+			return
+		}
+
+		if addr.Is4() {
+			if ipv4 == db.MaxPCSCFAddressesPerFamily {
+				return
+			}
+
+			ipv4++
+		} else {
+			if ipv6 == db.MaxPCSCFAddressesPerFamily {
+				return
+			}
+
+			ipv6++
+		}
+
+		out = append(out, addr)
+	}
+
+	for _, entry := range entries {
+		if addr, err := netip.ParseAddr(entry); err == nil {
+			add(addr)
+			continue
+		}
+
+		addrs, err := resolver.LookupNetIP(ctx, "ip", entry)
+		if err != nil {
+			logger.SmfLog.Warn("Could not resolve a P-CSCF host name; leaving it out", zap.String("pcscf", entry), zap.Error(err))
+			continue
+		}
+
+		for _, addr := range addrs {
+			add(addr)
+		}
+	}
+
+	return out
 }
 
 // FramedRoutes returns the subscriber's framed-route prefixes on the data

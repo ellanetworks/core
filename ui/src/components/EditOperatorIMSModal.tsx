@@ -6,13 +6,14 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import {
+  MAX_PCSCF_ADDRESSES,
   MAX_PCSCF_ADDRESSES_PER_FAMILY,
   updateOperatorIMS,
 } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
-import { ipv4Regex, ipv6Regex } from "@/utils/ip";
+import { ipv4Regex, ipv6Regex, isHostName } from "@/utils/ip";
 
 interface EditOperatorIMSModalProps {
   open: boolean;
@@ -31,15 +32,18 @@ export const schema = yup.object({
     .test("format", function (value) {
       const addresses = splitAddresses(value);
       const invalid = addresses.find(
-        (a) => !ipv4Regex.test(a) && !ipv6Regex.test(a),
+        (a) => !ipv4Regex.test(a) && !ipv6Regex.test(a) && !isHostName(a),
       );
       if (invalid) {
         return this.createError({
-          message: `${invalid} is not an IPv4 or IPv6 address`,
+          message: `${invalid} is not an IPv4 or IPv6 address or a host name`,
         });
       }
 
-      const duplicate = addresses.find((a, i) => addresses.indexOf(a) !== i);
+      const lowered = addresses.map((a) => a.toLowerCase());
+      const duplicate = addresses.find(
+        (a, i) => lowered.indexOf(lowered[i]) !== i,
+      );
       if (duplicate) {
         return this.createError({
           message: `${duplicate} is listed more than once`,
@@ -47,12 +51,21 @@ export const schema = yup.object({
       }
 
       const ipv4 = addresses.filter((a) => ipv4Regex.test(a)).length;
+      const ipv6 = addresses.filter(
+        (a) => !ipv4Regex.test(a) && ipv6Regex.test(a),
+      ).length;
       if (
         ipv4 > MAX_PCSCF_ADDRESSES_PER_FAMILY ||
-        addresses.length - ipv4 > MAX_PCSCF_ADDRESSES_PER_FAMILY
+        ipv6 > MAX_PCSCF_ADDRESSES_PER_FAMILY
       ) {
         return this.createError({
           message: `At most ${MAX_PCSCF_ADDRESSES_PER_FAMILY} IPv4 and ${MAX_PCSCF_ADDRESSES_PER_FAMILY} IPv6 addresses`,
+        });
+      }
+
+      if (addresses.length > MAX_PCSCF_ADDRESSES) {
+        return this.createError({
+          message: `At most ${MAX_PCSCF_ADDRESSES} addresses and host names`,
         });
       }
 
@@ -100,7 +113,7 @@ const EditOperatorIMSModal: React.FC<EditOperatorIMSModalProps> = ({
         name="pcscfAddresses"
         label="Addresses"
         placeholder="10.6.0.5, 2001:db8::5"
-        helperText="Separate addresses with commas. Leave empty to turn voice off."
+        helperText="IP addresses or host names, separated by commas. Leave empty to turn voice off."
         autoFocus
       />
     </FormDialog>

@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/netip"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -153,20 +152,16 @@ func SMSCPeers(smsc db.SMSC) ([]diameternode.PeerConfig, error) {
 	peers := make([]diameternode.PeerConfig, 0, len(smsc.Nodes))
 
 	for _, n := range smsc.Nodes {
-		addr, err := netip.ParseAddr(n.Address)
-		if err != nil {
-			return nil, fmt.Errorf("invalid address %q of SMSC %s: %w", n.Address, smsc.Name, err)
-		}
-
-		if n.Port < 1 || n.Port > 65535 {
-			return nil, fmt.Errorf("invalid port %d of SMSC %s", n.Port, smsc.Name)
+		if err := n.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid node of SMSC %s: %w", smsc.Name, err)
 		}
 
 		peers = append(peers, diameternode.PeerConfig{
 			ID:           SMSCPeerID(n.ID),
 			Role:         PeerRoleSMSC,
 			Host:         n.DiameterIdentity,
-			Address:      netip.AddrPortFrom(addr, uint16(n.Port)),
+			Address:      n.Address,
+			Port:         uint16(n.Port),
 			Applications: smscApplications,
 		})
 	}

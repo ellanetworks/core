@@ -5,7 +5,6 @@ package db_test
 
 import (
 	"context"
-	"net/netip"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -27,15 +26,8 @@ func newPCSCFAddressesTestDatabase(t *testing.T) *db.Database {
 	return database
 }
 
-func addrs(t *testing.T, s ...string) []netip.Addr {
-	t.Helper()
-
-	out := make([]netip.Addr, 0, len(s))
-	for _, a := range s {
-		out = append(out, netip.MustParseAddr(a))
-	}
-
-	return out
+func addrs(s ...string) []string {
+	return s
 }
 
 func TestPCSCFAddressesDefaultToEmpty(t *testing.T) {
@@ -55,7 +47,7 @@ func TestPCSCFAddressesKeepTheirOrder(t *testing.T) {
 	ctx := context.Background()
 	database := newPCSCFAddressesTestDatabase(t)
 
-	want := addrs(t, "2001:db8::2", "10.0.0.6", "2001:db8::1", "10.0.0.5")
+	want := addrs("2001:db8::2", "10.0.0.6", "2001:db8::1", "10.0.0.5")
 
 	if err := database.ReplacePCSCFAddresses(ctx, want); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
@@ -70,7 +62,7 @@ func TestPCSCFAddressesKeepTheirOrder(t *testing.T) {
 		t.Fatalf("addresses = %v, want %v", got, want)
 	}
 
-	reordered := addrs(t, "10.0.0.5", "10.0.0.6")
+	reordered := addrs("10.0.0.5", "10.0.0.6")
 
 	if err := database.ReplacePCSCFAddresses(ctx, reordered); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses reordering: %s", err)
@@ -103,13 +95,13 @@ func TestPCSCFAddressesRejectedListLeavesStoredOne(t *testing.T) {
 	ctx := context.Background()
 	database := newPCSCFAddressesTestDatabase(t)
 
-	want := addrs(t, "10.0.0.5")
+	want := addrs("10.0.0.5")
 
 	if err := database.ReplacePCSCFAddresses(ctx, want); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
 	}
 
-	if err := database.ReplacePCSCFAddresses(ctx, addrs(t, "10.0.0.6", "10.0.0.6")); err == nil {
+	if err := database.ReplacePCSCFAddresses(ctx, addrs("10.0.0.6", "10.0.0.6")); err == nil {
 		t.Fatal("duplicate addresses accepted")
 	}
 
@@ -126,23 +118,31 @@ func TestPCSCFAddressesRejectedListLeavesStoredOne(t *testing.T) {
 func TestValidatePCSCFAddresses(t *testing.T) {
 	cases := []struct {
 		name      string
-		addresses []netip.Addr
+		addresses []string
 		valid     bool
 	}{
 		{"none", nil, true},
-		{"three of each family", addrs(t, "10.0.0.1", "10.0.0.2", "10.0.0.3", "2001:db8::1", "2001:db8::2", "2001:db8::3"), true},
-		{"four ipv4", addrs(t, "10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"), false},
-		{"four ipv6", addrs(t, "2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4"), false},
-		{"duplicate", addrs(t, "10.0.0.1", "10.0.0.1"), false},
-		{"unspecified", addrs(t, "0.0.0.0"), false},
-		{"loopback", addrs(t, "::1"), false},
-		{"multicast", addrs(t, "224.0.0.1"), false},
-		{"zone", addrs(t, "fe80::1%eth0"), false},
-		{"ipv4-mapped ipv6", addrs(t, "::ffff:10.0.0.1"), false},
-		{"ipv6 link-local", addrs(t, "fe80::1"), false},
-		{"ipv4 link-local", addrs(t, "169.254.0.1"), false},
-		{"limited broadcast", addrs(t, "255.255.255.255"), false},
-		{"invalid", []netip.Addr{{}}, false},
+		{"three of each family", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "2001:db8::1", "2001:db8::2", "2001:db8::3"), true},
+		{"four ipv4", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"), false},
+		{"four ipv6", addrs("2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4"), false},
+		{"duplicate", addrs("10.0.0.1", "10.0.0.1"), false},
+		{"unspecified", addrs("0.0.0.0"), false},
+		{"loopback", addrs("::1"), false},
+		{"multicast", addrs("224.0.0.1"), false},
+		{"zone", addrs("fe80::1%eth0"), false},
+		{"ipv4-mapped ipv6", addrs("::ffff:10.0.0.1"), false},
+		{"ipv6 link-local", addrs("fe80::1"), false},
+		{"ipv4 link-local", addrs("169.254.0.1"), false},
+		{"limited broadcast", addrs("255.255.255.255"), false},
+		{"empty", addrs(""), false},
+		{"non-canonical ipv6", addrs("2001:DB8::1"), false},
+		{"host name", addrs("pcscf.ims.mnc001.mcc001.3gppnetwork.org", "10.0.0.1"), true},
+		{"single label host name", addrs("pcscf"), true},
+		{"uppercase host name", addrs("PCSCF.example.org"), false},
+		{"host name with an underscore", addrs("p_cscf.example.org"), false},
+		{"duplicate host name", addrs("pcscf.example.org", "pcscf.example.org"), false},
+		{"six host names", addrs("a.example", "b.example", "c.example", "d.example", "e.example", "f.example"), true},
+		{"seven entries", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "2001:db8::1", "2001:db8::2", "2001:db8::3", "pcscf.example.org"), false},
 	}
 
 	for _, tc := range cases {
@@ -162,7 +162,7 @@ func TestIMSVoiceStatus(t *testing.T) {
 	status := func(addresses ...string) db.IMSVoiceStatus {
 		t.Helper()
 
-		if err := database.ReplacePCSCFAddresses(ctx, addrs(t, addresses...)); err != nil {
+		if err := database.ReplacePCSCFAddresses(ctx, addrs(addresses...)); err != nil {
 			t.Fatalf("ReplacePCSCFAddresses: %s", err)
 		}
 
@@ -193,6 +193,7 @@ func TestIMSVoiceStatus(t *testing.T) {
 		{nil, db.IMSVoiceNoPCSCF},
 		{[]string{"2001:db8::5"}, db.IMSVoiceIPFamilyMismatch},
 		{[]string{"2001:db8::5", "10.6.0.5"}, db.IMSVoiceEnabled},
+		{[]string{"pcscf.example.org"}, db.IMSVoiceEnabled},
 	}
 
 	for _, tc := range cases {
@@ -218,7 +219,7 @@ func TestIMSVoiceStatusIgnoresNonIMSDataNetworks(t *testing.T) {
 		t.Fatalf("CreateDataNetwork: %s", err)
 	}
 
-	if err := database.ReplacePCSCFAddresses(ctx, addrs(t, "10.6.0.5")); err != nil {
+	if err := database.ReplacePCSCFAddresses(ctx, addrs("10.6.0.5")); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
 	}
 

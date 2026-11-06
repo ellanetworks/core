@@ -59,9 +59,10 @@ type PeerStatus struct {
 }
 
 type peer struct {
-	id   string
-	cfg  *Peer
-	host string
+	id       string
+	cfg      *Peer
+	host     string
+	resolved []netip.Addr
 
 	lastHost  string
 	lastRealm string
@@ -130,7 +131,11 @@ func (p *peer) available() *Conn {
 }
 
 func (p *peer) matches(addr netip.Addr, kind Transport, host string) bool {
-	if p.cfg == nil || !slices.Contains(p.cfg.Transports, kind) || !slices.Contains(p.cfg.Addresses, addr.Unmap()) {
+	if p.cfg == nil || !slices.Contains(p.cfg.Transports, kind) {
+		return false
+	}
+
+	if addr = addr.Unmap(); !slices.Contains(p.cfg.Addresses, addr) && !slices.Contains(p.resolved, addr) {
 		return false
 	}
 
@@ -651,7 +656,7 @@ func (n *Node) dial(p *peer) *Conn {
 	p.dialing = true
 	n.mu.Unlock()
 
-	t, err := n.connect(p.cfg)
+	t, err := n.connect(p)
 	if err != nil {
 		n.mu.Lock()
 		p.lastError = err.Error()
@@ -695,8 +700,15 @@ func (n *Node) dial(p *peer) *Conn {
 	}
 }
 
-func (n *Node) connect(cfg *Peer) (transport, error) {
-	local, err := n.localAddresses(cfg.Addresses)
+func (n *Node) connect(p *peer) (transport, error) {
+	cfg := p.cfg
+
+	remote, err := n.remoteAddresses(p)
+	if err != nil {
+		return nil, err
+	}
+
+	local, err := n.localAddresses(remote)
 	if err != nil {
 		return nil, err
 	}
@@ -704,7 +716,7 @@ func (n *Node) connect(cfg *Peer) (transport, error) {
 	var errs []error
 
 	for _, kind := range cfg.Transports {
-		t, err := n.connectOver(kind, local, cfg.Addresses, cfg.Dial.Port)
+		t, err := n.connectOver(kind, local, remote, cfg.Dial.Port)
 		if err == nil {
 			return t, nil
 		}
@@ -713,6 +725,48 @@ func (n *Node) connect(cfg *Peer) (transport, error) {
 	}
 
 	return nil, errors.Join(errs...)
+}
+
+func (n *Node) remoteAddresses(p *peer) ([]netip.Addr, error) {
+	name := p.cfg.Name
+	if name == "" {
+		return p.cfg.Addresses, nil
+	}
+
+	ctx, cancel := context.WithTimeout(n.baseCtx, n.cfg.HandshakeTimeout)
+	defer cancel()
+
+	addrs, err := n.resolve(ctx, name)
+
+	n.mu.Lock()
+	if err == nil {
+		p.resolved = addrs
+	}
+	n.mu.Unlock()
+
+	return addrs, err
+}
+
+func (n *Node) resolve(ctx context.Context, name string) ([]netip.Addr, error) {
+	addrs, err := n.cfg.Resolver.LookupNetIP(ctx, "ip", name)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", name, err)
+	}
+
+	var out []netip.Addr
+
+	for _, a := range addrs {
+		a = a.Unmap()
+		if a.IsValid() && !a.IsUnspecified() && !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+
+	if len(out) == 0 {
+		return nil, fmt.Errorf("resolve %s: no address", name)
+	}
+
+	return out, nil
 }
 
 func (n *Node) connectOver(kind Transport, local, remote []netip.Addr, port uint16) (transport, error) {

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/netip"
 	"slices"
 	"strings"
 )
@@ -457,20 +456,9 @@ func (s *sending) redirectPeer(ctx context.Context, u URI, app Application) (*pe
 	}
 	n.mu.Unlock()
 
-	addrs, err := n.cfg.Resolver.LookupNetIP(ctx, "ip", u.Host)
+	addrs, err := n.resolve(ctx, u.Host)
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", u.Host, err)
-	}
-
-	addrs = slices.Clone(addrs)
-	for i, a := range addrs {
-		addrs[i] = a.Unmap()
-	}
-
-	addrs = slices.DeleteFunc(addrs, func(a netip.Addr) bool { return !a.IsValid() || a.IsUnspecified() })
-
-	if len(addrs) == 0 {
-		return nil, fmt.Errorf("resolve %s: no address", u.Host)
+		return nil, err
 	}
 
 	n.mu.Lock()

@@ -305,13 +305,8 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 	if pcscfAddrs, err := db.ListPCSCFAddresses(ctx); err != nil {
 		failure("pcscf_addresses", err)
 	} else {
-		addrs := make([]string, 0, len(pcscfAddrs))
-		for _, a := range pcscfAddrs {
-			addrs = append(addrs, a.String())
-		}
-
-		out["pcscf_addresses"] = addrs
-		sections["pcscf_addresses"] = sections["pcscf_addresses"].WithCount(len(addrs))
+		out["pcscf_addresses"] = pcscfAddrs
+		sections["pcscf_addresses"] = sections["pcscf_addresses"].WithCount(len(pcscfAddrs))
 	}
 
 	retention := map[string]any{}
