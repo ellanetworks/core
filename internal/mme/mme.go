@@ -56,10 +56,13 @@ type credentialProvider interface {
 
 // Concurrency model. A UE's state is touched by the eNB dispatch loop (serial per
 // SCTP association), the reconcile backstop, the status/detach API, and timer
-// callbacks. Three locks, acquired in this order and never reversed:
+// callbacks. Four locks, acquired in this order and never reversed:
 //
-//		DownlinkSender  →  MME.mu  →  UeContext.mu
+//		UeContext.connMu  →  DownlinkSender  →  MME.mu  →  UeContext.mu
 //
+//	  - UeContext.connMu serializes binding, superseding and handing over a UE's
+//	    S1-connection against the UE-level part of releasing one (user-plane
+//	    deactivation, idle timers, removal). It may be held across SMF calls.
 //	  - MME.mu guards the registry and lifecycle: the UEs/uesByTmsi/radios maps, the
 //	    MME-UE-S1AP-ID and M-TMSI allocators, each UE's S1-connection fields (conn,
 //	    MME/ENB-UE-S1AP-IDs, releasing), and the idle/paging/NAS-guard timers with

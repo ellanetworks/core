@@ -36,7 +36,7 @@ func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
 	ue.TransitionTo(ctx, mme.EMMDeregistered)
 	releaseDetachSessions(ctx, m, ue)
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASDetach)
 
 	return nasreply.Handled()
 }
@@ -82,7 +82,7 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		ueConn.SendDownlink(ctx, &eps.DetachAccept{})
 	}
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASDetach)
 
 	return nasreply.Handled()
 }
@@ -93,5 +93,5 @@ func releaseSignallingConnection(ctx context.Context, m *mme.MME, ue *mme.UeCont
 		return
 	}
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASNormalRelease)
 }

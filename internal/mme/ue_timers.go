@@ -19,6 +19,11 @@ func (m *MME) StartMobileReachable(ue *UeContext) {
 	defer m.mu.Unlock()
 
 	m.stopIdleTimersLocked(ue)
+
+	if ue.Connected() {
+		return
+	}
+
 	gen := ue.idleGen
 
 	ue.mobileReachableTimer.ArmOnce(m.mobileReachableTime, func() {
@@ -41,7 +46,7 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.idleGen != gen {
+	if ue.idleGen != gen || ue.Connected() {
 		return
 	}
 
@@ -63,9 +68,12 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	ctx, span := guardSpan(trace.SpanContext{}, "mme/implicit_detach_expire", "implicit detach", 0)
 	defer span.End()
 
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	m.mu.Lock()
 
-	if ue.idleGen != gen {
+	if ue.idleGen != gen || ue.Connected() {
 		m.mu.Unlock()
 		return
 	}

@@ -16,7 +16,7 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
 
-	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), mme.CauseNASNormalRelease)
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 	b, _ := complete.Marshal()
@@ -37,7 +37,7 @@ func TestUEContextReleaseCompleteCapturesLocation(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), mme.CauseNASNormalRelease)
 
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 	complete := &s1ap.UEContextReleaseComplete{
@@ -79,7 +79,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	parseUEContextReleaseCommand(t, cc.sent[0])
 
-	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASDetach)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), mme.CauseNASDetach)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("release not idempotent: %d commands sent", len(cc.sent))

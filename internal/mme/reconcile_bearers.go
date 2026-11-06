@@ -26,12 +26,14 @@ type RANBearers struct {
 	ReleaseUnknown bool
 	ReleaseFailed  bool
 	AfterCommit    bool
+	Conn           *UeConn
 }
 
 type RANBearerResult struct {
 	Applied  []uint8
 	Failed   []uint8
 	Released []uint8
+	Stale    bool
 
 	followUps []func(context.Context)
 }
@@ -54,6 +56,18 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 
 	if ue == nil {
 		return result
+	}
+
+	if want.Conn != nil {
+		ue.connMu.Lock()
+
+		if !m.connActive(ue, want.Conn) {
+			ue.connMu.Unlock()
+
+			result.Stale = true
+
+			return result
+		}
 	}
 
 	later := func(f func(context.Context)) { result.followUps = append(result.followUps, f) }
@@ -170,11 +184,22 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 		}
 	}
 
+	if want.Conn != nil {
+		ue.connMu.Unlock()
+	}
+
 	if !want.AfterCommit {
 		result.Complete(ctx)
 	}
 
 	return result
+}
+
+func (m *MME) connActive(ue *UeContext, c *UeConn) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return ue.Conn() == c
 }
 
 func boolRank(b bool) int {

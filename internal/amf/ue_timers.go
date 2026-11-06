@@ -27,9 +27,13 @@ const implicitDeregistrationTime = 2 * time.Minute
 
 // StartMobileReachable arms the mobile reachable timer when the UE moves to
 // CM-IDLE. A fresh idle period cancels any prior timer and its in-flight callback.
-func (a *AMF) StartMobileReachable(ue *UeContext) {
+func (a *AMF) StartMobileReachable(ue *UeContext, releasing *UeConn) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	if cur := ue.active.Load(); cur != nil && cur != releasing {
+		return
+	}
 
 	a.stopIdleTimersLocked(ue)
 	gen := ue.idleGen
@@ -63,7 +67,7 @@ func (a *AMF) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if ue.idleGen != gen {
+	if ue.idleGen != gen || ue.active.Load() != nil {
 		return
 	}
 
@@ -87,7 +91,7 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 
 	a.mu.Lock()
 
-	if ue.idleGen != gen {
+	if ue.idleGen != gen || ue.active.Load() != nil {
 		a.mu.Unlock()
 		return
 	}

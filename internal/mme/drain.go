@@ -149,7 +149,7 @@ func (m *MME) Offload(ctx context.Context, batch int) int {
 	released := 0
 
 	for _, ue := range m.offloadCandidates(batch) {
-		m.releaseUEContext(releaseCtx, ue, causeLoadBalancingTAURequired, (*MME).SendToRadioPaced)
+		m.releaseUEContext(releaseCtx, ue, ue.Conn(), causeLoadBalancingTAURequired, (*MME).SendToRadioPaced)
 
 		released++
 	}

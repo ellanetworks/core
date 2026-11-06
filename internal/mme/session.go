@@ -86,7 +86,7 @@ func (m *MME) DeregisterEmptyUE(ctx context.Context, ue *UeContext) {
 	}
 
 	ue.TransitionTo(ctx, EMMDeregistered)
-	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), CauseNASNormalRelease)
 }
 
 // DeactivatePDN completes p's teardown in the MME: an additional PDN or a
@@ -101,7 +101,7 @@ func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection
 
 	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseAllSessions(ctx, ue, cause)
-	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), CauseNASNormalRelease)
 }
 
 // ReleaseAllSessions releases every PDN connection's anchor session and clears

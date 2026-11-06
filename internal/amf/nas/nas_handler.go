@@ -49,8 +49,13 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		return nasreply.Silent(nasreply.ReasonTooShort)
 	}
 
-	if ue.UeContext() == nil {
-		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
+	amfUe := ue.UeContext()
+	if amfUe == nil {
+		if ue.Displaced() {
+			return nasreply.Silent(nasreply.ReasonNoContext)
+		}
+
+		resolved, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
 			// The first message could not be decoded to a resolvable identity. Classify the
 			// raw PDU so the finalizer answers the STATUS the spec mandates (§7.4 / §7.5.1)
@@ -72,7 +77,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			return dispositionForUnresolved(nasPdu)
 		}
 
-		if amfUe == nil {
+		if resolved == nil {
 			if isServiceRequest(nasPdu) {
 				rejectBareServiceRequest(ctx, ue, fgs.GMMCauseUEIdentityCannotBeDerived)
 
@@ -88,13 +93,15 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 				return dispositionForUnresolved(nasPdu)
 			}
 
-			amfUe = amf.NewUeContext()
+			resolved = amf.NewUeContext()
 		}
 
-		amfInstance.AttachUeConn(ctx, amfUe, ue)
+		amfInstance.AttachUeConn(ctx, resolved, ue)
+
+		amfUe = resolved
 	}
 
-	result, err := amf.DecodeNASMessage(ue.UeContext(), nasPdu)
+	result, err := amf.DecodeNASMessageOn(amfUe, ue, nasPdu)
 	if err != nil {
 		return amf.DispositionForDecodeError(err)
 	}
@@ -112,7 +119,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("nas.message_type", msgTypeName),
-			attrs.SUPI(ue.UeContext().Supi().String()),
+			attrs.SUPI(amfUe.Supi().String()),
 		),
 	)
 	defer span.End()
@@ -124,7 +131,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		logger.MessageType(msgTypeName),
 	)
 
-	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain)
+	return HandleGmmMessage(ctx, amfInstance, amfUe, result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain)
 }
 
 // dispositionForUnresolved classifies a fresh-connection NAS PDU that established or resolved

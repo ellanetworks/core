@@ -42,7 +42,8 @@ type SmContext struct {
 }
 
 type UeContext struct {
-	mu sync.Mutex
+	connMu sync.Mutex
+	mu     sync.Mutex
 
 	state        StateType
 	regStep      RegStep
@@ -200,10 +201,28 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
+func (a *AMF) servesUeLocked(ue *UeContext, ueConn *UeConn) bool {
+	if ueConn.ue.Load() != ue {
+		return false
+	}
+
+	cur := ue.active.Load()
+
+	return cur == nil || cur == ueConn
+}
+
+func (a *AMF) servesUe(ue *UeContext, ueConn *UeConn) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.servesUeLocked(ue, ueConn)
+}
+
 func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue.Store(ue)
+	ueConn.displaced.Store(false)
 	ueConn.bindSupi(ue.Supi())
 
 	var displaced *UeConn
@@ -212,6 +231,7 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 		if oldUeConn.ue.Load() == ue {
 			oldUeConn.Log(ctx).Info("Detached UeContext from previous UeConn")
 			oldUeConn.ue.Store(nil)
+			oldUeConn.displaced.Store(true)
 			displaced = oldUeConn
 		}
 	}
@@ -238,6 +258,9 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	if ueConn == nil {
 		return
 	}
+
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
 
 	a.mu.Lock()
 	displaced := a.attachUeConnLocked(ctx, ue, ueConn)

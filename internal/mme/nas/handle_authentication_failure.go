@@ -83,5 +83,5 @@ func rejectAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	logger.From(ctx, logger.MmeLog).Info("authentication rejected")
 	ueConn.SendDownlinkMessage(ctx, &eps.AuthenticationReject{})
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 }

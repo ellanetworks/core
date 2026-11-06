@@ -409,6 +409,9 @@ func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID
 }
 
 func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (source *UeConn, targetMMEID s1ap.MMEUES1APID, ok bool) {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

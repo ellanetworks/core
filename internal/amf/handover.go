@@ -428,6 +428,9 @@ func (a *AMF) FinishHandoverCommit(ctx context.Context, ue *UeContext, targetUe 
 		return false
 	}
 
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	a.mu.Lock()
 
 	if ue.handover == nil || ue.handover.state != hoCommitting {

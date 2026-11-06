@@ -177,7 +177,7 @@ func TestServiceRequestRestoresThePreservedVoiceBearer(t *testing.T) {
 	m.DedicatedBearerAccepted(t.Context(), ue, 6)
 	m.ReconcileBearersToRAN(t.Context(), ue, mme.RANBearers{Present: []mme.RANBearer{{Ebi: 6, EnbFTEID: models.FTEID{TEID: 0x77, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}}}})
 
-	m.ReleaseUEContext(t.Context(), ue, s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	m.ReleaseUEContext(t.Context(), ue, ue.Conn(), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
 	m.FreeUeConn(t.Context(), ue)
 
 	if ue.Connected() {

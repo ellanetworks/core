@@ -32,7 +32,7 @@ func (a *AMF) releaseToEPS(ctx context.Context, ue *UeContext, conn *UeConn, cau
 
 	ue.RetainForEPS(epsContextRetention)
 	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseNotTransferred))
-	a.StartMobileReachable(ue)
+	a.StartMobileReachable(ue, conn)
 
 	if conn == nil {
 		return
