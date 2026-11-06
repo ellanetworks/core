@@ -115,34 +115,24 @@ func verifyDSCPMarkingPcap(t *testing.T, path string, gnbN3 net.IP) {
 	src := gopacket.NewPacketSource(r, r.LinkType())
 	for pkt := range src.Packets() {
 		var (
-			tos    byte
-			dst    net.IP
-			srcIP  net.IP
-			isUDPv bool
-			isUDP6 bool
+			tos   byte
+			dst   net.IP
+			srcIP net.IP
+			udpIn bool
 		)
 
-		if l := pkt.Layer(layers.LayerTypeIPv4); l != nil {
-			ip4, ok := l.(*layers.IPv4)
-			if !ok {
-				continue
-			}
-
-			tos, dst, srcIP = ip4.TOS, ip4.DstIP, ip4.SrcIP
-			isUDPv = ip4.Protocol == layers.IPProtocolUDP
-		} else if l := pkt.Layer(layers.LayerTypeIPv6); l != nil {
-			ip6, ok := l.(*layers.IPv6)
-			if !ok {
-				continue
-			}
-
-			tos, dst, srcIP = ip6.TrafficClass, ip6.DstIP, ip6.SrcIP
-			isUDP6 = ip6.NextHeader == layers.IPProtocolUDP
-		} else {
+		switch outer := pkt.NetworkLayer().(type) {
+		case *layers.IPv4:
+			tos, dst, srcIP = outer.TOS, outer.DstIP, outer.SrcIP
+			udpIn = outer.Protocol == layers.IPProtocolUDP
+		case *layers.IPv6:
+			tos, dst, srcIP = outer.TrafficClass, outer.DstIP, outer.SrcIP
+			udpIn = outer.NextHeader == layers.IPProtocolUDP
+		default:
 			continue
 		}
 
-		if !isUDPv && !isUDP6 {
+		if !udpIn {
 			continue
 		}
 
