@@ -4,6 +4,7 @@
 package diameternode_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -144,6 +145,7 @@ func (s *fakeSMSC) connectedHost() string {
 type settingsSource struct {
 	mu       sync.Mutex
 	smsc     netip.AddrPort
+	smscName string
 	smscHost string
 	node     diameternode.NodeSettings
 	nodeErr  error
@@ -179,7 +181,8 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 		ID:      "smsc-1",
 		Role:    "smsc",
 		Host:    s.smscHost,
-		Address: s.smsc,
+		Address: cmp.Or(s.smscName, s.smsc.Addr().String()),
+		Port:    s.smsc.Port(),
 		Applications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
 			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
@@ -307,11 +310,28 @@ func TestNodeConnectsToSMSC(t *testing.T) {
 	}
 
 	peer, _ := smscPeer(link)
-	if peer.Host != smscHost || peer.Realm != smscRealm || peer.Address != smsc.addr || peer.Since.IsZero() {
+	if peer.Host != smscHost || peer.Realm != smscRealm || peer.Address != smsc.addr.Addr().String() || peer.Port != smsc.addr.Port() || peer.Since.IsZero() {
 		t.Fatalf("peer = %+v, want %s / %s at %s", peer, smscHost, smscRealm, smsc.addr)
 	}
 
 	waitFor(t, "SMSC to see Ella", func() bool { return smsc.connectedHost() == ellaHost })
+}
+
+func TestNodeConnectsToSMSCByHostName(t *testing.T) {
+	requireSCTP(t)
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.smscName = "localhost"
+	source.setSMSC(smsc.addr)
+
+	link, _ := startManager(t, source)
+
+	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
+
+	if peer, _ := smscPeer(link); peer.Address != "localhost" || peer.Port != smsc.addr.Port() {
+		t.Fatalf("peer = %+v, want localhost:%d", peer, smsc.addr.Port())
+	}
 }
 
 func TestNodeReportsAnSMSCThatAnswersAsAnotherHost(t *testing.T) {
@@ -803,7 +823,7 @@ func TestListenerAcceptsUnknownIMSPeersForCxAndRx(t *testing.T) {
 				t.Fatalf("negotiated applications = %v, want Cx and Rx", apps)
 			}
 
-			if st := imsPeer(link); st.Host != imsHost || st.Address.Addr() != loopback2 {
+			if st := imsPeer(link); st.Host != imsHost || st.Address != loopback2.String() {
 				t.Fatalf("IMS peer status = %+v", st)
 			}
 

@@ -34,6 +34,8 @@ export interface OperatorIMS {
 
 export const MAX_PCSCF_ADDRESSES_PER_FAMILY = 3;
 
+export const MAX_PCSCF_ADDRESSES = 2 * MAX_PCSCF_ADDRESSES_PER_FAMILY;
+
 export const DEFAULT_SMSC_PORT = 3868;
 
 export const MAX_SMSC_SERVICE_CENTRES = 16;

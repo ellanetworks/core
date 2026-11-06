@@ -182,14 +182,26 @@ func smscNodeFromParams(params SMSCNodeParams) (db.SMSCNode, string) {
 		return db.SMSCNode{}, "port must be between 1 and 65535"
 	}
 
-	addr, err := netip.ParseAddr(strings.TrimSpace(params.Address))
-	if err != nil || addr.Zone() != "" || addr.IsUnspecified() {
-		return db.SMSCNode{}, "address must be an IPv4 or IPv6 address"
+	address, ok := canonicalNodeAddress(params.Address)
+	if !ok {
+		return db.SMSCNode{}, "address must be an IPv4 or IPv6 address or a host name, for example smsc-0.smsc.svc.cluster.local"
 	}
 
-	node.Address = addr.Unmap().String()
+	node.Address = address
 
 	return node, ""
+}
+
+func canonicalNodeAddress(address string) (string, bool) {
+	address = strings.TrimSpace(address)
+
+	if addr, err := netip.ParseAddr(address); err == nil {
+		address = addr.Unmap().String()
+	} else {
+		address = strings.ToLower(address)
+	}
+
+	return address, db.IsCanonicalNodeAddress(address)
 }
 
 func smscSummary(s db.SMSC) string {

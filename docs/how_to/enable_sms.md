@@ -22,7 +22,7 @@ Click **Add SMSC** and configure the following settings:
 
 - **Name**: a name for your SMSC, e.g. `main`.
 - **Numbers**: the E.164 service centre addresses your SMSC serves, e.g. `+15550000000`.
-- **Nodes**: the **Address** of your SMSC's Diameter endpoint. If your SMSC has several Diameter nodes, click **Add Node** for each.
+- **Nodes**: the **Address** of your SMSC's Diameter endpoint, an IP address or a host name. If your SMSC has several Diameter nodes, click **Add Node** for each, with its own address.
 
 Click **Add**.
 

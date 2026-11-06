@@ -168,6 +168,7 @@ func TestSMSCs(t *testing.T) {
 			Nodes: []SMSCNodeParams{
 				{DiameterIdentity: " smsc-a.example.org ", Address: "2001:DB8:0::10", Port: 3869},
 				{DiameterIdentity: "smsc-a2.example.org", Address: "2001:db8::11"},
+				{DiameterIdentity: "smsc-a3.example.org", Address: " SMSC-0.smsc.ella.svc.cluster.local "},
 			},
 		})
 		if err != nil || code != http.StatusCreated {
@@ -177,6 +178,7 @@ func TestSMSCs(t *testing.T) {
 		wantNodes := []SMSCNodeResultItem{
 			{DiameterIdentity: "smsc-a.example.org", Address: "2001:db8::10", Port: 3869},
 			{DiameterIdentity: "smsc-a2.example.org", Address: "2001:db8::11", Port: 3868},
+			{DiameterIdentity: "smsc-a3.example.org", Address: "smsc-0.smsc.ella.svc.cluster.local", Port: 3868},
 		}
 
 		if created := resp.Result; created.Name != "a" || !slices.Equal(created.Nodes, wantNodes) {
@@ -208,7 +210,8 @@ func TestSMSCs(t *testing.T) {
 		cases := map[string]*SMSCParams{
 			"no name":                  oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 0, "+15550000002"),
 			"dot dot name":             named("..", oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 0, "+15550000002")),
-			"hostname":                 named("x", oneNode("smsc-x.example.org", "smsc.example.org", 0, "+15550000002")),
+			"bad hostname":             named("x", oneNode("smsc-x.example.org", "smsc_x.example.org", 0, "+15550000002")),
+			"numeric hostname":         named("x", oneNode("smsc-x.example.org", "192.0.2", 0, "+15550000002")),
 			"unspecified":              named("x", oneNode("smsc-0-0-0-0.example.org", "0.0.0.0", 0, "+15550000002")),
 			"bad port":                 named("x", oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 70000, "+15550000002")),
 			"no service centre":        named("x", oneNode("smsc-192-0-2-10.example.org", "192.0.2.10", 0)),

@@ -38,6 +38,13 @@ export function isHostAddress(value: string): boolean {
   return value !== "0.0.0.0" && !/^[0:]+$/.test(value);
 }
 
+const hostNameRegex =
+  /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
+
+export function isHostName(value: string): boolean {
+  return hostNameRegex.test(value) && !/(^|\.)\d+$/.test(value);
+}
+
 export const ipRegex = new RegExp(
   `(${ipv4Regex.source})|(${ipv6Regex.source})`,
 );
