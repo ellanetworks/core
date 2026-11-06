@@ -17,11 +17,8 @@ func TestRAResponderConcurrentRegisterUnregister(t *testing.T) {
 
 	ctx := func() *IPv6SessionContext {
 		return &IPv6SessionContext{
-			DownlinkTEID: 0x1234,
-			GnbN3Addr:    netip.MustParseAddr("10.0.0.1"),
-			Prefix:       netip.MustParsePrefix("2001:db8:1::/64"),
-			MTU:          1400,
-			QFI:          9,
+			Prefix: netip.MustParsePrefix("2001:db8:1::/64"),
+			MTU:    1400,
 		}
 	}
 
@@ -47,11 +44,8 @@ func TestRAResponderRegisterUnregister(t *testing.T) {
 	}
 
 	sessionCtx := &IPv6SessionContext{
-		DownlinkTEID: 0x1234,
-		GnbN3Addr:    netip.MustParseAddr("10.0.0.1"),
-		Prefix:       netip.MustParsePrefix("2001:db8:1::/64"),
-		MTU:          1400,
-		QFI:          9,
+		Prefix: netip.MustParsePrefix("2001:db8:1::/64"),
+		MTU:    1400,
 	}
 
 	r.RegisterSession(0xBEEF, sessionCtx)
@@ -61,11 +55,8 @@ func TestRAResponderRegisterUnregister(t *testing.T) {
 	}
 
 	replacement := &IPv6SessionContext{
-		DownlinkTEID: 0x5678,
-		GnbN3Addr:    netip.MustParseAddr("10.0.0.2"),
-		Prefix:       netip.MustParsePrefix("2001:db8:2::/64"),
-		MTU:          1400,
-		QFI:          9,
+		Prefix: netip.MustParsePrefix("2001:db8:2::/64"),
+		MTU:    1400,
 	}
 
 	r.RegisterSession(0xBEEF, replacement)

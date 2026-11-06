@@ -211,7 +211,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	// Start the RA responder for IPv6 prefix delegation (RS → RA via veth).
 	if n3IPv4.IsValid() || n3IPv6.IsValid() {
-		raResp, err := NewRAResponder(bpfObjects, n3IPv4, n3IPv6, n3Iface.Index)
+		raResp, err := NewRAResponder(bpfObjects, n3Iface.Index)
 		if err != nil {
 			logger.UpfLog.Warn("failed to create RA responder, IPv6 RS/RA will be unavailable", zap.Error(err))
 		} else {
