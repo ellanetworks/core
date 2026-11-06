@@ -4,7 +4,6 @@
 package diameternode_test
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -145,7 +144,6 @@ func (s *fakeSMSC) connectedHost() string {
 type settingsSource struct {
 	mu       sync.Mutex
 	smsc     netip.AddrPort
-	smscName string
 	smscHost string
 	node     diameternode.NodeSettings
 	nodeErr  error
@@ -181,7 +179,7 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 		ID:      "smsc-1",
 		Role:    "smsc",
 		Host:    s.smscHost,
-		Address: cmp.Or(s.smscName, s.smsc.Addr().String()),
+		Address: s.smsc.Addr().String(),
 		Port:    s.smsc.Port(),
 		Applications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
@@ -315,23 +313,6 @@ func TestNodeConnectsToSMSC(t *testing.T) {
 	}
 
 	waitFor(t, "SMSC to see Ella", func() bool { return smsc.connectedHost() == ellaHost })
-}
-
-func TestNodeConnectsToSMSCByHostName(t *testing.T) {
-	requireSCTP(t)
-
-	smsc := startFakeSMSC(t, 0)
-	source := newSettingsSource()
-	source.smscName = "localhost"
-	source.setSMSC(smsc.addr)
-
-	link, _ := startManager(t, source)
-
-	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
-
-	if peer, _ := smscPeer(link); peer.Address != "localhost" || peer.Port != smsc.addr.Port() {
-		t.Fatalf("peer = %+v, want localhost:%d", peer, smsc.addr.Port())
-	}
 }
 
 func TestNodeReportsAnSMSCThatAnswersAsAnotherHost(t *testing.T) {
