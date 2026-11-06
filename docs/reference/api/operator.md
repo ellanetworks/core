@@ -61,7 +61,7 @@ None
 }
 ```
 
-`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the pools of the `ims` data network; a host name counts as sharing any IP version). `no_ims_data_network` means there is no IMS data network named `ims` (the IMS well-known APN).
+`ims.voiceStatus` is `enabled`, `no_pcscf`, `no_ims_data_network`, or `ip_family_mismatch` (no P-CSCF address shares an IP version with the pools of the `ims` data network). `no_ims_data_network` means there is no IMS data network named `ims` (the IMS well-known APN).
 
 ## Update the Operator ID
 
@@ -376,7 +376,7 @@ This path creates an SMSC.
 - `serviceCentres` (array of strings): The E.164 service centre numbers the SMSC serves, for example `+15550000000`.
 - `nodes` (array of objects): The SMSC's Diameter nodes.
     - `diameterIdentity` (optional string): The node's Diameter identity (Origin-Host).
-    - `address` (string): The IPv4 or IPv6 address or the host name of the node's Diameter endpoint. Ella Core resolves a host name with the system resolver each time it connects to the node, and connects to all its addresses as one node. Give each node its own host name.
+    - `address` (string): The IPv4 or IPv6 address or the host name of the node's Diameter endpoint.
     - `port` (optional integer): The SCTP port of the node's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
 
 ### Sample Request
@@ -475,7 +475,7 @@ This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on IM
 
 ### Parameters
 
-- `pcscfAddresses` (array of strings): Unicast IPv4 and IPv6 addresses or host names of the IMS's P-CSCFs, in preference order. At most 6 entries, with at most 3 IP addresses of each IP version, without duplicates. Ella Core resolves host names with the system resolver each time a UE connects to an IMS data network, and gives the UE their addresses in place of the host name. A host name that does not resolve is left out. UEs receive at most 3 addresses of each IP version, of the IP version they request. An empty list clears it.
+- `pcscfAddresses` (array of strings): Unicast IPv4 and IPv6 addresses or host names of the IMS, in preference order. At most 6, with at most 3 addresses of each IP version, without duplicates. UEs receive the addresses of the IP version they request. An empty list clears it.
 
 ### Sample Request
 
