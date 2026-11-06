@@ -163,7 +163,7 @@ func (m *Manager) runTerm(t *leaderTerm) {
 
 func (m *Manager) barrierForTerm(ctx context.Context) bool {
 	for {
-		err := m.raft.Barrier(0).Error()
+		err := awaitFuture(ctx, m.raft.Barrier(0))
 		if err == nil {
 			return true
 		}
@@ -247,5 +247,18 @@ func (m *Manager) WaitForLeaderBarrier(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+}
+
+func awaitFuture(ctx context.Context, f raft.Future) error {
+	done := make(chan error, 1)
+
+	go func() { done <- f.Error() }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
