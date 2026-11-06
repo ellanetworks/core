@@ -6,6 +6,7 @@ package raft
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -33,7 +34,15 @@ func countingApplier(t *testing.T) (*testApplier, *atomic.Int32) {
 func appliedState(t *testing.T, a *testApplier) AppliedState {
 	t.Helper()
 
-	state, err := readAppliedState(context.Background(), a.PlainDB())
+	var state AppliedState
+
+	err := a.withDB(func(db *sql.DB) error {
+		var err error
+
+		state, err = readAppliedState(context.Background(), db)
+
+		return err
+	})
 	if err != nil {
 		t.Fatalf("read fsm_state: %v", err)
 	}
@@ -45,7 +54,11 @@ func rowCount(t *testing.T, a *testApplier) int {
 	t.Helper()
 
 	var n int
-	if err := a.PlainDB().QueryRowContext(context.Background(), "SELECT COUNT(*) FROM t").Scan(&n); err != nil {
+
+	err := a.withDB(func(db *sql.DB) error {
+		return db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM t").Scan(&n)
+	})
+	if err != nil {
 		t.Fatalf("count rows: %v", err)
 	}
 

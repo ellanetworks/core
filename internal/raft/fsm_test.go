@@ -60,15 +60,8 @@ func newTestApplier(t *testing.T) *testApplier {
 }
 
 func (a *testApplier) open() error {
-	db, err := sql.Open("sqlite3", a.dbPath)
+	db, err := openTestDB(a.dbPath)
 	if err != nil {
-		return err
-	}
-
-	db.SetMaxOpenConns(1)
-
-	if _, err := db.ExecContext(context.Background(), "PRAGMA journal_mode = WAL;"); err != nil {
-		_ = db.Close()
 		return err
 	}
 
@@ -77,6 +70,22 @@ func (a *testApplier) open() error {
 	a.dbMu.Unlock()
 
 	return nil
+}
+
+func openTestDB(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(1)
+
+	if _, err := db.ExecContext(context.Background(), "PRAGMA journal_mode = WAL;"); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return db, nil
 }
 
 func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command, _, _ uint64) (any, error) {
@@ -107,15 +116,28 @@ func (a *testApplier) PlainDB() *sql.DB {
 	return a.db
 }
 
+func (a *testApplier) withDB(fn func(*sql.DB) error) error {
+	a.dbMu.RLock()
+	defer a.dbMu.RUnlock()
+
+	return fn(a.db)
+}
+
 func (a *testApplier) Path() string { return a.dbPath }
 
 func (a *testApplier) Reopen(_ context.Context) error {
-	if a.db != nil {
-		_ = a.db.Close()
+	db, err := openTestDB(a.dbPath)
+	if err != nil {
+		return err
 	}
 
-	if err := a.open(); err != nil {
-		return err
+	a.dbMu.Lock()
+	old := a.db
+	a.db = db
+	a.dbMu.Unlock()
+
+	if old != nil {
+		_ = old.Close()
 	}
 
 	if a.reopenHook != nil {
