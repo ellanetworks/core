@@ -5,6 +5,7 @@ package diameter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -57,11 +58,12 @@ func (l *sctpListener) accept() (transport, error) {
 }
 
 type sctpTransport struct {
-	sc        *sctp.SCTPConn
-	remote    netip.Addr
-	port      uint16
-	unordered atomic.Bool
-	closed    atomic.Bool
+	sc           *sctp.SCTPConn
+	remote       netip.Addr
+	port         uint16
+	unordered    atomic.Bool
+	closed       atomic.Bool
+	writeTimeout atomic.Int64
 }
 
 func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
@@ -130,7 +132,10 @@ func (t *sctpTransport) localAddrs() []netip.Addr {
 
 func (t *sctpTransport) setUnordered() { t.unordered.Store(true) }
 
-func (t *sctpTransport) setWriteTimeout(time.Duration) {}
+func (t *sctpTransport) setWriteTimeout(d time.Duration) {
+	t.writeTimeout.Store(int64(d))
+	t.sc.SetWriteTimeout(d)
+}
 
 func (t *sctpTransport) readMessage(buf []byte) (int, error) {
 	for {
@@ -159,7 +164,19 @@ func (t *sctpTransport) writeMessage(b []byte) error {
 		info.Flags = sctp.SCTPUnordered
 	}
 
-	_, err := t.sc.WriteMsg(b, &info)
+	ctx := context.Background()
+
+	if d := time.Duration(t.writeTimeout.Load()); d > 0 {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, d)
+		defer cancel()
+	}
+
+	_, err := t.sc.WriteMsgWait(ctx, b, &info)
+	if errors.Is(err, context.DeadlineExceeded) {
+		_ = t.abort()
+	}
 
 	return err
 }

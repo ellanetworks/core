@@ -447,6 +447,55 @@ func TestWriter_WriteMsgWaitEndsWhenWedgedPeerFailsAssociation(t *testing.T) {
 	}
 }
 
+func TestWriter_SetWriteTimeoutOverridesTheDefault(t *testing.T) {
+	original := writeTimeout
+	writeTimeout = 250 * time.Millisecond
+
+	defer func() { writeTimeout = original }()
+
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
+
+	serverConn.SetWriteTimeout(10 * time.Second)
+
+	_ = client.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
+	})
+	_ = serverConn.controlFd(func(fd int) error {
+		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	payload := make([]byte, 1024)
+
+	var err error
+
+	for range writeQueueDepth * 8 {
+		_, err = serverConn.WriteMsgWait(ctx, payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0})
+		if err != nil {
+			break
+		}
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WriteMsgWait error = %v, want the context's", err)
+	}
+
+	select {
+	case <-disconnected:
+		t.Fatal("association failed before the per-conn write timeout")
+	default:
+	}
+}
+
 func TestWriter_PacedShareLeavesWriteMsgItsFullQueue(t *testing.T) {
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
