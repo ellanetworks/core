@@ -171,6 +171,41 @@ func TestFarInfoFromMerge_NoUpdate(t *testing.T) {
 	}
 }
 
+// TS 29.244 §8.2.12
+func TestFarInfoFromModel_TransportLevelMarking(t *testing.T) {
+	far := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 100, "192.168.0.10", "")
+	far.ForwardingParameters.TransportLevelMarking = 0xB8FC
+
+	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
+	if info.TransportLevelMarking != 0xB8FC {
+		t.Errorf("TransportLevelMarking: got %#04x, want 0xB8FC", info.TransportLevelMarking)
+	}
+}
+
+// TS 29.244 §5.4.13
+func TestFarInfoFromMerge_UpdatesTransportLevelMarking(t *testing.T) {
+	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
+	existingFAR.ForwardingParameters.TransportLevelMarking = 0xA0FC
+
+	existing := farInfoFromMerge(existingFAR, localIPv4, localIPv6, ebpf.FarInfo{})
+	if existing.TransportLevelMarking != 0xA0FC {
+		t.Fatalf("TransportLevelMarking after establish: got %#04x, want 0xA0FC", existing.TransportLevelMarking)
+	}
+
+	updateFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
+	updateFAR.ForwardingParameters.TransportLevelMarking = 0xB8FC
+
+	merged := farInfoFromMerge(updateFAR, localIPv4, localIPv6, existing)
+	if merged.TransportLevelMarking != 0xB8FC {
+		t.Errorf("TransportLevelMarking after modify: got %#04x, want 0xB8FC", merged.TransportLevelMarking)
+	}
+
+	preserved := farInfoFromMerge(models.FAR{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}, localIPv4, localIPv6, merged)
+	if preserved.TransportLevelMarking != 0xB8FC {
+		t.Errorf("TransportLevelMarking without forwarding parameters: got %#04x, want it preserved", preserved.TransportLevelMarking)
+	}
+}
+
 func TestFarInfoFromMerge_S1UKeepsNoPSC(t *testing.T) {
 	establishFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
 	establishFAR.ForwardingParameters.OuterHeaderCreation.S1U = true

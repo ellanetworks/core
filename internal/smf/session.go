@@ -155,6 +155,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		Access:      req.Access,
 		QFI:         req.Policy.QosData.QFI,
 		FiveQI:      uint8(req.Policy.QosData.Var5qi),
+		Arp:         arpValue(req.Policy.QosData.Arp),
 		AMBR:        req.Policy.Ambr,
 		RatingGroup: req.Policy.RatingGroup,
 	}}
@@ -404,7 +405,8 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 
 	if commit != nil {
 		next.TargetUplink = false
-		next.QFI, next.AMBR, next.RatingGroup = sc.PolicyData.QosData.QFI, sc.PolicyData.Ambr, sc.PolicyData.RatingGroup
+		next.QFI, next.FiveQI, next.Arp = sc.PolicyData.QosData.QFI, uint8(sc.PolicyData.QosData.Var5qi), arpValue(sc.PolicyData.QosData.Arp)
+		next.AMBR, next.RatingGroup = sc.PolicyData.Ambr, sc.PolicyData.RatingGroup
 		flows = sc.movingFlowsLocked(access, true)
 		next.Bearers = flows.legs
 	}

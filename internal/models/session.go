@@ -173,8 +173,9 @@ type ApplyAction struct {
 
 // ForwardingParameters describes how to forward matched packets.
 type ForwardingParameters struct {
-	DestinationInterface Interface
-	OuterHeaderCreation  *OuterHeaderCreation
+	DestinationInterface  Interface
+	OuterHeaderCreation   *OuterHeaderCreation
+	TransportLevelMarking uint16
 }
 
 // OuterHeaderCreation describes GTP-U encapsulation parameters.
