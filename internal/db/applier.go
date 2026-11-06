@@ -177,36 +177,31 @@ func (db *Database) PlainDB() *sql.DB {
 	return db.conn().PlainDB()
 }
 
-// Reopen closes the current database connection, opens a fresh one, runs
-// migrations, and re-prepares all sqlair statements. Reopen is only invoked
-// from FSM.Restore which holds the FSM write lock, so concurrent applies and
-// snapshots are already serialised; the atomic swap of db.connPtr protects
-// ad-hoc read sites (API handlers) from observing a torn pointer.
+// Reopen migrates the database file FSM.Restore swapped in, retires the
+// pool's connections so later checkouts open that file, and re-prepares all
+// sqlair statements. Reopen is only invoked from FSM.Restore which holds the
+// FSM write lock, so concurrent applies and snapshots are already
+// serialised; the handle is never closed, so ad-hoc read sites (API
+// handlers) never observe a closed database.
 func (db *Database) Reopen(ctx context.Context) error {
-	old := db.conn()
-
 	sqlConn, err := openSQLiteConnection(ctx, db.Path())
 	if err != nil {
 		return fmt.Errorf("reopen database: %w", err)
 	}
 
+	defer func() { _ = sqlConn.Close() }()
+
 	maxVersion := db.migrationCeiling
 
 	if err := runMigrations(ctx, sqlConn, maxVersion); err != nil {
-		_ = sqlConn.Close()
 		return fmt.Errorf("migrations after reopen: %w", err)
 	}
 
 	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
-		_ = sqlConn.Close()
 		return fmt.Errorf("ensure fsm_state after reopen: %w", err)
 	}
 
-	db.connPtr.Store(sqlair.NewDB(sqlConn))
-
-	if old != nil {
-		_ = old.PlainDB().Close()
-	}
+	db.connector.retireConnections()
 
 	if err := db.refreshAppliedSchema(ctx); err != nil {
 		return fmt.Errorf("refresh applied-schema cache after reopen: %w", err)

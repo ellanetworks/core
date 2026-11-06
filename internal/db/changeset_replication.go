@@ -232,9 +232,9 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 	defer func() { _ = conn.Close() }()
 
 	if err := conn.Raw(func(raw any) error {
-		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
-		if !ok {
-			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
+		sqliteConn, err := rawSQLiteConn(raw)
+		if err != nil {
+			return err
 		}
 
 		// PRAGMA must be set outside any transaction.
@@ -298,9 +298,9 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 	var schema int
 
 	err = conn.Raw(func(raw any) error {
-		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
-		if !ok {
-			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
+		sqliteConn, err := rawSQLiteConn(raw)
+		if err != nil {
+			return err
 		}
 
 		if _, err := sqliteConn.ExecContext(ctx, "BEGIN IMMEDIATE", nil); err != nil {
@@ -385,9 +385,9 @@ func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn 
 	var result any
 
 	if err := conn.Raw(func(raw any) error {
-		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
-		if !ok {
-			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
+		sqliteConn, err := rawSQLiteConn(raw)
+		if err != nil {
+			return err
 		}
 
 		dconn, ok := raw.(driver.Conn)

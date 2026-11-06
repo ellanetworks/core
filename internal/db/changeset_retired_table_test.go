@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-
-	"github.com/mattn/go-sqlite3"
 )
 
 func captureChangesetOverTables(t *testing.T, database *Database, tables []string, stmts []string) []byte {
@@ -28,9 +26,9 @@ func captureChangesetOverTables(t *testing.T, database *Database, tables []strin
 	var changeset []byte
 
 	err = conn.Raw(func(raw any) error {
-		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
-		if !ok {
-			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
+		sqliteConn, err := rawSQLiteConn(raw)
+		if err != nil {
+			return err
 		}
 
 		if _, err := sqliteConn.ExecContext(ctx, "BEGIN IMMEDIATE", nil); err != nil {
@@ -163,9 +161,9 @@ func TestApplyChangeset_UnfilteredRetiredTableWouldConflict(t *testing.T) {
 	defer func() { _ = conn.Close() }()
 
 	err = conn.Raw(func(raw any) error {
-		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
-		if !ok {
-			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
+		sqliteConn, err := rawSQLiteConn(raw)
+		if err != nil {
+			return err
 		}
 
 		return sqliteConn.ApplyChangeset(ctx, changeset)
