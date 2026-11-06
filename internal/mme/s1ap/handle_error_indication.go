@@ -345,14 +345,15 @@ func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 		return
 	}
 
-	if ueConn := ue.Conn(); ueConn == nil || ueConn.Conn() != radio.Conn {
+	ueConn := ue.Conn()
+	if ueConn == nil || ueConn.Conn() != radio.Conn {
 		logger.From(ctx, logger.MmeLog).Warn("Error Indication for an MME-UE-S1AP-ID on a different S1 association",
 			logger.MMEUeS1apID(uint32(*msg.MMEUES1APID)))
 
 		return
 	}
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 }
 
 func reportsErroneousAPIDs(cause *s1ap.Cause) bool {

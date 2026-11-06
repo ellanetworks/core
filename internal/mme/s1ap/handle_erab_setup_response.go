@@ -41,7 +41,15 @@ func HandleERABSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		Present:        setupBearers(ctx, ueConn.MMEUES1APID, bearerSetupBearers(msg.ERABSetup)),
 		Rejected:       failedERABIDs(msg.ERABFailedToSetup),
 		ReleaseUnknown: true,
+		Conn:           ueConn,
 	})
+
+	if result.Stale {
+		logger.From(ctx, logger.MmeLog).Debug("ignoring an E-RAB Setup Response for a superseded or released S1 connection",
+			logger.MMEUeS1apID(uint32(ueConn.MMEUES1APID)))
+
+		return
+	}
 
 	logger.From(ctx, logger.MmeLog).Info("additional PDN connection radio legs reconciled",
 		logger.SUPI(ue.Supi().String()),

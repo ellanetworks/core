@@ -88,7 +88,7 @@ func TestConnIndexFollowsConnectionLifecycle(t *testing.T) {
 		t.Fatal("ReleaseConnsWithAPIDs removed a UE on another eNB-UE-S1AP-ID")
 	}
 
-	if _, ok := m.CommitPathSwitch(other, target, 9, [32]byte{}, 0); !ok {
+	if _, ok := m.CommitPathSwitch(other, other.Conn(), target, 9, [32]byte{}, 0); !ok {
 		t.Fatal("CommitPathSwitch did not commit")
 	}
 

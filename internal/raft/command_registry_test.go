@@ -17,6 +17,7 @@ var pinnedCommandTypes = map[CommandType]string{
 	200: "PutCellPosition",
 	201: "DeleteCellPosition",
 	220: "MigrateShared",
+	230: "ChangesetBatch",
 }
 
 const commandTypeRule = `A CommandType was added, retired or renumbered.

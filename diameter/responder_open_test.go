@@ -32,8 +32,8 @@ type pausingTransport struct {
 	once sync.Once
 }
 
-func (t *pausingTransport) writeMessage(b []byte) error {
-	err := t.transport.writeMessage(b)
+func (t *pausingTransport) writeMessage(ctx context.Context, b []byte) error {
+	err := t.transport.writeMessage(ctx, b)
 
 	t.once.Do(func() {
 		close(t.l.written)

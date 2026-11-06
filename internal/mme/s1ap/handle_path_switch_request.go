@@ -71,9 +71,16 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	ue.TouchLastSeen()
 
 	// Nil in ECM-IDLE, and a concurrent detach can nil it at any point.
-	if c := ue.Conn(); c != nil {
-		ctx = logger.Into(ctx, c.LogFields()...)
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request for a UE without an S1 connection",
+			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)))
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causeUnknownMMEUES1APID)
+
+		return
 	}
+
+	ctx = logger.Into(ctx, ueConn.LogFields()...)
 
 	if !ue.Secured() || !ue.HasKASME() {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request for a UE without a security context")
@@ -115,7 +122,16 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		Authoritative: true,
 		ReleaseFailed: true,
 		AfterCommit:   true,
+		Conn:          ueConn,
 	})
+
+	if result.Stale {
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released before the user-plane switch",
+			logger.MMEUeS1apID(uint32(mmeID)))
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
+
+		return
+	}
 
 	released := releasedERABItems(append(result.Failed, undecodable...))
 
@@ -132,19 +148,11 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 
 	replayCaps := pathSwitchSecurityCapabilities(ctx, ue, req.UESecurityCapabilities)
 
-	ncc, ok := m.CommitPathSwitch(ue, radio.Conn, req.ENBUES1APID, newNH, curNCC)
+	ncc, ok := m.CommitPathSwitch(ue, ueConn, radio.Conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released during the user-plane switch",
 			logger.MMEUeS1apID(uint32(mmeID)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
-
-		return
-	}
-
-	ueConn := ue.Conn()
-	if ueConn == nil {
-		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released immediately after the path switch",
-			logger.MMEUeS1apID(uint32(mmeID)))
 
 		return
 	}

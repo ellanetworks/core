@@ -181,7 +181,7 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
 	ueConn.SendDownlink(ctx, reject)
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 }
 
 // handleTrackingAreaUpdateComplete finalises a GUTI reallocation; for a no-active
@@ -212,7 +212,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 			return nasreply.Handled()
 		}
 
-		m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
+		m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASNormalRelease)
 	}
 
 	return nasreply.Handled()

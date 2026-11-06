@@ -208,7 +208,7 @@ func TestTCPWritersDoNotInterleave(t *testing.T) {
 		wg.Go(func() {
 			for i := range each {
 				b := marshalled(t, appRequest(uint32(w), uint32(i), "smsc.example.org", OctetString(AVPUserName, 0, 0, make([]byte, 4096*(w+1)))))
-				if err := tr.writeMessage(b); err != nil {
+				if err := tr.writeMessage(context.Background(), b); err != nil {
 					t.Errorf("write: %v", err)
 					return
 				}
@@ -248,7 +248,7 @@ func TestTCPCloseSendsFINAfterQueuedMessages(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	want := marshalled(t, appRequest(1, 1, "ella.example.org"))
-	if err := tr.writeMessage(want); err != nil {
+	if err := tr.writeMessage(context.Background(), want); err != nil {
 		t.Fatal(err)
 	}
 
@@ -278,7 +278,7 @@ func TestTCPCloseSendsFINAfterQueuedMessages(t *testing.T) {
 		t.Fatal("close did not finish once the peer closed")
 	}
 
-	if err := tr.writeMessage(want); !errors.Is(err, net.ErrClosed) {
+	if err := tr.writeMessage(context.Background(), want); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("write after close = %v", err)
 	}
 
@@ -346,14 +346,14 @@ func TestTCPStalledPeerAbortsAfterWriteTimeout(t *testing.T) {
 	var err error
 
 	for err == nil && time.Now().Before(deadline) {
-		err = tr.writeMessage(b)
+		err = tr.writeMessage(context.Background(), b)
 	}
 
 	if !errors.Is(err, os.ErrDeadlineExceeded) {
 		t.Fatalf("write to a stalled peer = %v", err)
 	}
 
-	if err := tr.writeMessage(b); !errors.Is(err, net.ErrClosed) {
+	if err := tr.writeMessage(context.Background(), b); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("write after the timeout = %v", err)
 	}
 }

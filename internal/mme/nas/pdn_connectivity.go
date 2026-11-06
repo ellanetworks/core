@@ -170,7 +170,18 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	p = m.FillBearer(ue, p, apn, bearer)
+	filled := m.FillBearer(ue, p, apn, bearer)
+	if filled == nil {
+		logger.From(ctx, logger.MmeLog).Info("PDN connectivity abandoned: the UE context was released during session setup", zap.String("apn", apn))
+
+		if err := m.Session.ReleaseEPSSession(ctx, bearer.Ref, models.ReleaseFor(models.ReleaseEstablishmentFailure)); err != nil {
+			logger.From(ctx, logger.MmeLog).Warn("failed to release the session of an abandoned PDN connection", zap.String("apn", apn), zap.Error(err))
+		}
+
+		return nasreply.Handled()
+	}
+
+	p = filled
 
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {

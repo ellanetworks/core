@@ -162,7 +162,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 		}
 
 		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index, l.Term)
-		if cmd.Type == CmdChangeset {
+		if cmd.Type == CmdChangeset || cmd.Type == CmdChangesetBatch {
 			ObserveChangesetBytes(len(cmd.Payload))
 		}
 

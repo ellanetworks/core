@@ -39,12 +39,11 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 				return nasreply.Silent(nasreply.ReasonNoContext)
 			}
 
-			ueConn := resolved.Conn()
-			if ueConn == nil {
+			if resolved.Conn() != conn {
 				return nasreply.Silent(nasreply.ReasonNoContext)
 			}
 
-			return HandleEmmMessage(ctx, m, resolved, ueConn, plain, true)
+			return HandleEmmMessage(ctx, m, resolved, conn, plain, true)
 		default:
 			return nasreply.Silent(nasreply.ReasonNoContext)
 		}
@@ -59,10 +58,11 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		ue = resolved
 	}
 
-	ueConn := ue.Conn()
-	if ueConn == nil {
+	if ue.Conn() != conn {
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
+
+	ueConn := conn
 
 	ctx = logger.Into(ctx, ueConn.LogFields()...)
 	attrs.IdentifyUE(ctx, ue.Supi().String())
@@ -78,7 +78,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	result, err := mme.DecodeNASMessage(ue, pdu)
+	result, err := mme.DecodeNASMessageOn(ue, ueConn, pdu)
 	if err != nil {
 		return mme.DispositionForDecodeError(err)
 	}

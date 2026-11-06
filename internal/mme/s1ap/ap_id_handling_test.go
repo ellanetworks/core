@@ -231,7 +231,7 @@ func TestInitialUEMessageReusingTheENBUES1APIDOfAConnectionBeingReleasedComplete
 	ue, conn := securedUE(t, m)
 	enbID := ue.Conn().ENBUES1APID()
 
-	m.ReleaseUEContext(t.Context(), ue, mme.CauseNASNormalRelease)
+	m.ReleaseUEContext(t.Context(), ue, ue.Conn(), mme.CauseNASNormalRelease)
 
 	before := conn.count()
 
@@ -272,7 +272,7 @@ func TestLateReleaseCompleteLeavesTheConnectionThatReusedItsENBUES1APID(t *testi
 	ue, conn := securedUE(t, m)
 	mmeID, enbID := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 
-	m.ReleaseUEContext(t.Context(), ue, mme.CauseNASNormalRelease)
+	m.ReleaseUEContext(t.Context(), ue, ue.Conn(), mme.CauseNASNormalRelease)
 
 	if !m.ClaimENBUES1APID(t.Context(), conn, enbID) {
 		t.Fatal("the eNB-UE-S1AP-ID of a connection being released was not freed for reuse")

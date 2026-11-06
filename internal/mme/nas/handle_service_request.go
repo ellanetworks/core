@@ -121,7 +121,7 @@ func rejectService(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *m
 	reject := &eps.ServiceReject{Cause: cause}
 	ueConn.SendDownlink(ctx, reject)
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASDetach)
 }
 
 // sendServiceReject sends a SERVICE REJECT with the given EMM cause over a bare connection,

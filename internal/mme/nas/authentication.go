@@ -63,7 +63,7 @@ func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 			logger.Cause("transient authentication failure; UE retries when T3411 expires"), zap.Error(err))
 		ueConn.StopNASGuard(ctx)
 
-		m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+		m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 
 		return
 	}

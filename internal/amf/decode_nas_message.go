@@ -52,6 +52,10 @@ func statusDecode(cause uint8, format string, args ...any) error {
 // PDU not admissible in the current security state as a decode error. The only UE
 // mutation performed here is advancing ue.ULCount (TS 24.501, TS 33.501).
 func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
+	return DecodeNASMessageOn(ue, ue.Conn(), payload)
+}
+
+func DecodeNASMessageOn(ue *UeContext, conn *UeConn, payload []byte) (*DecodeResult, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -64,7 +68,9 @@ func DecodeNASMessage(ue *UeContext, payload []byte) (*DecodeResult, error) {
 		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is too short")
 	}
 
-	conn := ue.Conn()
+	if ue.active.Load() != conn {
+		return nil, silentDecode(nasreply.ReasonNoContext, "nas arrived on a connection that is not the UE's NAS signalling connection")
+	}
 
 	if securityHeaderType == fgs.SHTPlain {
 		if conn.SecureExchangeEstablished() {

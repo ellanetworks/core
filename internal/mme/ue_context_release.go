@@ -42,7 +42,7 @@ func (c *UeConn) SuperviseICS(ctx context.Context) {
 		defer span.End()
 
 		c.Log(guardCtx).Warn("no answer to the Initial Context Setup Request; releasing the S1 connection")
-		c.m.ReleaseUEContext(guardCtx, ue, CauseNASUnspecified)
+		c.m.ReleaseUEContext(guardCtx, ue, c, CauseNASUnspecified)
 	})
 }
 
@@ -150,25 +150,28 @@ func (c *UeConn) sendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 	return c.sendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b, send)
 }
 
-func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
-	m.releaseUEContext(ctx, ue, cause, (*MME).SendToRadio)
+func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, expected *UeConn, cause s1ap.Cause) {
+	m.releaseUEContext(ctx, ue, expected, cause, (*MME).SendToRadio)
 }
 
-func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause, send radioSend) {
-	ue.Conn().cancelDeferredRelease()
+func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, expected *UeConn, cause s1ap.Cause, send radioSend) {
+	expected.cancelDeferredRelease()
+
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
 
 	// The idempotency claim is atomic: a NAS guard timeout and an eNB-initiated
 	// release request can race to release the same UE from different goroutines. A
 	// Release Complete in the gap may already have freed the connection, which is
 	// itself a completed release.
-	conn, ok := m.claimRelease(ue)
+	conn, ok := m.claimRelease(ue, expected)
 	if !ok {
 		return
 	}
 
 	if conn == nil {
 		// No S1 connection to command; release the context locally.
-		m.ReleaseUEContextLocally(ctx, ue, "release-no-connection", models.ReleaseFor(models.ReleaseRegistrationFailure))
+		m.releaseUEContextLocallyHeld(ctx, ue, nil, "release-no-connection", models.ReleaseFor(models.ReleaseRegistrationFailure))
 		return
 	}
 
@@ -182,7 +185,7 @@ func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	conn.releaseCause.Store(&cause)
 
 	if err := conn.sendUEContextReleaseCommand(ctx, cause, send); err != nil {
-		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent", models.ReleaseFor(models.ReleaseRegistrationFailure))
+		m.releaseUEContextLocallyHeld(ctx, ue, conn, "release-command-not-sent", models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 		return
 	}
@@ -202,6 +205,9 @@ func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 func (m *MME) CompleteUEContextRelease(ctx context.Context, ue *UeContext, c *UeConn) {
 	// Cancel the release-supervision guard so it does not also run the cleanup.
 	c.StopReleaseGuard()
+
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
 
 	released, registered, _, losses := m.releaseContextLockedPart(ue, c)
 	if !released {
@@ -341,6 +347,13 @@ func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigge
 }
 
 func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expected *UeConn, trigger string, release models.SessionReleaseRequest) {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
+	m.releaseUEContextLocallyHeld(ctx, ue, expected, trigger, release)
+}
+
+func (m *MME) releaseUEContextLocallyHeld(ctx context.Context, ue *UeContext, expected *UeConn, trigger string, release models.SessionReleaseRequest) {
 	ueConn := ue.Conn()
 	if expected != nil && ueConn != expected {
 		return
@@ -348,6 +361,7 @@ func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expect
 
 	log := ueConn.Log(ctx)
 
+	ueConn.cancelDeferredRelease()
 	ue.settleDeliveryOnRelease(ctx)
 
 	released, registered, imsi, losses := m.releaseContextLockedPart(ue, expected)
