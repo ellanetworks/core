@@ -91,6 +91,12 @@ func TestUpdateOperatorIMS(t *testing.T) {
 	})
 
 	t.Run("addresses are stored in canonical form", func(t *testing.T) {
+		update(t, []string{" PCSCF.ims.example.org ", " 2001:DB8:0::20 "})
+
+		if got := getPCSCFAddresses(t); !slices.Equal(got, []string{"pcscf.ims.example.org", "2001:db8::20"}) {
+			t.Fatalf("pcscfAddresses = %v, want the canonical pcscf.ims.example.org and 2001:db8::20", got)
+		}
+
 		update(t, []string{" 2001:DB8:0::20 "})
 
 		if got := getPCSCFAddresses(t); !slices.Equal(got, []string{"2001:db8::20"}) {
@@ -100,9 +106,10 @@ func TestUpdateOperatorIMS(t *testing.T) {
 
 	t.Run("invalid lists are rejected", func(t *testing.T) {
 		cases := map[string][]string{
-			"hostname":  {"pcscf.example.org"},
-			"duplicate": {"192.0.2.20", "192.0.2.20"},
-			"four ipv4": {"192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"},
+			"bad hostname":       {"p_cscf.example.org"},
+			"duplicate hostname": {"pcscf.example.org", "PCSCF.example.org"},
+			"duplicate":          {"192.0.2.20", "192.0.2.20"},
+			"four ipv4":          {"192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"},
 		}
 
 		for name, addresses := range cases {

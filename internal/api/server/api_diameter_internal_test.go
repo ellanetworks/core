@@ -9,7 +9,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"reflect"
 	"testing"
 	"time"
@@ -60,12 +59,14 @@ func TestGetDiameterStatus(t *testing.T) {
 			Role:    "smsc",
 			Host:    "smsc.example.org",
 			Realm:   "example.org",
-			Address: netip.MustParseAddrPort("[2001:db8::10]:3868"),
+			Address: "2001:db8::10",
+			Port:    3868,
 			State:   diameter.PeerOpen,
 			Since:   since,
 		}, {
 			Role:    "smsc",
-			Address: netip.MustParseAddrPort("192.0.2.11:3868"),
+			Address: "192.0.2.11",
+			Port:    3868,
 			State:   diameter.PeerDown,
 			Since:   since,
 			Error:   "dial sctp 192.0.2.11:3868: connection refused",
