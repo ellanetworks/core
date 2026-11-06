@@ -264,7 +264,7 @@ func sendAttachRejection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// plain form is for the rejects preceding security activation.
 	ueConn.SendDownlink(ctx, reject)
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 }
 
 // attachTypeName is the registration-metric type label for a UE's attach (TS 24.301).

@@ -41,6 +41,57 @@ func applyIntent[P any](ctx context.Context, db *Database, cmd *ellaraft.Command
 	return nil, nil
 }
 
+func (db *Database) applyChangesetBatchCommand(ctx context.Context, cmd *ellaraft.Command, logIndex, logTerm uint64) error {
+	if err := db.assertAppliedSchema(ctx, changesetBatchMinSchema, cmd.Type.String()); err != nil {
+		return err
+	}
+
+	payload, err := unmarshalPayload[changesetBatchPayload](cmd.Payload)
+	if err != nil {
+		return err
+	}
+
+	for _, e := range payload.Entries {
+		if err := db.assertAppliedSchema(ctx, e.RequiredSchema, fmt.Sprintf("changeset %q", e.Operation)); err != nil {
+			return err
+		}
+	}
+
+	if err := db.assertCapturedSchema(ctx, payload.CapturedSchema, cmd.Type.String()); err != nil {
+		return err
+	}
+
+	if err := db.applyChangesetBatch(ctx, payload, logIndex, logTerm); err != nil {
+		return err
+	}
+
+	topics := make(map[Topic]struct{})
+	migrationCheck := false
+
+	for _, e := range payload.Entries {
+		if e.Operation == "UpsertClusterMember" {
+			migrationCheck = true
+		}
+
+		for _, t := range topicsForChangesetOp(e.Operation) {
+			topics[t] = struct{}{}
+		}
+	}
+
+	if migrationCheck {
+		db.signalMigrationCheck()
+	}
+
+	unique := make([]Topic, 0, len(topics))
+	for t := range topics {
+		unique = append(unique, t)
+	}
+
+	db.publishOpTopics(unique)
+
+	return nil
+}
+
 // Compile-time check that *Database implements ellaraft.Applier.
 var _ ellaraft.Applier = (*Database)(nil)
 
@@ -68,7 +119,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
-		result, applyErr := db.applyChangeset(ctx, payload, logIndex, logTerm)
+		applyErr := db.applyChangeset(ctx, payload, logIndex, logTerm)
 		if applyErr == nil {
 			if payload.Operation == "UpsertClusterMember" {
 				db.signalMigrationCheck()
@@ -77,7 +128,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			db.publishOpTopics(topicsForChangesetOp(payload.Operation))
 		}
 
-		return result, applyErr
+		return nil, applyErr
+
+	case ellaraft.CmdChangesetBatch:
+		return nil, db.applyChangesetBatchCommand(ctx, cmd, logIndex, logTerm)
 
 	case ellaraft.CmdDeleteOldAuditLogs:
 		return nil, nil
@@ -251,6 +305,15 @@ type (
 		Operation      string `json:"operation,omitempty"`
 		RequiredSchema int    `json:"requiredSchema,omitempty"`
 		CapturedSchema int    `json:"capturedSchema,omitempty"`
+	}
+	changesetBatchEntry struct {
+		Value          []byte `json:"value"`
+		Operation      string `json:"operation"`
+		RequiredSchema int    `json:"requiredSchema,omitempty"`
+	}
+	changesetBatchPayload struct {
+		Entries        []changesetBatchEntry `json:"entries"`
+		CapturedSchema int                   `json:"capturedSchema,omitempty"`
 	}
 	auditLogPayload struct {
 		ID        string `json:"id"`

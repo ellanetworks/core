@@ -412,6 +412,7 @@ type SCTPConn struct {
 	pacedSlots   chan struct{}
 	writerExited chan struct{}
 	writeLogger  *slog.Logger
+	writeTimeout atomic.Int64
 }
 
 // controlFd runs fn with the raw file descriptor held by the runtime poller.

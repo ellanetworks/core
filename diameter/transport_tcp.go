@@ -196,7 +196,7 @@ func readFrame(r io.Reader, buf []byte) (int, error) {
 	return length, nil
 }
 
-func (t *tcpTransport) writeMessage(b []byte) error {
+func (t *tcpTransport) writeMessage(_ context.Context, b []byte) error {
 	t.writeMu.Lock()
 	defer t.writeMu.Unlock()
 

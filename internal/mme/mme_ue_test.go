@@ -43,7 +43,7 @@ func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
 
 	establishResumeForTest(m, ue, &captureConn{}, 9)
 
-	if !ue.Conn().secureExchangeEstablished {
+	if !ue.Conn().secureExchangeEstablished.Load() {
 		t.Fatal("a verified resume must establish secure exchange on the new connection (TS 24.301 §4.4.4.3)")
 	}
 }

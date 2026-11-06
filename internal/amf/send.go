@@ -286,7 +286,7 @@ func (a *AMF) AbortRegistrationRetainingContext(ctx context.Context, ue *UeConte
 	ue.SuspendRegistration(ctx)
 
 	if ueConn == nil {
-		a.StartMobileReachable(ue)
+		a.StartMobileReachable(ue, nil)
 		return
 	}
 
@@ -795,14 +795,14 @@ func (ueConn *UeConn) sendClaimedRelease(ctx context.Context, amfInstance *AMF, 
 		// The command cannot be sent, so no Release Complete will arrive; release
 		// locally now to avoid leaking the UeConn and its claim.
 		ueConn.Log(ctx).Error("failed to build UE Context Release Command", zap.Error(err))
-		amfInstance.ReleaseUeConn(ctx, ueConn)
+		go amfInstance.ReleaseUeConn(context.WithoutCancel(ctx), ueConn)
 
 		return
 	}
 
 	if err := amfInstance.SendToRadio(ctx, conn, NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
 		// The chokepoint logs the send failure; release locally so the UeConn cannot leak.
-		amfInstance.ReleaseUeConn(ctx, ueConn)
+		go amfInstance.ReleaseUeConn(context.WithoutCancel(ctx), ueConn)
 
 		return
 	}

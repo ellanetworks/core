@@ -107,7 +107,7 @@ func (ue *UeContext) SetSecuredForTest(v bool) {
 }
 func (ue *UeContext) SecuredForTest() bool { return ue.secured }
 
-func (c *UeConn) SetSecureExchangeEstablishedForTest(v bool) { c.secureExchangeEstablished = v }
+func (c *UeConn) SetSecureExchangeEstablishedForTest(v bool) { c.secureExchangeEstablished.Store(v) }
 
 func (ue *UeContext) KnasIntForTest() [16]byte { return ue.knasInt }
 func (ue *UeContext) KnasEncForTest() [16]byte { return ue.knasEnc }
@@ -348,3 +348,5 @@ func (m *MME) MTMSIAllocatedForTest(t etsi.TMSI) bool { return m.tmsi.IsAllocate
 func (ue *UeContext) MarkArrivedByHandoverFrom5GSForTest() {
 	ue.arrivedByHandoverFrom5GS.Store(true)
 }
+
+func (c *UeConn) BindUeForTest(ue *UeContext) { c.ue.Store(ue) }

@@ -304,7 +304,7 @@ func (m *MME) cancelVisitor(ctx context.Context, ue *UeContext, detach bool, det
 
 	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)
-	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), CauseNASNormalRelease)
 }
 
 func (m *MME) withdrawRoamer(ctx context.Context, ue *UeContext, why ueregistration.Withdrawal) {

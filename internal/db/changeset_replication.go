@@ -223,10 +223,26 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 // construction, and applyMigrateShared self-checks
 // current >= TargetVersion. Any future non-idempotent op must go
 // through this path (or replicate the same atomicity).
-func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, logIndex, logTerm uint64) (any, error) {
+func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, logIndex, logTerm uint64) error {
+	return db.applyChangesets(ctx, [][]byte{payload.Value}, []string{payload.Operation}, logIndex, logTerm)
+}
+
+func (db *Database) applyChangesetBatch(ctx context.Context, payload *changesetBatchPayload, logIndex, logTerm uint64) error {
+	changesets := make([][]byte, len(payload.Entries))
+	operations := make([]string, len(payload.Entries))
+
+	for i, e := range payload.Entries {
+		changesets[i] = e.Value
+		operations[i] = e.Operation
+	}
+
+	return db.applyChangesets(ctx, changesets, operations, logIndex, logTerm)
+}
+
+func (db *Database) applyChangesets(ctx context.Context, changesets [][]byte, operations []string, logIndex, logTerm uint64) error {
 	conn, err := db.conn().PlainDB().Conn(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("acquire sqlite conn for apply: %w", err)
+		return fmt.Errorf("acquire sqlite conn for apply: %w", err)
 	}
 
 	defer func() { _ = conn.Close() }()
@@ -257,9 +273,16 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 			_, _ = sqliteConn.ExecContext(context.Background(), "ROLLBACK", nil)
 		}
 
-		if err := sqliteConn.ApplyChangesetFiltered(ctx, payload.Value, isReplicatedTable); err != nil {
-			rollback()
-			return fmt.Errorf("apply sqlite changeset: %w", err)
+		for i, changeset := range changesets {
+			if err := sqliteConn.ApplyChangesetFiltered(ctx, changeset, isReplicatedTable); err != nil {
+				rollback()
+
+				if len(changesets) > 1 {
+					return fmt.Errorf("apply sqlite changeset %d of %d (%s): %w", i+1, len(changesets), operations[i], err)
+				}
+
+				return fmt.Errorf("apply sqlite changeset: %w", err)
+			}
 		}
 
 		if _, err := sqliteConn.ExecContext(ctx,
@@ -277,10 +300,10 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 
 		return nil
 	}); err != nil {
-		return nil, err
+		return err
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, int, error) {

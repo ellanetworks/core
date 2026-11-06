@@ -5,6 +5,7 @@ package diameter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -49,7 +50,7 @@ func (l *sctpListener) accept() (transport, error) {
 		return nil, fmt.Errorf("%w: %w", errConnectionSetup, err)
 	}
 
-	t, err := newSCTPTransport(sc)
+	t, err := newSCTPTransport(sc, l.logger)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errConnectionSetup, err)
 	}
@@ -58,14 +59,16 @@ func (l *sctpListener) accept() (transport, error) {
 }
 
 type sctpTransport struct {
-	sc        *sctp.SCTPConn
-	remote    netip.Addr
-	port      uint16
-	unordered atomic.Bool
-	closed    atomic.Bool
+	sc           *sctp.SCTPConn
+	remote       netip.Addr
+	port         uint16
+	unordered    atomic.Bool
+	closed       atomic.Bool
+	writeTimeout atomic.Int64
+	logger       *slog.Logger
 }
 
-func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
+func newSCTPTransport(sc *sctp.SCTPConn, logger *slog.Logger) (*sctpTransport, error) {
 	remote, err := sc.PrimaryPeerAddr()
 	if err != nil {
 		_ = sc.Abort()
@@ -73,7 +76,11 @@ func newSCTPTransport(sc *sctp.SCTPConn) (*sctpTransport, error) {
 		return nil, err
 	}
 
-	t := &sctpTransport{sc: sc, remote: remote}
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	t := &sctpTransport{sc: sc, remote: remote, logger: logger}
 	if a, ok := sc.RemoteAddr().(*sctp.SCTPAddr); ok && a.Port > 0 && a.Port <= 0xffff {
 		t.port = uint16(a.Port)
 	}
@@ -93,7 +100,7 @@ func dialSCTP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port
 		return nil, err
 	}
 
-	return newSCTPTransport(sc)
+	return newSCTPTransport(sc, logger)
 }
 
 func ipAddrs(addrs []netip.Addr) []net.IPAddr {
@@ -131,7 +138,10 @@ func (t *sctpTransport) localAddrs() []netip.Addr {
 
 func (t *sctpTransport) setUnordered() { t.unordered.Store(true) }
 
-func (t *sctpTransport) setWriteTimeout(time.Duration) {}
+func (t *sctpTransport) setWriteTimeout(d time.Duration) {
+	t.writeTimeout.Store(int64(d))
+	t.sc.SetWriteTimeout(d)
+}
 
 func (t *sctpTransport) readMessage(buf []byte) (int, error) {
 	for {
@@ -154,13 +164,29 @@ func (t *sctpTransport) readMessage(buf []byte) (int, error) {
 	}
 }
 
-func (t *sctpTransport) writeMessage(b []byte) error {
+func (t *sctpTransport) writeMessage(ctx context.Context, b []byte) error {
 	info := sctp.SndRcvInfo{PPID: sctp.PPIDWireOrder(PPID)}
 	if t.unordered.Load() {
 		info.Flags = sctp.SCTPUnordered
 	}
 
-	_, err := t.sc.WriteMsg(b, &info)
+	wctx := ctx
+	d := time.Duration(t.writeTimeout.Load())
+
+	if d > 0 {
+		var cancel context.CancelFunc
+
+		wctx, cancel = context.WithTimeout(ctx, d)
+		defer cancel()
+	}
+
+	_, err := t.sc.WriteMsgWait(wctx, b, &info)
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		t.logger.Warn("SCTP send queue did not drain; aborting Diameter association",
+			slog.String("remote", t.remote.String()), slog.Duration("timeout", d))
+
+		_ = t.abort()
+	}
 
 	return err
 }

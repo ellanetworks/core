@@ -45,6 +45,7 @@ type Database struct {
 
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
+	groupCommit    groupCommitter
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 	maxSubscribers int

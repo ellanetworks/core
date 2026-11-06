@@ -82,7 +82,7 @@ func (c *UeConn) resumeDeferredRelease(ctx context.Context) {
 
 	logger.From(ctx, logger.MmeLog).Info("resuming the deferred UE Context Release: the pending downlink traffic or signalling has settled")
 
-	m.ReleaseUEContext(ctx, ue, *cause)
+	m.ReleaseUEContext(ctx, ue, c, *cause)
 }
 
 func (c *UeConn) cancelDeferredRelease() {

@@ -111,7 +111,7 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 
 	setLastApplied(t, database, 7)
 
-	if _, err := database.applyChangeset(ctx, &bytesPayload{
+	if err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
 		Operation: "CreateNetworkSlice",
 	}, 42, 1); err != nil {
@@ -129,7 +129,7 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 
 	// Re-apply the same bytes. The captured INSERT carries a concrete
 	// primary key; SQLite reports a CONFLICT on the duplicate row.
-	_, err := database.applyChangeset(ctx, &bytesPayload{
+	err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
 		Operation: "CreateNetworkSlice",
 	}, 43, 1)
@@ -175,14 +175,14 @@ func TestApplyChangeset_StalePreImageConflicts(t *testing.T) {
 	pending := captureSPNChangeset(t, database, "pending")
 	stale := captureSPNChangeset(t, database, "stale")
 
-	if _, err := database.applyChangeset(ctx, &bytesPayload{
+	if err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     pending,
 		Operation: "UpdateOperatorSPN",
 	}, 100, 1); err != nil {
 		t.Fatalf("apply pending entry: %v", err)
 	}
 
-	_, err := database.applyChangeset(ctx, &bytesPayload{
+	err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     stale,
 		Operation: "UpdateOperatorSPN",
 	}, 101, 1)

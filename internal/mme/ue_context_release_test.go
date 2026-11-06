@@ -21,7 +21,7 @@ func TestReleaseUEContextAfterAnEarlierReleaseCompleted(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	ue.TransitionTo(t.Context(), EMMRegistered)
 
-	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("first release sent %d messages, want 1 UE Context Release Command", len(cc.sent))
@@ -32,7 +32,7 @@ func TestReleaseUEContextAfterAnEarlierReleaseCompleted(t *testing.T) {
 	second := &captureConn{}
 	m.AttachUeConn(t.Context(), ue, m.NewUeConn(second, 8))
 
-	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	if len(second.sent) != 1 {
 		t.Fatalf("second release sent %d messages, want 1 UE Context Release Command: the claim from the first release outlived the connection it claimed, so nothing is ever commanded again", len(second.sent))
@@ -44,12 +44,12 @@ func TestReleaseUEContextOnAConnectionThatSupersededOneStillReleasing(t *testing
 	ue, _ := securedUE(t, m)
 	ue.TransitionTo(t.Context(), EMMRegistered)
 
-	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	second := &captureConn{}
 	m.AttachUeConn(t.Context(), ue, m.NewUeConn(second, 8))
 
-	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	if len(second.sent) != 1 {
 		t.Fatalf("release on the resumed connection sent %d messages, want 1 UE Context Release Command", len(second.sent))
@@ -93,7 +93,7 @@ func TestReleaseUEContextReleasesLocallyWhenTheCommandCannotBeSent(t *testing.T)
 	unreachable := m.NewUeConn(failingConn{}, 8)
 	m.AttachUeConn(t.Context(), ue, unreachable)
 
-	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(context.Background(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	if ue.Connected() {
 		t.Fatal("the UE stays ECM-CONNECTED on a connection its release command could not reach; it waits out the release guard")
@@ -154,7 +154,7 @@ func TestReleaseCompleteAfterTheReleaseGuardCleanedUpLeavesTheNextConnection(t *
 	ue, _ := securedUE(t, m)
 	ue.TransitionTo(t.Context(), EMMRegistered)
 
-	m.ReleaseUEContext(t.Context(), ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(t.Context(), ue, ue.Conn(), CauseNASNormalRelease)
 
 	released := ue.Conn()
 

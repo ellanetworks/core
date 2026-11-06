@@ -85,5 +85,5 @@ func rejectArrivingVisitor(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	ueConn.SendDownlink(ctx, reject)
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 }

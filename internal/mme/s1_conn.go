@@ -54,7 +54,7 @@ type UeConn struct {
 	Location                  models.UserLocation
 	m                         *MME
 	ics                       atomic.Int32
-	secureExchangeEstablished bool
+	secureExchangeEstablished atomic.Bool
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
 	AuthEksi                  nas.KeySetIdentifier
@@ -210,8 +210,9 @@ func (ue *UeContext) Conn() *UeConn {
 }
 
 // UeContext returns the persistent UE context bound to this connection, or nil
-// for a bare connection whose first NAS message has not yet warranted one. Read on
-// the dispatch goroutine, where the binding set under MME.mu is stable.
+// for a bare connection whose first NAS message has not yet warranted one. The
+// binding is set under MME.mu and may change concurrently when another connection
+// supersedes this one.
 func (c *UeConn) UeContext() *UeContext {
 	if c == nil {
 		return nil
@@ -227,14 +228,14 @@ func (c *UeConn) SecureExchangeEstablished() bool {
 		return false
 	}
 
-	return c.secureExchangeEstablished
+	return c.secureExchangeEstablished.Load()
 }
 
 // MarkSecureExchangeEstablished records that secure exchange of NAS messages is
 // established on the connection (TS 24.301 §4.4.4.3).
 func (c *UeConn) MarkSecureExchangeEstablished() {
 	if c != nil {
-		c.secureExchangeEstablished = true
+		c.secureExchangeEstablished.Store(true)
 	}
 }
 

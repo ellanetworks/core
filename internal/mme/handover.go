@@ -394,21 +394,24 @@ func (m *MME) HandoverStatusTarget(ue *UeContext) (targetConn S1APWriter, target
 	return ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID(), true
 }
 
-func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (admitted []AdmittedERAB, ok bool) {
+func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (admitted []AdmittedERAB, source *UeConn, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
 	if ho == nil || ho.state != hoPrepared || !ho.targetNotifiedBy(conn, notifyENBID) {
-		return nil, false
+		return nil, nil, false
 	}
 
 	ho.state = hoCommitting
 
-	return ho.admitted, true
+	return ho.admitted, ho.source, true
 }
 
 func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (source *UeConn, targetMMEID s1ap.MMEUES1APID, ok bool) {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -418,7 +421,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	}
 
 	source = ho.source
-	if source != nil && ue.Conn() == nil {
+	if source != nil && (ue.Conn() != source || source.releasing) {
 		return nil, 0, false
 	}
 
@@ -511,18 +514,21 @@ func (m *MME) AdvancePathSwitchNH(ue *UeContext, curNH [32]byte) ([32]byte, erro
 	return epskeys.DeriveNH(ue.kasme, curNH[:])
 }
 
-func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBUES1APID, newNH [32]byte, curNCC uint8) (ncc uint8, ok bool) {
+func (m *MME) CommitPathSwitch(ue *UeContext, expected *UeConn, conn S1APWriter, enbUEID s1ap.ENBUES1APID, newNH [32]byte, curNCC uint8) (ncc uint8, ok bool) {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.Conn() == nil {
+	if expected == nil || ue.Conn() != expected || expected.releasing {
 		return 0, false
 	}
 
-	m.rebindConnLocked(ue.Conn(), conn, enbUEID)
-	ue.Conn().bindLogFields(m.nodeLogFieldsLocked(conn))
+	m.rebindConnLocked(expected, conn, enbUEID)
+	expected.bindLogFields(m.nodeLogFieldsLocked(conn))
 
-	m.refreshLastSeenLocked(ue, ue.Conn())
+	m.refreshLastSeenLocked(ue, expected)
 
 	ue.mu.Lock()
 	ue.nh = newNH

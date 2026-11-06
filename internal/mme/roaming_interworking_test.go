@@ -89,7 +89,7 @@ func TestForwardRelocationAdmitsAVisitorOfAPartnerWithBothAgreements(t *testing.
 		t.Error("the arrived visitor may not move back to 5GS")
 	}
 
-	if _, ok := m.MarkHandoverCommitting(ue, target.conn, 42); !ok {
+	if _, _, ok := m.MarkHandoverCommitting(ue, target.conn, 42); !ok {
 		t.Fatal("the Handover Notify did not match the prepared handover")
 	}
 

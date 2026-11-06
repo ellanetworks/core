@@ -161,4 +161,6 @@ var Definitions = map[Name]Definition{
 	Scale:            {Profile: ProfileMinimal, Timeout: "20m", NeedsTester: true},
 }
 
-var Exempt = map[string]string{}
+var Exempt = map[string]string{
+	"TestIntegrationSoakHA": "long-running soak, run on demand with ELLA_SOAK=1",
+}

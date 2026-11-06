@@ -264,19 +264,21 @@ func (a *AMF) RemoveUe(ctx context.Context, ueConn *UeConn) error {
 // RAN and buffers it for paging (TS 23.501 §5.3.3.2.4), then start the mobile
 // reachable timer.
 func applyStatefulNasCleanup(ctx context.Context, amf *AMF, ueConn *UeConn) {
-	ue := ueConn.UeContext()
+	ue := lockConnOwner(ueConn)
 	if ue == nil {
+		return
+	}
+
+	defer ue.connMu.Unlock()
+
+	if !amf.servesUe(ue, ueConn) {
 		return
 	}
 
 	switch ue.State() {
 	case Registered:
-		if ue.Conn() != ueConn {
-			return
-		}
-
 		ue.deactivateSmContexts(ctx, ueConn)
-		amf.StartMobileReachable(ue)
+		amf.StartMobileReachable(ue, ueConn)
 	case RegistrationInitiated, DeregistrationInitiated:
 		ue.Deregister(ctx, ue.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseRegistrationFailure)))
 	}

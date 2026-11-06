@@ -233,7 +233,7 @@ func (p *rawPeer) send(m *Message) {
 		p.t.Fatalf("Marshal: %v", err)
 	}
 
-	if err := p.tr.writeMessage(b); err != nil {
+	if err := p.tr.writeMessage(context.Background(), b); err != nil {
 		p.t.Fatalf("write: %v", err)
 	}
 }

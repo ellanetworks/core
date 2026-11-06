@@ -22,6 +22,7 @@ import (
 var scenariosSkipped = map[string]string{
 	"gnb/scale":                              "load test sized by flags; run manually, see docs/reference/performance.md",
 	"s1enb/scale":                            "load test sized by flags; run manually, see docs/reference/performance.md",
+	"gnb/soak":                               "long-running soak sized by flags, run manually with TestIntegrationSoakHA and ELLA_SOAK=1",
 	"gnb/n2_handover":                        "multi-gNB, covered by TestIntegration5GN2Handover",
 	"gnb/n2_handover_connectivity":           "multi-gNB, covered by TestIntegration5GN2Handover",
 	"gnb/xn_handover_connectivity":           "multi-gNB datapath, covered by TestIntegration5GXnHandover",

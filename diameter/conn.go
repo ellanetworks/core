@@ -22,6 +22,8 @@ import (
 	"time"
 )
 
+const maxQueuedReplies = 64
+
 var (
 	errConnClosed  = errors.New("diameter: connection closed")
 	errConnSuspect = errors.New("diameter: connection suspect")
@@ -75,6 +77,7 @@ type Conn struct {
 	pendingSlot bool
 	unordered   atomic.Bool
 	requests    chan struct{}
+	replies     chan *Message
 
 	mu        sync.Mutex
 	pending   map[uint32]chan *Message
@@ -106,6 +109,7 @@ func newConn(n *Node, t transport, p *peer) *Conn {
 		localApps:    n.cfg.UnknownPeerApplications,
 		localVendors: n.cfg.UnknownPeerSupportedVendors,
 		requests:     make(chan struct{}, n.cfg.MaxConcurrentRequests),
+		replies:      make(chan *Message, maxQueuedReplies),
 		pending:      make(map[uint32]chan *Message),
 		suspected:    make(chan struct{}),
 		activity:     make(chan struct{}, 1),
@@ -356,13 +360,13 @@ func (c *Conn) receive(m *Message) {
 	}
 
 	if m.Flags&FlagError != 0 {
-		c.send(c.Answer(m, ResultInvalidHdrBits))
+		c.reply(c.Answer(m, ResultInvalidHdrBits))
 		return
 	}
 
 	switch m.CommandCode {
 	case CommandDeviceWatchdog:
-		c.send(c.baseAnswer(m, ResultSuccess))
+		c.reply(c.baseAnswer(m, ResultSuccess))
 	case CommandDisconnectPeer:
 		c.receiveDPR(m)
 	case CommandCapabilitiesExchange:
@@ -413,7 +417,7 @@ func (c *Conn) reject(req *Message, resultCode uint32, failure string) {
 	_, span := c.startServerSpan(req)
 	ans := c.Answer(req, resultCode)
 
-	c.send(ans)
+	c.reply(ans)
 	endServerSpan(span, ans, failure)
 }
 
@@ -426,11 +430,11 @@ func (c *Conn) receiveMalformed(m *Message, err error) {
 
 	switch {
 	case errors.Is(err, ErrUnsupportedVersion):
-		c.send(c.Answer(m, ResultUnsupportedVersion))
+		c.reply(c.Answer(m, ResultUnsupportedVersion))
 	case errors.Is(err, ErrInvalidMessageLength):
-		c.send(c.Answer(m, ResultInvalidMessageLength))
+		c.reply(c.Answer(m, ResultInvalidMessageLength))
 	default:
-		c.send(NewErrorAnswer(m, c.n.cfg.Identity, err))
+		c.reply(NewErrorAnswer(m, c.n.cfg.Identity, err))
 	}
 }
 
@@ -472,7 +476,7 @@ func (c *Conn) receiveDPR(m *Message) {
 	}
 
 	c.enterClosing()
-	c.send(c.baseAnswer(m, ResultSuccess))
+	c.reply(c.baseAnswer(m, ResultSuccess))
 	c.startTimer(c.n.cfg.HandshakeTimeout, func() { c.abort("peer did not close after DPA") })
 }
 
@@ -694,9 +698,10 @@ func (c *Conn) open(cea *Message) {
 	c.n.connStateChanged(c)
 	c.openOnce.Do(func() { close(c.opened) })
 
-	c.n.goroutines.Add(1)
+	c.n.goroutines.Add(2)
 
 	go c.runWatchdog()
+	go c.sendReplies()
 }
 
 func (c *Conn) serve(req *Message) {
@@ -802,7 +807,11 @@ func (c *Conn) exchange(ctx context.Context, req *Message, failover bool) (*Mess
 		c.mu.Unlock()
 	}()
 
-	if err := c.write(&m); err != nil {
+	if err := c.write(ctx, &m); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		return nil, errConnClosed
 	}
 
@@ -832,17 +841,17 @@ func (c *Conn) setSuspect(on bool) {
 	c.suspect = on
 }
 
-func (c *Conn) write(m *Message) error {
+func (c *Conn) write(ctx context.Context, m *Message) error {
 	b, err := m.Marshal()
 	if err != nil {
 		return err
 	}
 
-	return c.t.writeMessage(b)
+	return c.t.writeMessage(ctx, b)
 }
 
 func (c *Conn) writeRaw(b []byte) error {
-	err := c.t.writeMessage(b)
+	err := c.t.writeMessage(c.ctx, b)
 	if err != nil {
 		c.logger().Debug("failed to send Diameter message", slog.Any("error", err))
 	}
@@ -851,8 +860,29 @@ func (c *Conn) writeRaw(b []byte) error {
 }
 
 func (c *Conn) send(m *Message) {
-	if err := c.write(m); err != nil {
+	if err := c.write(c.ctx, m); err != nil {
 		c.logger().Debug("failed to send Diameter message", slog.Uint64("command_code", uint64(m.CommandCode)), slog.Any("error", err))
+	}
+}
+
+func (c *Conn) reply(m *Message) {
+	select {
+	case c.replies <- m:
+	default:
+		c.logger().Debug("dropping Diameter answer: too many answers awaiting send", slog.Uint64("command_code", uint64(m.CommandCode)))
+	}
+}
+
+func (c *Conn) sendReplies() {
+	defer c.n.goroutines.Done()
+
+	for {
+		select {
+		case m := <-c.replies:
+			c.send(m)
+		case <-c.done:
+			return
+		}
 	}
 }
 

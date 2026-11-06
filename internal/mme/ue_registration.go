@@ -150,7 +150,7 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 
 	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)
-	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), CauseNASNormalRelease)
 
 	logger.From(ctx, logger.MmeLog).Info("UE registered on another node; dropping its local EPS registration and PDN connections",
 		logger.SUPI(supi.String()))

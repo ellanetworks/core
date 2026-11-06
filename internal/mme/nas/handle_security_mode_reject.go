@@ -29,7 +29,7 @@ func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	logger.From(ctx, logger.MmeLog).Warn("Security Mode Reject",
 		logger.Cause(cause.String()))
 
-	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+	m.ReleaseUEContext(ctx, ue, ueConn, mme.CauseNASUnspecified)
 
 	return nasreply.Handled()
 }

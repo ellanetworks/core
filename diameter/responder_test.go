@@ -596,7 +596,7 @@ func TestMalformedRequestAnswered(t *testing.T) {
 			b[headerLen+6] = 0
 			b[headerLen+7] = 4
 
-			if err := p.tr.writeMessage(b); err != nil {
+			if err := p.tr.writeMessage(context.Background(), b); err != nil {
 				t.Fatal(err)
 			}
 
@@ -735,6 +735,102 @@ func TestCEAAdvertisesTheUnknownPeerSupportedVendors(t *testing.T) {
 
 			if !slices.Equal(got, []uint32{otherApp.VendorID, 13019, EllaVendorID}) {
 				t.Fatalf("CEA Supported-Vendor-Id = %v, want [%d 13019 %d]", got, otherApp.VendorID, EllaVendorID)
+			}
+		})
+	}
+}
+
+type stallingListener struct {
+	Listener
+	accepted chan *stallingTransport
+}
+
+func (l *stallingListener) accept() (transport, error) {
+	tr, err := l.Listener.accept()
+	if err != nil {
+		return nil, err
+	}
+
+	st := &stallingTransport{transport: tr, release: make(chan struct{})}
+	l.accepted <- st
+
+	return st, nil
+}
+
+type stallingTransport struct {
+	transport
+	stalled atomic.Bool
+	release chan struct{}
+}
+
+func (t *stallingTransport) writeMessage(ctx context.Context, b []byte) error {
+	if t.stalled.Load() {
+		select {
+		case <-t.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return t.transport.writeMessage(ctx, b)
+}
+
+func TestReadLoopKeepsReadingWhileWritesStall(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			n := newTestNode(t, testConfig("ella.example.org"))
+			if err := n.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{loopback2}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			ln := &stallingListener{Listener: listen(t, kind, loopback1), accepted: make(chan *stallingTransport, 1)}
+			served := make(chan error, 1)
+
+			go func() { served <- n.Serve(ln) }()
+
+			t.Cleanup(func() {
+				_ = ln.Close()
+
+				if err := <-served; err != nil {
+					t.Logf("serve: %v", err)
+				}
+			})
+
+			p := dialRaw(t, kind, loopback2, listenerAddr(ln))
+			st := <-ln.accepted
+
+			openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+			st.stalled.Store(true)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			if _, err := n.Do(ctx, "smsc", request(), FailFast()); !isTimeout(err) {
+				t.Fatalf("request while writes stall = %v", err)
+			}
+
+			for i := range 2 * maxQueuedReplies {
+				p.send(&Message{Flags: FlagRequest, CommandCode: CommandDeviceWatchdog, HopByHopID: uint32(i), EndToEndID: uint32(i), AVPs: []AVP{
+					UTF8String(AVPOriginHost, AVPFlagMandatory, 0, "smsc.example.org"),
+					UTF8String(AVPOriginRealm, AVPFlagMandatory, 0, "example.org"),
+				}})
+			}
+
+			p.send(&Message{Flags: FlagRequest, CommandCode: CommandDisconnectPeer, HopByHopID: 1000, EndToEndID: 1000, AVPs: []AVP{
+				UTF8String(AVPOriginHost, AVPFlagMandatory, 0, "smsc.example.org"),
+				UTF8String(AVPOriginRealm, AVPFlagMandatory, 0, "example.org"),
+				Unsigned32(AVPDisconnectCause, AVPFlagMandatory, 0, DisconnectCauseRebooting),
+			}})
+
+			eventually(t, "the DPR read while writes stall", func() bool {
+				s, _ := n.Peer("smsc")
+				return s.State == PeerClosing
+			})
+
+			close(st.release)
+
+			if dwa := p.recv(); dwa.CommandCode != CommandDeviceWatchdog || resultCode(t, dwa) != ResultSuccess {
+				t.Fatalf("answer after the stall = %+v", dwa)
 			}
 		})
 	}

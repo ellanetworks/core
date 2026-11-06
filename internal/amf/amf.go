@@ -388,6 +388,9 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 		return
 	}
 
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	// A connected UE with a security context is told to deregister over the air,
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed

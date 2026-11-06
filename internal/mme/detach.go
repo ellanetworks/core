@@ -23,7 +23,7 @@ func (m *MME) DetachUEAfterPathSwitchFailure(ctx context.Context, ue *UeContext)
 		logger.SUPI(ue.Supi().String()))
 
 	ue.TransitionTo(ctx, EMMDeregistered)
-	m.ReleaseUEContext(ctx, ue, s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach})
+	m.ReleaseUEContext(ctx, ue, ue.Conn(), s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach})
 }
 
 func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {

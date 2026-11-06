@@ -129,6 +129,7 @@ type PendingPDNConnectivity struct {
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
 // EPS NAS security context, and the bearer state.
 type UeContext struct {
+	connMu sync.Mutex
 	active atomic.Pointer[UeConn]
 
 	networkDetach *models.SessionReleaseRequest
@@ -475,6 +476,10 @@ func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, apn string, bearer mod
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
+	if ue.Pdns[p.Ebi] != p {
+		return nil
+	}
+
 	return ue.publishPDNLocked(p.Ebi, apn, bearer)
 }
 
@@ -704,6 +709,9 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn, 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
 // releasing any superseded connection.
 func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
 	m.mu.Lock()
 	superseded, losses := m.attachUeConnLocked(ue, c)
 	m.mu.Unlock()
@@ -966,14 +974,18 @@ func (m *MME) mobilityInProgress(ue *UeContext) bool {
 }
 
 // claimRelease atomically marks the UE's S1 connection as releasing, returning
-// that connection (nil when there is none) and false when a release of it is
-// already in progress (a NAS guard timeout and an eNB-initiated release can race
-// for the same UE).
-func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
+// that connection (nil when there is none) and false when the UE's connection is no
+// longer the expected one or a release of it is already in progress (a NAS guard
+// timeout and an eNB-initiated release can race for the same UE).
+func (m *MME) claimRelease(ue *UeContext, expected *UeConn) (*UeConn, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	c := ue.Conn()
+	if c != expected {
+		return nil, false
+	}
+
 	if c == nil {
 		return nil, true
 	}

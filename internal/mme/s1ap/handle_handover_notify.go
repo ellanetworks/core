@@ -30,7 +30,7 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
 
-	admitted, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
+	admitted, source, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		if _, _, valid := resolveUE(ctx, m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target_mme_ue_s1ap_id", uint32(notify.MMEUES1APID)))
@@ -49,9 +49,17 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		Authoritative:  true,
 		ReleaseUnknown: true,
 		AfterCommit:    true,
+		Conn:           source,
 	})
 
 	m.ScheduleForwardingRelease(ctx, ue)
+
+	if result.Stale {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Notify: UE released before the user-plane switch",
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(notify.MMEUES1APID)))
+
+		return
+	}
 
 	source, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {

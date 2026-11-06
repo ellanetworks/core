@@ -57,7 +57,15 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 		Present:        setupBearers(ctx, mmeUEID, ctxtSetupBearers(msg.ERABSetup)),
 		Rejected:       failedERABIDs(msg.ERABFailedToSetup),
 		ReleaseUnknown: true,
+		Conn:           ueConn,
 	})
+
+	if result.Stale {
+		logger.From(ctx, logger.MmeLog).Debug("ignoring an Initial Context Setup Response for a superseded S1 connection",
+			logger.MMEUeS1apID(uint32(mmeUEID)))
+
+		return
+	}
 
 	setup := len(result.Applied)
 
