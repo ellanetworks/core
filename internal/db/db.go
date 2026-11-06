@@ -460,11 +460,12 @@ type Database struct {
 	getJoinHMACStmt           *sqlair.Statement
 	initJoinHMACStmt          *sqlair.Statement
 
-	// connPtr holds the SQLite handle for the application database. Reopen
-	// atomically swaps the pointer so concurrent readers (API handlers,
-	// FSM apply goroutines) never see a torn value. Readers use conn() to
-	// load the current pointer.
-	connPtr atomic.Pointer[sqlair.DB]
+	// connection holds the SQLite handle for the application database.
+	// Reopen retires its connections through connector instead of
+	// replacing it, so concurrent readers (API handlers, FSM apply
+	// goroutines) never use a closed handle. Readers use conn() to load it.
+	connection *sqlair.DB
+	connector  *sqliteConnector
 
 	// appliedSchemaCache mirrors schema_version.version for the
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
@@ -480,7 +481,7 @@ type Database struct {
 
 // conn returns the current *sqlair.DB handle.
 func (db *Database) conn() *sqlair.DB {
-	return db.connPtr.Load()
+	return db.connection
 }
 
 const DBFilename = "ella.db"
@@ -547,6 +548,12 @@ func warnIfWorldReadable(path string) {
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
 func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
+	conn, _, err := openSQLitePool(ctx, databasePath)
+
+	return conn, err
+}
+
+func openSQLitePool(ctx context.Context, databasePath string) (*sql.DB, *sqliteConnector, error) {
 	// _txlock=immediate makes every BEGIN use BEGIN IMMEDIATE, which
 	// acquires a write lock up front. This is important for migrations
 	// (prevents two processes from entering the same migration) and is
@@ -562,11 +569,10 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 
 	var sqlConnection *sql.DB
 
+	connector := newSQLiteConnector(dsn)
+
 	err := osutil.WithTightUmask(func() error {
-		conn, openErr := sql.Open("sqlite3", dsn)
-		if openErr != nil {
-			return fmt.Errorf("failed to open database: %w", openErr)
-		}
+		conn := sql.OpenDB(connector)
 
 		conn.SetMaxOpenConns(1)
 
@@ -580,10 +586,10 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return sqlConnection, nil
+	return sqlConnection, connector, nil
 }
 
 // Close closes the database connection and shuts down the raft manager.
@@ -1649,7 +1655,7 @@ func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, 
 func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterConfig, raftOpts ...ellaraft.ManagerOption) (*Database, error) {
 	dataDir := filepath.Dir(dbPath)
 
-	sqlConn, err := openSQLiteConnection(ctx, dbPath)
+	sqlConn, connector, err := openSQLitePool(ctx, dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -1665,7 +1671,8 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	}
 
 	db := new(Database)
-	db.connPtr.Store(sqlair.NewDB(sqlConn))
+	db.connection = sqlair.NewDB(sqlConn)
+	db.connector = connector
 	db.dbPath = dbPath
 	db.dataDir = dataDir
 	db.clusterEnabled = raftCfg.Enabled
@@ -1728,7 +1735,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, error) {
 	dataDir := filepath.Dir(dbPath)
 
-	sqlConn, err := openSQLiteConnection(ctx, dbPath)
+	sqlConn, connector, err := openSQLitePool(ctx, dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -1744,7 +1751,8 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	}
 
 	db := new(Database)
-	db.connPtr.Store(sqlair.NewDB(sqlConn))
+	db.connection = sqlair.NewDB(sqlConn)
+	db.connector = connector
 	db.dbPath = dbPath
 	db.dataDir = dataDir
 	db.migrationCeiling = 0
