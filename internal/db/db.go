@@ -48,6 +48,7 @@ type Database struct {
 	groupCommit    groupCommitter
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
+	maxSubscribers int
 
 	// changefeed broadcasts post-apply events to in-process
 	// subscribers (reconcilers). Always non-nil.
@@ -79,6 +80,57 @@ type Database struct {
 	updateSubscriberSqnNumStmt         *sqlair.Statement
 	casSubscriberSqnNumStmt            *sqlair.Statement
 	deleteSubscriberStmt               *sqlair.Statement
+
+	countSubscribersAndVisitorsStmt *sqlair.Statement
+	getVisitorStmt                  *sqlair.Statement
+	listVisitorsPageStmt            *sqlair.Statement
+	countVisitorsPageStmt           *sqlair.Statement
+	insertVisitorStmt               *sqlair.Statement
+	updateVisitorMSISDNStmt         *sqlair.Statement
+	deleteVisitorIfUnregisteredStmt *sqlair.Statement
+	listUnregisteredVisitorsStmt    *sqlair.Statement
+	deleteUERegistrationsOfIMSIStmt *sqlair.Statement
+	deleteLeasesOfIMSIStmt          *sqlair.Statement
+	insertFlowReportOfKnownIMSIStmt *sqlair.Statement
+
+	listRoamingPartnersStmt  *sqlair.Statement
+	getRoamingPartnerStmt    *sqlair.Statement
+	insertRoamingPartnerStmt *sqlair.Statement
+	updateRoamingPartnerStmt *sqlair.Statement
+	deleteRoamingPartnerStmt *sqlair.Statement
+
+	listRoamingPartnerPLMNsStmt    *sqlair.Statement
+	listPLMNsOfRoamingPartnerStmt  *sqlair.Statement
+	insertRoamingPartnerPLMNStmt   *sqlair.Statement
+	updateRoamingPartnerPLMNStmt   *sqlair.Statement
+	deleteRoamingPartnerPLMNStmt   *sqlair.Statement
+	countVisitorsOfPartnerStmt     *sqlair.Statement
+	countAttachedVisitorsOfRATStmt *sqlair.Statement
+	countRoamingPartnersStmt       *sqlair.Statement
+
+	setRoamingPartnerWithdrawingStmt   *sqlair.Statement
+	setVisitorDeregisteringStmt        *sqlair.Statement
+	listVisitorRegistrationsOfNodeStmt *sqlair.Statement
+
+	listDiameterPeersStmt         *sqlair.Statement
+	getDiameterPeerStmt           *sqlair.Statement
+	insertRoamingDiameterPeerStmt *sqlair.Statement
+	updateRoamingDiameterPeerStmt *sqlair.Statement
+	deleteRoamingDiameterPeerStmt *sqlair.Statement
+
+	getSEPPCAStmt                 *sqlair.Statement
+	insertSEPPCAIfAbsentStmt      *sqlair.Statement
+	upsertSEPPCAStmt              *sqlair.Statement
+	deleteSEPPCAStmt              *sqlair.Statement
+	getSEPPIdentityStmt           *sqlair.Statement
+	getSEPPIdentityByFQDNStmt     *sqlair.Statement
+	listSEPPIdentitiesStmt        *sqlair.Statement
+	upsertSEPPIdentityStmt        *sqlair.Statement
+	deleteSEPPIdentitiesStmt      *sqlair.Statement
+	deleteGeneratedSEPPIdentsStmt *sqlair.Statement
+	deleteGeneratedSEPPIdentStmt  *sqlair.Statement
+	upsertGeneratedSEPPIdentStmt  *sqlair.Statement
+	deleteSEPPIdentityStmt        *sqlair.Statement
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
@@ -124,13 +176,19 @@ type Database struct {
 	getRadioEventByIDStmt    *sqlair.Statement
 
 	// Daily Usage statements
-	incrementDailyUsageStmt         *sqlair.Statement
-	getUsagePerDayStmt              *sqlair.Statement
-	getUsagePerSubscriberStmt       *sqlair.Statement
-	getUsagePerDayByIMSIStmt        *sqlair.Statement
-	getUsagePerSubscriberByIMSIStmt *sqlair.Statement
-	deleteAllDailyUsageStmt         *sqlair.Statement
-	deleteOldDailyUsageStmt         *sqlair.Statement
+	incrementDailyUsageStmt               *sqlair.Statement
+	incrementDailyUsagePreV26Stmt         *sqlair.Statement
+	getUsagePerDayStmt                    *sqlair.Statement
+	getUsagePerDayPreV26Stmt              *sqlair.Statement
+	getUsagePerDayByIMSIStmt              *sqlair.Statement
+	getUsagePerDayByIMSIPreV26Stmt        *sqlair.Statement
+	getUsagePerSubscriberStmt             *sqlair.Statement
+	getUsagePerSubscriberPreV26Stmt       *sqlair.Statement
+	getUsagePerSubscriberByIMSIStmt       *sqlair.Statement
+	getUsagePerSubscriberByIMSIPreV26Stmt *sqlair.Statement
+	deleteAllDailyUsageStmt               *sqlair.Statement
+	deleteOldDailyUsageStmt               *sqlair.Statement
+	deleteOldDailyUsagePreV26Stmt         *sqlair.Statement
 
 	// Data Network statements
 	listDataNetworksStmt    *sqlair.Statement
@@ -1823,6 +1881,54 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.casSubscriberSqnNumStmt, fmt.Sprintf(casSubscriberSeqNumStmt, SubscribersTableName), []any{sqnCAS{}}},
 		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.countSubscribersAndVisitorsStmt, fmt.Sprintf(countSubscribersAndVisitorsStmt, SubscribersTableName, VisitorsTableName), []any{NumItems{}}},
+		{&db.getVisitorStmt, fmt.Sprintf(getVisitorStmt, VisitorsTableName, RoamingPartnersTableName), []any{Visitor{}}},
+		{&db.listVisitorsPageStmt, fmt.Sprintf(listVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName, RoamingPartnersTableName, PoliciesTableName), []any{ListArgs{}, Visitor{}, NumItems{}, visitorPageFilterArgs{}}},
+		{&db.countVisitorsPageStmt, fmt.Sprintf(countVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName, PoliciesTableName), []any{NumItems{}, visitorPageFilterArgs{}}},
+		{&db.insertVisitorStmt, fmt.Sprintf(insertVisitorStmt, VisitorsTableName), []any{Visitor{}}},
+		{&db.updateVisitorMSISDNStmt, fmt.Sprintf(updateVisitorMSISDNStmt, VisitorsTableName), []any{Visitor{}}},
+		{&db.deleteVisitorIfUnregisteredStmt, fmt.Sprintf(deleteVisitorIfUnregisteredStmt, VisitorsTableName, UERegistrationsTableName, VisitorsTableName), []any{Visitor{}}},
+		{&db.listUnregisteredVisitorsStmt, fmt.Sprintf(listUnregisteredVisitorsStmt, VisitorsTableName, UERegistrationsTableName), []any{Visitor{}}},
+		{&db.deleteUERegistrationsOfIMSIStmt, fmt.Sprintf(deleteUERegistrationsOfIMSIStmt, UERegistrationsTableName), []any{subscriberIMSI{}}},
+		{&db.deleteLeasesOfIMSIStmt, fmt.Sprintf(deleteLeasesOfIMSIStmt, IPLeasesTableName), []any{subscriberIMSI{}}},
+		{&db.insertFlowReportOfKnownIMSIStmt, fmt.Sprintf(insertFlowReportOfKnownIMSIStmt, FlowReportsTableName, SubscribersTableName, VisitorsTableName), []any{dbwriter.FlowReport{}}},
+
+		{&db.listRoamingPartnersStmt, fmt.Sprintf(listRoamingPartnersStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.getRoamingPartnerStmt, fmt.Sprintf(getRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.insertRoamingPartnerStmt, fmt.Sprintf(insertRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.updateRoamingPartnerStmt, fmt.Sprintf(updateRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.deleteRoamingPartnerStmt, fmt.Sprintf(deleteRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.listRoamingPartnerPLMNsStmt, fmt.Sprintf(listRoamingPartnerPLMNsStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
+		{&db.listPLMNsOfRoamingPartnerStmt, fmt.Sprintf(listPLMNsOfRoamingPartnerStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
+		{&db.insertRoamingPartnerPLMNStmt, fmt.Sprintf(insertRoamingPartnerPLMNStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
+		{&db.updateRoamingPartnerPLMNStmt, fmt.Sprintf(updateRoamingPartnerPLMNStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
+		{&db.deleteRoamingPartnerPLMNStmt, fmt.Sprintf(deleteRoamingPartnerPLMNStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
+		{&db.countVisitorsOfPartnerStmt, fmt.Sprintf(countVisitorsOfPartnerStmt, VisitorsTableName), []any{NumItems{}, visitorFilter{}}},
+		{&db.countAttachedVisitorsOfRATStmt, fmt.Sprintf(countAttachedVisitorsOfRATStmt, VisitorsTableName, UERegistrationsTableName), []any{NumItems{}, visitorFilter{}}},
+		{&db.countRoamingPartnersStmt, fmt.Sprintf(countRoamingPartnersStmt, RoamingPartnersTableName), []any{NumItems{}}},
+		{&db.setRoamingPartnerWithdrawingStmt, fmt.Sprintf(setRoamingPartnerWithdrawingStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
+		{&db.setVisitorDeregisteringStmt, fmt.Sprintf(setVisitorDeregisteringStmt, VisitorsTableName), []any{Visitor{}}},
+		{&db.listVisitorRegistrationsOfNodeStmt, fmt.Sprintf(listVisitorRegistrationsOfNodeStmt, UERegistrationsTableName, VisitorsTableName), []any{UERegistration{}}},
+
+		{&db.listDiameterPeersStmt, fmt.Sprintf(listDiameterPeersStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
+		{&db.getDiameterPeerStmt, fmt.Sprintf(getDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
+		{&db.insertRoamingDiameterPeerStmt, fmt.Sprintf(insertRoamingDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
+		{&db.updateRoamingDiameterPeerStmt, fmt.Sprintf(updateRoamingDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
+		{&db.deleteRoamingDiameterPeerStmt, fmt.Sprintf(deleteRoamingDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
+
+		{&db.getSEPPCAStmt, fmt.Sprintf(getSEPPCAStmt, SEPPCATableName), []any{SEPPCA{}}},
+		{&db.insertSEPPCAIfAbsentStmt, fmt.Sprintf(insertSEPPCAIfAbsentStmt, SEPPCATableName), []any{SEPPCA{}}},
+		{&db.upsertSEPPCAStmt, fmt.Sprintf(upsertSEPPCAStmt, SEPPCATableName), []any{SEPPCA{}}},
+		{&db.deleteSEPPCAStmt, fmt.Sprintf(deleteSEPPCAStmt, SEPPCATableName), nil},
+		{&db.getSEPPIdentityStmt, fmt.Sprintf(getSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.getSEPPIdentityByFQDNStmt, fmt.Sprintf(getSEPPIdentityByFQDNStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.listSEPPIdentitiesStmt, fmt.Sprintf(listSEPPIdentitiesStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.upsertSEPPIdentityStmt, fmt.Sprintf(upsertSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.deleteSEPPIdentitiesStmt, fmt.Sprintf(deleteSEPPIdentitiesStmt, SEPPIdentitiesTableName), nil},
+		{&db.deleteGeneratedSEPPIdentsStmt, fmt.Sprintf(deleteGeneratedSEPPIdentsStmt, SEPPIdentitiesTableName), nil},
+		{&db.deleteGeneratedSEPPIdentStmt, fmt.Sprintf(deleteGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.upsertGeneratedSEPPIdentStmt, fmt.Sprintf(upsertGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
+		{&db.deleteSEPPIdentityStmt, fmt.Sprintf(deleteSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -1869,12 +1975,18 @@ func (db *Database) PrepareStatements() error {
 
 		// Daily Usage
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
+		{&db.incrementDailyUsagePreV26Stmt, fmt.Sprintf(incrementDailyUsagePreV26Stmt, DailyUsageTableName), []any{DailyUsage{}}},
 		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerDayPreV26Stmt, fmt.Sprintf(getUsagePerDayPreV26Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerDayByIMSIStmt, fmt.Sprintf(getUsagePerDayByIMSIStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerSubscriberByIMSIStmt, fmt.Sprintf(getUsagePerSubscriberByIMSIStmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerDayByIMSIPreV26Stmt, fmt.Sprintf(getUsagePerDayByIMSIPreV26Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
+		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerSubscriberPreV26Stmt, fmt.Sprintf(getUsagePerSubscriberPreV26Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerSubscriberByIMSIStmt, fmt.Sprintf(getUsagePerSubscriberByIMSIStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerSubscriberByIMSIPreV26Stmt, fmt.Sprintf(getUsagePerSubscriberByIMSIPreV26Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
 		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
+		{&db.deleteOldDailyUsagePreV26Stmt, fmt.Sprintf(deleteOldDailyUsagePreV26Stmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
 
 		// Data Networks
 		{&db.listDataNetworksStmt, fmt.Sprintf(listDataNetworksPagedStmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},

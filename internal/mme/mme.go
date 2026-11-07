@@ -14,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/serial"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
@@ -42,6 +44,7 @@ type epsSessionManager interface {
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
 	ReleaseEPSSession(ctx context.Context, ref string, cause models.SessionReleaseRequest) error
 	ReconcileSession(ctx context.Context, ref string) error
+	UpdateAPNSubscription(ctx context.Context, ref string, sub *models.APNSubscription)
 	CommitEPSBearerModification(ctx context.Context, ref string, accepted bool)
 	DedicatedBearerActivated(ctx context.Context, ref string, sgwTEID uint32, ebi uint8, enb models.FTEID) error
 	DedicatedBearerMoved(ctx context.Context, ref string, sgwTEID uint32, enb models.FTEID) error
@@ -55,8 +58,9 @@ type credentialProvider interface {
 }
 
 // Concurrency model. A UE's state is touched by the eNB dispatch loop (serial per
-// SCTP association), the reconcile backstop, the status/detach API, and timer
-// callbacks. Four locks, acquired in this order and never reversed:
+// SCTP association), the connection's NAS lane when it resumes after a home HSS
+// answer, the HSS-initiated S6a handlers, the reconcile backstop, the status/detach
+// API, and timer callbacks. Four locks, acquired in this order and never reversed:
 //
 //		UeContext.connMu  →  DownlinkSender  →  MME.mu  →  UeContext.mu
 //
@@ -93,12 +97,18 @@ type MME struct {
 	Cred   credentialProvider
 	Bearer bearerStore
 
-	Subscriptions *udm.Subscriptions
-	Session       epsSessionManager
-	NAS           NASHandler
-	FiveGS        interworking.FiveGSPeer
+	HPLMN   HPLMNClient
+	Roaming RoamingStore
+	N26     roaming.N26Policy
+
+	Session epsSessionManager
+	NAS     NASHandler
+	FiveGS  interworking.FiveGSPeer
 
 	Registrations Registrar
+
+	home            serial.KeyedQueue
+	mtmsiFreezeTime time.Duration
 
 	LPPHandler LPPHandler
 
@@ -224,6 +234,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		icsGuardCfg: guard.TimerValue{Enable: true, ExpireTime: defaultICSGuardTimeout},
 
 		handoverGuardTimeout: defaultHandoverGuardTimeout,
+		mtmsiFreezeTime:      DefaultMTMSIFreezeTime,
 	}
 
 	m.relativeCapacity.Store(uint32(DefaultRelativeCapacity))

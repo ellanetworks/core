@@ -66,3 +66,12 @@ func isForeignKeyError(err error) bool {
 
 	return false
 }
+
+func isForeignKeyRestrictError(err error) bool {
+	var se sqlite3.Error
+	if errors.As(err, &se) {
+		return se.ExtendedCode == sqlite3.ErrConstraintForeignKey || se.ExtendedCode == sqlite3.ErrConstraintTrigger
+	}
+
+	return false
+}

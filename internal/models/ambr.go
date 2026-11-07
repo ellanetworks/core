@@ -20,3 +20,17 @@ func (a Ambr) Max(o Ambr) Ambr {
 		Downlink: BitRateFromBps(max(a.Downlink.Bps(), o.Downlink.Bps())),
 	}
 }
+
+func (a Ambr) Min(o Ambr) Ambr {
+	out := a
+
+	if o.Uplink.Bps() < a.Uplink.Bps() {
+		out.Uplink = o.Uplink
+	}
+
+	if o.Downlink.Bps() < a.Downlink.Bps() {
+		out.Downlink = o.Downlink
+	}
+
+	return out
+}

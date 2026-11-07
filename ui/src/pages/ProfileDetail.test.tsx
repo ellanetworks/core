@@ -44,25 +44,6 @@ beforeEach(() => {
   }));
 });
 
-const NO_IMS_POLICY =
-  "This profile has no policy on an IMS data network, so its subscribers can't register with the IMS.";
-
-const policiesOn = (...dataNetworks: string[]) =>
-  api.get("/api/v1/policies", () => ({
-    items: dataNetworks.map((dn) => ({
-      name: dn,
-      data_network_name: dn,
-      slice_name: "default",
-      session_ambr_uplink: "100 Mbps",
-      session_ambr_downlink: "100 Mbps",
-      var5qi: 9,
-      arp: 15,
-    })),
-    page: 1,
-    per_page: 100,
-    total_count: dataNetworks.length,
-  }));
-
 const renderProfile = (role = "Admin") =>
   renderWithProviders(
     <Routes>
@@ -163,25 +144,6 @@ describe("ProfileDetail IMS service profiles", () => {
         "Failed to update IMS service profiles: Service profile not found: volte",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("warns when the profile has no policy on an IMS data network", async () => {
-    api.get(SP_PATH, () => ({ mmtel: "volte" }));
-    policiesOn("internet");
-    renderProfile();
-
-    expect(await (await card()).findByText(NO_IMS_POLICY)).toBeInTheDocument();
-  });
-
-  it("does not warn when the profile has a policy on an IMS data network", async () => {
-    api.get(SP_PATH, () => ({ mmtel: "volte" }));
-    policiesOn("internet", "ims");
-    renderProfile();
-
-    const c = await card();
-    await c.findByText("volte");
-    await screen.findByText("Policies (2)");
-    expect(c.queryByText(NO_IMS_POLICY)).not.toBeInTheDocument();
   });
 
   it("hides the edit button from a read-only user", async () => {

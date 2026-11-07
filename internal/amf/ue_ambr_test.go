@@ -75,6 +75,10 @@ func (d *ueAMBRDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber
 	return &db.Subscriber{Imsi: imsi, ProfileID: d.profile.ID}, nil
 }
 
+func (d *ueAMBRDB) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	return d.GetSubscriber(ctx, imsi)
+}
+
 func (d *ueAMBRDB) GetProfileByID(context.Context, string) (*db.Profile, error) {
 	p := d.profile
 

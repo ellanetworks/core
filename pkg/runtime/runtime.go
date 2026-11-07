@@ -53,6 +53,7 @@ import (
 	"github.com/ellanetworks/core/internal/pcf"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/reconciler"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/sctplisten"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
@@ -522,7 +523,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	cp.start(ctx, &wg)
 
 	metrics.RegisterMetrics()
-	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
+	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribersByRoaming, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribersByRoaming)
 	metrics.RegisterRadioEventDrops(bufferedWriter.Dropped)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
@@ -535,6 +536,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}, logger.DiameterLog)
 	diameternode.RegisterMetrics(diameterNode)
 	smsf.RegisterMetrics()
+
+	mmeInstance.HPLMN = roaming.NewS6a(func() roaming.DiameterNode {
+		if node := diameterNode.Node(); node != nil {
+			return node
+		}
+
+		return nil
+	})
+	mmeInstance.RegisterHPLMNHandlers(diameterNode)
 
 	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.PeersOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
@@ -549,12 +559,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	pcfInstance.Attach(diameterNode, &rxOwners{db: dbInstance, directory: &diameterDirectory{db: dbInstance, node: diameterNode}, port: diameterPort(cfg)})
 
-	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity)
+	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity, db.TopicRoaming)
 
 	wg.Go(func() {
 		defer stopDiameterWakeup()
 
 		diameterNode.Run(ctx, diameterWakeup)
+	})
+
+	seppManager := newSEPP(dbInstance, cfg.Interfaces.N32)
+	metrics.RegisterRoamingPartnerGauge(seppManager.ConnectedPartners, connectedS6aPartners(dbInstance, diameterNode))
+	cp.vsmf.SetN32(seppManager)
+	seppManager.SetCallbacks(seppCallbacks{amf: wireAMFRoaming(amfInstance, seppManager), smf: cp.vsmf})
+
+	wg.Go(func() {
+		runSEPP(ctx, dbInstance, seppManager)
 	})
 
 	smsGrantsWakeup, stopSMSGrantsWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicSessionReconcile)
@@ -656,6 +675,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
 		Diameter:            diameterNode,
+		SEPP:                seppManager,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
@@ -1455,7 +1475,22 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 			peers = append(peers, nodes...)
 		}
 
-		return peers, nil
+		roamingPeers, err := dbInstance.ListRoamingDiameterPeers(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		partners, err := dbInstance.ListRoamingPartners(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		roamingConfigs, err := roaming.DiameterPeers(roamingPeers, partners)
+		if err != nil {
+			return nil, err
+		}
+
+		return append(peers, roamingConfigs...), nil
 	}
 }
 
@@ -1626,6 +1661,7 @@ type controlPlane struct {
 	db            *db.Database
 	pcf           *pcf.PCF
 	smf           *smf.SMF
+	vsmf          *roaming.VSMF
 	subscriptions *udm.Subscriptions
 	ausfStore     *ausfDBAdapter
 	ausf          *ausf.AUSF
@@ -1640,9 +1676,12 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
 	subscriptions := udm.NewSubscriptions(dbInstance, &sessionSubscriptionAdapter{smf: smfStore})
+	n26 := roaming.NewN26(dbInstance)
+	vsmf := roaming.NewVSMF(logger.SmfLog)
 
-	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, append([]smf.Option{smf.WithSubscriptions(subscriptions)}, smfOpts...)...)
+	smfInstance := smf.New(pcfInstance, smfStore, nil, smfAMF, append([]smf.Option{smf.WithSubscriptions(smfSubscriptions{Subscriptions: subscriptions, n26: n26}), smf.WithHPLMNClient(vsmf)}, smfOpts...)...)
 	pcfInstance.SetEnforcer(smfInstance)
+	vsmf.SetSessions(smfInstance)
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
@@ -1658,9 +1697,15 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
 	amfInstance.NAS = &nasAdapter{amf: amfInstance}
+	amfInstance.Roaming = dbInstance
 	smfAMF.amf = amfInstance
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
+	mmeInstance.Roaming = dbInstance
+
+	amfInstance.N26 = n26
+	mmeInstance.N26 = n26
+
 	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance
 	mmeInstance.FiveGS = amfInstance
@@ -1672,6 +1717,7 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 		db:            dbInstance,
 		pcf:           pcfInstance,
 		smf:           smfInstance,
+		vsmf:          vsmf,
 		subscriptions: subscriptions,
 		ausfStore:     ausfStore,
 		ausf:          ausfInstance,
@@ -1691,7 +1737,7 @@ func (cp *controlPlane) start(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Go(func() {
 		defer stopRegistrationsWakeup()
 
-		cp.registrations.Run(ctx, registrationsWakeup)
+		cp.registrations.Run(ctx, registrationsWakeup, cp.vsmf.RenewSubscriptions)
 	})
 }
 
@@ -1700,4 +1746,15 @@ func startRadioEventWriter(dbInstance *db.Database) *dbwriter.BufferedDBWriter {
 	logger.SetDb(writer)
 
 	return writer
+}
+
+func connectedS6aPartners(dbInstance *db.Database, node *diameternode.Manager) func() int {
+	return func() int {
+		partners, err := dbInstance.ListRoamingPartners(context.Background())
+		if err != nil {
+			return 0
+		}
+
+		return roaming.ConnectedS6aPartners(partners, node.Peers())
+	}
 }

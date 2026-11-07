@@ -20,6 +20,7 @@ This path retrieves usage data for network subscribers.
 | `end`        | query | string  | `now`    |         | Exclusive upper bound, RFC3339. |
 | `group_by`   | query | string  | _required_ | `day`, `subscriber` | Grouping method for usage data. |
 | `subscriber` | query | string  | ``     |          | Filter usage data for a specific subscriber.     |
+| `roaming`    | query | string  | ``     | `true`, `false` | `true` returns only roamer usage, `false` only home subscriber usage. Absent returns both. |
 | `limit`      | query | integer | `1000` | `1`–`1000` | With `group_by=subscriber` only: the maximum number of subscribers returned, ordered by total usage, highest first. |
 
 ### Sample Response

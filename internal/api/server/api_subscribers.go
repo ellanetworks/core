@@ -160,7 +160,7 @@ const (
 )
 
 const (
-	MaxNumSubscribers    = 1000
+	MaxNumSubscribers    = db.MaxNumSubscribers
 	MaxSessions          = 26
 	MaxSearchLength      = 254
 	MaxDescriptionLength = 64
@@ -518,54 +518,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		snap, pduSessions, found := amfInstance.LookupSubscriber(supi)
-
-		var (
-			cs   mme.ConnectedSubscriber
-			on4G bool
-		)
-
-		var (
-			mmeLastSeen      mme.LastSeen
-			mmeLastSeenKnown bool
-		)
-
-		if mmeInstance != nil {
-			cs, on4G = mmeInstance.LookupSubscriber(imsi)
-			mmeLastSeen, mmeLastSeenKnown = mmeInstance.LastSeen(imsi)
-		}
-
-		amfLastSeen, amfLastSeenKnown := amfInstance.LastSeen(imsi)
-
-		registrations := make([]Registration, 0, 2)
-
-		if reg, ok := registrationFrom5G(snap, found, amfLastSeen, amfLastSeenKnown); ok {
-			registrations = append(registrations, reg)
-		}
-
-		if reg, ok := registrationFrom4G(cs, on4G, mmeLastSeen, mmeLastSeenKnown); ok {
-			registrations = append(registrations, reg)
-		}
-
-		sessions := make([]Session, 0, len(pduSessions)+len(cs.Sessions))
-
-		if found {
-			for _, pdu := range pduSessions {
-				if len(sessions) >= MaxSessions {
-					break
-				}
-
-				sessions = append(sessions, withBearers(sessionFrom5G(pdu), sessionQuerier, pdu.Ref))
-			}
-		}
-
-		for i := range cs.Sessions {
-			if len(sessions) >= MaxSessions {
-				break
-			}
-
-			sessions = append(sessions, withBearers(sessionFrom4G(&cs.Sessions[i]), sessionQuerier, cs.Sessions[i].SessionRef))
-		}
+		registrations, sessions := liveRegistrations(supi, imsi, amfInstance, mmeInstance, sessionQuerier)
 
 		subscriber := SubscriberDetail{
 			Imsi:          dbSubscriber.Imsi,
@@ -718,7 +671,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numSubscribers, err := dbInstance.CountSubscribers(r.Context())
+		numSubscribers, err := dbInstance.CountSubscribersAndVisitors(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count subscribers", err, logger.APILog)
 			return
@@ -747,6 +700,11 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 
 			if errors.Is(err, db.ErrMSISDNInUse) {
 				writeError(r.Context(), w, http.StatusConflict, "MSISDN is already assigned to another subscriber", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrSubscriberLimit) {
+				writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of subscribers reached ("+strconv.Itoa(MaxNumSubscribers)+")", nil, logger.APILog)
 				return
 			}
 
@@ -926,6 +884,10 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			}
 		}
 
+		if termination != nil {
+			_ = hssInstance.Terminate(context.WithoutCancel(r.Context()), termination)
+		}
+
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
 		amfInstance.ForgetSubscriber(imsi)
 
@@ -943,10 +905,6 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 
 			return
-		}
-
-		if termination != nil {
-			go func(ctx context.Context) { _ = hssInstance.Terminate(ctx, termination) }(context.WithoutCancel(r.Context()))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)

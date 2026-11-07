@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -183,6 +184,62 @@ func TestSpecDeclaresNullForEveryNullableField(t *testing.T) {
 				"%s.%s can never marshal as null, but its schema admits null",
 				field.structName, field.jsonName,
 			)
+		}
+	}
+}
+
+func TestSpecDeclaresEveryStructField(t *testing.T) {
+	var spec struct {
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]any `yaml:"properties"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+
+	if err := yaml.Unmarshal(openapiSpec, &spec); err != nil {
+		t.Fatalf("could not parse the embedded OpenAPI spec: %v", err)
+	}
+
+	for _, field := range packageStructFields(t) {
+		schema, ok := spec.Components.Schemas[field.structName]
+		if !ok || len(schema.Properties) == 0 {
+			continue
+		}
+
+		if _, ok := schema.Properties[field.jsonName]; !ok {
+			t.Errorf("%s.%s is not declared in the OpenAPI schema %s", field.structName, field.jsonName, field.structName)
+		}
+	}
+}
+
+func TestSpecDocumentsEveryRoute(t *testing.T) {
+	var spec struct {
+		Paths map[string]map[string]any `yaml:"paths"`
+	}
+
+	if err := yaml.Unmarshal(openapiSpec, &spec); err != nil {
+		t.Fatalf("could not parse the embedded OpenAPI spec: %v", err)
+	}
+
+	source, err := os.ReadFile("server.go")
+	if err != nil {
+		t.Fatalf("could not read server.go: %v", err)
+	}
+
+	routes := regexp.MustCompile(`mux\.HandleFunc\("([A-Z]+) (/api/v1/[^"]*)"`).FindAllStringSubmatch(string(source), -1)
+	if len(routes) == 0 {
+		t.Fatal("found no routes in server.go")
+	}
+
+	for _, route := range routes {
+		method, path := strings.ToLower(route[1]), route[2]
+		if path == "/api/v1/openapi.yaml" {
+			continue
+		}
+
+		if _, ok := spec.Paths[path][method]; !ok {
+			t.Errorf("%s %s is not documented in the OpenAPI spec", route[1], path)
 		}
 	}
 }

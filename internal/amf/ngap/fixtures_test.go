@@ -31,6 +31,8 @@ func operatorPlmnID() *models.PlmnID {
 
 type fakeDBInstance struct {
 	BarFrom5G   bool
+	Visitor     bool
+	LookupErr   error
 	Operator    *db.Operator
 	OperatorErr error
 	Slices      []db.NetworkSlice
@@ -100,7 +102,7 @@ type SmfPrepareFromEPSCall struct {
 	Snssai            *models.Snssai
 }
 
-func (f *fakeSmfSbi) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
+func (f *fakeSmfSbi) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, *smf.HPLMNTarget) (string, []uint8, error) {
 	return "", nil, nil
 }
 
@@ -108,7 +110,7 @@ func (f *fakeSmfSbi) HandoverAdmittedFlowEBIs(string) []uint8 { return nil }
 
 func (f *fakeSmfSbi) ReleaseInactiveEPSBearers(context.Context, string, []uint8) {}
 
-func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, []uint8, error) {
+func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, _ *smf.HPLMNTarget) (string, []byte, []uint8, error) {
 	f.PrepareFromEPSCalls = append(f.PrepareFromEPSCalls, &SmfPrepareFromEPSCall{
 		Supi:              supi,
 		PDUSessionID:      pduSessionID,
@@ -174,7 +176,9 @@ func (f *fakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef stri
 	return nil, nil
 }
 
-func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, _ uint8) (string, []byte, error) {
+func (f *fakeSmfSbi) ReleaseBarredSession(context.Context, string) error { return nil }
+
+func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, _ uint8, _ *smf.HPLMNTarget) (string, []byte, error) {
 	return "", nil, nil
 }
 
@@ -267,6 +271,20 @@ func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 	return &db.Subscriber{
 		Imsi: imsi,
 	}, nil
+}
+
+func (fdb *fakeDBInstance) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	if fdb.LookupErr != nil {
+		return nil, fdb.LookupErr
+	}
+
+	if !fdb.Visitor {
+		return fdb.GetSubscriber(ctx, imsi)
+	}
+
+	partner := "partner"
+
+	return &db.Subscriber{Imsi: imsi, RoamingPartnerID: &partner}, nil
 }
 
 func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {

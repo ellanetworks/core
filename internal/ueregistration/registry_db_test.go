@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/pki"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"go.uber.org/zap"
@@ -78,9 +79,9 @@ func register(t *testing.T, b *ueregistration.Binding) int64 {
 func reconcile(b *ueregistration.Binding, held int64) string {
 	outcome := "kept"
 
-	b.Reconcile(context.Background(), imsi, func() int64 { return held },
+	b.Reconcile(context.Background(), imsi, false, func() int64 { return held },
 		func(context.Context) { outcome = "released" },
-		func(context.Context) { outcome = "withdrawn" })
+		func(context.Context, ueregistration.Withdrawal) { outcome = "withdrawn" })
 
 	return outcome
 }
@@ -185,5 +186,60 @@ func TestRegistry_SubscriberDeletionWithdrawsRegistrationOnEveryNode(t *testing.
 
 	if got := reconcile(mmeB, atB); got != "withdrawn" {
 		t.Fatalf("node-b's EPS context: outcome = %s, want withdrawn", got)
+	}
+}
+
+func TestRegistry_VisitorIsNotTreatedAsDeleted(t *testing.T) {
+	database := newRaftTestDatabase(t)
+	ctx := context.Background()
+
+	home, err := database.GetSubscriber(ctx, imsi)
+	if err != nil {
+		t.Fatalf("GetSubscriber: %s", err)
+	}
+
+	const seppFQDN = "sepp1.5gc.mnc093.mcc208.3gppnetwork.org"
+
+	_, _, ca, err := pki.GenerateSEPPCert(seppFQDN, pki.PLMN{MCC: "208", MNC: "93"})
+	if err != nil {
+		t.Fatalf("GenerateSEPPCert: %s", err)
+	}
+
+	fqdn, n32c, anchor := seppFQDN, "https://"+seppFQDN, string(pki.EncodeCertPEM(ca))
+
+	partner := &db.RoamingPartner{ID: "partner", Name: "partner", PLMNs: []db.RoamingPLMN{{Mcc: "208", Mnc: "93"}}, ProfileID: home.ProfileID, SEPPFQDN: &fqdn, SEPPN32cURI: &n32c, SEPPTrustAnchorPEM: &anchor}
+	if err := database.CreateRoamingPartner(ctx, partner); err != nil {
+		t.Fatalf("CreateRoamingPartner: %s", err)
+	}
+
+	const visitor = "208930000000001"
+
+	held, err := database.RegisterVisitorUE(ctx, visitor, partner.ID, amfType, "node-a", mmeType)
+	if err != nil {
+		t.Fatalf("RegisterVisitorUE: %s", err)
+	}
+
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+
+	outcome := func() string {
+		got := "kept"
+
+		amfA.Reconcile(ctx, visitor, true, func() int64 { return held },
+			func(context.Context) { got = "released" },
+			func(context.Context, ueregistration.Withdrawal) { got = "withdrawn" })
+
+		return got
+	}
+
+	if got := outcome(); got != "kept" {
+		t.Fatalf("registered visitor: outcome = %s, want kept", got)
+	}
+
+	if err := database.PurgeUERegistration(ctx, visitor, amfType, "node-a"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
+
+	if got := outcome(); got != "withdrawn" {
+		t.Fatalf("deleted visitor: outcome = %s, want withdrawn", got)
 	}
 }

@@ -8,9 +8,11 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -127,6 +129,143 @@ func TestOutboundConnectionBindsTheSourceAddress(t *testing.T) {
 			if got := remote.Load(); got != loopback2 {
 				t.Fatalf("HSS saw the SMSC at %v", got)
 			}
+		})
+	}
+}
+
+func TestOutboundConnectionPrefersHostIPAddressesOverTheSourceAddress(t *testing.T) {
+	alias := netip.MustParseAddr("127.0.0.20")
+
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			var remote atomic.Value
+
+			hssCfg := testConfig("hss.example.org")
+			hssCfg.Handler = HandlerFunc(func(_ context.Context, c *Conn, req *Message) *Message {
+				remote.Store(c.RemoteAddr())
+				return c.Answer(req, ResultSuccess)
+			})
+
+			hss := newTestNode(t, hssCfg)
+			if err := hss.SetPeers([]Peer{{ID: "smsc", Addresses: []netip.Addr{alias}, Transports: []Transport{kind}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			addr := serveOn(t, hss, kind, loopback1)
+
+			smscCfg := testConfig("smsc.example.org")
+			smscCfg.Identity.HostIPAddresses = []netip.Addr{alias}
+			smscCfg.SourceAddress = func(netip.Addr) (netip.Addr, error) { return loopback1, nil }
+			smsc := newTestNode(t, smscCfg)
+
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			eventually(t, "the SMSC to reach the HSS", func() bool { return doOK(smsc, "hss") })
+
+			if got := remote.Load(); got != alias {
+				t.Fatalf("HSS saw the SMSC at %v, want %v", got, alias)
+			}
+		})
+	}
+}
+
+func TestLocalAddresses(t *testing.T) {
+	v4a := netip.MustParseAddr("127.0.0.20")
+	v4b := netip.MustParseAddr("127.0.0.21")
+	v6 := netip.MustParseAddr("2001:db8::20")
+	routed := netip.MustParseAddr("192.0.2.1")
+	route := func(netip.Addr) (netip.Addr, error) { return routed, nil }
+
+	tests := []struct {
+		name   string
+		host   []netip.Addr
+		source func(netip.Addr) (netip.Addr, error)
+		remote []netip.Addr
+		want   []netip.Addr
+	}{
+		{"every host address of the remote's family", []netip.Addr{v4a, v6, v4b}, route, []netip.Addr{loopback1}, []netip.Addr{v4a, v4b}},
+		{"both families for a dual-stack remote", []netip.Addr{v4a, v6}, nil, []netip.Addr{loopback1, netip.MustParseAddr("2001:db8::1")}, []netip.Addr{v4a, v6}},
+		{"the source address when no host address matches", []netip.Addr{v4a}, route, []netip.Addr{netip.MustParseAddr("2001:db8::1")}, []netip.Addr{routed}},
+		{"the source address without host addresses", nil, route, []netip.Addr{loopback1}, []netip.Addr{routed}},
+		{"nothing without host or source addresses", nil, nil, []netip.Addr{loopback1}, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := &Node{cfg: Config{Identity: Identity{HostIPAddresses: tt.host}, SourceAddress: tt.source}}
+
+			got, err := n.localAddresses(tt.remote)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("localAddresses = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOutboundConnectionAppliesTheDialControl(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			var (
+				mu    sync.Mutex
+				dials []string
+			)
+
+			_, smsc, addr := pair(t, kind, func(cfg *Config) {
+				cfg.DialControl = func(network, address string, _ syscall.RawConn) error {
+					mu.Lock()
+					defer mu.Unlock()
+
+					dials = append(dials, network+" "+address)
+
+					return nil
+				}
+			})
+
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			eventually(t, "the SMSC to reach the HSS", func() bool { return doOK(smsc, "hss") })
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if len(dials) == 0 {
+				t.Fatal("the dial control was not applied")
+			}
+
+			for _, d := range dials {
+				if !strings.HasPrefix(d, kind.String()) || !strings.Contains(d, addr.Addr().String()) {
+					t.Fatalf("dial control called for %q, want a %s dial to %v", d, kind, addr)
+				}
+			}
+		})
+	}
+}
+
+func TestDialControlFailureKeepsThePeerDown(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			_, smsc, addr := pair(t, kind, func(cfg *Config) {
+				cfg.DialControl = func(string, string, syscall.RawConn) error {
+					return errors.New("no such device")
+				}
+			})
+
+			if err := smsc.SetPeers([]Peer{{ID: "hss", Addresses: []netip.Addr{addr.Addr()}, Transports: []Transport{kind}, Dial: &Dial{Port: addr.Port()}, Applications: []Application{sgdApp}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			eventually(t, "the peer to report the dial control failure", func() bool {
+				s, _ := smsc.Peer("hss")
+				return s.State != PeerOpen && strings.Contains(s.LastError, "no such device")
+			})
 		})
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -84,6 +85,7 @@ type Config struct {
 	OnPeerStateChange           func(PeerStatus)
 	OnReroute                   func(Reroute)
 	SourceAddress               func(remote netip.Addr) (netip.Addr, error)
+	DialControl                 func(network, address string, c syscall.RawConn) error
 	Resolver                    Resolver
 	Logger                      *slog.Logger
 	TracerProvider              trace.TracerProvider

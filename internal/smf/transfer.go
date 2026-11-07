@@ -30,8 +30,9 @@ type transferRequest struct {
 }
 
 type pendingTransfer struct {
-	to  AccessType
-	ebi uint8
+	to    AccessType
+	ebi   uint8
+	hplmn HPLMNSubscription
 }
 
 type droppedSource struct {
@@ -41,7 +42,16 @@ type droppedSource struct {
 	upActive bool
 }
 
-func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
+func (s *SMF) findTransferable(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
+	allowed, err := s.subscriptions.N26Allowed(ctx, supi.IMSI())
+	if err != nil {
+		return nil, fmt.Errorf("resolve the subscriber: %w", err)
+	}
+
+	if !allowed {
+		return nil, fmt.Errorf("%w: %s may not move between EPS and 5GS", ErrSessionNotTransferable, supi)
+	}
+
 	if pduSessionID == 0 {
 		return nil, fmt.Errorf("%w: the UE named no PDU session identity", ErrSessionNotTransferable)
 	}
@@ -137,6 +147,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 		sc.pending = nil
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 		sc.handoverTargetAN = nil
+		sc.unbindAbandonedMoveLocked(move)
 
 		ctx, span := guardSpan(link, "smf/transfer_supervision_expire", "transfer supervision", 0)
 		defer span.End()
@@ -166,8 +177,10 @@ func (sc *SMContext) clearPendingLocked() {
 }
 
 func (sc *SMContext) abandonPendingLocked() {
+	move := sc.pending
 	sc.clearPendingLocked()
 	sc.handoverTargetAN = nil
+	sc.unbindAbandonedMoveLocked(move)
 }
 
 type transferCommit struct {
@@ -186,16 +199,19 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 	sc.clearPendingLocked()
 
 	if sc.releasing {
+		sc.unbindAbandonedMoveLocked(move)
 		return nil, fmt.Errorf("session %q is being released", sc.Ref)
 	}
 
 	if !sc.hasUserPlane() {
+		sc.unbindAbandonedMoveLocked(move)
 		return nil, fmt.Errorf("session %q has no user plane to move", sc.Ref)
 	}
 
 	source, sourceID, sourceUP := sc.Access, sc.SessionIdentity, sc.upConnectionActive()
 
 	if err := s.setEPSBearerIdentity(sc, move.ebi); err != nil {
+		sc.unbindAbandonedMoveLocked(move)
 		return nil, err
 	}
 
@@ -208,6 +224,7 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 		restore: func() {
 			sc.Access = source
 			s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI)
+			sc.unbindAbandonedMoveLocked(move)
 		},
 	}, nil
 }
@@ -275,7 +292,9 @@ func (sc *SMContext) takeAbandonedMoveTo(access AccessType) (etsi.SUPI, uint8, s
 		return sc.Supi, sc.PDUSessionID, sc.Ref, false
 	}
 
+	move := sc.pending
 	sc.clearPendingLocked()
+	sc.unbindAbandonedMoveLocked(move)
 
 	return sc.Supi, sc.PDUSessionID, sc.Ref, true
 }

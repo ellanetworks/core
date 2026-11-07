@@ -26,6 +26,8 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/serial"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/udm"
@@ -72,10 +74,11 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8, target *smf.HPLMNTarget) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string, preserveGBR bool) error
 	ReleaseSmContext(ctx context.Context, smContextRef string, release models.SessionReleaseRequest) error
+	ReleaseBarredSession(ctx context.Context, smContextRef string) error
 	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
 	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
@@ -84,8 +87,8 @@ type SmfSbi interface {
 	UpdateSmContextN2InfoPduResModifyFail(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoNotify(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
-	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, []uint8, error)
-	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []uint8, error)
+	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, target *smf.HPLMNTarget) (string, []byte, []uint8, error)
+	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, target *smf.HPLMNTarget) (string, []uint8, error)
 	HandoverAdmittedFlowEBIs(smContextRef string) []uint8
 	ReleaseInactiveEPSBearers(ctx context.Context, smContextRef string, ebis []uint8)
 	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
@@ -182,6 +185,11 @@ type AMF struct {
 	SMS                      smsf.Handler
 	IMSVoice                 IMSVoice
 	EPS                      interworking.EPSPeer
+	HPLMN                    *roaming.AMFHPLMN
+	Roaming                  RoamingStore
+	N26                      roaming.N26Policy
+
+	home serial.KeyedQueue
 
 	handoversToEPS interworking.HandoverGroup
 	smsDecisionMu  sync.RWMutex
@@ -364,7 +372,10 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext,
 	// context is torn down, and deleting unconditionally would drop the live registration.
 	if ue.supi.IsValid() && amf.UEs[ue.supi] == ue {
 		delete(amf.UEs, ue.supi)
-		amf.purgeRegistration(ue.supi)
+
+		if !amf.purgeVisitor(ue, ue.supi) {
+			amf.purgeRegistration(ue.supi)
+		}
 	}
 
 	amf.mu.Unlock()
@@ -380,24 +391,11 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	ue.connMu.Lock()
 	defer ue.connMu.Unlock()
 
-	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
-
 	// A connected UE with a security context is told to deregister over the air,
 	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
 	// context. An idle or unsecured UE cannot be signalled, so it is removed
 	// locally.
-	if ue.Conn() != nil && ue.secured {
-		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue, withdrawn); err != nil {
-			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
-				zap.Error(err), logger.SUPI(supi.String()))
-			amf.DeregisterAndRemoveUeContext(ctx, ue, withdrawn)
-		}
-
-		return
-	}
-
-	amf.DeregisterAndRemoveUeContext(ctx, ue, withdrawn)
-	logger.AmfLog.Debug("removed ue context", logger.SUPI(supi.String()))
+	amf.DeregisterUE(ctx, ue, models.ReleaseFor(models.ReleaseSubscriptionWithdrawn), NetworkDeregistration{})
 }
 
 func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
@@ -634,18 +632,28 @@ func (amf *AMF) CountRadios() int {
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
+	own, roamers := amf.CountRegisteredSubscribersByRoaming()
+
+	return own + roamers
+}
+
+func (amf *AMF) CountRegisteredSubscribersByRoaming() (own, roamers int) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	count := 0
-
 	for _, ue := range amf.UEs {
-		if ue.State() == Registered {
-			count++
+		if ue.State() != Registered {
+			continue
+		}
+
+		if ue.IsVisitor() {
+			roamers++
+		} else {
+			own++
 		}
 	}
 
-	return count
+	return own, roamers
 }
 
 func (amf *AMF) DisconnectRadioOnConnLoss(ran *Radio) {

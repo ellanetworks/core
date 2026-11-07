@@ -9,17 +9,25 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) nasreply.Disposition {
+func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.RegistrationComplete) nasreply.Disposition {
 	if ue.RegStep() != amf.RegStepContextSetup {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Registration Complete message outside context setup", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	amfInstance.MarkRegistered(ctx, ue)
+
+	var sor []byte
+	if msg != nil {
+		sor = msg.SORTransparentContainer
+	}
+
+	amfInstance.AcknowledgeSoR(ctx, ue, sor)
 
 	conn := ue.Conn()
 	if conn == nil {

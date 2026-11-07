@@ -514,7 +514,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	)
 	defer span.End()
 
-	sub, err := db.GetSubscriber(ctx, imsi)
+	sub, err := db.GetSubscriberOrVisitor(ctx, imsi)
 	if err != nil {
 		recordSpanError(span, err)
 

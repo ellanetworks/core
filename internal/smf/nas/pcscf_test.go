@@ -42,7 +42,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_PCSCF(t *testing.T) {
 			pco := &smfNas.ProtocolConfigurationOptions{PCSCFRequest: tc.request}
 			addrs := &smfNas.PDUSessionAddresses{PDUSessionType: tc.sessionType}
 
-			raw, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, &models.Snssai{Sst: 1}, "ims", pco, nil, tc.pcscf, 0, nil, addrs, nil, 0)
+			raw, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, &models.Snssai{Sst: 1}, nil, "ims", pco, nil, tc.pcscf, 0, nil, addrs, nil, 0)
 			if err != nil {
 				t.Fatalf("build failed: %v", err)
 			}

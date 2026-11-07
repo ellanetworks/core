@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -266,7 +267,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnnResp, err := amfInstance.SubscriberDnn(ctx, ue.Supi(), snssai)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to get subscriber data", zap.Error(err))
-			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
+			amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, smMessage, fgs.PDUSessionID(pduSessionID), dnnRejectCause(err))
 
 			return
 		}
@@ -274,17 +275,24 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn = dnnResp
 	}
 
+	if err := amfInstance.VisitorDNN(ctx, ue.Supi(), *snssai, dnn); err != nil {
+		logger.From(ctx, logger.AmfLog).Info("PDU session of a roamer not forwarded", logger.PDUSessionID(pduSessionID), zap.String("dnn", dnn), zap.Error(err))
+		amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, smMessage, fgs.PDUSessionID(pduSessionID), dnnRejectCause(err))
+
+		return
+	}
+
 	requestType := fgs.RequestTypeInitialRequest
 	if ulNasTransport.RequestType != nil {
 		requestType = *ulNasTransport.RequestType
 	}
 
-	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID)
+	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID, *snssai, dnn)
 	defer ue.ReleaseEPSBearerReservation(pduSessionID)
 
 	smCtx := smf.WithHighPriorityAccess(ctx, ueConn.MayBeHighPriorityAccess())
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(smCtx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(smCtx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity, ue.SessionHPLMNTarget(*snssai, dnn, epsBearerIdentity != 0))
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).
@@ -324,8 +332,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", logger.PDUSessionID(pduSessionID))
 }
 
-func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionID uint8) uint8 {
-	if !ue.EPSInterworkingAllowed() {
+func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionID uint8, snssai models.Snssai, dnn string) uint8 {
+	if !ue.EPSInterworkingAllowed() || !ue.EPSInterworkingSubscribed(snssai, dnn) {
 		return 0
 	}
 
@@ -373,7 +381,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			logger.From(ctx, logger.AmfLog).Error("LPP handler not configured")
 		}
 	case fgs.PayloadContainerTypeSOR:
-		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
+		amfInstance.AcknowledgeSoRTransport(ctx, ue, msg.PayloadContainer)
 	case fgs.PayloadContainerTypeUEPolicy:
 		logger.From(ctx, logger.AmfLog).Info("amf.AMF Transfer UEPolicy To PCF")
 	case fgs.PayloadContainerTypeUEParameterUpdate:
@@ -399,4 +407,12 @@ func requestTypeReachesSMF(t *fgs.RequestType) bool {
 	}
 
 	return *t == fgs.RequestTypeExistingPDUSession || *t == fgs.RequestTypeExistingEmergencyPDUSession
+}
+
+func dnnRejectCause(err error) fgs.GMMCause {
+	if errors.Is(err, roaming.ErrDNNNotSubscribed5G) || errors.Is(err, roaming.ErrDNNNotLocal) {
+		return fgs.GMMCauseDNNNotSupportedInSlice
+	}
+
+	return fgs.GMMCausePayloadNotForwarded
 }

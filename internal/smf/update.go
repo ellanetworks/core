@@ -235,6 +235,10 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		s.reconcileAfter(smContextRef, 0)
 	}
 
+	if err == nil {
+		s.registerHPLMNSubscription(ctx, smContext)
+	}
+
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to bind the downlink")

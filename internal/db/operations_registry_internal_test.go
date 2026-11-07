@@ -106,6 +106,21 @@ var pinnedChangesetOps = map[string]int{
 	"UpdateUserPassword":                1,
 	"UpsertClusterMember":               9,
 	"UpsertClusterNodeCert":             12,
+	"CreateRoamingPartner":              26,
+	"UpdateRoamingPartner":              26,
+	"DeleteRoamingPartner":              26,
+	"CreateRoamingDiameterPeer":         26,
+	"UpdateRoamingDiameterPeer":         26,
+	"DeleteRoamingDiameterPeer":         26,
+	"PutSEPPIdentity":                   26,
+	"InitSEPPCA":                        26,
+	"ReplaceSEPPCA":                     26,
+	"RegisterVisitorUE":                 26,
+	"SetVisitorMSISDN":                  26,
+	"SetRoamingPartnerWithdrawing":      26,
+	"SetVisitorDeregistering":           26,
+	"PutGeneratedSEPPIdentity":          26,
+	"DeleteSEPPIdentity":                26,
 }
 
 var pinnedIntentOps = map[string]int{

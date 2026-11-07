@@ -4,10 +4,14 @@
 package server_test
 
 import (
+	"context"
 	"net/http"
+	"path/filepath"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/db"
 )
 
 type N2Interface struct {
@@ -38,12 +42,19 @@ type DiameterInterface struct {
 	Interface string   `json:"interface"`
 }
 
+type N32Interface struct {
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface"`
+}
+
 type NetworkInterfaces struct {
 	N2       N2Interface        `json:"n2"`
 	N3       N3Interface        `json:"n3"`
 	N6       N6Interface        `json:"n6"`
 	API      APIInterface       `json:"api"`
 	Diameter *DiameterInterface `json:"diameter"`
+	N32      *N32Interface      `json:"n32"`
 }
 
 type GetNetworkInterfaceInfoResponse struct {
@@ -145,6 +156,10 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 
 		if d := resp.Result.Diameter; d == nil || len(d.Addresses) != 1 || d.Addresses[0] != "15.15.15.15" || d.Port != 3868 || d.Interface != "" {
 			t.Fatalf("unexpected Diameter interface: %+v", d)
+		}
+
+		if resp.Result.N32 != nil {
+			t.Fatalf("expected no N32 interface, got %+v", resp.Result.N32)
 		}
 	})
 
@@ -276,4 +291,96 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 			t.Fatalf("unexpected N3 interface external address: %s", resp.Result.N3.ExternalAddress)
 		}
 	})
+}
+
+func newN32InterfaceTestEnv(t *testing.T, n32 config.N32Interface) (testEnv, *http.Client, string) {
+	t.Helper()
+
+	testdb, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	env, err := buildTestEnvWith(testdb, nil, nil, func(c *server.HandlerConfig) {
+		c.Config.Interfaces.N32 = n32
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(env.Server.Close)
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return env, client, token
+}
+
+func TestNetworkInterfaces_N32(t *testing.T) {
+	originalGetInterfaceIPsFunc := config.GetInterfaceIPsFunc
+	config.GetInterfaceIPsFunc = func(name string) ([]string, error) {
+		switch name {
+		case "ens5":
+			return []string{"16.16.16.16", "2001:db8::16"}, nil
+		default:
+			return nil, nil
+		}
+	}
+
+	t.Cleanup(func() {
+		config.GetInterfaceIPsFunc = originalGetInterfaceIPsFunc
+	})
+
+	tests := []struct {
+		name          string
+		n32           config.N32Interface
+		wantAddresses []string
+		wantPort      int
+		wantInterface string
+	}{
+		{"address", config.N32Interface{Enabled: true, Address: "10.0.0.32", Port: 443}, []string{"10.0.0.32"}, 443, ""},
+		{"interface name", config.N32Interface{Enabled: true, Name: "ens5", Port: 8443}, []string{"16.16.16.16", "2001:db8::16"}, 8443, "ens5"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			env, client, token := newN32InterfaceTestEnv(t, tc.n32)
+
+			statusCode, resp, err := listNetworkInterfaces(env.Server.URL, client, token)
+			if err != nil {
+				t.Fatalf("couldn't list network interfaces: %s", err)
+			}
+
+			if statusCode != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+			}
+
+			n := resp.Result.N32
+			if n == nil {
+				t.Fatal("expected an N32 interface")
+			}
+
+			if len(n.Addresses) != len(tc.wantAddresses) {
+				t.Fatalf("unexpected N32 addresses: %v", n.Addresses)
+			}
+
+			for i, a := range tc.wantAddresses {
+				if n.Addresses[i] != a {
+					t.Fatalf("unexpected N32 addresses: %v", n.Addresses)
+				}
+			}
+
+			if n.Port != tc.wantPort {
+				t.Fatalf("unexpected N32 port: %d", n.Port)
+			}
+
+			if n.Interface != tc.wantInterface {
+				t.Fatalf("unexpected N32 interface: %q", n.Interface)
+			}
+		})
+	}
 }

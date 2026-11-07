@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -33,7 +34,22 @@ func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 
 	m.SyncUEAMBR(ctx, ue)
 
+	visitor := ue.IsVisitor()
+
 	for _, p := range m.SnapshotPDNs(ue) {
+		if visitor {
+			sub, err := m.APNSubscription(ue, p.Apn)
+
+			switch {
+			case errors.Is(err, roaming.ErrNoHPLMNSubscription):
+			case err != nil:
+				logger.From(ctx, logger.MmeLog).Info("the home subscription no longer allows a PDN connection of the visitor", zap.String("apn", p.Apn), zap.Error(err))
+				m.Session.UpdateAPNSubscription(ctx, p.SessionRef, nil)
+			default:
+				m.Session.UpdateAPNSubscription(ctx, p.SessionRef, sub)
+			}
+		}
+
 		if err := m.Session.ReconcileSession(ctx, p.SessionRef); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("session reconcile failed", zap.String("apn", p.Apn), zap.Error(err))
 		}
@@ -93,7 +109,7 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, r
 
 	if !ue.BearerReleaseOnly(p) {
 		ueConn.Log(ctx).Info("policy/data-network changed on the last PDN connection; detaching for re-attach", zap.String("apn", p.Apn))
-		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, models.ReleaseFor(reason))
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, nil, models.ReleaseFor(reason))
 
 		return nil
 	}

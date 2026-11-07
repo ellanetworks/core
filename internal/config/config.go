@@ -43,6 +43,8 @@ const (
 	DefaultS1APPort = 36412
 
 	DefaultDiameterPort = 3868
+
+	DefaultN32Port = 443
 )
 
 // ErrNoInterfaceIP is returned when an interface exists but currently has no
@@ -124,12 +126,19 @@ type DiameterInterfaceYaml struct {
 	Port    int    `yaml:"port"`
 }
 
+type N32InterfaceYaml struct {
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+	Port    int    `yaml:"port"`
+}
+
 type InterfacesYaml struct {
 	N2       N2InterfaceYaml       `yaml:"n2"`
 	N3       N3InterfaceYaml       `yaml:"n3"`
 	N6       N6InterfaceYaml       `yaml:"n6"`
 	API      APIInterfaceYaml      `yaml:"api"`
 	Diameter DiameterInterfaceYaml `yaml:"diameter"`
+	N32      N32InterfaceYaml      `yaml:"n32"`
 }
 
 // XDPYaml is the deprecated attach-mode block, still parsed so existing
@@ -221,12 +230,20 @@ type DiameterInterface struct {
 	Port    int
 }
 
+type N32Interface struct {
+	Enabled bool
+	Name    string
+	Address string
+	Port    int
+}
+
 type Interfaces struct {
 	N2       N2Interface
 	N3       N3Interface
 	N6       N6Interface
 	API      APIInterface
 	Diameter DiameterInterface
+	N32      N32Interface
 }
 
 type Datapath struct {
@@ -508,6 +525,13 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	config.Interfaces.Diameter = diameter
+
+	n32, err := validateN32Interface(c.Interfaces.N32)
+	if err != nil {
+		return Config{}, err
+	}
+
+	config.Interfaces.N32 = n32
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
 	config.Telemetry.Enabled = c.Telemetry.Enabled
 
@@ -543,6 +567,36 @@ func validateDiameterInterface(d DiameterInterfaceYaml) (DiameterInterface, erro
 	out := DiameterInterface{Enabled: true, Port: port}
 
 	if d.Name != "" {
+		out.Name = name
+	} else {
+		out.Address = address
+	}
+
+	return out, nil
+}
+
+func validateN32Interface(n N32InterfaceYaml) (N32Interface, error) {
+	if n == (N32InterfaceYaml{}) {
+		return N32Interface{}, nil
+	}
+
+	name, address, err := getInterfaceNameAndAddress(n.Name, n.Address, AnyFamily)
+	if err != nil {
+		return N32Interface{}, fmt.Errorf("interfaces.n32: %w", err)
+	}
+
+	port := n.Port
+	if port == 0 {
+		port = DefaultN32Port
+	}
+
+	if port < 1 || port > 65535 {
+		return N32Interface{}, errors.New("interfaces.n32.port must be between 1 and 65535")
+	}
+
+	out := N32Interface{Enabled: true, Port: port}
+
+	if n.Name != "" {
 		out.Name = name
 	} else {
 		out.Address = address

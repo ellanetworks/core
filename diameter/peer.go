@@ -366,17 +366,17 @@ func (n *Node) acceptCER(c *Conn, host string, cer *Message) cerDecision {
 	c.peer = p
 	c.common = common
 
+	if p.dialing || (p.initiator != nil && !winsElection(n.cfg.Identity.OriginHost, host)) {
+		p.parked = c
+		d.outcome = cerParked
+
+		n.reportLocked(p)
+
+		return d
+	}
+
 	if p.initiator != nil {
-		if !winsElection(n.cfg.Identity.OriginHost, host) {
-			p.parked = c
-			d.outcome = cerParked
-
-			n.reportLocked(p)
-
-			return d
-		}
-
-		d.displaced = append(d.displaced, p.initiator)
+		p.initiator.retire()
 		p.initiator = nil
 	}
 
@@ -464,37 +464,47 @@ func (n *Node) bindHostLocked(p *peer, key string) ([]*Conn, bool) {
 	return displaced, true
 }
 
-func (n *Node) acceptCEA(c *Conn, host string, common map[uint32]bool) ([]*Conn, bool) {
+func (n *Node) acceptCEA(c *Conn, host string, common map[uint32]bool) ([]*Conn, *Conn, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	p := c.peer
 	if n.closed || p.removed || p.initiator != c || p.open != nil {
-		return nil, false
+		return nil, nil, false
 	}
 
 	if p.cfg.Host != "" && !strings.EqualFold(p.cfg.Host, host) {
 		p.lastError = fmt.Sprintf("peer answered as %s, expected %s", host, p.cfg.Host)
-		return nil, false
+		return nil, nil, false
 	}
 
 	displaced, ok := n.bindHostLocked(p, strings.ToLower(host))
 	if !ok {
 		p.lastError = fmt.Sprintf("host %s belongs to another configured peer", host)
-		return nil, false
+		return nil, nil, false
 	}
 
 	p.initiator = nil
 	c.common = common
 
-	if p.parked != nil {
-		displaced = append(displaced, p.parked)
-		p.parked = nil
-	}
+	lost := p.parked
+	p.parked = nil
 
 	n.openLocked(p, c)
 
-	return displaced, true
+	return displaced, lost, true
+}
+
+func (n *Node) promoteParkedLocked(p *peer) *Conn {
+	c := p.parked
+	if c == nil || p.removed || n.closed {
+		return nil
+	}
+
+	p.parked = nil
+	n.openLocked(p, c)
+
+	return c
 }
 
 func (n *Node) openLocked(p *peer, c *Conn) {
@@ -517,12 +527,7 @@ func (n *Node) connDown(c *Conn) {
 		switch c {
 		case p.initiator:
 			p.initiator = nil
-
-			if p.parked != nil && !p.removed && !n.closed {
-				promote = p.parked
-				p.parked = nil
-				n.openLocked(p, promote)
-			}
+			promote = n.promoteParkedLocked(p)
 		case p.parked:
 			p.parked = nil
 		case p.open:
@@ -653,6 +658,11 @@ func (n *Node) nextBackoff(current time.Duration) time.Duration {
 
 func (n *Node) dial(p *peer) *Conn {
 	n.mu.Lock()
+	if p.open != nil || p.removed || n.closed {
+		n.mu.Unlock()
+		return nil
+	}
+
 	p.dialing = true
 	n.mu.Unlock()
 
@@ -661,11 +671,17 @@ func (n *Node) dial(p *peer) *Conn {
 		n.mu.Lock()
 		p.lastError = err.Error()
 		p.dialing = false
+		promote := n.promoteParkedLocked(p)
 
+		n.reportLocked(p)
 		n.notifyPeersLocked()
 		n.mu.Unlock()
 
 		n.logger.Warn("failed to connect to Diameter peer", slog.String("peer", p.name()), slog.Any("error", err))
+
+		if promote != nil {
+			promote.completeParked()
+		}
 
 		return nil
 	}
@@ -684,17 +700,33 @@ func (n *Node) dial(p *peer) *Conn {
 	}
 
 	c := newConn(n, t, p)
-	p.initiator = c
 	n.conns[c] = struct{}{}
 	n.goroutines.Add(1)
+
+	var promote *Conn
+
+	if p.parked != nil && winsElection(n.cfg.Identity.OriginHost, p.parked.peerHost) {
+		c.retire()
+
+		promote = n.promoteParkedLocked(p)
+	} else {
+		p.initiator = c
+	}
+
 	n.reportLocked(p)
 	n.mu.Unlock()
 
 	c.start()
 
+	if promote != nil {
+		promote.completeParked()
+	}
+
 	select {
 	case <-c.opened:
 		return c
+	case <-c.retired:
+		return nil
 	case <-c.done:
 		return nil
 	}
@@ -775,17 +807,17 @@ func (n *Node) connectOver(kind Transport, local, remote []netip.Addr, port uint
 
 	switch kind {
 	case TransportSCTP:
-		return dialSCTP(ctx, local, remote, port, n.logger)
+		return dialSCTP(ctx, local, remote, port, n.cfg.DialControl, n.logger)
 	case TransportTCP:
-		return dialTCP(ctx, local, remote, port)
+		return dialTCP(ctx, local, remote, port, n.cfg.DialControl)
 	default:
 		return nil, fmt.Errorf("diameter: unsupported transport %s", kind)
 	}
 }
 
 func (n *Node) localAddresses(remote []netip.Addr) ([]netip.Addr, error) {
-	if n.cfg.SourceAddress == nil {
-		return n.identityAddresses(remote), nil
+	if local := n.identityAddresses(remote); len(local) > 0 || n.cfg.SourceAddress == nil {
+		return local, nil
 	}
 
 	var (

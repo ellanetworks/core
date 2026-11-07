@@ -31,6 +31,7 @@ This path returns a subscriber's current location.
 | Status | Condition                                 |
 | ------ | ----------------------------------------- |
 | `200`  | Returns a location estimate.              |
+| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers). |
 | `404`  | Subscriber not registered, or no estimate. |
 | `504`  | Location request timed out.               |
 
@@ -162,6 +163,7 @@ This path starts periodic location reporting for a subscriber (TS 23.273 deferre
 | ------ | ---------------------------------------------------------- |
 | `201`  | Returns the deferred location request.                     |
 | `400`  | Invalid parameters.                                        |
+| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers). |
 | `404`  | Subscriber not registered on this node.                    |
 | `409`  | The subscriber already has an active deferred location request. |
 | `501`  | `ldr_type` is not supported.                               |

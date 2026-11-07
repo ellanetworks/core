@@ -21,9 +21,11 @@ Ella Core implements 3GPP-standard interfaces for signalling.
 | N2 | NGAP over SCTP |
 | N3 | GTP-U over UDP (IPv4 and IPv6) |
 | N6 | IP |
+| N32 | HTTP/2 over TLS |
 | Rx | Diameter over SCTP or TCP |
 | S1-MME | S1AP over SCTP |
 | S1-U | GTP-U over UDP (IPv4 and IPv6) |
+| S6a | Diameter over SCTP |
 | S6c | Diameter over SCTP; over SCTP or TCP with the IMS |
 | SGd | Diameter over SCTP; over SCTP or TCP with the IMS |
 | Sh | Diameter over SCTP or TCP |
@@ -70,6 +72,16 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **User profile.** Two implicit registration sets per subscriber with an MSISDN (MMTel and MCPTT), a service profile with initial filter criteria per set, and distinct and wildcarded Public Service Identities per application server.
 - **PCRF for the IMS.** AA, re-auth, session termination, and abort session over Rx, with GBR QoS for voice, video, and MCPTT.
 
+### Roaming
+
+Ella Core is a visited network for subscribers of roaming partners, with local breakout. See [Roaming](../explanation/roaming.md).
+
+- **SEPP.** N32-c and N32-f with TLS security.
+- **5G.** Authentication, registration, and subscription data with the home network, and Steering of Roaming.
+- **4G.** S6a with the home HSS, directly or through a Diameter Edge Agent.
+- **Local breakout.** When the home subscription allows it.
+- **4G/5G interworking.** For roamers of partners with both a 4G and a 5G agreement.
+
 ### Location (beta)
 
 Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. GNSS positioning in standalone mode: LPP on 4G and 5G. See the [Location API](api/location.md).
@@ -77,4 +89,4 @@ Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. GNSS positioning i
 ## Limitations
 
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
-- **No roaming.** Ella Core does not support roaming between networks.
+- **No home-routed roaming.** Ella Core supports inbound roaming with local breakout only.

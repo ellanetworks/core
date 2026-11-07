@@ -113,3 +113,30 @@ func luhnValid(s string) bool {
 
 	return sum%10 == 0
 }
+
+func TestIMEITerminalInformationParts(t *testing.T) {
+	tests := []struct {
+		pei      string
+		tacSNR   string
+		software string
+	}{
+		{pei: "", tacSNR: "", software: ""},
+		{pei: "imei-356332280764231", tacSNR: "35633228076423", software: ""},
+		{pei: "imeisv-3563322807642317", tacSNR: "35633228076423", software: "17"},
+	}
+
+	for _, tc := range tests {
+		imei, err := etsi.NewIMEIFromPEI(tc.pei)
+		if err != nil {
+			t.Fatalf("NewIMEIFromPEI(%q): %v", tc.pei, err)
+		}
+
+		if got := imei.TACAndSNR(); got != tc.tacSNR {
+			t.Fatalf("TACAndSNR(%q) = %q, want %q", tc.pei, got, tc.tacSNR)
+		}
+
+		if got := imei.SoftwareVersion(); got != tc.software {
+			t.Fatalf("SoftwareVersion(%q) = %q, want %q", tc.pei, got, tc.software)
+		}
+	}
+}

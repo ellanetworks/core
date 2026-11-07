@@ -29,7 +29,7 @@ interface SMSCModalProps {
   smsc?: SMSC;
 }
 
-const diameterIdentityRegex =
+export const diameterIdentityRegex =
   /^(?=.{1,255}$)[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?(?:\.[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?)+$/;
 
 export const parseServiceCentres = (value: string): string[] =>

@@ -1,0 +1,179 @@
+name: ella-roaming5g
+
+x-ella: &ella
+  image: ${ELLA_IMAGE:-ella-core:roaming5g}
+  restart: unless-stopped
+  entrypoint: /bin/core --config /cfg/core.yaml
+  privileged: true
+
+x-open5gs: &open5gs
+  image: ${OPEN5GS_IMAGE:-ella-ims-e2e/open5gs:latest}
+  restart: unless-stopped
+  volumes:
+    - ./config:/config:ro
+    - ./cfg/sepp:/sepp:ro
+
+services:
+  mongodb:
+    image: ${MONGO_IMAGE:-mongo:7.0}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    networks:
+      core:
+        ipv4_address: 10.150.0.31
+        aliases: [mongodb]
+
+  provision:
+    image: ${MONGO_IMAGE:-mongo:7.0}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./provision.js:/provision.js:ro
+    entrypoint: ["mongosh", "--quiet", "mongodb://mongodb/open5gs", "/provision.js"]
+    restart: "no"
+    networks: [core]
+
+  nrf:
+    <<: *open5gs
+    entrypoint: ["open5gs-nrfd", "-c", "/config/nrf.yaml"]
+    networks:
+      core:
+        ipv4_address: 10.150.0.32
+        aliases: [nrf.5gc.mnc001.mcc001.3gppnetwork.org]
+
+  udr:
+    <<: *open5gs
+    entrypoint: ["open5gs-udrd", "-c", "/config/udr.yaml"]
+    depends_on:
+      nrf:
+        condition: service_started
+      provision:
+        condition: service_completed_successfully
+    networks:
+      core:
+        ipv4_address: 10.150.0.33
+        aliases: [udr.5gc.mnc001.mcc001.3gppnetwork.org]
+
+  udm:
+    <<: *open5gs
+    entrypoint: ["open5gs-udmd", "-c", "/config/udm.yaml"]
+    depends_on: [nrf]
+    networks:
+      core:
+        ipv4_address: 10.150.0.34
+        aliases: [udm.5gc.mnc001.mcc001.3gppnetwork.org]
+
+  ausf:
+    <<: *open5gs
+    entrypoint: ["open5gs-ausfd", "-c", "/config/ausf.yaml"]
+    depends_on: [nrf]
+    networks:
+      core:
+        ipv4_address: 10.150.0.35
+        aliases: [ausf.5gc.mnc001.mcc001.3gppnetwork.org]
+
+  sepp:
+    <<: *open5gs
+    entrypoint: ["open5gs-seppd", "-c", "/sepp/sepp.yaml"]
+    depends_on: [nrf]
+    networks:
+      core:
+        ipv4_address: 10.150.0.40
+        aliases: [sepp1.5gc.mnc001.mcc001.3gppnetwork.org]
+
+  ella-core-1:
+    <<: *ella
+    volumes:
+      - ./cfg/node1:/cfg:ro
+      - data1:/data
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.150.0.11
+        aliases: [sepp1.5gc.mnc070.mcc999.3gppnetwork.org]
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.153.0.11
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.156.0.11
+
+  ella-core-2:
+    <<: *ella
+    volumes:
+      - ./cfg/node2:/cfg:ro
+      - data2:/data
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.150.0.12
+        aliases: [sepp2.5gc.mnc070.mcc999.3gppnetwork.org]
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.153.0.12
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.156.0.12
+
+  ella-core-tester:
+    image: ${TESTER_IMAGE:-ella-core-tester:roaming5g}
+    entrypoint: ["/bin/sh", "-c", "sleep infinity"]
+    restart: unless-stopped
+    privileged: true
+    networks:
+      core:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.150.0.20
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.153.0.20
+
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ethtool -K n6 tx off;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.156.0.3
+
+volumes:
+  data1:
+  data2:
+
+networks:
+  core:
+    ipam:
+      config:
+        - subnet: 10.150.0.0/24
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.153.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.156.0.0/24

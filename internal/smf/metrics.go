@@ -23,7 +23,7 @@ var sessionReleases *prometheus.CounterVec
 
 // sessionCounter reports active session counts split by RAT.
 type sessionCounter interface {
-	SessionCountByRAT() (fourG, fiveG int)
+	SessionCountByRAT() (fourG, fiveG SessionCount)
 }
 
 // RegisterMetrics registers the SMF metrics. The sessions gauge reads per-RAT
@@ -32,15 +32,15 @@ func RegisterMetrics(sessions sessionCounter) {
 	SessionEstablishmentAttempts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "app_session_establishment_attempts_total",
-			Help: "Total session establishment attempts by RAT and result (5G PDU sessions, 4G EPS sessions).",
+			Help: "Total session establishment attempts by RAT, result, and whether the subscriber is a roamer (5G PDU sessions, 4G EPS sessions).",
 		},
-		[]string{"rat", "result"},
+		[]string{"rat", "result", "roaming"},
 	)
 
 	sessionsDesc := prometheus.NewDesc(
 		"app_sessions",
-		"Number of active sessions by RAT (5G PDU sessions, 4G EPS sessions).",
-		[]string{"rat"},
+		"Number of active sessions by RAT (5G PDU sessions, 4G EPS sessions) and whether the subscriber is a roamer.",
+		[]string{"rat", "roaming"},
 		nil,
 	)
 
@@ -61,20 +61,25 @@ func RegisterMetrics(sessions sessionCounter) {
 	}
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		var fourG, fiveG int
+		var fourG, fiveG SessionCount
 		if sessions != nil {
 			fourG, fiveG = sessions.SessionCountByRAT()
 		}
 
-		ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(fiveG), "5g")
+		for _, c := range []struct {
+			rat   string
+			count SessionCount
+		}{{metrics.RAT5G, fiveG}, {metrics.RAT4G, fourG}} {
+			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Own), c.rat, metrics.RoamingFalse)
 
-		ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(fourG), "4g")
+			ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(c.count.Roaming), c.rat, metrics.RoamingTrue)
+		}
 	}))
 }
 
 // recordSessionEstablishment counts one session establishment outcome, deriving
 // the result from err. Safe to call before RegisterMetrics (no-op).
-func recordSessionEstablishment(ctx context.Context, rat string, err error, fields ...zap.Field) {
+func recordSessionEstablishment(ctx context.Context, rat string, roaming bool, err error, fields ...zap.Field) {
 	result := metrics.ResultAccept
 
 	if err != nil {
@@ -83,19 +88,19 @@ func recordSessionEstablishment(ctx context.Context, rat string, err error, fiel
 		fields = append(fields, zap.Error(err))
 	}
 
-	recordSessionEstablishmentResult(ctx, rat, result, fields...)
+	recordSessionEstablishmentResult(ctx, rat, roaming, result, fields...)
 }
 
 // recordSessionEstablishmentResult counts one session establishment outcome. An
 // empty result is a no-op so a deferred call can leave the result unset on
 // non-establishment paths. Safe to call before RegisterMetrics (no-op).
-func recordSessionEstablishmentResult(ctx context.Context, rat, result string, fields ...zap.Field) {
+func recordSessionEstablishmentResult(ctx context.Context, rat string, roaming bool, result string, fields ...zap.Field) {
 	if result == "" {
 		return
 	}
 
 	if SessionEstablishmentAttempts != nil {
-		SessionEstablishmentAttempts.WithLabelValues(rat, result).Inc()
+		SessionEstablishmentAttempts.WithLabelValues(rat, result, metrics.RoamingLabel(roaming)).Inc()
 	}
 
 	msg := "PDU session established"

@@ -30,6 +30,7 @@ type AttachResult struct {
 	SMSOnly             bool
 	IdentityRequested   bool
 	PDNType             eps.PDNType
+	ESMCause            *eps.ESMCause
 	QCI                 byte
 	ARP                 byte
 	PreemptCap          s1ap.PreemptionCapability
@@ -52,11 +53,53 @@ type AttachResult struct {
 // Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2), returning once
 // Attach Complete is sent.
 func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
-	enbUEID, mmeUEID, identityRequested, err := e.attachUntilSecured(ue, timeout)
+	enbUEID, identityRequested, err := e.attachUntilSecured(ue, timeout)
 	if err != nil {
 		return nil, err
 	}
 
+	return e.awaitAttachAccept(ue, enbUEID, identityRequested, timeout)
+}
+
+func (e *ENB) ReattachWithGUTI(ue *UE, guti *eps.EPSMobileIdentity, staleENBUEID int64, timeout time.Duration) (*AttachResult, error) {
+	if guti == nil {
+		return nil, fmt.Errorf("s1enb: a GUTI re-attach needs the GUTI of an earlier attach")
+	}
+
+	attachReq, err := ue.buildProtectedGUTIAttachRequest(guti)
+	if err != nil {
+		return nil, err
+	}
+
+	enbUEID := e.AllocateENBUEID()
+
+	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
+		return nil, err
+	}
+
+	res, err := e.finishAttach(ue, enbUEID, false, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	if staleENBUEID != 0 {
+		if err := e.completeContextRelease(staleENBUEID, timeout); err != nil {
+			return nil, fmt.Errorf("release of the stale S1 connection: %w", err)
+		}
+	}
+
+	return res, nil
+}
+
+func (e *ENB) finishAttach(ue *UE, enbUEID int64, identityRequested bool, timeout time.Duration) (*AttachResult, error) {
+	if err := e.answerESMInformationRequest(ue, enbUEID, timeout); err != nil {
+		return nil, err
+	}
+
+	return e.awaitAttachAccept(ue, enbUEID, identityRequested, timeout)
+}
+
+func (e *ENB) awaitAttachAccept(ue *UE, enbUEID int64, identityRequested bool, timeout time.Duration) (*AttachResult, error) {
 	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Initial Context Setup Request: %w", err)
@@ -72,6 +115,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	erab := ics.ERABToBeSetup[0]
+	mmeUEID := int64(ics.MMEUES1APID)
 
 	upf, err := e.selectUpfAddr(erab.TransportLayerAddress)
 	if err != nil {
@@ -142,6 +186,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
 		res.QCI = act.EPSQoS.QCI
+		res.ESMCause = act.Cause
 
 		res.APN = string(act.AccessPointName)
 
@@ -178,28 +223,28 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	return res, nil
 }
 
-func (e *ENB) attachUntilSecured(ue *UE, timeout time.Duration) (enbUEID, mmeUEID int64, identityRequested bool, err error) {
+func (e *ENB) attachUntilSecured(ue *UE, timeout time.Duration) (enbUEID int64, identityRequested bool, err error) {
 	enbUEID = e.AllocateENBUEID()
 
 	attachReq, err := ue.buildAttachRequest()
 	if err != nil {
-		return 0, 0, false, err
+		return 0, false, err
 	}
 
 	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
-		return 0, 0, false, err
+		return 0, false, err
 	}
 
 	// An unresolvable GUTI draws an Identity Request first (TS 24.301 §5.4.4),
 	// answered with the IMSI.
 	downlink, mmeUEID, err := e.waitForPlainDownlink(enbUEID, timeout)
 	if err != nil {
-		return 0, 0, false, fmt.Errorf("await Authentication/Identity Request: %w", err)
+		return 0, false, fmt.Errorf("await Authentication/Identity Request: %w", err)
 	}
 
 	msg, err := parseDownlink(downlink)
 	if err != nil {
-		return 0, 0, false, err
+		return 0, false, err
 	}
 
 	if _, ok := msg.(*eps.IdentityRequest); ok {
@@ -207,62 +252,78 @@ func (e *ENB) attachUntilSecured(ue *UE, timeout time.Duration) (enbUEID, mmeUEI
 
 		idResp, err := ue.buildIdentityResponse()
 		if err != nil {
-			return 0, 0, false, err
+			return 0, false, err
 		}
 
 		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, idResp); err != nil {
-			return 0, 0, false, err
+			return 0, false, err
 		}
 
 		if downlink, _, err = e.WaitForDownlinkNAS(enbUEID, timeout); err != nil {
-			return 0, 0, false, fmt.Errorf("await Authentication Request: %w", err)
+			return 0, false, fmt.Errorf("await Authentication Request: %w", err)
 		}
 	}
 
-	if _, err := expectDownlink[*eps.AuthenticationRequest](downlink); err != nil {
-		return 0, 0, false, fmt.Errorf("await Authentication Request: %w", err)
-	}
+	for {
+		if _, err := expectDownlink[*eps.AuthenticationRequest](downlink); err != nil {
+			return 0, false, fmt.Errorf("await Authentication Request: %w", err)
+		}
 
-	authResp, err := ue.handleAuthenticationRequest(downlink)
-	if err != nil {
-		return 0, 0, false, err
-	}
+		authResp, err := ue.handleAuthenticationRequest(downlink)
+		if err != nil {
+			return 0, false, err
+		}
 
-	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, authResp); err != nil {
-		return 0, 0, false, err
+		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, authResp); err != nil {
+			return 0, false, err
+		}
+
+		if !ue.resyncPending {
+			break
+		}
+
+		if downlink, _, err = e.WaitForDownlinkNAS(enbUEID, timeout); err != nil {
+			return 0, false, fmt.Errorf("await Authentication Request after the synch failure: %w", err)
+		}
 	}
 
 	smcWire, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
-		return 0, 0, false, fmt.Errorf("await Security Mode Command: %w", err)
+		return 0, false, fmt.Errorf("await Security Mode Command: %w", err)
 	}
 
 	smcComplete, err := ue.handleSecurityModeCommand(smcWire)
 	if err != nil {
-		return 0, 0, false, err
+		return 0, false, err
 	}
 
 	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, smcComplete); err != nil {
-		return 0, 0, false, err
+		return 0, false, err
 	}
 
-	if ue.deferESMInfo {
-		esmReq, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
-		if err != nil {
-			return 0, 0, false, fmt.Errorf("await ESM Information Request: %w", err)
-		}
-
-		esmResp, err := ue.handleESMInformationRequest(esmReq)
-		if err != nil {
-			return 0, 0, false, err
-		}
-
-		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, esmResp); err != nil {
-			return 0, 0, false, err
-		}
+	if err := e.answerESMInformationRequest(ue, enbUEID, timeout); err != nil {
+		return 0, false, err
 	}
 
-	return enbUEID, mmeUEID, identityRequested, nil
+	return enbUEID, identityRequested, nil
+}
+
+func (e *ENB) answerESMInformationRequest(ue *UE, enbUEID int64, timeout time.Duration) error {
+	if !ue.deferESMInfo {
+		return nil
+	}
+
+	esmReq, id, err := e.WaitForDownlinkNAS(enbUEID, timeout)
+	if err != nil {
+		return fmt.Errorf("await ESM Information Request: %w", err)
+	}
+
+	esmResp, err := ue.handleESMInformationRequest(esmReq)
+	if err != nil {
+		return err
+	}
+
+	return e.SendUplinkNASTransport(id, enbUEID, esmResp)
 }
 
 // waitForPlainDownlink returns the first plain (unprotected) downlink NAS,

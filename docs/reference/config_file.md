@@ -43,6 +43,10 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided).
         - `address` (string): The IP address to listen on (optional: either name or address must be provided).
         - `port` (int, optional): The port to listen on. Default `3868`.
+    - `n32` (object, optional): The configuration for the N32 interface, towards the SEPPs of roaming partners.
+        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided).
+        - `address` (string): The IP address to listen on (optional: either name or address must be provided).
+        - `port` (int, optional): The port to listen on. Default `443`.
 - `datapath` (object): The datapath configuration (optional). When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
     - `attach-mode` (string): The kernel hook the datapath attaches to (optional): `xdp-native`, `tcx`, or `xdp-generic`. See [the eBPF attach mode explanation](../explanation/user_plane_packet_processing_with_ebpf.md).
 - `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.

@@ -37,7 +37,11 @@ var (
 		"policies",
 		"profiles",
 		"retention_policies",
+		"roaming_partner_plmns",
+		"roaming_partners",
 		"schema_version",
+		"sepp_ca",
+		"sepp_identities",
 		"sessions",
 		"sms_message_waiting",
 		"sms_message_waiting_centres",
@@ -48,6 +52,7 @@ var (
 		"subscribers",
 		"ue_registrations",
 		"users",
+		"visitors",
 	}
 
 	pinnedLocalOnlyTables = []string{

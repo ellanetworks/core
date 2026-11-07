@@ -38,6 +38,7 @@ type Seed = {
   usagePerDay?: UsageResult;
   imsis?: string[];
   stats?: (params: URLSearchParams) => FlowReportStatsResponse;
+  roamers?: { imsi: string; partner: string }[];
 };
 
 const seedApi = ({
@@ -47,6 +48,7 @@ const seedApi = ({
   usagePerDay = usageBySubscriber({ "2026-08-01": 4_000 }),
   imsis = [IMSI_A, IMSI_B],
   stats,
+  roamers = [],
 }: Seed = {}) => {
   api.get(USAGE_PATH, ({ params }) =>
     params.get("group_by") === "day" ? usagePerDay : usageBySub,
@@ -60,16 +62,18 @@ const seedApi = ({
     stats ? stats(params) : flowStats(),
   );
   api.get("/api/v1/networking/flow-accounting", () => ({ enabled: true }));
-  api.get("/api/v1/subscribers", () => ({
-    items: imsis.map((imsi) => ({
+  api.get("/api/v1/subscribers", () => {
+    const items = imsis.map((imsi) => ({
       imsi,
       profile_name: "default",
       status: {},
-    })),
-    page: 1,
-    per_page: 100,
-    total_count: imsis.length,
-  }));
+    }));
+    return { items, page: 1, per_page: 100, total_count: items.length };
+  });
+  api.get("/api/v1/roamers", () => {
+    const items = roamers.map((r) => ({ ...r, status: {} }));
+    return { items, page: 1, per_page: 100, total_count: items.length };
+  });
 };
 
 const renderTraffic = async (path = "/traffic/flows") => {
@@ -786,5 +790,86 @@ describe("Traffic pie chart selection", () => {
 
     await waitFor(() => expect(destinationArcs()).toHaveLength(1));
     expect(destinationArcs()[0]).toHaveAttribute("fill", selected);
+  });
+});
+
+describe("Traffic flow log roamers", () => {
+  it("marks the flows of a roamer with its partner", async () => {
+    seedApi({
+      flows: [
+        flowReport(1),
+        flowReport(2, { subscriber_id: "208930000000001" }),
+      ],
+      roamers: [{ imsi: "208930000000001", partner: "Partner A" }],
+    });
+
+    await renderTraffic();
+
+    expect(await screen.findByText("Roamer · Partner A")).toBeInTheDocument();
+    expect(screen.getByText("208930000000001").closest("a")).toHaveAttribute(
+      "href",
+      "/subscribers/roamers/208930000000001",
+    );
+    expect(api.lastRequest("/api/v1/roamers")?.params.get("per_page")).toBe(
+      "100",
+    );
+  });
+});
+
+describe("Traffic usage roamers", () => {
+  it("sends the roaming filter with both usage queries", async () => {
+    const user = userEvent.setup();
+    seedApi();
+    await renderTraffic("/traffic/usage");
+
+    await selectOption(user, "Type", "Roamers");
+
+    await waitFor(() => {
+      const roaming = api
+        .requests(USAGE_PATH)
+        .filter((r) => r.params.get("roaming") === "true")
+        .map((r) => r.params.get("group_by"));
+      expect(new Set(roaming)).toEqual(new Set(["subscriber", "day"]));
+    });
+    expect(
+      await screen.findByText(/Daily data usage \(roamers\)/),
+    ).toBeInTheDocument();
+  });
+
+  it("links a roamer to its roamer page with its partner", async () => {
+    seedApi({
+      usageBySub: [
+        ...(usageBySubscriber({ [IMSI_A]: 4_000 }) as object[]),
+        {
+          imsi: "208930000000001",
+          uplink_bytes: 1,
+          downlink_bytes: 2,
+          total_bytes: 3,
+          home_plmn: { mcc: "208", mnc: "93" },
+          roaming_partner: "Partner A",
+        },
+        {
+          imsi: "310260000000001",
+          uplink_bytes: 1,
+          downlink_bytes: 1,
+          total_bytes: 2,
+          home_plmn: { mcc: "310", mnc: "260" },
+        },
+      ] as UsageResult,
+    });
+    await renderTraffic("/traffic/usage");
+
+    expect(await screen.findByText("Roamer · Partner A")).toBeInTheDocument();
+    expect(screen.getByText("Roamer · 310-260")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "208930000000001" }),
+    ).toHaveAttribute("href", "/subscribers/roamers/208930000000001");
+    expect(
+      screen.getByRole("link", { name: "310260000000001" }),
+    ).toHaveAttribute("href", "/subscribers/roamers/310260000000001");
+    expect(screen.getByRole("link", { name: IMSI_A })).toHaveAttribute(
+      "href",
+      `/subscribers/${IMSI_A}`,
+    );
   });
 });

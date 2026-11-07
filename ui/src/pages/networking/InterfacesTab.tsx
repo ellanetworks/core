@@ -30,7 +30,7 @@ export default function InterfacesTab() {
 
   const [isEditN3Open, setEditN3Open] = useState(false);
 
-  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), the API endpoint, and the Diameter listener. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
+  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), the API endpoint, and the Diameter and N32 (SEPP) listeners. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
@@ -73,24 +73,18 @@ export default function InterfacesTab() {
                 <Typography variant="subtitle1">N2 (NGAP / S1AP)</Typography>
                 <Chip label="Control Plane" size="small" />
               </Stack>
-              <Typography variant="body2" color="textSecondary">
-                {interfacesInfo.n2?.addresses &&
-                interfacesInfo.n2.addresses.length > 0 ? (
-                  interfacesInfo.n2.addresses.map((addr) => (
-                    <Typography
-                      key={addr}
-                      variant="body2"
-                      color="textSecondary"
-                    >
-                      Address: <strong>{addr}</strong>
-                    </Typography>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    Address: <strong>—</strong>
+              {interfacesInfo.n2?.addresses &&
+              interfacesInfo.n2.addresses.length > 0 ? (
+                interfacesInfo.n2.addresses.map((addr) => (
+                  <Typography key={addr} variant="body2" color="textSecondary">
+                    Address: <strong>{addr}</strong>
                   </Typography>
-                )}
-              </Typography>
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Address: <strong>—</strong>
+                </Typography>
+              )}
               <Typography variant="body2" color="textSecondary">
                 Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
               </Typography>
@@ -299,6 +293,63 @@ export default function InterfacesTab() {
                 <Typography variant="body2" color="textSecondary">
                   Not listening. Set <code>interfaces.diameter</code> in the
                   configuration file to accept Diameter connections.
+                </Typography>
+              )}
+            </Box>
+
+            <Box
+              sx={{
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 2,
+                p: 2,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
+              >
+                <Typography variant="subtitle1">N32 (SEPP)</Typography>
+                <Chip label="Roaming" size="small" />
+              </Stack>
+              {interfacesInfo.n32 ? (
+                <>
+                  {interfacesInfo.n32.interface && (
+                    <Typography variant="body2" color="textSecondary">
+                      Interface name:{" "}
+                      <strong>{interfacesInfo.n32.interface}</strong>
+                    </Typography>
+                  )}
+                  {interfacesInfo.n32.addresses &&
+                  interfacesInfo.n32.addresses.length > 0 ? (
+                    interfacesInfo.n32.addresses.map((addr) => (
+                      <Typography
+                        key={addr}
+                        variant="body2"
+                        color="textSecondary"
+                      >
+                        Address: <strong>{addr}</strong>
+                      </Typography>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="textSecondary">
+                      Address: <strong>—</strong>
+                    </Typography>
+                  )}
+                  <Typography variant="body2" color="textSecondary">
+                    Port: <strong>{interfacesInfo.n32.port ?? "—"}</strong>
+                  </Typography>
+                </>
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Not listening. Set <code>interfaces.n32</code> in the
+                  configuration file to accept N32 connections from roaming
+                  partners.
                 </Typography>
               )}
             </Box>

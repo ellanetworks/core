@@ -38,6 +38,7 @@ type RequestOptions struct {
 	Query   url.Values
 	Headers map[string]string
 	Body    io.Reader
+	Timeout time.Duration
 }
 
 type RequestResponse struct {
@@ -158,10 +159,10 @@ func (e ConnectionError) Unwrap() error {
 	return e.error
 }
 
-func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
+func (rq *defaultRequester) dispatch(ctx context.Context, opts *RequestOptions) (*http.Response, error) {
 	u := rq.baseURL
 
-	escaped := path.Join(rq.baseURL.EscapedPath(), urlpath)
+	escaped := path.Join(rq.baseURL.EscapedPath(), opts.Path)
 
 	unescaped, err := url.PathUnescape(escaped)
 	if err != nil {
@@ -169,15 +170,15 @@ func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string
 	}
 
 	u.Path, u.RawPath = unescaped, escaped
-	u.RawQuery = query.Encode()
+	u.RawQuery = opts.Query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	req, err := http.NewRequestWithContext(ctx, opts.Method, u.String(), opts.Body)
 	if err != nil {
 		return nil, RequestError{err}
 	}
 
 	// Set any custom headers.
-	for key, value := range headers {
+	for key, value := range opts.Headers {
 		req.Header.Set(key, value)
 	}
 
@@ -186,7 +187,14 @@ func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rq.client.token))
 	}
 
-	rsp, err := rq.doer.Do(req)
+	d := rq.doer
+	if c, ok := d.(*http.Client); ok && opts.Timeout > c.Timeout {
+		slow := *c
+		slow.Timeout = opts.Timeout
+		d = &slow
+	}
+
+	rsp, err := d.Do(req)
 	if err != nil {
 		return nil, ConnectionError{err}
 	}
@@ -196,7 +204,7 @@ func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string
 
 // Do performs the HTTP request according to the provided options.
 func (rq *defaultRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestResponse, error) {
-	httpResp, err := rq.dispatch(ctx, opts.Method, opts.Path, opts.Query, opts.Headers, opts.Body)
+	httpResp, err := rq.dispatch(ctx, opts)
 	if err != nil {
 		return nil, err
 	}

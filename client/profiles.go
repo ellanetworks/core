@@ -25,6 +25,8 @@ type CreateProfileOptions struct {
 type UpdateProfileOptions struct {
 	UeAmbrUplink   string `json:"ue_ambr_uplink,omitempty"`
 	UeAmbrDownlink string `json:"ue_ambr_downlink,omitempty"`
+	Allow4G        *bool  `json:"allow_4g,omitempty"`
+	Allow5G        *bool  `json:"allow_5g,omitempty"`
 }
 
 type GetProfileOptions struct {
@@ -106,17 +108,9 @@ func (c *Client) GetProfile(ctx context.Context, opts *GetProfileOptions) (*Prof
 
 // UpdateProfile updates an existing profile by name.
 func (c *Client) UpdateProfile(ctx context.Context, name string, opts *UpdateProfileOptions) error {
-	payload := struct {
-		UeAmbrUplink   string `json:"ue_ambr_uplink,omitempty"`
-		UeAmbrDownlink string `json:"ue_ambr_downlink,omitempty"`
-	}{
-		UeAmbrUplink:   opts.UeAmbrUplink,
-		UeAmbrDownlink: opts.UeAmbrDownlink,
-	}
-
 	var body bytes.Buffer
 
-	err := json.NewEncoder(&body).Encode(payload)
+	err := json.NewEncoder(&body).Encode(opts)
 	if err != nil {
 		return err
 	}

@@ -62,10 +62,11 @@ func getsockopt(fd int, optname uintptr, optval, optlen unsafe.Pointer) error {
 	return nil
 }
 
-// listenRawConn is a minimal syscall.RawConn used only during listener socket
-// setup (before the socket is wrapped in os.File). It supports only Control;
-// Read and Write return an error rather than panic, since they are never part of
-// listener setup but must not crash the process if a future path reaches them.
+// listenRawConn is a minimal syscall.RawConn used only during listener and
+// dialer socket setup (before the socket is wrapped in os.File). It supports
+// only Control; Read and Write return an error rather than panic, since they are
+// never part of socket setup but must not crash the process if a future path
+// reaches them.
 type listenRawConn struct {
 	sockfd int
 }

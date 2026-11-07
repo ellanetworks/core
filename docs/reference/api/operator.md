@@ -1,10 +1,10 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), SMS, and IMS.
+description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, Network Name (SPN), SMS, IMS, and Roaming.
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name, SMS settings and IMS settings.
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms, Service Provider Name, SMS settings, IMS settings and roaming (roaming partners, roaming Diameter peers, and the SEPP).
 
 ## Get Operator Information
 
@@ -771,6 +771,511 @@ None
 {
     "result": {
         "message": "Service profile deleted successfully"
+    }
+}
+```
+
+## List Roaming Partners
+
+This path returns the list of roaming partners. For a partner with a 5G agreement, `n32` gives the N32-c context of this node, when it has `interfaces.n32`.
+
+| Method | Path                                |
+| ------ | ----------------------------------- |
+| GET    | `/api/v1/operator/roaming/partners` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "id": "0199a3c2-1f4e-7d21-8c9b-5a6e7f8091a2",
+                "name": "Partner Telecom",
+                "plmns": [
+                    {"mcc": "999", "mnc": "70"}
+                ],
+                "profileName": "roamers",
+                "sepp": {
+                    "fqdn": "sepp1.5gc.mnc070.mcc999.3gppnetwork.org",
+                    "n32cURI": "https://sepp1.5gc.mnc070.mcc999.3gppnetwork.org:443",
+                    "trustAnchorPEM": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
+                },
+                "diameterPeerID": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b",
+                "n32": {
+                    "state": "established"
+                }
+            }
+        ]
+    }
+}
+```
+
+| N32 field   | Description |
+| ----------- | ----------- |
+| `state`     | `idle`, `establishing`, `established`, `failed` (retried about every 10 seconds), or `unknown` (the handshake could not start). |
+| `peer`      | The partner SEPP the context is with, when the handshake was redirected. |
+| `lastError` | The reason of the last failure. |
+
+## Create a Roaming Partner
+
+This path creates a new roaming partner.
+
+| Method | Path                                |
+| ------ | ----------------------------------- |
+| POST   | `/api/v1/operator/roaming/partners` |
+
+### Parameters
+
+- `name` (string): The name of the partner. Must be unique.
+- `plmns` (array): The partner's PLMN IDs, at least one.
+    - `mcc` (string): 3 digits.
+    - `mnc` (string): 2 or 3 digits.
+    - `nrfAPIRoot` (string, optional): The apiRoot (`http` or `https`) of the NRF of this PLMN, for its roamers. Defaults to `https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of this PLMN ID. Needs `sepp`.
+- `profileName` (string): The name of the profile applied to the partner's roamers.
+- `sepp` (object, optional): The 5G agreement.
+    - `fqdn` (string): The partner SEPP's FQDN, as in its certificate: `<host>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, or `<host>.5gc.mnc<MNC>.mcc<MCC>.<IPX ID>.ipxnetwork.org`, for one of the partner's PLMN IDs.
+    - `n32cURI` (string): The apiRoot of the partner SEPP's N32-c endpoint: `https`, host, optional port and optional path prefix.
+    - `n32fURI` (string, optional): The apiRoot of the partner SEPP's N32-f endpoint. Defaults to `n32cURI`.
+    - `trustAnchorPEM` (string): The CA certificates that the partner SEPP's certificate chains to, or the partner's self-signed certificate, in PEM. Each certificate must be valid, with an ECDSA key or an RSA key of at least 2048 bits.
+- `diameterPeerID` (string, optional): The ID of the [roaming Diameter peer](#create-a-roaming-diameter-peer) of the 4G agreement.
+
+### Sample Request
+
+```json
+{
+    "name": "Partner Telecom",
+    "plmns": [{"mcc": "999", "mnc": "70"}],
+    "profileName": "roamers",
+    "sepp": {
+        "fqdn": "sepp1.5gc.mnc070.mcc999.3gppnetwork.org",
+        "n32cURI": "https://sepp1.5gc.mnc070.mcc999.3gppnetwork.org:443",
+        "trustAnchorPEM": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
+    },
+    "diameterPeerID": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b"
+}
+```
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `201`  | Returns the created partner. |
+| `400`  | Invalid parameters. |
+| `404`  | The profile or the roaming Diameter peer does not exist. |
+| `409`  | The name is taken, or a PLMN ID conflicts. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "id": "0199a3c2-1f4e-7d21-8c9b-5a6e7f8091a2",
+        "name": "Partner Telecom",
+        "plmns": [
+            {"mcc": "999", "mnc": "70"}
+        ],
+        "profileName": "roamers",
+        "sepp": {
+            "fqdn": "sepp1.5gc.mnc070.mcc999.3gppnetwork.org",
+            "n32cURI": "https://sepp1.5gc.mnc070.mcc999.3gppnetwork.org:443",
+            "trustAnchorPEM": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
+        },
+        "diameterPeerID": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b"
+    }
+}
+```
+
+## Get a Roaming Partner
+
+This path returns the details of a specific roaming partner, as in [List Roaming Partners](#list-roaming-partners).
+
+| Method | Path                                     |
+| ------ | ---------------------------------------- |
+| GET    | `/api/v1/operator/roaming/partners/{id}` |
+
+### Parameters
+
+None
+
+## Update a Roaming Partner
+
+This path updates an existing roaming partner. When a removed PLMN ID or agreement still has roamers, all the partner's roamers are first deregistered on every node, and purged at their home network.
+
+| Method | Path                                     |
+| ------ | ---------------------------------------- |
+| PUT    | `/api/v1/operator/roaming/partners/{id}` |
+
+### Parameters
+
+The parameters of [Create a Roaming Partner](#create-a-roaming-partner).
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `200`  | The partner is updated. |
+| `400`  | Invalid parameters. |
+| `404`  | The partner, the profile or the roaming Diameter peer does not exist. |
+| `409`  | The name is taken, a PLMN ID conflicts, or the roamers were not all deregistered within one minute. Nothing is changed. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Roaming partner updated successfully"
+    }
+}
+```
+
+## Delete a Roaming Partner
+
+This path deletes a roaming partner. Its roamers are first deregistered on every node, and purged at their home network. The usage of its roamers is kept.
+
+| Method | Path                                     |
+| ------ | ---------------------------------------- |
+| DELETE | `/api/v1/operator/roaming/partners/{id}` |
+
+### Parameters
+
+None
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `200`  | The partner is deleted. |
+| `404`  | The partner does not exist. |
+| `409`  | The roamers were not all deregistered within one minute. Nothing is changed. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Roaming partner deleted successfully"
+    }
+}
+```
+
+## Re-run the N32 Handshake
+
+This path starts a new N32-c handshake with the partner's SEPP on this node. It returns the state right after the start.
+
+| Method | Path                                               |
+| ------ | -------------------------------------------------- |
+| POST   | `/api/v1/operator/roaming/partners/{id}/handshake` |
+
+### Parameters
+
+None
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `202`  | The handshake started. |
+| `404`  | The partner does not exist. |
+| `409`  | The partner has no 5G agreement, or this node has no `interfaces.n32`. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "n32": {
+            "state": "establishing"
+        }
+    }
+}
+```
+
+## List Roaming Diameter Peers
+
+This path returns the list of roaming Diameter peers: the HSS or Diameter Edge Agent of roaming partners.
+
+| Method | Path                                      |
+| ------ | ----------------------------------------- |
+| GET    | `/api/v1/operator/roaming/diameter-peers` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "id": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b",
+                "diameterIdentity": "hss.epc.mnc070.mcc999.3gppnetwork.org",
+                "address": "198.51.100.5",
+                "port": 3868
+            }
+        ]
+    }
+}
+```
+
+## Create a Roaming Diameter Peer
+
+This path creates a new roaming Diameter peer.
+
+| Method | Path                                      |
+| ------ | ----------------------------------------- |
+| POST   | `/api/v1/operator/roaming/diameter-peers` |
+
+### Parameters
+
+- `address` (string): The IPv4 or IPv6 address of the peer.
+- `port` (integer, optional): The peer's SCTP port. Defaults to `3868`.
+- `diameterIdentity` (string, optional): The peer's Diameter identity (Origin-Host). When set, the peer must give this identity when it connects.
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `201`  | Returns the created peer. |
+| `400`  | Invalid parameters. |
+| `409`  | Another Diameter peer has the identity or the address. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "id": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b",
+        "diameterIdentity": "hss.epc.mnc070.mcc999.3gppnetwork.org",
+        "address": "198.51.100.5",
+        "port": 3868
+    }
+}
+```
+
+## Get a Roaming Diameter Peer
+
+This path returns the details of a specific roaming Diameter peer.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| GET    | `/api/v1/operator/roaming/diameter-peers/{id}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "id": "0199a3c2-5c1e-7b8e-9f3a-2d4c6e8f0a1b",
+        "diameterIdentity": "hss.epc.mnc070.mcc999.3gppnetwork.org",
+        "address": "198.51.100.5",
+        "port": 3868
+    }
+}
+```
+
+## Update a Roaming Diameter Peer
+
+This path updates an existing roaming Diameter peer.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| PUT    | `/api/v1/operator/roaming/diameter-peers/{id}` |
+
+### Parameters
+
+- `address` (string): The IPv4 or IPv6 address of the peer.
+- `port` (integer): The peer's SCTP port.
+- `diameterIdentity` (string, optional): The peer's Diameter identity (Origin-Host). When set, the peer must give this identity when it connects.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Roaming Diameter peer updated successfully"
+    }
+}
+```
+
+## Delete a Roaming Diameter Peer
+
+This path deletes a roaming Diameter peer.
+
+| Method | Path                                           |
+| ------ | ---------------------------------------------- |
+| DELETE | `/api/v1/operator/roaming/diameter-peers/{id}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Roaming Diameter peer deleted successfully"
+    }
+}
+```
+
+## Get the SEPP Status
+
+This path returns the N32 listener and SEPP ID of this node, the stored certificate of each SEPP ID, and the trust anchors to give roaming partners.
+
+| Method | Path                            |
+| ------ | ------------------------------- |
+| GET    | `/api/v1/operator/roaming/sepp` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "listener": {
+            "seppID": 1,
+            "configured": true,
+            "address": "192.0.2.11",
+            "port": 443,
+            "listening": true
+        },
+        "certificates": [
+            {
+                "seppID": 1,
+                "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+                "source": "generated",
+                "subject": "CN=sepp1.5gc.mnc001.mcc001.3gppnetwork.org,O=5gc.mnc001.mcc001.3gppnetwork.org",
+                "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"],
+                "issuer": "CN=SEPP CA,O=5gc.mnc001.mcc001.3gppnetwork.org",
+                "notBefore": "2026-10-01T08:00:00Z",
+                "notAfter": "2029-10-01T08:00:00Z",
+                "fingerprint": "sha256:a1b2...7e",
+                "trustAnchorFingerprint": "sha256:5f0c...9a"
+            }
+        ],
+        "trustAnchors": [
+            {
+                "source": "generated",
+                "subject": "CN=SEPP CA,O=5gc.mnc001.mcc001.3gppnetwork.org",
+                "fingerprint": "sha256:5f0c...9a",
+                "notAfter": "2036-10-01T08:00:00Z",
+                "pem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
+                "seppIDs": [1, 2]
+            }
+        ]
+    }
+}
+```
+
+`seppIDs` lists the nodes that use each trust anchor.
+
+## Import a SEPP Certificate
+
+This path replaces a node's SEPP certificate with one issued by your CA. When the FQDN or the trust anchor changes, the node runs the N32 handshake again with every partner.
+
+| Method | Path                                                       |
+| ------ | ---------------------------------------------------------- |
+| PUT    | `/api/v1/operator/roaming/sepp/nodes/{seppID}/certificate` |
+
+### Parameters
+
+- `certificateChainPEM` (string): The certificate, then any intermediates, ending with the CA certificate that partners trust. The certificate must be an end-entity certificate with keyUsage digitalSignature, extendedKeyUsage serverAuth and clientAuth (or none), and a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of your PLMN ID.
+- `privateKeyPEM` (string): The certificate's private key: ECDSA P-256 or P-384, or RSA of at least 2048 bits.
+- `fqdn` (string, optional): The node's SEPP FQDN, when the certificate has several DNS names. Defaults to the subject CN.
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `200`  | Returns the imported certificate, as listed in [Get the SEPP Status](#get-the-sepp-status), with `warnings`: a missing extendedKeyUsage, a validity over 3 years, or a trust anchor that partners must import. |
+| `400`  | Invalid certificate or key. |
+| `409`  | Another node has this FQDN. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "seppID": 1,
+        "fqdn": "sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+        "source": "imported",
+        "subject": "CN=sepp1.5gc.mnc001.mcc001.3gppnetwork.org",
+        "sans": ["sepp1.5gc.mnc001.mcc001.3gppnetwork.org"],
+        "issuer": "CN=Operator Root CA",
+        "notBefore": "2026-10-01T08:00:00Z",
+        "notAfter": "2028-10-01T08:00:00Z",
+        "fingerprint": "sha256:d4e5...01",
+        "trustAnchorFingerprint": "sha256:77aa...3c",
+        "warnings": [
+            "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again"
+        ]
+    }
+}
+```
+
+## Delete a SEPP Certificate
+
+This path deletes a node's SEPP certificate, generated or imported. The node then generates a new one signed by the cluster SEPP CA. Use it to return to a generated certificate after an import.
+
+| Method | Path                                                       |
+| ------ | ---------------------------------------------------------- |
+| DELETE | `/api/v1/operator/roaming/sepp/nodes/{seppID}/certificate` |
+
+### Parameters
+
+None
+
+### Responses
+
+| Status | Condition |
+| ------ | --------- |
+| `200`  | The certificate was deleted. |
+| `400`  | `seppID` is not between 1 and 63. |
+| `404`  | The node has no SEPP certificate. |
+
+## Regenerate the SEPP CA
+
+This path replaces the cluster SEPP CA and deletes every generated SEPP certificate; each node then generates a new one with the new CA. Imported certificates are kept.
+
+| Method | Path                                          |
+| ------ | --------------------------------------------- |
+| POST   | `/api/v1/operator/roaming/sepp/ca/regenerate` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "trustAnchor": {
+            "source": "generated",
+            "subject": "CN=SEPP CA,O=5gc.mnc001.mcc001.3gppnetwork.org",
+            "fingerprint": "sha256:c47d...12",
+            "notAfter": "2036-11-03T10:00:00Z",
+            "pem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
+            "seppIDs": []
+        },
+        "warnings": [
+            "The cluster SEPP CA changed: every roaming partner must import the new trust anchor before N32 with the nodes that use generated certificates works again"
+        ]
     }
 }
 ```

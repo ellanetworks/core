@@ -63,6 +63,15 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 			req.Target.SelectedEPSTAI.PlmnID, req.Target.SelectedEPSTAI.TAC)
 	}
 
+	allowed, err := m.N26Allowed(ctx, req.SUPI.IMSI())
+	if err != nil {
+		return none, fmt.Errorf("mme: resolve the subscriber: %w", err)
+	}
+
+	if !allowed {
+		return none, interworking.RefuseN26Relocation()
+	}
+
 	access, err := ResolveAccess(ctx, m, req.SUPI.IMSI())
 	if err != nil {
 		return none, fmt.Errorf("mme: resolve the subscriber's access: %w", err)
@@ -78,6 +87,10 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
 	ue.SetAccess(access)
+
+	if err := m.admitArrivingVisitor(ctx, ue); err != nil {
+		return none, err
+	}
 
 	if err := ue.InstallRelocatedSecurityContext(req.SecurityContext, MintAuthProofForInterworking()); err != nil {
 		return none, err
@@ -195,6 +208,8 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 	accepted := make(map[uint8]uint8, len(conns))
 
 	for _, c := range conns {
+		subscription, _ := m.APNSubscription(ue, c.APN)
+
 		bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 			IMSI:              ue.IMSI(),
 			EPSBearerIdentity: c.EPSBearerIdentity,
@@ -202,6 +217,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 			Snssai:            &c.Snssai,
 			APN:               c.APN,
 			RequestType:       eps.RequestTypeHandover,
+			Subscription:      subscription,
 		})
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to take over a PDU session as a PDN connection; leaving it behind",
@@ -266,6 +282,7 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 	id := held.id
 
 	ue.TransitionTo(ctx, EMMRegistered)
+	ue.arrivedByHandoverFrom5GS.Store(ue.IsVisitor())
 
 	if err := m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("could not index a UE that arrived from 5GS",

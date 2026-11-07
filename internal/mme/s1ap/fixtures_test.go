@@ -149,6 +149,9 @@ func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, _ etsi.SUPI, p
 	}, nil
 }
 
+func (f *fakeSessionManager) UpdateAPNSubscription(context.Context, string, *models.APNSubscription) {
+}
+
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
 	f.lastRequest = req
 
@@ -224,6 +227,10 @@ type fakeBearerStore struct{}
 
 func (fakeBearerStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{Imsi: imsi, ProfileID: "test-profile"}, nil
+}
+
+func (f fakeBearerStore) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	return f.GetSubscriber(ctx, imsi)
 }
 
 func (fakeBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
@@ -367,7 +374,7 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 
 	ue.Conn().MarkSecureExchangeEstablished()
 	ue.ForceStateForTest(mme.EMMRegistered)
-	ue.SetAccess(mme.Access{Allow4G: true, Allow5G: true})
+	ue.SetAccess(mme.Access{Allow4G: true, FiveGSInterworking: true})
 	m.RegisterUEForTest(ue, testSubscriber.IMSI)
 
 	return ue, cc

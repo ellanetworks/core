@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -60,6 +61,21 @@ type fakeSMSC struct {
 
 	mu        sync.Mutex
 	lastError string
+}
+
+func requireBindToDevice(t *testing.T) {
+	t.Helper()
+
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = syscall.Close(fd) }()
+
+	if err := syscall.SetsockoptString(fd, syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, "lo"); err != nil {
+		t.Skipf("SO_BINDTODEVICE not permitted: %v", err)
+	}
 }
 
 func startFakeSMSC(t *testing.T, port int) *fakeSMSC {
@@ -139,6 +155,16 @@ func (s *fakeSMSC) connectedHost() string {
 	}
 
 	return ""
+}
+
+func (s *fakeSMSC) connectedAddr() netip.Addr {
+	for _, p := range s.node.Peers() {
+		if p.State == diameter.PeerOpen {
+			return p.RemoteAddr
+		}
+	}
+
+	return netip.Addr{}
 }
 
 type settingsSource struct {
@@ -313,6 +339,157 @@ func TestNodeConnectsToSMSC(t *testing.T) {
 	}
 
 	waitFor(t, "SMSC to see Ella", func() bool { return smsc.connectedHost() == ellaHost })
+}
+
+func TestNodeDialsFromTheDiameterInterfaceAddress(t *testing.T) {
+	requireSCTP(t)
+
+	configured := netip.MustParseAddr("127.0.0.20")
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: configured.String(), Port: freePort(t)}, zap.NewNop())
+	link.SetLocalAddrForTest(func(netip.Addr) (netip.Addr, error) { return loopback, nil })
+
+	runManager(t, link)
+
+	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
+
+	if got := smsc.connectedAddr(); got != configured {
+		t.Fatalf("SMSC saw Ella at %v, want %v", got, configured)
+	}
+}
+
+func TestDialDeviceFollowsTheDiameterListenerVRF(t *testing.T) {
+	errLookup := errors.New("lookup failed")
+
+	tests := []struct {
+		name      string
+		listen    diameternode.ListenConfig
+		device    string
+		err       error
+		wantCall  []string
+		wantDev   string
+		wantError bool
+	}{
+		{name: "no listener", listen: diameternode.ListenConfig{}, device: "vrf-cp"},
+		{name: "named interface in a VRF", listen: diameternode.ListenConfig{Name: "eth1", Port: 3868}, device: "vrf-cp", wantCall: []string{"eth1", ""}, wantDev: "vrf-cp"},
+		{name: "address in a VRF", listen: diameternode.ListenConfig{Address: "10.0.0.1", Port: 3868}, device: "vrf-cp", wantCall: []string{"", "10.0.0.1"}, wantDev: "vrf-cp"},
+		{name: "address outside any VRF", listen: diameternode.ListenConfig{Address: "10.0.0.1", Port: 3868}, wantCall: []string{"", "10.0.0.1"}},
+		{name: "unspecified address", listen: diameternode.ListenConfig{Address: "0.0.0.0", Port: 3868}, wantCall: []string{"", "0.0.0.0"}},
+		{name: "lookup failure", listen: diameternode.ListenConfig{Name: "eth1", Port: 3868}, err: errLookup, wantCall: []string{"eth1", ""}, wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var called []string
+
+			link := diameternode.New(nil, nil, tt.listen, zap.NewNop())
+			link.SetVRFDeviceForTest(func(name, address string) (string, error) {
+				called = []string{name, address}
+				return tt.device, tt.err
+			})
+
+			got, err := link.DialDeviceForTest()
+			if (err != nil) != tt.wantError {
+				t.Fatalf("dial device error = %v, want error %v", err, tt.wantError)
+			}
+
+			if got != tt.wantDev {
+				t.Fatalf("dial device = %q, want %q", got, tt.wantDev)
+			}
+
+			if !slices.Equal(called, tt.wantCall) {
+				t.Fatalf("VRF lookup called with %q, want %q", called, tt.wantCall)
+			}
+		})
+	}
+}
+
+func TestNodeDialsThroughTheDiameterVRF(t *testing.T) {
+	requireSCTP(t)
+	requireBindToDevice(t)
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: freePort(t)}, zap.NewNop())
+	link.SetVRFDeviceForTest(func(string, string) (string, error) { return "lo", nil })
+
+	runManager(t, link)
+
+	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
+}
+
+func TestNodeDoesNotDialAroundTheDiameterVRF(t *testing.T) {
+	requireSCTP(t)
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: freePort(t)}, zap.NewNop())
+	link.SetVRFDeviceForTest(func(string, string) (string, error) { return "ella-novrf0", nil })
+
+	runManager(t, link)
+
+	waitFor(t, "the dial to fail", func() bool {
+		p, ok := smscPeer(link)
+		return ok && p.State != diameter.PeerOpen && p.Error != ""
+	})
+
+	if p, _ := smscPeer(link); !strings.Contains(p.Error, syscall.ENODEV.Error()) {
+		t.Fatalf("peer error = %q, want %q", p.Error, syscall.ENODEV.Error())
+	}
+}
+
+func TestNodeDoesNotStartWhenTheDiameterVRFCannotBeResolved(t *testing.T) {
+	source := newSettingsSource()
+	source.setSMSC(netip.MustParseAddrPort("127.0.0.1:3868"))
+
+	resolved := make(chan struct{}, 1)
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: loopback.String(), Port: freePort(t)}, zap.NewNop())
+	link.SetVRFDeviceForTest(func(string, string) (string, error) {
+		poke(resolved)
+		return "", errors.New("lookup failed")
+	})
+
+	runManager(t, link)
+
+	select {
+	case <-resolved:
+	case <-time.After(waitTimeout):
+		t.Fatal("the Diameter VRF was never resolved")
+	}
+
+	if link.Node() != nil {
+		t.Fatal("a Diameter node started without its VRF")
+	}
+}
+
+func TestNodeWithAnUnspecifiedDiameterAddressDialsFromTheRouteSource(t *testing.T) {
+	requireSCTP(t)
+
+	routed := netip.MustParseAddr("127.0.0.21")
+
+	smsc := startFakeSMSC(t, 0)
+	source := newSettingsSource()
+	source.setSMSC(smsc.addr)
+
+	link := diameternode.New(source.getNode, source.getPeers, diameternode.ListenConfig{Address: "0.0.0.0", Port: freePort(t)}, zap.NewNop())
+	link.SetLocalAddrForTest(func(netip.Addr) (netip.Addr, error) { return routed, nil })
+
+	runManager(t, link)
+
+	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
+
+	if got := smsc.connectedAddr(); got != routed {
+		t.Fatalf("SMSC saw Ella at %v, want %v", got, routed)
+	}
 }
 
 func TestNodeReportsAnSMSCThatAnswersAsAnotherHost(t *testing.T) {

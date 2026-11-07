@@ -524,3 +524,65 @@ func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
 		t.Error("the SMF prepared sessions for a handover that was refused")
 	}
 }
+
+func TestForwardRelocationRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name        string
+		db          *fakeDBInstance
+		wantErr     error
+		wantRefusal bool
+	}{
+		{name: "roaming visitor", db: &fakeDBInstance{Operator: arrivingOperator(), Visitor: true}, wantErr: interworking.ErrN26NotAllowed, wantRefusal: true},
+		{name: "subscriber row gone", db: &fakeDBInstance{Operator: arrivingOperator(), LookupErr: db.ErrNotFound}, wantErr: interworking.ErrN26NotAllowed, wantRefusal: true},
+		{name: "lookup failure", db: &fakeDBInstance{Operator: arrivingOperator(), LookupErr: failure}, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := newArrivalSender()
+			smfSbi := &fakeSmfSbi{PrepareFromEPSResponse: []byte{0x09, 0x08}}
+
+			amfInstance := amf.New(tc.db, nil, smfSbi)
+			amfInstance.EPS = &epsPeerStub{}
+
+			radio := &amf.Radio{Conn: sender}
+			radio.BindAMFForTest(amfInstance)
+
+			target, err := amf.NGRANIdentityToNGAP(arrivingTarget())
+			if err != nil {
+				t.Fatalf("NGRANIdentityToNGAP: %v", err)
+			}
+
+			if _, err := amfInstance.ClaimRanID(t.Context(), radio, target, amf.DefaultRelativeCapacity); err != nil {
+				t.Fatalf("ClaimRanID: %v", err)
+			}
+
+			_, err = amfInstance.ForwardRelocation(context.Background(), arrivingRequest())
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			var refusal interworking.TargetRefusal
+			if got := errors.As(err, &refusal); got != tc.wantRefusal {
+				t.Fatalf("error = %v, TargetRefusal = %v, want %v", err, got, tc.wantRefusal)
+			}
+
+			want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
+			if tc.wantRefusal && refusal.Cause != want {
+				t.Errorf("cause = %+v, want ho-target-not-allowed", refusal.Cause)
+			}
+
+			if len(sender.SentHandoverRequests) != 0 {
+				t.Error("the target gNB was asked to admit the UE")
+			}
+
+			if len(smfSbi.PrepareFromEPSCalls) != 0 {
+				t.Error("the SMF prepared sessions for a refused handover")
+			}
+
+			if _, ok := amfInstance.LookupUeBySupi(arrivingRequest().SUPI); ok {
+				t.Error("the refusal left a UE context behind")
+			}
+		})
+	}
+}

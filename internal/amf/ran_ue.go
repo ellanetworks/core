@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/serial"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
@@ -86,6 +87,7 @@ type UeConn struct {
 	n2Sessions n2Sessions
 	n2Releases n2Releases
 	inboundNAS atomic.Uint32
+	lane       serial.Lane
 
 	deferredCause atomic.Pointer[ngap.Cause]
 	deferGuard    guard.Guard
@@ -806,9 +808,9 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
-		// A UE without a valid security context (never fully registered) has its AMF UE
-		// context deleted; a registered UE is kept.
-		if !amfUe.Secured() {
+		// A UE without a valid security context (never fully registered) and a roaming
+		// visitor have their AMF UE context deleted; a registered home UE is kept.
+		if !amfUe.Secured() || amfUe.IsVisitor() {
 			a.DeregisterAndRemoveUeContext(ctx, amfUe, models.ReleaseFor(models.ReleaseRegistrationFailure))
 
 			return false

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/internal/netutil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 )
@@ -51,6 +52,7 @@ type PeerConfig struct {
 	Address      string
 	Port         uint16
 	Applications []diameter.Application
+	Routes       []diameter.Route
 }
 
 type PeerStatus struct {
@@ -77,6 +79,7 @@ type Manager struct {
 	logger      *zap.Logger
 	slog        *slog.Logger
 	localAddr   func(remote netip.Addr) (netip.Addr, error)
+	vrfDevice   func(interfaceName, address string) (string, error)
 
 	mu        sync.Mutex
 	node      *diameter.Node
@@ -96,6 +99,7 @@ func New(nodeSource NodeSource, peersSource PeersSource, listen ListenConfig, lo
 		logger:      logger,
 		slog:        slog.New(zapslog.NewHandler(logger.Core(), zapslog.WithName("Diameter"), zapslog.WithCaller(true))),
 		localAddr:   routeSource,
+		vrfDevice:   netutil.VRFBindDevice,
 		since:       time.Now(),
 	}
 }
@@ -285,6 +289,7 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 			Transports:   []diameter.Transport{diameter.TransportSCTP},
 			Dial:         &diameter.Dial{Port: p.Port},
 			Applications: p.Applications,
+			Routes:       p.Routes,
 		}
 
 		if addr, err := netip.ParseAddr(p.Address); err == nil {
@@ -305,11 +310,17 @@ func sameIdentity(a, b diameter.Identity) bool {
 
 func samePeers(a, b []PeerConfig) bool {
 	return slices.EqualFunc(a, b, func(x, y PeerConfig) bool {
-		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && x.Port == y.Port && slices.Equal(x.Applications, y.Applications)
+		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && x.Port == y.Port &&
+			slices.Equal(x.Applications, y.Applications) && slices.Equal(x.Routes, y.Routes)
 	})
 }
 
 func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedRealms []string, peers []diameter.Peer) error {
+	device, err := m.dialDevice()
+	if err != nil {
+		return fmt.Errorf("resolve Diameter VRF: %w", err)
+	}
+
 	cfg := diameter.Config{
 		Identity:          identity,
 		ServedRealms:      servedRealms,
@@ -324,6 +335,10 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 		cfg.AcceptUnknownPeers = true
 		cfg.UnknownPeerApplications = imsApplications
 		cfg.UnknownPeerSupportedVendors = imsSupportedVendors
+	}
+
+	if device != "" {
+		cfg.DialControl = netutil.BindToDeviceControl(device)
 	}
 
 	node, err := diameter.New(cfg)
@@ -358,6 +373,7 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 		zap.String("origin_host", identity.OriginHost),
 		zap.String("origin_realm", identity.OriginRealm),
 		zap.Stringers("host_ip_addresses", identity.HostIPAddresses),
+		zap.String("vrf", device),
 	)
 
 	return nil

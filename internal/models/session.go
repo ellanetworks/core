@@ -110,6 +110,17 @@ type EPSBearerRequest struct {
 	APN               string
 	RequestedPDNType  uint8
 	RequestType       eps.RequestType
+	Subscription      *APNSubscription
+}
+
+type APNSubscription struct {
+	HPLMN                   PlmnID
+	PDNTypes                []eps.PDNType
+	APNAMBR                 *Ambr
+	QCI                     uint8
+	ARP                     Arp
+	ChargingCharacteristics string
+	MSISDN                  string
 }
 
 type EPSBearerQoS struct {
@@ -141,6 +152,7 @@ type EPSBearer struct {
 	ESMCause        eps.ESMCause
 	PDUSessionID    uint8
 	Snssai          *Snssai
+	HPLMNSnssai     *Snssai
 	QoS             EPSBearerQoS
 	MTU             uint16
 	MappedFiveGSQoS []nas.PCOContainer
@@ -343,8 +355,13 @@ func UsageVolume(reports []UsageReport) (uplink, downlink uint64) {
 type SubscriberUsage struct {
 	EpochDay       int64
 	IMSI           string
+	HomePLMN       PlmnID
 	UplinkVolume   uint64
 	DownlinkVolume uint64
+}
+
+func (u SubscriberUsage) Roaming() bool {
+	return u.HomePLMN != PlmnID{}
 }
 
 // FlowReportRequest is sent by UPF to SMF with flow statistics.

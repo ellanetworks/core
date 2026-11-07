@@ -25,12 +25,11 @@ var (
 
 func negotiation() Negotiation {
 	return Negotiation{
-		LocalFQDN:         ellaFQDN,
-		LocalPlmnID:       ellaPLMN,
-		PeerFQDN:          peerFQDN,
-		PeerPlmnID:        peerPLMN,
-		PeerCertDNSNames:  []string{"SEPP.5gc.mnc001.mcc001.3gppnetwork.org"},
-		SupportedFeatures: LocalFeatures,
+		LocalFQDN:        ellaFQDN,
+		LocalPlmnID:      ellaPLMN,
+		PeerFQDN:         peerFQDN,
+		PeerPlmnID:       peerPLMN,
+		PeerCertDNSNames: []string{"SEPP.5gc.mnc001.mcc001.3gppnetwork.org"},
 	}
 }
 
@@ -42,14 +41,9 @@ func TestNegotiateRequestEncoding(t *testing.T) {
 
 	want := `{"sender":"sepp.5gc.mnc070.mcc999.3gppnetwork.org","supportedSecCapabilityList":["TLS"],` +
 		`"3GppSbiTargetApiRootSupported":true,"plmnIdList":[{"mcc":"999","mnc":"70"}],` +
-		`"targetPlmnId":{"mcc":"001","mnc":"01"},"supportedFeatures":"1"}`
+		`"targetPlmnId":{"mcc":"001","mnc":"01"}}`
 	if string(b) != want {
 		t.Fatalf("request =\n%s\nwant\n%s", b, want)
-	}
-
-	td, err := wire.Encode(negotiation().TeardownRequest())
-	if err != nil || string(td) != `{"sender":"sepp.5gc.mnc070.mcc999.3gppnetwork.org","supportedSecCapabilityList":["NONE"]}` {
-		t.Fatalf("teardown = %s, %v", td, err)
 	}
 
 	if N32cExchangeCapabilityPath != "/n32c-handshake/v1/exchange-capability" {
@@ -67,9 +61,9 @@ func TestRespondEstablish(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rsp, outcome, err := negotiation().Respond(req)
-	if err != nil || outcome != OutcomeEstablish {
-		t.Fatalf("Respond = %v, %v", outcome, err)
+	rsp, err := negotiation().Respond(req)
+	if err != nil {
+		t.Fatalf("Respond = %v", err)
 	}
 
 	b, err := wire.Encode(rsp)
@@ -78,13 +72,9 @@ func TestRespondEstablish(t *testing.T) {
 	}
 
 	want := `{"sender":"sepp.5gc.mnc070.mcc999.3gppnetwork.org","selectedSecCapability":"TLS",` +
-		`"3GppSbiTargetApiRootSupported":true,"plmnIdList":[{"mcc":"999","mnc":"70"}],"supportedFeatures":"1"}`
+		`"3GppSbiTargetApiRootSupported":true,"plmnIdList":[{"mcc":"999","mnc":"70"}]}`
 	if string(b) != want {
 		t.Fatalf("response =\n%s\nwant\n%s", b, want)
-	}
-
-	if !slices.Equal(rsp.Purposes(), []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}) {
-		t.Fatalf("default purposes (TS 29.573 §5.2.2) = %v", rsp.Purposes())
 	}
 }
 
@@ -98,8 +88,6 @@ func TestDecodeRequestErrors(t *testing.T) {
 		{`{"sender":"sepp.example.com"}`, "/supportedSecCapabilityList", true},
 		{`{"sender":"sepp.example.com","supportedSecCapabilityList":[]}`, "/supportedSecCapabilityList", true},
 		{`{"sender":"sepp.example.com","supportedSecCapabilityList":[""]}`, "/supportedSecCapabilityList/0", true},
-		{`{"sender":"sepp.example.com","supportedSecCapabilityList":["TLS","NONE"]}`, "/supportedSecCapabilityList", false},
-		{`{"sender":"sepp.example.com","supportedSecCapabilityList":["NONE","NONE"]}`, "/supportedSecCapabilityList", false},
 		{`{"sender":"sepp.example.com","supportedSecCapabilityList":["TLS"],"plmnIdList":[{"mcc":"001"}]}`, "/plmnIdList/0/mnc", true},
 		{`{"sender":"sepp.example.com","supportedSecCapabilityList":["TLS"],"targetPlmnId":{"mcc":"01","mnc":"01"}}`, "/targetPlmnId/mcc", false},
 		{`{"sender":"sepp.example.com","supportedSecCapabilityList":["TLS"],"intendedUsagePurpose":[{}]}`, "/intendedUsagePurpose/0/usagePurpose", true},
@@ -148,8 +136,8 @@ func TestUnknownValuesTolerated(t *testing.T) {
 		t.Fatal("strict check accepted unknown values")
 	}
 
-	rsp, outcome, err := negotiation().Respond(req)
-	if err != nil || outcome != OutcomeEstablish {
+	rsp, err := negotiation().Respond(req)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -201,8 +189,22 @@ func TestRespondChecks(t *testing.T) {
 	}{
 		"sender mismatch":   {func(r *SecNegotiateReqData, _ *Negotiation) { r.Sender = "sepp.other.org" }, CauseNegotiationNotAllowed},
 		"sender not in SAN": {func(_ *SecNegotiateReqData, n *Negotiation) { n.PeerCertDNSNames = []string{"x.org"} }, CauseNegotiationNotAllowed},
+		"another SEPP of the partner, not in SAN": {func(r *SecNegotiateReqData, _ *Negotiation) {
+			r.Sender = "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
+		}, CauseNegotiationNotAllowed},
+		"SEPP of another PLMN in SAN": {func(r *SecNegotiateReqData, n *Negotiation) {
+			r.Sender = "sepp1.5gc.mnc002.mcc001.3gppnetwork.org"
+			n.PeerCertDNSNames = append(n.PeerCertDNSNames, r.Sender)
+		}, CauseNegotiationNotAllowed},
+		"well-known SEPP FQDN of the partner in SAN": {func(r *SecNegotiateReqData, n *Negotiation) {
+			n.PeerFQDN = "sepp1.5gc.mnc001.mcc001.3gppnetwork.org"
+			n.PeerCertDNSNames = append(n.PeerCertDNSNames, r.Sender)
+		}, CauseNegotiationNotAllowed},
 		"PRINS only": {func(r *SecNegotiateReqData, _ *Negotiation) {
 			r.SupportedSecCapabilityList = []SecurityCapability{SecurityPRINS}
+		}, CauseNegotiationNotAllowed},
+		"NONE": {func(r *SecNegotiateReqData, _ *Negotiation) {
+			r.SupportedSecCapabilityList = []SecurityCapability{SecurityNone}
 		}, CauseNegotiationNotAllowed},
 		"no target apiRoot": {func(r *SecNegotiateReqData, _ *Negotiation) { r.TargetAPIRootSupported = false }, CauseNegotiationNotAllowed},
 		"wrong PLMN list": {func(r *SecNegotiateReqData, _ *Negotiation) {
@@ -225,9 +227,9 @@ func TestRespondChecks(t *testing.T) {
 		req, n := baseRequest(), negotiation()
 		tc.mutate(&req, &n)
 
-		rsp, outcome, err := n.Respond(req)
-		if outcome != 0 || rsp.Sender != "" {
-			t.Errorf("%s: outcome %v with an error", name, outcome)
+		rsp, err := n.Respond(req)
+		if rsp.Sender != "" {
+			t.Errorf("%s: a response with an error", name)
 		}
 
 		var pd wire.ProblemDetails
@@ -240,44 +242,33 @@ func TestRespondChecks(t *testing.T) {
 	req.PlmnIDList, req.TargetPlmnID = nil, nil
 	req.Sender = "SEPP.5gc.mnc001.mcc001.3gppnetwork.org."
 
-	if _, outcome, err := negotiation().Respond(req); err != nil || outcome != OutcomeEstablish {
-		t.Fatalf("absent PLMN IEs: %v, %v", outcome, err)
+	if _, err := negotiation().Respond(req); err != nil {
+		t.Fatalf("absent PLMN IEs: %v", err)
+	}
+
+	req = baseRequest()
+	req.Sender = "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
+	n := negotiation()
+	n.PeerPlmnIDs = []wire.PlmnID{peerPLMN, {Mcc: "001", Mnc: "02"}}
+	n.PeerCertDNSNames = []string{req.Sender}
+
+	if _, err := n.Respond(req); err != nil {
+		t.Fatalf("another SEPP of the partner: %v", err)
+	}
+
+	req.Sender = "sepp3.5gc.mnc002.mcc001.3gppnetwork.org"
+	n.PeerCertDNSNames = []string{req.Sender}
+
+	if _, err := n.Respond(req); err != nil {
+		t.Fatalf("a SEPP of the partner's second PLMN: %v", err)
 	}
 
 	req = baseRequest()
 	req.IntendedUsagePurpose = []IntendedN32Purpose{{UsagePurpose: PurposeInterPLMNMobility}}
 
-	rsp, _, err := negotiation().Respond(req)
-	if err != nil || !slices.Equal(rsp.Purposes(), []N32Purpose{PurposeInterPLMNMobility}) || rsp.RejectedUsagePurpose != nil {
+	rsp, err := negotiation().Respond(req)
+	if err != nil || len(rsp.AllowedUsagePurpose) != 1 || rsp.AllowedUsagePurpose[0].UsagePurpose != PurposeInterPLMNMobility || rsp.RejectedUsagePurpose != nil {
 		t.Fatalf("mobility only = %+v, %v", rsp, err)
-	}
-}
-
-func TestRespondTeardown(t *testing.T) {
-	req := baseRequest()
-	req.SupportedSecCapabilityList = []SecurityCapability{SecurityNone}
-	req.TargetAPIRootSupported = false
-
-	rsp, outcome, err := negotiation().Respond(req)
-	if err != nil || outcome != OutcomeTeardown || rsp.SelectedSecCapability != SecurityNone || rsp.Sender != ellaFQDN {
-		t.Fatalf("teardown = %+v, %v, %v", rsp, outcome, err)
-	}
-
-	if _, err := wire.Encode(rsp); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := negotiation().CheckTeardownResponse(SecNegotiateRspData{Sender: peerFQDN, SelectedSecCapability: SecurityNone}); err != nil {
-		t.Fatal(err)
-	}
-
-	for name, r := range map[string]SecNegotiateRspData{
-		"TLS":    {Sender: peerFQDN, SelectedSecCapability: SecurityTLS},
-		"sender": {Sender: "x.example.com", SelectedSecCapability: SecurityNone},
-	} {
-		if err := negotiation().CheckTeardownResponse(r); !errors.Is(err, ErrNegotiation) {
-			t.Errorf("%s: %v", name, err)
-		}
 	}
 }
 
@@ -290,43 +281,38 @@ func TestCheckResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	est, err := negotiation().CheckResponse(rsp)
-	if err != nil || est.NFTLST || !slices.Equal(est.Purposes, []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}) {
-		t.Fatalf("empty supportedFeatures (TS 29.571 pattern ^[A-Fa-f0-9]*$) = %+v, %v", est, err)
+	if err := negotiation().CheckResponse(rsp); err != nil {
+		t.Fatalf("empty supportedFeatures (TS 29.571 pattern ^[A-Fa-f0-9]*$): %v", err)
 	}
 
 	rsp.SupportedFeatures = "1"
 	rsp.AllowedUsagePurpose = []IntendedN32Purpose{{UsagePurpose: PurposeRoaming}}
 
-	if est, err := negotiation().CheckResponse(rsp); err != nil || !est.NFTLST || !slices.Equal(est.Purposes, []N32Purpose{PurposeRoaming}) {
-		t.Fatalf("NFTLST = %+v, %v", est, err)
+	if err := negotiation().CheckResponse(rsp); err != nil {
+		t.Fatalf("features and purposes: %v", err)
 	}
 
-	for name, tc := range map[string]struct {
-		mutate   func(*SecNegotiateRspData)
-		teardown bool
-	}{
-		"no apiRoot": {func(r *SecNegotiateRspData) { r.TargetAPIRootSupported = false }, true},
-		"sender":     {func(r *SecNegotiateRspData) { r.Sender = "sepp.other.org" }, true},
-		"PRINS":      {func(r *SecNegotiateRspData) { r.SelectedSecCapability = SecurityPRINS }, false},
-		"wrong PLMN": {func(r *SecNegotiateRspData) { r.PlmnIDList = []wire.PlmnID{ellaPLMN} }, true},
-		"SNPN":       {func(r *SecNegotiateRspData) { r.SnpnIDList = []wire.PlmnIDNid{{Mcc: "001", Mnc: "01"}} }, true},
-		"roaming rejected": {func(r *SecNegotiateRspData) {
+	for name, mutate := range map[string]func(*SecNegotiateRspData){
+		"no apiRoot": func(r *SecNegotiateRspData) { r.TargetAPIRootSupported = false },
+		"sender":     func(r *SecNegotiateRspData) { r.Sender = "sepp.other.org" },
+		"PRINS":      func(r *SecNegotiateRspData) { r.SelectedSecCapability = SecurityPRINS },
+		"wrong PLMN": func(r *SecNegotiateRspData) { r.PlmnIDList = []wire.PlmnID{ellaPLMN} },
+		"SNPN":       func(r *SecNegotiateRspData) { r.SnpnIDList = []wire.PlmnIDNid{{Mcc: "001", Mnc: "01"}} },
+		"roaming rejected": func(r *SecNegotiateRspData) {
 			r.RejectedUsagePurpose = []IntendedN32Purpose{{UsagePurpose: PurposeRoaming}}
-		}, true},
-		"roaming not listed": {func(r *SecNegotiateRspData) {
+		},
+		"roaming not listed": func(r *SecNegotiateRspData) {
 			r.AllowedUsagePurpose = []IntendedN32Purpose{{UsagePurpose: PurposeSMSInterconnect}}
-		}, true},
-		"no NFTLST": {func(r *SecNegotiateRspData) { r.SupportedFeatures, r.TargetAPIRootSupported = "", false }, false},
+		},
 	} {
 		r := rsp
-		tc.mutate(&r)
+		mutate(&r)
 
-		est, err := negotiation().CheckResponse(r)
+		err := negotiation().CheckResponse(r)
 
 		var ne *NegotiationError
-		if !errors.As(err, &ne) || !errors.Is(err, ErrNegotiation) || ne.TeardownAllowed != tc.teardown || est.NFTLST || ne.Error() == "" {
-			t.Errorf("%s: %+v, %v", name, est, err)
+		if !errors.As(err, &ne) || !errors.Is(err, ErrNegotiation) || ne.Error() == "" {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 
@@ -367,7 +353,7 @@ func TestNegotiateRoundTrip(t *testing.T) {
 		SnpnIDList:                 []wire.PlmnIDNid{{Mcc: "001", Mnc: "01", Nid: "000007ed9d5"}},
 		TargetPlmnID:               &target,
 		IntendedUsagePurpose:       []IntendedN32Purpose{{UsagePurpose: PurposeRoaming, AdditionalInfo: "x"}},
-		SupportedFeatures:          wire.Features(FeatureNFTLST, FeatureTLSCOR),
+		SupportedFeatures:          wire.Features(1, 5),
 		SenderN32fFqdn:             "n32f.example.com",
 		SenderN32fPortList:         []int{port},
 		N32KeepaliveTimer:          &keepalive,
@@ -461,12 +447,8 @@ func FuzzRespond(f *testing.F) {
 			return
 		}
 
-		rsp, outcome, err := negotiation().Respond(req)
+		rsp, err := negotiation().Respond(req)
 		if err != nil {
-			if outcome != 0 {
-				t.Fatalf("outcome %v with %v", outcome, err)
-			}
-
 			if pd := wire.ProblemFromError(err); pd.Status != http.StatusForbidden {
 				t.Fatalf("respond error maps to %d", pd.Status)
 			}
@@ -485,16 +467,16 @@ func FuzzRespond(f *testing.F) {
 		}
 
 		roaming := len(back.AllowedUsagePurpose) == 0 || hasPurpose(back.AllowedUsagePurpose, PurposeRoaming)
-		if outcome != OutcomeEstablish || !roaming {
+		if !roaming {
 			return
 		}
 
 		peer := Negotiation{
 			LocalFQDN: peerFQDN, LocalPlmnID: peerPLMN, PeerFQDN: ellaFQDN, PeerPlmnID: ellaPLMN,
-			PeerCertDNSNames: []string{ellaFQDN}, SupportedFeatures: LocalFeatures,
+			PeerCertDNSNames: []string{ellaFQDN},
 		}
 
-		if _, err := peer.CheckResponse(back); err != nil {
+		if err := peer.CheckResponse(back); err != nil {
 			t.Fatalf("own response %s rejected: %v", b, err)
 		}
 	})

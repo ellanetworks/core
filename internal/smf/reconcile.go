@@ -96,6 +96,7 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 	smContext.Mutex.Lock()
 	supi, snssai, dnn := smContext.Supi, smContext.Snssai, smContext.Dnn
 	reported, authorized := smContext.subscribedQoS, smContext.policyDecision
+	home, withdrawn := smContext.hplmnRulesLocked(), smContext.apnWithdrawn
 	smContext.Mutex.Unlock()
 
 	if authorized == nil {
@@ -103,7 +104,7 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 		return nil
 	}
 
-	policy, decision, subscribed, err := s.reconcileTarget(ctx, ref, supi, snssai, dnn, reported, authorized)
+	policy, decision, subscribed, err := s.reconcileTarget(ctx, ref, supi, snssai, dnn, home, withdrawn, reported, authorized)
 	if errors.Is(err, udm.ErrSubscriberUnknown) {
 		smContext.reconcileMu.Unlock()
 		logger.SmfLog.Debug("subscriber deleted, leaving the session to the subscription withdrawal",
@@ -189,11 +190,17 @@ func permanentPolicyFailure(err error) bool {
 		errors.Is(err, ErrDNNNotInSlice)
 }
 
-func (s *SMF) reconcileTarget(ctx context.Context, ref string, supi etsi.SUPI, snssai *models.Snssai, dnn string, reported SubscribedQoS, authorized *PolicyDecision) (*Policy, *PolicyDecision, SubscribedQoS, error) {
+func (s *SMF) reconcileTarget(ctx context.Context, ref string, supi etsi.SUPI, snssai *models.Snssai, dnn string, home *HPLMNRules, withdrawn bool, reported SubscribedQoS, authorized *PolicyDecision) (*Policy, *PolicyDecision, SubscribedQoS, error) {
+	if withdrawn || home != nil && home.Withdrawn {
+		return nil, authorized, reported, fmt.Errorf("%w: %w: %q", ErrNoPolicyMatch, ErrHPLMNWithdrawn, dnn)
+	}
+
 	in, err := s.prepareSession(ctx, supi, snssai, dnn)
 	if err != nil {
 		return nil, authorized, reported, err
 	}
+
+	in.subscribed = home.capQoS(in.subscribed)
 
 	decision := authorized
 

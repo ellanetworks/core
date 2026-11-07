@@ -49,6 +49,8 @@ tags:
     description: Manage user accounts and API tokens.
   - name: Subscribers
     description: Manage subscribers.
+  - name: Roamers
+    description: Subscribers of roaming partners registered on Ella Core.
   - name: Subscriber Usage
     description: Subscriber data usage.
   - name: Profiles
@@ -939,13 +941,104 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # -- Roamers -------------------------------------------------------------
+  /api/v1/roamers:
+    get:
+      operationId: listRoamers
+      tags: [Roamers]
+      summary: List roamers
+      description: Lists the roamers (subscribers of a roaming partner registered on Ella Core), ordered by IMSI. Their status is what the node serving the request knows.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: partner
+          in: query
+          schema:
+            type: string
+          description: Filter by roaming partner name.
+        - name: radio
+          in: query
+          schema:
+            type: string
+          description: Filter by last-seen radio.
+        - name: data_network
+          in: query
+          schema:
+            type: string
+          description: Filter by data network reachable through the roaming partner's profile.
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 254
+          description: Substring match on IMSI or E.164 MSISDN.
+      responses:
+        "200":
+          description: Paginated list of roamers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRoamersResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/roamers/{imsi}:
+    get:
+      operationId: getRoamer
+      tags: [Roamers]
+      summary: Get roamer details
+      description: Returns a roamer with its registrations and sessions on the node serving the request.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          description: Roamer details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamerDetailResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deregisterRoamer
+      tags: [Roamers]
+      summary: Deregister a roamer
+      description: Deregisters a roamer on the node that serves it, network-initiated with "re-registration not required" and no cause (TS 24.501 clause 5.5.2.3, TS 24.301 clause 5.5.2.3), and purges it at its home network (Nudm_UECM deregistration, S6a PUR). Meanwhile a new registration of the roamer is rejected with cause #22 (congestion). The roamer may register again once it is gone; to bar it, remove its PLMN ID from the roaming partner. Answers once the roamer is deregistered, within a minute.
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The roamer was still registered after a minute (for example, the node that holds it is unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # -- Subscriber Usage ----------------------------------------------------
   /api/v1/subscriber-usage:
     get:
       operationId: getSubscriberUsage
       tags: [Subscriber Usage]
       summary: Get subscriber usage data
-      description: Returns subscriber data usage, grouped by day or subscriber.
+      description: Returns the data usage of home subscribers and roamers, grouped by day or subscriber.
       parameters:
         - name: group_by
           in: query
@@ -971,6 +1064,20 @@ paths:
           schema:
             type: string
           description: Filter by IMSI.
+        - name: roaming
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: "true returns only roamer usage, false only home subscriber usage. Absent returns both."
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 1000
+          description: "With group_by=subscriber only: the maximum number of subscribers returned, ordered by total usage, highest first."
       responses:
         "200":
           description: Usage data grouped by the requested dimension.
@@ -1437,7 +1544,7 @@ paths:
       operationId: updateOperatorId
       tags: [Operator]
       summary: Update PLMN ID
-      description: Sets the MCC and MNC. Cannot be changed while subscribers exist.
+      description: Sets the MCC and MNC. Cannot be changed while subscribers or roaming partners exist. A change deletes Ella Core's SEPP certificate, which names the previous PLMN; the response message says so.
       requestBody:
         required: true
         content:
@@ -1451,6 +1558,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Roaming partners exist. Their agreements, and Ella Core's SEPP certificate, name the current PLMN.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/operator/code:
     put:
@@ -1607,42 +1720,42 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/operator/sms/smsc-peers:
+  /api/v1/operator/sms/smscs:
     get:
-      operationId: listSMSCPeers
+      operationId: listSMSCs
       tags: [Operator]
-      summary: List SMSC peers
-      description: Lists SMSC peers with the state of this node's connection to each.
+      summary: List SMSCs
+      description: Lists SMSCs with the state of this node's connection to each of their nodes.
       responses:
         "200":
-          description: SMSC peers.
+          description: SMSCs.
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   result:
-                    $ref: "#/components/schemas/ListSMSCPeersResponse"
+                    $ref: "#/components/schemas/ListSMSCsResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
     post:
-      operationId: createSMSCPeer
+      operationId: createSMSC
       tags: [Operator]
-      summary: Create an SMSC peer
-      description: Creates an SMSC peer.
+      summary: Create an SMSC
+      description: Creates an SMSC with the service centre numbers it serves and the Diameter nodes Ella Core reaches it through.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SMSCPeerParams"
+              $ref: "#/components/schemas/CreateSMSCParams"
       responses:
         "201":
-          description: The created SMSC peer.
+          description: The created SMSC.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SMSCPeerResponseEnvelope"
+                $ref: "#/components/schemas/SMSCResponseEnvelope"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1650,41 +1763,40 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  /api/v1/operator/sms/smsc-peers/{id}:
+  /api/v1/operator/sms/smscs/{name}:
     parameters:
-      - name: id
+      - name: name
         in: path
         required: true
         schema:
           type: string
-          format: uuid
     get:
-      operationId: getSMSCPeer
+      operationId: getSMSC
       tags: [Operator]
-      summary: Get an SMSC peer
-      description: Returns an SMSC peer with the state of this node's connection to it.
+      summary: Get an SMSC
+      description: Returns an SMSC with the state of this node's connection to each of its nodes.
       responses:
         "200":
-          description: SMSC peer.
+          description: SMSC.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SMSCPeerResponseEnvelope"
+                $ref: "#/components/schemas/SMSCResponseEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
-      operationId: updateSMSCPeer
+      operationId: updateSMSC
       tags: [Operator]
-      summary: Update an SMSC peer
-      description: Updates an SMSC peer. All fields are replaced; port is required.
+      summary: Update an SMSC
+      description: Replaces the service centre numbers and the nodes of an SMSC.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SMSCPeerParams"
+              $ref: "#/components/schemas/UpdateSMSCParams"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1697,10 +1809,10 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
     delete:
-      operationId: deleteSMSCPeer
+      operationId: deleteSMSC
       tags: [Operator]
-      summary: Delete an SMSC peer
-      description: Deletes an SMSC peer.
+      summary: Delete an SMSC
+      description: Deletes an SMSC and its nodes.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1926,6 +2038,408 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+
+  /api/v1/operator/roaming/partners:
+    get:
+      operationId: listRoamingPartners
+      tags: [Operator]
+      summary: List roaming partners
+      description: Lists the roaming partners. A partner is a roaming agreement with one home network operator, identified by one or more PLMN IDs, whose subscribers may attach to Ella Core.
+      responses:
+        "200":
+          description: Roaming partners.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/ListRoamingPartnersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createRoamingPartner
+      tags: [Operator]
+      summary: Create a roaming partner
+      description: Creates a roaming partner. Every node with interfaces.n32 then runs its own N32-c handshake with the partner's SEPP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingPartnerParams"
+      responses:
+        "201":
+          description: The created roaming partner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingPartnerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: The profile or the roaming Diameter peer does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "The name is taken, or a PLMN ID conflicts with the home PLMN or another partner's: under one MCC, the same MNC once zero-padded to 3 digits (TS 23.003 clause 19.2), or one MNC a prefix of the other."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/partners/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getRoamingPartner
+      tags: [Operator]
+      summary: Get a roaming partner
+      description: Returns a roaming partner.
+      responses:
+        "200":
+          description: Roaming partner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingPartnerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateRoamingPartner
+      tags: [Operator]
+      summary: Update a roaming partner
+      description: Replaces a roaming partner's configuration. PLMN IDs can be added. When a removed PLMN ID, or a removed 5G (`sepp`) or 4G (`diameterPeerID`) agreement, still has roamers, all the partner's roamers are first deregistered on every node (EMM cause #11, PLMN not allowed) and purged at their home network; new roamers of the partner are refused meanwhile. Answers within a minute. Changing the profile applies to the partner's roamers. Adding a 5G agreement when Ella Core has no SEPP certificate generates one in the same operation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingPartnerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The name is taken, a PLMN ID conflicts (see create), or the partner's roamers could not all be deregistered within a minute (for example, a node that holds them is unreachable). The configuration is left unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRoamingPartner
+      tags: [Operator]
+      summary: Delete a roaming partner
+      description: Deletes a roaming partner. Its roamers are first deregistered on every node (EMM cause #11, PLMN not allowed) and purged at their home network, while the partner configuration still exists to reach it; new roamers of the partner are refused meanwhile. Its roaming usage is kept, keyed by PLMN ID, until the subscriber usage retention removes it.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The partner's roamers could not all be deregistered within a minute (for example, a node that holds them is unreachable). The partner is left in place.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/partners/{id}/handshake:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: rehandshakeRoamingPartner
+      tags: [Operator]
+      summary: Re-run the N32-c handshake with a roaming partner
+      description: Starts a new N32-c security capability negotiation (TS 29.573 clause 5.2.2) with the partner's SEPP on the node that serves the request, each node with interfaces.n32 being its own SEPP with its own context. The answer has the context state right after the start, normally `establishing`, or `unknown` with the error when the node could not start it; poll the partner for the outcome.
+      responses:
+        "202":
+          description: The handshake started on this node.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/RoamingPartnerHandshake"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The partner has no 5G agreement, or this node has no interfaces.n32.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/diameter-peers:
+    get:
+      operationId: listRoamingDiameterPeers
+      tags: [Operator]
+      summary: List roaming Diameter peers
+      description: Lists the Diameter peers (home HSS or Diameter Edge Agent) that roaming partners reach over S6a.
+      responses:
+        "200":
+          description: Roaming Diameter peers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/ListRoamingDiameterPeersResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createRoamingDiameterPeer
+      tags: [Operator]
+      summary: Create a roaming Diameter peer
+      description: Creates a roaming Diameter peer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingDiameterPeerParams"
+      responses:
+        "201":
+          description: The created roaming Diameter peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingDiameterPeerResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Another Diameter peer has the Diameter identity or the address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/diameter-peers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getRoamingDiameterPeer
+      tags: [Operator]
+      summary: Get a roaming Diameter peer
+      description: Returns a roaming Diameter peer.
+      responses:
+        "200":
+          description: Roaming Diameter peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoamingDiameterPeerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateRoamingDiameterPeer
+      tags: [Operator]
+      summary: Update a roaming Diameter peer
+      description: Updates a roaming Diameter peer. All fields are replaced; port is required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoamingDiameterPeerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another Diameter peer has the Diameter identity or the address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRoamingDiameterPeer
+      tags: [Operator]
+      summary: Delete a roaming Diameter peer
+      description: Deletes a roaming Diameter peer that no roaming partner uses.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A roaming partner uses the peer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/operator/roaming/sepp:
+    get:
+      operationId: getSEPPStatus
+      tags: [Operator]
+      summary: Get the SEPP status
+      description: |
+        Every node with interfaces.n32 is its own SEPP (TS 33.501 clause 13.2.2.4.2), identified by its SEPP ID, the node's AMF Pointer, and named `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1).
+        Returns the N32 listener status and SEPP ID of the node that serves the request, the stored certificate of every SEPP ID, and the trust anchors to give roaming partners (the cluster SEPP CA, which signs generated certificates, and the CA ending each imported chain).
+      responses:
+        "200":
+          description: SEPP status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/SEPPStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/operator/roaming/sepp/nodes/{seppID}/certificate:
+    parameters:
+      - name: seppID
+        in: path
+        required: true
+        description: "The SEPP ID of the node, its AMF Pointer (1 to 63)."
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 63
+    put:
+      operationId: importSEPPCertificate
+      tags: [Operator]
+      summary: Import a node's SEPP certificate
+      description: |
+        Replaces the node's SEPP certificate with one issued outside Ella Core, for example by the operator's CA (TS 33.310 clause 6.1.3c). The certificate:
+        - matches the private key, an ECDSA P-256 or P-384 key or an RSA key of at least 2048 bits with a public exponent of at least 65537;
+        - is an end-entity certificate with keyUsage digitalSignature, and extendedKeyUsage serverAuth and clientAuth or none;
+        - is valid now;
+        - has a subjectAltName DNS name under `5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` of the home PLMN, names no other PLMN, and does not carry the well-known SEPP FQDN `sepp.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org` (GSMA FS.34 clause 5.1.1). The node's SEPP FQDN is that name; with several, `fqdn` selects one, else the subject CN if it is one of them. No two nodes may have the same FQDN.
+
+        The chain must end with a CA certificate, the operator's root or sub-CA (GSMA FS.34 clause 3.3), which is the trust anchor to give roaming partners, and the certificate must verify against it (RFC 5280 path validation). A missing extendedKeyUsage or a validity over 3 years is accepted with a warning.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportSEPPCertificateParams"
+      responses:
+        "200":
+          description: The imported SEPP certificate, with warnings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SEPPCertificateResponseEnvelope"
+        "409":
+          description: Another node has this FQDN, or the home PLMN changed while the certificate was being imported.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      operationId: deleteSEPPCertificate
+      tags: [Operator]
+      summary: Delete a node's SEPP certificate
+      description: Deletes the node's SEPP certificate, generated or imported. The node then generates a new one for `sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, signed by the cluster SEPP CA (created when absent), as any node with interfaces.n32 and no certificate does. Use it to return a node to a generated certificate after an import, or to reissue a generated one. A generated certificate has no cRLDistributionPoints and is not issued by the operator's CA, so it suits labs and bilateral agreements, not the production profile of TS 33.310 clause 6.1.3c.3.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/operator/roaming/sepp/ca/regenerate:
+    post:
+      operationId: regenerateSEPPCA
+      tags: [Operator]
+      summary: Regenerate the cluster SEPP CA
+      description: Replaces the cluster SEPP CA and deletes every generated node certificate; each node with interfaces.n32 then generates a new one with the new CA. Imported certificates are kept. The new CA is the trust anchor every roaming partner must import for the nodes with generated certificates.
+      responses:
+        "201":
+          description: The new CA.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    $ref: "#/components/schemas/SEPPCARegenerated"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
@@ -3476,6 +3990,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The roamer's home network does not allow location by an O&M client of the visited network (TS 23.271 clause 9.5.3.4).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -3507,6 +4027,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The roamer's home network does not allow location by an O&M client of the visited network (TS 23.271 clause 9.5.3.4).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -4456,6 +4982,86 @@ components:
         result:
           $ref: "#/components/schemas/SubscriberDetail"
 
+    Roamer:
+      type: object
+      properties:
+        imsi:
+          type: string
+          description: "IMSI, 6 to 15 digits."
+        partner:
+          type: string
+          description: Name of the roaming partner.
+        home_plmn:
+          $ref: "#/components/schemas/RoamingPLMN"
+          description: Home PLMN of the roamer. Absent when no PLMN ID of the partner matches the IMSI.
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, as given by the home network. Absent when unknown."
+        since:
+          type: string
+          description: "When the roamer first registered (RFC 3339)."
+        status:
+          $ref: "#/components/schemas/SubscriberStatus"
+      required: [imsi, partner, since, status]
+
+    ListRoamersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Roamer"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListRoamersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListRoamersResponse"
+
+    RoamerDetail:
+      type: object
+      properties:
+        imsi:
+          type: string
+        partner:
+          type: string
+          description: Name of the roaming partner.
+        home_plmn:
+          $ref: "#/components/schemas/RoamingPLMN"
+          description: Home PLMN of the roamer. Absent when no PLMN ID of the partner matches the IMSI.
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, as given by the home network. Absent when unknown."
+        since:
+          type: string
+          description: "When the roamer first registered (RFC 3339)."
+        registrations:
+          type: array
+          description: "Mobility-management contexts on the node serving the request, 5G first."
+          items:
+            $ref: "#/components/schemas/Registration"
+        sessions:
+          type: array
+          description: "Sessions on the node serving the request."
+          items:
+            $ref: "#/components/schemas/Session"
+      required: [imsi, partner, since, registrations, sessions]
+
+    RoamerDetailResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RoamerDetail"
+
     SNSSAI:
       type: object
       description: "S-NSSAI. Absent for 4G sessions."
@@ -4624,6 +5230,12 @@ components:
       properties:
         imsi:
           type: string
+        home_plmn:
+          $ref: "#/components/schemas/RoamingPLMN"
+          description: Home PLMN of a roamer. Absent for home subscribers.
+        roaming_partner:
+          type: string
+          description: Name of the roaming partner serving the home PLMN. Absent for home subscribers and for roamers of no configured partner.
         uplink_bytes:
           type: integer
           format: int64
@@ -5193,80 +5805,101 @@ components:
           type: string
           description: "Ella Core's E.164 number."
 
-    ListSMSCPeersResponse:
+    ListSMSCsResponse:
       type: object
       required: [items]
       properties:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/SMSCPeer"
+            $ref: "#/components/schemas/SMSC"
 
-    SMSCPeerResponseEnvelope:
+    SMSCResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/SMSCPeer"
+          $ref: "#/components/schemas/SMSC"
 
-    SMSCPeer:
+    SMSC:
       type: object
-      required: [id, diameterIdentity, address, port, serviceCentres]
+      required: [name, serviceCentres, nodes]
       properties:
-        id:
+        name:
           type: string
-          format: uuid
-        diameterIdentity:
-          type: string
-          description: "The SMSC's Diameter identity (Origin-Host) it must give in the capabilities exchange. Empty accepts the one it gives."
-        address:
-          type: string
-          description: "IP address of the SMSC's Diameter endpoint."
-        port:
-          type: integer
-          description: "SCTP port of the SMSC's Diameter endpoint."
         serviceCentres:
           type: array
           items:
             type: string
           description: "E.164 service centre numbers the SMSC serves."
-        status:
-          type: object
-          required: [state, since]
-          description: "This node's connection to the SMSC."
-          properties:
-            state:
-              type: string
-              enum: [down, connecting, open, suspect, reopen, closing]
-            host:
-              type: string
-              description: "The SMSC's Diameter identity, learned from the capabilities exchange."
-            realm:
-              type: string
-              description: "The SMSC's Diameter realm, learned from the capabilities exchange."
-            since:
-              type: string
-              format: date-time
-              description: "When the connection entered its current state."
-            error:
-              type: string
-              description: "Why the last connection to the SMSC failed."
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SMSCNode"
+          description: "The SMSC's Diameter nodes."
 
-    SMSCPeerParams:
+    SMSCNode:
       type: object
-      required: [address, serviceCentres]
+      required: [diameterIdentity, address, port]
       properties:
         diameterIdentity:
           type: string
-          description: "The SMSC's Diameter identity (Origin-Host), which must then match the one it gives in the capabilities exchange. Absent or empty accepts the one it gives."
+          description: "The node's Diameter identity (Origin-Host) it must give in the capabilities exchange. Empty accepts the one it gives."
         address:
           type: string
-          description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint."
+          description: "IP address of the node's Diameter endpoint."
+        port:
+          type: integer
+          description: "SCTP port of the node's Diameter endpoint."
+        status:
+          $ref: "#/components/schemas/SMSCNodeStatus"
+
+    SMSCNodeStatus:
+      type: object
+      required: [state, since]
+      description: "This node's connection to the SMSC node."
+      properties:
+        state:
+          type: string
+          enum: [down, connecting, open, suspect, reopen, closing]
+        host:
+          type: string
+          description: "The SMSC node's Diameter identity, learned from the capabilities exchange."
+        realm:
+          type: string
+          description: "The SMSC node's Diameter realm, learned from the capabilities exchange."
+        since:
+          type: string
+          format: date-time
+          description: "When the connection entered its current state."
+        error:
+          type: string
+          description: "Why the last connection to the SMSC node failed."
+
+    SMSCNodeParams:
+      type: object
+      required: [address]
+      properties:
+        diameterIdentity:
+          type: string
+          description: "The node's Diameter identity (Origin-Host), which must then match the one it gives in the capabilities exchange. Absent or empty accepts the one it gives."
+        address:
+          type: string
+          description: "IPv4 or IPv6 address of the node's Diameter endpoint."
         port:
           type: integer
           minimum: 1
           maximum: 65535
           default: 3868
-          description: "SCTP port of the SMSC's Diameter endpoint. Required on update."
+          description: "SCTP port of the node's Diameter endpoint."
+
+    CreateSMSCParams:
+      type: object
+      required: [name, serviceCentres, nodes]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
         serviceCentres:
           type: array
           minItems: 1
@@ -5275,6 +5908,31 @@ components:
             type: string
             pattern: "^\\+[1-9][0-9]{0,14}$"
           description: "E.164 service centre numbers the SMSC serves."
+        nodes:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/SMSCNodeParams"
+
+    UpdateSMSCParams:
+      type: object
+      required: [serviceCentres, nodes]
+      properties:
+        serviceCentres:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: string
+            pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "E.164 service centre numbers the SMSC serves."
+        nodes:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/SMSCNodeParams"
 
     UpdateOperatorSMSParams:
       type: object
@@ -6357,6 +7015,19 @@ components:
           type: string
       required: [addresses, port]
 
+    N32Interface:
+      type: object
+      properties:
+        addresses:
+          type: array
+          items:
+            type: string
+        port:
+          type: integer
+        interface:
+          type: string
+      required: [addresses, port]
+
     NetworkInterfaces:
       type: object
       properties:
@@ -6370,6 +7041,8 @@ components:
           $ref: "#/components/schemas/APIInterface"
         diameter:
           $ref: "#/components/schemas/DiameterInterface"
+        n32:
+          $ref: "#/components/schemas/N32Interface"
 
     NetworkInterfacesResponseEnvelope:
       type: object
@@ -7405,7 +8078,7 @@ components:
           description: TS 29.572 TerminationCause.
         termination_reason:
           type: string
-          enum: [ue_deregistered, ue_mobility, positioning_failed, node_restart, node_shutdown]
+          enum: [ue_deregistered, ue_mobility, positioning_failed, node_restart, node_shutdown, privacy]
         event_report_counter:
           type: integer
           format: int64
@@ -7575,3 +8248,309 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/CreateSuccessResponse"
+
+    # -- Roaming ---------------------------------------------------------
+    RoamingPartnerSEPP:
+      type: object
+      required: [fqdn, n32cURI, trustAnchorPEM]
+      description: "The partner's SEPP. Present when the partner has a 5G roaming agreement."
+      properties:
+        fqdn:
+          type: string
+          description: "The partner SEPP's FQDN, which its certificate carries as a subjectAltName DNS name: sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org, or sepp<SEPPID>.5gc.mnc<MNC>.mcc<MCC>.<IPX provider ID>.ipxnetwork.org for a SEPP not run by the partner (GSMA FS.34 clause 5.1), for one of the partner's PLMN IDs (3-digit MNC). Not the well-known sepp.5gc… FQDN. Unique across partners."
+        n32cURI:
+          type: string
+          description: "apiRoot of the partner SEPP's N32-c endpoint: https scheme, host, optional port and optional path prefix (TS 29.501 clause 4.4.1), no query. A trailing / is removed."
+        n32fURI:
+          type: string
+          description: "apiRoot of the partner SEPP's N32-f endpoint, if it differs from the N32-c one."
+        trustAnchorPEM:
+          type: string
+          description: "PEM bundle of the certificates that the partner SEPP's certificate must chain to (TS 33.501 clause 13.1.2): root or sub-CA certificates (GSMA FS.34 clause 3.3), or a self-signed partner certificate pinned as its own trust anchor. Only CERTIFICATE blocks, each valid now, with an ECDSA key or an RSA key of at least 2048 bits."
+
+    RoamingPLMN:
+      type: object
+      required: [mcc, mnc]
+      properties:
+        mcc:
+          type: string
+          pattern: "^[0-9]{3}$"
+        mnc:
+          type: string
+          pattern: "^[0-9]{2,3}$"
+          description: "Its length is significant (TS 23.003 clause 2.2): roamers are the IMSIs that start with the MCC and MNC."
+
+    RoamingPartnerPLMN:
+      allOf:
+        - $ref: "#/components/schemas/RoamingPLMN"
+        - type: object
+          properties:
+            nrfAPIRoot:
+              type: string
+              description: "apiRoot (http or https) of the NRF of this PLMN, for its roamers. Absent means https://nrf.5gc.mnc<MNC>.mcc<MCC>.3gppnetwork.org of this PLMN (TS 23.003 clause 28.3.2.3). Needs a sepp. A trailing / is removed."
+
+    RoamingPartner:
+      type: object
+      required: [id, name, plmns, profileName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plmns:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RoamingPartnerPLMN"
+          description: "The PLMN IDs of the partner's network (TS 29.573 plmnIdList, GSMA FS.34 clause 5.1.1), sorted. Each belongs to one partner only."
+        profileName:
+          type: string
+          description: "The profile applied to the partner's roamers: the local policy of the roaming agreement."
+        sepp:
+          $ref: "#/components/schemas/RoamingPartnerSEPP"
+        diameterPeerID:
+          type: string
+          format: uuid
+          description: "The roaming Diameter peer that reaches the partner's HSS. Present when the partner has a 4G roaming agreement."
+        n32:
+          $ref: "#/components/schemas/RoamingPartnerN32"
+
+    RoamingPartnerHandshake:
+      type: object
+      required: [n32]
+      properties:
+        n32:
+          $ref: "#/components/schemas/RoamingPartnerN32"
+
+    RoamingPartnerN32:
+      type: object
+      description: "Live N32-c context of this node's SEPP with the partner's SEPP (TS 29.573 clause 5.2.2). Present when the partner has a 5G agreement and this node has interfaces.n32."
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [idle, establishing, established, failed, unknown]
+          description: "idle: no usable configuration on the node; unknown: the node could not start the handshake; establishing: the node's exchange-capability is in flight; established: TLS security selected and 3gpp-Sbi-Target-apiRoot supported both ways; failed: the last handshake failed and is retried about every 10 seconds."
+        peer:
+          type: string
+          description: "The FQDN of the partner SEPP the context is with, when the configured SEPP redirected the handshake to it (TS 29.573 clause 6.1.8.1). Absent when the context is with the configured SEPP."
+        lastError:
+          type: string
+
+    RoamingPartnerParams:
+      type: object
+      required: [name, plmns, profileName]
+      properties:
+        name:
+          type: string
+        plmns:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RoamingPartnerPLMN"
+          description: "The partner's PLMN IDs. Under one MCC, no two may have the same MNC once zero-padded to 3 digits, nor may one MNC be a prefix of another; the same holds against the home PLMN and every other partner's PLMN IDs."
+        profileName:
+          type: string
+          description: Name of an existing profile.
+        sepp:
+          $ref: "#/components/schemas/RoamingPartnerSEPP"
+        diameterPeerID:
+          type: string
+          format: uuid
+          description: "ID of a roaming Diameter peer. Absent means no 4G roaming agreement."
+
+    RoamingPartnerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RoamingPartner"
+
+    ListRoamingPartnersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoamingPartner"
+
+    RoamingDiameterPeer:
+      type: object
+      required: [id, diameterIdentity, address, port]
+      properties:
+        id:
+          type: string
+          format: uuid
+        diameterIdentity:
+          type: string
+          description: "The peer's Diameter identity (Origin-Host) it must give in the capabilities exchange. Empty accepts the one it gives."
+        address:
+          type: string
+          description: "IP address of the peer's Diameter endpoint."
+        port:
+          type: integer
+          description: "SCTP port of the peer's Diameter endpoint."
+
+    RoamingDiameterPeerParams:
+      type: object
+      required: [address]
+      properties:
+        diameterIdentity:
+          type: string
+          description: "The peer's Diameter identity (Origin-Host), which must then match the one it gives in the capabilities exchange. Absent or empty accepts the one it gives."
+        address:
+          type: string
+          description: "IPv4 or IPv6 address of the peer's Diameter endpoint."
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          default: 3868
+          description: "SCTP port of the peer's Diameter endpoint. Required on update."
+
+    RoamingDiameterPeerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RoamingDiameterPeer"
+
+    ListRoamingDiameterPeersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoamingDiameterPeer"
+
+    SEPPCertificate:
+      type: object
+      required: [seppID, fqdn, source]
+      properties:
+        seppID:
+          type: integer
+        fqdn:
+          type: string
+          description: "The node's SEPP FQDN: the subjectAltName DNS name of the certificate selected at import or generation."
+        source:
+          type: string
+          enum: [generated, imported]
+        subject:
+          type: string
+        sans:
+          type: array
+          items:
+            type: string
+        issuer:
+          type: string
+        notBefore:
+          type: string
+          format: date-time
+        notAfter:
+          type: string
+          format: date-time
+        fingerprint:
+          type: string
+          description: "SHA-256 fingerprint of the certificate, sha256:<hex>."
+        trustAnchorFingerprint:
+          type: string
+          description: "SHA-256 fingerprint of the CA certificate that ends the chain, the trust anchor to give roaming partners."
+        warnings:
+          type: array
+          items:
+            type: string
+          description: "After an import: a missing extendedKeyUsage, a validity over 3 years (TS 33.310 clause 6.1.3c.3), or a changed trust anchor that partners must import."
+
+    ImportSEPPCertificateParams:
+      type: object
+      required: [certificateChainPEM, privateKeyPEM]
+      properties:
+        certificateChainPEM:
+          type: string
+          description: "The certificate followed by its chain, PEM."
+        privateKeyPEM:
+          type: string
+          description: "The certificate's private key, PEM."
+        fqdn:
+          type: string
+          description: "Ella Core's SEPP FQDN, one of the certificate's subjectAltName DNS names under the home domain. Needed only when it has several and its subject CN is not one of them."
+
+    SEPPCertificateResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/SEPPCertificate"
+
+    SEPPStatus:
+      type: object
+      required: [listener, certificates, trustAnchors]
+      properties:
+        listener:
+          $ref: "#/components/schemas/SEPPListener"
+        certificates:
+          type: array
+          items:
+            $ref: "#/components/schemas/SEPPCertificate"
+        trustAnchors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SEPPTrustAnchor"
+
+    SEPPTrustAnchor:
+      type: object
+      required: [source, subject, fingerprint, notAfter, pem, seppIDs]
+      properties:
+        source:
+          type: string
+          enum: [generated, imported]
+          description: "generated: the cluster SEPP CA; imported: the CA that ends an imported chain."
+        subject:
+          type: string
+        fingerprint:
+          type: string
+          description: "SHA-256 fingerprint, sha256:<hex>."
+        notAfter:
+          type: string
+          format: date-time
+        pem:
+          type: string
+          description: "The certificate to give roaming partners, PEM."
+        seppIDs:
+          type: array
+          items:
+            type: integer
+          description: "The SEPP IDs whose certificates chain to this anchor."
+
+    SEPPCARegenerated:
+      type: object
+      required: [trustAnchor]
+      properties:
+        trustAnchor:
+          $ref: "#/components/schemas/SEPPTrustAnchor"
+        warnings:
+          type: array
+          items:
+            type: string
+
+    SEPPListener:
+      type: object
+      description: "The N32 listener of the node that serves the request."
+      required: [configured, listening]
+      properties:
+        seppID:
+          type: integer
+          description: "The node's SEPP ID, its AMF Pointer."
+        configured:
+          type: boolean
+          description: "Whether the node's configuration file sets interfaces.n32. A node without it runs no SEPP."
+        address:
+          type: string
+          description: "The interfaces.n32 address or interface name."
+        port:
+          type: integer
+        listening:
+          type: boolean
+        error:
+          type: string
+

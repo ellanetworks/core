@@ -46,7 +46,7 @@ func sctpPair(t *testing.T) (*sctpTransport, *sctp.SCTPConn) {
 
 	port := ln.Addr().(*sctp.SCTPAddr).Port
 
-	tr, err := dialSCTP(ctx, nil, []netip.Addr{loopback1}, uint16(port), nil)
+	tr, err := dialSCTP(ctx, nil, []netip.Addr{loopback1}, uint16(port), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

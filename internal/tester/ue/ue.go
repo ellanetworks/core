@@ -68,6 +68,7 @@ type UESecurity struct {
 	Guti                      *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
 	S1UENetworkCapability     *eps.UENetworkCapability
 	EPSNASAlgorithms          *fgs.SelectedEPSNASSecurityAlgorithms
+	NoS1Mode                  bool
 	contextFromAuthentication bool
 }
 
@@ -225,6 +226,7 @@ type UEOpts struct {
 	NoAutoPDUSession      bool
 	S1UENetworkCapability *eps.UENetworkCapability
 	RequestSMS            bool
+	NoS1Mode              bool
 }
 
 var DefaultS1UENetworkCapability = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
@@ -248,6 +250,11 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	}
 
 	ue.UeSecurity.S1UENetworkCapability = &s1Capability
+
+	if opts.NoS1Mode {
+		ue.UeSecurity.NoS1Mode = true
+		ue.UeSecurity.S1UENetworkCapability = nil
+	}
 
 	integAlg, CipherAlg := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
 

@@ -37,7 +37,7 @@ func estRequest(t *testing.T, pduSessionID uint8) []byte {
 func createSession(ctx context.Context, t *testing.T, s *smf.SMF, pduSessionID uint8, requestType fgs.RequestType) (string, *fgs.PDUSessionEstablishmentReject, error) {
 	t.Helper()
 
-	ref, rsp, err := s.CreateSmContext(ctx, testSUPI(), pduSessionID, testDNN, testSnssai, requestType, estRequest(t, pduSessionID), 0)
+	ref, rsp, err := s.CreateSmContext(ctx, testSUPI(), pduSessionID, testDNN, testSnssai, requestType, estRequest(t, pduSessionID), 0, nil)
 	if rsp == nil {
 		return ref, nil, err
 	}

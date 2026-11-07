@@ -297,6 +297,11 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 
 // UpdateOperatorID updates MCC/MNC.
 func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error {
+	_, err := db.ChangeOperatorID(ctx, mcc, mnc)
+	return err
+}
+
+func (db *Database) ChangeOperatorID(ctx context.Context, mcc, mnc string) (bool, error) {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
 
 	ctx, span := tracer.Start(
@@ -319,14 +324,14 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
-	_, err := opUpdateOperatorID.Invoke(ctx, db, op)
+	seppIdentityDeleted, err := opUpdateOperatorID.Invoke(ctx, db, op)
 	if err != nil {
 		recordSpanError(span, err)
 
-		return err
+		return false, err
 	}
 
-	return nil
+	return seppIdentityDeleted, nil
 }
 
 // GetOperatorCode fetches only the operatorCode field.

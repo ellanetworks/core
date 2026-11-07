@@ -84,6 +84,7 @@ path = [
   "observability/alloy/config.alloy",
   "integration/compose/bgp/Dockerfile.gobgp",
   "integration/compose/pki/README", "integration/compose/pki/*.pem",
+  "integration/compose/*/provision.js",
   "integration/network_test.py",
 ]
 precedence = "aggregate"

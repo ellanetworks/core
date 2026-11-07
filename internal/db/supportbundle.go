@@ -5,6 +5,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
 	"slices"
@@ -302,6 +303,8 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["smscs"] = sections["smscs"].WithCount(len(smscs))
 	}
 
+	db.collectSupportRoaming(ctx, out, sections, failure)
+
 	if pcscfAddrs, err := db.ListPCSCFAddresses(ctx); err != nil {
 		failure("pcscf_addresses", err)
 	} else {
@@ -374,6 +377,57 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["bgp_peers"] = sections["bgp_peers"].WithCount(len(peerEntries))
 		sections["bgp_import_prefixes"] = sections["bgp_import_prefixes"].WithCount(len(prefixEntries))
 	}
+}
+
+func (db *Database) collectSupportRoaming(ctx context.Context, out supportbundle.SanitizedData, sections map[string]supportbundle.SectionStatus, failure func(string, error)) {
+	if partners, err := db.ListRoamingPartners(ctx); err != nil {
+		failure("roaming_partners", err)
+	} else {
+		out["roaming_partners"] = append([]RoamingPartner{}, partners...)
+		sections["roaming_partners"] = sections["roaming_partners"].WithCount(len(partners))
+	}
+
+	if peers, err := db.ListRoamingDiameterPeers(ctx); err != nil {
+		failure("roaming_diameter_peers", err)
+	} else {
+		out["roaming_diameter_peers"] = append([]RoamingDiameterPeer{}, peers...)
+		sections["roaming_diameter_peers"] = sections["roaming_diameter_peers"].WithCount(len(peers))
+	}
+
+	cas := []map[string]any{}
+
+	ca, err := db.GetSEPPCA(ctx)
+
+	switch {
+	case err == nil:
+		cas = append(cas, map[string]any{"CertPEM": ca.CertPEM, "KeyPEM": "*"})
+	case !errors.Is(err, ErrNotFound):
+		failure("sepp_ca", err)
+		return
+	}
+
+	out["sepp_ca"] = cas
+	sections["sepp_ca"] = sections["sepp_ca"].WithCount(len(cas))
+
+	identities, err := db.ListSEPPIdentities(ctx)
+	if err != nil {
+		failure("sepp_identities", err)
+		return
+	}
+
+	redacted := make([]map[string]any, 0, len(identities))
+	for _, identity := range identities {
+		redacted = append(redacted, map[string]any{
+			"SEPPID":       identity.SEPPID,
+			"FQDN":         identity.FQDN,
+			"Source":       identity.Source,
+			"CertChainPEM": identity.CertChainPEM,
+			"KeyPEM":       "*",
+		})
+	}
+
+	out["sepp_identities"] = redacted
+	sections["sepp_identities"] = sections["sepp_identities"].WithCount(len(redacted))
 }
 
 func (db *Database) collectSupportRegistrations(ctx context.Context, out supportbundle.SanitizedData, sections map[string]supportbundle.SectionStatus, failure func(string, error)) {
@@ -479,7 +533,7 @@ func (db *Database) collectSupportUsage(ctx context.Context, out supportbundle.S
 	now := time.Now().UTC()
 	usageDays := NewDayRange(now.AddDate(0, 0, -29), now)
 
-	if usagePerDay, err := db.GetUsagePerDay(ctx, "", usageDays); err != nil {
+	if usagePerDay, err := db.GetUsagePerDay(ctx, "", usageDays, nil); err != nil {
 		failure("usage_per_day", err)
 	} else {
 		entries := make([]any, 0, len(usagePerDay))
@@ -495,16 +549,23 @@ func (db *Database) collectSupportUsage(ctx context.Context, out supportbundle.S
 		sections["usage_per_day"] = sections["usage_per_day"].WithCount(len(entries))
 	}
 
-	if usagePerSub, err := db.GetUsagePerSubscriber(ctx, "", usageDays, NoUsageLimit); err != nil {
+	if usagePerSub, err := db.GetUsagePerSubscriber(ctx, "", usageDays, nil, NoUsageLimit); err != nil {
 		failure("usage_per_subscriber", err)
 	} else {
 		entries := make([]any, 0, len(usagePerSub))
 		for _, u := range usagePerSub {
-			entries = append(entries, map[string]any{
+			entry := map[string]any{
 				"imsi":           u.IMSI,
 				"bytes_uplink":   u.BytesUplink,
 				"bytes_downlink": u.BytesDownlink,
-			})
+			}
+
+			if u.Mcc != nil && u.Mnc != nil {
+				entry["mcc"] = *u.Mcc
+				entry["mnc"] = *u.Mnc
+			}
+
+			entries = append(entries, entry)
 		}
 
 		out["usage_per_subscriber"] = entries

@@ -36,6 +36,7 @@ func (s *SMF) transferTo5GS(
 	req *fgs.PDUSessionEstablishmentRequest,
 	pti uint8,
 	epsBearerIdentity uint8,
+	target *HPLMNTarget,
 ) (string, []byte, error) {
 	if requestType == fgs.RequestTypeExistingEmergencyPDUSession {
 		return "", rejectTransfer5GS(pduSessionID, pti, fgs.GSMCausePDUSessionDoesNotExist),
@@ -44,21 +45,32 @@ func (s *SMF) transferTo5GS(
 
 	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
-	sc, err := s.findTransferable(supi, pduSessionID, move)
+	sc, err := s.findTransferable(ctx, supi, pduSessionID, move)
 	if err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, transferRejectCause(err)),
 			fmt.Errorf("no session to move onto 5GS: %w", err)
 	}
 
-	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+	visitor, err := s.checkSubscribed(ctx, supi, snssai, dnn)
+	if err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, establishmentRejectCause(err)),
 			fmt.Errorf("failed to find the subscription for a session move: %w", err)
 	}
 
+	hplmnSub, err := s.hplmnSubscriptionForTransfer(ctx, sc, visitor, target)
+	if err != nil {
+		return "", rejectTransfer5GS(pduSessionID, pti, hplmnRejectCause(err)),
+			fmt.Errorf("home network refused a session move onto 5GS: %w", err)
+	}
+
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
+		closeHPLMNSubscription(hplmnSub)
+
 		return "", rejectTransfer5GS(pduSessionID, pti, transferRejectCause(err)),
 			fmt.Errorf("failed to prepare a session move onto 5GS: %w", err)
 	}
+
+	s.adoptHPLMNSubscription(ctx, sc, hplmnSub)
 
 	pco, err := parsePDUSessionRequest(req)
 	if err != nil {
@@ -89,9 +101,9 @@ func (s *SMF) transferTo5GS(
 	return sc.Ref, nil, nil
 }
 
-func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (ref string, n2 []byte, flowEBIs []uint8, err error) {
+func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai, target *HPLMNTarget) (ref string, n2 []byte, flowEBIs []uint8, err error) {
 	defer func() {
-		recordSessionEstablishment(ctx, metrics.RAT5G, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
+		recordSessionEstablishment(ctx, metrics.RAT5G, target != nil, err, logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()
 
 	ctx, span := tracer.Start(ctx, "smf/prepare_sm_context_from_eps",
@@ -106,18 +118,28 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 
 	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai}
 
-	sc, err := s.findTransferable(supi, pduSessionID, move)
+	sc, err := s.findTransferable(ctx, supi, pduSessionID, move)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
 	}
 
-	if err := s.checkSubscribed(ctx, supi, snssai, dnn); err != nil {
+	visitor, err := s.checkSubscribed(ctx, supi, snssai, dnn)
+	if err != nil {
 		return "", nil, nil, fmt.Errorf("no subscription for a PDN connection arriving on 5GS: %w", err)
 	}
 
+	hplmnSub, err := s.hplmnSubscriptionForTransfer(ctx, sc, visitor, target)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("home network refused a PDN connection arriving on 5GS: %w", err)
+	}
+
 	if err := s.prepareTransfer(ctx, sc, move); err != nil {
+		closeHPLMNSubscription(hplmnSub)
+
 		return "", nil, nil, fmt.Errorf("failed to prepare a PDN connection move onto 5GS: %w", err)
 	}
+
+	s.adoptHPLMNSubscription(ctx, sc, hplmnSub)
 
 	n2, flowEBIs, err = s.handoverRequestTransferForArrival(ctx, sc, epsBearerIdentity)
 	if err != nil {

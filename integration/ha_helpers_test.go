@@ -343,7 +343,7 @@ func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, i
 // is what a release before the identity split requires. Used to stage a
 // baseline cluster the current binary then upgrades into.
 func writeLegacyNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string) error {
-	return writeNodeConfigBody(composeDir, nodeID, peers, joinToken, initialSuffrage, false, true)
+	return writeNodeConfigBody(composeDir, nodeID, peers, joinToken, initialSuffrage, false, true, 0)
 }
 
 // writeNodeConfigOpts is writeNodeConfig with a useFQDN switch that makes
@@ -351,10 +351,10 @@ func writeLegacyNodeConfig(composeDir string, nodeID int, peers []string, joinTo
 // service name) instead of the per-node IP. The FQDN path is what real
 // orchestrator-managed deployments use.
 func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN bool) error {
-	return writeNodeConfigBody(composeDir, nodeID, peers, joinToken, initialSuffrage, useFQDN, false)
+	return writeNodeConfigBody(composeDir, nodeID, peers, joinToken, initialSuffrage, useFQDN, false, 0)
 }
 
-func writeNodeConfigBody(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN, legacyNodeID bool) error {
+func writeNodeConfigBody(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN, legacyNodeID bool, n32Port int) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -396,6 +396,11 @@ func writeNodeConfigBody(composeDir string, nodeID int, peers []string, joinToke
 		legacyLines = fmt.Sprintf("  enabled: true\n  node-id: %d\n", nodeID)
 	}
 
+	n32Lines := ""
+	if n32Port != 0 {
+		n32Lines = fmt.Sprintf("  n32:\n    address: %q\n    port: %d\n", addr, n32Port)
+	}
+
 	body := fmt.Sprintf(`logging:
   system:
     level: "debug"
@@ -415,12 +420,12 @@ interfaces:
   api:
     address: %q
     port: 5002
-datapath:
+%sdatapath:
   attach-mode: "xdp-generic"
 cluster:
 %s  bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, legacyLines, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, n32Lines, legacyLines, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

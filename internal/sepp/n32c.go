@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/roaming/wire"
 )
 
@@ -24,16 +25,6 @@ const (
 	CauseN32cExchangeCapabilityOngoing  wire.Cause = "N32C_EXCHANGE_CAPABILITY_ONGOING"
 	CauseSecurityParamExchangeCollision wire.Cause = "SECURITY_PARAM_EXCHANGE_COLLISION"
 )
-
-const (
-	FeatureNFTLST  = 1
-	FeaturePSEPRO  = 2
-	FeaturePSIU    = 3
-	FeatureSNDN32F = 4
-	FeatureTLSCOR  = 5
-)
-
-const LocalFeatures wire.SupportedFeatures = "1"
 
 type SecurityCapability string
 
@@ -73,10 +64,7 @@ func (p N32Purpose) Known() bool {
 	}, p)
 }
 
-var (
-	acceptedPurposes = []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}
-	defaultPurposes  = []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}
-)
+var acceptedPurposes = []N32Purpose{PurposeRoaming, PurposeInterPLMNMobility}
 
 type IntendedN32Purpose struct {
 	UsagePurpose   N32Purpose `json:"usagePurpose"`
@@ -133,10 +121,6 @@ type SecNegotiateReqData struct {
 	N32KeepaliveTimer          *int                   `json:"n32KeepaliveTimer,omitempty"`
 }
 
-func (r SecNegotiateReqData) Teardown() bool {
-	return slices.Contains(r.SupportedSecCapabilityList, SecurityNone)
-}
-
 func (r SecNegotiateReqData) Check(p wire.Policy) error {
 	if err := firstError(
 		checkFqdn("/sender", r.Sender, false),
@@ -144,10 +128,6 @@ func (r SecNegotiateReqData) Check(p wire.Policy) error {
 		wire.CheckEnums("/supportedSecCapabilityList", r.SupportedSecCapabilityList, p),
 	); err != nil {
 		return err
-	}
-
-	if r.Teardown() && len(r.SupportedSecCapabilityList) != 1 {
-		return wire.Incorrect("/supportedSecCapabilityList", false, "NONE combined with other capabilities")
 	}
 
 	if err := firstError(
@@ -217,19 +197,6 @@ func (r SecNegotiateRspData) Check(p wire.Policy) error {
 	)
 }
 
-func (r SecNegotiateRspData) Purposes() []N32Purpose {
-	if len(r.AllowedUsagePurpose) == 0 {
-		return slices.Clone(defaultPurposes)
-	}
-
-	out := make([]N32Purpose, 0, len(r.AllowedUsagePurpose))
-	for _, ip := range r.AllowedUsagePurpose {
-		out = append(out, ip.UsagePurpose)
-	}
-
-	return out
-}
-
 func checkFqdn(param, v string, optional bool) error {
 	if v == "" {
 		if optional {
@@ -267,8 +234,7 @@ func firstError(errs ...error) error {
 var ErrNegotiation = errors.New("sepp: N32-c negotiation failed")
 
 type NegotiationError struct {
-	Reason          string
-	TeardownAllowed bool
+	Reason string
 }
 
 func (e *NegotiationError) Error() string {
@@ -280,12 +246,12 @@ func (e *NegotiationError) Unwrap() error {
 }
 
 type Negotiation struct {
-	LocalFQDN         string
-	LocalPlmnID       wire.PlmnID
-	PeerFQDN          string
-	PeerPlmnID        wire.PlmnID
-	PeerCertDNSNames  []string
-	SupportedFeatures wire.SupportedFeatures
+	LocalFQDN        string
+	LocalPlmnID      wire.PlmnID
+	PeerFQDN         string
+	PeerPlmnID       wire.PlmnID
+	PeerPlmnIDs      []wire.PlmnID
+	PeerCertDNSNames []string
 }
 
 func (n Negotiation) Request() SecNegotiateReqData {
@@ -297,27 +263,7 @@ func (n Negotiation) Request() SecNegotiateReqData {
 		TargetAPIRootSupported:     true,
 		PlmnIDList:                 []wire.PlmnID{n.LocalPlmnID},
 		TargetPlmnID:               &target,
-		SupportedFeatures:          n.SupportedFeatures,
 	}
-}
-
-func (n Negotiation) TeardownRequest() SecNegotiateReqData {
-	return SecNegotiateReqData{
-		Sender:                     n.LocalFQDN,
-		SupportedSecCapabilityList: []SecurityCapability{SecurityNone},
-	}
-}
-
-type Outcome int
-
-const (
-	OutcomeEstablish Outcome = iota + 1
-	OutcomeTeardown
-)
-
-type Established struct {
-	NFTLST   bool
-	Purposes []N32Purpose
 }
 
 func sameFQDN(a, b string) bool {
@@ -325,33 +271,65 @@ func sameFQDN(a, b string) bool {
 }
 
 func (n Negotiation) senderMatches(sender string) bool {
-	return sameFQDN(sender, n.PeerFQDN) && slices.ContainsFunc(n.PeerCertDNSNames, func(name string) bool { return sameFQDN(name, sender) })
+	return sameFQDN(sender, n.PeerFQDN) && n.inPeerCert(sender)
+}
+
+func (n Negotiation) inPeerCert(sender string) bool {
+	return slices.ContainsFunc(n.PeerCertDNSNames, func(name string) bool { return sameFQDN(name, sender) })
+}
+
+func (n Negotiation) peerSEPP(sender string) bool {
+	if !n.inPeerCert(sender) {
+		return false
+	}
+
+	if sameFQDN(sender, n.PeerFQDN) {
+		return true
+	}
+
+	plmns := make([]pki.PLMN, 0, len(n.PeerPlmnIDs)+1)
+	for _, p := range append([]wire.PlmnID{n.PeerPlmnID}, n.PeerPlmnIDs...) {
+		plmns = append(plmns, pki.PLMN{MCC: p.Mcc, MNC: p.Mnc})
+	}
+
+	return pki.ValidatePeerSEPPFQDN(strings.ToLower(strings.TrimSuffix(sender, ".")), plmns) == nil
+}
+
+func (n Negotiation) peerPLMNsOnly(list []wire.PlmnID) bool {
+	allowed := n.PeerPlmnIDs
+	if len(allowed) == 0 {
+		allowed = []wire.PlmnID{n.PeerPlmnID}
+	}
+
+	for _, p := range list {
+		if !slices.Contains(allowed, p) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func LocalPrecedes(local, peer string) bool {
 	return strings.ToLower(strings.TrimSuffix(local, ".")) < strings.ToLower(strings.TrimSuffix(peer, "."))
 }
 
-func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outcome, error) {
-	if !n.senderMatches(req.Sender) {
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "sender does not match the partner SEPP")
-	}
-
-	if req.Teardown() {
-		return SecNegotiateRspData{Sender: n.LocalFQDN, SelectedSecCapability: SecurityNone}, OutcomeTeardown, nil
+func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, error) {
+	if !n.peerSEPP(req.Sender) {
+		return SecNegotiateRspData{}, forbidden(CauseNegotiationNotAllowed, "sender is not a SEPP of the partner named in the client certificate")
 	}
 
 	switch {
 	case !slices.Contains(req.SupportedSecCapabilityList, SecurityTLS):
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "TLS is the only supported security capability")
+		return SecNegotiateRspData{}, forbidden(CauseNegotiationNotAllowed, "TLS is the only supported security capability")
 	case !req.TargetAPIRootSupported:
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "3gpp-Sbi-Target-apiRoot support is required")
+		return SecNegotiateRspData{}, forbidden(CauseNegotiationNotAllowed, "3gpp-Sbi-Target-apiRoot support is required")
 	case len(req.SnpnIDList) > 0 || req.TargetSnpnID != nil:
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "SNPN interconnect is not supported")
-	case len(req.PlmnIDList) > 0 && !slices.Contains(req.PlmnIDList, n.PeerPlmnID):
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "plmnIdList does not contain the partner PLMN")
+		return SecNegotiateRspData{}, forbidden(CauseNegotiationNotAllowed, "SNPN interconnect is not supported")
+	case !n.peerPLMNsOnly(req.PlmnIDList):
+		return SecNegotiateRspData{}, forbidden(CauseNegotiationNotAllowed, "plmnIdList names a PLMN that is not the partner's")
 	case req.TargetPlmnID != nil && *req.TargetPlmnID != n.LocalPlmnID:
-		return SecNegotiateRspData{}, 0, forbidden(CauseNegotiationNotAllowed, "targetPlmnId is not the local PLMN")
+		return SecNegotiateRspData{}, forbidden(CauseNegotiationNotAllowed, "targetPlmnId is not the local PLMN")
 	}
 
 	rsp := SecNegotiateRspData{
@@ -359,11 +337,10 @@ func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outc
 		SelectedSecCapability:  SecurityTLS,
 		TargetAPIRootSupported: true,
 		PlmnIDList:             []wire.PlmnID{n.LocalPlmnID},
-		SupportedFeatures:      req.SupportedFeatures.Intersect(n.SupportedFeatures),
 	}
 
 	if len(req.IntendedUsagePurpose) == 0 {
-		return rsp, OutcomeEstablish, nil
+		return rsp, nil
 	}
 
 	for _, ip := range req.IntendedUsagePurpose {
@@ -378,20 +355,19 @@ func (n Negotiation) Respond(req SecNegotiateReqData) (SecNegotiateRspData, Outc
 	}
 
 	if rsp.AllowedUsagePurpose == nil {
-		return SecNegotiateRspData{}, 0, forbidden(wire.CauseRequestedPurposeNotAllowed, "only ROAMING and INTER_PLMN_MOBILITY are allowed")
+		return SecNegotiateRspData{}, forbidden(wire.CauseRequestedPurposeNotAllowed, "only ROAMING and INTER_PLMN_MOBILITY are allowed")
 	}
 
-	return rsp, OutcomeEstablish, nil
+	return rsp, nil
 }
 
 func hasPurpose(list []IntendedN32Purpose, p N32Purpose) bool {
 	return slices.ContainsFunc(list, func(ip IntendedN32Purpose) bool { return ip.UsagePurpose == p })
 }
 
-func (n Negotiation) CheckResponse(rsp SecNegotiateRspData) (Established, error) {
-	nftlst := rsp.SupportedFeatures.Has(FeatureNFTLST)
-	fail := func(reason string) (Established, error) {
-		return Established{}, &NegotiationError{Reason: reason, TeardownAllowed: rsp.SelectedSecCapability == SecurityTLS && nftlst}
+func (n Negotiation) CheckResponse(rsp SecNegotiateRspData) error {
+	fail := func(reason string) error {
+		return &NegotiationError{Reason: reason}
 	}
 
 	switch {
@@ -401,24 +377,13 @@ func (n Negotiation) CheckResponse(rsp SecNegotiateRspData) (Established, error)
 		return fail("selected security capability " + strconv.Quote(string(rsp.SelectedSecCapability)))
 	case !rsp.TargetAPIRootSupported:
 		return fail("peer does not support 3gpp-Sbi-Target-apiRoot")
-	case len(rsp.PlmnIDList) > 0 && !slices.Contains(rsp.PlmnIDList, n.PeerPlmnID):
-		return fail("plmnIdList does not contain the partner PLMN " + n.PeerPlmnID.String())
+	case !n.peerPLMNsOnly(rsp.PlmnIDList):
+		return fail("plmnIdList names a PLMN that is not the partner's")
 	case len(rsp.SnpnIDList) > 0:
 		return fail("peer answered with SNPN IDs")
 	case hasPurpose(rsp.RejectedUsagePurpose, PurposeRoaming),
 		len(rsp.AllowedUsagePurpose) > 0 && !hasPurpose(rsp.AllowedUsagePurpose, PurposeRoaming):
 		return fail("ROAMING is not an allowed purpose")
-	}
-
-	return Established{NFTLST: nftlst, Purposes: rsp.Purposes()}, nil
-}
-
-func (n Negotiation) CheckTeardownResponse(rsp SecNegotiateRspData) error {
-	switch {
-	case !n.senderMatches(rsp.Sender):
-		return &NegotiationError{Reason: "sender " + strconv.Quote(rsp.Sender) + " does not match the partner SEPP"}
-	case rsp.SelectedSecCapability != SecurityNone:
-		return &NegotiationError{Reason: "teardown answered with " + strconv.Quote(string(rsp.SelectedSecCapability))}
 	}
 
 	return nil

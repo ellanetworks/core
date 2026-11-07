@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -400,8 +401,15 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorID(r.Context(), params.Mcc, params.Mnc); err != nil {
+		seppIdentityDeleted, err := dbInstance.ChangeOperatorID(r.Context(), params.Mcc, params.Mnc)
+		if err != nil {
+			if errors.Is(err, db.ErrRoamingConflict) {
+				writeError(r.Context(), w, http.StatusConflict, "Cannot update operator ID when there are roaming partners", err, logger.APILog)
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
+
 			return
 		}
 
@@ -409,7 +417,15 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
-		resp := SuccessResponse{Message: "Operator ID updated successfully"}
+		message := "Operator ID updated successfully"
+		audit := "User updated operator with Id: " + params.Mcc + params.Mnc
+
+		if seppIdentityDeleted {
+			message += ". The SEPP certificates and the cluster SEPP CA of the previous PLMN were deleted: nodes with interfaces.n32 generate new SEPP certificates, or import one per node"
+			audit += ", deleting the SEPP certificates and the cluster SEPP CA of the previous PLMN"
+		}
+
+		resp := SuccessResponse{Message: message}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
@@ -417,7 +433,7 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			UpdateOperatorIDAction,
 			email,
 			getClientIP(r),
-			"User updated operator with Id: "+params.Mcc+params.Mnc,
+			audit,
 		)
 	})
 }
