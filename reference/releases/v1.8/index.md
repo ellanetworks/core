@@ -1,0 +1,36 @@
+# v1.8
+
+- **Release date**: March 30, 2026
+- **GitHub release**: [v1.8.0](https://github.com/ellanetworks/core/releases/tag/v1.8.0)
+
+## New features
+
+- **Native BGP Support**: Ella Core now embeds a BGP speaker that automatically advertises a /32 host route for each active subscriber IP. It can also receive routes from its BGP peers and loads them into the kernel routing table. You don't need to have a separate BGP software running on the host like BIRD or FRR anymore. This feature is useful for enterprise deployments where routable subscriber IPs are required. Configure BGP via the networking page.
+
+## Maintenance
+
+- **Redesign IP allocation with lease table**: Pre-requisite for multiple potential features for Ella Core (IPv6, static IP allocation, High Availability, Multi-PDU sessions)
+- **FIB lookup user plane metrics**: Add new metrics for monitoring Ella Core's user plane (`app_xdp_fib_lookup_total` and `app_xdp_ifindex_mismatch_total`).
+- Bug fixes
+- Security fixes
+- Dependency updates
+
+## Documentation
+
+- **[Advertising and receiving routes via BGP Explanation](https://docs.ellanetworks.com/core/explanation/bgp/index.md) (new)**
+- **[Observability reference](https://docs.ellanetworks.com/core/reference/observability/index.md)**: Now includes an example observability stack and new metrics
+
+## Patch releases
+
+### v1.8.1
+
+- **Release date**: March 31, 2026
+- **GitHub release**: [v1.8.1](https://github.com/ellanetworks/core/releases/tag/v1.8.1)
+
+#### Bug fixes
+
+- Release all sm contexts ([#1190](https://github.com/ellanetworks/core/pull/1190))
+- Per-step timeouts in shutdown ([#1191](https://github.com/ellanetworks/core/pull/1191))
+- Continue teardown if IP is already released ([#1192](https://github.com/ellanetworks/core/pull/1192))
+- Clear stale tunnel and bump version to v1.8.1 ([#1193](https://github.com/ellanetworks/core/pull/1193))
+- Remove pfcp context ([#1195](https://github.com/ellanetworks/core/pull/1195))
