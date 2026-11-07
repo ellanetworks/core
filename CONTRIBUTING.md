@@ -55,13 +55,13 @@ Install pre-requisites:
 
 ```shell
 sudo apt install gcc
-sudo snap install go --channel=1.26/stable --classic
+sudo snap install go --channel=1.27/stable --classic
 ```
 
 Generate the eBPF Go bindings:
 
 ```shell
-sudo apt install clang llvm libbpf-dev
+sudo apt install clang llvm libbpf-dev gcc-multilib
 go generate ./...
 ```
 
