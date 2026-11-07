@@ -164,7 +164,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	apiAddress := fmt.Sprintf("%s://%s:%d", apiScheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 
-	raftID, err := ellaraft.ResolveRaftID(filepath.Dir(cfg.DB.Path))
+	dataDir := filepath.Dir(cfg.DB.Path)
+
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return fmt.Errorf("couldn't create data directory %s: %w", dataDir, err)
+	}
+
+	raftID, err := ellaraft.ResolveRaftID(dataDir)
 	if err != nil {
 		return err
 	}
