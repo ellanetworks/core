@@ -56,9 +56,9 @@ type sending struct {
 	host     string
 	realm    string
 	set      []string
-	relayed  bool
 	fixed    *candidate
 	tried    map[*peer]bool
+	looped   bool
 	held     []*peer
 	last     *Message
 	redirect *following
@@ -136,7 +136,9 @@ func (s *sending) run(ctx context.Context) (*Message, error) {
 				return ans, nil
 			}
 
-			if err := s.follow(ctx, cand.peer, ans); err != nil {
+			if err := s.follow(ctx, cand.peer, ans); errors.Is(err, ErrUnableToDeliver) {
+				return nil, err
+			} else if err != nil {
 				s.n.logger.Warn("not following a Diameter redirect", slog.String("peer", cand.peer.name()), slog.Any("error", err))
 				return ans, nil
 			}
@@ -188,8 +190,11 @@ func (s *sending) next(ctx context.Context) (candidate, *Conn, error) {
 		if s.redirect.remaining() && s.unusableLocked(s.fixed.peer) {
 			n.mu.Unlock()
 
-			if err := s.advance(ctx); err != nil && s.last != nil {
+			switch err := s.advance(ctx); {
+			case err != nil && s.last != nil:
 				return candidate{}, nil, errExhausted
+			case errors.Is(err, ErrUnableToDeliver):
+				return candidate{}, nil, err
 			}
 
 			continue
@@ -279,9 +284,9 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 
 	key := routeKey{realm: s.realm, app: s.m.ApplicationID}
 
-	entries := n.routeEntriesLocked(key)
+	entries := n.routeEntriesLocked(key, s.host == "")
 	if len(entries) == 0 {
-		if entries = n.defaultEntriesLocked(s.host, s.realm, s.m.ApplicationID); len(entries) > 0 {
+		if entries = n.defaultEntriesLocked(s.realm, s.m.ApplicationID); len(entries) > 0 {
 			key = defaultRouteKey(s.m.ApplicationID)
 		}
 	}
@@ -291,6 +296,10 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 			return nil, errExhausted
 		}
 
+		if s.looped {
+			return nil, s.loopError()
+		}
+
 		if s.realm != "" && s.host == "" && n.cfg.AcceptUnknownPeers {
 			return nil, nil
 		}
@@ -298,10 +307,7 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 		return nil, fmt.Errorf("%w: no route to realm %q for application %d", ErrUnableToDeliver, s.realm, s.m.ApplicationID)
 	}
 
-	var (
-		cands []candidate
-		loops bool
-	)
+	var cands []candidate
 
 	for _, p := range n.orderedLocked(key, entries) {
 		cand := candidate{peer: p}
@@ -312,12 +318,7 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 			}
 		}
 
-		if s.recorded(cand.peer) {
-			loops = true
-			continue
-		}
-
-		if s.tried[cand.peer] || slices.ContainsFunc(cands, func(c candidate) bool { return c.peer == cand.peer }) {
+		if s.tried[cand.peer] || s.recorded(cand.peer) || slices.ContainsFunc(cands, func(c candidate) bool { return c.peer == cand.peer }) {
 			continue
 		}
 
@@ -331,30 +332,34 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 	switch {
 	case len(cands) > 0:
 		return cands, nil
-	case loops && s.last == nil:
-		return nil, fmt.Errorf("%w: every route to realm %q is in the Route-Record", ErrUnableToDeliver, s.realm)
+	case s.looped && s.last == nil:
+		return nil, s.loopError()
 	default:
 		return nil, errExhausted
 	}
 }
 
-func (s *sending) recorded(p *peer) bool {
-	if !s.relayed {
-		return false
-	}
+func (s *sending) loopError() error {
+	return fmt.Errorf("%w: every candidate peer is in the Route-Record", ErrUnableToDeliver)
+}
 
+func (s *sending) recorded(p *peer) bool {
 	host := p.host
 	if host == "" && p.cfg != nil {
 		host = p.cfg.Host
 	}
 
-	if host == "" {
+	return s.recordedHost(host)
+}
+
+func (s *sending) recordedHost(host string) bool {
+	if host == "" || !slices.ContainsFunc(FindAll(s.m.AVPs, AVPRouteRecord, 0), func(rr AVP) bool { return strings.EqualFold(rr.UTF8String(), host) }) {
 		return false
 	}
 
-	return slices.ContainsFunc(FindAll(s.m.AVPs, AVPRouteRecord, 0), func(rr AVP) bool {
-		return strings.EqualFold(rr.UTF8String(), host)
-	})
+	s.looped = true
+
+	return true
 }
 
 func (s *sending) setCandidatesLocked() ([]candidate, error) {
@@ -362,7 +367,7 @@ func (s *sending) setCandidatesLocked() ([]candidate, error) {
 
 	for _, id := range s.set {
 		p, ok := s.n.byID[id]
-		if !ok || p.removed || s.tried[p] || slices.ContainsFunc(cands, func(c candidate) bool { return c.peer == p }) {
+		if !ok || p.removed || s.tried[p] || s.recorded(p) || slices.ContainsFunc(cands, func(c candidate) bool { return c.peer == p }) {
 			continue
 		}
 
@@ -374,6 +379,8 @@ func (s *sending) setCandidatesLocked() ([]candidate, error) {
 		return cands, nil
 	case s.last != nil:
 		return nil, errExhausted
+	case s.looped:
+		return nil, s.loopError()
 	default:
 		return nil, ErrNotConnected
 	}
@@ -410,11 +417,19 @@ func (s *sending) follow(ctx context.Context, from *peer, ans *Message) error {
 func (s *sending) advance(ctx context.Context) error {
 	f := s.redirect
 
-	var errs []error
+	var (
+		errs  []error
+		loops int
+	)
 
 	for f.next < len(f.r.Hosts) {
 		u := f.r.Hosts[f.next]
 		f.next++
+
+		if s.recordedHost(u.Host) {
+			loops++
+			continue
+		}
 
 		if u.Secure {
 			errs = append(errs, fmt.Errorf("%s needs transport security", u))
@@ -435,6 +450,10 @@ func (s *sending) advance(ctx context.Context) error {
 		s.remember(*s.fixed)
 
 		return nil
+	}
+
+	if loops > 0 && len(errs) == 0 {
+		return s.loopError()
 	}
 
 	return errors.Join(errs...)

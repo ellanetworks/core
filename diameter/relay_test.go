@@ -6,6 +6,7 @@ package diameter
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -64,24 +65,12 @@ func TestRelay(t *testing.T) {
 }
 
 func TestRelayLoop(t *testing.T) {
-	kind := transports[0]
+	n := newClient(t)
 
-	relayErr := make(chan error, 1)
+	req := proxiable(routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, strings.ToUpper(n.Identity().OriginHost))))
 
-	proxy := newServer(t, kind, "hss.example.org", loopback2, func(s *server, c *Conn, req *Message) *Message {
-		_, err := s.node.Relay(context.Background(), req, c.PeerHost(), "ipsmgw.example.org", routeRealm)
-		relayErr <- err
-
-		return c.Answer(req, ResultLoopDetected)
-	})
-
-	client := newClient(t)
-	setPeers(t, client, proxy.peer(kind, 10))
-	waitOpen(t, client, proxy.host)
-
-	ans := send(t, client, proxiable(routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, "HSS.example.org"))))
-	if err := <-relayErr; !errors.Is(err, ErrLoopDetected) || resultCode(t, ans) != ResultLoopDetected {
-		t.Fatalf("relay = %v, answer %d", err, resultCode(t, ans))
+	if _, err := n.Relay(context.Background(), req, "mme1.example.org", "ipsmgw.example.org", routeRealm); !errors.Is(err, ErrLoopDetected) {
+		t.Fatalf("relay = %v, want %v", err, ErrLoopDetected)
 	}
 }
 
