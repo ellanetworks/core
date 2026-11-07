@@ -292,6 +292,15 @@ func (a *smfUPFAdapter) QueryUsage(_ context.Context, seid uint64, trigger model
 	return a.engine.TakeUsage(session, trigger)
 }
 
+func (a *smfUPFAdapter) PeekUsage(_ context.Context, seid uint64) ([]models.UsageReport, error) {
+	session := a.engine.GetSession(seid)
+	if session == nil {
+		return nil, fmt.Errorf("%w: SEID %d", models.ErrSessionNotFound, seid)
+	}
+
+	return a.engine.PeekUsage(session)
+}
+
 func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) ([]models.UsageReport, error) {
 	resp, err := a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
 	if resp == nil {

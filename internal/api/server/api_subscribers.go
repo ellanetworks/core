@@ -121,17 +121,28 @@ type SNSSAI struct {
 }
 
 type Session struct {
-	System       string   `json:"system"` // "5G" | "4G"
-	ID           uint8    `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
-	Status       string   `json:"status"`
-	IPType       string   `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
-	IPv4Address  string   `json:"ipv4_address,omitempty"`
-	IPv6Prefix   string   `json:"ipv6_prefix,omitempty"`
-	DataNetwork  string   `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
-	Slice        *SNSSAI  `json:"slice,omitempty"`        // 5G only
-	AMBRUplink   string   `json:"ambr_uplink,omitempty"`
-	AMBRDownlink string   `json:"ambr_downlink,omitempty"`
-	Bearers      []Bearer `json:"bearers,omitempty"`
+	System        string   `json:"system"` // "5G" | "4G"
+	ID            uint8    `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
+	Status        string   `json:"status"`
+	IPType        string   `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address   string   `json:"ipv4_address,omitempty"`
+	IPv6Prefix    string   `json:"ipv6_prefix,omitempty"`
+	DataNetwork   string   `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice         *SNSSAI  `json:"slice,omitempty"`        // 5G only
+	AMBRUplink    string   `json:"ambr_uplink,omitempty"`
+	AMBRDownlink  string   `json:"ambr_downlink,omitempty"`
+	EstablishedAt string   `json:"established_at,omitempty"`
+	Traffic       *Traffic `json:"traffic,omitempty"`
+	Bearers       []Bearer `json:"bearers,omitempty"`
+}
+
+type Traffic struct {
+	ReadAt          string `json:"read_at"`
+	UplinkBytes     uint64 `json:"uplink_bytes"`
+	DownlinkBytes   uint64 `json:"downlink_bytes"`
+	UplinkPackets   uint64 `json:"uplink_packets"`
+	DownlinkPackets uint64 `json:"downlink_packets"`
+	LastPacketAt    string `json:"last_packet_at,omitempty"`
 }
 
 type Bearer struct {
@@ -146,6 +157,7 @@ type Bearer struct {
 	GBRUplink               string   `json:"gbr_uplink,omitempty"`
 	GBRDownlink             string   `json:"gbr_downlink,omitempty"`
 	Rules                   []string `json:"rules"`
+	Traffic                 *Traffic `json:"traffic,omitempty"`
 }
 
 const (
@@ -555,7 +567,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 					break
 				}
 
-				sessions = append(sessions, withBearers(sessionFrom5G(pdu), sessionQuerier, pdu.Ref))
+				sessions = append(sessions, withSessionState(r.Context(), sessionFrom5G(pdu), sessionQuerier, pdu.Ref))
 			}
 		}
 
@@ -564,7 +576,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 				break
 			}
 
-			sessions = append(sessions, withBearers(sessionFrom4G(&cs.Sessions[i]), sessionQuerier, cs.Sessions[i].SessionRef))
+			sessions = append(sessions, withSessionState(r.Context(), sessionFrom4G(&cs.Sessions[i]), sessionQuerier, cs.Sessions[i].SessionRef))
 		}
 
 		subscriber := SubscriberDetail{
@@ -1098,21 +1110,49 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	return s
 }
 
-func withBearers(s Session, sessionQuerier smf.SessionQuerier, ref string) Session {
+func withSessionState(ctx context.Context, s Session, sessionQuerier smf.SessionQuerier, ref string) Session {
 	if sessionQuerier == nil || ref == "" {
 		return s
 	}
 
-	sc := sessionQuerier.GetSession(ref)
-	if sc == nil {
+	v, ok := sessionQuerier.SessionView(ctx, ref)
+	if !ok {
 		return s
 	}
 
-	for _, b := range sc.Bearers() {
-		s.Bearers = append(s.Bearers, bearerFrom(b))
+	if !v.EstablishedAt.IsZero() {
+		s.EstablishedAt = v.EstablishedAt.UTC().Format(time.RFC3339)
+	}
+
+	s.Traffic = trafficFrom(v.Traffic, v.ReadAt)
+
+	for _, b := range v.Bearers {
+		out := bearerFrom(b)
+		out.Traffic = trafficFrom(b.Traffic, v.ReadAt)
+		s.Bearers = append(s.Bearers, out)
 	}
 
 	return s
+}
+
+func trafficFrom(t *smf.Traffic, readAt time.Time) *Traffic {
+	if t == nil {
+		return nil
+	}
+
+	out := &Traffic{
+		ReadAt:          readAt.UTC().Format(time.RFC3339Nano),
+		UplinkBytes:     t.UplinkVolume,
+		DownlinkBytes:   t.DownlinkVolume,
+		UplinkPackets:   t.UplinkPackets,
+		DownlinkPackets: t.DownlinkPackets,
+	}
+
+	if !t.LastPacket.IsZero() {
+		out.LastPacketAt = t.LastPacket.UTC().Format(time.RFC3339Nano)
+	}
+
+	return out
 }
 
 func bearerFrom(b smf.BearerView) Bearer {

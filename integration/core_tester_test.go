@@ -49,6 +49,7 @@ var scenariosSkipped = map[string]string{
 	"gnb/connectivity_expect_blocked_ipv6":   "test-only harness; requires a pre-installed deny rule",
 	"gnb/connectivity_expect_allowed_ipv6":   "test-only harness; minimal allow-path",
 	"gnb/session_hold":                       "long-lived session for BGP tests; covered by TestIntegration5GBGP",
+	"gnb/session_traffic_hold":               "long-lived session with traffic; covered by TestIntegration5GSessionTraffic",
 	"s1enb/session_hold":                     "long-lived session for BGP tests; covered by TestIntegration4GBGP",
 	"gnb/nat_checksum":                       "capture-driven harness; covered by TestIntegration5GUPFNATChecksum",
 	"s1enb/nat_checksum":                     "capture-driven harness; covered by TestIntegration4GUPFNATChecksum",

@@ -41,6 +41,10 @@ func (s *deregisterTestSmf) SessionsByDNN(string) []*smf.SMContext { return nil 
 
 func (s *deregisterTestSmf) SessionCount() int { return 0 }
 
+func (s *deregisterTestSmf) SessionView(context.Context, string) (smf.SessionView, bool) {
+	return smf.SessionView{}, false
+}
+
 func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
 	return "", nil, nil
 }

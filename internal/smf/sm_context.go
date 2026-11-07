@@ -122,6 +122,9 @@ type SMContext struct {
 	onDefault   *dedicatedBearer
 	failedRules map[string]PCCRule
 
+	traffic        Traffic
+	defaultTraffic Traffic
+
 	maxPacketFilters uint16
 	flowProcedure    *flowProcedure
 	fallbackUntil    time.Time
