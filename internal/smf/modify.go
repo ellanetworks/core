@@ -62,7 +62,7 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 		return nil, err
 	}
 
-	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 

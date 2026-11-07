@@ -417,13 +417,8 @@ type N3N6EntrypointUrrKey struct {
 }
 
 type N3N6EntrypointVethTunnelInfo struct {
-	_          structs.HostLayout
-	Teid       uint32
-	LocalAddr  N3N6EntrypointIn6Addr
-	RemoteAddr N3N6EntrypointIn6Addr
-	Qfi        uint8
-	NoPsc      uint8
-	Pad        [2]uint8
+	_        structs.HostLayout
+	UePrefix N3N6EntrypointIn6Addr
 }
 
 // Names of all BPF objects in the ELF.

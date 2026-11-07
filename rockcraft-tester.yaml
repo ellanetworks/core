@@ -28,3 +28,4 @@ parts:
       - iproute2
       - iputils-ping
       - libpcap0.8t64
+      - tcpdump

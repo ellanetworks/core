@@ -113,6 +113,14 @@ struct far_info {
 	__u16 radio_id;
 };
 
+#define TOS_ECN_MASK 0x03
+#define TOS_DSCP_MASK 0xFC
+
+static __always_inline __u8 tlm_dscp(const struct far_info *far)
+{
+	return (far->transport_level_marking >> 8) & TOS_DSCP_MASK;
+}
+
 enum gate_status {
 	GATE_STATUS_OPEN = 0,
 	GATE_STATUS_CLOSED = 1,

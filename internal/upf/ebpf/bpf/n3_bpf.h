@@ -273,7 +273,7 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	if (result == QER_RATE_LIMITED)
 		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
-	__u8 tos = sel->target.far.transport_level_marking >> 8;
+	__u8 tos = tlm_dscp(&sel->target.far);
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);
 
 	account_flow(ctx, n3_ifindex, sel->imsi, ctx->ip4 ? IPV4 : IPV6,
@@ -447,7 +447,7 @@ relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
 		ip4->ttl = GTP_OUTER_TTL;
 
 		if (far->transport_level_marking != 0)
-			ip4->tos = far->transport_level_marking >> 8;
+			ip4->tos = tlm_dscp(far) | (ip4->tos & TOS_ECN_MASK);
 
 		ip4->check = ipv4_csum_update_u16(ip4->check, old_tos_word,
 						  *(__u16 *)ip4_bytes);
@@ -510,7 +510,9 @@ relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
 		ip6->hop_limit = GTP_OUTER_TTL;
 
 		if (far->transport_level_marking != 0) {
-			const __u8 tc = far->transport_level_marking >> 8;
+			const __u8 old_tc = (ip6->priority << 4) |
+					    (ip6->flow_lbl[0] >> 4);
+			const __u8 tc = tlm_dscp(far) | (old_tc & TOS_ECN_MASK);
 
 			ip6->priority = tc >> 4;
 			ip6->flow_lbl[0] = ((tc & 0x0f) << 4) |
