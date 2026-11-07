@@ -160,7 +160,6 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		FlowReportsTableName,
 		HomeNetworkKeysTableName,
 		N3SettingsTableName,
-		SliceDataNetworkNATTableName,
 		SliceDataNetworksTableName,
 		NetworkRulesTableName,
 		NetworkSlicesTableName,

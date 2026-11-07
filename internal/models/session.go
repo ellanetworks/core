@@ -258,8 +258,9 @@ type ModifyRequest struct {
 }
 
 type SessionForwarding struct {
-	NATExempt   bool
-	LocalSwitch bool
+	NATExempt       bool
+	LocalSwitch     bool
+	NetworkInstance string
 }
 
 type ModifyResponse struct {

@@ -163,9 +163,6 @@ type Database struct {
 	deleteSliceDataNetworksOfSliceStmt *sqlair.Statement
 	deleteSliceDataNetworksOfDNStmt    *sqlair.Statement
 	countSliceDataNetworkPoliciesStmt  *sqlair.Statement
-	listSliceDataNetworkNATStmt        *sqlair.Statement
-	upsertSliceDataNetworkNATStmt      *sqlair.Statement
-	deleteSliceDataNetworkNATStmt      *sqlair.Statement
 
 	// BGP Settings statements
 	getBGPSettingsStmt    *sqlair.Statement
@@ -1153,6 +1150,13 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 			}
 
 			payload.LocalSwitch = &localSwitch
+
+			nat, err := readLegacyToggle(ctx, db.conn().PlainDB(), NATSettingsTableName, NATDefaultEnabled)
+			if err != nil {
+				return fmt.Errorf("read the NAT setting to carry into migration %d: %w", v, err)
+			}
+
+			payload.NAT = &nat
 		}
 
 		if _, err := opMigrateShared.Invoke(ctx, db, payload); err != nil {
@@ -1925,9 +1929,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteSliceDataNetworksOfSliceStmt, fmt.Sprintf(deleteSliceDataNetworksOfSliceStmt, SliceDataNetworksTableName, NetworkSlicesTableName), []any{NetworkSlice{}}},
 		{&db.deleteSliceDataNetworksOfDNStmt, fmt.Sprintf(deleteSliceDataNetworksOfDNStmt, SliceDataNetworksTableName, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.countSliceDataNetworkPoliciesStmt, fmt.Sprintf(countSliceDataNetworkPoliciesStmt, PoliciesTableName), []any{SliceDataNetwork{}, NumItems{}}},
-		{&db.listSliceDataNetworkNATStmt, fmt.Sprintf(listSliceDataNetworkNATStmt, SliceDataNetworkNATTableName), []any{SliceDataNetworkNAT{}}},
-		{&db.upsertSliceDataNetworkNATStmt, fmt.Sprintf(upsertSliceDataNetworkNATStmt, SliceDataNetworkNATTableName), []any{SliceDataNetworkNAT{}}},
-		{&db.deleteSliceDataNetworkNATStmt, fmt.Sprintf(deleteSliceDataNetworkNATStmt, SliceDataNetworkNATTableName), []any{SliceDataNetworkNAT{}}},
 
 		// BGP Settings
 		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
@@ -2456,7 +2457,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 		}
 
 		if db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-			if err := db.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: slice.ID, DataNetworkID: dataNetwork.ID}); err != nil {
+			if err := db.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: slice.ID, DataNetworkID: dataNetwork.ID, NAT: NATDefaultEnabled}); err != nil {
 				return fmt.Errorf("failed to serve the default data network on the default slice: %v", err)
 			}
 		}

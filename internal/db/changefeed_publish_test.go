@@ -25,23 +25,23 @@ func TestApplyCommand_PublishesTopicForOp(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSliceDataNetworkNAT)
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicN3Settings)
 	defer stop()
 
-	if err := dbInstance.SetSliceDataNetworkNAT(context.Background(), "slice-1", "dn-1", false); err != nil {
-		t.Fatalf("SetSliceDataNetworkNAT: %v", err)
+	if err := dbInstance.UpdateN3Settings(context.Background(), "192.0.2.1"); err != nil {
+		t.Fatalf("UpdateN3Settings: %v", err)
 	}
 
 	select {
 	case <-wakeup:
 	case <-time.After(time.Second):
-		t.Fatal("did not receive data network NAT change event")
+		t.Fatal("did not receive N3 settings change event")
 	}
 }
 
 // TestApplyCommand_DoesNotPublishForUnannotatedOps verifies that an op
-// does not wake subscribers of topics it did not declare: a data network
-// NAT update must not wake flow-accounting subscribers.
+// does not wake subscribers of topics it did not declare: an N3 settings
+// update must not wake flow-accounting subscribers.
 func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -56,8 +56,8 @@ func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	defer stop()
 
 	// Update an unrelated topic; subscriber should see nothing.
-	if err := dbInstance.SetSliceDataNetworkNAT(context.Background(), "slice-1", "dn-1", false); err != nil {
-		t.Fatalf("SetSliceDataNetworkNAT: %v", err)
+	if err := dbInstance.UpdateN3Settings(context.Background(), "192.0.2.1"); err != nil {
+		t.Fatalf("UpdateN3Settings: %v", err)
 	}
 
 	select {

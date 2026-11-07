@@ -13,28 +13,18 @@ func runNATHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 	writer := h.Clients[writerIdx]
 
-	natBaselines := make(map[int]bool, len(h.Clients))
-
-	var localSwitchBaseline bool
-
-	for i, c := range h.Clients {
-		nat, localSwitch, err := defaultDataNetworkForwarding(ctx, c)
-		if err != nil {
-			t.Fatalf("node %d baseline: %v", i+1, err)
-		}
-
-		natBaselines[i] = nat
-		localSwitchBaseline = localSwitch
+	natBaseline, localSwitchBaseline, err := defaultDataNetworkForwarding(ctx, writer)
+	if err != nil {
+		t.Fatalf("writer baseline: %v", err)
 	}
 
 	t.Cleanup(func() {
-		nat := natBaselines[writerIdx]
-		if err := updateDefaultDataNetworkForwarding(ctx, writer, &nat, &localSwitchBaseline); err != nil {
+		if err := updateDefaultDataNetworkForwarding(ctx, writer, &natBaseline, &localSwitchBaseline); err != nil {
 			t.Logf("cleanup: restore NAT and local switching on writer: %v", err)
 		}
 	})
 
-	targetNAT, targetLocalSwitch := !natBaselines[writerIdx], !localSwitchBaseline
+	targetNAT, targetLocalSwitch := !natBaseline, !localSwitchBaseline
 
 	if err := updateDefaultDataNetworkForwarding(ctx, writer, &targetNAT, &targetLocalSwitch); err != nil {
 		t.Fatalf("update on writer: %v", err)
@@ -61,12 +51,8 @@ func runNATHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("node %d after writer update: %v", i+1, err)
 		}
 
-		if nat != natBaselines[i] {
-			t.Fatalf("node %d NAT drifted: got %t, want %t (set on node %d only)", i+1, nat, natBaselines[i], writerIdx+1)
-		}
-
-		if localSwitch != targetLocalSwitch {
-			t.Fatalf("node %d local switch %t, want %t (replicated from node %d)", i+1, localSwitch, targetLocalSwitch, writerIdx+1)
+		if nat != targetNAT || localSwitch != targetLocalSwitch {
+			t.Fatalf("node %d NAT %t, local switch %t; want %t, %t (replicated from node %d)", i+1, nat, localSwitch, targetNAT, targetLocalSwitch, writerIdx+1)
 		}
 	}
 }

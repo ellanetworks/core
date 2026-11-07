@@ -202,6 +202,11 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		upf_printk("upf: could not write new icmp header");
 		return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 	}
+	if ((const void *)((void *)new_icmp + sizeof(struct icmphdr) +
+			   ICMP_QUOTE_LEN) > data_end) {
+		upf_printk("upf: could not write new icmp header");
+		return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
+	}
 	recompute_icmp_csum(new_icmp, sizeof(struct icmphdr) + ICMP_QUOTE_LEN);
 	if (pkt_size != icmp_pkt_size) {
 		adj_size = icmp_pkt_size - pkt_size;

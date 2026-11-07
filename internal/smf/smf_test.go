@@ -269,7 +269,7 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 		return smf.DataNetworkConfig{}
 	}
 
-	return smf.DataNetworkConfig{SliceDataNetwork: f.policy.SliceDataNetwork, DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, NAT: f.policy.NAT, LocalSwitch: f.policy.LocalSwitch, PCSCF: f.policy.PCSCF}
+	return smf.DataNetworkConfig{SliceDataNetwork: f.policy.SliceDataNetwork, DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, NAT: f.policy.NAT, LocalSwitch: f.policy.LocalSwitch, NetworkInstance: f.policy.NetworkInstance, PCSCF: f.policy.PCSCF}
 }
 
 func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.SessionManagementSubscription, error) {

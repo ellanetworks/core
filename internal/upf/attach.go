@@ -109,41 +109,71 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, ex
 		return "", nil, nil, nil, err
 	}
 
-	extraLinks := make([]link.Link, 0, len(extra))
+	extraLinks, err := attachExtra(objs, attachedMode, extra)
+	if err == nil {
+		return attachedMode, n3Link, n6Link, extraLinks, nil
+	}
 
-	for _, iface := range extra {
-		var (
-			l         link.Link
-			attachErr error
-		)
+	closeN3N6(n3Link, n6Link)
 
-		switch attachedMode {
-		case config.DatapathTCX:
-			l, attachErr = attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
-		case config.DatapathXDPGeneric:
-			l, attachErr = attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
-		default:
-			l, attachErr = attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
-		}
+	if mode != config.DatapathChain || attachedMode != config.DatapathXDPNative || !driverRefusedXDP(err) {
+		return "", nil, nil, nil, err
+	}
 
-		if attachErr != nil {
-			for _, attached := range extraLinks {
-				_ = attached.Close()
-			}
+	logger.UpfLog.Info("no driver-level XDP support on a network instance interface, attaching at TCX",
+		zap.Error(err))
 
-			if n6Link != nil {
-				_ = (*n6Link).Close()
-			}
+	attachedMode, n3Link, n6Link, err = attachChainTCX(objs, n3, n6)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
 
-			_ = n3Link.Close()
+	extraLinks, err = attachExtra(objs, attachedMode, extra)
+	if err != nil {
+		closeN3N6(n3Link, n6Link)
 
-			return "", nil, nil, nil, fmt.Errorf("attach datapath on network instance interface %q: %w", iface.name, attachErr)
-		}
-
-		extraLinks = append(extraLinks, l)
+		return "", nil, nil, nil, err
 	}
 
 	return attachedMode, n3Link, n6Link, extraLinks, nil
+}
+
+func closeN3N6(n3Link link.Link, n6Link *link.Link) {
+	if n6Link != nil {
+		_ = (*n6Link).Close()
+	}
+
+	_ = n3Link.Close()
+}
+
+func attachExtra(objs *ebpf.BpfObjects, attachedMode string, extra []datapathIface) ([]link.Link, error) {
+	links := make([]link.Link, 0, len(extra))
+
+	for _, iface := range extra {
+		l, err := attachInterface(objs, attachedMode, iface)
+		if err != nil {
+			for _, attached := range links {
+				_ = attached.Close()
+			}
+
+			return nil, fmt.Errorf("attach datapath on network instance interface %q: %w", iface.name, err)
+		}
+
+		links = append(links, l)
+	}
+
+	return links, nil
+}
+
+func attachInterface(objs *ebpf.BpfObjects, attachedMode string, iface datapathIface) (link.Link, error) {
+	switch attachedMode {
+	case config.DatapathTCX:
+		return attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
+	case config.DatapathXDPGeneric:
+		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
+	default:
+		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
+	}
 }
 
 func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, error) {

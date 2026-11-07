@@ -172,7 +172,6 @@ func TestCreateSmContextDatapathInsertFailure(t *testing.T) {
 		{"E2BIG", fmt.Errorf("couldn't apply PDR: can't apply GTP PDR: %w", fmt.Errorf("update: %w", unix.E2BIG)), fgs.GSMCauseInsufficientResources, true},
 		{"ENOMEM", errors.Join(fmt.Errorf("can't put URR: %w", unix.ENOMEM), errors.New("cleanup")), fgs.GSMCauseInsufficientResources, true},
 		{"other", errors.New("map is not initialized"), fgs.GSMCauseRequestRejectedUnspecified, false},
-		{"network instance not on this node", fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable), fgs.GSMCauseInsufficientResources, false},
 	}
 
 	for _, tc := range cases {
@@ -195,6 +194,39 @@ func TestCreateSmContextDatapathInsertFailure(t *testing.T) {
 
 			if reject == nil || reject.Cause != tc.wantCause || reject.BackoffTimer != nil {
 				t.Fatalf("reject = %+v, want cause %d without back-off", reject, tc.wantCause)
+			}
+		})
+	}
+}
+
+func TestCreateSmContextNetworkInstanceUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		high        bool
+		requestType fgs.RequestType
+		wantBackoff bool
+	}{
+		{"backs off", false, fgs.RequestTypeInitialRequest, true},
+		{"no back-off for high priority access", true, fgs.RequestTypeInitialRequest, false},
+		{"no back-off for emergency", false, fgs.RequestTypeInitialEmergencyRequest, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			upf.err = fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable)
+			s := newTestSMF(pcf, store, upf, amfCb)
+			ctx := smf.WithHighPriorityAccess(context.Background(), tc.high)
+
+			_, reject, err := createSession(ctx, t, s, 1, tc.requestType)
+			if !errors.Is(err, models.ErrNetworkInstanceUnavailable) {
+				t.Fatalf("err = %v, want ErrNetworkInstanceUnavailable", err)
+			}
+
+			if reject == nil || reject.Cause != fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN {
+				t.Fatalf("reject = %+v, want cause #67", reject)
+			}
+
+			if (reject.BackoffTimer != nil) != tc.wantBackoff {
+				t.Fatalf("back-off = %v, want present %t", reject.BackoffTimer, tc.wantBackoff)
 			}
 		})
 	}

@@ -23,6 +23,7 @@
 
 #include "bpf/ctx/ctx.h"
 #include <stdbool.h>
+#include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/traffic_class.h"
@@ -214,7 +215,8 @@ __noinline __weak int ingress_network_instance(__u32 ifindex, __u32 vlan)
 	if (ni_id)
 		return (int)*ni_id;
 
-	if (ifindex == (__u32)n6_ifindex)
+	if (!n3_ifindex || !n6_ifindex || ifindex == (__u32)n6_ifindex ||
+	    ifindex == (__u32)n3_ifindex)
 		return 0;
 
 	return -1;
@@ -250,9 +252,7 @@ __noinline __weak int downlink_ingress_ni(struct __ctx_buff *ctx)
 
 __noinline __weak int downlink_session_ni(struct __ctx_buff *ctx)
 {
-	int ni_id = downlink_ingress_ni(ctx);
-
-	return ni_id > 0 ? ni_id : 0;
+	return downlink_ingress_ni(ctx);
 }
 
 __noinline __weak int downlink_reply_vlan(struct __ctx_buff *ctx)

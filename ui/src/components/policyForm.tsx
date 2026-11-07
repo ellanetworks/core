@@ -137,7 +137,7 @@ export const useNetworkOptions = (open: boolean, slice?: string) => {
   });
 
   const servedQuery = useQuery({
-    queryKey: ["slice-data-networks", slice],
+    queryKey: ["slice-data-networks", "slice", slice],
     queryFn: () => listSliceDataNetworks(accessToken!, slice!),
     enabled: enabled && !!slice,
   });
@@ -148,7 +148,7 @@ export const useNetworkOptions = (open: boolean, slice?: string) => {
     imsDataNetworks: dataNetworksQuery.data
       ?.filter((dn) => dn.ims)
       .map((dn) => dn.name),
-    slices: slicesQuery.data?.map((slice) => slice.name),
+    slices: slicesQuery.data?.map((s) => s.name),
     isError:
       dataNetworksQuery.isError || slicesQuery.isError || servedQuery.isError,
   };

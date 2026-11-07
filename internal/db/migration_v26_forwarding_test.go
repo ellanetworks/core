@@ -65,11 +65,13 @@ func TestMigrationV26MovesNATAndLocalSwitchToSliceDataNetworks(t *testing.T) {
 		name                 string
 		nat, localSwitch     bool
 		leaderLocalSwitch    *bool
+		leaderNAT            *bool
+		wantNATAtV26         bool
 		wantLocalSwitchAtV26 bool
 	}{
-		{name: "standalone defaults", nat: true, localSwitch: false, wantLocalSwitchAtV26: false},
-		{name: "standalone with NAT off and local switching on", nat: false, localSwitch: true, wantLocalSwitchAtV26: true},
-		{name: "cluster uses the leader's local switching", nat: true, localSwitch: true, leaderLocalSwitch: new(false), wantLocalSwitchAtV26: false},
+		{name: "standalone defaults", nat: true, localSwitch: false, wantNATAtV26: true, wantLocalSwitchAtV26: false},
+		{name: "standalone with NAT off and local switching on", nat: false, localSwitch: true, wantNATAtV26: false, wantLocalSwitchAtV26: true},
+		{name: "cluster uses the leader's settings", nat: true, localSwitch: true, leaderLocalSwitch: new(false), leaderNAT: new(false), wantNATAtV26: false, wantLocalSwitchAtV26: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -84,15 +86,11 @@ func TestMigrationV26MovesNATAndLocalSwitchToSliceDataNetworks(t *testing.T) {
 			assertForwarding(t, d, "at v25", f.slice, f.ims, false, true)
 			assertNoForwarding(t, d, "at v25", f.slice, f.unused)
 
-			if err := d.SetSliceDataNetworkNAT(ctx, f.slice, f.internet, !tc.nat); !errors.Is(err, ErrMigrationPending) {
-				t.Fatalf("SetSliceDataNetworkNAT at v25 = %v, want ErrMigrationPending", err)
-			}
-
 			if err := d.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.unused}); err == nil {
 				t.Fatal("CreateSliceDataNetwork at v25 succeeded, want a pending-migration error")
 			}
 
-			if err := runMigrations(withMigrationLocalSwitch(ctx, tc.leaderLocalSwitch), d.PlainDB(), 26); err != nil {
+			if err := runMigrations(withMigrationToggles(ctx, tc.leaderLocalSwitch, tc.leaderNAT), d.PlainDB(), 26); err != nil {
 				t.Fatalf("runMigrations(26): %v", err)
 			}
 
@@ -100,29 +98,25 @@ func TestMigrationV26MovesNATAndLocalSwitchToSliceDataNetworks(t *testing.T) {
 				t.Fatalf("refresh applied schema: %v", err)
 			}
 
-			assertForwarding(t, d, "at v26", f.slice, f.internet, tc.nat, tc.wantLocalSwitchAtV26)
+			assertForwarding(t, d, "at v26", f.slice, f.internet, tc.wantNATAtV26, tc.wantLocalSwitchAtV26)
 			assertForwarding(t, d, "at v26", f.slice, f.ims, false, true)
 			assertNoForwarding(t, d, "at v26", f.slice, f.unused)
 
-			if err := d.SetSliceDataNetworkNAT(ctx, f.slice, f.internet, !tc.nat); err != nil {
-				t.Fatalf("SetSliceDataNetworkNAT at v26: %v", err)
-			}
-
-			if err := d.UpdateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.internet, LocalSwitch: !tc.wantLocalSwitchAtV26}); err != nil {
+			if err := d.UpdateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.internet, NAT: !tc.wantNATAtV26, LocalSwitch: !tc.wantLocalSwitchAtV26}); err != nil {
 				t.Fatalf("UpdateSliceDataNetwork at v26: %v", err)
 			}
 
-			assertForwarding(t, d, "after edits", f.slice, f.internet, !tc.nat, !tc.wantLocalSwitchAtV26)
+			assertForwarding(t, d, "after edits", f.slice, f.internet, !tc.wantNATAtV26, !tc.wantLocalSwitchAtV26)
 
 			if err := d.DeleteSliceDataNetwork(ctx, f.slice, f.internet); !errors.Is(err, ErrInUse) {
 				t.Fatalf("delete a slice data network with policies = %v, want ErrInUse", err)
 			}
 
-			if err := d.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.unused}); err != nil {
+			if err := d.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.unused, NAT: true}); err != nil {
 				t.Fatalf("serve an unused data network: %v", err)
 			}
 
-			assertForwarding(t, d, "new pair", f.slice, f.unused, NATDefaultEnabled, false)
+			assertForwarding(t, d, "new pair", f.slice, f.unused, true, false)
 
 			if err := d.DeleteDataNetwork(ctx, "unused"); err != nil {
 				t.Fatalf("delete a data network served by a slice: %v", err)
@@ -171,5 +165,66 @@ func assertNoForwarding(t *testing.T, d *Database, label, sliceID, dataNetworkID
 
 	if _, err := d.GetSliceDataNetworkForwarding(context.Background(), sliceID, dataNetworkID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("%s: %s/%s served (%v), want not served", label, sliceID, dataNetworkID, err)
+	}
+}
+
+func TestNATedLeaseOwnersFollowsTheSliceDataNetwork(t *testing.T) {
+	ctx := context.Background()
+	d := newDatabaseAtVersion(t, 26)
+	f := setupForwardingFixture(t, d)
+
+	profile, err := d.GetProfile(ctx, InitialProfileName)
+	if err != nil {
+		t.Fatalf("get default profile: %v", err)
+	}
+
+	if err := d.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.ims, LocalSwitch: true}); err != nil {
+		t.Fatalf("serve ims: %v", err)
+	}
+
+	const imsi = "001010000000042"
+
+	if err := d.CreateSubscriber(ctx, &Subscriber{
+		Imsi: imsi, SequenceNumber: "000000000022", PermanentKey: "6f30087629feb0b089783c81d0ae09b5",
+		Opc: "21a7e1897dfb481d62439142cdf1b6ee", ProfileID: profile.ID,
+	}); err != nil {
+		t.Fatalf("create subscriber: %v", err)
+	}
+
+	for i, dn := range []string{f.internet, f.ims} {
+		if _, err := d.AllocateIPLease(ctx, dn, "ipv4", imsi, i+1, "1"); err != nil {
+			t.Fatalf("allocate a lease on %s: %v", dn, err)
+		}
+	}
+
+	assertNATed := func(label string, want map[string]bool) {
+		t.Helper()
+
+		got, err := d.NATedLeaseOwners(ctx, "1")
+		if err != nil {
+			t.Fatalf("%s: NATedLeaseOwners: %v", label, err)
+		}
+
+		if len(got) != len(want) {
+			t.Fatalf("%s: NATed lease owners %v, want %v", label, got, want)
+		}
+
+		for k, v := range want {
+			if got[k] != v {
+				t.Fatalf("%s: NATed lease owners %v, want %v", label, got, want)
+			}
+		}
+	}
+
+	assertNATed("NAT on internet", map[string]bool{imsi + "/" + f.internet: true, imsi + "/" + f.ims: false})
+
+	if err := d.UpdateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.internet}); err != nil {
+		t.Fatalf("turn NAT off: %v", err)
+	}
+
+	assertNATed("NAT off", map[string]bool{imsi + "/" + f.internet: false, imsi + "/" + f.ims: false})
+
+	if got, err := d.NATedLeaseOwners(ctx, "2"); err != nil || len(got) != 0 {
+		t.Fatalf("leases of another node = %v, %v; want none", got, err)
 	}
 }

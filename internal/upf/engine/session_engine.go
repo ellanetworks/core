@@ -4,8 +4,10 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net"
 	"net/netip"
 	"sync"
@@ -49,7 +51,8 @@ type SessionEngine struct {
 	networkInstances map[string]uint8
 
 	dnTagMu   sync.Mutex
-	dnTags    map[string]uint16
+	dnTags    map[string]*dnTagEntry
+	dnTagUsed map[uint16]struct{}
 	lastDNTag uint16
 
 	endMarkers endMarkerSockets
@@ -317,30 +320,70 @@ func (connection *SessionEngine) ReleaseResources(seID uint64) {
 	}
 }
 
-func (conn *SessionEngine) dataNetworkTag(dataNetworkID string) uint16 {
+type dnTagEntry struct {
+	tag  uint16
+	refs int
+}
+
+var errDataNetworkTagsExhausted = errors.New("every data network tag is in use")
+
+func (conn *SessionEngine) acquireDataNetworkTag(dataNetworkID string) (uint16, error) {
 	if dataNetworkID == "" {
-		return 0
+		return 0, nil
 	}
 
 	conn.dnTagMu.Lock()
 	defer conn.dnTagMu.Unlock()
 
-	if tag, ok := conn.dnTags[dataNetworkID]; ok {
-		return tag
+	if entry, ok := conn.dnTags[dataNetworkID]; ok {
+		entry.refs++
+		return entry.tag, nil
 	}
 
 	if conn.dnTags == nil {
-		conn.dnTags = make(map[string]uint16)
+		conn.dnTags = make(map[string]*dnTagEntry)
+		conn.dnTagUsed = make(map[uint16]struct{})
 	}
 
-	conn.lastDNTag++
-	if conn.lastDNTag == 0 {
-		conn.lastDNTag = 1
+	for range math.MaxUint16 {
+		conn.lastDNTag++
+		if conn.lastDNTag == 0 {
+			conn.lastDNTag = 1
+		}
+
+		if _, used := conn.dnTagUsed[conn.lastDNTag]; used {
+			continue
+		}
+
+		conn.dnTags[dataNetworkID] = &dnTagEntry{tag: conn.lastDNTag, refs: 1}
+		conn.dnTagUsed[conn.lastDNTag] = struct{}{}
+
+		return conn.lastDNTag, nil
 	}
 
-	conn.dnTags[dataNetworkID] = conn.lastDNTag
+	return 0, errDataNetworkTagsExhausted
+}
 
-	return conn.lastDNTag
+func (conn *SessionEngine) releaseDataNetworkTag(dataNetworkID string) {
+	if dataNetworkID == "" {
+		return
+	}
+
+	conn.dnTagMu.Lock()
+	defer conn.dnTagMu.Unlock()
+
+	entry, ok := conn.dnTags[dataNetworkID]
+	if !ok {
+		return
+	}
+
+	entry.refs--
+	if entry.refs > 0 {
+		return
+	}
+
+	delete(conn.dnTags, dataNetworkID)
+	delete(conn.dnTagUsed, entry.tag)
 }
 
 func (conn *SessionEngine) SetNetworkInstances(ids map[string]uint8) {

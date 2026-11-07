@@ -77,9 +77,9 @@ The datapath attaches to N3 and every N6 interface at the hook set by `datapath.
 | -------- | --------- |
 | Default | Enabled on every slice and data network, except IMS data networks |
 | Address family | IPv4 only |
-| Scope | Per slice and data network, and per node: in a high availability cluster, each node holds its own setting. Uplink traffic leaving N6, sourced from the N6 address. Sessions on IMS data networks are never translated. |
+| Scope | Per slice and data network. Uplink traffic leaving N6, sourced from the N6 address. Sessions on IMS data networks are never translated. |
 | Translated protocols | TCP, UDP, and ICMP |
 | Source ports | `1024`-`32767` |
 | Downlink traffic | Delivered only when it matches a translation the subscriber's own traffic created. |
 | Untranslatable traffic | IP fragments (`nat_fragment`) and protocols without ports, such as ESP and GRE (`nat_unsupported_proto`), are dropped. Protocols that embed addresses in their payload, such as FTP in active mode, do not work |
-| Configuration | The **Slices** section of the data network's page in the UI, or the [Slices API](api/slices.md#update-a-data-network-of-a-slice). Changes apply to established sessions. |
+| Configuration | The **Slices** section of the data network's page in the UI, or the [Slices API](api/slices.md#update-a-data-network-of-a-slice). Changes apply to established sessions and break their established connections. |

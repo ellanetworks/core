@@ -4,7 +4,10 @@
 package ebpf
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/cilium/ebpf"
 )
 
 const MaxNetworkInstances = 16
@@ -29,6 +32,23 @@ func (bpfObjects *BpfObjects) PutNetworkInstance(ni NetworkInstance) error {
 	key := N3N6EntrypointNetworkInstanceKey{Ifindex: ni.Ifindex, Vlan: ni.Vlan}
 	if err := bpfObjects.NetworkInstanceClassifier.Put(key, ni.ID); err != nil {
 		return fmt.Errorf("classify network instance %d: %w", ni.ID, err)
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) DeleteNetworkInstance(ni NetworkInstance) error {
+	if ni.ID == 0 || ni.ID >= MaxNetworkInstances {
+		return fmt.Errorf("network instance id %d is outside 1-%d", ni.ID, MaxNetworkInstances-1)
+	}
+
+	key := N3N6EntrypointNetworkInstanceKey{Ifindex: ni.Ifindex, Vlan: ni.Vlan}
+	if err := bpfObjects.NetworkInstanceClassifier.Delete(key); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		return fmt.Errorf("unclassify network instance %d: %w", ni.ID, err)
+	}
+
+	if err := bpfObjects.NetworkInstances.Put(ni.ID, N3N6EntrypointNetworkInstance{}); err != nil {
+		return fmt.Errorf("clear network instance %d: %w", ni.ID, err)
 	}
 
 	return nil

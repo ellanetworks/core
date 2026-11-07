@@ -69,13 +69,20 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		return nil, niErr
 	}
 
+	dnTag, tagErr := conn.acquireDataNetworkTag(req.SliceDataNetwork)
+	if tagErr != nil {
+		span.RecordError(tagErr)
+
+		return nil, tagErr
+	}
+
 	sess := NewSession(seid)
 	sess.unpublished = true
 	sess.SetIMSI(req.IMSI)
 	sess.SetTrafficClass(req.Snssai, req.DNN)
 	sess.SetLocalSwitch(req.LocalSwitch)
 	sess.SetNATExempt(req.NATExempt)
-	sess.SetDataNetworkTag(conn.dataNetworkTag(req.SliceDataNetwork))
+	sess.SetDataNetworkTag(req.SliceDataNetwork, dnTag)
 	sess.SetNetworkInstance(niID)
 	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
 
@@ -133,6 +140,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			err = errors.Join(err, fmt.Errorf("establishment cleanup incomplete: %w", cleanupErr))
 		} else {
 			conn.ReleaseResources(seid)
+			conn.releaseDataNetworkTag(req.SliceDataNetwork)
 		}
 
 		span.RecordError(err)

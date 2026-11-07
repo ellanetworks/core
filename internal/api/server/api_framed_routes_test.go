@@ -208,6 +208,29 @@ func TestAPIFramedRoutesEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("serving a data network with framed routes defaults NAT off and refuses it on", func(t *testing.T) {
+		if code, resp, err := createSlice(url, client, token, &CreateSliceParams{Name: "framed-nat", Sst: 2, Sd: "00f00f"}); err != nil || code != http.StatusCreated {
+			t.Fatalf("create slice: %d %v %+v", code, err, resp)
+		}
+
+		pairs := url + "/api/v1/slices/framed-nat/data-networks"
+
+		code, resp, err := apiDo[CreatePolicyResponse](client, "POST", pairs, token, map[string]any{"data_network": framedDN, "nat": true})
+		if err != nil || code != http.StatusConflict {
+			t.Fatalf("serve with NAT on: %d %v %+v, want 409", code, err, resp)
+		}
+
+		code, resp, err = apiDo[CreatePolicyResponse](client, "POST", pairs, token, map[string]any{"data_network": framedDN})
+		if err != nil || code != http.StatusCreated {
+			t.Fatalf("serve: %d %v %+v", code, err, resp)
+		}
+
+		gcode, got, err := apiDo[GetSliceDataNetworkResponse](client, "GET", pairs+"/"+framedDN, token, nil)
+		if err != nil || gcode != http.StatusOK || got.Result.NAT {
+			t.Fatalf("framed-nat/%s = %d %v %+v, want NAT off", framedDN, gcode, err, got)
+		}
+	})
+
 	t.Run("create again for the same subscriber is 409", func(t *testing.T) {
 		code, resp, _ := createFramedRoute(url, client, token, framedDN, Imsi, []string{"192.168.99.0/24"}, nil)
 		assertCode(t, http.StatusConflict, code, resp)

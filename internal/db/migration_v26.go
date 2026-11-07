@@ -32,34 +32,21 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 }
 
 func migrateDataNetworkForwarding(ctx context.Context, tx *sql.Tx) error {
-	natEnabled, err := readLegacyToggle(ctx, tx, NATSettingsTableName, NATDefaultEnabled)
+	localSwitch, natEnabled, err := migrationForwarding(ctx, tx)
 	if err != nil {
 		return err
-	}
-
-	localSwitch, ok := migrationLocalSwitch(ctx)
-	if !ok {
-		localSwitch, err = readLegacyToggle(ctx, tx, LocalSwitchSettingsTableName, false)
-		if err != nil {
-			return err
-		}
 	}
 
 	stmts := []string{
 		fmt.Sprintf(`CREATE TABLE %s (
 			sliceID         TEXT NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
 			dataNetworkID   TEXT NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
+			nat             BOOLEAN NOT NULL CHECK (nat IN (0, 1)),
 			localSwitch     BOOLEAN NOT NULL CHECK (localSwitch IN (0, 1)),
 			networkInstance TEXT NOT NULL DEFAULT '%s',
 			PRIMARY KEY (sliceID, dataNetworkID)
 		)`, SliceDataNetworksTableName, NetworkSlicesTableName, DataNetworksTableName, models.DefaultNetworkInstanceName),
 		fmt.Sprintf("CREATE INDEX idx_slice_data_networks_data_network ON %s(dataNetworkID)", SliceDataNetworksTableName),
-		fmt.Sprintf(`CREATE TABLE %s (
-			sliceID       TEXT NOT NULL,
-			dataNetworkID TEXT NOT NULL,
-			enabled       BOOLEAN NOT NULL CHECK (enabled IN (0, 1)),
-			PRIMARY KEY (sliceID, dataNetworkID)
-		)`, SliceDataNetworkNATTableName),
 	}
 
 	for _, stmt := range stmts {
@@ -70,15 +57,41 @@ func migrateDataNetworkForwarding(ctx context.Context, tx *sql.Tx) error {
 
 	pairs := fmt.Sprintf("SELECT DISTINCT p.sliceID, p.dataNetworkID, d.ims FROM %s p JOIN %s d ON d.id = p.dataNetworkID", PoliciesTableName, DataNetworksTableName)
 
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (sliceID, dataNetworkID, localSwitch) SELECT sliceID, dataNetworkID, ims OR ? FROM (%s)", SliceDataNetworksTableName, pairs), localSwitch); err != nil {
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (sliceID, dataNetworkID, nat, localSwitch) SELECT sliceID, dataNetworkID, ? AND NOT ims, ims OR ? FROM (%s)", SliceDataNetworksTableName, pairs), natEnabled, localSwitch); err != nil {
 		return fmt.Errorf("serve the data networks of existing policies: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (sliceID, dataNetworkID, enabled) SELECT sliceID, dataNetworkID, ? FROM (%s) WHERE NOT ims", SliceDataNetworkNATTableName, pairs), natEnabled); err != nil {
-		return fmt.Errorf("carry the NAT setting to slice data networks: %w", err)
+	return nil
+}
+
+func migrationForwarding(ctx context.Context, tx *sql.Tx) (bool, bool, error) {
+	toggles, _ := ctx.Value(migrationTogglesKey{}).(migrationToggles)
+
+	localSwitch, natEnabled := false, false
+
+	if toggles.localSwitch != nil {
+		localSwitch = *toggles.localSwitch
+	} else {
+		v, err := readLegacyToggle(ctx, tx, LocalSwitchSettingsTableName, false)
+		if err != nil {
+			return false, false, err
+		}
+
+		localSwitch = v
 	}
 
-	return nil
+	if toggles.nat != nil {
+		natEnabled = *toggles.nat
+	} else {
+		v, err := readLegacyToggle(ctx, tx, NATSettingsTableName, NATDefaultEnabled)
+		if err != nil {
+			return false, false, err
+		}
+
+		natEnabled = v
+	}
+
+	return localSwitch, natEnabled, nil
 }
 
 func readLegacyToggle(ctx context.Context, q interface {
@@ -104,20 +117,13 @@ func readLegacyToggle(ctx context.Context, q interface {
 	return enabled, nil
 }
 
-type migrationLocalSwitchKey struct{}
+type (
+	migrationTogglesKey struct{}
+	migrationToggles    struct{ localSwitch, nat *bool }
+)
 
-func withMigrationLocalSwitch(ctx context.Context, localSwitch *bool) context.Context {
-	if localSwitch == nil {
-		return ctx
-	}
-
-	return context.WithValue(ctx, migrationLocalSwitchKey{}, *localSwitch)
-}
-
-func migrationLocalSwitch(ctx context.Context) (bool, bool) {
-	v, ok := ctx.Value(migrationLocalSwitchKey{}).(bool)
-
-	return v, ok
+func withMigrationToggles(ctx context.Context, localSwitch, nat *bool) context.Context {
+	return context.WithValue(ctx, migrationTogglesKey{}, migrationToggles{localSwitch: localSwitch, nat: nat})
 }
 
 func migrateSMSCNodes(ctx context.Context, tx *sql.Tx) error {

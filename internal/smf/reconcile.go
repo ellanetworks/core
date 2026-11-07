@@ -328,13 +328,30 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
 	}
 
-	if current.NAT != policy.NAT || current.LocalSwitch != policy.LocalSwitch {
+	networkInstanceChanged := policy.NetworkInstance != "" && current.NetworkInstance != policy.NetworkInstance
+
+	if current.NAT != policy.NAT || current.LocalSwitch != policy.LocalSwitch || networkInstanceChanged {
 		if err := s.applyForwarding(ctx, smContext, policy); err != nil {
-			return reconcileDecision{}, fmt.Errorf("apply NAT and local switching to the UPF: %w", err)
+			if errors.Is(err, models.ErrNetworkInstanceUnavailable) {
+				logger.SmfLog.Warn("network instance unavailable on this node, releasing session for re-establishment",
+					logger.SUPI(smContext.Supi.String()),
+					logger.PDUSessionID(smContext.PDUSessionID),
+					zap.String("network_instance", policy.NetworkInstance),
+				)
+
+				return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
+			}
+
+			return reconcileDecision{}, fmt.Errorf("apply forwarding to the UPF: %w", err)
 		}
 
 		updated := *current
 		updated.NAT, updated.LocalSwitch = policy.NAT, policy.LocalSwitch
+
+		if networkInstanceChanged {
+			updated.NetworkInstance = policy.NetworkInstance
+		}
+
 		smContext.PolicyData = &updated
 		current = &updated
 	}
@@ -651,6 +668,10 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 
 // updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
 // plane (TS 29.244).
+func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
+	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
+}
+
 func (s *SMF) applyForwarding(ctx context.Context, smContext *SMContext, policy *Policy) error {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return nil
@@ -658,17 +679,13 @@ func (s *SMF) applyForwarding(ctx context.Context, smContext *SMContext, policy 
 
 	_, err := s.upf.ModifySession(ctx, &models.ModifyRequest{
 		SEID:       smContext.PFCPContext.SEID,
-		Forwarding: &models.SessionForwarding{NATExempt: policy.natExempt(), LocalSwitch: policy.localSwitch()},
+		Forwarding: &models.SessionForwarding{NATExempt: policy.natExempt(), LocalSwitch: policy.localSwitch(), NetworkInstance: policy.NetworkInstance},
 	})
 	if err != nil && errors.Is(err, models.ErrSessionUnrecoverable) {
 		s.scheduleUnrecoverableReleaseLocked(ctx, smContext)
 	}
 
 	return err
-}
-
-func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
-	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
 }
 
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi, fiveQI uint8, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {

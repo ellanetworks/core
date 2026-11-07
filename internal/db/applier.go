@@ -327,6 +327,7 @@ type (
 	migrateSharedPayload struct {
 		TargetVersion int   `json:"targetVersion"`
 		LocalSwitch   *bool `json:"localSwitch,omitempty"`
+		NAT           *bool `json:"nat,omitempty"`
 	}
 )
 
@@ -1951,7 +1952,7 @@ func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayl
 		return nil, fmt.Errorf("begin migration %d tx: %w", p.TargetVersion, err)
 	}
 
-	if err := m.fn(withMigrationLocalSwitch(ctx, p.LocalSwitch), tx); err != nil {
+	if err := m.fn(withMigrationToggles(ctx, p.LocalSwitch, p.NAT), tx); err != nil {
 		_ = tx.Rollback()
 		return nil, fmt.Errorf("shared migration %d (%s) failed: %w", m.version, m.description, err)
 	}

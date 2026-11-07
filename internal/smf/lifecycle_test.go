@@ -2390,6 +2390,7 @@ func TestReconcileSession_ForwardingChangeModifiesOnlyTheUPF(t *testing.T) {
 	}{
 		{name: "NAT", change: policyChange{NAT: &on}, want: models.SessionForwarding{NATExempt: false, LocalSwitch: false}},
 		{name: "local switching", change: policyChange{LocalSwitch: &on}, want: models.SessionForwarding{NATExempt: true, LocalSwitch: true}},
+		{name: "network instance", change: policyChange{NetworkInstance: "ims"}, want: models.SessionForwarding{NATExempt: true, NetworkInstance: "ims"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pcf, store, upf, amfCb := defaultFakes()
@@ -2428,9 +2429,47 @@ func TestReconcileSession_ForwardingChangeModifiesOnlyTheUPF(t *testing.T) {
 				}
 			}
 
-			if got == nil || *got != tc.want {
-				t.Fatalf("UPF forwarding modification = %+v, want %+v", got, tc.want)
+			want := tc.want
+			if want.NetworkInstance == "" {
+				want.NetworkInstance = before.NetworkInstance
+			}
+
+			if got == nil || *got != want {
+				t.Fatalf("UPF forwarding modification = %+v, want %+v", got, want)
+			}
+
+			if tc.change.NetworkInstance != "" && currentPolicy(s, ref).NetworkInstance != tc.change.NetworkInstance {
+				t.Fatalf("session network instance = %q, want %q", currentPolicy(s, ref).NetworkInstance, tc.change.NetworkInstance)
 			}
 		})
+	}
+}
+
+func TestReconcileSession_UnavailableNetworkInstanceReleasesTheSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	before := currentPolicy(s, ref)
+
+	upf.mu.Lock()
+	upf.err = fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable)
+	upf.mu.Unlock()
+
+	change := policyChange{NetworkInstance: "ims"}
+	change.SessionAmbrUplink, change.SessionAmbrDownlink = before.Ambr.Uplink.String(), before.Ambr.Downlink.String()
+	change.Var5qi, change.Arp = before.QosData.Var5qi, before.QosData.Arp.PriorityLevel
+	change.PreemptCap, change.PreemptVuln = before.QosData.Arp.PreemptCap, before.QosData.Arp.PreemptVuln
+
+	_ = reconcileWithPolicy(ctx, s, pcf, ref, &change)
+
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1 after the network instance became unavailable", releaseCalls)
 	}
 }

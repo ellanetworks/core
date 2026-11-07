@@ -55,7 +55,7 @@ type flowReport struct {
 type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
-	instanceLinks      []link.Link
+	instanceLinks      map[int]link.Link
 	se                 *engine.SessionEngine
 	smf                engine.SMFReportHandler
 	notificationReader *ringbuf.Reader
@@ -84,6 +84,12 @@ type UPF struct {
 	// Differs from the configured mode when config.DatapathChain falls back.
 	// Written once in Start, before this struct is returned.
 	attachedMode string
+
+	instanceMu          sync.Mutex
+	instances           []*networkInstanceState
+	datapathIfindex     map[int]bool
+	instanceWatchCancel context.CancelFunc
+	instanceWatchDone   chan struct{}
 }
 
 // DatapathAttachMode is empty before the UPF is up.
@@ -227,13 +233,19 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		attachedMode:       attachedMode,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
-		instanceLinks:      extraLinks,
+		instanceLinks:      make(map[int]link.Link, len(extraLinks)),
+		instances:          newNetworkInstanceStates(instances),
+		datapathIfindex:    map[int]bool{n3Iface.Index: true, n6Iface.Index: true},
 		se:                 se,
 		smf:                smfHandler,
 		notificationReader: notificationReader,
 		noNeighReader:      noNeighReader,
 		errorIndReader:     errorIndReader,
 		ctx:                ctx,
+	}
+
+	for i, l := range extraLinks {
+		upf.instanceLinks[extraAttach[i].index] = l
 	}
 
 	// Start the RA responder for IPv6 prefix delegation (RS → RA via veth).
@@ -291,11 +303,17 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	upf.startCleanupReaper(ctx)
 
+	upf.startNetworkInstanceWatch(ctx)
+
 	return upf, nil
 }
 
 func (u *UPF) StopDatapath() error {
 	var errs []error
+
+	u.stopNetworkInstanceWatch()
+
+	u.instanceMu.Lock()
 
 	for _, l := range u.instanceLinks {
 		if err := l.Close(); err != nil {
@@ -304,6 +322,8 @@ func (u *UPF) StopDatapath() error {
 	}
 
 	u.instanceLinks = nil
+
+	u.instanceMu.Unlock()
 
 	if u.n6Link != nil {
 		if err := (*u.n6Link).Close(); err != nil {
@@ -340,6 +360,7 @@ func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
 	u.stopCleanupReaper()
+	u.stopNetworkInstanceWatch()
 
 	// Resource cleanup: BPF detach, object close, perf reader close.
 	// These are kernel-level operations that are normally fast, but run
@@ -365,11 +386,17 @@ func (u *UPF) Close(ctx context.Context) {
 			logger.UpfLog.Warn("Failed to close session engine sockets", zap.Error(err))
 		}
 
+		u.instanceMu.Lock()
+
 		for _, l := range u.instanceLinks {
 			if err := l.Close(); err != nil {
 				logger.UpfLog.Warn("Failed to detach eBPF from a network instance", zap.Error(err))
 			}
 		}
+
+		u.instanceLinks = nil
+
+		u.instanceMu.Unlock()
 
 		if u.n6Link != nil {
 			if err := (*u.n6Link).Close(); err != nil {
@@ -477,14 +504,7 @@ func (u *UPF) updateAttachedPrograms() error {
 }
 
 func (u *UPF) ApplyDatapathSettings(settings DatapathSettings) error {
-	u.se.BpfObjects.Masquerade = settings.NAT
-	u.se.BpfObjects.FlowAccounting = settings.FlowAccounting
-
-	if err := u.se.BpfObjects.LoadWithMapReplacements(); err != nil {
-		return fmt.Errorf("couldn't load BPF objects: %w", err)
-	}
-
-	if err := u.updateAttachedPrograms(); err != nil {
+	if err := u.reloadDatapath(settings); err != nil {
 		return err
 	}
 
@@ -501,6 +521,20 @@ func (u *UPF) ApplyDatapathSettings(settings DatapathSettings) error {
 	}
 
 	return nil
+}
+
+func (u *UPF) reloadDatapath(settings DatapathSettings) error {
+	u.instanceMu.Lock()
+	defer u.instanceMu.Unlock()
+
+	u.se.BpfObjects.Masquerade = settings.NAT
+	u.se.BpfObjects.FlowAccounting = settings.FlowAccounting
+
+	if err := u.se.BpfObjects.LoadWithMapReplacements(); err != nil {
+		return fmt.Errorf("couldn't load BPF objects: %w", err)
+	}
+
+	return u.updateAttachedPrograms()
 }
 
 func (u *UPF) startGC(ctx context.Context) {

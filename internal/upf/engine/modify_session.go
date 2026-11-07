@@ -78,6 +78,19 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		return false, nil, nil, err
 	}
 
+	oldNIID := session.networkInstance()
+	newNIID := oldNIID
+
+	if req.Forwarding != nil {
+		id, err := conn.networkInstanceID(req.Forwarding.NetworkInstance)
+		if err != nil {
+			span.RecordError(err)
+			return false, nil, nil, fmt.Errorf("session %d: %w", req.SEID, err)
+		}
+
+		newNIID = id
+	}
+
 	if err := conn.retireQERMeters(session); err != nil {
 		span.RecordError(err)
 		return false, nil, nil, fmt.Errorf("could not retire QER meters awaiting cleanup: %w", err)
@@ -295,6 +308,26 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		})
 	}
 
+	oldNATExempt, oldLocalSwitch := session.forwarding()
+	forwardingChanged := req.Forwarding != nil &&
+		(req.Forwarding.NATExempt != oldNATExempt || req.Forwarding.LocalSwitch != oldLocalSwitch || newNIID != oldNIID)
+
+	restoreForwarding := func() {
+		session.SetNATExempt(oldNATExempt)
+		session.SetLocalSwitch(oldLocalSwitch)
+		session.SetNetworkInstance(oldNIID)
+	}
+
+	if forwardingChanged {
+		session.SetNATExempt(req.Forwarding.NATExempt)
+		session.SetLocalSwitch(req.Forwarding.LocalSwitch)
+		session.SetNetworkInstance(newNIID)
+		txn.onRollback(func() error {
+			restoreForwarding()
+			return nil
+		})
+	}
+
 	published = len(session.ListPDRs()) > 0 || len(snapPDRs) > 0
 
 	session.unpublished = session.unpublished && !published
@@ -354,6 +387,25 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		session.RemoveFar(farID)
 	}
 
+	if forwardingChanged && !session.unpublished {
+		for _, pdrID := range slices.Sorted(maps.Keys(session.ListPDRs())) {
+			if _, done := touched[pdrID]; done {
+				continue
+			}
+
+			pdr := session.GetPDR(pdrID)
+
+			txn.onRollback(func() error {
+				restoreForwarding()
+				return applyPDR(pdr, session, bpfObjects)
+			})
+
+			if err := applyPDR(pdr, session, bpfObjects); err != nil {
+				return fail(fmt.Errorf("apply forwarding to PDR %d: %w", pdrID, err))
+			}
+		}
+	}
+
 	if err := conn.syncClassifier(session); err != nil {
 		return fail(err)
 	}
@@ -392,13 +444,6 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		if retireErr != nil {
 			logger.From(ctx, logger.UpfLog).Warn("could not retire QER meters after session modification",
 				logger.SEID(session.SEID), zap.Error(retireErr))
-		}
-	}
-
-	if req.Forwarding != nil {
-		if err := conn.applyForwarding(session, *req.Forwarding); err != nil {
-			span.RecordError(err)
-			return false, nil, nil, err
 		}
 	}
 
@@ -570,35 +615,4 @@ func qerInfoFromMerge(qer models.QER, existing ebpf.QerInfo) ebpf.QerInfo {
 	}
 
 	return existing
-}
-
-func (conn *SessionEngine) applyForwarding(session *Session, forwarding models.SessionForwarding) error {
-	oldNATExempt, oldLocalSwitch := session.forwarding()
-	if oldNATExempt == forwarding.NATExempt && oldLocalSwitch == forwarding.LocalSwitch {
-		return nil
-	}
-
-	session.SetNATExempt(forwarding.NATExempt)
-	session.SetLocalSwitch(forwarding.LocalSwitch)
-
-	if conn.BpfObjects == nil || session.unpublished {
-		return nil
-	}
-
-	for _, pdr := range session.ListPDRs() {
-		if err := applyPDR(pdr, session, conn.BpfObjects); err != nil {
-			session.SetNATExempt(oldNATExempt)
-			session.SetLocalSwitch(oldLocalSwitch)
-
-			var restoreErr error
-
-			for _, p := range session.ListPDRs() {
-				restoreErr = errors.Join(restoreErr, applyPDR(p, session, conn.BpfObjects))
-			}
-
-			return errors.Join(fmt.Errorf("apply forwarding to PDR %d: %w", pdr.PdrID, err), restoreErr)
-		}
-	}
-
-	return nil
 }

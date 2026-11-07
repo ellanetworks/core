@@ -13,6 +13,7 @@ import (
 
 type resolvedNetworkInstance struct {
 	name          string
+	attachName    string
 	interfaceName string
 	datapath      ebpf.NetworkInstance
 }
@@ -56,6 +57,7 @@ func resolveNetworkInstances(instances []config.NetworkInstance, n3Ifindex, n6If
 
 		resolved = append(resolved, resolvedNetworkInstance{
 			name:          ni.Name,
+			attachName:    attachName,
 			interfaceName: ni.N6.Name,
 			datapath: ebpf.NetworkInstance{
 				ID:             uint32(i + 1),

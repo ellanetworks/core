@@ -68,7 +68,7 @@ func TestBGPLeasesAttachesFramedRoutesByOwnerAndFamily(t *testing.T) {
 	}
 }
 
-func TestRoutableLeasesSkipsIPv4OnNATedDataNetworks(t *testing.T) {
+func TestRoutableLeasesSkipsOnlyIPv4OfNATedOwners(t *testing.T) {
 	leases := []db.IPLease{
 		testLease("001010000000001", "nat", "10.45.0.1"),
 		testLease("001010000000001", "nat", "2001:db8:1::"),
@@ -76,14 +76,14 @@ func TestRoutableLeasesSkipsIPv4OnNATedDataNetworks(t *testing.T) {
 		testLease("001010000000003", "deleted", "10.47.0.1"),
 	}
 
-	got := routableLeases(leases, map[string]bool{"nat": true, "routed": false})
+	got := routableLeases(leases, map[string]bool{"001010000000001/nat": true, "001010000000002/routed": false})
 
 	var addrs []string
 	for _, l := range got {
 		addrs = append(addrs, l.Address().String())
 	}
 
-	if want := []string{"2001:db8:1::", "10.46.0.1"}; !slices.Equal(addrs, want) {
+	if want := []string{"2001:db8:1::", "10.46.0.1", "10.47.0.1"}; !slices.Equal(addrs, want) {
 		t.Fatalf("routable leases %v, want %v", addrs, want)
 	}
 }

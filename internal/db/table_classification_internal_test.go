@@ -56,7 +56,6 @@ var (
 		"bgp_import_prefixes",
 		"bgp_peers",
 		"bgp_settings",
-		"slice_data_network_nat",
 		"deferred_location_requests",
 		"flow_accounting_settings",
 		"flow_reports",

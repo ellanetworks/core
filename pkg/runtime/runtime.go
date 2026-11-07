@@ -427,7 +427,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// disabled — the reconciler's calls are no-ops against a stopped
 	// service, and starting here means re-enabling BGP via the API does
 	// not need separate reconciler wiring.
-	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases, db.TopicFramedRoutes, db.TopicDataNetworks, db.TopicSliceDataNetworkNAT)
+	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases, db.TopicFramedRoutes, db.TopicDataNetworks)
 	defer stopBgpWakeup()
 
 	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.RaftID(), bgpWakeup)
@@ -584,7 +584,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// and reconciles every local session, 5G and EPS, against the current DB
 	// policy. Triggered by profile, subscriber, and policy writes.
 	sessionReconciler := reconciler.New(func() <-chan struct{} {
-		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile, db.TopicSliceDataNetworkNAT)
+		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
 
 		go func() {
 			<-ctx.Done()
@@ -1321,14 +1321,35 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		return nil, err
 	}
 
-	forwarding, err := a.db.ListSliceDataNetworkForwarding(ctx)
+	nated, err := a.db.NATedLeaseOwners(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
 
-	nat := natOnEverySlice(forwarding)
+	if nated == nil {
+		forwarding, err := a.db.ListSliceDataNetworkForwarding(ctx)
+		if err != nil {
+			return nil, err
+		}
 
-	return bgpLeases(routableLeases(dbLeases, nat), framedRows), nil
+		nated = natedByDataNetwork(dbLeases, natOnEverySlice(forwarding))
+	}
+
+	return bgpLeases(routableLeases(dbLeases, nated), framedRows), nil
+}
+
+func natedByDataNetwork(leases []db.IPLease, nat map[string]bool) map[string]bool {
+	out := make(map[string]bool, len(leases))
+
+	for _, l := range leases {
+		out[leaseOwnerKey(l)] = nat[l.PoolID]
+	}
+
+	return out
+}
+
+func leaseOwnerKey(l db.IPLease) string {
+	return l.IMSI + "/" + l.PoolID
 }
 
 func natOnEverySlice(forwarding []db.SliceDataNetworkForwarding) map[string]bool {
@@ -1342,11 +1363,11 @@ func natOnEverySlice(forwarding []db.SliceDataNetworkForwarding) map[string]bool
 	return nat
 }
 
-func routableLeases(leases []db.IPLease, nat map[string]bool) []db.IPLease {
+func routableLeases(leases []db.IPLease, nated map[string]bool) []db.IPLease {
 	routable := make([]db.IPLease, 0, len(leases))
 
 	for _, l := range leases {
-		if enabled, ok := nat[l.PoolID]; ok && (!enabled || l.Address().Is6()) {
+		if !nated[leaseOwnerKey(l)] || l.Address().Is6() {
 			routable = append(routable, l)
 		}
 	}

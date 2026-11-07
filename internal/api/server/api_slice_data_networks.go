@@ -139,18 +139,28 @@ func CreateSliceDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		pair := &db.SliceDataNetwork{SliceID: slice.ID, DataNetworkID: dataNetwork.ID, LocalSwitch: boolOr(params.LocalSwitch, dataNetwork.IMS), NetworkInstance: params.NetworkInstance}
+		framed, err := dataNetworkHasFramedRoutes(r.Context(), dbInstance, dataNetwork.ID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check framed routes", err, logger.APILog)
+			return
+		}
+
+		if framed && params.NAT != nil && *params.NAT {
+			writeError(r.Context(), w, http.StatusConflict, "NAT cannot be enabled on a data network with framed routes", nil, logger.APILog)
+			return
+		}
+
+		pair := &db.SliceDataNetwork{
+			SliceID:         slice.ID,
+			DataNetworkID:   dataNetwork.ID,
+			NAT:             boolOr(params.NAT, db.NATDefaultEnabled && !framed) && !dataNetwork.IMS,
+			LocalSwitch:     boolOr(params.LocalSwitch, dataNetwork.IMS),
+			NetworkInstance: params.NetworkInstance,
+		}
 
 		if err := dbInstance.CreateSliceDataNetwork(r.Context(), pair); err != nil {
 			writeSliceDataNetworkError(r.Context(), w, err, "Failed to serve the data network on the slice")
 			return
-		}
-
-		if params.NAT != nil && !dataNetwork.IMS {
-			if err := dbInstance.SetSliceDataNetworkNAT(r.Context(), slice.ID, dataNetwork.ID, *params.NAT); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "The slice serves the data network, but its NAT could not be set", err, logger.APILog)
-				return
-			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "The slice now serves the data network"}, http.StatusCreated, logger.APILog)
@@ -211,6 +221,11 @@ func UpdateSliceDataNetwork(dbInstance *db.Database) http.Handler {
 
 		changed := false
 
+		if params.NAT != nil && *params.NAT != existing.NAT {
+			existing.NAT = *params.NAT
+			changed = true
+		}
+
 		if params.LocalSwitch != nil && *params.LocalSwitch != existing.LocalSwitch {
 			existing.LocalSwitch = *params.LocalSwitch
 			changed = true
@@ -224,13 +239,6 @@ func UpdateSliceDataNetwork(dbInstance *db.Database) http.Handler {
 		if changed {
 			if err := dbInstance.UpdateSliceDataNetwork(r.Context(), existing); err != nil {
 				writeSliceDataNetworkError(r.Context(), w, err, "Failed to update the slice data network")
-				return
-			}
-		}
-
-		if params.NAT != nil && !dataNetwork.IMS {
-			if err := dbInstance.SetSliceDataNetworkNAT(r.Context(), slice.ID, dataNetwork.ID, *params.NAT); err != nil {
-				writeSliceDataNetworkError(r.Context(), w, err, "Failed to set NAT")
 				return
 			}
 		}
@@ -266,12 +274,26 @@ func DeleteSliceDataNetwork(dbInstance *db.Database) http.Handler {
 }
 
 func checkSliceServesDataNetwork(ctx context.Context, dbInstance *db.Database, slice *db.NetworkSlice, dataNetwork *db.DataNetwork) (int, error) {
-	if _, err := dbInstance.GetSliceDataNetwork(ctx, slice.ID, dataNetwork.ID); err != nil {
+	f, err := dbInstance.GetSliceDataNetworkForwarding(ctx, slice.ID, dataNetwork.ID)
+	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			return http.StatusConflict, fmt.Errorf("slice %s does not serve data network %s", slice.Name, dataNetwork.Name)
 		}
 
 		return http.StatusInternalServerError, errors.New("failed to check the data networks of the slice")
+	}
+
+	if !f.NAT {
+		return 0, nil
+	}
+
+	framed, err := dataNetworkHasFramedRoutes(ctx, dbInstance, dataNetwork.ID)
+	if err != nil {
+		return http.StatusInternalServerError, errors.New("failed to check framed routes")
+	}
+
+	if framed {
+		return http.StatusConflict, fmt.Errorf("slice %s NATs data network %s, which has framed routes", slice.Name, dataNetwork.Name)
 	}
 
 	return 0, nil

@@ -109,7 +109,6 @@ var localOnlyTables = []string{
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
 	LocalSwitchSettingsTableName,
-	SliceDataNetworkNATTableName,
 	"positioning_sessions",
 	DeferredLocationRequestsTableName,
 	LocationReportsTableName,

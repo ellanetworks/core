@@ -31,5 +31,9 @@ func NormalizeSD(sd string) string {
 
 	copy(full[:], b)
 
+	if full == [3]byte{0xff, 0xff, 0xff} {
+		return ""
+	}
+
 	return strings.ToLower(hex.EncodeToString(full[:]))
 }

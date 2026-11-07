@@ -127,7 +127,6 @@ func (r *SettingsReconciler) Start() {
 	filtersDone := make(chan struct{})
 
 	go r.loop(ctx, settingsDone, "upf settings reconcile failed", r.reconcileSettings,
-		db.TopicSliceDataNetworkNAT,
 		db.TopicDataNetworks,
 		db.TopicFlowAccountingSettings,
 		db.TopicN3Settings,

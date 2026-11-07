@@ -20,7 +20,7 @@ export function useSliceDataNetworks(
   enabled = true,
 ) {
   const slicesQuery = useQuery({
-    queryKey: [...sliceDataNetworksKey, "slices"],
+    queryKey: [...sliceDataNetworksKey, "list"],
     queryFn: () => listSlices(accessToken!, 1, 100),
     enabled: enabled && !!accessToken,
   });
@@ -29,7 +29,7 @@ export function useSliceDataNetworks(
 
   const served = useQueries({
     queries: slices.map((slice) => ({
-      queryKey: [...sliceDataNetworksKey, slice],
+      queryKey: [...sliceDataNetworksKey, "slice", slice],
       queryFn: () => listSliceDataNetworks(accessToken!, slice),
       enabled: enabled && !!accessToken,
     })),

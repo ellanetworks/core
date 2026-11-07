@@ -1275,7 +1275,7 @@ paths:
       operationId: listSliceDataNetworks
       tags: [Slices]
       summary: List the data networks of a slice
-      description: Returns the data networks the slice serves, with the NAT and local switching of each. NAT is reported for the node that answers.
+      description: Returns the data networks the slice serves, with the NAT, local switching and network instance of each.
       responses:
         "200":
           description: Data networks of the slice.
@@ -1341,7 +1341,7 @@ paths:
       operationId: updateSliceDataNetwork
       tags: [Slices]
       summary: Update a data network of a slice
-      description: Changes NAT (on the node that receives the request) or local switching. Applies to established sessions without releasing them.
+      description: Changes NAT, local switching or the network instance. Applies to established sessions without releasing them, except on a node that does not define the new network instance, which releases them. Changing NAT breaks the established connections of the sessions.
       requestBody:
         required: true
         content:
@@ -5685,13 +5685,13 @@ components:
           type: string
         nat:
           type: boolean
-          description: "Whether the node that answers translates the IPv4 addresses of the subscribers of this data network on this slice to its N6 address. Set per node. Always false on an IMS data network."
+          description: "Whether the IPv4 addresses of the subscribers of this data network on this slice are translated to the N6 address of the node that serves the session. Always false on an IMS data network."
         local_switch:
           type: boolean
           description: "Whether traffic between two subscribers of this data network on this slice is switched inside the user plane. Always true on an IMS data network."
         network_instance:
           type: string
-          description: "N6 network instance of the sessions (TS 23.501 §5.6.12): default for interfaces.n6, or a name from interfaces.network-instances in each node's configuration file. A node that does not define it rejects the sessions with 5GSM/ESM cause #26."
+          description: "N6 network instance of the sessions (TS 23.501 §5.6.12): default for interfaces.n6, or a name from interfaces.network-instances in each node's configuration file. A node that does not define it rejects the sessions with 5GSM cause #67 or ESM cause #26, with a back-off timer."
       required: [data_network, nat, local_switch, network_instance]
 
     SliceDataNetworkResponseEnvelope:
@@ -5739,7 +5739,7 @@ components:
           description: "Cannot be false on an IMS data network. Omitting it leaves it unchanged."
         network_instance:
           type: string
-          description: "N6 network instance; empty means default. Applies to new sessions. Omitting it leaves it unchanged."
+          description: "N6 network instance; empty means default. Omitting it leaves it unchanged."
 
     CreateDataNetworkParams:
       type: object

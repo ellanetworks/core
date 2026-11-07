@@ -295,7 +295,6 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		bgpSettingsWakeup, stopBGPSettingsWakeup := opts.DB.Changefeed().Wakeup(
 			db.TopicBGPSettings,
 			db.TopicBGPPeers,
-			db.TopicSliceDataNetworkNAT,
 			db.TopicDataNetworks,
 			db.TopicFramedRoutes,
 		)

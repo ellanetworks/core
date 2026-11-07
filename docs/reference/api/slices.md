@@ -158,7 +158,7 @@ This path returns the data networks a slice serves, with the forwarding of each.
 }
 ```
 
-- `nat` (boolean): Whether the node that answers translates the IPv4 addresses of the subscribers of this data network on this slice to its N6 address. NAT is set per node: in a high availability cluster, each node holds its own value.
+- `nat` (boolean): Whether Ella Core translates the IPv4 addresses of the subscribers of this data network on this slice to the N6 address of the node that serves the session.
 - `local_switch` (boolean): Whether traffic between two subscribers of this data network on this slice is switched inside the user plane.
 - `network_instance` (string): The N6 network instance of the sessions: `default`, or a name from `interfaces.network-instances`.
 
@@ -171,7 +171,7 @@ This path returns the data networks a slice serves, with the forwarding of each.
 ### Parameters
 
 - `data_network` (string): The name of the data network.
-- `nat` (boolean, optional): Defaults to `true`. Always `false` on an IMS data network.
+- `nat` (boolean, optional): Defaults to `true`, or `false` when the data network has framed routes. Always `false` on an IMS data network, and cannot be `true` while the data network has framed routes.
 - `local_switch` (boolean, optional): Defaults to `false`. Always `true` on an IMS data network.
 - `network_instance` (string, optional): Defaults to `default`.
 
@@ -206,7 +206,7 @@ This path returns the data networks a slice serves, with the forwarding of each.
 
 ## Update a Data Network of a Slice
 
-Changes apply to established sessions without releasing them.
+Changes apply to established sessions without releasing them, except on a node that does not define the new network instance, which releases them. Changing `nat` breaks the established connections of the sessions.
 
 | Method | Path                                                 |
 | ------ | ---------------------------------------------------- |
@@ -214,9 +214,9 @@ Changes apply to established sessions without releasing them.
 
 ### Parameters
 
-- `nat` (boolean, optional): Set on the node that receives the request. Cannot be enabled on an IMS data network, or while the data network has framed routes. Omitted leaves it unchanged.
+- `nat` (boolean, optional): Cannot be enabled on an IMS data network, or while the data network has framed routes. Omitted leaves it unchanged.
 - `local_switch` (boolean, optional): Cannot be disabled on an IMS data network. Omitted leaves it unchanged.
-- `network_instance` (string, optional): Empty means `default`. Applies to new sessions. Omitted leaves it unchanged.
+- `network_instance` (string, optional): Empty means `default`. Omitted leaves it unchanged.
 
 ### Sample Response
 

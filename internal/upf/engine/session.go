@@ -34,6 +34,7 @@ type Session struct {
 	localSwitch  bool
 	natExempt    bool
 	dnTag        uint16
+	dnID         string
 	niID         uint8
 	classified   bool
 	filtered     bool
@@ -132,11 +133,19 @@ func (s *Session) networkInstance() uint8 {
 	return s.niID
 }
 
-func (s *Session) SetDataNetworkTag(tag uint16) {
+func (s *Session) SetDataNetworkTag(dataNetworkID string, tag uint16) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.dnID = dataNetworkID
 	s.dnTag = tag
+}
+
+func (s *Session) dataNetworkID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.dnID
 }
 
 func (s *Session) dataNetworkTag() uint16 {

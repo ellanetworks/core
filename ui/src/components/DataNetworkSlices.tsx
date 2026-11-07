@@ -30,7 +30,6 @@ import {
   sliceDataNetworksKey,
   type SliceDataNetwork,
 } from "@/hooks/useSliceDataNetworks";
-import { PRODUCT } from "@/utils/product";
 
 interface DataNetworkSlicesProps {
   accessToken: string;
@@ -99,11 +98,10 @@ const DataNetworkSlices: React.FC<DataNetworkSlicesProps> = ({
         Slices
       </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 1.5 }}>
-        Slices that serve this data network, each with its own forwarding. NAT
-        is set on each {PRODUCT.name} node; local switching only connects
-        subscribers on the same slice and data network. The network instance
-        picks the N6 interface, defined in each node's configuration file; a
-        change applies to new sessions.
+        Slices that serve this data network, each with its own forwarding. Local
+        switching only connects subscribers on the same slice and data network.
+        The network instance picks the N6 interface, defined in each node's
+        configuration file. Changes apply to established sessions.
       </Typography>
       {served.length === 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>

@@ -467,6 +467,8 @@ func Validate(filePath string) (Config, error) {
 				return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", networkInstances[i].N6.Name, err)
 			}
 		}
+	} else if err := validateGenericNetworkInstanceVLANs(n3InterfaceName, c.Interfaces.N6.Name, networkInstances); err != nil {
+		return Config{}, err
 	}
 
 	config.Interfaces.NetworkInstances = networkInstances
@@ -781,6 +783,48 @@ func validateNetworkInstances(instances []NetworkInstanceYaml, n3Name, n6Name st
 	}
 
 	return out, nil
+}
+
+func validateGenericNetworkInstanceVLANs(n3Name, n6Name string, instances []NetworkInstance) error {
+	if len(instances) == 0 {
+		return nil
+	}
+
+	type datapathInterface struct {
+		name, field string
+		instance    bool
+	}
+
+	all := []datapathInterface{{name: n3Name, field: "interfaces.n3"}, {name: n6Name, field: "interfaces.n6"}}
+	for i, ni := range instances {
+		all = append(all, datapathInterface{name: ni.N6.Name, field: fmt.Sprintf("interfaces.network-instances[%d].n6", i), instance: true})
+	}
+
+	byName := make(map[string]datapathInterface, len(all))
+	for _, iface := range all {
+		byName[iface.name] = iface
+	}
+
+	for _, iface := range all {
+		vlan, err := GetVLANConfigForInterfaceFunc(iface.name)
+		if err != nil {
+			return fmt.Errorf("cannot get vlan config for interface %s: %w", iface.name, err)
+		}
+
+		if vlan == nil {
+			continue
+		}
+
+		parent, attached := byName[vlan.MasterInterface]
+		if !attached || (!iface.instance && !parent.instance) {
+			continue
+		}
+
+		return fmt.Errorf("%s (%s) is a VLAN of %s, the interface of %s: with datapath.attach-mode %s the datapath on %s cannot tell the two apart, use %s or %s",
+			iface.field, iface.name, parent.name, parent.field, DatapathXDPGeneric, parent.name, DatapathTCX, DatapathXDPNative)
+	}
+
+	return nil
 }
 
 func validateUserPlaneVRF(n3Name, n6Name string) error {

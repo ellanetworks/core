@@ -466,6 +466,10 @@ int upf_entry_func(struct __ctx_buff *ctx)
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 
+	if (n3_ifindex && n6_ifindex && ni_key.ifindex != (__u32)n3_ifindex &&
+	    ni_key.ifindex != (__u32)n6_ifindex)
+		return ctx_verdict(DEFAULT_CTX_ACTION);
+
 	/* The mirror of gtpu_allowed: downlink tunnels to a UE on its destination
 	 * address alone, so it belongs to frames that arrived on N6. Inactive on
 	 * a shared interface, which the classification above covers. */
