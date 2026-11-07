@@ -82,25 +82,20 @@ func (n *Node) implicitEntriesLocked(key routeKey) []routeEntry {
 	return entries
 }
 
-func (n *Node) routeEntriesLocked(key routeKey, implicit bool) []routeEntry {
+func (n *Node) routeEntriesLocked(key routeKey) []routeEntry {
 	if key.realm == "" {
 		return nil
 	}
 
-	entries := slices.Clone(n.routes[key])
-	if implicit {
-		entries = append(entries, n.implicitEntriesLocked(key)...)
-	}
-
-	return entries
+	return append(slices.Clone(n.routes[key]), n.implicitEntriesLocked(key)...)
 }
 
 func defaultRouteKey(app uint32) routeKey {
 	return routeKey{app: app}
 }
 
-func (n *Node) defaultEntriesLocked(realm string, app uint32) []routeEntry {
-	if realm == "" || n.servesRealm(realm) {
+func (n *Node) defaultEntriesLocked(host, realm string, app uint32) []routeEntry {
+	if realm == "" || (host == "" && n.servesRealm(realm)) {
 		return nil
 	}
 
@@ -174,7 +169,7 @@ func (n *Node) Routes() []RouteStatus {
 	for key := range keys {
 		s := RouteStatus{Realm: key.realm, Application: key.app, Default: key.realm == ""}
 
-		entries := n.routeEntriesLocked(key, true)
+		entries := n.routeEntriesLocked(key)
 		if s.Default {
 			entries = n.routes[key]
 		}

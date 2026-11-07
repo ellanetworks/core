@@ -265,26 +265,20 @@ func TestSendIgnoresConfiguredPeersWithoutARouteInTheRealm(t *testing.T) {
 	}
 }
 
-func TestSendKeepsAnUnknownDestinationHostOffAcceptedPeers(t *testing.T) {
+func TestSendRoutesAnUnknownDestinationHostToAnAcceptedPeerOfTheRealm(t *testing.T) {
 	kind := TransportTCP
 	hub, addr := newHub(t, kind)
 
-	hss := newServer(t, kind, "hss1.example.org", loopback2, nil)
-	hss.dialIn(t, kind, addr)
-	waitImplicit(t, hub, hss.host)
+	dra := newServer(t, kind, "dra.example.org", loopback2, nil)
+	dra.dialIn(t, kind, addr)
+	waitImplicit(t, hub, dra.host)
 
-	start := time.Now()
-
-	_, err := hub.Send(context.Background(), routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme2.example.org")))
-	if !errors.Is(err, ErrUnableToDeliver) || time.Since(start) > 100*time.Millisecond {
-		t.Fatalf("Send = %v after %s", err, time.Since(start))
+	ans := send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme2.example.org")))
+	if resultCode(t, ans) != ResultUnableToDeliver || answeredBy(t, ans) != dra.host || dra.calls.Load() != 0 {
+		t.Fatalf("answer %d from %s after %d calls", resultCode(t, ans), answeredBy(t, ans), dra.calls.Load())
 	}
 
-	if hss.calls.Load() != 0 {
-		t.Fatalf("accepted peer got %d requests", hss.calls.Load())
-	}
-
-	if got := answeredBy(t, send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, hss.host)))); got != hss.host {
+	if got := answeredBy(t, send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, dra.host)))); got != dra.host {
 		t.Fatalf("answered by %s", got)
 	}
 }
@@ -445,12 +439,13 @@ func TestSendPrefersAcceptedPeersOverTheDefault(t *testing.T) {
 		t.Fatalf("realm-only request answered by %s", got)
 	}
 
-	if got := answeredBy(t, send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme2.example.org")))); got != fallback.host {
-		t.Fatalf("request to an unknown Destination-Host answered by %s", got)
+	ans := send(t, hub, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme2.example.org")))
+	if resultCode(t, ans) != ResultUnableToDeliver || answeredBy(t, ans) != hss.host {
+		t.Fatalf("request to an unknown Destination-Host: %d from %s", resultCode(t, ans), answeredBy(t, ans))
 	}
 }
 
-func TestDefaultRouteDoesNotCoverServedRealms(t *testing.T) {
+func TestDefaultRouteCoversServedRealmsOnlyForAnotherHost(t *testing.T) {
 	const servedRealm = "served.example.org"
 
 	kind := TransportTCP
@@ -462,26 +457,21 @@ func TestDefaultRouteDoesNotCoverServedRealms(t *testing.T) {
 
 	own := client.Identity().OriginRealm
 
-	for _, req := range []*Message{
-		routedTo(own, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+own)),
-		routedTo(strings.ToUpper(own)),
-		routedTo(servedRealm, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+servedRealm)),
-	} {
-		if _, err := client.Send(context.Background(), req, FailFast()); !errors.Is(err, ErrUnableToDeliver) {
-			t.Fatalf("Send to %s = %v", destination(t, req, AVPDestinationRealm), err)
+	for _, realm := range []string{own, strings.ToUpper(own), servedRealm} {
+		if _, err := client.Send(context.Background(), routedTo(realm), FailFast()); !errors.Is(err, ErrUnableToDeliver) {
+			t.Fatalf("realm-only Send to %s = %v", realm, err)
 		}
 	}
 
 	if fallback.calls.Load() != 0 {
-		t.Fatalf("default route got %d requests for a served realm", fallback.calls.Load())
+		t.Fatalf("default route got %d realm-only requests for a served realm", fallback.calls.Load())
 	}
 
-	p := fallback.defaultPeer(0)
-	p.Routes = append(p.Routes, Route{Realm: own, Application: testAppID})
-	setPeers(t, client, p)
-
-	if got := answeredBy(t, send(t, client, routedTo(own, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+own)))); got != fallback.host {
-		t.Fatalf("explicit route for the own realm answered by %s", got)
+	for _, realm := range []string{own, servedRealm} {
+		ans := send(t, client, routedTo(realm, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, "mme1."+realm)))
+		if resultCode(t, ans) != ResultUnableToDeliver || answeredBy(t, ans) != fallback.host {
+			t.Fatalf("request to another host of %s: %d from %s", realm, resultCode(t, ans), answeredBy(t, ans))
+		}
 	}
 }
 
@@ -576,5 +566,152 @@ func TestRoutesReportAPeerThatIsDownAsUnavailable(t *testing.T) {
 	// A configured peer that never connected shows its configured host.
 	if p := routes[0].Peers[0]; p.Available || p.State == PeerOpen || p.Host != "dra.example.org" {
 		t.Fatalf("route peer = %+v", p)
+	}
+}
+
+const draHost = "dra.example.org"
+
+func draPeer(routes ...Route) Peer {
+	return Peer{
+		ID: draHost, Host: draHost, Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportTCP},
+		Applications: []Application{sgdApp}, Routes: routes,
+	}
+}
+
+func withDRA(t *testing.T, routes ...Route) (*Node, *rawPeer) {
+	t.Helper()
+
+	n, p := ellaWithSMSC(t, TransportTCP, draPeer(routes...))
+	openRaw(t, p, draHost, appAVP(sgdApp))
+	waitOpen(t, n, draHost)
+
+	return n, p
+}
+
+type sent struct {
+	ans *Message
+	err error
+}
+
+func sendAsync(n *Node, req *Message) <-chan sent {
+	done := make(chan sent, 1)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		ans, err := n.Send(ctx, req)
+		done <- sent{ans, err}
+	}()
+
+	return done
+}
+
+func answerAs(t *testing.T, p *rawPeer, host, realm string) *Message {
+	t.Helper()
+
+	req := p.recv()
+	p.send(NewAnswer(req, Identity{OriginHost: host, OriginRealm: realm}, ResultSuccess))
+
+	return req
+}
+
+func TestSendRoutesANonPeerDestinationHostThroughARealmRoute(t *testing.T) {
+	const target = "hss7.epc.example.org"
+
+	n, dra := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	done := sendAsync(n, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, target)))
+
+	req := answerAs(t, dra, target, routeRealm)
+	if destination(t, req, AVPDestinationHost) != target || destination(t, req, AVPDestinationRealm) != routeRealm {
+		t.Fatalf("DRA got Destination-Host %s, Destination-Realm %s", destination(t, req, AVPDestinationHost), destination(t, req, AVPDestinationRealm))
+	}
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != target {
+		t.Fatalf("Send = %v", r.err)
+	}
+}
+
+func TestSendRoutesAnotherHostOfTheOwnRealmThroughTheDefaultRoute(t *testing.T) {
+	n, dra := withDRA(t, Route{Application: testAppID, Default: true})
+
+	own := n.Identity().OriginRealm
+	target := "scscf1." + own
+
+	done := sendAsync(n, routedTo(own, UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, target)))
+
+	if req := answerAs(t, dra, target, own); destination(t, req, AVPDestinationHost) != target {
+		t.Fatalf("DRA got Destination-Host %s", destination(t, req, AVPDestinationHost))
+	}
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != target {
+		t.Fatalf("Send = %v", r.err)
+	}
+
+	if _, err := n.Send(context.Background(), routedTo(own), FailFast()); !errors.Is(err, ErrUnableToDeliver) {
+		t.Fatalf("realm-only Send to the own realm = %v", err)
+	}
+}
+
+func TestSendForwardsToADirectPeerBeforeTheRealmRoute(t *testing.T) {
+	kind := TransportTCP
+	n, dra := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	hss := newServer(t, kind, "hss1."+routeRealm, loopback3, nil)
+	direct := hss.peer(kind, 0)
+	direct.Routes = nil
+
+	setPeers(t, n, draPeer(Route{Realm: routeRealm, Application: testAppID}), direct)
+	waitOpen(t, n, draHost, hss.host)
+
+	if got := answeredBy(t, send(t, n, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, hss.host)))); got != hss.host {
+		t.Fatalf("answered by %s", got)
+	}
+
+	const other = "hss2." + routeRealm
+
+	done := sendAsync(n, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, other)))
+
+	if req := answerAs(t, dra, other, routeRealm); destination(t, req, AVPDestinationHost) != other {
+		t.Fatalf("DRA got the request for %s", destination(t, req, AVPDestinationHost))
+	}
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != other {
+		t.Fatalf("Send = %v", r.err)
+	}
+}
+
+func TestRelaySkipsRoutesThroughPeersInTheRouteRecord(t *testing.T) {
+	const target = "ipsmgw." + routeRealm
+
+	n, dra := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	relay := func(recorded string) <-chan sent {
+		done := make(chan sent, 1)
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			defer cancel()
+
+			req := proxiable(routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, recorded)))
+
+			ans, err := n.Relay(ctx, req, "mme1.example.org", target, routeRealm)
+			done <- sent{ans, err}
+		}()
+
+		return done
+	}
+
+	if r := <-relay("DRA.example.org"); !errors.Is(r.err, ErrUnableToDeliver) {
+		t.Fatalf("Relay back to the DRA = %v", r.err)
+	}
+
+	done := relay("mme0.example.org")
+
+	answerAs(t, dra, target, routeRealm)
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != target {
+		t.Fatalf("Relay = %v", r.err)
 	}
 }

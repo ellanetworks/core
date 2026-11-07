@@ -50,12 +50,13 @@ func (n *Node) Relay(ctx context.Context, req *Message, from, host, realm string
 	)
 
 	s := &sending{
-		n:     n,
-		o:     applyOptions(opts),
-		m:     m,
-		host:  strings.ToLower(host),
-		realm: strings.ToLower(realm),
-		tried: make(map[*peer]bool),
+		n:       n,
+		o:       applyOptions(opts),
+		m:       m,
+		host:    strings.ToLower(host),
+		realm:   strings.ToLower(realm),
+		relayed: true,
+		tried:   make(map[*peer]bool),
 	}
 
 	defer s.release()

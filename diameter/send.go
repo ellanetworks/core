@@ -56,6 +56,7 @@ type sending struct {
 	host     string
 	realm    string
 	set      []string
+	relayed  bool
 	fixed    *candidate
 	tried    map[*peer]bool
 	held     []*peer
@@ -265,11 +266,11 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 	}
 
 	if s.host != "" {
-		if p, ok := n.byHost[s.host]; ok {
+		if p, ok := n.byHost[s.host]; ok && !s.recorded(p) {
 			s.fixed = &candidate{peer: p}
 			return []candidate{*s.fixed}, nil
 		}
-	} else if e, ok := n.cacheLookupLocked(&s.m); ok {
+	} else if e, ok := n.cacheLookupLocked(&s.m); ok && !s.recorded(e.target) {
 		s.hold(e.target)
 		s.fixed = &candidate{peer: e.target, host: e.host}
 
@@ -278,9 +279,9 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 
 	key := routeKey{realm: s.realm, app: s.m.ApplicationID}
 
-	entries := n.routeEntriesLocked(key, s.host == "")
+	entries := n.routeEntriesLocked(key)
 	if len(entries) == 0 {
-		if entries = n.defaultEntriesLocked(s.realm, s.m.ApplicationID); len(entries) > 0 {
+		if entries = n.defaultEntriesLocked(s.host, s.realm, s.m.ApplicationID); len(entries) > 0 {
 			key = defaultRouteKey(s.m.ApplicationID)
 		}
 	}
@@ -297,7 +298,10 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 		return nil, fmt.Errorf("%w: no route to realm %q for application %d", ErrUnableToDeliver, s.realm, s.m.ApplicationID)
 	}
 
-	var cands []candidate
+	var (
+		cands []candidate
+		loops bool
+	)
 
 	for _, p := range n.orderedLocked(key, entries) {
 		cand := candidate{peer: p}
@@ -306,6 +310,11 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 			if e, ok := n.cache[hostCacheKey(p.host)]; ok {
 				cand = candidate{peer: e.target, host: e.host}
 			}
+		}
+
+		if s.recorded(cand.peer) {
+			loops = true
+			continue
 		}
 
 		if s.tried[cand.peer] || slices.ContainsFunc(cands, func(c candidate) bool { return c.peer == cand.peer }) {
@@ -319,11 +328,33 @@ func (s *sending) candidatesLocked() ([]candidate, error) {
 		cands = append(cands, cand)
 	}
 
-	if len(cands) == 0 {
+	switch {
+	case len(cands) > 0:
+		return cands, nil
+	case loops && s.last == nil:
+		return nil, fmt.Errorf("%w: every route to realm %q is in the Route-Record", ErrUnableToDeliver, s.realm)
+	default:
 		return nil, errExhausted
 	}
+}
 
-	return cands, nil
+func (s *sending) recorded(p *peer) bool {
+	if !s.relayed {
+		return false
+	}
+
+	host := p.host
+	if host == "" && p.cfg != nil {
+		host = p.cfg.Host
+	}
+
+	if host == "" {
+		return false
+	}
+
+	return slices.ContainsFunc(FindAll(s.m.AVPs, AVPRouteRecord, 0), func(rr AVP) bool {
+		return strings.EqualFold(rr.UTF8String(), host)
+	})
 }
 
 func (s *sending) setCandidatesLocked() ([]candidate, error) {
