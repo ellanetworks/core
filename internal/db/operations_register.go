@@ -93,7 +93,13 @@ var (
 var (
 	opCreateNetworkSlice = registerChangesetOp("CreateNetworkSlice", (*Database).applyCreateNetworkSlice)
 	opUpdateNetworkSlice = registerChangesetOp("UpdateNetworkSlice", (*Database).applyUpdateNetworkSlice, AffectsTopic(TopicSessionReconcile))
-	opDeleteNetworkSlice = registerChangesetOp("DeleteNetworkSlice", (*Database).applyDeleteNetworkSlice, AffectsTopic(TopicSessionReconcile))
+	opDeleteNetworkSlice = registerChangesetOp("DeleteNetworkSlice", (*Database).applyDeleteNetworkSlice, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+)
+
+var (
+	opCreateSliceDataNetwork = registerChangesetOp("CreateSliceDataNetwork", (*Database).applyCreateSliceDataNetwork, RequireSchema(sliceDataNetworkSchema), AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opUpdateSliceDataNetwork = registerChangesetOp("UpdateSliceDataNetwork", (*Database).applyUpdateSliceDataNetwork, RequireSchema(sliceDataNetworkSchema), AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opDeleteSliceDataNetwork = registerChangesetOp("DeleteSliceDataNetwork", (*Database).applyDeleteSliceDataNetwork, RequireSchema(sliceDataNetworkSchema), AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
 )
 
 // Data networks

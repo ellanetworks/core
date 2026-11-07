@@ -20,7 +20,7 @@ func TestNATSweepAtCeiling(t *testing.T) {
 		t.Skip("fills a 16Mi-entry conntrack table")
 	}
 
-	obj := ebpf.NewBpfObjects(false, true, false, 1, 0, 0, 0)
+	obj := ebpf.NewBpfObjects(false, true, 1, 0, 0, 0)
 	obj.Sizing = ebpf.NewMapSizing(200000)
 
 	if err := obj.Load(); err != nil {

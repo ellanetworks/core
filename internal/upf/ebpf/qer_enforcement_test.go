@@ -17,10 +17,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func loadQERProgram(t *testing.T, useTCX, localSwitch bool) *BpfObjects {
+func loadQERProgram(t *testing.T, useTCX bool) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(false, false, localSwitch, 0, 1, 0, 0)
+	obj := NewBpfObjects(false, false, 0, 1, 0, 0)
 	obj.UseTCX = useTCX
 
 	if err := obj.Load(); err != nil {
@@ -89,7 +89,7 @@ func TestQERMissingMeterFailsClosed(t *testing.T) {
 				t.Run(path.name, func(t *testing.T) {
 					const teid = 0x51455220
 
-					obj := loadQERProgram(t, build == "TC", path.localSwitch)
+					obj := loadQERProgram(t, build == "TC")
 					ue := netip.MustParseAddr("10.45.0.7")
 					inner := ipv4Packet(canonicalUEv4.As4(), ue.As4(), 17, udpDatagram(4000, 53, nil))
 					etherType := uint16(0x0800)
@@ -120,6 +120,9 @@ func TestQERMissingMeterFailsClosed(t *testing.T) {
 					}
 
 					if path.localSwitch {
+						ul.Flags = PdrFlagLocalSwitch
+						pdr.Flags = PdrFlagLocalSwitch
+
 						if err := obj.PutPdrUplink(teid, ul); err != nil {
 							t.Fatalf("install unlimited sender: %v", err)
 						}
@@ -204,7 +207,7 @@ func TestQERMeterBudgetSurvivesUpdates(t *testing.T) {
 				t.Run(source, func(t *testing.T) {
 					const teid = 0x51455221
 
-					obj := loadQERProgram(t, build == "TC", false)
+					obj := loadQERProgram(t, build == "TC")
 					pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, 5)
 					pdr.SEID, pdr.QerID, pdr.PdrID = 0x100000002, 8, 2
 					pdr.Qer.MaxBitrateUL, pdr.Qer.MaxBitrateDL = 1, 1
@@ -355,7 +358,7 @@ func TestQERConcurrentCPUsShareOneBudget(t *testing.T) {
 
 	for _, build := range []string{"XDP", "TC"} {
 		t.Run(build, func(t *testing.T) {
-			obj := loadQERProgram(t, build == "TC", false)
+			obj := loadQERProgram(t, build == "TC")
 			pdr := ipv4OuterDownlinkPDR(0x51455222, testUPFN3IP, testGNBIP, 5)
 			pdr.SEID, pdr.QerID = 0x100000003, 9
 			pdr.Qer.MaxBitrateDL = 1

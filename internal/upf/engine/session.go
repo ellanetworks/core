@@ -33,6 +33,8 @@ type Session struct {
 	ueIPv6       netip.Addr
 	localSwitch  bool
 	natExempt    bool
+	dnTag        uint16
+	niID         uint8
 	classified   bool
 	filtered     bool
 	written      *ebpf.Classifier
@@ -107,6 +109,41 @@ func (s *Session) SetLocalSwitch(on bool) {
 	defer s.mu.Unlock()
 
 	s.localSwitch = on
+}
+
+func (s *Session) forwarding() (natExempt, localSwitch bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.natExempt, s.localSwitch
+}
+
+func (s *Session) SetNetworkInstance(id uint8) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.niID = id
+}
+
+func (s *Session) networkInstance() uint8 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.niID
+}
+
+func (s *Session) SetDataNetworkTag(tag uint16) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.dnTag = tag
+}
+
+func (s *Session) dataNetworkTag() uint16 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.dnTag
 }
 
 func (s *Session) SetNATExempt(on bool) {

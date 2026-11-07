@@ -70,6 +70,8 @@ type PdrInfo struct {
 	UEIPv4       netip.Addr
 	UEIPv6Prefix netip.Addr
 	RadioID      uint16
+	DNTag        uint16
+	NIID         uint8
 }
 
 type PortRange struct {
@@ -455,6 +457,8 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
 	pdrToStore.RadioId = defaultPdr.RadioID
+	pdrToStore.DnTag = defaultPdr.DNTag
+	pdrToStore.NiId = defaultPdr.NIID
 
 	if defaultPdr.UEIPv4.Is4() {
 		pdrToStore.UeIpv4.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv4)

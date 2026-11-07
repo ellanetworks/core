@@ -538,14 +538,39 @@ func framedRoutePreconditions(ctx context.Context, dbInstance *db.Database, prof
 		return http.StatusConflict, "data network is not bound to the subscriber's profile"
 	}
 
-	natEnabled, err := dbInstance.IsNATEnabled(ctx)
+	natSlices, err := profileNATSlices(ctx, dbInstance, profileID, dnID)
 	if err != nil {
 		return http.StatusInternalServerError, "Failed to read NAT settings"
 	}
 
-	if natEnabled {
-		return http.StatusConflict, "framed routes cannot be configured while NAT is enabled"
+	if natSlices {
+		return http.StatusConflict, "framed routes cannot be configured while NAT is enabled on the data network"
 	}
 
 	return 0, ""
+}
+
+func profileNATSlices(ctx context.Context, dbInstance *db.Database, profileID, dnID string) (bool, error) {
+	policies, err := dbInstance.ListPoliciesByProfile(ctx, profileID)
+	if err != nil {
+		return false, err
+	}
+
+	forwarding, err := dbInstance.ListSliceDataNetworkForwarding(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	nat := make(map[string]bool, len(forwarding))
+	for _, f := range forwarding {
+		nat[f.Key()] = f.NAT
+	}
+
+	for _, p := range policies {
+		if p.DataNetworkID == dnID && nat[p.SliceID+"/"+p.DataNetworkID] {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

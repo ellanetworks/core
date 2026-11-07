@@ -62,7 +62,7 @@ type abortFakeDNN struct {
 	releasedV6 []uint8
 }
 
-func (f *abortFakeDNN) Config(context.Context) (DataNetworkConfig, error) {
+func (f *abortFakeDNN) Config(context.Context, models.Snssai) (DataNetworkConfig, error) {
 	return DataNetworkConfig{}, nil
 }
 

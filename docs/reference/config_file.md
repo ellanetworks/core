@@ -30,8 +30,12 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `n3` (object): The configuration for the n3 interface (N3 in 5G, S1-U in 4G). This is the user plane interface towards radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
         - `address` (string): The address to listen on (optional: either name or address must be provided).
-    - `n6` (object): The configuration for the n6 interface (N6 in 5G, SGi in 4G). This interface should be connected to the internet.
+    - `n6` (object): The configuration for the n6 interface (N6 in 5G, SGi in 4G). This interface should be connected to the internet. It carries the `default` network instance.
         - `name` (string): The name of the network interface.
+    - `network-instances` (list, optional): Additional N6 network instances, each with its own interface. Sessions use the network instance set in the `network_instance` field of their slice and data network (see [Slices](api/slices.md#list-the-data-networks-of-a-slice)).
+        - `name` (string): The network instance name. `default` is reserved for `interfaces.n6`.
+        - `n6` (object): The N6 interface of the network instance.
+            - `name` (string): The name of the network interface. It can be a VLAN or a veth, in any VRF, but not the n3 or n6 interface or the interface of another network instance. It must exist when Ella Core starts.
     - `api` (object): The configuration for the api interface.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
         - `address` (string): The IP address to listen on (optional: either name or address must be provided). When set, the server binds to this specific address.

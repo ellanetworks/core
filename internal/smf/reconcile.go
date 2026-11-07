@@ -328,6 +328,17 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
 	}
 
+	if current.NAT != policy.NAT || current.LocalSwitch != policy.LocalSwitch {
+		if err := s.applyForwarding(ctx, smContext, policy); err != nil {
+			return reconcileDecision{}, fmt.Errorf("apply NAT and local switching to the UPF: %w", err)
+		}
+
+		updated := *current
+		updated.NAT, updated.LocalSwitch = policy.NAT, policy.LocalSwitch
+		smContext.PolicyData = &updated
+		current = &updated
+	}
+
 	delta, err := s.subscriptionChanged(ctx, smContext)
 	if err != nil {
 		logger.SmfLog.Warn("failed to evaluate the subscription during reconciliation; deferring to backstop",
@@ -408,11 +419,15 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			Var5qi: policy.QosData.Var5qi,
 			Arp:    policy.QosData.Arp,
 		},
-		DNS:      dns,
-		IMS:      current.IMS,
-		MTU:      current.MTU,
-		IPv4Pool: current.IPv4Pool,
-		IPv6Pool: current.IPv6Pool,
+		DNS:              dns,
+		IMS:              current.IMS,
+		MTU:              current.MTU,
+		IPv4Pool:         current.IPv4Pool,
+		IPv6Pool:         current.IPv6Pool,
+		SliceDataNetwork: current.SliceDataNetwork,
+		NetworkInstance:  current.NetworkInstance,
+		NAT:              current.NAT,
+		LocalSwitch:      current.LocalSwitch,
 	}
 
 	if smContext.Access == Access5G && hasQoSChange && !has5QIChange && !hasAmbrChange && !hasDNSChange && !smContext.upConnectionActive() {
@@ -636,6 +651,22 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 
 // updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
 // plane (TS 29.244).
+func (s *SMF) applyForwarding(ctx context.Context, smContext *SMContext, policy *Policy) error {
+	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
+		return nil
+	}
+
+	_, err := s.upf.ModifySession(ctx, &models.ModifyRequest{
+		SEID:       smContext.PFCPContext.SEID,
+		Forwarding: &models.SessionForwarding{NATExempt: policy.natExempt(), LocalSwitch: policy.localSwitch()},
+	})
+	if err != nil && errors.Is(err, models.ErrSessionUnrecoverable) {
+		s.scheduleUnrecoverableReleaseLocked(ctx, smContext)
+	}
+
+	return err
+}
+
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
 	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
 }

@@ -75,12 +75,16 @@ const (
 )
 
 type DataNetworkConfig struct {
-	DNS      net.IP
-	MTU      uint16
-	IPv4Pool string
-	IPv6Pool string
-	IMS      bool
-	PCSCF    []netip.Addr
+	SliceDataNetwork string
+	NetworkInstance  string
+	DNS              net.IP
+	MTU              uint16
+	IPv4Pool         string
+	IPv6Pool         string
+	IMS              bool
+	NAT              bool
+	LocalSwitch      bool
+	PCSCF            []netip.Addr
 }
 
 func subscribedQoS(c udm.DNNConfiguration) SubscribedQoS {
@@ -132,7 +136,7 @@ func (s *SMF) prepareSession(ctx context.Context, supi etsi.SUPI, snssai *models
 		return sessionInputs{}, fmt.Errorf("resolve data network %q: %w", dnn, err)
 	}
 
-	config, err := dn.Config(ctx)
+	config, err := dn.Config(ctx, *snssai)
 	if err != nil {
 		return sessionInputs{}, fmt.Errorf("data network %q configuration: %w", dnn, err)
 	}
@@ -141,7 +145,7 @@ func (s *SMF) prepareSession(ctx context.Context, supi etsi.SUPI, snssai *models
 }
 
 func dataNetworkPolicy(c DataNetworkConfig) *Policy {
-	return &Policy{DNS: c.DNS, MTU: c.MTU, IPv4Pool: c.IPv4Pool, IPv6Pool: c.IPv6Pool, IMS: c.IMS, PCSCF: c.PCSCF}
+	return &Policy{SliceDataNetwork: c.SliceDataNetwork, NetworkInstance: c.NetworkInstance, DNS: c.DNS, MTU: c.MTU, IPv4Pool: c.IPv4Pool, IPv6Pool: c.IPv6Pool, IMS: c.IMS, NAT: c.NAT, LocalSwitch: c.LocalSwitch, PCSCF: c.PCSCF}
 }
 
 func applyDecision(p *Policy, d *PolicyDecision) {

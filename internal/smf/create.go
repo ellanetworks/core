@@ -200,7 +200,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		cause := fgs.GSMCauseRequestRejectedUnspecified
 
 		switch {
-		case errors.Is(err, ErrDatapathCapacity), errors.Is(err, errUEAddressAllocation):
+		case errors.Is(err, ErrDatapathCapacity), errors.Is(err, errUEAddressAllocation), errors.Is(err, models.ErrNetworkInstanceUnavailable):
 			cause = fgs.GSMCauseInsufficientResources
 		case errors.Is(err, errSessionIdentity):
 			cause = fgs.GSMCauseInvalidPDUSessionIdentity

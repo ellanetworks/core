@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
@@ -124,12 +126,18 @@ type DiameterInterfaceYaml struct {
 	Port    int    `yaml:"port"`
 }
 
+type NetworkInstanceYaml struct {
+	Name string          `yaml:"name"`
+	N6   N6InterfaceYaml `yaml:"n6"`
+}
+
 type InterfacesYaml struct {
-	N2       N2InterfaceYaml       `yaml:"n2"`
-	N3       N3InterfaceYaml       `yaml:"n3"`
-	N6       N6InterfaceYaml       `yaml:"n6"`
-	API      APIInterfaceYaml      `yaml:"api"`
-	Diameter DiameterInterfaceYaml `yaml:"diameter"`
+	N2               N2InterfaceYaml       `yaml:"n2"`
+	N3               N3InterfaceYaml       `yaml:"n3"`
+	N6               N6InterfaceYaml       `yaml:"n6"`
+	NetworkInstances []NetworkInstanceYaml `yaml:"network-instances"`
+	API              APIInterfaceYaml      `yaml:"api"`
+	Diameter         DiameterInterfaceYaml `yaml:"diameter"`
 }
 
 // XDPYaml is the deprecated attach-mode block, still parsed so existing
@@ -221,12 +229,18 @@ type DiameterInterface struct {
 	Port    int
 }
 
+type NetworkInstance struct {
+	Name string
+	N6   N6Interface
+}
+
 type Interfaces struct {
-	N2       N2Interface
-	N3       N3Interface
-	N6       N6Interface
-	API      APIInterface
-	Diameter DiameterInterface
+	N2               N2Interface
+	N3               N3Interface
+	N6               N6Interface
+	NetworkInstances []NetworkInstance
+	API              APIInterface
+	Diameter         DiameterInterface
 }
 
 type Datapath struct {
@@ -352,7 +366,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("db.path is empty")
 	}
 
-	if c.Interfaces == (InterfacesYaml{}) {
+	if reflect.DeepEqual(c.Interfaces, InterfacesYaml{}) {
 		return Config{}, errors.New("interfaces is empty")
 	}
 
@@ -383,6 +397,11 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	if err := validateUserPlaneVRF(n3InterfaceName, c.Interfaces.N6.Name); err != nil {
+		return Config{}, err
+	}
+
+	networkInstances, err := validateNetworkInstances(c.Interfaces.NetworkInstances, n3InterfaceName, c.Interfaces.N6.Name)
+	if err != nil {
 		return Config{}, err
 	}
 
@@ -441,7 +460,16 @@ func Validate(filePath string) (Config, error) {
 		if err != nil {
 			return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", c.Interfaces.N6.Name, err)
 		}
+
+		for i := range networkInstances {
+			networkInstances[i].N6.VlanConfig, err = GetVLANConfigForInterfaceFunc(networkInstances[i].N6.Name)
+			if err != nil {
+				return Config{}, fmt.Errorf("cannot get vlan config for interface %s: %w", networkInstances[i].N6.Name, err)
+			}
+		}
 	}
+
+	config.Interfaces.NetworkInstances = networkInstances
 
 	if c.Telemetry.Enabled && c.Telemetry.OTLPEndpoint == "" {
 		return Config{}, errors.New("telemetry.otlp-endpoint is empty when telemetry.enabled is true")
@@ -707,6 +735,52 @@ func vrfDomainName(vrf string) string {
 	}
 
 	return fmt.Sprintf("VRF %q", vrf)
+}
+
+func validateNetworkInstances(instances []NetworkInstanceYaml, n3Name, n6Name string) ([]NetworkInstance, error) {
+	names := map[string]struct{}{models.DefaultNetworkInstanceName: {}}
+	interfaces := map[string]string{n3Name: "interfaces.n3", n6Name: "interfaces.n6"}
+	out := make([]NetworkInstance, 0, len(instances))
+
+	for i, ni := range instances {
+		field := fmt.Sprintf("interfaces.network-instances[%d]", i)
+
+		switch {
+		case ni.Name == "":
+			return nil, fmt.Errorf("%s.name is empty", field)
+		case !models.ValidNetworkInstanceName(ni.Name):
+			return nil, fmt.Errorf("%s.name %q is not a valid network instance name: lowercase labels of letters, digits and hyphens, at most 62 characters", field, ni.Name)
+		case ni.N6.Name == "":
+			return nil, fmt.Errorf("%s.n6.name is empty", field)
+		}
+
+		if _, dup := names[ni.Name]; dup {
+			if ni.Name == models.DefaultNetworkInstanceName {
+				return nil, fmt.Errorf("%s.name: %q is the network instance of interfaces.n6", field, ni.Name)
+			}
+
+			return nil, fmt.Errorf("%s.name: network instance %q is defined twice", field, ni.Name)
+		}
+
+		if owner, used := interfaces[ni.N6.Name]; used {
+			return nil, fmt.Errorf("%s.n6.name: interface %s is already used by %s", field, ni.N6.Name, owner)
+		}
+
+		exists, err := InterfaceExists(ni.N6.Name)
+		if err != nil {
+			return nil, fmt.Errorf("%s.n6.name: %w", field, err)
+		}
+
+		if !exists {
+			return nil, fmt.Errorf("%s.n6.name: interface %s does not exist", field, ni.N6.Name)
+		}
+
+		names[ni.Name] = struct{}{}
+		interfaces[ni.N6.Name] = field
+		out = append(out, NetworkInstance{Name: ni.Name, N6: N6Interface{Name: ni.N6.Name}})
+	}
+
+	return out, nil
 }
 
 func validateUserPlaneVRF(n3Name, n6Name string) error {

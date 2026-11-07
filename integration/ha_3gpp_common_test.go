@@ -552,7 +552,7 @@ func configureNATAndRoute(ctx context.Context, nodeClients []*client.Client) err
 
 	for i, c := range nodeClients {
 		if family == IPv4Only || family == DualStack {
-			if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+			if err := setNATOnAllDataNetworks(ctx, c, true); err != nil {
 				return fmt.Errorf("update NAT on node %d: %w", i+1, err)
 			}
 

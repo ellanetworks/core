@@ -2379,3 +2379,58 @@ func TestReconcileSession_IMSChangeReleasesTheSession(t *testing.T) {
 		t.Fatalf("expected 1 release signaling call after the IMS attribute changed, got %d", releaseCalls)
 	}
 }
+
+func TestReconcileSession_ForwardingChangeModifiesOnlyTheUPF(t *testing.T) {
+	on := true
+
+	for _, tc := range []struct {
+		name   string
+		change policyChange
+		want   models.SessionForwarding
+	}{
+		{name: "NAT", change: policyChange{NAT: &on}, want: models.SessionForwarding{NATExempt: false, LocalSwitch: false}},
+		{name: "local switching", change: policyChange{LocalSwitch: &on}, want: models.SessionForwarding{NATExempt: true, LocalSwitch: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+			ctx := context.Background()
+
+			_, ref := setupSessionWithTunnel(t, s)
+
+			before := currentPolicy(s, ref)
+
+			change := tc.change
+			change.SessionAmbrUplink, change.SessionAmbrDownlink = before.Ambr.Uplink.String(), before.Ambr.Downlink.String()
+			change.Var5qi, change.Arp = before.QosData.Var5qi, before.QosData.Arp.PriorityLevel
+			change.PreemptCap, change.PreemptVuln = before.QosData.Arp.PreemptCap, before.QosData.Arp.PreemptVuln
+
+			if err := reconcileWithPolicy(ctx, s, pcf, ref, &change); err != nil {
+				t.Fatalf("ReconcileSession failed: %v", err)
+			}
+
+			amfCb.mu.Lock()
+			releaseCalls := len(amfCb.releaseCalls)
+			amfCb.mu.Unlock()
+
+			if releaseCalls != 0 {
+				t.Fatalf("%s change released the session (%d release calls)", tc.name, releaseCalls)
+			}
+
+			upf.mu.Lock()
+			defer upf.mu.Unlock()
+
+			var got *models.SessionForwarding
+
+			for _, req := range upf.modifyCalls {
+				if req.Forwarding != nil {
+					got = req.Forwarding
+				}
+			}
+
+			if got == nil || *got != tc.want {
+				t.Fatalf("UPF forwarding modification = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}

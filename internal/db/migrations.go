@@ -47,7 +47,7 @@ var migrations = []migration{
 	{23, "add pcscf_addresses and ims_registrations tables: P-CSCF addresses given to phones and IMS S-CSCF assignments", migrateV23},
 	{24, "replace positioning_sessions with deferred_location_requests and location_reports for periodic location", migrateV24},
 	{25, "add IMS services: data_networks.ims, policies pre-emption capability and vulnerability, IMS application server, PSI, service profile, iFC and service profile assignment tables, IMS registrations per implicit registration set", migrateV25},
-	{26, "index daily_usage by imsi and ue_registrations by version, so deleting a subscriber and allocating the next registration version do not scan every row; group SMSC peers into SMSCs with several nodes", migrateV26},
+	{26, "index daily_usage by imsi and ue_registrations by version, so deleting a subscriber and allocating the next registration version do not scan every row; group SMSC peers into SMSCs with several nodes; add slice data networks, carrying NAT (per node) and local switching from the node-wide settings", migrateV26},
 }
 
 // baselineVersion is the highest migration that runs locally during

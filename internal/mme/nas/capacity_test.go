@@ -173,3 +173,10 @@ func TestCapacityBackoffIsTheSharedDatapathBackoff(t *testing.T) {
 		t.Fatalf("back-off = %v (%t), want the %v the SMF uses", d, ok, models.DatapathCapacityBackoff)
 	}
 }
+
+func TestAttachBearerRejectCauseNetworkInstanceUnavailable(t *testing.T) {
+	err := fmt.Errorf("establish: %w", models.ErrNetworkInstanceUnavailable)
+	if got := attachBearerRejectCause(eps.RequestTypeInitialRequest, err); got != eps.ESMCauseInsufficientResources {
+		t.Fatalf("cause = %d, want insufficient resources (#26)", got)
+	}
+}

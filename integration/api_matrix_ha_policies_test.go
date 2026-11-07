@@ -121,7 +121,7 @@ func runPoliciesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		Arp:                 8,
 	}
 
-	if err := nodes[0].CreatePolicy(ctx, createOpts); err != nil {
+	if err := createServedPolicy(ctx, nodes[0], createOpts); err != nil {
 		t.Fatalf("create policy on node 1: %v", err)
 	}
 

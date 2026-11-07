@@ -62,7 +62,7 @@ This path creates a new policy. Optionally, you can create network rules as part
 
 - `name` (string): The Name of the policy.
 - `profile_name` (string): The name of the profile associated with this policy. Must be the name of an existing profile.
-- `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
+- `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice that serves the data network (see [Slices](slices.md#serve-a-data-network-on-a-slice)).
 - `session_ambr_uplink` (string): Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"100 Mbps"`). Allowed units: Kbps, Mbps, Gbps.
 - `session_ambr_downlink` (string): Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"200 Mbps"`). Allowed units: Kbps, Mbps, Gbps.
 - `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only). Must be 5, or 69 for mission critical services, on an IMS data network.
@@ -195,7 +195,7 @@ This path updates an existing policy. Network rules are always replaced on every
 ### Parameters
 
 - `profile_name` (string): The name of the profile associated with this policy. Must be the name of an existing profile.
-- `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
+- `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice that serves the data network (see [Slices](slices.md#serve-a-data-network-on-a-slice)).
 - `session_ambr_uplink` (string): Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"100 Mbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the policy's profile permits: when 5G is allowed the number must not exceed 65535 in the chosen unit (TS 24.501 §9.11.4.14); when 4G is allowed the rate must not exceed 10 Gbps (TS 24.008 §10.5.6.5B).
 - `session_ambr_downlink` (string): Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"200 Mbps"`). Allowed units: Kbps, Mbps, Gbps. The ceiling depends on the access the policy's profile permits: when 5G is allowed the number must not exceed 65535 in the chosen unit (TS 24.501 §9.11.4.14); when 4G is allowed the rate must not exceed 10 Gbps (TS 24.008 §10.5.6.5B).
 - `var5qi` (integer): 5G QoS Identifier (5QI). Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority); on a 4G radio it is signaled as the equivalent QCI. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only). Must be 5, or 69 for mission critical services, on an IMS data network.

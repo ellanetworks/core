@@ -9,6 +9,7 @@ Initial setup and configuration of Ella Core.
 - [Install](install.md)
 - [Deploy a High Availability Cluster](deploy_ha_cluster.md)
 - [Co-host with OCUDU](co_host_with_ocudu.md)
+- [Co-host with Ella IMS and Ella SMSC](co_host_with_ims_and_smsc.md)
 - [Use VLANs](vlan.md)
 - [Use VRFs](vrf.md)
 - [Use native XDP with veth interfaces](native_xdp_veth.md)

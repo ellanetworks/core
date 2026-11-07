@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -35,16 +34,16 @@ func runLocalSwitchSuite(t *testing.T, scenario string) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	origLS, err := env.Client.GetLocalSwitchInfo(ctx)
+	_, origLS, err := defaultDataNetworkForwarding(ctx, env.Client)
 	if err != nil {
 		t.Fatalf("get local switch (baseline): %v", err)
 	}
 
 	t.Cleanup(func() {
-		_ = env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: origLS.Enabled})
+		_ = setLocalSwitchOnAllDataNetworks(ctx, env.Client, origLS)
 	})
 
-	if err := env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: true}); err != nil {
+	if err := setLocalSwitchOnAllDataNetworks(ctx, env.Client, true); err != nil {
 		t.Fatalf("enable local switch: %v", err)
 	}
 

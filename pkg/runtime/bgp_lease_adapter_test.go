@@ -67,3 +67,37 @@ func TestBGPLeasesAttachesFramedRoutesByOwnerAndFamily(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutableLeasesSkipsIPv4OnNATedDataNetworks(t *testing.T) {
+	leases := []db.IPLease{
+		testLease("001010000000001", "nat", "10.45.0.1"),
+		testLease("001010000000001", "nat", "2001:db8:1::"),
+		testLease("001010000000002", "routed", "10.46.0.1"),
+		testLease("001010000000003", "deleted", "10.47.0.1"),
+	}
+
+	got := routableLeases(leases, map[string]bool{"nat": true, "routed": false})
+
+	var addrs []string
+	for _, l := range got {
+		addrs = append(addrs, l.Address().String())
+	}
+
+	if want := []string{"2001:db8:1::", "10.46.0.1"}; !slices.Equal(addrs, want) {
+		t.Fatalf("routable leases %v, want %v", addrs, want)
+	}
+}
+
+func TestNATOnEverySliceNeedsEverySliceToNAT(t *testing.T) {
+	nat := natOnEverySlice([]db.SliceDataNetworkForwarding{
+		{SliceID: "a", DataNetworkID: "all", NAT: true},
+		{SliceID: "b", DataNetworkID: "all", NAT: true},
+		{SliceID: "a", DataNetworkID: "mixed", NAT: true},
+		{SliceID: "b", DataNetworkID: "mixed", NAT: false},
+		{SliceID: "a", DataNetworkID: "none", NAT: false},
+	})
+
+	if !nat["all"] || nat["mixed"] || nat["none"] {
+		t.Fatalf("NAT on every slice = %v, want only all", nat)
+	}
+}

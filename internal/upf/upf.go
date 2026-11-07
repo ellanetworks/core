@@ -55,6 +55,7 @@ type flowReport struct {
 type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
+	instanceLinks      []link.Link
 	se                 *engine.SessionEngine
 	smf                engine.SMFReportHandler
 	notificationReader *ringbuf.Reader
@@ -94,7 +95,7 @@ func (u *UPF) DatapathAttachMode() string {
 	return u.attachedMode
 }
 
-func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, n6Interface config.N6Interface, datapath config.Datapath, masquerade bool, flowact bool, localSwitch bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, n6Interface config.N6Interface, datapath config.Datapath, networkInstances []config.NetworkInstance, masquerade bool, flowact bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -140,7 +141,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, fmt.Errorf("lookup N6 routing interface %s: %w", n6Interface.Name, err)
 	}
 
-	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, localSwitch, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
 	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
 	bpfObjects.Sizing = ebpf.NewMapSizing(ebpf.DefaultMaxSessions)
@@ -150,9 +151,15 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
-	attachedMode, n3Link, n6Link, err := attachDatapath(bpfObjects, attachMode,
+	instances, extraAttach, err := resolveNetworkInstances(networkInstances, n3Iface.Index, n6Iface.Index)
+	if err != nil {
+		return nil, err
+	}
+
+	attachedMode, n3Link, n6Link, extraLinks, err := attachDatapath(bpfObjects, attachMode,
 		datapathIface{index: n3Iface.Index, name: n3AttachmentInterface},
-		datapathIface{index: n6Iface.Index, name: n6AttachmentInterface})
+		datapathIface{index: n6Iface.Index, name: n6AttachmentInterface},
+		extraAttach)
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +167,25 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	logger.UpfLog.Info("datapath attached", zap.String("attach_mode", attachedMode),
 		zap.String("n3", n3AttachmentInterface), zap.String("n6", n6AttachmentInterface))
 
+	instanceIDs := make(map[string]uint8, len(instances))
+
+	for _, ni := range instances {
+		if err := bpfObjects.PutNetworkInstance(ni.datapath); err != nil {
+			return nil, err
+		}
+
+		instanceIDs[ni.name] = uint8(ni.datapath.ID)
+
+		logger.UpfLog.Info("network instance attached", zap.String("network_instance", ni.name), zap.String("n6", ni.interfaceName))
+	}
+
 	if attachedMode == config.DatapathTCX {
-		warnMergedPacketSources(n3AttachmentInterface, n6AttachmentInterface)
+		names := []string{n3AttachmentInterface, n6AttachmentInterface}
+		for _, iface := range extraAttach {
+			names = append(names, iface.name)
+		}
+
+		warnMergedPacketSources(names...)
 	}
 
 	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)
@@ -173,6 +197,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session engine: %w", err)
 	}
+
+	se.SetNetworkInstances(instanceIDs)
 
 	n3VRFDevice, err := netutil.VRFDeviceForInterface(n3Interface.Name)
 	if err != nil {
@@ -201,6 +227,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		attachedMode:       attachedMode,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
+		instanceLinks:      extraLinks,
 		se:                 se,
 		smf:                smfHandler,
 		notificationReader: notificationReader,
@@ -270,6 +297,14 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 func (u *UPF) StopDatapath() error {
 	var errs []error
 
+	for _, l := range u.instanceLinks {
+		if err := l.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("detach eBPF from a network instance: %w", err))
+		}
+	}
+
+	u.instanceLinks = nil
+
 	if u.n6Link != nil {
 		if err := (*u.n6Link).Close(); err != nil {
 			errs = append(errs, fmt.Errorf("detach eBPF from n6: %w", err))
@@ -328,6 +363,12 @@ func (u *UPF) Close(ctx context.Context) {
 
 		if err := u.se.Close(); err != nil {
 			logger.UpfLog.Warn("Failed to close session engine sockets", zap.Error(err))
+		}
+
+		for _, l := range u.instanceLinks {
+			if err := l.Close(); err != nil {
+				logger.UpfLog.Warn("Failed to detach eBPF from a network instance", zap.Error(err))
+			}
 		}
 
 		if u.n6Link != nil {
@@ -414,6 +455,12 @@ func (u *UPF) updateAttachedPrograms() error {
 		}
 	}
 
+	for _, l := range u.instanceLinks {
+		if err := l.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
+			return err
+		}
+	}
+
 	if u.raResponder != nil {
 		if err := u.raResponder.UpdateProgram(u.se.BpfObjects.VethXdpFunc); err != nil {
 			return err
@@ -432,7 +479,6 @@ func (u *UPF) updateAttachedPrograms() error {
 func (u *UPF) ApplyDatapathSettings(settings DatapathSettings) error {
 	u.se.BpfObjects.Masquerade = settings.NAT
 	u.se.BpfObjects.FlowAccounting = settings.FlowAccounting
-	u.se.BpfObjects.LocalSwitch = settings.LocalSwitch
 
 	if err := u.se.BpfObjects.LoadWithMapReplacements(); err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
@@ -1054,4 +1100,8 @@ func parseNoNeighEvent(b []byte) (ifindex int, addr netip.Addr, ok bool) {
 	}
 
 	return ifindex, addr, true
+}
+
+func (u *UPF) HasNetworkInstance(name string) bool {
+	return u.se.HasNetworkInstance(name)
 }

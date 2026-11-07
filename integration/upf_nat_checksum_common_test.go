@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
@@ -54,17 +53,17 @@ func runNATChecksumSuite(t *testing.T, scenarioName string) {
 	baseline.Policy(fixture.DefaultPolicySpec())
 
 	// source_nat only runs when NAT (masquerade) is enabled.
-	natOrig, err := env.Client.GetNATInfo(ctx)
+	natOrig, _, err := defaultDataNetworkForwarding(ctx, env.Client)
 	if err != nil {
 		t.Fatalf("get nat info: %v", err)
 	}
 
-	if err := env.Client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, env.Client, true); err != nil {
 		t.Fatalf("enable nat: %v", err)
 	}
 
 	t.Cleanup(func() {
-		_ = env.Client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: natOrig.Enabled})
+		_ = setNATOnAllDataNetworks(ctx, env.Client, natOrig)
 	})
 
 	sc, ok := scenarios.Get(scenarioName)

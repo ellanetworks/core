@@ -15,6 +15,15 @@ const api = setupApiServer();
 const POLICIES = "/api/v1/policies";
 const DATA_NETWORKS = "/api/v1/networking/data-networks";
 const SLICES = "/api/v1/slices";
+const SERVED = "/api/v1/slices/:name/data-networks";
+
+const served = (names: string[]) => ({
+  items: names.map((data_network) => ({
+    data_network,
+    nat: true,
+    local_switch: false,
+  })),
+});
 
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
@@ -35,6 +44,7 @@ const seed = () => {
     ]),
   );
   api.get(SLICES, () => page([{ name: "slice-a" }, { name: "slice-b" }]));
+  api.get(SERVED, () => served(["internet", "ims"]));
 };
 
 describe("CreatePolicyModal", () => {
@@ -60,7 +70,9 @@ describe("CreatePolicyModal", () => {
     await waitFor(() =>
       expect(screen.getByText("slice-a")).toBeInTheDocument(),
     );
-    expect(screen.getByText("internet")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("internet")).toBeInTheDocument(),
+    );
     expect(field(/5QI/)).toBeDefined();
   });
 
@@ -199,11 +211,12 @@ describe("CreatePolicyModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("lists every data network", async () => {
+  it("lists every data network the slice serves", async () => {
     const user = userEvent.setup();
     const names = Array.from({ length: 15 }, (_, i) => ({ name: `dn-${i}` }));
     api.get(DATA_NETWORKS, () => page(names));
     api.get(SLICES, () => page([{ name: "slice-a" }]));
+    api.get(SERVED, () => served(names.map((n) => n.name)));
     render(1);
 
     await waitFor(() => expect(screen.getByText("dn-0")).toBeInTheDocument());
@@ -357,5 +370,34 @@ describe("EditPolicyModal", () => {
     render();
 
     await waitFor(() => expect(screen.getByText("42")).toBeInTheDocument());
+  });
+});
+
+describe("policy data networks", () => {
+  it("only offers the data networks the selected slice serves", async () => {
+    const user = userEvent.setup();
+    api.get(DATA_NETWORKS, () =>
+      page([
+        { name: "internet", ims: false },
+        { name: "corp", ims: false },
+      ]),
+    );
+    api.get(SLICES, () => page([{ name: "slice-a" }]));
+    api.get(SERVED, () => served(["corp"]));
+
+    renderWithProviders(
+      <CreatePolicyModal
+        open
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+        profileName="gold"
+        policyCount={1}
+      />,
+      { auth: {} },
+    );
+
+    await waitFor(() => expect(screen.getByText("corp")).toBeInTheDocument());
+    await user.click(screen.getByRole("combobox", { name: /Data Network/ }));
+    expect(screen.queryByRole("option", { name: "internet" })).toBeNull();
   });
 });

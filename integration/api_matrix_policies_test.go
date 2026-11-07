@@ -123,7 +123,7 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		Arp:                 8,
 	}
 
-	if err := c.CreatePolicy(ctx, createOpts); err != nil {
+	if err := createServedPolicy(ctx, c, createOpts); err != nil {
 		t.Fatalf("create policy %q: %v", name, err)
 	}
 

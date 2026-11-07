@@ -46,6 +46,12 @@ type SessionEngine struct {
 	classes *TrafficClasses
 	radios  *Radios
 
+	networkInstances map[string]uint8
+
+	dnTagMu   sync.Mutex
+	dnTags    map[string]uint16
+	lastDNTag uint16
+
 	endMarkers endMarkerSockets
 
 	programs ebpf.ProgramWaiter
@@ -309,4 +315,59 @@ func (connection *SessionEngine) ReleaseResources(seID uint64) {
 	if connection.FteIDResourceManager != nil {
 		connection.FteIDResourceManager.ReleaseAllTEIDs(seID)
 	}
+}
+
+func (conn *SessionEngine) dataNetworkTag(dataNetworkID string) uint16 {
+	if dataNetworkID == "" {
+		return 0
+	}
+
+	conn.dnTagMu.Lock()
+	defer conn.dnTagMu.Unlock()
+
+	if tag, ok := conn.dnTags[dataNetworkID]; ok {
+		return tag
+	}
+
+	if conn.dnTags == nil {
+		conn.dnTags = make(map[string]uint16)
+	}
+
+	conn.lastDNTag++
+	if conn.lastDNTag == 0 {
+		conn.lastDNTag = 1
+	}
+
+	conn.dnTags[dataNetworkID] = conn.lastDNTag
+
+	return conn.lastDNTag
+}
+
+func (conn *SessionEngine) SetNetworkInstances(ids map[string]uint8) {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	conn.networkInstances = ids
+}
+
+func (conn *SessionEngine) networkInstanceID(name string) (uint8, error) {
+	if name == "" || name == models.DefaultNetworkInstanceName {
+		return 0, nil
+	}
+
+	conn.mu.RLock()
+	defer conn.mu.RUnlock()
+
+	id, ok := conn.networkInstances[name]
+	if !ok {
+		return 0, fmt.Errorf("%w: %s", models.ErrNetworkInstanceUnavailable, name)
+	}
+
+	return id, nil
+}
+
+func (conn *SessionEngine) HasNetworkInstance(name string) bool {
+	_, err := conn.networkInstanceID(name)
+
+	return err == nil
 }

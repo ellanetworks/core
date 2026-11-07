@@ -465,20 +465,56 @@ func (a *sessionSubscriptionAdapter) dnnStore(ctx context.Context, dnn string) (
 	return dn.(*smfDNNStore), nil
 }
 
-func (s *smfDNNStore) Config(ctx context.Context) (smf.DataNetworkConfig, error) {
+func (s *smfDNNStore) Config(ctx context.Context, snssai models.Snssai) (smf.DataNetworkConfig, error) {
 	pcscf, err := s.a.pcscfAddresses(ctx, s.dn)
 	if err != nil {
 		return smf.DataNetworkConfig{}, err
 	}
 
+	forwarding, err := s.a.sliceDataNetworkForwarding(ctx, snssai, s.dn.ID)
+	if err != nil {
+		return smf.DataNetworkConfig{}, err
+	}
+
 	return smf.DataNetworkConfig{
-		DNS:      net.ParseIP(s.dn.DNS),
-		MTU:      uint16(s.dn.MTU),
-		IPv4Pool: s.dn.IPv4Pool,
-		IPv6Pool: s.dn.IPv6Pool,
-		IMS:      s.dn.IMS,
-		PCSCF:    pcscf,
+		DNS:              net.ParseIP(s.dn.DNS),
+		MTU:              uint16(s.dn.MTU),
+		IPv4Pool:         s.dn.IPv4Pool,
+		IPv6Pool:         s.dn.IPv6Pool,
+		IMS:              s.dn.IMS,
+		NAT:              forwarding.NAT,
+		LocalSwitch:      forwarding.LocalSwitch,
+		SliceDataNetwork: forwarding.Key(),
+		NetworkInstance:  forwarding.NetworkInstance,
+		PCSCF:            pcscf,
 	}, nil
+}
+
+func (a *smfDBAdapter) sliceDataNetworkForwarding(ctx context.Context, snssai models.Snssai, dataNetworkID string) (*db.SliceDataNetworkForwarding, error) {
+	slices, err := a.db.ListAllNetworkSlices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list slices: %w", err)
+	}
+
+	for _, slice := range slices {
+		sd := ""
+		if slice.Sd != nil {
+			sd = *slice.Sd
+		}
+
+		if slice.Sst != snssai.Sst || models.NormalizeSD(sd) != models.NormalizeSD(snssai.Sd) {
+			continue
+		}
+
+		forwarding, err := a.db.GetSliceDataNetworkForwarding(ctx, slice.ID, dataNetworkID)
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: slice %s does not serve the data network", smf.ErrDNNNotInSlice, slice.Name)
+		}
+
+		return forwarding, err
+	}
+
+	return nil, fmt.Errorf("%w: no slice sst=%d sd=%q", smf.ErrDNNNotInSlice, snssai.Sst, snssai.Sd)
 }
 
 func (a *smfDBAdapter) pcscfAddresses(ctx context.Context, dn *db.DataNetwork) ([]netip.Addr, error) {

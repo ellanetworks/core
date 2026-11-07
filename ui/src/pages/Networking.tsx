@@ -14,10 +14,8 @@ const TAB_SEGMENTS = [
   "slices",
   "interfaces",
   "routes",
-  "nat",
   "bgp",
   "flow-accounting",
-  "local-switch",
 ] as const;
 
 type TabKey = (typeof TAB_SEGMENTS)[number];
@@ -60,10 +58,8 @@ export default function NetworkingPage() {
         <Tab value="slices" label="Slices" />
         <Tab value="interfaces" label="Interfaces" />
         <Tab value="routes" label="Routes" />
-        <Tab value="nat" label="NAT" />
         <Tab value="bgp" label="BGP" />
         <Tab value="flow-accounting" label="Flow Accounting" />
-        <Tab value="local-switch" label="Local Switch" />
       </Tabs>
 
       <Outlet context={{ accessToken, canEdit, showSnackbar }} />

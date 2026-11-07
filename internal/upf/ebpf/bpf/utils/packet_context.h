@@ -49,14 +49,37 @@ volatile const int n3_vlan = 0;
 volatile const int n6_vlan;
 volatile const int n6_vlan = 0;
 
-/* UE-to-UE local switching (TS 23.501 §5.8.2.13). Defaults to false. */
-volatile const bool local_switch;
-volatile const bool local_switch = false;
-
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
 	__be16 h_vlan_encapsulated_proto;
 };
+
+#define MAX_NETWORK_INSTANCES 16
+
+struct network_instance {
+	__u32 ifindex;
+	__u32 routing_ifindex;
+	__u32 vlan;
+};
+
+struct network_instance_key {
+	__u32 ifindex;
+	__u32 vlan;
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__type(key, __u32);
+	__type(value, struct network_instance);
+	__uint(max_entries, MAX_NETWORK_INSTANCES);
+} network_instances SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, struct network_instance_key);
+	__type(value, __u32);
+	__uint(max_entries, MAX_NETWORK_INSTANCES);
+} network_instance_classifier SEC(".maps");
 
 /* Header cursor to keep track of current parsing position */
 struct packet_context {
@@ -99,6 +122,7 @@ struct packet_context {
 	__u8 is_fragment : 1;
 	__u8 nat_exempt : 1;
 	__u8 l4_ports : 1;
+	__u8 ni_id;
 };
 
 __noinline __weak __u32
@@ -111,6 +135,131 @@ routing_ingress_ifindex(struct __ctx_buff *ctx, __u8 interface)
 	if (interface == INTERFACE_N6 && ifindex == (__u32)n6_ifindex)
 		return n6_routing_ifindex;
 	return ifindex;
+}
+
+__noinline __weak __u32 network_instance_ifindex(__u32 ni_id)
+{
+	const struct network_instance *ni =
+		bpf_map_lookup_elem(&network_instances, &ni_id);
+
+	return ni ? ni->ifindex : 0;
+}
+
+__noinline __weak __u32 network_instance_routing_ifindex(__u32 ni_id)
+{
+	const struct network_instance *ni =
+		bpf_map_lookup_elem(&network_instances, &ni_id);
+
+	return ni ? ni->routing_ifindex : 0;
+}
+
+__noinline __weak __u32 network_instance_vlan(__u32 ni_id)
+{
+	const struct network_instance *ni =
+		bpf_map_lookup_elem(&network_instances, &ni_id);
+
+	return ni ? ni->vlan : 0;
+}
+
+static __always_inline bool ctx_select_ni(struct packet_context *ctx,
+					  __u32 ni_id)
+{
+	ctx->ni_id = 0;
+
+	if (ni_id == 0)
+		return true;
+
+	if (!network_instance_ifindex(ni_id))
+		return false;
+
+	ctx->ni_id = (__u8)ni_id;
+
+	return true;
+}
+
+static __always_inline __u32 ctx_n6_ifindex(const struct packet_context *ctx)
+{
+	return ctx->ni_id ? network_instance_ifindex(ctx->ni_id) :
+			    (__u32)n6_ifindex;
+}
+
+static __always_inline __u32
+ctx_n6_routing_ifindex(const struct packet_context *ctx)
+{
+	return ctx->ni_id ? network_instance_routing_ifindex(ctx->ni_id) :
+			    n6_routing_ifindex;
+}
+
+static __always_inline int ctx_n6_vlan(const struct packet_context *ctx)
+{
+	return ctx->ni_id ? (int)network_instance_vlan(ctx->ni_id) : n6_vlan;
+}
+
+static __always_inline __u32 frame_vlan_id(const struct packet_context *ctx)
+{
+#if CTX_INBAND_VLAN
+	if (ctx->vlan && (const void *)(ctx->vlan + 1) <= ctx->data_end)
+		return bpf_ntohs(ctx->vlan->h_vlan_TCI) & 0x0fff;
+	return 0;
+#else
+	return ctx->ctx_buff->vlan_present ? ctx->ctx_buff->vlan_tci & 0x0fff : 0;
+#endif
+}
+
+__noinline __weak int ingress_network_instance(__u32 ifindex, __u32 vlan)
+{
+	struct network_instance_key key = { .ifindex = ifindex, .vlan = vlan };
+	const __u32 *ni_id =
+		bpf_map_lookup_elem(&network_instance_classifier, &key);
+	if (ni_id)
+		return (int)*ni_id;
+
+	if (ifindex == (__u32)n6_ifindex)
+		return 0;
+
+	return -1;
+}
+
+__noinline __weak int downlink_ingress_ni(struct __ctx_buff *ctx)
+{
+	__u32 vlan = 0;
+
+#if CTX_INBAND_VLAN
+	void *data = ctx_data(ctx);
+	const void *data_end = ctx_data_end(ctx);
+	struct ethhdr *eth = data;
+
+	if ((void *)(eth + 1) > data_end)
+		return -1;
+
+	if (eth->h_proto == bpf_htons(ETH_P_8021Q) ||
+	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
+		struct vlan_hdr *vh = (struct vlan_hdr *)(eth + 1);
+
+		if ((void *)(vh + 1) > data_end)
+			return -1;
+
+		vlan = bpf_ntohs(vh->h_vlan_TCI) & 0x0fff;
+	}
+#else
+	vlan = ctx->vlan_present ? ctx->vlan_tci & 0x0fff : 0;
+#endif
+
+	return ingress_network_instance(ctx_ingress_ifindex(ctx), vlan);
+}
+
+__noinline __weak int downlink_session_ni(struct __ctx_buff *ctx)
+{
+	int ni_id = downlink_ingress_ni(ctx);
+
+	return ni_id > 0 ? ni_id : 0;
+}
+
+__noinline __weak int downlink_reply_vlan(struct __ctx_buff *ctx)
+{
+	int ni_id = downlink_ingress_ni(ctx);
+
+	return ni_id > 0 ? (int)network_instance_vlan((__u32)ni_id) : n6_vlan;
 }
 
 /* A merged buffer holds several datagrams behind one set of headers, so
@@ -207,14 +356,15 @@ abort_reported(struct packet_context *ctx, enum upf_drop_reason fallback)
 static __always_inline int
 egress_vlan_forwarded(const struct packet_context *ctx)
 {
-	return ctx->interface == INTERFACE_N3 ? n6_vlan : n3_vlan;
+	return ctx->interface == INTERFACE_N3 ? ctx_n6_vlan(ctx) : n3_vlan;
 }
 
 /* Counterpart for a frame the datapath answers itself. */
 static __always_inline int
 egress_vlan_reflected(const struct packet_context *ctx)
 {
-	return ctx->interface == INTERFACE_N3 ? n3_vlan : n6_vlan;
+	return ctx->interface == INTERFACE_N3 ? n3_vlan :
+						 downlink_reply_vlan(ctx->ctx_buff);
 }
 
 /* Every program that owns a frame's outcome returns through this exactly once,

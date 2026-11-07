@@ -125,7 +125,7 @@ func testAttachModeTCX() bool { return os.Getenv("ELLA_TEST_ATTACH_MODE") == "tc
 func loadAttachedProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(flowAccounting, masquerade, false, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
 	obj.UseTCX = testAttachModeTCX()
 
 	if err := obj.Load(); err != nil {
@@ -145,7 +145,7 @@ func loadAttachedProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3
 func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(flowAccounting, masquerade, false, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
 	if err := obj.Load(); err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {

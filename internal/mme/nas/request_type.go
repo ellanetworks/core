@@ -39,7 +39,7 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 		return transferRejectCause(err)
 	}
 
-	if datapathCapacityExhausted(err) {
+	if datapathCapacityExhausted(err) || errors.Is(err, models.ErrNetworkInstanceUnavailable) {
 		return eps.ESMCauseInsufficientResources
 	}
 

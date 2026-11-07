@@ -227,7 +227,7 @@ func runBGPSuite(t *testing.T, sessionHoldScenario string) {
 
 	cl.SetToken(resp.Token)
 
-	if err := cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, cl, false); err != nil {
 		t.Fatalf("disable NAT: %v", err)
 	}
 
@@ -567,12 +567,12 @@ func runBGPSuite(t *testing.T, sessionHoldScenario string) {
 	})
 
 	t.Run("NATToggleSuppressesAdvertising", func(t *testing.T) {
-		if err := cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+		if err := setNATOnAllDataNetworks(ctx, cl, true); err != nil {
 			t.Fatalf("enable NAT: %v", err)
 		}
 
 		t.Cleanup(func() {
-			_ = cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false})
+			_ = setNATOnAllDataNetworks(ctx, cl, false)
 		})
 
 		time.Sleep(5 * time.Second)
@@ -600,7 +600,7 @@ func runBGPSuite(t *testing.T, sessionHoldScenario string) {
 			t.Fatalf("advertised routes after NAT enable: got %d, want 0", len(advertised.Routes))
 		}
 
-		if err := cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
+		if err := setNATOnAllDataNetworks(ctx, cl, false); err != nil {
 			t.Fatalf("disable NAT: %v", err)
 		}
 

@@ -35,9 +35,8 @@ var tracer = otel.Tracer("ella-core/upf/settings")
 // SettingsStore is the narrow view the reconciler needs over the DB.
 // *db.Database satisfies it; a fake satisfies it in tests.
 type SettingsStore interface {
-	IsNATEnabled(ctx context.Context) (bool, error)
+	ListSliceDataNetworkForwarding(ctx context.Context) ([]db.SliceDataNetworkForwarding, error)
 	IsFlowAccountingEnabled(ctx context.Context) (bool, error)
-	IsLocalSwitchEnabled(ctx context.Context) (bool, error)
 	GetN3Settings(ctx context.Context) (*db.N3Settings, error)
 	ListPoliciesPage(ctx context.Context, page int, perPage int) ([]db.Policy, int, error)
 	ListRulesForPolicy(ctx context.Context, policyID string) ([]*db.NetworkRule, error)
@@ -47,13 +46,13 @@ type SettingsStore interface {
 type DatapathSettings struct {
 	NAT            bool
 	FlowAccounting bool
-	LocalSwitch    bool
 }
 
 // Updater is the narrow view the reconciler needs over the UPF runtime.
 // *UPF satisfies it.
 type Updater interface {
 	ApplyDatapathSettings(settings DatapathSettings) error
+	HasNetworkInstance(name string) bool
 	UpdateAdvertisedN3Addresses(v4, v6 netip.Addr)
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 }
@@ -78,6 +77,7 @@ type SettingsReconciler struct {
 
 	stateMu            sync.Mutex
 	appliedSettings    *DatapathSettings
+	missingInstances   map[string]bool
 	appliedN3Addresses advertisedN3Addresses
 	appliedFilters     map[string]filterSnapshot
 }
@@ -127,9 +127,9 @@ func (r *SettingsReconciler) Start() {
 	filtersDone := make(chan struct{})
 
 	go r.loop(ctx, settingsDone, "upf settings reconcile failed", r.reconcileSettings,
-		db.TopicNATSettings,
+		db.TopicSliceDataNetworkNAT,
+		db.TopicDataNetworks,
 		db.TopicFlowAccountingSettings,
-		db.TopicLocalSwitchSettings,
 		db.TopicN3Settings,
 	)
 
@@ -262,7 +262,6 @@ func (r *SettingsReconciler) reconcileDatapathSettings(ctx context.Context) erro
 	logger.UpfLog.Info("applied datapath settings",
 		zap.Bool("nat", desired.NAT),
 		zap.Bool("flow_accounting", desired.FlowAccounting),
-		zap.Bool("local_switch", desired.LocalSwitch),
 	)
 
 	return nil
@@ -271,7 +270,7 @@ func (r *SettingsReconciler) reconcileDatapathSettings(ctx context.Context) erro
 func (r *SettingsReconciler) desiredDatapathSettings(ctx context.Context) (DatapathSettings, error) {
 	var desired DatapathSettings
 
-	nat, err := r.store.IsNATEnabled(ctx)
+	forwarding, err := r.store.ListSliceDataNetworkForwarding(ctx)
 	if err != nil {
 		return desired, fmt.Errorf("nat: %w", err)
 	}
@@ -281,14 +280,19 @@ func (r *SettingsReconciler) desiredDatapathSettings(ctx context.Context) (Datap
 		return desired, fmt.Errorf("flow accounting: %w", err)
 	}
 
-	localSwitch, err := r.store.IsLocalSwitchEnabled(ctx)
-	if err != nil {
-		return desired, fmt.Errorf("local switch: %w", err)
+	missing := make(map[string]bool)
+
+	for _, f := range forwarding {
+		desired.NAT = desired.NAT || f.NAT
+
+		if f.NetworkInstance != "" && !r.updater.HasNetworkInstance(f.NetworkInstance) {
+			missing[f.NetworkInstance] = true
+		}
 	}
 
-	desired.NAT = nat
+	r.warnMissingInstances(missing)
+
 	desired.FlowAccounting = flowAccounting
-	desired.LocalSwitch = localSwitch
 
 	return desired, nil
 }
@@ -458,4 +462,18 @@ func networkRulesToFilterRules(rules []*db.NetworkRule, direction string) []mode
 	}
 
 	return out
+}
+
+func (r *SettingsReconciler) warnMissingInstances(missing map[string]bool) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+
+	for name := range missing {
+		if !r.missingInstances[name] {
+			logger.UpfLog.Warn("a data network uses a network instance this node does not define in interfaces.network-instances; its sessions are rejected on this node",
+				zap.String("network_instance", name))
+		}
+	}
+
+	r.missingInstances = missing
 }

@@ -28,11 +28,6 @@ var datapathToggles = []struct {
 	updatedMsg string
 }{
 	{
-		name:       "NAT",
-		path:       "/api/v1/networking/nat",
-		updatedMsg: "NAT settings updated successfully",
-	},
-	{
 		name:       "flow accounting",
 		path:       "/api/v1/networking/flow-accounting",
 		updatedMsg: "Flow accounting settings updated successfully",

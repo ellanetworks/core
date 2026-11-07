@@ -160,7 +160,8 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		FlowReportsTableName,
 		HomeNetworkKeysTableName,
 		N3SettingsTableName,
-		NATSettingsTableName,
+		SliceDataNetworkNATTableName,
+		SliceDataNetworksTableName,
 		NetworkRulesTableName,
 		NetworkSlicesTableName,
 		OperatorTableName,
@@ -173,7 +174,6 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		SessionsTableName,
 		SubscribersTableName,
 		UsersTableName,
-		LocalSwitchSettingsTableName,
 	}
 
 	tables := allTableNames(t, db)

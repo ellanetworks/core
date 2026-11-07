@@ -395,6 +395,13 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 	}
 
+	if req.Forwarding != nil {
+		if err := conn.applyForwarding(session, *req.Forwarding); err != nil {
+			span.RecordError(err)
+			return false, nil, nil, err
+		}
+	}
+
 	logger.From(ctx, logger.UpfLog).Debug("Session modification successful")
 
 	return drain, endMarkers, &models.ModifyResponse{ChosenTEIDs: chosenTEIDs(session), Usage: usage}, nil
@@ -563,4 +570,35 @@ func qerInfoFromMerge(qer models.QER, existing ebpf.QerInfo) ebpf.QerInfo {
 	}
 
 	return existing
+}
+
+func (conn *SessionEngine) applyForwarding(session *Session, forwarding models.SessionForwarding) error {
+	oldNATExempt, oldLocalSwitch := session.forwarding()
+	if oldNATExempt == forwarding.NATExempt && oldLocalSwitch == forwarding.LocalSwitch {
+		return nil
+	}
+
+	session.SetNATExempt(forwarding.NATExempt)
+	session.SetLocalSwitch(forwarding.LocalSwitch)
+
+	if conn.BpfObjects == nil || session.unpublished {
+		return nil
+	}
+
+	for _, pdr := range session.ListPDRs() {
+		if err := applyPDR(pdr, session, conn.BpfObjects); err != nil {
+			session.SetNATExempt(oldNATExempt)
+			session.SetLocalSwitch(oldLocalSwitch)
+
+			var restoreErr error
+
+			for _, p := range session.ListPDRs() {
+				restoreErr = errors.Join(restoreErr, applyPDR(p, session, conn.BpfObjects))
+			}
+
+			return errors.Join(fmt.Errorf("apply forwarding to PDR %d: %w", pdr.PdrID, err), restoreErr)
+		}
+	}
+
+	return nil
 }

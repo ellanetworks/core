@@ -103,7 +103,52 @@ type datapathIface struct {
 // mechanism actually used. config.DatapathChain tries driver-level XDP first
 // and falls back to TCX, reloading the objects because the two hooks need
 // different program types.
-func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (string, link.Link, *link.Link, error) {
+func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, []link.Link, error) {
+	attachedMode, n3Link, n6Link, err := attachN3N6(objs, mode, n3, n6, extra)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
+	extraLinks := make([]link.Link, 0, len(extra))
+
+	for _, iface := range extra {
+		var (
+			l         link.Link
+			attachErr error
+		)
+
+		switch attachedMode {
+		case config.DatapathTCX:
+			l, attachErr = attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
+		case config.DatapathXDPGeneric:
+			l, attachErr = attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
+		default:
+			l, attachErr = attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
+		}
+
+		if attachErr != nil {
+			for _, attached := range extraLinks {
+				_ = attached.Close()
+			}
+
+			if n6Link != nil {
+				_ = (*n6Link).Close()
+			}
+
+			_ = n3Link.Close()
+
+			return "", nil, nil, nil, fmt.Errorf("attach datapath on network instance interface %q: %w", iface.name, attachErr)
+		}
+
+		extraLinks = append(extraLinks, l)
+	}
+
+	return attachedMode, n3Link, n6Link, extraLinks, nil
+}
+
+func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, error) {
+	all := append([]datapathIface{n3, n6}, extra...)
+
 	switch mode {
 	case config.DatapathXDPNative, config.DatapathXDPGeneric:
 		flags := link.XDPDriverMode
@@ -112,7 +157,7 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 		}
 
 		if mode == config.DatapathXDPNative {
-			for _, iface := range []datapathIface{n3, n6} {
+			for _, iface := range all {
 				if nativeXDPBlackholes(iface.name) {
 					logger.UpfLog.Warn("configured attach mode cannot forward redirected frames on this interface: "+
 						"the attach succeeds and every redirected frame is dropped, use tcx instead",
@@ -133,7 +178,7 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 
 	// A veth accepts a native attach and then drops every redirected frame,
 	// so the driver-refusal fallback below never fires for it.
-	for _, iface := range []datapathIface{n3, n6} {
+	for _, iface := range all {
 		if nativeXDPBlackholes(iface.name) {
 			logger.UpfLog.Info("interface cannot forward redirected frames in native XDP, attaching at TCX",
 				zap.String("iface", iface.name))

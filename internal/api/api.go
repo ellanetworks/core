@@ -295,7 +295,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		bgpSettingsWakeup, stopBGPSettingsWakeup := opts.DB.Changefeed().Wakeup(
 			db.TopicBGPSettings,
 			db.TopicBGPPeers,
-			db.TopicNATSettings,
+			db.TopicSliceDataNetworkNAT,
 			db.TopicDataNetworks,
 			db.TopicFramedRoutes,
 		)
@@ -339,8 +339,8 @@ func (a *bgpSettingsStoreAdapter) ListPeers(ctx context.Context) ([]bgp.BGPPeer,
 	return server.DBPeersToBGPPeers(dbPeers), nil
 }
 
-func (a *bgpSettingsStoreAdapter) IsNATEnabled(ctx context.Context) (bool, error) {
-	return a.db.IsNATEnabled(ctx)
+func (a *bgpSettingsStoreAdapter) NATOnEveryDataNetwork(ctx context.Context) (bool, error) {
+	return a.db.NATCoversEveryDataNetwork(ctx)
 }
 
 func seedReconcilerFromCurrentState(ctx context.Context, r *bgp.SettingsReconciler, store *bgpSettingsStoreAdapter) {
@@ -354,7 +354,7 @@ func seedReconcilerFromCurrentState(ctx context.Context, r *bgp.SettingsReconcil
 		return
 	}
 
-	natEnabled, err := store.db.IsNATEnabled(ctx)
+	natEnabled, err := store.db.NATCoversEveryDataNetwork(ctx)
 	if err != nil {
 		return
 	}

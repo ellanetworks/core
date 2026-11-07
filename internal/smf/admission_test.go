@@ -172,6 +172,7 @@ func TestCreateSmContextDatapathInsertFailure(t *testing.T) {
 		{"E2BIG", fmt.Errorf("couldn't apply PDR: can't apply GTP PDR: %w", fmt.Errorf("update: %w", unix.E2BIG)), fgs.GSMCauseInsufficientResources, true},
 		{"ENOMEM", errors.Join(fmt.Errorf("can't put URR: %w", unix.ENOMEM), errors.New("cleanup")), fgs.GSMCauseInsufficientResources, true},
 		{"other", errors.New("map is not initialized"), fgs.GSMCauseRequestRejectedUnspecified, false},
+		{"network instance not on this node", fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable), fgs.GSMCauseInsufficientResources, false},
 	}
 
 	for _, tc := range cases {

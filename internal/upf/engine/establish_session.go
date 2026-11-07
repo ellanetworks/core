@@ -62,12 +62,21 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		}
 	}
 
+	niID, niErr := conn.networkInstanceID(req.NetworkInstance)
+	if niErr != nil {
+		span.RecordError(niErr)
+
+		return nil, niErr
+	}
+
 	sess := NewSession(seid)
 	sess.unpublished = true
 	sess.SetIMSI(req.IMSI)
 	sess.SetTrafficClass(req.Snssai, req.DNN)
 	sess.SetLocalSwitch(req.LocalSwitch)
 	sess.SetNATExempt(req.NATExempt)
+	sess.SetDataNetworkTag(conn.dataNetworkTag(req.SliceDataNetwork))
+	sess.SetNetworkInstance(niID)
 	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
 
 	logger.From(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))

@@ -140,10 +140,24 @@ handle_downlink_ip6(struct packet_context *ctx)
 	return handle_n6_packet_ipv6(ctx);
 }
 
+static __always_inline void select_ingress_ni(struct packet_context *ctx)
+{
+	if (frame_is_reinjected(ctx->ctx_buff))
+		return;
+
+	int ni_id = downlink_ingress_ni(ctx->ctx_buff);
+	if (ni_id > 0)
+		ctx->routing_ifindex = n3_routing_ifindex;
+}
+
 static __always_inline enum ctx_action
 process_downlink(struct packet_context *ctx)
 {
-	switch (parse_ethernet(ctx)) {
+	__u16 l3_protocol = parse_ethernet(ctx);
+
+	select_ingress_ni(ctx);
+
+	switch (l3_protocol) {
 	case ETH_P_IP:
 		return handle_downlink_ip4(ctx);
 	case ETH_P_IPV6:
@@ -440,6 +454,15 @@ int upf_entry_func(struct __ctx_buff *ctx)
 				index = UPF_CALL_UPLINK;
 		}
 	} else {
+		return ctx_verdict(DEFAULT_CTX_ACTION);
+	}
+
+	struct network_instance_key ni_key = {
+		.ifindex = ctx_ingress_ifindex(ctx),
+		.vlan = frame_vlan_id(&context),
+	};
+	if (bpf_map_lookup_elem(&network_instance_classifier, &ni_key)) {
+		bpf_tail_call(ctx, &upf_calls, UPF_CALL_DOWNLINK);
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 

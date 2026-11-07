@@ -6,7 +6,10 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func migrateV26(ctx context.Context, tx *sql.Tx) error {
@@ -21,7 +24,100 @@ func migrateV26(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	return migrateSMSCNodes(ctx, tx)
+	if err := migrateSMSCNodes(ctx, tx); err != nil {
+		return err
+	}
+
+	return migrateDataNetworkForwarding(ctx, tx)
+}
+
+func migrateDataNetworkForwarding(ctx context.Context, tx *sql.Tx) error {
+	natEnabled, err := readLegacyToggle(ctx, tx, NATSettingsTableName, NATDefaultEnabled)
+	if err != nil {
+		return err
+	}
+
+	localSwitch, ok := migrationLocalSwitch(ctx)
+	if !ok {
+		localSwitch, err = readLegacyToggle(ctx, tx, LocalSwitchSettingsTableName, false)
+		if err != nil {
+			return err
+		}
+	}
+
+	stmts := []string{
+		fmt.Sprintf(`CREATE TABLE %s (
+			sliceID         TEXT NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
+			dataNetworkID   TEXT NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
+			localSwitch     BOOLEAN NOT NULL CHECK (localSwitch IN (0, 1)),
+			networkInstance TEXT NOT NULL DEFAULT '%s',
+			PRIMARY KEY (sliceID, dataNetworkID)
+		)`, SliceDataNetworksTableName, NetworkSlicesTableName, DataNetworksTableName, models.DefaultNetworkInstanceName),
+		fmt.Sprintf("CREATE INDEX idx_slice_data_networks_data_network ON %s(dataNetworkID)", SliceDataNetworksTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			sliceID       TEXT NOT NULL,
+			dataNetworkID TEXT NOT NULL,
+			enabled       BOOLEAN NOT NULL CHECK (enabled IN (0, 1)),
+			PRIMARY KEY (sliceID, dataNetworkID)
+		)`, SliceDataNetworkNATTableName),
+	}
+
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("add slice data networks: %w", err)
+		}
+	}
+
+	pairs := fmt.Sprintf("SELECT DISTINCT p.sliceID, p.dataNetworkID, d.ims FROM %s p JOIN %s d ON d.id = p.dataNetworkID", PoliciesTableName, DataNetworksTableName)
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (sliceID, dataNetworkID, localSwitch) SELECT sliceID, dataNetworkID, ims OR ? FROM (%s)", SliceDataNetworksTableName, pairs), localSwitch); err != nil {
+		return fmt.Errorf("serve the data networks of existing policies: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (sliceID, dataNetworkID, enabled) SELECT sliceID, dataNetworkID, ? FROM (%s) WHERE NOT ims", SliceDataNetworkNATTableName, pairs), natEnabled); err != nil {
+		return fmt.Errorf("carry the NAT setting to slice data networks: %w", err)
+	}
+
+	return nil
+}
+
+func readLegacyToggle(ctx context.Context, q interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}, table string, fallback bool,
+) (bool, error) {
+	var exists int
+	if err := q.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&exists); err != nil {
+		return false, fmt.Errorf("look up %s: %w", table, err)
+	}
+
+	if exists == 0 {
+		return fallback, nil
+	}
+
+	enabled := fallback
+
+	err := q.QueryRowContext(ctx, fmt.Sprintf("SELECT enabled FROM %s WHERE singleton = TRUE", table)).Scan(&enabled)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("read %s: %w", table, err)
+	}
+
+	return enabled, nil
+}
+
+type migrationLocalSwitchKey struct{}
+
+func withMigrationLocalSwitch(ctx context.Context, localSwitch *bool) context.Context {
+	if localSwitch == nil {
+		return ctx
+	}
+
+	return context.WithValue(ctx, migrationLocalSwitchKey{}, *localSwitch)
+}
+
+func migrationLocalSwitch(ctx context.Context) (bool, bool) {
+	v, ok := ctx.Value(migrationLocalSwitchKey{}).(bool)
+
+	return v, ok
 }
 
 func migrateSMSCNodes(ctx context.Context, tx *sql.Tx) error {
