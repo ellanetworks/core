@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
-import { isHostAddress } from "@/utils/ip";
+import { isHostAddress, isHostName } from "@/utils/ip";
 import { msisdnRegex } from "@/components/subscriberIdentity";
 
 interface SMSCModalProps {
@@ -45,8 +45,8 @@ const nodeSchema = yup.object({
     .test("required", "Address is required", (v) => !!v?.trim())
     .test(
       "address",
-      "Must be an IPv4 or IPv6 address",
-      (v) => !v?.trim() || isHostAddress(v.trim()),
+      "Must be an IPv4 or IPv6 address or a host name",
+      (v) => !v?.trim() || isHostAddress(v.trim()) || isHostName(v.trim()),
     ),
   port: yup
     .number()

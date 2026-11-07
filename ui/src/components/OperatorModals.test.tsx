@@ -408,14 +408,26 @@ describe("SMSCModal", () => {
     expect(screen.getByRole("button", { name: "Add Node" })).toBeDisabled();
   });
 
-  it("rejects an address that is not an IP address", async () => {
+  it("rejects an address that is neither an IP address nor a host name", async () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await retype(user, /^Node 1 address/, "smsc.example.org");
+    await retype(user, /^Node 1 address/, "smsc_0.example.org");
 
-    await screen.findByText("Must be an IPv4 or IPv6 address");
+    await screen.findByText("Must be an IPv4 or IPv6 address or a host name");
     expect(updateButton()).toBeDisabled();
+  });
+
+  it("accepts a host name as an address", async () => {
+    const user = userEvent.setup();
+    render(smsc);
+
+    await retype(user, /^Node 1 address/, "smsc-0.smsc.ella.svc.cluster.local");
+    await user.tab();
+
+    expect(
+      screen.queryByText("Must be an IPv4 or IPv6 address or a host name"),
+    ).not.toBeInTheDocument();
   });
 
   it("rejects a Diameter identity that is not a domain name", async () => {

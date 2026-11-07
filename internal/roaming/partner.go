@@ -68,7 +68,8 @@ func DiameterPeers(peers []db.RoamingDiameterPeer, partners []db.RoamingPartner)
 			ID:           DiameterPeerID(p.ID),
 			Role:         diameternode.PeerRoleRoaming,
 			Host:         p.DiameterIdentity,
-			Address:      netip.AddrPortFrom(addr, uint16(p.Port)),
+			Address:      addr.String(),
+			Port:         uint16(p.Port),
 			Applications: diameternode.RoamingApplications,
 			Routes:       routes[p.ID],
 		})

@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/diameter"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
@@ -140,9 +141,8 @@ func (n SMSCNode) Validate() error {
 		return fmt.Errorf("SMSC node Diameter identity must be a fully qualified domain name, got %q", n.DiameterIdentity)
 	}
 
-	addr, err := netip.ParseAddr(n.Address)
-	if err != nil || addr.Zone() != "" || addr.IsUnspecified() || addr.Unmap().String() != n.Address {
-		return fmt.Errorf("SMSC node address must be an IPv4 or IPv6 address in canonical form, got %q", n.Address)
+	if !IsCanonicalNodeAddress(n.Address) {
+		return fmt.Errorf("SMSC node address must be an IPv4 or IPv6 address or a lowercase host name, got %q", n.Address)
 	}
 
 	if n.Port < 1 || n.Port > 65535 {
@@ -150,6 +150,14 @@ func (n SMSCNode) Validate() error {
 	}
 
 	return nil
+}
+
+func IsCanonicalNodeAddress(address string) bool {
+	if addr, err := netip.ParseAddr(address); err == nil {
+		return addr.Zone() == "" && !addr.IsUnspecified() && addr.Unmap().String() == address
+	}
+
+	return diameter.IsValidHostname(address) && strings.ToLower(address) == address
 }
 
 func (s SMSC) Serves(serviceCentre string) bool {

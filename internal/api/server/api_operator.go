@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/logger"
@@ -290,7 +291,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				SMSNumber: formatE164(smsSettings.SMSNumber),
 			},
 			IMS: GetOperatorIMSResponse{
-				PCSCFAddresses: addrStrings(pcscfAddresses),
+				PCSCFAddresses: pcscfAddresses,
 				VoiceStatus:    string(voiceStatus),
 				HomeDomain:     imsHomeDomain(dbOperator.Mcc, dbOperator.Mnc),
 			},
@@ -715,16 +716,21 @@ func UpdateOperatorIMS(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		addresses := make([]netip.Addr, 0, len(params.PCSCFAddresses))
+		addresses := make([]string, 0, len(params.PCSCFAddresses))
 
 		for _, s := range params.PCSCFAddresses {
-			addr, err := netip.ParseAddr(strings.TrimSpace(s))
-			if err != nil {
-				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("pcscfAddresses: %q is not an IPv4 or IPv6 address", s), nil, logger.APILog)
+			address := strings.TrimSpace(s)
+
+			if addr, err := netip.ParseAddr(address); err == nil {
+				address = addr.String()
+			} else if diameter.IsValidHostname(address) {
+				address = strings.ToLower(address)
+			} else {
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("pcscfAddresses: %q is not an IPv4 or IPv6 address or a host name", s), nil, logger.APILog)
 				return
 			}
 
-			addresses = append(addresses, addr)
+			addresses = append(addresses, address)
 		}
 
 		if err := db.ValidatePCSCFAddresses(addresses); err != nil {
@@ -744,22 +750,13 @@ func UpdateOperatorIMS(dbInstance *db.Database) http.Handler {
 
 		pcscf := "none"
 		if len(addresses) > 0 {
-			pcscf = strings.Join(addrStrings(addresses), ", ")
+			pcscf = strings.Join(addresses, ", ")
 		}
 
 		detail := fmt.Sprintf("User updated operator IMS settings (P-CSCF addresses %s)", pcscf)
 
 		logger.LogAuditEvent(r.Context(), UpdateOperatorIMSAction, email, getClientIP(r), detail)
 	})
-}
-
-func addrStrings(addresses []netip.Addr) []string {
-	out := make([]string, 0, len(addresses))
-	for _, a := range addresses {
-		out = append(out, a.String())
-	}
-
-	return out
 }
 
 func imsHomeDomain(mcc, mnc string) string {

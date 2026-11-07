@@ -376,7 +376,7 @@ This path creates an SMSC.
 - `serviceCentres` (array of strings): The E.164 service centre numbers the SMSC serves, for example `+15550000000`.
 - `nodes` (array of objects): The SMSC's Diameter nodes.
     - `diameterIdentity` (optional string): The node's Diameter identity (Origin-Host).
-    - `address` (string): The IPv4 or IPv6 address of the node's Diameter endpoint.
+    - `address` (string): The IPv4 or IPv6 address or the host name of the node's Diameter endpoint.
     - `port` (optional integer): The SCTP port of the node's Diameter endpoint, between 1 and 65535. Defaults to `3868`.
 
 ### Sample Request
@@ -475,13 +475,13 @@ This path sets the P-CSCF addresses of the IMS that Ella Core gives to UEs on IM
 
 ### Parameters
 
-- `pcscfAddresses` (array of strings): Unicast IPv4 and IPv6 addresses of the IMS, in preference order. At most 3 of each IP version, without duplicates. UEs receive the addresses of the IP version they request. An empty list clears it.
+- `pcscfAddresses` (array of strings): Unicast IPv4 and IPv6 addresses or host names of the IMS, in preference order. At most 6, with at most 3 addresses of each IP version, without duplicates. UEs receive the addresses of the IP version they request. An empty list clears it.
 
 ### Sample Request
 
 ```json
 {
-    "pcscfAddresses": ["192.0.2.20", "2001:db8::20"]
+    "pcscfAddresses": ["pcscf.ims.example.org", "192.0.2.20", "2001:db8::20"]
 }
 ```
 

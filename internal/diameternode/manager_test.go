@@ -205,7 +205,8 @@ func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, e
 		ID:      "smsc-1",
 		Role:    "smsc",
 		Host:    s.smscHost,
-		Address: s.smsc,
+		Address: s.smsc.Addr().String(),
+		Port:    s.smsc.Port(),
 		Applications: []diameter.Application{
 			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
 			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
@@ -333,7 +334,7 @@ func TestNodeConnectsToSMSC(t *testing.T) {
 	}
 
 	peer, _ := smscPeer(link)
-	if peer.Host != smscHost || peer.Realm != smscRealm || peer.Address != smsc.addr || peer.Since.IsZero() {
+	if peer.Host != smscHost || peer.Realm != smscRealm || peer.Address != smsc.addr.Addr().String() || peer.Port != smsc.addr.Port() || peer.Since.IsZero() {
 		t.Fatalf("peer = %+v, want %s / %s at %s", peer, smscHost, smscRealm, smsc.addr)
 	}
 
@@ -980,7 +981,7 @@ func TestListenerAcceptsUnknownIMSPeersForCxAndRx(t *testing.T) {
 				t.Fatalf("negotiated applications = %v, want Cx and Rx", apps)
 			}
 
-			if st := imsPeer(link); st.Host != imsHost || st.Address.Addr() != loopback2 {
+			if st := imsPeer(link); st.Host != imsHost || st.Address != loopback2.String() {
 				t.Fatalf("IMS peer status = %+v", st)
 			}
 

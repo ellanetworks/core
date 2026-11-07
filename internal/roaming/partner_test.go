@@ -4,7 +4,6 @@
 package roaming_test
 
 import (
-	"net/netip"
 	"slices"
 	"testing"
 
@@ -44,7 +43,7 @@ func TestDiameterPeersRouteEveryPartnerPLMNToItsPeer(t *testing.T) {
 	}
 
 	if got.ID != "roaming-dea" || got.Role != diameternode.PeerRoleRoaming || got.Host != "dea.ipx.example.org" ||
-		got.Address != netip.MustParseAddrPort("192.0.2.10:3868") || !slices.Equal(got.Routes, want) ||
+		got.Address != "192.0.2.10" || got.Port != 3868 || !slices.Equal(got.Routes, want) ||
 		!slices.Equal(got.Applications, diameternode.RoamingApplications) {
 		t.Fatalf("config = %+v, want routes %+v", got, want)
 	}

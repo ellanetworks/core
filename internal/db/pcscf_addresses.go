@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 
+	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -22,6 +24,8 @@ const PCSCFAddressesTableName = "pcscf_addresses"
 const pcscfAddressesSchema = 23
 
 const MaxPCSCFAddressesPerFamily = 3
+
+const MaxPCSCFAddresses = 2 * MaxPCSCFAddressesPerFamily
 
 var limitedBroadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
 
@@ -40,28 +44,34 @@ type pcscfAddressesPayload struct {
 	Addresses []string `json:"addresses"`
 }
 
-func ValidatePCSCFAddresses(addresses []netip.Addr) error {
-	seen := make(map[netip.Addr]struct{}, len(addresses))
+func ValidatePCSCFAddresses(addresses []string) error {
+	seen := make(map[string]struct{}, len(addresses))
 
 	var ipv4, ipv6 int
 
-	for _, addr := range addresses {
-		if !addr.IsValid() || addr.Zone() != "" || addr.IsUnspecified() || addr.IsLoopback() || addr.IsMulticast() || addr.Is4In6() ||
-			addr.IsLinkLocalUnicast() || addr == limitedBroadcast {
-			return fmt.Errorf("P-CSCF address must be a unicast IPv4 or IPv6 address, got %q", addr)
+	for _, address := range addresses {
+		addr, err := netip.ParseAddr(address)
+
+		switch {
+		case err == nil:
+			if !IsPCSCFUnicast(addr) || addr.String() != address {
+				return fmt.Errorf("P-CSCF address must be a unicast IPv4 or IPv6 address, got %q", address)
+			}
+
+			if addr.Is4() {
+				ipv4++
+			} else {
+				ipv6++
+			}
+		case !diameter.IsValidHostname(address) || strings.ToLower(address) != address:
+			return fmt.Errorf("P-CSCF address must be an IPv4 or IPv6 address or a lowercase host name, got %q", address)
 		}
 
-		if _, dup := seen[addr]; dup {
-			return fmt.Errorf("P-CSCF address %s is listed more than once", addr)
+		if _, dup := seen[address]; dup {
+			return fmt.Errorf("P-CSCF address %s is listed more than once", address)
 		}
 
-		seen[addr] = struct{}{}
-
-		if addr.Is4() {
-			ipv4++
-		} else {
-			ipv6++
-		}
+		seen[address] = struct{}{}
 	}
 
 	if ipv4 > MaxPCSCFAddressesPerFamily {
@@ -72,10 +82,19 @@ func ValidatePCSCFAddresses(addresses []netip.Addr) error {
 		return fmt.Errorf("at most %d IPv6 P-CSCF addresses are allowed, got %d", MaxPCSCFAddressesPerFamily, ipv6)
 	}
 
+	if len(addresses) > MaxPCSCFAddresses {
+		return fmt.Errorf("at most %d P-CSCF addresses are allowed, got %d", MaxPCSCFAddresses, len(addresses))
+	}
+
 	return nil
 }
 
-func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]netip.Addr, error) {
+func IsPCSCFUnicast(addr netip.Addr) bool {
+	return addr.IsValid() && addr.Zone() == "" && !addr.IsUnspecified() && !addr.IsLoopback() && !addr.IsMulticast() && !addr.Is4In6() &&
+		!addr.IsLinkLocalUnicast() && addr != limitedBroadcast
+}
+
+func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 	ctx, span := startPCSCFAddressesSpan(ctx, "SELECT")
 	defer span.End()
 
@@ -85,7 +104,7 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]netip.Addr, error
 	DBQueriesTotal.WithLabelValues(PCSCFAddressesTableName, "select").Inc()
 
 	if !db.appliedSchemaAtLeast(ctx, pcscfAddressesSchema) {
-		return []netip.Addr{}, nil
+		return []string{}, nil
 	}
 
 	var rows []pcscfAddressRow
@@ -97,23 +116,15 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]netip.Addr, error
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	addresses := make([]netip.Addr, 0, len(rows))
-
+	addresses := make([]string, 0, len(rows))
 	for _, row := range rows {
-		addr, err := netip.ParseAddr(row.Address)
-		if err != nil {
-			recordSpanError(span, err)
-
-			return nil, fmt.Errorf("stored P-CSCF address %q: %w", row.Address, err)
-		}
-
-		addresses = append(addresses, addr)
+		addresses = append(addresses, row.Address)
 	}
 
 	return addresses, nil
 }
 
-func (db *Database) ReplacePCSCFAddresses(ctx context.Context, addresses []netip.Addr) error {
+func (db *Database) ReplacePCSCFAddresses(ctx context.Context, addresses []string) error {
 	if err := ValidatePCSCFAddresses(addresses); err != nil {
 		return err
 	}
@@ -126,10 +137,7 @@ func (db *Database) ReplacePCSCFAddresses(ctx context.Context, addresses []netip
 
 	DBQueriesTotal.WithLabelValues(PCSCFAddressesTableName, "replace").Inc()
 
-	payload := &pcscfAddressesPayload{Addresses: make([]string, 0, len(addresses))}
-	for _, addr := range addresses {
-		payload.Addresses = append(payload.Addresses, addr.String())
-	}
+	payload := &pcscfAddressesPayload{Addresses: slices.Clone(addresses)}
 
 	if _, err := opReplacePCSCFAddresses.Invoke(ctx, db, payload); err != nil {
 		recordSpanError(span, err)
@@ -202,12 +210,17 @@ func (db *Database) IMSVoiceStatus(ctx context.Context) (IMSVoiceStatus, error) 
 		return IMSVoiceNoDataNetwork, nil
 	}
 
-	if slices.ContainsFunc(addresses, func(addr netip.Addr) bool {
-		if addr.Is4() {
-			return dn.IPv4Pool != ""
-		}
+	if slices.ContainsFunc(addresses, func(address string) bool {
+		addr, err := netip.ParseAddr(address)
 
-		return dn.IPv6Pool != ""
+		switch {
+		case err != nil:
+			return dn.IPv4Pool != "" || dn.IPv6Pool != ""
+		case addr.Is4():
+			return dn.IPv4Pool != ""
+		default:
+			return dn.IPv6Pool != ""
+		}
 	}) {
 		return IMSVoiceEnabled, nil
 	}

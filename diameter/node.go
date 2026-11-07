@@ -98,6 +98,7 @@ type Config struct {
 type Peer struct {
 	ID               string
 	Host             string
+	Name             string
 	Addresses        []netip.Addr
 	Transports       []Transport
 	Applications     []Application
@@ -484,6 +485,13 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 
 	hostless := make(map[endpoint]string)
 
+	type named struct {
+		name      string
+		transport Transport
+	}
+
+	hostlessNames := make(map[named]string)
+
 	for _, p := range peers {
 		if p.ID == "" {
 			return nil, errors.New("diameter: every Peer needs an ID")
@@ -493,8 +501,20 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 			return nil, fmt.Errorf("diameter: duplicate peer ID %q", p.ID)
 		}
 
-		if len(p.Addresses) == 0 {
-			return nil, fmt.Errorf("diameter: peer %q needs at least one address", p.ID)
+		if p.Name != "" {
+			if len(p.Addresses) > 0 {
+				return nil, fmt.Errorf("diameter: peer %q has both a name and addresses", p.ID)
+			}
+
+			if p.Dial == nil {
+				return nil, fmt.Errorf("diameter: peer %q has a name but does not dial", p.ID)
+			}
+
+			if !IsValidHostname(p.Name) {
+				return nil, fmt.Errorf("diameter: peer %q has an invalid name %q", p.ID, p.Name)
+			}
+		} else if len(p.Addresses) == 0 {
+			return nil, fmt.Errorf("diameter: peer %q needs a name or at least one address", p.ID)
 		}
 
 		if len(p.Applications) == 0 {
@@ -550,6 +570,17 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 
 			hosts[key] = p.ID
 		} else {
+			if p.Name != "" {
+				for _, kind := range p.Transports {
+					ep := named{strings.ToLower(p.Name), kind}
+					if other, dup := hostlessNames[ep]; dup {
+						return nil, fmt.Errorf("diameter: peers %q and %q without a host share the name %s over %s", other, p.ID, p.Name, kind)
+					}
+
+					hostlessNames[ep] = p.ID
+				}
+			}
+
 			for _, a := range p.Addresses {
 				for _, kind := range p.Transports {
 					ep := endpoint{a, kind}
@@ -569,7 +600,7 @@ func normalizePeers(peers []Peer) (map[string]Peer, error) {
 }
 
 func samePeer(a, b Peer) bool {
-	return strings.EqualFold(a.Host, b.Host) && slices.Equal(a.Transports, b.Transports) && sameDial(a.Dial, b.Dial) &&
+	return strings.EqualFold(a.Host, b.Host) && strings.EqualFold(a.Name, b.Name) && slices.Equal(a.Transports, b.Transports) && sameDial(a.Dial, b.Dial) &&
 		slices.Equal(a.Addresses, b.Addresses) && slices.Equal(a.Applications, b.Applications) &&
 		slices.Equal(a.SupportedVendors, b.SupportedVendors)
 }

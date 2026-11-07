@@ -11,6 +11,7 @@ import {
   ipv6Regex,
   addressFamily,
   isHostAddress,
+  isHostName,
   unmapIpv4Mapped,
   isValidCidr,
   isValidIpv4Cidr,
@@ -207,5 +208,30 @@ describe("isHostAddress", () => {
     "fe80::1%1",
   ])("rejects %s", (v) => {
     expect(isHostAddress(v)).toBe(false);
+  });
+});
+
+describe("isHostName", () => {
+  it.each([
+    "smsc",
+    "smsc-0.smsc.ella.svc.cluster.local",
+    "PCSCF.Example.org",
+    "3com.example",
+  ])("accepts %s", (v) => {
+    expect(isHostName(v)).toBe(true);
+  });
+
+  it.each([
+    "",
+    "10.0.0.1",
+    "2001:db8::1",
+    "smsc.",
+    ".smsc",
+    "-smsc.example.org",
+    "smsc-.example.org",
+    "smsc_0.example.org",
+    `${"a".repeat(64)}.example`,
+  ])("rejects %s", (v) => {
+    expect(isHostName(v)).toBe(false);
   });
 });

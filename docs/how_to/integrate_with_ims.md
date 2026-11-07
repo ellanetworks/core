@@ -35,7 +35,7 @@ Configure your IMS with the following settings, using the MCC and 3-digit MNC of
 
 In the Ella Core UI, go to the Operator page and scroll to the **IMS** section.
 
-Click the edit icon next to **P-CSCF Addresses**, enter your IMS's P-CSCF addresses, e.g. `10.6.0.5`, and click **Update**.
+Click the edit icon next to **P-CSCF Addresses**, enter your IMS's P-CSCF addresses or host names, e.g. `10.6.0.5`, and click **Update**.
 
 ## 4. Route the IMS data networks
 

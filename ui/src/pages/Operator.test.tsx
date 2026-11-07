@@ -289,7 +289,9 @@ describe("Operator IMS section", () => {
     await user.type(input, "10.6.0.300");
     await user.tab();
     expect(
-      await screen.findByText("10.6.0.300 is not an IPv4 or IPv6 address"),
+      await screen.findByText(
+        "10.6.0.300 is not an IPv4 or IPv6 address or a host name",
+      ),
     ).toBeInTheDocument();
 
     await user.clear(input);
@@ -297,6 +299,13 @@ describe("Operator IMS section", () => {
     await user.tab();
     expect(
       await screen.findByText("10.6.0.5 is listed more than once"),
+    ).toBeInTheDocument();
+
+    await user.clear(input);
+    await user.type(input, "pcscf.example.org, PCSCF.example.org");
+    await user.tab();
+    expect(
+      await screen.findByText("PCSCF.example.org is listed more than once"),
     ).toBeInTheDocument();
   });
 
