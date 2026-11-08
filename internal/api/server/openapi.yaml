@@ -915,6 +915,28 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/subscribers/{imsi}/ims/deregister:
+    post:
+      operationId: deregisterSubscriberIMS
+      tags: [Subscribers]
+      summary: Clear a subscriber's IMS registration
+      description: "De-registers the subscriber from the IMS (TS 29.228 §6.1.3, reason SERVER_CHANGE while registered, REMOVE_S-CSCF otherwise) and removes its registered IP-SM-GW. The HSS clears both even if the S-CSCF does not answer, so that a stale registration left by an IMS that stopped without de-registering can be removed. The phone registers again with the IMS on its own."
+      parameters:
+        - $ref: "#/components/parameters/ImsiPath"
+      responses:
+        "200":
+          description: The IMS registration and the registered IP-SM-GW are cleared.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeregisterIMSResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/subscribers/{imsi}/credentials:
     get:
       operationId: getSubscriberCredentials
@@ -4432,7 +4454,25 @@ components:
             $ref: "#/components/schemas/Session"
         ims:
           $ref: "#/components/schemas/IMSSubscription"
+        ip_sm_gw:
+          $ref: "#/components/schemas/IPSMGWRegistration"
       required: [imsi, profile_name, registrations, sessions]
+
+    IPSMGWRegistration:
+      type: object
+      description: "IP-SM-GW registered for the subscriber by Sh-Update of SMS registration info (TS 29.328 §6.1.2.1). While present, the HSS proxies Send Routing Info for SM to it (TS 29.338 §5.3.1.1.3). Absent when none is registered."
+      properties:
+        number:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "IP-SM-GW number in E.164 format."
+        diameter_host:
+          type: string
+          description: "Diameter identity of the IP-SM-GW."
+        diameter_realm:
+          type: string
+          description: "Diameter realm of the IP-SM-GW."
+      required: [number, diameter_host, diameter_realm]
 
     IMSSubscription:
       type: object
@@ -4488,6 +4528,22 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/SubscriberCredentials"
+
+    DeregisterIMSResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        acknowledged:
+          type: boolean
+          description: "Whether the S-CSCF acknowledged the de-registration. False when the subscriber had an S-CSCF assigned and it did not answer, for example because the IMS is down."
+      required: [message, acknowledged]
+
+    DeregisterIMSResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/DeregisterIMSResponse"
 
     SubscriberDetailResponseEnvelope:
       type: object

@@ -124,6 +124,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateSubscriber, CreateSubscriber(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, UpdateSubscriber(dbInstance, cfg.IMSProfiles))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance, sessions, hssInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/subscribers/{imsi}/ims/deregister", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, DeregisterSubscriberIMS(dbInstance, hssInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}/credentials", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriberCredentials, GetSubscriberCredentials(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance, hssInstance))).ServeHTTP)
 

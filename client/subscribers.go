@@ -110,6 +110,13 @@ type SubscriberDetail struct {
 	Registrations []Registration   `json:"registrations"`
 	Sessions      []Session        `json:"sessions"`
 	IMS           *IMSSubscription `json:"ims,omitempty"`
+	IPSMGW        *IPSMGW          `json:"ip_sm_gw,omitempty"`
+}
+
+type IPSMGW struct {
+	Number        string `json:"number"`
+	DiameterHost  string `json:"diameter_host"`
+	DiameterRealm string `json:"diameter_realm"`
 }
 
 // SessionSlice is the 5G network slice identifier (S-NSSAI) of a session;
@@ -272,6 +279,30 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	}
 
 	return nil
+}
+
+type DeregisterIMSResponse struct {
+	Message      string `json:"message"`
+	Acknowledged bool   `json:"acknowledged"`
+}
+
+func (c *Client) DeregisterSubscriberIMS(ctx context.Context, imsi string) (*DeregisterIMSResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/subscribers/" + url.PathEscape(imsi) + "/ims/deregister",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var out DeregisterIMSResponse
+
+	if err := resp.DecodeResult(&out); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
 }
 
 func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) (*ListSubscribersResponse, error) {

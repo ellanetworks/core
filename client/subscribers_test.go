@@ -211,6 +211,32 @@ func TestDeleteSubscriber_Success(t *testing.T) {
 	}
 }
 
+func TestDeregisterSubscriberIMS_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "IMS registration cleared", "acknowledged": true}`),
+		},
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	resp, err := clientObj.DeregisterSubscriberIMS(context.Background(), "001010100000022")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if !resp.Acknowledged {
+		t.Fatalf("acknowledged = false, want true")
+	}
+
+	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/subscribers/001010100000022/ims/deregister" {
+		t.Fatalf("request = %s %s, want POST api/v1/subscribers/001010100000022/ims/deregister", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+}
+
 func TestListSubscribers_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
