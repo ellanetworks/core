@@ -198,12 +198,17 @@ None
           "user_state": "not_registered"
         }
       ]
+    },
+    "ip_sm_gw": {
+      "number": "+15550000100",
+      "diameter_host": "ipsmgw.ims.mnc001.mcc001.3gppnetwork.org",
+      "diameter_realm": "ims.mnc001.mcc001.3gppnetwork.org"
     }
   }
 }
 ```
 
-`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on an IMS data network and the subscriber has no IMS registration.
+`description` and `msisdn` are omitted when unset. `ims` is omitted when the subscriber's profile has no policy on an IMS data network and the subscriber has no IMS registration. `ip_sm_gw` is omitted when no IP-SM-GW is registered for the subscriber.
 
 ### Registrations
 
@@ -270,6 +275,41 @@ None
 | `public_identities[].barred` | `true` when the identity cannot be used for calls. |
 | `public_identities[].registration_set` | `mmtel` or `mcptt`. |
 | `public_identities[].user_state` | The state of the identity's registration set: `registered`, `registered_unreg_services`, `authentication_pending` or `not_registered`. |
+
+### IP-SM-GW
+
+The IP-SM-GW that registered for the subscriber. While it is registered, Ella Core sends the SMSC's routing requests for the subscriber to it.
+
+| Field | Description |
+| ----- | ----------- |
+| `number` | IP-SM-GW number in E.164 format. |
+| `diameter_host` | Diameter identity of the IP-SM-GW. |
+| `diameter_realm` | Diameter realm of the IP-SM-GW. |
+
+## Deregister a Subscriber from IMS
+
+This path clears a subscriber's IMS registration and its registered IP-SM-GW. Ella Core asks the S-CSCF to deregister the subscriber, which ends the subscriber's calls, and the phone registers again. Ella Core clears its own state even if the S-CSCF does not answer, so use this path to recover when the IMS stopped without deregistering the subscriber.
+
+| Method | Path                                          |
+| ------ | --------------------------------------------- |
+| POST   | `/api/v1/subscribers/{imsi}/ims/deregister`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "IMS registration cleared",
+        "acknowledged": true
+    }
+}
+```
+
+`acknowledged` is `false` when the S-CSCF did not answer. The S-CSCF may then still consider the subscriber registered.
 
 ## Get Subscriber Credentials
 
