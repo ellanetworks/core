@@ -15,9 +15,15 @@ type DeactivateEPSBearerContextRequest struct {
 	PTI               nas.ProcedureTransactionIdentity
 	Cause             ESMCause
 
+	T3396 *nas.GPRSTimer3
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
+}
+
+var deactivateEPSBearerContextRequestIEs = []nas.OptionalIE{
+	{IEI: ieiBackoffTimerValue, Format: nas.IETLV, Name: "T3396 value"},
 }
 
 // AppendBinary encodes the DEACTIVATE EPS BEARER CONTEXT REQUEST.
@@ -29,6 +35,15 @@ func (m *DeactivateEPSBearerContextRequest) AppendBinary(b []byte) ([]byte, erro
 
 	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgDeactivateEPSBearerContextRequest)
 	w.U8(uint8(m.Cause))
+
+	if m.T3396 != nil {
+		raw, err := m.T3396.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiBackoffTimerValue, raw)
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -59,7 +74,20 @@ func ParseDeactivateEPSBearerContextRequest(b []byte) (*DeactivateEPSBearerConte
 		Cause:             ESMCause(cause),
 	}
 
-	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	_unrec, err := walkOptionalIEs(r, deactivateEPSBearerContextRequestIEs, func(iei uint8, value []byte) (bool, error) {
+		if iei != ieiBackoffTimerValue {
+			return false, nil
+		}
+
+		timer, err := nas.ParseGPRSTimer3(value)
+		if err != nil {
+			return false, err
+		}
+
+		out.T3396 = &timer
+
+		return true, nil
+	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}

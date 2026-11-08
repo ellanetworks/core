@@ -18,7 +18,7 @@ func TestLoadAtSessionCeiling(t *testing.T) {
 
 	for name, useTCX := range map[string]bool{"xdp": false, "tc": true} {
 		t.Run(name, func(t *testing.T) {
-			obj := NewBpfObjects(true, true, false, 0, 1, 0, 0)
+			obj := NewBpfObjects(true, true, 0, 1, 0, 0)
 			obj.UseTCX = useTCX
 			obj.Sizing = NewMapSizing(200000)
 

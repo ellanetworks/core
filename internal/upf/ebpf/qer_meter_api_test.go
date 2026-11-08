@@ -72,7 +72,7 @@ func TestQerMeterLifecycle(t *testing.T) {
 
 	t.Cleanup(func() { _ = meter.Close() })
 
-	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
+	obj := NewBpfObjects(false, false, 0, 0, 0, 0)
 	obj.QerWindows = meter
 
 	checkUsage := func(want int) {

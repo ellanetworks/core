@@ -10,6 +10,7 @@ import * as yup from "yup";
 import { useAuth } from "@/contexts/AuthContext";
 import { listDataNetworks } from "@/queries/data_networks";
 import { listSlices } from "@/queries/slices";
+import { listSliceDataNetworks } from "@/queries/slice_data_networks";
 import SelectControl from "@/components/form/SelectControl";
 import NumberControl from "@/components/form/NumberControl";
 import { AmbrFields, ambrSchema } from "@/components/form/BitrateFields";
@@ -118,7 +119,7 @@ const listAll = async <I extends { name: string }>(
   }
 };
 
-export const useNetworkOptions = (open: boolean) => {
+export const useNetworkOptions = (open: boolean, slice?: string) => {
   const { accessToken, authReady } = useAuth();
   const enabled = open && authReady && !!accessToken;
 
@@ -135,13 +136,21 @@ export const useNetworkOptions = (open: boolean) => {
     enabled,
   });
 
+  const servedQuery = useQuery({
+    queryKey: ["slice-data-networks", "slice", slice],
+    queryFn: () => listSliceDataNetworks(accessToken!, slice!),
+    enabled: enabled && !!slice,
+  });
+
   return {
     dataNetworks: dataNetworksQuery.data?.map((dn) => dn.name),
+    servedDataNetworks: servedQuery.data?.items.map((dn) => dn.data_network),
     imsDataNetworks: dataNetworksQuery.data
       ?.filter((dn) => dn.ims)
       .map((dn) => dn.name),
-    slices: slicesQuery.data?.map((slice) => slice.name),
-    isError: dataNetworksQuery.isError || slicesQuery.isError,
+    slices: slicesQuery.data?.map((s) => s.name),
+    isError:
+      dataNetworksQuery.isError || slicesQuery.isError || servedQuery.isError,
   };
 };
 

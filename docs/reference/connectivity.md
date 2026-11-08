@@ -11,7 +11,7 @@ Ella Core uses 4 different interfaces by default:
 | API | The HTTP API and UI | TCP, `interfaces.api.port` | Yes | Yes | IPv4, IPv6 |
 | N2 / S1-MME | Control plane between Ella Core and the radio | SCTP, `38412` (5G) and `36412` (4G) by default | Yes | Yes | IPv4, IPv6. |
 | N3 / S1-U | User plane between Ella Core and the radio | UDP `2152` | Yes | Yes | IPv4, IPv6. |
-| N6 / SGi | User plane between Ella Core and the internet | — | Yes | No | Not configurable |
+| N6 / SGi | User plane between Ella Core and the internet. Additional N6 interfaces can be set in `interfaces.network-instances`. | — | Yes | No | Not configurable |
 | SGd / S6c | SMS between Ella Core and the SMSCs, when SMS is enabled | SCTP, outbound to each SMSC node's port (`3868` by default) | No | No | IPv4, IPv6 |
 | Diameter | Diameter from SMSC nodes and the IMS, including its IP-SM-GW | SCTP and TCP, `interfaces.diameter.port` (`3868` by default). SMSC nodes over SCTP; IMS over SCTP or TCP. | Yes | Yes | IPv4, IPv6 |
 
@@ -65,7 +65,7 @@ the name of the VLAN interface, not the parent interface.
 
 ## Datapath constraints
 
-The datapath attaches to N3 and N6 at the hook set by `datapath.attach-mode`. The shape of those interfaces constrains which modes work.
+The datapath attaches to N3 and every N6 interface at the hook set by `datapath.attach-mode`. The shape of those interfaces constrains which modes work.
 
 - **veth, `xdp-native`**: an XDP program must be attached to the peer interface, see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md).
 - **veth, `xdp-generic`**: TX checksum offload must be disabled on both ends (`ethtool -K <veth> tx off`), or decapsulated packets are silently corrupted.
@@ -75,11 +75,11 @@ The datapath attaches to N3 and N6 at the hook set by `datapath.attach-mode`. Th
 
 | Property | Behaviour |
 | -------- | --------- |
-| Default | Enabled |
+| Default | Enabled on every slice and data network, except IMS data networks |
 | Address family | IPv4 only |
-| Scope | Uplink traffic leaving N6, sourced from the N6 address. Sessions on IMS data networks are never translated. |
+| Scope | Per slice and data network. Uplink traffic leaving N6, sourced from the N6 address. Sessions on IMS data networks are never translated. |
 | Translated protocols | TCP, UDP, and ICMP |
 | Source ports | `1024`-`32767` |
 | Downlink traffic | Delivered only when it matches a translation the subscriber's own traffic created. |
 | Untranslatable traffic | IP fragments (`nat_fragment`) and protocols without ports, such as ESP and GRE (`nat_unsupported_proto`), are dropped. Protocols that embed addresses in their payload, such as FTP in active mode, do not work |
-| Configuration | The `Networking` page of the UI, or the [Networking API](api/networking.md). |
+| Configuration | The **Slices** section of the data network's page in the UI, or the [Slices API](api/slices.md#update-a-data-network-of-a-slice). Changes apply to established sessions and break their established connections. |

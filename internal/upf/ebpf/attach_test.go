@@ -51,6 +51,8 @@ type t2 struct {
 	n3Peer *net.Interface
 	n6Dev  *net.Interface
 	n6Peer *net.Interface
+
+	localSwitch bool
 }
 
 func setupT2(t *testing.T, masquerade bool) *t2 {

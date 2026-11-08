@@ -23,6 +23,8 @@ Go to the **Networking** page and open the **Data Networks** tab.
 
 Click **Create**, enter `ims` as the **Name**, set the IP pool, turn on **IMS (voice and mission critical services)**, and click **Create**.
 
+Open the `ims` data network, and in **Slices**, select the slice of your subscribers and click **Serve on slice**.
+
 ## 2. Add a voice policy to the profiles
 
 For each profile whose subscribers should make calls:

@@ -155,6 +155,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/slices/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSlice, UpdateSlice(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/slices/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSlice, GetSlice(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/slices/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSlice, DeleteSlice(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/slices/{name}/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSlice, ListSliceDataNetworks(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/slices/{name}/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSlice, CreateSliceDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/slices/{name}/data-networks/{data_network}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSlice, GetSliceDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/slices/{name}/data-networks/{data_network}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSlice, UpdateSliceDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/slices/{name}/data-networks/{data_network}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSlice, DeleteSliceDataNetwork(dbInstance))).ServeHTTP)
 
 	// Operator (Authenticated)
 	mux.HandleFunc("GET /api/v1/operator", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetOperator(dbInstance))).ServeHTTP)
@@ -208,11 +213,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoute, GetRoute(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteRoute, DeleteRoute(dbInstance, reconcileRoutes))).ServeHTTP)
 
-	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/diameter", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDiameter, GetDiameterStatus(cfg.Diameter))).ServeHTTP)
-
-	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance))).ServeHTTP)
 
 	// BGP (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSettings(dbInstance, appCfg))).ServeHTTP)
@@ -228,10 +229,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Flow Accounting (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFlowAccountingInfo, UpdateFlowAccountingInfo(dbInstance))).ServeHTTP)
-
-	// Local Switch (Authenticated)
-	mux.HandleFunc("GET /api/v1/networking/local-switch", Authenticate(jwtSecret, dbInstance, Authorize(PermGetLocalSwitchInfo, GetLocalSwitchInfo(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/local-switch", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateLocalSwitchInfo, UpdateLocalSwitchInfo(dbInstance))).ServeHTTP)
 
 	// Interfaces (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkInterfaces, ListNetworkInterfaces(dbInstance, appCfg))).ServeHTTP)

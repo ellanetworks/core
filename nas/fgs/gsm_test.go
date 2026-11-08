@@ -276,6 +276,33 @@ func TestPDUSessionReleaseCommandRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPDUSessionReleaseCommandBackoffTimerRoundTrip(t *testing.T) {
+	in := &PDUSessionReleaseCommand{
+		PDUSessionID: 5,
+		Cause:        GSMCauseInsufficientResourcesForSpecificSliceAndDNN,
+		BackoffTimer: &nas.GPRSTimer3{Unit: nas.GPRSTimer3Unit1Minute, Value: 1},
+	}
+
+	b, err := in.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	want := []byte{uint8(EPD5GSM), 5, 0, uint8(MsgPDUSessionReleaseCommand), uint8(GSMCauseInsufficientResourcesForSpecificSliceAndDNN), 0x37, 0x01, 0xA1}
+	if !bytes.Equal(b, want) {
+		t.Fatalf("wire bytes = % x, want % x", b, want)
+	}
+
+	out, err := ParsePDUSessionReleaseCommand(b)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	if !reflect.DeepEqual(out, in) {
+		t.Fatalf("round-trip mismatch: got %+v, want %+v", out, in)
+	}
+}
+
 func TestProtocolConfigurationOptionsRoundTrip(t *testing.T) {
 	dns := [][]byte{{8, 8, 8, 8}, {0x20, 0x01, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}}
 

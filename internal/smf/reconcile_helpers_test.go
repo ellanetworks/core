@@ -23,6 +23,9 @@ type policyChange struct {
 	IPv4Pool            string
 	IPv6Pool            string
 	IMS                 *bool
+	NAT                 *bool
+	LocalSwitch         *bool
+	NetworkInstance     string
 }
 
 func currentPolicy(s *smf.SMF, ref string) *smf.Policy {
@@ -76,6 +79,18 @@ func reconcileWithPolicy(ctx context.Context, s *smf.SMF, pcf *fakePCF, ref stri
 
 		if change.IMS != nil {
 			policy.IMS = *change.IMS
+		}
+
+		if change.NAT != nil {
+			policy.NAT = *change.NAT
+		}
+
+		if change.LocalSwitch != nil {
+			policy.LocalSwitch = *change.LocalSwitch
+		}
+
+		if change.NetworkInstance != "" {
+			policy.NetworkInstance = change.NetworkInstance
 		}
 	}
 

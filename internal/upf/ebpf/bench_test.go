@@ -477,7 +477,7 @@ func benchTargets(t *testing.T, build string, nat bool, n3, n6 *net.Interface) (
 		ctx := benchSkbContext(loopbackIfindex)
 
 		up := loadTCProgramConfig(t, nat, loopbackIfindex, n6.Index)
-		down := loadTCProgramConfig(t, nat, n3.Index, n6.Index)
+		down := loadTCProgramConfig(t, nat, n3.Index, loopbackIfindex)
 
 		for _, obj := range []*N3N6EntrypointTcObjects{up, down} {
 			installBenchPDRs(t, tcBenchMaps(obj))
@@ -492,7 +492,7 @@ func benchTargets(t *testing.T, build string, nat bool, n3, n6 *net.Interface) (
 	}
 
 	up := loadProgramConfig(t, false, nat, loopbackIfindex, n6.Index, 0, 0)
-	down := loadProgramConfig(t, false, nat, n3.Index, n6.Index, 0, 0)
+	down := loadProgramConfig(t, false, nat, n3.Index, loopbackIfindex, 0, 0)
 
 	for _, obj := range []*BpfObjects{up, down} {
 		installBenchPDRs(t, xdpBenchMaps(obj))

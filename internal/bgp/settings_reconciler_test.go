@@ -47,7 +47,7 @@ func (f *fakeSettingsStore) ListPeers(_ context.Context) ([]BGPPeer, error) {
 	return out, nil
 }
 
-func (f *fakeSettingsStore) IsNATEnabled(_ context.Context) (bool, error) {
+func (f *fakeSettingsStore) NATOnEveryDataNetwork(_ context.Context) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

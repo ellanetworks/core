@@ -4,7 +4,7 @@
 import React from "react";
 import { Box, Checkbox, FormControlLabel } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { useController, useForm } from "react-hook-form";
+import { useController, useForm, useWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import {
@@ -44,7 +44,6 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   initialData,
 }) => {
   const { accessToken, authReady } = useAuth();
-  const { dataNetworks, imsDataNetworks, slices } = useNetworkOptions(open);
 
   const policyQuery = useQuery({
     queryKey: ["policy", initialData.name],
@@ -79,6 +78,13 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       isDefault: policy?.default ?? initialData.default,
     },
   });
+
+  const sliceName = useWatch({ control: form.control, name: "sliceName" });
+  const {
+    servedDataNetworks: dataNetworks,
+    imsDataNetworks,
+    slices,
+  } = useNetworkOptions(open, sliceName);
 
   const { field: isDefaultField } = useController({
     control: form.control,

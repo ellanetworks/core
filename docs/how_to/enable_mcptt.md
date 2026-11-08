@@ -21,6 +21,8 @@ In the Ella Core UI, go to the **Networking** page and open the **Data Networks*
 
 Click **Create**, enter `mcx` as the **Name**, set an IP pool, turn on **IMS (voice and mission critical services)**, and click **Create**.
 
+Open the `mcx` data network, and in **Slices**, select the slice of your MCPTT users and click **Serve on slice**.
+
 ## 2. Create the MC profile
 
 Go to the **Profiles** page and click **Create**. Enter a **Name**, e.g. `mcptt`, and click **Create**.

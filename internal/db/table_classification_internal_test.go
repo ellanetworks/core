@@ -18,6 +18,7 @@ var (
 		"cluster_node_certs",
 		"daily_usage",
 		"data_networks",
+		"slice_data_networks",
 		"diameter_peers",
 		"home_network_keys",
 		"ims_application_servers",

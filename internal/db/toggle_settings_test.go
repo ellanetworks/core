@@ -20,22 +20,10 @@ type toggleSetting struct {
 
 var toggleSettings = []toggleSetting{
 	{
-		name:           "NAT",
-		defaultEnabled: true,
-		isEnabled:      (*db.Database).IsNATEnabled,
-		update:         (*db.Database).UpdateNATSettings,
-	},
-	{
 		name:           "flow accounting",
 		defaultEnabled: true,
 		isEnabled:      (*db.Database).IsFlowAccountingEnabled,
 		update:         (*db.Database).UpdateFlowAccountingSettings,
-	},
-	{
-		name:           "local switch",
-		defaultEnabled: false,
-		isEnabled:      (*db.Database).IsLocalSwitchEnabled,
-		update:         (*db.Database).UpdateLocalSwitchSettings,
 	},
 }
 

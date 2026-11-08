@@ -112,6 +112,14 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	baseline := listAll()
 
+	for _, slice := range []string{sliceA, sliceB} {
+		for _, dn := range []string{dnA, dnB} {
+			if err := c.CreateSliceDataNetwork(ctx, slice, &client.CreateSliceDataNetworkOptions{DataNetwork: dn}); err != nil {
+				t.Fatalf("serve data network %q on slice %q: %v", dn, slice, err)
+			}
+		}
+	}
+
 	createOpts := &client.CreatePolicyOptions{
 		Name:                name,
 		ProfileName:         profileA,

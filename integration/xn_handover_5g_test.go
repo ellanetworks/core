@@ -83,7 +83,7 @@ func TestIntegration5GXnHandover(t *testing.T) {
 
 	coreClient.SetToken(adminToken)
 
-	if err := coreClient.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, coreClient, true); err != nil {
 		t.Fatalf("enable NAT: %v", err)
 	}
 

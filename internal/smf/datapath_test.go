@@ -240,7 +240,7 @@ func TestRules_QERsCarryTheirQoSFlow5QI(t *testing.T) {
 func TestEstablishRequestNamesTheSessionsSliceAndDataNetwork(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1, Sd: "102030"}
 
-	req := dataPlane{}.establishRequest(1, "001010000000001", "", snssai, "cctv", nil, false)
+	req := dataPlane{}.establishRequest(1, "001010000000001", "", snssai, "cctv", nil, &Policy{})
 	if req.Snssai != snssai || req.DNN != "cctv" {
 		t.Errorf("establish request slice %+v, DNN %q; want %+v, %q", req.Snssai, req.DNN, snssai, "cctv")
 	}
@@ -409,12 +409,22 @@ func TestVoiceAndVideoWithASecondCallFitWhileMovingAccess(t *testing.T) {
 	}
 }
 
-func TestIMSSessionsAreLocallySwitchedAndExemptFromNAT(t *testing.T) {
-	for _, ims := range []bool{false, true} {
-		req := dataPlane{}.establishRequest(1, "001010000000001", "", nil, "", nil, ims)
-		if req.LocalSwitch != ims || req.NATExempt != ims {
-			t.Fatalf("ims=%v: establish request local switch %v, NAT exempt %v", ims, req.LocalSwitch, req.NATExempt)
-		}
+func TestEstablishRequestCarriesDataNetworkForwarding(t *testing.T) {
+	for _, tc := range []struct {
+		name                       string
+		policy                     Policy
+		wantLocalSwitch, wantNoNAT bool
+	}{
+		{name: "NAT, no local switching", policy: Policy{SliceDataNetwork: "dn-1", NAT: true}},
+		{name: "no NAT, local switching", policy: Policy{SliceDataNetwork: "dn-1", LocalSwitch: true}, wantLocalSwitch: true, wantNoNAT: true},
+		{name: "IMS", policy: Policy{SliceDataNetwork: "dn-2", IMS: true, NAT: true}, wantLocalSwitch: true, wantNoNAT: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := dataPlane{}.establishRequest(1, "001010000000001", "", nil, "", nil, &tc.policy)
+			if req.LocalSwitch != tc.wantLocalSwitch || req.NATExempt != tc.wantNoNAT || req.SliceDataNetwork != tc.policy.SliceDataNetwork {
+				t.Fatalf("establish request local switch %v, NAT exempt %v, data network %q", req.LocalSwitch, req.NATExempt, req.SliceDataNetwork)
+			}
+		})
 	}
 }
 

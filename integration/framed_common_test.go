@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	// Side-effect import to register every scenario.
@@ -34,7 +33,7 @@ func runFramedSuite(t *testing.T, rat string) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	if err := env.Client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, env.Client, false); err != nil {
 		t.Fatalf("disable NAT: %v", err)
 	}
 
@@ -88,7 +87,7 @@ func runFramedReconcileSuite(t *testing.T, scenarioNames ...string) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	if err := env.Client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, env.Client, false); err != nil {
 		t.Fatalf("disable NAT: %v", err)
 	}
 

@@ -277,7 +277,7 @@ func TestApiBGPSettingsEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Enable NAT while BGP is enabled should succeed (coexistence)", func(t *testing.T) {
-		statusCode, _, err := updateNATInfo(env.Server.URL, client, token, true)
+		statusCode, err := setDataNetworkNAT(env.Server.URL, client, token, "internet", true)
 		if err != nil {
 			t.Fatalf("couldn't enable NAT: %s", err)
 		}

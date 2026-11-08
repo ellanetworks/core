@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
@@ -27,17 +26,17 @@ func runUE2UESuite(t *testing.T, rat string) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	if err := env.Client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: false}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, env.Client, false); err != nil {
 		t.Fatalf("disable NAT: %v", err)
 	}
 
-	origLS, err := env.Client.GetLocalSwitchInfo(ctx)
+	_, origLS, err := defaultDataNetworkForwarding(ctx, env.Client)
 	if err != nil {
 		t.Fatalf("get local switch (baseline): %v", err)
 	}
 
 	t.Cleanup(func() {
-		_ = env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: origLS.Enabled})
+		_ = setLocalSwitchOnAllDataNetworks(ctx, env.Client, origLS)
 	})
 
 	scenario := rat + "/ue2ue"
@@ -60,7 +59,7 @@ func runUE2UESuite(t *testing.T, rat string) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := env.Client.UpdateLocalSwitchInfo(ctx, &client.UpdateLocalSwitchInfoOptions{Enabled: tc.localSwitch}); err != nil {
+			if err := setLocalSwitchOnAllDataNetworks(ctx, env.Client, tc.localSwitch); err != nil {
 				t.Fatalf("set local switch=%t: %v", tc.localSwitch, err)
 			}
 

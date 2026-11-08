@@ -22,10 +22,8 @@ import DataNetworksTab from "./pages/networking/DataNetworksTab";
 import SlicesTab from "./pages/networking/SlicesTab";
 import InterfacesTab from "./pages/networking/InterfacesTab";
 import RoutesTab from "./pages/networking/RoutesTab";
-import NATTab from "./pages/networking/NATTab";
 import BGPTab from "./pages/networking/BGPTab";
 import FlowAccountingTab from "./pages/networking/FlowAccountingTab";
-import LocalSwitchTab from "./pages/networking/LocalSwitchTab";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
@@ -74,10 +72,8 @@ export default function AppRouter() {
           <Route path="slices" element={<SlicesTab />} />
           <Route path="interfaces" element={<InterfacesTab />} />
           <Route path="routes" element={<RoutesTab />} />
-          <Route path="nat" element={<NATTab />} />
           <Route path="bgp" element={<BGPTab />} />
           <Route path="flow-accounting" element={<FlowAccountingTab />} />
-          <Route path="local-switch" element={<LocalSwitchTab />} />
         </Route>
         <Route
           path="networking/data-networks/:name"

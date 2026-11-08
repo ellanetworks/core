@@ -126,6 +126,7 @@ type SMContext struct {
 	defaultTraffic Traffic
 
 	maxPacketFilters uint16
+	backoffAllowed   bool
 	flowProcedure    *flowProcedure
 	fallbackUntil    time.Time
 	fallbackRules    []PCCRule

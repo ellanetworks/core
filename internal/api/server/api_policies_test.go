@@ -122,11 +122,25 @@ func getPolicy(url string, client *http.Client, token string, name string) (int,
 }
 
 func createPolicy(url string, client *http.Client, token string, data *CreatePolicyParams) (int, *CreatePolicyResponse, error) {
+	serveDataNetwork(url, client, token, data.SliceName, data.DataNetworkName)
+
 	return apiDo[CreatePolicyResponse](client, "POST", url+"/api/v1/policies", token, data)
 }
 
 func editPolicy(url string, client *http.Client, name string, token string, data *UpdatePolicyParams) (int, *CreatePolicyResponse, error) {
+	serveDataNetwork(url, client, token, data.SliceName, data.DataNetworkName)
+
 	return apiDo[CreatePolicyResponse](client, "PUT", url+"/api/v1/policies/"+name, token, data)
+}
+
+func serveDataNetwork(url string, client *http.Client, token, slice, dataNetwork string) {
+	if slice == "" || dataNetwork == "" {
+		return
+	}
+
+	if _, _, err := apiDo[CreatePolicyResponse](client, "POST", url+"/api/v1/slices/"+slice+"/data-networks", token, map[string]string{"data_network": dataNetwork}); err != nil {
+		return
+	}
 }
 
 func deletePolicy(url string, client *http.Client, token, name string) (int, *DeletePolicyResponse, error) {

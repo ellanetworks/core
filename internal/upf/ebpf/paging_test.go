@@ -6,7 +6,7 @@ package ebpf
 import "testing"
 
 func TestClearNotifiedForSEID(t *testing.T) {
-	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
+	obj := NewBpfObjects(false, false, 0, 0, 0, 0)
 
 	a1 := DataNotification{LocalSEID: 1, PdrID: 2, QFI: 5}
 	a2 := DataNotification{LocalSEID: 1, PdrID: 3, QFI: 9}
@@ -28,7 +28,7 @@ func TestClearNotifiedForSEID(t *testing.T) {
 }
 
 func TestClearNotifiedIsQFIAgnostic(t *testing.T) {
-	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
+	obj := NewBpfObjects(false, false, 0, 0, 0, 0)
 
 	oldQFI := DataNotification{LocalSEID: 1, PdrID: 2, QFI: 5}
 	newQFI := DataNotification{LocalSEID: 1, PdrID: 2, QFI: 9}

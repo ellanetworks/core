@@ -260,11 +260,11 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["routes"] = sections["routes"].WithCount(len(routes))
 	}
 
-	if natEnabled, err := db.IsNATEnabled(ctx); err != nil {
-		failure("nat_settings", err)
+	if forwarding, err := db.ListSliceDataNetworkForwarding(ctx); err != nil {
+		failure("slice_data_networks", err)
 	} else {
-		out["nat_settings"] = map[string]any{"enabled": natEnabled}
-		sections["nat_settings"] = sections["nat_settings"].WithCount(1)
+		out["slice_data_networks"] = forwarding
+		sections["slice_data_networks"] = sections["slice_data_networks"].WithCount(len(forwarding))
 	}
 
 	if flowAccountingEnabled, err := db.IsFlowAccountingEnabled(ctx); err != nil {
@@ -272,13 +272,6 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 	} else {
 		out["flow_accounting_settings"] = map[string]any{"enabled": flowAccountingEnabled}
 		sections["flow_accounting_settings"] = sections["flow_accounting_settings"].WithCount(1)
-	}
-
-	if localSwitchEnabled, err := db.IsLocalSwitchEnabled(ctx); err != nil {
-		failure("local_switch_settings", err)
-	} else {
-		out["local_switch_settings"] = map[string]any{"enabled": localSwitchEnabled}
-		sections["local_switch_settings"] = sections["local_switch_settings"].WithCount(1)
 	}
 
 	if n3Settings, err := db.GetN3Settings(ctx); err != nil {

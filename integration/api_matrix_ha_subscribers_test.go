@@ -84,7 +84,7 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	} {
 		link := link
 
-		if err := leader.CreatePolicy(ctx, &client.CreatePolicyOptions{
+		if err := createServedPolicy(ctx, leader, &client.CreatePolicyOptions{
 			Name:                link.policy,
 			ProfileName:         link.profile,
 			SliceName:           sliceName,

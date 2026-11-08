@@ -677,22 +677,24 @@ func accessForwardingParameters(an AnchorBinding, access AccessType) *models.For
 	return params
 }
 
-func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, snssai *models.Snssai, dnn string, framedRoutes []netip.Prefix, ims bool) *models.EstablishRequest {
+func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, snssai *models.Snssai, dnn string, framedRoutes []netip.Prefix, policy *Policy) *models.EstablishRequest {
 	pdrs, fars, qers, urrs := d.rules()
 
 	return &models.EstablishRequest{
-		SEID:         seid,
-		IMSI:         imsi,
-		PolicyID:     policyID,
-		Snssai:       snssai,
-		DNN:          dnn,
-		PDRs:         pdrs,
-		FARs:         fars,
-		QERs:         qers,
-		URRs:         urrs,
-		FramedRoutes: framedRoutes,
-		LocalSwitch:  ims,
-		NATExempt:    ims,
+		SEID:             seid,
+		IMSI:             imsi,
+		PolicyID:         policyID,
+		Snssai:           snssai,
+		DNN:              dnn,
+		PDRs:             pdrs,
+		FARs:             fars,
+		QERs:             qers,
+		URRs:             urrs,
+		FramedRoutes:     framedRoutes,
+		SliceDataNetwork: policy.SliceDataNetwork,
+		NetworkInstance:  policy.NetworkInstance,
+		LocalSwitch:      policy.localSwitch(),
+		NATExempt:        policy.natExempt(),
 	}
 }
 

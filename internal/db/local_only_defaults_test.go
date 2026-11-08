@@ -43,17 +43,6 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 
 	ctx := context.Background()
 
-	t.Run("nat", func(t *testing.T) {
-		got, err := database.IsNATEnabled(ctx)
-		if err != nil {
-			t.Fatalf("IsNATEnabled on fresh DB returned error: %v", err)
-		}
-
-		if got != db.NATDefaultEnabled {
-			t.Fatalf("IsNATEnabled = %v, want default %v", got, db.NATDefaultEnabled)
-		}
-	})
-
 	t.Run("flow_accounting", func(t *testing.T) {
 		got, err := database.IsFlowAccountingEnabled(ctx)
 		if err != nil {
@@ -62,17 +51,6 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 
 		if got != db.FlowAccountingDefaultEnabled {
 			t.Fatalf("IsFlowAccountingEnabled = %v, want default %v", got, db.FlowAccountingDefaultEnabled)
-		}
-	})
-
-	t.Run("local_switch", func(t *testing.T) {
-		got, err := database.IsLocalSwitchEnabled(ctx)
-		if err != nil {
-			t.Fatalf("IsLocalSwitchEnabled on fresh DB returned error: %v", err)
-		}
-
-		if got != db.LocalSwitchDefaultEnabled {
-			t.Fatalf("IsLocalSwitchEnabled = %v, want default %v", got, db.LocalSwitchDefaultEnabled)
 		}
 	})
 
@@ -122,16 +100,8 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 	// its default, close the DB, reopen it, and confirm the seed step
 	// did not overwrite the operator-set values.
 	t.Run("preserves_operator_value_across_restart", func(t *testing.T) {
-		if err := database.UpdateNATSettings(ctx, !db.NATDefaultEnabled); err != nil {
-			t.Fatalf("UpdateNATSettings: %v", err)
-		}
-
 		if err := database.UpdateFlowAccountingSettings(ctx, !db.FlowAccountingDefaultEnabled); err != nil {
 			t.Fatalf("UpdateFlowAccountingSettings: %v", err)
-		}
-
-		if err := database.UpdateLocalSwitchSettings(ctx, !db.LocalSwitchDefaultEnabled); err != nil {
-			t.Fatalf("UpdateLocalSwitchSettings: %v", err)
 		}
 
 		if err := database.UpdateN3Settings(ctx, "10.0.0.1"); err != nil {
@@ -164,15 +134,6 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 			}
 		})
 
-		nat, err := reopened.IsNATEnabled(ctx)
-		if err != nil {
-			t.Fatalf("IsNATEnabled after restart: %v", err)
-		}
-
-		if nat != !db.NATDefaultEnabled {
-			t.Fatalf("NAT was reset to default after restart: got %v", nat)
-		}
-
 		fa, err := reopened.IsFlowAccountingEnabled(ctx)
 		if err != nil {
 			t.Fatalf("IsFlowAccountingEnabled after restart: %v", err)
@@ -180,15 +141,6 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 
 		if fa != !db.FlowAccountingDefaultEnabled {
 			t.Fatalf("flow accounting was reset to default after restart: got %v", fa)
-		}
-
-		ls, err := reopened.IsLocalSwitchEnabled(ctx)
-		if err != nil {
-			t.Fatalf("IsLocalSwitchEnabled after restart: %v", err)
-		}
-
-		if ls != !db.LocalSwitchDefaultEnabled {
-			t.Fatalf("local switch was reset to default after restart: got %v", ls)
 		}
 
 		n3, err := reopened.GetN3Settings(ctx)

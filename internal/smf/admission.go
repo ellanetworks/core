@@ -42,7 +42,7 @@ func emergencyRequest(t fgs.RequestType) bool {
 }
 
 func capacityBackoff(ctx context.Context, err error, requestType fgs.RequestType) *nas.GPRSTimer3 {
-	if !errors.Is(err, ErrDatapathCapacity) || emergencyRequest(requestType) || highPriorityAccess(ctx) {
+	if !errors.Is(err, ErrDatapathCapacity) && !errors.Is(err, models.ErrNetworkInstanceUnavailable) || emergencyRequest(requestType) || highPriorityAccess(ctx) {
 		return nil
 	}
 

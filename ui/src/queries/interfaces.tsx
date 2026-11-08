@@ -8,6 +8,13 @@ export type VlanInfo = {
   vlan_id?: number;
 };
 
+export type N6Info = {
+  name?: string;
+  addresses?: string[];
+  vlan?: VlanInfo;
+  vrf?: string;
+};
+
 export type InterfacesInfo = {
   n2?: { addresses?: string[]; port?: number; interface?: string };
   n3?: {
@@ -16,7 +23,8 @@ export type InterfacesInfo = {
     external_address?: string;
     vlan?: VlanInfo;
   };
-  n6?: { name?: string; addresses?: string[]; vlan?: VlanInfo };
+  n6?: N6Info;
+  network_instances?: { name: string; n6?: N6Info }[];
   api?: { addresses?: string[]; port?: number };
   diameter?: { addresses?: string[]; port?: number; interface?: string };
 };

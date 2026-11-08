@@ -315,6 +315,8 @@ var dropReasonNames = [...]string{
 	"fragmented_transport",
 	"bearer_binding",
 	"qer_meter_missing",
+	"ni_mismatch",
+	"ni_unrouted",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.
