@@ -199,7 +199,8 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		return tx_back(ctx, egress_vlan_forwarded(ctx));
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
-	if (ctx->ni_id && ctx->interface == INTERFACE_N3)
+	if (ctx->interface == INTERFACE_N3 &&
+	    network_instance_isolated(ctx->ni_id))
 		return redirect_out(ctx, expected_ifindex,
 				    egress_vlan_forwarded(ctx));
 	return redirect_out(ctx, routing_egress_ifindex(fib_params->ifindex),
@@ -284,7 +285,8 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_not_fwded += 1;
-		if (ctx->interface == INTERFACE_N3 && ctx->ni_id)
+		if (ctx->interface == INTERFACE_N3 &&
+		    network_instance_isolated(ctx->ni_id))
 			return drop_with(ctx, UPF_DROP_HOST_LOCAL);
 		return CTX_ACT_OK;
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
@@ -389,7 +391,8 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_not_fwded += 1;
-		if (ctx->interface == INTERFACE_N3 && ctx->ni_id)
+		if (ctx->interface == INTERFACE_N3 &&
+		    network_instance_isolated(ctx->ni_id))
 			return drop_with(ctx, UPF_DROP_HOST_LOCAL);
 		return CTX_ACT_OK;
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:

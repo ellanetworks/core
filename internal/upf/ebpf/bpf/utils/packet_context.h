@@ -140,6 +140,9 @@ routing_ingress_ifindex(struct __ctx_buff *ctx, __u8 interface)
 
 __noinline __weak __u32 network_instance_ifindex(__u32 ni_id)
 {
+	if (ni_id == 0)
+		return n6_ifindex;
+
 	const struct network_instance *ni =
 		bpf_map_lookup_elem(&network_instances, &ni_id);
 
@@ -148,6 +151,9 @@ __noinline __weak __u32 network_instance_ifindex(__u32 ni_id)
 
 __noinline __weak __u32 network_instance_routing_ifindex(__u32 ni_id)
 {
+	if (ni_id == 0)
+		return n6_routing_ifindex;
+
 	const struct network_instance *ni =
 		bpf_map_lookup_elem(&network_instances, &ni_id);
 
@@ -156,44 +162,52 @@ __noinline __weak __u32 network_instance_routing_ifindex(__u32 ni_id)
 
 __noinline __weak __u32 network_instance_vlan(__u32 ni_id)
 {
+	if (ni_id == 0)
+		return n6_vlan;
+
 	const struct network_instance *ni =
 		bpf_map_lookup_elem(&network_instances, &ni_id);
 
 	return ni ? ni->vlan : 0;
 }
 
+__noinline __weak bool network_instance_available(__u32 ni_id)
+{
+	return ni_id == 0 || network_instance_ifindex(ni_id) != 0;
+}
+
+__noinline __weak bool network_instance_isolated(__u32 ni_id)
+{
+	return ni_id != 0;
+}
+
+__noinline __weak __u32 uplink_routing_ifindex(__u32 ni_id, __u32 ingress)
+{
+	return ni_id ? network_instance_routing_ifindex(ni_id) : ingress;
+}
+
 static __always_inline bool ctx_select_ni(struct packet_context *ctx,
 					  __u32 ni_id)
 {
-	ctx->ni_id = 0;
-
-	if (ni_id == 0)
-		return true;
-
-	if (!network_instance_ifindex(ni_id))
-		return false;
-
 	ctx->ni_id = (__u8)ni_id;
 
-	return true;
+	return network_instance_available(ni_id);
 }
 
 static __always_inline __u32 ctx_n6_ifindex(const struct packet_context *ctx)
 {
-	return ctx->ni_id ? network_instance_ifindex(ctx->ni_id) :
-			    (__u32)n6_ifindex;
+	return network_instance_ifindex(ctx->ni_id);
 }
 
 static __always_inline __u32
 ctx_n6_routing_ifindex(const struct packet_context *ctx)
 {
-	return ctx->ni_id ? network_instance_routing_ifindex(ctx->ni_id) :
-			    n6_routing_ifindex;
+	return network_instance_routing_ifindex(ctx->ni_id);
 }
 
 static __always_inline int ctx_n6_vlan(const struct packet_context *ctx)
 {
-	return ctx->ni_id ? (int)network_instance_vlan(ctx->ni_id) : n6_vlan;
+	return (int)network_instance_vlan(ctx->ni_id);
 }
 
 static __always_inline __u32 frame_vlan_id(const struct packet_context *ctx)
@@ -363,8 +377,9 @@ egress_vlan_forwarded(const struct packet_context *ctx)
 static __always_inline int
 egress_vlan_reflected(const struct packet_context *ctx)
 {
-	return ctx->interface == INTERFACE_N3 ? n3_vlan :
-						 downlink_reply_vlan(ctx->ctx_buff);
+	return ctx->interface == INTERFACE_N3 ?
+		       n3_vlan :
+		       downlink_reply_vlan(ctx->ctx_buff);
 }
 
 /* Every program that owns a frame's outcome returns through this exactly once,

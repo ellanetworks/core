@@ -606,8 +606,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (!ctx_select_ni(ctx, pdr->ni_id))
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
-	if (ctx->ni_id)
-		ctx->routing_ifindex = ctx_n6_routing_ifindex(ctx);
+	ctx->routing_ifindex =
+		uplink_routing_ifindex(ctx->ni_id, ctx->routing_ifindex);
 
 	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would
 	 * leave with a stale outer UDP checksum over rewritten addresses, and
