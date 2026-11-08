@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getSubscriber,
   deleteSubscriber,
+  deregisterSubscriberIMS,
   mergeRegistrations,
   type APISubscriber,
 } from "@/queries/subscribers";
@@ -25,6 +26,7 @@ import EditSubscriberProfileModal from "@/components/EditSubscriberProfileModal"
 import EditSubscriberDescriptionModal from "@/components/EditSubscriberDescriptionModal";
 import EditSubscriberMSISDNModal from "@/components/EditSubscriberMSISDNModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import ConfirmDialog from "@/components/form/ConfirmDialog";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberSessionsCard from "@/components/SubscriberSessionsCard";
@@ -46,6 +48,7 @@ const SubscriberDetail: React.FC = () => {
     useState(false);
   const [isEditMSISDNModalOpen, setEditMSISDNModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeregisterIMSOpen, setDeregisterIMSOpen] = useState(false);
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
@@ -78,6 +81,21 @@ const SubscriberDetail: React.FC = () => {
       showSnackbar(
         `Failed to delete subscriber: ${err instanceof Error ? err.message : "Unknown error"}`,
         "error",
+      );
+    }
+  };
+
+  const handleDeregisterIMSConfirm = async () => {
+    if (!imsi || !accessToken) return;
+    const result = await deregisterSubscriberIMS(accessToken, imsi);
+    setDeregisterIMSOpen(false);
+    subscriberQuery.refetch();
+    if (result.acknowledged) {
+      showSnackbar("Subscriber deregistered from the IMS.", "success");
+    } else {
+      showSnackbar(
+        "IMS registration cleared. The IMS did not answer, so it may still consider the phone registered.",
+        "warning",
       );
     }
   };
@@ -180,7 +198,11 @@ const SubscriberDetail: React.FC = () => {
                 <SubscriberConnectionCard
                   status={mergeRegistrations(subscriber.registrations)}
                   ims={subscriber.ims}
+                  ipSMGW={subscriber.ip_sm_gw}
                   network={operatorQuery.data?.ims}
+                  onDeregisterIMS={
+                    canEdit ? () => setDeregisterIMSOpen(true) : undefined
+                  }
                 />
               </Box>
             </Box>
@@ -281,6 +303,19 @@ const SubscriberDetail: React.FC = () => {
           </>
         )}
       </QueryState>
+
+      {isDeregisterIMSOpen && (
+        <ConfirmDialog
+          open
+          onClose={() => setDeregisterIMSOpen(false)}
+          onConfirm={handleDeregisterIMSConfirm}
+          title="Deregister from IMS"
+          description={`Clear the IMS registration of subscriber "${imsi}"? Ongoing calls end and the phone registers again with the IMS. Use this when the IMS stopped without deregistering the subscriber, for example if text messages are no longer delivered.`}
+          confirmLabel="Deregister"
+          confirmingLabel="Deregistering…"
+          confirmColor="warning"
+        />
+      )}
 
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal

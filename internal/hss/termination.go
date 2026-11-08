@@ -6,6 +6,7 @@ package hss
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -19,7 +20,10 @@ import (
 
 const terminationTimeout = 10 * time.Second
 
-var ErrDiameterUnavailable = errors.New("the Diameter node is not running")
+var (
+	ErrDiameterUnavailable       = errors.New("the Diameter node is not running")
+	ErrTerminationUnacknowledged = errors.New("the S-CSCF did not acknowledge the de-registration")
+)
 
 type Peers interface {
 	Node() *diameter.Node
@@ -83,24 +87,47 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) (err error) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, terminationTimeout)
+	rtrCtx, cancel := context.WithTimeout(ctx, terminationTimeout)
 	defer cancel()
 
-	emergency, err := h.terminate(ctx, t)
+	emergency, err := h.terminate(rtrCtx, t)
 	if err != nil {
 		h.log.Warn("Cx registration termination failed", zap.String("imsi", t.IMSI), zap.String("serverHost", t.ServerHost), zap.Error(err))
 
+		err = fmt.Errorf("%w: %w", ErrTerminationUnacknowledged, err)
+	} else {
+		h.log.Info("IMS registration terminated", zap.String("imsi", t.IMSI), zap.Strings("publicIdentities", t.PublicIdentities),
+			zap.String("serverHost", t.ServerHost), zap.Strings("emergencyRegistered", emergency))
+	}
+
+	if t.Reason == cx.ReasonPermanentTermination {
+		if perr := h.permanentlyTerminated(ctx, t, emergency); perr != nil {
+			return errors.Join(err, perr)
+		}
+	}
+
+	return err
+}
+
+func (h *HSS) Deregister(ctx context.Context, imsi string) error {
+	if h.sms != nil {
+		if err := h.sms.DeregisterIPSMGW(ctx, imsi); err != nil {
+			return err
+		}
+	}
+
+	reg, err := h.store.Registration(ctx, imsi)
+	if err != nil || reg == nil {
 		return err
 	}
 
-	h.log.Info("IMS registration terminated", zap.String("imsi", t.IMSI), zap.Strings("publicIdentities", t.PublicIdentities),
-		zap.String("serverHost", t.ServerHost), zap.Strings("emergencyRegistered", emergency))
+	t := termination(imsi, reg, cx.ReasonServerChange, slices.Sorted(maps.Keys(reg.Sets)))
 
-	if t.Reason == cx.ReasonPermanentTermination {
-		return h.permanentlyTerminated(ctx, t, emergency)
+	if t.ServerHost == "" {
+		return h.clearRegistration(ctx, t)
 	}
 
-	return nil
+	return h.Terminate(ctx, t)
 }
 
 func (h *HSS) permanentlyTerminated(ctx context.Context, t *Termination, emergency []string) error {
