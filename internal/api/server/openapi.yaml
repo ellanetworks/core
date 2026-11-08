@@ -920,7 +920,7 @@ paths:
       operationId: deregisterSubscriberIMS
       tags: [Subscribers]
       summary: Clear a subscriber's IMS registration
-      description: "De-registers the subscriber from the IMS (TS 29.228 §6.1.3, reason SERVER_CHANGE) and removes its registered IP-SM-GW. The HSS clears both even if the S-CSCF does not answer, so that a stale registration left by an IMS that stopped without de-registering can be removed. The phone registers again with the IMS on its own."
+      description: "De-registers the subscriber from the IMS (TS 29.228 §6.1.3, reason SERVER_CHANGE while registered, REMOVE_S-CSCF otherwise) and removes its registered IP-SM-GW. The HSS clears both even if the S-CSCF does not answer, so that a stale registration left by an IMS that stopped without de-registering can be removed. The phone registers again with the IMS on its own."
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:

@@ -50,20 +50,31 @@ func TestPermanentTerminationUnacknowledged_TS29228_6_1_3_1(t *testing.T) {
 }
 
 func TestDeregister_TS29228_6_1_3_1(t *testing.T) {
+	impu := [][]string{{"sip:+" + testMSISDN + "@" + testIMSDomain}}
+
 	for _, tc := range []struct {
-		name           string
-		rtrResult      tgpp.Result
-		assignment     cx.AssignmentType
-		wantErr        error
-		wantTerminated [][]string
+		name          string
+		rtrResult     tgpp.Result
+		emergency     bool
+		assignment    cx.AssignmentType
+		wantErr       error
+		wantReason    cx.ReasonCode
+		wantEmergency bool
 	}{
-		{name: "registered", assignment: cx.AssignmentRegistration, wantTerminated: [][]string{{"sip:+" + testMSISDN + "@" + testIMSDomain}}},
-		{name: "unregistered user", assignment: cx.AssignmentUnregisteredUser, wantTerminated: [][]string{{"sip:+" + testMSISDN + "@" + testIMSDomain}}},
-		{name: "refused by the S-CSCF", assignment: cx.AssignmentRegistration, rtrResult: tgpp.Result{Code: diameter.ResultUnableToComply}, wantErr: hss.ErrTerminationUnacknowledged, wantTerminated: [][]string{{"sip:+" + testMSISDN + "@" + testIMSDomain}}},
+		{name: "registered", assignment: cx.AssignmentRegistration, wantReason: cx.ReasonServerChange},
+		{name: "registered, refused by the S-CSCF", assignment: cx.AssignmentRegistration, rtrResult: tgpp.Result{Code: diameter.ResultUnableToComply}, wantErr: hss.ErrTerminationUnacknowledged, wantReason: cx.ReasonServerChange},
+		{name: "unregistered user", assignment: cx.AssignmentUnregisteredUser, wantReason: cx.ReasonRemoveSCSCF},
+		{name: "unregistered user, refused by the S-CSCF", assignment: cx.AssignmentUnregisteredUser, rtrResult: tgpp.Result{Code: diameter.ResultUnableToComply}, wantErr: hss.ErrTerminationUnacknowledged, wantReason: cx.ReasonRemoveSCSCF},
+		{name: "unregistered user, emergency registered", assignment: cx.AssignmentUnregisteredUser, rtrResult: tgpp.Result{Code: diameter.ResultUnableToComply}, emergency: true, wantReason: cx.ReasonRemoveSCSCF, wantEmergency: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newFakeIMSStore()
 			scscf := &fakeSCSCF{rtrResult: tc.rtrResult}
+
+			if tc.emergency {
+				scscf.rtrEmergency = []cx.EmergencyIdentity{{PrivateIdentity: impiOf(testIMSI), PublicIdentity: impu[0][0]}}
+			}
+
 			sms := newFakeSMS()
 			h := connectedHSSWithSMS(t, store, scscf, sms)
 
@@ -74,16 +85,21 @@ func TestDeregister_TS29228_6_1_3_1(t *testing.T) {
 				t.Fatalf("Deregister: %v, want %v", err, tc.wantErr)
 			}
 
-			if got := scscf.Terminations(); !slices.Equal(got, []cx.ReasonCode{cx.ReasonServerChange}) {
-				t.Fatalf("registration terminations = %v, want SERVER_CHANGE", got)
+			if got := scscf.Terminations(); !slices.Equal(got, []cx.ReasonCode{tc.wantReason}) {
+				t.Fatalf("registration terminations = %v, want %v", got, tc.wantReason)
 			}
 
-			if got := scscf.TerminatedIdentities(); !slices.EqualFunc(got, tc.wantTerminated, slices.Equal) {
-				t.Fatalf("terminated identities = %v, want %v", got, tc.wantTerminated)
+			if got := scscf.TerminatedIdentities(); !slices.EqualFunc(got, impu, slices.Equal) {
+				t.Fatalf("terminated identities = %v, want %v", got, impu)
 			}
 
-			if reg, kept := registration(t, store, testIMSI); kept {
-				t.Fatalf("registration = %+v, want it cleared", reg)
+			reg, kept := registration(t, store, testIMSI)
+			if kept != tc.wantEmergency {
+				t.Fatalf("registration = %+v (kept %t), want kept %t", reg, kept, tc.wantEmergency)
+			}
+
+			if s := reg.Sets[hss.MMTel]; tc.wantEmergency && (s.State != hss.Unregistered || !s.Emergency || reg.ServerName == "") {
+				t.Fatalf("registration = %+v, want the S-CSCF kept for the emergency registration", reg)
 			}
 
 			if r, ok := sms.registrations[testIMSI]; ok {

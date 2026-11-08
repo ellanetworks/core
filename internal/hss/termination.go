@@ -100,7 +100,7 @@ func (h *HSS) Terminate(ctx context.Context, t *Termination) (err error) {
 			zap.String("serverHost", t.ServerHost), zap.Strings("emergencyRegistered", emergency))
 	}
 
-	if t.Reason == cx.ReasonPermanentTermination {
+	if t.Reason == cx.ReasonPermanentTermination || t.Reason == cx.ReasonRemoveSCSCF {
 		if perr := h.permanentlyTerminated(ctx, t, emergency); perr != nil {
 			return errors.Join(err, perr)
 		}
@@ -121,7 +121,12 @@ func (h *HSS) Deregister(ctx context.Context, imsi string) error {
 		return err
 	}
 
-	t := termination(imsi, reg, cx.ReasonServerChange, slices.Sorted(maps.Keys(reg.Sets)))
+	reason := cx.ReasonRemoveSCSCF
+	if slices.ContainsFunc(slices.Collect(maps.Values(reg.Sets)), func(s SetRegistration) bool { return s.State == Registered }) {
+		reason = cx.ReasonServerChange
+	}
+
+	t := termination(imsi, reg, reason, slices.Sorted(maps.Keys(reg.Sets)))
 
 	if t.ServerHost == "" {
 		return h.clearRegistration(ctx, t)
