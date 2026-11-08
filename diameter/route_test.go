@@ -578,3 +578,167 @@ func TestRoutesReportAPeerThatIsDownAsUnavailable(t *testing.T) {
 		t.Fatalf("route peer = %+v", p)
 	}
 }
+
+const draHost = "dra.example.org"
+
+func draPeer(routes ...Route) Peer {
+	return Peer{
+		ID: draHost, Host: draHost, Addresses: []netip.Addr{loopback2}, Transports: []Transport{TransportTCP},
+		Applications: []Application{sgdApp}, Routes: routes,
+	}
+}
+
+func withDRA(t *testing.T, routes ...Route) (*Node, *rawPeer) {
+	t.Helper()
+
+	n, p := ellaWithSMSC(t, TransportTCP, draPeer(routes...))
+	openRaw(t, p, draHost, appAVP(sgdApp))
+	waitOpen(t, n, draHost)
+
+	return n, p
+}
+
+type sent struct {
+	ans *Message
+	err error
+}
+
+func sendAsync(n *Node, req *Message) <-chan sent {
+	done := make(chan sent, 1)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		ans, err := n.Send(ctx, req)
+		done <- sent{ans, err}
+	}()
+
+	return done
+}
+
+func answerAs(t *testing.T, p *rawPeer, host, realm string) *Message {
+	t.Helper()
+
+	req := p.recv()
+	p.send(NewAnswer(req, Identity{OriginHost: host, OriginRealm: realm}, ResultSuccess))
+
+	return req
+}
+
+func TestSendRoutesANonPeerDestinationHostThroughARealmRoute(t *testing.T) {
+	const target = "hss7.epc.example.org"
+
+	n, dra := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	done := sendAsync(n, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, target)))
+
+	req := answerAs(t, dra, target, routeRealm)
+	if destination(t, req, AVPDestinationHost) != target || destination(t, req, AVPDestinationRealm) != routeRealm {
+		t.Fatalf("DRA got Destination-Host %s, Destination-Realm %s", destination(t, req, AVPDestinationHost), destination(t, req, AVPDestinationRealm))
+	}
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != target {
+		t.Fatalf("Send = %v", r.err)
+	}
+}
+
+func TestSendForwardsToADirectPeerBeforeTheRealmRoute(t *testing.T) {
+	kind := TransportTCP
+	n, dra := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	hss := newServer(t, kind, "hss1."+routeRealm, loopback3, nil)
+	direct := hss.peer(kind, 0)
+	direct.Routes = nil
+
+	setPeers(t, n, draPeer(Route{Realm: routeRealm, Application: testAppID}), direct)
+	waitOpen(t, n, draHost, hss.host)
+
+	if got := answeredBy(t, send(t, n, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, hss.host)))); got != hss.host {
+		t.Fatalf("answered by %s", got)
+	}
+
+	const other = "hss2." + routeRealm
+
+	done := sendAsync(n, routed(UTF8String(AVPDestinationHost, AVPFlagMandatory, 0, other)))
+
+	if req := answerAs(t, dra, other, routeRealm); destination(t, req, AVPDestinationHost) != other {
+		t.Fatalf("DRA got the request for %s", destination(t, req, AVPDestinationHost))
+	}
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != other {
+		t.Fatalf("Send = %v", r.err)
+	}
+}
+
+func relayAsync(n *Node, target, recorded string) <-chan sent {
+	done := make(chan sent, 1)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		req := proxiable(routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, recorded)))
+
+		ans, err := n.Relay(ctx, req, "mme1.example.org", target, routeRealm)
+		done <- sent{ans, err}
+	}()
+
+	return done
+}
+
+func TestRelaySkipsARouteThroughAPeerInTheRouteRecord(t *testing.T) {
+	const target = "ipsmgw." + routeRealm
+
+	kind := TransportTCP
+	n, dra := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	alternate := newServer(t, kind, "dra2."+routeRealm, loopback3, nil)
+	setPeers(t, n, draPeer(Route{Realm: routeRealm, Application: testAppID}), alternate.peer(kind, 5))
+	waitOpen(t, n, draHost, alternate.host)
+
+	r := <-relayAsync(n, target, "DRA.example.org")
+	if r.err != nil || resultCode(t, r.ans) != ResultUnableToDeliver || answeredBy(t, r.ans) != alternate.host {
+		t.Fatalf("Relay = %v", r.err)
+	}
+
+	done := relayAsync(n, target, "mme0.example.org")
+
+	answerAs(t, dra, target, routeRealm)
+
+	if r := <-done; r.err != nil || answeredBy(t, r.ans) != target {
+		t.Fatalf("Relay = %v", r.err)
+	}
+}
+
+func TestRelayIsUnableToDeliverWhenEveryRouteIsInTheRouteRecord(t *testing.T) {
+	const target = "ipsmgw." + routeRealm
+
+	kind := TransportTCP
+	n, _ := withDRA(t, Route{Realm: routeRealm, Application: testAppID})
+
+	direct := newServer(t, kind, target, loopback3, nil)
+	p := direct.peer(kind, 0)
+	p.Routes = nil
+
+	setPeers(t, n, draPeer(Route{Realm: routeRealm, Application: testAppID}), p)
+	waitOpen(t, n, draHost, direct.host)
+
+	start := time.Now()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	req := proxiable(routed(
+		UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, draHost),
+		UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, target),
+	))
+
+	if _, err := n.Relay(ctx, req, "mme1.example.org", target, routeRealm); !errors.Is(err, ErrUnableToDeliver) || time.Since(start) > time.Second {
+		t.Fatalf("Relay = %v after %s", err, time.Since(start))
+	}
+
+	if direct.calls.Load() != 0 {
+		t.Fatalf("the Destination-Host peer in the Route-Record got %d requests", direct.calls.Load())
+	}
+}

@@ -566,3 +566,39 @@ func TestSendReturnsTheLastRefusalWhenEveryRedirectHostRefuses(t *testing.T) {
 		t.Fatalf("answer %d from %s after %d/%d requests", resultCode(t, ans), answeredBy(t, ans), a.calls.Load(), b.calls.Load())
 	}
 }
+
+func TestSendSkipsARedirectHostInTheRouteRecord(t *testing.T) {
+	kind := TransportTCP
+
+	looping := newServer(t, kind, "hss1.example.org", loopback3, nil)
+	second := newServer(t, kind, "hss2.example.org", loopback4, nil)
+	agent := newServer(t, kind, "slf.example.org", loopback2, redirectingToAll(AllSession, time.Hour, looping.uri(kind), second.uri(kind)))
+
+	client := newClient(t, func(cfg *Config) {
+		cfg.Resolver = staticResolver{looping.host: looping.addr.Addr(), second.host: second.addr.Addr()}
+	})
+	setPeers(t, client, agent.peer(kind, 0))
+	waitOpen(t, client, agent.host)
+
+	recorded := UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, looping.host)
+
+	if got := answeredBy(t, send(t, client, routed(recorded))); got != second.host || looping.calls.Load() != 0 {
+		t.Fatalf("answered by %s, %d requests to the recorded host", got, looping.calls.Load())
+	}
+}
+
+func TestSendIsUnableToDeliverWhenEveryRedirectHostIsInTheRouteRecord(t *testing.T) {
+	kind := TransportTCP
+
+	looping := newServer(t, kind, "hss1.example.org", loopback3, nil)
+	agent := newServer(t, kind, "slf.example.org", loopback2, redirectingTo(looping, kind, AllSession, time.Hour))
+
+	client := redirectClient(t, looping)
+	setPeers(t, client, agent.peer(kind, 0))
+	waitOpen(t, client, agent.host)
+
+	_, err := client.Send(context.Background(), routed(UTF8String(AVPRouteRecord, AVPFlagMandatory, 0, looping.host)))
+	if !errors.Is(err, ErrUnableToDeliver) || looping.calls.Load() != 0 {
+		t.Fatalf("Send = %v, %d requests to the recorded host", err, looping.calls.Load())
+	}
+}
