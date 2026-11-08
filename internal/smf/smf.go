@@ -187,6 +187,8 @@ type SMF struct {
 	usageFlush     chan struct{}
 	usageCancel    context.CancelFunc
 	usageDone      chan struct{}
+
+	replans sync.WaitGroup
 }
 
 // maxSMProcedureRetransmissions is the number of command retransmissions before
