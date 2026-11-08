@@ -25,6 +25,10 @@ import (
 // Release Command until the UE replies or the retransmission limit aborts, at which
 // point the SM context is removed from the pool. Caller must hold smContext.Mutex.
 func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause, release models.SessionReleaseRequest) error {
+	return s.startReleaseWithBackoff(ctx, smContext, pti, cause, nil, release)
+}
+
+func (s *SMF) startReleaseWithBackoff(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause, backoff *naslib.GPRSTimer3, release models.SessionReleaseRequest) error {
 	if smContext.releasing {
 		logger.From(ctx, logger.SmfLog).Info("a PDU session release is already outstanding, ignoring the colliding release trigger",
 			zap.Uint8("pti", pti), logger.Cause(cause.String()),
@@ -39,7 +43,7 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 
 	s.releaseUserPlane(ctx, smContext)
 
-	n1Msg, err := nas.BuildGSMPDUSessionReleaseCommand(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)
+	n1Msg, err := nas.BuildGSMPDUSessionReleaseCommand(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause, backoff)
 	if err != nil {
 		return fmt.Errorf("build PDU Session Release Command (N1): %w", err)
 	}

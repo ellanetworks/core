@@ -50,6 +50,9 @@ volatile const int n3_vlan = 0;
 volatile const int n6_vlan;
 volatile const int n6_vlan = 0;
 
+volatile const bool network_instances_enabled;
+volatile const bool network_instances_enabled = false;
+
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
 	__be16 h_vlan_encapsulated_proto;
@@ -181,9 +184,15 @@ __noinline __weak bool network_instance_isolated(__u32 ni_id)
 	return ni_id != 0;
 }
 
-__noinline __weak __u32 uplink_routing_ifindex(__u32 ni_id, __u32 ingress)
+__noinline __weak __u32 instance_routing_ifindex(__u32 ni_id, __u32 fallback)
 {
-	return ni_id ? network_instance_routing_ifindex(ni_id) : ingress;
+	return ni_id ? network_instance_routing_ifindex(ni_id) : fallback;
+}
+
+static __always_inline __u32
+reply_routing_ifindex(const struct packet_context *ctx)
+{
+	return instance_routing_ifindex(ctx->ni_id, ctx->routing_ifindex);
 }
 
 static __always_inline bool ctx_select_ni(struct packet_context *ctx,
@@ -223,11 +232,16 @@ static __always_inline __u32 frame_vlan_id(const struct packet_context *ctx)
 
 __noinline __weak int ingress_network_instance(__u32 ifindex, __u32 vlan)
 {
-	struct network_instance_key key = { .ifindex = ifindex, .vlan = vlan };
-	const __u32 *ni_id =
-		bpf_map_lookup_elem(&network_instance_classifier, &key);
-	if (ni_id)
-		return (int)*ni_id;
+	if (network_instances_enabled) {
+		struct network_instance_key key = {
+			.ifindex = ifindex,
+			.vlan = vlan,
+		};
+		const __u32 *ni_id =
+			bpf_map_lookup_elem(&network_instance_classifier, &key);
+		if (ni_id)
+			return (int)*ni_id;
+	}
 
 	if (!n3_ifindex || !n6_ifindex || ifindex == (__u32)n6_ifindex ||
 	    ifindex == (__u32)n3_ifindex)
@@ -264,9 +278,9 @@ __noinline __weak int downlink_ingress_ni(struct __ctx_buff *ctx)
 	return ingress_network_instance(ctx_ingress_ifindex(ctx), vlan);
 }
 
-__noinline __weak int downlink_session_ni(struct __ctx_buff *ctx)
+__noinline __weak bool downlink_ni_mismatch(__u32 session_ni, __u32 frame_ni)
 {
-	return downlink_ingress_ni(ctx);
+	return session_ni != frame_ni;
 }
 
 __noinline __weak int downlink_reply_vlan(struct __ctx_buff *ctx)

@@ -151,6 +151,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
 	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
 	bpfObjects.Sizing = ebpf.NewMapSizing(ebpf.DefaultMaxSessions)
+	bpfObjects.NetworkInstancesEnabled = len(networkInstances) > 0
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -162,10 +163,19 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
-	attachedMode, n3Link, n6Link, extraLinks, err := attachDatapath(bpfObjects, attachMode,
-		datapathIface{index: n3Iface.Index, name: n3AttachmentInterface},
-		datapathIface{index: n6Iface.Index, name: n6AttachmentInterface},
-		extraAttach)
+	n3Attach := datapathIface{index: n3Iface.Index, name: n3AttachmentInterface, tagged: n3Vlan != 0}
+	n6Attach := datapathIface{index: n6Iface.Index, name: n6AttachmentInterface, tagged: n6Vlan != 0}
+
+	for _, ni := range instances {
+		if ni.datapath.Vlan == 0 {
+			continue
+		}
+
+		n3Attach.tagged = n3Attach.tagged || int(ni.datapath.Ifindex) == n3Iface.Index
+		n6Attach.tagged = n6Attach.tagged || int(ni.datapath.Ifindex) == n6Iface.Index
+	}
+
+	attachedMode, n3Link, n6Link, extraLinks, err := attachDatapath(bpfObjects, attachMode, n3Attach, n6Attach, extraAttach)
 	if err != nil {
 		return nil, err
 	}

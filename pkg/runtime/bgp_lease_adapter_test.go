@@ -4,11 +4,13 @@
 package runtime
 
 import (
+	"maps"
 	"net/netip"
 	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func testLease(imsi, dataNetworkID, addr string) db.IPLease {
@@ -68,15 +70,21 @@ func TestBGPLeasesAttachesFramedRoutesByOwnerAndFamily(t *testing.T) {
 	}
 }
 
-func TestRoutableLeasesSkipsOnlyIPv4OfNATedOwners(t *testing.T) {
+func TestRoutableLeasesSkipsWithheldFamilies(t *testing.T) {
 	leases := []db.IPLease{
 		testLease("001010000000001", "nat", "10.45.0.1"),
 		testLease("001010000000001", "nat", "2001:db8:1::"),
 		testLease("001010000000002", "routed", "10.46.0.1"),
 		testLease("001010000000003", "deleted", "10.47.0.1"),
+		testLease("001010000000004", "instance", "10.48.0.1"),
+		testLease("001010000000004", "instance", "2001:db8:4::"),
 	}
 
-	got := routableLeases(leases, map[string]bool{"001010000000001/nat": true, "001010000000002/routed": false})
+	got := routableLeases(leases, map[string]db.LeaseWithholding{
+		"001010000000001/nat":      {IPv4: true},
+		"001010000000002/routed":   {},
+		"001010000000004/instance": {IPv4: true, IPv6: true},
+	})
 
 	var addrs []string
 	for _, l := range got {
@@ -88,16 +96,29 @@ func TestRoutableLeasesSkipsOnlyIPv4OfNATedOwners(t *testing.T) {
 	}
 }
 
-func TestNATOnEverySliceNeedsEverySliceToNAT(t *testing.T) {
-	nat := natOnEverySlice([]db.SliceDataNetworkForwarding{
+func TestWithheldOnEverySliceNeedsEverySliceToWithhold(t *testing.T) {
+	got := withheldOnEverySlice([]db.SliceDataNetworkForwarding{
 		{SliceID: "a", DataNetworkID: "all", NAT: true},
 		{SliceID: "b", DataNetworkID: "all", NAT: true},
 		{SliceID: "a", DataNetworkID: "mixed", NAT: true},
 		{SliceID: "b", DataNetworkID: "mixed", NAT: false},
 		{SliceID: "a", DataNetworkID: "none", NAT: false},
+		{SliceID: "a", DataNetworkID: "ims", NAT: true, IMS: true},
+		{SliceID: "a", DataNetworkID: "instance", NetworkInstance: "ims"},
+		{SliceID: "a", DataNetworkID: "split", NetworkInstance: "ims"},
+		{SliceID: "b", DataNetworkID: "split", NetworkInstance: models.DefaultNetworkInstanceName},
 	})
 
-	if !nat["all"] || nat["mixed"] || nat["none"] {
-		t.Fatalf("NAT on every slice = %v, want only all", nat)
+	want := map[string]db.LeaseWithholding{
+		"all":      {IPv4: true},
+		"mixed":    {},
+		"none":     {},
+		"ims":      {},
+		"instance": {IPv4: true, IPv6: true},
+		"split":    {},
+	}
+
+	if !maps.Equal(got, want) {
+		t.Fatalf("withheld on every slice = %v, want %v", got, want)
 	}
 }

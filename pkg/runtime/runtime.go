@@ -1321,28 +1321,28 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		return nil, err
 	}
 
-	nated, err := a.db.NATedLeaseOwners(ctx, nodeID)
+	withheld, err := a.db.WithheldLeaseOwners(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
 
-	if nated == nil {
+	if withheld == nil {
 		forwarding, err := a.db.ListSliceDataNetworkForwarding(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		nated = natedByDataNetwork(dbLeases, natOnEverySlice(forwarding))
+		withheld = withheldByDataNetwork(dbLeases, withheldOnEverySlice(forwarding))
 	}
 
-	return bgpLeases(routableLeases(dbLeases, nated), framedRows), nil
+	return bgpLeases(routableLeases(dbLeases, withheld), framedRows), nil
 }
 
-func natedByDataNetwork(leases []db.IPLease, nat map[string]bool) map[string]bool {
-	out := make(map[string]bool, len(leases))
+func withheldByDataNetwork(leases []db.IPLease, byDataNetwork map[string]db.LeaseWithholding) map[string]db.LeaseWithholding {
+	out := make(map[string]db.LeaseWithholding, len(leases))
 
 	for _, l := range leases {
-		out[leaseOwnerKey(l)] = nat[l.PoolID]
+		out[leaseOwnerKey(l)] = byDataNetwork[l.PoolID]
 	}
 
 	return out
@@ -1352,22 +1352,39 @@ func leaseOwnerKey(l db.IPLease) string {
 	return l.IMSI + "/" + l.PoolID
 }
 
-func natOnEverySlice(forwarding []db.SliceDataNetworkForwarding) map[string]bool {
-	nat := make(map[string]bool, len(forwarding))
+func withheldOnEverySlice(forwarding []db.SliceDataNetworkForwarding) map[string]db.LeaseWithholding {
+	out := make(map[string]db.LeaseWithholding, len(forwarding))
+	seen := make(map[string]bool, len(forwarding))
 
 	for _, f := range forwarding {
-		enabled, seen := nat[f.DataNetworkID]
-		nat[f.DataNetworkID] = f.NAT && (!seen || enabled)
+		offDefault := f.NetworkInstance != "" && f.NetworkInstance != models.DefaultNetworkInstanceName
+		pair := db.LeaseWithholding{IPv4: (f.NAT && !f.IMS) || offDefault, IPv6: offDefault}
+
+		if seen[f.DataNetworkID] {
+			current := out[f.DataNetworkID]
+			pair.IPv4 = pair.IPv4 && current.IPv4
+			pair.IPv6 = pair.IPv6 && current.IPv6
+		}
+
+		seen[f.DataNetworkID] = true
+		out[f.DataNetworkID] = pair
 	}
 
-	return nat
+	return out
 }
 
-func routableLeases(leases []db.IPLease, nated map[string]bool) []db.IPLease {
+func routableLeases(leases []db.IPLease, withheld map[string]db.LeaseWithholding) []db.IPLease {
 	routable := make([]db.IPLease, 0, len(leases))
 
 	for _, l := range leases {
-		if !nated[leaseOwnerKey(l)] || l.Address().Is6() {
+		w := withheld[leaseOwnerKey(l)]
+
+		blocked := w.IPv4
+		if l.Address().Is6() {
+			blocked = w.IPv6
+		}
+
+		if !blocked {
 			routable = append(routable, l)
 		}
 	}

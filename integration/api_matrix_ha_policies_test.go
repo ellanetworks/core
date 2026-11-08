@@ -87,6 +87,14 @@ func runPoliciesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		})
 	}
 
+	for _, slice := range []string{sliceA, sliceB} {
+		for _, dn := range []string{dnA, dnB} {
+			if err := leader.CreateSliceDataNetwork(ctx, slice, &client.CreateSliceDataNetworkOptions{DataNetwork: dn}); err != nil {
+				t.Fatalf("serve data network %q on slice %q: %v", dn, slice, err)
+			}
+		}
+	}
+
 	awaitConvergence(ctx, t, h)
 
 	listAllOn := func(c *client.Client) *client.ListPoliciesResponse {
@@ -121,7 +129,7 @@ func runPoliciesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		Arp:                 8,
 	}
 
-	if err := createServedPolicy(ctx, nodes[0], createOpts); err != nil {
+	if err := nodes[0].CreatePolicy(ctx, createOpts); err != nil {
 		t.Fatalf("create policy on node 1: %v", err)
 	}
 

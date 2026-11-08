@@ -1341,7 +1341,7 @@ paths:
       operationId: updateSliceDataNetwork
       tags: [Slices]
       summary: Update a data network of a slice
-      description: Changes NAT, local switching or the network instance. Applies to established sessions without releasing them, except on a node that does not define the new network instance, which releases them. Changing NAT breaks the established connections of the sessions.
+      description: Changes NAT, local switching or the network instance. Applies to established sessions without releasing them, except on a node that does not define the new network instance, which releases them with 5GSM cause #67 or ESM cause #26. Changing NAT breaks the established connections of the sessions.
       requestBody:
         required: true
         content:
@@ -5691,7 +5691,7 @@ components:
           description: "Whether traffic between two subscribers of this data network on this slice is switched inside the user plane. Always true on an IMS data network."
         network_instance:
           type: string
-          description: "N6 network instance of the sessions (TS 23.501 §5.6.12): default for interfaces.n6, or a name from interfaces.network-instances in each node's configuration file. A node that does not define it rejects the sessions with 5GSM cause #67 or ESM cause #26, with a back-off timer."
+          description: "N6 network instance of the sessions (TS 23.501 §5.6.12): default for interfaces.n6, or a name from interfaces.network-instances in each node's configuration file. A node that does not define it rejects or releases the sessions with 5GSM cause #67 or ESM cause #26."
       required: [data_network, nat, local_switch, network_instance]
 
     SliceDataNetworkResponseEnvelope:

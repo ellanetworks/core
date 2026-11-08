@@ -38,6 +38,21 @@ func buildPDUSessionEstablishmentReject(msg *fgs.PDUSessionEstablishmentReject) 
 	}
 }
 
+type PDUSessionReleaseCommand struct {
+	Cause5GSM    utils.EnumField        `json:"cause_5g_s_m"`
+	BackoffTimer *nasie.GPRSTimer3Value `json:"backoff_timer,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
+}
+
+func buildPDUSessionReleaseCommand(msg *fgs.PDUSessionReleaseCommand) *PDUSessionReleaseCommand {
+	return &PDUSessionReleaseCommand{
+		Cause5GSM:       cause5GSMToString(msg.Cause),
+		BackoffTimer:    nasie.GPRSTimer3(msg.BackoffTimer),
+		UnrecognizedIEs: utils.RawIEs(msg.Unrecognized),
+	}
+}
+
 // GSMOptionalCause is a 5GSM message whose cause the sender may omit.
 type GSMOptionalCause struct {
 	Cause5GSM *utils.EnumField `json:"cause_5g_s_m,omitempty"`

@@ -33,16 +33,10 @@ const ROUTES = [
     heading: "Networking",
   },
   { label: "Routes", route: "/networking/routes", heading: "Networking" },
-  { label: "NAT", route: "/networking/nat", heading: "Networking" },
   { label: "BGP", route: "/networking/bgp", heading: "Networking" },
   {
     label: "Flow accounting",
     route: "/networking/flow-accounting",
-    heading: "Networking",
-  },
-  {
-    label: "Local switch",
-    route: "/networking/local-switch",
     heading: "Networking",
   },
   { label: "Operator", route: "/operator", heading: "Operator" },

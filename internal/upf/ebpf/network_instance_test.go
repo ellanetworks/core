@@ -94,3 +94,62 @@ func TestFrameOnAnInstanceInterfaceOutsideItsVLANIsNotForwarded(t *testing.T) {
 		})
 	}
 }
+
+func TestUplinkOnANetworkInstanceTheKernelWillNotRouteIsDropped(t *testing.T) {
+	requireProgTestRun(t)
+
+	const dev = "ellnifwd"
+
+	_, _ = ipCmd("link", "del", dev)
+	ipCmdOK(t, "link", "add", dev, "type", "dummy")
+	t.Cleanup(func() { _, _ = ipCmd("link", "del", dev) })
+	ipCmdOK(t, "link", "set", dev, "up")
+
+	for _, key := range []string{"net.ipv4.conf." + dev + ".forwarding", "net.ipv6.conf." + dev + ".forwarding"} {
+		if err := writeSysctl(key, "0"); err != nil {
+			t.Fatalf("disable forwarding: %v", err)
+		}
+	}
+
+	ifindex := uint32(ifByName(t, dev).Index)
+
+	for _, tc := range []struct {
+		name  string
+		inner []byte
+	}{
+		{name: "ipv4", inner: innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)},
+		{name: "ipv6", inner: ipv6Packet(testUEv6, [16]byte{0x20, 0x01, 0x48, 0x60, 15: 0x88}, 17,
+			udpDatagramChecksummedV6(testUEv6, [16]byte{0x20, 0x01, 0x48, 0x60, 15: 0x88}, 1234, 53, []byte{0xde, 0xad}))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const teid = 0x31323334
+
+			obj := loadN3N6Program(t)
+
+			if err := obj.PutNetworkInstance(NetworkInstance{ID: 1, Ifindex: ifindex, RoutingIfindex: ifindex}); err != nil {
+				t.Fatalf("PutNetworkInstance: %v", err)
+			}
+
+			pdr := PdrInfo{
+				IMSI:         "001010000000001",
+				Far:          FarInfo{Action: 0x02},
+				UEIPv4:       canonicalUEv4,
+				UEIPv6Prefix: canonicalUEv6Prefix,
+				NIID:         1,
+			}
+			if err := obj.PutPdrUplink(teid, pdr); err != nil {
+				t.Fatalf("install uplink PDR: %v", err)
+			}
+
+			action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, tc.inner))
+
+			if action == ActionPass {
+				t.Fatalf("decapsulated packet passed to the kernel on a network instance it cannot route")
+			}
+
+			if got := DropCount(obj, Uplink, "ni_unrouted"); got != 1 {
+				t.Fatalf("ni_unrouted drops = %d (action %d), want 1", got, action)
+			}
+		})
+	}
+}

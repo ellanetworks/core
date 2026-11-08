@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/udm"
+	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -333,13 +334,13 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	if current.NAT != policy.NAT || current.LocalSwitch != policy.LocalSwitch || networkInstanceChanged {
 		if err := s.applyForwarding(ctx, smContext, policy); err != nil {
 			if errors.Is(err, models.ErrNetworkInstanceUnavailable) {
-				logger.SmfLog.Warn("network instance unavailable on this node, releasing session for re-establishment",
+				logger.SmfLog.Warn("network instance unavailable on this node, releasing session",
 					logger.SUPI(smContext.Supi.String()),
 					logger.PDUSessionID(smContext.PDUSessionID),
 					zap.String("network_instance", policy.NetworkInstance),
 				)
 
-				return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
+				return s.releaseForUnavailableNetworkInstance(ctx, smContext)
 			}
 
 			return reconcileDecision{}, fmt.Errorf("apply forwarding to the UPF: %w", err)
@@ -490,6 +491,23 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	smContext.pendingPolicy = newPolicy
 
 	return reconcileDecision{}, nil
+}
+
+func (s *SMF) releaseForUnavailableNetworkInstance(ctx context.Context, smContext *SMContext) (reconcileDecision, error) {
+	if smContext.Access == Access4G {
+		return reconcileDecision{action: reconcileRelease, reason: models.ReleaseNetworkInstanceUnavailable}, nil
+	}
+
+	var backoff *naslib.GPRSTimer3
+
+	if smContext.backoffAllowed {
+		if timer, err := naslib.GPRSTimer3FromDuration(models.DatapathCapacityBackoff); err == nil {
+			backoff = &timer
+		}
+	}
+
+	return reconcileDecision{}, s.startReleaseWithBackoff(ctx, smContext, 0, fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN, backoff,
+		models.ReleaseFor(models.ReleaseNetworkInstanceUnavailable))
 }
 
 func (s *SMF) releaseForReactivation(ctx context.Context, smContext *SMContext, reason models.SessionReleaseReason) (reconcileDecision, error) {

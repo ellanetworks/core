@@ -73,7 +73,7 @@ func (st *networkInstanceState) lookup() (ebpf.NetworkInstance, datapathIface, b
 		Vlan:           st.vlan,
 	}
 
-	return ni, datapathIface{index: attach.Index, name: st.attachName}, true
+	return ni, datapathIface{index: attach.Index, name: st.attachName, tagged: st.vlan != 0}, true
 }
 
 func (u *UPF) availableNetworkInstances() map[string]uint8 {
@@ -165,6 +165,8 @@ func (u *UPF) attachInstanceInterface(iface datapathIface) error {
 	if err != nil {
 		return err
 	}
+
+	warnVLANStrippedBeforeXDP(iface, u.attachedMode)
 
 	u.instanceLinks[iface.index] = l
 

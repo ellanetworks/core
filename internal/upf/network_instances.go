@@ -26,6 +26,7 @@ func resolveNetworkInstances(instances []config.NetworkInstance, n3Ifindex, n6If
 	}
 
 	attached := map[int]bool{n3Ifindex: true, n6Ifindex: true}
+	extraByIndex := map[int]int{}
 	resolved := make([]resolvedNetworkInstance, 0, len(instances))
 
 	var extra []datapathIface
@@ -52,7 +53,12 @@ func resolveNetworkInstances(instances []config.NetworkInstance, n3Ifindex, n6If
 
 		if !attached[attachIface.Index] {
 			attached[attachIface.Index] = true
+			extraByIndex[attachIface.Index] = len(extra)
 			extra = append(extra, datapathIface{index: attachIface.Index, name: attachName})
+		}
+
+		if pos, ok := extraByIndex[attachIface.Index]; ok && vlan != 0 {
+			extra[pos].tagged = true
 		}
 
 		resolved = append(resolved, resolvedNetworkInstance{

@@ -23,6 +23,8 @@ This means routing state always reflects the set of currently connected subscrib
 
 Framed routes are advertised the same way, from the node anchoring the session, and withdrawn on release.
 
+The next hop is always the default N6 interface address, so Ella Core advertises only the subscribers whose traffic leaves through that interface: not the IPv4 addresses of subscribers behind NAT, and not the addresses of subscribers on another network instance.
+
 ### Receive routes from BGP peers
 
 Ella Core receives routes from BGP peers and installs them into the kernel routing table. This allows operators to manage routes (e.g., a default route via an upstream router) through BGP instead of static routes.

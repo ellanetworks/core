@@ -190,6 +190,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		Subscribed: inputs.subscribed,
 
 		MaxPacketFilters: requestedMaxPacketFilters(req),
+		BackoffAllowed:   !emergencyRequest(requestType) && !highPriorityAccess(ctx),
 	})
 	if err != nil {
 		establishmentResult = metrics.ResultReject

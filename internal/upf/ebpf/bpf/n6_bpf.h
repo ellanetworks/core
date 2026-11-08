@@ -193,7 +193,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			   TRAFFIC_CLASS_DOWNLINK);
 
 	if (!frame_is_reinjected(ctx->ctx_buff) &&
-	    pdr->ni_id != downlink_session_ni(ctx->ctx_buff)) {
+	    downlink_ni_mismatch(pdr->ni_id, ctx->ni_id)) {
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, DROP);
 		return drop_with(ctx, UPF_DROP_NI_MISMATCH);
 	}
@@ -406,7 +406,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 			   TRAFFIC_CLASS_DOWNLINK);
 
 	if (!frame_is_reinjected(ctx->ctx_buff) &&
-	    pdr->ni_id != downlink_session_ni(ctx->ctx_buff)) {
+	    downlink_ni_mismatch(pdr->ni_id, ctx->ni_id)) {
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, DROP);
 		return drop_with(ctx, UPF_DROP_NI_MISMATCH);
 	}

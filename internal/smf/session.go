@@ -45,6 +45,7 @@ type SessionRequest struct {
 	Subscribed SubscribedQoS
 
 	MaxPacketFilters uint16
+	BackoffAllowed   bool
 }
 
 // ueAddresses is the address set allocated for a session; the IPv6 prefix is the
@@ -148,6 +149,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	applyDecision(req.Policy, decision)
 	sc.subscribedQoS, sc.policyDecision = req.Subscribed, decision
 	sc.maxPacketFilters = req.MaxPacketFilters
+	sc.backoffAllowed = req.BackoffAllowed
 
 	sc.Tunnel = &UPTunnel{dataPlane: dataPlane{
 		UEIPv4:      addrs.IPv4,

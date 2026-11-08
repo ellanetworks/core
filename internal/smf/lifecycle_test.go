@@ -2446,30 +2446,54 @@ func TestReconcileSession_ForwardingChangeModifiesOnlyTheUPF(t *testing.T) {
 }
 
 func TestReconcileSession_UnavailableNetworkInstanceReleasesTheSession(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
+	for _, tc := range []struct {
+		name           string
+		backoffAllowed bool
+	}{
+		{name: "back-off allowed", backoffAllowed: true},
+		{name: "high priority or unknown access", backoffAllowed: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+			ctx := context.Background()
 
-	_, ref := setupSessionWithTunnel(t, s)
+			smCtx, ref := setupSessionWithTunnel(t, s)
+			smCtx.SetBackoffAllowedForTest(tc.backoffAllowed)
 
-	before := currentPolicy(s, ref)
+			before := currentPolicy(s, ref)
 
-	upf.mu.Lock()
-	upf.err = fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable)
-	upf.mu.Unlock()
+			upf.mu.Lock()
+			upf.err = fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable)
+			upf.mu.Unlock()
 
-	change := policyChange{NetworkInstance: "ims"}
-	change.SessionAmbrUplink, change.SessionAmbrDownlink = before.Ambr.Uplink.String(), before.Ambr.Downlink.String()
-	change.Var5qi, change.Arp = before.QosData.Var5qi, before.QosData.Arp.PriorityLevel
-	change.PreemptCap, change.PreemptVuln = before.QosData.Arp.PreemptCap, before.QosData.Arp.PreemptVuln
+			change := policyChange{NetworkInstance: "ims"}
+			change.SessionAmbrUplink, change.SessionAmbrDownlink = before.Ambr.Uplink.String(), before.Ambr.Downlink.String()
+			change.Var5qi, change.Arp = before.QosData.Var5qi, before.QosData.Arp.PriorityLevel
+			change.PreemptCap, change.PreemptVuln = before.QosData.Arp.PreemptCap, before.QosData.Arp.PreemptVuln
 
-	_ = reconcileWithPolicy(ctx, s, pcf, ref, &change)
+			_ = reconcileWithPolicy(ctx, s, pcf, ref, &change)
 
-	amfCb.mu.Lock()
-	releaseCalls := len(amfCb.releaseCalls)
-	amfCb.mu.Unlock()
+			amfCb.mu.Lock()
+			calls := append([]releaseCall(nil), amfCb.releaseCalls...)
+			amfCb.mu.Unlock()
 
-	if releaseCalls != 1 {
-		t.Fatalf("release calls = %d, want 1 after the network instance became unavailable", releaseCalls)
+			if len(calls) != 1 {
+				t.Fatalf("release calls = %d, want 1 after the network instance became unavailable", len(calls))
+			}
+
+			cmd, err := fgs.ParsePDUSessionReleaseCommand(calls[0].n1Msg)
+			if err != nil {
+				t.Fatalf("parse PDU SESSION RELEASE COMMAND: %v", err)
+			}
+
+			if cmd.Cause != fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN {
+				t.Fatalf("5GSM cause = %v, want #67", cmd.Cause)
+			}
+
+			if (cmd.BackoffTimer != nil) != tc.backoffAllowed {
+				t.Fatalf("back-off timer = %+v, want present = %t", cmd.BackoffTimer, tc.backoffAllowed)
+			}
+		})
 	}
 }

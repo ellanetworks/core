@@ -149,3 +149,7 @@ func (s *SMF) SEIDIndexLenForTest() int {
 
 	return len(s.bySEID)
 }
+
+func (smContext *SMContext) SetBackoffAllowedForTest(allowed bool) {
+	smContext.backoffAllowed = allowed
+}

@@ -187,7 +187,12 @@ func (db *Database) NATCoversEveryDataNetwork(ctx context.Context) (bool, error)
 	return true, nil
 }
 
-func (db *Database) NATedLeaseOwners(ctx context.Context, nodeID string) (map[string]bool, error) {
+type LeaseWithholding struct {
+	IPv4 bool
+	IPv6 bool
+}
+
+func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (map[string]LeaseWithholding, error) {
 	ctx, span, done := db.sliceDataNetworkSpan(ctx, "SELECT")
 	defer done()
 
@@ -195,7 +200,7 @@ func (db *Database) NATedLeaseOwners(ctx context.Context, nodeID string) (map[st
 		return nil, nil
 	}
 
-	query := fmt.Sprintf(`SELECT s.imsi, p.dataNetworkID, MIN(sdn.nat AND NOT d.ims)
+	query := fmt.Sprintf(`SELECT s.imsi, p.dataNetworkID, MIN((sdn.nat AND NOT d.ims) OR sdn.networkInstance NOT IN ('', ?)), MIN(sdn.networkInstance NOT IN ('', ?))
 		FROM %s s
 		JOIN %s p ON p.profileID = s.profileID
 		JOIN %s sdn ON sdn.sliceID = p.sliceID AND sdn.dataNetworkID = p.dataNetworkID
@@ -204,7 +209,7 @@ func (db *Database) NATedLeaseOwners(ctx context.Context, nodeID string) (map[st
 		GROUP BY s.imsi, p.dataNetworkID`,
 		SubscribersTableName, PoliciesTableName, SliceDataNetworksTableName, DataNetworksTableName, IPLeasesTableName) // #nosec: G201 -- table names are constants
 
-	rows, err := db.conn().PlainDB().QueryContext(ctx, query, nodeID)
+	rows, err := db.conn().PlainDB().QueryContext(ctx, query, models.DefaultNetworkInstanceName, models.DefaultNetworkInstanceName, nodeID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -213,21 +218,21 @@ func (db *Database) NATedLeaseOwners(ctx context.Context, nodeID string) (map[st
 
 	defer func() { _ = rows.Close() }()
 
-	out := make(map[string]bool)
+	out := make(map[string]LeaseWithholding)
 
 	for rows.Next() {
 		var (
 			imsi, dataNetworkID string
-			nat                 bool
+			withheld            LeaseWithholding
 		)
 
-		if err := rows.Scan(&imsi, &dataNetworkID, &nat); err != nil {
+		if err := rows.Scan(&imsi, &dataNetworkID, &withheld.IPv4, &withheld.IPv6); err != nil {
 			recordSpanError(span, err)
 
 			return nil, fmt.Errorf("scan: %w", err)
 		}
 
-		out[imsi+"/"+dataNetworkID] = nat
+		out[imsi+"/"+dataNetworkID] = withheld
 	}
 
 	return out, rows.Err()

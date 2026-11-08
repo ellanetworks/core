@@ -146,6 +146,7 @@ static __always_inline void select_ingress_ni(struct packet_context *ctx)
 		return;
 
 	int ni_id = downlink_ingress_ni(ctx->ctx_buff);
+	ctx->ni_id = (__u8)ni_id;
 	if (ni_id > 0)
 		ctx->routing_ifindex = n3_routing_ifindex;
 }
@@ -457,17 +458,21 @@ int upf_entry_func(struct __ctx_buff *ctx)
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 
-	struct network_instance_key ni_key = {
-		.ifindex = ctx_ingress_ifindex(ctx),
-		.vlan = frame_vlan_id(&context),
-	};
-	if (bpf_map_lookup_elem(&network_instance_classifier, &ni_key)) {
-		bpf_tail_call(ctx, &upf_calls, UPF_CALL_DOWNLINK);
-		return ctx_verdict(DEFAULT_CTX_ACTION);
+	const __u32 ingress_ifindex = ctx_ingress_ifindex(ctx);
+	if (network_instances_enabled) {
+		struct network_instance_key ni_key = {
+			.ifindex = ingress_ifindex,
+			.vlan = frame_vlan_id(&context),
+		};
+		if (bpf_map_lookup_elem(&network_instance_classifier,
+					&ni_key)) {
+			bpf_tail_call(ctx, &upf_calls, UPF_CALL_DOWNLINK);
+			return ctx_verdict(DEFAULT_CTX_ACTION);
+		}
 	}
 
-	if (n3_ifindex && n6_ifindex && ni_key.ifindex != (__u32)n3_ifindex &&
-	    ni_key.ifindex != (__u32)n6_ifindex)
+	if (n3_ifindex && n6_ifindex && ingress_ifindex != (__u32)n3_ifindex &&
+	    ingress_ifindex != (__u32)n6_ifindex)
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 
 	/* The mirror of gtpu_allowed: downlink tunnels to a UE on its destination

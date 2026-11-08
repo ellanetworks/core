@@ -110,6 +110,8 @@ type BpfObjects struct {
 	N3Vlan           uint32
 	N6Vlan           uint32
 
+	NetworkInstancesEnabled bool
+
 	bufferVethIndex uint32 // ifindex of the reinjection veth
 
 	pagingMu   sync.Mutex
@@ -127,16 +129,17 @@ type BpfObjects struct {
 
 func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
 	return &BpfObjects{
-		FlowAccounting:   flowact,
-		Masquerade:       masquerade,
-		N3InterfaceIndex: uint32(n3ifindex),
-		N6InterfaceIndex: uint32(n6ifindex),
-		N3RoutingIndex:   uint32(n3ifindex),
-		N6RoutingIndex:   uint32(n6ifindex),
-		N3Vlan:           n3vlan,
-		N6Vlan:           n6vlan,
-		pagingList:       make(map[DataNotification]bool),
-		occupancy:        make(map[string]int),
+		FlowAccounting:          flowact,
+		Masquerade:              masquerade,
+		N3InterfaceIndex:        uint32(n3ifindex),
+		N6InterfaceIndex:        uint32(n6ifindex),
+		N3RoutingIndex:          uint32(n3ifindex),
+		N6RoutingIndex:          uint32(n6ifindex),
+		N3Vlan:                  n3vlan,
+		N6Vlan:                  n6vlan,
+		NetworkInstancesEnabled: true,
+		pagingList:              make(map[DataNotification]bool),
+		occupancy:               make(map[string]int),
 	}
 }
 
@@ -316,6 +319,10 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 	if err := spec.Variables["n6_vlan"].Set(bpfObjects.N6Vlan); err != nil {
 		logger.UpfLog.Error("failed to set n6 vlan id", zap.Error(err))
 		return err
+	}
+
+	if err := spec.Variables["network_instances_enabled"].Set(bpfObjects.NetworkInstancesEnabled); err != nil {
+		return fmt.Errorf("set network instances enabled: %w", err)
 	}
 
 	if err := spec.Variables["nat_port_min"].Set(NatPortMin); err != nil {

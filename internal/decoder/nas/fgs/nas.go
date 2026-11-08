@@ -65,7 +65,7 @@ type GsmMessage struct {
 
 	GSMStatus                           *GSMCauseOnly                   `json:"gsm_status,omitempty"`
 	PDUSessionEstablishmentReject       *PDUSessionEstablishmentReject  `json:"pdu_session_establishment_reject,omitempty"`
-	PDUSessionReleaseCommand            *GSMCauseOnly                   `json:"pdu_session_release_command,omitempty"`
+	PDUSessionReleaseCommand            *PDUSessionReleaseCommand       `json:"pdu_session_release_command,omitempty"`
 	PDUSessionModificationCommandReject *GSMCauseOnly                   `json:"pdu_session_modification_command_reject,omitempty"`
 	PDUSessionReleaseRequest            *GSMOptionalCause               `json:"pdu_session_release_request,omitempty"`
 	PDUSessionReleaseComplete           *GSMOptionalCause               `json:"pdu_session_release_complete,omitempty"`
@@ -328,7 +328,7 @@ func buildGsmMessage(raw []byte) *GsmMessage {
 	case *fgs.PDUSessionReleaseCommand:
 		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
 		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
-		gsmMessage.PDUSessionReleaseCommand = gsmCauseOnly(msg.Cause, msg.Unrecognized)
+		gsmMessage.PDUSessionReleaseCommand = buildPDUSessionReleaseCommand(msg)
 	case *fgs.PDUSessionModificationCommandReject:
 		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
 		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)

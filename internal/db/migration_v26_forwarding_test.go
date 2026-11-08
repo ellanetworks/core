@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -168,7 +169,7 @@ func assertNoForwarding(t *testing.T, d *Database, label, sliceID, dataNetworkID
 	}
 }
 
-func TestNATedLeaseOwnersFollowsTheSliceDataNetwork(t *testing.T) {
+func TestWithheldLeaseOwnersFollowTheSliceDataNetwork(t *testing.T) {
 	ctx := context.Background()
 	d := newDatabaseAtVersion(t, 26)
 	f := setupForwardingFixture(t, d)
@@ -197,34 +198,34 @@ func TestNATedLeaseOwnersFollowsTheSliceDataNetwork(t *testing.T) {
 		}
 	}
 
-	assertNATed := func(label string, want map[string]bool) {
+	assertWithheld := func(label string, want map[string]LeaseWithholding) {
 		t.Helper()
 
-		got, err := d.NATedLeaseOwners(ctx, "1")
+		got, err := d.WithheldLeaseOwners(ctx, "1")
 		if err != nil {
-			t.Fatalf("%s: NATedLeaseOwners: %v", label, err)
+			t.Fatalf("%s: WithheldLeaseOwners: %v", label, err)
 		}
 
-		if len(got) != len(want) {
-			t.Fatalf("%s: NATed lease owners %v, want %v", label, got, want)
-		}
-
-		for k, v := range want {
-			if got[k] != v {
-				t.Fatalf("%s: NATed lease owners %v, want %v", label, got, want)
-			}
+		if !maps.Equal(got, want) {
+			t.Fatalf("%s: withheld lease owners %v, want %v", label, got, want)
 		}
 	}
 
-	assertNATed("NAT on internet", map[string]bool{imsi + "/" + f.internet: true, imsi + "/" + f.ims: false})
+	assertWithheld("NAT on internet", map[string]LeaseWithholding{imsi + "/" + f.internet: {IPv4: true}, imsi + "/" + f.ims: {}})
 
 	if err := d.UpdateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.internet}); err != nil {
 		t.Fatalf("turn NAT off: %v", err)
 	}
 
-	assertNATed("NAT off", map[string]bool{imsi + "/" + f.internet: false, imsi + "/" + f.ims: false})
+	assertWithheld("NAT off", map[string]LeaseWithholding{imsi + "/" + f.internet: {}, imsi + "/" + f.ims: {}})
 
-	if got, err := d.NATedLeaseOwners(ctx, "2"); err != nil || len(got) != 0 {
+	if err := d.UpdateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.ims, LocalSwitch: true, NetworkInstance: "ims"}); err != nil {
+		t.Fatalf("move ims to a network instance: %v", err)
+	}
+
+	assertWithheld("ims on a network instance", map[string]LeaseWithholding{imsi + "/" + f.internet: {}, imsi + "/" + f.ims: {IPv4: true, IPv6: true}})
+
+	if got, err := d.WithheldLeaseOwners(ctx, "2"); err != nil || len(got) != 0 {
 		t.Fatalf("leases of another node = %v, %v; want none", got, err)
 	}
 }

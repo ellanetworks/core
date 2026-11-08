@@ -98,7 +98,8 @@ type N3N6EntrypointTcFiveTuple struct {
 	Sport uint16
 	Dport uint16
 	Proto uint16
-	Pad   uint16
+	NiId  uint8
+	Pad   uint8
 }
 
 type N3N6EntrypointTcFlow struct {
@@ -501,6 +502,7 @@ const (
 	N3N6EntrypointTcVarN6Vlan                    = "n6_vlan"
 	N3N6EntrypointTcVarNatPortMax                = "nat_port_max"
 	N3N6EntrypointTcVarNatPortMin                = "nat_port_min"
+	N3N6EntrypointTcVarNetworkInstancesEnabled   = "network_instances_enabled"
 )
 
 // LoadN3N6EntrypointTc returns the embedded CollectionSpec for N3N6EntrypointTc.
@@ -602,17 +604,18 @@ type N3N6EntrypointTcMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointTcVariableSpecs struct {
-	BufferVethIfindex *ebpf.VariableSpec `ebpf:"buffer_veth_ifindex"`
-	Flowact           *ebpf.VariableSpec `ebpf:"flowact"`
-	Masquerade        *ebpf.VariableSpec `ebpf:"masquerade"`
-	N3Ifindex         *ebpf.VariableSpec `ebpf:"n3_ifindex"`
-	N3RoutingIfindex  *ebpf.VariableSpec `ebpf:"n3_routing_ifindex"`
-	N3Vlan            *ebpf.VariableSpec `ebpf:"n3_vlan"`
-	N6Ifindex         *ebpf.VariableSpec `ebpf:"n6_ifindex"`
-	N6RoutingIfindex  *ebpf.VariableSpec `ebpf:"n6_routing_ifindex"`
-	N6Vlan            *ebpf.VariableSpec `ebpf:"n6_vlan"`
-	NatPortMax        *ebpf.VariableSpec `ebpf:"nat_port_max"`
-	NatPortMin        *ebpf.VariableSpec `ebpf:"nat_port_min"`
+	BufferVethIfindex       *ebpf.VariableSpec `ebpf:"buffer_veth_ifindex"`
+	Flowact                 *ebpf.VariableSpec `ebpf:"flowact"`
+	Masquerade              *ebpf.VariableSpec `ebpf:"masquerade"`
+	N3Ifindex               *ebpf.VariableSpec `ebpf:"n3_ifindex"`
+	N3RoutingIfindex        *ebpf.VariableSpec `ebpf:"n3_routing_ifindex"`
+	N3Vlan                  *ebpf.VariableSpec `ebpf:"n3_vlan"`
+	N6Ifindex               *ebpf.VariableSpec `ebpf:"n6_ifindex"`
+	N6RoutingIfindex        *ebpf.VariableSpec `ebpf:"n6_routing_ifindex"`
+	N6Vlan                  *ebpf.VariableSpec `ebpf:"n6_vlan"`
+	NatPortMax              *ebpf.VariableSpec `ebpf:"nat_port_max"`
+	NatPortMin              *ebpf.VariableSpec `ebpf:"nat_port_min"`
+	NetworkInstancesEnabled *ebpf.VariableSpec `ebpf:"network_instances_enabled"`
 }
 
 // N3N6EntrypointTcObjects contains all objects after they have been loaded into the kernel.
@@ -724,17 +727,18 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointTcVariables struct {
-	BufferVethIfindex *ebpf.Variable `ebpf:"buffer_veth_ifindex"`
-	Flowact           *ebpf.Variable `ebpf:"flowact"`
-	Masquerade        *ebpf.Variable `ebpf:"masquerade"`
-	N3Ifindex         *ebpf.Variable `ebpf:"n3_ifindex"`
-	N3RoutingIfindex  *ebpf.Variable `ebpf:"n3_routing_ifindex"`
-	N3Vlan            *ebpf.Variable `ebpf:"n3_vlan"`
-	N6Ifindex         *ebpf.Variable `ebpf:"n6_ifindex"`
-	N6RoutingIfindex  *ebpf.Variable `ebpf:"n6_routing_ifindex"`
-	N6Vlan            *ebpf.Variable `ebpf:"n6_vlan"`
-	NatPortMax        *ebpf.Variable `ebpf:"nat_port_max"`
-	NatPortMin        *ebpf.Variable `ebpf:"nat_port_min"`
+	BufferVethIfindex       *ebpf.Variable `ebpf:"buffer_veth_ifindex"`
+	Flowact                 *ebpf.Variable `ebpf:"flowact"`
+	Masquerade              *ebpf.Variable `ebpf:"masquerade"`
+	N3Ifindex               *ebpf.Variable `ebpf:"n3_ifindex"`
+	N3RoutingIfindex        *ebpf.Variable `ebpf:"n3_routing_ifindex"`
+	N3Vlan                  *ebpf.Variable `ebpf:"n3_vlan"`
+	N6Ifindex               *ebpf.Variable `ebpf:"n6_ifindex"`
+	N6RoutingIfindex        *ebpf.Variable `ebpf:"n6_routing_ifindex"`
+	N6Vlan                  *ebpf.Variable `ebpf:"n6_vlan"`
+	NatPortMax              *ebpf.Variable `ebpf:"nat_port_max"`
+	NatPortMin              *ebpf.Variable `ebpf:"nat_port_min"`
+	NetworkInstancesEnabled *ebpf.Variable `ebpf:"network_instances_enabled"`
 }
 
 // N3N6EntrypointTcPrograms contains all programs after they have been loaded into the kernel.
