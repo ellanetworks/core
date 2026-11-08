@@ -48,6 +48,7 @@ type SessionRequest struct {
 	APN               *models.APNSubscription
 
 	MaxPacketFilters uint16
+	BackoffAllowed   bool
 }
 
 // ueAddresses is the address set allocated for a session; the IPv6 prefix is the
@@ -157,6 +158,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	applyDecision(req.Policy, decision)
 	sc.subscribedQoS, sc.policyDecision = req.Subscribed, decision
 	sc.maxPacketFilters = req.MaxPacketFilters
+	sc.backoffAllowed = req.BackoffAllowed
 
 	sc.Tunnel = &UPTunnel{dataPlane: dataPlane{
 		UEIPv4:      addrs.IPv4,
@@ -176,7 +178,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	s.indexSEID(sc, seid)
 
 	if err := s.establishPFCPSession(ctx, sc); err != nil {
-		if errors.Is(err, ErrDatapathCapacity) {
+		if errors.Is(err, ErrDatapathCapacity) || errors.Is(err, models.ErrNetworkInstanceUnavailable) {
 			return nil, fmt.Errorf("%w: %w", errUPFSession, err)
 		}
 
@@ -322,7 +324,7 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return err
 	}
 
-	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.Snssai, smContext.Dnn, smContext.FramedRoutes, smContext.PolicyData.IMS)
+	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.Snssai, smContext.Dnn, smContext.FramedRoutes, smContext.PolicyData)
 
 	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {
@@ -331,6 +333,10 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 
 		if datapathFull(err) {
 			return fmt.Errorf("%w: failed to send PFCP session establishment request: %w", ErrDatapathCapacity, err)
+		}
+
+		if errors.Is(err, models.ErrNetworkInstanceUnavailable) {
+			return fmt.Errorf("failed to send PFCP session establishment request: %w", err)
 		}
 
 		return fmt.Errorf("failed to send PFCP session establishment request: %v", err)

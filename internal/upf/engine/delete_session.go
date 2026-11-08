@@ -128,6 +128,8 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	conn.deregisterPolicy(policyID, req.SEID)
 	conn.mu.Unlock()
 
+	conn.releaseDataNetworkTag(session.dataNetworkID())
+
 	conn.ReleaseResources(req.SEID)
 
 	logger.From(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))

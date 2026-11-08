@@ -247,8 +247,9 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		upf_printk("upf: remove_gtp_header: detected vlan header");
 		in_vlan_size = sizeof(struct vlan_hdr);
 	}
+	const int out_vlan = ctx_n6_vlan(ctx);
 	__u32 out_vlan_size =
-		(CTX_INBAND_VLAN && n6_vlan) ? sizeof(struct vlan_hdr) : 0;
+		(CTX_INBAND_VLAN && out_vlan) ? sizeof(struct vlan_hdr) : 0;
 
 	/* Strip the input VLAN tag (if any) and the outer IP/UDP/GTP headers,
 	 * keeping headroom for the Ethernet header and an optional output VLAN
@@ -280,7 +281,7 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 	}
 	__builtin_memcpy(new_eth, &saved_eth, sizeof(*new_eth));
 
-	if (CTX_INBAND_VLAN && n6_vlan) {
+	if (CTX_INBAND_VLAN && out_vlan) {
 		struct vlan_hdr *vlan = (struct vlan_hdr *)(new_eth + 1);
 		const __u8 *inner = (const __u8 *)(vlan + 1);
 		if ((const void *)(inner + 1) > data_end) {
@@ -291,7 +292,7 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		int eth_proto = guess_eth_protocol(inner);
 		if (eth_proto == -1)
 			return -1;
-		vlan->h_vlan_TCI = bpf_htons(n6_vlan & 0x0FFF);
+		vlan->h_vlan_TCI = bpf_htons(out_vlan & 0x0FFF);
 		vlan->h_vlan_encapsulated_proto = eth_proto;
 		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 	} else {

@@ -6,8 +6,6 @@ package integration_test
 import (
 	"context"
 	"testing"
-
-	"github.com/ellanetworks/core/client"
 )
 
 func runNATHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
@@ -15,36 +13,30 @@ func runNATHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 	writer := h.Clients[writerIdx]
 
-	baselines := make(map[int]bool, len(h.Clients))
-
-	for i, c := range h.Clients {
-		orig, err := c.GetNATInfo(ctx)
-		if err != nil {
-			t.Fatalf("node %d get nat baseline: %v", i+1, err)
-		}
-
-		baselines[i] = orig.Enabled
+	natBaseline, localSwitchBaseline, err := defaultDataNetworkForwarding(ctx, writer)
+	if err != nil {
+		t.Fatalf("writer baseline: %v", err)
 	}
 
 	t.Cleanup(func() {
-		if err := writer.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: baselines[writerIdx]}); err != nil {
-			t.Logf("cleanup: restore nat on writer: %v", err)
+		if err := updateDefaultDataNetworkForwarding(ctx, writer, &natBaseline, &localSwitchBaseline); err != nil {
+			t.Logf("cleanup: restore NAT and local switching on writer: %v", err)
 		}
 	})
 
-	target := !baselines[writerIdx]
+	targetNAT, targetLocalSwitch := !natBaseline, !localSwitchBaseline
 
-	if err := writer.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: target}); err != nil {
-		t.Fatalf("update nat on writer: %v", err)
+	if err := updateDefaultDataNetworkForwarding(ctx, writer, &targetNAT, &targetLocalSwitch); err != nil {
+		t.Fatalf("update on writer: %v", err)
 	}
 
-	got, err := writer.GetNATInfo(ctx)
+	gotNAT, gotLocalSwitch, err := defaultDataNetworkForwarding(ctx, writer)
 	if err != nil {
-		t.Fatalf("get nat on writer after update: %v", err)
+		t.Fatalf("writer after update: %v", err)
 	}
 
-	if got.Enabled != target {
-		t.Fatalf("writer NAT Enabled: got %t, want %t", got.Enabled, target)
+	if gotNAT != targetNAT || gotLocalSwitch != targetLocalSwitch {
+		t.Fatalf("writer NAT %t, local switch %t; want %t, %t", gotNAT, gotLocalSwitch, targetNAT, targetLocalSwitch)
 	}
 
 	stabilizeLocal(t, ctx, h)
@@ -54,14 +46,13 @@ func runNATHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			continue
 		}
 
-		other, err := c.GetNATInfo(ctx)
+		nat, localSwitch, err := defaultDataNetworkForwarding(ctx, c)
 		if err != nil {
-			t.Fatalf("node %d get nat after writer update: %v", i+1, err)
+			t.Fatalf("node %d after writer update: %v", i+1, err)
 		}
 
-		if other.Enabled != baselines[i] {
-			t.Fatalf("node %d NAT Enabled drifted: got %t, want %t (was set on node %d only)",
-				i+1, other.Enabled, baselines[i], writerIdx+1)
+		if nat != targetNAT || localSwitch != targetLocalSwitch {
+			t.Fatalf("node %d NAT %t, local switch %t; want %t, %t (replicated from node %d)", i+1, nat, localSwitch, targetNAT, targetLocalSwitch, writerIdx+1)
 		}
 	}
 }

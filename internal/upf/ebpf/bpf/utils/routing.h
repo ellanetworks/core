@@ -118,8 +118,8 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	__u32 expected_routing_ifindex;
 
 	if (ctx->interface == INTERFACE_N3) {
-		expected_ifindex = n6_ifindex;
-		expected_routing_ifindex = n6_routing_ifindex;
+		expected_ifindex = ctx_n6_ifindex(ctx);
+		expected_routing_ifindex = ctx_n6_routing_ifindex(ctx);
 	} else {
 		expected_ifindex = n3_ifindex;
 		expected_routing_ifindex = n3_routing_ifindex;
@@ -172,8 +172,8 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	__u32 expected_routing_ifindex;
 
 	if (ctx->interface == INTERFACE_N3) {
-		expected_ifindex = n6_ifindex;
-		expected_routing_ifindex = n6_routing_ifindex;
+		expected_ifindex = ctx_n6_ifindex(ctx);
+		expected_routing_ifindex = ctx_n6_routing_ifindex(ctx);
 	} else {
 		expected_ifindex = n3_ifindex;
 		expected_routing_ifindex = n3_routing_ifindex;
@@ -199,8 +199,20 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		return tx_back(ctx, egress_vlan_forwarded(ctx));
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
+	if (ctx->interface == INTERFACE_N3 &&
+	    network_instance_isolated(ctx->ni_id))
+		return redirect_out(ctx, expected_ifindex,
+				    egress_vlan_forwarded(ctx));
 	return redirect_out(ctx, routing_egress_ifindex(fib_params->ifindex),
 			    egress_vlan_forwarded(ctx));
+}
+
+static __always_inline enum ctx_action fib_pass(struct packet_context *ctx)
+{
+	if (ctx->interface == INTERFACE_N3 &&
+	    network_instance_isolated(ctx->ni_id))
+		return drop_with(ctx, UPF_DROP_NI_UNROUTED);
+	return CTX_ACT_OK;
 }
 
 static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
@@ -281,17 +293,17 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_not_fwded += 1;
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_fwd_disabled += 1;
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_unsupp_lwt += 1;
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	default:
 		/* A negative return is helper misuse, not a routing verdict;
 		 * passing hands the stack an untranslated UE address. */
@@ -301,7 +313,7 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 			statistic->fib_lookup_ip4_error += 1;
 			return drop_with(ctx, UPF_DROP_FIB_ERROR);
 		}
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	}
 }
 
@@ -384,23 +396,23 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_not_fwded += 1;
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_fwd_disabled += 1;
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_unsupp_lwt += 1;
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		if (rc < 0) {
 			statistic->fib_lookup_ip6_error += 1;
 		}
-		return CTX_ACT_OK;
+		return fib_pass(ctx);
 	}
 }

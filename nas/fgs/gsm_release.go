@@ -14,9 +14,15 @@ type PDUSessionReleaseCommand struct {
 	PTI          nas.ProcedureTransactionIdentity
 	Cause        GSMCause
 
+	BackoffTimer *nas.GPRSTimer3
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
+}
+
+var releaseCommandIEs = []nas.OptionalIE{
+	{IEI: ieiBackoffTimer, Format: nas.IETLV, Name: "Back-off timer value"},
 }
 
 // AppendBinary encodes the plain PDU SESSION RELEASE COMMAND message.
@@ -28,6 +34,15 @@ func (m *PDUSessionReleaseCommand) AppendBinary(b []byte) ([]byte, error) {
 
 	writeGSMHeader(w, m.PDUSessionID, m.PTI, MsgPDUSessionReleaseCommand)
 	w.U8(uint8(m.Cause))
+
+	if m.BackoffTimer != nil {
+		raw, err := m.BackoffTimer.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiBackoffTimer, raw)
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -58,7 +73,20 @@ func ParsePDUSessionReleaseCommand(b []byte) (*PDUSessionReleaseCommand, error) 
 		Cause:        GSMCause(cause),
 	}
 
-	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	_unrec, err := walkOptionalIEs(r, releaseCommandIEs, func(iei uint8, value []byte) (bool, error) {
+		if iei != ieiBackoffTimer {
+			return false, nil
+		}
+
+		timer, err := nas.ParseGPRSTimer3(value)
+		if err != nil {
+			return false, err
+		}
+
+		out.BackoffTimer = &timer
+
+		return true, nil
+	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}

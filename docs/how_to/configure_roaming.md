@@ -10,7 +10,7 @@ This page has two guides: 5G roaming and 4G roaming. Each adds a roaming partner
 
 ### Prerequisites
 
-- **Data networks and slices**: a data network named after each DNN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case), and slices with the S-NSSAI values of their subscriptions.
+- **Data networks and slices**: a data network named after each DNN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case), and slices with the S-NSSAI values of their subscriptions, each serving these data networks.
 - **Partner subscriptions**: the partner allows local breakout for these data networks in its subscriptions.
 
 ### 1. Enable the N32 interface
@@ -77,7 +77,7 @@ Register a 5G UE with a SIM of the partner's network, with data roaming on. Open
 
 ### Prerequisites
 
-- **Data networks**: a data network named after each APN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case).
+- **Data networks**: a data network named after each APN that the partner's subscribers use, e.g. `internet` (names match regardless of letter case), served on a slice.
 - **Partner subscriptions**: the partner allows local breakout for these APNs in its subscriptions.
 
 ### 1. Exchange information with the partner

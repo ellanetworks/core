@@ -225,6 +225,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		HPLMNSubscription: hplmnSub,
 
 		MaxPacketFilters: requestedMaxPacketFilters(req),
+		BackoffAllowed:   !emergencyRequest(requestType) && !highPriorityAccess(ctx),
 	})
 	hplmnBound = hplmnSub != nil && sc != nil
 
@@ -237,6 +238,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		cause := fgs.GSMCauseRequestRejectedUnspecified
 
 		switch {
+		case errors.Is(err, models.ErrNetworkInstanceUnavailable):
+			cause = fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN
 		case errors.Is(err, ErrDatapathCapacity), errors.Is(err, errUEAddressAllocation):
 			cause = fgs.GSMCauseInsufficientResources
 		case errors.Is(err, errSessionIdentity):

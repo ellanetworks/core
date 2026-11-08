@@ -55,7 +55,7 @@ func runStaticIpsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 	})
 
-	if err := c.CreatePolicy(ctx, &client.CreatePolicyOptions{
+	if err := createServedPolicy(ctx, c, &client.CreatePolicyOptions{
 		Name: policy, ProfileName: profile, SliceName: sliceName, DataNetworkName: dnName,
 		SessionAmbrUplink: "50 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 8,
 	}); err != nil {

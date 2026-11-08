@@ -18,6 +18,8 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 	}
 
 	spdrInfo.PdrInfo.Flags = sess.pdrFlags(spdrInfo)
+	spdrInfo.PdrInfo.DNTag = sess.dataNetworkTag()
+	spdrInfo.PdrInfo.NIID = sess.networkInstance()
 
 	if spdrInfo.UEIP.IsValid() {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.UEIP, spdrInfo.PdrInfo); err != nil {
@@ -40,6 +42,8 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 	}
 
 	entry.PdrInfo.Flags = sess.pdrFlags(entry)
+	entry.PdrInfo.DNTag = sess.dataNetworkTag()
+	entry.PdrInfo.NIID = sess.networkInstance()
 	entry.PdrInfo.UEIPv4, entry.PdrInfo.UEIPv6Prefix = v4, v6
 	entry.PdrInfo.RadioID = sess.accessRadio()
 

@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
@@ -28,8 +30,29 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		}
 	})
 
-	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: "mcx", IPv4Pool: "10.46.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}); err != nil {
+	mcx := &db.DataNetwork{Name: "mcx", IPv4Pool: "10.46.0.0/16", DNS: "8.8.8.8", MTU: 1400, IMS: true}
+	if err := database.CreateDataNetwork(ctx, mcx); err != nil {
 		t.Fatalf("CreateDataNetwork mcx: %s", err)
+	}
+
+	slice, err := database.GetNetworkSlice(ctx, db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("GetNetworkSlice: %s", err)
+	}
+
+	defaultSlice := models.Snssai{Sst: slice.Sst}
+
+	ims0, err := (&smfDBAdapter{db: database}).ResolveDNN(ctx, "mcx")
+	if err != nil {
+		t.Fatalf("ResolveDNN mcx: %s", err)
+	}
+
+	if _, err := ims0.Config(ctx, defaultSlice); !errors.Is(err, smf.ErrDNNNotInSlice) {
+		t.Fatalf("Config of a data network the slice does not serve = %v, want ErrDNNNotInSlice", err)
+	}
+
+	if err := database.CreateSliceDataNetwork(ctx, &db.SliceDataNetwork{SliceID: slice.ID, DataNetworkID: mcx.ID, LocalSwitch: true}); err != nil {
+		t.Fatalf("CreateSliceDataNetwork: %s", err)
 	}
 
 	if err := database.ReplacePCSCFAddresses(ctx, []string{"2001:db8::5", "pcscf.example.org", "10.0.0.5"}); err != nil {
@@ -46,12 +69,12 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		t.Fatalf("ResolveDNN ims: %s", err)
 	}
 
-	imsConfig, err := ims.Config(ctx)
+	imsConfig, err := ims.Config(ctx, defaultSlice)
 	if err != nil {
 		t.Fatalf("Config ims: %s", err)
 	}
 
-	if got := imsConfig.PCSCF; !slices.Equal(got, want) || !imsConfig.IMS {
+	if got := imsConfig.PCSCF; !slices.Equal(got, want) || !imsConfig.IMS || imsConfig.NAT || !imsConfig.LocalSwitch {
 		t.Fatalf("mcx config = %+v, want IMS with P-CSCF %v", imsConfig, want)
 	}
 
@@ -60,12 +83,12 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		t.Fatalf("ResolveDNN internet: %s", err)
 	}
 
-	internetConfig, err := internet.Config(ctx)
+	internetConfig, err := internet.Config(ctx, defaultSlice)
 	if err != nil {
 		t.Fatalf("Config internet: %s", err)
 	}
 
-	if got := internetConfig.PCSCF; len(got) != 0 || internetConfig.IMS {
+	if got := internetConfig.PCSCF; len(got) != 0 || internetConfig.IMS || !internetConfig.NAT || internetConfig.LocalSwitch {
 		t.Fatalf("internet config = %+v, want no IMS and no P-CSCF", internetConfig)
 	}
 }

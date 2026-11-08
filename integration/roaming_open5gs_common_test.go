@@ -266,12 +266,6 @@ func (s *roamingStack) provision() {
 		t.Fatalf("update operator tracking: %v", err)
 	}
 
-	for i, c := range s.nodes {
-		if err := c.UpdateNATInfo(s.ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
-			t.Fatalf("enable NAT on node %d: %v", i+1, err)
-		}
-	}
-
 	fx := fixture.New(t, s.ctx, s.api)
 	fx.Slice(fixture.DefaultSliceSpec())
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
@@ -281,6 +275,10 @@ func (s *roamingStack) provision() {
 		DataNetworkName: scenarios.DefaultDNN, SessionAmbrUplink: "200 Mbps", SessionAmbrDownlink: "200 Mbps",
 		Var5qi: 9, Arp: 15,
 	})
+
+	if err := setNATOnAllDataNetworks(s.ctx, s.api, true); err != nil {
+		t.Fatalf("enable NAT: %v", err)
+	}
 }
 
 func (s *roamingStack) startTester() {

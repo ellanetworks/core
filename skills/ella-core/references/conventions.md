@@ -30,7 +30,7 @@ Round to one decimal place with the unit suffix (e.g. `46.2 MiB`, `1.3 GiB`). Ve
 
 - BGP supports up to **5 peers** (`/api/v1/networking/bgp/peers`).
 - BGP global state at `/api/v1/networking/bgp` includes `enabled`, `localAS`, `routerID`, `listenAddress`, and `rejectedPrefixes`.
-- NAT status at `/api/v1/networking/nat` returns `{"enabled": bool}`. When NAT is enabled, the BGP speaker runs but does **not** advertise subscriber routes.
+- A slice serves data networks (`/api/v1/slices/{name}/data-networks`); a policy can only use a data network its slice serves. NAT, local switching and the N6 network instance are set per slice and data network (`nat`, `local_switch`, `network_instance`). The BGP speaker does **not** advertise the IPv4 routes of subscribers whose slice NATs their data network, nor any route of subscribers on a network instance other than `default`.
 
 ## Flow reports
 

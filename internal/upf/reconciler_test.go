@@ -20,18 +20,17 @@ type fakeStore struct {
 	mu              sync.Mutex
 	natEnabled      bool
 	flowAccounting  bool
-	localSwitch     bool
 	n3External      string
 	n3GetErr        error
 	policies        []db.Policy
 	rulesByPolicyID map[string][]*db.NetworkRule
 }
 
-func (f *fakeStore) IsNATEnabled(_ context.Context) (bool, error) {
+func (f *fakeStore) ListSliceDataNetworkForwarding(_ context.Context) ([]db.SliceDataNetworkForwarding, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return f.natEnabled, nil
+	return []db.SliceDataNetworkForwarding{{DataNetworkID: "ims", IMS: true}, {DataNetworkID: "internet", NAT: f.natEnabled}}, nil
 }
 
 func (f *fakeStore) IsFlowAccountingEnabled(_ context.Context) (bool, error) {
@@ -39,13 +38,6 @@ func (f *fakeStore) IsFlowAccountingEnabled(_ context.Context) (bool, error) {
 	defer f.mu.Unlock()
 
 	return f.flowAccounting, nil
-}
-
-func (f *fakeStore) IsLocalSwitchEnabled(_ context.Context) (bool, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.localSwitch, nil
 }
 
 func (f *fakeStore) GetN3Settings(_ context.Context) (*db.N3Settings, error) {
@@ -95,6 +87,10 @@ type fakeUpdater struct {
 	updateFiltersErr  error
 	updateFiltersFunc func(policyID string, direction models.Direction, rules []models.FilterRule) error
 	applyFunc         func(settings DatapathSettings) error
+}
+
+func (f *fakeUpdater) HasNetworkInstance(name string) bool {
+	return name == "default"
 }
 
 func (f *fakeUpdater) ApplyDatapathSettings(settings DatapathSettings) error {
@@ -559,7 +555,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	store.natEnabled = false
 	store.mu.Unlock()
 
-	feed.Publish(db.TopicNATSettings)
+	feed.Publish(db.TopicDataNetworks)
 
 	deadline = time.Now().Add(time.Second)
 
@@ -650,7 +646,7 @@ func TestStart_FiltersDoNotWaitOnASettingsReload(t *testing.T) {
 }
 
 func TestReconcile_TogglesShareOneDatapathApply(t *testing.T) {
-	store := &fakeStore{natEnabled: true, flowAccounting: true, localSwitch: true}
+	store := &fakeStore{natEnabled: true, flowAccounting: true}
 	updater := &fakeUpdater{}
 
 	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
@@ -664,10 +660,10 @@ func TestReconcile_TogglesShareOneDatapathApply(t *testing.T) {
 	updater.mu.Unlock()
 
 	if len(calls) != 1 {
-		t.Fatalf("three toggles produced %d datapath applies, want 1", len(calls))
+		t.Fatalf("two toggles produced %d datapath applies, want 1", len(calls))
 	}
 
-	want := DatapathSettings{NAT: true, FlowAccounting: true, LocalSwitch: true}
+	want := DatapathSettings{NAT: true, FlowAccounting: true}
 	if calls[0] != want {
 		t.Fatalf("applied %+v, want %+v", calls[0], want)
 	}
@@ -684,7 +680,7 @@ func TestReconcile_OneChangedToggleReappliesAllOfThem(t *testing.T) {
 	}
 
 	store.mu.Lock()
-	store.localSwitch = true
+	store.flowAccounting = true
 	store.mu.Unlock()
 
 	if err := r.Reconcile(context.Background()); err != nil {
@@ -699,7 +695,7 @@ func TestReconcile_OneChangedToggleReappliesAllOfThem(t *testing.T) {
 		t.Fatalf("got %d datapath applies, want 2", len(calls))
 	}
 
-	if !calls[1].NAT || !calls[1].LocalSwitch {
+	if !calls[1].NAT || !calls[1].FlowAccounting {
 		t.Fatalf("second apply lost a setting: %+v", calls[1])
 	}
 }

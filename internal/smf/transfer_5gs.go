@@ -81,6 +81,7 @@ func (s *SMF) transferTo5GS(
 	}
 
 	sc.Mutex.Lock()
+	sc.backoffAllowed = !highPriorityAccess(ctx)
 	addrs := &smfNas.PDUSessionAddresses{
 		PDUSessionType: fgs.PDUSessionType(sc.PDUSessionType),
 		IPv4Address:    sc.PDUIPV4Address,

@@ -65,8 +65,6 @@ tags:
     description: Manage data networks (DNNs/APNs).
   - name: Routes
     description: Manage static routes.
-  - name: NAT
-    description: NAT settings.
   - name: Diameter
     description: Diameter identity and peer state of a node.
   - name: Flow Accounting
@@ -1373,6 +1371,116 @@ paths:
           $ref: "#/components/responses/Conflict"
 
   # -- Policies ------------------------------------------------------------
+  /api/v1/slices/{name}/data-networks:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listSliceDataNetworks
+      tags: [Slices]
+      summary: List the data networks of a slice
+      description: Returns the data networks the slice serves, with the NAT, local switching and network instance of each.
+      responses:
+        "200":
+          description: Data networks of the slice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListSliceDataNetworksResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createSliceDataNetwork
+      tags: [Slices]
+      summary: Serve a data network on a slice
+      description: Makes the slice serve the data network, so that policies can use it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSliceDataNetworkParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/slices/{name}/data-networks/{data_network}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: data_network
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getSliceDataNetwork
+      tags: [Slices]
+      summary: Get a data network of a slice
+      responses:
+        "200":
+          description: The data network on the slice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SliceDataNetworkResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateSliceDataNetwork
+      tags: [Slices]
+      summary: Update a data network of a slice
+      description: Changes NAT, local switching or the network instance. Applies to established sessions without releasing them, except on a node that does not define the new network instance, which releases them with 5GSM cause #67 or ESM cause #26. Changing NAT breaks the established connections of the sessions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSliceDataNetworkParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteSliceDataNetwork
+      tags: [Slices]
+      summary: Stop serving a data network on a slice
+      description: Refused while a policy uses the data network on this slice.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   /api/v1/policies:
     get:
       operationId: listPolicies
@@ -2856,40 +2964,6 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/networking/nat:
-    get:
-      operationId: getNATInfo
-      tags: [NAT]
-      summary: Get NAT status
-      description: Returns whether NAT is enabled.
-      responses:
-        "200":
-          description: NAT status.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NATInfoResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    put:
-      operationId: updateNATInfo
-      tags: [NAT]
-      summary: Enable or disable NAT
-      description: Enables or disables NAT.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateNATInfoParams"
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
   # -- BGP -----------------------------------------------------------------
   /api/v1/networking/bgp:
     get:
@@ -3104,41 +3178,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateFlowAccountingInfoParams"
-      responses:
-        "200":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  # -- Local Switch --------------------------------------------------------
-  /api/v1/networking/local-switch:
-    get:
-      operationId: getLocalSwitchInfo
-      tags: [Local Switch]
-      summary: Get local switch status
-      description: Returns whether UE-to-UE local switching is enabled.
-      responses:
-        "200":
-          description: Local switch status.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LocalSwitchInfoResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    put:
-      operationId: updateLocalSwitchInfo
-      tags: [Local Switch]
-      summary: Enable or disable local switch
-      description: Enables or disables UE-to-UE local switching.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateLocalSwitchInfoParams"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -6297,6 +6336,69 @@ components:
         result:
           $ref: "#/components/schemas/ListDataNetworksResponse"
 
+    SliceDataNetwork:
+      type: object
+      properties:
+        data_network:
+          type: string
+        nat:
+          type: boolean
+          description: "Whether the IPv4 addresses of the subscribers of this data network on this slice are translated to the N6 address of the node that serves the session. Always false on an IMS data network."
+        local_switch:
+          type: boolean
+          description: "Whether traffic between two subscribers of this data network on this slice is switched inside the user plane. Always true on an IMS data network."
+        network_instance:
+          type: string
+          description: "N6 network instance of the sessions (TS 23.501 §5.6.12): default for interfaces.n6, or a name from interfaces.network-instances in each node's configuration file. A node that does not define it rejects or releases the sessions with 5GSM cause #67 or ESM cause #26."
+      required: [data_network, nat, local_switch, network_instance]
+
+    SliceDataNetworkResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/SliceDataNetwork"
+
+    ListSliceDataNetworksResponseEnvelope:
+      type: object
+      properties:
+        result:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/SliceDataNetwork"
+          required: [items]
+
+    CreateSliceDataNetworkParams:
+      type: object
+      required: [data_network]
+      properties:
+        data_network:
+          type: string
+        nat:
+          type: boolean
+          description: "Defaults to true. Cannot be true on an IMS data network."
+        local_switch:
+          type: boolean
+          description: "Defaults to false. Cannot be false on an IMS data network."
+        network_instance:
+          type: string
+          description: "N6 network instance. Defaults to default."
+
+    UpdateSliceDataNetworkParams:
+      type: object
+      properties:
+        nat:
+          type: boolean
+          description: "Set on the node that receives the request. Cannot be true on an IMS data network or while the data network has framed routes. Omitting it leaves it unchanged."
+        local_switch:
+          type: boolean
+          description: "Cannot be false on an IMS data network. Omitting it leaves it unchanged."
+        network_instance:
+          type: string
+          description: "N6 network instance; empty means default. Omitting it leaves it unchanged."
+
     CreateDataNetworkParams:
       type: object
       required: [name, ipv4_pool, dns, mtu]
@@ -6643,26 +6745,6 @@ components:
         result:
           $ref: "#/components/schemas/DiameterStatus"
 
-    NATInfo:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-      required: [enabled]
-
-    NATInfoResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/NATInfo"
-
-    UpdateNATInfoParams:
-      type: object
-      required: [enabled]
-      properties:
-        enabled:
-          type: boolean
-
     # -- BGP --------------------------------------------------------------
     BGPSettings:
       type: object
@@ -6920,27 +7002,6 @@ components:
         enabled:
           type: boolean
 
-    # -- Local Switch ----------------------------------------------------
-    LocalSwitchInfo:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-      required: [enabled]
-
-    LocalSwitchInfoResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/LocalSwitchInfo"
-
-    UpdateLocalSwitchInfoParams:
-      type: object
-      required: [enabled]
-      properties:
-        enabled:
-          type: boolean
-
     # -- Interfaces ------------------------------------------------------
     Vlan:
       type: object
@@ -6989,7 +7050,20 @@ components:
             type: string
         vlan:
           $ref: "#/components/schemas/Vlan"
+        vrf:
+          type: string
+          description: VRF the interface belongs to; absent in the main routing table.
       required: [name, addresses]
+
+    NetworkInstanceInterface:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Network instance name; default is interfaces.n6.
+        n6:
+          $ref: "#/components/schemas/N6Interface"
+      required: [name, n6]
 
     APIInterface:
       type: object
@@ -7037,6 +7111,11 @@ components:
           $ref: "#/components/schemas/N3Interface"
         n6:
           $ref: "#/components/schemas/N6Interface"
+        network_instances:
+          type: array
+          description: The N6 network instances this node defines, default first.
+          items:
+            $ref: "#/components/schemas/NetworkInstanceInterface"
         api:
           $ref: "#/components/schemas/APIInterface"
         diameter:

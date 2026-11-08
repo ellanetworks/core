@@ -72,7 +72,7 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		},
 	}
 
-	if err := c.CreatePolicy(ctx, &client.CreatePolicyOptions{
+	if err := createServedPolicy(ctx, c, &client.CreatePolicyOptions{
 		Name:                policyName,
 		ProfileName:         profileName,
 		SliceName:           sliceName,

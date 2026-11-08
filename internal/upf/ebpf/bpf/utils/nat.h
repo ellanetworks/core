@@ -227,6 +227,7 @@ nat_translate_icmp_quote_egress(struct packet_context *ctx, __u32 ue_addr)
 	struct five_tuple key = {};
 	key.saddr = ip4->daddr;
 	key.daddr = ip4->saddr;
+	key.ni_id = ctx->ni_id;
 
 	__u16 previous_ip_csum = ip4->check;
 	int offset = ip4->ihl * 4;
@@ -575,6 +576,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	orig.saddr = ctx->ip4->saddr;
 	orig.daddr = ctx->ip4->daddr;
 	orig.proto = proto;
+	orig.ni_id = ctx->ni_id;
 
 	/* Incremental update: a recompute would have to cover the options a
 	 * header with ihl > 5 carries. */
@@ -702,6 +704,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	natted.daddr = ctx->ip4->daddr;
 	natted.dport = orig.dport;
 	natted.proto = proto;
+	natted.ni_id = orig.ni_id;
 
 	__u64 now = bpf_ktime_get_ns();
 
@@ -1111,6 +1114,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	key.proto = proto;
 	key.saddr = ctx->ip4->daddr;
 	key.daddr = ctx->ip4->saddr;
+	key.ni_id = ctx->ni_id;
 	const __u32 outer_daddr = ctx->ip4->daddr;
 
 	/* A later fragment resolves to the same mapping on its recovered ports.

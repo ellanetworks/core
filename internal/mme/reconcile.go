@@ -114,6 +114,13 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8, r
 		return nil
 	}
 
+	if reason == models.ReleaseNetworkInstanceUnavailable {
+		ueConn.Log(ctx).Info("network instance unavailable on this node; deactivating EPS bearer", zap.String("apn", p.Apn))
+		m.deactivateBearer(ctx, ue, p, eps.ESMCauseInsufficientResources, insufficientResourcesBackoff(ueConn), 0, false, models.ReleaseFor(reason))
+
+		return nil
+	}
+
 	ueConn.Log(ctx).Info("policy/data-network changed; reactivating EPS bearer", zap.String("apn", p.Apn))
 	m.reactivateBearer(ctx, ue, p, reason)
 
@@ -322,4 +329,17 @@ func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, ueConn *UeConn,
 // DEACTIVATE EPS BEARER CONTEXT ACCEPT.
 func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, reason models.SessionReleaseReason) {
 	m.DeactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false, models.ReleaseFor(reason))
+}
+
+func insufficientResourcesBackoff(ueConn *UeConn) *nas.GPRSTimer3 {
+	if ueConn.MayBeHighPriorityAccess() {
+		return nil
+	}
+
+	timer, err := nas.GPRSTimer3FromDuration(models.DatapathCapacityBackoff)
+	if err != nil {
+		return nil
+	}
+
+	return &timer
 }

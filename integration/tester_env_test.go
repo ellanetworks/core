@@ -162,7 +162,7 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 
 	cl.SetToken(resp.Token)
 
-	if err := cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, cl, true); err != nil {
 		return fmt.Errorf("update NAT: %w", err)
 	}
 

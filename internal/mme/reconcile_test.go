@@ -475,3 +475,69 @@ func TestReconcileUEPushesTheHomeAPNSubscriptionOfAVisitor(t *testing.T) {
 		t.Fatalf("ims APN subscription = %+v, %v; want it withdrawn, the IMS APN is home-routed", sub, ok)
 	}
 }
+
+func TestReactivateEPSBearerOnAnUnavailableNetworkInstance(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		rrcCause    *s1ap.RRCEstablishmentCause
+		wantBackoff bool
+	}{
+		{name: "mo-Data", rrcCause: new(s1ap.RRCCauseMOData), wantBackoff: true},
+		{name: "high priority access", rrcCause: new(s1ap.RRCCauseHighPriorityAccess), wantBackoff: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, cc := connectedBearerUE(t, m)
+			ue.Conn().SetRRCEstablishmentCause(tc.rrcCause)
+
+			ims := ue.EnsurePDN(6)
+			ims.Apn = "ims"
+			ims.SessionRef = "ref-ims"
+
+			if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), 6, models.ReleaseNetworkInstanceUnavailable); err != nil {
+				t.Fatal(err)
+			}
+
+			defer ue.Conn().StopNASGuard(t.Context())
+
+			if len(cc.sent) != 1 {
+				t.Fatalf("expected one E-RAB Release Command, got %d", len(cc.sent))
+			}
+
+			pdu, err := s1ap.Unmarshal(cc.sent[0])
+			if err != nil {
+				t.Fatalf("unmarshal S1AP: %v", err)
+			}
+
+			im, ok := pdu.(*s1ap.InitiatingMessage)
+			if !ok || im.ProcedureCode != s1ap.ProcERABRelease {
+				t.Fatalf("got %T, want E-RAB Release Command", pdu)
+			}
+
+			cmd, err := s1ap.ParseERABReleaseCommand(im.Value)
+			if err != nil {
+				t.Fatalf("parse E-RAB Release Command: %v", err)
+			}
+
+			wire := []byte(cmd.NASPDU)
+
+			plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
+			if err != nil {
+				t.Fatalf("unprotect downlink: %v", err)
+			}
+
+			req, err := eps.ParseDeactivateEPSBearerContextRequest(plain)
+			if err != nil {
+				t.Fatalf("parse Deactivate EPS Bearer Context Request: %v", err)
+			}
+
+			if req.Cause != eps.ESMCauseInsufficientResources {
+				t.Fatalf("ESM cause = %d, want %d (insufficient resources)", req.Cause, eps.ESMCauseInsufficientResources)
+			}
+
+			if (req.T3396 != nil) != tc.wantBackoff {
+				t.Fatalf("T3396 = %+v, want present = %t", req.T3396, tc.wantBackoff)
+			}
+		})
+	}
+}

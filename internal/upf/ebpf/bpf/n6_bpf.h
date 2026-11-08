@@ -192,6 +192,12 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	traffic_class_mark(pdr->qer.class_id, pdr->far.radio_id,
 			   TRAFFIC_CLASS_DOWNLINK);
 
+	if (!frame_is_reinjected(ctx->ctx_buff) &&
+	    downlink_ni_mismatch(pdr->ni_id, ctx->ni_id)) {
+		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, DROP);
+		return drop_with(ctx, UPF_DROP_NI_MISMATCH);
+	}
+
 	if (masquerade && !translated && !(pdr->flags & PDR_F_NAT_EXEMPT) &&
 	    !frame_is_reinjected(ctx->ctx_buff)) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4",
@@ -398,6 +404,12 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	traffic_class_mark(pdr->qer.class_id, pdr->far.radio_id,
 			   TRAFFIC_CLASS_DOWNLINK);
+
+	if (!frame_is_reinjected(ctx->ctx_buff) &&
+	    downlink_ni_mismatch(pdr->ni_id, ctx->ni_id)) {
+		account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, DROP);
+		return drop_with(ctx, UPF_DROP_NI_MISMATCH);
+	}
 
 	const struct classifier_query *sel = select_downlink(ctx, pdr, 0);
 	if (!sel)

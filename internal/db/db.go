@@ -212,8 +212,15 @@ type Database struct {
 	getN3SettingsStmt    *sqlair.Statement
 
 	// NAT Settings statements
-	getNATSettingsStmt    *sqlair.Statement
-	upsertNATSettingsStmt *sqlair.Statement
+	getNATSettingsStmt                 *sqlair.Statement
+	listSliceDataNetworksStmt          *sqlair.Statement
+	getSliceDataNetworkStmt            *sqlair.Statement
+	createSliceDataNetworkStmt         *sqlair.Statement
+	updateSliceDataNetworkStmt         *sqlair.Statement
+	deleteSliceDataNetworkStmt         *sqlair.Statement
+	deleteSliceDataNetworksOfSliceStmt *sqlair.Statement
+	deleteSliceDataNetworksOfDNStmt    *sqlair.Statement
+	countSliceDataNetworkPoliciesStmt  *sqlair.Statement
 
 	// BGP Settings statements
 	getBGPSettingsStmt    *sqlair.Statement
@@ -259,8 +266,6 @@ type Database struct {
 	upsertFlowAccountingSettingsStmt *sqlair.Statement
 
 	// Local Switch Settings statements
-	getLocalSwitchSettingsStmt    *sqlair.Statement
-	upsertLocalSwitchSettingsStmt *sqlair.Statement
 
 	// Operator statements
 	getOperatorStmt                      *sqlair.Statement
@@ -1194,7 +1199,25 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		logger.From(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("target_version", v))
 
-		if _, err := opMigrateShared.Invoke(ctx, db, migrateSharedPayload{TargetVersion: v}); err != nil {
+		payload := migrateSharedPayload{TargetVersion: v}
+
+		if v == sliceDataNetworkSchema {
+			localSwitch, err := readLegacyToggle(ctx, db.conn().PlainDB(), LocalSwitchSettingsTableName, false)
+			if err != nil {
+				return fmt.Errorf("read the local switching setting to carry into migration %d: %w", v, err)
+			}
+
+			payload.LocalSwitch = &localSwitch
+
+			nat, err := readLegacyToggle(ctx, db.conn().PlainDB(), NATSettingsTableName, NATDefaultEnabled)
+			if err != nil {
+				return fmt.Errorf("read the NAT setting to carry into migration %d: %w", v, err)
+			}
+
+			payload.NAT = &nat
+		}
+
+		if _, err := opMigrateShared.Invoke(ctx, db, payload); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}
@@ -1771,7 +1794,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	RegisterMetrics(db)
 
-	// Local-only singleton tables (NAT, flow accounting, BGP, N3) seed
+	// Local-only singleton tables (flow accounting, BGP, N3) seed
 	// their default rows here on every node — leader, follower, standalone.
 	// Local-only writes don't go through Raft, so no leader is required
 	// and this is safe to run before cluster discovery. Each Initialize* is
@@ -2010,7 +2033,14 @@ func (db *Database) PrepareStatements() error {
 
 		// NAT Settings
 		{&db.getNATSettingsStmt, fmt.Sprintf(getNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
-		{&db.upsertNATSettingsStmt, fmt.Sprintf(upsertNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
+		{&db.listSliceDataNetworksStmt, fmt.Sprintf(listSliceDataNetworksStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
+		{&db.getSliceDataNetworkStmt, fmt.Sprintf(getSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
+		{&db.createSliceDataNetworkStmt, fmt.Sprintf(createSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
+		{&db.updateSliceDataNetworkStmt, fmt.Sprintf(updateSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
+		{&db.deleteSliceDataNetworkStmt, fmt.Sprintf(deleteSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
+		{&db.deleteSliceDataNetworksOfSliceStmt, fmt.Sprintf(deleteSliceDataNetworksOfSliceStmt, SliceDataNetworksTableName, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.deleteSliceDataNetworksOfDNStmt, fmt.Sprintf(deleteSliceDataNetworksOfDNStmt, SliceDataNetworksTableName, DataNetworksTableName), []any{DataNetwork{}}},
+		{&db.countSliceDataNetworkPoliciesStmt, fmt.Sprintf(countSliceDataNetworkPoliciesStmt, PoliciesTableName), []any{SliceDataNetwork{}, NumItems{}}},
 
 		// BGP Settings
 		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
@@ -2056,8 +2086,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.upsertFlowAccountingSettingsStmt, fmt.Sprintf(upsertFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
 
 		// Local Switch Settings
-		{&db.getLocalSwitchSettingsStmt, fmt.Sprintf(getLocalSwitchSettingsStmt, LocalSwitchSettingsTableName), []any{LocalSwitchSettings{}}},
-		{&db.upsertLocalSwitchSettingsStmt, fmt.Sprintf(upsertLocalSwitchSettingsStmt, LocalSwitchSettingsTableName), []any{LocalSwitchSettings{}}},
 
 		// Operator
 		{&db.getOperatorStmt, fmt.Sprintf(getOperatorStmt, OperatorTableName), []any{Operator{}}},
@@ -2349,8 +2377,8 @@ func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Dura
 }
 
 // InitializeLocalSettings seeds the singleton row of every local-only
-// settings table (nat_settings, flow_accounting_settings, bgp_settings,
-// n3_settings) with documented defaults. Each Initialize* is idempotent:
+// settings table (flow_accounting_settings, bgp_settings, n3_settings)
+// with documented defaults. Each Initialize* is idempotent:
 // an existing row (whether it holds the default or an operator-set value)
 // is left untouched, so a daemon restart never overwrites operator state.
 //
@@ -2367,9 +2395,7 @@ func (db *Database) InitializeLocalSettings(ctx context.Context) error {
 		name string
 		fn   func() error
 	}{
-		{"NAT settings", func() error { return db.InitializeNATSettings(ctx) }},
 		{"flow accounting settings", func() error { return db.InitializeFlowAccountingSettings(ctx) }},
-		{"local switch settings", func() error { return db.InitializeLocalSwitchSettings(ctx) }},
 		{"BGP settings", func() error { return db.InitializeBGPSettings(ctx) }},
 		{"N3 settings", func() error { return db.InitializeN3Settings(ctx) }},
 	}
@@ -2540,6 +2566,12 @@ func (db *Database) Initialize(ctx context.Context) error {
 			Arp:                 InitialPolicyArp,
 			SessionAmbrUplink:   InitialPolicySessionAmbrUplink,
 			SessionAmbrDownlink: InitialPolicySessionAmbrDownlink,
+		}
+
+		if db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
+			if err := db.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: slice.ID, DataNetworkID: dataNetwork.ID, NAT: NATDefaultEnabled}); err != nil {
+				return fmt.Errorf("failed to serve the default data network on the default slice: %v", err)
+			}
 		}
 
 		if err := db.CreatePolicy(ctx, initialPolicy); err != nil {

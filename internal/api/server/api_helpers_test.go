@@ -280,7 +280,7 @@ func (f *fakePCF) TerminateAssociation(string) {}
 
 type fakeSessionStore struct{}
 
-func (f *fakeSessionStore) Config(context.Context) (smf.DataNetworkConfig, error) {
+func (f *fakeSessionStore) Config(context.Context, models.Snssai) (smf.DataNetworkConfig, error) {
 	return smf.DataNetworkConfig{}, nil
 }
 
@@ -441,25 +441,30 @@ type ListProfilesResponse struct {
 	Error  string                     `json:"error,omitempty"`
 }
 
-type UpdateNATInfoParams struct {
-	Enabled bool `json:"enabled"`
-}
-
-type UpdateNATInfoResponseResult struct {
-	Message string `json:"message"`
-}
-
-type UpdateNATInfoResponse struct {
-	Result UpdateNATInfoResponseResult `json:"result"`
-	Error  string                      `json:"error,omitempty"`
-}
-
-func updateNATInfo(url string, client *http.Client, token string, enabled bool) (int, *UpdateNATInfoResponse, error) {
-	params := UpdateNATInfoParams{
-		Enabled: enabled,
+func setDataNetworkNAT(url string, client *http.Client, token string, name string, enabled bool) (int, error) {
+	_, slices, err := apiDo[ListSlicesResponse](client, "GET", url+"/api/v1/slices?per_page=100", token, nil)
+	if err != nil {
+		return 0, err
 	}
 
-	return apiDo[UpdateNATInfoResponse](client, "PUT", url+"/api/v1/networking/nat", token, params)
+	code := http.StatusNotFound
+
+	for _, slice := range slices.Result.Items {
+		c, _, err := apiDo[CreatePolicyResponse](client, "PUT", url+"/api/v1/slices/"+slice.Name+"/data-networks/"+name, token, map[string]bool{"nat": enabled})
+		if err != nil {
+			return c, err
+		}
+
+		if c != http.StatusNotFound {
+			code = c
+		}
+
+		if c != http.StatusOK && c != http.StatusNotFound {
+			return c, nil
+		}
+	}
+
+	return code, nil
 }
 
 func newAuthedTestEnv(t *testing.T) (testEnv, *http.Client, string) {

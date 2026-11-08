@@ -676,6 +676,11 @@ func CreatePolicy(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.
 			return
 		}
 
+		if status, err := checkSliceServesDataNetwork(r.Context(), dbInstance, slice, dataNetwork); err != nil {
+			writeError(r.Context(), w, status, err.Error(), nil, logger.APILog)
+			return
+		}
+
 		if err := checkPolicyBindingFree(r.Context(), dbInstance, profile, slice.ID, dataNetwork.ID, createPolicyParams.DataNetworkName, ""); err != nil {
 			writeError(r.Context(), w, http.StatusConflict, err.Error(), nil, logger.APILog)
 			return
@@ -810,6 +815,11 @@ func UpdatePolicy(dbInstance *db.Database, imsProfiles IMSProfileNotifier) http.
 
 		if err := checkIMSSignalling5QI(dataNetwork, updatePolicyParams.Var5qi); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		if status, err := checkSliceServesDataNetwork(r.Context(), dbInstance, slice, dataNetwork); err != nil {
+			writeError(r.Context(), w, status, err.Error(), nil, logger.APILog)
 			return
 		}
 

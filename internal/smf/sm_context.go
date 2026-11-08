@@ -129,6 +129,7 @@ type SMContext struct {
 	failedRules map[string]PCCRule
 
 	maxPacketFilters uint16
+	backoffAllowed   bool
 	flowProcedure    *flowProcedure
 	fallbackUntil    time.Time
 	fallbackRules    []PCCRule

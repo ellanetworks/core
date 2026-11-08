@@ -199,6 +199,39 @@ func TestCreateSmContextDatapathInsertFailure(t *testing.T) {
 	}
 }
 
+func TestCreateSmContextNetworkInstanceUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		high        bool
+		requestType fgs.RequestType
+		wantBackoff bool
+	}{
+		{"backs off", false, fgs.RequestTypeInitialRequest, true},
+		{"no back-off for high priority access", true, fgs.RequestTypeInitialRequest, false},
+		{"no back-off for emergency", false, fgs.RequestTypeInitialEmergencyRequest, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			upf.err = fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable)
+			s := newTestSMF(pcf, store, upf, amfCb)
+			ctx := smf.WithHighPriorityAccess(context.Background(), tc.high)
+
+			_, reject, err := createSession(ctx, t, s, 1, tc.requestType)
+			if !errors.Is(err, models.ErrNetworkInstanceUnavailable) {
+				t.Fatalf("err = %v, want ErrNetworkInstanceUnavailable", err)
+			}
+
+			if reject == nil || reject.Cause != fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN {
+				t.Fatalf("reject = %+v, want cause #67", reject)
+			}
+
+			if (reject.BackoffTimer != nil) != tc.wantBackoff {
+				t.Fatalf("back-off = %v, want present %t", reject.BackoffTimer, tc.wantBackoff)
+			}
+		})
+	}
+}
+
 func TestCreateEPSSessionRejectsAtMaxSessions(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{}, smf.WithMaxSessions(1))

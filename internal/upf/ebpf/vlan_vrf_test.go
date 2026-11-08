@@ -148,7 +148,8 @@ func setupVLANVRF(t *testing.T, shared, masquerade, localSwitch, attachVLAN bool
 		n3VID, n6VID = 0, 0
 	}
 
-	f.obj = NewBpfObjects(false, masquerade, localSwitch, f.n3Dev.Index, f.n6Dev.Index, n3VID, n6VID)
+	f.obj = NewBpfObjects(false, masquerade, f.n3Dev.Index, f.n6Dev.Index, n3VID, n6VID)
+	f.localSwitch = localSwitch
 	f.obj.N3RoutingIndex = uint32(ifByName(t, n3).Index)
 	f.obj.N6RoutingIndex = uint32(ifByName(t, n6).Index)
 
@@ -183,7 +184,7 @@ func exchangeVLANVRF(t *testing.T, f *t2, dir Direction, frame []byte) []byte {
 	if dir == Downlink {
 		inDev, inPeer, outDev, outPeer = f.n6Dev, f.n6Peer, f.n3Dev, f.n3Peer
 		inVID, outVID = 200, 100
-	} else if f.obj.LocalSwitch {
+	} else if f.localSwitch {
 		outDev, outPeer, outVID = f.n3Dev, f.n3Peer, 100
 	}
 
@@ -198,7 +199,7 @@ func exchangeVLANVRF(t *testing.T, f *t2, dir Direction, frame []byte) []byte {
 	}
 
 	routeDir := dir
-	if f.obj.LocalSwitch {
+	if f.localSwitch {
 		routeDir = Downlink
 	}
 
@@ -358,6 +359,10 @@ func TestVLANVRFAttached(t *testing.T) {
 						ulPDR.OuterHeaderRemoval = 1
 					}
 
+					if localSwitch {
+						ulPDR.Flags = PdrFlagLocalSwitch
+					}
+
 					if err := f.obj.PutPdrUplink(ulTEID, ulPDR); err != nil {
 						t.Fatalf("install uplink PDR: %v", err)
 					}
@@ -394,6 +399,10 @@ func TestVLANVRFAttached(t *testing.T) {
 							if outer6 {
 								pdr = ipv6OuterDownlinkPDR(dlTEID, testUPFN3v6, testGNBv6, 7)
 								frame = uplinkGPDUv6Checksummed(ulTEID, inner)
+							}
+
+							if localSwitch {
+								pdr.Flags = PdrFlagLocalSwitch
 							}
 
 							if err := f.obj.PutPdrDownlink(ue, pdr); err != nil {

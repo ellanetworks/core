@@ -25,22 +25,22 @@ func TestApplyCommand_PublishesTopicForOp(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicNATSettings)
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicN3Settings)
 	defer stop()
 
-	if err := dbInstance.UpdateNATSettings(context.Background(), true); err != nil {
-		t.Fatalf("UpdateNATSettings: %v", err)
+	if err := dbInstance.UpdateN3Settings(context.Background(), "192.0.2.1"); err != nil {
+		t.Fatalf("UpdateN3Settings: %v", err)
 	}
 
 	select {
 	case <-wakeup:
 	case <-time.After(time.Second):
-		t.Fatal("did not receive nat-settings change event")
+		t.Fatal("did not receive N3 settings change event")
 	}
 }
 
 // TestApplyCommand_DoesNotPublishForUnannotatedOps verifies that an op
-// does not wake subscribers of topics it did not declare: a nat-settings
+// does not wake subscribers of topics it did not declare: an N3 settings
 // update must not wake flow-accounting subscribers.
 func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	tempDir := t.TempDir()
@@ -56,8 +56,8 @@ func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	defer stop()
 
 	// Update an unrelated topic; subscriber should see nothing.
-	if err := dbInstance.UpdateNATSettings(context.Background(), true); err != nil {
-		t.Fatalf("UpdateNATSettings: %v", err)
+	if err := dbInstance.UpdateN3Settings(context.Background(), "192.0.2.1"); err != nil {
+		t.Fatalf("UpdateN3Settings: %v", err)
 	}
 
 	select {

@@ -357,19 +357,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		runAMFPointerSubscriber(ctx, dbInstance)
 	})
 
-	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
+	forwarding, err := dbInstance.ListSliceDataNetworkForwarding(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
+		return fmt.Errorf("couldn't determine which data networks use NAT: %w", err)
+	}
+
+	anyNAT := slices.ContainsFunc(forwarding, func(f db.SliceDataNetworkForwarding) bool { return f.NAT })
+
+	everyNAT, err := dbInstance.NATCoversEveryDataNetwork(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't determine which data networks use NAT: %w", err)
 	}
 
 	isFlowAccountingEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
-	}
-
-	isLocalSwitchEnabled, err := dbInstance.IsLocalSwitchEnabled(ctx)
-	if err != nil {
-		return fmt.Errorf("couldn't determine if local switch is enabled: %w", err)
 	}
 
 	n6AddrV4, n6AddrV6 := lookupN6Addresses(cfg.Interfaces.N6.Name)
@@ -410,7 +412,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 				zap.String("interface", cfg.Interfaces.N6.Name), zap.Error(err))
 		}
 
-		if err := bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, !isNATEnabled); err != nil {
+		if err := bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, !everyNAT); err != nil {
 			listenAddr := bgpSettings.ListenAddress
 			if listenAddr == "" {
 				listenAddr = ":179"
@@ -426,7 +428,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// disabled — the reconciler's calls are no-ops against a stopped
 	// service, and starting here means re-enabling BGP via the API does
 	// not need separate reconciler wiring.
-	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases, db.TopicFramedRoutes)
+	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases, db.TopicFramedRoutes, db.TopicDataNetworks)
 	defer stopBgpWakeup()
 
 	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.RaftID(), bgpWakeup)
@@ -473,7 +475,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.DefaultMaxSessions))
 	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
-	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
+	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath, cfg.Interfaces.NetworkInstances, anyNAT, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
@@ -1339,7 +1341,75 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 		return nil, err
 	}
 
-	return bgpLeases(dbLeases, framedRows), nil
+	withheld, err := a.db.WithheldLeaseOwners(ctx, nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	if withheld == nil {
+		forwarding, err := a.db.ListSliceDataNetworkForwarding(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		withheld = withheldByDataNetwork(dbLeases, withheldOnEverySlice(forwarding))
+	}
+
+	return bgpLeases(routableLeases(dbLeases, withheld), framedRows), nil
+}
+
+func withheldByDataNetwork(leases []db.IPLease, byDataNetwork map[string]db.LeaseWithholding) map[string]db.LeaseWithholding {
+	out := make(map[string]db.LeaseWithholding, len(leases))
+
+	for _, l := range leases {
+		out[leaseOwnerKey(l)] = byDataNetwork[l.PoolID]
+	}
+
+	return out
+}
+
+func leaseOwnerKey(l db.IPLease) string {
+	return l.IMSI + "/" + l.PoolID
+}
+
+func withheldOnEverySlice(forwarding []db.SliceDataNetworkForwarding) map[string]db.LeaseWithholding {
+	out := make(map[string]db.LeaseWithholding, len(forwarding))
+	seen := make(map[string]bool, len(forwarding))
+
+	for _, f := range forwarding {
+		offDefault := f.NetworkInstance != "" && f.NetworkInstance != models.DefaultNetworkInstanceName
+		pair := db.LeaseWithholding{IPv4: (f.NAT && !f.IMS) || offDefault, IPv6: offDefault}
+
+		if seen[f.DataNetworkID] {
+			current := out[f.DataNetworkID]
+			pair.IPv4 = pair.IPv4 && current.IPv4
+			pair.IPv6 = pair.IPv6 && current.IPv6
+		}
+
+		seen[f.DataNetworkID] = true
+		out[f.DataNetworkID] = pair
+	}
+
+	return out
+}
+
+func routableLeases(leases []db.IPLease, withheld map[string]db.LeaseWithholding) []db.IPLease {
+	routable := make([]db.IPLease, 0, len(leases))
+
+	for _, l := range leases {
+		w := withheld[leaseOwnerKey(l)]
+
+		blocked := w.IPv4
+		if l.Address().Is6() {
+			blocked = w.IPv6
+		}
+
+		if !blocked {
+			routable = append(routable, l)
+		}
+	}
+
+	return routable
 }
 
 type framedRouteOwner struct {

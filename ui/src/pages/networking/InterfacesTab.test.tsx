@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { Outlet, Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -12,6 +12,15 @@ import type { NetworkingTabProps } from "./types";
 const api = setupApiServer();
 
 const INTERFACES = "/api/v1/networking/interfaces";
+
+beforeEach(() => {
+  api.get("/api/v1/slices", () => ({
+    items: [],
+    page: 1,
+    per_page: 100,
+    total_count: 0,
+  }));
+});
 
 const baseInterfaces = {
   n2: { addresses: ["10.0.0.2"], port: 38412 },

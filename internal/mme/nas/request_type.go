@@ -39,7 +39,7 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 		return transferRejectCause(err)
 	}
 
-	if datapathCapacityExhausted(err) {
+	if datapathCapacityExhausted(err) || errors.Is(err, models.ErrNetworkInstanceUnavailable) {
 		return eps.ESMCauseInsufficientResources
 	}
 
@@ -59,7 +59,7 @@ func datapathCapacityExhausted(err error) bool {
 }
 
 func capacityBackoff(ueConn *mme.UeConn, t eps.RequestType, err error) *nas.GPRSTimer3 {
-	if t == eps.RequestTypeHandover || !datapathCapacityExhausted(err) {
+	if t == eps.RequestTypeHandover || !datapathCapacityExhausted(err) && !errors.Is(err, models.ErrNetworkInstanceUnavailable) {
 		return nil
 	}
 

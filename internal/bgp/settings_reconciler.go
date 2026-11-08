@@ -32,10 +32,10 @@ type SettingsStore interface {
 	// caller chooses; the reconciler sorts internally before diffing.
 	ListPeers(ctx context.Context) ([]BGPPeer, error)
 
-	// IsNATEnabled reports whether NAT is on; the reconciler maps
-	// NAT-on to advertising-off so UE /32s aren't advertised when
-	// traffic is being source-rewritten on egress.
-	IsNATEnabled(ctx context.Context) (bool, error)
+	// NATOnEveryDataNetwork reports whether this node NATs every data
+	// network on every slice and none has an IPv6 pool; the reconciler
+	// maps that to advertising-off since no UE route would be reachable.
+	NATOnEveryDataNetwork(ctx context.Context) (bool, error)
 }
 
 // SettingsService is the narrow view the reconciler needs over a
@@ -198,7 +198,7 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) (err error) {
 		return fmt.Errorf("list peers: %w", err)
 	}
 
-	natEnabled, err := r.store.IsNATEnabled(ctx)
+	natEnabled, err := r.store.NATOnEveryDataNetwork(ctx)
 	if err != nil {
 		return fmt.Errorf("read nat setting: %w", err)
 	}

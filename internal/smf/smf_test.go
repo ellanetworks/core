@@ -272,7 +272,7 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 		return smf.DataNetworkConfig{}
 	}
 
-	return smf.DataNetworkConfig{DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, PCSCF: f.policy.PCSCF}
+	return smf.DataNetworkConfig{SliceDataNetwork: f.policy.SliceDataNetwork, DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, NAT: f.policy.NAT, LocalSwitch: f.policy.LocalSwitch, NetworkInstance: f.policy.NetworkInstance, PCSCF: f.policy.PCSCF}
 }
 
 func (f *fakeStore) N26Allowed(_ context.Context, _ string) (bool, error) {
@@ -314,7 +314,7 @@ func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.Session
 	return &udm.SessionManagementSubscription{DNNs: []udm.DNNConfiguration{c, other}}, nil
 }
 
-func (f *fakeStore) Config(context.Context) (smf.DataNetworkConfig, error) {
+func (f *fakeStore) Config(context.Context, models.Snssai) (smf.DataNetworkConfig, error) {
 	f.mu.Lock()
 	pcf := f.pcf
 	f.mu.Unlock()

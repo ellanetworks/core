@@ -33,13 +33,14 @@ static __always_inline int vlan_to_insert(struct packet_context *ctx)
  * lookup before it does. The seed is what remains if it never gets there. */
 static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 {
+	__u32 ifindex = reply_routing_ifindex(ctx);
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET;
 	fib_params.l4_protocol = ctx->ip4->protocol;
 	fib_params.tot_len = 0;
 	fib_params.ipv4_src = ctx->ip4->daddr;
 	fib_params.ipv4_dst = ctx->ip4->saddr;
-	fib_params.ifindex = ctx->routing_ifindex;
+	fib_params.ifindex = ifindex;
 
 	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
 		       BPF_FIB_LOOKUP_SRC);
@@ -55,6 +56,7 @@ static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
 					     const struct ipv6hdr *orig,
 					     struct in6_addr *out)
 {
+	__u32 ifindex = reply_routing_ifindex(ctx);
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET6;
 	fib_params.l4_protocol = orig->nexthdr;
@@ -63,7 +65,7 @@ static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
 			 sizeof(fib_params.ipv6_src));
 	__builtin_memcpy(fib_params.ipv6_dst, &orig->saddr,
 			 sizeof(fib_params.ipv6_dst));
-	fib_params.ifindex = ctx->routing_ifindex;
+	fib_params.ifindex = ifindex;
 
 	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
 		       BPF_FIB_LOOKUP_SRC);
@@ -199,6 +201,11 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		icmp_pkt_size += sizeof(struct vlan_hdr);
 	}
 	if ((data + icmp_pkt_size) > data_end) {
+		upf_printk("upf: could not write new icmp header");
+		return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
+	}
+	if ((const void *)((void *)new_icmp + sizeof(struct icmphdr) +
+			   ICMP_QUOTE_LEN) > data_end) {
 		upf_printk("upf: could not write new icmp header");
 		return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 	}

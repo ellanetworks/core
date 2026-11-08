@@ -16,11 +16,18 @@ import { useQuery } from "@tanstack/react-query";
 import { getInterfaces, type InterfacesInfo } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 import QueryState from "@/components/QueryState";
+import { useSliceDataNetworks } from "@/hooks/useSliceDataNetworks";
 import { useNetworkingContext } from "./types";
 import { PRODUCT } from "@/utils/product";
 
 export default function InterfacesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
+  const { pairs } = useSliceDataNetworks(accessToken);
+  const usersByInstance: Record<string, string[]> = {};
+  for (const p of pairs) {
+    const ni = p.network_instance || "default";
+    (usersByInstance[ni] ??= []).push(`${p.data_network} on ${p.slice}`);
+  }
   const interfacesQuery = useQuery<InterfacesInfo>({
     queryKey: ["interfaces"],
     queryFn: () => getInterfaces(accessToken || ""),
@@ -160,55 +167,77 @@ export default function InterfacesTab() {
               )}
             </Box>
 
-            <Box
-              sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 2,
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1}
+            {(
+              interfacesInfo.network_instances ?? [
+                { name: "default", n6: interfacesInfo.n6 },
+              ]
+            ).map((ni) => (
+              <Box
+                key={ni.name}
                 sx={{
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1,
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  p: 2,
                 }}
               >
-                <Typography variant="subtitle1">N6 (External)</Typography>
-                <Chip label="External Network" size="small" />
-              </Stack>
-              <Typography variant="body2" color="textSecondary">
-                Interface name:{" "}
-                <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
-              </Typography>
-              {interfacesInfo.n6?.addresses &&
-              interfacesInfo.n6.addresses.length > 0 ? (
-                interfacesInfo.n6.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="textSecondary">
-                    Address: <strong>{addr}</strong>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="subtitle1">
+                    N6 (External) · {ni.name}
                   </Typography>
-                ))
-              ) : (
-                <Alert severity="warning" sx={{ mt: 1 }}>
-                  No IP address on N6. The user plane and BGP are degraded until
-                  the interface has an address.
-                </Alert>
-              )}
-              {interfacesInfo.n6?.vlan && (
+                  <Chip label="Network instance" size="small" />
+                </Stack>
                 <Typography variant="body2" color="textSecondary">
-                  VLAN:{" "}
+                  Interface name: <strong>{ni.n6?.name ?? "—"}</strong>
+                </Typography>
+                {ni.n6?.addresses && ni.n6.addresses.length > 0 ? (
+                  ni.n6.addresses.map((addr) => (
+                    <Typography
+                      key={addr}
+                      variant="body2"
+                      color="textSecondary"
+                    >
+                      Address: <strong>{addr}</strong>
+                    </Typography>
+                  ))
+                ) : (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    No IP address on this interface. Its user plane is degraded
+                    until the interface has an address.
+                  </Alert>
+                )}
+                {ni.n6?.vlan && (
+                  <Typography variant="body2" color="textSecondary">
+                    VLAN:{" "}
+                    <strong>
+                      {ni.n6.vlan.vlan_id ?? "—"}
+                      {ni.n6.vlan.master_interface
+                        ? ` on ${ni.n6.vlan.master_interface}`
+                        : ""}
+                    </strong>
+                  </Typography>
+                )}
+                {ni.n6?.vrf && (
+                  <Typography variant="body2" color="textSecondary">
+                    VRF: <strong>{ni.n6.vrf}</strong>
+                  </Typography>
+                )}
+                <Typography variant="body2" color="textSecondary">
+                  Used by:{" "}
                   <strong>
-                    {interfacesInfo.n6.vlan.vlan_id ?? "—"}
-                    {interfacesInfo.n6.vlan.master_interface
-                      ? ` on ${interfacesInfo.n6.vlan.master_interface}`
-                      : ""}
+                    {(usersByInstance[ni.name] ?? []).join(", ") || "—"}
                   </strong>
                 </Typography>
-              )}
-            </Box>
+              </Box>
+            ))}
 
             <Box
               sx={{

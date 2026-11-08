@@ -325,7 +325,9 @@ type (
 		Details   string `json:"details"`
 	}
 	migrateSharedPayload struct {
-		TargetVersion int `json:"targetVersion"`
+		TargetVersion int   `json:"targetVersion"`
+		LocalSwitch   *bool `json:"localSwitch,omitempty"`
+		NAT           *bool `json:"nat,omitempty"`
 	}
 )
 
@@ -1263,6 +1265,10 @@ func (db *Database) applyUpdateNetworkSlice(ctx context.Context, s *NetworkSlice
 }
 
 func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayload) (any, error) {
+	if err := db.deleteSliceDataNetworksOfSlice(ctx, p.Value); err != nil {
+		return nil, err
+	}
+
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteNetworkSliceStmt, NetworkSlice{Name: p.Value}).Get(&outcome)
@@ -1326,6 +1332,10 @@ func (db *Database) applyUpdateDataNetwork(ctx context.Context, dn *DataNetwork)
 }
 
 func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload) (any, error) {
+	if err := db.deleteSliceDataNetworksOfDataNetwork(ctx, p.Value); err != nil {
+		return nil, err
+	}
+
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: p.Value}).Get(&outcome)
@@ -1585,15 +1595,6 @@ func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) 
 	return struct{}{}, nil
 }
 
-func (db *Database) applyUpdateNATSettings(ctx context.Context, p *boolPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertNATSettingsStmt, NATSettings{Enabled: p.Value}).Run()
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	return struct{}{}, nil
-}
-
 func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.updateN3SettingsStmt, N3Settings{ExternalAddress: p.Value}).Run()
 	if err != nil {
@@ -1605,15 +1606,6 @@ func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload)
 
 func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *boolPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.upsertFlowAccountingSettingsStmt, FlowAccountingSettings{Enabled: p.Value}).Run()
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	return struct{}{}, nil
-}
-
-func (db *Database) applyUpdateLocalSwitchSettings(ctx context.Context, p *boolPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertLocalSwitchSettingsStmt, LocalSwitchSettings{Enabled: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -2062,7 +2054,7 @@ func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayl
 		return nil, fmt.Errorf("begin migration %d tx: %w", p.TargetVersion, err)
 	}
 
-	if err := m.fn(ctx, tx); err != nil {
+	if err := m.fn(withMigrationToggles(ctx, p.LocalSwitch, p.NAT), tx); err != nil {
 		_ = tx.Rollback()
 		return nil, fmt.Errorf("shared migration %d (%s) failed: %w", m.version, m.description, err)
 	}

@@ -98,7 +98,6 @@ type BpfObjects struct {
 
 	FlowAccounting bool
 	Masquerade     bool
-	LocalSwitch    bool
 	// UseTCX selects the SCHED_CLS build of the datapath. Its spec carries
 	// the same map, program, and variable names as the XDP build (one C
 	// source), so it loads into N3N6EntrypointObjects through the ebpf
@@ -110,6 +109,8 @@ type BpfObjects struct {
 	N6RoutingIndex   uint32
 	N3Vlan           uint32
 	N6Vlan           uint32
+
+	NetworkInstancesEnabled bool
 
 	bufferVethIndex uint32 // ifindex of the reinjection veth
 
@@ -126,19 +127,19 @@ type BpfObjects struct {
 	Sizing MapSizing
 }
 
-func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
+func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
 	return &BpfObjects{
-		FlowAccounting:   flowact,
-		Masquerade:       masquerade,
-		LocalSwitch:      localSwitch,
-		N3InterfaceIndex: uint32(n3ifindex),
-		N6InterfaceIndex: uint32(n6ifindex),
-		N3RoutingIndex:   uint32(n3ifindex),
-		N6RoutingIndex:   uint32(n6ifindex),
-		N3Vlan:           n3vlan,
-		N6Vlan:           n6vlan,
-		pagingList:       make(map[DataNotification]bool),
-		occupancy:        make(map[string]int),
+		FlowAccounting:          flowact,
+		Masquerade:              masquerade,
+		N3InterfaceIndex:        uint32(n3ifindex),
+		N6InterfaceIndex:        uint32(n6ifindex),
+		N3RoutingIndex:          uint32(n3ifindex),
+		N6RoutingIndex:          uint32(n6ifindex),
+		N3Vlan:                  n3vlan,
+		N6Vlan:                  n6vlan,
+		NetworkInstancesEnabled: true,
+		pagingList:              make(map[DataNotification]bool),
+		occupancy:               make(map[string]int),
 	}
 }
 
@@ -292,11 +293,6 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 		return err
 	}
 
-	if err := spec.Variables["local_switch"].Set(bpfObjects.LocalSwitch); err != nil {
-		logger.UpfLog.Error("failed to set local_switch value", zap.Error(err))
-		return err
-	}
-
 	if err := spec.Variables["n3_ifindex"].Set(bpfObjects.N3InterfaceIndex); err != nil {
 		logger.UpfLog.Error("failed to set n3 interface index", zap.Error(err))
 		return err
@@ -323,6 +319,10 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 	if err := spec.Variables["n6_vlan"].Set(bpfObjects.N6Vlan); err != nil {
 		logger.UpfLog.Error("failed to set n6 vlan id", zap.Error(err))
 		return err
+	}
+
+	if err := spec.Variables["network_instances_enabled"].Set(bpfObjects.NetworkInstancesEnabled); err != nil {
+		return fmt.Errorf("set network instances enabled: %w", err)
 	}
 
 	if err := spec.Variables["nat_port_min"].Set(NatPortMin); err != nil {

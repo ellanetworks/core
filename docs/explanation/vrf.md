@@ -12,7 +12,7 @@ Ella Core is VRF-aware. It does not itself manage VRFs, but detects their config
 startup. When they are detected, sockets are bound to the right VRFs, and routes managed
 by Ella Core through the UI or BGP are set in the right routing tables.
 
-N3 and N6 must always be in the same VRF. Ella Core will refuse to start otherwise.
+N3 and N6 must always be in the same VRF. Ella Core will refuse to start otherwise. The interface of an additional network instance can be in any VRF.
 
 ## Configuring Ella Core to use VRFs
 

@@ -202,6 +202,8 @@ func (f *F) scopedDataNetwork(spec scenarios.DataNetworkSpec) {
 func (f *F) scopedPolicy(spec scenarios.PolicySpec) {
 	f.t.Helper()
 
+	f.serveDataNetwork(spec.SliceName, spec.DataNetworkName)
+
 	if err := f.c.CreatePolicy(f.ctx, &client.CreatePolicyOptions{
 		Name:                    spec.Name,
 		ProfileName:             spec.ProfileName,

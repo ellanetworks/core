@@ -6,22 +6,23 @@ package models
 type SessionReleaseReason string
 
 const (
-	ReleaseUERequested            SessionReleaseReason = "ue_requested"
-	ReleaseDeregistration         SessionReleaseReason = "deregistration"
-	ReleaseImplicitDeregistration SessionReleaseReason = "implicit_deregistration"
-	ReleaseRegistrationFailure    SessionReleaseReason = "registration_failure"
-	ReleaseSubscriptionWithdrawn  SessionReleaseReason = "subscription_withdrawn"
-	ReleaseSubscriptionChanged    SessionReleaseReason = "subscription_changed"
-	ReleasePolicyChanged          SessionReleaseReason = "policy_changed"
-	ReleaseStatusMismatch         SessionReleaseReason = "status_mismatch"
-	ReleaseDuplicateSessionID     SessionReleaseReason = "duplicate_session_id"
-	ReleaseHandoverFailure        SessionReleaseReason = "handover_failure"
-	ReleaseNotTransferred         SessionReleaseReason = "not_transferred"
-	ReleaseUENotResponding        SessionReleaseReason = "ue_not_responding"
-	ReleaseProtocolError          SessionReleaseReason = "protocol_error"
-	ReleaseEstablishmentFailure   SessionReleaseReason = "establishment_failure"
-	ReleaseAccessReleased         SessionReleaseReason = "access_released"
-	ReleaseNetworkFailure         SessionReleaseReason = "network_failure"
+	ReleaseUERequested                SessionReleaseReason = "ue_requested"
+	ReleaseDeregistration             SessionReleaseReason = "deregistration"
+	ReleaseImplicitDeregistration     SessionReleaseReason = "implicit_deregistration"
+	ReleaseRegistrationFailure        SessionReleaseReason = "registration_failure"
+	ReleaseSubscriptionWithdrawn      SessionReleaseReason = "subscription_withdrawn"
+	ReleaseSubscriptionChanged        SessionReleaseReason = "subscription_changed"
+	ReleasePolicyChanged              SessionReleaseReason = "policy_changed"
+	ReleaseStatusMismatch             SessionReleaseReason = "status_mismatch"
+	ReleaseDuplicateSessionID         SessionReleaseReason = "duplicate_session_id"
+	ReleaseHandoverFailure            SessionReleaseReason = "handover_failure"
+	ReleaseNotTransferred             SessionReleaseReason = "not_transferred"
+	ReleaseUENotResponding            SessionReleaseReason = "ue_not_responding"
+	ReleaseProtocolError              SessionReleaseReason = "protocol_error"
+	ReleaseEstablishmentFailure       SessionReleaseReason = "establishment_failure"
+	ReleaseAccessReleased             SessionReleaseReason = "access_released"
+	ReleaseNetworkFailure             SessionReleaseReason = "network_failure"
+	ReleaseNetworkInstanceUnavailable SessionReleaseReason = "network_instance_unavailable"
 )
 
 var SessionReleaseReasons = []SessionReleaseReason{
@@ -41,6 +42,7 @@ var SessionReleaseReasons = []SessionReleaseReason{
 	ReleaseEstablishmentFailure,
 	ReleaseAccessReleased,
 	ReleaseNetworkFailure,
+	ReleaseNetworkInstanceUnavailable,
 }
 
 func (r SessionReleaseReason) String() string { return string(r) }
@@ -57,7 +59,7 @@ func (r SessionReleaseReason) ChargingTrigger() ChargingTerminationTrigger {
 	switch r {
 	case ReleaseUERequested, ReleaseDeregistration, ReleaseImplicitDeregistration, ReleaseStatusMismatch, ReleaseDuplicateSessionID:
 		return ChargingTriggerFinal
-	case ReleaseSubscriptionWithdrawn, ReleaseSubscriptionChanged, ReleasePolicyChanged:
+	case ReleaseSubscriptionWithdrawn, ReleaseSubscriptionChanged, ReleasePolicyChanged, ReleaseNetworkInstanceUnavailable:
 		return ChargingTriggerManagementIntervention
 	default:
 		return ChargingTriggerAbnormalRelease

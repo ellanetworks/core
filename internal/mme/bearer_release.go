@@ -18,6 +18,10 @@ import (
 // cause and PTI. A disconnect or a non-default bearer releases only this PDN
 // connection on timeout; the default bearer instead detaches the UE (TS 24.301 §6.4.4).
 func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, disconnecting bool, cause models.SessionReleaseRequest) {
+	m.deactivateBearer(ctx, ue, p, esmCause, nil, pti, disconnecting, cause)
+}
+
+func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, t3396 *nas.GPRSTimer3, pti uint8, disconnecting bool, cause models.SessionReleaseRequest) {
 	// Snapshotted, not re-read: this runs off the dispatch goroutine and the
 	// unlocked calls below let a concurrent release nil ue.Conn().
 	ueConn := ue.Conn()
@@ -54,6 +58,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
 		PTI:               nas.ProcedureTransactionIdentity(pti),
 		Cause:             esmCause,
+		T3396:             t3396,
 	}).MarshalBinary()
 	if err != nil {
 		ue.mu.Lock()

@@ -47,8 +47,8 @@ import {
   type BGPLearnedRoute,
   type BGPImportPrefix,
 } from "@/queries/bgp";
-import { getNATInfo, type NatInfo } from "@/queries/nat";
 import { listRoamerPartners } from "@/queries/roamers";
+import { useSliceDataNetworks } from "@/hooks/useSliceDataNetworks";
 import CreateBGPPeerModal from "@/components/CreateBGPPeerModal";
 import EditBGPPeerModal from "@/components/EditBGPPeerModal";
 import ViewBGPPeerModal from "@/components/ViewBGPPeerModal";
@@ -131,13 +131,11 @@ export default function BGPTab() {
     },
   });
 
-  const { data: natInfo } = useQuery<NatInfo>({
-    queryKey: ["nat"],
-    queryFn: () => getNATInfo(accessToken || ""),
-    enabled: !!accessToken,
-  });
+  const { pairs } = useSliceDataNetworks(accessToken);
 
-  const isNATEnabled = !!natInfo?.enabled;
+  const natDataNetworks = [...new Set(pairs.map((p) => p.data_network))].filter(
+    (dn) => pairs.filter((p) => p.data_network === dn).every((p) => p.nat),
+  );
 
   const [peersPagination, setPeersPagination] = useState<GridPaginationModel>({
     page: 0,
@@ -490,10 +488,10 @@ export default function BGPTab() {
           sessions and cannot be edited directly.
         </Typography>
 
-        {isNATEnabled && (
+        {natDataNetworks.length > 0 && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Route advertisement is disabled while NAT is active. Disable NAT to
-            advertise subscriber routes to BGP peers.
+            Subscriber routes are not advertised for data networks with NAT on:{" "}
+            {natDataNetworks.join(", ")}.
           </Alert>
         )}
 

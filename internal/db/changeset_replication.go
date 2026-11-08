@@ -45,6 +45,7 @@ var replicatedChangesetTables = []string{
 	PoliciesTableName,
 	ProfilesTableName,
 	DataNetworksTableName,
+	SliceDataNetworksTableName,
 	NetworkSlicesTableName,
 	NetworkRulesTableName,
 	FramedRoutesTableName,

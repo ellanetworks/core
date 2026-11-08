@@ -67,7 +67,7 @@ func runPolicyRulesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		},
 	}
 
-	if err := nodes[0].CreatePolicy(ctx, &client.CreatePolicyOptions{
+	if err := createServedPolicy(ctx, nodes[0], &client.CreatePolicyOptions{
 		Name:                policyName,
 		ProfileName:         profileName,
 		SliceName:           sliceName,
