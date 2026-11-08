@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -232,4 +233,100 @@ describe("Subscriber voice", () => {
     expect(await screen.findByText("+15551230001")).toBeInTheDocument();
     expect(screen.queryByText("Voice")).not.toBeInTheDocument();
   });
+});
+
+const ipSMGW = {
+  number: "+15550000100",
+  diameter_host: "ims.ims.mnc001.mcc001.3gppnetwork.org",
+  diameter_realm: "ims.mnc001.mcc001.3gppnetwork.org",
+};
+
+const deregisterButton = () =>
+  screen.queryByRole("button", { name: "Deregister from IMS" });
+
+describe("Subscriber IMS deregistration", () => {
+  it("offers it while the subscriber is registered with the IMS", async () => {
+    seedSubscriber(
+      "+15551230001",
+      { ims: identities("registered"), registrations: registered(true) },
+      voiceOn,
+    );
+    renderDetail();
+
+    expect(
+      await screen.findByRole("button", { name: "Deregister from IMS" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers it while only an IP-SM-GW is registered", async () => {
+    seedSubscriber(
+      "+15551230001",
+      { ims: identities("not_registered"), ip_sm_gw: ipSMGW },
+      voiceOn,
+    );
+    renderDetail();
+
+    expect(
+      await screen.findByRole("button", { name: "Deregister from IMS" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides it when there is nothing to clear", async () => {
+    seedSubscriber(
+      "+15551230001",
+      { ims: identities("not_registered") },
+      voiceOn,
+    );
+    renderDetail();
+
+    expect(await voiceRow()).toBeInTheDocument();
+    expect(deregisterButton()).not.toBeInTheDocument();
+  });
+
+  it("hides it from a read-only user", async () => {
+    seedSubscriber(
+      "+15551230001",
+      { ims: identities("registered"), ip_sm_gw: ipSMGW },
+      voiceOn,
+    );
+    renderDetail("Read Only");
+
+    expect(await voiceRow()).toHaveTextContent("Registered");
+    expect(deregisterButton()).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [true, "Subscriber deregistered from the IMS."],
+    [false, "The IMS did not answer"],
+  ])(
+    "deregisters after confirmation (acknowledged: %s)",
+    async (acknowledged, message) => {
+      seedSubscriber(
+        "+15551230001",
+        { ims: identities("registered"), ip_sm_gw: ipSMGW },
+        voiceOn,
+      );
+      api.post("/api/v1/subscribers/:imsi/ims/deregister", () => ({
+        message: "IMS registration cleared",
+        acknowledged,
+      }));
+      renderDetail();
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Deregister from IMS" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(
+        within(dialog).getByRole("button", { name: "Deregister" }),
+      );
+
+      expect(await screen.findByText(new RegExp(message))).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(
+        api.requests(`/api/v1/subscribers/${IMSI}/ims/deregister`),
+      ).toHaveLength(1);
+    },
+  );
 });

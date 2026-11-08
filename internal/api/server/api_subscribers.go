@@ -94,6 +94,13 @@ type SubscriberDetail struct {
 	Registrations []Registration   `json:"registrations"`
 	Sessions      []Session        `json:"sessions"`
 	IMS           *IMSSubscription `json:"ims,omitempty"`
+	IPSMGW        *IPSMGW          `json:"ip_sm_gw,omitempty"`
+}
+
+type IPSMGW struct {
+	Number        string `json:"number"`
+	DiameterHost  string `json:"diameter_host"`
+	DiameterRealm string `json:"diameter_realm"`
 }
 
 type IMSSubscription struct {
@@ -157,6 +164,7 @@ const (
 	CreateSubscriberAction = "create_subscriber"
 	UpdateSubscriberAction = "update_subscriber"
 	DeleteSubscriberAction = "delete_subscriber"
+	DeregisterIMSAction    = "deregister_subscriber_ims"
 )
 
 const (
@@ -586,6 +594,16 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			subscriber.IMS = imsSubscriptionFrom(ims)
 		}
 
+		ipSMGW, err := dbInstance.GetIPSMGWRegistration(r.Context(), imsi)
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve the IP-SM-GW registration", err, logger.APILog)
+			return
+		}
+
+		if ipSMGW != nil {
+			subscriber.IPSMGW = &IPSMGW{Number: formatE164(ipSMGW.Number), DiameterHost: ipSMGW.DiameterHost, DiameterRealm: ipSMGW.DiameterRealm}
+		}
+
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
 	})
 }
@@ -888,6 +906,7 @@ func UpdateSubscriber(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 type IMSSubscribers interface {
 	Termination(ctx context.Context, imsi string) (*hss.Termination, error)
 	Terminate(ctx context.Context, t *hss.Termination) error
+	Deregister(ctx context.Context, imsi string) error
 	Subscription(ctx context.Context, imsi string) (*hss.IMSSubscription, error)
 }
 
@@ -1148,4 +1167,52 @@ func ipTypeName(t uint8) string {
 	default:
 		return ""
 	}
+}
+
+type DeregisterIMSResponse struct {
+	Message      string `json:"message"`
+	Acknowledged bool   `json:"acknowledged"`
+}
+
+func DeregisterSubscriberIMS(dbInstance *db.Database, hssInstance IMSSubscribers) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email := getEmailFromContext(r)
+
+		imsi := r.PathValue("imsi")
+		if imsi == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
+			return
+		}
+
+		if _, err := dbInstance.GetSubscriber(r.Context(), imsi); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
+
+			return
+		}
+
+		if hssInstance == nil {
+			writeError(r.Context(), w, http.StatusServiceUnavailable, "The HSS is not running", nil, logger.APILog)
+			return
+		}
+
+		resp := DeregisterIMSResponse{Message: "IMS registration cleared", Acknowledged: true}
+
+		if err := hssInstance.Deregister(r.Context(), imsi); err != nil {
+			if !errors.Is(err, hss.ErrTerminationUnacknowledged) {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to clear the IMS registration", err, logger.APILog)
+				return
+			}
+
+			resp = DeregisterIMSResponse{Message: "IMS registration cleared; the S-CSCF did not acknowledge the de-registration"}
+		}
+
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(r.Context(), DeregisterIMSAction, email, getClientIP(r), "User cleared the IMS registration of subscriber: "+imsi)
+	})
 }

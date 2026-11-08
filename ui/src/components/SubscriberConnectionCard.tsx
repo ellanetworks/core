@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Typography,
+} from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
 import AccessChip from "@/components/AccessChip";
@@ -10,6 +17,7 @@ import type {
   ConnectionState,
   IMSSubscription,
   IMSUserState,
+  IPSMGW,
   SubscriberDetailStatus,
 } from "@/queries/subscribers";
 import type { IMSVoiceStatus, OperatorIMS } from "@/queries/operator";
@@ -19,7 +27,9 @@ import { IMS_DATA_NETWORK } from "@/utils/voice";
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
   ims?: IMSSubscription;
+  ipSMGW?: IPSMGW;
   network?: OperatorIMS;
+  onDeregisterIMS?: () => void;
 }
 
 const InfoRow: React.FC<{
@@ -207,6 +217,15 @@ export const voiceState = (
   return imsUserStates[state] ?? { label: state, color: "default" };
 };
 
+export const hasIMSRegistration = (
+  ims?: IMSSubscription,
+  ipSMGW?: IPSMGW,
+): boolean =>
+  !!ipSMGW ||
+  !!ims?.public_identities.some(
+    (identity) => identity.user_state !== "not_registered",
+  );
+
 export const mcpttState = (ims?: IMSSubscription): VoiceState | undefined => {
   const state = ims?.public_identities.find(
     (i) => i.registration_set === "mcptt",
@@ -260,7 +279,9 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
   ims,
+  ipSMGW,
   network,
+  onDeregisterIMS,
 }) => {
   const systems = status.systems ?? [];
   const voice = voiceState(status, ims, network);
@@ -272,9 +293,21 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
       sx={{ height: "100%", display: "flex", flexDirection: "column" }}
     >
       <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Status
-        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1.5,
+          }}
+        >
+          <Typography variant="h6">Status</Typography>
+          {onDeregisterIMS && hasIMSRegistration(ims, ipSMGW) && (
+            <Button variant="text" size="small" onClick={onDeregisterIMS}>
+              Deregister from IMS
+            </Button>
+          )}
+        </Box>
         <InfoRow
           label="Registration"
           value={<StateChip registered={status.registered} />}

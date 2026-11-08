@@ -141,6 +141,18 @@ export type APISubscriber = {
   registrations: Registration[];
   sessions: SessionInfo[];
   ims?: IMSSubscription;
+  ip_sm_gw?: IPSMGW;
+};
+
+export type IPSMGW = {
+  number: string;
+  diameter_host: string;
+  diameter_realm: string;
+};
+
+export type DeregisterIMSResponse = {
+  message: string;
+  acknowledged: boolean;
 };
 
 export type SubscriberCredentials = {
@@ -258,6 +270,16 @@ export const updateSubscriber = async (
     authToken,
     body: { profile_name: profileName, description, msisdn },
   });
+};
+
+export const deregisterSubscriberIMS = async (
+  authToken: string,
+  imsi: string,
+): Promise<DeregisterIMSResponse> => {
+  return apiFetch<DeregisterIMSResponse>(
+    `/api/v1/subscribers/${imsi}/ims/deregister`,
+    { method: "POST", authToken },
+  );
 };
 
 export const deleteSubscriber = async (

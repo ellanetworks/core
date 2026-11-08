@@ -138,6 +138,12 @@ func newTestDiameterNode(t *testing.T, id diameter.Identity, addr netip.Addr, ha
 func connectedHSS(t *testing.T, store *fakeIMSStore, scscf *fakeSCSCF) *hss.HSS {
 	t.Helper()
 
+	return connectedHSSWithSMS(t, store, scscf, nil)
+}
+
+func connectedHSSWithSMS(t *testing.T, store *fakeIMSStore, scscf *fakeSCSCF, sms hss.SMS) *hss.HSS {
+	t.Helper()
+
 	loopback := netip.MustParseAddr("127.0.0.1")
 
 	hssNode := newTestDiameterNode(t, hssIdentity, loopback, diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
@@ -185,7 +191,7 @@ func connectedHSS(t *testing.T, store *fakeIMSStore, scscf *fakeSCSCF) *hss.HSS 
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	return hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: hssNode}, nil, zap.NewNop())
+	return hss.New(store, udm.NewIMSCredentials(store), nodePeers{node: hssNode}, sms, zap.NewNop())
 }
 
 func assigned(t *testing.T, store *fakeIMSStore, imsi string, typ cx.AssignmentType) []byte {

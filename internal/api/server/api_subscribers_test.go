@@ -122,6 +122,13 @@ type SubscriberDetail struct {
 	Registrations []Registration   `json:"registrations"`
 	Sessions      []Session        `json:"sessions"`
 	IMS           *IMSSubscription `json:"ims,omitempty"`
+	IPSMGW        *IPSMGW          `json:"ip_sm_gw,omitempty"`
+}
+
+type IPSMGW struct {
+	Number        string `json:"number"`
+	DiameterHost  string `json:"diameter_host"`
+	DiameterRealm string `json:"diameter_realm"`
 }
 
 func (d SubscriberDetail) registrationFor(system string) (Registration, bool) {
