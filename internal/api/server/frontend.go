@@ -38,6 +38,11 @@ func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
 			return
 		}
 
+		if strings.HasPrefix(r.URL.Path, "/api/") || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+			writeError(r.Context(), w, http.StatusNotFound, "Not found", nil, logger.APILog)
+			return
+		}
+
 		// SPA fallback: serve index.html for all other routes.
 		if fileExists(uiFS, "/index.html") {
 			serveBytes(w, uiFS, "/index.html")

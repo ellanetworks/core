@@ -16,7 +16,7 @@ import (
 func loadProgramLocalSwitch(t *testing.T) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(false, false, true, 0, 1, 0, 0)
+	obj := NewBpfObjects(false, false, 0, 1, 0, 0)
 	if err := obj.Load(); err != nil {
 		t.Fatalf("load N3/N6 objects: %v", err)
 	}
@@ -24,6 +24,12 @@ func loadProgramLocalSwitch(t *testing.T) *BpfObjects {
 	t.Cleanup(func() { _ = obj.Close() })
 
 	return obj
+}
+
+func localSwitched(p PdrInfo) PdrInfo {
+	p.Flags |= PdrFlagLocalSwitch
+
+	return p
 }
 
 func TestLocalSwitchIPv4(t *testing.T) {
@@ -46,12 +52,12 @@ func TestLocalSwitchIPv4(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -135,6 +141,45 @@ func TestLocalSwitchDisabled(t *testing.T) {
 	}
 }
 
+func TestLocalSwitchAcrossDataNetworks(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgramLocalSwitch(t)
+
+	var (
+		ueAIP = [4]byte{10, 0, 0, 9}
+		ueBIP = [4]byte{10, 0, 1, 10}
+		teidA = uint32(0x4C5346)
+		teidB = uint32(0x4C5347)
+	)
+
+	ulPdr := localSwitched(PdrInfo{
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02},
+		UEIPv4:       netip.AddrFrom4(ueAIP),
+		UEIPv6Prefix: canonicalUEv6Prefix,
+		DNTag:        1,
+	})
+	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	dlPdr := localSwitched(ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5))
+	dlPdr.DNTag = 2
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	inner := ipv4Packet(ueAIP, ueBIP, 17, udpDatagram(4000, 53, nil))
+
+	_, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
+
+	if len(out) >= ethHdrLen+20+8 && binary.BigEndian.Uint16(out[ethHdrLen+20+2:ethHdrLen+20+4]) == GTPUDPPort {
+		t.Fatal("packet was switched to a session on another data network")
+	}
+}
+
 func TestLocalSwitchIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -169,12 +214,12 @@ func TestLocalSwitchIPv6(t *testing.T) {
 		UEIPv4:             canonicalUEv4,
 		UEIPv6Prefix:       netip.AddrFrom16(ueAPrefixBytes),
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom16(ueBPrefixBytes), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom16(ueBPrefixBytes), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -233,14 +278,14 @@ func TestLocalSwitchQERGateClosedDL(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
 
 	dlPdr.Qer.GateStatusDL = 1
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -279,14 +324,14 @@ func TestLocalSwitchSDFDeny(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
 
 	dlPdr.FilterMapIndex = filterIndex
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -334,7 +379,7 @@ func TestLocalSwitchQERRateLimit(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
@@ -347,7 +392,7 @@ func TestLocalSwitchQERRateLimit(t *testing.T) {
 
 	provisionTestQER(t, obj, dlPdr)
 
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -394,12 +439,12 @@ func TestLocalSwitchUplinkQERRateLimit(t *testing.T) {
 	}
 	provisionTestQER(t, obj, ulPdr)
 
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -439,12 +484,12 @@ func TestLocalSwitchUplinkSDFDeny(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -485,12 +530,12 @@ func TestLocalSwitchStatistics(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -566,7 +611,7 @@ func TestLocalSwitchURRBilledAtIPLength(t *testing.T) {
 		UEIPv4:       netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
@@ -574,7 +619,7 @@ func TestLocalSwitchURRBilledAtIPLength(t *testing.T) {
 	dlPdr.SEID = seidB
 	dlPdr.UrrID = urrB
 
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -619,12 +664,12 @@ func TestLocalSwitchFlowAccounting(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -689,7 +734,7 @@ func TestLocalSwitchURR(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
@@ -697,7 +742,7 @@ func TestLocalSwitchURR(t *testing.T) {
 	dlPdr.SEID = dlSeid
 
 	dlPdr.UrrID = urrID
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -743,7 +788,7 @@ func TestLocalSwitchNoDownlinkPDR(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
@@ -783,12 +828,12 @@ func TestLocalSwitchFramedRoute(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(framedUEIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(framedUEIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -832,12 +877,12 @@ func TestLocalSwitchIPv6Transport(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -880,12 +925,12 @@ func TestLocalSwitchSourceSpoofStillEnforced(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -923,12 +968,12 @@ func TestLocalSwitchMTUExceeded(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -960,7 +1005,7 @@ func TestLocalSwitchNoEncap(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
@@ -969,7 +1014,7 @@ func TestLocalSwitchNoEncap(t *testing.T) {
 		Far:  FarInfo{Action: 0x02},
 		Qer:  QerInfo{GateStatusDL: 0, MaxBitrateDL: 0},
 	}
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -1006,14 +1051,14 @@ func TestLocalSwitchFARDrop(t *testing.T) {
 		UEIPv4:             netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
 
 	dlPdr.Far.Action = 0x01
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -1093,7 +1138,7 @@ func TestLocalSwitchURRNotChargedOnDrop(t *testing.T) {
 				UEIPv4:             netip.AddrFrom4(ueAIP),
 				UEIPv6Prefix:       canonicalUEv6Prefix,
 			}
-			if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+			if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 				t.Fatalf("install uplink PDR: %v", err)
 			}
 
@@ -1103,7 +1148,7 @@ func TestLocalSwitchURRNotChargedOnDrop(t *testing.T) {
 
 			tc.setup(t, obj, &dlPdr)
 
-			if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+			if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 				t.Fatalf("install downlink PDR: %v", err)
 			}
 
@@ -1195,7 +1240,7 @@ func TestLocalSwitchQERMetersFromL3(t *testing.T) {
 
 			obj := loadProgramLocalSwitch(t)
 
-			if err := obj.PutPdrUplink(teidA, tc.ulPdr); err != nil {
+			if err := obj.PutPdrUplink(teidA, localSwitched(tc.ulPdr)); err != nil {
 				t.Fatalf("install uplink PDR: %v", err)
 			}
 
@@ -1206,7 +1251,7 @@ func TestLocalSwitchQERMetersFromL3(t *testing.T) {
 
 			provisionTestQER(t, obj, dlPdr)
 
-			if err := obj.PutPdrDownlink(tc.dlKey, dlPdr); err != nil {
+			if err := obj.PutPdrDownlink(tc.dlKey, localSwitched(dlPdr)); err != nil {
 				t.Fatalf("install downlink PDR: %v", err)
 			}
 

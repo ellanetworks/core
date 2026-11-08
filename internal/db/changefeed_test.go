@@ -38,7 +38,7 @@ func TestChangefeed_TopicIsolation(t *testing.T) {
 	wakeupA, stopA := cf.Wakeup(db.TopicFlowAccountingSettings)
 	defer stopA()
 
-	wakeupB, stopB := cf.Wakeup(db.TopicNATSettings)
+	wakeupB, stopB := cf.Wakeup(db.TopicN3Settings)
 	defer stopB()
 
 	cf.Publish(db.TopicFlowAccountingSettings)
@@ -50,10 +50,10 @@ func TestChangefeed_TopicIsolation(t *testing.T) {
 func TestChangefeed_MultiTopicSubscriber(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings, db.TopicFlowAccountingSettings)
+	wakeup, stop := cf.Wakeup(db.TopicN3Settings, db.TopicFlowAccountingSettings)
 	defer stop()
 
-	cf.Publish(db.TopicNATSettings)
+	cf.Publish(db.TopicN3Settings)
 	expectWakeup(t, wakeup)
 
 	cf.Publish(db.TopicFlowAccountingSettings)
@@ -63,14 +63,14 @@ func TestChangefeed_MultiTopicSubscriber(t *testing.T) {
 func TestChangefeed_BurstCoalescesWithoutBlocking(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	wakeup, stop := cf.Wakeup(db.TopicN3Settings)
 	defer stop()
 
 	done := make(chan struct{})
 
 	go func() {
 		for range 256 {
-			cf.Publish(db.TopicNATSettings)
+			cf.Publish(db.TopicN3Settings)
 		}
 
 		close(done)
@@ -89,23 +89,23 @@ func TestChangefeed_BurstCoalescesWithoutBlocking(t *testing.T) {
 func TestChangefeed_PublishDuringReconcileWakesAgain(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	wakeup, stop := cf.Wakeup(db.TopicN3Settings)
 	defer stop()
 
-	cf.Publish(db.TopicNATSettings)
+	cf.Publish(db.TopicN3Settings)
 	expectWakeup(t, wakeup)
 
-	cf.Publish(db.TopicNATSettings)
+	cf.Publish(db.TopicN3Settings)
 	expectWakeup(t, wakeup)
 }
 
 func TestChangefeed_StopStopsDelivery(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	wakeup, stop := cf.Wakeup(db.TopicN3Settings)
 	stop()
 
-	cf.Publish(db.TopicNATSettings)
+	cf.Publish(db.TopicN3Settings)
 
 	expectNoWakeup(t, wakeup)
 }
@@ -116,7 +116,7 @@ func TestChangefeed_PublishWithNoSubscribersIsNoop(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		cf.Publish(db.TopicNATSettings)
+		cf.Publish(db.TopicN3Settings)
 		close(done)
 	}()
 
@@ -140,7 +140,7 @@ func TestChangefeed_ConcurrentPublishSubscribeStop(t *testing.T) {
 	for range workers {
 		wg.Go(func() {
 			for !stop.Load() {
-				wakeup, cancel := cf.Wakeup(db.TopicNATSettings)
+				wakeup, cancel := cf.Wakeup(db.TopicN3Settings)
 
 				select {
 				case <-wakeup:
@@ -153,7 +153,7 @@ func TestChangefeed_ConcurrentPublishSubscribeStop(t *testing.T) {
 
 		wg.Go(func() {
 			for !stop.Load() {
-				cf.Publish(db.TopicNATSettings)
+				cf.Publish(db.TopicN3Settings)
 			}
 		})
 	}

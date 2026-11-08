@@ -39,6 +39,8 @@ func DefaultPolicySpec() PolicySpec {
 func (f *F) Policy(spec PolicySpec) {
 	f.t.Helper()
 
+	f.serveDataNetwork(spec.SliceName, spec.DataNetworkName)
+
 	if _, err := f.c.GetPolicy(f.ctx, &client.GetPolicyOptions{Name: spec.Name}); err == nil {
 		if err := f.c.UpdatePolicy(f.ctx, spec.Name, &client.UpdatePolicyOptions{
 			ProfileName:         spec.ProfileName,
@@ -66,5 +68,17 @@ func (f *F) Policy(spec PolicySpec) {
 		Arp:                 spec.Arp,
 	}); err != nil {
 		f.fatalf("create policy %q: %v", spec.Name, err)
+	}
+}
+
+func (f *F) serveDataNetwork(slice, dataNetwork string) {
+	f.t.Helper()
+
+	if _, err := f.c.GetSliceDataNetwork(f.ctx, slice, dataNetwork); err == nil {
+		return
+	}
+
+	if err := f.c.CreateSliceDataNetwork(f.ctx, slice, &client.CreateSliceDataNetworkOptions{DataNetwork: dataNetwork}); err != nil {
+		f.fatalf("serve data network %q on slice %q: %v", dataNetwork, slice, err)
 	}
 }

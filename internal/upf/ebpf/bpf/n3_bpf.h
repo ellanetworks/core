@@ -603,6 +603,12 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (pdr->forwarding)
 		return relay_forwarded_gtp(ctx, pdr);
 
+	if (!ctx_select_ni(ctx, pdr->ni_id))
+		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
+
+	ctx->routing_ifindex =
+		instance_routing_ifindex(ctx->ni_id, ctx->routing_ifindex);
+
 	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would
 	 * leave with a stale outer UDP checksum over rewritten addresses, and
 	 * would bypass the SDF and anti-spoof checks the decap path runs. Only
@@ -623,8 +629,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	 * TCX, where tags are out of band. */
 	int decap_size = (int)decap_no_vlan +
 			 (CTX_INBAND_VLAN && ctx->vlan ? (int)sizeof(struct vlan_hdr) : 0) -
-			 (CTX_INBAND_VLAN && n6_vlan ? (int)sizeof(struct vlan_hdr) : 0);
-	long ret = bpf_check_mtu(ctx->ctx_buff, n6_ifindex, &mtu_len,
+			 (CTX_INBAND_VLAN && ctx_n6_vlan(ctx) ? (int)sizeof(struct vlan_hdr) : 0);
+	long ret = bpf_check_mtu(ctx->ctx_buff, ctx_n6_ifindex(ctx), &mtu_len,
 				 -decap_size, 0);
 	PROFILE_END(PROF_N3_MTU_CHECK);
 	if (ret < 0) {
@@ -759,7 +765,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (ctx->exthdr_invalid) {
 			upf_printk("upf: uplink unparsable exthdr chain teid:%d",
 				   teid);
-			account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, FLOW_UPLINK, DROP);
+			account_flow(ctx, ctx_n6_ifindex(ctx), pdr->imsi, IPV6, FLOW_UPLINK, DROP);
 			return drop_with(ctx, UPF_DROP_EXTHDR_INVALID);
 		}
 
@@ -795,7 +801,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_SDF_FILTER);
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
-			account_flow(ctx, n6_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, DROP);
+			account_flow(ctx, ctx_n6_ifindex(ctx), pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, DROP);
 			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
@@ -810,11 +816,11 @@ handle_gtp_packet(struct packet_context *ctx)
 			return qer_verdict;
 	}
 
-	if ((local_switch || (pdr->flags & PDR_F_LOCAL_SWITCH)) &&
-	    (ctx->ip4 || ctx->ip6) && !ctx->gtp) {
+	if ((pdr->flags & PDR_F_LOCAL_SWITCH) && (ctx->ip4 || ctx->ip6) &&
+	    !ctx->gtp) {
 		struct pdr_info *dl_pdr = try_local_switch(ctx);
-		if (dl_pdr && !local_switch &&
-		    !(dl_pdr->flags & PDR_F_LOCAL_SWITCH))
+		if (dl_pdr && (!(dl_pdr->flags & PDR_F_LOCAL_SWITCH) ||
+			       dl_pdr->dn_tag != pdr->dn_tag))
 			dl_pdr = NULL;
 		if (dl_pdr) {
 			upf_printk("upf: local switch teid:%d", teid);
@@ -850,7 +856,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	 * resolves. The counter and flow record stay ahead of it because the
 	 * inner tuple does not survive encapsulation. */
 	if (ctx->ip4) {
-		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, FLOW_UPLINK, ALLOW);
+		account_flow(ctx, ctx_n6_ifindex(ctx), pdr->imsi, IPV4, FLOW_UPLINK, ALLOW);
 		ctx->nat_exempt = !!(pdr->flags & PDR_F_NAT_EXEMPT);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
@@ -867,7 +873,7 @@ handle_gtp_packet(struct packet_context *ctx)
 
 		return fib_ret;
 	} else if (ctx->ip6) {
-		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, FLOW_UPLINK, ALLOW);
+		account_flow(ctx, ctx_n6_ifindex(ctx), pdr->imsi, IPV6, FLOW_UPLINK, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
 			route_ipv6(ctx, route_statistic, false);

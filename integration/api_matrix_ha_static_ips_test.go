@@ -61,7 +61,7 @@ func runStaticIpsHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		}
 	})
 
-	if err := leader.CreatePolicy(ctx, &client.CreatePolicyOptions{
+	if err := createServedPolicy(ctx, leader, &client.CreatePolicyOptions{
 		Name: policy, ProfileName: profile, SliceName: sliceName, DataNetworkName: dnName,
 		SessionAmbrUplink: "50 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 8,
 	}); err != nil {

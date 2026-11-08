@@ -152,4 +152,6 @@ struct pdr_info {
 	struct in6_addr ue_ipv4;
 	struct in6_addr ue_ipv6;
 	__u16 radio_id;
+	__u16 dn_tag;
+	__u8 ni_id;
 };

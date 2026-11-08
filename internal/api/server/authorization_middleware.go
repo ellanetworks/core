@@ -32,11 +32,9 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListSlices, PermReadSlice,
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
-		PermGetNATInfo,
 		PermReadBGP,
 		PermReadDiameter,
 		PermGetFlowAccountingInfo,
-		PermGetLocalSwitchInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
@@ -60,11 +58,9 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListSlices, PermCreateSlice, PermUpdateSlice, PermReadSlice, PermDeleteSlice,
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
-		PermGetNATInfo, PermUpdateNATInfo,
 		PermReadBGP, PermUpdateBGP,
 		PermReadDiameter,
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
-		PermGetLocalSwitchInfo, PermUpdateLocalSwitchInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 		PermSupportBundle,
@@ -168,10 +164,6 @@ const (
 	PermReadRoute   = "route:read"
 	PermDeleteRoute = "route:delete"
 
-	// NAT permissions
-	PermGetNATInfo    = "nat:get"
-	PermUpdateNATInfo = "nat:update"
-
 	// BGP permissions
 	PermReadBGP   = "bgp:read"
 	PermUpdateBGP = "bgp:update"
@@ -181,10 +173,6 @@ const (
 	// Flow Accounting permissions
 	PermGetFlowAccountingInfo    = "flow_accounting:get"
 	PermUpdateFlowAccountingInfo = "flow_accounting:update"
-
-	// Local Switch permissions
-	PermGetLocalSwitchInfo    = "local_switch:get"
-	PermUpdateLocalSwitchInfo = "local_switch:update"
 
 	// Interface permissions
 	PermListNetworkInterfaces = "network_interface:list"

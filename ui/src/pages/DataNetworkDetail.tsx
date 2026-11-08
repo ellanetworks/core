@@ -46,10 +46,12 @@ import {
   type APIDataNetwork,
   type APIIPAllocation,
 } from "@/queries/data_networks";
-import { getNATInfo, type NatInfo } from "@/queries/nat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
+import DataNetworkSlices from "@/components/DataNetworkSlices";
+import { useSliceDataNetworks } from "@/hooks/useSliceDataNetworks";
+import { getInterfaces } from "@/queries/interfaces";
 import CreateStaticIpModal from "@/components/CreateStaticIpModal";
 import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -177,12 +179,18 @@ const DataNetworkDetail: React.FC = () => {
     enabled: authReady && !!accessToken && !!name,
   });
 
-  const { data: natInfo } = useQuery<NatInfo>({
-    queryKey: ["nat"],
-    queryFn: () => getNATInfo(accessToken || ""),
+  const interfacesQuery = useQuery({
+    queryKey: ["interfaces"],
+    queryFn: () => getInterfaces(accessToken!),
     enabled: authReady && !!accessToken,
   });
-  const isNATEnabled = !!natInfo?.enabled;
+  const sliceDataNetworks = useSliceDataNetworks(
+    accessToken,
+    authReady && !!name,
+  );
+  const isNATEnabled = sliceDataNetworks.pairs.some(
+    (p) => p.data_network === name && p.nat,
+  );
 
   const invalidateFramed = () => {
     queryClient.invalidateQueries({ queryKey: ["framed-routes", name] });
@@ -941,6 +949,21 @@ const DataNetworkDetail: React.FC = () => {
         }}
       </QueryState>
 
+      {accessToken && name && dataNetworkQuery.data && (
+        <DataNetworkSlices
+          accessToken={accessToken}
+          dataNetwork={name}
+          ims={dataNetworkQuery.data.ims}
+          slices={sliceDataNetworks.slices}
+          pairs={sliceDataNetworks.pairs}
+          networkInstances={(interfacesQuery.data?.network_instances ?? []).map(
+            (ni) => ni.name,
+          )}
+          canEdit={canEdit}
+          onError={(message) => showSnackbar(message, "error")}
+        />
+      )}
+
       <Box sx={{ mt: 4 }}>
         <Box
           sx={{
@@ -973,7 +996,7 @@ const DataNetworkDetail: React.FC = () => {
         </Box>
         {isNATEnabled && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Disable NAT to add and forward framed routes.
+            Disable NAT on this data network to add and forward framed routes.
           </Alert>
         )}
         <QueryState

@@ -38,7 +38,7 @@ type ESMMessage struct {
 	ActivateDedicatedBearerReject *ActivateDedicatedBearerReject `json:"activate_dedicated_bearer_reject,omitempty"`
 
 	ActivateDefaultBearerReject       *ESMCauseOnly                      `json:"activate_default_bearer_reject,omitempty"`
-	DeactivateBearerRequest           *ESMCauseOnly                      `json:"deactivate_bearer_request,omitempty"`
+	DeactivateBearerRequest           *DeactivateBearerRequest           `json:"deactivate_bearer_request,omitempty"`
 	ESMStatus                         *ESMCauseOnly                      `json:"esm_status,omitempty"`
 	PDNConnectivityReject             *PDNConnectivityReject             `json:"pdn_connectivity_reject,omitempty"`
 	PDNDisconnectReject               *ESMCauseOnly                      `json:"pdn_disconnect_reject,omitempty"`
@@ -103,7 +103,7 @@ func buildESMMessage(b []byte) *ESMMessage {
 	case *eps.ActivateDefaultEPSBearerContextReject:
 		m.ActivateDefaultBearerReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
 	case *eps.DeactivateEPSBearerContextRequest:
-		m.DeactivateBearerRequest = esmCauseOnly(msg.Cause, msg.Unrecognized)
+		m.DeactivateBearerRequest = buildDeactivateBearerRequest(msg)
 	case *eps.ESMStatus:
 		m.ESMStatus = esmCauseOnly(msg.Cause, msg.Unrecognized)
 	case *eps.PDNConnectivityReject:

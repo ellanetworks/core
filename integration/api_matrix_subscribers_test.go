@@ -77,7 +77,7 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	} {
 		link := link
 
-		if err := c.CreatePolicy(ctx, &client.CreatePolicyOptions{
+		if err := createServedPolicy(ctx, c, &client.CreatePolicyOptions{
 			Name:                link.policy,
 			ProfileName:         link.profile,
 			SliceName:           sliceName,

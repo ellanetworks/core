@@ -174,11 +174,11 @@ func TestAPIFramedRoutesEndToEnd(t *testing.T) {
 
 	t.Run("reverse NAT guard: enabling NAT is rejected while framed routes exist", func(t *testing.T) {
 		// First enable then disable while empty succeeds.
-		if code, _, err := updateNATInfo(url, client, token, true); err != nil || code != http.StatusOK {
+		if code, err := setDataNetworkNAT(url, client, token, framedDN, true); err != nil || code != http.StatusOK {
 			t.Fatalf("enable NAT (empty): expected 200, got %d (%v)", code, err)
 		}
 
-		if code, _, err := updateNATInfo(url, client, token, false); err != nil || code != http.StatusOK {
+		if code, err := setDataNetworkNAT(url, client, token, framedDN, false); err != nil || code != http.StatusOK {
 			t.Fatalf("disable NAT: expected 200, got %d (%v)", code, err)
 		}
 	})
@@ -205,6 +205,29 @@ func TestAPIFramedRoutesEndToEnd(t *testing.T) {
 		it := resp.Result.Items[0]
 		if it.IMSI != Imsi || len(it.IPv4) != 1 || it.IPv4[0] != "192.168.60.0/24" || len(it.IPv6) != 1 {
 			t.Fatalf("unexpected item %+v", it)
+		}
+	})
+
+	t.Run("serving a data network with framed routes defaults NAT off and refuses it on", func(t *testing.T) {
+		if code, resp, err := createSlice(url, client, token, &CreateSliceParams{Name: "framed-nat", Sst: 2, Sd: "00f00f"}); err != nil || code != http.StatusCreated {
+			t.Fatalf("create slice: %d %v %+v", code, err, resp)
+		}
+
+		pairs := url + "/api/v1/slices/framed-nat/data-networks"
+
+		code, resp, err := apiDo[CreatePolicyResponse](client, "POST", pairs, token, map[string]any{"data_network": framedDN, "nat": true})
+		if err != nil || code != http.StatusConflict {
+			t.Fatalf("serve with NAT on: %d %v %+v, want 409", code, err, resp)
+		}
+
+		code, resp, err = apiDo[CreatePolicyResponse](client, "POST", pairs, token, map[string]any{"data_network": framedDN})
+		if err != nil || code != http.StatusCreated {
+			t.Fatalf("serve: %d %v %+v", code, err, resp)
+		}
+
+		gcode, got, err := apiDo[GetSliceDataNetworkResponse](client, "GET", pairs+"/"+framedDN, token, nil)
+		if err != nil || gcode != http.StatusOK || got.Result.NAT {
+			t.Fatalf("framed-nat/%s = %d %v %+v, want NAT off", framedDN, gcode, err, got)
 		}
 	})
 
@@ -279,7 +302,7 @@ func TestAPIFramedRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("framed write rejected while NAT is enabled", func(t *testing.T) {
-		if code, _, err := updateNATInfo(url, client, token, true); err != nil {
+		if code, err := setDataNetworkNAT(url, client, token, framedDN, true); err != nil {
 			t.Fatalf("enable NAT: %v", err)
 		} else if code != http.StatusConflict {
 			// NAT enable must be rejected because Imsi holds framed routes.

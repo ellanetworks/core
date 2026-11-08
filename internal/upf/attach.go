@@ -95,15 +95,91 @@ func loadDatapathObjects(objs *ebpf.BpfObjects, mode string) error {
 // The netdev the program attaches to, already resolved through any VLAN
 // master.
 type datapathIface struct {
-	index int
-	name  string
+	index  int
+	name   string
+	tagged bool
 }
 
 // attachDatapath attaches the datapath to both interfaces and returns the
 // mechanism actually used. config.DatapathChain tries driver-level XDP first
 // and falls back to TCX, reloading the objects because the two hooks need
 // different program types.
-func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (string, link.Link, *link.Link, error) {
+func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, []link.Link, error) {
+	attachedMode, n3Link, n6Link, err := attachN3N6(objs, mode, n3, n6, extra)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
+	extraLinks, err := attachExtra(objs, attachedMode, extra)
+	if err == nil {
+		return attachedMode, n3Link, n6Link, extraLinks, nil
+	}
+
+	closeN3N6(n3Link, n6Link)
+
+	if mode != config.DatapathChain || attachedMode != config.DatapathXDPNative || !driverRefusedXDP(err) {
+		return "", nil, nil, nil, err
+	}
+
+	logger.UpfLog.Info("no driver-level XDP support on a network instance interface, attaching at TCX",
+		zap.Error(err))
+
+	attachedMode, n3Link, n6Link, err = attachChainTCX(objs, n3, n6)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
+	extraLinks, err = attachExtra(objs, attachedMode, extra)
+	if err != nil {
+		closeN3N6(n3Link, n6Link)
+
+		return "", nil, nil, nil, err
+	}
+
+	return attachedMode, n3Link, n6Link, extraLinks, nil
+}
+
+func closeN3N6(n3Link link.Link, n6Link *link.Link) {
+	if n6Link != nil {
+		_ = (*n6Link).Close()
+	}
+
+	_ = n3Link.Close()
+}
+
+func attachExtra(objs *ebpf.BpfObjects, attachedMode string, extra []datapathIface) ([]link.Link, error) {
+	links := make([]link.Link, 0, len(extra))
+
+	for _, iface := range extra {
+		l, err := attachInterface(objs, attachedMode, iface)
+		if err != nil {
+			for _, attached := range links {
+				_ = attached.Close()
+			}
+
+			return nil, fmt.Errorf("attach datapath on network instance interface %q: %w", iface.name, err)
+		}
+
+		links = append(links, l)
+	}
+
+	return links, nil
+}
+
+func attachInterface(objs *ebpf.BpfObjects, attachedMode string, iface datapathIface) (link.Link, error) {
+	switch attachedMode {
+	case config.DatapathTCX:
+		return attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
+	case config.DatapathXDPGeneric:
+		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
+	default:
+		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
+	}
+}
+
+func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, error) {
+	all := append([]datapathIface{n3, n6}, extra...)
+
 	switch mode {
 	case config.DatapathXDPNative, config.DatapathXDPGeneric:
 		flags := link.XDPDriverMode
@@ -112,12 +188,14 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 		}
 
 		if mode == config.DatapathXDPNative {
-			for _, iface := range []datapathIface{n3, n6} {
+			for _, iface := range all {
 				if nativeXDPBlackholes(iface.name) {
 					logger.UpfLog.Warn("configured attach mode cannot forward redirected frames on this interface: "+
 						"the attach succeeds and every redirected frame is dropped, use tcx instead",
 						zap.String("iface", iface.name), zap.String("mode", mode))
 				}
+
+				warnVLANStrippedBeforeXDP(iface, mode)
 			}
 		}
 
@@ -133,9 +211,16 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 
 	// A veth accepts a native attach and then drops every redirected frame,
 	// so the driver-refusal fallback below never fires for it.
-	for _, iface := range []datapathIface{n3, n6} {
+	for _, iface := range all {
 		if nativeXDPBlackholes(iface.name) {
 			logger.UpfLog.Info("interface cannot forward redirected frames in native XDP, attaching at TCX",
+				zap.String("iface", iface.name))
+
+			return attachChainTCX(objs, n3, n6)
+		}
+
+		if iface.tagged && vlanStrippedBeforeXDP(iface.name) {
+			logger.UpfLog.Info("interface strips VLAN tags before native XDP, attaching at TCX",
 				zap.String("iface", iface.name))
 
 			return attachChainTCX(objs, n3, n6)
@@ -239,7 +324,11 @@ func tcxUnavailable(err error) bool {
 	return errors.Is(err, cebpf.ErrNotSupported)
 }
 
-const ethtoolGGRO = 0x2b
+const (
+	ethtoolGGRO   = 0x2b
+	ethtoolGFlags = 0x25
+	ethFlagRXVLAN = 1 << 8
+)
 
 // Whether a redirect out of this interface would be dropped in native XDP
 // mode. On a veth, xdp_features carries NETDEV_XDP_ACT_NDO_XMIT only while the
@@ -259,9 +348,40 @@ func nativeXDPBlackholes(ifname string) bool {
 }
 
 func interfaceGROEnabled(ifname string) (bool, error) {
+	value, err := ethtoolValue(ifname, ethtoolGGRO)
+	if err != nil {
+		return false, fmt.Errorf("ETHTOOL_GGRO %s: %w", ifname, err)
+	}
+
+	return value != 0, nil
+}
+
+func vlanStrippedBeforeXDP(ifname string) bool {
+	flags, err := ethtoolValue(ifname, ethtoolGFlags)
+	if err != nil {
+		logger.UpfLog.Warn("could not read VLAN offload, assuming native XDP sees VLAN tags",
+			zap.String("iface", ifname), zap.Error(err))
+
+		return false
+	}
+
+	return flags&ethFlagRXVLAN != 0
+}
+
+func warnVLANStrippedBeforeXDP(iface datapathIface, mode string) {
+	if mode != config.DatapathXDPNative || !iface.tagged || !vlanStrippedBeforeXDP(iface.name) {
+		return
+	}
+
+	logger.UpfLog.Warn("interface strips VLAN tags before native XDP, so the datapath cannot classify its VLANs: "+
+		"turn off rx-vlan-offload on it or use tcx",
+		zap.String("iface", iface.name), zap.String("mode", mode))
+}
+
+func ethtoolValue(ifname string, cmd uint32) (uint32, error) {
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	defer func() { _ = unix.Close(fd) }()
@@ -269,7 +389,7 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 	value := struct {
 		cmd  uint32
 		data uint32
-	}{cmd: ethtoolGGRO}
+	}{cmd: cmd}
 
 	// Padded to sizeof(struct ifreq): the kernel copies the full structure
 	// in, so a shorter one is read past its end.
@@ -280,7 +400,7 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 	}
 
 	if len(ifname) >= unix.IFNAMSIZ {
-		return false, fmt.Errorf("interface name %q too long", ifname)
+		return 0, fmt.Errorf("interface name %q too long", ifname)
 	}
 
 	copy(ifr.name[:], ifname)
@@ -288,10 +408,10 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd),
 		unix.SIOCETHTOOL, uintptr(unsafe.Pointer(&ifr))); errno != 0 {
-		return false, fmt.Errorf("ETHTOOL_GGRO %s: %w", ifname, errno)
+		return 0, errno
 	}
 
-	return value.data != 0, nil
+	return value.data, nil
 }
 
 // Covers only the receive-side merge: a veth or virtio peer that offloads

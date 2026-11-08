@@ -43,7 +43,7 @@ An IMS data network carries the phones' SIP signalling and call media. Any data 
 - **P-CSCF discovery**: When a phone opens a session on an IMS data network, Ella Core gives it the P-CSCF addresses configured in the Operator settings, of the IP version the phone requested.
 - **Signalling QoS**: The session's default QoS uses 5QI / QCI 5, the standard class for IMS signalling, or 69 for mission critical signalling.
 - **No NAT**: Traffic on an IMS data network is never translated, so the IMS can reach phones at their own IP address.
-- **UE-to-UE**: Traffic between two phones on an IMS data network is always switched locally, so calls between them work even when local switching is disabled.
+- **UE-to-UE**: Traffic between two phones on an IMS data network is always switched locally, so calls between them work without going out N6.
 
 ## IMS identities
 

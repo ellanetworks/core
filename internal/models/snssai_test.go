@@ -24,6 +24,7 @@ func TestNormalizeSD(t *testing.T) {
 		{"not hex kept as-is", "zzz", "zzz"},
 		{"odd length kept as-is", "0a0", "0a0"},
 		{"too long kept as-is", "0a0b0c0d", "0a0b0c0d"},
+		{"no SD value", "FFFFFF", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := models.NormalizeSD(tc.in); got != tc.want {

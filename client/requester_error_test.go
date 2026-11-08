@@ -320,18 +320,6 @@ func TestClientMethodsPropagateRequesterErrors(t *testing.T) {
 
 			return err
 		}},
-		{"GetNATInfo", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			_, err := c.GetNATInfo(ctx)
-
-			return err
-		}},
-		{"UpdateNATInfo", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			updateNATInfoOpts := &client.UpdateNATInfoOptions{
-				Enabled: false,
-			}
-
-			return c.UpdateNATInfo(ctx, updateNATInfoOpts)
-		}},
 		{"GetOperator", func(t *testing.T, ctx context.Context, c *client.Client) error {
 			_, err := c.GetOperator(ctx)
 

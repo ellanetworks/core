@@ -13,6 +13,7 @@ func TestIMSDataNetworkSessionIsNATExemptAndBindsAsIMS(t *testing.T) {
 		store, upf := epsTestSMF()
 		policy := epsPolicy()
 		policy.IMS = ims
+		policy.NAT = true
 		pcf := &fakePCF{policy: policy}
 
 		s := newTestSMF(pcf, store, upf, &fakeAMF{})

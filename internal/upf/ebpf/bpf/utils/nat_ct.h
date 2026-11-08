@@ -83,7 +83,8 @@ struct five_tuple {
 		};
 	};
 	__u16 proto;
-	__u16 pad;
+	__u8 ni_id;
+	__u8 pad;
 };
 
 enum nat_ct_state {

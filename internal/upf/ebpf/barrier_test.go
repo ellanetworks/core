@@ -44,7 +44,7 @@ func TestProgramBarrierFailsAfterClose(t *testing.T) {
 func TestProgramBarrierSurvivesCloseAndReload(t *testing.T) {
 	requireProgTestRun(t)
 
-	obj := NewBpfObjects(true, true, false, 0, 1, 0, 0)
+	obj := NewBpfObjects(true, true, 0, 1, 0, 0)
 	if err := obj.Load(); err != nil {
 		t.Fatalf("load: %v", err)
 	}

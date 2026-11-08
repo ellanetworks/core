@@ -10,7 +10,7 @@ import (
 )
 
 func TestRoutingIndexesDefaultToAttachmentIndexes(t *testing.T) {
-	obj := NewBpfObjects(false, false, false, 11, 12, 0, 0)
+	obj := NewBpfObjects(false, false, 11, 12, 0, 0)
 	if obj.N3RoutingIndex != 11 || obj.N3RoutingIndex != obj.N3InterfaceIndex {
 		t.Errorf("N3 routing index = %d, attachment index = %d; want 11", obj.N3RoutingIndex, obj.N3InterfaceIndex)
 	}
@@ -23,7 +23,7 @@ func TestRoutingIndexesDefaultToAttachmentIndexes(t *testing.T) {
 func TestRoutingIndexesSharedLoader(t *testing.T) {
 	for name, useTCX := range map[string]bool{"XDP": false, "TCX": true} {
 		t.Run(name, func(t *testing.T) {
-			obj := NewBpfObjects(false, false, false, 11, 12, 0, 0)
+			obj := NewBpfObjects(false, false, 11, 12, 0, 0)
 			obj.UseTCX = useTCX
 			obj.N3RoutingIndex, obj.N6RoutingIndex = 21, 22
 
@@ -58,7 +58,7 @@ func TestRoutingIndexesLoadAndReload(t *testing.T) {
 
 	for name, useTCX := range map[string]bool{"XDP": false, "TCX": true} {
 		t.Run(name, func(t *testing.T) {
-			obj := NewBpfObjects(false, false, false, 11, 12, 0, 0)
+			obj := NewBpfObjects(false, false, 11, 12, 0, 0)
 			obj.UseTCX = useTCX
 
 			t.Cleanup(func() { _ = obj.Close() })

@@ -40,9 +40,6 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 }) => {
   const { accessToken } = useAuth();
   const isFirstPolicy = policyCount === 0;
-  const { dataNetworks, imsDataNetworks, slices, isError } =
-    useNetworkOptions(open);
-
   const form = useForm<FormValues>({
     mode: "onTouched",
     resolver: yupResolver(schema),
@@ -67,6 +64,12 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     name: "isDefault",
   });
   const sliceName = useWatch({ control: form.control, name: "sliceName" });
+  const {
+    servedDataNetworks: dataNetworks,
+    imsDataNetworks,
+    slices,
+    isError,
+  } = useNetworkOptions(open, sliceName);
   const dataNetworkName = useWatch({
     control: form.control,
     name: "dataNetworkName",
@@ -79,9 +82,11 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   }, [slices, sliceName, form]);
 
   useEffect(() => {
-    if (!dataNetworks?.length) return;
+    if (!dataNetworks) return;
     if (dataNetworkName && dataNetworks.includes(dataNetworkName)) return;
-    form.setValue("dataNetworkName", dataNetworks[0], { shouldValidate: true });
+    form.setValue("dataNetworkName", dataNetworks[0] ?? "", {
+      shouldValidate: dataNetworks.length > 0,
+    });
   }, [dataNetworks, dataNetworkName, form]);
 
   const submit = async (values: FormValues) => {

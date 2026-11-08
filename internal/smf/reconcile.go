@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/udm"
+	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -328,6 +329,34 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		return s.releaseForReactivation(ctx, smContext, models.ReleasePolicyChanged)
 	}
 
+	networkInstanceChanged := policy.NetworkInstance != "" && current.NetworkInstance != policy.NetworkInstance
+
+	if current.NAT != policy.NAT || current.LocalSwitch != policy.LocalSwitch || networkInstanceChanged {
+		if err := s.applyForwarding(ctx, smContext, policy); err != nil {
+			if errors.Is(err, models.ErrNetworkInstanceUnavailable) {
+				logger.SmfLog.Warn("network instance unavailable on this node, releasing session",
+					logger.SUPI(smContext.Supi.String()),
+					logger.PDUSessionID(smContext.PDUSessionID),
+					zap.String("network_instance", policy.NetworkInstance),
+				)
+
+				return s.releaseForUnavailableNetworkInstance(ctx, smContext)
+			}
+
+			return reconcileDecision{}, fmt.Errorf("apply forwarding to the UPF: %w", err)
+		}
+
+		updated := *current
+		updated.NAT, updated.LocalSwitch = policy.NAT, policy.LocalSwitch
+
+		if networkInstanceChanged {
+			updated.NetworkInstance = policy.NetworkInstance
+		}
+
+		smContext.PolicyData = &updated
+		current = &updated
+	}
+
 	delta, err := s.subscriptionChanged(ctx, smContext)
 	if err != nil {
 		logger.SmfLog.Warn("failed to evaluate the subscription during reconciliation; deferring to backstop",
@@ -408,11 +437,15 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			Var5qi: policy.QosData.Var5qi,
 			Arp:    policy.QosData.Arp,
 		},
-		DNS:      dns,
-		IMS:      current.IMS,
-		MTU:      current.MTU,
-		IPv4Pool: current.IPv4Pool,
-		IPv6Pool: current.IPv6Pool,
+		DNS:              dns,
+		IMS:              current.IMS,
+		MTU:              current.MTU,
+		IPv4Pool:         current.IPv4Pool,
+		IPv6Pool:         current.IPv6Pool,
+		SliceDataNetwork: current.SliceDataNetwork,
+		NetworkInstance:  current.NetworkInstance,
+		NAT:              current.NAT,
+		LocalSwitch:      current.LocalSwitch,
 	}
 
 	if smContext.Access == Access5G && hasQoSChange && !has5QIChange && !hasAmbrChange && !hasDNSChange && !smContext.upConnectionActive() {
@@ -458,6 +491,23 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	smContext.pendingPolicy = newPolicy
 
 	return reconcileDecision{}, nil
+}
+
+func (s *SMF) releaseForUnavailableNetworkInstance(ctx context.Context, smContext *SMContext) (reconcileDecision, error) {
+	if smContext.Access == Access4G {
+		return reconcileDecision{action: reconcileRelease, reason: models.ReleaseNetworkInstanceUnavailable}, nil
+	}
+
+	var backoff *naslib.GPRSTimer3
+
+	if smContext.backoffAllowed {
+		if timer, err := naslib.GPRSTimer3FromDuration(models.DatapathCapacityBackoff); err == nil {
+			backoff = &timer
+		}
+	}
+
+	return reconcileDecision{}, s.startReleaseWithBackoff(ctx, smContext, 0, fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN, backoff,
+		models.ReleaseFor(models.ReleaseNetworkInstanceUnavailable))
 }
 
 func (s *SMF) releaseForReactivation(ctx context.Context, smContext *SMContext, reason models.SessionReleaseReason) (reconcileDecision, error) {
@@ -638,6 +688,22 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 // plane (TS 29.244).
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
 	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
+}
+
+func (s *SMF) applyForwarding(ctx context.Context, smContext *SMContext, policy *Policy) error {
+	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
+		return nil
+	}
+
+	_, err := s.upf.ModifySession(ctx, &models.ModifyRequest{
+		SEID:       smContext.PFCPContext.SEID,
+		Forwarding: &models.SessionForwarding{NATExempt: policy.natExempt(), LocalSwitch: policy.localSwitch(), NetworkInstance: policy.NetworkInstance},
+	})
+	if err != nil && errors.Is(err, models.ErrSessionUnrecoverable) {
+		s.scheduleUnrecoverableReleaseLocked(ctx, smContext)
+	}
+
+	return err
 }
 
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi, fiveQI uint8, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {

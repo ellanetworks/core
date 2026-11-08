@@ -636,52 +636,6 @@ None
 }
 ```
 
-# NAT
-
-## Get NAT Info
-
-This path returns the current NAT configuration.
-
-| Method | Path         |
-| ------ | ------------ |
-| GET    | `/api/v1/networking/nat` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "enabled": true
-    }
-}
-```
-
-## Update NAT Info
-
-This path updates the NAT configuration.
-
-| Method | Path         |
-| ------ | ------------ |
-| PUT    | `/api/v1/networking/nat` |
-
-### Parameters
-
-- `enabled` (boolean): Enable or disable NAT.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "NAT configuration updated successfully"
-    }
-}
-```
-
 # Flow Accounting
 
 ## Get Flow Accounting Info
@@ -724,54 +678,6 @@ This path updates the flow accounting configuration.
 {
     "result": {
         "message": "Flow accounting settings updated successfully"
-    }
-}
-```
-
-# Local Switch
-
-Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE is forwarded locally instead of being routed out over N6. It is disabled by default. Traffic between two UEs on an IMS data network is always switched locally, to allow voice calls between them.
-
-## Get Local Switch Info
-
-This path returns the current local switch status.
-
-| Method | Path                          |
-| ------ | ----------------------------- |
-| GET    | `/api/v1/networking/local-switch` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "enabled": false
-    }
-}
-```
-
-## Update Local Switch Info
-
-This path enables or disables local switching. The change is applied to the user plane immediately.
-
-| Method | Path                          |
-| ------ | ----------------------------- |
-| PUT    | `/api/v1/networking/local-switch` |
-
-### Parameters
-
-- `enabled` (boolean): Enable or disable UE-to-UE local switching.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Local switch settings updated successfully"
     }
 }
 ```

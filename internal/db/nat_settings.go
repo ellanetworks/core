@@ -3,112 +3,14 @@
 
 package db
 
-import (
-	"context"
-	"database/sql"
-	"errors"
-	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
-)
-
 const (
 	NATDefaultEnabled = true
 )
 
 const NATSettingsTableName = "nat_settings"
 
-const upsertNATSettingsStmt = `
-INSERT INTO %s (singleton, enabled) VALUES (TRUE, $NATSettings.enabled)
-ON CONFLICT(singleton) DO UPDATE SET enabled=$NATSettings.enabled;
-`
-
 const getNATSettingsStmt = `SELECT &NATSettings.* FROM %s WHERE singleton=TRUE;`
 
 type NATSettings struct {
 	Enabled bool `db:"enabled"`
-}
-
-// InitializeNATSettings inserts the default NAT settings row if the
-// singleton row does not yet exist. Idempotent: an existing row (whether
-// holding the default or an operator-set value) is left untouched.
-func (db *Database) InitializeNATSettings(ctx context.Context) error {
-	_, err := db.IsNATEnabled(ctx)
-	if err == nil {
-		return nil
-	}
-
-	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("failed to check NAT settings: %w", err)
-	}
-
-	return db.UpdateNATSettings(ctx, NATDefaultEnabled)
-}
-
-func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", NATSettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(NATSettingsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NATSettingsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "select").Inc()
-
-	var natSettings NATSettings
-
-	err := db.conn().Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return false, fmt.Errorf("query failed: %w", err)
-	}
-
-	return natSettings.Enabled, nil
-}
-
-func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(NATSettingsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NATSettingsTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "update").Inc()
-
-	_, err := db.applyUpdateNATSettings(ctx, &boolPayload{Value: enabled})
-	if err != nil {
-		recordSpanError(span, err)
-
-		return err
-	}
-
-	db.publishOpTopics([]Topic{TopicNATSettings})
-
-	return nil
 }

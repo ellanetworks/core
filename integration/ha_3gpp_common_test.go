@@ -545,17 +545,19 @@ cluster:
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
 
-// configureNATAndRoute applies NAT + default route to each node directly.
-// These tables are node-scoped in HA mode and are not replicated.
+// configureNATAndRoute enables NAT once, which is replicated, and applies the
+// default route to each node directly, since routes are node-scoped in HA mode.
 func configureNATAndRoute(ctx context.Context, nodeClients []*client.Client) error {
 	family := DetectIPFamily()
 
+	if family == IPv4Only || family == DualStack {
+		if err := setNATOnAllDataNetworks(ctx, nodeClients[0], true); err != nil {
+			return fmt.Errorf("update NAT: %w", err)
+		}
+	}
+
 	for i, c := range nodeClients {
 		if family == IPv4Only || family == DualStack {
-			if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
-				return fmt.Errorf("update NAT on node %d: %w", i+1, err)
-			}
-
 			if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
 				Destination: "8.8.8.8/32",
 				Gateway:     "10.6.0.3",

@@ -2379,3 +2379,121 @@ func TestReconcileSession_IMSChangeReleasesTheSession(t *testing.T) {
 		t.Fatalf("expected 1 release signaling call after the IMS attribute changed, got %d", releaseCalls)
 	}
 }
+
+func TestReconcileSession_ForwardingChangeModifiesOnlyTheUPF(t *testing.T) {
+	on := true
+
+	for _, tc := range []struct {
+		name   string
+		change policyChange
+		want   models.SessionForwarding
+	}{
+		{name: "NAT", change: policyChange{NAT: &on}, want: models.SessionForwarding{NATExempt: false, LocalSwitch: false}},
+		{name: "local switching", change: policyChange{LocalSwitch: &on}, want: models.SessionForwarding{NATExempt: true, LocalSwitch: true}},
+		{name: "network instance", change: policyChange{NetworkInstance: "ims"}, want: models.SessionForwarding{NATExempt: true, NetworkInstance: "ims"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+			ctx := context.Background()
+
+			_, ref := setupSessionWithTunnel(t, s)
+
+			before := currentPolicy(s, ref)
+
+			change := tc.change
+			change.SessionAmbrUplink, change.SessionAmbrDownlink = before.Ambr.Uplink.String(), before.Ambr.Downlink.String()
+			change.Var5qi, change.Arp = before.QosData.Var5qi, before.QosData.Arp.PriorityLevel
+			change.PreemptCap, change.PreemptVuln = before.QosData.Arp.PreemptCap, before.QosData.Arp.PreemptVuln
+
+			if err := reconcileWithPolicy(ctx, s, pcf, ref, &change); err != nil {
+				t.Fatalf("ReconcileSession failed: %v", err)
+			}
+
+			amfCb.mu.Lock()
+			releaseCalls := len(amfCb.releaseCalls)
+			amfCb.mu.Unlock()
+
+			if releaseCalls != 0 {
+				t.Fatalf("%s change released the session (%d release calls)", tc.name, releaseCalls)
+			}
+
+			upf.mu.Lock()
+			defer upf.mu.Unlock()
+
+			var got *models.SessionForwarding
+
+			for _, req := range upf.modifyCalls {
+				if req.Forwarding != nil {
+					got = req.Forwarding
+				}
+			}
+
+			want := tc.want
+			if want.NetworkInstance == "" {
+				want.NetworkInstance = before.NetworkInstance
+			}
+
+			if got == nil || *got != want {
+				t.Fatalf("UPF forwarding modification = %+v, want %+v", got, want)
+			}
+
+			if tc.change.NetworkInstance != "" && currentPolicy(s, ref).NetworkInstance != tc.change.NetworkInstance {
+				t.Fatalf("session network instance = %q, want %q", currentPolicy(s, ref).NetworkInstance, tc.change.NetworkInstance)
+			}
+		})
+	}
+}
+
+func TestReconcileSession_UnavailableNetworkInstanceReleasesTheSession(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		backoffAllowed bool
+	}{
+		{name: "back-off allowed", backoffAllowed: true},
+		{name: "high priority or unknown access", backoffAllowed: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+			ctx := context.Background()
+
+			smCtx, ref := setupSessionWithTunnel(t, s)
+			smCtx.SetBackoffAllowedForTest(tc.backoffAllowed)
+
+			before := currentPolicy(s, ref)
+
+			upf.mu.Lock()
+			upf.err = fmt.Errorf("%w: ims", models.ErrNetworkInstanceUnavailable)
+			upf.mu.Unlock()
+
+			change := policyChange{NetworkInstance: "ims"}
+			change.SessionAmbrUplink, change.SessionAmbrDownlink = before.Ambr.Uplink.String(), before.Ambr.Downlink.String()
+			change.Var5qi, change.Arp = before.QosData.Var5qi, before.QosData.Arp.PriorityLevel
+			change.PreemptCap, change.PreemptVuln = before.QosData.Arp.PreemptCap, before.QosData.Arp.PreemptVuln
+
+			_ = reconcileWithPolicy(ctx, s, pcf, ref, &change)
+
+			amfCb.mu.Lock()
+			calls := append([]releaseCall(nil), amfCb.releaseCalls...)
+			amfCb.mu.Unlock()
+
+			if len(calls) != 1 {
+				t.Fatalf("release calls = %d, want 1 after the network instance became unavailable", len(calls))
+			}
+
+			cmd, err := fgs.ParsePDUSessionReleaseCommand(calls[0].n1Msg)
+			if err != nil {
+				t.Fatalf("parse PDU SESSION RELEASE COMMAND: %v", err)
+			}
+
+			if cmd.Cause != fgs.GSMCauseInsufficientResourcesForSpecificSliceAndDNN {
+				t.Fatalf("5GSM cause = %v, want #67", cmd.Cause)
+			}
+
+			if (cmd.BackoffTimer != nil) != tc.backoffAllowed {
+				t.Fatalf("back-off timer = %+v, want present = %t", cmd.BackoffTimer, tc.backoffAllowed)
+			}
+		})
+	}
+}

@@ -37,6 +37,12 @@ type N6Interface struct {
 	Name      string   `json:"name"`
 	Addresses []string `json:"addresses"`
 	Vlan      *Vlan    `json:"vlan,omitempty"`
+	VRF       string   `json:"vrf,omitempty"`
+}
+
+type NetworkInstanceInterface struct {
+	Name string      `json:"name"`
+	N6   N6Interface `json:"n6"`
 }
 
 type APIInterface struct {
@@ -51,11 +57,12 @@ type DiameterInterface struct {
 }
 
 type NetworkInterfaces struct {
-	N2       N2Interface        `json:"n2"`
-	N3       N3Interface        `json:"n3"`
-	N6       N6Interface        `json:"n6"`
-	API      APIInterface       `json:"api"`
-	Diameter *DiameterInterface `json:"diameter,omitempty"`
+	N2               N2Interface                `json:"n2"`
+	N3               N3Interface                `json:"n3"`
+	N6               N6Interface                `json:"n6"`
+	NetworkInstances []NetworkInstanceInterface `json:"network_instances"`
+	API              APIInterface               `json:"api"`
+	Diameter         *DiameterInterface         `json:"diameter,omitempty"`
 }
 
 type UpdateN3SettingsParams struct {
@@ -182,8 +189,38 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			}
 		}
 
+		resp.N6.VRF = interfaceVRF(cfg.Interfaces.N6.Name)
+		resp.NetworkInstances = append(resp.NetworkInstances, NetworkInstanceInterface{Name: models.DefaultNetworkInstanceName, N6: resp.N6})
+
+		for _, ni := range cfg.Interfaces.NetworkInstances {
+			resp.NetworkInstances = append(resp.NetworkInstances, NetworkInstanceInterface{Name: ni.Name, N6: n6InterfaceResponse(ni.N6)})
+		}
+
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
+}
+
+func n6InterfaceResponse(iface config.N6Interface) N6Interface {
+	out := N6Interface{Name: iface.Name, VRF: interfaceVRF(iface.Name)}
+
+	if ips, err := config.GetInterfaceIPs(iface.Name); err == nil {
+		out.Addresses = ips
+	}
+
+	if iface.VlanConfig != nil {
+		out.Vlan = &Vlan{MasterInterface: iface.VlanConfig.MasterInterface, VlanId: iface.VlanConfig.VlanId}
+	}
+
+	return out
+}
+
+func interfaceVRF(name string) string {
+	vrf, err := config.VRFDeviceForInterfaceFunc(name)
+	if err != nil {
+		return ""
+	}
+
+	return vrf
 }
 
 func UpdateN3Interface(dbInstance *db.Database) http.Handler {

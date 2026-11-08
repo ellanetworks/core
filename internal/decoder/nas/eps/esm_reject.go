@@ -40,6 +40,21 @@ func buildPDNConnectivityReject(msg *eps.PDNConnectivityReject) *PDNConnectivity
 	}
 }
 
+type DeactivateBearerRequest struct {
+	ESMCause utils.EnumField        `json:"esm_cause"`
+	T3396    *nasie.GPRSTimer3Value `json:"t3396,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
+}
+
+func buildDeactivateBearerRequest(msg *eps.DeactivateEPSBearerContextRequest) *DeactivateBearerRequest {
+	return &DeactivateBearerRequest{
+		ESMCause:        esmCauseToEnum(msg.Cause),
+		T3396:           nasie.GPRSTimer3(msg.T3396),
+		UnrecognizedIEs: utils.RawIEs(msg.Unrecognized),
+	}
+}
+
 type ModifyEPSBearerContextRequest struct {
 	NewEPSQoS                            *EPSQoS                             `json:"new_eps_qos,omitempty"`
 	TFT                                  *TFT                                `json:"tft,omitempty"`

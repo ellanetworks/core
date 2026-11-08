@@ -77,7 +77,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	coreClient.SetToken(adminToken)
 
 	// Configure NAT and route via the Ella Core API.
-	if err := coreClient.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+	if err := setNATOnAllDataNetworks(ctx, coreClient, true); err != nil {
 		t.Fatalf("enable NAT: %v", err)
 	}
 

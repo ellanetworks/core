@@ -135,6 +135,8 @@ func TestCapacityBackoffRules(t *testing.T) {
 		{"handover", rrcCause(s1ap.RRCCauseMOData), eps.RequestTypeHandover, capacity, false},
 		{"high priority access", rrcCause(s1ap.RRCCauseHighPriorityAccess), eps.RequestTypeInitialRequest, capacity, false},
 		{"not a capacity failure", rrcCause(s1ap.RRCCauseMOData), eps.RequestTypeInitialRequest, errors.New("no IP pool"), false},
+		{"network instance unavailable", rrcCause(s1ap.RRCCauseMOData), eps.RequestTypeInitialRequest, fmt.Errorf("wrapped: %w", models.ErrNetworkInstanceUnavailable), true},
+		{"network instance unavailable, emergency", rrcCause(s1ap.RRCCauseMOData), eps.RequestTypeEmergency, fmt.Errorf("wrapped: %w", models.ErrNetworkInstanceUnavailable), false},
 	}
 
 	for _, tc := range cases {
@@ -171,5 +173,12 @@ func TestCapacityBackoffIsTheSharedDatapathBackoff(t *testing.T) {
 
 	if d, ok := got.Duration(); !ok || d != models.DatapathCapacityBackoff {
 		t.Fatalf("back-off = %v (%t), want the %v the SMF uses", d, ok, models.DatapathCapacityBackoff)
+	}
+}
+
+func TestAttachBearerRejectCauseNetworkInstanceUnavailable(t *testing.T) {
+	err := fmt.Errorf("establish: %w", models.ErrNetworkInstanceUnavailable)
+	if got := attachBearerRejectCause(eps.RequestTypeInitialRequest, err); got != eps.ESMCauseInsufficientResources {
+		t.Fatalf("cause = %d, want insufficient resources (#26)", got)
 	}
 }

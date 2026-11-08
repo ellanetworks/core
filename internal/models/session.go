@@ -14,15 +14,18 @@ import (
 )
 
 const (
-	IMSDataNetworkName = "ims"
-	IMSSignalling5QI   = 5
-	MCSignalling5QI    = 69
+	IMSDataNetworkName         = "ims"
+	DefaultNetworkInstanceName = "default"
+	IMSSignalling5QI           = 5
+	MCSignalling5QI            = 69
 )
 
 // The only error that lets a caller conclude the UPF session is gone: on any
 // other failure the UPF still holds the session, and the SMF must keep the SEID
 // needed to delete it.
 var ErrSessionNotFound = errors.New("upf session not found")
+
+var ErrNetworkInstanceUnavailable = errors.New("network instance not available on this node")
 
 var ErrUsageOutcomeUnknown = errors.New("usage report outcome unknown")
 
@@ -33,18 +36,20 @@ var ErrSessionUnrecoverable = errors.New("upf session state unrecoverable; relea
 // EstablishRequest asks the UPF to create a new session with the
 // given packet detection, forwarding, QoS, and usage reporting rules.
 type EstablishRequest struct {
-	SEID         uint64
-	IMSI         string
-	PolicyID     string
-	Snssai       *Snssai
-	DNN          string
-	PDRs         []PDR
-	FARs         []FAR
-	QERs         []QER
-	URRs         []URR
-	FramedRoutes []netip.Prefix
-	LocalSwitch  bool
-	NATExempt    bool
+	SEID             uint64
+	IMSI             string
+	PolicyID         string
+	Snssai           *Snssai
+	DNN              string
+	PDRs             []PDR
+	FARs             []FAR
+	QERs             []QER
+	URRs             []URR
+	FramedRoutes     []netip.Prefix
+	SliceDataNetwork string
+	NetworkInstance  string
+	LocalSwitch      bool
+	NATExempt        bool
 }
 
 // No SEID: the UPF keys the session on the one the request named. One endpoint
@@ -248,6 +253,14 @@ type ModifyRequest struct {
 	RemoveURRs []uint32
 
 	SendEndMarkers bool
+
+	Forwarding *SessionForwarding
+}
+
+type SessionForwarding struct {
+	NATExempt       bool
+	LocalSwitch     bool
+	NetworkInstance string
 }
 
 type ModifyResponse struct {

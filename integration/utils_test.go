@@ -98,9 +98,7 @@ func configureEllaCore(ctx context.Context, cl *client.Client, c EllaCoreConfig)
 
 	cl.SetToken(resp.Token)
 
-	err = cl.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{
-		Enabled: c.Networking.NAT,
-	})
+	err = setNATOnAllDataNetworks(ctx, cl, c.Networking.NAT)
 	if err != nil {
 		return fmt.Errorf("failed to configure NAT: %v", err)
 	}

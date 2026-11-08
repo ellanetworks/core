@@ -82,7 +82,7 @@ type DNNStore interface {
 	ReleaseIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 	AllocateIPv6(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 	ReleaseIPv6(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
-	Config(ctx context.Context) (DataNetworkConfig, error)
+	Config(ctx context.Context, snssai models.Snssai) (DataNetworkConfig, error)
 }
 
 type SubscriptionData interface {
@@ -139,16 +139,20 @@ type MMECallback interface {
 // Policy contains the QoS parameters and DNN configuration the SMF enforces for
 // a session.
 type Policy struct {
-	PolicyID    string // DB primary key (UUID)
-	Ambr        models.Ambr
-	QosData     models.QosData
-	RatingGroup uint32
-	DNS         net.IP
-	IMS         bool
-	PCSCF       []netip.Addr
-	MTU         uint16
-	IPv4Pool    string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
-	IPv6Pool    string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
+	PolicyID         string // DB primary key (UUID)
+	Ambr             models.Ambr
+	QosData          models.QosData
+	RatingGroup      uint32
+	DNS              net.IP
+	IMS              bool
+	PCSCF            []netip.Addr
+	SliceDataNetwork string
+	NetworkInstance  string
+	NAT              bool
+	LocalSwitch      bool
+	MTU              uint16
+	IPv4Pool         string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
+	IPv6Pool         string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
 }
 
 // SMF implements the Session Management Function.
@@ -479,4 +483,12 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 	}
 
 	return fourG, fiveG
+}
+
+func (p *Policy) natExempt() bool {
+	return !p.NAT || p.IMS
+}
+
+func (p *Policy) localSwitch() bool {
+	return p.LocalSwitch || p.IMS
 }
