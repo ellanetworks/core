@@ -860,7 +860,7 @@ describe("Traffic usage roamers", () => {
     await renderTraffic("/traffic/usage");
 
     expect(await screen.findByText("Roamer · Partner A")).toBeInTheDocument();
-    expect(screen.getByText("Roamer · 310-260")).toBeInTheDocument();
+    expect(screen.getByText("Roamer · 310 / 260")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "208930000000001" }),
     ).toHaveAttribute("href", "/subscribers/roamers/208930000000001");

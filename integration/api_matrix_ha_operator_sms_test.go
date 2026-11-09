@@ -17,8 +17,8 @@ func runOperatorSMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	t.Cleanup(func() { cleanupSMS(ctx, t, h.Leader) })
 
 	smscs := []client.SMSC{{Name: "main", ServiceCentres: []string{"+15550000000"}, Nodes: []client.SMSCNode{
-		{DiameterIdentity: "smsc1.node.example.org", Address: "192.0.2.10", Port: 3868},
-		{DiameterIdentity: "smsc2.node.example.org", Address: "192.0.2.11", Port: 3868},
+		{OriginHost: "smsc1.node.example.org", Address: "192.0.2.10", Port: 3868},
+		{OriginHost: "smsc2.node.example.org", Address: "192.0.2.11", Port: 3868},
 	}}}
 
 	cases := []struct {
@@ -35,28 +35,28 @@ func runOperatorSMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 					Name:           "main",
 					ServiceCentres: []string{"+15550000000"},
 					Nodes: []client.SMSCNodeOptions{
-						{DiameterIdentity: "smsc1.node.example.org", Address: "192.0.2.10"},
-						{DiameterIdentity: "smsc2.node.example.org", Address: "192.0.2.11"},
+						{OriginHost: "smsc1.node.example.org", Address: "192.0.2.10"},
+						{OriginHost: "smsc2.node.example.org", Address: "192.0.2.11"},
 					},
 				})
 
 				return err
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550001111"}, SMSCs: smscs},
+			want: smsState{SMS: client.SMSSettings{ServingNodeNumber: "+15550001111"}, SMSCs: smscs},
 		},
 		{
 			name:   "set_number",
 			writer: 0,
 			apply: func(c *client.Client) error {
-				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: "+15550009999"})
+				return c.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{ServingNodeNumber: "+15550009999"})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: smscs},
+			want: smsState{SMS: client.SMSSettings{ServingNodeNumber: "+15550009999"}, SMSCs: smscs},
 		},
 		{
 			name:   "clear_number",
 			writer: 1,
 			apply: func(c *client.Client) error {
-				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{})
+				return c.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{})
 			},
 			want: smsState{SMSCs: smscs},
 		},

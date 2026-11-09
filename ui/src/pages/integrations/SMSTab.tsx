@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Button,
-  Chip,
+  Alert,
   IconButton,
   Skeleton,
   Stack,
@@ -26,71 +26,30 @@ import {
 } from "@mui/icons-material";
 import {
   deleteSMSC,
+  getSMSSettings,
   listSMSCs,
-  type OperatorSMS,
   type SMSC,
-  type SMSCNode,
-  type SMSCNodeState,
-} from "@/queries/operator";
-import EditOperatorSMSModal from "@/components/EditOperatorSMSModal";
+  type SMSSettings,
+} from "@/queries/integrations";
+import EditServingNodeNumberModal, {
+  SERVING_NODE_NUMBER_HELP,
+} from "@/components/EditServingNodeNumberModal";
+import ConnectionsStatusChip from "@/components/ConnectionsStatusChip";
 import SMSCModal from "@/components/SMSCModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { TABLE_CONTAINER_SX } from "@/utils/layout";
-import { formatDateTime } from "@/utils/formatters";
+import {
+  ACTION_CELL_SX,
+  SETTING_CELL_SX,
+  TABLE_CONTAINER_SX,
+  VALUE_CELL_SX,
+} from "@/utils/layout";
+import { useIntegrationsContext } from "./types";
+import { ThisCoreSection, formatEndpoint, useDiameterStatus } from "./diameter";
 
-const stateLabels: Record<
-  SMSCNodeState,
-  { label: string; color: "success" | "warning" | "error" | "default" }
-> = {
-  open: { label: "Connected", color: "success" },
-  connecting: { label: "Connecting", color: "warning" },
-  reopen: { label: "Reconnecting", color: "warning" },
-  suspect: { label: "Unresponsive", color: "warning" },
-  closing: { label: "Disconnecting", color: "warning" },
-  down: { label: "Disconnected", color: "error" },
-};
-
-const formatEndpoint = (address: string, port: number) =>
-  address.includes(":") ? `[${address}]:${port}` : `${address}:${port}`;
-
-const NodeStatus: React.FC<{ node: SMSCNode }> = ({ node }) => {
-  const status = node.status;
-  const { label, color } = status
-    ? (stateLabels[status.state] ?? { label: status.state, color: "default" })
-    : stateLabels.connecting;
-
-  const tooltip =
-    status?.state === "open"
-      ? [
-          status.host
-            ? `Connected to ${[status.host, status.realm].filter(Boolean).join(" in realm ")}`
-            : "",
-          `since ${formatDateTime(status.since)}.`,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      : (status?.error ?? "");
-
-  return (
-    <Tooltip title={tooltip} arrow>
-      <Chip label={label} color={color} size="small" variant="outlined" />
-    </Tooltip>
-  );
-};
-
-interface SMSSectionProps {
-  sms?: OperatorSMS;
-  canEdit: boolean;
-  onModalOpenChange: (open: boolean) => void;
-}
-
-const SMSSection: React.FC<SMSSectionProps> = ({
-  sms,
-  canEdit,
-  onModalOpenChange,
-}) => {
+export default function SMSTab() {
+  const { canEdit } = useIntegrationsContext();
   const theme = useTheme();
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -103,9 +62,16 @@ const SMSSection: React.FC<SMSSectionProps> = ({
   const anyModalOpen =
     numberModalOpen || smscModal !== null || smscToDelete !== null;
 
-  useEffect(() => {
-    onModalOpenChange(anyModalOpen);
-  }, [anyModalOpen, onModalOpenChange]);
+  const diameterQuery = useDiameterStatus(!anyModalOpen);
+
+  const settingsQuery = useQuery<SMSSettings>({
+    queryKey: ["integrations-sms"],
+    enabled: authReady && !!accessToken && !anyModalOpen,
+    queryFn: () => getSMSSettings(accessToken!),
+    placeholderData: (prev) => prev,
+  });
+  const sms = settingsQuery.data;
+  const settingsLoading = settingsQuery.isLoading && !sms;
 
   const smscsQuery = useQuery<SMSC[]>({
     queryKey: ["smscs"],
@@ -117,12 +83,13 @@ const SMSSection: React.FC<SMSSectionProps> = ({
 
   const smscs = smscsQuery.data ?? [];
   const smscsLoading = smscsQuery.isLoading && !smscsQuery.data;
-  const hasNumber = !!sms?.smsNumber;
+  const hasNumber = !!sms?.servingNodeNumber;
   const ready = smscs.length > 0 && hasNumber;
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["operator"] });
+    queryClient.invalidateQueries({ queryKey: ["integrations-sms"] });
     queryClient.invalidateQueries({ queryKey: ["smscs"] });
+    queryClient.invalidateQueries({ queryKey: ["integrations-diameter"] });
   };
 
   const handleDelete = async () => {
@@ -141,34 +108,57 @@ const SMSSection: React.FC<SMSSectionProps> = ({
   };
 
   return (
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        SMS
-      </Typography>
+    <Box sx={{ mt: 3 }}>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
         Let 4G and 5G subscribers send and receive SMS. Each subscriber needs a
         phone number.
       </Typography>
 
-      <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 3 }}>
-        <Table>
-          <TableBody>
+      {settingsQuery.isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Failed to load SMS settings.
+        </Alert>
+      )}
+      {sms && !hasNumber && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No serving node number is set: messages sent to your subscribers
+          cannot be delivered. Set it below.
+        </Alert>
+      )}
+      {smscsQuery.data && smscs.length === 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No SMSC is configured: subscribers cannot send or receive SMS. Add one
+          below.
+        </Alert>
+      )}
+
+      <ThisCoreSection
+        diameter={diameterQuery.data}
+        loading={diameterQuery.isLoading && !diameterQuery.data}
+        description="Ella Core's settings for your SMSCs. Enter its Diameter Realm as the HSS realm on your SMSC, and its Origin-Host if your SMSC asks for it."
+        realmHelp="Ella Core's Diameter realm, set by the Operator ID (MCC/MNC). Your SMSC sends S6c requests to it, as its HSS realm."
+        after={
+          <>
             <TableRow>
-              <TableCell sx={{ fontWeight: 600, width: "35%" }}>
-                <Tooltip title="This network's E.164 number for SMS" arrow>
-                  <span>SMS Number</span>
+              <TableCell sx={SETTING_CELL_SX}>
+                <Tooltip title={SERVING_NODE_NUMBER_HELP} arrow>
+                  <span>Serving Node Number</span>
                 </Tooltip>
               </TableCell>
-              <TableCell sx={{ width: "55%" }}>
-                {sms?.smsNumber || "N/A"}
+              <TableCell sx={VALUE_CELL_SX}>
+                {settingsLoading ? (
+                  <Skeleton variant="text" width={140} />
+                ) : (
+                  sms?.servingNodeNumber || "N/A"
+                )}
               </TableCell>
-              <TableCell sx={{ width: "10%", textAlign: "right" }}>
+              <TableCell sx={ACTION_CELL_SX}>
                 {canEdit && (
-                  <Tooltip title="Edit SMS number" arrow>
+                  <Tooltip title="Edit serving node number" arrow>
                     <IconButton
                       size="small"
                       onClick={() => setNumberModalOpen(true)}
-                      aria-label="Edit SMS number"
+                      aria-label="Edit serving node number"
                     >
                       <EditIcon fontSize="small" color="primary" />
                     </IconButton>
@@ -176,9 +166,9 @@ const SMSSection: React.FC<SMSSectionProps> = ({
                 )}
               </TableCell>
             </TableRow>
-          </TableBody>
-        </Table>
-      </TableContainer>
+          </>
+        }
+      />
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
         SMSCs
@@ -188,7 +178,7 @@ const SMSSection: React.FC<SMSSectionProps> = ({
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          Service centers that store and deliver your subscribers&apos;
+          Service centres that store and deliver your subscribers&apos;
           messages.
         </Typography>
         {canEdit && (
@@ -222,24 +212,25 @@ const SMSSection: React.FC<SMSSectionProps> = ({
                   title="The numbers phones use to reach this SMSC, set as the SMSC number on their SIM"
                   arrow
                 >
-                  <span>Numbers</span>
+                  <span>Service Centre Addresses</span>
                 </Tooltip>
               </TableCell>
-              <TableCell>Nodes</TableCell>
+              <TableCell>Diameter Peers</TableCell>
+              <TableCell sx={{ width: 170 }}>Status</TableCell>
               <TableCell align="right" sx={{ width: 100 }}>
                 Actions
               </TableCell>
             </TableRow>
             {smscsLoading && (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={5}>
                   <Skeleton variant="text" width={240} />
                 </TableCell>
               </TableRow>
             )}
             {!smscsLoading && smscs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={5}>
                   <Typography variant="body2" color="textSecondary">
                     No SMSCs yet.
                   </Typography>
@@ -255,32 +246,30 @@ const SMSSection: React.FC<SMSSectionProps> = ({
                   {smsc.serviceCentres.join(", ")}
                 </TableCell>
                 <TableCell>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      columnGap: 1.5,
-                      rowGap: 1,
-                      alignItems: "center",
-                      justifyItems: "start",
-                    }}
-                  >
+                  <Stack spacing={0.5}>
                     {smsc.nodes.map((node) => (
-                      <React.Fragment
+                      <Tooltip
                         key={formatEndpoint(node.address, node.port)}
+                        title={`Origin-Host: ${node.originHost || "any"}`}
+                        arrow
                       >
-                        <Tooltip title={node.diameterIdentity} arrow>
-                          <Typography
-                            variant="body2"
-                            sx={{ wordBreak: "break-word" }}
-                          >
-                            {formatEndpoint(node.address, node.port)}
-                          </Typography>
-                        </Tooltip>
-                        <NodeStatus node={node} />
-                      </React.Fragment>
+                        <Typography
+                          variant="body2"
+                          sx={{ wordBreak: "break-word", width: "fit-content" }}
+                        >
+                          {formatEndpoint(node.address, node.port)}
+                        </Typography>
+                      </Tooltip>
                     ))}
-                  </Box>
+                  </Stack>
+                </TableCell>
+                <TableCell>
+                  <ConnectionsStatusChip
+                    connections={smsc.nodes.map((node) => ({
+                      label: formatEndpoint(node.address, node.port),
+                      status: node.status,
+                    }))}
+                  />
                 </TableCell>
                 <TableCell align="right">
                   {canEdit && (
@@ -313,14 +302,17 @@ const SMSSection: React.FC<SMSSectionProps> = ({
       </TableContainer>
 
       {numberModalOpen && (
-        <EditOperatorSMSModal
+        <EditServingNodeNumberModal
           open
           onClose={() => setNumberModalOpen(false)}
           onSuccess={() => {
             refresh();
-            showSnackbar("SMS number updated successfully.", "success");
+            showSnackbar(
+              "Serving node number updated successfully.",
+              "success",
+            );
           }}
-          initialData={{ smsNumber: sms?.smsNumber ?? "" }}
+          initialData={{ servingNodeNumber: sms?.servingNodeNumber ?? "" }}
         />
       )}
       {smscModal && (
@@ -354,6 +346,4 @@ const SMSSection: React.FC<SMSSectionProps> = ({
       )}
     </Box>
   );
-};
-
-export default SMSSection;
+}

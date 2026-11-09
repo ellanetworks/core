@@ -11,7 +11,7 @@ import (
 )
 
 type IMSVoice interface {
-	VoiceSupported(ctx context.Context, imsi string) (bool, error)
+	AdvertiseIMSVoice(ctx context.Context) (bool, error)
 }
 
 func (ue *UeContext) IMSVoPS() bool {
@@ -21,14 +21,14 @@ func (ue *UeContext) IMSVoPS() bool {
 func (amf *AMF) DecideIMSVoPS(ctx context.Context, ue *UeContext) bool {
 	supported := false
 
-	if supi := ue.Supi(); amf.IMSVoice != nil && supi.IsIMSI() && !ue.IsVisitor() {
+	if amf.IMSVoice != nil && !ue.IsVisitor() {
 		var err error
 
-		supported, err = amf.IMSVoice.VoiceSupported(ctx, supi.IMSI())
+		supported, err = amf.IMSVoice.AdvertiseIMSVoice(ctx)
 		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("could not decide whether IMS voice is supported for the UE", logger.SUPI(supi.String()), zap.Error(err))
+			logger.From(ctx, logger.AmfLog).Warn("could not read whether to advertise IMS voice over PS sessions", logger.SUPI(ue.Supi().String()), zap.Error(err))
 
-			supported = false
+			return ue.imsVoPS.Load()
 		}
 	}
 

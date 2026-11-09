@@ -94,6 +94,7 @@ nav:
       - Backup: reference/api/backup.md
       - Cluster: reference/api/cluster.md
       - Initialization: reference/api/initialize.md
+      - Integrations: reference/api/integrations.md
       - Location (beta): reference/api/location.md
       - Audit Logs: reference/api/audit_logs.md
       - Metrics: reference/api/metrics.md

@@ -41,13 +41,13 @@ Also add the policies the MCPTT users have on their current profile, e.g. on `in
 
 ## 3. Add the MCPTT application server
 
-Go to the **Operator** page and scroll to the **IMS** section. Under **Application Servers**, click **Add Application Server**, click **Fill for Ella IMS MCPTT**, and click **Add**.
+Go to **Integrations › IMS**. Under **Application Servers**, click **Add Application Server**, click **Fill for Ella IMS MCPTT**, and click **Add**.
 
 With another MCPTT server, enter `mcptt` as the **Name**, its SIP URI as the **Server Name**, and an **Identity** matching its identities, e.g. `sip:!.*!@mcptt.example.org`.
 
 ## 4. Create the MCPTT service profile
 
-On the **Operator** page, in the **IMS** section, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add Criteria**. Click **Add**.
+In **Integrations › IMS**, under **Service Profiles**, click **Add Service Profile**. Enter `mcptt` as the **Name**. Under **Add from preset**, select the `MCPTT` **Preset** and the `mcptt` **Application Server**, and click **Add Criteria**. Click **Add**.
 
 ## 5. Give the MC profile the MCPTT service profile
 

@@ -322,8 +322,25 @@ type fakeIMSVoice struct {
 	err       error
 }
 
-func (f fakeIMSVoice) VoiceSupported(context.Context, string) (bool, error) {
+func (f fakeIMSVoice) AdvertiseIMSVoice(context.Context) (bool, error) {
 	return f.supported, f.err
+}
+
+func TestDecideIMSVoPSKeepsThePreviousValueWhenTheSettingIsUnreadable(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+	amfInstance.IMSVoice = fakeIMSVoice{supported: true}
+
+	ue := buildServedTestUE(t, amfInstance, "001019756139903")
+
+	if !amfInstance.DecideIMSVoPS(context.Background(), ue) {
+		t.Fatal("DecideIMSVoPS = false, want true")
+	}
+
+	amfInstance.IMSVoice = fakeIMSVoice{err: errors.New("store unavailable")}
+
+	if !amfInstance.DecideIMSVoPS(context.Background(), ue) || !ue.IMSVoPS() {
+		t.Fatal("an unreadable setting withdrew IMS voice over PS")
+	}
 }
 
 func TestBuildRegistrationAcceptIMSVoPS(t *testing.T) {
@@ -333,9 +350,9 @@ func TestBuildRegistrationAcceptIMSVoPS(t *testing.T) {
 		want  bool
 	}{
 		{"no IMS", nil, false},
-		{"IMS voice not supported for the subscriber", fakeIMSVoice{}, false},
-		{"IMS voice supported for the subscriber", fakeIMSVoice{supported: true}, true},
-		{"IMS voice undecidable", fakeIMSVoice{supported: true, err: errors.New("store unavailable")}, false},
+		{"IMS voice not advertised", fakeIMSVoice{}, false},
+		{"IMS voice advertised", fakeIMSVoice{supported: true}, true},
+		{"IMS voice setting unreadable", fakeIMSVoice{supported: true, err: errors.New("store unavailable")}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			amfInstance := amf.New(nil, nil, nil)

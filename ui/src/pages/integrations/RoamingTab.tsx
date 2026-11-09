@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -9,7 +9,6 @@ import {
   Button,
   Chip,
   IconButton,
-  Link as MuiLink,
   Skeleton,
   Stack,
   Table,
@@ -35,7 +34,6 @@ import { Link } from "react-router-dom";
 import {
   deleteRoamingDiameterPeer,
   deleteRoamingPartner,
-  diameterPeerLabel,
   formatEndpoint,
   deleteSEPPCertificate,
   formatPLMN,
@@ -45,7 +43,6 @@ import {
   plmnDomain,
   regenerateSEPPCA,
   rehandshakeRoamingPartner,
-  type PLMNID,
   type RoamingDiameterPeer,
   type RoamingPartner,
   type SEPPCertificate,
@@ -57,6 +54,8 @@ import RoamingPartnerModal from "@/components/RoamingPartnerModal";
 import RoamingDiameterPeerModal from "@/components/RoamingDiameterPeerModal";
 import ImportSEPPCertificateModal from "@/components/ImportSEPPCertificateModal";
 import N32StatusChip from "@/components/N32StatusChip";
+import DiameterPeerStatusChip from "@/components/DiameterPeerStatusChip";
+import DomainName from "@/components/DomainName";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,9 +69,16 @@ import {
   VALUE_CELL_SX,
 } from "@/utils/layout";
 import { PRODUCT } from "@/utils/product";
+import { getOperator, type OperatorData } from "@/queries/operator";
+import { useIntegrationsContext } from "./types";
+import { IdentityRow, ThisCoreSection, useDiameterStatus } from "./diameter";
+import NotListening from "@/components/NotListening";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXPIRY_WARNING_DAYS = 30;
+
+const N32_ADDRESS_HELP =
+  "Where your 5G roaming partners' SEPPs connect to Ella Core over N32.";
 
 const TRUST_ANCHOR_CHANGED_WARNING =
   "The trust anchor of this node changed: every roaming partner must import the new trust anchor before N32 with this node works again";
@@ -175,17 +181,8 @@ const EmptyRow: React.FC<{
   </TableRow>
 );
 
-interface RoamingSectionProps {
-  plmn?: PLMNID;
-  canEdit: boolean;
-  onModalOpenChange: (open: boolean) => void;
-}
-
-const RoamingSection: React.FC<RoamingSectionProps> = ({
-  plmn,
-  canEdit,
-  onModalOpenChange,
-}) => {
+export default function RoamingTab() {
+  const { canEdit } = useIntegrationsContext();
   const theme = useTheme();
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -218,11 +215,16 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
     importSEPPID !== null ||
     regenerate !== null;
 
-  useEffect(() => {
-    onModalOpenChange(anyModalOpen);
-  }, [anyModalOpen, onModalOpenChange]);
-
   const queriesEnabled = authReady && !!accessToken && !anyModalOpen;
+  const diameterQuery = useDiameterStatus(!anyModalOpen);
+
+  const operatorQuery = useQuery<OperatorData>({
+    queryKey: ["operator"],
+    enabled: queriesEnabled,
+    queryFn: () => getOperator(accessToken!),
+    placeholderData: (prev) => prev,
+  });
+  const plmn = operatorQuery.data?.id;
 
   const partnersQuery = useQuery<RoamingPartner[]>({
     queryKey: ["roaming-partners"],
@@ -364,6 +366,10 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
 
   const anchors = sepp?.trustAnchors ?? [];
   const seppEnabled = !!listener?.configured;
+  const n32Endpoint =
+    listener?.listening && listener.address
+      ? formatEndpoint(listener.address, listener.port)
+      : "";
   const fqdnOutsideDomain =
     seppEnabled &&
     !!domain &&
@@ -371,10 +377,7 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
     !ownCertificate.fqdn.endsWith(`.${domain}`);
 
   return (
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Roaming
-      </Typography>
+    <Box sx={{ mt: 3 }}>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
         Let subscribers of partner networks use your network. 5G roamers reach
         their home network through your SEPP, 4G roamers through a Diameter
@@ -398,34 +401,58 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
           {`The SEPP FQDN of this node is not under ${domain}. Import a new certificate.`}
         </Alert>
       )}
-      <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 4 }}>
-        <Table aria-label="SEPP">
-          <TableBody>
-            {!listener || !seppEnabled ? (
+      <ThisCoreSection
+        diameter={diameterQuery.data}
+        loading={diameterQuery.isLoading && !diameterQuery.data}
+        description="Ella Core's settings for your roaming partners. Give them its N32 Address, SEPP certificate and trust anchor for 5G, and its Diameter Realm and Origin-Host for 4G."
+        realmHelp="Ella Core's Diameter realm, set by the Operator ID (MCC/MNC). Your partners' HSS answers S6a requests to it."
+        before={
+          <>
+            {n32Endpoint ? (
+              <IdentityRow
+                label="N32 Address"
+                help={N32_ADDRESS_HELP}
+                value={n32Endpoint}
+                copyAs="N32 address"
+              >
+                {n32Endpoint}
+              </IdentityRow>
+            ) : (
               <TableRow>
-                <TableCell sx={SETTING_CELL_SX}>SEPP</TableCell>
+                <TableCell sx={SETTING_CELL_SX}>
+                  <Tooltip title={N32_ADDRESS_HELP} arrow>
+                    <span>N32 Address</span>
+                  </Tooltip>
+                </TableCell>
                 <TableCell sx={VALUE_CELL_SX}>
                   {!listener ? (
                     <Skeleton variant="text" width={240} />
                   ) : (
-                    <>
-                      Disabled on this node.{" "}
-                      <MuiLink
+                    <NotListening
+                      setting="interfaces.n32"
+                      configured={seppEnabled}
+                      error={listener.error}
+                    />
+                  )}
+                </TableCell>
+                <TableCell sx={ACTION_CELL_SX}>
+                  {listener && !seppEnabled && (
+                    <Tooltip title="Learn how to enable roaming" arrow>
+                      <IconButton
+                        size="small"
                         href={PRODUCT.roamingDocsUrl}
                         target="_blank"
                         rel="noreferrer"
-                        underline="hover"
-                        sx={{ display: "inline-flex", alignItems: "center" }}
+                        aria-label="Learn how to enable roaming"
                       >
-                        Learn more
-                        <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
-                      </MuiLink>
-                    </>
+                        <OpenInNewIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
                   )}
                 </TableCell>
-                <TableCell sx={ACTION_CELL_SX} />
               </TableRow>
-            ) : (
+            )}
+            {listener && seppEnabled && (
               <>
                 <TableRow>
                   <TableCell sx={SETTING_CELL_SX}>Certificate</TableCell>
@@ -534,9 +561,9 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
                 </TableRow>
               </>
             )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+          </>
+        }
+      />
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
         Partners
@@ -559,8 +586,8 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
               <TableCell sx={{ width: "18%" }}>Name</TableCell>
               <TableCell sx={{ width: "14%" }}>PLMNs</TableCell>
               <TableCell sx={{ width: "14%" }}>Profile</TableCell>
-              <TableCell sx={{ width: "14%" }}>N32</TableCell>
               <TableCell>Diameter Peer</TableCell>
+              <TableCell sx={{ width: 150 }}>N32 Status</TableCell>
               <TableCell align="right" sx={{ width: 140 }}>
                 Actions
               </TableCell>
@@ -595,20 +622,24 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
                       {partner.profileName}
                     </Link>
                   </TableCell>
-                  <TableCell>
-                    {partner.n32 ? (
-                      <N32StatusChip n32={partner.n32} />
+                  <TableCell sx={{ wordBreak: "break-word" }}>
+                    {partner.diameterPeerID ? (
+                      peer ? (
+                        peer.originHost ? (
+                          <DomainName name={peer.originHost} />
+                        ) : (
+                          formatEndpoint(peer.address, peer.port)
+                        )
+                      ) : (
+                        partner.diameterPeerID
+                      )
                     ) : (
                       <Muted />
                     )}
                   </TableCell>
-                  <TableCell sx={{ wordBreak: "break-word" }}>
-                    {partner.diameterPeerID ? (
-                      peer ? (
-                        diameterPeerLabel(peer)
-                      ) : (
-                        partner.diameterPeerID
-                      )
+                  <TableCell>
+                    {partner.n32 ? (
+                      <N32StatusChip n32={partner.n32} />
                     ) : (
                       <Muted />
                     )}
@@ -663,7 +694,8 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          Peers that connect your network to the HSS of 4G partners.
+          Diameter edge agents or IPX nodes that connect Ella Core to the HSS of
+          4G partners.
         </Typography>
         {canEdit && (
           <AddButton
@@ -676,16 +708,17 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
         <Table sx={{ tableLayout: "fixed" }} aria-label="Diameter peers">
           <TableBody sx={headerRowSx}>
             <TableRow>
-              <TableCell sx={{ width: "25%" }}>Address</TableCell>
-              <TableCell sx={{ width: "35%" }}>Diameter Identity</TableCell>
+              <TableCell sx={{ width: "32%" }}>Origin-Host</TableCell>
+              <TableCell sx={{ width: "22%" }}>Address</TableCell>
               <TableCell>Partners</TableCell>
+              <TableCell sx={{ width: 150 }}>Status</TableCell>
               <TableCell align="right" sx={{ width: 100 }}>
                 Actions
               </TableCell>
             </TableRow>
             {peers.length === 0 && (
               <EmptyRow
-                colSpan={4}
+                colSpan={5}
                 loading={peersLoading}
                 text="No Diameter peers yet."
               />
@@ -695,14 +728,23 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
               const names = usedBy.get(peer.id) ?? [];
               return (
                 <TableRow key={peer.id}>
+                  <TableCell>
+                    {peer.originHost ? (
+                      <DomainName name={peer.originHost} />
+                    ) : (
+                      <Typography variant="body2" color="textSecondary">
+                        Any
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
                     {endpoint}
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
-                    {peer.diameterIdentity || "Any"}
-                  </TableCell>
-                  <TableCell sx={{ wordBreak: "break-word" }}>
                     {names.length ? names.join(", ") : <Muted />}
+                  </TableCell>
+                  <TableCell>
+                    <DiameterPeerStatusChip status={peer.status} />
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                     {canEdit && (
@@ -782,6 +824,9 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
             queryClient.invalidateQueries({
               queryKey: ["roaming-diameter-peers"],
             });
+            queryClient.invalidateQueries({
+              queryKey: ["integrations-diameter"],
+            });
             showSnackbar(
               peerModal.peer
                 ? "Diameter peer updated successfully."
@@ -798,7 +843,7 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
           onClose={() => setPeerToDelete(null)}
           onConfirm={handleDeletePeer}
           title="Delete Diameter Peer"
-          description={`Delete the Diameter peer ${formatEndpoint(peerToDelete.address, peerToDelete.port)}?`}
+          description={`Delete the Diameter peer ${formatEndpoint(peerToDelete.address, peerToDelete.port)}? Its connection is closed.`}
         />
       )}
       {importSEPPID !== null && (
@@ -832,6 +877,4 @@ const RoamingSection: React.FC<RoamingSectionProps> = ({
       )}
     </Box>
   );
-};
-
-export default RoamingSection;
+}

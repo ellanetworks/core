@@ -61,10 +61,10 @@ type roamingPartnersEnvelope struct {
 }
 
 type roamingDiameterPeerBody struct {
-	ID               string `json:"id,omitempty"`
-	DiameterIdentity string `json:"diameterIdentity,omitempty"`
-	Address          string `json:"address"`
-	Port             int    `json:"port,omitempty"`
+	ID         string `json:"id,omitempty"`
+	OriginHost string `json:"originHost,omitempty"`
+	Address    string `json:"address"`
+	Port       int    `json:"port,omitempty"`
 }
 
 type roamingDiameterPeerEnvelope struct {
@@ -102,9 +102,9 @@ type roamingMessageEnvelope struct {
 }
 
 const (
-	roamingPartnersPath      = "/api/v1/operator/roaming/partners"
-	roamingDiameterPeersPath = "/api/v1/operator/roaming/diameter-peers"
-	seppCertificatePath      = "/api/v1/operator/roaming/sepp/nodes/1/certificate"
+	roamingPartnersPath      = "/api/v1/integrations/roaming/partners"
+	roamingDiameterPeersPath = "/api/v1/integrations/roaming/diameter-peers"
+	seppCertificatePath      = "/api/v1/integrations/roaming/sepp/nodes/1/certificate"
 )
 
 func selfSignedPEM(t *testing.T, notAfter time.Time) string {
@@ -179,7 +179,7 @@ func TestRoamingPartners(t *testing.T) {
 
 	noSEPPIdentity("before any partner")
 
-	code, peer, err := apiDo[roamingDiameterPeerEnvelope](client, "POST", url+roamingDiameterPeersPath, token, roamingDiameterPeerBody{DiameterIdentity: "dea.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.10"})
+	code, peer, err := apiDo[roamingDiameterPeerEnvelope](client, "POST", url+roamingDiameterPeersPath, token, roamingDiameterPeerBody{OriginHost: "dea.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.10"})
 	if err != nil || code != http.StatusCreated {
 		t.Fatalf("create Diameter peer: code=%d err=%v (%q)", code, err, peer.Error)
 	}
@@ -437,7 +437,7 @@ func TestRoamingDiameterPeers(t *testing.T) {
 		{Address: "hss.example.org"},
 		{Address: "0.0.0.0"},
 		{Address: "192.0.2.2", Port: 70000},
-		{Address: "192.0.2.2", DiameterIdentity: "not a name"},
+		{Address: "192.0.2.2", OriginHost: "not a name"},
 	} {
 		if code, resp, _ := apiDo[roamingDiameterPeerEnvelope](client, "POST", url+roamingDiameterPeersPath, token, body); code != http.StatusBadRequest {
 			t.Fatalf("create %+v: code=%d (%q), want 400", body, code, resp.Error)
@@ -452,7 +452,7 @@ func TestRoamingDiameterPeers(t *testing.T) {
 		t.Fatalf("update without a port: code=%d (%q), want 400", code, resp.Error)
 	}
 
-	update := roamingDiameterPeerBody{DiameterIdentity: "hss.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.3", Port: 3869}
+	update := roamingDiameterPeerBody{OriginHost: "hss.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.3", Port: 3869}
 
 	if code, resp, err := apiDo[roamingMessageEnvelope](client, "PUT", url+roamingDiameterPeersPath+"/"+created.Result.ID, token, update); err != nil || code != http.StatusOK {
 		t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
@@ -487,7 +487,7 @@ func TestSEPPCertificate(t *testing.T) {
 	ctx := context.Background()
 	own := pki.PLMN{MCC: "001", MNC: "01"}
 	custom := "sepp2.5gc.mnc001.mcc001.3gppnetwork.org"
-	sepp2Path := "/api/v1/operator/roaming/sepp/nodes/2/certificate"
+	sepp2Path := "/api/v1/integrations/roaming/sepp/nodes/2/certificate"
 
 	for _, seppID := range []int{1, 2} {
 		if err := env.DB.PutGeneratedSEPPIdentity(ctx, seppID); err != nil {
@@ -500,7 +500,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("generated identity = %+v, %v", generated, err)
 	}
 
-	for _, path := range []string{"/api/v1/operator/roaming/sepp/nodes/0/certificate", "/api/v1/operator/roaming/sepp/nodes/64/certificate", "/api/v1/operator/roaming/sepp/nodes/x/certificate"} {
+	for _, path := range []string{"/api/v1/integrations/roaming/sepp/nodes/0/certificate", "/api/v1/integrations/roaming/sepp/nodes/64/certificate", "/api/v1/integrations/roaming/sepp/nodes/x/certificate"} {
 		if code, _, _ := apiDo[seppCertificateEnvelope](client, "DELETE", url+path, token, nil); code != http.StatusBadRequest {
 			t.Fatalf("delete %s: code=%d, want 400", path, code)
 		}
@@ -518,7 +518,7 @@ func TestSEPPCertificate(t *testing.T) {
 			} `json:"trustAnchor"`
 			Warnings []string `json:"warnings"`
 		} `json:"result"`
-	}](client, "POST", url+"/api/v1/operator/roaming/sepp/ca/regenerate", token, nil)
+	}](client, "POST", url+"/api/v1/integrations/roaming/sepp/ca/regenerate", token, nil)
 	if err != nil || code != http.StatusCreated || regenerated.Result.TrustAnchor.PEM == oldCA.CertPEM || len(regenerated.Result.Warnings) != 1 {
 		t.Fatalf("regenerate the CA: code=%d err=%v result=%+v", code, err, regenerated.Result)
 	}
@@ -566,7 +566,7 @@ func TestSEPPCertificate(t *testing.T) {
 		t.Fatalf("stored identity does not hold the imported key: %v", err)
 	}
 
-	code, status, err := apiDo[map[string]any](client, "GET", url+"/api/v1/operator/roaming/sepp", token, nil)
+	code, status, err := apiDo[map[string]any](client, "GET", url+"/api/v1/integrations/roaming/sepp", token, nil)
 	if err != nil || code != http.StatusOK {
 		t.Fatalf("status: code=%d err=%v", code, err)
 	}
@@ -753,7 +753,7 @@ func TestRoamingPermissions(t *testing.T) {
 		t.Fatalf("admin create Diameter peer: code=%d err=%v", code, err)
 	}
 
-	for _, path := range []string{roamingPartnersPath, roamingDiameterPeersPath, "/api/v1/operator/roaming/sepp"} {
+	for _, path := range []string{roamingPartnersPath, roamingDiameterPeersPath, "/api/v1/integrations/roaming/sepp"} {
 		if code, _, err := apiDo[map[string]any](readOnly, "GET", url+path, readOnlyToken, nil); err != nil || code != http.StatusOK {
 			t.Fatalf("read-only GET %s: code=%d err=%v", path, code, err)
 		}

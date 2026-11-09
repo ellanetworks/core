@@ -141,6 +141,20 @@ func migrateV27(ctx context.Context, tx *sql.Tx) error {
 			certChainPEM TEXT    NOT NULL CHECK (certChainPEM != ''),
 			keyPEM       TEXT    NOT NULL CHECK (keyPEM != '')
 		)`, SEPPIdentitiesTableName, SEPPIdentityGenerated, SEPPIdentityImported),
+		fmt.Sprintf(`CREATE TABLE %s (
+			singleton      BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+			homeDomain     TEXT    NOT NULL DEFAULT '' CHECK (homeDomain = lower(homeDomain)),
+			advertiseVoice BOOLEAN NOT NULL DEFAULT TRUE,
+			restrictPeers  BOOLEAN NOT NULL DEFAULT FALSE
+		)`, IMSSettingsTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			id         TEXT PRIMARY KEY,
+			name       TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (name != ''),
+			originHost TEXT CHECK (originHost != '' AND originHost = lower(originHost)),
+			realm      TEXT CHECK (realm != '' AND realm = lower(realm)),
+			addresses  TEXT NOT NULL CHECK (CASE WHEN json_valid(addresses) THEN json_type(addresses) = 'array' AND json_array_length(addresses) BETWEEN 1 AND 16 ELSE 0 END),
+			CHECK (originHost IS NOT NULL OR realm IS NOT NULL)
+		)`, IMSPeersTableName),
 	}
 
 	for _, stmt := range stmts {

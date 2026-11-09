@@ -81,8 +81,8 @@ const EditProfileIMSServiceProfilesModal: React.FC<
       {serviceProfilesQuery.isSuccess && names.length === 0 && (
         <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
           No service profiles yet. Add one on the{" "}
-          <Link component={RouterLink} to="/operator">
-            Operator page
+          <Link component={RouterLink} to="/integrations/ims">
+            Integrations › IMS tab
           </Link>{" "}
           first.
         </Typography>

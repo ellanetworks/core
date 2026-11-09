@@ -336,16 +336,16 @@ const RoamingPartnerModal: React.FC<RoamingPartnerModalProps> = ({
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
-      title={partner ? "Edit Roaming Partner" : "Create Roaming Partner"}
+      title={partner ? "Edit Roaming Partner" : "Add Roaming Partner"}
       form={form}
       onSubmit={submit}
       errorPrefix={
         partner
           ? "Failed to update roaming partner"
-          : "Failed to create roaming partner"
+          : "Failed to add roaming partner"
       }
-      submitLabel={partner ? "Update" : "Create"}
-      submittingLabel={partner ? "Updating..." : "Creating..."}
+      submitLabel={partner ? "Update" : "Add"}
+      submittingLabel={partner ? "Updating..." : "Adding..."}
       maxWidth="md"
     >
       <TextControl<FormValues>

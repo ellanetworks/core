@@ -951,7 +951,7 @@ var imsApplications = []diameter.Application{
 
 func imsPeer(link *diameternode.Manager) diameternode.PeerStatus {
 	for _, p := range link.Peers() {
-		if p.Role == diameternode.PeerRoleIMS {
+		if p.Inbound {
 			return p
 		}
 	}
@@ -1030,5 +1030,107 @@ func TestListenerAcceptsUnknownIMSPeersForCxAndRx(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestServedRealmsFollowTheIMSHomeDomain(t *testing.T) {
+	requireSCTP(t)
+
+	const homeDomain = "ims.example.com"
+
+	port := freePort(t)
+	source := newSettingsSource()
+
+	link, wakeup := startListeningManager(t, source, diameternode.ListenConfig{Address: loopback.String(), Port: port})
+
+	ims := newDialingNode(t, "scscf.ims.mnc001.mcc001.3gppnetwork.org", loopback2)
+	dialEllaFor(t, ims, port, diameter.TransportSCTP, imsApplications)
+
+	waitFor(t, "IMS peer open", func() bool { return ellaStatus(ims).State == diameter.PeerOpen })
+
+	uar := func(realm string) uint32 {
+		t.Helper()
+
+		req, err := cx.NewUserAuthorizationRequest(tgpp.Envelope{
+			SessionID:        ims.NewSessionID(),
+			Origin:           ims.Identity(),
+			DestinationRealm: realm,
+		}, cx.UserAuthorizationRequest{
+			PrivateIdentity: "001010000000001@" + homeDomain,
+			PublicIdentity:  "sip:001010000000001@" + homeDomain,
+			VisitedNetwork:  homeDomain,
+		})
+		if err != nil {
+			t.Fatalf("build UAR: %v", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		ans, err := ims.Do(ctx, "ella", req)
+		if err != nil {
+			t.Fatalf("UAR to %s: %v", realm, err)
+		}
+
+		result, err := tgpp.ParseResult(ans)
+		if err != nil {
+			t.Fatalf("parse UAA: %v", err)
+		}
+
+		return result.Code
+	}
+
+	if code := uar(homeDomain); code != diameter.ResultRealmNotServed {
+		t.Fatalf("UAR to the home domain before it is configured = %d, want %d", code, diameter.ResultRealmNotServed)
+	}
+
+	want := []string{ellaRealm, "ims.mnc001.mcc001.3gppnetwork.org"}
+	if got := link.ServedRealms(); !slices.Equal(got, want) {
+		t.Fatalf("served realms = %v, want %v", got, want)
+	}
+
+	node := link.Node()
+
+	settings := newSettingsSource().node
+	settings.HomeDomain = homeDomain
+	source.setNode(settings, nil)
+	poke(wakeup)
+
+	want = append(want, homeDomain)
+
+	waitFor(t, "the home domain served", func() bool { return slices.Equal(link.ServedRealms(), want) })
+
+	if link.Node() != node {
+		t.Fatal("setting the home domain restarted the Diameter node")
+	}
+
+	for _, realm := range []string{homeDomain, ellaRealm, "ims.mnc001.mcc001.3gppnetwork.org"} {
+		if code := uar(realm); code != diameter.ResultCommandUnsupported {
+			t.Fatalf("UAR to %s = %d, want it delivered to the (absent) Cx handler (%d)", realm, code, diameter.ResultCommandUnsupported)
+		}
+	}
+
+	if ellaStatus(ims).State != diameter.PeerOpen {
+		t.Fatal("setting the home domain disturbed the IMS peer")
+	}
+}
+
+func TestServedRealms(t *testing.T) {
+	got, err := diameternode.ServedRealms("001", "01", "IMS.mnc001.mcc001.3gppnetwork.org")
+	if err != nil {
+		t.Fatalf("ServedRealms: %v", err)
+	}
+
+	if want := []string{ellaRealm, "ims.mnc001.mcc001.3gppnetwork.org"}; !slices.Equal(got, want) {
+		t.Fatalf("served realms with the derived home domain = %v, want %v", got, want)
+	}
+
+	got, _ = diameternode.ServedRealms("001", "01", "example.com")
+	if want := []string{ellaRealm, "ims.mnc001.mcc001.3gppnetwork.org", "example.com"}; !slices.Equal(got, want) {
+		t.Fatalf("served realms = %v, want %v", got, want)
+	}
+
+	if _, err := diameternode.ServedRealms("1", "01", ""); err == nil {
+		t.Fatal("an invalid MCC was accepted")
 	}
 }

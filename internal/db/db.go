@@ -363,6 +363,13 @@ type Database struct {
 	getSMSSettingsStmt    *sqlair.Statement
 	upsertSMSSettingsStmt *sqlair.Statement
 
+	getIMSSettingsStmt    *sqlair.Statement
+	upsertIMSSettingsStmt *sqlair.Statement
+	listIMSPeersStmt      *sqlair.Statement
+	insertIMSPeerStmt     *sqlair.Statement
+	updateIMSPeerStmt     *sqlair.Statement
+	deleteIMSPeerStmt     *sqlair.Statement
+
 	listLegacySMSCPeersStmt            *sqlair.Statement
 	listLegacySMSCServiceCentresStmt   *sqlair.Statement
 	insertLegacySMSCPeerStmt           *sqlair.Statement
@@ -2180,6 +2187,12 @@ func (db *Database) PrepareStatements() error {
 
 		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
 		{&db.upsertSMSSettingsStmt, fmt.Sprintf(upsertSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
+		{&db.getIMSSettingsStmt, fmt.Sprintf(getIMSSettingsStmt, IMSSettingsTableName), []any{IMSSettings{}}},
+		{&db.upsertIMSSettingsStmt, fmt.Sprintf(upsertIMSSettingsStmt, IMSSettingsTableName), []any{IMSSettings{}}},
+		{&db.listIMSPeersStmt, fmt.Sprintf(listIMSPeersStmt, IMSPeersTableName), []any{imsPeerRow{}}},
+		{&db.insertIMSPeerStmt, fmt.Sprintf(insertIMSPeerStmt, IMSPeersTableName), []any{imsPeerRow{}}},
+		{&db.updateIMSPeerStmt, fmt.Sprintf(updateIMSPeerStmt, IMSPeersTableName), []any{imsPeerRow{}}},
+		{&db.deleteIMSPeerStmt, fmt.Sprintf(deleteIMSPeerStmt, IMSPeersTableName), []any{imsPeerRow{}}},
 		{&db.listLegacySMSCPeersStmt, fmt.Sprintf(listLegacySMSCPeersStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
 		{&db.listLegacySMSCServiceCentresStmt, fmt.Sprintf(listLegacySMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
 		{&db.insertLegacySMSCPeerStmt, fmt.Sprintf(insertLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},

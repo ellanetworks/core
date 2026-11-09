@@ -305,6 +305,24 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["pcscf_addresses"] = sections["pcscf_addresses"].WithCount(len(pcscfAddrs))
 	}
 
+	if imsSettings, err := db.GetIMSSettings(ctx); err != nil {
+		failure("ims_settings", err)
+	} else {
+		out["ims_settings"] = map[string]any{
+			"home_domain":     imsSettings.HomeDomain,
+			"advertise_voice": imsSettings.AdvertiseVoice,
+			"restrict_peers":  imsSettings.RestrictPeers,
+		}
+		sections["ims_settings"] = sections["ims_settings"].WithCount(1)
+	}
+
+	if imsPeers, err := db.ListIMSPeers(ctx); err != nil {
+		failure("ims_peers", err)
+	} else {
+		out["ims_peers"] = imsPeers
+		sections["ims_peers"] = sections["ims_peers"].WithCount(len(imsPeers))
+	}
+
 	retention := map[string]any{}
 
 	for _, category := range []RetentionCategory{CategoryAuditLogs, CategoryRadioLogs, CategorySubscriberUsage, CategoryFlowReports} {

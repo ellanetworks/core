@@ -15,7 +15,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
-import { diameterIdentityRegex } from "@/components/SMSCModal";
+import {
+  ORIGIN_HOST_HELP,
+  ORIGIN_HOST_LABEL,
+  fqdnRegex,
+} from "@/components/originHost";
 import { isHostAddress } from "@/utils/ip";
 
 interface RoamingDiameterPeerModalProps {
@@ -26,13 +30,13 @@ interface RoamingDiameterPeerModalProps {
 }
 
 const schema = yup.object({
-  diameterIdentity: yup
+  originHost: yup
     .string()
     .default("")
     .test(
-      "diameter-identity",
-      "Diameter identity must be a fully qualified domain name, for example hss.epc.mnc001.mcc001.3gppnetwork.org",
-      (v) => !v?.trim() || diameterIdentityRegex.test(v.trim()),
+      "origin-host",
+      "Origin-Host must be a fully qualified domain name, for example hss.epc.mnc001.mcc001.3gppnetwork.org",
+      (v) => !v?.trim() || fqdnRegex.test(v.trim()),
     ),
   address: yup
     .string()
@@ -65,7 +69,7 @@ const RoamingDiameterPeerModal: React.FC<RoamingDiameterPeerModalProps> = ({
     mode: "onTouched",
     resolver: yupResolver(schema),
     values: {
-      diameterIdentity: peer?.diameterIdentity ?? "",
+      originHost: peer?.originHost ?? "",
       address: peer?.address ?? "",
       port: peer?.port ?? DEFAULT_ROAMING_DIAMETER_PORT,
     },
@@ -74,7 +78,7 @@ const RoamingDiameterPeerModal: React.FC<RoamingDiameterPeerModalProps> = ({
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
     const input = {
-      diameterIdentity: values.diameterIdentity.trim(),
+      originHost: values.originHost.trim(),
       address: values.address.trim(),
       port: values.port,
     };
@@ -90,17 +94,14 @@ const RoamingDiameterPeerModal: React.FC<RoamingDiameterPeerModalProps> = ({
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
-      title={peer ? "Edit Diameter Peer" : "Create Diameter Peer"}
+      title={peer ? "Edit Diameter Peer" : "Add Diameter Peer"}
       form={form}
       onSubmit={submit}
       errorPrefix={
-        peer
-          ? "Failed to update Diameter peer"
-          : "Failed to create Diameter peer"
+        peer ? "Failed to update Diameter peer" : "Failed to add Diameter peer"
       }
-      submitLabel={peer ? "Update" : "Create"}
-      submittingLabel={peer ? "Updating..." : "Creating..."}
-      fullWidth={false}
+      submitLabel={peer ? "Update" : "Add"}
+      submittingLabel={peer ? "Updating..." : "Adding..."}
     >
       <TextControl<FormValues>
         name="address"
@@ -117,10 +118,10 @@ const RoamingDiameterPeerModal: React.FC<RoamingDiameterPeerModalProps> = ({
         helperText={`SCTP port of the peer's Diameter endpoint (default ${DEFAULT_ROAMING_DIAMETER_PORT}).`}
       />
       <TextControl<FormValues>
-        name="diameterIdentity"
-        label="Diameter Identity"
+        name="originHost"
+        label={ORIGIN_HOST_LABEL}
         placeholder="hss.epc.mnc001.mcc001.3gppnetwork.org"
-        helperText="Optional. The peer's Diameter host name (Origin-Host). Leave empty to accept the one it gives."
+        helperText={ORIGIN_HOST_HELP}
       />
     </FormDialog>
   );

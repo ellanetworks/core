@@ -199,7 +199,14 @@ var (
 	opDeleteStaleSMSWaiting  = registerChangesetOp("DeleteStaleSMSWaiting", (*Database).applyDeleteStaleSMSWaiting, RequireSchema(22))
 )
 
-var opReplacePCSCFAddresses = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
+var _ = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
+
+var (
+	opUpdateIMSSettings = registerChangesetOp("UpdateIMSSettings", (*Database).applyUpdateIMSSettings, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+	opCreateIMSPeer     = registerChangesetOp("CreateIMSPeer", (*Database).applyCreateIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+	opUpdateIMSPeer     = registerChangesetOp("UpdateIMSPeer", (*Database).applyUpdateIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+	opDeleteIMSPeer     = registerChangesetOp("DeleteIMSPeer", (*Database).applyDeleteIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+)
 
 var (
 	_                               = registerChangesetOp("CompareAndSwapIMSRegistration", (*Database).applyRetiredCompareAndSwapIMSRegistration, RequireSchema(23))

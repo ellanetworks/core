@@ -8,21 +8,19 @@ This guide connects Ella Core to an SMSC, such as [Ella SMSC](https://docs.ellan
 
 ## 1. Configure the SMSC
 
-Set your SMSC's HSS realm to `epc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, using your network's MCC and 3-digit MNC.
+In the Ella Core UI, go to **Integrations › SMS**. Under **This Core**, note the **Diameter Realm**, e.g. `epc.mnc001.mcc001.3gppnetwork.org`, and each node's **Origin-Host**.
 
-Example: `epc.mnc001.mcc001.3gppnetwork.org`
+Set your SMSC's HSS realm to the **Diameter Realm**. If your SMSC asks for Ella Core's Origin-Host, enter each node's.
 
 ## 2. Connect Ella Core to the SMSC
 
-In the Ella Core UI, go to the Operator page and scroll to the **SMS** section.
-
-Click the edit icon next to **SMS Number**, enter Ella Core's E.164 number for SMS, e.g. `+15550001111`, and click **Update**.
+In **Integrations › SMS**, click the edit icon next to **Serving Node Number**, enter Ella Core's E.164 number for SMS, e.g. `+15550001111`, and click **Update**.
 
 Click **Add SMSC** and configure the following settings:
 
 - **Name**: a name for your SMSC, e.g. `main`.
-- **Numbers**: the E.164 service centre addresses your SMSC serves, e.g. `+15550000000`.
-- **Nodes**: the **Address** of your SMSC's Diameter endpoint. If your SMSC has several Diameter nodes, click **Add Node** for each.
+- **Service Centre Addresses**: the E.164 service centre addresses your SMSC serves, e.g. `+15550000000`.
+- **Diameter Peers**: the **Address** of your SMSC's Diameter endpoint. If your SMSC has several Diameter nodes, click **Add Diameter Peer** for each.
 
 Click **Add**.
 

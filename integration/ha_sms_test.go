@@ -180,10 +180,10 @@ func waitForClusterSMSCLinks(ctx context.Context, nodes []*client.Client, smscTo
 				continue
 			}
 
-			hosts[i] = status.Host
+			hosts[i] = status.LocalOriginHost()
 
 			for _, p := range status.Peers {
-				if p.Role == "smsc" && p.State == "open" && status.Host != "" {
+				if p.Role == "smsc" && p.State == "open" && status.LocalOriginHost() != "" {
 					open++
 					break
 				}

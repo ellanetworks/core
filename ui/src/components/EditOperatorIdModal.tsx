@@ -5,10 +5,15 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
+import { useQuery } from "@tanstack/react-query";
+import { Alert, Link as MuiLink } from "@mui/material";
+import { Link as RouterLink } from "react-router-dom";
 import { updateOperatorID } from "@/queries/operator";
+import { getIMSSettings, type IMSSettings } from "@/queries/integrations";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
+import { PRODUCT } from "@/utils/product";
 
 interface EditOperatorIdModalProps {
   open: boolean;
@@ -33,13 +38,34 @@ const schema = yup.object({
 
 type FormValues = yup.InferType<typeof schema>;
 
+const IntegrationsLink: React.FC<{
+  tab: string;
+  label: string;
+  onClick: () => void;
+}> = ({ tab, label, onClick }) => (
+  <MuiLink
+    component={RouterLink}
+    to={`/integrations/${tab}`}
+    onClick={onClick}
+    sx={{ color: (theme) => theme.palette.link }}
+  >
+    {label}
+  </MuiLink>
+);
+
 const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
   open,
   onClose,
   onSuccess,
   initialData,
 }) => {
-  const { accessToken } = useAuth();
+  const { accessToken, authReady } = useAuth();
+  const imsQuery = useQuery<IMSSettings>({
+    queryKey: ["integrations-ims"],
+    enabled: open && authReady && !!accessToken,
+    queryFn: () => getIMSSettings(accessToken!),
+  });
+  const homeDomainConfigured = !!imsQuery.data?.homeDomain;
 
   const form = useForm<FormValues>({
     mode: "onTouched",
@@ -64,8 +90,19 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
       errorPrefix="Failed to update operator ID"
       submitLabel="Update"
       submittingLabel="Updating..."
-      fullWidth={false}
     >
+      <Alert severity="warning" sx={{ mb: 1 }}>
+        Changing the MCC or MNC changes {PRODUCT.name}&apos;s Diameter realm and
+        Origin-Host. Update them in your IMS, your SMSCs and your roaming
+        partners&apos; Diameter edge agents or IPX, and replace the SEPP
+        certificate: its FQDN is under the old MCC and MNC. The new values are
+        shown in Integrations ›{" "}
+        <IntegrationsLink tab="ims" label="IMS" onClick={onClose} />,{" "}
+        <IntegrationsLink tab="sms" label="SMS" onClick={onClose} /> and{" "}
+        <IntegrationsLink tab="roaming" label="Roaming" onClick={onClose} />.
+        {homeDomainConfigured &&
+          " The IMS home domain is configured separately and will not change."}
+      </Alert>
       <TextControl<FormValues> name="mcc" label="MCC" autoFocus />
       <TextControl<FormValues> name="mnc" label="MNC" />
     </FormDialog>

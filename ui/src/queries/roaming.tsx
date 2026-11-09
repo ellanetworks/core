@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
+import type { DiameterPeerStatus } from "@/queries/integrations";
+import { formatEndpoint } from "@/utils/ip";
 
 export const DEFAULT_ROAMING_DIAMETER_PORT = 3868;
 
@@ -44,13 +46,14 @@ export type RoamingPartner = RoamingPartnerInput & {
 };
 
 export type RoamingDiameterPeerInput = {
-  diameterIdentity: string;
+  originHost: string;
   address: string;
   port: number;
 };
 
 export type RoamingDiameterPeer = RoamingDiameterPeerInput & {
   id: string;
+  status?: DiameterPeerStatus;
 };
 
 export type SEPPSource = "generated" | "imported";
@@ -98,7 +101,7 @@ export type SEPPStatus = {
   trustAnchors: SEPPTrustAnchor[];
 };
 
-const ROAMING_PATH = "/api/v1/operator/roaming";
+const ROAMING_PATH = "/api/v1/integrations/roaming";
 const PARTNERS_PATH = `${ROAMING_PATH}/partners`;
 const PEERS_PATH = `${ROAMING_PATH}/diameter-peers`;
 const SEPP_PATH = `${ROAMING_PATH}/sepp`;
@@ -241,7 +244,7 @@ export const defaultNRFAPIRoot = (mcc: string, mnc: string) =>
 export const seppFQDN = (mcc: string, mnc: string, seppID: number) =>
   `sepp${seppID}.${plmnDomain(mcc, mnc)}`;
 
-export const formatPLMN = (plmn: PLMNID) => `${plmn.mcc}-${plmn.mnc}`;
+export const formatPLMN = (plmn: PLMNID) => `${plmn.mcc} / ${plmn.mnc}`;
 
 export const samePLMN = (a: PLMNID, b: PLMNID) =>
   a.mcc === b.mcc && paddedMNC(a.mnc) === paddedMNC(b.mnc);
@@ -278,12 +281,9 @@ export const parseSEPPFQDN = (fqdn: string): SEPPFQDNParts | null => {
 
 export const isWellKnownSEPPHost = (host: string) => host === "sepp";
 
-export const formatEndpoint = (address: string, port: number) =>
-  address.includes(":") ? `[${address}]:${port}` : `${address}:${port}`;
+export { formatEndpoint };
 
 export const diameterPeerLabel = (peer: RoamingDiameterPeer) => {
   const endpoint = formatEndpoint(peer.address, peer.port);
-  return peer.diameterIdentity
-    ? `${peer.diameterIdentity} (${endpoint})`
-    : endpoint;
+  return peer.originHost ? `${peer.originHost} (${endpoint})` : endpoint;
 };

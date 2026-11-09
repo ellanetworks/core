@@ -96,7 +96,7 @@ func TestIntegrationSMSCCluster(t *testing.T) {
 
 	nodes := make([]client.SMSCNodeOptions, 0, len(c.nodes))
 	for _, n := range c.nodes {
-		nodes = append(nodes, client.SMSCNodeOptions{DiameterIdentity: n.host, Address: n.address, Port: smscDiameterPort})
+		nodes = append(nodes, client.SMSCNodeOptions{OriginHost: n.host, Address: n.address, Port: smscDiameterPort})
 	}
 
 	if _, err := env.Client.CreateSMSC(ctx, &client.CreateSMSCOptions{
@@ -107,7 +107,7 @@ func TestIntegrationSMSCCluster(t *testing.T) {
 		t.Fatalf("add the SMSC: %v", err)
 	}
 
-	if err := env.Client.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: smsNumber}); err != nil {
+	if err := env.Client.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{ServingNodeNumber: smsNumber}); err != nil {
 		t.Fatalf("enable SMS: %v", err)
 	}
 

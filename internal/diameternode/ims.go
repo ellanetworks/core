@@ -18,6 +18,7 @@ const (
 	PeerRoleIMS     = "ims"
 	PeerRoleSMSC    = "smsc"
 	PeerRoleRoaming = "roaming"
+	PeerRoleUnknown = "unknown"
 )
 
 const etsiVendorID uint32 = 13019

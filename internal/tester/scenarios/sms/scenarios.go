@@ -375,19 +375,17 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 		return err
 	}
 
-	op, err := cl.GetOperator(ctx)
+	original, err := cl.GetSMSSettings(ctx)
 	if err != nil {
-		return fmt.Errorf("get operator: %w", err)
+		return fmt.Errorf("get SMS settings: %w", err)
 	}
 
-	original := op.SMS
-
-	if err := cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{}); err != nil {
-		return fmt.Errorf("clear the SMS number: %w", err)
+	if err := cl.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{}); err != nil {
+		return fmt.Errorf("clear the serving node number: %w", err)
 	}
 
 	restore := func() error {
-		return cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: original.SMSNumber})
+		return cl.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{ServingNodeNumber: original.ServingNodeNumber})
 	}
 
 	if err := during(); err != nil {
@@ -396,7 +394,7 @@ func withSMSDisabled(ctx context.Context, env scenarios.Env, during func() error
 	}
 
 	if err := restore(); err != nil {
-		return fmt.Errorf("restore the SMS number: %w", err)
+		return fmt.Errorf("restore the serving node number: %w", err)
 	}
 
 	return nil

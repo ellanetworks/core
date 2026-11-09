@@ -3,13 +3,19 @@
 
 import { beforeEach, describe, it, expect } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Outlet, Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
+import { stubDiameterStatus } from "@/test/diameter";
 import InterfacesTab from "./InterfacesTab";
 import type { NetworkingTabProps } from "./types";
 
 const api = setupApiServer();
+
+beforeEach(() => {
+  stubDiameterStatus(api);
+});
 
 const INTERFACES = "/api/v1/networking/interfaces";
 
@@ -90,9 +96,60 @@ describe("InterfacesTab N32", () => {
 
     renderTab();
 
+    const user = userEvent.setup();
     const n32 = within(await card("N32 (SEPP)"));
-    expect(n32.getByText(/Not listening/)).toBeInTheDocument();
-    expect(n32.getByText("interfaces.n32")).toBeInTheDocument();
+    await user.hover(n32.getByText("Not listening"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Set interfaces.n32 in the configuration file.",
+    );
     expect(n32.queryByText(/Port:/)).not.toBeInTheDocument();
+  });
+});
+
+describe("InterfacesTab Diameter", () => {
+  it("links to the Integrations tabs for identity and peers", async () => {
+    api.get(INTERFACES, () => ({
+      ...baseInterfaces,
+      diameter: { addresses: ["10.0.0.2"], port: 3868 },
+    }));
+
+    renderTab();
+
+    const diameter = within(await card("Diameter"));
+    expect(
+      ["IMS", "SMS", "Roaming"].map((name) =>
+        diameter.getByRole("link", { name }).getAttribute("href"),
+      ),
+    ).toEqual([
+      "/integrations/ims",
+      "/integrations/sms",
+      "/integrations/roaming",
+    ]);
+  });
+
+  it("explains in a tooltip why Diameter is not listening", async () => {
+    api.get(INTERFACES, () => baseInterfaces);
+
+    const user = userEvent.setup();
+    renderTab();
+
+    await user.hover(within(await card("Diameter")).getByText("Not listening"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Set interfaces.diameter in the configuration file.",
+    );
+  });
+});
+
+describe("InterfacesTab N32 link", () => {
+  it("links to Integrations › Roaming", async () => {
+    api.get(INTERFACES, () => baseInterfaces);
+
+    renderTab();
+
+    expect(
+      within(await card("N32 (SEPP)")).getByRole("link", {
+        name: "Integrations › Roaming",
+      }),
+    ).toHaveAttribute("href", "/integrations/roaming");
   });
 });

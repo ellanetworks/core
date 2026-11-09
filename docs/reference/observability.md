@@ -32,6 +32,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
 | app_connected_service_centers | Number of SMS service centers (SMSCs) connected to this node. | Gauge |
 | app_connected_ims_nodes | Number of IMS nodes connected to this node, which use it as their HSS or PCRF. | Gauge |
+| app_diameter_rejected_peers_total | Diameter peers whose capabilities exchange this node rejected, labeled by `reason` (`not_allowed`: the peer matches no allowed IMS peer while peers are restricted). | Counter |
 | app_connected_roaming_partners | Number of roaming partners connected to this node, labeled by `interface`: `n32` (N32-c context established) or `s6a` (Diameter peer open). | Gauge |
 | app_peer_requests_total | Requests this node sent to the home network of roaming partners, labeled by `interface` (`n32`, `s6a`) and `result` (`success`, `failure`, `error`, `timeout`). | Counter |
 | app_peer_request_duration_seconds | Duration of requests this node sent to the home network of roaming partners, labeled by `interface`. | Histogram |

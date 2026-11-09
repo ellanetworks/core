@@ -77,7 +77,7 @@ func createPartnerWithRoamers(t *testing.T, env testEnv, client *http.Client, to
 
 	url := env.Server.URL
 
-	code, peer, err := apiDo[roamingDiameterPeerEnvelope](client, "POST", url+roamingDiameterPeersPath, token, roamingDiameterPeerBody{DiameterIdentity: "dea.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.10"})
+	code, peer, err := apiDo[roamingDiameterPeerEnvelope](client, "POST", url+roamingDiameterPeersPath, token, roamingDiameterPeerBody{OriginHost: "dea.epc.mnc093.mcc208.3gppnetwork.org", Address: "192.0.2.10"})
 	if err != nil || code != http.StatusCreated {
 		t.Fatalf("create Diameter peer: code=%d err=%v (%q)", code, err, peer.Error)
 	}

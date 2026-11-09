@@ -143,7 +143,7 @@ None
 
 ## Get a Profile's IMS Service Profiles
 
-This path returns the [IMS service profile](operator.md#create-an-ims-service-profile) of each registration set of the profile. A set without one is `null`.
+This path returns the [IMS service profile](integrations.md#create-an-ims-service-profile) of each registration set of the profile. A set without one is `null`.
 
 | Method | Path                                           |
 | ------ | ---------------------------------------------- |

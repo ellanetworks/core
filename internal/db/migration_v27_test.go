@@ -301,6 +301,33 @@ func TestMigrationV27EnforcesRoamingConstraints(t *testing.T) {
 	mustFail(t, conn, `INSERT INTO sepp_ca (certPEM, keyPEM) VALUES ('cert2', 'key2')`)
 }
 
+func TestMigrationV27EnforcesIMSConstraints(t *testing.T) {
+	conn := openV26WithData(t)
+
+	mustExec(t, conn, `INSERT INTO ims_settings (homeDomain) VALUES ('')`)
+
+	var advertiseVoice, restrictPeers bool
+	if err := conn.QueryRowContext(context.Background(), "SELECT advertiseVoice, restrictPeers FROM ims_settings").Scan(&advertiseVoice, &restrictPeers); err != nil {
+		t.Fatalf("read IMS settings: %v", err)
+	}
+
+	if !advertiseVoice || restrictPeers {
+		t.Fatalf("IMS settings defaults = advertiseVoice %t, restrictPeers %t", advertiseVoice, restrictPeers)
+	}
+
+	mustExec(t, conn, `INSERT INTO ims_peers (id, name, originHost, addresses) VALUES ('1', 'scscf', 'scscf.example.org', '["10.0.0.0/8"]')`)
+	mustExec(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('2', 'realm', 'ims.example.org', '["10.0.0.1/32"]')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('3', 'SCSCF', 'other.example.org', '["10.0.0.1/32"]')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, addresses) VALUES ('3', 'none', '["10.0.0.1/32"]')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, originHost, addresses) VALUES ('3', 'empty-host', '', '["10.0.0.1/32"]')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('3', 'upper', 'IMS.example.org', '["10.0.0.1/32"]')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm) VALUES ('3', 'no-addresses', 'ims.example.org')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('3', 'empty-addresses', 'ims.example.org', '[]')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('3', 'object', 'ims.example.org', '{}')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('3', 'invalid', 'ims.example.org', 'not json')`)
+	mustFail(t, conn, `INSERT INTO ims_peers (id, name, realm, addresses) VALUES ('3', 'too-many', 'ims.example.org', '["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17"]')`)
+}
+
 func TestMigrationV27KeepsSMSCNodesApartFromRoamingPeers(t *testing.T) {
 	ctx := context.Background()
 	d := newDatabaseAtVersion(t, 26)

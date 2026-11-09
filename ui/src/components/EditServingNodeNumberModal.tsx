@@ -5,31 +5,33 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { updateOperatorSMS } from "@/queries/operator";
+import { updateSMSSettings } from "@/queries/integrations";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import { msisdnSchema } from "@/components/subscriberIdentity";
 import { PRODUCT } from "@/utils/product";
 
-interface EditOperatorSMSModalProps {
+export const SERVING_NODE_NUMBER_HELP = `E.164 number ${PRODUCT.name} gives the SMSC as the serving MME/SMSF address for mobile-terminated SMS.`;
+
+interface EditServingNodeNumberModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: { smsNumber: string };
+  initialData: { servingNodeNumber: string };
 }
 
 const schema = yup.object({
-  smsNumber: msisdnSchema.test(
+  servingNodeNumber: msisdnSchema.test(
     "required",
-    "SMS number is required",
+    "Serving node number is required",
     (v) => !!v?.trim(),
   ),
 });
 
 type FormValues = yup.InferType<typeof schema>;
 
-const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
+const EditServingNodeNumberModal: React.FC<EditServingNodeNumberModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -39,13 +41,13 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
   const form = useForm<FormValues>({
     mode: "onTouched",
     resolver: yupResolver(schema),
-    values: { smsNumber: initialData.smsNumber },
+    values: { servingNodeNumber: initialData.servingNodeNumber },
   });
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await updateOperatorSMS(accessToken, {
-      smsNumber: values.smsNumber.trim(),
+    await updateSMSSettings(accessToken, {
+      servingNodeNumber: values.servingNodeNumber.trim(),
     });
   };
 
@@ -54,8 +56,8 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
-      title="SMS Number"
-      description={`${PRODUCT.name}'s own E.164 number, given to SMSCs when they deliver messages to your subscribers.`}
+      title="Serving Node Number"
+      description={SERVING_NODE_NUMBER_HELP}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update SMS settings"
@@ -64,7 +66,7 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
       fullWidth={false}
     >
       <TextControl<FormValues>
-        name="smsNumber"
+        name="servingNodeNumber"
         label="E.164 Number"
         placeholder="+15550001111"
         helperText="For example +15550001111."
@@ -74,4 +76,4 @@ const EditOperatorSMSModal: React.FC<EditOperatorSMSModalProps> = ({
   );
 };
 
-export default EditOperatorSMSModal;
+export default EditServingNodeNumberModal;

@@ -27,10 +27,10 @@ beforeEach(() => {
     per_page: 100,
     total_count: 0,
   }));
-  api.get("/api/v1/operator/ims/service-profiles", () => ({
+  api.get("/api/v1/integrations/ims/service-profiles", () => ({
     items: [
-      { name: "mcptt", initial_filter_criteria: [] },
-      { name: "volte", initial_filter_criteria: [] },
+      { name: "mcptt", initialFilterCriteria: [] },
+      { name: "volte", initialFilterCriteria: [] },
     ],
   }));
   api.get("/api/v1/networking/data-networks", () => ({
@@ -106,10 +106,10 @@ describe("ProfileDetail IMS service profiles", () => {
     );
   });
 
-  it("points to the Operator page when there is no service profile", async () => {
+  it("points to the Integrations IMS tab when there is no service profile", async () => {
     const user = userEvent.setup();
     api.get(SP_PATH, () => ({}));
-    api.get("/api/v1/operator/ims/service-profiles", () => ({ items: [] }));
+    api.get("/api/v1/integrations/ims/service-profiles", () => ({ items: [] }));
     renderProfile();
 
     await (await card()).findByText("MMTel (voice, SMS)");
@@ -120,7 +120,7 @@ describe("ProfileDetail IMS service profiles", () => {
       await screen.findByRole("dialog", { name: "Edit IMS Service Profiles" }),
     );
     expect(
-      await dialog.findByRole("link", { name: "Operator page" }),
+      await dialog.findByRole("link", { name: "Integrations › IMS tab" }),
     ).toBeInTheDocument();
   });
 

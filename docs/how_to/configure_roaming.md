@@ -28,7 +28,7 @@ Restart Ella Core.
 
 ### 2. Exchange information with the partner
 
-On the **Operator** page, the **Certificate** row of the **Roaming** section shows each node's SEPP FQDN. The **N32 (SEPP)** card of the **Networking** page's **Interfaces** tab shows each node's N32 address.
+On each node, go to **Integrations › Roaming**. Under **This Core**, note the SEPP FQDN from the **Certificate** row, and the **N32 Address**.
 
 Give the partner:
 
@@ -58,7 +58,7 @@ Add a policy on each data network that roamers may use, e.g. `internet`.
 
 ### 4. Add the partner
 
-On the **Operator** page, in the **Roaming** section, open **Partners** and click **Add Partner**:
+In **Integrations › Roaming**, open **Partners** and click **Add Partner**:
 
 - **Name**: e.g. `Partner Telecom`.
 - **MCC** and **MNC**: the partner's PLMN ID, e.g. `999` and `70`. Click **Add PLMN** for each other PLMN ID of the partner.
@@ -69,7 +69,7 @@ Click **Create**.
 
 ### 5. Verify
 
-In **Partners** on each node, the **N32** column shows **Established**.
+On each node, in **Integrations › Roaming**, the partner shows **Established** in the **N32 Status** column of **Partners**.
 
 Register a 5G UE with a SIM of the partner's network, with data roaming on. Open the **Roamers** tab of the **Subscribers** page of the node that serves it: the roamer appears, with its roaming partner.
 
@@ -87,7 +87,8 @@ Give the partner:
 | Item | Example |
 | ---- | ------- |
 | Your PLMN ID | `001/01` |
-| Each node's Diameter identity, from its [Diameter status](../reference/api/networking.md#get-diameter-status) | `mmec01.mmegi0001.mme.epc.mnc001.mcc001.3gppnetwork.org` |
+| The **Diameter Realm**, from **Integrations › Roaming**, under **This Core** | `epc.mnc001.mcc001.3gppnetwork.org` |
+| Each node's **Origin-Host**, from the same place | `mmec01.mmegi0001.mme.epc.mnc001.mcc001.3gppnetwork.org` |
 | Each node's Diameter address and port (`interfaces.diameter`) | `192.0.2.11`, `3868` |
 
 Get from the partner:
@@ -105,7 +106,7 @@ Add a policy on each data network that roamers may use, e.g. `internet`.
 
 ### 3. Add the Diameter peer
 
-On the **Operator** page, in the **Roaming** section, open **Diameter peers** and click **Add Diameter Peer**:
+In **Integrations › Roaming**, open **Diameter Peers** and click **Add Diameter Peer**:
 
 - **Address**: the partner's HSS or Diameter Edge Agent, e.g. `198.51.100.5`.
 - **Port**: e.g. `3868`.
@@ -125,9 +126,9 @@ Click **Create**.
 
 ### 5. Verify
 
-The partner's Diameter peer is `open` in each node's [Diameter status](../reference/api/networking.md#get-diameter-status).
+On each node, in **Integrations › Roaming**, the partner's Diameter peer shows **Connected** under **Diameter Peers**.
 
 Attach a 4G UE with a SIM of the partner's network, with data roaming on. Open the **Roamers** tab of the **Subscribers** page of the node that serves it: the roamer appears, with its roaming partner.
 
 !!! note
-    All steps in this guide can also be performed via the REST API. See the [Operator API reference](../reference/api/operator.md#list-roaming-partners) for details.
+    All steps in this guide can also be performed via the REST API. See the [Integrations API reference](../reference/api/integrations.md#list-roaming-partners) for details.

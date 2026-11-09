@@ -18,8 +18,8 @@ import (
 
 type IMSApplicationServerItem struct {
 	Name                    string   `json:"name"`
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type IMSApplicationServerResponse struct {
@@ -41,11 +41,11 @@ type IMSHeaderMatch struct {
 
 type IMSCondition struct {
 	Negated           bool            `json:"negated,omitempty"`
-	RequestURI        *string         `json:"request_uri,omitempty"`
+	RequestURI        *string         `json:"requestURI,omitempty"`
 	Method            *string         `json:"method,omitempty"`
-	RegistrationTypes []string        `json:"registration_types,omitempty"`
-	SIPHeader         *IMSHeaderMatch `json:"sip_header,omitempty"`
-	SessionCase       *string         `json:"session_case,omitempty"`
+	RegistrationTypes []string        `json:"registrationTypes,omitempty"`
+	SIPHeader         *IMSHeaderMatch `json:"sipHeader,omitempty"`
+	SessionCase       *string         `json:"sessionCase,omitempty"`
 }
 
 type IMSConditionGroup struct {
@@ -53,24 +53,24 @@ type IMSConditionGroup struct {
 }
 
 type IMSTrigger struct {
-	ConditionsMatch string              `json:"conditions_match"`
+	ConditionsMatch string              `json:"conditionsMatch"`
 	Groups          []IMSConditionGroup `json:"groups"`
 }
 
 type IMSInitialFilterCriterion struct {
 	Priority                int         `json:"priority"`
-	ApplicationServerName   string      `json:"application_server_name"`
+	ApplicationServerName   string      `json:"applicationServerName"`
 	Trigger                 *IMSTrigger `json:"trigger,omitempty"`
-	ProfilePart             *string     `json:"profile_part,omitempty"`
-	DefaultHandling         *string     `json:"default_handling,omitempty"`
-	ServiceInfo             *string     `json:"service_info,omitempty"`
-	IncludeRegisterRequest  bool        `json:"include_register_request"`
-	IncludeRegisterResponse bool        `json:"include_register_response"`
+	ProfilePart             *string     `json:"profilePart,omitempty"`
+	DefaultHandling         *string     `json:"defaultHandling,omitempty"`
+	ServiceInfo             *string     `json:"serviceInfo,omitempty"`
+	IncludeRegisterRequest  bool        `json:"includeRegisterRequest"`
+	IncludeRegisterResponse bool        `json:"includeRegisterResponse"`
 }
 
 type IMSServiceProfileBody struct {
 	Name                  string                      `json:"name,omitempty"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 type IMSServiceProfileResponse struct {
@@ -103,8 +103,8 @@ type IMSMessageResponse struct {
 }
 
 const (
-	imsASPath = "/api/v1/operator/ims/application-servers"
-	imsSPPath = "/api/v1/operator/ims/service-profiles"
+	imsASPath = "/api/v1/integrations/ims/application-servers"
+	imsSPPath = "/api/v1/integrations/ims/service-profiles"
 )
 
 type fakeIMSProfileNotifier struct {
@@ -333,8 +333,8 @@ func TestIMSApplicationServers(t *testing.T) {
 }
 
 type UpdateIMSAS struct {
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 func updateIMSAS(url string, client *http.Client, token, name string, as UpdateIMSAS) (int, error) {
@@ -462,7 +462,7 @@ func TestIMSServiceProfiles_TS29228_B2(t *testing.T) {
 
 	for name, body := range map[string]map[string]any{
 		"no initial filter criteria": {},
-		"an unknown field":           {"initial_filter_criteria": []any{}, "initial_filter_criterion": []any{}},
+		"an unknown field":           {"initialFilterCriteria": []any{}, "initialFilterCriterion": []any{}},
 	} {
 		if status, resp, err := apiDo[IMSMessageResponse](client, "PUT", path, token, body); err != nil || status != http.StatusBadRequest {
 			t.Fatalf("%s: status %d, response %+v, err %v; want 400", name, status, resp, err)
@@ -729,7 +729,7 @@ func TestIMSNamesAreBounded(t *testing.T) {
 	url := env.Server.URL
 	long := strings.Repeat("a", 256)
 
-	status, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/operator/ims/application-servers", token, map[string]any{"name": long, "server_name": "sip:as.example.org"})
+	status, _, err := apiDo[map[string]any](client, "POST", url+"/api/v1/integrations/ims/application-servers", token, map[string]any{"name": long, "serverName": "sip:as.example.org"})
 	if err != nil || status != http.StatusBadRequest {
 		t.Fatalf("create an application server with a 256-character name: status %d, err %v", status, err)
 	}

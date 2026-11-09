@@ -11,53 +11,53 @@ import IMSServiceProfileModal from "./IMSServiceProfileModal";
 
 const api = setupApiServer();
 
-const SP_PATH = "/api/v1/operator/ims/service-profiles";
+const SP_PATH = "/api/v1/integrations/ims/service-profiles";
 const SP_ITEM_PATH = `${SP_PATH}/sp`;
-const AS_PATH = "/api/v1/operator/ims/application-servers";
+const AS_PATH = "/api/v1/integrations/ims/application-servers";
 
 const registerIFC = {
-  application_server_name: "voicemail",
+  applicationServerName: "voicemail",
   trigger: {
-    conditions_match: "all",
+    conditionsMatch: "all",
     groups: [{ conditions: [{ method: "REGISTER" }] }],
   },
-  default_handling: "SESSION_CONTINUED",
-  include_register_request: false,
-  include_register_response: false,
+  defaultHandling: "SESSION_CONTINUED",
+  includeRegisterRequest: false,
+  includeRegisterResponse: false,
 };
 
 const terminatingIFC = {
-  application_server_name: "conf",
+  applicationServerName: "conf",
   trigger: {
-    conditions_match: "all",
-    groups: [{ conditions: [{ session_case: "TERMINATING_UNREGISTERED" }] }],
+    conditionsMatch: "all",
+    groups: [{ conditions: [{ sessionCase: "TERMINATING_UNREGISTERED" }] }],
   },
-  default_handling: "SESSION_TERMINATED",
-  include_register_request: false,
-  include_register_response: false,
+  defaultHandling: "SESSION_TERMINATED",
+  includeRegisterRequest: false,
+  includeRegisterResponse: false,
 };
 
 const mcpttPresetIFCs = [
   {
-    application_server_name: "mcptt",
+    applicationServerName: "mcptt",
     trigger: {
-      conditions_match: "all",
+      conditionsMatch: "all",
       groups: [{ conditions: [{ method: "REGISTER" }] }],
     },
-    default_handling: "SESSION_CONTINUED",
-    include_register_request: true,
-    include_register_response: true,
+    defaultHandling: "SESSION_CONTINUED",
+    includeRegisterRequest: true,
+    includeRegisterResponse: true,
   },
   {
-    application_server_name: "mcptt",
+    applicationServerName: "mcptt",
     trigger: {
-      conditions_match: "all",
+      conditionsMatch: "all",
       groups: [
         {
           conditions: [
-            { session_case: "ORIGINATING_REGISTERED" },
+            { sessionCase: "ORIGINATING_REGISTERED" },
             {
-              sip_header: {
+              sipHeader: {
                 header: "^P-Asserted-Service$",
                 content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
               },
@@ -66,7 +66,7 @@ const mcpttPresetIFCs = [
         },
       ],
     },
-    default_handling: "SESSION_TERMINATED",
+    defaultHandling: "SESSION_TERMINATED",
   },
 ];
 
@@ -74,20 +74,24 @@ const onSuccess = vi.fn();
 
 beforeEach(() => {
   onSuccess.mockReset();
-  api.get("/api/v1/operator", () => ({
-    ims: { homeDomain: "ims.example.org" },
+  api.get("/api/v1/integrations/ims", () => ({
+    pcscfAddresses: [],
+    voiceStatus: "no_pcscf",
+    homeDomain: "",
+    derivedHomeDomain: "ims.example.org",
+    restrictPeers: true,
   }));
   api.get(AS_PATH, () => ({
     items: [
       {
         name: "mcptt",
-        server_name: "sip:mcptt.ims.example.org",
-        public_service_identities: [],
+        serverName: "sip:mcptt.ims.example.org",
+        publicServiceIdentities: [],
       },
       {
         name: "voicemail",
-        server_name: "sip:vm.ims.example.org",
-        public_service_identities: [],
+        serverName: "sip:vm.ims.example.org",
+        publicServiceIdentities: [],
       },
     ],
   }));
@@ -101,7 +105,7 @@ const openEditor = async (criteria: object[]) => {
       onSuccess={onSuccess}
       serviceProfile={{
         name: "sp",
-        initial_filter_criteria: criteria as IMSInitialFilterCriterion[],
+        initialFilterCriteria: criteria as IMSInitialFilterCriterion[],
       }}
     />,
     { auth: { role: "Admin" } },
@@ -172,7 +176,7 @@ describe("IMS service profile filter criteria", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(
       api.requests(SP_PATH).find((r) => r.method === "POST")?.body,
-    ).toEqual({ name: "mcptt", initial_filter_criteria: mcpttPresetIFCs });
+    ).toEqual({ name: "mcptt", initialFilterCriteria: mcpttPresetIFCs });
   });
 
   it("saves the criteria unchanged without priorities", async () => {
@@ -197,7 +201,7 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [registerIFC, terminatingIFC],
+      initialFilterCriteria: [registerIFC, terminatingIFC],
     });
   });
 
@@ -229,17 +233,17 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [
+      initialFilterCriteria: [
         {
           ...registerIFC,
           trigger: {
-            conditions_match: "all",
+            conditionsMatch: "all",
             groups: [
               {
                 conditions: [
                   {
                     method: "REGISTER",
-                    registration_types: [
+                    registrationTypes: [
                       "INITIAL_REGISTRATION",
                       "DE-REGISTRATION",
                     ],
@@ -248,7 +252,7 @@ describe("IMS service profile filter criteria", () => {
               },
             ],
           },
-          default_handling: "SESSION_TERMINATED",
+          defaultHandling: "SESSION_TERMINATED",
         },
       ],
     });
@@ -302,23 +306,23 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [
+      initialFilterCriteria: [
         {
-          application_server_name: "voicemail",
+          applicationServerName: "voicemail",
           trigger: {
-            conditions_match: "any",
+            conditionsMatch: "any",
             groups: [
               { conditions: [{ method: "INVITE" }, { method: "MESSAGE" }] },
               {
                 conditions: [
-                  { negated: true, sip_header: { header: "^Privacy$" } },
+                  { negated: true, sipHeader: { header: "^Privacy$" } },
                 ],
               },
             ],
           },
-          default_handling: "SESSION_CONTINUED",
-          include_register_request: false,
-          include_register_response: false,
+          defaultHandling: "SESSION_CONTINUED",
+          includeRegisterRequest: false,
+          includeRegisterResponse: false,
         },
       ],
     });
@@ -344,14 +348,14 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [
+      initialFilterCriteria: [
         {
-          application_server_name: "mcptt",
-          default_handling: "SESSION_CONTINUED",
-          profile_part: "UNREGISTERED",
-          service_info: "vm",
-          include_register_request: false,
-          include_register_response: false,
+          applicationServerName: "mcptt",
+          defaultHandling: "SESSION_CONTINUED",
+          profilePart: "UNREGISTERED",
+          serviceInfo: "vm",
+          includeRegisterRequest: false,
+          includeRegisterResponse: false,
         },
       ],
     });
@@ -428,7 +432,7 @@ describe("IMS service profile filter criteria", () => {
     await user.click(dialog.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(putBody()).toEqual({ initial_filter_criteria: [terminatingIFC] });
+    expect(putBody()).toEqual({ initialFilterCriteria: [terminatingIFC] });
   });
 
   it("reorders criteria by dragging", async () => {
@@ -453,7 +457,7 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [terminatingIFC, registerIFC],
+      initialFilterCriteria: [terminatingIFC, registerIFC],
     });
   });
 
@@ -484,7 +488,7 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [...mcpttPresetIFCs, registerIFC],
+      initialFilterCriteria: [...mcpttPresetIFCs, registerIFC],
     });
   });
 
@@ -495,13 +499,13 @@ describe("IMS service profile filter criteria", () => {
       items: [
         {
           name: "mcptt",
-          server_name: "sip:ptt.example.org",
-          public_service_identities: [],
+          serverName: "sip:ptt.example.org",
+          publicServiceIdentities: [],
         },
         {
           name: "ella",
-          server_name: "sip:mcptt.ims.example.org",
-          public_service_identities: [],
+          serverName: "sip:mcptt.ims.example.org",
+          publicServiceIdentities: [],
         },
       ],
     }));
@@ -519,8 +523,8 @@ describe("IMS service profile filter criteria", () => {
       items: [
         {
           name: "ip-sm-gw",
-          server_name: "sip:ipsmgw.ims.example.org",
-          public_service_identities: [],
+          serverName: "sip:ipsmgw.ims.example.org",
+          publicServiceIdentities: [],
         },
       ],
     }));
@@ -533,28 +537,28 @@ describe("IMS service profile filter criteria", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(putBody()).toEqual({
-      initial_filter_criteria: [
+      initialFilterCriteria: [
         {
-          application_server_name: "ip-sm-gw",
+          applicationServerName: "ip-sm-gw",
           trigger: {
-            conditions_match: "all",
+            conditionsMatch: "all",
             groups: [{ conditions: [{ method: "REGISTER" }] }],
           },
-          default_handling: "SESSION_CONTINUED",
-          include_register_request: true,
-          include_register_response: true,
+          defaultHandling: "SESSION_CONTINUED",
+          includeRegisterRequest: true,
+          includeRegisterResponse: true,
         },
         {
-          application_server_name: "ip-sm-gw",
+          applicationServerName: "ip-sm-gw",
           trigger: {
-            conditions_match: "all",
+            conditionsMatch: "all",
             groups: [
               {
                 conditions: [
                   { method: "MESSAGE" },
-                  { session_case: "ORIGINATING_REGISTERED" },
+                  { sessionCase: "ORIGINATING_REGISTERED" },
                   {
-                    sip_header: {
+                    sipHeader: {
                       header: "^Content-Type$",
                       content: "^application/vnd\\.3gpp\\.sms$",
                     },
@@ -563,19 +567,19 @@ describe("IMS service profile filter criteria", () => {
               },
             ],
           },
-          default_handling: "SESSION_CONTINUED",
+          defaultHandling: "SESSION_CONTINUED",
         },
       ],
     });
   });
 
-  it("points to the Operator page when there is no application server", async () => {
+  it("points to the Integrations IMS tab when there is no application server", async () => {
     const criteria: object[] = [];
     api.get(AS_PATH, () => ({ items: [] }));
 
     const dialog = await openEditor(criteria);
     expect(
-      await dialog.findByRole("link", { name: "Operator page" }),
+      await dialog.findByRole("link", { name: "Integrations › IMS tab" }),
     ).toBeInTheDocument();
     expect(
       dialog.queryByRole("button", { name: "Add Criterion" }),

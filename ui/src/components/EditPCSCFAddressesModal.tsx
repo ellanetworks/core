@@ -8,18 +8,23 @@ import * as yup from "yup";
 import {
   MAX_PCSCF_ADDRESSES,
   MAX_PCSCF_ADDRESSES_PER_FAMILY,
-  updateOperatorIMS,
-} from "@/queries/operator";
+  updateIMSSettings,
+} from "@/queries/integrations";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import { ipv4Regex, ipv6Regex, isHostName } from "@/utils/ip";
 
-interface EditOperatorIMSModalProps {
+interface EditPCSCFAddressesModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: { pcscfAddresses: string[] };
+  initialData: {
+    pcscfAddresses: string[];
+    homeDomain: string;
+    advertiseVoice: boolean;
+    restrictPeers: boolean;
+  };
 }
 
 export const splitAddresses = (value: string | undefined) =>
@@ -75,7 +80,7 @@ export const schema = yup.object({
 
 type FormValues = yup.InferType<typeof schema>;
 
-const EditOperatorIMSModal: React.FC<EditOperatorIMSModalProps> = ({
+const EditPCSCFAddressesModal: React.FC<EditPCSCFAddressesModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -90,8 +95,11 @@ const EditOperatorIMSModal: React.FC<EditOperatorIMSModalProps> = ({
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await updateOperatorIMS(accessToken, {
+    await updateIMSSettings(accessToken, {
       pcscfAddresses: splitAddresses(values.pcscfAddresses),
+      homeDomain: initialData.homeDomain,
+      advertiseVoice: initialData.advertiseVoice,
+      restrictPeers: initialData.restrictPeers,
     });
   };
 
@@ -104,7 +112,7 @@ const EditOperatorIMSModal: React.FC<EditOperatorIMSModalProps> = ({
       description="The IMS entry points handsets send their calls to, in order of preference. Handsets on an IMS data network receive them when they connect."
       form={form}
       onSubmit={submit}
-      errorPrefix="Failed to update voice settings"
+      errorPrefix="Failed to update P-CSCF addresses"
       submitLabel="Update"
       submittingLabel="Updating..."
       fullWidth={false}
@@ -120,4 +128,4 @@ const EditOperatorIMSModal: React.FC<EditOperatorIMSModalProps> = ({
   );
 };
 
-export default EditOperatorIMSModal;
+export default EditPCSCFAddressesModal;

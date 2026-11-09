@@ -65,7 +65,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
 	"github.com/ellanetworks/core/version"
@@ -536,6 +535,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		Address: cfg.Interfaces.Diameter.Address,
 		Port:    cfg.Interfaces.Diameter.Port,
 	}, logger.DiameterLog)
+	diameterNode.SetIMSPeersSource(imsPeersSource(dbInstance))
 	diameternode.RegisterMetrics(diameterNode)
 	smsf.RegisterMetrics()
 
@@ -556,12 +556,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	hssInstance := hss.New(&hssDBAdapter{db: dbInstance, subscriptions: subscriptions}, hssCredentials{ims: udm.NewIMSCredentials(ausfStore)}, diameterNode, hssSMS{smsf: smsfInstance}, logger.HssLog)
 	hssInstance.RegisterMetrics(prometheus.DefaultRegisterer)
 	hssInstance.Register(diameterNode)
-	amfInstance.IMSVoice = hssInstance
-	mmeInstance.IMSVoice = hssInstance
+
+	amfInstance.IMSVoice = imsVoiceSetting{db: dbInstance}
+	mmeInstance.IMSVoice = imsVoiceSetting{db: dbInstance}
 
 	pcfInstance.Attach(diameterNode, &rxOwners{db: dbInstance, directory: &diameterDirectory{db: dbInstance, node: diameterNode}, port: diameterPort(cfg)})
 
-	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity, db.TopicRoaming)
+	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicIMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity, db.TopicRoaming)
 
 	wg.Go(func() {
 		defer stopDiameterWakeup()
@@ -996,23 +997,17 @@ type hssDBAdapter struct {
 	subscriptions *udm.Subscriptions
 }
 
-func (a *hssDBAdapter) IMSDomain(ctx context.Context) (string, error) {
-	op, err := a.db.GetOperator(ctx)
+func (a *hssDBAdapter) IMSHomeDomains(ctx context.Context) (hss.HomeDomains, error) {
+	domains, err := a.db.GetIMSHomeDomains(ctx)
 	if err != nil {
-		return "", err
+		return hss.HomeDomains{}, err
 	}
 
-	return diameternode.IMSRealm(op.Mcc, op.Mnc)
+	return hss.HomeDomains{Primary: domains.Primary, Derived: domains.Derived}, nil
 }
 
 func (a *hssDBAdapter) CountRegistered(ctx context.Context) (int, error) {
 	return a.db.CountIMSRegistrations(ctx, db.IMSRegistered)
-}
-
-func (a *hssDBAdapter) IMSVoiceEnabled(ctx context.Context) (bool, error) {
-	status, err := a.db.IMSVoiceStatus(ctx)
-
-	return status == db.IMSVoiceEnabled, err
 }
 
 func (a *hssDBAdapter) Subscriber(ctx context.Context, imsi string) (*hss.Subscriber, error) {
@@ -1105,10 +1100,7 @@ func (a *hssDBAdapter) hssSubscriber(ctx context.Context, sub *db.Subscriber, er
 		IMSI:           sub.Imsi,
 		MSISDN:         sub.Msisdn,
 		IMSDataNetwork: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool { return c.IMS }),
-		IMSVoice: slices.ContainsFunc(sm.DNNs, func(c udm.DNNConfiguration) bool {
-			return c.IMS && c.DNN == models.IMSDataNetworkName
-		}),
-		MCPTT: mcptt,
+		MCPTT:          mcptt,
 	}, nil
 }
 
@@ -1564,6 +1556,40 @@ func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
 	}
 }
 
+type imsVoiceSetting struct {
+	db *db.Database
+}
+
+func (s imsVoiceSetting) AdvertiseIMSVoice(ctx context.Context) (bool, error) {
+	settings, err := s.db.GetIMSSettings(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return settings.AdvertiseVoice, nil
+}
+
+func imsPeersSource(dbInstance *db.Database) diameternode.IMSPeersSource {
+	return func(ctx context.Context) (diameternode.IMSPeerPolicy, error) {
+		settings, err := dbInstance.GetIMSSettings(ctx)
+		if err != nil {
+			return diameternode.IMSPeerPolicy{}, err
+		}
+
+		peers, err := dbInstance.ListIMSPeers(ctx)
+		if err != nil {
+			return diameternode.IMSPeerPolicy{}, err
+		}
+
+		policy := diameternode.IMSPeerPolicy{Restrict: settings.RestrictPeers, Peers: make([]diameternode.IMSPeer, 0, len(peers))}
+		for _, p := range peers {
+			policy.Peers = append(policy.Peers, p.Rule())
+		}
+
+		return policy, nil
+	}
+}
+
 func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
 	return func(ctx context.Context) (diameternode.NodeSettings, error) {
 		if dbInstance.ClusterEnabled() && !dbInstance.IsRaftConfigurationMember(dbInstance.RaftID()) {
@@ -1584,18 +1610,20 @@ func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
 			return diameternode.NodeSettings{}, fmt.Errorf("get operator: %w", err)
 		}
 
-		return diameterNodeSettings(op, pointer), nil
+		ims, err := dbInstance.GetIMSSettings(ctx)
+		if err != nil {
+			return diameternode.NodeSettings{}, fmt.Errorf("get IMS settings: %w", err)
+		}
+
+		settings := diameterNodeSettings(op, pointer)
+		settings.HomeDomain = ims.HomeDomain
+
+		return settings, nil
 	}
 }
 
 func diameterNodeSettings(op *db.Operator, pointer int) diameternode.NodeSettings {
-	mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{
-		AMFRegionID: op.GUAMIRegionID(),
-		AMFSetID:    uint16(op.AmfSetID), // #nosec G115 -- bounded to 10 bits by the operator API
-		AMFPointer:  uint8(pointer),      // #nosec G115 -- bounded to [1, 63]
-	})
-
-	return diameternode.NodeSettings{MCC: op.Mcc, MNC: op.Mnc, MMEGroupID: mapped.MMEGroupID, MMECode: mapped.MMECode}
+	return diameternode.NodeSettingsOf(op.Mcc, op.Mnc, op.GUAMIRegionID(), uint16(op.AmfSetID), uint8(pointer)) // #nosec G115 -- AMF Set ID bounded to 10 bits by the operator API, pointer to [1, 63]
 }
 
 type rxOwners struct {

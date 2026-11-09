@@ -9,14 +9,23 @@ import (
 	"testing"
 )
 
-type UpdateOperatorSMSParams struct {
-	SMSNumber string `json:"smsNumber"`
+type SMSSettingsParams struct {
+	ServingNodeNumber string `json:"servingNodeNumber"`
+}
+
+type SMSSettingsResult struct {
+	ServingNodeNumber string `json:"servingNodeNumber"`
+}
+
+type GetSMSSettingsResponse struct {
+	Result SMSSettingsResult `json:"result"`
+	Error  string            `json:"error,omitempty"`
 }
 
 type SMSCNodeParams struct {
-	DiameterIdentity string `json:"diameterIdentity,omitempty"`
-	Address          string `json:"address"`
-	Port             int    `json:"port,omitempty"`
+	OriginHost string `json:"originHost,omitempty"`
+	Address    string `json:"address"`
+	Port       int    `json:"port,omitempty"`
 }
 
 type SMSCParams struct {
@@ -44,32 +53,36 @@ type ListSMSCsResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-func updateOperatorSMS(url string, client *http.Client, token string, data *UpdateOperatorSMSParams) (int, *UpdateOperatorSMSResponse, error) {
-	return apiDo[UpdateOperatorSMSResponse](client, "PUT", url+"/api/v1/operator/sms", token, data)
+func updateSMSSettings(url string, client *http.Client, token string, data *SMSSettingsParams) (int, *UpdateOperatorSMSResponse, error) {
+	return apiDo[UpdateOperatorSMSResponse](client, "PUT", url+"/api/v1/integrations/sms", token, data)
+}
+
+func getSMSSettings(url string, client *http.Client, token string) (int, *GetSMSSettingsResponse, error) {
+	return apiDo[GetSMSSettingsResponse](client, "GET", url+"/api/v1/integrations/sms", token, nil)
 }
 
 func createSMSC(url string, client *http.Client, token string, data *SMSCParams) (int, *SMSCResponse, error) {
-	return apiDo[SMSCResponse](client, "POST", url+"/api/v1/operator/sms/smscs", token, data)
+	return apiDo[SMSCResponse](client, "POST", url+"/api/v1/integrations/sms/smscs", token, data)
 }
 
 func listSMSCs(url string, client *http.Client, token string) (int, *ListSMSCsResponse, error) {
-	return apiDo[ListSMSCsResponse](client, "GET", url+"/api/v1/operator/sms/smscs", token, nil)
+	return apiDo[ListSMSCsResponse](client, "GET", url+"/api/v1/integrations/sms/smscs", token, nil)
 }
 
 func getSMSC(url string, client *http.Client, token, name string) (int, *SMSCResponse, error) {
-	return apiDo[SMSCResponse](client, "GET", url+"/api/v1/operator/sms/smscs/"+name, token, nil)
+	return apiDo[SMSCResponse](client, "GET", url+"/api/v1/integrations/sms/smscs/"+name, token, nil)
 }
 
 func updateSMSC(url string, client *http.Client, token, name string, data *SMSCParams) (int, *UpdateOperatorSMSResponse, error) {
-	return apiDo[UpdateOperatorSMSResponse](client, "PUT", url+"/api/v1/operator/sms/smscs/"+name, token, data)
+	return apiDo[UpdateOperatorSMSResponse](client, "PUT", url+"/api/v1/integrations/sms/smscs/"+name, token, data)
 }
 
 func deleteSMSC(url string, client *http.Client, token, name string) (int, *UpdateOperatorSMSResponse, error) {
-	return apiDo[UpdateOperatorSMSResponse](client, "DELETE", url+"/api/v1/operator/sms/smscs/"+name, token, nil)
+	return apiDo[UpdateOperatorSMSResponse](client, "DELETE", url+"/api/v1/integrations/sms/smscs/"+name, token, nil)
 }
 
 func oneNode(identity, address string, port int, centres ...string) *SMSCParams {
-	return &SMSCParams{ServiceCentres: centres, Nodes: []SMSCNodeParams{{DiameterIdentity: identity, Address: address, Port: port}}}
+	return &SMSCParams{ServiceCentres: centres, Nodes: []SMSCNodeParams{{OriginHost: identity, Address: address, Port: port}}}
 }
 
 func named(name string, p *SMSCParams) *SMSCParams {
@@ -77,55 +90,55 @@ func named(name string, p *SMSCParams) *SMSCParams {
 	return p
 }
 
-func TestUpdateOperatorSMS(t *testing.T) {
+func TestUpdateSMSSettings(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 
-	getSMS := func(t *testing.T) GetOperatorSMSResponseResult {
+	getSMS := func(t *testing.T) SMSSettingsResult {
 		t.Helper()
 
-		code, resp, err := getOperator(env.Server.URL, client, token)
+		code, resp, err := getSMSSettings(env.Server.URL, client, token)
 		if err != nil {
-			t.Fatalf("get operator: %s", err)
+			t.Fatalf("get SMS settings: %s", err)
 		}
 
 		if code != http.StatusOK {
-			t.Fatalf("get operator: expected 200, got %d (%q)", code, resp.Error)
+			t.Fatalf("get SMS settings: expected 200, got %d (%q)", code, resp.Error)
 		}
 
-		return resp.Result.SMS
+		return resp.Result
 	}
 
-	t.Run("the SMS number has a default", func(t *testing.T) {
-		if got := getSMS(t); got != (GetOperatorSMSResponseResult{SMSNumber: "+15550001111"}) {
+	t.Run("the serving node number has a default", func(t *testing.T) {
+		if got := getSMS(t); got != (SMSSettingsResult{ServingNodeNumber: "+15550001111"}) {
 			t.Fatalf("sms = %+v, want the default number", got)
 		}
 	})
 
-	t.Run("the SMS number is cleared", func(t *testing.T) {
-		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{})
-		if err != nil || code != http.StatusCreated {
+	t.Run("the serving node number is cleared", func(t *testing.T) {
+		code, resp, err := updateSMSSettings(env.Server.URL, client, token, &SMSSettingsParams{})
+		if err != nil || code != http.StatusOK {
 			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
-		if got := getSMS(t); got != (GetOperatorSMSResponseResult{}) {
+		if got := getSMS(t); got != (SMSSettingsResult{}) {
 			t.Fatalf("sms = %+v", got)
 		}
 	})
 
-	t.Run("the SMS number is set", func(t *testing.T) {
-		code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{SMSNumber: "+15550001111"})
-		if err != nil || code != http.StatusCreated {
+	t.Run("the serving node number is set", func(t *testing.T) {
+		code, resp, err := updateSMSSettings(env.Server.URL, client, token, &SMSSettingsParams{ServingNodeNumber: "+15550001111"})
+		if err != nil || code != http.StatusOK {
 			t.Fatalf("update: code=%d err=%v (%q)", code, err, resp.Error)
 		}
 
-		if got := getSMS(t); got != (GetOperatorSMSResponseResult{SMSNumber: "+15550001111"}) {
+		if got := getSMS(t); got != (SMSSettingsResult{ServingNodeNumber: "+15550001111"}) {
 			t.Fatalf("sms = %+v", got)
 		}
 	})
 
 	t.Run("invalid numbers are rejected", func(t *testing.T) {
 		for _, number := range []string{"+0555", "15550001111"} {
-			code, resp, err := updateOperatorSMS(env.Server.URL, client, token, &UpdateOperatorSMSParams{SMSNumber: number})
+			code, resp, err := updateSMSSettings(env.Server.URL, client, token, &SMSSettingsParams{ServingNodeNumber: number})
 			if err != nil {
 				t.Fatalf("%s: %s", number, err)
 			}
@@ -135,7 +148,7 @@ func TestUpdateOperatorSMS(t *testing.T) {
 			}
 		}
 
-		if got := getSMS(t); got.SMSNumber != "+15550001111" {
+		if got := getSMS(t); got.ServingNodeNumber != "+15550001111" {
 			t.Fatalf("rejected updates changed the settings: %+v", got)
 		}
 	})
@@ -166,9 +179,9 @@ func TestSMSCs(t *testing.T) {
 			Name:           "a",
 			ServiceCentres: []string{"+15550000001", "+15550000000"},
 			Nodes: []SMSCNodeParams{
-				{DiameterIdentity: " smsc-a.example.org ", Address: "2001:DB8:0::10", Port: 3869},
-				{DiameterIdentity: "smsc-a2.example.org", Address: "2001:db8::11"},
-				{DiameterIdentity: "smsc-a3.example.org", Address: " SMSC-0.smsc.ella.svc.cluster.local "},
+				{OriginHost: " smsc-a.example.org ", Address: "2001:DB8:0::10", Port: 3869},
+				{OriginHost: "smsc-a2.example.org", Address: "2001:db8::11"},
+				{OriginHost: "smsc-a3.example.org", Address: " SMSC-0.smsc.ella.svc.cluster.local "},
 			},
 		})
 		if err != nil || code != http.StatusCreated {
@@ -176,9 +189,9 @@ func TestSMSCs(t *testing.T) {
 		}
 
 		wantNodes := []SMSCNodeResultItem{
-			{DiameterIdentity: "smsc-a.example.org", Address: "2001:db8::10", Port: 3869},
-			{DiameterIdentity: "smsc-a2.example.org", Address: "2001:db8::11", Port: 3868},
-			{DiameterIdentity: "smsc-a3.example.org", Address: "smsc-0.smsc.ella.svc.cluster.local", Port: 3868},
+			{OriginHost: "smsc-a.example.org", Address: "2001:db8::10", Port: 3869},
+			{OriginHost: "smsc-a2.example.org", Address: "2001:db8::11", Port: 3868},
+			{OriginHost: "smsc-a3.example.org", Address: "smsc-0.smsc.ella.svc.cluster.local", Port: 3868},
 		}
 
 		if created := resp.Result; created.Name != "a" || !slices.Equal(created.Nodes, wantNodes) {
@@ -270,8 +283,8 @@ func TestSMSCs(t *testing.T) {
 		update := &SMSCParams{
 			ServiceCentres: []string{"+15550000003"},
 			Nodes: []SMSCNodeParams{
-				{DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12"},
-				{DiameterIdentity: "smsc-192-0-2-13.example.org", Address: "192.0.2.13", Port: 3869},
+				{OriginHost: "smsc-192-0-2-12.example.org", Address: "192.0.2.12"},
+				{OriginHost: "smsc-192-0-2-13.example.org", Address: "192.0.2.13", Port: 3869},
 			},
 		}
 
@@ -282,8 +295,8 @@ func TestSMSCs(t *testing.T) {
 
 		got := smscs(t)[1]
 		wantNodes := []SMSCNodeResultItem{
-			{DiameterIdentity: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", Port: 3868},
-			{DiameterIdentity: "smsc-192-0-2-13.example.org", Address: "192.0.2.13", Port: 3869},
+			{OriginHost: "smsc-192-0-2-12.example.org", Address: "192.0.2.12", Port: 3868},
+			{OriginHost: "smsc-192-0-2-13.example.org", Address: "192.0.2.13", Port: 3869},
 		}
 
 		if got.Name != "b" || !slices.Equal(got.Nodes, wantNodes) || !slices.Equal(got.ServiceCentres, []string{"+15550000003"}) {
@@ -321,7 +334,7 @@ func TestSMSCs(t *testing.T) {
 
 	t.Run("nodes without an identity take the one they give", func(t *testing.T) {
 		code, resp, err := createSMSC(env.Server.URL, client, token, named("c", oneNode("", "192.0.2.20", 0, "+15550000005")))
-		if err != nil || code != http.StatusCreated || resp.Result.Nodes[0].DiameterIdentity != "" {
+		if err != nil || code != http.StatusCreated || resp.Result.Nodes[0].OriginHost != "" {
 			t.Fatalf("create: code=%d err=%v (%+v)", code, err, resp)
 		}
 

@@ -215,11 +215,11 @@ func TestRoamingPartnerN32Status(t *testing.T) {
 		t.Fatalf("read-only handshake: %d", code)
 	}
 
-	if code, _, _ := apiDo[map[string]any](readOnly, "GET", url+"/api/v1/operator/roaming/sepp", roToken, nil); code != http.StatusOK {
+	if code, _, _ := apiDo[map[string]any](readOnly, "GET", url+"/api/v1/integrations/roaming/sepp", roToken, nil); code != http.StatusOK {
 		t.Fatalf("read-only SEPP status: %d", code)
 	}
 
-	if code, _, _ := apiDo[map[string]any](readOnly, "POST", url+"/api/v1/operator/roaming/sepp/ca/regenerate", roToken, nil); code != http.StatusForbidden {
+	if code, _, _ := apiDo[map[string]any](readOnly, "POST", url+"/api/v1/integrations/roaming/sepp/ca/regenerate", roToken, nil); code != http.StatusForbidden {
 		t.Fatalf("read-only CA regeneration: %d", code)
 	}
 }
@@ -231,7 +231,7 @@ func TestSEPPStatus(t *testing.T) {
 
 	code, st, err := apiDo[struct {
 		Result seppStatusBody `json:"result"`
-	}](client, "GET", url+"/api/v1/operator/roaming/sepp", token, nil)
+	}](client, "GET", url+"/api/v1/integrations/roaming/sepp", token, nil)
 	if err != nil || code != http.StatusOK || len(st.Result.TrustAnchors) != 0 || len(st.Result.Certificates) != 0 || st.Result.Listener.SEPPID != 1 {
 		t.Fatalf("before identity: %d %v %+v", code, err, st)
 	}
@@ -244,7 +244,7 @@ func TestSEPPStatus(t *testing.T) {
 
 	code, st, err = apiDo[struct {
 		Result seppStatusBody `json:"result"`
-	}](client, "GET", url+"/api/v1/operator/roaming/sepp", token, nil)
+	}](client, "GET", url+"/api/v1/integrations/roaming/sepp", token, nil)
 	if err != nil || code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, err)
 	}

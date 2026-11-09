@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -385,7 +384,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
+	esm, err := buildActivateDefaultESM(ctx, p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
 	if err != nil {
 		return nil, err
 	}
@@ -504,7 +503,7 @@ func sendNITZ(ctx context.Context, m *mme.MME, _ *mme.UeContext, ueConn *mme.UeC
 	ueConn.SendDownlinkProtected(ctx, info)
 }
 
-func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer, pcscf nas.PCSCFRequest) ([]byte, error) {
+func buildActivateDefaultESM(ctx context.Context, p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer, pcscf nas.PCSCFRequest) ([]byte, error) {
 	apn := eps.APN(p.Apn)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -559,17 +558,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti 
 		pco.Containers = append(pco.Containers, bearer.MappedFiveGSQoS...)
 	}
 
-	if containers := nas.NewPCSCFContainers(bearer.PCSCF, nas.PCSCFRequest{
-		IPv4: pcscf.IPv4 && (p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6),
-		IPv6: pcscf.IPv6 && (p.PdnType == eps.PDNTypeIPv6 || p.PdnType == eps.PDNTypeIPv4v6),
-	}); len(containers) > 0 {
-		with := pco
-		with.Containers = append(slices.Clone(pco.Containers), containers...)
-
-		if useEPCO || with.FitsUnextended() {
-			pco = with
-		}
-	}
+	pco = mme.WithPCSCF(ctx, pco, bearer.PCSCF, pcscf, p.PdnType, useEPCO)
 
 	if answers := nas.AnswerProtocolOptions(protocolRequests, p.Dns, p.UeIP); len(answers) > 0 {
 		with := pco

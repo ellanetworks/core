@@ -55,6 +55,6 @@ Each node of a [High Availability](high_availability.md) cluster connects to the
 ## Further reading
 
 - [Configure Roaming](../how_to/configure_roaming.md) — step-by-step guide to add a roaming partner.
-- [Operator API reference](../reference/api/operator.md#list-roaming-partners) — partners, Diameter peers, and SEPP.
+- [Integrations API reference](../reference/api/integrations.md#list-roaming-partners) — partners, Diameter peers, and SEPP.
 - [Roamers API reference](../reference/api/roamers.md) — list, inspect, and deregister roamers.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported roaming procedures.

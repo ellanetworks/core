@@ -416,6 +416,10 @@ func (n *Node) acceptUnknownLocked(c *Conn, key string, cer *Message) cerDecisio
 		return cerDecision{outcome: cerReject, result: ResultUnknownPeer}
 	}
 
+	if f := n.cfg.UnknownPeerFilter; f != nil && !f(key, c.peerRealm, c.t.remoteAddr()) {
+		return cerDecision{outcome: cerReject, result: ResultUnknownPeer}
+	}
+
 	apps := n.cfg.UnknownPeerApplications
 	c.localApps = apps
 	c.localVendors = n.cfg.UnknownPeerSupportedVendors

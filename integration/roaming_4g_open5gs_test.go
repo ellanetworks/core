@@ -144,7 +144,7 @@ func (s *r4gStack) createPartner() {
 	t.Helper()
 
 	peer, err := s.api.CreateRoamingDiameterPeer(s.ctx, &client.RoamingDiameterPeerOptions{
-		DiameterIdentity: r4gHSSIdentity, Address: r4gHSSAddress, Port: 3868,
+		OriginHost: r4gHSSIdentity, Address: r4gHSSAddress, Port: 3868,
 	})
 	if err != nil {
 		t.Fatalf("create roaming Diameter peer: %v", err)
@@ -173,11 +173,11 @@ func (s *r4gStack) startHSS() {
 				return err
 			}
 
-			if st.Host == "" {
+			if st.LocalOriginHost() == "" {
 				return errors.New("no Diameter identity yet")
 			}
 
-			s.hosts[i] = st.Host
+			s.hosts[i] = st.LocalOriginHost()
 
 			return nil
 		})
@@ -211,7 +211,7 @@ func (s *r4gStack) waitHSSPeer(n int) {
 		}
 
 		for _, p := range st.Peers {
-			if p.Host == r4gHSSIdentity || p.Address == r4gHSSAddress {
+			if p.OriginHost == r4gHSSIdentity || p.Address == r4gHSSAddress {
 				if p.State == "open" {
 					return nil
 				}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/google/uuid"
@@ -72,16 +73,17 @@ type ListRoamingPartnersResponse struct {
 }
 
 type RoamingDiameterPeer struct {
-	ID               string `json:"id"`
-	DiameterIdentity string `json:"diameterIdentity"`
-	Address          string `json:"address"`
-	Port             int    `json:"port"`
+	ID         string              `json:"id"`
+	OriginHost string              `json:"originHost"`
+	Address    string              `json:"address"`
+	Port       int                 `json:"port"`
+	Status     *DiameterPeerStatus `json:"status,omitempty"`
 }
 
 type RoamingDiameterPeerParams struct {
-	DiameterIdentity string `json:"diameterIdentity"`
-	Address          string `json:"address"`
-	Port             int    `json:"port,omitempty"`
+	OriginHost string `json:"originHost"`
+	Address    string `json:"address"`
+	Port       int    `json:"port,omitempty"`
 }
 
 type ListRoamingDiameterPeersResponse struct {
@@ -436,19 +438,25 @@ func withdrawingPartner(ctx context.Context, dbInstance *db.Database, partner db
 	return err
 }
 
-func roamingDiameterPeerResponse(p db.RoamingDiameterPeer) RoamingDiameterPeer {
-	return RoamingDiameterPeer{ID: p.ID, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
+func roamingDiameterPeerResponse(p db.RoamingDiameterPeer, statuses map[string]diameternode.PeerStatus) RoamingDiameterPeer {
+	resp := RoamingDiameterPeer{ID: p.ID, OriginHost: p.DiameterIdentity, Address: p.Address, Port: p.Port}
+
+	if st, ok := statuses[roamingDiameterPeerID(p.ID)]; ok {
+		resp.Status = diameterPeerStatus(st)
+	}
+
+	return resp
 }
 
 func roamingDiameterPeerFromParams(id string, params RoamingDiameterPeerParams) (db.RoamingDiameterPeer, string) {
 	peer := db.RoamingDiameterPeer{
 		ID:               id,
-		DiameterIdentity: strings.TrimSpace(params.DiameterIdentity),
+		DiameterIdentity: strings.TrimSpace(params.OriginHost),
 		Port:             params.Port,
 	}
 
 	if peer.DiameterIdentity != "" && !db.IsValidDiameterIdentity(peer.DiameterIdentity) {
-		return db.RoamingDiameterPeer{}, "diameterIdentity must be a fully qualified domain name, for example hss.epc.mnc001.mcc001.3gppnetwork.org"
+		return db.RoamingDiameterPeer{}, "originHost must be a fully qualified domain name, for example hss.epc.mnc001.mcc001.3gppnetwork.org"
 	}
 
 	if peer.Port == 0 {
@@ -470,10 +478,10 @@ func roamingDiameterPeerFromParams(id string, params RoamingDiameterPeerParams) 
 }
 
 func roamingDiameterPeerSummary(p db.RoamingDiameterPeer) string {
-	return fmt.Sprintf("Diameter identity %s, address %s", p.DiameterIdentity, net.JoinHostPort(p.Address, strconv.Itoa(p.Port)))
+	return fmt.Sprintf("Origin-Host %s, address %s", p.DiameterIdentity, net.JoinHostPort(p.Address, strconv.Itoa(p.Port)))
 }
 
-func ListRoamingDiameterPeers(dbInstance *db.Database) http.Handler {
+func ListRoamingDiameterPeers(dbInstance *db.Database, node DiameterNode) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		peers, err := dbInstance.ListRoamingDiameterPeers(r.Context())
 		if err != nil {
@@ -482,16 +490,17 @@ func ListRoamingDiameterPeers(dbInstance *db.Database) http.Handler {
 		}
 
 		resp := ListRoamingDiameterPeersResponse{Items: make([]RoamingDiameterPeer, 0, len(peers))}
+		statuses := diameterPeerStatuses(node)
 
 		for _, p := range peers {
-			resp.Items = append(resp.Items, roamingDiameterPeerResponse(p))
+			resp.Items = append(resp.Items, roamingDiameterPeerResponse(p, statuses))
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
 }
 
-func GetRoamingDiameterPeer(dbInstance *db.Database) http.Handler {
+func GetRoamingDiameterPeer(dbInstance *db.Database, node DiameterNode) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		peer, err := dbInstance.GetRoamingDiameterPeer(r.Context(), r.PathValue("id"))
 		if err != nil {
@@ -499,7 +508,7 @@ func GetRoamingDiameterPeer(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponse(r.Context(), w, roamingDiameterPeerResponse(*peer), http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, roamingDiameterPeerResponse(*peer, diameterPeerStatuses(node)), http.StatusOK, logger.APILog)
 	})
 }
 
@@ -530,7 +539,7 @@ func CreateRoamingDiameterPeer(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponse(r.Context(), w, roamingDiameterPeerResponse(peer), http.StatusCreated, logger.APILog)
+		writeResponse(r.Context(), w, roamingDiameterPeerResponse(peer, nil), http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreateRoamingDiameterPeerAction, email, getClientIP(r), "Created roaming Diameter peer "+peer.ID+" ("+roamingDiameterPeerSummary(peer)+")")
 	})

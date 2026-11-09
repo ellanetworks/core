@@ -26,6 +26,10 @@ import RoutesTab from "./pages/networking/RoutesTab";
 import BGPTab from "./pages/networking/BGPTab";
 import FlowAccountingTab from "./pages/networking/FlowAccountingTab";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
+import Integrations from "./pages/Integrations";
+import IMSTab from "./pages/integrations/IMSTab";
+import SMSTab from "./pages/integrations/SMSTab";
+import RoamingTab from "./pages/integrations/RoamingTab";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
@@ -82,6 +86,16 @@ export default function AppRouter() {
           path="networking/data-networks/:name"
           element={<DataNetworkDetail />}
         />
+        <Route path="integrations" element={<Integrations />}>
+          <Route index element={<Navigate to="ims" replace />} />
+          <Route
+            path="overview"
+            element={<Navigate to="/integrations/ims" replace />}
+          />
+          <Route path="ims" element={<IMSTab />} />
+          <Route path="sms" element={<SMSTab />} />
+          <Route path="roaming" element={<RoamingTab />} />
+        </Route>
         <Route path="operator" element={<Operator />} />
         <Route element={<RequireAdmin />}>
           <Route path="users" element={<Users />} />

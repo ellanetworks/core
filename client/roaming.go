@@ -87,10 +87,11 @@ type RoamingPartnerOptions struct {
 }
 
 type RoamingDiameterPeer struct {
-	ID               string `json:"id"`
-	DiameterIdentity string `json:"diameterIdentity"`
-	Address          string `json:"address"`
-	Port             int    `json:"port"`
+	ID         string              `json:"id"`
+	OriginHost string              `json:"originHost"`
+	Address    string              `json:"address"`
+	Port       int                 `json:"port"`
+	Status     *DiameterPeerStatus `json:"status,omitempty"`
 }
 
 type ListRoamingDiameterPeersResponse struct {
@@ -98,9 +99,9 @@ type ListRoamingDiameterPeersResponse struct {
 }
 
 type RoamingDiameterPeerOptions struct {
-	DiameterIdentity string `json:"diameterIdentity"`
-	Address          string `json:"address"`
-	Port             int    `json:"port,omitempty"`
+	OriginHost string `json:"originHost"`
+	Address    string `json:"address"`
+	Port       int    `json:"port,omitempty"`
 }
 
 type SEPPCertificate struct {
@@ -160,7 +161,7 @@ func (c *Client) roamingDoWithin(ctx context.Context, method, path string, paylo
 func (c *Client) ListRoamingPartners(ctx context.Context) (*ListRoamingPartnersResponse, error) {
 	var partners ListRoamingPartnersResponse
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/partners", nil, &partners); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/integrations/roaming/partners", nil, &partners); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +171,7 @@ func (c *Client) ListRoamingPartners(ctx context.Context) (*ListRoamingPartnersR
 func (c *Client) GetRoamingPartner(ctx context.Context, id string) (*RoamingPartner, error) {
 	var partner RoamingPartner
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/partners/"+url.PathEscape(id), nil, &partner); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/integrations/roaming/partners/"+url.PathEscape(id), nil, &partner); err != nil {
 		return nil, err
 	}
 
@@ -180,7 +181,7 @@ func (c *Client) GetRoamingPartner(ctx context.Context, id string) (*RoamingPart
 func (c *Client) CreateRoamingPartner(ctx context.Context, opts *RoamingPartnerOptions) (*RoamingPartner, error) {
 	var partner RoamingPartner
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/partners", opts, &partner); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/integrations/roaming/partners", opts, &partner); err != nil {
 		return nil, err
 	}
 
@@ -188,17 +189,17 @@ func (c *Client) CreateRoamingPartner(ctx context.Context, opts *RoamingPartnerO
 }
 
 func (c *Client) UpdateRoamingPartner(ctx context.Context, id string, opts *RoamingPartnerOptions) error {
-	return c.roamingDoWithin(ctx, "PUT", "api/v1/operator/roaming/partners/"+url.PathEscape(id), opts, nil, withdrawalTimeout)
+	return c.roamingDoWithin(ctx, "PUT", "api/v1/integrations/roaming/partners/"+url.PathEscape(id), opts, nil, withdrawalTimeout)
 }
 
 func (c *Client) DeleteRoamingPartner(ctx context.Context, id string) error {
-	return c.roamingDoWithin(ctx, "DELETE", "api/v1/operator/roaming/partners/"+url.PathEscape(id), nil, nil, withdrawalTimeout)
+	return c.roamingDoWithin(ctx, "DELETE", "api/v1/integrations/roaming/partners/"+url.PathEscape(id), nil, nil, withdrawalTimeout)
 }
 
 func (c *Client) RehandshakeRoamingPartner(ctx context.Context, id string) (*RoamingPartnerHandshake, error) {
 	var st RoamingPartnerHandshake
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/partners/"+url.PathEscape(id)+"/handshake", nil, &st); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/integrations/roaming/partners/"+url.PathEscape(id)+"/handshake", nil, &st); err != nil {
 		return nil, err
 	}
 
@@ -208,7 +209,7 @@ func (c *Client) RehandshakeRoamingPartner(ctx context.Context, id string) (*Roa
 func (c *Client) GetSEPPStatus(ctx context.Context) (*SEPPStatus, error) {
 	var st SEPPStatus
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/sepp", nil, &st); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/integrations/roaming/sepp", nil, &st); err != nil {
 		return nil, err
 	}
 
@@ -218,7 +219,7 @@ func (c *Client) GetSEPPStatus(ctx context.Context) (*SEPPStatus, error) {
 func (c *Client) ListRoamingDiameterPeers(ctx context.Context) (*ListRoamingDiameterPeersResponse, error) {
 	var peers ListRoamingDiameterPeersResponse
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/diameter-peers", nil, &peers); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/integrations/roaming/diameter-peers", nil, &peers); err != nil {
 		return nil, err
 	}
 
@@ -228,7 +229,7 @@ func (c *Client) ListRoamingDiameterPeers(ctx context.Context) (*ListRoamingDiam
 func (c *Client) GetRoamingDiameterPeer(ctx context.Context, id string) (*RoamingDiameterPeer, error) {
 	var peer RoamingDiameterPeer
 
-	if err := c.roamingDo(ctx, "GET", "api/v1/operator/roaming/diameter-peers/"+url.PathEscape(id), nil, &peer); err != nil {
+	if err := c.roamingDo(ctx, "GET", "api/v1/integrations/roaming/diameter-peers/"+url.PathEscape(id), nil, &peer); err != nil {
 		return nil, err
 	}
 
@@ -238,7 +239,7 @@ func (c *Client) GetRoamingDiameterPeer(ctx context.Context, id string) (*Roamin
 func (c *Client) CreateRoamingDiameterPeer(ctx context.Context, opts *RoamingDiameterPeerOptions) (*RoamingDiameterPeer, error) {
 	var peer RoamingDiameterPeer
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/diameter-peers", opts, &peer); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/integrations/roaming/diameter-peers", opts, &peer); err != nil {
 		return nil, err
 	}
 
@@ -246,15 +247,15 @@ func (c *Client) CreateRoamingDiameterPeer(ctx context.Context, opts *RoamingDia
 }
 
 func (c *Client) UpdateRoamingDiameterPeer(ctx context.Context, id string, opts *RoamingDiameterPeerOptions) error {
-	return c.roamingDo(ctx, "PUT", "api/v1/operator/roaming/diameter-peers/"+url.PathEscape(id), opts, nil)
+	return c.roamingDo(ctx, "PUT", "api/v1/integrations/roaming/diameter-peers/"+url.PathEscape(id), opts, nil)
 }
 
 func (c *Client) DeleteRoamingDiameterPeer(ctx context.Context, id string) error {
-	return c.roamingDo(ctx, "DELETE", "api/v1/operator/roaming/diameter-peers/"+url.PathEscape(id), nil, nil)
+	return c.roamingDo(ctx, "DELETE", "api/v1/integrations/roaming/diameter-peers/"+url.PathEscape(id), nil, nil)
 }
 
 func seppCertificatePath(seppID int) string {
-	return "api/v1/operator/roaming/sepp/nodes/" + strconv.Itoa(seppID) + "/certificate"
+	return "api/v1/integrations/roaming/sepp/nodes/" + strconv.Itoa(seppID) + "/certificate"
 }
 
 func (c *Client) ImportSEPPCertificate(ctx context.Context, seppID int, opts *ImportSEPPCertificateOptions) (*SEPPCertificate, error) {
@@ -274,7 +275,7 @@ func (c *Client) DeleteSEPPCertificate(ctx context.Context, seppID int) error {
 func (c *Client) RegenerateSEPPCA(ctx context.Context) (*SEPPCARegenerated, error) {
 	var out SEPPCARegenerated
 
-	if err := c.roamingDo(ctx, "POST", "api/v1/operator/roaming/sepp/ca/regenerate", nil, &out); err != nil {
+	if err := c.roamingDo(ctx, "POST", "api/v1/integrations/roaming/sepp/ca/regenerate", nil, &out); err != nil {
 		return nil, err
 	}
 

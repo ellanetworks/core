@@ -15,7 +15,7 @@ func runOperatorIMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	nodes := h.Clients
 
 	t.Cleanup(func() {
-		if err := h.Leader.UpdateOperatorIMS(ctx, &client.UpdateOperatorIMSOptions{}); err != nil {
+		if err := h.Leader.UpdateIMSSettings(ctx, &client.UpdateIMSSettingsOptions{AdvertiseVoice: true}); err != nil {
 			t.Logf("cleanup: clear P-CSCF addresses: %v", err)
 		}
 	})
@@ -24,27 +24,28 @@ func runOperatorIMSHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		name      string
 		writer    int
 		addresses []string
+		voice     bool
 	}{
 		{name: "set", writer: 0, addresses: []string{"192.0.2.20", "2001:db8::20"}},
-		{name: "clear", writer: 1, addresses: []string{}},
+		{name: "clear", writer: 1, addresses: []string{}, voice: true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := nodes[tc.writer].UpdateOperatorIMS(ctx, &client.UpdateOperatorIMSOptions{PCSCFAddresses: tc.addresses}); err != nil {
+			if err := nodes[tc.writer].UpdateIMSSettings(ctx, &client.UpdateIMSSettingsOptions{PCSCFAddresses: tc.addresses, AdvertiseVoice: tc.voice}); err != nil {
 				t.Fatalf("update IMS on node %d: %v", tc.writer+1, err)
 			}
 
 			awaitConvergence(ctx, t, h)
 
 			for i, c := range nodes {
-				op, err := c.GetOperator(ctx)
+				ims, err := c.GetIMSSettings(ctx)
 				if err != nil {
-					t.Fatalf("node %d get operator after update: %v", i+1, err)
+					t.Fatalf("node %d get IMS settings after update: %v", i+1, err)
 				}
 
-				if !slices.Equal(op.IMS.PCSCFAddresses, tc.addresses) {
-					t.Fatalf("node %d pcscfAddresses: got %v, want %v", i+1, op.IMS.PCSCFAddresses, tc.addresses)
+				if !slices.Equal(ims.PCSCFAddresses, tc.addresses) || ims.AdvertiseVoice != tc.voice {
+					t.Fatalf("node %d IMS settings: got %v %t, want %v %t", i+1, ims.PCSCFAddresses, ims.AdvertiseVoice, tc.addresses, tc.voice)
 				}
 			}
 		})

@@ -5,8 +5,8 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export interface IMSApplicationServer {
   name: string;
-  server_name: string;
-  public_service_identities: string[];
+  serverName: string;
+  publicServiceIdentities: string[];
 }
 
 export type IMSSessionCase =
@@ -21,12 +21,12 @@ export type IMSRegistrationType =
 
 export interface IMSCondition {
   negated?: boolean;
-  request_uri?: string;
+  requestURI?: string;
   method?: string;
-  registration_types?: IMSRegistrationType[];
-  sip_header?: { header: string; content?: string };
-  session_case?: IMSSessionCase;
-  session_description?: { line: string; content?: string };
+  registrationTypes?: IMSRegistrationType[];
+  sipHeader?: { header: string; content?: string };
+  sessionCase?: IMSSessionCase;
+  sessionDescription?: { line: string; content?: string };
 }
 
 export interface IMSConditionGroup {
@@ -36,19 +36,19 @@ export interface IMSConditionGroup {
 export type IMSConditionsMatch = "all" | "any";
 
 export interface IMSTrigger {
-  conditions_match: IMSConditionsMatch;
+  conditionsMatch: IMSConditionsMatch;
   groups: IMSConditionGroup[];
 }
 
 export interface IMSInitialFilterCriterion {
   priority: number;
-  application_server_name: string;
+  applicationServerName: string;
   trigger?: IMSTrigger;
-  profile_part?: "REGISTERED" | "UNREGISTERED";
-  default_handling?: "SESSION_CONTINUED" | "SESSION_TERMINATED";
-  service_info?: string;
-  include_register_request?: boolean;
-  include_register_response?: boolean;
+  profilePart?: "REGISTERED" | "UNREGISTERED";
+  defaultHandling?: "SESSION_CONTINUED" | "SESSION_TERMINATED";
+  serviceInfo?: string;
+  includeRegisterRequest?: boolean;
+  includeRegisterResponse?: boolean;
 }
 
 export type IMSInitialFilterCriterionInput = Omit<
@@ -56,7 +56,7 @@ export type IMSInitialFilterCriterionInput = Omit<
   "priority"
 >;
 
-const AS_PATH = "/api/v1/operator/ims/application-servers";
+const AS_PATH = "/api/v1/integrations/ims/application-servers";
 
 export const listIMSApplicationServers = async (
   authToken: string,
@@ -98,7 +98,7 @@ export const deleteIMSApplicationServer = async (
 
 export interface IMSServiceProfile {
   name: string;
-  initial_filter_criteria: IMSInitialFilterCriterion[];
+  initialFilterCriteria: IMSInitialFilterCriterion[];
 }
 
 export type IMSRegistrationSet = "mmtel" | "mcptt";
@@ -125,7 +125,7 @@ export type ProfileIMSServiceProfiles = Partial<
   Record<IMSRegistrationSet, string | null>
 >;
 
-const SP_PATH = "/api/v1/operator/ims/service-profiles";
+const SP_PATH = "/api/v1/integrations/ims/service-profiles";
 
 export const listIMSServiceProfiles = async (
   authToken: string,
@@ -144,7 +144,7 @@ export const createIMSServiceProfile = async (
   await apiFetchVoid(SP_PATH, {
     method: "POST",
     authToken,
-    body: { name, initial_filter_criteria: criteria },
+    body: { name, initialFilterCriteria: criteria },
   });
 };
 
@@ -156,7 +156,7 @@ export const updateIMSServiceProfile = async (
   await apiFetchVoid(`${SP_PATH}/${encodeURIComponent(name)}`, {
     method: "PUT",
     authToken,
-    body: { initial_filter_criteria: criteria },
+    body: { initialFilterCriteria: criteria },
   });
 };
 
@@ -213,22 +213,22 @@ export const registrationTypeLabels: Record<IMSRegistrationType, string> = {
 export const describeCondition = (c: IMSCondition): string => {
   const not = c.negated ? "not " : "";
   if (c.method !== undefined) {
-    const types = c.registration_types?.length
-      ? ` (${c.registration_types.map((t) => registrationTypeLabels[t]).join(", ")})`
+    const types = c.registrationTypes?.length
+      ? ` (${c.registrationTypes.map((t) => registrationTypeLabels[t]).join(", ")})`
       : "";
     return `method ${c.negated ? "is not" : "is"} ${c.method}${types}`;
   }
-  if (c.request_uri !== undefined)
-    return `Request-URI ${c.negated ? "does not match" : "matches"} ${c.request_uri}`;
-  if (c.session_case !== undefined)
-    return `${not}${sessionCaseLabels[c.session_case] ?? c.session_case}`;
-  if (c.sip_header !== undefined) {
-    const { header, content } = c.sip_header;
+  if (c.requestURI !== undefined)
+    return `Request-URI ${c.negated ? "does not match" : "matches"} ${c.requestURI}`;
+  if (c.sessionCase !== undefined)
+    return `${not}${sessionCaseLabels[c.sessionCase] ?? c.sessionCase}`;
+  if (c.sipHeader !== undefined) {
+    const { header, content } = c.sipHeader;
     if (!content) return `header ${header} ${c.negated ? "absent" : "present"}`;
     return `header ${header} ${c.negated ? "does not match" : "matches"} ${content}`;
   }
-  if (c.session_description !== undefined) {
-    const { line, content } = c.session_description;
+  if (c.sessionDescription !== undefined) {
+    const { line, content } = c.sessionDescription;
     if (!content) return `SDP line ${line} ${c.negated ? "absent" : "present"}`;
     return `SDP line ${line} ${c.negated ? "does not match" : "matches"} ${content}`;
   }
@@ -237,7 +237,7 @@ export const describeCondition = (c: IMSCondition): string => {
 
 export const describeTrigger = (trigger?: IMSTrigger): string => {
   if (!trigger || trigger.groups.length === 0) return "Always";
-  const all = trigger.conditions_match === "all";
+  const all = trigger.conditionsMatch === "all";
   const inner = all ? " and " : " or ";
   const outer = all ? " or " : " and ";
   const multipleGroups = trigger.groups.length > 1;

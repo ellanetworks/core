@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -9,7 +9,7 @@ import { setupApiServer, httpError } from "@/test/apiServer";
 import EditOperatorIdModal from "./EditOperatorIdModal";
 import EditOperatorCodeModal from "./EditOperatorCodeModal";
 import EditOperatorSPNModal from "./EditOperatorSPNModal";
-import EditOperatorSMSModal from "./EditOperatorSMSModal";
+import EditServingNodeNumberModal from "./EditServingNodeNumberModal";
 import SMSCModal from "./SMSCModal";
 import EditOperatorTrackingModal from "./EditOperatorTrackingModal";
 import IMSApplicationServerModal from "./IMSApplicationServerModal";
@@ -32,6 +32,19 @@ const retype = async (
 };
 
 describe("EditOperatorIdModal", () => {
+  const IMS_PATH = "/api/v1/integrations/ims";
+  const imsSettings = (homeDomain = "") => ({
+    pcscfAddresses: [],
+    voiceStatus: "no_pcscf",
+    homeDomain,
+    derivedHomeDomain: "ims.mnc001.mcc001.3gppnetwork.org",
+    restrictPeers: false,
+  });
+
+  beforeEach(() => {
+    api.get(IMS_PATH, () => imsSettings());
+  });
+
   const render = () => {
     const onClose = vi.fn();
     renderWithProviders(
@@ -56,6 +69,41 @@ describe("EditOperatorIdModal", () => {
     expect(document.getElementById(describedBy!)).toHaveTextContent(
       /Mobile Country Code \(MCC\)/,
     );
+  });
+
+  it("warns that the Diameter identity and SEPP certificate change", async () => {
+    render();
+    const alert = within(dialog()).getByRole("alert");
+    expect(alert).toHaveTextContent(
+      /changes Ella Core's Diameter realm and Origin-Host/,
+    );
+    expect(alert).toHaveTextContent(
+      /roaming partners' Diameter edge agents or IPX/,
+    );
+    expect(alert).toHaveTextContent(/replace the SEPP certificate/);
+    expect(
+      ["IMS", "SMS", "Roaming"].map((name) =>
+        within(alert).getByRole("link", { name }).getAttribute("href"),
+      ),
+    ).toEqual([
+      "/integrations/ims",
+      "/integrations/sms",
+      "/integrations/roaming",
+    ]);
+    await waitFor(() => expect(api.requests(IMS_PATH)).toHaveLength(1));
+    expect(
+      screen.queryByText(/IMS home domain is configured separately/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says a configured IMS home domain will not change", async () => {
+    api.get(IMS_PATH, () => imsSettings("ims.example.com"));
+    render();
+    expect(
+      await screen.findByText(
+        /The IMS home domain is configured separately and will not change\./,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("rejects an MCC that is not three digits", async () => {
@@ -255,13 +303,13 @@ describe("EditOperatorTrackingModal", () => {
   });
 });
 
-describe("EditOperatorSMSModal", () => {
-  const SMS_PATH = "/api/v1/operator/sms";
+describe("EditServingNodeNumberModal", () => {
+  const SMS_PATH = "/api/v1/integrations/sms";
 
-  const render = (initialData = { smsNumber: "" }) => {
+  const render = (initialData = { servingNodeNumber: "" }) => {
     const onClose = vi.fn();
     renderWithProviders(
-      <EditOperatorSMSModal
+      <EditServingNodeNumberModal
         open
         onClose={onClose}
         onSuccess={vi.fn()}
@@ -272,7 +320,7 @@ describe("EditOperatorSMSModal", () => {
     return { onClose };
   };
 
-  it("submits the SMS number", async () => {
+  it("submits the serving node number", async () => {
     const user = userEvent.setup();
     api.put(SMS_PATH, () => ({}));
     const { onClose } = render();
@@ -283,20 +331,20 @@ describe("EditOperatorSMSModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(SMS_PATH)?.body).toEqual({
-      smsNumber: "+15550001111",
+      servingNodeNumber: "+15550001111",
     });
   });
 
-  it("requires the SMS number", async () => {
+  it("requires the serving node number", async () => {
     const user = userEvent.setup();
-    render({ smsNumber: "+15550001111" });
+    render({ servingNodeNumber: "+15550001111" });
 
     await retype(user, /E.164 Number/, "");
-    await screen.findByText("SMS number is required");
+    await screen.findByText("Serving node number is required");
     expect(updateButton()).toBeDisabled();
   });
 
-  it("rejects an SMS number without the + prefix", async () => {
+  it("rejects a serving node number without the + prefix", async () => {
     const user = userEvent.setup();
     render();
 
@@ -308,18 +356,18 @@ describe("EditOperatorSMSModal", () => {
 });
 
 describe("SMSCModal", () => {
-  const SMSCS_PATH = "/api/v1/operator/sms/smscs";
+  const SMSCS_PATH = "/api/v1/integrations/sms/smscs";
 
   const smsc = {
     name: "main",
     serviceCentres: ["+15550000000"],
     nodes: [
       {
-        diameterIdentity: "smsc1.example.org",
+        originHost: "smsc1.example.org",
         address: "192.0.2.10",
         port: 3868,
       },
-      { diameterIdentity: "", address: "192.0.2.11", port: 3868 },
+      { originHost: "", address: "192.0.2.11", port: 3868 },
     ],
   };
 
@@ -335,18 +383,22 @@ describe("SMSCModal", () => {
   const addButton = () =>
     within(dialog()).getByRole("button", { name: /^Add$/ });
 
-  it("adds an SMSC with two nodes", async () => {
+  it("adds an SMSC with two Diameter peers", async () => {
     const user = userEvent.setup();
     api.post(SMSCS_PATH, () => ({}));
     const { onClose } = render();
 
     await retype(user, /^Name/, "main");
-    await retype(user, /^Numbers/, "+15550000000, +15550000001");
-    await retype(user, /^Node 1 address/, "2001:db8::10");
-    await retype(user, /^Node 1 Diameter identity/, "smsc1.example.org");
-    await user.click(screen.getByRole("button", { name: "Add Node" }));
-    await retype(user, /^Node 2 address/, "192.0.2.11");
-    await retype(user, /^Node 2 port/, "3869");
+    await retype(
+      user,
+      /^Service Centre Addresses/,
+      "+15550000000, +15550000001",
+    );
+    await retype(user, /^Diameter peer 1 address/, "2001:db8::10");
+    await retype(user, /^Diameter peer 1 Origin-Host/, "smsc1.example.org");
+    await user.click(screen.getByRole("button", { name: "Add Diameter Peer" }));
+    await retype(user, /^Diameter peer 2 address/, "192.0.2.11");
+    await retype(user, /^Diameter peer 2 port/, "3869");
     await waitFor(() => expect(addButton()).toBeEnabled());
     await user.click(addButton());
 
@@ -356,11 +408,11 @@ describe("SMSCModal", () => {
       serviceCentres: ["+15550000000", "+15550000001"],
       nodes: [
         {
-          diameterIdentity: "smsc1.example.org",
+          originHost: "smsc1.example.org",
           address: "2001:db8::10",
           port: 3868,
         },
-        { diameterIdentity: "", address: "192.0.2.11", port: 3869 },
+        { originHost: "", address: "192.0.2.11", port: 3869 },
       ],
     });
   });
@@ -371,48 +423,58 @@ describe("SMSCModal", () => {
     const { onClose } = render(smsc);
 
     expect(field(/^Name/)).toBeDisabled();
-    expect(field(/^Numbers/)).toHaveValue("+15550000000");
-    expect(field(/^Node 2 address/)).toHaveValue("192.0.2.11");
-    await user.click(screen.getByRole("button", { name: "Remove node 1" }));
-    await retype(user, /^Node 1 port/, "3869");
+    expect(field(/^Service Centre Addresses/)).toHaveValue("+15550000000");
+    expect(field(/^Diameter peer 2 address/)).toHaveValue("192.0.2.11");
+    await user.click(
+      screen.getByRole("button", { name: "Remove Diameter peer 1" }),
+    );
+    await retype(user, /^Diameter peer 1 port/, "3869");
     await waitFor(() => expect(updateButton()).toBeEnabled());
     await user.click(updateButton());
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(`${SMSCS_PATH}/main`)?.body).toEqual({
       serviceCentres: ["+15550000000"],
-      nodes: [{ diameterIdentity: "", address: "192.0.2.11", port: 3869 }],
+      nodes: [{ originHost: "", address: "192.0.2.11", port: 3869 }],
     });
   });
 
-  it("keeps at least one node", async () => {
+  it("keeps at least one Diameter peer", async () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await user.click(screen.getByRole("button", { name: "Remove node 2" }));
+    await user.click(
+      screen.getByRole("button", { name: "Remove Diameter peer 2" }),
+    );
 
     expect(
-      screen.getByRole("button", { name: "Remove node 1" }),
+      screen.getByRole("button", { name: "Remove Diameter peer 1" }),
     ).toBeDisabled();
   });
 
-  it("allows at most 8 nodes", async () => {
+  it("allows at most 8 Diameter peers", async () => {
     const user = userEvent.setup();
     render(smsc);
 
     for (let i = 0; i < 6; i++) {
-      await user.click(screen.getByRole("button", { name: "Add Node" }));
+      await user.click(
+        screen.getByRole("button", { name: "Add Diameter Peer" }),
+      );
     }
 
-    expect(screen.getByLabelText(/^Node 8 address/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Node" })).toBeDisabled();
+    expect(
+      screen.getByLabelText(/^Diameter peer 8 address/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add Diameter Peer" }),
+    ).toBeDisabled();
   });
 
   it("rejects an address that is neither an IP address nor a host name", async () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await retype(user, /^Node 1 address/, "smsc_0.example.org");
+    await retype(user, /^Diameter peer 1 address/, "smsc_0.example.org");
 
     await screen.findByText("Must be an IPv4 or IPv6 address or a host name");
     expect(updateButton()).toBeDisabled();
@@ -422,7 +484,11 @@ describe("SMSCModal", () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await retype(user, /^Node 1 address/, "smsc-0.smsc.ella.svc.cluster.local");
+    await retype(
+      user,
+      /^Diameter peer 1 address/,
+      "smsc-0.smsc.ella.svc.cluster.local",
+    );
     await user.tab();
 
     expect(
@@ -430,23 +496,25 @@ describe("SMSCModal", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("rejects a Diameter identity that is not a domain name", async () => {
+  it("rejects an Origin-Host that is not a domain name", async () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await retype(user, /^Node 1 Diameter identity/, "smsc");
+    await retype(user, /^Diameter peer 1 Origin-Host/, "smsc");
 
     await screen.findByText("Must be a fully qualified domain name");
     expect(updateButton()).toBeDisabled();
   });
 
-  it("rejects two nodes with the same address and port", async () => {
+  it("rejects two Diameter peers with the same address and port", async () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await retype(user, /^Node 2 address/, "192.0.2.10");
+    await retype(user, /^Diameter peer 2 address/, "192.0.2.10");
 
-    await screen.findByText("Two nodes have the same address and port");
+    await screen.findByText(
+      "Two Diameter peers have the same address and port",
+    );
     expect(updateButton()).toBeDisabled();
   });
 
@@ -454,14 +522,18 @@ describe("SMSCModal", () => {
     const user = userEvent.setup();
     render(smsc);
 
-    await retype(user, /^Numbers/, "");
-    await screen.findByText("At least one number is required");
+    await retype(user, /^Service Centre Addresses/, "");
+    await screen.findByText("At least one service centre address is required");
 
-    await retype(user, /^Numbers/, "15550000000");
-    await screen.findByText(/Numbers must be E.164 numbers/);
+    await retype(user, /^Service Centre Addresses/, "15550000000");
+    await screen.findByText(/Service centre addresses must be E.164 numbers/);
 
-    await retype(user, /^Numbers/, "+15550000000 +15550000000");
-    await screen.findByText("A number is listed twice");
+    await retype(
+      user,
+      /^Service Centre Addresses/,
+      "+15550000000 +15550000000",
+    );
+    await screen.findByText("An address is listed twice");
     expect(updateButton()).toBeDisabled();
   });
 
@@ -476,8 +548,8 @@ describe("SMSCModal", () => {
     render();
 
     await retype(user, /^Name/, "backup");
-    await retype(user, /^Numbers/, "+15550000000");
-    await retype(user, /^Node 1 address/, "192.0.2.12");
+    await retype(user, /^Service Centre Addresses/, "+15550000000");
+    await retype(user, /^Diameter peer 1 address/, "192.0.2.12");
     await waitFor(() => expect(addButton()).toBeEnabled());
     await user.click(addButton());
 
@@ -488,7 +560,7 @@ describe("SMSCModal", () => {
 });
 
 describe("IMSApplicationServerModal", () => {
-  const AS_PATH = "/api/v1/operator/ims/application-servers";
+  const AS_PATH = "/api/v1/integrations/ims/application-servers";
 
   const render = (
     props: Partial<React.ComponentProps<typeof IMSApplicationServerModal>>,
@@ -537,8 +609,8 @@ describe("IMSApplicationServerModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest(AS_PATH)?.body).toEqual({
       name: "mcptt",
-      server_name: "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org",
-      public_service_identities: [],
+      serverName: "sip:mcptt.ims.mnc001.mcc001.3gppnetwork.org",
+      publicServiceIdentities: [],
     });
   });
 
@@ -547,8 +619,8 @@ describe("IMSApplicationServerModal", () => {
       homeDomain: "ims.mnc001.mcc001.3gppnetwork.org",
       applicationServer: {
         name: "mcptt",
-        server_name: "sip:mcptt.example.org",
-        public_service_identities: [],
+        serverName: "sip:mcptt.example.org",
+        publicServiceIdentities: [],
       },
     });
     expect(fillButton()).not.toBeInTheDocument();

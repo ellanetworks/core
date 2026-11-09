@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Box,
@@ -10,15 +10,31 @@ import {
   Stack,
   IconButton,
   Tooltip,
+  Link as MuiLink,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
 import { getInterfaces, type InterfacesInfo } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 import QueryState from "@/components/QueryState";
 import { useSliceDataNetworks } from "@/hooks/useSliceDataNetworks";
 import { useNetworkingContext } from "./types";
 import { PRODUCT } from "@/utils/product";
+import NotListening from "@/components/NotListening";
+
+const IntegrationsLink: React.FC<{ tab: string; label: string }> = ({
+  tab,
+  label,
+}) => (
+  <MuiLink
+    component={RouterLink}
+    to={`/integrations/${tab}`}
+    sx={{ color: (theme) => theme.palette.link }}
+  >
+    {label}
+  </MuiLink>
+);
 
 export default function InterfacesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -319,11 +335,15 @@ export default function InterfacesTab() {
                   </Typography>
                 </>
               ) : (
-                <Typography variant="body2" color="textSecondary">
-                  Not listening. Set <code>interfaces.diameter</code> in the
-                  configuration file to accept Diameter connections.
-                </Typography>
+                <NotListening setting="interfaces.diameter" />
               )}
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                See <IntegrationsLink tab="ims" label="IMS" />,{" "}
+                <IntegrationsLink tab="sms" label="SMS" /> and{" "}
+                <IntegrationsLink tab="roaming" label="Roaming" /> under
+                Integrations for Ella Core&apos;s Diameter identity and the
+                peers it connects to.
+              </Typography>
             </Box>
 
             <Box
@@ -375,12 +395,16 @@ export default function InterfacesTab() {
                   </Typography>
                 </>
               ) : (
-                <Typography variant="body2" color="textSecondary">
-                  Not listening. Set <code>interfaces.n32</code> in the
-                  configuration file to accept N32 connections from roaming
-                  partners.
-                </Typography>
+                <NotListening setting="interfaces.n32" />
               )}
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                See{" "}
+                <IntegrationsLink
+                  tab="roaming"
+                  label="Integrations › Roaming"
+                />{" "}
+                for the SEPP certificate and roaming partners.
+              </Typography>
             </Box>
           </Box>
         )}

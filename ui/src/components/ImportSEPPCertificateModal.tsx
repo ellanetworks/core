@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import PemControl from "@/components/form/PemControl";
-import { diameterIdentityRegex } from "@/components/SMSCModal";
+import { fqdnRegex } from "@/components/originHost";
 
 const PEM_BLOCK_RE = (type: string) =>
   new RegExp(`-----BEGIN ${type}-----[\\s\\S]+?-----END ${type}-----`);
@@ -45,7 +45,7 @@ const importSchema = yup.object({
     .test(
       "fqdn",
       "FQDN must be a fully qualified domain name",
-      (v) => !v?.trim() || diameterIdentityRegex.test(v.trim()),
+      (v) => !v?.trim() || fqdnRegex.test(v.trim()),
     ),
 });
 

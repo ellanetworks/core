@@ -112,7 +112,7 @@ const ProfileIMSServiceProfilesCard: React.FC<
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
                     {query.data?.[set] ? (
-                      <Link component={RouterLink} to="/operator">
+                      <Link component={RouterLink} to="/integrations/ims">
                         {query.data[set]}
                       </Link>
                     ) : (

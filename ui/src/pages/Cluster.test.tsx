@@ -1,15 +1,20 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, httpError } from "@/test/apiServer";
+import { diameterStatus, stubDiameterStatus } from "@/test/diameter";
 import ClusterPage from "./Cluster";
 import { PRODUCT } from "@/utils/product";
 
 const api = setupApiServer();
+
+beforeEach(() => {
+  stubDiameterStatus(api);
+});
 
 const STATUS = "/api/v1/status";
 const JOIN = "/api/v1/cluster/join";
@@ -328,6 +333,45 @@ describe("Cluster page members table", () => {
     expect(
       screen.getByRole("columnheader", { name: "Cluster Address" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Cluster page Diameter identity", () => {
+  it("shows each node's Origin-Host", async () => {
+    seedStatus();
+    seedAutopilot();
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true }),
+      member({ nodeId: 2 }),
+    ]);
+    stubDiameterStatus(api, {
+      ...diameterStatus,
+      nodes: [
+        {
+          nodeId: "1",
+          originHost: "mmec01.mmegi8001.mme.epc.mnc001.mcc001.3gppnetwork.org",
+          local: true,
+        },
+        {
+          nodeId: "2",
+          originHost: "mmec02.mmegi8001.mme.epc.mnc001.mcc001.3gppnetwork.org",
+          local: false,
+        },
+      ],
+    });
+
+    await renderCluster();
+
+    expect(
+      await screen.findByRole("columnheader", { name: "Origin-Host" }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(row(2)).getByText(
+          "mmec02.mmegi8001.mme.epc.mnc001.mcc001.3gppnetwork.org",
+        ),
+      ).toBeInTheDocument(),
+    );
   });
 });
 

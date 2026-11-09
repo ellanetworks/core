@@ -71,6 +71,8 @@ var replicatedChangesetTables = []string{
 	SMSWaitingTableName,
 	SMSWaitingCentresTableName,
 	PCSCFAddressesTableName,
+	IMSSettingsTableName,
+	IMSPeersTableName,
 	IMSRegistrationsTableName,
 	IMSRegistrationSetsTableName,
 	IPSMGWRegistrationsTableName,

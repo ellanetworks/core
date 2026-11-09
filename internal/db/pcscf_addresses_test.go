@@ -49,7 +49,7 @@ func TestPCSCFAddressesKeepTheirOrder(t *testing.T) {
 
 	want := addrs("2001:db8::2", "10.0.0.6", "2001:db8::1", "10.0.0.5")
 
-	if err := database.ReplacePCSCFAddresses(ctx, want); err != nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, want); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
 	}
 
@@ -64,7 +64,7 @@ func TestPCSCFAddressesKeepTheirOrder(t *testing.T) {
 
 	reordered := addrs("10.0.0.5", "10.0.0.6")
 
-	if err := database.ReplacePCSCFAddresses(ctx, reordered); err != nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, reordered); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses reordering: %s", err)
 	}
 
@@ -77,7 +77,7 @@ func TestPCSCFAddressesKeepTheirOrder(t *testing.T) {
 		t.Fatalf("addresses = %v, want %v", got, reordered)
 	}
 
-	if err := database.ReplacePCSCFAddresses(ctx, nil); err != nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, nil); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses clearing: %s", err)
 	}
 
@@ -97,11 +97,11 @@ func TestPCSCFAddressesRejectedListLeavesStoredOne(t *testing.T) {
 
 	want := addrs("10.0.0.5")
 
-	if err := database.ReplacePCSCFAddresses(ctx, want); err != nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, want); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
 	}
 
-	if err := database.ReplacePCSCFAddresses(ctx, addrs("10.0.0.6", "10.0.0.6")); err == nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, addrs("10.0.0.6", "10.0.0.6")); err == nil {
 		t.Fatal("duplicate addresses accepted")
 	}
 
@@ -122,9 +122,9 @@ func TestValidatePCSCFAddresses(t *testing.T) {
 		valid     bool
 	}{
 		{"none", nil, true},
-		{"three of each family", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "2001:db8::1", "2001:db8::2", "2001:db8::3"), true},
-		{"four ipv4", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"), false},
-		{"four ipv6", addrs("2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4"), false},
+		{"five of each family", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5", "2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4", "2001:db8::5"), true},
+		{"six ipv4", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5", "10.0.0.6"), false},
+		{"six ipv6", addrs("2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4", "2001:db8::5", "2001:db8::6"), false},
 		{"duplicate", addrs("10.0.0.1", "10.0.0.1"), false},
 		{"unspecified", addrs("0.0.0.0"), false},
 		{"loopback", addrs("::1"), false},
@@ -141,8 +141,8 @@ func TestValidatePCSCFAddresses(t *testing.T) {
 		{"uppercase host name", addrs("PCSCF.example.org"), false},
 		{"host name with an underscore", addrs("p_cscf.example.org"), false},
 		{"duplicate host name", addrs("pcscf.example.org", "pcscf.example.org"), false},
-		{"six host names", addrs("a.example", "b.example", "c.example", "d.example", "e.example", "f.example"), true},
-		{"seven entries", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "2001:db8::1", "2001:db8::2", "2001:db8::3", "pcscf.example.org"), false},
+		{"ten host names", addrs("a.example", "b.example", "c.example", "d.example", "e.example", "f.example", "g.example", "h.example", "i.example", "j.example"), true},
+		{"eleven entries", addrs("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5", "2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4", "2001:db8::5", "pcscf.example.org"), false},
 	}
 
 	for _, tc := range cases {
@@ -162,7 +162,7 @@ func TestIMSVoiceStatus(t *testing.T) {
 	status := func(addresses ...string) db.IMSVoiceStatus {
 		t.Helper()
 
-		if err := database.ReplacePCSCFAddresses(ctx, addrs(addresses...)); err != nil {
+		if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, addrs(addresses...)); err != nil {
 			t.Fatalf("ReplacePCSCFAddresses: %s", err)
 		}
 
@@ -219,7 +219,7 @@ func TestIMSVoiceStatusIgnoresNonIMSDataNetworks(t *testing.T) {
 		t.Fatalf("CreateDataNetwork: %s", err)
 	}
 
-	if err := database.ReplacePCSCFAddresses(ctx, addrs("10.6.0.5")); err != nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, addrs("10.6.0.5")); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
 	}
 

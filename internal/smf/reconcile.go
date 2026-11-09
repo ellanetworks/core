@@ -446,6 +446,7 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		},
 		DNS:              dns,
 		IMS:              current.IMS,
+		PCSCF:            current.PCSCF,
 		MTU:              current.MTU,
 		IPv4Pool:         current.IPv4Pool,
 		IPv6Pool:         current.IPv6Pool,

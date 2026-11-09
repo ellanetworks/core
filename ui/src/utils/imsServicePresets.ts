@@ -8,14 +8,14 @@ import type {
 
 export type IMSPresetFilterCriterion = Omit<
   IMSInitialFilterCriterionInput,
-  "application_server_name"
+  "applicationServerName"
 >;
 
 export interface IMSServicePreset {
   name: string;
   label: string;
   description: string;
-  initial_filter_criteria: IMSPresetFilterCriterion[];
+  initialFilterCriteria: IMSPresetFilterCriterion[];
   suggestServer: (
     servers: IMSApplicationServer[],
     homeDomain?: string,
@@ -26,8 +26,8 @@ export const applyPreset = (
   preset: IMSServicePreset,
   applicationServerName: string,
 ): IMSInitialFilterCriterionInput[] =>
-  preset.initial_filter_criteria.map((ifc) => ({
-    application_server_name: applicationServerName,
+  preset.initialFilterCriteria.map((ifc) => ({
+    applicationServerName: applicationServerName,
     ...ifc,
   }));
 
@@ -39,27 +39,27 @@ export const imsServicePresets: IMSServicePreset[] = [
       "For the MCPTT registration set. MCPTT server: third-party registration and originating MCPTT sessions",
     suggestServer: (servers, homeDomain) =>
       servers.find(
-        (s) => !!homeDomain && s.server_name === `sip:mcptt.${homeDomain}`,
+        (s) => !!homeDomain && s.serverName === `sip:mcptt.${homeDomain}`,
       ) ?? servers.find((s) => s.name === "mcptt"),
-    initial_filter_criteria: [
+    initialFilterCriteria: [
       {
         trigger: {
-          conditions_match: "all",
+          conditionsMatch: "all",
           groups: [{ conditions: [{ method: "REGISTER" }] }],
         },
-        default_handling: "SESSION_CONTINUED",
-        include_register_request: true,
-        include_register_response: true,
+        defaultHandling: "SESSION_CONTINUED",
+        includeRegisterRequest: true,
+        includeRegisterResponse: true,
       },
       {
         trigger: {
-          conditions_match: "all",
+          conditionsMatch: "all",
           groups: [
             {
               conditions: [
-                { session_case: "ORIGINATING_REGISTERED" },
+                { sessionCase: "ORIGINATING_REGISTERED" },
                 {
-                  sip_header: {
+                  sipHeader: {
                     header: "^P-Asserted-Service$",
                     content: "^urn:urn-7:3gpp-service\\.ims\\.icsi\\.mcptt$",
                   },
@@ -68,7 +68,7 @@ export const imsServicePresets: IMSServicePreset[] = [
             },
           ],
         },
-        default_handling: "SESSION_TERMINATED",
+        defaultHandling: "SESSION_TERMINATED",
       },
     ],
   },
@@ -79,28 +79,28 @@ export const imsServicePresets: IMSServicePreset[] = [
       "For the MMTel registration set. IP-SM-GW: third-party registration and originating short messages",
     suggestServer: (servers, homeDomain) =>
       servers.find(
-        (s) => !!homeDomain && s.server_name === `sip:ipsmgw.${homeDomain}`,
+        (s) => !!homeDomain && s.serverName === `sip:ipsmgw.${homeDomain}`,
       ) ?? servers.find((s) => s.name === "ip-sm-gw"),
-    initial_filter_criteria: [
+    initialFilterCriteria: [
       {
         trigger: {
-          conditions_match: "all",
+          conditionsMatch: "all",
           groups: [{ conditions: [{ method: "REGISTER" }] }],
         },
-        default_handling: "SESSION_CONTINUED",
-        include_register_request: true,
-        include_register_response: true,
+        defaultHandling: "SESSION_CONTINUED",
+        includeRegisterRequest: true,
+        includeRegisterResponse: true,
       },
       {
         trigger: {
-          conditions_match: "all",
+          conditionsMatch: "all",
           groups: [
             {
               conditions: [
                 { method: "MESSAGE" },
-                { session_case: "ORIGINATING_REGISTERED" },
+                { sessionCase: "ORIGINATING_REGISTERED" },
                 {
-                  sip_header: {
+                  sipHeader: {
                     header: "^Content-Type$",
                     content: "^application/vnd\\.3gpp\\.sms$",
                   },
@@ -109,7 +109,7 @@ export const imsServicePresets: IMSServicePreset[] = [
             },
           ],
         },
-        default_handling: "SESSION_CONTINUED",
+        defaultHandling: "SESSION_CONTINUED",
       },
     ],
   },

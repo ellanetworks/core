@@ -38,6 +38,7 @@ import {
   Check as CheckIcon,
   Storage as StorageIcon,
   Lan as LanIcon,
+  Extension as ExtensionIcon,
   HelpCenter as SupportIcon,
   OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
@@ -347,6 +348,13 @@ export default function DrawerLayout({
               to="/networking"
               label="Networking"
               icon={<LanIcon color="primary" />}
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/integrations"
+              label="Integrations"
+              icon={<ExtensionIcon color="primary" />}
               pathname={pathname}
               onNavigate={handleNavClick}
             />

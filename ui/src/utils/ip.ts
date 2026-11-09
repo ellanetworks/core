@@ -106,3 +106,8 @@ export function isValidIpv6PoolCidr(value: string): boolean {
 
   return len >= IPV6_POOL_MIN_PREFIX && len <= IPV6_POOL_MAX_PREFIX;
 }
+
+export const formatEndpoint = (address: string, port?: number) => {
+  if (!port) return address;
+  return address.includes(":") ? `[${address}]:${port}` : `${address}:${port}`;
+};

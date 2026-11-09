@@ -18,12 +18,49 @@ const mcpttUserPrefix = "mcptt-"
 
 type subject struct {
 	Subscriber
-	domain    string
-	requested []RegistrationSet
+	domain        string
+	derivedDomain string
+	impiDomain    string
+	requested     []RegistrationSet
+}
+
+func newSubject(sub *Subscriber, domains HomeDomains, impi string) *subject {
+	s := &subject{Subscriber: *sub, domain: strings.ToLower(domains.Primary), derivedDomain: strings.ToLower(domains.Derived)}
+	s.adoptPrivateIdentity(impi)
+
+	return s
+}
+
+func (s *subject) adoptPrivateIdentity(impi string) bool {
+	previous := s.impiDomain
+	s.impiDomain = ""
+
+	if _, host, ok := strings.Cut(impi, "@"); ok && (HomeDomains{Primary: s.domain, Derived: s.derivedDomain}).accepts(host) {
+		s.impiDomain = strings.ToLower(host)
+	}
+
+	return s.impiDomain != previous
 }
 
 func (s *subject) privateIdentity() string {
+	if s.impiDomain != "" {
+		return s.IMSI + "@" + s.impiDomain
+	}
+
 	return s.IMSI + "@" + s.domain
+}
+
+func (s *subject) temporaryIdentities() []cx.ProfileIdentity {
+	domain := s.derivedDomain
+	if domain == "" {
+		domain = s.domain
+	}
+
+	if domain == "" {
+		return nil
+	}
+
+	return []cx.ProfileIdentity{{Identity: "sip:" + s.IMSI + "@" + domain, Barred: true}}
 }
 
 func (s *subject) sets() []RegistrationSet {
@@ -37,13 +74,12 @@ func (s *subject) sets() []RegistrationSet {
 func (s *subject) publicIdentities(set RegistrationSet) []cx.ProfileIdentity {
 	switch {
 	case set == MMTel && s.MSISDN != "":
-		return []cx.ProfileIdentity{
+		return append([]cx.ProfileIdentity{
 			{Identity: "sip:+" + s.MSISDN + "@" + s.domain},
 			{Identity: "tel:+" + s.MSISDN},
-			{Identity: "sip:" + s.privateIdentity(), Barred: true},
-		}
+		}, s.temporaryIdentities()...)
 	case set == MMTel:
-		return []cx.ProfileIdentity{{Identity: "sip:" + s.privateIdentity(), Barred: true}}
+		return s.temporaryIdentities()
 	case set == MCPTT && s.MSISDN != "" && s.MCPTT:
 		return []cx.ProfileIdentity{{Identity: "sip:" + mcpttUserPrefix + s.MSISDN + "@" + s.domain}}
 	default:
@@ -157,7 +193,7 @@ func digest(b []byte) string {
 }
 
 func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subject, error) {
-	domain, err := h.store.IMSDomain(ctx)
+	domains, err := h.store.IMSHomeDomains(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +201,7 @@ func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subje
 	var sub *Subscriber
 
 	if impi != "" {
-		imsi, ok := imsiFromPrivateIdentity(impi, domain)
+		imsi, ok := imsiFromPrivateIdentity(impi, domains)
 		if !ok {
 			return nil, ErrSubscriberUnknown
 		}
@@ -178,7 +214,7 @@ func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subje
 	var requested []RegistrationSet
 
 	for _, impu := range impus {
-		owner, set, err := h.publicIdentityOwner(ctx, impu, domain)
+		owner, set, err := h.publicIdentityOwner(ctx, impu, domains)
 		if err != nil {
 			return nil, err
 		}
@@ -200,10 +236,22 @@ func (h *HSS) resolve(ctx context.Context, impi string, impus ...string) (*subje
 		return nil, ErrSubscriberUnknown
 	}
 
-	return &subject{Subscriber: *sub, domain: strings.ToLower(domain), requested: requested}, nil
+	s := newSubject(sub, domains, impi)
+	s.requested = requested
+
+	return s, nil
 }
 
-func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Subscriber, RegistrationSet, error) {
+func (h *HSS) subjectOf(ctx context.Context, sub *Subscriber, impi string) (*subject, error) {
+	domains, err := h.store.IMSHomeDomains(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return newSubject(sub, domains, impi), nil
+}
+
+func (h *HSS) publicIdentityOwner(ctx context.Context, impu string, domains HomeDomains) (*Subscriber, RegistrationSet, error) {
 	scheme, rest, ok := strings.Cut(impu, ":")
 	if !ok {
 		return nil, "", ErrSubscriberUnknown
@@ -218,17 +266,20 @@ func (h *HSS) publicIdentityOwner(ctx context.Context, impu, domain string) (*Su
 	switch strings.ToLower(scheme) {
 	case "sip":
 		user, host, ok := strings.Cut(rest, "@")
-		if !ok || !strings.EqualFold(host, domain) {
+		if !ok || !domains.accepts(host) {
 			return nil, "", ErrSubscriberUnknown
 		}
 
+		inPrimary := strings.EqualFold(host, domains.Primary)
+		inDerived := strings.EqualFold(host, domains.Derived) || domains.Derived == "" && inPrimary
+
 		switch {
-		case strings.HasPrefix(user, "+"):
+		case strings.HasPrefix(user, "+") && inPrimary:
 			sub, err = h.subscriberByMSISDN(ctx, user[1:])
-		case strings.HasPrefix(user, mcpttUserPrefix):
+		case strings.HasPrefix(user, mcpttUserPrefix) && inPrimary:
 			set = MCPTT
 			sub, err = h.subscriberByMSISDN(ctx, user[len(mcpttUserPrefix):])
-		case isDigits(user, 6, 15):
+		case isDigits(user, 6, 15) && inDerived:
 			sub, err = h.store.Subscriber(ctx, user)
 		default:
 			err = ErrSubscriberUnknown
@@ -272,9 +323,9 @@ func (h *HSS) subscriberByMSISDN(ctx context.Context, msisdn string) (*Subscribe
 	return h.store.SubscriberByMSISDN(ctx, msisdn)
 }
 
-func imsiFromPrivateIdentity(impi, domain string) (string, bool) {
+func imsiFromPrivateIdentity(impi string, domains HomeDomains) (string, bool) {
 	user, host, ok := strings.Cut(impi, "@")
-	if !ok || !strings.EqualFold(host, domain) || !isDigits(user, 6, 15) {
+	if !ok || !domains.accepts(host) || !isDigits(user, 6, 15) {
 		return "", false
 	}
 

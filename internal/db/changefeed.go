@@ -32,6 +32,7 @@ const (
 	TopicFramedRoutes           Topic = "subscriber_framed_routes"
 	TopicUERegistrations        Topic = "ue_registrations"
 	TopicSMSSettings            Topic = "sms_settings"
+	TopicIMSSettings            Topic = "ims_settings"
 	TopicOperatorIdentity       Topic = "operator_identity"
 	TopicJWTSecret              Topic = "jwt_secret"
 	TopicRoaming                Topic = "roaming"

@@ -56,7 +56,7 @@ describe("Roamer detail", () => {
     renderDetail();
 
     expect(await fieldValue("Partner")).toHaveTextContent("Partner A");
-    expect(await fieldValue("Home PLMN")).toHaveTextContent("208-93");
+    expect(await fieldValue("Home PLMN")).toHaveTextContent("208 / 93");
     expect(await fieldValue("MSISDN")).toHaveTextContent("+33612345678");
     expect(screen.getByText("Connected")).toBeInTheDocument();
     for (const name of [
