@@ -26,12 +26,8 @@ import (
 // IPv6SessionContext holds the tunnel metadata and prefix information
 // needed to respond to an RS from a UE with an RA.
 type IPv6SessionContext struct {
-	DownlinkTEID uint32     // gNB's TEID for DL GTP-U encapsulation
-	GnbN3Addr    netip.Addr // gNB's N3 transport address (IPv4 or IPv6)
-	Prefix       netip.Prefix
-	MTU          uint32
-	QFI          uint8
-	S1U          bool // 4G S1-U: encapsulate the RA PSC-less (no PDU Session Container)
+	Prefix netip.Prefix
+	MTU    uint32
 
 	// ueLinkLocal is learned from the first RS event. Once set, the
 	// corresponding veth tunnel map entry exists and is cleaned up on
@@ -54,9 +50,6 @@ type RAResponder struct {
 	mu       sync.RWMutex
 	sessions map[uint32]*IPv6SessionContext // key: uplink TEID
 
-	// N3 interface info (needed for veth tunnel map programming).
-	n3IPv4    netip.Addr
-	n3IPv6    netip.Addr
 	n3Ifindex int
 
 	// Owned by the UPF; the responder attaches the veth program but does not
@@ -78,7 +71,7 @@ type RAResponder struct {
 
 // NewRAResponder creates an RA responder. It does not start the consumer
 // goroutine; call Start() to begin processing.
-func NewRAResponder(bpfObjects *ebpf.BpfObjects, n3IPv4 netip.Addr, n3IPv6 netip.Addr, n3Ifindex int) (*RAResponder, error) {
+func NewRAResponder(bpfObjects *ebpf.BpfObjects, n3Ifindex int) (*RAResponder, error) {
 	rsReader, err := ringbuf.NewReader(bpfObjects.RsEventMap)
 	if err != nil {
 		return nil, fmt.Errorf("open RS event ring buffer: %w", err)
@@ -86,8 +79,6 @@ func NewRAResponder(bpfObjects *ebpf.BpfObjects, n3IPv4 netip.Addr, n3IPv6 netip
 
 	return &RAResponder{
 		sessions:   make(map[uint32]*IPv6SessionContext),
-		n3IPv4:     n3IPv4,
-		n3IPv6:     n3IPv6,
 		n3Ifindex:  n3Ifindex,
 		bpfObjects: bpfObjects,
 		rsReader:   rsReader,
@@ -167,8 +158,6 @@ func (r *RAResponder) Start() error {
 	logger.UpfLog.Info("RA responder started",
 		zap.String("veth_smf", VethSMFName),
 		zap.String("veth_xdp", VethXDPName),
-		zap.String("n3_ipv4", r.n3IPv4.String()),
-		zap.String("n3_ipv6", r.n3IPv6.String()),
 		zap.Int("n3_ifindex", r.n3Ifindex),
 	)
 
@@ -236,9 +225,7 @@ func (r *RAResponder) RegisterSession(ulTEID uint32, sessionCtx *IPv6SessionCont
 
 	logger.UpfLog.Debug("registered IPv6 session for RA",
 		logger.TEID(ulTEID),
-		zap.String("gnb_n3_addr", sessionCtx.GnbN3Addr.String()),
 		zap.String("prefix", sessionCtx.Prefix.String()),
-		zap.Uint32("dl_teid", sessionCtx.DownlinkTEID),
 	)
 }
 
@@ -352,44 +339,8 @@ func (r *RAResponder) handleRSEvent(ulTEID uint32, ueIPv6 netip.Addr) error {
 	return nil
 }
 
-// programVethTunnel ensures the veth tunnel map has an entry for the given
-// UE IPv6 address. This allows the veth XDP program to encapsulate the RA
-// in GTP-U and redirect it to N3.
 func (r *RAResponder) programVethTunnel(sess *IPv6SessionContext, ueIPv6 netip.Addr) error {
-	localAddr, err := r.localN3Addr(sess.GnbN3Addr)
-	if err != nil {
-		return err
-	}
-
-	info := ebpf.VethTunnelInfo{
-		TEID:       sess.DownlinkTEID,
-		LocalAddr:  localAddr,
-		RemoteAddr: sess.GnbN3Addr,
-		QFI:        sess.QFI,
-		S1U:        sess.S1U,
-	}
-
-	return r.bpfObjects.PutTunnel(ueIPv6, info)
-}
-
-func (r *RAResponder) localN3Addr(remote netip.Addr) (netip.Addr, error) {
-	if remote.Is4() {
-		if r.n3IPv4.IsValid() {
-			return r.n3IPv4, nil
-		}
-
-		return netip.Addr{}, fmt.Errorf("no local N3 IPv4 address available for remote %s", remote)
-	}
-
-	if remote.Is6() {
-		if r.n3IPv6.IsValid() {
-			return r.n3IPv6, nil
-		}
-
-		return netip.Addr{}, fmt.Errorf("no local N3 IPv6 address available for remote %s", remote)
-	}
-
-	return netip.Addr{}, fmt.Errorf("invalid gNB N3 address: %s", remote)
+	return r.bpfObjects.PutTunnel(ueIPv6, sess.Prefix)
 }
 
 // buildRAPacket constructs a complete Ethernet + IPv6 + ICMPv6 RA frame

@@ -32,6 +32,7 @@ type dataPlane struct {
 	Downlink DownlinkState
 	QFI      uint8
 	FiveQI   uint8
+	Arp      models.Arp
 	AMBR     models.Ambr
 
 	RatingGroup uint32
@@ -48,6 +49,7 @@ type bearerLeg struct {
 	Slot         uint8
 	QFI          uint8
 	FiveQI       uint8
+	Arp          models.Arp
 	Admitted     bool
 	TargetUplink bool
 	Rules        []ruleLeg
@@ -91,6 +93,7 @@ const (
 	pdrIDRuleBase             uint16 = 256
 	farIDBearerBase           uint32 = 16
 	farIDBearerForwardingBase uint32 = 32
+	farIDBearerDownlinkBase   uint32 = 48
 	qerIDRuleBase             uint32 = 256
 
 	chooseIDSession              uint8  = 1
@@ -125,6 +128,8 @@ func qerIDRule(slot, index uint8) uint32 {
 }
 
 func farIDBearer(slot uint8) uint32 { return farIDBearerBase + uint32(slot) }
+
+func farIDBearerDownlink(slot uint8) uint32 { return farIDBearerDownlinkBase + uint32(slot) }
 
 func bearerDownlinkPDROfFAR(id uint32) uint16 {
 	if id < farIDBearerBase || id >= farIDBearerBase+maxDedicatedBearers {
@@ -260,10 +265,11 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 	ohr := models.OuterHeaderRemovalGtpUUdpIP
 	downlinkProgrammed := d.Downlink != DownlinkDropping && (d.Downlink != DownlinkForwarding || b.AN.bound())
 	chooseID, downlinkFAR, qfi := chooseIDBearer(b.Slot), farIDBearer(b.Slot), uint8(0)
+	marking := transportLevelMarking(b.FiveQI, b.Arp)
 
 	if d.Access == Access5G {
 		downlinkProgrammed = d.Downlink != DownlinkDropping && b.Admitted
-		chooseID, downlinkFAR, qfi = chooseIDSession, farIDDownlink, b.QFI
+		chooseID, downlinkFAR, qfi = chooseIDSession, farIDBearerDownlink(b.Slot), b.QFI
 	}
 
 	for _, r := range b.Rules {
@@ -349,15 +355,21 @@ func (d dataPlane) bearerRules(b bearerLeg) (pdrs []models.PDR, fars []models.FA
 		fars = append(fars, models.FAR{
 			FARID:                farIDBearerForwarding(b.Slot),
 			ApplyAction:          models.ApplyAction{Forw: true},
-			ForwardingParameters: forwardingTunnelParameters(*b.Forwarding, d.Access),
+			ForwardingParameters: forwardingTunnelParameters(*b.Forwarding, d.Access, marking),
 		})
 	}
 
-	if downlinkProgrammed && slices.ContainsFunc(pdrs, func(p models.PDR) bool { return p.FARID == farIDBearer(b.Slot) }) {
+	if downlinkProgrammed && slices.ContainsFunc(pdrs, func(p models.PDR) bool { return p.FARID == downlinkFAR }) {
+		anchor := b.AN
+
+		if d.Access == Access5G {
+			anchor = d.AN
+		}
+
 		fars = append(fars, models.FAR{
-			FARID:                farIDBearer(b.Slot),
+			FARID:                downlinkFAR,
 			ApplyAction:          d.bearerDownlinkAction(),
-			ForwardingParameters: accessForwardingParameters(b.AN, d.Access),
+			ForwardingParameters: accessForwardingParameters(anchor, d.Access, marking),
 		})
 	}
 
@@ -540,6 +552,11 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 	qers = append(qers, dq...)
 
 	if d.Forwarding != nil {
+		forwardingMarking := transportLevelMarking(d.FiveQI, d.Arp)
+		if d.Access == Access5G {
+			forwardingMarking = 0
+		}
+
 		pdrs = append(pdrs, models.PDR{
 			PDRID:              pdrIDForwarding,
 			Precedence:         pdrPrecedenceDefault,
@@ -554,20 +571,21 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 		fars = append(fars, models.FAR{
 			FARID:                farIDForwarding,
 			ApplyAction:          models.ApplyAction{Forw: true},
-			ForwardingParameters: forwardingTunnelParameters(*d.Forwarding, d.Access),
+			ForwardingParameters: forwardingTunnelParameters(*d.Forwarding, d.Access, forwardingMarking),
 		})
 	}
 
 	return pdrs, fars, qers, urrs
 }
 
-func forwardingTunnelParameters(an AnchorBinding, access AccessType) *models.ForwardingParameters {
+func forwardingTunnelParameters(an AnchorBinding, access AccessType, marking uint16) *models.ForwardingParameters {
 	s1u := access == Access4G
 
 	switch {
 	case an.IPv6 != nil:
 		return &models.ForwardingParameters{
-			DestinationInterface: models.InterfaceAccess,
+			DestinationInterface:  models.InterfaceAccess,
+			TransportLevelMarking: marking,
 			OuterHeaderCreation: &models.OuterHeaderCreation{
 				Description: models.OuterHeaderCreationGtpUUdpIpv6,
 				TEID:        an.TEID,
@@ -583,6 +601,7 @@ func forwardingTunnelParameters(an AnchorBinding, access AccessType) *models.For
 				IPv4Address: an.IPv4.To4(),
 				S1U:         s1u,
 			},
+			TransportLevelMarking: marking,
 		}
 	default:
 		return &models.ForwardingParameters{}
@@ -647,11 +666,13 @@ func (d dataPlane) withServingRadios(ctx context.Context, prev dataPlane) dataPl
 }
 
 func (d dataPlane) forwardingParameters() *models.ForwardingParameters {
-	return accessForwardingParameters(d.AN, d.Access)
+	return accessForwardingParameters(d.AN, d.Access, transportLevelMarking(d.FiveQI, d.Arp))
 }
 
-func accessForwardingParameters(an AnchorBinding, access AccessType) *models.ForwardingParameters {
+func accessForwardingParameters(an AnchorBinding, access AccessType, marking uint16) *models.ForwardingParameters {
 	params := &models.ForwardingParameters{DestinationInterface: models.InterfaceAccess}
+
+	params.TransportLevelMarking = marking
 
 	s1u := access == Access4G
 

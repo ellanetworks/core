@@ -250,7 +250,7 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		s.admitFlowsLocked(ctx, smContext, *admitted)
 	}
 
-	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
 		logger.SUPI(smContext.Supi.String()),
@@ -421,7 +421,7 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	}
 
 	// Re-register the IPv6 session with the new gNB tunnel endpoint.
-	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 

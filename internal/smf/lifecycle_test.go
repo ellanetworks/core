@@ -1168,8 +1168,12 @@ func TestReconcileSession_QoSOnly(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
-	if len(upf.modifyCalls) != 0 {
-		t.Fatalf("a 5QI/ARP change reached the UPF, whose QER carries neither: %d calls", len(upf.modifyCalls))
+	if len(upf.modifyCalls) != 1 {
+		t.Fatalf("a 5QI/ARP change reached the UPF %d times, want once for the QER 5QI and the downlink marking", len(upf.modifyCalls))
+	}
+
+	if i := slices.IndexFunc(upf.modifyCalls[0].UpdateQERs, func(q models.QER) bool { return q.QERID == 1 }); i < 0 || upf.modifyCalls[0].UpdateQERs[i].FiveQI != 8 {
+		t.Fatalf("UpdateQERs %+v, want the default QER at 5QI 8", upf.modifyCalls[0].UpdateQERs)
 	}
 
 	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil, nil)

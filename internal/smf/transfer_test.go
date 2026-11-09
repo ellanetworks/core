@@ -1092,58 +1092,6 @@ func TestTransferKeepsThePolicyAssociationsDecision(t *testing.T) {
 	}
 }
 
-func TestTransferRegistersTheRAEntryWithTheTargetQFI(t *testing.T) {
-	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
-	store.allocatedIPv6 = netip.MustParseAddr("2001:db8:2::")
-
-	s := newTestSMF(pcf, store, upf, amfCb)
-	s.SetMME(mmeCb)
-
-	ctx := context.Background()
-
-	req := epsRequest(3)
-	req.APN = testDNN
-	req.PDUSessionID = movedPDUSessionID
-	req.Snssai = testSnssai
-
-	bearer, err := s.CreateEPSSession(ctx, req)
-	if err != nil {
-		t.Fatalf("CreateEPSSession: %v", err)
-	}
-
-	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
-	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb, nil); err != nil {
-		t.Fatalf("ModifyEPSSession: %v", err)
-	}
-
-	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest(), 0, nil)
-	if err != nil || reject != nil {
-		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
-	}
-
-	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
-	if err != nil {
-		t.Fatalf("build N2 setup response: %v", err)
-	}
-
-	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err != nil {
-		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
-	}
-
-	reg := upf.lastIPv6Reg
-	if reg == nil {
-		t.Fatal("IPv6 session not registered with the UPF after the move")
-	}
-
-	if reg.QFI != 1 {
-		t.Errorf("RA entry QFI = %d, want 1: it was programmed from the EPS policy", reg.QFI)
-	}
-
-	if reg.S1U {
-		t.Error("RA entry marked S1U (PSC-less) for a session now on N3")
-	}
-}
-
 func TestReleaseEPSSessionByTransferState(t *testing.T) {
 	prepare := func(t *testing.T) (*smf.SMF, *fakeUPF, *smf.SMContext) {
 		t.Helper()

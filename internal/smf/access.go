@@ -14,10 +14,6 @@ const (
 	Access4G                   // S1-U user plane; ESM owned by the MME (PGW-C role)
 )
 
-// usesPSC reports whether the user-plane GTP-U carries the PDU Session Container
-// (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501, TS 38.415.
-func (a AccessType) usesPSC() bool { return a == Access5G }
-
 func (a AccessType) rat() string {
 	if a == Access4G {
 		return metrics.RAT4G

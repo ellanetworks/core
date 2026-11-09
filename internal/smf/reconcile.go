@@ -457,6 +457,13 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	}
 
 	if smContext.Access == Access5G && hasQoSChange && !has5QIChange && !hasAmbrChange && !hasDNSChange && !smContext.upConnectionActive() {
+		if err := s.updatePFCPRules(ctx, smContext, newPolicy); err != nil {
+			logger.From(ctx, logger.SmfLog).Warn("failed to apply the ARP change to the UPF; the next reconcile retries it",
+				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+			smContext.userPlaneStale = true
+		}
+
 		smContext.PolicyData = newPolicy
 
 		return reconcileDecision{}, nil
@@ -590,6 +597,7 @@ func (s *SMF) commitPendingPolicy(ctx context.Context, smContext *SMContext) {
 
 	current := smContext.PolicyData
 	if current == nil || current.QosData.QFI != pending.QosData.QFI ||
+		current.QosData.Var5qi != pending.QosData.Var5qi || arpValue(current.QosData.Arp) != arpValue(pending.QosData.Arp) ||
 		!current.Ambr.Uplink.Equal(pending.Ambr.Uplink) || !current.Ambr.Downlink.Equal(pending.Ambr.Downlink) {
 		if err := s.updatePFCPRules(ctx, smContext, pending); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("failed to apply the accepted policy to the UPF; the next reconcile retries it",
@@ -692,10 +700,8 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	return nil
 }
 
-// updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
-// plane (TS 29.244).
 func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
-	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
+	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, uint8(policy.QosData.Var5qi), arpValue(policy.QosData.Arp), policy.Ambr.Uplink, policy.Ambr.Downlink, policy.RatingGroup)
 }
 
 func (s *SMF) applyForwarding(ctx context.Context, smContext *SMContext, policy *Policy) error {
@@ -714,7 +720,7 @@ func (s *SMF) applyForwarding(ctx context.Context, smContext *SMContext, policy 
 	return err
 }
 
-func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi, fiveQI uint8, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {
+func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi, fiveQI uint8, arp models.Arp, ambrUplink, ambrDownlink models.BitRate, ratingGroup uint32) error {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return fmt.Errorf("PFCP session not established")
 	}
@@ -726,6 +732,7 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	next := smContext.Tunnel.dataPlane
 	next.QFI = qfi
 	next.FiveQI = fiveQI
+	next.Arp = arp
 	next.AMBR = models.Ambr{Uplink: ambrUplink, Downlink: ambrDownlink}
 	next.RatingGroup = ratingGroup
 

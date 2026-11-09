@@ -327,12 +327,8 @@ func (a *smfUPFAdapter) RegisterIPv6Session(_ context.Context, reg *models.IPv6S
 	}
 
 	a.upf.RegisterIPv6Session(reg.UplinkTEID, &upf.IPv6SessionContext{
-		DownlinkTEID: reg.DownlinkTEID,
-		GnbN3Addr:    reg.GnbN3Addr,
-		Prefix:       reg.Prefix,
-		MTU:          reg.MTU,
-		QFI:          reg.QFI,
-		S1U:          reg.S1U,
+		Prefix: reg.Prefix,
+		MTU:    reg.MTU,
 	})
 
 	return nil

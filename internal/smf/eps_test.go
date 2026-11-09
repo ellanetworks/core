@@ -385,11 +385,6 @@ func TestModifyEPSSessionRegistersIPv6(t *testing.T) {
 	if upf.lastIPv6Reg.Prefix.Addr() != store.allocatedIPv6 || upf.lastIPv6Reg.Prefix.Bits() != 64 {
 		t.Fatalf("registered IPv6 prefix = %v, want %v/64", upf.lastIPv6Reg.Prefix, store.allocatedIPv6)
 	}
-
-	// The RA must ride the S1-U bearer PSC-less, matching the data path.
-	if !upf.lastIPv6Reg.S1U {
-		t.Fatal("IPv6 session registered without the S1-U (PSC-less) marking")
-	}
 }
 
 func TestReleaseEPSSession(t *testing.T) {

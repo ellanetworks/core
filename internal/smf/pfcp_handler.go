@@ -159,7 +159,7 @@ func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.Er
 	}
 
 	switch {
-	case report.FARID == farIDDownlink || bearerFAR(report.FARID):
+	case report.FARID == farIDDownlink || bearerFAR(report.FARID) || qosFlowFAR(report.FARID):
 		return s.releaseBrokenAccessTunnel(ctx, smContext, report)
 	case report.FARID == farIDForwarding || bearerForwardingFAR(report.FARID):
 		return s.releaseBrokenForwardingTunnel(ctx, smContext, report)
@@ -348,6 +348,10 @@ func (s *SMF) epsSessionsOf(supi etsi.SUPI) []*SMContext {
 
 func bearerFAR(id uint32) bool {
 	return id >= farIDBearerBase && id < farIDBearerBase+maxDedicatedBearers
+}
+
+func qosFlowFAR(id uint32) bool {
+	return id >= farIDBearerDownlinkBase && id < farIDBearerDownlinkBase+maxDedicatedBearers
 }
 
 func bearerForwardingFAR(id uint32) bool {
