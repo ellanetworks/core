@@ -231,8 +231,13 @@ func TestVethRADroppedWhileTheDownlinkDoesNotForward(t *testing.T) {
 
 	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 
-	if action := runXDP(t, vobj.VethXdpFunc, ethFrame(0x86DD, ra)); action != ActionDrop {
-		t.Fatalf("RA for a buffering session got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
+	wantAction := uint32(ActionDrop)
+	if vobj.UseTCX {
+		wantAction = tcActShot
+	}
+
+	if action := runXDP(t, vobj.VethXdpFunc, ethFrame(0x86DD, ra)); action != wantAction {
+		t.Fatalf("RA for a buffering session got action %d, want drop action %d", action, wantAction)
 	}
 
 	if err := vobj.DeleteTunnel(ueDst); err != nil {
@@ -243,8 +248,8 @@ func TestVethRADroppedWhileTheDownlinkDoesNotForward(t *testing.T) {
 		t.Fatalf("put tunnel: %v", err)
 	}
 
-	if action := runXDP(t, vobj.VethXdpFunc, ethFrame(0x86DD, ra)); action != ActionDrop {
-		t.Fatalf("RA for a prefix with no downlink PDR got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
+	if action := runXDP(t, vobj.VethXdpFunc, ethFrame(0x86DD, ra)); action != wantAction {
+		t.Fatalf("RA for a prefix with no downlink PDR got action %d, want drop action %d", action, wantAction)
 	}
 }
 
