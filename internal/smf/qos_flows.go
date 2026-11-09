@@ -440,7 +440,7 @@ func (s *SMF) newFlowLocked(ctx context.Context, sc *SMContext, binding bearerBi
 	b := &dedicatedBearer{slot: slot, qfi: qfi, pending: &bearerConfig{binding: binding}}
 
 	next := sc.Tunnel.dataPlane
-	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, QFI: qfi, FiveQI: binding.QCI})
+	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, QFI: qfi, FiveQI: binding.QCI, Arp: binding.ARP})
 
 	if err := s.applyDataPlane(ctx, sc, next, sc.policyID()); err != nil {
 		return nil, fmt.Errorf("add the QoS flow's user plane: %w", err)
@@ -566,7 +566,7 @@ func (s *SMF) modifyFlowLocked(ctx context.Context, sc *SMContext, change *flowC
 	}
 
 	if len(ops) == 0 && !ratesChanged && !sc.upConnectionActive() {
-		if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, rules})); err != nil {
+		if err := s.setLegLocked(ctx, sc, b, &binding.ARP, sc.legRulesLocked(b, ruleSet{b.installed.tft, rules})); err != nil {
 			logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))
 			return addedOrChangedRules(rules, b.installed.rules)
 		}
@@ -1043,6 +1043,7 @@ func (s *SMF) concludeRemovedFlowLocked(ctx context.Context, sc *SMContext, b *d
 func (s *SMF) commitFlowLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
 	if err := s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) {
 		l.Admitted = b.ran != nil
+		l.Arp = b.installed.binding.ARP
 		l.Rules = sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules})
 	}); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("QoS flow user plane not updated", logger.SUPI(sc.Supi.String()), zap.Uint8("qfi", b.qfi), zap.Error(err))

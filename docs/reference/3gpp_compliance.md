@@ -46,6 +46,7 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **Session management.** 4G PDN connectivity and 5G PDU sessions: establishment, modification, and release, including network-requested procedures.
 - **Session types.** IPv4, IPv6, and IPv4v6.
 - **QoS.** A default QoS flow (5G) or default bearer (4G) per session, with the 5QI/QCI, ARP priority level, and pre-emption capability and vulnerability of the session's policy.
+- **DSCP marking.** The UPF sets the DSCP of the outer IP header of downlink GTP-U packets on N3/S1-U.
 - **Dynamic PCC rules.** GBR and non-GBR rules from the PCRF/PCF. A rule with the 5QI/QCI and ARP of the default QoS flow or bearer is carried on it; other rules get dedicated QoS flows (5G) or dedicated bearers (4G), up to 4 per session. A change of a rule's ARP modifies its QoS flow or bearer in place. The [Subscribers API](api/subscribers.md#bearers) lists each session's QoS flows or bearers.
 
 ### Security

@@ -342,7 +342,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (result == QER_RATE_LIMITED)
 		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
-	__u8 tos = sel->target.far.transport_level_marking >> 8;
+	__u8 tos = tlm_dscp(&sel->target.far);
 	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr,
 		   sel->target.far.teid);
 
@@ -522,7 +522,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (result == QER_RATE_LIMITED)
 		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 
-	__u8 tos = sel->target.far.transport_level_marking >> 8;
+	__u8 tos = tlm_dscp(&sel->target.far);
 
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 frame_bytes = ctx_full_len(ctx->ctx_buff);

@@ -731,8 +731,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_IPv6RegistersIPv6GnbAddress(t *test
 		t.Fatal("expected IPv6 session registration")
 	}
 
-	if got, want := upf.lastIPv6Reg.GnbN3Addr, netip.MustParseAddr("2001:db8::200"); got != want {
-		t.Fatalf("registered gNB N3 address = %s, want %s", got, want)
+	if got := upf.lastIPv6Reg.Prefix; !got.IsValid() || got.Bits() != 64 {
+		t.Fatalf("registered IPv6 prefix = %s, want the session's /64", got)
 	}
 }
 

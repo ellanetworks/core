@@ -507,16 +507,8 @@ int upf_entry_func(struct __ctx_buff *ctx)
 	return ctx_verdict(DEFAULT_CTX_ACTION);
 }
 
-/* Keyed by the inner IPv6 destination address. */
 struct veth_tunnel_info {
-	__u32 teid;
-	struct in6_addr local_addr;
-	struct in6_addr remote_addr;
-	__u8 qfi;
-	/* 4G S1-U carries plain GTP-U with no PDU Session Container (PSC is
-	 * N3/N9 only, TS 38.415); encapsulate PSC-less when set. */
-	__u8 no_psc;
-	__u8 pad[2];
+	struct in6_addr ue_prefix;
 };
 
 struct {
@@ -558,6 +550,21 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		return ctx_verdict(CTX_ACT_DROP);
 	}
 
+	const struct pdr_info *pdr =
+		bpf_map_lookup_elem(&pdrs_downlink_ip6, &tun->ue_prefix);
+	if (!pdr) {
+		upf_printk("upf: veth XDP no downlink PDR for %pI6c",
+			   &tun->ue_prefix);
+		return ctx_verdict(CTX_ACT_DROP);
+	}
+
+	const struct far_info far = pdr->far;
+	const __u8 qfi = pdr->qer.qfi;
+	const __u8 tos = tlm_dscp(&far);
+
+	if (!(far.action & FAR_FORW))
+		return ctx_verdict(CTX_ACT_DROP);
+
 	upf_printk("upf: veth received RA for dest %pI6c", &ip6->daddr);
 
 	struct packet_context pkt_ctx = {
@@ -569,17 +576,15 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 	};
 
 	int ret;
-	if (is_ipv4_mapped_ipv6(&tun->local_addr) &&
-	    is_ipv4_mapped_ipv6(&tun->remote_addr)) {
-		upf_printk("upf: encapsulating over IPv4");
-		__u32 saddr = ipv4_from_mapped(&tun->local_addr);
-		__u32 daddr = ipv4_from_mapped(&tun->remote_addr);
-		if (tun->no_psc) {
+	if (far.outer_header_creation & OHC_GTP_U_UDP_IPv4) {
+		__u32 saddr = ipv4_from_mapped(&far.localip);
+		__u32 daddr = ipv4_from_mapped(&far.remoteip);
+		if (far.outer_header_creation & OHC_NO_PSC) {
 			ret = add_gtp_over_ip4_headers_s1u(&pkt_ctx, saddr,
-							   daddr, 0, tun->teid);
+							   daddr, tos, far.teid);
 		} else {
 			ret = add_gtp_over_ip4_headers(&pkt_ctx, saddr, daddr,
-						       0, tun->qfi, tun->teid);
+						       tos, qfi, far.teid);
 		}
 		if (ret != 0) {
 			return ctx_verdict(CTX_ACT_ABORTED);
@@ -592,18 +597,18 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 			return ctx_verdict(CTX_ACT_ABORTED);
 
 		return ctx_verdict(route_ipv4(&pkt_ctx, route_stat4, true));
-	} else {
-		upf_printk("upf: encapsulating over IPv6");
-		if (tun->no_psc) {
+	}
+
+	if (far.outer_header_creation & OHC_GTP_U_UDP_IPv6) {
+		if (far.outer_header_creation & OHC_NO_PSC) {
 			ret = add_gtp_over_ip6_headers_s1u(&pkt_ctx,
-							   &tun->local_addr,
-							   &tun->remote_addr, 0,
-							   tun->teid);
+							   &far.localip,
+							   &far.remoteip, tos,
+							   far.teid);
 		} else {
-			ret = add_gtp_over_ip6_headers(&pkt_ctx,
-						       &tun->local_addr,
-						       &tun->remote_addr, 0,
-						       tun->qfi, tun->teid);
+			ret = add_gtp_over_ip6_headers(&pkt_ctx, &far.localip,
+						       &far.remoteip, tos, qfi,
+						       far.teid);
 		}
 		if (ret != 0) {
 			return ctx_verdict(CTX_ACT_ABORTED);
@@ -618,7 +623,7 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		return ctx_verdict(route_ipv6(&pkt_ctx, route_stat6, true));
 	}
 
-	return ctx_verdict(CTX_ACT_ABORTED);
+	return ctx_verdict(CTX_ACT_DROP);
 }
 
 char _license[] SEC("license") = "GPL";

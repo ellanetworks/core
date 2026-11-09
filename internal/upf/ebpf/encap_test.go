@@ -339,6 +339,55 @@ func TestTransportLevelMarking(t *testing.T) {
 	}
 }
 
+// TS 29.244 §8.2.12
+func TestTransportLevelMarkingSetsOnlyTheDSCP(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid    = 0x544F5302
+		qfi     = 5
+		wantTOS = 0xB8
+	)
+
+	for _, tc := range []struct {
+		name string
+		pdr  PdrInfo
+		v6   bool
+	}{
+		{"ipv4", ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi), false},
+		{"ipv6", ipv6OuterDownlinkPDR(teid, netip.MustParseAddr("2001:db8:44::1").As16(), netip.MustParseAddr("2001:db8:44::9").As16(), qfi), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadProgram(t, 1, 0)
+
+			pdr := tc.pdr
+			pdr.Far.TransportLevelMarking = uint16(wantTOS|0x03)<<8 | 0xFC
+
+			if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+				t.Fatalf("install downlink PDR: %v", err)
+			}
+
+			inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
+			if action == ActionAborted || action == ActionDrop {
+				t.Fatalf("downlink packet got XDP action %d, want it encapsulated", action)
+			}
+
+			ip := out[ethHdrLen:]
+
+			got := ip[1]
+			if tc.v6 {
+				got = (ip[0]&0x0f)<<4 | ip[1]>>4
+			}
+
+			if got != wantTOS {
+				t.Errorf("outer ToS/Traffic Class = %#02x, want only the marking's DSCP bits %#02x", got, wantTOS)
+			}
+		})
+	}
+}
+
 func ipv4OuterDownlinkPDR(teid uint32, local, remote [4]byte, qfi uint8) PdrInfo {
 	return PdrInfo{
 		IMSI: "001010000000001",

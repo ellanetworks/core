@@ -14,11 +14,8 @@ func TestRegisterIPv6SessionWithoutAResponderIsANoOp(t *testing.T) {
 	var u upf.UPF
 
 	u.RegisterIPv6Session(0xBEEF, &upf.IPv6SessionContext{
-		DownlinkTEID: 0x1234,
-		GnbN3Addr:    netip.MustParseAddr("10.0.0.1"),
-		Prefix:       netip.MustParsePrefix("2001:db8:1::/64"),
-		MTU:          1400,
-		QFI:          9,
+		Prefix: netip.MustParsePrefix("2001:db8:1::/64"),
+		MTU:    1400,
 	})
 	u.UnregisterIPv6Session(0xBEEF)
 }
