@@ -143,11 +143,11 @@ func TestVLANVRFInjection(t *testing.T) {
 				ipCmdOK(t, "link", "set", vethInjDev, "master", "ellvvrf")
 				inj := ifByName(t, vethInjDev)
 				prog := f.obj.VethXdpFunc
-				local, remote, family := netip.AddrFrom4(testUPFN3IP), netip.AddrFrom4(testGNBIP), "-4"
+				remote, family := netip.AddrFrom4(testGNBIP), "-4"
 				pdr := ipv4OuterDownlinkPDR(2, testUPFN3IP, testGNBIP, 7)
 
 				if outer6 {
-					local, remote, family = netip.AddrFrom16(testUPFN3v6), netip.AddrFrom16(testGNBv6), "-6"
+					remote, family = netip.AddrFrom16(testGNBv6), "-6"
 					pdr = ipv6OuterDownlinkPDR(2, testUPFN3v6, testGNBv6, 7)
 				}
 
@@ -192,8 +192,14 @@ func TestVLANVRFInjection(t *testing.T) {
 					if err := f.obj.SetBufferVethIfindex(inj.Index); err != nil {
 						t.Fatal(err)
 					}
-				} else if err := f.obj.PutTunnel(ue, VethTunnelInfo{TEID: 2, LocalAddr: local, RemoteAddr: remote, QFI: 7}); err != nil {
-					t.Fatal(err)
+				} else {
+					if err := f.obj.PutPdrDownlink(canonicalUEv6Prefix, pdr); err != nil {
+						t.Fatal(err)
+					}
+
+					if err := f.obj.PutTunnel(ue, netip.PrefixFrom(canonicalUEv6Prefix, 64)); err != nil {
+						t.Fatal(err)
+					}
 				}
 
 				attachDatapath(t, f.obj, prog, inj.Index)

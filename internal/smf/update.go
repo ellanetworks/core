@@ -273,7 +273,7 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 
 	smContext.establishmentOutstanding = false
 
-	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -512,31 +512,8 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 // registerIPv6SessionIfNeeded registers the IPv6 session with the UPF's RA
 // responder if the session has a delegated IPv6 prefix and the gNB's tunnel
 // endpoint is known. Must be called with smContext.Mutex held.
-func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext, access AccessType) {
-	if smContext.PDUIPV6Prefix == nil || smContext.Tunnel == nil {
-		return
-	}
-
-	anInfo := smContext.Tunnel.AN
-	if anInfo.TEID == 0 {
-		return
-	}
-
-	var gnbIP netip.Addr
-
-	if anInfo.IPv6 != nil {
-		if addr, ok := netip.AddrFromSlice(anInfo.IPv6.To16()); ok {
-			gnbIP = addr
-		}
-	}
-
-	if !gnbIP.IsValid() && anInfo.IPv4 != nil {
-		if addr, ok := netip.AddrFromSlice(anInfo.IPv4.To4()); ok {
-			gnbIP = addr
-		}
-	}
-
-	if !gnbIP.IsValid() {
+func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext) {
+	if smContext.PDUIPV6Prefix == nil || smContext.Tunnel == nil || smContext.Tunnel.AN.TEID == 0 || !smContext.Tunnel.AN.bound() {
 		return
 	}
 
@@ -545,26 +522,15 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		return
 	}
 
-	var qfi uint8
-	if smContext.PolicyData != nil {
-		qfi = smContext.PolicyData.QosData.QFI
-	}
-
 	var mtu uint32
 	if smContext.PolicyData != nil {
 		mtu = uint32(smContext.PolicyData.MTU)
 	}
 
 	reg := &models.IPv6SessionRegistration{
-		UplinkTEID:   smContext.Tunnel.N3TEID,
-		DownlinkTEID: anInfo.TEID,
-		GnbN3Addr:    gnbIP,
-		Prefix:       netip.PrefixFrom(prefixAddr, 64),
-		MTU:          mtu,
-		QFI:          qfi,
-		// A 4G S1-U bearer carries the RA PSC-less; 5G N3 carries it in the PDU
-		// Session Container. The encap follows the access.
-		S1U: !access.usesPSC(),
+		UplinkTEID: smContext.Tunnel.N3TEID,
+		Prefix:     netip.PrefixFrom(prefixAddr, 64),
+		MTU:        mtu,
 	}
 
 	if err := s.upf.RegisterIPv6Session(ctx, reg); err != nil {

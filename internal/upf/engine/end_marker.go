@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -60,6 +61,14 @@ func endMarkerTargetFor(old ebpf.FarInfo, next ebpf.FarInfo) (endMarkerTarget, b
 	}, true
 }
 
+func appendEndMarkerTarget(targets []endMarkerTarget, target endMarkerTarget) []endMarkerTarget {
+	if slices.Contains(targets, target) {
+		return targets
+	}
+
+	return append(targets, target)
+}
+
 func endMarkerPDU(teid uint32) []byte {
 	pdu := make([]byte, 8)
 	pdu[0] = gtpuVersion1 | gtpuProtocolTypeGTP
@@ -68,6 +77,11 @@ func endMarkerPDU(teid uint32) []byte {
 	binary.BigEndian.PutUint32(pdu[4:8], teid)
 
 	return pdu
+}
+
+type endMarkerSender interface {
+	send(t endMarkerTarget, count int, device string) error
+	Close() error
 }
 
 type endMarkerSockets struct {
@@ -175,6 +189,10 @@ func (s *endMarkerSockets) send(t endMarkerTarget, count int, device string) err
 }
 
 func (conn *SessionEngine) sendEndMarkers(targets []endMarkerTarget) {
+	if len(targets) == 0 || conn.endMarkers == nil {
+		return
+	}
+
 	device := conn.N3VRFDevice()
 
 	for _, t := range targets {

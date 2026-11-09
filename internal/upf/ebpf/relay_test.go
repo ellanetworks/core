@@ -378,6 +378,8 @@ func relayCases(inTEID, outTEID uint32) []struct {
 		{"ipv4-options", markedForwardingPDR(v4), optioned},
 		{"ipv6", markedForwardingPDR(v6), withOuterTTLv6(uplinkGPDUv6Checksummed(inTEID, inner), 3)},
 		{"ipv6-unmarked", v6, withOuterTTLv6(uplinkGPDUv6Checksummed(inTEID, inner), 3)},
+		{"ipv4-ecn", markedForwardingPDR(v4), withOuterECNv4(uplinkGPDUChecksummed(inTEID, inner), 0x03)},
+		{"ipv6-ecn", markedForwardingPDR(v6), withOuterECNv6(uplinkGPDUv6Checksummed(inTEID, inner), 0x03)},
 	}
 }
 
@@ -598,6 +600,116 @@ func TestRelayOriginatesOuterHeaderIPv6(t *testing.T) {
 
 	if !validUDPv6Checksum(testUPFN3v6, testTargetv6, ip[40:]) {
 		t.Errorf("the relay left an invalid outer UDP checksum over IPv6")
+	}
+}
+
+func withOuterECNv4(frame []byte, ecn uint8) []byte {
+	frame[ethHdrLen+1] = frame[ethHdrLen+1]&^0x03 | ecn
+
+	binary.BigEndian.PutUint16(frame[ethHdrLen+10:ethHdrLen+12], 0)
+	binary.BigEndian.PutUint16(frame[ethHdrLen+10:ethHdrLen+12],
+		ipv4HeaderChecksum(frame[ethHdrLen:ethHdrLen+20]))
+
+	return frame
+}
+
+func withOuterECNv6(frame []byte, ecn uint8) []byte {
+	frame[ethHdrLen+1] = frame[ethHdrLen+1]&^0x30 | ecn<<4
+
+	return frame
+}
+
+// TS 29.244 §8.2.12
+func TestRelayMarkingKeepsTheECNBits(t *testing.T) {
+	requireProgTestRun(t)
+
+	const ecnCE = uint8(0x03)
+
+	for _, tc := range []struct {
+		name    string
+		inTEID  uint32
+		outTEID uint32
+		v6      bool
+	}{
+		{"ipv4", 0x5A5A00c1, 0x5A5A00c2, false},
+		{"ipv6", 0x5A5A00d1, 0x5A5A00d2, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadN3N6Program(t)
+
+			inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+			pdr := markedForwardingPDR(forwardingUplinkPDR(tc.outTEID, testUPFN3IP, testTargetIP))
+			in := withOuterECNv4(uplinkGPDUChecksummed(tc.inTEID, inner), ecnCE)
+
+			if tc.v6 {
+				pdr = markedForwardingPDR(forwardingUplinkPDRv6(tc.outTEID, testUPFN3v6, testTargetv6))
+				in = withOuterECNv6(uplinkGPDUv6Checksummed(tc.inTEID, inner), ecnCE)
+			}
+
+			if err := obj.PutPdrUplink(tc.inTEID, pdr); err != nil {
+				t.Fatalf("install forwarding PDR: %v", err)
+			}
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, in)
+			if action == ActionDrop || action == ActionAborted {
+				t.Fatalf("relayed G-PDU got XDP action %d, want a forwarding action", action)
+			}
+
+			ip := out[ethHdrLen:]
+
+			got := ip[1]
+			if tc.v6 {
+				got = (ip[0]&0x0f)<<4 | ip[1]>>4
+			}
+
+			if want := relayDSCP | ecnCE; got != want {
+				t.Fatalf("outer ToS/Traffic Class = %#02x, want the FAR's DSCP with the incoming ECN bits %#02x", got, want)
+			}
+
+			if tc.v6 {
+				if !validUDPv6Checksum(testUPFN3v6, testTargetv6, ip[40:]) {
+					t.Error("the relay left an invalid outer UDP checksum over IPv6")
+				}
+
+				return
+			}
+
+			hdr := bytes.Clone(ip[:20])
+			binary.BigEndian.PutUint16(hdr[10:12], 0)
+
+			if got, want := binary.BigEndian.Uint16(ip[10:12]), ipv4HeaderChecksum(hdr); got != want {
+				t.Errorf("outer IPv4 checksum = %#04x, want %#04x", got, want)
+			}
+		})
+	}
+}
+
+// TS 29.244 §8.2.12
+func TestRelayMarksOnlyTheDSCP(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		inTEID  = uint32(0x5A5A00e1)
+		outTEID = uint32(0x5A5A00e2)
+	)
+
+	obj := loadN3N6Program(t)
+
+	pdr := forwardingUplinkPDR(outTEID, testUPFN3IP, testTargetIP)
+	pdr.Far.TransportLevelMarking = uint16(relayDSCP|0x03)<<8 | 0xFC
+
+	if err := obj.PutPdrUplink(inTEID, pdr); err != nil {
+		t.Fatalf("install forwarding PDR: %v", err)
+	}
+
+	action, out := runXDPOut(t, obj.UpfEntryFunc, withOuterECNv4(uplinkGPDUChecksummed(inTEID, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)), 0))
+	if action == ActionDrop || action == ActionAborted {
+		t.Fatalf("relayed G-PDU got XDP action %d, want a forwarding action", action)
+	}
+
+	if got := out[ethHdrLen+1]; got != relayDSCP {
+		t.Errorf("outer ToS = %#02x, want only the DSCP bits of the marking %#02x", got, relayDSCP)
 	}
 }
 

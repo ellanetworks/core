@@ -169,7 +169,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 		if req.SendEndMarkers {
 			if target, ok := endMarkerTargetFor(oldFarInfo, sFarInfo); ok {
-				endMarkers = append(endMarkers, target)
+				endMarkers = appendEndMarkerTarget(endMarkers, target)
 			}
 		}
 
@@ -561,6 +561,8 @@ func farInfoFromMerge(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr
 	existing.Action = encodeApplyAction(far.ApplyAction)
 
 	if fp := far.ForwardingParameters; fp != nil {
+		existing.TransportLevelMarking = fp.TransportLevelMarking
+
 		if ohc := fp.OuterHeaderCreation; ohc != nil {
 			existing.OuterHeaderCreation = uint8(ohc.Description >> 8)
 			if ohc.S1U {
