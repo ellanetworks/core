@@ -1051,11 +1051,16 @@ func runIMSCallLoss(ctx context.Context, env scenarios.Env, caller, callee scena
 		}
 	}
 
-	if err := scenarios.RequireIMSCallLost(ctx, endpoints[0], endpoints[1], scenarios.IMSTransports[0], loseBearer); err != nil {
-		return err
+	survivorReleased := func(ctx context.Context) error {
+		select {
+		case err := <-survived:
+			return err
+		case <-ctx.Done():
+			return fmt.Errorf("UE %s voice bearer release after the peer lost its bearer: %w", survivor.ue.IMSI, ctx.Err())
+		}
 	}
 
-	return <-survived
+	return scenarios.RequireIMSCallLost(ctx, endpoints[0], endpoints[1], scenarios.IMSTransports[0], scenarios.IMSCallLossSteps{Lose: loseBearer, Released: survivorReleased})
 }
 
 type handedOver struct {
