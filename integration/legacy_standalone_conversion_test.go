@@ -291,7 +291,7 @@ func newestSnapshotSchema(t *testing.T, ctx context.Context, container, scratch 
 
 	for _, e := range entries {
 		parts := strings.Split(e.Name(), "-")
-		if !e.IsDir() || len(parts) != 3 {
+		if !e.IsDir() || len(parts) != 3 || strings.HasSuffix(e.Name(), ".tmp") {
 			continue
 		}
 

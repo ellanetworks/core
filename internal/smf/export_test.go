@@ -153,3 +153,5 @@ func (s *SMF) SEIDIndexLenForTest() int {
 func (smContext *SMContext) SetBackoffAllowedForTest(allowed bool) {
 	smContext.backoffAllowed = allowed
 }
+
+func (s *SMF) WaitReplansForTest() { s.replans.Wait() }
