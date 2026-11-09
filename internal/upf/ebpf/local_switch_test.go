@@ -117,14 +117,14 @@ func TestLocalSwitchMarksWithTheDestinationFAR(t *testing.T) {
 		UEIPv4:       netip.AddrFrom4(ueAIP),
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+	if err := obj.PutPdrUplink(teidA, localSwitched(ulPdr)); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
 	dlPdr.Far.TransportLevelMarking = uint16(wantTOS|0x03)<<8 | 0xFC
 
-	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), localSwitched(dlPdr)); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
