@@ -261,10 +261,6 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("refresh applied-schema cache after reopen: %w", err)
 	}
 
-	if err := db.PrepareStatements(); err != nil {
-		return fmt.Errorf("re-prepare statements: %w", err)
-	}
-
 	if db.changefeed != nil {
 		db.changefeed.PublishAll()
 	}
