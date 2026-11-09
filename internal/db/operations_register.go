@@ -219,16 +219,16 @@ var (
 )
 
 var (
-	opCreateRoamingPartner      = registerChangesetOp("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming))
-	opUpdateRoamingPartner      = registerChangesetOp("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile))
-	opDeleteRoamingPartner      = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, RequireSchema(26), AffectsTopic(TopicRoaming))
-	opCreateRoamingDiameterPeer = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
-	opUpdateRoamingDiameterPeer = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
-	opDeleteRoamingDiameterPeer = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, RequireSchema(26), AffectsTopic(TopicRoaming))
-	opPutSEPPIdentity           = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
-	opInitSEPPCA                = registerChangesetOpReturning[SEPPCA, bool]("InitSEPPCA", (*Database).applyInitSEPPCA, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
-	opReplaceSEPPCA             = registerChangesetOp("ReplaceSEPPCA", (*Database).applyReplaceSEPPCA, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
-	opRegisterVisitorUE         = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, RequireSchema(26), AffectsTopic(TopicUERegistrations))
+	opCreateRoamingPartner      = registerChangesetOp("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opUpdateRoamingPartner      = registerChangesetOp("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile))
+	opDeleteRoamingPartner      = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opCreateRoamingDiameterPeer = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opUpdateRoamingDiameterPeer = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opDeleteRoamingDiameterPeer = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opPutSEPPIdentity           = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opInitSEPPCA                = registerChangesetOpReturning[SEPPCA, bool]("InitSEPPCA", (*Database).applyInitSEPPCA, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opReplaceSEPPCA             = registerChangesetOp("ReplaceSEPPCA", (*Database).applyReplaceSEPPCA, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opRegisterVisitorUE         = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, RequireSchema(roamingSchema), AffectsTopic(TopicUERegistrations))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

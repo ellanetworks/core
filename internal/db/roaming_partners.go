@@ -26,7 +26,7 @@ const (
 	RoamingPartnerPLMNsTableName = "roaming_partner_plmns"
 )
 
-const roamingSchema = 26
+const roamingSchema = 27
 
 const (
 	listRoamingPartnersStmt          = "SELECT &RoamingPartner.* FROM %s ORDER BY name"
@@ -58,8 +58,8 @@ type withdrawingPayload struct {
 }
 
 var (
-	opSetRoamingPartnerWithdrawing = registerChangesetOp("SetRoamingPartnerWithdrawing", (*Database).applySetRoamingPartnerWithdrawing, RequireSchema(26), AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
-	opSetVisitorDeregistering      = registerChangesetOp("SetVisitorDeregistering", (*Database).applySetVisitorDeregistering, RequireSchema(26), AffectsTopic(TopicUERegistrations))
+	opSetRoamingPartnerWithdrawing = registerChangesetOp("SetRoamingPartnerWithdrawing", (*Database).applySetRoamingPartnerWithdrawing, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
+	opSetVisitorDeregistering      = registerChangesetOp("SetVisitorDeregistering", (*Database).applySetVisitorDeregistering, RequireSchema(roamingSchema), AffectsTopic(TopicUERegistrations))
 )
 
 type roamingPartnerWrite struct {

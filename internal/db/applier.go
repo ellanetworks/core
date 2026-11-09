@@ -502,7 +502,7 @@ func (db *Database) requireKnownIMSI(ctx context.Context, imsi string) error {
 
 func (db *Database) incrementDailyUsageStatement(ctx context.Context) *sqlair.Statement {
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return db.incrementDailyUsagePreV26Stmt
+		return db.incrementDailyUsagePreV27Stmt
 	}
 
 	return db.incrementDailyUsageStmt
@@ -554,7 +554,7 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) error {
 	stmt := db.deleteOldDailyUsageStmt
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.deleteOldDailyUsagePreV26Stmt
+		stmt = db.deleteOldDailyUsagePreV27Stmt
 	}
 
 	err := db.runner(ctx).Query(ctx, stmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()

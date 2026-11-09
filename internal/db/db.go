@@ -177,18 +177,18 @@ type Database struct {
 
 	// Daily Usage statements
 	incrementDailyUsageStmt               *sqlair.Statement
-	incrementDailyUsagePreV26Stmt         *sqlair.Statement
+	incrementDailyUsagePreV27Stmt         *sqlair.Statement
 	getUsagePerDayStmt                    *sqlair.Statement
-	getUsagePerDayPreV26Stmt              *sqlair.Statement
+	getUsagePerDayPreV27Stmt              *sqlair.Statement
 	getUsagePerDayByIMSIStmt              *sqlair.Statement
-	getUsagePerDayByIMSIPreV26Stmt        *sqlair.Statement
+	getUsagePerDayByIMSIPreV27Stmt        *sqlair.Statement
 	getUsagePerSubscriberStmt             *sqlair.Statement
-	getUsagePerSubscriberPreV26Stmt       *sqlair.Statement
+	getUsagePerSubscriberPreV27Stmt       *sqlair.Statement
 	getUsagePerSubscriberByIMSIStmt       *sqlair.Statement
-	getUsagePerSubscriberByIMSIPreV26Stmt *sqlair.Statement
+	getUsagePerSubscriberByIMSIPreV27Stmt *sqlair.Statement
 	deleteAllDailyUsageStmt               *sqlair.Statement
 	deleteOldDailyUsageStmt               *sqlair.Statement
-	deleteOldDailyUsagePreV26Stmt         *sqlair.Statement
+	deleteOldDailyUsagePreV27Stmt         *sqlair.Statement
 
 	// Data Network statements
 	listDataNetworksStmt    *sqlair.Statement
@@ -1998,18 +1998,18 @@ func (db *Database) PrepareStatements() error {
 
 		// Daily Usage
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
-		{&db.incrementDailyUsagePreV26Stmt, fmt.Sprintf(incrementDailyUsagePreV26Stmt, DailyUsageTableName), []any{DailyUsage{}}},
+		{&db.incrementDailyUsagePreV27Stmt, fmt.Sprintf(incrementDailyUsagePreV27Stmt, DailyUsageTableName), []any{DailyUsage{}}},
 		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerDayPreV26Stmt, fmt.Sprintf(getUsagePerDayPreV26Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
+		{&db.getUsagePerDayPreV27Stmt, fmt.Sprintf(getUsagePerDayPreV27Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerDayByIMSIStmt, fmt.Sprintf(getUsagePerDayByIMSIStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerDayByIMSIPreV26Stmt, fmt.Sprintf(getUsagePerDayByIMSIPreV26Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
+		{&db.getUsagePerDayByIMSIPreV27Stmt, fmt.Sprintf(getUsagePerDayByIMSIPreV27Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerSub{}}},
-		{&db.getUsagePerSubscriberPreV26Stmt, fmt.Sprintf(getUsagePerSubscriberPreV26Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerSubscriberPreV27Stmt, fmt.Sprintf(getUsagePerSubscriberPreV27Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.getUsagePerSubscriberByIMSIStmt, fmt.Sprintf(getUsagePerSubscriberByIMSIStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerSub{}}},
-		{&db.getUsagePerSubscriberByIMSIPreV26Stmt, fmt.Sprintf(getUsagePerSubscriberByIMSIPreV26Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerSubscriberByIMSIPreV27Stmt, fmt.Sprintf(getUsagePerSubscriberByIMSIPreV27Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
 		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
-		{&db.deleteOldDailyUsagePreV26Stmt, fmt.Sprintf(deleteOldDailyUsagePreV26Stmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
+		{&db.deleteOldDailyUsagePreV27Stmt, fmt.Sprintf(deleteOldDailyUsagePreV27Stmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
 
 		// Data Networks
 		{&db.listDataNetworksStmt, fmt.Sprintf(listDataNetworksPagedStmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},

@@ -446,8 +446,8 @@ func (db *Database) issueSEPPIdentity(ctx context.Context, seppID int) (*SEPPIde
 }
 
 var (
-	opPutGeneratedSEPPIdentity = registerChangesetOp("PutGeneratedSEPPIdentity", (*Database).applyPutGeneratedSEPPIdentity, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
-	opDeleteSEPPIdentity       = registerChangesetOp("DeleteSEPPIdentity", (*Database).applyDeleteSEPPIdentity, RequireSchema(26), AffectsTopic(TopicSEPPIdentity))
+	opPutGeneratedSEPPIdentity = registerChangesetOp("PutGeneratedSEPPIdentity", (*Database).applyPutGeneratedSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opDeleteSEPPIdentity       = registerChangesetOp("DeleteSEPPIdentity", (*Database).applyDeleteSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
 )
 
 func (db *Database) PutGeneratedSEPPIdentity(ctx context.Context, seppID int) error {

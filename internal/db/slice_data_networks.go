@@ -200,14 +200,19 @@ func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (map
 		return nil, nil
 	}
 
+	owners := SubscribersTableName
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		owners = fmt.Sprintf("(SELECT imsi, profileID FROM %s UNION ALL SELECT v.imsi, r.profileID FROM %s v JOIN %s r ON r.id = v.partnerID)", SubscribersTableName, VisitorsTableName, RoamingPartnersTableName)
+	}
+
 	query := fmt.Sprintf(`SELECT s.imsi, p.dataNetworkID, MIN((sdn.nat AND NOT d.ims) OR sdn.networkInstance NOT IN ('', ?)), MIN(sdn.networkInstance NOT IN ('', ?))
-		FROM (SELECT imsi, profileID FROM %s UNION ALL SELECT v.imsi, r.profileID FROM %s v JOIN %s r ON r.id = v.partnerID) s
+		FROM %s s
 		JOIN %s p ON p.profileID = s.profileID
 		JOIN %s sdn ON sdn.sliceID = p.sliceID AND sdn.dataNetworkID = p.dataNetworkID
 		JOIN %s d ON d.id = p.dataNetworkID
 		WHERE EXISTS (SELECT 1 FROM %s l WHERE l.imsi = s.imsi AND l.poolID = p.dataNetworkID AND l.nodeID = ?)
 		GROUP BY s.imsi, p.dataNetworkID`,
-		SubscribersTableName, VisitorsTableName, RoamingPartnersTableName, PoliciesTableName, SliceDataNetworksTableName, DataNetworksTableName, IPLeasesTableName) // #nosec: G201 -- table names are constants
+		owners, PoliciesTableName, SliceDataNetworksTableName, DataNetworksTableName, IPLeasesTableName) // #nosec: G201 -- table names are constants
 
 	rows, err := db.conn().PlainDB().QueryContext(ctx, query, models.DefaultNetworkInstanceName, models.DefaultNetworkInstanceName, nodeID)
 	if err != nil {

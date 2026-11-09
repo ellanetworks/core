@@ -118,7 +118,7 @@ type visitorMSISDNPayload struct {
 	Msisdn string `json:"msisdn"`
 }
 
-var opSetVisitorMSISDN = registerChangesetOp("SetVisitorMSISDN", (*Database).applySetVisitorMSISDN, RequireSchema(26))
+var opSetVisitorMSISDN = registerChangesetOp("SetVisitorMSISDN", (*Database).applySetVisitorMSISDN, RequireSchema(roamingSchema))
 
 func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*Subscriber, error) {
 	ctx, span := startVisitorsSpan(ctx, "SELECT", "subscriber or visitor")

@@ -25,9 +25,9 @@ const DailyUsageTableName = "daily_usage"
 
 const (
 	incrementDailyUsageStmt       = "INSERT INTO %s (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.mcc, $DailyUsage.mnc, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
-	incrementDailyUsagePreV26Stmt = "INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + $DailyUsage.bytes_uplink, bytes_downlink = bytes_downlink + $DailyUsage.bytes_downlink"
+	incrementDailyUsagePreV27Stmt = "INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + $DailyUsage.bytes_uplink, bytes_downlink = bytes_downlink + $DailyUsage.bytes_downlink"
 	deleteOldDailyUsageStmt       = "DELETE FROM %s WHERE epochDay < $cutoffDaysArgs.cutoff_days"
-	deleteOldDailyUsagePreV26Stmt = "DELETE FROM %s WHERE epoch_day < $cutoffDaysArgs.cutoff_days"
+	deleteOldDailyUsagePreV27Stmt = "DELETE FROM %s WHERE epoch_day < $cutoffDaysArgs.cutoff_days"
 	deleteAllDailyUsageStmt       = "DELETE FROM %s"
 )
 
@@ -46,7 +46,7 @@ WHERE
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayPreV26Stmt = `
+	getUsagePerDayPreV27Stmt = `
 SELECT
     epoch_day AS &UsagePerDay.epoch_day,
     SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
@@ -80,7 +80,7 @@ WHERE
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayByIMSIPreV26Stmt = `
+	getUsagePerDayByIMSIPreV27Stmt = `
 SELECT
     epoch_day AS &UsagePerDay.epoch_day,
     SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
@@ -116,7 +116,7 @@ GROUP BY u.imsi
 ORDER BY SUM(u.bytesUplink) + SUM(u.bytesDownlink) DESC, u.imsi ASC
 LIMIT $UsageFilters.limit`
 
-	getUsagePerSubscriberPreV26Stmt = `
+	getUsagePerSubscriberPreV27Stmt = `
 SELECT
     s.imsi AS &UsagePerSub.imsi,
     COALESCE(u.bytes_uplink, 0)   AS &UsagePerSub.bytes_uplink,
@@ -151,7 +151,7 @@ WHERE $UsageFilters.roaming IS NULL OR (u.mcc IS NOT NULL) == $UsageFilters.roam
 GROUP BY u.imsi
 LIMIT $UsageFilters.limit`
 
-	getUsagePerSubscriberByIMSIPreV26Stmt = `
+	getUsagePerSubscriberByIMSIPreV27Stmt = `
 SELECT
     s.imsi AS &UsagePerSub.imsi,
     COALESCE(SUM(u.bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
@@ -400,9 +400,9 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 			return nil, nil
 		}
 
-		stmt = db.getUsagePerDayPreV26Stmt
+		stmt = db.getUsagePerDayPreV27Stmt
 		if imsi != "" {
-			stmt = db.getUsagePerDayByIMSIPreV26Stmt
+			stmt = db.getUsagePerDayByIMSIPreV27Stmt
 		}
 	}
 
@@ -464,9 +464,9 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 			return nil, nil
 		}
 
-		stmt = db.getUsagePerSubscriberPreV26Stmt
+		stmt = db.getUsagePerSubscriberPreV27Stmt
 		if imsi != "" {
-			stmt = db.getUsagePerSubscriberByIMSIPreV26Stmt
+			stmt = db.getUsagePerSubscriberByIMSIPreV27Stmt
 		}
 	}
 
