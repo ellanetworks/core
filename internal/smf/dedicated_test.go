@@ -554,6 +554,8 @@ func activeVoiceSession(t *testing.T) (*smf.SMF, *fakePCF, *fakeUPF, *fakeMME, s
 		t.Fatalf("DedicatedBearerActivated: %v", err)
 	}
 
+	s.WaitReplansForTest()
+
 	return s, pcf, upf, mmeCb, ref
 }
 

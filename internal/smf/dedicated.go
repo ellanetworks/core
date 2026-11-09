@@ -589,7 +589,7 @@ func (s *SMF) reconcileAfter(ref string, d time.Duration) {
 	run := func() { s.replanBearers(context.Background(), ref) }
 
 	if d == 0 {
-		go run()
+		s.replans.Go(run)
 		return
 	}
 

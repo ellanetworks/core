@@ -474,12 +474,12 @@ func listSnapshotDir(ctx context.Context, container, hostTmp string) (string, er
 }
 
 // hasSnapshotEntry reports whether `out` contains at least one
-// snapshot directory name. The in-progress `tmp` subdirectory used by
-// hashicorp/raft's FileSnapshotStore is ignored.
+// snapshot directory name. In-progress `<name>.tmp` directories written
+// by hashicorp/raft's FileSnapshotStore are ignored.
 func hasSnapshotEntry(out string) bool {
 	for _, line := range strings.Split(out, "\n") {
 		name := strings.TrimSpace(line)
-		if name == "" || name == "tmp" {
+		if name == "" || name == "tmp" || strings.HasSuffix(name, ".tmp") {
 			continue
 		}
 
