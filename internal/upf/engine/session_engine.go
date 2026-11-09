@@ -55,7 +55,7 @@ type SessionEngine struct {
 	dnTagUsed map[uint16]struct{}
 	lastDNTag uint16
 
-	endMarkers endMarkerSockets
+	endMarkers endMarkerSender
 
 	programs ebpf.ProgramWaiter
 }
@@ -98,6 +98,10 @@ func (conn *SessionEngine) trafficClassID(sess *Session, fiveQI uint8) uint16 {
 }
 
 func (conn *SessionEngine) Close() error {
+	if conn.endMarkers == nil {
+		return nil
+	}
+
 	return conn.endMarkers.Close()
 }
 
@@ -309,6 +313,7 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		filtersByKey:            make(map[string]uint32),
 		classes:                 NewTrafficClasses(),
 		radios:                  NewRadios(),
+		endMarkers:              &endMarkerSockets{},
 	}
 
 	return conn, nil

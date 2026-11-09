@@ -429,7 +429,12 @@ func (s *SMF) planModificationLocked(ctx context.Context, sc *SMContext, b *dedi
 }
 
 func (s *SMF) restoreLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer) {
-	if err := s.setLegRulesLocked(ctx, sc, b, sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules})); err != nil {
+	var arp *models.Arp
+	if b.installed.binding.QCI != 0 {
+		arp = &b.installed.binding.ARP
+	}
+
+	if err := s.setLegLocked(ctx, sc, b, arp, sc.legRulesLocked(b, ruleSet{b.installed.tft, b.installed.rules})); err != nil {
 		logger.From(ctx, logger.SmfLog).Warn("dedicated bearer user plane not restored", logger.SUPI(sc.Supi.String()), zap.Uint8("ebi", b.ebi), zap.Error(err))
 	}
 }

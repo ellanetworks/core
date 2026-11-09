@@ -203,7 +203,7 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		return nil, err
 	}
 
-	s.registerIPv6SessionIfNeeded(ctx, smContext, Access4G)
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	return dropped, nil
 }

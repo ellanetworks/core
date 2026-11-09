@@ -387,7 +387,7 @@ func (s *SMF) addDedicatedLocked(ctx context.Context, sc *SMContext, binding bea
 	b := &dedicatedBearer{slot: slot, pending: &bearerConfig{binding: binding, rules: rules}}
 
 	next := sc.Tunnel.dataPlane
-	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, FiveQI: binding.QCI, Rules: sc.legRulesLocked(b, ruleSet{tft, rules})})
+	next.Bearers = append(slices.Clone(next.Bearers), bearerLeg{Slot: slot, FiveQI: binding.QCI, Arp: binding.ARP, Rules: sc.legRulesLocked(b, ruleSet{tft, rules})})
 
 	if err := next.checkSDFCapacity(); err != nil {
 		return nil, err
@@ -454,16 +454,27 @@ func (s *SMF) updateLegLocked(ctx context.Context, sc *SMContext, slot uint8, up
 }
 
 func (s *SMF) setLegRulesLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, rules []ruleLeg) error {
+	return s.setLegLocked(ctx, sc, b, nil, rules)
+}
+
+func (s *SMF) setLegLocked(ctx context.Context, sc *SMContext, b *dedicatedBearer, arp *models.Arp, rules []ruleLeg) error {
 	i := slices.IndexFunc(sc.Tunnel.Bearers, func(l bearerLeg) bool { return l.Slot == b.slot })
 	if i < 0 {
 		return fmt.Errorf("dedicated bearer slot %d has no user plane", b.slot)
 	}
 
-	if slices.EqualFunc(sc.Tunnel.Bearers[i].Rules, rules, sameRuleLeg) {
+	leg := sc.Tunnel.Bearers[i]
+	if (arp == nil || leg.Arp == *arp) && slices.EqualFunc(leg.Rules, rules, sameRuleLeg) {
 		return nil
 	}
 
-	return s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) { l.Rules = rules })
+	return s.updateLegLocked(ctx, sc, b.slot, func(l *bearerLeg) {
+		if arp != nil {
+			l.Arp = *arp
+		}
+
+		l.Rules = rules
+	})
 }
 
 func (s *SMF) dedicatedRequest(ctx context.Context, sc *SMContext, b *dedicatedBearer) (*models.DedicatedBearerRequest, error) {
