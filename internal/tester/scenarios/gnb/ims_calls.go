@@ -295,15 +295,15 @@ func runIMSCallLoss(ctx context.Context, env scenarios.Env, caller, callee scena
 		return lose(c.ues[1], qfis[1])
 	}
 
-	if err := scenarios.RequireIMSCallLost(ctx, c.endpoints[0], c.endpoints[1], scenarios.IMSTransports[0], loseFlow); err != nil {
-		return err
+	peerReleased := func(ctx context.Context) error {
+		if err := awaitQoSFlowsReleased(ctx, c.legs[:1]); err != nil {
+			return fmt.Errorf("the peer kept its voice flow after the call was lost: %w", err)
+		}
+
+		return nil
 	}
 
-	if err := awaitQoSFlowsReleased(ctx, c.legs[:1]); err != nil {
-		return fmt.Errorf("the peer kept its voice flow after the call was lost: %w", err)
-	}
-
-	return nil
+	return scenarios.RequireIMSCallLost(ctx, c.endpoints[0], c.endpoints[1], scenarios.IMSTransports[0], scenarios.IMSCallLossSteps{Lose: loseFlow, Released: peerReleased})
 }
 
 func runIMSCallIdle(ctx context.Context, env scenarios.Env) error {

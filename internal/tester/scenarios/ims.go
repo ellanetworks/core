@@ -704,7 +704,12 @@ func RequireIMSCallEndedByNetwork(ctx context.Context, caller, callee IMSEndpoin
 	}
 }
 
-func RequireIMSCallLost(ctx context.Context, caller, callee IMSEndpoint, transport sip.Transport, lose func(context.Context) error) error {
+type IMSCallLossSteps struct {
+	Lose     func(ctx context.Context) error
+	Released func(ctx context.Context) error
+}
+
+func RequireIMSCallLost(ctx context.Context, caller, callee IMSEndpoint, transport sip.Transport, steps IMSCallLossSteps) error {
 	ctx, cancel := context.WithTimeout(ctx, imsTestUETimeout)
 	defer cancel()
 
@@ -735,18 +740,26 @@ func RequireIMSCallLost(ctx context.Context, caller, callee IMSEndpoint, transpo
 		return err
 	}
 
-	if err := lose(ctx); err != nil {
+	if err := steps.Lose(ctx); err != nil {
 		return fmt.Errorf("lose the voice bearer: %w", err)
 	}
 
+	var ended *testue.Call
+
 	select {
 	case <-ac.Done():
-		return networkEnded(ac)
+		ended = ac
 	case <-bc.Done():
-		return networkEnded(bc)
+		ended = bc
 	case <-ctx.Done():
 		return fmt.Errorf("the call is still %s although its voice bearer was lost (IR.92 §2.4.2.3): %w", ac.State(), ctx.Err())
 	}
+
+	if err := networkEnded(ended); err != nil {
+		return err
+	}
+
+	return steps.Released(ctx)
 }
 
 func networkEnded(c *testue.Call) error {
