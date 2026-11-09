@@ -546,11 +546,11 @@ func runIMSCallVoiceRefusedBy4G(ctx context.Context, env scenarios.Env) error {
 		return err
 	}
 
-	if err := scenarios.RequireIMSCallLost(ctx, caller.ep, callee.ep, scenarios.IMSTransports[0], lose); err != nil {
-		return err
+	callerReleased := func(ctx context.Context) error {
+		return awaitQoSFlowsReleased(ctx, caller.nr)
 	}
 
-	return awaitQoSFlowsReleased(ctx, caller.nr)
+	return scenarios.RequireIMSCallLost(ctx, caller.ep, callee.ep, scenarios.IMSTransports[0], scenarios.IMSCallLossSteps{Lose: lose, Released: callerReleased})
 }
 
 func runIMSCallVoiceRefusedBy5G(ctx context.Context, env scenarios.Env) error {
@@ -581,20 +581,20 @@ func runIMSCallVoiceRefusedBy5G(ctx context.Context, env scenarios.Env) error {
 		return err
 	}
 
-	if err := scenarios.RequireIMSCallLost(ctx, caller.ep, callee.ep, scenarios.IMSTransports[0], lose); err != nil {
-		return err
+	released := func(ctx context.Context) error {
+		cb, err := voiceBearerOn4G(ctx, callerBearer)
+		if err != nil {
+			return fmt.Errorf("caller: %w", err)
+		}
+
+		if err := caller.lte.awaitVoiceRelease(cb.ERABID); err != nil {
+			return fmt.Errorf("caller: %w", err)
+		}
+
+		return awaitQoSFlowsReleased(ctx, callee.nr)
 	}
 
-	cb, err := voiceBearerOn4G(ctx, callerBearer)
-	if err != nil {
-		return fmt.Errorf("caller: %w", err)
-	}
-
-	if err := caller.lte.awaitVoiceRelease(cb.ERABID); err != nil {
-		return fmt.Errorf("caller: %w", err)
-	}
-
-	return awaitQoSFlowsReleased(ctx, callee.nr)
+	return scenarios.RequireIMSCallLost(ctx, caller.ep, callee.ep, scenarios.IMSTransports[0], scenarios.IMSCallLossSteps{Lose: lose, Released: released})
 }
 
 type epsFallback func(ctx context.Context, p *imsParty, e *s1enb.ENB) (*lteAttachment, error)
