@@ -116,6 +116,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	s := &Server{cfg: cfg, upgraded: make(chan struct{})}
 
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
+		Context:     ctx,
 		DB:          dbInstance,
 		Config:      cfg,
 		FrontendFS:  frontendFS,

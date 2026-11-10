@@ -933,6 +933,14 @@ func (m *Manager) HasLeader() bool {
 	return addr != ""
 }
 
+func (m *Manager) LastContact() time.Time {
+	return m.raft.LastContact()
+}
+
+func (m *Manager) ElectionTimeout() time.Duration {
+	return m.raft.ReloadableConfig().ElectionTimeout
+}
+
 // WaitForLeader blocks until the cluster has an elected leader or ctx is
 // cancelled. It polls LeaderWithID rather than selecting on LeaderCh, which
 // only reports this node's own transitions and delivers each value to exactly

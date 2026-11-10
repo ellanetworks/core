@@ -63,3 +63,75 @@ When clustering is enabled, the response includes a `cluster` object:
     }
 }
 ```
+
+## Check Liveness
+
+This path answers while the process serves HTTP. It takes no token.
+
+| Method | Path            |
+| ------ | --------------- |
+| GET    | `/api/v1/livez` |
+
+It answers `204 No Content`.
+
+## Check Readiness
+
+This path returns whether the node is ready to receive traffic, and the result of each check. It takes no token.
+
+| Method | Path             |
+| ------ | ---------------- |
+| GET    | `/api/v1/readyz` |
+
+### Query Parameters
+
+| Name      | Type    | Description |
+| --------- | ------- | ----------- |
+| `cluster` | boolean | Add the `cluster` check. Default `false`. |
+
+### Checks
+
+| Name          | Passes when |
+| ------------- | ----------- |
+| `shutdown`    | The node is not stopping. |
+| `member`      | The node finished starting and, in a cluster, joined it. |
+| `initialized` | Clustering is disabled, or a user exists. |
+| `drain`       | Clustering is disabled, or the node is not draining or drained. |
+| `database`    | The database answers. |
+| `leader`      | The node leads, or heard from the leader within twice the election timeout. |
+| `cluster`     | Clustering is disabled, or the node leads and the cluster is healthy. Only with `cluster=true`. |
+
+### Response Fields
+
+| Field             | Type    | Description |
+| ----------------- | ------- | ----------- |
+| `ready`           | boolean | Whether every check passes. |
+| `checks`          | array   | The checks, in order. |
+| `checks[].name`   | string  | Name of the check. |
+| `checks[].ok`     | boolean | Whether it passes. |
+| `checks[].detail` | string  | Why it fails. Empty when it passes. |
+
+### Response Codes
+
+| Code  | Description |
+| ----- | ----------- |
+| `200` | Every check passes. |
+| `400` | `cluster` is not `true` or `false`. |
+| `503` | A check fails. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "ready": false,
+        "checks": [
+            {"name": "shutdown", "ok": true, "detail": ""},
+            {"name": "member", "ok": true, "detail": ""},
+            {"name": "initialized", "ok": true, "detail": ""},
+            {"name": "drain", "ok": true, "detail": ""},
+            {"name": "database", "ok": true, "detail": ""},
+            {"name": "leader", "ok": false, "detail": "no contact with the cluster leader for 12s"}
+        ]
+    }
+}
+```

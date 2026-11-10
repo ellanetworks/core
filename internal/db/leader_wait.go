@@ -22,6 +22,30 @@ func (db *Database) HasLeader() bool {
 	return db.raftManager.HasLeader()
 }
 
+func (db *Database) HasRaft() bool {
+	return db.raftManager != nil
+}
+
+func (db *Database) RaftLastContact() time.Time {
+	if db.raftManager == nil {
+		return time.Time{}
+	}
+
+	return db.raftManager.LastContact()
+}
+
+func (db *Database) RaftElectionTimeout() time.Duration {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.ElectionTimeout()
+}
+
+func (db *Database) Ping(ctx context.Context) error {
+	return db.PlainDB().PingContext(ctx)
+}
+
 func (db *Database) WaitForLeader(ctx context.Context) error {
 	if db.raftManager == nil {
 		return nil
