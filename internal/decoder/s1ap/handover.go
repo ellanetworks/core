@@ -188,6 +188,10 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDHandoverRestrictionList, s1ap.CriticalityIgnore, handoverRestrictionList(*m.HandoverRestrictionList)))
 	}
 
+	if m.TraceActivation != nil {
+		ies = append(ies, ie(s1ap.IDTraceActivation, s1ap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
+	}
+
 	ies = append(ies, ie(s1ap.IDSecurityContext, s1ap.CriticalityReject, securityContext(m.SecurityContext)))
 
 	if len(m.NASSecurityParameterstoEUTRAN) > 0 {

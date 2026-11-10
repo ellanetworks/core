@@ -23,6 +23,7 @@ const (
 	IDERABToBeSwitchedDLList                    ProtocolIEID = 22
 	IDERABToBeSwitchedDLItem                    ProtocolIEID = 23
 	IDERABToBeSetupListCtxtSUReq                ProtocolIEID = 24
+	IDTraceActivation                           ProtocolIEID = 25
 	IDNASPDU                                    ProtocolIEID = 26
 	IDERABToBeSetupItemHOReq                    ProtocolIEID = 27
 	IDERABSetupListBearerSURes                  ProtocolIEID = 28
@@ -61,6 +62,7 @@ const (
 	IDGUMMEI                                    ProtocolIEID = 75
 	IDDirectForwardingPathAvailability          ProtocolIEID = 79
 	IDUEIdentityIndexValue                      ProtocolIEID = 80
+	IDEUTRANTraceID                             ProtocolIEID = 86
 	IDRelativeMMECapacity                       ProtocolIEID = 87
 	IDSourceMMEUES1APID                         ProtocolIEID = 88
 	IDENBStatusTransferTransparentContainer     ProtocolIEID = 90

@@ -20,7 +20,11 @@ import (
 // Dispatch decodes an inbound S1AP PDU and routes it to its procedure handler
 // (TS 36.413).
 func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) {
-	// Inbound S1AP carries no propagated trace context; fresh root span.
+	pdu, err := s1ap.Unmarshal(msg)
+	if err == nil && conn != nil {
+		ctx = ueTraceContext(ctx, m, conn, pdu)
+	}
+
 	ctx, span := mme.Tracer.Start(ctx, "s1ap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
@@ -38,7 +42,6 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		)
 	}
 
-	pdu, err := s1ap.Unmarshal(msg)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode S1AP PDU")
@@ -93,4 +96,16 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	}
 
 	Route(ctx, m, radio, pdu)
+}
+
+func ueTraceContext(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, pdu s1ap.PDU) context.Context {
+	id, ok := s1ap.PeekMMEUES1APID(pdu)
+	if !ok {
+		return ctx
+	}
+
+	im, initiating := pdu.(*s1ap.InitiatingMessage)
+	anyRadio := initiating && im.ProcedureCode == s1ap.ProcPathSwitchRequest
+
+	return m.UETraceContext(ctx, conn, id, anyRadio)
 }

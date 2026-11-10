@@ -474,6 +474,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.DefaultMaxSessions))
 	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
+	if cfg.Telemetry.Enabled {
+		if err := cp.enableRANTrace(cfg.Interfaces.N2.Address); err != nil {
+			return fmt.Errorf("couldn't enable RAN trace: %w", err)
+		}
+	}
+
 	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath, cfg.Interfaces.NetworkInstances, anyNAT, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
@@ -1749,6 +1755,19 @@ func newControlPlane(ctx context.Context, dbInstance *db.Database, raftID string
 		mme:           mmeInstance,
 		registrations: ueRegistrations,
 	}
+}
+
+func (cp *controlPlane) enableRANTrace(n2Address string) error {
+	tce, err := netip.ParseAddr(n2Address)
+	if err != nil {
+		return fmt.Errorf("N2 address %q is not an IP address: %w", n2Address, err)
+	}
+
+	sessions := tracing.NewTraceSessions(tracing.TraceConfig{TCEAddress: tce}, cp.db.AMFPointer)
+	cp.amf.EnableRANTrace(sessions)
+	cp.mme.EnableRANTrace(sessions)
+
+	return nil
 }
 
 func (cp *controlPlane) start(ctx context.Context, wg *sync.WaitGroup) {

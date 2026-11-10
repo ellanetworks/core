@@ -526,6 +526,10 @@ func buildHandoverRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDAllowedNSSAI, ngap.CriticalityReject, allowed))
 	}
 
+	if m.TraceActivation != nil {
+		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
+	}
+
 	ies = append(ies, ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, hex.EncodeToString(m.SourceToTargetTransparentContainer)))
 
 	if m.MobilityRestrictionList != nil {

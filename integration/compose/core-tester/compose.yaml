@@ -21,6 +21,9 @@ configs:
           port: 5002
       datapath:
         attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
+      telemetry:
+        enabled: ${ELLA_CORE_TELEMETRY:-false}
+        otlp-endpoint: "jaeger:4317"
 
 services:
   ella-core:

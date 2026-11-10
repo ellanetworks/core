@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/eps"
@@ -97,6 +98,8 @@ type MME struct {
 	Session       epsSessionManager
 	NAS           NASHandler
 	FiveGS        interworking.FiveGSPeer
+
+	ranTrace *tracing.TraceSessions
 
 	Registrations Registrar
 

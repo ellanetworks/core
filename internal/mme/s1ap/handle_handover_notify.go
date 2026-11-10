@@ -71,6 +71,8 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	result.Complete(ctx)
 
+	ue.TraceConnection(ctx)
+
 	ue.TouchLastSeen()
 
 	if ueConn := ue.Conn(); ueConn != nil && notify.EUTRANCGI != nil && notify.TAI != nil {
