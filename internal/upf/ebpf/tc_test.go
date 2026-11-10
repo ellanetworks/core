@@ -7,6 +7,7 @@ package ebpf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -615,14 +616,45 @@ func runTCNonLinear(t *testing.T, prog *ebpf.Program, packet []byte, headLen uin
 
 	action, err := prog.Run(opts)
 	if err != nil {
-		if errors.Is(err, ebpf.ErrNotSupported) || errors.Is(err, unix.EINVAL) {
-			t.Skipf("non-linear BPF_PROG_TEST_RUN not supported on this kernel: %v", err)
-		}
-
 		t.Fatalf("run TC program: %v", err)
 	}
 
 	return action, opts.DataOut
+}
+
+func requireNonLinearTestRun(t *testing.T, prog *ebpf.Program) {
+	t.Helper()
+
+	opts := &ebpf.RunOptions{
+		Data:    ethFrame(0x0800, innerIPv4UDP([4]byte{8, 8, 4, 4}, 53)),
+		Context: skbRunContext{IngressIfindex: 1, DataEnd: ethHdrLen + 20},
+	}
+
+	if _, err := prog.Run(opts); err != nil {
+		if errors.Is(err, ebpf.ErrNotSupported) || errors.Is(err, unix.EINVAL) {
+			t.Skipf("non-linear BPF_PROG_TEST_RUN not supported on this kernel: %v", err)
+		}
+
+		t.Fatalf("probe non-linear TC run: %v", err)
+	}
+}
+
+func withOuterIPv4Options(frame []byte) []byte {
+	const optLen = 4
+
+	ihl := int(frame[ethHdrLen]&0x0f) * 4
+	out := make([]byte, 0, len(frame)+optLen)
+	out = append(out, frame[:ethHdrLen+ihl]...)
+	out = append(out, 0x01, 0x01, 0x01, 0x00)
+	out = append(out, frame[ethHdrLen+ihl:]...)
+
+	ip := out[ethHdrLen:]
+	ip[0] = 0x40 | byte((ihl+optLen)/4)
+	binary.BigEndian.PutUint16(ip[2:4], binary.BigEndian.Uint16(ip[2:4])+optLen)
+	binary.BigEndian.PutUint16(ip[10:12], 0)
+	binary.BigEndian.PutUint16(ip[10:12], ipv4HeaderChecksum(ip[:ihl+optLen]))
+
+	return out
 }
 
 func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
@@ -664,7 +696,7 @@ func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
 		name  string
 		frame []byte
 		heads []uint32
-		setup func(*N3N6EntrypointTcObjects)
+		setup func(*testing.T, *N3N6EntrypointTcObjects)
 	}
 
 	cases := []nonLinearCase{
@@ -672,13 +704,19 @@ func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
 			name:  "uplink decap",
 			frame: uplinkGPDU(ulTEID, inner),
 			heads: []uint32{ipv4Head, ipv4Head + 8},
-			setup: func(objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDR) },
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDR) },
+		},
+		{
+			name:  "uplink decap IPv4 outer with options",
+			frame: withOuterIPv4Options(uplinkGPDU(ulTEID, inner)),
+			heads: []uint32{ipv4Head, ipv4Head + 8, ipv4Head + 4 + 8},
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDR) },
 		},
 		{
 			name:  "uplink decap IPv6 outer",
 			frame: uplinkGPDUv6(ulTEID, inner),
 			heads: []uint32{ipv6Head, ipv6Head + 8},
-			setup: func(objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDRv6Outer) },
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDRv6Outer) },
 		},
 		{
 			name:  "error indication for unknown TEID",
@@ -694,7 +732,7 @@ func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
 			name:  "downlink encap",
 			frame: downlink,
 			heads: []uint32{ipv4Head, ipv4Head + 8},
-			setup: func(objs *N3N6EntrypointTcObjects) {
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) {
 				putTCPdrDownlink(t, objs, ueAddr, ipv4OuterDownlinkPDR(dlTEID, local, remote, qfi))
 			},
 		},
@@ -705,10 +743,10 @@ func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
 		},
 	}
 
-	run := func(tc nonLinearCase, headLen uint32) (uint32, []byte, [UPFMaxAction]uint64) {
+	run := func(t *testing.T, tc nonLinearCase, headLen uint32) (uint32, []byte, [UPFMaxAction]uint64) {
 		objs := loadTCProgramConfig(t, false, 0, 1)
 		if tc.setup != nil {
-			tc.setup(objs)
+			tc.setup(t, objs)
 		}
 
 		before := tcActionCounters(t, objs)
@@ -726,12 +764,14 @@ func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
 		return action, out, actionDelta(before, tcActionCounters(t, objs))
 	}
 
+	requireNonLinearTestRun(t, loadTCProgramConfig(t, false, 0, 1).UpfEntryFunc)
+
 	for _, tc := range cases {
-		wantAction, wantOut, wantDelta := run(tc, 0)
+		wantAction, wantOut, wantDelta := run(t, tc, 0)
 
 		for _, head := range tc.heads {
 			t.Run(fmt.Sprintf("%s/head=%d", tc.name, head), func(t *testing.T) {
-				action, out, delta := run(tc, head)
+				action, out, delta := run(t, tc, head)
 
 				if action != wantAction {
 					t.Errorf("verdict = %d, want %d as for the linear frame", action, wantAction)
