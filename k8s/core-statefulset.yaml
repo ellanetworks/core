@@ -24,7 +24,27 @@ spec:
         command: ["core"]
         args: ["--config", "/config/config.yaml"]
         securityContext:
-          privileged: true
+          capabilities:
+            drop: ["ALL"]
+            add: ["NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE", "BPF", "PERFMON", "SYS_RESOURCE"]
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+        livenessProbe:
+          httpGet:
+            path: /api/v1/status
+            port: 5002
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/status
+            port: 5002
+          periodSeconds: 5
         volumeMounts:
         - name: config-volume
           mountPath: /config
