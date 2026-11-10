@@ -72,6 +72,7 @@
  * with no counter, so CTX_PULL_LEN is asserted against both. */
 /* eth 14 + VLAN 4 + IPv4 with options 60 */
 #define CTX_PARSE_DEPTH_L2_L3 78
+#define CTX_PARSE_DEPTH_CLASSIFY (CTX_PARSE_DEPTH_L2_L3 + 8)
 /* + UDP 8 + GTP-U 64 */
 #define CTX_PARSE_DEPTH_GTPU (CTX_PARSE_DEPTH_L2_L3 + 8 + GTP_MAX_HDR_LEN)
 /* + ICMP 8 + quoted IPv4 with options 60 + quoted TCP 20 */

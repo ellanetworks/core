@@ -418,6 +418,10 @@ int upf_entry_func(struct __ctx_buff *ctx)
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 
+	if (CTX_NEEDS_PULL &&
+	    ctx_pull_headers(ctx, CTX_PARSE_DEPTH_CLASSIFY) < 0)
+		return ctx_verdict(DEFAULT_CTX_ACTION);
+
 	struct packet_context context = {
 		.data = ctx_data(ctx),
 		.data_end = ctx_data_end(ctx),
