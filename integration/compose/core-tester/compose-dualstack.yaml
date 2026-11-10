@@ -8,7 +8,7 @@ configs:
         audit:
           output: "stdout"
       db:
-        path: "core.db"
+        path: "/data/core.db"
       interfaces:
         n2:
           name: "eth0"
@@ -31,6 +31,8 @@ services:
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true
+    tmpfs:
+      - /data
     ports:
       - "5002:5002"
     networks:
