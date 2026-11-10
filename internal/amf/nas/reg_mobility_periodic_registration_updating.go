@@ -75,6 +75,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	ue.SetAllowedNssai(subscriberProfile.AllowedNssai)
 
+	amfInstance.ActivateTrace(ctx, ue)
+
 	if conn.RegistrationRequest.MICOIndication != nil {
 		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("raai", conn.RegistrationRequest.MICOIndication.RAAI))
 	}

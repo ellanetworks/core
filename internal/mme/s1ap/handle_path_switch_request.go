@@ -189,6 +189,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 
 	result.Complete(ctx)
 	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+	ue.TraceConnection(ctx)
 }
 
 func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (present []mme.RANBearer, undecodable []uint8) {

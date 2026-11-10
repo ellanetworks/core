@@ -130,6 +130,10 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildHandoverNotify(m.Value)
 	case s1ap.ProcHandoverCancel:
 		msg.Value, msg.Summary = buildHandoverCancel(m.Value)
+	case s1ap.ProcTraceStart:
+		msg.Value, msg.Summary = buildTraceStart(m.Value)
+	case s1ap.ProcTraceFailureIndication:
+		msg.Value, msg.Summary = buildTraceFailureIndication(m.Value)
 	case s1ap.ProcENBStatusTransfer:
 		msg.Value, msg.Summary = buildENBStatusTransfer(m.Value)
 	case s1ap.ProcMMEStatusTransfer:

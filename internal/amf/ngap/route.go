@@ -50,25 +50,25 @@ const (
 	pathSwitchRequestMessageType                  amf.NGAPProcedure = "PathSwitchRequest"
 	locationReportMessageType                     amf.NGAPProcedure = "LocationReport"
 	uplinkNRPPaTransportMessageType               amf.NGAPProcedure = "UplinkUEAssociatedNRPPaTransport"
+	traceFailureIndicationMessageType             amf.NGAPProcedure = "TraceFailureIndication"
 
 	uplinkRANConfigurationTransferMessageType amf.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
 
-// route decodes and dispatches an inbound NGAP message. Octets that do not
-// decode draw a transfer-syntax Error Indication (§10.2); a message that decodes
+// route dispatches an inbound NGAP message Dispatch has decoded. Octets that did
+// not decode draw a transfer-syntax Error Indication (§10.2); a message that decodes
 // but names a procedure this AMF does not implement is answered on the
 // criticality of its Procedure Code IE (§10.3.4.1).
-func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, span trace.Span, remote, local net.Addr) {
+func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, pdu ngap.PDU, decodeErr error, span trace.Span, remote, local net.Addr) {
 	span.SetAttributes(
 		attribute.String("network.peer.address", amf.AddrString(remote)),
 		attribute.String("network.local.address", amf.AddrString(local)),
 	)
 
-	pdu, err := ngap.Unmarshal(msg)
-	if err != nil {
-		span.RecordError(err)
+	if decodeErr != nil {
+		span.RecordError(decodeErr)
 		span.SetStatus(codes.Error, "failed to decode NGAP message")
-		ran.Log(ctx).Error("NGAP decode error", zap.Error(err))
+		ran.Log(ctx).Error("NGAP decode error", zap.Error(decodeErr))
 		sendProtocolErrorIndication(ctx, ran, ngap.CauseProtocolTransferSyntaxError)
 
 		return
@@ -149,6 +149,8 @@ func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receiveLocationReport(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcUplinkUEAssociatedNRPPaTransport:
 		receiveUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcTraceFailureIndication:
+		receiveTraceFailureIndication(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -658,6 +660,20 @@ func receiveLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	}
 
 	HandleLocationReport(ctx, amfInstance, ran, report)
+}
+
+func receiveTraceFailureIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, traceFailureIndicationMessageType, span)
+
+	ind, err := ngap.ParseTraceFailureIndication(im.Value)
+	if err != nil {
+		ran.Log(ctx).Warn("failed to decode Trace Failure Indication", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcTraceFailureIndication, err)
+
+		return
+	}
+
+	HandleTraceFailureIndication(ctx, amfInstance, ran, ind)
 }
 
 // receivePathSwitchRequest parses and handles a PATH SWITCH REQUEST. Path

@@ -96,6 +96,15 @@ Traces are collected for the following components:
 
 For more information on configuring tracing in Ella Core, refer to the [Configuration File](config_file.md) documentation.
 
+### RAN Trace Correlation
+
+When tracing is enabled, Ella Core sends each UE's 3GPP trace identifier to the radio in the NGAP or S1AP Trace Activation IE. A radio that uses this identifier for its own spans joins Ella Core's trace for the UE.
+
+| Item | Value |
+|---|---|
+| OpenTelemetry trace ID | 8 octets `0x00` ‖ NG-RAN / E-UTRAN Trace ID (8 octets) |
+| Trace Collection Entity IP Address | N2 interface address |
+
 ## 4. Profiles
 
 Ella Core exposes the [http/pprof](https://pkg.go.dev/net/http/pprof) API for CPU and memory profiling analysis. This allows users to collect and analyze profiles of Ella Core using visualization tools like [pprof](https://pkg.go.dev/net/http/pprof) or [pyroscope](https://grafana.com/oss/pyroscope/).

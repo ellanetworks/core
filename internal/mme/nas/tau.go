@@ -62,6 +62,8 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	ue.SetAccess(access)
 
+	m.ActivateTrace(ctx, ue)
+
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()
 		if req.UENetworkCapability != nil {

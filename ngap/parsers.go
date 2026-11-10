@@ -63,6 +63,8 @@ var messageParsers = []messageParser{
 		_, err := ParseHandoverFailure(v)
 		return err
 	}},
+	{"ParseTraceStart", func(v []byte) error { _, err := ParseTraceStart(v); return err }},
+	{"ParseTraceFailureIndication", func(v []byte) error { _, err := ParseTraceFailureIndication(v); return err }},
 	{"ParseHandoverCancel", func(v []byte) error {
 		_, err := ParseHandoverCancel(v)
 		return err

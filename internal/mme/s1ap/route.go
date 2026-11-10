@@ -53,6 +53,8 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 			handleUplinkLPPaTransport(ctx, m, radio, p.Value)
 		case s1ap.ProcLocationReport:
 			handleLocationReport(ctx, m, radio, p.Value)
+		case s1ap.ProcTraceFailureIndication:
+			handleTraceFailureIndication(ctx, m, radio, p.Value)
 		default:
 			radio.Log(ctx).Warn("unsupported initiating procedure", zap.Int64("procedure_code", int64(p.ProcedureCode)))
 			respondToUnknownProcedure(ctx, m, radio.Conn, p)
