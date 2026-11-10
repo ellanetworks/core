@@ -46,7 +46,13 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*trace.TracerProvider
 
 	res, err := resource.New(ctx,
 		resource.WithHost(),
-		resource.WithProcess(),
+		resource.WithProcessPID(),
+		resource.WithProcessExecutableName(),
+		resource.WithProcessExecutablePath(),
+		resource.WithProcessCommandArgs(),
+		resource.WithProcessRuntimeName(),
+		resource.WithProcessRuntimeVersion(),
+		resource.WithProcessRuntimeDescription(),
 		resource.WithAttributes(
 			semconv.ServiceName(cfg.ServiceName),
 			semconv.ServiceVersion(cfg.ServiceVersion),
@@ -54,7 +60,7 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*trace.TracerProvider
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
+		logger.EllaLog.Warn("Incomplete OpenTelemetry resource", zap.Error(err))
 	}
 
 	tp := trace.NewTracerProvider(
