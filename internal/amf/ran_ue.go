@@ -23,6 +23,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/serial"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
@@ -88,6 +89,7 @@ type UeConn struct {
 	n2Releases n2Releases
 	inboundNAS atomic.Uint32
 	lane       serial.Lane
+	trace      tracing.ConnTrace
 
 	deferredCause atomic.Pointer[ngap.Cause]
 	deferGuard    guard.Guard
@@ -353,7 +355,7 @@ func guardSpan(link trace.SpanContext, spanName string, timer string, attempt in
 		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: link}))
 	}
 
-	return tracer.Start(context.Background(), spanName, opts...)
+	return tracer.Start(tracing.ContinueRANTrace(context.Background(), link), spanName, opts...)
 }
 
 func (ueConn *UeConn) StopNASGuard(ctx context.Context) {

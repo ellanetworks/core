@@ -6,6 +6,7 @@ package ngap
 import (
 	"context"
 	"encoding/hex"
+	"net"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -67,7 +68,7 @@ func TestHandleNGSetup_MissingMandatoryIESendsNGSetupFailure(t *testing.T) {
 			w := &capturingWriter{}
 			ran := newDecodeReportRadio(w)
 
-			route(context.Background(), amf.New(nil, nil, nil), ran, mustDecodeHex(t, tt.msg),
+			routeRaw(context.Background(), amf.New(nil, nil, nil), ran, mustDecodeHex(t, tt.msg),
 				trace.SpanFromContext(context.Background()), nil, nil)
 
 			if len(w.msgs) != 1 {
@@ -96,7 +97,7 @@ func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T)
 	ran := newDecodeReportRadio(w)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "000102", BitLength: 24}}
 
-	route(context.Background(), amf.New(nil, nil, nil), ran, mustDecodeHex(t, handoverRequiredTargetingENB),
+	routeRaw(context.Background(), amf.New(nil, nil, nil), ran, mustDecodeHex(t, handoverRequiredTargetingENB),
 		trace.SpanFromContext(context.Background()), nil, nil)
 
 	if len(w.msgs) != 1 {
@@ -238,4 +239,9 @@ func TestRespondToUnknownProcedure(t *testing.T) {
 			}
 		})
 	}
+}
+
+func routeRaw(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, span trace.Span, remote, local net.Addr) {
+	pdu, err := ngaplib.Unmarshal(msg)
+	route(ctx, amfInstance, ran, msg, pdu, err, span, remote, local)
 }

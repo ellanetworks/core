@@ -31,6 +31,7 @@ type HandoverRequest struct {
 
 	PDUSessionResourceSetupListHOReq   PDUSessionResourceSetupListHOReq
 	AllowedNSSAI                       AllowedNSSAI
+	TraceActivation                    *TraceActivation
 	SourceToTargetTransparentContainer SourceToTargetTransparentContainer
 
 	// MobilityRestrictionList is optional in the ASN.1 and not optional in
@@ -158,6 +159,27 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			}
 
 			return m.AllowedNSSAI, true
+		},
+	},
+	{
+		id: IDTraceActivation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v TraceActivation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TraceActivation = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.TraceActivation == nil {
+				return nil, false
+			}
+
+			return m.TraceActivation, true
 		},
 	},
 	{

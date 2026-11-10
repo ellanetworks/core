@@ -110,6 +110,10 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, ErrRelocationInProgress
 	}
 
+	if plmn, err := m.OperatorPLMN(ctx); err == nil {
+		m.activateTraceSession(ctx, ue, plmn)
+	}
+
 	resp, err := m.relocate(ctx, ue, target, ranID.String(), req)
 	if err != nil {
 		m.dropRelocation(ctx, ue)
@@ -169,6 +173,13 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 			NextHopParameter:     s1ap.SecurityKey(req.SecurityContext.NH),
 		},
 	}
+
+	traceActivation, err := m.HandoverTraceActivation(ue)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("could not build Trace Activation for the Handover Request", zap.Error(err))
+	}
+
+	hoReq.TraceActivation = traceActivation
 
 	b, err := hoReq.Marshal()
 	if err != nil {

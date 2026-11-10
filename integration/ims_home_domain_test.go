@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -307,6 +308,12 @@ func userAuthorization(p *diameterProbe, realm, impi, impu string) (cx.UserAutho
 	}
 
 	uaa, err := cx.ParseUserAuthorizationAnswer(ans)
+
+	var resultErr *cx.ResultError
+	if errors.As(err, &resultErr) {
+		return cx.UserAuthorization{Result: resultErr.Result, Features: resultErr.Features}, nil
+	}
+
 	if err != nil {
 		return cx.UserAuthorization{}, fmt.Errorf("UAA of %s for %s: %w", impi, impu, err)
 	}

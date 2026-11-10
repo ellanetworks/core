@@ -78,6 +78,8 @@ func continueDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	ue.SetAccess(access)
 
+	m.ActivateTrace(ctx, ue)
+
 	if !visitor {
 		if err := m.RegisterUE(ctx, ue); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))

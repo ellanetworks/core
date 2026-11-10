@@ -153,7 +153,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
 === "Kubernetes"
 
-    Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed.
+    Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed, and that the `macvlan`, `static`, and `tuning` [CNI plugins](https://github.com/containernetworking/plugins) are present on every node.
 
     Download the Ella Core manifests:
 
@@ -161,7 +161,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     git clone --depth 1 --branch v1.21.0 https://github.com/ellanetworks/core.git
     ```
 
-    Edit `core/k8s/core-ran-nad.yaml` to set `master` to the host interface that connects to your radios, and set the N2/N3 address. Use the same address for `interfaces.n2.address` in `core/k8s/core-configmap.yaml`.
+    Edit `core/k8s/core-ran-nad.yaml` to set `master` to the host interface that connects to your radios, and set the N2/N3 address.
 
     Deploy Ella Core:
 

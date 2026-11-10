@@ -14,7 +14,7 @@ data:
       path: /core/data/ella.db
     interfaces:
       n2:
-        address: "192.168.252.3"
+        name: "n3"
       n3:
         name: "n3"
       n6:

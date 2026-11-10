@@ -139,6 +139,17 @@ static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
 	return bpf_skb_pull_data(ctx, len);
 }
 
+static __always_inline long ctx_pull_headers(struct __ctx_buff *ctx, __u32 len)
+{
+	if (len > ctx->len)
+		len = ctx->len;
+
+	if (ctx_data(ctx) + len <= ctx_data_end(ctx))
+		return 0;
+
+	return bpf_skb_pull_data(ctx, len);
+}
+
 /* Remove `bytes` of encapsulation between the L2 and L3 headers; the caller
  * saves and rewrites the L2 header around the call.
  *

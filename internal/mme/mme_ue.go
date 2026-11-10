@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -220,6 +221,8 @@ type UeContext struct {
 	lppaBuf pagingBuffer[LPPaBuffered]
 
 	lppBuf pagingBuffer[LPPBuffered]
+
+	trace tracing.UETrace
 }
 
 // TouchLastSeen records the current time as the most recent evidence the UE was
@@ -275,7 +278,9 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	superseded = superseded && old != ue
 
 	var losses bearerLosses
+
 	if superseded {
+		ue.trace.TakeOver(&old.trace)
 		losses = m.removeContextLocked(old)
 	}
 
@@ -724,6 +729,8 @@ func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
 	}
 
 	m.clearPagingSuppression(ctx, ue)
+
+	ue.TraceConnection(ctx)
 }
 
 // deactivateSupersededUserPlane buffers the downlink of the bearers the superseded
@@ -859,6 +866,8 @@ func (m *MME) removeContextLocked(ue *UeContext) bearerLosses {
 	if !purging {
 		m.releaseMTMSIs(tmsis, false)
 	}
+
+	ue.trace.Release()
 
 	return losses
 }

@@ -139,6 +139,8 @@ func continueInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *
 		}
 	}
 
+	amfInstance.ActivateTrace(ctx, ue)
+
 	ue.SetAllowedNssai(subscriberProfile.AllowedNssai)
 	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllow4G(subscriberProfile.EPSInterworking)

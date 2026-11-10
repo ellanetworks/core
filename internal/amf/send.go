@@ -1179,7 +1179,7 @@ type HandoverRequestOpts struct {
 	ServingPLMN          *models.PlmnID
 }
 
-func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allowedNSSAI ngap.AllowedNSSAI, guami ngap.GUAMI) ([]byte, error) {
+func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allowedNSSAI ngap.AllowedNSSAI, guami ngap.GUAMI, traceActivation *ngap.TraceActivation) ([]byte, error) {
 	var nextHop ngap.SecurityKey
 
 	if len(opts.NH) != len(nextHop) {
@@ -1201,6 +1201,7 @@ func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allo
 		NASC:                               opts.NASC,
 		PDUSessionResourceSetupListHOReq:   opts.Sessions,
 		AllowedNSSAI:                       allowedNSSAI,
+		TraceActivation:                    traceActivation,
 		SourceToTargetTransparentContainer: opts.SourceToTarget,
 		GUAMI:                              guami,
 	}
@@ -1241,7 +1242,12 @@ func (ueConn *UeConn) SendHandoverRequest(ctx context.Context, opts HandoverRequ
 		return fmt.Errorf("could not convert Allowed NSSAI: %w", err)
 	}
 
-	pkt, err := handoverRequestBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), opts, allowed, guami)
+	traceActivation, err := ueConn.handoverTraceActivation()
+	if err != nil {
+		return fmt.Errorf("could not build Trace Activation: %w", err)
+	}
+
+	pkt, err := handoverRequestBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), opts, allowed, guami, traceActivation)
 	if err != nil {
 		return err
 	}

@@ -120,6 +120,13 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: newNCC, NextHopParameter: s1ap.SecurityKey(newNH)},
 	}
 
+	traceActivation, err := m.HandoverTraceActivation(ue)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("could not build Trace Activation for the Handover Request", zap.Error(err))
+	}
+
+	hoReq.TraceActivation = traceActivation
+
 	b, err := hoReq.Marshal()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal Handover Request", zap.Error(err))

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -240,5 +241,5 @@ func guardSpan(link trace.SpanContext, spanName string, timer string, attempt in
 		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: link}))
 	}
 
-	return Tracer.Start(context.Background(), spanName, opts...)
+	return Tracer.Start(tracing.ContinueRANTrace(context.Background(), link), spanName, opts...)
 }

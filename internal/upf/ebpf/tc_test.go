@@ -7,6 +7,7 @@ package ebpf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -602,4 +603,190 @@ func tcDropCount(t *testing.T, objs *N3N6EntrypointTcObjects, dir Direction, rea
 	}
 
 	return total
+}
+
+func runTCNonLinear(t *testing.T, prog *ebpf.Program, packet []byte, headLen uint32) (uint32, []byte) {
+	t.Helper()
+
+	opts := &ebpf.RunOptions{
+		Data:    packet,
+		DataOut: make([]byte, len(packet)+256),
+		Context: skbRunContext{IngressIfindex: 1, DataEnd: headLen},
+	}
+
+	action, err := prog.Run(opts)
+	if err != nil {
+		t.Fatalf("run TC program: %v", err)
+	}
+
+	return action, opts.DataOut
+}
+
+func requireNonLinearTestRun(t *testing.T, prog *ebpf.Program) {
+	t.Helper()
+
+	opts := &ebpf.RunOptions{
+		Data:    ethFrame(0x0800, innerIPv4UDP([4]byte{8, 8, 4, 4}, 53)),
+		Context: skbRunContext{IngressIfindex: 1, DataEnd: ethHdrLen + 20},
+	}
+
+	if _, err := prog.Run(opts); err != nil {
+		if errors.Is(err, ebpf.ErrNotSupported) || errors.Is(err, unix.EINVAL) {
+			t.Skipf("non-linear BPF_PROG_TEST_RUN not supported on this kernel: %v", err)
+		}
+
+		t.Fatalf("probe non-linear TC run: %v", err)
+	}
+}
+
+func withOuterIPv4Options(frame []byte) []byte {
+	const optLen = 4
+
+	ihl := int(frame[ethHdrLen]&0x0f) * 4
+	out := make([]byte, 0, len(frame)+optLen)
+	out = append(out, frame[:ethHdrLen+ihl]...)
+	out = append(out, 0x01, 0x01, 0x01, 0x00)
+	out = append(out, frame[ethHdrLen+ihl:]...)
+
+	ip := out[ethHdrLen:]
+	ip[0] = 0x40 | byte((ihl+optLen)/4)
+	binary.BigEndian.PutUint16(ip[2:4], binary.BigEndian.Uint16(ip[2:4])+optLen)
+	binary.BigEndian.PutUint16(ip[10:12], 0)
+	binary.BigEndian.PutUint16(ip[10:12], ipv4HeaderChecksum(ip[:ihl+optLen]))
+
+	return out
+}
+
+func TestTCNonLinearFrameMatchesLinear(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E4C494E
+		dlTEID = 0x4E4C494F
+		qfi    = 5
+	)
+
+	var (
+		ueAddr = [4]byte{10, 45, 0, 7}
+		local  = [4]byte{192, 168, 100, 1}
+		remote = [4]byte{192, 168, 100, 9}
+	)
+
+	const (
+		ipv4Head = ethHdrLen + 20
+		ipv6Head = ethHdrLen + 40
+	)
+
+	inner := withDF(innerIPv4UDPSized([4]byte{8, 8, 8, 8}, 1300))
+	downlink := ethFrame(0x0800, ipv4Packet([4]byte{8, 8, 8, 8}, ueAddr, 17,
+		udpDatagramChecksummed([4]byte{8, 8, 8, 8}, ueAddr, 53, 4001, make([]byte, 1200))))
+
+	uplinkPDR := PdrInfo{
+		OuterHeaderRemoval: 0,
+		IMSI:               "001010000000001",
+		Far:                FarInfo{Action: 0x02},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		UEIPv4:             canonicalUEv4,
+	}
+	uplinkPDRv6Outer := uplinkPDR
+	uplinkPDRv6Outer.OuterHeaderRemoval = 1
+	uplinkPDRv6Outer.UEIPv6Prefix = canonicalUEv6Prefix
+
+	type nonLinearCase struct {
+		name  string
+		frame []byte
+		heads []uint32
+		setup func(*testing.T, *N3N6EntrypointTcObjects)
+	}
+
+	cases := []nonLinearCase{
+		{
+			name:  "uplink decap",
+			frame: uplinkGPDU(ulTEID, inner),
+			heads: []uint32{ipv4Head, ipv4Head + 8},
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDR) },
+		},
+		{
+			name:  "uplink decap IPv4 outer with options",
+			frame: withOuterIPv4Options(uplinkGPDU(ulTEID, inner)),
+			heads: []uint32{ipv4Head, ipv4Head + 8, ipv4Head + 4 + 8},
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDR) },
+		},
+		{
+			name:  "uplink decap IPv6 outer",
+			frame: uplinkGPDUv6(ulTEID, inner),
+			heads: []uint32{ipv6Head, ipv6Head + 8},
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) { putTCPdrUplink(t, objs, ulTEID, uplinkPDRv6Outer) },
+		},
+		{
+			name:  "error indication for unknown TEID",
+			frame: uplinkGPDU(0x0BAD7E1D, inner),
+			heads: []uint32{ipv4Head},
+		},
+		{
+			name:  "echo request",
+			frame: gtpControlFrame(1),
+			heads: []uint32{ipv4Head},
+		},
+		{
+			name:  "downlink encap",
+			frame: downlink,
+			heads: []uint32{ipv4Head, ipv4Head + 8},
+			setup: func(t *testing.T, objs *N3N6EntrypointTcObjects) {
+				putTCPdrDownlink(t, objs, ueAddr, ipv4OuterDownlinkPDR(dlTEID, local, remote, qfi))
+			},
+		},
+		{
+			name:  "no session passes to stack",
+			frame: ethFrame(0x0800, ipv4Packet([4]byte{8, 8, 8, 8}, [4]byte{8, 8, 4, 4}, 17, udpDatagram(4001, 53, make([]byte, 1200)))),
+			heads: []uint32{ipv4Head},
+		},
+	}
+
+	run := func(t *testing.T, tc nonLinearCase, headLen uint32) (uint32, []byte, [UPFMaxAction]uint64) {
+		objs := loadTCProgramConfig(t, false, 0, 1)
+		if tc.setup != nil {
+			tc.setup(t, objs)
+		}
+
+		before := tcActionCounters(t, objs)
+
+		var (
+			action uint32
+			out    []byte
+		)
+		if headLen == 0 {
+			action, out = runTC(t, objs.UpfEntryFunc, tc.frame)
+		} else {
+			action, out = runTCNonLinear(t, objs.UpfEntryFunc, tc.frame, headLen)
+		}
+
+		return action, out, actionDelta(before, tcActionCounters(t, objs))
+	}
+
+	requireNonLinearTestRun(t, loadTCProgramConfig(t, false, 0, 1).UpfEntryFunc)
+
+	for _, tc := range cases {
+		wantAction, wantOut, wantDelta := run(t, tc, 0)
+
+		for _, head := range tc.heads {
+			t.Run(fmt.Sprintf("%s/head=%d", tc.name, head), func(t *testing.T) {
+				action, out, delta := run(t, tc, head)
+
+				if action != wantAction {
+					t.Errorf("verdict = %d, want %d as for the linear frame", action, wantAction)
+				}
+
+				if delta != wantDelta {
+					t.Errorf("action counters = [%s], want [%s] as for the linear frame",
+						formatActions(delta), formatActions(wantDelta))
+				}
+
+				if !bytes.Equal(out, wantOut) {
+					t.Errorf("output frame differs from the linear frame:\n got (%d bytes): %x\nwant (%d bytes): %x",
+						len(out), out, len(wantOut), wantOut)
+				}
+			})
+		}
+	}
 }

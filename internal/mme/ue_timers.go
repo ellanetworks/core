@@ -88,4 +88,5 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 		logger.SUPIFromIMSI(imsi))
 
 	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseImplicitDeregistration))
+	ue.trace.Release()
 }

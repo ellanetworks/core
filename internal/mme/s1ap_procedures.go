@@ -63,6 +63,7 @@ const (
 	S1APProcedureERABModificationConfirm     S1APProcedure = "E-RABModificationConfirm"
 
 	S1APProcedureDownlinkUEAssociatedLPPaTransport S1APProcedure = "DownlinkUEAssociatedLPPaTransport"
+	S1APProcedureTraceStart                        S1APProcedure = "TraceStart"
 	S1APProcedureUplinkUEAssociatedLPPaTransport   S1APProcedure = "UplinkUEAssociatedLPPaTransport"
 	S1APProcedureLocationReport                    S1APProcedure = "LocationReport"
 

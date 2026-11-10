@@ -26,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -136,6 +137,7 @@ type UeContext struct {
 	paging pagingProc
 
 	visitor *roaming.Visitor5G
+	trace   tracing.UETrace
 }
 
 func NewUeContext() *UeContext {
@@ -290,6 +292,8 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	}
 
 	a.clearPagingSuppression(ctx, ue)
+
+	ue.TraceConnection(ctx)
 }
 
 // deactivateDisplacedUserPlane buffers the user plane the displaced connection was
