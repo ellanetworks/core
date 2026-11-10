@@ -50,7 +50,7 @@ func (m *Manager) retrySoleNodeCheckpoint(ctx context.Context) error {
 	backoff := checkpointRetryInitialBackoff
 
 	for {
-		err := m.soleNodeCheckpoint()
+		err := m.soleNodeCheckpoint(ctx)
 		if err == nil {
 			return nil
 		}
@@ -78,9 +78,9 @@ func (m *Manager) retrySoleNodeCheckpoint(ctx context.Context) error {
 	}
 }
 
-func (m *Manager) soleNodeCheckpoint() error {
+func (m *Manager) soleNodeCheckpoint(ctx context.Context) error {
 	future := m.raft.GetConfiguration()
-	if err := future.Error(); err != nil {
+	if err := awaitFuture(ctx, future); err != nil {
 		return fmt.Errorf("read raft configuration: %w", err)
 	}
 
@@ -109,12 +109,12 @@ func (m *Manager) soleNodeCheckpoint() error {
 			zap.String("raft_dir", filepath.Join(m.dataDir, "raft")),
 		)
 
-		if err := m.raft.AddVoter(servers[0].ID, advertised, 0, 0).Error(); err != nil {
+		if err := awaitFuture(ctx, m.raft.AddVoter(servers[0].ID, advertised, 0, 0)); err != nil {
 			return fmt.Errorf("realign sole server address: %w", err)
 		}
 	}
 
-	if err := m.raft.Barrier(0).Error(); err != nil {
+	if err := awaitFuture(ctx, m.raft.Barrier(0)); err != nil {
 		return fmt.Errorf("checkpoint barrier: %w", err)
 	}
 
@@ -126,7 +126,7 @@ func (m *Manager) soleNodeCheckpoint() error {
 		return fmt.Errorf("apply checkpoint log-compaction config: %w", err)
 	}
 
-	snapErr := m.raft.Snapshot().Error()
+	snapErr := awaitFuture(ctx, m.raft.Snapshot())
 
 	if restoreErr := m.raft.ReloadConfig(retention); restoreErr != nil {
 		if snapErr != nil {
