@@ -248,15 +248,16 @@ func checkHomeDomainRegistration(p *diameterProbe, realm, derived, impi string, 
 		impu,
 		"tel:+" + msisdn,
 		"sip:" + sub.IMSI + "@" + derived,
-		"sip:" + sub.IMSI + "@" + customIMSHomeDomain,
 	} {
 		if !strings.Contains(userData, want) {
 			return fmt.Errorf("SAA user data of %s does not include %s: %s", impi, want, userData)
 		}
 	}
 
-	if strings.Contains(userData, derivedIMPU) {
-		return fmt.Errorf("SAA user data of %s includes %s, want the IMPU in the configured domain only", impi, derivedIMPU)
+	for _, unwanted := range []string{derivedIMPU, "sip:" + sub.IMSI + "@" + customIMSHomeDomain} {
+		if strings.Contains(userData, unwanted) {
+			return fmt.Errorf("SAA user data of %s includes %s", impi, unwanted)
+		}
 	}
 
 	if saa.PrivateIdentity != "" && saa.PrivateIdentity != impi {
@@ -268,8 +269,19 @@ func checkHomeDomainRegistration(p *diameterProbe, realm, derived, impi string, 
 		return err
 	}
 
+	if !uaa.Result.Experimental || uaa.Result.Code != tgpp.ResultErrorUserUnknown {
+		return fmt.Errorf("UAR of %s for %s in the derived domain: %s, want DIAMETER_ERROR_USER_UNKNOWN", impi, derivedIMPU, uaa.Result)
+	}
+
+	temporaryIMPU := "sip:" + sub.IMSI + "@" + derived
+
+	uaa, err = userAuthorization(p, realm, impi, temporaryIMPU)
+	if err != nil {
+		return err
+	}
+
 	if !uaa.Result.Experimental || uaa.Result.Code != tgpp.ResultSubsequentRegistration || uaa.ServerName != homeDomainProbeSCSCF {
-		return fmt.Errorf("UAR of %s for %s in the derived domain: %s server %q, want DIAMETER_SUBSEQUENT_REGISTRATION on %s", impi, derivedIMPU, uaa.Result, uaa.ServerName, homeDomainProbeSCSCF)
+		return fmt.Errorf("UAR of %s for %s: %s server %q, want DIAMETER_SUBSEQUENT_REGISTRATION on %s", impi, temporaryIMPU, uaa.Result, uaa.ServerName, homeDomainProbeSCSCF)
 	}
 
 	if _, err := serverAssignment(p, realm, impi, impu, cx.AssignmentUserDeregistration); err != nil {
