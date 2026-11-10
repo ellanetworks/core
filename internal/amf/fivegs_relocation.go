@@ -147,6 +147,10 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, ErrRelocationFromEPSBusy
 	}
 
+	if operatorInfo.Guami != nil && operatorInfo.Guami.PlmnID != nil {
+		a.activateTraceSession(ctx, ue, *operatorInfo.Guami.PlmnID)
+	}
+
 	resp, err := a.relocateFromEPS(ctx, ue, radio, req, mapped, operatorInfo, snssaiList)
 	if err != nil {
 		a.dropRelocationFromEPS(ctx, ue)
@@ -184,6 +188,8 @@ func (a *AMF) relocateFromEPS(
 	if !ok {
 		return none, fmt.Errorf("amf: could not prepare a handover from EPS for %s", ue.Supi())
 	}
+
+	ue.traceRelocationTarget(targetUe)
 
 	for _, c := range candidates {
 		targetUe.ClaimN2Session(N2SetupHandover, uint8(c.PDUSessionID))
@@ -531,6 +537,7 @@ func (a *AMF) dropRelocationFromEPS(ctx context.Context, ue *UeContext) {
 
 	ue.releaseSmContexts(ctx, models.ReleaseFor(models.ReleaseHandoverFailure))
 	a.endRelocationFromEPS(ue.Supi(), ue)
+	ue.trace.Release()
 }
 
 func servesTAI(served []models.Tai, tai interworking.FiveGSTAI) bool {

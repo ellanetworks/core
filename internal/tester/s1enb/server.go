@@ -773,6 +773,10 @@ func frameENBUEID(f Frame) int64 {
 		if m, err := s1ap.ParsePathSwitchRequestAcknowledge(f.Value); err == nil && m.ENBUES1APID != nil {
 			return int64(*m.ENBUES1APID)
 		}
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcTraceStart:
+		if m, err := s1ap.ParseTraceStart(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcMMEStatusTransfer:
 		if m, err := s1ap.ParseMMEStatusTransfer(f.Value); err == nil {
 			return int64(m.ENBUES1APID)

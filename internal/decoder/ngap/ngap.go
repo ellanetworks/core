@@ -194,6 +194,10 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildHandoverNotify(m.Value)
 	case ngap.ProcHandoverCancel:
 		return buildHandoverCancel(m.Value)
+	case ngap.ProcTraceStart:
+		return buildTraceStart(m.Value)
+	case ngap.ProcTraceFailureIndication:
+		return buildTraceFailureIndication(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}

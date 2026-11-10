@@ -114,6 +114,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusResponseEnvelope"
 
+  /api/v1/livez:
+    get:
+      operationId: getLivez
+      tags: [Status]
+      summary: Check liveness
+      description: Answers while the process serves HTTP.
+      security: []
+      responses:
+        "204":
+          description: The process serves HTTP.
+
+  /api/v1/readyz:
+    get:
+      operationId: getReadyz
+      tags: [Status]
+      summary: Check readiness
+      description: Returns whether the node is ready to receive traffic, and the result of each check.
+      security: []
+      parameters:
+        - name: cluster
+          in: query
+          required: false
+          description: Add the `cluster` check.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Every check passes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          description: A check fails.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessEnvelope"
+
   # -- Metrics -------------------------------------------------------------
   /api/v1/metrics:
     get:
@@ -4059,6 +4101,35 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/StatusResponse"
+
+    ReadinessCheck:
+      type: object
+      required: [name, ok, detail]
+      properties:
+        name:
+          type: string
+          enum: [shutdown, member, initialized, drain, database, leader, cluster]
+        ok:
+          type: boolean
+        detail:
+          type: string
+
+    Readiness:
+      type: object
+      required: [ready, checks]
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadinessCheck"
+
+    ReadinessEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Readiness"
 
     # -- Initialization --------------------------------------------------
     InitializeParams:
