@@ -80,6 +80,8 @@ func handleInitiatingMessage(gnb *GnodeB, frame SCTPFrame) error {
 		return handleHandoverRequest(gnb, frame.Value)
 	case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
 		return handleDownlinkUEAssociatedNRPPaTransport(gnb, frame.Value)
+	case ngap.ProcTraceStart:
+		return handleTraceStart(gnb, frame.Value)
 	}
 
 	return nil

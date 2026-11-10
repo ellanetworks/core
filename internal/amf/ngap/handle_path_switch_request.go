@@ -165,6 +165,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	ueConn.SendPathSwitchRequestAcknowledge(ctx, amfUe.UESecCap(), ncc, nh[:], switched, released, snssaiList)
+
+	amfUe.TraceConnection(ctx)
 }
 
 func pathSwitchFailureCause(amfUe *amf.UeContext, pduSessionID uint8) int {

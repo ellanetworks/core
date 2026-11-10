@@ -21,6 +21,7 @@ type HandoverRequest struct {
 	// practice: TS 36.413 §8.4.2.4 has the target eNB reject the handover when
 	// the list is absent and it cannot determine the serving PLMN otherwise.
 	HandoverRestrictionList *HandoverRestrictionList
+	TraceActivation         *TraceActivation
 
 	SecurityContext SecurityContext
 	// C-iffromUTRANGERAN: present exactly when Handover Type is UTRANtoLTE or
@@ -133,6 +134,27 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			}
 
 			return m.HandoverRestrictionList, true
+		},
+	},
+	{
+		id: IDTraceActivation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v TraceActivation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TraceActivation = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.TraceActivation == nil {
+				return nil, false
+			}
+
+			return m.TraceActivation, true
 		},
 	},
 	{

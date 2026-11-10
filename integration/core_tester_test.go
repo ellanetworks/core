@@ -70,6 +70,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/error_indication":                 "requires local switch enabled; covered by TestIntegration4GErrorIndication",
 	"sms/4g_ota_card":                        "manual tool; waits for an external OTA platform",
 	"sms/5g_ota_card":                        "manual tool; waits for an external OTA platform",
+	"gnb/ran_trace":                          "requires telemetry enabled; covered by TestIntegrationRANTrace",
+	"s1enb/ran_trace":                        "requires telemetry enabled; covered by TestIntegrationRANTrace",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
