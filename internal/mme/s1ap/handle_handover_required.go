@@ -47,7 +47,6 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	}
 
 	if req.HandoverType == s1ap.HandoverTypeEPSToFiveGS {
-		ue.StartTraceRecording(ctx)
 		handoverRequiredToFiveGS(ctx, m, radio, req, ue, ueConn)
 
 		return
@@ -96,8 +95,6 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	}
 
 	ueAMBR := handoverUEAMBR(ue)
-
-	ue.StartTraceRecording(ctx)
 
 	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates, direct, ueAMBR)
 	if !ok {

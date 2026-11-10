@@ -52,7 +52,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 - `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.
     - `attach-mode` (string): `native` is equivalent to `datapath.attach-mode: xdp-native`, `generic` to `xdp-generic`.
 - `telemetry` (object): The telemetry configuration.
-    - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`. When `true`, Ella Core also sends 3GPP Trace Activation to connected radios. See [RAN Trace Correlation](observability.md#ran-trace-correlation).
+    - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 - `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering).
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs standalone.

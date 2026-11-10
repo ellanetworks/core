@@ -69,10 +69,6 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 
 	setup := len(result.Applied)
 
-	if ue.EMMState() == mme.EMMRegistered {
-		ue.StopTraceRecording()
-	}
-
 	logger.From(ctx, logger.MmeLog).Debug("Initial Context Setup Response",
 		logger.MMEUeS1apID(uint32(mmeUEID)),
 		zap.Int("e_rabs_setup", setup),

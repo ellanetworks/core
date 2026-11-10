@@ -38,7 +38,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 
 	if len(msg) > 0 {
 		pdu, decodeErr = ngap.Unmarshal(msg)
-		if known && decodeErr == nil {
+		if known && decodeErr == nil && amfInstance.RANTraceEnabled() {
 			ctx = ueTraceContext(ctx, amfInstance, ran, pdu)
 		}
 	}

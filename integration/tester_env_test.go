@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -79,8 +80,13 @@ func setupTesterEnv(ctx context.Context, t *testing.T, overlays ...string) *test
 		captureMetrics(t, APIAddress(), "metrics.txt")
 
 		services := []string{"ella-core"}
-		if len(overlays) > 0 {
-			services = append(services, "smsc", "ims")
+
+		for _, overlay := range overlays {
+			if overlay == jaegerOverlay {
+				services = append(services, "jaeger")
+			} else if !slices.Contains(services, "smsc") {
+				services = append(services, "smsc", "ims")
+			}
 		}
 
 		for _, service := range services {

@@ -134,8 +134,6 @@ type GnodeB struct {
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
 	// keys its equivalent by the UE id (see ENB.WaitForMessage).
 	receivedFrames       map[Category]map[ngap.ProcedureCode][]SCTPFrame
-	traceIDs             map[int64]ngap.NGRANTraceID
-	handoverTraceIDs     map[int64]ngap.NGRANTraceID
 	mu                   sync.Mutex
 	cond                 *sync.Cond
 	N3Address            netip.Addr

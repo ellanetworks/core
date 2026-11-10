@@ -96,11 +96,12 @@ func TestTraceStartCarriesSessionAndConnection(t *testing.T) {
 		t.Fatal("trace session not activated")
 	}
 
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
+	ue.TraceConnection(t.Context())
 
 	starts := w.traceStarts(t)
 	if len(starts) != 1 {
-		t.Fatalf("%d Trace Start messages, want 1", len(starts))
+		t.Fatalf("%d Trace Start messages, want 1 per connection", len(starts))
 	}
 
 	ts := starts[0]
@@ -122,7 +123,7 @@ func TestTraceStartCarriesSessionAndConnection(t *testing.T) {
 	}
 
 	id, ok := conn.RANTraceID()
-	if !ok || id != tracing.RANTraceID(ta.NGRANTraceID) {
+	if !ok || id != tracing.RANTraceID(ta.NGRANTraceID) || !conn.trace.Activated() {
 		t.Fatalf("connection carries %x, sent %x", id, ta.NGRANTraceID)
 	}
 
@@ -131,77 +132,60 @@ func TestTraceStartCarriesSessionAndConnection(t *testing.T) {
 	}
 }
 
-func TestOngoingRecordingSendsNoSecondTraceStart(t *testing.T) {
-	a, _, ue, _, w := newTracedUE(t)
-
-	a.activateTraceSession(t.Context(), ue, tracePLMN)
-	ue.StartTraceRecording(t.Context())
-	ue.StartTraceRecording(t.Context())
-
-	if n := len(w.traceStarts(t)); n != 1 {
-		t.Fatalf("%d Trace Start messages, want 1", n)
-	}
-}
-
-func TestNewRecordingKeepsConnectionTraceID(t *testing.T) {
+func TestNewConnectionGetsNewRecording(t *testing.T) {
 	a, _, ue, conn, w := newTracedUE(t)
 
 	a.activateTraceSession(t.Context(), ue, tracePLMN)
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	first, _ := conn.RANTraceID()
 
-	ue.StopTraceRecording()
-	ue.StartTraceRecording(t.Context())
+	next := NewUeConnForTest(&Radio{Conn: w, amf: a}, 3, 4)
+	a.AttachUeConn(t.Context(), ue, next)
 
 	starts := w.traceStarts(t)
 	if len(starts) != 2 {
-		t.Fatalf("%d Trace Start messages, want 2", len(starts))
+		t.Fatalf("%d Trace Start messages, want one per connection", len(starts))
 	}
 
-	if tracing.RANTraceID(starts[1].TraceActivation.NGRANTraceID) == first {
-		t.Fatal("second recording session reused the TRSR")
-	}
-
-	if id, _ := conn.RANTraceID(); id != first {
-		t.Fatalf("connection trace ID changed to %x", id)
+	second := tracing.RANTraceID(starts[1].TraceActivation.NGRANTraceID)
+	if starts[1].AMFUENGAPID != 4 || [6]byte(second[:6]) != [6]byte(first[:6]) || second == first {
+		t.Fatalf("second connection got %x, first %x: want the same Trace Reference and a new TRSR", second, first)
 	}
 }
 
-func TestTraceFailureResendsOnNextTrigger(t *testing.T) {
+func TestTraceFailureResendsOnlyForTheConnectionID(t *testing.T) {
 	a, _, ue, conn, w := newTracedUE(t)
 
 	a.activateTraceSession(t.Context(), ue, tracePLMN)
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
-	first, _ := conn.RANTraceID()
+	id, _ := conn.RANTraceID()
+	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverCancelled}
 
-	conn.TraceFailed(t.Context(), ngap.NGRANTraceID(first), ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverCancelled})
+	other := id
+	other[7]++
+	conn.TraceFailed(t.Context(), ngap.NGRANTraceID(other), cause)
+
+	if !conn.trace.Activated() {
+		t.Fatal("a failure for another Trace ID deactivated the connection")
+	}
+
+	conn.TraceFailed(t.Context(), ngap.NGRANTraceID(id), cause)
 
 	if conn.trace.Activated() {
-		t.Fatal("connection still activated after a Trace Failure Indication")
+		t.Fatal("connection still activated after a failure for its Trace ID")
 	}
 
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	starts := w.traceStarts(t)
-	if len(starts) != 2 {
-		t.Fatalf("%d Trace Start messages after the failure, want 2", len(starts))
+	if len(starts) != 2 || tracing.RANTraceID(starts[1].TraceActivation.NGRANTraceID) != id {
+		t.Fatalf("%d Trace Start messages; want the connection's Trace ID %x resent", len(starts), id)
 	}
 
-	if tracing.RANTraceID(starts[1].TraceActivation.NGRANTraceID) != first || !conn.trace.Activated() {
-		t.Fatalf("resent %x, want the ongoing recording %x", starts[1].TraceActivation.NGRANTraceID, first)
-	}
-
-	conn.TraceFailed(t.Context(), ngap.NGRANTraceID(first), ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverCancelled})
-	ue.StopTraceRecording()
-	ue.StartTraceRecording(t.Context())
-
-	starts = w.traceStarts(t)
-	next := tracing.RANTraceID(starts[len(starts)-1].TraceActivation.NGRANTraceID)
-
-	if id, _ := conn.RANTraceID(); id != next || id == first {
-		t.Fatalf("connection carries %x, want the new recording %x", id, next)
+	if got, _ := conn.RANTraceID(); got != id || !conn.trace.Activated() {
+		t.Fatalf("connection carries %x activated=%v", got, conn.trace.Activated())
 	}
 }
 
@@ -209,7 +193,7 @@ func TestHandoverTargetInheritsTrace(t *testing.T) {
 	a, _, ue, conn, _ := newTracedUE(t)
 
 	a.activateTraceSession(t.Context(), ue, tracePLMN)
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	target := NewUeConnForTest(&Radio{Conn: &traceCapture{}, amf: a}, 7, 8)
 	target.InheritTrace(conn)
@@ -225,10 +209,32 @@ func TestHandoverTargetInheritsTrace(t *testing.T) {
 	}
 }
 
+func TestRelocationTargetGetsNewRecording(t *testing.T) {
+	a, _, ue, conn, _ := newTracedUE(t)
+
+	a.activateTraceSession(t.Context(), ue, tracePLMN)
+	ue.TraceConnection(t.Context())
+
+	target := NewUeConnForTest(&Radio{Conn: &traceCapture{}, amf: a}, 7, 8)
+	ue.traceRelocationTarget(target)
+
+	ta, err := target.handoverTraceActivation()
+	if err != nil || ta == nil {
+		t.Fatalf("no Trace Activation for the relocation target: %v", err)
+	}
+
+	source, _ := conn.RANTraceID()
+	got := tracing.RANTraceID(ta.NGRANTraceID)
+
+	if got == source || [6]byte(got[:6]) != [6]byte(source[:6]) {
+		t.Fatalf("relocation target %x, source %x: want the same Trace Reference and a new TRSR", got, source)
+	}
+}
+
 func TestNoTraceWithoutSession(t *testing.T) {
 	_, _, ue, conn, w := newTracedUE(t)
 
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	if n := len(w.traceStarts(t)); n != 0 {
 		t.Fatalf("%d Trace Start messages without a trace session", n)
@@ -246,7 +252,7 @@ func TestTraceDisabledActivatesNothing(t *testing.T) {
 	supi, _ := etsi.NewSUPIFromIMSI("001010000000001")
 	ue.SetSupi(supi)
 
-	if a.activateTraceSession(t.Context(), ue, tracePLMN) {
+	if a.activateTraceSession(t.Context(), ue, tracePLMN) || a.RANTraceEnabled() {
 		t.Fatal("trace session activated with RAN trace disabled")
 	}
 }
@@ -260,5 +266,34 @@ func TestReleaseOnContextRemoval(t *testing.T) {
 
 	if sessions.Active() != 0 {
 		t.Fatalf("%d active sessions after the UE context was removed", sessions.Active())
+	}
+}
+
+func TestSupersedingContextKeepsTraceReference(t *testing.T) {
+	a, sessions, old, conn, _ := newTracedUE(t)
+
+	if err := a.CommitUEIdentity(t.Context(), old, MintAuthProofForInterworking()); err != nil {
+		t.Fatal(err)
+	}
+
+	a.activateTraceSession(t.Context(), old, tracePLMN)
+	old.TraceConnection(t.Context())
+
+	before, _ := conn.RANTraceID()
+
+	fresh := NewUeContext()
+	fresh.SetSupi(old.Supi())
+
+	if err := a.CommitUEIdentity(t.Context(), fresh, MintAuthProofForInterworking()); err != nil {
+		t.Fatal(err)
+	}
+
+	after, ok := fresh.trace.NewRecording()
+	if !ok || [6]byte(after[:6]) != [6]byte(before[:6]) {
+		t.Fatalf("Trace Reference changed from %x to %x across the re-registration", before[:6], after[:6])
+	}
+
+	if sessions.Active() != 1 {
+		t.Fatalf("%d active sessions after the supersede", sessions.Active())
 	}
 }

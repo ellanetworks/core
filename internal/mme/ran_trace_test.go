@@ -65,12 +65,12 @@ func TestMMETraceStart(t *testing.T) {
 		t.Fatal("trace session not activated")
 	}
 
-	ue.StartTraceRecording(t.Context())
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
+	ue.TraceConnection(t.Context())
 
 	starts := sentTraceStarts(t, w)
 	if len(starts) != 1 {
-		t.Fatalf("%d Trace Start messages, want 1", len(starts))
+		t.Fatalf("%d Trace Start messages, want 1 per connection", len(starts))
 	}
 
 	ts := starts[0]
@@ -105,8 +105,8 @@ func TestMMEAndAMFShareTraceReference(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmeID, _, _ := ue.trace.StartRecording()
-	amfID, _, _ := amfSide.StartRecording()
+	mmeID, _ := ue.trace.NewRecording()
+	amfID, _ := amfSide.NewRecording()
 
 	if [6]byte(mmeID[:6]) != [6]byte(amfID[:6]) || mmeID == amfID {
 		t.Fatalf("MME %x and AMF %x: want one Trace Reference and distinct TRSRs", mmeID, amfID)
@@ -129,7 +129,7 @@ func TestMMEHandoverTraceActivationFollowsSource(t *testing.T) {
 	m, _, ue, c, _ := newTracedMMEUE(t)
 
 	m.activateTraceSession(t.Context(), ue, mmeTracePLMN)
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	target := &UeConn{m: m}
 	target.trace.Inherit(&c.trace)
@@ -149,15 +149,61 @@ func TestMMETraceFailure(t *testing.T) {
 	m, _, ue, c, w := newTracedMMEUE(t)
 
 	m.activateTraceSession(t.Context(), ue, mmeTracePLMN)
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	id, _ := c.RANTraceID()
+	other := id
+	other[7]++
+
+	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(other), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})
+	ue.TraceConnection(t.Context())
+
+	if n := len(sentTraceStarts(t, w)); n != 1 {
+		t.Fatalf("%d Trace Start messages after a failure for another Trace ID, want 1", n)
+	}
+
 	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(id), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})
+	ue.TraceConnection(t.Context())
 
-	ue.StartTraceRecording(t.Context())
+	starts := sentTraceStarts(t, w)
+	if len(starts) != 2 || tracing.RANTraceID(starts[1].TraceActivation.EUTRANTraceID) != id {
+		t.Fatalf("%d Trace Start messages; want the connection's Trace ID %x resent", len(starts), id)
+	}
+}
 
-	if n := len(sentTraceStarts(t, w)); n != 2 {
-		t.Fatalf("%d Trace Start messages, want 2", n)
+func TestMMENewConnectionGetsNewRecording(t *testing.T) {
+	m, _, ue, c, w := newTracedMMEUE(t)
+
+	m.activateTraceSession(t.Context(), ue, mmeTracePLMN)
+	ue.TraceConnection(t.Context())
+
+	first, _ := c.RANTraceID()
+
+	next := m.NewUeConn(w, 10)
+	m.AttachUeConn(t.Context(), ue, next)
+
+	second, ok := next.RANTraceID()
+	if !ok || [6]byte(second[:6]) != [6]byte(first[:6]) || second == first || !next.trace.Activated() {
+		t.Fatalf("second connection %x, first %x", second, first)
+	}
+}
+
+func TestMMEImplicitDetachReleasesTrace(t *testing.T) {
+	m := New(nil, nil, nil)
+	sessions := tracing.NewTraceSessions(tracing.TraceConfig{TCEAddress: netip.MustParseAddr("10.0.0.1")}, func() int { return 3 })
+	m.EnableRANTrace(sessions)
+
+	ue := NewUeContext()
+	ue.SetIMSIForTest("001010000000001")
+
+	if !m.activateTraceSession(t.Context(), ue, mmeTracePLMN) {
+		t.Fatal("trace session not activated")
+	}
+
+	m.onImplicitDetachExpiry(ue, ue.idleGen)
+
+	if sessions.Active() != 0 {
+		t.Fatalf("%d active sessions after implicit detach", sessions.Active())
 	}
 }
 
@@ -165,7 +211,7 @@ func TestMMEUETraceContextMatchesRadio(t *testing.T) {
 	m, _, ue, c, w := newTracedMMEUE(t)
 
 	m.activateTraceSession(t.Context(), ue, mmeTracePLMN)
-	ue.StartTraceRecording(t.Context())
+	ue.TraceConnection(t.Context())
 
 	want, _ := c.RANTraceID()
 

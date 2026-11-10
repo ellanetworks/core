@@ -93,8 +93,6 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted")
 
-	ue.StartTraceRecording(ctx)
-
 	ueAmbr, err := mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed UE-AMBR", zap.Error(err))
@@ -119,8 +117,6 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 // rejectService answers a service request the MME cannot accept (TS 24.301 §5.6.1.5).
 func rejectService(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
 	ueConn.StopNASGuard(ctx)
-
-	ue.StopTraceRecording()
 
 	reject := &eps.ServiceReject{Cause: cause}
 	ueConn.SendDownlink(ctx, reject)

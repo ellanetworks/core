@@ -30,8 +30,6 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 		return fmt.Errorf("ueConn is nil")
 	}
 
-	ue.StartTraceRecording(ctx)
-
 	plain, err := buildDeregistrationRequest()
 	if err != nil {
 		return fmt.Errorf("build deregistration request: %w", err)

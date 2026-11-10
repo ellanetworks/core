@@ -24,8 +24,12 @@ func (a *AMF) EnableRANTrace(sessions *tracing.TraceSessions) {
 	a.ranTrace = sessions
 }
 
+func (a *AMF) RANTraceEnabled() bool {
+	return a.ranTrace != nil
+}
+
 func (a *AMF) ActivateTrace(ctx context.Context, ue *UeContext) {
-	if a.ranTrace == nil || ue == nil {
+	if a.ranTrace == nil || ue == nil || !a.ServesUeContext(ue) {
 		return
 	}
 
@@ -36,7 +40,7 @@ func (a *AMF) ActivateTrace(ctx context.Context, ue *UeContext) {
 	}
 
 	if a.activateTraceSession(ctx, ue, *operatorInfo.Guami.PlmnID) {
-		ue.StartTraceRecording(ctx)
+		ue.TraceConnection(ctx)
 	}
 }
 
@@ -64,13 +68,8 @@ func (a *AMF) activateTraceSession(ctx context.Context, ue *UeContext, plmnID mo
 	return true
 }
 
-func (ue *UeContext) StartTraceRecording(ctx context.Context) {
+func (ue *UeContext) TraceConnection(ctx context.Context) {
 	if ue == nil {
-		return
-	}
-
-	id, started, ok := ue.trace.StartRecording()
-	if !ok {
 		return
 	}
 
@@ -79,7 +78,17 @@ func (ue *UeContext) StartTraceRecording(ctx context.Context) {
 		return
 	}
 
-	if !started && conn.trace.Activated() {
+	if _, ok := conn.trace.ID(); !ok {
+		id, ok := ue.trace.NewRecording()
+		if !ok {
+			return
+		}
+
+		conn.trace.Assign(id)
+	}
+
+	id, pending := conn.trace.Pending()
+	if !pending {
 		return
 	}
 
@@ -88,25 +97,18 @@ func (ue *UeContext) StartTraceRecording(ctx context.Context) {
 	}
 }
 
-func (ue *UeContext) StopTraceRecording() {
-	if ue == nil {
-		return
-	}
-
-	ue.trace.StopRecording()
-}
-
 func (ue *UeContext) TraceActive() bool {
 	return ue.trace.Active()
 }
 
-func (ue *UeContext) StartRecordingForConn(ctx context.Context, target *UeConn) {
-	id, _, ok := ue.trace.StartRecording()
+func (ue *UeContext) traceRelocationTarget(target *UeConn) {
+	id, ok := ue.trace.NewRecording()
 	if !ok || target == nil {
 		return
 	}
 
-	target.trace.Activate(id)
+	target.trace.Assign(id)
+	target.trace.MarkActivated(id)
 }
 
 func (ueConn *UeConn) RANTraceID() (tracing.RANTraceID, bool) {
@@ -134,18 +136,17 @@ func (ueConn *UeConn) InheritTrace(from *UeConn) {
 }
 
 func (ueConn *UeConn) TraceFailed(ctx context.Context, id ngap.NGRANTraceID, cause ngap.Cause) {
-	current, ok := ueConn.trace.ID()
-	if ok && current != tracing.RANTraceID(id) {
-		ueConn.Log(ctx).Info("Trace Failure Indication for a Trace ID this connection no longer carries",
-			zap.String("trace_id", fmt.Sprintf("%x", id[:])))
-	}
-
-	ueConn.trace.Fail()
-
 	trace.SpanFromContext(ctx).AddEvent("trace failure indication", trace.WithAttributes(
 		attribute.String("ngap.trace_id", fmt.Sprintf("%x", id[:])),
 		attribute.String("ngap.cause", cause.String()),
 	))
+
+	if !ueConn.trace.Fail(tracing.RANTraceID(id)) {
+		ueConn.Log(ctx).Info("Trace Failure Indication for a Trace ID this connection does not carry",
+			zap.String("trace_id", fmt.Sprintf("%x", id[:])), zap.Stringer("cause", cause))
+
+		return
+	}
 
 	ueConn.Log(ctx).Info("NG-RAN could not start the trace session", zap.Stringer("cause", cause))
 }
@@ -161,8 +162,6 @@ func (ueConn *UeConn) SendTraceStart(ctx context.Context, id tracing.RANTraceID)
 		return err
 	}
 
-	ueConn.trace.Activate(id)
-
 	pkt, err := (&ngap.TraceStart{
 		AMFUENGAPID:     ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
 		RANUENGAPID:     ngap.RANUENGAPID(ueConn.RanUeNgapID()),
@@ -172,7 +171,13 @@ func (ueConn *UeConn) SendTraceStart(ctx context.Context, id tracing.RANTraceID)
 		return fmt.Errorf("could not build Trace Start: %w", err)
 	}
 
-	return amfInstance.SendToRadio(ueConn.TraceContext(ctx), conn, NGAPProcedureTraceStart, pkt)
+	if err := amfInstance.SendToRadio(ueConn.TraceContext(ctx), conn, NGAPProcedureTraceStart, pkt); err != nil {
+		return err
+	}
+
+	ueConn.trace.MarkActivated(id)
+
+	return nil
 }
 
 func (ueConn *UeConn) handoverTraceActivation() (*ngap.TraceActivation, error) {
@@ -204,14 +209,4 @@ func (a *AMF) traceActivation(id tracing.RANTraceID) (*ngap.TraceActivation, err
 		TraceDepth:                     ngap.TraceDepthMinimum,
 		TraceCollectionEntityIPAddress: ngap.TransportLayerAddress(tce.Unmap().AsSlice()),
 	}, nil
-}
-
-func (ueConn *UeConn) stopTraceRecording() {
-	if ueConn == nil {
-		return
-	}
-
-	if ue := ueConn.UeContext(); ue != nil {
-		ue.trace.StopRecording()
-	}
 }

@@ -273,8 +273,6 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		ue.TransitionTo(ctx, amf.RegistrationInitiated)
 
-		ue.StartTraceRecording(ctx)
-
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
 			recoverContextFromEPS(ctx, amfInstance, ue, req, integrityVerified)
 		}

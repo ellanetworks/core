@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	jaegerOverlay      = "../jaeger/jaeger.yaml"
 	jaegerQueryAddress = "http://10.3.0.20:16686"
 	ranTracePLMNHex    = "00f110"
 )
@@ -33,7 +34,7 @@ func TestIntegrationRANTrace(t *testing.T) {
 	t.Setenv("ELLA_CORE_TELEMETRY", "true")
 
 	ctx := context.Background()
-	env := setupTesterEnv(ctx, t, "compose-ran-trace.yaml")
+	env := setupTesterEnv(ctx, t, jaegerOverlay)
 
 	baseline := fixture.New(t, ctx, env.Client)
 	baseline.OperatorDefault()

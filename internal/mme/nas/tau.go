@@ -30,8 +30,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	ue.StartTraceRecording(ctx)
-
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to read the operator configuration for Tracking Area Update", zap.Error(err))
@@ -171,8 +169,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		ueConn.TauReleaseOnComplete = true
 	}
 
-	ue.StopTraceRecording()
-
 	ueConn.ArmNASGuard(ctx, "Tracking Area Update Accept", acceptPlain, eps.SHTIntegrityProtectedCiphered)
 
 	return nasreply.Handled()
@@ -183,8 +179,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
 	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", logger.RegistrationRejected)
 	ueConn.StopNASGuard(ctx)
-
-	ue.StopTraceRecording()
 
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
 	ueConn.SendDownlink(ctx, reject)

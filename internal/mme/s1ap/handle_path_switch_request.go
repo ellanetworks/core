@@ -181,18 +181,15 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		zap.Int("e_rabs_released", len(result.Released)),
 		zap.Uint8("ncc", ncc))
 
-	ue.StartTraceRecording(ctx)
-
 	if err := ueConn.SendPathSwitchAcknowledge(ctx, ack); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to send Path Switch Request Acknowledge", zap.Error(err))
 
 		return
 	}
 
-	ue.StopTraceRecording()
-
 	result.Complete(ctx)
 	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+	ue.TraceConnection(ctx)
 }
 
 func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (present []mme.RANBearer, undecodable []uint8) {
@@ -236,8 +233,6 @@ func releasedERABItems(failed []uint8) []s1ap.ERABItem {
 // sendPathSwitchFailure sends a PATH SWITCH REQUEST FAILURE on the association the
 // request arrived on (TS 36.413). The UE keeps its source-eNB context.
 func sendPathSwitchFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
-	m.StopTraceRecordingFor(req.SourceMMEUES1APID)
-
 	fail := &s1ap.PathSwitchRequestFailure{
 		MMEUES1APID: s1ap.Ptr(req.SourceMMEUES1APID),
 		ENBUES1APID: s1ap.Ptr(req.ENBUES1APID),

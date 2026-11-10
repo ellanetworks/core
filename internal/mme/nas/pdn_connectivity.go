@@ -40,8 +40,6 @@ func esmRequestHeaderCause(pti, headerEBI uint8) eps.ESMCause {
 // bearer to the APN the UE names) for an already EMM-REGISTERED UE, authorised
 // against the subscriber's profile (TS 24.301 §6.5.1; TS 23.401 §5.10.2).
 func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.PDNConnectivityRequest) nasreply.Disposition {
-	ue.StartTraceRecording(ctx)
-
 	pti := req.PTI
 
 	if cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity)); cause != 0 {
@@ -266,8 +264,6 @@ func buildERABSetup(p *mme.PdnConnection, ueAmbr models.Ambr) (*s1ap.ERABSetupRe
 // bearer's Linked EPS Bearer Identity. The last PDN connection cannot be
 // disconnected this way — the UE detaches instead (ESM cause #49).
 func handlePDNDisconnectRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.PDNDisconnectRequest) nasreply.Disposition {
-	ue.StartTraceRecording(ctx)
-
 	pti := req.PTI
 
 	if cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity)); cause != 0 {
@@ -314,8 +310,6 @@ func rejectPDNDisconnect(ctx context.Context, ueConn *mme.UeConn, pti uint8, cau
 // accepts the network's ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301
 // §6.4.1).
 func handleActivateDefaultBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, accept *eps.ActivateDefaultEPSBearerContextAccept) nasreply.Disposition {
-	ue.StopTraceRecording()
-
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 	if p == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Activate Default Accept for an unknown EPS bearer", zap.Uint8("ebi", uint8(accept.EPSBearerIdentity)))
@@ -337,8 +331,6 @@ func handleActivateDefaultBearerAccept(ctx context.Context, m *mme.MME, ue *mme.
 // handleActivateDefaultBearerReject releases an additional PDN connection the UE
 // refused (TS 24.301 §6.4.1.5).
 func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, rej *eps.ActivateDefaultEPSBearerContextReject) nasreply.Disposition {
-	ue.StopTraceRecording()
-
 	if p := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity)); p != nil {
 		logger.From(ctx, logger.MmeLog).Info("UE rejected an additional PDN connection; releasing it", zap.Uint8("ebi", p.Ebi), logger.ESMCause(rej.Cause.String()))
 		m.StopESMGuard(p)
@@ -355,8 +347,6 @@ func rejectPDNConnectivity(ctx context.Context, ueConn *mme.UeConn, pti uint8, c
 }
 
 func rejectPDNConnectivityWithBackoff(ctx context.Context, ueConn *mme.UeConn, pti uint8, cause eps.ESMCause, backoff *nas.GPRSTimer3) {
-	ueConn.UeContext().StopTraceRecording()
-
 	ueConn.SendDownlinkProtected(ctx, &eps.PDNConnectivityReject{
 		PTI:          nas.ProcedureTransactionIdentity(pti),
 		Cause:        cause,

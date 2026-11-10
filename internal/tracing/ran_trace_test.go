@@ -102,33 +102,20 @@ func TestRecordingSessionReference(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first, started, ok := amf.StartRecording()
-	if !started || !ok {
-		t.Fatal("first start did not start a recording")
+	first, ok := amf.NewRecording()
+	if !ok {
+		t.Fatal("no recording on an active session")
 	}
 
-	if again, started, _ := amf.StartRecording(); again != first || started {
-		t.Fatalf("start during an active recording changed the TRSR: %x then %x", first, again)
+	second, _ := mme.NewRecording()
+	third, _ := amf.NewRecording()
+
+	if [6]byte(first[:6]) != [6]byte(second[:6]) || [6]byte(first[:6]) != [6]byte(third[:6]) {
+		t.Fatalf("recordings %x %x %x do not share the Trace Reference", first, second, third)
 	}
 
-	other, started, _ := mme.StartRecording()
-	if !started || other == first || [6]byte(other[:6]) != [6]byte(first[:6]) {
-		t.Fatalf("second NE recording %x, first %x: want the same Trace Reference and a distinct TRSR", other, first)
-	}
-
-	amf.StopRecording()
-
-	if _, recording := amf.Recording(); recording {
-		t.Fatal("recording after stop")
-	}
-
-	if _, recording := mme.Recording(); !recording {
-		t.Fatal("stopping one NE stopped the other")
-	}
-
-	second, _, _ := amf.StartRecording()
-	if second == first || second == other {
-		t.Fatalf("new recording %x reused a TRSR", second)
+	if first == second || first == third || second == third {
+		t.Fatalf("recordings %x %x %x reuse a TRSR", first, second, third)
 	}
 
 	amf.Release()
@@ -138,8 +125,54 @@ func TestRecordingSessionReference(t *testing.T) {
 		t.Fatalf("active %d after both NEs released", s.Active())
 	}
 
-	if _, _, ok := amf.StartRecording(); ok {
+	if _, ok := amf.NewRecording(); ok {
 		t.Fatal("recording after release")
+	}
+}
+
+func TestTakeOverKeepsTraceReference(t *testing.T) {
+	s := NewTraceSessions(TraceConfig{}, func() int { return 1 })
+
+	var old, fresh UETrace
+
+	if _, err := old.Activate(s, "001010000000001", testPLMN); err != nil {
+		t.Fatal(err)
+	}
+
+	before, _ := old.NewRecording()
+
+	fresh.TakeOver(&old)
+	old.Release()
+
+	after, ok := fresh.NewRecording()
+	if !ok || [6]byte(after[:6]) != [6]byte(before[:6]) {
+		t.Fatalf("Trace Reference changed from %x to %x", before[:6], after[:6])
+	}
+
+	if s.Active() != 1 {
+		t.Fatalf("active %d after the take-over", s.Active())
+	}
+
+	var other UETrace
+
+	if _, err := other.Activate(s, "001010000000001", testPLMN); err != nil {
+		t.Fatal(err)
+	}
+
+	fresh.TakeOver(&other)
+
+	fresh.Release()
+
+	if s.Active() != 0 {
+		t.Fatalf("active %d: a take-over onto a held session leaked a reference", s.Active())
+	}
+}
+
+func TestAcquireRefusesWithoutNodePrefix(t *testing.T) {
+	s := NewTraceSessions(TraceConfig{}, func() int { return 0 })
+
+	if _, err := s.Acquire("001010000000001", testPLMN); !errors.Is(err, ErrNoNodePrefix) {
+		t.Fatalf("err %v, want ErrNoNodePrefix", err)
 	}
 }
 
@@ -153,11 +186,23 @@ func TestConnTrace(t *testing.T) {
 	first := RANTraceID{1, 2, 3, 4, 5, 6, 0, 1}
 	second := RANTraceID{1, 2, 3, 4, 5, 6, 0, 2}
 
-	source.Activate(first)
-	source.Activate(second)
+	source.Assign(first)
+	source.Assign(second)
 
-	if id, _ := source.ID(); id != first {
-		t.Fatalf("activated connection took a later ID: %x", id)
+	if id, pending := source.Pending(); id != first || !pending {
+		t.Fatalf("pending %x %v, want %x true", id, pending, first)
+	}
+
+	source.MarkActivated(second)
+
+	if source.Activated() {
+		t.Fatal("activated by an ID the connection does not carry")
+	}
+
+	source.MarkActivated(first)
+
+	if _, pending := source.Pending(); pending {
+		t.Fatal("still pending after activation")
 	}
 
 	target.Inherit(&source)
@@ -166,14 +211,19 @@ func TestConnTrace(t *testing.T) {
 		t.Fatalf("inherited %x activated=%v", id, target.Activated())
 	}
 
-	target.Fail()
-	target.Activate(second)
-
-	if id, _ := target.ID(); id != second {
-		t.Fatalf("failed connection kept %x, want %x", id, second)
+	if target.Fail(second) {
+		t.Fatal("failure for another ID changed the connection")
 	}
 
-	if got, ok := PinnedTraceID(target.Context(context.Background())); !ok || got != second.OTelTraceID() {
+	if !target.Fail(first) {
+		t.Fatal("failure for the connection's ID ignored")
+	}
+
+	if id, pending := target.Pending(); id != first || !pending {
+		t.Fatalf("after failure pending %x %v, want %x true", id, pending, first)
+	}
+
+	if got, ok := PinnedTraceID(target.Context(context.Background())); !ok || got != first.OTelTraceID() {
 		t.Fatalf("pinned %s", got)
 	}
 }

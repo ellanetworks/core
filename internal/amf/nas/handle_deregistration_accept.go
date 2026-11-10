@@ -19,8 +19,6 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) nasreply
 		conn.StopNASGuard(ctx)
 	}
 
-	ue.StopTraceRecording()
-
 	ueConn := ue.Conn()
 
 	ue.Deregister(ctx, ue.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseDeregistration)))

@@ -11,11 +11,9 @@ import (
 )
 
 type UETrace struct {
-	mu        sync.Mutex
-	sessions  *TraceSessions
-	session   *TraceSession
-	recording bool
-	current   RANTraceID
+	mu       sync.Mutex
+	sessions *TraceSessions
+	session  *TraceSession
 }
 
 func (u *UETrace) Activate(sessions *TraceSessions, subscriber string, plmn [3]byte) (bool, error) {
@@ -48,43 +46,50 @@ func (u *UETrace) Active() bool {
 	return u.session != nil
 }
 
-func (u *UETrace) StartRecording() (RANTraceID, bool, bool) {
+func (u *UETrace) NewRecording() (RANTraceID, bool) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
+	sess := u.session
+	u.mu.Unlock()
 
-	if u.session == nil {
-		return RANTraceID{}, false, false
+	if sess == nil {
+		return RANTraceID{}, false
 	}
 
-	if u.recording {
-		return u.current, false, true
+	return sess.NewRecording(), true
+}
+
+func (u *UETrace) TakeOver(from *UETrace) {
+	if from == nil || from == u {
+		return
 	}
 
-	u.current = u.session.NewRecording()
-	u.recording = true
+	from.mu.Lock()
+	sessions, sess := from.sessions, from.session
+	from.sessions, from.session = nil, nil
+	from.mu.Unlock()
 
-	return u.current, true, true
-}
+	if sess == nil {
+		return
+	}
 
-func (u *UETrace) Recording() (RANTraceID, bool) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 
-	return u.current, u.recording
-}
+	adopted := u.session == nil
+	if adopted {
+		u.sessions, u.session = sessions, sess
+	}
 
-func (u *UETrace) StopRecording() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+	u.mu.Unlock()
 
-	u.recording = false
+	if !adopted {
+		sessions.Release(sess)
+	}
 }
 
 func (u *UETrace) Release() {
 	u.mu.Lock()
 	sessions, sess := u.sessions, u.session
 	u.sessions, u.session = nil, nil
-	u.recording = false
 	u.mu.Unlock()
 
 	if sessions != nil {
@@ -112,15 +117,29 @@ func (c *ConnTrace) Activated() bool {
 	return c.activated
 }
 
-func (c *ConnTrace) Activate(id RANTraceID) {
+func (c *ConnTrace) Assign(id RANTraceID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if !c.activated {
+	if c.id.IsZero() {
 		c.id = id
 	}
+}
 
-	c.activated = true
+func (c *ConnTrace) Pending() (RANTraceID, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.id, !c.id.IsZero() && !c.activated
+}
+
+func (c *ConnTrace) MarkActivated(id RANTraceID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.id == id {
+		c.activated = true
+	}
 }
 
 func (c *ConnTrace) Inherit(from *ConnTrace) {
@@ -139,11 +158,17 @@ func (c *ConnTrace) Inherit(from *ConnTrace) {
 	c.activated = activated
 }
 
-func (c *ConnTrace) Fail() {
+func (c *ConnTrace) Fail(id RANTraceID) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.id.IsZero() || c.id != id {
+		return false
+	}
+
 	c.activated = false
+
+	return true
 }
 
 func (c *ConnTrace) Context(ctx context.Context) context.Context {

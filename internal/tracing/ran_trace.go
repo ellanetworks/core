@@ -19,7 +19,10 @@ const (
 	traceIDPrefixMax = 1<<(24-traceIDValueBits) - 1
 )
 
-var ErrTraceIDsExhausted = errors.New("tracing: no free Trace ID")
+var (
+	ErrTraceIDsExhausted = errors.New("tracing: no free Trace ID")
+	ErrNoNodePrefix      = errors.New("tracing: node has no AMF Pointer yet")
+)
 
 type RANTraceID [8]byte
 
@@ -73,12 +76,17 @@ func (s *TraceSessions) Acquire(subscriber string, plmn [3]byte) (*TraceSession,
 		return sess, nil
 	}
 
+	prefix := s.prefix()
+	if prefix <= 0 || prefix > traceIDPrefixMax {
+		return nil, ErrNoNodePrefix
+	}
+
 	value, ok := s.allocateLocked()
 	if !ok {
 		return nil, ErrTraceIDsExhausted
 	}
 
-	traceID := uint32(s.prefix()&traceIDPrefixMax)<<traceIDValueBits | value
+	traceID := uint32(prefix)<<traceIDValueBits | value
 
 	sess := &TraceSession{
 		subscriber: subscriber,

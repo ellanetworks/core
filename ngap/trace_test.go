@@ -176,3 +176,9 @@ func TestPeekAMFUENGAPID(t *testing.T) {
 		t.Fatal("peeked an ID from a nil PDU")
 	}
 }
+
+func TestPeekAMFUENGAPIDRejectsTruncatedInput(t *testing.T) {
+	if _, ok := PeekAMFUENGAPID(&InitiatingMessage{ProcedureCode: ProcTraceStart, Value: []byte{0x00, 0x00}}); ok {
+		t.Fatal("peeked an ID from a truncated message")
+	}
+}

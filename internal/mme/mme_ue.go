@@ -270,7 +270,9 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	superseded = superseded && old != ue
 
 	var losses bearerLosses
+
 	if superseded {
+		ue.trace.TakeOver(&old.trace)
 		losses = m.removeContextLocked(old)
 	}
 
@@ -713,6 +715,8 @@ func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
 	}
 
 	m.clearPagingSuppression(ctx, ue)
+
+	ue.TraceConnection(ctx)
 }
 
 // deactivateSupersededUserPlane buffers the downlink of the bearers the superseded

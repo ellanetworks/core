@@ -51,8 +51,6 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 
 	sourceUe.HandOverType = msg.HandoverType
 
-	amfUe.StartTraceRecording(ctx)
-
 	prep, err := amfInstance.PrepareHandoverToEPS(amfUe, sourceUe, target, msg.SourceToTargetTransparentContainer, requested, msg.Cause)
 	if err != nil {
 		sourceUe.Log(ctx).Info("handle Handover Preparation Failure [handover to EPS could not be prepared]", zap.Error(err))

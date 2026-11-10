@@ -458,6 +458,8 @@ func (a *AMF) FinishHandoverCommit(ctx context.Context, ue *UeContext, targetUe 
 
 	ue.EndKeyChainProc(procedure.N2Handover)
 
+	ue.TraceConnection(ctx)
+
 	return true
 }
 

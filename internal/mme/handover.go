@@ -251,7 +251,7 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
 	targetConn.holdUEAMBR(&ueAMBR)
-	ue.startRecordingForConn(targetConn)
+	ue.traceRelocationTarget(targetConn)
 	m.registerConnLocked(tid, targetConn)
 
 	delivery := make(chan relocationOutcome, 1)
@@ -677,8 +677,6 @@ func (m *MME) releaseDetachedConnIfHeld(c *UeConn) bool {
 }
 
 func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
-	m.StopTraceRecordingFor(mmeUEID)
-
 	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: s1ap.Ptr(mmeUEID), ENBUES1APID: s1ap.Ptr(enbUEID), Cause: s1ap.Ptr(cause)}
 
 	b, err := fail.Marshal()

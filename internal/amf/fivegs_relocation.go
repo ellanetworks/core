@@ -151,8 +151,6 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		a.activateTraceSession(ctx, ue, *operatorInfo.Guami.PlmnID)
 	}
 
-	defer ue.StopTraceRecording()
-
 	resp, err := a.relocateFromEPS(ctx, ue, radio, req, mapped, operatorInfo, snssaiList)
 	if err != nil {
 		a.dropRelocationFromEPS(ctx, ue)
@@ -191,7 +189,7 @@ func (a *AMF) relocateFromEPS(
 		return none, fmt.Errorf("amf: could not prepare a handover from EPS for %s", ue.Supi())
 	}
 
-	ue.StartRecordingForConn(ctx, targetUe)
+	ue.traceRelocationTarget(targetUe)
 
 	for _, c := range candidates {
 		targetUe.ClaimN2Session(N2SetupHandover, uint8(c.PDUSessionID))

@@ -31,8 +31,6 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 		zap.Int64("AMF UE NGAP ID", amfUEID),
 	)
 
-	gnb.forgetTraceID(ranUEID)
-
 	ue, err := gnb.LoadUE(ranUEID)
 	if err != nil {
 		return fmt.Errorf("cannot find UE for UEContextReleaseCommand message: %v", err)

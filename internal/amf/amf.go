@@ -243,6 +243,7 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	amf.mu.Unlock()
 
 	if superseded {
+		ue.trace.TakeOver(&old.trace)
 		amf.DeregisterAndRemoveUeContext(ctx, old, models.ReleaseFor(models.ReleaseDeregistration))
 	}
 

@@ -55,8 +55,16 @@ func traceActivation(ta ngap.TraceActivation) TraceActivation {
 		NGRANTraceID:                   hex.EncodeToString(ta.NGRANTraceID[:]),
 		InterfacesToTrace:              interfaces,
 		TraceDepth:                     depth,
-		TraceCollectionEntityIPAddress: ipAddressText(ta.TraceCollectionEntityIPAddress),
+		TraceCollectionEntityIPAddress: tceAddressText(ta.TraceCollectionEntityIPAddress),
 	}
+}
+
+func tceAddressText(addr ngap.TransportLayerAddress) string {
+	if text := transportLayerAddressToString(addr); text != "" {
+		return text
+	}
+
+	return hex.EncodeToString(addr)
 }
 
 func buildTraceStart(value []byte) NGAPMessageValue {

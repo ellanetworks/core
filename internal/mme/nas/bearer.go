@@ -364,8 +364,6 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	ueConn.StopNASGuard(ctx)
 
-	ue.StopTraceRecording()
-
 	m.CommitGUTIRealloc(ue)
 
 	ue.TransitionTo(ctx, mme.EMMRegistered)

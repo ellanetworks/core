@@ -57,8 +57,6 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 }
 
 func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork, release models.SessionReleaseRequest) {
-	ue.StartTraceRecording(ctx)
-
 	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
 	ue.startNetworkDetach(release)
 

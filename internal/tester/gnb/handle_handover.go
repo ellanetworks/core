@@ -14,14 +14,9 @@ import (
 // RAN UE NGAP ID yet, and the session store is keyed by that ID. AdmitHandover
 // takes the request back from WaitForHandoverRequest and stores what it admits
 // under the RAN UE NGAP ID the caller chose.
-func handleHandoverRequest(gnb *GnodeB, value []byte) error {
-	req, err := ngap.ParseHandoverRequest(value)
-	if err != nil {
+func handleHandoverRequest(_ *GnodeB, value []byte) error {
+	if _, err := ngap.ParseHandoverRequest(value); err != nil {
 		return fmt.Errorf("undecodable HandoverRequest: %w", err)
-	}
-
-	if req.TraceActivation != nil {
-		gnb.recordHandoverTraceID(int64(req.AMFUENGAPID), req.TraceActivation.NGRANTraceID)
 	}
 
 	return nil
