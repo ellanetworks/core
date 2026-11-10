@@ -155,6 +155,7 @@ nav:
     - Ella Core and VRFs: explanation/vrf.md
     - IMS Integration: explanation/ims_integration.md
     - SMS Integration: explanation/sms_integration.md
+    - RAN Trace Correlation: explanation/ran_trace_correlation.md
 plugins:
   - search
   - glightbox

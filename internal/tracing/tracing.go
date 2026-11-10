@@ -60,6 +60,7 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*trace.TracerProvider
 	tp := trace.NewTracerProvider(
 		trace.WithSampler(sampler),
 		trace.WithBatcher(exp),
+		trace.WithIDGenerator(pinnedIDGenerator{}),
 		trace.WithResource(res),
 	)
 

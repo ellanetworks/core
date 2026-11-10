@@ -12,6 +12,8 @@ import (
 )
 
 func handleActivateDedicatedBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, accept *eps.ActivateDedicatedEPSBearerContextAccept) nasreply.Disposition {
+	ue.StopTraceRecording()
+
 	if !m.DedicatedBearerAccepted(ctx, ue, uint8(accept.EPSBearerIdentity)) {
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
@@ -20,6 +22,8 @@ func handleActivateDedicatedBearerAccept(ctx context.Context, m *mme.MME, ue *mm
 }
 
 func handleActivateDedicatedBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, reject *eps.ActivateDedicatedEPSBearerContextReject) nasreply.Disposition {
+	ue.StopTraceRecording()
+
 	ebi := uint8(reject.EPSBearerIdentity)
 
 	if !m.DedicatedActivating(ue, ebi) {

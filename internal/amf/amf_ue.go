@@ -25,6 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -133,6 +134,8 @@ type UeContext struct {
 	nrppaRoutingIDs map[int64]struct{}
 
 	paging pagingProc
+
+	trace tracing.UETrace
 }
 
 func NewUeContext() *UeContext {

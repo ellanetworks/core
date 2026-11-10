@@ -96,6 +96,39 @@ Traces are collected for the following components:
 
 For more information on configuring tracing in Ella Core, refer to the [Configuration File](config_file.md) documentation.
 
+### RAN Trace Correlation
+
+When `telemetry.enabled` is `true`, Ella Core activates a 3GPP subscriber trace (TS 32.422) for every subscriber and sends the trace identifier to the radio. A radio that uses the same identifier for its own OpenTelemetry spans contributes them to Ella Core's trace for the UE.
+
+| Item | Value |
+|---|---|
+| Trace Reference | Operator PLMN (3 octets) ‖ Trace ID (3 octets) |
+| Trace ID | Node AMF Pointer (6 bits) ‖ allocated value (18 bits) |
+| Trace Recording Session Reference (TRSR) | 2 octets, new for each Trace Recording Session |
+| NG-RAN / E-UTRAN Trace ID | Trace Reference ‖ TRSR (8 octets) |
+| OpenTelemetry trace ID | 8 octets `0x00` ‖ NG-RAN / E-UTRAN Trace ID |
+| Interfaces To Trace (NGAP) | NG-C, Xn-C, Uu, F1-C, E1 |
+| Interfaces To Trace (S1AP) | S1-MME, X2, Uu, F1-C, E1 |
+| Trace Depth | `minimum` |
+| Trace Collection Entity IP Address | N2 interface address |
+
+| Message | NGAP (TS 38.413) | S1AP (TS 36.413) |
+|---|---|---|
+| TRACE START | Sent when the AMF starts a Trace Recording Session | Sent when the MME starts a Trace Recording Session |
+| HANDOVER REQUEST | Carries Trace Activation with the source connection's Trace ID | Carries Trace Activation with the source connection's Trace ID |
+| TRACE FAILURE INDICATION | Received and recorded as a span event | Received and recorded as a span event |
+
+| Trace Recording Session | AMF start trigger | MME start trigger |
+|---|---|---|
+| Registration / Attach | Registration Request | Attach Request, subscription data obtained |
+| Tracking Area Update | — | TAU Request |
+| Service Request | Service Request | Service Request |
+| Detach / Deregistration | Deregistration Request, network deregistration | Detach Request, network detach |
+| PDN connectivity and bearers | — | PDN Connectivity Request, PDN Disconnect Request, bearer activation, modification, deactivation |
+| Handover | Path Switch Request, Handover Required towards E-UTRAN, relocation from EPS | Path Switch Request, Handover Required, relocation from 5GS |
+
+All OpenTelemetry spans for a UE-associated NG or S1 connection carry the OpenTelemetry trace ID of the first Trace ID sent on that connection.
+
 ## 4. Profiles
 
 Ella Core exposes the [http/pprof](https://pkg.go.dev/net/http/pprof) API for CPU and memory profiling analysis. This allows users to collect and analyze profiles of Ella Core using visualization tools like [pprof](https://pkg.go.dev/net/http/pprof) or [pyroscope](https://grafana.com/oss/pyroscope/).

@@ -401,6 +401,7 @@ func messageName(cat Category, code s1ap.ProcedureCode) string {
 		s1ap.ProcS1Setup:              "S1Setup",
 		s1ap.ProcInitialContextSetup:  "InitialContextSetup",
 		s1ap.ProcDownlinkNASTransport: "DownlinkNASTransport",
+		s1ap.ProcTraceStart:           "TraceStart",
 		s1ap.ProcUEContextRelease:     "UEContextRelease",
 		s1ap.ProcPathSwitchRequest:    "PathSwitchRequest",
 		s1ap.ProcPaging:               "Paging",

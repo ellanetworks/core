@@ -223,6 +223,8 @@ func (m *MME) ActivateDedicatedBearer(ctx context.Context, imsi string, req mode
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
 
+	ue.StartTraceRecording(ctx)
+
 	ueConn, err := m.bearerSignallingConn(ctx, ue, true)
 	if err != nil {
 		return err
@@ -567,6 +569,8 @@ func (m *MME) DeactivateDedicatedBearer(ctx context.Context, imsi string, ebi ui
 	if !ok {
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
+
+	ue.StartTraceRecording(ctx)
 
 	if _, b := m.LookupDedicated(ue, ebi); b == nil || b.SGW.TEID != sgwTEID {
 		return ErrNoDedicatedBearer

@@ -93,6 +93,8 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 		return nil, [32]uint8{}, 0, false
 	}
 
+	target.InheritTrace(source)
+
 	nh, ncc, ok = a.stageHandover(ue, source, target, candidates)
 	if !ok {
 		ue.EndKeyChainProc(procedure.N2Handover)

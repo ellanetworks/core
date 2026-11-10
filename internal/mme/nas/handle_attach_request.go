@@ -83,6 +83,8 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// EMM-REGISTERED-INITIATED. An attach supersedes any prior state.
 	ue.TransitionTo(ctx, mme.EMMRegistrationInitiated)
 
+	ue.StartTraceRecording(ctx)
+
 	// An adopted native-GUTI re-attach reuses the held EPS security context, so
 	// authentication and the security mode procedure are skipped (TS 24.301 §4.4.3,
 	// §5.4.3.3). Its old EPS bearers are deleted (§5.5.1.2.7 f) before the new
@@ -243,6 +245,8 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
 		logger.Cause(cause.String()))
 	ueConn.StopNASGuard(ctx)
+
+	ue.StopTraceRecording()
 
 	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
 

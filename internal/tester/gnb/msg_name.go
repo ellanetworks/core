@@ -39,6 +39,7 @@ func messageName(cat Category, code ngap.ProcedureCode) string {
 		ngap.ProcDownlinkRANStatusTransfer:          "DownlinkRANStatusTransfer",
 		ngap.ProcDownlinkUEAssociatedNRPPaTransport: "DownlinkUEAssociatedNRPPaTransport",
 		ngap.ProcUplinkUEAssociatedNRPPaTransport:   "UplinkUEAssociatedNRPPaTransport",
+		ngap.ProcTraceStart:                         "TraceStart",
 	}[code]
 	if name == "" {
 		name = fmt.Sprintf("procedure-%d", code)

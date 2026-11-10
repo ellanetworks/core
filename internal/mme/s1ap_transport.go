@@ -73,7 +73,7 @@ func s1apStreamForProcedure(p S1APProcedure) (uint16, error) {
 		S1APProcedureHandoverRequest, S1APProcedureHandoverCommand, S1APProcedureHandoverPreparationFailure,
 		S1APProcedureHandoverCancelAcknowledge, S1APProcedureMMEStatusTransfer,
 		S1APProcedurePathSwitchRequestAck, S1APProcedurePathSwitchRequestFailure,
-		S1APProcedureDownlinkUEAssociatedLPPaTransport:
+		S1APProcedureDownlinkUEAssociatedLPPaTransport, S1APProcedureTraceStart:
 		return S1apStreamUE, nil
 	default:
 		return 0, fmt.Errorf("no SCTP stream for S1AP message type %s", p)

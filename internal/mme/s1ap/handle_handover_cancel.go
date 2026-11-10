@@ -74,6 +74,8 @@ func handleHandoverCancel(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 }
 
 func sendHandoverCancelAcknowledge(ctx context.Context, m *mme.MME, radio *mme.Radio, cancel *s1ap.HandoverCancel) {
+	m.StopTraceRecordingFor(cancel.MMEUES1APID)
+
 	ack := &s1ap.HandoverCancelAcknowledge{MMEUES1APID: s1ap.Ptr(cancel.MMEUES1APID), ENBUES1APID: s1ap.Ptr(cancel.ENBUES1APID)}
 
 	b, err := ack.Marshal()

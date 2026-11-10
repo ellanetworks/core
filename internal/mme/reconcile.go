@@ -75,6 +75,8 @@ func (m *MME) ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod m
 		return err
 	}
 
+	ue.StartTraceRecording(ctx)
+
 	ctx = logger.Into(ctx, ueConn.LogFields()...)
 
 	ueConn.Log(ctx).Info("policy/data-network changed; modifying EPS bearer in place", zap.String("apn", p.Apn),

@@ -16,6 +16,8 @@ import (
 // (TS 24.301 §6.4.2.4), leaving the stored config stale so the backstop retries.
 // Cause #43 means the UE holds no such bearer, so the MME deactivates it locally.
 func handleModifyBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, rej *eps.ModifyEPSBearerContextReject) nasreply.Disposition {
+	ue.StopTraceRecording()
+
 	p := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity))
 
 	if p == nil {

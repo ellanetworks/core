@@ -14,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/sctp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,6 +29,20 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	remoteAddress := conn.RemoteAddr()
 	localAddress := conn.LocalAddr()
 
+	ran, known := amfInstance.FindRadioByConn(conn)
+
+	var (
+		pdu       ngap.PDU
+		decodeErr error
+	)
+
+	if len(msg) > 0 {
+		pdu, decodeErr = ngap.Unmarshal(msg)
+		if known && decodeErr == nil {
+			ctx = ueTraceContext(ctx, amfInstance, ran, pdu)
+		}
+	}
+
 	ctx, span := tracer.Start(ctx, "ngap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
@@ -39,8 +55,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	)
 	defer span.End()
 
-	ran, ok := amfInstance.FindRadioByConn(conn)
-	if !ok {
+	if !known {
 		var err error
 
 		ran, err = amfInstance.NewRadio(conn)
@@ -63,5 +78,19 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	// Every NGAP procedure this AMF supports is decoded by the in-house library.
 	// A message it does not consume either failed to decode or names a procedure
 	// the AMF does not implement, and route.go answers both per §10.3.
-	route(ctx, amfInstance, ran, msg, span, remoteAddress, localAddress)
+	route(ctx, amfInstance, ran, msg, pdu, decodeErr, span, remoteAddress, localAddress)
+}
+
+func ueTraceContext(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, pdu ngap.PDU) context.Context {
+	id, ok := ngap.PeekAMFUENGAPID(pdu)
+	if !ok {
+		return ctx
+	}
+
+	ueConn := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(id))
+	if im, ok := pdu.(*ngap.InitiatingMessage); ueConn == nil && ok && im.ProcedureCode == ngap.ProcPathSwitchRequest {
+		ueConn = amfInstance.LookupUeConn(models.AmfUeNgapID(id))
+	}
+
+	return ueConn.TraceContext(ctx)
 }

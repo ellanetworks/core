@@ -47,6 +47,7 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	}
 
 	if req.HandoverType == s1ap.HandoverTypeEPSToFiveGS {
+		ue.StartTraceRecording(ctx)
 		handoverRequiredToFiveGS(ctx, m, radio, req, ue, ueConn)
 
 		return
@@ -96,6 +97,8 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 
 	ueAMBR := handoverUEAMBR(ue)
 
+	ue.StartTraceRecording(ctx)
+
 	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates, direct, ueAMBR)
 	if !ok {
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
@@ -119,6 +122,13 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		UESecurityCapabilities: handoverSecurityCapabilities(ue),
 		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: newNCC, NextHopParameter: s1ap.SecurityKey(newNH)},
 	}
+
+	traceActivation, err := m.HandoverTraceActivation(ue)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("could not build Trace Activation for the Handover Request", zap.Error(err))
+	}
+
+	hoReq.TraceActivation = traceActivation
 
 	b, err := hoReq.Marshal()
 	if err != nil {

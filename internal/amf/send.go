@@ -194,12 +194,16 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 }
 
 func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
+	ue.stopTraceRecording()
+
 	sendGmm(ctx, ue, "nas/send_service_reject",
 		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
+	ue.stopTraceRecording()
+
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause5GMM))},
 		secureExchangeSHT(ue),
@@ -300,6 +304,8 @@ func secureExchangeSHT(ue *UeConn) uint8 {
 }
 
 func SendDeregistrationAccept(ctx context.Context, ue *UeConn) {
+	ue.stopTraceRecording()
+
 	sendGmm(ctx, ue, "nas/send_deregistration_accept", nil, secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildDeregistrationAccept() })
 }
@@ -436,6 +442,8 @@ func SendRegistrationAccept(
 	} else {
 		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 	}
+
+	ue.trace.StopRecording()
 
 	if initialContextSetup && !initialContextSetupSent {
 		ueConn.AbortICS(ctx)
@@ -1106,6 +1114,8 @@ func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGA
 // FAILURE, which §8.4.1.3 has the AMF pass on to the source NG-RAN node; it is
 // nil where preparation failed before any target answered.
 func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngap.Cause, criticalityDiagnostics *ngap.CriticalityDiagnostics, targetFailure ngap.TargettoSourceFailureTransparentContainer) {
+	ueConn.stopTraceRecording()
+
 	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), cause, criticalityDiagnostics, targetFailure)
 	if err != nil {
 		ueConn.Log(ctx).Error("failed to build Handover Preparation Failure", zap.Error(err))
@@ -1127,6 +1137,8 @@ func handoverCancelAcknowledgeBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 }
 
 func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
+	ueConn.stopTraceRecording()
+
 	pkt, err := handoverCancelAcknowledgeBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()))
 	if err != nil {
 		ueConn.Log(ctx).Error("failed to build Handover Cancel Acknowledge", zap.Error(err))
@@ -1175,7 +1187,7 @@ type HandoverRequestOpts struct {
 	ServingPLMN          *models.PlmnID
 }
 
-func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allowedNSSAI ngap.AllowedNSSAI, guami ngap.GUAMI) ([]byte, error) {
+func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allowedNSSAI ngap.AllowedNSSAI, guami ngap.GUAMI, traceActivation *ngap.TraceActivation) ([]byte, error) {
 	var nextHop ngap.SecurityKey
 
 	if len(opts.NH) != len(nextHop) {
@@ -1197,6 +1209,7 @@ func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allo
 		NASC:                               opts.NASC,
 		PDUSessionResourceSetupListHOReq:   opts.Sessions,
 		AllowedNSSAI:                       allowedNSSAI,
+		TraceActivation:                    traceActivation,
 		SourceToTargetTransparentContainer: opts.SourceToTarget,
 		GUAMI:                              guami,
 	}
@@ -1237,7 +1250,12 @@ func (ueConn *UeConn) SendHandoverRequest(ctx context.Context, opts HandoverRequ
 		return fmt.Errorf("could not convert Allowed NSSAI: %w", err)
 	}
 
-	pkt, err := handoverRequestBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), opts, allowed, guami)
+	traceActivation, err := ueConn.handoverTraceActivation()
+	if err != nil {
+		return fmt.Errorf("could not build Trace Activation: %w", err)
+	}
+
+	pkt, err := handoverRequestBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), opts, allowed, guami, traceActivation)
 	if err != nil {
 		return err
 	}

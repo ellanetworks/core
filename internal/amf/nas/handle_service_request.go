@@ -109,6 +109,8 @@ func sendServiceAccept(
 		return err
 	}
 
+	ue.StopTraceRecording()
+
 	var pendingWire []byte
 
 	if pending != nil {
@@ -319,6 +321,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	serviceType := msg.ServiceType
 
 	logger.From(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("service_type", serviceType.String()))
+
+	ue.StartTraceRecording(ctx)
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool

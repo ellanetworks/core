@@ -33,6 +33,8 @@ func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 
 	ueConn.StopNASGuard(ctx)
 
+	ue.StopTraceRecording()
+
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
 	ue.TransitionTo(ctx, mme.EMMDeregistered)
 	releaseDetachSessions(ctx, m, ue)
@@ -55,6 +57,9 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		zap.Bool("switch_off", req.SwitchOff),
 		zap.Stringer("type", req.TypeOfDetach),
 	)
+
+	ue.StartTraceRecording(ctx)
+	defer ue.StopTraceRecording()
 
 	if req.TypeOfDetach == eps.DetachTypeIMSI {
 		m.RevokeSMS(ctx, ue)

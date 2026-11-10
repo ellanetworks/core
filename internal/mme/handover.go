@@ -114,6 +114,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 
 	if source := ue.Conn(); source != nil {
 		targetConn.SetRRCEstablishmentCause(source.rrcCause.Load())
+		targetConn.trace.Inherit(&source.trace)
 	}
 
 	m.registerConnLocked(tid, targetConn)
@@ -250,6 +251,7 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
 	targetConn.holdUEAMBR(&ueAMBR)
+	ue.startRecordingForConn(targetConn)
 	m.registerConnLocked(tid, targetConn)
 
 	delivery := make(chan relocationOutcome, 1)
@@ -675,6 +677,8 @@ func (m *MME) releaseDetachedConnIfHeld(c *UeConn) bool {
 }
 
 func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) {
+	m.StopTraceRecordingFor(mmeUEID)
+
 	fail := &s1ap.HandoverPreparationFailure{MMEUES1APID: s1ap.Ptr(mmeUEID), ENBUES1APID: s1ap.Ptr(enbUEID), Cause: s1ap.Ptr(cause)}
 
 	b, err := fail.Marshal()
@@ -728,4 +732,17 @@ func (ue *UeContext) advanceNextHopLocked() error {
 	ue.ncc = (ue.ncc + 1) & 0x07
 
 	return nil
+}
+
+func (m *MME) HandoverTraceActivation(ue *UeContext) (*s1ap.TraceActivation, error) {
+	m.mu.Lock()
+
+	var target *UeConn
+	if ue != nil && ue.handover != nil {
+		target = ue.handover.target
+	}
+
+	m.mu.Unlock()
+
+	return target.HandoverTraceActivation()
 }

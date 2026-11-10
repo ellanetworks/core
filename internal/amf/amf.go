@@ -28,6 +28,7 @@ import (
 	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -164,6 +165,7 @@ type AMF struct {
 	connsByRan               map[ranConnKey]map[*UeConn]struct{}
 	reg                      *radioreg.Registry[NGAPWriter, string, *Radio]
 	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
+	ranTrace                 *tracing.TraceSessions
 	lastSeen                 lastSeenStore
 	relativeCapacity         atomic.Uint32
 	Name                     string
@@ -368,6 +370,8 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext,
 	}
 
 	amf.mu.Unlock()
+
+	ue.trace.Release()
 }
 
 func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {

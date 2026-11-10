@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -212,6 +213,8 @@ type UeContext struct {
 	lppaBuf pagingBuffer[LPPaBuffered]
 
 	lppBuf pagingBuffer[LPPBuffered]
+
+	trace tracing.UETrace
 }
 
 // TouchLastSeen records the current time as the most recent evidence the UE was
@@ -839,6 +842,8 @@ func (m *MME) removeContextLocked(ue *UeContext) bearerLosses {
 		delete(m.UEs, supi)
 		m.purgeRegistration(supi)
 	}
+
+	ue.trace.Release()
 
 	return losses
 }

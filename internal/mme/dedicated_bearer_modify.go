@@ -177,6 +177,8 @@ func (m *MME) ModifyDedicatedBearer(ctx context.Context, imsi string, ebi uint8,
 		return fmt.Errorf("no context for imsi %s", imsi)
 	}
 
+	ue.StartTraceRecording(ctx)
+
 	if arpOnlyModification(mod) && m.commitIdleDedicatedARP(ctx, ue, ebi, mod) {
 		return nil
 	}

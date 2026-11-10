@@ -14,6 +14,8 @@ import (
 )
 
 func handleModifyBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, accept *eps.ModifyEPSBearerContextAccept) nasreply.Disposition {
+	ue.StopTraceRecording()
+
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 
 	if p == nil {

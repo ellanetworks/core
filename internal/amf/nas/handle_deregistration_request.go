@@ -28,6 +28,8 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return nasreply.Silent(nasreply.ReasonIntegrityFail)
 	}
 
+	ue.StartTraceRecording(ctx)
+
 	ueConn := ue.Conn()
 
 	ue.Deregister(ctx, ue.NetworkDeregistrationOr(models.ReleaseFor(models.ReleaseDeregistration)))
@@ -41,6 +43,8 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		amf.SendDeregistrationAccept(ctx, ueConn)
 
 		logger.From(ctx, logger.AmfLog).Info("sent deregistration accept")
+	} else {
+		ue.StopTraceRecording()
 	}
 
 	// TS 23.502
