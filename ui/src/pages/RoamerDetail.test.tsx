@@ -101,8 +101,10 @@ describe("Roamer detail", () => {
     expect(
       await screen.findByText(`Roamer "${IMSI}" deregistered successfully.`),
     ).toBeInTheDocument();
-    expect(screen.getByTestId(LOCATION_TEST_ID)).toHaveTextContent(
-      /^\/subscribers\/roamers$/,
+    await waitFor(() =>
+      expect(screen.getByTestId(LOCATION_TEST_ID)).toHaveTextContent(
+        /^\/subscribers\/roamers$/,
+      ),
     );
   });
 
