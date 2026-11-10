@@ -260,6 +260,26 @@ func (s *Service) RegisterCert(ctx context.Context, nodeID string, certPEM []byt
 	return fp, pins, nil
 }
 
+func (s *Service) RegisterJoiningCert(ctx context.Context, nodeID string, certPEM []byte) (string, []db.ClusterNodeCert, error) {
+	cert, fp, err := s.validateNodeCert(ctx, nodeID, certPEM)
+	if err != nil {
+		return "", nil, err
+	}
+
+	rows, err := s.store.ListClusterNodeCerts(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("list pins: %w", err)
+	}
+
+	for _, r := range rows {
+		if r.NodeID == nodeID && r.Fingerprint != fp {
+			return "", nil, db.ErrNodeIdentityBound
+		}
+	}
+
+	return s.RegisterCert(ctx, nodeID, pki.EncodeCertPEM(cert))
+}
+
 func (s *Service) validateNodeCert(ctx context.Context, nodeID string, certPEM []byte) (*x509.Certificate, string, error) {
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {

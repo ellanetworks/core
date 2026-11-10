@@ -26,7 +26,7 @@ func TestRunJoinFlow_EmptyPeersWithTokenErrors(t *testing.T) {
 		t.Fatal("expected error for empty peers with non-empty token")
 	}
 
-	if !strings.Contains(err.Error(), "cluster.peers is empty") {
+	if !strings.Contains(err.Error(), "at least one seed address") {
 		t.Fatalf("expected peers-empty error, got %v", err)
 	}
 }

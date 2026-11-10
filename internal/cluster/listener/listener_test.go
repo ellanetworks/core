@@ -5,6 +5,7 @@ package listener_test
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"strings"
@@ -466,5 +467,60 @@ func TestListener_CloseByPeerFingerprintClosesHandedOffConn(t *testing.T) {
 
 	if n := ln1.CloseByPeerFingerprint(fp); n != 0 {
 		t.Fatalf("CloseByPeerFingerprint closed %d connections after the handler closed it, want 0", n)
+	}
+}
+
+func TestListener_FormingNodeServesBootstrapOnly(t *testing.T) {
+	p := testutil.GenTestPKI(t, []string{"1"})
+
+	ln := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           "1",
+		Pin:              p.PinFunc(),
+		Leaf:             func() *tls.Certificate { return nil },
+	})
+
+	served := make(chan struct{}, 1)
+
+	ln.Register(listener.ALPNPKIBootstrap, func(conn net.Conn) {
+		served <- struct{}{}
+
+		_ = conn.Close()
+	})
+	ln.Register(listener.ALPNRaft, func(conn net.Conn) { _ = conn.Close() })
+
+	if err := ln.Start(context.Background()); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	t.Cleanup(ln.Stop)
+
+	dial := func(alpn string) error {
+		d := tls.Dialer{Config: &tls.Config{
+			MinVersion: tls.VersionTLS13, NextProtos: []string{alpn},
+			InsecureSkipVerify: true, // #nosec G402 -- test
+		}}
+
+		conn, err := d.DialContext(context.Background(), "tcp", ln.BoundAddress())
+		if err != nil {
+			return err
+		}
+
+		return conn.Close()
+	}
+
+	if err := dial(listener.ALPNPKIBootstrap); err != nil {
+		t.Fatalf("a node without a cluster cert must serve the bootstrap ALPN: %v", err)
+	}
+
+	select {
+	case <-served:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the bootstrap handler never ran")
+	}
+
+	if err := dial(listener.ALPNRaft); err == nil {
+		t.Fatal("a node without a cluster cert must not complete a Raft handshake")
 	}
 }

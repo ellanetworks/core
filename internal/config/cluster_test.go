@@ -4,6 +4,8 @@
 package config_test
 
 import (
+	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,10 +70,6 @@ func TestCluster_ValidateBase(t *testing.T) {
 
 	if cfg.Cluster.BindAddress != "127.0.0.1:7000" {
 		t.Fatalf("bind-address = %q", cfg.Cluster.BindAddress)
-	}
-
-	if len(cfg.Cluster.Peers) != 3 {
-		t.Fatalf("peers = %d", len(cfg.Cluster.Peers))
 	}
 }
 
@@ -194,59 +192,36 @@ func itoa(n int) string {
 	return out
 }
 
-func TestCluster_PeersOptionalWithoutJoinToken(t *testing.T) {
-	body := strings.Replace(baseConfigYAML, `  peers:
-    - "127.0.0.1:7000"
-    - "127.0.0.1:7001"
-    - "127.0.0.1:7002"
-`, "", 1)
+func TestCluster_RemovedJoinFieldsAreIgnored(t *testing.T) {
+	core, logs := observer.New(zapcore.WarnLevel)
 
-	cfg, err := config.Validate(writeConfig(t, body))
-	if err != nil {
-		t.Fatalf("peers must be optional when the node is not joining from config: %v", err)
-	}
+	restore := logger.EllaLog
+	logger.EllaLog = zap.New(core)
 
-	if len(cfg.Cluster.Peers) != 0 {
-		t.Errorf("expected no peers, got %v", cfg.Cluster.Peers)
-	}
-}
-
-func TestCluster_JoinTokenRequiresPeers(t *testing.T) {
-	body := strings.Replace(baseConfigYAML, `  peers:
-    - "127.0.0.1:7000"
-    - "127.0.0.1:7001"
-    - "127.0.0.1:7002"
-`, "", 1)
-
-	_, err := config.Validate(writeConfig(t, body+"  join-token: \""+strings.Repeat("a", 100)+"\"\n"))
-	if err == nil {
-		t.Fatal("a config-file join token has nowhere to go without peers")
-	}
-
-	if !strings.Contains(err.Error(), "cluster.peers is empty") {
-		t.Errorf("error should name the missing peers, got %q", err)
-	}
-}
-
-func TestCluster_DeprecatedFieldsStillAccepted(t *testing.T) {
-	token := strings.Repeat("a", 100)
+	t.Cleanup(func() { logger.EllaLog = restore })
 
 	cfg, err := config.Validate(writeConfig(t, baseConfigYAML+
-		"  join-token: \""+token+"\"\n  initial-suffrage: \"nonvoter\"\n"))
+		"  join-token: \""+strings.Repeat("a", 100)+"\"\n  initial-suffrage: \"nonvoter\"\n"))
 	if err != nil {
-		t.Fatalf("deprecated fields must keep working for a release: %v", err)
+		t.Fatalf("removed fields must not stop an upgraded node from starting: %v", err)
 	}
 
-	if cfg.Cluster.JoinToken != token {
-		t.Error("join-token must survive validation")
+	if len(cfg.Cluster.Join) != 0 {
+		t.Errorf("cluster.peers must not turn into cluster.join, got %v", cfg.Cluster.Join)
 	}
 
-	if cfg.Cluster.InitialSuffrage != "nonvoter" {
-		t.Error("initial-suffrage must survive validation")
-	}
+	for _, key := range []string{"cluster.peers", "cluster.join-token", "cluster.initial-suffrage"} {
+		found := false
 
-	if len(cfg.Cluster.Peers) != 3 {
-		t.Error("peers must survive validation")
+		for _, entry := range logs.All() {
+			if strings.Contains(entry.Message, key+" was removed and is ignored") {
+				found = true
+			}
+		}
+
+		if !found {
+			t.Errorf("expected a warning that %s is ignored", key)
+		}
 	}
 }
 
@@ -271,7 +246,7 @@ func TestCluster_NoBindAddressDiscardsClusterSettings(t *testing.T) {
 		t.Fatalf("validate: %v", err)
 	}
 
-	if cfg.Cluster.Enabled || cfg.Cluster.NodeID != 0 || len(cfg.Cluster.Peers) != 0 {
+	if cfg.Cluster.Enabled || cfg.Cluster.NodeID != 0 || len(cfg.Cluster.Join) != 0 {
 		t.Errorf("without a cluster address the block must be discarded, got %+v", cfg.Cluster)
 	}
 }
@@ -308,5 +283,133 @@ func TestCluster_EnabledWithoutBindAddressIsWarnedAbout(t *testing.T) {
 
 	if !found {
 		t.Fatal("a config with cluster.enabled and no bind-address must warn")
+	}
+}
+
+func writeSecret(t *testing.T, body string) string {
+	t.Helper()
+
+	p := filepath.Join(t.TempDir(), "cluster.secret")
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	return p
+}
+
+const validSecret = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=\n"
+
+func formationConfig(join, extra string) string {
+	return strings.Replace(baseConfigYAML, `  peers:
+    - "127.0.0.1:7000"
+    - "127.0.0.1:7001"
+    - "127.0.0.1:7002"
+`, join, 1) + extra
+}
+
+func TestCluster_JoinParses(t *testing.T) {
+	secret := writeSecret(t, validSecret)
+	body := formationConfig(`  join: ["10.0.0.1", "10.0.0.2:7100", "core-2.example", "[fd00::3]"]
+  bootstrap-expect: 3
+  secret-file: "`+secret+`"
+`, "")
+
+	cfg, err := config.Validate(writeConfig(t, body))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	want := []string{"10.0.0.1:7000", "10.0.0.2:7100", "core-2.example:7000", "[fd00::3]:7000"}
+	if strings.Join(cfg.Cluster.Join, ",") != strings.Join(want, ",") {
+		t.Fatalf("join = %v, want %v (a target without a port takes the bind port)", cfg.Cluster.Join, want)
+	}
+
+	if cfg.Cluster.BootstrapExpect != 3 || cfg.Cluster.SecretFile != secret {
+		t.Fatalf("bootstrap-expect = %d, secret-file = %q", cfg.Cluster.BootstrapExpect, cfg.Cluster.SecretFile)
+	}
+}
+
+func TestCluster_JoinValidation(t *testing.T) {
+	secret := writeSecret(t, validSecret)
+	short := writeSecret(t, "c2hvcnQ=\n")
+
+	cases := []struct {
+		name, block, want string
+	}{
+		{"join without secret", "  join: [\"10.0.0.1\"]\n", "cluster.join requires cluster.secret-file"},
+		{"expect without join", "  bootstrap-expect: 3\n  secret-file: \"" + secret + "\"\n", "requires cluster.join"},
+		{"expect of one", "  join: [\"10.0.0.1\"]\n  bootstrap-expect: 1\n  secret-file: \"" + secret + "\"\n", "2 or more"},
+		{"url", "  join: [\"https://10.0.0.1:7000\"]\n  secret-file: \"" + secret + "\"\n", "looks like a URL"},
+		{"unspecified", "  join: [\"0.0.0.0:7000\"]\n  secret-file: \"" + secret + "\"\n", "unspecified"},
+		{"short secret", "  join: [\"10.0.0.1\"]\n  secret-file: \"" + short + "\"\n", "at least 32"},
+		{"missing secret", "  join: [\"10.0.0.1\"]\n  secret-file: \"/nonexistent/secret\"\n", "cluster.secret-file"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := config.Validate(writeConfig(t, formationConfig(tc.block, "")))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want it to contain %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestCluster_AdvertiseDefaultsToRouteSource(t *testing.T) {
+	restore := config.RouteSourceFunc
+
+	t.Cleanup(func() { config.RouteSourceFunc = restore })
+
+	config.RouteSourceFunc = func(ipv6 bool) (net.IP, error) {
+		if ipv6 {
+			return net.ParseIP("fd00::10"), nil
+		}
+
+		return net.ParseIP("10.128.0.10"), nil
+	}
+
+	cases := map[string]string{
+		`":7000"`:         "10.128.0.10:7000",
+		`"0.0.0.0:7000"`:  "10.128.0.10:7000",
+		`"[::]:7000"`:     "[fd00::10]:7000",
+		`"10.0.0.5:7000"`: "10.0.0.5:7000",
+	}
+
+	for bind, want := range cases {
+		body := strings.Replace(baseConfigYAML, `bind-address: "127.0.0.1:7000"`, "bind-address: "+bind, 1)
+
+		cfg, err := config.Validate(writeConfig(t, body))
+		if err != nil {
+			t.Fatalf("bind %s: %v", bind, err)
+		}
+
+		if cfg.Cluster.AdvertiseAddress != want {
+			t.Errorf("bind %s: advertise = %q, want %q", bind, cfg.Cluster.AdvertiseAddress, want)
+		}
+	}
+}
+
+func TestCluster_AdvertiseWithoutRouteFails(t *testing.T) {
+	restore := config.RouteSourceFunc
+
+	t.Cleanup(func() { config.RouteSourceFunc = restore })
+
+	config.RouteSourceFunc = func(bool) (net.IP, error) { return nil, errors.New("network is unreachable") }
+
+	body := strings.Replace(baseConfigYAML, `bind-address: "127.0.0.1:7000"`, `bind-address: "0.0.0.0:7000"`, 1)
+
+	_, err := config.Validate(writeConfig(t, body))
+	if err == nil || !strings.Contains(err.Error(), "set cluster.advertise-address") {
+		t.Fatalf("err = %v, want a hint to set cluster.advertise-address", err)
+	}
+}
+
+func TestCluster_ExplicitAdvertiseMustBeSpecific(t *testing.T) {
+	for _, adv := range []string{`"0.0.0.0:7000"`, `":7000"`} {
+		body := baseConfigYAML + "  advertise-address: " + adv + "\n"
+
+		if _, err := config.Validate(writeConfig(t, body)); err == nil {
+			t.Errorf("advertise-address %s must be rejected", adv)
+		}
 	}
 }

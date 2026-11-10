@@ -32,6 +32,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/drain"
+	"github.com/ellanetworks/core/internal/cluster/formation"
 	"github.com/ellanetworks/core/internal/cluster/joinreq"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
@@ -185,15 +186,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		BindAddress:       cfg.Cluster.BindAddress,
 		AdvertiseAddress:  cfg.Cluster.AdvertiseAddress,
 		APIAddress:        apiAddress,
-		Peers:             cfg.Cluster.Peers,
-		HasJoinToken:      cfg.Cluster.JoinToken != "",
 		JoinTimeout:       cfg.Cluster.JoinTimeout,
 		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
 		TrailingLogs:      cfg.Cluster.TrailingLogs,
 		SchemaVersion:     db.SchemaVersion(),
-		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
 		BinaryVersion:     ver.Version,
 	}
 
@@ -202,6 +200,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	var raftOpts []ellaraft.ManagerOption
 
 	var pki *pkiState
+
+	var former *formation.Node
 
 	restoredFromBundle, err := maybeRestoreFromBundle(cfg.DB.Path)
 	if err != nil {
@@ -219,14 +219,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// across restarts it's recovered from the on-disk leaf's
 		// SPIFFE URI.
 		pki = newPKIState(raftID, "", dataDir, cfg.Cluster.BindAddress)
-
-		// Join-token path runs before the listener comes up so raft
-		// can mTLS-handshake as soon as it forms.
-		if !pki.agent.HaveLeafOnDisk() {
-			if err := runJoinFlow(ctx, pki.agent, cfg.Cluster.Peers, cfg.Cluster.JoinToken); err != nil {
-				return fmt.Errorf("join flow: %w", err)
-			}
-		}
 
 		if pki.agent.HaveLeafOnDisk() {
 			if err := pki.agent.Load(); err != nil {
@@ -282,7 +274,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		if pki != nil {
 			pki.ensureIssuer(dbInstance)
-			server.RegisterBootstrapALPN(clusterLn, pki.Issuer())
+
+			former = newFormation(cfg, raftID, pki, dbInstance)
+			server.RegisterBootstrapALPN(clusterLn, pki.Issuer(), former.ServeSecret)
 		}
 
 		if err := clusterLn.Start(ctx); err != nil {
@@ -290,7 +284,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	if cfg.Cluster.Enabled && cfg.Cluster.JoinToken == "" && !raftCfg.Bootstrap && dbInstance.DiscoveryPending() {
+	if cfg.Cluster.Enabled && len(cfg.Cluster.Join) > 0 && !raftCfg.Bootstrap && dbInstance.DiscoveryPending() {
+		if err := formCluster(ctx, former, pki, dbInstance); err != nil {
+			if ctx.Err() != nil {
+				logger.EllaLog.Info("Shutdown signal received, exiting.")
+
+				return nil
+			}
+
+			return fmt.Errorf("form cluster: %w", err)
+		}
+	}
+
+	if cfg.Cluster.Enabled && len(cfg.Cluster.Join) == 0 && !raftCfg.Bootstrap && dbInstance.DiscoveryPending() {
 		if err := awaitAPIJoin(ctx, pki, dbInstance); err != nil {
 			if ctx.Err() != nil {
 				logger.EllaLog.Info("Shutdown signal received, exiting.")

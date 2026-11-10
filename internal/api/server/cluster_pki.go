@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/formation"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
@@ -144,7 +145,7 @@ func clusterPKIMessage(err error, fallback string) string {
 // RegisterBootstrapALPN dispatches POST /cluster/pki/register on
 // the bootstrap ALPN (no client cert) and closes the connection
 // after one request.
-func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service) {
+func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service, secret SecretHandler) {
 	register := ClusterPKIRegister(svc)
 
 	ln.Register(listener.ALPNPKIBootstrap, func(conn net.Conn) {
@@ -160,16 +161,23 @@ func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service) {
 			return
 		}
 
-		if req.Method != http.MethodPost || req.URL.Path != "/cluster/pki/register" {
-			writeInlineResponse(conn, http.StatusNotFound, "only POST /cluster/pki/register is served on the bootstrap ALPN")
+		bw := &bufferedResponseWriter{header: http.Header{}}
+
+		switch {
+		case req.Method == http.MethodPost && secret != nil && formation.IsSecretRequest(req):
+			secret(conn, bw, req)
+		case req.Method == http.MethodPost && req.URL.Path == formation.PathRegister:
+			register.ServeHTTP(bw, req)
+		default:
+			writeInlineResponse(conn, http.StatusNotFound, "only POST /cluster/pki/register and /cluster/pki/hello are served on the bootstrap ALPN")
 			return
 		}
 
-		bw := &bufferedResponseWriter{header: http.Header{}}
-		register.ServeHTTP(bw, req)
 		bw.writeTo(conn)
 	})
 }
+
+type SecretHandler func(conn net.Conn, w http.ResponseWriter, r *http.Request)
 
 type bufferedResponseWriter struct {
 	header http.Header

@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -129,13 +130,17 @@ func New(cfg Config) *Listener {
 		// VerifyConnection callback rejects connections whose peer
 		// leaf is missing or unpinned.
 		ClientAuth: tls.RequestClientCert,
-		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			leaf := cfg.Leaf()
-			if leaf == nil || len(leaf.Certificate) == 0 {
-				return nil, fmt.Errorf("cluster listener: no server leaf available yet")
+			if leaf != nil && len(leaf.Certificate) > 0 {
+				return leaf, nil
 			}
 
-			return leaf, nil
+			if hello != nil && slices.Equal(hello.SupportedProtos, []string{ALPNPKIBootstrap}) {
+				return formingCert()
+			}
+
+			return nil, fmt.Errorf("cluster listener: no server leaf available yet")
 		},
 		GetClientCertificate: func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			leaf := cfg.Leaf()

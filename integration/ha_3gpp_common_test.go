@@ -266,7 +266,8 @@ const ha3GPPComposeFile = "compose.yaml"
 //  2. Wait for node 1 to become ready (unauthenticated GetStatus).
 //  3. Initialize the admin user; mint an API token.
 //  4. For nodes 2 and 3: mint a cluster join token via node 1, write
-//     the node's config with the token embedded, start the service.
+//     the node's config, start the service, and send the token to its
+//     POST /api/v1/cluster/join.
 //  5. Wait for the full cluster to converge (1 leader + N-1 followers)
 //     AND every node to report Ready — the API is not fully usable
 //     until Phase B startup completes.
@@ -342,7 +343,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		return "", nil, err
 	}
 
-	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, "", opts); err != nil {
+	if err := writeHA3GPPNodeConfig(composeDir, 1, opts); err != nil {
 		return fail(err)
 	}
 
@@ -374,12 +375,17 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 			return fail(fmt.Errorf("mint join token for node %d: %w", nodeID, err))
 		}
 
-		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token, opts); err != nil {
+		if err := writeHA3GPPNodeConfig(composeDir, nodeID, opts); err != nil {
 			return fail(err)
 		}
 
 		if err := dc.ComposeUpServicesWithFiles(ctx, composeDir, composeFiles, nodeServices[i]); err != nil {
 			return fail(fmt.Errorf("start node %d: %w", nodeID, err))
+		}
+
+		if err := joinViaAPI(ctx, fmt.Sprintf("http://10.100.0.%d:5002", 10+nodeID), tok.Token,
+			seedsExcluding(peers, peers[i]), ""); err != nil {
+			return fail(fmt.Errorf("join node %d: %w", nodeID, err))
 		}
 	}
 
@@ -468,7 +474,7 @@ func composeKill(ctx context.Context, composeDir, composeFile, service string) e
 // hostname-resolved peer path. n2/n3/api addresses stay on IP literals
 // because they are data-plane endpoints reached by simulators that bind
 // directly to fixed IPs.
-func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinToken string, opts bringUpHA3GPPClusterOpts) error {
+func writeHA3GPPNodeConfig(composeDir string, nodeID int, opts bringUpHA3GPPClusterOpts) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -488,17 +494,6 @@ func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinTo
 	clusterBindHost := clusterAddr
 	if opts.UseFQDN {
 		clusterBindHost = fmt.Sprintf("ella-core-%d", nodeID)
-	}
-
-	var peersYAML strings.Builder
-
-	for _, p := range peers {
-		fmt.Fprintf(&peersYAML, "      - %q\n", p)
-	}
-
-	joinTokenLine := ""
-	if joinToken != "" {
-		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
 	}
 
 	telemetryLines := ""
@@ -539,8 +534,7 @@ interfaces:
   attach-mode: "xdp-generic"
 cluster:
   bind-address: "%s:7000"
-  peers:
-%s%s%s`, logLevel, clusterAddr, n3Addr, clusterAddr, diameterLines, clusterBindHost, peersYAML.String(), joinTokenLine, telemetryLines)
+%s`, logLevel, clusterAddr, n3Addr, clusterAddr, diameterLines, clusterBindHost, telemetryLines)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

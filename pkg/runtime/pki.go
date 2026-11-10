@@ -367,7 +367,7 @@ func applyJoinRequest(ctx context.Context, pkiState *pkiState, dbInstance *db.Da
 	return nil
 }
 
-// runJoinFlow walks cluster.peers, presenting token, until one peer
+// runJoinFlow walks the seed addresses, presenting token, until one peer
 // accepts the cert registration. Retries the full list until ctx is
 // cancelled — every failure mode here (peer not yet listening, leader
 // not yet past leader-init, self-resolving peer entry, transient
@@ -379,7 +379,7 @@ func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, tok
 	}
 
 	if len(peers) == 0 {
-		return errors.New("cluster.join-token is set but cluster.peers is empty")
+		return errors.New("a join token needs at least one seed address")
 	}
 
 	for {

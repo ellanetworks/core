@@ -78,6 +78,16 @@ To scale up, follow the steps in [Scale Up a High Availability Cluster](../how_t
 
 Shrinking is symmetric. Drain the node, then remove it.
 
+## Forming a cluster from the configuration file
+
+A cluster forms either from the UI, where node 1 is initialized and each other node joins with a single-use token, or from the configuration file, where every node gets the same `cluster` block and no one has to visit each node. The second path is meant for automated deployments, such as cloud-init or Kubernetes, where nodes start together and nobody is there to copy tokens.
+
+Nodes started from the configuration file never form a cluster alone. Each one asks the nodes in `cluster.join` about their state. If one of them is already in a cluster, the node joins it. Otherwise, once `bootstrap-expect` nodes answer and agree on that number, the node with the lowest node ID forms the cluster, and only after every other node has named it. This avoids the classic failure of automated formation, where several nodes each start their own cluster. The other nodes then join as non-voters and are promoted to voters once they have caught up, so a node that fails halfway through joining cannot leave the cluster without a quorum.
+
+The nodes prove to each other that they hold the same cluster secret. Each request and each answer carries a signature over its content and over the TLS session it travels on, so a recorded exchange cannot be replayed and a node in the middle cannot relay it. The secret stays in a file and is never stored in the database, so backups and support bundles do not carry it. Anyone who holds the secret can add a node to the cluster, as with a join token, but the secret does not expire. Rotate it by adding a new line, then removing the old one, on every node.
+
+The same design is used by [Ella SMSC](https://github.com/ellanetworks/smsc) and [Ella IMS](https://github.com/ellanetworks/ims).
+
 ## Inter-node communication using mTLS
 
 Every inter-node connection is mutually authenticated over TLS. Each node owns a long-lived, self-signed cluster certificate. Removing a node immediately revokes its access cluster-wide.

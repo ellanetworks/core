@@ -270,6 +270,42 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 	return nil
 }
 
+func (a *Agent) PrepareSecretJoin(clusterID string) ([]byte, error) {
+	if clusterID == "" {
+		return nil, fmt.Errorf("cluster id not set")
+	}
+
+	a.ClusterID = clusterID
+
+	certPEM, _, _, err := a.ensureJoinCert(clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("prepare cert: %w", err)
+	}
+
+	return certPEM, nil
+}
+
+func (a *Agent) CompleteSecretJoin(clusterID string, pins []PinRecord) error {
+	certPEM, keyPEM, cert := a.loadJoinCert(clusterID)
+	if cert == nil {
+		return fmt.Errorf("no pending join certificate for cluster %s", clusterID)
+	}
+
+	if len(pins) > 0 {
+		if err := a.storePeerPins(pins); err != nil {
+			return fmt.Errorf("persist peer pins: %w", err)
+		}
+	}
+
+	if err := a.installCert(certPEM, keyPEM, cert); err != nil {
+		return err
+	}
+
+	a.discardJoinCert()
+
+	return nil
+}
+
 func (a *Agent) ensureJoinCert(clusterID string) (certPEM, keyPEM []byte, cert *x509.Certificate, err error) {
 	certPEM, keyPEM, cert = a.loadJoinCert(clusterID)
 	if cert != nil {

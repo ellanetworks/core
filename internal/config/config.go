@@ -15,7 +15,9 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
 
@@ -178,6 +180,9 @@ type ClusterYaml struct {
 	AdvertiseAddress  string   `yaml:"advertise-address"`
 	Peers             []string `yaml:"peers"`
 	JoinToken         string   `yaml:"join-token"`
+	Join              []string `yaml:"join"`
+	BootstrapExpect   int      `yaml:"bootstrap-expect"`
+	SecretFile        string   `yaml:"secret-file"`
 	JoinTimeout       string   `yaml:"join-timeout"`
 	ProposeTimeout    string   `yaml:"propose-timeout"`
 	SnapshotInterval  string   `yaml:"snapshot-interval"`
@@ -277,14 +282,14 @@ type Cluster struct {
 	NodeID            int
 	BindAddress       string
 	AdvertiseAddress  string
-	Peers             []string
-	JoinToken         string
+	Join              []string
+	BootstrapExpect   int
+	SecretFile        string
 	JoinTimeout       time.Duration
 	ProposeTimeout    time.Duration
 	SnapshotInterval  time.Duration
 	SnapshotThreshold uint64
 	TrailingLogs      uint64
-	InitialSuffrage   string
 }
 
 type Config struct {
@@ -906,7 +911,7 @@ func GetInterfaceIPs(name string) ([]string, error) {
 const maxClusterNodeID = 63
 
 func warnUnclusteredSettings(c ClusterYaml) {
-	set := make([]string, 0, 5)
+	set := make([]string, 0, 8)
 
 	if c.Enabled {
 		set = append(set, "enabled")
@@ -924,6 +929,18 @@ func warnUnclusteredSettings(c ClusterYaml) {
 		set = append(set, "join-token")
 	}
 
+	if len(c.Join) > 0 {
+		set = append(set, "join")
+	}
+
+	if c.BootstrapExpect != 0 {
+		set = append(set, "bootstrap-expect")
+	}
+
+	if c.SecretFile != "" {
+		set = append(set, "secret-file")
+	}
+
 	if len(set) == 0 {
 		return
 	}
@@ -934,17 +951,17 @@ func warnUnclusteredSettings(c ClusterYaml) {
 
 func warnDeprecatedClusterSettings(c ClusterYaml) {
 	if len(c.Peers) > 0 {
-		logger.EllaLog.Warn("cluster.peers is deprecated and is read only on this node's first boot; " +
-			"send seed addresses to POST /api/v1/cluster/join instead")
+		logger.EllaLog.Warn("cluster.peers was removed and is ignored; use cluster.join with cluster.secret-file, " +
+			"or send seed addresses to POST /api/v1/cluster/join")
 	}
 
 	if strings.TrimSpace(c.JoinToken) != "" {
-		logger.EllaLog.Warn("cluster.join-token is deprecated and leaks a live credential into the config file " +
-			"and support bundles; send the token to POST /api/v1/cluster/join instead")
+		logger.EllaLog.Warn("cluster.join-token was removed and is ignored; use cluster.join with cluster.secret-file, " +
+			"or send the token to POST /api/v1/cluster/join")
 	}
 
 	if c.InitialSuffrage != "" {
-		logger.EllaLog.Warn("cluster.initial-suffrage is deprecated; set suffrage on the POST /api/v1/cluster/join request instead")
+		logger.EllaLog.Warn("cluster.initial-suffrage was removed and is ignored; set suffrage on the POST /api/v1/cluster/join request instead")
 	}
 
 	if !c.Enabled {
@@ -954,6 +971,138 @@ func warnDeprecatedClusterSettings(c ClusterYaml) {
 	if c.NodeID != 0 {
 		logger.EllaLog.Warn("cluster.node-id is deprecated and no longer sets this node's identity; a node generates its own on first boot")
 	}
+}
+
+var RouteSourceFunc = func(ipv6 bool) (net.IP, error) {
+	probe := net.ParseIP("192.0.2.1")
+	if ipv6 {
+		probe = net.ParseIP("2001:db8::1")
+	}
+
+	routes, err := netlink.RouteGet(probe)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, r := range routes {
+		if r.Src != nil && !r.Src.IsUnspecified() {
+			return r.Src, nil
+		}
+	}
+
+	return nil, errors.New("the route has no source address")
+}
+
+func resolveAdvertiseAddress(bindAddress, advertiseAddress string) (string, error) {
+	if advertiseAddress != "" {
+		if _, _, err := net.SplitHostPort(advertiseAddress); err != nil {
+			return "", fmt.Errorf("cluster.advertise-address %q is not a valid host:port: %w", advertiseAddress, err)
+		}
+
+		advHost, _, _ := net.SplitHostPort(advertiseAddress)
+		if advHost == "" {
+			return "", fmt.Errorf("cluster.advertise-address %q has no host", advertiseAddress)
+		}
+
+		if ip := net.ParseIP(advHost); ip != nil && ip.IsUnspecified() {
+			return "", fmt.Errorf("cluster.advertise-address %q must not use an unspecified IP (0.0.0.0 / ::)", advertiseAddress)
+		}
+
+		return advertiseAddress, nil
+	}
+
+	host, port, _ := net.SplitHostPort(bindAddress)
+
+	ip := net.ParseIP(host)
+	if host != "" && (ip == nil || !ip.IsUnspecified()) {
+		return bindAddress, nil
+	}
+
+	src, err := RouteSourceFunc(ip != nil && ip.To4() == nil)
+	if err != nil {
+		return "", fmt.Errorf("cluster.bind-address %q listens on every address and no cluster.advertise-address is set, "+
+			"and this node has no default route to take its address from: set cluster.advertise-address: %w", bindAddress, err)
+	}
+
+	advertise := net.JoinHostPort(src.String(), port)
+
+	logger.EllaLog.Info("cluster.advertise-address is not set: advertising the default route's source address",
+		zap.String("advertise_address", advertise))
+
+	return advertise, nil
+}
+
+func validateJoin(join []string, bindPort string) ([]string, error) {
+	out := make([]string, 0, len(join))
+
+	for i, target := range join {
+		target = strings.TrimSpace(target)
+
+		if target == "" {
+			return nil, fmt.Errorf("cluster.join[%d] is empty", i)
+		}
+
+		if strings.Contains(target, "://") {
+			return nil, fmt.Errorf("cluster.join[%d] %q looks like a URL; use a host or host:port (e.g. 10.0.0.1:7000)", i, target)
+		}
+
+		host, port, err := net.SplitHostPort(target)
+		if err != nil {
+			host, port = strings.Trim(target, "[]"), bindPort
+		}
+
+		if host == "" {
+			return nil, fmt.Errorf("cluster.join[%d] %q has no host", i, target)
+		}
+
+		if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+			return nil, fmt.Errorf("cluster.join[%d] %q must not use an unspecified IP (0.0.0.0 / ::)", i, target)
+		}
+
+		out = append(out, net.JoinHostPort(host, port))
+	}
+
+	return out, nil
+}
+
+func validateClusterFormation(c ClusterYaml, bindPort string) ([]string, error) {
+	join, err := validateJoin(c.Join, bindPort)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.BootstrapExpect != 0 {
+		if c.BootstrapExpect < 2 {
+			return nil, fmt.Errorf("cluster.bootstrap-expect must be 2 or more, got %d", c.BootstrapExpect)
+		}
+
+		if len(join) == 0 {
+			return nil, errors.New("cluster.bootstrap-expect requires cluster.join: list the other nodes")
+		}
+
+		if c.BootstrapExpect%2 == 0 || c.BootstrapExpect > 5 {
+			logger.EllaLog.Warn("cluster.bootstrap-expect is usually 3 or 5: an even count tolerates no more failures than one less, "+
+				"and more than 5 voters slows every write", zap.Int("bootstrap_expect", c.BootstrapExpect))
+		}
+	}
+
+	if c.BootstrapExpect != 0 && len(join) >= 2*c.BootstrapExpect {
+		logger.EllaLog.Warn("cluster.bootstrap-expect is half of cluster.join or less: two groups of nodes that cannot reach each other "+
+			"could each form a cluster; set it to the number of nodes in cluster.join",
+			zap.Int("bootstrap_expect", c.BootstrapExpect), zap.Int("join", len(join)))
+	}
+
+	if len(join) > 0 && c.SecretFile == "" {
+		return nil, errors.New("cluster.join requires cluster.secret-file: the nodes prove they belong together with the shared cluster secret")
+	}
+
+	if c.SecretFile != "" {
+		if _, err := pki.ReadSecrets(c.SecretFile); err != nil {
+			return nil, fmt.Errorf("cluster.secret-file %q: %w", c.SecretFile, err)
+		}
+	}
+
+	return join, nil
 }
 
 func validateCluster(c ClusterYaml) (Cluster, error) {
@@ -971,72 +1120,25 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 
 	bindAddress := c.BindAddress
 
-	if _, _, err := net.SplitHostPort(bindAddress); err != nil {
+	_, bindPort, err := net.SplitHostPort(bindAddress)
+	if err != nil {
 		return Cluster{}, fmt.Errorf("cluster.bind-address %q is not a valid host:port: %w", bindAddress, err)
 	}
 
-	advertiseAddress := c.AdvertiseAddress
-	if advertiseAddress == "" {
-		advertiseAddress = bindAddress
+	advertiseAddress, err := resolveAdvertiseAddress(bindAddress, c.AdvertiseAddress)
+	if err != nil {
+		return Cluster{}, err
 	}
 
-	if _, _, err := net.SplitHostPort(advertiseAddress); err != nil {
-		return Cluster{}, fmt.Errorf("cluster.advertise-address %q is not a valid host:port: %w", advertiseAddress, err)
-	}
-
-	advHost, _, _ := net.SplitHostPort(advertiseAddress)
-	if ip := net.ParseIP(advHost); ip != nil && ip.IsUnspecified() {
-		return Cluster{}, fmt.Errorf("cluster.advertise-address %q must not use an unspecified IP (0.0.0.0 / ::)", advertiseAddress)
-	}
-
-	selfFound := len(c.Peers) == 0
-
-	for i, peer := range c.Peers {
-		if _, _, err := net.SplitHostPort(peer); err != nil {
-			if strings.Contains(peer, "://") {
-				return Cluster{}, fmt.Errorf("cluster.peers[%d] %q looks like a URL; peers must be host:port (e.g. 10.0.0.1:7000), not a URL", i, peer)
-			}
-
-			return Cluster{}, fmt.Errorf("cluster.peers[%d] %q is not a valid host:port: %w", i, peer, err)
-		}
-
-		if peer == advertiseAddress {
-			selfFound = true
-		}
-	}
-
-	if !selfFound {
-		return Cluster{}, fmt.Errorf("cluster.peers must include this node's advertise-address %q", advertiseAddress)
-	}
-
-	joinToken := strings.TrimSpace(c.JoinToken)
-
-	if joinToken != "" {
-		if strings.ContainsAny(joinToken, " \t\r\n") {
-			return Cluster{}, errors.New("cluster.join-token must not contain whitespace")
-		}
-
-		// The on-wire token is base64url(1 + 4 + JSON(claims) + 32) and
-		// in practice never under ~100 bytes. Anything shorter indicates
-		// a truncated paste rather than a real token; reject early with
-		// a clear error instead of waiting for the issuer to fail.
-		const minJoinTokenLen = 64
-		if len(joinToken) < minJoinTokenLen {
-			return Cluster{}, fmt.Errorf("cluster.join-token is too short (%d chars, expected \u2265%d); looks truncated", len(joinToken), minJoinTokenLen)
-		}
-	}
-
-	if joinToken != "" && len(c.Peers) == 0 {
-		return Cluster{}, errors.New("cluster.join-token is set but cluster.peers is empty: list at least one address of a node already in the cluster, or drop the token and join via POST /api/v1/cluster/join")
+	join, err := validateClusterFormation(c, bindPort)
+	if err != nil {
+		return Cluster{}, err
 	}
 
 	// Cluster TLS is bootstrapped in-band (see internal/cluster/pkiissuer);
 	// there are no longer any operator-provided cert paths to validate.
 
-	var (
-		joinTimeout time.Duration
-		err         error
-	)
+	var joinTimeout time.Duration
 
 	if c.JoinTimeout != "" {
 		joinTimeout, err = time.ParseDuration(c.JoinTimeout)
@@ -1063,27 +1165,18 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		}
 	}
 
-	initialSuffrage := c.InitialSuffrage
-	if initialSuffrage == "" {
-		initialSuffrage = "voter"
-	}
-
-	if initialSuffrage != "voter" && initialSuffrage != "nonvoter" {
-		return Cluster{}, fmt.Errorf("cluster.initial-suffrage must be \"voter\" or \"nonvoter\", got %q", initialSuffrage)
-	}
-
 	return Cluster{
 		Enabled:           true,
 		NodeID:            c.NodeID,
 		BindAddress:       bindAddress,
 		AdvertiseAddress:  advertiseAddress,
-		Peers:             c.Peers,
-		JoinToken:         joinToken,
+		Join:              join,
+		BootstrapExpect:   c.BootstrapExpect,
+		SecretFile:        c.SecretFile,
 		JoinTimeout:       joinTimeout,
 		ProposeTimeout:    proposeTimeout,
 		SnapshotInterval:  snapshotInterval,
 		SnapshotThreshold: c.SnapshotThreshold,
 		TrailingLogs:      c.TrailingLogs,
-		InitialSuffrage:   initialSuffrage,
 	}, nil
 }

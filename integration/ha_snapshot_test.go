@@ -237,7 +237,7 @@ func bringUpHASnapshotCluster(t *testing.T, ctx context.Context, dc *DockerClien
 		return nil, err
 	}
 
-	if err := writeSnapshotNodeConfig(composeDir, 1, peers, "", "", cfg); err != nil {
+	if err := writeSnapshotNodeConfig(composeDir, 1, cfg); err != nil {
 		return fail(err)
 	}
 
@@ -292,14 +292,19 @@ func stageAndStartJoinerWithSnapshotConfig(ctx context.Context, dc *DockerClient
 		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
 	}
 
-	if err := writeSnapshotNodeConfig(composeDir, nodeID, peers, tok.Token, initialSuffrage, cfg); err != nil {
+	if err := writeSnapshotNodeConfig(composeDir, nodeID, cfg); err != nil {
 		return err
 	}
 
-	return dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service)
+	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service); err != nil {
+		return err
+	}
+
+	return joinViaAPI(ctx, APIAddressForCluster(nodeID), tok.Token,
+		seedsExcluding(peers, ClusterAddressWithPort(nodeID, 7000)), initialSuffrage)
 }
 
-func writeSnapshotNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, cfg snapshotTunables) error {
+func writeSnapshotNodeConfig(composeDir string, nodeID int, cfg snapshotTunables) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -314,22 +319,6 @@ func writeSnapshotNodeConfig(composeDir string, nodeID int, peers []string, join
 	}
 
 	addr := ClusterAddress(nodeID)
-
-	var peersYAML strings.Builder
-
-	for _, p := range peers {
-		fmt.Fprintf(&peersYAML, "      - %q\n", p)
-	}
-
-	joinTokenLine := ""
-	if joinToken != "" {
-		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
-	}
-
-	suffrageLine := ""
-	if initialSuffrage != "" {
-		suffrageLine = fmt.Sprintf("  initial-suffrage: %q\n", initialSuffrage)
-	}
 
 	body := fmt.Sprintf(`logging:
   system:
@@ -357,11 +346,9 @@ cluster:
   snapshot-interval: %q
   snapshot-threshold: %d
   trailing-logs: %d
-  peers:
-%s%s%s`,
+`,
 		addr, addr, ClusterAddressWithPort(nodeID, 7000),
-		cfg.Interval, cfg.Threshold, cfg.TrailingLogs,
-		peersYAML.String(), joinTokenLine, suffrageLine)
+		cfg.Interval, cfg.Threshold, cfg.TrailingLogs)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

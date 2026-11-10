@@ -80,7 +80,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 	}
 
 	leaderLn, leaderAddr := newE2EListener(t, leaderAgent, pinFn)
-	server.RegisterBootstrapALPN(leaderLn, issuer)
+	server.RegisterBootstrapALPN(leaderLn, issuer, nil)
 
 	// Empty handler so the post-pin mTLS dial completes cleanly
 	// rather than racing the dispatcher's "unknown ALPN" close.
