@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/google/nftables"
@@ -581,7 +582,7 @@ func (rk *RealKernel) IsIPForwardingEnabled(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to read ip_forward: %v", err)
 	}
 
-	ipv4Enabled := string(data) == "1"
+	ipv4Enabled := strings.TrimSpace(string(data)) == "1"
 
 	data, err = os.ReadFile("/proc/sys/net/ipv6/conf/all/forwarding")
 	if err != nil {
@@ -593,7 +594,7 @@ func (rk *RealKernel) IsIPForwardingEnabled(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to read ipv6 forwarding: %v", err)
 	}
 
-	ipv6Enabled := string(data) == "1"
+	ipv6Enabled := strings.TrimSpace(string(data)) == "1"
 
 	return ipv4Enabled && ipv6Enabled, nil
 }

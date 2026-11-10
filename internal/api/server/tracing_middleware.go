@@ -28,7 +28,12 @@ func ClusterTracingMiddleware(handler http.Handler) http.Handler {
 }
 
 func PublicTracingMiddleware(serviceName string, handler http.Handler) http.Handler {
-	return TracingMiddleware(serviceName, handler, otelhttp.WithPublicEndpointFn(func(*http.Request) bool { return true }))
+	return TracingMiddleware(serviceName, handler,
+		otelhttp.WithPublicEndpointFn(func(*http.Request) bool { return true }),
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			return r.URL.Path != "/api/v1/livez" && r.URL.Path != "/api/v1/readyz"
+		}),
+	)
 }
 
 func routeAttributeMiddleware(next http.Handler) http.Handler {

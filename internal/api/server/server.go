@@ -73,6 +73,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	}
 
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, cfg.DatapathAttachMode).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/livez", Livez().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/readyz", Readyz(cfg.Context, dbInstance, false).ServeHTTP)
 
 	// OpenAPI Specification (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
@@ -331,6 +333,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 // DiscoveryHandlerConfig holds the dependencies for the discovery-phase
 // HTTP handler that runs before cluster formation.
 type DiscoveryHandlerConfig struct {
+	Context     context.Context
 	DB          *db.Database
 	Config      config.Config
 	FrontendFS  fs.FS
@@ -351,6 +354,8 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 
 	// The datapath is not attached during discovery, so the mode is absent.
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, nil).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/livez", Livez().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/readyz", Readyz(cfg.Context, dbInstance, true).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 
