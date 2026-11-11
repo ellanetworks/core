@@ -170,8 +170,12 @@ func attachExtra(objs *ebpf.BpfObjects, attachedMode string, extra []datapathIfa
 func attachInterface(objs *ebpf.BpfObjects, attachedMode string, iface datapathIface) (link.Link, error) {
 	switch attachedMode {
 	case config.DatapathTCX:
+		disableMergedPackets(attachedMode, iface.name)
+
 		return attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
 	case config.DatapathXDPGeneric:
+		disableMergedPackets(attachedMode, iface.name)
+
 		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
 	default:
 		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
@@ -198,6 +202,8 @@ func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra 
 
 				warnVLANStrippedBeforeXDP(iface, mode)
 			}
+		} else {
+			disableMergedPackets(mode, datapathNames(n3, n6)...)
 		}
 
 		n3Link, n6Link, err := attachBothXDP(objs, n3, n6, flags)
@@ -294,7 +300,17 @@ func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAt
 	return n3Link, &n6Link, nil
 }
 
+func datapathNames(n3, n6 datapathIface) []string {
+	if n6.index == n3.index {
+		return []string{n3.name}
+	}
+
+	return []string{n3.name, n6.name}
+}
+
 func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *link.Link, error) {
+	disableMergedPackets(config.DatapathTCX, datapathNames(n3, n6)...)
+
 	n3Link, err := attachTCX(objs.UpfEntryFunc, n3.index, n3.name)
 	if err != nil {
 		if tcxUnavailable(err) {
@@ -610,6 +626,16 @@ func anyBitSet(words []uint32) bool {
 // reports.
 func disableMergedPackets(mode string, ifnames ...string) {
 	for _, ifname := range ifnames {
+		if lower, ok := mergingLowerDevice(ifname); ok {
+			warnMergingOnLowerDevice(ifname, lower, mode)
+
+			continue
+		}
+
+		if mode != config.DatapathTCX {
+			continue
+		}
+
 		disabled, stillOn, err := disableReceiveMerging(ifname)
 		if err != nil {
 			logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
@@ -627,11 +653,53 @@ func disableMergedPackets(mode string, ifnames ...string) {
 		}
 
 		if len(stillOn) > 0 {
-			logger.UpfLog.Warn("packet merging cannot be turned off on a datapath interface: "+
-				"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
-				"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
-				"turn off GRO, hardware GRO and LRO on it with ethtool",
+			logger.UpfLog.Warn("packet merging is fixed on by the driver or hypervisor of a datapath interface "+
+				"and cannot be changed: merged packets cannot be encapsulated or decapsulated into valid "+
+				"GTP-U and are dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso",
 				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
 		}
 	}
+}
+
+func mergingLowerDevice(ifname string) (string, bool) {
+	l, err := netlink.LinkByName(ifname)
+	if err != nil {
+		return "", false
+	}
+
+	return lowerDevice(l, netlink.LinkByIndex)
+}
+
+func lowerDevice(l netlink.Link, byIndex func(int) (netlink.Link, error)) (string, bool) {
+	switch l.Type() {
+	case "macvlan", "macvtap", "ipvlan":
+	case "ipvtap":
+		return "", true
+	default:
+		return "", false
+	}
+
+	attrs := l.Attrs()
+	if attrs.ParentIndex <= 0 || attrs.NetNsID >= 0 {
+		return "", true
+	}
+
+	parent, err := byIndex(attrs.ParentIndex)
+	if err != nil {
+		return "", true
+	}
+
+	return parent.Attrs().Name, true
+}
+
+func warnMergingOnLowerDevice(ifname, lower, mode string) {
+	fields := []zap.Field{zap.String("iface", ifname), zap.String("mode", mode)}
+	if lower != "" {
+		fields = append(fields, zap.String("lower_device", lower))
+	}
+
+	logger.UpfLog.Warn("packet merging for a datapath interface happens on its lower device, which is left unchanged: "+
+		"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are dropped, "+
+		"counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
+		"turn off GRO, hardware GRO and LRO on the lower device", fields...)
 }

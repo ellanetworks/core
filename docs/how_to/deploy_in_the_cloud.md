@@ -58,11 +58,18 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
       --source-ranges 192.168.1.50/32 --target-tags ella-core
     ```
 
-    Allow Identity-Aware Proxy (IAP) to reach the UI:
+    Allow the nodes to reach each other:
 
     ```shell
-    gcloud compute firewall-rules create ella-core-allow-iap-ui --network default \
-      --allow tcp:5002 --source-ranges 35.235.240.0/20 --target-tags ella-core
+    gcloud compute firewall-rules create ella-core-allow-cluster --network default \
+      --allow tcp:7000 --source-tags ella-core --target-tags ella-core
+    ```
+
+    Allow Identity-Aware Proxy (IAP) to reach SSH and the UI:
+
+    ```shell
+    gcloud compute firewall-rules create ella-core-allow-iap --network default \
+      --allow tcp:22,tcp:5002 --source-ranges 35.235.240.0/20 --target-tags ella-core
     ```
 
     Give the instances internet access:
@@ -137,7 +144,7 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     ```shell
     VGW=$(aws ec2 create-vpn-gateway --type ipsec.1 --query VpnGateway.VpnGatewayId --output text)
     aws ec2 attach-vpn-gateway --vpn-gateway-id $VGW --vpc-id $VPC
-    aws ec2 wait vpn-gateway-attached --vpn-gateway-ids $VGW
+    until [ "$(aws ec2 describe-vpn-gateways --vpn-gateway-ids $VGW --query 'VpnGateways[0].VpcAttachments[0].State' --output text)" = attached ]; do sleep 5; done
     RT=$(aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC Name=association.main,Values=true --query 'RouteTables[0].RouteTableId' --output text)
     aws ec2 enable-vgw-route-propagation --route-table-id $RT --gateway-id $VGW
     ```
@@ -151,6 +158,7 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     VPN=$(aws ec2 create-vpn-connection --type ipsec.1 --customer-gateway-id $CGW --vpn-gateway-id $VGW \
       --options '{"StaticRoutesOnly":true,"LocalIpv4NetworkCidr":"192.168.1.50/32","RemoteIpv4NetworkCidr":"172.31.0.0/16","TunnelOptions":['"$T,$T"']}' \
       --query VpnConnection.VpnConnectionId --output text)
+    aws ec2 wait vpn-connection-available --vpn-connection-ids $VPN
     aws ec2 create-vpn-connection-route --vpn-connection-id $VPN --destination-cidr-block 192.168.1.50/32
     GW=$(aws ec2 describe-vpn-connections --vpn-connection-ids $VPN --query 'VpnConnections[0].VgwTelemetry[0].OutsideIpAddress' --output text)
     echo $GW
@@ -176,19 +184,31 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
 
 === "AWS"
 
-    Create one instance per availability zone, at `172.31.0.10`, `172.31.80.10` and `172.31.16.10`:
+    Create one instance per availability zone, at the tenth address of the zone's default subnet:
 
     ```shell
     AMI=$(aws ssm get-parameter --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id --query Parameter.Value --output text)
-    for n in a:172.31.0.10 b:172.31.80.10 c:172.31.16.10; do
-      z=${n%%:*}; ip=${n#*:}
-      SUBNET=$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC Name=availability-zone,Values=us-east-1$z --query 'Subnets[0].SubnetId' --output text)
-      aws ec2 run-instances --image-id $AMI --instance-type t3.medium --subnet-id $SUBNET --private-ip-address $ip \
+    for z in a b c; do
+      read SUBNET CIDR <<< "$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC Name=availability-zone,Values=us-east-1$z Name=default-for-az,Values=true --query 'Subnets[0].[SubnetId,CidrBlock]' --output text)"
+      ip=${CIDR%.*}.10
+      ID=$(aws ec2 run-instances --image-id $AMI --instance-type t3.medium --subnet-id $SUBNET --private-ip-address $ip \
         --security-group-ids $SG --iam-instance-profile Name=ella-core-ssm \
         --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=20,VolumeType=gp3}' \
-        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=ella-core-$z}]"
+        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=ella-core-$z}]" \
+        --query 'Instances[0].InstanceId' --output text)
+      echo "ella-core-$z $ID $ip ${CIDR%.*}.1"
     done
     ```
+
+    The output lists each instance's name, ID, address and gateway, e.g.:
+
+    ```text
+    ella-core-a i-0a1b2c3d4e5f60001 172.31.0.10 172.31.0.1
+    ella-core-b i-0a1b2c3d4e5f60002 172.31.80.10 172.31.80.1
+    ella-core-c i-0a1b2c3d4e5f60003 172.31.16.10 172.31.16.1
+    ```
+
+    The following steps use these example values.
 
 ## 4. Install Ella Core
 
@@ -267,7 +287,7 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     aws ssm start-session --target <instance-id>
     ```
 
-    Limit the size of packets sent to the radio, so they fit in the VPN tunnel. Set `via` to the instance's gateway: `172.31.0.1`, `172.31.80.1` or `172.31.16.1`:
+    Limit the size of packets sent to the radio, so they fit in the VPN tunnel. Set `via` to the instance's gateway from step 3, e.g. `172.31.0.1`:
 
     ```shell
     sudo tee /etc/netplan/60-ella.yaml <<'EOF'
@@ -290,7 +310,7 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     sudo snap install ella-core
     ```
 
-    Replace `/var/snap/ella-core/common/core.yaml` with the following, setting `bind-address` to the instance's address:
+    Replace `/var/snap/ella-core/common/core.yaml` with the following, setting `bind-address` to the instance's address from step 3:
 
     ```yaml
     logging:
@@ -355,7 +375,7 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
 
     1. Open `https://localhost:5002` and initialize node a.
     2. Open **Cluster**, click **Add Node**, click **Mint Token**, and copy the token.
-    3. Open `https://localhost:5003`, click **Join an existing cluster instead**, paste the token, enter `172.31.0.10:7000`, and click **Join**.
+    3. Open `https://localhost:5003`, click **Join an existing cluster instead**, paste the token, enter node a's address from step 3 with port `7000`, e.g. `172.31.0.10:7000`, and click **Join**.
     4. Repeat steps 2 and 3 for node c, at `https://localhost:5004`.
 
 On the **Cluster** page, the three nodes appear as **Healthy**.
@@ -406,7 +426,7 @@ Configure an IPsec tunnel on the radio:
     | IKE lifetime | 8 h or less |
     | IPsec SA lifetime | 1 h or less |
 
-    Set the radio's MME (4G) or AMF (5G) addresses to `172.31.0.10`, `172.31.80.10` and `172.31.16.10`, then restart the radio.
+    Set the radio's MME (4G) or AMF (5G) addresses to the three instance addresses from step 3, e.g. `172.31.0.10`, `172.31.80.10` and `172.31.16.10`.
 
 ## 8. Verify
 

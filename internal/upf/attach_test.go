@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -207,5 +208,71 @@ func TestDriverRefusedXDP(t *testing.T) {
 		if got := driverRefusedXDP(tc.err); got != tc.want {
 			t.Errorf("driverRefusedXDP(%v) = %v, want %v", tc.err, got, tc.want)
 		}
+	}
+}
+
+func TestLowerDevice(t *testing.T) {
+	parent := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Index: 2, Name: "eth0"}}
+
+	byIndex := func(index int) (netlink.Link, error) {
+		if index == parent.Index {
+			return parent, nil
+		}
+
+		return nil, unix.ENODEV
+	}
+
+	attrs := func(parentIndex, netnsID int) netlink.LinkAttrs {
+		return netlink.LinkAttrs{Name: "n3", ParentIndex: parentIndex, NetNsID: netnsID}
+	}
+
+	cases := []struct {
+		name      string
+		link      netlink.Link
+		wantLower string
+		wantOK    bool
+	}{
+		{"macvlan same netns", &netlink.Macvlan{LinkAttrs: attrs(2, -1)}, "eth0", true},
+		{"macvtap same netns", &netlink.Macvtap{Macvlan: netlink.Macvlan{LinkAttrs: attrs(2, -1)}}, "eth0", true},
+		{"ipvlan same netns", &netlink.IPVlan{LinkAttrs: attrs(2, -1)}, "eth0", true},
+		{"macvlan other netns", &netlink.Macvlan{LinkAttrs: attrs(2, 0)}, "", true},
+		{"ipvlan other netns", &netlink.IPVlan{LinkAttrs: attrs(2, 3)}, "", true},
+		{"ipvtap", &netlink.IPVtap{IPVlan: netlink.IPVlan{LinkAttrs: attrs(2, -1)}}, "", true},
+		{"macvlan unknown parent", &netlink.Macvlan{LinkAttrs: attrs(9, -1)}, "", true},
+		{"device", &netlink.Device{LinkAttrs: attrs(0, -1)}, "", false},
+		{"veth", &netlink.Veth{LinkAttrs: attrs(5, -1)}, "", false},
+		{"vlan", &netlink.Vlan{LinkAttrs: attrs(2, -1)}, "", false},
+	}
+
+	for _, tc := range cases {
+		lower, ok := lowerDevice(tc.link, byIndex)
+		if lower != tc.wantLower || ok != tc.wantOK {
+			t.Errorf("%s: lowerDevice = %q, %v, want %q, %v", tc.name, lower, ok, tc.wantLower, tc.wantOK)
+		}
+	}
+}
+
+func TestMergingLowerDeviceMacvlan(t *testing.T) {
+	requireRoot(t)
+
+	lower, upper := "elllow0", "ellmv0"
+
+	if out, err := exec.CommandContext(context.Background(), "ip", "link", "add", lower, "type", "dummy").CombinedOutput(); err != nil {
+		t.Fatalf("create dummy: %v: %s", err, out)
+	}
+
+	t.Cleanup(func() { _ = exec.CommandContext(context.Background(), "ip", "link", "del", lower).Run() })
+
+	if out, err := exec.CommandContext(context.Background(), "ip", "link", "add", upper, "link", lower,
+		"type", "macvlan", "mode", "bridge").CombinedOutput(); err != nil {
+		t.Fatalf("create macvlan: %v: %s", err, out)
+	}
+
+	if got, ok := mergingLowerDevice(upper); !ok || got != lower {
+		t.Errorf("mergingLowerDevice(%q) = %q, %v, want %q, true", upper, got, ok, lower)
+	}
+
+	if got, ok := mergingLowerDevice(lower); ok {
+		t.Errorf("mergingLowerDevice(%q) = %q, %v, want false", lower, got, ok)
 	}
 }

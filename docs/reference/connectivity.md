@@ -73,7 +73,10 @@ The datapath attaches to N3 and every N6 interface at the hook set by `datapath.
 - **veth, `xdp-native`**: an XDP program must be attached to the peer interface, see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md).
 - **veth, `xdp-generic`**: TX checksum offload must be disabled on both ends (`ethtool -K <veth> tx off`), or decapsulated packets are silently corrupted.
 - **veth, `tcx` or `xdp-generic`**: segmentation offload must be disabled on the peer (`ethtool -K <peer> tso off gso off`), or the peer delivers merged packets that are dropped.
-- **Any interface, `tcx` or `xdp-generic`**: Ella Core turns off GRO, hardware GRO and LRO at startup, and logs a warning for any it can't turn off.
+- **Any interface, `tcx`**: Ella Core turns off GRO, hardware GRO and LRO on the interface before attaching. A feature that the driver or hypervisor fixes on stays on, and Ella Core logs a warning.
+- **Any interface, `xdp-generic`**: the kernel skips GRO and turns off hardware GRO and LRO on the interface while the program is attached.
+- **macvlan or ipvlan, `tcx` or `xdp-generic`**: packets are merged on the lower device, which Ella Core does not change. GRO, hardware GRO and LRO must be off on the lower device. Ella Core logs a warning at startup.
+- **Merged packets**: dropped, and counted in `app_upf_datapath_drop_total` with reason `encap_gso` or `decap_gso`.
 
 ## MTU
 

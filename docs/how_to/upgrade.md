@@ -46,15 +46,15 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
         Download the manifests of the target release:
 
         ```bash
-        git clone --depth 1 --branch <target-version> https://github.com/ellanetworks/core.git
+        git clone --depth 1 --branch <target-version> https://github.com/ellanetworks/core.git core-<target-version>
         ```
 
-        Reapply your changes to `core/k8s/core-ran-nad.yaml` and `core/k8s/core-configmap.yaml`.
+        Reapply your changes to `core-<target-version>/k8s/core-ran-nad.yaml` and `core-<target-version>/k8s/core-configmap.yaml`.
 
         Apply the manifests:
 
         ```bash
-        kubectl apply -k core/k8s
+        kubectl apply -k core-<target-version>/k8s
         ```
 
         Wait for the rollout to complete:
@@ -83,7 +83,7 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 === "Standalone"
 
     ```shell
-    curl <ella-core-api-url>/api/v1/status
+    curl -k <ella-core-api-url>/api/v1/status
     ```
 
     Confirm `version` is the target release and `ready` is `true`.
@@ -102,8 +102,19 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
     === "Snap"
 
-        1. Reinstall the previous release with [Install](install.md).
-        2. Restore the backup with [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery).
+        1. Stop Ella Core:
+
+            ```shell
+            sudo snap stop --disable ella-core.cored
+            ```
+
+        2. Revert to the previous release:
+
+            ```shell
+            sudo snap revert ella-core
+            ```
+
+        3. Restore the backup with [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery).
 
     === "Docker"
 
@@ -134,19 +145,13 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
     === "Kubernetes"
 
-        1. Apply the manifests of the previous release:
-
-            ```bash
-            kubectl apply -k core/k8s
-            ```
-
-        2. Scale Ella Core down:
+        1. Scale Ella Core down:
 
             ```bash
             kubectl -n ella scale statefulset/ella-core --replicas=0
             ```
 
-        3. Start a pod that mounts the data volume:
+        2. Start a pod that mounts the data volume:
 
             ```bash
             kubectl -n ella run restore --image=alpine --restart=Never \
@@ -154,7 +159,7 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
             kubectl -n ella wait --for=condition=Ready pod/restore
             ```
 
-        4. Delete the database and copy the backup as `restore.bundle`:
+        3. Delete the database and copy the backup as `restore.bundle`:
 
             ```bash
             kubectl -n ella exec restore -- sh -c 'rm -rf /data/ella.db /data/ella.db-wal /data/ella.db-shm /data/raft /data/cluster-tls'
@@ -162,7 +167,20 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
             kubectl -n ella delete pod restore
             ```
 
-        5. Scale Ella Core up:
+        4. Download the manifests of the previous release:
+
+            ```bash
+            git clone --depth 1 --branch <previous-version> https://github.com/ellanetworks/core.git core-<previous-version>
+            ```
+
+        5. Reapply your changes to `core-<previous-version>/k8s/core-ran-nad.yaml` and `core-<previous-version>/k8s/core-configmap.yaml`.
+        6. Apply the manifests:
+
+            ```bash
+            kubectl apply -k core-<previous-version>/k8s
+            ```
+
+        7. Scale Ella Core up:
 
             ```bash
             kubectl -n ella scale statefulset/ella-core --replicas=1
@@ -170,4 +188,11 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
 === "High Availability"
 
-    Follow [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery) with the previous release installed on every node.
+    1. On every node, stop Ella Core and revert to the previous release:
+
+        ```shell
+        sudo snap stop --disable ella-core.cored
+        sudo snap revert ella-core
+        ```
+
+    2. Restore the backup with [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery).

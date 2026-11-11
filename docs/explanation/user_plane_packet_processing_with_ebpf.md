@@ -53,9 +53,16 @@ The data plane can attach at either of two kernel hooks:
 
 ### Why merged packets must be disabled
 
-`tcx` runs on the socket buffer, which can hold several packets merged together by the kernel's receive path. Ella Core can't produce a valid GTP-U header from a merged buffer: it writes one GTP-U header sized for the whole buffer, and when the kernel splits the buffer back into wire-sized packets it rebuilds the outer IP and UDP headers but not the GTP-U header, so every packet claims the whole buffer's payload length.
+`tcx` runs on the socket buffer, which can hold several packets merged together by the kernel's receive path (GRO, hardware GRO or LRO). Ella Core can't produce valid GTP-U from a merged buffer. On encapsulation, the kernel later splits the buffer back into wire-sized packets and copies the GTP-U header unchanged into each one, so every packet would claim the whole buffer's payload length. On decapsulation, removing the outer headers would remove only the first packet's, and leave the others' GTP-U headers inside the payload. Ella Core drops merged buffers instead, and counts them in `app_upf_datapath_drop_total` under `encap_gso` and `decap_gso`.
 
-Ella Core turns off packet merging (GRO, hardware GRO and LRO) on N3 and N6 when it attaches in `tcx` or `xdp-generic` mode. A veth also receives packets merged by its peer when the peer offloads segmentation, which Ella Core can't turn off from its side.
+To keep those drops from happening, Ella Core turns off packet merging on N3 and N6 before it attaches in `tcx` mode, so the datapath never sees merged traffic. A feature that the driver or hypervisor fixes on can't be turned off, and Ella Core logs a warning for it.
+
+`xdp-native` sees each frame before the kernel merges anything. In `xdp-generic` mode, the kernel itself skips GRO and turns off hardware GRO and LRO on an interface with a generic XDP program, so Ella Core leaves the interface alone.
+
+Two cases remain outside Ella Core's reach:
+
+- **veth**: a veth also receives packets merged by its peer when the peer offloads segmentation. That merge happens on the other side of the pair, so it must be turned off on the peer.
+- **macvlan and ipvlan**: these interfaces receive packets from their lower device, and GRO runs on the lower device before the packets reach them. Changing the macvlan or ipvlan interface has no effect, and the lower device is often in another network namespace or shared with other workloads, so Ella Core logs a warning and leaves it to the operator.
 
 ### XDP redirect on veth pairs
 
