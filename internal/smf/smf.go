@@ -90,6 +90,7 @@ type SubscriptionData interface {
 	FramedRoutes(ctx context.Context, imsi, dnn string) ([]netip.Prefix, error)
 	StaticIP(ctx context.Context, imsi, dnn string, ipv6 bool) (netip.Addr, bool, error)
 	SessionManagement(ctx context.Context, imsi string) (*udm.SessionManagementSubscription, error)
+	N26Allowed(ctx context.Context, imsi string) (bool, error)
 }
 
 // SessionStore is the minimal DB surface the SMF needs for session-level
@@ -176,6 +177,7 @@ type SMF struct {
 	mme                 MMECallback // set after construction
 
 	subscriptions SubscriptionData
+	hplmn         HPLMNClient
 
 	seidCounter uint64 // atomic; local SEID allocation
 
@@ -384,6 +386,10 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 	if s.pcf != nil {
 		s.pcf.TerminateAssociation(sc.Ref)
 	}
+
+	if h := sc.hplmnSubscription(); h != nil {
+		h.Close()
+	}
 }
 
 func (s *SMF) removeLocked(sc *SMContext) {
@@ -468,7 +474,20 @@ func (s *SMF) SessionCount() int {
 	return len(s.pool)
 }
 
-func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
+type SessionCount struct {
+	Own     int
+	Roaming int
+}
+
+func (c *SessionCount) add(roaming bool) {
+	if roaming {
+		c.Roaming++
+	} else {
+		c.Own++
+	}
+}
+
+func (s *SMF) SessionCountByRAT() (fourG, fiveG SessionCount) {
 	s.mu.RLock()
 	sessions := make([]*SMContext, 0, len(s.pool))
 
@@ -480,9 +499,9 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 
 	for _, sc := range sessions {
 		if sc.onEPS() {
-			fourG++
+			fourG.add(sc.visiting())
 		} else {
-			fiveG++
+			fiveG.add(sc.visiting())
 		}
 	}
 

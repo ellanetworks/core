@@ -101,6 +101,10 @@ func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.Registratio
 
 	if opts.IncludeCapability {
 		m.GMMCapability = &fgs.GMMCapability{RestrictEC: true, LPP: true, HOAttach: true, S1Mode: true}
+
+		if opts.UESecurity.NoS1Mode {
+			m.GMMCapability = &fgs.GMMCapability{LPP: true}
+		}
 	}
 
 	if opts.RequestSMS {

@@ -23,7 +23,7 @@ const PCSCFAddressesTableName = "pcscf_addresses"
 
 const pcscfAddressesSchema = 23
 
-const MaxPCSCFAddressesPerFamily = 3
+const MaxPCSCFAddressesPerFamily = 5
 
 const MaxPCSCFAddresses = 2 * MaxPCSCFAddressesPerFamily
 
@@ -122,30 +122,6 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 	}
 
 	return addresses, nil
-}
-
-func (db *Database) ReplacePCSCFAddresses(ctx context.Context, addresses []string) error {
-	if err := ValidatePCSCFAddresses(addresses); err != nil {
-		return err
-	}
-
-	ctx, span := startPCSCFAddressesSpan(ctx, "REPLACE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PCSCFAddressesTableName, "replace"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(PCSCFAddressesTableName, "replace").Inc()
-
-	payload := &pcscfAddressesPayload{Addresses: slices.Clone(addresses)}
-
-	if _, err := opReplacePCSCFAddresses.Invoke(ctx, db, payload); err != nil {
-		recordSpanError(span, err)
-
-		return err
-	}
-
-	return nil
 }
 
 func (db *Database) applyReplacePCSCFAddresses(ctx context.Context, payload *pcscfAddressesPayload) (any, error) {

@@ -36,11 +36,24 @@ Ella Core plays two roles for the IMS, both over Diameter:
 
 Both interfaces are used for 4G and 5G subscribers. The IMS connects to Ella Core's Diameter interface, over SCTP or TCP.
 
+The IMS may address its requests to Ella Core's Diameter realm, `epc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, or to its IMS home domain.
+
+### Allowed IMS peers
+
+A peer matches an allowed IMS peer when it connects from one of its source addresses and, when set, gives its Origin-Host and realm. Matching peers are shown as IMS peers.
+
+**Restrict to Allowed Peers**, in **Integrations › IMS**, decides who may connect:
+
+- **Off** (the default): any Diameter peer may connect.
+- **On**: Ella Core rejects the peers that match none, and every peer while no allowed IMS peer is configured. Deleting allowed IMS peers never lets other peers back in.
+
+A peer declares its own Origin-Host and realm, so they identify it but do not prove who it is. Only the source address, and IPsec or TLS between your networks, keep other hosts out. This is why every allowed IMS peer needs at least one source address: an accepted peer can ask Ella Core, as the HSS, for subscribers' IMS authentication data.
+
 ## IMS data networks
 
 An IMS data network carries the phones' SIP signalling and call media. Any data network can be marked as IMS; there can be several, for example `ims` for phones and a separate one for mission critical devices.
 
-- **P-CSCF discovery**: When a phone opens a session on an IMS data network, Ella Core gives it the P-CSCF addresses configured in the Operator settings, of the IP version the phone requested.
+- **P-CSCF discovery**: When a phone opens a session on an IMS data network, Ella Core gives it the P-CSCF addresses configured in the IMS settings, of the IP version the phone requested. A changed list applies to new IMS sessions.
 - **Signalling QoS**: The session's default QoS uses 5QI / QCI 5, the standard class for IMS signalling, or 69 for mission critical signalling.
 - **No NAT**: Traffic on an IMS data network is never translated, so the IMS can reach phones at their own IP address.
 - **UE-to-UE**: Traffic between two phones on an IMS data network is always switched locally, so calls between them work without going out N6.
@@ -54,10 +67,14 @@ Ella Core derives each subscriber's IMS identities from its existing data.
 | Private identity (IMPI) | | `<imsi>@<IMS home domain>` | `001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
 | Public identity (IMPU), default | MMTel | `sip:+<msisdn>@<IMS home domain>` | `sip:+15551230001@ims.mnc001.mcc001.3gppnetwork.org` |
 | Public identity (IMPU) | MMTel | `tel:+<msisdn>` | `tel:+15551230001` |
-| Public identity (IMPU), barred | MMTel | `sip:<private identity>` | `sip:001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
+| Public identity (IMPU), barred | MMTel | `sip:<imsi>@ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org` | `sip:001010100007487@ims.mnc001.mcc001.3gppnetwork.org` |
 | Public identity (IMPU) | MCPTT | `sip:mcptt-<msisdn>@<IMS home domain>` | `sip:mcptt-15551230001@ims.mnc001.mcc001.3gppnetwork.org` |
 
-The IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, built from the operator's PLMN ID.
+### IMS home domain
+
+By default, the IMS home domain is `ims.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, derived from the operator's PLMN ID. It can be set to another domain, e.g. `ims.example.org`, which must then match the home domain of the IMS and of the subscribers' ISIMs. Ella Core keeps accepting the derived domain for the private identity and the barred public identity, which phones with a USIM only build from the PLMN ID. The MSISDN and MCPTT identities exist only in the configured home domain.
+
+Changing the home domain moves the application servers' identities to the new domain. It also de-registers subscribers, and the old domain is no longer served.
 
 The phone's IMS client registers the MMTel identities, for voice and SMS. An MCPTT client registers the MCPTT identity, from the same SIM. Both stay registered only if the phone's IMS client registers with a `reg-id`.
 
@@ -65,18 +82,23 @@ A subscriber without an MSISDN has no usable public identity and cannot make or 
 
 ## Voice support indication
 
-During registration (5G) or attach and tracking area update (4G), Ella Core tells each phone whether IMS voice is supported. Phones rely on it to decide whether to use VoLTE or VoNR.
+During registration (5G) or attach and tracking area update (4G), Ella Core tells each phone whether IMS voice is supported. Phones rely on it to decide whether to use VoLTE or VoNR, and some phones refuse to stay on a network that does not indicate it.
 
-Ella Core indicates IMS voice support when all of the following hold:
+**Advertise IMS Voice**, in **Integrations › IMS**, controls it:
+
+- **On** (the default): Ella Core indicates IMS voice support to every home phone, whatever the IMS configuration.
+- **Off**: Ella Core never indicates it. Turn it off when no IMS serves voice and your phones fall back to another voice service only when IMS voice is not indicated.
+
+A change reaches each phone at its next registration, attach or tracking area update. Inbound [roamers](roaming.md) are never told IMS voice is supported, since that requires an IMS voice roaming agreement.
+
+Calls work when:
 
 - At least one P-CSCF address is configured.
 - The data network named `ims`, the IMS well-known APN that phones use for voice (GSMA IR.92), exists and is marked as IMS, with an IP pool of the same version as one of the P-CSCF addresses.
 - The subscriber's profile has a policy on the `ims` data network.
 - The subscriber has an MSISDN.
 
-A policy on another IMS data network, such as one for mission critical services, lets the subscriber register with the IMS but does not offer voice over PS.
-
-On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
+**Integrations › IMS** warns when the IMS configuration is not ready for voice. On the Subscriber page, **Voice** shows the subscriber's voice state and, when voice is off, which condition is missing.
 
 ## Application servers and service profiles
 
@@ -89,7 +111,7 @@ An **IMS service profile** is an ordered list of **initial filter criteria**. A 
 
 A profile gives its subscribers one service profile for their MMTel identities and one for their MCPTT identity. Without an MCPTT service profile, MCPTT is off.
 
-Changes to service profiles, application servers, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC, or removing the subscriber's access to the IMS de-registers it.
+Changes to service profiles, application servers, or a subscriber's profile reach registered subscribers right away if the S-CSCF supports Cx Push Profile, and at their next re-registration otherwise. Changing or removing a registered subscriber's MSISDN, changing the operator's MCC or MNC or the IMS home domain, or removing the subscriber's access to the IMS de-registers it.
 
 ### MCPTT service profile
 
@@ -142,7 +164,7 @@ Each node of a [High Availability](high_availability.md) cluster is a separate D
 - [Integrate with an IMS](../how_to/integrate_with_ims.md) — step-by-step guide to connect Ella Core to an IMS.
 - [Enable Voice](../how_to/enable_voice.md) — step-by-step guide to enable voice and video calls.
 - [Enable MCPTT](../how_to/enable_mcptt.md) — step-by-step guide to serve MCPTT.
-- [Operator API reference](../reference/api/operator.md) — P-CSCF addresses, voice status, IMS application servers, and IMS service profiles.
+- [Integrations API reference](../reference/api/integrations.md#get-the-ims-settings) — P-CSCF addresses, voice status, IMS voice advertisement, IMS home domain, allowed IMS peers, IMS application servers, and IMS service profiles.
 - [Profiles API reference](../reference/api/profiles.md) — IMS service profiles of each registration set.
 - [Subscribers API reference](../reference/api/subscribers.md) — IMS identities and registration state.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported Cx and Rx procedures.

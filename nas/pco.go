@@ -6,6 +6,7 @@ package nas
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 )
 
 // Protocol/container identifiers for the (extended) Protocol Configuration
@@ -351,6 +352,22 @@ func (p ProtocolConfigurationOptions) FitsUnextended() bool {
 	b, err := p.MarshalBinary()
 
 	return err == nil && len(b) <= maxPCOLen
+}
+
+// AppendFittingUnextended appends the longest prefix of cs that keeps the value
+// within the classic protocol configuration options (TS 24.008 §10.5.6.3) and
+// reports how many trailing containers were left out.
+func (p ProtocolConfigurationOptions) AppendFittingUnextended(cs []PCOContainer) (ProtocolConfigurationOptions, int) {
+	for n := len(cs); n >= 0; n-- {
+		with := p
+		with.Containers = append(slices.Clone(p.Containers), cs[:n]...)
+
+		if with.FitsUnextended() {
+			return with, len(cs) - n
+		}
+	}
+
+	return p, len(cs)
 }
 
 // DNSServers returns the DNS-server addresses carried, IPv4 and IPv6 together,

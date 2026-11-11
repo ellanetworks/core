@@ -247,6 +247,10 @@ func (l *LMF) CreateDeferredRequest(ctx context.Context, params DeferredRequestP
 		return nil, fmt.Errorf("UE not registered: %w", ErrNotFound)
 	}
 
+	if err := l.refuseRoamer(params.SUPI); err != nil {
+		return nil, err
+	}
+
 	row, err := toDeferredRow(params, info)
 	if err != nil {
 		return nil, err

@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"context"
 	"net/netip"
 	"slices"
 	"testing"
@@ -42,7 +43,7 @@ func TestBuildActivateDefaultESMDeliversPCSCFAddresses(t *testing.T) {
 				PCSCF: []netip.Addr{v6a, v4a, v4b},
 			}
 
-			wire, err := buildActivateDefaultESM(p, bearer, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, tc.useEPCO, nil, tc.request)
+			wire, err := buildActivateDefaultESM(context.Background(), p, bearer, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, tc.useEPCO, nil, tc.request)
 			if err != nil {
 				t.Fatalf("buildActivateDefaultESM: %v", err)
 			}

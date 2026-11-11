@@ -228,12 +228,12 @@ In the Ella SMSC UI, go to the **Operator** page:
 
 Go to the **Diameter** page and note the **Host**, e.g. `smsc.node.epc.mnc001.mcc001.3gppnetwork.org`.
 
-In the Ella Core UI, go to **Operator**, scroll to the **SMS** section, click **Add SMSC**, and enter:
+In the Ella Core UI, go to **Integrations › SMS**. Click the edit icon next to **Serving Node Number**, enter Ella Core's E.164 number for SMS, e.g. `+15550001111`, and click **Update**. Then click **Add SMSC** and enter:
 
 - **Name**: `smsc`
-- **Numbers**: `+15550000000`
+- **Service Centre Addresses**: `+15550000000`
 - **Address**: `10.3.0.7`
-- **Diameter Identity**: Ella SMSC's **Host**.
+- **Origin-Host**: Ella SMSC's **Host**.
 
 Click **Add**.
 
@@ -251,7 +251,7 @@ In the Ella IMS UI, go to the **Cores** page:
 - Click **Add**.
 - Click the edit icon of the `10.3.0.2` peer, check **Sh**, **S6c** and **SGd**, and click **Update**.
 
-In the Ella Core UI, go to **Operator** and scroll to the **IMS** section:
+In the Ella Core UI, go to **Integrations › IMS**:
 
 - Click **Add Application Server**, enter `ip-sm-gw` as the **Name** and Ella IMS's **IP-SM-GW Name** as the **Server Name**, and click **Add**.
 - Click **Add Service Profile**, enter `sms-over-ip` as the **Name**. Under **Add from preset**, select the **SMS over IP** preset and the `ip-sm-gw` **Application Server**, click **Add Criteria**, and click **Add**.
@@ -262,7 +262,7 @@ In the Ella Core UI:
 
 1. Go to **Networking > Data Networks**, click **Create**, enter `ims` as the **Name** and `10.46.0.0/16` as the **IPv4 Pool**, turn on **IMS (voice and mission critical services)**, and click **Create**.
 2. Open the `ims` data network. In **Slices**, select the slice of your subscribers and click **Serve on slice**, then set its **Network instance** to `ims`.
-3. Go to **Operator**, scroll to the **IMS** section, click the edit icon next to **P-CSCF Addresses**, enter `10.6.0.5`, and click **Update**.
+3. Go to **Integrations › IMS**, click the edit icon next to **P-CSCF Addresses**, enter `10.6.0.5`, and click **Update**.
 
 ## 9. Set up the subscribers
 

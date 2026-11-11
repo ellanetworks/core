@@ -16,6 +16,12 @@ export const TABLE_CONTAINER_SX = {
   bgcolor: "background.paper",
 } as const;
 
+export const SETTING_CELL_SX = { fontWeight: 600, width: "35%" } as const;
+
+export const VALUE_CELL_SX = { width: "55%" } as const;
+
+export const ACTION_CELL_SX = { width: "10%", textAlign: "right" } as const;
+
 export const MIN_PANEL_WIDTH = 440;
 
 type MeasurableColumn = { width?: number; minWidth?: number };

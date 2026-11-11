@@ -41,13 +41,18 @@ import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
-import SMSSection from "@/components/SMSSection";
-import IMSSection from "@/components/IMSSection";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
-import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
+import {
+  ACTION_CELL_SX,
+  MAX_WIDTH,
+  PAGE_PADDING_X,
+  SETTING_CELL_SX,
+  TABLE_CONTAINER_SX,
+  VALUE_CELL_SX,
+} from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 
 const profileDescriptions: Record<string, string> = {
@@ -82,8 +87,6 @@ const Operator = () => {
   ] = useState(false);
   const [isEditOperatorSPNModalOpen, setEditOperatorSPNModalOpen] =
     useState(false);
-  const [isSMSModalOpen, setSMSModalOpen] = useState(false);
-  const [isIMSModalOpen, setIMSModalOpen] = useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
   >({});
@@ -108,9 +111,7 @@ const Operator = () => {
     isCreateHomeNetworkKeyModalOpen ||
     isDeleteKeyConfirmOpen ||
     isEditOperatorNASSecurityModalOpen ||
-    isEditOperatorSPNModalOpen ||
-    isSMSModalOpen ||
-    isIMSModalOpen;
+    isEditOperatorSPNModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -228,10 +229,6 @@ const Operator = () => {
     }
   };
 
-  const valueCellSx = { width: "55%" } as const;
-  const settingCellSx = { fontWeight: 600, width: "35%" } as const;
-  const actionCellSx = { width: "10%", textAlign: "right" } as const;
-
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
@@ -253,7 +250,7 @@ const Operator = () => {
           <Table>
             <TableBody>
               <TableRow>
-                <TableCell sx={settingCellSx}>
+                <TableCell sx={SETTING_CELL_SX}>
                   <Tooltip
                     title="Mobile Country Code / Mobile Network Code — uniquely identifies your network"
                     arrow
@@ -261,7 +258,7 @@ const Operator = () => {
                     <span>Operator ID (MCC/MNC)</span>
                   </Tooltip>
                 </TableCell>
-                <TableCell sx={valueCellSx}>
+                <TableCell sx={VALUE_CELL_SX}>
                   {isLoading ? (
                     <Skeleton variant="text" width={100} />
                   ) : operator ? (
@@ -270,7 +267,7 @@ const Operator = () => {
                     "N/A"
                   )}
                 </TableCell>
-                <TableCell sx={actionCellSx}>
+                <TableCell sx={ACTION_CELL_SX}>
                   {canEdit && (
                     <Tooltip title="Edit operator identity" arrow>
                       <IconButton
@@ -285,7 +282,7 @@ const Operator = () => {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell sx={settingCellSx}>
+                <TableCell sx={SETTING_CELL_SX}>
                   <Tooltip
                     title="Service Provider Name — the network name displayed on connected devices"
                     arrow
@@ -293,7 +290,7 @@ const Operator = () => {
                     <span>Network Name (SPN)</span>
                   </Tooltip>
                 </TableCell>
-                <TableCell sx={valueCellSx}>
+                <TableCell sx={VALUE_CELL_SX}>
                   {isLoading ? (
                     <Skeleton variant="text" width={160} />
                   ) : operator ? (
@@ -329,7 +326,7 @@ const Operator = () => {
                     "N/A"
                   )}
                 </TableCell>
-                <TableCell sx={actionCellSx}>
+                <TableCell sx={ACTION_CELL_SX}>
                   {canEdit && (
                     <Tooltip title="Edit network name (SPN)" arrow>
                       <IconButton
@@ -344,7 +341,7 @@ const Operator = () => {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell sx={settingCellSx}>
+                <TableCell sx={SETTING_CELL_SX}>
                   <Tooltip
                     title="Operator variant algorithm configuration key — used for authentication"
                     arrow
@@ -352,14 +349,14 @@ const Operator = () => {
                     <span>Operator Code (OP)</span>
                   </Tooltip>
                 </TableCell>
-                <TableCell sx={valueCellSx}>
+                <TableCell sx={VALUE_CELL_SX}>
                   {isLoading ? (
                     <Skeleton variant="text" width={140} />
                   ) : (
                     "***************"
                   )}
                 </TableCell>
-                <TableCell sx={actionCellSx}>
+                <TableCell sx={ACTION_CELL_SX}>
                   {canEdit && (
                     <Tooltip title="Edit operator code" arrow>
                       <IconButton
@@ -374,7 +371,7 @@ const Operator = () => {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell sx={settingCellSx}>
+                <TableCell sx={SETTING_CELL_SX}>
                   <Tooltip
                     title="Tracking Area Codes — used by UEs to register in specific geographic areas. Shown as hex with the decimal in brackets, since many radios ask for the decimal."
                     arrow
@@ -382,7 +379,7 @@ const Operator = () => {
                     <span>Supported TACs</span>
                   </Tooltip>
                 </TableCell>
-                <TableCell sx={valueCellSx}>
+                <TableCell sx={VALUE_CELL_SX}>
                   {isLoading ? (
                     <Skeleton variant="text" width={160} />
                   ) : (
@@ -401,7 +398,7 @@ const Operator = () => {
                     </Box>
                   )}
                 </TableCell>
-                <TableCell sx={actionCellSx}>
+                <TableCell sx={ACTION_CELL_SX}>
                   {canEdit && (
                     <Tooltip title="Edit supported TACs" arrow>
                       <IconButton
@@ -416,7 +413,7 @@ const Operator = () => {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell sx={settingCellSx}>
+                <TableCell sx={SETTING_CELL_SX}>
                   <Tooltip
                     title="Algorithm preference order for NAS ciphering and integrity protection"
                     arrow
@@ -424,7 +421,7 @@ const Operator = () => {
                     <span>NAS Security</span>
                   </Tooltip>
                 </TableCell>
-                <TableCell sx={valueCellSx}>
+                <TableCell sx={VALUE_CELL_SX}>
                   <Table size="small" sx={{ m: -1 }}>
                     <TableBody>
                       <TableRow
@@ -512,7 +509,7 @@ const Operator = () => {
                     </TableBody>
                   </Table>
                 </TableCell>
-                <TableCell sx={actionCellSx}>
+                <TableCell sx={ACTION_CELL_SX}>
                   {canEdit && (
                     <Tooltip title="Edit NAS security algorithms" arrow>
                       <IconButton
@@ -798,18 +795,6 @@ const Operator = () => {
           </TableContainer>
         )}
       </Box>
-
-      <SMSSection
-        sms={operator?.sms}
-        canEdit={canEdit}
-        onModalOpenChange={setSMSModalOpen}
-      />
-
-      <IMSSection
-        ims={operator?.ims}
-        canEdit={canEdit}
-        onModalOpenChange={setIMSModalOpen}
-      />
 
       {isEditOperatorIdModalOpen && (
         <EditOperatorIdModal

@@ -22,14 +22,11 @@ const seedSubscriber = (
     voiceStatus: "no_pcscf",
   },
 ) => {
-  api.get("/api/v1/operator", () => ({
-    id: { mcc: "001", mnc: "01" },
-    tracking: { supportedTacs: ["000001"] },
-    homeNetworkKeys: [],
-    nasSecurity: { ciphering: ["AES"], integrity: ["AES"] },
-    spn: { fullName: "Ella Networks", shortName: "Ella" },
-    sms: {},
-    ims,
+  api.get("/api/v1/integrations/ims", () => ({
+    homeDomain: "",
+    derivedHomeDomain: "ims.mnc001.mcc001.3gppnetwork.org",
+    restrictPeers: true,
+    ...ims,
   }));
   api.get("/api/v1/subscribers/:imsi", () => ({
     imsi: IMSI,
@@ -217,6 +214,21 @@ describe("Subscriber voice", () => {
     const row = await voiceRow();
     expect(row).toHaveTextContent("Not offered to the phone");
     expect(row).toHaveTextContent("next registration");
+  });
+
+  it("says voice is not offered while its advertisement is off", async () => {
+    seedSubscriber(
+      "+15551230001",
+      { ims: identities("not_registered"), registrations: registered(true) },
+      { ...voiceOn, advertiseVoice: false },
+    );
+    renderDetail();
+
+    const row = await voiceRow();
+    expect(row).toHaveTextContent("Not offered to the phone");
+    expect(row).toHaveTextContent(
+      "Advertise IMS Voice is off in Integrations › IMS",
+    );
   });
 
   it("says a subscriber is not subscribed when voice is set up", async () => {

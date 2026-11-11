@@ -14,7 +14,6 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/diameter/cx"
-	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -312,14 +311,18 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	imsDomain, err := db.imsDomain(ctx)
+	domains, err := db.imsHomeDomains(ctx)
 	if err != nil {
 		return err
 	}
 
+	accepted := domains.Accepted()
+
 	for _, identity := range identities {
-		if collidesWithSubscriberIdentity(identity, imsDomain) {
-			return fmt.Errorf("%w: %s has the form of a subscriber identity in %s", ErrPSIConflict, identity, imsDomain)
+		for _, domain := range accepted {
+			if collidesWithSubscriberIdentity(identity, domain) {
+				return fmt.Errorf("%w: %s has the form of a subscriber identity in %s", ErrPSIConflict, identity, domain)
+			}
 		}
 
 		for _, other := range stored {
@@ -336,7 +339,7 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 			}
 		}
 
-		if err := db.checkPSIFreeOfSubscribers(ctx, identity, imsDomain); err != nil {
+		if err := db.checkPSIFreeOfSubscribers(ctx, identity, accepted); err != nil {
 			return err
 		}
 	}
@@ -344,8 +347,8 @@ func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID 
 	return nil
 }
 
-func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity, imsDomain string) error {
-	inIMSDomain := imsDomain != "" && strings.HasPrefix(identity, "sip:") && psi.Host(identity) == imsDomain
+func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity string, imsDomains []string) error {
+	inIMSDomain := strings.HasPrefix(identity, "sip:") && slices.Contains(imsDomains, psi.Host(identity))
 	if !strings.HasPrefix(identity, "tel:+") && !inIMSDomain {
 		return nil
 	}
@@ -386,7 +389,7 @@ func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity, ims
 	m := psi.NewMatcher(map[string]string{identity: ""})
 
 	for _, holder := range holders {
-		for _, impu := range msisdnIdentities(holder.Msisdn, imsDomain) {
+		for _, impu := range msisdnIdentities(holder.Msisdn, imsDomains) {
 			if _, ok := m.Match(impu); ok {
 				return fmt.Errorf("%w: %s covers %s, a public user identity of subscriber %s", ErrPSIConflict, identity, impu, holder.Imsi)
 			}
@@ -397,18 +400,12 @@ func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity, ims
 }
 
 func (db *Database) imsDomain(ctx context.Context) (string, error) {
-	var op Operator
-
-	if err := db.runner(ctx).Query(ctx, db.getOperatorStmt).Get(&op); err != nil {
-		return "", fmt.Errorf("get operator: %w", err)
-	}
-
-	domain, err := diameternode.IMSRealm(op.Mcc, op.Mnc)
+	domains, err := db.imsHomeDomains(ctx)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
-	return domain, nil
+	return domains.Primary, nil
 }
 
 func (db *Database) rehomeIMSApplicationServers(ctx context.Context, from, to string) error {
@@ -481,9 +478,9 @@ func collidesWithSubscriberIdentity(identity, imsDomain string) bool {
 	return psi.Covers(identity, `^sip:[0-9]{6,15}@`+regexp.QuoteMeta(imsDomain)+`$`)
 }
 
-func msisdnIdentities(msisdn, imsDomain string) []string {
+func msisdnIdentities(msisdn string, imsDomains []string) []string {
 	identities := []string{"tel:+" + msisdn}
-	if imsDomain != "" {
+	for _, imsDomain := range imsDomains {
 		identities = append(identities, "sip:+"+msisdn+"@"+imsDomain, "sip:"+imsMCPTTUserPrefix+msisdn+"@"+imsDomain)
 	}
 
@@ -501,7 +498,7 @@ func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, strin
 		return "", "", fmt.Errorf("query failed: %w", err)
 	}
 
-	imsDomain, err := db.imsDomain(ctx)
+	domains, err := db.imsHomeDomains(ctx)
 	if err != nil {
 		return "", "", err
 	}
@@ -513,7 +510,7 @@ func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, strin
 
 	matcher := psi.NewMatcher(identities)
 
-	for _, identity := range msisdnIdentities(msisdn, imsDomain) {
+	for _, identity := range msisdnIdentities(msisdn, domains.Accepted()) {
 		if m, ok := matcher.Match(identity); ok {
 			return identity, m.Owner, nil
 		}

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -104,6 +105,79 @@ func TestHandleAuthenticationRequest(t *testing.T) {
 
 	if len(resp.RES) != 8 {
 		t.Fatalf("RES length = %d, want 8", len(resp.RES))
+	}
+}
+
+func authenticationRequestFor(t *testing.T, ue *UE, sqn []byte) []byte {
+	t.Helper()
+
+	var rand [16]byte
+	for i := range rand {
+		rand[i] = byte(0x30 + i)
+	}
+
+	res, ck, ik, ak, akStar := make([]byte, 8), make([]byte, 16), make([]byte, 16), make([]byte, 6), make([]byte, 6)
+	if err := udm.F2345(ue.OPc[:], ue.K[:], rand[:], res, ck, ik, ak, akStar); err != nil {
+		t.Fatal(err)
+	}
+
+	amf := []byte{0x80, 0x00}
+	macA, macS := make([]byte, 8), make([]byte, 8)
+
+	if err := udm.F1(ue.OPc[:], ue.K[:], rand[:], sqn, amf, macA, macS); err != nil {
+		t.Fatal(err)
+	}
+
+	var autn [16]byte
+	for i := range 6 {
+		autn[i] = sqn[i] ^ ak[i]
+	}
+
+	copy(autn[6:], amf)
+	copy(autn[8:], macA)
+
+	req, err := (&eps.AuthenticationRequest{RAND: rand, AUTN: autn}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return req
+}
+
+func TestTrackedSequenceNumberResynchronisesAStaleChallenge(t *testing.T) {
+	ue := &UE{plmn: []byte{0x99, 0xf9, 0x07}}
+	for i := range ue.K {
+		ue.K[i] = byte(i)
+		ue.OPc[i] = byte(0xff - i)
+	}
+
+	ue.TrackSequenceNumber([6]byte{0, 0, 0, 0, 0, 0x40})
+
+	failure, err := ue.handleAuthenticationRequest(authenticationRequestFor(t, ue, []byte{0, 0, 0, 0, 0, 0x20}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := eps.ParseAuthenticationFailure(failure)
+	if err != nil {
+		t.Fatalf("parse authentication failure: %v", err)
+	}
+
+	if msg.Cause != eps.EMMCauseSynchFailure || len(msg.AUTS) != 14 || !ue.resyncPending || ue.Resynchronisations() != 1 {
+		t.Fatalf("failure = %+v, pending %v, resyncs %d; want a synch failure with a 14-octet AUTS", msg, ue.resyncPending, ue.Resynchronisations())
+	}
+
+	resp, err := ue.handleAuthenticationRequest(authenticationRequestFor(t, ue, []byte{0, 0, 0, 0, 0, 0x60}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := eps.ParseAuthenticationResponse(resp); err != nil || ue.resyncPending {
+		t.Fatalf("fresh challenge: %v (pending %v), want an Authentication Response", err, ue.resyncPending)
+	}
+
+	if !bytes.Equal(ue.sqn, []byte{0, 0, 0, 0, 0, 0x60}) {
+		t.Fatalf("tracked SQN = % x, want the accepted 00 00 00 00 00 60", ue.sqn)
 	}
 }
 

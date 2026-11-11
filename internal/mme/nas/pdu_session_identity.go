@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -25,6 +26,14 @@ func pduSessionIDFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) uint8 {
 	}
 
 	return 0
+}
+
+func interworkingPDUSessionID(m *mme.MME, ue *mme.UeContext, apn string, id uint8) uint8 {
+	if !ue.FiveGSInterworkingAllowed() || !m.FiveGSInterworkingSubscribed(ue, apn) {
+		return 0
+	}
+
+	return id
 }
 
 func protocolOptionsFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) ([]nas.PCOContainer, bool) {
@@ -65,16 +74,22 @@ func fiveGSMCauseFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) (uint8, b
 	return 0, false
 }
 
-func snssaiPCOContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContainer, error) {
-	ie := fgs.SNSSAI{SST: uint8(snssai.Sst)}
+func snssaiPCOContainer(snssai models.Snssai, home *models.Snssai, plmn models.PlmnID) (nas.PCOContainer, error) {
+	sd, err := pcoSD(snssai.Sd)
+	if err != nil {
+		return nas.PCOContainer{}, err
+	}
 
-	if sd := models.NormalizeSD(snssai.Sd); sd != "" {
-		raw, err := hex.DecodeString(sd)
-		if err != nil || len(raw) != 3 {
-			return nas.PCOContainer{}, fmt.Errorf("S-NSSAI slice differentiator %q is not three octets", snssai.Sd)
+	ie := fgs.SNSSAI{SST: uint8(snssai.Sst), SD: sd}
+
+	if home != nil {
+		hplmnSD, err := pcoSD(home.Sd)
+		if err != nil {
+			return nas.PCOContainer{}, err
 		}
 
-		ie.SD = &[3]byte{raw[0], raw[1], raw[2]}
+		ie.MappedHPLMNSST = new(uint8(home.Sst))
+		ie.MappedHPLMNSD = hplmnSD
 	}
 
 	value, err := ie.MarshalBinary()
@@ -83,4 +98,18 @@ func snssaiPCOContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContai
 	}
 
 	return nas.NewSNSSAIContainer(value, nas.PLMN{MCC: plmn.Mcc, MNC: plmn.Mnc})
+}
+
+func pcoSD(sd string) (*[3]byte, error) {
+	sd = models.NormalizeSD(sd)
+	if sd == "" {
+		return nil, nil
+	}
+
+	raw, err := hex.DecodeString(sd)
+	if err != nil || len(raw) != 3 {
+		return nil, fmt.Errorf("S-NSSAI slice differentiator %q is not three octets", sd)
+	}
+
+	return &[3]byte{raw[0], raw[1], raw[2]}, nil
 }

@@ -7,15 +7,13 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"net/netip"
 	"strconv"
 	"strings"
 
-	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -47,24 +45,6 @@ type UpdateOperatorSPNParams struct {
 	ShortName string `json:"shortName"`
 }
 
-type UpdateOperatorSMSParams struct {
-	SMSNumber string `json:"smsNumber"`
-}
-
-type GetOperatorSMSResponse struct {
-	SMSNumber string `json:"smsNumber"`
-}
-
-type UpdateOperatorIMSParams struct {
-	PCSCFAddresses []string `json:"pcscfAddresses"`
-}
-
-type GetOperatorIMSResponse struct {
-	PCSCFAddresses []string `json:"pcscfAddresses"`
-	VoiceStatus    string   `json:"voiceStatus"`
-	HomeDomain     string   `json:"homeDomain"`
-}
-
 type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs"`
 }
@@ -80,8 +60,6 @@ type GetOperatorResponse struct {
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 	SPN             GetOperatorSPNResponse         `json:"spn"`
-	SMS             GetOperatorSMSResponse         `json:"sms"`
-	IMS             GetOperatorIMSResponse         `json:"ims"`
 }
 
 type GetOperatorIDResponse struct {
@@ -100,8 +78,6 @@ const (
 	UpdateOperatorCodeAction        = "update_operator_code"
 	UpdateOperatorNASSecurityAction = "update_operator_nas_security"
 	UpdateOperatorSPNAction         = "update_operator_spn"
-	UpdateOperatorSMSAction         = "update_operator_sms"
-	UpdateOperatorIMSAction         = "update_operator_ims"
 )
 
 func isValidMcc(mcc string) bool {
@@ -245,30 +221,6 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		smsSettings, err := dbInstance.GetSMSSettings(r.Context())
-		if err != nil {
-			logger.APILog.Warn("Failed to get SMS settings", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get SMS settings", err, logger.APILog)
-
-			return
-		}
-
-		pcscfAddresses, err := dbInstance.ListPCSCFAddresses(r.Context())
-		if err != nil {
-			logger.APILog.Warn("Failed to list P-CSCF addresses", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list P-CSCF addresses", err, logger.APILog)
-
-			return
-		}
-
-		voiceStatus, err := dbInstance.IMSVoiceStatus(r.Context())
-		if err != nil {
-			logger.APILog.Warn("Failed to get the voice status", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get the voice status", err, logger.APILog)
-
-			return
-		}
-
 		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
@@ -285,14 +237,6 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			SPN: GetOperatorSPNResponse{
 				FullName:  dbOperator.SpnFullName,
 				ShortName: dbOperator.SpnShortName,
-			},
-			SMS: GetOperatorSMSResponse{
-				SMSNumber: formatE164(smsSettings.SMSNumber),
-			},
-			IMS: GetOperatorIMSResponse{
-				PCSCFAddresses: pcscfAddresses,
-				VoiceStatus:    string(voiceStatus),
-				HomeDomain:     imsHomeDomain(dbOperator.Mcc, dbOperator.Mnc),
 			},
 		}
 
@@ -400,8 +344,15 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorID(r.Context(), params.Mcc, params.Mnc); err != nil {
+		seppIdentityDeleted, err := dbInstance.ChangeOperatorID(r.Context(), params.Mcc, params.Mnc)
+		if err != nil {
+			if errors.Is(err, db.ErrRoamingConflict) {
+				writeError(r.Context(), w, http.StatusConflict, "Cannot update operator ID when there are roaming partners", err, logger.APILog)
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
+
 			return
 		}
 
@@ -409,7 +360,15 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			imsProfiles.AllSubscribersChanged(context.WithoutCancel(r.Context()))
 		}
 
-		resp := SuccessResponse{Message: "Operator ID updated successfully"}
+		message := "Operator ID updated successfully"
+		audit := "User updated operator with Id: " + params.Mcc + params.Mnc
+
+		if seppIdentityDeleted {
+			message += ". The SEPP certificates and the cluster SEPP CA of the previous PLMN were deleted: nodes with interfaces.n32 generate new SEPP certificates, or import one per node"
+			audit += ", deleting the SEPP certificates and the cluster SEPP CA of the previous PLMN"
+		}
+
+		resp := SuccessResponse{Message: message}
 		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
@@ -417,7 +376,7 @@ func UpdateOperatorID(dbInstance *db.Database, imsProfiles IMSProfileNotifier) h
 			UpdateOperatorIDAction,
 			email,
 			getClientIP(r),
-			"User updated operator with Id: "+params.Mcc+params.Mnc,
+			audit,
 		)
 	})
 }
@@ -630,124 +589,4 @@ func UpdateOperatorSPN(dbInstance *db.Database) http.Handler {
 			"User updated operator SPN",
 		)
 	})
-}
-
-func UpdateOperatorSMS(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
-		var params UpdateOperatorSMSParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		settings, message := smsSettingsFromParams(params)
-		if message != "" {
-			writeError(r.Context(), w, http.StatusBadRequest, message, nil, logger.APILog)
-			return
-		}
-
-		if err := settings.Validate(); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SMS settings", err, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.UpdateSMSSettings(r.Context(), &settings); err != nil {
-			logger.APILog.Warn("Failed to update operator SMS settings", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator SMS settings", err, logger.APILog)
-
-			return
-		}
-
-		resp := SuccessResponse{Message: "Operator SMS settings updated successfully"}
-		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
-
-		detail := fmt.Sprintf("User updated operator SMS settings (SMS number %s)", formatE164(settings.SMSNumber))
-
-		logger.LogAuditEvent(r.Context(), UpdateOperatorSMSAction, email, getClientIP(r), detail)
-	})
-}
-
-func smsSettingsFromParams(params UpdateOperatorSMSParams) (db.SMSSettings, string) {
-	number, ok := parseE164(params.SMSNumber)
-	if !ok {
-		return db.SMSSettings{}, "smsNumber must be an E.164 number: + followed by 1 to 15 digits, for example +15550001111"
-	}
-
-	return db.SMSSettings{SMSNumber: number}, ""
-}
-
-func UpdateOperatorIMS(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
-		var params UpdateOperatorIMSParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		addresses := make([]string, 0, len(params.PCSCFAddresses))
-
-		for _, s := range params.PCSCFAddresses {
-			address := strings.TrimSpace(s)
-
-			if addr, err := netip.ParseAddr(address); err == nil {
-				address = addr.String()
-			} else if diameter.IsValidHostname(address) {
-				address = strings.ToLower(address)
-			} else {
-				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("pcscfAddresses: %q is not an IPv4 or IPv6 address or a host name", s), nil, logger.APILog)
-				return
-			}
-
-			addresses = append(addresses, address)
-		}
-
-		if err := db.ValidatePCSCFAddresses(addresses); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.ReplacePCSCFAddresses(r.Context(), addresses); err != nil {
-			logger.APILog.Warn("Failed to update operator IMS settings", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator IMS settings", err, logger.APILog)
-
-			return
-		}
-
-		resp := SuccessResponse{Message: "Operator IMS settings updated successfully"}
-		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
-
-		pcscf := "none"
-		if len(addresses) > 0 {
-			pcscf = strings.Join(addresses, ", ")
-		}
-
-		detail := fmt.Sprintf("User updated operator IMS settings (P-CSCF addresses %s)", pcscf)
-
-		logger.LogAuditEvent(r.Context(), UpdateOperatorIMSAction, email, getClientIP(r), detail)
-	})
-}
-
-func imsHomeDomain(mcc, mnc string) string {
-	domain, err := diameternode.IMSRealm(mcc, mnc)
-	if err != nil {
-		return ""
-	}
-
-	return domain
 }

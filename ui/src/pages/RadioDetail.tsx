@@ -34,10 +34,12 @@ import {
   listSubscribersByRadio,
   type APISubscriberSummary,
 } from "@/queries/subscribers";
+import { listRoamersByRadio } from "@/queries/roamers";
 import { listRadioEvents, type APIRadioEvent } from "@/queries/radio_events";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
 import RadioStatusChip from "@/components/RadioStatusChip";
+import RoamersSection from "@/components/RoamersSection";
 import RanNodeTypeChip from "@/components/RanNodeTypeChip";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
@@ -568,6 +570,15 @@ const RadioDetail: React.FC = () => {
                   </QueryState>
                 </Box>
               </Box>
+
+              <RoamersSection
+                title="Connected Roamers"
+                queryKey={["roamers-by-radio", radio.name]}
+                fetchPage={(page, perPage) =>
+                  listRoamersByRadio(accessToken!, radio.name, page, perPage)
+                }
+                enabled={authReady && !!accessToken}
+              />
 
               <Box sx={{ mt: 3 }}>
                 <Box

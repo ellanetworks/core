@@ -8,7 +8,7 @@ configs:
         audit:
           output: "stdout"
       db:
-        path: "core.db"
+        path: "/data/core.db"
       interfaces:
         n2:
           address: "10.3.0.2"
@@ -19,6 +19,8 @@ configs:
         api:
           address: "10.3.0.2"
           port: 5002
+        diameter:
+          address: "10.3.0.2"
       datapath:
         attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
       telemetry:
@@ -27,13 +29,15 @@ configs:
 
 services:
   ella-core:
-    image: ella-core:latest
+    image: ${ELLA_IMAGE:-ella-core:latest}
     configs:
       - source: ella_config
         target: /core.yaml
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true
+    tmpfs:
+      - /data
     ports:
       - "5002:5002"
     networks:
@@ -49,7 +53,7 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.2
   ella-core-tester:
-    image: ella-core-tester:latest
+    image: ${TESTER_IMAGE:-ella-core-tester:latest}
     entrypoint:
       - /bin/sh
       - -c

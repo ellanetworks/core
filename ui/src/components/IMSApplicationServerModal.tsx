@@ -77,10 +77,10 @@ const IMSApplicationServerModal: React.FC<IMSApplicationServerModalProps> = ({
     resolver: yupResolver(schema),
     values: {
       name: applicationServer?.name ?? "",
-      serverName: applicationServer?.server_name ?? "",
-      psis: (applicationServer?.public_service_identities ?? []).map(
-        (value) => ({ value }),
-      ),
+      serverName: applicationServer?.serverName ?? "",
+      psis: (applicationServer?.publicServiceIdentities ?? []).map((value) => ({
+        value,
+      })),
     },
   });
   const { fields, append, remove, replace } = useFieldArray({
@@ -104,8 +104,8 @@ const IMSApplicationServerModal: React.FC<IMSApplicationServerModalProps> = ({
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
     const input = {
-      server_name: values.serverName.trim(),
-      public_service_identities: values.psis.map((p) => p.value.trim()),
+      serverName: values.serverName.trim(),
+      publicServiceIdentities: values.psis.map((p) => p.value.trim()),
     };
     if (applicationServer) {
       await updateIMSApplicationServer(

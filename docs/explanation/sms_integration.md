@@ -35,7 +35,7 @@ As the HSS, Ella Core sends the SMSC's routing requests to the IP-SM-GW while th
 Ella Core allows SMS when:
 
 - At least one SMSC is configured.
-- Ella Core's SMS number is set. This is the number Ella Core gives the SMSC for itself, as the node serving the phone.
+- Ella Core's serving node number is set. This is the number Ella Core gives the SMSC for itself, as the node serving the phone.
 - The subscriber has an MSISDN.
 
 On 5G, the phone asks for SMS when it registers. On 4G, the phone asks with a combined attach, and Ella Core accepts it for SMS only.
@@ -54,6 +54,6 @@ Each node of a [High Availability](high_availability.md) cluster connects to eve
 ## Further reading
 
 - [Enable SMS](../how_to/enable_sms.md) — step-by-step guide to enable SMS.
-- [Operator API reference](../reference/api/operator.md) — SMS number and SMSCs.
+- [Integrations API reference](../reference/api/integrations.md#get-the-sms-settings) — serving node number and SMSCs.
 - [3GPP Compliance](../reference/3gpp_compliance.md) — supported SGd and S6c procedures.
 - [Enable SMS over IP](https://docs.ellanetworks.com/ims/how_to/enable_sms_over_ip/) — SMS over IP with Ella IMS.

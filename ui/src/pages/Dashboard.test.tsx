@@ -155,3 +155,35 @@ describe("Dashboard system cards", () => {
     expect(within(card("Up Since")).queryByText("N/A")).toBeNull();
   });
 });
+
+describe("Dashboard top data users", () => {
+  it("links a roamer to its roamer page", async () => {
+    seedDashboard();
+    api.get(STATUS, () => standalone);
+    api.get(HEALTH, () => ({ state: "healthy", totalVoters: 1 }));
+    api.get("/api/v1/subscriber-usage", () => [
+      {
+        imsi: "001010000000001",
+        uplink_bytes: 1,
+        downlink_bytes: 1,
+        total_bytes: 2,
+      },
+      {
+        imsi: "208930000000001",
+        uplink_bytes: 1,
+        downlink_bytes: 1,
+        total_bytes: 2,
+        home_plmn: { mcc: "208", mnc: "93" },
+      },
+    ]);
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    expect(
+      await screen.findByRole("link", { name: "208930000000001" }),
+    ).toHaveAttribute("href", "/subscribers/roamers/208930000000001");
+    expect(
+      screen.getByRole("link", { name: "001010000000001" }),
+    ).toHaveAttribute("href", "/subscribers/001010000000001");
+  });
+});

@@ -12,6 +12,7 @@ type PurgeUERequest struct {
 	IMSI     string
 	Features Features
 	Flags    PURFlags
+	Location *EPSLocationInformation
 }
 
 type PurgeUE struct {
@@ -33,6 +34,15 @@ func NewPurgeUERequest(env tgpp.Envelope, r PurgeUERequest) (*diameter.Message, 
 	avps, err := appendFlags([]diameter.AVP{userName}, AVPPURFlags, "PUR-Flags", r.Flags)
 	if err != nil {
 		return nil, err
+	}
+
+	if r.Location != nil {
+		loc, err := r.Location.avp()
+		if err != nil {
+			return nil, err
+		}
+
+		avps = append(avps, loc)
 	}
 
 	return newRequest(env, CommandPurgeUE, false, append(avps, r.Features.avps()...)...)
@@ -60,6 +70,12 @@ func ParsePurgeUERequest(req *diameter.Message) (PurgeUERequest, error) {
 
 	if r.Flags, err = requestFlags(req.AVPs, AVPPURFlags, purFlagsDefined); err != nil {
 		return PurgeUERequest{}, err
+	}
+
+	if loc, ok := req.Find(AVPEPSLocationInformation, tgpp.VendorID); ok {
+		if r.Location, err = requestDecoder.epsLocationInformation(loc); err != nil {
+			return PurgeUERequest{}, err
+		}
 	}
 
 	return r, nil

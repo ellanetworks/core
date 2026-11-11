@@ -53,6 +53,15 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 			interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
 	}
 
+	allowed, err := m.N26Allowed(ctx, ue.IMSI())
+	if err != nil {
+		return none, fmt.Errorf("mme: resolve the subscriber: %w", err)
+	}
+
+	if !allowed {
+		return none, fmt.Errorf("%w: M-TMSI %x", interworking.ErrN26NotAllowed, req.MappedEPSGUTI.TMSI)
+	}
+
 	if _, err := ue.AcceptUplink(req.EPSNAS, func(plain []byte) error {
 		if mt, err := eps.PeekMessageType(plain); err != nil || mt != eps.MsgTrackingAreaUpdateRequest {
 			return errors.New("the container holds no TRACKING AREA UPDATE REQUEST")
@@ -94,6 +103,7 @@ func (m *MME) MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []ui
 	}
 
 	ue.EndIdleMobilityTo5GS()
+	m.handVisitorTo5GS(ctx, ue)
 
 	for _, p := range m.SnapshotPDNs(ue) {
 		if slices.Contains(transferred, p.PDUSessionID) {

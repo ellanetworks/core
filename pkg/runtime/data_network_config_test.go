@@ -55,7 +55,7 @@ func TestDataNetworkConfigCarriesPCSCFAddressesOnlyOnIMS(t *testing.T) {
 		t.Fatalf("CreateSliceDataNetwork: %s", err)
 	}
 
-	if err := database.ReplacePCSCFAddresses(ctx, []string{"2001:db8::5", "pcscf.example.org", "10.0.0.5"}); err != nil {
+	if err := database.UpdateIMSConfiguration(ctx, &db.IMSSettings{AdvertiseVoice: true}, []string{"2001:db8::5", "pcscf.example.org", "10.0.0.5"}); err != nil {
 		t.Fatalf("ReplacePCSCFAddresses: %s", err)
 	}
 
@@ -119,7 +119,8 @@ func TestResolvePCSCFAddresses(t *testing.T) {
 		"b.example":    parse("::ffff:10.0.0.3", "10.0.0.4", "2001:db8::1"),
 		"loopback":     parse("127.0.0.1", "::1"),
 		"duplicate":    parse("10.0.0.1", "2001:db8::1"),
-		"ipv6.example": parse("2001:db8::a", "2001:db8::b", "2001:db8::c", "2001:db8::d"),
+		"c.example":    parse("10.0.0.6", "10.0.0.7"),
+		"ipv6.example": parse("2001:db8::a", "2001:db8::b", "2001:db8::c", "2001:db8::d", "2001:db8::e"),
 	}
 
 	cases := []struct {
@@ -132,7 +133,7 @@ func TestResolvePCSCFAddresses(t *testing.T) {
 		{"host names keep their place in the order", []string{"2001:db8::5", "a.example", "10.0.0.5"}, parse("2001:db8::5", "10.0.0.1", "10.0.0.2", "10.0.0.5")},
 		{"a host name that does not resolve is left out", []string{"missing.example", "10.0.0.5"}, parse("10.0.0.5")},
 		{"no host name resolves", []string{"missing.example"}, nil},
-		{"at most three addresses of each family", []string{"a.example", "b.example", "ipv6.example"}, parse("10.0.0.1", "10.0.0.2", "10.0.0.3", "2001:db8::1", "2001:db8::a", "2001:db8::b")},
+		{"at most five addresses of each family", []string{"a.example", "b.example", "c.example", "ipv6.example"}, parse("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "2001:db8::1", "10.0.0.6", "2001:db8::a", "2001:db8::b", "2001:db8::c", "2001:db8::d")},
 		{"addresses that are not unicast are left out", []string{"loopback", "10.0.0.5"}, parse("10.0.0.5")},
 		{"duplicates are left out", []string{"a.example", "duplicate"}, parse("10.0.0.1", "10.0.0.2", "2001:db8::1")},
 	}

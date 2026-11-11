@@ -10,6 +10,7 @@ import Initialize from "./pages/Initialize";
 import Dashboard from "./pages/Dashboard";
 import Subscribers from "./pages/Subscribers";
 import SubscriberDetail from "./pages/SubscriberDetail";
+import RoamerDetail from "./pages/RoamerDetail";
 import RadiosList from "./pages/radios/RadiosList";
 import RadioEvents from "./pages/radios/RadioEvents";
 import RadioDetail from "./pages/RadioDetail";
@@ -25,6 +26,10 @@ import RoutesTab from "./pages/networking/RoutesTab";
 import BGPTab from "./pages/networking/BGPTab";
 import FlowAccountingTab from "./pages/networking/FlowAccountingTab";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
+import Integrations from "./pages/Integrations";
+import IMSTab from "./pages/integrations/IMSTab";
+import SMSTab from "./pages/integrations/SMSTab";
+import RoamingTab from "./pages/integrations/RoamingTab";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
@@ -50,6 +55,8 @@ export default function AppRouter() {
       <Route element={<CoreLayout />}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
+        <Route path="subscribers/roamers" element={<Subscribers />} />
+        <Route path="subscribers/roamers/:imsi" element={<RoamerDetail />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<RadiosList />} />
         <Route path="radios/events" element={<RadioEvents />} />
@@ -79,6 +86,16 @@ export default function AppRouter() {
           path="networking/data-networks/:name"
           element={<DataNetworkDetail />}
         />
+        <Route path="integrations" element={<Integrations />}>
+          <Route index element={<Navigate to="ims" replace />} />
+          <Route
+            path="overview"
+            element={<Navigate to="/integrations/ims" replace />}
+          />
+          <Route path="ims" element={<IMSTab />} />
+          <Route path="sms" element={<SMSTab />} />
+          <Route path="roaming" element={<RoamingTab />} />
+        </Route>
         <Route path="operator" element={<Operator />} />
         <Route element={<RequireAdmin />}>
           <Route path="users" element={<Users />} />

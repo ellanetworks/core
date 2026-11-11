@@ -15,6 +15,8 @@ export type PerSubscriberUsage = {
   uplink_bytes: number;
   downlink_bytes: number;
   total_bytes: number;
+  home_plmn?: { mcc: string; mnc: string };
+  roaming_partner?: string;
 };
 
 export type UsageResult = DailySubscriberUsage[] | PerSubscriberUsage[];
@@ -32,6 +34,7 @@ export async function getUsage(
   subscriber: string,
   groupBy: "day" | "subscriber",
   limit?: number,
+  roaming?: boolean,
 ): Promise<UsageResult> {
   const params = new URLSearchParams();
 
@@ -49,6 +52,10 @@ export async function getUsage(
 
   if (limit !== undefined) {
     params.set("limit", String(limit));
+  }
+
+  if (roaming !== undefined) {
+    params.set("roaming", String(roaming));
   }
 
   return apiFetch<UsageResult>(

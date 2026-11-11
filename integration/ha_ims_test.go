@@ -275,8 +275,8 @@ func waitForDiameterHost(ctx context.Context, c *client.Client) (string, error) 
 
 	for {
 		status, err := c.GetDiameterStatus(ctx)
-		if err == nil && status.Host != "" {
-			return status.Host, nil
+		if err == nil && status.LocalOriginHost() != "" {
+			return status.LocalOriginHost(), nil
 		}
 
 		if time.Now().After(deadline) {

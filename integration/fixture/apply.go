@@ -81,12 +81,17 @@ func (f *F) Apply(spec scenarios.FixtureSpec) {
 func (f *F) scopedPCSCFAddresses(addresses []string) {
 	f.t.Helper()
 
-	if err := f.c.UpdateOperatorIMS(f.ctx, &client.UpdateOperatorIMSOptions{PCSCFAddresses: addresses}); err != nil {
+	current, err := f.c.GetIMSSettings(f.ctx)
+	if err != nil {
+		f.fatalf("get IMS settings: %v", err)
+	}
+
+	if err := f.c.UpdateIMSSettings(f.ctx, &client.UpdateIMSSettingsOptions{PCSCFAddresses: addresses, HomeDomain: current.HomeDomain, AdvertiseVoice: current.AdvertiseVoice, RestrictPeers: current.RestrictPeers}); err != nil {
 		f.fatalf("set P-CSCF addresses %v: %v", addresses, err)
 	}
 
 	f.t.Cleanup(func() {
-		if err := f.c.UpdateOperatorIMS(f.ctx, &client.UpdateOperatorIMSOptions{}); err != nil {
+		if err := f.c.UpdateIMSSettings(f.ctx, &client.UpdateIMSSettingsOptions{HomeDomain: current.HomeDomain, AdvertiseVoice: current.AdvertiseVoice, RestrictPeers: current.RestrictPeers}); err != nil {
 			f.t.Logf("cleanup: clear P-CSCF addresses: %v", err)
 		}
 	})

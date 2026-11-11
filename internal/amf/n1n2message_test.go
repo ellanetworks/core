@@ -77,6 +77,10 @@ func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber,
 	return nil, nil
 }
 
+func (f *fakeDBInstance) GetSubscriberOrVisitor(context.Context, string) (*db.Subscriber, error) {
+	return &db.Subscriber{}, nil
+}
+
 func (f *fakeDBInstance) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
 	return nil, nil
 }
@@ -116,14 +120,16 @@ func (f *fakeSmf) deactivated() []string {
 	return append([]string(nil), f.DeactivateCalls...)
 }
 
-func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
-func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
-func (f *fakeSmf) SessionCount() int                     { return 0 }
+func (f *fakeSmf) GetSession(string) *smf.SMContext                   { return nil }
+func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext              { return nil }
+func (f *fakeSmf) SessionCount() int                                  { return 0 }
+func (f *fakeSmf) ReleaseBarredSession(context.Context, string) error { return nil }
+
 func (f *fakeSmf) SessionView(context.Context, string) (smf.SessionView, bool) {
 	return smf.SessionView{}, false
 }
 
-func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
+func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8, *smf.HPLMNTarget) (string, []byte, error) {
 	return "", nil, nil
 }
 func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error) { return nil, nil }
@@ -171,11 +177,11 @@ func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, str
 	return nil, nil
 }
 
-func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
+func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, *smf.HPLMNTarget) (string, []uint8, error) {
 	return "", nil, nil
 }
 
-func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, []uint8, error) {
+func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, *smf.HPLMNTarget) (string, []byte, []uint8, error) {
 	return "", nil, nil, nil
 }
 

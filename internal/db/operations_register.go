@@ -149,7 +149,7 @@ var (
 var (
 	opInitializeOperator               = registerChangesetOp("InitializeOperator", (*Database).applyInitializeOperator)
 	opUpdateOperatorTracking           = registerChangesetOp("UpdateOperatorTracking", (*Database).applyUpdateOperatorTracking)
-	opUpdateOperatorID                 = registerChangesetOp("UpdateOperatorID", (*Database).applyUpdateOperatorID, AffectsTopic(TopicOperatorIdentity))
+	opUpdateOperatorID                 = registerChangesetOpReturning[Operator, bool]("UpdateOperatorID", (*Database).applyUpdateOperatorID, AffectsTopic(TopicOperatorIdentity), AffectsTopic(TopicSEPPIdentity))
 	opUpdateOperatorCode               = registerChangesetOp("UpdateOperatorCode", (*Database).applyUpdateOperatorCode)
 	opUpdateOperatorSecurityAlgorithms = registerChangesetOp("UpdateOperatorSecurityAlgorithms", (*Database).applyUpdateOperatorSecurityAlgorithms)
 	opUpdateOperatorSPN                = registerChangesetOp("UpdateOperatorSPN", (*Database).applyUpdateOperatorSPN)
@@ -174,7 +174,7 @@ var (
 // Cluster members. cluster_members table introduced in v9.
 var (
 	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9), AffectsTopic(TopicClusterMembers))
-	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9), AffectsTopic(TopicUERegistrations))
+	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9), AffectsTopic(TopicUERegistrations), AffectsTopic(TopicSEPPIdentity))
 	opSetDrainState       = registerChangesetOpReturning[ClusterMember, string]("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, RequireSchema(20), AffectsTopic(TopicClusterMembers))
 )
@@ -199,7 +199,14 @@ var (
 	opDeleteStaleSMSWaiting  = registerChangesetOp("DeleteStaleSMSWaiting", (*Database).applyDeleteStaleSMSWaiting, RequireSchema(22))
 )
 
-var opReplacePCSCFAddresses = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
+var _ = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
+
+var (
+	opUpdateIMSSettings = registerChangesetOp("UpdateIMSSettings", (*Database).applyUpdateIMSSettings, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+	opCreateIMSPeer     = registerChangesetOp("CreateIMSPeer", (*Database).applyCreateIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+	opUpdateIMSPeer     = registerChangesetOp("UpdateIMSPeer", (*Database).applyUpdateIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+	opDeleteIMSPeer     = registerChangesetOp("DeleteIMSPeer", (*Database).applyDeleteIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
+)
 
 var (
 	_                               = registerChangesetOp("CompareAndSwapIMSRegistration", (*Database).applyRetiredCompareAndSwapIMSRegistration, RequireSchema(23))
@@ -216,6 +223,19 @@ var (
 	opSetProfileIMSServiceProfiles = registerChangesetOp("SetProfileIMSServiceProfiles", (*Database).applySetProfileIMSServiceProfiles, RequireSchema(25))
 	opPutIPSMGWRegistration        = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration, RequireSchema(25))
 	opDeleteIPSMGWRegistration     = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration, RequireSchema(25))
+)
+
+var (
+	opCreateRoamingPartner      = registerChangesetOp("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opUpdateRoamingPartner      = registerChangesetOp("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile))
+	opDeleteRoamingPartner      = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opCreateRoamingDiameterPeer = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opUpdateRoamingDiameterPeer = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opDeleteRoamingDiameterPeer = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
+	opPutSEPPIdentity           = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opInitSEPPCA                = registerChangesetOpReturning[SEPPCA, bool]("InitSEPPCA", (*Database).applyInitSEPPCA, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opReplaceSEPPCA             = registerChangesetOp("ReplaceSEPPCA", (*Database).applyReplaceSEPPCA, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opRegisterVisitorUE         = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, RequireSchema(roamingSchema), AffectsTopic(TopicUERegistrations))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

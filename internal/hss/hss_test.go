@@ -70,7 +70,7 @@ type fakeIMSStore struct {
 	mcpttFilterCriteria map[string][]cx.InitialFilterCriteria
 	serviceIDs          map[string]string
 	registrations       map[string]hss.Registration
-	voiceDisabled       bool
+	homeDomain          string
 	fail                bool
 	unavailable         bool
 	contended           bool
@@ -80,9 +80,9 @@ type fakeIMSStore struct {
 func newFakeIMSStore() *fakeIMSStore {
 	return &fakeIMSStore{
 		subscribers: map[string]*fakeIMSSubscriber{
-			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true, IMSVoice: true, MCPTT: true}, sqn: "000000000020"},
-			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true, IMSVoice: true, MCPTT: true}, sqn: "000000000020"},
-			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true, IMSVoice: true}, sqn: "000000000020"},
+			testIMSI:      {Subscriber: hss.Subscriber{IMSI: testIMSI, MSISDN: testMSISDN, IMSDataNetwork: true, MCPTT: true}, sqn: "000000000020"},
+			testOtherIMSI: {Subscriber: hss.Subscriber{IMSI: testOtherIMSI, MSISDN: testOtherTel, IMSDataNetwork: true, MCPTT: true}, sqn: "000000000020"},
+			testNoMSISDN:  {Subscriber: hss.Subscriber{IMSI: testNoMSISDN, IMSDataNetwork: true}, sqn: "000000000020"},
 			testNoIMS:     {Subscriber: hss.Subscriber{IMSI: testNoIMS, MSISDN: testNoIMSTel}, sqn: "000000000020"},
 		},
 		registrations: map[string]hss.Registration{},
@@ -139,20 +139,19 @@ func (f *fakeIMSStore) CompareAndSwapRegistration(_ context.Context, imsi string
 	return cloneRegistration(*next), true, nil
 }
 
-func (f *fakeIMSStore) IMSDomain(context.Context) (string, error) {
+func (f *fakeIMSStore) IMSHomeDomains(context.Context) (hss.HomeDomains, error) {
 	if f.fail {
-		return "", errStoreDown
+		return hss.HomeDomains{}, errStoreDown
 	}
 
-	return testIMSDomain, nil
-}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-func (f *fakeIMSStore) IMSVoiceEnabled(context.Context) (bool, error) {
-	if f.fail {
-		return false, errStoreDown
+	if f.homeDomain != "" {
+		return hss.HomeDomains{Primary: f.homeDomain, Derived: testIMSDomain}, nil
 	}
 
-	return !f.voiceDisabled, nil
+	return hss.HomeDomains{Primary: testIMSDomain, Derived: testIMSDomain}, nil
 }
 
 func (f *fakeIMSStore) Subscriber(_ context.Context, imsi string) (*hss.Subscriber, error) {

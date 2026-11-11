@@ -55,6 +55,7 @@ Many resources live under sub-paths — never assume top-level. Common groups:
 - `/api/v1/ran/*` — radios, events
 - `/api/v1/logs/audit` — audit logs
 - `/api/v1/operator/*` — operator code, ID, home-network-keys, NAS security
+- `/api/v1/integrations/*` — SMS, SMSCs, IMS, IMS peers, roaming, Diameter status
 - `/api/v1/cluster/*` — HA cluster management
 - `/api/v1/subscribers`, `/api/v1/profiles`, `/api/v1/policies`, `/api/v1/slices` — top-level
 - `/api/v1/subscriber-usage`, `/api/v1/flow-reports` — top-level

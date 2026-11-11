@@ -24,14 +24,18 @@ These metrics are used to monitor the health of the system and the performance o
 | ------------------- | --------- | --------- |
 | app_connected_radios            | Number of radios currently connected to Ella Core, labeled by `rat`.                  | Gauge   |
 | app_signaling_messages_total | Total radio signaling messages, labeled by `rat`, `direction`, and `type`. | Counter |
-| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat`.            | Gauge   |
-| app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, and `result`. | Counter |
-| app_sessions | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
-| app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` and `result`. | Counter |
+| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat` and `roaming` (`true` for roamers). | Gauge   |
+| app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, `result`, and `roaming` (`true` for roamers). | Counter |
+| app_sessions | Number of active sessions currently in Ella Core, labeled by `rat` and `roaming` (`true` for roamers). | Gauge |
+| app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat`, `result`, and `roaming` (`true` for roamers). | Counter |
 | app_session_releases_total | Total session releases, labeled by `rat` and `reason`. | Counter |
 | app_sms_attempts_total | Total SMS attempts, labeled by `direction` (`mo`, `mt`) and `result`. | Counter |
 | app_connected_service_centers | Number of SMS service centers (SMSCs) connected to this node. | Gauge |
 | app_connected_ims_nodes | Number of IMS nodes connected to this node, which use it as their HSS or PCRF. | Gauge |
+| app_diameter_rejected_peers_total | Diameter peers whose capabilities exchange this node rejected, labeled by `reason` (`not_allowed`: the peer matches no allowed IMS peer while peers are restricted). | Counter |
+| app_connected_roaming_partners | Number of roaming partners connected to this node, labeled by `interface`: `n32` (N32-c context established) or `s6a` (Diameter peer open). | Gauge |
+| app_peer_requests_total | Requests this node sent to the home network of roaming partners, labeled by `interface` (`n32`, `s6a`) and `result` (`success`, `failure`, `error`, `timeout`). | Counter |
+| app_peer_request_duration_seconds | Duration of requests this node sent to the home network of roaming partners, labeled by `interface`. | Histogram |
 | app_ims_registered_subscribers | Number of subscribers currently registered in IMS, across the cluster. | Gauge |
 | app_ip_addresses_allocated | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses | The total number of IP addresses available for subscribers. | Gauge |

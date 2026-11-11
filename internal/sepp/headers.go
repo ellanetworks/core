@@ -79,17 +79,17 @@ func parseOriginatingNetworkID(v string) (OriginatingNetworkID, error) {
 
 	parts := strings.Split(id, "-")
 	if len(parts) < 2 || len(parts) > 3 {
-		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "%q is not <mcc>-<mnc>[-<nid>]", v)
+		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "is not <mcc>-<mnc>[-<nid>]")
 	}
 
 	out := OriginatingNetworkID{PlmnID: wire.PlmnID{Mcc: parts[0], Mnc: parts[1]}}
 	if !out.PlmnID.Valid() {
-		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "%q has an invalid PLMN", v)
+		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "has an invalid PLMN")
 	}
 
 	if len(parts) == 3 {
 		if len(parts[2]) != 11 || !isHex(parts[2]) {
-			return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "%q has an invalid NID", v)
+			return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "has an invalid NID")
 		}
 
 		out.Nid = parts[2]
@@ -102,7 +102,7 @@ func parseOriginatingNetworkID(v string) (OriginatingNetworkID, error) {
 	src = strings.TrimLeft(src, " \t")
 
 	if len(src) < 5 || !strings.EqualFold(src[:4], "src:") || (src[4] != ' ' && src[4] != '\t') {
-		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "%q has a malformed srcinfo", v)
+		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "has a malformed srcinfo")
 	}
 
 	rest := strings.TrimLeft(src[4:], " \t")
@@ -111,7 +111,7 @@ func parseOriginatingNetworkID(v string) (OriginatingNetworkID, error) {
 	typ = strings.ToUpper(typ)
 
 	if !ok || (typ != "SCP" && typ != "SEPP") || !srcFQDNPattern.MatchString(fqdn) {
-		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "%q has a malformed srcinfo", v)
+		return OriginatingNetworkID{}, headerError(HeaderOriginatingNetworkID, "has a malformed srcinfo")
 	}
 
 	out.SrcType, out.SrcFQDN = typ, fqdn

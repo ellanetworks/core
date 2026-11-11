@@ -551,6 +551,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	amfInstance.SMSReachable(ctx, ue)
+	amfInstance.ResumeHPLMNChanges(ctx, ue)
 
 	if buffered.present || ue.PagingPending().SignallingOnly() {
 		ue.PagingDelivered(ctx)

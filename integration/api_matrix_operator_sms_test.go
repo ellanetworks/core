@@ -14,16 +14,16 @@ import (
 )
 
 type smsState struct {
-	SMS   client.GetOperatorSMSResponse
+	SMS   client.SMSSettings
 	SMSCs []client.SMSC
 }
 
 func readSMSState(ctx context.Context, t *testing.T, c *client.Client) smsState {
 	t.Helper()
 
-	op, err := c.GetOperator(ctx)
+	settings, err := c.GetSMSSettings(ctx)
 	if err != nil {
-		t.Fatalf("get operator: %v", err)
+		t.Fatalf("get SMS settings: %v", err)
 	}
 
 	list, err := c.ListSMSCs(ctx)
@@ -41,11 +41,11 @@ func readSMSState(ctx context.Context, t *testing.T, c *client.Client) smsState 
 		smscs = append(smscs, s)
 	}
 
-	return smsState{SMS: op.SMS, SMSCs: smscs}
+	return smsState{SMS: *settings, SMSCs: smscs}
 }
 
 func cleanupSMS(ctx context.Context, t *testing.T, c *client.Client) {
-	if err := c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: "+15550001111"}); err != nil {
+	if err := c.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{ServingNodeNumber: "+15550001111"}); err != nil {
 		t.Logf("cleanup: restore the SMS number: %v", err)
 	}
 
@@ -65,10 +65,10 @@ func cleanupSMS(ctx context.Context, t *testing.T, c *client.Client) {
 func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	t.Cleanup(func() { cleanupSMS(ctx, t, c) })
 
-	first := []client.SMSC{{Name: "main", ServiceCentres: []string{"+15550000000"}, Nodes: []client.SMSCNode{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868}}}}
+	first := []client.SMSC{{Name: "main", ServiceCentres: []string{"+15550000000"}, Nodes: []client.SMSCNode{{OriginHost: "smsc-192-0-2-10.example.org", Address: "192.0.2.10", Port: 3868}}}}
 	updated := []client.SMSC{{Name: "main", ServiceCentres: []string{"+15550000001"}, Nodes: []client.SMSCNode{
-		{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869},
-		{DiameterIdentity: "smsc-2001-db8--11.example.org", Address: "2001:db8::11", Port: 3868},
+		{OriginHost: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869},
+		{OriginHost: "smsc-2001-db8--11.example.org", Address: "2001:db8::11", Port: 3868},
 	}}}
 
 	cases := []struct {
@@ -79,9 +79,9 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		{
 			name: "set_number",
 			apply: func() error {
-				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: "+15550009999"})
+				return c.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{ServingNodeNumber: "+15550009999"})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: []client.SMSC{}},
+			want: smsState{SMS: client.SMSSettings{ServingNodeNumber: "+15550009999"}, SMSCs: []client.SMSC{}},
 		},
 		{
 			name: "add_SMSC",
@@ -89,12 +89,12 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				_, err := c.CreateSMSC(ctx, &client.CreateSMSCOptions{
 					Name:           "main",
 					ServiceCentres: []string{"+15550000000"},
-					Nodes:          []client.SMSCNodeOptions{{DiameterIdentity: "smsc-192-0-2-10.example.org", Address: "192.0.2.10"}},
+					Nodes:          []client.SMSCNodeOptions{{OriginHost: "smsc-192-0-2-10.example.org", Address: "192.0.2.10"}},
 				})
 
 				return err
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: first},
+			want: smsState{SMS: client.SMSSettings{ServingNodeNumber: "+15550009999"}, SMSCs: first},
 		},
 		{
 			name: "update_SMSC",
@@ -102,17 +102,17 @@ func runOperatorSMSMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				return c.UpdateSMSC(ctx, "main", &client.UpdateSMSCOptions{
 					ServiceCentres: []string{"+15550000001"},
 					Nodes: []client.SMSCNodeOptions{
-						{DiameterIdentity: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869},
-						{DiameterIdentity: "smsc-2001-db8--11.example.org", Address: "2001:db8::11"},
+						{OriginHost: "smsc-2001-db8--10.example.org", Address: "2001:db8::10", Port: 3869},
+						{OriginHost: "smsc-2001-db8--11.example.org", Address: "2001:db8::11"},
 					},
 				})
 			},
-			want: smsState{SMS: client.GetOperatorSMSResponse{SMSNumber: "+15550009999"}, SMSCs: updated},
+			want: smsState{SMS: client.SMSSettings{ServingNodeNumber: "+15550009999"}, SMSCs: updated},
 		},
 		{
 			name: "clear_number",
 			apply: func() error {
-				return c.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{})
+				return c.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{})
 			},
 			want: smsState{SMSCs: updated},
 		},
@@ -144,7 +144,7 @@ func assertSMSCNodes(ctx context.Context, t *testing.T, c *client.Client, want s
 			t.Fatalf("get diameter status: %v", err)
 		}
 
-		if status.Host == "" || status.Realm == "" {
+		if status.LocalOriginHost() == "" || status.Realm == "" {
 			t.Fatalf("diameter identity missing: %+v", status)
 		}
 

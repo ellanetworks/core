@@ -47,6 +47,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"cluster_health":    runClusterHealthMatrix,
 	"auth":              runAuthMatrix,
 	"ims":               runIMSMatrix,
+	"ims_peers":         runIMSPeersMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {

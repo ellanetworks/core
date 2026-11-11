@@ -152,18 +152,28 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 
 // CountRegisteredSubscribers returns the number of EMM-registered UEs.
 func (m *MME) CountRegisteredSubscribers() int {
+	own, roamers := m.CountRegisteredSubscribersByRoaming()
+
+	return own + roamers
+}
+
+func (m *MME) CountRegisteredSubscribersByRoaming() (own, roamers int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	count := 0
-
 	for _, ue := range m.UEs {
-		if ue.EMMState() == EMMRegistered && ue.imsiOrEmpty() != "" {
-			count++
+		if ue.EMMState() != EMMRegistered || ue.imsiOrEmpty() == "" {
+			continue
+		}
+
+		if ue.IsVisitor() {
+			roamers++
+		} else {
+			own++
 		}
 	}
 
-	return count
+	return own, roamers
 }
 
 func cipheringAlgName(eea nas.CipheringAlgorithm) string {

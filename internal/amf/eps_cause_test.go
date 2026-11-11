@@ -125,6 +125,11 @@ func TestS1APHandoverFailureCause(t *testing.T) {
 			want: s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscOMIntervention},
 		},
 		{
+			name: "handover target not allowed",
+			in:   ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed},
+			want: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed},
+		},
+		{
 			name: "another radio cause",
 			in:   ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
 			want: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget},
@@ -168,6 +173,11 @@ func TestNGAPHandoverFailureCause(t *testing.T) {
 			name: "O&M intervention",
 			in:   s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscOMIntervention},
 			want: ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscOMIntervention},
+		},
+		{
+			name: "handover target not allowed",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed},
 		},
 		{
 			name: "another radio cause",

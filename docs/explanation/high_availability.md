@@ -66,6 +66,10 @@ Useful for site- or tenant-partitioned deployments. Network-wide state still rep
   <figcaption>Radios pinned to specific nodes</figcaption>
 </figure>
 
+## Roaming
+
+Ella Core replicates roaming partner information across the cluster. Each node connects to each roaming partner on its own and serves the roamers it registers, so the partner must accept every node.
+
 ## Draining a node
 
 Draining prepares a node for removal without disrupting traffic on its peers. A draining node signals connected radios so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors.

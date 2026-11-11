@@ -52,6 +52,15 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 	var outcome tgpp.Result
 
 	err = h.updateRegistration(ctx, sub.IMSI, func(current *Registration) (*Registration, error) {
+		if r.PrivateIdentity == "" && sub.adoptPrivateIdentity(storedPrivateIdentity(current)) && p != nil {
+			adopted, err := h.profileOf(ctx, sub, sub.requestedSet())
+			if err != nil {
+				return nil, err
+			}
+
+			p = adopted
+		}
+
 		next, result, err := assign(current, r, sub.requested, af.OriginHost, af.OriginRealm, p)
 		outcome = result
 
@@ -92,6 +101,14 @@ func (h *HSS) ServerAssignment(ctx context.Context, id diameter.Identity, req *d
 	}
 
 	return ans
+}
+
+func storedPrivateIdentity(r *Registration) string {
+	if r == nil {
+		return ""
+	}
+
+	return r.PrivateIdentity
 }
 
 func carriesProfile(t cx.AssignmentType) bool {

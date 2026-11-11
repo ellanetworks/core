@@ -5,17 +5,21 @@ package mme
 
 import (
 	"context"
+	"errors"
 
-	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/ueregistration"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
+	RegisterVisitor(ctx context.Context, imsi, partnerID string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context))
+	Reconcile(ctx context.Context, imsi string, visitor bool, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal))
 }
 
 func (m *MME) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -23,17 +27,42 @@ func (m *MME) RegisterUE(ctx context.Context, ue *UeContext) error {
 		return nil
 	}
 
-	version, err := m.Registrations.Register(ctx, ue.IMSI())
+	var (
+		version int64
+		err     error
+	)
+
+	if v, ok := ue.Visitor(); ok {
+		version, err = m.Registrations.RegisterVisitor(ctx, ue.IMSI(), v.PartnerID)
+	} else {
+		version, err = m.Registrations.Register(ctx, ue.IMSI())
+	}
+
+	if errors.Is(err, db.ErrRoamingRefused) {
+		return &Rejection{Cause: eps.EMMCausePLMNNotAllowed, Reason: "the roaming agreement is being withdrawn"}
+	}
+
+	if errors.Is(err, db.ErrRoamerDeregistering) {
+		return &Rejection{Cause: eps.EMMCauseCongestion, Reason: "the operator is deregistering the visitor"}
+	}
+
+	if errors.Is(err, db.ErrSubscriberLimit) {
+		return &Rejection{Cause: eps.EMMCauseCongestion, BackOff: T3346CapacityBackoff, Reason: "maximum number of subscribers reached"}
+	}
+
 	if err != nil {
 		return err
 	}
 
 	ue.registrationVersion.Store(version)
+	m.recordVisitorMSISDN(ctx, ue)
 
 	return nil
 }
 
 func (m *MME) ConfirmRegistration(ctx context.Context, ue *UeContext) error {
+	m.ConfirmHPLMNLocation(ctx, ue)
+
 	if m.Registrations == nil {
 		return nil
 	}
@@ -43,14 +72,6 @@ func (m *MME) ConfirmRegistration(ctx context.Context, ue *UeContext) error {
 	}
 
 	return m.RegisterUE(ctx, ue)
-}
-
-func (m *MME) purgeRegistration(supi etsi.SUPI) {
-	if m.Registrations == nil || !supi.IsIMSI() {
-		return
-	}
-
-	m.Registrations.Purge(supi.IMSI())
 }
 
 func (m *MME) HoldsUE(imsi string) bool {
@@ -68,10 +89,15 @@ func (m *MME) ReconcileRegistration(ctx context.Context, imsi string) {
 		return
 	}
 
-	m.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
+	m.Registrations.Reconcile(ctx, imsi, ue.IsVisitor(), ue.registrationVersion.Load, func(ctx context.Context) {
 		m.releaseSuperseded(ctx, ue)
-	}, func(ctx context.Context) {
-		m.withdrawSubscription(ctx, imsi)
+	}, func(ctx context.Context, why ueregistration.Withdrawal) {
+		if why == ueregistration.SubscriberDeleted {
+			m.withdrawSubscription(ctx, imsi)
+			return
+		}
+
+		m.withdrawRoamer(ctx, ue, why)
 	})
 }
 
@@ -119,6 +145,8 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 	if ue.IdleMobilityTo5GSPending() || m.inHandover(ue) {
 		return
 	}
+
+	ue.setHPLMNRegistered(false)
 
 	m.ReleaseAllSessions(ctx, ue, models.ReleaseFor(models.ReleaseDeregistration))
 	ue.TransitionTo(ctx, EMMDeregistered)

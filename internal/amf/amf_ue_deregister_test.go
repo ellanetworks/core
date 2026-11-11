@@ -16,6 +16,7 @@ import (
 )
 
 type deregisterTestSmf struct {
+	barredReleases        []string
 	releaseCalls          []string
 	releaseCauses         []models.SessionReleaseRequest
 	deactivateCalls       []string
@@ -45,7 +46,13 @@ func (s *deregisterTestSmf) SessionView(context.Context, string) (smf.SessionVie
 	return smf.SessionView{}, false
 }
 
-func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
+func (s *deregisterTestSmf) ReleaseBarredSession(_ context.Context, ref string) error {
+	s.barredReleases = append(s.barredReleases, ref)
+
+	return nil
+}
+
+func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8, *smf.HPLMNTarget) (string, []byte, error) {
 	return "", nil, nil
 }
 
@@ -102,11 +109,11 @@ func (s *deregisterTestSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Co
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []uint8, error) {
+func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, *smf.HPLMNTarget) (string, []uint8, error) {
 	return "", nil, nil
 }
 
-func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, []uint8, error) {
+func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai, *smf.HPLMNTarget) (string, []byte, []uint8, error) {
 	return "", nil, nil, nil
 }
 

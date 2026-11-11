@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/nas"
@@ -78,6 +79,7 @@ type PdnConnection struct {
 	Dns           netip.Addr // data-network DNS server, advertised to the UE via PCO
 	PDUSessionID  uint8
 	Snssai        *models.Snssai
+	HPLMNSnssai   *models.Snssai
 	SessAmbrDLBps uint64
 	SessAmbrULBps uint64
 	Qci           uint8
@@ -191,6 +193,12 @@ type UeContext struct {
 	idleMobilityTo5GSUntil time.Time
 
 	allow5G bool
+
+	visitor        *roaming.Visitor
+	visitorMSISDN  *string
+	hplmnRestoring atomic.Bool
+
+	arrivedByHandoverFrom5GS atomic.Bool
 
 	localBearerDeactivation bool
 
@@ -318,15 +326,20 @@ func (ue *UeContext) Connected() bool {
 }
 
 // MarkSecured records the IMEI (when reported) and flags the NAS security context established.
-func (ue *UeContext) MarkSecured(imei etsi.IMEI) {
+func (ue *UeContext) MarkSecured(imei etsi.IMEI) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
+	changed := false
+
 	if imei.IsSet() {
+		changed = ue.Imei.IsSet() && ue.Imei.String() != imei.String()
 		ue.Imei = imei
 	}
 
 	ue.secured = true
+
+	return changed
 }
 
 // UESnapshot is a read-only, point-in-time copy of a UE's identity and NAS
@@ -439,6 +452,7 @@ func fillBearerLocked(p *PdnConnection, apn string, bearer models.EPSBearer) {
 	p.SgwN3IPv6 = bearer.SGWN3IPv6
 	p.PDUSessionID = bearer.PDUSessionID
 	p.Snssai = bearer.Snssai
+	p.HPLMNSnssai = bearer.HPLMNSnssai
 }
 
 // InstallDefaultBearer publishes the UE-AMBR and the default PDN connection's
@@ -837,14 +851,20 @@ func (m *MME) removeContextLocked(ue *UeContext) bearerLosses {
 
 	m.stopIdleTimersLocked(ue)
 	ue.clearPaging()
-	m.releaseMTMSIsLocked(ue)
+	tmsis := m.unindexMTMSIsLocked(ue)
 	losses := m.freeUeConnLocked(ue)
 	m.endRelocationLocked(ue.supi, ue)
+
+	purging := false
 
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
 		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
-		m.purgeRegistration(supi)
+		purging = m.purgeRegistration(ue, supi, tmsis)
+	}
+
+	if !purging {
+		m.releaseMTMSIs(tmsis, false)
 	}
 
 	ue.trace.Release()

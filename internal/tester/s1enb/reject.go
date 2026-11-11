@@ -89,7 +89,7 @@ func validateAuthenticationReject(pdu []byte) error {
 }
 
 func (e *ENB) AttachExpectESMReject(ue *UE, timeout time.Duration) (*eps.AttachReject, *eps.PDNConnectivityReject, error) {
-	enbUEID, _, _, err := e.attachUntilSecured(ue, timeout)
+	enbUEID, _, err := e.attachUntilSecured(ue, timeout)
 	if err != nil {
 		return nil, nil, err
 	}

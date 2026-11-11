@@ -8,7 +8,7 @@ configs:
         audit:
           output: "stdout"
       db:
-        path: "core.db"
+        path: "/data/core.db"
       interfaces:
         n2:
           name: "eth0"
@@ -19,6 +19,8 @@ configs:
         api:
           name: "eth0"
           port: 5002
+        diameter:
+          name: "eth0"
       datapath:
         attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
 
@@ -31,6 +33,8 @@ services:
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true
+    tmpfs:
+      - /data
     ports:
       - "5002:5002"
     networks:

@@ -20,7 +20,8 @@ func TestListNetworkInterfaces_Success(t *testing.T) {
 				"n2": {"addresses": ["10.0.0.2"], "port": 38412, "interface": "eth0"},
 				"n3": {"name": "eth1", "addresses": ["10.0.0.3"], "external_address": "1.2.3.4"},
 				"n6": {"name": "eth2", "addresses": ["10.0.0.6"]},
-				"api": {"addresses": ["10.0.0.1"], "port": 5002}
+				"api": {"addresses": ["10.0.0.1"], "port": 5002},
+				"n32": {"addresses": ["10.0.0.32"], "port": 443, "interface": "ens5"}
 			}`),
 		},
 		err: nil,
@@ -42,6 +43,14 @@ func TestListNetworkInterfaces_Success(t *testing.T) {
 
 	if ifs.API.Port != 5002 {
 		t.Errorf("expected API port 5002, got: %d", ifs.API.Port)
+	}
+
+	if ifs.Diameter != nil {
+		t.Errorf("expected no Diameter interface, got: %+v", ifs.Diameter)
+	}
+
+	if ifs.N32 == nil || len(ifs.N32.Addresses) != 1 || ifs.N32.Addresses[0] != "10.0.0.32" || ifs.N32.Port != 443 || ifs.N32.Interface != "ens5" {
+		t.Errorf("unexpected N32 interface: %+v", ifs.N32)
 	}
 }
 

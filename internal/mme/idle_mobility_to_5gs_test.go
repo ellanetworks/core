@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -253,7 +254,7 @@ func TestMMContextAckKeepsNothingForAnUnknownSubscriber(t *testing.T) {
 func TestMMContextRefusesASubscriberBarredFrom5G(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleMobilityUE(t, m)
-	ue.SetAccess(Access{Allow4G: true, Allow5G: false})
+	ue.SetAccess(Access{Allow4G: true, FiveGSInterworking: false})
 
 	_, err := m.MMContext(t.Context(), interworking.MMContextRequest{
 		MappedEPSGUTI: guti,
@@ -274,10 +275,47 @@ func TestHandoverToFiveGSRefusesASubscriberBarredFrom5G(t *testing.T) {
 	m.FiveGS = &fakeFiveGSPeer{}
 
 	ue, _ := idleMobilityUE(t, m)
-	ue.SetAccess(Access{Allow4G: true, Allow5G: false})
+	ue.SetAccess(Access{Allow4G: true, FiveGSInterworking: false})
 
 	_, err := m.PrepareHandoverToFiveGS(ue, ue.Conn(), interworking.NGRANIdentity{}, nil, nil)
 	if !errors.Is(err, ErrFiveGSMobilityBarred) {
 		t.Fatalf("error = %v, want the handover to 5GS to be refused before it is prepared", err)
+	}
+}
+
+func TestMMContextRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
+	partner := "partner"
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name    string
+		store   lookupBearerStore
+		wantErr error
+	}{
+		{
+			name:    "roaming visitor",
+			store:   lookupBearerStore{sub: &db.Subscriber{Imsi: "001010000000001", ProfileID: "test-profile", RoamingPartnerID: &partner}},
+			wantErr: interworking.ErrN26NotAllowed,
+		},
+		{name: "subscriber row gone", store: lookupBearerStore{err: db.ErrNotFound}, wantErr: interworking.ErrN26NotAllowed},
+		{name: "lookup failure", store: lookupBearerStore{err: failure}, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, guti := idleMobilityUE(t, m)
+			m.Bearer = tc.store
+
+			_, err := m.MMContext(t.Context(), interworking.MMContextRequest{
+				MappedEPSGUTI: guti,
+				EPSNAS:        enclosedTAU(t, ue, nas.MakeCount(0, 0)),
+			})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			if ue.PDNCount() != 1 || ue.EMMState() != EMMRegistered {
+				t.Error("the refusal disturbed the UE's EPS context")
+			}
+		})
 	}
 }

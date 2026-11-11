@@ -56,6 +56,12 @@ type DiameterInterface struct {
 	Interface string   `json:"interface,omitempty"`
 }
 
+type N32Interface struct {
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface,omitempty"`
+}
+
 type NetworkInterfaces struct {
 	N2               N2Interface                `json:"n2"`
 	N3               N3Interface                `json:"n3"`
@@ -63,6 +69,7 @@ type NetworkInterfaces struct {
 	NetworkInstances []NetworkInstanceInterface `json:"network_instances"`
 	API              APIInterface               `json:"api"`
 	Diameter         *DiameterInterface         `json:"diameter,omitempty"`
+	N32              *N32Interface              `json:"n32,omitempty"`
 }
 
 type UpdateN3SettingsParams struct {
@@ -172,6 +179,26 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 				Addresses: diameterAddresses,
 				Port:      cfg.Interfaces.Diameter.Port,
 				Interface: cfg.Interfaces.Diameter.Name,
+			}
+		}
+
+		if cfg.Interfaces.N32.Enabled {
+			n32Addresses := []string{cfg.Interfaces.N32.Address}
+
+			if cfg.Interfaces.N32.Name != "" {
+				ips, err := config.GetInterfaceIPs(cfg.Interfaces.N32.Name)
+				if err != nil {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N32 interface IPs", err, logger.APILog)
+					return
+				}
+
+				n32Addresses = ips
+			}
+
+			resp.N32 = &N32Interface{
+				Addresses: n32Addresses,
+				Port:      cfg.Interfaces.N32.Port,
+				Interface: cfg.Interfaces.N32.Name,
 			}
 		}
 

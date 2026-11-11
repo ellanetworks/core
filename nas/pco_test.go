@@ -313,3 +313,53 @@ func TestNewPCSCFContainers(t *testing.T) {
 		t.Fatalf("containers without a request = %+v, want none", got)
 	}
 }
+
+func TestAppendFittingUnextended(t *testing.T) {
+	var addrs []netip.Addr
+
+	for i := range 5 {
+		addrs = append(addrs, netip.AddrFrom4([4]byte{10, 0, 0, byte(i + 1)}), netip.AddrFrom16([16]byte{0x20, 0x01, 0x0d, 0xb8, 15: byte(i + 1)}))
+	}
+
+	containers := NewPCSCFContainers(addrs, PCSCFRequest{IPv4: true, IPv6: true})
+
+	base := NewProtocolConfigurationOptions(nil, 1500)
+
+	got, dropped := base.AppendFittingUnextended(containers)
+	if dropped != 0 || len(got.Containers) != len(base.Containers)+len(containers) {
+		t.Fatalf("ten P-CSCF addresses: dropped %d, kept %d containers", dropped, len(got.Containers))
+	}
+
+	padded := base
+	padded.Containers = append(padded.Containers, PCOContainer{ID: 0x0005, Content: make([]byte, 150)})
+
+	got, dropped = padded.AppendFittingUnextended(containers)
+	if dropped == 0 || !got.FitsUnextended() {
+		t.Fatalf("padded options: dropped %d, fits %v", dropped, got.FitsUnextended())
+	}
+
+	kept := got.PCSCFAddresses()
+	if len(kept) != len(addrs)-dropped {
+		t.Fatalf("kept %v after dropping %d of %v", kept, dropped, addrs)
+	}
+
+	for i := range kept {
+		if kept[i] != addrs[i] {
+			t.Fatalf("kept %v, want the first %d of %v", kept, len(kept), addrs)
+		}
+	}
+
+	more := got
+	more.Containers = append(more.Containers, containers[len(kept)])
+
+	if more.FitsUnextended() {
+		t.Fatalf("one more P-CSCF address still fits; %d were dropped needlessly", dropped)
+	}
+
+	full := base
+	full.Containers = append(full.Containers, PCOContainer{ID: 0x0005, Content: make([]byte, 240)})
+
+	if got, dropped := full.AppendFittingUnextended(containers); dropped != len(containers) || len(got.Containers) != len(full.Containers) {
+		t.Fatalf("no room: dropped %d, kept %d containers", dropped, len(got.Containers))
+	}
+}

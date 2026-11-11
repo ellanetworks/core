@@ -14,13 +14,18 @@ import {
   createSMSC,
   updateSMSC,
   type SMSC,
-} from "@/queries/operator";
+} from "@/queries/integrations";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
 import { isHostAddress, isHostName } from "@/utils/ip";
 import { msisdnRegex } from "@/components/subscriberIdentity";
+import {
+  ORIGIN_HOST_HELP,
+  ORIGIN_HOST_LABEL,
+  fqdnRegex,
+} from "@/components/originHost";
 
 interface SMSCModalProps {
   open: boolean;
@@ -28,9 +33,6 @@ interface SMSCModalProps {
   onSuccess: () => void;
   smsc?: SMSC;
 }
-
-const diameterIdentityRegex =
-  /^(?=.{1,255}$)[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?(?:\.[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?)+$/;
 
 export const parseServiceCentres = (value: string): string[] =>
   value
@@ -55,20 +57,20 @@ const nodeSchema = yup.object({
     .min(1, "Must be 1 to 65535")
     .max(65535, "Must be 1 to 65535")
     .required("Port is required"),
-  diameterIdentity: yup
+  originHost: yup
     .string()
     .default("")
     .test(
-      "diameter-identity",
+      "origin-host",
       "Must be a fully qualified domain name",
-      (v) => !v?.trim() || diameterIdentityRegex.test(v.trim()),
+      (v) => !v?.trim() || fqdnRegex.test(v.trim()),
     ),
 });
 
 type NodeRow = {
   address?: string;
   port?: number | null;
-  diameterIdentity?: string;
+  originHost?: string;
 };
 
 const duplicateNodeMessage = (rows: NodeRow[]): string | undefined => {
@@ -76,13 +78,13 @@ const duplicateNodeMessage = (rows: NodeRow[]): string | undefined => {
     .filter((r) => (r.address ?? "").trim())
     .map((r) => `${(r.address ?? "").trim()}|${r.port}`);
   if (new Set(endpoints).size !== endpoints.length) {
-    return "Two nodes have the same address and port";
+    return "Two Diameter peers have the same address and port";
   }
   const ids = rows
-    .map((r) => (r.diameterIdentity ?? "").trim().toLowerCase())
+    .map((r) => (r.originHost ?? "").trim().toLowerCase())
     .filter(Boolean);
   if (new Set(ids).size !== ids.length) {
-    return "Two nodes have the same Diameter identity";
+    return "Two Diameter peers have the same Origin-Host";
   }
   return undefined;
 };
@@ -98,20 +100,20 @@ const schema = yup.object({
     .default("")
     .test(
       "required",
-      "At least one number is required",
+      "At least one service centre address is required",
       (v) => parseServiceCentres(v ?? "").length > 0,
     )
     .test(
       "max",
-      `At most ${MAX_SMSC_SERVICE_CENTRES} numbers`,
+      `At most ${MAX_SMSC_SERVICE_CENTRES} service centre addresses`,
       (v) => parseServiceCentres(v ?? "").length <= MAX_SMSC_SERVICE_CENTRES,
     )
     .test(
       "format",
-      "Numbers must be E.164 numbers, for example +15550000000",
+      "Service centre addresses must be E.164 numbers, for example +15550000000",
       (v) => parseServiceCentres(v ?? "").every((n) => msisdnRegex.test(n)),
     )
-    .test("unique", "A number is listed twice", (v) => {
+    .test("unique", "An address is listed twice", (v) => {
       const numbers = parseServiceCentres(v ?? "");
       return new Set(numbers).size === numbers.length;
     }),
@@ -119,8 +121,8 @@ const schema = yup.object({
     .array()
     .of(nodeSchema)
     .default([])
-    .min(1, "At least one node is required")
-    .max(MAX_SMSC_NODES, `At most ${MAX_SMSC_NODES} nodes`)
+    .min(1, "At least one Diameter peer is required")
+    .max(MAX_SMSC_NODES, `At most ${MAX_SMSC_NODES} Diameter peers`)
     .test("unique", (rows, ctx) => {
       const message = duplicateNodeMessage(rows ?? []);
       return message ? ctx.createError({ message }) : true;
@@ -132,7 +134,7 @@ type FormValues = yup.InferType<typeof schema>;
 const emptyNode = () => ({
   address: "",
   port: DEFAULT_SMSC_PORT,
-  diameterIdentity: "",
+  originHost: "",
 });
 
 const SMSCModal: React.FC<SMSCModalProps> = ({
@@ -153,7 +155,7 @@ const SMSCModal: React.FC<SMSCModalProps> = ({
         ? smsc.nodes.map((n) => ({
             address: n.address,
             port: n.port,
-            diameterIdentity: n.diameterIdentity,
+            originHost: n.originHost,
           }))
         : [emptyNode()],
     },
@@ -170,7 +172,7 @@ const SMSCModal: React.FC<SMSCModalProps> = ({
     const input = {
       serviceCentres: parseServiceCentres(values.serviceCentres),
       nodes: values.nodes.map((n) => ({
-        diameterIdentity: n.diameterIdentity.trim(),
+        originHost: n.originHost.trim(),
         address: n.address.trim(),
         port: n.port,
       })),
@@ -204,67 +206,70 @@ const SMSCModal: React.FC<SMSCModalProps> = ({
       />
       <TextControl<FormValues>
         name="serviceCentres"
-        label="Numbers"
+        label="Service Centre Addresses"
         placeholder="+15550000000"
         helperText="E.164 numbers phones use to reach this SMSC, set as the SMSC number on their SIM. Separate with commas."
         autoFocus={editing}
       />
       <Typography variant="subtitle2" sx={{ mt: 2 }}>
-        Nodes
+        Diameter Peers
       </Typography>
       {fields.map((field, index) => (
-        <Box
-          key={field.id}
-          sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
-        >
-          <Box sx={{ flex: 2, minWidth: 0 }}>
-            <TextControl<FormValues>
-              name={`nodes.${index}.address`}
-              label="Address"
-              placeholder="192.0.2.10"
-              slotProps={{
-                htmlInput: { "aria-label": `Node ${index + 1} address` },
-              }}
-            />
+        <Box key={field.id} sx={{ mb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <TextControl<FormValues>
+                name={`nodes.${index}.address`}
+                label="Address"
+                placeholder="192.0.2.10"
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": `Diameter peer ${index + 1} address`,
+                  },
+                }}
+              />
+            </Box>
+            <Box sx={{ width: 110, flexShrink: 0 }}>
+              <NumberControl<FormValues>
+                name={`nodes.${index}.port`}
+                label="Port"
+                min={1}
+                max={65535}
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": `Diameter peer ${index + 1} port`,
+                  },
+                }}
+              />
+            </Box>
+            <Tooltip title="Remove Diameter peer" arrow>
+              <span>
+                <IconButton
+                  aria-label={`Remove Diameter peer ${index + 1}`}
+                  onClick={() => remove(index)}
+                  disabled={fields.length === 1}
+                  sx={{ mt: 3 }}
+                >
+                  <DeleteIcon
+                    fontSize="small"
+                    color={fields.length === 1 ? "disabled" : "primary"}
+                  />
+                </IconButton>
+              </span>
+            </Tooltip>
           </Box>
-          <Box sx={{ width: 110, flexShrink: 0 }}>
-            <NumberControl<FormValues>
-              name={`nodes.${index}.port`}
-              label="Port"
-              min={1}
-              max={65535}
-              slotProps={{
-                htmlInput: { "aria-label": `Node ${index + 1} port` },
-              }}
-            />
-          </Box>
-          <Box sx={{ flex: 3, minWidth: 0 }}>
-            <TextControl<FormValues>
-              name={`nodes.${index}.diameterIdentity`}
-              label="Diameter Identity"
-              placeholder="smsc1.example.org"
-              slotProps={{
-                htmlInput: {
-                  "aria-label": `Node ${index + 1} Diameter identity`,
-                },
-              }}
-            />
-          </Box>
-          <Tooltip title="Remove node" arrow>
-            <span>
-              <IconButton
-                aria-label={`Remove node ${index + 1}`}
-                onClick={() => remove(index)}
-                disabled={fields.length === 1}
-                sx={{ mt: 3 }}
-              >
-                <DeleteIcon
-                  fontSize="small"
-                  color={fields.length === 1 ? "disabled" : "primary"}
-                />
-              </IconButton>
-            </span>
-          </Tooltip>
+          <TextControl<FormValues>
+            name={`nodes.${index}.originHost`}
+            label={ORIGIN_HOST_LABEL}
+            placeholder="smsc1.example.org"
+            helperText={ORIGIN_HOST_HELP}
+            margin="dense"
+            slotProps={{
+              htmlInput: {
+                "aria-label": `Diameter peer ${index + 1} Origin-Host`,
+              },
+            }}
+          />
         </Box>
       ))}
       {nodesError && (
@@ -279,7 +284,7 @@ const SMSCModal: React.FC<SMSCModalProps> = ({
         disabled={fields.length >= MAX_SMSC_NODES}
         sx={{ mt: 1 }}
       >
-        Add Node
+        Add Diameter Peer
       </Button>
     </FormDialog>
   );

@@ -63,10 +63,10 @@ import TextControl from "@/components/form/TextControl";
 
 const conditionTypeLabels: Record<ConditionType, string> = {
   method: "SIP method",
-  request_uri: "Request-URI",
-  sip_header: "SIP header",
-  session_case: "Session case",
-  session_description: "SDP line",
+  requestURI: "Request-URI",
+  sipHeader: "SIP header",
+  sessionCase: "Session case",
+  sessionDescription: "SDP line",
 };
 
 const operatorLabels = (
@@ -74,9 +74,9 @@ const operatorLabels = (
 ): Partial<Record<ConditionOperator, string>> => {
   switch (type) {
     case "method":
-    case "session_case":
+    case "sessionCase":
       return { is: "is", is_not: "is not" };
-    case "request_uri":
+    case "requestURI":
       return { is: "matches", is_not: "does not match" };
     default:
       return {
@@ -139,38 +139,36 @@ const conditionSchema = yup.object({
         !/\s/.test(v?.trim() ?? "")
       );
     }),
-  registration_types: yup
+  registrationTypes: yup
     .array()
     .of(yup.mixed<IMSRegistrationType>().oneOf(allRegistrationTypes).required())
     .default([])
     .test("one", "Select at least one", function (v) {
       return !isRegisterMethod(this.parent as ConditionValues) || !!v?.length;
     }),
-  request_uri: regex("a pattern", (c) => c.type === "request_uri"),
-  header: regex("a header name", (c) => c.type === "sip_header"),
+  requestURI: regex("a pattern", (c) => c.type === "requestURI"),
+  header: regex("a header name", (c) => c.type === "sipHeader"),
   header_content: regex(
     "a value",
-    (c) => c.type === "sip_header" && hasContent(c),
+    (c) => c.type === "sipHeader" && hasContent(c),
   ),
-  session_case: yup.mixed<IMSSessionCase>().oneOf(sessionCases).required(),
-  line: regex("an SDP line type", (c) => c.type === "session_description"),
+  sessionCase: yup.mixed<IMSSessionCase>().oneOf(sessionCases).required(),
+  line: regex("an SDP line type", (c) => c.type === "sessionDescription"),
   line_content: regex(
     "a value",
-    (c) => c.type === "session_description" && hasContent(c),
+    (c) => c.type === "sessionDescription" && hasContent(c),
   ),
 });
 
 const schema = yup.object({
-  application_server_name: yup
-    .string()
-    .required("Select an application server"),
-  default_handling: yup
-    .mixed<CriterionValues["default_handling"]>()
+  applicationServerName: yup.string().required("Select an application server"),
+  defaultHandling: yup
+    .mixed<CriterionValues["defaultHandling"]>()
     .oneOf(["SESSION_CONTINUED", "SESSION_TERMINATED"])
     .required(),
   always: yup.boolean().required(),
-  conditions_match: yup
-    .mixed<CriterionValues["conditions_match"]>()
+  conditionsMatch: yup
+    .mixed<CriterionValues["conditionsMatch"]>()
     .oneOf(["all", "any"])
     .required(),
   groups: yup
@@ -182,13 +180,13 @@ const schema = yup.object({
     )
     .required()
     .when("always", ([always], s) => (always ? yup.array().required() : s)),
-  profile_part: yup
-    .mixed<CriterionValues["profile_part"]>()
+  profilePart: yup
+    .mixed<CriterionValues["profilePart"]>()
     .oneOf(["BOTH", "REGISTERED", "UNREGISTERED"])
     .defined(),
-  service_info: yup.string().defined(),
-  include_register_request: yup.boolean().required(),
-  include_register_response: yup.boolean().required(),
+  serviceInfo: yup.string().defined(),
+  includeRegisterRequest: yup.boolean().required(),
+  includeRegisterResponse: yup.boolean().required(),
 });
 
 const ConditionRow: React.FC<{
@@ -294,9 +292,9 @@ const ConditionRow: React.FC<{
               )}
             />
           )}
-          {condition.type === "request_uri" && (
+          {condition.type === "requestURI" && (
             <TextControl<CriterionValues>
-              name={`${path}.request_uri`}
+              name={`${path}.requestURI`}
               label="Pattern (regex)"
               size="small"
               margin="none"
@@ -304,7 +302,7 @@ const ConditionRow: React.FC<{
               helperText="Matched against the host of a SIP URI or the number of a tel URI"
             />
           )}
-          {condition.type === "sip_header" && (
+          {condition.type === "sipHeader" && (
             <>
               <TextControl<CriterionValues>
                 name={`${path}.header`}
@@ -323,10 +321,10 @@ const ConditionRow: React.FC<{
               )}
             </>
           )}
-          {condition.type === "session_case" && (
+          {condition.type === "sessionCase" && (
             <Controller
               control={control}
-              name={`${path}.session_case`}
+              name={`${path}.sessionCase`}
               render={({ field }) => (
                 <TextField
                   select
@@ -345,7 +343,7 @@ const ConditionRow: React.FC<{
               )}
             />
           )}
-          {condition.type === "session_description" && (
+          {condition.type === "sessionDescription" && (
             <>
               <TextControl<CriterionValues>
                 name={`${path}.line`}
@@ -381,7 +379,7 @@ const ConditionRow: React.FC<{
       {isRegisterMethod(condition) && (
         <Controller
           control={control}
-          name={`${path}.registration_types`}
+          name={`${path}.registrationTypes`}
           render={({ field, fieldState }) => (
             <FormControl error={!!fieldState.error} sx={{ mt: 0.5, ml: 1 }}>
               <FormGroup row>
@@ -414,7 +412,7 @@ const ConditionRow: React.FC<{
           )}
         />
       )}
-      {condition.type === "session_case" && condition.operator === "is_not" && (
+      {condition.type === "sessionCase" && condition.operator === "is_not" && (
         <Alert severity="warning" sx={{ mt: 1 }}>
           This also matches session cases that later 3GPP releases add.
         </Alert>
@@ -512,7 +510,7 @@ const TriggerEditor: React.FC = () => {
     name: "groups",
   });
   const always = useWatch({ control, name: "always" });
-  const match = useWatch({ control, name: "conditions_match" });
+  const match = useWatch({ control, name: "conditionsMatch" });
   const inner = match === "all" ? "AND" : "OR";
   const outer = match === "all" ? "OR" : "AND";
   const multiple = fields.length > 1;
@@ -520,7 +518,7 @@ const TriggerEditor: React.FC = () => {
   const matchSelect = (
     <Controller
       control={control}
-      name="conditions_match"
+      name="conditionsMatch"
       render={({ field }) => (
         <TextField
           select
@@ -643,10 +641,10 @@ const IMSFilterCriterionFormDialog: React.FC<
     values: initial,
   });
   const advanced =
-    initial.profile_part !== "BOTH" ||
-    !!initial.service_info ||
-    initial.include_register_request ||
-    initial.include_register_response;
+    initial.profilePart !== "BOTH" ||
+    !!initial.serviceInfo ||
+    initial.includeRegisterRequest ||
+    initial.includeRegisterResponse;
 
   const submit = async (values: CriterionValues) => {
     onSave(criterionFromValues(values));
@@ -664,16 +662,16 @@ const IMSFilterCriterionFormDialog: React.FC<
       maxWidth="md"
     >
       <SelectControl<CriterionValues, string>
-        name="application_server_name"
+        name="applicationServerName"
         label="Application Server"
         options={servers.map((s) => ({
           value: s.name,
-          label: `${s.name} (${s.server_name})`,
+          label: `${s.name} (${s.serverName})`,
         }))}
       />
       <Controller
         control={form.control}
-        name="default_handling"
+        name="defaultHandling"
         render={({ field }) => (
           <FormControl sx={{ mt: 1 }}>
             <FormLabel id="ifc-handling-label">
@@ -712,7 +710,7 @@ const IMSFilterCriterionFormDialog: React.FC<
         </AccordionSummary>
         <AccordionDetails sx={{ pt: 0 }}>
           <SelectControl<CriterionValues, string>
-            name="profile_part"
+            name="profilePart"
             label="Applies To"
             options={profilePartOptions}
           />
@@ -720,11 +718,11 @@ const IMSFilterCriterionFormDialog: React.FC<
             {(
               [
                 [
-                  "include_register_request",
+                  "includeRegisterRequest",
                   "Include the REGISTER request in the third-party REGISTER",
                 ],
                 [
-                  "include_register_response",
+                  "includeRegisterResponse",
                   "Include the REGISTER response in the third-party REGISTER",
                 ],
               ] as const
@@ -748,7 +746,7 @@ const IMSFilterCriterionFormDialog: React.FC<
             ))}
           </FormGroup>
           <TextControl<CriterionValues>
-            name="service_info"
+            name="serviceInfo"
             label="Service Info"
             helperText="Sent unchanged to the application server."
           />

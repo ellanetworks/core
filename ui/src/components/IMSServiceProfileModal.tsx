@@ -40,7 +40,11 @@ import {
 } from "@/queries/ims";
 import { applyPreset, imsServicePresets } from "@/utils/imsServicePresets";
 import { sameCriterion } from "@/utils/imsFilterCriteria";
-import { getOperator, type OperatorData } from "@/queries/operator";
+import {
+  getIMSSettings,
+  primaryHomeDomain,
+  type IMSSettings,
+} from "@/queries/integrations";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
@@ -88,10 +92,10 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
     queryFn: () => listIMSApplicationServers(accessToken!),
   });
   const servers = serversQuery.data ?? [];
-  const operatorQuery = useQuery<OperatorData>({
-    queryKey: ["operator"],
+  const imsSettingsQuery = useQuery<IMSSettings>({
+    queryKey: ["integrations-ims"],
     enabled: authReady && !!accessToken,
-    queryFn: () => getOperator(accessToken!),
+    queryFn: () => getIMSSettings(accessToken!),
   });
   const noServers = serversQuery.isSuccess && servers.length === 0;
 
@@ -100,7 +104,7 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
     resolver: nameRequired,
     defaultValues: {
       name: serviceProfile?.name ?? "",
-      criteria: [...(serviceProfile?.initial_filter_criteria ?? [])]
+      criteria: [...(serviceProfile?.initialFilterCriteria ?? [])]
         .sort((a, b) => a.priority - b.priority)
         .map(({ priority, ...criterion }) => ({
           tempId: `criterion-${priority}`,
@@ -177,7 +181,7 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
     if (serverName) return;
     const suggested = imsServicePresets
       .find((p) => p.name === name)
-      ?.suggestServer(servers, operatorQuery.data?.ims.homeDomain);
+      ?.suggestServer(servers, primaryHomeDomain(imsSettingsQuery.data));
     if (suggested) setServerName(suggested.name);
   };
 
@@ -299,7 +303,7 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
                     wordBreak: "break-word",
                   }}
                 >
-                  {criterion.application_server_name}
+                  {criterion.applicationServerName}
                 </Typography>
                 <Typography
                   variant="body2"
@@ -317,12 +321,12 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
                   {describeTrigger(criterion.trigger)}
                 </Typography>
                 <Box sx={{ width: { xs: "auto", sm: 96 }, flexShrink: 0 }}>
-                  {criterion.default_handling && (
+                  {criterion.defaultHandling && (
                     <Chip
                       size="small"
                       variant="outlined"
                       label={
-                        criterion.default_handling === "SESSION_TERMINATED"
+                        criterion.defaultHandling === "SESSION_TERMINATED"
                           ? "Terminate"
                           : "Continue"
                       }
@@ -362,8 +366,8 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
         {noServers ? (
           <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
             No application servers yet. Add one on the{" "}
-            <Link component={RouterLink} to="/operator">
-              Operator page
+            <Link component={RouterLink} to="/integrations/ims">
+              Integrations › IMS tab
             </Link>{" "}
             first.
           </Typography>
@@ -424,7 +428,7 @@ const IMSServiceProfileModal: React.FC<IMSServiceProfileModalProps> = ({
               >
                 {servers.map((s) => (
                   <MenuItem key={s.name} value={s.name}>
-                    {`${s.name} (${s.server_name})`}
+                    {`${s.name} (${s.serverName})`}
                   </MenuItem>
                 ))}
               </TextField>

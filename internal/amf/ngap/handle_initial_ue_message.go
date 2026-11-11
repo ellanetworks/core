@@ -48,7 +48,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	resumeExistingContext(ctx, amfInstance, ueConn, msg)
 
-	amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)
+	ueConn.Serialize(func() { amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU) })
 
 	// A NAS message that never established a UE context (undecodable, no usable mobile
 	// identity, or not a registration request) leaves a bare RAN connection; release it so

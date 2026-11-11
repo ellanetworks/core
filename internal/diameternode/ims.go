@@ -7,6 +7,7 @@ import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/diameter/rx"
+	"github.com/ellanetworks/core/diameter/s6a"
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/sh"
@@ -14,8 +15,10 @@ import (
 )
 
 const (
-	PeerRoleIMS  = "ims"
-	PeerRoleSMSC = "smsc"
+	PeerRoleIMS     = "ims"
+	PeerRoleSMSC    = "smsc"
+	PeerRoleRoaming = "roaming"
+	PeerRoleUnknown = "unknown"
 )
 
 const etsiVendorID uint32 = 13019
@@ -26,6 +29,10 @@ var imsApplications = []diameter.Application{
 	{ID: sh.ApplicationID, VendorID: tgpp.VendorID},
 	{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
 	{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
+}
+
+var RoamingApplications = []diameter.Application{
+	{ID: s6a.ApplicationID, VendorID: tgpp.VendorID},
 }
 
 var imsSupportedVendors = []uint32{tgpp.VendorID, etsiVendorID}

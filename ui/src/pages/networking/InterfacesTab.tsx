@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Box,
@@ -10,15 +10,31 @@ import {
   Stack,
   IconButton,
   Tooltip,
+  Link as MuiLink,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
 import { getInterfaces, type InterfacesInfo } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 import QueryState from "@/components/QueryState";
 import { useSliceDataNetworks } from "@/hooks/useSliceDataNetworks";
 import { useNetworkingContext } from "./types";
 import { PRODUCT } from "@/utils/product";
+import NotListening from "@/components/NotListening";
+
+const IntegrationsLink: React.FC<{ tab: string; label: string }> = ({
+  tab,
+  label,
+}) => (
+  <MuiLink
+    component={RouterLink}
+    to={`/integrations/${tab}`}
+    sx={{ color: (theme) => theme.palette.link }}
+  >
+    {label}
+  </MuiLink>
+);
 
 export default function InterfacesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -37,7 +53,7 @@ export default function InterfacesTab() {
 
   const [isEditN3Open, setEditN3Open] = useState(false);
 
-  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), the API endpoint, and the Diameter listener. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
+  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), the API endpoint, and the Diameter and N32 (SEPP) listeners. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
@@ -80,24 +96,18 @@ export default function InterfacesTab() {
                 <Typography variant="subtitle1">N2 (NGAP / S1AP)</Typography>
                 <Chip label="Control Plane" size="small" />
               </Stack>
-              <Typography variant="body2" color="textSecondary">
-                {interfacesInfo.n2?.addresses &&
-                interfacesInfo.n2.addresses.length > 0 ? (
-                  interfacesInfo.n2.addresses.map((addr) => (
-                    <Typography
-                      key={addr}
-                      variant="body2"
-                      color="textSecondary"
-                    >
-                      Address: <strong>{addr}</strong>
-                    </Typography>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    Address: <strong>—</strong>
+              {interfacesInfo.n2?.addresses &&
+              interfacesInfo.n2.addresses.length > 0 ? (
+                interfacesInfo.n2.addresses.map((addr) => (
+                  <Typography key={addr} variant="body2" color="textSecondary">
+                    Address: <strong>{addr}</strong>
                   </Typography>
-                )}
-              </Typography>
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Address: <strong>—</strong>
+                </Typography>
+              )}
               <Typography variant="body2" color="textSecondary">
                 Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
               </Typography>
@@ -325,11 +335,76 @@ export default function InterfacesTab() {
                   </Typography>
                 </>
               ) : (
-                <Typography variant="body2" color="textSecondary">
-                  Not listening. Set <code>interfaces.diameter</code> in the
-                  configuration file to accept Diameter connections.
-                </Typography>
+                <NotListening setting="interfaces.diameter" />
               )}
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                See <IntegrationsLink tab="ims" label="IMS" />,{" "}
+                <IntegrationsLink tab="sms" label="SMS" /> and{" "}
+                <IntegrationsLink tab="roaming" label="Roaming" /> under
+                Integrations for Ella Core&apos;s Diameter identity and the
+                peers it connects to.
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 2,
+                p: 2,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
+              >
+                <Typography variant="subtitle1">N32 (SEPP)</Typography>
+                <Chip label="Roaming" size="small" />
+              </Stack>
+              {interfacesInfo.n32 ? (
+                <>
+                  {interfacesInfo.n32.interface && (
+                    <Typography variant="body2" color="textSecondary">
+                      Interface name:{" "}
+                      <strong>{interfacesInfo.n32.interface}</strong>
+                    </Typography>
+                  )}
+                  {interfacesInfo.n32.addresses &&
+                  interfacesInfo.n32.addresses.length > 0 ? (
+                    interfacesInfo.n32.addresses.map((addr) => (
+                      <Typography
+                        key={addr}
+                        variant="body2"
+                        color="textSecondary"
+                      >
+                        Address: <strong>{addr}</strong>
+                      </Typography>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="textSecondary">
+                      Address: <strong>—</strong>
+                    </Typography>
+                  )}
+                  <Typography variant="body2" color="textSecondary">
+                    Port: <strong>{interfacesInfo.n32.port ?? "—"}</strong>
+                  </Typography>
+                </>
+              ) : (
+                <NotListening setting="interfaces.n32" />
+              )}
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                See{" "}
+                <IntegrationsLink
+                  tab="roaming"
+                  label="Integrations › Roaming"
+                />{" "}
+                for the SEPP certificate and roaming partners.
+              </Typography>
             </Box>
           </Box>
         )}

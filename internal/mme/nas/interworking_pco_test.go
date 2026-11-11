@@ -86,7 +86,7 @@ func buildActivate(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer) *ep
 func buildActivateWithEPCO(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, nil, nas.PCSCFRequest{})
+	wire, err := buildActivateDefaultESM(context.Background(), p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, nil, nas.PCSCFRequest{})
 	if err != nil {
 		t.Fatalf("buildActivateDefaultESM: %v", err)
 	}
@@ -384,5 +384,44 @@ func TestAttachCompleteWithAnUndecodableESMContainerStillCompletes(t *testing.T)
 
 	if got.Action == nasreply.ActionStatus {
 		t.Errorf("the Attach Complete drew a %v STATUS with cause %d: §7.5.2 forbids diagnosing the container, so an undecodable one is not an error of the ATTACH COMPLETE", got.Domain, got.Cause)
+	}
+}
+
+func TestPDNConnectivityOffersThePDUSessionIdentityOnlyWhen5GSInterworkingIsAllowed(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		allowed bool
+		want    uint8
+	}{
+		{name: "5GS interworking allowed", allowed: true, want: 5},
+		{name: "5GS interworking not allowed", allowed: false, want: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, _ := securedUE(t, m)
+			ue.SetAccess(mme.Access{Allow4G: true, FiveGSInterworking: tc.allowed})
+
+			p0 := testPDN(ue)
+			p0.Apn = "internet"
+
+			pco := nas.ProtocolConfigurationOptions{
+				ConfigProtocol: nas.PCOConfigProtocolPPP,
+				Direction:      nas.PCOMSToNetwork,
+				Containers:     []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{5}}},
+			}
+
+			handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), &eps.PDNConnectivityRequest{
+				PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
+				ProtocolConfigurationOptions: &pco,
+			})
+
+			if ue.PdnForAPN("ims") == nil {
+				t.Fatal("the PDN connection was not created")
+			}
+
+			if got := m.Session.(*fakeSessionManager).lastRequest.PDUSessionID; got != tc.want {
+				t.Errorf("PDU session identity passed to the SMF = %d, want %d", got, tc.want)
+			}
+		})
 	}
 }

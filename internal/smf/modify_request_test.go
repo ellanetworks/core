@@ -201,7 +201,7 @@ func TestHandoverFromEPSModificationSwitchesTheDownlink(t *testing.T) {
 
 	sc := establishEPSOnENB(t, s)
 
-	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai)
+	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, nil)
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}

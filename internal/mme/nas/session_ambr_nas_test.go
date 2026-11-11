@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestBuildActivateDefaultESMSignalsAPNAMBR(t *testing.T) {
 	p := &mme.PdnConnection{Ebi: mme.DefaultERABID, Apn: "internet", PdnType: eps.PDNTypeIPv4, UeIP: netip.MustParseAddr("10.45.0.1")}
 	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
 
-	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, false, nil, nas.PCSCFRequest{})
+	wire, err := buildActivateDefaultESM(context.Background(), p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, false, nil, nas.PCSCFRequest{})
 	if err != nil {
 		t.Fatalf("buildActivateDefaultESM: %v", err)
 	}

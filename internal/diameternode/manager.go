@@ -11,11 +11,13 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
+	"github.com/ellanetworks/core/internal/netutil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 )
@@ -42,6 +44,7 @@ type NodeSettings struct {
 	MNC        string
 	MMEGroupID uint16
 	MMECode    uint8
+	HomeDomain string
 }
 
 type PeerConfig struct {
@@ -51,6 +54,7 @@ type PeerConfig struct {
 	Address      string
 	Port         uint16
 	Applications []diameter.Application
+	Routes       []diameter.Route
 }
 
 type PeerStatus struct {
@@ -60,14 +64,75 @@ type PeerStatus struct {
 	Realm   string
 	Address string
 	Port    uint16
+	Inbound bool
 	State   diameter.PeerState
 	Since   time.Time
 	Error   string
 }
 
+type IMSPeer struct {
+	Name     string
+	Host     string
+	Realm    string
+	Prefixes []netip.Prefix
+}
+
+func (p IMSPeer) Matches(host, realm string, remote netip.Addr) bool {
+	if p.Host == "" && p.Realm == "" {
+		return false
+	}
+
+	if p.Host != "" && !strings.EqualFold(p.Host, host) {
+		return false
+	}
+
+	if p.Realm != "" && !strings.EqualFold(p.Realm, realm) {
+		return false
+	}
+
+	remote = remote.Unmap()
+
+	return slices.ContainsFunc(p.Prefixes, func(prefix netip.Prefix) bool { return prefix.Contains(remote) })
+}
+
+func sameIMSPeer(a, b IMSPeer) bool {
+	return a.Name == b.Name && a.Host == b.Host && a.Realm == b.Realm && slices.Equal(a.Prefixes, b.Prefixes)
+}
+
+type IMSPeerPolicy struct {
+	Restrict bool
+	Peers    []IMSPeer
+}
+
+func (p IMSPeerPolicy) peerOf(host, realm string, remote netip.Addr) (IMSPeer, bool) {
+	for _, peer := range p.Peers {
+		if peer.Matches(host, realm, remote) {
+			return peer, true
+		}
+	}
+
+	return IMSPeer{}, false
+}
+
+func (p IMSPeerPolicy) allows(host, realm string, remote netip.Addr) bool {
+	if !p.Restrict {
+		return true
+	}
+
+	_, ok := p.peerOf(host, realm, remote)
+
+	return ok
+}
+
+func sameIMSPeerPolicy(a, b IMSPeerPolicy) bool {
+	return a.Restrict == b.Restrict && slices.EqualFunc(a.Peers, b.Peers, sameIMSPeer)
+}
+
 type NodeSource func(ctx context.Context) (NodeSettings, error)
 
 type PeersSource func(ctx context.Context) ([]PeerConfig, error)
+
+type IMSPeersSource func(ctx context.Context) (IMSPeerPolicy, error)
 
 type Manager struct {
 	nodeSource  NodeSource
@@ -77,10 +142,15 @@ type Manager struct {
 	logger      *zap.Logger
 	slog        *slog.Logger
 	localAddr   func(remote netip.Addr) (netip.Addr, error)
+	vrfDevice   func(interfaceName, address string) (string, error)
+
+	imsPeersSource IMSPeersSource
+	imsPolicy      atomic.Pointer[IMSPeerPolicy]
 
 	mu        sync.Mutex
 	node      *diameter.Node
 	identity  diameter.Identity
+	served    []string
 	peers     []PeerConfig
 	lastError string
 	since     time.Time
@@ -96,7 +166,72 @@ func New(nodeSource NodeSource, peersSource PeersSource, listen ListenConfig, lo
 		logger:      logger,
 		slog:        slog.New(zapslog.NewHandler(logger.Core(), zapslog.WithName("Diameter"), zapslog.WithCaller(true))),
 		localAddr:   routeSource,
+		vrfDevice:   netutil.VRFBindDevice,
 		since:       time.Now(),
+	}
+}
+
+func (m *Manager) SetIMSPeersSource(source IMSPeersSource) {
+	m.imsPeersSource = source
+}
+
+func (m *Manager) IMSPeerOf(host, realm string, remote netip.Addr) (IMSPeer, bool) {
+	policy := m.imsPolicy.Load()
+	if policy == nil {
+		return IMSPeer{}, false
+	}
+
+	return policy.peerOf(host, realm, remote)
+}
+
+func (m *Manager) imsPeerAllowed(host, realm string, remote netip.Addr) bool {
+	if m.imsPeersSource == nil {
+		return true
+	}
+
+	policy := m.imsPolicy.Load()
+
+	return policy != nil && policy.allows(host, realm, remote)
+}
+
+func (m *Manager) admitUnknownPeer(host, realm string, remote netip.Addr) bool {
+	if m.imsPeerAllowed(host, realm, remote) {
+		return true
+	}
+
+	rejectedPeers.WithLabelValues(rejectNotAllowed).Inc()
+	m.logger.Warn("Rejected a Diameter peer that matches no allowed IMS peer",
+		zap.String("peer_host", host), zap.String("peer_realm", realm), zap.Stringer("address", remote))
+
+	return false
+}
+
+func (m *Manager) reconcileIMSPeers(ctx context.Context) {
+	if m.imsPeersSource == nil {
+		return
+	}
+
+	policy, err := m.imsPeersSource(ctx)
+	if err != nil {
+		m.logger.Warn("Failed to read the allowed IMS peers, keeping the previous ones", zap.Error(err))
+		return
+	}
+
+	previous := m.imsPolicy.Swap(&policy)
+	if previous != nil && sameIMSPeerPolicy(*previous, policy) {
+		return
+	}
+
+	m.mu.Lock()
+	node := m.node
+	m.mu.Unlock()
+
+	if node == nil || !policy.Restrict {
+		return
+	}
+
+	if n := node.DisconnectUnknownPeers(policy.allows, diameter.DisconnectCauseDoNotWantToTalkToYou); n > 0 {
+		m.logger.Info("Disconnected Diameter peers that are no longer allowed IMS peers", zap.Int("count", n))
 	}
 }
 
@@ -181,9 +316,15 @@ func (m *Manager) Peers() []PeerStatus {
 			continue
 		}
 
+		role := PeerRoleUnknown
+		if _, ok := m.IMSPeerOf(peer.Host, peer.Realm, peer.RemoteAddr); ok {
+			role = PeerRoleIMS
+		}
+
 		statuses = append(statuses, PeerStatus{
 			ID:      peer.ID,
-			Role:    PeerRoleIMS,
+			Role:    role,
+			Inbound: true,
 			Host:    peer.Host,
 			Realm:   peer.Realm,
 			Address: peer.RemoteAddr.String(),
@@ -204,6 +345,8 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	m.setPeers(peers)
 
+	m.reconcileIMSPeers(ctx)
+
 	if len(peers) == 0 && !m.listen.enabled() {
 		m.stopWithCause(diameter.DisconnectCauseDoNotWantToTalkToYou)
 		return
@@ -221,7 +364,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 		return
 	}
 
-	imsRealm, err := IMSRealm(settings.MCC, settings.MNC)
+	servedRealms, err := ServedRealms(settings.MCC, settings.MNC, settings.HomeDomain)
 	if err != nil {
 		m.fail(err)
 		return
@@ -232,7 +375,17 @@ func (m *Manager) reconcile(ctx context.Context) {
 	m.mu.Lock()
 	node := m.node
 	running := node != nil && sameIdentity(m.identity, identity)
+	servedChanged := running && !slices.Equal(m.served, servedRealms)
+
+	if servedChanged {
+		node.SetServedRealms(servedRealms)
+		m.served = servedRealms
+	}
 	m.mu.Unlock()
+
+	if servedChanged {
+		m.logger.Info("Diameter served realms changed", zap.Strings("served_realms", servedRealms))
+	}
 
 	if running {
 		if err := node.SetPeers(diameterPeers); err != nil {
@@ -244,9 +397,20 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	m.stop()
 
-	if err := m.start(ctx, identity, []string{imsRealm}, diameterPeers); err != nil {
+	if err := m.start(ctx, identity, servedRealms, diameterPeers); err != nil {
 		m.fail(err)
 	}
+}
+
+func (m *Manager) ServedRealms() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.node == nil {
+		return nil
+	}
+
+	return slices.Clone(m.served)
 }
 
 func (m *Manager) desiredIdentity(settings NodeSettings) (diameter.Identity, error) {
@@ -285,6 +449,7 @@ func toDiameterPeers(peers []PeerConfig) []diameter.Peer {
 			Transports:   []diameter.Transport{diameter.TransportSCTP},
 			Dial:         &diameter.Dial{Port: p.Port},
 			Applications: p.Applications,
+			Routes:       p.Routes,
 		}
 
 		if addr, err := netip.ParseAddr(p.Address); err == nil {
@@ -305,11 +470,17 @@ func sameIdentity(a, b diameter.Identity) bool {
 
 func samePeers(a, b []PeerConfig) bool {
 	return slices.EqualFunc(a, b, func(x, y PeerConfig) bool {
-		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && x.Port == y.Port && slices.Equal(x.Applications, y.Applications)
+		return x.ID == y.ID && x.Role == y.Role && x.Host == y.Host && x.Address == y.Address && x.Port == y.Port &&
+			slices.Equal(x.Applications, y.Applications) && slices.Equal(x.Routes, y.Routes)
 	})
 }
 
 func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedRealms []string, peers []diameter.Peer) error {
+	device, err := m.dialDevice()
+	if err != nil {
+		return fmt.Errorf("resolve Diameter VRF: %w", err)
+	}
+
 	cfg := diameter.Config{
 		Identity:          identity,
 		ServedRealms:      servedRealms,
@@ -322,8 +493,13 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 
 	if m.listen.enabled() {
 		cfg.AcceptUnknownPeers = true
+		cfg.UnknownPeerFilter = m.admitUnknownPeer
 		cfg.UnknownPeerApplications = imsApplications
 		cfg.UnknownPeerSupportedVendors = imsSupportedVendors
+	}
+
+	if device != "" {
+		cfg.DialControl = netutil.BindToDeviceControl(device)
 	}
 
 	node, err := diameter.New(cfg)
@@ -351,13 +527,16 @@ func (m *Manager) start(ctx context.Context, identity diameter.Identity, servedR
 	m.mu.Lock()
 	m.node = node
 	m.identity = identity
+	m.served = slices.Clone(servedRealms)
 	m.lastError = ""
 	m.mu.Unlock()
 
 	m.logger.Info("Diameter node started",
 		zap.String("origin_host", identity.OriginHost),
 		zap.String("origin_realm", identity.OriginRealm),
+		zap.Strings("served_realms", servedRealms),
 		zap.Stringers("host_ip_addresses", identity.HostIPAddresses),
+		zap.String("vrf", device),
 	)
 
 	return nil
@@ -447,6 +626,7 @@ func (m *Manager) stopWithCause(cause uint32) {
 	node := m.node
 	m.node = nil
 	m.identity = diameter.Identity{}
+	m.served = nil
 	m.mu.Unlock()
 
 	if node == nil {

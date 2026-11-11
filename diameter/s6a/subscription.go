@@ -42,6 +42,19 @@ type SubscriptionData struct {
 	SubscribedPeriodicRAUTAUTimer            time.Duration
 	UEUsageType                              *UEUsageType
 	SubscribedVSRVCC                         bool
+	CoreNetworkRestrictions                  *CoreNetworkRestrictions
+}
+
+func (s SubscriptionData) FiveGCNotAllowed() bool {
+	return s.CoreNetworkRestrictions != nil && *s.CoreNetworkRestrictions&CNR5GCNotAllowed != 0
+}
+
+func (s SubscriptionData) BarsVisitedPLMNAccessPoints() bool {
+	if s.SubscriberStatus == nil || *s.SubscriberStatus != SubscriberStatusOperatorDeterminedBarring || s.OperatorDeterminedBarring == nil {
+		return false
+	}
+
+	return *s.OperatorDeterminedBarring&(ODBAllPacketOrientedServices|ODBRoamerAccessVPLMNAP) != 0
 }
 
 type APNConfigurationProfile struct {
@@ -227,6 +240,10 @@ func (s SubscriptionData) Merge(update SubscriptionData) SubscriptionData {
 	}
 
 	merged.SubscribedVSRVCC = s.SubscribedVSRVCC || update.SubscribedVSRVCC
+
+	if update.CoreNetworkRestrictions != nil {
+		merged.CoreNetworkRestrictions = update.CoreNetworkRestrictions
+	}
 
 	return merged
 }
@@ -472,6 +489,12 @@ func (s SubscriptionData) avp() (diameter.AVP, error) {
 		inner = append(inner, s.UEUsageType.avp())
 	}
 
+	if s.CoreNetworkRestrictions != nil {
+		if inner, err = appendPresentFlags(inner, AVPCoreNetworkRestrictions, "Core-Network-Restrictions", *s.CoreNetworkRestrictions); err != nil {
+			return diameter.AVP{}, err
+		}
+	}
+
 	return groupedAVP(AVPSubscriptionData, inner...), nil
 }
 
@@ -607,6 +630,10 @@ func (d decoder) subscriptionDataFields(inner []diameter.AVP) (*SubscriptionData
 		}
 
 		s.UEUsageType = &u
+	}
+
+	if s.CoreNetworkRestrictions, err = optionalBits[CoreNetworkRestrictions](inner, AVPCoreNetworkRestrictions); err != nil {
+		return nil, err
 	}
 
 	return &s, nil

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -50,6 +50,17 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	if !ue.IsVisitor() {
+		continueDefaultBearer(ctx, m, ue, ueConn, false)
+		return
+	}
+
+	updateLocation(ctx, m, ue, ueConn, func(ctx context.Context) {
+		continueDefaultBearer(ctx, m, ue, ueConn, true)
+	})
+}
+
+func continueDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, visitor bool) {
 	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the subscriber's access", zap.Error(err))
@@ -69,14 +80,24 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	m.ActivateTrace(ctx, ue)
 
-	if err := m.RegisterUE(ctx, ue); err != nil {
-		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+	if !visitor {
+		if err := m.RegisterUE(ctx, ue); err != nil {
+			logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))
+			rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+
+			return
+		}
+	}
+
+	apn, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), ueConn.ESMRequest.APN)
+	if cause, ok := roamingAPNRejectCause(err); ok {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: the APN cannot be broken out locally", zap.String("apn", ueConn.ESMRequest.APN),
+			logger.ESMCause(cause.String()), zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), cause)
 
 		return
 	}
 
-	apn, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), ueConn.ESMRequest.APN)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
@@ -108,13 +129,22 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	subscription, err := m.APNSubscription(ue, apn)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the home APN subscription", zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
+
+		return
+	}
+
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
-		PDUSessionID:      ueConn.ESMRequest.PDUSessionID,
+		PDUSessionID:      interworkingPDUSessionID(m, ue, apn, ueConn.ESMRequest.PDUSessionID),
 		APN:               apn,
 		RequestedPDNType:  ueConn.ESMRequest.PDNType,
 		RequestType:       ueConn.ESMRequest.Type,
+		Subscription:      subscription,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed", zap.Error(err))
@@ -179,6 +209,56 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
 	ueConn.ArmNASGuard(ctx, "Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
+}
+
+func updateLocation(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, accepted func(context.Context)) {
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the serving PLMN", zap.Error(err))
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+
+		return
+	}
+
+	m.RequestUpdateLocation(ctx, ue, ueConn, plmn, func(ctx context.Context, err error) {
+		if err != nil {
+			r := mme.HPLMNRejection(err)
+			logger.From(ctx, logger.MmeLog).Info("attach rejected: update location with the home HSS failed", logger.Cause(r.Reason), zap.Error(err))
+			sendAttachRejection(ctx, m, ue, ueConn, r, nil)
+
+			return
+		}
+
+		if err := m.RegisterUE(ctx, ue); err != nil {
+			var r *mme.Rejection
+			if errors.As(err, &r) {
+				logger.From(ctx, logger.MmeLog).Info("attach rejected: the visitor cannot be registered", logger.Cause(r.Reason))
+				sendAttachRejection(ctx, m, ue, ueConn, r, nil)
+
+				return
+			}
+
+			logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the visitor", zap.Error(err))
+			rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
+
+			return
+		}
+
+		accepted(ctx)
+	})
+}
+
+func roamingAPNRejectCause(err error) (eps.ESMCause, bool) {
+	switch {
+	case err == nil:
+		return 0, false
+	case errors.Is(err, roaming.ErrBarred):
+		return eps.ESMCauseOperatorDeterminedBarring, true
+	case errors.Is(err, roaming.ErrAPNNotSubscribed), errors.Is(err, roaming.ErrHomeRouted), errors.Is(err, roaming.ErrIMSAPN):
+		return eps.ESMCauseServiceOptionNotSubscribed, true
+	default:
+		return 0, false
+	}
 }
 
 func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, _ *mme.UeConn, ueAmbr models.Ambr) (*s1ap.InitialContextSetupRequest, uint8, bool) {
@@ -306,7 +386,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
+	esm, err := buildActivateDefaultESM(ctx, p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts, ueConn.ESMRequest.PCSCF)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +450,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	m.SupersedeFiveGSRegistration(ctx, ue)
 
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationAccepted)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), ue.IsVisitor(), logger.RegistrationAccepted)
 
 	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
 
@@ -425,7 +505,7 @@ func sendNITZ(ctx context.Context, m *mme.MME, _ *mme.UeContext, ueConn *mme.UeC
 	ueConn.SendDownlinkProtected(ctx, info)
 }
 
-func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer, pcscf nas.PCSCFRequest) ([]byte, error) {
+func buildActivateDefaultESM(ctx context.Context, p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer, pcscf nas.PCSCFRequest) ([]byte, error) {
 	apn := eps.APN(p.Apn)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -471,7 +551,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
 	if snssai := p.Snssai; snssai != nil && p.PDUSessionID != 0 {
-		container, err := snssaiPCOContainer(*snssai, plmn)
+		container, err := snssaiPCOContainer(*snssai, p.HPLMNSnssai, plmn)
 		if err != nil {
 			return nil, err
 		}
@@ -480,17 +560,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti 
 		pco.Containers = append(pco.Containers, bearer.MappedFiveGSQoS...)
 	}
 
-	if containers := nas.NewPCSCFContainers(bearer.PCSCF, nas.PCSCFRequest{
-		IPv4: pcscf.IPv4 && (p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6),
-		IPv6: pcscf.IPv6 && (p.PdnType == eps.PDNTypeIPv6 || p.PdnType == eps.PDNTypeIPv4v6),
-	}); len(containers) > 0 {
-		with := pco
-		with.Containers = append(slices.Clone(pco.Containers), containers...)
-
-		if useEPCO || with.FitsUnextended() {
-			pco = with
-		}
-	}
+	pco = mme.WithPCSCF(ctx, pco, bearer.PCSCF, pcscf, p.PdnType, useEPCO)
 
 	if answers := nas.AnswerProtocolOptions(protocolRequests, p.Dns, p.UeIP); len(answers) > 0 {
 		with := pco

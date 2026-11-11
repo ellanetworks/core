@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,6 +23,10 @@ import (
 )
 
 const SubscribersTableName = "subscribers"
+
+const MaxNumSubscribers = 1000
+
+var ErrSubscriberLimit = errors.New("maximum number of subscribers reached")
 
 // subscriberDescriptionSchema is the migration that adds subscribers.description.
 // It is post-baseline, so a cluster node reaches it through Raft some time after
@@ -114,6 +119,8 @@ const (
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
 )
 
+const countSubscribersAndVisitorsStmt = "SELECT COUNT(*) AS &NumItems.count FROM (SELECT imsi FROM %s UNION ALL SELECT imsi FROM %s)"
+
 type Subscriber struct {
 	ID             string `db:"id"` // UUIDv7
 	Imsi           string `db:"imsi"`
@@ -123,6 +130,8 @@ type Subscriber struct {
 	ProfileID      string `db:"profileID"`
 	Description    string `db:"description"`
 	Msisdn         string `db:"msisdn"`
+
+	RoamingPartnerID *string
 }
 
 type SubscriberFilters struct {
@@ -294,14 +303,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	row := Subscriber{Imsi: imsi}
 
-	stmt := db.getSubscriberStmt
-	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
-		stmt = db.getSubscriberPreV18Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-		stmt = db.getSubscriberPreV22Stmt
-	}
-
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.ownSubscriberStmt(ctx), row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -313,6 +315,17 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	}
 
 	return &row, nil
+}
+
+func (db *Database) ownSubscriberStmt(ctx context.Context) *sqlair.Statement {
+	switch {
+	case !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema):
+		return db.getSubscriberPreV18Stmt
+	case !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema):
+		return db.getSubscriberPreV22Stmt
+	default:
+		return db.getSubscriberStmt
+	}
 }
 
 const maxIMSIsPerQuery = 500
@@ -576,4 +589,70 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	}
 
 	return result.Count, nil
+}
+
+func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (with %s)", "SELECT", SubscribersTableName, VisitorsTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			semconv.DBCollectionName(SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	n, err := db.countSubscribersAndVisitors(ctx, db.conn())
+	if err != nil {
+		recordSpanError(span, err)
+		return 0, err
+	}
+
+	return n, nil
+}
+
+func (db *Database) countSubscribersAndVisitors(ctx context.Context, runner *sqlair.DB) (int, error) {
+	stmt := db.countSubscribersStmt
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.countSubscribersAndVisitorsStmt
+	}
+
+	var result NumItems
+
+	if err := runner.Query(ctx, stmt).Get(&result); err != nil {
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	return result.Count, nil
+}
+
+func (db *Database) checkSubscriberCapacity(ctx context.Context) error {
+	n, err := db.countSubscribersAndVisitors(ctx, db.runner(ctx))
+	if err != nil {
+		return err
+	}
+
+	if n >= db.subscriberCap() {
+		return fmt.Errorf("%w (%d)", ErrSubscriberLimit, db.subscriberCap())
+	}
+
+	return nil
+}
+
+func (db *Database) subscriberCap() int {
+	if db.maxSubscribers > 0 {
+		return db.maxSubscribers
+	}
+
+	return MaxNumSubscribers
 }

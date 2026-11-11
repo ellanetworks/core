@@ -67,6 +67,31 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
+	if !ue.IsVisitor() {
+		continueInitialRegistration(ctx, amfInstance, ue, conn, operatorInfo, false)
+		return
+	}
+
+	amfInstance.RequestHPLMNRegistration(ctx, ue, conn, true, func(ctx context.Context, err error) {
+		if ue.RegStep() != amf.RegStepContextSetup {
+			logger.From(ctx, logger.AmfLog).Info("registration moved on while registering at the home network; dropping the answer")
+			return
+		}
+
+		if err == nil {
+			err = amfInstance.RegisterUE(ctx, ue)
+		}
+
+		if err != nil {
+			rejectOrRelease(ctx, amfInstance, ue, "register the visitor", err, amf.HPLMNRegistrationRejection)
+			return
+		}
+
+		continueInitialRegistration(ctx, amfInstance, ue, conn, operatorInfo, true)
+	})
+}
+
+func continueInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn, operatorInfo *amf.OperatorInfo, registered bool) {
 	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
 		abortRegistration(ctx, amfInstance, ue, "get subscriber profile", err)
@@ -80,7 +105,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return
 		}
 
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 		logger.From(ctx, logger.AmfLog).Info("registration rejected: 5G not allowed for subscriber")
 
@@ -98,7 +123,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return
 		}
 
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected, logger.Cause("no subscribed S-NSSAI can be allowed"))
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 
@@ -107,16 +132,18 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
-	if err := amfInstance.RegisterUE(ctx, ue); err != nil {
-		abortRegistration(ctx, amfInstance, ue, "register UE", err)
-		return
+	if !registered {
+		if err := amfInstance.RegisterUE(ctx, ue); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "register UE", err)
+			return
+		}
 	}
 
 	amfInstance.ActivateTrace(ctx, ue)
 
 	ue.SetAllowedNssai(subscriberProfile.AllowedNssai)
 	ue.SetAmbr(subscriberProfile.Ambr)
-	ue.SetAllow4G(subscriberProfile.Allow4G)
+	ue.SetAllow4G(subscriberProfile.EPSInterworking)
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("raai", conn.RegistrationRequest.MICOIndication.RAAI))
@@ -150,7 +177,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	pduSessionStatus := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
 
-	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
 
 	initialContextSetup := false
 	if ueConn := ue.Conn(); ueConn != nil {

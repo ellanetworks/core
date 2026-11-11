@@ -5,17 +5,24 @@ package amf_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/roaming/wire"
+	"github.com/ellanetworks/core/internal/udm"
 )
 
 type configTestDB struct {
 	subscriber *db.Subscriber
 	subErr     error
+	lookup     *db.Subscriber
+	lookupErr  error
+	allow4G    bool
 	policies   []db.Policy
 	polErr     error
 	slices     map[string]*db.NetworkSlice
@@ -31,6 +38,14 @@ func (d *configTestDB) GetOperator(context.Context) (*db.Operator, error) {
 
 func (d *configTestDB) GetSubscriber(_ context.Context, _ string) (*db.Subscriber, error) {
 	return d.subscriber, d.subErr
+}
+
+func (d *configTestDB) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	if d.lookup != nil || d.lookupErr != nil {
+		return d.lookup, d.lookupErr
+	}
+
+	return d.GetSubscriber(ctx, imsi)
 }
 
 func (d *configTestDB) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
@@ -59,7 +74,7 @@ func (d *configTestDB) ListNetworkSlicesByIDs(_ context.Context, ids []string) (
 }
 
 func (d *configTestDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
+	return &db.Profile{ID: id, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps", Allow4G: d.allow4G}, nil
 }
 
 func (d *configTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
@@ -343,6 +358,46 @@ func TestGetOperatorInfo_AmfID(t *testing.T) {
 
 			if info.Guami.AmfID != tt.wantAmf {
 				t.Fatalf("expected AmfID %q, got %q", tt.wantAmf, info.Guami.AmfID)
+			}
+		})
+	}
+}
+
+func TestSubscriberProfileOffersEPSInterworkingToOwnSubscribersOnly(t *testing.T) {
+	partner := "partner"
+	home := &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"}
+	visitor := &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10", RoamingPartnerID: &partner}
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name    string
+		db      *configTestDB
+		want    bool
+		wantErr error
+	}{
+		{name: "home subscriber allowed on 4G", db: &configTestDB{subscriber: home, allow4G: true}, want: true},
+		{name: "home subscriber barred from 4G", db: &configTestDB{subscriber: home}},
+		{name: "roaming visitor allowed on 4G", db: &configTestDB{subscriber: home, lookup: visitor, allow4G: true}},
+		{name: "subscriber row gone", db: &configTestDB{subscriber: home, lookupErr: db.ErrNotFound, allow4G: true}, wantErr: udm.ErrSubscriberUnknown},
+		{name: "lookup failure", db: &configTestDB{subscriber: home, lookupErr: failure, allow4G: true}, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			amfInstance := amf.New(tc.db, nil, nil)
+			if tc.db.lookup != nil && tc.db.lookup.RoamingPartnerID != nil {
+				amfInstance.HoldVisitorForTest(mustSUPI(t), roaming.Visitor5G{Subscription: &wire.SubscriptionDataSets{AmData: &wire.AccessAndMobilitySubscriptionData{}}})
+			}
+
+			profile, err := amfInstance.SubscriberProfile(context.Background(), mustSUPI(t))
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			if err != nil {
+				return
+			}
+
+			if profile.EPSInterworking != tc.want {
+				t.Errorf("EPSInterworking = %v, want %v", profile.EPSInterworking, tc.want)
 			}
 		})
 	}

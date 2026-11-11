@@ -127,7 +127,15 @@ func (e *ENB) OpenPDNAnnouncingN1Mode(ue *UE, mmeUEID, enbUEID int64, apn string
 		return nil, fmt.Errorf("parse Activate Default EPS Bearer Context Request: %w", err)
 	}
 
-	accept, err := ue.protectUplink([]byte{0x02, uint8(act.PTI), uint8(eps.MsgActivateDefaultEPSBearerContextAccept)})
+	acceptPlain, err := (&eps.ActivateDefaultEPSBearerContextAccept{
+		EPSBearerIdentity: act.EPSBearerIdentity,
+		PTI:               act.PTI,
+	}).MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("build Activate Default EPS Bearer Context Accept: %w", err)
+	}
+
+	accept, err := ue.protectUplink(acceptPlain)
 	if err != nil {
 		return nil, err
 	}

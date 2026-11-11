@@ -228,6 +228,7 @@ func (m *MME) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 	logger.From(ctx, logger.MmeLog).Info("UE handed over to 5GS; releasing its EPS resources",
 		logger.SUPI(supi.String()))
 
+	m.handVisitorTo5GS(ctx, ue)
 	m.releaseTo5GS(ctx, ue, CauseHandoverSuccess)
 
 	return nil

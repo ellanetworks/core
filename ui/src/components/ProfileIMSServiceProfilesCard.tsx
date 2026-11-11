@@ -4,7 +4,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Alert,
   Box,
   Card,
   CardContent,
@@ -28,10 +27,6 @@ import {
   imsUnassignedLabels,
   type ProfileIMSServiceProfiles,
 } from "@/queries/ims";
-import {
-  listDataNetworks,
-  type ListDataNetworksResponse,
-} from "@/queries/data_networks";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditProfileIMSServiceProfilesModal from "@/components/EditProfileIMSServiceProfilesModal";
@@ -39,12 +34,11 @@ import EditProfileIMSServiceProfilesModal from "@/components/EditProfileIMSServi
 interface ProfileIMSServiceProfilesCardProps {
   profileName: string;
   canEdit: boolean;
-  policyDataNetworks?: string[];
 }
 
 const ProfileIMSServiceProfilesCard: React.FC<
   ProfileIMSServiceProfilesCardProps
-> = ({ profileName, canEdit, policyDataNetworks }) => {
+> = ({ profileName, canEdit }) => {
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
   const [editOpen, setEditOpen] = useState(false);
@@ -56,21 +50,6 @@ const ProfileIMSServiceProfilesCard: React.FC<
     refetchInterval: 5000,
     retry: false,
   });
-
-  const dataNetworksQuery = useQuery<ListDataNetworksResponse>({
-    queryKey: ["data-networks", "ims-profile-card"],
-    queryFn: () => listDataNetworks(accessToken!, 1, 100),
-    enabled: authReady && !!accessToken,
-    retry: false,
-  });
-
-  const imsDataNetworks = dataNetworksQuery.data?.items
-    ?.filter((dn) => dn.ims)
-    .map((dn) => dn.name);
-  const noIMSPolicy =
-    !!policyDataNetworks &&
-    !!imsDataNetworks &&
-    !policyDataNetworks.some((name) => imsDataNetworks.includes(name));
 
   return (
     <Card variant="outlined" sx={{ mt: 3 }}>
@@ -100,12 +79,6 @@ const ProfileIMSServiceProfilesCard: React.FC<
           The service profile of each registration set of subscribers on this
           profile. MCPTT is off without one.
         </Typography>
-        {noIMSPolicy && (
-          <Alert severity="warning" sx={{ mb: 1.5 }}>
-            This profile has no policy on an IMS data network, so its
-            subscribers can't register with the IMS.
-          </Alert>
-        )}
         {query.isLoading ? (
           <Skeleton variant="text" width={200} />
         ) : query.isError ? (
@@ -139,7 +112,7 @@ const ProfileIMSServiceProfilesCard: React.FC<
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
                     {query.data?.[set] ? (
-                      <Link component={RouterLink} to="/operator">
+                      <Link component={RouterLink} to="/integrations/ims">
                         {query.data[set]}
                       </Link>
                     ) : (

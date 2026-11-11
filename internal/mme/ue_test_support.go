@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/mme/procedure"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -326,6 +327,26 @@ func (ue *UeContext) CommitUplinkCountForTest(count uint32) {
 	defer ue.mu.Unlock()
 
 	_ = ue.ulCount.Commit(nas.Count(count))
+}
+
+func (ue *UeContext) SetVisitorForTest(v roaming.Visitor) {
+	ue.setVisitor(&v)
+}
+
+func (c *UeConn) SettleForTest() {
+	if c != nil {
+		c.lane.Settle()
+	}
+}
+
+func (m *MME) SettleHPLMNForTest() { m.home.Settle() }
+
+func (m *MME) SetMTMSIFreezeTimeForTest(d time.Duration) { m.mtmsiFreezeTime = d }
+
+func (m *MME) MTMSIAllocatedForTest(t etsi.TMSI) bool { return m.tmsi.IsAllocated(t) }
+
+func (ue *UeContext) MarkArrivedByHandoverFrom5GSForTest() {
+	ue.arrivedByHandoverFrom5GS.Store(true)
 }
 
 func (c *UeConn) BindUeForTest(ue *UeContext) { c.ue.Store(ue) }

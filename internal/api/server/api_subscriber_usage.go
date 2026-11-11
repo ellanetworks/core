@@ -41,10 +41,45 @@ type DailySubscriberUsage struct {
 }
 
 type PerSubscriberUsage struct {
-	IMSI          string `json:"imsi"`
-	UplinkBytes   int64  `json:"uplink_bytes"`
-	DownlinkBytes int64  `json:"downlink_bytes"`
-	TotalBytes    int64  `json:"total_bytes"`
+	IMSI           string       `json:"imsi"`
+	HomePLMN       *RoamingPLMN `json:"home_plmn,omitempty"`
+	RoamingPartner string       `json:"roaming_partner,omitempty"`
+	UplinkBytes    int64        `json:"uplink_bytes"`
+	DownlinkBytes  int64        `json:"downlink_bytes"`
+	TotalBytes     int64        `json:"total_bytes"`
+}
+
+func partnerNamesByPLMN(partners []db.RoamingPartner) map[db.RoamingPLMN]string {
+	names := make(map[db.RoamingPLMN]string)
+
+	for _, p := range partners {
+		for _, plmn := range p.PLMNs {
+			names[plmn] = p.Name
+		}
+	}
+
+	return names
+}
+
+func perSubscriberUsageResponse(usage []db.UsagePerSub, partners []db.RoamingPartner) []PerSubscriberUsage {
+	names := partnerNamesByPLMN(partners)
+	response := make([]PerSubscriberUsage, len(usage))
+
+	for i, u := range usage {
+		response[i] = PerSubscriberUsage{
+			IMSI:          u.IMSI,
+			UplinkBytes:   u.BytesUplink,
+			DownlinkBytes: u.BytesDownlink,
+			TotalBytes:    u.BytesUplink + u.BytesDownlink,
+		}
+
+		if u.Mcc != nil && u.Mnc != nil {
+			response[i].HomePLMN = &RoamingPLMN{Mcc: *u.Mcc, Mnc: *u.Mnc}
+			response[i].RoamingPartner = names[db.RoamingPLMN{Mcc: *u.Mcc, Mnc: *u.Mnc}]
+		}
+	}
+
+	return response
 }
 
 func usagePerDayResponse(usage []db.UsagePerDay, days db.DayRange) []DailySubscriberUsage {
@@ -95,6 +130,12 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		roaming, ok := parseRoamingFilter(q.Get("roaming"))
+		if !ok {
+			writeError(r.Context(), w, http.StatusBadRequest, "roaming must be true or false", nil, logger.APILog)
+			return
+		}
+
 		limit := int64(MaxUsageSubscriberLimit)
 
 		if raw := q.Get("limit"); raw != "" {
@@ -121,7 +162,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 				return
 			}
 
-			dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, days)
+			dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, days, roaming)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return
@@ -133,24 +174,19 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 
 			return
 		case "subscriber":
-			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, days, limit)
+			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, days, roaming, limit)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return
 			}
 
-			response := make([]PerSubscriberUsage, len(subscriberUsage))
-
-			for i, usage := range subscriberUsage {
-				response[i] = PerSubscriberUsage{
-					IMSI:          usage.IMSI,
-					UplinkBytes:   usage.BytesUplink,
-					DownlinkBytes: usage.BytesDownlink,
-					TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
-				}
+			partners, err := dbInstance.ListRoamingPartners(ctx)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve roaming partners", err, logger.APILog)
+				return
 			}
 
-			writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, perSubscriberUsageResponse(subscriberUsage, partners), http.StatusOK, logger.APILog)
 
 			return
 		default:
@@ -225,4 +261,16 @@ func ClearSubscriberUsage(dbInstance *db.Database) http.Handler {
 		writeResponse(r.Context(), w, SuccessResponse{Message: "All subscriber usage cleared successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), "clear_subscriber_usage", email, getClientIP(r), "User cleared all subscriber usage")
 	})
+}
+
+func parseRoamingFilter(value string) (*bool, bool) {
+	switch value {
+	case "":
+		return nil, true
+	case "true", "false":
+		roaming := value == "true"
+		return &roaming, true
+	default:
+		return nil, false
+	}
 }

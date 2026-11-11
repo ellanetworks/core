@@ -1,13 +1,21 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import { renderWithProviders } from "@/test/renderWithProviders";
+import {
+  createTestQueryClient,
+  renderWithProviders,
+} from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
+import { DIAMETER_STATUS_PATH, stubDiameterStatus } from "@/test/diameter";
 import DeploymentIdentity from "./DeploymentIdentity";
 
 const api = setupApiServer();
+
+beforeEach(() => {
+  stubDiameterStatus(api);
+});
 
 const STATUS = "/api/v1/status";
 
@@ -111,5 +119,25 @@ describe("DeploymentIdentity", () => {
 
     await screen.findByText("v1.18.0");
     expect(screen.queryByText(/Node/)).toBeNull();
+  });
+
+  it("fetches the Origin-Host once instead of polling it", async () => {
+    api.get(STATUS, () => clustered);
+    const queryClient = createTestQueryClient();
+
+    renderWithProviders(<DeploymentIdentity />, { auth: {}, queryClient });
+
+    await waitFor(() =>
+      expect(screen.getByText("v1.18.0 · Node core-mtl-a")).toHaveAttribute(
+        "title",
+        "Origin-Host: mmec01.mmegi8001.mme.epc.mnc001.mcc001.3gppnetwork.org",
+      ),
+    );
+    const query = queryClient
+      .getQueryCache()
+      .find({ queryKey: ["integrations-diameter"] })!;
+    expect(query.observers).toHaveLength(1);
+    expect(query.observers[0].options.refetchInterval).toBe(false);
+    expect(api.requests(DIAMETER_STATUS_PATH)).toHaveLength(1);
   });
 });

@@ -384,6 +384,10 @@ func (db *Database) applyCreateSMSC(ctx context.Context, s *SMSC) (any, error) {
 		return nil, fmt.Errorf("%w: %w", ErrSMSCConflict, err)
 	}
 
+	if err := db.checkSMSCNodeEndpoints(ctx, s); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSMSCConflict, err)
+	}
+
 	if err := db.runner(ctx).Query(ctx, db.insertSMSCStmt, smscRow{ID: s.ID, Name: s.Name}).Run(); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -409,6 +413,10 @@ func (db *Database) applyUpdateSMSC(ctx context.Context, s *SMSC) (any, error) {
 	smscs[i] = *s
 
 	if err := ValidateSMSCs(smscs); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrSMSCConflict, err)
+	}
+
+	if err := db.checkSMSCNodeEndpoints(ctx, s); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSMSCConflict, err)
 	}
 

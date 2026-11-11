@@ -73,6 +73,7 @@ const (
 	CauseInvalidGUAMI                       Cause = "INVALID_GUAMI"
 	CauseServiceNotAllowed                  Cause = "SERVICE_NOT_ALLOWED"
 	CauseTemporaryRejectRegistrationOngoing Cause = "TEMPORARY_REJECT_REGISTRATION_ONGOING"
+	CauseUnprocessableRequest               Cause = "UNPROCESSABLE_REQUEST"
 )
 
 type InvalidParam struct {

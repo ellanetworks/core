@@ -26,8 +26,8 @@ type IMSProfileNotifier interface {
 
 type IMSApplicationServer struct {
 	Name                    string   `json:"name"`
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type ListIMSApplicationServersResponse struct {
@@ -36,29 +36,58 @@ type ListIMSApplicationServersResponse struct {
 
 type CreateIMSApplicationServerParams struct {
 	Name                    string   `json:"name"`
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type UpdateIMSApplicationServerParams struct {
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type IMSInitialFilterCriterion struct {
-	Priority                int            `json:"priority"`
-	ApplicationServerName   string         `json:"application_server_name"`
-	Trigger                 *db.IMSTrigger `json:"trigger,omitempty"`
-	ProfilePart             *string        `json:"profile_part,omitempty"`
-	DefaultHandling         *string        `json:"default_handling,omitempty"`
-	ServiceInfo             *string        `json:"service_info,omitempty"`
-	IncludeRegisterRequest  bool           `json:"include_register_request"`
-	IncludeRegisterResponse bool           `json:"include_register_response"`
+	Priority                int         `json:"priority"`
+	ApplicationServerName   string      `json:"applicationServerName"`
+	Trigger                 *IMSTrigger `json:"trigger,omitempty"`
+	ProfilePart             *string     `json:"profilePart,omitempty"`
+	DefaultHandling         *string     `json:"defaultHandling,omitempty"`
+	ServiceInfo             *string     `json:"serviceInfo,omitempty"`
+	IncludeRegisterRequest  bool        `json:"includeRegisterRequest"`
+	IncludeRegisterResponse bool        `json:"includeRegisterResponse"`
+}
+
+type IMSTrigger struct {
+	ConditionsMatch string              `json:"conditionsMatch"`
+	Groups          []IMSConditionGroup `json:"groups"`
+}
+
+type IMSConditionGroup struct {
+	Conditions []IMSCondition `json:"conditions"`
+}
+
+type IMSCondition struct {
+	Negated            bool                   `json:"negated,omitempty"`
+	RequestURI         *string                `json:"requestURI,omitempty"`
+	Method             *string                `json:"method,omitempty"`
+	RegistrationTypes  []string               `json:"registrationTypes,omitempty"`
+	SIPHeader          *IMSHeaderMatch        `json:"sipHeader,omitempty"`
+	SessionCase        *string                `json:"sessionCase,omitempty"`
+	SessionDescription *IMSSessionDescription `json:"sessionDescription,omitempty"`
+}
+
+type IMSHeaderMatch struct {
+	Header  string  `json:"header"`
+	Content *string `json:"content,omitempty"`
+}
+
+type IMSSessionDescription struct {
+	Line    string  `json:"line"`
+	Content *string `json:"content,omitempty"`
 }
 
 type IMSServiceProfile struct {
 	Name                  string                      `json:"name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 type ListIMSServiceProfilesResponse struct {
@@ -67,11 +96,11 @@ type ListIMSServiceProfilesResponse struct {
 
 type CreateIMSServiceProfileParams struct {
 	Name                  string                      `json:"name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 type UpdateIMSServiceProfileParams struct {
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 type ProfileIMSServiceProfiles struct {
@@ -109,7 +138,7 @@ func imsFilterCriteriaResponse(criteria []db.IMSInitialFilterCriterion, applicat
 		ifc := IMSInitialFilterCriterion{
 			Priority:                i,
 			ApplicationServerName:   applicationServerNames[c.ApplicationServerID],
-			Trigger:                 c.Trigger,
+			Trigger:                 imsTriggerResponse(c.Trigger),
 			ServiceInfo:             c.ServiceInfo,
 			IncludeRegisterRequest:  c.IncludeRegisterRequest,
 			IncludeRegisterResponse: c.IncludeRegisterResponse,
@@ -135,7 +164,7 @@ func imsFilterCriteriaFromParams(criteria []IMSInitialFilterCriterion, applicati
 	for _, c := range criteria {
 		ifc := db.IMSInitialFilterCriterion{
 			ApplicationServerID:     applicationServerIDs[c.ApplicationServerName],
-			Trigger:                 c.Trigger,
+			Trigger:                 imsTriggerFromParams(c.Trigger),
 			ServiceInfo:             c.ServiceInfo,
 			IncludeRegisterRequest:  c.IncludeRegisterRequest,
 			IncludeRegisterResponse: c.IncludeRegisterResponse,
@@ -150,6 +179,82 @@ func imsFilterCriteriaFromParams(criteria []IMSInitialFilterCriterion, applicati
 		}
 
 		out = append(out, ifc)
+	}
+
+	return out
+}
+
+func imsTriggerResponse(t *db.IMSTrigger) *IMSTrigger {
+	if t == nil {
+		return nil
+	}
+
+	out := &IMSTrigger{ConditionsMatch: string(t.ConditionsMatch), Groups: make([]IMSConditionGroup, 0, len(t.Groups))}
+
+	for _, g := range t.Groups {
+		group := IMSConditionGroup{Conditions: make([]IMSCondition, 0, len(g.Conditions))}
+
+		for _, c := range g.Conditions {
+			condition := IMSCondition{Negated: c.Negated, RequestURI: c.RequestURI, Method: c.Method}
+
+			for _, r := range c.RegistrationTypes {
+				condition.RegistrationTypes = append(condition.RegistrationTypes, string(r))
+			}
+
+			if c.SIPHeader != nil {
+				condition.SIPHeader = &IMSHeaderMatch{Header: c.SIPHeader.Header, Content: c.SIPHeader.Content}
+			}
+
+			if c.SessionCase != nil {
+				condition.SessionCase = new(string(*c.SessionCase))
+			}
+
+			if c.SessionDescription != nil {
+				condition.SessionDescription = &IMSSessionDescription{Line: c.SessionDescription.Line, Content: c.SessionDescription.Content}
+			}
+
+			group.Conditions = append(group.Conditions, condition)
+		}
+
+		out.Groups = append(out.Groups, group)
+	}
+
+	return out
+}
+
+func imsTriggerFromParams(t *IMSTrigger) *db.IMSTrigger {
+	if t == nil {
+		return nil
+	}
+
+	out := &db.IMSTrigger{ConditionsMatch: db.IMSConditionsMatch(t.ConditionsMatch), Groups: make([]db.IMSConditionGroup, 0, len(t.Groups))}
+
+	for _, g := range t.Groups {
+		group := db.IMSConditionGroup{Conditions: make([]db.IMSCondition, 0, len(g.Conditions))}
+
+		for _, c := range g.Conditions {
+			condition := db.IMSCondition{Negated: c.Negated, RequestURI: c.RequestURI, Method: c.Method}
+
+			for _, r := range c.RegistrationTypes {
+				condition.RegistrationTypes = append(condition.RegistrationTypes, db.IMSRegistrationType(r))
+			}
+
+			if c.SIPHeader != nil {
+				condition.SIPHeader = &db.IMSHeaderMatch{Header: c.SIPHeader.Header, Content: c.SIPHeader.Content}
+			}
+
+			if c.SessionCase != nil {
+				condition.SessionCase = new(db.IMSSessionCase(*c.SessionCase))
+			}
+
+			if c.SessionDescription != nil {
+				condition.SessionDescription = &db.IMSSessionDescription{Line: c.SessionDescription.Line, Content: c.SessionDescription.Content}
+			}
+
+			group.Conditions = append(group.Conditions, condition)
+		}
+
+		out.Groups = append(out.Groups, group)
 	}
 
 	return out
@@ -478,7 +583,7 @@ func UpdateIMSServiceProfile(dbInstance *db.Database, notifier IMSProfileNotifie
 		}
 
 		if params.InitialFilterCriteria == nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "initial_filter_criteria is required", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "initialFilterCriteria is required", nil, logger.APILog)
 			return
 		}
 

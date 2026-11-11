@@ -658,6 +658,39 @@ static __always_inline long context_reinit(struct packet_context *ctx,
 	}
 }
 
+static __always_inline __u32 classify_depth(struct __ctx_buff *ctx)
+{
+	struct packet_context probe = {
+		.data = ctx_data(ctx),
+		.data_end = ctx_data_end(ctx),
+		.ctx_buff = ctx,
+	};
+	const int l3_protocol = parse_ethernet(&probe);
+	const __u32 l3_off = ctx_frame_offset(ctx, probe.data);
+
+	if (l3_protocol == ETH_P_IPV6) {
+		__u8 nexthdr;
+		if (ctx_load_bytes(ctx,
+				   l3_off + __builtin_offsetof(struct ipv6hdr,
+							       nexthdr),
+				   &nexthdr, sizeof(nexthdr)) < 0 ||
+		    nexthdr != IPPROTO_UDP)
+			return 0;
+
+		return l3_off + sizeof(struct ipv6hdr) + sizeof(struct udphdr);
+	}
+
+	if (l3_protocol != ETH_P_IP)
+		return 0;
+
+	struct iphdr ip4;
+	if (ctx_load_bytes(ctx, l3_off, &ip4, sizeof(ip4)) < 0 ||
+	    ip4.protocol != IPPROTO_UDP || ip4.ihl < 5)
+		return 0;
+
+	return l3_off + ip4.ihl * 4 + sizeof(struct udphdr);
+}
+
 /* Linearize before the L3 parse rather than after it: a pull invalidates the
  * context, and re-deriving it repeats every parse already done — including the
  * extension-header walk.

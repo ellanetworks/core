@@ -33,7 +33,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
 		PermReadBGP,
-		PermReadDiameter,
+		PermReadIntegrations,
 		PermGetFlowAccountingInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
@@ -48,7 +48,8 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN, PermUpdateOperatorSMS, PermUpdateOperatorIMS,
+		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN,
+		PermReadIntegrations, PermUpdateIntegrationsSMS, PermUpdateIntegrationsIMS, PermUpdateIntegrationsRoaming,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListDataNetworkStaticIPs, PermCreateDataNetworkStaticIP, PermUpdateDataNetworkStaticIP, PermDeleteDataNetworkStaticIP,
 		PermListDataNetworkFramedRoutes, PermCreateDataNetworkFramedRoute, PermUpdateDataNetworkFramedRoute, PermDeleteDataNetworkFramedRoute,
@@ -59,7 +60,6 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 		PermReadBGP, PermUpdateBGP,
-		PermReadDiameter,
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
@@ -120,8 +120,11 @@ const (
 	PermReadHomeNetworkPrivateKey = "operator:read_home_network_private_key"
 	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
 	PermUpdateOperatorSPN         = "operator:update_spn"
-	PermUpdateOperatorSMS         = "operator:update_sms"
-	PermUpdateOperatorIMS         = "operator:update_ims"
+
+	PermReadIntegrations          = "integrations:read"
+	PermUpdateIntegrationsSMS     = "integrations:update_sms"
+	PermUpdateIntegrationsIMS     = "integrations:update_ims"
+	PermUpdateIntegrationsRoaming = "integrations:update_roaming"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"
@@ -167,8 +170,6 @@ const (
 	// BGP permissions
 	PermReadBGP   = "bgp:read"
 	PermUpdateBGP = "bgp:update"
-
-	PermReadDiameter = "diameter:read"
 
 	// Flow Accounting permissions
 	PermGetFlowAccountingInfo    = "flow_accounting:get"

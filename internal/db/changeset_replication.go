@@ -71,6 +71,8 @@ var replicatedChangesetTables = []string{
 	SMSWaitingTableName,
 	SMSWaitingCentresTableName,
 	PCSCFAddressesTableName,
+	IMSSettingsTableName,
+	IMSPeersTableName,
 	IMSRegistrationsTableName,
 	IMSRegistrationSetsTableName,
 	IPSMGWRegistrationsTableName,
@@ -79,6 +81,11 @@ var replicatedChangesetTables = []string{
 	IMSServiceProfilesTableName,
 	IMSInitialFilterCriteriaTableName,
 	IMSServiceProfileAssignmentsTableName,
+	RoamingPartnersTableName,
+	RoamingPartnerPLMNsTableName,
+	VisitorsTableName,
+	SEPPCATableName,
+	SEPPIdentitiesTableName,
 	"schema_version",
 }
 

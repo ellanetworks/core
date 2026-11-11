@@ -17,13 +17,13 @@ func TestNamesInPathsReachTheServerUnchanged(t *testing.T) {
 	var got []string
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/operator/sms/smscs/{name}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/integrations/sms/smscs/{name}", func(w http.ResponseWriter, r *http.Request) {
 		got = append(got, r.PathValue("name"))
 		_, _ = w.Write([]byte(`{"result":{}}`))
 	})
 
 	for _, route := range []string{
-		"GET /api/v1/operator/ims/application-servers/{name}",
+		"GET /api/v1/integrations/ims/application-servers/{name}",
 		"GET /api/v1/profiles/{name}",
 		"GET /api/v1/networking/data-networks/{name}",
 	} {

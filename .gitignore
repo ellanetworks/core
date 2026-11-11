@@ -1,5 +1,6 @@
 # ui
 ui/node_modules/*
+**/node_modules/
 ui/dist/*
 ui/npm-debug.log*
 ui/*.tsbuildinfo

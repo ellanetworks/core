@@ -901,17 +901,15 @@ func (m *Manager) MemberIDs() []string {
 func (m *Manager) Shutdown() error {
 	m.shutdownOnce.Do(func() { close(m.shutdownCh) })
 
+	<-m.leaderLoopDone
+
 	if tc, ok := m.transport.(io.Closer); ok {
 		if err := tc.Close(); err != nil {
 			return fmt.Errorf("close transport: %w", err)
 		}
 	}
 
-	future := m.raft.Shutdown()
-
-	<-m.leaderLoopDone
-
-	if err := future.Error(); err != nil {
+	if err := m.raft.Shutdown().Error(); err != nil {
 		return fmt.Errorf("raft shutdown: %w", err)
 	}
 

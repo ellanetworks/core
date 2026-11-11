@@ -54,6 +54,10 @@ func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) 
 	return nil, fmt.Errorf("subscriber not found")
 }
 
+func (fdb *failingSubscriberDB) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	return fdb.GetSubscriber(ctx, imsi)
+}
+
 func (fdb *failingSubscriberDB) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
@@ -787,6 +791,10 @@ func (m *multiSliceDB) ListNetworkSlicesByIDs(_ context.Context, ids []string) (
 
 func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{Imsi: imsi, ProfileID: "profile-1"}, nil
+}
+
+func (m *multiSliceDB) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*db.Subscriber, error) {
+	return m.GetSubscriber(ctx, imsi)
 }
 
 func (m *multiSliceDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {

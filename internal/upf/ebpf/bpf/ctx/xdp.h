@@ -51,6 +51,8 @@
 /* XDP frames are already linear and writable. */
 #define ctx_pull(ctx, len) ((long)0)
 
+#define ctx_pull_headers(ctx, len) ((long)0)
+
 #define ctx_decap(ctx, bytes, inner_is_ipv6) \
 	((void)(inner_is_ipv6), bpf_xdp_adjust_head(ctx, bytes))
 

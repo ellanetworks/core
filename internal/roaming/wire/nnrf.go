@@ -22,6 +22,7 @@ const (
 	QueryRequesterPlmnList     = "requester-plmn-list"
 	QueryRoutingIndicator      = "routing-indicator"
 	QuerySupi                  = "supi"
+	QueryGroupIDList           = "group-id-list"
 	QueryRequesterNFInstanceID = "requester-nf-instance-id"
 	QueryRequesterFeatures     = "requester-features"
 )
@@ -123,21 +124,23 @@ func (e IPEndPoint) Check(p Policy) error {
 }
 
 type NFService struct {
-	ServiceInstanceID string             `json:"serviceInstanceId"`
-	ServiceName       ServiceName        `json:"serviceName"`
-	Versions          []NFServiceVersion `json:"versions"`
-	Scheme            URIScheme          `json:"scheme"`
-	NfServiceStatus   NFStatus           `json:"nfServiceStatus"`
-	Fqdn              string             `json:"fqdn,omitempty"`
-	InterPlmnFqdn     string             `json:"interPlmnFqdn,omitempty"`
-	IPEndPoints       []IPEndPoint       `json:"ipEndPoints,omitempty"`
-	APIPrefix         string             `json:"apiPrefix,omitempty"`
-	AllowedPlmns      []PlmnID           `json:"allowedPlmns,omitempty"`
-	AllowedNfTypes    []NFType           `json:"allowedNfTypes,omitempty"`
-	Priority          *int               `json:"priority,omitempty"`
-	Capacity          *int               `json:"capacity,omitempty"`
-	Load              *int               `json:"load,omitempty"`
-	SupportedFeatures SupportedFeatures  `json:"supportedFeatures,omitempty"`
+	ServiceInstanceID    string             `json:"serviceInstanceId"`
+	ServiceName          ServiceName        `json:"serviceName"`
+	Versions             []NFServiceVersion `json:"versions"`
+	Scheme               URIScheme          `json:"scheme"`
+	NfServiceStatus      NFStatus           `json:"nfServiceStatus"`
+	Fqdn                 string             `json:"fqdn,omitempty"`
+	InterPlmnFqdn        string             `json:"interPlmnFqdn,omitempty"`
+	IPEndPoints          []IPEndPoint       `json:"ipEndPoints,omitempty"`
+	APIPrefix            string             `json:"apiPrefix,omitempty"`
+	AllowedPlmns         []PlmnID           `json:"allowedPlmns,omitempty"`
+	AllowedNfTypes       []NFType           `json:"allowedNfTypes,omitempty"`
+	Priority             *int               `json:"priority,omitempty"`
+	Capacity             *int               `json:"capacity,omitempty"`
+	Load                 *int               `json:"load,omitempty"`
+	SupportedFeatures    SupportedFeatures  `json:"supportedFeatures,omitempty"`
+	Oauth2Required       *bool              `json:"oauth2Required,omitempty"`
+	PerPlmnOauth2ReqList *PlmnOauth2        `json:"perPlmnOauth2ReqList,omitempty"`
 }
 
 func (s NFService) Check(p Policy) error {
@@ -201,6 +204,9 @@ type NFProfile struct {
 	Locality       string               `json:"locality,omitempty"`
 	NfServices     []NFService          `json:"nfServices,omitempty"`
 	NfServiceList  map[string]NFService `json:"nfServiceList,omitempty"`
+	UdmInfo        *UdmInfo             `json:"udmInfo,omitempty"`
+	AusfInfo       *AusfInfo            `json:"ausfInfo,omitempty"`
+	Oauth2Required *bool                `json:"oauth2Required,omitempty"`
 }
 
 func (n *NFProfile) UnmarshalJSON(data []byte) error {
@@ -281,9 +287,13 @@ type Selector struct {
 }
 
 type Candidate struct {
-	NfInstanceID string
-	Service      NFService
-	APIRoot      string
+	NfInstanceID   string
+	NfType         NFType
+	Service        NFService
+	APIRoot        string
+	Priority       *int
+	GroupID        string
+	OAuth2Required bool
 }
 
 func (n NFProfile) Candidate(sel Selector) (Candidate, bool) {
@@ -316,7 +326,15 @@ func (n NFProfile) Candidate(sel Selector) (Candidate, bool) {
 			continue
 		}
 
-		return Candidate{NfInstanceID: n.NfInstanceID, Service: s, APIRoot: root}, true
+		return Candidate{
+			NfInstanceID:   n.NfInstanceID,
+			NfType:         n.NfType,
+			Service:        s,
+			APIRoot:        root,
+			Priority:       n.Priority,
+			GroupID:        n.GroupID(),
+			OAuth2Required: n.oauth2Required(s, sel.Requester),
+		}, true
 	}
 
 	return Candidate{}, false
@@ -429,6 +447,7 @@ type DiscoveryQuery struct {
 	RequesterPlmnList     []PlmnID
 	RoutingIndicator      string
 	Supi                  string
+	GroupIDList           []string
 	RequesterNFInstanceID string
 	RequesterFeatures     SupportedFeatures
 }
@@ -505,6 +524,16 @@ func (q DiscoveryQuery) Values() (url.Values, error) {
 		}
 
 		v.Set(opt.name, opt.value)
+	}
+
+	if len(q.GroupIDList) > 0 {
+		for _, g := range q.GroupIDList {
+			if g == "" || strings.Contains(g, ",") {
+				return nil, queryError(QueryGroupIDList, fmt.Errorf("invalid group ID %q", g))
+			}
+		}
+
+		v.Set(QueryGroupIDList, strings.Join(q.GroupIDList, ","))
 	}
 
 	return v, nil

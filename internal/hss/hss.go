@@ -6,6 +6,7 @@ package hss
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/cx"
@@ -28,7 +29,6 @@ type Subscriber struct {
 	IMSI           string
 	MSISDN         string
 	IMSDataNetwork bool
-	IMSVoice       bool
 	MCPTT          bool
 }
 
@@ -37,10 +37,18 @@ type ServiceIdentity struct {
 	Wildcard   string
 }
 
+type HomeDomains struct {
+	Primary string
+	Derived string
+}
+
+func (d HomeDomains) accepts(host string) bool {
+	return host != "" && (strings.EqualFold(host, d.Primary) || strings.EqualFold(host, d.Derived))
+}
+
 type Store interface {
 	RegistrationStore
-	IMSDomain(ctx context.Context) (string, error)
-	IMSVoiceEnabled(ctx context.Context) (bool, error)
+	IMSHomeDomains(ctx context.Context) (HomeDomains, error)
 	Subscriber(ctx context.Context, imsi string) (*Subscriber, error)
 	SubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error)
 	FilterCriteria(ctx context.Context, imsi string, set RegistrationSet) ([]cx.InitialFilterCriteria, error)

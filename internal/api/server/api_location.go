@@ -21,6 +21,8 @@ import (
 
 const GetSubscriberLocationAction = "get_subscriber_location"
 
+const locationRoamerRefusedMessage = "Location refused: roamers can't be located"
+
 type LocationRequest struct {
 	SUPI                  string                 `json:"supi"`
 	Method                string                 `json:"method,omitempty"`
@@ -185,6 +187,8 @@ func supportedModes(method lmf.RequestedMethod) string {
 // is a 500.
 func writeLocationError(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, lmf.ErrRoamer):
+		writeError(ctx, w, http.StatusForbidden, locationRoamerRefusedMessage, err, logger.APILog)
 	case errors.Is(err, lmf.ErrNotFound):
 		writeError(ctx, w, http.StatusNotFound, "UE not found or not registered", err, logger.APILog)
 	case errors.Is(err, lmf.ErrNoLocationEstimate):

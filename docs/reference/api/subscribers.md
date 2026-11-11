@@ -312,7 +312,7 @@ Omitted when the data plane counters cannot be read.
 | ----- | ----------- |
 | `private_identity` | IMS private identity (IMPI): `<imsi>@<IMS home domain>`. |
 | `scscf_name` | S-CSCF serving the subscriber. Absent when the subscriber is not registered in IMS. |
-| `public_identities` | IMS public identities (IMPU): `sip:+<msisdn>@<IMS home domain>` and `tel:+<msisdn>` when the subscriber has an MSISDN, `sip:mcptt-<msisdn>@<IMS home domain>` when it also has an MCPTT service profile, and `sip:<private_identity>`, which is barred. |
+| `public_identities` | IMS public identities (IMPU): `sip:+<msisdn>@<IMS home domain>` and `tel:+<msisdn>` when the subscriber has an MSISDN, `sip:mcptt-<msisdn>@<IMS home domain>` when it also has an MCPTT service profile, and `sip:<imsi>@<IMS home domain>`, which is barred, also in the derived home domain when another [IMS home domain](integrations.md#update-the-ims-settings) is configured. |
 | `public_identities[].identity` | The public identity. |
 | `public_identities[].barred` | `true` when the identity cannot be used for calls. |
 | `public_identities[].registration_set` | `mmtel` or `mcptt`. |

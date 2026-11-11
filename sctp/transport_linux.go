@@ -28,6 +28,7 @@ type Dialer struct {
 	LocalAddr *SCTPAddr
 	InitMsg   InitMsg
 	Logger    *slog.Logger
+	Control   func(network, address string, c syscall.RawConn) error
 }
 
 func (d *Dialer) Dial(ctx context.Context, raddr *SCTPAddr) (*SCTPConn, error) {
@@ -37,6 +38,12 @@ func (d *Dialer) Dial(ctx context.Context, raddr *SCTPAddr) (*SCTPConn, error) {
 	}
 
 	tune := func(fd int) error {
+		if d.Control != nil {
+			if err := d.Control("sctp", raddr.String(), listenRawConn{sockfd: fd}); err != nil {
+				return err
+			}
+		}
+
 		if err := setRtoInfo(fd, *serverSocketConfig.rtoInfo); err != nil {
 			return err
 		}

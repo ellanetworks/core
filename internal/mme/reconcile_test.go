@@ -10,7 +10,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/roaming/fakehss"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -445,6 +448,31 @@ func TestS1ReleaseEndsAnInFlightModification(t *testing.T) {
 
 	if modifying != nil {
 		t.Fatal("the modification outlived the S1 connection, so every later reconcile finds the bearer busy")
+	}
+}
+
+func TestReconcileUEPushesTheHomeAPNSubscriptionOfAVisitor(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := connectedBearerUE(t, m)
+
+	ims := ue.EnsurePDN(6)
+	ims.Apn = "ims"
+	ims.SessionRef = "ref-ims"
+
+	home := fakehss.Subscription(1, fakehss.APN(1, "internet"))
+	ue.setVisitor(&roaming.Visitor{PartnerID: "p", HomePLMN: tgpp.PLMN{MCC: "001", MNC: "01"}, Subscription: &home, Registered: true})
+
+	m.ReconcileUE(context.Background(), ue)
+
+	got := m.Session.(*fakeSessionManager).apnSubscriptions
+
+	internet, ok := got["ref-internet"]
+	if !ok || internet == nil || internet.HPLMN != (models.PlmnID{Mcc: "001", Mnc: "01"}) || internet.APNAMBR == nil {
+		t.Fatalf("internet APN subscription = %+v, %v; want the home APN-Configuration", internet, ok)
+	}
+
+	if sub, ok := got["ref-ims"]; !ok || sub != nil {
+		t.Fatalf("ims APN subscription = %+v, %v; want it withdrawn, the IMS APN is home-routed", sub, ok)
 	}
 }
 

@@ -379,6 +379,19 @@ func DeleteProfile(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		partners, err := dbInstance.ListRoamingPartners(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check roaming partners", err, logger.APILog)
+			return
+		}
+
+		for _, partner := range partners {
+			if partner.ProfileID == profile.ID {
+				writeError(r.Context(), w, http.StatusConflict, "Profile is used by roaming partner "+partner.Name, nil, logger.APILog)
+				return
+			}
+		}
+
 		policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
@@ -393,6 +406,11 @@ func DeleteProfile(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.DeleteProfile(r.Context(), name); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrInUse) {
+				writeError(r.Context(), w, http.StatusConflict, "Profile is in use", nil, logger.APILog)
 				return
 			}
 

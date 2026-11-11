@@ -32,7 +32,7 @@ func decodeBody(t *testing.T, body io.Reader) map[string]any {
 }
 
 func TestIMSApplicationServerReads(t *testing.T) {
-	as := `{"name": "mcptt", "server_name": "sip:mcptt.ims.example.org", "public_service_identities": ["sip:!.*!@mcptt.ims.example.org"]}`
+	as := `{"name": "mcptt", "serverName": "sip:mcptt.ims.example.org", "publicServiceIdentities": ["sip:!.*!@mcptt.ims.example.org"]}`
 	want := client.IMSApplicationServer{Name: "mcptt", ServerName: "sip:mcptt.ims.example.org", PublicServiceIdentities: []string{"sip:!.*!@mcptt.ims.example.org"}}
 
 	fake := imsFake(`{"items": [` + as + `]}`)
@@ -42,7 +42,7 @@ func TestIMSApplicationServerReads(t *testing.T) {
 		t.Fatalf("list = %+v, %v", list, err)
 	}
 
-	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/ims/application-servers" {
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/integrations/ims/application-servers" {
 		t.Fatalf("list via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
@@ -53,13 +53,13 @@ func TestIMSApplicationServerReads(t *testing.T) {
 		t.Fatalf("get = %+v, %v", got, err)
 	}
 
-	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/ims/application-servers/mcptt" {
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/integrations/ims/application-servers/mcptt" {
 		t.Fatalf("get via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 }
 
 func TestIMSApplicationServerWrites(t *testing.T) {
-	fake := imsFake(`{"name": "as", "server_name": "sip:as.example.org", "public_service_identities": []}`)
+	fake := imsFake(`{"name": "as", "serverName": "sip:as.example.org", "publicServiceIdentities": []}`)
 	c := &client.Client{Requester: fake}
 
 	created, err := c.CreateIMSApplicationServer(context.Background(), &client.CreateIMSApplicationServerOptions{Name: "as", ServerName: "sip:as.example.org"})
@@ -67,12 +67,12 @@ func TestIMSApplicationServerWrites(t *testing.T) {
 		t.Fatalf("create = %+v, %v", created, err)
 	}
 
-	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/operator/ims/application-servers" {
+	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/integrations/ims/application-servers" {
 		t.Fatalf("create via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
 	body := decodeBody(t, fake.lastOpts.Body)
-	if body["name"] != "as" || body["server_name"] != "sip:as.example.org" || !reflect.DeepEqual(body["public_service_identities"], []any{}) {
+	if body["name"] != "as" || body["serverName"] != "sip:as.example.org" || !reflect.DeepEqual(body["publicServiceIdentities"], []any{}) {
 		t.Fatalf("create body = %+v", body)
 	}
 
@@ -80,12 +80,12 @@ func TestIMSApplicationServerWrites(t *testing.T) {
 		t.Fatalf("update: %v", err)
 	}
 
-	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/ims/application-servers/as" {
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/integrations/ims/application-servers/as" {
 		t.Fatalf("update via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
 	body = decodeBody(t, fake.lastOpts.Body)
-	if _, ok := body["name"]; ok || body["server_name"] != "sip:as2.example.org" || !reflect.DeepEqual(body["public_service_identities"], []any{"sip:svc@example.org"}) {
+	if _, ok := body["name"]; ok || body["serverName"] != "sip:as2.example.org" || !reflect.DeepEqual(body["publicServiceIdentities"], []any{"sip:svc@example.org"}) {
 		t.Fatalf("update body = %+v", body)
 	}
 
@@ -93,16 +93,16 @@ func TestIMSApplicationServerWrites(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 
-	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/operator/ims/application-servers/as" || fake.lastOpts.Body != nil {
+	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/integrations/ims/application-servers/as" || fake.lastOpts.Body != nil {
 		t.Fatalf("delete via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 }
 
 func TestIMSServiceProfiles(t *testing.T) {
-	fake := imsFake(`{"name": "mc", "initial_filter_criteria": [
-		{"priority": 0, "application_server_name": "mcptt", "trigger": {"conditions_match": "all", "groups": [{"conditions": [{"method": "REGISTER"}]}]},
-		 "default_handling": "SESSION_CONTINUED", "service_info": "info", "include_register_request": true, "include_register_response": true},
-		{"priority": 1, "application_server_name": "conf", "profile_part": "UNREGISTERED", "include_register_request": false, "include_register_response": false}]}`)
+	fake := imsFake(`{"name": "mc", "initialFilterCriteria": [
+		{"priority": 0, "applicationServerName": "mcptt", "trigger": {"conditionsMatch": "all", "groups": [{"conditions": [{"method": "REGISTER"}]}]},
+		 "defaultHandling": "SESSION_CONTINUED", "serviceInfo": "info", "includeRegisterRequest": true, "includeRegisterResponse": true},
+		{"priority": 1, "applicationServerName": "conf", "profilePart": "UNREGISTERED", "includeRegisterRequest": false, "includeRegisterResponse": false}]}`)
 	c := &client.Client{Requester: fake}
 
 	register, handling, info, part := "REGISTER", "SESSION_CONTINUED", "info", "UNREGISTERED"
@@ -123,7 +123,7 @@ func TestIMSServiceProfiles(t *testing.T) {
 		t.Fatalf("get = %+v, %v", got, err)
 	}
 
-	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/ims/service-profiles/mc" {
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/integrations/ims/service-profiles/mc" {
 		t.Fatalf("get via %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
@@ -132,7 +132,7 @@ func TestIMSServiceProfiles(t *testing.T) {
 	}
 
 	body := decodeBody(t, fake.lastOpts.Body)
-	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/operator/ims/service-profiles" || body["name"] != "mc" || !reflect.DeepEqual(body["initial_filter_criteria"], []any{}) {
+	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/v1/integrations/ims/service-profiles" || body["name"] != "mc" || !reflect.DeepEqual(body["initialFilterCriteria"], []any{}) {
 		t.Fatalf("create via %s %s with %+v", fake.lastOpts.Method, fake.lastOpts.Path, body)
 	}
 
@@ -142,11 +142,11 @@ func TestIMSServiceProfiles(t *testing.T) {
 
 	var sent client.UpdateIMSServiceProfileOptions
 
-	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&sent); err != nil || fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/ims/service-profiles/mc" || !reflect.DeepEqual(sent.InitialFilterCriteria, want) {
+	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&sent); err != nil || fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/integrations/ims/service-profiles/mc" || !reflect.DeepEqual(sent.InitialFilterCriteria, want) {
 		t.Fatalf("update via %s %s with %+v, %v", fake.lastOpts.Method, fake.lastOpts.Path, sent, err)
 	}
 
-	if err := c.DeleteIMSServiceProfile(context.Background(), "mc"); err != nil || fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/operator/ims/service-profiles/mc" {
+	if err := c.DeleteIMSServiceProfile(context.Background(), "mc"); err != nil || fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/integrations/ims/service-profiles/mc" {
 		t.Fatalf("delete via %s %s: %v", fake.lastOpts.Method, fake.lastOpts.Path, err)
 	}
 }

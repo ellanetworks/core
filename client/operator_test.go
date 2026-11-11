@@ -370,24 +370,24 @@ func TestGetOperator_IncludesSPN(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorSMS_Success(t *testing.T) {
+func TestUpdateSMSSettings_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
-			StatusCode: 201,
+			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator SMS settings updated successfully"}`),
+			Result:     []byte(`{"message": "SMS settings updated successfully"}`),
 		},
 	}
 	clientObj := &client.Client{Requester: fake}
 
-	err := clientObj.UpdateOperatorSMS(context.Background(), &client.UpdateOperatorSMSOptions{
-		SMSNumber: "+15550001111",
+	err := clientObj.UpdateSMSSettings(context.Background(), &client.UpdateSMSSettingsOptions{
+		ServingNodeNumber: "+15550001111",
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/sms" {
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/integrations/sms" {
 		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
@@ -396,13 +396,13 @@ func TestUpdateOperatorSMS_Success(t *testing.T) {
 		t.Fatalf("decode body: %v", err)
 	}
 
-	if len(payload) != 1 || payload["smsNumber"] != "+15550001111" {
+	if len(payload) != 1 || payload["servingNodeNumber"] != "+15550001111" {
 		t.Fatalf("unexpected payload %v", payload)
 	}
 }
 
 func TestSMSCRequests(t *testing.T) {
-	nodes := []client.SMSCNodeOptions{{DiameterIdentity: "smsc1.example.org", Address: "192.0.2.10", Port: 3869}, {Address: "192.0.2.11"}}
+	nodes := []client.SMSCNodeOptions{{OriginHost: "smsc1.example.org", Address: "192.0.2.10", Port: 3869}, {Address: "192.0.2.11"}}
 
 	cases := []struct {
 		name   string
@@ -414,12 +414,12 @@ func TestSMSCRequests(t *testing.T) {
 		{"create", func(c *client.Client) error {
 			_, err := c.CreateSMSC(context.Background(), &client.CreateSMSCOptions{Name: "main", ServiceCentres: []string{"+15550000000"}, Nodes: nodes})
 			return err
-		}, "POST", "api/v1/operator/sms/smscs", `{"name":"main","serviceCentres":["+15550000000"],"nodes":[{"diameterIdentity":"smsc1.example.org","address":"192.0.2.10","port":3869},{"diameterIdentity":"","address":"192.0.2.11"}]}`},
+		}, "POST", "api/v1/integrations/sms/smscs", `{"name":"main","serviceCentres":["+15550000000"],"nodes":[{"originHost":"smsc1.example.org","address":"192.0.2.10","port":3869},{"originHost":"","address":"192.0.2.11"}]}`},
 		{"update", func(c *client.Client) error {
 			return c.UpdateSMSC(context.Background(), "main", &client.UpdateSMSCOptions{ServiceCentres: []string{"+15550000000"}, Nodes: nodes})
-		}, "PUT", "api/v1/operator/sms/smscs/main", `{"serviceCentres":["+15550000000"],"nodes":[{"diameterIdentity":"smsc1.example.org","address":"192.0.2.10","port":3869},{"diameterIdentity":"","address":"192.0.2.11"}]}`},
-		{"delete", func(c *client.Client) error { return c.DeleteSMSC(context.Background(), "main") }, "DELETE", "api/v1/operator/sms/smscs/main", ""},
-		{"delete escapes the name", func(c *client.Client) error { return c.DeleteSMSC(context.Background(), "a/b?c (2)") }, "DELETE", "api/v1/operator/sms/smscs/a%2Fb%3Fc%20%282%29", ""},
+		}, "PUT", "api/v1/integrations/sms/smscs/main", `{"serviceCentres":["+15550000000"],"nodes":[{"originHost":"smsc1.example.org","address":"192.0.2.10","port":3869},{"originHost":"","address":"192.0.2.11"}]}`},
+		{"delete", func(c *client.Client) error { return c.DeleteSMSC(context.Background(), "main") }, "DELETE", "api/v1/integrations/sms/smscs/main", ""},
+		{"delete escapes the name", func(c *client.Client) error { return c.DeleteSMSC(context.Background(), "a/b?c (2)") }, "DELETE", "api/v1/integrations/sms/smscs/a%2Fb%3Fc%20%282%29", ""},
 	}
 
 	for _, tc := range cases {
@@ -450,35 +450,33 @@ func TestSMSCRequests(t *testing.T) {
 	}
 }
 
-func TestGetOperator_IncludesSMS(t *testing.T) {
+func TestGetSMSSettings(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"sms": {"smsNumber": "+15550001111"}}`),
+			Result:     []byte(`{"servingNodeNumber": "+15550001111"}`),
 		},
 	}
-	clientObj := &client.Client{Requester: fake}
 
-	operator, err := clientObj.GetOperator(context.Background())
+	settings, err := (&client.Client{Requester: fake}).GetSMSSettings(context.Background())
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	want := client.GetOperatorSMSResponse{SMSNumber: "+15550001111"}
-	if operator.SMS != want {
-		t.Fatalf("sms = %+v, want %+v", operator.SMS, want)
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/integrations/sms" || settings.ServingNodeNumber != "+15550001111" {
+		t.Fatalf("settings = %+v via %s %s", settings, fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 }
 
 func TestSMSCReads(t *testing.T) {
-	smsc := `{"name": "main", "serviceCentres": ["+15550000000"], "nodes": [{"diameterIdentity": "smsc.example.org", "address": "192.0.2.10", "port": 3868,
-		"status": {"state": "open", "host": "smsc.example.org", "realm": "example.org", "since": "2026-09-29T16:00:00Z"}}]}`
+	smsc := `{"name": "main", "serviceCentres": ["+15550000000"], "nodes": [{"originHost": "smsc.example.org", "address": "192.0.2.10", "port": 3868,
+		"status": {"state": "open", "originHost": "smsc.example.org", "realm": "example.org", "since": "2026-09-29T16:00:00Z"}}]}`
 	want := client.SMSC{
 		Name: "main", ServiceCentres: []string{"+15550000000"},
 		Nodes: []client.SMSCNode{{
-			DiameterIdentity: "smsc.example.org", Address: "192.0.2.10", Port: 3868,
-			Status: &client.SMSCNodeStatus{State: "open", Host: "smsc.example.org", Realm: "example.org", Since: "2026-09-29T16:00:00Z"},
+			OriginHost: "smsc.example.org", Address: "192.0.2.10", Port: 3868,
+			Status: &client.DiameterPeerStatus{State: "open", OriginHost: "smsc.example.org", Realm: "example.org", Since: "2026-09-29T16:00:00Z"},
 		}},
 	}
 
@@ -489,7 +487,7 @@ func TestSMSCReads(t *testing.T) {
 		t.Fatalf("list: %v", err)
 	}
 
-	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/operator/sms/smscs" || len(list.Items) != 1 || !reflect.DeepEqual(list.Items[0], want) {
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/integrations/sms/smscs" || len(list.Items) != 1 || !reflect.DeepEqual(list.Items[0], want) {
 		t.Fatalf("list = %+v via %s %s", list, fake.lastOpts.Method, fake.lastOpts.Path)
 	}
 
@@ -505,88 +503,5 @@ func TestSMSCReads(t *testing.T) {
 		if err != nil || !reflect.DeepEqual(*got, want) {
 			t.Fatalf("%s = %+v, %v", name, got, err)
 		}
-	}
-}
-
-func TestUpdateOperatorIMS_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 201,
-			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator IMS settings updated successfully"}`),
-		},
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	err := clientObj.UpdateOperatorIMS(context.Background(), &client.UpdateOperatorIMSOptions{
-		PCSCFAddresses: []string{"192.0.2.20", "2001:db8::20"},
-	})
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/operator/ims" {
-		t.Fatalf("unexpected request %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-
-	var payload struct {
-		PCSCFAddresses []string `json:"pcscfAddresses"`
-	}
-	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-
-	if len(payload.PCSCFAddresses) != 2 || payload.PCSCFAddresses[0] != "192.0.2.20" || payload.PCSCFAddresses[1] != "2001:db8::20" {
-		t.Fatalf("unexpected payload %v", payload)
-	}
-}
-
-func TestUpdateOperatorIMS_EmptyListIsSent(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 201,
-			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator IMS settings updated successfully"}`),
-		},
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	if err := clientObj.UpdateOperatorIMS(context.Background(), &client.UpdateOperatorIMSOptions{}); err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	var payload map[string]any
-	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode body: %v", err)
-	}
-
-	addresses, ok := payload["pcscfAddresses"].([]any)
-	if !ok || len(addresses) != 0 {
-		t.Fatalf("pcscfAddresses = %v, want an empty list", payload["pcscfAddresses"])
-	}
-}
-
-func TestGetOperator_IncludesIMS(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"ims": {"pcscfAddresses": ["192.0.2.20", "2001:db8::20"], "voiceStatus": "enabled"}}`),
-		},
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	operator, err := clientObj.GetOperator(context.Background())
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	got := operator.IMS.PCSCFAddresses
-	if len(got) != 2 || got[0] != "192.0.2.20" || got[1] != "2001:db8::20" {
-		t.Fatalf("pcscfAddresses = %v", got)
-	}
-
-	if operator.IMS.VoiceStatus != "enabled" {
-		t.Fatalf("voiceStatus = %q, want enabled", operator.IMS.VoiceStatus)
 	}
 }

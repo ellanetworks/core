@@ -12,6 +12,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -50,6 +51,8 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		// No RES* to verify: unsuccessful authentication (TS 24.501).
 		logger.From(ctx, logger.AmfLog).Error("amf.Authentication Response missing RES* (amf.Authentication response parameter IE)")
 
+		amfInstance.AuthenticationFailed(ctx, ue)
+
 		failAuthentication(ctx, ue, ueConn)
 
 		return nasreply.Handled()
@@ -72,34 +75,59 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(conn.AuthenticationCtx.HxresStar)) != 1 {
 		logger.From(ctx, logger.AmfLog).Error("HRES* Validation Failure")
 
+		amfInstance.AuthenticationFailed(ctx, ue)
+
 		failAuthentication(ctx, ue, ueConn)
 
 		return nasreply.Handled()
 	}
 
-	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci())
+	amfInstance.RequestConfirmation(ctx, ue, ueConn, [16]byte(resStar[:]), func(ctx context.Context, supi etsi.SUPI, kseaf []byte, err error) {
+		completeAuthentication(ctx, amfInstance, ue, ueConn, supi, kseaf, err)
+	})
+
+	return nasreply.Handled()
+}
+
+func completeAuthentication(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, supi etsi.SUPI, kseaf []byte, err error) {
+	if ue.RegStep() != amf.RegStepAuthenticating {
+		logger.From(ctx, logger.AmfLog).Info("registration moved on while waiting for the authentication confirmation; dropping it")
+		return
+	}
+
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
+		if ue.IsVisitor() {
+			if r, ok := amf.ConfirmationRejection(err); ok {
+				rejectRoaming(ctx, amfInstance, ue, r)
+				return
+			}
+
+			abortRegistration(ctx, amfInstance, ue, "home authentication confirmation", err)
+
+			return
+		}
+
 		failAuthentication(ctx, ue, ueConn)
 
-		return nasreply.Handled()
+		return
 	}
 
 	ue.SetSupi(supi)
 
-	if err := ue.DeriveKamf(kseaf, conn.AuthNgKsi); err != nil {
+	if err := ue.DeriveKamf(kseaf, ueConn.AuthNgKsi); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("couldn't derive Kamf", zap.Error(err))
 
 		failAuthentication(ctx, ue, ueConn)
 
-		return nasreply.Handled()
+		return
 	}
 
-	if isRegistrationUpdate(conn.RegistrationType5GS) {
+	if isRegistrationUpdate(ueConn.RegistrationType5GS) {
 		amfInstance.CarrySubscriberSessions(ue)
 	} else {
-		conn.RegisteredBeforeRegistration = false
+		ueConn.RegisteredBeforeRegistration = false
 	}
 
 	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -107,12 +135,10 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 		failAuthentication(ctx, ue, ueConn)
 
-		return nasreply.Handled()
+		return
 	}
 
 	securityMode(ctx, amfInstance, ue)
-
-	return nasreply.Handled()
 }
 
 // failAuthentication rejects the authentication response and deregisters the UE

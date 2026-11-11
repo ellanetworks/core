@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
@@ -79,12 +78,10 @@ func (h *HSS) Reconcile(ctx context.Context, imsi string) error {
 		return err
 	}
 
-	domain, err := h.store.IMSDomain(ctx)
+	s, err := h.subjectOf(ctx, sub, reg.PrivateIdentity)
 	if err != nil {
 		return err
 	}
-
-	s := &subject{Subscriber: *sub, domain: strings.ToLower(domain)}
 
 	var errs []error
 

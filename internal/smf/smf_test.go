@@ -32,6 +32,7 @@ type fakeStore struct {
 	releasedIP      netip.Addr
 	releasedIPv6    netip.Addr
 	usageLog        []usageEntry
+	usageRows       []models.SubscriberUsage
 	batchCalls      int
 	usageErr        error
 	usageFailures   int
@@ -48,6 +49,8 @@ type fakeStore struct {
 	staticIPErr     error
 	opLog           []string
 	allocSessionLog []uint8
+	visitor         bool
+	n26Err          error
 }
 
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
@@ -272,6 +275,17 @@ func (f *fakePCF) dataNetwork() smf.DataNetworkConfig {
 	return smf.DataNetworkConfig{SliceDataNetwork: f.policy.SliceDataNetwork, DNS: f.policy.DNS, MTU: f.policy.MTU, IPv4Pool: f.policy.IPv4Pool, IPv6Pool: f.policy.IPv6Pool, IMS: f.policy.IMS, NAT: f.policy.NAT, LocalSwitch: f.policy.LocalSwitch, NetworkInstance: f.policy.NetworkInstance, PCSCF: f.policy.PCSCF}
 }
 
+func (f *fakeStore) N26Allowed(_ context.Context, _ string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.n26Err != nil {
+		return false, f.n26Err
+	}
+
+	return !f.visitor, nil
+}
+
 func (f *fakeStore) SessionManagement(_ context.Context, _ string) (*udm.SessionManagementSubscription, error) {
 	f.mu.Lock()
 	pcf := f.pcf
@@ -337,6 +351,7 @@ func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.
 	for _, u := range usages {
 		if f.usageErr == nil {
 			f.usageLog = append(f.usageLog, usageEntry{u.EpochDay, u.IMSI, u.UplinkVolume, u.DownlinkVolume})
+			f.usageRows = append(f.usageRows, u)
 		}
 	}
 

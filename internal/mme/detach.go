@@ -32,13 +32,15 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
-	withdrawn := models.ReleaseFor(models.ReleaseSubscriptionWithdrawn)
+	m.detachUE(ctx, ue, eps.DetachTypeReattachNotRequired, nil, models.ReleaseFor(models.ReleaseSubscriptionWithdrawn), "subscriber deletion")
+}
 
+func (m *MME) detachUE(ctx context.Context, ue *UeContext, detachType eps.DetachTypeNetwork, cause *eps.EMMCause, release models.SessionReleaseRequest, reason string) {
 	ueConn := ue.Conn()
 	if ueConn == nil || !m.UeConnected(ue) {
 		ue.TransitionTo(ctx, EMMDeregistered)
-		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", logger.SUPIFromIMSI(imsi))
-		m.ReleaseAllSessions(ctx, ue, withdrawn)
+		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on "+reason, logger.SUPI(ue.Supi().String()))
+		m.ReleaseAllSessions(ctx, ue, release)
 		m.RemoveUe(ctx, ue)
 
 		return
@@ -47,22 +49,22 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	ctx = logger.Into(ctx, ueConn.LogFields()...)
 
 	if !ue.Secured() {
-		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on subscriber deletion")
-		m.ReleaseUEContextLocally(ctx, ue, "subscriber deleted", withdrawn)
+		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on " + reason)
+		m.ReleaseUEContextLocally(ctx, ue, reason, release)
 
 		return
 	}
 
-	m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachNotRequired, withdrawn)
+	m.sendNetworkDetach(ctx, ue, ueConn, detachType, cause, release)
 }
 
-func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork, release models.SessionReleaseRequest) {
+func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork, cause *eps.EMMCause, release models.SessionReleaseRequest) {
 	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
 	ue.startNetworkDetach(release)
 
 	ueConn.Log(ctx).Info("UE deregistered", logger.RAT(metrics.RAT4G), zap.String("trigger", "network"))
 
-	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: detachType}).MarshalBinary()
+	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: detachType, Cause: cause}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Detach Request", zap.Error(err))
 		return
